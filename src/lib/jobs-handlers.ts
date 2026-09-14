@@ -12,7 +12,8 @@ import { slugAlertaPonto, labelAlertaPonto } from "@/lib/email-templates-meta";
 import { gravarSnapshotQualidade } from "@/modules/qualidade/queries";
 import { gravarSnapshotDashboard } from "@/modules/dashboard/queries";
 import { gravarSnapshotLicitacaoMensal } from "@/modules/licitacoes/dashboard/queries";
-import { whereAudiencia } from "@/lib/audiencias";
+import { whereAudiencia, wherePermissao } from "@/lib/audiencias";
+import { corpoResumoSemanal } from "@/lib/resumo-semanal";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
   agruparPorDestinatario,
@@ -60,6 +61,19 @@ import { inicioDoDia, inicioDoDiaLocal, inicioDoDiaUtc, prazoVencido } from "@/l
 async function gestores(roles: string[] = ["admin", "supervisor", "administrativo"]) {
   const us = await prisma.user.findMany({
     where: { ativo: true, role: { in: roles as never } },
+    select: { id: true },
+  });
+  return us.map((u) => u.id);
+}
+
+/**
+ * `gestores(roles)` recortado por quem tem `recurso:acao`. Para alerta que carrega dado da tela
+ * gated (ex.: valor em R$ do financeiro): papel de gestão não implica acesso a essa tela — o
+ * perfil Coordenador é `supervisor` sem nenhum `financeiro:*`. Só restringe, nunca amplia.
+ */
+async function gestoresComPermissao(roles: string[], recurso: string, acao: string) {
+  const us = await prisma.user.findMany({
+    where: { ...wherePermissao(recurso, acao), role: { in: roles as never } },
     select: { id: true },
   });
   return us.map((u) => u.id);
@@ -167,7 +181,8 @@ export async function alertaInadimplencia(): Promise<number> {
     include: { cliente: { select: { nome: true, email: true } } },
   });
   if (vencidos.length === 0) return 0;
-  const ids = await gestores();
+  // O corpo leva valor e cliente do recebível: só quem vê o financeiro (destino do href).
+  const ids = await gestoresComPermissao(["admin", "supervisor", "administrativo"], "financeiro", "ver");
   const comEmail = smtpConfigurado();
   for (const l of vencidos) {
     await notificarMuitos(
@@ -255,7 +270,8 @@ export async function alertaPendenteParado(): Promise<number> {
   const total = parados.reduce((s, p) => s + Number(p.valor), 0);
   const valorFmt = total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-  const ids = await gestores(["admin", "supervisor", "administrativo"]);
+  // O corpo leva o total em R$: só quem abre a tela de Produção (destino do href).
+  const ids = await gestoresComPermissao(["admin", "supervisor", "administrativo"], "financeiro", "folha_pj");
   await notificarMuitos(ids, {
     titulo: parados.length === 1 ? "1 pagamento de produção parado" : `${parados.length} pagamentos de produção parados`,
     corpo: `Sem pagar há mais de ${DIAS_PENDENTE_PARADO} dias, somando ${valorFmt}.`,
@@ -1114,25 +1130,31 @@ export async function resumoSemanal(): Promise<void> {
       },
     }),
   ]);
-  const somaR = aReceber.reduce((s, l) => s + Number(l.valor), 0);
-  const somaP = aPagar.reduce((s, l) => s + Number(l.valor), 0);
-  const corpo = `Semana: ${entregas} entrega(s) com prazo · a receber R$ ${somaR.toLocaleString("pt-BR")} · a pagar R$ ${somaP.toLocaleString("pt-BR")}.`;
+  const dados = {
+    entregas,
+    aReceber: aReceber.reduce((s, l) => s + Number(l.valor), 0),
+    aPagar: aPagar.reduce((s, l) => s + Number(l.valor), 0),
+  };
 
-  const ids = await gestores(["admin", "supervisor"]);
-  await notificarMuitos(ids, { titulo: "Resumo semanal", corpo, href: "/", tag: `resumo-${Date.now()}` }, { categoria: "digest_semanal" });
+  // Sino e e-mail usam a MESMA audiência e o mesmo opt-out. `notificacoes:gestao` não dá acesso
+  // ao financeiro, então os valores só vão para quem também tem `financeiro:ver`.
+  const [audiencia, comFinanceiro] = await Promise.all([
+    prisma.user.findMany({ where: whereAudiencia("global"), select: { id: true, email: true } }),
+    prisma.user.findMany({ where: wherePermissao("financeiro", "ver"), select: { id: true } }),
+  ]);
+  const aceitam = new Set(await filtrarPorCategoria(audiencia.map((u) => u.id), "digest_semanal"));
+  const veFinanceiro = new Set(comFinanceiro.map((u) => u.id));
+  const tag = `resumo-${Date.now()}`;
 
-  if (smtpConfigurado()) {
-    const admins = await prisma.user.findMany({
-      where: whereAudiencia("global"),
-      select: { email: true },
-    });
-    for (const a of admins) {
-      await enviarEmailTemplate(a.email, "resumo-semanal", { corpo });
+  for (const u of audiencia) {
+    if (!aceitam.has(u.id)) continue;
+    const corpo = corpoResumoSemanal(dados, veFinanceiro.has(u.id));
+    // Já filtrado por categoria acima — não repassa `categoria` para não refiltrar por id.
+    await notificar(u.id, { titulo: "Resumo semanal", corpo, href: "/", tag });
+    if (smtpConfigurado() && u.email) {
+      await enviarEmailTemplate(u.email, "resumo-semanal", { corpo });
     }
   }
-
-  const dif = differenceInCalendarDays(seteDias, new Date());
-  void dif;
 }
 
 /** Contratos cujo acréscimo acumulado de aditivos se aproxima/excede o limite → gestores. */

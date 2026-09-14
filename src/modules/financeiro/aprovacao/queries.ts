@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { wherePermissao } from "@/lib/audiencias";
 import type { Role } from "@/lib/roles";
 import type { FaixaAlcada } from "@/modules/financeiro/aprovacao/niveis";
 
@@ -39,10 +40,18 @@ export async function getNiveisAprovacao(): Promise<FaixaAlcada[]> {
   return [{ ate: null, papeis: [] }];
 }
 
-/** Ids de usuários ativos cujos papéis estão na lista (destinatários da aprovação). */
+/**
+ * Ids de usuários ativos cujos papéis estão na lista (destinatários da aprovação), recortados
+ * por quem tem `financeiro:aprovar` — o gate de `/financeiro/aprovacoes`. Sem o recorte, uma
+ * alçada salva pela tela com `supervisor` mandava "despesa — R$" ao Coordenador, que não tem
+ * financeiro e leva 403 no clique (ver `getNiveisAprovacao`).
+ */
 export async function aprovadoresPorPapeis(papeis: string[]): Promise<string[]> {
   if (papeis.length === 0) return [];
-  const us = await prisma.user.findMany({ where: { ativo: true, role: { in: papeis as Role[] } }, select: { id: true } });
+  const us = await prisma.user.findMany({
+    where: { ...wherePermissao("financeiro", "aprovar"), role: { in: papeis as Role[] } },
+    select: { id: true },
+  });
   return us.map((u) => u.id);
 }
 

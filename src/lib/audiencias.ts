@@ -203,7 +203,7 @@ export const AUDIENCIAS_PARAMETRIZADAS = [
   {
     chave: "jobs:gestores",
     onde: "src/lib/jobs-handlers.ts",
-    descricao: "gestores(roles) — default admin+supervisor+administrativo; o digest semanal chama com admin+supervisor",
+    descricao: "gestores(roles) — default admin+supervisor+administrativo; alertas de prazo de disciplina e de risco de projeto chamam com admin+supervisor",
     argumentosConhecidos: [
       ["admin", "supervisor", "administrativo"],
       ["admin", "supervisor"],
@@ -212,7 +212,7 @@ export const AUDIENCIAS_PARAMETRIZADAS = [
   {
     chave: "financeiro:aprovadoresPorPapeis",
     onde: "src/modules/financeiro/aprovacao/queries.ts",
-    descricao: "aprovadoresPorPapeis(papeis) — papéis vêm da configuração de aprovação gravada no banco, não do código",
+    descricao: "aprovadoresPorPapeis(papeis) — papéis vêm da configuração de aprovação gravada no banco, recortados por financeiro:aprovar",
     argumentosConhecidos: [] as Role[][],
   },
   {

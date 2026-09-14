@@ -165,7 +165,7 @@ export function PreferenciasView({
     {
       chave: "notif_digest_semanal",
       titulo: "Resumo semanal",
-      descricao: "Notificação toda segunda com entregas, a receber e a pagar.",
+      descricao: "Notificação e e-mail toda segunda com entregas (a receber e a pagar só para quem acessa o financeiro).",
       valor: notifDigestSemanal,
       set: setNotifDigestSemanal,
     },

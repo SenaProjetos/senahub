@@ -196,7 +196,7 @@ Sena Projetos`,
     slug: "resumo-semanal",
     grupo: "Gestão",
     label: "Resumo semanal (gestores)",
-    descricao: "Segunda de manhã: panorama financeiro e de entregas da semana para admin/supervisor.",
+    descricao: "Segunda de manhã: entregas da semana para quem recebe avisos de gestão; a receber e a pagar só para quem tem acesso ao financeiro.",
     variaveis: [
       { nome: "corpo", descricao: "Texto do resumo", exemplo: "Semana: 3 entrega(s) com prazo · a receber R$ 12.000 · a pagar R$ 4.000." },
     ],
