@@ -38,27 +38,50 @@ function paraISO(y: number, m: number, d: number): string {
   return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
-/** Procura uma data (numérica ou por extenso) dentro de uma janela de texto. Retorna ISO ou null. */
+const DATA_NUMERICA = /(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/;
+const DATA_EXTENSA = /(\d{1,2})\s+de\s+([a-zç]+)\s+de\s+(\d{4})/;
+// Conector de período ("12/09/2026 a 11/10/2026", "de ... até ...", "... - ..."),
+// ancorado no início do resto do texto logo após a primeira data.
+const CONECTOR_PERIODO = /^\s*(?:até|ate|a|à|-|–|—)\s*/;
+
+/** Converte um match de data (numérica ou por extenso) em ISO, ou null se inválida. */
+function matchParaISO(match: RegExpMatchArray, extensa: boolean): string | null {
+  const [, dStr, meio, yStr] = match;
+  const d = Number(dStr);
+  const m = extensa ? MESES[meio] : Number(meio);
+  const y = Number(yStr);
+  return m && diaValido(y, m, d) ? paraISO(y, m, d) : null;
+}
+
+/** Primeira data do texto (numérica ou por extenso, a que aparecer antes) com onde começa e termina. */
+function primeiraData(texto: string): { iso: string | null; inicio: number; fim: number } | null {
+  const candidatos = [
+    { match: texto.match(DATA_NUMERICA), extensa: false },
+    { match: texto.match(DATA_EXTENSA), extensa: true },
+  ].filter((c): c is { match: RegExpMatchArray; extensa: boolean } => c.match !== null);
+  if (candidatos.length === 0) return null;
+  const { match, extensa } = candidatos.reduce((a, b) => (b.match.index! < a.match.index! ? b : a));
+  return { iso: matchParaISO(match, extensa), inicio: match.index!, fim: match.index! + match[0].length };
+}
+
+/**
+ * Procura uma data (numérica ou por extenso) dentro de uma janela de texto. Retorna ISO ou null.
+ * Se a data abre um período ("12/09/2026 a 11/10/2026" — ex.: CRF do FGTS), a validade é a
+ * data FINAL, não a inicial.
+ */
 function buscarDataNaJanela(janela: string): string | null {
-  const numerica = janela.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
-  if (numerica) {
-    const [, dStr, mStr, yStr] = numerica;
-    const d = Number(dStr);
-    const m = Number(mStr);
-    const y = Number(yStr);
-    if (diaValido(y, m, d)) return paraISO(y, m, d);
+  const inicio = primeiraData(janela);
+  if (!inicio) return null;
+
+  const resto = janela.slice(inicio.fim);
+  const conector = resto.match(CONECTOR_PERIODO);
+  if (inicio.iso && conector) {
+    const fim = primeiraData(resto.slice(conector[0].length));
+    // A data final precisa vir colada ao conector (não uma data solta mais adiante).
+    if (fim?.iso && fim.inicio === 0) return fim.iso;
   }
 
-  const extensa = janela.match(/(\d{1,2})\s+de\s+([a-zç]+)\s+de\s+(\d{4})/);
-  if (extensa) {
-    const [, dStr, mesNome, yStr] = extensa;
-    const m = MESES[mesNome];
-    const d = Number(dStr);
-    const y = Number(yStr);
-    if (m && diaValido(y, m, d)) return paraISO(y, m, d);
-  }
-
-  return null;
+  return inicio.iso;
 }
 
 /**

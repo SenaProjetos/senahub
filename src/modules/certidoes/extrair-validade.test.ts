@@ -41,6 +41,20 @@ describe("extrairValidadeDoTexto", () => {
     expect(extrairValidadeDoTexto("VALIDO ATE 20/09/2026")).toBe("2026-09-20");
   });
 
+  it("usa a data FINAL quando a validade é um período (CRF do FGTS)", () => {
+    const texto = "O presente Certificado não servirá de prova contra cobrança. Validade: 12/09/2026 a 11/10/2026 Certificação Número: 123";
+    expect(extrairValidadeDoTexto(texto)).toBe("2026-10-11");
+    expect(extrairValidadeDoTexto("Validade: 12/09/2026 até 11/10/2026")).toBe("2026-10-11");
+    expect(extrairValidadeDoTexto("Validade: 12/09/2026 - 11/10/2026")).toBe("2026-10-11");
+    expect(extrairValidadeDoTexto("Validade:12/09/2026a11/10/2026")).toBe("2026-10-11");
+    expect(extrairValidadeDoTexto("Validade: 12 de setembro de 2026 a 11 de outubro de 2026")).toBe("2026-10-11");
+  });
+
+  it("não confunde data solta depois da validade com fim de período", () => {
+    expect(extrairValidadeDoTexto("Validade: 10/07/2026. Emitida em 01/01/2026")).toBe("2026-07-10");
+    expect(extrairValidadeDoTexto("Validade: 10/07/2026 a partir de 01/01/2026")).toBe("2026-07-10");
+  });
+
   it("continua tentando a próxima ocorrência da palavra-chave se a primeira não tem data válida por perto", () => {
     const texto = "Válida até quando o órgão determinar. Válida até: 01/02/2027.";
     expect(extrairValidadeDoTexto(texto)).toBe("2027-02-01");
