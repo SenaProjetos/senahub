@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Schibsted_Grotesk, Red_Hat_Mono } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { VisualInspector } from "@/components/dev/visual-inspector";
+import { IMAGEM_PREVIA } from "@/lib/metadata-publica";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import "./globals.css";
@@ -33,7 +34,7 @@ export const metadata: Metadata = {
     siteName: "SenaHub",
     locale: "pt_BR",
     type: "website",
-    images: [{ url: "/icons/icon-512.png", width: 512, height: 512, alt: "SenaHub" }],
+    images: [IMAGEM_PREVIA],
   },
   manifest: "/manifest.json",
   appleWebApp: { capable: true, title: "SenaHub", statusBarStyle: "black-translucent" },
