@@ -1,0 +1,109 @@
+00317 SENA ESTRUTURAS E INSTALACOES EIRELI Empresa :
+End. :
+Ref.:
+(
+Rua Arnóbio Marques, 253 sala 908 emp eng jose camilo brito
+)
+01/06/2026 30/06/2026 a Dpto :
+Página : 00001
+Código Nome Ref. Sal. Contratual Adicionais Descontos Líquido
+TODOS
+Recibo
+FOLHA DE PAGAMENTO
+38090198000114 CNPJ/CEI:
+000003 GICELLY OLIVEIRA DA SILVA 3.646,65 003 0000
+23/03/2026 Admissão :
+Folha. : Livro:
+Dep IR : Dep SF : 0 0
+Função :Técnico em Eletrotécnica
+Salário Base 3.646,65 220:00 001
+diferença salarial 05/2026 146,65 081
+INSS Folha 343,78 903
+***************
+____/____/______
+3.793,30 343,78 3.449,52
+Base INSS: 3.793,30 (Aliq.: 9,0628%) Base FGTS: 3.793,30 (Valor: 303,46) Base IRRF Folha: 3.186,10
+000002 JOAO VICTOR DOS SANTOS FERREIRA 1.771,23 002 0000
+01/07/2025 Admissão :
+Folha. : Livro:
+Dep IR : Dep SF : 0 0
+Função :Auxiliar técnico de engenharia I
+Salário Base 1.771,23 220:00 001
+diferença salarial 05/2026 71,23 081
+INSS Folha 141,50 903
+***************
+____/____/______
+1.842,46 141,50 1.700,96
+Base INSS: 1.842,46 (Aliq.: 7,6799%) Base FGTS: 1.842,46 (Valor: 147,39) Base IRRF Folha: 1.235,26
+000004 MIRELI BARBOSA DA SILVA 3.646,65 004 0000
+07/04/2026 Admissão :
+Folha. : Livro:
+Dep IR : Dep SF : 0 0
+Função :Técnica em Edificações Junior
+Salário Base 3.646,65 220:00 001
+diferença salarial 05/2026 146,65 081
+INSS Folha 343,78 903
+***************
+____/____/______
+3.793,30 343,78 3.449,52
+Base INSS: 3.793,30 (Aliq.: 9,0628%) Base FGTS: 3.793,30 (Valor: 303,46) Base IRRF Folha: 3.186,10
+000001 VANESSA BUARQUE VASCONCELOS 2.604,75 001 0000
+24/10/2022 Admissão :
+Folha. : Livro:
+Dep IR : Dep SF : 0 0
+Função :AUXILIAR ADMINISTRATIVO
+Salário Base 2.604,75 220:00 001
+diferença salarial 05/2026 104,75 081
+Vale Transporte 156,29 604
+INSS Folha 219,53 903
+***************
+____/____/______
+2.709,50 375,82 2.333,68
+Base INSS: 2.709,50 (Aliq.: 8,1022%) Base FGTS: 2.709,50 (Valor: 216,76) Base IRRF Folha: 2.102,30
+000005 YASMIM RAQUEL MATIAS FERREIRA GOMES 4.167,60 005 0000
+01/05/2026 Admissão :
+Folha. : Livro:
+Dep IR : Dep SF : 0 0
+Função :Técnica Pleno
+Salário Base 4.167,60 220:00 001
+diferença salarial 05/2026 167,60 081
+INSS Folha 408,81 903
+***************
+____/____/______
+4.335,20 408,81 3.926,39
+Base INSS: 4.335,20 (Aliq.: 9,43%) Base FGTS: 4.335,20 (Valor: 346,81) Base IRRF Folha: 3.728,00
+00317 SENA ESTRUTURAS E INSTALACOES EIRELI Empresa :
+End. :
+Ref.:
+(
+Rua Arnóbio Marques, 253 sala 908 emp eng jose camilo brito
+)
+01/06/2026 30/06/2026 a Dpto :
+Página : 00002
+Código Nome Ref. Sal. Contratual Adicionais Descontos Líquido
+TODOS
+Recibo
+FOLHA DE PAGAMENTO
+38090198000114 CNPJ/CEI:
+*********************
+*********************
+Resumo da folha
+Total Geral da Folha
+( - ) Total de Descontos
+( = ) Total Líquido
+*********************
+Informações adicionais
+Total Funcionários
+Total INSS
+Total FGTS
+Total IRRF
+16.473,76
+** Empresa Optante pelo Super Simples - ( Lei Complementar 123/96 ) **
+Total Cotas Sal. Família
+1.613,69
+14.860,07
+5
+0
+1.457,40
+1.317,88
+0,00

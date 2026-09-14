@@ -18,6 +18,7 @@ import {
   Funnel,
   Shapes,
   LayoutList,
+  Building2,
 } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -139,6 +140,12 @@ const GRUPOS: Grupo[] = [
     titulo: "Sistema",
     descricao: "Comunicação e ajustes que afetam todo o sistema.",
     itens: [
+      {
+        href: "/configuracoes/empresa",
+        icon: Building2,
+        titulo: "Empresa",
+        descricao: "Razão social, CNPJ, endereço e logo do timbrado dos PDFs (ex.: holerite).",
+      },
       {
         href: "/configuracoes/avisos",
         icon: Megaphone,

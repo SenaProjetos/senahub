@@ -453,19 +453,19 @@ function ExcluirLoteButton({ folha }: { folha: FolhaLoteItem }) {
   const [pending, start] = useTransition();
   const rotulo = `${MESES_CURTOS[folha.mes - 1]}/${folha.ano}`;
 
-  function excluir() {
+  async function excluir() {
+    const avisoPagos =
+      folha.pagos > 0
+        ? ` ${folha.pagos} já pago(s) continua(m) pago(s), mas não volta(m) a um lote se você gerar ${rotulo} de novo — gerar lote só recolhe pendentes.`
+        : "";
+    const ok = await confirm({
+      title: `Excluir lote ${rotulo}`,
+      description: `Os ${folha.qtd} pagamento(s) deste lote voltam a ficar fora de lote. Nenhum pagamento e nenhum lançamento do caixa é apagado.${avisoPagos}`,
+      confirmLabel: "Excluir lote",
+      variant: "destructive",
+    });
+    if (!ok) return;
     start(async () => {
-      const avisoPagos =
-        folha.pagos > 0
-          ? ` ${folha.pagos} já pago(s) continua(m) pago(s), mas não volta(m) a um lote se você gerar ${rotulo} de novo — gerar lote só recolhe pendentes.`
-          : "";
-      const ok = await confirm({
-        title: `Excluir lote ${rotulo}`,
-        description: `Os ${folha.qtd} pagamento(s) deste lote voltam a ficar fora de lote. Nenhum pagamento e nenhum lançamento do caixa é apagado.${avisoPagos}`,
-        confirmLabel: "Excluir lote",
-        variant: "destructive",
-      });
-      if (!ok) return;
       const r = await excluirFolhaProjetista({ id: folha.id });
       if (r.ok) {
         toast.success(`Lote ${rotulo} excluído — ${r.data.soltos} pagamento(s) ficaram fora de lote.`);

@@ -1,9 +1,9 @@
 ---
 titulo: Configurações (administração)
-descricao: Central de administração — usuários, permissões, parâmetros de folha, projetos, licitações, funil e avisos, além do status das integrações.
+descricao: Central de administração — usuários, permissões, parâmetros de folha, projetos, licitações, funil, avisos e dados da empresa, além do status das integrações.
 resumo: Hub administrativo com cadastros e parâmetros do sistema (usuários, permissões, encargos, documentos/inputs padrão, feriados, licitações, funil) e o status das integrações on-premise (SMTP/push).
-tags: [configurações, administração, usuários, permissões, encargos, feriados, licitações, funil, avisos, agendamento, integrações]
-palavras-chave: [configurações, administração, usuários, permissões, matriz, encargos, inss, irrf, feriados, modalidades, habilitação, funil, aviso geral, agendar aviso, aviso agendado, comunicado programado, smtp, push]
+tags: [configurações, administração, usuários, permissões, encargos, feriados, licitações, funil, avisos, agendamento, integrações, empresa, timbrado]
+palavras-chave: [configurações, administração, usuários, permissões, matriz, encargos, inss, irrf, feriados, modalidades, habilitação, funil, aviso geral, agendar aviso, aviso agendado, comunicado programado, smtp, push, dados da empresa, razão social, cnpj, logo, logo da empresa, timbrado, cabeçalho do pdf]
 sinonimos: [admin, ajustes do sistema, parâmetros, settings]
 ---
 
@@ -40,6 +40,15 @@ lugar.
 - **Etapas do funil** — estágios do pipeline comercial (criar/editar/ativar/desativar).
 
 ### Sistema
+- **Empresa** — **razão social**, **CNPJ**, **endereço** e **logo** da empresa. Esses dados
+  formam o **timbrado** (cabeçalho) dos PDFs que saem do sistema: o **holerite** da Folha CLT
+  e o **recibo** de pagamento de projetista.
+  - **Logo:** PNG ou JPG de até **4 MB**; o sistema reduz para no máximo **600px** de lado.
+    Prefira fundo transparente ou branco. **Remover** e depois **Salvar** tira o logo do timbrado.
+  - Enquanto a razão social não for preenchida, os PDFs saem **sem timbrado**.
+  - A mudança vale para os PDFs baixados **a partir de agora** — inclusive de holerites e
+    recibos antigos, porque o timbrado é montado na hora do download. O texto assinado do
+    recibo **não muda**: o timbrado fica fora dele.
 - **Aviso geral** — enviar um comunicado (**modal em tela cheia + sino/push** e, se quiser,
   **e-mail**) para todos, por categoria de perfil ou por nome. Pode **exigir confirmação de
   leitura** e levar uma **imagem**.
@@ -72,6 +81,9 @@ lugar.
 - [Permissões e perfis](../quick-start.md#9-perfis-de-acesso-quem-vê-o-quê) · [Folha CLT](../rh-ponto/folha-clt.md) · [Licitações](../gestao/licitacoes.md) · [Comercial](../clientes-comercial/comercial.md)
 
 ## FAQ
+
+**Mudei o endereço da empresa. Os recibos já assinados ficam inválidos?** Não. O timbrado
+fica fora do texto que o projetista assinou; o código de verificação continua batendo.
 
 **Como reinicio a senha de um usuário?** Em **Configurações → Usuários**.
 

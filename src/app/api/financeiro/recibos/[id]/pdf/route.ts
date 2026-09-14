@@ -4,6 +4,7 @@ import { getSession } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { reciboCompleto } from "@/modules/financeiro/recibo/queries";
 import { renderReciboHtml } from "@/modules/financeiro/recibo/service";
+import { empresaParaTimbrado } from "@/modules/configuracoes/empresa/queries";
 
 /**
  * PDF do recibo de produção (G5/D36). Mesma mecânica da memória de cálculo: puppeteer-core +
@@ -37,6 +38,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     textoHash: recibo.textoHash,
     assinadoEm: recibo.assinadoEm,
     assinanteNome: recibo.assinante?.name ?? null,
+    empresa: await empresaParaTimbrado(),
   });
 
   const browser = await puppeteer.launch({

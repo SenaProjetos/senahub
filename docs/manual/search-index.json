@@ -847,7 +847,8 @@
         "corrigir pagamento",
         "estornar pagamento",
         "conciliado",
-        "alerta parado"
+        "alerta parado",
+        "timbrado"
       ],
       "sinonimos": [
         "folha de projetistas",
@@ -964,8 +965,8 @@
     {
       "titulo": "Folha CLT",
       "path": "rh-ponto/folha-clt.md",
-      "descricao": "Folhas de pagamento dos colaboradores CLT, com cálculo de encargos (INSS/IRRF).",
-      "resumo": "Gere e acompanhe as folhas de pagamento dos CLT; o sistema calcula encargos progressivos (INSS e IRRF).",
+      "descricao": "Folhas de pagamento dos colaboradores CLT — importação automática do PDF do contador, cálculo de encargos (INSS/IRRF) e assinatura obrigatória do holerite.",
+      "resumo": "Importe a folha direto do PDF do contador (ou gere à mão), acompanhe os holerites e a assinatura de cada colaborador; o sistema calcula encargos progressivos (INSS e IRRF).",
       "tags": [
         "folha",
         "clt",
@@ -973,7 +974,16 @@
         "encargos",
         "inss",
         "irrf",
-        "pagamento"
+        "pagamento",
+        "importar",
+        "assinatura",
+        "assinar",
+        "pdf",
+        "contador",
+        "rubrica",
+        "matrícula",
+        "13º salário",
+        "timbrado"
       ],
       "palavrasChave": [
         "folha",
@@ -984,12 +994,30 @@
         "inss",
         "irrf",
         "desconto",
-        "pagamento"
+        "pagamento",
+        "importar",
+        "importação",
+        "pdf",
+        "contador",
+        "assinatura",
+        "assinar",
+        "rubrica",
+        "matrícula",
+        "lembrete",
+        "13º",
+        "décimo terceiro",
+        "gratificação natalina",
+        "ignorar funcionário",
+        "timbrado"
       ],
       "sinonimos": [
         "folha de pagamento",
         "holerite",
-        "payroll"
+        "payroll",
+        "assinatura do holerite",
+        "importar folha",
+        "folha de 13º",
+        "décimo terceiro salário"
       ]
     },
     {
@@ -1477,7 +1505,7 @@
     {
       "titulo": "Configurações (administração)",
       "path": "sistema/configuracoes.md",
-      "descricao": "Central de administração — usuários, permissões, parâmetros de folha, projetos, licitações, funil e avisos, além do status das integrações.",
+      "descricao": "Central de administração — usuários, permissões, parâmetros de folha, projetos, licitações, funil, avisos e dados da empresa, além do status das integrações.",
       "resumo": "Hub administrativo com cadastros e parâmetros do sistema e o status das integrações on-premise (SMTP/push).",
       "tags": [
         "configurações",
@@ -1490,7 +1518,9 @@
         "funil",
         "avisos",
         "agendamento",
-        "integrações"
+        "integrações",
+        "empresa",
+        "timbrado"
       ],
       "palavrasChave": [
         "configurações",
@@ -1515,7 +1545,14 @@
         "tamanho da fonte",
         "imagem do aviso",
         "smtp",
-        "push"
+        "push",
+        "dados da empresa",
+        "razão social",
+        "cnpj",
+        "logo",
+        "logo da empresa",
+        "timbrado",
+        "cabeçalho do pdf"
       ],
       "sinonimos": [
         "admin",

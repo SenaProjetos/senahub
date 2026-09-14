@@ -22,6 +22,35 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Folha CLT direto do PDF do contador, e holerite assinado no sistema
+
+A **Folha CLT** não precisa mais ser digitada rubrica por rubrica. Em **Folha CLT**, abra a
+folha do mês e clique em **Importar PDF**: o sistema lê o arquivo que o contador já envia e
+monta os holerites de todo mundo.
+
+- **Confere os números antes de gravar.** Se a soma das rubricas não bater com o total
+  impresso no PDF, nada é importado — nem pela metade.
+- **Rubrica ou matrícula nova** não trava o mês: a tela mostra o que falta cadastrar, você
+  resolve ali mesmo e reenvia o mesmo arquivo.
+- **Ignorar funcionário** — para quem aparece no PDF mas não usa o sistema (ex.: pró-labore
+  de sócio). A matrícula fica de fora dos próximos imports, e dá para desfazer.
+
+**Todo colaborador CLT assina o próprio holerite.** Depois que o RH fecha a folha, o sistema
+pede a assinatura no próximo acesso, mostrando proventos, descontos e líquido. O RH vê quem
+já assinou e pode mandar um lembrete. A assinatura não atrasa o pagamento.
+
+**13º salário tem folha própria.** Na hora de criar a folha, escolha o tipo **13º salário**:
+a de dezembro e a de 13º de dezembro ficam lado a lado. Se alguém tentar importar o PDF de
+13º na folha do mês (ou o contrário), o sistema recusa e diz em qual folha importar.
+
+**PDFs com timbrado.** O holerite e o recibo de pagamento de projetista agora saem com logo,
+razão social, CNPJ e endereço da empresa no topo. Os dados ficam em
+**Configurações → Empresa**.
+
+Detalhes em [Folha CLT](rh-ponto/folha-clt.md) e [Configurações](sistema/configuracoes.md).
+
+---
+
 ## Acessos e Credenciais — o cofre da empresa
 
 Chegou uma tela nova em **Gestão → Acessos**: o lugar único para as contas que a

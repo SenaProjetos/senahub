@@ -85,6 +85,7 @@ describe("renderReciboHtml", () => {
     textoHash: "deadbeef",
     assinadoEm: null,
     assinanteNome: null,
+    empresa: null,
   };
   it("escapa o texto gravado em vez de injetar HTML", () => {
     const html = renderReciboHtml(pdf);
@@ -104,5 +105,21 @@ describe("renderReciboHtml", () => {
   });
   it("o hash vai no rodapé como código de verificação", () => {
     expect(renderReciboHtml(pdf)).toContain("deadbeef");
+  });
+  it("timbrado da empresa vai ANTES do texto assinado e fora dele (o hash do texto não muda)", () => {
+    const html = renderReciboHtml({
+      ...pdf,
+      empresa: { razaoSocial: "Sena Estruturas", cnpj: "00.000.000/0001-00", endereco: null, logoDataUri: null },
+    });
+    const posTimbrado = html.indexOf('<div class="timbrado">');
+    const posPre = html.indexOf("<pre>");
+    expect(posTimbrado).toBeGreaterThan(-1);
+    expect(posTimbrado).toBeLessThan(posPre);
+    const textoNoPdf = html.slice(posPre, html.indexOf("</pre>"));
+    expect(textoNoPdf).not.toContain("Sena Estruturas");
+    expect(textoNoPdf).not.toContain("00.000.000/0001-00");
+  });
+  it("sem empresa configurada, sai sem timbrado", () => {
+    expect(renderReciboHtml(pdf)).not.toContain('<div class="timbrado">');
   });
 });

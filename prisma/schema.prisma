@@ -101,25 +101,29 @@ model User {
   // 100% em `role` + `Permissao` até a Onda D fazer o codemod dos call-sites.
   // Existem agora para permitir testar o motor (`permissaoEfetiva`) e o arnês de
   // equivalência (§6.2) ANTES da virada, não depois.
-  perfilId            String?
-  perfil              PerfilAcesso?      @relation(fields: [perfilId], references: [id])
+  perfilId              String?
+  perfil                PerfilAcesso?      @relation(fields: [perfilId], references: [id])
   /// Bypass total, fora da matriz por design — equivalente ao `role === "admin"` de hoje.
   /// Não vira linha de `PermissaoPerfil`: bypass como dado editável por tela é a falha de
   /// segurança que este motor deveria eliminar, não reproduzir.
-  superUsuario        Boolean            @default(false)
-  overrides           PermissaoUsuario[] @relation("PermissaoUsuarioAlvo")
-  overridesConcedidos PermissaoUsuario[] @relation("PermissaoUsuarioConcedidoPor")
+  superUsuario          Boolean            @default(false)
+  overrides             PermissaoUsuario[] @relation("PermissaoUsuarioAlvo")
+  overridesConcedidos   PermissaoUsuario[] @relation("PermissaoUsuarioConcedidoPor")
   /// Vínculo do usuário externo (role cliente) ao Cliente que ele representa no portal.
-  clienteId           String?
-  cliente             Cliente?           @relation("ClienteUsuarios", fields: [clienteId], references: [id])
+  clienteId             String?
+  cliente               Cliente?           @relation("ClienteUsuarios", fields: [clienteId], references: [id])
   /// Item 6: PJ (CNPJ) que agrupa este perfil de projetista/colaborador PJ. Opcional —
   /// vínculos existentes (NF, pagamentos, projetos) permanecem no próprio User.
-  pjId                String?
-  pj                  PessoaJuridica?    @relation(fields: [pjId], references: [id])
+  pjId                  String?
+  pj                    PessoaJuridica?    @relation(fields: [pjId], references: [id])
   /// Salário base do colaborador CLT/estagiário (p/ geração automática de holerites).
-  salarioBase         Decimal?           @db.Decimal(12, 2)
+  salarioBase           Decimal?           @db.Decimal(12, 2)
   /// Data de admissão (CLT) — base do período aquisitivo de férias.
-  dataAdmissao        DateTime?
+  dataAdmissao          DateTime?
+  /// Matrícula do funcionário no sistema do contador ("000001".."000005", plano
+  /// 2026-09-13-folha-clt-import-assinatura.md) — mapeada uma vez por pessoa (não muda mês a
+  /// mês), usada pro import automático de PDF da folha casar cada linha com o User certo.
+  matriculaFolhaExterna String?            @unique
 
   // Item 4 — cadastro completo do colaborador (replicado do RH do sistema antigo).
   // Tipo de contrato = `role`; jornada = `EscalaRole`/`EscalaUsuario` (Ponto v2).
@@ -217,6 +221,7 @@ model User {
   emocoes                       RegistroEmocao[]
   feedbacksHumor                FeedbackHumor[]
   holerites                     Holerite[]
+  holeritesAssinados            Holerite[]                  @relation("HoleriteAssinante")
   onboarding                    OnboardingProcesso?
   notasFiscais                  NotaFiscalPJ[]              @relation("NfUser")
   nfsValidadas                  NotaFiscalPJ[]              @relation("NfValidador")
@@ -4907,11 +4912,16 @@ enum TipoRubrica {
 
 /// Catálogo de rubricas da folha (salário, VT, INSS, IRRF…).
 model RubricaFolha {
-  id    String      @id @default(cuid())
-  nome  String      @unique
-  tipo  TipoRubrica
-  ordem Int         @default(0)
-  ativo Boolean     @default(true)
+  id            String      @id @default(cuid())
+  nome          String      @unique
+  tipo          TipoRubrica
+  ordem         Int         @default(0)
+  ativo         Boolean     @default(true)
+  /// Código do relatório do contador ("001", "903", "604", "081"...). Único globalmente —
+  /// assume 1 contador/1 layout (decisão do dono, 2026-09-13, plano
+  /// 2026-09-13-folha-clt-import-assinatura.md). Rubrica só é elegível pro import automático
+  /// depois de ter este campo preenchido.
+  codigoExterno String?     @unique
 
   itens HoleriteItem[]
 
@@ -5102,33 +5112,75 @@ enum StatusFolha {
   fechada
 }
 
+/// Dezembro tem duas folhas no mesmo mês — a mensal e a de 13º — e o contador manda PDFs
+/// separados. Sem o tipo, `@@unique([ano, mes])` forçaria o 13º pra dentro da folha mensal e o
+/// import substituiria os itens do salário pelos do 13º.
+enum TipoFolha {
+  mensal
+  decimo_terceiro
+}
+
 model FolhaPagamento {
-  id           String      @id @default(cuid())
-  ano          Int
-  mes          Int // 1-12
-  status       StatusFolha @default(aberta)
-  fechadaEm    DateTime?
+  id            String      @id @default(cuid())
+  ano           Int
+  mes           Int // 1-12
+  tipo          TipoFolha   @default(mensal)
+  status        StatusFolha @default(aberta)
+  fechadaEm     DateTime?
   /// Lançamento de despesa (2.03) criado ao fechar.
-  lancamentoId String?     @unique
+  lancamentoId  String?     @unique
+  /// PDF original do contador, guardado para auditoria/reprocesso (plano
+  /// 2026-09-13-folha-clt-import-assinatura.md). Caminho relativo a STORAGE_BASE_PATH, mesmo
+  /// padrão de NotaFiscalPJ.arquivoPath — NÃO é o modelo `Upload` (Upload exige `disciplinaId`,
+  /// é escopado a projeto/disciplina; uma folha de pagamento não tem disciplina nenhuma).
+  origemPdfPath String?
+  origemPdfNome String?
 
   holerites Holerite[]
   createdAt DateTime   @default(now())
 
-  @@unique([ano, mes])
+  @@unique([ano, mes, tipo])
   @@map("folha_pagamento")
 }
 
+/// Matrícula do contador que o RH marcou como "sem acesso ao sistema" — achado no primeiro
+/// import real (2026-09-13): o PDF do contador tem gente que nunca vai ter usuário aqui. Sem
+/// isto, o import ficaria travado pra sempre pedindo cadastro de uma pessoa que nunca vai
+/// existir como `User`. Permanente (não pergunta de novo todo mês), mas `analisarImportacao`
+/// sempre lista quem foi pulado por isto na resposta — nunca em silêncio. Reversível: vincular a
+/// matrícula a um `User` de verdade depois remove a entrada daqui (mesma transação).
+model MatriculaExternaIgnorada {
+  id               String   @id @default(cuid())
+  matriculaExterna String   @unique
+  /// Nome como aparece no PDF — só pra RH reconhecer quem é, sem precisar reabrir o arquivo.
+  nome             String
+  criadoEm         DateTime @default(now())
+
+  @@map("matricula_externa_ignorada")
+}
+
 model Holerite {
-  id        String         @id @default(cuid())
-  folhaId   String
-  folha     FolhaPagamento @relation(fields: [folhaId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User           @relation(fields: [userId], references: [id])
-  enviadoEm DateTime?
+  id          String         @id @default(cuid())
+  folhaId     String
+  folha       FolhaPagamento @relation(fields: [folhaId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User           @relation(fields: [userId], references: [id])
+  enviadoEm   DateTime?
+  /// Assinatura do funcionário (plano 2026-09-13-folha-clt-import-assinatura.md) — espelha
+  /// ReciboProjetista: não trava o pagamento (a folha já fechou antes disso existir), mas é
+  /// exigida no próximo acesso ao sistema via `precisaAssinarHolerite` (gate no
+  /// (dashboard)/layout.tsx, mesmo mecanismo do Termo de Uso).
+  assinadoEm  DateTime?
+  assinanteId String?
+  assinante   User?          @relation("HoleriteAssinante", fields: [assinanteId], references: [id])
 
   itens HoleriteItem[]
 
   @@unique([folhaId, userId])
+  /// `precisaAssinarHolerite` filtra por userId + assinadoEm null a cada troca de página —
+  /// mesmo motivo do índice em ReciboProjetista.
+  @@index([userId, assinadoEm])
+  @@index([assinanteId])
   @@map("holerite")
 }
 
@@ -5222,8 +5274,8 @@ model NotaFiscalPJ {
   /// que já existia, continua valendo. `SetNull` porque apagar o recibo não pode apagar a
   /// nota fiscal — o documento fiscal é do PJ, não do agrupamento que o sistema montou.
   reciboId  String?
-  recibo    ReciboProjetista?      @relation(fields: [reciboId], references: [id], onDelete: SetNull)
-  createdAt DateTime               @default(now())
+  recibo    ReciboProjetista?       @relation(fields: [reciboId], references: [id], onDelete: SetNull)
+  createdAt DateTime                @default(now())
   historico NotaFiscalPJHistorico[]
 
   @@index([userId, status])

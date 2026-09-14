@@ -1,0 +1,106 @@
+00317 SENA ESTRUTURAS E INSTALACOES EIRELI Empresa :
+End. :
+Ref.:
+(
+Rua Arnóbio Marques, 253 sala 908 emp eng jose camilo brito
+)
+01/08/2026 31/08/2026 a Dpto :
+Página : 00001
+Código Nome Ref. Sal. Contratual Adicionais Descontos Líquido
+TODOS
+Recibo
+FOLHA DE PAGAMENTO
+38090198000114 CNPJ/CEI:
+000003 GICELLY OLIVEIRA DA SILVA 3.646,65 003 0000
+23/03/2026 Admissão :
+Folha. : Livro:
+Dep IR : Dep SF : 0 0
+Função :Técnico em Eletrotécnica
+Salário Base 3.646,65 220:00 001
+INSS Folha 326,18 903
+***************
+____/____/______
+3.646,65 326,18 3.320,47
+Base INSS: 3.646,65 (Aliq.: 8,9446%) Base FGTS: 3.646,65 (Valor: 291,73) Base IRRF Folha: 3.039,45
+000002 JOAO VICTOR DOS SANTOS FERREIRA 1.771,23 002 0000
+01/07/2025 Admissão :
+Folha. : Livro:
+Dep IR : Dep SF : 0 0
+Função :Auxiliar técnico de engenharia I
+FERIAS de 31/08/2026 até 29/09/2026 Dia(s) 1 (007:20)
+Salário Base 1.712,19 212:40 001
+INSS Folha 130,96 903
+***************
+____/____/______
+1.712,19 130,96 1.581,23
+Base INSS: 1.712,19 (Aliq.: 7,6419%) Base FGTS: 1.712,19 (Valor: 136,97) Base IRRF Folha: 1.104,99
+000004 MIRELI BARBOSA DA SILVA 3.646,65 004 0000
+07/04/2026 Admissão :
+Folha. : Livro:
+Dep IR : Dep SF : 0 0
+Função :Técnica em Edificações Junior
+Salário Base 3.646,65 220:00 001
+INSS Folha 326,18 903
+***************
+____/____/______
+3.646,65 326,18 3.320,47
+Base INSS: 3.646,65 (Aliq.: 8,9446%) Base FGTS: 3.646,65 (Valor: 291,73) Base IRRF Folha: 3.039,45
+000001 VANESSA BUARQUE VASCONCELOS 2.604,75 001 0000
+24/10/2022 Admissão :
+Folha. : Livro:
+Dep IR : Dep SF : 0 0
+Função :AUXILIAR ADMINISTRATIVO
+FERIAS de 03/08/2026 até 01/09/2026 Dia(s) 29 (212:40)
+Salário Base 86,83 007:20 001
+Vale Transporte 5,21 604
+INSS Folha 10,42 903
+***************
+____/____/______
+86,83 15,63 71,20
+Base INSS: 86,84 (Aliq.: 8,7649%) Base FGTS: 86,83 (Valor: 6,94)
+000005 YASMIM RAQUEL MATIAS FERREIRA GOMES 4.167,60 005 0000
+01/05/2026 Admissão :
+Folha. : Livro:
+Dep IR : Dep SF : 0 0
+Função :Técnica Pleno
+Salário Base 4.167,60 220:00 001
+INSS Folha 388,70 903
+***************
+____/____/______
+4.167,60 388,70 3.778,90
+Base INSS: 4.167,60 (Aliq.: 9,3267%) Base FGTS: 4.167,60 (Valor: 333,40) Base IRRF Folha: 3.560,40
+00317 SENA ESTRUTURAS E INSTALACOES EIRELI Empresa :
+End. :
+Ref.:
+(
+Rua Arnóbio Marques, 253 sala 908 emp eng jose camilo brito
+)
+01/08/2026 31/08/2026 a Dpto :
+Página : 00002
+Código Nome Ref. Sal. Contratual Adicionais Descontos Líquido
+TODOS
+Recibo
+FOLHA DE PAGAMENTO
+38090198000114 CNPJ/CEI:
+*********************
+*********************
+Resumo da folha
+Total Geral da Folha
+( - ) Total de Descontos
+( = ) Total Líquido
+*********************
+Informações adicionais
+Total Funcionários
+Total INSS
+Total FGTS
+Total IRRF
+13.259,92
+** Empresa Optante pelo Super Simples - ( Lei Complementar 123/96 ) **
+Total Cotas Sal. Família
+1.187,65
+12.072,27
+5
+0
+1.182,44
+1.060,77
+0,00
