@@ -83,6 +83,14 @@ export type AnaliseImportacao =
   | { status: "pronto"; plano: PlanoImportacao };
 
 /**
+ * Líquido do que o plano grava — difere do `resumo.totalLiquido` impresso no PDF quando há
+ * matrícula ignorada, e é este que bate com o lançamento criado ao fechar a folha.
+ */
+export function liquidoDoPlano(plano: PlanoImportacao): number {
+  return Math.round(plano.holerites.reduce((s, h) => s + h.liquido, 0) * 100) / 100;
+}
+
+/**
  * Cruza o PDF já parseado com o cadastro e decide: dá pra gravar, falta cadastro, ou tem erro
  * que impede tudo. NÃO grava nada — quem grava é `aplicarImportacao`, e só com um plano pronto.
  */

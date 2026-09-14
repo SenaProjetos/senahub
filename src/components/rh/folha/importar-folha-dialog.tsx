@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -438,8 +439,8 @@ function LinhaPendenciaMatricula({
   onResolvida: (matriculaExterna: string, nome: string, desvinculadaDe: string | null) => void;
   onIgnorada: (matriculaExterna: string, nome: string) => void;
 }) {
+  const confirm = useConfirm();
   const [userId, setUserId] = useState("");
-  const [armado, setArmado] = useState(false);
   const [pending, start] = useTransition();
 
   function vincular() {
@@ -453,19 +454,16 @@ function LinhaPendenciaMatricula({
     });
   }
 
-  function ignorar() {
-    // Confirmação em 2 cliques NA PRÓPRIA linha, não um `useConfirm()` (Dialog global, montado no
-    // layout) aninhado dentro deste diálogo já aberto — achado ao vivo (2026-09-13): esse caminho
-    // não respondeu a clique nenhum no navegador. Causa raiz NÃO isolada (nenhum outro lugar do
-    // código chama `confirm()` de dentro de um Dialog já aberto pra comparar) — suspeita mais forte
-    // é `await confirm(...)` dentro de `start()` esperar clique do usuário NO MEIO de uma transição
-    // React, não um limite do Dialog em si. Em vez de investigar mais, trocado pelo padrão mais
-    // simples de provar certo: 2 cliques na própria linha, sem esperar input em outro componente.
-    // É permanente mas reversível (o botão "Voltar a pedir cadastro" aparece assim que marca).
-    if (!armado) {
-      setArmado(true);
-      return;
-    }
+  async function ignorar() {
+    // `confirm()` FORA do `start()`: dentro de uma async transition do React 19, o `setState` que
+    // abre o diálogo cai na lane da própria action e o render suspende até ela terminar — mas ela
+    // espera o clique no diálogo que nunca aparece. Foi o "cliquei e nada aconteceu" de 2026-09-13.
+    const ok = await confirm({
+      title: "Ignorar funcionário",
+      description: `"${pendencia.nome}" não vai virar holerite nesta nem nas próximas importações. Dá pra desfazer depois em "Voltar a pedir cadastro", ou vinculando a matrícula a um usuário.`,
+      confirmLabel: "Ignorar",
+    });
+    if (!ok) return;
     start(async () => {
       const r = await ignorarMatriculaExterna({
         matriculaExterna: pendencia.matriculaExterna,
@@ -473,7 +471,6 @@ function LinhaPendenciaMatricula({
       });
       if (!r.ok) {
         toast.error(r.error);
-        setArmado(false);
         return;
       }
       onIgnorada(pendencia.matriculaExterna, pendencia.nome);
@@ -487,16 +484,7 @@ function LinhaPendenciaMatricula({
         contratual {brl(pendencia.salarioContratual)}
       </p>
       <div className="flex flex-wrap items-center gap-2">
-        <Select
-          value={userId}
-          onValueChange={(v) => {
-            setUserId(v ?? "");
-            // Escolher alguém no dropdown é sinal de que a intenção mudou de "ignorar" pra
-            // "vincular" — desarma pra não deixar o botão destrutivo armado esperando um clique
-            // perdido em outro lugar da linha.
-            setArmado(false);
-          }}
-        >
+        <Select value={userId} onValueChange={(v) => setUserId(v ?? "")}>
           <SelectTrigger className="w-64">
             <SelectValue placeholder="Quem é essa pessoa?" />
           </SelectTrigger>
@@ -511,14 +499,9 @@ function LinhaPendenciaMatricula({
         <Button size="sm" onClick={vincular} disabled={pending || !userId}>
           Vincular
         </Button>
-        <Button size="sm" variant={armado ? "destructive" : "ghost"} onClick={ignorar} disabled={pending}>
-          {armado ? "Confirmar: ignorar de vez?" : "Ignorar funcionário"}
+        <Button size="sm" variant="ghost" onClick={ignorar} disabled={pending}>
+          Ignorar funcionário
         </Button>
-        {armado && (
-          <Button size="sm" variant="outline" onClick={() => setArmado(false)} disabled={pending}>
-            Cancelar
-          </Button>
-        )}
       </div>
     </div>
   );

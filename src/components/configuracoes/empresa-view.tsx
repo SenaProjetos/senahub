@@ -32,7 +32,9 @@ export function EmpresaView({ dados }: { dados: DadosEmpresa | null }) {
   const [logoQuebrado, setLogoQuebrado] = useState(false);
 
   // `?v=` só pra não servir uma versão em cache do navegador depois de trocar o logo desta sessão.
-  const logoAtualSrc = logoPreview ?? (dados?.logoPath ? `/api/configuracoes/empresa/logo?v=${encodeURIComponent(dados.logoPath)}` : null);
+  // Deriva do estado local `logoPath`, não de `dados` — senão "Remover" some e o logo salvo volta.
+  const logoAtualSrc =
+    logoPreview ?? (logoPath ? `/api/configuracoes/empresa/logo?v=${encodeURIComponent(logoPath)}` : null);
 
   async function escolherLogo(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];

@@ -39,7 +39,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-const { analisarImportacao, aplicarImportacao } = await import("./importar-service");
+const { analisarImportacao, aplicarImportacao, liquidoDoPlano } = await import("./importar-service");
 
 /** Folha mínima de 1 funcionário: 1 provento (100) e 1 desconto (10) → líquido 90. */
 function folhaFake(over: Partial<FolhaImportada> = {}): FolhaImportada {
@@ -212,6 +212,19 @@ describe("analisarImportacao", () => {
       expect(r.plano.matriculasIgnoradas).toEqual([
         { matriculaExterna: "000002", nome: "SEM ACESSO AO SISTEMA" },
       ]);
+    });
+
+    it("líquido importado exclui o ignorado — não é o total impresso no PDF", async () => {
+      mocks.matriculaIgnoradaFindMany.mockResolvedValue([
+        { matriculaExterna: "000002", nome: "SEM ACESSO AO SISTEMA" },
+      ]);
+      const folha = folhaComDuasPessoas();
+      const r = await analisarImportacao("f1", folha);
+      if (r.status !== "pronto") throw new Error(`esperava pronto, veio ${r.status}`);
+      const conhecido = folha.funcionarios.find((f) => f.matriculaExterna === "000001")!.liquido;
+      const todos = folha.funcionarios.reduce((s, f) => s + f.liquido, 0);
+      expect(liquidoDoPlano(r.plano)).toBe(conhecido);
+      expect(liquidoDoPlano(r.plano)).not.toBe(todos);
     });
 
     it("a rubrica EXCLUSIVA da pessoa ignorada não vira pendência — ninguém devia cadastrar uma rubrica que nunca vai ser usada", async () => {

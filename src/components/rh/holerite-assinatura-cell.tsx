@@ -36,14 +36,14 @@ export function HoleriteAssinaturaCell({
     return <span className="text-muted-foreground">—</span>;
   }
 
-  function assinar() {
+  async function assinar() {
+    const ok = await confirm({
+      title: "Assinar holerite",
+      description: "Ao assinar, você confirma o recebimento dos valores deste holerite. Ficam registrados seu nome, a data e a hora.",
+      confirmLabel: "Assinar",
+    });
+    if (!ok) return;
     start(async () => {
-      const ok = await confirm({
-        title: "Assinar holerite",
-        description: "Ao assinar, você confirma o recebimento dos valores deste holerite. Ficam registrados seu nome, a data e a hora.",
-        confirmLabel: "Assinar",
-      });
-      if (!ok) return;
       const r = await assinarHolerite({ id: holeriteId });
       if (r.ok) {
         toast.success("Holerite assinado.");

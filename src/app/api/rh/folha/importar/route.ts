@@ -7,7 +7,7 @@ import { logAudit, getClientIp } from "@/lib/audit";
 import { ActionError, resultadoDoErro } from "@/lib/action-error";
 import { salvarArquivo, removerArquivo, nomeArquivoLimpo } from "@/lib/storage";
 import { extrairTextoPdf, parsearTextoFolha, checarChecksum } from "@/modules/rh/folha/importar-pdf";
-import { analisarImportacao, aplicarImportacao } from "@/modules/rh/folha/importar-service";
+import { analisarImportacao, aplicarImportacao, liquidoDoPlano } from "@/modules/rh/folha/importar-service";
 
 const MAX = 10 * 1024 * 1024;
 
@@ -102,6 +102,8 @@ export async function POST(req: Request) {
     await removerArquivo(resultado.pdfSubstituido).catch(() => {});
   }
 
+  const liquidoImportado = liquidoDoPlano(analise.plano);
+
   await logAudit({
     userId: session.user.id,
     modulo: "rh",
@@ -112,7 +114,8 @@ export async function POST(req: Request) {
       arquivo: nome,
       competencia: `${String(folha.mes).padStart(2, "0")}/${folha.ano}`,
       holerites: resultado.holerites,
-      totalLiquido: folha.resumo.totalLiquido,
+      totalLiquido: liquidoImportado,
+      totalLiquidoPdf: folha.resumo.totalLiquido,
       foraDoPdf: analise.plano.avisosForaDoPdf,
       ignorados: analise.plano.matriculasIgnoradas.map((m) => m.matriculaExterna),
     },
@@ -123,7 +126,7 @@ export async function POST(req: Request) {
   return NextResponse.json({
     ok: true,
     holerites: resultado.holerites,
-    totalLiquido: folha.resumo.totalLiquido,
+    totalLiquido: liquidoImportado,
     avisosForaDoPdf: analise.plano.avisosForaDoPdf,
     matriculasIgnoradas: analise.plano.matriculasIgnoradas,
   });

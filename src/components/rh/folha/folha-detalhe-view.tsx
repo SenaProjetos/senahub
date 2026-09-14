@@ -115,17 +115,17 @@ export function FolhaDetalheView({
       } else toast.error(r.error);
     });
   }
-  function reabrir() {
+  async function reabrir() {
     const assinados = folha.holerites.filter((h) => h.assinadoEm).length;
+    if (assinados > 0) {
+      const ok = await confirm({
+        title: "Reabrir folha",
+        description: `${assinados} holerite(s) já assinado(s) por quem recebeu. Reabrir a folha apaga essas assinaturas — cada pessoa vai precisar assinar de novo depois que a folha for fechada outra vez.`,
+        confirmLabel: "Reabrir mesmo assim",
+      });
+      if (!ok) return;
+    }
     start(async () => {
-      if (assinados > 0) {
-        const ok = await confirm({
-          title: "Reabrir folha",
-          description: `${assinados} holerite(s) já assinado(s) por quem recebeu. Reabrir a folha apaga essas assinaturas — cada pessoa vai precisar assinar de novo depois que a folha for fechada outra vez.`,
-          confirmLabel: "Reabrir mesmo assim",
-        });
-        if (!ok) return;
-      }
       const r = await reabrirFolha({ id: folha.id });
       if (r.ok) {
         toast.success(

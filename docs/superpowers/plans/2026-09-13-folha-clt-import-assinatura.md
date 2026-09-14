@@ -292,22 +292,27 @@ lógica pura testada por dentro).
     verdade, o import volta a pedir a rubrica exclusiva dela — comportamento CORRETO, não bug, já
     que a rubrica realmente nunca foi cadastrada) — resíduo zerado conferido por query independente,
     script apagado. **Exercitado no navegador (2026-09-13) e achou um bug real**: clicar em "Sem
-    acesso ao sistema" não fazia NADA visível — o botão chamava `useConfirm()`, cujo `<Dialog>`
-    global vive no layout, fora da árvore React deste diálogo de import já aberto; um segundo
-    `Dialog.Root` independente, aberto por cima de outro já aberto, simplesmente não respondia a
-    clique nenhum. **Causa raiz não isolada** (nenhum outro lugar do código chama `confirm()` de
-    dentro de um Dialog já aberto pra comparar — `contas-bancarias-editor.tsx` e
-    `folha-detalhe-view.tsx` chamam de fora de qualquer Dialog aberto); suspeita mais forte é
-    `await confirm(...)` dentro de `startTransition()` esperando clique do usuário NO MEIO de uma
-    transição React, não um limite do `@base-ui/react` Dialog em si (o changelog da lib alega
-    suporte a múltiplos backdrops modais não-aninhados). Resolvido trocando o mecanismo em vez de
-    depurar mais: confirmação em 2 cliques NA PRÓPRIA linha (botão vira "Confirmar: ignorar de
-    vez?" + "Cancelar" ao lado), sem esperar input em nenhum componente fora da própria linha.
-    Também renomeado o botão pra "Ignorar funcionário" (pedido direto do dono) e desarma
-    automaticamente se o RH mexer no dropdown de vínculo (sinal de que mudou de ideia). **Se algum
-    dia investigar a causa raiz de verdade**: reproduzir clicando um botão que chama
-    `useConfirm()` de dentro de OUTRO `<Dialog>` já aberto SEM estar dentro de `startTransition`
-    async — se funcionar, a causa era mesmo a transição, não o Dialog aninhado.
+    acesso ao sistema" não fazia NADA visível. **Causa raiz (isolada na revisão feita em Opus,
+    lendo o fonte do React 19.1):** o botão fazia `start(async () => { await confirm(...) })`. O
+    `setState` que o `confirm()` dispara pra abrir o diálogo cai na mesma lane da async action
+    (`requestTransitionLane` reusa a lane do evento; `entangleAsyncAction` a marca como
+    `currentEntangledLane`), e ao processar essa atualização o React **suspende o render** até a
+    action terminar (`suspendIfUpdateReadFromEntangledAsyncAction` / `throw
+    currentEntangledActionThenable` em `react-dom-client.development.js`). A action espera o clique
+    num diálogo que nunca renderiza → deadlock. **Não tinha nada a ver com Dialog aninhado** — a
+    primeira explicação (em Sonnet) atribuía a isso e trocou por confirmação em 2 cliques na linha;
+    revertido. Regra: `await confirm()` SEMPRE antes de `start()`, nunca dentro (é o padrão que
+    a maioria das ~45 chamadas do código já segue). Corrigido no diálogo de import (volta ao modal,
+    botão renomeado "Ignorar funcionário" a pedido do dono) e em mais 2 chamadas desta branch que
+    tinham o mesmo bug e nunca tinham sido clicadas: `reabrir()` com holerite assinado
+    (`folha-detalhe-view.tsx`) e "Assinar" na ficha (`holerite-assinatura-cell.tsx`). **Mesmo bug
+    fora desta branch**: `certidoes-view.tsx` (excluir — em produção), e em `dev`
+    `meus-recibos.tsx` (projetista assinar recibo), `folha-lotes-section.tsx` (excluir lote),
+    `folha-linhas-compartilhadas.tsx` (cancelar pagamento).
+    Mesma revisão achou: (a) a resposta do import mostrava `resumo.totalLiquido` do PDF inteiro,
+    que inclui os ignorados — agora `liquidoDoPlano(plano)` (o que foi gravado, bate com o
+    lançamento do fechamento), total do PDF fica só no audit como `totalLiquidoPdf`; (b) na tela
+    de Empresa, "Remover" logo não sumia a imagem (URL derivada do valor salvo, não do estado).
 - **Requisito de UI pra P5 (não deixar pra quem escrever a tela decidir):** `vincularMatriculaExterna`
   MOVE a matrícula quando ela já estava em outra pessoa, e devolve `desvinculadaDe` com o nome de
   quem perdeu o vínculo. A tela **tem** que mostrar isso em destaque na confirmação — mover
