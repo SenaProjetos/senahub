@@ -291,9 +291,23 @@ lógica pura testada por dentro).
     um achado genuíno no meio do script: depois de desfazer um ignorar e vincular a pessoa de
     verdade, o import volta a pedir a rubrica exclusiva dela — comportamento CORRETO, não bug, já
     que a rubrica realmente nunca foi cadastrada) — resíduo zerado conferido por query independente,
-    script apagado. **Ainda não exercitado no navegador** — o dono só chegou a ver a tela de
-    pendência antes de pedir esta feature; falta clicar "Sem acesso ao sistema"/"Voltar a pedir
-    cadastro" de verdade e completar um import até o fim.
+    script apagado. **Exercitado no navegador (2026-09-13) e achou um bug real**: clicar em "Sem
+    acesso ao sistema" não fazia NADA visível — o botão chamava `useConfirm()`, cujo `<Dialog>`
+    global vive no layout, fora da árvore React deste diálogo de import já aberto; um segundo
+    `Dialog.Root` independente, aberto por cima de outro já aberto, simplesmente não respondia a
+    clique nenhum. **Causa raiz não isolada** (nenhum outro lugar do código chama `confirm()` de
+    dentro de um Dialog já aberto pra comparar — `contas-bancarias-editor.tsx` e
+    `folha-detalhe-view.tsx` chamam de fora de qualquer Dialog aberto); suspeita mais forte é
+    `await confirm(...)` dentro de `startTransition()` esperando clique do usuário NO MEIO de uma
+    transição React, não um limite do `@base-ui/react` Dialog em si (o changelog da lib alega
+    suporte a múltiplos backdrops modais não-aninhados). Resolvido trocando o mecanismo em vez de
+    depurar mais: confirmação em 2 cliques NA PRÓPRIA linha (botão vira "Confirmar: ignorar de
+    vez?" + "Cancelar" ao lado), sem esperar input em nenhum componente fora da própria linha.
+    Também renomeado o botão pra "Ignorar funcionário" (pedido direto do dono) e desarma
+    automaticamente se o RH mexer no dropdown de vínculo (sinal de que mudou de ideia). **Se algum
+    dia investigar a causa raiz de verdade**: reproduzir clicando um botão que chama
+    `useConfirm()` de dentro de OUTRO `<Dialog>` já aberto SEM estar dentro de `startTransition`
+    async — se funcionar, a causa era mesmo a transição, não o Dialog aninhado.
 - **Requisito de UI pra P5 (não deixar pra quem escrever a tela decidir):** `vincularMatriculaExterna`
   MOVE a matrícula quando ela já estava em outra pessoa, e devolve `desvinculadaDe` com o nome de
   quem perdeu o vínculo. A tela **tem** que mostrar isso em destaque na confirmação — mover

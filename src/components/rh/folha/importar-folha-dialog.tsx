@@ -14,7 +14,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -187,7 +186,7 @@ export function ImportarFolhaDialog({
     setIgnoradas((cur) => (cur.some((m) => m.matriculaExterna === matriculaExterna) ? cur : [...cur, { matriculaExterna, nome }]));
     setAvisosVinculo((a) => [
       ...a,
-      `"${nome}" (matrícula ${matriculaExterna}) marcada como sem acesso ao sistema — não vai virar holerite, e não pergunta de novo nos próximos meses.`,
+      `"${nome}" (matrícula ${matriculaExterna}) marcada como ignorada — não vai virar holerite, e não pergunta de novo nos próximos meses.`,
     ]);
   }
 
@@ -245,7 +244,7 @@ export function ImportarFolhaDialog({
 
           {ignoradas.length > 0 && (
             <div className="space-y-2 rounded-md border p-3">
-              <p className="text-sm font-medium">Sem acesso ao sistema — não entram no import</p>
+              <p className="text-sm font-medium">Ignorados — não entram no import</p>
               {ignoradas.map((m) => (
                 <div key={m.matriculaExterna} className="flex items-center justify-between gap-2 text-sm">
                   <span>
@@ -439,8 +438,8 @@ function LinhaPendenciaMatricula({
   onResolvida: (matriculaExterna: string, nome: string, desvinculadaDe: string | null) => void;
   onIgnorada: (matriculaExterna: string, nome: string) => void;
 }) {
-  const confirm = useConfirm();
   const [userId, setUserId] = useState("");
+  const [armado, setArmado] = useState(false);
   const [pending, start] = useTransition();
 
   function vincular() {
@@ -455,22 +454,26 @@ function LinhaPendenciaMatricula({
   }
 
   function ignorar() {
+    // Confirmação em 2 cliques NA PRÓPRIA linha, não um `useConfirm()` (Dialog global, montado no
+    // layout) aninhado dentro deste diálogo já aberto — achado ao vivo (2026-09-13): esse caminho
+    // não respondeu a clique nenhum no navegador. Causa raiz NÃO isolada (nenhum outro lugar do
+    // código chama `confirm()` de dentro de um Dialog já aberto pra comparar) — suspeita mais forte
+    // é `await confirm(...)` dentro de `start()` esperar clique do usuário NO MEIO de uma transição
+    // React, não um limite do Dialog em si. Em vez de investigar mais, trocado pelo padrão mais
+    // simples de provar certo: 2 cliques na própria linha, sem esperar input em outro componente.
+    // É permanente mas reversível (o botão "Voltar a pedir cadastro" aparece assim que marca).
+    if (!armado) {
+      setArmado(true);
+      return;
+    }
     start(async () => {
-      // Achado do primeiro import real: o PDF do contador tem gente sem usuário no sistema
-      // (não vai ter mesmo) — confirma antes porque é permanente (embora reversível vinculando
-      // depois), e um clique errado esconderia o holerite de alguém que na verdade tem acesso.
-      const ok = await confirm({
-        title: "Marcar sem acesso ao sistema",
-        description: `"${pendencia.nome}" não vai virar holerite nesta nem nas próximas importações, até alguém vincular esta matrícula a um usuário depois. Confirma que esta pessoa não tem (e não vai ter) acesso ao sistema?`,
-        confirmLabel: "Marcar como ignorada",
-      });
-      if (!ok) return;
       const r = await ignorarMatriculaExterna({
         matriculaExterna: pendencia.matriculaExterna,
         nome: pendencia.nome,
       });
       if (!r.ok) {
         toast.error(r.error);
+        setArmado(false);
         return;
       }
       onIgnorada(pendencia.matriculaExterna, pendencia.nome);
@@ -484,7 +487,16 @@ function LinhaPendenciaMatricula({
         contratual {brl(pendencia.salarioContratual)}
       </p>
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={userId} onValueChange={(v) => setUserId(v ?? "")}>
+        <Select
+          value={userId}
+          onValueChange={(v) => {
+            setUserId(v ?? "");
+            // Escolher alguém no dropdown é sinal de que a intenção mudou de "ignorar" pra
+            // "vincular" — desarma pra não deixar o botão destrutivo armado esperando um clique
+            // perdido em outro lugar da linha.
+            setArmado(false);
+          }}
+        >
           <SelectTrigger className="w-64">
             <SelectValue placeholder="Quem é essa pessoa?" />
           </SelectTrigger>
@@ -499,9 +511,14 @@ function LinhaPendenciaMatricula({
         <Button size="sm" onClick={vincular} disabled={pending || !userId}>
           Vincular
         </Button>
-        <Button size="sm" variant="ghost" onClick={ignorar} disabled={pending}>
-          Sem acesso ao sistema
+        <Button size="sm" variant={armado ? "destructive" : "ghost"} onClick={ignorar} disabled={pending}>
+          {armado ? "Confirmar: ignorar de vez?" : "Ignorar funcionário"}
         </Button>
+        {armado && (
+          <Button size="sm" variant="outline" onClick={() => setArmado(false)} disabled={pending}>
+            Cancelar
+          </Button>
+        )}
       </div>
     </div>
   );
