@@ -2,8 +2,12 @@ import type { Metadata } from "next";
 import { ShieldCheck } from "lucide-react";
 import { conteudoPublicoPorToken } from "@/modules/certidoes/link-publico";
 import { CertidoesPublicoView } from "@/components/certidoes/certidoes-publico-view";
+import { metadataPublica } from "@/lib/metadata-publica";
 
-export const metadata: Metadata = { title: "Certidões", robots: { index: false } };
+export const metadata: Metadata = metadataPublica({
+  titulo: "Certidões",
+  descricao: "Consulte as certidões disponibilizadas.",
+});
 
 export default async function CertidoesPublicoPage({
   params,

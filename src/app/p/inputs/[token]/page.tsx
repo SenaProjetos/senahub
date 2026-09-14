@@ -5,8 +5,12 @@ import { prePopularRespostas } from "@/modules/inputs/briefing-schema";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { InputsPublicForm } from "@/components/inputs/inputs-public-form";
 import { BriefingPublico } from "@/components/inputs/briefing-public";
+import { metadataPublica } from "@/lib/metadata-publica";
 
-export const metadata: Metadata = { title: "Formulário do projeto", robots: { index: false } };
+export const metadata: Metadata = metadataPublica({
+  titulo: "Formulário do projeto",
+  descricao: "Preencha as informações solicitadas para o projeto.",
+});
 
 export default async function InputsPublicoPage({
   params,
