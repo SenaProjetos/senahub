@@ -17,11 +17,15 @@ const mocks = vi.hoisted(() => ({
   rubricaCreate: vi.fn(),
   userFindUnique: vi.fn(),
   userUpdate: vi.fn(),
+  matriculaIgnoradaDeleteManyTx: vi.fn(),
+  matriculaIgnoradaUpsert: vi.fn(),
+  matriculaIgnoradaDeleteMany: vi.fn(),
 }));
 
 const tx = {
   rubricaFolha: { update: mocks.rubricaUpdate, create: mocks.rubricaCreate },
   user: { update: mocks.userUpdate },
+  matriculaExternaIgnorada: { deleteMany: mocks.matriculaIgnoradaDeleteManyTx },
 };
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
@@ -36,11 +40,13 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     rubricaFolha: { findUnique: mocks.rubricaFindUnique },
     user: { findUnique: mocks.userFindUnique },
+    matriculaExternaIgnorada: { upsert: mocks.matriculaIgnoradaUpsert, deleteMany: mocks.matriculaIgnoradaDeleteMany },
     $transaction: (fn: (t: typeof tx) => unknown) => fn(tx),
   },
 }));
 
-const { vincularRubricaExterna, vincularMatriculaExterna } = await import("./actions");
+const { vincularRubricaExterna, vincularMatriculaExterna, ignorarMatriculaExterna, designorarMatriculaExterna } =
+  await import("./actions");
 
 const ADMIN = { id: "admin-1", role: "admin", name: "Admin", ativo: true };
 
@@ -153,5 +159,53 @@ describe("vincularMatriculaExterna", () => {
     expect(r.ok).toBe(true);
     expect(r.ok && r.data.desvinculadaDe).toBeNull();
     expect(mocks.userUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("vincular de verdade remove a marca de 'ignorada', se existia (a pessoa ganhou acesso)", async () => {
+    mocks.userUpdate.mockResolvedValue({ id: "u1", name: "Fulana" });
+    await vincularMatriculaExterna({ matriculaExterna: "000003", userId: "u1" });
+    expect(mocks.matriculaIgnoradaDeleteManyTx).toHaveBeenCalledWith({
+      where: { matriculaExterna: "000003" },
+    });
+  });
+});
+
+describe("ignorarMatriculaExterna", () => {
+  it("marca a matrícula como ignorada quando ninguém está vinculado a ela", async () => {
+    const r = await ignorarMatriculaExterna({ matriculaExterna: "000009", nome: "SEM ACESSO" });
+    expect(r.ok).toBe(true);
+    expect(mocks.matriculaIgnoradaUpsert).toHaveBeenCalledWith({
+      where: { matriculaExterna: "000009" },
+      create: { matriculaExterna: "000009", nome: "SEM ACESSO" },
+      update: { nome: "SEM ACESSO" },
+    });
+  });
+
+  it("recusa ignorar uma matrícula que já está vinculada a alguém — teria que desvincular primeiro", async () => {
+    mocks.userFindUnique.mockResolvedValue({ id: "u1", name: "Fulana" });
+    const r = await ignorarMatriculaExterna({ matriculaExterna: "000003", nome: "Fulana" });
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.error).toMatch(/já está vinculada a "Fulana"/);
+    expect(mocks.matriculaIgnoradaUpsert).not.toHaveBeenCalled();
+  });
+
+  it("ignorar de novo a mesma matrícula é idempotente (upsert, não erro de duplicata)", async () => {
+    const r1 = await ignorarMatriculaExterna({ matriculaExterna: "000009", nome: "SEM ACESSO" });
+    const r2 = await ignorarMatriculaExterna({ matriculaExterna: "000009", nome: "SEM ACESSO" });
+    expect(r1.ok).toBe(true);
+    expect(r2.ok).toBe(true);
+  });
+});
+
+describe("designorarMatriculaExterna", () => {
+  it("remove a marca de ignorada — pessoa volta a pedir cadastro no próximo import", async () => {
+    const r = await designorarMatriculaExterna({ matriculaExterna: "000009" });
+    expect(r.ok).toBe(true);
+    expect(mocks.matriculaIgnoradaDeleteMany).toHaveBeenCalledWith({ where: { matriculaExterna: "000009" } });
+  });
+
+  it("desfazer uma matrícula que nunca foi ignorada não é erro (deleteMany é no-op)", async () => {
+    const r = await designorarMatriculaExterna({ matriculaExterna: "000000" });
+    expect(r.ok).toBe(true);
   });
 });

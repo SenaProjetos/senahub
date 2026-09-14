@@ -63,7 +63,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: analise.motivo }, { status: 400 });
   }
   if (analise.status === "pendencias") {
-    return NextResponse.json({ pendencias: { rubricas: analise.rubricas, matriculas: analise.matriculas } });
+    return NextResponse.json({
+      pendencias: { rubricas: analise.rubricas, matriculas: analise.matriculas },
+      matriculasIgnoradas: analise.matriculasIgnoradas,
+    });
   }
 
   // Arquivo antes da transação para o caminho já entrar gravado nela; se a transação falhar, o
@@ -111,6 +114,7 @@ export async function POST(req: Request) {
       holerites: resultado.holerites,
       totalLiquido: folha.resumo.totalLiquido,
       foraDoPdf: analise.plano.avisosForaDoPdf,
+      ignorados: analise.plano.matriculasIgnoradas.map((m) => m.matriculaExterna),
     },
     ip: await getClientIp(),
   });
@@ -121,5 +125,6 @@ export async function POST(req: Request) {
     holerites: resultado.holerites,
     totalLiquido: folha.resumo.totalLiquido,
     avisosForaDoPdf: analise.plano.avisosForaDoPdf,
+    matriculasIgnoradas: analise.plano.matriculasIgnoradas,
   });
 }

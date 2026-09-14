@@ -356,6 +356,10 @@ export const vincularMatriculaExterna = defineAction(
       if (anterior && anterior.id !== i.userId) {
         await tx.user.update({ where: { id: anterior.id }, data: { matriculaFolhaExterna: null } });
       }
+      // Vincular É a decisão contrária de "ignorar" — se esta matrícula tinha sido marcada como
+      // sem acesso ao sistema (ex.: a pessoa ganhou usuário depois), o vínculo de verdade some
+      // com a marca, sem exigir um passo manual de "designorar" que ninguém ia lembrar de fazer.
+      await tx.matriculaExternaIgnorada.deleteMany({ where: { matriculaExterna: i.matriculaExterna } });
       return tx.user.update({
         where: { id: i.userId },
         data: { matriculaFolhaExterna: i.matriculaExterna },
@@ -365,6 +369,55 @@ export const vincularMatriculaExterna = defineAction(
 
     revalidatePath(PATH);
     return { id: user.id, nome: user.name, desvinculadaDe: anterior && anterior.id !== i.userId ? anterior.name : null };
+  },
+);
+
+const ignorarMatriculaSchema = z.object({
+  matriculaExterna: z.string().min(1),
+  nome: z.string().min(1),
+});
+
+/**
+ * PDF do contador tem gente que nunca vai ter usuário aqui (achado no primeiro import real,
+ * 2026-09-13) — sem isto o import travaria pra sempre pedindo cadastro de alguém que não existe
+ * no sistema. Permanente (não pergunta de novo no mês seguinte), mas nunca em silêncio:
+ * `analisarImportacao` sempre lista quem foi pulado por isto na resposta.
+ */
+export const ignorarMatriculaExterna = defineAction(
+  { ...base, acao: "ignorar-matricula-externa", entidade: "MatriculaExternaIgnorada", schema: ignorarMatriculaSchema },
+  async (i) => {
+    const jaTemUsuario = await prisma.user.findUnique({
+      where: { matriculaFolhaExterna: i.matriculaExterna },
+      select: { id: true, name: true },
+    });
+    if (jaTemUsuario) {
+      throw new ActionError(
+        `Esta matrícula já está vinculada a "${jaTemUsuario.name}" — desvincule antes de marcar como ignorada.`,
+      );
+    }
+    await prisma.matriculaExternaIgnorada.upsert({
+      where: { matriculaExterna: i.matriculaExterna },
+      create: { matriculaExterna: i.matriculaExterna, nome: i.nome },
+      update: { nome: i.nome },
+    });
+    revalidatePath(PATH);
+    return { matriculaExterna: i.matriculaExterna };
+  },
+);
+
+const designorarMatriculaSchema = z.object({ matriculaExterna: z.string().min(1) });
+
+/**
+ * Desfaz um "ignorar" clicado por engano — achado no review desta mesma feature: sem isto, a
+ * única forma de reverter era editar o banco à mão, porque a matrícula ignorada some da lista de
+ * pendências (é o próprio ponto da feature). Volta a pedir cadastro no próximo import.
+ */
+export const designorarMatriculaExterna = defineAction(
+  { ...base, acao: "designorar-matricula-externa", entidade: "MatriculaExternaIgnorada", schema: designorarMatriculaSchema },
+  async (i) => {
+    await prisma.matriculaExternaIgnorada.deleteMany({ where: { matriculaExterna: i.matriculaExterna } });
+    revalidatePath(PATH);
+    return { matriculaExterna: i.matriculaExterna };
   },
 );
 

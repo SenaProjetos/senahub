@@ -5134,6 +5134,22 @@ model FolhaPagamento {
   @@map("folha_pagamento")
 }
 
+/// Matrícula do contador que o RH marcou como "sem acesso ao sistema" — achado no primeiro
+/// import real (2026-09-13): o PDF do contador tem gente que nunca vai ter usuário aqui. Sem
+/// isto, o import ficaria travado pra sempre pedindo cadastro de uma pessoa que nunca vai
+/// existir como `User`. Permanente (não pergunta de novo todo mês), mas `analisarImportacao`
+/// sempre lista quem foi pulado por isto na resposta — nunca em silêncio. Reversível: vincular a
+/// matrícula a um `User` de verdade depois remove a entrada daqui (mesma transação).
+model MatriculaExternaIgnorada {
+  id               String   @id @default(cuid())
+  matriculaExterna String   @unique
+  /// Nome como aparece no PDF — só pra RH reconhecer quem é, sem precisar reabrir o arquivo.
+  nome             String
+  criadoEm         DateTime @default(now())
+
+  @@map("matricula_externa_ignorada")
+}
+
 model Holerite {
   id          String         @id @default(cuid())
   folhaId     String

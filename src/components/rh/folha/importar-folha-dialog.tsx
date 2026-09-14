@@ -5,10 +5,16 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Upload, AlertTriangle } from "lucide-react";
 import type { TipoRubricaImport } from "@/modules/rh/folha/importar-pdf";
-import { vincularRubricaExterna, vincularMatriculaExterna } from "@/modules/rh/folha/actions";
+import {
+  vincularRubricaExterna,
+  vincularMatriculaExterna,
+  ignorarMatriculaExterna,
+  designorarMatriculaExterna,
+} from "@/modules/rh/folha/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -37,11 +43,27 @@ type PendenciaRubricaUI = {
 type PendenciaMatriculaUI = { matriculaExterna: string; nome: string; salarioContratual: number };
 type RubricaOpcao = { id: string; nome: string; tipo: TipoRubricaImport };
 type PessoaOpcao = { id: string; name: string };
+type MatriculaIgnoradaUI = { matriculaExterna: string; nome: string };
+
+type ResultadoImportar = {
+  holerites: number;
+  totalLiquido: number;
+  avisosForaDoPdf: string[];
+};
 
 type RespostaImportar =
-  | { pendencias: { rubricas: PendenciaRubricaUI[]; matriculas: PendenciaMatriculaUI[] } }
+  | {
+      pendencias: { rubricas: PendenciaRubricaUI[]; matriculas: PendenciaMatriculaUI[] };
+      matriculasIgnoradas: MatriculaIgnoradaUI[];
+    }
   | { error: string }
-  | { ok: true; holerites: number; totalLiquido: number; avisosForaDoPdf: string[] };
+  | {
+      ok: true;
+      holerites: number;
+      totalLiquido: number;
+      avisosForaDoPdf: string[];
+      matriculasIgnoradas: MatriculaIgnoradaUI[];
+    };
 
 export function ImportarFolhaDialog({
   folhaId,
@@ -64,6 +86,11 @@ export function ImportarFolhaDialog({
   // arquivo em si fica em memória aqui, senão o RH escolheria o PDF nas mãos de novo).
   const [sessaoPendencia, setSessaoPendencia] = useState(false);
   const [avisosVinculo, setAvisosVinculo] = useState<string[]>([]);
+  const [resultado, setResultado] = useState<ResultadoImportar | null>(null);
+  // Lista de "sem acesso ao sistema" — vem tanto de "pendencias" quanto de "pronto" (a maioria
+  // dos imports reais passa por pendência antes; "sempre avisar" tem que valer nos dois).
+  // Independente de `sessaoPendencia`/`resultado` pra sempre ter onde mostrar o botão de desfazer.
+  const [ignoradas, setIgnoradas] = useState<MatriculaIgnoradaUI[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   function fechar() {
@@ -73,6 +100,8 @@ export function ImportarFolhaDialog({
     setMatriculasPend([]);
     setSessaoPendencia(false);
     setAvisosVinculo([]);
+    setResultado(null);
+    setIgnoradas([]);
   }
 
   function enviar(arquivo: File) {
@@ -96,6 +125,7 @@ export function ImportarFolhaDialog({
         setSessaoPendencia(true);
         setRubricasPend(data.pendencias.rubricas);
         setMatriculasPend(data.pendencias.matriculas);
+        setIgnoradas(data.matriculasIgnoradas);
         return;
       }
       if (!res.ok || "error" in data) {
@@ -104,10 +134,16 @@ export function ImportarFolhaDialog({
       }
 
       toast.success(`${data.holerites} holerite(s) importado(s) — líquido ${brl(data.totalLiquido)}.`);
-      if (data.avisosForaDoPdf.length > 0) {
-        toast.warning(`Não vieram neste PDF (mantidos como estavam): ${data.avisosForaDoPdf.join(", ")}`);
-      }
-      fechar();
+      // Fica na tela em vez de fechar direto: "sempre avisar" (decisão do dono) precisa de um
+      // lugar que não some sozinho como um toast — sobretudo pra quem foi ignorado em mês
+      // anterior e nunca aparece como pendência aqui de novo.
+      setSessaoPendencia(false);
+      setResultado({
+        holerites: data.holerites,
+        totalLiquido: data.totalLiquido,
+        avisosForaDoPdf: data.avisosForaDoPdf,
+      });
+      setIgnoradas(data.matriculasIgnoradas);
       router.refresh();
     });
   }
@@ -144,6 +180,28 @@ export function ImportarFolhaDialog({
       ]);
     }
   }
+  function matriculaIgnorada(matriculaExterna: string, nome: string) {
+    setMatriculasPend((m) => m.filter((p) => p.matriculaExterna !== matriculaExterna));
+    // Adiciona já na lista local — não espera um reenvio pra dar o botão de desfazer, já que o
+    // vínculo pode não acontecer nesta mesma sessão.
+    setIgnoradas((cur) => (cur.some((m) => m.matriculaExterna === matriculaExterna) ? cur : [...cur, { matriculaExterna, nome }]));
+    setAvisosVinculo((a) => [
+      ...a,
+      `"${nome}" (matrícula ${matriculaExterna}) marcada como sem acesso ao sistema — não vai virar holerite, e não pergunta de novo nos próximos meses.`,
+    ]);
+  }
+
+  function designorar(matriculaExterna: string, nome: string) {
+    start(async () => {
+      const r = await designorarMatriculaExterna({ matriculaExterna });
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
+      setIgnoradas((cur) => cur.filter((m) => m.matriculaExterna !== matriculaExterna));
+      toast.success(`"${nome}" volta a pedir cadastro no próximo import.`);
+    });
+  }
 
   const pendenciasRestantes = rubricasPend.length + matriculasPend.length;
 
@@ -172,7 +230,36 @@ export function ImportarFolhaDialog({
             </div>
           )}
 
-          {!sessaoPendencia && (
+          {resultado && (
+            <div className="space-y-1">
+              <p className="text-sm">
+                {resultado.holerites} holerite(s) importado(s) — líquido {brl(resultado.totalLiquido)}.
+              </p>
+              {resultado.avisosForaDoPdf.length > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Não vieram neste PDF (mantidos como estavam): {resultado.avisosForaDoPdf.join(", ")}
+                </p>
+              )}
+            </div>
+          )}
+
+          {ignoradas.length > 0 && (
+            <div className="space-y-2 rounded-md border p-3">
+              <p className="text-sm font-medium">Sem acesso ao sistema — não entram no import</p>
+              {ignoradas.map((m) => (
+                <div key={m.matriculaExterna} className="flex items-center justify-between gap-2 text-sm">
+                  <span>
+                    <span className="font-mono">{m.matriculaExterna}</span> &ldquo;{m.nome}&rdquo;
+                  </span>
+                  <Button size="sm" variant="ghost" onClick={() => designorar(m.matriculaExterna, m.nome)} disabled={enviando}>
+                    Voltar a pedir cadastro
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!sessaoPendencia && !resultado && (
             <div className="space-y-2">
               <Label htmlFor="pdf-folha">Arquivo PDF</Label>
               <Input
@@ -209,19 +296,26 @@ export function ImportarFolhaDialog({
                   pendencia={p}
                   elegiveis={elegiveis}
                   onResolvida={matriculaResolvida}
+                  onIgnorada={matriculaIgnorada}
                 />
               ))}
             </div>
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={fechar}>
-              Cancelar
-            </Button>
-            {sessaoPendencia && (
-              <Button onClick={reenviar} disabled={enviando || pendenciasRestantes > 0}>
-                {enviando ? "Reenviando…" : "Reenviar arquivo"}
-              </Button>
+            {resultado ? (
+              <Button onClick={fechar}>Fechar</Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={fechar}>
+                  Cancelar
+                </Button>
+                {sessaoPendencia && (
+                  <Button onClick={reenviar} disabled={enviando || pendenciasRestantes > 0}>
+                    {enviando ? "Reenviando…" : "Reenviar arquivo"}
+                  </Button>
+                )}
+              </>
             )}
           </DialogFooter>
         </DialogContent>
@@ -338,11 +432,14 @@ function LinhaPendenciaMatricula({
   pendencia,
   elegiveis,
   onResolvida,
+  onIgnorada,
 }: {
   pendencia: PendenciaMatriculaUI;
   elegiveis: PessoaOpcao[];
   onResolvida: (matriculaExterna: string, nome: string, desvinculadaDe: string | null) => void;
+  onIgnorada: (matriculaExterna: string, nome: string) => void;
 }) {
+  const confirm = useConfirm();
   const [userId, setUserId] = useState("");
   const [pending, start] = useTransition();
 
@@ -354,6 +451,29 @@ function LinhaPendenciaMatricula({
         return;
       }
       onResolvida(pendencia.matriculaExterna, r.data.nome, r.data.desvinculadaDe);
+    });
+  }
+
+  function ignorar() {
+    start(async () => {
+      // Achado do primeiro import real: o PDF do contador tem gente sem usuário no sistema
+      // (não vai ter mesmo) — confirma antes porque é permanente (embora reversível vinculando
+      // depois), e um clique errado esconderia o holerite de alguém que na verdade tem acesso.
+      const ok = await confirm({
+        title: "Marcar sem acesso ao sistema",
+        description: `"${pendencia.nome}" não vai virar holerite nesta nem nas próximas importações, até alguém vincular esta matrícula a um usuário depois. Confirma que esta pessoa não tem (e não vai ter) acesso ao sistema?`,
+        confirmLabel: "Marcar como ignorada",
+      });
+      if (!ok) return;
+      const r = await ignorarMatriculaExterna({
+        matriculaExterna: pendencia.matriculaExterna,
+        nome: pendencia.nome,
+      });
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
+      onIgnorada(pendencia.matriculaExterna, pendencia.nome);
     });
   }
 
@@ -378,6 +498,9 @@ function LinhaPendenciaMatricula({
         </Select>
         <Button size="sm" onClick={vincular} disabled={pending || !userId}>
           Vincular
+        </Button>
+        <Button size="sm" variant="ghost" onClick={ignorar} disabled={pending}>
+          Sem acesso ao sistema
         </Button>
       </div>
     </div>

@@ -57,11 +57,29 @@ export type PlanoImportacao = {
    * alguém que saiu). O import não apaga nada — só avisa, pra decisão ser humana.
    */
   avisosForaDoPdf: string[];
+  /**
+   * Gente do PDF marcada como "sem acesso ao sistema" (`MatriculaExternaIgnorada`) — não vira
+   * holerite, mas também nunca fica em silêncio: sempre listada aqui, mesmo quando a decisão de
+   * ignorar já foi tomada em mês anterior (achado do primeiro import real, 2026-09-13 — o PDF do
+   * contador tem gente que nunca vai ter usuário aqui).
+   */
+  matriculasIgnoradas: { matriculaExterna: string; nome: string }[];
 };
 
 export type AnaliseImportacao =
   | { status: "erro"; motivo: string }
-  | { status: "pendencias"; rubricas: PendenciaRubrica[]; matriculas: PendenciaMatricula[] }
+  | {
+      status: "pendencias";
+      rubricas: PendenciaRubrica[];
+      matriculas: PendenciaMatricula[];
+      /**
+       * Mesma lista que vai em `PlanoImportacao.matriculasIgnoradas` — precisa estar aqui TAMBÉM,
+       * porque a maioria dos imports reais passa por pelo menos um round de pendência antes de
+       * "pronto" (achado no review desta feature: sem isto, "sempre avisar" avisava zero vezes
+       * sempre que o import terminava em pendência, que é o caso mais comum).
+       */
+      matriculasIgnoradas: { matriculaExterna: string; nome: string }[];
+    }
   | { status: "pronto"; plano: PlanoImportacao };
 
 /**
@@ -97,8 +115,21 @@ export async function analisarImportacao(
     };
   }
 
-  const codigos = [...new Set(folha.funcionarios.flatMap((f) => f.rubricas.map((r) => r.codigoExterno)))];
-  const matriculas = folha.funcionarios.map((f) => f.matriculaExterna);
+  // Gente do PDF sem (e que nunca vai ter) usuário no sistema — não entra em NADA do que segue:
+  // nem exige rubrica cadastrada, nem matrícula vinculada, nem holerite. `analisarImportacao`
+  // finge que essas linhas do PDF não existem, a partir daqui.
+  const matriculasIgnoradasRows = await prisma.matriculaExternaIgnorada.findMany({
+    where: { matriculaExterna: { in: folha.funcionarios.map((f) => f.matriculaExterna) } },
+    select: { matriculaExterna: true, nome: true },
+  });
+  const matriculasIgnoradasSet = new Set(matriculasIgnoradasRows.map((i) => i.matriculaExterna));
+  const funcionariosConsiderados = folha.funcionarios.filter(
+    (f) => !matriculasIgnoradasSet.has(f.matriculaExterna),
+  );
+  const folhaConsiderada: FolhaImportada = { ...folha, funcionarios: funcionariosConsiderados };
+
+  const codigos = [...new Set(funcionariosConsiderados.flatMap((f) => f.rubricas.map((r) => r.codigoExterno)))];
+  const matriculas = funcionariosConsiderados.map((f) => f.matriculaExterna);
 
   const [rubricas, usuarios] = await Promise.all([
     prisma.rubricaFolha.findMany({
@@ -121,9 +152,9 @@ export async function analisarImportacao(
   const matriculasFaltando = matriculas.filter((m) => !usuarioPorMatricula.has(m));
 
   if (codigosFaltando.length > 0 || matriculasFaltando.length > 0) {
-    const sugestoes = sugerirTiposDesconhecidos(folha, tipoPorCodigo);
+    const sugestoes = sugerirTiposDesconhecidos(folhaConsiderada, tipoPorCodigo);
     const exemploPorCodigo = new Map<string, { descricao: string; valor: number }>();
-    for (const f of folha.funcionarios) {
+    for (const f of funcionariosConsiderados) {
       for (const r of f.rubricas) {
         if (!exemploPorCodigo.has(r.codigoExterno)) {
           exemploPorCodigo.set(r.codigoExterno, { descricao: r.descricao, valor: r.valor });
@@ -139,19 +170,20 @@ export async function analisarImportacao(
         tipoSugerido: sugestoes.get(codigo) ?? null,
       })),
       matriculas: matriculasFaltando.map((matricula) => {
-        const f = folha.funcionarios.find((x) => x.matriculaExterna === matricula)!;
+        const f = funcionariosConsiderados.find((x) => x.matriculaExterna === matricula)!;
         return { matriculaExterna: matricula, nome: f.nome, salarioContratual: f.salarioContratual };
       }),
+      matriculasIgnoradas: matriculasIgnoradasRows,
     };
   }
 
   // Todos os códigos conhecidos: agora a classificação CADASTRADA precisa reproduzir os totais
   // impressos no PDF. É aqui que uma rubrica cadastrada com o sinal trocado é pega — nenhuma
   // outra checagem do caminho enxerga esse erro.
-  const classificacao = conferirClassificacao(folha, tipoPorCodigo);
+  const classificacao = conferirClassificacao(folhaConsiderada, tipoPorCodigo);
   if (!classificacao.ok) return { status: "erro", motivo: classificacao.motivo };
 
-  const holerites: HoleritePlanejado[] = folha.funcionarios.map((f) => {
+  const holerites: HoleritePlanejado[] = funcionariosConsiderados.map((f) => {
     const usuario = usuarioPorMatricula.get(f.matriculaExterna)!;
     return {
       userId: usuario.id,
@@ -177,7 +209,14 @@ export async function analisarImportacao(
 
   return {
     status: "pronto",
-    plano: { folhaId, ano: folha.ano, mes: folha.mes, holerites, avisosForaDoPdf },
+    plano: {
+      folhaId,
+      ano: folha.ano,
+      mes: folha.mes,
+      holerites,
+      avisosForaDoPdf,
+      matriculasIgnoradas: matriculasIgnoradasRows,
+    },
   };
 }
 

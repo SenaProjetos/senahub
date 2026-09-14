@@ -256,6 +256,44 @@ lógica pura testada por dentro).
   ("diferença salarial 05/2026") tem barra e dígitos que podem fragmentar diferente. **Não
   remover `RE_RUBRICA_CODIGO_ULTIMO`/o fallback em `casarRubrica` achando que é código morto** —
   é a forma que o PDF real usa, as fixtures antigas é que nunca a exercitaram.
+- **Feature nova, fora das 6 fases do §6 original — "ignorar matrícula" (achado ao vivo no primeiro
+  import real, 2026-09-13):** o PDF do contador trouxe gente que nunca vai ter usuário no sistema
+  (ex.: GICELLY/VANESSA/YASMIM apareceram como pendência de matrícula na primeira tentativa real do
+  dono). Sem um jeito de dizer "essa pessoa não tem conta mesmo", o import ficaria travado pra
+  sempre pedindo cadastro de alguém que não vai existir como `User`. Pedido verbatim do dono: *"o
+  pdf tem mais pessoas que registradas no sistema, permitir ignorar algumas pessoas deliberadamente.
+  pode haver gente na folha que nao tenha acesso ao sistema."* — e sobre persistência: *"Lembrar
+  permanentemente, mas sempre avisar."*
+  - Modelo novo `MatriculaExternaIgnorada` (matrícula + nome, `@unique`), migration aplicada via
+    fallback de diff de schema (banco de dev com drift de outra sessão concorrente nas tabelas
+    `certidao`/`pendencia` — mesmo caminho já documentado em `migracao-drift-reset.md`).
+  - `analisarImportacao` filtra os ignorados de TUDO (rubrica exigida, matrícula pendente, holerite)
+    antes de qualquer outra checagem — a pessoa "não existe" pro resto da função a partir dali.
+  - `ignorarMatriculaExterna` recusa se a matrícula já está vinculada a um `User` de verdade
+    (precisa desvincular antes); `vincularMatriculaExterna` some com a marca de ignorada na MESMA
+    transação quando a pessoa finalmente ganha acesso — reversível sem passo de UI separado.
+  - **Permanente, nunca em silêncio**: tanto o retorno `"pendencias"` quanto `"pronto"` de
+    `analisarImportacao` carregam `matriculasIgnoradas` — achado do `advisor()` na primeira rodada
+    de review desta feature: a versão inicial só listava isso no retorno `"pronto"`, e a maioria dos
+    imports reais termina em pendência primeiro (rubrica/matrícula faltando), então "sempre avisar"
+    avisava zero vezes no caso mais comum. `ImportarFolhaDialog` mostra a lista (com matrícula/nome)
+    tanto na tela de pendência quanto na de resultado, com toast de aviso também.
+  - **Segundo achado do mesmo review**: reversível "na camada de dados" não é reversível de fato se
+    a UI não tem como chegar lá — uma matrícula ignorada some da lista de pendências (é o ponto da
+    feature), então marcar por engano não tinha NENHUM jeito de desfazer fora de editar o banco à
+    mão. Adicionado `designorarMatriculaExterna` + botão "Voltar a pedir cadastro" ao lado de cada
+    nome na lista de ignorados (visível nas duas telas acima, não só na de sucesso).
+  - 6 testes novos (`actions-import.test.ts` +4, `importar-service.test.ts` +2), suíte completa em
+    285 arquivos/3107 testes. Duas provas por mutação: removido o filtro de ignorados de
+    `analisarImportacao` (2 testes falharam como esperado), removido `matriculasIgnoradas` do braço
+    `"pendencias"` (1 teste falhou como esperado) — ambas restauradas e conferidas por
+    `git diff --stat` idêntico ao original. 13 cenários verificados contra o banco de dev (incluindo
+    um achado genuíno no meio do script: depois de desfazer um ignorar e vincular a pessoa de
+    verdade, o import volta a pedir a rubrica exclusiva dela — comportamento CORRETO, não bug, já
+    que a rubrica realmente nunca foi cadastrada) — resíduo zerado conferido por query independente,
+    script apagado. **Ainda não exercitado no navegador** — o dono só chegou a ver a tela de
+    pendência antes de pedir esta feature; falta clicar "Sem acesso ao sistema"/"Voltar a pedir
+    cadastro" de verdade e completar um import até o fim.
 - **Requisito de UI pra P5 (não deixar pra quem escrever a tela decidir):** `vincularMatriculaExterna`
   MOVE a matrícula quando ela já estava em outra pessoa, e devolve `desvinculadaDe` com o nome de
   quem perdeu o vínculo. A tela **tem** que mostrar isso em destaque na confirmação — mover

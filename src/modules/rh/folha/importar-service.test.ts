@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   folhaFindUnique: vi.fn(),
   rubricaFindMany: vi.fn(),
   userFindMany: vi.fn(),
+  matriculaIgnoradaFindMany: vi.fn(),
   holeriteUpsert: vi.fn(),
   holeriteItemDeleteMany: vi.fn(),
   holeriteItemCreateMany: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock("@/lib/prisma", () => ({
     folhaPagamento: { findUnique: mocks.folhaFindUnique },
     rubricaFolha: { findMany: mocks.rubricaFindMany },
     user: { findMany: mocks.userFindMany },
+    matriculaExternaIgnorada: { findMany: mocks.matriculaIgnoradaFindMany },
     $transaction: (fn: (t: typeof tx) => unknown) => fn(tx),
   },
 }));
@@ -82,6 +84,7 @@ beforeEach(() => {
     { id: "r-inss", tipo: "desconto", codigoExterno: "903" },
   ]);
   mocks.userFindMany.mockResolvedValue([{ id: "u1", name: "Fulana", matriculaFolhaExterna: "000001" }]);
+  mocks.matriculaIgnoradaFindMany.mockResolvedValue([]);
 });
 
 describe("analisarImportacao", () => {
@@ -166,6 +169,91 @@ describe("analisarImportacao", () => {
     if (r.status !== "pronto") return;
     expect(r.plano.avisosForaDoPdf).toEqual(["Ciclana"]);
   });
+
+  describe("matrícula ignorada (pessoa sem acesso ao sistema, achado no primeiro import real)", () => {
+    // PDF com 2 pessoas: a de sempre (000001, cadastrada) e uma sem usuário no sistema
+    // (000002), com uma rubrica EXCLUSIVA dela (999) que não está cadastrada em lugar nenhum.
+    function folhaComDuasPessoas() {
+      return folhaFake({
+        resumo: {
+          totalGeral: 250,
+          totalDescontos: 15,
+          totalLiquido: 235,
+          totalFuncionarios: 2,
+          totalCotasSalFamilia: 0,
+          totalINSS: 10,
+          totalFGTS: 8,
+          totalIRRF: 0,
+        },
+        funcionarios: [
+          ...folhaFake().funcionarios,
+          {
+            matriculaExterna: "000002",
+            nome: "SEM ACESSO AO SISTEMA",
+            salarioContratual: 150,
+            rubricas: [{ codigoExterno: "999", descricao: "Verba especial", valor: 150 }],
+            totalProventos: 150,
+            totalDescontos: 0,
+            liquido: 150,
+          },
+        ],
+      });
+    }
+
+    it("não vira holerite nem pendência de matrícula, mas aparece em matriculasIgnoradas", async () => {
+      mocks.matriculaIgnoradaFindMany.mockResolvedValue([
+        { matriculaExterna: "000002", nome: "SEM ACESSO AO SISTEMA" },
+      ]);
+      const r = await analisarImportacao("f1", folhaComDuasPessoas());
+      expect(r.status).toBe("pronto");
+      if (r.status !== "pronto") return;
+      expect(r.plano.holerites).toHaveLength(1);
+      expect(r.plano.holerites[0].matriculaExterna).toBe("000001");
+      expect(r.plano.matriculasIgnoradas).toEqual([
+        { matriculaExterna: "000002", nome: "SEM ACESSO AO SISTEMA" },
+      ]);
+    });
+
+    it("a rubrica EXCLUSIVA da pessoa ignorada não vira pendência — ninguém devia cadastrar uma rubrica que nunca vai ser usada", async () => {
+      mocks.matriculaIgnoradaFindMany.mockResolvedValue([
+        { matriculaExterna: "000002", nome: "SEM ACESSO AO SISTEMA" },
+      ]);
+      const r = await analisarImportacao("f1", folhaComDuasPessoas());
+      expect(r.status).toBe("pronto");
+    });
+
+    it("sem marcar como ignorada, a mesma folha pede cadastro normal (matrícula E rubrica)", async () => {
+      mocks.matriculaIgnoradaFindMany.mockResolvedValue([]);
+      const r = await analisarImportacao("f1", folhaComDuasPessoas());
+      expect(r.status).toBe("pendencias");
+      if (r.status !== "pendencias") return;
+      expect(r.matriculas.map((m) => m.matriculaExterna)).toEqual(["000002"]);
+      expect(r.rubricas.map((x) => x.codigoExterno)).toEqual(["999"]);
+    });
+
+    it("'sempre avisar' vale mesmo quando o import termina em pendência (achado no review: a maioria termina assim)", async () => {
+      // Uma pessoa já ignorada (000002) + uma terceira pessoa nova, de verdade sem cadastro
+      // (000003) — a pendência real de 000003 não pode apagar o aviso sobre 000002.
+      mocks.matriculaIgnoradaFindMany.mockResolvedValue([
+        { matriculaExterna: "000002", nome: "SEM ACESSO AO SISTEMA" },
+      ]);
+      const folha = folhaComDuasPessoas();
+      folha.funcionarios.push({
+        matriculaExterna: "000003",
+        nome: "PESSOA NOVA",
+        salarioContratual: 200,
+        rubricas: [],
+        totalProventos: 200,
+        totalDescontos: 0,
+        liquido: 200,
+      });
+      const r = await analisarImportacao("f1", folha);
+      expect(r.status).toBe("pendencias");
+      if (r.status !== "pendencias") return;
+      expect(r.matriculas.map((m) => m.matriculaExterna)).toEqual(["000003"]);
+      expect(r.matriculasIgnoradas).toEqual([{ matriculaExterna: "000002", nome: "SEM ACESSO AO SISTEMA" }]);
+    });
+  });
 });
 
 describe("aplicarImportacao", () => {
@@ -186,6 +274,7 @@ describe("aplicarImportacao", () => {
       },
     ],
     avisosForaDoPdf: [],
+    matriculasIgnoradas: [],
   };
 
   beforeEach(() => {
