@@ -4,7 +4,7 @@ import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage } 
 import { prisma } from "@/lib/prisma";
 import { resolverCaminho } from "@/lib/storage";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { formatarDataHora } from "@/lib/utils";
+import { formatarDataHora, rotuloRevisao } from "@/lib/utils";
 import { lerMarcacao, caminhoNuvem, abasSeta, type Marcacao } from "@/modules/projetos/pendencias/marcacao";
 import { formatarMedida } from "@/modules/projetos/pendencias/medicao";
 import { SEVERIDADE_LABEL, contaComoTrabalho, type Severidade } from "@/modules/projetos/pendencias/helpers";
@@ -327,7 +327,7 @@ export async function carimbarPrancha(uploadId: string, posicoes: PosicaoPin[] =
     },
     {
       texto:
-        `Revisão R${String(upload.versao - 1).padStart(2, "0")} · ${pendencias.length} apontamento(s), ${abertas} em aberto` +
+        `Revisão ${rotuloRevisao(upload.versao)} · ${pendencias.length} apontamento(s), ${abertas} em aberto` +
         (impeditivas > 0 ? `, ${impeditivas} impeditivo(s)` : ""),
     },
     { texto: `Carimbado em ${formatarDataHora(new Date())}` },

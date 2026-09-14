@@ -10,11 +10,16 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Rótulo de revisão de arquivo: 1 → R01, 2 → R02, 10 → R10 (convenção de engenharia,
- * substitui o antigo v1/v2). Zero-padded a 2 dígitos; a partir de 100 usa o tamanho real.
+ * Rótulo de revisão de arquivo a partir do número INTERNO (`Upload.versao` /
+ * `DocumentoRevisao.numero`, que começam em 1): 1 → R00, 2 → R01, 11 → R10.
+ *
+ * Convenção de engenharia: R00 é a emissão original e R01 a PRIMEIRA revisão — o carimbo e o
+ * relatório de apontamentos já seguiam assim; a tela mostrava R01 no original. O banco segue
+ * 1-based de propósito (nome físico `__v2`, unique de revisão): só o rótulo desloca.
+ * Zero-padded a 2 dígitos; a partir de 100 usa o tamanho real.
  */
 export function rotuloRevisao(n: number): string {
-  return `R${String(n).padStart(2, "0")}`
+  return `R${String(Math.max(0, n - 1)).padStart(2, "0")}`
 }
 
 /** Moeda BRL: R$ 81.000,00 */

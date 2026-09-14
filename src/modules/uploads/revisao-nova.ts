@@ -11,6 +11,8 @@
  * `chaveDocumento()`, que muda na Fase 2: quando mudar, este arquivo acompanha.
  */
 
+import { rotuloRevisao } from "@/lib/utils";
+
 export type ArquivoExistente = {
   nome: string;
   /** Pacote (A|B|OUTROS|RECEBIDOS) quando o arquivo vive no fluxo legado. */
@@ -67,7 +69,7 @@ export function mensagemNovasRevisoes(revisoes: RevisaoDetectada[]): string {
   if (revisoes.length === 0) return "";
   if (revisoes.length === 1) {
     const { nome, versaoAtual } = revisoes[0];
-    return `"${nome}" já existe (v${versaoAtual}) — será enviado como v${versaoAtual + 1}. A versão anterior é mantida no histórico.`;
+    return `"${nome}" já existe (${rotuloRevisao(versaoAtual)}) — será enviado como ${rotuloRevisao(versaoAtual + 1)}. A versão anterior é mantida no histórico.`;
   }
   return `${revisoes.length} arquivos já existem e serão enviados como novas versões. As versões anteriores são mantidas no histórico.`;
 }

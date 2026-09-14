@@ -1091,12 +1091,12 @@ function LinhaVersaoDocumento({
         {formatarData(v.criadoEm)}
       </span>
       <span className="shrink-0 font-mono text-xs">{fmtBytes(v.tamanho)}</span>
-      <PreviewPdfButton visivel={extDe(v.nomeArquivo) === "pdf"} url={v.downloadUrl} titulo={`${nome} v${v.numero}`} />
-      <VisualizarDwgButton desenhoId={refDocumentoDwg(v.id)} nomeArquivo={v.nomeArquivo} titulo={`${nome} v${v.numero}`} />
+      <PreviewPdfButton visivel={extDe(v.nomeArquivo) === "pdf"} url={v.downloadUrl} titulo={`${nome} ${rotuloRevisao(v.numero)}`} />
+      <VisualizarDwgButton desenhoId={refDocumentoDwg(v.id)} nomeArquivo={v.nomeArquivo} titulo={`${nome} ${rotuloRevisao(v.numero)}`} />
       <a
         href={v.downloadUrl}
         className="shrink-0 text-primary hover:text-primary/80"
-        aria-label={`Baixar ${nome} v${v.numero}`}
+        aria-label={`Baixar ${nome} ${rotuloRevisao(v.numero)}`}
       >
         <Download className="size-3.5" />
       </a>

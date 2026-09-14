@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { acessoGlobal } from "@/lib/roles";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import { rotuloRevisao } from "@/lib/utils";
 // Rótulos de status vêm do catálogo central (item 22) — ter uma cópia aqui fez a planilha
 // ficar sem os estados novos e chamar "descartada" de "Descartada" e não "Não procede".
 import { SEVERIDADE_LABEL, STATUS_LABEL, TIPO_PENDENCIA_LABEL, type Severidade, type StatusPendencia, type TipoPendencia } from "@/modules/projetos/pendencias/helpers";
@@ -132,7 +133,7 @@ export async function GET(req: Request) {
       texto: p.texto,
       autor: nomeAutor.get(p.autorId) ?? "—",
       criado: dataHora(p.createdAt),
-      revisao: p.upload ? `R${String(p.upload.versao - 1).padStart(2, "0")}` : "—",
+      revisao: p.upload ? rotuloRevisao(p.upload.versao) : "—",
       respostas: p.respostas.length,
       resolvido: dataHora(p.resolvidoEm),
       fechado: dataHora(p.fechadoEm),

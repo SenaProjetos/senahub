@@ -64,8 +64,9 @@ describe("mensagemNovasRevisoes", () => {
   it("uma revisão cita nome e a versão que será criada", () => {
     const msg = mensagemNovasRevisoes([{ nome: "planta.pdf", versaoAtual: 2 }]);
     expect(msg).toContain("planta.pdf");
-    expect(msg).toContain("v2");
-    expect(msg).toContain("v3");
+    // Número interno 2 = R01 (primeira revisão); o próximo envio vira R02.
+    expect(msg).toContain("R01");
+    expect(msg).toContain("R02");
   });
 
   it("várias revisões usam a forma resumida no plural", () => {

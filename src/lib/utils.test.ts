@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { brl, brlInteiro, formatarData, formatarDataHora, formatarMesCurto, formatarDiaMes } from "@/lib/utils";
+import { brl, brlInteiro, formatarData, formatarDataHora, formatarMesCurto, formatarDiaMes, rotuloRevisao } from "@/lib/utils";
 
 // normaliza espaço estreito/insecável que o Intl usa em pt-BR
 const norm = (s: string) => s.replace(/ | /g, " ");
@@ -55,5 +55,17 @@ describe("formatarMesCurto / formatarDiaMes", () => {
   });
   it("dia/mês 2 dígitos", () => {
     expect(formatarDiaMes(new Date(2026, 5, 7))).toBe("07/06");
+  });
+});
+
+describe("rotuloRevisao", () => {
+  it("a emissão original (número interno 1) é R00 e a primeira revisão é R01", () => {
+    expect(rotuloRevisao(1)).toBe("R00");
+    expect(rotuloRevisao(2)).toBe("R01");
+    expect(rotuloRevisao(11)).toBe("R10");
+  });
+
+  it("número fora da faixa não gera rótulo negativo", () => {
+    expect(rotuloRevisao(0)).toBe("R00");
   });
 });

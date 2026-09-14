@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { editarMetadadosDocumento, atualizarStatusDocumento } from "@/modules/uploads/actions";
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
 import type { OpcaoFaseDocumento } from "@/components/projetos/arquivos/seletor-fases-documentos";
+import { rotuloRevisao } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,7 +117,7 @@ export function PainelDocumentoDetalhe({
               <FileText className="size-4 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1 truncate">{linha.disciplinaNome}</span>
               {linha.revisaoAtual !== null && (
-                <span className="font-mono text-xs text-muted-foreground">R{String(linha.revisaoAtual).padStart(2, "0")}</span>
+                <span className="font-mono text-xs text-muted-foreground">{rotuloRevisao(linha.revisaoAtual)}</span>
               )}
             </div>
 
