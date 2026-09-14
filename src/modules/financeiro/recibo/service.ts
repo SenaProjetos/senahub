@@ -13,6 +13,7 @@
 
 import { brl, formatarData } from "@/lib/utils";
 import { MESES_CURTOS } from "@/lib/data";
+import { TIMBRADO_CSS, timbradoHtml, type EmpresaTimbrado } from "@/modules/configuracoes/empresa/timbrado";
 
 export type TipoRecibo = "individual" | "mensal";
 
@@ -94,6 +95,11 @@ export type ReciboParaPdf = {
   textoHash: string;
   assinadoEm: Date | null;
   assinanteNome: string | null;
+  /**
+   * Cabeçalho visual, FORA do texto assinado: `textoRecibo()` e o hash não mudam — senão todo
+   * recibo antigo deixaria de bater com o próprio código de verificação.
+   */
+  empresa: EmpresaTimbrado | null;
 };
 
 /**
@@ -111,12 +117,14 @@ export function renderReciboHtml(r: ReciboParaPdf): string {
 <style>
   @page { size: A4; margin: 18mm 16mm; }
   body { font: 12px/1.5 -apple-system, "Segoe UI", Arial, sans-serif; color: #16211b; }
+  ${TIMBRADO_CSS}
   pre { font: 12px/1.6 "Courier New", monospace; white-space: pre-wrap; margin: 0 0 18px; }
   .rodape { border-top: 1px solid #c9d2c5; padding-top: 10px; margin-top: 18px; font-size: 10px; color: #52645a; }
   .pendente { color: #a9660a; font-weight: 600; }
   code { word-break: break-all; }
 </style></head>
 <body>
+  ${timbradoHtml(r.empresa)}
   <pre>${escapar(r.texto)}</pre>
   ${assinatura}
   <div class="rodape">

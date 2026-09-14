@@ -3,9 +3,8 @@ import puppeteer from "puppeteer-core";
 import { getSession } from "@/lib/session";
 import { HR_ADMIN_ROLES, type Role } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
-import { renderHoleriteHtml, type EmpresaTimbrado } from "@/modules/rh/folha/service";
-import { dadosEmpresa } from "@/modules/configuracoes/empresa/queries";
-import { lerArquivo, existeArquivo } from "@/lib/storage";
+import { renderHoleriteHtml } from "@/modules/rh/folha/service";
+import { empresaParaTimbrado } from "@/modules/configuracoes/empresa/queries";
 
 /**
  * PDF do holerite CLT (P3, espelha `/api/financeiro/recibos/[id]/pdf`). Mesma mecânica:
@@ -42,24 +41,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const chrome = process.env.CHROME_PATH;
   if (!chrome) return new Response("CHROME_PATH não configurado.", { status: 503 });
 
-  // Lido do storage e virado data: URI aqui (não uma URL) porque `renderHoleriteHtml` é puro
-  // (sem I/O) e o puppeteer carrega o HTML via `setContent`, sem sessão/cookies pra baixar de
-  // uma rota autenticada.
-  const empresaConfig = await dadosEmpresa();
-  let empresa: EmpresaTimbrado | null = null;
-  if (empresaConfig) {
-    let logoDataUri: string | null = null;
-    if (empresaConfig.logoPath && (await existeArquivo(empresaConfig.logoPath))) {
-      const buf = await lerArquivo(empresaConfig.logoPath);
-      logoDataUri = `data:image/png;base64,${buf.toString("base64")}`;
-    }
-    empresa = {
-      razaoSocial: empresaConfig.razaoSocial,
-      cnpj: empresaConfig.cnpj,
-      endereco: empresaConfig.endereco,
-      logoDataUri,
-    };
-  }
+  const empresa = await empresaParaTimbrado();
 
   const html = renderHoleriteHtml({
     id: holerite.id,

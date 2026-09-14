@@ -1,5 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { existeArquivo, lerArquivo } from "@/lib/storage";
+import type { EmpresaTimbrado } from "./timbrado";
 
 /**
  * Dados da empresa pro timbrado dos PDFs gerados pelo sistema (holerite CLT — plano
@@ -33,4 +35,19 @@ function normalizar(valor: unknown): DadosEmpresa | null {
 export async function dadosEmpresa(): Promise<DadosEmpresa | null> {
   const c = await prisma.configSistema.findUnique({ where: { chave: CHAVE_DADOS_EMPRESA } });
   return normalizar(c?.valor);
+}
+
+/**
+ * Timbrado pronto pra `timbradoHtml`, com o logo embutido como data URI. Logo configurado mas
+ * sumido do storage → PDF sai sem logo (melhor que falhar o download de quem só quer o próprio
+ * holerite/recibo); a tela de Configurações → Empresa é quem avisa desse caso.
+ */
+export async function empresaParaTimbrado(): Promise<EmpresaTimbrado | null> {
+  const dados = await dadosEmpresa();
+  if (!dados) return null;
+  let logoDataUri: string | null = null;
+  if (dados.logoPath && (await existeArquivo(dados.logoPath))) {
+    logoDataUri = `data:image/png;base64,${(await lerArquivo(dados.logoPath)).toString("base64")}`;
+  }
+  return { razaoSocial: dados.razaoSocial, cnpj: dados.cnpj, endereco: dados.endereco, logoDataUri };
 }

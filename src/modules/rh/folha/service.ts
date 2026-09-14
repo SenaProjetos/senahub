@@ -14,23 +14,12 @@
 
 import { brl, formatarData } from "@/lib/utils";
 import { MESES_CURTOS } from "@/lib/data";
+import { TIMBRADO_CSS, timbradoHtml, type EmpresaTimbrado } from "@/modules/configuracoes/empresa/timbrado";
 
 export type ItemHoleritePdf = {
   descricao: string;
   tipo: "provento" | "desconto";
   valor: number;
-};
-
-/**
- * Timbrado — achado no primeiro import real (2026-09-13, ver §7 do plano): o PDF saía sem
- * nenhuma identificação do empregador. `logoDataUri` já vem pronto (data: URI) porque este
- * arquivo é puro (sem I/O) — quem lê o logo do storage e monta o data URI é a rota.
- */
-export type EmpresaTimbrado = {
-  razaoSocial: string;
-  cnpj: string | null;
-  endereco: string | null;
-  logoDataUri: string | null;
 };
 
 export type HoleritePdf = {
@@ -58,21 +47,6 @@ function linhaItem(i: ItemHoleritePdf): string {
   return `<tr><td>${escapar(i.descricao)}</td><td class="valor ${i.tipo}">${sinal}${brl(i.valor)}</td></tr>`;
 }
 
-function timbradoHtml(e: EmpresaTimbrado | null): string {
-  if (!e) return "";
-  const logo = e.logoDataUri ? `<img src="${e.logoDataUri}" alt="" class="logo">` : "";
-  const linhas = [e.cnpj ? `CNPJ ${escapar(e.cnpj)}` : null, e.endereco ? escapar(e.endereco) : null]
-    .filter(Boolean)
-    .join(" · ");
-  return `<div class="timbrado">
-    ${logo}
-    <div>
-      <p class="razao-social">${escapar(e.razaoSocial)}</p>
-      ${linhas ? `<p class="timbrado-linha">${linhas}</p>` : ""}
-    </div>
-  </div>`;
-}
-
 /** HTML do PDF (puppeteer `setContent`, mesmo caminho do recibo de produção e da memória de cálculo). */
 export function renderHoleriteHtml(h: HoleritePdf): string {
   const proventos = h.itens.filter((i) => i.tipo === "provento").reduce((s, i) => s + i.valor, 0);
@@ -89,10 +63,7 @@ export function renderHoleriteHtml(h: HoleritePdf): string {
 <style>
   @page { size: A4; margin: 18mm 16mm; }
   body { font: 12px/1.5 -apple-system, "Segoe UI", Arial, sans-serif; color: #16211b; }
-  .timbrado { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #c9d2c5; }
-  .timbrado .logo { max-height: 48px; max-width: 120px; object-fit: contain; }
-  .razao-social { margin: 0; font-size: 13px; font-weight: 700; }
-  .timbrado-linha { margin: 2px 0 0; font-size: 10px; color: #52645a; }
+  ${TIMBRADO_CSS}
   h1 { font-size: 16px; margin: 0 0 4px; }
   .sub { color: #52645a; margin: 0 0 18px; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
