@@ -313,12 +313,37 @@ lógica pura testada por dentro).
   quem perdeu o vínculo. A tela **tem** que mostrar isso em destaque na confirmação — mover
   matrícula é desatar uma pessoa da identidade de folha dela, e o operador precisa ver que isso
   aconteceu (o `AuditLog` já registra; o que falta é o humano enxergar na hora).
-- **Pergunta aberta pra quando o RH testar (achado do advisor na P3, ainda sem decisão):** o PDF do
-  holerite hoje é só a tabela de rubricas + linha de assinatura — sem CNPJ/razão social/período por
-  extenso. Pra uso interno tá bom; se o funcionário for levar pra um banco ou virar peça de reclamação
-  trabalhista, pode precisar de identificação do empregador (o PDF do próprio contador tem esse
-  cabeçalho por esse motivo). Não implementado a cegas — perguntar antes de mexer em
-  `renderHoleriteHtml`.
+- **RESOLVIDO (2026-09-13): pergunta aberta da P3 sobre CNPJ/razão social no PDF.** Dono confirmou
+  ao ver o PDF real no navegador: falta o timbrado. Implementado FORA das 6 fases — módulo novo
+  `modules/configuracoes/empresa/` (não `modules/rh/`: é dado da empresa, não de RH; gate
+  `configuracoes:gerir`, mesmo da tela `/configuracoes`, pra poder ser reusado depois pelo recibo
+  de produção, que tem o mesmo gap e não foi tocado agora — fora do pedido). Guardado em
+  `ConfigSistema` (key `empresa.dados`, JSON: razaoSocial/cnpj/endereco/logoPath) — registro único,
+  sem tabela nova. Tela em `/configuracoes/empresa` (`EmpresaView`), upload de logo em
+  `/api/configuracoes/empresa/logo` (sharp normaliza pra PNG ≤600px, mesma mecânica de
+  `/api/avisos/imagem`, mas restrita a PNG/JPEG — SVG não confirmado nesta build do sharp).
+  `renderHoleriteHtml` ganhou `empresa: EmpresaTimbrado | null` — `null` quando ninguém preencheu
+  ainda, PDF sai como antes (não quebra instalação nova). A rota do PDF (`service.ts` é puro, sem
+  I/O) lê o logo do storage e monta um `data:` URI ANTES de chamar `renderHoleriteHtml`, porque o
+  puppeteer carrega o HTML via `setContent` sem sessão/cookies pra buscar de uma rota autenticada.
+  5 testes novos em `service.test.ts` (timbrado presente/ausente/sem-CNPJ/logo/escape de HTML) +
+  9 em `modules/configuracoes/empresa/{queries,actions}.test.ts`, suíte em 288 arquivos/3121
+  testes. Prova por mutação: removida a limpeza do logo antigo em `salvarDadosEmpresa`, exatamente
+  2 testes falharam como esperado, restaurado limpo. Pipeline do `sharp` (resize+PNG, PNG e JPEG de
+  entrada) testado à parte com um script descartável — produz PNG válido nos dois casos; a rota
+  HTTP completa (`POST /api/configuracoes/empresa/logo` de verdade, pelo navegador) **não foi
+  exercitada** — só o código do sharp isoladamente. Dados fictícios de DEV semeados direto no
+  `ConfigSistema` do banco de dev via script descartável (apagado depois): razão social carrega o
+  marcador `"(DEV — dado fictício)"` DE PROPÓSITO — se um print da tela de dev escapar, fica óbvio
+  que não é dado real; **quem for preencher produção precisa SUBSTITUIR essa string inteira, não
+  só completar CNPJ/endereço**. CNPJ fictício é o clássico `00.000.000/0001-00` (não um número que
+  parece real). Achados do `advisor()` corrigidos antes do commit: (1) o `<input accept="image/*">`
+  aceitava mais tipos do que o texto de ajuda prometia ("PNG ou JPG") — restrito a
+  `image/png,image/jpeg` nos dois lados (cliente e rota); (2) se `logoPath` está preenchido mas o
+  arquivo sumiu do storage (drift de `STORAGE_BASE_PATH` entre ambientes, ou alguém limpando a
+  pasta), o holerite silenciosamente sai sem logo — aceitável pro funcionário baixando o próprio
+  PDF (melhor sem logo que 500), mas a TELA de configuração ganhou `onError` no `<img>` mostrando
+  aviso + botão "Limpar", pra quem administra perceber e resolver.
 - **Checklist de smoke em navegador (achado do advisor na P3):** nenhum teste automatizado (mock ou
   banco real) passa por uma sessão HTTP de verdade — o gate de titularidade de `assinarHolerite`
   (`session.user.id === holerite.userId`) só foi provado contra `session.user` fabricado em teste.
