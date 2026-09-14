@@ -1545,7 +1545,7 @@
       "titulo": "Chat",
       "path": "comunicacao/chat.md",
       "descricao": "Comunicação interna em tempo real — canais de projeto e mensagens diretas, com status e recibos.",
-      "resumo": "Converse em tempo real por canais (inclusive os criados automaticamente por projeto) e mensagens diretas; defina status, som e recibos de leitura.",
+      "resumo": "Converse em tempo real por canais (inclusive os criados automaticamente por projeto) e mensagens diretas; guarde anotações e links de trabalho num espaço só seu, com lixeira de 30 dias; defina status, som e recibos de leitura.",
       "tags": [
         "chat",
         "mensagens",
@@ -1554,7 +1554,8 @@
         "tempo real",
         "status",
         "recibos",
-        "menções"
+        "menções",
+        "anotações"
       ],
       "palavrasChave": [
         "chat",
@@ -1568,7 +1569,12 @@
         "online",
         "recibo",
         "menção",
-        "notificação"
+        "notificação",
+        "anotação",
+        "anotações",
+        "links",
+        "lixeira",
+        "restaurar"
       ],
       "sinonimos": [
         "mensageria",
