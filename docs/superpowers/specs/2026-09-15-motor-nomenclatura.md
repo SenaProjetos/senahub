@@ -328,7 +328,9 @@ não regex — enquanto o compilador da F1 não existe, cai na regra embutida
   (alta confiança) e editáveis; avisos (projeto divergente, disciplina divergente, faixa,
   temporário, extensão desconhecida); sugestões com botão:
   - **[Usar nome corrigido]** (D4) — reaproveita `correcao-nome-upload.tsx` /
-    `nomeCorrigidoPeloPadrao` onde couber, trocando só o código do projeto;
+    `nomeCorrigidoPeloPadrao` onde couber, trocando só o código do projeto. **Só oferecer quando
+    o motor também leu disciplina ou fase**: sem isso, o número inicial pode ser outra coisa
+    (`253-PIL-VIG-007-R00.DXF`, desenho de elemento das ferramentas, vira falsa sugestão);
   - **[Enviar em Backup do modelo]** quando `ehBackup` ou compactado com contexto de backup;
   - **[Nova versão de: <documento>]** (D10) quando o `nomeBase` sem sufixo de cópia casa com
     documento existente da mesma disciplina.
@@ -366,6 +368,9 @@ não regex — enquanto o compilador da F1 não existe, cai na regra embutida
   `NomenclaturaConfig.padrao`.
 - Regex legada que o editor não consegue representar abre em **modo avançado** (texto),
   sem conversão automática.
+- O editor precisa emitir **uma** forma para revisão: `{Rnn}` (o `R` faz parte do campo) ou
+  `R{rev}` (o `R` é literal). `padrao.ts` aceita as duas, mas os dois padrões que produção tem
+  hoje usam escritas diferentes — escolher uma e migrar o outro na mesma tela.
 
 ### F6 — Índice de contêiner `.zip` (opcional) · **Opus**
 

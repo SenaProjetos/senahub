@@ -327,6 +327,9 @@ async function main() {
   titulo("6. MOTOR DE NOMENCLATURA (F1) × REGRA ATUAL");
   // Enquanto a F2 não leva `sinonimos` para o banco, o motor usa a semente de
   // `sinonimos-iniciais.ts` — é exatamente a carga que a migration vai aplicar.
+  // ATENÇÃO: os ids aqui são SINTÉTICOS (`fase:EX`) porque este script só conta. A F2/F3 tem de
+  // montar o vocabulário com o `id` de verdade do catálogo — `fase.valor` vai direto para
+  // `DocumentoDisciplina.faseId`, e gravar "fase:EX" numa FK quebraria a escrita.
   const catalogosMotor = {
     disciplinas: disciplinasCatalogo
       .filter((d) => d.ativo)
