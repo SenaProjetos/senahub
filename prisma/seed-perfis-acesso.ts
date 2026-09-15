@@ -82,14 +82,17 @@ export async function seedPerfisAcesso(prisma: PrismaClient): Promise<ResultadoS
       .filter((l) => l.permitido)
       .map((l) => ({ perfilId: perfil.id, recurso: l.recurso, acao: l.acao, permitido: true }));
 
-    // Escopo de dados (`escopo:global`, sintético — não passa por `Permissao`): NENHUM perfil
-    // semente recebe automaticamente. Decisão do dono (2026-07-28, §9.7): Coordenador NÃO
-    // mantém o escopo global que `supervisor` tem hoje via `GLOBAL_ROLES` — a empresa está
-    // migrando para gestores por setor, e "todo coordenador vê todo projeto da empresa" não
-    // serve mais esse desenho. Continua inerte até a Onda D religar `acessoGlobal()` (hoje
-    // ainda lê `GLOBAL_ROLES`, código, sem mudança de comportamento real por este seed). Um
-    // futuro perfil "gestor de setor" que precise de escopo mais amplo que um projeto (mas
-    // não necessariamente global) é desenho novo, não este par binário — feito quando existir.
+    // Escopo de dados (`escopo:global`, sintético — não passa por `Permissao`, por isso não vem do
+    // legado acima): só o Coordenador recebe. Histórico da decisão, porque ela já mudou uma vez:
+    //   - 2026-07-28 (§9.7): NENHUM perfil semente recebia — a empresa ia para gestores por setor.
+    //   - 2026-09-04: revogada pelo dono — "Coordenador é geral, vê todos os projetos"; a
+    //     subdivisão por disciplina vem depois e vai RESTRINGIR este escopo, não ampliar.
+    // Bancos que já existiam receberam o par pela migration
+    // `20260915140000_perfil_coordenador_escopo_global` (este seed é create-only).
+    // É LEITURA: não concede escrita em disciplina alheia, que ainda lê `GLOBAL_ROLES`.
+    if (chave === CHAVE_POR_ROLE.supervisor) {
+      linhas.push({ perfilId: perfil.id, recurso: "escopo", acao: "global", permitido: true });
+    }
 
     if (linhas.length) await prisma.permissaoPerfil.createMany({ data: linhas });
 
