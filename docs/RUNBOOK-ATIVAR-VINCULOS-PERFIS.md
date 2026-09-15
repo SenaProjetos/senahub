@@ -222,6 +222,10 @@ SELECT u.name, u.role FROM "user" u JOIN perfil_acesso p ON p.id = u."perfilId"
 WHERE u.ativo AND p.chave = 'coordenador';
 ```
 
+**A mudança só alcança quem aparece nesta lista.** O motivo desta migration foi uma coordenadora
+contratada CLT: se ela não sair aqui, o perfil dela não foi salvo como Coordenador e a migration
+não muda nada para ela — conferir em Configurações → Usuários antes de dar o caso por resolvido.
+
 **O gate `checar-equivalencia-permissoes.ts` vai acusar ganho** de `escopo:global` para cada
 Coordenador cujo papel NÃO é `supervisor` (ele compara com a regra antiga, `GLOBAL_ROLES || sócio`).
 É a mudança pedida, não regressão. Para quem tem papel `supervisor`, a perda aberta pela Onda D
