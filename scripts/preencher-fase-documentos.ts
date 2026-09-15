@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
-import { faseDoNomeArquivo, parsePranchaFilename } from "../src/modules/projetos/pranchas/codigo";
+import { parsePranchaFilename } from "../src/modules/projetos/pranchas/codigo";
 
 /**
  * Preenche a fase dos documentos que ficaram sem `faseId`.
@@ -10,6 +10,10 @@ import { faseDoNomeArquivo, parsePranchaFilename } from "../src/modules/projetos
  * recebia classificação. Resultado: o filtro de fase da tela V2 mostrava vazio mesmo com
  * `-BS-` no nome. Este script aplica a MESMA regra do upload (`faseDoNomeArquivo`) ao acervo.
  *
+ * A regra está repetida aqui (`faseDoNome`) em vez de importada de propósito: o script precisa
+ * rodar num servidor que ainda está numa versão anterior àquela em que `faseDoNomeArquivo`
+ * passou a existir (a v1.17.0 só exporta `parsePranchaFilename`). Mantenha as duas iguais.
+ *
  * Catálogo resolvido POR PROJETO (fases globais + as do próprio projeto, só ativas): uma
  * sigla criada só num projeto não pode classificar documento de outro.
  *
@@ -18,6 +22,12 @@ import { faseDoNomeArquivo, parsePranchaFilename } from "../src/modules/projetos
  */
 
 const APLICAR = process.argv.includes("--aplicar");
+
+/** Cópia de `faseDoNomeArquivo` (ver cabeçalho): sigla do 3º campo do nome, casada no catálogo. */
+function faseDoNome<F extends { sigla: string }>(nome: string, fases: readonly F[]): F | undefined {
+  const sigla = parsePranchaFilename(nome)?.fase;
+  return sigla ? fases.find((fase) => fase.sigla.toUpperCase() === sigla) : undefined;
+}
 
 async function main() {
   const [docs, fases] = await Promise.all([
@@ -48,7 +58,7 @@ async function main() {
   for (const doc of docs) {
     const projetoId = doc.disciplina.projetoId;
     const catalogo = fases.filter((fase) => fase.projetoId === null || fase.projetoId === projetoId);
-    const fase = faseDoNomeArquivo(doc.nomeArquivo, catalogo);
+    const fase = faseDoNome(doc.nomeArquivo, catalogo);
     if (fase) {
       atribuicoes.push({ documentoId: doc.id, faseId: fase.id });
       porSigla.set(fase.sigla, (porSigla.get(fase.sigla) ?? 0) + 1);
