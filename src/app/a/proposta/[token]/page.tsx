@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { FileText } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { brl, formatarData } from "@/lib/utils";
 import { PropostaPublicaUpload } from "@/components/comercial/proposta-publica-upload";
 import { nomeDisciplinaItem } from "@/modules/comercial/disciplinas";
 import { metadataPublica } from "@/lib/metadata-publica";
+import { CabecalhoPublico } from "@/components/publico/cabecalho-publico";
 
 export const metadata: Metadata = metadataPublica({
   titulo: "Proposta — Sena Projetos",
@@ -38,17 +40,15 @@ export default async function PropostaPublicaPage({
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-10">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/MARCA/logo_completa_dark.svg" alt="Sena Projetos" className="mb-8 hidden h-10 dark:block" />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/MARCA/logo_completa_light.svg" alt="Sena Projetos" className="mb-8 h-10 dark:hidden" />
-
-      <p className="font-mono text-xs text-muted-foreground">{p.numero}</p>
-      <h1 className="text-2xl font-extrabold tracking-tight">{p.titulo}</h1>
-      <p className="mb-8 text-sm text-muted-foreground">
-        Para: {p.cliente.nome}
-        {p.validade && ` · válida até ${formatarData(p.validade)}`}
-      </p>
+      <div className="mb-8">
+        <CabecalhoPublico
+          icone={FileText}
+          rotulo="Proposta comercial"
+          codigo={p.numero}
+          titulo={p.titulo}
+          descricao={`Para: ${p.cliente.nome}${p.validade ? ` · válida até ${formatarData(p.validade)}` : ""}`}
+        />
+      </div>
 
       <section className="rounded-sm border bg-card">
         <table className="w-full text-sm">

@@ -14,6 +14,7 @@ import type { ConteudoPublico } from "@/modules/projetos/arquivos/link-publico";
 import { cn, rotuloRevisao } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { CabecalhoPublico } from "@/components/publico/cabecalho-publico";
 
 function fmtBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -182,18 +183,18 @@ export function ArquivosPublicoView({ token, conteudo }: { token: string; conteu
   const total = conteudo.disciplinas.reduce((n, d) => n + d.arquivos.length, 0);
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-10">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="font-mono text-xs text-muted-foreground">{conteudo.projeto.codigo}</p>
-          <h1 className="text-2xl font-extrabold tracking-tight">{conteudo.projeto.nome}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {total} arquivo{total === 1 ? "" : "s"} dispon{total === 1 ? "ível" : "íveis"} para visualização e download.
-          </p>
-        </div>
-        <Button render={<a href={`/api/p/arquivos/${token}/zip`} rel="noopener" />}>
-          <Download className="size-4" /> Baixar tudo (.zip)
-        </Button>
-      </div>
+      <CabecalhoPublico
+        icone={FolderOpen}
+        rotulo="Arquivos do projeto"
+        codigo={conteudo.projeto.codigo}
+        titulo={conteudo.projeto.nome}
+        descricao={`${total} arquivo${total === 1 ? "" : "s"} dispon${total === 1 ? "ível" : "íveis"} para visualização e download.`}
+        acoes={
+          <Button render={<a href={`/api/p/arquivos/${token}/zip`} rel="noopener" />}>
+            <Download className="size-4" /> Baixar tudo (.zip)
+          </Button>
+        }
+      />
 
       <Card>
         <CardContent className="divide-y p-2">
@@ -204,9 +205,7 @@ export function ArquivosPublicoView({ token, conteudo }: { token: string; conteu
         </CardContent>
       </Card>
 
-      <p className="text-center text-xs text-muted-foreground">
-        Acesso somente leitura. Este link pode ser revogado ou expirar a qualquer momento.
-      </p>
+      <p className="text-center text-xs text-muted-foreground">Acesso somente leitura.</p>
     </main>
   );
 }

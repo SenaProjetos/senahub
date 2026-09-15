@@ -6,6 +6,7 @@ import { formatarData } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { CabecalhoPublico } from "@/components/publico/cabecalho-publico";
 
 function badgeStatus(status: CertidaoPublica["status"]) {
   if (status === "vencida") return <Badge variant="outline" className="text-destructive border-destructive/40">vencida</Badge>;
@@ -17,22 +18,19 @@ export function CertidoesPublicoView({ token, certidoes }: { token: string; cert
   const comArquivo = certidoes.filter((c) => c.arquivoNome);
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-10">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="size-5 text-primary" />
-            <h1 className="text-2xl font-extrabold tracking-tight">Certidões</h1>
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {certidoes.length} certidão{certidoes.length === 1 ? "" : "ões"} disponíve{certidoes.length === 1 ? "l" : "is"} para visualização e download.
-          </p>
-        </div>
-        {comArquivo.length > 0 && (
-          <Button render={<a href={`/api/p/certidoes/${token}/zip`} rel="noopener" />}>
-            <Download className="size-4" /> Baixar tudo (.zip)
-          </Button>
-        )}
-      </div>
+      <CabecalhoPublico
+        icone={ShieldCheck}
+        rotulo="Regularidade da empresa"
+        titulo="Certidões"
+        descricao={`${certidoes.length} ${certidoes.length === 1 ? "certidão disponível" : "certidões disponíveis"} para visualização e download.`}
+        acoes={
+          comArquivo.length > 0 && (
+            <Button render={<a href={`/api/p/certidoes/${token}/zip`} rel="noopener" />}>
+              <Download className="size-4" /> Baixar tudo (.zip)
+            </Button>
+          )
+        }
+      />
 
       <Card>
         <CardContent className="divide-y p-2">
@@ -72,9 +70,7 @@ export function CertidoesPublicoView({ token, certidoes }: { token: string; cert
         </CardContent>
       </Card>
 
-      <p className="text-center text-xs text-muted-foreground">
-        Acesso somente leitura. Este link pode ser revogado ou expirar a qualquer momento.
-      </p>
+      <p className="text-center text-xs text-muted-foreground">Acesso somente leitura.</p>
     </main>
   );
 }

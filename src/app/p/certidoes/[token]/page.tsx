@@ -3,6 +3,7 @@ import { ShieldCheck } from "lucide-react";
 import { conteudoPublicoPorToken } from "@/modules/certidoes/link-publico";
 import { CertidoesPublicoView } from "@/components/certidoes/certidoes-publico-view";
 import { metadataPublica } from "@/lib/metadata-publica";
+import { LinkIndisponivel } from "@/components/publico/link-indisponivel";
 
 export const metadata: Metadata = metadataPublica({
   titulo: "Certidões",
@@ -21,13 +22,10 @@ export default async function CertidoesPublicoPage({
   // (não revela se o link já existiu).
   if (!certidoes) {
     return (
-      <main className="mx-auto flex min-h-[60svh] max-w-md flex-col items-center justify-center px-4 text-center">
-        <ShieldCheck className="mb-3 size-10 text-muted-foreground" />
-        <h1 className="text-lg font-bold">Link indisponível</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Este link de certidões não está mais ativo ou expirou. Solicite um novo link ao responsável.
-        </p>
-      </main>
+      <LinkIndisponivel
+        icone={ShieldCheck}
+        mensagem="Este link de certidões não está mais ativo ou expirou. Solicite um novo link ao responsável."
+      />
     );
   }
 

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { FileSignature } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { linkVigente } from "@/lib/link-publico";
 import { formatarDataHora } from "@/lib/utils";
 import { AssinaturaPublicaForm } from "@/components/juridico/assinatura-publica-form";
 import { metadataPublica } from "@/lib/metadata-publica";
+import { CabecalhoPublico } from "@/components/publico/cabecalho-publico";
 
 export const metadata: Metadata = {
   ...metadataPublica({
@@ -46,10 +48,12 @@ export default async function AssinarPublicoPage({ params }: { params: Promise<{
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-10">
-      <h1 className="text-xl font-extrabold tracking-tight">{doc.titulo}</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Versão {link.versao.numero} · {link.versao.arquivoNome}
-      </p>
+      <CabecalhoPublico
+        icone={FileSignature}
+        rotulo="Assinatura de documento"
+        titulo={doc.titulo}
+        descricao={`Versão ${link.versao.numero} · ${link.versao.arquivoNome}`}
+      />
 
       {link.aceite ? (
         <div className="mt-6 rounded-sm border border-success/40 bg-success/10 p-4 text-sm">

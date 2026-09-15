@@ -6,6 +6,8 @@ import { formatarCodigo } from "@/modules/projetos/numbering";
 import { InputsPublicForm } from "@/components/inputs/inputs-public-form";
 import { BriefingPublico } from "@/components/inputs/briefing-public";
 import { metadataPublica } from "@/lib/metadata-publica";
+import { CabecalhoPublico } from "@/components/publico/cabecalho-publico";
+import { LinkIndisponivel } from "@/components/publico/link-indisponivel";
 
 export const metadata: Metadata = metadataPublica({
   titulo: "Formulário do projeto",
@@ -24,13 +26,10 @@ export default async function InputsPublicoPage({
   // já existiu, nem qual projeto).
   if (!projeto) {
     return (
-      <main className="mx-auto flex min-h-[60svh] max-w-md flex-col items-center justify-center px-4 text-center">
-        <ClipboardList className="mb-3 size-10 text-muted-foreground" />
-        <h1 className="text-lg font-bold">Link indisponível</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Este formulário não está mais ativo ou expirou. Solicite um novo link ao responsável pelo projeto.
-        </p>
-      </main>
+      <LinkIndisponivel
+        icone={ClipboardList}
+        mensagem="Este formulário não está mais ativo ou expirou. Solicite um novo link ao responsável pelo projeto."
+      />
     );
   }
 
@@ -54,13 +53,13 @@ export default async function InputsPublicoPage({
 
   return (
     <main className="mx-auto max-w-2xl space-y-6 px-4 py-10">
-      <div>
-        <p className="font-mono text-xs text-muted-foreground">{formatarCodigo(projeto.codigo)}</p>
-        <h1 className="text-2xl font-extrabold tracking-tight">{projeto.nome}</h1>
-        <p className="text-sm text-muted-foreground">
-          Preencha as informações abaixo. Suas respostas são salvas automaticamente.
-        </p>
-      </div>
+      <CabecalhoPublico
+        icone={ClipboardList}
+        rotulo="Formulário do projeto"
+        codigo={formatarCodigo(projeto.codigo)}
+        titulo={projeto.nome}
+        descricao="Preencha as informações abaixo. Suas respostas são salvas automaticamente."
+      />
 
       <BriefingPublico token={token} respostasIniciais={respostasBriefing} disciplinas={disciplinas} />
 
