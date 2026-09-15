@@ -109,13 +109,15 @@ export function resumirAcesso(e: EntradaResumo): LinhaResumo[] {
     });
   }
 
-  // 2. Escopo de dados — `acessoGlobal()`, terceiro eixo, nem Papel nem matriz de telas.
+  // 2. Escopo de dados — `acessoGlobal()`, terceiro eixo, nem Papel nem matriz de telas. Não é só
+  //    leitura: dois gates de escrita curto-circuitam nele (anexo de apontamento e documento do
+  //    cliente), e o painel existe para não esconder isso.
   const global = e.superUsuario || e.perfilEscopoGlobal;
   linhas.push({
     chave: "escopo",
     titulo: "Projetos que enxerga",
     valor: global
-      ? "Todos os projetos da empresa"
+      ? "Todos os projetos da empresa — e anexa em apontamento e gere documento do cliente em qualquer um"
       : "Só os projetos onde é membro ou responsável",
     tom: global ? "ok" : "neutro",
   });

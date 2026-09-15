@@ -66,6 +66,9 @@ describe("resumirAcesso", () => {
 
   it("escopo global sai do perfil ou do superUsuario, não do Papel", () => {
     expect(linha({ perfilEscopoGlobal: true }, "escopo").valor).toContain("Todos os projetos");
+    // escopo global não é só leitura — o painel precisa dizer as escritas que vêm junto
+    expect(linha({ perfilEscopoGlobal: true }, "escopo").valor).toContain("anexa em apontamento");
+    expect(linha({}, "escopo").valor).not.toContain("anexa");
     expect(linha({ superUsuario: true }, "escopo").valor).toContain("Todos os projetos");
     // `supervisor` é GLOBAL_ROLES, mas `acessoGlobal()` não lê mais isso.
     expect(linha({ role: "supervisor" }, "escopo").valor).toContain("membro ou responsável");
