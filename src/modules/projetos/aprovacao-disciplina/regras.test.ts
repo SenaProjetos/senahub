@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  podeConfirmarOuRecusarAprovacao,
   podeSolicitarAprovacao,
   rotuloStatusDisciplina,
 } from "./regras";
@@ -36,16 +35,6 @@ describe("podeSolicitarAprovacao", () => {
         aprovacaoSolicitadaEm: null,
       }),
     ).toBe(true);
-  });
-});
-
-describe("podeConfirmarOuRecusarAprovacao", () => {
-  it("só admin e supervisor — nunca outros perfis, mesmo com podeVerTudo (sócio)", () => {
-    expect(podeConfirmarOuRecusarAprovacao("admin")).toBe(true);
-    expect(podeConfirmarOuRecusarAprovacao("supervisor")).toBe(true);
-    expect(podeConfirmarOuRecusarAprovacao("administrativo")).toBe(false);
-    expect(podeConfirmarOuRecusarAprovacao("clt")).toBe(false);
-    expect(podeConfirmarOuRecusarAprovacao("projetista_pj")).toBe(false);
   });
 });
 

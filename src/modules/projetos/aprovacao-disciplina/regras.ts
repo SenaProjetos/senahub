@@ -1,11 +1,11 @@
-import { GLOBAL_ROLES, type Role } from "@/lib/roles";
 import { STATUS_LABEL } from "@/modules/projetos/status";
 import type { StatusDisciplina } from "@/generated/prisma/client";
 
 /**
  * Regras PURAS (sem I/O) do fluxo de aprovação em 2 etapas — disciplinas de projetos
  * aprovação/laudo, que não passam pela validação por-arquivo. Passo 1: o responsável
- * marca "projeto aprovado". Passo 2: um superior (admin/supervisor) confirma ou recusa.
+ * marca "projeto aprovado". Passo 2: quem tem `aprovacoes:disciplina` confirma ou recusa — é
+ * permissão (resolvida no servidor), não regra pura, por isso não mora mais aqui.
  */
 
 /**
@@ -27,11 +27,6 @@ export function podeSolicitarAprovacao(p: {
   if (!p.ehResponsavel) return false;
   if (p.aprovacaoSolicitadaEm != null) return false;
   return STATUS_SOLICITAVEIS.includes(p.status);
-}
-
-/** Passo 2: confirmar/recusar é exclusivo de admin+supervisor — nunca "gestor" em sentido amplo. */
-export function podeConfirmarOuRecusarAprovacao(role: string): boolean {
-  return GLOBAL_ROLES.includes(role as Role);
 }
 
 /**

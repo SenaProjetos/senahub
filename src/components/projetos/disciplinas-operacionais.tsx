@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { requirePermission } from "@/lib/session";
-import { can, podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
+import { can, podeAtuarEmDisciplinaAlheia, podeVerFinanceiro } from "@/lib/permissions";
 import { CLT_ROLES, INTERNAL_ROLES } from "@/lib/roles";
 import {
   catalogoDisciplinas,
@@ -25,10 +25,12 @@ export async function DisciplinasOperacionais({ projetoId }: { projetoId: string
   const projeto = await obterProjeto(user, projetoId);
   if (!projeto) notFound();
 
-  const [podeGerir, podeValidar, atuaEmDisciplinaAlheia] = await Promise.all([
+  const [podeGerir, podeValidar, atuaEmDisciplinaAlheia, podeAprovarDisciplina, podeVerValor] = await Promise.all([
     can(user, "projetos", "gerir"),
     can(user, "uploads", "validar"),
     podeAtuarEmDisciplinaAlheia(user),
+    can(user, "aprovacoes", "disciplina"),
+    podeVerFinanceiro(user),
   ]);
   const [internos, catalogo, slaFora, canalChat, canaisDisc] = await Promise.all([
     podeGerir ? usuariosInternos() : Promise.resolve([]),
@@ -38,7 +40,8 @@ export async function DisciplinasOperacionais({ projetoId }: { projetoId: string
     canaisDasDisciplinas(projeto.id),
   ]);
 
-  const ocultarValorDisciplina = CLT_ROLES.includes(user.role);
+  // Quem enxerga financeiro vê o valor em qualquer papel; o corte por papel CLT continua para os demais.
+  const ocultarValorDisciplina = CLT_ROLES.includes(user.role) && !podeVerValor;
   const solicitantesIds = [
     ...new Set(projeto.disciplinas.map((disciplina) => disciplina.aprovacaoSolicitadaPorId).filter((id): id is string => !!id)),
   ];
@@ -209,6 +212,8 @@ export async function DisciplinasOperacionais({ projetoId }: { projetoId: string
             meRole={user.role}
             gereTodasTarefas={user.gereTodasTarefas}
             atuaEmDisciplinaAlheia={atuaEmDisciplinaAlheia}
+            podeAprovarDisciplina={podeAprovarDisciplina}
+            podeVerValor={podeVerValor}
           />
         ))}
       </div>

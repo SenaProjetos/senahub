@@ -34,13 +34,16 @@ const validarSchema = z.object({ disciplinaId: z.string().min(1) });
  * Marca uploads como validados e LIBERA o pagamento ao(s) projetista(s),
  * criando um PagamentoProjetista pendente por responsável. Notifica todos.
  * Idempotente: recusa se já houver pagamentos liberados.
+ *
+ * Gate `aprovacoes:disciplina` (era `uploads:validar` até 2026-09-15): finalizar a entrega é o
+ * mesmo ato do passo 2 do fluxo em 2 etapas. Revisar arquivo a arquivo continua em `uploads:validar`.
  */
 export const validarEntrega = defineAction(
   {
     modulo: "uploads",
     acao: "validar-entrega",
-    recurso: "uploads",
-    permissao: "validar",
+    recurso: "aprovacoes",
+    permissao: "disciplina",
     entidade: "Disciplina",
     schema: validarSchema,
     entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,

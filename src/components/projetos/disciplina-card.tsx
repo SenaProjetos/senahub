@@ -40,7 +40,6 @@ import {
 } from "@/modules/projetos/aprovacao-disciplina/actions";
 import {
   podeSolicitarAprovacao,
-  podeConfirmarOuRecusarAprovacao,
   rotuloStatusDisciplina,
 } from "@/modules/projetos/aprovacao-disciplina/regras";
 import { podeEscreverNoDiario } from "@/modules/projetos/diario/acesso";
@@ -174,6 +173,8 @@ export function DisciplinaCard({
   meRole,
   gereTodasTarefas = false,
   atuaEmDisciplinaAlheia = false,
+  podeAprovarDisciplina = false,
+  podeVerValor = false,
 }: {
   projetoId: string;
   disciplina: Disc;
@@ -191,6 +192,10 @@ export function DisciplinaCard({
   gereTodasTarefas?: boolean;
   /** `projetos:atuar_disciplina_alheia`, resolvido no servidor. */
   atuaEmDisciplinaAlheia?: boolean;
+  /** `aprovacoes:disciplina` — finalizar a entrega e confirmar/recusar o passo 2. */
+  podeAprovarDisciplina?: boolean;
+  /** `podeVerFinanceiro` — só com isto o diálogo de confirmação mostra e edita o valor. */
+  podeVerValor?: boolean;
 }) {
   const [pending, start] = useTransition();
   const podeMexerStatus = podeGerir || disciplina.ehResponsavel;
@@ -359,11 +364,11 @@ export function DisciplinaCard({
       )}
 
       {disciplina.usaPastas ? (
-        <FluxoAprovacaoDisciplina disciplina={disciplina} meRole={meRole} />
+        <FluxoAprovacaoDisciplina disciplina={disciplina} podeConfirmar={podeAprovarDisciplina} podeVerValor={podeVerValor} />
       ) : (
         !disciplina.jaValidado &&
         disciplina.status !== "aprovado" && (
-          <PainelEntrega disciplina={disciplina} stVal={stVal} podeValidar={podeValidar} />
+          <PainelEntrega disciplina={disciplina} stVal={stVal} podeAprovar={podeAprovarDisciplina} />
         )
       )}
 
@@ -374,6 +379,7 @@ export function DisciplinaCard({
           stVal={stVal}
           podeEnviar={podeEnviar}
           podeValidar={podeValidar}
+          podeAprovar={podeAprovarDisciplina}
         />
         <RevisaoDialog disciplina={disciplina} podeRegistrar={podeMexerStatus} />
         {podeGerir && <ResponsaveisDialog disciplina={disciplina} internos={internos} />}
@@ -453,11 +459,12 @@ function TrilhoEtapas({ disciplina }: { disciplina: Disc }) {
 function PainelEntrega({
   disciplina,
   stVal,
-  podeValidar,
+  podeAprovar,
 }: {
   disciplina: Disc;
   stVal: StatusValidacao;
-  podeValidar: boolean;
+  /** `aprovacoes:disciplina` — o gate de `validarEntrega`. */
+  podeAprovar: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -504,7 +511,7 @@ function PainelEntrega({
         <span className="text-status-aprovado">
           {stVal.total} arquivo(s) validado(s) — pronta para aprovação.
         </span>
-        {podeValidar ? (
+        {podeAprovar ? (
           <Button size="sm" className="ml-auto h-7 px-2" onClick={validar} disabled={pending}>
             <ShieldCheck className="size-3.5" /> {pending ? "Aprovando…" : "Aprovar entrega"}
           </Button>
@@ -557,14 +564,16 @@ function DiarioAtalhoButton({ projetoId, disciplina }: { projetoId: string; disc
 
 /**
  * Fluxo de aprovação em 2 etapas (aprovação/laudo): responsável marca "projeto aprovado";
- * admin/supervisor confirma (terminal) ou recusa (volta pra em_andamento, com motivo).
+ * quem tem `aprovacoes:disciplina` confirma (terminal) ou recusa (volta pra em_andamento, com motivo).
  */
 function FluxoAprovacaoDisciplina({
   disciplina,
-  meRole,
+  podeConfirmar,
+  podeVerValor,
 }: {
   disciplina: Disc;
-  meRole?: string;
+  podeConfirmar: boolean;
+  podeVerValor: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -576,7 +585,6 @@ function FluxoAprovacaoDisciplina({
     status: disciplina.status,
     aprovacaoSolicitadaEm: disciplina.aprovacaoSolicitadaEm,
   });
-  const podeConfirmar = !!meRole && podeConfirmarOuRecusarAprovacao(meRole);
   const aguardando = disciplina.aprovacaoSolicitadaEm != null;
 
   function solicitar() {
@@ -646,8 +654,10 @@ function FluxoAprovacaoDisciplina({
                 <Button size="sm" className="h-7 px-2" onClick={() => confirmar()} disabled={pending}>
                   <CheckCircle className="size-3.5" /> Confirmar
                 </Button>
-              ) : (
+              ) : podeVerValor ? (
                 <ConfirmarAprovacaoDialog disciplina={disciplina} pending={pending} onConfirmar={confirmar} />
+              ) : (
+                <ConfirmarAprovacaoSemValorDialog disciplina={disciplina} pending={pending} onConfirmar={() => confirmar()} />
               )}
               <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => setRecusando(true)} disabled={pending}>
                 <XCircle className="size-3.5" /> Recusar
@@ -778,18 +788,73 @@ function ConfirmarAprovacaoDialog({
   );
 }
 
+/**
+ * Passo 2 para quem aprova sem enxergar financeiro (Q13/Q15 do dono: "quem está aprovando não é
+ * quem vai pagar"). Mesma confirmação em modal, sem valor nem rateio: o pagamento é criado com o
+ * valor já cadastrado na disciplina. Se faltar valor, o servidor recusa com a mensagem de
+ * `bloqueioValorDisciplina`, que não expõe número nenhum.
+ */
+function ConfirmarAprovacaoSemValorDialog({
+  disciplina,
+  pending,
+  onConfirmar,
+}: {
+  disciplina: Disc;
+  pending: boolean;
+  onConfirmar: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <Button size="sm" className="h-7 px-2">
+            <CheckCircle className="size-3.5" /> Confirmar
+          </Button>
+        }
+      />
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Confirmar aprovação — {disciplina.nome}</DialogTitle>
+          <DialogDescription>
+            A disciplina fica aprovada e a demanda é liberada para o financeiro, que paga pelo valor já
+            cadastrado. Essa confirmação não pode ser desfeita por aqui.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => {
+              onConfirmar();
+              setOpen(false);
+            }}
+            disabled={pending}
+          >
+            Confirmar e liberar ao financeiro
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ArquivosDialog({
   projetoId,
   disciplina,
   stVal,
   podeEnviar,
   podeValidar,
+  podeAprovar,
 }: {
   projetoId: string;
   disciplina: Disc;
   stVal: StatusValidacao;
   podeEnviar: boolean;
   podeValidar: boolean;
+  /** `aprovacoes:disciplina` — o gate de `validarEntrega`. */
+  podeAprovar: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -1269,7 +1334,7 @@ function ArquivosDialog({
               )
             )}
           </div>
-          {podeValidar && !disciplina.usaPastas && (
+          {podeAprovar && !disciplina.usaPastas && (
             <Button onClick={validar} disabled={!completoParaValidar || validando}>
               <ShieldCheck className="size-4" />
               {disciplina.jaValidado

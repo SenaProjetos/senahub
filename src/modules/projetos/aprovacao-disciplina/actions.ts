@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { GLOBAL_ROLES } from "@/lib/roles";
+import { podeVerFinanceiro } from "@/lib/permissions";
 import { whereAudiencia } from "@/lib/audiencias";
 import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -24,7 +24,7 @@ const CATEGORIA = "aprovacao_disciplina";
  * Passo 1 do fluxo de aprovação em 2 etapas (projetos aprovação/laudo): o responsável
  * marca "projeto aprovado". Disciplina vai para "entregue" com `aprovacaoSolicitadaEm`
  * setado — o rótulo na tela vira "Aguardando confirmação" (ver `rotuloStatusDisciplina`).
- * Confirmação/recusa formal é feita por admin/supervisor via as duas ações abaixo.
+ * Confirmação/recusa formal é feita por quem tem `aprovacoes:disciplina`, via as duas ações abaixo.
  */
 export const solicitarAprovacaoDisciplina = defineAction(
   {
@@ -112,14 +112,20 @@ export const solicitarAprovacaoDisciplina = defineAction(
   },
 );
 
-/** Passo 2 (confirmar): admin/supervisor confirma — disciplina vai a "aprovado" (terminal). */
+/**
+ * Passo 2 (confirmar): quem tem `aprovacoes:disciplina` confirma — disciplina vai a "aprovado"
+ * (terminal) e a demanda é liberada ao financeiro, com o pagamento criado normalmente.
+ *
+ * Até 2026-09-15 exigia `projetos:gerir` E o papel admin/supervisor (`roles`, sem bypass de
+ * superusuário). Aprovar e pagar são atos distintos (decisão do dono, Q15): quem aprova não precisa
+ * ver o valor, e só quem enxerga financeiro pode reescrevê-lo aqui.
+ */
 export const confirmarAprovacaoDisciplina = defineAction(
   {
     modulo: "projetos",
     acao: "confirmar-aprovacao-disciplina",
-    recurso: "projetos",
-    permissao: "gerir",
-    roles: GLOBAL_ROLES,
+    recurso: "aprovacoes",
+    permissao: "disciplina",
     entidade: "Disciplina",
     schema: confirmarAprovacaoDisciplinaSchema,
     entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,
@@ -146,6 +152,12 @@ export const confirmarAprovacaoDisciplina = defineAction(
     }
     if (disciplina.status === "aprovado") {
       throw new ActionError("Esta disciplina já foi aprovada.");
+    }
+
+    // Valor é dado financeiro: aprovar não dá direito a vê-lo nem a reescrevê-lo. O diálogo de quem
+    // não vê financeiro nem envia `valor`; chamada direta com valor é recusada, não ignorada.
+    if (input.valor != null && !(await podeVerFinanceiro(user))) {
+      throw new ActionError("Sem permissão para alterar o valor da disciplina.");
     }
 
     const agora = new Date();
@@ -211,14 +223,13 @@ export const confirmarAprovacaoDisciplina = defineAction(
   },
 );
 
-/** Passo 2 (recusar): admin/supervisor recusa — volta para "em_andamento", com motivo. */
+/** Passo 2 (recusar): quem tem `aprovacoes:disciplina` recusa — volta para "em_andamento", com motivo. */
 export const recusarAprovacaoDisciplina = defineAction(
   {
     modulo: "projetos",
     acao: "recusar-aprovacao-disciplina",
-    recurso: "projetos",
-    permissao: "gerir",
-    roles: GLOBAL_ROLES,
+    recurso: "aprovacoes",
+    permissao: "disciplina",
     entidade: "Disciplina",
     schema: recusarAprovacaoDisciplinaSchema,
     entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,
