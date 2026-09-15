@@ -3,7 +3,7 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { auditarBloqueioRateLimit, limitarRequisicao, respostaLimiteRequisicoes } from "@/lib/rate-limit";
 import { logAudit, getClientIp } from "@/lib/audit";
-import { GLOBAL_ROLES } from "@/lib/roles";
+import { podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
 import { whereAudiencia } from "@/lib/audiencias";
 import { podeEnviarArquivo } from "@/modules/arquivos/acesso";
 import { notificarMuitos } from "@/lib/notificar";
@@ -97,18 +97,18 @@ export async function POST(req: Request) {
     pastaAlvo = pasta;
   }
 
-  // Regra: só o responsável da disciplina (ou perfil global) envia arquivos.
-  const ehGlobal = user.role === "admin" || GLOBAL_ROLES.includes(user.role);
+  // Regra: só o responsável da disciplina (ou quem atua em disciplina alheia) envia arquivos.
   const ehResp = disciplina.responsaveis.some((r) => r.userId === user.id);
-  if (!ehGlobal && !ehResp) {
+  if (!ehResp && !(await podeAtuarEmDisciplinaAlheia(user))) {
     return NextResponse.json(
       { error: "Apenas responsáveis pela disciplina podem enviar arquivos." },
       { status: 403 },
     );
   }
-  // Capability de envio (recurso `arquivos`). Global passa direto; os demais precisam de
-  // `arquivos:enviar` (configurável na matriz de permissões).
-  if (!ehGlobal && !(await podeEnviarArquivo(user))) {
+  // Capability de envio (recurso `arquivos`), exigida de TODOS — `superUsuario` passa pelo motor.
+  // Até 2026-09-15 o papel admin/supervisor pulava este passo; a tela (`podeEnviar` em
+  // `arvoreArquivosProjeto`) já exigia a capability de todo mundo, então rota e botão divergiam.
+  if (!(await podeEnviarArquivo(user))) {
     return NextResponse.json(
       { error: "Sem permissão para enviar arquivos." },
       { status: 403 },

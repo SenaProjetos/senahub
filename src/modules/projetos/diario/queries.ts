@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { podeEscreverNoDiario, podeGerirEntrada, ehGlobal } from "./acesso";
+import { podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
+import { podeEscreverNoDiario, podeGerirEntrada } from "./acesso";
 import type { SessionUser } from "@/lib/session";
 
 export type EntradaDiario = {
@@ -53,12 +54,13 @@ export async function diarioDoProjeto(user: SessionUser, projetoId: string): Pro
     },
   });
 
+  const atuaEmDisciplinaAlheia = await podeAtuarEmDisciplinaAlheia(user);
   return disciplinas.map((d) => {
     const ehResp = d.responsaveis.some((r) => r.userId === user.id);
     return {
       disciplinaId: d.id,
       disciplinaNome: d.disciplinaTextoLegado,
-      podeEscrever: podeEscreverNoDiario({ role: user.role, ehResponsavelDaDisciplina: ehResp }),
+      podeEscrever: podeEscreverNoDiario({ atuaEmDisciplinaAlheia, ehResponsavelDaDisciplina: ehResp }),
       entradas: d.diarioEntradas.map((e) => ({
         id: e.id,
         disciplinaId: e.disciplinaId,
@@ -69,7 +71,7 @@ export async function diarioDoProjeto(user: SessionUser, projetoId: string): Pro
         autorImage: e.autor.image,
         editado: e.updatedAt.getTime() - e.createdAt.getTime() > 1000,
         criadoEm: e.createdAt.toISOString(),
-        podeGerir: podeGerirEntrada({ userId: user.id, role: user.role, autorId: e.autorId }),
+        podeGerir: podeGerirEntrada({ userId: user.id, atuaEmDisciplinaAlheia, autorId: e.autorId }),
       })),
     };
   });
@@ -107,16 +109,17 @@ export async function ultimasEntradasDisciplina(disciplinaId: string, n = 5): Pr
 export type DisciplinaEscrevivel = { id: string; nome: string };
 
 /**
- * Disciplinas do projeto em que o usuário PODE escrever no diário: perfil
- * global vê todas (mesma regra de `podeEscreverNoDiario`); demais só as que
+ * Disciplinas do projeto em que o usuário PODE escrever no diário: quem atua em
+ * disciplina alheia vê todas (mesma regra de `podeEscreverNoDiario`); demais só as que
  * são responsáveis. Base do atalho no ponto — projeto sem nenhuma disciplina
  * elegível devolve lista vazia (o caller esconde o atalho).
  */
 export async function disciplinasEscreviveisNoProjeto(user: SessionUser, projetoId: string): Promise<DisciplinaEscrevivel[]> {
+  const atuaEmDisciplinaAlheia = await podeAtuarEmDisciplinaAlheia(user);
   const disciplinas = await prisma.disciplina.findMany({
     where: {
       projetoId,
-      ...(ehGlobal(user.role) ? {} : { responsaveis: { some: { userId: user.id } } }),
+      ...(atuaEmDisciplinaAlheia ? {} : { responsaveis: { some: { userId: user.id } } }),
     },
     orderBy: { ordem: "asc" },
     select: { id: true, disciplinaTextoLegado: true },

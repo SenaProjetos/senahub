@@ -8,8 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { removerArquivo } from "@/lib/storage";
 import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { GLOBAL_ROLES, type Role } from "@/lib/roles";
-import { can } from "@/lib/permissions";
+import { can, podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
 import type { SessionUser } from "@/lib/session";
 import { whereAudiencia } from "@/lib/audiencias";
 import { statusValidacao } from "@/modules/uploads/validacao";
@@ -478,11 +477,10 @@ export const renomearUpload = defineAction(
     if (!up) throw new ActionError("Arquivo não encontrado.");
     await exigirEscopoArquivo(user, up.disciplina);
 
-    // Global/responsável continuam valendo como sempre; `arquivos:renomear` é uma porta a
-    // MAIS, agora visível na tela de Permissões (antes a regra só existia aqui no código).
-    const ehGlobal = user.role === "admin" || GLOBAL_ROLES.includes(user.role as Role);
+    // Responsável e quem atua em disciplina alheia continuam valendo; `arquivos:renomear` é uma
+    // porta a MAIS, visível na tela de Permissões (antes a regra só existia aqui no código).
     const ehResp = up.disciplina.responsaveis.some((r) => r.userId === user.id);
-    if (!ehGlobal && !ehResp && !(await can(user, "arquivos", "renomear"))) {
+    if (!ehResp && !(await podeAtuarEmDisciplinaAlheia(user)) && !(await can(user, "arquivos", "renomear"))) {
       throw new ActionError("Sem permissão para renomear este arquivo.");
     }
 

@@ -7,9 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { notificarMuitos } from "@/lib/notificar";
 import { removerArquivo } from "@/lib/storage";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { GLOBAL_ROLES, type Role } from "@/lib/roles";
 import type { SessionUser } from "@/lib/session";
-import { can } from "@/lib/permissions";
+import { can, podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
 import {
   rotuloItemPendencia,
   podeTransicionar,
@@ -171,10 +170,6 @@ const baseProjetista = { modulo: "uploads", recurso: "projetos", permissao: "ver
  */
 const CATEGORIA_APONTAMENTO = "apontamento";
 
-/** Perfil global (admin/supervisor) — override de escrita. NÃO usa ehSocio (piso só de leitura). */
-function ehGlobal(user: { role: string }) {
-  return user.role === "admin" || GLOBAL_ROLES.includes(user.role as Role);
-}
 
 function revalidarViewer(projetoId: string, uploadId: string) {
   revalidatePath(`/projetos/${projetoId}`);
@@ -264,9 +259,9 @@ async function exigirParticipante(p: { autorId: string; disciplinaId: string }, 
   await exigirResponsavelOuGlobal(p.disciplinaId, user);
 }
 
-/** Exige que o usuário seja responsável da disciplina (ou perfil global). */
+/** Exige que o usuário seja responsável da disciplina (ou atue em disciplina alheia). */
 async function exigirResponsavelOuGlobal(disciplinaId: string, user: SessionUser) {
-  if (ehGlobal(user)) return;
+  if (await podeAtuarEmDisciplinaAlheia(user)) return;
   const resp = await prisma.disciplinaResponsavel.findFirst({
     where: { disciplinaId, userId: user.id },
     select: { id: true },
@@ -664,7 +659,9 @@ export const enviarApontamentos = defineAction(
 
 /** Descobre os papéis do usuário SOBRE ESTA pendência, na forma que a máquina entende. */
 async function papeisSobre(p: { disciplinaId: string }, user: SessionUser): Promise<PapeisPendencia> {
-  const global = ehGlobal(user);
+  // `ehGlobal` na máquina = quem atua em disciplina alheia (`projetos:atuar_disciplina_alheia`);
+  // até 2026-09-15 era o papel admin/supervisor.
+  const global = await podeAtuarEmDisciplinaAlheia(user);
   const [validador, resp] = await Promise.all([
     can(user, "uploads", "validar"),
     global
@@ -953,8 +950,8 @@ export const desativarApontamentoPadrao = defineAction(
   async (input, { user }) => {
     const p = await prisma.apontamentoPadrao.findUnique({ where: { id: input.id } });
     if (!p) throw new ActionError("Apontamento-padrão não encontrado.");
-    if (p.autorId !== user.id && !ehGlobal(user)) {
-      throw new ActionError("Só quem cadastrou (ou admin/supervisor) pode desativar.");
+    if (p.autorId !== user.id && !(await podeAtuarEmDisciplinaAlheia(user))) {
+      throw new ActionError("Só quem cadastrou (ou quem coordena as disciplinas) pode desativar.");
     }
     await prisma.apontamentoPadrao.update({ where: { id: p.id }, data: { ativo: false } });
     revalidatePath("/pendencias");

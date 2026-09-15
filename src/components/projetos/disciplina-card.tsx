@@ -43,7 +43,7 @@ import {
   podeConfirmarOuRecusarAprovacao,
   rotuloStatusDisciplina,
 } from "@/modules/projetos/aprovacao-disciplina/regras";
-import { ehGlobal } from "@/modules/projetos/diario/acesso";
+import { podeEscreverNoDiario } from "@/modules/projetos/diario/acesso";
 import { DiarioEntradaDialog } from "@/components/projetos/diario-entrada-dialog";
 import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/projetos/disciplina-edit-dialog";
 import { validarEntrega, gerarAceiteCliente, revogarAceiteCliente } from "@/modules/uploads/actions";
@@ -173,6 +173,7 @@ export function DisciplinaCard({
   meId,
   meRole,
   gereTodasTarefas = false,
+  atuaEmDisciplinaAlheia = false,
 }: {
   projetoId: string;
   disciplina: Disc;
@@ -188,11 +189,13 @@ export function DisciplinaCard({
   meRole?: string;
   /** `tarefas:gerir_todas`, resolvido no servidor. */
   gereTodasTarefas?: boolean;
+  /** `projetos:atuar_disciplina_alheia`, resolvido no servidor. */
+  atuaEmDisciplinaAlheia?: boolean;
 }) {
   const [pending, start] = useTransition();
   const podeMexerStatus = podeGerir || disciplina.ehResponsavel;
   const podeEnviar = podeGerir || disciplina.ehResponsavel;
-  const podeDiario = !!meRole && (ehGlobal(meRole) || disciplina.ehResponsavel);
+  const podeDiario = podeEscreverNoDiario({ atuaEmDisciplinaAlheia, ehResponsavelDaDisciplina: disciplina.ehResponsavel });
   const atraso = diasDeAtraso(disciplina.prazo, disciplina.status);
   const rotulo = rotuloCatalogo(disciplina.nome, disciplina.catalogoNome);
   const qtdTarefas = tarefas?.length ?? 0;

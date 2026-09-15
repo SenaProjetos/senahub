@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Boxes } from "lucide-react";
 import { requirePermission } from "@/lib/session";
-import { can } from "@/lib/permissions";
+import { can, podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { projetoVisivel } from "@/modules/planejamento/queries";
 import {
@@ -23,7 +23,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ConversaoStatusView } from "@/components/coordenacao/conversao-status-view";
 import { CoordenacaoView } from "@/components/coordenacao/coordenacao-view";
 import { DashboardCoordenacao } from "@/components/coordenacao/dashboard-coordenacao";
-import { GLOBAL_ROLES, type Role } from "@/lib/roles";
 
 export const metadata: Metadata = { title: "Coordenação" };
 
@@ -40,9 +39,10 @@ export default async function CoordenacaoPage({
   const projeto = await projetoVisivel(user, id);
   if (!projeto) notFound();
 
-  const [modelos, podeGerir, apontamentos, minhasDisciplinas, resumoDashboard, vistas] = await Promise.all([
+  const [modelos, podeGerir, atuaEmDisciplinaAlheia, apontamentos, minhasDisciplinas, resumoDashboard, vistas] = await Promise.all([
     modelosCoordenacao(id),
     can(user, "coordenacao", "gerir"),
+    podeAtuarEmDisciplinaAlheia(user),
     apontamentosDoProjeto(id),
     prisma.disciplinaResponsavel.findMany({
       where: { userId: user.id, disciplina: { projetoId: id } },
@@ -106,7 +106,7 @@ export default async function CoordenacaoPage({
           projetoNome={projeto.nome}
           currentUserId={user.id}
           ehAdmin={user.role === "admin"}
-          perfilGlobal={GLOBAL_ROLES.includes(user.role as Role)}
+          perfilGlobal={atuaEmDisciplinaAlheia}
           podeGerir={podeGerir}
           minhasDisciplinas={minhasDisciplinas.map((d) => d.disciplinaId)}
           colunasTarefa={colunasTarefa}

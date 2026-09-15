@@ -172,7 +172,7 @@ type Props = {
   podeValidar: boolean;
   ehResponsavel: boolean;
   ehAdmin: boolean;
-  /** admin/supervisor — único perfil que adia e reativa apontamento (item 22, R9). */
+  /** `projetos:atuar_disciplina_alheia` — único que adia e reativa apontamento (item 22, R9). */
   ehGlobal: boolean;
   currentUserId: string;
   pendenciasIniciais: PendenciaView[];

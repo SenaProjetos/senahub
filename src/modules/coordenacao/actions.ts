@@ -10,9 +10,8 @@ import { lerGeorrefUpload, gravarGeorrefUpload } from "@/modules/coordenacao/geo
 import { parseModeloId } from "@/modules/coordenacao/modelo-ref";
 import { rotuloItemApontamento } from "@/modules/coordenacao/helpers";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { GLOBAL_ROLES, type Role } from "@/lib/roles";
 import { getSession, type SessionUser } from "@/lib/session";
-import { can } from "@/lib/permissions";
+import { can, podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
 import { versoesConvertidasDoUpload } from "@/modules/coordenacao/queries";
 import {
   converterModeloSchema,
@@ -205,14 +204,12 @@ export const gravarGeorreferenciamento = defineAction(
 
 // ── Apontamentos de coordenação ─────────────────────────────────
 
-/** Perfil global (admin/supervisor) — override de escrita, igual pendencias. */
-function ehGlobal(user: { role: string }) {
-  return user.role === "admin" || GLOBAL_ROLES.includes(user.role as Role);
-}
-
-/** Exige que o usuário seja responsável da disciplina do apontamento (ou perfil global). */
+/**
+ * Exige que o usuário seja responsável da disciplina do apontamento, ou atue em disciplina alheia
+ * (`projetos:atuar_disciplina_alheia` — era o papel admin/supervisor até 2026-09-15).
+ */
 async function exigirResponsavelOuGlobal(disciplinaId: string, user: SessionUser) {
-  if (ehGlobal(user)) return;
+  if (await podeAtuarEmDisciplinaAlheia(user)) return;
   const resp = await prisma.disciplinaResponsavel.findFirst({
     where: { disciplinaId, userId: user.id },
     select: { id: true },
@@ -220,14 +217,14 @@ async function exigirResponsavelOuGlobal(disciplinaId: string, user: SessionUser
   if (!resp) throw new ActionError("Só um responsável da disciplina pode alterar este apontamento.");
 }
 
-/** Exige que o usuário seja membro do projeto (ou perfil global) — usado p/ IFC recebido, que não tem disciplina. */
+/** Exige que o usuário seja membro do projeto (ou atue em disciplina alheia) — usado p/ IFC recebido, que não tem disciplina. */
 async function exigirMembroOuGlobal(projetoId: string, user: SessionUser) {
-  if (ehGlobal(user)) return;
+  if (await podeAtuarEmDisciplinaAlheia(user)) return;
   const membro = await prisma.projetoMembro.findFirst({
     where: { projetoId, userId: user.id },
     select: { id: true },
   });
-  if (!membro) throw new ActionError("Só membros do projeto (ou perfil global) podem fazer isto.");
+  if (!membro) throw new ActionError("Só membros do projeto (ou quem coordena as disciplinas) podem fazer isto.");
 }
 
 function revalidarCoordenacao(projetoId: string) {
@@ -564,8 +561,8 @@ export const renomearVistaCoordenacao = defineAction(
       select: { projetoId: true, autorId: true },
     });
     if (!vista) throw new ActionError("Vista não encontrada.");
-    if (vista.autorId !== user.id && !ehGlobal(user)) {
-      throw new ActionError("Só quem criou a vista (ou perfil global) pode renomeá-la.");
+    if (vista.autorId !== user.id && !(await podeAtuarEmDisciplinaAlheia(user))) {
+      throw new ActionError("Só quem criou a vista (ou quem coordena as disciplinas) pode renomeá-la.");
     }
     await prisma.vistaCoordenacao.update({
       where: { id: input.id },
@@ -582,8 +579,8 @@ export const excluirVistaCoordenacao = defineAction(
   async (input, { user }) => {
     const vista = await prisma.vistaCoordenacao.findUnique({ where: { id: input.id } });
     if (!vista) throw new ActionError("Vista não encontrada.");
-    if (vista.autorId !== user.id && !ehGlobal(user)) {
-      throw new ActionError("Só quem criou a vista (ou perfil global) pode excluí-la.");
+    if (vista.autorId !== user.id && !(await podeAtuarEmDisciplinaAlheia(user))) {
+      throw new ActionError("Só quem criou a vista (ou quem coordena as disciplinas) pode excluí-la.");
     }
     await prisma.vistaCoordenacao.delete({ where: { id: input.id } });
     revalidarCoordenacao(vista.projetoId);

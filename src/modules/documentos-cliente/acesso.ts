@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { can } from "@/lib/permissions";
+import { can, podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
 import { acessoGlobal, INTERNAL_ROLES, type Role } from "@/lib/roles";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import type { SessionUser } from "@/lib/session";
@@ -60,7 +60,7 @@ export async function podeLerDocumento(
 }
 
 /**
- * Escrita: perfil global; ou `comercial:gerir` (contexto de proposta); ou membro
+ * Escrita: quem atua em disciplina alheia; ou `comercial:gerir` (contexto de proposta); ou membro
  * interno do projeto efetivo. `cliente` não gerencia por aqui (o upload do cliente
  * é o portal/link das fases seguintes). Para `origem=interno` (Geral) exige ver o
  * projeto **e** `arquivos_gerais:gerir` — mesma permissão do antigo ArquivoProjeto.
@@ -74,7 +74,9 @@ export async function podeGerirDocumento(
     const projetoId = await projetoEfetivo(ancora);
     return !!projetoId && (await veProjeto(user, projetoId)) && (await can(user, "arquivos_gerais", "gerir"));
   }
-  if (acessoGlobal(user)) return true;
+  // Era `acessoGlobal()` até 2026-09-15: escopo de LEITURA concedia escrita em documento de
+  // qualquer projeto (§15.7). `veProjeto`, acima, continua no escopo — ali é leitura.
+  if (await podeAtuarEmDisciplinaAlheia(user)) return true;
   if (await can(user, "comercial", "gerir")) return true;
   const projetoId = await projetoEfetivo(ancora);
   if (projetoId && INTERNAL_ROLES.includes(user.role as Role) && (await veProjeto(user, projetoId))) return true;

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
-import { GLOBAL_ROLES, type Role } from "@/lib/roles";
+import { podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
 import { whereAudiencia } from "@/lib/audiencias";
 import { proximoCodigoProjeto, formatarCodigo } from "@/modules/projetos/numbering";
 import { ensureCanaisProjeto } from "@/modules/chat/service";
@@ -42,9 +42,6 @@ import { escopoProjeto } from "@/modules/projetos/queries";
 import { chaveLayoutPainelProjeto } from "@/modules/projetos/painel-layout";
 import { deveDeslocarPrazoDoProjeto } from "@/modules/projetos/prazo-reabertura";
 
-function isGlobal(role: Role) {
-  return role === "admin" || GLOBAL_ROLES.includes(role);
-}
 
 /**
  * Após remover responsáveis de uma disciplina, tira da "Equipe do projeto" (ProjetoMembro)
@@ -243,7 +240,8 @@ export const atualizarStatusDisciplina = defineAction(
     // P-14: permissao "ver" (todo perfil interno tem projetos:ver) só garante que está logado;
     // o gate fino abaixo separa responsável vs. gestor — acesso é por vínculo à disciplina, não por role.
     // Projetista responsável muda o status da SUA disciplina; nunca o status/situação do projeto.
-    const ehGerir = isGlobal(user.role) || ["admin", "supervisor"].includes(user.role);
+    // Gestor = quem atua em disciplina alheia (era o papel admin/supervisor até 2026-09-15).
+    const ehGerir = await podeAtuarEmDisciplinaAlheia(user);
     const ehResp = disciplina.responsaveis.some((r) => r.userId === user.id);
     if (!ehGerir && !ehResp) {
       throw new ActionError("Apenas responsáveis ou gestores alteram o status.");
@@ -494,7 +492,7 @@ export const registrarRevisao = defineAction(
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
     // P-14: permissao "ver" só garante login; gate fino por vínculo de responsável.
     const ehResp = disciplina.responsaveis.some((r) => r.userId === user.id);
-    if (!isGlobal(user.role) && !ehResp) {
+    if (!ehResp && !(await podeAtuarEmDisciplinaAlheia(user))) {
       throw new ActionError("Apenas responsáveis ou gestores registram revisões.");
     }
 
@@ -744,8 +742,9 @@ export const duplicarProjeto = defineAction(
 export const editarDisciplinasEmMassa = defineAction(
   { modulo: "projetos", acao: "editar-disciplinas-em-massa", recurso: "projetos", permissao: "gerir", entidade: "Disciplina", schema: editarDisciplinasEmMassaSchema, entidadeId: (d, i) => (i as { projetoId: string }).projetoId },
   async (input, ctx) => {
+    const atuaEmDisciplinaAlheia = await podeAtuarEmDisciplinaAlheia(ctx.user);
     const projeto = await prisma.projeto.findFirst({
-      where: { id: input.projetoId, AND: [isGlobal(ctx.user.role) ? {} : { OR: [
+      where: { id: input.projetoId, AND: [atuaEmDisciplinaAlheia ? {} : { OR: [
         { membros: { some: { userId: ctx.user.id } } },
         { disciplinas: { some: { responsaveis: { some: { userId: ctx.user.id } } } } },
       ] }] },

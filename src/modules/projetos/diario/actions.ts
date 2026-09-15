@@ -8,6 +8,7 @@ import { podeEscreverNoDiario, podeGerirEntrada } from "./acesso";
 import { ultimasEntradasDisciplina } from "./queries";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { INTERNAL_ROLES } from "@/lib/roles";
+import { podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
 import { z } from "zod";
 
 // Gate grosso = acesso ao projeto (projetos:ver); o gate fino (responsável da
@@ -23,8 +24,9 @@ export const criarEntradaDiario = defineAction(
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
     const ehResp = disciplina.responsaveis.some((r) => r.userId === user.id);
-    if (!podeEscreverNoDiario({ role: user.role, ehResponsavelDaDisciplina: ehResp })) {
-      throw new ActionError("Só o responsável pela disciplina (ou admin/supervisor) pode escrever no diário.");
+    const atuaEmDisciplinaAlheia = await podeAtuarEmDisciplinaAlheia(user);
+    if (!podeEscreverNoDiario({ atuaEmDisciplinaAlheia, ehResponsavelDaDisciplina: ehResp })) {
+      throw new ActionError("Só o responsável pela disciplina (ou quem coordena as disciplinas) pode escrever no diário.");
     }
     const entrada = await prisma.diarioEntrada.create({
       data: {
@@ -49,8 +51,9 @@ export const editarEntradaDiario = defineAction(
       select: { autorId: true, projetoId: true },
     });
     if (!entrada) throw new ActionError("Entrada não encontrada.");
-    if (!podeGerirEntrada({ userId: user.id, role: user.role, autorId: entrada.autorId })) {
-      throw new ActionError("Só o autor (ou admin/supervisor) pode editar esta entrada.");
+    const atuaEmDisciplinaAlheia = await podeAtuarEmDisciplinaAlheia(user);
+    if (!podeGerirEntrada({ userId: user.id, atuaEmDisciplinaAlheia, autorId: entrada.autorId })) {
+      throw new ActionError("Só o autor (ou quem coordena as disciplinas) pode editar esta entrada.");
     }
     await prisma.diarioEntrada.update({ where: { id: i.id }, data: { texto: i.texto } });
     revalidatePath(`/projetos/${entrada.projetoId}/diario`);
@@ -66,8 +69,9 @@ export const excluirEntradaDiario = defineAction(
       select: { autorId: true, projetoId: true },
     });
     if (!entrada) throw new ActionError("Entrada não encontrada.");
-    if (!podeGerirEntrada({ userId: user.id, role: user.role, autorId: entrada.autorId })) {
-      throw new ActionError("Só o autor (ou admin/supervisor) pode excluir esta entrada.");
+    const atuaEmDisciplinaAlheia = await podeAtuarEmDisciplinaAlheia(user);
+    if (!podeGerirEntrada({ userId: user.id, atuaEmDisciplinaAlheia, autorId: entrada.autorId })) {
+      throw new ActionError("Só o autor (ou quem coordena as disciplinas) pode excluir esta entrada.");
     }
     await prisma.diarioEntrada.delete({ where: { id: i.id } });
     revalidatePath(`/projetos/${entrada.projetoId}/diario`);

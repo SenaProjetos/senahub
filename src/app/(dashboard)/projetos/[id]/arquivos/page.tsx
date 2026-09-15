@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
-import { can } from "@/lib/permissions";
-import { GLOBAL_ROLES } from "@/lib/roles";
+import { can, podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
 import { projetoVisivel } from "@/modules/planejamento/queries";
 import { arvoreArquivosProjeto } from "@/modules/projetos/arquivos/queries";
 import {
@@ -100,10 +99,12 @@ export default async function ArquivosPage({
   const sp = await searchParams;
   const documentosV2 = process.env.NEXT_PUBLIC_DOCUMENTOS_V2 === "1" || sp?.docsv2 === "1";
 
-  const ehGlobal = user.role === "admin" || GLOBAL_ROLES.includes(user.role);
-  const [veTodas, podeEnviarCap] = await Promise.all([
+  // `ehGlobal` aqui é ESCRITA (enviar em qualquer disciplina), não escopo: é o par
+  // `projetos:atuar_disciplina_alheia`.
+  const [veTodas, podeEnviarCap, ehGlobal] = await Promise.all([
     podeVerTodasDisciplinas(user),
     podeEnviarArquivo(user),
+    podeAtuarEmDisciplinaAlheia(user),
   ]);
   const [arvore, podeVerGeral, podeGerirGeral, podeValidar, nomenclatura, recebidos, baseArquitetonica, clienteId, podeGerirRecebidos, podeGerirLink, linksPublicos, clienteEmail, catalogos] =
     await Promise.all([

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { acessoGlobal } from "@/lib/roles";
+import { podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { salvarArquivo, nomeArquivoLimpo } from "@/lib/storage";
 import { MOMENTOS_EVIDENCIA } from "@/modules/projetos/pendencias/helpers";
@@ -65,7 +65,9 @@ export async function POST(req: Request) {
   });
   if (!p || p.excluidoEm) return NextResponse.json({ error: "Apontamento não encontrado." }, { status: 404 });
 
-  if (!acessoGlobal(user) && p.autorId !== user.id) {
+  // Escrita: autor, responsável ou quem atua em disciplina alheia. Até 2026-09-15 era
+  // `acessoGlobal()` — escopo de LEITURA concedendo escrita (§15.7).
+  if (p.autorId !== user.id && !(await podeAtuarEmDisciplinaAlheia(user))) {
     const resp = await prisma.disciplinaResponsavel.findFirst({
       where: { disciplinaId: p.disciplinaId, userId: user.id },
       select: { id: true },

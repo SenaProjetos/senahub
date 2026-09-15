@@ -81,6 +81,17 @@ export async function can(subject: SubjectAutorizacao, recurso: string, acao: st
 }
 
 /**
+ * Escrita na disciplina de OUTRA pessoa — enviar e renomear arquivo, editar pendência e apontamento
+ * de coordenação, diário, vistas, status e revisões. Até 2026-09-15 era o papel (`GLOBAL_ROLES`),
+ * espalhado em ~10 `ehGlobal()` locais; a coordenadora de papel CLT com perfil Coordenador não
+ * alcançava nenhum. Sem piso de sócio de propósito: é escrita (§15.7), e `escopo:global` também
+ * não concede — enxergar o projeto inteiro não é mexer na disciplina alheia.
+ */
+export function podeAtuarEmDisciplinaAlheia(user: SubjectAutorizacao): Promise<boolean> {
+  return can(user, "projetos", "atuar_disciplina_alheia");
+}
+
+/**
  * Visibilidade de informações financeiras (margem, custo, valor de contrato, faturamento).
  * Permitido a quem tem a permissão `financeiro:ver` OU é sócio ativo (registro `Socio`).
  * Centraliza a regra para uso consistente nas páginas/queries financeiras.
