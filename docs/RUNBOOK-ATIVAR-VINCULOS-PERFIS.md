@@ -230,6 +230,13 @@ antes desta migration (`uploads:validar`, `projetos:gerir`, `planejamento:gerir`
 `notificacoes:*`...), porque o gate compara com a matriz do PAPEL e o perfil foi atribuído de
 propósito. O gate só distingue regressão de atribuição quando papel e perfil coincidem.
 
+Para o gate ficar verde em produção, cada ganho deliberado vira entrada em
+`src/lib/allowlist-equivalencia.ts`: copiar do relatório JSON em `logs/` o `userId` (já hasheado),
+`recurso`, `acao` e `via` de cada célula da pessoa reatribuída, com `motivo` e aprovação. Ensaiado no
+dev em 2026-09-15 (papel CLT + perfil Coordenador): as 32 células foram aceitas e o que sobrou
+bloqueante não era da pessoa. O hash de produção é diferente do de dev — a entrada tem que sair do
+relatório gerado contra produção.
+
 **Como voltar atrás** (sem restore): `DELETE FROM permissao_perfil WHERE recurso = 'escopo' AND
 acao = 'global' AND "perfilId" = (SELECT id FROM perfil_acesso WHERE chave = 'coordenador');`
 — ou desmarcar o par na tela de Perfis. A jornada volta só com revert dos commits.
