@@ -89,7 +89,9 @@ export async function seedPerfisAcesso(prisma: PrismaClient): Promise<ResultadoS
     //     subdivisão por disciplina vem depois e vai RESTRINGIR este escopo, não ampliar.
     // Bancos que já existiam receberam o par pela migration
     // `20260915140000_perfil_coordenador_escopo_global` (este seed é create-only).
-    // É LEITURA: não concede escrita em disciplina alheia, que ainda lê `GLOBAL_ROLES`.
+    // Não é só leitura: `acessoGlobal()` também libera anexar em apontamento e gerir documento do
+    // cliente de qualquer projeto. Validar/renomear/excluir e editar em disciplina alheia continuam
+    // no papel (`GLOBAL_ROLES`).
     if (chave === CHAVE_POR_ROLE.supervisor) {
       linhas.push({ perfilId: perfil.id, recurso: "escopo", acao: "global", permitido: true });
     }

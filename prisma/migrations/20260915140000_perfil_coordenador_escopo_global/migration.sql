@@ -11,9 +11,12 @@
 -- override individual (`permissao_usuario`), que esta migration não toca. Por isso o perfil é
 -- nomeado pela chave. Não "corrigir" para uma derivação: não existe de onde derivar.
 --
--- ALCANCE: `escopo:global` é LEITURA. Alimenta `acessoGlobal()` → `escopoProjeto()` e os gates de
--- listagem/download que dependem dele. NÃO concede escrita em disciplina alheia: os overrides de
--- escrita ainda leem o papel (`GLOBAL_ROLES`) e são decisão separada.
+-- ALCANCE: o catálogo rotula `escopo:global` como leitura, mas `acessoGlobal()` tem 32 usos e DOIS são
+-- escrita — anexar arquivo em apontamento de qualquer disciplina (`api/pendencias/anexo` POST) e gerir
+-- documento do cliente de qualquer projeto (`documentos-cliente/acesso.ts`, `podeGerirDocumento`).
+-- O Coordenador passa a ter os dois, junto com a leitura (`escopoProjeto` e os downloads).
+-- Continua SEM: validar/renomear/excluir arquivo, editar pendência, diário e tarefa de disciplina
+-- alheia — esses overrides de escrita ainda leem o papel (`GLOBAL_ROLES`) e são decisão separada.
 --
 -- EFEITO NO GATE DE EQUIVALÊNCIA (`checar-equivalencia-permissoes.ts`, que compara com a regra
 -- legada `GLOBAL_ROLES || sócio`): quem tem papel `supervisor` deixa de acusar a PERDA aberta pela
