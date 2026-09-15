@@ -3,6 +3,10 @@ import { prisma } from "../src/lib/prisma";
 import { parsePranchaFilename } from "../src/modules/projetos/pranchas/codigo";
 import { EXT_PACOTE_A } from "../src/modules/uploads/destino";
 import { EXT_SUBPASTA } from "../src/modules/uploads/estrutura";
+import { confiavel, interpretarNomeArquivo } from "../src/modules/uploads/nomenclatura/interpretar";
+import { sinonimosDe } from "../src/modules/uploads/nomenclatura/sinonimos-iniciais";
+import { montarVocabulario } from "../src/modules/uploads/nomenclatura/vocabulario";
+import { EXTENSOES_INICIAIS } from "../src/modules/uploads/nomenclatura/extensoes-iniciais";
 
 /**
  * Diagnóstico somente-leitura do acervo de arquivos, para desenhar o motor de reconhecimento
@@ -318,6 +322,59 @@ async function main() {
     console.log("\nExemplos fora da faixa:");
     foraDaFaixa.forEach((d) => console.log(`  ${d}`));
   }
+
+  // ── 6. Motor novo × regra atual ───────────────────────────────────────────────────────
+  titulo("6. MOTOR DE NOMENCLATURA (F1) × REGRA ATUAL");
+  // Enquanto a F2 não leva `sinonimos` para o banco, o motor usa a semente de
+  // `sinonimos-iniciais.ts` — é exatamente a carga que a migration vai aplicar.
+  const catalogosMotor = {
+    disciplinas: disciplinasCatalogo
+      .filter((d) => d.ativo)
+      .map((d) => ({ id: d.codigo ?? d.nome, codigo: d.codigo, numeracao: d.numeracao, sinonimos: sinonimosDe("disciplina", d.codigo) })),
+    fases: catalogoPrancha
+      .filter((c) => c.categoria === "fase" && c.ativo)
+      .map((c) => ({ id: `fase:${c.sigla}`, sigla: c.sigla, projetoId: c.projetoId, sinonimos: sinonimosDe("fase", c.sigla) })),
+    tipos: catalogoPrancha
+      .filter((c) => c.categoria === "tipo" && c.ativo)
+      .map((c) => ({ id: `tipo:${c.sigla}`, sigla: c.sigla, projetoId: c.projetoId, sinonimos: sinonimosDe("tipo", c.sigla) })),
+  };
+  const padraoGlobal = nomenclaturas.find((n) => n.projetoId === null)?.padrao ?? null;
+  const padraoPorProjeto = new Map(nomenclaturas.filter((n) => n.projetoId).map((n) => [n.projetoId as string, n.padrao]));
+  const vocabPorProjeto = new Map<string, ReturnType<typeof montarVocabulario>>();
+
+  const motor = { fase: 0, tipo: 0, numero: 0, disciplina: 0, backup: 0, temporario: 0, extDesconhecida: 0, renumerar: 0, livre: 0 };
+  for (const d of documentos) {
+    const projetoId = d.disciplina.projetoId;
+    if (!vocabPorProjeto.has(projetoId)) vocabPorProjeto.set(projetoId, montarVocabulario(catalogosMotor, projetoId));
+    const r = interpretarNomeArquivo(d.nomeArquivo, {
+      projeto: {
+        codigo: d.disciplina.projeto.codigo,
+        ano: d.disciplina.projeto.ano,
+        sequencial: d.disciplina.projeto.sequencial,
+      },
+      disciplinaCatalogoId: d.disciplina.catalogo?.codigo ?? null,
+      padrao: padraoPorProjeto.get(projetoId) ?? padraoGlobal,
+      vocabulario: vocabPorProjeto.get(projetoId)!,
+      extensoes: EXTENSOES_INICIAIS,
+    });
+    if (confiavel(r.fase)) motor.fase++;
+    if (confiavel(r.tipo)) motor.tipo++;
+    if (confiavel(r.numero)) motor.numero++;
+    if (confiavel(r.disciplina)) motor.disciplina++;
+    if (r.ehBackup) motor.backup++;
+    if (r.ehTemporario) motor.temporario++;
+    if (!r.extensaoConhecida && r.extensao) motor.extDesconhecida++;
+    if (r.sugestoes.some((s) => s.tipo === "renumerar")) motor.renumerar++;
+    if (r.nomeLivre) motor.livre++;
+  }
+  console.log(`documentos vivos: ${total}`);
+  console.log(`fase  — regra atual: ${faseNoCatalogo} (${pct(faseNoCatalogo, total)})  |  motor: ${motor.fase} (${pct(motor.fase, total)})`);
+  console.log(`tipo  — regra atual: ${tipoNoCatalogo} (${pct(tipoNoCatalogo, total)})  |  motor: ${motor.tipo} (${pct(motor.tipo, total)})`);
+  console.log(`número da prancha (motor): ${motor.numero} (${pct(motor.numero, total)})`);
+  console.log(`disciplina no nome (motor): ${motor.disciplina} (${pct(motor.disciplina, total)})`);
+  console.log(`nomes livres (sem estrutura): ${motor.livre} (${pct(motor.livre, total)})`);
+  console.log(`backup por extensão: ${motor.backup} | temporários: ${motor.temporario} | extensão fora do catálogo: ${motor.extDesconhecida}`);
+  console.log(`sugeririam renumerar (código de projeto divergente): ${motor.renumerar}`);
 
   // ── Catálogos em vigor ────────────────────────────────────────────────────────────────
   titulo("CATÁLOGOS EM VIGOR");

@@ -134,16 +134,20 @@ renumeração).
 ### 3.1 Onde mora
 
 ```
-src/modules/uploads/nomenclatura/
-  normalizar.ts        # acento, caixa, separadores; nunca altera o original
-  partes.ts            # tokenização com posição; blocos reservados (extensão, cópia, datas)
-  estrutura.ts         # regras estruturais: revisão, código de projeto+subprojeto, número, data, cópia
-  vocabulario.ts       # monta o dicionário a partir dos catálogos (siglas + sinônimos, precedência projeto>global)
-  padrao.ts            # compila padrão do projeto: modelo {proj}-{disc}… e regex legada
-  interpretar.ts       # orquestra; devolve Interpretacao
-  extensoes.ts         # tipo ExtensaoDef + classificação por extensão (dados vêm do banco)
+src/modules/uploads/nomenclatura/     (F1, entregue)
+  normalizar.ts           # acento e caixa; nunca altera o nome original
+  estrutura-nome.ts       # regras estruturais: sufixo de cópia, datas, revisão, código de projeto
+  extensoes.ts            # tipo ExtensaoDef + leitura/classificação da extensão
+  extensoes-iniciais.ts   # carga inicial do catálogo de extensões (semente da F2)
+  sinonimos-iniciais.ts   # sinônimos de D2 (semente da F2; hoje alimenta motor e diagnóstico)
+  vocabulario.ts          # dicionário a partir dos catálogos (precedência projeto > global, faixa)
+  padrao.ts               # compila o padrão do projeto: modelo {proj}-{disc}… e regex legada
+  interpretar.ts          # orquestra tudo; devolve Interpretacao
   *.test.ts
+src/test/catalogo-nomenclatura.ts     # catálogo de produção + sementes, para os testes
 ```
+
+O nome é `estrutura-nome.ts` para não colidir com `modules/uploads/estrutura.ts` (árvore do zip).
 
 Puro, sem `server-only`, sem Prisma — client-safe, como `modules/documentos/tokens.ts` e
 `lib/dxf.ts`. Quem chama carrega os catálogos e passa no contexto. Fica em `modules/uploads`
