@@ -11,6 +11,9 @@ const BASE: EntradaResumo = {
   superUsuario: false,
   ehSocio: false,
   perfilValidaEntregas: true,
+  perfilAprovaDisciplina: true,
+  perfilAtuaDisciplinaAlheia: true,
+  perfilGereTodasTarefas: true,
   contratacao: "clt",
   jaTeveVinculo: true,
 };
@@ -48,13 +51,16 @@ describe("resumirAcesso", () => {
       expect(linha({}, "escopo").valor).toContain("membro ou responsável");
     });
 
-    it("abre a fila de Aprovações pelo PERFIL, não pelo papel (desde 2026-09-02)", () => {
-      expect(linha({}, "aprovacoes").tom).toBe("ok");
-      expect(linha({ perfilValidaEntregas: false }, "aprovacoes").valor).toContain("Validar entregas");
+    it("abre a fila e aprova a entrega pelo PERFIL, não pelo papel", () => {
+      expect(linha({}, "aprovacoes").valor).toContain("aprova a entrega");
+      expect(linha({ perfilAprovaDisciplina: false }, "aprovacoes").valor).toContain("não aprova");
+      expect(linha({ perfilValidaEntregas: false }, "aprovacoes").valor).toContain("não abre /aprovacoes");
     });
 
-    it("não age na disciplina dos outros — isso ainda é do papel", () => {
-      expect(linha({}, "disciplina_alheia").valor).toContain("depende do Papel");
+    // O caso da coordenadora (2026-09-15): antes a linha dizia "depende do Papel".
+    it("age na disciplina dos outros e gere as tarefas de todos pelo perfil", () => {
+      expect(linha({}, "disciplina_alheia").tom).toBe("ok");
+      expect(linha({}, "tarefas").valor).toContain("todas as pessoas");
     });
 
     it("bate ponto normalmente", () => {
@@ -66,19 +72,25 @@ describe("resumirAcesso", () => {
 
   it("escopo global sai do perfil ou do superUsuario, não do Papel", () => {
     expect(linha({ perfilEscopoGlobal: true }, "escopo").valor).toContain("Todos os projetos");
-    // escopo global não é só leitura — o painel precisa dizer as escritas que vêm junto
-    expect(linha({ perfilEscopoGlobal: true }, "escopo").valor).toContain("anexa em apontamento");
-    expect(linha({}, "escopo").valor).not.toContain("anexa");
+    // escopo global é só leitura desde 2026-09-15 — não pode prometer escrita
+    expect(linha({ perfilEscopoGlobal: true }, "escopo").valor).toContain("só enxergar");
     expect(linha({ superUsuario: true }, "escopo").valor).toContain("Todos os projetos");
     // `supervisor` é GLOBAL_ROLES, mas `acessoGlobal()` não lê mais isso.
     expect(linha({ role: "supervisor" }, "escopo").valor).toContain("membro ou responsável");
   });
 
-  it("papel Coordenador/Admin ainda age na disciplina dos outros (gate não convertido)", () => {
-    expect(linha({ role: "supervisor" }, "disciplina_alheia").tom).toBe("ok");
-    expect(linha({ role: "admin" }, "disciplina_alheia").tom).toBe("ok");
-    // mas o papel sozinho não abre mais /aprovacoes
-    expect(linha({ role: "supervisor", perfilValidaEntregas: false }, "aprovacoes").tom).toBe("neutro");
+  it("o papel sozinho não concede mais nada disso (gates convertidos em 2026-09-15)", () => {
+    const semPares = {
+      role: "supervisor" as const,
+      perfilValidaEntregas: false,
+      perfilAprovaDisciplina: false,
+      perfilAtuaDisciplinaAlheia: false,
+      perfilGereTodasTarefas: false,
+    };
+    expect(linha(semPares, "disciplina_alheia").tom).toBe("neutro");
+    expect(linha(semPares, "tarefas").tom).toBe("neutro");
+    expect(linha(semPares, "aprovacoes").tom).toBe("neutro");
+    expect(linha({ ...semPares, superUsuario: true }, "disciplina_alheia").tom).toBe("ok");
   });
 
   it("PJ registra apontamento, não ponto", () => {

@@ -151,7 +151,8 @@ export function UsuariosView({
   pedidos: PedidoCadastro[];
   pessoasJuridicas: { id: string; label: string }[];
   templates: { id: string; nome: string }[];
-  perfis: { id: string; nome: string; chave: string; escopoGlobal: boolean; validaEntregas: boolean }[];
+  perfis: { id: string; nome: string; chave: string; escopoGlobal: boolean; validaEntregas: boolean;
+    aprovaDisciplina: boolean; atuaDisciplinaAlheia: boolean; gereTodasTarefas: boolean }[];
   /** Catálogo de cargos ativo (2.1) — esta tela também cria pessoa, então também precisa dele. */
   cargos: { id: string; nome: string }[];
   podeDefinirSocio: boolean;
@@ -226,6 +227,9 @@ export function UsuariosView({
         perfilNome: perfilSel?.nome ?? null,
         perfilEscopoGlobal: perfilSel?.escopoGlobal ?? false,
         perfilValidaEntregas: perfilSel?.validaEntregas ?? false,
+        perfilAprovaDisciplina: perfilSel?.aprovaDisciplina ?? false,
+        perfilAtuaDisciplinaAlheia: perfilSel?.atuaDisciplinaAlheia ?? false,
+        perfilGereTodasTarefas: perfilSel?.gereTodasTarefas ?? false,
         contratacao: form.contratacao,
         jaTeveVinculo: form.jaTeveVinculo,
         superUsuario: form.superUsuario,

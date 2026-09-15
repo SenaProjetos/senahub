@@ -84,13 +84,17 @@ export async function perfisAtivosParaSelect() {
       // vermelho em vez de a tela passar a dizer "só os próprios projetos" para quem vê tudo.
       //
       // `uploads:validar` vem junto: é o gate de `/aprovacoes` desde 2026-09-02 (antes era o papel),
-      // e a tela precisa dizer se o perfil abre a fila.
+      // e a tela precisa dizer se o perfil abre a fila. Os outros três substituíram gates de
+      // `GLOBAL_ROLES` em 2026-09-15 — o painel precisa dizer que agora vêm do perfil.
       permissoes: {
         where: {
           permitido: true,
           OR: [
             { recurso: "escopo", acao: "global" },
             { recurso: "uploads", acao: "validar" },
+            { recurso: "aprovacoes", acao: "disciplina" },
+            { recurso: "projetos", acao: "atuar_disciplina_alheia" },
+            { recurso: "tarefas", acao: "gerir_todas" },
           ],
         },
         select: { recurso: true, acao: true },
@@ -102,5 +106,8 @@ export async function perfisAtivosParaSelect() {
     ...p,
     escopoGlobal: permissoes.some((x) => x.recurso === "escopo" && x.acao === "global"),
     validaEntregas: permissoes.some((x) => x.recurso === "uploads" && x.acao === "validar"),
+    aprovaDisciplina: permissoes.some((x) => x.recurso === "aprovacoes" && x.acao === "disciplina"),
+    atuaDisciplinaAlheia: permissoes.some((x) => x.recurso === "projetos" && x.acao === "atuar_disciplina_alheia"),
+    gereTodasTarefas: permissoes.some((x) => x.recurso === "tarefas" && x.acao === "gerir_todas"),
   }));
 }

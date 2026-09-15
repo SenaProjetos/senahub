@@ -10,16 +10,18 @@
  * Os eixos são diferentes de propósito, e é exatamente isso que a tela precisa mostrar:
  *   - **Perfil de acesso** decide `recurso:ação` — `can()` resolve por `permissaoEfetiva` desde
  *     a Onda D. Sem perfil, o motor nega tudo. Inclui a fila de Aprovações (`uploads:validar`,
- *     desde 2026-09-02).
+ *     desde 2026-09-02) e, desde 2026-09-15, aprovar a entrega (`aprovacoes:disciplina`), agir na
+ *     disciplina de outra pessoa (`projetos:atuar_disciplina_alheia`) e as tarefas de todos
+ *     (`tarefas:gerir_todas`) — que até então eram do papel (`GLOBAL_ROLES`).
  *   - **Contratação** decide a batida, o espelho, as férias e a folha CLT (`ponto/jornada.ts`,
  *     desde 2026-09-15) — não o papel.
- *   - **Papel** (`role`) ainda decide o apontamento (`PJ_ROLES`) e o "agir em disciplina alheia"
- *     (`GLOBAL_ROLES`): confirmar aprovação em 2 etapas, editar pendência, diário e tarefa de
- *     outros, enviar arquivo em qualquer disciplina. São gates que a Onda D não converteu.
+ *   - **Papel** (`role`) ainda decide o apontamento (`PJ_ROLES`), mais nada nesta tela.
  *   - **Escopo de projetos** é outro eixo: `acessoGlobal()` = `superUsuario ||` permissão
- *     `escopo:global` do perfil.
+ *     `escopo:global` do perfil. Só leitura desde 2026-09-15.
+ *
+ * O painel lê só o perfil, não overrides nominais — mesma limitação desde a criação.
  */
-import { GLOBAL_ROLES, PJ_ROLES, type Role } from "@/lib/roles";
+import { PJ_ROLES, type Role } from "@/lib/roles";
 import { controlaJornada } from "@/modules/ponto/jornada";
 import type { Contratacao } from "@/generated/prisma/enums";
 
@@ -44,6 +46,12 @@ export type EntradaResumo = {
   perfilEscopoGlobal: boolean;
   /** O perfil tem `uploads:validar` — o gate de `/aprovacoes`. */
   perfilValidaEntregas: boolean;
+  /** O perfil tem `aprovacoes:disciplina` — finalizar a entrega e confirmar o passo 2. */
+  perfilAprovaDisciplina: boolean;
+  /** O perfil tem `projetos:atuar_disciplina_alheia`. */
+  perfilAtuaDisciplinaAlheia: boolean;
+  /** O perfil tem `tarefas:gerir_todas`. */
+  perfilGereTodasTarefas: boolean;
   /** Contratação do vínculo ativo — eixo da jornada. */
   contratacao: Contratacao | null;
   /** Já teve algum vínculo. Sem ele, "sem contratação" não se distingue de "vínculo encerrado". */
@@ -109,40 +117,55 @@ export function resumirAcesso(e: EntradaResumo): LinhaResumo[] {
     });
   }
 
-  // 2. Escopo de dados — `acessoGlobal()`, terceiro eixo, nem Papel nem matriz de telas. Não é só
-  //    leitura: dois gates de escrita curto-circuitam nele (anexo de apontamento e documento do
-  //    cliente), e o painel existe para não esconder isso.
+  // 2. Escopo de dados — `acessoGlobal()`, terceiro eixo, nem Papel nem matriz de telas. Só leitura
+  //    desde 2026-09-15: as duas escritas que curto-circuitavam nele foram para
+  //    `projetos:atuar_disciplina_alheia` (linha 4).
   const global = e.superUsuario || e.perfilEscopoGlobal;
   linhas.push({
     chave: "escopo",
     titulo: "Projetos que enxerga",
     valor: global
-      ? "Todos os projetos da empresa — e anexa em apontamento e gere documento do cliente em qualquer um"
+      ? "Todos os projetos da empresa (só enxergar — agir na disciplina de outros é a linha abaixo)"
       : "Só os projetos onde é membro ou responsável",
     tom: global ? "ok" : "neutro",
   });
 
-  // 3. Fila de Aprovações — pelo Perfil de acesso (`uploads:validar`) desde 2026-09-02.
-  const validaEntregas = e.ativo && (e.superUsuario || e.perfilValidaEntregas);
+  // 3. Aprovações — revisar (`uploads:validar`, abre a fila) e aprovar (`aprovacoes:disciplina`,
+  //    libera ao financeiro) são pares separados desde 2026-09-15.
+  const revisa = e.ativo && (e.superUsuario || e.perfilValidaEntregas);
+  const aprova = e.ativo && (e.superUsuario || e.perfilAprovaDisciplina);
   linhas.push({
     chave: "aprovacoes",
-    titulo: "Fila de Aprovações",
-    valor: validaEntregas
-      ? "Abre /aprovacoes e valida entregas"
-      : "Não abre /aprovacoes — o perfil não tem \"Validar entregas\"",
-    tom: validaEntregas ? "ok" : "neutro",
+    titulo: "Aprovações",
+    valor: revisa && aprova
+      ? "Abre /aprovacoes, revisa arquivos e aprova a entrega (libera a demanda ao financeiro)"
+      : revisa
+        ? "Abre /aprovacoes e revisa arquivos, mas não aprova a entrega — o perfil não tem \"Aprovar a entrega\""
+        : aprova
+          ? "Aprova a entrega pela disciplina, mas não abre /aprovacoes — o perfil não tem \"Revisar arquivos\""
+          : "Não abre /aprovacoes nem aprova entregas",
+    tom: revisa || aprova ? "ok" : "neutro",
   });
 
-  // 4. O que continua preso ao Papel — a parte que mais confunde, porque trocar o Perfil de
-  //    acesso não mexe nela.
-  const atuaPorPapel = GLOBAL_ROLES.includes(e.role);
+  // 4. Disciplina de outros e tarefas de todos — pelo Perfil de acesso desde 2026-09-15 (era o
+  //    papel Administrador/Coordenador).
+  const atuaAlheia = e.ativo && (e.superUsuario || e.perfilAtuaDisciplinaAlheia);
+  const gereTarefas = e.ativo && (e.superUsuario || e.perfilGereTodasTarefas);
   linhas.push({
     chave: "disciplina_alheia",
     titulo: "Disciplina de outros",
-    valor: atuaPorPapel
-      ? "Age em qualquer disciplina: confirma aprovação, edita pendência, diário e tarefa de outros, envia arquivo"
-      : "Só na própria disciplina — agir na dos outros depende do Papel (Administrador ou Coordenador)",
-    tom: atuaPorPapel ? "ok" : "neutro",
+    valor: atuaAlheia
+      ? "Age em qualquer disciplina: envia e renomeia arquivo, edita pendência, diário e coordenação"
+      : "Só na própria disciplina — o perfil não tem \"Agir na disciplina de outra pessoa\"",
+    tom: atuaAlheia ? "ok" : "neutro",
+  });
+  linhas.push({
+    chave: "tarefas",
+    titulo: "Tarefas",
+    valor: gereTarefas
+      ? "Vê, edita e arquiva as tarefas de todas as pessoas"
+      : "Só as tarefas que criou ou em que é responsável",
+    tom: gereTarefas ? "ok" : "neutro",
   });
 
   // 5. Jornada — batida pela contratação, apontamento pelo papel.
