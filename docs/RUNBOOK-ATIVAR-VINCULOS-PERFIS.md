@@ -225,7 +225,10 @@ WHERE u.ativo AND p.chave = 'coordenador';
 **O gate `checar-equivalencia-permissoes.ts` vai acusar ganho** de `escopo:global` para cada
 Coordenador cujo papel NÃO é `supervisor` (ele compara com a regra antiga, `GLOBAL_ROLES || sócio`).
 É a mudança pedida, não regressão. Para quem tem papel `supervisor`, a perda aberta pela Onda D
-some.
+some. E não vem sozinho: medido no dev, papel CLT + perfil Coordenador já acusava **16 outros pares**
+antes desta migration (`uploads:validar`, `projetos:gerir`, `planejamento:gerir`, `coordenacao:gerir`,
+`notificacoes:*`...), porque o gate compara com a matriz do PAPEL e o perfil foi atribuído de
+propósito. O gate só distingue regressão de atribuição quando papel e perfil coincidem.
 
 **Como voltar atrás** (sem restore): `DELETE FROM permissao_perfil WHERE recurso = 'escopo' AND
 acao = 'global' AND "perfilId" = (SELECT id FROM perfil_acesso WHERE chave = 'coordenador');`
