@@ -844,6 +844,8 @@ export function CoordenacaoView({
           colunas={colunasTarefa}
           meId={currentUserId}
           meRole={ehAdmin ? "admin" : "supervisor"}
+          // Só cria (tarefa={null}): criar é sempre editável, o par não pesa aqui.
+          gereTodasTarefas={false}
           tituloDialog="Confirmar tarefa de compatibilização"
           itensReadonly
           valoresIniciais={{

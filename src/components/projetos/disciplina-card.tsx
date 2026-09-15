@@ -172,6 +172,7 @@ export function DisciplinaCard({
   tarefaColunas,
   meId,
   meRole,
+  gereTodasTarefas = false,
 }: {
   projetoId: string;
   disciplina: Disc;
@@ -185,6 +186,8 @@ export function DisciplinaCard({
   tarefaColunas?: { id: string; nome: string }[];
   meId?: string;
   meRole?: string;
+  /** `tarefas:gerir_todas`, resolvido no servidor. */
+  gereTodasTarefas?: boolean;
 }) {
   const [pending, start] = useTransition();
   const podeMexerStatus = podeGerir || disciplina.ehResponsavel;
@@ -382,6 +385,7 @@ export function DisciplinaCard({
             colunas={tarefaColunas}
             meId={meId}
             meRole={meRole}
+            gereTodasTarefas={gereTodasTarefas}
           />
         )}
       </div>
@@ -1524,6 +1528,7 @@ function TarefasDisciplinaDialog({
   colunas,
   meId,
   meRole,
+  gereTodasTarefas,
 }: {
   projetoId: string;
   disciplinaId: string;
@@ -1533,6 +1538,7 @@ function TarefasDisciplinaDialog({
   colunas: { id: string; nome: string }[];
   meId: string;
   meRole: string;
+  gereTodasTarefas: boolean;
 }) {
   const [openLista, setOpenLista] = useState(false);
   const [editar, setEditar] = useState<TarefaDaDisciplina | "nova" | null>(null);
@@ -1627,6 +1633,7 @@ function TarefasDisciplinaDialog({
         colunas={colunas}
         meId={meId}
         meRole={meRole}
+        gereTodasTarefas={gereTodasTarefas}
         valoresIniciais={editar === "nova" ? { projetoId, disciplinaId } : undefined}
       />
     </>

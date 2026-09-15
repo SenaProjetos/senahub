@@ -19,7 +19,6 @@ import {
 } from "@dnd-kit/core";
 import { Plus, GripVertical, Lock, CalendarDays, LayoutGrid, List } from "lucide-react";
 import { moverTarefa } from "@/modules/tarefas/actions";
-import { GLOBAL_ROLES } from "@/lib/roles";
 import { PRIORIDADES, PRIORIDADE_LABEL, PRIORIDADE_CLASS, ehPrioridade } from "@/modules/tarefas/prioridade";
 import { TarefaDialog, type TarefaUI, type OpcoesUI } from "./tarefa-dialog";
 import {
@@ -57,9 +56,9 @@ type Coluna = {
 const TODOS = "__todos";
 type Periodo = "atrasadas" | "semana" | "mes";
 
-/** Movimentação no kanban: responsáveis, criador e perfis globais. Espelha o escopo do servidor. */
-function podeMoverTarefa(t: TarefaUI, meId: string, meRole: string): boolean {
-  return t.criadorId === meId || t.responsaveis.some((r) => r.id === meId) || GLOBAL_ROLES.includes(meRole as never);
+/** Movimentação no kanban: responsáveis, criador e quem gere todas. Espelha o escopo do servidor. */
+function podeMoverTarefa(t: TarefaUI, meId: string, gereTodas: boolean): boolean {
+  return t.criadorId === meId || t.responsaveis.some((r) => r.id === meId) || gereTodas;
 }
 
 export function TarefasBoard({
@@ -67,6 +66,7 @@ export function TarefasBoard({
   opcoes,
   meId,
   meRole,
+  gereTodasTarefas,
   page,
   pageCount,
   pageSize,
@@ -76,6 +76,8 @@ export function TarefasBoard({
   opcoes: OpcoesUI;
   meId: string;
   meRole: string;
+  /** `tarefas:gerir_todas`, resolvido no servidor. */
+  gereTodasTarefas: boolean;
   page: number;
   pageCount: number;
   pageSize: number;
@@ -129,7 +131,7 @@ export function TarefasBoard({
     const origem = colunas.find((c) => c.tarefas.some((t) => t.id === tarefaId));
     if (!origem || origem.id === statusId) return;
     const tarefa = origem.tarefas.find((t) => t.id === tarefaId);
-    if (!tarefa || !podeMoverTarefa(tarefa, meId, meRole)) {
+    if (!tarefa || !podeMoverTarefa(tarefa, meId, gereTodasTarefas)) {
       toast.error("Somente responsáveis, quem criou a tarefa ou admin/supervisor podem movê-la.");
       return;
     }
@@ -296,7 +298,7 @@ export function TarefasBoard({
           {/* Grid responsivo: colunas preenchem a largura e quebram em telas estreitas (sem scroll-h / corte). */}
           <div className="grid grid-cols-1 gap-3 pb-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {colunas.map((col) => (
-              <ColunaView key={col.id} col={col} onAbrir={(t) => setDialog(t)} meId={meId} meRole={meRole} />
+              <ColunaView key={col.id} col={col} onAbrir={(t) => setDialog(t)} meId={meId} gereTodas={gereTodasTarefas} />
             ))}
           </div>
           <DragOverlay>{arrastando ? <CardTarefa t={arrastando} overlay /> : null}</DragOverlay>
@@ -313,6 +315,7 @@ export function TarefasBoard({
         colunas={colunas.map((c) => ({ id: c.id, nome: c.nome }))}
         meId={meId}
         meRole={meRole}
+        gereTodasTarefas={gereTodasTarefas}
       />
     </div>
   );
@@ -432,7 +435,7 @@ function ListaView({
   );
 }
 
-function ColunaView({ col, onAbrir, meId, meRole }: { col: Coluna; onAbrir: (t: TarefaUI) => void; meId: string; meRole: string }) {
+function ColunaView({ col, onAbrir, meId, gereTodas }: { col: Coluna; onAbrir: (t: TarefaUI) => void; meId: string; gereTodas: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.id });
   return (
     <div className="min-w-0">
@@ -450,7 +453,7 @@ function ColunaView({ col, onAbrir, meId, meRole }: { col: Coluna; onAbrir: (t: 
         }`}
       >
         {col.tarefas.map((t) => (
-          <DraggableTarefa key={t.id} t={t} onAbrir={onAbrir} podeMover={podeMoverTarefa(t, meId, meRole)} />
+          <DraggableTarefa key={t.id} t={t} onAbrir={onAbrir} podeMover={podeMoverTarefa(t, meId, gereTodas)} />
         ))}
         {col.tarefas.length === 0 && (
           <p className="py-4 text-center text-xs text-muted-foreground">vazio</p>

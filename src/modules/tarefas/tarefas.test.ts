@@ -37,21 +37,14 @@ describe("tarefaBloqueada", () => {
 });
 
 describe("escopoTarefa", () => {
-  it("admin e supervisor não têm filtro (veem todas)", () => {
-    expect(escopoTarefa({ id: "u1", role: "admin" })).toEqual({});
-    expect(escopoTarefa({ id: "u1", role: "supervisor" })).toEqual({});
+  it("quem tem tarefas:gerir_todas não tem filtro (vê todas)", () => {
+    expect(escopoTarefa({ id: "u1", gereTodasTarefas: true })).toEqual({});
   });
 
-  it("demais perfis só veem tarefas onde são responsáveis ou criadores", () => {
-    expect(escopoTarefa({ id: "u9", role: "projetista_pj" })).toEqual({
+  it("sem o par, só vê tarefas onde é responsável ou criador — qualquer que seja o papel", () => {
+    expect(escopoTarefa({ id: "u9", gereTodasTarefas: false })).toEqual({
       OR: [{ responsaveis: { some: { userId: "u9" } } }, { criadorId: "u9" }],
     });
-  });
-
-  it("clt/estagiário/freelancer/ti também são escopados", () => {
-    for (const role of ["clt", "estagiario", "freelancer", "ti"] as const) {
-      expect(escopoTarefa({ id: "x", role }).OR).toBeDefined();
-    }
   });
 });
 
@@ -59,7 +52,7 @@ describe("whereQuadroTarefas", () => {
   it("combina filtros de texto, vínculos e responsável com o escopo do usuário", () => {
     expect(
       whereQuadroTarefas(
-        { id: "u1", role: "projetista_pj" },
+        { id: "u1", gereTodasTarefas: false },
         { q: "compatibilização", projetoId: "p1", disciplinaId: "d1", responsavelId: "u2", prioridade: "alta" },
         new Date(2026, 7, 25),
       ),
@@ -82,7 +75,7 @@ describe("whereQuadroTarefas", () => {
   });
 
   it("filtra atrasadas sem incluir tarefas concluídas", () => {
-    expect(whereQuadroTarefas({ id: "u1", role: "admin" }, { periodo: "atrasadas" }, new Date(2026, 7, 25))).toEqual({
+    expect(whereQuadroTarefas({ id: "u1", gereTodasTarefas: true }, { periodo: "atrasadas" }, new Date(2026, 7, 25))).toEqual({
       AND: [
         { arquivada: false, status: { ativo: true } },
         {},

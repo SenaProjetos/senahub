@@ -15,7 +15,6 @@ import {
   removerComentario,
 } from "@/modules/tarefas/actions";
 import { PRIORIDADES, PRIORIDADE_LABEL, type Prioridade } from "@/modules/tarefas/prioridade";
-import { GLOBAL_ROLES } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -96,6 +95,7 @@ export function TarefaDialog({
   colunas,
   meId,
   meRole,
+  gereTodasTarefas,
   valoresIniciais,
   onSubmit,
   itensReadonly,
@@ -108,6 +108,8 @@ export function TarefaDialog({
   colunas: { id: string; nome: string }[];
   meId: string;
   meRole: string;
+  /** `tarefas:gerir_todas`, resolvido no servidor (`SessionUser.gereTodasTarefas`). */
+  gereTodasTarefas: boolean;
   /** Pré-preenche o formulário ao CRIAR (tarefa === null). */
   valoresIniciais?: Partial<FormTarefa>;
   /** Se definido, substitui criar/editar: recebe o payload e retorna se deu certo (fecha ao true). */
@@ -119,10 +121,9 @@ export function TarefaDialog({
   /** Título do diálogo (sobrepõe o padrão). */
   tituloDialog?: string;
 }) {
-  // Item 27 (beta): só quem criou a tarefa (ou perfil global) edita/arquiva. Tarefa nova
-  // (tarefa === null) é sempre editável — quem cria ainda não tem criadorId atribuído.
-  const podeEditar =
-    !tarefa || tarefa.criadorId === meId || GLOBAL_ROLES.includes(meRole as never);
+  // Item 27 (beta): só quem criou a tarefa (ou tem `tarefas:gerir_todas`) edita/arquiva. Tarefa
+  // nova (tarefa === null) é sempre editável — quem cria ainda não tem criadorId atribuído.
+  const podeEditar = !tarefa || tarefa.criadorId === meId || gereTodasTarefas;
   const router = useRouter();
   const [pending, start] = useTransition();
   const vazio = {

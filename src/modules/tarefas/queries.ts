@@ -1,19 +1,23 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
-import { GLOBAL_ROLES, type Role } from "@/lib/roles";
 import type { SessionUser } from "@/lib/session";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { inicioDoDiaUtc } from "@/lib/data";
 
-type Viewer = { id: string; role: Role };
+/**
+ * `gereTodasTarefas` é `tarefas:gerir_todas` já resolvido na sessão. Obrigatório de propósito
+ * (mesma razão de `EscopoDeDados`): opcional faria um viewer parcial compilar e ver menos em silêncio.
+ */
+type Viewer = { id: string; gereTodasTarefas: boolean };
 
 /**
- * Escopo de visibilidade das tarefas: admin/supervisor veem todas; os demais só veem
- * tarefas atribuídas a eles (responsável) OU que eles mesmos criaram.
+ * Escopo de visibilidade das tarefas: quem tem `tarefas:gerir_todas` vê todas; os demais só veem
+ * tarefas atribuídas a eles (responsável) OU que eles mesmos criaram. Até 2026-09-15 era o papel
+ * (`GLOBAL_ROLES`) — a coordenadora de papel CLT não via as tarefas da equipe.
  */
 export function escopoTarefa(viewer: Viewer): Prisma.TarefaWhereInput {
-  if (GLOBAL_ROLES.includes(viewer.role)) return {};
+  if (viewer.gereTodasTarefas) return {};
   return {
     OR: [
       { responsaveis: { some: { userId: viewer.id } } },

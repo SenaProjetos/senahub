@@ -206,6 +206,7 @@ export async function DisciplinasOperacionais({ projetoId }: { projetoId: string
             tarefaColunas={tarefaColunas ?? undefined}
             meId={user.id}
             meRole={user.role}
+            gereTodasTarefas={user.gereTodasTarefas}
           />
         ))}
       </div>

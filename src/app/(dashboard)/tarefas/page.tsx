@@ -51,6 +51,7 @@ export default async function TarefasPage({ searchParams }: { searchParams: Prom
     <TarefasBoard
       meId={user.id}
       meRole={user.role}
+      gereTodasTarefas={user.gereTodasTarefas}
       opcoes={opcoes}
       page={page}
       pageCount={pageCount(quadro.total, pageSize)}

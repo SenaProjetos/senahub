@@ -32,6 +32,12 @@ export type SessionUser = {
   perfilChave: string | null;
   escopoGlobalPerfil: boolean;
   /**
+   * `tarefas:gerir_todas` já resolvido (2026-09-15, era `GLOBAL_ROLES`). Está na sessão pelo mesmo
+   * motivo de `escopoGlobalPerfil`: `escopoTarefa()` é síncrono e montado dentro de ~12 `where`
+   * — resolver `can()` em cada chamador espalharia o async por queries puras.
+   */
+  gereTodasTarefas: boolean;
+  /**
    * Bypass total do motor de Perfil de acesso (equivalente ao `role === "admin"` de `can()`).
    * Exposto na sessão a partir da Onda D porque `can(subject, ...)` recebe o sujeito inteiro e
    * `permissaoEfetiva` consome este campo. Já era lido pelo `getSession` desde a Onda A.
@@ -81,7 +87,7 @@ export const getSession = cache(async () => {
   // `undefined`. Falha silenciosa — `lint` e `build` passam.
   const base = session.user as unknown as Omit<
     SessionUser,
-    "ehSocio" | "perfilId" | "perfilChave" | "escopoGlobalPerfil" | "superUsuario" | "setor" | "tipo" | "contratacao" | "jaTeveVinculo"
+    "ehSocio" | "perfilId" | "perfilChave" | "escopoGlobalPerfil" | "gereTodasTarefas" | "superUsuario" | "setor" | "tipo" | "contratacao" | "jaTeveVinculo"
   >;
 
   // Sócio + perfil/superUsuário num único round-trip (mesmo lookup que já existia, ampliado).
@@ -101,16 +107,16 @@ export const getSession = cache(async () => {
   });
 
   const { permissaoEfetiva } = await import("@/lib/permissao-efetiva");
-  const escopoGlobalPerfil = await permissaoEfetiva(
-    {
-      id: base.id,
-      ativo: base.ativo,
-      superUsuario: dados?.superUsuario ?? false,
-      perfilId: dados?.perfilId ?? null,
-    },
-    "escopo",
-    "global",
-  );
+  const sujeito = {
+    id: base.id,
+    ativo: base.ativo,
+    superUsuario: dados?.superUsuario ?? false,
+    perfilId: dados?.perfilId ?? null,
+  };
+  const [escopoGlobalPerfil, gereTodasTarefas] = await Promise.all([
+    permissaoEfetiva(sujeito, "escopo", "global"),
+    permissaoEfetiva(sujeito, "tarefas", "gerir_todas"),
+  ]);
 
   return {
     user: {
@@ -126,6 +132,7 @@ export const getSession = cache(async () => {
       // cair no papel. É o lado que falha fechado.
       jaTeveVinculo: dados ? dados._count.vinculos > 0 : true,
       escopoGlobalPerfil,
+      gereTodasTarefas,
     } as SessionUser,
     session: session.session,
   };

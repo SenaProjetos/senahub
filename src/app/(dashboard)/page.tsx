@@ -26,7 +26,7 @@ import { ReceitaChart } from "@/components/dashboard/receita-chart";
 import { TrendLine } from "@/components/qualidade/trend-line";
 import { CarteiraDashboard } from "@/components/dashboard/carteira-dashboard";
 import { brlInteiro as brl } from "@/lib/utils";
-import { acessoGlobal, GLOBAL_ROLES } from "@/lib/roles";
+import { acessoGlobal } from "@/lib/roles";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
 
 const ACOES_RAPIDAS: { label: string; href: string; icon: LucideIcon }[] = [
@@ -58,8 +58,10 @@ export default async function HomePage() {
   const user = await requireUser();
   if (user.role === "cliente") redirect("/portal");
   const isGlobal = acessoGlobal(user);
-  // Aprovações = validação (escrita): só admin/supervisor (exclui sócio, que é leitura).
-  const podeAprovar = GLOBAL_ROLES.includes(user.role);
+  // Aprovações = validação (escrita). Mesmo gate de `/aprovacoes` e do menu (`uploads:validar`) —
+  // era o papel (`GLOBAL_ROLES`), e o card sumia para a coordenadora de papel CLT. `can()` sem piso
+  // de sócio: sócio lê, não valida.
+  const podeAprovar = await can(user, "uploads", "validar");
   // Item 5: só busca/expõe dado financeiro a quem pode ver (financeiro:ver ou sócio ativo).
   const verFin = await podeVerFinanceiro(user);
   // Muralha por disciplina (mesma do Diretório de arquivos) para a fila de conclusão.

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { INTERNAL_ROLES, GLOBAL_ROLES } from "@/lib/roles";
+import { INTERNAL_ROLES } from "@/lib/roles";
 import { notificarMuitos } from "@/lib/notificar";
 import { PRIORIDADES } from "@/modules/tarefas/prioridade";
 import { escopoTarefa } from "@/modules/tarefas/queries";
@@ -39,7 +39,7 @@ async function exigirProjetoVisivel(
   }
 }
 
-async function exigirDependenciasVisiveis(user: Pick<SessionUser, "id" | "role">, dependeDeIds: readonly string[]) {
+async function exigirDependenciasVisiveis(user: Pick<SessionUser, "id" | "gereTodasTarefas">, dependeDeIds: readonly string[]) {
   const ids = [...new Set(dependeDeIds)];
   if (ids.length === 0) return;
   const encontradas = await prisma.tarefa.count({
@@ -57,7 +57,7 @@ async function exigirResponsaveisInternos(responsaveisIds: readonly string[]) {
   if (encontrados !== ids.length) throw new ActionError("Responsável não encontrado.");
 }
 
-async function exigirAcessoTarefa(tarefaId: string, user: Pick<SessionUser, "id" | "role">) {
+async function exigirAcessoTarefa(tarefaId: string, user: Pick<SessionUser, "id" | "gereTodasTarefas">) {
   const tarefa = await prisma.tarefa.findFirst({
     where: { id: tarefaId, ...escopoTarefa(user) },
     select: { id: true },
@@ -129,12 +129,12 @@ export const criarTarefa = defineAction(
   },
 );
 
-/** Item 27 (beta): só o criador da tarefa ou um perfil global (admin/supervisor) edita/arquiva. */
-async function exigirCriadorOuGlobal(tarefaId: string, user: { id: string; role: string }) {
-  if (GLOBAL_ROLES.includes(user.role as never)) return;
+/** Item 27 (beta): só o criador da tarefa ou quem tem `tarefas:gerir_todas` edita/arquiva. */
+async function exigirCriadorOuGlobal(tarefaId: string, user: Pick<SessionUser, "id" | "gereTodasTarefas">) {
+  if (user.gereTodasTarefas) return;
   const t = await prisma.tarefa.findUnique({ where: { id: tarefaId }, select: { criadorId: true } });
   if (!t) throw new ActionError("Tarefa não encontrada.");
-  if (t.criadorId !== user.id) throw new ActionError("Só quem criou a tarefa (ou admin/supervisor) pode editá-la.");
+  if (t.criadorId !== user.id) throw new ActionError("Só quem criou a tarefa (ou quem gere as tarefas de todos) pode editá-la.");
 }
 
 export const editarTarefa = defineAction(

@@ -6,7 +6,7 @@ import { STATUS_ABERTOS } from "@/modules/projetos/pendencias/helpers";
 import { contarTarefasAbertasDoProjeto } from "@/modules/tarefas/queries";
 import { STATUS_PENDENTES, TIPOS_CONTRATUAIS } from "@/modules/juridico/contrato/estado";
 
-type Viewer = { id: string; role: Role };
+type Viewer = { id: string; role: Role; gereTodasTarefas: boolean };
 
 type FontesPendencias = {
   incluirApontamentosPrancha: boolean;
