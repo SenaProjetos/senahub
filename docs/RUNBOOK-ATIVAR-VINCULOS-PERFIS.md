@@ -212,10 +212,9 @@ pelo holerite. Não confundir com o fechamento órfão de jun/2026 (quem nem tin
 que tem correção própria pendente.
 
 **Escopo do Coordenador.** A migration dá `escopo:global` ao perfil `coordenador`: quem tem esse
-perfil passa a ver **todos** os projetos, baixar os arquivos deles, **anexar em apontamento de
-qualquer disciplina e gerir documento do cliente de qualquer projeto**. Revoga a decisão §9.7 de
-2026-07-28, por decisão do dono em 2026-09-04. Validar/renomear/excluir arquivo e editar em
-disciplina alheia continuam presos ao papel `supervisor`. Conferir antes quem recebe:
+perfil passa a ver **todos** os projetos e baixar os arquivos deles. Revoga a decisão §9.7 de
+2026-07-28, por decisão do dono em 2026-09-04. Escopo global é só leitura desde a seção
+"Gates do papel" abaixo — as escritas vêm de pares próprios. Conferir antes quem recebe:
 
 ```sql
 SELECT u.name, u.role FROM "user" u JOIN perfil_acesso p ON p.id = u."perfilId"
@@ -244,6 +243,66 @@ relatório gerado contra produção.
 **Como voltar atrás** (sem restore): `DELETE FROM permissao_perfil WHERE recurso = 'escopo' AND
 acao = 'global' AND "perfilId" = (SELECT id FROM perfil_acesso WHERE chave = 'coordenador');`
 — ou desmarcar o par na tela de Perfis. A jornada volta só com revert dos commits.
+
+### Gates do papel viram permissão (mesmo deploy)
+
+Commits `a5086fe3` (pares), `450f8acd` (tarefas + card do painel), `ae2e9882` (disciplina alheia),
+`fbbeb71a` (excluir documento), `96419895` (aprovação), `6622ba1c` (painel de Usuários). Migration de
+dados `20260915160000_pares_disciplina_alheia_tarefas_aprovacoes`; o `db:seed` do deploy semeia os
+pares na matriz legada. Três pares novos substituem o papel admin/supervisor (`GLOBAL_ROLES`):
+
+| Par | Libera | Quem recebe na migration |
+|---|---|---|
+| `projetos:atuar_disciplina_alheia` | enviar/renomear arquivo, pendência, diário, coordenação, status e revisões em disciplina de outra pessoa | perfil `coordenador` |
+| `tarefas:gerir_todas` | ver, editar e arquivar tarefas de todos | perfil `coordenador` |
+| `aprovacoes:disciplina` | aprovar a entrega (`validarEntrega`) e confirmar/recusar o passo 2 | todo perfil e override que tem `uploads:validar` |
+
+**Quem PERDE, conferir antes contra produção** (só lê). A regra antiga dava tudo isso a quem tinha
+papel `admin` ou `supervisor`, qualquer que fosse o perfil. Agora admin passa por `superUsuario` e o
+resto pelo perfil. Toda linha abaixo perde as escritas no deploy:
+
+```sql
+SELECT u.name, u.role, u."superUsuario", p.chave AS perfil
+FROM "user" u LEFT JOIN perfil_acesso p ON p.id = u."perfilId"
+WHERE u.ativo AND (
+  (u.role = 'admin' AND NOT u."superUsuario")
+  OR (u.role = 'supervisor' AND COALESCE(p.chave, '') <> 'coordenador')
+);
+```
+
+Esperado: zero linhas. Havendo, atribuir o perfil Coordenador (ou marcar superusuário) **antes**.
+
+Perdas deliberadas, decididas pelo dono (Q20/Q21):
+
+- **Override só de `escopo:global`** (ex.: sócio sem perfil Coordenador) deixa de anexar em
+  apontamento e gerir documento do cliente de qualquer projeto. Escopo volta a ser só leitura.
+  ```sql
+  SELECT u.name, pu.permitido FROM permissao_usuario pu JOIN "user" u ON u.id = pu."userId"
+  WHERE pu.recurso = 'escopo' AND pu.acao = 'global';
+  ```
+- **Excluir documento do cliente** passa a exigir `arquivos:excluir`, que nenhum perfil semente tem:
+  o papel Coordenador perde a exclusão. Conceder pela tela de Perfis se precisar.
+- **Valor no diálogo de confirmação** (passo 2) só aparece para quem vê financeiro
+  (`financeiro:ver` ou sócio). O Coordenador sem isso confirma sem ver o valor, e o pagamento sai
+  pelo valor cadastrado. Disciplina de projetista sem valor é recusada, como antes.
+- **Upload pela rota** passa a exigir `arquivos:enviar` também de quem atua em disciplina alheia
+  (a tela já exigia). O perfil Coordenador tem o par.
+
+Ganho a conferir: perfil **customizado** que tenha `uploads:validar` sem ser Coordenador passa a
+confirmar o passo 2, que antes era só do papel.
+
+```sql
+SELECT p.chave, p.nome FROM permissao_perfil pp JOIN perfil_acesso p ON p.id = pp."perfilId"
+WHERE pp.recurso = 'aprovacoes' AND pp.acao = 'disciplina' AND pp.permitido AND p.chave <> 'coordenador';
+```
+
+Medido no dev depois dos commits: gate de equivalência com zero ganhos e zero perdas (papel e perfil
+coincidem em todos), snapshot de audiência e menu idênticos, e o motor avaliado por persona:
+supervisor + Coordenador igual a antes exceto `arquivos:excluir`; CLT + Coordenador com os três pares;
+override só de `escopo:global` sem nenhum deles.
+
+**Como voltar atrás:** revert dos commits. Os pares podem ficar no banco, porque par sem gate não
+autoriza nada. Para tirar só a exclusão de documento, reverter `fbbeb71a` sozinho.
 
 ---
 

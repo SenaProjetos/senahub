@@ -8,16 +8,18 @@ forem resolvidos.
 
 ## Documentação
 
-**Setor**:
+**Seção da documentação**:
 Um dos 9 agrupamentos de alto nível do sistema pelos quais a documentação é organizada —
 Início e Portal, Projetos, Clientes e Comercial, Financeiro, RH e Ponto, Engenharia, Gestão,
-Comunicação, Sistema. Um setor reúne várias rotas e vários módulos; não corresponde a uma tela nem
-a uma pasta de código.
-_Avoid_: área, seção (quando se quer dizer setor), módulo
+Comunicação, Sistema. Uma seção reúne várias rotas e vários módulos; não corresponde a uma tela nem
+a uma pasta de código. Até 2026-09-15 se chamava "setor"; o nome passou para o sentido
+organizacional (ver **Setor**). A rota `/guias/[setor]` e o parâmetro de código mantêm o nome antigo
+de propósito — renomear quebraria links, e o glossário não obriga a isso.
+_Avoid_: setor (neste sentido), área, módulo
 
 **Módulo**:
 Uma pasta de domínio em `src/modules/`. Unidade de **código**, não de documentação — vários módulos
-cabem num setor.
+cabem numa seção da documentação.
 _Avoid_: feature, domínio
 
 **Manual de referência**:
@@ -27,9 +29,9 @@ todos os perfis, cliente incluso.
 _Avoid_: docs, ajuda, help, manual do usuário
 
 **Guia de uso**:
-A camada de **formação** de um setor, para quem ainda não domina o vocabulário dele: o que os
-termos significam, por que o processo existe e como as telas se encadeiam. Uma página React por
-setor em `/guias/[setor]`, visível só a colaborador interno.
+A camada de **formação** de uma seção da documentação, para quem ainda não domina o vocabulário
+dela: o que os termos significam, por que o processo existe e como as telas se encadeiam. Uma
+página React por seção em `/guias/[setor]`, visível só a colaborador interno.
 _Avoid_: guia para iniciantes, guia prático, tutorial, onboarding, treinamento
 
 **Fronteira editorial**:
@@ -58,6 +60,11 @@ _Avoid_: decisão, RFC, design doc
 
 Uma mesma pessoa carrega fatos independentes: como foi contratada, qual papel legado ocupa, que
 perfil de acesso recebeu e que cargo exerce. Nenhum deles implica os outros.
+
+**Setor**:
+A área da empresa em que a pessoa trabalha — Diretoria, Administrativo, Jurídico, Engenharia, TI.
+Vem do vínculo ativo. É endereço, não crachá: não decide telas, jornada nem escopo.
+_Avoid_: departamento, área, seção da documentação
 
 **Contratação**:
 A forma jurídica pela qual a pessoa trabalha para o escritório — CLT, estágio, PJ, autônomo (RPA)
@@ -88,7 +95,7 @@ _Avoid_: ponto do PJ, timesheet
 **Papel**:
 O campo legado que classificava a pessoa numa lista fixa (Administrador, Coordenador,
 Administrativo, CLT, Estagiário, Projetista PJ, Freelancer, Cliente, TI). Está sendo esvaziado:
-ainda decide o apontamento e o agir em disciplina de outra pessoa, mais nada.
+ainda decide o apontamento de horas, mais nada.
 _Avoid_: perfil (sem qualificar), role, função
 
 **Perfil de acesso**:
@@ -104,8 +111,21 @@ _Avoid_: exceção, permissão extra
 
 **Escopo global**:
 A permissão de enxergar todos os projetos da empresa, e não só aqueles em que a pessoa é membro ou
-responsável. Vem do perfil de acesso ou de um override; não vem do papel.
+responsável. Vem do perfil de acesso ou de um override; não vem do papel. Só enxergar: não autoriza
+mexer em nada — isso é **Atuar em disciplina alheia**.
 _Avoid_: acesso total (isso é superusuário), ver tudo
+
+**Atuar em disciplina alheia**:
+Escrever na disciplina de outra pessoa — enviar e renomear arquivo, editar pendência, diário e
+apontamento de coordenação, mudar status. Por padrão só o responsável da disciplina escreve nela;
+esta permissão, do perfil de acesso, estende isso a todas.
+_Avoid_: perfil global, acesso global (isso é escopo)
+
+**Aprovação da entrega**:
+O ato que encerra a disciplina e libera a demanda para o financeiro, que cria o pagamento do
+projetista. É distinto de pagar: quem aprova não precisa ver o valor, e só quem enxerga financeiro
+o vê ou altera na aprovação. Distinto também de revisar, que é validar arquivo a arquivo.
+_Avoid_: validação (quando se quer dizer aprovação da entrega), liberar pagamento
 
 **Superusuário**:
 A pessoa que ignora perfil de acesso e overrides e alcança tudo. É uma marca por pessoa, não um
