@@ -2,6 +2,44 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.18.0](https://github.com/SenaProjetos/senahub/compare/v1.17.0...v1.18.0) (2026-09-15)
+
+
+### ✨ Funcionalidades
+
+* **acesso:** perfil Coordenador volta a ver todos os projetos ([babfd2c](https://github.com/SenaProjetos/senahub/commit/babfd2c94b01bb250adc9330061c5d783146019b))
+* **aprovacoes:** finalizar entrega e passo 2 por aprovacoes:disciplina, valor só p/ quem vê financeiro ([9641989](https://github.com/SenaProjetos/senahub/commit/96419895681739e0267d6ca4b57e94da7e87a8e5))
+* **arquivos:** histórico de alterações e acessos por documento ([d4ec1ba](https://github.com/SenaProjetos/senahub/commit/d4ec1ba2861aa0d79c1efa7b9968bbff55de3051))
+* **arquivos:** tabela de documentos prioriza numeração e título da prancha ([dc55949](https://github.com/SenaProjetos/senahub/commit/dc55949cabb4717ef828d15e60fb092506f08bac))
+* **certidoes:** selecionar todas na tabela e no compartilhamento ([6156b54](https://github.com/SenaProjetos/senahub/commit/6156b54629c44bbf9e131160453ae42a271a21c8))
+* **certidoes:** validade por prazo em dias e em layout de tabela ([08fc5e5](https://github.com/SenaProjetos/senahub/commit/08fc5e5ccbcbab7d235ba7ef127b7648e598cb75))
+* **chat:** espaço de Anotações com lixeira de 30 dias ([d7c26cc](https://github.com/SenaProjetos/senahub/commit/d7c26ccb27f687ae285911991821a94b1bc9b73d))
+* **legal:** termo de uso v2026-09-14 com dados da empresa ([824f6b8](https://github.com/SenaProjetos/senahub/commit/824f6b828b08cfe14c932d15779603998589b710))
+* **links-publicos:** logo da marca na imagem do card de prévia ([3f6db7b](https://github.com/SenaProjetos/senahub/commit/3f6db7ba57e7875b4749149e02aa9951ca9a95ac))
+* **permissoes:** agir em disciplina alheia pelo perfil, não pelo papel ([ae2e988](https://github.com/SenaProjetos/senahub/commit/ae2e988227cf15c953e98e42aa69cb32c324e6ac))
+* **permissoes:** excluir documento do cliente exige arquivos:excluir ([fbbeb71](https://github.com/SenaProjetos/senahub/commit/fbbeb71adf8c4a42ce0379ea275a858f48b98765))
+* **permissoes:** pares para disciplina alheia, tarefas de todos e aprovação de disciplina ([a5086fe](https://github.com/SenaProjetos/senahub/commit/a5086fe3a67d44907943f59685f2f2bb89dfd45c))
+* **permissoes:** tarefas de todos e card de aprovações pelo perfil, não pelo papel ([450f8ac](https://github.com/SenaProjetos/senahub/commit/450f8acdd0b170fca525bf86c6634307b26e0daa))
+* **projetos:** taxa de ART entra no financeiro e na margem do projeto ([e5cdefa](https://github.com/SenaProjetos/senahub/commit/e5cdefa516c248262b42796d3b8f9d063073a938))
+* **publico:** moldura de marca nas páginas de link externo ([1d0b198](https://github.com/SenaProjetos/senahub/commit/1d0b19831482fc6ad83699eb863fb78831cab16b))
+* **usuarios:** painel de acesso descreve os pares novos em vez do papel ([6622ba1](https://github.com/SenaProjetos/senahub/commit/6622ba1c2e18c7262bdb352b1160aa4072b4645e))
+
+
+### 🐛 Correções
+
+* **acesso:** resumo de acesso volta a dizer o que o sistema faz ([ef7238b](https://github.com/SenaProjetos/senahub/commit/ef7238b2fe6657a713519f4b078404653bf35d72))
+* **acesso:** resumo diz as escritas que vêm com o escopo global ([0f7f6f5](https://github.com/SenaProjetos/senahub/commit/0f7f6f56579ca902feed602b082432acfab1b598))
+* **arquivos:** disciplina e lista saem da área do projeto aberta ([8c59468](https://github.com/SenaProjetos/senahub/commit/8c59468377935e3306d11c572eae032e09da2c3f))
+* **arquivos:** emissão original passa a ser R00 e a primeira revisão R01 ([75bd4ea](https://github.com/SenaProjetos/senahub/commit/75bd4ead4b85bdbe905c4ec6d0cca59634b1db23))
+* **arquivos:** fase do documento deduzida do nome e fase vazia apagada no filtro ([de498d2](https://github.com/SenaProjetos/senahub/commit/de498d22f88c91c5b371fbe91d5d21598efe1dc4))
+* **arquivos:** salvar metadados do documento não trava mais o painel ([414d094](https://github.com/SenaProjetos/senahub/commit/414d0948455330ab287770cf3e6ed98fc54647a5))
+* **certidoes:** validade em período usa a data final, não a inicial ([b45bc17](https://github.com/SenaProjetos/senahub/commit/b45bc17496310623c5b8c9632543e3a675925147))
+* **chat:** projetista retirado da disciplina perde o chat dela ([558cdcf](https://github.com/SenaProjetos/senahub/commit/558cdcf242f8a72238f26e9984f4be07ee243563))
+* **notificacoes:** badge do sino conta itens agrupados, não linhas ([3a6465c](https://github.com/SenaProjetos/senahub/commit/3a6465c34c35943d0a13f63e82801429a9e288cd))
+* **notificacoes:** valores financeiros só para quem acessa o financeiro ([60782fb](https://github.com/SenaProjetos/senahub/commit/60782fbdc365d34590d4a27eeb935478d2dbee44))
+* **ponto:** jornada controlada passa a seguir a contratação, não o papel ([3b5c848](https://github.com/SenaProjetos/senahub/commit/3b5c8482dcd25f2d499a7e2208cc98bd50f45709))
+* **ponto:** recálculo do banco apaga fechamento de quem não tinha vínculo no mês ([2c95563](https://github.com/SenaProjetos/senahub/commit/2c95563a4d653a5524e3f9e53c446bd17a62b0fb))
+
 ## [1.17.0](https://github.com/SenaProjetos/senahub/compare/v1.16.0...v1.17.0) (2026-09-14)
 
 
