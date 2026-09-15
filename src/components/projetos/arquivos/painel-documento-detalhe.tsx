@@ -42,7 +42,20 @@ export function PainelDocumentoDetalhe({
   const [aberto, setAberto] = useState(false);
   const [pendente, start] = useTransition();
   const [titulo, setTitulo] = useState(linha.titulo ?? "");
-  const tituloExibido = linha.titulo ?? linha.tituloPrancha;
+  // Título recém-salvo vale até a tabela voltar do refresh em segundo plano — sem isso o gatilho
+  // mostraria o nome antigo por alguns segundos e pareceria que não salvou. `undefined` = sem
+  // override; quando `linha.titulo` chega igual, o override deixa de importar.
+  const [tituloSalvo, setTituloSalvo] = useState<string | null | undefined>(undefined);
+  // Linha nova do servidor (nosso refresh ou de outra pessoa) encerra o override — ajuste de
+  // estado durante o render, o padrão do React para "resetar quando a prop muda".
+  const [tituloDaLinha, setTituloDaLinha] = useState(linha.titulo);
+  if (tituloDaLinha !== linha.titulo) {
+    setTituloDaLinha(linha.titulo);
+    setTituloSalvo(undefined);
+  }
+  const tituloExibido = (tituloSalvo !== undefined ? tituloSalvo : linha.titulo) ?? linha.tituloPrancha;
+  // Recarrega o histórico logo após salvar, sem esperar as props da linha mudarem.
+  const [salvamentos, setSalvamentos] = useState(0);
   const [descricao, setDescricao] = useState(linha.descricao ?? "");
   const [faseId, setFaseId] = useState(linha.faseId ?? SEM_FASE);
   const [statusId, setStatusId] = useState(linha.statusId ?? SEM_STATUS);
@@ -73,8 +86,22 @@ export function PainelDocumentoDetalhe({
         return;
       }
       toast.success("Metadados do documento atualizados.");
-      router.refresh();
+      setTituloSalvo(titulo.trim() || null);
+      setSalvamentos((n) => n + 1);
+      atualizarTabela();
     });
+  }
+
+  /**
+   * Refresh FORA da transição do botão: dentro dela o `isPending` só termina quando a página de
+   * Arquivos inteira volta do servidor, e o formulário ficava desabilitado esse tempo todo.
+   * `router.refresh` já roda na transição própria do router — a tabela troca quando chegar.
+   */
+  function atualizarTabela() {
+    // `setTimeout`, não chamada direta: transição iniciada enquanto a action assíncrona ainda está
+    // pendente é ENTRELAÇADA a ela pelo React 19, e o `pendente` voltaria a esperar o refresh.
+    // No próximo tick a action já terminou.
+    setTimeout(() => router.refresh(), 0);
   }
 
   function selecionarStatus(novoStatusId: string | null) {
@@ -92,7 +119,8 @@ export function PainelDocumentoDetalhe({
         return;
       }
       toast.success("Status documental atualizado.");
-      router.refresh();
+      setSalvamentos((n) => n + 1);
+      atualizarTabela();
     });
   }
 
@@ -180,7 +208,7 @@ export function PainelDocumentoDetalhe({
                     </Select>
                   </div>
                   <Button onClick={salvarMetadados} disabled={pendente}>
-                    <Pencil className="size-3.5" /> Salvar metadados
+                    <Pencil className="size-3.5" /> {pendente ? "Salvando…" : "Salvar metadados"}
                   </Button>
                 </>
               ) : (
@@ -233,7 +261,7 @@ export function PainelDocumentoDetalhe({
             <HistoricoDocumento
               documentoId={linha.id}
               aberto={aberto}
-              recarga={`${linha.titulo}|${linha.descricao}|${linha.faseId}|${linha.statusId}|${linha.nome}|${linha.revisaoAtual}`}
+              recarga={`${salvamentos}|${linha.titulo}|${linha.descricao}|${linha.faseId}|${linha.statusId}|${linha.nome}|${linha.revisaoAtual}`}
             />
           </div>
 

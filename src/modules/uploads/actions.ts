@@ -1541,7 +1541,10 @@ export const editarMetadadosDocumento = defineAction(
     if (Object.keys(campos).length > 0) {
       await registrarEventoDocumento({ documentoId: documento.id, tipo: "metadados", userId: user.id, detalhe: { campos } });
     }
-    revalidarArquivos(documento.disciplina.projetoId);
+    // Sem `revalidarArquivos` de propósito: `revalidatePath` faz o Next re-renderizar a página de
+    // Arquivos inteira DENTRO da resposta desta action, e o painel ficava com o botão travado
+    // durante essa renderização (a rota é pesada). O painel atualiza a si mesmo na hora e pede
+    // `router.refresh()` em segundo plano; as rotas são dinâmicas, então nenhuma outra fica velha.
     return { documentoId: documento.id };
   },
 );
@@ -1592,7 +1595,10 @@ export const atualizarStatusDocumento = defineAction(
         detalhe: { de, para: nomeNovo },
       });
     }
-    revalidarArquivos(documento.disciplina.projetoId);
+    // Sem `revalidarArquivos` de propósito: `revalidatePath` faz o Next re-renderizar a página de
+    // Arquivos inteira DENTRO da resposta desta action, e o painel ficava com o botão travado
+    // durante essa renderização (a rota é pesada). O painel atualiza a si mesmo na hora e pede
+    // `router.refresh()` em segundo plano; as rotas são dinâmicas, então nenhuma outra fica velha.
     return { documentoId: documento.id };
   },
 );
