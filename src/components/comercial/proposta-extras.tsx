@@ -51,12 +51,15 @@ export function PropostaExtras({
   documentos,
   versoes,
   podeGerir,
+  podeExcluirDocumento,
 }: {
   propostaId: string;
   clienteId: string;
   documentos: DocumentoItem[];
   versoes: Versao[];
   podeGerir: boolean;
+  /** `arquivos:excluir` — o mesmo gate de `excluirDocumento` no servidor. */
+  podeExcluirDocumento: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -170,9 +173,11 @@ export function PropostaExtras({
                         >
                           <History className="size-3.5" />
                         </Button>
-                        <Button size="icon" variant="ghost" aria-label="Remover" onClick={() => remover(d.id)} disabled={pending}>
-                          <Trash2 className="size-3.5" />
-                        </Button>
+                        {podeExcluirDocumento && (
+                          <Button size="icon" variant="ghost" aria-label="Remover" onClick={() => remover(d.id)} disabled={pending}>
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        )}
                       </>
                     )}
                   </span>

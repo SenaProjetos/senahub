@@ -5,7 +5,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { removerArquivo } from "@/lib/storage";
-import { GLOBAL_ROLES } from "@/lib/roles";
+import { can } from "@/lib/permissions";
 import { metaDocumento, ORIGENS_DOCUMENTO } from "./schemas";
 import { podeGerirDocumento, type AncoraDocumento } from "./acesso";
 import type { SessionUser } from "@/lib/session";
@@ -195,8 +195,10 @@ export const excluirVersaoDocumento = defineAction(
     schema: z.object({ versaoId: z.string().min(1) }),
   },
   async (i, ctx) => {
-    if (!GLOBAL_ROLES.includes(ctx.user.role as never)) {
-      throw new ActionError("Apenas admins e supervisores podem excluir versões.");
+    // Excluir é destrutivo (apaga o arquivo do disco): `arquivos:excluir`, o mesmo par da lixeira do
+    // projeto. Até 2026-09-15 era o papel admin/supervisor — decisão do dono (Q21-D).
+    if (!(await can(ctx.user, "arquivos", "excluir"))) {
+      throw new ActionError("Sem permissão para excluir versões de documento.");
     }
     const versao = await prisma.documentoVersao.findUnique({
       where: { id: i.versaoId },
@@ -230,8 +232,8 @@ export const excluirDocumento = defineAction(
     schema: z.object({ id: z.string().min(1) }),
   },
   async (i, ctx) => {
-    if (!GLOBAL_ROLES.includes(ctx.user.role as never)) {
-      throw new ActionError("Apenas admins e supervisores podem excluir documentos.");
+    if (!(await can(ctx.user, "arquivos", "excluir"))) {
+      throw new ActionError("Sem permissão para excluir documentos.");
     }
     const doc = await prisma.documento.findUnique({
       where: { id: i.id },

@@ -100,11 +100,12 @@ export default async function ArquivosPage({
   const documentosV2 = process.env.NEXT_PUBLIC_DOCUMENTOS_V2 === "1" || sp?.docsv2 === "1";
 
   // `ehGlobal` aqui é ESCRITA (enviar em qualquer disciplina), não escopo: é o par
-  // `projetos:atuar_disciplina_alheia`.
-  const [veTodas, podeEnviarCap, ehGlobal] = await Promise.all([
+  // `projetos:atuar_disciplina_alheia`. Excluir documento é outro par (`arquivos:excluir`).
+  const [veTodas, podeEnviarCap, ehGlobal, podeExcluirDocumento] = await Promise.all([
     podeVerTodasDisciplinas(user),
     podeEnviarArquivo(user),
     podeAtuarEmDisciplinaAlheia(user),
+    can(user, "arquivos", "excluir"),
   ]);
   const [arvore, podeVerGeral, podeGerirGeral, podeValidar, nomenclatura, recebidos, baseArquitetonica, clienteId, podeGerirRecebidos, podeGerirLink, linksPublicos, clienteEmail, catalogos] =
     await Promise.all([
@@ -261,7 +262,7 @@ export default async function ArquivosPage({
           lixeira,
           podeGerirRecebidos,
           podeGerirGeral,
-          podeExcluirDocumento: ehGlobal,
+          podeExcluirDocumento,
         }}
         linkPublico={
           podeGerirLink
@@ -326,7 +327,7 @@ export default async function ArquivosPage({
       podeGerirBaseArquitetonica={podeGerirRecebidos}
       clienteId={clienteId}
       podeGerirRecebidos={podeGerirRecebidos}
-      podeExcluirDocumento={ehGlobal}
+      podeExcluirDocumento={podeExcluirDocumento}
       podeExcluirArquivo={ehAdmin}
       podeSolicitarExclusao={!ehAdmin}
       exclusoesPendentes={exclusoesPendentes}

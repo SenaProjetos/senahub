@@ -17,7 +17,10 @@ export const metadata: Metadata = { title: "Proposta" };
 
 export default async function PropostaPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requirePermission("comercial", "ver");
-  const podeGerir = await can(user, "comercial", "gerir");
+  const [podeGerir, podeExcluirDocumento] = await Promise.all([
+    can(user, "comercial", "gerir"),
+    can(user, "arquivos", "excluir"),
+  ]);
   const { id } = await params;
   const [p, catalogo, tabelas, modelosDoc, documentos, versoesComp, config, motivos] = await Promise.all([
     obterProposta(id),
@@ -66,7 +69,7 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
       descontoMaxSemJustificativa={config.descontoMaxSemJustificativa}
       motivosPerda={motivos}
     />
-    <PropostaExtras propostaId={p.id} clienteId={p.clienteId} documentos={documentos} versoes={versoesComp} podeGerir={podeGerir} />
+    <PropostaExtras propostaId={p.id} clienteId={p.clienteId} documentos={documentos} versoes={versoesComp} podeGerir={podeGerir} podeExcluirDocumento={podeExcluirDocumento} />
     </div>
   );
 }
