@@ -85,7 +85,26 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
       { acao: "diario", label: "Ver o Diário de obra do projeto", abre: "Aba Diário do projeto", leitura: true },
       { acao: "extras", label: "Ver a aba Extras do projeto", abre: "Aba Extras do projeto", leitura: true },
       { acao: "pastas", label: "Redesenhar a árvore de pastas do projeto" },
+      // 2026-09-15: era `GLOBAL_ROLES` (papel admin/supervisor) em ~10 gates de escrita espalhados —
+      // a coordenadora contratada CLT com perfil Coordenador não conseguia agir fora da própria
+      // disciplina. É ESCRITA, e é deliberadamente separado de `escopo:global` (que só amplia o que
+      // se enxerga): enxergar o projeto inteiro não autoriza mexer na disciplina de outra pessoa.
+      {
+        acao: "atuar_disciplina_alheia",
+        label: "Agir na disciplina de outra pessoa (enviar e renomear arquivo, pendência, diário, coordenação)",
+      },
     ],
+  },
+  {
+    // 2026-09-15: finalizar a entrega da disciplina — `validarEntrega` (fluxo por arquivo) e o
+    // passo 2 do fluxo de aprovação em 2 etapas (confirmar/recusar). Os dois caminhos terminam no
+    // mesmo lugar: a demanda é liberada para o financeiro e o pagamento do projetista é criado.
+    // Separado de `uploads:validar` (revisar arquivo a arquivo, apontar pendência) porque revisar
+    // não é liberar. Quem aprova NÃO precisa ver o valor: o diálogo só mostra/edita valor para
+    // quem enxerga financeiro (`podeVerFinanceiro`) — "quem está aprovando não é quem vai pagar".
+    recurso: "aprovacoes",
+    label: "Aprovações",
+    acoes: [{ acao: "disciplina", label: "Aprovar a entrega da disciplina (libera a demanda para o financeiro)" }],
   },
   {
     // `tarefas:ver` era consultado em `modules/busca/actions.ts` sem existir no catálogo: como
@@ -96,12 +115,19 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     // recortados por `escopoTarefa(user)` — o par decide se a seção aparece, não o que ela mostra.
     recurso: "tarefas",
     label: "Tarefas",
-    acoes: [{ acao: "ver", label: "Ver tarefas na busca global (Ctrl+K)", leitura: true }],
+    acoes: [
+      { acao: "ver", label: "Ver tarefas na busca global (Ctrl+K)", leitura: true },
+      // 2026-09-15: era `GLOBAL_ROLES`. Sem isto a pessoa vê só as tarefas que criou, em que é
+      // responsável ou participante, e edita/arquiva só as que criou.
+      { acao: "gerir_todas", label: "Ver, editar e arquivar tarefas de todas as pessoas" },
+    ],
   },
   {
     recurso: "uploads",
     label: "Uploads & Validação",
-    acoes: [{ acao: "validar", label: "Validar entregas (libera pagamento)", abre: "Aprovações" }],
+    // Até 2026-09-15 este par também finalizava a entrega e liberava o pagamento; isso passou
+    // para `aprovacoes:disciplina`. Aqui ficou a revisão arquivo a arquivo.
+    acoes: [{ acao: "validar", label: "Revisar arquivos e apontar pendências", abre: "Aprovações" }],
   },
   {
     recurso: "arquivos_gerais",

@@ -90,6 +90,11 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "supervisor", recurso: "projetos", acao: "gerir" },
   { role: "supervisor", recurso: "projetos", acao: "historico" },
   { role: "supervisor", recurso: "uploads", acao: "validar" },
+  // 2026-09-15: gates que eram `GLOBAL_ROLES` viraram par. Bancos que já existiam recebem pela
+  // migration `20260915160000_pares_disciplina_alheia_tarefas_aprovacoes`.
+  { role: "supervisor", recurso: "aprovacoes", acao: "disciplina" },
+  { role: "supervisor", recurso: "projetos", acao: "atuar_disciplina_alheia" },
+  { role: "supervisor", recurso: "tarefas", acao: "gerir_todas" },
   { role: "supervisor", recurso: "arquivos", acao: "ver" },
   { role: "supervisor", recurso: "arquivos", acao: "baixar" },
   { role: "supervisor", recurso: "arquivos", acao: "ver_todas_disciplinas" },
