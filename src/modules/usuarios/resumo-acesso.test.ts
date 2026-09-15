@@ -10,6 +10,9 @@ const BASE: EntradaResumo = {
   perfilEscopoGlobal: false,
   superUsuario: false,
   ehSocio: false,
+  perfilValidaEntregas: true,
+  contratacao: "clt",
+  jaTeveVinculo: true,
 };
 
 function linha(e: Partial<EntradaResumo>, chave: string) {
@@ -39,14 +42,19 @@ describe("resumirAcesso", () => {
     expect(l.valor).toContain("Coordenador");
   });
 
-  // O caso que motivou a tela: CLT + Perfil "Coordenador" NÃO dá escopo global nem Aprovações.
+  // O caso que motivou a tela: Papel CLT + Perfil "Coordenador".
   describe("CLT com perfil Coordenador", () => {
-    it("não enxerga todos os projetos", () => {
+    it("não enxerga todos os projetos enquanto o perfil não tiver escopo global", () => {
       expect(linha({}, "escopo").valor).toContain("membro ou responsável");
     });
 
-    it("não vê a fila de Aprovações, e diz que isso é do Papel", () => {
-      expect(linha({}, "aprovacoes").valor).toContain("depende do Papel");
+    it("abre a fila de Aprovações pelo PERFIL, não pelo papel (desde 2026-09-02)", () => {
+      expect(linha({}, "aprovacoes").tom).toBe("ok");
+      expect(linha({ perfilValidaEntregas: false }, "aprovacoes").valor).toContain("Validar entregas");
+    });
+
+    it("não age na disciplina dos outros — isso ainda é do papel", () => {
+      expect(linha({}, "disciplina_alheia").valor).toContain("depende do Papel");
     });
 
     it("bate ponto normalmente", () => {
@@ -63,23 +71,32 @@ describe("resumirAcesso", () => {
     expect(linha({ role: "supervisor" }, "escopo").valor).toContain("membro ou responsável");
   });
 
-  it("papel Coordenador ainda abre /aprovacoes (gate não convertido)", () => {
-    expect(linha({ role: "supervisor" }, "aprovacoes").tom).toBe("ok");
-    expect(linha({ role: "admin" }, "aprovacoes").tom).toBe("ok");
+  it("papel Coordenador/Admin ainda age na disciplina dos outros (gate não convertido)", () => {
+    expect(linha({ role: "supervisor" }, "disciplina_alheia").tom).toBe("ok");
+    expect(linha({ role: "admin" }, "disciplina_alheia").tom).toBe("ok");
+    // mas o papel sozinho não abre mais /aprovacoes
+    expect(linha({ role: "supervisor", perfilValidaEntregas: false }, "aprovacoes").tom).toBe("neutro");
   });
 
   it("PJ registra apontamento, não ponto", () => {
-    expect(linha({ role: "projetista_pj" }, "jornada").valor).toContain("apontamento");
-    expect(linha({ role: "freelancer" }, "jornada").valor).toContain("apontamento");
+    expect(linha({ role: "projetista_pj", contratacao: "pj" }, "jornada").valor).toContain("apontamento");
+    expect(linha({ role: "freelancer", contratacao: "pj" }, "jornada").valor).toContain("apontamento");
   });
 
-  // Trap real: a página /ponto aceita todo interno, mas `registrarBatida` tem `roles: CLT_ROLES`.
-  it("avisa dos papéis que abrem o Ponto mas têm a batida recusada", () => {
-    for (const role of ["administrativo", "supervisor", "admin"] as const) {
-      const l = linha({ role }, "jornada");
-      expect(l.tom).toBe("aviso");
-      expect(l.valor).toContain("recusado");
+  // O bug de 2026-09-15: batida seguia o papel. Agora segue a contratação.
+  it("Administrativo, TI e Coordenador contratados CLT batem ponto", () => {
+    for (const role of ["administrativo", "ti", "supervisor"] as const) {
+      const l = linha({ role, contratacao: "clt" }, "jornada");
+      expect(l.tom, role).toBe("ok");
+      expect(l.valor, role).toContain("Bate ponto");
     }
+  });
+
+  it("avisa, com o motivo, quem fica sem registrar hora", () => {
+    expect(linha({ role: "supervisor", contratacao: "pro_labore" }, "jornada").valor).toContain("não é CLT nem estágio");
+    expect(linha({ role: "clt", contratacao: null, jaTeveVinculo: true }, "jornada").valor).toContain("encerrado");
+    expect(linha({ role: "administrativo", contratacao: null, jaTeveVinculo: false }, "jornada").valor).toContain("RH → Pessoas");
+    expect(linha({ role: "administrativo", contratacao: null, jaTeveVinculo: false }, "jornada").tom).toBe("aviso");
   });
 
   it("cliente não tem jornada", () => {

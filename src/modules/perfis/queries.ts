@@ -82,13 +82,25 @@ export async function perfisAtivosParaSelect() {
       // constante compartilhada, então renomear no catálogo tem que mudar os dois. O teste
       // `resumo-acesso.test.ts` guarda o par contra `PERMISSOES_CATALOGO`: se sumir dali, quebra
       // vermelho em vez de a tela passar a dizer "só os próprios projetos" para quem vê tudo.
+      //
+      // `uploads:validar` vem junto: é o gate de `/aprovacoes` desde 2026-09-02 (antes era o papel),
+      // e a tela precisa dizer se o perfil abre a fila.
       permissoes: {
-        where: { recurso: "escopo", acao: "global", permitido: true },
-        select: { id: true },
-        take: 1,
+        where: {
+          permitido: true,
+          OR: [
+            { recurso: "escopo", acao: "global" },
+            { recurso: "uploads", acao: "validar" },
+          ],
+        },
+        select: { recurso: true, acao: true },
       },
     },
     orderBy: { nome: "asc" },
   });
-  return perfis.map(({ permissoes, ...p }) => ({ ...p, escopoGlobal: permissoes.length > 0 }));
+  return perfis.map(({ permissoes, ...p }) => ({
+    ...p,
+    escopoGlobal: permissoes.some((x) => x.recurso === "escopo" && x.acao === "global"),
+    validaEntregas: permissoes.some((x) => x.recurso === "uploads" && x.acao === "validar"),
+  }));
 }

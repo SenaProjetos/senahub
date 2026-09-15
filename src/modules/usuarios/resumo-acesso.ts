@@ -7,17 +7,21 @@
  * `documentos/fontes-meta.ts`. **Não autoriza nada, descreve.** Se algum dia divergir do que o
  * sistema faz, o errado é este arquivo, não o gate.
  *
- * Os dois eixos são diferentes de propósito, e é exatamente isso que a tela precisa mostrar:
+ * Os eixos são diferentes de propósito, e é exatamente isso que a tela precisa mostrar:
  *   - **Perfil de acesso** decide `recurso:ação` — `can()` resolve por `permissaoEfetiva` desde
- *     a Onda D. Sem perfil, o motor nega tudo (default negado aplicado à pessoa).
- *   - **Papel** (`role`) ainda decide a jornada (`CLT_ROLES`/`PJ_ROLES`) e os gates que a Onda D
- *     não converteu: `GLOBAL_ROLES` em `/aprovacoes`, no `podeAprovar` do painel e no escopo
- *     global de arquivos/uploads/coordenação.
- *   - **Escopo de projetos** é um terceiro eixo: `acessoGlobal()` = `superUsuario ||` permissão
- *     `escopo:global` do perfil. Nenhum perfil semente recebe `escopo:global` (§9.7 — Coordenador
- *     perdeu o escopo global de propósito).
+ *     a Onda D. Sem perfil, o motor nega tudo. Inclui a fila de Aprovações (`uploads:validar`,
+ *     desde 2026-09-02).
+ *   - **Contratação** decide a batida, o espelho, as férias e a folha CLT (`ponto/jornada.ts`,
+ *     desde 2026-09-15) — não o papel.
+ *   - **Papel** (`role`) ainda decide o apontamento (`PJ_ROLES`) e o "agir em disciplina alheia"
+ *     (`GLOBAL_ROLES`): confirmar aprovação em 2 etapas, editar pendência, diário e tarefa de
+ *     outros, enviar arquivo em qualquer disciplina. São gates que a Onda D não converteu.
+ *   - **Escopo de projetos** é outro eixo: `acessoGlobal()` = `superUsuario ||` permissão
+ *     `escopo:global` do perfil.
  */
-import { CLT_ROLES, GLOBAL_ROLES, PJ_ROLES, type Role } from "@/lib/roles";
+import { GLOBAL_ROLES, PJ_ROLES, type Role } from "@/lib/roles";
+import { controlaJornada } from "@/modules/ponto/jornada";
+import type { Contratacao } from "@/generated/prisma/enums";
 
 /** `aviso` = o admin precisa reparar nisso antes de salvar; `ok`/`neutro` só informam. */
 export type TomResumo = "ok" | "aviso" | "neutro";
@@ -38,29 +42,37 @@ export type EntradaResumo = {
   perfilNome: string | null;
   /** O perfil tem a permissão sintética `escopo:global`. */
   perfilEscopoGlobal: boolean;
+  /** O perfil tem `uploads:validar` — o gate de `/aprovacoes`. */
+  perfilValidaEntregas: boolean;
+  /** Contratação do vínculo ativo — eixo da jornada. */
+  contratacao: Contratacao | null;
+  /** Já teve algum vínculo. Sem ele, "sem contratação" não se distingue de "vínculo encerrado". */
+  jaTeveVinculo: boolean;
   superUsuario: boolean;
   ehSocio: boolean;
 };
 
 /**
- * Papéis que chegam em `/ponto` mas cujo `registrarBatida` o servidor recusa: a página aceita
- * todo interno, a action tem `roles: CLT_ROLES`. Não é bug desta tela — é o estado real do
- * sistema, e esconder isso é o que faz o admin descobrir só quando a pessoa reclama.
+ * Registro de horas: batida pela CONTRATAÇÃO (`controlaJornada`), apontamento ainda pelo PAPEL. A
+ * pessoa que não cai em nenhum dos dois fica sem registrar hora — o que zera o custo dela no rateio
+ * de projeto. Por isso é aviso, exceto para superusuário e cliente.
  */
-function jornada(role: Role): { valor: string; tom: TomResumo } {
-  if (CLT_ROLES.includes(role)) {
-    return { valor: "Bate ponto — folha CLT, férias e banco de horas", tom: "ok" };
+function jornada(e: EntradaResumo): { valor: string; tom: TomResumo } {
+  if (e.role === "cliente") return { valor: "Não se aplica (acesso externo, só o portal)", tom: "neutro" };
+  const sujeito = { role: e.role, contratacao: e.contratacao, jaTeveVinculo: e.jaTeveVinculo };
+  if (controlaJornada(sujeito)) {
+    return { valor: "Bate ponto — espelho, banco de horas, férias e folha CLT (pela contratação)", tom: "ok" };
   }
-  if (PJ_ROLES.includes(role)) {
+  if (PJ_ROLES.includes(e.role)) {
     return { valor: "Registra apontamento de horas (sem ponto, sem folha CLT)", tom: "ok" };
   }
-  if (role === "cliente") {
-    return { valor: "Não se aplica (acesso externo, só o portal)", tom: "neutro" };
-  }
-  return {
-    valor: "Abre a tela de Ponto, mas o registro de batida é recusado — só CLT e Estágio batem ponto",
-    tom: "aviso",
-  };
+  if (e.superUsuario) return { valor: "Não registra horas", tom: "neutro" };
+  const motivo = e.contratacao
+    ? "a contratação não é CLT nem estágio, e o apontamento é só para o papel Projetista PJ ou Freelancer"
+    : e.jaTeveVinculo
+      ? "o vínculo está encerrado"
+      : "não há vínculo cadastrado — cadastre em RH → Pessoas";
+  return { valor: `Não registra horas: ${motivo}`, tom: "aviso" };
 }
 
 export function resumirAcesso(e: EntradaResumo): LinhaResumo[] {
@@ -108,23 +120,34 @@ export function resumirAcesso(e: EntradaResumo): LinhaResumo[] {
     tom: global ? "ok" : "neutro",
   });
 
-  // 3. Gates que continuam presos ao Papel — a parte que mais confunde, porque trocar o
-  //    Perfil de acesso não mexe nela.
-  const ehGlobalPorPapel = GLOBAL_ROLES.includes(e.role);
+  // 3. Fila de Aprovações — pelo Perfil de acesso (`uploads:validar`) desde 2026-09-02.
+  const validaEntregas = e.ativo && (e.superUsuario || e.perfilValidaEntregas);
   linhas.push({
     chave: "aprovacoes",
     titulo: "Fila de Aprovações",
-    valor: ehGlobalPorPapel
-      ? "Vê /aprovacoes e o escopo global de arquivos e uploads"
-      : "Não vê /aprovacoes — isso depende do Papel (Administrador ou Coordenador), não do Perfil de acesso",
-    tom: ehGlobalPorPapel ? "ok" : "neutro",
+    valor: validaEntregas
+      ? "Abre /aprovacoes e valida entregas"
+      : "Não abre /aprovacoes — o perfil não tem \"Validar entregas\"",
+    tom: validaEntregas ? "ok" : "neutro",
   });
 
-  // 4. Jornada — `CLT_ROLES`/`PJ_ROLES`, também pelo Papel.
-  const j = jornada(e.role);
+  // 4. O que continua preso ao Papel — a parte que mais confunde, porque trocar o Perfil de
+  //    acesso não mexe nela.
+  const atuaPorPapel = GLOBAL_ROLES.includes(e.role);
+  linhas.push({
+    chave: "disciplina_alheia",
+    titulo: "Disciplina de outros",
+    valor: atuaPorPapel
+      ? "Age em qualquer disciplina: confirma aprovação, edita pendência, diário e tarefa de outros, envia arquivo"
+      : "Só na própria disciplina — agir na dos outros depende do Papel (Administrador ou Coordenador)",
+    tom: atuaPorPapel ? "ok" : "neutro",
+  });
+
+  // 5. Jornada — batida pela contratação, apontamento pelo papel.
+  const j = jornada(e);
   linhas.push({ chave: "jornada", titulo: "Registro de horas", valor: j.valor, tom: j.tom });
 
-  // 5. Piso de sócio — override nominal, some da conta se ninguém disser que existe.
+  // 6. Piso de sócio — override nominal, some da conta se ninguém disser que existe.
   if (e.ehSocio) {
     linhas.push({
       chave: "socio",

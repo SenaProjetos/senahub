@@ -25,6 +25,9 @@ export async function listarUsuarios(opts?: { incluirInativos?: boolean }) {
       // falha silenciosa que nenhuma outra tela de configuração denuncia.
       setor: true,
       contratacao: true,
+      // "Já teve vínculo" separa backfill pendente (cai no papel) de vínculo encerrado (sem jornada)
+      // — sem isso o resumo de acesso diria "bate ponto" para quem saiu. Ver `ponto/jornada.ts`.
+      _count: { select: { vinculos: true } },
     },
   });
 }

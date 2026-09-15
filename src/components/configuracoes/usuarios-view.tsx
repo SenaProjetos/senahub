@@ -93,12 +93,14 @@ type FormState = {
   /** Só leitura, do vínculo ativo — esta tela não grava vínculo. */
   setor: Setor | null;
   contratacao: Contratacao | null;
+  /** Só leitura — separa "sem vínculo" (cai no papel) de "vínculo encerrado" (sem jornada). */
+  jaTeveVinculo: boolean;
 };
 
 const EMPTY: FormState = {
   name: "", nomeCompleto: "", email: "", role: "projetista_pj", clienteId: "", ehSocio: false,
   cpf: "", telefone: "", cargoId: "", dataAdmissao: "", salarioBase: null, pjId: "", onboardingTemplateId: "",
-  perfilId: "", superUsuario: false, ativo: true, setor: null, contratacao: null,
+  perfilId: "", superUsuario: false, ativo: true, setor: null, contratacao: null, jaTeveVinculo: false,
 };
 
 /**
@@ -149,7 +151,7 @@ export function UsuariosView({
   pedidos: PedidoCadastro[];
   pessoasJuridicas: { id: string; label: string }[];
   templates: { id: string; nome: string }[];
-  perfis: { id: string; nome: string; chave: string; escopoGlobal: boolean }[];
+  perfis: { id: string; nome: string; chave: string; escopoGlobal: boolean; validaEntregas: boolean }[];
   /** Catálogo de cargos ativo (2.1) — esta tela também cria pessoa, então também precisa dele. */
   cargos: { id: string; nome: string }[];
   podeDefinirSocio: boolean;
@@ -223,6 +225,9 @@ export function UsuariosView({
         temPerfil: !!form.perfilId,
         perfilNome: perfilSel?.nome ?? null,
         perfilEscopoGlobal: perfilSel?.escopoGlobal ?? false,
+        perfilValidaEntregas: perfilSel?.validaEntregas ?? false,
+        contratacao: form.contratacao,
+        jaTeveVinculo: form.jaTeveVinculo,
         superUsuario: form.superUsuario,
         ehSocio: form.ehSocio,
       })
@@ -395,6 +400,7 @@ export function UsuariosView({
                             superUsuario: u.superUsuario,
                             ativo: u.ativo,
                             setor: u.setor,
+                            jaTeveVinculo: u._count.vinculos > 0,
                             contratacao: u.contratacao,
                           })
                         }
@@ -445,7 +451,7 @@ export function UsuariosView({
             <DialogTitle>{form?.id ? "Editar usuário" : "Nova pessoa"}</DialogTitle>
             <DialogDescription>
               {form?.id
-                ? "Papel define jornada e aprovações; Perfil de acesso define as telas. O resumo abaixo mostra o resultado."
+                ? "Perfil de acesso define as telas; contratação define ponto e férias; papel, o que sobrou. O resumo abaixo mostra o resultado."
                 : "Cria o acesso (senha temporária, troca no 1º acesso) e já registra o cadastro inicial."}
             </DialogDescription>
           </DialogHeader>
@@ -483,7 +489,7 @@ export function UsuariosView({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Papel (jornada e aprovações)</Label>
+                <Label>Papel</Label>
                 <Select
                   value={form.role}
                   onValueChange={(v) => setForm({ ...form, role: v as Role })}
@@ -500,10 +506,11 @@ export function UsuariosView({
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Não define telas. Define ponto × apontamento, folha e férias, e quem vê a fila de
-                  Aprovações. <span className="font-medium">&quot;Coordenador&quot; aqui não é o
-                  mesmo que o Perfil de acesso &quot;Coordenador&quot;</span> — quem coordena mas é
-                  contratado CLT fica com Papel <span className="font-medium">CLT</span>.
+                  Não define telas nem ponto (ponto e férias seguem a contratação). Ainda define o
+                  apontamento de horas do PJ e quem age na disciplina dos outros.{" "}
+                  <span className="font-medium">&quot;Coordenador&quot; aqui não é o mesmo que o
+                  Perfil de acesso &quot;Coordenador&quot;</span> — quem coordena mas é contratado CLT
+                  fica com Papel <span className="font-medium">CLT</span>.
                 </p>
               </div>
               <div className="space-y-1.5">
