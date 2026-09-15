@@ -108,6 +108,21 @@ describe("foraDoPadrao", () => {
   it("não alerta quando a regex é inválida", () => {
     expect(foraDoPadrao("qualquer.pdf", "[")).toBe(false);
   });
+
+  // Os dois padrões cadastrados em produção (2026-09-15) são MODELO, não regex: como regex
+  // nunca casavam, e todo arquivo do pacote A saía marcado "fora do padrão".
+  it("trata padrão com {campo} como modelo e cai no parser embutido", () => {
+    for (const modelo of ["{proj}-{disc}-{fase}-{nº}-{tipo}", "{proj}-{disc}-{fase}-{nº}-{tipo}-{Rnn}"]) {
+      expect(foraDoPadrao("260020-EST-EX-4000-DET-R00.dwg", modelo)).toBe(false);
+      expect(foraDoPadrao("260020-EST-EX-4000-DET.pdf", modelo)).toBe(false);
+      expect(foraDoPadrao("planta_qualquer.pdf", modelo)).toBe(true);
+    }
+  });
+
+  it("quantificador de regex entre chaves continua sendo regex", () => {
+    expect(foraDoPadrao("ABCD.pdf", "^[A-Z]{4}$")).toBe(false);
+    expect(foraDoPadrao("ABC.pdf", "^[A-Z]{4,6}$")).toBe(true);
+  });
 });
 
 describe("faseDoNomeArquivo", () => {
