@@ -5,7 +5,8 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificar } from "@/lib/notificar";
-import { HR_ADMIN_ROLES, INTERNAL_ROLES, CLT_ROLES } from "@/lib/roles";
+import { HR_ADMIN_ROLES, INTERNAL_ROLES } from "@/lib/roles";
+import { aplicaRegraInicioFeriasClt, controlaJornada, type SujeitoJornada } from "@/modules/ponto/jornada";
 import { whereAudiencia } from "@/lib/audiencias";
 import { formatarData } from "@/lib/utils";
 import { validarInicioFeriasClt } from "@/lib/ferias-clt";
@@ -21,14 +22,14 @@ const adminBase = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
 
 // ── Self-service ──────────────────────────────────────────────
 /**
- * Restrito a `CLT_ROLES`: férias são instituto celetista (e recesso, no estágio). PJ, freelancer e
- * sócio não têm férias — abrir a solicitação para eles materializa subordinação. Registro de
- * ausência para não-celetistas é assunto da Onda B do plano (§8).
+ * Restrito a quem tem jornada controlada (`controlaJornada`, pela CONTRATAÇÃO — não pelo papel):
+ * férias são instituto celetista (e recesso, no estágio). PJ, freelancer e sócio não têm férias —
+ * abrir a solicitação para eles materializa subordinação. Um Administrativo ou TI contratado CLT
+ * tem, e até 2026-09-15 era recusado aqui por causa do papel.
  */
 export const solicitarFerias = defineAction(
   {
     ...base,
-    roles: CLT_ROLES,
     acao: "solicitar-ferias",
     entidade: "Ferias",
     schema: z.object({
@@ -38,7 +39,8 @@ export const solicitarFerias = defineAction(
     }),
   },
   async (i, { user }) => {
-    await garantirInicioFeriasClt(user.role, i.inicio);
+    if (!controlaJornada(user)) throw new ActionError("Férias são só para contratação CLT ou estágio.");
+    await garantirInicioFeriasClt(user, i.inicio);
     const f = await prisma.ferias.create({
       data: { userId: user.id, inicio: new Date(i.inicio), fim: new Date(i.fim), observacao: i.observacao || null },
     });
@@ -167,18 +169,23 @@ export const lancarFeriasColaborador = defineAction(
     entidadeId: (d) => (d as { id: string }).id,
   },
   async (i, { user }) => {
-    const alvo = await prisma.user.findUnique({
+    const achado = await prisma.user.findUnique({
       where: { id: i.userId },
-      select: { id: true, role: true, ativo: true },
+      select: { id: true, role: true, ativo: true, contratacao: true, _count: { select: { vinculos: true } } },
     });
-    if (!alvo || !alvo.ativo) throw new ActionError("Colaborador não encontrado.");
+    if (!achado || !achado.ativo) throw new ActionError("Colaborador não encontrado.");
+    const alvo: SujeitoJornada & { id: string } = {
+      id: achado.id,
+      role: achado.role,
+      contratacao: achado.contratacao,
+      jaTeveVinculo: achado._count.vinculos > 0,
+    };
     // Mesma restrição do autoatendimento, aplicada ao ALVO (o chamador é sempre gestor de RH):
     // férias são instituto celetista — lançar para PJ/freelancer materializaria subordinação.
-    if (!(CLT_ROLES as readonly string[]).includes(alvo.role))
-      throw new ActionError("Férias só podem ser lançadas para colaboradores CLT ou estagiários.");
-    // Regra CLT de início pelo perfil do ALVO, não do RH (que nunca é `clt` — passar
-    // `user.role` aqui desligaria a validação em silêncio).
-    await garantirInicioFeriasClt(alvo.role, i.inicio);
+    if (!controlaJornada(alvo))
+      throw new ActionError("Férias só podem ser lançadas para contratação CLT ou estágio.");
+    // Regra CLT de início pelo ALVO, não pelo RH — passar o chamador aqui validaria a pessoa errada.
+    await garantirInicioFeriasClt(alvo, i.inicio);
 
     const f = await prisma.ferias.create({
       data: {
@@ -229,7 +236,7 @@ export const editarFeriasPendente = defineAction(
     if (f.userId !== user.id) throw new ActionError("Sem permissão.");
     if (f.status !== "pendente")
       throw new ActionError("Férias já avaliadas — proponha uma alteração para mudar as datas.");
-    await garantirInicioFeriasClt(user.role, i.inicio);
+    await garantirInicioFeriasClt(user, i.inicio);
     await prisma.ferias.update({
       where: { id: f.id },
       data: { inicio: new Date(i.inicio), fim: new Date(i.fim), observacao: i.observacao || null },
@@ -268,9 +275,19 @@ export const proporAlteracaoFerias = defineAction(
     if (!ehDono && !ehAdmin) throw new ActionError("Sem permissão.");
     if (f.altInicio) throw new ActionError("Já existe uma alteração pendente para estas férias.");
 
-    // Regra CLT de início vale para a NOVA data, conforme o perfil do dono das férias.
-    const dono = await prisma.user.findUnique({ where: { id: f.userId }, select: { role: true, name: true } });
-    await garantirInicioFeriasClt(dono?.role ?? "", i.inicio);
+    // Regra CLT de início vale para a NOVA data, conforme a contratação do DONO das férias (quem
+    // propõe pode ser o RH). Sem dono carregado, o sujeito vai incompleto e a regra VALIDA — antes
+    // era `dono?.role ?? ""`, que pulava a validação.
+    const dono = await prisma.user.findUnique({
+      where: { id: f.userId },
+      select: { role: true, name: true, contratacao: true, _count: { select: { vinculos: true } } },
+    });
+    await garantirInicioFeriasClt(
+      dono
+        ? { role: dono.role, contratacao: dono.contratacao, jaTeveVinculo: dono._count.vinculos > 0 }
+        : ({ role: "clt" } as SujeitoJornada),
+      i.inicio,
+    );
 
     const okAdmin = ehAdmin;
     const okFunc = ehDono;
@@ -391,8 +408,8 @@ export const responderAlteracaoFerias = defineAction(
  * Regra CLT de início de férias (art. 134 §3º) — só para colaboradores CLT.
  * Lança ActionError se a data de início cair nos 2 dias que antecedem feriado/domingo.
  */
-async function garantirInicioFeriasClt(role: string, inicioISO: string) {
-  if (role !== "clt") return;
+async function garantirInicioFeriasClt(sujeito: SujeitoJornada, inicioISO: string) {
+  if (!aplicaRegraInicioFeriasClt(sujeito)) return;
   const anoIni = Number(inicioISO.slice(0, 4));
   const feriados = new Set(
     [

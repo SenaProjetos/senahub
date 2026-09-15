@@ -36,7 +36,7 @@ export async function usuariosComJornadaNoMes(
         {
           vinculos: {
             some: {
-              contratacao: { in: CONTRATACOES_JORNADA },
+              contratacao: { in: [...CONTRATACOES_JORNADA] },
               dataInicio: { lte: fimMes },
               OR: [{ dataFim: null }, { dataFim: { gte: iniMes } }],
             },

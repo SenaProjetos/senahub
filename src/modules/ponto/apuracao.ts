@@ -3,7 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { CLT_ROLES } from "@/lib/roles";
 import { pisoApuracao } from "@/modules/ponto/esperado";
 import { diaLocal } from "@/modules/ponto/engine";
-import type { Contratacao } from "@/generated/prisma/client";
+import { CONTRATACOES_JORNADA } from "@/modules/ponto/jornada";
+
+export { CONTRATACOES_JORNADA };
 
 /**
  * Contexto de apuração de ponto de um usuário NUM MÊS: se a jornada é
@@ -19,9 +21,6 @@ import type { Contratacao } from "@/generated/prisma/client";
  * ainda não migrados pelo backfill de vínculos (`User.contratacao` é
  * deliberadamente nullable — ver `schema.prisma:85-88`).
  */
-
-/** Contratações com jornada controlada — banco de horas, falta e espelho. */
-export const CONTRATACOES_JORNADA: Contratacao[] = ["clt", "estagio"];
 
 export type ContextoApuracao = {
   /** `false` → nenhum dia gera hora esperada (PJ, autônomo, pró-labore, sem vínculo no mês). */

@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { ROLE_LABELS, CLT_ROLES, type Role } from "@/lib/roles";
+import { ROLE_LABELS, type Role } from "@/lib/roles";
+import { controlaJornada } from "@/modules/ponto/jornada";
 
 /** Preferências (chave-valor) do usuário (E8). */
 export async function getPreferencias(userId: string): Promise<Record<string, unknown>> {
@@ -17,7 +18,7 @@ export async function carregarPreferenciasDaConta(userId: string) {
     getPreferencias(userId),
     prisma.user.findUnique({
       where: { id: userId },
-      select: { name: true, email: true, image: true, telefone: true, cargo: true, departamento: true, dataAdmissao: true, role: true },
+      select: { name: true, email: true, image: true, telefone: true, cargo: true, departamento: true, dataAdmissao: true, role: true, contratacao: true, _count: { select: { vinculos: true } } },
     }),
   ]);
   const role = (perfilDb?.role ?? "clt") as Role;
@@ -59,7 +60,10 @@ export async function carregarPreferenciasDaConta(userId: string) {
     // Default = resumo diário (1 e-mail/dia). Sino+Push cobrem tempo real sempre;
     // "todos" é opt-in pra quem quer e-mail a cada horário atingido.
     pontoEmailModo: (modoValido ? prefs.ponto_email_modo : "resumo_diario") as "todos" | "resumo_diario" | "nenhum",
-    mostrarAlertasPonto: CLT_ROLES.includes(role),
+    // Mesmo fato da batida: alerta de ponto só para quem bate ponto (pela contratação).
+    mostrarAlertasPonto: perfilDb
+      ? controlaJornada({ role, contratacao: perfilDb.contratacao, jaTeveVinculo: perfilDb._count.vinculos > 0 })
+      : false,
   };
 }
 

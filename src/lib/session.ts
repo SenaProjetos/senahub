@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import type { Role } from "@/lib/roles";
-import type { Setor } from "@/generated/prisma/enums";
+import type { Contratacao, Setor } from "@/generated/prisma/enums";
 
 export type SessionUser = {
   id: string;
@@ -58,6 +58,18 @@ export type SessionUser = {
    * nulo — ver `requireInterno()`.
    */
   tipo: "interno" | "externo" | null;
+  /**
+   * Contratação do vínculo ativo (mesmo cache de `setor`/`tipo`). É o eixo de JORNADA — quem bate
+   * ponto, tem espelho e tem férias — desde 2026-09-15; ver `modules/ponto/jornada.ts`. Não autoriza
+   * tela nenhuma: `permissaoEfetiva` não tem passo de contratação.
+   */
+  contratacao: Contratacao | null;
+  /**
+   * Já teve algum vínculo, ativo ou encerrado. Sem ele não dá para distinguir "backfill não chegou
+   * nesta pessoa" (cai no papel) de "vínculo encerrado" (contratação nula e SEM fallback) — e
+   * confundir os dois concede batida a quem saiu.
+   */
+  jaTeveVinculo: boolean;
 };
 
 /** Sessão atual (ou null). Memoizada por request. */
@@ -69,7 +81,7 @@ export const getSession = cache(async () => {
   // `undefined`. Falha silenciosa — `lint` e `build` passam.
   const base = session.user as unknown as Omit<
     SessionUser,
-    "ehSocio" | "perfilId" | "perfilChave" | "escopoGlobalPerfil" | "superUsuario" | "setor" | "tipo"
+    "ehSocio" | "perfilId" | "perfilChave" | "escopoGlobalPerfil" | "superUsuario" | "setor" | "tipo" | "contratacao" | "jaTeveVinculo"
   >;
 
   // Sócio + perfil/superUsuário num único round-trip (mesmo lookup que já existia, ampliado).
@@ -81,6 +93,8 @@ export const getSession = cache(async () => {
       superUsuario: true,
       setor: true,
       tipo: true,
+      contratacao: true,
+      _count: { select: { vinculos: true } },
       perfil: { select: { chave: true } },
       socio: { select: { ativo: true } },
     },
@@ -107,6 +121,10 @@ export const getSession = cache(async () => {
       superUsuario: dados?.superUsuario ?? false,
       setor: dados?.setor ?? null,
       tipo: dados?.tipo ?? null,
+      contratacao: dados?.contratacao ?? null,
+      // Sem registro (`dados` nulo) não se sabe nada: `true` faz `controlaJornada` negar em vez de
+      // cair no papel. É o lado que falha fechado.
+      jaTeveVinculo: dados ? dados._count.vinculos > 0 : true,
       escopoGlobalPerfil,
     } as SessionUser,
     session: session.session,

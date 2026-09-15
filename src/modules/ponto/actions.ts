@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { INTERNAL_ROLES, CLT_ROLES, PJ_ROLES } from "@/lib/roles";
+import { INTERNAL_ROLES, PJ_ROLES } from "@/lib/roles";
+import { controlaJornada } from "@/modules/ponto/jornada";
 import { notificar } from "@/lib/notificar";
 import { getSession } from "@/lib/session";
 import { aplicarBatida, editarDia } from "@/modules/ponto/service";
@@ -33,6 +34,10 @@ import type { Prisma } from "@/generated/prisma/client";
  * Plano: docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md (§4c)
  */
 const base = { modulo: "rh", roles: INTERNAL_ROLES } as const;
+
+/** Mesma frase para batida e espelho: é o mesmo fato — a contratação não tem jornada controlada. */
+const MSG_SEM_JORNADA =
+  "Registro de ponto é só para contratação CLT ou estágio. Se a sua contratação está errada, fale com o RH.";
 const rev = () => revalidatePath("/ponto");
 
 /**
@@ -119,8 +124,12 @@ const registrarBatidaSchema = z.object({
  * em banco estruturado e exportável, prova contra a própria empresa (§4, bug (c)).
  */
 export const registrarBatida = defineAction(
-  { ...base, roles: CLT_ROLES, acao: "registrar-batida", entidade: "Batida", schema: registrarBatidaSchema },
+  // `roles: INTERNAL_ROLES` (de `base`) fica: sem `roles` e sem `recurso`, `defineAction` pula o
+  // gate inteiro e o cliente do portal alcança a action. A jornada é conferida no handler porque o
+  // eixo é a contratação, que `roles` não expressa.
+  { ...base, acao: "registrar-batida", entidade: "Batida", schema: registrarBatidaSchema },
   async (i, { user }) => {
+    if (!controlaJornada(user)) throw new ActionError(MSG_SEM_JORNADA);
     const agora = new Date();
     let horario = agora;
     let origem: "app" | "offline" = "app";
@@ -176,7 +185,7 @@ export const trocarProjeto = defineAction(
  * Grava um hash SHA-256 do conteúdo aceito como prova de não-repúdio (mesmo
  * padrão do AceiteTermo). Só o próprio usuário, só meses já encerrados.
  *
- * Restrito a quem controla jornada (`CLT_ROLES`): o espelho assinado é prova de controle de
+ * Restrito a quem controla jornada (`controlaJornada`, pela contratação): o espelho assinado é prova de controle de
  * jornada, e produzi-lo para PJ/freelancer/sócio materializa subordinação. A batida em si segue
  * liberada aos internos porque `Batida` e `SessaoTrabalho` são gravadas 1:1 e o apontamento do PJ
  * alimenta o rateio — desacoplar os dois é a Onda B do plano (§8).
@@ -184,7 +193,6 @@ export const trocarProjeto = defineAction(
 export const aceitarEspelhoMes = defineAction(
   {
     ...base,
-    roles: CLT_ROLES,
     acao: "aceitar-espelho",
     entidade: "EspelhoAceite",
     schema: z.object({
@@ -193,6 +201,7 @@ export const aceitarEspelhoMes = defineAction(
     }),
   },
   async (i, { user }) => {
+    if (!controlaJornada(user)) throw new ActionError(MSG_SEM_JORNADA);
     const det = await espelhoDetalhado(user.id, i.ano, i.mes);
     if (!det.podeAceitar) throw new ActionError("Só é possível assinar espelhos de meses já encerrados.");
 

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requireRole } from "@/lib/session";
-import { CLT_ROLES } from "@/lib/roles";
+import { controlaJornada } from "@/modules/ponto/jornada";
 import { minhasSolicitacoes, humorHoje, meuOnboarding, minhasNFs } from "@/modules/rh/queries";
 import { modelosPorFonte } from "@/modules/documentos/queries";
 import { RhView } from "@/components/rh/rh-view";
@@ -52,7 +52,7 @@ export default async function RhPage() {
           lancadaPeloRh: f.lancadoPorId !== null,
         }))}
         humorAtual={humor?.humor ?? null}
-        podeSolicitarFerias={CLT_ROLES.includes(user.role)}
+        podeSolicitarFerias={controlaJornada(user)}
       />
 
       {onboarding && onboarding.itens.some((i) => !i.concluido) && (

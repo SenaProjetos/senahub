@@ -1,5 +1,6 @@
 import type { Role } from "@/lib/roles";
-import { CLT_ROLES, INTERNAL_ROLES, PJ_ROLES, PROJETO_MEMBRO_ROLES } from "@/lib/roles";
+import { INTERNAL_ROLES, PJ_ROLES, PROJETO_MEMBRO_ROLES } from "@/lib/roles";
+import { whereControlaJornada } from "@/modules/ponto/jornada";
 import { ROLES_GLOBAIS_CHAT } from "@/modules/chat/roles";
 
 /**
@@ -62,7 +63,19 @@ export type AudienciaPorPermissao = {
   permissao: string;
 };
 
-export type Audiencia = AudienciaPorPapel | AudienciaPorPermissao;
+/**
+ * Audiência resolvida por JORNADA CONTROLADA — pela contratação do vínculo, com o papel só como
+ * fallback de quem nunca teve vínculo. Existe porque "é CLT" não é papel nem permissão: um
+ * Administrativo contratado CLT bate ponto, tem holerite e tem férias. A regra mora em
+ * `modules/ponto/jornada.ts` (`whereControlaJornada`), a mesma que os gates de batida e férias usam
+ * — audiência e gate não podem divergir (R2).
+ */
+export type AudienciaPorJornada = {
+  descricao: string;
+  modo: "jornada";
+};
+
+export type Audiencia = AudienciaPorPapel | AudienciaPorPermissao | AudienciaPorJornada;
 
 export const AUDIENCIAS = {
   /** admin + supervisor. */
@@ -87,11 +100,14 @@ export const AUDIENCIAS = {
     modo: "permissao",
     permissao: "notificacoes:operacional",
   },
-  /** clt + estagiario. */
+  /**
+   * Contratação CLT ou estágio (pelo vínculo), qualquer papel. Até 2026-09-15 era o papel
+   * (`clt` + `estagiario`), o que tirava da folha e dos lembretes de ponto quem era contratado CLT
+   * com papel Administrativo ou TI. Chave mantida: snapshots antigos a referenciam.
+   */
   clt: {
-    descricao: "Colaboradores CLT/estágio — holerite, banco de horas, lembrete e resumo de ponto, direito a férias",
-    modo: "in",
-    roles: CLT_ROLES,
+    descricao: "Contratação CLT/estágio — holerite, banco de horas, lembrete e resumo de ponto, direito a férias",
+    modo: "jornada",
   },
   /** Todos menos cliente. */
   interno: {
@@ -146,6 +162,7 @@ export function whereAudiencia(chave: AudienciaKey, agora: Date = new Date()): W
     const [recurso, acao] = a.permissao.split(":");
     return wherePermissao(recurso, acao, agora);
   }
+  if (a.modo === "jornada") return whereControlaJornada();
   const roles = [...a.roles] as Role[];
   return { ativo: true, role: a.modo === "in" ? { in: roles } : { notIn: roles } };
 }

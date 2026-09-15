@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compararConjuntos, conjuntosVazios, type ConjuntoNomeado } from "@/lib/equivalencia-audiencia";
 import { AUDIENCIAS, AUDIENCIA_KEYS, whereAudiencia } from "@/lib/audiencias";
+import { whereControlaJornada } from "@/modules/ponto/jornada";
 import { PERMISSOES_CATALOGO } from "@/lib/permissions-catalog";
 
 describe("compararConjuntos", () => {
@@ -60,7 +61,8 @@ describe("conjuntosVazios", () => {
 
 describe("registro de audiências", () => {
   it("monta o where do Prisma no modo declarado", () => {
-    expect(whereAudiencia("clt")).toEqual({ ativo: true, role: { in: ["clt", "estagiario"] } });
+    // `clt` é por jornada (contratação), não por papel — o formato vem de `jornada.ts`, testado lá.
+    expect(whereAudiencia("clt")).toEqual(whereControlaJornada());
     expect(whereAudiencia("pj")).toEqual({ ativo: true, role: { in: ["projetista_pj", "freelancer"] } });
     expect(whereAudiencia("planejamento_recurso")).toEqual({
       ativo: true,
@@ -110,7 +112,7 @@ describe("registro de audiências", () => {
   it("nenhuma audiência por papel nasce com lista vazia", () => {
     for (const chave of AUDIENCIA_KEYS) {
       const a = AUDIENCIAS[chave];
-      if (a.modo === "permissao") continue;
+      if (a.modo === "permissao" || a.modo === "jornada") continue;
       expect(a.roles.length, `audiência ${chave}`).toBeGreaterThan(0);
     }
   });
