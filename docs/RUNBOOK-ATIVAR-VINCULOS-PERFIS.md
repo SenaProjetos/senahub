@@ -195,6 +195,22 @@ na folha CLT** passam a seguir a CONTRATAÇÃO do vínculo, não o papel. Leia a
 - **SEM VÍNCULO NENHUM** — continuam pelo papel; um Administrativo/TI aqui segue sem ponto até
   alguém cadastrar o vínculo.
 
+**Débito herdado no banco de horas.** A apuração já lia a contratação, a batida lia o papel: quem
+aparece em `nenhum → batida` teve jornada ESPERADA apurada nos meses em que não podia bater ponto.
+Se o banco desses meses foi fechado, o saldo está negativo por falta que a pessoa não tinha como
+evitar. Conferir antes de ela ver o próprio saldo:
+
+```sql
+SELECT u.name, u.role, b.ano, b.mes, b."saldoMinutos"/60 AS saldo_h, b."acumuladoMinutos"/60 AS acum_h
+FROM banco_horas_mensal b JOIN "user" u ON u.id = b."userId"
+WHERE u.ativo AND u.contratacao IN ('clt','estagio') AND u.role NOT IN ('clt','estagiario')
+ORDER BY u.name, b.ano, b.mes;
+```
+
+Havendo linha, é correção de RH (abono ou recálculo), não do deploy — mas ninguém deve descobrir
+pelo holerite. Não confundir com o fechamento órfão de jun/2026 (quem nem tinha vínculo no mês),
+que tem correção própria pendente.
+
 **Escopo do Coordenador.** A migration dá `escopo:global` ao perfil `coordenador`: quem tem esse
 perfil passa a ver **todos** os projetos, baixar os arquivos deles, **anexar em apontamento de
 qualquer disciplina e gerir documento do cliente de qualquer projeto**. Revoga a decisão §9.7 de
