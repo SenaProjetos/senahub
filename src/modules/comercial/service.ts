@@ -7,7 +7,7 @@ import { notificar, notificarMuitos } from "@/lib/notificar";
 import { whereAudiencia } from "@/lib/audiencias";
 import { proximoCodigoProjeto } from "@/modules/projetos/numbering";
 import { ensureCanaisProjeto } from "@/modules/chat/service";
-import { notificarNovosMembros } from "@/lib/socket";
+import { refletirSincroniaCanais } from "@/lib/socket";
 import { formatarNumeroProposta } from "@/modules/comercial/numeracao";
 import { disciplinasDeItens } from "@/modules/comercial/disciplinas";
 import type { SalvarPropostaInput } from "@/modules/comercial/schemas";
@@ -670,7 +670,7 @@ export async function aceitarProposta(propostaId: string, autorId?: string) {
   });
 
   // Canais de chat do projeto (idempotente).
-  notificarNovosMembros(await ensureCanaisProjeto(projeto.id));
+  refletirSincroniaCanais(await ensureCanaisProjeto(projeto.id));
 
   const gestores = await prisma.user.findMany({
     where: whereAudiencia("gestao_operacional"),

@@ -252,3 +252,21 @@ export function notificarNovosMembros(novos: { canalId: string; userId: string }
     emitParaUsuario(userId, "entrar-canal-novo", { canalId });
   }
 }
+
+/**
+ * Tira o usuário do canal ao vivo: sai do room `canal:` em todos os sockets dele (senão
+ * continuaria RECEBENDO mensagens novas até reconectar) e avisa o cliente para fechar a aba.
+ */
+export function sairDoCanal(userId: string, canalId: string) {
+  getIoInterno()?.in(`user:${userId}`).socketsLeave(`canal:${canalId}`);
+  emitParaUsuario(userId, "sair-canal", { canalId });
+}
+
+/** Reflete no socket uma reconciliação de membros (`ensureCanaisProjeto`): entradas e saídas. */
+export function refletirSincroniaCanais(s: {
+  adicionados: { canalId: string; userId: string }[];
+  removidos: { canalId: string; userId: string }[];
+}) {
+  notificarNovosMembros(s.adicionados);
+  for (const { canalId, userId } of s.removidos) sairDoCanal(userId, canalId);
+}

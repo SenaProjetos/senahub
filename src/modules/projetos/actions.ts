@@ -8,7 +8,7 @@ import { GLOBAL_ROLES, type Role } from "@/lib/roles";
 import { whereAudiencia } from "@/lib/audiencias";
 import { proximoCodigoProjeto, formatarCodigo } from "@/modules/projetos/numbering";
 import { ensureCanaisProjeto } from "@/modules/chat/service";
-import { notificarNovosMembros } from "@/lib/socket";
+import { refletirSincroniaCanais } from "@/lib/socket";
 import {
   criarProjetoSchema,
   editarProjetoSchema,
@@ -156,7 +156,7 @@ export const criarProjeto = defineAction(
       }
       return p;
     });
-    notificarNovosMembros(await ensureCanaisProjeto(projeto.id));
+    refletirSincroniaCanais(await ensureCanaisProjeto(projeto.id));
     revalidatePath("/projetos");
     revalidatePath("/planejamento");
     return { id: projeto.id, codigo: projeto.codigo };
@@ -468,7 +468,7 @@ export const definirResponsaveis = defineAction(
         tag: `resp-${input.disciplinaId}`,
       });
     }
-    notificarNovosMembros(await ensureCanaisProjeto(disciplina.projetoId));
+    refletirSincroniaCanais(await ensureCanaisProjeto(disciplina.projetoId));
     revalidatePath(`/projetos/${disciplina.projetoId}`);
     return { disciplinaId: input.disciplinaId };
   },
@@ -550,7 +550,7 @@ export const definirMembros = defineAction(
       }),
     ]);
     // C3-2: sincroniza os canais e faz os novos membros entrarem no room ao vivo.
-    notificarNovosMembros(await ensureCanaisProjeto(input.projetoId));
+    refletirSincroniaCanais(await ensureCanaisProjeto(input.projetoId));
     revalidatePath(`/projetos/${input.projetoId}`);
     return { projetoId: input.projetoId };
   },
@@ -733,7 +733,7 @@ export const duplicarProjeto = defineAction(
       return criado;
     });
 
-    notificarNovosMembros(await ensureCanaisProjeto(novo.id));
+    refletirSincroniaCanais(await ensureCanaisProjeto(novo.id));
     revalidatePath("/projetos");
     revalidatePath("/planejamento");
     return { id: novo.id, codigo: novo.codigo };
@@ -808,6 +808,8 @@ export const editarDisciplinasEmMassa = defineAction(
           await sincronizarPagamentosPorDisciplinaId(tx, disciplinaId, ctx.user.id);
         }
       });
+      // Quem saiu da disciplina sai também do chat dela (e do projeto, se não tem outro vínculo).
+      refletirSincroniaCanais(await ensureCanaisProjeto(input.projetoId));
     }
 
     revalidatePath(`/projetos/${input.projetoId}`);
@@ -880,7 +882,7 @@ export const criarDisciplina = defineAction(
       return d;
     });
 
-    notificarNovosMembros(await ensureCanaisProjeto(input.projetoId));
+    refletirSincroniaCanais(await ensureCanaisProjeto(input.projetoId));
     revalidatePath(`/projetos/${input.projetoId}`);
     return { disciplinaId: disciplina.id };
   },
@@ -983,6 +985,8 @@ export const editarDisciplina = defineAction(
       });
     }
 
+    // Entradas e SAÍDAS dos canais de chat — sem isto, o projetista retirado seguia no chat.
+    refletirSincroniaCanais(await ensureCanaisProjeto(disciplina.projetoId));
     revalidatePath(`/projetos/${disciplina.projetoId}`);
     return { disciplinaId: input.disciplinaId };
   },
@@ -1030,6 +1034,8 @@ export const excluirDisciplina = defineAction(
         disciplina.responsaveis.map((r) => r.userId),
       );
     });
+    // O canal da disciplina cai em cascata; o do projeto ainda precisa soltar quem ficou sem vínculo.
+    refletirSincroniaCanais(await ensureCanaisProjeto(disciplina.projetoId));
     revalidatePath(`/projetos/${disciplina.projetoId}`);
     return { projetoId: disciplina.projetoId };
   },

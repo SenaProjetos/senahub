@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { brl } from "@/lib/utils";
 import { proximoCodigoProjeto } from "@/modules/projetos/numbering";
 import { ensureCanaisProjeto } from "@/modules/chat/service";
-import { notificarNovosMembros } from "@/lib/socket";
+import { refletirSincroniaCanais } from "@/lib/socket";
 import { transicaoPermitida, mensagemTransicaoInvalida, type StatusLicitacao } from "./status";
 import { modalidadePermitida } from "./modalidade";
 import { nomesModalidadesAtivas } from "./modalidades/queries";
@@ -248,7 +248,7 @@ export const importarLicitacao = defineAction(
       return prj;
     });
 
-    notificarNovosMembros(await ensureCanaisProjeto(projeto.id));
+    refletirSincroniaCanais(await ensureCanaisProjeto(projeto.id));
     rev();
     revalidatePath("/projetos");
     revalidatePath("/juridico");
