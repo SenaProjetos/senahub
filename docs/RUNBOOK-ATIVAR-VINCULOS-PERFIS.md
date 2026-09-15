@@ -288,8 +288,13 @@ Perdas deliberadas, decididas pelo dono (Q20/Q21):
 - **Upload pela rota** passa a exigir `arquivos:enviar` também de quem atua em disciplina alheia
   (a tela já exigia). O perfil Coordenador tem o par.
 
-Ganho a conferir: perfil **customizado** que tenha `uploads:validar` sem ser Coordenador passa a
-confirmar o passo 2, que antes era só do papel.
+Ganhos a conferir:
+
+- Perfil **customizado** que tenha `uploads:validar` sem ser Coordenador passa a confirmar o
+  passo 2, que antes era só do papel.
+- Valor da disciplina no card: o corte por papel CLT/estágio agora cede a quem vê financeiro
+  (`financeiro:ver` ou **sócio ativo**). Sócio ou financeiro com papel CLT passa a ver o valor. Não
+  é par de catálogo, então o gate de equivalência não acusa.
 
 ```sql
 SELECT p.chave, p.nome FROM permissao_perfil pp JOIN perfil_acesso p ON p.id = pp."perfilId"
