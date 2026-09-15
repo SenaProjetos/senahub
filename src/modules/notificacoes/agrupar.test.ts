@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { agruparNotificacoes, JANELA_AGRUPAMENTO_MS, type NotificacaoBruta } from "./agrupar";
+import {
+  agruparNotificacoes,
+  contarNaoLidasAgrupadas,
+  JANELA_AGRUPAMENTO_MS,
+  type NotificacaoBruta,
+} from "./agrupar";
 
 const AGORA = new Date("2026-08-01T14:00:00Z");
 const MIN = 60_000;
@@ -113,5 +118,24 @@ describe("agruparNotificacoes", () => {
     ]);
     expect(grupos.map((g) => g.corpo)).toEqual(["X", "Y"]);
     expect(grupos[0].ids).toEqual(["a", "c"]);
+  });
+});
+
+describe("contarNaoLidasAgrupadas", () => {
+  it("11 uploads idênticos contam 1 no badge, não 11", () => {
+    const itens = Array.from({ length: 11 }, (_, i) => n(`u${i}`, i));
+    expect(contarNaoLidasAgrupadas(itens)).toBe(1);
+  });
+
+  it("conta um por grupo distinto", () => {
+    expect(
+      contarNaoLidasAgrupadas([n("a", 0), n("b", 1), n("c", 2, { corpo: "Outro" }), n("d", 60)]),
+    ).toBe(3);
+  });
+
+  it("ignora as lidas", () => {
+    expect(contarNaoLidasAgrupadas([n("a", 0, { lida: true }), n("b", 1, { corpo: "Y" })])).toBe(1);
+    expect(contarNaoLidasAgrupadas([n("a", 0, { lida: true })])).toBe(0);
+    expect(contarNaoLidasAgrupadas([])).toBe(0);
   });
 });

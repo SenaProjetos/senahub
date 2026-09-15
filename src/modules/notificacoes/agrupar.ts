@@ -108,3 +108,18 @@ export function agruparNotificacoes(
 
   return grupos;
 }
+
+/**
+ * Quantos ITENS não lidos o sino mostra — é o número do badge. Contar linhas inflava o
+ * contador: 11 arquivos enviados viravam "11" no badge para um único item no painel.
+ *
+ * Agrupa só as não lidas. Divergência aceita em relação ao painel (que agrupa lidas e não
+ * lidas juntas): a âncora da janela pode cair numa linha lida, e aí um burst que o painel
+ * mostra como 1 item pode contar 2 aqui. Raro e sempre para cima, nunca esconde pendência.
+ */
+export function contarNaoLidasAgrupadas(
+  itens: NotificacaoBruta[],
+  janelaMs: number = JANELA_AGRUPAMENTO_MS,
+): number {
+  return agruparNotificacoes(itens.filter((n) => !n.lida), janelaMs).length;
+}

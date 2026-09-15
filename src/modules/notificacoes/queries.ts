@@ -1,7 +1,11 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { pageCount } from "@/lib/list-params";
-import { agruparNotificacoes, type GrupoNotificacao } from "@/modules/notificacoes/agrupar";
+import {
+  agruparNotificacoes,
+  contarNaoLidasAgrupadas,
+  type GrupoNotificacao,
+} from "@/modules/notificacoes/agrupar";
 
 export async function listarNotificacoes(userId: string, limite = 20) {
   const [itens, naoLidas] = await Promise.all([
@@ -20,27 +24,39 @@ export async function listarNotificacoes(userId: string, limite = 20) {
 const LIMITE_BUSCA = 60;
 /** Grupos exibidos no sino. */
 const LIMITE_GRUPOS = 20;
+/** Linhas não lidas consideradas no badge. O badge satura em "99+", então passar disso só
+ *  custa leitura: com 500 linhas, só fica abaixo do real quem tem >500 pendências em <100 grupos. */
+const LIMITE_CONTAGEM = 500;
 
 /**
  * Lista para o sino, com notificações equivalentes consolidadas num item só.
  *
- * `naoLidas` continua sendo a contagem de LINHAS (o badge não muda de semântica).
- * Nada é descartado: cada grupo carrega os ids que representa, e /notificacoes segue linear.
+ * `naoLidas` é a contagem de GRUPOS não lidos — o mesmo que o painel mostra, não o de linhas
+ * (ver `contarNaoLidasAgrupadas`). /notificacoes, que é linear, segue contando linhas.
+ * Nada é descartado: cada grupo carrega os ids que representa.
  * Limitação aceita: uma ocorrência além das `LIMITE_BUSCA` linhas não entra no grupo — o sino
  * é prévia; o registro completo está em /notificacoes.
  */
 export async function listarNotificacoesAgrupadas(
   userId: string,
 ): Promise<{ grupos: GrupoNotificacao[]; naoLidas: number }> {
-  const [itens, naoLidas] = await Promise.all([
+  const [itens, pendentes] = await Promise.all([
     prisma.notificacao.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
       take: LIMITE_BUSCA,
     }),
-    prisma.notificacao.count({ where: { userId, lida: false } }),
+    prisma.notificacao.findMany({
+      where: { userId, lida: false },
+      orderBy: { createdAt: "desc" },
+      take: LIMITE_CONTAGEM,
+      select: { id: true, titulo: true, corpo: true, href: true, lida: true, createdAt: true },
+    }),
   ]);
-  return { grupos: agruparNotificacoes(itens).slice(0, LIMITE_GRUPOS), naoLidas };
+  return {
+    grupos: agruparNotificacoes(itens).slice(0, LIMITE_GRUPOS),
+    naoLidas: contarNaoLidasAgrupadas(pendentes),
+  };
 }
 
 export type FiltroNotificacao = "todas" | "nao_lidas" | "lidas";
