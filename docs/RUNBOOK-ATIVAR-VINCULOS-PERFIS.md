@@ -169,6 +169,54 @@ sendo de colaborador — se a soma não der 32, o backfill não pegou.
 
 ---
 
+## ⚠ DEPLOY 4 — jornada por contratação + escopo do Coordenador, 2026-09-15
+
+Commits em `dev`: `3b5c8482` (jornada), `ef7238b2` (resumo de acesso), `babfd2c9` + `58275fbd`
+(escopo do Coordenador). Uma migration nova, só de dados:
+`20260915140000_perfil_coordenador_escopo_global`. O "Deploy completo" já aplica — sem comando
+novo. O que muda é **quem entra em folha e quem vê a carteira**, e isso não gera erro nem log.
+
+**Antes do deploy, no servidor, contra produção** (só lê):
+
+```
+npx tsx --tsconfig tsconfig.server.json scripts/auditar-vinculos-jornada.ts
+```
+
+Bater ponto, assinar espelho, pedir férias, receber lembrete de ponto e **aparecer como elegível
+na folha CLT** passam a seguir a CONTRATAÇÃO do vínculo, não o papel. Leia as seções do relatório:
+
+- **MUDAM DE REGISTRO DE HORAS** — `nenhum → batida` é gente que entra na folha CLT e nos
+  lembretes de ponto no dia do deploy (no dev: um Administrativo contratado CLT). Conferir que é
+  gente que deveria mesmo ter holerite.
+- **SÓ VÍNCULO ENCERRADO** — a regra nova NEGA a batida. Se houver alguém ativo aqui, ou o vínculo
+  precisa ser reaberto em RH → Pessoas, ou a pessoa não deveria estar ativa. **Resolver antes.**
+- **CONTRATAÇÃO CONTRADIZ O PAPEL** — o registro de horas dessas pessoas muda. Confirmar qual
+  dos dois está certo.
+- **SEM VÍNCULO NENHUM** — continuam pelo papel; um Administrativo/TI aqui segue sem ponto até
+  alguém cadastrar o vínculo.
+
+**Escopo do Coordenador.** A migration dá `escopo:global` ao perfil `coordenador`: quem tem esse
+perfil passa a ver **todos** os projetos, baixar os arquivos deles, **anexar em apontamento de
+qualquer disciplina e gerir documento do cliente de qualquer projeto**. Revoga a decisão §9.7 de
+2026-07-28, por decisão do dono em 2026-09-04. Validar/renomear/excluir arquivo e editar em
+disciplina alheia continuam presos ao papel `supervisor`. Conferir antes quem recebe:
+
+```sql
+SELECT u.name, u.role FROM "user" u JOIN perfil_acesso p ON p.id = u."perfilId"
+WHERE u.ativo AND p.chave = 'coordenador';
+```
+
+**O gate `checar-equivalencia-permissoes.ts` vai acusar ganho** de `escopo:global` para cada
+Coordenador cujo papel NÃO é `supervisor` (ele compara com a regra antiga, `GLOBAL_ROLES || sócio`).
+É a mudança pedida, não regressão. Para quem tem papel `supervisor`, a perda aberta pela Onda D
+some.
+
+**Como voltar atrás** (sem restore): `DELETE FROM permissao_perfil WHERE recurso = 'escopo' AND
+acao = 'global' AND "perfilId" = (SELECT id FROM perfil_acesso WHERE chave = 'coordenador');`
+— ou desmarcar o par na tela de Perfis. A jornada volta só com revert dos commits.
+
+---
+
 ## Passo 0 — provar que o backup funciona (NÃO PULE)
 
 O deploy faz backup antes da migration, mas `Invoke-Backup` **falha macio**: se `PG_DUMP_PATH` ou
