@@ -5491,6 +5491,7 @@ model DocumentoDisciplina {
   calibracoes CalibracaoPrancha[]
   leituras    LeituraDocumento[]
   listas      ListaDocumentoItem[]
+  eventos     DocumentoEvento[]
 
   @@unique([disciplinaId, chave])
   @@index([disciplinaId])
@@ -7100,6 +7101,39 @@ model CustoPrecoHistorico {
 ///
 /// A unidade é o DOCUMENTO, não o upload: revisão nova é justamente uma das coisas que a pessoa
 /// precisa ver como novidade, então rastrear por versão perderia o sinal principal.
+/// Histórico por documento lógico: alterações (fase, status, título, validação, lixeira...) e
+/// acessos (download, visualização). Ancorado no DOCUMENTO, não no Upload: `uploadId` é escalar
+/// sem FK para que excluir um arquivo em definitivo não apague o rastro do que foi feito com ele.
+/// O `AuditLog` continua sendo o registro de auditoria; esta tabela é a linha do tempo de negócio
+/// — metade das ações de arquivo audita `entidadeId = disciplinaId`, o que não liga ao documento.
+/// Regras e rótulos em `modules/uploads/historico/eventos.ts`.
+model DocumentoEvento {
+  id          String              @id @default(cuid())
+  documentoId String
+  documento   DocumentoDisciplina @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  uploadId    String?
+  tipo        String
+  /// `alteracao` | `acesso`. Acesso só aparece para quem tem `arquivos:ver_acessos`.
+  categoria   String
+  /// `interno` | `link_publico`.
+  origem      String              @default("interno")
+  /// Escalar (sem relação): o nome é resolvido na leitura e `null` = acesso externo.
+  userId      String?
+  linkId      String?
+  detalhe     Json?
+  /// Acessos repetidos (mesma pessoa/link, arquivo e ação na mesma janela de 10 min) viram UMA
+  /// linha: o upsert nesta chave única é o que torna o agrupamento atômico. Nulo em alteração.
+  chaveAgrupamento String?        @unique
+  quantidade  Int                 @default(1)
+  /// Linha importada do AuditLog pelo backfill — unique garante reexecução sem duplicar.
+  auditLogId  String?             @unique
+  createdAt   DateTime            @default(now())
+  ultimoEm    DateTime            @default(now())
+
+  @@index([documentoId, createdAt])
+  @@map("documento_evento")
+}
+
 model LeituraDocumento {
   id          String              @id @default(cuid())
   documentoId String

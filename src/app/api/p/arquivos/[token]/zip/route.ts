@@ -3,6 +3,7 @@ import { ZipArchive } from "archiver";
 import { uploadsDoLinkParaZip } from "@/modules/projetos/arquivos/link-publico";
 import { resolverCaminho } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
+import { registrarAcessoUploads } from "@/modules/uploads/historico/service";
 
 /**
  * Download público (.zip) dos arquivos de um link somente-leitura. Sem `?disciplinaId`
@@ -23,6 +24,16 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
     entidade: "Projeto",
     detalhe: { token, disciplinaId },
     ip: await getClientIp(),
+  });
+  // Sem await: um pacote grande não pode atrasar o início do download. O serviço nunca rejeita
+  // (engole e loga), e o servidor é um processo longo — a gravação termina em segundo plano.
+  void registrarAcessoUploads({
+    uploadIds: pacote.entradas.map((e) => e.uploadId),
+    tipo: "download",
+    origem: "link_publico",
+    userId: null,
+    linkId: pacote.linkId,
+    via: "zip",
   });
 
   const archive = new ZipArchive({ zlib: { level: 6 } });

@@ -6,6 +6,7 @@ import { acessoGlobal } from "@/lib/roles";
 import { resolverCaminho } from "@/lib/storage";
 import { caminhoNoZip, caminhoNoZipPasta } from "@/modules/uploads/estrutura";
 import { logAudit, getClientIp } from "@/lib/audit";
+import { registrarAcessoUploads } from "@/modules/uploads/historico/service";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ disciplinaId: string }> }) {
   const session = await getSession();
@@ -54,6 +55,15 @@ export async function GET(_req: Request, ctx: { params: Promise<{ disciplinaId: 
     entidade: "Disciplina",
     entidadeId: disciplinaId,
     ip: await getClientIp(),
+  });
+  // Sem await: um pacote grande não pode atrasar o início do download. O serviço nunca rejeita
+  // (engole e loga), e o servidor é um processo longo — a gravação termina em segundo plano.
+  void registrarAcessoUploads({
+    uploadIds: disciplina.uploads.map((u) => u.id),
+    tipo: "download",
+    origem: "interno",
+    userId: user.id,
+    via: "zip",
   });
 
   // Espelha a árvore do navegador: "{Pacote}/{Subpasta}/{arquivo}". Dedup de nomes

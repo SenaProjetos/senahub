@@ -8,6 +8,7 @@ import { editarMetadadosDocumento, atualizarStatusDocumento } from "@/modules/up
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
 import type { OpcaoFaseDocumento } from "@/components/projetos/arquivos/seletor-fases-documentos";
 import { cn, rotuloRevisao } from "@/lib/utils";
+import { HistoricoDocumento } from "@/components/projetos/arquivos/historico-documento";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -228,6 +229,12 @@ export function PainelDocumentoDetalhe({
                 <span className="text-sm text-muted-foreground">Sem status</span>
               )}
             </section>
+
+            <HistoricoDocumento
+              documentoId={linha.id}
+              aberto={aberto}
+              recarga={`${linha.titulo}|${linha.descricao}|${linha.faseId}|${linha.statusId}|${linha.nome}|${linha.revisaoAtual}`}
+            />
           </div>
 
           <SheetFooter>

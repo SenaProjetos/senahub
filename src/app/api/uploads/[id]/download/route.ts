@@ -5,6 +5,7 @@ import { acessoGlobal } from "@/lib/roles";
 import { podeVerTodasDisciplinas, podeBaixarArquivo } from "@/modules/arquivos/acesso";
 import { lerArquivo } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
+import { registrarAcessoUploads } from "@/modules/uploads/historico/service";
 
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -61,6 +62,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     return NextResponse.json({ error: "Arquivo indisponível no disco." }, { status: 410 });
   }
 
+  // Visualizador online (pdf.js) precisa do PDF servido inline, não como anexo.
+  const inline = new URL(req.url).searchParams.get("disposition") === "inline";
+
   await logAudit({
     userId: user.id,
     modulo: "uploads",
@@ -70,9 +74,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     entidadeId: upload.id,
     ip: await getClientIp(),
   });
-
-  // Visualizador online (pdf.js) precisa do PDF servido inline, não como anexo.
-  const inline = new URL(req.url).searchParams.get("disposition") === "inline";
+  // `inline` é o PdfViewer abrindo o arquivo — para o histórico é visualização, não download.
+  await registrarAcessoUploads({
+    uploadIds: [upload.id],
+    tipo: inline ? "visualizacao" : "download",
+    origem: "interno",
+    userId: user.id,
+  });
   const disposition = inline ? "inline" : "attachment";
 
   return new NextResponse(new Uint8Array(conteudo), {

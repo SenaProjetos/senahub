@@ -7,6 +7,7 @@ import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/session";
 import { projetoVisivel } from "@/modules/planejamento/queries";
+import { registrarEventoDocumento } from "@/modules/uploads/historico/service";
 
 const base = { modulo: "uploads", recurso: "projetos", permissao: "ver" } as const;
 const nomeLista = z.string().trim().min(1, "Informe o nome da lista.").max(100, "O nome pode ter no máximo 100 caracteres.");
@@ -116,7 +117,7 @@ export const adicionarDocumentoLista = defineAction(
   },
   async (input, { user }) => {
     const [lista, documento] = await Promise.all([
-      prisma.listaDocumentos.findUnique({ where: { id: input.listaId }, select: { id: true, projetoId: true } }),
+      prisma.listaDocumentos.findUnique({ where: { id: input.listaId }, select: { id: true, projetoId: true, nome: true } }),
       prisma.documentoDisciplina.findUnique({
         where: { id: input.documentoId },
         select: { id: true, substituidoPorId: true, disciplina: { select: { projetoId: true, responsaveis: { select: { userId: true } } } } },
@@ -128,11 +129,24 @@ export const adicionarDocumentoLista = defineAction(
     }
     const { podeGerirProjeto } = await exigirGestaoListas(user, lista.projetoId);
     exigirEscopoDoDocumento(documento, user.id, podeGerirProjeto);
+    const jaEstava = await prisma.listaDocumentoItem.findUnique({
+      where: { listaId_documentoId: { listaId: lista.id, documentoId: documento.id } },
+      select: { id: true },
+    });
     await prisma.listaDocumentoItem.upsert({
       where: { listaId_documentoId: { listaId: lista.id, documentoId: documento.id } },
       create: { listaId: lista.id, documentoId: documento.id },
       update: {},
     });
+    // Re-adicionar o que já estava é no-op na lista — não vira evento no histórico.
+    if (!jaEstava) {
+      await registrarEventoDocumento({
+        documentoId: documento.id,
+        tipo: "lista_adicionado",
+        userId: user.id,
+        detalhe: { lista: lista.nome },
+      });
+    }
     revalidarListas(lista.projetoId);
     return { listaId: lista.id, documentoId: documento.id };
   },
@@ -152,7 +166,7 @@ export const removerDocumentoLista = defineAction(
       where: { listaId_documentoId: input },
       select: {
         id: true,
-        lista: { select: { projetoId: true } },
+        lista: { select: { projetoId: true, nome: true } },
         documento: { select: { disciplina: { select: { responsaveis: { select: { userId: true } } } } } },
       },
     });
@@ -160,6 +174,12 @@ export const removerDocumentoLista = defineAction(
     const { podeGerirProjeto } = await exigirGestaoListas(user, item.lista.projetoId);
     exigirEscopoDoDocumento(item.documento, user.id, podeGerirProjeto);
     await prisma.listaDocumentoItem.delete({ where: { id: item.id } });
+    await registrarEventoDocumento({
+      documentoId: input.documentoId,
+      tipo: "lista_removido",
+      userId: user.id,
+      detalhe: { lista: item.lista.nome },
+    });
     revalidarListas(item.lista.projetoId);
     return { listaId: input.listaId, documentoId: input.documentoId };
   },

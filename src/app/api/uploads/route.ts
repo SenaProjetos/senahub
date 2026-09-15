@@ -14,6 +14,7 @@ import { destinoArquivo, extensao, limiteDoPacote, limiteLabelDoPacote, type Pac
 import { baseDirDisciplina, nomeFisico } from "@/modules/uploads/caminho";
 import { chaveDocumento } from "@/modules/uploads/documento";
 import { faseDoNomeArquivo } from "@/modules/projetos/pranchas/codigo";
+import { registrarEventoDocumento } from "@/modules/uploads/historico/service";
 import { LIMITE_FINALIZACOES_UPLOAD } from "@/modules/uploads/limites";
 import { enfileirarConversao } from "@/modules/coordenacao/service";
 import { enfileirarConversaoDwg } from "@/modules/dwg/service";
@@ -279,6 +280,23 @@ export async function POST(req: Request) {
         mimeType: mime,
         versao,
         autorId: user.id,
+      },
+    });
+
+    const faseAtribuida = faseSelecionada ?? faseDoNome;
+    await registrarEventoDocumento({
+      documentoId: documento.id,
+      uploadId: criado.id,
+      tipo: "envio",
+      userId: user.id,
+      detalhe: {
+        arquivo: nome,
+        versao,
+        revisao: revisao.numero,
+        // Só a fase que ESTE envio gravou: a deduzida do nome não sobrescreve fase existente.
+        ...(faseAtribuida && (faseSelecionada || !documentoExistente?.faseId)
+          ? { fase: faseAtribuida.sigla, faseOrigem: faseSelecionada ? "manual" : "nome" }
+          : {}),
       },
     });
 

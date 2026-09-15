@@ -257,7 +257,13 @@
         "progresso",
         "inputs",
         "briefing",
-        "link público"
+        "link público",
+        "histórico do documento",
+        "quem baixou",
+        "quem visualizou",
+        "downloads",
+        "visualizações",
+        "ver_acessos"
       ],
       "palavrasChave": [
         "projeto",

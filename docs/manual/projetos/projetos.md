@@ -256,6 +256,25 @@ link vazou) ou **apagar** de vez.
 As **ARTs** continuam saindo com o histórico completo de versões: são documento legal e o
 cliente precisa da série inteira.
 
+### Histórico de cada documento (aba Arquivos)
+
+Clique no nome de um documento na tabela para abrir o painel de detalhes. No fim do painel,
+a seção **Histórico** mostra tudo o que aconteceu com ele, do mais recente para o mais antigo:
+
+- **Alterações** — envio de arquivos e revisões, mudança de fase, status documental, título
+  ou descrição (com o valor antes e depois), validação, ajuste solicitado, apontamentos
+  enviados, renomeação, lixeira, pedidos de exclusão, link de aceite do cliente e listas.
+- **Acessos** — quem **baixou** e quem **visualizou** cada arquivo (no visualizador de PDF,
+  DWG ou BIM), inclusive o cliente pelo **link público**, identificado pelo nome do link.
+
+Todos que enxergam o documento veem as alterações. **Downloads e visualizações só aparecem
+para quem tem a permissão `arquivos:ver_acessos`** (por padrão, administradores,
+coordenadores e administrativo), com os filtros **Tudo / Alterações / Acessos**.
+
+Aberturas repetidas da mesma pessoa, no mesmo arquivo, em até 10 minutos aparecem como uma
+linha só, com a contagem (ex.: **3×**). O histórico continua disponível mesmo depois que um
+arquivo é excluído em definitivo.
+
 ## Permissões (resumo)
 
 | Ação | Permissão |
@@ -263,6 +282,7 @@ cliente precisa da série inteira.
 | Ver lista/detalhe | `projetos:ver` |
 | Criar/editar projeto, disciplinas, membros | `projetos:gerir` |
 | Alterar status / registrar revisão | Responsável da disciplina **ou** gestor |
+| Ver downloads e visualizações no histórico do documento | `arquivos:ver_acessos` |
 
 ## Erros possíveis e soluções
 

@@ -6,6 +6,7 @@ import { acessoGlobal } from "@/lib/roles";
 import { resolverCaminho, slug } from "@/lib/storage";
 import { caminhoNoZip, caminhoNoZipPasta } from "@/modules/uploads/estrutura";
 import { logAudit, getClientIp } from "@/lib/audit";
+import { registrarAcessoUploads } from "@/modules/uploads/historico/service";
 
 // Teto de segurança para evitar zips absurdos por requisição.
 const MAX_ARQUIVOS = 500;
@@ -92,6 +93,16 @@ export async function GET(req: Request) {
     entidade: "Upload",
     detalhe: { total: acessiveis.length },
     ip: await getClientIp(),
+  });
+  // Um evento por documento do pacote: o histórico de cada arquivo precisa mostrar que ele saiu.
+  // Sem await: um pacote grande não pode atrasar o início do download. O serviço nunca rejeita
+  // (engole e loga), e o servidor é um processo longo — a gravação termina em segundo plano.
+  void registrarAcessoUploads({
+    uploadIds: acessiveis.map((u) => u.id),
+    tipo: "download",
+    origem: "interno",
+    userId: user.id,
+    via: "zip",
   });
 
   // Resolve nomes ANTES do stream (dedup de caminhos idênticos no zip).

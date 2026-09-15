@@ -22,6 +22,18 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Histórico de cada documento
+
+Na aba **Arquivos** do projeto, o painel de detalhes de cada documento ganhou a seção
+**Histórico**: quem enviou, validou, renomeou ou mudou fase, status, título e descrição —
+com o valor anterior e o novo. Para administradores, coordenadores e administrativo, o
+histórico também mostra **quem baixou e quem visualizou** cada arquivo, inclusive clientes
+pelo link público. Veja [Projetos → Histórico de cada documento](projetos/projetos.md).
+
+Também na tela de Documentos: a coluna **Revisão** passou a mostrar **R00** para a emissão
+original (a primeira revisão é a R01), a fase é lida do nome do arquivo no envio e ganhou
+coluna própria, e o DWG tem botões separados para baixar e visualizar.
+
 ## Anotações no chat
 
 No **Chat** agora dá para criar um espaço de **Anotações** só seu, sem outros membros, para

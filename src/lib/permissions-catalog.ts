@@ -135,6 +135,8 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
       // sobe arquivo não é necessariamente quem declara que ele foi aprovado.
       { acao: "editar_metadados", label: "Editar título, descrição e fase dos documentos" },
       { acao: "alterar_status", label: "Alterar o status documental (Em análise, Aprovado, Liberado...)" },
+      // Leitura sensível: quem baixou/visualizou é monitoramento de colegas — separado de "ver".
+      { acao: "ver_acessos", label: "Ver quem baixou e visualizou cada documento (histórico de acessos)" },
     ],
   },
   {

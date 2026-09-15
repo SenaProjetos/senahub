@@ -373,6 +373,7 @@ export async function uploadsDoLinkParaZip(token: string, disciplinaId?: string)
       },
       orderBy: [{ disciplina: { ordem: "asc" } }, { nomeArquivo: "asc" }],
       select: {
+        id: true,
         caminho: true,
         nomeArquivo: true,
         disciplina: { select: { disciplinaTextoLegado: true } },
@@ -380,8 +381,10 @@ export async function uploadsDoLinkParaZip(token: string, disciplinaId?: string)
     });
     if (uploads.length === 0) return null;
     return {
+      linkId: link.id,
       codigo: link.projeto.codigo,
       entradas: uploads.map((u) => ({
+        uploadId: u.id,
         caminho: u.caminho,
         nome: `${u.disciplina.disciplinaTextoLegado}/${u.nomeArquivo}`,
       })),
@@ -408,10 +411,11 @@ export async function uploadsDoLinkParaZip(token: string, disciplinaId?: string)
 
   const entradas = disciplinas.flatMap((d) =>
     recortarParaLinkPublico(d.uploads.map(paraRecorte)).map((u) => ({
+      uploadId: u.id,
       caminho: u.caminho,
       nome: `${d.disciplinaTextoLegado}/${u.nomeArquivo}`,
     })),
   );
   if (entradas.length === 0) return null;
-  return { codigo: link.projeto.codigo, entradas };
+  return { linkId: link.id, codigo: link.projeto.codigo, entradas };
 }

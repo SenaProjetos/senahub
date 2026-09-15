@@ -8,6 +8,7 @@ import { acessoGlobal } from "@/lib/roles";
 import { can } from "@/lib/permissions";
 import { resolverCaminho } from "@/lib/storage";
 import { parseModeloId } from "@/modules/coordenacao/modelo-ref";
+import { registrarAcessoUploads } from "@/modules/uploads/historico/service";
 
 /**
  * Serve o .frag (modelo convertido p/ o viewer 3D) em streaming.
@@ -101,6 +102,18 @@ export async function GET(req: Request, ctx: { params: Promise<{ uploadId: strin
   }
   if (!dados.autorizado) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+  }
+
+  // Antes do 304: reabrir a cena com o modelo em cache continua sendo uma visualização.
+  // IFC recebido do cliente (`d:`) não é documento de disciplina — fica fora deste histórico.
+  if (ref.tipo === "upload") {
+    await registrarAcessoUploads({
+      uploadIds: [ref.id],
+      tipo: "visualizacao",
+      origem: "interno",
+      userId: user.id,
+      via: "ifc",
+    });
   }
 
   const etag = `"${modeloId}-${dados.concluidoEm?.getTime() ?? 0}"`;

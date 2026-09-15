@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { uploadLiberadoNoLink } from "@/modules/projetos/arquivos/link-publico";
 import { lerArquivo } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
+import { prisma } from "@/lib/prisma";
+import { registrarAcessoUploads } from "@/modules/uploads/historico/service";
 
 /**
  * Download público (sem login) de um arquivo do projeto, via link somente-leitura.
@@ -32,6 +34,16 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string; 
   });
 
   const inline = new URL(req.url).searchParams.get("disposition") === "inline";
+  // Guarda o id do link, nunca o token: o histórico é lido por colaboradores e o token é a chave
+  // de acesso do cliente. O link já foi validado acima — aqui só se resolve quem ele é.
+  const link = await prisma.linkPublicoArquivos.findUnique({ where: { token }, select: { id: true } });
+  await registrarAcessoUploads({
+    uploadIds: [upload.id],
+    tipo: inline ? "visualizacao" : "download",
+    origem: "link_publico",
+    userId: null,
+    linkId: link?.id ?? null,
+  });
   const disposition = inline ? "inline" : "attachment";
   return new NextResponse(new Uint8Array(conteudo), {
     headers: {

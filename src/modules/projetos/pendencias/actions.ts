@@ -26,6 +26,7 @@ import { TIPOS_MARCACAO } from "@/modules/projetos/pendencias/marcacao";
 import { MODOS_CALIBRACAO } from "@/modules/projetos/pendencias/medicao";
 import { extrairMencoes } from "@/modules/chat/mencoes";
 import { buscarPendenciasParaReferencia, possiveisReincidencias } from "@/modules/projetos/pendencias/queries";
+import { registrarEventoUploads } from "@/modules/uploads/historico/service";
 
 // ── Schemas ────────────────────────────────────────────────────
 // Classificação (item 11) é OPCIONAL: exigir severidade/tipo em todo pino transformaria o
@@ -646,6 +647,12 @@ export const enviarApontamentos = defineAction(
       });
     }
 
+    await registrarEventoUploads({
+      uploadIds: [upload.id],
+      tipo: "apontamentos_enviados",
+      userId: user.id,
+      detalhe: { total: pendencias.length },
+    });
     revalidarViewer(disciplina.projetoId, upload.id);
     revalidatePath("/tarefas");
     revalidatePath(`/projetos/${disciplina.projetoId}`);

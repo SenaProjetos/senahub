@@ -24,6 +24,9 @@ import { historicoRevisoesDocumento, irmaosDoDocumento, casosEscopoExclusao } fr
 import { expandirSelecao } from "@/modules/uploads/exclusao-escopo";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { expiraAceiteEm, linkAceiteEstaAtivo } from "@/modules/uploads/aceite";
+import { registrarEventoDocumento, registrarEventoUploads } from "@/modules/uploads/historico/service";
+import { camposAlterados } from "@/modules/uploads/historico/eventos";
+import { historicoDocumento } from "@/modules/uploads/historico/queries";
 
 const validarSchema = z.object({ disciplinaId: z.string().min(1) });
 
@@ -297,6 +300,7 @@ export const validarArquivo = defineAction(
         revisaoPorId: null,
       },
     });
+    await registrarEventoUploads({ uploadIds: [upload.id], tipo: "validacao", userId: user.id });
     revalidarArquivos(upload.disciplina.projetoId);
     return { uploadId: upload.id, nome: upload.nomeArquivo };
   },
@@ -305,12 +309,13 @@ export const validarArquivo = defineAction(
 /** Desfaz a validação de um arquivo (antes de finalizar a entrega). */
 export const reverterValidacaoArquivo = defineAction(
   { ...baseValidacao, acao: "reverter-validacao-arquivo", schema: uploadIdSchema },
-  async (input) => {
+  async (input, { user }) => {
     const upload = await carregarUploadEditavel(input.uploadId);
     await prisma.upload.update({
       where: { id: upload.id },
       data: { validado: false, validadoPorId: null, validadoEm: null },
     });
+    await registrarEventoUploads({ uploadIds: [upload.id], tipo: "validacao_revertida", userId: user.id });
     revalidarArquivos(upload.disciplina.projetoId);
     return { uploadId: upload.id, nome: upload.nomeArquivo };
   },
@@ -331,6 +336,12 @@ export const solicitarAjusteArquivo = defineAction(
         revisaoEm: new Date(),
         revisaoPorId: user.id,
       },
+    });
+    await registrarEventoUploads({
+      uploadIds: [upload.id],
+      tipo: "ajuste_solicitado",
+      userId: user.id,
+      detalhe: { motivo: input.motivo },
     });
 
     const { disciplina } = upload;
@@ -417,6 +428,7 @@ export const validarArquivosLote = defineAction(
         revisaoPorId: null,
       },
     });
+    await registrarEventoUploads({ uploadIds: validos.map((u) => u.id), tipo: "validacao", userId: user.id });
     revalidarArquivos(input.projetoId);
     return { total: validos.length, ignorados: input.uploadIds.length - validos.length };
   },
@@ -532,6 +544,15 @@ export const renomearUpload = defineAction(
       );
       return { count: uploads.length };
     });
+    if (up.documentoId) {
+      await registrarEventoDocumento({
+        documentoId: up.documentoId,
+        uploadId: up.id,
+        tipo: "renomeio",
+        userId: user.id,
+        detalhe: { de: up.nomeArquivo, para: nomeFinal },
+      });
+    }
     revalidatePath(`/projetos/${up.disciplina.projetoId}/arquivos`);
     return { disciplinaId: up.disciplinaId, de: up.nomeArquivo, para: nomeFinal, versoes: count };
   },
@@ -709,6 +730,12 @@ export const excluirUpload = defineAction(
       where: { id: { in: alvos } },
       data: { excluidoEm: new Date(), excluidoPorId: user.id },
     });
+    await registrarEventoUploads({
+      uploadIds: alvos,
+      tipo: "lixeira",
+      userId: user.id,
+      detalhe: { escopo: input.escopo ?? "revisao" },
+    });
     // Pedido de exclusão em aberto em qualquer um deles: fecha e avisa quem pediu.
     await fecharPedidosDeExclusao(alvos, user.id);
     revalidarArquivos(upload.disciplina.projetoId);
@@ -808,6 +835,7 @@ export const excluirUploadsLote = defineAction(
       where: { id: { in: alvos } },
       data: { excluidoEm: new Date(), excluidoPorId: user.id },
     });
+    await registrarEventoUploads({ uploadIds: alvos, tipo: "lixeira", userId: user.id, detalhe: { escopo: "lote" } });
     await fecharPedidosDeExclusao(alvos, user.id);
     revalidarArquivos(input.projetoId);
     revalidatePath("/aprovacoes");
@@ -869,6 +897,12 @@ export const restaurarUpload = defineAction(
       where: { id: { in: alvos } },
       data: { excluidoEm: null, excluidoPorId: null },
     });
+    await registrarEventoUploads({
+      uploadIds: alvos,
+      tipo: "restauracao",
+      userId: user.id,
+      detalhe: { escopo: input.escopo ?? "revisao" },
+    });
     revalidarArquivos(upload.disciplina.projetoId);
     return {
       disciplinaId: upload.disciplinaId,
@@ -914,6 +948,8 @@ export const excluirUploadDefinitivo = defineAction(
         caminho: true,
         excluidoEm: true,
         disciplinaId: true,
+        documentoId: true,
+        versao: true,
         disciplina: { select: { projetoId: true, responsaveis: { select: { userId: true } } } },
         conversao: { select: { caminhoFrag: true } },
       },
@@ -926,6 +962,16 @@ export const excluirUploadDefinitivo = defineAction(
 
     // Cascata (schema): remove Pendencia, AceiteCliente e ConversaoModelo vinculados.
     await prisma.upload.delete({ where: { id: upload.id } });
+    // Depois do delete o Upload já não resolve o documento — por isso o id veio no select acima.
+    if (upload.documentoId) {
+      await registrarEventoDocumento({
+        documentoId: upload.documentoId,
+        uploadId: upload.id,
+        tipo: "exclusao_definitiva",
+        userId: user.id,
+        detalhe: { arquivo: upload.nomeArquivo, versao: upload.versao },
+      });
+    }
     await removerArquivo(upload.caminho);
     if (upload.conversao?.caminhoFrag) await removerArquivo(upload.conversao.caminhoFrag);
 
@@ -1066,6 +1112,12 @@ export const solicitarExclusaoUpload = defineAction(
       },
       select: { id: true },
     });
+    await registrarEventoUploads({
+      uploadIds: [upload.id],
+      tipo: "exclusao_solicitada",
+      userId: user.id,
+      detalhe: { justificativa: input.justificativa },
+    });
 
     const admins = await prisma.user.findMany({
       where: { ativo: true, role: "admin" },
@@ -1156,6 +1208,7 @@ export const aprovarSolicitacaoExclusao = defineAction(
         data: { status: "aprovada", decididoPorId: user.id, decididoEm: new Date() },
       });
     });
+    await registrarEventoUploads({ uploadIds: [solicitacao.uploadId], tipo: "exclusao_aprovada", userId: user.id });
 
     await notificarMuitos(
       [solicitacao.solicitanteId].filter((id) => id !== user.id),
@@ -1214,6 +1267,12 @@ export const recusarSolicitacaoExclusao = defineAction(
         decididoEm: new Date(),
         motivoDecisao: input.motivo,
       },
+    });
+    await registrarEventoUploads({
+      uploadIds: [solicitacao.uploadId],
+      tipo: "exclusao_recusada",
+      userId: user.id,
+      detalhe: { motivo: input.motivo },
     });
 
     await notificarMuitos(
@@ -1291,6 +1350,7 @@ export const gerarAceiteCliente = defineAction(
       : await prisma.aceiteCliente.create({
           data: { uploadId: input.uploadId, token, expiraEm, geradoPorId: user.id },
         });
+    await registrarEventoUploads({ uploadIds: [upload.id], tipo: "aceite_gerado", userId: user.id });
     revalidatePath(`/projetos/${upload.disciplina.projetoId}`);
     return { token: aceite.token };
   },
@@ -1328,6 +1388,7 @@ export const revogarAceiteCliente = defineAction(
       where: { id: upload.aceite.id },
       data: { revogadoEm: new Date() },
     });
+    await registrarEventoUploads({ uploadIds: [upload.id], tipo: "aceite_revogado", userId: user.id });
     revalidatePath(`/projetos/${upload.disciplina.projetoId}`);
     return { id: upload.aceite.id, jaRevogado: false };
   },
@@ -1444,6 +1505,7 @@ export const editarMetadadosDocumento = defineAction(
       throw new ActionError("Selecione a fase do documento.");
     }
 
+    let siglaNova: string | null = null;
     if (input.faseId) {
       const fase = await prisma.pranchaCatalogo.findFirst({
         where: {
@@ -1452,11 +1514,17 @@ export const editarMetadadosDocumento = defineAction(
           ativo: true,
           OR: [{ projetoId: null }, { projetoId: documento.disciplina.projetoId }],
         },
-        select: { id: true },
+        select: { id: true, sigla: true },
       });
       if (!fase) throw new ActionError("A fase selecionada não está disponível para este projeto.");
+      siglaNova = fase.sigla;
     }
 
+    // Sigla, não id: o histórico precisa continuar legível se a fase sair do catálogo.
+    const atual = await prisma.documentoDisciplina.findUnique({
+      where: { id: documento.id },
+      select: { titulo: true, descricao: true, fase: { select: { sigla: true } } },
+    });
     await prisma.documentoDisciplina.update({
       where: { id: documento.id },
       data: {
@@ -1465,6 +1533,14 @@ export const editarMetadadosDocumento = defineAction(
         faseId: input.faseId,
       },
     });
+    const campos = camposAlterados(
+      { titulo: atual?.titulo, descricao: atual?.descricao, fase: atual?.fase?.sigla },
+      { titulo: input.titulo, descricao: input.descricao, fase: siglaNova },
+      ["titulo", "descricao", "fase"] as const,
+    );
+    if (Object.keys(campos).length > 0) {
+      await registrarEventoDocumento({ documentoId: documento.id, tipo: "metadados", userId: user.id, detalhe: { campos } });
+    }
     revalidarArquivos(documento.disciplina.projetoId);
     return { documentoId: documento.id };
   },
@@ -1489,20 +1565,68 @@ export const atualizarStatusDocumento = defineAction(
     const documento = await carregarDocumentoEditavel(input.documentoId);
     await exigirEscopoDocumento(user, documento.disciplina);
 
+    let nomeNovo: string | null = null;
     if (input.statusId) {
       const status = await prisma.documentoStatus.findFirst({
         where: { id: input.statusId, ativo: true },
-        select: { id: true },
+        select: { id: true, nome: true },
       });
       if (!status) throw new ActionError("O status selecionado não está ativo.");
+      nomeNovo = status.nome;
     }
 
+    const atual = await prisma.documentoDisciplina.findUnique({
+      where: { id: documento.id },
+      select: { status: { select: { nome: true } } },
+    });
     await prisma.documentoDisciplina.update({
       where: { id: documento.id },
       data: { statusId: input.statusId },
     });
+    const de = atual?.status?.nome ?? null;
+    if (de !== nomeNovo) {
+      await registrarEventoDocumento({
+        documentoId: documento.id,
+        tipo: "status",
+        userId: user.id,
+        detalhe: { de, para: nomeNovo },
+      });
+    }
     revalidarArquivos(documento.disciplina.projetoId);
     return { documentoId: documento.id };
   },
 );
 
+// ── Histórico do documento (alterações + acessos) ──────────────
+
+/**
+ * Linha do tempo do documento, sob demanda (abre com o painel de detalhe). Mesma muralha de
+ * leitura de `carregarHistoricoRevisoes`. Acessos (quem baixou/visualizou) só entram com
+ * `arquivos:ver_acessos` — é monitoramento de colegas, não metadado do documento.
+ * `audit: false`: abrir o histórico é navegação.
+ */
+export const carregarHistoricoDocumento = defineAction(
+  {
+    modulo: "uploads",
+    acao: "ver-historico-documento",
+    recurso: "projetos",
+    permissao: "ver",
+    schema: z.object({ documentoId: z.string().min(1) }),
+    audit: false,
+  },
+  async (input, { user }) => {
+    const documento = await prisma.documentoDisciplina.findUnique({
+      where: { id: input.documentoId },
+      select: { id: true, disciplina: { select: { projetoId: true, responsaveis: { select: { userId: true } } } } },
+    });
+    const naoEncontrado = new ActionError("Documento não encontrado.");
+    if (!documento) throw naoEncontrado;
+    if (!(await projetoVisivel(user, documento.disciplina.projetoId))) throw naoEncontrado;
+    const veTodas = await podeVerTodasDisciplinas(user);
+    if (!responsavelOuVeTodas(user.id, veTodas, documento.disciplina.responsaveis)) throw naoEncontrado;
+
+    const podeVerAcessos = await can(user, "arquivos", "ver_acessos");
+    const { eventos, truncado } = await historicoDocumento(documento.id, { incluirAcessos: podeVerAcessos });
+    return { eventos, truncado, podeVerAcessos };
+  },
+);

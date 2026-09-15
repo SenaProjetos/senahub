@@ -29,6 +29,7 @@
     "smoke:inputs-link": "tsx --tsconfig tsconfig.server.json scripts/smoke-inputs-link.ts",
     "smoke:aviso-agendado": "tsx --tsconfig tsconfig.server.json scripts/smoke-aviso-agendado.ts",
     "smoke:sync-pagamento": "tsx --tsconfig tsconfig.server.json scripts/smoke-sync-pagamento.ts",
+    "smoke:historico-documento": "tsx --tsconfig tsconfig.server.json scripts/smoke-historico-documento.ts",
     "smoke:crm-fase1": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-fase1.ts",
     "smoke:crm-dedupe": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-dedupe.ts",
     "smoke:crm-soft-delete": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-soft-delete.ts",

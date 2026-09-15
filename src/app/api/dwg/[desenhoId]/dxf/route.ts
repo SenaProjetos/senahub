@@ -5,6 +5,8 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { resolverCaminho } from "@/lib/storage";
 import { resolverAcessoDesenho } from "@/modules/dwg/acesso";
+import { parseDesenhoId } from "@/modules/dwg/desenho-ref";
+import { registrarAcessoUploads } from "@/modules/uploads/historico/service";
 
 /**
  * Serve o .dxf (DWG convertido) em streaming, texto puro — o client parseia com
@@ -26,6 +28,19 @@ export async function GET(req: Request, ctx: { params: Promise<{ desenhoId: stri
   }
   if (!dados.autorizado) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+  }
+
+  // Antes do 304: abrir de novo com o desenho em cache continua sendo uma visualização.
+  // DWG recebido do cliente (`d:`) não é documento de disciplina — fica fora deste histórico.
+  const ref = parseDesenhoId(desenhoId);
+  if (ref.tipo === "upload") {
+    await registrarAcessoUploads({
+      uploadIds: [ref.id],
+      tipo: "visualizacao",
+      origem: "interno",
+      userId: session.user.id,
+      via: "dwg",
+    });
   }
 
   const etag = `"${desenhoId}-${dados.concluidoEm?.getTime() ?? 0}"`;
