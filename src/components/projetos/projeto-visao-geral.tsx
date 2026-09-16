@@ -391,9 +391,10 @@ function DisciplinesTable({ projeto, dados }: { projeto: ProjetoDetalhe; dados: 
     const entregue = disciplina.status === "entregue" || disciplina.status === "aprovado";
     const atrasada = !!disciplina.prazo && !entregue && inicioDoDia(disciplina.prazo) < hoje;
     const revisoes = revisoesPendentes.get(disciplina.id) ?? 0;
+    const ajustesArquivos = disciplina.uploads.filter((upload) => upload.revisaoEm).length;
     const aceitePendente = disciplina.uploads.some((upload) => upload.aceite?.situacao === "pendente");
     const aprovacaoPendente = disciplina.aprovacaoSolicitadaEm != null || aceitePendente;
-    return { entregue, atrasada, revisoes, aprovacaoPendente, progresso: progressoDoStatus(disciplina.status) };
+    return { entregue, atrasada, revisoes, ajustesArquivos, aprovacaoPendente, progresso: progressoDoStatus(disciplina.status) };
   };
 
   return (
@@ -452,8 +453,8 @@ function DisciplinesTable({ projeto, dados }: { projeto: ProjetoDetalhe; dados: 
                           {estado.atrasada && <span className="mt-0.5 block text-[11px] text-destructive">Prazo vencido</span>}
                         </td>
                         <td className="px-3 py-3">
-                          <span className="font-mono font-semibold tabular-nums">{disciplina.revisoes.length}</span>
-                          <span className="mt-0.5 block text-[11px] text-muted-foreground">{estado.revisoes > 0 ? `${estado.revisoes} em aberto` : "Nenhuma em aberto"}</span>
+                          <span className="font-mono font-semibold tabular-nums">{estado.ajustesArquivos}</span>
+                          <span className="mt-0.5 block text-[11px] text-muted-foreground">{estado.revisoes > 0 ? `${estado.revisoes} solicitação(ões) em aberto` : "Nenhuma solicitação em aberto"}</span>
                         </td>
                         <td className="px-3 py-3">
                           {disciplina.status === "aprovado" ? <StatusBadge tone="success">Aprovado</StatusBadge> : estado.aprovacaoPendente ? <StatusBadge tone="warning">Pendente</StatusBadge> : <span className="text-muted-foreground">—</span>}
@@ -497,7 +498,7 @@ function DisciplinesTable({ projeto, dados }: { projeto: ProjetoDetalhe; dados: 
   );
 }
 
-type MembroEquipe = { userId: string; nome: string; role: string; image: string | null; papel: string | null; online: boolean };
+type MembroEquipe = { userId: string; nome: string; role: string; image: string | null; papel: string | null; online: boolean; disciplinas: string[] };
 
 function MembroEquipeRow({ membro }: { membro: MembroEquipe }) {
   return (
@@ -511,6 +512,18 @@ function MembroEquipeRow({ membro }: { membro: MembroEquipe }) {
         <p className="truncate text-sm font-medium">{membro.nome}</p>
         <p className="truncate text-xs text-muted-foreground">{membro.papel ?? ROLE_LABELS[membro.role as keyof typeof ROLE_LABELS] ?? membro.role}</p>
       </div>
+      {membro.disciplinas.length > 0 && (
+        <div className="flex shrink-0 items-center gap-1.5">
+          {membro.disciplinas.map((disciplina) => (
+            <Tooltip key={disciplina}>
+              <TooltipTrigger render={<span className="grid size-7 place-items-center rounded-full bg-muted" />}>
+                <DisciplinaIcone nome={disciplina} className="size-4 text-primary" />
+              </TooltipTrigger>
+              <TooltipContent>{disciplina}</TooltipContent>
+            </Tooltip>
+          ))}
+        </div>
+      )}
       {membro.online && <span className="shrink-0 text-[11px] font-medium text-success">Online</span>}
     </li>
   );
@@ -522,25 +535,26 @@ function TeamSummary({
   internos,
   papeisSugeridos,
 }: Pick<Props, "projeto" | "podeGerir" | "internos" | "papeisSugeridos">) {
-  const equipeMap = new Map<string, { nome: string; role: string; image: string | null; papel: string | null }>();
+  const equipeMap = new Map<string, { nome: string; role: string; image: string | null; papel: string | null; disciplinas: string[] }>();
   for (const disciplina of projeto.disciplinas) {
     for (const responsavel of disciplina.responsaveis) {
-      if (!equipeMap.has(responsavel.userId)) {
-        equipeMap.set(responsavel.userId, { nome: responsavel.user.name, role: responsavel.user.role, image: responsavel.user.image, papel: "projetista" });
+      const atual = equipeMap.get(responsavel.userId);
+      if (atual) {
+        if (!atual.disciplinas.includes(disciplina.disciplinaTextoLegado)) atual.disciplinas.push(disciplina.disciplinaTextoLegado);
+      } else {
+        equipeMap.set(responsavel.userId, { nome: responsavel.user.name, role: responsavel.user.role, image: responsavel.user.image, papel: "projetista", disciplinas: [disciplina.disciplinaTextoLegado] });
       }
     }
   }
   for (const membro of projeto.membros) {
     const atual = equipeMap.get(membro.userId);
-    equipeMap.set(membro.userId, { nome: membro.user.name, role: membro.user.role, image: membro.user.image, papel: membro.papel ?? atual?.papel ?? null });
+    equipeMap.set(membro.userId, { nome: membro.user.name, role: membro.user.role, image: membro.user.image, papel: membro.papel ?? atual?.papel ?? null, disciplinas: atual?.disciplinas ?? [] });
   }
   const onlineIds = new Set(usuariosOnline());
   const equipe = [...equipeMap.entries()]
     .map(([userId, membro]) => ({ ...membro, userId, online: onlineIds.has(userId) }))
     .sort((a, b) => Number(b.online) - Number(a.online));
   const qtdOnline = equipe.filter((membro) => membro.online).length;
-  const visiveis = equipe.slice(0, 4);
-  const restantes = equipe.slice(4);
 
   return (
     <Card size="sm" className="h-full">
@@ -555,19 +569,11 @@ function TeamSummary({
         {podeGerir && <EquipeManager projetoId={projeto.id} internos={internos} papeisSugeridos={papeisSugeridos} membrosAtuais={projeto.membros.map((membro) => ({ userId: membro.userId, papel: membro.papel ?? null }))} />}
       </CardHeader>
       <CardContent className="min-h-0 flex-1 overflow-auto">
-        {equipe.length === 0 ? <EmptyState icon={Users} title="Sem membros adicionais" /> : <>
+        {equipe.length === 0 ? <EmptyState icon={Users} title="Sem membros adicionais" /> : (
           <ul className="space-y-3">
-            {visiveis.map((membro) => <MembroEquipeRow key={membro.userId} membro={membro} />)}
+            {equipe.map((membro) => <MembroEquipeRow key={membro.userId} membro={membro} />)}
           </ul>
-          {restantes.length > 0 && (
-            <details className="mt-3 text-xs">
-              <summary className="cursor-pointer font-medium text-primary">+{restantes.length} {restantes.length === 1 ? "membro" : "membros"}</summary>
-              <ul className="mt-3 space-y-3">
-                {restantes.map((membro) => <MembroEquipeRow key={membro.userId} membro={membro} />)}
-              </ul>
-            </details>
-          )}
-        </>}
+        )}
       </CardContent>
     </Card>
   );
