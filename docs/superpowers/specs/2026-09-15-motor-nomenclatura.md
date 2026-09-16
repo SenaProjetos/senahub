@@ -346,6 +346,16 @@ Entregue conforme o desenho abaixo, com três coisas que só apareceram na imple
 3. **A precedência do ADR virou função pura testada** (`precedencia.ts`, `resolverMetadado`),
    em vez de ficar inline na rota: é a regra mais importante da fase (manual > o que o
    documento já tem > leitura do nome) e agora tem teste, inclusive para `0` como valor válido.
+4. **"Nova versão de" exige o MESMO destino** (achado na revisão, antes do commit): a guarda
+   original só conferia disciplina e documento vivo, então um arquivo enviado para uma pasta
+   podia virar revisão de um documento do pacote A (e vice-versa). Isso quebraria o `pacote`
+   XOR `pastaId` que a `chave` protege — árvore do zip (`caminhoNoZip` × `caminhoNoZipPasta`)
+   e validação (arquivo de pasta não é validado) passam a divergir dentro de um documento só.
+   Agora a rota compara o local pelo novo `localDaChave()` (`modules/uploads/documento.ts`,
+   com teste) e o diálogo nem oferece documento de outro destino.
+5. **O diálogo montava o vocabulário com escopo `null`** (mesmo achado): descartava as siglas
+   próprias do projeto que o servidor honra, então a tela mostrava "—" num campo que a rota
+   preencheria depois. Passou a usar `dados.projeto.id`, igual à rota.
 
 Também: `projetoVisivel` passou a trazer `ano`/`sequencial` (o motor compara com o código lido
 do nome) e a página do projeto monta `documentosPorDisciplina` a partir da árvore que já

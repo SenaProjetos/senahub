@@ -68,6 +68,19 @@ export function chaveDocumento({ pacote, pastaId, nomeArquivo }: LocalDocumento)
   return `${local}/${baseSemExtensao(nomeArquivo)}`;
 }
 
+/**
+ * O prefixo de local de uma chave já gravada: `"A"`, `"OUTROS"`, `"pasta:<id>"`…
+ *
+ * Serve para comparar o destino de um envio com o de um documento existente — um documento
+ * não pode ter versões em pacote e em pasta ao mesmo tempo (o `pacote` XOR `pastaId` que a
+ * chave protege). Lê o que `chaveDocumento` escreveu; se os dois divergirem, a comparação
+ * passa a mentir.
+ */
+export function localDaChave(chave: string): string {
+  const corte = chave.indexOf("/");
+  return corte === -1 ? chave : chave.slice(0, corte);
+}
+
 /** Chave no formato ANTIGO (com extensão) — só o script de merge usa, para achar o que migrar. */
 export function chaveDocumentoLegada({ pacote, pastaId, nomeArquivo }: LocalDocumento): string {
   const local = pacote ?? (pastaId ? `pasta:${pastaId}` : "sem-local");

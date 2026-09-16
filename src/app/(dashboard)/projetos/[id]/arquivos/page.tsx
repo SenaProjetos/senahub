@@ -34,6 +34,7 @@ import {
   emailClienteDoProjeto,
 } from "@/modules/documentos-cliente/queries";
 import { podeGerirDocumento } from "@/modules/documentos-cliente/acesso";
+import type { DocumentoExistente } from "@/components/projetos/arquivos/enviar-documentos-dialog";
 import { podeVerTodasDisciplinas, podeEnviarArquivo } from "@/modules/arquivos/acesso";
 import type { ArquivoExistente } from "@/modules/uploads/revisao-nova";
 import { linksArquivosDoProjeto } from "@/modules/projetos/arquivos/link-publico";
@@ -179,14 +180,20 @@ export default async function ArquivosPage({
       }));
     // Documentos vivos por disciplina — alimentam a sugestão "nova versão de" quando só o
     // sufixo de cópia do nome mudou (backup do AltoQi) ou o arquivo foi renumerado.
-    const documentosPorDisciplina: Record<string, { id: string; nomeArquivo: string }[]> = Object.fromEntries(
+    // `local` (pacote ou `pasta:<id>`) viaja junto porque a nova versão tem de cair no MESMO
+    // destino do documento: a rota recusa o cruzamento, e o diálogo não deve nem oferecer.
+    const documentosPorDisciplina: Record<string, DocumentoExistente[]> = Object.fromEntries(
       arvore.disciplinas.map((d) => {
-        const porId = new Map<string, string>();
-        for (const arquivo of [...d.arquivos, ...d.arquivosPasta]) {
+        const porId = new Map<string, DocumentoExistente>();
+        const comLocal = [
+          ...d.arquivos.map((arquivo) => ({ arquivo, local: arquivo.pacote as string })),
+          ...d.arquivosPasta.map((arquivo) => ({ arquivo, local: `pasta:${arquivo.pastaId}` })),
+        ];
+        for (const { arquivo, local } of comLocal) {
           const documentoId = arquivo.documentoCanonicoId ?? arquivo.documentoId;
-          if (documentoId && !porId.has(documentoId)) porId.set(documentoId, arquivo.nome);
+          if (documentoId && !porId.has(documentoId)) porId.set(documentoId, { id: documentoId, nomeArquivo: arquivo.nome, local });
         }
-        return [d.id, [...porId].map(([documentoId, nomeArquivo]) => ({ id: documentoId, nomeArquivo }))];
+        return [d.id, [...porId.values()]];
       }),
     );
     const existentesPorDisciplina: Record<string, ArquivoExistente[]> = Object.fromEntries(
@@ -323,7 +330,7 @@ export default async function ArquivosPage({
                 fases: catalogos.fase,
                 tipos: catalogos.tipo,
                 codigoProjeto: projeto.codigo,
-                projeto: { codigo: projeto.codigo, ano: projeto.ano, sequencial: projeto.sequencial },
+                projeto: { id: projeto.id, codigo: projeto.codigo, ano: projeto.ano, sequencial: projeto.sequencial },
                 catalogosNomenclatura,
                 extensoesNomenclatura,
                 documentosPorDisciplina,

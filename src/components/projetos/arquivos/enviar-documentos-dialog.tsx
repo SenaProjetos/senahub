@@ -58,6 +58,13 @@ type LinhaEnvioComArquivo = ItemEnvio & LinhaEnvio & {
   revisaoAgrupadaId?: string;
 };
 
+/**
+ * Documento vivo que pode receber uma nova versão. `local` é o pacote (`A`/`B`/`OUTROS`) ou
+ * `pasta:<id>` — o destino do envio tem de ser o mesmo, senão a rota recusa (um documento não
+ * pode ter versões em pacote e em pasta ao mesmo tempo).
+ */
+export type DocumentoExistente = { id: string; nomeArquivo: string; local: string };
+
 export type DadosEnviarDocumentos = {
   disciplinas: {
     id: string;
@@ -73,10 +80,10 @@ export type DadosEnviarDocumentos = {
   fases: FaseUpload[];
   tipos: FaseUpload[];
   codigoProjeto: string;
-  projeto: { codigo: string; ano: number; sequencial: number };
+  projeto: { id: string; codigo: string; ano: number; sequencial: number };
   catalogosNomenclatura: CatalogosNomenclatura;
   extensoesNomenclatura: ExtensaoDef[];
-  documentosPorDisciplina: Record<string, { id: string; nomeArquivo: string }[]>;
+  documentosPorDisciplina: Record<string, DocumentoExistente[]>;
 };
 
 /**
@@ -138,7 +145,12 @@ function UploaderDocumentos({
   const disciplina = dados.disciplinas.find((item) => item.id === disciplinaId);
   const usaPastas = disciplina?.usaPastas ?? false;
   // Vocabulário do projeto (siglas + sinônimos dos catálogos), montado uma vez por diálogo.
-  const vocabulario = useMemo(() => montarVocabulario(dados.catalogosNomenclatura, null), [dados.catalogosNomenclatura]);
+  // O escopo é o projeto — o MESMO que a rota usa. Passar `null` aqui descartaria as siglas
+  // próprias do projeto e a tela mostraria "—" num campo que o servidor preencheria.
+  const vocabulario = useMemo(
+    () => montarVocabulario(dados.catalogosNomenclatura, dados.projeto.id),
+    [dados.catalogosNomenclatura, dados.projeto.id],
+  );
   const { arrastando, dropProps } = useDropzone((files) => prepararEnvio(files), enviando);
 
   function selecionarDisciplina(id: string) {
@@ -161,6 +173,11 @@ function UploaderDocumentos({
 
     const itens: ItemEnvio[] = [];
     const limite = limiteDoPacote(usaPastas ? "" : pacote);
+    // Só documentos do MESMO destino podem receber nova versão (ver `DocumentoExistente`).
+    const localAtual = usaPastas ? `pasta:${pastaId}` : pacote;
+    const documentosDoDestino = (dados.documentosPorDisciplina[disciplinaId] ?? []).filter(
+      (documento) => documento.local === localAtual,
+    );
     for (const file of files) {
       if (file.size > limite) {
         toast.error(`${file.name}: excede o limite de ${limiteLabelDoPacote(usaPastas ? "" : pacote)}.`);
@@ -175,7 +192,7 @@ function UploaderDocumentos({
         padrao: dados.nomenclatura.padrao,
         vocabulario,
         extensoes: dados.extensoesNomenclatura,
-        documentosExistentes: dados.documentosPorDisciplina[disciplinaId] ?? [],
+        documentosExistentes: documentosDoDestino,
       });
       itens.push({
         file,

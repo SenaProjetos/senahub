@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   chaveDocumento,
   chaveDocumentoLegada,
+  localDaChave,
   baseSemExtensao,
   nomeComExtensaoOriginal,
   nomeSemExtensao,
@@ -76,5 +77,29 @@ describe("chaveDocumento", () => {
     const args = { pacote: "A", pastaId: null, nomeArquivo: "planta.pdf" };
     expect(chaveDocumentoLegada(args)).toBe("A/planta.pdf");
     expect(chaveDocumento(args)).toBe("A/planta");
+  });
+});
+
+describe("localDaChave", () => {
+  it("devolve o mesmo local que a chave foi montada com", () => {
+    for (const local of [
+      { pacote: "A", pastaId: null },
+      { pacote: "B", pastaId: null },
+      { pacote: "OUTROS", pastaId: null },
+      { pacote: null, pastaId: "pst1" },
+    ]) {
+      const chave = chaveDocumento({ ...local, nomeArquivo: "planta 01.pdf" });
+      expect(localDaChave(chave)).toBe(local.pacote ?? `pasta:${local.pastaId}`);
+    }
+  });
+
+  it("pacote e pasta nunca dão o mesmo local (é o que impede versão cruzada)", () => {
+    const naPasta = localDaChave(chaveDocumento({ pacote: null, pastaId: "pst1", nomeArquivo: "a.pdf" }));
+    const noPacote = localDaChave(chaveDocumento({ pacote: "A", pastaId: null, nomeArquivo: "a.pdf" }));
+    expect(naPasta).not.toBe(noPacote);
+  });
+
+  it("chave sem barra (linha inesperada) devolve a chave inteira, não string vazia", () => {
+    expect(localDaChave("A")).toBe("A");
   });
 });

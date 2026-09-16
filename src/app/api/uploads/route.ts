@@ -12,7 +12,7 @@ import { salvarArquivo, removerArquivo, nomeArquivoLimpo, type ArquivoSalvo } fr
 import { montarChunksEm, limparChunks } from "@/lib/upload-chunks";
 import { destinoArquivo, extensao, limiteDoPacote, limiteLabelDoPacote, type PacoteAlvo } from "@/modules/uploads/service";
 import { baseDirDisciplina, nomeFisico } from "@/modules/uploads/caminho";
-import { chaveDocumento } from "@/modules/uploads/documento";
+import { chaveDocumento, localDaChave } from "@/modules/uploads/documento";
 import { confiavel, interpretarNomeArquivo } from "@/modules/uploads/nomenclatura/interpretar";
 import {
   carregarCatalogosNomenclatura,
@@ -217,12 +217,20 @@ export async function POST(req: Request) {
     const documentoEscolhido = versaoDeDocumentoId
       ? await prisma.documentoDisciplina.findUnique({
           where: { id: versaoDeDocumentoId },
-          select: { id: true, disciplinaId: true, faseId: true, tipoId: true, numeroPrancha: true, substituidoPorId: true, status: { select: { final: true } } },
+          select: { id: true, disciplinaId: true, chave: true, faseId: true, tipoId: true, numeroPrancha: true, substituidoPorId: true, status: { select: { final: true } } },
         })
       : null;
     if (versaoDeDocumentoId) {
       if (!documentoEscolhido || documentoEscolhido.disciplinaId !== disciplinaId || documentoEscolhido.substituidoPorId) {
         return { nome, ok: false, motivo: "O documento escolhido para receber a nova versão não pertence a esta disciplina." };
+      }
+      // O destino deste envio tem de ser o MESMO do documento. `pacote` XOR `pastaId` é a
+      // invariante que a `chave` protege: um documento com versões dos dois lados quebraria a
+      // árvore do zip (`caminhoNoZip` × `caminhoNoZipPasta`) e a validação (arquivo de pasta
+      // não passa por validação, arquivo de pacote passa).
+      const localAtual = localDaChave(chave);
+      if (localDaChave(documentoEscolhido.chave) !== localAtual) {
+        return { nome, ok: false, motivo: "O documento escolhido fica em outro destino — envie a nova versão para o mesmo lugar dele." };
       }
     }
 
@@ -263,8 +271,9 @@ export async function POST(req: Request) {
     }
 
     // Versionamento: mesma disciplina + (pacote OU pasta) + nome → incrementa versão. Com
-    // "nova versão de" o nome muda a cada envio, então a contagem segue o DOCUMENTO — senão
-    // toda cópia entraria como versão 1 e o arquivo físico colidiria com o da cópia anterior.
+    // "nova versão de" o nome muda a cada envio (o backup do AltoQi carimba `[cópia ...]`),
+    // então a contagem segue o DOCUMENTO: senão cada cópia entraria como versão 1 e o
+    // histórico do documento teria várias "versão 1" fora de ordem.
     const anterior = await prisma.upload.findFirst({
       where: documentoEscolhido
         ? { documentoId: documentoEscolhido.id }
