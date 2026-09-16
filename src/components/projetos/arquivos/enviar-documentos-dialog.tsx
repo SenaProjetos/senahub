@@ -724,7 +724,7 @@ function RevisarNomesDialog({
             {foraDoPadraoCount > 0 && ` ${foraDoPadraoCount} arquivo(s) de Pranchas estão fora do padrão — renomeie, remova ou envie assim.`}
             {foraDoPadraoCount > 0 && (
               <span className="mt-1 block font-mono text-[11px]">
-                Padrão: {padrao?.trim() || "{proj}-{disc}-{fase}-{nº}-{tipo}[-Rnn]"}
+                Padrão: {padrao?.trim() || "{proj}-{disc}-{fase}-{nº}-{tipo}"}
               </span>
             )}
           </DialogDescription>

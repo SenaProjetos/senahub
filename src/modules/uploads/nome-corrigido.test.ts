@@ -10,7 +10,17 @@ describe("nomeCorrigidoPeloPadrao", () => {
       fase: "EXE",
       tipo: "PL",
       numeracao: 42,
-      revisao: 2,
-    })).toBe("260142-ELE-EXE-0042-PL-R02.PDF");
+    })).toBe("260142-ELE-EXE-0042-PL.PDF");
+  });
+
+  it("nunca sugere revisão no nome — quem versiona é o HUB, não o -Rnn", () => {
+    expect(nomeCorrigidoPeloPadrao({
+      nomeOriginal: "planta.pdf",
+      codigoProjeto: "260142",
+      siglaDisciplina: "ELE",
+      fase: "EXE",
+      tipo: "PL",
+      numeracao: 42,
+    })).not.toContain("-R0");
   });
 });

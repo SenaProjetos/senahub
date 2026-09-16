@@ -2749,13 +2749,13 @@ function RevisarNomesDialog({
             ) : (
               <>
                 {foraCount} arquivo(s) de Pranchas fora do padrão{" "}
-                <span className="font-mono">{"{proj}-{disc}-{fase}-{nº}-{tipo}[-Rnn]"}</span>. Renomeie, remova o que não
+                <span className="font-mono">{"{proj}-{disc}-{fase}-{nº}-{tipo}"}</span>. Renomeie, remova o que não
                 quiser enviar, ou envie assim (fora do padrão fica com alerta na lista).
               </>
             )}
             {foraCount > 0 && (
               <span className="mt-1 block font-mono text-[11px]">
-                Padrão: {padrao?.trim() || "{proj}-{disc}-{fase}-{nº}-{tipo}[-Rnn]"}
+                Padrão: {padrao?.trim() || "{proj}-{disc}-{fase}-{nº}-{tipo}"}
               </span>
             )}
           </DialogDescription>

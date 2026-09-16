@@ -1,5 +1,10 @@
 import { codigoPrancha } from "@/modules/projetos/pranchas/codigo";
 
+/**
+ * Sem `revisao`: quem versiona é o HUB (Upload.versao/DocumentoRevisao), não mais o `-Rnn`
+ * no nome do arquivo (convenção mudou em 2026-09-16) — o nome corrigido nunca deve sugerir
+ * ao projetista que digite uma revisão.
+ */
 export function nomeCorrigidoPeloPadrao(input: {
   nomeOriginal: string;
   codigoProjeto: string;
@@ -7,7 +12,6 @@ export function nomeCorrigidoPeloPadrao(input: {
   fase: string;
   tipo: string;
   numeracao: number;
-  revisao: number;
 }): string {
   const ponto = input.nomeOriginal.lastIndexOf(".");
   const extensao = ponto > 0 ? input.nomeOriginal.slice(ponto) : "";
@@ -17,6 +21,6 @@ export function nomeCorrigidoPeloPadrao(input: {
     fase: input.fase,
     tipo: input.tipo,
     numeracao: input.numeracao,
-    revisao: input.revisao,
+    revisao: 0,
   }) + extensao;
 }

@@ -32,14 +32,11 @@ export function CorrecaoNomeUpload({
 }) {
   const [tipoId, setTipoId] = useState<string | null>(null);
   const [numeracao, setNumeracao] = useState("");
-  const [revisao, setRevisao] = useState("");
   const fase = dados.fases.find((item) => item.id === faseId);
   const tipo = dados.tipos.find((item) => item.id === tipoId);
   const numero = Number(numeracao);
-  const revisaoNumero = Number(revisao);
   const pronto = !!dados.siglaDisciplina && !!fase && !!tipo
-    && Number.isInteger(numero) && numero >= 0
-    && Number.isInteger(revisaoNumero) && revisaoNumero >= 0;
+    && Number.isInteger(numero) && numero >= 0;
 
   return (
     <div className="mt-2 grid gap-1.5 rounded-md border border-dashed bg-muted/30 p-2">
@@ -70,10 +67,6 @@ export function CorrecaoNomeUpload({
           <Label className="text-[11px]">Numeração</Label>
           <Input type="number" min="0" value={numeracao} onChange={(event) => setNumeracao(event.target.value)} className="h-8 text-xs" />
         </div>
-        <div className="space-y-1">
-          <Label className="text-[11px]">Revisão</Label>
-          <Input type="number" min="0" value={revisao} onChange={(event) => setRevisao(event.target.value)} className="h-8 text-xs" />
-        </div>
       </div>
       <Button
         size="xs"
@@ -88,7 +81,6 @@ export function CorrecaoNomeUpload({
             fase: fase.sigla,
             tipo: tipo.sigla,
             numeracao: numero,
-            revisao: revisaoNumero,
           }));
         }}
       >

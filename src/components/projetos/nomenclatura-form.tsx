@@ -25,17 +25,19 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const PLACEHOLDER = "vazio = padrão embutido {proj}-{disc}-{fase}-{nº}-{tipo}[-Rnn]";
+const PLACEHOLDER = "vazio = padrão embutido {proj}-{disc}-{fase}-{nº}-{tipo}";
 
 /** Ponto de partida do editor visual quando não há padrão nenhum — o mesmo formato que o
- *  padrão embutido já usa, só explicitado. */
+ *  padrão embutido já usa, só explicitado. Sem bloco de revisão: desde 2026-09-16 quem
+ *  versiona é o HUB (Upload.versao/DocumentoRevisao), não mais o `-Rnn` no nome do arquivo —
+ *  um nome com `-Rnn` continua validando (o compilador tolera o sufixo mesmo sem o campo),
+ *  só não é mais o que a oficina orienta a digitar. */
 const BLOCOS_PADRAO_OFICINA: BlocoModelo[] = [
   { campo: "proj", opcional: false },
   { campo: "disc", opcional: false },
   { campo: "fase", opcional: false },
   { campo: "num", opcional: false },
   { campo: "tipo", opcional: false },
-  { campo: "rev", opcional: true },
 ];
 
 const SEPARADORES = [
