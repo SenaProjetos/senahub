@@ -371,6 +371,15 @@ não regex — enquanto o compilador da F1 não existe, cai na regra embutida
 - O editor precisa emitir **uma** forma para revisão: `{Rnn}` (o `R` faz parte do campo) ou
   `R{rev}` (o `R` é literal). `padrao.ts` aceita as duas, mas os dois padrões que produção tem
   hoje usam escritas diferentes — escolher uma e migrar o outro na mesma tela.
+- **Tirar a nomenclatura do projeto de onde ela está hoje.** O padrão por projeto **já existe**
+  (`NomenclaturaConfig.projetoId`, `resolverNomenclatura` com herança do global, botão "Limpar"
+  que volta a herdar) e produção já usa: em 2026-09-15 havia 1 config global e 2 de projeto, uma
+  delas com padrão próprio (`…-{Rnn}`, revisão obrigatória). O problema é achar: o formulário
+  mora dentro do diálogo **"Siglas deste projeto"**, na aba Lista Mestre
+  ([`lista-mestre-view.tsx`](../../../src/components/projetos/lista-mestre-view.tsx), `NomenclaturaForm`
+  com `escopo={{ projetoId }}`), e o dono levou meses sem saber que existia. Mover para uma seção
+  própria — Configurações do projeto ou um card visível na aba Lista Mestre —, e mostrar na tela
+  **qual padrão está valendo e se é herdado ou próprio**. Nada de schema muda: é realocação de UI.
 
 ### F6 — Índice de contêiner `.zip` (opcional) · **Opus**
 
