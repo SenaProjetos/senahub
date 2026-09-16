@@ -29,4 +29,10 @@ describe("classificação de upload por pacote", () => {
       expect(EXT_PACOTE_A.has(ext)).toBe(true);
     }
   });
+
+  it("inclui os softwares confirmados em 2026-09-16 (SketchUp, ArchiCAD, Navisworks, Office)", () => {
+    for (const ext of ["rfa", "gsm", "rte", "pln", "nwd", "obj", "ppt", "pptx"]) {
+      expect(EXT_PACOTE_A.has(ext)).toBe(true);
+    }
+  });
 });

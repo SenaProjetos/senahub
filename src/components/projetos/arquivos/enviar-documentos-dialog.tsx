@@ -33,6 +33,7 @@ import {
   type Aviso,
   type Sugestao,
 } from "@/modules/uploads/nomenclatura/interpretar";
+import { resolverDestino } from "@/modules/uploads/nomenclatura/destino";
 import { montarVocabulario, type CatalogosNomenclatura } from "@/modules/uploads/nomenclatura/vocabulario";
 import type { ExtensaoDef } from "@/modules/uploads/nomenclatura/extensoes";
 import { editarMetadadosDocumento } from "@/modules/uploads/actions";
@@ -42,8 +43,17 @@ type FaseUpload = { id: string; sigla: string; nome: string };
 type ItemEnvio = {
   file: File;
   nome: string;
+  /** Disciplina resolvida (pela sigla no nome ou pela faixa de numeração) ou escolhida aqui
+   *  quando o motor não deu conta sozinho. `undefined` enquanto `precisaDisciplina` for true. */
+  disciplinaId?: string;
   alvo: PacoteEnvio;
   pastaId?: string;
+  /** Disciplina não resolvida pelo motor (sem sigla no nome e sem faixa cadastrada que bata) —
+   *  a tela de revisão pede pra escolher, arquivo por arquivo, em vez de travar o envio inteiro. */
+  precisaDisciplina?: boolean;
+  /** Disciplina já resolvida, mas ela usa árvore de pastas — falta só a pasta (não dá pra
+   *  automatizar isso, pedido do dono: "perguntar só a pasta" nesse caso). */
+  precisaPasta?: boolean;
   faseId?: string;
   /** Tipo de documento lido do nome (alta confiança) ou escolhido aqui. */
   tipoId?: string;
@@ -123,7 +133,8 @@ export function EnviarDocumentosDialog({ dados }: { dados: DadosEnviarDocumentos
         <DialogHeader>
           <DialogTitle>Enviar documentos</DialogTitle>
           <DialogDescription>
-            Escolha a disciplina e o destino antes de selecionar ou arrastar os arquivos.
+            Selecione ou arraste os arquivos — disciplina e destino são reconhecidos pelo nome.
+            Só pergunta o que o nome não disser.
           </DialogDescription>
         </DialogHeader>
         <UploaderDocumentos dados={dados} onEnviarChange={setEnviando} />
@@ -140,17 +151,12 @@ function UploaderDocumentos({
   onEnviarChange: (enviando: boolean) => void;
 }) {
   const router = useRouter();
-  const [disciplinaId, setDisciplinaId] = useState("");
-  const [pacote, setPacote] = useState<PacoteEnvio>("A");
-  const [pastaId, setPastaId] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [pendentes, setPendentes] = useState<ItemEnvio[] | null>(null);
   const [progresso, setProgresso] = useState<LinhaEnvioComArquivo[] | null>(null);
   const inputArquivos = useRef<HTMLInputElement>(null);
   const inputPasta = useRef<HTMLInputElement>(null);
 
-  const disciplina = dados.disciplinas.find((item) => item.id === disciplinaId);
-  const usaPastas = disciplina?.usaPastas ?? false;
   // Vocabulário do projeto (siglas + sinônimos dos catálogos), montado uma vez por diálogo.
   // O escopo é o projeto — o MESMO que a rota usa. Passar `null` aqui descartaria as siglas
   // próprias do projeto e a tela mostraria "—" num campo que o servidor preencheria.
@@ -158,68 +164,117 @@ function UploaderDocumentos({
     () => montarVocabulario(dados.catalogosNomenclatura, dados.projeto.id),
     [dados.catalogosNomenclatura, dados.projeto.id],
   );
+  // Disciplina lida do nome (sigla ou faixa de numeração) → linha do PROJETO (`Disciplina`,
+  // não `DisciplinaCatalogo`) — só entre as que o usuário pode enviar (mesmo filtro de sempre).
+  const catalogoParaDisciplina = useMemo(
+    () => new Map(dados.disciplinas.filter((d) => d.catalogoId).map((d) => [d.catalogoId as string, d])),
+    [dados.disciplinas],
+  );
   const { arrastando, dropProps } = useDropzone((files) => prepararEnvio(files), enviando);
 
-  function selecionarDisciplina(id: string) {
-    setDisciplinaId(id);
-    setPastaId("");
+  /**
+   * Lê o nome duas vezes quando a disciplina resolve: a 1ª (sem disciplina nenhuma) só serve
+   * pra achar QUAL disciplina é; a 2ª já leva o catálogo certo (sinônimos do projeto, "nova
+   * versão de" com os documentos daquele destino) — a mesma qualidade que o fluxo manual de
+   * antes tinha. Sem a 2ª passada, sugestões que dependem de saber a disciplina (nova versão,
+   * fase/tipo por sinônimo do projeto) ficariam piores só porque agora a disciplina é automática.
+   */
+  function montarItem(file: File): ItemEnvio {
+    const leituraInicial = interpretarNomeArquivo(file.name, {
+      projeto: dados.projeto,
+      disciplinaCatalogoId: null,
+      padrao: dados.nomenclatura.padrao,
+      vocabulario,
+      extensoes: dados.extensoesNomenclatura,
+    });
+    const disciplinaResolvida = confiavel(leituraInicial.disciplina)
+      ? catalogoParaDisciplina.get(leituraInicial.disciplina.valor)
+      : undefined;
+
+    if (!disciplinaResolvida) {
+      return {
+        file,
+        nome: file.name,
+        alvo: "A",
+        precisaDisciplina: true,
+        ...(confiavel(leituraInicial.fase) ? { faseId: leituraInicial.fase.valor } : {}),
+        ...(confiavel(leituraInicial.tipo) ? { tipoId: leituraInicial.tipo.valor } : {}),
+        fora: false,
+        avisos: leituraInicial.avisos,
+        sugestoes: leituraInicial.sugestoes,
+      };
+    }
+
+    if (disciplinaResolvida.usaPastas) {
+      // Árvore de pastas não dá pra automatizar (não existe "número da pasta" no nome) — a
+      // disciplina já resolveu sozinha, só falta perguntar a pasta (decisão do dono).
+      return {
+        file,
+        nome: file.name,
+        disciplinaId: disciplinaResolvida.id,
+        alvo: "A",
+        precisaPasta: true,
+        ...(confiavel(leituraInicial.fase) ? { faseId: leituraInicial.fase.valor } : {}),
+        ...(confiavel(leituraInicial.tipo) ? { tipoId: leituraInicial.tipo.valor } : {}),
+        fora: false,
+        avisos: leituraInicial.avisos,
+        sugestoes: leituraInicial.sugestoes,
+      };
+    }
+
+    const alvo: PacoteEnvio = resolverDestino(leituraInicial) === "backup" ? "B" : "A";
+    const documentosDoDestino = (dados.documentosPorDisciplina[disciplinaResolvida.id] ?? []).filter(
+      (documento) => documento.local === alvo,
+    );
+    const leituraFinal = interpretarNomeArquivo(file.name, {
+      projeto: dados.projeto,
+      disciplinaCatalogoId: disciplinaResolvida.catalogoId,
+      padrao: dados.nomenclatura.padrao,
+      vocabulario,
+      extensoes: dados.extensoesNomenclatura,
+      documentosExistentes: documentosDoDestino,
+    });
+    return {
+      file,
+      nome: file.name,
+      disciplinaId: disciplinaResolvida.id,
+      alvo,
+      ...(confiavel(leituraFinal.fase) ? { faseId: leituraFinal.fase.valor } : {}),
+      ...(confiavel(leituraFinal.tipo) ? { tipoId: leituraFinal.tipo.valor } : {}),
+      // Feedback de padrão sempre visível — `exigir` fica reservado pro dia em que virar
+      // bloqueio de verdade; até lá, a equipe já vê e vai se adaptando (pedido do dono).
+      fora: alvo === "A" && foraDoPadrao(file.name, dados.nomenclatura.padrao),
+      avisos: leituraFinal.avisos,
+      sugestoes: leituraFinal.sugestoes,
+    };
   }
 
   function prepararEnvio(lista: FileList | File[] | null) {
-    if (!disciplinaId) {
-      toast.error("Selecione a disciplina.");
-      return;
-    }
-    if (usaPastas && !pastaId) {
-      toast.error("Selecione a pasta de destino.");
-      return;
-    }
-
     const files = lista ? Array.from(lista) : [];
     if (files.length === 0) return;
 
     const itens: ItemEnvio[] = [];
-    const limite = limiteDoPacote(usaPastas ? "" : pacote);
-    // Só documentos do MESMO destino podem receber nova versão (ver `DocumentoExistente`).
-    const localAtual = usaPastas ? `pasta:${pastaId}` : pacote;
-    const documentosDoDestino = (dados.documentosPorDisciplina[disciplinaId] ?? []).filter(
-      (documento) => documento.local === localAtual,
-    );
     for (const file of files) {
-      if (file.size > limite) {
-        toast.error(`${file.name}: excede o limite de ${limiteLabelDoPacote(usaPastas ? "" : pacote)}.`);
-        continue;
+      const item = montarItem(file);
+      // Limite só dá pra checar quando o destino (pacote) já está resolvido — arquivo que
+      // precisa de disciplina/pasta manual passa direto; o limite entra quando o usuário
+      // completar a escolha na revisão.
+      if (!item.precisaDisciplina) {
+        const limite = limiteDoPacote(item.precisaPasta ? "" : item.alvo);
+        if (file.size > limite) {
+          toast.error(`${file.name}: excede o limite de ${limiteLabelDoPacote(item.precisaPasta ? "" : item.alvo)}.`);
+          continue;
+        }
       }
-      // Motor de nomenclatura: a MESMA leitura que a rota faz no servidor. Aqui ela serve para
-      // mostrar (e deixar corrigir) antes de enviar; lá, para gravar. Só confiança alta
-      // preenche sozinha (D7) — o resto vira aviso/sugestão nesta tela.
-      const leitura = interpretarNomeArquivo(file.name, {
-        projeto: dados.projeto,
-        disciplinaCatalogoId: disciplina?.catalogoId ?? null,
-        padrao: dados.nomenclatura.padrao,
-        vocabulario,
-        extensoes: dados.extensoesNomenclatura,
-        documentosExistentes: documentosDoDestino,
-      });
-      itens.push({
-        file,
-        nome: file.name,
-        alvo: pacote,
-        ...(usaPastas ? { pastaId } : {}),
-        ...(confiavel(leitura.fase) ? { faseId: leitura.fase.valor } : {}),
-        ...(confiavel(leitura.tipo) ? { tipoId: leitura.tipo.valor } : {}),
-        // Feedback de padrão sempre visível — `exigir` fica reservado pro dia em que virar
-        // bloqueio de verdade; até lá, a equipe já vê e vai se adaptando (pedido do dono).
-        fora: !usaPastas && pacote === "A" && foraDoPadrao(file.name, dados.nomenclatura.padrao),
-        avisos: leitura.avisos,
-        sugestoes: leitura.sugestoes,
-      });
+      itens.push(item);
     }
     if (itens.length === 0) return;
 
-    // Revisar antes de enviar sempre que houver o que decidir: nome fora do padrão, fase
-    // obrigatória, ou qualquer aviso/sugestão do motor (projeto divergente, backup, cópia…).
-    const temOQueRevisar = itens.some((item) => item.fora || item.avisos.length > 0 || item.sugestoes.length > 0);
+    // Revisar antes de enviar sempre que houver o que decidir: disciplina/pasta não resolvida
+    // sozinha, nome fora do padrão, fase obrigatória, ou qualquer aviso/sugestão do motor.
+    const temOQueRevisar = itens.some(
+      (item) => item.precisaDisciplina || item.precisaPasta || item.fora || item.avisos.length > 0 || item.sugestoes.length > 0,
+    );
     if (temOQueRevisar || dados.nomenclatura.exigirFase) {
       setPendentes(itens);
       return;
@@ -227,19 +282,144 @@ function UploaderDocumentos({
     void enviar(itens);
   }
 
+  /** Usuário escolheu a disciplina de um item que o motor não resolveu sozinho — refaz a
+   *  leitura com o catálogo certo (mesma lógica de `montarItem`, mas com a disciplina dada,
+   *  não descoberta). */
+  function escolherDisciplina(indiceEmPendentes: number, disciplinaId: string) {
+    if (!pendentes) return;
+    const disciplinaEscolhida = dados.disciplinas.find((d) => d.id === disciplinaId);
+    if (!disciplinaEscolhida) return;
+    const file = pendentes[indiceEmPendentes].file;
+
+    if (disciplinaEscolhida.usaPastas) {
+      // Escolha manual pula o gate de tamanho de `prepararEnvio` (que só roda ANTES de saber
+      // a disciplina) — sem checar aqui, um arquivo grande demais passava direto pro envio e
+      // só falhava na rota, sem aviso nenhum na tela.
+      if (file.size > limiteDoPacote("")) {
+        toast.error(`${file.name}: excede o limite de ${limiteLabelDoPacote("")}.`);
+        setPendentes(pendentes.filter((_, i) => i !== indiceEmPendentes));
+        return;
+      }
+      setPendentes(pendentes.map((item, i) => (i === indiceEmPendentes
+        // `pastaId` explícito undefined: se o item já tinha pasta de uma disciplina anterior
+        // (usuário trocou a escolha), a pasta velha pertence a OUTRA árvore e não pode ficar.
+        ? { ...item, disciplinaId, pastaId: undefined, precisaDisciplina: false, precisaPasta: true }
+        : item)));
+      return;
+    }
+
+    const leituraInicial = interpretarNomeArquivo(file.name, {
+      projeto: dados.projeto,
+      disciplinaCatalogoId: null,
+      padrao: dados.nomenclatura.padrao,
+      vocabulario,
+      extensoes: dados.extensoesNomenclatura,
+    });
+    const alvo: PacoteEnvio = resolverDestino(leituraInicial) === "backup" ? "B" : "A";
+    if (file.size > limiteDoPacote(alvo)) {
+      toast.error(`${file.name}: excede o limite de ${limiteLabelDoPacote(alvo)}.`);
+      setPendentes(pendentes.filter((_, i) => i !== indiceEmPendentes));
+      return;
+    }
+    const documentosDoDestino = (dados.documentosPorDisciplina[disciplinaId] ?? []).filter(
+      (documento) => documento.local === alvo,
+    );
+    const leituraFinal = interpretarNomeArquivo(file.name, {
+      projeto: dados.projeto,
+      disciplinaCatalogoId: disciplinaEscolhida.catalogoId,
+      padrao: dados.nomenclatura.padrao,
+      vocabulario,
+      extensoes: dados.extensoesNomenclatura,
+      documentosExistentes: documentosDoDestino,
+    });
+    setPendentes(pendentes.map((item, i) => (i === indiceEmPendentes
+      ? {
+          ...item,
+          disciplinaId,
+          alvo,
+          // Idem: pasta de uma disciplina anterior não vale mais depois da troca pra pacote.
+          pastaId: undefined,
+          precisaDisciplina: false,
+          precisaPasta: false,
+          ...(confiavel(leituraFinal.fase) ? { faseId: leituraFinal.fase.valor } : {}),
+          ...(confiavel(leituraFinal.tipo) ? { tipoId: leituraFinal.tipo.valor } : {}),
+          fora: alvo === "A" && foraDoPadrao(file.name, dados.nomenclatura.padrao),
+          avisos: leituraFinal.avisos,
+          sugestoes: leituraFinal.sugestoes,
+        }
+      : item)));
+  }
+
+  function escolherPasta(indiceEmPendentes: number, pastaId: string) {
+    if (!pendentes) return;
+    setPendentes(pendentes.map((item, i) => (i === indiceEmPendentes ? { ...item, pastaId, precisaPasta: false } : item)));
+  }
+
+  /** Corrige o destino (Pranchas/Backup) de um item já com disciplina resolvida — o motor
+   *  decide sozinho pela extensão/nome, mas nem sempre é o que a pessoa quer (ex.: um .pdf
+   *  que é backup mas não tem pista nenhuma de backup no nome nem extensão marcada). */
+  function alterarAlvo(indiceEmPendentes: number, alvo: PacoteEnvio) {
+    if (!pendentes) return;
+    const item = pendentes[indiceEmPendentes];
+    if (!item.disciplinaId) return;
+    if (item.file.size > limiteDoPacote(alvo)) {
+      toast.error(`${item.file.name}: excede o limite de ${limiteLabelDoPacote(alvo)}.`);
+      return;
+    }
+    const disciplinaCatalogoId = dados.disciplinas.find((d) => d.id === item.disciplinaId)?.catalogoId ?? null;
+    const documentosDoDestino = (dados.documentosPorDisciplina[item.disciplinaId] ?? []).filter(
+      (documento) => documento.local === alvo,
+    );
+    const leitura = interpretarNomeArquivo(item.file.name, {
+      projeto: dados.projeto,
+      disciplinaCatalogoId,
+      padrao: dados.nomenclatura.padrao,
+      vocabulario,
+      extensoes: dados.extensoesNomenclatura,
+      documentosExistentes: documentosDoDestino,
+    });
+    setPendentes(pendentes.map((it, i) => (i === indiceEmPendentes
+      ? {
+          ...it,
+          alvo,
+          fora: alvo === "A" && foraDoPadrao(item.file.name, dados.nomenclatura.padrao),
+          avisos: leitura.avisos,
+          sugestoes: leitura.sugestoes,
+        }
+      : it)));
+  }
+
   async function enviar(itens: ItemEnvio[]) {
     setPendentes(null);
-    const revisoes = detectarNovasRevisoes(
-      itens.map((item) => item.nome),
-      dados.existentesPorDisciplina[disciplinaId] ?? [],
-      usaPastas ? { pastaId } : { pacote: itens[0]?.alvo },
+
+    // Cada item tem sua PRÓPRIA disciplina/destino agora — "nova versão" precisa checar por
+    // grupo (disciplina + pacote OU pasta), não mais um destino só pro lote inteiro.
+    const gruposPorDestino = new Map<string, { nomes: string[]; disciplinaId: string; pastaId?: string; pacote?: string }>();
+    for (const item of itens) {
+      const chave = item.pastaId ? `${item.disciplinaId}::pasta:${item.pastaId}` : `${item.disciplinaId}::pacote:${item.alvo}`;
+      const grupo = gruposPorDestino.get(chave) ?? {
+        nomes: [],
+        disciplinaId: item.disciplinaId as string,
+        pastaId: item.pastaId,
+        pacote: item.pastaId ? undefined : item.alvo,
+      };
+      grupo.nomes.push(item.nome);
+      gruposPorDestino.set(chave, grupo);
+    }
+    const revisoes = [...gruposPorDestino.values()].flatMap((grupo) =>
+      detectarNovasRevisoes(
+        grupo.nomes,
+        dados.existentesPorDisciplina[grupo.disciplinaId] ?? [],
+        grupo.pastaId ? { pastaId: grupo.pastaId } : { pacote: grupo.pacote },
+      ),
     );
     if (revisoes.length > 0) toast.info(mensagemNovasRevisoes(revisoes), { duration: 6000 });
 
     const grupos = gruposRevisaoAgrupada(itens.map((item) => ({
       nome: item.nome,
-      pacote: usaPastas ? null : item.alvo,
+      pacote: item.pastaId ? null : item.alvo,
       pastaId: item.pastaId ?? null,
+      disciplinaId: item.disciplinaId as string,
     })));
     const grupoPorIndice = new Map<number, string>(
       grupos.flatMap((grupo) => grupo.indices.map((indice): [number, string] => [indice, grupo.chave])),
@@ -274,7 +454,7 @@ function UploaderDocumentos({
             linhas[i].file,
             {
               nome: linhas[i].nome,
-              disciplinaId,
+              disciplinaId: linhas[i].disciplinaId as string,
               faseId: linhas[i].faseId,
               tipoId: linhas[i].tipoId,
               versaoDeDocumentoId: linhas[i].versaoDeDocumentoId,
@@ -431,7 +611,7 @@ function UploaderDocumentos({
             linha.file,
             {
               nome: linha.nome,
-              disciplinaId,
+              disciplinaId: linha.disciplinaId as string,
               faseId: linha.faseId,
               tipoId: linha.tipoId,
               versaoDeDocumentoId: linha.versaoDeDocumentoId,
@@ -490,67 +670,22 @@ function UploaderDocumentos({
         exigirFase={dados.nomenclatura.exigirFase}
         fases={dados.fases}
         tipos={dados.tipos}
-        dadosCorrecao={disciplina ? {
-          codigoProjeto: dados.codigoProjeto,
-          siglaDisciplina: disciplina.sigla,
-          fases: dados.fases,
-          tipos: dados.tipos,
-        } : null}
+        disciplinas={dados.disciplinas}
+        codigoProjeto={dados.codigoProjeto}
         padrao={dados.nomenclatura.padrao}
         onCancel={() => setPendentes(null)}
         onChange={setPendentes}
+        onEscolherDisciplina={escolherDisciplina}
+        onEscolherPasta={escolherPasta}
+        onAlterarAlvo={alterarAlvo}
         onConfirm={() => pendentes && void enviar(pendentes)}
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={disciplinaId} onValueChange={(value) => value && selecionarDisciplina(value)}>
-          <SelectTrigger className={cn("w-52", !disciplinaId && "text-muted-foreground")}>
-            <SelectValue placeholder="Selecione a disciplina…" />
-          </SelectTrigger>
-          <SelectContent>
-            {dados.disciplinas.map((item) => (
-              <SelectItem key={item.id} value={item.id}>
-                {item.nome}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {!disciplinaId ? (
-          <Select<string> disabled>
-            <SelectTrigger className="w-44 text-muted-foreground">
-              <SelectValue placeholder="Selecione a disciplina…" />
-            </SelectTrigger>
-            <SelectContent />
-          </Select>
-        ) : usaPastas ? (
-          <SeletorPasta pastas={disciplina!.pastas} value={pastaId} onChange={setPastaId} />
-        ) : (
-          <Select value={pacote} onValueChange={(value) => value && setPacote(value as PacoteEnvio)}>
-            <SelectTrigger className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="A">Pranchas e arquivos</SelectItem>
-              <SelectItem value="B">Backup do modelo</SelectItem>
-            </SelectContent>
-          </Select>
-        )}
-
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={enviando || !disciplinaId || (usaPastas && !pastaId)}
-          onClick={() => inputArquivos.current?.click()}
-        >
+        <Button size="sm" variant="outline" disabled={enviando} onClick={() => inputArquivos.current?.click()}>
           <UploadIcon className="size-3.5" /> Arquivos
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={enviando || !disciplinaId || (usaPastas && !pastaId)}
-          onClick={() => inputPasta.current?.click()}
-        >
+        <Button size="sm" variant="outline" disabled={enviando} onClick={() => inputPasta.current?.click()}>
           <FolderOpen className="size-3.5" /> Pasta
         </Button>
 
@@ -577,13 +712,15 @@ function UploaderDocumentos({
       {/* Fase/tipo/título reconhecidos ou a preencher, ainda nesta tela — sem isto o único
           jeito de corrigir era fechar o diálogo, achar o documento na lista e abrir o painel
           de detalhe pra cada arquivo. Título aqui já alimenta a Lista Mestre sozinho. Só pra
-          quem pode editar metadados, e só faz sentido em pacote (pasta não usa Lista Mestre). */}
-      {!enviando && !usaPastas && dados.podeEditarMetadados && progresso && progresso.some((l) => l.status === "ok" && l.documentoId) && (
+          quem pode editar metadados, e só faz sentido em pacote (pasta não usa Lista Mestre —
+          por isso o filtro é POR LINHA agora: um lote pode misturar disciplinas de pacote e
+          de pasta, já que cada arquivo resolve a própria disciplina). */}
+      {!enviando && dados.podeEditarMetadados && progresso && progresso.some((l) => l.status === "ok" && l.documentoId && !l.pastaId) && (
         <div className="space-y-2 rounded-sm border bg-background/60 p-2">
           <p className="text-xs font-medium text-muted-foreground">Reconhecido no envio — corrija ou complete se precisar</p>
           <div className="max-h-72 space-y-2 overflow-y-auto">
             {progresso.map((linha, indice) =>
-              linha.status === "ok" && linha.documentoId ? (
+              linha.status === "ok" && linha.documentoId && !linha.pastaId ? (
                 <div key={indice} className="space-y-1 rounded-sm border p-1.5">
                   <span className="block min-w-0 truncate text-xs text-muted-foreground" title={linha.nome}>{linha.nome}</span>
                   <div className="grid grid-cols-[1fr_9rem_9rem] items-center gap-2">
@@ -634,15 +771,12 @@ function UploaderDocumentos({
       )}
 
       <p className="text-xs text-muted-foreground">
-        {usaPastas ? (
-          <>Envie arquivos soltos ou uma pasta inteira (ou arraste aqui) para a pasta escolhida. Limite por arquivo: {TAMANHO_MAX_LABEL}.</>
-        ) : (
-          <>
-            Envie arquivos soltos ou uma pasta inteira (ou arraste aqui). Vai para a disciplina escolhida. Limite por arquivo: {TAMANHO_MAX_BACKUP_LABEL} em Backup do modelo, {TAMANHO_MAX_LABEL} nos demais.
-            {" Nomes fora do padrão em Pranchas aparecem marcados na revisão — não impede o envio."}
-            {dados.nomenclatura.exigirFase && " A fase de cada documento é obrigatória e pode ser revista antes do envio."}
-          </>
-        )}
+        Envie arquivos soltos ou uma pasta inteira (ou arraste aqui) — disciplina e destino são
+        reconhecidos pelo nome do arquivo (fase, tipo e número da prancha, ou a faixa de
+        numeração cadastrada). Só pergunta disciplina/pasta quando o nome não resolve sozinho.
+        Limite por arquivo: {TAMANHO_MAX_BACKUP_LABEL} em Backup do modelo, {TAMANHO_MAX_LABEL} nos demais.
+        {" Nomes fora do padrão em Pranchas aparecem marcados na revisão — não impede o envio."}
+        {dados.nomenclatura.exigirFase && " A fase de cada documento é obrigatória e pode ser revista antes do envio."}
       </p>
     </div>
   );
@@ -653,23 +787,32 @@ function RevisarNomesDialog({
   exigirFase,
   fases,
   tipos,
-  dadosCorrecao,
+  disciplinas,
+  codigoProjeto,
   padrao,
   onCancel,
   onChange,
+  onEscolherDisciplina,
+  onEscolherPasta,
+  onAlterarAlvo,
   onConfirm,
 }: {
   itens: ItemEnvio[] | null;
   exigirFase: boolean;
   fases: FaseUpload[];
   tipos: FaseUpload[];
-  dadosCorrecao: DadosCorrecaoNomeUpload | null;
+  disciplinas: DadosEnviarDocumentos["disciplinas"];
+  codigoProjeto: string;
   padrao: string | null;
   onCancel: () => void;
   onChange: (itens: ItemEnvio[]) => void;
+  onEscolherDisciplina: (indice: number, disciplinaId: string) => void;
+  onEscolherPasta: (indice: number, pastaId: string) => void;
+  onAlterarAlvo: (indice: number, alvo: PacoteEnvio) => void;
   onConfirm: () => void;
 }) {
   const foraDoPadraoCount = itens?.filter((item) => item.fora).length ?? 0;
+  const precisaEscolherCount = itens?.filter((item) => item.precisaDisciplina || item.precisaPasta).length ?? 0;
 
   function alterar(indice: number, patch: Partial<ItemEnvio>) {
     if (!itens) return;
@@ -721,6 +864,7 @@ function RevisarNomesDialog({
           <DialogTitle>Revisar envio</DialogTitle>
           <DialogDescription>
             Fase e tipo vêm lidos do nome do arquivo e podem ser alterados.
+            {precisaEscolherCount > 0 && ` ${precisaEscolherCount} arquivo(s) precisam de disciplina ou pasta escolhida à mão — o nome não deu essa informação.`}
             {foraDoPadraoCount > 0 && ` ${foraDoPadraoCount} arquivo(s) de Pranchas estão fora do padrão — renomeie, remova ou envie assim.`}
             {foraDoPadraoCount > 0 && (
               <span className="mt-1 block font-mono text-[11px]">
@@ -733,6 +877,10 @@ function RevisarNomesDialog({
           {itens?.map((item, indice) => {
             const { extensao } = separarExtensao(item.file.name);
             const nomeBase = item.nome.endsWith(extensao) ? item.nome.slice(0, item.nome.length - extensao.length) : item.nome;
+            const disciplinaDoItem = item.disciplinaId ? disciplinas.find((d) => d.id === item.disciplinaId) : undefined;
+            const dadosCorrecao: DadosCorrecaoNomeUpload | null = disciplinaDoItem
+              ? { codigoProjeto, siglaDisciplina: disciplinaDoItem.sigla, fases, tipos }
+              : null;
             return (
               <div key={`${item.file.name}-${indice}`} className="flex items-start gap-2 rounded-md border p-2">
                 <div className="min-w-0 flex-1 space-y-1">
@@ -746,6 +894,55 @@ function RevisarNomesDialog({
                       </span>
                     )}
                   </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">
+                        Disciplina{item.precisaDisciplina ? " — não reconhecida pelo nome" : ""}
+                      </Label>
+                      <Select
+                        value={item.disciplinaId ?? ""}
+                        onValueChange={(value) => value && onEscolherDisciplina(indice, value)}
+                      >
+                        <SelectTrigger className={cn("h-8 text-xs", !item.disciplinaId && "text-muted-foreground")}>
+                          <SelectValue placeholder="Selecione…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {disciplinas.map((d) => (
+                            <SelectItem key={d.id} value={d.id}>{d.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {disciplinaDoItem && !disciplinaDoItem.usaPastas && (
+                      <div className="space-y-1">
+                        <Label className="text-xs">Destino</Label>
+                        <Select value={item.alvo} onValueChange={(value) => value && onAlterarAlvo(indice, value as PacoteEnvio)}>
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="A">Pranchas e arquivos</SelectItem>
+                            <SelectItem value="B">Backup do modelo</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+
+                  {disciplinaDoItem?.usaPastas && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">
+                        Pasta{item.precisaPasta ? ` — ${disciplinaDoItem.nome} usa pastas, não pacotes` : ""}
+                      </Label>
+                      <SeletorPasta
+                        pastas={disciplinaDoItem.pastas}
+                        value={item.pastaId ?? ""}
+                        onChange={(pastaId) => pastaId && onEscolherPasta(indice, pastaId)}
+                      />
+                    </div>
+                  )}
+
                   {item.fora && (
                     <div className="flex items-center gap-1">
                       <Input
@@ -852,7 +1049,14 @@ function RevisarNomesDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>Cancelar</Button>
-          <Button onClick={onConfirm} disabled={!itens || itens.length === 0 || (exigirFase && itens.some((item) => !item.faseId))}>
+          <Button
+            onClick={onConfirm}
+            disabled={
+              !itens || itens.length === 0
+              || itens.some((item) => item.precisaDisciplina || item.precisaPasta)
+              || (exigirFase && itens.some((item) => !item.faseId))
+            }
+          >
             Enviar {itens?.length ?? 0} arquivo(s)
           </Button>
         </DialogFooter>

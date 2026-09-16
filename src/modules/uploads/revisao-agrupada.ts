@@ -5,6 +5,10 @@ export type ArquivoParaRevisaoAgrupada = {
   nome: string;
   pacote: string | null;
   pastaId: string | null;
+  /** Sem isto, dois arquivos de disciplinas DIFERENTES com o mesmo nome-base cairiam no mesmo
+   *  grupo — só ficou possível quando o envio passou a resolver disciplina por arquivo (antes,
+   *  um lote inteiro tinha uma única disciplina, então a colisão nunca acontecia). */
+  disciplinaId: string;
 };
 
 export type GrupoRevisaoAgrupada = {
@@ -31,11 +35,11 @@ export function gruposRevisaoAgrupada(
 ): GrupoRevisaoAgrupada[] {
   const porChave = new Map<string, { indices: number[]; extensoes: Set<string> }>();
   arquivos.forEach((arquivo, indice) => {
-    const chave = chaveDocumento({
+    const chave = `${arquivo.disciplinaId}:${chaveDocumento({
       pacote: arquivo.pastaId ? null : pacoteReal(arquivo.nome, arquivo.pacote),
       pastaId: arquivo.pastaId,
       nomeArquivo: arquivo.nome,
-    });
+    })}`;
     const grupo = porChave.get(chave) ?? { indices: [], extensoes: new Set<string>() };
     grupo.indices.push(indice);
     grupo.extensoes.add(extensaoDe(arquivo.nome));

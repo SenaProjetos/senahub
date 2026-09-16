@@ -2,6 +2,10 @@ import type { Interpretacao } from "./interpretar";
 import { confiavel } from "./interpretar";
 
 /**
+ * Existe `modules/uploads/destino.ts` também — aquele é o roteamento FÍSICO simples (dado o
+ * `alvo` A/B já escolhido, extensão cabe no pacote A ou vira OUTROS; roda no caminho de escrita
+ * do arquivo, sem banco). Este aqui é o motor que ESCOLHE o `alvo` antes do envio.
+ *
  * Destino automático do arquivo no envio (2026-09-16, instrução direta do dono):
  * - Extensão marcada `ehBackup` no catálogo → SEMPRE backup, nome não importa.
  * - Senão, nome "minimamente viável" (número da prancha OU fase+tipo, todos com confiança

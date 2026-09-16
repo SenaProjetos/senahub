@@ -2277,6 +2277,7 @@ function Uploader({
       nome: item.nome,
       pacote: usaPastas ? null : item.alvo,
       pastaId: item.pastaId ?? null,
+      disciplinaId,
     })));
     const grupoPorIndice = new Map<number, string>(
       grupos.flatMap((grupo) => grupo.indices.map((indice): [number, string] => [indice, grupo.chave])),
