@@ -30,7 +30,6 @@ import {
   atualizarStatusDisciplina,
   reabrirDisciplina,
   definirResponsaveis,
-  registrarRevisao,
 } from "@/modules/projetos/actions";
 import { rotuloCatalogo } from "@/modules/projetos/disciplina-rotulo";
 import {
@@ -381,7 +380,7 @@ export function DisciplinaCard({
           podeValidar={podeValidar}
           podeAprovar={podeAprovarDisciplina}
         />
-        <RevisaoDialog disciplina={disciplina} podeRegistrar={podeMexerStatus} />
+        <RevisaoDialog disciplina={disciplina} />
         {podeGerir && <ResponsaveisDialog disciplina={disciplina} internos={internos} />}
         {podeDiario && <DiarioAtalhoButton projetoId={projetoId} disciplina={disciplina} />}
         {tarefaOpcoes && tarefaColunas && meId && meRole && (
@@ -1437,80 +1436,48 @@ function ReabrirDisciplinaDialog({ disciplina }: { disciplina: Disc }) {
   );
 }
 
-function RevisaoDialog({
-  disciplina,
-  podeRegistrar,
-}: {
-  disciplina: Disc;
-  podeRegistrar: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const [motivo, setMotivo] = useState("");
-  const [pending, start] = useTransition();
+/** Arquivos com ajuste solicitado pelo validador e ainda pendente (revisaoObs/revisaoEm sem revalidação). */
+function arquivosComRevisaoPendente(disciplina: Disc) {
+  return disciplina.uploads.filter((u) => u.ajusteEm);
+}
 
-  function registrar() {
-    start(async () => {
-      const res = await registrarRevisao({ disciplinaId: disciplina.id, motivo: motivo || undefined });
-      if (res.ok) {
-        toast.success(`Revisão RV${String(res.data.numero).padStart(2, "0")} registrada.`);
-        setMotivo("");
-        setOpen(false);
-      } else {
-        toast.error(res.error);
-      }
-    });
-  }
+function RevisaoDialog({ disciplina }: { disciplina: Disc }) {
+  const [open, setOpen] = useState(false);
+  const pendentes = arquivosComRevisaoPendente(disciplina);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
           <Button variant="outline" size="sm">
-            <History className="size-3.5" /> Revisões ({disciplina.revisoes.length})
+            <History className="size-3.5" /> Revisões ({pendentes.length})
           </Button>
         }
       />
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{disciplina.nome} — revisões</DialogTitle>
-          <DialogDescription>Histórico imutável de revisões (RVxx).</DialogDescription>
+          <DialogDescription>Ajustes solicitados nos arquivos, ainda não reenviados/validados.</DialogDescription>
         </DialogHeader>
 
         <div className="max-h-60 space-y-2 overflow-y-auto">
-          {disciplina.revisoes.length === 0 ? (
-            <EmptyState icon={GitBranch} title="Nenhuma revisão registrada" />
+          {pendentes.length === 0 ? (
+            <EmptyState icon={GitBranch} title="Nenhum ajuste pendente nos arquivos" />
           ) : (
-            disciplina.revisoes.map((rv) => (
-              <div key={rv.id} className="rounded-sm border p-2 text-sm">
+            pendentes.map((a) => (
+              <div key={a.id} className="rounded-sm border p-2 text-sm">
                 <div className="flex items-center gap-2">
                   <GitBranch className="size-3.5 text-muted-foreground" />
-                  <span className="font-mono font-semibold">
-                    RV{String(rv.numero).padStart(2, "0")}
-                  </span>
+                  <span className="font-medium">{a.nomeArquivo}</span>
                   <span className="ml-auto text-xs text-muted-foreground">
-                    {formatarData(rv.data)} · {rv.autor}
+                    {a.ajusteEm && formatarData(a.ajusteEm)}
                   </span>
                 </div>
-                {rv.motivo && <p className="mt-1 text-muted-foreground">{rv.motivo}</p>}
+                {a.ajusteObs && <p className="mt-1 text-muted-foreground">{a.ajusteObs}</p>}
               </div>
             ))
           )}
         </div>
-
-        {podeRegistrar && (
-          <div className="space-y-2">
-            <Label>Motivo da revisão (opcional)</Label>
-            <Input value={motivo} onChange={(e) => setMotivo(e.target.value)} />
-          </div>
-        )}
-
-        <DialogFooter>
-          {podeRegistrar && (
-            <Button onClick={registrar} disabled={pending}>
-              {pending ? "Registrando…" : "Registrar revisão"}
-            </Button>
-          )}
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
