@@ -11,9 +11,9 @@ import { confiavel } from "./interpretar";
  *
  * Pura — só olha o que `interpretarNomeArquivo` já calculou, não duplica leitura de nome.
  */
-export type DestinoEnvio = "backup" | "pranchas" | "outros";
+export type CategoriaDestino = "backup" | "pranchas" | "outros";
 
-export function resolverDestino(interp: Interpretacao): DestinoEnvio {
+export function resolverDestino(interp: Interpretacao): CategoriaDestino {
   if (interp.ehBackup) return "backup";
   const minimamenteViavel = confiavel(interp.numero) || (confiavel(interp.fase) && confiavel(interp.tipo));
   return minimamenteViavel ? "pranchas" : "outros";
