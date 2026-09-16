@@ -3,6 +3,8 @@
  * Formato: {projeto}-{sigla disciplina}-{fase}-{numeracao4}-{tipo}[-Rnn]
  */
 
+import { compilarPadrao } from "@/modules/uploads/nomenclatura/padrao";
+
 export function revisaoLabel(n: number): string {
   return `R${String(Math.max(0, n)).padStart(2, "0")}`;
 }
@@ -22,28 +24,23 @@ export function codigoPrancha(args: {
 }
 
 /**
- * `{proj}`, `{nº}`, `{Rnn}`: campo de modelo. Só letras entre chaves — `{4}` e `{1,3}` são
- * quantificadores de regex e continuam sendo regex.
- */
-const CAMPO_DE_MODELO = /\{[A-Za-zÀ-ÿºª]+\}/;
-
-/**
- * Um nome está "fora do padrão" da Lista Mestre? Se `padrao` (regex) for informado, usa-o;
- * senão usa o padrão embutido (parsePranchaFilename). Regex inválido = não alerta (retorna false).
+ * Um nome está "fora do padrão" da Lista Mestre? Com `padrao` configurado, usa o compilador do
+ * motor de nomenclatura (`compilarPadrao`), que entende as DUAS escritas: modelo
+ * (`{proj}-{disc}-{fase}-{nº}-{tipo}[-{Rnn}]`, como as pessoas escreveram em produção) e a regex
+ * legada. Sem padrão, cai no embutido (`parsePranchaFilename`).
  *
- * Padrão escrito como modelo (`{proj}-{disc}-{fase}-{nº}-{tipo}`) cai no embutido, que é esse
- * mesmo formato: como regex ele nunca casava e marcava todo arquivo (produção, 2026-09-15). O
- * compilador de modelo do motor de nomenclatura substitui este desvio (spec 2026-09-15, F3).
+ * Padrão que não compila (regex inválida) NÃO alerta ninguém — mesma decisão de sempre: um
+ * padrão quebrado não pode marcar o acervo inteiro (foi o que aconteceu até 2026-09-15, quando
+ * o modelo era compilado como regex e nunca casava).
+ *
  * Pure — usado no client (badge/alerta) e no server.
  */
 export function foraDoPadrao(nome: string, padrao?: string | null): boolean {
   const base = nome.replace(/\.[^.]+$/, "");
-  if (padrao && padrao.trim() && !CAMPO_DE_MODELO.test(padrao)) {
-    try {
-      return !new RegExp(padrao).test(base);
-    } catch {
-      return false;
-    }
+  if (padrao?.trim()) {
+    const compilado = compilarPadrao(padrao);
+    if (!compilado) return false;
+    return !compilado.regex.test(base);
   }
   return parsePranchaFilename(nome) === null;
 }

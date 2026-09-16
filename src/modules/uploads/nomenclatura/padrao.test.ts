@@ -28,6 +28,21 @@ describe("compilarPadrao — modelo", () => {
     expect(aplicarPadrao("260020-EST-EX-4000-DET-R00", comRevisao!)?.rev).toBe("R00");
   });
 
+  // O padrão global de produção não tem campo de revisão, mas a família mais comum do acervo
+  // termina em `-R00` — e é o próprio `codigoPrancha` que acrescenta esse sufixo.
+  it("modelo sem campo de revisão ainda casa nome COM revisão (sem extrair)", () => {
+    expect(aplicarPadrao("260020-EST-EX-4000-DET-R00", global!)).toEqual({
+      proj: "260020",
+      disc: "EST",
+      fase: "EX",
+      num: "4000",
+      tipo: "DET",
+    });
+    expect(aplicarPadrao("260020-EST-EX-4000-DET-RV3", global!)).not.toBeNull();
+    // Sufixo que não é revisão continua fora do padrão.
+    expect(aplicarPadrao("260020-EST-EX-4000-DET-XYZ", global!)).toBeNull();
+  });
+
   it("trecho entre colchetes é opcional", () => {
     const p = compilarPadrao("{proj}-{disc}-{fase}-{nº}-{tipo}[-{Rnn}]")!;
     expect(aplicarPadrao("260020-EST-EX-4000-DET", p)).toMatchObject({ tipo: "DET" });

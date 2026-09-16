@@ -137,6 +137,17 @@ describe("interpretarNomeArquivo — disciplina, faixa e projeto", () => {
     );
   });
 
+  it("não sugere renumerar quando o nome não tem disciplina nem fase (desenho de elemento)", () => {
+    const r = interpretarNomeArquivo("253-PIL-VIG-010-R00.DXF", {
+      projeto: { codigo: "260007", ano: 2026, sequencial: 7 },
+      vocabulario,
+      extensoes: EXTENSOES_SENA,
+    });
+    // O aviso continua (o número do começo não bate com o projeto), mas sem botão de renomear.
+    expect(r.avisos.map((a) => a.tipo)).toContain("projeto_divergente");
+    expect(r.sugestoes.filter((s) => s.tipo === "renumerar")).toEqual([]);
+  });
+
   it("subprojeto é preservado na renumeração", () => {
     const r = interpretarNomeArquivo("26001.1-EST-EX-4001-DTC.pdf", {
       projeto: { codigo: "260004", ano: 2026, sequencial: 4 },

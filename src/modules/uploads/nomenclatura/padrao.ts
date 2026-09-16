@@ -89,8 +89,19 @@ function compilarModelo(modelo: string): PadraoCompilado | null {
       i++;
     }
   }
+  // Modelo que não fala de revisão não está PROIBINDO revisão: o próprio gerador de código do
+  // sistema (`codigoPrancha`) acrescenta `-Rnn` quando a revisão é > 0, então um nome com
+  // sufixo de revisão continua conforme. Sem esta tolerância, o padrão global de produção
+  // (`{proj}-{disc}-{fase}-{nº}-{tipo}`, sem revisão) marcaria como "fora do padrão" a família
+  // mais comum do acervo (`…-DET-R00`) — trocaria um alerta falso por outro.
+  const revisaoOpcional = campos.includes("rev") ? "" : String.raw`(?:[-_. ]?(?:RV?|REV)\d{1,3})?`;
   try {
-    return { escrita: "modelo", regex: new RegExp(`^${fonte}$`, "i"), extrai: campos.length > 0, campos };
+    return {
+      escrita: "modelo",
+      regex: new RegExp(`^${fonte}${revisaoOpcional}$`, "i"),
+      extrai: campos.length > 0,
+      campos,
+    };
   } catch {
     return null;
   }

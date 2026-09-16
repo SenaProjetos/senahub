@@ -50,11 +50,16 @@ export async function projetosComPlano(viewer: Viewer) {
 /** Um projeto pode ser visto pelo viewer? (escopo). */
 export async function projetoVisivel(viewer: Viewer, projetoId: string) {
   if (acessoGlobal(viewer)) {
-    return prisma.projeto.findUnique({ where: { id: projetoId }, select: { id: true, codigo: true, nome: true, tipo: true } });
+    return prisma.projeto.findUnique({
+      where: { id: projetoId },
+      select: { id: true, codigo: true, nome: true, tipo: true, ano: true, sequencial: true },
+    });
   }
   return prisma.projeto.findFirst({
     where: { AND: [{ id: projetoId }, escopoProjeto(viewer)] },
-    select: { id: true, codigo: true, nome: true, tipo: true },
+    // `ano`/`sequencial`: o motor de nomenclatura compara o código lido do nome do arquivo com
+    // o do projeto (ano de 2 dígitos + sequencial) para avisar sobre arquivo de outro projeto.
+    select: { id: true, codigo: true, nome: true, tipo: true, ano: true, sequencial: true },
   });
 }
 

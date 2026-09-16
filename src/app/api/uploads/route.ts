@@ -13,7 +13,14 @@ import { montarChunksEm, limparChunks } from "@/lib/upload-chunks";
 import { destinoArquivo, extensao, limiteDoPacote, limiteLabelDoPacote, type PacoteAlvo } from "@/modules/uploads/service";
 import { baseDirDisciplina, nomeFisico } from "@/modules/uploads/caminho";
 import { chaveDocumento } from "@/modules/uploads/documento";
-import { faseDoNomeArquivo } from "@/modules/projetos/pranchas/codigo";
+import { confiavel, interpretarNomeArquivo } from "@/modules/uploads/nomenclatura/interpretar";
+import {
+  carregarCatalogosNomenclatura,
+  carregarExtensoesNomenclatura,
+} from "@/modules/uploads/nomenclatura/queries";
+import { montarVocabulario } from "@/modules/uploads/nomenclatura/vocabulario";
+import { resolverMetadado } from "@/modules/uploads/nomenclatura/precedencia";
+import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { registrarEventoDocumento } from "@/modules/uploads/historico/service";
 import { LIMITE_FINALIZACOES_UPLOAD } from "@/modules/uploads/limites";
 import { enfileirarConversao } from "@/modules/coordenacao/service";
@@ -66,8 +73,11 @@ export async function POST(req: Request) {
   const alvo = String(form.get("pacote") ?? "") as PacoteAlvo;
   const pastaId = String(form.get("pastaId") ?? "") || null;
   const faseIdInformada = String(form.get("faseId") ?? "") || null;
+  const tipoIdInformado = String(form.get("tipoId") ?? "") || null;
   const revisaoDeId = String(form.get("revisaoDeId") ?? "") || null;
   const novaRevisaoAgrupada = form.get("novaRevisaoAgrupada") === "1";
+  /** "Nova versão de": revisão nova de um documento JÁ existente, mesmo com outro nome (D10). */
+  const versaoDeDocumentoId = String(form.get("versaoDeDocumentoId") ?? "") || null;
   if (!disciplinaId || (!pastaId && alvo !== "A" && alvo !== "B" && alvo !== "RECEBIDOS")) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
   }
@@ -128,23 +138,49 @@ export async function POST(req: Request) {
   const configProjeto = configsNomenclatura.find((config) => config.projetoId === projeto.id);
   const configGlobal = configsNomenclatura.find((config) => config.projetoId === null);
   const exigeFase = configProjeto?.exigirFase ?? configGlobal?.exigirFase ?? false;
-  // Catálogo efetivo do projeto (global + próprio), o mesmo recorte do filtro da tela V2.
-  const fasesDoProjeto = await prisma.pranchaCatalogo.findMany({
-    where: { categoria: "fase", ativo: true, OR: [{ projetoId: null }, { projetoId: projeto.id }] },
-    select: { id: true, sigla: true },
+
+  // Item 15: nomenclatura usa a sigla do catálogo (ex.: ELE) quando existir; senão, o nome.
+  const cat = await prisma.disciplinaCatalogo.findFirst({
+    where: { nome: disciplina.disciplinaTextoLegado },
+    select: { id: true, codigo: true },
   });
+  const codDisc = cat?.codigo ?? null;
+
+  // ── Motor de nomenclatura (F3) ───────────────────────────────────────────────────────────
+  // Catálogo efetivo do projeto (global + próprio) + extensões + padrão, carregados UMA vez por
+  // requisição; o motor em si é puro e roda por arquivo dentro de `persistir`.
+  const [catalogosNomenclatura, extensoesCatalogo, nomenclatura] = await Promise.all([
+    carregarCatalogosNomenclatura(projeto.id),
+    carregarExtensoesNomenclatura(),
+    resolverNomenclatura(projeto.id),
+  ]);
+  const vocabulario = montarVocabulario(catalogosNomenclatura, projeto.id);
+  const fasesDoProjeto = catalogosNomenclatura.fases;
+  const tiposDoProjeto = catalogosNomenclatura.tipos;
+
   const faseSelecionada = faseIdInformada ? fasesDoProjeto.find((fase) => fase.id === faseIdInformada) ?? null : null;
+  const tipoSelecionado = tipoIdInformado ? tiposDoProjeto.find((tipo) => tipo.id === tipoIdInformado) ?? null : null;
   const erroFase = exigeFase && !faseIdInformada
     ? "Selecione a fase do documento antes de enviar."
     : faseIdInformada && !faseSelecionada
       ? "A fase selecionada não está disponível para este projeto."
-      : null;
-  // Item 15: nomenclatura usa a sigla do catálogo (ex.: ELE) quando existir; senão, o nome.
-  const cat = await prisma.disciplinaCatalogo.findFirst({
-    where: { nome: disciplina.disciplinaTextoLegado },
-    select: { codigo: true },
-  });
-  const codDisc = cat?.codigo ?? null;
+      : tipoIdInformado && !tipoSelecionado
+        ? "O tipo selecionado não está disponível para este projeto."
+        : null;
+
+  /**
+   * Lê o nome pelo motor. O contexto não leva `documentosExistentes`: sugerir "nova versão de"
+   * é papel do diálogo — aqui a decisão já chegou pronta em `versaoDeDocumentoId` (ADR-0003:
+   * o servidor não infere o que o usuário não confirmou).
+   */
+  const lerNome = (nome: string) =>
+    interpretarNomeArquivo(nome, {
+      projeto: { codigo: projeto.codigo, ano: projeto.ano, sequencial: projeto.sequencial },
+      disciplinaCatalogoId: cat?.id ?? null,
+      padrao: nomenclatura.padrao,
+      vocabulario,
+      extensoes: extensoesCatalogo,
+    });
   const baseDir = baseDirDisciplina({
     ano: projeto.ano,
     clienteNome: projeto.cliente.nome,
@@ -173,17 +209,42 @@ export async function POST(req: Request) {
       pastaId: pastaAlvo?.id ?? null,
       nomeArquivo: nome,
     });
-    const revisaoDeIdEfetiva = revisaoDeId ?? revisoesAgrupadas.get(chave)?.id ?? null;
+
+    // "Nova versão de" (D10): o documento é escolhido pela pessoa, não pelo nome — é o caminho
+    // do backup do AltoQi (`[cópia 2026-09-14_05]` muda a cada gravação) e do arquivo
+    // renumerado. A `chave` e o `nomeArquivo` do documento NÃO mudam (ADR-0003, regra 1);
+    // o Upload guarda o nome real do arquivo.
+    const documentoEscolhido = versaoDeDocumentoId
+      ? await prisma.documentoDisciplina.findUnique({
+          where: { id: versaoDeDocumentoId },
+          select: { id: true, disciplinaId: true, faseId: true, tipoId: true, numeroPrancha: true, substituidoPorId: true, status: { select: { final: true } } },
+        })
+      : null;
+    if (versaoDeDocumentoId) {
+      if (!documentoEscolhido || documentoEscolhido.disciplinaId !== disciplinaId || documentoEscolhido.substituidoPorId) {
+        return { nome, ok: false, motivo: "O documento escolhido para receber a nova versão não pertence a esta disciplina." };
+      }
+    }
+
+    // Sem "nova versão de", o documento é resolvido pelo nome, como sempre.
+    const documentoPorChave = documentoEscolhido
+      ? null
+      : await prisma.documentoDisciplina.findUnique({
+          where: { disciplinaId_chave: { disciplinaId, chave } },
+          select: { id: true, faseId: true, tipoId: true, numeroPrancha: true, status: { select: { final: true } } },
+        });
+    const documentoExistente = documentoEscolhido ?? documentoPorChave;
 
     // O status final pertence ao documento lógico, não ao Upload: a consulta antecede a
     // gravação física para não deixar arquivo no disco quando uma nova revisão é vedada.
-    const documentoExistente = await prisma.documentoDisciplina.findUnique({
-      where: { disciplinaId_chave: { disciplinaId, chave } },
-      select: { id: true, faseId: true, status: { select: { final: true } } },
-    });
     if (documentoExistente?.status?.final) {
       return { nome, ok: false, motivo: "Este documento está com status final e não aceita novas revisões." };
     }
+
+    // Agrupamento (PDF+DWG na mesma revisão) é por documento: com "nova versão de", dois
+    // arquivos de nomes diferentes caem no mesmo documento e precisam da MESMA chave de grupo.
+    const chaveGrupo = documentoEscolhido ? `doc:${documentoEscolhido.id}` : chave;
+    const revisaoDeIdEfetiva = revisaoDeId ?? revisoesAgrupadas.get(chaveGrupo)?.id ?? null;
 
     // O segundo arquivo de uma revisão agrupada recebe o id criado pelo primeiro. Antes de
     // gravar no disco, confirma que a revisão pertence ao mesmo documento e ainda não contém
@@ -201,11 +262,15 @@ export async function POST(req: Request) {
       return { nome, ok: false, motivo: "Esta revisão já contém um arquivo dessa extensão." };
     }
 
-    // Versionamento: mesma disciplina + (pacote OU pasta) + nome → incrementa versão.
+    // Versionamento: mesma disciplina + (pacote OU pasta) + nome → incrementa versão. Com
+    // "nova versão de" o nome muda a cada envio, então a contagem segue o DOCUMENTO — senão
+    // toda cópia entraria como versão 1 e o arquivo físico colidiria com o da cópia anterior.
     const anterior = await prisma.upload.findFirst({
-      where: pastaAlvo
-        ? { disciplinaId, pastaId: pastaAlvo.id, nomeArquivo: nome }
-        : { disciplinaId, pacote: destino, nomeArquivo: nome },
+      where: documentoEscolhido
+        ? { documentoId: documentoEscolhido.id }
+        : pastaAlvo
+          ? { disciplinaId, pastaId: pastaAlvo.id, nomeArquivo: nome }
+          : { disciplinaId, pacote: destino, nomeArquivo: nome },
       orderBy: { versao: "desc" },
     });
     const versao = anterior ? anterior.versao + 1 : 1;
@@ -218,25 +283,40 @@ export async function POST(req: Request) {
 
     const salvo = await gravar(relativo);
 
-    // Documento lógico (pai) que agrupa as versões deste arquivo. `upsert` sobre o unique
-    // (disciplinaId, chave) resolve o existente OU cria — e é o que impede dois envios
-    // simultâneos do mesmo nome de criarem dois pais para a mesma cadeia.
-    // Sem fase informada, a sigla do nome classifica o documento (fase opcional não pode
-    // significar "sem fase" quando o nome já diz qual é). Sigla fora do catálogo = sem fase.
-    const faseDoNome = faseSelecionada ? undefined : faseDoNomeArquivo(nome, fasesDoProjeto);
-    const documento = await prisma.documentoDisciplina.upsert({
-      where: { disciplinaId_chave: { disciplinaId, chave } },
-      create: { disciplinaId, chave, nomeArquivo: nome, faseId: (faseSelecionada ?? faseDoNome)?.id ?? null },
-      // No upload, a fase revisada antes da confirmação passa a ser a metainformação atual
-      // do documento lógico. A fase deduzida do nome só preenche documento ainda sem fase:
-      // nunca apaga nem sobrescreve a classificação feita à mão numa revisão anterior.
-      update: faseSelecionada
-        ? { faseId: faseSelecionada.id }
-        : faseDoNome && !documentoExistente?.faseId
-          ? { faseId: faseDoNome.id }
-          : {},
-      select: { id: true },
-    });
+    // ── Metadados lidos do nome (motor de nomenclatura) ────────────────────────────────────
+    // Precedência do ADR-0003 (regra 2): escolha manual do diálogo > valor que o documento já
+    // tem > leitura do nome. Só confiança ALTA preenche sozinha (D7); o resto é sugestão e
+    // morre aqui — o diálogo é quem mostra.
+    const interp = lerNome(nome);
+    const faseDoNome = confiavel(interp.fase) ? interp.fase : undefined;
+    const tipoDoNome = confiavel(interp.tipo) ? interp.tipo : undefined;
+    const numeroDoNome = confiavel(interp.numero) ? interp.numero : undefined;
+
+    const faseFinal = resolverMetadado(faseSelecionada?.id, faseDoNome?.valor, documentoExistente?.faseId);
+    const tipoFinal = resolverMetadado(tipoSelecionado?.id, tipoDoNome?.valor, documentoExistente?.tipoId);
+    const numeroFinal = resolverMetadado<number>(null, numeroDoNome?.valor, documentoExistente?.numeroPrancha);
+    const metadados = {
+      ...(faseFinal ? { faseId: faseFinal.valor } : {}),
+      ...(tipoFinal ? { tipoId: tipoFinal.valor } : {}),
+      ...(numeroFinal ? { numeroPrancha: numeroFinal.valor } : {}),
+    };
+
+    // Documento lógico (pai) que agrupa as versões deste arquivo. Com "nova versão de" ele já
+    // veio escolhido; senão, `upsert` sobre o unique (disciplinaId, chave) resolve o existente
+    // OU cria — e é o que impede dois envios simultâneos do mesmo nome de criarem dois pais
+    // para a mesma cadeia.
+    const documento = documentoEscolhido
+      ? await prisma.documentoDisciplina.update({
+          where: { id: documentoEscolhido.id },
+          data: metadados,
+          select: { id: true },
+        })
+      : await prisma.documentoDisciplina.upsert({
+          where: { disciplinaId_chave: { disciplinaId, chave } },
+          create: { disciplinaId, chave, nomeArquivo: nome, ...metadados },
+          update: metadados,
+          select: { id: true },
+        });
 
     // Sem os campos novos, preserva a regra legada: a versão do arquivo determina a
     // revisão. Em uma operação agrupada, só o primeiro arquivo cria a próxima revisão do
@@ -244,6 +324,19 @@ export async function POST(req: Request) {
     let revisao: { id: string; numero: number };
     if (revisaoExistente) {
       revisao = revisaoExistente;
+    } else if (documentoEscolhido) {
+      // "Nova versão de": a revisão segue o documento, não a contagem por nome de arquivo.
+      const ultima = await prisma.documentoRevisao.aggregate({
+        where: { documentoId: documento.id },
+        _max: { numero: true },
+      });
+      const numero = (ultima._max.numero ?? 0) + 1;
+      revisao = await prisma.documentoRevisao.upsert({
+        where: { documentoId_numero: { documentoId: documento.id, numero } },
+        create: { documentoId: documento.id, numero, createdById: user.id },
+        update: {},
+        select: { id: true, numero: true },
+      });
     } else if (novaRevisaoAgrupada) {
       const ultima = await prisma.documentoRevisao.aggregate({
         where: { documentoId: documento.id },
@@ -264,7 +357,7 @@ export async function POST(req: Request) {
         select: { id: true, numero: true },
       });
     }
-    if (novaRevisaoAgrupada) revisoesAgrupadas.set(chave, revisao);
+    if (novaRevisaoAgrupada) revisoesAgrupadas.set(chaveGrupo, revisao);
 
     const criado = await prisma.upload.create({
       data: {
@@ -283,7 +376,11 @@ export async function POST(req: Request) {
       },
     });
 
-    const faseAtribuida = faseSelecionada ?? faseDoNome;
+    // Só o que ESTE envio gravou. `fase`/`faseOrigem` continuam no formato antigo para as
+    // linhas já existentes no histórico não mudarem de leitura; `tipo` e `numeroPrancha` são
+    // do mesmo feitio, cada um com a origem (manual = escolhido no diálogo, nome = lido).
+    const siglaFase = faseFinal ? vocabulario.siglaDe("fase", faseFinal.valor) : null;
+    const siglaTipo = tipoFinal ? vocabulario.siglaDe("tipo", tipoFinal.valor) : null;
     await registrarEventoDocumento({
       documentoId: documento.id,
       uploadId: criado.id,
@@ -293,10 +390,10 @@ export async function POST(req: Request) {
         arquivo: nome,
         versao,
         revisao: revisao.numero,
-        // Só a fase que ESTE envio gravou: a deduzida do nome não sobrescreve fase existente.
-        ...(faseAtribuida && (faseSelecionada || !documentoExistente?.faseId)
-          ? { fase: faseAtribuida.sigla, faseOrigem: faseSelecionada ? "manual" : "nome" }
-          : {}),
+        ...(versaoDeDocumentoId ? { novaVersaoDe: true } : {}),
+        ...(faseFinal && siglaFase ? { fase: siglaFase, faseOrigem: faseFinal.origem } : {}),
+        ...(tipoFinal && siglaTipo ? { tipo: siglaTipo, tipoOrigem: tipoFinal.origem } : {}),
+        ...(numeroFinal ? { numeroPrancha: numeroFinal.valor, numeroPranchaOrigem: numeroFinal.origem } : {}),
       },
     });
 
@@ -394,6 +491,8 @@ export async function POST(req: Request) {
       detalhe: {
         pacote: alvo,
         faseId: faseSelecionada?.id ?? null,
+        tipoId: tipoSelecionado?.id ?? null,
+        versaoDeDocumentoId,
         total: 1,
         ok: resultados.filter((r) => r.ok).length,
         chunked: true,
@@ -443,6 +542,8 @@ export async function POST(req: Request) {
     detalhe: {
       pacote: alvo,
       faseId: faseSelecionada?.id ?? null,
+      tipoId: tipoSelecionado?.id ?? null,
+      versaoDeDocumentoId,
       total: arquivos.length,
       ok: resultados.filter((r) => r.ok).length,
       revisaoAgrupada: novaRevisaoAgrupada || revisaoDeId !== null,

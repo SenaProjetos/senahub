@@ -111,12 +111,20 @@ describe("foraDoPadrao", () => {
 
   // Os dois padrões cadastrados em produção (2026-09-15) são MODELO, não regex: como regex
   // nunca casavam, e todo arquivo do pacote A saía marcado "fora do padrão".
-  it("trata padrão com {campo} como modelo e cai no parser embutido", () => {
+  it("compila padrão escrito como modelo (as duas escritas de produção)", () => {
     for (const modelo of ["{proj}-{disc}-{fase}-{nº}-{tipo}", "{proj}-{disc}-{fase}-{nº}-{tipo}-{Rnn}"]) {
       expect(foraDoPadrao("260020-EST-EX-4000-DET-R00.dwg", modelo)).toBe(false);
-      expect(foraDoPadrao("260020-EST-EX-4000-DET.pdf", modelo)).toBe(false);
       expect(foraDoPadrao("planta_qualquer.pdf", modelo)).toBe(true);
     }
+    // Sem campo de revisão no modelo, nome SEM revisão também passa...
+    expect(foraDoPadrao("260020-EST-EX-4000-DET.pdf", "{proj}-{disc}-{fase}-{nº}-{tipo}")).toBe(false);
+    // ...mas o modelo que EXIGE revisão cobra a revisão.
+    expect(foraDoPadrao("260020-EST-EX-4000-DET.pdf", "{proj}-{disc}-{fase}-{nº}-{tipo}-{Rnn}")).toBe(true);
+  });
+
+  it("modelo com separador próprio recusa o separador errado", () => {
+    expect(foraDoPadrao("26019_EST_EX_DTC_4003.dwg", "{proj}_{disc}_{fase}_{tipo}_{nº}")).toBe(false);
+    expect(foraDoPadrao("26019-EST-EX-DTC-4003.dwg", "{proj}_{disc}_{fase}_{tipo}_{nº}")).toBe(true);
   });
 
   it("quantificador de regex entre chaves continua sendo regex", () => {

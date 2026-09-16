@@ -87,7 +87,14 @@ export function camposAlterados<C extends string>(
   return out;
 }
 
-const ROTULO_CAMPO: Record<string, string> = { titulo: "título", descricao: "descrição", fase: "fase" };
+const ROTULO_CAMPO: Record<string, string> = {
+  titulo: "título",
+  descricao: "descrição",
+  fase: "fase",
+  tipo: "tipo",
+  numeroPrancha: "nº da prancha",
+  tamanhoPapel: "tamanho do papel",
+};
 
 function aspas(v: string | null): string {
   return v === null ? "vazio" : `"${v.length > 60 ? `${v.slice(0, 57)}…` : v}"`;
@@ -131,8 +138,17 @@ export function complementoEvento(tipo: TipoEvento, detalhe: unknown): string | 
     case "lista_adicionado":
     case "lista_removido":
       return texto("lista");
-    case "envio":
-      return texto("fase") ? `fase ${texto("fase")}` : null;
+    case "envio": {
+      // Só o que ESTE envio classificou (o motor de nomenclatura não sobrescreve o que já
+      // existia, então a ausência aqui significa "não mexeu", não "não tem").
+      const partes = [
+        texto("fase") ? `fase ${texto("fase")}` : null,
+        texto("tipo") ? `tipo ${texto("tipo")}` : null,
+        typeof d.numeroPrancha === "number" ? `nº ${d.numeroPrancha}` : null,
+        d.novaVersaoDe === true ? "nova versão de um documento existente" : null,
+      ].filter(Boolean);
+      return partes.length ? partes.join(" · ") : null;
+    }
     default:
       return null;
   }

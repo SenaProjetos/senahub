@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, FolderOpen, Trash2, Upload as UploadIcon } from "lucide-react";
 import { toast } from "sonner";
-import { faseDoNomeArquivo, foraDoPadrao } from "@/modules/projetos/pranchas/codigo";
+import { foraDoPadrao } from "@/modules/projetos/pranchas/codigo";
 import type { PastaFlat } from "@/modules/projetos/pastas/arvore";
 import { TAMANHO_MAX_BACKUP_LABEL, TAMANHO_MAX_LABEL, limiteDoPacote, limiteLabelDoPacote } from "@/modules/uploads/limites";
 import { detectarNovasRevisoes, mensagemNovasRevisoes, type ArquivoExistente } from "@/modules/uploads/revisao-nova";
@@ -27,22 +27,56 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn, rotuloRevisao } from "@/lib/utils";
 import { useDropzone } from "@/lib/use-dropzone";
+import {
+  confiavel,
+  interpretarNomeArquivo,
+  type Aviso,
+  type Sugestao,
+} from "@/modules/uploads/nomenclatura/interpretar";
+import { montarVocabulario, type CatalogosNomenclatura } from "@/modules/uploads/nomenclatura/vocabulario";
+import type { ExtensaoDef } from "@/modules/uploads/nomenclatura/extensoes";
 
 type PacoteEnvio = "A" | "B";
 type FaseUpload = { id: string; sigla: string; nome: string };
-type ItemEnvio = { file: File; nome: string; alvo: PacoteEnvio; pastaId?: string; faseId?: string; fora: boolean };
+type ItemEnvio = {
+  file: File;
+  nome: string;
+  alvo: PacoteEnvio;
+  pastaId?: string;
+  faseId?: string;
+  /** Tipo de documento lido do nome (alta confiança) ou escolhido aqui. */
+  tipoId?: string;
+  /** "Nova versão de": documento existente que recebe esta revisão, mesmo com outro nome. */
+  versaoDeDocumentoId?: string;
+  fora: boolean;
+  /** Avisos e sugestões do motor de nomenclatura, para a etapa de revisão. */
+  avisos: Aviso[];
+  sugestoes: Sugestao[];
+};
 type LinhaEnvioComArquivo = ItemEnvio & LinhaEnvio & {
   grupoRevisao?: string;
   revisaoAgrupadaId?: string;
 };
 
 export type DadosEnviarDocumentos = {
-  disciplinas: { id: string; nome: string; sigla: string | null; usaPastas: boolean; pastas: PastaFlat[] }[];
+  disciplinas: {
+    id: string;
+    nome: string;
+    sigla: string | null;
+    usaPastas: boolean;
+    pastas: PastaFlat[];
+    /** Id no `DisciplinaCatalogo` — o motor compara com a disciplina lida do nome. */
+    catalogoId: string | null;
+  }[];
   nomenclatura: { exigir: boolean; exigirFase: boolean; padrao: string | null };
   existentesPorDisciplina: Record<string, ArquivoExistente[]>;
   fases: FaseUpload[];
   tipos: FaseUpload[];
   codigoProjeto: string;
+  projeto: { codigo: string; ano: number; sequencial: number };
+  catalogosNomenclatura: CatalogosNomenclatura;
+  extensoesNomenclatura: ExtensaoDef[];
+  documentosPorDisciplina: Record<string, { id: string; nomeArquivo: string }[]>;
 };
 
 /**
@@ -103,6 +137,8 @@ function UploaderDocumentos({
 
   const disciplina = dados.disciplinas.find((item) => item.id === disciplinaId);
   const usaPastas = disciplina?.usaPastas ?? false;
+  // Vocabulário do projeto (siglas + sinônimos dos catálogos), montado uma vez por diálogo.
+  const vocabulario = useMemo(() => montarVocabulario(dados.catalogosNomenclatura, null), [dados.catalogosNomenclatura]);
   const { arrastando, dropProps } = useDropzone((files) => prepararEnvio(files), enviando);
 
   function selecionarDisciplina(id: string) {
@@ -130,18 +166,35 @@ function UploaderDocumentos({
         toast.error(`${file.name}: excede o limite de ${limiteLabelDoPacote(usaPastas ? "" : pacote)}.`);
         continue;
       }
+      // Motor de nomenclatura: a MESMA leitura que a rota faz no servidor. Aqui ela serve para
+      // mostrar (e deixar corrigir) antes de enviar; lá, para gravar. Só confiança alta
+      // preenche sozinha (D7) — o resto vira aviso/sugestão nesta tela.
+      const leitura = interpretarNomeArquivo(file.name, {
+        projeto: dados.projeto,
+        disciplinaCatalogoId: disciplina?.catalogoId ?? null,
+        padrao: dados.nomenclatura.padrao,
+        vocabulario,
+        extensoes: dados.extensoesNomenclatura,
+        documentosExistentes: dados.documentosPorDisciplina[disciplinaId] ?? [],
+      });
       itens.push({
         file,
         nome: file.name,
         alvo: pacote,
         ...(usaPastas ? { pastaId } : {}),
-        ...(dados.nomenclatura.exigirFase ? { faseId: faseDoNome(file.name, dados.fases) } : {}),
+        ...(confiavel(leitura.fase) ? { faseId: leitura.fase.valor } : {}),
+        ...(confiavel(leitura.tipo) ? { tipoId: leitura.tipo.valor } : {}),
         fora: !usaPastas && dados.nomenclatura.exigir && pacote === "A" && foraDoPadrao(file.name, dados.nomenclatura.padrao),
+        avisos: leitura.avisos,
+        sugestoes: leitura.sugestoes,
       });
     }
     if (itens.length === 0) return;
 
-    if (itens.some((item) => item.fora) || dados.nomenclatura.exigirFase) {
+    // Revisar antes de enviar sempre que houver o que decidir: nome fora do padrão, fase
+    // obrigatória, ou qualquer aviso/sugestão do motor (projeto divergente, backup, cópia…).
+    const temOQueRevisar = itens.some((item) => item.fora || item.avisos.length > 0 || item.sugestoes.length > 0);
+    if (temOQueRevisar || dados.nomenclatura.exigirFase) {
       setPendentes(itens);
       return;
     }
@@ -197,6 +250,8 @@ function UploaderDocumentos({
               nome: linhas[i].nome,
               disciplinaId,
               faseId: linhas[i].faseId,
+              tipoId: linhas[i].tipoId,
+              versaoDeDocumentoId: linhas[i].versaoDeDocumentoId,
               ...(linhas[i].pastaId ? { pastaId: linhas[i].pastaId } : { pacote: linhas[i].alvo }),
               ...(grupo
                 ? revisaoDoGrupo
@@ -297,6 +352,8 @@ function UploaderDocumentos({
               nome: linha.nome,
               disciplinaId,
               faseId: linha.faseId,
+              tipoId: linha.tipoId,
+              versaoDeDocumentoId: linha.versaoDeDocumentoId,
               ...(linha.pastaId ? { pastaId: linha.pastaId } : { pacote: linha.alvo }),
               ...(linha.grupoRevisao
                 ? revisao
@@ -347,6 +404,7 @@ function UploaderDocumentos({
         itens={pendentes}
         exigirFase={dados.nomenclatura.exigirFase}
         fases={dados.fases}
+        tipos={dados.tipos}
         dadosCorrecao={disciplina ? {
           codigoProjeto: dados.codigoProjeto,
           siglaDisciplina: disciplina.sigla,
@@ -450,6 +508,7 @@ function RevisarNomesDialog({
   itens,
   exigirFase,
   fases,
+  tipos,
   dadosCorrecao,
   padrao,
   onCancel,
@@ -459,6 +518,7 @@ function RevisarNomesDialog({
   itens: ItemEnvio[] | null;
   exigirFase: boolean;
   fases: FaseUpload[];
+  tipos: FaseUpload[];
   dadosCorrecao: DadosCorrecaoNomeUpload | null;
   padrao: string | null;
   onCancel: () => void;
@@ -467,14 +527,40 @@ function RevisarNomesDialog({
 }) {
   const foraDoPadraoCount = itens?.filter((item) => item.fora).length ?? 0;
 
-  function atualizarNome(indice: number, nome: string) {
+  function alterar(indice: number, patch: Partial<ItemEnvio>) {
     if (!itens) return;
-    onChange(itens.map((item, i) => (i === indice ? { ...item, nome } : item)));
+    onChange(itens.map((item, i) => (i === indice ? { ...item, ...patch } : item)));
+  }
+
+  function atualizarNome(indice: number, nome: string) {
+    alterar(indice, { nome });
   }
 
   function atualizarFase(indice: number, faseId: string | null) {
-    if (!itens) return;
-    onChange(itens.map((item, i) => (i === indice ? { ...item, faseId: faseId || undefined } : item)));
+    alterar(indice, { faseId: faseId || undefined });
+  }
+
+  function atualizarTipo(indice: number, tipoId: string | null) {
+    alterar(indice, { tipoId: tipoId || undefined });
+  }
+
+  /**
+   * Aplica uma sugestão do motor. Cada uma some depois de aplicada: renumerar troca o nome
+   * (e o arquivo deixa de estar "fora do padrão" se o padrão passar a casar), backup muda o
+   * pacote de destino, e "nova versão de" amarra o envio ao documento escolhido.
+   */
+  function aplicarSugestao(indice: number, sugestao: Sugestao) {
+    const item = itens?.[indice];
+    if (!item) return;
+    const semEsta = item.sugestoes.filter((s) => s !== sugestao);
+    if (sugestao.tipo === "renumerar") {
+      alterar(indice, { nome: sugestao.nome, fora: foraDoPadrao(sugestao.nome, padrao), sugestoes: semEsta });
+    } else if (sugestao.tipo === "enviar_backup") {
+      // Backup não é prancha: o alerta de nomenclatura do pacote A deixa de valer.
+      alterar(indice, { alvo: "B", fora: false, sugestoes: semEsta });
+    } else {
+      alterar(indice, { versaoDeDocumentoId: sugestao.documentoId, sugestoes: semEsta });
+    }
   }
 
   function remover(indice: number) {
@@ -490,9 +576,8 @@ function RevisarNomesDialog({
         <DialogHeader>
           <DialogTitle>Revisar envio</DialogTitle>
           <DialogDescription>
-            {exigirFase
-              ? "Confirme a fase de cada documento antes de enviar. A sugestão vem do nome do arquivo e pode ser alterada."
-              : `${foraDoPadraoCount} arquivo(s) de Pranchas fora do padrão. Renomeie, remova ou envie assim.`}
+            Fase e tipo vêm lidos do nome do arquivo e podem ser alterados.
+            {foraDoPadraoCount > 0 && ` ${foraDoPadraoCount} arquivo(s) de Pranchas estão fora do padrão — renomeie, remova ou envie assim.`}
             {foraDoPadraoCount > 0 && (
               <span className="mt-1 block font-mono text-[11px]">
                 Padrão: {padrao?.trim() || "{proj}-{disc}-{fase}-{nº}-{tipo}[-Rnn]"}
@@ -536,12 +621,12 @@ function RevisarNomesDialog({
                       onAplicar={(nome) => atualizarNome(indice, nome)}
                     />
                   )}
-                  {exigirFase && (
+                  <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
-                      <Label className="text-xs">Fase</Label>
+                      <Label className="text-xs">Fase{exigirFase ? "" : " (opcional)"}</Label>
                       <Select value={item.faseId ?? ""} onValueChange={(value) => atualizarFase(indice, value)}>
                         <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="Selecione a fase…" />
+                          <SelectValue placeholder="—" />
                         </SelectTrigger>
                         <SelectContent>
                           {fases.map((fase) => (
@@ -549,7 +634,62 @@ function RevisarNomesDialog({
                           ))}
                         </SelectContent>
                       </Select>
-                      {fases.length === 0 && <p className="text-xs text-destructive">Cadastre uma fase ativa para este projeto antes de enviar.</p>}
+                      {exigirFase && fases.length === 0 && (
+                        <p className="text-xs text-destructive">Cadastre uma fase ativa para este projeto antes de enviar.</p>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Tipo (opcional)</Label>
+                      <Select value={item.tipoId ?? ""} onValueChange={(value) => atualizarTipo(indice, value)}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="—" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {tipos.map((tipo) => (
+                            <SelectItem key={tipo.id} value={tipo.id}>{tipo.sigla} · {tipo.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {item.versaoDeDocumentoId && (
+                    <p className="text-xs text-primary">
+                      Vai entrar como nova versão de um documento já existente.{" "}
+                      <button
+                        type="button"
+                        className="underline hover:no-underline"
+                        onClick={() => alterar(indice, { versaoDeDocumentoId: undefined })}
+                      >
+                        desfazer
+                      </button>
+                    </p>
+                  )}
+
+                  {item.avisos.length > 0 && (
+                    <ul className="space-y-0.5">
+                      {item.avisos.map((aviso) => (
+                        <li key={aviso.tipo} className="flex items-start gap-1 text-[11px] text-muted-foreground">
+                          <AlertTriangle className="mt-0.5 size-3 shrink-0 text-warning" />
+                          <span>{aviso.texto}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {item.sugestoes.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {item.sugestoes.map((sugestao) => (
+                        <Button
+                          key={sugestao.tipo === "nova_versao_de" ? `nv-${sugestao.documentoId}` : sugestao.tipo}
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-[11px]"
+                          onClick={() => aplicarSugestao(indice, sugestao)}
+                        >
+                          {sugestao.texto}
+                        </Button>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -575,10 +715,6 @@ function RevisarNomesDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-function faseDoNome(nome: string, fases: FaseUpload[]): string | undefined {
-  return faseDoNomeArquivo(nome, fases)?.id;
 }
 
 function separarExtensao(nome: string) {

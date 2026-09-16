@@ -57,17 +57,22 @@ export async function enviarArquivoComProgresso(
     pacote?: string;
     pastaId?: string;
     faseId?: string;
+    tipoId?: string;
+    /** "Nova versão de": documento existente que recebe esta revisão, mesmo com outro nome. */
+    versaoDeDocumentoId?: string;
     revisaoDeId?: string;
     novaRevisaoAgrupada?: boolean;
   },
   onProgress: (pct: number) => void,
 ): Promise<ResultadoUpload> {
-  const { nome, disciplinaId, pacote, pastaId, faseId, revisaoDeId, novaRevisaoAgrupada } = opts;
+  const { nome, disciplinaId, pacote, pastaId, faseId, tipoId, versaoDeDocumentoId, revisaoDeId, novaRevisaoAgrupada } = opts;
   if (precisaChunk(file)) {
     const meta = await enviarEmChunks(file, onProgress);
     const fd = new FormData();
     fd.set("disciplinaId", disciplinaId);
     if (faseId) fd.set("faseId", faseId);
+    if (tipoId) fd.set("tipoId", tipoId);
+    if (versaoDeDocumentoId) fd.set("versaoDeDocumentoId", versaoDeDocumentoId);
     if (revisaoDeId) fd.set("revisaoDeId", revisaoDeId);
     if (novaRevisaoAgrupada) fd.set("novaRevisaoAgrupada", "1");
     if (pastaId) fd.set("pastaId", pastaId);
@@ -87,6 +92,8 @@ export async function enviarArquivoComProgresso(
     const fd = new FormData();
     fd.set("disciplinaId", disciplinaId);
     if (faseId) fd.set("faseId", faseId);
+    if (tipoId) fd.set("tipoId", tipoId);
+    if (versaoDeDocumentoId) fd.set("versaoDeDocumentoId", versaoDeDocumentoId);
     if (revisaoDeId) fd.set("revisaoDeId", revisaoDeId);
     if (novaRevisaoAgrupada) fd.set("novaRevisaoAgrupada", "1");
     if (pastaId) fd.set("pastaId", pastaId);

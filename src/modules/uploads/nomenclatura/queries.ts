@@ -53,6 +53,19 @@ export async function carregarExtensoesNomenclatura(): Promise<ExtensaoDef[]> {
   return rows;
 }
 
+/**
+ * `Disciplina.id` → id do `DisciplinaCatalogo` correspondente, para o diálogo de envio avisar
+ * quando o nome indica outra disciplina. A FK é `Disciplina.disciplinaId` e é NULLABLE (ainda há
+ * disciplina ligada ao catálogo só por texto) — sem ela, o motor simplesmente não compara.
+ */
+export async function catalogoPorDisciplinaDoProjeto(projetoId: string): Promise<Record<string, string | null>> {
+  const rows = await prisma.disciplina.findMany({
+    where: { projetoId },
+    select: { id: true, disciplinaId: true },
+  });
+  return Object.fromEntries(rows.map((r) => [r.id, r.disciplinaId]));
+}
+
 /** Catálogo completo (ativas + inativas) para a tela de administração. */
 export async function listarExtensoesAdmin() {
   return prisma.extensaoArquivo.findMany({ orderBy: [{ categoria: "asc" }, { ordem: "asc" }] });

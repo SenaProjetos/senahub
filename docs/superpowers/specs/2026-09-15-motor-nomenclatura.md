@@ -331,7 +331,25 @@ não regex — enquanto o compilador da F1 não existe, cai na regra embutida
   comentário na migration).
 - `npm test` (305 arquivos/3361 testes), `npm run lint` e `npm run build` verdes.
 
-### F3 — Integração no envio · **Opus**
+### F3 — Integração no envio · **Opus** · entregue (2026-09-15)
+
+Entregue conforme o desenho abaixo, com três coisas que só apareceram na implementação:
+
+1. **`foraDoPadrao` ganhou uma regra explícita**: modelo que NÃO tem campo de revisão passa a
+   aceitar nome com sufixo de revisão (`…-DET-R00`). Sem isso, o padrão global de produção
+   (`{proj}-{disc}-{fase}-{nº}-{tipo}`, sem revisão) marcaria como "fora do padrão" a família
+   mais comum do acervo — trocaria um alerta falso por outro. Justificativa: o próprio
+   `codigoPrancha()` acrescenta `-Rnn` quando a revisão é > 0, então o nome continua conforme
+   por construção. Está em `padrao.ts`, com teste.
+2. **A guarda do D4 foi para o motor** (não para a tela): `renumerar` só é sugerido quando o
+   nome também tem disciplina ou fase reconhecida. Regra igual no servidor e no cliente.
+3. **A precedência do ADR virou função pura testada** (`precedencia.ts`, `resolverMetadado`),
+   em vez de ficar inline na rota: é a regra mais importante da fase (manual > o que o
+   documento já tem > leitura do nome) e agora tem teste, inclusive para `0` como valor válido.
+
+Também: `projetoVisivel` passou a trazer `ano`/`sequencial` (o motor compara com o código lido
+do nome) e a página do projeto monta `documentosPorDisciplina` a partir da árvore que já
+carregava, sem consulta nova.
 
 - **Servidor (`/api/uploads`)** passa a usar o motor para fase, tipo e número (substitui
   `faseDoNomeArquivo`), respeitando a precedência do ADR (escolha do diálogo vence; inferência não

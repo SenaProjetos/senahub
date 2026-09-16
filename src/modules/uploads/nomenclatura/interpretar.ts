@@ -427,7 +427,11 @@ export function interpretarNomeArquivo(nome: string, ctx: ContextoNomenclatura):
     });
     // Troca SÓ o trecho do código (com o subprojeto e o separador que o nome já usava) — o
     // resto do nome fica como está, porque é o que a equipe reconhece (D4 da spec).
-    const trecho = nome.match(/^\s*(?:(?:PRJ|PROJ|P)[-_.\s]?)?\d{3,6}(?:([.-])\d{1,2})?/i);
+    //
+    // Guarda: só sugere renumerar se o nome também tiver disciplina ou fase reconhecida. Sem
+    // isso, o número inicial pode ser outra coisa — `253-PIL-VIG-010-R00.DXF` (desenho de
+    // elemento das ferramentas) ganharia um botão de renomear que não faz sentido nenhum.
+    const trecho = disciplina || fase ? nome.match(/^\s*(?:(?:PRJ|PROJ|P)[-_.\s]?)?\d{3,6}(?:([.-])\d{1,2})?/i) : null;
     if (trecho) {
       const separador = trecho[1] ?? ".";
       const sufixo = projeto.subprojeto !== null ? `${separador}${projeto.subprojeto}` : "";

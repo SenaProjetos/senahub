@@ -70,6 +70,14 @@ describe("complementoEvento", () => {
     ).toBe('fase: vazio → "BS" · título: "A" → "B"');
   });
 
+  it("envio resume o que o motor de nomenclatura classificou", () => {
+    expect(complementoEvento("envio", { fase: "EX", tipo: "DET", numeroPrancha: 4001 })).toBe(
+      "fase EX · tipo DET · nº 4001",
+    );
+    expect(complementoEvento("envio", { arquivo: "x.pdf" })).toBeNull();
+    expect(complementoEvento("envio", { novaVersaoDe: true })).toBe("nova versão de um documento existente");
+  });
+
   it("status e renomeio mostram de → para", () => {
     expect(complementoEvento("status", { de: "Em análise", para: "Aprovado" })).toBe('"Em análise" → "Aprovado"');
   });

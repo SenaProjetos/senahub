@@ -22,6 +22,11 @@ import { resolverColunasVisiveis, CHAVE_PREF_COLUNAS, idsOcultaveis } from "@/mo
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { catalogosPrancha } from "@/modules/projetos/pranchas/queries";
 import {
+  carregarCatalogosNomenclatura,
+  carregarExtensoesNomenclatura,
+  catalogoPorDisciplinaDoProjeto,
+} from "@/modules/uploads/nomenclatura/queries";
+import {
   recebidosDoProjeto,
   geralDoProjeto,
   baseArquitetonicaDoProjeto,
@@ -155,6 +160,13 @@ export default async function ArquivosPage({
       total: new Set([...d.arquivos, ...d.arquivosPasta].map((arquivo) => arquivo.documentoId ?? arquivo.id)).size,
       podeEnviar: d.podeEnviar,
     }));
+    // Motor de nomenclatura no diálogo de envio (F3): o mesmo vocabulário/catálogo que a rota
+    // usa, para a sugestão na tela e a gravação no servidor não divergirem.
+    const [catalogosNomenclatura, extensoesNomenclatura, catalogoPorDisciplina] = await Promise.all([
+      carregarCatalogosNomenclatura(id),
+      carregarExtensoesNomenclatura(),
+      catalogoPorDisciplinaDoProjeto(id),
+    ]);
     const disciplinasEnviaveis = arvore.disciplinas
       .filter((d) => d.podeEnviar)
       .map((d) => ({
@@ -163,7 +175,20 @@ export default async function ArquivosPage({
         sigla: d.sigla,
         usaPastas: d.usaPastas,
         pastas: d.pastas,
+        catalogoId: catalogoPorDisciplina[d.id] ?? null,
       }));
+    // Documentos vivos por disciplina — alimentam a sugestão "nova versão de" quando só o
+    // sufixo de cópia do nome mudou (backup do AltoQi) ou o arquivo foi renumerado.
+    const documentosPorDisciplina: Record<string, { id: string; nomeArquivo: string }[]> = Object.fromEntries(
+      arvore.disciplinas.map((d) => {
+        const porId = new Map<string, string>();
+        for (const arquivo of [...d.arquivos, ...d.arquivosPasta]) {
+          const documentoId = arquivo.documentoCanonicoId ?? arquivo.documentoId;
+          if (documentoId && !porId.has(documentoId)) porId.set(documentoId, arquivo.nome);
+        }
+        return [d.id, [...porId].map(([documentoId, nomeArquivo]) => ({ id: documentoId, nomeArquivo }))];
+      }),
+    );
     const existentesPorDisciplina: Record<string, ArquivoExistente[]> = Object.fromEntries(
       arvore.disciplinas.map((d) => [
         d.id,
@@ -298,6 +323,10 @@ export default async function ArquivosPage({
                 fases: catalogos.fase,
                 tipos: catalogos.tipo,
                 codigoProjeto: projeto.codigo,
+                projeto: { codigo: projeto.codigo, ano: projeto.ano, sequencial: projeto.sequencial },
+                catalogosNomenclatura,
+                extensoesNomenclatura,
+                documentosPorDisciplina,
               }
             : null
         }
