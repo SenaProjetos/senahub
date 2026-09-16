@@ -10,6 +10,7 @@ import { metaDocumento, ORIGENS_DOCUMENTO } from "./schemas";
 import { podeGerirDocumento, type AncoraDocumento } from "./acesso";
 import type { SessionUser } from "@/lib/session";
 import { enfileirarConversaoDwgDocumento } from "@/modules/dwg/service";
+import { enfileirarConversaoDocumento } from "@/modules/coordenacao/service";
 
 /** Visualizador DWG: nova versão de documento .dwg entra na fila de conversão p/
  * DXF. Fire-and-forget — não bloqueia nem derruba a action. */
@@ -17,6 +18,17 @@ function enfileirarSeDwg(versaoId: string, nomeArquivo: string): void {
   if (!/\.dwg$/i.test(nomeArquivo)) return;
   void enfileirarConversaoDwgDocumento(versaoId).catch((err) =>
     console.error("[documentos-cliente] falha ao enfileirar conversão DWG:", err),
+  );
+}
+
+/** Coordenação BIM: IFC recebido do cliente (ex.: arquitetura não contratada, o
+ * cliente que envia) entra na fila de conversão p/ Fragments, mesmo gancho do
+ * IFC de disciplina em /api/uploads — senão o modelo nunca aparece na maquete
+ * federada. Fire-and-forget — não bloqueia nem derruba a action. */
+function enfileirarSeIfc(versaoId: string, nomeArquivo: string): void {
+  if (!/\.ifc$/i.test(nomeArquivo)) return;
+  void enfileirarConversaoDocumento(versaoId).catch((err) =>
+    console.error("[documentos-cliente] falha ao enfileirar conversão IFC:", err),
   );
 }
 
@@ -96,6 +108,7 @@ export const criarDocumento = defineAction(
       include: { versoes: { select: { id: true } } },
     });
     enfileirarSeDwg(doc.versoes[0].id, i.meta.nomeArquivo);
+    enfileirarSeIfc(doc.versoes[0].id, i.meta.nomeArquivo);
     revalidar(i.propostaId ?? null, i.projetoId ?? null);
     return { id: doc.id };
   },
@@ -130,6 +143,7 @@ export const adicionarVersaoDocumento = defineAction(
       },
     });
     enfileirarSeDwg(versao.id, i.meta.nomeArquivo);
+    enfileirarSeIfc(versao.id, i.meta.nomeArquivo);
     await prisma.documento.update({ where: { id: i.documentoId }, data: { updatedAt: new Date() } });
     revalidar(doc.propostaId, doc.projetoId);
     return { numero };
