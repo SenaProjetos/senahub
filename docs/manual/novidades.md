@@ -22,6 +22,25 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Reconhecimento automático do nome do arquivo, tamanho do papel e selo Backup
+
+Ao enviar um arquivo na aba **Arquivos**, o sistema agora lê o **nome do arquivo** e
+identifica sozinho fase, tipo de documento e número da prancha (respeitando siglas
+alternativas, ex.: `DE`/`DTC` para Detalhe, `PE`/`EXE` para Executivo) — quando a leitura
+tem certeza alta, os campos já chegam preenchidos e editáveis; quando não tem certeza, o
+sistema mostra um aviso ou uma sugestão com botão, nunca decide por você. Também dá para
+enviar um arquivo como **nova versão** de um documento já existente mesmo que o nome tenha
+mudado — o caso do backup automático do AltoQi, que carimba a data no nome a cada gravação.
+
+Depois que um PDF é enviado, o **tamanho do papel** (A0 a A4) é lido sozinho da 1ª página —
+sem precisar informar nada. A tabela de Documentos ganhou colunas de **Tipo** e **Papel**
+(além do Nº e da Fase que já existiam), filtros para as duas, e um filtro por **Categoria de
+extensão**. E o pedido mais antigo sobre isso foi resolvido: arquivo de **backup do modelo**
+(pacote B, ou qualquer extensão de backup de software) ganhou o selo **Backup** na tabela e
+pode ser encontrado pelo filtro **Pacote → Backup** — antes ele aparecia junto dos demais,
+sem nenhum sinal de que era um backup. Veja [Projetos → Colunas e filtros da tabela de
+arquivos](projetos/projetos.md).
+
 ## Histórico de cada documento
 
 Na aba **Arquivos** do projeto, o painel de detalhes de cada documento ganhou a seção

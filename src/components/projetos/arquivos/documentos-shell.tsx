@@ -6,7 +6,7 @@ import { ConteudoAreaProjeto, type DadosAreas } from "@/components/projetos/arqu
 import { LinkPublicoArquivosButton } from "@/components/projetos/link-publico-arquivos-dialog";
 import type { ListaPainel } from "@/components/projetos/arquivos/painel-listas";
 import { TabelaDocumentos } from "@/components/projetos/arquivos/tabela-documentos";
-import { FiltrosDocumentos } from "@/components/projetos/arquivos/filtros-documentos";
+import { FiltrosDocumentos, type OpcaoCatalogoDocumento } from "@/components/projetos/arquivos/filtros-documentos";
 import { SeletorColunas } from "@/components/projetos/arquivos/seletor-colunas";
 import { EnviarDocumentosDialog, type DadosEnviarDocumentos } from "@/components/projetos/arquivos/enviar-documentos-dialog";
 import { SeletorFasesDocumentos, type OpcaoFaseDocumento } from "@/components/projetos/arquivos/seletor-fases-documentos";
@@ -40,6 +40,10 @@ export function DocumentosShell({
   linhas,
   extensoes,
   autores,
+  tipos,
+  papeis,
+  categoriasExtensao,
+  pacotes,
   temFiltroAtivo,
   colunas,
   colunasOcultas,
@@ -70,6 +74,11 @@ export function DocumentosShell({
   linhas: LinhaDoc[];
   extensoes: string[];
   autores: string[];
+  tipos: OpcaoCatalogoDocumento[];
+  papeis: OpcaoCatalogoDocumento[];
+  categoriasExtensao: string[];
+  /** Pacotes crus presentes no recorte (sem "B" — o filtro oferece "Backup", que é semântico). */
+  pacotes: string[];
   temFiltroAtivo: boolean;
   colunas: Set<string>;
   colunasOcultas: string[];
@@ -149,7 +158,16 @@ export function DocumentosShell({
           ) : (
           <>
           <div className="flex flex-wrap items-start justify-between gap-2">
-            <FiltrosDocumentos extensoes={extensoes} autores={autores} status={status} totalFiltrado={totalFiltrado} />
+            <FiltrosDocumentos
+              extensoes={extensoes}
+              autores={autores}
+              status={status}
+              tipos={tipos}
+              papeis={papeis}
+              categoriasExtensao={categoriasExtensao}
+              pacotes={pacotes}
+              totalFiltrado={totalFiltrado}
+            />
             <SeletorColunas ocultas={colunasOcultas} />
           </div>
           <SeletorFasesDocumentos fases={fases} documentosPorFase={documentosPorFase} />

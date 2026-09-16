@@ -263,7 +263,14 @@
         "quem visualizou",
         "downloads",
         "visualizações",
-        "ver_acessos"
+        "ver_acessos",
+        "colunas da tabela",
+        "filtros de arquivos",
+        "tipo de documento",
+        "tamanho do papel",
+        "categoria de extensão",
+        "selo backup",
+        "backup do modelo"
       ],
       "palavrasChave": [
         "projeto",
@@ -310,7 +317,16 @@
         "preencher sem login",
         "briefing de start",
         "revogar link",
-        "link expirado"
+        "link expirado",
+        "colunas",
+        "seletor de colunas",
+        "filtro de tipo",
+        "filtro de papel",
+        "filtro de pacote",
+        "backup não aparece",
+        "onde está o backup",
+        "número da prancha",
+        "papel A0 A1 A2 A3 A4"
       ],
       "sinonimos": [
         "obras",

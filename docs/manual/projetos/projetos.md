@@ -218,6 +218,34 @@ cadastro**, e as respostas caem direto nesta aba (salvam sozinhas, campo a campo
   aviso quando o briefing fica completo). Para não receber, desligue **Formulário
   preenchido pelo cliente** em *Preferências → Notificações*.
 
+### Colunas e filtros da tabela de arquivos (aba Arquivos)
+
+A tabela mostra um DOCUMENTO por linha (não um arquivo — quando o PDF e o DWG de uma mesma
+prancha são enviados, eles aparecem como badges dentro da mesma linha). O botão **Colunas**,
+no canto da tabela, escolhe quais colunas ficam visíveis; a preferência é sua e vale em
+qualquer projeto:
+
+- **Nº** e **Tipo** — número da prancha e tipo de documento (planta, detalhe, memorial...),
+  lidos automaticamente do nome do arquivo no envio ou preenchidos à mão depois;
+- **Fase** — Anteprojeto, Projeto Básico, Executivo etc., mesma origem do Nº/Tipo;
+- **Papel** — tamanho da folha (A0 a A4), lido sozinho da 1ª página de todo PDF enviado
+  (nenhuma ação sua é necessária; documento sem PDF, ou com PDF fora desses tamanhos, fica
+  sem papel);
+- **Extensões** — um badge por arquivo (PDF, DWG...), clicável para abrir ou baixar.
+
+Um documento cujo nome não bate com nada reconhecível fica com "—" nessas colunas: o sistema
+nunca inventa um valor, só mostra o que conseguiu ler com segurança.
+
+**Selo "Backup"** — arquivo de backup do software (backup do modelo, pacote B, ou extensão
+de backup como `.qibzip`/`.tqs` mesmo fora do pacote B) ganha um selo **Backup** ao lado do
+nome, para não ser confundido com entregável. O filtro **Pacote**, no painel de filtros,
+tem uma opção **Backup** que junta os dois casos numa busca só — é o jeito de achar aquele
+backup do AltoQi que "sumiu" (na verdade sempre esteve lá, só sem rótulo).
+
+O painel de **Filtros** também tem **Tipo**, **Tamanho do papel** e **Categoria de extensão**
+(agrupa por Documento, Planilha, Desenho CAD, Modelo BIM, Backup de software etc.) — todos
+combináveis com busca, extensão específica, responsável, período, validação, fase e status.
+
 ### Links públicos de arquivos (aba Arquivos)
 
 No topo da aba **Arquivos**, o botão **Link público** abre o gerenciador. Um projeto pode

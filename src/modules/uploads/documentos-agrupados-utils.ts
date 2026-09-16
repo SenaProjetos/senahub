@@ -28,8 +28,13 @@ export function arquivosDaRevisaoAtual<T extends UploadComRevisao>(uploads: T[])
 }
 
 /**
- * Número da prancha para a coluna "Nº": numeração com 4 dígitos + tipo, lidos do nome no
- * padrão da Lista Mestre (`260029-HDR-BS-6008-3D.ifc` → `6008-3D`). Fora do padrão → null.
+ * Numeração + tipo lidos do nome, no formato combinado `"6008-3D"`.
+ *
+ * NÃO é mais a fonte da coluna "Nº" de `documentos-agrupados.ts` (F4): a tabela hoje prefere
+ * `DocumentoDisciplina.numeroPrancha`/`.tipo` (gravados pelo motor de nomenclatura), caindo
+ * para a leitura do nome só quando o documento ainda não tem os dois — e os mostra em colunas
+ * SEPARADAS (Nº e Tipo), não combinados. Esta função fica pura e testada para quem ainda
+ * precisar do formato combinado.
  */
 export function numeroPrancha(nomeArquivo: string): string | null {
   const p = parsePranchaFilename(nomeArquivo);

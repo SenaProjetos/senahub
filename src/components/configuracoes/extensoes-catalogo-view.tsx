@@ -11,7 +11,7 @@ import {
   excluirExtensaoArquivo,
   cadastrarExtensaoDesconhecida,
 } from "@/modules/uploads/nomenclatura/extensoes-actions";
-import { CATEGORIAS_EXTENSAO } from "@/modules/uploads/nomenclatura/extensoes-iniciais";
+import { CATEGORIAS_EXTENSAO, CATEGORIA_EXTENSAO_LABEL } from "@/modules/uploads/nomenclatura/extensoes-iniciais";
 import type { ExtensaoArquivoRow } from "@/modules/uploads/nomenclatura/queries";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -25,18 +25,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-const CATEGORIA_LABEL: Record<(typeof CATEGORIAS_EXTENSAO)[number], string> = {
-  documento: "Documento",
-  planilha: "Planilha",
-  apresentacao: "Apresentação",
-  imagem: "Imagem",
-  desenho_cad: "Desenho CAD",
-  modelo_bim: "Modelo BIM",
-  backup_software: "Backup de software",
-  compactado: "Compactado",
-  temporario: "Temporário",
-  log: "Log",
-};
+const CATEGORIA_LABEL = CATEGORIA_EXTENSAO_LABEL;
 
 type FormState = {
   id?: string;

@@ -5,6 +5,7 @@ import { notificarAdmins } from "@/lib/notifications";
 import { limparChunksOrfaos } from "@/lib/upload-chunks";
 import { FILA_CONVERTER_IFC } from "@/modules/coordenacao/conversao-estado";
 import { FILA_CONVERTER_DWG } from "@/modules/dwg/conversao-estado";
+import { FILA_TAMANHO_PAPEL_PDF, processarLeituraTamanhoPapel } from "@/modules/uploads/tamanho-papel-pdf";
 import { FILA_MENSAGEM_AGENDADA } from "@/modules/chat/agendamento";
 import { FILA_IMPORTAR_CUSTOS } from "@/modules/custos/composicoes/service";
 import {
@@ -155,6 +156,16 @@ export async function startJobs(): Promise<PgBoss> {
   await boss.work(FILA_CONVERTER_DWG, async ([job]) => {
     const { conversaoId } = job.data as { conversaoId: string };
     await processarConversaoDwg(conversaoId);
+  });
+
+  // ── Motor de nomenclatura: tamanho do papel de PDF enviado (ON-DEMAND) ───
+  // Sem side-effect de notificação (é só metadado silencioso), então o handler mora no
+  // próprio módulo (`tamanho-papel-pdf.ts`) em vez de `jobs-handlers.ts` — os demais handlers
+  // ficam lá porque precisam dos importes de notificação que este não usa.
+  await boss.createQueue(FILA_TAMANHO_PAPEL_PDF);
+  await boss.work(FILA_TAMANHO_PAPEL_PDF, async ([job]) => {
+    const { documentoId, caminho } = job.data as { documentoId: string; caminho: string };
+    await processarLeituraTamanhoPapel(documentoId, caminho);
   });
 
   // ── Chat: envio de mensagem agendada (ON-DEMAND via boss.send startAfter) ──

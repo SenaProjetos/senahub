@@ -1,7 +1,10 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { arquivosDaRevisaoAtual, chavePrancha, numeroPrancha, revisaoAtualDosUploads } from "@/modules/uploads/documentos-agrupados-utils";
+import { arquivosDaRevisaoAtual, chavePrancha, revisaoAtualDosUploads } from "@/modules/uploads/documentos-agrupados-utils";
 import { parsePranchaFilename } from "@/modules/projetos/pranchas/codigo";
+import { carregarExtensoesNomenclatura } from "@/modules/uploads/nomenclatura/queries";
+import type { Pacote } from "@/modules/uploads/estrutura";
+import { catalogosPrancha, mapaCanonico, canonizar } from "@/modules/projetos/pranchas/queries";
 
 /**
  * Listagem de documentos AGRUPADA POR DOCUMENTO (Fase 2 — F2-PR6a).
@@ -58,6 +61,19 @@ export type FiltrosDoc = {
   fase?: string;
   status?: string;
   listaId?: string | null;
+  /** `PranchaCatalogo.id` (categoria `tipo`). */
+  tipo?: string;
+  /** `PranchaCatalogo.id` (categoria `folha`). */
+  papel?: string;
+  /** `ExtensaoArquivo.categoria`. */
+  catExt?: string;
+  /**
+   * `"A"` | `"OUTROS"` | `"RECEBIDOS"` (pacote literal) OU `"backup"` — o selo/filtro "Backup"
+   * é semântico, não o pacote B cru: cobre pacote B E qualquer extensão com `ehBackup` (o
+   * .qibzip/.zip/.rar de backup do AltoQi que caiu em OUTROS também tem de aparecer aqui,
+   * senão a queixa original ("backup não aparece em lugar nenhum") volta pela metade).
+   */
+  pacote?: string;
 };
 
 export type ArquivoDaLinha = {
@@ -76,8 +92,22 @@ export type LinhaDoc = {
   titulo: string | null;
   /** "Conteúdo" da prancha correspondente na Lista Mestre — fallback de exibição do título. */
   tituloPrancha: string | null;
-  /** Numeração + tipo lidos do nome (`6008-3D`); null fora do padrão. */
-  numeroPrancha: string | null;
+  /**
+   * Número da prancha: preferindo o campo gravado pelo motor (F3/backfill), caindo para a
+   * leitura embutida do nome (`parsePranchaFilename`) quando o documento ainda não passou por
+   * nenhum dos dois — nunca pior que a versão anterior desta coluna.
+   */
+  numeroPrancha: number | null;
+  /** Mesma precedência de `numeroPrancha`: gravado > lido do nome > ausente. */
+  tipoSigla: string | null;
+  tipoNome: string | null;
+  /** Só o campo gravado — não há como inferir tamanho de papel do NOME do arquivo. */
+  papelSigla: string | null;
+  papelNome: string | null;
+  /** Pacote do documento (A/B/OUTROS/RECEBIDOS), ou `null` quando vive numa PastaProjeto. */
+  pacote: Pacote | "RECEBIDOS" | null;
+  /** Pacote B OU alguma extensão do documento marcada `ehBackup` no catálogo (item 1 da F4). */
+  ehBackup: boolean;
   descricao: string | null;
   disciplinaId: string;
   disciplinaNome: string;
@@ -127,6 +157,10 @@ export async function listarDocumentosAgrupados(opts: {
   const direcao = dir === "asc" ? "asc" : "desc";
   const validadoSim = filtros.validado === "sim" ? true : null;
   const validadoNao = filtros.validado === "nao" ? true : null;
+  // "backup" é semântico (pacote B OU extensão com `ehBackup`), não um valor de pacote —
+  // os dois nunca se combinam, então um param basta para cada caminho.
+  const pacoteLiteral = filtros.pacote && filtros.pacote !== "backup" ? filtros.pacote : null;
+  const querBackup = filtros.pacote === "backup" ? true : null;
 
   // `join upload` com `excluidoEm is null` faz o documento cujos arquivos foram todos para a
   // lixeira sumir da lista — mesmo efeito do filtro global de soft delete na versão anterior.
@@ -162,6 +196,26 @@ export async function listarDocumentosAgrupados(opts: {
             where ldi."documentoId" = d.id
               and ldi."listaId" = $13
               and ld."projetoId" = $1))
+      and ($14::text is null or d."tipoId" = $14)
+      and ($15::text is null or d."tamanhoPapelId" = $15)
+      and ($16::text is null or exists (
+            select 1 from extensao_arquivo ea
+            join upload u2 on u2."documentoId" = d.id and u2."excluidoEm" is null
+            where ea.extensao = lower(substring(u2."nomeArquivo" from '\\.([^.]+)$'))
+              and ea.categoria = $16))
+      -- "Backup" ($18) é pacote B OU extensão marcada ehBackup, cobrindo o .qibzip/.zip/.rar
+      -- do AltoQi que caiu em OUTROS -- o pacote literal ($17) é um valor cru (A/OUTROS/RECEBIDOS).
+      and (
+            ($17::text is null and $18::boolean is not true)
+            or ($17::text is not null and exists (
+                  select 1 from upload u3
+                  where u3."documentoId" = d.id and u3."excluidoEm" is null and u3.pacote::text = $17))
+            or ($18::boolean is true and exists (
+                  select 1 from upload u4
+                  left join extensao_arquivo ea2 on ea2.extensao = lower(substring(u4."nomeArquivo" from '\\.([^.]+)$'))
+                  where u4."documentoId" = d.id and u4."excluidoEm" is null
+                    and (u4.pacote::text = 'B' or coalesce(ea2."ehBackup", false))))
+          )
     group by d.id
   `;
   const params = [
@@ -178,6 +232,11 @@ export async function listarDocumentosAgrupados(opts: {
     validadoSim,
     validadoNao,
     filtros.listaId ?? null,
+    filtros.tipo ?? null,
+    filtros.papel ?? null,
+    filtros.catExt ?? null,
+    pacoteLiteral,
+    querBackup,
   ];
 
   const totalRows = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
@@ -209,6 +268,9 @@ export async function listarDocumentosAgrupados(opts: {
       descricao: true,
       status: { select: { id: true, nome: true, final: true } },
       fase: { select: { id: true, sigla: true, nome: true } },
+      tipo: { select: { id: true, sigla: true, nome: true } },
+      numeroPrancha: true,
+      tamanhoPapel: { select: { id: true, sigla: true, nome: true } },
       disciplina: {
         select: {
           id: true,
@@ -226,6 +288,7 @@ export async function listarDocumentosAgrupados(opts: {
           tamanho: true,
           validado: true,
           pastaId: true,
+          pacote: true,
           revisaoId: true,
           revisao: { select: { numero: true } },
           createdAt: true,
@@ -234,6 +297,12 @@ export async function listarDocumentosAgrupados(opts: {
       },
     },
   });
+  // `ehBackup` por extensão (catálogo do motor de nomenclatura) — carregado uma vez para a
+  // página inteira, não por documento; é um mapa pequeno (~40 linhas) reaproveitável em toda a
+  // listagem.
+  const extensoesBackup = new Set(
+    (await carregarExtensoesNomenclatura()).filter((e) => e.ehBackup).map((e) => e.extensao),
+  );
 
   // Título de fallback vem da Lista Mestre: uma consulta só para as disciplinas da página,
   // casada em memória pela trinca numeração+tipo+fase do nome.
@@ -241,8 +310,22 @@ export async function listarDocumentosAgrupados(opts: {
     where: { disciplinaId: { in: [...new Set(docs.map((d) => d.disciplina.id))] }, conteudo: { not: null } },
     select: { disciplinaId: true, numeracao: true, tipo: true, fase: true, conteudo: true },
   });
+  // A `Prancha.tipo`/`.fase` pode ter sido gravada pelo import ANTIGO (sigla crua do nome, ex.:
+  // `DTC`) ou pelo NOVO (`proporPranchasImport`, que grava a sigla canônica do catálogo, ex.:
+  // `DET`) — e o documento pode ter sido classificado pelo motor com a canônica também. Os DOIS
+  // lados da chave (a gravada aqui E a lida abaixo) passam por `canonizar()`, senão um
+  // documento perde o título dependendo só de quando a Prancha foi cadastrada (mesmo bug que
+  // `proporPranchasImport` corrigiu do lado da escrita — ver comentário lá).
+  const { tipo: catalogoTipo, fase: catalogoFase } = await catalogosPrancha(projetoId);
+  const tipoCanonico = mapaCanonico(catalogoTipo);
+  const faseCanonica = mapaCanonico(catalogoFase);
   const conteudoPorChave = new Map(
-    pranchas.filter((p) => p.conteudo?.trim()).map((p) => [chavePrancha(p.disciplinaId, p), p.conteudo!.trim()]),
+    pranchas
+      .filter((p) => p.conteudo?.trim())
+      .map((p) => [
+        chavePrancha(p.disciplinaId, { numeracao: p.numeracao, tipo: canonizar(p.tipo, tipoCanonico), fase: canonizar(p.fase, faseCanonica) }),
+        p.conteudo!.trim(),
+      ]),
   );
 
   // Reordena pelo que o SQL decidiu — `findMany` com `in` não preserva a ordem dos ids.
@@ -260,12 +343,33 @@ export async function listarDocumentosAgrupados(opts: {
     const daAtual = arquivosDaRevisaoAtual(d.uploads);
     const maisRecente = [...d.uploads].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
     const parseado = parsePranchaFilename(d.nomeArquivo);
+    // "Backup" cobre pacote B e qualquer extensão marcada `ehBackup` no catálogo — o
+    // .qibzip/.zip/.rar do AltoQi que caiu em OUTROS também tem de ganhar o selo.
+    const pacoteDoc = (d.uploads.find((u) => u.pacote)?.pacote as Pacote | "RECEBIDOS" | undefined) ?? null;
+    const ehBackup =
+      pacoteDoc === "B" || d.uploads.some((u) => extensaoDe(u.nomeArquivo) && extensoesBackup.has(extensaoDe(u.nomeArquivo)));
+    // Numeração/tipo/fase para achar o título na Lista Mestre: prefere o que o motor já
+    // gravou no documento; cai para a leitura do nome, canonizada pelo MESMO catálogo que
+    // `proporPranchasImport` usou para gravar a Prancha (senão a comparação diverge de novo).
+    const numeracaoTitulo = d.numeroPrancha ?? parseado?.numeracao ?? null;
+    const tipoTitulo = d.tipo?.sigla ?? (parseado ? canonizar(parseado.tipo, tipoCanonico) : null);
+    const faseTitulo = d.fase?.sigla ?? (parseado ? canonizar(parseado.fase, faseCanonica) : null);
+    const tituloPrancha =
+      numeracaoTitulo !== null && tipoTitulo && faseTitulo
+        ? conteudoPorChave.get(chavePrancha(d.disciplina.id, { numeracao: numeracaoTitulo, tipo: tipoTitulo, fase: faseTitulo })) ?? null
+        : null;
     linhas.push({
       id: d.id,
       nome: d.nomeArquivo,
       titulo: d.titulo,
-      tituloPrancha: parseado ? conteudoPorChave.get(chavePrancha(d.disciplina.id, parseado)) ?? null : null,
-      numeroPrancha: numeroPrancha(d.nomeArquivo),
+      tituloPrancha,
+      numeroPrancha: d.numeroPrancha ?? parseado?.numeracao ?? null,
+      tipoSigla: d.tipo?.sigla ?? parseado?.tipo ?? null,
+      tipoNome: d.tipo?.nome ?? null,
+      papelSigla: d.tamanhoPapel?.sigla ?? null,
+      papelNome: d.tamanhoPapel?.nome ?? null,
+      pacote: pacoteDoc,
+      ehBackup,
       descricao: d.descricao,
       disciplinaId: d.disciplina.id,
       disciplinaNome: d.disciplina.catalogo?.nome ?? d.disciplina.disciplinaTextoLegado ?? "—",
@@ -338,7 +442,7 @@ export async function contagemDocumentosPorFase(opts: {
 
 /** Catálogos usados pela edição e pelos filtros da superfície V2. */
 export async function opcoesMetadadosDocumento(projetoId: string) {
-  const [fases, status] = await Promise.all([
+  const [fases, tipos, papeis, status] = await Promise.all([
     prisma.pranchaCatalogo.findMany({
       where: {
         categoria: "fase",
@@ -348,6 +452,20 @@ export async function opcoesMetadadosDocumento(projetoId: string) {
       orderBy: [{ ordem: "asc" }, { sigla: "asc" }],
       select: { id: true, sigla: true, nome: true },
     }),
+    // Tipo e papel do FILTRO incluem inativo (ao contrário do que o motor usa para classificar
+    // um envio novo): um documento antigo pode apontar para um item que foi desativado depois,
+    // e sem ele aqui o filtro simplesmente não acharia esse documento (mesmo raciocínio do
+    // `documentoStatus` logo abaixo).
+    prisma.pranchaCatalogo.findMany({
+      where: { categoria: "tipo", OR: [{ projetoId: null }, { projetoId }] },
+      orderBy: [{ ordem: "asc" }, { sigla: "asc" }],
+      select: { id: true, sigla: true, nome: true, ativo: true },
+    }),
+    prisma.pranchaCatalogo.findMany({
+      where: { categoria: "folha", OR: [{ projetoId: null }, { projetoId }] },
+      orderBy: [{ ordem: "asc" }, { sigla: "asc" }],
+      select: { id: true, sigla: true, nome: true, ativo: true },
+    }),
     // Inclui itens inativos para que documentos históricos continuem identificáveis e
     // filtráveis; a ação de escrita aceita apenas status ativos.
     prisma.documentoStatus.findMany({
@@ -356,5 +474,5 @@ export async function opcoesMetadadosDocumento(projetoId: string) {
     }),
   ]);
 
-  return { fases, status };
+  return { fases, tipos, papeis, status };
 }

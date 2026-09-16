@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/sheet";
 import { useSetParams } from "@/lib/use-set-param";
 import type { OpcaoStatusDocumento } from "@/components/projetos/arquivos/painel-documento-detalhe";
+import { CATEGORIA_EXTENSAO_LABEL } from "@/modules/uploads/nomenclatura/extensoes-iniciais";
+import { PACOTE_LABEL } from "@/modules/uploads/estrutura";
 
 const DEBOUNCE_MS = 400;
 
@@ -36,6 +38,16 @@ const VALIDADO_LABEL: Record<string, string> = {
   sim: "Validados",
   nao: "Pendentes de validação",
 };
+
+/** Catálogo de tipo/papel — igual a `OpcaoFaseDocumento` + `ativo`, porque o filtro (ao
+ * contrário do seletor de fase) precisa oferecer item desativado (documento antigo aponta pra
+ * ele — ver `opcoesMetadadosDocumento`). */
+export type OpcaoCatalogoDocumento = { id: string; sigla: string; nome: string; ativo: boolean };
+
+/** Rótulo do pacote — "B" nunca aparece: vira "Backup" (semântico, ver `documentos-agrupados.ts`). */
+function rotuloPacote(pacote: string): string {
+  return PACOTE_LABEL[pacote as keyof typeof PACOTE_LABEL] ?? pacote;
+}
 
 /**
  * Busca com debounce + drawer de filtros + chips (F1-PR7, itens 6 e 7 da spec).
@@ -56,11 +68,20 @@ export function FiltrosDocumentos({
   extensoes,
   autores,
   status,
+  tipos,
+  papeis,
+  categoriasExtensao,
+  pacotes,
   totalFiltrado,
 }: {
   extensoes: string[];
   autores: string[];
   status: OpcaoStatusDocumento[];
+  tipos: OpcaoCatalogoDocumento[];
+  papeis: OpcaoCatalogoDocumento[];
+  categoriasExtensao: string[];
+  /** Pacotes crus presentes no recorte (sem "B" — ver `rotuloPacote`). */
+  pacotes: string[];
   totalFiltrado: number;
 }) {
   const sp = useSearchParams();
@@ -72,6 +93,10 @@ export function FiltrosDocumentos({
   const periodo = sp.get("periodo") ?? "";
   const validado = sp.get("val") ?? "";
   const statusId = sp.get("status") ?? "";
+  const tipoId = sp.get("tipo") ?? "";
+  const papelId = sp.get("papel") ?? "";
+  const catExt = sp.get("catExt") ?? "";
+  const pacote = sp.get("pacote") ?? "";
 
   const [aberto, setAberto] = useState(false);
   const [texto, setTexto] = useState(q);
@@ -93,10 +118,17 @@ export function FiltrosDocumentos({
     periodo ? { chave: "periodo", rotulo: PERIODO_LABEL[periodo] ?? periodo } : null,
     validado ? { chave: "val", rotulo: VALIDADO_LABEL[validado] ?? validado } : null,
     statusId ? { chave: "status", rotulo: status.find((item) => item.id === statusId)?.nome ?? "Status" } : null,
+    tipoId ? { chave: "tipo", rotulo: tipos.find((item) => item.id === tipoId)?.sigla ?? "Tipo" } : null,
+    papelId ? { chave: "papel", rotulo: papeis.find((item) => item.id === papelId)?.sigla ?? "Papel" } : null,
+    catExt ? { chave: "catExt", rotulo: CATEGORIA_EXTENSAO_LABEL[catExt as keyof typeof CATEGORIA_EXTENSAO_LABEL] ?? catExt } : null,
+    pacote ? { chave: "pacote", rotulo: pacote === "backup" ? "Backup" : rotuloPacote(pacote) } : null,
   ].filter((c): c is { chave: string; rotulo: string } => c !== null);
 
   function limparTudo() {
-    setParams({ q: null, ext: null, autor: null, periodo: null, val: null, status: null, fase: null });
+    setParams({
+      q: null, ext: null, autor: null, periodo: null, val: null, status: null, fase: null,
+      tipo: null, papel: null, catExt: null, pacote: null,
+    });
   }
 
   return (
@@ -251,6 +283,95 @@ export function FiltrosDocumentos({
                   {status.map((item) => (
                     <SelectItem key={item.id} value={item.id}>
                       {item.nome}{!item.ativo ? " (inativo)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="filtro-tipo">Tipo</Label>
+              <Select
+                value={tipoId || "todos"}
+                onValueChange={(value) => setParams({ tipo: !value || value === "todos" ? null : value })}
+              >
+                <SelectTrigger id="filtro-tipo">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  {tipos.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.sigla}{!item.ativo ? " (inativo)" : ""} — {item.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Lido do nome do arquivo pelo motor de nomenclatura, ou escolhido no envio.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="filtro-papel">Tamanho do papel</Label>
+              <Select
+                value={papelId || "todos"}
+                onValueChange={(value) => setParams({ papel: !value || value === "todos" ? null : value })}
+              >
+                <SelectTrigger id="filtro-papel">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  {papeis.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.sigla}{!item.ativo ? " (inativo)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Lido automaticamente da 1ª página do PDF.</p>
+            </div>
+
+            {categoriasExtensao.length > 0 && (
+              <div className="space-y-1.5">
+                <Label htmlFor="filtro-cat-ext">Categoria de extensão</Label>
+                <Select
+                  value={catExt || "todas"}
+                  onValueChange={(value) => setParams({ catExt: !value || value === "todas" ? null : value })}
+                >
+                  <SelectTrigger id="filtro-cat-ext">
+                    <SelectValue placeholder="Todas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas</SelectItem>
+                    {categoriasExtensao.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {CATEGORIA_EXTENSAO_LABEL[c as keyof typeof CATEGORIA_EXTENSAO_LABEL] ?? c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="filtro-pacote">Pacote</Label>
+              <Select
+                value={pacote || "todos"}
+                onValueChange={(value) => setParams({ pacote: !value || value === "todos" ? null : value })}
+              >
+                <SelectTrigger id="filtro-pacote">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  {/* "Backup" sempre oferecido, mesmo sem pacote B no recorte: cobre também a
+                      extensão ehBackup (.qibzip/.tqs) que pode estar em qualquer pacote. */}
+                  <SelectItem value="backup">Backup</SelectItem>
+                  {pacotes.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {rotuloPacote(p)}
                     </SelectItem>
                   ))}
                 </SelectContent>

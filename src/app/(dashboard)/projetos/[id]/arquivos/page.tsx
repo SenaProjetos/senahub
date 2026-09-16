@@ -87,6 +87,10 @@ export default async function ArquivosPage({
     val?: string;
     fase?: string;
     status?: string;
+    tipo?: string;
+    papel?: string;
+    catExt?: string;
+    pacote?: string;
     page?: string;
     pageSize?: string;
     sort?: string;
@@ -233,6 +237,10 @@ export default async function ArquivosPage({
       validado: sp?.val,
       fase: sp?.fase,
       status: sp?.status,
+      tipo: sp?.tipo,
+      papel: sp?.papel,
+      catExt: sp?.catExt,
+      pacote: sp?.pacote,
     };
     const lp = parseListParams(sp ?? {}, {
       sortFields: CAMPOS_ORDENACAO_DOC,
@@ -262,9 +270,10 @@ export default async function ArquivosPage({
     const prefs = await getPreferencias(user.id);
     const colunas = resolverColunasVisiveis(prefs[CHAVE_PREF_COLUNAS]);
     const colunasOcultas = idsOcultaveis().filter((id) => !colunas.has(id));
-    const filtrosAtivos = [sp?.q, sp?.ext, sp?.autor, sp?.periodo, sp?.val, sp?.fase, sp?.status].filter(
-      (v) => typeof v === "string" && v.trim() !== "",
-    ).length;
+    const filtrosAtivos = [
+      sp?.q, sp?.ext, sp?.autor, sp?.periodo, sp?.val, sp?.fase, sp?.status,
+      sp?.tipo, sp?.papel, sp?.catExt, sp?.pacote,
+    ].filter((v) => typeof v === "string" && v.trim() !== "").length;
 
     // Áreas do projeto (paridade com o explorer antigo): Recebidos, Base, Geral, ARTs e
     // Lixeira. Cada uma só é listada para quem pode vê-la — a permissão já foi resolvida
@@ -310,6 +319,10 @@ export default async function ArquivosPage({
         linhas={pagina.linhas}
         extensoes={opcoes.extensoes}
         autores={opcoes.autores}
+        tipos={opcoesMetadados.tipos}
+        papeis={opcoesMetadados.papeis}
+        categoriasExtensao={opcoes.categoriasExtensao}
+        pacotes={opcoes.pacotes}
         temFiltroAtivo={filtrosAtivos > 0}
         colunas={colunas}
         colunasOcultas={colunasOcultas}

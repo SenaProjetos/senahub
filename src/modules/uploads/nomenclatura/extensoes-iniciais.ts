@@ -23,6 +23,20 @@ export const CATEGORIAS_EXTENSAO = [
   "log",
 ] as const;
 
+/** Rótulo pt-BR de cada categoria — única fonte (tela de admin e filtro da lista V2 usam esta). */
+export const CATEGORIA_EXTENSAO_LABEL: Record<(typeof CATEGORIAS_EXTENSAO)[number], string> = {
+  documento: "Documento",
+  planilha: "Planilha",
+  apresentacao: "Apresentação",
+  imagem: "Imagem",
+  desenho_cad: "Desenho CAD",
+  modelo_bim: "Modelo BIM",
+  backup_software: "Backup de software",
+  compactado: "Compactado",
+  temporario: "Temporário",
+  log: "Log",
+};
+
 export const EXTENSOES_INICIAIS: ExtensaoDef[] = [
   { extensao: "pdf", categoria: "documento" },
   { extensao: "doc", categoria: "documento", software: "Office" },

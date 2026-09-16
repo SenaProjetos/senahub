@@ -203,10 +203,12 @@ export function TabelaDocumentos({
             </SortableHead>
             {colunas.has("numero") && <TableHead>Nº</TableHead>}
             {colunas.has("fase") && <TableHead>Fase</TableHead>}
+            {colunas.has("tipo") && <TableHead>Tipo</TableHead>}
             <SortableHead field="nome">Documento</SortableHead>
             {colunas.has("revisao") && <SortableHead field="revisao" className="text-right">Revisão</SortableHead>}
             {colunas.has("validado") && <TableHead>Validado</TableHead>}
             {colunas.has("extensao") && <TableHead>Extensão</TableHead>}
+            {colunas.has("papel") && <TableHead>Papel</TableHead>}
             {colunas.has("responsavel") && <TableHead>Responsável</TableHead>}
             {colunas.has("data") && <SortableHead field="data">Atualizado</SortableHead>}
             {colunas.has("tamanho") && <SortableHead field="tamanho" className="text-right">Tamanho</SortableHead>}
@@ -234,12 +236,19 @@ export function TabelaDocumentos({
               </TableCell>
               {colunas.has("numero") && (
                 <TableCell className="font-mono text-xs tabular-nums">
-                  {l.numeroPrancha ?? <span className="text-muted-foreground">—</span>}
+                  {l.numeroPrancha !== null ? String(l.numeroPrancha).padStart(4, "0") : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                 </TableCell>
               )}
               {colunas.has("fase") && (
                 <TableCell className="text-xs" title={l.faseNome ?? undefined}>
                   {l.faseSigla ?? <span className="text-muted-foreground">—</span>}
+                </TableCell>
+              )}
+              {colunas.has("tipo") && (
+                <TableCell className="text-xs" title={l.tipoNome ?? undefined}>
+                  {l.tipoSigla ?? <span className="text-muted-foreground">—</span>}
                 </TableCell>
               )}
               <TableCell className="max-w-[32rem]">
@@ -263,6 +272,13 @@ export function TabelaDocumentos({
                   {l.statusNome && (
                     <Badge variant="outline" className="shrink-0" title={l.statusFinal ? "Status final" : undefined}>
                       {l.statusNome}
+                    </Badge>
+                  )}
+                  {/* Pendência original da V2 (item 1 da spec de nomenclatura): backup do modelo
+                      (pacote B) e extensão de backup (.qibzip, .tqs…) apareciam sem rótulo. */}
+                  {l.ehBackup && (
+                    <Badge variant="outline" className="shrink-0 border-warning/40 bg-warning/10 text-warning" title="Backup do modelo">
+                      Backup
                     </Badge>
                   )}
                 </div>
@@ -308,6 +324,11 @@ export function TabelaDocumentos({
                       />
                     ))}
                   </div>
+                </TableCell>
+              )}
+              {colunas.has("papel") && (
+                <TableCell className="text-xs" title={l.papelNome ?? undefined}>
+                  {l.papelSigla ?? <span className="text-muted-foreground">—</span>}
                 </TableCell>
               )}
               {colunas.has("responsavel") && <TableCell className="text-muted-foreground">{l.autor}</TableCell>}

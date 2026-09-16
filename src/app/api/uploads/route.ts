@@ -25,6 +25,7 @@ import { registrarEventoDocumento } from "@/modules/uploads/historico/service";
 import { LIMITE_FINALIZACOES_UPLOAD } from "@/modules/uploads/limites";
 import { enfileirarConversao } from "@/modules/coordenacao/service";
 import { enfileirarConversaoDwg } from "@/modules/dwg/service";
+import { enfileirarLeituraTamanhoPapel } from "@/modules/uploads/tamanho-papel-pdf";
 
 type Resultado = {
   nome: string;
@@ -217,7 +218,7 @@ export async function POST(req: Request) {
     const documentoEscolhido = versaoDeDocumentoId
       ? await prisma.documentoDisciplina.findUnique({
           where: { id: versaoDeDocumentoId },
-          select: { id: true, disciplinaId: true, chave: true, faseId: true, tipoId: true, numeroPrancha: true, substituidoPorId: true, status: { select: { final: true } } },
+          select: { id: true, disciplinaId: true, chave: true, faseId: true, tipoId: true, numeroPrancha: true, tamanhoPapelId: true, substituidoPorId: true, status: { select: { final: true } } },
         })
       : null;
     if (versaoDeDocumentoId) {
@@ -239,7 +240,7 @@ export async function POST(req: Request) {
       ? null
       : await prisma.documentoDisciplina.findUnique({
           where: { disciplinaId_chave: { disciplinaId, chave } },
-          select: { id: true, faseId: true, tipoId: true, numeroPrancha: true, status: { select: { final: true } } },
+          select: { id: true, faseId: true, tipoId: true, numeroPrancha: true, tamanhoPapelId: true, status: { select: { final: true } } },
         });
     const documentoExistente = documentoEscolhido ?? documentoPorChave;
 
@@ -418,6 +419,14 @@ export async function POST(req: Request) {
     if (extensao(nome) === "dwg") {
       void enfileirarConversaoDwg(criado.id).catch((err) =>
         console.error("[upload] falha ao enfileirar conversão DWG:", err),
+      );
+    }
+    // Motor de nomenclatura (F4): PDF de documento ainda sem tamanho de papel entra na fila de
+    // leitura. Só quando falta — documento que já tem não ganha segunda leitura a cada versão
+    // nova. Fire-and-forget, mesmo padrão do IFC/DWG acima.
+    if (extensao(nome) === "pdf" && !documentoExistente?.tamanhoPapelId) {
+      void enfileirarLeituraTamanhoPapel(documento.id, salvo.caminho).catch((err) =>
+        console.error("[upload] falha ao enfileirar leitura de tamanho de papel:", err),
       );
     }
     return pastaAlvo

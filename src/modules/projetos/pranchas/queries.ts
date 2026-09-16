@@ -88,26 +88,70 @@ export async function catalogosPranchaConfig(projetoId: string | null) {
 export type PranchaCatalogoRow = Awaited<ReturnType<typeof catalogosPranchaConfig>>[number];
 
 /**
- * Proposta de import: lê os PDFs do pacote A da disciplina, parseia os nomes no padrão
- * da Lista Mestre e propõe as folhas ainda inexistentes (dedup por numeração-tipo-fase).
+ * Sigla → sigla canônica do catálogo (mesma sigla, ou a de um sinônimo dela). Sigla sem
+ * catálogo correspondente volta em maiúsculo, sem quebrar — só não normaliza.
+ */
+export function mapaCanonico(rows: { sigla: string; sinonimos: string[] }[]): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const r of rows) {
+    const sigla = r.sigla.toUpperCase();
+    m.set(sigla, sigla);
+    for (const sinonimo of r.sinonimos) m.set(sinonimo.toUpperCase(), sigla);
+  }
+  return m;
+}
+
+export function canonizar(sigla: string, mapa: Map<string, string>): string {
+  return mapa.get(sigla.toUpperCase()) ?? sigla.toUpperCase();
+}
+
+/**
+ * Proposta de import: lê os PDFs do pacote A da disciplina e propõe as folhas ainda
+ * inexistentes (dedup por numeração-tipo-fase). Tipo, número e papel vêm do que o motor de
+ * nomenclatura já gravou no documento (F3/F4) quando houver; sem isso, cai na leitura embutida
+ * do nome (`parsePranchaFilename`) — nunca pior que antes da F4 (spec §4, F4).
+ *
+ * Tipo e fase (dos dois lados — Prancha já cadastrada E leitura nova) passam por
+ * `canonizar()`: uma Prancha antiga pode ter sido gravada com a sigla CRUA do nome
+ * (`DTC`, `MED`) antes do catálogo ter sinônimo, e o documento gravado pelo motor já usa a
+ * sigla canônica (`DET`, `MEM`). Sem normalizar os dois lados da chave de dedup, o import
+ * proporia de novo uma folha que já existe, só com grafia diferente.
  */
 export async function proporPranchasImport(disciplinaId: string) {
   const disc = await prisma.disciplina.findUnique({
     where: { id: disciplinaId },
     select: {
+      projetoId: true,
       pranchas: { select: { numeracao: true, tipo: true, fase: true } },
       uploads: {
         // Lixeira: leitura aninhada não passa pelo filtro global (lib/prisma.ts) → explícito.
         where: { pacote: "A", excluidoEm: null },
-        select: { nomeArquivo: true, versao: true },
+        select: {
+          nomeArquivo: true,
+          versao: true,
+          documento: {
+            select: {
+              numeroPrancha: true,
+              tipo: { select: { sigla: true } },
+              fase: { select: { sigla: true } },
+              tamanhoPapel: { select: { sigla: true } },
+            },
+          },
+        },
         orderBy: { versao: "asc" },
       },
     },
   });
   if (!disc) return null;
 
+  const { tipo: catalogoTipo, fase: catalogoFase } = await catalogosPrancha(disc.projetoId);
+  const tipoCanonico = mapaCanonico(catalogoTipo);
+  const faseCanonica = mapaCanonico(catalogoFase);
+
   const pdfs = disc.uploads.filter((u) => u.nomeArquivo.toLowerCase().endsWith(".pdf"));
-  const vistos = new Set(disc.pranchas.map((p) => `${p.numeracao}-${p.tipo}-${p.fase}`));
+  const vistos = new Set(
+    disc.pranchas.map((p) => `${p.numeracao}-${canonizar(p.tipo, tipoCanonico)}-${canonizar(p.fase, faseCanonica)}`),
+  );
 
   const propostos: {
     folha: string;
@@ -123,22 +167,31 @@ export async function proporPranchasImport(disciplinaId: string) {
 
   for (const up of pdfs) {
     const parsed = parsePranchaFilename(up.nomeArquivo);
-    if (!parsed) {
+    if (!parsed && !up.documento) {
       semPadrao.push(up.nomeArquivo);
       continue;
     }
-    const key = `${parsed.numeracao}-${parsed.tipo}-${parsed.fase}`;
+    const numeracao = up.documento?.numeroPrancha ?? parsed?.numeracao;
+    const tipoLido = up.documento?.tipo?.sigla ?? parsed?.tipo;
+    const faseLida = up.documento?.fase?.sigla ?? parsed?.fase;
+    if (numeracao === undefined || !tipoLido || !faseLida) {
+      semPadrao.push(up.nomeArquivo);
+      continue;
+    }
+    const tipo = canonizar(tipoLido, tipoCanonico);
+    const fase = canonizar(faseLida, faseCanonica);
+    const key = `${numeracao}-${tipo}-${fase}`;
     if (vistos.has(key)) {
       jaExistentes.push(up.nomeArquivo);
       continue;
     }
     vistos.add(key);
     propostos.push({
-      folha: "A1",
-      tipo: parsed.tipo,
-      fase: parsed.fase,
-      numeracao: parsed.numeracao,
-      revisao: parsed.revisao ?? Math.max(0, up.versao - 1),
+      folha: up.documento?.tamanhoPapel?.sigla ?? "A1",
+      tipo,
+      fase,
+      numeracao,
+      revisao: parsed?.revisao ?? Math.max(0, up.versao - 1),
       conteudo: "",
       nomeArquivo: up.nomeArquivo,
     });

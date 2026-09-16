@@ -384,21 +384,48 @@ carregava, sem consulta nova.
   todo arquivo).
 - Explorer V1 (`arquivos-explorer.tsx`) recebe só a correção do `foraDoPadrao`; nada novo.
 
-### F4 — Lista V2, tamanho do papel e backfill · **Sonnet**
+### F4 — Lista V2, tamanho do papel e backfill · **Sonnet** · entregue (2026-09-15)
 
-- **Lista V2:** colunas/filtros de tipo, número da prancha, tamanho do papel e categoria de
-  extensão; **selo "Backup"** e filtro por pacote (pendência da V2: o backup aparece sem rótulo).
-- **Tamanho do papel pelo PDF:** após gravar um PDF, ler a 1ª página com `pdf-lib`
-  (`getSize()`, considerando `/Rotate`) e casar com A0–A4 do catálogo, tolerância pequena,
-  retrato ou paisagem. Fora do padrão = vazio. Só preenche documento sem tamanho definido.
-  Fire-and-forget como as conversões IFC/DWG; limite de tamanho do PDF lido (não carregar
-  arquivo gigante em memória).
-- **Lista Mestre:** import (`pranchas/queries.ts`, hoje `folha: "A1"` fixo) usa o tamanho do
-  papel do documento quando houver, e tipo/número gravados em vez de reler o nome.
-- **Backfill** `scripts/preencher-metadados-documentos.ts`: relatório sem `--aplicar`; só campo
-  vazio; grava `DocumentoEvento` com origem `lote`; ids tocados em JSON para reversão (mesmo
-  contrato de `preencher-fase-documentos.ts`). Inclui tamanho do papel dos PDFs existentes.
-- Manual (`docs/manual/`) e `novidades.md` atualizados.
+Entregue conforme o desenho abaixo, com quatro ajustes que só apareceram na implementação:
+
+1. **O selo "Backup" cobre pacote B E extensão `ehBackup`, não só pacote B.** O diagnóstico de
+   prod (§1) achou 25 backups em B **e 14 `.qibzip`/`.zip`/`.rar` que caíram em OUTROS** — um
+   selo só em B resolveria a metade do problema e a queixa original ("backup não aparece em
+   lugar nenhum") continuaria valendo pros outros 14. `LinhaDoc.ehBackup` e o filtro
+   `pacote=backup` juntam os dois; o pacote literal "B" nem aparece mais como opção do filtro
+   (vira "Backup").
+2. **Nº e Tipo mantêm fallback para a leitura embutida do nome** (`parsePranchaFilename`)
+   quando o campo gravado (`numeroPrancha`/`tipoId`) ainda está vazio — nunca regride a coluna
+   que já existia. `tamanhoPapel` não tem fallback (não dá pra inferir papel do NOME).
+3. **Sem `/Rotate`:** a classificação compara a maior dimensão da página com a maior do papel
+   (e a menor com a menor), então girar 90°/270° não muda o resultado — não havia o que tratar,
+   e um comentário dizendo o contrário teria sido uma mentira testável (como a tolerância a
+   revisão inventada na F3, mas ao contrário: aqui a "solução" seria código morto).
+4. **Import da Lista Mestre precisou canonizar a chave de dedup.** `Prancha.tipo`/`.fase` de
+   uma prancha antiga podem ter sido gravados com a sigla CRUA do nome (`DTC`, `MED`); o
+   documento que o motor já classificou usa a sigla canônica (`DET`, `MEM`). Sem normalizar os
+   dois lados (`canonizar()`, usando os `sinonimos` do catálogo), o import proporia de novo uma
+   folha que já existe, só com grafia diferente.
+
+- **Lista V2:** colunas Tipo e Papel (Nº e Fase já existiam), filtros de tipo, papel, categoria
+  de extensão e pacote (com a opção semântica "Backup"); selo "Backup" na linha do documento.
+  Filtro de tipo/papel inclui item **inativo** do catálogo (documento antigo pode apontar pra
+  um que foi desativado depois — mesmo raciocínio do filtro de status).
+- **Tamanho do papel pelo PDF:** `modules/uploads/nomenclatura/tamanho-papel.ts` (puro,
+  testado) classifica A0–A4 por tabela ISO 216 fixa (não pelo texto do catálogo). A leitura do
+  arquivo (`modules/uploads/tamanho-papel-pdf.ts`) roda numa fila própria do pg-boss
+  (`ler-tamanho-papel-pdf`), fire-and-forget como IFC/DWG, com limite de 60 MB; só grava se o
+  documento ainda estiver sem papel (`updateMany` guardado).
+- **Lista Mestre:** `proporPranchasImport` usa `numeroPrancha`/`tipo`/`tamanhoPapel` do
+  documento quando houver, caindo pro parse do nome quando não — nunca pior que antes.
+- **Backfill** `scripts/preencher-metadados-documentos.ts`: duas passagens independentes (nome:
+  tipo+número via motor completo; arquivo: papel via PDF) — a de papel só funciona rodando NO
+  SERVIDOR (precisa de `STORAGE_BASE_PATH` e dos arquivos). Relatório sem `--aplicar`; só campo
+  vazio; grava `DocumentoEvento` com `origem: "lote"` no detalhe; ids tocados em JSON. FASE não
+  entra neste script — continua em `preencher-fase-documentos.ts`, de propósito (ver cabeçalho
+  do script novo).
+- Manual (`docs/manual/projetos/projetos.md`, nova seção "Colunas e filtros da tabela de
+  arquivos") e `novidades.md` atualizados; `search-index.json` também.
 
 ### F5 — Editor visual do padrão · **Sonnet**
 

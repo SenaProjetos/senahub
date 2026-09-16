@@ -445,14 +445,28 @@ export async function opcoesFiltroDocumentos(opts: {
         ...(disciplinaId ? { id: disciplinaId } : {}),
       },
     },
-    select: { nomeArquivo: true, autor: { select: { name: true } } },
+    select: { nomeArquivo: true, pacote: true, autor: { select: { name: true } } },
   });
 
   const extensoes = [...new Set(uploads.map((u) => extensaoDe(u.nomeArquivo)).filter(Boolean))].sort();
   const autores = [...new Set(uploads.map((u) => u.autor?.name).filter((n): n is string => !!n))].sort(
     (a, b) => a.localeCompare(b, "pt-BR"),
   );
-  return { extensoes, autores };
+  // Pacotes de fato presentes no recorte (disciplina com árvore de pastas não tem pacote — os
+  // uploads dela não entram aqui). "B" some da lista literal: o filtro oferece "Backup" no
+  // lugar, que é semântico (pacote B OU extensão ehBackup) — ver `documentos-agrupados.ts`.
+  const pacotes = [
+    ...new Set(uploads.map((u) => u.pacote as string | null).filter((p): p is string => !!p && p !== "B")),
+  ].sort();
+  const extensoesCatalogo = await prisma.extensaoArquivo.findMany({
+    where: { extensao: { in: extensoes } },
+    select: { extensao: true, categoria: true },
+  });
+  const categoriaPorExtensao = new Map(extensoesCatalogo.map((e) => [e.extensao, e.categoria]));
+  const categoriasExtensao = [
+    ...new Set(extensoes.map((e) => categoriaPorExtensao.get(e)).filter((c): c is string => !!c)),
+  ].sort();
+  return { extensoes, autores, pacotes, categoriasExtensao };
 }
 
 /**
