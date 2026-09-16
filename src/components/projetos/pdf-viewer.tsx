@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useTransit
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, BookmarkPlus, Check, CopyPlus, Expand, FileArchive, GitCompare, Loader2, Maximize2, MapPin, MessageSquare, Minimize, PauseCircle, Pencil, RotateCcw, RotateCw, Ruler, Send, Sparkles, Stamp, Table2, Tags, Trash2, Undo2, Wrench, X, ZoomIn, ZoomOut } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookmarkPlus, Check, CopyPlus, Download, Expand, FileArchive, GitCompare, Loader2, Maximize2, MapPin, MessageSquare, Minimize, PauseCircle, Pencil, RotateCcw, RotateCw, Ruler, Send, Sparkles, Stamp, Table2, Tags, Trash2, Undo2, Wrench, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { PendenciaView, ReincidenciaView } from "@/modules/projetos/pendencias/queries";
 import type { TarefaContextual } from "@/modules/tarefas/queries";
 import {
@@ -1327,14 +1327,28 @@ export function PdfViewer(props: Props) {
               <span className="text-xs text-muted-foreground">Extensões:</span>
               {revisionFiles.map((file) =>
                 file.id === uploadId ? (
-                  <Badge
+                  <span
                     key={file.id}
-                    variant="secondary"
-                    className="font-mono text-[10px] tracking-wide uppercase"
-                    title={`${file.name} (arquivo atual)`}
+                    className="inline-flex h-5 items-stretch divide-x divide-border overflow-hidden rounded-sm border border-border"
+                    role="group"
+                    aria-label={`Ações de ${file.name}`}
                   >
-                    <span aria-current="page">{file.ext || "sem extensão"}</span>
-                  </Badge>
+                    <Badge
+                      variant="secondary"
+                      className="rounded-none border-0 font-mono text-[10px] tracking-wide uppercase"
+                      title={`${file.name} (arquivo atual)`}
+                    >
+                      <span aria-current="page">{file.ext || "sem extensão"}</span>
+                    </Badge>
+                    <a
+                      href={file.downloadUrl}
+                      className="flex items-center px-1.5 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:outline-none"
+                      title={`Baixar ${file.name}`}
+                      aria-label={`Baixar ${file.name}`}
+                    >
+                      <Download className="size-3" aria-hidden />
+                    </a>
+                  </span>
                 ) : (
                   <BadgeExtensao
                     key={file.id}

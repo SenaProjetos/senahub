@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Download } from "lucide-react";
+import { Download, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { VisualizarDwgButton } from "@/components/dwg/visualizar-dwg-button";
 
@@ -9,7 +9,10 @@ import { VisualizarDwgButton } from "@/components/dwg/visualizar-dwg-button";
  * Badge de extensão com a ação apropriada ao tipo (F1-PR4, item 9 da spec).
  *
  * Cada extensão abre o visualizador que JÁ existe no sistema — nada de visualizador novo:
- *  - `pdf`  → rota `/projetos/[id]/arquivos/[uploadId]/visualizar` (PdfViewer, com pinos)
+ *  - `pdf`  → grupo com rótulo + DOIS botões (baixar | visualizar em
+ *             `/projetos/[id]/arquivos/[uploadId]/visualizar`, PdfViewer com pinos) — mesmo
+ *             padrão do `dwg` abaixo; só o link pro visualizador não bastava porque o PDF em
+ *             si não tinha NENHUM caminho de download (nem dentro do visualizador).
  *  - `ifc`  → aba Coordenação do projeto (viewer BIM federado); sem `coordenacao:ver`, baixa
  *  - `dwg`  → grupo com rótulo + DOIS botões separados (baixar | visualizar). O badge único
  *             "DWG ⬇" com o olho solto ao lado lia como um botão só; separados, cada ação tem
@@ -49,21 +52,31 @@ export function BadgeExtensao({
 
   if (ext === "pdf") {
     return (
-      <Badge
-        variant="outline"
-        className={classe}
-        render={
-          <Link
-            href={`/projetos/${projetoId}/arquivos/${uploadId}/visualizar`}
-            target="_blank"
-            rel="noopener"
-            title={`Visualizar ${nome}`}
-            aria-label={`Visualizar ${nome}`}
-          />
-        }
+      <span
+        className="inline-flex h-5 items-stretch divide-x divide-border overflow-hidden rounded-sm border border-border"
+        role="group"
+        aria-label={`Ações de ${nome}`}
       >
-        {rotulo}
-      </Badge>
+        <span className="flex items-center px-1.5 font-mono text-[10px] tracking-wide uppercase">{rotulo}</span>
+        <a
+          href={downloadUrl}
+          className="flex items-center px-1.5 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:outline-none"
+          title={`Baixar ${nome}`}
+          aria-label={`Baixar ${nome}`}
+        >
+          <Download className="size-3" aria-hidden />
+        </a>
+        <Link
+          href={`/projetos/${projetoId}/arquivos/${uploadId}/visualizar`}
+          target="_blank"
+          rel="noopener"
+          className="flex items-center px-1.5 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:outline-none"
+          title={`Visualizar ${nome}`}
+          aria-label={`Visualizar ${nome}`}
+        >
+          <Eye className="size-3" aria-hidden />
+        </Link>
+      </span>
     );
   }
 

@@ -993,7 +993,6 @@ export function ArquivosExplorer({
                                       pendentesExclusao={pendentesExclusao}
                                       podeValidar={podeValidarDisc && idsValidaveis.has(atual.id)}
                                       foraPadrao={
-                                        nomenclatura.exigir &&
                                         atual.pacote === "A" &&
                                         foraDoPadrao(atual.nome, nomenclatura.padrao)
                                       }
@@ -2241,7 +2240,9 @@ function Uploader({
         toast.error(`${f.name}: excede o limite de ${limiteLabelDoPacote(alvo)}.`);
         continue;
       }
-      const fora = nomenclatura.exigir && alvo === "A" && foraDoPadrao(f.name, nomenclatura.padrao);
+      // Feedback de padrão sempre visível — `exigir` fica reservado pro dia em que virar
+      // bloqueio de verdade; até lá, a equipe já vê e vai se adaptando (pedido do dono).
+      const fora = alvo === "A" && foraDoPadrao(f.name, nomenclatura.padrao);
       itens.push({
         file: f,
         nome: f.name,
@@ -2564,7 +2565,7 @@ function Uploader({
             Formatos não suportados em Pranchas vão para &quot;Outros&quot;. Material enviado pelo cliente fica em
             &quot;Recebidos do cliente&quot; (pasta de topo).
             {" "}Limite por arquivo: {TAMANHO_MAX_BACKUP_LABEL} em Backup do modelo, {TAMANHO_MAX_LABEL} nos demais.
-            {nomenclatura.exigir && " Nomes fora do padrão em Pranchas pedem revisão antes do envio."}
+            {" Nomes fora do padrão em Pranchas aparecem marcados na revisão — não impede o envio."}
             {nomenclatura.exigirFase && " A fase de cada documento é obrigatória e pode ser revista antes do envio."}
           </>
         )}

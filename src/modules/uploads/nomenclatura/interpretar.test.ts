@@ -205,6 +205,13 @@ describe("interpretarNomeArquivo — extensão, backup e cópia", () => {
     expect(r.sugestoes.filter((s) => s.tipo === "nova_versao_de")).toHaveLength(1);
   });
 
+  it("sugere nova versão quando só o -Rnn do nome mudou (convenção SENA embute revisão no nome)", () => {
+    const r = ler("260034-ELE-EX-5001-DET-R01.pdf", {
+      documentosExistentes: [{ id: "doc-1", nomeArquivo: "260034-ELE-EX-5001-DET-R00.dwg" }],
+    });
+    expect(r.sugestoes).toContainEqual(expect.objectContaining({ tipo: "nova_versao_de", documentoId: "doc-1" }));
+  });
+
   it("não sugere nova versão quando o nome é idêntico (a versão normal já cobre)", () => {
     const r = ler("260020-EST-EX-4000-DET.pdf", {
       documentosExistentes: [{ id: "doc-1", nomeArquivo: "260020-EST-EX-4000-DET.pdf" }],

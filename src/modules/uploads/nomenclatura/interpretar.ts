@@ -239,11 +239,20 @@ function campoDeCandidato(c: Candidato, confianca: number): Campo<string> {
   };
 }
 
-/** Chave de comparação entre nomes (sem acento, sem separador, minúscula) para "nova versão de". */
+/**
+ * Chave de comparação entre nomes (sem acento, sem separador, minúscula, sem revisão) para
+ * "nova versão de". Sem tirar a revisão, "...-5001-DET-R00" e "...-5001-DET-R01" davam chaves
+ * diferentes e a mesma prancha reenviada com o `-Rnn` do NOME atualizado (convenção da SENA)
+ * nunca sugeria "nova versão de" — virava documento novo, contado como entrega separada.
+ */
 export function chaveComparacaoNome(nomeArquivo: string): string {
   const { base } = separarExtensao(nomeArquivo);
   const { base: semCopia } = removerSufixosDeCopia(base);
-  return semAcento(semCopia).toLowerCase().replace(/[-_.,;\s]+/g, " ").trim();
+  const partes = semCopia.trim().split(/[-_.,;\s]+/).filter(Boolean);
+  if (partes.length > 1 && revisaoDaParte(partes[partes.length - 1].toUpperCase()) !== null) {
+    partes.pop();
+  }
+  return semAcento(partes.join(" ")).toLowerCase();
 }
 
 export function interpretarNomeArquivo(nome: string, ctx: ContextoNomenclatura): Interpretacao {

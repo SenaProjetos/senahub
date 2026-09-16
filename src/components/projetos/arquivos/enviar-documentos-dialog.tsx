@@ -47,6 +47,9 @@ type ItemEnvio = {
   faseId?: string;
   /** Tipo de documento lido do nome (alta confiança) ou escolhido aqui. */
   tipoId?: string;
+  /** Título da prancha pra Lista Mestre — preenchido aqui já deixa o envio alimentando a
+   *  Lista Mestre sozinho, sem passo extra depois no painel de detalhe. */
+  titulo?: string;
   /** "Nova versão de": documento existente que recebe esta revisão, mesmo com outro nome. */
   versaoDeDocumentoId?: string;
   fora: boolean;
@@ -205,7 +208,9 @@ function UploaderDocumentos({
         ...(usaPastas ? { pastaId } : {}),
         ...(confiavel(leitura.fase) ? { faseId: leitura.fase.valor } : {}),
         ...(confiavel(leitura.tipo) ? { tipoId: leitura.tipo.valor } : {}),
-        fora: !usaPastas && dados.nomenclatura.exigir && pacote === "A" && foraDoPadrao(file.name, dados.nomenclatura.padrao),
+        // Feedback de padrão sempre visível — `exigir` fica reservado pro dia em que virar
+        // bloqueio de verdade; até lá, a equipe já vê e vai se adaptando (pedido do dono).
+        fora: !usaPastas && pacote === "A" && foraDoPadrao(file.name, dados.nomenclatura.padrao),
         avisos: leitura.avisos,
         sugestoes: leitura.sugestoes,
       });
@@ -342,6 +347,29 @@ function UploaderDocumentos({
   // o diálogo, achar o documento na lista e abrir o painel de detalhe pra cada arquivo).
   const [salvandoMetadado, setSalvandoMetadado] = useState<number | null>(null);
   const [, iniciarSalvarMetadado] = useTransition();
+
+  /** Título digitado aqui alimenta a Lista Mestre direto — sem isto, era mais um passo depois,
+   *  no painel de detalhe de cada documento (pedido do dono: já ir preenchendo no envio). */
+  // Por documentoId, não por índice: um novo lote no MESMO diálogo reindexa `progresso` do
+  // zero, e um ref por índice guardaria o título do lote anterior — o próximo save igual ao
+  // "salvo" fantasma seria descartado pela guarda de "nada mudou" (achado do advisor).
+  const tituloSalvo = useRef(new Map<string, string>());
+
+  function salvarTituloPosEnvio(indice: number, tituloDigitado: string) {
+    const linha = progresso?.[indice];
+    if (!linha?.documentoId) return;
+    const documentoId = linha.documentoId;
+    const valor = tituloDigitado.trim();
+    if (valor === (tituloSalvo.current.get(documentoId) ?? "")) return; // nada mudou — não bate a action à toa no blur
+    atualizarLinha(indice, { titulo: valor || undefined });
+    setSalvandoMetadado(indice);
+    iniciarSalvarMetadado(async () => {
+      const r = await editarMetadadosDocumento({ documentoId, titulo: valor || null });
+      setSalvandoMetadado(null);
+      if (r.ok) tituloSalvo.current.set(documentoId, valor);
+      else toast.error(r.error);
+    });
+  }
 
   function salvarMetadadoPosEnvio(indice: number, campo: "faseId" | "tipoId", valorBruto: string) {
     const linha = progresso?.[indice];
@@ -546,47 +574,58 @@ function UploaderDocumentos({
         />
       )}
 
-      {/* Fase/tipo reconhecidos, ainda nesta tela — sem isto o único jeito de corrigir era
-          fechar o diálogo, achar o documento na lista e abrir o painel de detalhe. Só pra quem
-          pode editar metadados, e só faz sentido em pacote (pasta não usa Lista Mestre). */}
+      {/* Fase/tipo/título reconhecidos ou a preencher, ainda nesta tela — sem isto o único
+          jeito de corrigir era fechar o diálogo, achar o documento na lista e abrir o painel
+          de detalhe pra cada arquivo. Título aqui já alimenta a Lista Mestre sozinho. Só pra
+          quem pode editar metadados, e só faz sentido em pacote (pasta não usa Lista Mestre). */}
       {!enviando && !usaPastas && dados.podeEditarMetadados && progresso && progresso.some((l) => l.status === "ok" && l.documentoId) && (
         <div className="space-y-2 rounded-sm border bg-background/60 p-2">
-          <p className="text-xs font-medium text-muted-foreground">Fase e tipo reconhecidos — corrija se precisar</p>
-          <div className="max-h-64 space-y-2 overflow-y-auto">
+          <p className="text-xs font-medium text-muted-foreground">Reconhecido no envio — corrija ou complete se precisar</p>
+          <div className="max-h-72 space-y-2 overflow-y-auto">
             {progresso.map((linha, indice) =>
               linha.status === "ok" && linha.documentoId ? (
-                <div key={indice} className="grid grid-cols-[1fr_9rem_9rem] items-center gap-2">
-                  <span className="min-w-0 truncate text-xs" title={linha.nome}>{linha.nome}</span>
-                  <Select
-                    value={linha.faseId ?? "__none"}
-                    onValueChange={(v) => salvarMetadadoPosEnvio(indice, "faseId", v ?? "__none")}
-                    disabled={salvandoMetadado === indice}
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Fase —" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none">— nenhuma</SelectItem>
-                      {dados.fases.map((fase) => (
-                        <SelectItem key={fase.id} value={fase.id}>{fase.sigla} · {fase.nome}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select
-                    value={linha.tipoId ?? "__none"}
-                    onValueChange={(v) => salvarMetadadoPosEnvio(indice, "tipoId", v ?? "__none")}
-                    disabled={salvandoMetadado === indice}
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Tipo —" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none">— nenhum</SelectItem>
-                      {dados.tipos.map((tipo) => (
-                        <SelectItem key={tipo.id} value={tipo.id}>{tipo.sigla} · {tipo.nome}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div key={indice} className="space-y-1 rounded-sm border p-1.5">
+                  <span className="block min-w-0 truncate text-xs text-muted-foreground" title={linha.nome}>{linha.nome}</span>
+                  <div className="grid grid-cols-[1fr_9rem_9rem] items-center gap-2">
+                    <Input
+                      value={linha.titulo ?? ""}
+                      placeholder="Título da prancha (Lista Mestre)"
+                      className="h-8 text-xs"
+                      disabled={salvandoMetadado === indice}
+                      onChange={(event) => atualizarLinha(indice, { titulo: event.target.value || undefined })}
+                      onBlur={(event) => salvarTituloPosEnvio(indice, event.target.value)}
+                    />
+                    <Select
+                      value={linha.faseId ?? "__none"}
+                      onValueChange={(v) => salvarMetadadoPosEnvio(indice, "faseId", v ?? "__none")}
+                      disabled={salvandoMetadado === indice}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Fase —" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none">— nenhuma</SelectItem>
+                        {dados.fases.map((fase) => (
+                          <SelectItem key={fase.id} value={fase.id}>{fase.sigla} · {fase.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={linha.tipoId ?? "__none"}
+                      onValueChange={(v) => salvarMetadadoPosEnvio(indice, "tipoId", v ?? "__none")}
+                      disabled={salvandoMetadado === indice}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Tipo —" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none">— nenhum</SelectItem>
+                        {dados.tipos.map((tipo) => (
+                          <SelectItem key={tipo.id} value={tipo.id}>{tipo.sigla} · {tipo.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               ) : null,
             )}
@@ -600,7 +639,7 @@ function UploaderDocumentos({
         ) : (
           <>
             Envie arquivos soltos ou uma pasta inteira (ou arraste aqui). Vai para a disciplina escolhida. Limite por arquivo: {TAMANHO_MAX_BACKUP_LABEL} em Backup do modelo, {TAMANHO_MAX_LABEL} nos demais.
-            {dados.nomenclatura.exigir && " Nomes fora do padrão em Pranchas pedem revisão antes do envio."}
+            {" Nomes fora do padrão em Pranchas aparecem marcados na revisão — não impede o envio."}
             {dados.nomenclatura.exigirFase && " A fase de cada documento é obrigatória e pode ser revista antes do envio."}
           </>
         )}
