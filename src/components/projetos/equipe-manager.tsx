@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Interno = { id: string; name: string; role: string; cargo: string | null };
 type MembroLocal = { userId: string; papel: string };
@@ -25,11 +26,13 @@ export function EquipeManager({
   internos,
   papeisSugeridos,
   membrosAtuais,
+  compacto = false,
 }: {
   projetoId: string;
   internos: Interno[];
   papeisSugeridos: string[];
   membrosAtuais: { userId: string; papel: string | null }[];
+  compacto?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -81,9 +84,22 @@ export function EquipeManager({
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={abrir}>
-        <UserPlus className="size-4" /> Adicionar membro
-      </Button>
+      {compacto ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button variant="outline" size="icon-sm" onClick={abrir} aria-label="Adicionar membro">
+                <UserPlus className="size-3.5" />
+              </Button>
+            }
+          />
+          <TooltipContent>Adicionar membro</TooltipContent>
+        </Tooltip>
+      ) : (
+        <Button variant="outline" size="sm" onClick={abrir}>
+          <UserPlus className="size-4" /> Adicionar membro
+        </Button>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">

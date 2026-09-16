@@ -197,24 +197,25 @@ export async function DisciplinasOperacionais({ projetoId }: { projetoId: string
 
       <div className="grid gap-3 md:grid-cols-2">
         {disciplinas.map((disciplina) => (
-          <DisciplinaCard
-            key={disciplina.id}
-            projetoId={projeto.id}
-            disciplina={disciplina}
-            podeGerir={podeGerir}
-            podeValidar={podeValidar}
-            internos={internos}
-            canalChatId={canaisDisc.get(disciplina.id) ?? canalChat?.id}
-            tarefas={tarefasPorDisciplina.get(disciplina.id) ?? []}
-            tarefaOpcoes={tarefaOpcoes ?? undefined}
-            tarefaColunas={tarefaColunas ?? undefined}
-            meId={user.id}
-            meRole={user.role}
-            gereTodasTarefas={user.gereTodasTarefas}
-            atuaEmDisciplinaAlheia={atuaEmDisciplinaAlheia}
-            podeAprovarDisciplina={podeAprovarDisciplina}
-            podeVerValor={podeVerValor}
-          />
+          <div key={disciplina.id} id={`disciplina-${disciplina.id}`} className="scroll-mt-24">
+            <DisciplinaCard
+              projetoId={projeto.id}
+              disciplina={disciplina}
+              podeGerir={podeGerir}
+              podeValidar={podeValidar}
+              internos={internos}
+              canalChatId={canaisDisc.get(disciplina.id) ?? canalChat?.id}
+              tarefas={tarefasPorDisciplina.get(disciplina.id) ?? []}
+              tarefaOpcoes={tarefaOpcoes ?? undefined}
+              tarefaColunas={tarefaColunas ?? undefined}
+              meId={user.id}
+              meRole={user.role}
+              gereTodasTarefas={user.gereTodasTarefas}
+              atuaEmDisciplinaAlheia={atuaEmDisciplinaAlheia}
+              podeAprovarDisciplina={podeAprovarDisciplina}
+              podeVerValor={podeVerValor}
+            />
+          </div>
         ))}
       </div>
     </div>

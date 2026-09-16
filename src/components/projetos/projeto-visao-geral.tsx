@@ -498,9 +498,10 @@ function DisciplinesTable({ projeto, dados }: { projeto: ProjetoDetalhe; dados: 
   );
 }
 
-type MembroEquipe = { userId: string; nome: string; role: string; image: string | null; papel: string | null; online: boolean; disciplinas: string[] };
+type DisciplinaDoMembro = { id: string; nome: string };
+type MembroEquipe = { userId: string; nome: string; role: string; image: string | null; papel: string | null; online: boolean; disciplinas: DisciplinaDoMembro[] };
 
-function MembroEquipeRow({ membro }: { membro: MembroEquipe }) {
+function MembroEquipeRow({ membro, projetoId }: { membro: MembroEquipe; projetoId: string }) {
   return (
     <li className="flex items-center gap-3">
       <Avatar size="lg">
@@ -512,18 +513,32 @@ function MembroEquipeRow({ membro }: { membro: MembroEquipe }) {
         <p className="truncate text-sm font-medium">{membro.nome}</p>
         <p className="truncate text-xs text-muted-foreground">{membro.papel ?? ROLE_LABELS[membro.role as keyof typeof ROLE_LABELS] ?? membro.role}</p>
       </div>
-      {membro.disciplinas.length > 0 && (
-        <div className="flex shrink-0 items-center gap-1.5">
-          {membro.disciplinas.map((disciplina) => (
-            <Tooltip key={disciplina}>
-              <TooltipTrigger render={<span className="grid size-7 place-items-center rounded-full bg-muted" />}>
-                <DisciplinaIcone nome={disciplina} className="size-4 text-primary" />
+      <div className="flex shrink-0 items-center gap-1.5">
+        {membro.disciplinas.length > 0 ? (
+          membro.disciplinas.map((disciplina) => (
+            <Tooltip key={disciplina.id}>
+              <TooltipTrigger
+                render={
+                  <Link
+                    href={`/projetos/${projetoId}/disciplinas#disciplina-${disciplina.id}`}
+                    className="grid size-7 place-items-center rounded-full bg-muted hover:bg-primary/15"
+                  />
+                }
+              >
+                <DisciplinaIcone nome={disciplina.nome} className="size-4 text-primary" />
               </TooltipTrigger>
-              <TooltipContent>{disciplina}</TooltipContent>
+              <TooltipContent>{disciplina.nome}</TooltipContent>
             </Tooltip>
-          ))}
-        </div>
-      )}
+          ))
+        ) : (
+          <Tooltip>
+            <TooltipTrigger render={<span className="grid size-7 place-items-center rounded-full bg-muted" />}>
+              <Users className="size-4 text-muted-foreground" />
+            </TooltipTrigger>
+            <TooltipContent>Equipe do projeto (sem disciplina atribuída)</TooltipContent>
+          </Tooltip>
+        )}
+      </div>
       {membro.online && <span className="shrink-0 text-[11px] font-medium text-success">Online</span>}
     </li>
   );
@@ -535,14 +550,14 @@ function TeamSummary({
   internos,
   papeisSugeridos,
 }: Pick<Props, "projeto" | "podeGerir" | "internos" | "papeisSugeridos">) {
-  const equipeMap = new Map<string, { nome: string; role: string; image: string | null; papel: string | null; disciplinas: string[] }>();
+  const equipeMap = new Map<string, { nome: string; role: string; image: string | null; papel: string | null; disciplinas: DisciplinaDoMembro[] }>();
   for (const disciplina of projeto.disciplinas) {
     for (const responsavel of disciplina.responsaveis) {
       const atual = equipeMap.get(responsavel.userId);
       if (atual) {
-        if (!atual.disciplinas.includes(disciplina.disciplinaTextoLegado)) atual.disciplinas.push(disciplina.disciplinaTextoLegado);
+        if (!atual.disciplinas.some((d) => d.id === disciplina.id)) atual.disciplinas.push({ id: disciplina.id, nome: disciplina.disciplinaTextoLegado });
       } else {
-        equipeMap.set(responsavel.userId, { nome: responsavel.user.name, role: responsavel.user.role, image: responsavel.user.image, papel: "projetista", disciplinas: [disciplina.disciplinaTextoLegado] });
+        equipeMap.set(responsavel.userId, { nome: responsavel.user.name, role: responsavel.user.role, image: responsavel.user.image, papel: "projetista", disciplinas: [{ id: disciplina.id, nome: disciplina.disciplinaTextoLegado }] });
       }
     }
   }
@@ -566,12 +581,20 @@ function TeamSummary({
             {qtdOnline > 0 && <span className="text-success"> · {qtdOnline} online</span>}
           </p>
         </div>
-        {podeGerir && <EquipeManager projetoId={projeto.id} internos={internos} papeisSugeridos={papeisSugeridos} membrosAtuais={projeto.membros.map((membro) => ({ userId: membro.userId, papel: membro.papel ?? null }))} />}
+        {podeGerir && (
+          <EquipeManager
+            compacto
+            projetoId={projeto.id}
+            internos={internos}
+            papeisSugeridos={papeisSugeridos}
+            membrosAtuais={projeto.membros.map((membro) => ({ userId: membro.userId, papel: membro.papel ?? null }))}
+          />
+        )}
       </CardHeader>
       <CardContent className="min-h-0 flex-1 overflow-auto">
         {equipe.length === 0 ? <EmptyState icon={Users} title="Sem membros adicionais" /> : (
           <ul className="space-y-3">
-            {equipe.map((membro) => <MembroEquipeRow key={membro.userId} membro={membro} />)}
+            {equipe.map((membro) => <MembroEquipeRow key={membro.userId} membro={membro} projetoId={projeto.id} />)}
           </ul>
         )}
       </CardContent>
