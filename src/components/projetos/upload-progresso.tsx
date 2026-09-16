@@ -20,6 +20,12 @@ export type ResultadoUpload = {
   motivo?: string;
   revisaoId?: string;
   revisaoNumero?: number;
+  /** O que o motor de nomenclatura reconheceu no documento (F3+), pra mostrar e deixar
+   *  corrigir sem sair da tela de envio. */
+  documentoId?: string;
+  faseId?: string;
+  tipoId?: string;
+  numeroPrancha?: number;
 };
 
 export class ErroEnvio extends Error {
@@ -42,6 +48,9 @@ export type LinhaEnvio = {
   realocado?: boolean;
   /** Momento local em que o servidor permite nova tentativa após HTTP 429. */
   retryAfterAt?: number;
+  /** Confirmado pelo servidor após o envio — ver `ResultadoUpload`. */
+  documentoId?: string;
+  numeroPrancha?: number;
 };
 
 /**

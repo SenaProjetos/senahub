@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, FolderOpen, Trash2, Upload as UploadIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -35,6 +35,7 @@ import {
 } from "@/modules/uploads/nomenclatura/interpretar";
 import { montarVocabulario, type CatalogosNomenclatura } from "@/modules/uploads/nomenclatura/vocabulario";
 import type { ExtensaoDef } from "@/modules/uploads/nomenclatura/extensoes";
+import { editarMetadadosDocumento } from "@/modules/uploads/actions";
 
 type PacoteEnvio = "A" | "B";
 type FaseUpload = { id: string; sigla: string; nome: string };
@@ -84,6 +85,9 @@ export type DadosEnviarDocumentos = {
   catalogosNomenclatura: CatalogosNomenclatura;
   extensoesNomenclatura: ExtensaoDef[];
   documentosPorDisciplina: Record<string, DocumentoExistente[]>;
+  /** Sem isto, o editor de fase/tipo pós-envio nem aparece — evita chamar uma action que o
+   *  servidor recusaria por permissão. */
+  podeEditarMetadados: boolean;
 };
 
 /**
@@ -291,6 +295,12 @@ function UploaderDocumentos({
               realocado: resultado.realocado,
               revisaoAgrupadaId: grupo ? resultado.revisaoId : undefined,
               retryAfterAt: undefined,
+              // Confirmado pelo servidor — pode diferir do que a leitura local sugeriu (o
+              // documento já podia ter fase/tipo de um envio anterior, que sempre vence).
+              documentoId: resultado.documentoId,
+              faseId: resultado.faseId,
+              tipoId: resultado.tipoId,
+              numeroPrancha: resultado.numeroPrancha,
             });
           } else {
             if (grupo) gruposComErro.add(grupo);
@@ -325,6 +335,32 @@ function UploaderDocumentos({
     setProgresso((atual) => {
       if (!atual) return atual;
       return atual.map((linha, i) => (i === indice ? { ...linha, ...patch } : linha));
+    });
+  }
+
+  // Corrigir fase/tipo reconhecidos SEM sair da tela de envio (senão o único jeito era fechar
+  // o diálogo, achar o documento na lista e abrir o painel de detalhe pra cada arquivo).
+  const [salvandoMetadado, setSalvandoMetadado] = useState<number | null>(null);
+  const [, iniciarSalvarMetadado] = useTransition();
+
+  function salvarMetadadoPosEnvio(indice: number, campo: "faseId" | "tipoId", valorBruto: string) {
+    const linha = progresso?.[indice];
+    if (!linha?.documentoId) return;
+    const documentoId = linha.documentoId;
+    const anterior = campo === "faseId" ? linha.faseId : linha.tipoId;
+    const valor = valorBruto === "__none" ? "" : valorBruto;
+    const novoValor = valor || undefined;
+    atualizarLinha(indice, campo === "faseId" ? { faseId: novoValor } : { tipoId: novoValor });
+    setSalvandoMetadado(indice);
+    iniciarSalvarMetadado(async () => {
+      const r = await editarMetadadosDocumento(
+        campo === "faseId" ? { documentoId, faseId: valor || null } : { documentoId, tipoId: valor || null },
+      );
+      setSalvandoMetadado(null);
+      if (!r.ok) {
+        toast.error(r.error);
+        atualizarLinha(indice, campo === "faseId" ? { faseId: anterior } : { tipoId: anterior }); // desfaz o otimista
+      }
     });
   }
 
@@ -392,6 +428,10 @@ function UploaderDocumentos({
             progresso: 100,
             realocado: resultado.realocado,
             revisaoAgrupadaId: linha.grupoRevisao ? resultado.revisaoId : undefined,
+            documentoId: resultado.documentoId,
+            faseId: resultado.faseId,
+            tipoId: resultado.tipoId,
+            numeroPrancha: resultado.numeroPrancha,
           });
         } catch (error) {
           const espera = error instanceof ErroEnvio ? error.retryDepoisSegundos : undefined;
@@ -504,6 +544,54 @@ function UploaderDocumentos({
           onFechar={() => setProgresso(null)}
           onReenviar={(indices) => void reenviar(indices)}
         />
+      )}
+
+      {/* Fase/tipo reconhecidos, ainda nesta tela — sem isto o único jeito de corrigir era
+          fechar o diálogo, achar o documento na lista e abrir o painel de detalhe. Só pra quem
+          pode editar metadados, e só faz sentido em pacote (pasta não usa Lista Mestre). */}
+      {!enviando && !usaPastas && dados.podeEditarMetadados && progresso && progresso.some((l) => l.status === "ok" && l.documentoId) && (
+        <div className="space-y-2 rounded-sm border bg-background/60 p-2">
+          <p className="text-xs font-medium text-muted-foreground">Fase e tipo reconhecidos — corrija se precisar</p>
+          <div className="max-h-64 space-y-2 overflow-y-auto">
+            {progresso.map((linha, indice) =>
+              linha.status === "ok" && linha.documentoId ? (
+                <div key={indice} className="grid grid-cols-[1fr_9rem_9rem] items-center gap-2">
+                  <span className="min-w-0 truncate text-xs" title={linha.nome}>{linha.nome}</span>
+                  <Select
+                    value={linha.faseId ?? "__none"}
+                    onValueChange={(v) => salvarMetadadoPosEnvio(indice, "faseId", v ?? "__none")}
+                    disabled={salvandoMetadado === indice}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Fase —" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">— nenhuma</SelectItem>
+                      {dados.fases.map((fase) => (
+                        <SelectItem key={fase.id} value={fase.id}>{fase.sigla} · {fase.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={linha.tipoId ?? "__none"}
+                    onValueChange={(v) => salvarMetadadoPosEnvio(indice, "tipoId", v ?? "__none")}
+                    disabled={salvandoMetadado === indice}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Tipo —" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">— nenhum</SelectItem>
+                      {dados.tipos.map((tipo) => (
+                        <SelectItem key={tipo.id} value={tipo.id}>{tipo.sigla} · {tipo.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null,
+            )}
+          </div>
+        </div>
       )}
 
       <p className="text-xs text-muted-foreground">

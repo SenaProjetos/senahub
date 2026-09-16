@@ -35,6 +35,13 @@ type Resultado = {
   realocado?: boolean;
   revisaoId?: string;
   revisaoNumero?: number;
+  /** Documento lógico + o que o motor de nomenclatura reconheceu — pro diálogo mostrar e
+   *  deixar corrigir sem sair da tela (sem isso a única forma de ver o resultado era abrir o
+   *  documento na lista, depois de fechar o diálogo). */
+  documentoId?: string;
+  faseId?: string;
+  tipoId?: string;
+  numeroPrancha?: number;
 };
 
 /** Arquivo remontado maior que o teto do pacote — mensagem segura p/ o cliente. */
@@ -319,13 +326,13 @@ export async function POST(req: Request) {
       ? await prisma.documentoDisciplina.update({
           where: { id: documentoEscolhido.id },
           data: metadados,
-          select: { id: true },
+          select: { id: true, faseId: true, tipoId: true, numeroPrancha: true },
         })
       : await prisma.documentoDisciplina.upsert({
           where: { disciplinaId_chave: { disciplinaId, chave } },
           create: { disciplinaId, chave, nomeArquivo: nome, ...metadados },
           update: metadados,
-          select: { id: true },
+          select: { id: true, faseId: true, tipoId: true, numeroPrancha: true },
         });
 
     // Sem os campos novos, preserva a regra legada: a versão do arquivo determina a
@@ -429,9 +436,19 @@ export async function POST(req: Request) {
         console.error("[upload] falha ao enfileirar leitura de tamanho de papel:", err),
       );
     }
+    // Recolhido do documento pós-gravação (não das variáveis `faseFinal`/etc.): essas só
+    // existem quando ESTE envio mudou o campo — o documento pode já ter fase/tipo de um
+    // envio anterior, e é isso que o diálogo precisa mostrar como "reconhecido", não só o
+    // que mudou agora.
+    const reconhecido = {
+      documentoId: documento.id,
+      ...(documento.faseId ? { faseId: documento.faseId } : {}),
+      ...(documento.tipoId ? { tipoId: documento.tipoId } : {}),
+      ...(documento.numeroPrancha !== null ? { numeroPrancha: documento.numeroPrancha } : {}),
+    };
     return pastaAlvo
-      ? { nome, ok: true, realocado: false, revisaoId: revisao.id, revisaoNumero: revisao.numero }
-      : { nome, ok: true, pacote: destino!, realocado, revisaoId: revisao.id, revisaoNumero: revisao.numero };
+      ? { nome, ok: true, realocado: false, revisaoId: revisao.id, revisaoNumero: revisao.numero, ...reconhecido }
+      : { nome, ok: true, pacote: destino!, realocado, revisaoId: revisao.id, revisaoNumero: revisao.numero, ...reconhecido };
   }
 
   /**

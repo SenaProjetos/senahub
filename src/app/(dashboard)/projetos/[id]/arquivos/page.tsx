@@ -347,6 +347,7 @@ export default async function ArquivosPage({
                 catalogosNomenclatura,
                 extensoesNomenclatura,
                 documentosPorDisciplina,
+                podeEditarMetadados,
               }
             : null
         }

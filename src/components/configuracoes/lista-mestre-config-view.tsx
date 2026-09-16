@@ -27,10 +27,32 @@ function sinonimosDoTexto(texto: string): string[] {
 }
 
 type Categoria = "folha" | "tipo" | "fase";
-const SECOES: { categoria: Categoria; titulo: string; descricao: string }[] = [
-  { categoria: "fase", titulo: "Fases", descricao: "Etapa do projeto (ex.: PE — Projeto Executivo)." },
-  { categoria: "tipo", titulo: "Tipos de documento", descricao: "Natureza da folha (ex.: PL — Planta)." },
-  { categoria: "folha", titulo: "Folhas (formato)", descricao: "Formato do papel (ex.: A1)." },
+const SECOES: {
+  categoria: Categoria;
+  titulo: string;
+  descricao: string;
+  /** Exemplo de CADA categoria — sem isso as três colunas mostravam o mesmo exemplo genérico
+   *  (sigla/nome de Fase sob "Tipos de documento"), o que parecia dado real duplicado. */
+  exemplo: { sigla: string; nome: string; sinonimos: string };
+}[] = [
+  {
+    categoria: "fase",
+    titulo: "Fases",
+    descricao: "Etapa do projeto (ex.: EX — Executivo).",
+    exemplo: { sigla: "EX", nome: "Executivo", sinonimos: "EXE, PE" },
+  },
+  {
+    categoria: "tipo",
+    titulo: "Tipos de documento",
+    descricao: "Natureza da folha (ex.: PL — Planta).",
+    exemplo: { sigla: "DET", nome: "Detalhe", sinonimos: "DE, DTC" },
+  },
+  {
+    categoria: "folha",
+    titulo: "Folhas (formato)",
+    descricao: "Formato do papel (ex.: A1).",
+    exemplo: { sigla: "A1", nome: "A1 (594×841)", sinonimos: "" },
+  },
 ];
 
 export function ListaMestreConfigView({
@@ -49,6 +71,7 @@ export function ListaMestreConfigView({
           categoria={s.categoria}
           titulo={s.titulo}
           descricao={s.descricao}
+          exemplo={s.exemplo}
           projetoId={projetoId}
           rows={catalogos.filter((c) => c.categoria === s.categoria)}
         />
@@ -61,12 +84,14 @@ function SecaoCatalogo({
   categoria,
   titulo,
   descricao,
+  exemplo,
   rows,
   projetoId,
 }: {
   categoria: Categoria;
   titulo: string;
   descricao: string;
+  exemplo: { sigla: string; nome: string; sinonimos: string };
   rows: PranchaCatalogoRow[];
   projetoId?: string;
 }) {
@@ -165,23 +190,26 @@ function SecaoCatalogo({
           </ul>
         )}
 
+        {/* Formulário de UMA sigla nova — sinônimo aqui é só o dela, não um campo geral. Sigla
+            já existente edita pelo lápis na lista acima (inclusive o sinônimo dela). */}
         <div className="space-y-2 border-t pt-3">
+          <p className="text-xs font-medium text-muted-foreground">Nova sigla</p>
           <div className="flex items-end gap-2">
             <div className="w-20 space-y-1">
               <Label className="text-xs">Sigla</Label>
-              <Input value={sigla} onChange={(e) => setSigla(e.target.value.toUpperCase())} placeholder="PE" className="font-mono" />
+              <Input value={sigla} onChange={(e) => setSigla(e.target.value.toUpperCase())} placeholder={exemplo.sigla} className="font-mono" />
             </div>
             <div className="flex-1 space-y-1">
               <Label className="text-xs">Nome</Label>
-              <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Projeto Executivo" />
+              <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder={exemplo.nome} />
             </div>
             <Button size="icon" aria-label="Adicionar" disabled={pending} onClick={adicionar}>
               <Plus className="size-4" />
             </Button>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Sinônimos (opcional)</Label>
-            <Input value={sinonimos} onChange={(e) => setSinonimos(e.target.value)} placeholder="PE, EXE" />
+            <Label className="text-xs">Sinônimos desta sigla (opcional)</Label>
+            <Input value={sinonimos} onChange={(e) => setSinonimos(e.target.value)} placeholder={exemplo.sinonimos || undefined} />
           </div>
         </div>
       </CardContent>

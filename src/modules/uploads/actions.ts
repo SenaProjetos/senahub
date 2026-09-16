@@ -1442,9 +1442,16 @@ export const carregarHistoricoRevisoes = defineAction(
 
 const editarMetadadosDocumentoSchema = z.object({
   documentoId: z.string().min(1),
-  titulo: z.string().trim().max(160, "O título pode ter no máximo 160 caracteres.").nullable(),
-  descricao: z.string().trim().max(2_000, "A descrição pode ter no máximo 2.000 caracteres.").nullable(),
-  faseId: z.string().min(1).nullable(),
+  // `.optional()` em todos: campo AUSENTE = não mexe (o `data` do Prisma nem recebe a chave);
+  // campo presente (mesmo `null`) = grava. O painel de detalhe sempre manda os quatro
+  // primeiros (é um form completo); o editor inline do diálogo de envio manda só fase/tipo,
+  // sem tocar em título/descrição/número — antes desta mudança precisaria buscar os valores
+  // atuais só pra reenviá-los intactos.
+  titulo: z.string().trim().max(160, "O título pode ter no máximo 160 caracteres.").nullable().optional(),
+  descricao: z.string().trim().max(2_000, "A descrição pode ter no máximo 2.000 caracteres.").nullable().optional(),
+  faseId: z.string().min(1).nullable().optional(),
+  tipoId: z.string().min(1).nullable().optional(),
+  numeroPrancha: z.number().int().positive().nullable().optional(),
 });
 
 const atualizarStatusDocumentoSchema = z.object({
@@ -1494,50 +1501,101 @@ export const editarMetadadosDocumento = defineAction(
     capturarAntes: (input) =>
       prisma.documentoDisciplina.findUnique({
         where: { id: input.documentoId },
-        select: { titulo: true, descricao: true, faseId: true, disciplinaId: true },
+        select: { titulo: true, descricao: true, faseId: true, tipoId: true, numeroPrancha: true, disciplinaId: true },
       }),
   },
   async (input, { user }) => {
     const documento = await carregarDocumentoEditavel(input.documentoId);
     await exigirEscopoDocumento(user, documento.disciplina);
 
-    const nomenclatura = await resolverNomenclatura(documento.disciplina.projetoId);
-    if (nomenclatura.exigirFase && !input.faseId) {
-      throw new ActionError("Selecione a fase do documento.");
+    // A exigência de fase só se aplica quando ESTE save está mexendo na fase — se o campo
+    // nem veio (editor inline de fase/tipo do envio, por exemplo, mexendo só no tipo), não é
+    // o lugar de cobrar uma fase que o save de hoje não tocou.
+    if (input.faseId !== undefined) {
+      const nomenclatura = await resolverNomenclatura(documento.disciplina.projetoId);
+      if (nomenclatura.exigirFase && !input.faseId) {
+        throw new ActionError("Selecione a fase do documento.");
+      }
     }
 
-    let siglaNova: string | null = null;
-    if (input.faseId) {
-      const fase = await prisma.pranchaCatalogo.findFirst({
-        where: {
-          id: input.faseId,
-          categoria: "fase",
-          ativo: true,
-          OR: [{ projetoId: null }, { projetoId: documento.disciplina.projetoId }],
-        },
-        select: { id: true, sigla: true },
-      });
-      if (!fase) throw new ActionError("A fase selecionada não está disponível para este projeto.");
-      siglaNova = fase.sigla;
+    let siglaFaseNova: string | null | undefined;
+    if (input.faseId !== undefined) {
+      if (input.faseId === null) {
+        siglaFaseNova = null;
+      } else {
+        const fase = await prisma.pranchaCatalogo.findFirst({
+          where: {
+            id: input.faseId,
+            categoria: "fase",
+            ativo: true,
+            OR: [{ projetoId: null }, { projetoId: documento.disciplina.projetoId }],
+          },
+          select: { id: true, sigla: true },
+        });
+        if (!fase) throw new ActionError("A fase selecionada não está disponível para este projeto.");
+        siglaFaseNova = fase.sigla;
+      }
     }
 
-    // Sigla, não id: o histórico precisa continuar legível se a fase sair do catálogo.
+    let siglaTipoNova: string | null | undefined;
+    if (input.tipoId !== undefined) {
+      if (input.tipoId === null) {
+        siglaTipoNova = null;
+      } else {
+        const tipo = await prisma.pranchaCatalogo.findFirst({
+          where: {
+            id: input.tipoId,
+            categoria: "tipo",
+            ativo: true,
+            OR: [{ projetoId: null }, { projetoId: documento.disciplina.projetoId }],
+          },
+          select: { id: true, sigla: true },
+        });
+        if (!tipo) throw new ActionError("O tipo selecionado não está disponível para este projeto.");
+        siglaTipoNova = tipo.sigla;
+      }
+    }
+
+    // Sigla, não id: o histórico precisa continuar legível se a fase/tipo sair do catálogo.
     const atual = await prisma.documentoDisciplina.findUnique({
       where: { id: documento.id },
-      select: { titulo: true, descricao: true, fase: { select: { sigla: true } } },
+      select: {
+        titulo: true,
+        descricao: true,
+        numeroPrancha: true,
+        fase: { select: { sigla: true } },
+        tipo: { select: { sigla: true } },
+      },
     });
     await prisma.documentoDisciplina.update({
       where: { id: documento.id },
       data: {
-        titulo: input.titulo || null,
-        descricao: input.descricao || null,
-        faseId: input.faseId,
+        ...(input.titulo !== undefined ? { titulo: input.titulo || null } : {}),
+        ...(input.descricao !== undefined ? { descricao: input.descricao || null } : {}),
+        ...(input.faseId !== undefined ? { faseId: input.faseId } : {}),
+        ...(input.tipoId !== undefined ? { tipoId: input.tipoId } : {}),
+        ...(input.numeroPrancha !== undefined ? { numeroPrancha: input.numeroPrancha } : {}),
       },
     });
     const campos = camposAlterados(
-      { titulo: atual?.titulo, descricao: atual?.descricao, fase: atual?.fase?.sigla },
-      { titulo: input.titulo, descricao: input.descricao, fase: siglaNova },
-      ["titulo", "descricao", "fase"] as const,
+      {
+        titulo: atual?.titulo,
+        descricao: atual?.descricao,
+        fase: atual?.fase?.sigla,
+        tipo: atual?.tipo?.sigla,
+        numeroPrancha: atual?.numeroPrancha != null ? String(atual.numeroPrancha) : null,
+      },
+      {
+        titulo: input.titulo !== undefined ? input.titulo : atual?.titulo,
+        descricao: input.descricao !== undefined ? input.descricao : atual?.descricao,
+        fase: input.faseId !== undefined ? siglaFaseNova : atual?.fase?.sigla,
+        tipo: input.tipoId !== undefined ? siglaTipoNova : atual?.tipo?.sigla,
+        numeroPrancha:
+          input.numeroPrancha !== undefined
+            ? (input.numeroPrancha != null ? String(input.numeroPrancha) : null)
+            : (atual?.numeroPrancha != null ? String(atual.numeroPrancha) : null),
+      },
+      ["titulo", "descricao", "fase", "tipo", "numeroPrancha"] as const,
     );
     if (Object.keys(campos).length > 0) {
       await registrarEventoDocumento({ documentoId: documento.id, tipo: "metadados", userId: user.id, detalhe: { campos } });
