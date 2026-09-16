@@ -689,7 +689,7 @@ async function main() {
   }
 
   // 3b) Catálogo da Lista Mestre (folha/tipo/fase) — siglas globais padrão.
-  const LM_CATALOGO: { categoria: "folha" | "tipo" | "fase"; sigla: string; nome: string }[] = [
+  const LM_CATALOGO: { categoria: "folha" | "tipo" | "fase"; sigla: string; nome: string; sinonimos?: string[] }[] = [
     { categoria: "folha", sigla: "A0", nome: "A0 (841×1189)" },
     { categoria: "folha", sigla: "A1", nome: "A1 (594×841)" },
     { categoria: "folha", sigla: "A2", nome: "A2 (420×594)" },
@@ -697,8 +697,8 @@ async function main() {
     { categoria: "folha", sigla: "A4", nome: "A4 (210×297)" },
     { categoria: "fase", sigla: "EP", nome: "Estudo Preliminar" },
     { categoria: "fase", sigla: "AP", nome: "Anteprojeto" },
-    { categoria: "fase", sigla: "PB", nome: "Projeto Básico" },
-    { categoria: "fase", sigla: "PE", nome: "Projeto Executivo" },
+    { categoria: "fase", sigla: "BS", nome: "Projeto Básico", sinonimos: ["PB"] },
+    { categoria: "fase", sigla: "EX", nome: "Executivo", sinonimos: ["PE", "EXE"] },
     { categoria: "fase", sigla: "PL", nome: "Projeto Legal" },
     { categoria: "fase", sigla: "AB", nome: "As Built" },
     { categoria: "tipo", sigla: "PL", nome: "Planta" },
@@ -720,7 +720,7 @@ async function main() {
     });
     if (!existe) {
       await prisma.pranchaCatalogo.create({
-        data: { categoria: c.categoria, sigla: c.sigla, nome: c.nome, ordem: i },
+        data: { categoria: c.categoria, sigla: c.sigla, nome: c.nome, ordem: i, sinonimos: c.sinonimos ?? [] },
       });
       lmCriados++;
     }
