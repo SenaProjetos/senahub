@@ -26,7 +26,7 @@ import { rotuloCatalogo } from "@/modules/projetos/disciplina-rotulo";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
@@ -497,6 +497,25 @@ function DisciplinesTable({ projeto, dados }: { projeto: ProjetoDetalhe; dados: 
   );
 }
 
+type MembroEquipe = { userId: string; nome: string; role: string; image: string | null; papel: string | null; online: boolean };
+
+function MembroEquipeRow({ membro }: { membro: MembroEquipe }) {
+  return (
+    <li className="flex items-center gap-3">
+      <Avatar size="lg">
+        {membro.image && <AvatarImage src={membro.image} alt={membro.nome} />}
+        <AvatarFallback>{iniciais(membro.nome)}</AvatarFallback>
+        {membro.online && <AvatarBadge className="bg-success" />}
+      </Avatar>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{membro.nome}</p>
+        <p className="truncate text-xs text-muted-foreground">{membro.papel ?? ROLE_LABELS[membro.role as keyof typeof ROLE_LABELS] ?? membro.role}</p>
+      </div>
+      {membro.online && <span className="shrink-0 text-[11px] font-medium text-success">Online</span>}
+    </li>
+  );
+}
+
 function TeamSummary({
   projeto,
   podeGerir,
@@ -516,30 +535,38 @@ function TeamSummary({
     equipeMap.set(membro.userId, { nome: membro.user.name, role: membro.user.role, image: membro.user.image, papel: membro.papel ?? atual?.papel ?? null });
   }
   const onlineIds = new Set(usuariosOnline());
-  const equipe = [...equipeMap.entries()].map(([userId, membro]) => ({ ...membro, userId, online: onlineIds.has(userId) }));
-  const visiveis = equipe.slice(0, 6);
+  const equipe = [...equipeMap.entries()]
+    .map(([userId, membro]) => ({ ...membro, userId, online: onlineIds.has(userId) }))
+    .sort((a, b) => Number(b.online) - Number(a.online));
+  const qtdOnline = equipe.filter((membro) => membro.online).length;
+  const visiveis = equipe.slice(0, 4);
+  const restantes = equipe.slice(4);
 
   return (
     <Card size="sm" className="h-full">
       <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
         <div>
           <CardTitle className="text-sm">Equipe do projeto</CardTitle>
-          <p className="mt-1 text-xs text-muted-foreground">{equipe.length} {equipe.length === 1 ? "membro" : "membros"}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {equipe.length} {equipe.length === 1 ? "membro" : "membros"}
+            {qtdOnline > 0 && <span className="text-success"> · {qtdOnline} online</span>}
+          </p>
         </div>
         {podeGerir && <EquipeManager projetoId={projeto.id} internos={internos} papeisSugeridos={papeisSugeridos} membrosAtuais={projeto.membros.map((membro) => ({ userId: membro.userId, papel: membro.papel ?? null }))} />}
       </CardHeader>
       <CardContent className="min-h-0 flex-1 overflow-auto">
         {equipe.length === 0 ? <EmptyState icon={Users} title="Sem membros adicionais" /> : <>
-          <AvatarGroup>
-            {visiveis.map((membro) => <Avatar key={membro.userId} size="sm" title={membro.nome}>{membro.image && <AvatarImage src={membro.image} alt={membro.nome} />}<AvatarFallback>{iniciais(membro.nome)}</AvatarFallback>{membro.online && <AvatarBadge className="bg-success" />}</Avatar>)}
-            {equipe.length > visiveis.length && <AvatarGroupCount>+{equipe.length - visiveis.length}</AvatarGroupCount>}
-          </AvatarGroup>
-          <details className="mt-3 text-xs">
-            <summary className="cursor-pointer font-medium text-primary">Ver membros</summary>
-            <ul className="mt-2 space-y-1.5 text-muted-foreground">
-              {equipe.map((membro) => <li key={membro.userId}><span className="font-medium text-foreground">{membro.nome}</span>{membro.papel ? ` · ${membro.papel}` : ` · ${ROLE_LABELS[membro.role as keyof typeof ROLE_LABELS] ?? membro.role}`}</li>)}
-            </ul>
-          </details>
+          <ul className="space-y-3">
+            {visiveis.map((membro) => <MembroEquipeRow key={membro.userId} membro={membro} />)}
+          </ul>
+          {restantes.length > 0 && (
+            <details className="mt-3 text-xs">
+              <summary className="cursor-pointer font-medium text-primary">+{restantes.length} {restantes.length === 1 ? "membro" : "membros"}</summary>
+              <ul className="mt-3 space-y-3">
+                {restantes.map((membro) => <MembroEquipeRow key={membro.userId} membro={membro} />)}
+              </ul>
+            </details>
+          )}
         </>}
       </CardContent>
     </Card>
