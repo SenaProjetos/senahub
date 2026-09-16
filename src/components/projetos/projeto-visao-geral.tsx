@@ -614,10 +614,12 @@ export function ProjetoVisaoGeral({
         <SummaryCard href={podeVerPlanejamento && dados.tarefasEap.length > 0 ? `/planejamento/${projeto.id}` : undefined}>
           <KpiLabel tooltip="A contagem segue o prazo planejado (meta interna). O prazo de contrato é o compromisso com o cliente e só muda por decisão de quem gerencia.">Prazos</KpiLabel>
           <div className="mt-5 flex items-start gap-2"><CalendarDays className={cn("mt-0.5 size-5", diasPrazo != null && diasPrazo < 0 ? "text-destructive" : diasPrazo != null && diasPrazo <= 14 ? "text-warning" : "text-primary")} /><div><p className="font-mono text-lg font-extrabold tabular-nums">{prazoPlanejado ? formatarData(prazoPlanejado) : "—"}</p><p className={cn("mt-1 text-xs", diasPrazo != null && diasPrazo < 0 ? "text-destructive" : "text-muted-foreground")}>{diasPrazo == null ? "Sem prazo planejado" : diasPrazo < 0 ? `${Math.abs(diasPrazo)} dias de atraso` : `${diasPrazo} dias restantes`}</p></div></div>
-          <p className={cn("mt-3 text-xs", planejadoEstourou ? "font-medium text-destructive" : "text-muted-foreground")}>
-            Contrato: {prazoContrato ? formatarData(prazoContrato) : "—"}
-            {planejadoEstourou && " — planejado estourou o contrato"}
-          </p>
+          {podeGerir && (
+            <p className={cn("mt-3 text-xs", planejadoEstourou ? "font-medium text-destructive" : "text-muted-foreground")}>
+              Contrato: {prazoContrato ? formatarData(prazoContrato) : "—"}
+              {planejadoEstourou && " — planejado estourou o contrato"}
+            </p>
+          )}
           {podeVerPlanejamento && dados.tarefasEap.length > 0 && <p className="mt-3 text-xs font-medium text-primary">Ver cronograma</p>}
         </SummaryCard>
       ),
