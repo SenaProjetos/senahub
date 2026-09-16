@@ -1058,6 +1058,12 @@ model DisciplinaCatalogo {
   /// Número-base da disciplina para a nomenclatura de arquivos (ex.: Estrutural = 4000 →
   /// folhas 4001, 4002…). null = sem bloco; a numeração da folha começa em 1.
   numeracao Int?
+  /// Fim da faixa (inclusive) — NÃO dá pra inferir do próximo `numeracao` cadastrado: as
+  /// faixas não são blocos uniformes (Arquitetura=3000 tem só 100 números até Acústica=3100;
+  /// Elétrico=5000 tem 4 sub-faixas de 100 dentro do próprio bloco). Sem `numeracaoFim`, o
+  /// reconhecimento automático de disciplina pela numeração do arquivo (2026-09-16) não tem
+  /// como saber onde uma faixa termina. null = sem faixa definida, mesmo com `numeracao` setado.
+  numeracaoFim Int?
   /// Grupo de exibição no catálogo (CIVIL, ELÉTRICA…). null = "Outras".
   categoria String?
   /// Chave da galeria de ícones (lucide, ex.: "Zap"). null = derivar do nome.
@@ -2427,6 +2433,12 @@ model Disciplina {
   /// model já se chama `Disciplina` — `disciplina.disciplina` seria ambíguo de ler.
   disciplinaId          String?
   catalogo              DisciplinaCatalogo? @relation(fields: [disciplinaId], references: [id])
+  /// Sobrescreve a faixa de numeração do catálogo global SÓ para este projeto (motor de
+  /// nomenclatura reconhecendo disciplina pela numeração do arquivo, 2026-09-16). null nos
+  /// dois = usa a faixa do catálogo global; setar um sem o outro não faz sentido — quem
+  /// grava garante os dois juntos ou nenhum.
+  numeracaoInicioProjeto Int?
+  numeracaoFimProjeto    Int?
 
   status       StatusDisciplina @default(aguardando)
   prazo        DateTime?
