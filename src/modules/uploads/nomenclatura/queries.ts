@@ -1,0 +1,83 @@
+import "server-only";
+import { prisma } from "@/lib/prisma";
+import type { CatalogosNomenclatura } from "./vocabulario";
+import type { ExtensaoDef } from "./extensoes";
+
+/**
+ * Carrega os catálogos (disciplina/fase/tipo, com sinônimos) na forma que a função pura
+ * `montarVocabulario()` espera. Só ativos — item arquivado não deve mais ser reconhecido no
+ * nome, mesmo que documentos antigos ainda apontem para ele.
+ *
+ * `disciplinas` não filtra por projeto: `DisciplinaCatalogo` é sempre global (não existe versão
+ * por projeto, ao contrário de `PranchaCatalogo`). Fase/tipo trazem global + o que for específico
+ * de `projetoId` — a precedência (projeto vence global) é resolvida dentro de `montarVocabulario`.
+ */
+export async function carregarCatalogosNomenclatura(projetoId: string | null): Promise<CatalogosNomenclatura> {
+  const [disciplinas, pranchas] = await Promise.all([
+    prisma.disciplinaCatalogo.findMany({
+      where: { ativo: true },
+      select: { id: true, codigo: true, numeracao: true, sinonimos: true },
+    }),
+    prisma.pranchaCatalogo.findMany({
+      where: {
+        ativo: true,
+        categoria: { in: ["fase", "tipo"] },
+        OR: [{ projetoId: null }, ...(projetoId ? [{ projetoId }] : [])],
+      },
+      select: { id: true, categoria: true, sigla: true, sinonimos: true, projetoId: true },
+    }),
+  ]);
+
+  return {
+    disciplinas: disciplinas.map((d) => ({
+      id: d.id,
+      codigo: d.codigo,
+      numeracao: d.numeracao,
+      sinonimos: d.sinonimos,
+    })),
+    fases: pranchas
+      .filter((p) => p.categoria === "fase")
+      .map((p) => ({ id: p.id, sigla: p.sigla, sinonimos: p.sinonimos, projetoId: p.projetoId })),
+    tipos: pranchas
+      .filter((p) => p.categoria === "tipo")
+      .map((p) => ({ id: p.id, sigla: p.sigla, sinonimos: p.sinonimos, projetoId: p.projetoId })),
+  };
+}
+
+/** Catálogo de extensões ativo, na forma que `classificarExtensao()` consome. */
+export async function carregarExtensoesNomenclatura(): Promise<ExtensaoDef[]> {
+  const rows = await prisma.extensaoArquivo.findMany({
+    where: { ativo: true },
+    select: { extensao: true, categoria: true, software: true, ehBackup: true, ehTemporario: true, ehConteiner: true },
+  });
+  return rows;
+}
+
+/** Catálogo completo (ativas + inativas) para a tela de administração. */
+export async function listarExtensoesAdmin() {
+  return prisma.extensaoArquivo.findMany({ orderBy: [{ categoria: "asc" }, { ordem: "asc" }] });
+}
+
+export type ExtensaoArquivoRow = Awaited<ReturnType<typeof listarExtensoesAdmin>>[number];
+
+/**
+ * Extensões que aparecem em uploads ativos mas não estão no catálogo — para a tela de admin
+ * ("extensões desconhecidas no acervo"). Não lê o conteúdo dos arquivos, só o nome; `.0001.rvt`
+ * etc. contam junto com `.rvt` aqui (o backup numerado do Revit só é distinguido pelo motor de
+ * nomenclatura, não por esta consulta simples de agregação).
+ */
+export async function extensoesDesconhecidasNoAcervo(): Promise<{ extensao: string; quantidade: number }[]> {
+  const rows = await prisma.$queryRaw<{ extensao: string; quantidade: bigint }[]>`
+    select lower(substring(u."nomeArquivo" from '\.([^.]+)$')) as extensao, count(*)::bigint as quantidade
+    from "upload" u
+    where u."excluidoEm" is null
+      and u."nomeArquivo" ~ '\.[^.]+$'
+      and not exists (
+        select 1 from "extensao_arquivo" e where e."extensao" = lower(substring(u."nomeArquivo" from '\.([^.]+)$'))
+      )
+    group by 1
+    order by quantidade desc
+    limit 50
+  `;
+  return rows.map((r) => ({ extensao: r.extensao, quantidade: Number(r.quantidade) }));
+}

@@ -19,6 +19,7 @@ import {
   Shapes,
   LayoutList,
   Building2,
+  FileQuestion,
 } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -91,6 +92,12 @@ const GRUPOS: Grupo[] = [
         icon: LayoutList,
         titulo: "Lista Mestre",
         descricao: "Siglas de folha, tipo e fase que compõem o código das folhas técnicas.",
+      },
+      {
+        href: "/configuracoes/extensoes",
+        icon: FileQuestion,
+        titulo: "Extensões de arquivo",
+        descricao: "O que cada formato significa para o motor de nomenclatura (categoria, software, backup).",
       },
       {
         href: "/configuracoes/documentos",

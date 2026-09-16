@@ -34,6 +34,7 @@ import { notificarMuitos } from "@/lib/notificar";
 import { logAudit } from "@/lib/audit";
 import { sanitizeSvg } from "@/lib/sanitize-svg";
 import { normalizar } from "@/lib/disciplinas-core";
+import { normalizarSinonimos, primeiraColisao } from "@/modules/uploads/nomenclatura/colisao-sinonimo";
 import { usaEstruturaCustom, disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { transicaoDisciplinaPermitida, mensagemTransicaoDisciplina } from "@/modules/projetos/status";
 import { semearPastasTemplate, projetoUsaTemplate } from "@/modules/projetos/pastas/seed";
@@ -1150,6 +1151,7 @@ function normalizarCatalogo(i: {
   categoria?: string;
   icone?: string;
   iconeSvg?: string;
+  sinonimos?: string[];
 }) {
   const codigo = (i.codigo ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "") || null;
   const iconeSvg = i.iconeSvg ? sanitizeSvg(i.iconeSvg) : null;
@@ -1162,6 +1164,9 @@ function normalizarCatalogo(i: {
     // ícone custom (SVG) tem prioridade; ao enviar SVG, zera a chave da galeria.
     icone: iconeSvg ? null : i.icone?.trim() || null,
     iconeSvg,
+    // Motor de nomenclatura (F2): sinônimo só faz sentido ancorado a um código; sem código,
+    // a lista fica vazia em vez de guardar sinônimo órfão que nunca vai casar com nada.
+    sinonimos: codigo ? normalizarSinonimos(codigo, i.sinonimos ?? []) : [],
   };
 }
 
@@ -1182,8 +1187,12 @@ async function canonizarCategoria(cat: string | null): Promise<string | null> {
   return match?.categoria ?? cat;
 }
 
-/** Garante nome e código únicos no catálogo (ignora a própria linha ao editar). */
-async function garantirUnicosCatalogo(nome: string, codigo: string | null, ignoreId: string | null) {
+/**
+ * Garante nome e código únicos no catálogo (ignora a própria linha ao editar), e que nenhum
+ * sinônimo desta disciplina colida com o código ou sinônimo de outra (F2 da spec do motor de
+ * nomenclatura). Colisão com o próprio código é aceitável — só interessa colisão com OUTRA.
+ */
+async function garantirUnicosCatalogo(nome: string, codigo: string | null, sinonimos: string[], ignoreId: string | null) {
   const naoEu = ignoreId ? { id: { not: ignoreId } } : {};
   if (await prisma.disciplinaCatalogo.findFirst({ where: { nome, ...naoEu }, select: { id: true } })) {
     throw new ActionError("Já existe uma disciplina com esse nome.");
@@ -1193,6 +1202,19 @@ async function garantirUnicosCatalogo(nome: string, codigo: string | null, ignor
     (await prisma.disciplinaCatalogo.findFirst({ where: { codigo, ...naoEu }, select: { id: true } }))
   ) {
     throw new ActionError("Já existe uma disciplina com esse código.");
+  }
+  if (sinonimos.length > 0) {
+    const outras = await prisma.disciplinaCatalogo.findMany({
+      where: { ...naoEu, codigo: { not: null } },
+      select: { id: true, codigo: true, sinonimos: true },
+    });
+    const colisao = primeiraColisao(
+      { sigla: codigo ?? "", sinonimos },
+      outras.map((o) => ({ id: o.id, sigla: o.codigo as string, sinonimos: o.sinonimos })),
+    );
+    if (colisao) {
+      throw new ActionError(`"${colisao.valor}" já é usado por outra disciplina do catálogo.`);
+    }
   }
 }
 
@@ -1207,7 +1229,7 @@ export const criarDisciplinaCatalogo = defineAction(
   async (i) => {
     const dados = normalizarCatalogo(i);
     dados.categoria = await canonizarCategoria(dados.categoria);
-    await garantirUnicosCatalogo(dados.nome, dados.codigo, null);
+    await garantirUnicosCatalogo(dados.nome, dados.codigo, dados.sinonimos, null);
     const max = await prisma.disciplinaCatalogo.aggregate({ _max: { ordem: true } });
     const criada = await prisma.disciplinaCatalogo.create({
       data: { ...dados, ordem: (max._max.ordem ?? 0) + 1 },
@@ -1231,7 +1253,7 @@ export const editarDisciplinaCatalogo = defineAction(
     if (!existe) throw new ActionError("Disciplina não encontrada.");
     const dados = normalizarCatalogo(i);
     dados.categoria = await canonizarCategoria(dados.categoria);
-    await garantirUnicosCatalogo(dados.nome, dados.codigo, i.id);
+    await garantirUnicosCatalogo(dados.nome, dados.codigo, dados.sinonimos, i.id);
 
     // `Disciplina.disciplinaTextoLegado` (linha de projeto) casa com o catálogo por TEXTO.
     // A F1.19c criou `disciplinaId`, mas ele é NULLABLE e ainda há disciplina sem FK (as grafias

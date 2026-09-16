@@ -76,9 +76,19 @@ type FormState = {
   categoria: string;
   icone: string | null;
   iconeSvg: string | null;
+  /** Sinônimos p/ o motor de nomenclatura (uma sigla por linha ou separados por vírgula). */
+  sinonimos: string;
 };
 
-const VAZIO: FormState = { nome: "", codigo: "", numeracao: "", categoria: "", icone: null, iconeSvg: null };
+const VAZIO: FormState = { nome: "", codigo: "", numeracao: "", categoria: "", icone: null, iconeSvg: null, sinonimos: "" };
+
+/** "hdr, esg" ou "hdr\nesg" → ["HDR", "ESG"]. A action normaliza de novo (dedupe, própria sigla). */
+function sinonimosDoTexto(texto: string): string[] {
+  return texto
+    .split(/[,\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 /** Ícone de um item do catálogo, resolvido pelos próprios campos (svg → galeria → derivado). */
 function IconeDisc({
@@ -155,6 +165,7 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
         categoria: form.categoria.trim() || undefined,
         icone: form.icone || undefined,
         iconeSvg: form.iconeSvg || undefined,
+        sinonimos: sinonimosDoTexto(form.sinonimos),
       };
       const r = form.id
         ? await editarDisciplinaCatalogo({ id: form.id, ...payload })
@@ -343,6 +354,7 @@ function paraForm(item: DisciplinaCatalogoAdmin): FormState {
     categoria: item.categoria ?? "",
     icone: item.icone,
     iconeSvg: item.iconeSvg,
+    sinonimos: item.sinonimos.join(", "),
   };
 }
 
@@ -424,9 +436,19 @@ function ItemLinha({
       </TableCell>
       <TableCell>
         {item.codigo ? (
-          <Badge variant="outline" className="font-mono text-[10px] uppercase">
-            {item.codigo}
-          </Badge>
+          <div className="flex flex-col gap-0.5">
+            <Badge variant="outline" className="w-fit font-mono text-[10px] uppercase">
+              {item.codigo}
+            </Badge>
+            {item.sinonimos.length > 0 && (
+              <span
+                className="text-[10px] text-muted-foreground"
+                title={`O motor de nomenclatura também reconhece: ${item.sinonimos.join(", ")}`}
+              >
+                = {item.sinonimos.join(", ")}
+              </span>
+            )}
+          </div>
         ) : (
           <span className="text-xs text-muted-foreground">—</span>
         )}
@@ -564,6 +586,21 @@ function DisciplinaDialog({
               />
               <p className="text-[11px] text-muted-foreground">Bloco na nomenclatura (ex.: 4000 → folhas 4001, 4002…).</p>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Sinônimos</Label>
+            <Input
+              value={form.sinonimos}
+              placeholder="HDR, ESG"
+              disabled={!form.codigo.trim()}
+              onChange={(e) => setForm((f) => ({ ...f, sinonimos: e.target.value }))}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              {form.codigo.trim()
+                ? "Siglas alternativas que o motor de nomenclatura reconhece como esta disciplina, separadas por vírgula."
+                : "Defina um código antes de cadastrar sinônimos — sem código não há o que reconhecer."}
+            </p>
           </div>
 
           <div className="space-y-1.5">

@@ -154,6 +154,9 @@ export const criarDisciplinaCatalogoSchema = z.object({
   icone: z.string().trim().max(60).optional(),
   /** SVG bruto do upload; sanitizado na action. */
   iconeSvg: z.string().max(40000, "SVG muito grande.").optional(),
+  /** Siglas alternativas p/ o motor de nomenclatura (ex.: HID aceita HDR, ESG). Normalizadas
+   *  (uppercase, dedupe) na action; colisão com outra disciplina é validada lá. */
+  sinonimos: z.array(z.string().trim().max(10)).max(10).optional(),
 });
 
 export const editarDisciplinaCatalogoSchema = criarDisciplinaCatalogoSchema.extend({

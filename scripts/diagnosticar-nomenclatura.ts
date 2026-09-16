@@ -4,7 +4,6 @@ import { parsePranchaFilename } from "../src/modules/projetos/pranchas/codigo";
 import { EXT_PACOTE_A } from "../src/modules/uploads/destino";
 import { EXT_SUBPASTA } from "../src/modules/uploads/estrutura";
 import { confiavel, interpretarNomeArquivo } from "../src/modules/uploads/nomenclatura/interpretar";
-import { sinonimosDe } from "../src/modules/uploads/nomenclatura/sinonimos-iniciais";
 import { montarVocabulario } from "../src/modules/uploads/nomenclatura/vocabulario";
 import { EXTENSOES_INICIAIS } from "../src/modules/uploads/nomenclatura/extensoes-iniciais";
 
@@ -122,11 +121,11 @@ async function main() {
       },
     }),
     prisma.pranchaCatalogo.findMany({
-      select: { categoria: true, sigla: true, nome: true, ativo: true, projetoId: true },
+      select: { id: true, categoria: true, sigla: true, nome: true, ativo: true, projetoId: true, sinonimos: true },
       orderBy: [{ categoria: "asc" }, { ordem: "asc" }],
     }),
     prisma.disciplinaCatalogo.findMany({
-      select: { codigo: true, nome: true, numeracao: true, ativo: true },
+      select: { id: true, codigo: true, nome: true, numeracao: true, ativo: true, sinonimos: true },
       orderBy: [{ numeracao: "asc" }],
     }),
     prisma.nomenclaturaConfig.findMany({ select: { projetoId: true, padrao: true, exigir: true, exigirFase: true } }),
@@ -324,22 +323,21 @@ async function main() {
   }
 
   // ── 6. Motor novo × regra atual ───────────────────────────────────────────────────────
-  titulo("6. MOTOR DE NOMENCLATURA (F1) × REGRA ATUAL");
-  // Enquanto a F2 não leva `sinonimos` para o banco, o motor usa a semente de
-  // `sinonimos-iniciais.ts` — é exatamente a carga que a migration vai aplicar.
-  // ATENÇÃO: os ids aqui são SINTÉTICOS (`fase:EX`) porque este script só conta. A F2/F3 tem de
-  // montar o vocabulário com o `id` de verdade do catálogo — `fase.valor` vai direto para
-  // `DocumentoDisciplina.faseId`, e gravar "fase:EX" numa FK quebraria a escrita.
+  titulo("6. MOTOR DE NOMENCLATURA (F1+F2) × REGRA ATUAL");
+  // `id` e `sinonimos` de VERDADE, vindos do banco (F2 aplicada) — nada de id sintético aqui:
+  // `fase.valor`/`tipo.valor` são os mesmos ids que `DocumentoDisciplina.faseId`/`tipoId`
+  // apontam, então este bloco já é o desenho que a F3 usa para montar o vocabulário de verdade
+  // (`carregarCatalogosNomenclatura`, em `modules/uploads/nomenclatura/queries.ts`).
   const catalogosMotor = {
     disciplinas: disciplinasCatalogo
       .filter((d) => d.ativo)
-      .map((d) => ({ id: d.codigo ?? d.nome, codigo: d.codigo, numeracao: d.numeracao, sinonimos: sinonimosDe("disciplina", d.codigo) })),
+      .map((d) => ({ id: d.id, codigo: d.codigo, numeracao: d.numeracao, sinonimos: d.sinonimos })),
     fases: catalogoPrancha
       .filter((c) => c.categoria === "fase" && c.ativo)
-      .map((c) => ({ id: `fase:${c.sigla}`, sigla: c.sigla, projetoId: c.projetoId, sinonimos: sinonimosDe("fase", c.sigla) })),
+      .map((c) => ({ id: c.id, sigla: c.sigla, projetoId: c.projetoId, sinonimos: c.sinonimos })),
     tipos: catalogoPrancha
       .filter((c) => c.categoria === "tipo" && c.ativo)
-      .map((c) => ({ id: `tipo:${c.sigla}`, sigla: c.sigla, projetoId: c.projetoId, sinonimos: sinonimosDe("tipo", c.sigla) })),
+      .map((c) => ({ id: c.id, sigla: c.sigla, projetoId: c.projetoId, sinonimos: c.sinonimos })),
   };
   const padraoGlobal = nomenclaturas.find((n) => n.projetoId === null)?.padrao ?? null;
   const padraoPorProjeto = new Map(nomenclaturas.filter((n) => n.projetoId).map((n) => [n.projetoId as string, n.padrao]));

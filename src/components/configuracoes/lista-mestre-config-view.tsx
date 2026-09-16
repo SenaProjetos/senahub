@@ -18,6 +18,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
+/** "hdr, esg" ou "hdr\nesg" → ["hdr", "esg"]. A action normaliza de novo (uppercase, dedupe). */
+function sinonimosDoTexto(texto: string): string[] {
+  return texto
+    .split(/[,\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 type Categoria = "folha" | "tipo" | "fase";
 const SECOES: { categoria: Categoria; titulo: string; descricao: string }[] = [
   { categoria: "fase", titulo: "Fases", descricao: "Etapa do projeto (ex.: PE — Projeto Executivo)." },
@@ -66,6 +74,7 @@ function SecaoCatalogo({
   const [pending, start] = useTransition();
   const [sigla, setSigla] = useState("");
   const [nome, setNome] = useState("");
+  const [sinonimos, setSinonimos] = useState("");
   const [editar, setEditar] = useState<PranchaCatalogoRow | null>(null);
 
   function adicionar() {
@@ -74,11 +83,12 @@ function SecaoCatalogo({
       return;
     }
     start(async () => {
-      const r = await criarCatalogoPrancha({ categoria, sigla, nome, projetoId });
+      const r = await criarCatalogoPrancha({ categoria, sigla, nome, projetoId, sinonimos: sinonimosDoTexto(sinonimos) });
       if (r.ok) {
         toast.success("Sigla adicionada.");
         setSigla("");
         setNome("");
+        setSinonimos("");
         router.refresh();
       } else toast.error(r.error);
     });
@@ -86,7 +96,15 @@ function SecaoCatalogo({
 
   function alternarAtivo(row: PranchaCatalogoRow) {
     start(async () => {
-      const r = await editarCatalogoPrancha({ id: row.id, sigla: row.sigla, nome: row.nome, ativo: !row.ativo });
+      // `sinonimos` do próprio row: sem isso, a action recebe lista vazia e APAGA os sinônimos
+      // cadastrados só porque esta ação não tocou neles.
+      const r = await editarCatalogoPrancha({
+        id: row.id,
+        sigla: row.sigla,
+        nome: row.nome,
+        ativo: !row.ativo,
+        sinonimos: row.sinonimos,
+      });
       if (r.ok) router.refresh();
       else toast.error(r.error);
     });
@@ -116,6 +134,14 @@ function SecaoCatalogo({
                 <Badge variant="outline" className="shrink-0 font-mono">{row.sigla}</Badge>
                 <span className={`min-w-0 flex-1 truncate ${row.ativo ? "" : "text-muted-foreground line-through"}`}>
                   {row.nome}
+                  {row.sinonimos.length > 0 && (
+                    <span
+                      className="ml-1.5 text-xs text-muted-foreground"
+                      title={`O motor de nomenclatura também reconhece: ${row.sinonimos.join(", ")}`}
+                    >
+                      (= {row.sinonimos.join(", ")})
+                    </span>
+                  )}
                 </span>
                 <Button
                   size="icon"
@@ -139,18 +165,24 @@ function SecaoCatalogo({
           </ul>
         )}
 
-        <div className="flex items-end gap-2 border-t pt-3">
-          <div className="w-20 space-y-1">
-            <Label className="text-xs">Sigla</Label>
-            <Input value={sigla} onChange={(e) => setSigla(e.target.value.toUpperCase())} placeholder="PE" className="font-mono" />
+        <div className="space-y-2 border-t pt-3">
+          <div className="flex items-end gap-2">
+            <div className="w-20 space-y-1">
+              <Label className="text-xs">Sigla</Label>
+              <Input value={sigla} onChange={(e) => setSigla(e.target.value.toUpperCase())} placeholder="PE" className="font-mono" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <Label className="text-xs">Nome</Label>
+              <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Projeto Executivo" />
+            </div>
+            <Button size="icon" aria-label="Adicionar" disabled={pending} onClick={adicionar}>
+              <Plus className="size-4" />
+            </Button>
           </div>
-          <div className="flex-1 space-y-1">
-            <Label className="text-xs">Nome</Label>
-            <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Projeto Executivo" />
+          <div className="space-y-1">
+            <Label className="text-xs">Sinônimos (opcional)</Label>
+            <Input value={sinonimos} onChange={(e) => setSinonimos(e.target.value)} placeholder="PE, EXE" />
           </div>
-          <Button size="icon" aria-label="Adicionar" disabled={pending} onClick={adicionar}>
-            <Plus className="size-4" />
-          </Button>
         </div>
       </CardContent>
 
@@ -164,6 +196,7 @@ function EditarDialog({ row, onClose }: { row: PranchaCatalogoRow | null; onClos
   const [pending, start] = useTransition();
   const [sigla, setSigla] = useState("");
   const [nome, setNome] = useState("");
+  const [sinonimos, setSinonimos] = useState("");
   const [lastId, setLastId] = useState<string | null>(null);
 
   // Sincroniza o form quando abre em outra linha (sem useEffect).
@@ -171,6 +204,7 @@ function EditarDialog({ row, onClose }: { row: PranchaCatalogoRow | null; onClos
     setLastId(row.id);
     setSigla(row.sigla);
     setNome(row.nome);
+    setSinonimos(row.sinonimos.join(", "));
   }
 
   function salvar() {
@@ -180,7 +214,7 @@ function EditarDialog({ row, onClose }: { row: PranchaCatalogoRow | null; onClos
       return;
     }
     start(async () => {
-      const r = await editarCatalogoPrancha({ id: row.id, sigla, nome, ativo: row.ativo });
+      const r = await editarCatalogoPrancha({ id: row.id, sigla, nome, ativo: row.ativo, sinonimos: sinonimosDoTexto(sinonimos) });
       if (r.ok) {
         toast.success("Sigla atualizada.");
         onClose();
@@ -195,14 +229,23 @@ function EditarDialog({ row, onClose }: { row: PranchaCatalogoRow | null; onClos
         <DialogHeader>
           <DialogTitle>Editar sigla</DialogTitle>
         </DialogHeader>
-        <div className="flex items-end gap-2">
-          <div className="w-20 space-y-1.5">
-            <Label>Sigla</Label>
-            <Input value={sigla} onChange={(e) => setSigla(e.target.value.toUpperCase())} className="font-mono" />
+        <div className="space-y-3">
+          <div className="flex items-end gap-2">
+            <div className="w-20 space-y-1.5">
+              <Label>Sigla</Label>
+              <Input value={sigla} onChange={(e) => setSigla(e.target.value.toUpperCase())} className="font-mono" />
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <Label>Nome</Label>
+              <Input value={nome} onChange={(e) => setNome(e.target.value)} />
+            </div>
           </div>
-          <div className="flex-1 space-y-1.5">
-            <Label>Nome</Label>
-            <Input value={nome} onChange={(e) => setNome(e.target.value)} />
+          <div className="space-y-1.5">
+            <Label>Sinônimos</Label>
+            <Input value={sinonimos} onChange={(e) => setSinonimos(e.target.value)} placeholder="PE, EXE" />
+            <p className="text-[11px] text-muted-foreground">
+              Siglas alternativas que o motor de nomenclatura reconhece como esta, separadas por vírgula.
+            </p>
           </div>
         </div>
         <DialogFooter>

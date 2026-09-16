@@ -309,15 +309,27 @@ não regex — enquanto o compilador da F1 não existe, cai na regra embutida
   sinônimos do banco).
 - Não toca rota, diálogo, schema nem consumidores atuais.
 
-### F2 — Schema e catálogos · **Sonnet**
+### F2 — Schema e catálogos · **Sonnet** · entregue (2026-09-15)
 
-- Migration de §3.4 + carga de D2 e da tabela de extensões.
-- Campo "Sinônimos" nas telas de catálogo de disciplinas (`/configuracoes/disciplinas`) e de
-  Lista Mestre (`/configuracoes/lista-mestre`), com validação: sinônimo não pode colidir com
-  sigla ou sinônimo de outro item da mesma categoria no mesmo escopo.
-- Tela do catálogo de extensões (lista, editar, desativar, "extensões desconhecidas no acervo").
-- `montarVocabulario()` carrega catálogos + sinônimos por projeto (query server-only que
-  alimenta o motor).
+- Migration `20260915170000_motor_nomenclatura_sinonimos_extensoes` (aditiva): `sinonimos
+  String[]` em `DisciplinaCatalogo`/`PranchaCatalogo`; `DocumentoDisciplina.tipoId`/
+  `numeroPrancha`/`tamanhoPapelId` (3 relações nomeadas p/ `PranchaCatalogo`); tabela
+  `ExtensaoArquivo` + carga das 37 extensões de `extensoes-iniciais.ts`; UPDATE dos sinônimos de
+  D2 (só onde `sinonimos = '{}'`, nunca sobrescreve edição). Aplicada no dev via `db push` +
+  execução direta do SQL (sem shadow DB) + `migrate resolve --applied`.
+- Campo "Sinônimos" no catálogo de disciplinas e na Lista Mestre (fase/tipo/folha), com
+  colisão validada no mesmo escopo (`colisao-sinonimo.ts`, puro e testado — 7 casos).
+- Tela `/configuracoes/extensoes`: lista, cria, edita, exclui, alterna ativo, e cadastra a
+  partir da lista de "extensões vistas no acervo, fora do catálogo" (`extensoesDesconhecidasNoAcervo`,
+  SQL sobre `Upload.nomeArquivo`). Gate `configuracoes:gerir` — sem permissão nova.
+- `carregarCatalogosNomenclatura()`/`carregarExtensoesNomenclatura()` (server-only,
+  `modules/uploads/nomenclatura/queries.ts`) montam o `CatalogosNomenclatura`/`ExtensaoDef[]`
+  de verdade a partir do banco, prontos para a `montarVocabulario()` pura da F1.
+- `scripts/diagnosticar-nomenclatura.ts` §6 passou a usar **id e sinônimo reais do banco**
+  (antes eram sintéticos — risco anotado no fim da F1); confirmado contra o dev: 37 extensões,
+  4 disciplinas com sinônimo, catálogo de fase/tipo do dev não bate com D2 (esperado, ver
+  comentário na migration).
+- `npm test` (305 arquivos/3361 testes), `npm run lint` e `npm run build` verdes.
 
 ### F3 — Integração no envio · **Opus**
 

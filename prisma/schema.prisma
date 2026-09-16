@@ -1066,6 +1066,11 @@ model DisciplinaCatalogo {
   iconeSvg  String?
   ativo     Boolean @default(true)
   ordem     Int     @default(0)
+  /// Siglas alternativas que o motor de nomenclatura reconhece como esta disciplina (ex.: HID
+  /// aceita HDR, ESG). Não é a sigla oficial — essa continua sendo `codigo`. Editável na tela;
+  /// carga inicial em `20260915170000_motor_nomenclatura_sinonimos_extensoes` (D2 da spec
+  /// `docs/superpowers/specs/2026-09-15-motor-nomenclatura.md`).
+  sinonimos String[] @default([])
 
   padroes          PadraoTecnico[]
   /// Itens de proposta que já apontam para este catálogo (CRM F1.19).
@@ -5032,11 +5037,43 @@ model PranchaCatalogo {
   projetoId String?
   projeto   Projeto?                 @relation(fields: [projetoId], references: [id], onDelete: Cascade)
   createdAt DateTime                 @default(now())
+  /// Siglas alternativas que o motor de nomenclatura resolve para este item (ex.: fase EX
+  /// aceita PE, EXE). Válido nas 3 categorias, mas só fase e tipo têm sinônimo hoje (D2 da
+  /// spec do motor de nomenclatura). Carga inicial na mesma migration dos sinônimos de disciplina.
+  sinonimos String[]                 @default([])
 
-  documentos DocumentoDisciplina[]
+  /// 3 relações NOMEADAS para o mesmo model (fase/tipo/tamanho do papel do documento) — sem
+  /// nome, o Prisma não sabe qual FK cada uma representa. Nenhum código lê estas 3 listas
+  /// (conferido por grep em 2026-09-15); existem só porque a volta da relação exige um campo.
+  documentosFase         DocumentoDisciplina[] @relation("DocumentoFase")
+  documentosTipo         DocumentoDisciplina[] @relation("DocumentoTipo")
+  documentosTamanhoPapel DocumentoDisciplina[] @relation("DocumentoTamanhoPapel")
 
   @@index([categoria, projetoId])
   @@map("prancha_catalogo")
+}
+
+/// Catálogo de extensões de arquivo (motor de nomenclatura, §3.4 da spec
+/// `docs/superpowers/specs/2026-09-15-motor-nomenclatura.md`). Metadado que o motor usa para
+/// classificar categoria/software/backup/temporário/contêiner — nunca inventado em código:
+/// extensão fora daqui vira `ExtensaoLida` desconhecida, sem bloquear o envio (ADR-0003, regra 3).
+/// Global — não há versão por projeto.
+model ExtensaoArquivo {
+  id          String   @id @default(cuid())
+  /// Minúscula, sem ponto. `0000.rvt` representa o backup numerado do Revit (`.0001.rvt`…).
+  extensao    String   @unique
+  categoria   String
+  software    String?
+  ehBackup    Boolean  @default(false)
+  ehTemporario Boolean @default(false)
+  ehConteiner Boolean  @default(false)
+  descricao   String?
+  ativo       Boolean  @default(true)
+  ordem       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("extensao_arquivo")
 }
 
 /// Feriado (cadastro p/ ponto/escala/banco de horas). Data única (ocorrência de um ano).
@@ -5472,7 +5509,18 @@ model DocumentoDisciplina {
   /// a Lista Mestre já usa; a categoria correta (`fase`) é garantida pela UI, não por
   /// constraint — `PranchaCatalogo` guarda as três categorias na mesma tabela.
   faseId       String?
-  fase         PranchaCatalogo? @relation(fields: [faseId], references: [id], onDelete: SetNull)
+  fase         PranchaCatalogo? @relation("DocumentoFase", fields: [faseId], references: [id], onDelete: SetNull)
+  /// Tipo de documento (Planta, Detalhe, Memorial...). Mesmo catálogo de `fase`, categoria
+  /// `tipo`. Preenchido pelo motor de nomenclatura (lido do nome) ou à mão — nunca inventado.
+  tipoId       String?
+  tipo         PranchaCatalogo? @relation("DocumentoTipo", fields: [tipoId], references: [id], onDelete: SetNull)
+  /// Número da prancha lido do nome (ex.: 4001 em "260020-EST-EX-4001-DET"). Não confundir com
+  /// `Prancha.numeracao`, que é o registro da Lista Mestre — este é metadado do arquivo enviado.
+  numeroPrancha Int?
+  /// Tamanho do papel (A0–A4). Mesmo catálogo de `fase`, categoria `folha`. Alimenta a Lista
+  /// Mestre; preenchido de preferência pela leitura das dimensões do PDF (F4), não pelo nome.
+  tamanhoPapelId String?
+  tamanhoPapel   PranchaCatalogo? @relation("DocumentoTamanhoPapel", fields: [tamanhoPapelId], references: [id], onDelete: SetNull)
   statusId     String?
   status       DocumentoStatus? @relation(fields: [statusId], references: [id], onDelete: SetNull)
   createdAt    DateTime         @default(now())
@@ -5497,6 +5545,8 @@ model DocumentoDisciplina {
   @@index([disciplinaId])
   @@index([substituidoPorId])
   @@index([faseId])
+  @@index([tipoId])
+  @@index([tamanhoPapelId])
   @@index([statusId])
   @@map("documento_disciplina")
 }
