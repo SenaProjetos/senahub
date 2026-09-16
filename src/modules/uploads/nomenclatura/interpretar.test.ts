@@ -182,12 +182,16 @@ describe("interpretarNomeArquivo — extensão, backup e cópia", () => {
   });
 
   it("temporário do AutoCAD avisa", () => {
-    expect(ler("260020-EST-EX-4000-DET-R00.bak").avisos.map((a) => a.tipo)).toContain("arquivo_temporario");
+    expect(ler("260020-EST-EX-4000-DET-R00.dwl").avisos.map((a) => a.tipo)).toContain("arquivo_temporario");
   });
 
-  it("qibzip sugere o pacote Backup; zip sozinho não", () => {
+  it(".bak do AutoCAD sugere o pacote Backup (decisão do dono 2026-09-16: não é mais 'temporário')", () => {
+    expect(ler("260020-EST-EX-4000-DET-R00.bak").sugestoes.map((s) => s.tipo)).toContain("enviar_backup");
+  });
+
+  it("qibzip e zip sozinho sugerem o pacote Backup — zip virou backup em 2026-09-16", () => {
     expect(ler("BELA BEACH [cópia 2026-09-14_05].qibzip").sugestoes.map((s) => s.tipo)).toContain("enviar_backup");
-    expect(ler("ENTREGA BÁSICO.zip").sugestoes.map((s) => s.tipo)).not.toContain("enviar_backup");
+    expect(ler("ENTREGA BÁSICO.zip").sugestoes.map((s) => s.tipo)).toContain("enviar_backup");
   });
 
   it("zip com pista de backup no nome sugere o pacote Backup", () => {

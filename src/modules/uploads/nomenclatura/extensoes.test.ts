@@ -33,11 +33,12 @@ describe("classificarExtensao", () => {
       ehBackup: true,
       ehConteiner: true,
     });
-    expect(classificarExtensao("bak", EXTENSOES_SENA).ehTemporario).toBe(true);
+    expect(classificarExtensao("bak", EXTENSOES_SENA).ehBackup).toBe(true);
   });
 
-  it("zip é contêiner, mas NUNCA backup por si só", () => {
-    expect(classificarExtensao("zip", EXTENSOES_SENA)).toMatchObject({ ehConteiner: true, ehBackup: false });
+  it("zip/rar são contêiner E backup — decisão do dono em 2026-09-16", () => {
+    expect(classificarExtensao("zip", EXTENSOES_SENA)).toMatchObject({ ehConteiner: true, ehBackup: true });
+    expect(classificarExtensao("rar", EXTENSOES_SENA)).toMatchObject({ ehConteiner: true, ehBackup: true });
   });
 
   it("extensão desconhecida não vira erro nem categoria inventada", () => {

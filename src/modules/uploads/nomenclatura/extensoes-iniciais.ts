@@ -2,10 +2,12 @@
  * Carga inicial do catálogo de extensões (§3.4 da spec `2026-09-15-motor-nomenclatura.md`).
  *
  * Só formatos confirmados: os que aparecem no acervo de produção (2026-09-15) e os softwares que
- * o escritório usa (TQS, CAD, AltoQi, CYPE, Revit, Office). Nada inventado — extensão nova se
- * cadastra na tela do catálogo depois da F2, não aqui (ADR-0003, regra 3).
+ * o escritório usa (TQS, CAD, AltoQi, CYPE, Revit, Office, SketchUp, ArchiCAD, Navisworks).
+ * Nada inventado — extensão nova se cadastra na tela do catálogo depois da F2, não aqui
+ * (ADR-0003, regra 3); as adicionadas em 2026-09-16 vieram de instrução direta do dono.
  *
- * `zip`/`rar`/`7z` são CONTÊINER, nunca backup por si sós: o que decide é nome e contexto.
+ * `zip`/`rar`/`7z` viraram backup por decisão do dono em 2026-09-16 — antes eram só CONTÊINER
+ * (o que decidia era nome/contexto); hoje contam como Backup do modelo sempre.
  */
 
 import type { ExtensaoDef } from "./extensoes";
@@ -56,10 +58,8 @@ export const EXTENSOES_INICIAIS: ExtensaoDef[] = [
   { extensao: "dxf", categoria: "desenho_cad", software: "AutoCAD" },
   { extensao: "dwt", categoria: "desenho_cad", software: "AutoCAD" },
   { extensao: "dws", categoria: "desenho_cad", software: "AutoCAD" },
-  { extensao: "bak", categoria: "temporario", software: "AutoCAD", ehTemporario: true },
   { extensao: "dwl", categoria: "temporario", software: "AutoCAD", ehTemporario: true },
   { extensao: "dwl2", categoria: "temporario", software: "AutoCAD", ehTemporario: true },
-  { extensao: "sv$", categoria: "temporario", software: "AutoCAD", ehTemporario: true },
   { extensao: "ifc", categoria: "modelo_bim" },
   { extensao: "ifcxml", categoria: "modelo_bim" },
   { extensao: "ifczip", categoria: "modelo_bim", ehConteiner: true },
@@ -67,13 +67,23 @@ export const EXTENSOES_INICIAIS: ExtensaoDef[] = [
   { extensao: "rfa", categoria: "modelo_bim", software: "Revit" },
   { extensao: "rte", categoria: "modelo_bim", software: "Revit" },
   { extensao: "rft", categoria: "modelo_bim", software: "Revit" },
+  { extensao: "skp", categoria: "modelo_bim", software: "SketchUp" },
+  { extensao: "pln", categoria: "modelo_bim", software: "ArchiCAD" },
+  { extensao: "gsm", categoria: "modelo_bim", software: "ArchiCAD" },
+  { extensao: "nwd", categoria: "modelo_bim", software: "Navisworks" },
+  { extensao: "obj", categoria: "modelo_bim" },
   // `modelo.0001.rvt`: cópia automática do Revit, não é revisão de projeto.
   { extensao: "0000.rvt", categoria: "backup_software", software: "Revit", ehBackup: true },
   { extensao: "qibzip", categoria: "backup_software", software: "AltoQi", ehBackup: true, ehConteiner: true },
   { extensao: "tqs", categoria: "backup_software", software: "TQS", ehBackup: true },
   { extensao: "ed3", categoria: "backup_software", software: "CYPE", ehBackup: true },
-  { extensao: "zip", categoria: "compactado", ehConteiner: true },
-  { extensao: "rar", categoria: "compactado", ehConteiner: true },
-  { extensao: "7z", categoria: "compactado", ehConteiner: true },
+  // AutoCAD/SketchUp guardam a cópia anterior nestas extensões — é backup, não entregável solto.
+  { extensao: "bak", categoria: "backup_software", software: "AutoCAD", ehBackup: true },
+  { extensao: "sv$", categoria: "backup_software", software: "AutoCAD", ehBackup: true },
+  { extensao: "skb", categoria: "backup_software", software: "SketchUp", ehBackup: true },
+  { extensao: "bpn", categoria: "backup_software", ehBackup: true },
+  { extensao: "zip", categoria: "compactado", ehConteiner: true, ehBackup: true },
+  { extensao: "rar", categoria: "compactado", ehConteiner: true, ehBackup: true },
+  { extensao: "7z", categoria: "compactado", ehConteiner: true, ehBackup: true },
   { extensao: "log", categoria: "log", ehTemporario: true },
 ];
