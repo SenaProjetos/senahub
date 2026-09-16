@@ -65,4 +65,18 @@ describe("montarVocabulario", () => {
     expect(vocabulario.faixaDe(6105)).toMatchObject({ codigo: "DRE" });
     expect(vocabulario.faixaDe(10)).toBeNull();
   });
+
+  it("não deixa uma faixa larga engolir a sub-faixa que vem logo depois (bug real corrigido em 2026-09-16)", () => {
+    // Arquitetura=3000 e Acústica=3100 só têm 100 números de intervalo — parar no primeiro
+    // "base <= número" (sem checar o fim) fazia TODO número >= 3000 cair como Arquitetura,
+    // inclusive os que já eram de Acústica (3100-3199) ou nem pertenciam a faixa nenhuma.
+    expect(vocabulario.faixaDe(3050)).toMatchObject({ codigo: "ARQ" });
+    expect(vocabulario.faixaDe(3150)).toMatchObject({ codigo: "ACU" });
+  });
+
+  it("disciplina com início mas sem fim de faixa não entra no reconhecimento por número", () => {
+    // TOP tem numeracao=0 mas nenhum numeracaoFim no catálogo real ainda — número 500
+    // não pode virar Topografia por engano só porque 0 <= 500.
+    expect(vocabulario.faixaDe(500)).toBeNull();
+  });
 });

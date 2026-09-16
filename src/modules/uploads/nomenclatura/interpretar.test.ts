@@ -105,10 +105,10 @@ describe("interpretarNomeArquivo — disciplina, faixa e projeto", () => {
     expect(r.avisos.map((a) => a.tipo)).toContain("faixa_divergente");
   });
 
-  it("sem sigla, a faixa sugere a disciplina — só como sugestão", () => {
+  it("sem sigla, a faixa PREENCHE a disciplina — cadastro explícito, alta confiança (2026-09-16)", () => {
     const r = ler("5000-Elétrico.zip");
     expect(r.disciplina).toMatchObject({ valor: "d-ele", fonte: "faixa_numeracao" });
-    expect(confiavel(r.disciplina)).toBe(false);
+    expect(confiavel(r.disciplina)).toBe(true);
   });
 
   it("escolhe a disciplina imediatamente antes da fase", () => {

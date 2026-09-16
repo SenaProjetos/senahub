@@ -385,7 +385,9 @@ export function interpretarNomeArquivo(nome: string, ctx: ContextoNomenclatura):
     }
   }
 
-  // Faixa de numeração: confirma, avisa, ou (sem sigla no nome) sugere a disciplina.
+  // Faixa de numeração: confirma, avisa, ou (sem sigla no nome) PREENCHE a disciplina. Faixa
+  // alta confiança porque é cadastro explícito do catálogo (início E fim), não inferência —
+  // é o que permite o envio funcionar sem pedir disciplina quando o nome não traz sigla nenhuma.
   if (numero && numero.valor >= 1000) {
     const faixa = vocabulario.faixaDe(numero.valor);
     if (faixa && disciplina && faixa.id !== disciplina.valor) {
@@ -395,7 +397,7 @@ export function interpretarNomeArquivo(nome: string, ctx: ContextoNomenclatura):
       });
     }
     if (faixa && !disciplina) {
-      disciplina = { valor: faixa.id, confianca: 0.7, fonte: "faixa_numeracao", texto: numero.texto };
+      disciplina = { valor: faixa.id, confianca: CONFIANCA_ALTA, fonte: "faixa_numeracao", texto: numero.texto };
     }
   }
 

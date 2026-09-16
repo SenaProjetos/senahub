@@ -1148,6 +1148,7 @@ function normalizarCatalogo(i: {
   nome: string;
   codigo?: string;
   numeracao?: number | null;
+  numeracaoFim?: number | null;
   categoria?: string;
   icone?: string;
   iconeSvg?: string;
@@ -1156,10 +1157,16 @@ function normalizarCatalogo(i: {
   const codigo = (i.codigo ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "") || null;
   const iconeSvg = i.iconeSvg ? sanitizeSvg(i.iconeSvg) : null;
   if (i.iconeSvg && !iconeSvg) throw new ActionError("SVG inválido ou acima de 20 KB.");
+  const numeracao = i.numeracao ?? null;
+  const numeracaoFim = i.numeracaoFim ?? null;
+  if (numeracao != null && numeracaoFim != null && numeracaoFim < numeracao) {
+    throw new ActionError("O fim da faixa não pode ser menor que o início.");
+  }
   return {
     nome: i.nome.trim(),
     codigo,
-    numeracao: i.numeracao ?? null,
+    numeracao,
+    numeracaoFim,
     categoria: i.categoria?.trim() || null,
     // ícone custom (SVG) tem prioridade; ao enviar SVG, zera a chave da galeria.
     icone: iconeSvg ? null : i.icone?.trim() || null,

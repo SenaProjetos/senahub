@@ -13,10 +13,10 @@ import type { ExtensaoDef } from "./extensoes";
  * de `projetoId` — a precedência (projeto vence global) é resolvida dentro de `montarVocabulario`.
  */
 export async function carregarCatalogosNomenclatura(projetoId: string | null): Promise<CatalogosNomenclatura> {
-  const [disciplinas, pranchas] = await Promise.all([
+  const [disciplinas, pranchas, overrides] = await Promise.all([
     prisma.disciplinaCatalogo.findMany({
       where: { ativo: true },
-      select: { id: true, codigo: true, numeracao: true, sinonimos: true },
+      select: { id: true, codigo: true, numeracao: true, numeracaoFim: true, sinonimos: true },
     }),
     prisma.pranchaCatalogo.findMany({
       where: {
@@ -26,15 +26,35 @@ export async function carregarCatalogosNomenclatura(projetoId: string | null): P
       },
       select: { id: true, categoria: true, sigla: true, sinonimos: true, projetoId: true },
     }),
+    // Faixa por projeto (2026-09-16): SÓ este projeto pode sobrescrever o início/fim do
+    // catálogo global — não afeta a faixa reconhecida em nenhum outro projeto.
+    projetoId
+      ? prisma.disciplina.findMany({
+          where: {
+            projetoId,
+            disciplinaId: { not: null },
+            numeracaoInicioProjeto: { not: null },
+            numeracaoFimProjeto: { not: null },
+          },
+          select: { disciplinaId: true, numeracaoInicioProjeto: true, numeracaoFimProjeto: true },
+        })
+      : Promise.resolve([]),
   ]);
+  const overridePorCatalogoId = new Map(
+    overrides.map((o) => [o.disciplinaId as string, { inicio: o.numeracaoInicioProjeto!, fim: o.numeracaoFimProjeto! }]),
+  );
 
   return {
-    disciplinas: disciplinas.map((d) => ({
-      id: d.id,
-      codigo: d.codigo,
-      numeracao: d.numeracao,
-      sinonimos: d.sinonimos,
-    })),
+    disciplinas: disciplinas.map((d) => {
+      const override = overridePorCatalogoId.get(d.id);
+      return {
+        id: d.id,
+        codigo: d.codigo,
+        numeracao: override ? override.inicio : d.numeracao,
+        numeracaoFim: override ? override.fim : d.numeracaoFim,
+        sinonimos: d.sinonimos,
+      };
+    }),
     fases: pranchas
       .filter((p) => p.categoria === "fase")
       .map((p) => ({ id: p.id, sigla: p.sigla, sinonimos: p.sinonimos, projetoId: p.projetoId })),

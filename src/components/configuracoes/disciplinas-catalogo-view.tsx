@@ -73,6 +73,7 @@ type FormState = {
   nome: string;
   codigo: string;
   numeracao: string;
+  numeracaoFim: string;
   categoria: string;
   icone: string | null;
   iconeSvg: string | null;
@@ -80,7 +81,7 @@ type FormState = {
   sinonimos: string;
 };
 
-const VAZIO: FormState = { nome: "", codigo: "", numeracao: "", categoria: "", icone: null, iconeSvg: null, sinonimos: "" };
+const VAZIO: FormState = { nome: "", codigo: "", numeracao: "", numeracaoFim: "", categoria: "", icone: null, iconeSvg: null, sinonimos: "" };
 
 /** "hdr, esg" ou "hdr\nesg" → ["HDR", "ESG"]. A action normaliza de novo (dedupe, própria sigla). */
 function sinonimosDoTexto(texto: string): string[] {
@@ -162,6 +163,7 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
         nome: form.nome.trim(),
         codigo: form.codigo.trim() || undefined,
         numeracao: form.numeracao.trim() === "" ? null : Number(form.numeracao),
+        numeracaoFim: form.numeracaoFim.trim() === "" ? null : Number(form.numeracaoFim),
         categoria: form.categoria.trim() || undefined,
         icone: form.icone || undefined,
         iconeSvg: form.iconeSvg || undefined,
@@ -351,6 +353,7 @@ function paraForm(item: DisciplinaCatalogoAdmin): FormState {
     nome: item.nome,
     codigo: item.codigo ?? "",
     numeracao: item.numeracao != null ? String(item.numeracao) : "",
+    numeracaoFim: item.numeracaoFim != null ? String(item.numeracaoFim) : "",
     categoria: item.categoria ?? "",
     icone: item.icone,
     iconeSvg: item.iconeSvg,
@@ -429,7 +432,9 @@ function ItemLinha({
       </TableCell>
       <TableCell className="text-center">
         {item.numeracao != null ? (
-          <span className="font-mono text-xs tabular-nums">{item.numeracao}</span>
+          <span className="font-mono text-xs tabular-nums" title={item.numeracaoFim != null ? "Faixa reconhecida no envio" : "Sem fim de faixa — envio não reconhece disciplina por número"}>
+            {item.numeracao}{item.numeracaoFim != null ? `–${item.numeracaoFim}` : ""}
+          </span>
         ) : (
           <span className="text-xs text-muted-foreground">—</span>
         )}
@@ -563,19 +568,20 @@ function DisciplinaDialog({
             <Input value={form.nome} onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))} />
           </div>
 
+          <div className="space-y-1.5">
+            <Label>Código</Label>
+            <Input
+              value={form.codigo}
+              maxLength={6}
+              placeholder="ELE"
+              className="font-mono uppercase"
+              onChange={(e) => setForm((f) => ({ ...f, codigo: e.target.value.toUpperCase() }))}
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Código</Label>
-              <Input
-                value={form.codigo}
-                maxLength={6}
-                placeholder="ELE"
-                className="font-mono uppercase"
-                onChange={(e) => setForm((f) => ({ ...f, codigo: e.target.value.toUpperCase() }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Numeração</Label>
+              <Label>Numeração — início</Label>
               <Input
                 type="number"
                 min={0}
@@ -584,9 +590,24 @@ function DisciplinaDialog({
                 className="font-mono tabular-nums"
                 onChange={(e) => setForm((f) => ({ ...f, numeracao: e.target.value }))}
               />
-              <p className="text-[11px] text-muted-foreground">Bloco na nomenclatura (ex.: 4000 → folhas 4001, 4002…).</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Numeração — fim</Label>
+              <Input
+                type="number"
+                min={0}
+                value={form.numeracaoFim}
+                placeholder="4999"
+                className="font-mono tabular-nums"
+                onChange={(e) => setForm((f) => ({ ...f, numeracaoFim: e.target.value }))}
+              />
             </div>
           </div>
+          <p className="text-[11px] text-muted-foreground">
+            Bloco na nomenclatura (ex.: 4000–4999 → folhas 4001, 4002…). Sem o fim da faixa, o
+            envio não reconhece a disciplina só pelo número do arquivo. Faixa abaixo de 1000
+            (ex.: Topografia) também não é reconhecida por número sozinha — só a sigla no nome.
+          </p>
 
           <div className="space-y-1.5">
             <Label>Sinônimos</Label>

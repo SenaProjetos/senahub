@@ -12,23 +12,27 @@ import type { CatalogosNomenclatura } from "@/modules/uploads/nomenclatura/vocab
 
 export const CATALOGO_SENA: CatalogosNomenclatura = {
   disciplinas: [
+    // `numeracaoFim` aqui é FICTÍCIO pros testes de fronteira — em produção/dev NENHUMA
+    // disciplina tem `numeracaoFim` preenchido ainda (o campo é novo, 2026-09-16; alguém
+    // completa pela tela de catálogo). TOP fica sem fim de propósito, pra continuar testando
+    // o caso "só início, sem fim" (que também é o estado real de tudo por enquanto).
     { id: "d-top", codigo: "TOP", numeracao: 0, sinonimos: sinonimosDe("disciplina", "TOP") },
-    { id: "d-ter", codigo: "TER", numeracao: 1000, sinonimos: sinonimosDe("disciplina", "TER") },
-    { id: "d-pav", codigo: "PAV", numeracao: 2000, sinonimos: sinonimosDe("disciplina", "PAV") },
-    { id: "d-arq", codigo: "ARQ", numeracao: 3000, sinonimos: sinonimosDe("disciplina", "ARQ") },
-    { id: "d-acu", codigo: "ACU", numeracao: 3100, sinonimos: sinonimosDe("disciplina", "ACU") },
-    { id: "d-est", codigo: "EST", numeracao: 4000, sinonimos: sinonimosDe("disciplina", "EST") },
-    { id: "d-ele", codigo: "ELE", numeracao: 5000, sinonimos: sinonimosDe("disciplina", "ELE") },
-    { id: "d-log", codigo: "LOG", numeracao: 5100, sinonimos: sinonimosDe("disciplina", "LOG") },
-    { id: "d-seg", codigo: "SEG", numeracao: 5200, sinonimos: sinonimosDe("disciplina", "SEG") },
-    { id: "d-spd", codigo: "SPD", numeracao: 5300, sinonimos: sinonimosDe("disciplina", "SPD") },
-    { id: "d-sub", codigo: "SUB", numeracao: 5400, sinonimos: sinonimosDe("disciplina", "SUB") },
-    { id: "d-hid", codigo: "HID", numeracao: 6000, sinonimos: sinonimosDe("disciplina", "HID") },
-    { id: "d-dre", codigo: "DRE", numeracao: 6100, sinonimos: sinonimosDe("disciplina", "DRE") },
-    { id: "d-pci", codigo: "PCI", numeracao: 7000, sinonimos: sinonimosDe("disciplina", "PCI") },
-    { id: "d-cli", codigo: "CLI", numeracao: 8000, sinonimos: sinonimosDe("disciplina", "CLI") },
-    { id: "d-gas", codigo: "GAS", numeracao: 8200, sinonimos: sinonimosDe("disciplina", "GAS") },
-    { id: "d-orc", codigo: "ORC", numeracao: 9000, sinonimos: sinonimosDe("disciplina", "ORC") },
+    { id: "d-ter", codigo: "TER", numeracao: 1000, numeracaoFim: 1999, sinonimos: sinonimosDe("disciplina", "TER") },
+    { id: "d-pav", codigo: "PAV", numeracao: 2000, numeracaoFim: 2999, sinonimos: sinonimosDe("disciplina", "PAV") },
+    { id: "d-arq", codigo: "ARQ", numeracao: 3000, numeracaoFim: 3099, sinonimos: sinonimosDe("disciplina", "ARQ") },
+    { id: "d-acu", codigo: "ACU", numeracao: 3100, numeracaoFim: 3199, sinonimos: sinonimosDe("disciplina", "ACU") },
+    { id: "d-est", codigo: "EST", numeracao: 4000, numeracaoFim: 4999, sinonimos: sinonimosDe("disciplina", "EST") },
+    { id: "d-ele", codigo: "ELE", numeracao: 5000, numeracaoFim: 5099, sinonimos: sinonimosDe("disciplina", "ELE") },
+    { id: "d-log", codigo: "LOG", numeracao: 5100, numeracaoFim: 5199, sinonimos: sinonimosDe("disciplina", "LOG") },
+    { id: "d-seg", codigo: "SEG", numeracao: 5200, numeracaoFim: 5299, sinonimos: sinonimosDe("disciplina", "SEG") },
+    { id: "d-spd", codigo: "SPD", numeracao: 5300, numeracaoFim: 5399, sinonimos: sinonimosDe("disciplina", "SPD") },
+    { id: "d-sub", codigo: "SUB", numeracao: 5400, numeracaoFim: 5499, sinonimos: sinonimosDe("disciplina", "SUB") },
+    { id: "d-hid", codigo: "HID", numeracao: 6000, numeracaoFim: 6099, sinonimos: sinonimosDe("disciplina", "HID") },
+    { id: "d-dre", codigo: "DRE", numeracao: 6100, numeracaoFim: 6199, sinonimos: sinonimosDe("disciplina", "DRE") },
+    { id: "d-pci", codigo: "PCI", numeracao: 7000, numeracaoFim: 7999, sinonimos: sinonimosDe("disciplina", "PCI") },
+    { id: "d-cli", codigo: "CLI", numeracao: 8000, numeracaoFim: 8199, sinonimos: sinonimosDe("disciplina", "CLI") },
+    { id: "d-gas", codigo: "GAS", numeracao: 8200, numeracaoFim: 8299, sinonimos: sinonimosDe("disciplina", "GAS") },
+    { id: "d-orc", codigo: "ORC", numeracao: 9000, numeracaoFim: 9999, sinonimos: sinonimosDe("disciplina", "ORC") },
     { id: "d-fun", codigo: "FUN", numeracao: null, sinonimos: sinonimosDe("disciplina", "FUN") },
   ],
   fases: [
