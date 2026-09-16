@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { aplicarPadrao, compilarPadrao, ehModelo } from "./padrao";
+import {
+  aplicarPadrao,
+  compilarPadrao,
+  ehModelo,
+  interpretarModeloVisual,
+  montarModelo,
+  exemploNomeModelo,
+  type BlocoModelo,
+} from "./padrao";
 
 describe("ehModelo", () => {
   it("campo entre chaves é modelo; quantificador de regex não é", () => {
@@ -85,5 +93,71 @@ describe("compilarPadrao — regex", () => {
     expect(compilarPadrao("[")).toBeNull();
     expect(compilarPadrao("   ")).toBeNull();
     expect(compilarPadrao(null)).toBeNull();
+  });
+});
+
+describe("interpretarModeloVisual / montarModelo (F5 — editor visual)", () => {
+  it("reconhece o padrão global de produção", () => {
+    const v = interpretarModeloVisual("{proj}-{disc}-{fase}-{nº}-{tipo}");
+    expect(v).toEqual({
+      separador: "-",
+      blocos: [
+        { campo: "proj", opcional: false },
+        { campo: "disc", opcional: false },
+        { campo: "fase", opcional: false },
+        { campo: "num", opcional: false },
+        { campo: "tipo", opcional: false },
+      ],
+    });
+  });
+
+  it("reconhece o bloco de revisão opcional entre colchetes", () => {
+    const v = interpretarModeloVisual("{proj}-{disc}-{fase}-{nº}-{tipo}[-{Rnn}]");
+    expect(v?.blocos.at(-1)).toEqual({ campo: "rev", opcional: true });
+  });
+
+  it("NÃO reconhece a escrita R{rev} — o R quebra o separador único (cai no modo avançado)", () => {
+    expect(interpretarModeloVisual("{proj}-{disc}-{fase}-{tipo}-{nº}-R{rev}")).toBeNull();
+  });
+
+  it("não reconhece campo repetido nem separador inconsistente", () => {
+    expect(interpretarModeloVisual("{proj}-{proj}-{disc}")).toBeNull();
+    expect(interpretarModeloVisual("{proj}-{disc}_{fase}")).toBeNull();
+  });
+
+  it("não reconhece regex legada (sem chaves) nem string vazia", () => {
+    expect(interpretarModeloVisual("^[A-Z]{3}-\\d{4}$")).toBeNull();
+    expect(interpretarModeloVisual("")).toBeNull();
+  });
+
+  it("monta sempre a escrita canônica (Rnn), mesmo que nunca tenha sido lida assim", () => {
+    const blocos: BlocoModelo[] = [
+      { campo: "proj", opcional: false },
+      { campo: "disc", opcional: false },
+      { campo: "rev", opcional: true },
+    ];
+    expect(montarModelo(blocos, "-")).toBe("{proj}-{disc}[-{Rnn}]");
+  });
+
+  it("bloco opcional em primeiro lugar não carrega separador (não há o que separar)", () => {
+    expect(montarModelo([{ campo: "proj", opcional: true }], "-")).toBe("[{proj}]");
+  });
+
+  it("ida e volta: montar → interpretar devolve os mesmos blocos e separador", () => {
+    const blocos: BlocoModelo[] = [
+      { campo: "tipo", opcional: false },
+      { campo: "num", opcional: false },
+      { campo: "rev", opcional: true },
+    ];
+    const modelo = montarModelo(blocos, "_");
+    expect(interpretarModeloVisual(modelo)).toEqual({ blocos, separador: "_" });
+  });
+
+  it("prévia junta os valores de exemplo na ordem escolhida", () => {
+    const blocos: BlocoModelo[] = [
+      { campo: "tipo", opcional: false },
+      { campo: "num", opcional: false },
+    ];
+    expect(exemploNomeModelo(blocos, "_")).toBe("DET_4001");
   });
 });

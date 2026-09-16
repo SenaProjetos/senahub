@@ -270,7 +270,11 @@
         "tamanho do papel",
         "categoria de extensão",
         "selo backup",
-        "backup do modelo"
+        "backup do modelo",
+        "editor visual do padrão",
+        "padrão de nomenclatura do projeto",
+        "padrão próprio",
+        "blocos do nome"
       ],
       "palavrasChave": [
         "projeto",
@@ -326,7 +330,14 @@
         "backup não aparece",
         "onde está o backup",
         "número da prancha",
-        "papel A0 A1 A2 A3 A4"
+        "papel A0 A1 A2 A3 A4",
+        "editor visual",
+        "montar padrão por blocos",
+        "separador do nome",
+        "campo opcional",
+        "padrão herdado",
+        "recomeçar do zero",
+        "siglas do projeto"
       ],
       "sinonimos": [
         "obras",

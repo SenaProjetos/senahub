@@ -4,13 +4,27 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
+import { ehModelo, compilarPadrao } from "@/modules/uploads/nomenclatura/padrao";
 
 const cfg = { modulo: "configuracoes", recurso: "configuracoes", permissao: "gerir" } as const;
 
-/** Valida que o padrão custom é um regex válido (se informado). */
+/**
+ * Valida o padrão custom, se informado. Modelo (`{campo}`) e regex são as duas escritas
+ * aceitas (F5, editor visual) — cada uma com sua própria checagem, porque um modelo com chave
+ * mal fechada (`{proj}-{disc`) É um regex válido pro `new RegExp` (chave sozinha é literal),
+ * mas `compilarPadrao` devolve `null` pra ele — e `foraDoPadrao` trataria isso como "sem
+ * padrão configurado", desligando o alerta pra todo mundo em silêncio (o mesmo bug que o
+ * diagnóstico de 2026-09-15 achou em prod, só que entrando pela validação em vez do parser).
+ */
 function validarPadrao(padrao?: string) {
   const p = (padrao ?? "").trim();
   if (!p) return null;
+  if (ehModelo(p)) {
+    if (!compilarPadrao(p)) {
+      throw new ActionError("Modelo inválido — confira se toda chave aberta tem um fechamento (\"{...}\").");
+    }
+    return p;
+  }
   try {
     new RegExp(p);
   } catch {

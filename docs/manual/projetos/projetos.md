@@ -184,6 +184,24 @@ Além disso, há abas para: **Lista Mestre**, **Serviços**, **Arquivos**, **Ext
 página do manual. (A aba **Lista Mestre** organiza as folhas técnicas por disciplina —
 substitui a antiga aba "Pranchas".)
 
+### Padrão de nomenclatura do projeto (aba Lista Mestre)
+
+Logo acima da lista de disciplinas, a seção **Padrão de nomenclatura deste projeto** mostra
+se o projeto usa o padrão global (o do escritório) ou tem um **padrão próprio** — a etiqueta
+ao lado do título já denuncia qual dos dois, sem precisar abrir a seção. Um projeto antigo
+que seguia uma numeração diferente do escritório é o caso típico de padrão próprio.
+
+Dentro dela, o **editor visual** monta o padrão por blocos (Projeto, Disciplina, Fase,
+Número, Tipo, Revisão): clique para adicionar ou remover um bloco, use as setas para reordenar,
+marque **opcional** o que não é sempre exigido (revisão é o caso mais comum), e escolha o
+separador. Uma prévia mostra como um nome ficaria com aquele padrão. Nenhuma sintaxe de
+regex é necessária. Um padrão herdado de configuração antiga que o editor visual não
+consegue representar abre em **modo avançado** (texto) — ele continua funcionando, só não é
+editável em blocos até ser reconstruído do zero no editor visual.
+
+Esta mesma configuração (herdar ou usar padrão próprio) existe em **Configurações → Lista
+Mestre** para o padrão **global**, que vale para todo projeto que não tiver o seu.
+
 ### Taxa de ART no financeiro (aba ARTs)
 
 A taxa da ART/RRT é custo direto do projeto. Ao cadastrar ou editar a ART, informe a

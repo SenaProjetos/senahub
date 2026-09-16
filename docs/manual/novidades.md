@@ -22,6 +22,17 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Editor visual do padrão de nomenclatura, e ele agora aparece na Lista Mestre
+
+Cada projeto pode ter seu próprio padrão de nome de arquivo — isso já existia, mas o
+formulário morava escondido dentro do diálogo "Siglas deste projeto". Agora ele é uma
+seção visível na própria aba **Lista Mestre**, com uma etiqueta que já mostra se o projeto
+usa o padrão global ou um próprio, sem precisar abrir nada. E editar o padrão deixou de
+exigir regex: o **editor visual** monta o nome por blocos (Projeto, Disciplina, Fase,
+Número, Tipo, Revisão) — escolha os blocos, a ordem, o separador e o que é opcional, e uma
+prévia mostra como o nome ficaria. A mesma tela existe em **Configurações → Lista Mestre**
+para o padrão global da empresa.
+
 ## Reconhecimento automático do nome do arquivo, tamanho do papel e selo Backup
 
 Ao enviar um arquivo na aba **Arquivos**, o sistema agora lê o **nome do arquivo** e

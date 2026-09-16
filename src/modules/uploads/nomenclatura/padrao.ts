@@ -46,7 +46,7 @@ export function ehModelo(padrao: string): boolean {
   return CAMPO_DE_MODELO.test(padrao);
 }
 
-function campoDe(nome: string): CampoPadrao | null {
+export function campoDe(nome: string): CampoPadrao | null {
   const chave = nome.trim().toLowerCase().replace(/\s+/g, " ");
   for (const [campo, nomes] of Object.entries(NOMES_DE_CAMPO) as [CampoPadrao, string[]][]) {
     if (nomes.includes(chave)) return campo;
@@ -140,4 +140,163 @@ export function aplicarPadrao(base: string, compilado: PadraoCompilado): CamposD
     if (valor) campos[campo] = valor;
   }
   return campos;
+}
+
+/**
+ * Editor visual do padrão (F5): monta/lê um MODELO como blocos ordenados + um separador único,
+ * sem exigir que ninguém escreva chave/colchete. Regex legada não entra aqui — nem todo modelo
+ * de texto, só o subconjunto que dá pra representar como "campo, separador, campo...".
+ */
+
+/** Ordem de apresentação no seletor de blocos (não afeta o padrão gerado). */
+export const CAMPOS_PADRAO: readonly CampoPadrao[] = ["proj", "disc", "fase", "num", "tipo", "rev"];
+
+export const LABEL_CAMPO: Record<CampoPadrao, string> = {
+  proj: "Projeto",
+  disc: "Disciplina",
+  fase: "Fase",
+  num: "Número",
+  tipo: "Tipo",
+  rev: "Revisão",
+};
+
+/** Token que o editor SEMPRE emite para cada campo — é o que fecha a decisão de D-F5: uma
+ *  única escrita para revisão (`{Rnn}`, nunca `R{rev}`), estendida aos demais por consistência. */
+const TOKEN_CANONICO: Record<CampoPadrao, string> = {
+  proj: "proj",
+  disc: "disc",
+  fase: "fase",
+  num: "num",
+  tipo: "tipo",
+  rev: "Rnn",
+};
+
+export type BlocoModelo = { campo: CampoPadrao; opcional: boolean };
+export type ModeloVisual = { blocos: BlocoModelo[]; separador: string };
+
+type TokenModelo =
+  | { tipo: "campo"; campo: CampoPadrao }
+  | { tipo: "lit"; texto: string }
+  | { tipo: "abre" }
+  | { tipo: "fecha" };
+
+function tokenizarModelo(modelo: string): TokenModelo[] | null {
+  const tokens: TokenModelo[] = [];
+  let i = 0;
+  while (i < modelo.length) {
+    const c = modelo[i];
+    if (c === "{") {
+      const fim = modelo.indexOf("}", i);
+      if (fim === -1) return null;
+      const campo = campoDe(modelo.slice(i + 1, fim));
+      if (!campo) return null; // nome de campo desconhecido: fora do que o editor representa
+      tokens.push({ tipo: "campo", campo });
+      i = fim + 1;
+    } else if (c === "[") {
+      tokens.push({ tipo: "abre" });
+      i++;
+    } else if (c === "]") {
+      tokens.push({ tipo: "fecha" });
+      i++;
+    } else {
+      let j = i;
+      while (j < modelo.length && !"{[]".includes(modelo[j])) j++;
+      tokens.push({ tipo: "lit", texto: modelo.slice(i, j) });
+      i = j;
+    }
+  }
+  return tokens;
+}
+
+/**
+ * Reconhece um modelo como blocos + separador único, ou `null` quando a escrita foge desse
+ * formato exato — inclusive `R{rev}` (o "R" some no meio do separador, quebrando a regra do
+ * separador único) e qualquer campo repetido ou desconhecido. `null` é o sinal para a tela
+ * cair no modo avançado (texto), sem tentar converter.
+ */
+export function interpretarModeloVisual(padrao: string): ModeloVisual | null {
+  if (!ehModelo(padrao)) return null;
+  const tokens = tokenizarModelo(padrao);
+  if (!tokens) return null;
+
+  const blocos: BlocoModelo[] = [];
+  let separador: string | null = null;
+  let primeiro = true;
+
+  function bateSeparador(lit: string): boolean {
+    if (lit === "") return primeiro;
+    if (separador === null) {
+      separador = lit;
+      return true;
+    }
+    return lit === separador;
+  }
+
+  function empilhar(campo: CampoPadrao, opcional: boolean): boolean {
+    if (blocos.some((b) => b.campo === campo)) return false; // campo repetido: não representável
+    blocos.push({ campo, opcional });
+    primeiro = false;
+    return true;
+  }
+
+  let i = 0;
+  while (i < tokens.length) {
+    const tk = tokens[i];
+    if (tk.tipo === "campo") {
+      if (!primeiro) return null; // campo sem separador antes dele, fora de colchete
+      if (!empilhar(tk.campo, false)) return null;
+      i++;
+    } else if (tk.tipo === "lit") {
+      if (!bateSeparador(tk.texto)) return null;
+      i++;
+      const campoTk = tokens[i];
+      if (!campoTk || campoTk.tipo !== "campo") return null;
+      if (!empilhar(campoTk.campo, false)) return null;
+      i++;
+    } else if (tk.tipo === "abre") {
+      i++;
+      let litDentro = "";
+      if (tokens[i]?.tipo === "lit") {
+        litDentro = (tokens[i] as { tipo: "lit"; texto: string }).texto;
+        i++;
+      }
+      const campoTk = tokens[i];
+      if (!campoTk || campoTk.tipo !== "campo") return null;
+      if (!bateSeparador(litDentro)) return null;
+      if (!empilhar(campoTk.campo, true)) return null;
+      i++;
+      if (tokens[i]?.tipo !== "fecha") return null;
+      i++;
+    } else {
+      return null; // "]" sem "[" correspondente
+    }
+  }
+  if (blocos.length === 0) return null;
+  return { blocos, separador: separador ?? "-" };
+}
+
+/** Monta o texto do modelo a partir dos blocos — sempre na escrita canônica de cada campo. */
+export function montarModelo(blocos: readonly BlocoModelo[], separador: string): string {
+  return blocos
+    .map((b, i) => {
+      const token = `{${TOKEN_CANONICO[b.campo]}}`;
+      const comSeparador = i === 0 ? token : `${separador}${token}`;
+      return b.opcional ? `[${i === 0 ? token : `${separador}${token}`}]` : comSeparador;
+    })
+    .join("");
+}
+
+/** Valores de exemplo (acervo real de produção) para a prévia do editor visual. */
+const EXEMPLO_CAMPO: Record<CampoPadrao, string> = {
+  proj: "260020",
+  disc: "EST",
+  fase: "EX",
+  num: "4001",
+  tipo: "DET",
+  rev: "R00",
+};
+
+/** Nome de exemplo com os blocos escolhidos já preenchidos — a prévia do editor visual. */
+export function exemploNomeModelo(blocos: readonly BlocoModelo[], separador: string): string {
+  return blocos.map((b) => EXEMPLO_CAMPO[b.campo]).join(separador);
 }

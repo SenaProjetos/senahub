@@ -20,6 +20,7 @@ import type {
 } from "@/modules/projetos/pranchas/queries";
 import { ListaMestreConfigView } from "@/components/configuracoes/lista-mestre-config-view";
 import { NomenclaturaForm } from "@/components/projetos/nomenclatura-form";
+import { CollapsibleSection } from "@/components/ui/collapsible";
 import { codigoPrancha, revisaoLabel } from "@/modules/projetos/pranchas/codigo";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
@@ -79,20 +80,48 @@ export function ListaMestreView({
         )}
       </div>
 
+      {/* F5: o padrão de nomenclatura do projeto morava só dentro do diálogo "Siglas deste
+          projeto" — o dono levou meses sem saber que dava pra ter um padrão próprio por
+          projeto. Agora é uma seção visível na própria aba (fechada por padrão pra não
+          empilhar sobre a lista, mas o resumo já denuncia herdado × próprio sem precisar abrir).
+          Visível pra QUALQUER um que vê esta aba, não só quem edita — é quem nomeia o arquivo
+          no dia a dia que mais precisa saber qual padrão está valendo; só o formulário de
+          edição é que fica atrás de `configuracoes:gerir`. */}
+      <CollapsibleSection
+        titulo="Padrão de nomenclatura deste projeto"
+        descricao="Como o nome dos arquivos de Pranchas é reconhecido e validado — pode herdar o padrão global ou ter um próprio."
+        resumo={
+          <Badge variant="outline" className={nomenclaturaProjeto.definido ? "border-primary/40 bg-primary/10" : undefined}>
+            {nomenclaturaProjeto.definido ? "Padrão próprio" : "Herda o padrão global"}
+          </Badge>
+        }
+      >
+        {podeConfigSiglas ? (
+          <NomenclaturaForm
+            escopo={{ projetoId: projeto.id }}
+            inicial={nomenclaturaProjeto}
+            global={nomenclaturaGlobal}
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {nomenclaturaProjeto.definido
+              ? `Este projeto exige nome ${nomenclaturaProjeto.exigir ? "no padrão configurado" : "livre"}, fase ${nomenclaturaProjeto.exigirFase ? "obrigatória" : "opcional"}.`
+              : `Herda o padrão global: exige ${nomenclaturaGlobal.exigir ? "padrão" : "nome livre"}, fase ${nomenclaturaGlobal.exigirFase ? "obrigatória" : "opcional"}.`}
+            {" "}Só quem tem permissão de Configurações pode alterar.
+          </p>
+        )}
+      </CollapsibleSection>
+
       <Dialog open={siglasOpen} onOpenChange={setSiglasOpen}>
         <DialogContent className="max-h-[85svh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Siglas deste projeto</DialogTitle>
             <DialogDescription>
               Siglas de folha/tipo/fase válidas apenas neste projeto — somam-se às globais nos seletores. As globais
-              se editam em Configurações → Lista Mestre.
+              se editam em Configurações → Lista Mestre. O padrão de nomenclatura do projeto agora tem seção própria
+              logo acima da lista.
             </DialogDescription>
           </DialogHeader>
-          <NomenclaturaForm
-            escopo={{ projetoId: projeto.id }}
-            inicial={nomenclaturaProjeto}
-            global={nomenclaturaGlobal}
-          />
           <ListaMestreConfigView catalogos={catalogosProjeto} projetoId={projeto.id} />
         </DialogContent>
       </Dialog>

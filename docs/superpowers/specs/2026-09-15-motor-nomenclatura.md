@@ -427,26 +427,35 @@ Entregue conforme o desenho abaixo, com quatro ajustes que só apareceram na imp
 - Manual (`docs/manual/projetos/projetos.md`, nova seção "Colunas e filtros da tabela de
   arquivos") e `novidades.md` atualizados; `search-index.json` também.
 
-### F5 — Editor visual do padrão · **Sonnet**
+### F5 — Editor visual do padrão · **Sonnet** · entregue (2026-09-16)
 
-- Em Configurações → Nomenclatura e na nomenclatura do projeto: montar o padrão por **blocos**
-  (Projeto, Disciplina, Fase, Número, Tipo, Revisão), escolher separador, marcar opcionais;
-  prévia com nome de exemplo mostrando os campos lidos. Grava o modelo no mesmo
-  `NomenclaturaConfig.padrao`.
-- Regex legada que o editor não consegue representar abre em **modo avançado** (texto),
-  sem conversão automática.
-- O editor precisa emitir **uma** forma para revisão: `{Rnn}` (o `R` faz parte do campo) ou
-  `R{rev}` (o `R` é literal). `padrao.ts` aceita as duas, mas os dois padrões que produção tem
-  hoje usam escritas diferentes — escolher uma e migrar o outro na mesma tela.
-- **Tirar a nomenclatura do projeto de onde ela está hoje.** O padrão por projeto **já existe**
-  (`NomenclaturaConfig.projetoId`, `resolverNomenclatura` com herança do global, botão "Limpar"
-  que volta a herdar) e produção já usa: em 2026-09-15 havia 1 config global e 2 de projeto, uma
-  delas com padrão próprio (`…-{Rnn}`, revisão obrigatória). O problema é achar: o formulário
-  mora dentro do diálogo **"Siglas deste projeto"**, na aba Lista Mestre
-  ([`lista-mestre-view.tsx`](../../../src/components/projetos/lista-mestre-view.tsx), `NomenclaturaForm`
-  com `escopo={{ projetoId }}`), e o dono levou meses sem saber que existia. Mover para uma seção
-  própria — Configurações do projeto ou um card visível na aba Lista Mestre —, e mostrar na tela
-  **qual padrão está valendo e se é herdado ou próprio**. Nada de schema muda: é realocação de UI.
+Entregue conforme o desenho, com uma folga que só apareceu na implementação: o motor de
+canonização não ficou restrito à revisão.
+
+1. **`padrao.ts` ganhou o editor puro** (`interpretarModeloVisual`/`montarModelo`/
+   `exemploNomeModelo`, com `CampoPadrao`/`campoDe` exportados) — um modelo só é reconhecido
+   como blocos quando dá pra descrever como "campo, UM separador fixo, campo..."; qualquer
+   coisa fora disso (regex legada, `R{rev}`, separador inconsistente, campo repetido ou
+   desconhecido) devolve `null` e a tela cai no modo avançado, sem tentar converter.
+2. **A escrita única não ficou só na revisão.** A decisão original era "uma forma pra
+   revisão"; na prática o editor emite a escrita canônica de **todos** os seis campos
+   (`{proj}`, `{disc}`, `{fase}`, `{num}`, `{tipo}`, `{Rnn}`) sempre que alguém salva pelo
+   editor visual — inclusive um padrão que já usava um alias diferente (`{nº}`, `{documento}`)
+   continua funcionando identicamente (mesmo `CampoPadrao`), só a grafia salva muda. É
+   cosmético para os cinco primeiros e funcional só para revisão (onde `{Rnn}` e `R{rev}` são
+   estruturas diferentes), mas manter as duas regras seria uma exceção sem motivo.
+3. **`NomenclaturaForm`** (usado em Configurações → Lista Mestre e agora também visível na
+   aba do projeto) ganhou o editor: chips pra adicionar/remover bloco, setas pra reordenar,
+   checkbox "opcional" por bloco, seletor de separador, prévia ao vivo. Modo avançado (texto)
+   continua existindo — é o que abre sozinho quando o padrão salvo não é representável, e
+   pode ser escolhido a qualquer momento pelo botão.
+4. **Nomenclatura do projeto saiu do diálogo "Siglas deste projeto"** e virou uma
+   `CollapsibleSection` visível na própria aba Lista Mestre, fechada por padrão mas com um
+   *badge* no cabeçalho ("Padrão próprio" / "Herda o padrão global") que denuncia o estado
+   sem precisar abrir. O diálogo continua existindo, mas só para o catálogo de siglas
+   (`ListaMestreConfigView`) — outra coisa, que a spec não pediu pra mover.
+- Manual (`projetos/projetos.md`, nova seção "Padrão de nomenclatura do projeto") e
+  `search-index.json` atualizados. Nada de schema mudou: mesma `NomenclaturaConfig.padrao`.
 
 ### F6 — Índice de contêiner `.zip` (opcional) · **Opus**
 
