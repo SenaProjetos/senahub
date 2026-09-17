@@ -516,6 +516,22 @@ function CartaoLink({
             </div>
           )}
 
+          {/* Mesma escolha da criação: um link já entregue ao cliente pode ter sido criado antes
+              de as fases serem preenchidas, e trocar aqui evita gerar um link novo só por isso. */}
+          <label className="flex cursor-pointer items-start gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted/50">
+            <Checkbox
+              className="mt-0.5"
+              checked={agruparPorFase}
+              onCheckedChange={(v) => setAgruparPorFase(v === true)}
+            />
+            <span>
+              Separar por fase
+              <span className="block text-xs text-muted-foreground">
+                O cliente vê disciplina → fase → formato. Desligado, vê disciplina → formato.
+              </span>
+            </span>
+          </label>
+
           {link.escopo === "selecao" && (
             <p className="text-xs text-muted-foreground">
               Este link mostra {link.uploadIds.length} {link.uploadIds.length === 1 ? "arquivo escolhido" : "arquivos escolhidos"} a
