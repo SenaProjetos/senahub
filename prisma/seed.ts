@@ -695,20 +695,30 @@ async function main() {
     { categoria: "folha", sigla: "A2", nome: "A2 (420×594)" },
     { categoria: "folha", sigla: "A3", nome: "A3 (297×420)" },
     { categoria: "folha", sigla: "A4", nome: "A4 (210×297)" },
-    { categoria: "fase", sigla: "EP", nome: "Estudo Preliminar" },
+    // Fases e tipos = o catálogo de PRODUÇÃO (curado à mão pelo escritório; conferido em
+    // 2026-09-17). Este seed cria toda sigla que não existir, e o `db:seed` roda em todo deploy:
+    // a lista antiga (EP, PB, PE e os tipos PL/CO/VI/DE/ES/DI/LC/MC) recriaria em produção
+    // exatamente os itens que o escritório tinha tirado — e EP duplicaria o Estudo Preliminar.
+    // Não acrescente sigla aqui sem ela existir em produção.
+    // Sinônimos: os da migração 20260915170000 + as siglas antigas deste seed (só valem em
+    // instalação nova — item que já existe não é tocado).
+    { categoria: "fase", sigla: "PL", nome: "Estudo Preliminar", sinonimos: ["EP"] },
     { categoria: "fase", sigla: "AP", nome: "Anteprojeto" },
     { categoria: "fase", sigla: "BS", nome: "Projeto Básico", sinonimos: ["PB"] },
-    { categoria: "fase", sigla: "EX", nome: "Executivo", sinonimos: ["PE", "EXE"] },
-    { categoria: "fase", sigla: "PL", nome: "Projeto Legal" },
+    { categoria: "fase", sigla: "EX", nome: "Projeto Executivo", sinonimos: ["PE", "EXE"] },
+    // Sem "PL" como sinônimo: aqui PL é Estudo Preliminar (colisão na mesma categoria).
+    { categoria: "fase", sigla: "LG", nome: "Projeto Legal" },
     { categoria: "fase", sigla: "AB", nome: "As Built" },
-    { categoria: "tipo", sigla: "PL", nome: "Planta" },
-    { categoria: "tipo", sigla: "CO", nome: "Corte" },
-    { categoria: "tipo", sigla: "VI", nome: "Vista" },
-    { categoria: "tipo", sigla: "DE", nome: "Detalhe" },
-    { categoria: "tipo", sigla: "ES", nome: "Esquema" },
-    { categoria: "tipo", sigla: "DI", nome: "Diagrama" },
-    { categoria: "tipo", sigla: "LC", nome: "Locação" },
-    { categoria: "tipo", sigla: "MC", nome: "Memorial de Cálculo" },
+    { categoria: "tipo", sigla: "M3D", nome: "Modelo Tridimensional" },
+    // Planta/corte/vista/detalhe/esquema/diagrama/locação são todos desenho técnico. "PL" fica
+    // de fora por ser a sigla de uma fase.
+    { categoria: "tipo", sigla: "DET", nome: "Desenho Técnico", sinonimos: ["DTC", "DE", "CO", "VI", "ES", "DI", "LC"] },
+    { categoria: "tipo", sigla: "MEM", nome: "Memorial Descritivo", sinonimos: ["MED", "MD"] },
+    { categoria: "tipo", sigla: "MEC", nome: "Memorial de Cálculo", sinonimos: ["MC"] },
+    { categoria: "tipo", sigla: "PQT", nome: "Lista de Materiais", sinonimos: ["PLQ"] },
+    { categoria: "tipo", sigla: "PMT", nome: "Plano de Manutenção" },
+    { categoria: "tipo", sigla: "DOC", nome: "Anexos" },
+    { categoria: "tipo", sigla: "LMS", nome: "Lista Mestra", sinonimos: ["LME"] },
   ];
   let lmCriados = 0;
   for (let i = 0; i < LM_CATALOGO.length; i++) {

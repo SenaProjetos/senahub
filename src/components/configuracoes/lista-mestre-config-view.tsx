@@ -38,14 +38,15 @@ const SECOES: {
   {
     categoria: "fase",
     titulo: "Fases",
-    descricao: "Etapa do projeto (ex.: EX — Executivo).",
-    exemplo: { sigla: "EX", nome: "Executivo", sinonimos: "EXE, PE" },
+    descricao: "Etapa do projeto (ex.: EX — Projeto Executivo).",
+    exemplo: { sigla: "EX", nome: "Projeto Executivo", sinonimos: "EXE, PE" },
   },
   {
     categoria: "tipo",
     titulo: "Tipos de documento",
-    descricao: "Natureza da folha (ex.: PL — Planta).",
-    exemplo: { sigla: "DET", nome: "Detalhe", sinonimos: "DE, DTC" },
+    // "PL — Planta" saiu: no catálogo do escritório PL é a fase Estudo Preliminar.
+    descricao: "Natureza da folha (ex.: DET — Desenho Técnico).",
+    exemplo: { sigla: "DET", nome: "Desenho Técnico", sinonimos: "DE, DTC" },
   },
   {
     categoria: "folha",
