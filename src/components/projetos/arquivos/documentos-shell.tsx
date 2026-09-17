@@ -56,6 +56,7 @@ export function DocumentosShell({
   listaSelecionadaId,
   podeGerirListas,
   dadosUploader,
+  abrirEnvio,
   fases,
   documentosPorFase,
   status,
@@ -92,6 +93,8 @@ export function DocumentosShell({
   listaSelecionadaId: string | null;
   podeGerirListas: boolean;
   dadosUploader: DadosEnviarDocumentos | null;
+  /** Veio do atalho "Enviar arquivos" do card da disciplina — abre o envio direto. */
+  abrirEnvio: boolean;
   fases: OpcaoFaseDocumento[];
   /** Documentos por `faseId` no escopo da tela — fase ausente do mapa é fase vazia. */
   documentosPorFase: Record<string, number>;
@@ -128,7 +131,7 @@ export function DocumentosShell({
               links={linkPublico.links}
             />
           )}
-          {dadosUploader && <EnviarDocumentosDialog dados={dadosUploader} />}
+          {dadosUploader && <EnviarDocumentosDialog dados={dadosUploader} abrirAoCarregar={abrirEnvio} />}
         </div>
       </div>
 

@@ -78,6 +78,8 @@ export default async function ArquivosPage({
   searchParams: Promise<{
     docsv2?: string;
     disciplinaId?: string;
+    /** Atalho do card da disciplina: abre o diálogo de envio já na chegada. */
+    enviar?: string;
     listaId?: string;
     area?: string;
     q?: string;
@@ -334,6 +336,7 @@ export default async function ArquivosPage({
         listaSelecionadaId={listaSelecionadaId}
         podeGerirListas={podeGerirListas}
         paginacao={{ page: pagina.pagina, pageCount: pageCount(pagina.total, lp.pageSize), pageSize: lp.pageSize }}
+        abrirEnvio={sp?.enviar === "1" && disciplinasEnviaveis.length > 0}
         dadosUploader={
           disciplinasEnviaveis.length > 0
             ? {

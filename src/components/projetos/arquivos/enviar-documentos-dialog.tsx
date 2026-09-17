@@ -117,9 +117,31 @@ export type DadosEnviarDocumentos = {
  * dropzone, aviso de revisão e progresso individual por arquivo. A rota continua sendo
  * a única dona da persistência (`POST /api/uploads`).
  */
-export function EnviarDocumentosDialog({ dados }: { dados: DadosEnviarDocumentos }) {
-  const [aberto, setAberto] = useState(false);
+export function EnviarDocumentosDialog({
+  dados,
+  abrirAoCarregar = false,
+}: {
+  dados: DadosEnviarDocumentos;
+  /**
+   * Chegou pelo atalho "Enviar arquivos" do card da disciplina (`?enviar=1`). O card não tem
+   * uploader próprio — ele só traz a pessoa pra cá, pro MESMO fluxo de envio, já aberto.
+   */
+  abrirAoCarregar?: boolean;
+}) {
+  const [aberto, setAberto] = useState(abrirAoCarregar);
   const [enviando, setEnviando] = useState(false);
+
+  // Tira o `enviar=1` da URL assim que o diálogo abre: sem isso, recarregar a página (ou voltar
+  // pra ela pelo histórico) reabriria o envio sozinho, sem ninguém ter pedido. `replaceState`
+  // nativo (o App Router sincroniza) em vez de `router.replace`: não refaz a página inteira no
+  // servidor só pra sumir com um parâmetro, e checar antes deixa o efeito idempotente.
+  useEffect(() => {
+    if (!abrirAoCarregar) return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("enviar")) return;
+    url.searchParams.delete("enviar");
+    window.history.replaceState(window.history.state, "", url);
+  }, [abrirAoCarregar]);
 
   return (
     <Dialog
