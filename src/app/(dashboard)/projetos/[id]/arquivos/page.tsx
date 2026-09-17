@@ -265,7 +265,9 @@ export default async function ArquivosPage({
     });
     const [pagina, opcoes, opcoesMetadados, documentosPorFase, arvoreNavegacao] = await Promise.all([
       listarDocumentosAgrupados({
-        projetoId: id,
+        // Um id só: a aba do projeto não muda de escopo. A consulta passou a aceitar um
+        // conjunto para o diretório geral reusar a mesma regra (ver `normalizarEscopoProjetos`).
+        projetoIds: [id],
         userId: user.id,
         veTodas,
         ehGlobal,

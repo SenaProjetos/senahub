@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { arquivosDaRevisaoAtual, chavePrancha, numeroPrancha, revisaoAtualDosUploads } from "./documentos-agrupados-utils";
+import {
+  arquivosDaRevisaoAtual,
+  chavePrancha,
+  normalizarEscopoProjetos,
+  numeroPrancha,
+  revisaoAtualDosUploads,
+} from "./documentos-agrupados-utils";
 
 describe("arquivosDaRevisaoAtual", () => {
   it("mantém a R01 disponível quando uma R02 já não tem upload ativo", () => {
@@ -55,5 +61,38 @@ describe("chavePrancha", () => {
     expect(chavePrancha("d1", { numeracao: 1, tipo: "PL", fase: "EX" })).not.toBe(
       chavePrancha("d2", { numeracao: 1, tipo: "PL", fase: "EX" }),
     );
+  });
+});
+
+describe("normalizarEscopoProjetos", () => {
+  it("mantém vários projetos na ordem em que vieram", () => {
+    expect(normalizarEscopoProjetos(["p3", "p1", "p2"])).toEqual(["p3", "p1", "p2"]);
+  });
+
+  it("aceita um projeto só — o caso da aba do projeto, que não pode mudar de comportamento", () => {
+    expect(normalizarEscopoProjetos(["p1"])).toEqual(["p1"]);
+  });
+
+  it("devolve lista vazia quando o escopo é vazio, e vazio NÃO é 'sem filtro'", () => {
+    // A consulta trata isto como "nenhum projeto visível" e devolve zero linhas. Se algum dia
+    // virar `undefined`/`null`, cai no idioma `($n is null or ...)` dos outros parâmetros e
+    // quem não enxerga projeto nenhum passa a enxergar todos.
+    const escopo = normalizarEscopoProjetos([]);
+    expect(escopo).toEqual([]);
+    expect(escopo).not.toBeUndefined();
+    expect(escopo).not.toBeNull();
+  });
+
+  it("descarta repetidos, para o mesmo projeto não entrar duas vezes no any()", () => {
+    expect(normalizarEscopoProjetos(["p1", "p2", "p1"])).toEqual(["p1", "p2"]);
+  });
+
+  it("descarta id vazio ou só com espaço, que casaria com nada e mascararia erro de quem chama", () => {
+    expect(normalizarEscopoProjetos(["", "  ", "p1"])).toEqual(["p1"]);
+    expect(normalizarEscopoProjetos(["", "  "])).toEqual([]);
+  });
+
+  it("apara espaços em volta do id", () => {
+    expect(normalizarEscopoProjetos([" p1 ", "p1"])).toEqual(["p1"]);
   });
 });

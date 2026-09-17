@@ -83,7 +83,7 @@ export async function carregarListaMestre(
   }
 
   const pagina = await listarDocumentosAgrupados({
-    projetoId: projeto.id,
+    projetoIds: [projeto.id],
     userId: user.id,
     veTodas,
     ehGlobal: false,

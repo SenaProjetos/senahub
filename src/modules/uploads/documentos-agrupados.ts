@@ -1,6 +1,11 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { arquivosDaRevisaoAtual, chavePrancha, revisaoAtualDosUploads } from "@/modules/uploads/documentos-agrupados-utils";
+import {
+  arquivosDaRevisaoAtual,
+  chavePrancha,
+  normalizarEscopoProjetos,
+  revisaoAtualDosUploads,
+} from "@/modules/uploads/documentos-agrupados-utils";
 import { parsePranchaFilename } from "@/modules/projetos/pranchas/codigo";
 import { carregarExtensoesNomenclatura } from "@/modules/uploads/nomenclatura/queries";
 import {
@@ -11,7 +16,7 @@ import {
   type DocumentoParaArvore,
 } from "@/modules/uploads/arvore-navegacao";
 import type { Pacote } from "@/modules/uploads/estrutura";
-import { catalogosPrancha, mapaCanonico, canonizar } from "@/modules/projetos/pranchas/queries";
+import { mapaCanonico, canonizar } from "@/modules/projetos/pranchas/queries";
 
 /**
  * Listagem de documentos AGRUPADA POR DOCUMENTO (Fase 2 — F2-PR6a).
@@ -144,8 +149,47 @@ function extensaoDe(nome: string): string {
   return i > 0 ? nome.slice(i + 1).toLowerCase() : "";
 }
 
+type CanonicosPrancha = { tipo: Map<string, string>; fase: Map<string, string> };
+const CANONICO_VAZIO: CanonicosPrancha = { tipo: new Map(), fase: new Map() };
+
+/**
+ * Mapas de sigla canônica (tipo e fase) por projeto, numa consulta só.
+ *
+ * `catalogosPrancha(projetoId)` devolve o catálogo global MAIS as sobreposições daquele projeto.
+ * Com um escopo de vários projetos, chamá-la por projeto custaria uma consulta cada; aqui as
+ * linhas vêm de uma vez e são combinadas em memória — global primeiro, projeto depois, que é a
+ * mesma precedência daquela função.
+ */
+async function canonicosDePranchaPorProjeto(projetoIds: readonly string[]): Promise<Map<string, CanonicosPrancha>> {
+  const rows = await prisma.pranchaCatalogo.findMany({
+    where: {
+      ativo: true,
+      categoria: { in: ["tipo", "fase"] },
+      OR: [{ projetoId: null }, { projetoId: { in: [...projetoIds] } }],
+    },
+    orderBy: [{ ordem: "asc" }, { sigla: "asc" }],
+    select: { categoria: true, sigla: true, sinonimos: true, projetoId: true },
+  });
+  const globais = rows.filter((r) => r.projetoId === null);
+  const saida = new Map<string, CanonicosPrancha>();
+  for (const projetoId of projetoIds) {
+    const doProjeto = rows.filter((r) => r.projetoId === projetoId);
+    const linhas = [...globais, ...doProjeto];
+    saida.set(projetoId, {
+      tipo: mapaCanonico(linhas.filter((r) => r.categoria === "tipo")),
+      fase: mapaCanonico(linhas.filter((r) => r.categoria === "fase")),
+    });
+  }
+  return saida;
+}
+
 export async function listarDocumentosAgrupados(opts: {
-  projetoId: string;
+  /**
+   * Projetos do escopo da consulta. A aba do projeto passa um id só; o diretório geral passa o
+   * conjunto que `escopoProjeto(user)` devolveu. Lista VAZIA = nenhum projeto visível (ver
+   * `normalizarEscopoProjetos`), nunca "todos".
+   */
+  projetoIds: readonly string[];
   userId: string;
   veTodas: boolean;
   ehGlobal: boolean;
@@ -158,7 +202,14 @@ export async function listarDocumentosAgrupados(opts: {
   sort: CampoOrdenacaoDoc | null;
   dir: "asc" | "desc";
 }) {
-  const { projetoId, userId, veTodas, filtros, skip, take, sort, dir } = opts;
+  const { userId, veTodas, filtros, skip, take, sort, dir } = opts;
+  const projetoIds = normalizarEscopoProjetos(opts.projetoIds);
+  // Sem projeto no escopo não há o que consultar. Este retorno existe para que a lista vazia
+  // NUNCA encontre o idioma `($n::text is null or ...)` que quase todos os outros parâmetros
+  // usam: lá, ausência quer dizer "filtro não informado"; aqui quer dizer "não pode ver nada".
+  // Confundir os dois entrega todos os projetos a quem não enxerga nenhum.
+  if (projetoIds.length === 0) return { total: 0, pagina: 1, linhas: [] as LinhaDoc[] };
+
   const termo = filtros.q?.trim() || null;
   const dias = DIAS_VALIDOS.has(filtros.periodo ?? "") ? Number(filtros.periodo) : null;
   const desde = dias ? new Date(Date.now() - dias * 86_400_000) : null;
@@ -181,7 +232,7 @@ export async function listarDocumentosAgrupados(opts: {
     left join documento_revisao r on r.id = u."revisaoId"
     left join "user" au on au.id = u."autorId"
     where d."substituidoPorId" is null
-      and disc."projetoId" = $1
+      and disc."projetoId" = any($1::text[])
       and ($2::text is null or disc.id = $2)
       and ($3::boolean is true or exists (
             select 1 from disciplina_responsavel dr
@@ -216,7 +267,10 @@ export async function listarDocumentosAgrupados(opts: {
             join lista_documentos ld on ld.id = ldi."listaId"
             where ldi."documentoId" = d.id
               and ldi."listaId" = $13
-              and ld."projetoId" = $1))
+              -- Lista de documentos só chega da aba do projeto, cujo escopo e um id so: o any
+              -- aqui e o mesmo teste de igualdade de antes. Se outra tela passar uma lista, isto
+              -- vira "a lista pertence a ALGUM projeto do escopo" -- revisar se for o caso.
+              and ld."projetoId" = any($1::text[])))
       and ($14::text is null or d."tipoId" = $14)
       and ($15::text is null or d."tamanhoPapelId" = $15)
       and ($16::text is null or exists (
@@ -240,7 +294,7 @@ export async function listarDocumentosAgrupados(opts: {
     group by d.id
   `;
   const params = [
-    projetoId,
+    projetoIds,
     filtros.disciplinaId ?? null,
     veTodas,
     userId,
@@ -294,6 +348,9 @@ export async function listarDocumentosAgrupados(opts: {
       tamanhoPapel: { select: { id: true, sigla: true, nome: true } },
       disciplina: {
         select: {
+          // O catálogo de pranchas tem sobreposições POR PROJETO: com escopo de vários
+          // projetos, canonizar a sigla exige saber de qual projeto o documento veio.
+          projetoId: true,
           id: true,
           disciplinaTextoLegado: true,
           catalogo: { select: { nome: true } },
@@ -337,16 +394,26 @@ export async function listarDocumentosAgrupados(opts: {
   // lados da chave (a gravada aqui E a lida abaixo) passam por `canonizar()`, senão um
   // documento perde o título dependendo só de quando a Prancha foi cadastrada (mesmo bug que
   // `proporPranchasImport` corrigiu do lado da escrita — ver comentário lá).
-  const { tipo: catalogoTipo, fase: catalogoFase } = await catalogosPrancha(projetoId);
-  const tipoCanonico = mapaCanonico(catalogoTipo);
-  const faseCanonica = mapaCanonico(catalogoFase);
+  // Um catálogo por projeto do escopo, numa consulta só: `catalogosPrancha` é por projeto, e
+  // chamá-la N vezes num diretório com centenas de projetos custaria N consultas.
+  const canonicosPorProjeto = await canonicosDePranchaPorProjeto(projetoIds);
+  // As Pranchas vieram por disciplina; o catálogo que as canoniza é o do projeto DELA — com
+  // escopo de vários projetos, canonizar tudo por um catálogo só trocaria siglas entre projetos.
+  const projetoPorDisciplina = new Map(docs.map((d) => [d.disciplina.id, d.disciplina.projetoId]));
   const conteudoPorChave = new Map(
     pranchas
       .filter((p) => p.conteudo?.trim())
-      .map((p) => [
-        chavePrancha(p.disciplinaId, { numeracao: p.numeracao, tipo: canonizar(p.tipo, tipoCanonico), fase: canonizar(p.fase, faseCanonica) }),
-        p.conteudo!.trim(),
-      ]),
+      .map((p) => {
+        const canonicos = canonicosPorProjeto.get(projetoPorDisciplina.get(p.disciplinaId) ?? "") ?? CANONICO_VAZIO;
+        return [
+          chavePrancha(p.disciplinaId, {
+            numeracao: p.numeracao,
+            tipo: canonizar(p.tipo, canonicos.tipo),
+            fase: canonizar(p.fase, canonicos.fase),
+          }),
+          p.conteudo!.trim(),
+        ] as const;
+      }),
   );
 
   // Reordena pelo que o SQL decidiu — `findMany` com `in` não preserva a ordem dos ids.
@@ -373,8 +440,9 @@ export async function listarDocumentosAgrupados(opts: {
     // gravou no documento; cai para a leitura do nome, canonizada pelo MESMO catálogo que
     // `proporPranchasImport` usou para gravar a Prancha (senão a comparação diverge de novo).
     const numeracaoTitulo = d.numeroPrancha ?? parseado?.numeracao ?? null;
-    const tipoTitulo = d.tipo?.sigla ?? (parseado ? canonizar(parseado.tipo, tipoCanonico) : null);
-    const faseTitulo = d.fase?.sigla ?? (parseado ? canonizar(parseado.fase, faseCanonica) : null);
+    const canonicos = canonicosPorProjeto.get(d.disciplina.projetoId) ?? CANONICO_VAZIO;
+    const tipoTitulo = d.tipo?.sigla ?? (parseado ? canonizar(parseado.tipo, canonicos.tipo) : null);
+    const faseTitulo = d.fase?.sigla ?? (parseado ? canonizar(parseado.fase, canonicos.fase) : null);
     const tituloPrancha =
       numeracaoTitulo !== null && tipoTitulo && faseTitulo
         ? conteudoPorChave.get(chavePrancha(d.disciplina.id, { numeracao: numeracaoTitulo, tipo: tipoTitulo, fase: faseTitulo })) ?? null

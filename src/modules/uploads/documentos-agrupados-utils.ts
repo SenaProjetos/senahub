@@ -48,3 +48,30 @@ export function numeroPrancha(nomeArquivo: string): string | null {
 export function chavePrancha(disciplinaId: string, p: { numeracao: number; tipo: string; fase: string }): string {
   return `${disciplinaId}|${p.numeracao}|${p.tipo.toUpperCase()}|${p.fase.toUpperCase()}`;
 }
+
+/**
+ * Escopo de projetos de uma consulta de documentos, normalizado.
+ *
+ * `listarDocumentosAgrupados` nasceu para UMA tela (a aba do projeto) e recebia um `projetoId`
+ * só. O diretório geral precisa da mesma consulta sobre VÁRIOS projetos — os que o
+ * `escopoProjeto(user)` devolve —, e duplicar aquele `where` (60 linhas, com regras sutis de
+ * backup, "Outros" e muralha) garantiria que as duas telas divergissem com o tempo.
+ *
+ * Aqui só a normalização: remove vazio, remove repetido e preserva a ordem de entrada.
+ *
+ * ATENÇÃO — lista vazia significa "nenhum projeto visível", NUNCA "sem filtro". É o oposto do
+ * idioma `($n is null or ...)` que quase todos os outros parâmetros daquela consulta usam para
+ * dizer "filtro não informado". Quem mexer lá precisa manter os dois conceitos separados: se a
+ * lista vazia cair naquele idioma, quem não enxerga projeto nenhum passa a enxergar todos.
+ */
+export function normalizarEscopoProjetos(projetoIds: readonly string[]): string[] {
+  const vistos = new Set<string>();
+  const saida: string[] = [];
+  for (const id of projetoIds) {
+    const limpo = id?.trim();
+    if (!limpo || vistos.has(limpo)) continue;
+    vistos.add(limpo);
+    saida.push(limpo);
+  }
+  return saida;
+}
