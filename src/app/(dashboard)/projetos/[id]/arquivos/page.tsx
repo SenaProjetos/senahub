@@ -161,13 +161,12 @@ export default async function ArquivosPage({
       podeGerirListasDocumentos(user, id),
     ]);
     const podeExcluirArquivo = ehAdmin || podeExcluirCap;
-    const disciplinasArvore = arvore.disciplinas.map((d) => ({
+    // Só o que o resto do bloco precisa antes da árvore de navegação existir: o total de cada
+    // disciplina passou a vir DELA (ver `disciplinasArvore`, mais abaixo).
+    const disciplinasDoProjeto = arvore.disciplinas.map((d) => ({
       id: d.id,
       nome: d.nome,
       status: d.status,
-      // O painel e o cabeçalho passam a contar documentos lógicos, não Uploads. Arquivos
-      // legados sem pai ainda contam como uma unidade, para o número nunca esconder dado.
-      total: new Set([...d.arquivos, ...d.arquivosPasta].map((arquivo) => arquivo.documentoId ?? arquivo.id)).size,
       podeEnviar: d.podeEnviar,
     }));
     // Motor de nomenclatura no diálogo de envio (F3): o mesmo vocabulário/catálogo que a rota
@@ -236,11 +235,10 @@ export default async function ArquivosPage({
         ],
       ]),
     );
-    const totalDocumentos = disciplinasArvore.reduce((soma, d) => soma + d.total, 0);
     // Seleção do painel esquerdo: id inválido/de outro projeto cai em "todas" — a árvore já
     // veio filtrada pela muralha por disciplina, então filtrar por ela nunca amplia o escopo.
     const selecionadaId =
-      sp?.disciplinaId && disciplinasArvore.some((d) => d.id === sp.disciplinaId) ? sp.disciplinaId : null;
+      sp?.disciplinaId && disciplinasDoProjeto.some((d) => d.id === sp.disciplinaId) ? sp.disciplinaId : null;
     const listaSelecionadaId = sp?.listaId && listas.some((lista) => lista.id === sp.listaId) ? sp.listaId : null;
     // Filtro, ordenação e recorte acontecem no Postgres (F1-PR10): projeto com milhares de
     // arquivos não pode trafegar inteiro até o client a cada carga da tela.
@@ -287,6 +285,28 @@ export default async function ArquivosPage({
       // recorte da página) — é navegação, tem de continuar mostrando para onde ir.
       arvoreNavegacaoDocumentos({ projetoId: id, userId: user.id, veTodas }),
     ]);
+    // FONTE ÚNICA da contagem de documentos: `DocumentoDisciplina`, via árvore de navegação.
+    //
+    // Antes o total da disciplina era reconstruído a partir dos uploads
+    // (`Set(documentoId ?? uploadId)`), enquanto fase e extensão já contavam documentos — dois
+    // caminhos para a mesma unidade, que só não divergiam por sorte. Verificado em 2026-09-17:
+    // os dois conjuntos batem id a id (145 documentos no dev, 49 disciplinas, com e sem muralha).
+    //
+    // Soma as FASES, nunca as extensões: um documento tem uma fase só, mas aparece em todas as
+    // extensões dos seus arquivos (PDF+DWG conta nos dois) — somar extensões inflaria o número.
+    //
+    // Upload órfão (`documentoId: null`) deixa de ser contado. Era o único caso em que os dois
+    // caminhos divergiam; a produção foi consultada em 2026-09-17 e tem ZERO. A rota de upload
+    // sempre grava `documentoId`, então o app não cria órfão novo — mas se algum aparecer por
+    // script, ele fica invisível nesta contagem em vez de aparecer como unidade própria.
+    const totalPorDisciplina = new Map(
+      arvoreNavegacao.map((a) => [a.disciplinaId, a.fases.reduce((soma, f) => soma + f.total, 0)]),
+    );
+    const disciplinasArvore = disciplinasDoProjeto.map((d) => ({
+      ...d,
+      total: totalPorDisciplina.get(d.id) ?? 0,
+    }));
+    const totalDocumentos = disciplinasArvore.reduce((soma, d) => soma + d.total, 0);
     // Colunas visíveis: preferência do USUÁRIO (vale em qualquer projeto), resolvida no
     // servidor para a tabela já nascer com o recorte certo — sem piscar mostrando tudo.
     const prefs = await getPreferencias(user.id);
