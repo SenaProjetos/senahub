@@ -7,6 +7,7 @@ import { MODALIDADES_PADRAO } from "../src/modules/licitacoes/modalidade";
 import { semearEscalaRolePadrao, semearEscalaContratacao } from "./escalas-padrao";
 import { feriadosNacionais } from "../src/modules/rh/feriados/queries";
 import { seedPerfisAcesso } from "./seed-perfis-acesso";
+import { semearCatalogoDisciplinas, semearListaMestre } from "./seed-catalogos";
 import type { Prisma } from "../src/generated/prisma/client";
 import type { EstagioNegociacao } from "../src/generated/prisma/enums";
 
@@ -489,48 +490,6 @@ const ONBOARDING_PADRAO = {
   ],
 };
 
-// Item 15: catálogo com sigla (nomenclatura de arquivos) + categoria (agrupamento na UI).
-// Catálogo-base pré-criado. `categoria: null` cai no grupo "Outras" (ver schema/nota da view).
-// O ícone deriva do nome (lib/disciplinas.ts) — não fixamos `icone` aqui.
-//
-// `numeracao` = bloco-base da folha na Lista Mestre: 1ª folha = bloco+1 (EST 4000 → 4001).
-// Valores da tabela oficial do escritório, casados pela SIGLA (os nomes de tela do catálogo são
-// mantidos de propósito — a tabela oficial usa descrições mais longas p/ as mesmas siglas).
-// Duas exceções deliberadas, decididas com o escritório:
-//   ACU 3100 — a tabela trazia 3000, igual a ARQ; dois blocos iguais colidem (as duas começariam
-//              em 3001). 3100 segue o padrão de sub-bloco +100 da própria tabela (LOG/SEG/SPD/SUB
-//              sob ELE, DRE sob HID, GAS sob CLI).
-//   FUN null — Fundações não consta da tabela oficial; sem bloco, suas folhas começam em 1.
-const DISCIPLINAS_CATALOGO: {
-  nome: string;
-  codigo: string;
-  categoria: string | null;
-  numeracao: number | null;
-}[] = [
-  // ARQUITETURA
-  { nome: "Arquitetura", codigo: "ARQ", categoria: "ARQUITETURA", numeracao: 3000 },
-  { nome: "Acústica", codigo: "ACU", categoria: "ARQUITETURA", numeracao: 3100 },
-  // CIVIL
-  { nome: "Estrutural", codigo: "EST", categoria: "CIVIL", numeracao: 4000 },
-  { nome: "Hidrossanitário", codigo: "HID", categoria: "CIVIL", numeracao: 6000 },
-  { nome: "Incêndio (PPCI)", codigo: "PCI", categoria: "CIVIL", numeracao: 7000 },
-  { nome: "Fundações", codigo: "FUN", categoria: "CIVIL", numeracao: null },
-  { nome: "Terraplenagem", codigo: "TER", categoria: "CIVIL", numeracao: 1000 },
-  { nome: "Topografia", codigo: "TOP", categoria: "CIVIL", numeracao: 0 },
-  { nome: "Pavimentação", codigo: "PAV", categoria: "CIVIL", numeracao: 2000 },
-  { nome: "Drenagem", codigo: "DRE", categoria: "CIVIL", numeracao: 6100 },
-  // ELÉTRICA
-  { nome: "Elétrico", codigo: "ELE", categoria: "ELÉTRICA", numeracao: 5000 },
-  { nome: "Cabeamento", codigo: "LOG", categoria: "ELÉTRICA", numeracao: 5100 },
-  { nome: "CFTV", codigo: "SEG", categoria: "ELÉTRICA", numeracao: 5200 },
-  { nome: "SPDA", codigo: "SPD", categoria: "ELÉTRICA", numeracao: 5300 },
-  { nome: "Subestação", codigo: "SUB", categoria: "ELÉTRICA", numeracao: 5400 },
-  // MECÂNICA
-  { nome: "Climatização (AVAC)", codigo: "CLI", categoria: "MECÂNICA", numeracao: 8000 },
-  { nome: "Gás", codigo: "GAS", categoria: "MECÂNICA", numeracao: 8200 },
-  // OUTRAS
-  { nome: "Orçamento", codigo: "ORC", categoria: null, numeracao: 9000 },
-];
 
 /**
  * Status documental (item 26 da spec). Nove estados sugeridos pela própria spec, ordenados
@@ -612,130 +571,22 @@ async function main() {
   }
   console.log(`✔ ${PERMISSOES_BASE.length} permissões base garantidas.`);
 
-  // 3) Catálogo de disciplinas
-  // Reconciliação de renomeações (mantém id/relações/`codigo` → evita colisão de `codigo` @unique
-  // no upsert por `nome`). Só renomeia se o nome antigo existir e o novo ainda não.
-  const RENOMES: { de: string; para: string }[] = [{ de: "Lógica", para: "Cabeamento" }];
-  for (const r of RENOMES) {
-    const antigo = await prisma.disciplinaCatalogo.findUnique({ where: { nome: r.de } });
-    const novoExiste = await prisma.disciplinaCatalogo.findUnique({ where: { nome: r.para } });
-    if (antigo && !novoExiste) {
-      await prisma.disciplinaCatalogo.update({ where: { id: antigo.id }, data: { nome: r.para } });
-      console.log(`  ↻ disciplina renomeada: "${r.de}" → "${r.para}"`);
-    }
-  }
-  for (let i = 0; i < DISCIPLINAS_CATALOGO.length; i++) {
-    const d = DISCIPLINAS_CATALOGO[i];
-    await prisma.disciplinaCatalogo.upsert({
-      where: { nome: d.nome },
-      // `numeracao` NÃO entra no `update:` de propósito: o bloco é editável na tela de
-      // configurações, e repeti-lo aqui faria todo `db:seed` (que roda em todo deploy) apagar
-      // o ajuste do admin. O backfill logo abaixo cobre as linhas que ainda estão sem bloco.
-      create: { nome: d.nome, codigo: d.codigo, categoria: d.categoria, ordem: i, numeracao: d.numeracao },
-      update: { codigo: d.codigo, categoria: d.categoria, ordem: i },
-    });
-  }
-  // Backfill do bloco-base nas linhas que já existiam antes desta versão (dev e produção).
-  // `where: { numeracao: null }` torna a operação idempotente E não-destrutiva: só preenche vazio.
-  let preenchidos = 0;
-  for (const d of DISCIPLINAS_CATALOGO) {
-    if (d.numeracao == null) continue;
-    const r = await prisma.disciplinaCatalogo.updateMany({
-      where: { nome: d.nome, numeracao: null },
-      data: { numeracao: d.numeracao },
-    });
-    preenchidos += r.count;
-  }
-  if (preenchidos > 0) console.log(`  ↻ bloco-base preenchido em ${preenchidos} disciplina(s).`);
-  console.log(`✔ ${DISCIPLINAS_CATALOGO.length} disciplinas no catálogo.`);
-
-  // 3a) Reconciliação das disciplinas DOS PROJETOS (`Disciplina.nome`). Elas apontam para o
-  // catálogo por TEXTO, sem FK, então um nome divergente vira disciplina órfã: perde a sigla
-  // (que compõe a pasta e o prefixo do arquivo no storage) e o número-base da Lista Mestre.
-  // NÃO move nada em disco — arquivos já gravados seguem no caminho persistido em `Upload.caminho`;
-  // só uploads NOVOS passam a cair na pasta da sigla.
-  const RENOMES_DISCIPLINA_PROJETO: { de: string; para: string }[] = [
-    { de: "Arquitetônico", para: "Arquitetura" },
-    { de: "Prevenção de Incêndio", para: "Incêndio (PPCI)" },
-  ];
-  for (const r of RENOMES_DISCIPLINA_PROJETO) {
-    const candidatas = await prisma.disciplina.findMany({
-      where: { disciplinaTextoLegado: r.de },
-      select: { id: true, projetoId: true },
-    });
-    if (candidatas.length === 0) continue;
-    // Projeto que JÁ tem o nome de destino ficaria com duas disciplinas iguais — exige merge
-    // manual (mover uploads/tarefas), então esse caso é pulado e reportado.
-    const jaTemDestino = new Set(
-      (
-        await prisma.disciplina.findMany({
-          where: { disciplinaTextoLegado: r.para, projetoId: { in: candidatas.map((c) => c.projetoId) } },
-          select: { projetoId: true },
-        })
-      ).map((d) => d.projetoId),
+  // 3) Catálogos editáveis pela tela (disciplinas e Lista Mestre): semeados só em instalação
+  // nova — ver `seed-catalogos.ts` pro porquê.
+  const disciplinas = await semearCatalogoDisciplinas(prisma);
+  console.log(
+    disciplinas.criadas > 0
+      ? `✔ Catálogo de disciplinas criado (${disciplinas.criadas}).`
+      : `✔ Catálogo de disciplinas já existe (${disciplinas.existentes}) — mantido como está.`,
+  );
+  for (const lm of await semearListaMestre(prisma)) {
+    console.log(
+      lm.criadas > 0
+        ? `✔ Lista Mestre (${lm.categoria}): ${lm.criadas} sigla(s) criada(s).`
+        : `✔ Lista Mestre (${lm.categoria}): já existe (${lm.existentes}) — mantida como está.`,
     );
-    const renomear = candidatas.filter((c) => !jaTemDestino.has(c.projetoId));
-    if (renomear.length > 0) {
-      await prisma.disciplina.updateMany({
-        where: { id: { in: renomear.map((c) => c.id) } },
-        data: { disciplinaTextoLegado: r.para },
-      });
-      console.log(`  ↻ ${renomear.length} disciplina(s) de projeto: "${r.de}" → "${r.para}"`);
-    }
-    const pulados = candidatas.length - renomear.length;
-    if (pulados > 0) {
-      console.log(`  ⚠ ${pulados} pulada(s) em "${r.de}": o projeto já tem "${r.para}" (merge manual).`);
-    }
   }
 
-  // 3b) Catálogo da Lista Mestre (folha/tipo/fase) — siglas globais padrão.
-  const LM_CATALOGO: { categoria: "folha" | "tipo" | "fase"; sigla: string; nome: string; sinonimos?: string[] }[] = [
-    { categoria: "folha", sigla: "A0", nome: "A0 (841×1189)" },
-    { categoria: "folha", sigla: "A1", nome: "A1 (594×841)" },
-    { categoria: "folha", sigla: "A2", nome: "A2 (420×594)" },
-    { categoria: "folha", sigla: "A3", nome: "A3 (297×420)" },
-    { categoria: "folha", sigla: "A4", nome: "A4 (210×297)" },
-    // Fases e tipos = o catálogo de PRODUÇÃO (curado à mão pelo escritório; conferido em
-    // 2026-09-17). Este seed cria toda sigla que não existir, e o `db:seed` roda em todo deploy:
-    // a lista antiga (EP, PB, PE e os tipos PL/CO/VI/DE/ES/DI/LC/MC) recriaria em produção
-    // exatamente os itens que o escritório tinha tirado — e EP duplicaria o Estudo Preliminar.
-    // Não acrescente sigla aqui sem ela existir em produção.
-    // Sinônimos: os da migração 20260915170000 + as siglas antigas deste seed (só valem em
-    // instalação nova — item que já existe não é tocado).
-    { categoria: "fase", sigla: "PL", nome: "Estudo Preliminar", sinonimos: ["EP"] },
-    { categoria: "fase", sigla: "AP", nome: "Anteprojeto" },
-    { categoria: "fase", sigla: "BS", nome: "Projeto Básico", sinonimos: ["PB"] },
-    { categoria: "fase", sigla: "EX", nome: "Projeto Executivo", sinonimos: ["PE", "EXE"] },
-    // Sem "PL" como sinônimo: aqui PL é Estudo Preliminar (colisão na mesma categoria).
-    { categoria: "fase", sigla: "LG", nome: "Projeto Legal" },
-    { categoria: "fase", sigla: "AB", nome: "As Built" },
-    { categoria: "tipo", sigla: "M3D", nome: "Modelo Tridimensional" },
-    // Planta/corte/vista/detalhe/esquema/diagrama/locação são todos desenho técnico. "PL" fica
-    // de fora por ser a sigla de uma fase.
-    { categoria: "tipo", sigla: "DET", nome: "Desenho Técnico", sinonimos: ["DTC", "DE", "CO", "VI", "ES", "DI", "LC"] },
-    { categoria: "tipo", sigla: "MEM", nome: "Memorial Descritivo", sinonimos: ["MED", "MD"] },
-    { categoria: "tipo", sigla: "MEC", nome: "Memorial de Cálculo", sinonimos: ["MC"] },
-    { categoria: "tipo", sigla: "PQT", nome: "Lista de Materiais", sinonimos: ["PLQ"] },
-    { categoria: "tipo", sigla: "PMT", nome: "Plano de Manutenção" },
-    { categoria: "tipo", sigla: "DOC", nome: "Anexos" },
-    { categoria: "tipo", sigla: "LMS", nome: "Lista Mestra", sinonimos: ["LME"] },
-  ];
-  let lmCriados = 0;
-  for (let i = 0; i < LM_CATALOGO.length; i++) {
-    const c = LM_CATALOGO[i];
-    // Sem unique com projetoId null; guarda por findFirst para manter idempotência.
-    const existe = await prisma.pranchaCatalogo.findFirst({
-      where: { categoria: c.categoria, sigla: c.sigla, projetoId: null },
-      select: { id: true },
-    });
-    if (!existe) {
-      await prisma.pranchaCatalogo.create({
-        data: { categoria: c.categoria, sigla: c.sigla, nome: c.nome, ordem: i, sinonimos: c.sinonimos ?? [] },
-      });
-      lmCriados++;
-    }
-  }
-  console.log(`✔ Catálogo Lista Mestre: ${lmCriados} sigla(s) global(is) criada(s).`);
 
   // 4) Plano de contas (cria pais antes das filhas — array já ordenado)
   const idsPorCodigo = new Map<string, string>();
