@@ -134,7 +134,9 @@ export function DocumentosShell({
             {totalDisciplinas === 1 ? "disciplina" : "disciplinas"}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Celular: os 4 botões quebrariam em 3 linhas e empurrariam a tabela pra baixo da
+            dobra. Viram uma fita que rola de lado; a partir de sm voltam a quebrar em linhas. */}
+        <div className="-mx-1 flex w-full min-w-0 items-center gap-2 overflow-x-auto px-1 pb-1 [&>*]:shrink-0 sm:mx-0 sm:w-auto sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
           <NomenclaturaProjetoButton
             projetoId={projeto.id}
             nomenclaturaProjeto={nomenclatura.projeto}

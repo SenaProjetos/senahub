@@ -91,6 +91,10 @@ function BadgeValidacao({ estado }: { estado: ReturnType<typeof estadoValidacao>
  * rolagem lateral (ou texto espremido). Aqui cada documento é um bloco, com o que resolve na
  * mão — título, identificação, arquivos para abrir/baixar e o menu de ações. As colunas
  * escondidas pelo seletor de colunas continuam valendo: quem tira "Tamanho" não o vê aqui também.
+ *
+ * O cartão escreve o NOME da disciplina, ao contrário da tabela (que mostra só o ícone, porque o
+ * painel à esquerda já diz qual disciplina está aberta). No celular esse painel virou gaveta e
+ * fica fechado — sem o nome aqui não haveria nada na tela dizendo de que disciplina é o arquivo.
  */
 function CartaoDocumento({
   linha,

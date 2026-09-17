@@ -20,7 +20,9 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 export function PainelLateralDocumentos({ children }: { children: React.ReactNode }) {
   const [aberto, setAberto] = useState(false);
   const pathname = usePathname();
-  const parametros = useSearchParams();
+  // A string, não o objeto: `useSearchParams()` devolve uma instância nova a cada render, e
+  // como dependência ela dispararia o efeito sempre — a gaveta fecharia sozinha ao abrir.
+  const parametros = useSearchParams().toString();
 
   // Escolher uma pasta troca a URL: a gaveta fecha sozinha para a pessoa VER o resultado —
   // sem isso ela cobriria a tabela que acabou de ser filtrada.
