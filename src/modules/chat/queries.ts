@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { TipoCanal } from "@/generated/prisma/client";
 import { whereAudiencia } from "@/lib/audiencias";
 import { podeObservarCanal, tiposModeracao } from "@/modules/chat/acesso";
+import { nomeCanal } from "@/modules/chat/nome-canal";
 
 export type ReacaoAgregada = {
   emoji: string;
@@ -75,9 +76,13 @@ export async function listarCanais(userId: string, role?: string) {
               where: { userId: { not: userId } },
               include: { user: { select: { id: true, name: true, chatStatus: true, image: true } } },
             },
-            projeto: { select: { codigo: true, situacao: true } },
+            projeto: { select: { nome: true, codigo: true, situacao: true } },
             disciplina: {
-              select: { projetoId: true, projeto: { select: { codigo: true, situacao: true } } },
+              select: {
+                projetoId: true,
+                disciplinaTextoLegado: true,
+                projeto: { select: { codigo: true, situacao: true } },
+              },
             },
           },
         },
@@ -105,8 +110,7 @@ export async function listarCanais(userId: string, role?: string) {
     const naoLidas = contagem.get(m.canalId) ?? 0;
     const ultima = m.canal.mensagens[0];
     const outro = m.canal.membros[0]?.user;
-    const nome =
-      m.canal.tipo === "dm" ? (outro?.name ?? "Conversa") : (m.canal.nome ?? m.canal.tipo);
+    const nome = m.canal.tipo === "dm" ? (outro?.name ?? "Conversa") : nomeCanal(m.canal);
     const projetoId = m.canal.projetoId ?? m.canal.disciplina?.projetoId ?? null;
     const projetoCodigo = m.canal.projeto?.codigo ?? m.canal.disciplina?.projeto?.codigo ?? null;
     const projetoSituacao =
@@ -181,7 +185,7 @@ export async function listarCanais(userId: string, role?: string) {
         ? c.membros.map((m) => m.user.name).join(" ↔ ")
         : c.tipo === "anotacoes"
           ? `${c.nome ?? "Anotações"} · ${c.membros[0]?.user.name ?? "sem dono"}${c.excluidoEm ? " (na lixeira)" : ""}`
-          : (c.nome ?? c.tipo);
+          : nomeCanal(c);
     return {
       id: c.id,
       tipo: c.tipo,

@@ -1857,6 +1857,10 @@ enum ChatStatus {
 model Canal {
   id           String      @id @default(cuid())
   tipo         TipoCanal
+  /// Nome próprio do canal — vale para `grupo`, `anotacoes`, `geral` e `socios`.
+  /// Para `projeto`/`disciplina` é apenas uma cópia legada gravada na criação: o nome
+  /// exibido é lido da entidade dona em tempo de leitura (`modules/chat/nome-canal.ts`),
+  /// para não ficar defasado quando o projeto ou a disciplina é renomeado.
   nome         String?
   icone        String? // emoji da galeria (capa quando não há imagem)
   imagemCapa   String? // caminho relativo da imagem de capa (storage)

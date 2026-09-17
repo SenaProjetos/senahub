@@ -16,13 +16,16 @@ import { FILA_MENSAGEM_AGENDADA, validarAgendamento, type MensagemAgendadaJob } 
 import { getBoss } from "@/lib/jobs";
 import { agregarReacoes, detalhesMensagem } from "@/modules/chat/queries";
 import { podeModerarCanal, podeObservarCanal } from "@/modules/chat/acesso";
+import { nomeCanal } from "@/modules/chat/nome-canal";
 import { tipoTermoPorRole } from "@/modules/legal/termos";
 
 const base = { modulo: "chat" } as const;
 
 const PODE_MODERAR = ["admin", "supervisor"] as const;
 
-/** Rótulo do canal p/ notificação (identifica DM × grupo × canal de projeto/disciplina). */
+/** Rótulo do canal p/ notificação (identifica DM × grupo × canal de projeto/disciplina).
+ *  `nome` já vem resolvido por `nomeCanal` — projeto/disciplina seguem o nome atual da
+ *  entidade, não a cópia gravada em `Canal.nome`. */
 function rotuloCanal(tipo: string, nome: string | null): string | null {
   if (tipo === "dm") return null; // autor já deixa claro que é DM
   if (tipo === "grupo") return `grupo ${nome ?? "sem nome"}`;
@@ -37,10 +40,10 @@ function montarNotificacaoMensagem(
   autorNome: string,
   conteudo: string,
   canalId: string,
-  canal: { tipo: string; nome: string | null },
+  canal: Parameters<typeof nomeCanal>[0],
   opcoes?: { mencao?: boolean },
 ): NotificacaoInput {
-  const rotulo = rotuloCanal(canal.tipo, canal.nome);
+  const rotulo = rotuloCanal(canal.tipo, nomeCanal(canal));
   const base = opcoes?.mencao ? `Você foi mencionado por ${autorNome}` : `Mensagem de ${autorNome}`;
   return {
     titulo: rotulo ? `${base} (${rotulo})` : base,
@@ -90,6 +93,9 @@ async function notificarMembros(canalId: string, autorId: string, autorNome: str
     where: { id: canalId },
     include: {
       membros: { select: { userId: true, silenciado: true, user: { select: { name: true, chatStatus: true } } } },
+      // O nome do canal de projeto/disciplina é o da entidade dona, lido agora (`nomeCanal`).
+      projeto: { select: { nome: true } },
+      disciplina: { select: { disciplinaTextoLegado: true } },
     },
   });
   const membros = canal?.membros ?? [];
@@ -115,7 +121,7 @@ async function notificarMembros(canalId: string, autorId: string, autorNome: str
         autorNome,
         conteudo,
         canalId,
-        { tipo: canal!.tipo, nome: canal!.nome },
+        canal!,
         mencao ? { mencao: true } : undefined,
       );
       const push = !m.silenciado && m.user.chatStatus !== "reuniao";

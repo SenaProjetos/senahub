@@ -127,6 +127,7 @@ export async function ensureCanaisProjeto(projetoId: string): Promise<SincroniaC
   let canalProjeto = await prisma.canal.findFirst({ where: { tipo: "projeto", projetoId } });
   if (!canalProjeto) {
     canalProjeto = await prisma.canal.create({
+      // `nome` aqui é só fallback: quem exibe resolve pelo projeto (`nome-canal.ts`).
       data: { tipo: "projeto", projetoId, nome: projeto.nome },
     });
   }
@@ -144,6 +145,7 @@ export async function ensureCanaisProjeto(projetoId: string): Promise<SincroniaC
     let canalDisc = await prisma.canal.findFirst({ where: { tipo: "disciplina", disciplinaId: d.id } });
     if (!canalDisc) {
       canalDisc = await prisma.canal.create({
+        // Idem: fallback; o nome exibido acompanha `Disciplina.disciplinaTextoLegado`.
         data: { tipo: "disciplina", disciplinaId: d.id, projetoId, nome: d.disciplinaTextoLegado },
       });
     }
