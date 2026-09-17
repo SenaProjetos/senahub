@@ -170,7 +170,17 @@ in `lib/prisma.ts`. To see deleted rows, pass `excluidoEm` explicitly in the `wh
 - **Apontamentos (3D issues)** — mirror `Pendencia`: `ApontamentoCoordenacao` (denormalized, no FK) anchored to IfcGuids + camera (persisted in **IFC space**, Z-up), numbered per-project, workflow aberta|resolvida|fechada|descartada, spawn one Tarefa with a TarefaItem each (`enviarApontamentosCoordenacao`). Snapshot PNG via multipart route (`/api/coordenacao/snapshot`). Deep-link `?apontamento=N` restores camera+selection. Notifications use categoria `coordenacao`.
 - **BCF 2.1 export (`bcf/writer.ts`)** — pure, tested XML writer (like `lib/dxf.ts`): `bcf.version` + `{TopicGuid}/markup.bcf` + `viewpoint.bcfv` (+ `snapshot.png`), zipped via `archiver` in `bcf/exportar.ts`, served by `/api/coordenacao/bcf`. Camera vectors (direction/up) derived in the writer from position+target (viewer never rolls). `viewer/coords.ts` = pure three↔IFC axis conversion (Y-up↔Z-up), tested. Export-only in v1 (`bcfGuid` stored on each apontamento for future round-trip import).
 
-**Comercial / CRM (`modules/comercial/`)** — under active reform; **read `docs/crm/` before touching it.** That folder is the live plan: `00-auditoria.md` (what exists today) → `01-decisoes.md` (16 ADRs — naming, soft delete, LGPD, permissions kept as-is) → `02-schema.md` (target schema) → `03-migracao.md` (migration) → `04-plano-fases.md` (**the backlog — 105 tasks in 7 phases**), with `06-progresso.md` as the execution log and `99-playbook.md` as the per-task rules. Supersedes `docs/concluidos/specs/2026-07-24-crm-comercial-roadmap.md`. Current state to know: `actions.ts` is 607 lines with **no `service.ts`**, the module has **zero tests**, and a 2026-08-13 production audit found it is *bypassed* (8 leads, 1 proposta with no items, vs 31 projetos) — work enters the system directly as `Projeto`. `Oportunidade` is an orphan model (no FK to Lead or Proposta, 0 rows in prod) slated for removal.
+**Comercial / CRM (`modules/comercial/`)** — reforma F0-F7 **concluída** em 2026-09-02 (ver
+`docs/crm/06-progresso.md`, entrada mais recente). `docs/crm/` é o registro histórico da decisão:
+`00-auditoria.md` (o que existia antes) → `01-decisoes.md` (22+ ADRs) → `02-schema.md` (schema
+alvo) → `03-migracao.md` (migração) → `04-plano-fases.md` (backlog fechado), `99-playbook.md` (regras
+por tarefa), `08-aceite-e2e.md` (os 20 critérios de aceite, cobertos por `smoke:crm-e2e`). Supersede
+`docs/concluidos/specs/2026-07-24-crm-comercial-roadmap.md`. Estado atual: `Lead` (prospecção) e
+`Negociacao` (negociação) são entidades separadas de propósito, com `service.ts` central, cobertura
+de testes ampla no módulo, e `Oportunidade` (o model órfão antigo) já removido. Trabalho de UI em
+andamento sobre esse resultado: `docs/adr/0004-funil-comercial-unico.md` +
+`docs/superpowers/specs/2026-09-16-comercial-funil-unico.md` (board único, toolbar fixa, modal por
+card — planejado, não implementado ainda).
 
 **Termos de uso (legal)** (`modules/legal/termos.ts`) — single source of truth for the on-screen acceptance text, by `TipoTermo` (`colaborador | cliente`). Pure (no `server-only`): RSC reads it, passes text to a client form; the server hashes (SHA-256) the accepted text as proof in `actions.ts`. Bump `versao` to force everyone to re-accept. `docs/legal/*.md` is the rich/print version for legal review — keep both in sync. (Spec: `docs/concluidos/plans/2026-06-23-termo-aceite.md`.)
 
