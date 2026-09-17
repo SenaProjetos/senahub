@@ -7,6 +7,7 @@ import { FileDown, ListChecks, Loader2 } from "lucide-react";
 import type { LinhaListaMestre } from "@/modules/projetos/lista-mestre/montar";
 import { editarMetadadosDocumento } from "@/modules/uploads/actions";
 import { enviarArquivoComProgresso } from "@/components/projetos/upload-progresso";
+import { validarListaMestreGerada } from "@/modules/projetos/lista-mestre/actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -49,11 +50,14 @@ export function GerarListaMestreButton({
   projetoId,
   disciplinas,
   podeEditarMetadados,
+  podeValidar,
 }: {
   projetoId: string;
   /** Só disciplinas em que a pessoa pode enviar e que usam pacotes (pasta não tem Lista Mestre). */
   disciplinas: { id: string; nome: string }[];
   podeEditarMetadados: boolean;
+  /** Quem gera nem sempre valida — sem isso a lista fica pendente e some do link público. */
+  podeValidar: boolean;
 }) {
   const router = useRouter();
   const [aberto, setAberto] = useState(false);
@@ -119,6 +123,15 @@ export function GerarListaMestreButton({
       if (!primeiro.ok || !primeiro.revisaoId) throw new Error(primeiro.motivo ?? "Falha ao salvar o PDF.");
       const segundo = await enviarArquivoComProgresso(xlsx, { ...comum, nome: xlsx.name, revisaoDeId: primeiro.revisaoId }, () => {});
       if (!segundo.ok) throw new Error(segundo.motivo ?? "O PDF foi salvo, mas a planilha falhou.");
+
+      // A lista nasce validada: ela só enumera documentos que já passaram pela validação, e é
+      // `validado` que decide o que o link público mostra ao cliente.
+      if (podeValidar) {
+        const v = await validarListaMestreGerada({ revisaoId: primeiro.revisaoId });
+        if (!v.ok) toast.error(`Lista Mestre salva, mas não foi validada: ${v.error}`);
+      } else {
+        toast.info("Lista Mestre salva como pendente — valide na aba Arquivos para o cliente vê-la.");
+      }
 
       // Título certo, não palpite: é a Lista Mestre desta disciplina. Não pisa em título já dado.
       if (podeEditarMetadados && primeiro.documentoId && !primeiro.tituloAtual) {

@@ -149,6 +149,7 @@ export function DocumentosShell({
               projetoId={projeto.id}
               disciplinas={dadosUploader.disciplinas.filter((d) => !d.usaPastas).map((d) => ({ id: d.id, nome: d.nome }))}
               podeEditarMetadados={dadosUploader.podeEditarMetadados}
+              podeValidar={podeValidar}
             />
           )}
           {linkPublico && (

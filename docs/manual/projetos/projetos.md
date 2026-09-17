@@ -207,6 +207,11 @@ de novo cria a revisão seguinte do mesmo documento.
 Nada aparece na lista enquanto ninguém validar os arquivos, e a própria Lista Mestre nunca
 se lista.
 
+Os dois arquivos gerados já nascem **validados**, em seu nome — a lista só enumera documentos
+que você mesmo validou, e é a validação que decide o que aparece no link público do cliente.
+Quem não tem permissão de validar consegue gerar do mesmo jeito, mas a lista fica pendente até
+alguém validá-la na aba Arquivos.
+
 ### Padrão de nomenclatura do projeto (botão Nomenclatura, aba Arquivos)
 
 No botão **Nomenclatura**, ao lado de "Enviar documentos", a seção **Padrão de
