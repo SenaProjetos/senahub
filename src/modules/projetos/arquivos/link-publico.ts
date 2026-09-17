@@ -56,6 +56,13 @@ export type ArquivoPublico = {
   faseSigla: string | null;
   faseNome: string | null;
 };
+/**
+ * O arquivo como a PÁGINA precisa dele. Fase fica de fora de propósito: depois do agrupamento,
+ * o rótulo da fase vive na pasta — repeti-lo em cada arquivo só engordaria a resposta de um link
+ * de projeto inteiro (centenas de arquivos).
+ */
+export type ArquivoPublicoEmPasta = Omit<ArquivoPublico, "faseId" | "faseSigla" | "faseNome">;
+
 export type DisciplinaPublica = {
   id: string;
   nome: string;
@@ -65,7 +72,7 @@ export type DisciplinaPublica = {
    * (`montarPastasDeArquivos`) — é o que garante que a pasta que ele vê e o .zip que ele baixa
    * tenham exatamente o mesmo conteúdo.
    */
-  pastas: PastaFase<ArquivoPublico>[];
+  pastas: PastaFase<ArquivoPublicoEmPasta>[];
 };
 export type ArtPublica = {
   id: string;
@@ -251,14 +258,27 @@ function emPastas(
   disciplina: { id: string; nome: string; arquivos: ArquivoPublico[] },
   extensoes: { extensao: string }[],
 ): DisciplinaPublica {
+  const pastas = montarPastasDeArquivos(
+    disciplina.arquivos,
+    extensoes.map((e) => e.extensao),
+  );
   return {
     id: disciplina.id,
     nome: disciplina.nome,
     total: disciplina.arquivos.length,
-    pastas: montarPastasDeArquivos(
-      disciplina.arquivos,
-      extensoes.map((e) => e.extensao),
-    ),
+    pastas: pastas.map((fase) => ({
+      ...fase,
+      extensoes: fase.extensoes.map((pasta) => ({
+        ...pasta,
+        arquivos: pasta.arquivos.map((a) => ({
+          id: a.id,
+          nome: a.nome,
+          tamanho: a.tamanho,
+          ehPdf: a.ehPdf,
+          versao: a.versao,
+        })),
+      })),
+    })),
   };
 }
 
