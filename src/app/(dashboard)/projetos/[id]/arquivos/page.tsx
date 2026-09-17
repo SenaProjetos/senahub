@@ -19,8 +19,8 @@ import {
 import { parseListParams, pageCount } from "@/lib/list-params";
 import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
 import { resolverColunasVisiveis, CHAVE_PREF_COLUNAS, idsOcultaveis } from "@/modules/uploads/colunas-documento";
-import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
-import { catalogosPrancha } from "@/modules/projetos/pranchas/queries";
+import { nomenclaturaDoProjeto, nomenclaturaGlobal, resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
+import { catalogosPrancha, catalogosPranchaConfig } from "@/modules/projetos/pranchas/queries";
 import {
   carregarCatalogosNomenclatura,
   carregarExtensoesNomenclatura,
@@ -169,10 +169,22 @@ export default async function ArquivosPage({
     }));
     // Motor de nomenclatura no diálogo de envio (F3): o mesmo vocabulário/catálogo que a rota
     // usa, para a sugestão na tela e a gravação no servidor não divergirem.
-    const [catalogosNomenclatura, extensoesNomenclatura, catalogoPorDisciplina] = await Promise.all([
+    const [
+      catalogosNomenclatura,
+      extensoesNomenclatura,
+      catalogoPorDisciplina,
+      nomenclaturaProjeto,
+      nomenclaturaDoEscritorio,
+      siglasProjeto,
+      podeEditarNomenclatura,
+    ] = await Promise.all([
       carregarCatalogosNomenclatura(id),
       carregarExtensoesNomenclatura(),
       catalogoPorDisciplinaDoProjeto(id),
+      nomenclaturaDoProjeto(id),
+      nomenclaturaGlobal(),
+      catalogosPranchaConfig(id),
+      can(user, "configuracoes", "gerir"),
     ]);
     const disciplinasEnviaveis = arvore.disciplinas
       .filter((d) => d.podeEnviar)
@@ -306,6 +318,12 @@ export default async function ArquivosPage({
           podeGerirRecebidos,
           podeGerirGeral,
           podeExcluirDocumento,
+        }}
+        nomenclatura={{
+          projeto: nomenclaturaProjeto,
+          global: nomenclaturaDoEscritorio,
+          siglasProjeto,
+          podeEditar: podeEditarNomenclatura,
         }}
         linkPublico={
           podeGerirLink

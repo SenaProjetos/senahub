@@ -4,6 +4,7 @@ import { PainelAreasProjeto } from "@/components/projetos/arquivos/painel-areas-
 import { rotuloArea, type AreaDisponivel, type AreaProjeto } from "@/modules/uploads/areas-projeto";
 import { ConteudoAreaProjeto, type DadosAreas } from "@/components/projetos/arquivos/conteudo-area-projeto";
 import { LinkPublicoArquivosButton } from "@/components/projetos/link-publico-arquivos-dialog";
+import { NomenclaturaProjetoButton } from "@/components/projetos/arquivos/nomenclatura-projeto-dialog";
 import type { ListaPainel } from "@/components/projetos/arquivos/painel-listas";
 import { TabelaDocumentos } from "@/components/projetos/arquivos/tabela-documentos";
 import { FiltrosDocumentos, type OpcaoCatalogoDocumento } from "@/components/projetos/arquivos/filtros-documentos";
@@ -68,6 +69,7 @@ export function DocumentosShell({
   areaSelecionada,
   dadosAreas,
   linkPublico,
+  nomenclatura,
   exclusoesPendentes,
 }: {
   projeto: { id: string; nome: string; codigo: string };
@@ -108,6 +110,12 @@ export function DocumentosShell({
   dadosAreas: DadosAreas;
   /** `null` quando o usuário não pode gerir o link público — o botão nem aparece. */
   linkPublico: LinkPublicoProps | null;
+  nomenclatura: {
+    projeto: React.ComponentProps<typeof NomenclaturaProjetoButton>["nomenclaturaProjeto"];
+    global: React.ComponentProps<typeof NomenclaturaProjetoButton>["nomenclaturaGlobal"];
+    siglasProjeto: React.ComponentProps<typeof NomenclaturaProjetoButton>["siglasProjeto"];
+    podeEditar: boolean;
+  };
   exclusoesPendentes: Set<string>;
 }) {
   return (
@@ -122,6 +130,13 @@ export function DocumentosShell({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <NomenclaturaProjetoButton
+            projetoId={projeto.id}
+            nomenclaturaProjeto={nomenclatura.projeto}
+            nomenclaturaGlobal={nomenclatura.global}
+            siglasProjeto={nomenclatura.siglasProjeto}
+            podeEditar={nomenclatura.podeEditar}
+          />
           {linkPublico && (
             <LinkPublicoArquivosButton
               projetoId={projeto.id}
