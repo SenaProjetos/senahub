@@ -123,6 +123,8 @@ export type LinhaDoc = {
   /** Pacote B OU alguma extensão do documento marcada `ehBackup` no catálogo (item 1 da F4). */
   ehBackup: boolean;
   descricao: string | null;
+  /** Projeto da disciplina — o diretório geral mistura projetos na mesma lista. */
+  projetoId: string;
   disciplinaId: string;
   disciplinaNome: string;
   revisaoAtual: number | null;
@@ -460,6 +462,7 @@ export async function listarDocumentosAgrupados(opts: {
       pacote: pacoteDoc,
       ehBackup,
       descricao: d.descricao,
+      projetoId: d.disciplina.projetoId,
       disciplinaId: d.disciplina.id,
       disciplinaNome: d.disciplina.catalogo?.nome ?? d.disciplina.disciplinaTextoLegado ?? "—",
       revisaoAtual,
