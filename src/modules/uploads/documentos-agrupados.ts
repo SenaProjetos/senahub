@@ -3,6 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { arquivosDaRevisaoAtual, chavePrancha, revisaoAtualDosUploads } from "@/modules/uploads/documentos-agrupados-utils";
 import { parsePranchaFilename } from "@/modules/projetos/pranchas/codigo";
 import { carregarExtensoesNomenclatura } from "@/modules/uploads/nomenclatura/queries";
+import {
+  EXT_OUTROS,
+  FASE_SEM,
+  montarArvoreNavegacao,
+  type ArvoreDaDisciplina,
+  type DocumentoParaArvore,
+} from "@/modules/uploads/arvore-navegacao";
 import type { Pacote } from "@/modules/uploads/estrutura";
 import { catalogosPrancha, mapaCanonico, canonizar } from "@/modules/projetos/pranchas/queries";
 
@@ -54,10 +61,12 @@ const DIAS_VALIDOS = new Set(["7", "30", "90"]);
 export type FiltrosDoc = {
   disciplinaId?: string | null;
   q?: string;
+  /** Extensão (`pdf`), ou `EXT_OUTROS` para o que está fora do catálogo de extensões. */
   ext?: string;
   autor?: string;
   periodo?: string;
   validado?: string;
+  /** `PranchaCatalogo.id` (categoria `fase`), ou `FASE_SEM` para documento sem fase. */
   fase?: string;
   status?: string;
   listaId?: string | null;
@@ -182,11 +191,23 @@ export async function listarDocumentosAgrupados(opts: {
             or coalesce(d.titulo, '') ilike '%' || $5 || '%'
             or coalesce(cat.nome, disc.nome, '') ilike '%' || $5 || '%'
             or coalesce(au.name, '') ilike '%' || $5 || '%'))
-      and ($6::text is null or lower(u."nomeArquivo") like '%.' || lower($6))
+      -- Extensão: a pasta "Outros" da árvore é "tem algum arquivo cuja extensão não está no
+      -- catálogo" (inclui arquivo sem extensão) — o mesmo critério que a árvore usa para montar
+      -- o nó, senão clicar na pasta traria uma lista diferente da que a contagem prometeu.
+      and ($6::text is null
+           or ($6 = '__outros__' and exists (
+                 select 1 from upload ux
+                 where ux."documentoId" = d.id and ux."excluidoEm" is null
+                   and not exists (
+                     select 1 from extensao_arquivo eax
+                     where eax.extensao = lower(substring(ux."nomeArquivo" from '\\.([^.]+)$')))))
+           or ($6 <> '__outros__' and lower(u."nomeArquivo") like '%.' || lower($6)))
       and ($7::text is null or au.name = $7)
       and ($8::timestamptz is null or u."createdAt" >= $8)
       and ($9::text is null or d."statusId" = $9)
-      and ($10::text is null or d."faseId" = $10)
+      and ($10::text is null
+           or ($10 = '__sem__' and d."faseId" is null)
+           or ($10 <> '__sem__' and d."faseId" = $10))
       and ($11::boolean is null or (u.validado = true and u."pastaId" is null))
       and ($12::boolean is null or (u.validado = false and u."pastaId" is null))
       and ($13::text is null or exists (
@@ -476,3 +497,52 @@ export async function opcoesMetadadosDocumento(projetoId: string) {
 
   return { fases, tipos, papeis, status };
 }
+
+/**
+ * Árvore do painel esquerdo: por disciplina, as fases que têm documento e, dentro delas, as
+ * extensões. Mesmo recorte de "documento vivo" da listagem (documento não mesclado, com ao menos
+ * um arquivo fora da lixeira) e a MESMA muralha por disciplina — quem não vê tudo só enxerga as
+ * disciplinas de que é responsável, como na lista.
+ *
+ * Lê o documento com seus arquivos e monta a árvore em memória (`montarArvoreNavegacao`, pura e
+ * testada): um projeto tem dezenas a poucos milhares de documentos, e a alternativa (um GROUP BY
+ * por nível) duplicaria em SQL a regra de "Outros" que já existe em código.
+ */
+export async function arvoreNavegacaoDocumentos(opts: {
+  projetoId: string;
+  userId: string;
+  veTodas: boolean;
+}): Promise<ArvoreDaDisciplina[]> {
+  const { projetoId, userId, veTodas } = opts;
+  const [documentos, extensoes] = await Promise.all([
+    prisma.documentoDisciplina.findMany({
+      where: {
+        substituidoPorId: null,
+        disciplina: {
+          projetoId,
+          ...(veTodas ? {} : { responsaveis: { some: { userId } } }),
+        },
+        uploads: { some: { excluidoEm: null } },
+      },
+      select: {
+        id: true,
+        disciplinaId: true,
+        fase: { select: { id: true, sigla: true, nome: true } },
+        uploads: { where: { excluidoEm: null }, select: { nomeArquivo: true } },
+      },
+    }),
+    carregarExtensoesNomenclatura(),
+  ]);
+
+  const paraArvore: DocumentoParaArvore[] = documentos.map((d) => ({
+    id: d.id,
+    disciplinaId: d.disciplinaId,
+    faseId: d.fase?.id ?? null,
+    faseSigla: d.fase?.sigla ?? null,
+    faseNome: d.fase?.nome ?? null,
+    extensoes: d.uploads.map((u) => extensaoDe(u.nomeArquivo)).filter(Boolean),
+  }));
+  return montarArvoreNavegacao(paraArvore, extensoes.map((e) => e.extensao));
+}
+
+export { EXT_OUTROS, FASE_SEM };

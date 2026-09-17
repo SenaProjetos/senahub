@@ -1,6 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { FASE_SEM } from "@/modules/uploads/arvore-navegacao";
 import { useSetParams } from "@/lib/use-set-param";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +35,20 @@ export function SeletorFasesDocumentos({
         >
           Todas
         </button>
+        {/* "Sem fase" só aparece quando está selecionado (a árvore é quem leva até ele) — sem
+            isto, clicar na pasta "Sem fase" deixaria o filtro ativo sem nenhum jeito visível
+            de sair dele, já que nenhum botão ficaria marcado. */}
+        {faseId === FASE_SEM && (
+          <button
+            type="button"
+            onClick={() => setParams({ fase: null })}
+            aria-pressed
+            title="Documentos ainda sem fase definida"
+            className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground"
+          >
+            Sem fase
+          </button>
+        )}
         {fases.map((fase) => {
           const selecionada = faseId === fase.id;
           const total = documentosPorFase[fase.id] ?? 0;

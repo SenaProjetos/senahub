@@ -22,6 +22,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { EXT_OUTROS } from "@/modules/uploads/arvore-navegacao";
 import { useSetParams } from "@/lib/use-set-param";
 import type { OpcaoStatusDocumento } from "@/components/projetos/arquivos/painel-documento-detalhe";
 import { CATEGORIA_EXTENSAO_LABEL } from "@/modules/uploads/nomenclatura/extensoes-iniciais";
@@ -113,7 +114,7 @@ export function FiltrosDocumentos({
 
   const chips = [
     q ? { chave: "q", rotulo: `"${q}"` } : null,
-    ext ? { chave: "ext", rotulo: ext.toUpperCase() } : null,
+    ext ? { chave: "ext", rotulo: ext === EXT_OUTROS ? "Outros" : ext.toUpperCase() } : null,
     autor ? { chave: "autor", rotulo: autor } : null,
     periodo ? { chave: "periodo", rotulo: PERIODO_LABEL[periodo] ?? periodo } : null,
     validado ? { chave: "val", rotulo: VALIDADO_LABEL[validado] ?? validado } : null,

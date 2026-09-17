@@ -28,10 +28,14 @@ export function VisualizarDwgButton({
   desenhoId,
   nomeArquivo,
   titulo,
+  classeIcone = "size-3.5",
 }: {
   desenhoId: string;
   nomeArquivo: string;
   titulo: string;
+  /** Tamanho do ícone. O badge de extensão usa `size-3` pro olho do DWG ficar igual ao do PDF,
+   *  que fica ao lado dele na mesma linha da tabela. */
+  classeIcone?: string;
 }) {
   const ehDwg = extDe(nomeArquivo) === "dwg";
   const [aberto, setAberto] = useState(false);
@@ -79,7 +83,7 @@ export function VisualizarDwgButton({
   if (emAndamento) {
     return (
       <span className="shrink-0 text-muted-foreground" title="Convertendo desenho…">
-        <Loader2 className="size-3.5 animate-spin" />
+        <Loader2 className={`${classeIcone} animate-spin`} />
       </span>
     );
   }
@@ -94,7 +98,7 @@ export function VisualizarDwgButton({
         onClick={retentar}
         disabled={pendente}
       >
-        {pendente ? <Loader2 className="size-3.5 animate-spin" /> : <AlertCircle className="size-3.5" />}
+        {pendente ? <Loader2 className={`${classeIcone} animate-spin`} /> : <AlertCircle className={classeIcone} />}
       </button>
     );
   }
@@ -108,7 +112,7 @@ export function VisualizarDwgButton({
         title="Visualizar (DWG)"
         onClick={() => setAberto(true)}
       >
-        <Eye className="size-3.5" />
+        <Eye className={classeIcone} />
       </button>
       <Dialog open={aberto} onOpenChange={setAberto}>
         <DialogContent className="flex h-[92svh] w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">

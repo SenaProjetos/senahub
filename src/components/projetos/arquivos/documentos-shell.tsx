@@ -1,4 +1,5 @@
-import { type DisciplinaArvore } from "@/components/projetos/arquivos/painel-disciplinas";
+import { type DisciplinaArvore, type SelecaoArvore } from "@/components/projetos/arquivos/arvore-documentos";
+import type { ArvoreDaDisciplina } from "@/modules/uploads/arvore-navegacao";
 import { PainelNavegacaoDocumentos } from "@/components/projetos/arquivos/painel-navegacao-documentos";
 import { PainelAreasProjeto } from "@/components/projetos/arquivos/painel-areas-projeto";
 import { rotuloArea, type AreaDisponivel, type AreaProjeto } from "@/modules/uploads/areas-projeto";
@@ -53,7 +54,8 @@ export function DocumentosShell({
   paginacao,
   totalDocumentos,
   totalDisciplinas,
-  disciplinaSelecionadaId,
+  arvore,
+  selecao,
   listas,
   listaSelecionadaId,
   podeGerirListas,
@@ -91,7 +93,8 @@ export function DocumentosShell({
   paginacao: { page: number; pageCount: number; pageSize: number };
   totalDocumentos: number;
   totalDisciplinas: number;
-  disciplinaSelecionadaId: string | null;
+  arvore: ArvoreDaDisciplina[];
+  selecao: SelecaoArvore;
   listas: ListaPainel[];
   listaSelecionadaId: string | null;
   podeGerirListas: boolean;
@@ -163,8 +166,9 @@ export function DocumentosShell({
           <PainelNavegacaoDocumentos
             projetoId={projeto.id}
             disciplinas={disciplinas}
+            arvore={arvore}
             totalGeral={totalDocumentos}
-            disciplinaSelecionadaId={disciplinaSelecionadaId}
+            selecao={selecao}
             listas={listas}
             listaSelecionadaId={listaSelecionadaId}
             podeGerirListas={podeGerirListas}
@@ -200,7 +204,7 @@ export function DocumentosShell({
           <TabelaDocumentos
             projetoId={projeto.id}
             linhas={linhas}
-            filtradaPorDisciplina={disciplinaSelecionadaId !== null}
+            filtradaPorDisciplina={selecao.disciplinaId !== null}
             filtradaPorLista={listaSelecionadaId !== null}
             temFiltroAtivo={temFiltroAtivo}
             podeCoordenacao={podeCoordenacao}
