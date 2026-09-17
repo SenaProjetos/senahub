@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, FolderOpen, Trash2, Upload as UploadIcon } from "lucide-react";
+import { AlertTriangle, Check, FolderOpen, Trash2, Upload as UploadIcon } from "lucide-react";
 import { toast } from "sonner";
 import { foraDoPadrao } from "@/modules/projetos/pranchas/codigo";
 import type { PastaFlat } from "@/modules/projetos/pastas/arvore";
@@ -12,6 +12,7 @@ import { gruposRevisaoAgrupada } from "@/modules/uploads/revisao-agrupada";
 import { enviarArquivoComProgresso, ErroEnvio, PainelProgressoEnvio, type LinhaEnvio, type ResultadoUpload } from "@/components/projetos/upload-progresso";
 import { lerTextoPdf } from "@/lib/ler-texto-pdf";
 import { extrairTituloDoCarimbo } from "@/modules/uploads/titulo-carimbo";
+import { decidirTitulo, usaTituloPadrao, type OrigemTitulo, type TituloRegistrado } from "@/modules/uploads/titulo-sugerido";
 import { SeletorPasta } from "@/components/projetos/pasta-tree-view";
 import { Button } from "@/components/ui/button";
 import { CorrecaoNomeUpload, type DadosCorrecaoNomeUpload } from "@/components/projetos/arquivos/correcao-nome-upload";
@@ -64,17 +65,23 @@ type ItemEnvio = {
   faseId?: string;
   /** Tipo de documento lido do nome (alta confiança) ou escolhido aqui. */
   tipoId?: string;
-  /** Título da prancha pra Lista Mestre — preenchido aqui já deixa o envio alimentando a
-   *  Lista Mestre sozinho, sem passo extra depois no painel de detalhe. */
-  titulo?: string;
-  /** O título veio do carimbo do PDF, não de alguém digitando — ainda é palpite a conferir. */
-  tituloSugerido?: boolean;
   /** "Nova versão de": documento existente que recebe esta revisão, mesmo com outro nome. */
   versaoDeDocumentoId?: string;
   fora: boolean;
   /** Avisos e sugestões do motor de nomenclatura, para a etapa de revisão. */
   avisos: Aviso[];
   sugestoes: Sugestao[];
+};
+/** Um documento na conferência pós-envio — PDF e DWG da mesma prancha viram UMA linha. */
+type DocumentoConferencia = {
+  documentoId: string;
+  arquivos: string[];
+  faseId?: string;
+  tipoId?: string;
+  /** Título da prancha pra Lista Mestre — preenchido aqui já alimenta a Lista Mestre sozinha. */
+  titulo?: string;
+  /** Título lido do carimbo e ainda não conferido mostra o selo "confira". */
+  origemTitulo?: OrigemTitulo;
 };
 type LinhaEnvioComArquivo = ItemEnvio & LinhaEnvio & {
   grupoRevisao?: string;
@@ -164,11 +171,12 @@ export function EnviarDocumentosDialog({
         <DialogHeader>
           <DialogTitle>Enviar documentos</DialogTitle>
           <DialogDescription>
-            Selecione ou arraste os arquivos — disciplina e destino são reconhecidos pelo nome.
-            Só pergunta o que o nome não disser.
+            Selecione ou arraste os arquivos — disciplina e destino são reconhecidos pelo nome, e
+            só pergunta o que o nome não disser. Depois do envio, você confere os dados de cada
+            documento.
           </DialogDescription>
         </DialogHeader>
-        <UploaderDocumentos dados={dados} onEnviarChange={setEnviando} />
+        <UploaderDocumentos dados={dados} onEnviarChange={setEnviando} onConcluir={() => setAberto(false)} />
       </DialogContent>
     </Dialog>
   );
@@ -177,9 +185,11 @@ export function EnviarDocumentosDialog({
 function UploaderDocumentos({
   dados,
   onEnviarChange,
+  onConcluir,
 }: {
   dados: DadosEnviarDocumentos;
   onEnviarChange: (enviando: boolean) => void;
+  onConcluir: () => void;
 }) {
   const router = useRouter();
   const [enviando, setEnviando] = useState(false);
@@ -437,6 +447,7 @@ function UploaderDocumentos({
 
   async function enviar(itens: ItemEnvio[]) {
     setPendentes(null);
+    setConferencia([]); // lote novo, conferência nova
 
     // Leitura do carimbo começa JÁ, em paralelo, mas ninguém espera por ela aqui: cada arquivo
     // só aguarda a própria leitura na hora de subir (ver o laço adiante). Assim o painel de
@@ -543,11 +554,8 @@ function UploaderDocumentos({
               faseId: resultado.faseId,
               tipoId: resultado.tipoId,
               numeroPrancha: resultado.numeroPrancha,
-              // Título que já existia vence a sugestão do carimbo (manual vence motor).
-              titulo: resultado.tituloAtual ?? tituloDoCarimbo ?? undefined,
-              tituloSugerido: !resultado.tituloAtual && !!tituloDoCarimbo,
             });
-            if (resultado.documentoId) gravarTituloSugerido(resultado, tituloDoCarimbo);
+            registrarConferencia(linhas[i], resultado, tituloDoCarimbo);
           } else {
             if (grupo) gruposComErro.add(grupo);
           atualizarLinha(i, { status: "erro", motivo: resultado.motivo ?? "Falha ao salvar." });
@@ -584,75 +592,107 @@ function UploaderDocumentos({
     });
   }
 
-  // Corrigir fase/tipo reconhecidos SEM sair da tela de envio (senão o único jeito era fechar
-  // o diálogo, achar o documento na lista e abrir o painel de detalhe pra cada arquivo).
-  const [salvandoMetadado, setSalvandoMetadado] = useState<number | null>(null);
+  // ── Conferência pós-envio (etapa 3) ─────────────────────────────────────────────────────
+  // Uma linha por DOCUMENTO, não por arquivo: PDF e DWG da mesma prancha caem no mesmo
+  // `documentoId` e têm os mesmos metadados — duas linhas mostravam o título num e o campo
+  // vazio no outro, sendo o mesmo registro. Corrigir aqui evita fechar o diálogo, achar o
+  // documento na lista e abrir o painel de detalhe de cada um.
+  const [conferencia, setConferencia] = useState<DocumentoConferencia[]>([]);
+  const [salvandoDocumento, setSalvandoDocumento] = useState<string | null>(null);
   const [, iniciarSalvarMetadado] = useTransition();
-
-  /** Título digitado aqui alimenta a Lista Mestre direto — sem isto, era mais um passo depois,
-   *  no painel de detalhe de cada documento (pedido do dono: já ir preenchendo no envio). */
-  // Por documentoId, não por índice: um novo lote no MESMO diálogo reindexa `progresso` do
-  // zero, e um ref por índice guardaria o título do lote anterior — o próximo save igual ao
-  // "salvo" fantasma seria descartado pela guarda de "nada mudou" (achado do advisor).
-  const tituloSalvo = useRef(new Map<string, string>());
+  /** Nome do tipo (Configurações → Lista Mestre) = título padrão oferecido quando nada foi lido. */
+  const nomePorTipoId = useMemo(() => new Map(dados.tipos.map((tipo) => [tipo.id, tipo.nome])), [dados.tipos]);
 
   /**
-   * Grava o título lido do carimbo logo após o envio. Existe porque o campo Título só salva no
-   * `onBlur`, e o fluxo que o dono pediu é "vem pronto, o usuário só confere" — sem isto, quem
-   * apenas olhasse e aprovasse veria a sugestão na tela e ela NÃO teria sido gravada.
-   *
-   * Nunca sobrescreve título existente (`tituloAtual`), e marca o `tituloSalvo` ANTES de gravar:
-   * PDF e DWG da mesma prancha compartilham `documentoId` e não podem gravar os dois.
+   * O que esta tela sabe do título de cada documento — fonte das decisões (síncrona, ao contrário
+   * do estado). Por `documentoId`, não por índice: um novo lote no mesmo diálogo recomeça a
+   * lista, e um registro por índice confundia o lote anterior com o atual.
    */
-  function gravarTituloSugerido(resultado: ResultadoUpload, tituloDoCarimbo: string | null) {
-    const documentoId = resultado.documentoId;
-    if (!documentoId) return;
-    if (resultado.tituloAtual) {
-      tituloSalvo.current.set(documentoId, resultado.tituloAtual); // blur com o mesmo valor vira no-op
-      return;
-    }
-    if (!tituloDoCarimbo || tituloSalvo.current.has(documentoId)) return;
-    tituloSalvo.current.set(documentoId, tituloDoCarimbo);
-    void editarMetadadosDocumento({ documentoId, titulo: tituloDoCarimbo }).then((r) => {
+  const titulos = useRef(new Map<string, TituloRegistrado>());
+
+  function atualizarDocumento(documentoId: string, patch: Partial<DocumentoConferencia>) {
+    setConferencia((atual) => atual.map((doc) => (doc.documentoId === documentoId ? { ...doc, ...patch } : doc)));
+  }
+
+  function gravarTitulo(documentoId: string, registro: TituloRegistrado) {
+    void editarMetadadosDocumento({ documentoId, titulo: registro.valor }).then((r) => {
       if (r.ok) return;
-      tituloSalvo.current.delete(documentoId); // deixa o blur tentar de novo
-      toast.error(`Não foi possível salvar o título lido do carimbo: ${r.error}`);
+      if (titulos.current.get(documentoId) === registro) titulos.current.delete(documentoId); // o blur tenta de novo
+      toast.error(`Não foi possível salvar o título sugerido: ${r.error}`);
     });
   }
 
-  function salvarTituloPosEnvio(indice: number, tituloDigitado: string) {
-    const linha = progresso?.[indice];
-    if (!linha?.documentoId) return;
-    const documentoId = linha.documentoId;
+  /**
+   * Entra na conferência cada arquivo que o servidor aceitou. O título vem pronto quando dá
+   * (pedido do dono: "o usuário só confere e aprova") e é GRAVADO já, porque o campo só salva
+   * no blur e quem apenas olhasse veria a sugestão sem ela estar no banco. A precedência
+   * (banco > carimbo > padrão do tipo) está em `decidirTitulo`, com o tipo CONFIRMADO pelo
+   * servidor, não o lido localmente.
+   */
+  function registrarConferencia(
+    linha: { nome: string; pastaId?: string },
+    resultado: ResultadoUpload,
+    tituloDoCarimbo: string | null,
+  ) {
+    const documentoId = resultado.documentoId;
+    // Pasta não usa Lista Mestre; sem permissão, a action seria recusada.
+    if (!documentoId || linha.pastaId || !dados.podeEditarMetadados) return;
+    const { registro, gravar } = decidirTitulo({
+      registrado: titulos.current.get(documentoId) ?? null,
+      tituloAtual: resultado.tituloAtual ?? null,
+      tituloDoCarimbo,
+    });
+    if (registro) titulos.current.set(documentoId, registro);
+    if (registro && gravar) gravarTitulo(documentoId, registro);
+
+    setConferencia((atual) => {
+      const indice = atual.findIndex((doc) => doc.documentoId === documentoId);
+      const base: DocumentoConferencia = indice >= 0 ? atual[indice] : { documentoId, arquivos: [] };
+      const doc: DocumentoConferencia = {
+        ...base,
+        arquivos: base.arquivos.includes(linha.nome) ? base.arquivos : [...base.arquivos, linha.nome],
+        faseId: resultado.faseId,
+        tipoId: resultado.tipoId,
+        titulo: registro?.valor ?? base.titulo,
+        origemTitulo: registro?.origem,
+      };
+      return indice >= 0 ? atual.map((d, i) => (i === indice ? doc : d)) : [...atual, doc];
+    });
+  }
+
+  function salvarTituloConferencia(documentoId: string, tituloDigitado: string) {
     const valor = tituloDigitado.trim();
-    if (valor === (tituloSalvo.current.get(documentoId) ?? "")) return; // nada mudou — não bate a action à toa no blur
-    atualizarLinha(indice, { titulo: valor || undefined, tituloSugerido: false }); // digitou: deixou de ser palpite
-    setSalvandoMetadado(indice);
+    if (valor === (titulos.current.get(documentoId)?.valor ?? "")) return; // nada mudou — não bate a action à toa no blur
+    atualizarDocumento(documentoId, { titulo: valor || undefined, origemTitulo: undefined }); // digitou: deixou de ser palpite
+    setSalvandoDocumento(documentoId);
     iniciarSalvarMetadado(async () => {
       const r = await editarMetadadosDocumento({ documentoId, titulo: valor || null });
-      setSalvandoMetadado(null);
-      if (r.ok) tituloSalvo.current.set(documentoId, valor);
+      setSalvandoDocumento(null);
+      if (r.ok) titulos.current.set(documentoId, { valor, origem: "usuario" });
       else toast.error(r.error);
     });
   }
 
-  function salvarMetadadoPosEnvio(indice: number, campo: "faseId" | "tipoId", valorBruto: string) {
-    const linha = progresso?.[indice];
-    if (!linha?.documentoId) return;
-    const documentoId = linha.documentoId;
-    const anterior = campo === "faseId" ? linha.faseId : linha.tipoId;
+  function salvarMetadadoConferencia(documentoId: string, campo: "faseId" | "tipoId", valorBruto: string) {
+    const doc = conferencia.find((d) => d.documentoId === documentoId);
+    if (!doc) return;
+    const anterior = doc[campo];
     const valor = valorBruto === "__none" ? "" : valorBruto;
-    const novoValor = valor || undefined;
-    atualizarLinha(indice, campo === "faseId" ? { faseId: novoValor } : { tipoId: novoValor });
-    setSalvandoMetadado(indice);
+    atualizarDocumento(documentoId, { [campo]: valor || undefined });
+    setSalvandoDocumento(documentoId);
     iniciarSalvarMetadado(async () => {
       const r = await editarMetadadosDocumento(
         campo === "faseId" ? { documentoId, faseId: valor || null } : { documentoId, tipoId: valor || null },
       );
-      setSalvandoMetadado(null);
+      setSalvandoDocumento(null);
       if (!r.ok) {
         toast.error(r.error);
-        atualizarLinha(indice, campo === "faseId" ? { faseId: anterior } : { tipoId: anterior }); // desfaz o otimista
+        atualizarDocumento(documentoId, { [campo]: anterior }); // desfaz o otimista
+        return;
+      }
+      // Título era o padrão do tipo antigo: acompanha o novo (ou sai, se o tipo foi removido).
+      if (campo === "tipoId" && usaTituloPadrao(doc.titulo, anterior ? nomePorTipoId.get(anterior) : null)) {
+        salvarTituloConferencia(documentoId, (valor && nomePorTipoId.get(valor)) || "");
       }
     });
   }
@@ -726,6 +766,7 @@ function UploaderDocumentos({
             tipoId: resultado.tipoId,
             numeroPrancha: resultado.numeroPrancha,
           });
+          registrarConferencia(linha, resultado, await lerTituloDoCarimbo(linha.file));
         } catch (error) {
           const espera = error instanceof ErroEnvio ? error.retryDepoisSegundos : undefined;
           atualizarLinha(indice, {
@@ -741,6 +782,11 @@ function UploaderDocumentos({
       onEnviarChange(false);
     }
   }
+
+  const temConferencia = dados.podeEditarMetadados;
+  const titulosAConferir = conferencia.filter((doc) => doc.origemTitulo === "carimbo").length;
+  // 4 = além da última etapa: enviado, sem nada a conferir (sem permissão, ou só pastas).
+  const etapa = enviando ? 2 : conferencia.length > 0 ? 3 : progresso && progresso.length > 0 ? 4 : 1;
 
   return (
     <div
@@ -765,6 +811,8 @@ function UploaderDocumentos({
         onAlterarAlvo={alterarAlvo}
         onConfirm={() => pendentes && void enviar(pendentes)}
       />
+
+      <EtapasEnvio etapa={etapa} comConferencia={temConferencia} />
 
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant="outline" disabled={enviando} onClick={() => inputArquivos.current?.click()}>
@@ -791,46 +839,84 @@ function UploaderDocumentos({
           enviando={enviando}
           onFechar={() => setProgresso(null)}
           onReenviar={(indices) => void reenviar(indices)}
+          recolherAoConcluir={conferencia.length > 0}
         />
       )}
 
-      {/* Fase/tipo/título reconhecidos ou a preencher, ainda nesta tela — sem isto o único
-          jeito de corrigir era fechar o diálogo, achar o documento na lista e abrir o painel
-          de detalhe pra cada arquivo. Título aqui já alimenta a Lista Mestre sozinho. Só pra
-          quem pode editar metadados, e só faz sentido em pacote (pasta não usa Lista Mestre —
-          por isso o filtro é POR LINHA agora: um lote pode misturar disciplinas de pacote e
-          de pasta, já que cada arquivo resolve a própria disciplina). */}
-      {!enviando && dados.podeEditarMetadados && progresso && progresso.some((l) => l.status === "ok" && l.documentoId && !l.pastaId) && (
+      {enviando && temConferencia && (
+        <p className="text-xs text-muted-foreground">
+          Ao terminar, você confere aqui o título, a fase e o tipo de cada documento.
+        </p>
+      )}
+
+      {!enviando && conferencia.length > 0 && (
         <div className="space-y-2 rounded-sm border bg-background/60 p-2">
-          <p className="text-xs font-medium text-muted-foreground">Reconhecido no envio — corrija ou complete se precisar</p>
-          <div className="max-h-72 space-y-2 overflow-y-auto">
-            {progresso.map((linha, indice) =>
-              linha.status === "ok" && linha.documentoId && !linha.pastaId ? (
-                <div key={indice} className="space-y-1 rounded-sm border p-1.5">
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={linha.nome}>{linha.nome}</span>
-                    {linha.tituloSugerido && (
+          <div className="px-1">
+            <p className="text-xs font-medium">Confira os dados reconhecidos</p>
+            <p className="text-[11px] text-muted-foreground">
+              {conferencia.length} documento(s)
+              {titulosAConferir > 0 && ` · ${titulosAConferir} título(s) sugerido(s) para conferir`}
+              {" · as alterações são salvas na hora."}
+            </p>
+          </div>
+          <div className="max-h-[45svh] space-y-2 overflow-y-auto">
+            {conferencia.map((doc) => {
+              const nomeDoTipo = doc.tipoId ? (nomePorTipoId.get(doc.tipoId) ?? null) : null;
+              const usaPadrao = usaTituloPadrao(doc.titulo, nomeDoTipo);
+              const salvando = salvandoDocumento === doc.documentoId;
+              return (
+                <div key={doc.documentoId} className="space-y-1 rounded-sm border p-1.5">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={doc.arquivos.join("\n")}>
+                      {separarExtensao(doc.arquivos[0] ?? "").base}
+                    </span>
+                    {doc.arquivos.map((arquivo) => (
+                      <span
+                        key={arquivo}
+                        className="shrink-0 rounded-sm border px-1 font-mono text-[10px] uppercase text-muted-foreground"
+                      >
+                        {separarExtensao(arquivo).extensao.replace(".", "") || "—"}
+                      </span>
+                    ))}
+                    {doc.origemTitulo === "carimbo" && (
                       <span className="shrink-0 rounded-sm bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
                         Título lido do carimbo — confira
                       </span>
                     )}
                   </div>
-                  <div className="grid grid-cols-[1fr_9rem_9rem] items-center gap-2">
-                    <Input
-                      value={linha.titulo ?? ""}
-                      placeholder="Título da prancha (Lista Mestre)"
-                      className="h-8 text-xs"
-                      disabled={salvandoMetadado === indice}
-                      onChange={(event) => atualizarLinha(indice, { titulo: event.target.value || undefined })}
-                      onBlur={(event) => salvarTituloPosEnvio(indice, event.target.value)}
-                    />
+                  <div className="grid grid-cols-1 items-start gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_10rem]">
+                    <div className="min-w-0 space-y-1">
+                      <Input
+                        value={doc.titulo ?? ""}
+                        placeholder={nomeDoTipo ?? "Título da prancha (Lista Mestre)"}
+                        aria-label="Título da prancha"
+                        className="h-8 min-w-0 text-xs"
+                        disabled={salvando}
+                        onChange={(event) => atualizarDocumento(doc.documentoId, { titulo: event.target.value || undefined })}
+                        onBlur={(event) => salvarTituloConferencia(doc.documentoId, event.target.value)}
+                      />
+                      {/* Padrão = nome do tipo em Configurações → Lista Mestre. Só vira título com
+                          confirmação: é genérico, e quem envia pode detalhar (trecho, pavimento…). */}
+                      {nomeDoTipo && (!doc.titulo || usaPadrao) && (
+                        <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                          <Checkbox
+                            checked={usaPadrao}
+                            disabled={salvando}
+                            onCheckedChange={(marcado) =>
+                              salvarTituloConferencia(doc.documentoId, marcado ? nomeDoTipo : "")
+                            }
+                          />
+                          Usar o padrão “{nomeDoTipo}” como título
+                        </label>
+                      )}
+                    </div>
                     <Select
-                      value={linha.faseId ?? "__none"}
-                      onValueChange={(v) => salvarMetadadoPosEnvio(indice, "faseId", v ?? "__none")}
-                      disabled={salvandoMetadado === indice}
+                      value={doc.faseId ?? "__none"}
+                      onValueChange={(v) => salvarMetadadoConferencia(doc.documentoId, "faseId", v ?? "__none")}
+                      disabled={salvando}
                     >
-                      <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="Fase —" />
+                      <SelectTrigger className="h-8 w-full min-w-0 text-xs" aria-label="Fase">
+                        <SelectValue placeholder="Fase —" className="min-w-0 overflow-hidden" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none">— nenhuma</SelectItem>
@@ -840,12 +926,12 @@ function UploaderDocumentos({
                       </SelectContent>
                     </Select>
                     <Select
-                      value={linha.tipoId ?? "__none"}
-                      onValueChange={(v) => salvarMetadadoPosEnvio(indice, "tipoId", v ?? "__none")}
-                      disabled={salvandoMetadado === indice}
+                      value={doc.tipoId ?? "__none"}
+                      onValueChange={(v) => salvarMetadadoConferencia(doc.documentoId, "tipoId", v ?? "__none")}
+                      disabled={salvando}
                     >
-                      <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="Tipo —" />
+                      <SelectTrigger className="h-8 w-full min-w-0 text-xs" aria-label="Tipo">
+                        <SelectValue placeholder="Tipo —" className="min-w-0 overflow-hidden" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none">— nenhum</SelectItem>
@@ -856,21 +942,65 @@ function UploaderDocumentos({
                     </Select>
                   </div>
                 </div>
-              ) : null,
-            )}
+              );
+            })}
+          </div>
+          <div className="flex justify-end">
+            <Button size="sm" onClick={onConcluir}>
+              Concluir
+            </Button>
           </div>
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground">
-        Envie arquivos soltos ou uma pasta inteira (ou arraste aqui) — disciplina e destino são
-        reconhecidos pelo nome do arquivo (fase, tipo e número da prancha, ou a faixa de
-        numeração cadastrada). Só pergunta disciplina/pasta quando o nome não resolve sozinho.
-        Limite por arquivo: {TAMANHO_MAX_BACKUP_LABEL} em Backup do modelo, {TAMANHO_MAX_LABEL} nos demais.
-        {" Nomes fora do padrão em Pranchas aparecem marcados na revisão — não impede o envio."}
-        {dados.nomenclatura.exigirFase && " A fase de cada documento é obrigatória e pode ser revista antes do envio."}
-      </p>
+      {etapa === 1 && (
+        <p className="text-xs text-muted-foreground">
+          Envie arquivos soltos ou uma pasta inteira (ou arraste aqui) — disciplina e destino são
+          reconhecidos pelo nome do arquivo (fase, tipo e número da prancha, ou a faixa de
+          numeração cadastrada). Só pergunta disciplina/pasta quando o nome não resolve sozinho.
+          Limite por arquivo: {TAMANHO_MAX_BACKUP_LABEL} em Backup do modelo, {TAMANHO_MAX_LABEL} nos demais.
+          {" Nomes fora do padrão em Pranchas aparecem marcados na revisão — não impede o envio."}
+          {dados.nomenclatura.exigirFase && " A fase de cada documento é obrigatória e pode ser revista antes do envio."}
+        </p>
+      )}
     </div>
+  );
+}
+
+/**
+ * Onde a pessoa está no envio. Derivado do estado que já existe — a revisão de nomes é um
+ * diálogo à parte e só abre quando precisa, por isso conta como parte de "Escolher".
+ * `etapa` além da última = tudo feito (enviado sem nada a conferir).
+ */
+function EtapasEnvio({ etapa, comConferencia }: { etapa: number; comConferencia: boolean }) {
+  const etapas = comConferencia ? ["Escolher arquivos", "Enviar", "Conferir dados"] : ["Escolher arquivos", "Enviar"];
+  return (
+    <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" aria-label="Etapas do envio">
+      {etapas.map((rotulo, i) => {
+        const numero = i + 1;
+        const feita = numero < etapa;
+        const atual = numero === etapa;
+        return (
+          <li key={rotulo} className="flex items-center gap-2" aria-current={atual ? "step" : undefined}>
+            {i > 0 && <span className="h-px w-4 bg-border" aria-hidden />}
+            <span
+              className={cn(
+                "flex size-5 items-center justify-center rounded-full border text-[10px] font-medium",
+                atual && "border-primary bg-primary text-primary-foreground",
+                feita && "border-primary text-primary",
+                !atual && !feita && "text-muted-foreground",
+              )}
+            >
+              {feita ? <Check className="size-3" aria-hidden /> : numero}
+            </span>
+            <span className={cn(atual ? "font-medium" : "text-muted-foreground")}>
+              {rotulo}
+              {feita && <span className="sr-only"> (concluída)</span>}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 

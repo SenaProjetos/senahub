@@ -172,18 +172,25 @@ export function PainelProgressoEnvio({
   enviando,
   onFechar,
   onReenviar,
+  recolherAoConcluir = false,
 }: {
   linhas: LinhaEnvio[];
   enviando: boolean;
   onFechar: () => void;
   onReenviar?: (indices: number[]) => void;
+  /** Envio terminado sem erro vira só o resumo (a lista abre por "Ver arquivos") — deixa o
+   *  espaço do diálogo para o que vem depois do envio. Com erro, a lista fica sempre aberta. */
+  recolherAoConcluir?: boolean;
 }) {
   const [agora, setAgora] = useState(Date.now());
+  const [expandido, setExpandido] = useState(false);
   const feitos = linhas.filter((l) => l.status === "ok" || l.status === "erro").length;
   const erros = linhas.filter((l) => l.status === "erro").length;
   const errosProntos = linhas
     .map((linha, indice) => ({ linha, indice }))
     .filter(({ linha }) => linha.status === "erro" && (!linha.retryAfterAt || linha.retryAfterAt <= agora));
+  const podeRecolher = recolherAoConcluir && !enviando && erros === 0;
+  const recolhido = podeRecolher && !expandido;
 
   useEffect(() => {
     if (!linhas.some((linha) => linha.status === "erro" && linha.retryAfterAt && linha.retryAfterAt > agora)) return;
@@ -215,52 +222,63 @@ export function PainelProgressoEnvio({
                 <RotateCcw className="size-3" /> Reenviar erros
               </button>
             )}
+            {podeRecolher && (
+              <button
+                type="button"
+                onClick={() => setExpandido((v) => !v)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                {recolhido ? "Ver arquivos" : "Ocultar arquivos"}
+              </button>
+            )}
             <button type="button" onClick={onFechar} className="text-xs text-muted-foreground hover:text-foreground">
               Fechar
             </button>
           </div>
         )}
       </div>
-      <div className="max-h-64 space-y-1 overflow-y-auto">
-        {linhas.map((l, i) => (
-          <div key={i} className="flex items-center gap-2 rounded-sm px-1 py-1">
-            <FileText className="size-4 shrink-0 text-muted-foreground" />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="min-w-0 flex-1 truncate text-xs" title={l.nome}>
-                  {l.nome}
-                </span>
-                <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{fmtBytes(l.tamanho)}</span>
-                <IconeStatus status={l.status} />
+      {!recolhido && (
+        <div className="max-h-64 space-y-1 overflow-y-auto">
+          {linhas.map((l, i) => (
+            <div key={i} className="flex items-center gap-2 rounded-sm px-1 py-1">
+              <FileText className="size-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-xs" title={l.nome}>
+                    {l.nome}
+                  </span>
+                  <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{fmtBytes(l.tamanho)}</span>
+                  <IconeStatus status={l.status} />
+                </div>
+                {(l.status === "enviando" || l.status === "pendente") && (
+                  <div className="mt-1 h-1 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full bg-primary transition-all" style={{ width: `${l.progresso}%` }} />
+                  </div>
+                )}
+                {l.status === "erro" && l.motivo && <p className="mt-0.5 text-[11px] text-destructive">{l.motivo}</p>}
+                {l.status === "erro" && onReenviar && (
+                  <div className="mt-1 flex items-center gap-2">
+                    {rotuloEspera(l) ? (
+                      <span className="text-[11px] text-muted-foreground">Nova tentativa em {rotuloEspera(l)} s.</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onReenviar([i])}
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                      >
+                        <RotateCcw className="size-3" /> Reenviar
+                      </button>
+                    )}
+                  </div>
+                )}
+                {l.status === "ok" && l.realocado && (
+                  <p className="mt-0.5 text-[11px] text-warning">Formato não suportado — enviado para &quot;Outros&quot;.</p>
+                )}
               </div>
-              {(l.status === "enviando" || l.status === "pendente") && (
-                <div className="mt-1 h-1 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full bg-primary transition-all" style={{ width: `${l.progresso}%` }} />
-                </div>
-              )}
-              {l.status === "erro" && l.motivo && <p className="mt-0.5 text-[11px] text-destructive">{l.motivo}</p>}
-              {l.status === "erro" && onReenviar && (
-                <div className="mt-1 flex items-center gap-2">
-                  {rotuloEspera(l) ? (
-                    <span className="text-[11px] text-muted-foreground">Nova tentativa em {rotuloEspera(l)} s.</span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => onReenviar([i])}
-                      className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
-                    >
-                      <RotateCcw className="size-3" /> Reenviar
-                    </button>
-                  )}
-                </div>
-              )}
-              {l.status === "ok" && l.realocado && (
-                <p className="mt-0.5 text-[11px] text-warning">Formato não suportado — enviado para &quot;Outros&quot;.</p>
-              )}
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
