@@ -2,6 +2,11 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { linkVigente } from "@/lib/link-publico";
 import { ehBackupDoModelo, recortarParaLinkPublico } from "./link-publico-regras";
+import {
+  montarPastasDeArquivos,
+  type PastaFase,
+} from "@/modules/uploads/arvore-navegacao";
+import { carregarExtensoesNomenclatura } from "@/modules/uploads/nomenclatura/queries";
 
 /**
  * Link público (sem login) de arquivos do projeto — somente ver + baixar.
@@ -46,11 +51,21 @@ export type ArquivoPublico = {
   ehPdf: boolean;
   /** Revisão do upload (1, 2, 3...) — a página mostra como R01, R02. */
   versao: number;
+  /** Fase do documento — define em que pasta o arquivo aparece (null = "Sem fase"). */
+  faseId: string | null;
+  faseSigla: string | null;
+  faseNome: string | null;
 };
 export type DisciplinaPublica = {
   id: string;
   nome: string;
-  arquivos: ArquivoPublico[];
+  total: number;
+  /**
+   * Pastas do cliente: fase → formato, montadas pelo MESMO código da árvore interna
+   * (`montarPastasDeArquivos`) — é o que garante que a pasta que ele vê e o .zip que ele baixa
+   * tenham exatamente o mesmo conteúdo.
+   */
+  pastas: PastaFase<ArquivoPublico>[];
 };
 export type ArtPublica = {
   id: string;
@@ -75,6 +90,21 @@ const SELECT_REGRAS = {
   documentoId: true,
   documento: { select: { substituidoPorId: true } },
   revisao: { select: { numero: true } },
+} as const;
+
+/**
+ * O mesmo recorte, mas trazendo a FASE do documento — é ela que decide em que pasta o arquivo
+ * aparece para o cliente. `documento` precisa vir num select só: repetir a chave sobrescreveria
+ * o `substituidoPorId` de que o recorte depende.
+ */
+const SELECT_REGRAS_COM_FASE = {
+  ...SELECT_REGRAS,
+  documento: {
+    select: {
+      substituidoPorId: true,
+      fase: { select: { id: true, sigla: true, nome: true } },
+    },
+  },
 } as const;
 
 type LinhaRegras = {
@@ -168,34 +198,68 @@ function ehPdf(nome: string): boolean {
  */
 async function conteudoDaSelecao(uploadIds: string[]): Promise<DisciplinaPublica[]> {
   if (uploadIds.length === 0) return [];
-  const uploads = await prisma.upload.findMany({
-    where: { id: { in: uploadIds }, excluidoEm: null },
-    orderBy: [{ disciplina: { ordem: "asc" } }, { nomeArquivo: "asc" }],
-    select: {
-      id: true,
-      nomeArquivo: true,
-      tamanho: true,
-      versao: true,
-      disciplina: { select: { id: true, disciplinaTextoLegado: true } },
-    },
-  });
+  const [uploads, extensoes] = await Promise.all([
+    prisma.upload.findMany({
+      where: { id: { in: uploadIds }, excluidoEm: null },
+      orderBy: [{ disciplina: { ordem: "asc" } }, { nomeArquivo: "asc" }],
+      select: {
+        id: true,
+        nomeArquivo: true,
+        tamanho: true,
+        versao: true,
+        disciplina: { select: { id: true, disciplinaTextoLegado: true } },
+        documento: { select: { fase: { select: { id: true, sigla: true, nome: true } } } },
+      },
+    }),
+    carregarExtensoesNomenclatura(),
+  ]);
 
-  const porDisciplina = new Map<string, DisciplinaPublica>();
+  const porDisciplina = new Map<string, { id: string; nome: string; arquivos: ArquivoPublico[] }>();
   for (const u of uploads) {
     let grupo = porDisciplina.get(u.disciplina.id);
     if (!grupo) {
       grupo = { id: u.disciplina.id, nome: u.disciplina.disciplinaTextoLegado, arquivos: [] };
       porDisciplina.set(u.disciplina.id, grupo);
     }
-    grupo.arquivos.push({
-      id: u.id,
-      nome: u.nomeArquivo,
-      tamanho: u.tamanho,
-      ehPdf: ehPdf(u.nomeArquivo),
-      versao: u.versao,
-    });
+    grupo.arquivos.push(paraArquivoPublico(u));
   }
-  return [...porDisciplina.values()];
+  return [...porDisciplina.values()].map((d) => emPastas(d, extensoes));
+}
+
+/** Achata o upload no formato que a página e as pastas usam. */
+function paraArquivoPublico(u: {
+  id: string;
+  nomeArquivo: string;
+  tamanho: number;
+  versao: number;
+  documento: { fase: { id: string; sigla: string; nome: string } | null } | null;
+}): ArquivoPublico {
+  return {
+    id: u.id,
+    nome: u.nomeArquivo,
+    tamanho: u.tamanho,
+    ehPdf: ehPdf(u.nomeArquivo),
+    versao: u.versao,
+    faseId: u.documento?.fase?.id ?? null,
+    faseSigla: u.documento?.fase?.sigla ?? null,
+    faseNome: u.documento?.fase?.nome ?? null,
+  };
+}
+
+/** Disciplina com os arquivos já distribuídos nas pastas (fase → formato). */
+function emPastas(
+  disciplina: { id: string; nome: string; arquivos: ArquivoPublico[] },
+  extensoes: { extensao: string }[],
+): DisciplinaPublica {
+  return {
+    id: disciplina.id,
+    nome: disciplina.nome,
+    total: disciplina.arquivos.length,
+    pastas: montarPastasDeArquivos(
+      disciplina.arquivos,
+      extensoes.map((e) => e.extensao),
+    ),
+  };
 }
 
 /**
@@ -221,19 +285,28 @@ export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPu
   const disciplinaIds = await disciplinasDoLink(link);
   if (!disciplinaIds) return null;
 
-  const disciplinas = await prisma.disciplina.findMany({
-    where: { id: { in: disciplinaIds } },
-    orderBy: { ordem: "asc" },
-    select: {
-      id: true,
-      disciplinaTextoLegado: true,
-      uploads: {
-        where: { validado: true, excluidoEm: null },
-        orderBy: [{ nomeArquivo: "asc" }, { versao: "desc" }],
-        select: { id: true, nomeArquivo: true, tamanho: true, versao: true, ...SELECT_REGRAS },
+  const [disciplinas, extensoes] = await Promise.all([
+    prisma.disciplina.findMany({
+      where: { id: { in: disciplinaIds } },
+      orderBy: { ordem: "asc" },
+      select: {
+        id: true,
+        disciplinaTextoLegado: true,
+        uploads: {
+          where: { validado: true, excluidoEm: null },
+          orderBy: [{ nomeArquivo: "asc" }, { versao: "desc" }],
+          select: {
+            id: true,
+            nomeArquivo: true,
+            tamanho: true,
+            versao: true,
+            ...SELECT_REGRAS_COM_FASE,
+          },
+        },
       },
-    },
-  });
+    }),
+    carregarExtensoesNomenclatura(),
+  ]);
 
   const arts = await artsPublicasDoLink(link.projetoId, disciplinaIds);
 
@@ -242,19 +315,18 @@ export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPu
     titulo: link.nome,
     arts,
     disciplinas: disciplinas
-      .map((d) => ({
-        id: d.id,
-        nome: d.disciplinaTextoLegado,
-        arquivos: recortarParaLinkPublico(d.uploads.map(paraRecorte)).map((u) => ({
-          id: u.id,
-          nome: u.nomeArquivo,
-          tamanho: u.tamanho,
-          ehPdf: ehPdf(u.nomeArquivo),
-          versao: u.versao,
-        })),
-      }))
+      .map((d) =>
+        emPastas(
+          {
+            id: d.id,
+            nome: d.disciplinaTextoLegado,
+            arquivos: recortarParaLinkPublico(d.uploads.map(paraRecorte)).map(paraArquivoPublico),
+          },
+          extensoes,
+        ),
+      )
       // Disciplina sem nenhum arquivo liberado não aparece (nada a baixar).
-      .filter((d) => d.arquivos.length > 0),
+      .filter((d) => d.total > 0),
   };
 }
 
@@ -356,12 +428,23 @@ export async function artLiberadaNoLink(token: string, id: string) {
  * Lista todos os uploads servíveis do link (para o .zip). `disciplinaId` opcional
  * restringe a uma disciplina (que ainda precisa estar no alcance do link).
  */
-export async function uploadsDoLinkParaZip(token: string, disciplinaId?: string) {
+export type RecorteZip = {
+  disciplinaId?: string;
+  /** Chave da pasta de fase (`PranchaCatalogo.id` ou `__sem__`). */
+  fase?: string;
+  /** Chave da pasta de formato (extensão ou `__outros__`). */
+  ext?: string;
+};
+
+export async function uploadsDoLinkParaZip(token: string, recorte: RecorteZip = {}) {
+  const { disciplinaId, fase: faseAlvo, ext: extAlvo } = recorte;
   const link = await prisma.linkPublicoArquivos.findUnique({
     where: { token },
     include: { projeto: { select: { codigo: true } } },
   });
   if (!link || !linkVigente(link)) return null;
+
+  const extensoes = await carregarExtensoesNomenclatura();
 
   if (link.escopo === "selecao") {
     if (link.uploadIds.length === 0) return null;
@@ -377,18 +460,25 @@ export async function uploadsDoLinkParaZip(token: string, disciplinaId?: string)
         caminho: true,
         nomeArquivo: true,
         disciplina: { select: { disciplinaTextoLegado: true } },
+        documento: { select: { fase: { select: { id: true, sigla: true, nome: true } } } },
       },
     });
     if (uploads.length === 0) return null;
-    return {
-      linkId: link.id,
-      codigo: link.projeto.codigo,
-      entradas: uploads.map((u) => ({
+    const entradas = entradasEmPastas(
+      uploads.map((u) => ({
         uploadId: u.id,
         caminho: u.caminho,
-        nome: `${u.disciplina.disciplinaTextoLegado}/${u.nomeArquivo}`,
+        nome: u.nomeArquivo,
+        disciplinaNome: u.disciplina.disciplinaTextoLegado,
+        faseId: u.documento?.fase?.id ?? null,
+        faseSigla: u.documento?.fase?.sigla ?? null,
+        faseNome: u.documento?.fase?.nome ?? null,
       })),
-    };
+      extensoes,
+      { fase: faseAlvo, ext: extAlvo },
+    );
+    if (entradas.length === 0) return null;
+    return { linkId: link.id, codigo: link.projeto.codigo, entradas };
   }
 
   const alcance = await disciplinasDoLink(link);
@@ -404,18 +494,70 @@ export async function uploadsDoLinkParaZip(token: string, disciplinaId?: string)
       uploads: {
         where: { validado: true, excluidoEm: null },
         orderBy: [{ nomeArquivo: "asc" }, { versao: "desc" }],
-        select: { id: true, caminho: true, nomeArquivo: true, ...SELECT_REGRAS },
+        select: {
+          id: true,
+          caminho: true,
+          nomeArquivo: true,
+          ...SELECT_REGRAS_COM_FASE,
+        },
       },
     },
   });
 
+  // As pastas são aplicadas DEPOIS do recorte, nunca como `where` na consulta: o recorte tem
+  // sutileza (backup fora, só a última revisão, apelido de merge) e filtrar antes dele deixaria
+  // o .zip servir arquivo que a página não mostra.
   const entradas = disciplinas.flatMap((d) =>
-    recortarParaLinkPublico(d.uploads.map(paraRecorte)).map((u) => ({
-      uploadId: u.id,
-      caminho: u.caminho,
-      nome: `${d.disciplinaTextoLegado}/${u.nomeArquivo}`,
-    })),
+    entradasEmPastas(
+      recortarParaLinkPublico(d.uploads.map(paraRecorte)).map((u) => ({
+        uploadId: u.id,
+        caminho: u.caminho,
+        nome: u.nomeArquivo,
+        disciplinaNome: d.disciplinaTextoLegado,
+        faseId: u.documento?.fase?.id ?? null,
+        faseSigla: u.documento?.fase?.sigla ?? null,
+        faseNome: u.documento?.fase?.nome ?? null,
+      })),
+      extensoes,
+      { fase: faseAlvo, ext: extAlvo },
+    ),
   );
   if (entradas.length === 0) return null;
   return { linkId: link.id, codigo: link.projeto.codigo, entradas };
+}
+
+/**
+ * Monta os caminhos DENTRO do .zip espelhando as pastas da página
+ * (`Disciplina/Fase/FORMATO/arquivo`) e, quando o cliente pede uma pasta, mantém só o que está
+ * nela. `fase`/`ext` só RECORTAM o que o token já libera — nunca alcançam outro arquivo.
+ */
+function entradasEmPastas(
+  arquivos: {
+    uploadId: string;
+    caminho: string;
+    nome: string;
+    disciplinaNome: string;
+    faseId: string | null;
+    faseSigla: string | null;
+    faseNome: string | null;
+  }[],
+  extensoes: { extensao: string }[],
+  alvo: { fase?: string; ext?: string },
+) {
+  const siglas = extensoes.map((e) => e.extensao);
+  const entradas: { uploadId: string; caminho: string; nome: string }[] = [];
+  for (const pastaFase of montarPastasDeArquivos(arquivos, siglas)) {
+    if (alvo.fase && pastaFase.chave !== alvo.fase) continue;
+    for (const pastaExt of pastaFase.extensoes) {
+      if (alvo.ext && pastaExt.chave !== alvo.ext) continue;
+      for (const arquivo of pastaExt.arquivos) {
+        entradas.push({
+          uploadId: arquivo.uploadId,
+          caminho: arquivo.caminho,
+          nome: `${arquivo.disciplinaNome}/${pastaFase.rotulo}/${pastaExt.rotulo}/${arquivo.nome}`,
+        });
+      }
+    }
+  }
+  return entradas;
 }

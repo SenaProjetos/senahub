@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { EXT_OUTROS, FASE_SEM, montarArvoreNavegacao, type DocumentoParaArvore } from "./arvore-navegacao";
+import {
+  EXT_OUTROS,
+  FASE_SEM,
+  montarArvoreNavegacao,
+  montarPastasDeArquivos,
+  type DocumentoParaArvore,
+} from "./arvore-navegacao";
 
 const CONHECIDAS = ["pdf", "dwg", "ifc", "xlsx"];
 
@@ -71,5 +77,32 @@ describe("montarArvoreNavegacao", () => {
       CONHECIDAS,
     );
     expect(fases[0].extensoes).toEqual([{ chave: "pdf", rotulo: "PDF", total: 2 }]);
+  });
+});
+
+describe("montarPastasDeArquivos", () => {
+  const arq = (nome: string, faseId: string | null = "f-ex") => ({
+    nome,
+    faseId,
+    faseSigla: faseId ? "EX" : null,
+    faseNome: faseId ? "Projeto Executivo" : null,
+  });
+
+  it("põe cada arquivo em uma pasta só, e o total da fase fecha com a soma dos formatos", () => {
+    const [fase] = montarPastasDeArquivos([arq("a.pdf"), arq("a.dwg"), arq("b.pdf")], CONHECIDAS);
+    expect(fase.total).toBe(3);
+    expect(fase.extensoes.map((e) => [e.rotulo, e.total])).toEqual([
+      ["DWG", 1],
+      ["PDF", 2],
+    ]);
+    expect(fase.extensoes.reduce((n, e) => n + e.total, 0)).toBe(fase.total);
+  });
+
+  it("usa as mesmas pastas Sem fase e Outros da árvore de navegação", () => {
+    const pastas = montarPastasDeArquivos([arq("x.ed3"), arq("y.pdf", null), arq("z")], CONHECIDAS);
+    expect(pastas.map((p) => p.chave).sort()).toEqual([FASE_SEM, "f-ex"]);
+    const ex = pastas.find((p) => p.chave === "f-ex");
+    expect(ex?.extensoes.map((e) => e.rotulo)).toEqual(["Outros"]);
+    expect(ex?.extensoes[0].arquivos.map((a) => a.nome)).toEqual(["x.ed3", "z"]);
   });
 });

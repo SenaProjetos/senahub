@@ -22,6 +22,21 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Arquivos em pastas: disciplina → fase → formato
+
+O painel da esquerda da aba **Arquivos** virou uma árvore de pastas. Abra uma disciplina e
+aparecem as **fases**; abra uma fase e aparecem as pastas por **formato** (PDF, DWG, IFC…),
+mais a pasta **Outros** para o que não é formato conhecido. Pasta vazia não existe: a árvore é
+montada a partir dos arquivos que estão lá, e cada pasta mostra quantos documentos tem.
+
+Na prática, clicar numa pasta é filtrar a lista da direita — o mesmo filtro de antes, agora
+navegável. Documento sem fase preenchida fica numa pasta **Sem fase**, o que também serve de
+lembrete do que falta classificar.
+
+O **link público** que o cliente recebe ganhou as mesmas pastas, e ele pode baixar em .zip o
+que quiser: um formato, uma fase, a disciplina inteira ou o projeto todo. O zip vem organizado
+igual à tela (`Disciplina/Fase/FORMATO/arquivo`).
+
 ## Lista Mestre gerada sozinha, a partir dos arquivos aprovados
 
 A aba **Lista Mestre** saiu. Ninguém precisa mais cadastrar folha por folha: na aba

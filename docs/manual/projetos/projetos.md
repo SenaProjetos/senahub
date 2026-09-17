@@ -182,6 +182,19 @@ os valores previstos e a análise completa.
 Além disso, há abas para: **Serviços**, **Arquivos**, **Extras**, **Financeiro** e
 **Inputs** (formulários de start). Cada uma será detalhada em sua própria página do manual.
 
+### Pastas da aba Arquivos
+
+O painel da esquerda é uma árvore: **disciplina → fase → formato** (PDF, DWG, IFC… e a pasta
+**Outros**). Não são pastas de verdade no servidor — clicar num nó filtra a lista ao lado —, e
+só aparece pasta que tem arquivo. O número ao lado de cada pasta conta **documentos**; um
+documento com PDF e DWG conta nas duas pastas de formato, então somar as pastas pode passar do
+total da fase.
+
+Arquivo cujo documento ainda não tem fase cai em **Sem fase**.
+
+O cliente vê as mesmas pastas no link público e pode baixar em .zip qualquer nível: formato,
+fase, disciplina ou o projeto inteiro.
+
 ### Lista Mestre (aba Arquivos)
 
 A Lista Mestre deixou de ser uma aba com cadastro de folhas: hoje ela é **gerada** a partir

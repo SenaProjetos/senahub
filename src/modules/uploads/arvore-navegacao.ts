@@ -93,3 +93,64 @@ export function montarArvoreNavegacao(
     ),
   }));
 }
+
+/** Um arquivo que a árvore pública posiciona: cada arquivo mora em UMA pasta de formato. */
+export type ArquivoParaPasta = {
+  nome: string;
+  faseId: string | null;
+  faseSigla: string | null;
+  faseNome: string | null;
+};
+
+export type PastaExtensao<T> = { chave: string; rotulo: string; total: number; arquivos: T[] };
+export type PastaFase<T> = { chave: string; rotulo: string; titulo: string; total: number; extensoes: PastaExtensao<T>[] };
+
+/** Extensão em minúsculas, sem ponto. `""` quando o nome não tem extensão. */
+export function extensaoDoNome(nome: string): string {
+  const i = nome.lastIndexOf(".");
+  return i > 0 ? nome.slice(i + 1).toLowerCase() : "";
+}
+
+/**
+ * Mesmas pastas de `montarArvoreNavegacao` (fase → formato, nada vazio, "Sem fase" e "Outros"),
+ * mas com os ARQUIVOS nas folhas — é o que o link público precisa para listar e para o download
+ * por pasta. Aqui a contagem fecha: cada arquivo cai em uma pasta só, então o total da fase é a
+ * soma dos formatos dela.
+ */
+export function montarPastasDeArquivos<T extends ArquivoParaPasta>(
+  arquivos: T[],
+  extensoesConhecidas: Iterable<string>,
+): PastaFase<T>[] {
+  const conhecidas = new Set([...extensoesConhecidas].map((e) => e.toLowerCase()));
+  const fases = new Map<string, PastaFase<T>>();
+
+  for (const arquivo of arquivos) {
+    const chaveFase = arquivo.faseId ?? FASE_SEM;
+    let fase = fases.get(chaveFase);
+    if (!fase) {
+      fase = {
+        chave: chaveFase,
+        rotulo: arquivo.faseSigla ?? "Sem fase",
+        titulo: arquivo.faseNome ?? (arquivo.faseId ? (arquivo.faseSigla ?? "") : "Arquivos ainda sem fase definida"),
+        total: 0,
+        extensoes: [],
+      };
+      fases.set(chaveFase, fase);
+    }
+    fase.total += 1;
+
+    const ext = extensaoDoNome(arquivo.nome);
+    const chaveExt = ext && conhecidas.has(ext) ? ext : EXT_OUTROS;
+    let pasta = fase.extensoes.find((e) => e.chave === chaveExt);
+    if (!pasta) {
+      pasta = { chave: chaveExt, rotulo: chaveExt === EXT_OUTROS ? "Outros" : chaveExt.toUpperCase(), total: 0, arquivos: [] };
+      fase.extensoes.push(pasta);
+    }
+    pasta.total += 1;
+    pasta.arquivos.push(arquivo);
+  }
+
+  const porRotulo = <U extends { rotulo: string }>(a: U, b: U) => a.rotulo.localeCompare(b.rotulo, "pt-BR");
+  for (const fase of fases.values()) fase.extensoes.sort(porRotulo);
+  return [...fases.values()].sort(porRotulo);
+}

@@ -43,9 +43,16 @@ async function main() {
     console.log("null (link indisponível pro visitante)");
   } else {
     for (const d of conteudo.disciplinas) {
-      console.log(`\nDisciplina: ${d.nome} (${d.arquivos.length} arquivo(s))`);
-      for (const a of d.arquivos) {
-        console.log(`  [${a.id}] ${a.nome}  v${a.versao}  ${a.tamanho}B`);
+      console.log(`
+Disciplina: ${d.nome} (${d.total} arquivo(s))`);
+      for (const fase of d.pastas) {
+        console.log(`  ${fase.rotulo} (${fase.total})`);
+        for (const pasta of fase.extensoes) {
+          console.log(`    ${pasta.rotulo} (${pasta.total})`);
+          for (const a of pasta.arquivos) {
+            console.log(`      [${a.id}] ${a.nome}  v${a.versao}  ${a.tamanho}B`);
+          }
+        }
       }
     }
     console.log(`\nARTs: ${conteudo.arts.length}`);
