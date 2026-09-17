@@ -63,6 +63,160 @@ function linhaParaMenu(linha: LinhaDoc): LinhaDocumento | null {
   };
 }
 
+/** Selo de validação — mesma leitura na tabela e no cartão. */
+function BadgeValidacao({ estado }: { estado: ReturnType<typeof estadoValidacao> }) {
+  if (estado === null) {
+    return (
+      <span className="text-xs text-muted-foreground" title="Arquivos em pasta não passam por validação">
+        —
+      </span>
+    );
+  }
+  if (estado === "validado") {
+    return (
+      <Badge variant="outline" className="border-success/40 bg-success/10 text-success">
+        Validado
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="text-muted-foreground">
+      {estado === "parcial" ? "Parcial" : "Pendente"}
+    </Badge>
+  );
+}
+
+/**
+ * O mesmo documento em cartão, para celular: a tabela tem 10+ colunas e no telefone virava
+ * rolagem lateral (ou texto espremido). Aqui cada documento é um bloco, com o que resolve na
+ * mão — título, identificação, arquivos para abrir/baixar e o menu de ações. As colunas
+ * escondidas pelo seletor de colunas continuam valendo: quem tira "Tamanho" não o vê aqui também.
+ */
+function CartaoDocumento({
+  linha,
+  projetoId,
+  colunas,
+  marcada,
+  onMarcar,
+  podeCoordenacao,
+  podeValidar,
+  podeExcluir,
+  podeSolicitarExclusao,
+  exclusoesPendentes,
+  fases,
+  status,
+}: {
+  linha: LinhaDoc;
+  projetoId: string;
+  colunas: Set<string>;
+  marcada: boolean;
+  onMarcar: () => void;
+  podeCoordenacao: boolean;
+  podeValidar: boolean;
+  podeExcluir: boolean;
+  podeSolicitarExclusao: boolean;
+  exclusoesPendentes: Set<string>;
+  fases: OpcaoFaseDocumento[];
+  status: OpcaoStatusDocumento[];
+}) {
+  const validacao = estadoValidacao(linha.arquivos);
+  const menu = linhaParaMenu(linha);
+  const identificacao = [
+    colunas.has("numero") && linha.numeroPrancha !== null ? String(linha.numeroPrancha).padStart(4, "0") : null,
+    colunas.has("fase") ? linha.faseSigla : null,
+    colunas.has("tipo") ? linha.tipoSigla : null,
+    colunas.has("papel") ? linha.papelSigla : null,
+    colunas.has("revisao") && linha.revisaoAtual !== null ? rotuloRevisao(linha.revisaoAtual) : null,
+  ].filter(Boolean);
+
+  return (
+    <li
+      className="space-y-2 border-b border-border p-3 last:border-b-0 data-[marcada=true]:bg-accent/40"
+      data-marcada={marcada}
+    >
+      <div className="flex items-start gap-2">
+        <Checkbox
+          className="mt-0.5 shrink-0"
+          checked={marcada}
+          onCheckedChange={onMarcar}
+          aria-label={`Selecionar ${linha.nome}`}
+        />
+        <DisciplinaIcone
+          nome={linha.disciplinaNome}
+          className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+          aria-hidden
+        />
+        <div className="min-w-0 flex-1">
+          <PainelDocumentoDetalhe linha={linha} fases={fases} status={status} />
+          {(linha.titulo ?? linha.tituloPrancha) && (
+            <p className="truncate text-xs text-muted-foreground" title={linha.nome}>
+              {linha.nome}
+            </p>
+          )}
+          <p className="text-[11px] text-muted-foreground">{linha.disciplinaNome}</p>
+        </div>
+        {menu && (
+          <MenuDocumento
+            projetoId={projetoId}
+            linha={menu}
+            podeValidar={podeValidar}
+            podeExcluir={podeExcluir}
+            podeSolicitarExclusao={podeSolicitarExclusao}
+          />
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5 pl-8">
+        {identificacao.length > 0 && (
+          <span className="font-mono text-[11px] text-muted-foreground">{identificacao.join(" · ")}</span>
+        )}
+        {colunas.has("validado") && <BadgeValidacao estado={validacao} />}
+        {linha.statusNome && (
+          <Badge variant="outline" title={linha.statusFinal ? "Status final" : undefined}>
+            {linha.statusNome}
+          </Badge>
+        )}
+        {linha.ehBackup && (
+          <Badge variant="outline" className="border-warning/40 bg-warning/10 text-warning" title="Backup do modelo">
+            Backup
+          </Badge>
+        )}
+        {linha.arquivos.some((a) => exclusoesPendentes.has(a.id)) && (
+          <Badge variant="outline" className="border-warning/40 bg-warning/10 text-warning">
+            exclusão solicitada
+          </Badge>
+        )}
+      </div>
+
+      {colunas.has("extensao") && (
+        <div className="flex flex-wrap items-center gap-1 pl-8">
+          {linha.arquivos.map((arquivo) => (
+            <BadgeExtensao
+              key={arquivo.id}
+              projetoId={projetoId}
+              uploadId={arquivo.id}
+              nome={arquivo.nome}
+              ext={arquivo.ext}
+              downloadUrl={arquivo.downloadUrl}
+              podeCoordenacao={podeCoordenacao}
+            />
+          ))}
+        </div>
+      )}
+
+      <p className="pl-8 text-[11px] text-muted-foreground">
+        {colunas.has("data") && (
+          <span title={`Enviado em ${formatarDataHora(linha.atualizadoEm)} por ${linha.autor}`}>
+            {formatarData(linha.atualizadoEm)}
+          </span>
+        )}
+        {colunas.has("tamanho") && <span> · {fmtBytes(linha.tamanhoTotal)}</span>}
+        {colunas.has("responsavel") && <span> · {linha.autor}</span>}
+      </p>
+    </li>
+  );
+}
+
 /**
  * Tabela densa de documentos (F1-PR3 + paginação server-side em F1-PR10).
  *
@@ -184,7 +338,29 @@ export function TabelaDocumentos({
 
   return (
     <div className="space-y-3">
-      <div className="overflow-hidden rounded-md border border-border bg-card">
+      {/* Celular: um cartão por documento. A tabela continua sendo a tela de trabalho no
+          computador — aqui ela sairia em rolagem lateral, com tudo espremido. */}
+      <ul className="overflow-hidden rounded-md border border-border bg-card md:hidden" aria-label="Documentos">
+        {ordenadas.map((l) => (
+          <CartaoDocumento
+            key={l.id}
+            linha={l}
+            projetoId={projetoId}
+            colunas={colunas}
+            marcada={selecao.has(l.id)}
+            onMarcar={() => alternar(l.id)}
+            podeCoordenacao={podeCoordenacao}
+            podeValidar={podeValidar}
+            podeExcluir={podeExcluir}
+            podeSolicitarExclusao={podeSolicitarExclusao}
+            exclusoesPendentes={exclusoesPendentes}
+            fases={fases}
+            status={status}
+          />
+        ))}
+      </ul>
+
+      <div className="hidden overflow-hidden rounded-md border border-border bg-card md:block">
       <Table>
         <TableHeader>
           <TableRow>
@@ -290,23 +466,7 @@ export function TabelaDocumentos({
               )}
               {colunas.has("validado") && (
                 <TableCell>
-                  {validacao === null ? (
-                    <span className="text-xs text-muted-foreground" title="Arquivos em pasta não passam por validação">
-                      —
-                    </span>
-                  ) : validacao === "validado" ? (
-                    <Badge variant="outline" className="border-success/40 bg-success/10 text-success">
-                      Validado
-                    </Badge>
-                  ) : validacao === "parcial" ? (
-                    <Badge variant="outline" className="text-muted-foreground">
-                      Parcial
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-muted-foreground">
-                      Pendente
-                    </Badge>
-                  )}
+                  <BadgeValidacao estado={validacao} />
                 </TableCell>
               )}
               {colunas.has("extensao") && (

@@ -7,6 +7,7 @@ import { ConteudoAreaProjeto, type DadosAreas } from "@/components/projetos/arqu
 import { LinkPublicoArquivosButton } from "@/components/projetos/link-publico-arquivos-dialog";
 import { NomenclaturaProjetoButton } from "@/components/projetos/arquivos/nomenclatura-projeto-dialog";
 import { GerarListaMestreButton } from "@/components/projetos/arquivos/gerar-lista-mestre-dialog";
+import { PainelLateralDocumentos } from "@/components/projetos/arquivos/painel-lateral-documentos";
 import type { ListaPainel } from "@/components/projetos/arquivos/painel-listas";
 import { TabelaDocumentos } from "@/components/projetos/arquivos/tabela-documentos";
 import { FiltrosDocumentos, type OpcaoCatalogoDocumento } from "@/components/projetos/arquivos/filtros-documentos";
@@ -162,7 +163,7 @@ export function DocumentosShell({
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[260px_1fr] md:items-start">
-        <aside className="rounded-md border border-border bg-card md:sticky md:top-20">
+        <PainelLateralDocumentos>
           <PainelNavegacaoDocumentos
             projetoId={projeto.id}
             disciplinas={disciplinas}
@@ -175,7 +176,7 @@ export function DocumentosShell({
             areaAtiva={areaSelecionada !== null}
           />
           <PainelAreasProjeto areas={areas} selecionada={areaSelecionada} />
-        </aside>
+        </PainelLateralDocumentos>
 
         <main className="min-w-0 space-y-3">
           {areaSelecionada ? (
