@@ -576,18 +576,29 @@ export async function opcoesMetadadosDocumento(projetoId: string) {
  * testada): um projeto tem dezenas a poucos milhares de documentos, e a alternativa (um GROUP BY
  * por nível) duplicaria em SQL a regra de "Outros" que já existe em código.
  */
+/** Disciplina da árvore, com o projeto a que ela pertence (o escopo pode ter vários). */
+export type ArvoreDaDisciplinaComProjeto = ArvoreDaDisciplina & { projetoId: string };
+
 export async function arvoreNavegacaoDocumentos(opts: {
-  projetoId: string;
+  /**
+   * Projetos do escopo. A aba do projeto passa um id só; o diretório geral passará o conjunto
+   * de `escopoProjeto(user)`. Lista VAZIA = nenhum projeto visível, nunca "todos" — mesma regra
+   * de `listarDocumentosAgrupados` (ver `normalizarEscopoProjetos`).
+   */
+  projetoIds: readonly string[];
   userId: string;
   veTodas: boolean;
-}): Promise<ArvoreDaDisciplina[]> {
-  const { projetoId, userId, veTodas } = opts;
+}): Promise<ArvoreDaDisciplinaComProjeto[]> {
+  const { userId, veTodas } = opts;
+  const projetoIds = normalizarEscopoProjetos(opts.projetoIds);
+  if (projetoIds.length === 0) return [];
+
   const [documentos, extensoes] = await Promise.all([
     prisma.documentoDisciplina.findMany({
       where: {
         substituidoPorId: null,
         disciplina: {
-          projetoId,
+          projetoId: { in: [...projetoIds] },
           ...(veTodas ? {} : { responsaveis: { some: { userId } } }),
         },
         uploads: { some: { excluidoEm: null } },
@@ -595,6 +606,8 @@ export async function arvoreNavegacaoDocumentos(opts: {
       select: {
         id: true,
         disciplinaId: true,
+        // Qual projeto é a disciplina: com escopo de vários, quem consome precisa agrupar.
+        disciplina: { select: { projetoId: true } },
         fase: { select: { id: true, sigla: true, nome: true } },
         uploads: { where: { excluidoEm: null }, select: { nomeArquivo: true } },
       },
@@ -610,7 +623,13 @@ export async function arvoreNavegacaoDocumentos(opts: {
     faseNome: d.fase?.nome ?? null,
     extensoes: d.uploads.map((u) => extensaoDe(u.nomeArquivo)).filter(Boolean),
   }));
-  return montarArvoreNavegacao(paraArvore, extensoes.map((e) => e.extensao));
+  // `montarArvoreNavegacao` continua pura e cega a projeto — o vínculo é costurado aqui, para
+  // não mexer no contrato de contagem do módulo (que o link público também usa).
+  const projetoDaDisciplina = new Map(documentos.map((d) => [d.disciplinaId, d.disciplina.projetoId]));
+  return montarArvoreNavegacao(paraArvore, extensoes.map((e) => e.extensao)).map((a) => ({
+    ...a,
+    projetoId: projetoDaDisciplina.get(a.disciplinaId)!,
+  }));
 }
 
 export { EXT_OUTROS, FASE_SEM };

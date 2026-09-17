@@ -148,7 +148,7 @@ async function main() {
     // ── Leitura pelas DUAS fontes ───────────────────────────────────────────
     const [arv, nav] = await Promise.all([
       arvoreArquivosProjeto(projetoId, autor.id, true, { veTodas: true, podeEnviarCap: true }),
-      arvoreNavegacaoDocumentos({ projetoId, userId: autor.id, veTodas: true }),
+      arvoreNavegacaoDocumentos({ projetoIds: [projetoId], userId: autor.id, veTodas: true }),
     ]);
     const porDisciplina = new Map(arv.disciplinas.map((d) => [d.id, d]));
     // A contagem oficial: soma das FASES (um documento tem uma fase só). Somar extensões

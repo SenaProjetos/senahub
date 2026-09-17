@@ -283,7 +283,7 @@ export default async function ArquivosPage({
       contagemDocumentosPorFase({ projetoId: id, userId: user.id, veTodas, disciplinaId: selecionadaId }),
       // Árvore do painel esquerdo: fases e formatos de TODAS as disciplinas visíveis (não do
       // recorte da página) — é navegação, tem de continuar mostrando para onde ir.
-      arvoreNavegacaoDocumentos({ projetoId: id, userId: user.id, veTodas }),
+      arvoreNavegacaoDocumentos({ projetoIds: [id], userId: user.id, veTodas }),
     ]);
     // FONTE ÚNICA da contagem de documentos: `DocumentoDisciplina`, via árvore de navegação.
     //

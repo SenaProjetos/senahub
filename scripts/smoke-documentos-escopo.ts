@@ -1,12 +1,14 @@
 /**
- * Smoke do escopo de projetos de `listarDocumentosAgrupados`, contra o banco de dev.
+ * Smoke do escopo de projetos das duas consultas da aba de arquivos, contra o banco de dev:
+ * `listarDocumentosAgrupados` (a tabela) e `arvoreNavegacaoDocumentos` (o painel de pastas).
  *
- * A consulta nasceu para UMA tela (a aba do projeto) e recebia um `projetoId`. Passou a receber
- * um CONJUNTO, para o diretório geral reusar a mesma regra em vez de duplicar 60 linhas de
- * `where`. O que o vitest não alcança — a consulta é SQL cru, e os testes rodam sem banco — é
- * justamente o que decide se o alargamento vazou dado entre usuários.
+ * As duas nasceram para UMA tela e recebiam um `projetoId`. Passaram a receber um CONJUNTO, para
+ * o diretório geral reusar a mesma regra em vez de duplicar o `where`. O que o vitest não alcança
+ * — uma delas é SQL cru, e os testes rodam sem banco — é justamente o que decide se o alargamento
+ * vazou dado entre usuários. As duas consultas são separadas de propósito (navegação não encolhe
+ * com filtro), e por serem separadas cada uma pode vazar sozinha: as duas são testadas.
  *
- * Cobre:
+ * Cobre, para a tabela E para a árvore:
  *  - vários projetos: o resultado é exatamente a UNIÃO dos resultados por projeto;
  *  - um projeto só: o caminho da aba do projeto, que não pode mudar;
  *  - escopo vazio: zero linhas — vazio é "não vê nada", nunca "sem filtro";
@@ -19,7 +21,7 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { proximoCodigoProjeto } from "../src/modules/projetos/numbering";
-import { listarDocumentosAgrupados } from "../src/modules/uploads/documentos-agrupados";
+import { arvoreNavegacaoDocumentos, listarDocumentosAgrupados } from "../src/modules/uploads/documentos-agrupados";
 
 const TAG = `SMKESC_${Date.now()}`;
 
@@ -50,6 +52,12 @@ async function idsDe(projetoIds: string[], userId: string, veTodas: boolean): Pr
     throw new Error(`total (${r.total}) != linhas (${r.linhas.length}) — página pequena demais para o smoke?`);
   }
   return r.linhas.map((l) => l.id);
+}
+
+/** Disciplinas que a árvore de navegação expõe, no formato "projetoId/disciplinaId". */
+async function arvoreDe(projetoIds: string[], userId: string, veTodas: boolean): Promise<string[]> {
+  const arvore = await arvoreNavegacaoDocumentos({ projetoIds, userId, veTodas });
+  return arvore.map((a) => `${a.projetoId}/${a.disciplinaId}`).sort();
 }
 
 async function criarProjeto(sufixo: string, donoId: string, responsavelId: string | null) {
@@ -117,8 +125,6 @@ async function main() {
   try {
     // Usuários throwaway: o isolamento precisa de dois escopos disjuntos de verdade, e depender
     // do dataset existente do dev tornaria o resultado diferente a cada máquina.
-    const senha = { create: {} };
-    void senha;
     const usuarioA = await prisma.user.create({
       data: { name: `${TAG}_A`, email: `${TAG.toLowerCase()}_a@smoke.local`, role: "projetista_pj", ativo: true },
     });
@@ -174,6 +180,37 @@ async function main() {
       "com veTodas=false, A só vê a disciplina onde é responsável (P1), não P2",
       iguais(comMuralha, [p1.documentoId]),
       `${comMuralha.length} de ${multi.length}`,
+    );
+    // ── 6. a ÁRVORE do painel segue as mesmas regras de escopo ──────────────
+    // A listagem e a árvore são consultas separadas de propósito (navegação não encolhe com
+    // filtro). Por serem separadas, cada uma pode vazar sozinha — as duas são testadas.
+    const arv1 = await arvoreDe([p1.projetoId], usuarioA.id, true);
+    const arv2 = await arvoreDe([p2.projetoId], usuarioA.id, true);
+    const arvMulti = await arvoreDe([p1.projetoId, p2.projetoId], usuarioA.id, true);
+
+    check("árvore de um projeto traz só a disciplina dele", arv1.length === 1, `${arv1.length} nó(s)`);
+    check(
+      "árvore de 2 projetos é a união das de 1",
+      iguais(arvMulti, [...arv1, ...arv2]),
+      `${arvMulti.length} = ${arv1.length} + ${arv2.length}`,
+    );
+    check("cada nó da árvore sabe de que projeto é", arvMulti.every((n) => n.includes("/")));
+    check(
+      "a árvore de A não contém disciplina de B",
+      !arvMulti.some((n) => n.startsWith(`${p3.projetoId}/`)),
+    );
+
+    const arvVazia = await arvoreDe([], usuarioA.id, true);
+    check("árvore com escopo vazio devolve nada", arvVazia.length === 0);
+
+    const arvAPedindoP3 = await arvoreDe([p3.projetoId], usuarioA.id, false);
+    check("árvore: A pedindo o projeto de B, com muralha, não vê nada", arvAPedindoP3.length === 0);
+
+    const arvComMuralha = await arvoreDe([p1.projetoId, p2.projetoId], usuarioA.id, false);
+    check(
+      "árvore com veTodas=false traz só a disciplina onde A é responsável",
+      iguais(arvComMuralha, arv1),
+      `${arvComMuralha.length} de ${arvMulti.length}`,
     );
   } finally {
     // Limpeza: cascata do Projeto leva disciplina, documento e upload.
