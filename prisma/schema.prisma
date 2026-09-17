@@ -1393,6 +1393,9 @@ model LinkPublicoArquivos {
   disciplinaIds String[]           @default([])
   /// Uploads escolhidos a dedo. Só vale para escopo=selecao.
   uploadIds     String[]           @default([])
+  /// Pastas por fase na página do cliente. Desligado, ele vê disciplina → formato direto —
+  /// útil quando o acervo ainda não tem fase preenchida e quase tudo cairia em "Sem fase".
+  agruparPorFase Boolean           @default(true)
   criadoPorId   String?
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt

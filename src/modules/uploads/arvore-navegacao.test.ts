@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   EXT_OUTROS,
   FASE_SEM,
+  FASE_TODAS,
   montarArvoreNavegacao,
   montarPastasDeArquivos,
   type DocumentoParaArvore,
@@ -104,5 +105,34 @@ describe("montarPastasDeArquivos", () => {
     const ex = pastas.find((p) => p.chave === "f-ex");
     expect(ex?.extensoes.map((e) => e.rotulo)).toEqual(["Outros"]);
     expect(ex?.extensoes[0].arquivos.map((a) => a.nome)).toEqual(["x.ed3", "z"]);
+  });
+});
+
+describe("montarPastasDeArquivos sem agrupar por fase", () => {
+  const arq = (nome: string, faseId: string | null) => ({
+    nome,
+    faseId,
+    faseSigla: faseId ? "EX" : null,
+    faseNome: faseId ? "Projeto Executivo" : null,
+  });
+
+  it("junta tudo numa pasta só, que a página do cliente não desenha", () => {
+    const pastas = montarPastasDeArquivos(
+      [arq("a.pdf", "f-ex"), arq("b.pdf", null), arq("c.dwg", "f-bs")],
+      CONHECIDAS,
+      { agruparPorFase: false },
+    );
+    expect(pastas).toHaveLength(1);
+    expect(pastas[0].chave).toBe(FASE_TODAS);
+    expect(pastas[0].total).toBe(3);
+    expect(pastas[0].extensoes.map((e) => [e.rotulo, e.total])).toEqual([
+      ["DWG", 1],
+      ["PDF", 2],
+    ]);
+  });
+
+  it("ligado (padrão) continua separando as fases", () => {
+    const pastas = montarPastasDeArquivos([arq("a.pdf", "f-ex"), arq("b.pdf", null)], CONHECIDAS);
+    expect(pastas.map((p) => p.chave).sort()).toEqual([FASE_SEM, "f-ex"]);
   });
 });

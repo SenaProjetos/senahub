@@ -58,6 +58,7 @@ function paraLinkData(l: {
   expiraEm: Date | null;
   disciplinaIds: string[];
   uploadIds: string[];
+  agruparPorFase: boolean;
 }): LinkData {
   return {
     id: l.id,
@@ -68,6 +69,7 @@ function paraLinkData(l: {
     expiraEm: l.expiraEm ? l.expiraEm.toISOString() : null,
     disciplinaIds: l.disciplinaIds,
     uploadIds: l.uploadIds,
+    agruparPorFase: l.agruparPorFase,
   };
 }
 

@@ -69,6 +69,8 @@ export const criarLinkArquivos = defineAction(
       disciplinaIds: z.array(z.string()).default([]),
       uploadIds: z.array(z.string()).default([]),
       expiraEm: z.string().datetime().nullable().optional(),
+      /** Pastas por fase na página do cliente (ver `link-publico.ts`). Omitido = agrupa. */
+      agruparPorFase: z.boolean().optional(),
     }),
     entidadeId: (d) => (d as { linkId: string } | undefined)?.linkId,
   },
@@ -99,6 +101,7 @@ export const criarLinkArquivos = defineAction(
         escopo: input.escopo,
         ativo: true,
         expiraEm: input.expiraEm ? new Date(input.expiraEm) : null,
+        agruparPorFase: input.agruparPorFase ?? true,
         disciplinaIds,
         uploadIds,
         criadoPorId: user.id,
@@ -222,6 +225,7 @@ export const atualizarLinkArquivos = defineAction(
       uploadIds: z.array(z.string()).optional(),
       ativo: z.boolean(),
       expiraEm: z.string().datetime().nullable().optional(),
+      agruparPorFase: z.boolean().optional(),
     }),
     entidadeId: idLink,
     capturarAntes: (i) => prisma.linkPublicoArquivos.findUnique({ where: { id: i.linkId } }),
@@ -257,6 +261,7 @@ export const atualizarLinkArquivos = defineAction(
         uploadIds,
         ativo: input.ativo,
         expiraEm: input.expiraEm ? new Date(input.expiraEm) : null,
+        agruparPorFase: input.agruparPorFase,
       },
     });
     revalidatePath(`/projetos/${link.projetoId}/arquivos`);

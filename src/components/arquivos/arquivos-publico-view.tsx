@@ -12,6 +12,7 @@ import {
   FolderOpen,
 } from "lucide-react";
 import type { ConteudoPublico } from "@/modules/projetos/arquivos/link-publico";
+import { FASE_TODAS } from "@/modules/uploads/arvore-navegacao";
 import { cn, rotuloRevisao } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -80,6 +81,51 @@ function LinhaArquivo({ token, arquivo }: { token: string; arquivo: ArquivoPubli
   );
 }
 
+/** Pastas de formato (PDF, DWG…) com os arquivos dentro — usadas com ou sem o nível de fase. */
+function PastasDeFormato({
+  token,
+  disciplina,
+  fase,
+  prefixoRotulo,
+  recuo = "pl-10",
+}: {
+  token: string;
+  disciplina: ConteudoPublico["disciplinas"][number];
+  fase: ConteudoPublico["disciplinas"][number]["pastas"][number];
+  prefixoRotulo: string;
+  recuo?: string;
+}) {
+  return (
+    <ul>
+      {fase.extensoes.map((pasta) => (
+        <li key={pasta.chave}>
+          <div className={cn("flex items-center gap-1.5 rounded-sm py-1.5 pr-1 hover:bg-muted/40", recuo)}>
+            <span className="flex min-w-0 flex-1 items-center gap-1.5">
+              <Folder className="size-4 shrink-0 text-muted-foreground" />
+              <span className="truncate font-mono text-xs uppercase">{pasta.rotulo}</span>
+              <span className="shrink-0 font-mono text-xs text-muted-foreground">{pasta.total}</span>
+            </span>
+            <BaixarPasta
+              token={token}
+              rotulo={`${prefixoRotulo} / ${pasta.rotulo}`}
+              params={
+                fase.chave === FASE_TODAS
+                  ? { disciplinaId: disciplina.id, ext: pasta.chave }
+                  : { disciplinaId: disciplina.id, fase: fase.chave, ext: pasta.chave }
+              }
+            />
+          </div>
+          <ul>
+            {pasta.arquivos.map((arquivo) => (
+              <LinhaArquivo key={arquivo.id} token={token} arquivo={arquivo} />
+            ))}
+          </ul>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
  * Disciplina do cliente: abre em pastas de fase e, dentro delas, de formato (PDF, DWG…) —
  * as MESMAS pastas da aba Arquivos, montadas no servidor. Cada nível tem seu .zip.
@@ -127,6 +173,15 @@ function Disciplina({
           {disciplina.pastas.map((fase) => {
             const chave = `${disciplina.id}/${fase.chave}`;
             const faseAberta = fasesAbertas.has(chave);
+            // Link criado sem "separar por fase": a pasta única não é desenhada — o cliente vê
+            // disciplina → formato direto.
+            if (fase.chave === FASE_TODAS) {
+              return (
+                <li key={fase.chave}>
+                  <PastasDeFormato token={token} disciplina={disciplina} fase={fase} prefixoRotulo={disciplina.nome} recuo="pl-6" />
+                </li>
+              );
+            }
             return (
               <li key={fase.chave}>
                 <div className="flex items-center gap-1.5 rounded-sm py-1.5 pl-6 pr-1 hover:bg-muted/40">
@@ -154,29 +209,12 @@ function Disciplina({
                 </div>
 
                 {faseAberta && (
-                  <ul>
-                    {fase.extensoes.map((pasta) => (
-                      <li key={pasta.chave}>
-                        <div className="flex items-center gap-1.5 rounded-sm py-1.5 pl-10 pr-1 hover:bg-muted/40">
-                          <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                            <Folder className="size-4 shrink-0 text-muted-foreground" />
-                            <span className="truncate font-mono text-xs uppercase">{pasta.rotulo}</span>
-                            <span className="shrink-0 font-mono text-xs text-muted-foreground">{pasta.total}</span>
-                          </span>
-                          <BaixarPasta
-                            token={token}
-                            rotulo={`${disciplina.nome} / ${fase.rotulo} / ${pasta.rotulo}`}
-                            params={{ disciplinaId: disciplina.id, fase: fase.chave, ext: pasta.chave }}
-                          />
-                        </div>
-                        <ul>
-                          {pasta.arquivos.map((arquivo) => (
-                            <LinhaArquivo key={arquivo.id} token={token} arquivo={arquivo} />
-                          ))}
-                        </ul>
-                      </li>
-                    ))}
-                  </ul>
+                  <PastasDeFormato
+                    token={token}
+                    disciplina={disciplina}
+                    fase={fase}
+                    prefixoRotulo={`${disciplina.nome} / ${fase.rotulo}`}
+                  />
                 )}
               </li>
             );

@@ -13,6 +13,8 @@
 
 /** Fase ausente e extensão fora do catálogo viram nó próprio, com chave de filtro reservada. */
 export const FASE_SEM = "__sem__";
+/** Pasta única quando o link não agrupa por fase — a página pula esse nível. */
+export const FASE_TODAS = "__todas__";
 export const EXT_OUTROS = "__outros__";
 
 export type DocumentoParaArvore = {
@@ -120,18 +122,25 @@ export function extensaoDoNome(nome: string): string {
 export function montarPastasDeArquivos<T extends ArquivoParaPasta>(
   arquivos: T[],
   extensoesConhecidas: Iterable<string>,
+  opcoes: { agruparPorFase?: boolean } = {},
 ): PastaFase<T>[] {
+  const { agruparPorFase = true } = opcoes;
   const conhecidas = new Set([...extensoesConhecidas].map((e) => e.toLowerCase()));
   const fases = new Map<string, PastaFase<T>>();
 
   for (const arquivo of arquivos) {
-    const chaveFase = arquivo.faseId ?? FASE_SEM;
+    // Sem agrupamento por fase, tudo cai numa pasta única que a página não desenha: o cliente
+    // vê disciplina → formato. Existe porque um acervo sem fase preenchida jogaria quase tudo
+    // em "Sem fase", que na tela do cliente lê como bagunça.
+    const chaveFase = agruparPorFase ? (arquivo.faseId ?? FASE_SEM) : FASE_TODAS;
     let fase = fases.get(chaveFase);
     if (!fase) {
       fase = {
         chave: chaveFase,
-        rotulo: arquivo.faseSigla ?? "Sem fase",
-        titulo: arquivo.faseNome ?? (arquivo.faseId ? (arquivo.faseSigla ?? "") : "Arquivos ainda sem fase definida"),
+        rotulo: !agruparPorFase ? "Todos os arquivos" : (arquivo.faseSigla ?? "Sem fase"),
+        titulo: !agruparPorFase
+          ? "Arquivos da disciplina"
+          : (arquivo.faseNome ?? (arquivo.faseId ? (arquivo.faseSigla ?? "") : "Arquivos ainda sem fase definida")),
         total: 0,
         extensoes: [],
       };

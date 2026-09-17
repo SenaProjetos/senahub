@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { linkVigente } from "@/lib/link-publico";
 import { ehBackupDoModelo, recortarParaLinkPublico } from "./link-publico-regras";
 import {
+  FASE_TODAS,
   montarPastasDeArquivos,
   type PastaFase,
 } from "@/modules/uploads/arvore-navegacao";
@@ -203,7 +204,7 @@ function ehPdf(nome: string): boolean {
  * disciplina de cada um só para a página ter como organizar a lista. Sem ART — quem
  * escolheu arquivo a arquivo não pediu o anexo automático.
  */
-async function conteudoDaSelecao(uploadIds: string[]): Promise<DisciplinaPublica[]> {
+async function conteudoDaSelecao(uploadIds: string[], agruparPorFase: boolean): Promise<DisciplinaPublica[]> {
   if (uploadIds.length === 0) return [];
   const [uploads, extensoes] = await Promise.all([
     prisma.upload.findMany({
@@ -230,7 +231,7 @@ async function conteudoDaSelecao(uploadIds: string[]): Promise<DisciplinaPublica
     }
     grupo.arquivos.push(paraArquivoPublico(u));
   }
-  return [...porDisciplina.values()].map((d) => emPastas(d, extensoes));
+  return [...porDisciplina.values()].map((d) => emPastas(d, extensoes, agruparPorFase));
 }
 
 /** Achata o upload no formato que a página e as pastas usam. */
@@ -257,10 +258,12 @@ function paraArquivoPublico(u: {
 function emPastas(
   disciplina: { id: string; nome: string; arquivos: ArquivoPublico[] },
   extensoes: { extensao: string }[],
+  agruparPorFase: boolean,
 ): DisciplinaPublica {
   const pastas = montarPastasDeArquivos(
     disciplina.arquivos,
     extensoes.map((e) => e.extensao),
+    { agruparPorFase },
   );
   return {
     id: disciplina.id,
@@ -297,7 +300,7 @@ export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPu
   const projeto = { codigo: link.projeto.codigo, nome: link.projeto.nome };
 
   if (link.escopo === "selecao") {
-    const disciplinas = await conteudoDaSelecao(link.uploadIds);
+    const disciplinas = await conteudoDaSelecao(link.uploadIds, link.agruparPorFase);
     if (disciplinas.length === 0) return null;
     return { projeto, titulo: link.nome, disciplinas, arts: [] };
   }
@@ -343,6 +346,7 @@ export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPu
             arquivos: recortarParaLinkPublico(d.uploads.map(paraRecorte)).map(paraArquivoPublico),
           },
           extensoes,
+          link.agruparPorFase,
         ),
       )
       // Disciplina sem nenhum arquivo liberado não aparece (nada a baixar).
@@ -495,7 +499,7 @@ export async function uploadsDoLinkParaZip(token: string, recorte: RecorteZip = 
         faseNome: u.documento?.fase?.nome ?? null,
       })),
       extensoes,
-      { fase: faseAlvo, ext: extAlvo },
+      { fase: faseAlvo, ext: extAlvo, agruparPorFase: link.agruparPorFase },
     );
     if (entradas.length === 0) return null;
     return { linkId: link.id, codigo: link.projeto.codigo, entradas };
@@ -539,7 +543,7 @@ export async function uploadsDoLinkParaZip(token: string, recorte: RecorteZip = 
         faseNome: u.documento?.fase?.nome ?? null,
       })),
       extensoes,
-      { fase: faseAlvo, ext: extAlvo },
+      { fase: faseAlvo, ext: extAlvo, agruparPorFase: link.agruparPorFase },
     ),
   );
   if (entradas.length === 0) return null;
@@ -562,19 +566,22 @@ function entradasEmPastas(
     faseNome: string | null;
   }[],
   extensoes: { extensao: string }[],
-  alvo: { fase?: string; ext?: string },
+  alvo: { fase?: string; ext?: string; agruparPorFase: boolean },
 ) {
   const siglas = extensoes.map((e) => e.extensao);
   const entradas: { uploadId: string; caminho: string; nome: string }[] = [];
-  for (const pastaFase of montarPastasDeArquivos(arquivos, siglas)) {
+  for (const pastaFase of montarPastasDeArquivos(arquivos, siglas, { agruparPorFase: alvo.agruparPorFase })) {
     if (alvo.fase && pastaFase.chave !== alvo.fase) continue;
     for (const pastaExt of pastaFase.extensoes) {
       if (alvo.ext && pastaExt.chave !== alvo.ext) continue;
       for (const arquivo of pastaExt.arquivos) {
+        // Link sem fase: o .zip também pula esse nível, senão a pasta do cliente e a do
+        // arquivo baixado deixariam de se parecer.
+        const caminhoFase = pastaFase.chave === FASE_TODAS ? "" : `${pastaFase.rotulo}/`;
         entradas.push({
           uploadId: arquivo.uploadId,
           caminho: arquivo.caminho,
-          nome: `${arquivo.disciplinaNome}/${pastaFase.rotulo}/${pastaExt.rotulo}/${arquivo.nome}`,
+          nome: `${arquivo.disciplinaNome}/${caminhoFase}${pastaExt.rotulo}/${arquivo.nome}`,
         });
       }
     }

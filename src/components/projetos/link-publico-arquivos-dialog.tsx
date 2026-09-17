@@ -38,6 +38,8 @@ export type LinkData = {
   expiraEm: string | null;
   disciplinaIds: string[];
   uploadIds: string[];
+  /** Pastas por fase na página do cliente. */
+  agruparPorFase: boolean;
 };
 
 const ROTULO_ESCOPO: Record<EscopoLink, string> = {
@@ -161,6 +163,7 @@ function FormularioNovoLink({
   const [escopo, setEscopo] = useState<"disciplinas" | "projeto_todo">("disciplinas");
   const [sel, setSel] = useState<Set<string>>(new Set(disciplinas.map((d) => d.id)));
   const [expira, setExpira] = useState("");
+  const [agruparPorFase, setAgruparPorFase] = useState(true);
 
   function criar() {
     if (escopo === "disciplinas" && sel.size === 0) {
@@ -175,6 +178,7 @@ function FormularioNovoLink({
         disciplinaIds: escopo === "disciplinas" ? [...sel] : [],
         uploadIds: [],
         expiraEm: localParaIso(expira),
+        agruparPorFase,
       });
       if (r.ok) {
         toast.success("Link público criado.");
@@ -235,6 +239,22 @@ function FormularioNovoLink({
       {escopo === "disciplinas" && (
         <SeletorDisciplinas disciplinas={disciplinas} sel={sel} setSel={setSel} />
       )}
+
+      {/* Fase vira pasta na tela do cliente. Desligar é o certo quando o acervo ainda não tem
+          fase preenchida: senão quase tudo cairia numa pasta "Sem fase". */}
+      <label className="flex cursor-pointer items-start gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted/50">
+        <Checkbox
+          className="mt-0.5"
+          checked={agruparPorFase}
+          onCheckedChange={(v) => setAgruparPorFase(v === true)}
+        />
+        <span>
+          Separar por fase
+          <span className="block text-xs text-muted-foreground">
+            O cliente vê disciplina → fase → formato. Desligado, vê disciplina → formato.
+          </span>
+        </span>
+      </label>
 
       <div className="space-y-1.5">
         <Label htmlFor="novo-expira" className="text-xs text-muted-foreground">
@@ -317,6 +337,7 @@ function CartaoLink({
   const [ativo, setAtivo] = useState(link.ativo);
   const [expira, setExpira] = useState(isoParaLocal(link.expiraEm));
   const [sel, setSel] = useState<Set<string>>(new Set(link.disciplinaIds));
+  const [agruparPorFase, setAgruparPorFase] = useState(link.agruparPorFase);
 
   const url = `${baseUrl}/p/arquivos/${link.token}`;
   const expirado = link.expiraEm !== null && new Date(link.expiraEm).getTime() <= Date.now();
@@ -330,6 +351,7 @@ function CartaoLink({
         disciplinaIds: link.escopo === "disciplinas" ? [...sel] : [],
         ativo: proxAtivo,
         expiraEm: localParaIso(expira),
+        agruparPorFase,
       });
       if (r.ok) {
         toast.success("Link salvo.");
