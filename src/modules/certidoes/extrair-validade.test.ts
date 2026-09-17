@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { extrairValidadeDoTexto, type ItemTextoPdf } from "./extrair-validade";
+import { extrairValidadeDoTexto } from "./extrair-validade";
+import type { ItemTextoPdf } from "@/lib/ler-texto-pdf";
 
 describe("extrairValidadeDoTexto", () => {
   it("reconhece data numérica após 'Válida até'", () => {

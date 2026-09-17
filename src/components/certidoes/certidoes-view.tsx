@@ -27,7 +27,7 @@ import {
   type TipoObrigatorio,
 } from "@/modules/certidoes/service";
 import { extrairValidadeDoTexto } from "@/modules/certidoes/extrair-validade";
-import { lerTextoPdf } from "@/components/certidoes/ler-texto-pdf";
+import { lerTextoPdf } from "@/lib/ler-texto-pdf";
 import {
   criarTipoCertidao,
   editarCertidao,

@@ -42,6 +42,8 @@ type Resultado = {
   faseId?: string;
   tipoId?: string;
   numeroPrancha?: number;
+  /** Título que o documento JÁ tem (se tiver) — o cliente não sobrescreve isso. */
+  tituloAtual?: string;
 };
 
 /** Arquivo remontado maior que o teto do pacote — mensagem segura p/ o cliente. */
@@ -326,13 +328,13 @@ export async function POST(req: Request) {
       ? await prisma.documentoDisciplina.update({
           where: { id: documentoEscolhido.id },
           data: metadados,
-          select: { id: true, faseId: true, tipoId: true, numeroPrancha: true },
+          select: { id: true, faseId: true, tipoId: true, numeroPrancha: true, titulo: true },
         })
       : await prisma.documentoDisciplina.upsert({
           where: { disciplinaId_chave: { disciplinaId, chave } },
           create: { disciplinaId, chave, nomeArquivo: nome, ...metadados },
           update: metadados,
-          select: { id: true, faseId: true, tipoId: true, numeroPrancha: true },
+          select: { id: true, faseId: true, tipoId: true, numeroPrancha: true, titulo: true },
         });
 
     // Sem os campos novos, preserva a regra legada: a versão do arquivo determina a
@@ -445,6 +447,9 @@ export async function POST(req: Request) {
       ...(documento.faseId ? { faseId: documento.faseId } : {}),
       ...(documento.tipoId ? { tipoId: documento.tipoId } : {}),
       ...(documento.numeroPrancha !== null ? { numeroPrancha: documento.numeroPrancha } : {}),
+      // Só leitura: o diálogo usa isto para NÃO sobrescrever com a sugestão do carimbo um
+      // título que alguém já escreveu (manual vence motor).
+      ...(documento.titulo ? { tituloAtual: documento.titulo } : {}),
     };
     return pastaAlvo
       ? { nome, ok: true, realocado: false, revisaoId: revisao.id, revisaoNumero: revisao.numero, ...reconhecido }

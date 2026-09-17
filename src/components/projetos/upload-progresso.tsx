@@ -26,6 +26,8 @@ export type ResultadoUpload = {
   faseId?: string;
   tipoId?: string;
   numeroPrancha?: number;
+  /** Título que o documento já tinha antes deste envio — trava a sugestão do carimbo. */
+  tituloAtual?: string;
 };
 
 export class ErroEnvio extends Error {

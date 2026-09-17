@@ -11,6 +11,8 @@
  * é pior que campo vazio.
  */
 
+import type { ItemTextoPdf } from "@/lib/ler-texto-pdf";
+
 const MESES: Record<string, number> = {
   janeiro: 1, fevereiro: 2, março: 3, marco: 3, abril: 4, maio: 5, junho: 6,
   julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12,
@@ -112,16 +114,6 @@ function somarDias(iso: string, dias: number): string {
   const [y, m, d] = iso.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d + dias));
   return paraISO(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
-}
-
-/** Trecho de texto do PDF com posição (coordenadas PDF: y cresce para cima). */
-export interface ItemTextoPdf {
-  str: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  pagina: number;
 }
 
 // Célula que é SÓ o rótulo ("VALIDADE", "Data de validade:", "Vencimento") — o valor fica em outra célula.

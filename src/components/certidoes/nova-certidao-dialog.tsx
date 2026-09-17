@@ -18,7 +18,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { criarCertidao } from "@/modules/certidoes/actions";
 import { extrairValidadeDoTexto } from "@/modules/certidoes/extrair-validade";
-import { lerTextoPdf } from "@/components/certidoes/ler-texto-pdf";
+import { lerTextoPdf } from "@/lib/ler-texto-pdf";
 import type { Responsavel, Tipo } from "@/components/certidoes/tipos";
 
 const NENHUM = "__nenhum";

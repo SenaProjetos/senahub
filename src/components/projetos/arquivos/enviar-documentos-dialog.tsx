@@ -9,7 +9,9 @@ import type { PastaFlat } from "@/modules/projetos/pastas/arvore";
 import { TAMANHO_MAX_BACKUP_LABEL, TAMANHO_MAX_LABEL, limiteDoPacote, limiteLabelDoPacote } from "@/modules/uploads/limites";
 import { detectarNovasRevisoes, mensagemNovasRevisoes, type ArquivoExistente } from "@/modules/uploads/revisao-nova";
 import { gruposRevisaoAgrupada } from "@/modules/uploads/revisao-agrupada";
-import { enviarArquivoComProgresso, ErroEnvio, PainelProgressoEnvio, type LinhaEnvio } from "@/components/projetos/upload-progresso";
+import { enviarArquivoComProgresso, ErroEnvio, PainelProgressoEnvio, type LinhaEnvio, type ResultadoUpload } from "@/components/projetos/upload-progresso";
+import { lerTextoPdf } from "@/lib/ler-texto-pdf";
+import { extrairTituloDoCarimbo } from "@/modules/uploads/titulo-carimbo";
 import { SeletorPasta } from "@/components/projetos/pasta-tree-view";
 import { Button } from "@/components/ui/button";
 import { CorrecaoNomeUpload, type DadosCorrecaoNomeUpload } from "@/components/projetos/arquivos/correcao-nome-upload";
@@ -42,6 +44,9 @@ import { editarMetadadosDocumento } from "@/modules/uploads/actions";
 
 type PacoteEnvio = "A" | "B";
 type FaseUpload = { id: string; sigla: string; nome: string };
+
+/** Acima disto não vale abrir o PDF só pra ler o carimbo (mesmo teto de `tamanho-papel-pdf.ts`). */
+const LIMITE_LEITURA_CARIMBO_BYTES = 60 * 1024 * 1024;
 type ItemEnvio = {
   file: File;
   nome: string;
@@ -62,6 +67,8 @@ type ItemEnvio = {
   /** Título da prancha pra Lista Mestre — preenchido aqui já deixa o envio alimentando a
    *  Lista Mestre sozinho, sem passo extra depois no painel de detalhe. */
   titulo?: string;
+  /** O título veio do carimbo do PDF, não de alguém digitando — ainda é palpite a conferir. */
+  tituloSugerido?: boolean;
   /** "Nova versão de": documento existente que recebe esta revisão, mesmo com outro nome. */
   versaoDeDocumentoId?: string;
   fora: boolean;
@@ -251,6 +258,21 @@ function UploaderDocumentos({
     };
   }
 
+  /**
+   * Título sugerido pelo carimbo do PDF (pedido do dono: "se vier pré-pronto, o usuário só
+   * confere e aprova"). Nunca lança e nunca trava o envio — PDF sem camada de texto, corrompido,
+   * grande demais ou de carimbo desconhecido simplesmente não gera sugestão.
+   */
+  async function lerTituloDoCarimbo(file: File): Promise<string | null> {
+    if (!/\.pdf$/i.test(file.name) || file.size > LIMITE_LEITURA_CARIMBO_BYTES) return null;
+    try {
+      const { itens } = await lerTextoPdf(file);
+      return extrairTituloDoCarimbo(itens);
+    } catch {
+      return null;
+    }
+  }
+
   function prepararEnvio(lista: FileList | File[] | null) {
     const files = lista ? Array.from(lista) : [];
     if (files.length === 0) return;
@@ -394,6 +416,11 @@ function UploaderDocumentos({
   async function enviar(itens: ItemEnvio[]) {
     setPendentes(null);
 
+    // Leitura do carimbo começa JÁ, em paralelo, mas ninguém espera por ela aqui: cada arquivo
+    // só aguarda a própria leitura na hora de subir (ver o laço adiante). Assim o painel de
+    // progresso aparece na hora e a leitura acontece enquanto os uploads correm.
+    const titulosDoCarimbo = itens.map((item) => lerTituloDoCarimbo(item.file));
+
     // Cada item tem sua PRÓPRIA disciplina/destino agora — "nova versão" precisa checar por
     // grupo (disciplina + pacote OU pasta), não mais um destino só pro lote inteiro.
     const gruposPorDestino = new Map<string, { nomes: string[]; disciplinaId: string; pastaId?: string; pacote?: string }>();
@@ -450,6 +477,12 @@ function UploaderDocumentos({
           continue;
         }
         atualizarLinha(i, { status: "enviando" });
+        // Espera só a leitura DESTE arquivo (disparada lá em cima). De propósito NÃO escreve o
+        // título na linha agora: só depois da resposta do servidor dá pra saber se o documento
+        // já tinha título (que vence a sugestão). Pintar antes deixaria na tela, durante o
+        // upload, um valor diferente do que está no banco — e um blur no meio disso gravaria a
+        // sugestão por cima do título existente.
+        const tituloDoCarimbo = await titulosDoCarimbo[i];
         try {
           const revisaoDoGrupo = grupo ? revisoesPorGrupo.get(grupo) : undefined;
           const resultado = await enviarArquivoComProgresso(
@@ -488,7 +521,11 @@ function UploaderDocumentos({
               faseId: resultado.faseId,
               tipoId: resultado.tipoId,
               numeroPrancha: resultado.numeroPrancha,
+              // Título que já existia vence a sugestão do carimbo (manual vence motor).
+              titulo: resultado.tituloAtual ?? tituloDoCarimbo ?? undefined,
+              tituloSugerido: !resultado.tituloAtual && !!tituloDoCarimbo,
             });
+            if (resultado.documentoId) gravarTituloSugerido(resultado, tituloDoCarimbo);
           } else {
             if (grupo) gruposComErro.add(grupo);
           atualizarLinha(i, { status: "erro", motivo: resultado.motivo ?? "Falha ao salvar." });
@@ -537,13 +574,37 @@ function UploaderDocumentos({
   // "salvo" fantasma seria descartado pela guarda de "nada mudou" (achado do advisor).
   const tituloSalvo = useRef(new Map<string, string>());
 
+  /**
+   * Grava o título lido do carimbo logo após o envio. Existe porque o campo Título só salva no
+   * `onBlur`, e o fluxo que o dono pediu é "vem pronto, o usuário só confere" — sem isto, quem
+   * apenas olhasse e aprovasse veria a sugestão na tela e ela NÃO teria sido gravada.
+   *
+   * Nunca sobrescreve título existente (`tituloAtual`), e marca o `tituloSalvo` ANTES de gravar:
+   * PDF e DWG da mesma prancha compartilham `documentoId` e não podem gravar os dois.
+   */
+  function gravarTituloSugerido(resultado: ResultadoUpload, tituloDoCarimbo: string | null) {
+    const documentoId = resultado.documentoId;
+    if (!documentoId) return;
+    if (resultado.tituloAtual) {
+      tituloSalvo.current.set(documentoId, resultado.tituloAtual); // blur com o mesmo valor vira no-op
+      return;
+    }
+    if (!tituloDoCarimbo || tituloSalvo.current.has(documentoId)) return;
+    tituloSalvo.current.set(documentoId, tituloDoCarimbo);
+    void editarMetadadosDocumento({ documentoId, titulo: tituloDoCarimbo }).then((r) => {
+      if (r.ok) return;
+      tituloSalvo.current.delete(documentoId); // deixa o blur tentar de novo
+      toast.error(`Não foi possível salvar o título lido do carimbo: ${r.error}`);
+    });
+  }
+
   function salvarTituloPosEnvio(indice: number, tituloDigitado: string) {
     const linha = progresso?.[indice];
     if (!linha?.documentoId) return;
     const documentoId = linha.documentoId;
     const valor = tituloDigitado.trim();
     if (valor === (tituloSalvo.current.get(documentoId) ?? "")) return; // nada mudou — não bate a action à toa no blur
-    atualizarLinha(indice, { titulo: valor || undefined });
+    atualizarLinha(indice, { titulo: valor || undefined, tituloSugerido: false }); // digitou: deixou de ser palpite
     setSalvandoMetadado(indice);
     iniciarSalvarMetadado(async () => {
       const r = await editarMetadadosDocumento({ documentoId, titulo: valor || null });
@@ -724,7 +785,14 @@ function UploaderDocumentos({
             {progresso.map((linha, indice) =>
               linha.status === "ok" && linha.documentoId && !linha.pastaId ? (
                 <div key={indice} className="space-y-1 rounded-sm border p-1.5">
-                  <span className="block min-w-0 truncate text-xs text-muted-foreground" title={linha.nome}>{linha.nome}</span>
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={linha.nome}>{linha.nome}</span>
+                    {linha.tituloSugerido && (
+                      <span className="shrink-0 rounded-sm bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
+                        Título lido do carimbo — confira
+                      </span>
+                    )}
+                  </div>
                   <div className="grid grid-cols-[1fr_9rem_9rem] items-center gap-2">
                     <Input
                       value={linha.titulo ?? ""}
