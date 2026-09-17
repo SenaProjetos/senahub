@@ -1,43 +1,12 @@
-import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { requirePermission } from "@/lib/session";
-import { can } from "@/lib/permissions";
-import { projetoVisivel } from "@/modules/planejamento/queries";
-import {
-  pranchasDoProjeto,
-  catalogosPrancha,
-  catalogosPranchaConfig,
-} from "@/modules/projetos/pranchas/queries";
-import { nomenclaturaDoProjeto, nomenclaturaGlobal } from "@/modules/projetos/nomenclatura/queries";
-import { ListaMestreView } from "@/components/projetos/lista-mestre-view";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Lista Mestre" };
-
-export default async function ListaMestrePage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await requirePermission("projetos", "ver");
+/**
+ * A aba Lista Mestre saiu (2026-09-17): o cadastro manual de folhas virou a geração do
+ * documento -LMS, que mora na aba Arquivos ("Gerar Lista Mestre"), e o padrão de nomenclatura
+ * com as siglas do projeto viraram o botão "Nomenclatura" da mesma aba. A rota fica de pé só
+ * para link e favorito antigos não caírem em 404.
+ */
+export default async function ListaMestreRedirect({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const projeto = await projetoVisivel(user, id);
-  if (!projeto) notFound();
-  const [disciplinas, catalogos, catalogosProjeto, nomenclaProjeto, nomenclaGlobal, podeGerir, podeConfigSiglas] =
-    await Promise.all([
-      pranchasDoProjeto(id),
-      catalogosPrancha(id),
-      catalogosPranchaConfig(id),
-      nomenclaturaDoProjeto(id),
-      nomenclaturaGlobal(),
-      can(user, "projetos", "gerir"),
-      can(user, "configuracoes", "gerir"),
-    ]);
-  return (
-    <ListaMestreView
-      projeto={projeto}
-      disciplinas={disciplinas}
-      catalogos={catalogos}
-      catalogosProjeto={catalogosProjeto}
-      nomenclaturaProjeto={nomenclaProjeto}
-      nomenclaturaGlobal={nomenclaGlobal}
-      podeGerir={podeGerir}
-      podeConfigSiglas={podeConfigSiglas}
-    />
-  );
+  redirect(`/projetos/${id}/arquivos`);
 }

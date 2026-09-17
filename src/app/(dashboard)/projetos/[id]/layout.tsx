@@ -155,7 +155,6 @@ export default async function ProjetoLayout({
           "/disciplinas",
           "/inputs",
           ...(podeVerFinanceiro ? ["/financeiro"] : []),
-          "/lista-mestre",
           ...(podeServicos ? ["/servicos"] : []),
           "/arquivos",
           ...(podeArts ? ["/arts"] : []),

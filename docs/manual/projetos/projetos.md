@@ -179,14 +179,25 @@ realizada, o card exibe a composição confirmada automaticamente quando está l
 Em um card menor, o resumo permanece compacto. Use **Ver detalhamento financeiro** para consultar
 os valores previstos e a análise completa.
 
-Além disso, há abas para: **Lista Mestre**, **Serviços**, **Arquivos**, **Extras**,
-**Financeiro** e **Inputs** (formulários de start). Cada uma será detalhada em sua própria
-página do manual. (A aba **Lista Mestre** organiza as folhas técnicas por disciplina —
-substitui a antiga aba "Pranchas".)
+Além disso, há abas para: **Serviços**, **Arquivos**, **Extras**, **Financeiro** e
+**Inputs** (formulários de start). Cada uma será detalhada em sua própria página do manual.
 
-### Padrão de nomenclatura do projeto (aba Lista Mestre)
+### Lista Mestre (aba Arquivos)
 
-Logo acima da lista de disciplinas, a seção **Padrão de nomenclatura deste projeto** mostra
+A Lista Mestre deixou de ser uma aba com cadastro de folhas: hoje ela é **gerada** a partir
+do que já foi entregue. Na aba **Arquivos**, em **Gerar Lista Mestre**, escolha a
+disciplina; o sistema lista os documentos com arquivo **validado** (número, título, fase,
+tipo, folha, revisão e formatos), mostra a prévia e salva o resultado na própria disciplina
+como documento do tipo Lista Mestre — PDF com timbrado e planilha, na mesma revisão. Gerar
+de novo cria a revisão seguinte do mesmo documento.
+
+Nada aparece na lista enquanto ninguém validar os arquivos, e a própria Lista Mestre nunca
+se lista.
+
+### Padrão de nomenclatura do projeto (botão Nomenclatura, aba Arquivos)
+
+No botão **Nomenclatura**, ao lado de "Enviar documentos", a seção **Padrão de
+nomenclatura** mostra
 se o projeto usa o padrão global (o do escritório) ou tem um **padrão próprio** — a etiqueta
 ao lado do título já denuncia qual dos dois, sem precisar abrir a seção. Um projeto antigo
 que seguia uma numeração diferente do escritório é o caso típico de padrão próprio.
@@ -198,6 +209,10 @@ separador. Uma prévia mostra como um nome ficaria com aquele padrão. Nenhuma s
 regex é necessária. Um padrão herdado de configuração antiga que o editor visual não
 consegue representar abre em **modo avançado** (texto) — ele continua funcionando, só não é
 editável em blocos até ser reconstruído do zero no editor visual.
+
+No mesmo diálogo ficam as **siglas deste projeto** (fases, tipos e folhas que valem só
+aqui, somadas às globais). Quem não tem permissão de Configurações enxerga o padrão e as
+siglas em vigor, mas não edita.
 
 Esta mesma configuração (herdar ou usar padrão próprio) existe em **Configurações → Lista
 Mestre** para o padrão **global**, que vale para todo projeto que não tiver o seu.

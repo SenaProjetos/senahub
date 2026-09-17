@@ -73,7 +73,6 @@ export const salvarNomenclaturaProjeto = defineAction(
       create: { projetoId: i.projetoId, exigir: i.exigir, exigirFase: i.exigirFase, padrao },
       update: { exigir: i.exigir, exigirFase: i.exigirFase, padrao },
     });
-    revalidatePath(`/projetos/${i.projetoId}/lista-mestre`);
     revalidatePath(`/projetos/${i.projetoId}/arquivos`);
     return { ok: true };
   },
@@ -90,7 +89,6 @@ export const limparNomenclaturaProjeto = defineAction(
   },
   async (i) => {
     await prisma.nomenclaturaConfig.deleteMany({ where: { projetoId: i.projetoId } });
-    revalidatePath(`/projetos/${i.projetoId}/lista-mestre`);
     revalidatePath(`/projetos/${i.projetoId}/arquivos`);
     return { ok: true };
   },

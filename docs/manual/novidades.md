@@ -22,11 +22,30 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Lista Mestre gerada sozinha, a partir dos arquivos aprovados
+
+A aba **Lista Mestre** saiu. Ninguém precisa mais cadastrar folha por folha: na aba
+**Arquivos**, o botão **Gerar Lista Mestre** monta a lista da disciplina com os documentos
+que já foram **validados**, com número, título, fase, tipo, folha, revisão e formatos
+(PDF, DWG…). A lista é salva na própria disciplina como um documento do tipo Lista Mestre —
+um **PDF** com timbrado para entregar e uma **planilha** para trabalhar, os dois na mesma
+revisão. Gerar de novo não cria arquivo repetido: entra como a próxima revisão da mesma
+Lista Mestre, inclusive por cima da que foi enviada à mão antes.
+
+Antes de gerar, uma prévia mostra o que vai entrar, e dá para baixar sem salvar. Documento
+sem título sai com o campo vazio — completar o título na lista de documentos e gerar de novo
+resolve.
+
+O **padrão de nomenclatura** do projeto e as **siglas próprias** dele, que moravam naquela
+aba, agora ficam no botão **Nomenclatura**, ao lado de "Enviar documentos". Quem não tem
+permissão de Configurações continua vendo qual padrão está valendo, só não edita.
+
 ## Editor visual do padrão de nomenclatura, e ele agora aparece na Lista Mestre
 
 Cada projeto pode ter seu próprio padrão de nome de arquivo — isso já existia, mas o
 formulário morava escondido dentro do diálogo "Siglas deste projeto". Agora ele é uma
-seção visível na própria aba **Lista Mestre**, com uma etiqueta que já mostra se o projeto
+seção visível fora do diálogo (hoje no botão **Nomenclatura** da aba Arquivos, veja a
+novidade acima), com uma etiqueta que já mostra se o projeto
 usa o padrão global ou um próprio, sem precisar abrir nada. E editar o padrão deixou de
 exigir regex: o **editor visual** monta o nome por blocos (Projeto, Disciplina, Fase,
 Número, Tipo, Revisão) — escolha os blocos, a ordem, o separador e o que é opcional, e uma
