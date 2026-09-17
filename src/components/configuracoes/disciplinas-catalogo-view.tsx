@@ -25,6 +25,7 @@ import {
   arquivarDisciplinaCatalogo,
   excluirDisciplinaCatalogo,
   moverDisciplinaCatalogo,
+  renomearCategoriaDisciplinas,
 } from "@/modules/projetos/actions";
 import type { DisciplinaCatalogoAdmin } from "@/modules/projetos/queries";
 import { normalizar } from "@/lib/disciplinas-core";
@@ -116,6 +117,7 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
   const confirm = useConfirm();
   const [pending, start] = useTransition();
   const [dialogo, setDialogo] = useState<FormState | null>(null);
+  const [renomeando, setRenomeando] = useState<string | null>(null);
 
   const [busca, setBusca] = useState("");
   const [filtroCat, setFiltroCat] = useState<string>(TODAS);
@@ -175,6 +177,21 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
       if (r.ok) {
         toast.success(form.id ? "Disciplina atualizada." : "Disciplina criada.");
         setDialogo(null);
+        router.refresh();
+      } else {
+        toast.error(r.error);
+      }
+    });
+  }
+
+  /** Renomeia a categoria em todas as disciplinas dela de uma vez (nome vazio = tirar categoria). */
+  function renomearCategoria(de: string, para: string) {
+    start(async () => {
+      const r = await renomearCategoriaDisciplinas({ de, para: para.trim() });
+      if (r.ok) {
+        toast.success(para.trim() ? "Categoria renomeada." : "Categoria removida — as disciplinas foram para “Outras”.");
+        setRenomeando(null);
+        if (filtroCat === de) setFiltroCat(TODAS); // o filtro apontava pra um grupo que não existe mais
         router.refresh();
       } else {
         toast.error(r.error);
@@ -307,7 +324,12 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
               </TableHeader>
               <TableBody>
                 {grupos.map(([categoria, lista]) => (
-                  <GrupoCategoria key={categoria} categoria={categoria} lista={lista}>
+                  <GrupoCategoria
+                    key={categoria}
+                    categoria={categoria}
+                    lista={lista}
+                    onRenomear={categoria === SEM_CATEGORIA ? undefined : () => setRenomeando(categoria)}
+                  >
                     {lista.map((item, idx) => (
                       <ItemLinha
                         key={item.id}
@@ -333,6 +355,16 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
       <p className="text-xs text-muted-foreground">
         {totalAtivas} ativa(s){totalArquivadas > 0 && ` · ${totalArquivadas} arquivada(s)`}.
       </p>
+
+      {renomeando && (
+        <RenomearCategoriaDialog
+          categoria={renomeando}
+          quantas={itens.filter((i) => i.categoria === renomeando).length}
+          pending={pending}
+          onSalvar={(novo) => renomearCategoria(renomeando, novo)}
+          onFechar={() => setRenomeando(null)}
+        />
+      )}
 
       {dialogo && (
         <DisciplinaDialog
@@ -365,10 +397,13 @@ function paraForm(item: DisciplinaCatalogoAdmin): FormState {
 function GrupoCategoria({
   categoria,
   lista,
+  onRenomear,
   children,
 }: {
   categoria: string;
   lista: DisciplinaCatalogoAdmin[];
+  /** Ausente em "Outras": ali não existe categoria pra renomear, é o grupo de quem não tem. */
+  onRenomear?: () => void;
   children: React.ReactNode;
 }) {
   return (
@@ -376,7 +411,20 @@ function GrupoCategoria({
       <TableRow className="bg-muted/40 hover:bg-muted/40">
         <TableCell colSpan={6} className="py-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{categoria}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{categoria}</span>
+              {onRenomear && (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  title={`Renomear a categoria ${categoria}`}
+                  aria-label={`Renomear a categoria ${categoria}`}
+                  onClick={onRenomear}
+                >
+                  <Pencil className="size-3" />
+                </Button>
+              )}
+            </div>
             <span className="text-xs text-muted-foreground">{lista.length}</span>
           </div>
         </TableCell>
@@ -523,6 +571,65 @@ function ItemLinha({
   );
 }
 
+/**
+ * Renomeia uma categoria inteira. Categoria não é cadastro próprio — é um texto repetido em cada
+ * disciplina —, então sem isto trocar o nome de um grupo era abrir disciplina por disciplina.
+ */
+function RenomearCategoriaDialog({
+  categoria,
+  quantas,
+  pending,
+  onSalvar,
+  onFechar,
+}: {
+  categoria: string;
+  quantas: number;
+  pending: boolean;
+  onSalvar: (novo: string) => void;
+  onFechar: () => void;
+}) {
+  const [nome, setNome] = useState(categoria);
+  const limpo = nome.trim();
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onFechar()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Renomear categoria</DialogTitle>
+          <DialogDescription>
+            Vale para as {quantas} disciplina(s) de &ldquo;{categoria}&rdquo;.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-1.5">
+          <Label>Nome da categoria</Label>
+          <Input
+            value={nome}
+            maxLength={60}
+            autoFocus
+            placeholder="CIVIL"
+            onChange={(e) => setNome(e.target.value)}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            {limpo === ""
+              ? "Em branco, a categoria deixa de existir e as disciplinas vão para “Outras”."
+              : "Usar o nome de outra categoria existente junta os dois grupos em um só."}
+          </p>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onFechar} disabled={pending}>
+            Cancelar
+          </Button>
+          <Button onClick={() => onSalvar(nome)} disabled={pending || limpo === categoria}>
+            {pending ? "Salvando…" : limpo === "" ? "Remover categoria" : "Renomear"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function DisciplinaDialog({
   inicial,
   categorias,
@@ -637,6 +744,27 @@ function DisciplinaDialog({
                 <option key={c} value={c} />
               ))}
             </datalist>
+            <p className="text-[11px] text-muted-foreground">
+              Digite um nome novo para criar uma categoria; deixe em branco para a disciplina
+              ficar em &ldquo;Outras&rdquo;. Para renomear uma categoria inteira, use o lápis no
+              cabeçalho dela na lista.
+            </p>
+            {categorias.length > 0 && (
+              <div className="flex flex-wrap gap-1 pt-0.5">
+                {categorias.map((c) => (
+                  <Button
+                    key={c}
+                    type="button"
+                    size="xs"
+                    variant={form.categoria.trim() === c ? "secondary" : "outline"}
+                    className="h-6 text-[11px]"
+                    onClick={() => setForm((f) => ({ ...f, categoria: f.categoria.trim() === c ? "" : c }))}
+                  >
+                    {c}
+                  </Button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">

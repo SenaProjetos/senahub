@@ -175,6 +175,16 @@ export const moverDisciplinaCatalogoSchema = z.object({
   vizinhoId: z.string().min(1),
 });
 
+/**
+ * Renomeia uma categoria do catálogo em todas as disciplinas dela de uma vez. Categoria não é
+ * tabela — é um texto em cada disciplina — então renomear uma a uma era o único jeito.
+ * `para` vazio tira a categoria (as disciplinas caem em "Outras").
+ */
+export const renomearCategoriaDisciplinasSchema = z.object({
+  de: z.string().min(1),
+  para: z.string().max(60),
+});
+
 /** Layout particular da Visão Geral; os limites de leitura são reaplicados no cliente. */
 export const salvarLayoutPainelProjetoSchema = z.object({
   projetoId: z.string().min(1),

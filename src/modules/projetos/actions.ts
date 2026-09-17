@@ -28,6 +28,7 @@ import {
   editarDisciplinaCatalogoSchema,
   idDisciplinaCatalogoSchema,
   moverDisciplinaCatalogoSchema,
+  renomearCategoriaDisciplinasSchema,
   salvarLayoutPainelProjetoSchema,
 } from "@/modules/projetos/schemas";
 import { notificarMuitos } from "@/lib/notificar";
@@ -42,6 +43,7 @@ import { sincronizarPagamentosPorDisciplinaId } from "@/modules/uploads/pagament
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { chaveLayoutPainelProjeto } from "@/modules/projetos/painel-layout";
 import { deveDeslocarPrazoDoProjeto } from "@/modules/projetos/prazo-reabertura";
+import { faixaConflitante } from "@/modules/projetos/faixa-numeracao";
 
 
 /**
@@ -1225,6 +1227,34 @@ async function garantirUnicosCatalogo(nome: string, codigo: string | null, sinon
   }
 }
 
+/**
+ * Recusa faixa de numeração que cruze a de outra disciplina ATIVA. Sem isso a faixa que começa
+ * depois fica inalcançável em silêncio no reconhecimento por número — ver `faixa-numeracao.ts`.
+ * Disciplina inativa não entra no vocabulário do motor, então também não disputa número.
+ */
+async function garantirFaixaLivre(
+  numeracao: number | null,
+  numeracaoFim: number | null,
+  ignoreId: string | null,
+) {
+  if (numeracao === null || numeracaoFim === null) return;
+  const outras = await prisma.disciplinaCatalogo.findMany({
+    where: {
+      ativo: true,
+      numeracao: { not: null },
+      numeracaoFim: { not: null },
+      ...(ignoreId ? { id: { not: ignoreId } } : {}),
+    },
+    select: { nome: true, numeracao: true, numeracaoFim: true },
+  });
+  const conflito = faixaConflitante({ numeracao, numeracaoFim }, outras);
+  if (conflito) {
+    throw new ActionError(
+      `A faixa ${numeracao}–${numeracaoFim} cruza com ${conflito.nome} (${conflito.numeracao}–${conflito.numeracaoFim}). Duas disciplinas não podem disputar o mesmo número.`,
+    );
+  }
+}
+
 export const criarDisciplinaCatalogo = defineAction(
   {
     ...catalogoBase,
@@ -1237,6 +1267,7 @@ export const criarDisciplinaCatalogo = defineAction(
     const dados = normalizarCatalogo(i);
     dados.categoria = await canonizarCategoria(dados.categoria);
     await garantirUnicosCatalogo(dados.nome, dados.codigo, dados.sinonimos, null);
+    await garantirFaixaLivre(dados.numeracao, dados.numeracaoFim, null);
     const max = await prisma.disciplinaCatalogo.aggregate({ _max: { ordem: true } });
     const criada = await prisma.disciplinaCatalogo.create({
       data: { ...dados, ordem: (max._max.ordem ?? 0) + 1 },
@@ -1261,6 +1292,7 @@ export const editarDisciplinaCatalogo = defineAction(
     const dados = normalizarCatalogo(i);
     dados.categoria = await canonizarCategoria(dados.categoria);
     await garantirUnicosCatalogo(dados.nome, dados.codigo, dados.sinonimos, i.id);
+    await garantirFaixaLivre(dados.numeracao, dados.numeracaoFim, i.id);
 
     // `Disciplina.disciplinaTextoLegado` (linha de projeto) casa com o catálogo por TEXTO.
     // A F1.19c criou `disciplinaId`, mas ele é NULLABLE e ainda há disciplina sem FK (as grafias
@@ -1339,6 +1371,44 @@ export const excluirDisciplinaCatalogo = defineAction(
 );
 
 /** Reordena trocando a `ordem` de duas disciplinas (setas ↑↓ na UI). */
+/**
+ * Renomeia uma categoria em todas as disciplinas dela de uma vez. Categoria não é tabela — é um
+ * texto repetido em cada disciplina — então, sem isto, trocar o nome de um grupo exigia abrir
+ * disciplina por disciplina (e bastava errar a grafia em uma pra ela virar um grupo solto).
+ *
+ * `para` vazio tira a categoria: as disciplinas passam a aparecer em "Outras". Se o novo nome
+ * for igual ao de outra categoria já existente (ignorando caixa/acento), os dois grupos viram
+ * um só — é a mesma regra de `canonizarCategoria`, aplicada de propósito para juntar grupos que
+ * só diferiam na grafia.
+ */
+export const renomearCategoriaDisciplinas = defineAction(
+  {
+    ...catalogoBase,
+    acao: "renomear-categoria-disciplinas",
+    entidade: "DisciplinaCatalogo",
+    schema: renomearCategoriaDisciplinasSchema,
+  },
+  async (i) => {
+    const de = i.de.trim();
+    const paraDigitado = i.para.trim();
+    if (!de) throw new ActionError("Categoria de origem inválida.");
+
+    const usadaPor = await prisma.disciplinaCatalogo.count({ where: { categoria: de } });
+    if (usadaPor === 0) throw new ActionError("Categoria não encontrada.");
+
+    // Sem nome novo, a categoria deixa de existir e as disciplinas caem em "Outras".
+    const para = paraDigitado ? ((await canonizarCategoria(paraDigitado)) ?? paraDigitado) : null;
+    if (para === de) return { total: 0 };
+
+    const { count } = await prisma.disciplinaCatalogo.updateMany({
+      where: { categoria: de },
+      data: { categoria: para },
+    });
+    revCatalogo();
+    return { total: count };
+  },
+);
+
 export const moverDisciplinaCatalogo = defineAction(
   {
     ...catalogoBase,
