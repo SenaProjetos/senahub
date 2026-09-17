@@ -511,6 +511,22 @@ const DOCUMENTO_STATUS = [
   { nome: "Arquivado", final: true },
 ];
 
+/**
+ * Catálogo que o usuário mantém pela tela só é semeado com a tabela vazia (instalação nova, ou
+ * lista que alguém esvaziou por inteiro). Garantir item a item, pelo nome, trazia de volta a cada
+ * deploy o que foi excluído e duplicava o que foi renomeado. Item padrão novo para bancos que já
+ * estão no ar vai por migration. Mesma regra de `seed-catalogos.ts`.
+ */
+async function semearSeVazio(
+  contar: () => Promise<number>,
+  criar: () => Promise<{ count: number }>,
+): Promise<string> {
+  const existentes = await contar();
+  if (existentes > 0) return `sem mudança (${existentes} já no banco)`;
+  const { count } = await criar();
+  return `semeado na instalação (${count} itens)`;
+}
+
 async function main() {
   // 1) Admin
   const existing = await prisma.user.findUnique({ where: { email: ADMIN_EMAIL } });
@@ -588,7 +604,11 @@ async function main() {
   }
 
 
-  // 4) Plano de contas (cria pais antes das filhas — array já ordenado)
+  // 4) Plano de contas (cria pais antes das filhas — array já ordenado).
+  // Continua garantido conta a conta, ao contrário dos outros catálogos: o código busca contas
+  // pelo `codigo` (1.01, 1.02, 1.03, 2.01–2.05, 2.09) e falha sem elas, com uma mensagem que
+  // manda rodar o seed. Mas `update` fica vazio: nome, ordem e conta-pai são do financeiro, e o
+  // seed os sobrescrevia a cada deploy.
   const idsPorCodigo = new Map<string, string>();
   for (let i = 0; i < PLANO_CONTAS.length; i++) {
     const c = PLANO_CONTAS[i];
@@ -601,30 +621,20 @@ async function main() {
         ordem: i,
         paiId: c.pai ? idsPorCodigo.get(c.pai) : null,
       },
-      update: { nome: c.nome, ordem: i, paiId: c.pai ? idsPorCodigo.get(c.pai) : null },
+      update: {},
     });
     idsPorCodigo.set(c.codigo, cat.id);
   }
   console.log(`✔ ${PLANO_CONTAS.length} contas no plano de contas.`);
 
-  // 5) Formas de pagamento
-  for (let i = 0; i < FORMAS_PAGAMENTO.length; i++) {
-    await prisma.formaPagamento.upsert({
-      where: { nome: FORMAS_PAGAMENTO[i] },
-      create: { nome: FORMAS_PAGAMENTO[i], ordem: i },
-      update: {},
-    });
-  }
-
-  // 6) Centros de custo
-  for (let i = 0; i < CENTROS_CUSTO.length; i++) {
-    await prisma.centroCusto.upsert({
-      where: { nome: CENTROS_CUSTO[i] },
-      create: { nome: CENTROS_CUSTO[i], ordem: i },
-      update: {},
-    });
-  }
-  console.log(`✔ ${FORMAS_PAGAMENTO.length} formas de pagamento, ${CENTROS_CUSTO.length} centros de custo.`);
+  // 5–6) Formas de pagamento e centros de custo (editáveis em Cadastros)
+  const formas = await semearSeVazio(() => prisma.formaPagamento.count(), () =>
+    prisma.formaPagamento.createMany({ data: FORMAS_PAGAMENTO.map((nome, ordem) => ({ nome, ordem })) }),
+  );
+  const centros = await semearSeVazio(() => prisma.centroCusto.count(), () =>
+    prisma.centroCusto.createMany({ data: CENTROS_CUSTO.map((nome, ordem) => ({ nome, ordem })) }),
+  );
+  console.log(`✔ Formas de pagamento ${formas}, centros de custo ${centros}.`);
 
   // 7) Rubricas da folha
   for (let i = 0; i < RUBRICAS.length; i++) {
@@ -661,17 +671,19 @@ async function main() {
       update: { ordem: i, concluido: TAREFA_STATUS[i].concluido },
     });
   }
-  // update: {} de propósito — igual CARGOS_BASE: gerir "obrigatoria" é ato de quem gere
-  // certidões pela tela (/certidoes → Gerenciar tipos), o seed só garante que os itens-base existam.
-  for (const t of CERTIDAO_TIPOS) {
-    await prisma.certidaoTipo.upsert({ where: { nome: t.nome }, create: t, update: {} });
-  }
-  for (const c of CREDENCIAL_CATEGORIAS) {
-    await prisma.credencialCategoria.upsert({ where: { nome: c.nome }, create: c, update: {} });
-  }
+  // Tipos de certidão e categorias de acesso são mantidos pela tela (/certidoes → Gerenciar tipos,
+  // /acessos): só semeados com a tabela vazia — ver `semearSeVazio`. As categorias de acesso
+  // continuam garantidas na prática: sem nenhuma o formulário não submete (deploy de 2026-08-30),
+  // e tabela vazia é justamente o caso em que o seed volta a criá-las.
+  const tiposCertidao = await semearSeVazio(() => prisma.certidaoTipo.count(), () =>
+    prisma.certidaoTipo.createMany({ data: CERTIDAO_TIPOS }),
+  );
+  const categoriasAcesso = await semearSeVazio(() => prisma.credencialCategoria.count(), () =>
+    prisma.credencialCategoria.createMany({ data: CREDENCIAL_CATEGORIAS }),
+  );
   console.log(
-    `✔ ${TAREFA_STATUS.length} status de tarefa, ${CERTIDAO_TIPOS.length} tipos de certidão, ` +
-      `${CREDENCIAL_CATEGORIAS.length} categorias de acesso.`,
+    `✔ ${TAREFA_STATUS.length} status de tarefa, tipos de certidão ${tiposCertidao}, ` +
+      `categorias de acesso ${categoriasAcesso}.`,
   );
 
   // 8c) Status documental (Fase 2 de Documentos) — catálogo do status de cada documento,
@@ -685,75 +697,54 @@ async function main() {
   }
   console.log(`✔ ${DOCUMENTO_STATUS.length} status documentais garantidos.`);
 
-  // 8b) Catálogos de RH (cargo/departamento). `update: {}` de propósito: reordenar, renomear e
-  // arquivar são atos do RH pela tela — o seed só garante que os itens-base existam. Rodar o
-  // seed depois do backfill não pode reembaralhar a lista nem ressuscitar item arquivado.
-  // `ordem` continua de onde a lista está (mesma regra de `criarCargo`), em vez de recomeçar do
-  // zero — senão itens semeados colidiriam com os que o backfill já numerou.
-  let ordemCargo = ((await prisma.cargo.findFirst({ orderBy: { ordem: "desc" }, select: { ordem: true } }))?.ordem ?? -1) + 1;
-  for (const nome of CARGOS_BASE) {
-    const r = await prisma.cargo.upsert({ where: { nome }, create: { nome, ordem: ordemCargo }, update: {} });
-    if (r.ordem === ordemCargo) ordemCargo++;
-  }
-  let ordemDepto = ((await prisma.departamento.findFirst({ orderBy: { ordem: "desc" }, select: { ordem: true } }))?.ordem ?? -1) + 1;
-  for (const d of DEPARTAMENTOS_BASE) {
-    const r = await prisma.departamento.upsert({ where: { nome: d.nome }, create: { nome: d.nome, setor: d.setor, ordem: ordemDepto }, update: {} });
-    if (r.ordem === ordemDepto) ordemDepto++;
-  }
-  console.log(`✔ ${CARGOS_BASE.length} cargos, ${DEPARTAMENTOS_BASE.length} departamentos no catálogo.`);
+  // 8b) Catálogos de RH (cargo/departamento). Reordenar, renomear, arquivar e excluir são atos do
+  // RH pela tela — só semeados com a tabela vazia, senão um cargo renomeado voltaria com o nome
+  // antigo no deploy seguinte.
+  const cargos = await semearSeVazio(() => prisma.cargo.count(), () =>
+    prisma.cargo.createMany({ data: CARGOS_BASE.map((nome, ordem) => ({ nome, ordem })) }),
+  );
+  const departamentos = await semearSeVazio(() => prisma.departamento.count(), () =>
+    prisma.departamento.createMany({
+      data: DEPARTAMENTOS_BASE.map((d, ordem) => ({ nome: d.nome, setor: d.setor, ordem })),
+    }),
+  );
+  console.log(`✔ Cargos ${cargos}, departamentos ${departamentos}.`);
 
-  // 9) Etapas do funil comercial
+  // 9) Etapas do funil comercial. Garantidas pelo nome, não semeadas uma vez só: o código
+  // reconhece a etapa de perda PELO NOME (`etapaEhPerdido`) e `jornada.ts` mapeia estágio →
+  // nome. `update` vazio para não desfazer a ordem que o comercial montou na tela.
   for (let i = 0; i < FUNIL_ETAPAS.length; i++) {
     await prisma.funilEtapa.upsert({
       where: { nome: FUNIL_ETAPAS[i].nome },
       create: { nome: FUNIL_ETAPAS[i].nome, cor: FUNIL_ETAPAS[i].cor, ordem: i },
-      update: { ordem: i },
+      update: {},
     });
   }
   console.log(`✔ ${FUNIL_ETAPAS.length} etapas do funil comercial.`);
 
-  // 9b) Modalidades de licitação (lista config-driven, editável em Configurações)
-  for (let i = 0; i < MODALIDADES_PADRAO.length; i++) {
-    await prisma.modalidade.upsert({
-      where: { nome: MODALIDADES_PADRAO[i] },
-      create: { nome: MODALIDADES_PADRAO[i], ordem: i },
-      update: {},
-    });
-  }
-  console.log(`✔ ${MODALIDADES_PADRAO.length} modalidades de licitação.`);
+  // 9b) Modalidades de licitação (editável em Configurações, que também tem o botão
+  // "restaurar padrões" — `semearModalidadesPadrao`, para quem quiser a lista de volta).
+  const modalidades = await semearSeVazio(() => prisma.modalidade.count(), () =>
+    prisma.modalidade.createMany({ data: MODALIDADES_PADRAO.map((nome, ordem) => ({ nome, ordem })) }),
+  );
+  console.log(`✔ Modalidades de licitação ${modalidades}.`);
 
-  // 9c) Catálogos do CRM (F1.6). Config-driven, editáveis na tela.
-  // `update: {}` em todos: o seed GARANTE a existência, mas nunca desfaz o que o usuário
-  // editou/desativou depois — é o que torna rodar duas vezes inofensivo.
-  for (let i = 0; i < TIPOS_EMPREENDIMENTO.length; i++) {
-    await prisma.tipoEmpreendimento.upsert({
-      where: { nome: TIPOS_EMPREENDIMENTO[i] },
-      create: { nome: TIPOS_EMPREENDIMENTO[i], ordem: i },
-      update: {},
-    });
-  }
-  for (let i = 0; i < MOTIVOS_PERDA.length; i++) {
-    const m = MOTIVOS_PERDA[i];
-    await prisma.motivoPerda.upsert({
-      where: { nome: m.nome },
-      create: { nome: m.nome, ordem: i, exigeConcorrente: m.exigeConcorrente },
-      update: {},
-    });
-  }
-  for (let i = 0; i < CANAIS_AQUISICAO.length; i++) {
-    await prisma.canalAquisicao.upsert({
-      where: { nome: CANAIS_AQUISICAO[i] },
-      create: { nome: CANAIS_AQUISICAO[i], ordem: i },
-      update: {},
-    });
-  }
-  for (let i = 0; i < SEGMENTOS.length; i++) {
-    await prisma.segmento.upsert({
-      where: { nome: SEGMENTOS[i] },
-      create: { nome: SEGMENTOS[i], ordem: i },
-      update: {},
-    });
-  }
+  // 9c) Catálogos do CRM (F1.6). Editáveis na tela, então cada lista só é semeada vazia —
+  // um item renomeado voltaria com o nome antigo se o seed garantisse item a item.
+  const tipos = await semearSeVazio(() => prisma.tipoEmpreendimento.count(), () =>
+    prisma.tipoEmpreendimento.createMany({ data: TIPOS_EMPREENDIMENTO.map((nome, ordem) => ({ nome, ordem })) }),
+  );
+  const motivos = await semearSeVazio(() => prisma.motivoPerda.count(), () =>
+    prisma.motivoPerda.createMany({
+      data: MOTIVOS_PERDA.map((m, ordem) => ({ nome: m.nome, ordem, exigeConcorrente: m.exigeConcorrente })),
+    }),
+  );
+  const canais = await semearSeVazio(() => prisma.canalAquisicao.count(), () =>
+    prisma.canalAquisicao.createMany({ data: CANAIS_AQUISICAO.map((nome, ordem) => ({ nome, ordem })) }),
+  );
+  const segmentos = await semearSeVazio(() => prisma.segmento.count(), () =>
+    prisma.segmento.createMany({ data: SEGMENTOS.map((nome, ordem) => ({ nome, ordem })) }),
+  );
   // Probabilidade por estágio: `estagio` é a PK (enum), então o upsert é por ela.
   for (const p of PROBABILIDADES_ESTAGIO) {
     await prisma.probabilidadeEstagio.upsert({
@@ -763,13 +754,15 @@ async function main() {
     });
   }
   console.log(
-    `✔ CRM: ${TIPOS_EMPREENDIMENTO.length} tipos de empreendimento, ${MOTIVOS_PERDA.length} motivos de perda, ` +
-      `${CANAIS_AQUISICAO.length} canais, ${SEGMENTOS.length} segmentos, ${PROBABILIDADES_ESTAGIO.length} probabilidades.`,
+    `✔ CRM: tipos de empreendimento ${tipos}, motivos de perda ${motivos}, canais ${canais}, ` +
+      `segmentos ${segmentos}, ${PROBABILIDADES_ESTAGIO.length} probabilidades.`,
   );
 
-  // 10) Modelos de documento exemplo (Estúdio de Documentos)
+  // 10) Modelos de documento exemplo (Estúdio de Documentos). Procura por FONTE, não pelo nome:
+  // por nome, um exemplo renomeado ou excluído no Estúdio voltava no deploy seguinte. Quem já tem
+  // qualquer modelo daquela fonte não precisa do exemplo.
   const existeModeloProjeto = await prisma.documentoModelo.findFirst({
-    where: { nome: "Relatório do projeto (exemplo)" },
+    where: { fonte: "projeto" },
   });
   if (!existeModeloProjeto) {
     const schema = modeloExemploProjeto();
@@ -785,7 +778,7 @@ async function main() {
   }
 
   const existeModeloLicitacao = await prisma.documentoModelo.findFirst({
-    where: { nome: "Relatório de licitação (exemplo)" },
+    where: { fonte: "licitacao" },
   });
   if (!existeModeloLicitacao) {
     const schema = modeloExemploLicitacao();
@@ -801,21 +794,19 @@ async function main() {
   }
 
   // 10b) Modelos de fábrica de contrato (Fase E5) — CLT/estágio/PJ/cliente prontos no Estúdio.
-  // Idempotente por nome, igual aos exemplos acima: só cria o que falta, nunca sobrescreve um
-  // modelo que o jurídico já editou (o nome "[Fábrica] ..." é só a semente inicial).
-  for (const m of modelosDeFabrica()) {
-    const existe = await prisma.documentoModelo.findFirst({ where: { nome: m.nome } });
-    if (!existe) {
-      await prisma.documentoModelo.create({
-        data: {
-          nome: m.nome,
-          tipo: "contrato",
-          fonte: "contrato",
-          schemaJson: m.schema as unknown as Prisma.InputJsonValue,
-        },
-      });
-      console.log(`✔ Modelo de fábrica "${m.nome}" criado.`);
-    }
+  // Só entram enquanto não houver NENHUM modelo de contrato: o nome "[Fábrica] ..." é só a semente
+  // inicial, e o jurídico renomeia/exclui à vontade sem o deploy trazer a cópia de volta.
+  const temModeloContrato = await prisma.documentoModelo.findFirst({ where: { fonte: "contrato" } });
+  for (const m of temModeloContrato ? [] : modelosDeFabrica()) {
+    await prisma.documentoModelo.create({
+      data: {
+        nome: m.nome,
+        tipo: "contrato",
+        fonte: "contrato",
+        schemaJson: m.schema as unknown as Prisma.InputJsonValue,
+      },
+    });
+    console.log(`✔ Modelo de fábrica "${m.nome}" criado.`);
   }
 
   // 11) Escala padrão por perfil (corrige a jornada legal do estagiário — 6h/dia)
@@ -834,19 +825,20 @@ async function main() {
   const anoAtual = new Date().getFullYear();
   const anosFeriado = [anoAtual, anoAtual + 1];
   let datasFeriado = 0;
+  // Ano a ano, e só se o ano ainda não tem nenhum feriado nacional: garantir data a data trazia
+  // de volta, a cada deploy, o feriado que o admin excluiu de propósito.
   for (const ano of anosFeriado) {
-    for (const f of feriadosNacionais(ano)) {
-      // `update` vazio de propósito: feriado ajustado à mão pelo admin (nome,
-      // esfera) não deve ser sobrescrito pelo seed a cada deploy.
-      await prisma.feriado.upsert({
-        where: { data: f.data },
-        create: { data: f.data, nome: f.nome, tipo: "nacional" },
-        update: {},
-      });
-      datasFeriado++;
-    }
+    const jaTem = await prisma.feriado.count({
+      where: { tipo: "nacional", data: { gte: new Date(Date.UTC(ano, 0, 1)), lt: new Date(Date.UTC(ano + 1, 0, 1)) } },
+    });
+    if (jaTem > 0) continue;
+    const r = await prisma.feriado.createMany({
+      data: feriadosNacionais(ano).map((f) => ({ data: f.data, nome: f.nome, tipo: "nacional" })),
+      skipDuplicates: true,
+    });
+    datasFeriado += r.count;
   }
-  console.log(`✔ ${datasFeriado} feriados nacionais garantidos (${anosFeriado.join(", ")}).`);
+  console.log(`✔ ${datasFeriado} feriado(s) nacional(is) criado(s) (${anosFeriado.join(", ")}).`);
 }
 
 /** Layout exemplo: timbrado + dados do projeto + tabela de disciplinas + total. */
