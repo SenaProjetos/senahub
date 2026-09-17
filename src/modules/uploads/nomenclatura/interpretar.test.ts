@@ -77,6 +77,28 @@ describe("interpretarNomeArquivo — leitura básica", () => {
   });
 });
 
+describe("interpretarNomeArquivo — Lista Mestre gerada pelo HUB", () => {
+  // `nomeDaListaMestre` (modules/projetos/lista-mestre) grava PDF+XLSX com este nome; se o motor
+  // não o lesse, a Lista Mestre gerada cairia sem disciplina/tipo e pediria revisão.
+  it("lê disciplina, fase, número e tipo do nome gerado", () => {
+    for (const nome of ["260020-DRE-EX-6100-LMS.pdf", "260020-DRE-EX-6100-LMS.xlsx"]) {
+      const r = ler(nome);
+      expect(r.disciplina?.valor).toBe("d-dre");
+      expect(r.fase?.valor).toBe("f-ex");
+      expect(r.tipo?.valor).toBe("t-lms");
+      expect(r.numero?.valor).toBe(6100);
+      expect([r.disciplina, r.fase, r.tipo].every((c) => confiavel(c))).toBe(true);
+    }
+  });
+
+  it("número 0000 (disciplina sem faixa e sem folha numerada) ainda resolve pela sigla", () => {
+    const r = ler("260020-FUN-EX-0000-LMS.pdf");
+    expect(r.disciplina?.valor).toBe("d-fun");
+    expect(r.tipo?.valor).toBe("t-lms");
+    expect(confiavel(r.disciplina)).toBe(true);
+  });
+});
+
 describe("interpretarNomeArquivo — nome livre", () => {
   it("não lê preposição como tipo nem sigla de estado como fase", () => {
     expect(ler("ATA DE REUNIÃO.pdf").tipo).toBeUndefined();

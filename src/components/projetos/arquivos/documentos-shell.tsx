@@ -5,6 +5,7 @@ import { rotuloArea, type AreaDisponivel, type AreaProjeto } from "@/modules/upl
 import { ConteudoAreaProjeto, type DadosAreas } from "@/components/projetos/arquivos/conteudo-area-projeto";
 import { LinkPublicoArquivosButton } from "@/components/projetos/link-publico-arquivos-dialog";
 import { NomenclaturaProjetoButton } from "@/components/projetos/arquivos/nomenclatura-projeto-dialog";
+import { GerarListaMestreButton } from "@/components/projetos/arquivos/gerar-lista-mestre-dialog";
 import type { ListaPainel } from "@/components/projetos/arquivos/painel-listas";
 import { TabelaDocumentos } from "@/components/projetos/arquivos/tabela-documentos";
 import { FiltrosDocumentos, type OpcaoCatalogoDocumento } from "@/components/projetos/arquivos/filtros-documentos";
@@ -137,6 +138,13 @@ export function DocumentosShell({
             siglasProjeto={nomenclatura.siglasProjeto}
             podeEditar={nomenclatura.podeEditar}
           />
+          {dadosUploader && (
+            <GerarListaMestreButton
+              projetoId={projeto.id}
+              disciplinas={dadosUploader.disciplinas.filter((d) => !d.usaPastas).map((d) => ({ id: d.id, nome: d.nome }))}
+              podeEditarMetadados={dadosUploader.podeEditarMetadados}
+            />
+          )}
           {linkPublico && (
             <LinkPublicoArquivosButton
               projetoId={projeto.id}
