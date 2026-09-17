@@ -623,6 +623,11 @@ async function main() {
       },
       update: {},
     });
+    // Exceção: conta-filha SEM pai é resto de migration (a 2.09 nasce antes da conta "2" em
+    // banco novo, porque migrations rodam antes do seed) — essa o seed religa.
+    if (c.pai && cat.paiId === null) {
+      await prisma.categoriaFinanceira.update({ where: { id: cat.id }, data: { paiId: idsPorCodigo.get(c.pai) } });
+    }
     idsPorCodigo.set(c.codigo, cat.id);
   }
   console.log(`✔ ${PLANO_CONTAS.length} contas no plano de contas.`);
