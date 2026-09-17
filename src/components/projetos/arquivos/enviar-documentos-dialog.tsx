@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, FolderOpen, Trash2, Upload as UploadIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -13,6 +13,8 @@ import { enviarArquivoComProgresso, ErroEnvio, PainelProgressoEnvio, type LinhaE
 import { SeletorPasta } from "@/components/projetos/pasta-tree-view";
 import { Button } from "@/components/ui/button";
 import { CorrecaoNomeUpload, type DadosCorrecaoNomeUpload } from "@/components/projetos/arquivos/correcao-nome-upload";
+import { Checkbox } from "@/components/ui/checkbox";
+import { nomeCorrigidoPeloPadrao } from "@/modules/uploads/nome-corrigido";
 import {
   Dialog,
   DialogContent,
@@ -812,7 +814,109 @@ function RevisarNomesDialog({
   onConfirm: () => void;
 }) {
   const foraDoPadraoCount = itens?.filter((item) => item.fora).length ?? 0;
+  const temRenumerar = (item: ItemEnvio) => item.sugestoes.some((s) => s.tipo === "renumerar");
+  const projetoErradoCount = itens?.filter(temRenumerar).length ?? 0;
   const precisaEscolherCount = itens?.filter((item) => item.precisaDisciplina || item.precisaPasta).length ?? 0;
+
+  // Correção em lote (pedido do dono): renomear um por um era o único jeito quando vários
+  // arquivos vinham errados — dois casos, o dono distinguiu os dois na resposta:
+  // (1) número da prancha errado → mesmo fase+tipo, numeração em sequência a partir de um
+  //     número inicial ("fora do padrão" — a extensão da checkbox pro caso 2 é o achado do
+  //     advisor: o caso 1 não cobria "26027-EST-EX-4001-DET.pdf" no projeto 260032, que é
+  //     estruturalmente válido (foraDoPadrao = false) e só aparece como sugestão "renumerar");
+  // (2) código do projeto errado → já vem pronto na sugestão "renumerar" de cada item, só
+  //     falta aplicar em massa nos selecionados (o valor correto já é sempre o mesmo,
+  //     `ctx.projeto.codigo`, por construção — não precisa de input do usuário).
+  const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
+  const [loteFaseId, setLoteFaseId] = useState("");
+  const [loteTipoId, setLoteTipoId] = useState("");
+  const [loteNumeroInicial, setLoteNumeroInicial] = useState("");
+
+  // Diálogo fecha (enviado ou cancelado) e reabre depois com outro lote de arquivos — sem
+  // isto, a seleção e os campos do lote anterior vazavam pro próximo `itens`.
+  useEffect(() => {
+    if (itens) return;
+    setSelecionados(new Set());
+    setLoteFaseId("");
+    setLoteTipoId("");
+    setLoteNumeroInicial("");
+  }, [itens]);
+
+  function alternarSelecionado(indice: number) {
+    setSelecionados((atual) => {
+      const novo = new Set(atual);
+      if (novo.has(indice)) novo.delete(indice);
+      else novo.add(indice);
+      return novo;
+    });
+  }
+
+  function selecionarTodosForaDoPadrao() {
+    if (!itens) return;
+    setSelecionados(new Set(itens.map((item, i) => (item.fora ? i : -1)).filter((i) => i >= 0)));
+  }
+
+  function selecionarTodosComProjetoErrado() {
+    if (!itens) return;
+    setSelecionados(new Set(itens.map((item, i) => (temRenumerar(item) ? i : -1)).filter((i) => i >= 0)));
+  }
+
+  /** Fase+tipo iguais pra todos os selecionados, numeração sequencial a partir do inicial
+   *  informado — cada item mantém a PRÓPRIA disciplina (código do projeto e sigla da
+   *  disciplina de cada arquivo, nunca misturados entre disciplinas diferentes). Ignora
+   *  selecionados que não estão "fora do padrão" — esses são resolvidos por
+   *  `aplicarRenomeacaoDeProjetoEmLote`, não por este (evita renumerar em sequência um
+   *  arquivo cujo problema era só o código do projeto). */
+  function aplicarCorrecaoEmLote() {
+    if (!itens || selecionados.size === 0) return;
+    const fase = fases.find((f) => f.id === loteFaseId);
+    const tipo = tipos.find((t) => t.id === loteTipoId);
+    const numeroInicial = Number(loteNumeroInicial);
+    if (!fase || !tipo || !Number.isInteger(numeroInicial) || numeroInicial < 0) return;
+    let proximoNumero = numeroInicial;
+    let semSigla = 0;
+    const atualizados = itens.map((item, i) => {
+      if (!selecionados.has(i) || !item.fora) return item;
+      const disciplinaDoItem = item.disciplinaId ? disciplinas.find((d) => d.id === item.disciplinaId) : undefined;
+      if (!disciplinaDoItem?.sigla) {
+        semSigla += 1;
+        return item; // sem sigla cadastrada, não dá pra montar o nome — mantém como está
+      }
+      const numero = proximoNumero;
+      proximoNumero += 1;
+      const novoNome = nomeCorrigidoPeloPadrao({
+        nomeOriginal: item.file.name,
+        codigoProjeto,
+        siglaDisciplina: disciplinaDoItem.sigla,
+        fase: fase.sigla,
+        tipo: tipo.sigla,
+        numeracao: numero,
+      });
+      return { ...item, nome: novoNome, faseId: loteFaseId, tipoId: loteTipoId, fora: foraDoPadrao(novoNome, padrao) };
+    });
+    onChange(atualizados);
+    if (semSigla > 0) toast.error(`${semSigla} arquivo(s) não foram renomeados: disciplina sem sigla cadastrada.`);
+    setSelecionados(new Set());
+    setLoteFaseId("");
+    setLoteTipoId("");
+    setLoteNumeroInicial("");
+  }
+
+  /** Aplica a sugestão "renomear pro código do projeto correto" nos selecionados que a têm
+   *  — o valor certo já vem pronto em `sugestao.nome` (sempre `ctx.projeto.codigo`, nunca
+   *  precisa de input do usuário), então é só aceitar em massa. */
+  function aplicarRenomeacaoDeProjetoEmLote() {
+    if (!itens || selecionados.size === 0) return;
+    const atualizados = itens.map((item, i) => {
+      if (!selecionados.has(i)) return item;
+      const sugestao = item.sugestoes.find((s) => s.tipo === "renumerar");
+      if (!sugestao) return item;
+      const semEsta = item.sugestoes.filter((s) => s !== sugestao);
+      return { ...item, nome: sugestao.nome, fora: foraDoPadrao(sugestao.nome, padrao), sugestoes: semEsta };
+    });
+    onChange(atualizados);
+    setSelecionados(new Set());
+  }
 
   function alterar(indice: number, patch: Partial<ItemEnvio>) {
     if (!itens) return;
@@ -853,6 +957,16 @@ function RevisarNomesDialog({
   function remover(indice: number) {
     if (!itens) return;
     const proxima = itens.filter((_, i) => i !== indice);
+    // Índices da seleção deslocam junto — senão, remover o arquivo 2 fazia a seleção do
+    // arquivo 3 (agora no lugar do 2) ser tratada como se ainda fosse o 3 na hora do lote.
+    setSelecionados((atual) => {
+      const novo = new Set<number>();
+      atual.forEach((i) => {
+        if (i === indice) return;
+        novo.add(i > indice ? i - 1 : i);
+      });
+      return novo;
+    });
     if (proxima.length === 0) onCancel();
     else onChange(proxima);
   }
@@ -873,6 +987,115 @@ function RevisarNomesDialog({
             )}
           </DialogDescription>
         </DialogHeader>
+
+        {(() => {
+          const numeroInicial = Number(loteNumeroInicial);
+          const fase = fases.find((f) => f.id === loteFaseId);
+          const tipo = tipos.find((t) => t.id === loteTipoId);
+          // Ordena por índice: Set guarda ordem de inserção, mas aplicarCorrecaoEmLote numera
+          // em ordem do array — sem isto, marcar fora de ordem (o motivo do recurso existir)
+          // fazia a prévia mostrar o nome de um arquivo que nunca ficaria com esse número.
+          const indicePreview = itens ? [...selecionados].sort((a, b) => a - b).find((i) => itens[i]?.fora) : undefined;
+          const itemPreview = indicePreview !== undefined ? itens?.[indicePreview] : undefined;
+          const disciplinaPreview = itemPreview?.disciplinaId ? disciplinas.find((d) => d.id === itemPreview.disciplinaId) : undefined;
+          const nomePreview = fase && tipo && disciplinaPreview?.sigla && itemPreview
+            && Number.isInteger(numeroInicial) && numeroInicial >= 0
+            ? nomeCorrigidoPeloPadrao({
+                nomeOriginal: itemPreview.file.name,
+                codigoProjeto,
+                siglaDisciplina: disciplinaPreview.sigla,
+                fase: fase.sigla,
+                tipo: tipo.sigla,
+                numeracao: numeroInicial,
+              })
+            : null;
+          const selecionadosComProjetoErrado = itens ? [...selecionados].filter((i) => itens[i] && temRenumerar(itens[i])).length : 0;
+          const selecionadosForaDoPadrao = itens ? [...selecionados].filter((i) => itens[i]?.fora).length : 0;
+          return (foraDoPadraoCount > 1 || projetoErradoCount > 1) && (
+            <div className="space-y-2 rounded-md border border-dashed bg-muted/30 p-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[11px] font-medium">Corrigir vários de uma vez</p>
+                <div className="flex flex-wrap gap-2">
+                  {foraDoPadraoCount > 1 && (
+                    <button
+                      type="button"
+                      className="text-[11px] text-primary underline hover:no-underline"
+                      onClick={selecionarTodosForaDoPadrao}
+                    >
+                      Marcar todos fora do padrão ({foraDoPadraoCount})
+                    </button>
+                  )}
+                  {projetoErradoCount > 1 && (
+                    <button
+                      type="button"
+                      className="text-[11px] text-primary underline hover:no-underline"
+                      onClick={selecionarTodosComProjetoErrado}
+                    >
+                      Marcar todos com projeto errado ({projetoErradoCount})
+                    </button>
+                  )}
+                </div>
+              </div>
+              {selecionadosComProjetoErrado > 0 && (
+                <div className="flex items-center justify-between gap-2 rounded bg-background/60 p-1.5">
+                  <p className="text-[11px] text-muted-foreground">
+                    {selecionadosComProjetoErrado} com código de projeto errado — renomeia pro código certo, sem mexer no resto do nome.
+                  </p>
+                  <Button size="xs" variant="secondary" onClick={aplicarRenomeacaoDeProjetoEmLote}>
+                    Corrigir projeto ({selecionadosComProjetoErrado})
+                  </Button>
+                </div>
+              )}
+              {selecionadosForaDoPadrao > 0 && (
+                <>
+                  <p className="text-[11px] text-muted-foreground">
+                    {selecionadosForaDoPadrao} fora do padrão selecionado(s) — mesma fase e tipo, numeração em sequência a partir do número inicial.
+                  </p>
+                  <div className="grid gap-1.5 sm:grid-cols-3">
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Fase</Label>
+                      <Select value={loteFaseId} onValueChange={(v) => v && setLoteFaseId(v)}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecione…" /></SelectTrigger>
+                        <SelectContent>
+                          {fases.map((f) => <SelectItem key={f.id} value={f.id}>{f.sigla} · {f.nome}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Tipo</Label>
+                      <Select value={loteTipoId} onValueChange={(v) => v && setLoteTipoId(v)}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecione…" /></SelectTrigger>
+                        <SelectContent>
+                          {tipos.map((t) => <SelectItem key={t.id} value={t.id}>{t.sigla} · {t.nome}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Número inicial</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={loteNumeroInicial}
+                        onChange={(event) => setLoteNumeroInicial(event.target.value)}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+                  {nomePreview && <p className="text-[11px] text-muted-foreground">Ex.: {nomePreview}</p>}
+                  <Button
+                    size="xs"
+                    variant="secondary"
+                    disabled={!loteFaseId || !loteTipoId || loteNumeroInicial.trim() === ""}
+                    onClick={aplicarCorrecaoEmLote}
+                  >
+                    Aplicar a {selecionadosForaDoPadrao} arquivo(s)
+                  </Button>
+                </>
+              )}
+            </div>
+          );
+        })()}
+
         <div className="space-y-2">
           {itens?.map((item, indice) => {
             const { extensao } = separarExtensao(item.file.name);
@@ -883,6 +1106,14 @@ function RevisarNomesDialog({
               : null;
             return (
               <div key={`${item.file.name}-${indice}`} className="flex items-start gap-2 rounded-md border p-2">
+                {(item.fora || temRenumerar(item)) && (
+                  <Checkbox
+                    className="mt-0.5 shrink-0"
+                    checked={selecionados.has(indice)}
+                    onCheckedChange={() => alternarSelecionado(indice)}
+                    aria-label={`Selecionar ${item.file.name} pra correção em lote`}
+                  />
+                )}
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={item.file.name}>
@@ -959,7 +1190,7 @@ function RevisarNomesDialog({
                       faseId={item.faseId}
                       dados={dadosCorrecao}
                       onFaseChange={(faseId) => atualizarFase(indice, faseId)}
-                      onAplicar={(nome) => atualizarNome(indice, nome)}
+                      onAplicar={(nome) => alterar(indice, { nome, fora: foraDoPadrao(nome, padrao) })}
                     />
                   )}
                   <div className="grid grid-cols-2 gap-2">
