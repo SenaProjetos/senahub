@@ -56,6 +56,7 @@ import {
 import { DIAS_LIXEIRA, diasRestantesLixeira } from "@/modules/uploads/lixeira";
 import type { CanalListItem, ReacaoAgregada } from "@/modules/chat/queries";
 import { cn, formatarDiaMes } from "@/lib/utils";
+import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { INTERNAL_ROLES } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -453,6 +454,16 @@ function CapaGrupo({
   return <Users className="shrink-0 text-muted-foreground" style={{ width: size, height: size }} />;
 }
 
+/**
+ * Ícone do subcanal de disciplina — resolvido pelo CATÁLOGO (/configuracoes/disciplinas) via
+ * `DisciplinaIcone`: SVG custom → ícone da galeria → derivado do nome. Mesma fonte que projetos,
+ * então editar o ícone na tela de configurações reflete aqui sem tocar em código.
+ * Sem cor por disciplina de propósito: a cor de disciplina é do STATUS, e aqui não há status.
+ */
+function IconeDisciplinaCanal({ nome, className }: { nome: string; className?: string }) {
+  return <DisciplinaIcone nome={nome} className={cn("size-4 shrink-0 text-muted-foreground", className)} />;
+}
+
 function CanalBtn({
   c, sel, onSelect, indent, mostrarCodigo, isSilenciado, statusAtual, isOnline, onSilenciar, onMarcarLido,
 }: {
@@ -502,16 +513,20 @@ function CanalBtn({
           <NotebookPen className="size-4 shrink-0 text-muted-foreground" />
         ) : c.tipo === "socios" ? (
           <Briefcase className="size-4 shrink-0 text-muted-foreground" />
+        ) : c.tipo === "disciplina" ? (
+          <IconeDisciplinaCanal nome={c.nome} />
         ) : (
           <Hash className="size-4 shrink-0 text-muted-foreground" />
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-1">
             <span className={cn("truncate", c.naoLidas > 0 ? "font-bold" : "font-medium")}>
-              {c.nome}
+              {/* Código ANTES do nome: é o que identifica o projeto, e com nome longo era
+                  a primeira coisa a cair no `truncate`. */}
               {mostrarCodigo && c.projetoCodigo ? (
-                <span className="ml-1 font-mono text-xs text-muted-foreground">{formatarCodigo(c.projetoCodigo)}</span>
+                <span className="mr-1 font-mono text-xs text-muted-foreground">{formatarCodigo(c.projetoCodigo)}</span>
               ) : null}
+              {c.nome}
               {isSilenciado && (
                 <BellOff className="ml-1 inline size-2.5 text-muted-foreground" aria-label="Silenciado" />
               )}
@@ -1896,12 +1911,19 @@ export function ChatView({
             className="flex min-w-0 flex-1 items-center gap-1.5 py-2 pr-2 text-left text-sm hover:bg-muted/50"
           >
             <Hash className="size-4 shrink-0 text-muted-foreground" />
-            <span className="truncate font-semibold">
-              {g.codigo ? formatarCodigo(g.codigo) : g.principal?.nome ?? "Projeto"}
+            {/* Código e nome em LINHAS separadas: na mesma linha os dois `truncate` disputavam
+                a largura do sidebar (300px) e os DOIS saíam cortados. A linha do código não
+                trunca (é curto); só o nome do projeto trunca. */}
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-mono font-semibold">
+                {g.codigo ? formatarCodigo(g.codigo) : g.principal?.nome ?? "Projeto"}
+              </span>
+              {g.principal?.nome && g.codigo && (
+                <span className="block truncate text-xs font-normal leading-tight text-muted-foreground">
+                  {g.principal.nome}
+                </span>
+              )}
             </span>
-            {g.principal?.nome && g.codigo && (
-              <span className="truncate text-xs text-muted-foreground">· {g.principal.nome}</span>
-            )}
             <span className="ml-auto flex shrink-0 items-center gap-1">
               {/* Preenchido = não lidas no canal PRINCIPAL do projeto. */}
               {naoLidasPrincipal > 0 && (
@@ -2340,7 +2362,7 @@ export function ChatView({
               <Button variant="ghost" size="sm" className="lg:hidden" onClick={() => setSel(null)}>
                 ←
               </Button>
-              {canalSel.tipo === "dm" ? <AvatarUsuario nome={canalSel.nome} image={canalSel.outroUserImage} size="sm" className="size-6" /> : canalSel.tipo === "grupo" ? <CapaGrupo c={canalSel} size={20} /> : canalSel.tipo === "anotacoes" ? <NotebookPen className="size-4" /> : canalSel.tipo === "socios" ? <Briefcase className="size-4" /> : <Hash className="size-4" />}
+              {canalSel.tipo === "dm" ? <AvatarUsuario nome={canalSel.nome} image={canalSel.outroUserImage} size="sm" className="size-6" /> : canalSel.tipo === "grupo" ? <CapaGrupo c={canalSel} size={20} /> : canalSel.tipo === "anotacoes" ? <NotebookPen className="size-4" /> : canalSel.tipo === "socios" ? <Briefcase className="size-4" /> : canalSel.tipo === "disciplina" ? <IconeDisciplinaCanal nome={canalSel.nome} className="text-foreground" /> : <Hash className="size-4" />}
               <span className="font-semibold">{canalSel.nome}</span>
               {/* Anotações: o aviso de quem lê fica sempre à vista — é o que o Termo de Uso declara. */}
               {canalSel.tipo === "anotacoes" && !canalSel.observador && (
@@ -3637,6 +3659,7 @@ function EncaminharDialog({
     if (c.tipo === "grupo") return <CapaGrupo c={c} size={16} />;
     if (c.tipo === "anotacoes") return <NotebookPen className="size-4 shrink-0 text-muted-foreground" />;
     if (c.tipo === "socios") return <Briefcase className="size-4 shrink-0 text-muted-foreground" />;
+    if (c.tipo === "disciplina") return <IconeDisciplinaCanal nome={c.nome} />;
     return <Hash className="size-4 shrink-0 text-muted-foreground" />;
   }
 
