@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useDraggable } from "@dnd-kit/core";
-import { CalendarClock, GripVertical, RotateCcw, Users } from "lucide-react";
+import { CalendarClock, GripVertical, Handshake, Megaphone, RotateCcw, Users } from "lucide-react";
 import { reabrirNegociacao } from "@/modules/comercial/actions";
 import type { CardFunil } from "@/modules/comercial/queries";
 import { ESTAGIO_LABEL } from "@/modules/comercial/jornada";
@@ -20,6 +20,7 @@ import {
 import { diasSemInteracao, followUpAtrasado } from "@/modules/comercial/frescor";
 import { RegistrarInteracaoPopover } from "@/components/comercial/registrar-interacao-popover";
 import { ChecklistNegociacaoPopover } from "@/components/comercial/checklist-negociacao-popover";
+import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { brlInteiro } from "@/lib/utils";
@@ -82,8 +83,15 @@ export function FunilComercialCard({
             {card.tipo === "LEAD" && card.valorEstimado != null && (
               <span className="font-mono text-xs">{brlInteiro(card.valorEstimado)}</span>
             )}
-            {card.tipo === "NEGOCIACAO" && (card.valorProposto ?? card.valorEstimado) != null && (
-              <span className="font-mono text-xs">{brlInteiro((card.valorProposto ?? card.valorEstimado)!)}</span>
+            {card.tipo === "NEGOCIACAO" && card.valor != null && (
+              <span className="font-mono text-xs" title="Valor da proposta vigente (ou estimado, se ainda não há proposta)">
+                {brlInteiro(card.valor)}
+              </span>
+            )}
+            {card.tipo === "NEGOCIACAO" && card.desconto != null && card.desconto > 0 && (
+              <span className="font-mono text-[10px] text-muted-foreground" title="Desconto concedido">
+                −{brlInteiro(card.desconto)}
+              </span>
             )}
             {card.tipo === "NEGOCIACAO" && (
               <span className="font-mono text-[10px] text-muted-foreground" title="Probabilidade">
@@ -99,6 +107,11 @@ export function FunilComercialCard({
                 {TEMPERATURA_ICONE[card.temperatura]}
               </Badge>
             )}
+            {card.tipo === "LEAD" && card.campanha && (
+              <Badge variant="outline" className="max-w-32 truncate text-[10px]" title={`Campanha: ${card.campanha.nome}`}>
+                <Megaphone className="size-3 shrink-0" /> {card.campanha.nome}
+              </Badge>
+            )}
             {dias != null && dias >= 3 && (
               <span className="font-mono text-[10px] text-muted-foreground" title="Dias sem movimentação">
                 {dias}d
@@ -110,15 +123,26 @@ export function FunilComercialCard({
           </div>
 
           <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
-            {card.responsavel && (
-              <span className="truncate" title={`Responsável: ${card.responsavel.name}`}>
-                {card.responsavel.name}
+            {card.parceiro && (
+              <span className="flex min-w-0 items-center gap-1" title={`Parceiro: ${card.parceiro.nome}`}>
+                <Handshake className="size-3 shrink-0" />
+                <span className="truncate">{card.parceiro.nome}</span>
               </span>
             )}
             {card.tipo === "NEGOCIACAO" && card.qtdContatos > 0 && (
               <span className="flex shrink-0 items-center gap-0.5">
                 <Users className="size-3" /> {card.qtdContatos}
               </span>
+            )}
+            {/* Só a foto, sem nome — o nome vai no title/alt (leitor de tela e hover). */}
+            {card.responsavel && (
+              <AvatarUsuario
+                nome={card.responsavel.name}
+                image={card.responsavel.image}
+                size="sm"
+                title={`Responsável: ${card.responsavel.name}`}
+                className="ml-auto"
+              />
             )}
           </div>
 

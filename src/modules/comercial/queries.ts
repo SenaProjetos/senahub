@@ -463,8 +463,9 @@ async function detalharLeads(ids: string[]) {
       updatedAt: true,
       origemDetalhada: true,
       cliente: { select: { id: true, nome: true } },
-      responsavel: { select: { id: true, name: true } },
+      responsavel: { select: { id: true, name: true, image: true } },
       parceiro: { select: { id: true, nome: true } },
+      campanha: { select: { id: true, nome: true } },
       _count: { select: { propostas: true } },
     },
   });
@@ -585,6 +586,12 @@ export async function funilNegociacao(opts?: {
 }
 export type ColunaNegociacao = Awaited<ReturnType<typeof funilNegociacao>>[number];
 
+type Dinheiro = { toString(): string } | number | null | undefined;
+function valorDoCard(...candidatos: Dinheiro[]): number | null {
+  const achado = candidatos.find((c) => c != null);
+  return achado != null ? Number(achado) : null;
+}
+
 /** Mesma ideia de `detalharLeads`: ids já paginados → cards com relações, ações e checklist. */
 async function detalharNegociacoes(ids: string[]) {
   const negociacoes = await prisma.negociacao.findMany({
@@ -596,11 +603,12 @@ async function detalharNegociacoes(ids: string[]) {
         estagio: true,
         temperatura: true,
         valorEstimado: true,
-        valorProposto: true,
+        valorNegociado: true,
         probabilidade: true,
         updatedAt: true,
         cliente: { select: { id: true, nome: true } },
-        responsavel: { select: { id: true, name: true } },
+        responsavel: { select: { id: true, name: true, image: true } },
+        parceiro: { select: { id: true, nome: true } },
         _count: { select: { disciplinas: true, contatos: true } },
     },
   });
@@ -618,6 +626,21 @@ async function detalharNegociacoes(ids: string[]) {
   const proxima = new Map<string, (typeof acoes)[number]>();
   for (const a of acoes) {
     if (a.entidadeId && !proxima.has(a.entidadeId)) proxima.set(a.entidadeId, a);
+  }
+
+  // Valor e desconto do card vêm da versão vigente da proposta mais recente — é lá que o valor do
+  // negócio mora (F6.1a). `Negociacao.valorProposto/desconto` nunca foram escritos por ninguém.
+  // Uma consulta para a página inteira: ordenada da proposta/versão mais nova, a 1ª de cada
+  // negociação vence.
+  const versoes = await prisma.propostaVersao.findMany({
+    where: { proposta: { negociacaoId: { in: negociacoes.map((n) => n.id) } } },
+    orderBy: [{ proposta: { createdAt: "desc" } }, { numero: "desc" }],
+    select: { valorVersao: true, desconto: true, proposta: { select: { negociacaoId: true } } },
+  });
+  const vigentePorNegociacao = new Map<string, (typeof versoes)[number]>();
+  for (const v of versoes) {
+    const nid = v.proposta.negociacaoId;
+    if (nid && !vigentePorNegociacao.has(nid)) vigentePorNegociacao.set(nid, v);
   }
 
   // Checklist SOFT (F7.6): itens + marcado por card, sem N+1 — 2 queries no total (uma para o
@@ -658,11 +681,15 @@ async function detalharNegociacoes(ids: string[]) {
       estagio: n.estagio,
       temperatura: n.temperatura,
       valorEstimado: n.valorEstimado != null ? Number(n.valorEstimado) : null,
-      valorProposto: n.valorProposto != null ? Number(n.valorProposto) : null,
+      /** Vigente > negociado > estimado: o que a pessoa deve ver no card, e de onde veio. */
+      valor: valorDoCard(vigentePorNegociacao.get(n.id)?.valorVersao, n.valorNegociado, n.valorEstimado),
+      desconto:
+        vigentePorNegociacao.get(n.id)?.desconto != null ? Number(vigentePorNegociacao.get(n.id)!.desconto) : null,
       probabilidade: n.probabilidade,
       updatedAt: n.updatedAt.toISOString(),
       cliente: n.cliente,
       responsavel: n.responsavel,
+      parceiro: n.parceiro,
       qtdDisciplinas: n._count.disciplinas,
       qtdContatos: n._count.contatos,
       proximaAcao: p
