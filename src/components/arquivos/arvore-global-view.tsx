@@ -25,16 +25,26 @@ import { cn } from "@/lib/utils";
 import { MAX_ARQUIVOS_ZIP, type NoAnoGlobal, type NoDisciplinaGlobal, type NoPastaGlobal, type NoProjetoGlobal } from "@/modules/arquivos/arvore-global";
 import type { NoFase } from "@/modules/uploads/arvore-navegacao";
 
-/** Ícone por formato — o mesmo vocabulário visual do diretório antigo. */
+/**
+ * Ícone por formato.
+ *
+ * Cor só nos quatro que o escritório distingue de longe — prancha, CAD, modelo e planilha. O
+ * resto fica em cinza e se diferencia pelo DESENHO do ícone, não pela cor.
+ *
+ * `text-primary` NÃO serve aqui: o primário é o azul-marinho da marca (#1c2d58), quase a cor do
+ * texto — o ícone parecia sem cor nenhuma ao lado do vermelho do PDF. Os quatro usam tokens
+ * semânticos distintos entre si. Os `--status-*` ficam de fora de propósito: eles significam
+ * situação de disciplina, e gastá-los em formato de arquivo embaralharia a leitura da paleta.
+ */
 function IconeFormato({ ext }: { ext: string }) {
   const e = ext.toLowerCase();
   const classe = "size-3.5 shrink-0";
   if (e === "pdf") return <FileText className={`${classe} text-destructive`} aria-hidden />;
-  if (["dwg", "dxf", "dwf"].includes(e)) return <FileCode className={`${classe} text-primary`} aria-hidden />;
-  if (["ifc", "rvt", "skp"].includes(e)) return <FileBox className={`${classe} text-primary`} aria-hidden />;
-  if (["xls", "xlsx", "csv"].includes(e)) return <FileSpreadsheet className={`${classe} text-status-aprovado`} aria-hidden />;
+  if (["dwg", "dxf", "dwf"].includes(e)) return <FileCode className={`${classe} text-info`} aria-hidden />;
+  if (["ifc", "rvt", "skp"].includes(e)) return <FileBox className={`${classe} text-warning`} aria-hidden />;
+  if (["xls", "xlsx", "csv"].includes(e)) return <FileSpreadsheet className={`${classe} text-success`} aria-hidden />;
   if (["zip", "rar", "7z"].includes(e)) return <FileArchive className={`${classe} text-muted-foreground`} aria-hidden />;
-  if (["png", "jpg", "jpeg", "gif", "webp"].includes(e)) return <ImageIcon className={`${classe} text-primary`} aria-hidden />;
+  if (["png", "jpg", "jpeg", "gif", "webp"].includes(e)) return <ImageIcon className={`${classe} text-muted-foreground`} aria-hidden />;
   return <FileIcon className={`${classe} text-muted-foreground`} aria-hidden />;
 }
 
