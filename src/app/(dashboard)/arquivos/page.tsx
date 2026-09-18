@@ -20,9 +20,10 @@ export default async function ArquivosDiretorioPage({ searchParams }: { searchPa
   const sp = (await searchParams) ?? {};
   const texto = (v: string | string[] | undefined) => (typeof v === "string" && v.trim() !== "" ? v : null);
 
-  const [veTodas, podeValidar, podeVerGeral, podeCoordenacao] = await Promise.all([
+  // Sem `uploads:validar`: o diretório geral MOSTRA o estado da validação e não deixa mudá-lo.
+  // Validar exige o contexto da aba do projeto (apontamentos, revisão, entrega).
+  const [veTodas, podeVerGeral, podeCoordenacao] = await Promise.all([
     podeVerTodasDisciplinas(user),
-    can(user, "uploads", "validar"),
     can(user, "arquivos_gerais", "ver"),
     can(user, "coordenacao", "ver"),
   ]);
@@ -129,7 +130,6 @@ export default async function ArquivosDiretorioPage({ searchParams }: { searchPa
           <TabelaGlobalArquivos
             linhas={pagina.linhas}
             projetos={projetosPorId}
-            podeValidar={podeValidar}
             podeCoordenacao={podeCoordenacao}
             temFiltro={temFiltro}
           />

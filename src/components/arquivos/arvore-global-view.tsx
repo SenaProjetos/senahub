@@ -2,13 +2,77 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronRight, ExternalLink, Folder, FolderOpen, FolderKanban, Search } from "lucide-react";
+import {
+  Calendar,
+  ChevronRight,
+  ExternalLink,
+  File as FileIcon,
+  FileArchive,
+  FileBox,
+  FileCode,
+  FileSpreadsheet,
+  FileText,
+  FolderKanban,
+  FolderOpen,
+  Image as ImageIcon,
+  Layers,
+  Search,
+} from "lucide-react";
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { useSetParams } from "@/lib/use-set-param";
 import { normalizar } from "@/lib/disciplinas-core";
 import { cn } from "@/lib/utils";
-import type { NoAnoGlobal, NoDisciplinaGlobal, NoPastaGlobal, NoProjetoGlobal } from "@/modules/arquivos/arvore-global";
+import { MAX_ARQUIVOS_ZIP, type NoAnoGlobal, type NoDisciplinaGlobal, type NoPastaGlobal, type NoProjetoGlobal } from "@/modules/arquivos/arvore-global";
 import type { NoFase } from "@/modules/uploads/arvore-navegacao";
+
+/** Ícone por formato — o mesmo vocabulário visual do diretório antigo. */
+function IconeFormato({ ext }: { ext: string }) {
+  const e = ext.toLowerCase();
+  const classe = "size-3.5 shrink-0";
+  if (e === "pdf") return <FileText className={`${classe} text-destructive`} aria-hidden />;
+  if (["dwg", "dxf", "dwf"].includes(e)) return <FileCode className={`${classe} text-primary`} aria-hidden />;
+  if (["ifc", "rvt", "skp"].includes(e)) return <FileBox className={`${classe} text-primary`} aria-hidden />;
+  if (["xls", "xlsx", "csv"].includes(e)) return <FileSpreadsheet className={`${classe} text-status-aprovado`} aria-hidden />;
+  if (["zip", "rar", "7z"].includes(e)) return <FileArchive className={`${classe} text-muted-foreground`} aria-hidden />;
+  if (["png", "jpg", "jpeg", "gif", "webp"].includes(e)) return <ImageIcon className={`${classe} text-primary`} aria-hidden />;
+  return <FileIcon className={`${classe} text-muted-foreground`} aria-hidden />;
+}
+
+/**
+ * Baixar a pasta em .zip. Aparece de PROJETO para baixo — ano e "todos os projetos" ficariam
+ * grandes demais para um download só, e o clique acidental sairia caro.
+ *
+ * Acima do teto o botão já nasce desabilitado, com o número no title: é melhor a pessoa saber
+ * antes de clicar do que receber erro depois de esperar. A rota recusa de novo, porque a tela
+ * não é autoridade de nada.
+ */
+function BaixarPasta({ rotulo, totalArquivos, params }: { rotulo: string; totalArquivos: number; params: Record<string, string> }) {
+  if (totalArquivos === 0) return null;
+  const excede = totalArquivos > MAX_ARQUIVOS_ZIP;
+  const classe = "shrink-0 rounded p-1 transition-colors";
+
+  if (excede) {
+    return (
+      <span
+        className={`${classe} cursor-not-allowed text-muted-foreground/50`}
+        title={`${totalArquivos} arquivos — acima do limite de ${MAX_ARQUIVOS_ZIP} por download. Escolha uma fase ou um formato.`}
+        aria-disabled="true"
+      >
+        <FileArchive className="size-3.5" aria-hidden />
+      </span>
+    );
+  }
+  return (
+    <a
+      href={`/api/arquivos/zip?${new URLSearchParams(params)}`}
+      className={`${classe} text-muted-foreground hover:bg-accent hover:text-foreground`}
+      title={`Baixar ${rotulo} (${totalArquivos} arquivo${totalArquivos === 1 ? "" : "s"})`}
+      aria-label={`Baixar ${rotulo} em .zip`}
+    >
+      <FileArchive className="size-3.5" aria-hidden />
+    </a>
+  );
+}
 
 export type SelecaoGlobal = {
   ano: string | null;
@@ -108,7 +172,7 @@ export function ArvoreGlobalView({ arvore, selecao }: { arvore: NoAnoGlobal[]; s
                 selecionado={selecao.ano === chave && !selecao.projetoId}
                 aberto={aberto}
                 temFilhos
-                icone={<Folder className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
+                icone={<Calendar className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
                 onChevron={() => alternar(chave)}
                 onClick={() => {
                   setAbertos((a) => new Set(a).add(chave));
@@ -173,6 +237,13 @@ function NoProjeto({
         aberto={aberto}
         temFilhos
         icone={<FolderKanban className="size-3.5 shrink-0 text-primary" aria-hidden />}
+        acao={
+          <BaixarPasta
+            rotulo={projeto.codigo}
+            totalArquivos={projeto.totalArquivos}
+            params={{ projetoId: projeto.projetoId }}
+          />
+        }
         onChevron={() => alternar(chave)}
         onClick={() => {
           abrir(chave);
@@ -241,6 +312,13 @@ function NoDisciplina({
         aberto={aberto}
         temFilhos
         icone={<DisciplinaIcone nome={disciplina.rotulo} className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
+        acao={
+          <BaixarPasta
+            rotulo={`${disciplina.rotulo}`}
+            totalArquivos={disciplina.totalArquivos}
+            params={{ projetoId, disciplinaId: disciplina.disciplinaId }}
+          />
+        }
         onChevron={() => alternar(chave)}
         onClick={() => {
           abrir(chave);
@@ -306,6 +384,14 @@ function NoFaseItem({
         selecionado={selecionado}
         aberto={aberto}
         temFilhos={fase.extensoes.length > 0}
+        icone={<Layers className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
+        acao={
+          <BaixarPasta
+            rotulo={fase.rotulo}
+            totalArquivos={fase.totalArquivos}
+            params={{ projetoId, disciplinaId, fase: fase.chave }}
+          />
+        }
         onChevron={() => alternar(chave)}
         onClick={() => {
           abrir(chave);
@@ -325,6 +411,14 @@ function NoFaseItem({
                 rotulo={ext.rotulo}
                 total={ext.total}
                 mono
+                icone={<IconeFormato ext={ext.chave} />}
+                acao={
+                  <BaixarPasta
+                    rotulo={`${fase.rotulo} / ${ext.rotulo}`}
+                    totalArquivos={ext.totalArquivos}
+                    params={{ projetoId, disciplinaId, fase: fase.chave, ext: ext.chave }}
+                  />
+                }
                 selecionado={
                   selecao.disciplinaId === disciplinaId && selecao.fase === fase.chave && selecao.ext === ext.chave
                 }
@@ -410,6 +504,7 @@ function BotaoNo({
   icone,
   mono,
   negrito,
+  acao,
   onChevron,
   onClick,
 }: {
@@ -424,6 +519,8 @@ function BotaoNo({
   icone?: React.ReactNode;
   mono?: boolean;
   negrito?: boolean;
+  /** Ação à direita do nó (hoje, baixar a pasta em .zip). */
+  acao?: React.ReactNode;
   onChevron?: () => void;
   onClick: () => void;
 }) {
@@ -458,6 +555,7 @@ function BotaoNo({
         </span>
         <span className="shrink-0 font-normal tabular-nums text-muted-foreground">{total}</span>
       </button>
+      {acao}
     </div>
   );
 }

@@ -9,7 +9,13 @@ function fase(chave: string, total: number, extensoes: { chave: string; total: n
     rotulo: chave.toUpperCase(),
     titulo: chave,
     total,
-    extensoes: extensoes.map((e) => ({ chave: e.chave, rotulo: e.chave.toUpperCase(), total: e.total })),
+    totalArquivos: extensoes.length ? extensoes.reduce((n, e) => n + e.total, 0) : total,
+    extensoes: extensoes.map((e) => ({
+      chave: e.chave,
+      rotulo: e.chave.toUpperCase(),
+      total: e.total,
+      totalArquivos: e.total,
+    })),
   };
 }
 
@@ -76,8 +82,8 @@ describe("montarArvoreGlobal", () => {
 
   it("disciplina de aprovação/laudo mostra a árvore de pastas no lugar de fase → formato", () => {
     const pastas: PastaParaArvoreGlobal[] = [
-      { id: "raiz", disciplinaId: "d1", parentId: null, nome: "Prefeitura", ordem: 0, total: 1 },
-      { id: "filha", disciplinaId: "d1", parentId: "raiz", nome: "Protocolo", ordem: 0, total: 2 },
+      { id: "raiz", disciplinaId: "d1", parentId: null, nome: "Prefeitura", ordem: 0, total: 1, totalArquivos: 1 },
+      { id: "filha", disciplinaId: "d1", parentId: "raiz", nome: "Protocolo", ordem: 0, total: 2, totalArquivos: 2 },
     ];
     const arvore = montarArvoreGlobal({
       projetos: [P2026],
@@ -103,7 +109,7 @@ describe("montarArvoreGlobal", () => {
       projetos: [P2026],
       disciplinas: [{ id: "d1", projetoId: "p1", nome: "Aprovação", usaPastas: true }],
       documentos: docs(["p1", "d1", [fase("ex", 1)]]),
-      pastas: [{ id: "solta", disciplinaId: "d1", parentId: "sumiu", nome: "Solta", ordem: 0, total: 1 }],
+      pastas: [{ id: "solta", disciplinaId: "d1", parentId: "sumiu", nome: "Solta", ordem: 0, total: 1, totalArquivos: 1 }],
       areas: [],
     });
 
@@ -118,8 +124,8 @@ describe("montarArvoreGlobal", () => {
       disciplinas: [{ id: "d1", projetoId: "p1", nome: "Aprovação", usaPastas: true }],
       documentos: docs(["p1", "d1", [fase("ex", 1)]]),
       pastas: [
-        { id: "a", disciplinaId: "d1", parentId: "b", nome: "A", ordem: 0, total: 1 },
-        { id: "b", disciplinaId: "d1", parentId: "a", nome: "B", ordem: 0, total: 1 },
+        { id: "a", disciplinaId: "d1", parentId: "b", nome: "A", ordem: 0, total: 1, totalArquivos: 1 },
+        { id: "b", disciplinaId: "d1", parentId: "a", nome: "B", ordem: 0, total: 1, totalArquivos: 1 },
       ],
       areas: [],
     });

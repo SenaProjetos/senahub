@@ -23,12 +23,24 @@ export type DocumentoParaArvore = {
   faseId: string | null;
   faseSigla: string | null;
   faseNome: string | null;
-  /** Extensões dos arquivos vivos do documento, em minúsculas e sem ponto. */
+  /**
+   * Extensões dos arquivos vivos do documento, em minúsculas e sem ponto — UMA POR ARQUIVO,
+   * inclusive repetida e inclusive vazia (arquivo sem ponto no nome). O comprimento do array é
+   * o número de arquivos do documento, e é dele que sai `totalArquivos` de cada nó.
+   */
   extensoes: string[];
 };
 
-export type NoExtensao = { chave: string; rotulo: string; total: number };
-export type NoFase = { chave: string; rotulo: string; titulo: string; total: number; extensoes: NoExtensao[] };
+/** `total` conta DOCUMENTOS; `totalArquivos` conta ARQUIVOS (o que entra num .zip). */
+export type NoExtensao = { chave: string; rotulo: string; total: number; totalArquivos: number };
+export type NoFase = {
+  chave: string;
+  rotulo: string;
+  titulo: string;
+  total: number;
+  totalArquivos: number;
+  extensoes: NoExtensao[];
+};
 export type ArvoreDaDisciplina = { disciplinaId: string; fases: NoFase[] };
 
 function ordenarPorRotulo<T extends { rotulo: string }>(itens: T[]): T[] {
@@ -48,7 +60,19 @@ export function montarArvoreNavegacao(
 ): ArvoreDaDisciplina[] {
   const conhecidas = new Set([...extensoesConhecidas].map((e) => e.toLowerCase()));
   // disciplina → fase → extensão → documentos distintos
-  const porDisciplina = new Map<string, Map<string, { rotulo: string; titulo: string; docs: Set<string>; exts: Map<string, Set<string>> }>>();
+  const porDisciplina = new Map<
+    string,
+    Map<
+      string,
+      {
+        rotulo: string;
+        titulo: string;
+        docs: Set<string>;
+        arquivos: number;
+        exts: Map<string, { docs: Set<string>; arquivos: number }>;
+      }
+    >
+  >();
 
   for (const doc of documentos) {
     const fases = porDisciplina.get(doc.disciplinaId) ?? new Map();
@@ -59,10 +83,12 @@ export function montarArvoreNavegacao(
       rotulo: doc.faseSigla ?? "Sem fase",
       titulo: doc.faseNome ?? (doc.faseId ? (doc.faseSigla ?? "") : "Documentos ainda sem fase definida"),
       docs: new Set<string>(),
-      exts: new Map<string, Set<string>>(),
+      arquivos: 0,
+      exts: new Map<string, { docs: Set<string>; arquivos: number }>(),
     };
     fases.set(chaveFase, fase);
     fase.docs.add(doc.id);
+    fase.arquivos += doc.extensoes.length;
 
     // Sem extensão nenhuma (nome sem ponto) também é "Outros" — o documento existe e precisa
     // aparecer em algum lugar, senão some da árvore e a contagem da fase não fecha com nada.
@@ -70,9 +96,10 @@ export function montarArvoreNavegacao(
     for (const bruta of chaves) {
       const ext = bruta.toLowerCase();
       const chave = ext === EXT_OUTROS || !conhecidas.has(ext) ? EXT_OUTROS : ext;
-      const docs = fase.exts.get(chave) ?? new Set<string>();
-      fase.exts.set(chave, docs);
-      docs.add(doc.id);
+      const balde = fase.exts.get(chave) ?? { docs: new Set<string>(), arquivos: 0 };
+      fase.exts.set(chave, balde);
+      balde.docs.add(doc.id);
+      balde.arquivos += 1;
     }
   }
 
@@ -84,11 +111,13 @@ export function montarArvoreNavegacao(
         rotulo: fase.rotulo,
         titulo: fase.titulo,
         total: fase.docs.size,
+        totalArquivos: fase.arquivos,
         extensoes: ordenarPorRotulo(
-          [...fase.exts].map(([chaveExt, docs]) => ({
+          [...fase.exts].map(([chaveExt, balde]) => ({
             chave: chaveExt,
             rotulo: chaveExt === EXT_OUTROS ? "Outros" : chaveExt.toUpperCase(),
-            total: docs.size,
+            total: balde.docs.size,
+            totalArquivos: balde.arquivos,
           })),
         ),
       })),

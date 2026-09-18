@@ -624,7 +624,10 @@ export async function arvoreNavegacaoDocumentos(opts: {
     faseId: d.fase?.id ?? null,
     faseSigla: d.fase?.sigla ?? null,
     faseNome: d.fase?.nome ?? null,
-    extensoes: d.uploads.map((u) => extensaoDe(u.nomeArquivo)).filter(Boolean),
+    // Sem `filter`: uma entrada POR ARQUIVO, inclusive vazia (nome sem ponto). O comprimento
+    // é o número de arquivos do documento, e a árvore conta os .zip a partir dele; filtrar
+    // faria o arquivo sem extensão sumir da contagem e o botão prometer menos do que baixa.
+    extensoes: d.uploads.map((u) => extensaoDe(u.nomeArquivo)),
   }));
   // `montarArvoreNavegacao` continua pura e cega a projeto — o vínculo é costurado aqui, para
   // não mexer no contrato de contagem do módulo (que o link público também usa).

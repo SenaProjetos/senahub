@@ -30,6 +30,13 @@ import { AREAS_PROJETO, rotuloArea, type AreaProjeto } from "@/modules/uploads/a
 import type { ArvoreDaDisciplinaComProjeto } from "@/modules/uploads/documentos-agrupados";
 import type { NoFase } from "@/modules/uploads/arvore-navegacao";
 
+/**
+ * Teto de arquivos por .zip, o mesmo de `/api/uploads/zip` — as duas rotas não podem divergir.
+ * Fica no módulo puro porque a TELA também precisa dele: o botão de baixar pasta já nasce
+ * desabilitado acima do teto, em vez de deixar a pessoa clicar e receber erro.
+ */
+export const MAX_ARQUIVOS_ZIP = 500;
+
 export type ProjetoParaArvoreGlobal = {
   id: string;
   ano: number;
@@ -53,6 +60,8 @@ export type PastaParaArvoreGlobal = {
   ordem: number;
   /** Documentos vivos DENTRO desta pasta (não inclui os das subpastas). */
   total: number;
+  /** Arquivos vivos dentro desta pasta — o que entra no .zip dela. */
+  totalArquivos: number;
 };
 
 export type ContagemAreaProjeto = { projetoId: string; area: AreaProjeto; total: number };
@@ -62,6 +71,7 @@ export type NoPastaGlobal = {
   rotulo: string;
   /** Documentos desta pasta E de tudo abaixo dela — é o que o clique entrega. */
   total: number;
+  totalArquivos: number;
   filhos: NoPastaGlobal[];
 };
 
@@ -69,6 +79,8 @@ export type NoDisciplinaGlobal = {
   disciplinaId: string;
   rotulo: string;
   total: number;
+  /** Arquivos, não documentos: é o número que decide se a pasta cabe num .zip. */
+  totalArquivos: number;
 } & ({ formato: "fases"; fases: NoFase[] } | { formato: "pastas"; pastas: NoPastaGlobal[] });
 
 export type NoAreaGlobal = { area: AreaProjeto; rotulo: string; total: number };
@@ -79,15 +91,21 @@ export type NoProjetoGlobal = {
   nome: string;
   /** Só documentos de disciplina — as áreas contam à parte (ver cabeçalho). */
   total: number;
+  totalArquivos: number;
   disciplinas: NoDisciplinaGlobal[];
   areas: NoAreaGlobal[];
 };
 
-export type NoAnoGlobal = { ano: number; total: number; projetos: NoProjetoGlobal[] };
+export type NoAnoGlobal = { ano: number; total: number; totalArquivos: number; projetos: NoProjetoGlobal[] };
 
 /** Documentos da disciplina, somando as FASES — um documento tem uma fase só. */
 function totalDaDisciplina(fases: NoFase[]): number {
   return fases.reduce((soma, f) => soma + f.total, 0);
+}
+
+/** Arquivos da disciplina, pela mesma soma — é o que entra no .zip dela. */
+function arquivosDaDisciplina(fases: NoFase[]): number {
+  return fases.reduce((soma, f) => soma + f.totalArquivos, 0);
 }
 
 /**
@@ -110,7 +128,13 @@ function montarPastas(pastas: PastaParaArvoreGlobal[]): NoPastaGlobal[] {
   const construir = (pasta: PastaParaArvoreGlobal, visitados: Set<string>): NoPastaGlobal => {
     // Ciclo em `parentId` travaria a recursão: o nó repetido vira folha.
     if (visitados.has(pasta.id)) {
-      return { pastaId: pasta.id, rotulo: pasta.nome, total: pasta.total, filhos: [] };
+      return {
+        pastaId: pasta.id,
+        rotulo: pasta.nome,
+        total: pasta.total,
+        totalArquivos: pasta.totalArquivos,
+        filhos: [],
+      };
     }
     const proximos = new Set(visitados).add(pasta.id);
     const filhos = (filhosDe.get(pasta.id) ?? [])
@@ -121,6 +145,7 @@ function montarPastas(pastas: PastaParaArvoreGlobal[]): NoPastaGlobal[] {
       pastaId: pasta.id,
       rotulo: pasta.nome,
       total: pasta.total + filhos.reduce((soma, f) => soma + f.total, 0),
+      totalArquivos: pasta.totalArquivos + filhos.reduce((soma, f) => soma + f.totalArquivos, 0),
       filhos,
     };
   };
@@ -182,7 +207,12 @@ export function montarArvoreGlobal(entrada: {
       // Disciplina sem documento visível não vira pasta — nem quando tem estrutura de pastas
       // criada: pasta vazia em 16 projetos é ruído, e o arquivo é que justifica o nó.
       if (total === 0) continue;
-      const base = { disciplinaId: disciplina.id, rotulo: disciplina.nome, total };
+      const base = {
+        disciplinaId: disciplina.id,
+        rotulo: disciplina.nome,
+        total,
+        totalArquivos: arquivosDaDisciplina(fases),
+      };
       nosDisciplina.push(
         disciplina.usaPastas
           ? { ...base, formato: "pastas", pastas: montarPastas(pastasPorDisciplina.get(disciplina.id) ?? []) }
@@ -206,6 +236,7 @@ export function montarArvoreGlobal(entrada: {
       codigo: projeto.codigo,
       nome: projeto.nome,
       total: nosDisciplina.reduce((soma, d) => soma + d.total, 0),
+      totalArquivos: nosDisciplina.reduce((soma, d) => soma + d.totalArquivos, 0),
       disciplinas: nosDisciplina,
       areas: nosArea,
     });
@@ -227,6 +258,7 @@ export function montarArvoreGlobal(entrada: {
     .map(([ano, lista]) => ({
       ano,
       total: lista.reduce((soma, p) => soma + p.total, 0),
+      totalArquivos: lista.reduce((soma, p) => soma + p.totalArquivos, 0),
       projetos: lista.slice().sort((a, b) => a.codigo.localeCompare(b.codigo, "pt-BR")),
     }));
 }

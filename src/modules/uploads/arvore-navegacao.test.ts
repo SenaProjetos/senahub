@@ -36,8 +36,8 @@ describe("montarArvoreNavegacao", () => {
     expect(dre?.fases).toHaveLength(1);
     expect(dre?.fases[0]).toMatchObject({ chave: "f-ex", rotulo: "EX", total: 2 });
     expect(dre?.fases[0].extensoes).toEqual([
-      { chave: "dwg", rotulo: "DWG", total: 1 },
-      { chave: "pdf", rotulo: "PDF", total: 2 },
+      { chave: "dwg", rotulo: "DWG", total: 1, totalArquivos: 1 },
+      { chave: "pdf", rotulo: "PDF", total: 2, totalArquivos: 2 },
     ]);
   });
 
@@ -45,6 +45,31 @@ describe("montarArvoreNavegacao", () => {
     const [{ fases }] = montarArvoreNavegacao([doc({ id: "1", extensoes: ["pdf", "dwg"] })], CONHECIDAS);
     expect(fases[0].total).toBe(1);
     expect(fases[0].extensoes.map((e) => e.total)).toEqual([1, 1]);
+  });
+
+  it("conta ARQUIVOS além de documentos — é o número que decide se a pasta cabe num .zip", () => {
+    const [{ fases }] = montarArvoreNavegacao(
+      [doc({ id: "1", extensoes: ["pdf", "dwg"] }), doc({ id: "2", extensoes: ["pdf"] })],
+      CONHECIDAS,
+    );
+    expect(fases[0].total).toBe(2);
+    expect(fases[0].totalArquivos).toBe(3);
+    expect(fases[0].extensoes.find((e) => e.chave === "pdf")).toMatchObject({ total: 2, totalArquivos: 2 });
+    expect(fases[0].extensoes.find((e) => e.chave === "dwg")).toMatchObject({ total: 1, totalArquivos: 1 });
+  });
+
+  it("dois arquivos da MESMA extensão contam 1 documento e 2 arquivos", () => {
+    const [{ fases }] = montarArvoreNavegacao([doc({ id: "1", extensoes: ["pdf", "pdf"] })], CONHECIDAS);
+    expect(fases[0].extensoes).toEqual([{ chave: "pdf", rotulo: "PDF", total: 1, totalArquivos: 2 }]);
+    expect(fases[0].totalArquivos).toBe(2);
+  });
+
+  it("arquivo sem extensão entra na contagem de arquivos, não some", () => {
+    // O nome sem ponto vira entrada vazia e cai em "Outros": se fosse filtrado, o botão de
+    // baixar prometeria menos arquivos do que o .zip realmente leva.
+    const [{ fases }] = montarArvoreNavegacao([doc({ id: "1", extensoes: ["pdf", ""] })], CONHECIDAS);
+    expect(fases[0].totalArquivos).toBe(2);
+    expect(fases[0].extensoes.find((e) => e.chave === EXT_OUTROS)).toMatchObject({ total: 1, totalArquivos: 1 });
   });
 
   it("extensão fora do catálogo e arquivo sem extensão caem em Outros", () => {
@@ -77,7 +102,7 @@ describe("montarArvoreNavegacao", () => {
       [doc({ id: "1", extensoes: ["PDF"] }), doc({ id: "2", extensoes: ["pdf"] })],
       CONHECIDAS,
     );
-    expect(fases[0].extensoes).toEqual([{ chave: "pdf", rotulo: "PDF", total: 2 }]);
+    expect(fases[0].extensoes).toEqual([{ chave: "pdf", rotulo: "PDF", total: 2, totalArquivos: 2 }]);
   });
 });
 

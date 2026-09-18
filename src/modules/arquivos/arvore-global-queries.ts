@@ -4,12 +4,18 @@ import { escopoProjeto } from "@/modules/projetos/queries";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { arvoreNavegacaoDocumentos } from "@/modules/uploads/documentos-agrupados";
 import { AREAS_PROJETO, type AreaProjeto } from "@/modules/uploads/areas-projeto";
+import { EXT_OUTROS, FASE_SEM, extensaoDoNome } from "@/modules/uploads/arvore-navegacao";
+import { carregarExtensoesNomenclatura } from "@/modules/uploads/nomenclatura/queries";
+import { slug } from "@/lib/storage";
 import {
+  MAX_ARQUIVOS_ZIP,
   montarArvoreGlobal,
   type ContagemAreaProjeto,
   type NoAnoGlobal,
   type PastaParaArvoreGlobal,
 } from "./arvore-global";
+
+export { MAX_ARQUIVOS_ZIP };
 import type { SessionUser } from "@/lib/session";
 
 /**
@@ -176,13 +182,16 @@ async function pastasDoEscopo(disciplinaIds: string[]): Promise<PastaParaArvoreG
     },
     select: { id: true, uploads: { where: { excluidoEm: null }, select: { pastaId: true } } },
   });
-  const porPasta = new Map<string, Set<string>>();
+  // Documentos e ARQUIVOS por pasta: o primeiro é o que a árvore mostra, o segundo é o que
+  // decide se o .zip da pasta cabe no teto da rota.
+  const porPasta = new Map<string, { docs: Set<string>; arquivos: number }>();
   for (const doc of documentos) {
     for (const u of doc.uploads) {
       if (!u.pastaId) continue;
-      const docs = porPasta.get(u.pastaId) ?? new Set<string>();
-      docs.add(doc.id);
-      porPasta.set(u.pastaId, docs);
+      const balde = porPasta.get(u.pastaId) ?? { docs: new Set<string>(), arquivos: 0 };
+      balde.docs.add(doc.id);
+      balde.arquivos += 1;
+      porPasta.set(u.pastaId, balde);
     }
   }
 
@@ -192,7 +201,8 @@ async function pastasDoEscopo(disciplinaIds: string[]): Promise<PastaParaArvoreG
     parentId: p.parentId,
     nome: p.nome,
     ordem: p.ordem,
-    total: porPasta.get(p.id)?.size ?? 0,
+    total: porPasta.get(p.id)?.docs.size ?? 0,
+    totalArquivos: porPasta.get(p.id)?.arquivos ?? 0,
   }));
 }
 
@@ -237,4 +247,84 @@ export async function arvoreGlobalArquivos(
   const pastas = await pastasDoEscopo(paraArvore.filter((d) => d.usaPastas).map((d) => d.id));
 
   return montarArvoreGlobal({ projetos, disciplinas: paraArvore, documentos, pastas, areas });
+}
+
+export type ArquivoDoZip = {
+  uploadId: string;
+  caminho: string;
+  /** Caminho dentro do .zip: Projeto/Disciplina/Fase/FORMATO/arquivo. */
+  nome: string;
+};
+
+/**
+ * Arquivos de uma pasta da árvore, prontos para o .zip.
+ *
+ * O recorte é o MESMO que a tela usa (projeto → disciplina → fase → formato), e o escopo é
+ * reconferido aqui: a rota recebe ids pela URL, e id de URL não autoriza nada. Sem este
+ * `escopoProjeto` alguém montaria o endereço à mão e baixaria projeto alheio.
+ *
+ * Devolve `null` quando o recorte é inválido ou fora do escopo, e `{ excedeu }` quando passa do
+ * teto — a tela já desabilita o botão nesse caso, mas quem chama a rota direto também precisa
+ * ouvir "não", não receber meio pacote.
+ */
+export async function arquivosDaPastaGlobal(
+  user: SessionUser,
+  veTodas: boolean,
+  recorte: { projetoId: string; disciplinaId?: string | null; fase?: string | null; ext?: string | null },
+): Promise<{ excedeu: true; total: number } | { excedeu: false; rotulo: string; arquivos: ArquivoDoZip[] } | null> {
+  const projeto = await prisma.projeto.findFirst({
+    where: { AND: [{ id: recorte.projetoId }, escopoProjeto(user)] },
+    select: { id: true, codigo: true, nome: true },
+  });
+  if (!projeto) return null;
+
+  const documentos = await prisma.documentoDisciplina.findMany({
+    where: {
+      substituidoPorId: null,
+      ...(recorte.fase ? (recorte.fase === FASE_SEM ? { faseId: null } : { faseId: recorte.fase }) : {}),
+      disciplina: {
+        projetoId: projeto.id,
+        ...(recorte.disciplinaId ? { id: recorte.disciplinaId } : {}),
+        ...(veTodas ? {} : { responsaveis: { some: { userId: user.id } } }),
+      },
+      uploads: { some: { excluidoEm: null } },
+    },
+    select: {
+      fase: { select: { sigla: true } },
+      disciplina: { select: { disciplinaTextoLegado: true, catalogo: { select: { nome: true } } } },
+      uploads: { where: { excluidoEm: null }, select: { id: true, caminho: true, nomeArquivo: true } },
+    },
+  });
+
+  const conhecidas = new Set((await carregarExtensoesNomenclatura()).map((e) => e.extensao.toLowerCase()));
+  const arquivos: ArquivoDoZip[] = [];
+  for (const doc of documentos) {
+    const disciplina = doc.disciplina.catalogo?.nome ?? doc.disciplina.disciplinaTextoLegado;
+    const fase = doc.fase?.sigla ?? "Sem fase";
+    for (const upload of doc.uploads) {
+      const bruta = extensaoDoNome(upload.nomeArquivo);
+      const balde = bruta && conhecidas.has(bruta) ? bruta : EXT_OUTROS;
+      // O filtro de formato é o MESMO da árvore: "Outros" é tudo que não está no catálogo.
+      if (recorte.ext && balde !== recorte.ext.toLowerCase()) continue;
+      arquivos.push({
+        uploadId: upload.id,
+        caminho: upload.caminho,
+        nome: [
+          slug(projeto.codigo),
+          slug(disciplina),
+          slug(fase),
+          balde === EXT_OUTROS ? "OUTROS" : balde.toUpperCase(),
+          upload.nomeArquivo,
+        ].join("/"),
+      });
+    }
+  }
+
+  if (arquivos.length > MAX_ARQUIVOS_ZIP) return { excedeu: true, total: arquivos.length };
+  if (arquivos.length === 0) return null;
+
+  const rotulo = [projeto.codigo, recorte.disciplinaId ? documentos[0]?.disciplina.catalogo?.nome : null]
+    .filter(Boolean)
+    .join("-");
+  return { excedeu: false, rotulo: slug(rotulo || projeto.codigo), arquivos };
 }
