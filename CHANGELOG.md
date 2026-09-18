@@ -2,6 +2,110 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.19.0](https://github.com/SenaProjetos/senahub/compare/v1.17.0...v1.19.0) (2026-09-18)
+
+
+### ✨ Funcionalidades
+
+* **acesso:** perfil Coordenador volta a ver todos os projetos ([babfd2c](https://github.com/SenaProjetos/senahub/commit/babfd2c94b01bb250adc9330061c5d783146019b))
+* **aprovacoes:** finalizar entrega e passo 2 por aprovacoes:disciplina, valor só p/ quem vê financeiro ([9641989](https://github.com/SenaProjetos/senahub/commit/96419895681739e0267d6ca4b57e94da7e87a8e5))
+* **arquivos:** aba de documentos do projeto responsiva no celular ([f3d3707](https://github.com/SenaProjetos/senahub/commit/f3d37078d7c5d381c624a140ddfd00c6913edec2))
+* **arquivos:** diretório geral em pastas (ano → projeto → disciplina) ([1cdc96f](https://github.com/SenaProjetos/senahub/commit/1cdc96fe4df001139151e1fe881919d269a8cfba))
+* **arquivos:** download de pastas e seleção no diretório geral, sem ações de validação ([daf3120](https://github.com/SenaProjetos/senahub/commit/daf31209c1ead8ecc98afd0fd33fee4231719d64))
+* **arquivos:** gerar Lista Mestre dos documentos validados ([7a32850](https://github.com/SenaProjetos/senahub/commit/7a328503f054153e7adca0a1375d8bfb726d1818))
+* **arquivos:** histórico de alterações e acessos por documento ([d4ec1ba](https://github.com/SenaProjetos/senahub/commit/d4ec1ba2861aa0d79c1efa7b9968bbff55de3051))
+* **arquivos:** leitura da árvore do diretório geral ([352d32b](https://github.com/SenaProjetos/senahub/commit/352d32ba3138ae28d1ce15794f7607ac7510a974))
+* **arquivos:** link público em pastas, com .zip por pasta ([718a499](https://github.com/SenaProjetos/senahub/commit/718a499f35bc9c954bc08d77e7d844733323587f))
+* **arquivos:** Lista Mestre gerada já nasce validada ([ea550d5](https://github.com/SenaProjetos/senahub/commit/ea550d5ce7a951aaffce7abf2351c3f38b0b19e3))
+* **arquivos:** padrão de nomenclatura e siglas do projeto na aba Arquivos ([3b544ee](https://github.com/SenaProjetos/senahub/commit/3b544eeafbab741d3fa7ab6248bc5a4e119f56a4))
+* **arquivos:** painel esquerdo vira árvore de pastas (disciplina → fase → formato) ([c430690](https://github.com/SenaProjetos/senahub/commit/c430690b03ec976f1c70f13f272e9e3e1beac758))
+* **arquivos:** regra pura da árvore do diretório geral ([b977cc3](https://github.com/SenaProjetos/senahub/commit/b977cc3c10ea7e8fbb2877995c3a8719c1df10f0))
+* **arquivos:** separar por fase vira opção do link público ([11711b3](https://github.com/SenaProjetos/senahub/commit/11711b3e89a5483b064501701df5d5db3408d86f))
+* **arquivos:** tabela de documentos prioriza numeração e título da prancha ([dc55949](https://github.com/SenaProjetos/senahub/commit/dc55949cabb4717ef828d15e60fb092506f08bac))
+* **certidoes:** selecionar todas na tabela e no compartilhamento ([6156b54](https://github.com/SenaProjetos/senahub/commit/6156b54629c44bbf9e131160453ae42a271a21c8))
+* **certidoes:** validade por prazo em dias e em layout de tabela ([08fc5e5](https://github.com/SenaProjetos/senahub/commit/08fc5e5ccbcbab7d235ba7ef127b7648e598cb75))
+* **chat:** espaço de Anotações com lixeira de 30 dias ([d7c26cc](https://github.com/SenaProjetos/senahub/commit/d7c26ccb27f687ae285911991821a94b1bc9b73d))
+* **chat:** lista de canais em 2 linhas e ícone por disciplina ([915a8c7](https://github.com/SenaProjetos/senahub/commit/915a8c71b879f1a03630109c21b608ab02f6fd7a))
+* **legal:** termo de uso v2026-09-14 com dados da empresa ([824f6b8](https://github.com/SenaProjetos/senahub/commit/824f6b828b08cfe14c932d15779603998589b710))
+* **links-publicos:** logo da marca na imagem do card de prévia ([3f6db7b](https://github.com/SenaProjetos/senahub/commit/3f6db7ba57e7875b4749149e02aa9951ca9a95ac))
+* **permissoes:** agir em disciplina alheia pelo perfil, não pelo papel ([ae2e988](https://github.com/SenaProjetos/senahub/commit/ae2e988227cf15c953e98e42aa69cb32c324e6ac))
+* **permissoes:** excluir documento do cliente exige arquivos:excluir ([fbbeb71](https://github.com/SenaProjetos/senahub/commit/fbbeb71adf8c4a42ce0379ea275a858f48b98765))
+* **permissoes:** pares para disciplina alheia, tarefas de todos e aprovação de disciplina ([a5086fe](https://github.com/SenaProjetos/senahub/commit/a5086fe3a67d44907943f59685f2f2bb89dfd45c))
+* **permissoes:** tarefas de todos e card de aprovações pelo perfil, não pelo papel ([450f8ac](https://github.com/SenaProjetos/senahub/commit/450f8acdd0b170fca525bf86c6634307b26e0daa))
+* **projetos:** barra faixa de numeração cruzada e permite renomear categoria ([b601c78](https://github.com/SenaProjetos/senahub/commit/b601c780640a69d9fca8ef80fbce07e9bd358ad7))
+* **projetos:** card Equipe c/ avatares maiores e lista de membros legível ([b15afcb](https://github.com/SenaProjetos/senahub/commit/b15afcb3736db481ff9cd487580e0793a71d35b5))
+* **projetos:** card Equipe exibe ícone de disciplina, sem expansão redundante ([098d6ad](https://github.com/SenaProjetos/senahub/commit/098d6ad1b36a5ef0c55c9868886270222d4d49cf))
+* **projetos:** editor visual do padrão de nomenclatura, movido pra lugar visível (F5) ([7915a8e](https://github.com/SenaProjetos/senahub/commit/7915a8e2c1abc39064e446145e8bb765d6ccbc87))
+* **projetos:** equipe do card linka disciplina, botão compacto e badge p/ membro sem disciplina ([cfa982a](https://github.com/SenaProjetos/senahub/commit/cfa982ae225327a9fd86d20c8bd401da946000da))
+* **projetos:** faixa de numeração explícita por disciplina (global + por projeto) ([e9018d3](https://github.com/SenaProjetos/senahub/commit/e9018d3bc8980544c87adde1471472c87061a3e2))
+* **projetos:** taxa de ART entra no financeiro e na margem do projeto ([e5cdefa](https://github.com/SenaProjetos/senahub/commit/e5cdefa516c248262b42796d3b8f9d063073a938))
+* **publico:** moldura de marca nas páginas de link externo ([1d0b198](https://github.com/SenaProjetos/senahub/commit/1d0b19831482fc6ad83699eb863fb78831cab16b))
+* **scripts:** diagnóstico somente-leitura de nomenclatura e visibilidade na V2 ([80a3713](https://github.com/SenaProjetos/senahub/commit/80a3713b31f418968155e06dd53ca8e7bd488935))
+* **uploads:** catálogo de extensões cobre mais softwares e reclassifica backup ([caa84c1](https://github.com/SenaProjetos/senahub/commit/caa84c1f6d4a7ecc895c4947fde12b8780cf323c))
+* **uploads:** correção em lote cobre projeto errado, não só fora do padrão ([45a8463](https://github.com/SenaProjetos/senahub/commit/45a84633d0c9be3e78f8115211c433620c015744))
+* **uploads:** etapas visíveis no envio e conferência por documento ([3bf094f](https://github.com/SenaProjetos/senahub/commit/3bf094ff5f7a5286bca5f984ffed645572761404))
+* **uploads:** lista V2, tamanho de papel e selo Backup (F4) ([d6208ac](https://github.com/SenaProjetos/senahub/commit/d6208ac23ce3855c5fd244365a627c1edd96e52b))
+* **uploads:** motor de nomenclatura no envio de arquivos (F3) ([d9da8d6](https://github.com/SenaProjetos/senahub/commit/d9da8d6d3ab196e18c90d85e597d6cfe04da9f45))
+* **uploads:** motor de reconhecimento de nomenclatura (F1) ([9d31335](https://github.com/SenaProjetos/senahub/commit/9d31335207d4e39676a461346956a1b03bde44b2))
+* **uploads:** motor decide pranchas/backup/outros pela extensão + nome ([a844b06](https://github.com/SenaProjetos/senahub/commit/a844b0679763b861d78979a4e138af88f8127bf4))
+* **uploads:** motor reconhece disciplina pela faixa de numeração (fim explícito) ([4442d2a](https://github.com/SenaProjetos/senahub/commit/4442d2a341e5fe90ddb845bb617473b46ce16c54))
+* **uploads:** schema e catálogos do motor de nomenclatura (F2) ([415cf20](https://github.com/SenaProjetos/senahub/commit/415cf202573461bdacd2df6be2d7398255b60718))
+* **uploads:** sugere o título da prancha lendo o carimbo do PDF ([a9c34ef](https://github.com/SenaProjetos/senahub/commit/a9c34efb463e28a72ad5dc79a97b1d765aaf211e))
+* **uploads:** tela de envio V2 detecta disciplina e destino sozinha (sem seletor prévio) ([1b4780e](https://github.com/SenaProjetos/senahub/commit/1b4780e26e3269325ac16d515a00fa3aa1b19182))
+* **usuarios:** painel de acesso descreve os pares novos em vez do papel ([6622ba1](https://github.com/SenaProjetos/senahub/commit/6622ba1c2e18c7262bdb352b1160aa4072b4645e))
+
+
+### 🐛 Correções
+
+* **acesso:** resumo de acesso volta a dizer o que o sistema faz ([ef7238b](https://github.com/SenaProjetos/senahub/commit/ef7238b2fe6657a713519f4b078404653bf35d72))
+* **acesso:** resumo diz as escritas que vêm com o escopo global ([0f7f6f5](https://github.com/SenaProjetos/senahub/commit/0f7f6f56579ca902feed602b082432acfab1b598))
+* **arquivos:** "Separar por fase" também na edição do link público ([d92e487](https://github.com/SenaProjetos/senahub/commit/d92e487a9868cba0d72cc6e510e2b69b4bc4153a))
+* **arquivos:** barra de ações rola de lado no celular e gaveta não fecha sozinha ([f85bf27](https://github.com/SenaProjetos/senahub/commit/f85bf27834c0700e8b3b427284a4cab7e7069b1f))
+* **arquivos:** cor de ícone de formato que realmente se distingue ([faf9b9c](https://github.com/SenaProjetos/senahub/commit/faf9b9ccc41668487c285cfd7922aba2edda5573)), closes [#1c2d58](https://github.com/SenaProjetos/senahub/issues/1c2d58)
+* **arquivos:** disciplina e lista saem da área do projeto aberta ([8c59468](https://github.com/SenaProjetos/senahub/commit/8c59468377935e3306d11c572eae032e09da2c3f))
+* **arquivos:** emissão original passa a ser R00 e a primeira revisão R01 ([75bd4ea](https://github.com/SenaProjetos/senahub/commit/75bd4ead4b85bdbe905c4ec6d0cca59634b1db23))
+* **arquivos:** fase do documento deduzida do nome e fase vazia apagada no filtro ([de498d2](https://github.com/SenaProjetos/senahub/commit/de498d22f88c91c5b371fbe91d5d21598efe1dc4))
+* **arquivos:** padrão escrito como modelo não marca todo arquivo fora do padrão ([45d4a02](https://github.com/SenaProjetos/senahub/commit/45d4a0283f1fc84631f83c0746ce753cf927c704))
+* **arquivos:** salvar metadados do documento não trava mais o painel ([414d094](https://github.com/SenaProjetos/senahub/commit/414d0948455330ab287770cf3e6ed98fc54647a5))
+* **certidoes:** validade em período usa a data final, não a inicial ([b45bc17](https://github.com/SenaProjetos/senahub/commit/b45bc17496310623c5b8c9632543e3a675925147))
+* **chat:** nome do canal acompanha o projeto renomeado ([21c5c98](https://github.com/SenaProjetos/senahub/commit/21c5c9809e4fd7aadebcfef1dbc2329536fe2d63))
+* **chat:** projetista retirado da disciplina perde o chat dela ([558cdcf](https://github.com/SenaProjetos/senahub/commit/558cdcf242f8a72238f26e9984f4be07ee243563))
+* **coordenacao:** IFC recebido do cliente entra na fila de conversão ([37a9e2f](https://github.com/SenaProjetos/senahub/commit/37a9e2f990017975eb5c2064108a9dc1b31b14d3))
+* **notificacoes:** badge do sino conta itens agrupados, não linhas ([3a6465c](https://github.com/SenaProjetos/senahub/commit/3a6465c34c35943d0a13f63e82801429a9e288cd))
+* **notificacoes:** valores financeiros só para quem acessa o financeiro ([60782fb](https://github.com/SenaProjetos/senahub/commit/60782fbdc365d34590d4a27eeb935478d2dbee44))
+* **ponto:** jornada controlada passa a seguir a contratação, não o papel ([3b5c848](https://github.com/SenaProjetos/senahub/commit/3b5c8482dcd25f2d499a7e2208cc98bd50f45709))
+* **ponto:** recálculo do banco apaga fechamento de quem não tinha vínculo no mês ([2c95563](https://github.com/SenaProjetos/senahub/commit/2c95563a4d653a5524e3f9e53c446bd17a62b0fb))
+* **projetos:** botão Revisões reflete ajuste pendente nos arquivos ([705d145](https://github.com/SenaProjetos/senahub/commit/705d1455235bb89937474876b065066fc7b29a02))
+* **projetos:** prazo de contrato visível só p/ gestão no card Prazos ([820423c](https://github.com/SenaProjetos/senahub/commit/820423c7bc58ac5e8fa84ebf92839d4c9cd64bb1))
+* **scripts:** preencher fase roda em servidor ainda na v1.17.0 ([0487da5](https://github.com/SenaProjetos/senahub/commit/0487da5bb4758c1e4512902dc4de24853528aa38))
+* **seed:** catálogo da Lista Mestre espelha o de produção ([9cafe6b](https://github.com/SenaProjetos/senahub/commit/9cafe6b52566e4a8816d88a0df31b811524f8527))
+* **seed:** catálogo de fase da Lista Mestre alinhado ao padrão real (PL/AP/BS/EX) ([19bf0d8](https://github.com/SenaProjetos/senahub/commit/19bf0d8167da6f561137aa68386cac8e522b0d1a))
+* **seed:** catálogos editáveis pela tela deixam de voltar a cada deploy ([6731c29](https://github.com/SenaProjetos/senahub/commit/6731c2935b66a82b41e121eb23efcd2101378af0))
+* **seed:** disciplinas e Lista Mestre só são semeadas em instalação nova ([946acbd](https://github.com/SenaProjetos/senahub/commit/946acbd46a4560a744600172c519456748e20824))
+* **seed:** religa conta-filha que a migration criou sem pai ([3357e0c](https://github.com/SenaProjetos/senahub/commit/3357e0c418c9d45baaa076ef65d6d1dbf4cf3460))
+* **uploads:** arrastar pasta envia os arquivos de dentro, não a pasta ([d9bf25e](https://github.com/SenaProjetos/senahub/commit/d9bf25e71592e4e2c19416256b3c9d196940575f))
+* **uploads:** download de PDF, feedback de padrão sempre visível, sugestão de revisão por nome e título no envio ([d8301fa](https://github.com/SenaProjetos/senahub/commit/d8301faa93f03aba2f5565ce7dc8e343b4af3a20))
+* **uploads:** editor inline de fase/tipo pós-envio + placeholder de sinônimos ([c577e22](https://github.com/SenaProjetos/senahub/commit/c577e22b8e8b959cb0cfff3d646602efb3f78886))
+* **uploads:** nova versão só no mesmo destino e vocabulário no escopo do projeto ([aa97068](https://github.com/SenaProjetos/senahub/commit/aa970684aa92966d22e2c980a5392b2e4dff3730))
+* **uploads:** para de sugerir -Rnn no nome — quem versiona é o HUB ([5e50c6e](https://github.com/SenaProjetos/senahub/commit/5e50c6e9ea3478326663efb5ebafd3a3f425a91c))
+* **uploads:** renomeia CategoriaDestino pra não colidir com DestinoEnvio existente ([ae5911c](https://github.com/SenaProjetos/senahub/commit/ae5911cd650a95634643ac77353ede85a4890ab8))
+
+
+### ⚡ Performance
+
+* **arquivos:** link público não repete a fase em cada arquivo ([b8166ef](https://github.com/SenaProjetos/senahub/commit/b8166efbb3588d9928a38dd293ea9d08907335d7))
+
+
+### ♻️ Refatorações
+
+* **arquivos:** completa a remoção do diretório antigo e o manual ([254f808](https://github.com/SenaProjetos/senahub/commit/254f808d368a743202ef8aceae7333c02ed2e411))
+* **arquivos:** DocumentoDisciplina é a unidade única de contagem ([bd9ccee](https://github.com/SenaProjetos/senahub/commit/bd9ccee374f938cf476387efe4c6fefa13746373))
+* **arquivos:** remove o diretório antigo, substituído pela tela em pastas ([7aa46ca](https://github.com/SenaProjetos/senahub/commit/7aa46ca531c382e380f86f0bebe12ed7d1f4445f))
+* **projetos:** envio pelo card da disciplina vira atalho para a aba Arquivos ([dd96751](https://github.com/SenaProjetos/senahub/commit/dd96751b89c25bfcf61ac799939e9f75c6031641))
+* **projetos:** remove a aba Lista Mestre e o cadastro manual de folhas ([b0e16a3](https://github.com/SenaProjetos/senahub/commit/b0e16a33a8b2adcb3a47fe10b4311ddc52ef7a42))
+* **uploads:** árvore de navegação aceita um conjunto de projetos ([97a1250](https://github.com/SenaProjetos/senahub/commit/97a1250bd73fd1f779cf63b165945092c9aa6702))
+* **uploads:** consulta de documentos aceita um conjunto de projetos ([50a518b](https://github.com/SenaProjetos/senahub/commit/50a518b83839615bfb17f7c6f483f7c0abb75b71))
+
 ## [1.18.0](https://github.com/SenaProjetos/senahub/compare/v1.17.0...v1.18.0) (2026-09-15)
 
 
