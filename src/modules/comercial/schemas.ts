@@ -264,6 +264,8 @@ export const moverProspeccaoSchema = z.object({
     "EM_ESPERA",
     "DESCARTADO",
   ]),
+  /** ADR-0004 + ADR-21 §5b: só vale quando `para` qualifica um lead fora do fluxo. */
+  confirmarReativacao: z.boolean().optional(),
 });
 
 /** F3.4: registro manual de interação, 2 cliques a partir de qualquer card ou ficha. */

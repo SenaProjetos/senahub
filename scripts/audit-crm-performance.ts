@@ -14,8 +14,10 @@ require("dotenv/config");
 const { prisma } = require("../src/lib/prisma") as typeof import("../src/lib/prisma");
 const { empresa360 } =
   require("../src/modules/comercial/empresa-360/queries") as typeof import("../src/modules/comercial/empresa-360/queries");
-const { funilProspeccao, funilNegociacao, homeComercial } =
+const { funilProspeccao, funilNegociacao, funilComercial, homeComercial } =
   require("../src/modules/comercial/queries") as typeof import("../src/modules/comercial/queries");
+const { FECHADAS_PADRAO } =
+  require("../src/modules/comercial/funil") as typeof import("../src/modules/comercial/funil");
 const { inteligenciaComercial } =
   require("../src/modules/comercial/inteligencia/queries") as typeof import("../src/modules/comercial/inteligencia/queries");
 const { lerFiltrosInteligencia } =
@@ -78,6 +80,12 @@ async function main() {
   resultados.push(await medir("Empresa 360", () => empresa360(empresa.id)));
   resultados.push(await medir("Kanban de prospecção", () => funilProspeccao()));
   resultados.push(await medir("Kanban de negociação", () => funilNegociacao({})));
+  // ADR-0004: é o board que a tela usa hoje. Medido nos dois extremos — Encerrados recolhido
+  // (padrão) e tudo aberto — porque a economia de consultas vem de NÃO buscar coluna fechada.
+  resultados.push(
+    await medir("Funil único (padrão)", () => funilComercial({ fechadas: new Set(FECHADAS_PADRAO) })),
+  );
+  resultados.push(await medir("Funil único (tudo aberto)", () => funilComercial({ fechadas: new Set() })));
   resultados.push(await medir("Home / Meu Dia", () => homeComercial(agora)));
   resultados.push(
     await medir("Inteligência Comercial", () => inteligenciaComercial(filtrosInteligencia, agora)),

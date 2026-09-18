@@ -75,6 +75,7 @@ import {
   concluirProximaAcao as servicoConcluirProximaAcao,
   reagendarProximaAcao as servicoReagendarProximaAcao,
   moverProspeccao as servicoMoverProspeccao,
+  qualificarPeloBoard as servicoQualificarPeloBoard,
   registrarAtividade,
   registrarInteracaoManual as servicoRegistrarInteracaoManual,
   comProspeccaoAtivaUnica,
@@ -95,8 +96,7 @@ const idResultadoOuInput = (d: unknown, i: unknown): string | undefined =>
   ((d ?? i) as { id?: string } | undefined)?.id;
 const rev = () => {
   revalidatePath("/comercial");
-  revalidatePath("/comercial/prospeccao");
-  revalidatePath("/comercial/negociacoes");
+  revalidatePath("/comercial/funil");
   revalidatePath("/comercial/propostas");
   revalidatePath("/comercial/parceiros");
 };
@@ -987,9 +987,13 @@ export const moverProspeccao = defineAction(
   },
   async (i, { user }) => {
     if (exigeQualificacao(i.para)) {
-      const r = await servicoQualificarProspeccao({ leadId: i.leadId, autorId: user.id });
+      const r = await servicoQualificarPeloBoard({
+        leadId: i.leadId,
+        autorId: user.id,
+        confirmarReativacao: i.confirmarReativacao ?? false,
+      });
       rev();
-      return { id: r.leadId, qualificada: true };
+      return { id: r.leadId, qualificada: true, negociacaoId: r.negociacaoId };
     }
     const r = await servicoMoverProspeccao({ leadId: i.leadId, para: i.para });
     rev();

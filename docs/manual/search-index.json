@@ -614,13 +614,18 @@
         "follow-up",
         "interação",
         "empresa 360",
-        "inteligência comercial"
+        "inteligência comercial",
+        "funil",
+        "quadro único",
+        "encerrados"
       ],
       "sinonimos": [
         "crm",
         "vendas",
         "pipeline",
-        "pré-venda"
+        "pré-venda",
+        "kanban",
+        "funil de vendas"
       ]
     },
     {

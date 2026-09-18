@@ -37,7 +37,7 @@ o projeto contratado.
 
 ### 1. Registre a entrada e reaproveite a empresa
 
-Em **Comercial → Prospecção**, clique em **Nova entrada**. Informe como o contato chegou. Se foi uma
+Em **Comercial → Funil**, clique em **Nova entrada**. Informe como o contato chegou. Se foi uma
 indicação, selecione o canal **Indicação** e escolha **Quem indicou / parceiro**, quando houver um
 cadastro correspondente. Para site, cliente recorrente ou prospecção ativa, escolha o canal real —
 o sistema não trata essas entradas como Sales Navigator.
@@ -55,22 +55,29 @@ Preencha o contato e a primeira interação. Termine escolhendo:
 
 ### 2. Trabalhe a prospecção
 
-Abra **Comercial → Prospecção** para ver o quadro das entradas escolhidas para acompanhamento.
-Mova o card conforme a conversa avança. Entradas abertas diretamente como negociação não precisam
-percorrer esse quadro primeiro.
+Abra **Comercial → Funil**. É um quadro só para todo o caminho: as quatro primeiras colunas
+(Identificado, Contato iniciado, Em contato, Qualificado) são a prospecção; de **Levantamento** em
+diante, a negociação. Mova o card conforme a conversa avança. Entradas abertas diretamente como
+negociação já nascem em Levantamento.
+
+Qualquer coluna pode ser recolhida pelo botão ao lado do contador, para abrir espaço na tela — o
+quadro lembra da sua escolha. **Encerrados** junta tudo que saiu do fluxo (sem oportunidade,
+descartado, em espera, perdido, cancelado) e começa recolhido; ao abrir, cada card mostra o motivo
+do encerramento. Arrastar um card para Encerrados pergunta qual encerramento aplicar.
 
 No card ou na ficha, use **Registrar interação** para guardar ligação, WhatsApp, e-mail, LinkedIn,
 reunião ou nota. Para notas recorrentes, escolha um texto pronto e complete o que for específico da
 conversa. Clique no nome da empresa no card para abrir a ficha e use **Agendar follow-up**; ele
 aparece na Agenda e no bloco **Meu Dia** da página Comercial.
 
-Quando houver interesse real e informações mínimas, arraste o card para **Negociação criada**. O
-lead permanece no histórico e ganha uma negociação vinculada — não crie outro cadastro para
-continuar a mesma conversa.
+Quando houver interesse real e informações mínimas, arraste o card para **Levantamento**. O lead
+permanece no histórico e ganha uma negociação vinculada — não crie outro cadastro para continuar a
+mesma conversa. Se a prospecção estava encerrada, o sistema pergunta antes de reativá-la. Depois de
+virar negociação o card não volta para as colunas de prospecção.
 
 ### 3. Conduza a negociação
 
-Em **Comercial → Negociações**, avance o card pelos estágios. Informe empreendimento, disciplinas,
+No mesmo quadro, avance o card pelos estágios de negociação. Informe empreendimento, disciplinas,
 responsável, previsão e valores conforme o levantamento amadurece. O sistema atualiza a
 probabilidade pelo estágio; ela pode ser ajustada quando houver motivo para isso.
 

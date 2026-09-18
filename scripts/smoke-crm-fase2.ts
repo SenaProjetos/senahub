@@ -23,9 +23,11 @@ import {
   moverEstagio,
   moverProspeccao,
   qualificarProspeccao,
+  qualificarPeloBoard,
   registrarInteracaoManual,
 } from "../src/modules/comercial/service";
 import {
+  funilComercial,
   funilNegociacao,
   funilProspeccao,
   prospeccoesSemProximaAcao,
@@ -274,6 +276,56 @@ async function main() {
     select: { negociacaoId: true, leadId: true },
   });
   check("registro em NEGOCIACAO ancora negociacaoId, não leadId", atividadeNeg?.negociacaoId === q.negociacaoId && atividadeNeg?.leadId === null);
+
+  console.log("\n── ADR-0004: board único (costura + Encerrados) ─────────────────\n");
+
+  const descartado = await prisma.lead.create({
+    data: {
+      nome: `${TAG}_descartado`,
+      clienteId: emp.id,
+      etapaId: etapa.id,
+      status: "DESCARTADO",
+      origemDetalhada: `${TAG}_OBRA_2`,
+    },
+    select: { id: true },
+  });
+  await recusa(
+    "lead fora do fluxo NÃO é qualificado pelo board sem consentimento no payload",
+    () => qualificarPeloBoard({ leadId: descartado.id, autorId: user.id, confirmarReativacao: false }),
+    /Confirme para continuar/,
+  );
+  const semNeg = await prisma.negociacao.count({ where: { leadId: descartado.id } });
+  check("a recusa não deixa negociação órfã", semNeg === 0);
+
+  const qb = await qualificarPeloBoard({ leadId: descartado.id, autorId: user.id, confirmarReativacao: true });
+  const depois = await prisma.lead.findUnique({ where: { id: descartado.id }, select: { status: true } });
+  check("com consentimento, reativa e qualifica na mesma transação", depois?.status === "OPORTUNIDADE_CRIADA");
+
+  const qb2 = await qualificarPeloBoard({ leadId: descartado.id, autorId: user.id, confirmarReativacao: false });
+  check("soltar de novo em Levantamento é idempotente (reusa a negociação)", qb2.negociacaoId === qb.negociacaoId);
+
+  const encerrado = await prisma.lead.create({
+    data: { nome: `${TAG}_em_espera`, clienteId: emp.id, etapaId: etapa.id, status: "EM_ESPERA" },
+    select: { id: true },
+  });
+  const filtroEmp = lerFiltros({ empresa: emp.id });
+  const padrao = await funilComercial({ filtros: filtroEmp, fechadas: new Set(["ENCERRADOS"]) });
+  const cardsDoLead = padrao.flatMap((c) => c.cards).filter((c) => c.tipo === "LEAD" && c.id === descartado.id);
+  check("lead qualificado NÃO aparece duplicado — quem o representa é a negociação", cardsDoLead.length === 0);
+  const levantamento = padrao.find((c) => c.coluna === "LEVANTAMENTO");
+  check(
+    "a negociação criada aparece em Levantamento",
+    levantamento?.cards.some((c) => c.tipo === "NEGOCIACAO" && c.id === qb.negociacaoId) === true,
+  );
+
+  const enc = padrao.find((c) => c.coluna === "ENCERRADOS");
+  check("Encerrados recolhido não busca cards", enc?.fechada === true && enc.cards.length === 0);
+  const aberto = await funilComercial({ filtros: filtroEmp, fechadas: new Set() });
+  const encAberto = aberto.find((c) => c.coluna === "ENCERRADOS");
+  check(
+    "Encerrados aberto traz o lead em espera, e o total bate com o banco mesmo recolhido",
+    encAberto?.cards.some((c) => c.id === encerrado.id) === true && (enc?.total ?? -1) === encAberto?.total,
+  );
 
   console.log(`\n${ok ? "✔ Fase 2: tudo verde." : "✖ Fase 2: há falhas acima."}`);
   if (!ok) process.exitCode = 1;

@@ -1109,7 +1109,12 @@ async function aplicarQualificacao(
 async function garantirNegociacaoParaProposta(
   tx: Prisma.TransactionClient,
   lead: LeadParaQualificar & { status: StatusProspeccao },
-  opts: { autorId?: string; confirmarReativacao: boolean },
+  opts: {
+    autorId?: string;
+    confirmarReativacao: boolean;
+    /** Só compõe a mensagem de recusa: "criar a proposta", "levar para a negociação"… */
+    acao?: string;
+  },
 ): Promise<string> {
   const existente = await tx.negociacao.findUnique({ where: { leadId: lead.id }, select: { id: true } });
   if (existente) return existente.id;
@@ -1118,7 +1123,7 @@ async function garantirNegociacaoParaProposta(
   if (!podeQualificar(statusAtual)) {
     if (!opts.confirmarReativacao) {
       throw new ActionError(
-        `Esta prospecção está "${STATUS_PROSPECCAO_LABEL[statusAtual]}" — criar a proposta vai ` +
+        `Esta prospecção está "${STATUS_PROSPECCAO_LABEL[statusAtual]}" — ${opts.acao ?? "criar a proposta"} vai ` +
           "reativá-la e abrir uma negociação. Confirme para continuar.",
       );
     }
@@ -1132,6 +1137,45 @@ async function garantirNegociacaoParaProposta(
   validarQualificacao({ status: statusAtual, clienteId: lead.clienteId });
   const { negociacaoId } = await aplicarQualificacao(tx, lead, { autorId: opts.autorId });
   return negociacaoId;
+}
+
+/**
+ * Board único (ADR-0004): soltar um lead em Levantamento qualifica. Mesmo caminho da proposta
+ * (`garantirNegociacaoParaProposta`), numa transação só — lead fora do fluxo é reativado por
+ * `validarMovimentoProspeccao` e SÓ com `confirmarReativacao` no payload (ADR-21 §5b); a
+ * confirmação da UI é onde o consentimento é coletado, não a garantia.
+ */
+export async function qualificarPeloBoard(input: {
+  leadId: string;
+  autorId: string;
+  confirmarReativacao: boolean;
+}): Promise<{ negociacaoId: string; leadId: string }> {
+  const lead = await prisma.lead.findUnique({
+    where: { id: input.leadId },
+    select: {
+      id: true,
+      nome: true,
+      status: true,
+      clienteId: true,
+      canalId: true,
+      campaignId: true,
+      parceiroId: true,
+      origemDetalhada: true,
+      valorEstimado: true,
+      responsavelId: true,
+      contatos: { select: { contatoId: true, principal: true } },
+    },
+  });
+  if (!lead) throw new ActionError("Prospecção não encontrada.");
+
+  const negociacaoId = await prisma.$transaction((tx) =>
+    garantirNegociacaoParaProposta(tx, lead, {
+      autorId: input.autorId,
+      confirmarReativacao: input.confirmarReativacao,
+      acao: "levar para a negociação",
+    }),
+  );
+  return { negociacaoId, leadId: lead.id };
 }
 
 // ── Registro manual de interação (F3.4) ──────────────────────────────────────────────────────

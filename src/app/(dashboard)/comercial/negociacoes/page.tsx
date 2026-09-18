@@ -1,91 +1,19 @@
-import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeft, Download } from "lucide-react";
-import { requirePermission } from "@/lib/session";
-import { can } from "@/lib/permissions";
-import {
-  funilNegociacao,
-  motivosPerdaAtivos,
-  opcoesFiltroComercial,
-} from "@/modules/comercial/queries";
-import { lerFiltros } from "@/modules/comercial/filtros";
-import { FiltrosComerciais } from "@/components/comercial/filtros-comerciais";
-import { NegociacaoBoard } from "@/components/comercial/negociacao-board";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Button } from "@/components/ui/button";
-import { Handshake } from "lucide-react";
-import { brlInteiro } from "@/lib/utils";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Negociações" };
-
-/** searchParams (Next) → query string — mesmas chaves repassadas pro export CSV (F4.6), sem
- *  reconstruir o filtro a partir de `FiltrosComerciais` (a URL já É a fonte de verdade). */
-function paraQueryString(sp: Record<string, string | string[] | undefined>): string {
-  const p = new URLSearchParams();
-  for (const [k, v] of Object.entries(sp)) {
-    if (v == null) continue;
-    p.set(k, Array.isArray(v) ? (v[0] ?? "") : v);
-  }
-  return p.toString();
-}
-
-/** Kanban de Negociações (F2.14) — o funil que hoje acontece inteiramente fora do sistema. */
+/**
+ * Rota antiga do Kanban de Negociações — hoje o board único `/comercial/funil` (ADR-0004). O job
+ * de automações (F7.3) grava `/comercial/negociacoes?negociacao=<id>` em sinos já entregues; o
+ * redirecionamento leva a query junto e o board rola até o card.
+ */
 export default async function NegociacoesPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const user = await requirePermission("comercial", "ver");
-  const podeGerir = await can(user, "comercial", "gerir");
-  const sp = await searchParams;
-  const filtros = lerFiltros(sp);
-  const pagina = Math.max(1, Number(Array.isArray(sp.page) ? sp.page[0] : sp.page) || 1);
-  const alvoId = Array.isArray(sp.negociacao) ? sp.negociacao[0] : sp.negociacao;
-  const [colunas, motivos, opcoes] = await Promise.all([
-    funilNegociacao({ filtros, pagina, alvoId }),
-    motivosPerdaAtivos(),
-    opcoesFiltroComercial(),
-  ]);
-  const qs = paraQueryString(sp);
-
-  const total = colunas.reduce((s, c) => s + c.total, 0);
-  // Pipeline = só o que ainda pode fechar. Contratado já fechou; perdido/cancelado não volta
-  // sozinho — somar tudo daria um número grande e sem significado nenhum.
-  const emAberto = colunas.filter((c) =>
-    ["LEVANTAMENTO", "ORCAMENTO", "PROPOSTA_ENVIADA", "NEGOCIACAO"].includes(c.estagio),
-  );
-  const pipeline = emAberto.reduce((s, c) => s + c.soma, 0);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <Button variant="ghost" size="icon" render={<Link href="/comercial" aria-label="Voltar" />}>
-          <ArrowLeft className="size-4" />
-        </Button>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-2xl font-extrabold tracking-tight">Negociações</h2>
-          <p className="text-sm text-muted-foreground">
-            {total} negociação(ões) · pipeline em aberto {brlInteiro(pipeline)}
-          </p>
-        </div>
-        {podeGerir && (
-          <Button variant="outline" size="sm" render={<a href={`/api/comercial/export/negociacoes?${qs}`} />}>
-            <Download className="size-4" /> Exportar
-          </Button>
-        )}
-      </div>
-
-      <FiltrosComerciais opcoes={opcoes} mostrarDisciplina />
-
-      {total === 0 ? (
-        <EmptyState
-          icon={Handshake}
-          title="Nenhuma negociação"
-          description="Qualifique uma prospecção para criar a primeira."
-        />
-      ) : (
-        <NegociacaoBoard colunas={colunas} motivos={motivos} pagina={pagina} />
-      )}
-    </div>
-  );
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(await searchParams)) {
+    if (v != null) p.set(k, Array.isArray(v) ? (v[0] ?? "") : v);
+  }
+  const qs = p.toString();
+  redirect(qs ? `/comercial/funil?${qs}` : "/comercial/funil");
 }

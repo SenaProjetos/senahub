@@ -6,6 +6,15 @@ import {
   COLUNAS_PROSPECCAO,
 } from "@/modules/comercial/prospeccao";
 import { ESTAGIOS_ATIVOS } from "@/modules/comercial/jornada";
+import {
+  COLUNAS_FUNIL,
+  COLUNAS_FUNIL_LEAD,
+  COLUNAS_FUNIL_NEGOCIACAO,
+  ENCERRADOS_LEAD,
+  ENCERRADOS_NEGOCIACAO,
+  colunaDoCard,
+  type ColunaFunil,
+} from "@/modules/comercial/funil";
 import type { TipoAncoraCompromisso, EstagioNegociacao, StatusProspeccao } from "@/generated/prisma/client";
 import {
   whereProspeccao,
@@ -421,7 +430,26 @@ export async function funilProspeccao(opts?: {
       ),
     ),
   ]);
-  const ids = idsPorStatus.flatMap((lista) => lista.map((lead) => lead.id));
+  const comAcao = await detalharLeads(idsPorStatus.flatMap((lista) => lista.map((lead) => lead.id)));
+
+  const totalPorStatus = new Map(totais.map((total) => [total.status, total._count]));
+  return COLUNAS_PROSPECCAO.map((status) => {
+    const total = totalPorStatus.get(status) ?? 0;
+    return {
+      status,
+      leads: comAcao.filter((lead) => lead.status === status),
+      total,
+      temMais: total > take,
+    };
+  });
+}
+export type ColunaProspeccao = Awaited<ReturnType<typeof funilProspeccao>>[number];
+
+/**
+ * Cards de lead prontos para o board, a partir dos ids já paginados — relações e próxima ação em
+ * lote (número fixo de consultas, nunca uma por card).
+ */
+async function detalharLeads(ids: string[]) {
   const leads = await prisma.lead.findMany({
     where: { id: { in: ids } },
     orderBy: { updatedAt: "desc" },
@@ -457,7 +485,7 @@ export async function funilProspeccao(opts?: {
     if (a.entidadeId && !proximaPorLead.has(a.entidadeId)) proximaPorLead.set(a.entidadeId, a);
   }
 
-  const comAcao = leads.map((l) => {
+  return leads.map((l) => {
     const prox = proximaPorLead.get(l.id);
     return {
       ...l,
@@ -468,20 +496,7 @@ export async function funilProspeccao(opts?: {
         : null,
     };
   });
-
-  const totalPorStatus = new Map(totais.map((total) => [total.status, total._count]));
-  return COLUNAS_PROSPECCAO.map((status) => {
-    const total = totalPorStatus.get(status) ?? 0;
-    return {
-      status,
-      leads: comAcao.filter((lead) => lead.status === status),
-      total,
-      temMais: total > take,
-    };
-  });
 }
-export type ColunaProspeccao = Awaited<ReturnType<typeof funilProspeccao>>[number];
-export type LeadProspeccao = ColunaProspeccao["leads"][number];
 
 // ── Kanban de Negociações (F2.14) ────────────────────────────
 /** Colunas do board de negociação, na ordem do funil. */
@@ -548,7 +563,29 @@ export async function funilNegociacao(opts?: {
       idsPorEstagio[indice].push({ id: alvo.id });
     }
   }
-  const ids = idsPorEstagio.flatMap((lista) => lista.map((negociacao) => negociacao.id));
+  const cards = await detalharNegociacoes(
+    idsPorEstagio.flatMap((lista) => lista.map((negociacao) => negociacao.id)),
+  );
+
+  const totalPorEstagio = new Map(totais.map((t) => [t.estagio, t]));
+
+  return COLUNAS_NEGOCIACAO.map((estagio) => {
+    const doEstagio = cards.filter((c) => c.estagio === estagio);
+    const agregado = totalPorEstagio.get(estagio);
+    return {
+      estagio,
+      cards: doEstagio,
+      /** Total REAL no banco — não o tamanho da página. */
+      total: agregado?._count ?? 0,
+      soma: Number(agregado?._sum.valorEstimado ?? 0),
+      temMais: (agregado?._count ?? 0) > take,
+    };
+  });
+}
+export type ColunaNegociacao = Awaited<ReturnType<typeof funilNegociacao>>[number];
+
+/** Mesma ideia de `detalharLeads`: ids já paginados → cards com relações, ações e checklist. */
+async function detalharNegociacoes(ids: string[]) {
   const negociacoes = await prisma.negociacao.findMany({
     where: { id: { in: ids } },
     orderBy: { updatedAt: "desc" },
@@ -610,7 +647,7 @@ export async function funilNegociacao(opts?: {
     marcadosPorNegociacao.set(m.negociacaoId, s);
   }
 
-  const cards = negociacoes.map((n) => {
+  return negociacoes.map((n) => {
     const p = proxima.get(n.id);
     const itens = itensPorEstagio.get(n.estagio) ?? [];
     const marcadosSet = marcadosPorNegociacao.get(n.id);
@@ -641,24 +678,169 @@ export async function funilNegociacao(opts?: {
           : null,
     };
   });
+}
+export type CardNegociacao = Awaited<ReturnType<typeof detalharNegociacoes>>[number];
+export type LeadProspeccao = Awaited<ReturnType<typeof detalharLeads>>[number];
 
-  const totalPorEstagio = new Map(totais.map((t) => [t.estagio, t]));
+// ── Board único Prospecção + Negociação (ADR-0004) ───────────
+export type CardFunil =
+  | ({ tipo: "LEAD" } & LeadProspeccao)
+  | ({ tipo: "NEGOCIACAO" } & CardNegociacao);
 
-  return COLUNAS_NEGOCIACAO.map((estagio) => {
-    const doEstagio = cards.filter((c) => c.estagio === estagio);
-    const agregado = totalPorEstagio.get(estagio);
+export type ColunaFunilDados = {
+  coluna: ColunaFunil;
+  cards: CardFunil[];
+  /** Total REAL no banco, mesmo recolhida — só os cards deixam de ser buscados. */
+  total: number;
+  /** Soma de `valorEstimado` das negociações da coluna (0 no lado da prospecção). */
+  soma: number;
+  temMais: boolean;
+  fechada: boolean;
+};
+
+/**
+ * Board único. Compõe o mesmo desenho das duas queries acima — uma busca de ids por coluna, depois
+ * detalhe em lote — com duas diferenças:
+ *
+ * - **Coluna recolhida não busca card nenhum** (só entra no `groupBy` da contagem). É o que paga
+ *   as colunas a mais: fechar Encerrados economiza as 6 buscas dele.
+ * - **Lead em `OPORTUNIDADE_CRIADA` não entra**: a negociação que ele virou é o card (ADR-0004).
+ *
+ * Filtro por disciplina zera o lado da prospecção: lead não tem disciplina (ver `whereProspeccao`),
+ * e ignorar o filtro ali mostraria prospecções que a pessoa pediu para esconder.
+ */
+export async function funilComercial(opts: {
+  pagina?: number;
+  filtros?: FiltrosComerciais;
+  agora?: Date;
+  alvoId?: string | null;
+  fechadas: ReadonlySet<ColunaFunil>;
+}): Promise<ColunaFunilDados[]> {
+  const agora = opts.agora ?? new Date();
+  const take = PAGINA_COLUNA * Math.max(1, opts.pagina ?? 1);
+  const semLeads = Boolean(opts.filtros?.disciplinaId);
+  const whereLead = {
+    arquivado: false,
+    ...(opts.filtros ? whereProspeccao(opts.filtros, agora) : {}),
+  };
+  const whereNeg = opts.filtros ? whereNegociacao(opts.filtros, agora) : {};
+  const aberta = (c: ColunaFunil) => !opts.fechadas.has(c);
+  const encerradosAberto = aberta("ENCERRADOS");
+  const statusLead = [...COLUNAS_FUNIL_LEAD, ...ENCERRADOS_LEAD];
+  const vazio = Promise.resolve([] as { id: string }[]);
+
+  const [totaisLead, totaisNeg, idsLead, idsNeg, idsEncLead, idsEncNeg, alvo] = await Promise.all([
+    semLeads
+      ? Promise.resolve([])
+      : prisma.lead.groupBy({ by: ["status"], where: { ...whereLead, status: { in: statusLead } }, _count: true }),
+    prisma.negociacao.groupBy({
+      by: ["estagio"],
+      where: whereNeg,
+      _count: true,
+      _sum: { valorEstimado: true },
+    }),
+    Promise.all(
+      COLUNAS_FUNIL_LEAD.map((status) =>
+        semLeads || !aberta(status)
+          ? vazio
+          : prisma.lead.findMany({
+              where: { ...whereLead, status },
+              orderBy: { updatedAt: "desc" },
+              take,
+              select: { id: true },
+            }),
+      ),
+    ),
+    Promise.all(
+      COLUNAS_FUNIL_NEGOCIACAO.map((estagio) =>
+        !aberta(estagio)
+          ? vazio
+          : prisma.negociacao.findMany({
+              where: { ...whereNeg, estagio },
+              orderBy: { updatedAt: "desc" },
+              take,
+              select: { id: true },
+            }),
+      ),
+    ),
+    semLeads || !encerradosAberto
+      ? vazio
+      : prisma.lead.findMany({
+          where: { ...whereLead, status: { in: [...ENCERRADOS_LEAD] } },
+          orderBy: { updatedAt: "desc" },
+          take,
+          select: { id: true },
+        }),
+    !encerradosAberto
+      ? vazio
+      : prisma.negociacao.findMany({
+          where: { ...whereNeg, estagio: { in: [...ENCERRADOS_NEGOCIACAO] } },
+          orderBy: { updatedAt: "desc" },
+          take,
+          select: { id: true },
+        }),
+    // Deep link `?negociacao=<id>` (automações F7.3): o alvo entra mesmo fora da primeira página.
+    opts.alvoId
+      ? prisma.negociacao.findFirst({ where: { id: opts.alvoId }, select: { id: true } })
+      : Promise.resolve(null),
+  ]);
+
+  const idsNegociacao = [...idsNeg.flat(), ...idsEncNeg].map((n) => n.id);
+  if (alvo && !idsNegociacao.includes(alvo.id)) idsNegociacao.push(alvo.id);
+  const [leads, negociacoes] = await Promise.all([
+    detalharLeads([...idsLead.flat(), ...idsEncLead].map((l) => l.id)),
+    detalharNegociacoes(idsNegociacao),
+  ]);
+
+  const cards: CardFunil[] = [
+    ...leads.map((l) => ({ tipo: "LEAD" as const, ...l })),
+    ...negociacoes.map((n) => ({ tipo: "NEGOCIACAO" as const, ...n })),
+  ];
+  const porColuna = new Map<ColunaFunil, CardFunil[]>();
+  for (const card of cards) {
+    const coluna = colunaDoCard(
+      card.tipo === "LEAD" ? { tipo: "LEAD", status: card.status } : { tipo: "NEGOCIACAO", estagio: card.estagio },
+    );
+    if (!coluna) continue;
+    // O alvo do deep link pode estar numa coluna recolhida — a pessoa pediu ESTE card.
+    const lista = porColuna.get(coluna) ?? [];
+    lista.push(card);
+    porColuna.set(coluna, lista);
+  }
+
+  const contLead = new Map(totaisLead.map((t) => [t.status, t._count]));
+  const contNeg = new Map(totaisNeg.map((t) => [t.estagio, t]));
+  const totalDe = (coluna: ColunaFunil): { total: number; soma: number } => {
+    if (coluna === "ENCERRADOS") {
+      const neg = ENCERRADOS_NEGOCIACAO.map((e) => contNeg.get(e));
+      return {
+        total:
+          ENCERRADOS_LEAD.reduce((s, st) => s + (contLead.get(st) ?? 0), 0) +
+          neg.reduce((s, t) => s + (t?._count ?? 0), 0),
+        soma: 0,
+      };
+    }
+    if ((COLUNAS_FUNIL_LEAD as readonly string[]).includes(coluna)) {
+      return { total: contLead.get(coluna as StatusProspeccao) ?? 0, soma: 0 };
+    }
+    const t = contNeg.get(coluna as EstagioNegociacao);
+    return { total: t?._count ?? 0, soma: Number(t?._sum.valorEstimado ?? 0) };
+  };
+
+  return COLUNAS_FUNIL.map((coluna) => {
+    const { total, soma } = totalDe(coluna);
+    const lista = (porColuna.get(coluna) ?? []).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     return {
-      estagio,
-      cards: doEstagio,
-      /** Total REAL no banco — não o tamanho da página. */
-      total: agregado?._count ?? 0,
-      soma: Number(agregado?._sum.valorEstimado ?? 0),
-      temMais: (agregado?._count ?? 0) > take,
+      coluna,
+      // Encerrados junta duas buscas de `take` cada; corta no mesmo teto das outras colunas.
+      cards: coluna === "ENCERRADOS" ? lista.slice(0, take) : lista,
+      total,
+      soma,
+      temMais: total > take,
+      fechada: !aberta(coluna),
     };
   });
 }
-export type ColunaNegociacao = Awaited<ReturnType<typeof funilNegociacao>>[number];
-export type CardNegociacao = ColunaNegociacao["cards"][number];
 
 /** Catálogo de motivos de perda para o diálogo (F2.14) — `exigeConcorrente` junto, é a regra. */
 export async function motivosPerdaAtivos() {
