@@ -119,6 +119,18 @@ async function validarParceiroId(parceiroId: string | undefined): Promise<string
 }
 
 /**
+ * O formulário fala `campanhaId`, mas a coluna do `Lead` é `campaignId`. Espalhar o payload cru no
+ * `data` do Prisma dá `Unknown argument campanhaId` — falha SEMPRE, porque o diálogo manda a chave
+ * mesmo sem campanha (`""`). Mesma checagem de existência de `validarParceiroId`.
+ */
+async function validarCampanhaId(campanhaId: string | undefined): Promise<string | null> {
+  if (!campanhaId) return null;
+  const existe = await prisma.campanha.findUnique({ where: { id: campanhaId }, select: { id: true } });
+  if (!existe) throw new ActionError("Campanha não encontrada.");
+  return campanhaId;
+}
+
+/**
  * F3.8: `clienteId` só chega aqui quando o usuário aceitou o sinal de reativação e escolheu
  * "vincular" — o formulário nunca deixa digitar um id à mão. Mesmo assim valida a existência
  * antes de gravar, mesmo padrão defensivo de `validarParceiroId`: Server Action aceita payload
@@ -136,16 +148,19 @@ async function validarClienteId(clienteId: string | undefined): Promise<string |
 export const criarLead = defineAction(
   { ...base, acao: "criar-lead", entidade: "Lead", schema: criarLeadSchema, entidadeId: idResultadoOuInput },
   async (i, ctx) => {
+    const { campanhaId: campanhaInformada, ...campos } = i;
     const parceiroId = await validarParceiroId(i.parceiroId);
     const clienteId = await validarClienteId(i.clienteId);
+    const campaignId = await validarCampanhaId(campanhaInformada);
     const lead = await comProspeccaoAtivaUnica(() =>
       prisma.lead.create({
         data: {
-          ...i,
+          ...campos,
           email: i.email || null,
           valorEstimado: i.valorEstimado,
           parceiroId,
           clienteId,
+          campaignId,
           temperatura: i.temperatura ?? null,
         },
       }),
@@ -164,8 +179,9 @@ export const criarLead = defineAction(
 export const editarLead = defineAction(
   { ...base, acao: "editar-lead", entidade: "Lead", schema: editarLeadSchema, entidadeId: idResultadoOuInput },
   async (i) => {
-    const { id, ...rest } = i;
+    const { id, campanhaId: campanhaInformada, ...rest } = i;
     const parceiroId = await validarParceiroId(rest.parceiroId);
+    const campaignId = await validarCampanhaId(campanhaInformada);
     // Editar tambem passa pela guarda: trocar a empresa de um lead pode colidir com uma
     // prospeccao ativa que ja exista naquela empresa, exatamente como criar do zero.
     await comProspeccaoAtivaUnica(() =>
@@ -178,6 +194,7 @@ export const editarLead = defineAction(
           ...rest,
           email: rest.email || null,
           parceiroId,
+          campaignId,
           // null EXPLÍCITO: é o que permite limpar a classificação. `undefined` faria o Prisma
           // ignorar o campo, e "voltar para não classificado" seria um no-op silencioso.
           temperatura: rest.temperatura ?? null,
