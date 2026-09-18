@@ -151,6 +151,12 @@ export function EmpresaView({ dados }: { dados: DadosEmpresa | null }) {
             <Label>Logo</Label>
             {logoAtualSrc && !logoQuebrado ? (
               <div className="flex items-center gap-3">
+                {/* `next/image` não serve aqui: o src é dinâmico (rota /api ou blob do upload
+                    recém-feito) — exigiria `remotePatterns` e não otimiza blob nenhum. É uma
+                    miniatura de 64px numa tela de configuração, e o `onError` abaixo é o que
+                    detecta logo quebrado. Silenciado para o portão do lint ficar limpo: aviso
+                    permanente treina a ignorar a saída, e foi assim que um bug real passou. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={logoAtualSrc}
                   alt="Logo"
