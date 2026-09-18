@@ -37,6 +37,7 @@ import {
   alternarChecklistItemSchema,
   qualificarProspeccaoSchema,
   editarNegociacaoSchema,
+  registrarVersaoExternaSchema,
   agendarProximaAcaoSchema,
   concluirProximaAcaoSchema,
   reagendarProximaAcaoSchema,
@@ -78,6 +79,7 @@ import {
   moverProspeccao as servicoMoverProspeccao,
   qualificarPeloBoard as servicoQualificarPeloBoard,
   editarNegociacao as servicoEditarNegociacao,
+  registrarVersaoExterna as servicoRegistrarVersaoExterna,
   registrarAtividade,
   registrarInteracaoManual as servicoRegistrarInteracaoManual,
   comProspeccaoAtivaUnica,
@@ -682,6 +684,9 @@ export const enviarPropostaEmail = defineAction(
       include: { cliente: true, itens: true },
     });
     if (!p) throw new ActionError("Proposta não encontrada.");
+    if (p.externa) {
+      throw new ActionError("Proposta externa não tem link público — envie o PDF ao cliente por fora.");
+    }
     if (!p.cliente.email) throw new ActionError("Cliente sem e-mail cadastrado.");
 
     const url = `${process.env.APP_URL ?? ""}/a/proposta/${p.token}`;
@@ -716,6 +721,22 @@ export const enviarPropostaEmail = defineAction(
  * ACEITE: cria o projeto com as disciplinas dos itens (valores incluídos),
  * cria os canais de chat e notifica gestores. Sem redigitação.
  */
+/** Registra a versão enviada de uma proposta montada fora do sistema (ADR-0005). */
+export const registrarVersaoExterna = defineAction(
+  {
+    ...base,
+    acao: "registrar-versao-externa",
+    entidade: "Proposta",
+    schema: registrarVersaoExternaSchema,
+    entidadeId: (d, i) => (d as { propostaId?: string } | undefined)?.propostaId ?? (i as { propostaId?: string }).propostaId,
+  },
+  async (i, { user }) => {
+    const r = await servicoRegistrarVersaoExterna(i, user.id);
+    rev();
+    return r;
+  },
+);
+
 export const aceitarProposta = defineAction(
   {
     ...base,

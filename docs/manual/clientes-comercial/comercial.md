@@ -108,6 +108,14 @@ Cada salvamento registra uma versão. Envie por e-mail ou compartilhe o link; a 
 status e as aberturas. Caso seja necessário mudar uma proposta já aceita, crie uma cópia em vez de
 alterar o documento que originou o projeto.
 
+**Proposta montada fora do sistema (Word/PDF).** Na ficha da negociação, aba **Propostas**, use
+**Registrar proposta enviada (PDF)**. Anexe o PDF que o cliente recebeu e informe as disciplinas
+com seus valores, o desconto, a data de envio e a validade. A primeira vez gera o número da
+proposta; nas revisões, escolha a mesma proposta para registrar a versão seguinte — cada versão
+guarda o próprio PDF, que pode ser baixado depois. Só PDF: exporte o Word antes. Esse tipo de
+proposta não tem link público (o time envia o arquivo) e é aceito pelo botão **Aceitar → projeto**
+na própria ficha; as disciplinas informadas viram as disciplinas do projeto.
+
 ### 5. Feche e acompanhe
 
 Ao aceitar a proposta, use **Aceitar → projeto**. O SenaHub cria o projeto, suas disciplinas e os

@@ -206,3 +206,34 @@ C (modal, consome o que B deixou) → E (agenda, independente, pode entrar em pa
   fato e não feature.
 - `docs/crm/06-progresso.md` ganha entrada nova quando a Fase B/C fechar (mesmo formato das
   entradas existentes).
+
+## Fase F — Proposta externa (PDF) — adicionada em 2026-09-18
+
+Decisão em [ADR-0005](../../adr/0005-proposta-externa.md). O time monta propostas em Word e
+envia o PDF por fora; o sistema registra cada envio como versão da própria `Proposta`
+(`externa = true`), com PDF, linhas por disciplina, desconto, validade e data de envio. Só PDF,
+consome o número sequencial, sem link público, sem editor; aceite pela ficha da negociação.
+
+## Status de execução (2026-09-18, branch `feat/funil-comercial`)
+
+| Fase | Estado |
+|---|---|
+| A — toolbar fixa | feita |
+| B — board único | feita |
+| C — ficha em modal + edição da negociação | feita (disciplinas da negociação ainda sem edição) |
+| D — campos do card | feita (valor/desconto vêm da versão vigente da proposta) |
+| E — follow-ups | feita (tela dedicada + responsável entra na agenda; filtro da agenda geral já existia) |
+| F — bug ao editar lead | feito (`campanhaId` × `campaignId`) |
+| F — proposta externa | feita (ADR-0005) |
+| G — redesenho do gerenciador de propostas | aguardando exemplos reais do dono |
+
+Nada disto foi verificado em navegador pelo agente; smokes de banco e build cobrem o resto.
+
+**Desvios em relação ao plano acima (vale o código):**
+- B.1: colunas recolhidas ficam em **cookie** (`comercial_funil_fechadas`), não `localStorage` — o
+  servidor precisa saber quais colunas NÃO buscar.
+- C: a ficha abre por **`?card=TIPO:id` na própria `/comercial/funil`**, não por rota
+  interceptadora — `@modal/(.)[id]` casaria qualquer `/comercial/<algo>`, e nenhum link precisava
+  de URL própria de negociação. `/comercial/[id]` segue como página cheia do lead.
+- B.4: `08-aceite-e2e.md` não cita as rotas antigas; links de notificação passaram a apontar direto
+  para a ficha (`/comercial/funil?card=…`), e as rotas antigas redirecionam com a query.

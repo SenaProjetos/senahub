@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { nomeDisciplinaItem } from "@/modules/comercial/disciplinas";
@@ -33,6 +33,9 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
     motivosPerdaAtivos(),
   ]);
   if (!p) notFound();
+  // ADR-0005: a externa não tem editor — o documento é o PDF de cada versão. A ficha da
+  // negociação é onde ela é versionada, baixada e aceita.
+  if (p.externa && p.negociacaoId) redirect(`/comercial/funil?card=NEGOCIACAO:${p.negociacaoId}`);
 
   return (
     <div className="space-y-5">

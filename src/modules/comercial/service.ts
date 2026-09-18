@@ -1,6 +1,6 @@
 import "server-only";
 
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/with-action";
 import { notificar, notificarMuitos } from "@/lib/notificar";
@@ -32,6 +32,8 @@ import { getConfigComercial } from "@/modules/comercial/config/queries";
 import { exigeJustificativaDesconto } from "@/modules/comercial/config/padroes";
 import { calcularStatusComercial } from "@/modules/comercial/status";
 import { arquivarPdfDaVersao } from "@/modules/comercial/pdf-proposta";
+import { existeArquivo, lerArquivo } from "@/lib/storage";
+import { caminhoPdfExternoValido, ehPdf } from "@/modules/comercial/proposta-externa";
 import {
   validarQualificacao,
   validarMovimentoProspeccao,
@@ -329,6 +331,11 @@ export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
   });
   if (!p) throw new ActionError("Proposta não encontrada.");
   if (p.status === "aceita") throw new ActionError("Proposta aceita não pode ser editada.");
+  // ADR-0005: o conteúdo da externa é o PDF. Salvar pelo editor recriaria itens e valores a
+  // partir de uma tela que não conhece o documento enviado.
+  if (p.externa) {
+    throw new ActionError("Proposta externa: registre uma nova versão pela ficha da negociação.");
+  }
 
   const snapshot = {
     titulo: i.titulo,
@@ -439,6 +446,189 @@ export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
   }
 
   return { id: i.id };
+}
+
+/**
+ * Registra uma versão de proposta montada FORA do sistema (ADR-0005): PDF + linhas por
+ * disciplina + desconto + validade + data de envio.
+ *
+ * - **Consome o número sequencial** na primeira versão (decisão do dono): é a identidade do
+ *   documento, igual às propostas do editor. Versões seguintes entram na mesma proposta.
+ * - **Valores pelo mesmo cálculo do editor** (`calcularValoresVersao`) e a mesma regra de
+ *   justificativa de desconto — um desconto de 30% digitado aqui é governado como no editor.
+ * - **As linhas por disciplina viram `itens`**: é delas que o aceite cria o projeto. Sem elas,
+ *   o aceite recusaria (e um projeto sem disciplinas quebraria pagamento e `/recursos`).
+ * - **O PDF entra na versão NA MESMA transação**, com `pdfPath` já preenchido. É o que impede
+ *   `arquivarPdfDaVersao` de congelar uma renderização vazia da página pública em cima dele.
+ * - Hash e tamanho são recalculados do arquivo, não confiados ao payload.
+ */
+export async function registrarVersaoExterna(
+  input: {
+    negociacaoId: string;
+    propostaId?: string;
+    titulo: string;
+    itens: { disciplina: string; valor: number }[];
+    desconto?: number | null;
+    justificativaDesconto?: string;
+    validade?: string;
+    dataEnvio: string;
+    observacao?: string;
+    pdfCaminho: string;
+  },
+  autorId: string,
+): Promise<{ propostaId: string; numero: string; versao: number }> {
+  if (input.itens.length === 0) throw new ActionError("Informe ao menos uma disciplina com valor.");
+  if (!caminhoPdfExternoValido(input.pdfCaminho) || !(await existeArquivo(input.pdfCaminho))) {
+    throw new ActionError("PDF não encontrado. Anexe o arquivo de novo.");
+  }
+  const pdf = await lerArquivo(input.pdfCaminho);
+  if (!ehPdf(pdf)) throw new ActionError("O arquivo anexado não é um PDF.");
+
+  const negociacao = await prisma.negociacao.findUnique({
+    where: { id: input.negociacaoId },
+    select: { id: true, clienteId: true, leadId: true, estagio: true },
+  });
+  if (!negociacao) throw new ActionError("Negociação não encontrada.");
+  if (negociacao.estagio === "CONTRATADO") {
+    throw new ActionError("Negociação já contratada — não recebe nova proposta.");
+  }
+
+  const existente = input.propostaId
+    ? await prisma.proposta.findUnique({
+        where: { id: input.propostaId },
+        select: {
+          id: true,
+          numero: true,
+          negociacaoId: true,
+          externa: true,
+          status: true,
+          versoes: { select: { numero: true } },
+        },
+      })
+    : null;
+  if (input.propostaId) {
+    if (!existente || existente.negociacaoId !== negociacao.id) {
+      throw new ActionError("Proposta não encontrada nesta negociação.");
+    }
+    if (!existente.externa) throw new ActionError("Esta proposta foi montada no editor — edite-a por lá.");
+    if (existente.status === "aceita") throw new ActionError("Proposta aceita não recebe nova versão.");
+  }
+
+  const valores = calcularValoresVersao(input.itens, input.desconto ?? null);
+  if (valores.valorVersao < 0) throw new ActionError("O desconto é maior que o valor da proposta.");
+  const percentual = percentualDesconto(valores);
+  const justificativa = input.justificativaDesconto?.trim() || null;
+  let descontoJustificado = false;
+  if (percentual !== null) {
+    const config = await getConfigComercial();
+    if (exigeJustificativaDesconto(percentual, config)) {
+      if (!justificativa) {
+        throw new ActionError(
+          `Desconto de ${percentual.toFixed(1)}% acima do limite de ${config.descontoMaxSemJustificativa}% ` +
+            "exige justificativa.",
+        );
+      }
+      descontoJustificado = true;
+    }
+  }
+
+  const dataEnvio = isoParaDataValidade(input.dataEnvio);
+  if (!dataEnvio) throw new ActionError("Informe a data de envio.");
+  const validade = isoParaDataValidade(input.validade);
+  const catalogo = await prisma.disciplinaCatalogo.findMany({ select: { id: true, nome: true } });
+  const idsPorNome = new Map(catalogo.map((d) => [d.nome, d.id]));
+
+  const r = await prisma.$transaction(async (tx) => {
+    let propostaId: string;
+    let numero: string;
+    let versao: number;
+    const dados = {
+      titulo: input.titulo.trim(),
+      validade,
+      observacoes: input.observacao?.trim() || null,
+      status: "enviada" as const,
+      enviadaEm: dataEnvio,
+    };
+    if (existente) {
+      await tx.proposta.update({ where: { id: existente.id }, data: dados });
+      propostaId = existente.id;
+      numero = existente.numero;
+      versao = proximoNumeroVersao(existente.versoes);
+    } else {
+      const seq = await proximoNumeroProposta(tx);
+      const criada = await tx.proposta.create({
+        data: {
+          ...dados,
+          ano: seq.ano,
+          sequencial: seq.sequencial,
+          numero: seq.numero,
+          externa: true,
+          clienteId: negociacao.clienteId,
+          negociacaoId: negociacao.id,
+          leadId: negociacao.leadId,
+          // Coluna obrigatória e única; a externa não tem link público (ADR-0005) — o token
+          // existe só para não quebrar o schema.
+          token: randomBytes(18).toString("hex"),
+          autorId,
+        },
+        select: { id: true, numero: true },
+      });
+      propostaId = criada.id;
+      numero = criada.numero;
+      versao = 1;
+    }
+
+    await tx.propostaItem.deleteMany({ where: { propostaId } });
+    await tx.propostaItem.createMany({
+      data: input.itens.map((it, idx) => ({
+        propostaId,
+        disciplinaTextoLegado: it.disciplina,
+        disciplinaId: idsPorNome.get(it.disciplina) ?? null,
+        valor: it.valor,
+        ordem: idx,
+      })),
+    });
+    await tx.propostaVersao.create({
+      data: {
+        propostaId,
+        numero: versao,
+        snapshot: {
+          externa: true,
+          titulo: dados.titulo,
+          itens: input.itens,
+          desconto: valores.desconto,
+          justificativaDesconto: justificativa,
+          validade: input.validade || null,
+          dataEnvio: input.dataEnvio,
+          observacoes: dados.observacoes,
+        } as unknown as Prisma.InputJsonValue,
+        autorId,
+        valorOriginal: valores.valorOriginal,
+        valorVersao: valores.valorVersao,
+        desconto: valores.desconto,
+        status: "enviada",
+        dataEnvio,
+        validade,
+        observacao: dados.observacoes,
+        pdfPath: input.pdfCaminho,
+        pdfHashSha256: createHash("sha256").update(pdf).digest("hex"),
+        pdfTamanho: pdf.length,
+      },
+    });
+    return { propostaId, numero, versao };
+  });
+
+  await registrarAtividade(
+    { evento: "PROPOSTA_ENVIADA", numero: r.numero, porEmail: false },
+    { autorId, clienteId: negociacao.clienteId, propostaId: r.propostaId },
+  );
+  if (descontoJustificado && percentual !== null && justificativa) {
+    await registrarAtividade(
+      { evento: "DESCONTO_JUSTIFICADO", numero: r.numero, percentual, justificativa },
+      { autorId, clienteId: negociacao.clienteId, propostaId: r.propostaId },
+    );
+  }
+  return r;
 }
 
 /**

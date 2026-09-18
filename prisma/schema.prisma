@@ -4655,6 +4655,10 @@ model Proposta {
   negociacao   Negociacao? @relation(fields: [negociacaoId], references: [id])
 
   status      StatusProposta @default(rascunho)
+  /// ADR-0005: montada fora do sistema (Word→PDF). O PDF de cada envio vive em
+  /// `PropostaVersao.pdfPath`; as linhas por disciplina continuam em `itens` (o aceite cria o
+  /// projeto a partir delas). Não tem link público nem editor — o time envia o PDF por fora.
+  externa     Boolean        @default(false)
   areaM2      Decimal?       @db.Decimal(12, 2)
   validade    DateTime?      @db.Date
   observacoes String?

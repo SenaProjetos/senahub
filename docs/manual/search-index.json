@@ -623,7 +623,10 @@
         "probabilidade",
         "follow-ups",
         "agenda comercial",
-        "atrasados"
+        "atrasados",
+        "proposta externa",
+        "proposta em pdf",
+        "versão da proposta"
       ],
       "sinonimos": [
         "crm",

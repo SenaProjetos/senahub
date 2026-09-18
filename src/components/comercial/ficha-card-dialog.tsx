@@ -21,6 +21,7 @@ import { RegistrarInteracaoPopover } from "./registrar-interacao-popover";
 import { LeadDialog } from "./lead-dialog";
 import { LeadAnexos } from "./lead-anexos";
 import { NegociacaoDadosForm } from "./negociacao-dados-form";
+import { RegistrarVersaoExternaDialog } from "./registrar-versao-externa-dialog";
 import { FollowUpsFicha, HistoricoFicha, Linha, PropostasFicha } from "./ficha-partes";
 
 type Opcao = { id: string; nome: string };
@@ -30,6 +31,9 @@ export type OpcoesFicha = {
   tipos: Opcao[];
   responsaveis: { id: string; name: string }[];
   etapas: { id: string; nome: string }[];
+  /** Catálogo de disciplinas (nomes) — linhas da proposta externa. */
+  disciplinas: string[];
+  descontoMaxSemJustificativa: number;
 };
 
 export type FichaCard = { tipo: "LEAD"; lead: FichaLead } | { tipo: "NEGOCIACAO"; negociacao: FichaNegociacao };
@@ -207,7 +211,7 @@ function FichaLeadAbas({ lead, opcoes, podeGerir }: { lead: FichaLead; opcoes: O
       followUps={
         <FollowUpsFicha entidadeTipo="LEAD" entidadeId={lead.id} nome={lead.nome} email={lead.email} acoes={lead.proximasAcoes} />
       }
-      propostas={<PropostasFicha propostas={lead.propostasResumo} />}
+      propostas={<PropostasFicha propostas={lead.propostasResumo} podeGerir={podeGerir} />}
       anexos={<LeadAnexos leadId={lead.id} anexos={lead.anexos} />}
       historico={<HistoricoFicha timeline={lead.timeline} />}
       contagens={{
@@ -294,7 +298,25 @@ function FichaNegociacaoAbas({
       followUps={
         <FollowUpsFicha entidadeTipo="NEGOCIACAO" entidadeId={n.id} nome={n.titulo} email={principal?.email} acoes={n.proximasAcoes} />
       }
-      propostas={<PropostasFicha propostas={n.propostas} />}
+      propostas={
+        <PropostasFicha
+          propostas={n.propostas}
+          podeGerir={podeGerir}
+          acoesExtras={
+            podeGerir && n.estagio !== "CONTRATADO" ? (
+              <RegistrarVersaoExternaDialog
+                negociacaoId={n.id}
+                tituloPadrao={n.titulo}
+                propostasExternas={n.propostas
+                  .filter((p) => p.externa && p.status !== "aceita")
+                  .map((p) => ({ id: p.id, numero: p.numero, titulo: p.titulo, versao: p.versao }))}
+                disciplinas={opcoes.disciplinas}
+                descontoMaxSemJustificativa={opcoes.descontoMaxSemJustificativa}
+              />
+            ) : null
+          }
+        />
+      }
       anexos={
         n.lead ? (
           <LeadAnexos leadId={n.lead.id} anexos={n.anexos} />

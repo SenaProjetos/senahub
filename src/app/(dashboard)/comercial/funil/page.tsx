@@ -17,6 +17,8 @@ import {
   responsaveisAtivos,
   tiposEmpreendimentoAtivos,
 } from "@/modules/comercial/queries";
+import { catalogoDisciplinas } from "@/modules/projetos/queries";
+import { getConfigComercial } from "@/modules/comercial/config/queries";
 import { FichaCardDialog, type FichaCard, type OpcoesFicha } from "@/components/comercial/ficha-card-dialog";
 import { lerFiltros } from "@/modules/comercial/filtros";
 import {
@@ -91,15 +93,21 @@ export default async function FunilComercialPage({
   const card = Array.isArray(sp.card) ? sp.card[0] : sp.card;
   const ficha = await carregarFicha(card);
   const opcoesFicha: OpcoesFicha | null = ficha
-    ? await Promise.all([responsaveisAtivos(), tiposEmpreendimentoAtivos(), ficha.tipo === "LEAD" ? funilCompleto() : []]).then(
-        ([responsaveis, tipos, etapas]) => ({
-          parceiros,
-          campanhas,
-          tipos,
-          responsaveis,
-          etapas: etapas.map((e) => ({ id: e.id, nome: e.nome })),
-        }),
-      )
+    ? await Promise.all([
+        responsaveisAtivos(),
+        tiposEmpreendimentoAtivos(),
+        ficha.tipo === "LEAD" ? funilCompleto() : [],
+        catalogoDisciplinas(),
+        getConfigComercial(),
+      ]).then(([responsaveis, tipos, etapas, catalogo, config]) => ({
+        parceiros,
+        campanhas,
+        tipos,
+        responsaveis,
+        etapas: etapas.map((e) => ({ id: e.id, nome: e.nome })),
+        disciplinas: catalogo.map((d) => d.nome),
+        descontoMaxSemJustificativa: config.descontoMaxSemJustificativa,
+      }))
     : null;
 
   const soma = (filtro: (c: (typeof colunas)[number]) => boolean, campo: "total" | "soma") =>

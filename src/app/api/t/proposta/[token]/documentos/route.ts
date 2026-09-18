@@ -27,7 +27,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     await auditarBloqueioRateLimit(limite, { modulo: "documentos_cliente", acao: "receber-por-link", entidade: "Documento" });
     return respostaLimiteRequisicoes(limite);
   }
-  const proposta = await prisma.proposta.findUnique({ where: { token }, select: { id: true, clienteId: true } });
+  const proposta = await prisma.proposta.findUnique({ where: { token, externa: false }, select: { id: true, clienteId: true } });
   if (!proposta) return NextResponse.json({ error: "Link inválido." }, { status: 404 });
 
   const jaRecebidos = await prisma.documento.count({ where: { propostaId: proposta.id, canal: "link" } });

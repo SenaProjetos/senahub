@@ -124,6 +124,23 @@ export const salvarPropostaSchema = z.object({
   justificativaDesconto: opt(z.string()),
 });
 
+/** ADR-0005: versão de proposta montada fora do sistema — PDF + linhas por disciplina. */
+export const registrarVersaoExternaSchema = z.object({
+  negociacaoId: z.string().min(1),
+  /** Vazio = proposta nova (consome o número sequencial). */
+  propostaId: opt(z.string()),
+  titulo: z.string().trim().min(1, "Informe o título."),
+  itens: z
+    .array(z.object({ disciplina: z.string().trim().min(1, "Escolha a disciplina."), valor: z.number().nonnegative() }))
+    .min(1, "Informe ao menos uma disciplina com valor."),
+  desconto: z.number().nonnegative().nullish(),
+  justificativaDesconto: opt(z.string()),
+  validade: opt(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida.")),
+  dataEnvio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Informe a data de envio."),
+  observacao: opt(z.string()),
+  pdfCaminho: z.string().min(1, "Anexe o PDF."),
+});
+
 /** F5.5: `em_negociacao` entra no leque de status que esta action aceita definir. `aceita`
  *  continua RECUSADA aqui mesmo estando no enum — só `aceitarProposta` pode chegar lá (gera o
  *  projeto). */

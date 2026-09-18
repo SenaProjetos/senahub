@@ -4,13 +4,14 @@ import { useState, useTransition, type ComponentType } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CalendarClock, Check, FileText } from "lucide-react";
+import { CalendarClock, Check, CheckCircle2, Download, FileText } from "lucide-react";
 import type { TipoAtividade, TipoProximaAcao } from "@/generated/prisma/client";
-import { concluirProximaAcao } from "@/modules/comercial/actions";
+import { aceitarProposta, concluirProximaAcao } from "@/modules/comercial/actions";
 import { TIPO_PROXIMA_ACAO_LABEL } from "@/modules/agenda/proxima-acao";
 import { TIPO_ATIVIDADE_LABEL, opcoesDe } from "@/modules/comercial/labels";
 import { ATIVIDADE_ICONE } from "@/components/comercial/atividade-icones";
 import { FollowUpDialog } from "./follow-up-dialog";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -31,6 +32,9 @@ export type PropostaFicha = {
   numero: string;
   titulo: string;
   status: string;
+  externa: boolean;
+  versao: number | null;
+  temPdf: boolean;
   valorOriginal: number | null;
   desconto: number | null;
   valorVersao: number | null;
@@ -133,31 +137,104 @@ export function FollowUpsFicha({
   );
 }
 
-/** Propostas com o valor e o desconto da versão vigente — é de lá que o valor do negócio sai. */
-export function PropostasFicha({ propostas }: { propostas: PropostaFicha[] }) {
-  if (propostas.length === 0) {
-    return <EmptyState icon={FileText} title="Nenhuma proposta" description="Crie a primeira pela aba Dados." />;
-  }
+/**
+ * Propostas com o valor e o desconto da versão vigente — é de lá que o valor do negócio sai.
+ * Proposta externa (ADR-0005) não abre o editor: o documento é o PDF, e o aceite é feito aqui.
+ */
+export function PropostasFicha({
+  propostas,
+  podeGerir,
+  acoesExtras,
+}: {
+  propostas: PropostaFicha[];
+  podeGerir?: boolean;
+  acoesExtras?: React.ReactNode;
+}) {
   return (
-    <div className="space-y-1.5">
-      {propostas.map((p) => (
+    <div className="space-y-2">
+      {acoesExtras && <div className="flex justify-end">{acoesExtras}</div>}
+      {propostas.length === 0 ? (
+        <EmptyState icon={FileText} title="Nenhuma proposta" description="Registre ou crie a primeira proposta." />
+      ) : (
+        <div className="space-y-1.5">
+          {propostas.map((p) => (
+            <LinhaProposta key={p.id} p={p} podeGerir={podeGerir ?? false} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LinhaProposta({ p, podeGerir }: { p: PropostaFicha; podeGerir: boolean }) {
+  const router = useRouter();
+  const confirm = useConfirm();
+  const [pending, start] = useTransition();
+
+  async function aceitar() {
+    // Confirma ANTES do start(): `await confirm()` dentro de startTransition trava no React 19.
+    const ok = await confirm({
+      title: `Aceitar ${p.numero}?`,
+      description: "Cria o projeto com as disciplinas e o valor desta versão, e marca a negociação como contratada.",
+      confirmLabel: "Aceitar e criar projeto",
+    });
+    if (!ok) return;
+    start(async () => {
+      const r = await aceitarProposta({ id: p.id });
+      if (r.ok) {
+        toast.success("Proposta aceita — projeto criado.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  const corpo = (
+    <>
+      <FileText className="size-3.5 text-muted-foreground" />
+      <span className="font-mono text-xs">{p.numero}</span>
+      {p.versao != null && <span className="font-mono text-[10px] text-muted-foreground">v{p.versao}</span>}
+      <span className="min-w-0 flex-1 truncate">{p.titulo}</span>
+      {p.externa && (
+        <Badge variant="secondary" className="text-[10px]">
+          Externa
+        </Badge>
+      )}
+      {p.valorVersao != null && <span className="font-mono text-xs">{brl(p.valorVersao)}</span>}
+      {p.desconto != null && p.desconto > 0 && (
+        <span className="font-mono text-[10px] text-muted-foreground">desc. {brl(p.desconto)}</span>
+      )}
+      <Badge variant="outline" className="text-[10px]">
+        {p.status}
+      </Badge>
+    </>
+  );
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-sm border px-2 py-1.5 text-sm">
+      {p.externa ? (
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5">{corpo}</div>
+      ) : (
         <Link
-          key={p.id}
           href={`/comercial/propostas/${p.id}`}
-          className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-sm border px-2 py-1.5 text-sm hover:bg-muted"
+          className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 hover:underline"
         >
-          <FileText className="size-3.5 text-muted-foreground" />
-          <span className="font-mono text-xs">{p.numero}</span>
-          <span className="min-w-0 flex-1 truncate">{p.titulo}</span>
-          {p.valorVersao != null && <span className="font-mono text-xs">{brl(p.valorVersao)}</span>}
-          {p.desconto != null && p.desconto > 0 && (
-            <span className="font-mono text-[10px] text-muted-foreground">desc. {brl(p.desconto)}</span>
-          )}
-          <Badge variant="outline" className="text-[10px]">
-            {p.status}
-          </Badge>
+          {corpo}
         </Link>
-      ))}
+      )}
+      {p.temPdf && p.versao != null && (
+        <Button
+          size="sm"
+          variant="ghost"
+          render={<a href={`/api/comercial/propostas/${p.id}/versoes/${p.versao}/pdf`} target="_blank" rel="noopener" />}
+        >
+          <Download className="size-3.5" /> PDF
+        </Button>
+      )}
+      {p.externa && podeGerir && p.status !== "aceita" && (
+        <Button size="sm" variant="outline" onClick={aceitar} disabled={pending}>
+          <CheckCircle2 className="size-3.5" /> Aceitar → projeto
+        </Button>
+      )}
     </div>
   );
 }

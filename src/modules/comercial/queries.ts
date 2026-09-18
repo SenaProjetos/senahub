@@ -1430,7 +1430,14 @@ function resumoPropostas(
     numero: string;
     titulo: string;
     status: string;
-    versoes: { numero: number; valorOriginal: unknown; desconto: unknown; valorVersao: unknown }[];
+    externa: boolean;
+    versoes: {
+      numero: number;
+      valorOriginal: unknown;
+      desconto: unknown;
+      valorVersao: unknown;
+      pdfPath: string | null;
+    }[];
   }[],
 ) {
   return propostas.map((p) => {
@@ -1440,6 +1447,10 @@ function resumoPropostas(
       numero: p.numero,
       titulo: p.titulo,
       status: p.status,
+      externa: p.externa,
+      versao: v?.numero ?? null,
+      /** O caminho do arquivo não sai do servidor — só se existe PDF para baixar. */
+      temPdf: Boolean(v?.pdfPath),
       valorOriginal: v?.valorOriginal != null ? Number(v.valorOriginal) : null,
       desconto: v?.desconto != null ? Number(v.desconto) : null,
       valorVersao: v?.valorVersao != null ? Number(v.valorVersao) : null,
@@ -1452,7 +1463,8 @@ const SELECT_PROPOSTA_FICHA = {
   numero: true,
   titulo: true,
   status: true,
-  versoes: { select: { numero: true, valorOriginal: true, desconto: true, valorVersao: true } },
+  externa: true,
+  versoes: { select: { numero: true, valorOriginal: true, desconto: true, valorVersao: true, pdfPath: true } },
 } as const;
 
 /** Ações comerciais em aberto, serializadas para o cliente. */

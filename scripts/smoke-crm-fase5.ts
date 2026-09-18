@@ -34,7 +34,8 @@ import "dotenv/config";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { prisma } from "../src/lib/prisma";
-import { removerArquivo } from "../src/lib/storage";
+import { removerArquivo, salvarArquivo } from "../src/lib/storage";
+import { PASTA_PDF_EXTERNO } from "../src/modules/comercial/proposta-externa";
 import { planejarVinculo } from "../src/modules/comercial/vinculo-negociacao";
 import { carregarPendentes, executarVinculo } from "../src/modules/comercial/migracao-vinculo";
 import {
@@ -45,6 +46,7 @@ import {
   mudarStatusProposta,
   moverEstagio,
   reabrirNegociacao,
+  registrarVersaoExterna,
 } from "../src/modules/comercial/service";
 import { versoesComparaveis } from "../src/modules/comercial/propostas-extras/queries";
 import { versaoVigente } from "../src/modules/comercial/versoes";
@@ -1503,6 +1505,140 @@ async function main() {
     "Projeto.valorContrato é o valor COM desconto (é o que o cliente paga)",
     Number(projDesc?.valorContrato) === 8000,
     `${projDesc?.valorContrato}`,
+  );
+
+  console.log("\n── ADR-0005: proposta externa (PDF + disciplinas) ────────────────\n");
+
+  const recusaExt = async (nome: string, fn: () => Promise<unknown>, trecho: RegExp) => {
+    try {
+      await fn();
+      check(nome, false, "PASSOU quando deveria ser recusado");
+    } catch (e) {
+      const msg = (e as Error).message ?? "";
+      check(nome, trecho.test(msg), `"${msg.slice(0, 70)}"`);
+    }
+  };
+  const disciplinasCat = await prisma.disciplinaCatalogo.findMany({ take: 2, select: { nome: true } });
+  const negExt = await prisma.negociacao.create({
+    data: { titulo: `${TAG}_NegExterna`, clienteId: cliente.id, estagio: "ORCAMENTO" },
+  });
+  const pdfFalso = async () => {
+    const caminho = `${PASTA_PDF_EXTERNO}${randomBytes(12).toString("hex")}.pdf`;
+    await salvarArquivo(caminho, Buffer.from(`%PDF-1.4\n% ${TAG}\n`));
+    return caminho;
+  };
+  const hoje = new Date().toISOString().slice(0, 10);
+  const itensExt = [
+    { disciplina: disciplinasCat[0].nome, valor: 6000 },
+    { disciplina: disciplinasCat[1].nome, valor: 4000 },
+  ];
+
+  await recusaExt(
+    "caminho de PDF fora da pasta das externas é recusado (não aponta para outro arquivo do storage)",
+    () =>
+      registrarVersaoExterna(
+        { negociacaoId: negExt.id, titulo: "x", itens: itensExt, dataEnvio: hoje, pdfCaminho: "rh/qualquer.pdf" },
+        user.id,
+      ),
+    /PDF não encontrado/,
+  );
+
+  const seqAntes = await prisma.propostaSequencia.findUnique({ where: { ano }, select: { ultimo: true } });
+  const v1 = await registrarVersaoExterna(
+    {
+      negociacaoId: negExt.id,
+      titulo: `${TAG} Externa`,
+      itens: itensExt,
+      desconto: 500,
+      dataEnvio: hoje,
+      validade: hoje,
+      pdfCaminho: await pdfFalso(),
+    },
+    user.id,
+  );
+  const seqDepois = await prisma.propostaSequencia.findUnique({ where: { ano }, select: { ultimo: true } });
+  check("1ª versão consome o número sequencial", (seqDepois?.ultimo ?? 0) === (seqAntes?.ultimo ?? 0) + 1, v1.numero);
+  const ext = await prisma.proposta.findUnique({
+    where: { id: v1.propostaId },
+    select: {
+      externa: true,
+      status: true,
+      token: true,
+      itens: { select: { valor: true } },
+      versoes: { select: { numero: true, pdfPath: true, valorVersao: true, desconto: true, status: true } },
+    },
+  });
+  check("nasce externa, enviada, com as linhas por disciplina", ext?.externa === true && ext.status === "enviada" && ext.itens.length === 2);
+  check(
+    "versão 1 guarda o PDF e os valores (10000 − 500)",
+    ext?.versoes[0]?.pdfPath != null && Number(ext.versoes[0].valorVersao) === 9500,
+    `${ext?.versoes[0]?.valorVersao}`,
+  );
+
+  const arq = await arquivarPdfDaVersao(v1.propostaId, { gerar: async () => Buffer.from("%PDF-render-vazio") });
+  check("arquivamento no envio NÃO sobrescreve o PDF anexado", arq.arquivado === false);
+
+  const publica = await prisma.proposta.findUnique({ where: { token: ext!.token, externa: false } });
+  check("externa não tem página pública (lookup por token com externa:false devolve nada)", publica === null);
+
+  await recusaExt(
+    "o editor recusa salvar uma proposta externa",
+    () => salvarProposta({ id: v1.propostaId, titulo: "x", itens: [], condicoes: [] }, user.id),
+    /Proposta externa/,
+  );
+
+  const config = await getConfigComercial();
+  const pdfDesconto = await pdfFalso();
+  await recusaExt(
+    "desconto acima do limite sem justificativa é recusado, como no editor",
+    () =>
+      registrarVersaoExterna(
+        {
+          negociacaoId: negExt.id,
+          propostaId: v1.propostaId,
+          titulo: `${TAG} Externa`,
+          itens: itensExt,
+          desconto: 10000 * ((config.descontoMaxSemJustificativa + 5) / 100),
+          dataEnvio: hoje,
+          pdfCaminho: pdfDesconto,
+        },
+        user.id,
+      ),
+    /exige justificativa/,
+  );
+  // A recusa não grava a versão, então o arquivo não está em nenhum `pdfPath` e o `limpar` não o
+  // acharia — é o mesmo órfão que um upload seguido de ação recusada deixa na vida real.
+  await removerArquivo(pdfDesconto);
+
+  const v2 = await registrarVersaoExterna(
+    {
+      negociacaoId: negExt.id,
+      propostaId: v1.propostaId,
+      titulo: `${TAG} Externa`,
+      itens: itensExt,
+      desconto: 1000,
+      dataEnvio: hoje,
+      pdfCaminho: await pdfFalso(),
+    },
+    user.id,
+  );
+  check("2ª versão entra na mesma proposta, mesmo número", v2.propostaId === v1.propostaId && v2.numero === v1.numero && v2.versao === 2);
+  const extPdf1 = await pdfArquivadoDaVersao(v1.propostaId, 1);
+  const extPdf2 = await pdfArquivadoDaVersao(v1.propostaId, 2);
+  check(
+    "cada versão mantém o próprio PDF",
+    extPdf1 != null && extPdf2 != null && extPdf1.versao === 1 && extPdf2.versao === 2,
+  );
+
+  const aceiteExt = await aceitarProposta(v1.propostaId, user.id);
+  const projExt = await prisma.projeto.findUnique({
+    where: { id: aceiteExt.projetoId },
+    select: { valorContrato: true, _count: { select: { disciplinas: true } } },
+  });
+  check(
+    "aceite da externa cria o projeto com as disciplinas e o valor da versão vigente (10000 − 1000)",
+    Number(projExt?.valorContrato) === 9000 && projExt?._count.disciplinas === 2,
+    `${projExt?.valorContrato} / ${projExt?._count.disciplinas} disciplinas`,
   );
 
   console.log(`\n${ok ? "✔ Fase 5: tudo verde." : "✖ Fase 5: há falhas acima."}`);
