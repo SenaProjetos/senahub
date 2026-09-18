@@ -432,8 +432,12 @@ function Invoke-Promover {
         if ($DryRun) {
             Write-Host "  [dry-run] git fetch origin ; git checkout dev ; git merge --ff-only origin/dev" -ForegroundColor DarkGray
             Write-Host "  [dry-run] git merge $origem --no-edit" -ForegroundColor DarkGray
+            # Mesma conta da execucao real: o que falta depois de origin/dev + a branch atual.
+            $base = "refs/heads/dev"
+            git rev-parse --verify --quiet "refs/remotes/origin/dev" *> $null
+            if ($LASTEXITCODE -eq 0) { $base = "refs/remotes/origin/dev" }
             foreach ($b in $outras) {
-                $n = [int]((git rev-list --count "refs/heads/dev..refs/heads/$b" 2>$null) | Select-Object -First 1)
+                $n = [int]((git rev-list --count "refs/heads/$b" --not $base "refs/heads/dev" "refs/heads/$origem" 2>$null) | Select-Object -First 1)
                 if ($n -gt 0) { Write-Host "  [dry-run] perguntaria se inclui '$b' ($n commit(s) fora da dev)" -ForegroundColor DarkGray }
             }
             Invoke-PromoverDev -Modo $Modo -DeBranchIde
