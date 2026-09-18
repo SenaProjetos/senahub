@@ -296,9 +296,14 @@ export default async function ArquivosPage({
     // extensões dos seus arquivos (PDF+DWG conta nos dois) — somar extensões inflaria o número.
     //
     // Upload órfão (`documentoId: null`) deixa de ser contado. Era o único caso em que os dois
-    // caminhos divergiam; a produção foi consultada em 2026-09-17 e tem ZERO. A rota de upload
-    // sempre grava `documentoId`, então o app não cria órfão novo — mas se algum aparecer por
-    // script, ele fica invisível nesta contagem em vez de aparecer como unidade própria.
+    // caminhos divergiam; a produção foi consultada em 2026-09-17 e tem ZERO.
+    //
+    // ATENÇÃO: órfão novo AINDA pode nascer. A rota de upload sempre grava `documentoId`, mas o
+    // `autoStore` das Ferramentas (`modules/ferramentas/auto-store.ts`) cria Upload sem documento
+    // nem revisão. Esse arquivo já não aparecia na tabela (que lista documentos) e agora também
+    // não entra neste número — o comportamento fica coerente, mas o arquivo segue invisível na
+    // aba. A correção é o autoStore passar pelo mesmo `chaveDocumento` da rota;
+    // `scripts/reconciliar-uploads-orfaos.ts` conserta os que já existirem.
     const totalPorDisciplina = new Map(
       arvoreNavegacao.map((a) => [a.disciplinaId, a.fases.reduce((soma, f) => soma + f.total, 0)]),
     );
