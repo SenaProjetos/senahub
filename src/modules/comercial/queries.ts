@@ -23,6 +23,7 @@ import {
 } from "@/modules/comercial/filtros";
 import { candidatosDuplicata, relevanciaNome, tokensDeBusca } from "@/modules/comercial/dedupe";
 import { versaoVigente } from "@/modules/comercial/versoes";
+import { mesclarTimeline } from "@/modules/comercial/atividade";
 import {
   pipelineAberto,
   pipelinePonderado,
@@ -1331,8 +1332,8 @@ export async function homeComercial(agora: Date, responsavelId?: string) {
     tipo: c.tipo,
     href:
       c.entidadeTipo === "LEAD"
-        ? `/comercial/prospeccao?lead=${c.entidadeId}`
-        : "/comercial/negociacoes",
+        ? `/comercial/funil?card=LEAD:${c.entidadeId}`
+        : `/comercial/funil?card=NEGOCIACAO:${c.entidadeId}`,
     nomeEntidade:
       (c.entidadeTipo === "LEAD" ? nomeLead.get(c.entidadeId!) : nomeNeg.get(c.entidadeId!)) ??
       "(sem nome)",
@@ -1388,8 +1389,163 @@ export async function homeComercial(agora: Date, responsavelId?: string) {
         titulo: n.titulo,
         clienteNome: n.cliente.nome,
         diasSemContato: Math.floor((agora.getTime() - n.updatedAt.getTime()) / 86_400_000),
-        href: "/comercial/negociacoes",
+        href: `/comercial/funil?card=NEGOCIACAO:${n.id}`,
       })),
     },
   };
+}
+
+// ── Ficha do card (modal do funil, ADR-0004) ─────────────────
+/** Propostas com o valor da versão vigente — a fonte de valor/desconto (F6.1a), não a negociação. */
+function resumoPropostas(
+  propostas: {
+    id: string;
+    numero: string;
+    titulo: string;
+    status: string;
+    versoes: { numero: number; valorOriginal: unknown; desconto: unknown; valorVersao: unknown }[];
+  }[],
+) {
+  return propostas.map((p) => {
+    const v = versaoVigente(p.versoes);
+    return {
+      id: p.id,
+      numero: p.numero,
+      titulo: p.titulo,
+      status: p.status,
+      valorOriginal: v?.valorOriginal != null ? Number(v.valorOriginal) : null,
+      desconto: v?.desconto != null ? Number(v.desconto) : null,
+      valorVersao: v?.valorVersao != null ? Number(v.valorVersao) : null,
+    };
+  });
+}
+
+const SELECT_PROPOSTA_FICHA = {
+  id: true,
+  numero: true,
+  titulo: true,
+  status: true,
+  versoes: { select: { numero: true, valorOriginal: true, desconto: true, valorVersao: true } },
+} as const;
+
+/** Ações comerciais em aberto, serializadas para o cliente. */
+async function acoesAbertas(entidadeTipo: TipoAncoraCompromisso, id: string) {
+  const acoes = await proximasAcoesDe(entidadeTipo, id);
+  return acoes.map((a) => ({
+    id: a.id,
+    tipo: a.tipo,
+    titulo: a.titulo,
+    inicio: a.inicio.toISOString(),
+    local: a.local,
+    criador: a.criador.name,
+  }));
+}
+
+/**
+ * Ficha da NEGOCIAÇÃO — até aqui não existia (só o card no board). A timeline é contínua: junta
+ * o que aconteceu na prospecção que a originou (legado + nova) com o que aconteceu depois, porque
+ * para quem vende é um negócio só (ADR-0004). Anexos são os do lead de origem: é lá que moram.
+ */
+export async function fichaNegociacao(id: string) {
+  const n = await prisma.negociacao.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      titulo: true,
+      estagio: true,
+      temperatura: true,
+      probabilidade: true,
+      probabilidadeOverride: true,
+      valorEstimado: true,
+      valorNegociado: true,
+      previsaoFechamento: true,
+      areaM2: true,
+      observacaoPerda: true,
+      concorrente: true,
+      responsavelId: true,
+      parceiroId: true,
+      campaignId: true,
+      tipoEmpreendimentoId: true,
+      motivoPerdaRef: { select: { nome: true } },
+      cliente: { select: { id: true, nome: true } },
+      responsavel: { select: { id: true, name: true, image: true } },
+      parceiro: { select: { id: true, nome: true } },
+      campanha: { select: { id: true, nome: true } },
+      tipoEmpreendimento: { select: { id: true, nome: true } },
+      contatos: {
+        select: { principal: true, contato: { select: { id: true, nome: true, email: true, telefone: true } } },
+      },
+      disciplinas: { select: { disciplina: { select: { nome: true } } } },
+      propostas: { orderBy: { createdAt: "desc" }, select: SELECT_PROPOSTA_FICHA },
+      lead: {
+        select: {
+          id: true,
+          nome: true,
+          atividades: { orderBy: { createdAt: "desc" }, include: { autor: { select: { name: true } } } },
+          anexos: {
+            orderBy: { createdAt: "desc" },
+            select: { id: true, nome: true, nomeArquivo: true, tamanho: true, createdAt: true },
+          },
+        },
+      },
+    },
+  });
+  if (!n) return null;
+
+  const [atividades, proximasAcoes] = await Promise.all([
+    prisma.atividade.findMany({
+      where: { OR: [{ negociacaoId: id }, ...(n.lead ? [{ leadId: n.lead.id }] : [])] },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, descricao: true, createdAt: true, tipo: true, autor: { select: { name: true } } },
+    }),
+    acoesAbertas("NEGOCIACAO", id),
+  ]);
+
+  return {
+    ...n,
+    valorEstimado: n.valorEstimado != null ? Number(n.valorEstimado) : null,
+    valorNegociado: n.valorNegociado != null ? Number(n.valorNegociado) : null,
+    areaM2: n.areaM2 != null ? Number(n.areaM2) : null,
+    previsaoFechamento: n.previsaoFechamento?.toISOString() ?? null,
+    propostas: resumoPropostas(n.propostas),
+    anexos: n.lead?.anexos ?? [],
+    timeline: mesclarTimeline(n.lead?.atividades ?? [], atividades).map((a) => ({
+      ...a,
+      createdAt: a.createdAt.toISOString(),
+    })),
+    proximasAcoes,
+  };
+}
+export type FichaNegociacao = NonNullable<Awaited<ReturnType<typeof fichaNegociacao>>>;
+
+/** Ficha do LEAD para o modal — mesmo conteúdo da página `/comercial/[id]`, já serializado. */
+export async function fichaLead(id: string) {
+  const lead = await obterLead(id);
+  if (!lead) return null;
+  const [propostas, proximasAcoes] = await Promise.all([
+    prisma.proposta.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" }, select: SELECT_PROPOSTA_FICHA }),
+    acoesAbertas("LEAD", id),
+  ]);
+  // Mantém o formato de `LeadItem` (o `LeadDialog` de edição recebe este objeto).
+  return {
+    ...lead,
+    valorEstimado: lead.valorEstimado != null ? Number(lead.valorEstimado) : null,
+    _count: { propostas: propostas.length },
+    propostasResumo: resumoPropostas(propostas),
+    timeline: mesclarTimeline(lead.atividades, lead.atividadesComerciais).map((a) => ({
+      ...a,
+      createdAt: a.createdAt.toISOString(),
+    })),
+    proximasAcoes,
+  };
+}
+export type FichaLead = NonNullable<Awaited<ReturnType<typeof fichaLead>>>;
+
+/** Tipos de empreendimento ativos — Select da ficha da negociação. */
+export async function tiposEmpreendimentoAtivos() {
+  return prisma.tipoEmpreendimento.findMany({
+    where: { ativo: true },
+    orderBy: [{ ordem: "asc" }, { nome: "asc" }],
+    select: { id: true, nome: true },
+  });
 }

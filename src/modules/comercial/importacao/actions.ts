@@ -15,7 +15,7 @@ const base = { modulo: "comercial", recurso: "comercial", permissao: "gerir" } a
 
 function rev() {
   revalidatePath("/comercial");
-  revalidatePath("/comercial/prospeccao");
+  revalidatePath("/comercial/funil");
 }
 
 /** Lê a planilha persistida (mesmo caminho que o upload salvou) e resolve com o banco atual. */

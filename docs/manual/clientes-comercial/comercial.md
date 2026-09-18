@@ -65,6 +65,14 @@ quadro lembra da sua escolha. **Encerrados** junta tudo que saiu do fluxo (sem o
 descartado, em espera, perdido, cancelado) e começa recolhido; ao abrir, cada card mostra o motivo
 do encerramento. Arrastar um card para Encerrados pergunta qual encerramento aplicar.
 
+Clique no nome do card para abrir a **ficha** sem sair do quadro. Ela reúne, em abas, os dados,
+os follow-ups, as propostas (com valor e desconto da versão vigente), os anexos e o histórico
+completo — o de uma negociação inclui o que aconteceu ainda na prospecção. Na aba **Dados** de uma
+negociação dá para ajustar demanda, responsável, temperatura, valor estimado, previsão de
+fechamento, parceiro, campanha, tipo de empreendimento e área. A probabilidade segue o estágio;
+marque **Definir manualmente** para fixar outro número. O link da ficha pode ser copiado e enviado
+a um colega.
+
 No card ou na ficha, use **Registrar interação** para guardar ligação, WhatsApp, e-mail, LinkedIn,
 reunião ou nota. Para notas recorrentes, escolha um texto pronto e complete o que for específico da
 conversa. Clique no nome da empresa no card para abrir a ficha e use **Agendar follow-up**; ele

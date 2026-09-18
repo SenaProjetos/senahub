@@ -1139,6 +1139,93 @@ async function garantirNegociacaoParaProposta(
   return negociacaoId;
 }
 
+/** `yyyy-mm-dd` → meia-noite UTC, a convenção de dia-calendário do banco (ver `lib/data.ts`). */
+function diaCalendario(iso: string): Date {
+  const [a, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(a, m - 1, d));
+}
+
+/**
+ * Edita os dados da negociação pela ficha do card (ADR-0004). Três cuidados que não são óbvios:
+ *
+ * - **Estágio não passa por aqui.** `moverEstagio` é o ponto único de escrita (F2.7); um update
+ *   genérico com estágio reabriria o buraco do `atualizarOportunidade` antigo (ADR-10).
+ * - **Probabilidade digitada liga o override** (ADR-12). Gravar o número sem a flag faria a
+ *   próxima mudança de estágio sobrescrevê-lo em silêncio. `null` desliga o override e volta ao
+ *   valor da tabela para o estágio atual.
+ * - **Valor proposto/desconto/negociado não são editáveis**: vêm da versão vigente da proposta
+ *   (F6.1a). Editar à mão faria o forecast divergir do documento que o cliente recebeu.
+ */
+export async function editarNegociacao(input: {
+  id: string;
+  titulo: string;
+  responsavelId?: string;
+  temperatura?: "FRIO" | "MORNO" | "QUENTE" | null;
+  valorEstimado?: number | null;
+  previsaoFechamento?: string;
+  probabilidade?: number | null;
+  parceiroId?: string;
+  campanhaId?: string;
+  tipoEmpreendimentoId?: string;
+  areaM2?: number | null;
+}): Promise<{ id: string }> {
+  const atual = await prisma.negociacao.findUnique({
+    where: { id: input.id },
+    select: { id: true, estagio: true, probabilidade: true },
+  });
+  if (!atual) throw new ActionError("Negociação não encontrada.");
+
+  const [responsavel, parceiro, campanha, tipo] = await Promise.all([
+    input.responsavelId
+      ? prisma.user.findFirst({ where: { id: input.responsavelId, ativo: true }, select: { id: true } })
+      : null,
+    input.parceiroId ? prisma.parceiro.findUnique({ where: { id: input.parceiroId }, select: { id: true } }) : null,
+    input.campanhaId ? prisma.campanha.findUnique({ where: { id: input.campanhaId }, select: { id: true } }) : null,
+    input.tipoEmpreendimentoId
+      ? prisma.tipoEmpreendimento.findUnique({ where: { id: input.tipoEmpreendimentoId }, select: { id: true } })
+      : null,
+  ]);
+  if (input.responsavelId && !responsavel) throw new ActionError("Responsável não encontrado ou inativo.");
+  if (input.parceiroId && !parceiro) throw new ActionError("Parceiro não encontrado.");
+  if (input.campanhaId && !campanha) throw new ActionError("Campanha não encontrada.");
+  if (input.tipoEmpreendimentoId && !tipo) throw new ActionError("Tipo de empreendimento não encontrado.");
+
+  let probabilidade: { probabilidade: number; probabilidadeOverride: boolean };
+  if (input.probabilidade != null) {
+    probabilidade = { probabilidade: input.probabilidade, probabilidadeOverride: true };
+  } else {
+    const linha = await prisma.probabilidadeEstagio.findUnique({
+      where: { estagio: atual.estagio },
+      select: { probabilidade: true },
+    });
+    probabilidade = {
+      probabilidade: probabilidadeDe(atual.estagio, {
+        tabela: linha ? { [atual.estagio]: linha.probabilidade } : {},
+        override: false,
+        atual: atual.probabilidade,
+      }),
+      probabilidadeOverride: false,
+    };
+  }
+
+  await prisma.negociacao.update({
+    where: { id: input.id },
+    data: {
+      titulo: input.titulo.trim(),
+      responsavelId: input.responsavelId || null,
+      temperatura: input.temperatura ?? null,
+      valorEstimado: input.valorEstimado ?? null,
+      previsaoFechamento: input.previsaoFechamento ? diaCalendario(input.previsaoFechamento) : null,
+      parceiroId: input.parceiroId || null,
+      campaignId: input.campanhaId || null,
+      tipoEmpreendimentoId: input.tipoEmpreendimentoId || null,
+      areaM2: input.areaM2 ?? null,
+      ...probabilidade,
+    },
+  });
+  return { id: input.id };
+}
+
 /**
  * Board único (ADR-0004): soltar um lead em Levantamento qualifica. Mesmo caminho da proposta
  * (`garantirNegociacaoParaProposta`), numa transação só — lead fora do fluxo é reativado por
@@ -1747,7 +1834,7 @@ export async function concluirProximaAcao(input: {
       {
         titulo: "Interação registrada",
         corpo: `${TIPO_PROXIMA_ACAO_LABEL[c.tipo!]} concluída — ${entidadeNome}`,
-        href: c.entidadeTipo === "LEAD" ? `/comercial/${c.entidadeId}` : "/comercial/negociacoes",
+        href: c.entidadeTipo === "LEAD" ? `/comercial/${c.entidadeId}` : `/comercial/funil?card=NEGOCIACAO:${c.entidadeId}`,
         tag: `comercial-acao-${c.id}`,
       },
       // Categoria nova — "comercial_interacao" ainda não tem alternância nas Preferências

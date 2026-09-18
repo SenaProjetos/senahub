@@ -358,7 +358,7 @@ export function ProspeccaoRapidaDialog({
         setOpen(false);
         reiniciar();
         if (r.data.negociacaoId) {
-          router.push(`/comercial/negociacoes?negociacao=${r.data.negociacaoId}`);
+          router.push(`/comercial/funil?card=NEGOCIACAO:${r.data.negociacaoId}`);
         } else {
           router.refresh();
         }

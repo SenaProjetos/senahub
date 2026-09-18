@@ -24,9 +24,11 @@ import {
   moverProspeccao,
   qualificarProspeccao,
   qualificarPeloBoard,
+  editarNegociacao,
   registrarInteracaoManual,
 } from "../src/modules/comercial/service";
 import {
+  fichaNegociacao,
   funilComercial,
   funilNegociacao,
   funilProspeccao,
@@ -316,6 +318,50 @@ async function main() {
   check(
     "a negociação criada aparece em Levantamento",
     levantamento?.cards.some((c) => c.tipo === "NEGOCIACAO" && c.id === qb.negociacaoId) === true,
+  );
+
+  console.log("\n── ADR-0004: ficha do card (edição da negociação) ────────────────\n");
+
+  const campanhaFicha = await prisma.campanha.create({
+    data: { nome: `${TAG}_campanha_ficha` },
+    select: { id: true },
+  });
+  await editarNegociacao({
+    id: qb.negociacaoId,
+    titulo: `${TAG}_demanda editada`,
+    probabilidade: 42,
+    campanhaId: campanhaFicha.id,
+    previsaoFechamento: "2026-12-15",
+    valorEstimado: 1234.5,
+  });
+  const editada = await prisma.negociacao.findUnique({
+    where: { id: qb.negociacaoId },
+    select: {
+      titulo: true,
+      probabilidade: true,
+      probabilidadeOverride: true,
+      campaignId: true,
+      previsaoFechamento: true,
+      estagio: true,
+    },
+  });
+  check("campanhaId do formulário grava em campaignId", editada?.campaignId === campanhaFicha.id);
+  check("probabilidade digitada liga o override (ADR-12)", editada?.probabilidade === 42 && editada.probabilidadeOverride);
+  check("previsão é dia-calendário (meia-noite UTC)", editada?.previsaoFechamento?.toISOString() === "2026-12-15T00:00:00.000Z");
+  check("editar a ficha não mexe no estágio", editada?.estagio === "LEVANTAMENTO");
+
+  await editarNegociacao({ id: qb.negociacaoId, titulo: `${TAG}_demanda editada`, probabilidade: null });
+  const semOverride = await prisma.negociacao.findUnique({
+    where: { id: qb.negociacaoId },
+    select: { probabilidadeOverride: true, campaignId: true },
+  });
+  check("probabilidade vazia desliga o override", semOverride?.probabilidadeOverride === false);
+  check("campo omitido no formulário é limpo (campanha)", semOverride?.campaignId === null);
+
+  const ficha = await fichaNegociacao(qb.negociacaoId);
+  check(
+    "a ficha da negociação traz o histórico da prospecção que a originou",
+    ficha?.timeline.some((t) => t.nota.length > 0) === true && ficha.lead?.id === descartado.id,
   );
 
   const enc = padrao.find((c) => c.coluna === "ENCERRADOS");

@@ -207,6 +207,28 @@ export const alternarChecklistItemSchema = z.object({
   itemId: z.string().min(1),
 });
 
+/**
+ * Dados editáveis da negociação (ficha do card, ADR-0004). **Não** entram: `estagio` (só
+ * `moverEstagio` escreve — F2.7/ADR-10) nem os valores que vêm da proposta (`valorProposto`,
+ * `desconto`, `valorNegociado`: a versão vigente é a fonte, F6.1a). `campanhaId` é o nome do
+ * formulário; a coluna é `campaignId` — o serviço mapeia (guarda em `lead-campos.test.ts`).
+ */
+export const editarNegociacaoSchema = z.object({
+  id: z.string().min(1),
+  titulo: z.string().trim().min(1, "Informe a demanda."),
+  responsavelId: opt(z.string()),
+  temperatura: z.enum(["FRIO", "MORNO", "QUENTE"]).nullish(),
+  valorEstimado: z.number().nonnegative().nullish(),
+  /** `yyyy-mm-dd` — dia-calendário, não instante. `""` limpa. */
+  previsaoFechamento: opt(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida.")),
+  /** `null` = volta a seguir o estágio (tira o override do ADR-12). */
+  probabilidade: z.number().int().min(0).max(100).nullish(),
+  parceiroId: opt(z.string()),
+  campanhaId: opt(z.string()),
+  tipoEmpreendimentoId: opt(z.string()),
+  areaM2: z.number().nonnegative().nullish(),
+});
+
 export const qualificarProspeccaoSchema = z.object({
   leadId: z.string().min(1),
   titulo: opt(z.string()),

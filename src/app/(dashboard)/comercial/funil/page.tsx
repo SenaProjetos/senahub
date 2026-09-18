@@ -7,11 +7,17 @@ import {
   campanhasAtivas,
   canaisAtivos,
   clientesParaSelecao,
+  fichaLead,
+  fichaNegociacao,
   funilComercial,
+  funilCompleto,
   motivosPerdaAtivos,
   opcoesFiltroComercial,
   parceirosAtivos,
+  responsaveisAtivos,
+  tiposEmpreendimentoAtivos,
 } from "@/modules/comercial/queries";
+import { FichaCardDialog, type FichaCard, type OpcoesFicha } from "@/components/comercial/ficha-card-dialog";
 import { lerFiltros } from "@/modules/comercial/filtros";
 import {
   COLUNAS_FUNIL_LEAD,
@@ -36,6 +42,24 @@ function paraQueryString(sp: Record<string, string | string[] | undefined>): str
     p.set(k, Array.isArray(v) ? (v[0] ?? "") : v);
   }
   return p.toString();
+}
+
+/**
+ * `?card=LEAD:<id>` ou `?card=NEGOCIACAO:<id>` → ficha do card, carregada aqui no servidor. Id
+ * inexistente ou formato estranho: sem modal (o board abre normal), não um 404.
+ */
+async function carregarFicha(card: string | undefined): Promise<FichaCard | null> {
+  const [tipo, id] = card?.split(":") ?? [];
+  if (!id) return null;
+  if (tipo === "LEAD") {
+    const lead = await fichaLead(id);
+    return lead ? { tipo: "LEAD", lead } : null;
+  }
+  if (tipo === "NEGOCIACAO") {
+    const negociacao = await fichaNegociacao(id);
+    return negociacao ? { tipo: "NEGOCIACAO", negociacao } : null;
+  }
+  return null;
 }
 
 /** Board único de Prospecção + Negociação (ADR-0004) — substitui `/prospeccao` e `/negociacoes`. */
@@ -64,6 +88,19 @@ export default async function FunilComercialPage({
     podeGerir ? clientesParaSelecao() : [],
   ]);
   const qs = paraQueryString(sp);
+  const card = Array.isArray(sp.card) ? sp.card[0] : sp.card;
+  const ficha = await carregarFicha(card);
+  const opcoesFicha: OpcoesFicha | null = ficha
+    ? await Promise.all([responsaveisAtivos(), tiposEmpreendimentoAtivos(), ficha.tipo === "LEAD" ? funilCompleto() : []]).then(
+        ([responsaveis, tipos, etapas]) => ({
+          parceiros,
+          campanhas,
+          tipos,
+          responsaveis,
+          etapas: etapas.map((e) => ({ id: e.id, nome: e.nome })),
+        }),
+      )
+    : null;
 
   const soma = (filtro: (c: (typeof colunas)[number]) => boolean, campo: "total" | "soma") =>
     colunas.filter(filtro).reduce((s, c) => s + c[campo], 0);
@@ -120,6 +157,8 @@ export default async function FunilComercialPage({
       ) : (
         <FunilComercialBoard colunas={colunas} motivos={motivos} pagina={pagina} />
       )}
+
+      {ficha && opcoesFicha && <FichaCardDialog key={card} ficha={ficha} opcoes={opcoesFicha} podeGerir={podeGerir} />}
     </div>
   );
 }

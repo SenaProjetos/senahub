@@ -223,7 +223,7 @@ export function GuiaComercialView() {
       descricao="Este é o caminho completo para indicações, demandas espontâneas, clientes recorrentes e prospecção ativa. Siga a ordem e registre cada conversa enquanto ela acontece."
       acoes={
         <>
-          <Button size="sm" render={<Link href="/comercial/prospeccao" />}>
+          <Button size="sm" render={<Link href="/comercial/funil" />}>
             <Rocket className="size-4" aria-hidden="true" /> Registrar nova entrada
           </Button>
           <Button variant="outline" size="sm" render={<Link href="/comercial?visao=meus" />}>
@@ -247,7 +247,7 @@ export function GuiaComercialView() {
       cta={{
         titulo: "Pronto para começar?",
         descricao: "Abra o quadro e registre a próxima entrada real do time.",
-        href: "/comercial/prospeccao",
+        href: "/comercial/funil",
         label: "Registrar nova entrada",
       }}
     >
@@ -376,7 +376,7 @@ export function GuiaComercialView() {
           Uma boa rotina é simples: <strong>conversou, registrou; prometeu retorno, agendou</strong>. Assim qualquer
           pessoa do time entende o que aconteceu e qual é o próximo passo.
         </Dica>
-        <Atalho href="/comercial/prospeccao">Abrir quadro de Prospecção</Atalho>
+        <Atalho href="/comercial/funil">Abrir o funil</Atalho>
       </Etapa>
 
       <Etapa
@@ -414,7 +414,7 @@ export function GuiaComercialView() {
             <li>Se o cliente voltar, use <strong className="text-foreground">Reabrir negociação</strong>; o histórico não é apagado.</li>
           </ul>
         </div>
-        <Atalho href="/comercial/negociacoes">Abrir Negociações</Atalho>
+        <Atalho href="/comercial/funil">Abrir o funil</Atalho>
       </Etapa>
 
       <Etapa

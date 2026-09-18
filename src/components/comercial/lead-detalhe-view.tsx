@@ -135,7 +135,7 @@ export function LeadDetalheView({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <Link
-            href="/comercial"
+            href="/comercial/funil"
             className="inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
           >
             <ArrowLeft className="size-3.5" /> Voltar ao funil

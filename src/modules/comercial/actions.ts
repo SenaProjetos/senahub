@@ -36,6 +36,7 @@ import {
   reabrirNegociacaoSchema,
   alternarChecklistItemSchema,
   qualificarProspeccaoSchema,
+  editarNegociacaoSchema,
   agendarProximaAcaoSchema,
   concluirProximaAcaoSchema,
   reagendarProximaAcaoSchema,
@@ -76,6 +77,7 @@ import {
   reagendarProximaAcao as servicoReagendarProximaAcao,
   moverProspeccao as servicoMoverProspeccao,
   qualificarPeloBoard as servicoQualificarPeloBoard,
+  editarNegociacao as servicoEditarNegociacao,
   registrarAtividade,
   registrarInteracaoManual as servicoRegistrarInteracaoManual,
   comProspeccaoAtivaUnica,
@@ -789,6 +791,39 @@ export const reabrirNegociacao = defineAction(
   },
   async (i, { user }) => {
     const r = await servicoReabrirNegociacao(i.negociacaoId, user.id);
+    rev();
+    return r;
+  },
+);
+
+/** Dados da negociação pela ficha do card (ADR-0004) — regras em `editarNegociacao` (service). */
+export const editarNegociacao = defineAction(
+  {
+    ...base,
+    acao: "editar-negociacao",
+    entidade: "Negociacao",
+    schema: editarNegociacaoSchema,
+    entidadeId: idResultadoOuInput,
+    capturarAntes: async (i) =>
+      prisma.negociacao.findUnique({
+        where: { id: (i as { id: string }).id },
+        select: {
+          titulo: true,
+          responsavelId: true,
+          temperatura: true,
+          valorEstimado: true,
+          previsaoFechamento: true,
+          probabilidade: true,
+          probabilidadeOverride: true,
+          parceiroId: true,
+          campaignId: true,
+          tipoEmpreendimentoId: true,
+          areaM2: true,
+        },
+      }),
+  },
+  async (i) => {
+    const r = await servicoEditarNegociacao(i);
     rev();
     return r;
   },

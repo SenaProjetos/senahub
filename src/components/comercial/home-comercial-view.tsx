@@ -31,29 +31,29 @@ export function HomeComercialView({ dados }: { dados: HomeComercialDados }) {
           titulo="Contratado no mês"
           valor={brlInteiro(cards.contratadoMes.atual)}
           delta={deltaPct(cards.contratadoMes.atual, cards.contratadoMes.anterior)}
-          href="/comercial/negociacoes"
+          href="/comercial/funil"
         />
         <CardValor
           titulo="Contratos fechados"
           valor={String(cards.contratosFechados.atual)}
           delta={deltaPct(cards.contratosFechados.atual, cards.contratosFechados.anterior)}
-          href="/comercial/negociacoes"
+          href="/comercial/funil"
         />
         <CardValor
           titulo="Ticket médio"
           valor={cards.ticketMedio.atual != null ? brlInteiro(cards.ticketMedio.atual) : "—"}
           delta={deltaPct(cards.ticketMedio.atual, cards.ticketMedio.anterior)}
-          href="/comercial/negociacoes"
+          href="/comercial/funil"
         />
         <CardValor
           titulo="Pipeline aberto"
           valor={brlInteiro(cards.pipelineAberto)}
-          href="/comercial/negociacoes"
+          href="/comercial/funil"
         />
         <CardValor
           titulo="Pipeline ponderado"
           valor={brlInteiro(cards.pipelinePonderado)}
-          href="/comercial/negociacoes"
+          href="/comercial/funil"
         />
         <CardValor
           titulo="Follow-ups hoje"

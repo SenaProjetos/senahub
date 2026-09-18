@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useDraggable } from "@dnd-kit/core";
 import { CalendarClock, GripVertical, RotateCcw, Users } from "lucide-react";
@@ -71,7 +71,7 @@ export function FunilComercialCard({
         )}
         <div className="min-w-0 flex-1">
           {!overlay && <AcoesCard card={card} />}
-          {card.tipo === "LEAD" ? <CorpoLead card={card} overlay={overlay} /> : <CorpoNegociacao card={card} />}
+          {card.tipo === "LEAD" ? <CorpoLead card={card} overlay={overlay} /> : <CorpoNegociacao card={card} overlay={overlay} />}
 
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             {mostrarStatus && (
@@ -142,30 +142,39 @@ export function FunilComercialCard({
   );
 }
 
-function CorpoLead({ card, overlay }: { card: Extract<CardFunil, { tipo: "LEAD" }>; overlay?: boolean }) {
-  const conteudo = (
-    <>
-      <p className="truncate font-medium">{card.cliente?.nome ?? card.nome}</p>
-      <p className="truncate text-xs text-muted-foreground">{card.origemDetalhada ?? card.nome}</p>
-    </>
-  );
-  if (overlay) return conteudo;
+/** Abre a ficha: mesma URL do funil + `?card=` — preserva filtros e página. */
+function LinkFicha({ card, overlay, children }: { card: CardFunil; overlay?: boolean; children: React.ReactNode }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  if (overlay) return <>{children}</>;
+  const p = new URLSearchParams(searchParams.toString());
+  p.set("card", `${card.tipo}:${card.id}`);
   return (
     <Link
-      href={`/comercial/${card.id}`}
+      href={`${pathname}?${p.toString()}`}
+      scroll={false}
       className="block rounded-sm outline-none underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring"
     >
-      {conteudo}
+      {children}
     </Link>
   );
 }
 
-function CorpoNegociacao({ card }: { card: Extract<CardFunil, { tipo: "NEGOCIACAO" }> }) {
+function CorpoLead({ card, overlay }: { card: Extract<CardFunil, { tipo: "LEAD" }>; overlay?: boolean }) {
   return (
-    <>
+    <LinkFicha card={card} overlay={overlay}>
+      <p className="truncate font-medium">{card.cliente?.nome ?? card.nome}</p>
+      <p className="truncate text-xs text-muted-foreground">{card.origemDetalhada ?? card.nome}</p>
+    </LinkFicha>
+  );
+}
+
+function CorpoNegociacao({ card, overlay }: { card: Extract<CardFunil, { tipo: "NEGOCIACAO" }>; overlay?: boolean }) {
+  return (
+    <LinkFicha card={card} overlay={overlay}>
       <p className="truncate text-xs font-semibold text-muted-foreground">{card.cliente.nome}</p>
       <p className="truncate font-medium">{card.titulo}</p>
-    </>
+    </LinkFicha>
   );
 }
 
