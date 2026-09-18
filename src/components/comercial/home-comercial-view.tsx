@@ -1,15 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { CheckCircle2, Clock, TrendingUp, TrendingDown } from "lucide-react";
-import { concluirProximaAcao, reagendarProximaAcao } from "@/modules/comercial/actions";
+import { TrendingUp, TrendingDown } from "lucide-react";
 import type { HomeComercialDados } from "@/modules/comercial/queries";
-import { TIPO_PROXIMA_ACAO_LABEL } from "@/modules/agenda/proxima-acao";
+import { AcaoLinha, type ItemAcao } from "./acao-linha";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { brlInteiro } from "@/lib/utils";
 
 /**
@@ -145,35 +140,7 @@ function CardValor({
   );
 }
 
-type ItemAcao = HomeComercialDados["meuDia"]["followUpsAtrasados"][number];
-
 function ListaAcoes({ titulo, itens, vazio }: { titulo: string; itens: ItemAcao[]; vazio: string }) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [reagendando, setReagendando] = useState<string | null>(null);
-
-  function concluir(id: string) {
-    start(async () => {
-      const r = await concluirProximaAcao({ compromissoId: id });
-      if (r.ok) {
-        toast.success("Ação concluída.");
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
-
-  function reagendar(id: string, dias: number) {
-    const novo = new Date(Date.now() + dias * 86_400_000);
-    start(async () => {
-      const r = await reagendarProximaAcao({ compromissoId: id, novoInicio: novo.toISOString() });
-      if (r.ok) {
-        toast.success("Reagendado.");
-        setReagendando(null);
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
-
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -183,34 +150,7 @@ function ListaAcoes({ titulo, itens, vazio }: { titulo: string; itens: ItemAcao[
         {itens.length === 0 ? (
           <p className="py-2 text-xs text-muted-foreground">{vazio}</p>
         ) : (
-          itens.map((it) => (
-            <div key={it.id} className="flex items-center justify-between gap-2 rounded-sm border px-2 py-1.5 text-sm">
-              <Link href={it.href} className="min-w-0 flex-1 truncate hover:underline">
-                <span className="text-xs text-muted-foreground">
-                  {it.tipo ? TIPO_PROXIMA_ACAO_LABEL[it.tipo] : "Ação"}
-                </span>{" "}
-                — {it.nomeEntidade}
-              </Link>
-              <div className="flex shrink-0 items-center gap-1">
-                {reagendando === it.id ? (
-                  <div className="flex items-center gap-1">
-                    {[1, 3, 7].map((d) => (
-                      <Button key={d} size="sm" variant="outline" className="h-6 px-1.5 text-[10px]" disabled={pending} onClick={() => reagendar(it.id, d)}>
-                        +{d}d
-                      </Button>
-                    ))}
-                  </div>
-                ) : (
-                  <Button size="icon" variant="ghost" className="size-6" title="Reagendar" disabled={pending} onClick={() => setReagendando(it.id)}>
-                    <Clock className="size-3.5" />
-                  </Button>
-                )}
-                <Button size="icon" variant="ghost" className="size-6" title="Concluir" disabled={pending} onClick={() => concluir(it.id)}>
-                  <CheckCircle2 className="size-3.5" />
-                </Button>
-              </div>
-            </div>
-          ))
+          itens.map((it) => <AcaoLinha key={it.id} item={it} />)
         )}
       </CardContent>
     </Card>

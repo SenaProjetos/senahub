@@ -1695,7 +1695,12 @@ export async function agendarProximaAcao(input: {
   criadorId: string;
   participantesIds?: string[];
 }): Promise<{ id: string }> {
-  const participantes = [...new Set([input.criadorId, ...(input.participantesIds ?? [])])];
+  // O dono do lead/negociação entra na agenda mesmo quando OUTRA pessoa agenda o follow-up —
+  // senão uma ação marcada por um assistente só apareceria na agenda de quem a marcou.
+  const { responsavelId } = await resolverAncoraComercial(input.entidadeTipo, input.entidadeId);
+  const participantes = [
+    ...new Set([input.criadorId, ...(responsavelId ? [responsavelId] : []), ...(input.participantesIds ?? [])]),
+  ];
   const c = await prisma.compromisso.create({
     data: {
       titulo: input.titulo,

@@ -1576,3 +1576,99 @@ export async function tiposEmpreendimentoAtivos() {
     select: { id: true, nome: true },
   });
 }
+
+// ── Follow-ups do Comercial (tela dedicada) ──────────────────
+/** Teto de linhas lidas: acima disso a tela avisa em vez de crescer sem limite. */
+export const LIMITE_FOLLOWUPS = 300;
+
+/**
+ * Todas as próximas ações comerciais em aberto, da mais antiga para a mais nova. Com
+ * `responsavelId` ("meus"), vale quem é dono do lead/negociação OU participante do compromisso —
+ * o segundo cobre CLIENTE e os compromissos anteriores à regra que põe o dono na agenda.
+ */
+export async function followUpsComerciais(opts: { responsavelId?: string }) {
+  const compromissos = await prisma.compromisso.findMany({
+    where: {
+      entidadeTipo: { in: ["LEAD", "NEGOCIACAO", "CLIENTE"] },
+      entidadeId: { not: null },
+      tipo: { not: null },
+      concluidoEm: null,
+    },
+    orderBy: { inicio: "asc" },
+    take: LIMITE_FOLLOWUPS,
+    select: {
+      id: true,
+      tipo: true,
+      titulo: true,
+      inicio: true,
+      local: true,
+      entidadeTipo: true,
+      entidadeId: true,
+      participantes: { select: { userId: true } },
+    },
+  });
+
+  const idsDe = (tipo: TipoAncoraCompromisso) => [
+    ...new Set(compromissos.filter((c) => c.entidadeTipo === tipo).map((c) => c.entidadeId!)),
+  ];
+  const dono = { select: { id: true, name: true, image: true } };
+  const [leads, negs, clientes] = await Promise.all([
+    prisma.lead.findMany({
+      where: { id: { in: idsDe("LEAD") } },
+      select: { id: true, nome: true, cliente: { select: { nome: true } }, responsavel: dono },
+    }),
+    prisma.negociacao.findMany({
+      where: { id: { in: idsDe("NEGOCIACAO") } },
+      select: { id: true, titulo: true, cliente: { select: { nome: true } }, responsavel: dono },
+    }),
+    prisma.cliente.findMany({ where: { id: { in: idsDe("CLIENTE") } }, select: { id: true, nome: true } }),
+  ]);
+  const porId = <T extends { id: string }>(l: T[]) => new Map(l.map((x) => [x.id, x]));
+  const mLead = porId(leads);
+  const mNeg = porId(negs);
+  const mCli = porId(clientes);
+
+  const itens = compromissos.flatMap((c) => {
+    const id = c.entidadeId!;
+    let nomeEntidade: string;
+    let href: string;
+    let responsavel: { id: string; name: string; image: string | null } | null = null;
+    if (c.entidadeTipo === "LEAD") {
+      const l = mLead.get(id);
+      if (!l) return [];
+      nomeEntidade = l.cliente?.nome ? `${l.cliente.nome} — ${l.nome}` : l.nome;
+      href = `/comercial/funil?card=LEAD:${id}`;
+      responsavel = l.responsavel;
+    } else if (c.entidadeTipo === "NEGOCIACAO") {
+      const n = mNeg.get(id);
+      if (!n) return [];
+      nomeEntidade = `${n.cliente.nome} — ${n.titulo}`;
+      href = `/comercial/funil?card=NEGOCIACAO:${id}`;
+      responsavel = n.responsavel;
+    } else {
+      const cli = mCli.get(id);
+      if (!cli) return [];
+      nomeEntidade = cli.nome;
+      href = `/clientes/${id}`;
+    }
+    if (opts.responsavelId) {
+      const meu = responsavel?.id === opts.responsavelId || c.participantes.some((p) => p.userId === opts.responsavelId);
+      if (!meu) return [];
+    }
+    return [
+      {
+        id: c.id,
+        tipo: c.tipo,
+        titulo: c.titulo,
+        inicio: c.inicio.toISOString(),
+        local: c.local,
+        href,
+        nomeEntidade,
+        responsavel: responsavel ? { name: responsavel.name, image: responsavel.image } : null,
+      },
+    ];
+  });
+
+  return { itens, truncado: compromissos.length >= LIMITE_FOLLOWUPS };
+}
+export type FollowUpComercial = Awaited<ReturnType<typeof followUpsComerciais>>["itens"][number];

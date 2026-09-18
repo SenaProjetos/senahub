@@ -29,6 +29,7 @@ import {
 } from "../src/modules/comercial/service";
 import {
   fichaNegociacao,
+  followUpsComerciais,
   funilComercial,
   funilNegociacao,
   funilProspeccao,
@@ -363,6 +364,40 @@ async function main() {
     "a ficha da negociação traz o histórico da prospecção que a originou",
     ficha?.timeline.some((t) => t.nota.length > 0) === true && ficha.lead?.id === descartado.id,
   );
+
+  console.log("\n── Follow-ups: agenda do responsável + tela dedicada ────────────\n");
+
+  const dono = await prisma.user.findFirst({
+    where: { ativo: true, role: { not: "cliente" }, id: { not: user.id } },
+    select: { id: true },
+  });
+  if (dono) {
+    await prisma.negociacao.update({ where: { id: qb.negociacaoId }, data: { responsavelId: dono.id } });
+    const agendada = await agendarProximaAcao({
+      entidadeTipo: "NEGOCIACAO",
+      entidadeId: qb.negociacaoId,
+      tipo: "FOLLOW_UP",
+      titulo: `${TAG}_follow_ficha`,
+      inicio: new Date(Date.now() - 3 * 86_400_000),
+      criadorId: user.id,
+    });
+    const part = await prisma.compromissoParticipante.findMany({
+      where: { compromissoId: agendada.id },
+      select: { userId: true },
+    });
+    check(
+      "follow-up agendado por OUTRA pessoa entra na agenda do dono da negociação",
+      part.some((x) => x.userId === dono.id) && part.some((x) => x.userId === user.id),
+    );
+    const meus = await followUpsComerciais({ responsavelId: dono.id });
+    const todos = await followUpsComerciais({});
+    check("'meus' traz a ação do dono", meus.itens.some((i) => i.id === agendada.id));
+    check("'todos' também traz, e ela vem atrasada", todos.itens.some((i) => i.id === agendada.id));
+    const deOutro = await followUpsComerciais({ responsavelId: "id-que-nao-existe" });
+    check("'meus' de outra pessoa não traz a ação", !deOutro.itens.some((i) => i.id === agendada.id));
+  } else {
+    console.log("[PULO] só há um usuário interno no dev — follow-up cruzado não testado");
+  }
 
   const enc = padrao.find((c) => c.coluna === "ENCERRADOS");
   check("Encerrados recolhido não busca cards", enc?.fechada === true && enc.cards.length === 0);

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   BookOpenText,
+  CalendarClock,
   FileText,
   Handshake,
   KanbanSquare,
@@ -23,6 +24,7 @@ const ITENS: Item[] = [
   { href: "/comercial", label: "Visão geral", icon: LayoutDashboard, exato: true },
   { href: "/comercial/inteligencia", label: "Inteligência", icon: BarChart3 },
   { href: "/comercial/funil", label: "Funil", icon: KanbanSquare },
+  { href: "/comercial/follow-ups", label: "Follow-ups", icon: CalendarClock },
   { href: "/comercial/parceiros", label: "Parceiros", icon: Handshake },
   { href: "/comercial/campanhas", label: "Campanhas", icon: Megaphone },
   { href: "/comercial/tabelas", label: "Tabelas de preço", icon: Table2 },

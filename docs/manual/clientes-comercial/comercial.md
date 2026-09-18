@@ -83,6 +83,12 @@ permanece no histórico e ganha uma negociação vinculada — não crie outro c
 mesma conversa. Se a prospecção estava encerrada, o sistema pergunta antes de reativá-la. Depois de
 virar negociação o card não volta para as colunas de prospecção.
 
+Para ver todas as ações combinadas de uma vez, abra **Comercial → Follow-ups**: as próximas ações em
+aberto aparecem agrupadas em *Atrasados*, *Hoje*, *Próximos 7 dias* e *Mais adiante*, com o
+responsável de cada uma, e dá para concluir ou reagendar (+1, +3 ou +7 dias) sem abrir o card. O
+botão **Meus** mostra só as suas. Toda ação agendada também aparece na **Agenda** de quem a marcou
+e do responsável pelo card.
+
 ### 3. Conduza a negociação
 
 No mesmo quadro, avance o card pelos estágios de negociação. Informe empreendimento, disciplinas,

@@ -620,7 +620,10 @@
         "encerrados",
         "ficha do card",
         "editar negociação",
-        "probabilidade"
+        "probabilidade",
+        "follow-ups",
+        "agenda comercial",
+        "atrasados"
       ],
       "sinonimos": [
         "crm",
