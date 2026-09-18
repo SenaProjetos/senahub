@@ -46,6 +46,15 @@ function Get-EnvValue {
     return $valor
 }
 
+# Porta do dev server = PORT do .env desta pasta (cada worktree tem a sua; ver CLAUDE.md
+# "Parallel worktrees"). Sem PORT valido, 3000 (padrao do server.ts e do next dev).
+function Get-PortaDev {
+    $p = Get-EnvValue -Key "PORT"
+    if ($p -match '^\d+$') { return [int]$p }
+    return 3000
+}
+$PortaDev = Get-PortaDev
+
 function Write-Audit {
     param([string]$AcaoNome, [string]$Detalhe = "")
     $linha = "{0} | {1} | {2} | {3}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $env:USERNAME, $AcaoNome, $Detalhe
@@ -93,17 +102,17 @@ function Test-PostgresConnection {
 
 function Test-DevServerRodando {
     try {
-        $c = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue
+        $c = Get-NetTCPConnection -LocalPort $PortaDev -State Listen -ErrorAction SilentlyContinue
         return [bool]$c
     } catch { return $false }
 }
 
-# Mata o processo que escuta na :3000 e o servico esbuild (que trava node_modules).
+# Mata o processo que escuta na porta desta pasta e o servico esbuild (que trava node_modules).
 function Stop-DevServer {
-    Write-Host "Parando dev server (porta 3000) e esbuild..." -ForegroundColor Cyan
+    Write-Host "Parando dev server (porta $PortaDev) e esbuild..." -ForegroundColor Cyan
     $encontrou = $false
     try {
-        $conns = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue
+        $conns = Get-NetTCPConnection -LocalPort $PortaDev -State Listen -ErrorAction SilentlyContinue
         $procIds = $conns | Select-Object -ExpandProperty OwningProcess -Unique
         foreach ($procId in $procIds) {
             if ($procId -and $procId -ne 0) {
@@ -112,15 +121,17 @@ function Stop-DevServer {
         }
     } catch {}
     # So mata os esbuild DESTE projeto (exe fica em node_modules do AppRoot) - nao os de outros projetos.
+    # O "\" no fim importa: "SENAHub-remake" e prefixo de "SENAHub-remake-vscode" (o worktree irmao).
     # foreach statement (nao ForEach-Object) para o $encontrou ser atualizado no escopo da funcao.
+    $raizBarra = $AppRoot.TrimEnd('\') + '\'
     $esbuilds = Get-CimInstance Win32_Process -Filter "Name='esbuild.exe'" -ErrorAction SilentlyContinue |
-        Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($AppRoot, [System.StringComparison]::OrdinalIgnoreCase) }
+        Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($raizBarra, [System.StringComparison]::OrdinalIgnoreCase) }
     foreach ($esb in $esbuilds) {
         try { Stop-Process -Id $esb.ProcessId -Force -ErrorAction SilentlyContinue; $encontrou = $true } catch {}
     }
     Start-Sleep -Seconds 1
     if ($encontrou) { Write-Host "[OK] Dev server encerrado." -ForegroundColor Green }
-    else { Write-Host "[OK] Nenhum dev server rodando na :3000." -ForegroundColor Green }
+    else { Write-Host "[OK] Nenhum dev server rodando na :$PortaDev." -ForegroundColor Green }
 }
 
 # Executa um passo respeitando -DryRun. Retorna o exit code do comando (0 no dry-run).
@@ -165,13 +176,14 @@ function Invoke-DevNext {
     Write-Host "[AVISO] Modo 'Next so': chat, realtime e jobs (pg-boss) NAO funcionam." -ForegroundColor Yellow
     Write-Host "        Para chat/jobs use a opcao 'Iniciar dev completo'." -ForegroundColor Yellow
     Write-Host "Abrindo o dev server (Next) em nova janela..." -ForegroundColor Cyan
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/k", "npm run dev" -WorkingDirectory $AppRoot
+    # next dev nao le PORT do .env (so o server.ts le, via dotenv) -> passa -p explicito.
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/k", "npm run dev -- -p $PortaDev" -WorkingDirectory $AppRoot
     Write-Host "[OK] Janela aberta. Feche-a (Ctrl+C) para parar o dev." -ForegroundColor Green
 }
 
 function Invoke-DevServer {
     if (Test-DevServerRodando) {
-        Write-Host "[ATENCAO] Ja existe algo escutando na porta 3000." -ForegroundColor Yellow
+        Write-Host "[ATENCAO] Ja existe algo escutando na porta $PortaDev." -ForegroundColor Yellow
         if (Confirm-SN "Parar o processo atual antes de iniciar") { Stop-DevServer } else { Write-Host "Abortado." -ForegroundColor Yellow; return }
     }
     Write-Host "Abrindo o dev server COMPLETO (Next + Socket.io + pg-boss) em nova janela..." -ForegroundColor Cyan
@@ -190,7 +202,7 @@ function Invoke-PararDev {
 function Invoke-Verificar {
     if (Test-DevServerRodando) {
         Write-Host ""
-        Write-Host "[ATENCAO] Dev server rodando na porta 3000." -ForegroundColor Yellow
+        Write-Host "[ATENCAO] Dev server rodando na porta $PortaDev." -ForegroundColor Yellow
         Write-Host "Rodar 'next build' agora pode corromper o .next em uso pelo dev server." -ForegroundColor Yellow
         if (Confirm-SN "Parar o dev server e continuar") { Stop-DevServer }
         else { Write-Host "[ERRO] Verificacao abortada (dev server ativo)." -ForegroundColor Red; return $false }
@@ -393,12 +405,125 @@ function Invoke-Push {
     }
 }
 
+# Promover a partir de uma branch de IDE (dev-antigravity, dev-vscode...; CLAUDE.md "Parallel
+# worktrees"): junta a branch atual na dev, pergunta (padrao NAO) se inclui as outras dev-* com
+# commits novos, roda o fluxo normal a partir da dev e volta para a branch de origem.
 function Invoke-Promover {
     param([string]$Modo)   # "Direto" | "PR"
     Push-Location $AppRoot
     try {
+        $origem = (git rev-parse --abbrev-ref HEAD).Trim()
+        if ($origem -eq "dev") { Invoke-PromoverDev -Modo $Modo; return }
+        if ($origem -notlike "dev-*") {
+            Write-Host "[ERRO] Promova a partir da dev ou de uma branch de IDE (dev-<ide>). Atual: $origem" -ForegroundColor Red
+            return
+        }
+        $dirty = git status --porcelain
+        if ($dirty) {
+            Write-Host "[ERRO] Arvore suja - commite ou faca stash antes de promover." -ForegroundColor Red
+            git status --short
+            return
+        }
+
+        Write-Host ""
+        Write-Host "Branch de IDE '$origem': ela sera juntada na dev antes de promover." -ForegroundColor Cyan
+        $outras = @(git for-each-ref --format="%(refname:short)" "refs/heads/dev-*" | Where-Object { $_ -ne $origem })
+
+        if ($DryRun) {
+            Write-Host "  [dry-run] git fetch origin ; git checkout dev ; git merge --ff-only origin/dev" -ForegroundColor DarkGray
+            Write-Host "  [dry-run] git merge $origem --no-edit" -ForegroundColor DarkGray
+            foreach ($b in $outras) {
+                $n = [int]((git rev-list --count "refs/heads/dev..refs/heads/$b" 2>$null) | Select-Object -First 1)
+                if ($n -gt 0) { Write-Host "  [dry-run] perguntaria se inclui '$b' ($n commit(s) fora da dev)" -ForegroundColor DarkGray }
+            }
+            Invoke-PromoverDev -Modo $Modo -DeBranchIde
+            Write-Host "  [dry-run] git checkout $origem ; git merge --ff-only dev" -ForegroundColor DarkGray
+            return
+        }
+
+        $rc = Invoke-Passo "git fetch origin" { git fetch origin }
+        if ($rc -ne 0) { Write-Host "[ERRO] git fetch falhou." -ForegroundColor Red; return }
+        # O git recusa se a dev estiver aberta em outro worktree - isso impede duas promocoes ao mesmo tempo.
+        $rc = Invoke-Passo "git checkout dev" { git checkout dev }
+        if ($rc -ne 0) { Write-Host "[ERRO] checkout dev falhou (a dev esta aberta em outra pasta?)." -ForegroundColor Red; return }
+
+        $script:PromocaoOk = $false
+        try {
+            git rev-parse --verify --quiet "refs/remotes/origin/dev" *> $null
+            if ($LASTEXITCODE -eq 0) {
+                $rc = Invoke-Passo "git merge --ff-only origin/dev" { git merge --ff-only origin/dev }
+                if ($rc -ne 0) { Write-Host "[ERRO] A dev local divergiu de origin/dev. Resolva manualmente." -ForegroundColor Red; return }
+            }
+            if (-not (Merge-NaDev -Branch $origem)) { return }
+
+            foreach ($b in $outras) {
+                $n = [int]((git rev-list --count "refs/heads/dev..refs/heads/$b" 2>$null) | Select-Object -First 1)
+                if ($n -le 0) { continue }
+                Write-Host ""
+                Write-Host "[ATENCAO] '$b' (outra IDE) tem $n commit(s) que a dev nao tem:" -ForegroundColor Yellow
+                git log --oneline "refs/heads/dev..refs/heads/$b" | Out-Host
+                if (Confirm-SN "Incluir '$b' nesta publicacao (padrao: NAO)") {
+                    if (-not (Merge-NaDev -Branch $b)) { return }
+                } else {
+                    Write-Host "  '$b' fica de fora." -ForegroundColor DarkGray
+                }
+            }
+
+            Invoke-PromoverDev -Modo $Modo
+        } finally {
+            Restore-BranchIde -Origem $origem
+        }
+    } finally {
+        Pop-Location
+    }
+}
+
+# Merge de uma branch na dev (ja em checkout). Em conflito, aborta o merge e devolve $false.
+function Merge-NaDev {
+    param([string]$Branch)
+    Write-Host ""
+    Write-Host "-> git merge $Branch --no-edit" -ForegroundColor Cyan
+    git merge $Branch --no-edit | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        git merge --abort 2>$null | Out-Null
+        Write-Host "[ERRO] Conflito ao juntar '$Branch' na dev. Merge desfeito; resolva manualmente." -ForegroundColor Red
+        return $false
+    }
+    return $true
+}
+
+# Volta da dev para a branch de IDE. So avanca a branch (ff) se a promocao terminou OK.
+# Se o fluxo parou no master (conflito), nao mexe: o usuario resolve e volta sozinho.
+function Restore-BranchIde {
+    param([string]$Origem)
+    $atual = (git rev-parse --abbrev-ref HEAD).Trim()
+    if ($atual -ne "dev" -or (git status --porcelain)) {
+        Write-Host ""
+        Write-Host "[ATENCAO] Voce ficou em '$atual'. Depois de resolver, volte com: git checkout $Origem" -ForegroundColor Yellow
+        return
+    }
+    git checkout $Origem | Out-Host
+    if ($LASTEXITCODE -ne 0) { Write-Host "[ATENCAO] Nao consegui voltar para '$Origem'. Troque manualmente." -ForegroundColor Yellow; return }
+    if ($script:PromocaoOk) {
+        git merge --ff-only dev | Out-Host
+        if ($LASTEXITCODE -ne 0) { Write-Host "[ATENCAO] '$Origem' nao avancou para a dev. Rode 'Sincronizar'." -ForegroundColor Yellow }
+        else { Write-Host "[OK] '$Origem' atualizada com a dev publicada." -ForegroundColor Green }
+        Write-Host "     Na outra IDE, rode 'Sincronizar' para receber o que foi publicado." -ForegroundColor Cyan
+    } else {
+        Write-Host "[ATENCAO] Nada foi publicado. A dev local pode ter ficado com o merge (sem push)." -ForegroundColor Yellow
+        Write-Host "          De volta em '$Origem', sem alteracao." -ForegroundColor Yellow
+    }
+}
+
+function Invoke-PromoverDev {
+    param(
+        [string]$Modo,   # "Direto" | "PR"
+        [switch]$DeBranchIde   # dry-run vindo de branch de IDE: a checagem de branch nao se aplica
+    )
+    Push-Location $AppRoot
+    try {
         $branch = (git rev-parse --abbrev-ref HEAD).Trim()
-        if ($branch -ne "dev") {
+        if ($branch -ne "dev" -and -not $DeBranchIde) {
             Write-Host "[ERRO] Voce nao esta na branch 'dev' (atual: $branch). Troque para dev antes de promover." -ForegroundColor Red
             return
         }
@@ -442,6 +567,7 @@ function Invoke-Promover {
             }
             Write-Host ""
             Write-Host "Revise e faca o merge do PR pela conta 'servidor'. O deploy de producao puxa origin/master." -ForegroundColor Green
+            if (-not $DryRun) { $script:PromocaoOk = $true }
             $det = if ($DryRun) { "dry-run" } else { "OK" }
             Write-Audit -AcaoNome "PromoverPR" -Detalhe $det
             return
@@ -524,6 +650,8 @@ function Invoke-Promover {
                 git checkout dev | Out-Null
                 return
             }
+            # Producao publicada a partir daqui, mesmo que a volta para a dev falhe abaixo.
+            $script:PromocaoOk = $true
         }
 
         # sincroniza de volta: dev fica com o merge commit. Producao JA foi publicada aqui -
@@ -563,6 +691,22 @@ function Invoke-Promover {
 function Invoke-Sincronizar {
     Push-Location $AppRoot
     try {
+        # Branch de IDE: traz o que foi publicado (origin/dev + origin/master) para ela, sem sair dela.
+        # Sem push - a branch e do agente desta pasta; ele publica com 'Push' quando quiser.
+        $branch = (git rev-parse --abbrev-ref HEAD).Trim()
+        if ($branch -like "dev-*") {
+            $rc = Invoke-Passo "git fetch origin" { git fetch origin }
+            if ($rc -ne 0) { Write-Host "[ERRO] git fetch falhou." -ForegroundColor Red; return }
+            foreach ($ref in @("origin/dev", "origin/master")) {
+                Write-Host ""
+                Write-Host "-> git merge $ref --no-edit" -ForegroundColor Cyan
+                git merge $ref --no-edit | Out-Host
+                if ($LASTEXITCODE -ne 0) { Write-Host "[ERRO] Conflito ao mesclar $ref em $branch. Resolva manualmente." -ForegroundColor Red; return }
+            }
+            Write-Host "[OK] '$branch' sincronizada com origin/dev e origin/master." -ForegroundColor Green
+            Write-Audit -AcaoNome "Sincronizar" -Detalhe "$branch OK"
+            return
+        }
         $rc = Invoke-Passo "git checkout dev" { git checkout dev }
         if ($rc -ne 0) { Write-Host "[ERRO] checkout dev falhou." -ForegroundColor Red; return }
         # fetch antes: mescla o origin/master REAL (o master local pode estar velho, ja que
@@ -798,7 +942,7 @@ function Invoke-RestaurarBackupDev {
     # O dev server segura conexoes e o DROP DATABASE nao passa.
     if (Test-DevServerRodando) {
         Write-Host ""
-        Write-Host "[ATENCAO] Dev server rodando na porta 3000 - ele mantem conexoes abertas no banco." -ForegroundColor Yellow
+        Write-Host "[ATENCAO] Dev server rodando na porta $PortaDev - ele mantem conexoes abertas no banco." -ForegroundColor Yellow
         if (Confirm-SN "Parar o dev server e continuar") { Stop-DevServer }
         else { Write-Host "[ERRO] Restauracao abortada (dev server ativo)." -ForegroundColor Red; return }
     }
@@ -967,8 +1111,17 @@ function Invoke-Doctor {
         if (Test-Porta -Alvo "127.0.0.1" -Porta 5432 -TimeoutMs 500) { Write-Host "  [ATENCAO] Algo escuta na :5432 (Postgres do sistema ANTIGO) - nao rode migrate/seed contra ele." -ForegroundColor Yellow }
     }
 
-    if (Test-DevServerRodando) { Write-Host "  [INFO] Porta 3000 em uso (dev server rodando)" -ForegroundColor Yellow }
-    else { Write-Host "  [OK]   Porta 3000 livre" -ForegroundColor Green }
+    if (Test-DevServerRodando) { Write-Host "  [INFO] Porta $PortaDev em uso (dev server rodando)" -ForegroundColor Yellow }
+    else { Write-Host "  [OK]   Porta $PortaDev livre" -ForegroundColor Green }
+    # APP_URL e BETTER_AUTH_URL precisam apontar para a mesma porta do PORT - BETTER_AUTH_URL
+    # errado quebra o login (CSRF) sem mensagem clara. Pega worktree com .env copiado sem ajuste.
+    foreach ($k in @("APP_URL", "BETTER_AUTH_URL")) {
+        $u = Get-EnvValue -Key $k
+        if ($u -match "^https?://(localhost|127\.0\.0\.1):(\d+)" -and [int]$Matches[2] -ne $PortaDev) {
+            Write-Host ("  [ATENCAO] {0} usa a porta {1}, mas PORT e {2}" -f $k, $Matches[2], $PortaDev) -ForegroundColor Yellow
+            $problemas += "$k fora da porta do PORT"
+        }
+    }
 
     if (Test-Path (Join-Path $AppRoot "node_modules")) { Write-Host "  [OK]   node_modules presente" -ForegroundColor Green }
     else { Write-Host "  [FALHA] node_modules ausente (rode npm install)" -ForegroundColor Red; $problemas += "node_modules ausente" }
@@ -1006,8 +1159,8 @@ function Invoke-ProcessosPortas {
     Get-Process -Name "node", "esbuild", "postgres" -ErrorAction SilentlyContinue |
         Select-Object Id, ProcessName, StartTime | Format-Table -AutoSize | Out-String | Write-Host
 
-    Write-Host "---- Porta 3000 (dev) ----" -ForegroundColor Cyan
-    Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue |
+    Write-Host "---- Porta $PortaDev (dev) ----" -ForegroundColor Cyan
+    Get-NetTCPConnection -LocalPort $PortaDev -ErrorAction SilentlyContinue |
         Select-Object LocalAddress, LocalPort, State, OwningProcess | Format-Table -AutoSize | Out-String | Write-Host
 
     Write-Host "---- Porta 5433 (Postgres dev) ----" -ForegroundColor Cyan
@@ -1040,6 +1193,7 @@ switch ($Acao) {
     "DevNext"          { Invoke-DevNext }
     "DevServer"        { Invoke-DevServer }
     "PararDev"         { Invoke-PararDev }
+    "Abrir"            { Start-Process "http://localhost:$PortaDev" }
     "Verificar"        { $null = Invoke-Verificar }
     "Testes"           { Invoke-Testes }
     "Lint"             { Invoke-Lint }
