@@ -195,6 +195,28 @@ Arquivo cujo documento ainda não tem fase cai em **Sem fase**.
 O cliente vê as mesmas pastas no link público e pode baixar em .zip qualquer nível: formato,
 fase, disciplina ou o projeto inteiro.
 
+### Diretório geral (menu Arquivos)
+
+O item **Arquivos** do menu mostra os documentos de **todos** os projetos que você enxerga, na
+mesma lógica de pastas da aba do projeto, com dois níveis a mais em cima: **ano → projeto →
+disciplina → fase → formato**. O cliente não vira pasta — o código do projeto já traz o ano, e é
+por projeto que se trabalha.
+
+Ao lado das disciplinas de cada projeto ficam as **áreas** (Recebidos do cliente, Base
+Arquitetônica, Geral, ARTs, Lixeira). Elas, e as pastas de disciplinas de aprovação/laudo, são
+**atalhos para a aba do projeto**, onde cada uma tem a tela e as ações próprias — o ícone de seta
+avisa que o clique muda de tela.
+
+Para baixar em .zip, o botão aparece de **projeto para baixo**: projeto, disciplina, fase e
+formato. Ano inteiro não tem botão. Também dá para marcar documentos na lista e usar **Baixar
+selecionados** — a seleção vale só para o que está na tela, e trocar de pasta ou de página limpa.
+Acima de 500 arquivos o botão fica apagado, mostrando quantos são: escolha uma fase ou um formato
+para recortar.
+
+O diretório é uma tela de **consulta**. Ele mostra se o arquivo está validado, mas validar (ou
+desfazer) continua na aba do projeto, junto do contexto da entrega. Editar metadado, também: o
+código do projeto em cada linha leva para lá.
+
 ### Lista Mestre (aba Arquivos)
 
 A Lista Mestre deixou de ser uma aba com cadastro de folhas: hoje ela é **gerada** a partir
