@@ -47,7 +47,7 @@ parcelas, dados bancários, validade e assinatura **não são cláusulas** — s
 | Fase | Conteúdo | Modelo |
 |---|---|---|
 | **G1** | Regras puras: extenso, parcelas, escolha de cláusula por UF. Só código testado. | Sonnet |
-| **G2** | Schema + migração (`formato`, `ModeloProposta`, `ClausulaProposta`, `PropostaSecao`, `prazo` na parcela), permissão nova `comercial:modelos` (só gestão), campos novos de `empresa.dados`. | **Opus** |
+| **G2** | Schema + migrações: `ModeloProposta`, `ClausulaProposta`, `PropostaSecao`, `PropostaParcela`, campos da obra em `Proposta`, permissão nova `comercial:modelos` (só gestão), campos novos de `empresa.dados` — e, como passo separado, a troca de `externa` por `formato`. | **Opus** |
 | **G3** | Telas da gestão: biblioteca de cláusulas e modelos. **Seed inicial** com as cláusulas mais frequentes das 163 propostas, para o dono revisar antes de usar. Ver "Seed da biblioteca" abaixo. | Sonnet |
 | **G4** | Compor: "Nova proposta" na ficha da negociação escolhe o modelo e monta seções, itens e parcelas; editor com pré-visualização; salvar gera versão (snapshot do documento inteiro). | **Opus** |
 | **G5** | Documento: template HTML de fluxo (timbrado, seções, tabela, parcelas, dados bancários, assinatura) no ramo `COMPOSTA` de `/a/proposta/[token]`; PDF por versão e link público reaproveitando o que já existe. Mexe na rota pública congelada e na paginação do PDF — ver pré-requisito abaixo. | **Opus** |
