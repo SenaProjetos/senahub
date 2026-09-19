@@ -1,11 +1,23 @@
-/** F6.11 — EXPLAIN ANALYZE das cinco leituras críticas cobertas pelos índices do CRM. */
+/**
+ * F6.11 — EXPLAIN ANALYZE das leituras críticas cobertas pelos índices do CRM.
+ *
+ * O plano é medido com `enable_seqscan = off` (só dentro da transação da consulta). O que o gate
+ * responde é "existe um índice que ATENDE esta consulta?", não "o otimizador o prefere HOJE?": em
+ * tabela pequena ou com uma coluna muito concentrada (30% dos leads em IDENTIFICADO, por exemplo)
+ * varrer a tabela é legitimamente mais barato, e o gate reprovava sem que nada estivesse errado.
+ * Sem o Seq Scan como alternativa, um índice ausente ou inadequado continua reprovando.
+ */
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
+import type { Prisma } from "../src/generated/prisma/client";
 
 type LinhaPlano = { "QUERY PLAN": string };
 
-async function explicar(nome: string, consulta: Promise<LinhaPlano[]>) {
-  const linhas = await consulta;
+async function explicar(nome: string, consulta: (tx: Prisma.TransactionClient) => Promise<LinhaPlano[]>) {
+  const linhas = await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL enable_seqscan = off");
+    return consulta(tx);
+  });
   const plano = linhas.map((linha) => linha["QUERY PLAN"]).join("\n");
   const usaIndice = /(?:Index(?: Only)? Scan|Bitmap Index Scan)/.test(plano);
   const seqScan = /Seq Scan/.test(plano);
@@ -33,7 +45,7 @@ async function main() {
 
   await explicar(
     "Kanban de prospecção — página de IDENTIFICADO",
-    prisma.$queryRaw<LinhaPlano[]>`
+    (tx) => tx.$queryRaw<LinhaPlano[]>`
       EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
       SELECT "id"
       FROM "lead"
@@ -47,7 +59,7 @@ async function main() {
 
   await explicar(
     "Kanban de negociação — página de LEVANTAMENTO",
-    prisma.$queryRaw<LinhaPlano[]>`
+    (tx) => tx.$queryRaw<LinhaPlano[]>`
       EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
       SELECT "id"
       FROM "negociacao"
@@ -60,7 +72,7 @@ async function main() {
 
   await explicar(
     "Empresa 360 — timeline da empresa",
-    prisma.$queryRaw<LinhaPlano[]>`
+    (tx) => tx.$queryRaw<LinhaPlano[]>`
       EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
       SELECT "id", "createdAt"
       FROM "atividade"
@@ -72,7 +84,7 @@ async function main() {
 
   await explicar(
     "Home — propostas enviadas por data",
-    prisma.$queryRaw<LinhaPlano[]>`
+    (tx) => tx.$queryRaw<LinhaPlano[]>`
       EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
       SELECT "id", "enviadaEm"
       FROM "proposta"
@@ -83,8 +95,22 @@ async function main() {
   );
 
   await explicar(
+    "Follow-ups — ações comerciais em aberto por data",
+    (tx) => tx.$queryRaw<LinhaPlano[]>`
+      EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
+      SELECT "id", "inicio"
+      FROM "compromisso"
+      WHERE "entidadeTipo" IS NOT NULL
+        AND "tipo" IS NOT NULL
+        AND "concluidoEm" IS NULL
+      ORDER BY "inicio" ASC
+      LIMIT 300
+    `,
+  );
+
+  await explicar(
     "Inteligência — propostas de uma negociação",
-    prisma.$queryRaw<LinhaPlano[]>`
+    (tx) => tx.$queryRaw<LinhaPlano[]>`
       EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
       SELECT "id", "negociacaoId"
       FROM "proposta"
