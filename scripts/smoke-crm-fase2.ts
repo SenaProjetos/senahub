@@ -29,6 +29,7 @@ import {
 } from "../src/modules/comercial/service";
 import {
   fichaNegociacao,
+  leadsDoParceiro,
   followUpsComerciais,
   funilComercial,
   funilNegociacao,
@@ -399,6 +400,27 @@ async function main() {
     console.log("[PULO] só há um usuário interno no dev — follow-up cruzado não testado");
   }
 
+  console.log("\n── Parceiros: leads indicados (linha expandida) ─────────────────\n");
+  const parceiroSmk = await prisma.parceiro.create({ data: { nome: `${TAG}_parceiro`, tipo: "PJ" }, select: { id: true } });
+  const leadIndicado = await prisma.lead.create({
+    data: {
+      nome: `${TAG}_indicado`,
+      clienteId: emp.id,
+      etapaId: etapa.id,
+      status: "EM_CONTATO",
+      parceiroId: parceiroSmk.id,
+      valorEstimado: 7500,
+    },
+    select: { id: true },
+  });
+  const indicados = await leadsDoParceiro(parceiroSmk.id);
+  check("leadsDoParceiro devolve o lead indicado", indicados.length === 1 && indicados[0].id === leadIndicado.id);
+  check(
+    "valor vira número e a data vira ISO (atravessa a Server Action sem perder o tipo)",
+    indicados[0]?.valorEstimado === 7500 && typeof indicados[0]?.createdAt === "string",
+  );
+  check("parceiro sem indicação devolve lista vazia", (await leadsDoParceiro("id-que-nao-existe")).length === 0);
+
   const enc = padrao.find((c) => c.coluna === "ENCERRADOS");
   check("Encerrados recolhido não busca cards", enc?.fechada === true && enc.cards.length === 0);
   const aberto = await funilComercial({ filtros: filtroEmp, fechadas: new Set() });
@@ -435,6 +457,7 @@ async function limpar() {
   await prisma.leadContato.deleteMany({ where: { leadId: { in: leads.map((l) => l.id) } } });
   await prisma.lead.deleteMany({ where: { id: { in: leads.map((l) => l.id) } } });
 
+  await prisma.parceiro.deleteMany({ where: { nome: { contains: TAG } } });
   await prisma.campanha.deleteMany({ where: { nome: { contains: TAG } } });
   await prisma.contatoCliente.deleteMany({ where: { nome: { contains: TAG } } });
   await prisma.cliente.deleteMany({ where: { nome: { contains: TAG } } });

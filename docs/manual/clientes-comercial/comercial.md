@@ -37,7 +37,10 @@ o projeto contratado.
 
 ### 1. Registre a entrada e reaproveite a empresa
 
-Em **Comercial → Funil**, clique em **Nova entrada**. Informe como o contato chegou. Se foi uma
+Em **Comercial → Funil**, clique em **Nova entrada**. O formulário tem quatro blocos numerados —
+**Cliente e contato**, **Demanda**, **Como chegou** e **Primeira interação**. Campos obrigatórios
+levam um asterisco, e se faltar algo o aviso aparece junto do próprio campo. Informe como o contato
+chegou. Se foi uma
 indicação, selecione o canal **Indicação** e escolha **Quem indicou / parceiro**, quando houver um
 cadastro correspondente. Para site, cliente recorrente ou prospecção ativa, escolha o canal real —
 o sistema não trata essas entradas como Sales Navigator.
@@ -61,7 +64,9 @@ diante, a negociação. Mova o card conforme a conversa avança. Entradas aberta
 negociação já nascem em Levantamento.
 
 Qualquer coluna pode ser recolhida pelo botão ao lado do contador, para abrir espaço na tela — o
-quadro lembra da sua escolha. **Encerrados** junta tudo que saiu do fluxo (sem oportunidade,
+quadro lembra da sua escolha. Acima do quadro, **Recolher tudo** / **Expandir tudo** agem em todas
+as colunas de uma vez, e os botões **Prospecção** e **Negociação** recolhem ou expandem só o fluxo
+correspondente. **Encerrados** junta tudo que saiu do fluxo (sem oportunidade,
 descartado, em espera, perdido, cancelado) e começa recolhido; ao abrir, cada card mostra o motivo
 do encerramento. Arrastar um card para Encerrados pergunta qual encerramento aplicar.
 
@@ -83,11 +88,15 @@ permanece no histórico e ganha uma negociação vinculada — não crie outro c
 mesma conversa. Se a prospecção estava encerrada, o sistema pergunta antes de reativá-la. Depois de
 virar negociação o card não volta para as colunas de prospecção.
 
-Para ver todas as ações combinadas de uma vez, abra **Comercial → Follow-ups**: as próximas ações em
-aberto aparecem agrupadas em *Atrasados*, *Hoje*, *Próximos 7 dias* e *Mais adiante*, com o
-responsável de cada uma, e dá para concluir ou reagendar (+1, +3 ou +7 dias) sem abrir o card. O
-botão **Meus** mostra só as suas. Toda ação agendada também aparece na **Agenda** de quem a marcou
-e do responsável pelo card.
+Para ver todas as ações combinadas de uma vez, abra **Comercial → Follow-ups**. A tela abre em
+**calendário**, na semana atual — use as setas e **Hoje** para navegar e **Mês** para a visão
+mensal. Cada ação mostra o horário, o tipo, o card e o responsável, e dá para concluí-la ali mesmo.
+Ações atrasadas aparecem num aviso no topo. O botão **Lista** troca para a visão agrupada em
+*Atrasados*, *Hoje*, *Próximos 7 dias* e *Mais adiante*, onde também dá para reagendar (+1, +3 ou
++7 dias). O botão **Meus** mostra só as suas.
+
+Toda ação agendada aparece na **Agenda** de quem a marcou e do responsável pelo card — por padrão
+visível; use **Ocultar ações comerciais** na Agenda se quiser ver só as reuniões.
 
 ### 3. Conduza a negociação
 
@@ -123,6 +132,9 @@ canais de comunicação necessários. A empresa, a prospecção, a negociação,
 continuam consultáveis na **Empresa 360**.
 
 ## Painéis e listas
+
+- **Parceiros**: a lista de quem indica negócio. A seta à esquerda de cada parceiro abre os leads
+  que ele indicou, com etapa e valor; clicar num lead abre a ficha no funil.
 
 - **Comercial**: visão do mês e **Meu Dia**. Alterne entre **Todos** e **Meus** para ver a carteira
   inteira ou somente registros sob sua responsabilidade.
