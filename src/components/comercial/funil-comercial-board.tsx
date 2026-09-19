@@ -13,12 +13,15 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { ChevronsLeftRight, ChevronsRightLeft } from "lucide-react";
+import { ChevronsDown, ChevronsLeftRight, ChevronsRight, ChevronsRightLeft, ChevronsUp } from "lucide-react";
 import type { EstagioNegociacao, StatusProspeccao } from "@/generated/prisma/client";
 import { moverEstagioNegociacao, moverProspeccao } from "@/modules/comercial/actions";
 import type { CardFunil, ColunaFunilDados, MotivoPerdaOpcao } from "@/modules/comercial/queries";
 import {
   COLUNA_FUNIL_LABEL,
+  COLUNAS_FUNIL,
+  COLUNAS_FUNIL_LEAD,
+  COLUNAS_FUNIL_NEGOCIACAO,
   COOKIE_COLUNAS_FECHADAS,
   colunaDoCard,
   decidirSoltura,
@@ -109,15 +112,30 @@ export function FunilComercialBoard({
     [colunas, todos, movidos],
   );
 
-  function alternar(coluna: ColunaFunil) {
-    const abrindo = fechadas.has(coluna);
-    const nova = new Set(fechadas);
-    if (abrindo) nova.delete(coluna);
-    else nova.add(coluna);
+  /** Aplica o novo conjunto de fechadas: grava, e só busca do servidor o que estava fechado lá. */
+  function aplicarFechadas(nova: Set<ColunaFunil>) {
+    const precisaBuscar = colunas.some((c) => c.fechada && !nova.has(c.coluna));
     setFechadas(nova);
     gravarFechadas(nova);
-    // Recolhida não trouxe card do servidor; abrir precisa buscar. Fechar não precisa de nada.
-    if (abrindo && colunas.find((c) => c.coluna === coluna)?.fechada) router.refresh();
+    if (precisaBuscar) router.refresh();
+  }
+
+  function alternar(coluna: ColunaFunil) {
+    const nova = new Set(fechadas);
+    if (nova.has(coluna)) nova.delete(coluna);
+    else nova.add(coluna);
+    aplicarFechadas(nova);
+  }
+
+  /** Recolhe ou expande todas as colunas da lista de uma vez (grupo de fluxo, ou tudo). */
+  function alternarGrupo(lista: readonly ColunaFunil[]) {
+    const todasFechadas = lista.every((c) => fechadas.has(c));
+    const nova = new Set(fechadas);
+    for (const c of lista) {
+      if (todasFechadas) nova.delete(c);
+      else nova.add(c);
+    }
+    aplicarFechadas(nova);
   }
 
   function desfazer(chave: string) {
@@ -230,8 +248,26 @@ export function FunilComercialBoard({
     else moverNegociacao(alvo, opcao.para, "ENCERRADOS");
   }
 
+  const tudoFechado = COLUNAS_FUNIL.every((c) => fechadas.has(c));
+  const prospeccaoFechada = COLUNAS_FUNIL_LEAD.every((c) => fechadas.has(c));
+  const negociacaoFechada = COLUNAS_FUNIL_NEGOCIACAO.every((c) => fechadas.has(c));
+
   return (
     <>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Button variant="outline" size="sm" onClick={() => alternarGrupo(COLUNAS_FUNIL)}>
+          {tudoFechado ? <ChevronsDown className="size-3.5" /> : <ChevronsUp className="size-3.5" />}
+          {tudoFechado ? "Expandir tudo" : "Recolher tudo"}
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => alternarGrupo(COLUNAS_FUNIL_LEAD)}>
+          <ChevronsRight className={`size-3.5 transition-transform ${prospeccaoFechada ? "" : "rotate-90"}`} />
+          Prospecção
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => alternarGrupo(COLUNAS_FUNIL_NEGOCIACAO)}>
+          <ChevronsRight className={`size-3.5 transition-transform ${negociacaoFechada ? "" : "rotate-90"}`} />
+          Negociação
+        </Button>
+      </div>
       <DndContext
         sensors={sensors}
         onDragStart={(e: DragStartEvent) => setArrastando(todos.find((c) => chaveCard(c) === e.active.id) ?? null)}
