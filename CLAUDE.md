@@ -177,10 +177,14 @@ alvo) → `03-migracao.md` (migração) → `04-plano-fases.md` (backlog fechado
 por tarefa), `08-aceite-e2e.md` (os 20 critérios de aceite, cobertos por `smoke:crm-e2e`). Supersede
 `docs/concluidos/specs/2026-07-24-crm-comercial-roadmap.md`. Estado atual: `Lead` (prospecção) e
 `Negociacao` (negociação) são entidades separadas de propósito, com `service.ts` central, cobertura
-de testes ampla no módulo, e `Oportunidade` (o model órfão antigo) já removido. Trabalho de UI em
-andamento sobre esse resultado: `docs/adr/0004-funil-comercial-unico.md` +
-`docs/superpowers/specs/2026-09-16-comercial-funil-unico.md` (board único, toolbar fixa, modal por
-card — planejado, não implementado ainda).
+de testes ampla no módulo, e `Oportunidade` (o model órfão antigo) já removido. A UI atual (branch
+`feat/funil-comercial`, 2026-09-18/19) é um **funil único** em `/comercial/funil` — as rotas
+`/prospeccao` e `/negociacoes` só redirecionam —, com ficha do card em modal (`?card=TIPO:id`),
+toolbar fixa (`comercial/layout.tsx`), follow-ups em calendário e **proposta externa** (PDF por
+versão, sem link público, `Proposta.externa`). Decisões: `docs/adr/0004-funil-comercial-unico.md`
+e `docs/adr/0005-proposta-externa.md`; plano e desvios em
+`docs/superpowers/specs/2026-09-16-comercial-funil-unico.md`. Pendente: redesenho do gerenciador de
+propostas (Fase G, aguarda exemplos do dono).
 
 **Termos de uso (legal)** (`modules/legal/termos.ts`) — single source of truth for the on-screen acceptance text, by `TipoTermo` (`colaborador | cliente`). Pure (no `server-only`): RSC reads it, passes text to a client form; the server hashes (SHA-256) the accepted text as proof in `actions.ts`. Bump `versao` to force everyone to re-accept. `docs/legal/*.md` is the rich/print version for legal review — keep both in sync. (Spec: `docs/concluidos/plans/2026-06-23-termo-aceite.md`.)
 
