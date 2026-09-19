@@ -67,7 +67,9 @@ export async function obterModelo(id: string) {
   });
   if (!m) return null;
   const parsed = docSchemaZ.safeParse(m.schemaJson);
-  return { ...m, schema: parsed.success ? parsed.data : docVazio() };
+  // `schemaIlegivel`: o JSON salvo não passa no schema e o que devolvemos é um documento VAZIO.
+  // Sem essa bandeira o editor mostra o vazio como se fosse o modelo e um salvar apaga o original.
+  return { ...m, schema: parsed.success ? parsed.data : docVazio(), schemaIlegivel: !parsed.success };
 }
 
 const CHAVE_PADROES = "documentos.padroes";

@@ -17,6 +17,16 @@ export function mmToPx(mm: number): number {
 }
 
 /**
+ * Altura máxima de uma banda: a da MAIOR folha suportada (A0 retrato), não a do A4.
+ *
+ * O limite era 1123 (altura do A4), o que recusava qualquer modelo em folha grande — e como todo
+ * caminho de leitura usa `safeParse` com fallback `docVazio()`, o modelo recusado abria em branco,
+ * sem aviso, e um salvar por cima o apagava. Apertar limite aqui invalida modelo já salvo: mexer
+ * nisto só sabendo disso.
+ */
+export const ALTURA_MAX_BANDA = Math.round(1189 * (96 / 25.4));
+
+/**
  * Formatos de folha (ABNT NBR + comuns). Dimensões em retrato (largura × altura mm).
  */
 export const FORMATOS_FOLHA: Record<
@@ -120,8 +130,10 @@ export const elementoSchema = z.object({
   tipo: z.enum(TIPOS_ELEMENTO),
   x: z.number(),
   y: z.number(),
-  w: z.number().min(4),
-  h: z.number().min(4),
+  // Mínimo 1px: linha/separador fino é elemento legítimo e o mínimo antigo (4) RECUSAVA modelos
+  // já salvos — que, pelo fallback `docVazio()`, abriam em branco (ver ALTURA_MAX_BANDA abaixo).
+  w: z.number().min(1),
+  h: z.number().min(1),
   /** label: texto fixo (pode conter tokens inline). campo: token puro. imagem: URL/caminho. */
   texto: z.string().default(""),
   estilo: estiloSchema,
@@ -143,7 +155,7 @@ export type Elemento = z.infer<typeof elementoSchema>;
 export const bandaSchema = z.object({
   id: z.string(),
   tipo: z.enum(TIPOS_BANDA),
-  altura: z.number().min(8).max(1123),
+  altura: z.number().min(8).max(ALTURA_MAX_BANDA),
   elementos: z.array(elementoSchema),
   /**
    * MULTI-COLEÇÃO (sub-relatórios): fonte de dados que alimenta ESTA banda de

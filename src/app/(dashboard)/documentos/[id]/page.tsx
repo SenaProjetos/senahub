@@ -35,6 +35,7 @@ export default async function EditorPage({ params }: { params: Promise<{ id: str
       tipoInicial={modelo.tipo}
       fonteInicial={modelo.fonte ?? ""}
       schemaInicial={modelo.schema}
+      schemaIlegivel={modelo.schemaIlegivel}
       fontesHabilitadas={fontes}
       fontesDados={fontesDados}
       datasets={datasets}

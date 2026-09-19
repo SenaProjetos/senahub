@@ -47,6 +47,7 @@ parcelas, dados bancários, validade e assinatura **não são cláusulas** — s
 | Fase | Conteúdo | Modelo |
 |---|---|---|
 | **G0** | Estúdio: **faixa em fluxo** (`banda.fluxo`, opt-in) — faixa cresce com o conteúdo, elementos empilhados na ordem do desenho, parágrafo sem corte; aviso no editor; modelos existentes intactos. Corrige de tabela o corte silencioso dos contratos de fábrica. | **Opus** |
+| **G0.1** | Estúdio: limites do schema que **invalidam modelo salvo** (`banda.altura` presa ao A4; elemento com `h < 4`). Modelo recusado abre em branco pelo fallback `docVazio()` e salvar por cima apaga o original. Relaxar os limites, avisar na tela e travar o salvar. | **Opus** |
 | **G1** | Regras puras: extenso, parcelas, escolha de cláusula por UF. Só código testado. | Sonnet |
 | **G2** | Schema + migrações: `ModeloProposta`, `ClausulaProposta`, `PropostaSecao`, `PropostaParcela`, campos da obra em `Proposta`, permissão nova `comercial:modelos` (só gestão), campos novos de `empresa.dados` — e, como passo separado, a troca de `externa` por `formato`. | **Opus** |
 | **G3** | Telas da gestão: biblioteca de cláusulas e modelos. **Seed inicial** com as cláusulas mais frequentes das 163 propostas, para o dono revisar antes de usar. Ver "Seed da biblioteca" abaixo. | Sonnet |
@@ -77,6 +78,29 @@ espalharia para todas as propostas futuras:
 - A ordenação/empilhamento é função **pura e testada** (`fluxo.ts`), não lógica solta no JSX.
 - Prova: os 8 modelos existentes renderizam byte a byte igual (nenhum tem `fluxo`), e um modelo de
   teste com parágrafo de 40 linhas sai inteiro.
+
+### G0.1 — limite de schema que apaga modelo salvo
+
+Achado ao rodar a prova da G0 contra o banco de dev: **3 de 8 modelos não passam no `docSchemaZ`**.
+Como todo caminho de leitura usa `safeParse` com fallback `docVazio()`, esses modelos **abrem em
+branco, sem aviso** — e um salvar por cima grava o documento vazio no lugar do original.
+
+| Modelo | Recusa | Causa |
+|---|---|---|
+| Carimbo A0 | `bandas.0.altura` > 1123 | `max(1123)` é a altura do **A4**, mas o editor oferece folha até A0 |
+| Relatório do projeto (exemplo) | `elementos.N.h` < 4 | `min(4)` recusa linha/separador de 1–2px |
+| Relatório de licitação (exemplo) | idem | idem |
+
+O que muda:
+- `altura` da banda limitada pela **maior folha** (A0 retrato, `mmToPx(1189)`), não pelo A4.
+- `w`/`h` de elemento com mínimo 1 (linha fina é um elemento legítimo).
+- `obterModelo` devolve `schemaIlegivel`; o editor mostra aviso destrutivo e **desabilita o salvar**,
+  para que o fallback nunca vire perda de dados.
+- Teste-guarda: modelo em A0 e elemento de 2px passam no schema; e um `docVazio()` nunca substitui
+  schema válido sem sinalizar.
+
+Por que antes da G1: é o mesmo motor da G0, é risco de perda de dados hoje, e a G5 vai querer
+proposta em folha que não seja A4.
 
 ### Pré-requisito da G5 — cabeçalho, rodapé e paginação do PDF
 
