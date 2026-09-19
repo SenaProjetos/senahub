@@ -1538,7 +1538,10 @@ export async function fichaNegociacao(id: string) {
       contatos: {
         select: { principal: true, contato: { select: { id: true, nome: true, email: true, telefone: true } } },
       },
-      disciplinas: { select: { disciplina: { select: { nome: true } } } },
+      disciplinas: {
+        orderBy: { disciplina: { ordem: "asc" } },
+        select: { disciplinaId: true, valor: true, disciplina: { select: { nome: true } } },
+      },
       propostas: { orderBy: { createdAt: "desc" }, select: SELECT_PROPOSTA_FICHA },
       lead: {
         select: {
@@ -1568,6 +1571,11 @@ export async function fichaNegociacao(id: string) {
     ...n,
     valorEstimado: n.valorEstimado != null ? Number(n.valorEstimado) : null,
     valorNegociado: n.valorNegociado != null ? Number(n.valorNegociado) : null,
+    disciplinas: n.disciplinas.map((d) => ({
+      disciplinaId: d.disciplinaId,
+      nome: d.disciplina.nome,
+      valor: d.valor != null ? Number(d.valor) : null,
+    })),
     areaM2: n.areaM2 != null ? Number(n.areaM2) : null,
     previsaoFechamento: n.previsaoFechamento?.toISOString() ?? null,
     propostas: resumoPropostas(n.propostas),

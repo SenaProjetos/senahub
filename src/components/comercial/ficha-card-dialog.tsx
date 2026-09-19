@@ -21,6 +21,7 @@ import { RegistrarInteracaoPopover } from "./registrar-interacao-popover";
 import { LeadDialog } from "./lead-dialog";
 import { LeadAnexos } from "./lead-anexos";
 import { NegociacaoDadosForm } from "./negociacao-dados-form";
+import { NegociacaoDisciplinasForm } from "./negociacao-disciplinas-form";
 import { RegistrarVersaoExternaDialog } from "./registrar-versao-externa-dialog";
 import { FollowUpsFicha, HistoricoFicha, Linha, PropostasFicha } from "./ficha-partes";
 
@@ -33,6 +34,8 @@ export type OpcoesFicha = {
   etapas: { id: string; nome: string }[];
   /** Catálogo de disciplinas (nomes) — linhas da proposta externa. */
   disciplinas: string[];
+  /** O mesmo catálogo com id — disciplinas de interesse da negociação. */
+  catalogoDisciplinas: { id: string; nome: string }[];
   descontoMaxSemJustificativa: number;
 };
 
@@ -269,7 +272,6 @@ function FichaNegociacaoAbas({
 
       <div className="grid gap-1.5 rounded-sm border bg-muted/30 p-3 sm:grid-cols-2">
         <Linha label="Contato" valor={principal?.nome} />
-        <Linha label="Disciplinas" valor={n.disciplinas.map((d) => d.disciplina.nome).join(", ") || null} />
         <Linha label="Última proposta" valor={vigente ? `${vigente.numero} · ${vigente.status}` : null} />
         <Linha label="Valor proposto" valor={vigente?.valorVersao != null ? brl(vigente.valorVersao) : null} />
         <Linha label="Desconto" valor={vigente?.desconto ? brl(vigente.desconto) : null} />
@@ -279,6 +281,14 @@ function FichaNegociacaoAbas({
         <Linha label="Concorrente" valor={n.concorrente} />
       </div>
       {n.observacaoPerda && <p className="whitespace-pre-wrap text-sm text-muted-foreground">{n.observacaoPerda}</p>}
+
+      <NegociacaoDisciplinasForm
+        key={`disc-${n.id}`}
+        negociacaoId={n.id}
+        atuais={n.disciplinas}
+        catalogo={opcoes.catalogoDisciplinas}
+        podeGerir={podeGerir}
+      />
 
       <NegociacaoDadosForm
         key={n.id}

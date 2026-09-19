@@ -106,6 +106,7 @@ export default async function FunilComercialPage({
         responsaveis,
         etapas: etapas.map((e) => ({ id: e.id, nome: e.nome })),
         disciplinas: catalogo.map((d) => d.nome),
+        catalogoDisciplinas: catalogo.map((d) => ({ id: d.id, nome: d.nome })),
         descontoMaxSemJustificativa: config.descontoMaxSemJustificativa,
       }))
     : null;

@@ -37,6 +37,7 @@ import {
   alternarChecklistItemSchema,
   qualificarProspeccaoSchema,
   editarNegociacaoSchema,
+  definirDisciplinasNegociacaoSchema,
   registrarVersaoExternaSchema,
   agendarProximaAcaoSchema,
   concluirProximaAcaoSchema,
@@ -80,6 +81,7 @@ import {
   moverProspeccao as servicoMoverProspeccao,
   qualificarPeloBoard as servicoQualificarPeloBoard,
   editarNegociacao as servicoEditarNegociacao,
+  definirDisciplinasNegociacao as servicoDefinirDisciplinasNegociacao,
   registrarVersaoExterna as servicoRegistrarVersaoExterna,
   registrarAtividade,
   registrarInteracaoManual as servicoRegistrarInteracaoManual,
@@ -813,6 +815,27 @@ export const reabrirNegociacao = defineAction(
   },
   async (i, { user }) => {
     const r = await servicoReabrirNegociacao(i.negociacaoId, user.id);
+    rev();
+    return r;
+  },
+);
+
+/** Disciplinas de interesse da negociação, pela ficha do card — substitui o conjunto (service). */
+export const definirDisciplinasNegociacao = defineAction(
+  {
+    ...base,
+    acao: "definir-disciplinas-negociacao",
+    entidade: "Negociacao",
+    schema: definirDisciplinasNegociacaoSchema,
+    entidadeId: (_d, i) => (i as { negociacaoId: string }).negociacaoId,
+    capturarAntes: async (i) =>
+      prisma.negociacaoDisciplina.findMany({
+        where: { negociacaoId: (i as { negociacaoId: string }).negociacaoId },
+        select: { disciplinaId: true, valor: true },
+      }),
+  },
+  async (i) => {
+    const r = await servicoDefinirDisciplinasNegociacao(i);
     rev();
     return r;
   },

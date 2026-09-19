@@ -24,6 +24,7 @@ import {
   moverProspeccao,
   qualificarProspeccao,
   reagendarProximaAcao,
+  definirDisciplinasNegociacao,
   qualificarPeloBoard,
   editarNegociacao,
   registrarInteracaoManual,
@@ -445,6 +446,38 @@ async function main() {
     indicados[0]?.valorEstimado === 7500 && typeof indicados[0]?.createdAt === "string",
   );
   check("parceiro sem indicação devolve lista vazia", (await leadsDoParceiro("id-que-nao-existe")).length === 0);
+
+  console.log("\n── Disciplinas de interesse da negociação ───────────────────────\n");
+  const [disc1, disc2] = await prisma.disciplinaCatalogo.findMany({ where: { ativo: true }, take: 2, select: { id: true } });
+  await definirDisciplinasNegociacao({
+    negociacaoId: qb.negociacaoId,
+    disciplinas: [{ disciplinaId: disc1.id, valor: 3000 }, { disciplinaId: disc2.id }],
+  });
+  const ligadas = await prisma.negociacaoDisciplina.findMany({ where: { negociacaoId: qb.negociacaoId }, select: { disciplinaId: true, valor: true } });
+  check("grava as disciplinas, com valor opcional", ligadas.length === 2 && ligadas.some((d) => Number(d.valor) === 3000) && ligadas.some((d) => d.valor === null));
+
+  const filtrada = await funilComercial({ filtros: lerFiltros({ empresa: emp.id, disc: disc1.id }), fechadas: new Set() });
+  check(
+    "o filtro por disciplina do funil passa a achar a negociação",
+    filtrada.flatMap((c) => c.cards).some((c) => c.tipo === "NEGOCIACAO" && c.id === qb.negociacaoId),
+  );
+
+  await definirDisciplinasNegociacao({ negociacaoId: qb.negociacaoId, disciplinas: [{ disciplinaId: disc2.id }] });
+  const substituidas = await prisma.negociacaoDisciplina.count({ where: { negociacaoId: qb.negociacaoId } });
+  check("a lista SUBSTITUI o conjunto anterior (não acumula)", substituidas === 1);
+
+  await recusa(
+    "disciplina repetida é recusada com mensagem de negócio",
+    () => definirDisciplinasNegociacao({ negociacaoId: qb.negociacaoId, disciplinas: [{ disciplinaId: disc1.id }, { disciplinaId: disc1.id }] }),
+    /repetida/i,
+  );
+  await recusa(
+    "id fora do catálogo é recusado",
+    () => definirDisciplinasNegociacao({ negociacaoId: qb.negociacaoId, disciplinas: [{ disciplinaId: "id-que-nao-existe" }] }),
+    /catálogo/i,
+  );
+  const aposRecusas = await prisma.negociacaoDisciplina.count({ where: { negociacaoId: qb.negociacaoId } });
+  check("recusa não apaga o que já estava salvo", aposRecusas === 1);
 
   const enc = padrao.find((c) => c.coluna === "ENCERRADOS");
   check("Encerrados recolhido não busca cards", enc?.fechada === true && enc.cards.length === 0);

@@ -1329,6 +1329,50 @@ async function garantirNegociacaoParaProposta(
   return negociacaoId;
 }
 
+/**
+ * Define o conjunto de disciplinas de interesse da negociação (substitui o anterior). Antes daqui
+ * nada gravava `NegociacaoDisciplina`, e por isso o filtro por disciplina do funil nunca achava
+ * nada. Valida contra o catálogo ativo — um id solto no payload não vira disciplina — e recusa
+ * repetição em vez de deixar o índice único estourar como erro genérico.
+ */
+export async function definirDisciplinasNegociacao(input: {
+  negociacaoId: string;
+  disciplinas: { disciplinaId: string; valor?: number | null }[];
+}): Promise<{ id: string; total: number }> {
+  const negociacao = await prisma.negociacao.findUnique({
+    where: { id: input.negociacaoId },
+    select: { id: true },
+  });
+  if (!negociacao) throw new ActionError("Negociação não encontrada.");
+
+  const ids = input.disciplinas.map((d) => d.disciplinaId);
+  if (new Set(ids).size !== ids.length) throw new ActionError("Disciplina repetida na lista.");
+  if (ids.length > 0) {
+    // Ativa no catálogo, OU já ligada a esta negociação: disciplina arquivada depois não pode
+    // travar a edição do resto — a pessoa a remove se quiser, mas salvar as demais continua valendo.
+    const jaLigadas = await prisma.negociacaoDisciplina.findMany({
+      where: { negociacaoId: negociacao.id },
+      select: { disciplinaId: true },
+    });
+    const validas = await prisma.disciplinaCatalogo.count({
+      where: { id: { in: ids }, OR: [{ ativo: true }, { id: { in: jaLigadas.map((d) => d.disciplinaId) } }] },
+    });
+    if (validas !== ids.length) throw new ActionError("Disciplina não encontrada no catálogo.");
+  }
+
+  await prisma.$transaction([
+    prisma.negociacaoDisciplina.deleteMany({ where: { negociacaoId: negociacao.id } }),
+    prisma.negociacaoDisciplina.createMany({
+      data: input.disciplinas.map((d) => ({
+        negociacaoId: negociacao.id,
+        disciplinaId: d.disciplinaId,
+        valor: d.valor ?? null,
+      })),
+    }),
+  ]);
+  return { id: negociacao.id, total: ids.length };
+}
+
 /** `yyyy-mm-dd` → meia-noite UTC, a convenção de dia-calendário do banco (ver `lib/data.ts`). */
 function diaCalendario(iso: string): Date {
   const [a, m, d] = iso.split("-").map(Number);

@@ -247,6 +247,18 @@ export const editarNegociacaoSchema = z.object({
   areaM2: z.number().nonnegative().nullish(),
 });
 
+/**
+ * Disciplinas de interesse da negociação (ADR-13: valor individual opcional). É o conjunto INTEIRO —
+ * a action substitui o que havia, não faz merge. Não confundir com os itens da proposta: aqui é o
+ * escopo em conversa; o aceite cria o projeto a partir dos itens da proposta.
+ */
+export const definirDisciplinasNegociacaoSchema = z.object({
+  negociacaoId: z.string().min(1),
+  disciplinas: z
+    .array(z.object({ disciplinaId: z.string().min(1), valor: z.number().nonnegative().nullish() }))
+    .max(40, "Disciplinas demais."),
+});
+
 export const qualificarProspeccaoSchema = z.object({
   leadId: z.string().min(1),
   titulo: opt(z.string()),
