@@ -27,6 +27,7 @@ npm run db:migrate            # prisma migrate dev
 npm run db:generate           # prisma generate (also runs on postinstall)
 npm run db:seed               # admin + permissions + catalogs (idempotent)
 npm run seed:demo             # demo dataset (wipes business data, recreates; demo users senha Demo@2026)
+npm run seed:documentos       # documentos na aba Arquivos, pela rota real de upload (exige dev server no ar)
 npm run admin:reset-senha     # reset admin senha → SenaHub@2026 + force change
 npm run smoke:onda1|onda2|onda3|onda3efg|onda4|onda5   # e2e smokes against the dev DB
 npm run smoke:inputs-link     # link público de inputs: janela da notificação, revogação, expiração

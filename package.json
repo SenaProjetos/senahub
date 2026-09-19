@@ -17,6 +17,7 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx --tsconfig tsconfig.server.json prisma/seed.ts",
     "seed:demo": "tsx --tsconfig tsconfig.server.json scripts/seed-demo.ts",
+    "seed:documentos": "tsx --tsconfig tsconfig.server.json scripts/seed-documentos-demo.ts",
     "admin:reset-senha": "tsx --tsconfig tsconfig.server.json scripts/reset-admin-senha.ts",
     "empresa:dados-termo": "tsx --tsconfig tsconfig.server.json scripts/definir-dados-empresa-termo.ts",
     "notificar-deploy": "tsx --tsconfig tsconfig.server.json scripts/notificar-deploy.ts",
