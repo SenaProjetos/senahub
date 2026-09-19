@@ -46,10 +46,13 @@ export function ParceirosView({ parceiros }: { parceiros: ParceiroItem[] }) {
     setExpandido(id);
     if (leadsPorParceiro[id]) return;
     setCarregando(id);
-    leadsDoParceiroAction(id).then((leads) => {
-      setLeadsPorParceiro((m) => ({ ...m, [id]: leads }));
-      setCarregando(null);
-    });
+    leadsDoParceiroAction(id)
+      .then((leads) => setLeadsPorParceiro((m) => ({ ...m, [id]: leads })))
+      .catch(() => {
+        toast.error("Não foi possível carregar os leads deste parceiro.");
+        setExpandido(null);
+      })
+      .finally(() => setCarregando(null));
   }
 
   function abrirNovo() {
