@@ -46,11 +46,12 @@ parcelas, dados bancários, validade e assinatura **não são cláusulas** — s
 
 | Fase | Conteúdo | Modelo |
 |---|---|---|
+| **G0** | Estúdio: **faixa em fluxo** (`banda.fluxo`, opt-in) — faixa cresce com o conteúdo, elementos empilhados na ordem do desenho, parágrafo sem corte; aviso no editor; modelos existentes intactos. Corrige de tabela o corte silencioso dos contratos de fábrica. | **Opus** |
 | **G1** | Regras puras: extenso, parcelas, escolha de cláusula por UF. Só código testado. | Sonnet |
 | **G2** | Schema + migrações: `ModeloProposta`, `ClausulaProposta`, `PropostaSecao`, `PropostaParcela`, campos da obra em `Proposta`, permissão nova `comercial:modelos` (só gestão), campos novos de `empresa.dados` — e, como passo separado, a troca de `externa` por `formato`. | **Opus** |
 | **G3** | Telas da gestão: biblioteca de cláusulas e modelos. **Seed inicial** com as cláusulas mais frequentes das 163 propostas, para o dono revisar antes de usar. Ver "Seed da biblioteca" abaixo. | Sonnet |
 | **G4** | Compor: "Nova proposta" na ficha da negociação escolhe o modelo e monta seções, itens e parcelas; editor com pré-visualização; salvar gera versão (snapshot do documento inteiro). | **Opus** |
-| **G5** | Documento: template HTML de fluxo (timbrado, seções, tabela, parcelas, dados bancários, assinatura) no ramo `COMPOSTA` de `/a/proposta/[token]`; PDF por versão e link público reaproveitando o que já existe. Mexe na rota pública congelada e na paginação do PDF — ver pré-requisito abaixo. | **Opus** |
+| **G5** | Documento: **modelo de proposta no Estúdio** (faixas em fluxo da G0) + fontes novas (`proposta-secoes`, `proposta-parcelas`, escalares da empresa/obra); a rota pública renderiza o documento no ramo `COMPOSTA`; PDF por versão e link público reaproveitando o que já existe. Mexe na rota pública congelada e na paginação do PDF — ver pré-requisito abaixo. | **Opus** |
 | **G6** | Transição: manual, "Nova proposta" passa a abrir a composta por padrão; legado e externa seguem disponíveis. | Sonnet |
 
 ### Seed da biblioteca (G3)
@@ -63,6 +64,19 @@ espalharia para todas as propostas futuras:
   UF — não é regra nacional.
 - Seed **create-only por slug estável**: o `db:seed` roda em todo deploy e não pode sobrescrever o
   texto que a gestão editou depois.
+
+### G0 — o que muda no Estúdio
+
+- `schema.ts`: `banda.fluxo?: boolean` (ausente/false = comportamento de hoje).
+- `doc-render.tsx`: faixa em fluxo → `height: auto`, elementos ordenados por `y` e empilhados
+  (`x` vira recuo, `w` vira largura, o espaço entre elementos preserva o desenho); sem
+  `breakInside: avoid` (uma seção longa precisa poder quebrar entre páginas).
+- `elemento-view.tsx`: em fluxo, texto com `height: auto` e sem `overflow: hidden`.
+- `propriedades.tsx`: interruptor por faixa + aviso de que o editor mostra caixas fixas e a
+  pré-visualização é a saída real.
+- A ordenação/empilhamento é função **pura e testada** (`fluxo.ts`), não lógica solta no JSX.
+- Prova: os 8 modelos existentes renderizam byte a byte igual (nenhum tem `fluxo`), e um modelo de
+  teste com parágrafo de 40 linhas sai inteiro.
 
 ### Pré-requisito da G5 — cabeçalho, rodapé e paginação do PDF
 

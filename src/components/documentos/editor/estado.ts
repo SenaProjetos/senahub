@@ -54,6 +54,7 @@ export type EditorAction =
   | { t: "duplicarElemento"; bandaId: string; elementoId: string; novoId: string }
   | { t: "alturaBanda"; bandaId: string; altura: number; commit: boolean }
   | { t: "setBandaFonte"; bandaId: string; fonteId: string }
+  | { t: "setBandaFluxo"; bandaId: string; fluxo: boolean }
   | { t: "updatePagina"; patch: Partial<DocSchema["pagina"]> }
   | { t: "setAgrupamento"; campo: string }
   | { t: "addBanda"; tipo: TipoBanda; id: string }
@@ -188,6 +189,13 @@ export function editorReducer(state: EditorState, a: EditorAction): EditorState 
     case "alturaBanda": {
       const novo = mapBanda(state.schema, a.bandaId, (b) => ({ ...b, altura: a.altura }));
       return a.commit ? push(state, novo) : live(state, novo);
+    }
+
+    case "setBandaFluxo": {
+      // Faixa em fluxo (ADR-0006). `false` grava undefined: modelo sem a opção continua
+      // idêntico ao que era antes de o campo existir.
+      const novo = mapBanda(state.schema, a.bandaId, (b) => ({ ...b, fluxo: a.fluxo || undefined }));
+      return push(state, novo);
     }
 
     case "setBandaFonte": {

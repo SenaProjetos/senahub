@@ -20,6 +20,7 @@ import { fonteDef } from "@/modules/documentos/fontes-meta";
 import type { FonteTipografica } from "@/modules/documentos/fontes-tipograficas";
 import type { EditorAction, Selecao } from "./estado";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -361,6 +362,30 @@ function PropsBanda({
           }
         />
       </Campo>
+
+      <div className="space-y-1.5 rounded-sm border p-2">
+        <label className="flex items-start gap-2 text-sm">
+          <Checkbox
+            checked={!!banda.fluxo}
+            onCheckedChange={(v) =>
+              dispatch({ t: "setBandaFluxo", bandaId: banda.id, fluxo: v === true })
+            }
+          />
+          <span>
+            Crescer com o conteúdo
+            <span className="block text-xs text-muted-foreground">
+              Para texto de tamanho variável (cláusulas, memoriais). A faixa cresce e nada é cortado.
+            </span>
+          </span>
+        </label>
+        {banda.fluxo && (
+          <p className="text-xs text-warning">
+            Nesta faixa os elementos são empilhados na ordem do desenho (de cima para baixo), e o
+            primeiro começa no topo da faixa — o espaço acima dele é ignorado. O editor continua
+            mostrando caixas fixas: confira pela pré-visualização.
+          </p>
+        )}
+      </div>
 
       {bandaIteraColecao && (
         <Campo label="Fonte de dados desta banda">

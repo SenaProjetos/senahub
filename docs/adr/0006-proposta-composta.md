@@ -43,15 +43,33 @@ arquivamento do PDF por versão no envio (F5.13), a contagem de visualizações 
 
 ## Alternativas consideradas
 
-1. **Estúdio de Documentos.** Já tem tokens, condições e blocos, mas é um gerador por bandas de
-   altura fixa: texto de tamanho variável é cortado (`doc-render.tsx`, `overflow: hidden`). Servir às
-   propostas exigiria mudar o motor e a paginação do Estúdio, que outros documentos usam. Rejeitado
-   para esta fase; o layout da proposta é um só e muda raramente, então um template de fluxo (HTML
-   que pagina sozinho) é mais simples e seguro.
+1. **Template de fluxo escrito em código, só para a proposta.** Era a primeira escolha, revista
+   pelo dono em 2026-09-19 com o argumento de que contratos e memoriais vêm depois e cairiam no
+   mesmo problema. Rejeitada: o template seria refeito na primeira vez que outro documento de texto
+   corrido precisasse do mesmo.
 2. **Word gerado pelo sistema, finalizado à mão.** Rejeitado pelo dono: o que é editado no Word volta
    a poder divergir dos números.
 3. **Só escolher cláusulas, sem editar.** Rejeitado pelo dono: toda variação pontual viraria pedido de
    cláusula nova.
+
+## O Estúdio passa a ser o motor (decidido em 2026-09-19)
+
+O Estúdio já renderiza em HTML, com as faixas empilhadas e a paginação feita pelo navegador. O que
+impede texto de tamanho variável são duas escolhas de posicionamento: a faixa tem altura fixa e o
+parágrafo é desenhado com `height: 100%; overflow: hidden` (`elemento-view.tsx`).
+
+**O defeito já existe hoje, fora das propostas:** os quatro modelos de contrato de fábrica
+(`modelos-fabrica-contrato.ts`) estimam a altura de cada parágrafo **contando caracteres**
+(`alturaEstimada()`). Quando um token resolve mais longo que o chute — cláusula adicional, razão
+social comprida —, o texto é cortado em silêncio num documento assinável.
+
+Decisão: **faixa em fluxo**, opção por faixa (`banda.fluxo`), desligada por padrão. Marcada, a faixa
+cresce com o conteúdo e seus elementos são empilhados na ordem do desenho, em vez de posicionados em
+caixas fixas. Nenhum modelo existente muda de saída, porque nenhum tem a opção ligada. Proposta,
+contrato, memorial e laudo passam a usar o mesmo motor.
+
+Limite aceito: o editor continua desenhando caixas fixas, então a **pré-visualização passa a ser a
+fonte da verdade** para faixas em fluxo — o editor avisa isso na própria faixa.
 
 ## Consequências
 

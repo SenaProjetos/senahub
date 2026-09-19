@@ -1,4 +1,5 @@
-import type { DocSchema, Banda } from "@/modules/documentos/schema";
+import type { DocSchema, Banda, Elemento } from "@/modules/documentos/schema";
+import { elementoCresceComTexto, organizarFluxo } from "@/modules/documentos/fluxo";
 import { resolverTexto, type ContextoDados, type Escalar, type Linha } from "@/modules/documentos/tokens";
 import { avaliarCondicao } from "@/modules/documentos/condicoes";
 import { ElementoView } from "@/components/documentos/editor/elemento-view";
@@ -237,24 +238,51 @@ function BandaRender({
   largura: number;
   ctx: ContextoDados;
 }) {
-  return (
-    <div className="relative" style={{ width: largura, height: banda.altura, breakInside: "avoid" }}>
-      {banda.elementos
-        .filter((e) => e.visivel)
-        // Condição opcional: oculta o elemento quando a expressão é falsa.
-        // Sem condição (undefined/"") → avaliarCondicao retorna true.
-        .filter((e) => avaliarCondicao(e.condicao, ctx))
-        .map((el) => (
-          <div key={el.id} className="absolute" style={{ left: el.x, top: el.y, width: el.w, height: el.h }}>
-            <ElementoView
-              el={el}
-              ctx={el.tipo === "tabela" ? ctx : undefined}
-              textoResolvido={
-                el.tipo === "imagem" || el.tipo === "tabela" ? el.texto : resolverTexto(el.texto, ctx)
-              }
-            />
+  const visiveis = banda.elementos
+    .filter((e) => e.visivel)
+    // Condição opcional: oculta o elemento quando a expressão é falsa.
+    // Sem condição (undefined/"") → avaliarCondicao retorna true.
+    .filter((e) => avaliarCondicao(e.condicao, ctx));
+
+  const conteudo = (el: Elemento) => (
+    <ElementoView
+      el={el}
+      emFluxo={banda.fluxo}
+      ctx={el.tipo === "tabela" ? ctx : undefined}
+      textoResolvido={el.tipo === "imagem" || el.tipo === "tabela" ? el.texto : resolverTexto(el.texto, ctx)}
+    />
+  );
+
+  // FAIXA EM FLUXO (ADR-0006): altura pelo conteúdo, elementos empilhados na ordem do desenho.
+  // Sem `breakInside: avoid` — uma seção longa PRECISA poder quebrar entre páginas, senão o
+  // navegador empurra a faixa inteira e deixa meia página em branco (ou estoura a folha).
+  if (banda.fluxo) {
+    return (
+      <div className="relative" style={{ width: largura, minHeight: banda.altura }}>
+        {organizarFluxo(visiveis).map(({ elemento, espacoAcima }) => (
+          <div
+            key={elemento.id}
+            style={{
+              marginTop: espacoAcima,
+              marginLeft: elemento.x,
+              width: elemento.w,
+              minHeight: elementoCresceComTexto(elemento.tipo) ? undefined : elemento.h,
+            }}
+          >
+            {conteudo(elemento)}
           </div>
         ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative" style={{ width: largura, height: banda.altura, breakInside: "avoid" }}>
+      {visiveis.map((el) => (
+        <div key={el.id} className="absolute" style={{ left: el.x, top: el.y, width: el.w, height: el.h }}>
+          {conteudo(el)}
+        </div>
+      ))}
     </div>
   );
 }

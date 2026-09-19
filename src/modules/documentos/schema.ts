@@ -156,6 +156,15 @@ export const bandaSchema = z.object({
    * (retrocompat): o conjunto de fontes usadas continua sendo só a primária.
    */
   fonteId: z.string().optional(),
+  /**
+   * FAIXA EM FLUXO (ADR-0006): a faixa cresce com o conteúdo e os elementos são empilhados na
+   * ordem do desenho, em vez de posicionados em caixas de altura fixa. É o que permite texto de
+   * tamanho variável (cláusula de proposta, contrato, memorial) sem cortar o excedente.
+   *
+   * Ausente/false = comportamento de sempre (posição absoluta, altura fixa) — por isso nenhum
+   * modelo existente muda de saída. Regras de empilhamento em `modules/documentos/fluxo.ts`.
+   */
+  fluxo: z.boolean().optional(),
 });
 export type Banda = z.infer<typeof bandaSchema>;
 
