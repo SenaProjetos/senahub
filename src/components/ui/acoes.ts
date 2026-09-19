@@ -25,7 +25,11 @@ export type AcaoItemAcao = {
   variant?: "default" | "destructive";
   /** Motivo de estar desabilitado. Preenchido = item aparece inerte, com o motivo à vista. */
   desabilitado?: string;
-  /** Exige confirmação antes de executar. Obrigatório em `variant: "destructive"` (regra 4). */
+  /**
+   * Exige confirmação antes de executar. Todo item `variant: "destructive"` precisa de uma
+   * (regra 4): este campo, ou um diálogo próprio que já confirma — como o de escopo da exclusão
+   * de documento.
+   */
   confirmar?: { titulo: string; descricao?: string; rotuloConfirmar?: string };
 };
 

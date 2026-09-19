@@ -18,11 +18,15 @@ import { BarraSelecaoDocumentos } from "@/components/projetos/arquivos/barra-sel
 import type { ListaPainel } from "@/components/projetos/arquivos/painel-listas";
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { BadgeExtensao } from "@/components/projetos/arquivos/badge-extensao";
-import { MenuDocumento } from "@/components/projetos/arquivos/menu-documento";
+import { useAcoesDocumento } from "@/components/projetos/arquivos/use-acoes-documento";
 import { PainelDocumentoDetalhe, type OpcaoStatusDocumento } from "@/components/projetos/arquivos/painel-documento-detalhe";
 import type { OpcaoFaseDocumento } from "@/components/projetos/arquivos/seletor-fases-documentos";
+import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
+import { AcoesMenuItens, BotaoAcoes } from "@/components/ui/acoes-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
-import type { LinhaDocumento } from "@/modules/uploads/lista-documentos";
+import type { DocumentoParaAcoes } from "@/modules/uploads/acoes-documento";
 import { formatarData, formatarDataHora, rotuloRevisao } from "@/lib/utils";
 
 function fmtBytes(n: number): string {
@@ -39,29 +43,26 @@ function estadoValidacao(arquivos: LinhaDoc["arquivos"]): "validado" | "pendente
   return "parcial";
 }
 
-/** O menu legado ainda recebe um Upload; o primeiro arquivo da revisão vigente o ancora. */
-function linhaParaMenu(linha: LinhaDoc): LinhaDocumento | null {
+/**
+ * As ações agem sobre um Upload; o primeiro arquivo da revisão vigente o ancora. Os demais
+ * arquivos entram em `arquivos`, para o menu repor baixar/copiar link de cada um.
+ * Sem arquivo não há menu — nem de contexto: a linha mantém o menu nativo (ADR-0002).
+ */
+function linhaParaMenu(linha: LinhaDoc): DocumentoParaAcoes | null {
   const arquivo = linha.arquivos[0];
   if (!arquivo) return null;
   return {
     id: arquivo.id,
     nome: arquivo.nome,
-    ext: arquivo.ext,
-    disciplinaId: linha.disciplinaId,
-    disciplinaNome: linha.disciplinaNome,
     versao: linha.revisaoAtual ?? 0,
     validado: arquivo.validado,
-    // `LinhaDoc.id` JÁ é o id do DocumentoDisciplina que agrupa a linha (a tabela da V2 é
-    // agrupada por documento), então ele é a chave direta — não há apelido a resolver aqui.
-    documentoId: linha.id,
-    documentoCanonicoId: null,
-    autor: linha.autor,
-    data: linha.atualizadoEm,
-    tamanho: linha.tamanhoTotal,
-    downloadUrl: arquivo.downloadUrl,
     podeGerir: linha.podeGerir,
+    arquivos: linha.arquivos,
   };
 }
+
+/** Par devolvido por `useAcoesDocumento`, já ligado a um documento. */
+type AcoesDaLinha = { itens: AcaoItem[]; aoSelecionar: (item: AcaoItemAcao) => void };
 
 /** Selo de validação — mesma leitura na tabela e no cartão. */
 function BadgeValidacao({ estado }: { estado: ReturnType<typeof estadoValidacao> }) {
@@ -103,9 +104,7 @@ function CartaoDocumento({
   marcada,
   onMarcar,
   podeCoordenacao,
-  podeValidar,
-  podeExcluir,
-  podeSolicitarExclusao,
+  acoes,
   exclusoesPendentes,
   fases,
   status,
@@ -116,15 +115,13 @@ function CartaoDocumento({
   marcada: boolean;
   onMarcar: () => void;
   podeCoordenacao: boolean;
-  podeValidar: boolean;
-  podeExcluir: boolean;
-  podeSolicitarExclusao: boolean;
+  /** `null` quando a linha não tem arquivo: sem `...` e sem menu de contexto. */
+  acoes: AcoesDaLinha | null;
   exclusoesPendentes: Set<string>;
   fases: OpcaoFaseDocumento[];
   status: OpcaoStatusDocumento[];
 }) {
   const validacao = estadoValidacao(linha.arquivos);
-  const menu = linhaParaMenu(linha);
   const identificacao = [
     colunas.has("numero") && linha.numeroPrancha !== null ? String(linha.numeroPrancha).padStart(4, "0") : null,
     colunas.has("fase") ? linha.faseSigla : null,
@@ -133,11 +130,11 @@ function CartaoDocumento({
     colunas.has("revisao") && linha.revisaoAtual !== null ? rotuloRevisao(linha.revisaoAtual) : null,
   ].filter(Boolean);
 
-  return (
-    <li
-      className="space-y-2 border-b border-border p-3 last:border-b-0 data-[marcada=true]:bg-accent/40"
-      data-marcada={marcada}
-    >
+  const classe =
+    "space-y-2 border-b border-border p-3 last:border-b-0 data-[marcada=true]:bg-accent/40 data-[popup-open]:bg-muted/50";
+
+  const conteudo = (
+    <>
       <div className="flex items-start gap-2">
         <Checkbox
           className="mt-0.5 shrink-0"
@@ -159,13 +156,12 @@ function CartaoDocumento({
           )}
           <p className="text-[11px] text-muted-foreground">{linha.disciplinaNome}</p>
         </div>
-        {menu && (
-          <MenuDocumento
-            projetoId={projetoId}
-            linha={menu}
-            podeValidar={podeValidar}
-            podeExcluir={podeExcluir}
-            podeSolicitarExclusao={podeSolicitarExclusao}
+        {acoes && (
+          <BotaoAcoes
+            itens={acoes.itens}
+            onSelect={acoes.aoSelecionar}
+            rotulo={`Ações de ${linha.nome}`}
+            className="size-7"
           />
         )}
       </div>
@@ -217,7 +213,25 @@ function CartaoDocumento({
         {colunas.has("tamanho") && <span> · {fmtBytes(linha.tamanhoTotal)}</span>}
         {colunas.has("responsavel") && <span> · {linha.autor}</span>}
       </p>
-    </li>
+    </>
+  );
+
+  if (!acoes) {
+    return (
+      <li className={classe} data-marcada={marcada}>
+        {conteudo}
+      </li>
+    );
+  }
+
+  // No celular é o toque longo que abre este menu — o cartão é a superfície dele.
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger render={<li className={classe} data-marcada={marcada} />}>{conteudo}</ContextMenuTrigger>
+      <ContextMenuContent>
+        <AcoesMenuItens itens={acoes.itens} onSelect={acoes.aoSelecionar} />
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
@@ -311,6 +325,20 @@ export function TabelaDocumentos({
     setSelecao(todasMarcadas ? new Set() : new Set(ordenadas.map((l) => l.id)));
   }
 
+  // Um hook por tabela: os diálogos ficam no `portal`, montados uma vez. Cada linha liga o
+  // próprio documento aos itens — o botão direito age SÓ na linha clicada e não mexe na seleção
+  // (agir sobre as selecionadas é comportamento de explorador, previsto para a onda 3).
+  const acoes = useAcoesDocumento({ projetoId, podeValidar, podeExcluir, podeSolicitarExclusao });
+
+  function acoesDa(linha: LinhaDoc): AcoesDaLinha | null {
+    const documento = linhaParaMenu(linha);
+    if (!documento) return null;
+    return {
+      itens: acoes.itens(documento),
+      aoSelecionar: (item) => acoes.aoSelecionar(documento, item),
+    };
+  }
+
   if (ordenadas.length === 0) {
     // Três vazios diferentes: filtro sem resultado, disciplina sem arquivo, projeto sem nada.
     // O usuário precisa saber qual dos três é para agir certo (limpar filtro vs. enviar arquivo).
@@ -336,12 +364,16 @@ export function TabelaDocumentos({
     return (
       <div className="rounded-md border border-border bg-card">
         <EmptyState icon={temFiltroAtivo ? SearchX : FileX2} title={vazio.title} description={vazio.description} />
+        {/* Excluir a última linha cai aqui: o diálogo em curso não pode sumir no meio. */}
+        {acoes.portal}
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
+      <DicaMenuContexto />
+
       {/* Celular: um cartão por documento. A tabela continua sendo a tela de trabalho no
           computador — aqui ela sairia em rolagem lateral, com tudo espremido. */}
       <ul className="overflow-hidden rounded-md border border-border bg-card md:hidden" aria-label="Documentos">
@@ -354,9 +386,7 @@ export function TabelaDocumentos({
             marcada={selecao.has(l.id)}
             onMarcar={() => alternar(l.id)}
             podeCoordenacao={podeCoordenacao}
-            podeValidar={podeValidar}
-            podeExcluir={podeExcluir}
-            podeSolicitarExclusao={podeSolicitarExclusao}
+            acoes={acoesDa(l)}
             exclusoesPendentes={exclusoesPendentes}
             fases={fases}
             status={status}
@@ -398,9 +428,10 @@ export function TabelaDocumentos({
         <TableBody>
           {ordenadas.map((l) => {
             const validacao = estadoValidacao(l.arquivos);
-            const linhaMenu = linhaParaMenu(l);
-            return (
-            <TableRow key={l.id} data-state={selecao.has(l.id) ? "selected" : undefined}>
+            const acoesLinha = acoesDa(l);
+            const estadoLinha = selecao.has(l.id) ? "selected" : undefined;
+            const celulas = (
+            <>
               <TableCell>
                 <Checkbox
                   checked={selecao.has(l.id)}
@@ -512,17 +543,38 @@ export function TabelaDocumentos({
                 </TableCell>
               )}
               <TableCell className="text-right">
-                {linhaMenu && (
-                  <MenuDocumento
-                    projetoId={projetoId}
-                    linha={linhaMenu}
-                    podeValidar={podeValidar}
-                    podeExcluir={podeExcluir}
-                    podeSolicitarExclusao={podeSolicitarExclusao}
+                {acoesLinha && (
+                  <BotaoAcoes
+                    itens={acoesLinha.itens}
+                    onSelect={acoesLinha.aoSelecionar}
+                    rotulo={`Ações de ${l.nome}`}
+                    className="size-7"
                   />
                 )}
               </TableCell>
-            </TableRow>
+            </>
+            );
+
+            // Linha sem arquivo não tem o que o menu repor: fica com o menu nativo (ADR-0002).
+            if (!acoesLinha) {
+              return (
+                <TableRow key={l.id} data-state={estadoLinha}>
+                  {celulas}
+                </TableRow>
+              );
+            }
+
+            return (
+              <ContextMenu key={l.id}>
+                <ContextMenuTrigger
+                  render={<TableRow data-state={estadoLinha} className="data-[popup-open]:bg-muted/50" />}
+                >
+                  {celulas}
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <AcoesMenuItens itens={acoesLinha.itens} onSelect={acoesLinha.aoSelecionar} />
+                </ContextMenuContent>
+              </ContextMenu>
             );
           })}
         </TableBody>
@@ -543,6 +595,8 @@ export function TabelaDocumentos({
         listaSelecionadaId={listaSelecionadaId}
         onLimpar={() => setSelecao(new Set())}
       />
+
+      {acoes.portal}
     </div>
   );
 }

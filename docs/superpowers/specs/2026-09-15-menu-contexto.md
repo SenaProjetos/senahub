@@ -1,7 +1,7 @@
 # Menu de contexto (botão direito) — onda 1
 
-**Data:** 2026-09-15 · **Status:** F1 implementada (2026-09-19, falta teste no navegador); F2 e
-F3 pendentes · **Pedido:** "nada usa o botão direito e dá muita cara de site — botão direito com
+**Data:** 2026-09-15 · **Status:** F1 e F2 implementadas (2026-09-19, falta teste no
+navegador); F3 pendente · **Pedido:** "nada usa o botão direito e dá muita cara de site — botão direito com
 utilidade nos menus e funções traria uma experiência mais premium"
 
 > **Atualização 2026-09-19 — o código mudou depois deste plano. Onde o texto abaixo diverge,
@@ -28,6 +28,16 @@ utilidade nos menus e funções traria uma experiência mais premium"
 >    não um. O pré-requisito do histórico do documento já está cumprido.
 > 6. O teste-guarda do `confirm` (`confirm-dialog.test.ts`) passou a varrer `.ts` também: a
 >    lógica de ação agora mora em hooks `use-acoes-*.ts`.
+> 7. **Como 2d saiu:** descritor em `src/modules/uploads/acoes-documento.ts` (não em
+>    `modules/arquivos/`: o tipo da linha e as actions moram em `uploads`), `itensDeDocumento`.
+>    `menu-documento.tsx` virou `use-acoes-documento.tsx` (hook + `portal` com os 5 diálogos, uma
+>    vez por tabela); o `...` da linha e do cartão é o `BotaoAcoes`. O cartão do celular também
+>    ganhou o menu (toque longo). **Reposição por arquivo:** a linha tem links reais de cada arquivo
+>    da revisão (PDF e DWG), então "Baixar" e "Copiar link" viram submenu quando há mais de um
+>    arquivo. "Visualizar em nova aba" aponta para o PDF da revisão mesmo quando ele não é o
+>    primeiro arquivo (antes o item só aparecia se o primeiro fosse PDF). O diálogo de escopo da
+>    exclusão passou a ser fechado explicitamente no sucesso — antes ele sumia porque a linha
+>    desmontava.
 
 Decidido em sessão de grilling (Q1–Q22). Regras transversais em
 [ADR-0002](../../adr/0002-menu-de-contexto.md) — ler antes de qualquer fase.
