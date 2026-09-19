@@ -44,6 +44,17 @@ export const GUIAS: Guia[] = [
     ],
   },
   {
+    rota: "/tarefas",
+    passos: [
+      {
+        alvo: '[data-tour="menu-contexto"]',
+        titulo: "Ações na ponta do dedo",
+        texto:
+          "Clique com o botão direito em uma tarefa (ou toque e segure, no celular) para abrir, mover, copiar o título ou arquivar. O botão ⋯ do cartão mostra as mesmas ações.",
+      },
+    ],
+  },
+  {
     rota: "/configuracoes/avisos",
     passos: [
       { alvo: '[data-tour="aviso-mensagem"]', titulo: "Monte o comunicado", texto: "Título, mensagem e, se quiser, uma imagem que aparece no aviso e no e-mail." },

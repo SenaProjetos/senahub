@@ -42,7 +42,9 @@
         "changelog",
         "atualizações",
         "versão",
-        "o que mudou"
+        "o que mudou",
+        "botão direito",
+        "menu de contexto"
       ],
       "palavrasChave": [
         "novidades",
@@ -54,7 +56,12 @@
         "o que há de novo",
         "release",
         "nova entrada comercial",
-        "indicação"
+        "indicação",
+        "botão direito",
+        "menu de contexto",
+        "clique direito",
+        "toque longo",
+        "atalho"
       ],
       "sinonimos": [
         "release notes",
@@ -274,7 +281,10 @@
         "editor visual do padrão",
         "padrão de nomenclatura do projeto",
         "padrão próprio",
-        "blocos do nome"
+        "blocos do nome",
+        "botão direito",
+        "menu de contexto",
+        "ações do documento"
       ],
       "palavrasChave": [
         "projeto",
@@ -337,7 +347,15 @@
         "campo opcional",
         "padrão herdado",
         "recomeçar do zero",
-        "siglas do projeto"
+        "siglas do projeto",
+        "botão direito",
+        "menu de contexto",
+        "clique direito",
+        "toque longo",
+        "atalho",
+        "copiar link",
+        "copiar nome",
+        "menu do documento"
       ],
       "sinonimos": [
         "obras",
@@ -348,7 +366,9 @@
         "painel customizável",
         "layout do painel",
         "formulário do cliente",
-        "link externo do projeto"
+        "link externo do projeto",
+        "clique com o botão direito",
+        "menu do documento"
       ]
     },
     {
@@ -382,7 +402,7 @@
       "titulo": "Tarefas",
       "path": "projetos/tarefas.md",
       "descricao": "Quadro de tarefas (kanban) em colunas por status, com checklist, dependências, comentários e filtros.",
-      "resumo": "Organize tarefas em colunas, atribua responsáveis, defina prazo e prioridade, filtre os resultados e acompanhe o progresso do checklist.",
+      "resumo": "Organize tarefas em colunas, atribua responsáveis, defina prazo e prioridade, filtre os resultados e acompanhe o progresso do checklist. O botão direito (ou toque longo) no cartão abre as ações: abrir, mover, copiar título e arquivar.",
       "tags": [
         "tarefas",
         "kanban",
@@ -392,7 +412,9 @@
         "comentários",
         "prioridade",
         "prazo",
-        "filtros"
+        "filtros",
+        "botão direito",
+        "menu de contexto"
       ],
       "palavrasChave": [
         "tarefa",
@@ -407,13 +429,23 @@
         "anexo",
         "prioridade",
         "filtro",
-        "paginação"
+        "paginação",
+        "botão direito",
+        "menu de contexto",
+        "clique direito",
+        "toque longo",
+        "atalho",
+        "mover tarefa",
+        "arquivar tarefa",
+        "nova tarefa na coluna"
       ],
       "sinonimos": [
         "to-do",
         "board",
         "atividades",
-        "cartões"
+        "cartões",
+        "clique com o botão direito",
+        "menu do cartão"
       ]
     },
     {

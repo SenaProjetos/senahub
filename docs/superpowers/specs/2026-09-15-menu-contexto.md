@@ -1,7 +1,7 @@
 # Menu de contexto (botão direito) — onda 1
 
-**Data:** 2026-09-15 · **Status:** F1 e F2 implementadas (2026-09-19, falta teste no
-navegador); F3 pendente · **Pedido:** "nada usa o botão direito e dá muita cara de site — botão direito com
+**Data:** 2026-09-15 · **Status:** F1, F2 e F3 implementadas (2026-09-19); falta o
+roteiro de teste no navegador (§3f) e o checklist de release · **Pedido:** "nada usa o botão direito e dá muita cara de site — botão direito com
 utilidade nos menus e funções traria uma experiência mais premium"
 
 > **Atualização 2026-09-19 — o código mudou depois deste plano. Onde o texto abaixo diverge,
@@ -38,6 +38,13 @@ utilidade nos menus e funções traria uma experiência mais premium"
 >    primeiro arquivo (antes o item só aparecia se o primeiro fosse PDF). O diálogo de escopo da
 >    exclusão passou a ser fechado explicitamente no sucesso — antes ele sumia porque a linha
 >    desmontava.
+> 8. **Como F3 saiu:** guarda em `src/components/ui/context-menu.test.ts` (lista de exceções
+>    vazia; o varredor ignora todo `*.test.ts(x)` e `generated`). Coachmark **só em `/tarefas`**
+>    (`coachmarks.test.ts` confere a rota, o não-vazamento para `/projetos/[id]/arquivos` e `/arquivos`
+>    e que o `data-tour` continua no quadro); `/arquivos` ficou sem guia porque o diretório saiu da
+>    onda 1. O passo só aparece na vista em **quadro** — o `data-tour` está no primeiro card, não na
+>    lista; o provider pula passo sem alvo. Manual: `tarefas.md`, `projetos.md`, `novidades.md` e
+>    `search-index.json`; a seção do `projetos.md` avisa que o diretório geral ainda não tem o menu.
 
 Decidido em sessão de grilling (Q1–Q22). Regras transversais em
 [ADR-0002](../../adr/0002-menu-de-contexto.md) — ler antes de qualquer fase.

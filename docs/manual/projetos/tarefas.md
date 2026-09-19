@@ -2,8 +2,8 @@
 titulo: Tarefas
 descricao: Quadro de tarefas (kanban) em colunas por status, com checklist, dependências e comentários.
 resumo: Organize tarefas em colunas, atribua responsáveis, defina prazo e prioridade, vincule a projetos, use checklists, dependências e comentários com anexo.
-tags: [tarefas, kanban, quadro, checklist, dependências, comentários, prioridade, prazo]
-palavras-chave: [tarefa, kanban, quadro, coluna, status, checklist, dependência, bloqueada, comentário, anexo, prioridade]
+tags: [tarefas, kanban, quadro, checklist, dependências, comentários, prioridade, prazo, botão direito, menu de contexto]
+palavras-chave: [tarefa, kanban, quadro, coluna, status, checklist, dependência, bloqueada, comentário, anexo, prioridade, botão direito, clique direito, toque longo, menu de contexto, atalho, mover, arquivar]
 sinonimos: [to-do, board, atividades, cartões]
 ---
 
@@ -39,14 +39,42 @@ em colunas de status, com responsáveis, prazo, prioridade, checklists e depend�
 ## Recursos do cartão
 
 - **Responsáveis:** uma ou mais pessoas. Os responsáveis podem mover o cartão entre
-  colunas e marcar o checklist; somente quem criou a tarefa (ou admin/supervisor)
-  altera os demais dados.
+  colunas e marcar o checklist; somente quem criou a tarefa (ou quem gere as tarefas de
+  todos) altera os demais dados.
 - **Prazo e prioridade.**
 - **Vínculo a projeto** (opcional) — mostra o código do projeto.
 - **Checklist:** subitens marcáveis como concluídos, com contador e barra de progresso.
 - **Dependências:** uma tarefa que depende de outra fica **bloqueada** até a dependência
   ser concluída.
 - **Comentários:** texto e **anexo** (arquivo), com autor e data.
+
+## Menu de ações (botão direito)
+
+Clique com o **botão direito** em um cartão do quadro (ou em uma linha da visão em lista)
+para abrir o menu de ações da tarefa. No celular, **toque e segure** por meio segundo.
+
+- **Abrir** — abre a tarefa, como um clique normal.
+- **Mover para** — lista as outras colunas; escolha uma para mudar o status sem arrastar.
+- **Copiar título** — copia o título da tarefa.
+- **Arquivar** — tira a tarefa do quadro e das listas. Pede confirmação; o histórico é
+  mantido.
+
+Clicar com o botão direito na **área vazia de uma coluna** oferece **Nova tarefa em
+[coluna]** (a tarefa já nasce com aquele status) e, quando há filtro ativo, **Limpar
+filtros**. Fora dos cartões e das linhas — títulos, filtros, textos — o botão direito
+continua abrindo o menu normal do navegador.
+
+**Sem botão direito ou pelo teclado:** todo cartão e toda linha da lista têm um botão **⋯**
+com as mesmas ações. Ele aparece ao passar o mouse e quando você chega nele com a tecla Tab.
+
+**Quando um item some ou aparece esmaecido:**
+
+- **Mover para** só aparece para quem criou a tarefa, para os responsáveis e para quem gere
+  as tarefas de todos.
+- Se a tarefa está **bloqueada**, a coluna de concluído aparece esmaecida, com o motivo
+  ("Tarefa bloqueada: conclua as dependências primeiro.").
+- **Arquivar** aparece esmaecido, com o motivo, para quem não criou a tarefa e não gere as
+  tarefas de todos.
 
 ## Regras de negócio
 
@@ -63,3 +91,10 @@ em colunas de status, com responsáveis, prazo, prioridade, checklists e depend�
 **Por que uma tarefa aparece bloqueada?** Ela depende de outra(s) ainda não concluída(s).
 
 **Posso anexar arquivo em uma tarefa?** Sim, nos comentários do cartão.
+
+**Como movo uma tarefa sem arrastar?** Clique com o botão direito no cartão (ou use o botão
+⋯) e escolha **Mover para**.
+
+**O botão direito não abriu o menu da tarefa.** Ele só abre sobre o cartão ou a linha da
+tarefa; em títulos, filtros e textos vale o menu normal do navegador. Sem mouse, use o
+botão ⋯ do cartão.

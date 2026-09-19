@@ -376,6 +376,38 @@ Aberturas repetidas da mesma pessoa, no mesmo arquivo, em até 10 minutos aparec
 linha só, com a contagem (ex.: **3×**). O histórico continua disponível mesmo depois que um
 arquivo é excluído em definitivo.
 
+### Menu de ações do documento (botão direito, aba Arquivos)
+
+Clique com o **botão direito** em uma linha da tabela de documentos — ou **toque e segure**
+em um cartão, no celular — para abrir as ações do documento. O botão **⋯** no fim da linha
+abre exatamente as mesmas ações, e é o caminho para quem usa o teclado.
+
+- **Visualizar em nova aba** e **Comparar revisões** — o primeiro para documentos com PDF;
+  comparar só aparece a partir da 2ª revisão.
+- **Baixar**, **Copiar link** e **Copiar nome**.
+- **Histórico de revisões**.
+- **Validar**, **Desfazer validação** e **Solicitar ajuste**.
+- **Renomear**.
+- **Excluir** (que pergunta se vai só este arquivo ou o documento inteiro) ou **Solicitar
+  exclusão**, para quem não pode excluir direto.
+
+Cada pessoa vê só o que pode fazer: quem não valida não vê os itens de validação, por
+exemplo.
+
+Quando o documento tem mais de um arquivo (o PDF e o DWG da mesma prancha), **Baixar** e
+**Copiar link** abrem uma lista com um item por arquivo.
+
+O menu age **apenas na linha em que você clicou** — os documentos marcados nas caixas de
+seleção não mudam. Para agir em vários de uma vez, continue usando a barra que aparece ao
+selecionar.
+
+> **Copiar link** copia o endereço do arquivo dentro do sistema: quem abrir precisa estar
+> logado e ter acesso ao projeto. Para mandar arquivos ao cliente, use os
+> [links públicos](#links-públicos-de-arquivos-aba-arquivos).
+
+O botão direito ainda não existe no diretório geral (menu **Arquivos**), que segue com o
+menu normal do navegador.
+
 ## Permissões (resumo)
 
 | Ação | Permissão |

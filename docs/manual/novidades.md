@@ -22,6 +22,25 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Botão direito nas tarefas e nos documentos
+
+Nas **tarefas** e na tabela de **documentos** da aba Arquivos do projeto, o botão direito do
+mouse agora abre um menu com as ações do item, sem você precisar procurar o botão certo. No
+celular, é só **tocar e segurar**.
+
+- **Tarefas:** abrir, mover para outra coluna (sem arrastar), copiar o título e arquivar.
+  Na área vazia de uma coluna, **Nova tarefa em [coluna]** já cria a tarefa naquele status.
+- **Documentos:** visualizar em nova aba, comparar revisões, baixar, copiar link ou nome,
+  histórico, validar, solicitar ajuste, renomear e excluir. Quando o documento tem PDF e DWG,
+  baixar e copiar link mostram cada arquivo.
+
+Tudo o que está no menu continua também no botão **⋯** do cartão ou da linha, que funciona
+pelo teclado. Fora desses itens — títulos, filtros, textos — o botão direito segue abrindo o
+menu normal do navegador, então copiar, colar e abrir em nova aba continuam como sempre. Ao
+entrar em **Tarefas** pela primeira vez, um pequeno guia aponta o novo menu.
+
+Detalhes em [Tarefas](projetos/tarefas.md) e em [Projetos](projetos/projetos.md).
+
 ## Arquivos em pastas: disciplina → fase → formato
 
 O painel da esquerda da aba **Arquivos** virou uma árvore de pastas. Abra uma disciplina e
