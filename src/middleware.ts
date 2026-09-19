@@ -26,11 +26,12 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Usuário logado tentando abrir /login → manda pra home.
-  if (pathname === "/login" && hasSession) {
-    return NextResponse.redirect(new URL("/", base));
-  }
-
+  // NÃO redirecionar /login → / só porque existe cookie. O cookie prova presença, não validade:
+  // se a sessão não vale no banco (expirada, revogada, banco recriado, ou cookie de OUTRO servidor
+  // — cookie de localhost não distingue porta, então dois dev servers se sobrescrevem), o
+  // requireUser manda para /login e este redirect mandaria de volta pra /, num laço até o
+  // navegador desistir (ERR_TOO_MANY_REDIRECTS). Quem já tem sessão VÁLIDA é levado à home pela
+  // própria página de login, que valida de verdade (src/app/(auth)/login/page.tsx).
   return NextResponse.next();
 }
 
