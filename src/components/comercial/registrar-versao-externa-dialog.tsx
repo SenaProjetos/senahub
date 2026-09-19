@@ -56,6 +56,8 @@ export function RegistrarVersaoExternaDialog({
   const [pending, start] = useTransition();
   const [enviando, setEnviando] = useState(false);
   const arquivo = useRef<HTMLInputElement>(null);
+  /** Último PDF já enviado ao servidor: se o registro for recusado, tentar de novo não reenvia. */
+  const jaEnviado = useRef<{ chave: string; caminho: string } | null>(null);
 
   const [alvo, setAlvo] = useState(propostasExternas[0]?.id ?? NOVA);
   const [titulo, setTitulo] = useState(propostasExternas[0]?.titulo ?? tituloPadrao);
@@ -94,21 +96,29 @@ export function RegistrarVersaoExternaDialog({
       return;
     }
 
-    setEnviando(true);
+    // Mesmo arquivo de antes (nome, tamanho e data): o upload já está no servidor. Reenviar deixaria
+    // o anterior sem versão nenhuma, e a limpeza só o recolheria depois de 24h.
+    const chave = `${file.name}:${file.size}:${file.lastModified}`;
     let caminho: string;
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/comercial/propostas/pdf-externo", { method: "POST", body: fd });
-      const meta = await res.json();
-      if (!res.ok) throw new Error(meta.error ?? "Falha no envio do PDF.");
-      caminho = meta.caminho;
-    } catch (e) {
-      toast.error((e as Error).message);
+    if (jaEnviado.current?.chave === chave) {
+      caminho = jaEnviado.current.caminho;
+    } else {
+      setEnviando(true);
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/comercial/propostas/pdf-externo", { method: "POST", body: fd });
+        const meta = await res.json();
+        if (!res.ok) throw new Error(meta.error ?? "Falha no envio do PDF.");
+        caminho = meta.caminho;
+        jaEnviado.current = { chave, caminho };
+      } catch (e) {
+        toast.error((e as Error).message);
+        setEnviando(false);
+        return;
+      }
       setEnviando(false);
-      return;
     }
-    setEnviando(false);
 
     start(async () => {
       const r = await registrarVersaoExterna({
@@ -125,6 +135,7 @@ export function RegistrarVersaoExternaDialog({
       });
       if (r.ok) {
         toast.success(`Proposta ${r.data.numero} — versão ${r.data.versao} registrada.`);
+        jaEnviado.current = null;
         setOpen(false);
         router.refresh();
       } else toast.error(r.error);

@@ -80,6 +80,14 @@ async function gestoresComPermissao(roles: string[], recurso: string, acao: stri
 }
 
 /** Tick diário das seis regras determinísticas do Comercial (F7.3/F7.4). */
+/** ADR-0005: PDFs de proposta externa enviados e nunca registrados (carência de 24h). */
+export async function limpezaPdfsExternos(): Promise<number> {
+  const { limparPdfsExternosOrfaos } = await import("@/modules/comercial/proposta-externa-limpeza");
+  const removidos = await limparPdfsExternosOrfaos();
+  if (removidos > 0) console.log(`[comercial] PDFs externos órfãos removidos=${removidos}`);
+  return removidos;
+}
+
 export async function automacoesComerciais(): Promise<number> {
   const resultado = await executarAutomacoesComerciais(new Date());
   console.log(

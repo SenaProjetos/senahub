@@ -33,8 +33,10 @@
 import "dotenv/config";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { utimes } from "node:fs/promises";
 import { prisma } from "../src/lib/prisma";
-import { removerArquivo, salvarArquivo } from "../src/lib/storage";
+import { existeArquivo, removerArquivo, resolverCaminho, salvarArquivo } from "../src/lib/storage";
+import { limparPdfsExternosOrfaos } from "../src/modules/comercial/proposta-externa-limpeza";
 import { PASTA_PDF_EXTERNO } from "../src/modules/comercial/proposta-externa";
 import { planejarVinculo } from "../src/modules/comercial/vinculo-negociacao";
 import { carregarPendentes, executarVinculo } from "../src/modules/comercial/migracao-vinculo";
@@ -1640,6 +1642,19 @@ async function main() {
     Number(projExt?.valorContrato) === 9000 && projExt?._count.disciplinas === 2,
     `${projExt?.valorContrato} / ${projExt?._count.disciplinas} disciplinas`,
   );
+
+  console.log("\n── ADR-0005: limpeza de PDFs externos órfãos ─────────────────────\n");
+
+  const orfaoAntigo = await pdfFalso();
+  const orfaoRecente = await pdfFalso();
+  const antigo = new Date(Date.now() - 48 * 3_600_000);
+  await utimes(resolverCaminho(orfaoAntigo), antigo, antigo);
+  const removidos = await limparPdfsExternosOrfaos();
+  check("órfão com mais de 24h é removido", !(await existeArquivo(orfaoAntigo)));
+  check("órfão recente (formulário pode estar aberto) é preservado", await existeArquivo(orfaoRecente));
+  check("PDF que já virou versão é preservado", await existeArquivo(ext!.versoes[0].pdfPath!));
+  check("devolve quantos removeu, e rodar de novo não acha mais nada", removidos >= 1 && (await limparPdfsExternosOrfaos()) === 0);
+  await removerArquivo(orfaoRecente);
 
   console.log(`\n${ok ? "✔ Fase 5: tudo verde." : "✖ Fase 5: há falhas acima."}`);
   if (!ok) process.exitCode = 1;

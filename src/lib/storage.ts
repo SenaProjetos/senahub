@@ -95,3 +95,23 @@ export async function moverArquivo(relativoDe: string, relativoPara: string): Pr
   await fs.mkdir(path.dirname(para), { recursive: true });
   await fs.rename(de, para);
 }
+
+/** Arquivos (não subpastas) diretamente em `dirRelativo`, com a data de modificação. Pasta inexistente = vazio. */
+export async function listarArquivos(dirRelativo: string): Promise<{ caminho: string; modificadoEm: Date }[]> {
+  const dir = resolverCaminho(dirRelativo);
+  let entradas: import("node:fs").Dirent[];
+  try {
+    entradas = await fs.readdir(dir, { withFileTypes: true });
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw e;
+  }
+  const base = dirRelativo.endsWith("/") ? dirRelativo : `${dirRelativo}/`;
+  const arquivos = entradas.filter((d) => d.isFile());
+  return Promise.all(
+    arquivos.map(async (d) => ({
+      caminho: `${base}${d.name}`,
+      modificadoEm: (await fs.stat(path.join(dir, d.name))).mtime,
+    })),
+  );
+}

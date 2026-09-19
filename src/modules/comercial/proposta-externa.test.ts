@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { caminhoPdfExternoValido, ehPdf } from "./proposta-externa";
+import { caminhoPdfExternoValido, ehPdf, selecionarPdfsOrfaos } from "./proposta-externa";
 
 describe("ehPdf", () => {
   it("reconhece pela assinatura, não pela extensão", () => {
@@ -41,5 +41,28 @@ describe("registrarVersaoExternaSchema", () => {
     const { registrarVersaoExternaSchema } = await import("./schemas");
     expect(registrarVersaoExternaSchema.safeParse({ ...valido, itens: [] }).success).toBe(false);
     expect(registrarVersaoExternaSchema.safeParse({ ...valido, dataEnvio: "18/09/2026" }).success).toBe(false);
+  });
+});
+
+describe("selecionarPdfsOrfaos", () => {
+  const agora = new Date("2026-09-19T12:00:00Z");
+  const horas = (h: number) => new Date(agora.getTime() - h * 3_600_000);
+  const c = (n: string) => `comercial/propostas/externas/${n.padEnd(24, "0")}.pdf`;
+
+  it("só apaga o que não tem versão E já passou da carência", () => {
+    const arquivos = [
+      { caminho: c("a"), modificadoEm: horas(48) }, // órfão antigo → apaga
+      { caminho: c("b"), modificadoEm: horas(48) }, // referenciado → guarda
+      { caminho: c("c"), modificadoEm: horas(2) }, // órfão recente (formulário aberto?) → guarda
+    ];
+    expect(selecionarPdfsOrfaos(arquivos, new Set([c("b")]), agora)).toEqual([c("a")]);
+  });
+
+  it("ignora o que não tem o formato do upload (nunca apaga arquivo alheio na pasta)", () => {
+    const arquivos = [
+      { caminho: "comercial/propostas/externas/leia-me.txt", modificadoEm: horas(999) },
+      { caminho: "comercial/propostas/externas/meu-arquivo.pdf", modificadoEm: horas(999) },
+    ];
+    expect(selecionarPdfsOrfaos(arquivos, new Set(), agora)).toEqual([]);
   });
 });

@@ -22,3 +22,30 @@ export function ehPdf(conteudo: Uint8Array): boolean {
 export function caminhoPdfExternoValido(caminho: string): boolean {
   return PADRAO_CAMINHO.test(caminho);
 }
+
+export type ArquivoDaPasta = { caminho: string; modificadoEm: Date };
+
+/** Carência antes de um PDF sem versão ser considerado órfão — dá tempo de terminar o formulário. */
+export const CARENCIA_PDF_ORFAO_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Quais arquivos da pasta das externas podem ser apagados: os que o upload gerou (formato do
+ * `caminhoPdfExternoValido` — nada que alguém tenha posto ali à mão), que NENHUMA versão referencia
+ * e que já passaram da carência. O upload acontece antes do registro; sem carência, apagaria o
+ * arquivo de quem está preenchendo o formulário agora.
+ */
+export function selecionarPdfsOrfaos(
+  arquivos: readonly ArquivoDaPasta[],
+  referenciados: ReadonlySet<string>,
+  agora: Date,
+  carenciaMs: number = CARENCIA_PDF_ORFAO_MS,
+): string[] {
+  return arquivos
+    .filter(
+      (a) =>
+        caminhoPdfExternoValido(a.caminho) &&
+        !referenciados.has(a.caminho) &&
+        agora.getTime() - a.modificadoEm.getTime() >= carenciaMs,
+    )
+    .map((a) => a.caminho);
+}

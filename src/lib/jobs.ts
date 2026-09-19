@@ -49,6 +49,7 @@ import {
   resumoPontoEmailDiario,
   encerrarJornadasEsquecidas,
   automacoesComerciais,
+  limpezaPdfsExternos,
   alertaAcessos,
   alertaPendenteParado,
 } from "@/lib/jobs-handlers";
@@ -186,6 +187,11 @@ export async function startJobs(): Promise<PgBoss> {
   // ── Automações (Onda 5g) ───────────────────────────────────
   const TZ = { tz: "America/Sao_Paulo" };
   const automacoes: { fila: string; cron: string; handler: () => Promise<unknown> }[] = [
+    {
+      fila: "limpeza-pdfs-externos",
+      cron: "30 3 * * *", // madrugada: fora do horário de uso, antes dos alertas das 08h
+      handler: limpezaPdfsExternos,
+    },
     {
       fila: "automacoes-comerciais",
       cron: "20 8 * * *", // diário 08:20 — depois dos alertas gerais, direto ao responsável
