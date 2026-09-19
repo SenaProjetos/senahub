@@ -49,6 +49,21 @@ export function useFieldErrors<K extends string>(campos: Record<K, string>) {
       focar(chave);
     },
 
+    /**
+     * Marca (ou, sem mensagem, limpa) o erro de UM campo, sem focar e sem tocar nos outros — a
+     * validação ao sair do campo. `definir` não serve aqui: ele foca o campo e troca TODOS os erros,
+     * o que devolveria o foco a quem acabou de sair e apagaria o erro de outro campo.
+     */
+    marcar(chave: K, mensagem?: string) {
+      setErros((atual) => {
+        if (mensagem) return atual[chave] === mensagem ? atual : { ...atual, [chave]: mensagem };
+        if (!atual[chave]) return atual;
+        const resto = { ...atual };
+        delete resto[chave];
+        return resto;
+      });
+    },
+
     /** Sem argumento limpa tudo (abrir o formulário de novo); com chave, só aquele campo (ao editar). */
     limpar(chave?: K) {
       setErros((atual) => {

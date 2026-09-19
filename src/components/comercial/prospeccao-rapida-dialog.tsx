@@ -14,6 +14,15 @@ import type { ClienteSelecionavel, EmpresaCandidata } from "@/modules/comercial/
 import { STATUS_PROSPECCAO_LABEL, TIPO_PESSOA_LABEL } from "@/modules/comercial/labels";
 import { ATIVIDADE_ICONE } from "@/components/comercial/atividade-icones";
 import { useFieldErrors } from "@/lib/use-field-errors";
+import {
+  MENSAGEM_EMAIL,
+  MENSAGEM_TELEFONE,
+  canalEhIndicacao,
+  emailValido,
+  formatarTelefoneEntrada,
+  normalizarEmail,
+  telefoneValido,
+} from "@/modules/comercial/contato-validacao";
 import { FieldError } from "@/components/ui/field-error";
 import { CollapsibleSection } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
@@ -129,15 +138,21 @@ export function ProspeccaoRapidaDialog({
     demanda: `${uid}-demanda`,
     canal: `${uid}-canal`,
     nota: `${uid}-nota`,
+    email: `${uid}-email`,
+    telefone: `${uid}-telefone`,
   });
 
   /** Qual erro some quando o campo do formulário muda — o erro vive só até a pessoa corrigir. */
-  const ERRO_DO_CAMPO: Partial<Record<keyof typeof VAZIO, "empresa" | "contato" | "demanda" | "canal" | "nota">> = {
+  const ERRO_DO_CAMPO: Partial<
+    Record<keyof typeof VAZIO, "empresa" | "contato" | "demanda" | "canal" | "nota" | "email" | "telefone">
+  > = {
     empresaNome: "empresa",
     contatoNome: "contato",
     canalId: "canal",
     tituloDemanda: "demanda",
     nota: "nota",
+    email: "email",
+    telefone: "telefone",
   };
 
   const set = <K extends keyof typeof VAZIO>(k: K, v: (typeof VAZIO)[K]) => {
@@ -313,12 +328,21 @@ export function ProspeccaoRapidaDialog({
     setCandidatosContato([]);
   }
 
+  function escolherCanal(v: string | null) {
+    const id = v ?? SEM_CANAL;
+    set("canalId", id);
+    // O campo some fora da indicação; o valor escolhido antes não pode seguir escondido no envio.
+    if (!canalEhIndicacao(canais.find((c) => c.id === id)?.nome)) set("parceiroId", SEM_PARCEIRO);
+  }
+
   function escolherAbordagem(t: (typeof TIPOS_ABORDAGEM)[number]) {
     set("tipoAbordagem", t.tipo);
     // Só sobrescreve a nota se ainda estiver no valor padrão de outro tipo — não apaga o que
     // a pessoa já digitou.
     if (TIPOS_ABORDAGEM.some((x) => x.nota === form.nota)) set("nota", t.nota);
   }
+
+  const mostrarParceiro = canalEhIndicacao(canais.find((c) => c.id === form.canalId)?.nome);
 
   /** Em PF a pessoa é o próprio cliente — não há um segundo nome de contato a exigir. */
   const contatoSeparado = form.tipoPessoa === "PJ";
@@ -344,6 +368,11 @@ export function ProspeccaoRapidaDialog({
     if (form.contatoOptOut) {
       return fe.definir("contato", "Este contato pediu descadastro — não pode ser abordado.");
     }
+    // Contato já cadastrado não mostra e-mail/telefone — o que vale é o que está no cadastro.
+    if (!form.contatoId) {
+      if (!emailValido(form.email)) return fe.definir("email", MENSAGEM_EMAIL);
+      if (!telefoneValido(form.telefone)) return fe.definir("telefone", MENSAGEM_TELEFONE);
+    }
     if (
       form.destino === "ABRIR_NEGOCIACAO" &&
       form.leadExistenteId === NOVA_DEMANDA &&
@@ -368,12 +397,12 @@ export function ProspeccaoRapidaDialog({
               // PF manda o nome vazio de propósito: o serviço espelha o contato a partir do
               // próprio cliente (e reaproveita o espelho se a pessoa já tiver um).
               nome: contatoSeparado ? form.contatoNome : "",
-              email: form.email,
+              email: normalizarEmail(form.email),
               telefone: form.telefone,
               cargo: form.cargo,
             },
         canalId: form.canalId,
-        parceiroId: form.parceiroId === SEM_PARCEIRO ? "" : form.parceiroId,
+        parceiroId: mostrarParceiro && form.parceiroId !== SEM_PARCEIRO ? form.parceiroId : "",
         campanhaId: form.campanhaId === SEM_CAMPANHA ? "" : form.campanhaId,
         leadExistenteId: form.leadExistenteId === NOVA_DEMANDA ? "" : form.leadExistenteId,
         criarNovaDemanda: form.leadExistenteId === NOVA_DEMANDA,
@@ -407,6 +436,8 @@ export function ProspeccaoRapidaDialog({
   const idDemanda = fe.campo("demanda");
   const idCanal = fe.campo("canal");
   const idNota = fe.campo("nota");
+  const idEmail = fe.campo("email");
+  const idTelefone = fe.campo("telefone");
   const negociacaoAgora = form.destino === "ABRIR_NEGOCIACAO";
 
   return (
@@ -443,18 +474,15 @@ export function ProspeccaoRapidaDialog({
                 </Label>
                 {!form.empresaId && (
                   <div className="flex items-center gap-2">
-                    <Select
-                      value={form.tipoPessoa}
-                      onValueChange={(v) => trocarTipoPessoa((v as TipoPessoa) ?? "PJ")}
-                    >
-                      <SelectTrigger className="h-8 w-40" aria-label="Tipo de cliente">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="PJ">{TIPO_PESSOA_LABEL.PJ}</SelectItem>
-                        <SelectItem value="PF">{TIPO_PESSOA_LABEL.PF}</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Alternador<TipoPessoa>
+                      ariaLabel="Tipo de cliente"
+                      valor={form.tipoPessoa}
+                      onChange={trocarTipoPessoa}
+                      opcoes={[
+                        { valor: "PJ", label: TIPO_PESSOA_LABEL.PJ },
+                        { valor: "PF", label: TIPO_PESSOA_LABEL.PF },
+                      ]}
+                    />
                     <Button
                       type="button"
                       variant="outline"
@@ -651,6 +679,7 @@ export function ProspeccaoRapidaDialog({
                       <Input
                         id={`${uid}-cargo`}
                         autoComplete="off"
+                        placeholder="Ex.: Diretor de obras"
                         value={form.cargo}
                         onChange={(e) => set("cargo", e.target.value)}
                       />
@@ -660,25 +689,41 @@ export function ProspeccaoRapidaDialog({
                         E-mail
                       </Label>
                       <Input
-                        id={`${uid}-email`}
+                        {...idEmail}
                         type="email"
+                        inputMode="email"
                         autoComplete="off"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                        placeholder="nome@empresa.com.br"
                         value={form.email}
                         onChange={(e) => set("email", e.target.value)}
+                        onBlur={() => {
+                          const limpo = normalizarEmail(form.email);
+                          if (limpo !== form.email) set("email", limpo);
+                          fe.marcar("email", emailValido(limpo) ? undefined : MENSAGEM_EMAIL);
+                        }}
                       />
+                      <FieldError campo={idEmail.id} mensagem={fe.erros.email} />
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor={`${uid}-telefone`} className="text-xs text-muted-foreground">
                         Telefone
                       </Label>
+                      {/* Sem maxLength: ele cortaria um "+55 81 …" colado antes da máscara agir. */}
                       <Input
-                        id={`${uid}-telefone`}
+                        {...idTelefone}
                         type="tel"
                         inputMode="tel"
                         autoComplete="off"
+                        placeholder="(81) 99999-9999"
                         value={form.telefone}
-                        onChange={(e) => set("telefone", e.target.value)}
+                        onChange={(e) => set("telefone", formatarTelefoneEntrada(e.target.value))}
+                        onBlur={() =>
+                          fe.marcar("telefone", telefoneValido(form.telefone) ? undefined : MENSAGEM_TELEFONE)
+                        }
                       />
+                      <FieldError campo={idTelefone.id} mensagem={fe.erros.telefone} />
                     </div>
                   </div>
                 </>
@@ -775,13 +820,13 @@ export function ProspeccaoRapidaDialog({
 
           {/* ── 3 · Como chegou ───────────────────────────────────────────────────────── */}
           <Secao numero={3} titulo="Como chegou">
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className={`grid gap-3 ${mostrarParceiro ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
               <div className="space-y-1.5">
                 <Label htmlFor={idCanal.id}>
                   Origem
                   <Obrigatorio />
                 </Label>
-                <Select value={form.canalId} onValueChange={(v) => set("canalId", v ?? SEM_CANAL)}>
+                <Select value={form.canalId} onValueChange={escolherCanal}>
                   <SelectTrigger {...idCanal} aria-required className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -797,22 +842,25 @@ export function ProspeccaoRapidaDialog({
                 <FieldError campo={idCanal.id} mensagem={fe.erros.canal} />
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor={`${uid}-parceiro`}>Quem indicou</Label>
-                <Select value={form.parceiroId} onValueChange={(v) => set("parceiroId", v ?? SEM_PARCEIRO)}>
-                  <SelectTrigger id={`${uid}-parceiro`} className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={SEM_PARCEIRO}>Sem parceiro informado</SelectItem>
-                    {parceiros.map((parceiro) => (
-                      <SelectItem key={parceiro.id} value={parceiro.id}>
-                        {parceiro.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Só faz sentido quando a origem é indicação — nos outros canais o campo é ruído. */}
+              {mostrarParceiro && (
+                <div className="space-y-1.5">
+                  <Label htmlFor={`${uid}-parceiro`}>Quem indicou</Label>
+                  <Select value={form.parceiroId} onValueChange={(v) => set("parceiroId", v ?? SEM_PARCEIRO)}>
+                    <SelectTrigger id={`${uid}-parceiro`} className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={SEM_PARCEIRO}>Sem parceiro informado</SelectItem>
+                      {parceiros.map((parceiro) => (
+                        <SelectItem key={parceiro.id} value={parceiro.id}>
+                          {parceiro.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <Label htmlFor={`${uid}-campanha`}>Campanha</Label>
@@ -832,7 +880,8 @@ export function ProspeccaoRapidaDialog({
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Ex.: indicação, site, cliente recorrente ou prospecção ativa. Parceiro e campanha são opcionais.
+              Ex.: indicação, site, cliente recorrente ou prospecção ativa.
+              {mostrarParceiro ? " Informe quem indicou, se souber." : " Escolha Indicação para registrar quem indicou."}
             </p>
 
             <CollapsibleSection
@@ -856,18 +905,15 @@ export function ProspeccaoRapidaDialog({
                   {/* Em PF cliente e pessoa são o mesmo registro — perguntar de quem é o perfil só
                       criaria a chance de gravar no lugar errado. */}
                   {contatoSeparado && (
-                    <Select
-                      value={form.urlAlvo}
-                      onValueChange={(v) => set("urlAlvo", (v as "cliente" | "contato") ?? "contato")}
-                    >
-                      <SelectTrigger className="w-36" aria-label="O perfil pertence a">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="contato">Da pessoa</SelectItem>
-                        <SelectItem value="cliente">Da empresa</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Alternador<"cliente" | "contato">
+                      ariaLabel="O perfil pertence a"
+                      valor={form.urlAlvo}
+                      onChange={(v) => set("urlAlvo", v)}
+                      opcoes={[
+                        { valor: "contato", label: "Da pessoa" },
+                        { valor: "cliente", label: "Da empresa" },
+                      ]}
+                    />
                   )}
                 </div>
               </div>
@@ -926,6 +972,43 @@ export function ProspeccaoRapidaDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Escolha entre poucas opções (2–3) num único clique — melhor que um Select, que esconde as opções
+ * atrás de um clique extra. `aria-pressed` em cada botão: leitor de tela anuncia qual está ativo.
+ */
+function Alternador<T extends string>({
+  ariaLabel,
+  valor,
+  onChange,
+  opcoes,
+}: {
+  ariaLabel: string;
+  valor: T;
+  onChange: (v: T) => void;
+  opcoes: { valor: T; label: string }[];
+}) {
+  return (
+    <div role="group" aria-label={ariaLabel} className="inline-flex overflow-hidden rounded-lg border border-input">
+      {opcoes.map((o, i) => {
+        const ativo = o.valor === valor;
+        return (
+          <button
+            key={o.valor}
+            type="button"
+            aria-pressed={ativo}
+            onClick={() => onChange(o.valor)}
+            className={`h-8 px-3 text-sm transition-colors focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              i > 0 ? "border-l border-input" : ""
+            } ${ativo ? "bg-primary font-medium text-primary-foreground" : "bg-transparent hover:bg-muted"}`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

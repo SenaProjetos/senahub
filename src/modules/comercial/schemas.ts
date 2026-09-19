@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { validarCpfCnpj } from "@/lib/documento";
+import { MENSAGEM_EMAIL, MENSAGEM_TELEFONE, telefoneValido } from "@/modules/comercial/contato-validacao";
 
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 
@@ -348,8 +349,9 @@ export const criarProspeccaoRapidaSchema = z.object({
   contato: z.object({
     contatoId: opt(z.string()),
     nome: opt(z.string()),
-    email: opt(z.string().email("E-mail inválido.")),
-    telefone: opt(z.string()),
+    email: opt(z.string().email(MENSAGEM_EMAIL)),
+    // Mesma regra da máscara do diálogo (`telefoneValido`): a tela e a action não divergem.
+    telefone: opt(z.string()).refine((v) => !v || telefoneValido(v), MENSAGEM_TELEFONE),
     cargo: opt(z.string()),
   }),
   campanhaId: opt(z.string()),
