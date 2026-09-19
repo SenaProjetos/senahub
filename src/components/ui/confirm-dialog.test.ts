@@ -11,11 +11,17 @@ import { describe, expect, it } from "vitest";
 
 const RAIZ = path.resolve(__dirname, "../..");
 
-function arquivosTsx(dir: string): string[] {
+/**
+ * Varre `.tsx` e `.ts`: desde que as ações de uma entidade passaram a morar em hooks
+ * (`use-acoes-*.ts`), o padrão ruim cabe num arquivo sem JSX. Testes ficam de fora — senão o
+ * detector acha as próprias amostras.
+ */
+function arquivosDeComponente(dir: string): string[] {
   return readdirSync(dir).flatMap((nome) => {
     const p = path.join(dir, nome);
-    if (statSync(p).isDirectory()) return nome === "generated" ? [] : arquivosTsx(p);
-    return p.endsWith(".tsx") ? [p] : [];
+    if (statSync(p).isDirectory()) return nome === "generated" ? [] : arquivosDeComponente(p);
+    if (p.endsWith(".test.ts") || p.endsWith(".test.tsx")) return [];
+    return p.endsWith(".tsx") || p.endsWith(".ts") ? [p] : [];
   });
 }
 
@@ -45,7 +51,7 @@ describe("confirm() fora de startTransition", () => {
   });
 
   it("nenhum componente espera confirm() dentro de uma async transition", () => {
-    const violacoes = arquivosTsx(RAIZ).flatMap((arquivo) =>
+    const violacoes = arquivosDeComponente(RAIZ).flatMap((arquivo) =>
       corposDeTransicao(readFileSync(arquivo, "utf8"))
         .filter((c) => /\bawait\s+confirm\(/.test(c.corpo))
         .map((c) => `${path.relative(RAIZ, arquivo)}:${c.linha}`),

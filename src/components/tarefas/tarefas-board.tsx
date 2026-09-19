@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { formatarData } from "@/lib/utils";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSetParams } from "@/lib/use-set-param";
@@ -17,10 +17,16 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { Plus, GripVertical, Lock, CalendarDays, LayoutGrid, List } from "lucide-react";
+import { Plus, GripVertical, Lock, CalendarDays, LayoutGrid, List, FilterX } from "lucide-react";
 import { moverTarefa } from "@/modules/tarefas/actions";
+import { podeMoverTarefa, MOTIVO_NAO_MOVE } from "@/modules/tarefas/regras";
 import { PRIORIDADES, PRIORIDADE_LABEL, PRIORIDADE_CLASS, ehPrioridade } from "@/modules/tarefas/prioridade";
 import { TarefaDialog, type TarefaUI, type OpcoesUI } from "./tarefa-dialog";
+import { useAcoesTarefa } from "./use-acoes-tarefa";
+import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
+import { AcoesMenuItens, BotaoAcoes } from "@/components/ui/acoes-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
 import {
   Select,
   SelectContent,
@@ -56,10 +62,9 @@ type Coluna = {
 const TODOS = "__todos";
 type Periodo = "atrasadas" | "semana" | "mes";
 
-/** Movimentação no kanban: responsáveis, criador e quem gere todas. Espelha o escopo do servidor. */
-function podeMoverTarefa(t: TarefaUI, meId: string, gereTodas: boolean): boolean {
-  return t.criadorId === meId || t.responsaveis.some((r) => r.id === meId) || gereTodas;
-}
+/** Menu da área vazia da coluna — ações do quadro, não de uma tarefa. */
+const ACAO_NOVA_AQUI = "nova-tarefa-aqui";
+const ACAO_LIMPAR_FILTROS = "limpar-filtros";
 
 export function TarefasBoard({
   colunas,
@@ -88,7 +93,10 @@ export function TarefasBoard({
   const searchParams = useSearchParams();
   const [, start] = useTransition();
   const [arrastando, setArrastando] = useState<TarefaUI | null>(null);
-  const [dialog, setDialog] = useState<TarefaUI | null | "nova">(null);
+  // `{ nova }` carrega a coluna de destino de "Nova tarefa em X" (menu da área da coluna).
+  const [dialog, setDialog] = useState<TarefaUI | { nova: true; statusId?: string } | null>(null);
+  const novaEm = dialog && "nova" in dialog ? dialog : null;
+  const tarefaDoDialog = dialog && !("nova" in dialog) ? dialog : null;
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const q = searchParams.get("q") ?? "";
@@ -120,6 +128,24 @@ export function TarefasBoard({
     setParams({ q: busca.trim() || null });
   }
 
+  function limparFiltros() {
+    setParams({ q: null, projeto: null, disciplina: null, responsavel: null, periodo: null, prioridade: null });
+  }
+
+  // Um hook por lista: os diálogos e o confirm são montados uma vez; cada card/linha só recebe
+  // os itens. O mesmo par alimenta o menu de contexto e o `...`.
+  const abrirTarefa = useCallback((t: TarefaUI) => setDialog(t), []);
+  const colunasAcoes = useMemo(
+    () => colunas.map((c) => ({ id: c.id, nome: c.nome, concluido: c.concluido })),
+    [colunas],
+  );
+  const acoes = useAcoesTarefa<TarefaUI>({
+    meId,
+    gereTodas: gereTodasTarefas,
+    colunas: colunasAcoes,
+    onAbrir: abrirTarefa,
+  });
+
   function onDragStart(e: DragStartEvent) {
     setArrastando(colunas.flatMap((c) => c.tarefas).find((t) => t.id === e.active.id) ?? null);
   }
@@ -132,7 +158,7 @@ export function TarefasBoard({
     if (!origem || origem.id === statusId) return;
     const tarefa = origem.tarefas.find((t) => t.id === tarefaId);
     if (!tarefa || !podeMoverTarefa(tarefa, meId, gereTodasTarefas)) {
-      toast.error("Somente responsáveis, quem criou a tarefa ou admin/supervisor podem movê-la.");
+      toast.error(MOTIVO_NAO_MOVE);
       return;
     }
     start(async () => {
@@ -176,7 +202,7 @@ export function TarefasBoard({
               <List className="size-4" />
             </Button>
           </div>
-          <Button onClick={() => setDialog("nova")}>
+          <Button onClick={() => setDialog({ nova: true })}>
             <Plus className="size-4" /> Nova tarefa
           </Button>
         </div>
@@ -280,25 +306,32 @@ export function TarefasBoard({
         </Select>
 
         {temFiltro && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8"
-            onClick={() => setParams({ q: null, projeto: null, disciplina: null, responsavel: null, periodo: null, prioridade: null })}
-          >
+          <Button variant="ghost" size="sm" className="h-8" onClick={limparFiltros}>
             Limpar filtros
           </Button>
         )}
       </div>
 
+      <DicaMenuContexto />
+
       {vista === "lista" ? (
-        <ListaView colunas={colunas} onAbrir={(t) => setDialog(t)} />
+        <ListaView colunas={colunas} onAbrir={abrirTarefa} acoes={acoes} />
       ) : (
         <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
           {/* Grid responsivo: colunas preenchem a largura e quebram em telas estreitas (sem scroll-h / corte). */}
           <div className="grid grid-cols-1 gap-3 pb-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {colunas.map((col) => (
-              <ColunaView key={col.id} col={col} onAbrir={(t) => setDialog(t)} meId={meId} gereTodas={gereTodasTarefas} />
+              <ColunaView
+                key={col.id}
+                col={col}
+                onAbrir={abrirTarefa}
+                meId={meId}
+                gereTodas={gereTodasTarefas}
+                acoes={acoes}
+                temFiltro={temFiltro}
+                onNovaTarefa={(statusId) => setDialog({ nova: true, statusId })}
+                onLimparFiltros={limparFiltros}
+              />
             ))}
           </div>
           <DragOverlay>{arrastando ? <CardTarefa t={arrastando} overlay /> : null}</DragOverlay>
@@ -308,9 +341,10 @@ export function TarefasBoard({
       <Pagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
 
       <TarefaDialog
-        tarefa={dialog === "nova" ? null : dialog}
+        tarefa={tarefaDoDialog}
         open={dialog !== null}
         onOpenChange={(o) => !o && setDialog(null)}
+        valoresIniciais={novaEm?.statusId ? { statusId: novaEm.statusId } : undefined}
         opcoes={opcoes}
         colunas={colunas.map((c) => ({ id: c.id, nome: c.nome }))}
         meId={meId}
@@ -321,13 +355,21 @@ export function TarefasBoard({
   );
 }
 
+/** Par devolvido por `useAcoesTarefa`, repassado às vistas que renderizam tarefas. */
+type AcoesTarefa = {
+  itens: (t: TarefaUI) => AcaoItem[];
+  aoSelecionar: (t: TarefaUI, item: AcaoItemAcao) => void;
+};
+
 /** Visão LISTA: tabela plana das tarefas filtradas, ordenável localmente por prazo. */
 function ListaView({
   colunas,
   onAbrir,
+  acoes,
 }: {
   colunas: Coluna[];
   onAbrir: (t: TarefaUI) => void;
+  acoes: AcoesTarefa;
 }) {
   const [dir, setDir] = useState<"asc" | "desc">("asc");
 
@@ -369,63 +411,88 @@ function ListaView({
               </button>
             </TableHead>
             <TableHead className="w-40">Status</TableHead>
+            <TableHead className="w-10">
+              <span className="sr-only">Ações</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {linhas.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+              <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
                 Nenhuma tarefa.
               </TableCell>
             </TableRow>
           ) : (
             linhas.map(({ t, statusNome, statusCor }) => {
               const atrasada = prazoVencido(t.prazo);
+              const itens = acoes.itens(t);
               return (
-                <TableRow key={t.id} className="cursor-pointer" onClick={() => onAbrir(t)}>
-                  <TableCell className="font-medium">
-                    <span className="flex items-center gap-1.5">
-                      {t.bloqueada && <Lock className="size-3.5 text-warning" />}
-                      {t.titulo}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {t.projetoCodigo ? (
-                      <>
-                        <span className="font-mono">{formatarCodigo(t.projetoCodigo)}</span>
-                        {t.projetoNome && <span className="ml-1">{t.projetoNome}</span>}
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {t.responsaveis.length > 0 ? (
-                      <span className="flex items-center gap-1.5">
-                        <AvatarGroup>
-                          {t.responsaveis.slice(0, 3).map((r) => (
-                            <AvatarUsuario key={r.id} nome={r.nome} image={r.image} size="sm" className="size-5" fallbackClassName="text-[9px]" />
-                          ))}
-                        </AvatarGroup>
-                        <span className="truncate">{t.responsaveis.map((r) => r.nome).join(", ")}</span>
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell className={`text-sm ${atrasada ? "text-destructive" : ""}`}>
-                    {t.prazo ? formatarData(t.prazo) : "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="gap-1.5">
-                      <span
-                        className="size-2 rounded-full"
-                        style={{ background: statusCor ?? "#576980" }}
+                <ContextMenu key={t.id}>
+                  <ContextMenuTrigger
+                    render={
+                      <TableRow
+                        className="group cursor-pointer data-[popup-open]:bg-muted/50"
+                        onClick={() => onAbrir(t)}
                       />
-                      {statusNome}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
+                    }
+                  >
+                    <TableCell className="font-medium">
+                      <span className="flex items-center gap-1.5">
+                        {t.bloqueada && <Lock className="size-3.5 text-warning" />}
+                        {t.titulo}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {t.projetoCodigo ? (
+                        <>
+                          <span className="font-mono">{formatarCodigo(t.projetoCodigo)}</span>
+                          {t.projetoNome && <span className="ml-1">{t.projetoNome}</span>}
+                        </>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {t.responsaveis.length > 0 ? (
+                        <span className="flex items-center gap-1.5">
+                          <AvatarGroup>
+                            {t.responsaveis.slice(0, 3).map((r) => (
+                              <AvatarUsuario key={r.id} nome={r.nome} image={r.image} size="sm" className="size-5" fallbackClassName="text-[9px]" />
+                            ))}
+                          </AvatarGroup>
+                          <span className="truncate">{t.responsaveis.map((r) => r.nome).join(", ")}</span>
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className={`text-sm ${atrasada ? "text-destructive" : ""}`}>
+                      {t.prazo ? formatarData(t.prazo) : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="gap-1.5">
+                        <span
+                          className="size-2 rounded-full"
+                          style={{ background: statusCor ?? "#576980" }}
+                        />
+                        {statusNome}
+                      </Badge>
+                    </TableCell>
+                    {/* Clique no `...` não pode abrir a tarefa junto (a linha inteira é clicável). */}
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <BotaoAcoes
+                        itens={itens}
+                        onSelect={(item) => acoes.aoSelecionar(t, item)}
+                        rotulo={`Ações da tarefa ${t.titulo}`}
+                        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+                      />
+                    </TableCell>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <AcoesMenuItens itens={itens} onSelect={(item) => acoes.aoSelecionar(t, item)} />
+                  </ContextMenuContent>
+                </ContextMenu>
               );
             })
           )}
@@ -435,8 +502,42 @@ function ListaView({
   );
 }
 
-function ColunaView({ col, onAbrir, meId, gereTodas }: { col: Coluna; onAbrir: (t: TarefaUI) => void; meId: string; gereTodas: boolean }) {
+function ColunaView({
+  col,
+  onAbrir,
+  meId,
+  gereTodas,
+  acoes,
+  temFiltro,
+  onNovaTarefa,
+  onLimparFiltros,
+}: {
+  col: Coluna;
+  onAbrir: (t: TarefaUI) => void;
+  meId: string;
+  gereTodas: boolean;
+  acoes: AcoesTarefa;
+  temFiltro: boolean;
+  onNovaTarefa: (statusId: string) => void;
+  onLimparFiltros: () => void;
+}) {
   const { setNodeRef, isOver } = useDroppable({ id: col.id });
+
+  // Paridade (regra 2 da ADR-0002): "Nova tarefa em X" não ganha botão próprio — o botão
+  // "Nova tarefa" do topo mais o Select de status do diálogo chegam ao mesmo lugar pelo
+  // teclado. O menu só economiza um passo; "Limpar filtros" já tem botão na barra de filtros.
+  const itensDaColuna: AcaoItem[] = [
+    { tipo: "acao", id: ACAO_NOVA_AQUI, rotulo: `Nova tarefa em ${col.nome}`, icone: Plus },
+    ...(temFiltro
+      ? [{ tipo: "acao", id: ACAO_LIMPAR_FILTROS, rotulo: "Limpar filtros", icone: FilterX } as AcaoItem]
+      : []),
+  ];
+
+  function aoSelecionarDaColuna(item: AcaoItemAcao) {
+    if (item.id === ACAO_NOVA_AQUI) onNovaTarefa(col.id);
+    else if (item.id === ACAO_LIMPAR_FILTROS) onLimparFiltros();
+  }
+
   return (
     <div className="min-w-0">
       <div className="mb-2 flex items-center gap-2">
@@ -446,28 +547,78 @@ function ColunaView({ col, onAbrir, meId, gereTodas }: { col: Coluna; onAbrir: (
           {col.tarefas.length}
         </Badge>
       </div>
-      <div
-        ref={setNodeRef}
-        className={`min-h-[16rem] space-y-2 rounded-sm border p-2 transition-colors ${
-          isOver ? "border-primary bg-primary/5" : "border-dashed"
-        }`}
-      >
-        {col.tarefas.map((t) => (
-          <DraggableTarefa key={t.id} t={t} onAbrir={onAbrir} podeMover={podeMoverTarefa(t, meId, gereTodas)} />
-        ))}
-        {col.tarefas.length === 0 && (
-          <p className="py-4 text-center text-xs text-muted-foreground">vazio</p>
-        )}
-      </div>
+      {/* O Trigger do card é aninhado neste: o botão direito num card abre só o menu do card. */}
+      <ContextMenu>
+        <ContextMenuTrigger className="block">
+          <div
+            ref={setNodeRef}
+            className={`min-h-[16rem] space-y-2 rounded-sm border p-2 transition-colors ${
+              isOver ? "border-primary bg-primary/5" : "border-dashed"
+            }`}
+          >
+            {col.tarefas.map((t, i) => (
+              <DraggableTarefa
+                key={t.id}
+                t={t}
+                onAbrir={onAbrir}
+                podeMover={podeMoverTarefa(t, meId, gereTodas)}
+                acoes={acoes}
+                primeiro={i === 0}
+              />
+            ))}
+            {col.tarefas.length === 0 && (
+              <p className="py-4 text-center text-xs text-muted-foreground">vazio</p>
+            )}
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <AcoesMenuItens itens={itensDaColuna} onSelect={aoSelecionarDaColuna} />
+        </ContextMenuContent>
+      </ContextMenu>
     </div>
   );
 }
 
-function DraggableTarefa({ t, onAbrir, podeMover }: { t: TarefaUI; onAbrir: (t: TarefaUI) => void; podeMover: boolean }) {
+function DraggableTarefa({
+  t,
+  onAbrir,
+  podeMover,
+  acoes,
+  primeiro,
+}: {
+  t: TarefaUI;
+  onAbrir: (t: TarefaUI) => void;
+  podeMover: boolean;
+  acoes: AcoesTarefa;
+  /** Primeiro card da coluna: alvo do coachmark do menu de contexto. */
+  primeiro?: boolean;
+}) {
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id: t.id, disabled: !podeMover });
+  // No toque, o dedo soltando depois do toque longo ainda dispara o `click` do corpo do card —
+  // sem esta trava o menu abriria junto com o diálogo da tarefa.
+  const menuAberto = useRef(false);
+  const itens = acoes.itens(t);
+  const aoSelecionar = (item: AcaoItemAcao) => acoes.aoSelecionar(t, item);
+
   return (
     <div ref={setNodeRef} className={isDragging ? "opacity-40" : ""}>
-      <CardTarefa t={t} onAbrir={onAbrir} dragProps={podeMover ? { ...attributes, ...listeners } : undefined} podeMover={podeMover} />
+      <ContextMenu onOpenChange={(aberto) => (menuAberto.current = aberto)}>
+        <ContextMenuTrigger className="block">
+          <CardTarefa
+            t={t}
+            onAbrir={(tarefa) => {
+              if (!menuAberto.current) onAbrir(tarefa);
+            }}
+            dragProps={podeMover ? { ...attributes, ...listeners } : undefined}
+            podeMover={podeMover}
+            acoes={{ itens, aoSelecionar }}
+            primeiro={primeiro}
+          />
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <AcoesMenuItens itens={itens} onSelect={aoSelecionar} />
+        </ContextMenuContent>
+      </ContextMenu>
     </div>
   );
 }
@@ -478,23 +629,31 @@ function CardTarefa({
   dragProps,
   podeMover = true,
   overlay,
+  acoes,
+  primeiro,
 }: {
   t: TarefaUI;
   onAbrir?: (t: TarefaUI) => void;
   dragProps?: Record<string, unknown>;
   podeMover?: boolean;
   overlay?: boolean;
+  /** Ausente no fantasma do arrasto (`DragOverlay`), que não tem menu nem `...`. */
+  acoes?: { itens: AcaoItem[]; aoSelecionar: (item: AcaoItemAcao) => void };
+  primeiro?: boolean;
 }) {
   const feitos = t.itens.filter((i) => i.concluido).length;
   const atrasada = prazoVencido(t.prazo);
   return (
-    <div className={`rounded-sm border bg-card p-2.5 text-sm shadow-sm ${overlay ? "rotate-2" : ""}`}>
+    <div
+      data-tour={primeiro ? "menu-contexto" : undefined}
+      className={`group rounded-sm border bg-card p-2.5 text-sm shadow-sm ${overlay ? "rotate-2" : ""}`}
+    >
       <div className="flex items-start gap-1.5">
         <button
           type="button"
           className={podeMover ? "mt-0.5 cursor-grab text-muted-foreground" : "mt-0.5 cursor-not-allowed text-muted-foreground/30"}
-          aria-label={podeMover ? "Arrastar" : "Somente responsáveis, quem criou a tarefa ou admin/supervisor podem movê-la"}
-          title={podeMover ? undefined : "Somente responsáveis, quem criou a tarefa ou admin/supervisor podem movê-la"}
+          aria-label={podeMover ? "Arrastar" : MOTIVO_NAO_MOVE}
+          title={podeMover ? undefined : MOTIVO_NAO_MOVE}
           disabled={!podeMover}
           {...dragProps}
         >
@@ -552,6 +711,15 @@ function CardTarefa({
             </div>
           )}
         </button>
+        {/* Irmão do corpo do card, nunca aninhado: o corpo já é um <button>. */}
+        {acoes && (
+          <BotaoAcoes
+            itens={acoes.itens}
+            onSelect={acoes.aoSelecionar}
+            rotulo={`Ações da tarefa ${t.titulo}`}
+            className="-mt-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+          />
+        )}
       </div>
     </div>
   );

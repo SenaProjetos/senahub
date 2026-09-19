@@ -15,6 +15,7 @@ import {
   removerComentario,
 } from "@/modules/tarefas/actions";
 import { PRIORIDADES, PRIORIDADE_LABEL, type Prioridade } from "@/modules/tarefas/prioridade";
+import { MOTIVO_NAO_EDITA, podeEditarTarefa } from "@/modules/tarefas/regras";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -123,7 +124,7 @@ export function TarefaDialog({
 }) {
   // Item 27 (beta): só quem criou a tarefa (ou tem `tarefas:gerir_todas`) edita/arquiva. Tarefa
   // nova (tarefa === null) é sempre editável — quem cria ainda não tem criadorId atribuído.
-  const podeEditar = !tarefa || tarefa.criadorId === meId || gereTodasTarefas;
+  const podeEditar = !tarefa || podeEditarTarefa(tarefa, meId, gereTodasTarefas);
   const router = useRouter();
   const [pending, start] = useTransition();
   const vazio = {
@@ -159,7 +160,9 @@ export function TarefaDialog({
   const comentFileRef = useRef<HTMLInputElement>(null);
   const [buscaResp, setBuscaResp] = useState("");
   const [buscaDependencia, setBuscaDependencia] = useState("");
-  const key = tarefa?.id ?? "nova";
+  // A coluna inicial entra na chave: sem isso, "Nova tarefa em X" e depois "Nova tarefa em Y"
+  // reaproveitariam o formulário da primeira e abririam no status errado.
+  const key = tarefa?.id ?? `nova:${valoresIniciais?.statusId ?? ""}`;
   const [lastKey, setLastKey] = useState(key);
   if (lastKey !== key) {
     setLastKey(key);
@@ -316,7 +319,7 @@ export function TarefaDialog({
         <div className="space-y-3">
           {!podeEditar && (
             <p className="rounded-sm border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning-foreground">
-              Só quem criou esta tarefa (ou admin/supervisor) pode editar seus dados.
+              {MOTIVO_NAO_EDITA}
               {!itensReadonly && " Você ainda pode marcar os itens do checklist."}
             </p>
           )}

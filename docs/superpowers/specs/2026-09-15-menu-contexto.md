@@ -1,8 +1,33 @@
 # Menu de contexto (botão direito) — onda 1
 
-**Data:** 2026-09-15 · **Status:** planejado, nada implementado · **Pedido:** "nada usa o botão
-direito e dá muita cara de site — botão direito com utilidade nos menus e funções traria uma
-experiência mais premium"
+**Data:** 2026-09-15 · **Status:** F1 implementada (2026-09-19, falta teste no navegador); F2 e
+F3 pendentes · **Pedido:** "nada usa o botão direito e dá muita cara de site — botão direito com
+utilidade nos menus e funções traria uma experiência mais premium"
+
+> **Atualização 2026-09-19 — o código mudou depois deste plano. Onde o texto abaixo diverge,
+> vale esta nota.**
+>
+> 1. **Diretório `/arquivos` saiu da onda 1 (decisão do dono, opção A).** Foi reescrito em
+>    2026-09-17 (`DiretorioView` não existe mais; agora é árvore + `TabelaGlobalArquivos`, tela de
+>    consulta). As partes **2a, 2b e 2c estão canceladas** e o diretório vai para o backlog da
+>    onda 2 — lá ele reaproveita `itensDeDocumento` de 2d. F2 passa a ser **só 2d, um commit**.
+>    Sem 2a, `AcoesValidacaoArquivo` e `VisualizarDwgButton` não são refatorados na onda 1.
+> 2. **Tarefas usam capacidade, não papel.** Onde este plano diz `meRole`/`GLOBAL_ROLES`, leia
+>    `gereTodas` (`tarefas:gerir_todas`, `SessionUser.gereTodasTarefas`). A frase do servidor é
+>    "Só quem criou a tarefa (ou quem gere as tarefas de todos) pode editá-la."
+> 3. **Formato final de F1:** tipo `AcaoItem` em `src/components/ui/acoes.ts` (puro, sem JSX —
+>    o descritor testado em node importa dele) e renderizador em `src/components/ui/acoes-menu.tsx`
+>    (`AcoesMenuItens` + `BotaoAcoes`, o `...` pronto). Item de ação é dado (`id`), sem callback;
+>    `useAcoes<Entidade>` devolve `{ itens(entidade), aoSelecionar(entidade, item) }` e faz o
+>    `confirm` antes do `start`. Link de menu: `DropdownMenuLinkItem` (novo em `dropdown-menu.tsx`).
+> 4. **Item desabilitado mostra o motivo como texto** dentro do item, sem o `opacity-50` padrão
+>    (cobriria o motivo e derrubaria o contraste); a `title` não serve porque item desabilitado tem
+>    `pointer-events-none`.
+> 5. **Caminhos de 2d:** `src/components/projetos/arquivos/tabela-documentos.tsx` e
+>    `menu-documento.tsx`. `MenuDocumento` tem **dois** usos na tabela (cartão compacto e linha),
+>    não um. O pré-requisito do histórico do documento já está cumprido.
+> 6. O teste-guarda do `confirm` (`confirm-dialog.test.ts`) passou a varrer `.ts` também: a
+>    lógica de ação agora mora em hooks `use-acoes-*.ts`.
 
 Decidido em sessão de grilling (Q1–Q22). Regras transversais em
 [ADR-0002](../../adr/0002-menu-de-contexto.md) — ler antes de qualquer fase.
