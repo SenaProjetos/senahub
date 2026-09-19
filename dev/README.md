@@ -25,12 +25,18 @@ e se a árvore está limpa ou suja.
 **Desenvolvimento**
 - Iniciar dev (Next só — UI) / dev completo (chat + jobs + realtime, `dev:server`) — cada um
   abre em janela nova.
-- Parar dev server (libera a porta 3000 e mata o `esbuild.exe`, que trava `node_modules`).
-- Abrir `localhost:3000` no navegador.
+- Parar dev server (libera a porta e mata o `esbuild.exe`, que trava `node_modules`). Com mais de
+  um worktree, pergunta qual parar (Enter = este; parar o **outro** pede confirmação). Atalho:
+  `dev stop`, `dev stop outro`, `dev stop 3000`.
+- Abrir `localhost:<porta>` no navegador — também pergunta o worktree (`dev open outro`).
+
+A escolha de worktree vale só para o que é **processo e URL** (parar, abrir e a lista de portas do
+Diagnóstico, que mostra todos). Git, banco, testes e build agem **sempre na pasta em que o `dev.bat`
+foi aberto** — para o outro worktree, abra o `dev.bat` dele (CLAUDE.md, "Parallel worktrees").
 
 **Qualidade**
 - **Verificar tudo**: `lint` → `testes` → `build`, para no primeiro que falhar e diz em qual.
-  Antes de buildar, detecta se o dev server está na `:3000` e oferece pará-lo (senão o `.next`
+  Antes de buildar, detecta o dev server **desta pasta** (pela porta do `.env` ou pelo processo) e oferece pará-lo (senão o `.next`
   em uso corrompe). Log em `logs/dev-verificacao.log`.
 - Só testes / só lint / testar um arquivo ou nome específico.
 - Corrigir build/deps corrompidos (para o dev server, apaga `.next`, opcionalmente `node_modules`,

@@ -37,7 +37,7 @@ npm run smoke:historico-documento  # histórico por documento: agrupamento atôm
 
 - **Dev helper (Windows):** `dev.bat` (raiz) → *Central do Desenvolvedor* (`dev/gerenciar-dev.bat` + `.ps1`),
   menu pt-BR que envolve os scripts acima: **Verificar tudo** (lint+test+build com exit code real e guarda
-  anti-`next dev` na :3000), **Promover dev → produção** (merge direto ou via PR, com dry-run), status git
+  anti-`next dev` **desta pasta**), **Promover dev → produção** (merge direto ou via PR, com dry-run), status git
   (ahead/behind), commit Conventional, **Doctor** (checklist de ambiente), banco de dev, smokes e release.
   Espelha o `deploy/gerenciar-servidor.*` (que é do lado servidor). Auditoria em `logs/dev-audit.log`.
 - **Dev DB:** native PostgreSQL 17 on Windows, port **5433**, db `senahub_remake` (set `DATABASE_URL` in `.env`).
@@ -229,3 +229,27 @@ The five canonical roles, each label string equal to its name (`needs-triage`, `
 ### Domain docs
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root — both exist since 2026-09-09. See `docs/agents/domain.md`. Note the two ADR series: `docs/adr/000N-slug.md` is the current convention; `docs/manual/decisions/ADR-00N-*.md` is the legacy one and still valid.
+
+## Parallel worktrees (one per IDE)
+
+Two agents work this repo at the same time, like two separate developers. Identify yours by the
+**folder you are in** — never by the environment: the Claude Code extension in Antigravity reports
+itself as "VSCode".
+
+| IDE | Folder | Branch | Port | Dev DB (5433) |
+|---|---|---|---|---|
+| Antigravity | `SENAHub-remake` (main) | `dev-antigravity` | 3000 | `senahub_remake` |
+| VS Code | `SENAHub-remake-vscode` (worktree) | `dev-vscode` | 3001 | `senahub_remake_vscode` |
+
+- Work only in your own folder, branch and database; never touch the other agent's.
+- `.env` is untracked and differs per worktree (`DATABASE_URL`, `PORT`, `APP_URL`, `BETTER_AUTH_URL`,
+  `STORAGE_BASE_PATH`) — never copy one over the other. Wrong `BETTER_AUTH_URL` breaks login (CSRF).
+- Plain `npm run dev` ignores `PORT` from `.env`: in the VS Code worktree use `npm run dev -- -p 3001`
+  (`dev:server` reads it).
+- Each worktree has its own real `node_modules` and `src/generated` — never replace them with a
+  junction to the main folder (Turbopack refuses the symlink, and removal can wipe the target).
+- Stage specific files (never `git add -A`/`.`) and check `git show --stat` after committing.
+- First push: `git push -u origin dev-<ide>`. Both branches merge into `dev`; `master` is deploy only.
+- A new migration runs `db:migrate` against your own DB; the other worktree applies it with
+  `npx prisma migrate deploy` after the merge.
+- `git log dev` is ambiguous (there is a `dev/` folder) — use `refs/heads/dev`.

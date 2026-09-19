@@ -47,8 +47,8 @@ if /i "%~1"=="up"         ( powershell -NoProfile -ExecutionPolicy Bypass -File 
 if /i "%~1"=="server"     ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao DevServer & exit /b )
 if /i "%~1"=="ui"         ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao DevNext & exit /b )
 if /i "%~1"=="next"       ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao DevNext & exit /b )
-if /i "%~1"=="stop"       ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao PararDev & exit /b )
-if /i "%~1"=="kill"       ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao PararDev & exit /b )
+if /i "%~1"=="stop"       ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao PararDev -Alvo "%~2" & exit /b )
+if /i "%~1"=="kill"       ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao PararDev -Alvo "%~2" & exit /b )
 if /i "%~1"=="check"      ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Verificar & exit /b )
 if /i "%~1"=="verificar"  ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Verificar & exit /b )
 if /i "%~1"=="ci"         ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Verificar & exit /b )
@@ -63,8 +63,8 @@ if /i "%~1"=="sincronizar" ( powershell -NoProfile -ExecutionPolicy Bypass -File
 if /i "%~1"=="doctor"     ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Doctor & exit /b )
 if /i "%~1"=="studio"     ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Studio & exit /b )
 if /i "%~1"=="seed"       ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao DbSeed & exit /b )
-if /i "%~1"=="open"       ( start "" "http://localhost:3000" & exit /b )
-if /i "%~1"=="abrir"      ( start "" "http://localhost:3000" & exit /b )
+if /i "%~1"=="open"       ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Abrir -Alvo "%~2" & exit /b )
+if /i "%~1"=="abrir"      ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Abrir -Alvo "%~2" & exit /b )
 if /i "%~1"=="menu"       goto :menu
 if /i "%~1"=="subir" (
   set "DRY="
@@ -91,17 +91,18 @@ echo(
 echo Atalhos disponiveis (dev ^<atalho^>):
 echo   up ^| server      iniciar dev completo (chat/jobs/realtime)
 echo   ui ^| next         iniciar apenas o Next (UI)
-echo   stop ^| kill       parar o dev server (:3000 + esbuild)
+echo   stop ^| kill       parar o dev server deste worktree (porta do .env + esbuild)
+echo                     stop outro ^| stop 3000  -^> o do outro worktree (pede confirmacao)
 echo   check ^| ci        verificar tudo (lint + testes + build)
 echo   test              so testes        lint    so lint
 echo   push              push da branch   st      status do repo
-echo   commit            commit guiado    sync    sincronizar dev com master
+echo   commit            commit guiado    sync    sincronizar (dev ou branch de IDE)
 echo   subir [--dry]     promover dev-^>producao (Direto)
 echo   pr [--dry]        promover via Pull Request
 echo   doctor            checar ambiente  studio  abrir Prisma Studio
 echo   seed              reaplicar seed   migrate ^<nome^>  criar migration
 echo   smoke ^<onda^>      rodar um smoke (onda1..onda5, onda3efg)
-echo   open              abrir localhost:3000    menu   abrir o menu interativo
+echo   open [outro]      abrir no navegador     menu   abrir o menu interativo
 echo(
 exit /b 1
 
@@ -145,8 +146,8 @@ echo(
 echo   DESENVOLVIMENTO
 echo    1. Iniciar dev (Next so - UI)
 echo    2. Iniciar dev completo (chat/jobs/realtime)
-echo    3. Parar dev server (libera porta 3000 + esbuild)
-echo    4. Abrir no navegador (localhost:3000)
+echo    3. Parar dev server (escolhe o worktree; libera a porta + esbuild)
+echo    4. Abrir no navegador (escolhe o worktree)
 echo(
 echo   QUALIDADE
 echo    5. Verificar tudo (lint + testes + build)
@@ -170,7 +171,7 @@ set "opcao=%opcao: =%"
 if "%opcao%"=="1" ( call :acao_dev_next & goto :menu )
 if "%opcao%"=="2" ( call :acao_dev_server & goto :menu )
 if "%opcao%"=="3" ( call :acao_parar_dev & goto :menu )
-if "%opcao%"=="4" ( start "" "http://localhost:3000" & goto :menu )
+if "%opcao%"=="4" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Abrir & goto :menu )
 if "%opcao%"=="5" ( call :acao_verificar & goto :menu )
 if "%opcao%"=="6" ( call :menu_test & goto :menu )
 if "%opcao%"=="7" ( call :menu_git & goto :menu )
@@ -223,10 +224,11 @@ echo   Ajuda / Sobre a Central do Desenvolvedor
 echo  =====================================================
 echo(
 echo   Fluxo tipico:
-echo    - Trabalhe na branch dev; commite com a opcao 7 -^> 2.
+echo    - Trabalhe na dev ou na branch da sua IDE (dev-^<ide^>);
+echo      commite com a opcao 7 -^> 2.
 echo    - Antes de subir, rode a opcao 5 (verificar tudo):
 echo      lint + testes + build, avisa em qual passo falhou.
-echo      Ela detecta o dev server na :3000 e oferece parar
+echo      Ela detecta o dev server (porta do .env) e oferece parar
 echo      antes de buildar (senao o .next corrompe).
 echo    - Publique com a opcao 7 -^> 4 (Promover dev -^> producao):
 echo        Direto = merge em master + push (dispara o deploy).
@@ -343,7 +345,7 @@ echo   1. Status do repositorio (ahead/behind, sujo)
 echo   2. Commit rapido (Conventional Commit pt-BR)
 echo   3. Push da branch atual
 echo   4. Promover dev -^> producao ...
-echo   5. Sincronizar dev com master
+echo   5. Sincronizar (dev com master / branch de IDE com origin)
 echo(
 echo   0. Voltar
 echo(
@@ -375,6 +377,8 @@ echo  =====================================================
 echo(
 echo   Verifica (lint+test+build), leva a dev para master e
 echo   publica. Producao puxa origin/master.
+echo   De uma branch de IDE (dev-^<ide^>): junta ela na dev,
+echo   pergunta sobre as outras dev-* e volta no fim.
 echo(
 echo   1. Direto (merge em master + push)
 echo   2. Direto - SIMULAR (dry-run, nao altera nada)
@@ -553,7 +557,7 @@ echo   Diagnostico
 echo  =====================================================
 echo(
 echo   1. Doctor: checar ambiente dev
-echo   2. Processos / portas (3000, 5433)
+echo   2. Processos / portas (dev, 5433)
 echo   3. Limpar caches (.next, node_modules\.cache)
 echo   4. Corrigir build/deps corrompidos
 echo   5. Abrir pasta de logs
