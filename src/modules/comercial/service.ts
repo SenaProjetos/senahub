@@ -2054,15 +2054,21 @@ export async function reagendarProximaAcao(input: {
 }): Promise<{ id: string }> {
   const c = await prisma.compromisso.findUnique({
     where: { id: input.compromissoId },
-    select: { id: true, tipo: true, concluidoEm: true },
+    select: { id: true, tipo: true, concluidoEm: true, inicio: true, fim: true },
   });
   if (!c) throw new ActionError("Ação não encontrada.");
   if (!c.tipo) throw new ActionError("Este compromisso não é uma ação comercial.");
   if (c.concluidoEm) throw new ActionError("Esta ação já foi concluída — não dá para reagendar.");
+  if (Number.isNaN(input.novoInicio.getTime())) throw new ActionError("Data inválida.");
 
+  // Se a ação tem hora de término, ela anda junto: mover só o início deixaria o fim ANTES dele.
+  const deslocamento = input.novoInicio.getTime() - c.inicio.getTime();
   await prisma.compromisso.update({
     where: { id: c.id },
-    data: { inicio: input.novoInicio },
+    data: {
+      inicio: input.novoInicio,
+      ...(c.fim ? { fim: new Date(c.fim.getTime() + deslocamento) } : {}),
+    },
   });
   return { id: c.id };
 }

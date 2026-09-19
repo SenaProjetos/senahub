@@ -4,7 +4,9 @@ import {
   agruparPorDia,
   chaveDia,
   diasDaSemana,
+  diaDaChave,
   diasDoMes,
+  moverParaDia,
   inicioDaSemana,
   navegar,
   tituloDoPeriodo,
@@ -73,5 +75,20 @@ describe("tituloDoPeriodo", () => {
     const original = new Date(2026, 8, 16);
     addDias(original, 3);
     expect(chaveDia(original)).toBe("2026-09-16");
+  });
+});
+
+describe("moverParaDia", () => {
+  it("leva a ação para o novo dia mantendo o horário", () => {
+    const original = new Date(2026, 8, 19, 10, 30).toISOString();
+    const movido = new Date(moverParaDia(original, new Date(2026, 8, 22)));
+    expect(chaveDia(movido)).toBe("2026-09-22");
+    expect([movido.getHours(), movido.getMinutes()]).toEqual([10, 30]);
+  });
+
+  it("atravessa virada de mês e diaDaChave é o inverso de chaveDia", () => {
+    const original = new Date(2026, 8, 30, 23, 45).toISOString();
+    expect(chaveDia(new Date(moverParaDia(original, diaDaChave("2026-10-02"))))).toBe("2026-10-02");
+    expect(chaveDia(diaDaChave("2026-12-31"))).toBe("2026-12-31");
   });
 });

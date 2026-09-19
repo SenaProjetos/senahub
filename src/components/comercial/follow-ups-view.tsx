@@ -16,7 +16,15 @@ import { FollowUpsCalendario } from "./follow-ups-calendario";
 type Modo = "calendario" | "lista";
 
 /** Calendário é a visão principal; a lista agrupada por urgência continua a um clique. */
-export function FollowUpsView({ itens, truncado }: { itens: FollowUpComercial[]; truncado: boolean }) {
+export function FollowUpsView({
+  itens,
+  truncado,
+  podeGerir,
+}: {
+  itens: FollowUpComercial[];
+  truncado: boolean;
+  podeGerir: boolean;
+}) {
   const [modo, setModo] = useState<Modo>("calendario");
 
   if (itens.length === 0) {
@@ -41,7 +49,7 @@ export function FollowUpsView({ itens, truncado }: { itens: FollowUpComercial[];
       </div>
 
       {modo === "calendario" ? (
-        <FollowUpsCalendario itens={itens} onVerAtrasados={() => setModo("lista")} />
+        <FollowUpsCalendario itens={itens} podeGerir={podeGerir} onVerAtrasados={() => setModo("lista")} />
       ) : (
         <ListaFollowUps itens={itens} />
       )}

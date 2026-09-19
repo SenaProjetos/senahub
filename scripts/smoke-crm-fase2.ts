@@ -23,6 +23,7 @@ import {
   moverEstagio,
   moverProspeccao,
   qualificarProspeccao,
+  reagendarProximaAcao,
   qualificarPeloBoard,
   editarNegociacao,
   registrarInteracaoManual,
@@ -396,6 +397,30 @@ async function main() {
     check("'todos' também traz, e ela vem atrasada", todos.itens.some((i) => i.id === agendada.id));
     const deOutro = await followUpsComerciais({ responsavelId: "id-que-nao-existe" });
     check("'meus' de outra pessoa não traz a ação", !deOutro.itens.some((i) => i.id === agendada.id));
+
+    // Arrastar no calendário reagenda: o fim (quando existe) anda junto, senão ficaria antes do início.
+    const inicioOriginal = new Date(2030, 0, 10, 14, 0);
+    const comFim = await agendarProximaAcao({
+      entidadeTipo: "NEGOCIACAO",
+      entidadeId: qb.negociacaoId,
+      tipo: "REUNIAO",
+      titulo: `${TAG}_reuniao_com_fim`,
+      inicio: inicioOriginal,
+      fim: new Date(2030, 0, 10, 15, 30),
+      criadorId: user.id,
+    });
+    await reagendarProximaAcao({ compromissoId: comFim.id, novoInicio: new Date(2030, 0, 15, 14, 0) });
+    const movida = await prisma.compromisso.findUnique({ where: { id: comFim.id }, select: { inicio: true, fim: true } });
+    check(
+      "reagendar leva o fim junto e mantém a duração de 1h30",
+      movida?.inicio.getTime() === new Date(2030, 0, 15, 14, 0).getTime() &&
+        movida.fim?.getTime() === new Date(2030, 0, 15, 15, 30).getTime(),
+    );
+    await recusa(
+      "reagendar com data inválida é recusado",
+      () => reagendarProximaAcao({ compromissoId: comFim.id, novoInicio: new Date("lixo") }),
+      /Data inválida/,
+    );
   } else {
     console.log("[PULO] só há um usuário interno no dev — follow-up cruzado não testado");
   }

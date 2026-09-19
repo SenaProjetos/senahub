@@ -81,3 +81,25 @@ export function tituloDoPeriodo(ref: Date, vista: VistaCalendario): string {
   if (a.getMonth() === b.getMonth()) return `${a.getDate()}–${b.getDate()} de ${mes(b)} de ${b.getFullYear()}`;
   return `${a.getDate()} de ${mes(a).slice(0, 3)}. – ${b.getDate()} de ${mes(b).slice(0, 3)}. de ${b.getFullYear()}`;
 }
+
+/** "2026-09-21" → meia-noite local desse dia (inverso de `chaveDia`). */
+export function diaDaChave(chave: string): Date {
+  const [a, m, d] = chave.split("-").map(Number);
+  return new Date(a, m - 1, d);
+}
+
+/**
+ * Reagendar arrastando: leva a ação para `dia` mantendo o HORÁRIO em que estava. Arrastar é uma
+ * decisão sobre o dia; a hora combinada com o cliente não muda por causa disso.
+ */
+export function moverParaDia(inicioIso: string, dia: Date): string {
+  const original = new Date(inicioIso);
+  return new Date(
+    dia.getFullYear(),
+    dia.getMonth(),
+    dia.getDate(),
+    original.getHours(),
+    original.getMinutes(),
+    original.getSeconds(),
+  ).toISOString();
+}

@@ -1651,7 +1651,13 @@ export async function followUpsComerciais(opts: { responsavelId?: string }) {
   const [leads, negs, clientes] = await Promise.all([
     prisma.lead.findMany({
       where: { id: { in: idsDe("LEAD") } },
-      select: { id: true, nome: true, cliente: { select: { nome: true } }, responsavel: dono },
+      select: {
+        id: true,
+        nome: true,
+        origemDetalhada: true,
+        cliente: { select: { nome: true } },
+        responsavel: dono,
+      },
     }),
     prisma.negociacao.findMany({
       where: { id: { in: idsDe("NEGOCIACAO") } },
@@ -1667,24 +1673,34 @@ export async function followUpsComerciais(opts: { responsavelId?: string }) {
   const itens = compromissos.flatMap((c) => {
     const id = c.entidadeId!;
     let nomeEntidade: string;
+    // Cliente e demanda separados: a tela mostra em linhas próprias em vez de "Cliente — Demanda".
+    let cliente: string;
+    let demanda: string | null;
     let href: string;
     let responsavel: { id: string; name: string; image: string | null } | null = null;
     if (c.entidadeTipo === "LEAD") {
       const l = mLead.get(id);
       if (!l) return [];
       nomeEntidade = l.cliente?.nome ? `${l.cliente.nome} — ${l.nome}` : l.nome;
+      // Mesma escolha do card do funil: sem empreendimento registrado, cai no nome do lead.
+      cliente = l.cliente?.nome ?? l.nome;
+      demanda = l.origemDetalhada ?? (l.cliente?.nome ? l.nome : null);
       href = `/comercial/funil?card=LEAD:${id}`;
       responsavel = l.responsavel;
     } else if (c.entidadeTipo === "NEGOCIACAO") {
       const n = mNeg.get(id);
       if (!n) return [];
       nomeEntidade = `${n.cliente.nome} — ${n.titulo}`;
+      cliente = n.cliente.nome;
+      demanda = n.titulo;
       href = `/comercial/funil?card=NEGOCIACAO:${id}`;
       responsavel = n.responsavel;
     } else {
       const cli = mCli.get(id);
       if (!cli) return [];
       nomeEntidade = cli.nome;
+      cliente = cli.nome;
+      demanda = null;
       href = `/clientes/${id}`;
     }
     if (opts.responsavelId) {
@@ -1700,6 +1716,8 @@ export async function followUpsComerciais(opts: { responsavelId?: string }) {
         local: c.local,
         href,
         nomeEntidade,
+        cliente,
+        demanda,
         responsavel: responsavel ? { name: responsavel.name, image: responsavel.image } : null,
       },
     ];

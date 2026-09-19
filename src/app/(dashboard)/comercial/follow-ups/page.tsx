@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
+import { can } from "@/lib/permissions";
 import { followUpsComerciais } from "@/modules/comercial/queries";
 import { AlternanciaVisaoComercial } from "@/components/comercial/alternancia-visao-comercial";
 import { FollowUpsView } from "@/components/comercial/follow-ups-view";
@@ -15,7 +16,10 @@ export default async function FollowUpsPage({
   const user = await requirePermission("comercial", "ver");
   const sp = await searchParams;
   const meus = (Array.isArray(sp.visao) ? sp.visao[0] : sp.visao) === "meus";
-  const { itens, truncado } = await followUpsComerciais({ responsavelId: meus ? user.id : undefined });
+  const [{ itens, truncado }, podeGerir] = await Promise.all([
+    followUpsComerciais({ responsavelId: meus ? user.id : undefined }),
+    can(user, "comercial", "gerir"),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -27,7 +31,7 @@ export default async function FollowUpsPage({
         </p>
       </div>
       <AlternanciaVisaoComercial meus={meus} basePath="/comercial/follow-ups" />
-      <FollowUpsView itens={itens} truncado={truncado} />
+      <FollowUpsView itens={itens} truncado={truncado} podeGerir={podeGerir} />
     </div>
   );
 }

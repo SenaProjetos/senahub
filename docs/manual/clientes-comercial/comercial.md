@@ -39,7 +39,9 @@ o projeto contratado.
 
 Em **Comercial → Funil**, clique em **Nova entrada**. O formulário tem quatro blocos numerados —
 **Cliente e contato**, **Demanda**, **Como chegou** e **Primeira interação**. Campos obrigatórios
-levam um asterisco, e se faltar algo o aviso aparece junto do próprio campo. Informe como o contato
+levam um asterisco, e se faltar algo o aviso aparece junto do próprio campo. E-mail e telefone
+são conferidos ao sair do campo (o telefone se formata sozinho, com DDD), e **Quem indicou** só
+aparece quando a origem é **Indicação**. Informe como o contato
 chegou. Se foi uma
 indicação, selecione o canal **Indicação** e escolha **Quem indicou / parceiro**, quando houver um
 cadastro correspondente. Para site, cliente recorrente ou prospecção ativa, escolha o canal real —
@@ -91,7 +93,9 @@ virar negociação o card não volta para as colunas de prospecção.
 Para ver todas as ações combinadas de uma vez, abra **Comercial → Follow-ups**. A tela abre em
 **calendário**, na semana atual — use as setas e **Hoje** para navegar e **Mês** para a visão
 mensal. Cada ação mostra o horário, o tipo, o card e o responsável, e dá para concluí-la ali mesmo.
-Ações atrasadas aparecem num aviso no topo. O botão **Lista** troca para a visão agrupada em
+Cada ação ocupa três linhas: horário e tipo, cliente e demanda. Para reagendar, arraste a ação
+pela alça à esquerda até outro dia — o horário combinado se mantém. Ações atrasadas aparecem num
+aviso no topo. O botão **Lista** troca para a visão agrupada em
 *Atrasados*, *Hoje*, *Próximos 7 dias* e *Mais adiante*, onde também dá para reagendar (+1, +3 ou
 +7 dias). O botão **Meus** mostra só as suas.
 
