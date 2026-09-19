@@ -37,7 +37,7 @@ npm run smoke:historico-documento  # histórico por documento: agrupamento atôm
 
 - **Dev helper (Windows):** `dev.bat` (raiz) → *Central do Desenvolvedor* (`dev/gerenciar-dev.bat` + `.ps1`),
   menu pt-BR que envolve os scripts acima: **Verificar tudo** (lint+test+build com exit code real e guarda
-  anti-`next dev` na :3000), **Promover dev → produção** (merge direto ou via PR, com dry-run), status git
+  anti-`next dev` **desta pasta**), **Promover dev → produção** (merge direto ou via PR, com dry-run), status git
   (ahead/behind), commit Conventional, **Doctor** (checklist de ambiente), banco de dev, smokes e release.
   Espelha o `deploy/gerenciar-servidor.*` (que é do lado servidor). Auditoria em `logs/dev-audit.log`.
 - **Dev DB:** native PostgreSQL 17 on Windows, port **5433**, db `senahub_remake` (set `DATABASE_URL` in `.env`).

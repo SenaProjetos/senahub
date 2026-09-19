@@ -47,8 +47,8 @@ if /i "%~1"=="up"         ( powershell -NoProfile -ExecutionPolicy Bypass -File 
 if /i "%~1"=="server"     ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao DevServer & exit /b )
 if /i "%~1"=="ui"         ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao DevNext & exit /b )
 if /i "%~1"=="next"       ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao DevNext & exit /b )
-if /i "%~1"=="stop"       ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao PararDev & exit /b )
-if /i "%~1"=="kill"       ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao PararDev & exit /b )
+if /i "%~1"=="stop"       ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao PararDev -Alvo "%~2" & exit /b )
+if /i "%~1"=="kill"       ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao PararDev -Alvo "%~2" & exit /b )
 if /i "%~1"=="check"      ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Verificar & exit /b )
 if /i "%~1"=="verificar"  ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Verificar & exit /b )
 if /i "%~1"=="ci"         ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Verificar & exit /b )
@@ -63,8 +63,8 @@ if /i "%~1"=="sincronizar" ( powershell -NoProfile -ExecutionPolicy Bypass -File
 if /i "%~1"=="doctor"     ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Doctor & exit /b )
 if /i "%~1"=="studio"     ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Studio & exit /b )
 if /i "%~1"=="seed"       ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao DbSeed & exit /b )
-if /i "%~1"=="open"       ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Abrir & exit /b )
-if /i "%~1"=="abrir"      ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Abrir & exit /b )
+if /i "%~1"=="open"       ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Abrir -Alvo "%~2" & exit /b )
+if /i "%~1"=="abrir"      ( powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Abrir -Alvo "%~2" & exit /b )
 if /i "%~1"=="menu"       goto :menu
 if /i "%~1"=="subir" (
   set "DRY="
@@ -91,7 +91,8 @@ echo(
 echo Atalhos disponiveis (dev ^<atalho^>):
 echo   up ^| server      iniciar dev completo (chat/jobs/realtime)
 echo   ui ^| next         iniciar apenas o Next (UI)
-echo   stop ^| kill       parar o dev server (porta do .env + esbuild)
+echo   stop ^| kill       parar o dev server deste worktree (porta do .env + esbuild)
+echo                     stop outro ^| stop 3000  -^> o do outro worktree (pede confirmacao)
 echo   check ^| ci        verificar tudo (lint + testes + build)
 echo   test              so testes        lint    so lint
 echo   push              push da branch   st      status do repo
@@ -101,7 +102,7 @@ echo   pr [--dry]        promover via Pull Request
 echo   doctor            checar ambiente  studio  abrir Prisma Studio
 echo   seed              reaplicar seed   migrate ^<nome^>  criar migration
 echo   smoke ^<onda^>      rodar um smoke (onda1..onda5, onda3efg)
-echo   open              abrir no navegador     menu   abrir o menu interativo
+echo   open [outro]      abrir no navegador     menu   abrir o menu interativo
 echo(
 exit /b 1
 
@@ -145,8 +146,8 @@ echo(
 echo   DESENVOLVIMENTO
 echo    1. Iniciar dev (Next so - UI)
 echo    2. Iniciar dev completo (chat/jobs/realtime)
-echo    3. Parar dev server (libera a porta do .env + esbuild)
-echo    4. Abrir no navegador (localhost:porta do .env)
+echo    3. Parar dev server (escolhe o worktree; libera a porta + esbuild)
+echo    4. Abrir no navegador (escolhe o worktree)
 echo(
 echo   QUALIDADE
 echo    5. Verificar tudo (lint + testes + build)
