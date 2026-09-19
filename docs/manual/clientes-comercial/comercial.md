@@ -76,7 +76,9 @@ Clique no nome do card para abrir a **ficha** sem sair do quadro. Ela reúne, em
 os follow-ups, as propostas (com valor e desconto da versão vigente), os anexos e o histórico
 completo — o de uma negociação inclui o que aconteceu ainda na prospecção. Na aba **Dados** de uma
 negociação dá para ajustar demanda, responsável, temperatura, valor estimado, previsão de
-fechamento, parceiro, campanha, tipo de empreendimento e área. A probabilidade segue o estágio;
+fechamento, parceiro, campanha, tipo de empreendimento e área, além de marcar as **disciplinas de
+interesse** (com um valor opcional para cada) — é essa lista que o filtro por disciplina do funil
+usa. A probabilidade segue o estágio;
 marque **Definir manualmente** para fixar outro número. O link da ficha pode ser copiado e enviado
 a um colega.
 
