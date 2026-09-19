@@ -61,6 +61,7 @@ import {
   buscarEmpresaParaProspeccaoRapida,
   prospeccoesAtivasDoCliente,
   buscarContatoNaEmpresa,
+  leadsDoParceiro,
 } from "@/modules/comercial/queries";
 import {
   proximoNumeroProposta,
@@ -1080,6 +1081,20 @@ export async function obterTemplatosNotas() {
  * piso de quem abre o diálogo que chama isto), porque devolve nome + contagem de projetos de
  * empresas que talvez não apareçam para todo mundo.
  */
+/**
+ * Leads indicados por um parceiro — busca sob demanda ao expandir a linha na tela de gestão
+ * (F7.11). Fora de `defineAction` de propósito, mesmo padrão de `buscarEmpresaParaVincularAction`:
+ * é leitura, não mutação. `comercial:gerir` porque a página `/comercial/parceiros` já exige gerir.
+ */
+export async function leadsDoParceiroAction(parceiroId: string) {
+  "use server";
+  const { requireUser } = await import("@/lib/session");
+  const { can } = await import("@/lib/permissions");
+  const user = await requireUser();
+  if (!(await can(user, "comercial", "gerir"))) return [];
+  return leadsDoParceiro(parceiroId);
+}
+
 export async function buscarEmpresaParaVincularAction(input: unknown) {
   "use server";
   const { requireUser } = await import("@/lib/session");

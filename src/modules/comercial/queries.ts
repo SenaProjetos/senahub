@@ -250,6 +250,30 @@ export async function parceirosAtivos() {
   });
 }
 
+/** Leads indicados por um parceiro, mais recente primeiro — a linha expandida da tela de gestão. */
+export async function leadsDoParceiro(parceiroId: string) {
+  const leads = await prisma.lead.findMany({
+    where: { parceiroId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      nome: true,
+      status: true,
+      valorEstimado: true,
+      createdAt: true,
+      cliente: { select: { nome: true } },
+    },
+  });
+  // `valorEstimado` é Decimal — vira Number antes de atravessar a fronteira da Server Action
+  // (mesmo padrão do resto do módulo: Decimal não serializa de volta pro client como número).
+  return leads.map((l) => ({
+    ...l,
+    valorEstimado: l.valorEstimado != null ? Number(l.valorEstimado) : null,
+    createdAt: l.createdAt.toISOString(),
+  }));
+}
+export type LeadDoParceiro = Awaited<ReturnType<typeof leadsDoParceiro>>[number];
+
 // ── Campanhas (F4.2) ──────────────────────────────────────────────
 /** Todas, ativas e inativas — para a tela de gestão. */
 export async function listarCampanhas() {
