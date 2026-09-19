@@ -26,7 +26,7 @@ export default async function FollowUpsPage({
           responsável
         </p>
       </div>
-      <AlternanciaVisaoComercial meus={meus} />
+      <AlternanciaVisaoComercial meus={meus} basePath="/comercial/follow-ups" />
       <FollowUpsView itens={itens} truncado={truncado} />
     </div>
   );
