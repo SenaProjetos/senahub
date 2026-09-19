@@ -22,6 +22,22 @@ export type ItemAcao = {
   responsavel?: { name: string; image: string | null } | null;
 };
 
+/** Concluir uma próxima ação — compartilhado entre a linha da lista e o calendário. */
+export function useConcluirAcao(compromissoId: string) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  function concluir() {
+    start(async () => {
+      const r = await concluirProximaAcao({ compromissoId });
+      if (r.ok) {
+        toast.success("Ação concluída.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+  return { concluir, pending };
+}
+
 /**
  * Uma próxima ação com "concluir" e "reagendar +1/3/7 dias" — usada no Meu Dia da Home e na tela
  * de Follow-ups. O estado do reagendamento é da linha, não da lista.
@@ -30,16 +46,7 @@ export function AcaoLinha({ item, atrasada }: { item: ItemAcao; atrasada?: boole
   const router = useRouter();
   const [pending, start] = useTransition();
   const [reagendando, setReagendando] = useState(false);
-
-  function concluir() {
-    start(async () => {
-      const r = await concluirProximaAcao({ compromissoId: item.id });
-      if (r.ok) {
-        toast.success("Ação concluída.");
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
+  const { concluir, pending: concluindo } = useConcluirAcao(item.id);
 
   function reagendar(dias: number) {
     const novo = new Date(Date.now() + dias * 86_400_000);
@@ -84,7 +91,7 @@ export function AcaoLinha({ item, atrasada }: { item: ItemAcao; atrasada?: boole
             <Clock className="size-3.5" />
           </Button>
         )}
-        <Button size="icon" variant="ghost" className="size-6" title="Concluir" aria-label="Concluir" disabled={pending} onClick={concluir}>
+        <Button size="icon" variant="ghost" className="size-6" title="Concluir" aria-label="Concluir" disabled={pending || concluindo} onClick={concluir}>
           <CheckCircle2 className="size-3.5" />
         </Button>
       </div>

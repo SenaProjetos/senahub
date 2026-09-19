@@ -1,19 +1,23 @@
 "use client";
 
-import { useMemo } from "react";
-import { CalendarClock } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CalendarClock, CalendarDays, List } from "lucide-react";
 import type { FollowUpComercial } from "@/modules/comercial/queries";
 import {
   ORDEM_GRUPOS_FOLLOWUP,
   ROTULO_GRUPO_FOLLOWUP,
   agruparFollowUps,
 } from "@/modules/comercial/follow-ups";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AcaoLinha } from "./acao-linha";
+import { FollowUpsCalendario } from "./follow-ups-calendario";
 
+type Modo = "calendario" | "lista";
+
+/** Calendário é a visão principal; a lista agrupada por urgência continua a um clique. */
 export function FollowUpsView({ itens, truncado }: { itens: FollowUpComercial[]; truncado: boolean }) {
-  const agora = useMemo(() => new Date(), []);
-  const grupos = useMemo(() => agruparFollowUps(itens, agora), [itens, agora]);
+  const [modo, setModo] = useState<Modo>("calendario");
 
   if (itens.length === 0) {
     return (
@@ -24,6 +28,36 @@ export function FollowUpsView({ itens, truncado }: { itens: FollowUpComercial[];
       />
     );
   }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-1" role="group" aria-label="Forma de exibição">
+        <Button size="sm" variant={modo === "calendario" ? "secondary" : "outline"} aria-pressed={modo === "calendario"} onClick={() => setModo("calendario")}>
+          <CalendarDays className="size-3.5" /> Calendário
+        </Button>
+        <Button size="sm" variant={modo === "lista" ? "secondary" : "outline"} aria-pressed={modo === "lista"} onClick={() => setModo("lista")}>
+          <List className="size-3.5" /> Lista
+        </Button>
+      </div>
+
+      {modo === "calendario" ? (
+        <FollowUpsCalendario itens={itens} onVerAtrasados={() => setModo("lista")} />
+      ) : (
+        <ListaFollowUps itens={itens} />
+      )}
+
+      {truncado && (
+        <p className="text-xs text-muted-foreground">
+          Mostrando as ações mais antigas. Conclua ou reagende algumas para ver as seguintes.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ListaFollowUps({ itens }: { itens: FollowUpComercial[] }) {
+  const agora = useMemo(() => new Date(), []);
+  const grupos = useMemo(() => agruparFollowUps(itens, agora), [itens, agora]);
 
   return (
     <div className="space-y-5">
@@ -38,11 +72,6 @@ export function FollowUpsView({ itens, truncado }: { itens: FollowUpComercial[];
             ))}
           </section>
         ),
-      )}
-      {truncado && (
-        <p className="text-xs text-muted-foreground">
-          Mostrando as ações mais antigas. Conclua ou reagende algumas para ver as seguintes.
-        </p>
       )}
     </div>
   );
