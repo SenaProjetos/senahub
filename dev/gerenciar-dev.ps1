@@ -59,6 +59,15 @@ function Get-PortaDev {
 }
 $PortaDev = Get-PortaDev
 
+# Prefixo do cookie de sessao deste worktree (AUTH_COOKIE_PREFIX; src/lib/auth-cookie.ts). Ausente ou
+# invalido = o padrao do better-auth, o mesmo de quem nao configurou nada.
+function Get-PrefixoCookie {
+    param([string]$Raiz = $AppRoot)
+    $v = Get-EnvValue -Key "AUTH_COOKIE_PREFIX" -Raiz $Raiz
+    if ($v -match '^[A-Za-z0-9_-]{1,40}$') { return $v }
+    return "better-auth"
+}
+
 function Write-Audit {
     param([string]$AcaoNome, [string]$Detalhe = "")
     $linha = "{0} | {1} | {2} | {3}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $env:USERNAME, $AcaoNome, $Detalhe
@@ -1258,6 +1267,16 @@ function Invoke-Doctor {
             Write-Host ("  [ATENCAO] {0} usa a porta {1}, mas PORT e {2}" -f $k, $Matches[2], $PortaDev) -ForegroundColor Yellow
             $problemas += "$k fora da porta do PORT"
         }
+    }
+    # Cookie de localhost nao distingue porta: worktrees com o MESMO prefixo de cookie de sessao
+    # sobrescrevem o login um do outro (logar num derruba o outro, ou ERR_TOO_MANY_REDIRECTS).
+    $meuPrefixo = Get-PrefixoCookie
+    $colidem = @(Get-Worktrees | Where-Object { -not $_.Aqui -and (Get-PrefixoCookie -Raiz $_.Raiz) -eq $meuPrefixo })
+    if ($colidem.Count -gt 0) {
+        Write-Host ("  [ATENCAO] Cookie de sessao '{0}' igual ao de: {1}. Defina AUTH_COOKIE_PREFIX diferente no .env (ex.: senahub-vscode)." -f $meuPrefixo, (($colidem | ForEach-Object { $_.Nome }) -join ", ")) -ForegroundColor Yellow
+        $problemas += "AUTH_COOKIE_PREFIX igual ao de outro worktree"
+    } elseif (@(Get-Worktrees).Count -gt 1) {
+        Write-Host ("  [OK]   Cookie de sessao proprio ('{0}')" -f $meuPrefixo) -ForegroundColor Green
     }
 
     if (Test-Path (Join-Path $AppRoot "node_modules")) { Write-Host "  [OK]   node_modules presente" -ForegroundColor Green }

@@ -3,6 +3,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
+import { prefixoDoCookie } from "@/lib/auth-cookie";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "postgresql" }),
@@ -62,6 +63,9 @@ export const auth = betterAuth({
       ? [process.env.BETTER_AUTH_URL!]
       : undefined,
   advanced: {
+    // Nome do cookie de sessão por worktree (AUTH_COOKIE_PREFIX); sem a variável, o padrão do
+    // better-auth. O middleware lê o mesmo valor por src/lib/auth-cookie.ts.
+    cookiePrefix: prefixoDoCookie(),
     database: { generateId: false },
     ...(process.env.NODE_ENV !== "production" ? { disableCSRFCheck: true } : {}),
   },

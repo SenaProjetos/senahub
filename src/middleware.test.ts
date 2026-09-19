@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { middleware } from "./middleware";
 
@@ -41,5 +41,29 @@ describe("middleware de sessão", () => {
   it("rota pública passa sem cookie", () => {
     expect(pedir("/login").headers.get("location")).toBeNull();
     expect(pedir("/recuperar-senha").headers.get("location")).toBeNull();
+  });
+});
+
+// Cookie de localhost não distingue porta: sem prefixo próprio, o cookie de um worktree valia como
+// sessão no outro. Com AUTH_COOKIE_PREFIX cada servidor só reconhece o seu.
+describe("middleware com AUTH_COOKIE_PREFIX", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("reconhece o cookie do próprio prefixo", () => {
+    vi.stubEnv("AUTH_COOKIE_PREFIX", "senahub-vscode");
+    const res = pedir("/tarefas", "senahub-vscode.session_token=valor.assinatura");
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("NÃO reconhece o cookie de outro worktree (prefixo padrão) — pede login", () => {
+    vi.stubEnv("AUTH_COOKIE_PREFIX", "senahub-vscode");
+    const res = pedir("/tarefas", COOKIE);
+    expect(res.status).toBe(307);
+    expect(new URL(res.headers.get("location")!).pathname).toBe("/login");
+  });
+
+  it("sem a variável, continua reconhecendo o cookie padrão (produção não muda)", () => {
+    vi.stubEnv("AUTH_COOKIE_PREFIX", "");
+    expect(pedir("/tarefas", COOKIE).headers.get("location")).toBeNull();
   });
 });

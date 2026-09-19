@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
+import { prefixoDoCookie } from "@/lib/auth-cookie";
 
 // Rotas públicas (não exigem sessão).
 // "/p","/api/p" = inputs do cliente; "/a","/api/t" = proposta pública + pixel; "/api/health" = monitoramento.
@@ -11,7 +12,9 @@ function isPublic(pathname: string): boolean {
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const hasSession = getSessionCookie(req);
+  // O prefixo tem de ser o MESMO do auth.ts: cada worktree tem o seu cookie (AUTH_COOKIE_PREFIX),
+  // senão um dev server enxerga o cookie do outro (cookie de localhost não distingue porta).
+  const hasSession = getSessionCookie(req, { cookiePrefix: prefixoDoCookie() });
   // server.ts roda um HTTP server customizado (não "next start"), então
   // req.nextUrl.origin reflete o hostname/porta internos do bind (ex.:
   // localhost:3000), não o domínio público por trás do Cloudflare Tunnel.
