@@ -250,5 +250,7 @@ export function camposVaziosCitadosPeloModelo(schema: DocSchema, doc: DocumentoP
     }
   }
 
-  return [...faltando].map((c) => ROTULO_CAMPO[c] ?? c);
+  // Três tokens de validade (data, dias, extenso) têm o mesmo rótulo: sem deduplicar a mensagem
+  // diria "Validade, Validade".
+  return [...new Set([...faltando].map((c) => ROTULO_CAMPO[c] ?? c))];
 }

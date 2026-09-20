@@ -10,7 +10,8 @@ import { getConfigComercial } from "../config/queries";
 import { exigeJustificativaDesconto } from "../config/padroes";
 import { escolherClausula } from "./clausulas";
 import { lerPagamentoDoModelo, resolverSecoesDoModelo, ROTULO_SECAO } from "./modelos";
-import { calcularParcelas, somaPercentuais } from "./parcelas";
+import { somaPercentuais } from "./parcelas";
+import { carregarDocumentoProposta } from "./documento-dados";
 
 /**
  * Proposta composta (ADR-0006, G4): montada no sistema a partir de modelo + biblioteca, com o
@@ -353,30 +354,20 @@ export async function salvarPropostaComposta(
 /**
  * Porta única entre "rascunho" e "documento": recusa o que não pode virar proposta enviada.
  *
- * Chamada antes de enviar e antes de renderizar o documento. É aqui que o plano de pagamento
- * PRECISA fechar 100% — foi o plano que não fechava que cobrou R$ 4.750 a mais de um cliente.
+ * É a MESMA lista de impedimentos que a página pública aplica (`carregarDocumentoProposta`), e
+ * não uma checagem própria: o que o cliente não consegue abrir também não pode ser enviado. Uma
+ * checagem separada divergiria — enviar seria permitido enquanto o link responde 404, e o
+ * cliente receberia um e-mail com um link morto. Cobre o plano fora de 100% (o erro que cobrou
+ * R$ 4.750 a mais de um cliente), a empresa sem cadastro, o campo em branco citado pelo texto ou
+ * pelo layout e a proposta sem seção.
+ *
+ * Chamada por `enviarPropostaEmail` e por `mudarStatusProposta` para `enviada`.
  */
 export async function garantirPropostaEnviavel(propostaId: string): Promise<void> {
-  const p = await prisma.proposta.findUnique({
-    where: { id: propostaId },
-    select: {
-      formato: true,
-      itens: { select: { valor: true } },
-      parcelas: { select: { descricao: true, percentual: true, prazo: true }, orderBy: { ordem: "asc" } },
-      versoes: { orderBy: { numero: "desc" }, take: 1, select: { valorVersao: true } },
-    },
-  });
-  if (!p) throw new ActionError("Proposta não encontrada.");
-  if (p.formato !== "composta") return;
-  if (p.itens.length === 0) throw new ActionError("A proposta não tem nenhuma disciplina com valor.");
-
-  const total = p.versoes[0]?.valorVersao != null ? Number(p.versoes[0].valorVersao) : null;
-  if (total === null || total <= 0) throw new ActionError("A proposta está sem valor total.");
-  if (p.parcelas.length === 0) throw new ActionError("A proposta está sem plano de pagamento.");
-
-  const r = calcularParcelas(
-    total,
-    p.parcelas.map((x) => ({ descricao: x.descricao, percentual: Number(x.percentual), prazo: x.prazo ?? undefined })),
+  const doc = await carregarDocumentoProposta(propostaId);
+  if (!doc) return; // não é composta: outros formatos têm o próprio caminho
+  if (doc.impedimentos.length === 0) return;
+  throw new ActionError(
+    `A proposta ainda não pode ser enviada: ${doc.impedimentos.join(" ")} Use "Pré-visualizar" para conferir.`,
   );
-  if (!r.ok) throw new ActionError(r.mensagem);
 }

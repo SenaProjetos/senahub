@@ -6,6 +6,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { smtpConfigurado } from "@/lib/mail";
 import { arquivarPdfDaVersao } from "@/modules/comercial/pdf-proposta";
+import { garantirPropostaEnviavel } from "@/modules/comercial/proposta-composta/service";
 import { enviarEmailTemplate } from "@/lib/email-templates";
 import {
   criarLeadSchema,
@@ -683,6 +684,8 @@ export const mudarStatusProposta = defineAction(
     if (i.status === "aceita") {
       throw new ActionError("Use a ação de aceitar (gera o projeto).");
     }
+    // ADR-0006: composta com impedimento não vira "enviada" — o link dela responderia 404.
+    if (i.status === "enviada") await garantirPropostaEnviavel(i.id);
     const r = await servicoMudarStatusProposta(
       {
         id: i.id,
@@ -715,9 +718,23 @@ export const enviarPropostaEmail = defineAction(
       throw new ActionError("Proposta externa não tem link público — envie o PDF ao cliente por fora.");
     }
     if (!p.cliente.email) throw new ActionError("Cliente sem e-mail cadastrado.");
+    // ADR-0006: o e-mail leva o link público; se o documento tem impedimento o link responde
+    // 404, então recusa ANTES de mandar (depois não dá para desmandar).
+    if (p.formato === "composta") await garantirPropostaEnviavel(p.id);
 
     const url = `${process.env.APP_URL ?? ""}/a/proposta/${p.token}`;
-    const total = p.itens.reduce((s, it) => s + Number(it.valor), 0);
+    // Composta: o total é o da versão vigente (com desconto). A soma dos itens, que o editor
+    // antigo usa aqui, ignoraria o desconto e o e-mail diria um valor maior que o da proposta.
+    const vigente =
+      p.formato === "composta"
+        ? await prisma.propostaVersao.findFirst({
+            where: { propostaId: p.id },
+            orderBy: { numero: "desc" },
+            select: { valorVersao: true },
+          })
+        : null;
+    const total =
+      vigente?.valorVersao != null ? Number(vigente.valorVersao) : p.itens.reduce((s, it) => s + Number(it.valor), 0);
     const ok = await enviarEmailTemplate(p.cliente.email, "proposta-cliente", {
       nomeCliente: p.cliente.nome,
       numero: p.numero,

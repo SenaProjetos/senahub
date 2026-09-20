@@ -4,8 +4,13 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Eye, GripVertical, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Eye, GripVertical, Link2, MessageSquareText, Plus, Save, Send, Trash2, X } from "lucide-react";
 import { salvarPropostaCompostaAction } from "@/modules/comercial/proposta-composta/actions";
+import { aceitarProposta, enviarPropostaEmail, mudarStatusProposta } from "@/modules/comercial/actions";
+import type { MotivoPerdaOpcao } from "@/modules/comercial/queries";
+import { STATUS_PROPOSTA_LABEL } from "@/modules/comercial/labels";
+import { STATUS_PROPOSTA_TONE } from "./propostas-view";
+import { MotivoRecusaPropostaDialog } from "./motivo-recusa-proposta-dialog";
 import { ROTULO_SECAO, SECOES_ORDEM } from "@/modules/comercial/proposta-composta/modelos";
 import { calcularParcelas, rotuloPercentual, somaPercentuais } from "@/modules/comercial/proposta-composta/parcelas";
 import type { PropostaCompostaEditor } from "@/modules/comercial/proposta-composta/queries";
@@ -36,13 +41,20 @@ export function ComporPropostaView({
   proposta,
   disciplinas,
   descontoMaxSemJustificativa,
+  baseUrl,
+  motivosPerda,
 }: {
   proposta: PropostaCompostaEditor;
   disciplinas: string[];
   descontoMaxSemJustificativa: number;
+  baseUrl: string;
+  motivosPerda: MotivoPerdaOpcao[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [recusando, setRecusando] = useState(false);
+  const aceita = proposta.status === "aceita";
+  const linkPublico = `${baseUrl}/a/proposta/${proposta.token}`;
 
   const [titulo, setTitulo] = useState(proposta.titulo);
   const [obraEndereco, setObraEndereco] = useState(proposta.obraEndereco);
@@ -99,6 +111,47 @@ export function ComporPropostaView({
     });
   }
 
+  // As três ações abaixo passam pelas MESMAS actions do editor antigo: mesmo gate, mesma
+  // auditoria, mesma timeline. A guarda de "enviável" (plano em 100%, empresa, campo em branco)
+  // vive no servidor — o botão nunca é a única barreira.
+  function status(
+    s: "em_negociacao" | "recusada",
+    motivo?: { motivoPerdaId: string; concorrente: string; observacaoRecusa: string },
+  ) {
+    start(async () => {
+      const r = await mudarStatusProposta({ id: proposta.id, status: s, ...motivo });
+      if (r.ok) {
+        toast.success("Status atualizado.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  function enviarPorEmail() {
+    start(async () => {
+      const r = await enviarPropostaEmail({ id: proposta.id });
+      if (r.ok) {
+        toast.success("Proposta enviada por e-mail.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  function aceitar() {
+    start(async () => {
+      const r = await aceitarProposta({ id: proposta.id });
+      if (r.ok) {
+        toast.success(`Projeto ${r.data.codigo} criado com canais de chat.`);
+        router.push(`/projetos/${r.data.projetoId}`);
+      } else toast.error(r.error);
+    });
+  }
+
+  async function copiarLink() {
+    await navigator.clipboard.writeText(linkPublico);
+    toast.success("Link copiado.");
+  }
+
   return (
     <div className="space-y-4 pb-16">
       <div className="flex flex-wrap items-center gap-2">
@@ -115,12 +168,16 @@ export function ComporPropostaView({
           <h2 className="truncate text-xl font-extrabold tracking-tight">
             {proposta.numero} · {proposta.clienteNome}
           </h2>
-          <p className="text-xs text-muted-foreground">
+          <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <StatusBadge tone={STATUS_PROPOSTA_TONE[proposta.status] ?? "neutral"}>
+              {STATUS_PROPOSTA_LABEL[proposta.status as keyof typeof STATUS_PROPOSTA_LABEL] ?? proposta.status}
+            </StatusBadge>
             {proposta.modeloNome ? `Modelo: ${proposta.modeloNome} · ` : ""}
-            {proposta.versao != null ? `versão ${proposta.versao}` : "sem versão"} · status {proposta.status}
+            {proposta.versao != null ? `versão ${proposta.versao}` : "sem versão"}
+            {proposta.aberturas > 0 ? ` · ${proposta.aberturas} abertura(s)` : ""}
           </p>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -128,11 +185,45 @@ export function ComporPropostaView({
           >
             <Eye className="size-4" /> Pré-visualizar
           </Button>
-          <Button size="sm" onClick={salvar} disabled={pending}>
+          <Button variant="outline" size="sm" onClick={copiarLink}>
+            <Link2 className="size-4" /> Link
+          </Button>
+          {!aceita && (
+            <>
+              <Button variant="outline" size="sm" onClick={enviarPorEmail} disabled={pending}>
+                <Send className="size-4" /> E-mail
+              </Button>
+              {/* Só depois de enviada faz sentido "em negociação": é o cliente respondendo. */}
+              {proposta.status === "enviada" && (
+                <Button variant="outline" size="sm" onClick={() => status("em_negociacao")} disabled={pending}>
+                  <MessageSquareText className="size-4" /> Em negociação
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => setRecusando(true)} disabled={pending}>
+                <X className="size-4" /> Recusar
+              </Button>
+              <Button size="sm" onClick={aceitar} disabled={pending}>
+                <Check className="size-4" /> Aceitar → projeto
+              </Button>
+            </>
+          )}
+          {aceita && proposta.projetoId && (
+            <Button size="sm" render={<Link href={`/projetos/${proposta.projetoId}`} />}>
+              Ver projeto
+            </Button>
+          )}
+          <Button size="sm" onClick={salvar} disabled={pending || aceita}>
             <Save className="size-4" /> {pending ? "Salvando…" : "Salvar versão"}
           </Button>
         </div>
       </div>
+
+      {aceita && (
+        <p className="rounded-sm border bg-muted/40 p-2 text-sm text-muted-foreground">
+          Proposta aceita: ela deu origem ao projeto e não pode mais ser editada. Para mudar algo,
+          crie uma nova proposta.
+        </p>
+      )}
 
       <Card>
         <CardHeader>
@@ -442,6 +533,17 @@ export function ComporPropostaView({
           </div>
         </CardContent>
       </Card>
+      {recusando && (
+        <MotivoRecusaPropostaDialog
+          numero={proposta.numero}
+          motivos={motivosPerda}
+          onCancelar={() => setRecusando(false)}
+          onConfirmar={(motivoPerdaId, concorrente, observacaoRecusa) => {
+            setRecusando(false);
+            status("recusada", { motivoPerdaId, concorrente, observacaoRecusa });
+          }}
+        />
+      )}
     </div>
   );
 }

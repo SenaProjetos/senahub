@@ -222,3 +222,11 @@ describe("camposVaziosCitadosPeloModelo", () => {
     expect(camposVaziosCitadosPeloModelo(schema, montarDocumento(proposta, empresa, HOJE))).not.toContain("Disciplina");
   });
 });
+
+describe("camposVaziosCitadosPeloModelo — mensagem", () => {
+  it("proposta sem validade cita 'Validade' UMA vez (data, dias e extenso têm o mesmo rótulo)", () => {
+    const sem = montarDocumento({ ...proposta, validade: null }, empresa, HOJE);
+    const faltando = camposVaziosCitadosPeloModelo(modeloDocumentoProposta(), sem);
+    expect(faltando.filter((c) => c === "Validade")).toHaveLength(1);
+  });
+});

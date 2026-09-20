@@ -131,6 +131,11 @@ export type PropostaCompostaEditor = {
   status: string;
   clienteNome: string;
   negociacaoId: string | null;
+  /** Token do link público (`/a/proposta/[token]`). */
+  token: string;
+  /** Projeto gerado no aceite, quando aceita. */
+  projetoId: string | null;
+  aberturas: number;
   modeloNome: string | null;
   obraEndereco: string;
   obraCidade: string;
@@ -156,6 +161,7 @@ export async function propostaCompostaParaEditor(id: string): Promise<PropostaCo
       secoes: { orderBy: { ordem: "asc" } },
       parcelas: { orderBy: { ordem: "asc" } },
       versoes: { orderBy: { numero: "desc" }, take: 1, select: { numero: true, desconto: true } },
+      _count: { select: { visualizacoes: true } },
     },
   });
   if (!p || p.formato !== "composta") return null;
@@ -166,6 +172,9 @@ export async function propostaCompostaParaEditor(id: string): Promise<PropostaCo
     status: p.status,
     clienteNome: p.cliente.nome,
     negociacaoId: p.negociacaoId,
+    token: p.token,
+    projetoId: p.projetoId,
+    aberturas: p._count.visualizacoes,
     modeloNome: p.modelo?.nome ?? null,
     obraEndereco: p.obraEndereco ?? "",
     obraCidade: p.obraCidade ?? "",
