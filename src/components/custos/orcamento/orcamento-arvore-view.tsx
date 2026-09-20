@@ -3,34 +3,43 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  Plus,
-  FolderPlus,
-  Pencil,
-  Trash2,
-  ChevronUp,
-  ChevronDown,
-  Lock,
-  LockOpen,
-  Link2,
-  ListTree,
-  MoreHorizontal,
-  Box,
-} from "lucide-react";
+import { Plus, FolderPlus, Pencil, Lock, Link2, ListTree, Box } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import type { AcaoItemAcao } from "@/components/ui/acoes";
+import { BotaoAcoes } from "@/components/ui/acoes-menu";
+import { BarraSelecao } from "@/components/ui/barra-selecao";
+import { BotaoSelecionados } from "@/components/ui/botao-selecionados";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
+import { LinhaComMenu } from "@/components/ui/linha-com-menu";
+import { useLote } from "@/components/ui/use-lote";
+import { useSelecao } from "@/components/ui/use-selecao";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { brl } from "@/lib/utils";
 import { moverItem, excluirItem, alternarTrava } from "@/modules/custos/orcamento/actions";
 import type { ArvoreOrcamento, ItemArvore } from "@/modules/custos/orcamento/queries";
+import {
+  ACAO_DESCER,
+  ACAO_DESTRAVAR,
+  ACAO_EDITAR,
+  ACAO_EXCLUIR,
+  ACAO_LOTE_DESTRAVAR,
+  ACAO_LOTE_EXCLUIR,
+  ACAO_LOTE_TRAVAR,
+  ACAO_SERVICO_COMPOSICAO,
+  ACAO_SERVICO_INSUMO,
+  ACAO_SUBGRUPO,
+  ACAO_SUBIR,
+  ACAO_TRAVAR,
+  ACAO_VINCULAR_COMPOSICAO,
+  ACAO_VINCULAR_INSUMO,
+  itensDeItemOrcamento,
+  itensDeLoteItensOrcamento,
+  semDescendentesDeSelecionados,
+} from "@/modules/custos/orcamento/acoes-item";
 import { ItemDialog, type AlvoItem } from "./item-dialog";
 import { BuscaBancoDialog } from "./busca-banco-dialog";
 import { VerNoModeloDialog } from "../quantitativos/ver-no-modelo-dialog";
@@ -58,6 +67,10 @@ export function OrcamentoArvoreView({
   const router = useRouter();
   const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
+  // Seleção compartilhada (ADR-0002, regra 3): o menu de contexto age sobre ela. "Selecionados (N)"
+  // mostra só os marcados.
+  const selecao = useSelecao();
+  const lote = useLote();
 
   const [alvo, setAlvo] = useState<AlvoItem | null>(null);
   const [itemDialogAberto, setItemDialogAberto] = useState(false);
@@ -125,12 +138,73 @@ export function OrcamentoArvoreView({
     });
   }
 
+  /** Marcados que ainda existem (a árvore muda quando alguém exclui). */
+  const alvosSelecao = arvore.itens.filter((i) => selecao.marcado(i.id));
+  const itensDoLote = itensDeLoteItensOrcamento(alvosSelecao);
+  const itensVisiveis = selecao.soSelecionados ? alvosSelecao : arvore.itens;
+
+  async function executarLote(item: AcaoItemAcao) {
+    const nomes = new Map(alvosSelecao.map((i) => [i.id, i.descricao]));
+    const rotulo = (id: string) => nomes.get(id) ?? id;
+    if (item.id === ACAO_LOTE_TRAVAR || item.id === ACAO_LOTE_DESTRAVAR) {
+      const travando = item.id === ACAO_LOTE_TRAVAR;
+      await lote.executar({
+        // Grupos não têm preço; e só entram os que estão no estado de partida certo.
+        ids: alvosSelecao.filter((i) => i.tipo !== "grupo" && i.bloqueado !== travando).map((i) => i.id),
+        acao: (id) => alternarTrava({ id, bloqueado: travando }),
+        substantivo: ["item", "itens"],
+        verbo: travando ? ["travado", "travados"] : ["destravado", "destravados"],
+        rotulo,
+        aoConcluir: selecao.limpar,
+      });
+    } else if (item.id === ACAO_LOTE_EXCLUIR) {
+      // Excluir o pai já leva o filho: o filho marcado junto não entra, senão falharia depois.
+      const raizes = semDescendentesDeSelecionados(alvosSelecao, arvore.itens);
+      const comFilhos = raizes.some((r) => arvore.itens.some((i) => i.parentId === r.id));
+      await lote.executar({
+        ids: raizes.map((i) => i.id),
+        acao: (id) => excluirItem({ id }),
+        substantivo: ["item", "itens"],
+        verbo: ["excluído", "excluídos"],
+        rotulo,
+        confirmar: {
+          titulo: (n) => `Excluir ${n} ${n === 1 ? "item" : "itens"}?`,
+          descricao: comFilhos
+            ? "Os grupos levam a subárvore inteira junto, inclusive os itens filhos que também estão marcados. Não pode ser desfeito."
+            : "Os itens saem do orçamento. Não pode ser desfeito.",
+          rotuloConfirmar: item.confirmar?.rotuloConfirmar,
+          destrutivo: true,
+        },
+        aoConcluir: selecao.limpar,
+      });
+    }
+  }
+
+  /** Ação de UM item (ou do lote, quando o item vem do menu de uma seleção de várias). */
+  function aoSelecionarNaLinha(item: ItemArvore, acao: AcaoItemAcao) {
+    if (acao.id.startsWith("lote-")) {
+      void executarLote(acao);
+      return;
+    }
+    if (acao.id === ACAO_SUBGRUPO) abrirCriarGrupo(item);
+    else if (acao.id === ACAO_SERVICO_COMPOSICAO) abrirNovoServico(item, "composicao");
+    else if (acao.id === ACAO_SERVICO_INSUMO) abrirNovoServico(item, "insumo");
+    else if (acao.id === ACAO_EDITAR) abrirEditar(item);
+    else if (acao.id === ACAO_VINCULAR_COMPOSICAO) setVinculoAlvo({ item, fonte: "composicao" });
+    else if (acao.id === ACAO_VINCULAR_INSUMO) setVinculoAlvo({ item, fonte: "insumo" });
+    else if (acao.id === ACAO_SUBIR) mover(item, "cima");
+    else if (acao.id === ACAO_DESCER) mover(item, "baixo");
+    else if (acao.id === ACAO_TRAVAR || acao.id === ACAO_DESTRAVAR) alternarTravaItem(item);
+    else if (acao.id === ACAO_EXCLUIR) void excluir(item);
+  }
+
   if (arvore.erro) {
     return <p className="text-sm text-destructive">Erro na árvore do orçamento: {arvore.erro}</p>;
   }
 
   return (
     <div className="space-y-4">
+      {podeGerir && <DicaMenuContexto />}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold">Planilha orçamentária</h3>
@@ -140,6 +214,11 @@ export function OrcamentoArvoreView({
         </div>
         {podeGerir && (
           <div className="flex items-center gap-2">
+            <BotaoSelecionados
+              total={selecao.total}
+              ativo={selecao.soSelecionados}
+              onChange={selecao.verSelecionados}
+            />
             <Button size="sm" variant="outline" disabled={!temBasePreco} onClick={() => abrirNovoServicoRaiz("composicao")}>
               <Link2 className="size-4" /> Vincular composição
             </Button>
@@ -170,6 +249,15 @@ export function OrcamentoArvoreView({
           <Table>
             <TableHeader>
               <TableRow>
+                {podeGerir && (
+                  <TableHead className="w-8 pr-0">
+                    <Checkbox
+                      checked={selecao.estadoDaPagina(arvore.itens.map((i) => i.id)) === "todos"}
+                      onCheckedChange={() => selecao.alternarPagina(arvore.itens.map((i) => i.id))}
+                      aria-label="Marcar todos os itens da planilha"
+                    />
+                  </TableHead>
+                )}
                 <TableHead className="w-20">Item</TableHead>
                 <TableHead className="w-24">Código</TableHead>
                 <TableHead className="w-28">Banco</TableHead>
@@ -183,10 +271,38 @@ export function OrcamentoArvoreView({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {arvore.itens.map((item) => {
+              {itensVisiveis.map((item) => {
                 const ehGrupo = item.tipo === "grupo";
+                // Quem só lê a planilha não recebe menu: o botão direito fica com o navegador.
+                const menuItens = !podeGerir
+                  ? []
+                  : alvosSelecao.length > 1 && selecao.marcado(item.id)
+                    ? itensDoLote
+                    : itensDeItemOrcamento(item, { temBasePreco });
                 return (
-                  <TableRow key={item.id} className={`group ${ehGrupo ? "bg-muted/40 font-medium" : ""}`}>
+                  <LinhaComMenu
+                    key={item.id}
+                    itens={menuItens}
+                    onSelect={(acao) => aoSelecionarNaLinha(item, acao)}
+                    aoAbrir={(aberto) => {
+                      if (aberto && podeGerir) selecao.aoAbrirMenu(item.id);
+                    }}
+                    render={
+                      <TableRow
+                        data-marcada={selecao.marcado(item.id)}
+                        className={`group data-[marcada=true]:bg-accent/40 data-[popup-open]:bg-muted/50 ${ehGrupo ? "bg-muted/40 font-medium" : ""}`}
+                      />
+                    }
+                  >
+                    {podeGerir && (
+                      <TableCell className="pr-0">
+                        <Checkbox
+                          checked={selecao.marcado(item.id)}
+                          onCheckedChange={() => selecao.alternar(item.id)}
+                          aria-label={`Selecionar ${item.descricao}`}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell className="font-mono text-xs">{item.codigo}</TableCell>
                     <TableCell className="font-mono text-xs">
                       {item.composicaoCodigo ? (
@@ -255,81 +371,28 @@ export function OrcamentoArvoreView({
                               <Pencil className="size-4" />
                             </Button>
                           </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger
-                              render={
-                                <Button variant="ghost" size="icon" aria-label={`Ações de ${item.descricao}`} disabled={pending}>
-                                  <MoreHorizontal className="size-4" />
-                                </Button>
-                              }
-                            />
-                            <DropdownMenuContent align="end">
-                              {ehGrupo && (
-                                <>
-                                  <DropdownMenuItem onClick={() => abrirCriarGrupo(item)}>
-                                    <FolderPlus className="size-4" /> Subgrupo aqui
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => abrirNovoServico(item, "composicao")} disabled={!temBasePreco}>
-                                    <Plus className="size-4" /> Serviço (composição)
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => abrirNovoServico(item, "insumo")} disabled={!temBasePreco}>
-                                    <Plus className="size-4" /> Item (insumo)
-                                  </DropdownMenuItem>
-                                </>
-                              )}
-                              <DropdownMenuItem onClick={() => abrirEditar(item)}>
-                                <Pencil className="size-4" /> Editar
-                              </DropdownMenuItem>
-                              {!ehGrupo && (
-                                <>
-                                  <DropdownMenuItem onClick={() => setVinculoAlvo({ item, fonte: "composicao" })} disabled={!temBasePreco}>
-                                    <Link2 className="size-4" /> Vincular composição
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => setVinculoAlvo({ item, fonte: "insumo" })} disabled={!temBasePreco}>
-                                    <Link2 className="size-4" /> Vincular insumo
-                                  </DropdownMenuItem>
-                                </>
-                              )}
-                              <DropdownMenuItem onClick={() => mover(item, "cima")}>
-                                <ChevronUp className="size-4" /> Mover para cima
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => mover(item, "baixo")}>
-                                <ChevronDown className="size-4" /> Mover para baixo
-                              </DropdownMenuItem>
-                              {!ehGrupo && (
-                                <DropdownMenuItem onClick={() => alternarTravaItem(item)}>
-                                  {item.bloqueado ? (
-                                    <>
-                                      <LockOpen className="size-4" /> Destravar preço
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Lock className="size-4" /> Travar preço
-                                    </>
-                                  )}
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuItem onClick={() => excluir(item)}>
-                                <Trash2 className="size-4" /> Excluir
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <BotaoAcoes
+                            itens={menuItens}
+                            onSelect={(acao) => aoSelecionarNaLinha(item, acao)}
+                            rotulo={`Ações de ${item.descricao}`}
+                            className="size-8"
+                          />
                         </div>
                       </TableCell>
                     )}
-                  </TableRow>
+                  </LinhaComMenu>
                 );
               })}
 
               <TableRow className="border-t-2 font-bold">
-                <TableCell colSpan={8} className="text-right">
+                <TableCell colSpan={podeGerir ? 9 : 8} className="text-right">
                   Total sem BDI
                 </TableCell>
                 <TableCell className="text-right font-mono">{brl(arvore.totalSemBdi)}</TableCell>
                 {podeGerir && <TableCell />}
               </TableRow>
               <TableRow className="font-bold">
-                <TableCell colSpan={8} className="text-right">
+                <TableCell colSpan={podeGerir ? 9 : 8} className="text-right">
                   Total com BDI
                 </TableCell>
                 <TableCell className="text-right font-mono">{brl(arvore.totalComBdi)}</TableCell>
@@ -369,6 +432,18 @@ export function OrcamentoArvoreView({
       )}
 
       <p className="text-xs text-muted-foreground">* BDI definido no próprio item/grupo (não herdado).</p>
+
+      {podeGerir && (
+        <BarraSelecao
+          total={alvosSelecao.length}
+          itens={itensDoLote}
+          onSelect={(acao) => void executarLote(acao)}
+          onLimpar={selecao.limpar}
+          substantivo={["item", "itens"]}
+          progresso={lote.progresso}
+        />
+      )}
+      {lote.portal}
 
       <ItemDialog
         orcamentoId={orcamentoId}

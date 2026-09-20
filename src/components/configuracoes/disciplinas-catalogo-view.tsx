@@ -8,13 +8,9 @@ import {
   ArrowLeft,
   Plus,
   Pencil,
-  Archive,
-  ArchiveRestore,
-  Trash2,
   Upload,
   Shapes,
   Search,
-  MoreHorizontal,
   TriangleAlert,
   ChevronUp,
   ChevronDown,
@@ -41,13 +37,29 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
+import { BotaoAcoes } from "@/components/ui/acoes-menu";
+import { BarraSelecao } from "@/components/ui/barra-selecao";
+import { BotaoSelecionados } from "@/components/ui/botao-selecionados";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
+import { LinhaComMenu } from "@/components/ui/linha-com-menu";
+import { useLote } from "@/components/ui/use-lote";
+import { useSelecao } from "@/components/ui/use-selecao";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  ACAO_ARQUIVAR,
+  ACAO_DESARQUIVAR,
+  ACAO_DESCER,
+  ACAO_EDITAR,
+  ACAO_EXCLUIR,
+  ACAO_LOTE_ARQUIVAR,
+  ACAO_LOTE_DESARQUIVAR,
+  ACAO_LOTE_EXCLUIR,
+  ACAO_SUBIR,
+  excluiveis,
+  itensDeDisciplinaCatalogo,
+  itensDeLoteDisciplinas,
+} from "@/modules/projetos/acoes-catalogo-disciplina";
 import {
   Select,
   SelectContent,
@@ -122,6 +134,10 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
   const [busca, setBusca] = useState("");
   const [filtroCat, setFiltroCat] = useState<string>(TODAS);
   const [mostrarArquivadas, setMostrarArquivadas] = useState(false);
+  // Seleção compartilhada (ADR-0002, regra 3): o menu de contexto age sobre ela. Atravessa busca e
+  // filtros; "Selecionados (N)" mostra só os marcados, de qualquer filtro.
+  const selecao = useSelecao();
+  const lote = useLote();
 
   const categorias = useMemo(
     () => [...new Set(itens.map((i) => i.categoria).filter((c): c is string => !!c))].sort(),
@@ -132,6 +148,7 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
   const filtradas = useMemo(() => {
     const q = normalizar(busca);
     return itens.filter((i) => {
+      if (selecao.soSelecionados) return selecao.ids.has(i.id);
       if (!mostrarArquivadas && !i.ativo) return false;
       if (filtroCat !== TODAS && (i.categoria || SEM_CATEGORIA) !== filtroCat) return false;
       if (!q) return true;
@@ -141,7 +158,7 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
         normalizar(i.categoria ?? "").includes(q)
       );
     });
-  }, [itens, busca, filtroCat, mostrarArquivadas]);
+  }, [itens, busca, filtroCat, mostrarArquivadas, selecao.soSelecionados, selecao.ids]);
 
   // Agrupa por categoria; "Outras" por último.
   const grupos = useMemo(() => {
@@ -245,8 +262,63 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
     });
   }
 
+  /** Marcadas que ainda existem (a lista muda quando alguém exclui). */
+  const alvosSelecao = itens.filter((i) => selecao.marcado(i.id));
+  const itensDoLote = itensDeLoteDisciplinas(alvosSelecao);
+
+  async function executarLote(item: AcaoItemAcao) {
+    const nomes = new Map(alvosSelecao.map((d) => [d.id, d.nome]));
+    const rotulo = (id: string) => nomes.get(id) ?? id;
+    if (item.id === ACAO_LOTE_ARQUIVAR || item.id === ACAO_LOTE_DESARQUIVAR) {
+      const arquivando = item.id === ACAO_LOTE_ARQUIVAR;
+      // A action alterna o estado; por isso só entram as que estão no estado de partida certo.
+      await lote.executar({
+        ids: alvosSelecao.filter((d) => d.ativo === arquivando).map((d) => d.id),
+        acao: (id) => arquivarDisciplinaCatalogo({ id }),
+        substantivo: ["disciplina", "disciplinas"],
+        verbo: arquivando ? ["arquivada", "arquivadas"] : ["desarquivada", "desarquivadas"],
+        rotulo,
+        aoConcluir: selecao.limpar,
+      });
+    } else if (item.id === ACAO_LOTE_EXCLUIR) {
+      const livres = excluiveis(alvosSelecao);
+      const emUso = alvosSelecao.length - livres.length;
+      await lote.executar({
+        ids: livres.map((d) => d.id),
+        acao: (id) => excluirDisciplinaCatalogo({ id }),
+        substantivo: ["disciplina", "disciplinas"],
+        verbo: ["excluída", "excluídas"],
+        rotulo,
+        confirmar: {
+          titulo: (n) => `Excluir ${n} ${n === 1 ? "disciplina" : "disciplinas"}?`,
+          descricao:
+            emUso > 0
+              ? `${item.confirmar?.descricao ?? ""} ${emUso} ${emUso === 1 ? "está" : "estão"} em uso em projetos e ficam de fora — arquive-${emUso === 1 ? "a" : "as"}.`.trim()
+              : item.confirmar?.descricao,
+          rotuloConfirmar: item.confirmar?.rotuloConfirmar,
+          destrutivo: true,
+        },
+        aoConcluir: selecao.limpar,
+      });
+    }
+  }
+
+  /** Ação de UMA disciplina (ou do lote, quando o item vem do menu de uma seleção de várias). */
+  function aoSelecionarNaLinha(item: DisciplinaCatalogoAdmin, cimaId: string | null, baixoId: string | null, acao: AcaoItemAcao) {
+    if (acao.id.startsWith("lote-")) {
+      void executarLote(acao);
+      return;
+    }
+    if (acao.id === ACAO_EDITAR) setDialogo(paraForm(item));
+    else if (acao.id === ACAO_SUBIR && cimaId) mover(item, cimaId);
+    else if (acao.id === ACAO_DESCER && baixoId) mover(item, baixoId);
+    else if (acao.id === ACAO_ARQUIVAR || acao.id === ACAO_DESARQUIVAR) arquivar(item);
+    else if (acao.id === ACAO_EXCLUIR) void excluir(item);
+  }
+
   return (
     <div className="space-y-5">
+      <DicaMenuContexto />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <Link
@@ -294,6 +366,11 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
           <Switch checked={mostrarArquivadas} onCheckedChange={setMostrarArquivadas} />
           Arquivadas ({totalArquivadas})
         </label>
+        <BotaoSelecionados
+          total={selecao.total}
+          ativo={selecao.soSelecionados}
+          onChange={selecao.verSelecionados}
+        />
       </div>
 
       <Card>
@@ -314,6 +391,13 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-8 pr-0">
+                    <Checkbox
+                      checked={selecao.estadoDaPagina(filtradas.map((d) => d.id)) === "todos"}
+                      onCheckedChange={() => selecao.alternarPagina(filtradas.map((d) => d.id))}
+                      aria-label="Marcar todas as disciplinas da lista"
+                    />
+                  </TableHead>
                   <TableHead className="w-9" />
                   <TableHead>Disciplina</TableHead>
                   <TableHead className="w-16 text-center">Nº</TableHead>
@@ -330,20 +414,37 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
                     lista={lista}
                     onRenomear={categoria === SEM_CATEGORIA ? undefined : () => setRenomeando(categoria)}
                   >
-                    {lista.map((item, idx) => (
-                      <ItemLinha
-                        key={item.id}
-                        item={item}
-                        pending={pending}
-                        podeReordenar={!busca}
-                        vizinhoCimaId={idx > 0 ? lista[idx - 1].id : null}
-                        vizinhoBaixoId={idx < lista.length - 1 ? lista[idx + 1].id : null}
-                        onMover={(vizinhoId) => mover(item, vizinhoId)}
-                        onEditar={() => setDialogo(paraForm(item))}
-                        onArquivar={() => arquivar(item)}
-                        onExcluir={() => excluir(item)}
-                      />
-                    ))}
+                    {lista.map((item, idx) => {
+                      const cimaId = idx > 0 ? lista[idx - 1].id : null;
+                      const baixoId = idx < lista.length - 1 ? lista[idx + 1].id : null;
+                      const menuItens: AcaoItem[] =
+                        alvosSelecao.length > 1 && selecao.marcado(item.id)
+                          ? itensDoLote
+                          : itensDeDisciplinaCatalogo(item, {
+                              podeReordenar: !busca && !selecao.soSelecionados,
+                              temCima: !!cimaId,
+                              temBaixo: !!baixoId,
+                            });
+                      return (
+                        <ItemLinha
+                          key={item.id}
+                          item={item}
+                          pending={pending}
+                          podeReordenar={!busca && !selecao.soSelecionados}
+                          vizinhoCimaId={cimaId}
+                          vizinhoBaixoId={baixoId}
+                          marcado={selecao.marcado(item.id)}
+                          onAlternar={() => selecao.alternar(item.id)}
+                          aoAbrirMenu={(aberto) => {
+                            if (aberto) selecao.aoAbrirMenu(item.id);
+                          }}
+                          menuItens={menuItens}
+                          onSelect={(acao) => aoSelecionarNaLinha(item, cimaId, baixoId, acao)}
+                          onMover={(vizinhoId) => mover(item, vizinhoId)}
+                          onEditar={() => setDialogo(paraForm(item))}
+                        />
+                      );
+                    })}
                   </GrupoCategoria>
                 ))}
               </TableBody>
@@ -355,6 +456,17 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
       <p className="text-xs text-muted-foreground">
         {totalAtivas} ativa(s){totalArquivadas > 0 && ` · ${totalArquivadas} arquivada(s)`}.
       </p>
+
+      <BarraSelecao
+        total={alvosSelecao.length}
+        itens={itensDoLote}
+        onSelect={(item) => void executarLote(item)}
+        onLimpar={selecao.limpar}
+        substantivo={["disciplina", "disciplinas"]}
+        genero="f"
+        progresso={lote.progresso}
+      />
+      {lote.portal}
 
       {renomeando && (
         <RenomearCategoriaDialog
@@ -409,7 +521,7 @@ function GrupoCategoria({
   return (
     <>
       <TableRow className="bg-muted/40 hover:bg-muted/40">
-        <TableCell colSpan={6} className="py-1.5">
+        <TableCell colSpan={7} className="py-1.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{categoria}</span>
@@ -440,23 +552,42 @@ function ItemLinha({
   podeReordenar,
   vizinhoCimaId,
   vizinhoBaixoId,
+  marcado,
+  onAlternar,
+  aoAbrirMenu,
+  menuItens,
+  onSelect,
   onMover,
   onEditar,
-  onArquivar,
-  onExcluir,
 }: {
   item: DisciplinaCatalogoAdmin;
   pending: boolean;
   podeReordenar: boolean;
   vizinhoCimaId: string | null;
   vizinhoBaixoId: string | null;
+  marcado: boolean;
+  onAlternar: () => void;
+  aoAbrirMenu: (aberto: boolean) => void;
+  menuItens: AcaoItem[];
+  onSelect: (acao: AcaoItemAcao) => void;
   onMover: (vizinhoId: string) => void;
   onEditar: () => void;
-  onArquivar: () => void;
-  onExcluir: () => void;
 }) {
   return (
-    <TableRow className={cn(!item.ativo && "opacity-60")}>
+    <LinhaComMenu
+      itens={menuItens}
+      onSelect={onSelect}
+      aoAbrir={aoAbrirMenu}
+      render={
+        <TableRow
+          data-marcada={marcado}
+          className={cn("data-[marcada=true]:bg-accent/40 data-[popup-open]:bg-muted/50", !item.ativo && "opacity-60")}
+        />
+      }
+    >
+      <TableCell className="pr-0">
+        <Checkbox checked={marcado} onCheckedChange={onAlternar} aria-label={`Selecionar ${item.nome}`} />
+      </TableCell>
       <TableCell>
         <IconeDisc icone={item.icone} iconeSvg={item.iconeSvg} nome={item.nome} className="size-5 text-muted-foreground" />
       </TableCell>
@@ -546,28 +677,10 @@ function ItemLinha({
           <Button size="icon" variant="ghost" className="size-8" aria-label="Editar" onClick={onEditar} disabled={pending}>
             <Pencil className="size-4" />
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button size="icon" variant="ghost" className="size-8" aria-label="Mais ações" disabled={pending}>
-                  <MoreHorizontal className="size-4" />
-                </Button>
-              }
-            />
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={onArquivar}>
-                {item.ativo ? <Archive className="size-4" /> : <ArchiveRestore className="size-4" />}
-                {item.ativo ? "Arquivar" : "Desarquivar"}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onClick={onExcluir}>
-                <Trash2 className="size-4" /> Excluir
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <BotaoAcoes itens={menuItens} onSelect={onSelect} rotulo={`Mais ações para ${item.nome}`} className="size-8" />
         </div>
       </TableCell>
-    </TableRow>
+    </LinhaComMenu>
   );
 }
 
