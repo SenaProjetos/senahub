@@ -9,6 +9,12 @@
  * Aqui o documento é renderizado de verdade (`DocRender`) e medido no Chrome, como
  * `verify-fluxo-estudio.tsx` faz: nada de conferir string e supor layout.
  *
+ * **O que isto NÃO prova:** ele renderiza o layout de FÁBRICA (`modeloDocumentoProposta()`), e não
+ * o que está salvo no banco. `carregarDocumentoProposta` prefere o `DocumentoModelo` salvo pelo
+ * nome; hoje os dois são idênticos (o seed grava a fábrica), mas a gestão vai editar o layout no
+ * Doc Studio, e a partir daí este script descreve a fábrica, não o que o cliente vê. O layout
+ * salvo só se confere olhando a prévia (checklist, item E).
+ *
  * Uso: npx tsx --tsconfig tsconfig.server.json scripts/verify-documento-proposta.tsx
  */
 import "dotenv/config";

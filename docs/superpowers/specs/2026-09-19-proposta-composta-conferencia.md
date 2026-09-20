@@ -84,6 +84,9 @@ Numa negociação em aberto:
       (uma banda de detalhe por modelo). Aceitável para você?
 - [ ] O layout é ajustável: **Doc Studio → "Proposta composta (padrão)"**. Abra, mexa em algo, salve, volte à
       prévia e confirme que a mudança aparece. Rodar `db:seed` de novo **não** deve desfazer sua mudança.
+      **Atenção:** a prova automática do documento (`verify:documento-proposta`) renderiza o layout de
+      **fábrica**, não o salvo. Depois da sua primeira edição no Doc Studio, **nada automático descreve mais o
+      que o cliente vê** — só a prévia e o PDF. Reconfira a aparência (item acima) a cada ajuste de layout.
 - [ ] **Zoom do visualizador:** Ctrl + roda dentro do desenho dá zoom só nele (a página não muda de tamanho);
       botão do meio arrasta; "Largura", "Página inteira" e "100%".
 
@@ -109,6 +112,12 @@ Numa negociação em aberto:
 
 ## H. O que mexi e pode ter quebrado (regressão)
 
+- [ ] ⚠️ **"Nova proposta" a partir de um lead cria a empresa quando ela ainda não existe.** Foi o que mais
+      mexi num fluxo que já existia antes: refatorei `criarPropostaDeLead` para um helper comum que cria o
+      `Cliente` a partir do lead (a mesma regra também alimenta a composta). Os smokes do CRM cobrem, mas
+      confira em tela: lead **sem empresa vinculada** → "Nova proposta" → a empresa aparece em **Clientes**, o
+      lead fica ligado a ela, e a **Empresa 360** registra "empresa cadastrada". Faça também pela **Proposta
+      simples**, que passa pelo mesmo helper.
 - [ ] **Proposta antiga (legado):** "Proposta simples" → salvar, e-mail, **link público abre igual ao de sempre**
       (o ramo antigo da página não foi tocado, mas é a coisa que mais dói se estiver errada), PDF.
 - [ ] **Proposta externa:** registrar versão com PDF, aceitar na ficha; o link público dela **não abre**.
