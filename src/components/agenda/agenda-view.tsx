@@ -4,16 +4,27 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Plus, Check, X, Trash2, MapPin, CalendarDays, Download, Pencil, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Check, X, MapPin, CalendarDays, Download, Search } from "lucide-react";
+import { criarCompromisso, editarCompromisso, confirmarPresenca } from "@/modules/agenda/actions";
+import { ACAO_NOVO_NO_DIA, ACAO_VER_DIA, itensDeDia } from "@/modules/agenda/acoes";
 import {
-  criarCompromisso,
-  editarCompromisso,
-  confirmarPresenca,
-  excluirCompromisso,
-} from "@/modules/agenda/actions";
+  RASCUNHO_VAZIO,
+  duracaoDoRascunho,
+  minutosEntreDT,
+  paraLocalDT,
+  rascunhoDeDia,
+  rascunhoDeDuplicata,
+  somarMinutosDT,
+  type RascunhoCompromisso,
+} from "@/modules/agenda/rascunho";
+import { useAcoesCompromisso, type AcoesCompromisso } from "./use-acoes-compromisso";
 import { gerarIcs } from "@/modules/agenda/ics";
 import { ehAcaoComercial, TIPO_PROXIMA_ACAO_LABEL } from "@/modules/agenda/proxima-acao";
 import type { TipoProximaAcao } from "@/generated/prisma/client";
+import type { AcaoItemAcao } from "@/components/ui/acoes";
+import { BotaoAcoes } from "@/components/ui/acoes-menu";
+import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
+import { LinhaComMenu } from "@/components/ui/linha-com-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +49,7 @@ type Comp = {
   /** F2.1a (CRM, ADR-17): null = compromisso de agenda comum. Preenchido = ação comercial. */
   tipo: TipoProximaAcao | null;
   criador: string;
+  criadorId: string;
   minhaConfirmacao: boolean | null;
   participantes: { nome: string; confirmado: boolean | null }[];
   participantesIds: string[];
@@ -72,25 +84,6 @@ function fmtHora(iso: string): string {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
-/** Data local no formato do `<input type="datetime-local">` ("YYYY-MM-DDTHH:mm"). */
-function paraLocalDT(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-/** Soma minutos a um valor de datetime-local; "" quando a entrada ainda está incompleta. */
-function somarMinutosDT(valor: string, minutos: number): string {
-  const d = new Date(valor);
-  if (Number.isNaN(d.getTime())) return "";
-  d.setMinutes(d.getMinutes() + minutos);
-  return paraLocalDT(d);
-}
-/** Duração em minutos entre dois valores de datetime-local (null se algum for inválido). */
-function minutosEntreDT(inicio: string, fim: string): number | null {
-  const a = new Date(inicio);
-  const b = new Date(fim);
-  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null;
-  return Math.round((b.getTime() - a.getTime()) / 60000);
-}
 // expande os intervalos de férias (inclusivos) num conjunto de chaves YYYY-MM-DD locais
 function expandirFerias(ferias: Feria[]): Set<string> {
   const set = new Set<string>();
@@ -106,6 +99,19 @@ function expandirFerias(ferias: Feria[]): Set<string> {
   }
   return set;
 }
+
+/** Ações do menu de um dia (mês/semana) — as mesmas nas duas vistas. */
+function aoSelecionarDoDia(
+  item: AcaoItemAcao,
+  dia: Date,
+  onNovoNoDia: (d: Date) => void,
+  onVerDia: (d: Date) => void,
+) {
+  if (item.id === ACAO_NOVO_NO_DIA) onNovoNoDia(dia);
+  else if (item.id === ACAO_VER_DIA) onVerDia(dia);
+}
+
+type AcoesDaAgenda = AcoesCompromisso<Comp>;
 
 // dispara o download de um .ics no client
 function baixarIcs(comps: Comp[], nomeArquivo: string) {
@@ -143,6 +149,7 @@ export function AgendaView({
   ferias,
   internos,
   meuId,
+  ehAdmin,
 }: {
   ano: number;
   mes: number;
@@ -152,9 +159,11 @@ export function AgendaView({
   ferias: Feria[];
   internos: { id: string; name: string }[];
   meuId: string;
+  ehAdmin: boolean;
 }) {
   const router = useRouter();
-  const [dialogNovo, setDialogNovo] = useState(false);
+  // `chave` remonta o diálogo a cada pedido, para os campos nascerem do rascunho novo.
+  const [novo, setNovo] = useState<{ chave: number; inicial: RascunhoCompromisso } | null>(null);
   const [vista, setVista] = useState<Vista>("mes");
   // F2.1a (CRM, ADR-17): a agenda passa a poder receber ações comerciais (F2.10+), então o
   // padrão é escondê-las — quem quiser vê-las junto liga o filtro. Nenhuma reunião some nunca:
@@ -167,7 +176,6 @@ export function AgendaView({
       ? new Date(h.getFullYear(), h.getMonth(), h.getDate())
       : new Date(ano, mes - 1, 1);
   });
-  void meuId;
 
   function navMes(delta: number) {
     const d = new Date(ano, mes - 1 + delta, 1);
@@ -216,8 +224,24 @@ export function AgendaView({
   const hoje = new Date();
   const [editando, setEditando] = useState<Comp | null>(null);
 
+  const acoes = useAcoesCompromisso<Comp>({
+    meId: meuId,
+    ehAdmin,
+    onEditar: setEditando,
+    onDuplicar: (c) => setNovo({ chave: Date.now(), inicial: rascunhoDeDuplicata(c, meuId) }),
+  });
+
+  function novoNoDia(dia: Date) {
+    setNovo({ chave: Date.now(), inicial: rascunhoDeDia(dia) });
+  }
+  function verDia(dia: Date) {
+    setRefData(new Date(dia.getFullYear(), dia.getMonth(), dia.getDate()));
+    setVista("dia");
+  }
+
   return (
     <div className="space-y-4">
+      <DicaMenuContexto />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <ToggleVista vista={vista} onChange={setVista} />
@@ -238,7 +262,7 @@ export function AgendaView({
           >
             <Download className="size-4" /> Exportar .ics
           </Button>
-          <Button onClick={() => setDialogNovo(true)}>
+          <Button onClick={() => setNovo({ chave: Date.now(), inicial: RASCUNHO_VAZIO })}>
             <Plus className="size-4" /> Novo compromisso
           </Button>
         </div>
@@ -253,7 +277,9 @@ export function AgendaView({
           feriados={feriados}
           feriasSet={feriasSet}
           onNav={navMes}
-          onEditar={setEditando}
+          acoes={acoes}
+          onNovoNoDia={novoNoDia}
+          onVerDia={verDia}
         />
       )}
       {vista === "semana" && (
@@ -265,6 +291,9 @@ export function AgendaView({
           hoje={hoje}
           onNav={(delta) => setRefData((d) => addDias(d, delta * 7))}
           onHoje={() => setRefData(new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()))}
+          acoes={acoes}
+          onNovoNoDia={novoNoDia}
+          onVerDia={verDia}
         />
       )}
       {vista === "dia" && (
@@ -276,11 +305,20 @@ export function AgendaView({
           ehHoje={chaveDia(refData) === chaveDia(hoje)}
           onNav={(delta) => setRefData((d) => addDias(d, delta))}
           onHoje={() => setRefData(new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()))}
-          onEditar={setEditando}
+          acoes={acoes}
         />
       )}
 
-      <NovoCompromissoDialog open={dialogNovo} onOpenChange={setDialogNovo} internos={internos} />
+      {novo && (
+        <NovoCompromissoDialog
+          key={novo.chave}
+          inicial={novo.inicial}
+          internos={internos}
+          onOpenChange={(o) => {
+            if (!o) setNovo(null);
+          }}
+        />
+      )}
       {editando && (
         <EditarCompromissoDialog
           comp={editando}
@@ -348,7 +386,9 @@ function VistaMes({
   feriados,
   feriasSet,
   onNav,
-  onEditar,
+  acoes,
+  onNovoNoDia,
+  onVerDia,
 }: {
   ano: number;
   mes: number;
@@ -357,7 +397,9 @@ function VistaMes({
   feriados: Feriado[];
   feriasSet: Set<string>;
   onNav: (delta: number) => void;
-  onEditar: (c: Comp) => void;
+  acoes: AcoesDaAgenda;
+  onNovoNoDia: (dia: Date) => void;
+  onVerDia: (dia: Date) => void;
 }) {
   const primeiro = new Date(ano, mes - 1, 1);
   const diasNoMes = new Date(ano, mes, 0).getDate();
@@ -412,61 +454,18 @@ function VistaMes({
         ))}
         {Array.from({ length: diasNoMes }).map((_, i) => {
           const d = i + 1;
-          const info = porDia.get(d)!;
-          const temFeriado = info.feriados.length > 0;
-          const emFerias = feriasSet.has(chaveDia(new Date(ano, mes - 1, d)));
+          const dia = new Date(ano, mes - 1, d);
           return (
-            <div
+            <CelulaMes
               key={d}
-              className={`min-h-20 rounded-sm border p-1 text-xs ${
-                ehHoje(d)
-                  ? "border-primary bg-primary/5"
-                  : emFerias
-                    ? "border-info/40 bg-info/5"
-                    : temFeriado
-                      ? "border-success/40 bg-success/5"
-                      : "border-border/60"
-              }`}
-            >
-              <span className={`font-mono ${ehHoje(d) ? "font-bold text-primary" : "text-muted-foreground"}`}>{d}</span>
-              <div className="mt-0.5 space-y-0.5">
-                {emFerias && (
-                  <p className="truncate rounded-sm bg-info/15 px-1 text-[10px] text-info" title="Você está de férias">
-                    🌴 Férias
-                  </p>
-                )}
-                {info.feriados.map((f, j) => (
-                  <p
-                    key={`f${j}`}
-                    className="truncate rounded-sm bg-success/15 px-1 text-[10px] text-success"
-                    title={`Feriado ${f.tipo}: ${f.nome}`}
-                  >
-                    🏖 {f.nome}
-                  </p>
-                ))}
-                {info.prazos.map((p, j) => (
-                  <Link
-                    key={j}
-                    href={p.href}
-                    className="block truncate rounded-sm bg-destructive/15 px-1 text-[10px] text-destructive"
-                    title={p.rotulo}
-                  >
-                    ⚑ {p.rotulo}
-                  </Link>
-                ))}
-                {info.comps.map((c) => (
-                  <p
-                    key={c.id}
-                    className={`truncate rounded-sm px-1 text-[10px] ${
-                      ehAcaoComercial(c.tipo) ? "bg-warning/15 text-warning" : "bg-primary/15 text-primary"
-                    }`}
-                    title={ehAcaoComercial(c.tipo) ? `${TIPO_PROXIMA_ACAO_LABEL[c.tipo!]}: ${c.titulo}` : c.titulo}
-                  >
-                    {fmtHora(c.inicio)} {c.titulo}
-                  </p>
-                ))}
-              </div>
-            </div>
+              dia={dia}
+              ehHoje={ehHoje(d)}
+              emFerias={feriasSet.has(chaveDia(dia))}
+              info={porDia.get(d)!}
+              acoes={acoes}
+              onNovoNoDia={onNovoNoDia}
+              onVerDia={onVerDia}
+            />
           );
         })}
       </div>
@@ -479,11 +478,123 @@ function VistaMes({
           {compsDoMes.length === 0 ? (
             <EmptyState icon={CalendarDays} title="Nenhum compromisso." />
           ) : (
-            compsDoMes.map((c) => <CompRow key={c.id} c={c} onEditar={onEditar} />)
+            compsDoMes.map((c) => <CompRow key={c.id} c={c} acoes={acoes} />)
           )}
         </CardContent>
       </Card>
     </>
+  );
+}
+
+/**
+ * Um dia da grade mensal. É componente próprio (e não um `map` inline) porque guarda o estado
+ * "algum compromisso daqui está com o menu aberto": no toque, o dedo soltando depois do toque
+ * longo dispara um segundo evento de menu, que cairia na célula e abriria o menu do dia por cima
+ * do menu do compromisso.
+ */
+function CelulaMes({
+  dia,
+  ehHoje,
+  emFerias,
+  info,
+  acoes,
+  onNovoNoDia,
+  onVerDia,
+}: {
+  dia: Date;
+  ehHoje: boolean;
+  emFerias: boolean;
+  info: { comps: Comp[]; prazos: Prazo[]; feriados: Feriado[] };
+  acoes: AcoesDaAgenda;
+  onNovoNoDia: (dia: Date) => void;
+  onVerDia: (dia: Date) => void;
+}) {
+  const [menuDeCompAberto, setMenuDeCompAberto] = useState(false);
+  const temFeriado = info.feriados.length > 0;
+
+  return (
+    <LinhaComMenu
+      itens={itensDeDia()}
+      onSelect={(item) => aoSelecionarDoDia(item, dia, onNovoNoDia, onVerDia)}
+      desabilitado={menuDeCompAberto}
+      render={
+        <div
+          className={`min-h-20 rounded-sm border p-1 text-xs data-[popup-open]:ring-1 data-[popup-open]:ring-ring ${
+            ehHoje
+              ? "border-primary bg-primary/5"
+              : emFerias
+                ? "border-info/40 bg-info/5"
+                : temFeriado
+                  ? "border-success/40 bg-success/5"
+                  : "border-border/60"
+          }`}
+        />
+      }
+    >
+      <span className={`font-mono ${ehHoje ? "font-bold text-primary" : "text-muted-foreground"}`}>{dia.getDate()}</span>
+      <div className="mt-0.5 space-y-0.5">
+        {emFerias && (
+          <p className="truncate rounded-sm bg-info/15 px-1 text-[10px] text-info" title="Você está de férias">
+            🌴 Férias
+          </p>
+        )}
+        {info.feriados.map((f, j) => (
+          <p
+            key={`f${j}`}
+            className="truncate rounded-sm bg-success/15 px-1 text-[10px] text-success"
+            title={`Feriado ${f.tipo}: ${f.nome}`}
+          >
+            🏖 {f.nome}
+          </p>
+        ))}
+        {info.prazos.map((p, j) => (
+          <Link
+            key={j}
+            href={p.href}
+            className="block truncate rounded-sm bg-destructive/15 px-1 text-[10px] text-destructive"
+            title={p.rotulo}
+          >
+            ⚑ {p.rotulo}
+          </Link>
+        ))}
+        {info.comps.map((c) => (
+          <ChipMes key={c.id} c={c} acoes={acoes} onMenuAberto={setMenuDeCompAberto} />
+        ))}
+      </div>
+    </LinhaComMenu>
+  );
+}
+
+/**
+ * Compromisso na grade do mês. Não tem `...`: é pequeno demais para um botão. A paridade da
+ * regra 2 fica com a lista "Compromissos do mês", logo abaixo, onde cada linha tem o seu.
+ */
+function ChipMes({
+  c,
+  acoes,
+  onMenuAberto,
+}: {
+  c: Comp;
+  acoes: AcoesDaAgenda;
+  onMenuAberto: (aberto: boolean) => void;
+}) {
+  const comercial = ehAcaoComercial(c.tipo);
+  return (
+    <LinhaComMenu
+      itens={acoes.itens(c)}
+      onSelect={(item) => void acoes.aoSelecionar(c, item)}
+      aoAbrir={onMenuAberto}
+      render={
+        <p
+          className={`truncate rounded-sm px-1 text-[10px] data-[popup-open]:ring-1 data-[popup-open]:ring-ring ${
+            comercial ? "bg-warning/15 text-warning" : "bg-primary/15 text-primary"
+          }`}
+          title={comercial ? `${TIPO_PROXIMA_ACAO_LABEL[c.tipo!]}: ${c.titulo}` : c.titulo}
+        />
+      }
+    >
+      {fmtHora(c.inicio)} {c.titulo}
+    </LinhaComMenu>
   );
 }
 
@@ -496,6 +607,9 @@ function VistaSemana({
   hoje,
   onNav,
   onHoje,
+  acoes,
+  onNovoNoDia,
+  onVerDia,
 }: {
   dias: Date[];
   compsPorChave: Map<string, Comp[]>;
@@ -504,6 +618,9 @@ function VistaSemana({
   hoje: Date;
   onNav: (delta: number) => void;
   onHoje: () => void;
+  acoes: AcoesDaAgenda;
+  onNovoNoDia: (dia: Date) => void;
+  onVerDia: (dia: Date) => void;
 }) {
   const seg = dias[0];
   const dom = dias[6];
@@ -528,64 +645,132 @@ function VistaSemana({
       <div className="grid grid-cols-1 gap-1 sm:grid-cols-7">
         {dias.map((dia, i) => {
           const k = chaveDia(dia);
-          const comps = (compsPorChave.get(k) ?? [])
-            .slice()
-            .sort((a, b) => a.inicio.localeCompare(b.inicio));
-          const fers = feriadosPorChave.get(k) ?? [];
-          const emFerias = feriasSet.has(k);
-          const ehHoje = k === chaveHoje;
           return (
-            <div
+            <DiaSemana
               key={k}
-              className={`min-h-32 rounded-sm border p-1.5 ${
-                ehHoje
-                  ? "border-primary bg-primary/5"
-                  : emFerias
-                    ? "border-info/40 bg-info/5"
-                    : fers.length > 0
-                      ? "border-success/40 bg-success/5"
-                      : "border-border/60"
-              }`}
-            >
-              <div className={`mb-1 text-xs font-semibold ${ehHoje ? "text-primary" : "text-muted-foreground"}`}>
-                <span className="uppercase">{DIAS_SEMANA[i].slice(0, 3)}</span>{" "}
-                <span className="font-mono">{dia.getDate()}</span>
-              </div>
-              <div className="space-y-1">
-                {emFerias && (
-                  <div className="rounded-sm bg-info/15 px-1.5 py-1 text-[11px] text-info" title="Você está de férias">
-                    🌴 Férias
-                  </div>
-                )}
-                {fers.map((f, j) => (
-                  <div key={`f${j}`} className="rounded-sm bg-success/15 px-1.5 py-1 text-[11px] text-success" title={`Feriado ${f.tipo}`}>
-                    🏖 {f.nome}
-                  </div>
-                ))}
-                {comps.length === 0 && fers.length === 0 && !emFerias ? (
-                  <p className="text-[10px] text-muted-foreground/60">—</p>
-                ) : (
-                  comps.map((c) => {
-                    const comercial = ehAcaoComercial(c.tipo);
-                    return (
-                      <div
-                        key={c.id}
-                        className={`rounded-sm px-1.5 py-1 text-[11px] ${comercial ? "bg-warning/15 text-warning" : "bg-primary/15 text-primary"}`}
-                        title={c.local ? `${c.titulo} · ${c.local}` : c.titulo}
-                      >
-                        <span className="font-mono">{fmtHora(c.inicio)}</span>{" "}
-                        <span className="font-medium">{c.titulo}</span>
-                        {comercial && <span className="ml-1 opacity-80">· {TIPO_PROXIMA_ACAO_LABEL[c.tipo!]}</span>}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
+              dia={dia}
+              nome={DIAS_SEMANA[i]}
+              comps={(compsPorChave.get(k) ?? []).slice().sort((a, b) => a.inicio.localeCompare(b.inicio))}
+              feriados={feriadosPorChave.get(k) ?? []}
+              emFerias={feriasSet.has(k)}
+              ehHoje={k === chaveHoje}
+              acoes={acoes}
+              onNovoNoDia={onNovoNoDia}
+              onVerDia={onVerDia}
+            />
           );
         })}
       </div>
     </>
+  );
+}
+
+/** Uma coluna da vista semanal — componente próprio pelo mesmo motivo da `CelulaMes`. */
+function DiaSemana({
+  dia,
+  nome,
+  comps,
+  feriados,
+  emFerias,
+  ehHoje,
+  acoes,
+  onNovoNoDia,
+  onVerDia,
+}: {
+  dia: Date;
+  nome: string;
+  comps: Comp[];
+  feriados: Feriado[];
+  emFerias: boolean;
+  ehHoje: boolean;
+  acoes: AcoesDaAgenda;
+  onNovoNoDia: (dia: Date) => void;
+  onVerDia: (dia: Date) => void;
+}) {
+  const [menuDeCompAberto, setMenuDeCompAberto] = useState(false);
+
+  return (
+    <LinhaComMenu
+      itens={itensDeDia()}
+      onSelect={(item) => aoSelecionarDoDia(item, dia, onNovoNoDia, onVerDia)}
+      desabilitado={menuDeCompAberto}
+      render={
+        <div
+          className={`min-h-32 rounded-sm border p-1.5 data-[popup-open]:ring-1 data-[popup-open]:ring-ring ${
+            ehHoje
+              ? "border-primary bg-primary/5"
+              : emFerias
+                ? "border-info/40 bg-info/5"
+                : feriados.length > 0
+                  ? "border-success/40 bg-success/5"
+                  : "border-border/60"
+          }`}
+        />
+      }
+    >
+      <div className={`mb-1 text-xs font-semibold ${ehHoje ? "text-primary" : "text-muted-foreground"}`}>
+        <span className="uppercase">{nome.slice(0, 3)}</span> <span className="font-mono">{dia.getDate()}</span>
+      </div>
+      <div className="space-y-1">
+        {emFerias && (
+          <div className="rounded-sm bg-info/15 px-1.5 py-1 text-[11px] text-info" title="Você está de férias">
+            🌴 Férias
+          </div>
+        )}
+        {feriados.map((f, j) => (
+          <div key={`f${j}`} className="rounded-sm bg-success/15 px-1.5 py-1 text-[11px] text-success" title={`Feriado ${f.tipo}`}>
+            🏖 {f.nome}
+          </div>
+        ))}
+        {comps.length === 0 && feriados.length === 0 && !emFerias ? (
+          <p className="text-[10px] text-muted-foreground/60">—</p>
+        ) : (
+          comps.map((c) => <ChipSemana key={c.id} c={c} acoes={acoes} onMenuAberto={setMenuDeCompAberto} />)
+        )}
+      </div>
+    </LinhaComMenu>
+  );
+}
+
+/** Compromisso na vista semanal: cabe um `...` discreto, então a paridade fica no próprio chip. */
+function ChipSemana({
+  c,
+  acoes,
+  onMenuAberto,
+}: {
+  c: Comp;
+  acoes: AcoesDaAgenda;
+  onMenuAberto: (aberto: boolean) => void;
+}) {
+  const comercial = ehAcaoComercial(c.tipo);
+  const itens = acoes.itens(c);
+  return (
+    <LinhaComMenu
+      itens={itens}
+      onSelect={(item) => void acoes.aoSelecionar(c, item)}
+      aoAbrir={onMenuAberto}
+      render={
+        <div
+          className={`flex items-start gap-1 rounded-sm px-1.5 py-1 text-[11px] data-[popup-open]:ring-1 data-[popup-open]:ring-ring ${
+            comercial ? "bg-warning/15 text-warning" : "bg-primary/15 text-primary"
+          }`}
+          title={c.local ? `${c.titulo} · ${c.local}` : c.titulo}
+        />
+      }
+    >
+      <div className="min-w-0 flex-1">
+        <span className="font-mono">{fmtHora(c.inicio)}</span> <span className="font-medium">{c.titulo}</span>
+        {comercial && <span className="ml-1 opacity-80">· {TIPO_PROXIMA_ACAO_LABEL[c.tipo!]}</span>}
+      </div>
+      {itens.length > 0 && (
+        <BotaoAcoes
+          itens={itens}
+          onSelect={(item) => void acoes.aoSelecionar(c, item)}
+          rotulo={`Ações de ${c.titulo}`}
+          className="-my-0.5 -mr-1 size-5 shrink-0"
+        />
+      )}
+    </LinhaComMenu>
   );
 }
 
@@ -598,7 +783,7 @@ function VistaDia({
   ehHoje,
   onNav,
   onHoje,
-  onEditar,
+  acoes,
 }: {
   dia: Date;
   comps: Comp[];
@@ -607,7 +792,7 @@ function VistaDia({
   ehHoje: boolean;
   onNav: (delta: number) => void;
   onHoje: () => void;
-  onEditar: (c: Comp) => void;
+  acoes: AcoesDaAgenda;
 }) {
   const ordenados = comps.slice().sort((a, b) => a.inicio.localeCompare(b.inicio));
   const titulo = dia.toLocaleDateString("pt-BR", {
@@ -654,7 +839,7 @@ function VistaDia({
           {ordenados.length === 0 ? (
             <EmptyState icon={CalendarDays} title="Nenhum compromisso neste dia." />
           ) : (
-            ordenados.map((c) => <CompRow key={c.id} c={c} onEditar={onEditar} />)
+            ordenados.map((c) => <CompRow key={c.id} c={c} acoes={acoes} />)
           )}
         </CardContent>
       </Card>
@@ -662,7 +847,7 @@ function VistaDia({
   );
 }
 
-function CompRow({ c, onEditar }: { c: Comp; onEditar: (c: Comp) => void }) {
+function CompRow({ c, acoes }: { c: Comp; acoes: AcoesDaAgenda }) {
   const router = useRouter();
   const [pending, start] = useTransition();
 
@@ -673,21 +858,16 @@ function CompRow({ c, onEditar }: { c: Comp; onEditar: (c: Comp) => void }) {
       else toast.error(r.error);
     });
   }
-  function excluir() {
-    start(async () => {
-      const r = await excluirCompromisso({ id: c.id });
-      if (r.ok) {
-        toast.success("Compromisso excluído.");
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
-
+  const itens = acoes.itens(c);
   const confirmados = c.participantes.filter((p) => p.confirmado === true).length;
   const comercial = ehAcaoComercial(c.tipo);
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-sm border p-2.5 text-sm">
+    <LinhaComMenu
+      itens={itens}
+      onSelect={(item) => void acoes.aoSelecionar(c, item)}
+      render={<div className="flex flex-wrap items-center gap-2 rounded-sm border p-2.5 text-sm data-[popup-open]:bg-muted/50" />}
+    >
       <span className="font-mono text-xs text-muted-foreground">
         {new Date(c.inicio).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
       </span>
@@ -722,39 +902,43 @@ function CompRow({ c, onEditar }: { c: Comp; onEditar: (c: Comp) => void }) {
         {c.minhaConfirmacao === false && (
           <Badge variant="outline" className="text-muted-foreground">recusado</Badge>
         )}
-        <Button size="icon" variant="ghost" aria-label="Editar" onClick={() => onEditar(c)}>
-          <Pencil className="size-4" />
-        </Button>
-        <Button size="icon" variant="ghost" aria-label="Excluir" onClick={excluir}>
-          <Trash2 className="size-4" />
-        </Button>
+        {itens.length > 0 && (
+          <BotaoAcoes
+            itens={itens}
+            onSelect={(item) => void acoes.aoSelecionar(c, item)}
+            rotulo={`Ações de ${c.titulo}`}
+          />
+        )}
       </div>
-    </div>
+    </LinhaComMenu>
   );
 }
 
 function NovoCompromissoDialog({
-  open,
+  inicial,
   onOpenChange,
   internos,
 }: {
-  open: boolean;
+  /** Valores de partida (vazio, um dia ou a duplicata de um compromisso). A tela remonta por `key`. */
+  inicial: RascunhoCompromisso;
   onOpenChange: (o: boolean) => void;
   internos: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [titulo, setTitulo] = useState("");
-  const [local, setLocal] = useState("");
-  const [inicio, setInicio] = useState("");
-  const [fim, setFim] = useState("");
-  // enquanto o usuário não mexe no fim, ele acompanha o início (+1h)
+  const [titulo, setTitulo] = useState(inicial.titulo);
+  const [local, setLocal] = useState(inicial.local);
+  const [inicio, setInicio] = useState(inicial.inicio);
+  const [fim, setFim] = useState(inicial.fim);
+  // enquanto o usuário não mexe no fim, ele acompanha o início, mantendo a duração do rascunho
+  // (1 h num compromisso novo; a original numa duplicata)
   const [fimEditado, setFimEditado] = useState(false);
-  const [participantes, setParticipantes] = useState<string[]>([]);
+  const duracao = duracaoDoRascunho(inicial);
+  const [participantes, setParticipantes] = useState<string[]>(inicial.participantesIds);
 
   function mudarInicio(valor: string) {
     setInicio(valor);
-    if (!fimEditado) setFim(somarMinutosDT(valor, 60));
+    if (!fimEditado) setFim(somarMinutosDT(valor, duracao));
   }
 
   function criar() {
@@ -770,19 +954,13 @@ function NovoCompromissoDialog({
       if (r.ok) {
         toast.success("Compromisso criado — convites enviados.");
         onOpenChange(false);
-        setTitulo("");
-        setLocal("");
-        setInicio("");
-        setFim("");
-        setFimEditado(false);
-        setParticipantes([]);
         router.refresh();
       } else toast.error(r.error);
     });
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Novo compromisso</DialogTitle>
@@ -815,9 +993,7 @@ function NovoCompromissoDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Convidados</Label>
-            {/* o dialog fica sempre montado: a key limpa a busca a cada abertura */}
             <SeletorConvidados
-              key={open ? "aberto" : "fechado"}
               internos={internos}
               selecionados={participantes}
               onChange={setParticipantes}

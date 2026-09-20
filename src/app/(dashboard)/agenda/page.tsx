@@ -77,6 +77,7 @@ export default async function AgendaPage({
       ano={ano}
       mes={mes}
       meuId={user.id}
+      ehAdmin={user.role === "admin"}
       internos={internos}
       feriados={feriados.map((f) => ({ data: f.data, nome: f.nome, tipo: f.tipo }))}
       ferias={feriasRows.map((f) => ({
@@ -95,6 +96,7 @@ export default async function AgendaPage({
         // — hoje sempre null (nada ainda escreve `tipo`; a F2.10 é quem começa).
         tipo: c.tipo,
         criador: c.criador.name,
+        criadorId: c.criadorId,
         minhaConfirmacao:
           c.participantes.find((p) => p.user.id === user.id)?.confirmado ?? null,
         participantes: c.participantes.map((p) => ({
