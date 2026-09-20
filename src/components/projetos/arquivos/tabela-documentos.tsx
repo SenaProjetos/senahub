@@ -26,7 +26,7 @@ import { AcoesMenuItens, BotaoAcoes } from "@/components/ui/acoes-menu";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
-import type { DocumentoParaAcoes } from "@/modules/uploads/acoes-documento";
+import { ACAO_DETALHES, type DocumentoParaAcoes } from "@/modules/uploads/acoes-documento";
 import { formatarData, formatarDataHora, rotuloRevisao } from "@/lib/utils";
 
 function fmtBytes(n: number): string {
@@ -105,6 +105,8 @@ function CartaoDocumento({
   onMarcar,
   podeCoordenacao,
   acoes,
+  detalhesAberto,
+  onDetalhesChange,
   exclusoesPendentes,
   fases,
   status,
@@ -117,6 +119,8 @@ function CartaoDocumento({
   podeCoordenacao: boolean;
   /** `null` quando a linha não tem arquivo: sem `...` e sem menu de contexto. */
   acoes: AcoesDaLinha | null;
+  detalhesAberto: boolean;
+  onDetalhesChange: (aberto: boolean) => void;
   exclusoesPendentes: Set<string>;
   fases: OpcaoFaseDocumento[];
   status: OpcaoStatusDocumento[];
@@ -148,7 +152,13 @@ function CartaoDocumento({
           aria-hidden
         />
         <div className="min-w-0 flex-1">
-          <PainelDocumentoDetalhe linha={linha} fases={fases} status={status} />
+          <PainelDocumentoDetalhe
+            linha={linha}
+            fases={fases}
+            status={status}
+            aberto={detalhesAberto}
+            onAbertoChange={onDetalhesChange}
+          />
           {(linha.titulo ?? linha.tituloPrancha) && (
             <p className="truncate text-xs text-muted-foreground" title={linha.nome}>
               {linha.nome}
@@ -329,13 +339,22 @@ export function TabelaDocumentos({
   // próprio documento aos itens — o botão direito age SÓ na linha clicada e não mexe na seleção
   // (agir sobre as selecionadas é comportamento de explorador, previsto para a onda 3).
   const acoes = useAcoesDocumento({ projetoId, podeValidar, podeExcluir, podeSolicitarExclusao });
+  // Painel de detalhes aberto pelo menu: ele vive na linha (é o gatilho do título), então quem
+  // controla é a tabela — o `portal` do hook não o alcança.
+  const [detalhesDe, setDetalhesDe] = useState<string | null>(null);
 
   function acoesDa(linha: LinhaDoc): AcoesDaLinha | null {
     const documento = linhaParaMenu(linha);
     if (!documento) return null;
     return {
       itens: acoes.itens(documento),
-      aoSelecionar: (item) => acoes.aoSelecionar(documento, item),
+      aoSelecionar: (item) => {
+        if (item.id === ACAO_DETALHES) {
+          setDetalhesDe(linha.id);
+          return;
+        }
+        acoes.aoSelecionar(documento, item);
+      },
     };
   }
 
@@ -387,6 +406,8 @@ export function TabelaDocumentos({
             onMarcar={() => alternar(l.id)}
             podeCoordenacao={podeCoordenacao}
             acoes={acoesDa(l)}
+            detalhesAberto={detalhesDe === l.id}
+            onDetalhesChange={(v) => setDetalhesDe(v ? l.id : null)}
             exclusoesPendentes={exclusoesPendentes}
             fases={fases}
             status={status}
@@ -464,7 +485,13 @@ export function TabelaDocumentos({
               )}
               <TableCell className="max-w-[32rem]">
                 <div className="flex min-w-0 items-center gap-2">
-                  <PainelDocumentoDetalhe linha={l} fases={fases} status={status} />
+                  <PainelDocumentoDetalhe
+                    linha={l}
+                    fases={fases}
+                    status={status}
+                    aberto={detalhesDe === l.id}
+                    onAbertoChange={(v) => setDetalhesDe(v ? l.id : null)}
+                  />
                   {/* Com título, o nome do arquivo vira referência secundária; sem título, o
                       próprio nome já é o texto do gatilho e repeti-lo seria ruído. */}
                   {(l.titulo ?? l.tituloPrancha) && (

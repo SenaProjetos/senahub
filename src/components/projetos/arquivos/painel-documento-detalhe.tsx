@@ -33,13 +33,23 @@ export function PainelDocumentoDetalhe({
   linha,
   fases,
   status,
+  aberto: abertoControlado,
+  onAbertoChange,
 }: {
   linha: LinhaDoc;
   fases: OpcaoFaseDocumento[];
   status: OpcaoStatusDocumento[];
+  /** Controlado por quem lista (o menu de contexto da linha abre o painel por aqui). */
+  aberto?: boolean;
+  onAbertoChange?: (aberto: boolean) => void;
 }) {
   const router = useRouter();
-  const [aberto, setAberto] = useState(false);
+  const [abertoInterno, setAbertoInterno] = useState(false);
+  const aberto = abertoControlado ?? abertoInterno;
+  const setAberto = (v: boolean) => {
+    setAbertoInterno(v);
+    onAbertoChange?.(v);
+  };
   const [pendente, start] = useTransition();
   const [titulo, setTitulo] = useState(linha.titulo ?? "");
   // Título recém-salvo vale até a tabela voltar do refresh em segundo plano — sem isso o gatilho
@@ -59,6 +69,19 @@ export function PainelDocumentoDetalhe({
   const [descricao, setDescricao] = useState(linha.descricao ?? "");
   const [faseId, setFaseId] = useState(linha.faseId ?? SEM_FASE);
   const [statusId, setStatusId] = useState(linha.statusId ?? SEM_STATUS);
+
+  // Aberto POR FORA (menu de contexto da linha) não passa por `abrir()`; sem isto o formulário
+  // viria com o que estava em memória desde a montagem, não com a linha atual.
+  const [estavaAberto, setEstavaAberto] = useState(aberto);
+  if (aberto !== estavaAberto) {
+    setEstavaAberto(aberto);
+    if (aberto) {
+      setTitulo(linha.titulo ?? "");
+      setDescricao(linha.descricao ?? "");
+      setFaseId(linha.faseId ?? SEM_FASE);
+      setStatusId(linha.statusId ?? SEM_STATUS);
+    }
+  }
 
   const fasesDoFormulario =
     linha.faseId && !fases.some((fase) => fase.id === linha.faseId)

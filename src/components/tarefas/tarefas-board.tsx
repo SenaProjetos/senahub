@@ -522,6 +522,10 @@ function ColunaView({
   onLimparFiltros: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.id });
+  // No toque, o Chrome ainda dispara o evento de menu de contexto ao SOLTAR o dedo, depois de o card
+  // já ter aberto o dele pelo toque longo. Esse segundo evento caía na coluna e abria o menu dela
+  // por cima do card. Enquanto um card desta coluna tiver menu aberto, a coluna não responde.
+  const [menuDeCardAberto, setMenuDeCardAberto] = useState(false);
 
   // Paridade (regra 2 da ADR-0002): "Nova tarefa em X" não ganha botão próprio — o botão
   // "Nova tarefa" do topo mais o Select de status do diálogo chegam ao mesmo lugar pelo
@@ -540,16 +544,18 @@ function ColunaView({
 
   return (
     <div className="min-w-0">
-      <div className="mb-2 flex items-center gap-2">
-        <span className="size-2.5 rounded-full" style={{ background: col.cor ?? "#576980" }} />
-        <span className="text-sm font-semibold">{col.nome}</span>
-        <Badge variant="outline" className="ml-auto">
-          {col.tarefas.length}
-        </Badge>
-      </div>
-      {/* O Trigger do card é aninhado neste: o botão direito num card abre só o menu do card. */}
-      <ContextMenu>
+      {/* O Trigger envolve o TÍTULO junto com a área dos cards: só a borda tracejada era alvo
+          pequeno demais para o botão direito, já que a margem entre cards é estreita.
+          O Trigger do card é aninhado neste — o botão direito num card abre só o menu do card. */}
+      <ContextMenu disabled={menuDeCardAberto}>
         <ContextMenuTrigger className="block">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="size-2.5 rounded-full" style={{ background: col.cor ?? "#576980" }} />
+            <span className="text-sm font-semibold">{col.nome}</span>
+            <Badge variant="outline" className="ml-auto">
+              {col.tarefas.length}
+            </Badge>
+          </div>
           <div
             ref={setNodeRef}
             className={`min-h-[16rem] space-y-2 rounded-sm border p-2 transition-colors ${
@@ -564,6 +570,7 @@ function ColunaView({
                 podeMover={podeMoverTarefa(t, meId, gereTodas)}
                 acoes={acoes}
                 primeiro={i === 0}
+                onMenuAberto={setMenuDeCardAberto}
               />
             ))}
             {col.tarefas.length === 0 && (
@@ -585,6 +592,7 @@ function DraggableTarefa({
   podeMover,
   acoes,
   primeiro,
+  onMenuAberto,
 }: {
   t: TarefaUI;
   onAbrir: (t: TarefaUI) => void;
@@ -592,6 +600,8 @@ function DraggableTarefa({
   acoes: AcoesTarefa;
   /** Primeiro card da coluna: alvo do coachmark do menu de contexto. */
   primeiro?: boolean;
+  /** Avisa a coluna: com o menu do card aberto, o da coluna não pode abrir junto. */
+  onMenuAberto?: (aberto: boolean) => void;
 }) {
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id: t.id, disabled: !podeMover });
   // No toque, o dedo soltando depois do toque longo ainda dispara o `click` do corpo do card —
@@ -602,7 +612,12 @@ function DraggableTarefa({
 
   return (
     <div ref={setNodeRef} className={isDragging ? "opacity-40" : ""}>
-      <ContextMenu onOpenChange={(aberto) => (menuAberto.current = aberto)}>
+      <ContextMenu
+        onOpenChange={(aberto) => {
+          menuAberto.current = aberto;
+          onMenuAberto?.(aberto);
+        }}
+      >
         <ContextMenuTrigger className="block">
           <CardTarefa
             t={t}
@@ -649,12 +664,21 @@ function CardTarefa({
       className={`group rounded-sm border bg-card p-2.5 text-sm shadow-sm ${overlay ? "rotate-2" : ""}`}
     >
       <div className="flex items-start gap-1.5">
+        {/* `touch-none`: sem ele o navegador trata o gesto na alça como rolagem e cancela o
+            ponteiro antes dos 6px que o dnd-kit exige — arrastar simplesmente não acontecia no
+            toque. `onTouchStart` que para a propagação impede o toque longo do menu de contexto
+            de disparar aqui: na alça, segurar é para arrastar, não para abrir menu. */}
         <button
           type="button"
-          className={podeMover ? "mt-0.5 cursor-grab text-muted-foreground" : "mt-0.5 cursor-not-allowed text-muted-foreground/30"}
+          className={
+            podeMover
+              ? "mt-0.5 cursor-grab touch-none text-muted-foreground"
+              : "mt-0.5 cursor-not-allowed text-muted-foreground/30"
+          }
           aria-label={podeMover ? "Arrastar" : MOTIVO_NAO_MOVE}
           title={podeMover ? undefined : MOTIVO_NAO_MOVE}
           disabled={!podeMover}
+          onTouchStart={podeMover ? (e) => e.stopPropagation() : undefined}
           {...dragProps}
         >
           <GripVertical className="size-3.5" />

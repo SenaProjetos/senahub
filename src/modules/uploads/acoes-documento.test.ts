@@ -45,6 +45,7 @@ const ids = (itens: readonly AcaoItem[]) => itens.map((i) => i.id);
 describe("itensDeDocumento", () => {
   it("monta o menu completo de um PDF pendente, para quem pode tudo", () => {
     expect(ids(itensDeDocumento(doc, ctx))).toEqual([
+      "detalhes",
       "visualizar",
       "comparar",
       `baixar:${PDF.id}`,
@@ -125,6 +126,7 @@ describe("itensDeDocumento", () => {
       { ...ctx, podeValidar: false, podeExcluir: false, podeSolicitarExclusao: false },
     );
     expect(ids(itens)).toEqual([
+      "detalhes",
       "visualizar",
       "comparar",
       `baixar:${PDF.id}`,

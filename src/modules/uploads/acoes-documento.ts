@@ -5,6 +5,7 @@ import {
   GitCompare,
   History,
   Link2,
+  PanelRight,
   Pencil,
   ShieldCheck,
   Trash2,
@@ -29,6 +30,8 @@ import { limparSeparadores, type AcaoItem } from "@/components/ui/acoes";
  * prancha são dois arquivos, e repor só o primeiro tiraria o do segundo.
  */
 
+/** Abre o painel lateral de detalhes/metadados — o mesmo que clicar no título na tabela. */
+export const ACAO_DETALHES = "detalhes";
 export const ACAO_COPIAR_NOME = "copiar-nome";
 export const ACAO_HISTORICO = "historico";
 export const ACAO_VALIDAR = "validar";
@@ -102,6 +105,9 @@ export function itensDeDocumento(d: DocumentoParaAcoes, ctx: ContextoAcoesDocume
   const travado = ctx.ocupado ? MOTIVO_OCUPADO : undefined;
 
   const itens: (AcaoItem | null)[] = [
+    // Primeiro item: é o que o clique no título da linha faz, e quem chega pelo botão direito
+    // não tem como descobrir sozinho que o título é clicável.
+    { tipo: "acao", id: ACAO_DETALHES, rotulo: "Detalhes do documento", icone: PanelRight },
     pdf
       ? {
           tipo: "link",
