@@ -263,7 +263,7 @@ function CardLead({
       <div className="flex items-start gap-1.5">
         <button
           type="button"
-          className="mt-0.5 cursor-grab text-muted-foreground"
+          className="mt-0.5 cursor-grab touch-none text-muted-foreground"
           aria-label="Arrastar"
           {...dragProps}
         >

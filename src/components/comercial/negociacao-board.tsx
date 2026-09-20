@@ -35,9 +35,22 @@ import { diasSemInteracao, followUpAtrasado } from "@/modules/comercial/frescor"
 import { MotivoPerdaNegociacaoDialog } from "./motivo-perda-negociacao-dialog";
 import { RegistrarInteracaoPopover } from "@/components/comercial/registrar-interacao-popover";
 import { ChecklistNegociacaoPopover } from "@/components/comercial/checklist-negociacao-popover";
+import type { AcaoItemAcao } from "@/components/ui/acoes";
+import { BotaoAcoes } from "@/components/ui/acoes-menu";
+import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
+import { LinhaComMenu } from "@/components/ui/linha-com-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { copiarTexto } from "@/lib/clipboard";
 import { brlInteiro } from "@/lib/utils";
+import {
+  ACAO_COPIAR_NOME,
+  ACAO_REABRIR,
+  destinoDoMover,
+  destinosDeNegociacao,
+  itensDeCardQuadro,
+  negociacaoPodeReabrir,
+} from "@/modules/comercial/acoes-quadro";
 
 /**
  * Kanban de Negociações (F2.14) — o funil que hoje acontece inteiramente fora do sistema.
@@ -119,11 +132,8 @@ export function NegociacaoBoard({
     });
   }
 
-  function onDragEnd(e: DragEndEvent) {
-    setArrastando(null);
-    const id = String(e.active.id);
-    const destino = e.over ? (String(e.over.id) as EstagioNegociacao) : null;
-    if (!destino) return;
+  /** Ponto único do arrasto e do menu: PERDIDO passa pelo diálogo de motivo antes de enviar. */
+  function pedirMover(id: string, destino: EstagioNegociacao) {
     const card = colunas.flatMap((c) => c.cards).find((n) => n.id === id);
     if (!card) return;
     if ((movidos[id] ?? card.estagio) === destino) return;
@@ -135,8 +145,17 @@ export function NegociacaoBoard({
     mover(id, destino);
   }
 
+  function onDragEnd(e: DragEndEvent) {
+    setArrastando(null);
+    if (!e.over) return;
+    pedirMover(String(e.active.id), String(e.over.id) as EstagioNegociacao);
+  }
+
+  const estagiosDoQuadro = colunas.map((c) => c.estagio);
+
   return (
     <>
+      <DicaMenuContexto />
       <DndContext
         sensors={sensors}
         onDragStart={(e: DragStartEvent) =>
@@ -148,7 +167,14 @@ export function NegociacaoBoard({
             a partir de `sm`. Ver comentário lá para o porquê de ser CSS e não JS. */}
         <div className="flex flex-col gap-3 pb-2 sm:flex-row sm:overflow-x-auto">
           {colunasExibidas.map((c) => (
-            <Coluna key={c.estagio} coluna={c} agora={agora} alvoId={alvoId} />
+            <Coluna
+              key={c.estagio}
+              coluna={c}
+              agora={agora}
+              alvoId={alvoId}
+              estagios={estagiosDoQuadro}
+              onMover={pedirMover}
+            />
           ))}
         </div>
         <DragOverlay>
@@ -184,10 +210,14 @@ function Coluna({
   coluna,
   agora,
   alvoId,
+  estagios,
+  onMover,
 }: {
   coluna: ColunaNegociacao;
   agora: Date;
   alvoId: string | null;
+  estagios: EstagioNegociacao[];
+  onMover: (id: string, destino: EstagioNegociacao) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: coluna.estagio });
   return (
@@ -212,7 +242,16 @@ function Coluna({
         {coluna.cards.length === 0 ? (
           <p className="px-1 py-4 text-center text-[11px] text-muted-foreground/60">—</p>
         ) : (
-          coluna.cards.map((n) => <Card key={n.id} card={n} agora={agora} destacado={n.id === alvoId} />)
+          coluna.cards.map((n) => (
+            <Card
+              key={n.id}
+              card={n}
+              agora={agora}
+              destacado={n.id === alvoId}
+              estagios={estagios}
+              onMover={onMover}
+            />
+          ))
         )}
         {coluna.temMais && (
           <p className="px-1 py-1 text-center text-[10px] text-muted-foreground">
@@ -229,11 +268,15 @@ function Card({
   agora,
   overlay,
   destacado,
+  estagios,
+  onMover,
 }: {
   card: CardNegociacao;
   agora: Date;
   overlay?: boolean;
   destacado?: boolean;
+  estagios?: EstagioNegociacao[];
+  onMover?: (id: string, destino: EstagioNegociacao) => void;
 }) {
   const router = useRouter();
   const [reabrindo, startReabrir] = useTransition();
@@ -244,7 +287,23 @@ function Card({
     : false;
   const valor = card.valorProposto ?? card.valorEstimado;
   // F5.11 — só nas colunas encerradas; volta ao estágio anterior sozinha, sem perguntar destino.
-  const podeReabrir = card.estagio === "PERDIDO" || card.estagio === "CANCELADO";
+  const podeReabrir = negociacaoPodeReabrir(card.estagio);
+  const itens = overlay
+    ? []
+    : itensDeCardQuadro({
+        destinos: destinosDeNegociacao(card.estagio, estagios ?? []),
+        podeReabrir,
+      });
+
+  async function aoSelecionar(item: AcaoItemAcao) {
+    const destino = destinoDoMover(item.id);
+    if (destino) onMover?.(card.id, destino as EstagioNegociacao);
+    else if (item.id === ACAO_REABRIR) reabrir();
+    else if (item.id === ACAO_COPIAR_NOME) {
+      if (await copiarTexto(card.titulo)) toast.success("Copiado.");
+      else toast.error("Não foi possível copiar.");
+    }
+  }
 
   function reabrir() {
     startReabrir(async () => {
@@ -264,11 +323,15 @@ function Card({
         destacado ? "border-primary ring-2 ring-primary/30" : ""
       } ${isDragging && !overlay ? "opacity-40" : ""}`}
     >
-      <div className="flex items-start gap-1.5">
+      <LinhaComMenu
+        itens={itens}
+        onSelect={(item) => void aoSelecionar(item)}
+        render={<div className="flex items-start gap-1.5 rounded-sm data-[popup-open]:bg-muted/50" />}
+      >
         {!overlay && (
           <button
             type="button"
-            className="mt-0.5 cursor-grab text-muted-foreground"
+            className="mt-0.5 cursor-grab touch-none text-muted-foreground"
             aria-label={`Arrastar ${card.titulo}`}
             {...listeners}
             {...attributes}
@@ -293,6 +356,12 @@ function Card({
                 </Button>
               )}
               <RegistrarInteracaoPopover entidadeTipo="NEGOCIACAO" entidadeId={card.id} />
+              <BotaoAcoes
+                itens={itens}
+                onSelect={(item) => void aoSelecionar(item)}
+                rotulo={`Ações de ${card.titulo}`}
+                className="size-6"
+              />
             </div>
           )}
           <p className="truncate text-xs font-semibold text-muted-foreground">
@@ -352,7 +421,7 @@ function Card({
             <p className="mt-1 text-[10px] text-warning">sem próxima ação</p>
           )}
         </div>
-      </div>
+      </LinhaComMenu>
     </div>
   );
 }

@@ -55,7 +55,7 @@ export function DicaMenuContexto({ className }: { className?: string }) {
       <MousePointerClick className="size-4 shrink-0" aria-hidden />
       <p className="min-w-0 flex-1 text-pretty">
         <span className="font-medium text-foreground">Novidade:</span> clique com o botão direito
-        em uma tarefa ou em um arquivo para ver as ações. No celular, toque e segure.
+        em uma linha, um cartão ou um arquivo para ver as ações. No celular, toque e segure.
       </p>
       <Button type="button" variant="ghost" size="sm" className="h-7 shrink-0" onClick={dispensar}>
         Entendi

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSetParams } from "@/lib/use-set-param";
@@ -30,6 +30,17 @@ import {
 } from "@/modules/comercial/temperatura";
 import { diasSemInteracao, followUpAtrasado } from "@/modules/comercial/frescor";
 import { RegistrarInteracaoPopover } from "@/components/comercial/registrar-interacao-popover";
+import type { AcaoItemAcao } from "@/components/ui/acoes";
+import { BotaoAcoes } from "@/components/ui/acoes-menu";
+import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
+import { LinhaComMenu } from "@/components/ui/linha-com-menu";
+import { copiarTexto } from "@/lib/clipboard";
+import {
+  ACAO_COPIAR_NOME,
+  destinoDoMover,
+  destinosDeProspeccao,
+  itensDeCardQuadro,
+} from "@/modules/comercial/acoes-quadro";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -77,12 +88,7 @@ export function ProspeccaoBoard({
     setArrastando(lead ?? null);
   }
 
-  function onDragEnd(e: DragEndEvent) {
-    setArrastando(null);
-    const leadId = String(e.active.id);
-    const destino = e.over ? (String(e.over.id) as StatusProspeccao) : null;
-    if (!destino) return;
-
+  function mover(leadId: string, destino: StatusProspeccao) {
     const lead = colunas.flatMap((c) => c.leads).find((l) => l.id === leadId);
     if (!lead) return;
     const atual = movidos[leadId] ?? lead.status;
@@ -108,10 +114,17 @@ export function ProspeccaoBoard({
     });
   }
 
+  function onDragEnd(e: DragEndEvent) {
+    setArrastando(null);
+    if (!e.over) return;
+    mover(String(e.active.id), String(e.over.id) as StatusProspeccao);
+  }
+
   const temMais = colunas.some((coluna) => coluna.temMais);
 
   return (
     <>
+      <DicaMenuContexto />
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
         {/* F2.17: em tela pequena as colunas EMPILHAM (flex-col) e ocupam a largura toda —
             sem scroll horizontal, que é o aceite. A partir de `sm` volta a ser board lado a lado.
@@ -119,7 +132,14 @@ export function ProspeccaoBoard({
             layout errado no servidor e corrige depois da hidratação, fazendo o board piscar. */}
         <div className="flex flex-col gap-3 pb-2 sm:flex-row sm:overflow-x-auto">
           {colunasExibidas.map((c) => (
-            <Coluna key={c.status} status={c.status} leads={c.leads} total={c.total} agora={agora} />
+            <Coluna
+              key={c.status}
+              status={c.status}
+              leads={c.leads}
+              total={c.total}
+              agora={agora}
+              onMover={mover}
+            />
           ))}
         </div>
         <DragOverlay>
@@ -142,11 +162,13 @@ function Coluna({
   leads,
   total,
   agora,
+  onMover,
 }: {
   status: StatusProspeccao;
   leads: LeadProspeccao[];
   total: number;
   agora: Date;
+  onMover: (leadId: string, destino: StatusProspeccao) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   return (
@@ -167,7 +189,7 @@ function Coluna({
         {leads.length === 0 ? (
           <p className="px-1 py-4 text-center text-[11px] text-muted-foreground/60">—</p>
         ) : (
-          leads.map((l) => <Card key={l.id} lead={l} agora={agora} />)
+          leads.map((l) => <Card key={l.id} lead={l} agora={agora} onMover={onMover} />)
         )}
       </div>
     </div>
@@ -178,12 +200,30 @@ function Card({
   lead,
   agora,
   arrastandoOverlay,
+  onMover,
 }: {
   lead: LeadProspeccao;
   agora: Date;
   arrastandoOverlay?: boolean;
+  onMover?: (leadId: string, destino: StatusProspeccao) => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: lead.id });
+  // No toque, soltar o dedo depois do toque longo ainda dispara o `click` do link — sem esta trava
+  // o menu abriria junto com a navegação para o lead.
+  const menuAberto = useRef(false);
+  const nome = lead.cliente?.nome ?? lead.nome;
+  const itens = arrastandoOverlay
+    ? []
+    : itensDeCardQuadro({ href: `/comercial/${lead.id}`, destinos: destinosDeProspeccao(lead.status) });
+
+  async function aoSelecionar(item: AcaoItemAcao) {
+    const destino = destinoDoMover(item.id);
+    if (destino) onMover?.(lead.id, destino as StatusProspeccao);
+    else if (item.id === ACAO_COPIAR_NOME) {
+      if (await copiarTexto(nome)) toast.success("Copiado.");
+      else toast.error("Não foi possível copiar.");
+    }
+  }
   const dias = diasSemInteracao(new Date(lead.updatedAt), agora);
   const atrasado = lead.proximaAcao
     ? followUpAtrasado(new Date(lead.proximaAcao.inicio), agora)
@@ -196,11 +236,18 @@ function Card({
         isDragging && !arrastandoOverlay ? "opacity-40" : ""
       }`}
     >
-      <div className="flex items-start gap-1.5">
+      <LinhaComMenu
+        itens={itens}
+        onSelect={(item) => void aoSelecionar(item)}
+        aoAbrir={(aberto) => {
+          menuAberto.current = aberto;
+        }}
+        render={<div className="flex items-start gap-1.5 rounded-sm data-[popup-open]:bg-muted/50" />}
+      >
         {!arrastandoOverlay && (
           <button
             type="button"
-            className="mt-0.5 cursor-grab text-muted-foreground"
+            className="mt-0.5 cursor-grab touch-none text-muted-foreground"
             aria-label={`Arrastar ${lead.nome}`}
             {...listeners}
             {...attributes}
@@ -210,13 +257,22 @@ function Card({
         )}
         <div className="min-w-0 flex-1">
           {!arrastandoOverlay && (
-            <div className="float-right ml-1">
+            <div className="float-right ml-1 flex items-center gap-0.5">
               <RegistrarInteracaoPopover entidadeTipo="LEAD" entidadeId={lead.id} />
+              <BotaoAcoes
+                itens={itens}
+                onSelect={(item) => void aoSelecionar(item)}
+                rotulo={`Ações de ${nome}`}
+                className="size-6"
+              />
             </div>
           )}
           {!arrastandoOverlay ? (
             <Link
               href={`/comercial/${lead.id}`}
+              onClick={(e) => {
+                if (menuAberto.current) e.preventDefault();
+              }}
               className="block rounded-sm outline-none underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring"
             >
               <p className="truncate font-medium">{lead.cliente?.nome ?? lead.nome}</p>
@@ -273,7 +329,7 @@ function Card({
             </p>
           )}
         </div>
-      </div>
+      </LinhaComMenu>
     </div>
   );
 }
