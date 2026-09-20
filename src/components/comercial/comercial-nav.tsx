@@ -10,6 +10,7 @@ import {
   Handshake,
   KanbanSquare,
   LayoutDashboard,
+  Layers,
   Megaphone,
   SlidersHorizontal,
   Table2,
@@ -32,6 +33,9 @@ const ITENS: Item[] = [
   { href: "/comercial/propostas", label: "Propostas", icon: FileText },
 ];
 
+/** Biblioteca de cláusulas e modelos: só para `comercial:modelos` (gestão), não para `gerir`. */
+const MODELOS: Item = { href: "/comercial/modelos", label: "Modelos de proposta", icon: Layers };
+
 const CONFIG: Item = {
   href: "/comercial/configuracoes",
   label: "Configurações",
@@ -49,7 +53,7 @@ function ativo(pathname: string, item: Item): boolean {
  * Só o item da página atual fica em destaque; fichas individuais (`/comercial/[id]`) não marcam
  * nenhum, porque não são uma das telas do menu.
  */
-export function ComercialNav({ podeGerir }: { podeGerir: boolean }) {
+export function ComercialNav({ podeGerir, podeModelos }: { podeGerir: boolean; podeModelos: boolean }) {
   const pathname = usePathname();
 
   return (
@@ -81,6 +85,18 @@ export function ComercialNav({ podeGerir }: { podeGerir: boolean }) {
             </Button>
           );
         })}
+        {podeModelos && (
+          <Button
+            variant={ativo(pathname, MODELOS) ? "default" : "outline"}
+            size="sm"
+            className="shrink-0"
+            render={
+              <Link href={MODELOS.href} aria-current={ativo(pathname, MODELOS) ? "page" : undefined} />
+            }
+          >
+            <Layers className="size-4" /> {MODELOS.label}
+          </Button>
+        )}
         {podeGerir && (
           <Button
             variant={ativo(pathname, CONFIG) ? "default" : "outline"}
