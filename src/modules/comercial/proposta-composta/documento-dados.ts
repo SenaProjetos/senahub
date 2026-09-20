@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { dadosEmpresa } from "@/modules/configuracoes/empresa/queries";
 import { docSchemaZ, type DocSchema } from "@/modules/documentos/schema";
 import { resolverTexto, type Escalar, type Linha } from "@/modules/documentos/tokens";
-import { montarDocumento } from "./documento";
+import { camposVaziosCitadosPeloModelo, montarDocumento } from "./documento";
 import { modeloDocumentoProposta, NOME_MODELO_DOCUMENTO } from "./modelo-documento";
 import { tokensNaoResolvidosProposta } from "./campos";
 import { mensagemTokensNaoResolvidos } from "@/modules/juridico/contrato/campos";
@@ -109,6 +109,14 @@ export async function carregarDocumentoProposta(propostaId: string): Promise<Doc
   // Modelo salvo ilegível cai no de fábrica em vez de sair em branco — mesmo defeito que o
   // `docVazio()` do Estúdio produzia. A prévia interna diz que isso aconteceu.
   const schema = parsed?.success ? parsed.data : modeloDocumentoProposta();
+
+  // O modelo também cita campos direto no layout (`Obra: [ObraEndereco] — [Cidade]/[UF]`). Sem
+  // esta checagem o documento publicava "Obra:  — /" — a mesma lacuna do bloqueio de cláusula,
+  // entrando pela porta do layout.
+  const vaziosDoModelo = camposVaziosCitadosPeloModelo(schema, { ...doc, secoes: secoesResolvidas });
+  if (vaziosDoModelo.length > 0) {
+    impedimentos.push(`O documento cita campos que estão em branco: ${vaziosDoModelo.join(", ")}.`);
+  }
 
   return {
     schema,

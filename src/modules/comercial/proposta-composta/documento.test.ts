@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { brl } from "@/lib/utils";
 import { docSchemaZ } from "@/modules/documentos/schema";
 import { extrairTokens, splitFormato } from "@/modules/documentos/tokens";
-import { dataPorExtenso, linhaDadosBancarios, montarDocumento, type DadosEmpresaDocumento, type DadosPropostaDocumento } from "./documento";
+import { camposVaziosCitadosPeloModelo, dataPorExtenso, linhaDadosBancarios, montarDocumento, type DadosEmpresaDocumento, type DadosPropostaDocumento } from "./documento";
 import { modeloDocumentoProposta } from "./modelo-documento";
 
 const empresa: DadosEmpresaDocumento = {
@@ -173,5 +173,52 @@ describe("modeloDocumentoProposta", () => {
     const a = modeloDocumentoProposta();
     const b = modeloDocumentoProposta();
     expect(a.bandas[0].id).not.toBe(b.bandas[0].id);
+  });
+});
+
+describe("camposVaziosCitadosPeloModelo", () => {
+  const schema = modeloDocumentoProposta();
+
+  it("proposta completa não tem campo em branco", () => {
+    expect(camposVaziosCitadosPeloModelo(schema, montarDocumento(proposta, empresa, HOJE))).toEqual([]);
+  });
+
+  it("proposta sem os dados da obra é PEGA (senão o documento sai 'Obra:  — /')", () => {
+    const sem = montarDocumento(
+      { ...proposta, obraEndereco: null, obraCidade: null, obraUF: null, areaM2: null },
+      empresa,
+      HOJE,
+    );
+    const faltando = camposVaziosCitadosPeloModelo(schema, sem);
+    expect(faltando).toContain("Endereço da obra");
+    expect(faltando).toContain("Cidade da obra");
+    expect(faltando).toContain("UF da obra");
+    expect(faltando).toContain("Área da obra");
+  });
+
+  it("empresa vazia é pega pelos campos do timbre", () => {
+    const sem = montarDocumento(proposta, null, HOJE);
+    expect(camposVaziosCitadosPeloModelo(schema, sem)).toContain("Empresa — razão social");
+  });
+
+  it("campo opcional citado (desconto, documento do cliente) não bloqueia", () => {
+    const sem = montarDocumento({ ...proposta, desconto: null, clienteDocumento: null }, empresa, HOJE);
+    const faltando = camposVaziosCitadosPeloModelo(sem.linhas.length ? schema : schema, sem);
+    expect(faltando).not.toContain("Desconto");
+    expect(faltando).not.toContain("ClienteDocumento");
+  });
+
+  it("seção sem texto é pega (a banda de detalhe lê as linhas da fonte dela)", () => {
+    const sem = montarDocumento(
+      { ...proposta, secoes: [{ secao: "descricao", titulo: null, texto: "" }] },
+      empresa,
+      HOJE,
+    );
+    expect(camposVaziosCitadosPeloModelo(schema, sem)).toContain("Texto");
+  });
+
+  it("coluna de tabela é conferida contra a LINHA, não contra o escalar", () => {
+    // `[Disciplina]` e `[Valor]` só existem nos itens; conferir no escalar acusaria falso positivo.
+    expect(camposVaziosCitadosPeloModelo(schema, montarDocumento(proposta, empresa, HOJE))).not.toContain("Disciplina");
   });
 });

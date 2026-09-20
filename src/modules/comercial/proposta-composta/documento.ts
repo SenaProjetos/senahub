@@ -1,4 +1,6 @@
 import { diasComExtenso, extensoMoeda } from "@/lib/extenso";
+import { extrairTokens, splitFormato } from "@/modules/documentos/tokens";
+import type { DocSchema } from "@/modules/documentos/schema";
 import { brl } from "@/lib/utils";
 import { calcularParcelas, rotuloPercentual, type ParcelaEntrada } from "./parcelas";
 import { ROTULO_SECAO } from "./modelos";
@@ -170,3 +172,83 @@ export function montarDocumento(
 
 /** Rótulo do percentual reexportado — a tela do editor e o documento usam a mesma escrita. */
 export { rotuloPercentual };
+
+
+/**
+ * Tokens que o MODELO cita e que o documento não tem como preencher.
+ *
+ * Existe porque o bloqueio da G1 só olhava o texto das cláusulas, e o cabeçalho do modelo cita
+ * campos direto (`Obra: [ObraEndereco] — [Cidade]/[UF]`). Sem esta checagem, uma proposta criada
+ * sem os dados da obra publicava com "Obra:  — /" — exatamente a lacuna que o bloqueio existe
+ * para impedir, só que pela porta do layout em vez da porta do texto.
+ *
+ * Puro: recebe o schema e o documento montado, devolve os nomes dos campos vazios.
+ */
+export const TOKENS_QUE_PODEM_FICAR_VAZIOS = new Set([
+  // Opcionais por natureza: a proposta sem desconto não imprime desconto, e nem todo cliente
+  // tem documento cadastrado. O rótulo no modelo é quem decide mostrar ou não (condicao).
+  "Desconto",
+  "ClienteDocumento",
+  "Observacoes",
+  // Resolvidos pelo próprio motor do Estúdio, não pelos dados.
+  "Pagina",
+  "Paginas",
+  "Hoje",
+  "Grupo",
+]);
+
+/** Nome amigável de cada campo, para a mensagem dizer o que preencher. */
+const ROTULO_CAMPO: Record<string, string> = {
+  ObraEndereco: "Endereço da obra",
+  Cidade: "Cidade da obra",
+  UF: "UF da obra",
+  AreaM2: "Área da obra",
+  Validade: "Validade",
+  ValidadeDias: "Validade",
+  ValidadeExtenso: "Validade",
+  Total: "Valor total",
+  TotalExtenso: "Valor total",
+  PlanoPagamento: "Plano de pagamento",
+  EmpresaRazaoSocial: "Empresa — razão social",
+  EmpresaCnpj: "Empresa — CNPJ",
+  EmpresaEndereco: "Empresa — endereço",
+  EmpresaTelefone: "Empresa — telefone",
+  EmpresaEmail: "Empresa — e-mail",
+  DadosBancarios: "Empresa — dados bancários",
+  Assinatura: "Empresa — responsável que assina",
+};
+
+const vazio = (v: unknown) => v === null || v === undefined || (typeof v === "string" && v.trim() === "");
+
+export function camposVaziosCitadosPeloModelo(schema: DocSchema, doc: DocumentoProposta): string[] {
+  const faltando = new Set<string>();
+  const exemploLinha = doc.linhas[0] ?? {};
+  const exemploSecao = doc.secoes[0] ?? {};
+
+  for (const banda of schema.bandas) {
+    // A banda de detalhe lê as LINHAS da fonte dela (as seções); as demais, os escalares.
+    const ehSecoes = banda.tipo === "detalhe" && banda.fonteId === "proposta-secoes";
+    for (const el of banda.elementos) {
+      if (!el.visivel) continue;
+      const textos = [el.texto, ...(el.colunas ?? []).map((c) => c.campo)];
+      for (const t of textos) {
+        for (const bruto of extrairTokens(t)) {
+          if (/^\s*=/.test(bruto)) continue; // calculado: os tokens internos já aparecem na varredura
+          const [expr] = splitFormato(bruto);
+          const chave = expr.includes(".") ? expr.split(".").pop()! : expr;
+          if (!chave || TOKENS_QUE_PODEM_FICAR_VAZIOS.has(chave)) continue;
+
+          // Coluna de tabela lê a linha da coleção; o resto, escalar (ou a seção, na detalhe).
+          const fonte = el.colunas?.some((c) => c.campo === t)
+            ? exemploLinha
+            : ehSecoes
+              ? exemploSecao
+              : doc.escalar;
+          if (!(chave in fonte) || vazio(fonte[chave])) faltando.add(chave);
+        }
+      }
+    }
+  }
+
+  return [...faltando].map((c) => ROTULO_CAMPO[c] ?? c);
+}
