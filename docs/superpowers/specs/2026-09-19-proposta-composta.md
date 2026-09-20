@@ -49,8 +49,8 @@ parcelas, dados bancários, validade e assinatura **não são cláusulas** — s
 | **G0** | Estúdio: **faixa em fluxo** (`banda.fluxo`, opt-in) — faixa cresce com o conteúdo, elementos empilhados na ordem do desenho, parágrafo sem corte; aviso no editor; modelos existentes intactos. Corrige de tabela o corte silencioso dos contratos de fábrica. | **Opus** |
 | **G0.1** | Estúdio: limites do schema que **invalidam modelo salvo** (`banda.altura` presa ao A4; elemento com `h < 4`). Modelo recusado abre em branco pelo fallback `docVazio()` e salvar por cima apaga o original. Relaxar os limites, avisar na tela e travar o salvar. | **Opus** |
 | **G1** | Regras puras: extenso, parcelas, escolha de cláusula por UF, campos citáveis. Só código testado. **Concluída** — ver "G1 — o que ficou". | Sonnet |
-| **G2** | Schema + migrações: `ModeloProposta`, `ClausulaProposta`, `PropostaSecao`, `PropostaParcela`, campos da obra em `Proposta`, permissão nova `comercial:modelos` (só gestão), campos novos de `empresa.dados` — e, como passo separado, a troca de `externa` por `formato`. | **Opus** |
-| **G3** | Telas da gestão: biblioteca de cláusulas e modelos. **Seed inicial** com as cláusulas mais frequentes das 163 propostas, para o dono revisar antes de usar. Ver "Seed da biblioteca" abaixo. | Sonnet |
+| **G2** | **Concluída.** Schema + migrações: `ModeloProposta`, `ClausulaProposta`, `PropostaSecao`, `PropostaParcela`, campos da obra em `Proposta`, permissão nova `comercial:modelos` (só gestão), campos novos de `empresa.dados` — e, como passo separado, a troca de `externa` por `formato`. | **Opus** |
+| **G3** | **Concluída.** Telas da gestão: biblioteca de cláusulas e modelos. **Seed inicial** com as cláusulas mais frequentes das 163 propostas, para o dono revisar antes de usar. Ver "Seed da biblioteca" abaixo. | Sonnet |
 | **G4** | Compor: "Nova proposta" na ficha da negociação escolhe o modelo e monta seções, itens e parcelas; editor com pré-visualização; salvar gera versão (snapshot do documento inteiro). | **Opus** |
 | **G5** | Documento: **modelo de proposta no Estúdio** (faixas em fluxo da G0) + fontes novas (`proposta-secoes`, `proposta-parcelas`, escalares da empresa/obra); a rota pública renderiza o documento no ramo `COMPOSTA`; PDF por versão e link público reaproveitando o que já existe. Mexe na rota pública congelada e na paginação do PDF — ver pré-requisito abaixo. | **Opus** |
 | **G6** | Transição: manual, "Nova proposta" passa a abrir a composta por padrão; legado e externa seguem disponíveis. | Sonnet |
@@ -137,6 +137,26 @@ independente devolve o número de origem) e a soma exata do plano em 60 combina�
 Contra o corpus real: dos 297 pares "R$ X (extenso)" das 163 propostas, 277 coincidem com o gerado;
 os 20 que divergem são exatamente os já catalogados na análise — 12 erros reais (o gerado é o
 correto), 2 de grafia ("oito centos", "neve mil"), 1 "um mil" e 7 falsos positivos ("tipo split").
+
+### G2 e G3 — o que ficou (concluídas)
+
+Migração `20260919233000_proposta_composta` (escrita à mão: o dev não tem shadow database).
+Aditiva; `externa` continua e a escrita é dupla — o `DROP COLUMN` é a contração, num deploy
+posterior. As leituras já são por `formato`, com o filtro `{ in: ["legado", "composta"] }` nas
+três rotas públicas (lista do que TEM página pública, não "tudo menos externa").
+
+**Correção de cláusula já publicada:** a semente é create-only por slug, então editar o texto em
+`biblioteca-inicial.ts` NÃO alcança quem já tem a linha. A regra é **slug novo** (`...-v2`) com a
+antiga desativada na tela. Renomear slug é proibido: o seed recriaria a antiga no deploy seguinte
+e todo modelo que a cita quebraria — por isso `editarClausula` nunca mexe no slug.
+
+**No deploy**, depois do `migrate deploy` e do `db:seed`, conferir o backfill (em produção são 34
+externas; no dev não havia nenhuma, então este é o primeiro uso real):
+
+```sql
+SELECT count(*) FROM "proposta" WHERE ("externa" = true) <> ("formato" = 'externa');  -- 0
+SELECT count(*) FROM "permissao_perfil" WHERE recurso='comercial' AND acao='modelos';  -- > 0
+```
 
 ### Pré-requisito da G5 — cabeçalho, rodapé e paginação do PDF
 
