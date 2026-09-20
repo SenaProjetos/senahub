@@ -1,6 +1,7 @@
 "use client";
 
-import { KeyRound, Star, ExternalLink, MoreVertical, Users, Lock } from "lucide-react";
+import { KeyRound, Star, Users, Lock } from "lucide-react";
+import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SortableHead } from "@/components/ui/sortable-head";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -9,13 +10,17 @@ import { Badge } from "@/components/ui/badge";
 import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/ui/pagination";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import type { AcaoItemAcao } from "@/components/ui/acoes";
+import { BotaoAcoes } from "@/components/ui/acoes-menu";
+import { LinhaComMenu } from "@/components/ui/linha-com-menu";
+import { copiarTexto } from "@/lib/clipboard";
 import { formatarData, cn } from "@/lib/utils";
+import {
+  ACAO_ABRIR,
+  ACAO_COPIAR_USUARIO,
+  ACAO_CREDENCIAL,
+  itensDeAcesso,
+} from "@/modules/acessos/acoes";
 import {
   iconeDaCategoria,
   corDaCategoria,
@@ -129,6 +134,15 @@ export function AcessosTabela({
 
   const ate = Math.min(skip + items.length, total);
 
+  async function aoSelecionar(c: LinhaAcesso, item: AcaoItemAcao) {
+    // "Ver credencial" só abre o drawer: revelar a senha é lá, numa ação auditada.
+    if (item.id === ACAO_ABRIR || item.id === ACAO_CREDENCIAL) onAbrir(c.id);
+    else if (item.id === ACAO_COPIAR_USUARIO && c.usuario) {
+      if (await copiarTexto(c.usuario)) toast.success("Usuário copiado.");
+      else toast.error("Não foi possível copiar.");
+    }
+  }
+
   return (
     <>
       <div className="overflow-x-auto">
@@ -149,8 +163,14 @@ export function AcessosTabela({
           <TableBody>
             {items.map((c) => {
               const Icone = iconeDaCategoria(c.categoria.nome);
+              const menuItens = itensDeAcesso(c, { podeRevelar });
               return (
-                <TableRow key={c.id} className="[&>td]:align-top">
+                <LinhaComMenu
+                  key={c.id}
+                  itens={menuItens}
+                  onSelect={(item) => void aoSelecionar(c, item)}
+                  render={<TableRow className="[&>td]:align-top data-[popup-open]:bg-muted/50" />}
+                >
                   <TableCell className="pr-0">
                     {c.favorita && (
                       <Star className="size-3.5 fill-warning text-warning" aria-label="Favorito" />
@@ -262,42 +282,15 @@ export function AcessosTabela({
                       >
                         Ver
                       </Button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="size-7 p-0"
-                              aria-label={`Mais ações para ${c.nome}`}
-                            >
-                              <MoreVertical className="size-4" aria-hidden />
-                            </Button>
-                          }
-                        />
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => onAbrir(c.id)}>
-                            Abrir detalhes
-                          </DropdownMenuItem>
-                          {c.url && (
-                            <DropdownMenuItem
-                              onClick={() => window.open(c.url ?? "", "_blank", "noopener,noreferrer")}
-                            >
-                              <ExternalLink className="size-4" aria-hidden />
-                              Abrir portal
-                            </DropdownMenuItem>
-                          )}
-                          {podeRevelar && (
-                            <DropdownMenuItem onClick={() => onAbrir(c.id)}>
-                              <KeyRound className="size-4" aria-hidden />
-                              Ver credencial
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <BotaoAcoes
+                        itens={menuItens}
+                        onSelect={(item) => void aoSelecionar(c, item)}
+                        rotulo={`Mais ações para ${c.nome}`}
+                        className="size-7 p-0"
+                      />
                     </div>
                   </TableCell>
-                </TableRow>
+                </LinhaComMenu>
               );
             })}
           </TableBody>

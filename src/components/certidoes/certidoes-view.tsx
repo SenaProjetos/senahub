@@ -5,9 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Plus,
-  Upload,
   Trash2,
-  FileArchive,
   ShieldCheck,
   PenLine,
   Share2,
@@ -40,6 +38,26 @@ import {
   revogarLinkCertidoes,
 } from "@/modules/certidoes/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import type { AcaoItemAcao } from "@/components/ui/acoes";
+import { BarraSelecao } from "@/components/ui/barra-selecao";
+import { BotaoSelecionados } from "@/components/ui/botao-selecionados";
+import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
+import { useLote } from "@/components/ui/use-lote";
+import { useSelecao } from "@/components/ui/use-selecao";
+import {
+  ACAO_BAIXAR,
+  ACAO_DETALHES,
+  ACAO_EDITAR,
+  ACAO_EXCLUIR,
+  ACAO_LOTE_EXCLUIR,
+  ACAO_LOTE_RENOVAR,
+  ACAO_LOTE_ZIP,
+  ACAO_NOVA_VERSAO,
+  ACAO_VISUALIZAR,
+  itensDeCertidao,
+  itensDeLoteCertidoes,
+  urlDoZip,
+} from "@/modules/certidoes/acoes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -111,7 +129,10 @@ export function CertidoesView({
   const [aba, setAba] = useState<Aba>("todas");
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS);
   const [ordem, setOrdem] = useState<Ordem>("prioridade");
-  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
+  // Seleção compartilhada (ADR-0002, regra 3): o menu de contexto age sobre ela. Atravessa os
+  // filtros; "Selecionados (N)" mostra só os marcados, de qualquer filtro.
+  const selecao = useSelecao();
+  const lote = useLote();
 
   const [detalhe, setDetalhe] = useState<Certidao | null>(null);
   const [visualizar, setVisualizar] = useState<Certidao | null>(null);
@@ -126,7 +147,8 @@ export function CertidoesView({
   const visiveis = useMemo(() => {
     const termo = filtros.busca.trim().toLowerCase();
 
-    const filtradas = certidoes.filter((c) => {
+    const filtradas = (selecao.soSelecionados ? certidoes.filter((c) => selecao.ids.has(c.id)) : certidoes).filter((c) => {
+      if (selecao.soSelecionados) return true;
       if (filtros.situacao && statusCertidao(c.validade) !== filtros.situacao) return false;
 
       if (filtros.documento === "com" && !c.arquivoNome) return false;
@@ -160,7 +182,7 @@ export function CertidoesView({
       const cmp = a.validade.localeCompare(b.validade);
       return ordem === "validade_desc" ? -cmp : cmp;
     });
-  }, [certidoes, filtros, ordem]);
+  }, [certidoes, filtros, ordem, selecao.soSelecionados, selecao.ids]);
 
   const filtrosAtivos = contarFiltrosAtivos(filtros);
 
@@ -180,26 +202,53 @@ export function CertidoesView({
     setOrdem("prioridade");
   }
 
-  function alternarSelecao(id: string) {
-    setSelecionadas((prev) => {
-      const s = new Set(prev);
-      if (s.has(id)) s.delete(id);
-      else s.add(id);
-      return s;
-    });
+  /** Certidões marcadas que ainda existem (a lista muda quando alguém exclui). */
+  const alvosSelecao = certidoes.filter((c) => selecao.marcado(c.id));
+  const itensDoLote = itensDeLoteCertidoes(alvosSelecao, { podeGerir });
+
+  /** Uma certidão marcada dentro de uma seleção de várias mostra as ações do lote. */
+  function menuDe(c: Certidao) {
+    return selecao.total > 1 && selecao.marcado(c.id)
+      ? itensDoLote
+      : itensDeCertidao(c, { podeGerir });
   }
 
-  /** Seleciona o recorte visível (respeita filtros/busca); se já estão todas, desmarca esse recorte. */
-  function alternarTodasVisiveis() {
-    setSelecionadas((prev) => {
-      const s = new Set(prev);
-      const todas = visiveis.every((c) => s.has(c.id));
-      for (const c of visiveis) {
-        if (todas) s.delete(c.id);
-        else s.add(c.id);
-      }
-      return s;
-    });
+  async function executarLote(item: AcaoItemAcao) {
+    if (item.id === ACAO_LOTE_ZIP) {
+      window.open(urlDoZip(alvosSelecao.map((c) => c.id)), "_blank", "noopener");
+    } else if (item.id === ACAO_LOTE_RENOVAR) {
+      setLoteAberto(true);
+    } else if (item.id === ACAO_LOTE_EXCLUIR) {
+      const tipos = new Map(alvosSelecao.map((c) => [c.id, c.tipo]));
+      await lote.executar({
+        ids: alvosSelecao.map((c) => c.id),
+        acao: (id) => excluirCertidao({ id }),
+        substantivo: ["certidão", "certidões"],
+        verbo: ["excluída", "excluídas"],
+        rotulo: (id) => tipos.get(id) ?? id,
+        confirmar: {
+          titulo: (n) => `Excluir ${n} ${n === 1 ? "certidão" : "certidões"}?`,
+          descricao: item.confirmar?.descricao,
+          rotuloConfirmar: item.confirmar?.rotuloConfirmar,
+          destrutivo: true,
+        },
+        aoConcluir: selecao.limpar,
+      });
+    }
+  }
+
+  /** Ação de UMA certidão (ou do lote, quando o item vem do menu de uma seleção de várias). */
+  function aoSelecionarNaLinha(c: Certidao, item: AcaoItemAcao) {
+    if (item.id.startsWith("lote-")) {
+      void executarLote(item);
+      return;
+    }
+    if (item.id === ACAO_DETALHES) setDetalhe(c);
+    else if (item.id === ACAO_VISUALIZAR) setVisualizar(c);
+    else if (item.id === ACAO_BAIXAR) window.open(`/api/certidoes/${c.id}/download`, "_blank", "noopener");
+    else if (item.id === ACAO_NOVA_VERSAO) setAtualizarPara(c);
+    else if (item.id === ACAO_EDITAR) setEditar(c);
+    else if (item.id === ACAO_EXCLUIR) void excluir(c);
   }
 
   async function excluir(c: Certidao) {
@@ -233,6 +282,7 @@ export function CertidoesView({
 
   return (
     <div className="space-y-4">
+      <DicaMenuContexto />
       {/* §2 — hierarquia: título, subtítulo e a ação principal à direita. */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -284,24 +334,13 @@ export function CertidoesView({
         responsaveis={responsaveis}
       />
 
-      {selecionadas.size > 0 && aba === "todas" && (
-        <div className="flex flex-wrap items-center gap-2 rounded-sm border bg-muted/40 p-2 text-sm">
-          <span className="font-medium">{selecionadas.size} selecionada(s)</span>
-          <Button
-            size="sm"
-            variant="outline"
-            render={<a href={`/api/certidoes/zip?ids=${[...selecionadas].join(",")}`} rel="noopener" />}
-          >
-            <FileArchive className="size-3.5" aria-hidden /> Baixar (.zip)
-          </Button>
-          {podeGerir && (
-            <Button size="sm" variant="outline" onClick={() => setLoteAberto(true)}>
-              <Upload className="size-3.5" aria-hidden /> Renovar selecionadas
-            </Button>
-          )}
-          <Button size="sm" variant="ghost" onClick={() => setSelecionadas(new Set())}>
-            Limpar seleção
-          </Button>
+      {podeGerir && aba === "todas" && selecao.total > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <BotaoSelecionados
+            total={selecao.total}
+            ativo={selecao.soSelecionados}
+            onChange={selecao.verSelecionados}
+          />
         </div>
       )}
 
@@ -367,14 +406,12 @@ export function CertidoesView({
         <CertidoesTabela
           certidoes={visiveis}
           podeGerir={podeGerir}
-          selecionadas={selecionadas}
-          onAlternarSelecao={alternarSelecao}
-          onAlternarTodas={alternarTodasVisiveis}
+          selecao={selecao}
+          menuDe={menuDe}
+          aoSelecionar={aoSelecionarNaLinha}
           onAbrirDetalhe={setDetalhe}
           onAtualizar={setAtualizarPara}
           onEditar={setEditar}
-          onExcluir={excluir}
-          onVisualizar={setVisualizar}
         />
       )}
 
@@ -404,12 +441,24 @@ export function CertidoesView({
         onOk={() => router.refresh()}
       />
       <EditarDialog certidao={editar} responsaveis={responsaveis} onClose={() => setEditar(null)} />
+      {podeGerir && aba === "todas" && (
+        <BarraSelecao
+          total={alvosSelecao.length}
+          itens={itensDoLote}
+          onSelect={(item) => void executarLote(item)}
+          onLimpar={selecao.limpar}
+          substantivo={["certidão", "certidões"]}
+          genero="f"
+          progresso={lote.progresso}
+        />
+      )}
+      {lote.portal}
       <RenovacaoLoteDialog
         open={loteAberto}
-        certidoes={certidoes.filter((c) => selecionadas.has(c.id))}
+        certidoes={alvosSelecao}
         onClose={() => setLoteAberto(false)}
         onOk={() => {
-          setSelecionadas(new Set());
+          selecao.limpar();
           router.refresh();
         }}
       />
@@ -417,7 +466,7 @@ export function CertidoesView({
         open={compartilharAberto}
         onClose={() => setCompartilharAberto(false)}
         certidoes={certidoes}
-        preSelecionadas={selecionadas}
+        preSelecionadas={new Set(selecao.lista)}
         links={links}
       />
       <GerenciarTiposDialog open={tiposAberto} onClose={() => setTiposAberto(false)} tipos={tipos} />

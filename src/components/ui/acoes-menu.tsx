@@ -116,6 +116,10 @@ export function BotaoAcoes({
   rotulo: string;
   className?: string;
 }) {
+  // Linha sem ação (ex.: só sobraria uma, que a própria linha já faz) não tem `...`: um botão que
+  // abre um menu vazio é pior que botão nenhum.
+  if (itens.length === 0) return null;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger

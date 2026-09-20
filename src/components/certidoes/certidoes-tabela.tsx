@@ -1,29 +1,16 @@
 "use client";
 
-import {
-  Upload,
-  MoreVertical,
-  FileText,
-  FileX,
-  Download,
-  Eye,
-  PenLine,
-  Trash2,
-  History,
-  UserPlus,
-} from "lucide-react";
+import { Upload, FileText, FileX, UserPlus } from "lucide-react";
 import { cn, formatarData } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
+import { BotaoAcoes } from "@/components/ui/acoes-menu";
+import { LinhaComMenu } from "@/components/ui/linha-com-menu";
+import type { Selecao } from "@/components/ui/use-selecao";
 import { statusCertidao, textoValidade, type StatusCertidao } from "@/modules/certidoes/service";
 import type { Certidao } from "@/components/certidoes/tipos";
 
@@ -64,29 +51,27 @@ const TOM_TEXTO = {
 export function CertidoesTabela({
   certidoes,
   podeGerir,
-  selecionadas,
-  onAlternarSelecao,
-  onAlternarTodas,
+  selecao,
+  menuDe,
+  aoSelecionar,
   onAbrirDetalhe,
   onAtualizar,
   onEditar,
-  onExcluir,
-  onVisualizar,
 }: {
   certidoes: Certidao[];
   podeGerir: boolean;
-  selecionadas: Set<string>;
-  onAlternarSelecao: (id: string) => void;
-  /** Marca todas as linhas visíveis (recorte atual de filtros) ou, se já estão todas, desmarca. */
-  onAlternarTodas: () => void;
+  /** Seleção compartilhada (ADR-0002, regra 3) — o menu de contexto age sobre ela. */
+  selecao: Selecao;
+  /** Ações da linha: as de UMA certidão, ou as do lote quando ela está numa seleção de várias. */
+  menuDe: (c: Certidao) => AcaoItem[];
+  aoSelecionar: (c: Certidao, item: AcaoItemAcao) => void;
   onAbrirDetalhe: (c: Certidao) => void;
   /** Abre o fluxo de nova versão (§15) — o mesmo de sempre, só promovido a ação primária. */
   onAtualizar: (c: Certidao) => void;
   onEditar: (c: Certidao) => void;
-  onExcluir: (c: Certidao) => void;
-  onVisualizar: (c: Certidao) => void;
 }) {
-  const todasMarcadas = certidoes.length > 0 && certidoes.every((c) => selecionadas.has(c.id));
+  const idsVisiveis = certidoes.map((c) => c.id);
+  const todasMarcadas = certidoes.length > 0 && selecao.estadoDaPagina(idsVisiveis) === "todos";
 
   return (
     <div className="overflow-x-auto rounded-sm border">
@@ -97,7 +82,7 @@ export function CertidoesTabela({
               <TableHead className="w-8 pr-0">
                 <Checkbox
                   checked={todasMarcadas}
-                  onCheckedChange={onAlternarTodas}
+                  onCheckedChange={() => selecao.alternarPagina(idsVisiveis)}
                   aria-label={todasMarcadas ? "Desmarcar todas as certidões" : "Selecionar todas as certidões"}
                   title={todasMarcadas ? "Desmarcar todas" : "Selecionar todas"}
                 />
@@ -116,19 +101,33 @@ export function CertidoesTabela({
             const situacao = statusCertidao(c.validade);
             const validade = textoValidade(c.validade);
             const temArquivo = !!c.arquivoNome;
-            const ehPdf = temArquivo && c.arquivoNome!.toLowerCase().endsWith(".pdf");
             const precisaAcao = situacao !== "ok";
             // §14 — falta de responsável só é PENDÊNCIA quando a certidão é obrigatória e já
             // precisa de ação; numa certidão opcional e regular é só um campo em branco.
             const responsavelPendente = !c.responsavelNome && c.obrigatoria && precisaAcao;
 
+            const menuItens = menuDe(c);
+
             return (
-              <TableRow key={c.id}>
+              <LinhaComMenu
+                key={c.id}
+                itens={menuItens}
+                onSelect={(item) => aoSelecionar(c, item)}
+                aoAbrir={(aberto) => {
+                  if (aberto && podeGerir) selecao.aoAbrirMenu(c.id);
+                }}
+                render={
+                  <TableRow
+                    data-marcada={selecao.marcado(c.id)}
+                    className="data-[marcada=true]:bg-accent/40 data-[popup-open]:bg-muted/50"
+                  />
+                }
+              >
                 {podeGerir && (
                   <TableCell className="pr-0">
                     <Checkbox
-                      checked={selecionadas.has(c.id)}
-                      onCheckedChange={() => onAlternarSelecao(c.id)}
+                      checked={selecao.marcado(c.id)}
+                      onCheckedChange={() => selecao.alternar(c.id)}
                       aria-label={`Selecionar ${c.tipo}`}
                     />
                   </TableCell>
@@ -221,61 +220,14 @@ export function CertidoesTabela({
                         Atualizar
                       </Button>
                     )}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="size-7 p-0"
-                            aria-label={`Mais ações para ${c.tipo}`}
-                          >
-                            <MoreVertical className="size-4" aria-hidden />
-                          </Button>
-                        }
-                      />
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onAbrirDetalhe(c)}>
-                          <History className="size-4" aria-hidden />
-                          Abrir detalhes e histórico
-                        </DropdownMenuItem>
-                        {ehPdf && (
-                          <DropdownMenuItem onClick={() => onVisualizar(c)}>
-                            <Eye className="size-4" aria-hidden />
-                            Visualizar documento
-                          </DropdownMenuItem>
-                        )}
-                        {temArquivo && (
-                          <DropdownMenuItem
-                            onClick={() => window.open(`/api/certidoes/${c.id}/download`, "_blank", "noopener")}
-                          >
-                            <Download className="size-4" aria-hidden />
-                            Baixar documento
-                          </DropdownMenuItem>
-                        )}
-                        {podeGerir && (
-                          <DropdownMenuItem onClick={() => onAtualizar(c)}>
-                            <Upload className="size-4" aria-hidden />
-                            {temArquivo ? "Nova versão" : "Adicionar documento"}
-                          </DropdownMenuItem>
-                        )}
-                        {podeGerir && (
-                          <DropdownMenuItem onClick={() => onEditar(c)}>
-                            <PenLine className="size-4" aria-hidden />
-                            Editar
-                          </DropdownMenuItem>
-                        )}
-                        {podeGerir && (
-                          <DropdownMenuItem onClick={() => onExcluir(c)}>
-                            <Trash2 className="size-4" aria-hidden />
-                            Excluir
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <BotaoAcoes
+                      itens={menuItens}
+                      onSelect={(item) => aoSelecionar(c, item)}
+                      rotulo={`Mais ações para ${c.tipo}`}
+                    />
                   </div>
                 </TableCell>
-              </TableRow>
+              </LinhaComMenu>
             );
           })}
         </TableBody>
