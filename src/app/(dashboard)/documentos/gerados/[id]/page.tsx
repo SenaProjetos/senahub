@@ -5,6 +5,7 @@ import { ArrowLeft, Download } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { obterDocumentoGerado } from "@/modules/documentos/queries";
 import { docSchemaZ, docVazio } from "@/modules/documentos/schema";
+import { DocViewport } from "@/components/documentos/doc-viewport";
 import { DocRender } from "@/components/documentos/doc-render";
 import { Button } from "@/components/ui/button";
 import { formatarData } from "@/lib/utils";
@@ -79,9 +80,9 @@ export default async function DocumentoGeradoPage({
         </Button>
       </div>
 
-      <div className="doc-print-area overflow-auto">
+      <DocViewport>
         <DocRender schema={schema} escalar={escalar} linhas={linhas} porFonte={porFonte} />
-      </div>
+      </DocViewport>
     </div>
   );
 }

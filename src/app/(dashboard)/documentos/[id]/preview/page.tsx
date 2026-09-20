@@ -10,6 +10,7 @@ import {
 } from "@/modules/documentos/fontes";
 import { chaveParamFonte, fonteDef } from "@/modules/documentos/fontes-meta";
 import { podeVerFonte } from "@/modules/documentos/fontes-perm";
+import { DocViewport } from "@/components/documentos/doc-viewport";
 import { colunasDoDataset } from "@/modules/documentos/dataset-queries";
 import { DocRender } from "@/components/documentos/doc-render";
 import { PreviewBar, type FonteBar } from "@/components/documentos/preview-bar";
@@ -132,14 +133,14 @@ export default async function PreviewPage({
           Selecione os parâmetros das fontes de dados acima para visualizar com dados reais.
         </p>
       ) : (
-        <div className="doc-print-area overflow-auto">
+        <DocViewport>
           <DocRender
             schema={modelo.schema}
             escalar={resolvido.escalarPrimaria}
             linhas={resolvido.linhasPrimaria}
             porFonte={resolvido.porFonte}
           />
-        </div>
+        </DocViewport>
       )}
       {colunasUnicas.length > 0 && (
         <p className="doc-no-print text-xs text-muted-foreground">

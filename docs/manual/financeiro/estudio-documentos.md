@@ -43,7 +43,11 @@ sistema, gerando o documento final em **PDF**.
 
 1. **Criar um modelo** (`documentos:gerir`): nome, tipo, **fonte de dados**, e o conteúdo
    com tokens.
-2. **Pré-visualizar** o modelo com dados de exemplo (`/documentos/{id}/preview`).
+2. **Pré-visualizar** o modelo com dados de exemplo (`/documentos/{id}/preview`). A folha abre
+   ajustada à largura da tela (uma A0 não cabe em tamanho real). Para conferir detalhe: **Ctrl +
+   roda do mouse** dá zoom só no desenho, ancorado no cursor — a página do navegador não muda de
+   tamanho; o **botão do meio** arrasta; os botões **Largura**, **Página inteira** e **100%**
+   reajustam. O zoom é só de tela: o PDF sai sempre em tamanho real.
 3. **Gerar** o documento final para um registro real → fica em **Gerados**
    (`/documentos/gerados`), com PDF.
 
