@@ -19,6 +19,12 @@ sistema todo, em qualquer onda:
 2. **Paridade: o menu de contexto nunca é o único caminho.** Toda ação dele existe também em um
    `...`, toolbar ou botão. Motivo técnico: o `ContextMenu` do base-ui não abre por teclado
    (`Shift+F10` / tecla Menu) — o `...` é o caminho acessível.
+3. **Onde há seleção, o menu age sobre a seleção** (decidido em 2026-09-20, onda 2). Botão direito
+   numa linha **fora** da seleção seleciona essa linha e limpa o resto, como no explorador de
+   arquivos. Item que só funciona num item de cada vez (renomear, abrir detalhes) fica
+   **desabilitado com o motivo**, pela regra 5 — nunca escondido.
+4. **Linha com uma ação só não ganha menu.** Menu existe para oferecer escolha; ação única continua
+   sendo um botão visível na linha.
 
 ## Contexto
 
@@ -49,4 +55,5 @@ viewer BIM (`CameraControls` gira a câmera com ele) e o viewer DWG.
   ADR.** A supressão feita pela biblioteca vive em `node_modules` e não é alvo do teste.
 - Chat e viewers (BIM/DWG) ficam fora do menu de contexto.
 
-Plano de execução: [`docs/superpowers/specs/2026-09-15-menu-contexto.md`](../superpowers/specs/2026-09-15-menu-contexto.md).
+Planos de execução: [onda 1](../superpowers/specs/2026-09-15-menu-contexto.md) (entregue) ·
+[onda 2](../superpowers/specs/2026-09-20-menu-contexto-onda2.md) (decidida, não implementada).
