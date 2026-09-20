@@ -23,6 +23,7 @@ import { LeadAnexos } from "./lead-anexos";
 import { NegociacaoDadosForm } from "./negociacao-dados-form";
 import { NegociacaoDisciplinasForm } from "./negociacao-disciplinas-form";
 import { RegistrarVersaoExternaDialog } from "./registrar-versao-externa-dialog";
+import { NovaPropostaCompostaDialog } from "./nova-proposta-composta-dialog";
 import { FollowUpsFicha, HistoricoFicha, Linha, PropostasFicha } from "./ficha-partes";
 
 type Opcao = { id: string; nome: string };
@@ -37,6 +38,8 @@ export type OpcoesFicha = {
   /** O mesmo catálogo com id — disciplinas de interesse da negociação. */
   catalogoDisciplinas: { id: string; nome: string }[];
   descontoMaxSemJustificativa: number;
+  /** Modelos ativos de proposta composta (ADR-0006); vazio esconde o botão de montar. */
+  modelosProposta: { id: string; nome: string; familia: string | null; descricao: string | null; validadeDias: number }[];
 };
 
 export type FichaCard = { tipo: "LEAD"; lead: FichaLead } | { tipo: "NEGOCIACAO"; negociacao: FichaNegociacao };
@@ -314,6 +317,13 @@ function FichaNegociacaoAbas({
           podeGerir={podeGerir}
           acoesExtras={
             podeGerir && n.estagio !== "CONTRATADO" ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <NovaPropostaCompostaDialog
+                  negociacaoId={n.id}
+                  tituloPadrao={n.titulo}
+                  modelos={opcoes.modelosProposta}
+                  disciplinas={opcoes.disciplinas}
+                />
               <RegistrarVersaoExternaDialog
                 negociacaoId={n.id}
                 tituloPadrao={n.titulo}
@@ -323,6 +333,7 @@ function FichaNegociacaoAbas({
                 disciplinas={opcoes.disciplinas}
                 descontoMaxSemJustificativa={opcoes.descontoMaxSemJustificativa}
               />
+              </div>
             ) : null
           }
         />

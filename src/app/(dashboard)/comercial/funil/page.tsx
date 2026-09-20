@@ -30,6 +30,7 @@ import { ESTAGIOS_ATIVOS } from "@/modules/comercial/jornada";
 import { FiltrosComerciais } from "@/components/comercial/filtros-comerciais";
 import { FunilComercialBoard } from "@/components/comercial/funil-comercial-board";
 import { ProspeccaoRapidaDialog } from "@/components/comercial/prospeccao-rapida-dialog";
+import { modelosAtivos } from "@/modules/comercial/proposta-composta/queries";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { brlInteiro } from "@/lib/utils";
@@ -99,7 +100,8 @@ export default async function FunilComercialPage({
         ficha.tipo === "LEAD" ? funilCompleto() : [],
         catalogoDisciplinas(),
         getConfigComercial(),
-      ]).then(([responsaveis, tipos, etapas, catalogo, config]) => ({
+        modelosAtivos(),
+      ]).then(([responsaveis, tipos, etapas, catalogo, config, modelosProposta]) => ({
         parceiros,
         campanhas,
         tipos,
@@ -108,6 +110,7 @@ export default async function FunilComercialPage({
         disciplinas: catalogo.map((d) => d.nome),
         catalogoDisciplinas: catalogo.map((d) => ({ id: d.id, nome: d.nome })),
         descontoMaxSemJustificativa: config.descontoMaxSemJustificativa,
+        modelosProposta,
       }))
     : null;
 

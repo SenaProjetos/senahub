@@ -8,6 +8,7 @@ import { escalaresDaProposta, tokensNaoResolvidosProposta } from "./campos";
 import { mensagemTokensNaoResolvidos } from "@/modules/juridico/contrato/campos";
 import { calcularParcelas } from "./parcelas";
 import { SECOES_ORDEM, pagamentoDoModeloSchema, secoesDoModeloSchema } from "./modelos";
+import { criarPropostaComposta, salvarPropostaComposta } from "./service";
 import type { SecaoProposta } from "@/generated/prisma/client";
 
 /**
@@ -255,5 +256,80 @@ export const alternarModeloProposta = defineAction(
     await prisma.modeloProposta.update({ where: { id: i.id }, data: { ativo: i.ativo } });
     revalidatePath("/comercial/modelos");
     return {};
+  },
+);
+
+// ── Composição da proposta (G4) — gate `comercial:gerir` ────────────────────────────────────
+//
+// Montar proposta é trabalho do comercial; manter a biblioteca é da gestão. Por isso as ações
+// abaixo NÃO usam `comercial:modelos`: quem monta escolhe e edita o texto DENTRO da proposta,
+// sem poder mexer no padrão de todo mundo.
+
+const baseComposicao = { modulo: "comercial", recurso: "comercial", permissao: "gerir" } as const;
+
+const itemSchema = z.object({
+  disciplina: z.string().trim().min(1),
+  valor: z.number().nonnegative(),
+});
+
+const criarCompostaSchema = z.object({
+  negociacaoId: z.string().min(1),
+  modeloId: z.string().min(1),
+  titulo: z.string().trim().min(3, "Informe o título da proposta.").max(160),
+  obraEndereco: z.string().trim().max(200).optional(),
+  obraCidade: z.string().trim().max(120).optional(),
+  obraUF: UF,
+  areaM2: z.number().positive().nullable().optional(),
+  itens: z.array(itemSchema).min(1, "Informe ao menos uma disciplina com valor."),
+});
+
+export const criarPropostaCompostaAction = defineAction(
+  { ...baseComposicao, acao: "criar-proposta-composta", entidade: "Proposta", schema: criarCompostaSchema },
+  async (i, { user }) => criarPropostaComposta(i, user.id),
+);
+
+const salvarCompostaSchema = z.object({
+  id: z.string().min(1),
+  titulo: z.string().trim().min(3).max(160),
+  obraEndereco: z.string().trim().max(200).optional(),
+  obraCidade: z.string().trim().max(120).optional(),
+  obraUF: UF,
+  areaM2: z.number().positive().nullable().optional(),
+  validade: z.string().trim().optional(),
+  observacoes: z.string().trim().max(2000).optional(),
+  itens: z.array(itemSchema).min(1, "Informe ao menos uma disciplina com valor."),
+  secoes: z.array(
+    z.object({
+      secao: secaoEnum,
+      titulo: z.string().trim().max(160).optional(),
+      texto: z.string().trim().min(1, "Seção sem texto: apague a seção ou escreva o texto."),
+      disciplinaId: z.string().nullable().optional(),
+      clausulaId: z.string().nullable().optional(),
+    }),
+  ),
+  parcelas: z.array(
+    z.object({
+      descricao: z.string().trim().min(1, "Descreva o marco da parcela."),
+      percentual: z.number().positive().max(100),
+      prazo: z.string().trim().max(120).optional(),
+    }),
+  ),
+  desconto: z.number().nonnegative().nullable().optional(),
+  justificativaDesconto: z.string().trim().max(500).optional(),
+});
+
+export const salvarPropostaCompostaAction = defineAction(
+  {
+    ...baseComposicao,
+    acao: "salvar-proposta-composta",
+    entidade: "Proposta",
+    schema: salvarCompostaSchema,
+    capturarAntes: async (i) => prisma.proposta.findUnique({ where: { id: i.id } }),
+  },
+  async (i, { user }) => {
+    const r = await salvarPropostaComposta(i, user.id);
+    revalidatePath(`/comercial/propostas/${i.id}/compor`);
+    revalidatePath("/comercial/funil");
+    return r;
   },
 );

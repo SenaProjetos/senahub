@@ -114,3 +114,84 @@ export async function listarModelosProposta(): Promise<ModeloDaLista[]> {
     };
   });
 }
+
+/** Modelos ativos, para quem monta escolher. */
+export async function modelosAtivos(): Promise<{ id: string; nome: string; familia: string | null; descricao: string | null; validadeDias: number }[]> {
+  return prisma.modeloProposta.findMany({
+    where: { ativo: true },
+    orderBy: { nome: "asc" },
+    select: { id: true, nome: true, familia: true, descricao: true, validadeDias: true },
+  });
+}
+
+export type PropostaCompostaEditor = {
+  id: string;
+  numero: string;
+  titulo: string;
+  status: string;
+  clienteNome: string;
+  negociacaoId: string | null;
+  modeloNome: string | null;
+  obraEndereco: string;
+  obraCidade: string;
+  obraUF: string;
+  areaM2: number | null;
+  validade: string;
+  observacoes: string;
+  itens: { disciplina: string; valor: number }[];
+  secoes: { secao: string; titulo: string; texto: string; disciplinaId: string | null; clausulaId: string | null }[];
+  parcelas: { descricao: string; percentual: number; prazo: string }[];
+  desconto: number | null;
+  versao: number | null;
+};
+
+/** Estado atual da composta para o editor. `null` quando não existe ou não é composta. */
+export async function propostaCompostaParaEditor(id: string): Promise<PropostaCompostaEditor | null> {
+  const p = await prisma.proposta.findUnique({
+    where: { id },
+    include: {
+      cliente: { select: { nome: true } },
+      modelo: { select: { nome: true } },
+      itens: { orderBy: { ordem: "asc" }, include: { disciplina: { select: { nome: true } } } },
+      secoes: { orderBy: { ordem: "asc" } },
+      parcelas: { orderBy: { ordem: "asc" } },
+      versoes: { orderBy: { numero: "desc" }, take: 1, select: { numero: true, desconto: true } },
+    },
+  });
+  if (!p || p.formato !== "composta") return null;
+  return {
+    id: p.id,
+    numero: p.numero,
+    titulo: p.titulo,
+    status: p.status,
+    clienteNome: p.cliente.nome,
+    negociacaoId: p.negociacaoId,
+    modeloNome: p.modelo?.nome ?? null,
+    obraEndereco: p.obraEndereco ?? "",
+    obraCidade: p.obraCidade ?? "",
+    obraUF: p.obraUF ?? "",
+    areaM2: p.areaM2 != null ? Number(p.areaM2) : null,
+    // `toISOString().slice(0,10)` e não data local: a coluna é `@db.Date` e volta meia-noite UTC
+    // (lib/data.ts) — converter para o fuso local mudaria o dia.
+    validade: p.validade ? p.validade.toISOString().slice(0, 10) : "",
+    observacoes: p.observacoes ?? "",
+    itens: p.itens.map((i) => ({
+      disciplina: i.disciplina?.nome ?? i.disciplinaTextoLegado,
+      valor: Number(i.valor),
+    })),
+    secoes: p.secoes.map((s) => ({
+      secao: s.secao,
+      titulo: s.titulo ?? "",
+      texto: s.texto,
+      disciplinaId: s.disciplinaId,
+      clausulaId: s.clausulaId,
+    })),
+    parcelas: p.parcelas.map((x) => ({
+      descricao: x.descricao,
+      percentual: Number(x.percentual),
+      prazo: x.prazo ?? "",
+    })),
+    desconto: p.versoes[0]?.desconto != null ? Number(p.versoes[0].desconto) : null,
+    versao: p.versoes[0]?.numero ?? null,
+  };
+}
