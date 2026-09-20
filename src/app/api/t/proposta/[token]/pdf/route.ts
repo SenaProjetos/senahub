@@ -31,7 +31,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   // ADR-0005: sem link público para proposta externa.
   const p = await prisma.proposta.findUnique({
     where: { token, formato: { in: ["legado", "composta"] } },
-    select: { id: true, numero: true, titulo: true },
+    select: { id: true, numero: true, titulo: true, formato: true },
   });
   if (!p) return new Response("Proposta não encontrada.", { status: 404 });
 
@@ -52,7 +52,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   }
 
   try {
-    const pdf = await gerarPdfDaPaginaPublica(token);
+    // Composta = documento de várias páginas: sai com "Página X / Y" e a faixa reservada.
+    const pdf = await gerarPdfDaPaginaPublica(token, { paginado: p.formato === "composta" });
     return new Response(new Uint8Array(pdf), { headers: headers() });
   } catch (e) {
     if (e instanceof ExecutionCapacityError) {

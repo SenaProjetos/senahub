@@ -737,7 +737,8 @@ async function main() {
   const pc = await seedPropostaComposta(prisma);
   console.log(
     `✔ Proposta composta: ${pc.clausulasCriadas} cláusula(s) criada(s) (${pc.clausulasExistentes} já existiam), ` +
-      `${pc.modelosCriados} modelo(s) criado(s) (${pc.modelosExistentes} já existiam).`,
+      `${pc.modelosCriados} modelo(s) criado(s) (${pc.modelosExistentes} já existiam), ` +
+      `layout do documento ${pc.documentoCriado ? "criado" : "já existia"}.`,
   );
   if (pc.disciplinasNaoEncontradas.length > 0) {
     console.log(

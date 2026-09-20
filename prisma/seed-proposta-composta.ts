@@ -1,5 +1,9 @@
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { CLAUSULAS_INICIAIS, MODELOS_INICIAIS } from "../src/modules/comercial/proposta-composta/biblioteca-inicial";
+import {
+  modeloDocumentoProposta,
+  NOME_MODELO_DOCUMENTO,
+} from "../src/modules/comercial/proposta-composta/modelo-documento";
 
 /**
  * Semeia a biblioteca de cláusulas e os modelos de proposta (ADR-0006, G3).
@@ -21,6 +25,7 @@ export async function seedPropostaComposta(prisma: PrismaClient): Promise<{
   clausulasExistentes: number;
   modelosCriados: number;
   modelosExistentes: number;
+  documentoCriado: boolean;
   disciplinasNaoEncontradas: string[];
 }> {
   const catalogo = await prisma.disciplinaCatalogo.findMany({ select: { id: true, nome: true } });
@@ -78,5 +83,22 @@ export async function seedPropostaComposta(prisma: PrismaClient): Promise<{
     modelosCriados++;
   }
 
-  return { clausulasCriadas, clausulasExistentes, modelosCriados, modelosExistentes, disciplinasNaoEncontradas };
+  // Layout do documento no Estúdio. Create-only pelo NOME (o `DocumentoModelo` não tem slug):
+  // quem ajustar o layout no canvas não perde o ajuste no deploy seguinte.
+  const jaTem = await prisma.documentoModelo.findFirst({ where: { nome: NOME_MODELO_DOCUMENTO }, select: { id: true } });
+  let documentoCriado = false;
+  if (!jaTem) {
+    await prisma.documentoModelo.create({
+      data: {
+        nome: NOME_MODELO_DOCUMENTO,
+        descricao: "Layout da proposta composta (ADR-0006). Faixas em fluxo: a cláusula longa não é cortada.",
+        tipo: "proposta",
+        fonte: "proposta",
+        schemaJson: modeloDocumentoProposta() as unknown as object,
+      },
+    });
+    documentoCriado = true;
+  }
+
+  return { clausulasCriadas, clausulasExistentes, modelosCriados, modelosExistentes, disciplinasNaoEncontradas, documentoCriado };
 }

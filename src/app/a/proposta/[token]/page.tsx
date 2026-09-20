@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { DocRender } from "@/components/documentos/doc-render";
+import { carregarDocumentoProposta } from "@/modules/comercial/proposta-composta/documento-dados";
 import { FileText } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { brl, formatarData } from "@/lib/utils";
@@ -40,6 +42,24 @@ export default async function PropostaPublicaPage({
     },
   });
   if (!p) notFound();
+
+  // ── ADR-0006: ramo da proposta COMPOSTA ────────────────────────────────────────────────────
+  // O ramo antigo abaixo não muda uma linha (ADR-21 §6 congelou a renderização porque o PDF já
+  // enviado é impresso dela ao vivo). A composta é escolhida por um valor de `formato` que
+  // nenhuma proposta anterior tem, então nada do que existe passa por aqui.
+  //
+  // Documento com impedimento (plano que não fecha 100%, empresa não configurada, token de
+  // cláusula sem valor) NÃO é publicado: o cliente veria "obra em , " ou um plano zerado. Some
+  // da web como se não existisse; a prévia interna é quem diz o que falta.
+  if (p.formato === "composta") {
+    const doc = await carregarDocumentoProposta(p.id);
+    if (!doc || doc.impedimentos.length > 0) notFound();
+    return (
+      <main className="doc-print-area mx-auto max-w-[850px] px-2 py-6">
+        <DocRender schema={doc.schema} escalar={doc.escalar} linhas={doc.linhas} porFonte={doc.porFonte} />
+      </main>
+    );
+  }
 
   const total = p.itens.reduce((s, it) => s + Number(it.valor), 0);
 
