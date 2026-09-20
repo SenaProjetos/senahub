@@ -30,7 +30,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
 
   // ADR-0005: sem link público para proposta externa.
   const p = await prisma.proposta.findUnique({
-    where: { token, externa: false },
+    where: { token, formato: { in: ["legado", "composta"] } },
     select: { id: true, numero: true, titulo: true },
   });
   if (!p) return new Response("Proposta não encontrada.", { status: 404 });

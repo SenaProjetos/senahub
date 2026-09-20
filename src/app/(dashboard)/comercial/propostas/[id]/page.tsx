@@ -35,7 +35,7 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
   if (!p) notFound();
   // ADR-0005: a externa não tem editor — o documento é o PDF de cada versão. A ficha da
   // negociação é onde ela é versionada, baixada e aceita.
-  if (p.externa && p.negociacaoId) redirect(`/comercial/funil?card=NEGOCIACAO:${p.negociacaoId}`);
+  if (p.formato === "externa" && p.negociacaoId) redirect(`/comercial/funil?card=NEGOCIACAO:${p.negociacaoId}`);
 
   return (
     <div className="space-y-5">

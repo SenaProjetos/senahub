@@ -333,7 +333,7 @@ export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
   if (p.status === "aceita") throw new ActionError("Proposta aceita não pode ser editada.");
   // ADR-0005: o conteúdo da externa é o PDF. Salvar pelo editor recriaria itens e valores a
   // partir de uma tela que não conhece o documento enviado.
-  if (p.externa) {
+  if (p.formato === "externa") {
     throw new ActionError("Proposta externa: registre uma nova versão pela ficha da negociação.");
   }
 
@@ -500,7 +500,7 @@ export async function registrarVersaoExterna(
           id: true,
           numero: true,
           negociacaoId: true,
-          externa: true,
+          formato: true,
           status: true,
           versoes: { select: { numero: true } },
         },
@@ -510,7 +510,9 @@ export async function registrarVersaoExterna(
     if (!existente || existente.negociacaoId !== negociacao.id) {
       throw new ActionError("Proposta não encontrada nesta negociação.");
     }
-    if (!existente.externa) throw new ActionError("Esta proposta foi montada no editor — edite-a por lá.");
+    if (existente.formato !== "externa") {
+      throw new ActionError("Esta proposta foi montada no editor — edite-a por lá.");
+    }
     if (existente.status === "aceita") throw new ActionError("Proposta aceita não recebe nova versão.");
   }
 
@@ -562,7 +564,11 @@ export async function registrarVersaoExterna(
           ano: seq.ano,
           sequencial: seq.sequencial,
           numero: seq.numero,
+          // ESCRITA DUPLA enquanto as duas colunas existem (passo 2 de 3 da troca): um rollback
+          // de código para a versão que lê `externa` precisa encontrar o valor certo lá.
+          // A coluna antiga sai na migração de contração, depois deste deploy.
           externa: true,
+          formato: "externa",
           clienteId: negociacao.clienteId,
           negociacaoId: negociacao.id,
           leadId: negociacao.leadId,

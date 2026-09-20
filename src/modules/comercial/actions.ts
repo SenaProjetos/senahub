@@ -687,7 +687,7 @@ export const enviarPropostaEmail = defineAction(
       include: { cliente: true, itens: true },
     });
     if (!p) throw new ActionError("Proposta não encontrada.");
-    if (p.externa) {
+    if (p.formato === "externa") {
       throw new ActionError("Proposta externa não tem link público — envie o PDF ao cliente por fora.");
     }
     if (!p.cliente.email) throw new ActionError("Cliente sem e-mail cadastrado.");

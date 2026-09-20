@@ -15,7 +15,7 @@ import {
   colunaDoCard,
   type ColunaFunil,
 } from "@/modules/comercial/funil";
-import type { TipoAncoraCompromisso, EstagioNegociacao, StatusProspeccao } from "@/generated/prisma/client";
+import type { TipoAncoraCompromisso, EstagioNegociacao, StatusProspeccao, FormatoProposta } from "@/generated/prisma/client";
 import {
   whereProspeccao,
   whereNegociacao,
@@ -1454,7 +1454,7 @@ function resumoPropostas(
     numero: string;
     titulo: string;
     status: string;
-    externa: boolean;
+    formato: FormatoProposta;
     versoes: {
       numero: number;
       valorOriginal: unknown;
@@ -1471,7 +1471,9 @@ function resumoPropostas(
       numero: p.numero,
       titulo: p.titulo,
       status: p.status,
-      externa: p.externa,
+      /** Mantido no formato que a tela já consome; a fonte agora é `formato` (ADR-0006). */
+      externa: p.formato === "externa",
+      formato: p.formato,
       versao: v?.numero ?? null,
       /** O caminho do arquivo não sai do servidor — só se existe PDF para baixar. */
       temPdf: Boolean(v?.pdfPath),
@@ -1487,7 +1489,7 @@ const SELECT_PROPOSTA_FICHA = {
   numero: true,
   titulo: true,
   status: true,
-  externa: true,
+  formato: true,
   versoes: { select: { numero: true, valorOriginal: true, desconto: true, valorVersao: true, pdfPath: true } },
 } as const;
 

@@ -26,8 +26,11 @@ export default async function PropostaPublicaPage({
   const { token } = await params;
   // ADR-0005: proposta externa não tem página pública (o time envia o PDF por fora). O filtro
   // não muda nada na renderização das propostas do editor — só recusa as externas.
-  const p = await prisma.proposta.findUnique({
-    where: { token, externa: false },
+  //
+  // Lista do que TEM página pública, em vez de "tudo menos externa": formato novo não passa a
+  // vazar sozinho por esquecimento (a composta entrou aqui de propósito, com ramo próprio na G5).
+  const p = await prisma.proposta.findFirst({
+    where: { token, formato: { in: ["legado", "composta"] } },
     include: {
       cliente: { select: { nome: true } },
       // `disciplina` (catalogo) no include: a pagina publica mostra o nome do catalogo e cai

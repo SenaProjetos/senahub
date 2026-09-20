@@ -1564,6 +1564,7 @@ async function main() {
     where: { id: v1.propostaId },
     select: {
       externa: true,
+      formato: true,
       status: true,
       token: true,
       itens: { select: { valor: true } },
@@ -1571,6 +1572,10 @@ async function main() {
     },
   });
   check("nasce externa, enviada, com as linhas por disciplina", ext?.externa === true && ext.status === "enviada" && ext.itens.length === 2);
+  // Passo 2 da troca `externa` -> `formato` (ADR-0006): enquanto as duas colunas existem, a
+  // escrita é DUPLA. Se divergirem, um rollback de código volta a tratar a externa como legado
+  // e o link público dela abre.
+  check("escrita dupla: `formato` acompanha `externa`", ext?.formato === "externa", `formato=${ext?.formato}`);
   check(
     "versão 1 guarda o PDF e os valores (10000 − 500)",
     ext?.versoes[0]?.pdfPath != null && Number(ext.versoes[0].valorVersao) === 9500,
@@ -1580,8 +1585,11 @@ async function main() {
   const arq = await arquivarPdfDaVersao(v1.propostaId, { gerar: async () => Buffer.from("%PDF-render-vazio") });
   check("arquivamento no envio NÃO sobrescreve o PDF anexado", arq.arquivado === false);
 
-  const publica = await prisma.proposta.findUnique({ where: { token: ext!.token, externa: false } });
-  check("externa não tem página pública (lookup por token com externa:false devolve nada)", publica === null);
+  // O MESMO filtro das três rotas públicas por token (página, PDF e anexos), agora por `formato`.
+  const publica = await prisma.proposta.findFirst({
+    where: { token: ext!.token, formato: { in: ["legado", "composta"] } },
+  });
+  check("externa não tem página pública (o filtro das rotas por token não a encontra)", publica === null);
 
   await recusaExt(
     "o editor recusa salvar uma proposta externa",
