@@ -5,14 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  MoreHorizontal,
   UserPlus,
-  KeyRound,
-  Pencil,
-  UserX,
-  UserCheck,
   Copy,
-  Trash2,
   TriangleAlert,
 } from "lucide-react";
 import {
@@ -63,12 +57,29 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import type { AcaoItemAcao } from "@/components/ui/acoes";
+import { BotaoAcoes } from "@/components/ui/acoes-menu";
+import { BarraSelecao } from "@/components/ui/barra-selecao";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
+import { LinhaComMenu } from "@/components/ui/linha-com-menu";
+import { useLote } from "@/components/ui/use-lote";
+import { useSelecao } from "@/components/ui/use-selecao";
+import { copiarTexto } from "@/lib/clipboard";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  ACAO_COPIAR_EMAIL,
+  ACAO_COPIAR_NOME,
+  ACAO_DESATIVAR,
+  ACAO_EDITAR,
+  ACAO_EXCLUIR,
+  ACAO_LOTE_DESATIVAR,
+  ACAO_LOTE_EXCLUIR,
+  ACAO_LOTE_REATIVAR,
+  ACAO_REATIVAR,
+  ACAO_REINICIAR_SENHA,
+  itensDeLoteUsuarios,
+  itensDeUsuario,
+} from "@/modules/usuarios/acoes";
 
 type FormState = {
   id?: string;
@@ -166,6 +177,9 @@ export function UsuariosView({
   const [pending, startTransition] = useTransition();
   const confirm = useConfirm();
   const router = useRouter();
+  // Seleção compartilhada (ADR-0002, regra 3): o menu de contexto age sobre ela.
+  const selecao = useSelecao();
+  const lote = useLote();
 
   // Item 6a: aprovar um pedido de acesso abre a criação já preenchida (nome/e-mail),
   // em vez de redigitar. O admin revisa e define o vínculo antes de criar.
@@ -311,8 +325,104 @@ export function UsuariosView({
     });
   }
 
+  function editar(u: UsuarioListItem) {
+    setForm({
+      ...EMPTY,
+      id: u.id,
+      name: u.name,
+      nomeCompleto: u.nomeCompleto ?? "",
+      email: u.email,
+      role: u.role as Role,
+      clienteId: u.clienteId ?? "",
+      ehSocio: u.socio?.ativo === true,
+      perfilId: u.perfilId ?? "",
+      superUsuario: u.superUsuario,
+      ativo: u.ativo,
+      setor: u.setor,
+      jaTeveVinculo: u._count.vinculos > 0,
+      contratacao: u.contratacao,
+    });
+  }
+
+  /** Marcados que ainda existem na lista (a lista muda quando alguém é desativado/excluído). */
+  const alvosSelecao = visiveis.filter((u) => selecao.marcado(u.id));
+  const itensDoLote = itensDeLoteUsuarios(alvosSelecao, { podeExcluir });
+
+  async function executarLote(item: AcaoItemAcao) {
+    const nomes = new Map(alvosSelecao.map((u) => [u.id, u.name]));
+    const rotulo = (id: string) => nomes.get(id) ?? id;
+    if (item.id === ACAO_LOTE_DESATIVAR) {
+      await lote.executar({
+        ids: alvosSelecao.filter((u) => u.ativo).map((u) => u.id),
+        acao: (id) => desativarUsuario({ id }),
+        substantivo: ["usuário", "usuários"],
+        verbo: ["desativado", "desativados"],
+        rotulo,
+        confirmar: {
+          titulo: (n) => `Desativar ${n} ${n === 1 ? "usuário" : "usuários"}?`,
+          descricao: item.confirmar?.descricao,
+          rotuloConfirmar: item.confirmar?.rotuloConfirmar,
+          destrutivo: true,
+        },
+        aoConcluir: selecao.limpar,
+      });
+    } else if (item.id === ACAO_LOTE_REATIVAR) {
+      await lote.executar({
+        ids: alvosSelecao.filter((u) => !u.ativo).map((u) => u.id),
+        acao: (id) => reativarUsuario({ id }),
+        substantivo: ["usuário", "usuários"],
+        verbo: ["reativado", "reativados"],
+        rotulo,
+        aoConcluir: selecao.limpar,
+      });
+    } else if (item.id === ACAO_LOTE_EXCLUIR) {
+      await lote.executar({
+        ids: alvosSelecao.filter((u) => !u.ativo).map((u) => u.id),
+        acao: (id) => excluirUsuario({ id }),
+        substantivo: ["usuário", "usuários"],
+        verbo: ["excluído", "excluídos"],
+        rotulo,
+        confirmar: {
+          titulo: (n) => `Excluir ${n} ${n === 1 ? "usuário" : "usuários"}?`,
+          descricao: item.confirmar?.descricao,
+          rotuloConfirmar: item.confirmar?.rotuloConfirmar,
+          destrutivo: true,
+        },
+        aoConcluir: selecao.limpar,
+      });
+    }
+  }
+
+  /** Ação de UM usuário. A confirmação vem antes de qualquer transição (React 19). */
+  async function aoSelecionarNaLinha(u: UsuarioListItem, item: AcaoItemAcao) {
+    if (item.id.startsWith("lote-")) {
+      void executarLote(item);
+      return;
+    }
+    if (item.confirmar) {
+      const ok = await confirm({
+        title: item.confirmar.titulo,
+        description: item.confirmar.descricao,
+        confirmLabel: item.confirmar.rotuloConfirmar,
+        variant: item.variant === "destructive" ? "destructive" : "default",
+      });
+      if (!ok) return;
+    }
+    if (item.id === ACAO_EDITAR) editar(u);
+    else if (item.id === ACAO_REINICIAR_SENHA) resetar(u.id, u.email);
+    else if (item.id === ACAO_DESATIVAR) acao(() => desativarUsuario({ id: u.id }), "Usuário desativado.");
+    else if (item.id === ACAO_REATIVAR) acao(() => reativarUsuario({ id: u.id }), "Usuário reativado.");
+    else if (item.id === ACAO_EXCLUIR) void excluir(u);
+    else if (item.id === ACAO_COPIAR_NOME || item.id === ACAO_COPIAR_EMAIL) {
+      const ok = await copiarTexto(item.id === ACAO_COPIAR_NOME ? u.name : u.email);
+      if (ok) toast.success("Copiado.");
+      else toast.error("Não foi possível copiar.");
+    }
+  }
+
   return (
     <div className="space-y-4">
+      <DicaMenuContexto />
       <SolicitacoesCadastro pedidos={pedidos} onAvaliar={avaliarPedido} pending={pending} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -337,6 +447,13 @@ export function UsuariosView({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-8">
+                <Checkbox
+                  checked={selecao.estadoDaPagina(visiveis.map((u) => u.id)) === "todos"}
+                  onCheckedChange={() => selecao.alternarPagina(visiveis.map((u) => u.id))}
+                  aria-label="Marcar todos os usuários da lista"
+                />
+              </TableHead>
               <TableHead>Nome</TableHead>
               <TableHead>E-mail</TableHead>
               <TableHead>Papel</TableHead>
@@ -346,8 +463,25 @@ export function UsuariosView({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {visiveis.map((u) => (
-              <TableRow key={u.id} className={u.ativo ? "" : "opacity-60"}>
+            {visiveis.map((u) => {
+              const menuItens = alvosSelecao.length > 1 && selecao.marcado(u.id)
+                ? itensDoLote
+                : itensDeUsuario(u, { podeExcluir });
+              return (
+              <LinhaComMenu
+                key={u.id}
+                itens={menuItens}
+                onSelect={(item) => void aoSelecionarNaLinha(u, item)}
+                aoAbrir={(aberto) => { if (aberto) selecao.aoAbrirMenu(u.id); }}
+                render={<TableRow data-marcada={selecao.marcado(u.id)} className={`data-[marcada=true]:bg-accent/40 data-[popup-open]:bg-muted/50 ${u.ativo ? "" : "opacity-60"}`} />}
+              >
+                <TableCell>
+                  <Checkbox
+                    checked={selecao.marcado(u.id)}
+                    onCheckedChange={() => selecao.alternar(u.id)}
+                    aria-label={`Selecionar ${u.name}`}
+                  />
+                </TableCell>
                 <TableCell className="font-medium">{u.name}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{u.email}</TableCell>
                 <TableCell>
@@ -380,71 +514,28 @@ export function UsuariosView({
                   )}
                 </TableCell>
                 <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      render={
-                        <Button variant="ghost" size="icon" aria-label="Ações">
-                          <MoreHorizontal className="size-4" />
-                        </Button>
-                      }
-                    />
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() =>
-                          setForm({
-                            ...EMPTY,
-                            id: u.id,
-                            name: u.name,
-                            nomeCompleto: u.nomeCompleto ?? "",
-                            email: u.email,
-                            role: u.role as Role,
-                            clienteId: u.clienteId ?? "",
-                            ehSocio: u.socio?.ativo === true,
-                            perfilId: u.perfilId ?? "",
-                            superUsuario: u.superUsuario,
-                            ativo: u.ativo,
-                            setor: u.setor,
-                            jaTeveVinculo: u._count.vinculos > 0,
-                            contratacao: u.contratacao,
-                          })
-                        }
-                      >
-                        <Pencil className="size-4" /> Editar
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => resetar(u.id, u.email)}>
-                        <KeyRound className="size-4" /> Reiniciar senha
-                      </DropdownMenuItem>
-                      {u.ativo ? (
-                        <DropdownMenuItem
-                          variant="destructive"
-                          onClick={() =>
-                            acao(() => desativarUsuario({ id: u.id }), "Usuário desativado.")
-                          }
-                        >
-                          <UserX className="size-4" /> Desativar
-                        </DropdownMenuItem>
-                      ) : (
-                        <DropdownMenuItem
-                          onClick={() =>
-                            acao(() => reativarUsuario({ id: u.id }), "Usuário reativado.")
-                          }
-                        >
-                          <UserCheck className="size-4" /> Reativar
-                        </DropdownMenuItem>
-                      )}
-                      {podeExcluir && !u.ativo && (
-                        <DropdownMenuItem variant="destructive" onClick={() => excluir(u)}>
-                          <Trash2 className="size-4" /> Excluir
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <BotaoAcoes
+                    itens={menuItens}
+                    onSelect={(item) => void aoSelecionarNaLinha(u, item)}
+                    rotulo={`Ações de ${u.name}`}
+                  />
                 </TableCell>
-              </TableRow>
-            ))}
+              </LinhaComMenu>
+              );
+            })}
           </TableBody>
         </Table>
       </div>
+
+      <BarraSelecao
+        total={alvosSelecao.length}
+        itens={itensDoLote}
+        onSelect={(item) => void executarLote(item)}
+        onLimpar={selecao.limpar}
+        substantivo={["usuário", "usuários"]}
+        progresso={lote.progresso}
+      />
+      {lote.portal}
 
       {/* Dialog criar/editar */}
       <Dialog open={!!form} onOpenChange={(o) => !o && setForm(null)}>

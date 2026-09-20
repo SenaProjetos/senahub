@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Search, UserPlus, MoreHorizontal, Pencil, Power, PowerOff, Download } from "lucide-react";
+import { Search, UserPlus, Download } from "lucide-react";
 import {
   desativarCliente,
   reativarCliente,
@@ -31,13 +31,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { SortableHead } from "@/components/ui/sortable-head";
+import type { AcaoItemAcao } from "@/components/ui/acoes";
+import { BotaoAcoes } from "@/components/ui/acoes-menu";
+import { BarraSelecao } from "@/components/ui/barra-selecao";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
+import { LinhaComMenu } from "@/components/ui/linha-com-menu";
+import { useLote } from "@/components/ui/use-lote";
+import { useNomesVistos } from "@/components/ui/use-nomes-vistos";
+import { useSelecao } from "@/components/ui/use-selecao";
+import { copiarTexto } from "@/lib/clipboard";
+import {
+  ACAO_ALTERNAR_ATIVO,
+  ACAO_COPIAR_DOCUMENTO,
+  ACAO_COPIAR_EMAIL,
+  ACAO_COPIAR_NOME,
+  ACAO_EDITAR,
+  ACAO_LOTE_DESATIVAR,
+  ACAO_LOTE_REATIVAR,
+  itensDeCliente,
+  itensDeLoteClientes,
+} from "@/modules/clientes/acoes";
 import { Pagination } from "@/components/ui/pagination";
 import { useSetParams } from "@/lib/use-set-param";
 
@@ -94,6 +109,11 @@ export function ClientesView({
   paramsExport.delete("page");
   paramsExport.delete("pageSize");
   const [q, setQ] = useState(busca);
+  // Seleção compartilhada: atravessa páginas e filtros (a tela continua montada ao paginar) e o
+  // menu de contexto age sobre ela (ADR-0002, regra 3).
+  const selecao = useSelecao();
+  const lote = useLote();
+  const nomeDe = useNomesVistos(clientes, (c) => c.id, (c) => c.nome);
   const [form, setForm] = useState<FormCliente | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [, startTransition] = useTransition();
@@ -144,8 +164,43 @@ export function ClientesView({
     });
   }
 
+  const itensDoLote = itensDeLoteClientes({ podeGerir });
+
+  async function executarLote(item: AcaoItemAcao) {
+    const desativar = item.id === ACAO_LOTE_DESATIVAR;
+    if (!desativar && item.id !== ACAO_LOTE_REATIVAR) return;
+    await lote.executar({
+      ids: selecao.lista,
+      acao: (id) => (desativar ? desativarCliente({ id }) : reativarCliente({ id })),
+      substantivo: ["cliente", "clientes"],
+      verbo: desativar ? ["desativado", "desativados"] : ["reativado", "reativados"],
+      rotulo: nomeDe,
+      confirmar: {
+        titulo: (n) => `${desativar ? "Desativar" : "Reativar"} ${n} ${n === 1 ? "cliente" : "clientes"}?`,
+      },
+      aoConcluir: selecao.limpar,
+    });
+  }
+
+  function aoSelecionarNaLinha(c: ClienteListItem, item: AcaoItemAcao) {
+    if (item.id.startsWith("lote-")) {
+      void executarLote(item);
+      return;
+    }
+    if (item.id === ACAO_EDITAR) editar(c);
+    else if (item.id === ACAO_ALTERNAR_ATIVO) alternarAtivo(c);
+    else {
+      const texto =
+        item.id === ACAO_COPIAR_NOME ? c.nome : item.id === ACAO_COPIAR_DOCUMENTO ? c.documento : item.id === ACAO_COPIAR_EMAIL ? c.email : null;
+      if (texto) {
+        void copiarTexto(texto).then((ok) => (ok ? toast.success("Copiado.") : toast.error("Não foi possível copiar.")));
+      }
+    }
+  }
+
   return (
     <div className="space-y-4">
+      <DicaMenuContexto />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-extrabold tracking-tight">Clientes</h2>
@@ -296,6 +351,15 @@ export function ClientesView({
         <Table>
           <TableHeader>
             <TableRow>
+              {podeGerir && (
+                <TableHead className="w-8">
+                  <Checkbox
+                    checked={selecao.estadoDaPagina(clientes.map((c) => c.id)) === "todos"}
+                    onCheckedChange={() => selecao.alternarPagina(clientes.map((c) => c.id))}
+                    aria-label="Marcar todos os clientes da página"
+                  />
+                </TableHead>
+              )}
               <SortableHead field="nome">Nome</SortableHead>
               <TableHead>Tipo</TableHead>
               <TableHead>Categoria</TableHead>
@@ -303,19 +367,37 @@ export function ClientesView({
               <TableHead>Documento</TableHead>
               <SortableHead field="cidade">Cidade/UF</SortableHead>
               <TableHead>Situação</TableHead>
-              {podeGerir && <TableHead className="w-12" />}
+              <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {clientes.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground">
+                <TableCell colSpan={9} className="text-center text-muted-foreground">
                   Nenhum cliente.
                 </TableCell>
               </TableRow>
             ) : (
-              clientes.map((c) => (
-                <TableRow key={c.id} className={c.ativo ? "" : "opacity-60"}>
+              clientes.map((c) => {
+                const menuItens =
+                  selecao.total > 1 && selecao.marcado(c.id) ? itensDoLote : itensDeCliente(c, { podeGerir });
+                return (
+                <LinhaComMenu
+                  key={c.id}
+                  itens={menuItens}
+                  onSelect={(item) => aoSelecionarNaLinha(c, item)}
+                  aoAbrir={(aberto) => { if (aberto) selecao.aoAbrirMenu(c.id); }}
+                  render={<TableRow data-marcada={selecao.marcado(c.id)} className={`data-[marcada=true]:bg-accent/40 data-[popup-open]:bg-muted/50 ${c.ativo ? "" : "opacity-60"}`} />}
+                >
+                  {podeGerir && (
+                    <TableCell>
+                      <Checkbox
+                        checked={selecao.marcado(c.id)}
+                        onCheckedChange={() => selecao.alternar(c.id)}
+                        aria-label={`Selecionar ${c.nome}`}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell className="font-medium">
                     <Link href={`/clientes/${c.id}`} className="hover:underline">
                       {c.nome}
@@ -348,43 +430,32 @@ export function ClientesView({
                       {c.ativo ? "Ativo" : "Inativo"}
                     </span>
                   </TableCell>
-                  {podeGerir && (
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={
-                            <Button variant="ghost" size="icon" aria-label="Ações">
-                              <MoreHorizontal className="size-4" />
-                            </Button>
-                          }
-                        />
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => editar(c)}>
-                            <Pencil className="size-4" /> Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => alternarAtivo(c)}>
-                            {c.ativo ? (
-                              <>
-                                <PowerOff className="size-4" /> Desativar
-                              </>
-                            ) : (
-                              <>
-                                <Power className="size-4" /> Reativar
-                              </>
-                            )}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))
+                  <TableCell>
+                    <BotaoAcoes
+                      itens={menuItens}
+                      onSelect={(item) => aoSelecionarNaLinha(c, item)}
+                      rotulo={`Ações de ${c.nome}`}
+                    />
+                  </TableCell>
+                </LinhaComMenu>
+                );
+              })
             )}
           </TableBody>
         </Table>
       </div>
 
       <Pagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
+
+      <BarraSelecao
+        total={selecao.total}
+        itens={itensDoLote}
+        onSelect={(item) => void executarLote(item)}
+        onLimpar={selecao.limpar}
+        substantivo={["cliente", "clientes"]}
+        progresso={lote.progresso}
+      />
+      {lote.portal}
 
       <ClienteForm cliente={form} open={formOpen} onOpenChange={setFormOpen} segmentos={segmentos} />
     </div>

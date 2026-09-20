@@ -23,6 +23,7 @@ export function BarraSelecao({
   onSelect,
   onLimpar,
   substantivo,
+  genero = "m",
   progresso,
   className,
 }: {
@@ -32,6 +33,8 @@ export function BarraSelecao({
   onLimpar: () => void;
   /** Par singular/plural do que está selecionado: ["documento", "documentos"]. */
   substantivo: [string, string];
+  /** Concordância de "selecionado(s)": "campanhas selecionadas", "lançamentos selecionados". */
+  genero?: "m" | "f";
   /** Enquanto o lote roda: mostra o andamento no lugar da contagem. */
   progresso?: { feitos: number; total: number } | null;
   className?: string;
@@ -57,7 +60,7 @@ export function BarraSelecao({
       <span className="text-sm font-medium tabular-nums" aria-live="polite">
         {emCurso
           ? `Processando ${emCurso.feitos} de ${emCurso.total}…`
-          : `${total} ${total === 1 ? substantivo[0] : substantivo[1]} ${total === 1 ? "selecionado" : "selecionados"}`}
+          : `${total} ${total === 1 ? substantivo[0] : substantivo[1]} ${genero === "f" ? (total === 1 ? "selecionada" : "selecionadas") : total === 1 ? "selecionado" : "selecionados"}`}
       </span>
 
       <div className="flex flex-wrap items-center gap-1.5">
