@@ -55,8 +55,34 @@ export default async function PropostaPublicaPage({
     const doc = await carregarDocumentoProposta(p.id);
     if (!doc || doc.impedimentos.length > 0) notFound();
     return (
-      <main className="doc-print-area mx-auto max-w-[850px] px-2 py-6">
-        <DocRender schema={doc.schema} escalar={doc.escalar} linhas={doc.linhas} porFonte={doc.porFonte} />
+      <main className="mx-auto max-w-[850px] px-2 py-6">
+        {/* Fora da área impressa: o PDF é gerado imprimindo esta página, e o botão de baixar
+            não pode sair dentro do próprio PDF. */}
+        <div className="doc-no-print mb-3 flex items-center justify-between gap-4">
+          <p className="text-xs text-muted-foreground">Dúvidas? Responda o e-mail desta proposta.</p>
+          <a
+            href={`/api/t/proposta/${token}/pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 rounded-sm border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+          >
+            Baixar PDF
+          </a>
+        </div>
+
+        <div className="doc-print-area">
+          <DocRender schema={doc.schema} escalar={doc.escalar} linhas={doc.linhas} porFonte={doc.porFonte} />
+        </div>
+
+        {/* O cliente envia documentos pela mesma página, como na proposta antiga. */}
+        <div className="doc-no-print">
+          <PropostaPublicaUpload token={token} />
+        </div>
+
+        {/* Pixel de abertura: é o que alimenta "N abertura(s)" no editor. O ramo composto
+            retornava antes dele, então as aberturas ficariam sempre em zero. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={`/api/t/proposta/${token}/pixel`} alt="" width={1} height={1} className="doc-no-print opacity-0" />
       </main>
     );
   }
