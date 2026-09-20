@@ -96,6 +96,16 @@ export const criarPropostaSchema = z.object({
   negociacaoId: z.string().min(1, "Selecione a negociação."),
 });
 
+/**
+ * ADR-0006: "Nova proposta" de um lead no caminho da composta. Não cria a proposta — garante
+ * cliente e negociação e devolve a negociação, onde o diálogo de montagem abre. Mesmo
+ * consentimento explícito de reativação do `criarPropostaDeLeadSchema` (ADR-21 §5b).
+ */
+export const prepararNegociacaoDoLeadSchema = z.object({
+  leadId: z.string().min(1),
+  confirmarReativacao: z.boolean().optional(),
+});
+
 /** Cria a proposta a partir de um lead (deriva/gera o cliente, garante a negociação — F5.3). */
 export const criarPropostaDeLeadSchema = z.object({
   leadId: z.string().min(1),

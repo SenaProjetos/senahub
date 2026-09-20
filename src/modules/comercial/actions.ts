@@ -19,6 +19,7 @@ import {
   tabelaPrecoEditSchema,
   criarPropostaSchema,
   criarPropostaDeLeadSchema,
+  prepararNegociacaoDoLeadSchema,
   salvarPropostaSchema,
   statusPropostaSchema,
   criarEtapaSchema,
@@ -67,6 +68,7 @@ import {
 import {
   proximoNumeroProposta,
   criarProposta as servicoCriarProposta,
+  prepararNegociacaoDoLead as servicoPrepararNegociacaoDoLead,
   criarPropostaDeLead as servicoCriarPropostaDeLead,
   mudarStatusProposta as servicoMudarStatusProposta,
   salvarProposta as servicoSalvarProposta,
@@ -576,6 +578,28 @@ export const criarPropostaDeLead = defineAction(
     revalidatePath(`/comercial/${leadId}`);
     if (criouCliente) revalidatePath("/clientes");
     return { id: proposta.id, numero: proposta.numero };
+  },
+);
+
+/**
+ * ADR-0006: "Nova proposta" de um lead abre a COMPOSTA. Garante cliente e negociação (mesmas
+ * regras da proposta do editor antigo) e devolve a negociação — é nela que o diálogo de
+ * montagem abre, porque o modelo, a obra e as disciplinas só a tela sabe.
+ */
+export const prepararNegociacaoDoLead = defineAction(
+  {
+    ...base,
+    acao: "preparar-negociacao-lead",
+    entidade: "Negociacao",
+    schema: prepararNegociacaoDoLeadSchema,
+    entidadeId: idResultadoOuInput,
+  },
+  async (i, { user }) => {
+    const r = await servicoPrepararNegociacaoDoLead(i, user.id);
+    rev();
+    revalidatePath(`/comercial/${r.leadId}`);
+    if (r.criouCliente) revalidatePath("/clientes");
+    return { id: r.negociacaoId };
   },
 );
 

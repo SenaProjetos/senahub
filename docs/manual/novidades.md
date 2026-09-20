@@ -22,6 +22,26 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Proposta montada no sistema, com texto padrão e parcelas calculadas
+
+**Nova proposta** agora monta a proposta a partir de um **modelo** — com o texto de cada seção
+(escopo por disciplina, o que não está incluso, competências, alterações) já pronto e editável.
+O **plano de pagamento** é informado em percentual: o sistema calcula o valor de cada parcela, escreve o
+valor **por extenso** e avisa enquanto a soma não fecha 100%. A **UF da obra** escolhe a versão certa de
+cada cláusula, para uma norma de outro estado nunca aparecer na proposta.
+
+O documento sai com o timbre, o e-mail e os dados bancários de **Configurações → Empresa** (preencha
+uma vez), tem link para o cliente e PDF paginado. A **Pré-visualização** mostra o que impede de enviar. A
+gestão mantém os modelos e as cláusulas em **Comercial → Modelos de proposta**.
+
+O editor antigo continua na aba **Propostas** como **Proposta simples**, e **Registrar proposta enviada
+(PDF)** segue para propostas feitas fora do sistema.
+
+Também nesta versão: no visualizador do Estúdio de Documentos, **Ctrl + roda do mouse** dá zoom só no desenho
+(sem ampliar a página inteira), e o modelo em branco de folhas grandes (como o Carimbo A0) deixou de abrir vazio.
+
+---
+
 ## Arquivos em pastas: disciplina → fase → formato
 
 O painel da esquerda da aba **Arquivos** virou uma árvore de pastas. Abra uma disciplina e

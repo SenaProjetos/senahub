@@ -5,6 +5,7 @@ import { obterLead, funilCompleto, parceirosAtivos, campanhasAtivas, proximasAco
 import type { LeadItem } from "@/modules/comercial/queries";
 import { mesclarTimeline, ultimaInteracaoDe } from "@/modules/comercial/atividade";
 import { LeadDetalheView } from "@/components/comercial/lead-detalhe-view";
+import { modelosAtivos } from "@/modules/comercial/proposta-composta/queries";
 
 export const metadata: Metadata = { title: "Lead" };
 
@@ -15,6 +16,7 @@ export default async function LeadDetalhePage({
 }) {
   await requirePermission("comercial", "ver");
   const { id } = await params;
+  const modelosProposta = await modelosAtivos();
   const [lead, etapas, parceiros, campanhas] = await Promise.all([
     obterLead(id),
     funilCompleto(),
@@ -43,6 +45,7 @@ export default async function LeadDetalhePage({
 
   return (
     <LeadDetalheView
+      usaComposta={modelosProposta.length > 0}
       lead={leadItem}
       etapaAtual={{ id: lead.etapa.id, nome: lead.etapa.nome, cor: lead.etapa.cor }}
       etapas={etapas.map((e) => ({ id: e.id, nome: e.nome }))}

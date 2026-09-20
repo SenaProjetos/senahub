@@ -45,6 +45,7 @@ import {
   aceitarProposta,
   criarProposta,
   criarPropostaDeLead,
+  prepararNegociacaoDoLead,
   mudarStatusProposta,
   moverEstagio,
   reabrirNegociacao,
@@ -866,6 +867,65 @@ async function main() {
   check("(d) a proposta nasceu com negociação", propostaD.negociacaoId !== null);
   const negD = await prisma.negociacao.findUnique({ where: { id: propostaD.negociacaoId! }, select: { leadId: true, estagio: true } });
   check("(d) a negociação criada é deste lead, no estágio inicial LEVANTAMENTO", negD?.leadId === leadForaDoFluxo.id && negD.estagio === "LEVANTAMENTO");
+
+  console.log("\n── ADR-0006 (G6): prepararNegociacaoDoLead — a composta nasce de um lead ──\n");
+
+  // Mesmas regras de `criarPropostaDeLead`, mas SEM criar a proposta: a montagem pede modelo,
+  // obra e disciplinas, que só a tela sabe. O que se prova é justamente essa diferença.
+  const propostasAntesG6 = await prisma.proposta.count();
+
+  // (a) já qualificado — devolve a negociação existente, não cria outra.
+  const leadG6a = await prisma.lead.create({
+    data: { nome: `${TAG}_LeadG6a`, clienteId: cliF53.id, etapaId: etapa.id, status: "OPORTUNIDADE_CRIADA" },
+  });
+  const negG6a = await prisma.negociacao.create({
+    data: { titulo: `${TAG}_NegG6a`, clienteId: cliF53.id, leadId: leadG6a.id, estagio: "LEVANTAMENTO" },
+  });
+  const negsAntesG6 = await prisma.negociacao.count();
+  const rG6a = await prepararNegociacaoDoLead({ leadId: leadG6a.id }, user.id);
+  check("(G6-a) devolve a negociação JÁ EXISTENTE", rG6a.negociacaoId === negG6a.id);
+  check("(G6-a) nenhuma negociação nova", (await prisma.negociacao.count()) === negsAntesG6);
+
+  // (b) qualificável — qualifica sozinho e devolve a negociação criada.
+  const leadG6b = await prisma.lead.create({
+    data: { nome: `${TAG}_LeadG6b`, clienteId: cliF53.id, etapaId: etapa.id, status: "EM_CONTATO" },
+  });
+  const rG6b = await prepararNegociacaoDoLead({ leadId: leadG6b.id }, user.id);
+  const g6bDepois = await prisma.lead.findUnique({ where: { id: leadG6b.id }, select: { status: true } });
+  check("(G6-b) lead qualificável virou OPORTUNIDADE_CRIADA", g6bDepois?.status === "OPORTUNIDADE_CRIADA");
+  const negG6b = await prisma.negociacao.findUnique({ where: { id: rG6b.negociacaoId }, select: { leadId: true } });
+  check("(G6-b) a negociação criada é deste lead", negG6b?.leadId === leadG6b.id);
+
+  // (c) fora do fluxo sem confirmar — recusa, com a mensagem que a UI reconhece, e nada muda.
+  const leadG6c = await prisma.lead.create({
+    data: { nome: `${TAG}_LeadG6c`, clienteId: cliF53.id, etapaId: etapa.id, status: "DESCARTADO" },
+  });
+  let recusaG6 = "";
+  try {
+    await prepararNegociacaoDoLead({ leadId: leadG6c.id }, user.id);
+  } catch (e) {
+    recusaG6 = (e as Error).message;
+  }
+  check("(G6-c) DESCARTADO sem confirmação é recusado (mensagem fala em reativar)", /reativá-la/i.test(recusaG6), recusaG6);
+  check(
+    "(G6-c) o lead recusado continua DESCARTADO e sem negociação",
+    (await prisma.lead.findUnique({ where: { id: leadG6c.id }, select: { status: true } }))?.status === "DESCARTADO" &&
+      (await prisma.negociacao.findUnique({ where: { leadId: leadG6c.id } })) === null,
+  );
+
+  // (d) mesmo lead, com confirmação — reativa e qualifica.
+  const rG6d = await prepararNegociacaoDoLead({ leadId: leadG6c.id, confirmarReativacao: true }, user.id);
+  const g6dDepois = await prisma.lead.findUnique({ where: { id: leadG6c.id }, select: { status: true } });
+  check("(G6-d) com confirmação, o lead termina OPORTUNIDADE_CRIADA", g6dDepois?.status === "OPORTUNIDADE_CRIADA");
+  check(
+    "(G6-d) negociação criada no estágio inicial",
+    (await prisma.negociacao.findUnique({ where: { id: rG6d.negociacaoId }, select: { estagio: true } }))?.estagio === "LEVANTAMENTO",
+  );
+
+  check(
+    "NENHUMA proposta foi criada em nenhum dos quatro casos (quem monta é a tela, depois)",
+    (await prisma.proposta.count()) === propostasAntesG6,
+  );
 
   console.log("\n── F5.5: StatusProposta.em_negociacao + transições ────────────────\n");
 

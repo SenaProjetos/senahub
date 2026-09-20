@@ -231,6 +231,86 @@ export async function mudarStatusProposta(
  *
  * Devolve `criouCliente` para o chamador decidir se revalida `/clientes`.
  */
+/**
+ * Garante cliente e negociação para um lead — o pedaço que TODA proposta nascida de um lead
+ * precisa, seja a do editor antigo ou a composta (ADR-0006). Roda dentro da transação de quem
+ * chama: cliente, negociação e proposta nascem juntos ou nenhum nasce.
+ *
+ * Extraída de `criarPropostaDeLead` sem mudar comportamento (o smoke da Fase 5 cobre os dois
+ * caminhos): a composta precisa dos mesmos dois passos antes de abrir o diálogo de montagem.
+ */
+async function garantirClienteENegociacaoDoLead(
+  tx: Prisma.TransactionClient,
+  lead: Parameters<typeof garantirNegociacaoParaProposta>[1] & {
+    id: string;
+    nome: string;
+    email: string | null;
+    telefone: string | null;
+    observacoes: string | null;
+  },
+  opts: { autorId: string; confirmarReativacao: boolean },
+): Promise<{ clienteId: string; criouCliente: boolean; negociacaoId: string }> {
+  // Garante um cliente: converte o lead se ainda não tiver.
+  let clienteId = lead.clienteId;
+  let criouCliente = false;
+  if (!clienteId) {
+    const cliente = await tx.cliente.create({
+      data: {
+        tipo: "PJ",
+        nome: lead.nome,
+        email: lead.email,
+        telefone: lead.telefone,
+        observacoes: lead.observacoes,
+      },
+    });
+    clienteId = cliente.id;
+    criouCliente = true;
+    await tx.lead.update({ where: { id: lead.id }, data: { clienteId } });
+  }
+
+  // F5.3 — garante a negociação ANTES de criar a proposta, com o `clienteId` já resolvido
+  // (pode ter acabado de nascer linhas acima).
+  const negociacaoId = await garantirNegociacaoParaProposta(
+    tx,
+    { ...lead, clienteId },
+    { autorId: opts.autorId, confirmarReativacao: opts.confirmarReativacao },
+  );
+  return { clienteId, criouCliente, negociacaoId };
+}
+
+/**
+ * "Nova proposta" a partir de um lead, no caminho da COMPOSTA (ADR-0006): não cria a proposta —
+ * a montagem pede modelo, obra e disciplinas, que só a tela sabe —, só garante cliente e
+ * negociação e devolve a negociação, onde o diálogo de montagem abre. Mesmas regras de
+ * reativação e mesmo consentimento explícito de `criarPropostaDeLead` (ADR-21 §5b).
+ */
+export async function prepararNegociacaoDoLead(
+  input: { leadId: string; confirmarReativacao?: boolean },
+  autorId: string,
+): Promise<{ negociacaoId: string; leadId: string; criouCliente: boolean }> {
+  const lead = await prisma.lead.findUnique({
+    where: { id: input.leadId },
+    include: { contatos: { select: { contatoId: true, principal: true } } },
+  });
+  if (!lead) throw new ActionError("Lead não encontrado.");
+
+  const r = await prisma.$transaction(async (tx) => {
+    const g = await garantirClienteENegociacaoDoLead(tx, lead, {
+      autorId,
+      confirmarReativacao: input.confirmarReativacao ?? false,
+    });
+    if (g.criouCliente) {
+      // Mesmo evento que `criarPropostaDeLead` registra: a Empresa 360 começa pela origem.
+      await registrarAtividade(
+        { evento: "EMPRESA_CADASTRADA", nome: lead.nome },
+        { autorId, clienteId: g.clienteId, leadId: lead.id, tx },
+      );
+    }
+    return g;
+  });
+  return { negociacaoId: r.negociacaoId, leadId: lead.id, criouCliente: r.criouCliente };
+}
+
 export async function criarPropostaDeLead(
   input: { leadId: string; titulo: string; confirmarReativacao?: boolean },
   autorId: string,
@@ -242,31 +322,10 @@ export async function criarPropostaDeLead(
   if (!lead) throw new ActionError("Lead não encontrado.");
 
   const { proposta, criouCliente } = await prisma.$transaction(async (tx) => {
-    // Garante um cliente: converte o lead se ainda não tiver.
-    let clienteId = lead.clienteId;
-    let criouCliente = false;
-    if (!clienteId) {
-      const cliente = await tx.cliente.create({
-        data: {
-          tipo: "PJ",
-          nome: lead.nome,
-          email: lead.email,
-          telefone: lead.telefone,
-          observacoes: lead.observacoes,
-        },
-      });
-      clienteId = cliente.id;
-      criouCliente = true;
-      await tx.lead.update({ where: { id: lead.id }, data: { clienteId } });
-    }
-
-    // F5.3 — garante a negociação ANTES de criar a proposta, com o `clienteId` já resolvido
-    // (pode ter acabado de nascer 3 linhas acima).
-    const negociacaoId = await garantirNegociacaoParaProposta(
-      tx,
-      { ...lead, clienteId },
-      { autorId, confirmarReativacao: input.confirmarReativacao ?? false },
-    );
+    const { clienteId, criouCliente, negociacaoId } = await garantirClienteENegociacaoDoLead(tx, lead, {
+      autorId,
+      confirmarReativacao: input.confirmarReativacao ?? false,
+    });
 
     const { ano, sequencial, numero } = await proximoNumeroProposta(tx);
     const proposta = await tx.proposta.create({

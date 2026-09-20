@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { ExternalLink, FilePlus2, Mail, Pencil, Phone, User2 } from "lucide-react";
-import { criarProposta, criarPropostaDeLead } from "@/modules/comercial/actions";
+import { criarProposta, criarPropostaDeLead, prepararNegociacaoDoLead } from "@/modules/comercial/actions";
 import type { FichaLead, FichaNegociacao } from "@/modules/comercial/queries";
 import { ESTAGIO_LABEL } from "@/modules/comercial/jornada";
 import { podeQualificar, STATUS_PROSPECCAO_LABEL } from "@/modules/comercial/prospeccao";
@@ -153,6 +153,15 @@ function FichaLeadAbas({ lead, opcoes, podeGerir }: { lead: FichaLead; opcoes: O
       confirmarReativacao = true;
     }
     start(async () => {
+      // ADR-0006 (G6): com modelo ativo, "Nova proposta" abre a COMPOSTA — garante cliente e
+      // negociação e leva à negociação, onde o diálogo de montagem abre sozinho. Sem modelo
+      // (biblioteca ainda não semeada), cai no editor antigo, como sempre foi.
+      if (opcoes.modelosProposta.length > 0) {
+        const r = await prepararNegociacaoDoLead({ leadId: lead.id, confirmarReativacao });
+        if (r.ok) router.push(`/comercial/funil?card=NEGOCIACAO:${r.data.id}&nova=proposta`);
+        else toast.error(r.error);
+        return;
+      }
       const r = await criarPropostaDeLead({ leadId: lead.id, titulo: lead.nome, confirmarReativacao });
       if (r.ok) {
         toast.success(`Proposta ${r.data.numero} criada.`);
@@ -266,9 +275,22 @@ function FichaNegociacaoAbas({
         {podeGerir && (
           <>
             <RegistrarInteracaoPopover entidadeTipo="NEGOCIACAO" entidadeId={n.id} label="Registrar" />
-            <Button size="sm" variant="outline" onClick={novaProposta} disabled={pending}>
-              <FilePlus2 className="size-3.5" /> Nova proposta
-            </Button>
+            {n.estagio !== "CONTRATADO" && opcoes.modelosProposta.length > 0 ? (
+              // ADR-0006 (G6): "Nova proposta" é a composta. É esta instância que abre sozinha
+              // por `?nova=proposta` (a da aba Propostas não, para não abrirem dois diálogos).
+              <NovaPropostaCompostaDialog
+                negociacaoId={n.id}
+                tituloPadrao={n.titulo}
+                modelos={opcoes.modelosProposta}
+                disciplinas={opcoes.disciplinas}
+                rotulo="Nova proposta"
+                abrirPorParametro
+              />
+            ) : (
+              <Button size="sm" variant="outline" onClick={novaProposta} disabled={pending}>
+                <FilePlus2 className="size-3.5" /> Nova proposta
+              </Button>
+            )}
           </>
         )}
       </div>
@@ -323,7 +345,21 @@ function FichaNegociacaoAbas({
                   tituloPadrao={n.titulo}
                   modelos={opcoes.modelosProposta}
                   disciplinas={opcoes.disciplinas}
+                  rotulo="Nova proposta"
                 />
+                {/* Editor antigo (itens e condições), mantido para o que já usa ou não quer o
+                    texto padrão. Não é o caminho recomendado — ADR-0006. */}
+                {opcoes.modelosProposta.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={novaProposta}
+                    disabled={pending}
+                    title="Editor antigo: só itens e condições, sem o texto padrão da biblioteca"
+                  >
+                    Proposta simples
+                  </Button>
+                )}
               <RegistrarVersaoExternaDialog
                 negociacaoId={n.id}
                 tituloPadrao={n.titulo}

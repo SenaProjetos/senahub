@@ -422,15 +422,17 @@ export function GuiaComercialView() {
         numero="04"
         icone={FileText}
         titulo="Monte, salve e envie a proposta"
-        resumo="Toda proposta nova deve nascer de uma negociação existente."
+        resumo="Toda proposta nova nasce de uma negociação. O caminho normal é a proposta composta: texto pronto por modelo e parcelas calculadas."
       >
         <ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground marker:font-bold marker:text-primary">
-          <li>Abra <strong className="text-foreground">Comercial → Propostas</strong>.</li>
-          <li>Clique em <NomeBotao>Nova proposta</NomeBotao>.</li>
-          <li>Informe o título, escolha o cliente e depois a negociação correspondente. Clique em <NomeBotao>Criar</NomeBotao>.</li>
-          <li>Inclua as disciplinas com <NomeBotao>Item</NomeBotao> ou use <NomeBotao>Preencher pela tabela de preço</NomeBotao>.</li>
+          <li>Na ficha da negociação, clique em <NomeBotao>Nova proposta</NomeBotao> (também em <strong className="text-foreground">Comercial → Propostas</strong>, escolhendo o cliente e a negociação e clicando em <NomeBotao>Montar proposta</NomeBotao>).</li>
+          <li>Escolha o modelo, informe endereço, cidade e <strong className="text-foreground">UF da obra</strong> — a UF decide qual versão de cada cláusula entra — e as disciplinas com seus valores. Clique em <NomeBotao>Criar e montar</NomeBotao>.</li>
+          <li>No editor, informe só o <strong className="text-foreground">percentual</strong> de cada parcela: o valor e o valor por extenso aparecem sozinhos, e a soma precisa fechar 100%.</li>
+          <li>Ajuste o texto de cada seção se precisar — a edição vale só para esta proposta.</li>
+          <li>Use <NomeBotao>Pré-visualizar</NomeBotao> para ver o que o cliente verá e o que ainda impede o envio.</li>
+          <li>Prefere o editor antigo? Na aba <strong className="text-foreground">Propostas</strong> da ficha, use <NomeBotao>Proposta simples</NomeBotao>; depois, inclua as disciplinas com <NomeBotao>Item</NomeBotao> ou use <NomeBotao>Preencher pela tabela de preço</NomeBotao>.</li>
           <li>Preencha área, validade, observações, desconto e condições de pagamento quando se aplicarem.</li>
-          <li>Clique em <NomeBotao>Salvar proposta</NomeBotao>. Cada salvamento cria uma versão, preservando o que foi enviado antes.</li>
+          <li>Clique em <NomeBotao>Salvar versão</NomeBotao> (composta) ou <NomeBotao>Salvar proposta</NomeBotao> (simples). Cada salvamento cria uma versão, preservando o que foi enviado antes.</li>
           <li>Use <NomeBotao>E-mail</NomeBotao> para enviar pelo sistema ou <NomeBotao>Link</NomeBotao> para copiar o endereço público.</li>
           <li>Quando o cliente começar a discutir valores ou condições, clique em <NomeBotao>Em negociação</NomeBotao>.</li>
         </ol>

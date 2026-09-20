@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { FilePlus2, Plus, Trash2 } from "lucide-react";
 import { criarPropostaCompostaAction } from "@/modules/comercial/proposta-composta/actions";
@@ -38,14 +38,36 @@ export function NovaPropostaCompostaDialog({
   tituloPadrao,
   modelos,
   disciplinas,
+  rotulo = "Montar proposta",
+  abrirPorParametro = false,
 }: {
   negociacaoId: string;
   tituloPadrao: string;
   modelos: Modelo[];
   disciplinas: string[];
+  /** Texto do botão. "Nova proposta" onde ela é a ação principal (ADR-0006, G6). */
+  rotulo?: string;
+  /**
+   * Abre sozinho quando a URL traz `?nova=proposta` — é como "Nova proposta" de um lead chega
+   * aqui: a negociação é garantida no servidor e a pessoa cai direto no diálogo de montagem.
+   * Só UMA instância por ficha deve ligar isto, senão dois diálogos abririam ao mesmo tempo.
+   */
+  abrirPorParametro?: boolean;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [aberto, setAberto] = useState(false);
+
+  useEffect(() => {
+    if (!abrirPorParametro || searchParams.get("nova") !== "proposta") return;
+    setAberto(true);
+    // Consome o parâmetro: recarregar ou fechar o diálogo não pode reabri-lo.
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("nova");
+    const qs = p.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
+  }, [abrirPorParametro, searchParams, pathname, router]);
   const [pending, start] = useTransition();
   const [modeloId, setModeloId] = useState(modelos[0]?.id ?? "");
   const [titulo, setTitulo] = useState(tituloPadrao);
@@ -87,7 +109,7 @@ export function NovaPropostaCompostaDialog({
       <DialogTrigger
         render={
           <Button size="sm" variant="outline">
-            <FilePlus2 className="size-4" /> Montar proposta
+            <FilePlus2 className="size-4" /> {rotulo}
           </Button>
         }
       />

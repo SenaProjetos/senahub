@@ -17,7 +17,7 @@ import {
   Check,
 } from "lucide-react";
 import type { LeadItem } from "@/modules/comercial/queries";
-import { criarPropostaDeLead, concluirProximaAcao } from "@/modules/comercial/actions";
+import { criarPropostaDeLead, concluirProximaAcao, prepararNegociacaoDoLead } from "@/modules/comercial/actions";
 import { podeQualificar, STATUS_PROSPECCAO_LABEL } from "@/modules/comercial/prospeccao";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { TIPO_PROXIMA_ACAO_LABEL } from "@/modules/agenda/proxima-acao";
@@ -64,7 +64,10 @@ export function LeadDetalheView({
   atividadesTimeline,
   proximasAcoes,
   ultimaInteracao,
+  usaComposta = false,
 }: {
+  /** Há modelo de proposta ativo: "Nova proposta" abre a composta (ADR-0006). */
+  usaComposta?: boolean;
   lead: LeadItem;
   etapaAtual: Etapa;
   etapas: { id: string; nome: string }[];
@@ -111,6 +114,13 @@ export function LeadDetalheView({
       confirmarReativacao = true;
     }
     start(async () => {
+      // ADR-0006 (G6): com modelo ativo, abre a composta na negociação; sem modelo, o editor antigo.
+      if (usaComposta) {
+        const r = await prepararNegociacaoDoLead({ leadId: lead.id, confirmarReativacao });
+        if (r.ok) router.push(`/comercial/funil?card=NEGOCIACAO:${r.data.id}&nova=proposta`);
+        else toast.error(r.error);
+        return;
+      }
       const r = await criarPropostaDeLead({ leadId: lead.id, titulo: lead.nome, confirmarReativacao });
       if (r.ok) {
         toast.success(`Proposta ${r.data.numero} criada.`);

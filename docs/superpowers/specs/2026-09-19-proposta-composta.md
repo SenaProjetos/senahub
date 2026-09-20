@@ -1,7 +1,7 @@
 # Proposta composta — plano de execução (Fase G)
 
 Decisão em [ADR-0006](../../adr/0006-proposta-composta.md). Evidência em
-[2026-09-19-propostas-analise.md](2026-09-19-propostas-analise.md). **Nada implementado.**
+[2026-09-19-propostas-analise.md](2026-09-19-propostas-analise.md). **Implementado (G0–G6); falta a conferência em tela e a migração de contração.**
 
 ## Modelo de dados
 
@@ -51,9 +51,9 @@ parcelas, dados bancários, validade e assinatura **não são cláusulas** — s
 | **G1** | Regras puras: extenso, parcelas, escolha de cláusula por UF, campos citáveis. Só código testado. **Concluída** — ver "G1 — o que ficou". | Sonnet |
 | **G2** | **Concluída.** Schema + migrações: `ModeloProposta`, `ClausulaProposta`, `PropostaSecao`, `PropostaParcela`, campos da obra em `Proposta`, permissão nova `comercial:modelos` (só gestão), campos novos de `empresa.dados` — e, como passo separado, a troca de `externa` por `formato`. | **Opus** |
 | **G3** | **Concluída.** Telas da gestão: biblioteca de cláusulas e modelos. **Seed inicial** com as cláusulas mais frequentes das 163 propostas, para o dono revisar antes de usar. Ver "Seed da biblioteca" abaixo. | Sonnet |
-| **G4** | Compor: "Nova proposta" na ficha da negociação escolhe o modelo e monta seções, itens e parcelas; editor com pré-visualização; salvar gera versão (snapshot do documento inteiro). | **Opus** |
-| **G5** | Documento: **modelo de proposta no Estúdio** (faixas em fluxo da G0) + fontes novas (`proposta-secoes`, `proposta-parcelas`, escalares da empresa/obra); a rota pública renderiza o documento no ramo `COMPOSTA`; PDF por versão e link público reaproveitando o que já existe. Mexe na rota pública congelada e na paginação do PDF — ver pré-requisito abaixo. | **Opus** |
-| **G6** | Transição: manual, "Nova proposta" passa a abrir a composta por padrão; legado e externa seguem disponíveis. | Sonnet |
+| **G4** | **Concluída.** Compor: "Nova proposta" na ficha da negociação escolhe o modelo e monta seções, itens e parcelas; editor com pré-visualização; salvar gera versão (snapshot do documento inteiro). | **Opus** |
+| **G5** | **Concluída.** Documento: **modelo de proposta no Estúdio** (faixas em fluxo da G0) + fontes novas (`proposta-secoes`, `proposta-parcelas`, escalares da empresa/obra); a rota pública renderiza o documento no ramo `COMPOSTA`; PDF por versão e link público reaproveitando o que já existe. Mexe na rota pública congelada e na paginação do PDF — ver pré-requisito abaixo. | **Opus** |
+| **G6** | **Concluída.** Transição: manual, "Nova proposta" passa a abrir a composta por padrão; legado e externa seguem disponíveis. | Sonnet |
 
 ### Seed da biblioteca (G3)
 
@@ -157,6 +157,28 @@ externas; no dev não havia nenhuma, então este é o primeiro uso real):
 SELECT count(*) FROM "proposta" WHERE ("externa" = true) <> ("formato" = 'externa');  -- 0
 SELECT count(*) FROM "permissao_perfil" WHERE recurso='comercial' AND acao='modelos';  -- > 0
 ```
+
+### G6 — transição (o que ficou)
+
+- **"Nova proposta" abre a composta em todo ponto de entrada**, com fallback ao editor antigo quando
+  não há modelo ativo (biblioteca não semeada): ficha da negociação (botão do cabeçalho e aba
+  Propostas), ficha do lead, página `/comercial/[id]` e `/comercial/propostas`.
+- **Do lead:** `prepararNegociacaoDoLead` garante cliente e negociação (mesma regra e mesmo
+  consentimento de reativação da `criarPropostaDeLead`, extraídos para um helper comum) e leva à
+  negociação com `?nova=proposta`, onde o diálogo de montagem abre sozinho. **Não cria a proposta** —
+  a montagem pede modelo, obra e disciplinas. Só uma instância do diálogo por ficha liga a abertura
+  por parâmetro, senão dois diálogos abririam juntos.
+- **Legado e externa seguem disponíveis:** "Proposta simples" (aba Propostas, e no diálogo de
+  `/comercial/propostas`) e "Registrar proposta enviada (PDF)". A lista mostra uma etiqueta
+  Composta/Externa.
+- **Manual:** `comercial.md`, `novidades.md` e o guia in-app do Comercial. **Não** foi criada página nova
+  nem alterado `search-index.json` (`/manual-sync` é reservada ao dono).
+- Prova: `smoke:crm-fase5` ganhou os quatro casos do lead (já qualificado, qualificável, descartado
+  sem e com confirmação) e a asserção de que **nenhuma proposta** é criada.
+
+**Passo que falta para fechar o ADR-0006:** a migração de contração (`DROP COLUMN "externa"`), num
+deploy POSTERIOR ao que leva a escrita dupla — e só depois de conferir em produção que
+`externa` e `formato` não divergem.
 
 ### Pré-requisito da G5 — cabeçalho, rodapé e paginação do PDF
 

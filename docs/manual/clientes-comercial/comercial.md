@@ -116,12 +116,57 @@ impede o avanço do card.
 
 ### 4. Prepare e envie a proposta
 
-Na negociação, crie a proposta e preencha itens por disciplina, área, condições de pagamento,
-validade e observações. Uma tabela de preço pode calcular os valores por metro quadrado.
+Há três jeitos de ter uma proposta, e o primeiro é o recomendado:
+
+| Jeito | Quando usar |
+| --- | --- |
+| **Nova proposta** (composta) | O caminho normal. O texto vem de modelos e cláusulas prontas; o sistema calcula as parcelas e escreve os valores por extenso. |
+| **Proposta simples** | O editor antigo: só itens por disciplina e condições, sem o texto padrão. |
+| **Registrar proposta enviada (PDF)** | A proposta foi feita fora do sistema (Word) e você só quer guardá-la. |
+
+#### Nova proposta (composta)
+
+Na ficha da negociação, clique em **Nova proposta** (o botão também está na aba **Propostas**, e em
+**Comercial → Propostas → Nova proposta**). Nascida de uma prospecção, a **Nova proposta** cria a
+empresa e a negociação sozinha, como sempre fez, e já abre esta janela.
+
+1. Escolha o **modelo** (Projetos multidisciplinares, Projeto estrutural, PCI e aprovação no Corpo
+   de Bombeiros, Laudo técnico).
+2. Informe o **endereço, a cidade e a UF da obra** e a área. A **UF é importante**: ela decide qual
+   versão de cada cláusula entra — uma norma de incêndio de Pernambuco, por exemplo, nunca entra
+   numa obra de Alagoas.
+3. Inclua as **disciplinas e os valores**. O escopo entra por disciplina contratada.
+4. Clique em **Criar e montar**. Abre o editor da proposta.
+
+No editor você ajusta os dados da obra, as disciplinas, o desconto (acima do limite exige
+justificativa, como sempre), o **plano de pagamento** e o **texto** de cada seção.
+
+- **Plano de pagamento:** informe só o **percentual** de cada parcela. O valor e o valor **por
+  extenso** aparecem sozinhos, e a soma dos percentuais fica em vermelho até fechar **100%**. A
+  última parcela ajusta os centavos, então a soma sempre bate com o total.
+- **Texto:** vem do modelo e pode ser editado à vontade — a edição vale só para esta proposta e
+  não muda a biblioteca. Dá para reordenar, apagar ou acrescentar seções.
+- **Salvar versão:** cada salvamento registra uma versão. É possível salvar com o plano ainda
+  incompleto; ele só precisa fechar 100% para a proposta poder ser enviada.
+- **Pré-visualizar:** mostra o documento como o cliente vai ver e **lista o que impede de enviar**
+  (plano que não fecha 100%, dados da empresa por preencher, campo em branco no texto). Enquanto
+  houver pendência, o link da proposta **não abre** para o cliente.
+
+O documento sai com o timbre, o e-mail, os dados bancários e o responsável que assina lidos de
+**Configurações → Empresa** — preencha essa tela uma vez; corrigir uma conta ali vale para todas
+as propostas. O PDF sai paginado, com "Página X / Y".
+
+#### Envio, versões e aceite
 
 Cada salvamento registra uma versão. Envie por e-mail ou compartilhe o link; a lista mostra o
 status e as aberturas. Caso seja necessário mudar uma proposta já aceita, crie uma cópia em vez de
 alterar o documento que originou o projeto.
+
+Na lista **Comercial → Propostas**, uma etiqueta ao lado do título indica as propostas
+**Compostas** e as **Externas**.
+
+**Proposta simples.** Preencha itens por disciplina, área, condições de pagamento, validade e
+observações. Uma tabela de preço pode calcular os valores por metro quadrado.
 
 **Proposta montada fora do sistema (Word/PDF).** Na ficha da negociação, aba **Propostas**, use
 **Registrar proposta enviada (PDF)**. Anexe o PDF que o cliente recebeu e informe as disciplinas
@@ -130,6 +175,15 @@ proposta; nas revisões, escolha a mesma proposta para registrar a versão segui
 guarda o próprio PDF, que pode ser baixado depois. Só PDF: exporte o Word antes. Esse tipo de
 proposta não tem link público (o time envia o arquivo) e é aceito pelo botão **Aceitar → projeto**
 na própria ficha; as disciplinas informadas viram as disciplinas do projeto.
+
+#### Modelos e cláusulas (só a gestão)
+
+Quem tem o acesso **Manter modelos de proposta** vê **Comercial → Modelos de proposta**. Lá ficam
+a **biblioteca de cláusulas** e os **modelos**. Editar uma cláusula muda as **próximas** propostas;
+as já montadas guardam a própria cópia e não mudam. Uma cláusula presa a uma UF nunca é oferecida
+a obra de outro estado, e o texto **não deve** conter telefone, e-mail, CNPJ ou dados bancários
+(eles vêm de Configurações → Empresa). Desativar é o jeito de "apagar": nada some das propostas já
+enviadas.
 
 ### 5. Feche e acompanhe
 
@@ -168,6 +222,9 @@ quiser recebê-los.
 | Não consigo qualificar | Vincule primeiro uma empresa e reative a prospecção se ela estiver encerrada. |
 | Não consigo marcar como perdido | Informe o motivo solicitado. |
 | A proposta não calcula preço | Preencha a área e selecione uma tabela de preço com os itens necessários. |
+| O cliente diz que o link da proposta não abre | Abra **Pré-visualizar** no editor: ele lista o que falta (plano fora de 100%, dados da empresa, campo em branco). Resolva e salve. |
+| O botão **Nova proposta** não aparece | Ele exige acesso de gestão no Comercial. A negociação já contratada também não recebe proposta nova. |
+| Quero o editor antigo | Na aba **Propostas** da ficha, use **Proposta simples**. |
 | Preciso rever uma venda antiga | Abra a Empresa 360; não crie um segundo cadastro da empresa. |
 
 Veja também o [Guia do Comercial para iniciantes](guia-iniciante.md) e [Clientes](clientes.md).
