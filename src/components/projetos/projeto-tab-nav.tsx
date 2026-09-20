@@ -36,7 +36,11 @@ export function ProjetoTabNav({
 
   return (
     <nav
-      className="flex gap-0 overflow-x-auto border-b scrollbar-none"
+      // `contain:paint` fecha a faixa em si mesma. No celular, o Chrome mede elemento `fixed` pela
+      // viewport de layout e ESTICA essa viewport até a largura do conteúdo rolável daqui (~900px),
+      // mesmo com a faixa rolando por dentro: a barra inferior saía com 859px numa tela de 390.
+      // `overflow-x/y` e `overflow-x: hidden` no pai não resolvem — foi medido no navegador.
+      className="flex gap-0 overflow-x-auto border-b [contain:paint] scrollbar-none"
       aria-label="Seções do projeto"
     >
       {ordem.map((suffix) => {

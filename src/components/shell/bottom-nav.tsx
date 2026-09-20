@@ -15,7 +15,13 @@ export function BottomNav({ nav }: { nav: ContextoNav }) {
     .slice(0, 6);
 
   return (
-    <nav className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur lg:hidden">
+    // `max-w-[100vw]` é trava de segurança, não enfeite: no celular o Chrome dimensiona elemento
+    // `fixed` pela viewport de LAYOUT, e estica essa viewport quando a página tem uma área de
+    // rolagem horizontal que não contém a própria pintura (as abas do projeto faziam isso). Sem a
+    // trava, a barra saía com a largura do conteúdo rolável — 859px numa tela de 390 — e ficava
+    // mais larga que o resto. O cap nunca encurta a barra no caso normal, em que ela já mede o
+    // tamanho da tela.
+    <nav className="pb-safe fixed inset-x-0 bottom-0 z-30 max-w-[100vw] border-t border-border bg-background/95 backdrop-blur lg:hidden">
       <ul className="flex items-stretch justify-around">
         {items.map((item) => {
           const active =
