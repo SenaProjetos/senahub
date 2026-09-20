@@ -1,6 +1,6 @@
 # Menu de contexto — onda 2 (seleção múltipla e telas de lista)
 
-**Data:** 2026-09-20 · **Status:** F1 e F2 entregues em 2026-09-20; F3–F5 pendentes · **Vem de:**
+**Data:** 2026-09-20 · **Status:** F1–F5 entregues em 2026-09-20 (conferência em tela pelo dono pendente; ver §3.4) · **Vem de:**
 [onda 1](2026-09-15-menu-contexto.md) (F1–F3 entregues) · **Regras transversais:**
 [ADR-0002](../../adr/0002-menu-de-contexto.md)
 
@@ -61,9 +61,9 @@ viewers BIM/DWG (o botão direito já gira a câmera); canvas do Estúdio (exigi
 |---|---|---|
 | **F1** | **Opus** | ✔ **Entregue.** `lib/selecao.ts` + `lib/lote.ts` (puros, testados), `ui/use-selecao.ts`, `ui/use-lote.tsx` (confirmação com contagem, progresso, relatório de falha parcial), `ui/barra-selecao.tsx` (come o mesmo `AcaoItem[]`), `ui/botao-selecionados.tsx`. **Sem consumidor ainda** — a prova real vem na F2. |
 | **F2** | **Sonnet** | ✔ **Entregue.** Diretório, aprovações e pedidos de exclusão. Ver §3.2. |
-| **F3** | **Sonnet** | As 10 tabelas, em commits por grupo (financeiro primeiro, que é onde o lote mais rende). |
-| **F4** | **Sonnet** | Quadros do comercial + correção de arrastar no toque. |
-| **F5** | **Sonnet** | Agenda (dia/horário + `...` no evento). |
+| **F3** | **Sonnet** | ✔ **Entregue.** As 10 tabelas, em 4 commits por grupo. Ver §3.3. |
+| **F4** | **Sonnet** | ✔ **Entregue.** Quadros do comercial + correção de arrastar no toque. Ver §3.3. |
+| **F5** | **Sonnet** | ✔ **Entregue.** Agenda (dia + `...` no evento). Ver §3.3. |
 
 Ao iniciar cada fase, a primeira linha da resposta diz o modelo esperado; se o ativo for outro,
 **parar** e esperar a troca.
@@ -110,6 +110,69 @@ const lote = useLote();                 // executar({ ids, acao, substantivo, ve
   zera; aprovar 2 em lote (banco confirma exatamente 2 validados); recusar em lote com motivo; excluir
   em lote com confirmação (cancelar preserva).
 - **Não verificado em tela:** o cartão de celular (toque longo) do diretório.
+
+## 3.3. O que a F3, a F4 e a F5 entregaram
+
+**Padrão único, repetido em todas as telas:** descritor puro `itensDe<Entidade>` (dado, sem callback,
+testado em vitest) + casca fina na tela que liga cada `id` à action; o mesmo `AcaoItem[]` alimenta o
+menu de contexto, o `...` e a barra. Item vetado pelo **perfil** some; item vetado pelo **estado** fica
+desabilitado com o motivo (regra 5). Confirmação sempre antes do `startTransition`.
+
+| Grupo | Telas | Lote |
+|---|---|---|
+| Financeiro | lançamentos, contas a pagar/receber | baixar, cancelar, excluir / quitar |
+| Cadastros | clientes, usuários, campanhas, parceiros | desativar/reativar, arquivar/reativar, excluir (usuários) |
+| Gestão | certidões, acessos | certidões: baixar .zip, renovar, excluir. **Acessos: nenhum** (só há abrir e copiar) |
+| Catálogos | disciplinas, planilha do orçamento | arquivar/desarquivar/excluir; travar/destravar/excluir |
+| Quadros (F4) | prospecção, negociações | **nenhum** — arrastar e selecionar disputam o mesmo gesto |
+| Agenda (F5) | dia (mês e semana), compromisso | **nenhum** |
+
+**Decisões tomadas na execução (não estavam no grilling):**
+- **Acessos não ganhou seleção.** As únicas ações são abrir e copiar; lote sobre elas não faz sentido, e
+  a decisão 5 vale onde há ação repetível. **A senha nunca sai pelo menu** — só "Copiar usuário", que o
+  servidor já entrega apenas a quem vê a credencial. O link do portal só aceita `http(s)`.
+- **Quadros sem seleção.** Card de kanban tem a alça para arrastar; marcar cards competiria com ela.
+  O menu age sempre no card clicado.
+- **`funil-board.tsx` só ganhou o `touch-none`.** Nenhuma rota o usa (é o quadro legado por
+  `FunilEtapa`); dar menu a um componente morto seria trabalho jogado fora.
+- **Agenda:** o menu de um dia tem "Novo compromisso neste dia" (9h–10h) e "Ver este dia"; **não existe
+  na vista diária** (uma ação só → sem menu, regra 4). Compromisso de outra pessoa não tem menu (só
+  sobraria "Duplicar"). Os dois ícones da linha (editar/excluir) viraram um `...`, e **excluir agora
+  pede confirmação** (antes agia no clique). Duplicar abre o diálogo preenchido, não cria direto.
+- **"Mover para" nas negociações** desabilita os destinos que `transicaoPermitida` recusa, com a mesma
+  frase do servidor. Na prospecção não há matriz de transições: o servidor recusa o que não cabe.
+- **Excluir em lote na planilha do orçamento** tira o filho cujo pai também está marcado
+  (`semDescendentesDeSelecionados`); sem isso o filho falharia depois com "não encontrado".
+- **Excluir em lote no catálogo de disciplinas** só alcança as que nenhum projeto usa; a confirmação diz
+  quantas ficam de fora.
+- **`BotaoAcoes` não renderiza sem itens** e `LinhaComMenu` ganhou `desabilitado`, para o menu do dia
+  ficar quieto enquanto o do compromisso está aberto (segundo evento de menu do toque longo).
+
+## 3.4. Verificação e lacunas (honesto)
+
+**Conferido no Chrome real (puppeteer, banco de dev):** quadro de prospecção (menu, `...`, mover pelo
+menu, **arrasto por toque** via CDP sem abrir menu); quadro de negociações (destinos desabilitados com
+motivo, "Perdido" abre o diálogo de motivo, "Reabrir"); agenda (menu do dia em mês e semana, menu do
+compromisso, duplicar preenchido, excluir cancelável e confirmável); certidões (menu, lote com motivos,
+botão direito fora da seleção); catálogo de disciplinas (menu, lote, "Selecionados (N)"); planilha do
+orçamento (menus de grupo e serviço, travar em lote com 1 de 3 elegíveis, excluir em lote com pai e
+filho marcados → "Excluir 1 item?"); acessos (menu com e sem itens; senha não vaza no HTML).
+Dados de teste descartáveis foram criados e removidos.
+
+**Não conferido em tela / lacunas conhecidas:**
+1. **"Selecionados (N)" só existe no diretório e nas certidões/disciplinas/orçamento.** Nas tabelas de
+   **servidor paginado** (clientes, lançamentos, contas) a seleção atravessa filtro e página, mas **não
+   há o botão para rever** o conjunto: exigiria a consulta "linhas por id" que o diretório tem
+   (`carregarDocumentosPorIds`) para cada uma. Em usuários, campanhas e parceiros as listas são
+   pequenas e carregadas inteiras (só há o filtro de inativos), então o botão traria pouco.
+2. **Toque longo em celular real** (cartão do diretório, linha de tabela, compromisso da agenda) não foi
+   testado; o arrasto por toque nos quadros foi via CDP, não num aparelho.
+3. **"Copiar usuário" em acessos** e o **lote sobre certidões com documento** (zip) só têm teste do
+   descritor; o dev não tinha um usuário com permissão de revelar credencial.
+4. **Excluir com confirmação própria** (lançamentos, usuários) não foi exercitado no navegador, e o
+   restante dos grupos financeiro e cadastros foi conferido na rodada anterior, não reexecutado agora.
+5. **A faixa "Novidade" (`DicaMenuContexto`)** agora aparece em ~15 telas e a data de expiração
+   continua o teto provisório (2027-12-31); o checklist de release precisa trocá-la.
 
 ## 4. Riscos conhecidos
 

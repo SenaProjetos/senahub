@@ -71,6 +71,18 @@ lugar.
   **on-premise**: serviços rodam no próprio servidor e são definidos por **variáveis de
   ambiente** — não há integrações SaaS externas.
 
+## Menu de ações e seleção em lote
+
+Em **Usuários** e no **Catálogo de disciplinas**, o botão direito numa linha (ou o botão **⋯**)
+abre as ações dela, e a caixa de seleção permite agir em várias de uma vez:
+
+- **Usuários:** desativar, reativar e excluir (só contas desativadas e sem histórico). **Editar** e
+  **Reiniciar senha** ficam esmaecidos com mais de um selecionado, porque mostram uma senha
+  temporária e só valem para uma pessoa por vez.
+- **Catálogo de disciplinas:** arquivar, desarquivar e excluir. Na exclusão em lote, as disciplinas
+  que ainda estão em uso em projetos ficam de fora — a confirmação diz quantas —; arquive-as.
+  **Mover para cima/baixo** só funciona com a busca vazia.
+
 ## Permissões
 
 - A tela é gated em **admin, supervisor, administrativo**. Algumas sub-telas têm gates

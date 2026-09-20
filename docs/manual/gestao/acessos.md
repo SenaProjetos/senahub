@@ -67,6 +67,13 @@ senha vaza.
 Se você vê o cadastro mas não pode revelar, a tela diz isso — em vez de mostrar um botão
 que não funciona.
 
+## Menu de ações na lista
+
+O botão direito num acesso (ou o botão **⋯**) oferece **Abrir detalhes**, **Abrir portal** (em
+nova aba), **Ver credencial** e **Copiar usuário**, conforme o que você pode ver naquele registro.
+**A senha nunca é copiada pelo menu:** ela só aparece na tela de detalhes, numa ação registrada
+no histórico.
+
 ## Definir quem acessa
 
 No acesso aberto, **Compartilhar** (precisa da permissão de gerenciar compartilhamento).

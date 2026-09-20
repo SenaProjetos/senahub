@@ -61,7 +61,9 @@
         "menu de contexto",
         "clique direito",
         "toque longo",
-        "atalho"
+        "atalho",
+        "seleção em lote",
+        "ações em lote"
       ],
       "sinonimos": [
         "release notes",
@@ -470,7 +472,11 @@
         "prazo",
         "participante",
         "confirmar presença",
-        "evento"
+        "evento",
+        "botão direito",
+        "menu de contexto",
+        "duplicar compromisso",
+        "novo compromisso no dia"
       ],
       "sinonimos": [
         "calendário",
@@ -607,7 +613,11 @@
         "reativar",
         "categoria",
         "cidade",
-        "uf"
+        "uf",
+        "botão direito",
+        "menu de contexto",
+        "seleção em lote",
+        "ações em lote"
       ],
       "sinonimos": [
         "clientela",
@@ -646,7 +656,11 @@
         "follow-up",
         "interação",
         "empresa 360",
-        "inteligência comercial"
+        "inteligência comercial",
+        "botão direito",
+        "menu de contexto",
+        "mover cartão",
+        "reabrir negociação"
       ],
       "sinonimos": [
         "crm",
@@ -751,7 +765,12 @@
         "competência",
         "categoria",
         "fornecedor",
-        "cliente"
+        "cliente",
+        "botão direito",
+        "menu de contexto",
+        "seleção em lote",
+        "ações em lote",
+        "baixar em lote"
       ],
       "sinonimos": [
         "movimentações",
@@ -782,7 +801,11 @@
         "a vencer",
         "faixa",
         "inadimplência",
-        "pendência"
+        "pendência",
+        "botão direito",
+        "menu de contexto",
+        "seleção em lote",
+        "quitar em lote"
       ],
       "sinonimos": [
         "pendências financeiras",
@@ -1432,7 +1455,11 @@
         "obrigatória",
         "sem documento",
         "atualizar certidão",
-        "conformidade"
+        "conformidade",
+        "botão direito",
+        "menu de contexto",
+        "seleção em lote",
+        "renovar em lote"
       ],
       "sinonimos": [
         "documentos de regularidade",
@@ -1561,7 +1588,9 @@
         "prefeitura",
         "vencimento",
         "revisão",
-        "compartilhamento"
+        "compartilhamento",
+        "botão direito",
+        "menu de contexto"
       ],
       "sinonimos": [
         "central de acessos",
@@ -1797,7 +1826,11 @@
         "logo",
         "logo da empresa",
         "timbrado",
-        "cabeçalho do pdf"
+        "cabeçalho do pdf",
+        "botão direito",
+        "menu de contexto",
+        "seleção em lote",
+        "ações em lote"
       ],
       "sinonimos": [
         "admin",

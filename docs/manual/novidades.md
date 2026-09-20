@@ -22,6 +22,37 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Botão direito e ações em lote nas listas
+
+O menu do **botão direito** (no celular, **tocar e segurar**) chegou às principais listas do
+sistema: diretório de **Arquivos**, **Aprovações**, **Clientes**, **Usuários**, **Lançamentos** e
+**Contas a pagar/receber**, **Campanhas**, **Parceiros**, **Certidões**, **Acessos**, **Catálogo de
+disciplinas**, a planilha do **Orçamento**, os quadros de **Prospecção** e **Negociações** e a
+**Agenda**. Tudo o que está no menu continua também no botão **⋯** da linha ou do cartão.
+
+- **Ações em lote.** Marque várias linhas na caixa de seleção e clique com o botão direito em uma
+  delas (ou use a barra que aparece na parte de baixo da tela): a ação vale para **todas as
+  marcadas**. O sistema mostra quantas deram certo e, se alguma falhar, qual e por quê. O limite é
+  de **100 itens por vez**, e ações que apagam pedem confirmação com a contagem ("Excluir 7
+  lançamentos?").
+- **A seleção acompanha os filtros.** O que você marcou continua marcado quando troca de filtro ou
+  de página, e o botão **Selecionados (N)** mostra só as linhas marcadas — útil para juntar itens
+  de filtros diferentes. A seleção some ao concluir a ação, ao clicar em **Limpar** e ao recarregar
+  a página.
+- **Botão direito fora da seleção.** Numa linha que não está marcada, o menu vale só para ela e
+  a seleção passa a ser só ela (como no explorador de arquivos do Windows).
+- **Ação que não serve para vários** (editar, abrir detalhes) aparece **esmaecida, com o motivo
+  escrito** — nunca some sem explicação.
+- **Quadros e Agenda.** Nos quadros de **Prospecção** e **Negociações** o menu do cartão tem
+  *Mover para* (os destinos que a jornada não permite ficam esmaecidos, com o motivo), *Reabrir* e
+  *Copiar nome*. Na **Agenda**, clicar com o botão direito num dia oferece *Novo compromisso neste
+  dia*, e cada compromisso ganhou *Editar*, *Duplicar* e *Excluir* — que agora pede confirmação.
+- **No celular**, arrastar um cartão de Prospecção/Negociações pela alça agora arrasta o cartão em
+  vez de rolar a página.
+
+Detalhes em [Comercial](clientes-comercial/comercial.md), [Agenda](projetos/agenda.md),
+[Lançamentos](financeiro/lancamentos.md) e nas demais páginas de cada tela.
+
 ## Botão direito nas tarefas e nos documentos
 
 Nas **tarefas** e na tabela de **documentos** da aba Arquivos do projeto, o botão direito do

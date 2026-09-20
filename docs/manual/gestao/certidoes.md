@@ -69,6 +69,14 @@ terceiros (contador, advogado) sem precisar de login.
 - **Responsável:** cada certidão pode ter um responsável — ele também recebe os
   alertas de vencimento dessa certidão.
 
+## Menu de ações e seleção em lote
+
+O botão direito numa certidão (ou o botão **⋯**) abre as ações da linha: detalhes e histórico,
+visualizar e baixar o documento, nova versão (ou adicionar documento), editar e excluir. Marque
+várias certidões para **baixar em .zip**, **renovar** ou **excluir** todas de uma vez; **Abrir
+detalhes** e **Editar** ficam esmaecidos, porque só valem para uma certidão por vez. O botão
+**Selecionados (N)** mostra só as marcadas, de qualquer filtro.
+
 ## Permissões
 
 | Ação | Permissão |

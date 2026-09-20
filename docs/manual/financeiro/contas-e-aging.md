@@ -38,6 +38,12 @@ a data, se não houver vencimento):
 
 O painel financeiro exibe o aging consolidado e um **alerta** quando há valor vencido.
 
+## Menu de ações e seleção em lote
+
+Em cada conta, o botão direito (ou o botão **⋯**) oferece quitar (**Receber** ou **Pagar**),
+**editar**, abrir os **anexos** e **copiar a descrição**. Marque várias contas para **quitar todas de
+uma vez** pela barra da parte de baixo da tela; se alguma falhar, o resultado diz qual e por quê.
+
 ## Permissões
 
 | Ação | Permissão |

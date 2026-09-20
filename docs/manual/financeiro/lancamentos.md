@@ -53,6 +53,16 @@ Campos:
 - **Excluir:** é **reversível** — o lançamento é marcado como excluído (soft delete) e
   some das listas, mas permanece registrado internamente.
 
+## Menu de ações e seleção em lote
+
+Clique com o **botão direito** num lançamento (ou use o botão **⋯**) para **abrir os detalhes**,
+**editar**, **confirmar** (quando está previsto), **copiar a descrição**, **cancelar** ou
+**excluir**. O que o estado do lançamento não permite aparece esmaecido, com o motivo.
+
+Marque vários lançamentos e a barra da parte de baixo da tela oferece **baixar**, **cancelar** e
+**excluir** todos de uma vez, com a contagem na confirmação. A seleção continua valendo ao mudar
+de filtro ou de página, e o resultado mostra quantos deram certo e quais falharam.
+
 ## Aprovação de despesas
 
 Despesas acima de determinada faixa de valor exigem **aprovação por alçada** antes de

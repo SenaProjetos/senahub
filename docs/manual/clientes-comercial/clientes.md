@@ -50,6 +50,13 @@ para projetos, propostas e financeiro.
 - Em vez de excluir, o cliente é **desativado** (preserva o histórico) e pode ser
   **reativado** depois. Ambas exigem `clientes:gerir`.
 
+## Menu de ações e seleção em lote
+
+Na lista, o botão direito numa empresa (ou o botão **⋯**) oferece **Abrir cliente**, **Abrir em nova
+aba**, **Editar**, **Desativar/Reativar** e copiar **nome**, **documento** e **e-mail**. Marque várias
+empresas na caixa de seleção para **desativar ou reativar todas de uma vez** — a seleção continua
+valendo ao trocar de página.
+
 ## Permissões
 
 | Ação | Permissão |

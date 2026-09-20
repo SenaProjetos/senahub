@@ -105,6 +105,24 @@ continuam consultáveis na **Empresa 360**.
 - **Empresa 360**: abre o histórico consolidado de contatos, prospecções, negociações, propostas,
   projetos, interações e próximas ações da empresa.
 
+## Menu de ações nos quadros e nas listas
+
+Nos quadros de **Prospecção** e **Negociações**, clique com o **botão direito** num cartão (no
+celular, **toque e segure**) ou use o botão **⋯** dele:
+
+- **Abrir** (Prospecção) leva à ficha do lead.
+- **Mover para** lista as outras colunas — o mesmo que arrastar. Nas **Negociações**, o destino que
+  a jornada não permite fica esmaecido com o motivo ("Não é possível mover de Levantamento para
+  Contratado"), e mover para **Perdido** pede o motivo da perda, como no arrasto.
+- **Reabrir** (Negociações perdidas ou canceladas) volta ao estágio anterior.
+- **Copiar nome**.
+
+No celular, arraste o cartão pela **alça** (⋮⋮) à esquerda: o gesto move o cartão em vez de rolar
+a página.
+
+**Campanhas** e **Parceiros** também têm o menu (editar, arquivar/reativar, copiar nome) e caixa de
+seleção para **arquivar ou reativar várias de uma vez**.
+
 ## Lembretes automáticos
 
 O sistema pode avisar sobre follow-up vencido, proposta perto de vencer, negociação sem contato ou

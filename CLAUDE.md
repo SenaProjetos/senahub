@@ -120,6 +120,18 @@ export const minhaAcao = defineAction(
 
 **List views:** Use `parseListParams(searchParams)` (`lib/list-params.ts`) to get `{page, skip, take, sort, dir, q}` ready for Prisma `skip/take/orderBy`. On the client, `useSetParams` updates URL search params and automatically resets `page` when any other filter changes.
 
+**Context menu, `...` and bulk actions** ([ADR-0002](docs/adr/0002-menu-de-contexto.md)): every list/card that gets a
+right-click (long-press on touch) menu follows one pattern. A **pure descriptor** `itensDe<Entidade>()` in the module
+(`modules/<dominio>/acoes*.ts`, unit-tested, no React) returns `AcaoItem[]` (`ui/acoes.ts`: data with an `id`, no callbacks);
+a thin screen shell maps each `id` to the existing Server Action. The **same array** feeds `LinhaComMenu` (context menu),
+`BotaoAcoes` (the `...`, keyboard-reachable — every menu action MUST also be in it) and `BarraSelecao` (bulk bar).
+Profile-forbidden items are *omitted*; state-forbidden items are *disabled with the reason text* (same sentence as the server's
+`ActionError`); a row with a single action gets no menu. Destructive items need a confirm — always `await confirm()` **before**
+`startTransition`. Bulk = `useSelecao` (selection crosses filters/pages, cleared on reload) + `useLote` (repeats the per-item action
+client-side, cap 100, count in the confirm, partial-failure report). **Never hand-write a `contextmenu` handler** — only
+`ui/context-menu.tsx` may (a guard test scans `src/`, comments included). Row components must not be defined *inside* the parent
+(they remount every render and close the open menu): use render functions/top-level components with a `key`.
+
 **Auth & access control:**
 - `better-auth` for sessions. `middleware.ts` does an *optimistic cookie check* only; real enforcement is in
   Server Components / actions via `requireUser` / `requireRole` / `requirePermission` (`lib/session.ts`).
