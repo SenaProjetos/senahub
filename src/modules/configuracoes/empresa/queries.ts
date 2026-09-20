@@ -21,7 +21,28 @@ export type DadosEmpresa = {
   encarregadoDados: string | null;
   /** Só Termo de Uso: foro eleito — comarca/UF. */
   foro: string | null;
+
+  // -- Proposta composta (ADR-0006) --------------------------
+  /**
+   * Contato, dados bancarios e assinatura existem porque circulavam DOIS e-mails e DUAS contas
+   * bancarias nas 163 propostas analisadas: proposta copiada levava junto o dado de outra epoca,
+   * com risco de pagamento em conta errada. Aqui ha um registro so, e a proposta LE daqui na
+   * hora de imprimir — estes campos nunca sao copiados para dentro da proposta.
+   */
+  telefone: string | null;
+  email: string | null;
+  banco: string | null;
+  agencia: string | null;
+  conta: string | null;
+  pix: string | null;
+  /** Assinatura do documento: quem assina, em que qualidade e com que registro (CREA/CAU). */
+  responsavelNome: string | null;
+  responsavelCargo: string | null;
+  responsavelRegistro: string | null;
 };
+
+/** Texto opcional: so espacos conta como ausente (o documento nao imprime string vazia). */
+const texto = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
 function normalizar(valor: unknown): DadosEmpresa | null {
   if (!valor || typeof valor !== "object") return null;
@@ -34,6 +55,15 @@ function normalizar(valor: unknown): DadosEmpresa | null {
     logoPath: typeof v.logoPath === "string" && v.logoPath.trim() ? v.logoPath : null,
     encarregadoDados: typeof v.encarregadoDados === "string" && v.encarregadoDados.trim() ? v.encarregadoDados : null,
     foro: typeof v.foro === "string" && v.foro.trim() ? v.foro : null,
+    telefone: texto(v.telefone),
+    email: texto(v.email),
+    banco: texto(v.banco),
+    agencia: texto(v.agencia),
+    conta: texto(v.conta),
+    pix: texto(v.pix),
+    responsavelNome: texto(v.responsavelNome),
+    responsavelCargo: texto(v.responsavelCargo),
+    responsavelRegistro: texto(v.responsavelRegistro),
   };
 }
 

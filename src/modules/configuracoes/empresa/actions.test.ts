@@ -46,10 +46,10 @@ describe("salvarDadosEmpresa", () => {
       where: { chave: "empresa.dados" },
       create: {
         chave: "empresa.dados",
-        valor: { razaoSocial: "Sena Estruturas", cnpj: "00.000.000/0001-00", endereco: "Rua X", logoPath: "empresa/logo-1.png", encarregadoDados: null, foro: null },
+        valor: { razaoSocial: "Sena Estruturas", cnpj: "00.000.000/0001-00", endereco: "Rua X", logoPath: "empresa/logo-1.png", encarregadoDados: null, foro: null, telefone: null, email: null, banco: null, agencia: null, conta: null, pix: null, responsavelNome: null, responsavelCargo: null, responsavelRegistro: null },
       },
       update: {
-        valor: { razaoSocial: "Sena Estruturas", cnpj: "00.000.000/0001-00", endereco: "Rua X", logoPath: "empresa/logo-1.png", encarregadoDados: null, foro: null },
+        valor: { razaoSocial: "Sena Estruturas", cnpj: "00.000.000/0001-00", endereco: "Rua X", logoPath: "empresa/logo-1.png", encarregadoDados: null, foro: null, telefone: null, email: null, banco: null, agencia: null, conta: null, pix: null, responsavelNome: null, responsavelCargo: null, responsavelRegistro: null },
       },
     });
     expect(mocks.removerArquivo).not.toHaveBeenCalled();
@@ -59,7 +59,37 @@ describe("salvarDadosEmpresa", () => {
     await salvarDadosEmpresa({ razaoSocial: "Sena Estruturas", cnpj: "", endereco: "", logoPath: "" });
     expect(mocks.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: expect.objectContaining({ valor: { razaoSocial: "Sena Estruturas", cnpj: null, endereco: null, logoPath: null, encarregadoDados: null, foro: null } }),
+        create: expect.objectContaining({ valor: { razaoSocial: "Sena Estruturas", cnpj: null, endereco: null, logoPath: null, encarregadoDados: null, foro: null, telefone: null, email: null, banco: null, agencia: null, conta: null, pix: null, responsavelNome: null, responsavelCargo: null, responsavelRegistro: null } }),
+      }),
+    );
+  });
+
+  it("salva contato, dados bancarios e assinatura usados pela proposta composta (ADR-0006)", async () => {
+    await salvarDadosEmpresa({
+      razaoSocial: "Sena Estruturas",
+      email: "contato@sena.com",
+      banco: "Banco do Brasil",
+      agencia: "7474",
+      conta: "12345-6",
+      responsavelNome: "Fulano de Tal",
+      responsavelRegistro: "CREA-AL 12345",
+    });
+    expect(mocks.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          valor: expect.objectContaining({
+            email: "contato@sena.com",
+            banco: "Banco do Brasil",
+            agencia: "7474",
+            conta: "12345-6",
+            responsavelNome: "Fulano de Tal",
+            responsavelRegistro: "CREA-AL 12345",
+            // nao informados continuam null, nunca string vazia
+            telefone: null,
+            pix: null,
+            responsavelCargo: null,
+          }),
+        }),
       }),
     );
   });

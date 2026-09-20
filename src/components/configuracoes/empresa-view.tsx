@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowLeft, Building2, FileSignature, Upload, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Building2, FileSignature, Landmark, Upload, X } from "lucide-react";
 import { salvarDadosEmpresa } from "@/modules/configuracoes/empresa/actions";
 import type { DadosEmpresa } from "@/modules/configuracoes/empresa/queries";
 import { camposTermoPendentes } from "@/modules/legal/marcadores-empresa";
@@ -26,6 +26,16 @@ export function EmpresaView({ dados }: { dados: DadosEmpresa | null }) {
   const [endereco, setEndereco] = useState(dados?.endereco ?? "");
   const [encarregadoDados, setEncarregadoDados] = useState(dados?.encarregadoDados ?? "");
   const [foro, setForo] = useState(dados?.foro ?? "");
+  // ADR-0006: lidos pela proposta composta na hora de imprimir (nunca copiados para dentro dela).
+  const [telefone, setTelefone] = useState(dados?.telefone ?? "");
+  const [email, setEmail] = useState(dados?.email ?? "");
+  const [banco, setBanco] = useState(dados?.banco ?? "");
+  const [agencia, setAgencia] = useState(dados?.agencia ?? "");
+  const [conta, setConta] = useState(dados?.conta ?? "");
+  const [pix, setPix] = useState(dados?.pix ?? "");
+  const [responsavelNome, setResponsavelNome] = useState(dados?.responsavelNome ?? "");
+  const [responsavelCargo, setResponsavelCargo] = useState(dados?.responsavelCargo ?? "");
+  const [responsavelRegistro, setResponsavelRegistro] = useState(dados?.responsavelRegistro ?? "");
   // Do que está SALVO (é o que o termo mostra agora), não do que está sendo digitado.
   const pendentesTermo = camposTermoPendentes(dados);
   const [logoPath, setLogoPath] = useState<string | null>(dados?.logoPath ?? null);
@@ -84,6 +94,15 @@ export function EmpresaView({ dados }: { dados: DadosEmpresa | null }) {
         logoPath: logoPath ?? "",
         encarregadoDados: encarregadoDados.trim(),
         foro: foro.trim(),
+        telefone: telefone.trim(),
+        email: email.trim(),
+        banco: banco.trim(),
+        agencia: agencia.trim(),
+        conta: conta.trim(),
+        pix: pix.trim(),
+        responsavelNome: responsavelNome.trim(),
+        responsavelCargo: responsavelCargo.trim(),
+        responsavelRegistro: responsavelRegistro.trim(),
       });
       if (r.ok) {
         toast.success("Dados da empresa salvos.");
@@ -188,6 +207,124 @@ export function EmpresaView({ dados }: { dados: DadosEmpresa | null }) {
               </label>
             )}
             <p className="text-xs text-muted-foreground">PNG ou JPG, fundo transparente fica melhor no cabeçalho.</p>
+          </div>
+
+          <Button onClick={salvar} disabled={pending}>
+            {pending ? "Salvando…" : "Salvar"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-xl">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Landmark className="size-4" /> Contato, pagamento e assinatura
+          </CardTitle>
+          <CardDescription>
+            Usados na proposta enviada ao cliente. Ficam só aqui: a proposta lê estes dados na hora
+            de imprimir, então corrigir uma conta ou um e-mail vale para todas as propostas de uma
+            vez — proposta copiada não leva mais o dado antigo junto.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="empresa-telefone">Telefone</Label>
+              <Input
+                id="empresa-telefone"
+                value={telefone}
+                onChange={(e) => setTelefone(e.target.value)}
+                placeholder="(00) 00000-0000"
+                maxLength={40}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="empresa-email">E-mail</Label>
+              <Input
+                id="empresa-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="contato@empresa.com.br"
+                maxLength={160}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-1.5 sm:col-span-3">
+              <Label htmlFor="empresa-banco">Banco</Label>
+              <Input
+                id="empresa-banco"
+                value={banco}
+                onChange={(e) => setBanco(e.target.value)}
+                placeholder="Ex.: Banco do Brasil"
+                maxLength={80}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="empresa-agencia">Agência</Label>
+              <Input
+                id="empresa-agencia"
+                value={agencia}
+                onChange={(e) => setAgencia(e.target.value)}
+                placeholder="0000"
+                maxLength={20}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="empresa-conta">Conta</Label>
+              <Input
+                id="empresa-conta"
+                value={conta}
+                onChange={(e) => setConta(e.target.value)}
+                placeholder="00000-0"
+                maxLength={30}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="empresa-pix">Chave PIX</Label>
+              <Input
+                id="empresa-pix"
+                value={pix}
+                onChange={(e) => setPix(e.target.value)}
+                placeholder="CNPJ, e-mail ou chave aleatória"
+                maxLength={160}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="empresa-responsavel">Responsável técnico (assina a proposta)</Label>
+              <Input
+                id="empresa-responsavel"
+                value={responsavelNome}
+                onChange={(e) => setResponsavelNome(e.target.value)}
+                placeholder="Nome completo"
+                maxLength={120}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="empresa-cargo">Cargo</Label>
+              <Input
+                id="empresa-cargo"
+                value={responsavelCargo}
+                onChange={(e) => setResponsavelCargo(e.target.value)}
+                placeholder="Ex.: Engenheiro civil"
+                maxLength={120}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="empresa-registro">Registro (CREA/CAU)</Label>
+              <Input
+                id="empresa-registro"
+                value={responsavelRegistro}
+                onChange={(e) => setResponsavelRegistro(e.target.value)}
+                placeholder="Ex.: CREA-AL 12345"
+                maxLength={60}
+              />
+            </div>
           </div>
 
           <Button onClick={salvar} disabled={pending}>

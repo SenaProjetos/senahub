@@ -182,6 +182,10 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "administrativo", recurso: "documentos", acao: "gerir" },
   { role: "administrativo", recurso: "comercial", acao: "ver" },
   { role: "administrativo", recurso: "comercial", acao: "gerir" },
+  // ADR-0006: a biblioteca de cláusulas e os modelos de proposta são mantidos SÓ pela gestão —
+  // `comercial:gerir` (quem monta proposta) não basta, porque editar a biblioteca muda o texto
+  // de toda proposta futura. Banco que já existe recebe pela migration de dados do par.
+  { role: "administrativo", recurso: "comercial", acao: "modelos" },
   // O5: jurídico, licitações, qualidade
   { role: "administrativo", recurso: "juridico", acao: "ver" },
   { role: "administrativo", recurso: "juridico", acao: "gerir" },
