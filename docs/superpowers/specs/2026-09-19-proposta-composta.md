@@ -48,7 +48,7 @@ parcelas, dados bancários, validade e assinatura **não são cláusulas** — s
 |---|---|---|
 | **G0** | Estúdio: **faixa em fluxo** (`banda.fluxo`, opt-in) — faixa cresce com o conteúdo, elementos empilhados na ordem do desenho, parágrafo sem corte; aviso no editor; modelos existentes intactos. Corrige de tabela o corte silencioso dos contratos de fábrica. | **Opus** |
 | **G0.1** | Estúdio: limites do schema que **invalidam modelo salvo** (`banda.altura` presa ao A4; elemento com `h < 4`). Modelo recusado abre em branco pelo fallback `docVazio()` e salvar por cima apaga o original. Relaxar os limites, avisar na tela e travar o salvar. | **Opus** |
-| **G1** | Regras puras: extenso, parcelas, escolha de cláusula por UF. Só código testado. | Sonnet |
+| **G1** | Regras puras: extenso, parcelas, escolha de cláusula por UF, campos citáveis. Só código testado. **Concluída** — ver "G1 — o que ficou". | Sonnet |
 | **G2** | Schema + migrações: `ModeloProposta`, `ClausulaProposta`, `PropostaSecao`, `PropostaParcela`, campos da obra em `Proposta`, permissão nova `comercial:modelos` (só gestão), campos novos de `empresa.dados` — e, como passo separado, a troca de `externa` por `formato`. | **Opus** |
 | **G3** | Telas da gestão: biblioteca de cláusulas e modelos. **Seed inicial** com as cláusulas mais frequentes das 163 propostas, para o dono revisar antes de usar. Ver "Seed da biblioteca" abaixo. | Sonnet |
 | **G4** | Compor: "Nova proposta" na ficha da negociação escolhe o modelo e monta seções, itens e parcelas; editor com pré-visualização; salvar gera versão (snapshot do documento inteiro). | **Opus** |
@@ -101,6 +101,42 @@ O que muda:
 
 Por que antes da G1: é o mesmo motor da G0, é risco de perda de dados hoje, e a G5 vai querer
 proposta em folha que não seja A4.
+
+### G1 — o que ficou
+
+Onde mora o código (tudo puro, sem I/O):
+
+| Peça | Arquivo |
+|---|---|
+| `extensoInteiro`, `extensoMoeda`, `quantidadeComExtenso`, `diasComExtenso` | `src/lib/extenso.ts` — genérico (contratos e recibos reusam), por isso em `lib/` |
+| `calcularParcelas`, `somaPercentuais`, `rotuloPercentual` | `src/modules/comercial/proposta-composta/parcelas.ts` |
+| `escolherClausula` | `.../clausulas.ts` |
+| `CAMPOS_PROPOSTA`, `escalaresDaProposta`, `resolverTextoProposta`, `tokensNaoResolvidosProposta` | `.../campos.ts` |
+
+Decisões que o G4/G5 precisam saber:
+
+- **`calcularParcelas` devolve resultado, não lança.** `{ ok: false, erro, mensagem, somaPercentuais }`
+  para o editor mostrar "soma 105%" ao vivo. Recusa: sem parcelas, total ≤ 0, percentual fora de
+  (0, 100], soma ≠ 100%, e total de poucos centavos onde a última sobraria negativa.
+- **Percentual é a entrada, valor é derivado**: cada parcela arredonda ao centavo (meio para cima) e
+  **a última é o que falta** — a soma fecha o total exato. Valor e extenso não são gravados.
+- **`escolherClausula` nunca escolhe variante de outra UF nem de outra disciplina.** Sem genérica,
+  devolve `undefined` (a seção fica vazia para a gestão preencher) — o caso de Milagres/AL recebendo
+  o COSCIP de PE não tem caminho. Entre elegíveis, a disciplina pesa mais que a UF.
+- **Texto que cita campo sem valor não é gerado.** `resolverTextoProposta` devolve `ok: false` com a
+  mensagem pronta; o motor de tokens devolveria string vazia ("obra em , "). Reusa
+  `tokensNaoResolvidos` do módulo de contratos.
+- **Achado:** esse bloqueio (`juridico/contrato/campos.ts`) casa o catálogo sem diferenciar
+  maiúscula, mas o motor resolve por chave exata — `[cidade]` **passa na validação e sai em
+  branco**. Na proposta o wrapper fecha o buraco (caixa errada = campo inexistente). **No módulo de
+  contratos o buraco continua aberto** — corrigir lá pode passar a bloquear contratos que hoje
+  geram com lacuna; decisão do dono.
+
+Prova: 105 testes novos, incluindo ida-e-volta do extenso em 25 mil números (um leitor de extenso
+independente devolve o número de origem) e a soma exata do plano em 60 combinações plano × total.
+Contra o corpus real: dos 297 pares "R$ X (extenso)" das 163 propostas, 277 coincidem com o gerado;
+os 20 que divergem são exatamente os já catalogados na análise — 12 erros reais (o gerado é o
+correto), 2 de grafia ("oito centos", "neve mil"), 1 "um mil" e 7 falsos positivos ("tipo split").
 
 ### Pré-requisito da G5 — cabeçalho, rodapé e paginação do PDF
 
