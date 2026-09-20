@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  Plus, Check, Pencil, Paperclip, MoreHorizontal, Search, Download, Printer, FileSpreadsheet, ChevronLeft, ChevronRight, X, Wallet,
+  Plus, Check, Search, Download, Printer, FileSpreadsheet, ChevronLeft, ChevronRight, X, Wallet,
 } from "lucide-react";
 import type { LancamentoItem, OpcoesLancamento } from "@/modules/financeiro/lancamentos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -12,9 +12,21 @@ import { baixarEmLote } from "@/modules/financeiro/lancamentos/actions";
 import { LancamentoForm } from "./lancamento-form";
 import { ConfirmarDialog } from "./confirmar-dialog";
 import { LancamentoDetalheDialog } from "./lancamento-detalhe-dialog";
+import type { AcaoItemAcao } from "@/components/ui/acoes";
+import { BotaoAcoes } from "@/components/ui/acoes-menu";
+import { BarraSelecao } from "@/components/ui/barra-selecao";
+import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
+import { LinhaComMenu } from "@/components/ui/linha-com-menu";
+import { useSelecao } from "@/components/ui/use-selecao";
+import { copiarTexto } from "@/lib/clipboard";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  ACAO_ANEXOS,
+  ACAO_COPIAR_DESCRICAO,
+  ACAO_EDITAR,
+  ACAO_QUITAR,
+  itensDeConta,
+  itensDeLoteContas,
+} from "@/modules/financeiro/lancamentos/acoes-conta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
@@ -96,7 +108,8 @@ export function ContasPagarReceberView({
   const [agruparPor, setAgruparPor] = useState("");
   const [mostrarSaldo, setMostrarSaldo] = useState(false);
 
-  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  // Seleção compartilhada (ADR-0002, regra 3): o menu de contexto age sobre ela.
+  const selecao = useSelecao();
   const [formOpen, setFormOpen] = useState(false);
   const [editar, setEditar] = useState<LancamentoItem | null>(null);
   const [detalhe, setDetalhe] = useState<LancamentoItem | null>(null);
@@ -256,16 +269,22 @@ export function ContasPagarReceberView({
       return n;
     });
   }
-  function toggleSel(id: string) {
-    setSelecionados((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
-  }
-  function limparSel() {
-    setSelecionados(new Set());
+  const toggleSel = selecao.alternar;
+  const limparSel = selecao.limpar;
+
+  /** Contas marcadas que ainda estão na lista (a fila encolhe quando algo é quitado). */
+  const alvosSelecao = useMemo(() => itens.filter((i) => selecao.marcado(i.id)), [itens, selecao]);
+  const itensDoLote = itensDeLoteContas(tab);
+
+  function aoSelecionarNaLinha(l: LancamentoItem, item: AcaoItemAcao) {
+    if (item.id === ACAO_QUITAR) confirmarRapido(l);
+    else if (item.id === ACAO_EDITAR) setEditar(l);
+    else if (item.id === ACAO_ANEXOS) setDetalhe(l);
+    else if (item.id === ACAO_COPIAR_DESCRICAO) {
+      void copiarTexto(l.descricao).then((ok) =>
+        ok ? toast.success("Descrição copiada.") : toast.error("Não foi possível copiar a descrição."),
+      );
+    }
   }
 
   function confirmarRapido(l: LancamentoItem) {
@@ -482,18 +501,7 @@ export function ContasPagarReceberView({
             )}
           </div>
 
-          {/* barra de seleção em lote */}
-          {selecionados.size > 0 && (
-            <div className="flex items-center justify-between rounded-sm border bg-muted/40 px-3 py-2 text-sm">
-              <span>{selecionados.size} selecionado(s)</span>
-              <div className="flex gap-2">
-                <Button size="sm" variant="ghost" onClick={limparSel}>Limpar</Button>
-                <Button size="sm" onClick={() => setLoteOpen(true)}>
-                  <Check className="size-3.5" /> {tab === "despesa" ? "Pagar" : "Receber"} selecionadas
-                </Button>
-              </div>
-            </div>
-          )}
+          <DicaMenuContexto />
 
           {/* lista */}
           <div ref={printRef} className="rounded-sm border">
@@ -514,7 +522,7 @@ export function ContasPagarReceberView({
                     <span>{g.nome}</span>
                     <span className="font-mono">{brl(sinal * g.total)}</span>
                   </div>
-                  {g.items.map((l) => <LinhaConta key={l.id} l={l} />)}
+                  {g.items.map((l) => renderLinhaConta(l))}
                 </div>
               ))
             ) : (
@@ -536,10 +544,17 @@ export function ContasPagarReceberView({
       />
       <LancamentoDetalheDialog lancamento={detalhe} podeGerir={podeGerir} onClose={() => setDetalhe(null)} />
       <ConfirmarDialog lancamento={confirmar} onClose={() => setConfirmar(null)} contas={opcoes.contas} formas={opcoes.formas} />
+      <BarraSelecao
+        total={alvosSelecao.length}
+        itens={itensDoLote}
+        onSelect={() => setLoteOpen(true)}
+        onLimpar={selecao.limpar}
+        substantivo={["lançamento", "lançamentos"]}
+      />
       <LoteDialog
         open={loteOpen}
         onClose={() => setLoteOpen(false)}
-        ids={[...selecionados]}
+        ids={alvosSelecao.map((a) => a.id)}
         contas={opcoes.contas}
         formas={opcoes.formas}
         tipo={tab}
@@ -553,19 +568,32 @@ export function ContasPagarReceberView({
     let saldo = 0;
     return lista.map((l) => {
       saldo += sinal * Number(l.valor);
-      return <LinhaConta key={l.id} l={l} saldo={mostrarSaldo ? saldo : undefined} />;
+      return renderLinhaConta(l, mostrarSaldo ? saldo : undefined);
     });
   }
 
-  function LinhaConta({ l, saldo }: { l: LancamentoItem; saldo?: number }) {
+  // Função de renderização, NÃO componente: um componente definido aqui dentro vira um TIPO NOVO
+  // a cada render do pai, e o React remonta todas as linhas — o que fecharia o menu de contexto
+  // no instante em que a regra da seleção (estado do pai) roda ao abri-lo.
+  function renderLinhaConta(l: LancamentoItem, saldo?: number) {
     const status = venceEm(l.vencimento ?? l.data);
     const sit = situacaoDe(l);
     const par = parcela(l.descricao);
     const cor = sit === "pendente" ? "bg-destructive" : sit === "agendado" ? "bg-warning" : "bg-muted-foreground";
+    // Com a linha DENTRO de uma seleção de vários, o menu age sobre a seleção (regra 3 da ADR-0002).
+    const menuItens = alvosSelecao.length > 1 && selecao.marcado(l.id)
+      ? itensDoLote
+      : itensDeConta({ status: l.status, anexos: l.anexos.length }, { tipo: tab, podeGerir });
     return (
-      <div className="grid grid-cols-[28px_96px_1fr_140px_120px_140px] items-center gap-2 border-b px-3 py-2 text-sm last:border-0 hover:bg-muted/20">
+      <LinhaComMenu
+        key={l.id}
+        itens={menuItens}
+        onSelect={(item) => (item.id.startsWith("lote-") ? setLoteOpen(true) : aoSelecionarNaLinha(l, item))}
+        aoAbrir={(aberto) => { if (aberto) selecao.aoAbrirMenu(l.id); }}
+        render={<div className="grid grid-cols-[28px_96px_1fr_140px_120px_140px] items-center gap-2 border-b px-3 py-2 text-sm last:border-0 hover:bg-muted/20 data-[popup-open]:bg-muted/30" />}
+      >
         <div className="flex items-center gap-1.5">
-          <input type="checkbox" checked={selecionados.has(l.id)} onChange={() => toggleSel(l.id)} className="size-3.5" />
+          <input type="checkbox" checked={selecao.marcado(l.id)} onChange={() => toggleSel(l.id)} className="size-3.5" aria-label={`Selecionar ${l.descricao}`} />
           <span className={`size-2 shrink-0 rounded-full ${cor}`} title={sit} />
         </div>
         <span className={`font-mono text-xs ${status === "vencido" ? "text-destructive" : status === "hoje" ? "text-warning" : ""}`}>
@@ -587,19 +615,13 @@ export function ContasPagarReceberView({
           <Button size="sm" variant="outline" disabled={l.status === "aguardando_aprovacao"} onClick={() => confirmarRapido(l)}>
             <Check className="size-3.5" /> {tab === "despesa" ? "Pagar" : "Receber"}
           </Button>
-          {podeGerir && (
-            <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Ações"><MoreHorizontal className="size-4" /></Button>} />
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setEditar(l)}><Pencil className="size-4" /> Editar</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setDetalhe(l)}>
-                  <Paperclip className="size-4" /> Anexos{l.anexos.length > 0 ? ` (${l.anexos.length})` : ""}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          <BotaoAcoes
+            itens={menuItens}
+            onSelect={(item) => (item.id.startsWith("lote-") ? setLoteOpen(true) : aoSelecionarNaLinha(l, item))}
+            rotulo={`Ações de ${l.descricao}`}
+          />
         </span>
-      </div>
+      </LinhaComMenu>
     );
   }
 }

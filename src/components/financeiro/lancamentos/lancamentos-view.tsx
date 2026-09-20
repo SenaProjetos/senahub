@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useTransition, type PointerEvent as React
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  Plus, Check, Ban, Trash2, Paperclip, Pencil, MoreHorizontal, Search, Download, Printer,
+  Plus, Search, Download, Printer,
   FileSpreadsheet, ChevronLeft, ChevronRight, X, ArrowLeftRight, Receipt,
 } from "lucide-react";
 import {
@@ -27,9 +27,28 @@ import {
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
+import { BotaoAcoes } from "@/components/ui/acoes-menu";
+import { BarraSelecao } from "@/components/ui/barra-selecao";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
+import { LinhaComMenu } from "@/components/ui/linha-com-menu";
+import { useLote } from "@/components/ui/use-lote";
+import { useSelecao } from "@/components/ui/use-selecao";
+import { copiarTexto } from "@/lib/clipboard";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  ACAO_CANCELAR,
+  ACAO_CONFIRMAR,
+  ACAO_COPIAR_DESCRICAO,
+  ACAO_DETALHES,
+  ACAO_EDITAR,
+  ACAO_EXCLUIR,
+  ACAO_LOTE_BAIXAR,
+  ACAO_LOTE_CANCELAR,
+  ACAO_LOTE_EXCLUIR,
+  itensDeLancamento,
+  itensDeLoteLancamentos,
+} from "@/modules/financeiro/lancamentos/acoes";
 import { EmptyState } from "@/components/ui/empty-state";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { brl, formatarData } from "@/lib/utils";
@@ -157,7 +176,10 @@ export function LancamentosView({
   }
   const resetCol = (key: ColKey) => setLarguras((p) => ({ ...p, [key]: LARGURAS_PADRAO[key] }));
 
-  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  // Seleção compartilhada (ADR-0002, regra 3): o menu de contexto age sobre ela.
+  const selecao = useSelecao();
+  const lote = useLote();
+  const confirm = useConfirm();
   const [formOpen, setFormOpen] = useState(defaultFormOpen);
   const [editar, setEditar] = useState<LivroCaixaItem | null>(null);
   const [confirmar, setConfirmar] = useState<LivroCaixaItem | null>(null);
@@ -361,10 +383,93 @@ export function LancamentosView({
   function toggleConta(id: string) {
     setContasSel((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   }
-  function toggleSel(id: string) {
-    setSelecionados((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const toggleSel = selecao.alternar;
+  const limparSel = selecao.limpar;
+
+  /** Lançamentos marcados que ainda existem na lista (a fila muda quando algo é cancelado/excluído). */
+  const alvosSelecao = useMemo(() => itens.filter((i) => selecao.marcado(i.id)), [itens, selecao]);
+  const itensDoLote: AcaoItem[] = itensDeLoteLancamentos(alvosSelecao);
+
+  /** Senha de exclusão, quando a empresa exige — pedida UMA vez, valendo para todo o lote. */
+  function pedirSenhaExclusao(): string | null | undefined {
+    if (!exigeSenhaExclusao) return undefined;
+    return window.prompt("Senha para excluir o(s) lançamento(s):");
   }
-  const limparSel = () => setSelecionados(new Set());
+
+  async function executarLote(item: AcaoItemAcao) {
+    if (alvosSelecao.length === 0) return;
+    if (item.id === ACAO_LOTE_BAIXAR) {
+      setLoteOpen(true);
+      return;
+    }
+    const nomes = new Map(alvosSelecao.map((a) => [a.id, a.descricao]));
+    // Cancelado não tem o que cancelar nem excluir: sai do lote em vez de virar falha.
+    const ativos = alvosSelecao.filter((a) => a.status !== "cancelado").map((a) => a.id);
+
+    if (item.id === ACAO_LOTE_CANCELAR) {
+      await lote.executar({
+        ids: ativos,
+        acao: (id) => cancelarLancamento({ id }),
+        substantivo: ["lançamento", "lançamentos"],
+        verbo: ["cancelado", "cancelados"],
+        rotulo: (id) => nomes.get(id) ?? id,
+        confirmar: {
+          titulo: (n) => `Cancelar ${n} ${n === 1 ? "lançamento" : "lançamentos"}?`,
+          descricao: item.confirmar?.descricao,
+          rotuloConfirmar: item.confirmar?.rotuloConfirmar,
+        },
+        aoConcluir: selecao.limpar,
+      });
+      return;
+    }
+
+    if (item.id === ACAO_LOTE_EXCLUIR) {
+      // Confirma ANTES de pedir a senha, para não pedir senha de algo que será cancelado.
+      const ok = await confirm({
+        title: `Excluir ${ativos.length} ${ativos.length === 1 ? "lançamento" : "lançamentos"}?`,
+        description: item.confirmar?.descricao,
+        confirmLabel: item.confirmar?.rotuloConfirmar,
+        variant: "destructive",
+      });
+      if (!ok) return;
+      const senha = pedirSenhaExclusao();
+      if (senha === null) return; // prompt cancelado
+      await lote.executar({
+        ids: ativos,
+        acao: (id) => excluirLancamento({ id, senha }),
+        substantivo: ["lançamento", "lançamentos"],
+        verbo: ["excluído", "excluídos"],
+        rotulo: (id) => nomes.get(id) ?? id,
+        aoConcluir: selecao.limpar,
+      });
+    }
+  }
+
+  /** Ação de UM lançamento. A confirmação vem antes de qualquer transição (React 19). */
+  async function aoSelecionarNaLinha(l: LivroCaixaItem, item: AcaoItemAcao) {
+    if (item.id.startsWith("lote-")) {
+      void executarLote(item);
+      return;
+    }
+    if (item.confirmar) {
+      const ok = await confirm({
+        title: item.confirmar.titulo,
+        description: item.confirmar.descricao,
+        confirmLabel: item.confirmar.rotuloConfirmar,
+        variant: item.variant === "destructive" ? "destructive" : "default",
+      });
+      if (!ok) return;
+    }
+    if (item.id === ACAO_DETALHES) setDetalhe(l);
+    else if (item.id === ACAO_EDITAR) setEditar(l);
+    else if (item.id === ACAO_CONFIRMAR) setConfirmar(l);
+    else if (item.id === ACAO_CANCELAR) cancelar(l.id);
+    else if (item.id === ACAO_EXCLUIR) excluir(l.id);
+    else if (item.id === ACAO_COPIAR_DESCRICAO) {
+      if (await copiarTexto(l.descricao)) toast.success("Descrição copiada.");
+      else toast.error("Não foi possível copiar a descrição.");
+    }
+  }
 
   function cancelar(id: string) {
     start(async () => {
@@ -548,15 +653,7 @@ export function LancamentosView({
             {temFiltro() && <Button variant="ghost" size="sm" onClick={limparFiltros}><X className="size-3.5" /> Limpar</Button>}
           </div>
 
-          {selecionados.size > 0 && (
-            <div className="flex items-center justify-between rounded-sm border bg-muted/40 px-3 py-2 text-sm">
-              <span>{selecionados.size} selecionado(s)</span>
-              <div className="flex gap-2">
-                <Button size="sm" variant="ghost" onClick={limparSel}>Limpar</Button>
-                <Button size="sm" onClick={() => setLoteOpen(true)}><Check className="size-3.5" /> Baixar selecionadas</Button>
-              </div>
-            </div>
-          )}
+          <DicaMenuContexto />
 
           {/* lista */}
           <div className="overflow-x-auto rounded-sm border">
@@ -589,7 +686,7 @@ export function LancamentosView({
                       <span>{g.nome}</span>
                       <span className={`font-mono ${g.total < 0 ? "text-destructive" : "text-success"}`}>{brl(g.total)}</span>
                     </div>
-                    {g.items.map((l) => <LinhaLanc key={l.id} l={l} />)}
+                    {g.items.map((l) => renderLinhaLanc(l))}
                   </div>
                 ))
               ) : (
@@ -609,8 +706,17 @@ export function LancamentosView({
       />
       <ConfirmarDialog lancamento={confirmar} onClose={() => setConfirmar(null)} contas={opcoes.contas} formas={opcoes.formas} />
       <LancamentoDetalheDialog lancamento={detalhe} podeGerir onClose={() => setDetalhe(null)} />
+      <BarraSelecao
+        total={alvosSelecao.length}
+        itens={itensDoLote}
+        onSelect={(item) => void executarLote(item)}
+        onLimpar={selecao.limpar}
+        substantivo={["lançamento", "lançamentos"]}
+        progresso={lote.progresso}
+      />
+      {lote.portal}
       <LoteDialog
-        open={loteOpen} onClose={() => setLoteOpen(false)} ids={[...selecionados]}
+        open={loteOpen} onClose={() => setLoteOpen(false)} ids={alvosSelecao.map((a) => a.id)}
         contas={opcoes.contas} formas={opcoes.formas}
         onDone={() => { limparSel(); router.refresh(); }}
       />
@@ -621,19 +727,32 @@ export function LancamentosView({
     let saldo = saldoAnterior;
     return lista.map((l) => {
       saldo += signed(l);
-      return <LinhaLanc key={l.id} l={l} saldo={saldo} />;
+      return renderLinhaLanc(l, saldo);
     });
   }
 
-  function LinhaLanc({ l, saldo }: { l: LivroCaixaItem; saldo?: number }) {
+  // Função de renderização, NÃO componente: um componente definido aqui dentro vira um TIPO NOVO
+  // a cada render do pai, e o React remonta todas as linhas — o que fecharia o menu de contexto
+  // no instante em que a regra da seleção (estado do pai) roda ao abri-lo.
+  function renderLinhaLanc(l: LivroCaixaItem, saldo?: number) {
     const sit = situacaoDe(l);
     const par = parcela(l.descricao) ?? parcelaPorId.get(l.id) ?? null;
     const transf = ehTransferencia(topoDe(l));
     const s = signed(l);
+    // Com a linha DENTRO de uma seleção de vários, o menu age sobre a seleção (regra 3 da ADR-0002).
+    const menuItens = alvosSelecao.length > 1 && selecao.marcado(l.id)
+      ? itensDoLote
+      : itensDeLancamento({ status: l.status, anexos: l.anexos.length });
     return (
-      <div className={`grid items-center gap-2 border-b px-3 py-2 text-sm last:border-0 hover:bg-muted/20 ${l.status === "cancelado" ? "opacity-50" : ""}`} style={{ gridTemplateColumns: template }}>
+      <LinhaComMenu
+        key={l.id}
+        itens={menuItens}
+        onSelect={(item) => void aoSelecionarNaLinha(l, item)}
+        aoAbrir={(aberto) => { if (aberto) selecao.aoAbrirMenu(l.id); }}
+        render={<div className={`grid items-center gap-2 border-b px-3 py-2 text-sm last:border-0 hover:bg-muted/20 data-[popup-open]:bg-muted/30 ${l.status === "cancelado" ? "opacity-50" : ""}`} style={{ gridTemplateColumns: template }} />}
+      >
         <div className="flex items-center gap-1.5">
-          <input type="checkbox" checked={selecionados.has(l.id)} onChange={() => toggleSel(l.id)} className="size-3.5" />
+          <input type="checkbox" checked={selecao.marcado(l.id)} onChange={() => toggleSel(l.id)} className="size-3.5" aria-label={`Selecionar ${l.descricao}`} />
           <span className={`size-2 shrink-0 rounded-full ${SIT_META[sit].cor}`} title={SIT_META[sit].label} />
         </div>
         <span className="font-mono text-xs">{dt(l.data)}</span>
@@ -662,28 +781,13 @@ export function LancamentosView({
           {saldo != null ? brl(saldo) : "—"}
         </span>
         <span className="text-right">
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="Ações"><MoreHorizontal className="size-4" /></Button>} />
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setDetalhe(l)}>
-                <Paperclip className="size-4" /> Detalhes{l.anexos.length > 0 ? ` (${l.anexos.length})` : ""}
-              </DropdownMenuItem>
-              {l.status !== "cancelado" && (
-                <DropdownMenuItem onClick={() => setEditar(l)}><Pencil className="size-4" /> Editar</DropdownMenuItem>
-              )}
-              {l.status === "previsto" && (
-                <DropdownMenuItem onClick={() => setConfirmar(l)}><Check className="size-4" /> Confirmar</DropdownMenuItem>
-              )}
-              {l.status !== "cancelado" && (
-                <>
-                  <DropdownMenuItem onClick={() => cancelar(l.id)}><Ban className="size-4" /> Cancelar</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => excluir(l.id)}><Trash2 className="size-4" /> Excluir</DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <BotaoAcoes
+            itens={menuItens}
+            onSelect={(item) => void aoSelecionarNaLinha(l, item)}
+            rotulo={`Ações de ${l.descricao}`}
+          />
         </span>
-      </div>
+      </LinhaComMenu>
     );
   }
 }
