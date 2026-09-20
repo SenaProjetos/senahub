@@ -32,7 +32,12 @@ function iguais(a: string[], b: string[]): boolean {
   return sa.every((x, i) => x === sb[i]);
 }
 
-async function idsDe(projetoIds: string[], userId: string, veTodas: boolean): Promise<string[]> {
+async function idsDe(
+  projetoIds: string[],
+  userId: string,
+  veTodas: boolean,
+  documentoIds?: string[],
+): Promise<string[]> {
   const r = await listarDocumentosAgrupados({
     projetoIds,
     userId,
@@ -41,7 +46,7 @@ async function idsDe(projetoIds: string[], userId: string, veTodas: boolean): Pr
     podeEnviarCap: false,
     podeEditarMetadados: false,
     podeAlterarStatus: false,
-    filtros: {},
+    filtros: documentoIds ? { documentoIds } : {},
     skip: 0,
     take: 500,
     sort: null,
@@ -181,6 +186,27 @@ async function main() {
       iguais(comMuralha, [p1.documentoId]),
       `${comMuralha.length} de ${multi.length}`,
     );
+    // ── 5b. `documentoIds` (visão "Selecionados") só ESTREITA, nunca amplia ──
+    // A seleção do diretório atravessa filtros e chega por id. Se este filtro substituísse o
+    // escopo, quem conhecesse um id leria documento alheio.
+    const soUm = await idsDe([p1.projetoId, p2.projetoId], usuarioA.id, true, [p1.documentoId]);
+    check("documentoIds estreita o escopo ao documento pedido", iguais(soUm, [p1.documentoId]));
+
+    const alheio = await idsDe([p1.projetoId, p2.projetoId], usuarioA.id, true, [p3.documentoId]);
+    check("documentoIds com id de OUTRO projeto (fora do escopo) não devolve nada", alheio.length === 0);
+
+    const misturado = await idsDe([p1.projetoId, p2.projetoId], usuarioA.id, true, [p1.documentoId, p3.documentoId]);
+    check("id fora do escopo misturado com um válido: só o válido volta", iguais(misturado, [p1.documentoId]));
+
+    const idsVazios = await idsDe([p1.projetoId, p2.projetoId], usuarioA.id, true, []);
+    check("documentoIds VAZIO devolve zero (não 'sem filtro')", idsVazios.length === 0);
+
+    const barradoPelaMuralha = await idsDe([p1.projetoId, p2.projetoId], usuarioA.id, false, [p2.documentoId]);
+    check(
+      "a muralha por disciplina continua valendo: id de disciplina alheia não volta",
+      barradoPelaMuralha.length === 0,
+    );
+
     // ── 6. a ÁRVORE do painel segue as mesmas regras de escopo ──────────────
     // A listagem e a árvore são consultas separadas de propósito (navegação não encolhe com
     // filtro). Por serem separadas, cada uma pode vazar sozinha — as duas são testadas.

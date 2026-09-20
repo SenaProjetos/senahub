@@ -1,6 +1,6 @@
 # Menu de contexto — onda 2 (seleção múltipla e telas de lista)
 
-**Data:** 2026-09-20 · **Status:** F1 (motor) entregue em 2026-09-20; F2–F5 pendentes · **Vem de:**
+**Data:** 2026-09-20 · **Status:** F1 e F2 entregues em 2026-09-20; F3–F5 pendentes · **Vem de:**
 [onda 1](2026-09-15-menu-contexto.md) (F1–F3 entregues) · **Regras transversais:**
 [ADR-0002](../../adr/0002-menu-de-contexto.md)
 
@@ -60,7 +60,7 @@ viewers BIM/DWG (o botão direito já gira a câmera); canvas do Estúdio (exigi
 | Fase | Modelo | Conteúdo |
 |---|---|---|
 | **F1** | **Opus** | ✔ **Entregue.** `lib/selecao.ts` + `lib/lote.ts` (puros, testados), `ui/use-selecao.ts`, `ui/use-lote.tsx` (confirmação com contagem, progresso, relatório de falha parcial), `ui/barra-selecao.tsx` (come o mesmo `AcaoItem[]`), `ui/botao-selecionados.tsx`. **Sem consumidor ainda** — a prova real vem na F2. |
-| **F2** | **Sonnet** | Diretório + aprovações — o reaproveitamento direto de `itensDeDocumento`. |
+| **F2** | **Sonnet** | ✔ **Entregue.** Diretório, aprovações e pedidos de exclusão. Ver §3.2. |
 | **F3** | **Sonnet** | As 10 tabelas, em commits por grupo (financeiro primeiro, que é onde o lote mais rende). |
 | **F4** | **Sonnet** | Quadros do comercial + correção de arrastar no toque. |
 | **F5** | **Sonnet** | Agenda (dia/horário + `...` no evento). |
@@ -89,6 +89,27 @@ const lote = useLote();                 // executar({ ids, acao, substantivo, ve
 <BotaoSelecionados total={selecao.total} ativo={selecao.soSelecionados} onChange={selecao.verSelecionados} />
 {lote.portal}
 ```
+
+## 3.2. O que a F2 entregou (e o que aprendeu)
+
+- **Diretório `/arquivos`:** seleção que atravessa filtro e página; "Selecionados (N)" busca por id
+  no servidor (`carregarDocumentosPorIds`) ignorando os filtros; menu de contexto e `...` por linha;
+  lote só de leitura (baixar .zip, copiar nomes). O `documentoIds` da consulta **só estreita o
+  escopo**, nunca o substitui — coberto por 5 casos novos no `smoke:documentos-escopo`, incluindo a
+  lista vazia, que devolve zero (não "sem filtro").
+- **Aprovações:** seleção e barra única no lugar do "Aprovar (n)" por projeto. O lote valida **item a
+  item** (`validarArquivo`), que devolve o motivo de cada falha; a ação em lote antiga só dizia
+  "N ignorados". É o primeiro consumidor de `useLote`.
+- **Pedidos de exclusão:** seleção, barra, "Manter" em lote (um motivo para todos) e "Excluir" em lote
+  (confirmação com a contagem). Menu de uma linha enxuto.
+- **Descritor de documento** ganhou o modo `consulta` (sem Detalhes nem Renomear, com "Abrir no
+  projeto") e aceita o projeto por linha, porque o diretório mistura projetos.
+- **Motor:** `useLote` passou a repassar o rótulo do botão de confirmar (saía "Confirmar" genérico).
+- **Verificado no navegador:** seleção sobrevive a filtro; "Selecionados" mostra os marcados com a lista
+  vazia; botão direito dentro da seleção → menu de lote, fora → seleção vira só a linha; recarregar
+  zera; aprovar 2 em lote (banco confirma exatamente 2 validados); recusar em lote com motivo; excluir
+  em lote com confirmação (cancelar preserva).
+- **Não verificado em tela:** o cartão de celular (toque longo) do diretório.
 
 ## 4. Riscos conhecidos
 

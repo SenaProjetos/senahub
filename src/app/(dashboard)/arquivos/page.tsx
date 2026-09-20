@@ -9,7 +9,6 @@ import { PainelLateralDocumentos } from "@/components/projetos/arquivos/painel-l
 import { ArvoreGlobalView } from "@/components/arquivos/arvore-global-view";
 import { TabelaGlobalArquivos, type ProjetoDaLinha } from "@/components/arquivos/tabela-global";
 import { BuscaGlobal } from "@/components/arquivos/busca-global";
-import { Pagination } from "@/components/ui/pagination";
 
 export const metadata: Metadata = { title: "Arquivos" };
 
@@ -132,16 +131,13 @@ export default async function ArquivosDiretorioPage({ searchParams }: { searchPa
             projetos={projetosPorId}
             podeCoordenacao={podeCoordenacao}
             temFiltro={temFiltro}
+            paginacao={{
+              page: pagina.pagina,
+              pageCount: Math.max(1, Math.ceil(pagina.total / lp.take)),
+              pageSize: lp.take,
+              total: pagina.total,
+            }}
           />
-
-          {pagina.total > lp.take && (
-            <Pagination
-              page={pagina.pagina}
-              pageCount={Math.max(1, Math.ceil(pagina.total / lp.take))}
-              pageSize={lp.take}
-              total={pagina.total}
-            />
-          )}
         </main>
       </div>
     </div>

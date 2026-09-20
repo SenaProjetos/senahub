@@ -33,6 +33,9 @@ export function useSelecao() {
     setSoSelecionados(false);
   }, []);
 
+  /** Substitui a seleção inteira — usado para tirar o que deixou de existir ou de ser visível. */
+  const definir = useCallback((novos: Iterable<string>) => setIds(new Set(novos)), []);
+
   const alternarUm = useCallback((id: string) => setIds((atual) => alternar(atual, id)), []);
 
   const alternarDaPagina = useCallback(
@@ -64,6 +67,7 @@ export function useSelecao() {
     alternar: alternarUm,
     alternarPagina: alternarDaPagina,
     aoAbrirMenu,
+    definir,
     limpar,
     estadoDaPagina: useCallback((idsDaPagina: readonly string[]) => estadoDaPagina(ids, idsDaPagina), [ids]),
     foraDaPagina: useCallback((idsDaPagina: readonly string[]) => foraDaPagina(ids, idsDaPagina), [ids]),

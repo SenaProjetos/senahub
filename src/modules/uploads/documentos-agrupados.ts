@@ -75,6 +75,15 @@ export type FiltrosDoc = {
   fase?: string;
   status?: string;
   listaId?: string | null;
+  /**
+   * Restringe a estes documentos — a visão "Selecionados" do diretório, que junta linhas de
+   * filtros diferentes. **Soma-se ao escopo, nunca o substitui**: projeto e muralha por disciplina
+   * continuam valendo, então id fora do que o usuário enxerga simplesmente não volta.
+   *
+   * Lista VAZIA = nenhum documento, jamais "sem filtro" (mesma armadilha de `projetoIds`): a
+   * ausência do campo é que significa "não filtrar".
+   */
+  documentoIds?: readonly string[];
   /** `PranchaCatalogo.id` (categoria `tipo`). */
   tipo?: string;
   /** `PranchaCatalogo.id` (categoria `folha`). */
@@ -273,6 +282,8 @@ export async function listarDocumentosAgrupados(opts: {
               -- aqui e o mesmo teste de igualdade de antes. Se outra tela passar uma lista, isto
               -- vira "a lista pertence a ALGUM projeto do escopo" -- revisar se for o caso.
               and ld."projetoId" = any($1::text[])))
+      -- $19: só estes documentos. Nulo = sem filtro; lista vazia casa com nada (any de vazio é falso).
+      and ($19::text[] is null or d.id = any($19::text[]))
       and ($14::text is null or d."tipoId" = $14)
       and ($15::text is null or d."tamanhoPapelId" = $15)
       and ($16::text is null or exists (
@@ -314,6 +325,7 @@ export async function listarDocumentosAgrupados(opts: {
     filtros.catExt ?? null,
     pacoteLiteral,
     querBackup,
+    filtros.documentoIds ? [...filtros.documentoIds] : null,
   ];
 
   const totalRows = await prisma.$queryRawUnsafe<{ n: bigint }[]>(

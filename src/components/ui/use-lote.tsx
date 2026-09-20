@@ -62,7 +62,13 @@ export function useLote() {
       /** Nome legível de cada item, para o relatório de falhas. */
       rotulo?: (id: string) => string;
       /** Texto da confirmação; a contagem entra sozinha no título. */
-      confirmar?: { titulo: (n: number) => string; descricao?: string; destrutivo?: boolean };
+      confirmar?: {
+        titulo: (n: number) => string;
+        descricao?: string;
+        /** Texto do botão de confirmar — "Aprovar", "Mover para a lixeira" — em vez do genérico. */
+        rotuloConfirmar?: string;
+        destrutivo?: boolean;
+      };
       aoConcluir?: (r: RelatorioLote) => void;
     }): Promise<RelatorioLote | null> => {
       if (ids.length === 0) return null;
@@ -75,6 +81,7 @@ export function useLote() {
         const ok = await confirm({
           title: confirmar.titulo(ids.length),
           description: confirmar.descricao,
+          confirmLabel: confirmar.rotuloConfirmar,
           variant: confirmar.destrutivo ? "destructive" : "default",
         });
         if (!ok) return null;

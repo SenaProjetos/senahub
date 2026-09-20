@@ -59,11 +59,15 @@ type Formulario = "renomear" | "ajuste" | "solicitar-exclusao" | null;
  */
 export function useAcoesDocumento({
   projetoId,
+  consulta,
   podeValidar,
   podeExcluir,
   podeSolicitarExclusao,
 }: {
-  projetoId: string;
+  /** Ausente no diretório geral: lá cada `DocumentoParaAcoes` traz o seu projeto. */
+  projetoId?: string;
+  /** Tela de consulta (diretório geral): sem "Detalhes", com "Abrir no projeto". */
+  consulta?: boolean;
   podeValidar: boolean;
   podeExcluir: boolean;
   podeSolicitarExclusao: boolean;
@@ -83,8 +87,8 @@ export function useAcoesDocumento({
 
   const itens = useCallback(
     (d: DocumentoParaAcoes) =>
-      itensDeDocumento(d, { projetoId, podeValidar, podeExcluir, podeSolicitarExclusao, ocupado: pendente }),
-    [projetoId, podeValidar, podeExcluir, podeSolicitarExclusao, pendente],
+      itensDeDocumento(d, { projetoId, consulta, podeValidar, podeExcluir, podeSolicitarExclusao, ocupado: pendente }),
+    [projetoId, consulta, podeValidar, podeExcluir, podeSolicitarExclusao, pendente],
   );
 
   const fechar = useCallback(() => {

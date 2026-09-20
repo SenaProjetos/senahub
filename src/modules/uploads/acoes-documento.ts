@@ -2,6 +2,7 @@ import {
   Copy,
   Download,
   Eye,
+  FolderOpen,
   GitCompare,
   History,
   Link2,
@@ -52,6 +53,11 @@ export type ArquivoParaAcoes = { id: string; nome: string; ext: string; download
 
 export type DocumentoParaAcoes = {
   /**
+   * Projeto DESTE documento. Obrigatório onde a lista mistura projetos (diretório geral), onde
+   * `ctx.projetoId` não existe; na aba do projeto pode ficar de fora e vale o do contexto.
+   */
+  projetoId?: string;
+  /**
    * Upload âncora: o primeiro arquivo da revisão vigente. É sobre ele que histórico, validação,
    * renomear e excluir agem — o mesmo de antes do menu de contexto.
    */
@@ -68,7 +74,13 @@ export type DocumentoParaAcoes = {
 };
 
 export type ContextoAcoesDocumento = {
-  projetoId: string;
+  /** Projeto da aba. Ausente no diretório geral, onde cada documento traz o seu. */
+  projetoId?: string;
+  /**
+   * Tela de consulta (diretório geral): sem "Detalhes" — o painel de metadados é da aba do
+   * projeto, junto do catálogo de fases/tipos — e com "Abrir no projeto", que leva até lá.
+   */
+  consulta?: boolean;
   podeValidar: boolean;
   podeExcluir: boolean;
   podeSolicitarExclusao: boolean;
@@ -98,33 +110,70 @@ function porArquivo(
   };
 }
 
+/** O que `documentoParaAcoes` precisa saber de uma linha de tabela — cabe em `LinhaDoc`. */
+type LinhaParaAcoes = {
+  projetoId: string;
+  revisaoAtual: number | null;
+  podeGerir: boolean;
+  arquivos: readonly (ArquivoParaAcoes & { validado: boolean | null })[];
+};
+
+/**
+ * Linha da tabela → o que o descritor consome. O primeiro arquivo da revisão vigente ancora as
+ * ações (histórico, validação…); os demais entram em `arquivos` para baixar/copiar link de cada um.
+ * `null` = linha sem arquivo: não há menu, e o menu nativo do navegador fica.
+ */
+export function documentoParaAcoes(linha: LinhaParaAcoes): DocumentoParaAcoes | null {
+  const arquivo = linha.arquivos[0];
+  if (!arquivo) return null;
+  return {
+    id: arquivo.id,
+    projetoId: linha.projetoId,
+    nome: arquivo.nome,
+    versao: linha.revisaoAtual ?? 0,
+    validado: arquivo.validado,
+    podeGerir: linha.podeGerir,
+    arquivos: linha.arquivos,
+  };
+}
+
 export function itensDeDocumento(d: DocumentoParaAcoes, ctx: ContextoAcoesDocumento): AcaoItem[] {
   // O visualizador de PDF recebe o id do PDF — que nem sempre é o primeiro arquivo da revisão.
   const pdf = d.arquivos.find((a) => a.ext === "pdf");
+  const projetoId = d.projetoId ?? ctx.projetoId;
   const temValidacao = d.validado !== null;
   const travado = ctx.ocupado ? MOTIVO_OCUPADO : undefined;
 
   const itens: (AcaoItem | null)[] = [
     // Primeiro item: é o que o clique no título da linha faz, e quem chega pelo botão direito
     // não tem como descobrir sozinho que o título é clicável.
-    { tipo: "acao", id: ACAO_DETALHES, rotulo: "Detalhes do documento", icone: PanelRight },
-    pdf
+    ctx.consulta ? null : { tipo: "acao", id: ACAO_DETALHES, rotulo: "Detalhes do documento", icone: PanelRight },
+    ctx.consulta && projetoId
+      ? {
+          tipo: "link",
+          id: "abrir-no-projeto",
+          rotulo: "Abrir no projeto",
+          icone: FolderOpen,
+          href: `/projetos/${projetoId}/arquivos`,
+        }
+      : null,
+    pdf && projetoId
       ? {
           tipo: "link",
           id: "visualizar",
           rotulo: "Visualizar em nova aba",
           icone: Eye,
-          href: `/projetos/${ctx.projetoId}/arquivos/${pdf.id}/visualizar`,
+          href: `/projetos/${projetoId}/arquivos/${pdf.id}/visualizar`,
           novaAba: true,
         }
       : null,
-    pdf && d.versao > 1
+    pdf && projetoId && d.versao > 1
       ? {
           tipo: "link",
           id: "comparar",
           rotulo: "Comparar revisões",
           icone: GitCompare,
-          href: `/projetos/${ctx.projetoId}/arquivos/${pdf.id}/comparar`,
+          href: `/projetos/${projetoId}/arquivos/${pdf.id}/comparar`,
         }
       : null,
     porArquivo(d.arquivos, { id: "baixar", rotulo: "Baixar", icone: Download }, (a, rotulo) => ({
@@ -162,7 +211,8 @@ export function itensDeDocumento(d: DocumentoParaAcoes, ctx: ContextoAcoesDocume
       : []),
 
     { tipo: "separador", id: "sep-gerir" },
-    d.podeGerir ? { tipo: "acao", id: ACAO_RENOMEAR, rotulo: "Renomear", icone: Pencil } : null,
+    // Diretório é consulta: mesmo quem gere a disciplina renomeia pela aba do projeto.
+    d.podeGerir && !ctx.consulta ? { tipo: "acao", id: ACAO_RENOMEAR, rotulo: "Renomear", icone: Pencil } : null,
 
     { tipo: "separador", id: "sep-excluir" },
     // Excluir não leva `confirmar`: abre o diálogo de ESCOPO (só este arquivo × o documento

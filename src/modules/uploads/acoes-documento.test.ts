@@ -151,3 +151,55 @@ describe("arquivoDoCopiarLink", () => {
     expect(arquivoDoCopiarLink("historico")).toBeNull();
   });
 });
+
+// Diretório geral: várias projetos na mesma lista e nada de editar. O projeto vem da LINHA, não do
+// contexto, e o painel de metadados (que é da aba do projeto) não é oferecido.
+describe("itensDeDocumento — modo consulta (diretório geral)", () => {
+  const consulta: ContextoAcoesDocumento = {
+    consulta: true,
+    podeValidar: false,
+    podeExcluir: false,
+    podeSolicitarExclusao: false,
+  };
+  const daLinha = { ...doc, projetoId: "p-da-linha", podeGerir: false };
+
+  it("monta só leitura: abrir no projeto, visualizar, comparar, baixar, copiar e histórico", () => {
+    expect(ids(itensDeDocumento(daLinha, consulta))).toEqual([
+      "abrir-no-projeto",
+      "visualizar",
+      "comparar",
+      `baixar:${PDF.id}`,
+      `${PREFIXO_COPIAR_LINK}${PDF.id}`,
+      "copiar-nome",
+      "historico",
+    ]);
+  });
+
+  it("os links usam o projeto DA LINHA (o contexto não tem projeto)", () => {
+    const itens = itensDeDocumento(daLinha, consulta);
+    expect(achar(itens, "abrir-no-projeto")).toMatchObject({ href: "/projetos/p-da-linha/arquivos" });
+    expect(achar(itens, "visualizar")).toMatchObject({ href: `/projetos/p-da-linha/arquivos/${PDF.id}/visualizar` });
+  });
+
+  it("não oferece Renomear nem a quem gere a disciplina: consulta não edita", () => {
+    const gerindo = { ...daLinha, podeGerir: true };
+    expect(achar(itensDeDocumento(gerindo, consulta), "renomear")).toBeUndefined();
+  });
+
+  it("não oferece Detalhes: o painel de metadados é da aba do projeto", () => {
+    expect(achar(itensDeDocumento(daLinha, consulta), "detalhes")).toBeUndefined();
+  });
+
+  it("sem projeto em lugar nenhum, some o que precisa dele em vez de gerar link quebrado", () => {
+    const itens = itensDeDocumento({ ...doc, podeGerir: false }, consulta);
+    expect(achar(itens, "visualizar")).toBeUndefined();
+    expect(achar(itens, "abrir-no-projeto")).toBeUndefined();
+    // O que não depende de projeto continua.
+    expect(achar(itens, `baixar:${PDF.id}`)).toBeDefined();
+  });
+
+  it("o projeto da linha vale também na aba, quando o contexto tem o mesmo", () => {
+    const naAba = itensDeDocumento({ ...doc, projetoId: undefined }, ctx);
+    expect(achar(naAba, "visualizar")).toMatchObject({ href: `/projetos/p1/arquivos/${PDF.id}/visualizar` });
+  });
+});
