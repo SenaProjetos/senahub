@@ -1,6 +1,6 @@
 # Menu de contexto — onda 2 (seleção múltipla e telas de lista)
 
-**Data:** 2026-09-20 · **Status:** decidido em grilling, nada implementado · **Vem de:**
+**Data:** 2026-09-20 · **Status:** F1 (motor) entregue em 2026-09-20; F2–F5 pendentes · **Vem de:**
 [onda 1](2026-09-15-menu-contexto.md) (F1–F3 entregues) · **Regras transversais:**
 [ADR-0002](../../adr/0002-menu-de-contexto.md)
 
@@ -59,7 +59,7 @@ viewers BIM/DWG (o botão direito já gira a câmera); canvas do Estúdio (exigi
 
 | Fase | Modelo | Conteúdo |
 |---|---|---|
-| **F1** | **Opus** | O motor, que as telas copiam: hook de seleção compartilhado (atravessa filtro/página, zera ao concluir), barra de lote única alimentada pelo mesmo `AcaoItem[]`, executor de lote com relatório parcial e teto de 100, botão "Selecionados (N)". Testes da camada pura. |
+| **F1** | **Opus** | ✔ **Entregue.** `lib/selecao.ts` + `lib/lote.ts` (puros, testados), `ui/use-selecao.ts`, `ui/use-lote.tsx` (confirmação com contagem, progresso, relatório de falha parcial), `ui/barra-selecao.tsx` (come o mesmo `AcaoItem[]`), `ui/botao-selecionados.tsx`. **Sem consumidor ainda** — a prova real vem na F2. |
 | **F2** | **Sonnet** | Diretório + aprovações — o reaproveitamento direto de `itensDeDocumento`. |
 | **F3** | **Sonnet** | As 10 tabelas, em commits por grupo (financeiro primeiro, que é onde o lote mais rende). |
 | **F4** | **Sonnet** | Quadros do comercial + correção de arrastar no toque. |
@@ -69,6 +69,26 @@ Ao iniciar cada fase, a primeira linha da resposta diz o modelo esperado; se o a
 **parar** e esperar a troca.
 
 ---
+
+## 3.1. O que a F1 deixou pronto (e o que ficou para a F2)
+
+O motor não tem consumidor: **nenhuma tela mudou na F1**. A tabela de documentos, que já tem
+seleção, ficou de fora de propósito — a barra dela tem seis ações de domínio (zip, validar,
+escopo de exclusão, listas, link público) e o cálculo do que está selecionado hoje olha só a
+página corrente. Trocar isso exige a consulta "linhas por id" que a seleção atravessando filtros
+pede, e isso é trabalho da F2/F3, não um ajuste de passagem.
+
+Contrato para quem consumir:
+
+```tsx
+const selecao = useSelecao();           // marcado/alternar/alternarPagina/limpar/soSelecionados
+const lote = useLote();                 // executar({ ids, acao, substantivo, verbo, confirmar })
+// no menu da linha: const alvos = selecao.aoAbrirMenu(linha.id)  → já aplica a regra do explorador
+<BarraSelecao total={selecao.total} itens={itensDoLote} onSelect={...} onLimpar={selecao.limpar}
+              substantivo={["documento", "documentos"]} progresso={lote.progresso} />
+<BotaoSelecionados total={selecao.total} ativo={selecao.soSelecionados} onChange={selecao.verSelecionados} />
+{lote.portal}
+```
 
 ## 4. Riscos conhecidos
 
