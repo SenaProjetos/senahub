@@ -160,11 +160,13 @@ filho marcados → "Excluir 1 item?"); acessos (menu com e sem itens; senha não
 Dados de teste descartáveis foram criados e removidos.
 
 **Não conferido em tela / lacunas conhecidas:**
-1. **"Selecionados (N)" só existe no diretório e nas certidões/disciplinas/orçamento.** Nas tabelas de
-   **servidor paginado** (clientes, lançamentos, contas) a seleção atravessa filtro e página, mas **não
-   há o botão para rever** o conjunto: exigiria a consulta "linhas por id" que o diretório tem
-   (`carregarDocumentosPorIds`) para cada uma. Em usuários, campanhas e parceiros as listas são
-   pequenas e carregadas inteiras (só há o filtro de inativos), então o botão traria pouco.
+1. ~~**"Selecionados (N)" faltava em clientes, lançamentos e contas.**~~ **Fechada em 2026-09-20.** Só os
+   **clientes** são paginados no servidor: a visão "Selecionados" busca por id (`carregarClientesPorIds`
+   + hook `useVisaoSelecionados`, ignora os filtros e esconde a paginação). **Lançamentos e contas
+   carregam tudo e filtram no cliente** (a primeira versão deste spec errou ao chamá-las de paginadas),
+   então lá o botão só filtra `itens` pelos marcados; em "Selecionados" o saldo corrido some, porque
+   entre marcados de filtros diferentes ele não significa nada. Usuários, campanhas e parceiros ficam
+   sem o botão: listas pequenas, carregadas inteiras.
 2. **Toque longo em celular real** (cartão do diretório, linha de tabela, compromisso da agenda) não foi
    testado; o arrasto por toque nos quadros foi via CDP, não num aparelho.
 3. **"Copiar usuário" em acessos** e o **lote sobre certidões com documento** (zip) só têm teste do

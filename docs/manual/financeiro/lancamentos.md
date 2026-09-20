@@ -61,7 +61,8 @@ Clique com o **botão direito** num lançamento (ou use o botão **⋯**) para *
 
 Marque vários lançamentos e a barra da parte de baixo da tela oferece **baixar**, **cancelar** e
 **excluir** todos de uma vez, com a contagem na confirmação. A seleção continua valendo ao mudar
-de filtro ou de página, e o resultado mostra quantos deram certo e quais falharam.
+de filtro ou de página, e o botão **Selecionados (N)** mostra só os marcados, de qualquer filtro (nessa
+visão o saldo corrido fica oculto). O resultado mostra quantos deram certo e quais falharam.
 
 ## Aprovação de despesas
 

@@ -55,7 +55,8 @@ para projetos, propostas e financeiro.
 Na lista, o botão direito numa empresa (ou o botão **⋯**) oferece **Abrir cliente**, **Abrir em nova
 aba**, **Editar**, **Desativar/Reativar** e copiar **nome**, **documento** e **e-mail**. Marque várias
 empresas na caixa de seleção para **desativar ou reativar todas de uma vez** — a seleção continua
-valendo ao trocar de página.
+valendo ao trocar de página e de filtro, e o botão **Selecionados (N)** mostra só as empresas marcadas,
+de qualquer página ou filtro.
 
 ## Permissões
 

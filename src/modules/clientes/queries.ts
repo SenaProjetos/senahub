@@ -93,6 +93,19 @@ export async function listarClientesPaginado(opts?: ListarClientesOpts) {
   return { items, total };
 }
 
+/**
+ * Clientes por id — a visão "Selecionados (N)" da lista, que junta empresas marcadas em filtros e
+ * páginas diferentes. Mesma forma da listagem (`ClienteListItem`), sem filtro nenhum: o id é o filtro.
+ */
+export async function listarClientesPorIds(ids: readonly string[]) {
+  if (ids.length === 0) return [];
+  return prisma.cliente.findMany({
+    where: { id: { in: [...ids] } },
+    orderBy: { nome: "asc" },
+    include: { _count: { select: { contatos: { where: { excluidoEm: null } } } } },
+  });
+}
+
 /** UFs, cidades e categorias distintas (para popular os selects de filtro). */
 export async function listarFiltrosClientes() {
   const [rows, segmentos] = await Promise.all([

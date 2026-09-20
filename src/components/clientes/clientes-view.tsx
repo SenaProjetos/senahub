@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Search, UserPlus, Download } from "lucide-react";
 import {
+  carregarClientesPorIds,
   desativarCliente,
   reativarCliente,
 } from "@/modules/clientes/actions";
@@ -35,12 +36,14 @@ import { SortableHead } from "@/components/ui/sortable-head";
 import type { AcaoItemAcao } from "@/components/ui/acoes";
 import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { BarraSelecao } from "@/components/ui/barra-selecao";
+import { BotaoSelecionados } from "@/components/ui/botao-selecionados";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
 import { LinhaComMenu } from "@/components/ui/linha-com-menu";
 import { useLote } from "@/components/ui/use-lote";
 import { useNomesVistos } from "@/components/ui/use-nomes-vistos";
 import { useSelecao } from "@/components/ui/use-selecao";
+import { useVisaoSelecionados } from "@/components/ui/use-visao-selecionados";
 import { copiarTexto } from "@/lib/clipboard";
 import {
   ACAO_ALTERNAR_ATIVO,
@@ -113,7 +116,13 @@ export function ClientesView({
   // menu de contexto age sobre ela (ADR-0002, regra 3).
   const selecao = useSelecao();
   const lote = useLote();
-  const nomeDe = useNomesVistos(clientes, (c) => c.id, (c) => c.nome);
+  // "Selecionados (N)": a seleção pode ter empresas de outras páginas e filtros, então a visão
+  // busca por id no servidor e ignora os demais filtros.
+  const visao = useVisaoSelecionados<ClienteListItem>(selecao, (ids) =>
+    carregarClientesPorIds({ ids }).then((r) => (r.ok ? { ok: true as const, data: r.data.items } : r)),
+  );
+  const linhas = selecao.soSelecionados ? (visao.linhas ?? []) : clientes;
+  const nomeDe = useNomesVistos(linhas, (c) => c.id, (c) => c.nome);
   const [form, setForm] = useState<FormCliente | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [, startTransition] = useTransition();
@@ -347,6 +356,21 @@ export function ClientesView({
         </Select>
       </div>
 
+      {selecao.total > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground" aria-live="polite">
+            {selecao.soSelecionados
+              ? visao.carregando
+                ? "Carregando os selecionados…"
+                : visao.indisponiveis > 0
+                  ? `Mostrando só os selecionados, de todos os filtros. ${visao.indisponiveis} não ${visao.indisponiveis === 1 ? "está" : "estão"} mais disponível(is).`
+                  : "Mostrando só os selecionados, de todos os filtros."
+              : null}
+          </p>
+          <BotaoSelecionados total={selecao.total} ativo={selecao.soSelecionados} onChange={selecao.verSelecionados} />
+        </div>
+      )}
+
       <div className="rounded-sm border">
         <Table>
           <TableHeader>
@@ -354,8 +378,8 @@ export function ClientesView({
               {podeGerir && (
                 <TableHead className="w-8">
                   <Checkbox
-                    checked={selecao.estadoDaPagina(clientes.map((c) => c.id)) === "todos"}
-                    onCheckedChange={() => selecao.alternarPagina(clientes.map((c) => c.id))}
+                    checked={selecao.estadoDaPagina(linhas.map((c) => c.id)) === "todos"}
+                    onCheckedChange={() => selecao.alternarPagina(linhas.map((c) => c.id))}
                     aria-label="Marcar todos os clientes da página"
                   />
                 </TableHead>
@@ -371,14 +395,14 @@ export function ClientesView({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {clientes.length === 0 ? (
+            {linhas.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={9} className="text-center text-muted-foreground">
-                  Nenhum cliente.
+                  {visao.carregando ? "Carregando os selecionados…" : "Nenhum cliente."}
                 </TableCell>
               </TableRow>
             ) : (
-              clientes.map((c) => {
+              linhas.map((c) => {
                 const menuItens =
                   selecao.total > 1 && selecao.marcado(c.id) ? itensDoLote : itensDeCliente(c, { podeGerir });
                 return (
@@ -445,7 +469,7 @@ export function ClientesView({
         </Table>
       </div>
 
-      <Pagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
+      {!selecao.soSelecionados && <Pagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} />}
 
       <BarraSelecao
         total={selecao.total}

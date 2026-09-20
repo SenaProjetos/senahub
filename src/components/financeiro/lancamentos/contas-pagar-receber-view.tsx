@@ -15,6 +15,7 @@ import { LancamentoDetalheDialog } from "./lancamento-detalhe-dialog";
 import type { AcaoItemAcao } from "@/components/ui/acoes";
 import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { BarraSelecao } from "@/components/ui/barra-selecao";
+import { BotaoSelecionados } from "@/components/ui/botao-selecionados";
 import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
 import { LinhaComMenu } from "@/components/ui/linha-com-menu";
 import { useSelecao } from "@/components/ui/use-selecao";
@@ -221,7 +222,16 @@ export function ContasPagarReceberView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itens, tab, modo, mesRef, de, ate, busca, situacoes, aging, fornecedorId, clienteId, centroId, formaId, projetoId, valorMin, valorMax, excluidas]);
 
-  const totalLista = lista.reduce((s, l) => s + Number(l.valor), 0);
+  // "Selecionados (N)": ignora filtros e mostra só os marcados. A seleção é zerada ao trocar de
+  // aba, então são sempre contas do mesmo tipo (a coluna Fornecedor/Cliente continua valendo).
+  const exibidas = useMemo(() => {
+    if (!selecao.soSelecionados) return lista;
+    return itens
+      .filter((l) => selecao.ids.has(l.id))
+      .sort((a, b) => new Date(a.vencimento ?? a.data).getTime() - new Date(b.vencimento ?? b.data).getTime());
+  }, [lista, itens, selecao.soSelecionados, selecao.ids]);
+
+  const totalLista = exibidas.reduce((s, l) => s + Number(l.valor), 0);
 
   // agrupamento com subtotais
   const grupos = useMemo(() => {
@@ -238,7 +248,7 @@ export function ContasPagarReceberView({
       return "";
     };
     const m = new Map<string, LancamentoItem[]>();
-    for (const l of lista) {
+    for (const l of exibidas) {
       const k = chave(l);
       if (!m.has(k)) m.set(k, []);
       m.get(k)!.push(l);
@@ -249,7 +259,7 @@ export function ContasPagarReceberView({
       total: items.reduce((s, l) => s + Number(l.valor), 0),
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lista, agruparPor]);
+  }, [exibidas, agruparPor]);
 
   const sinal = tab === "despesa" ? -1 : 1;
 
@@ -499,6 +509,7 @@ export function ContasPagarReceberView({
             {temFiltro() && (
               <Button variant="ghost" size="sm" onClick={limparFiltros}><X className="size-3.5" /> Limpar</Button>
             )}
+            <BotaoSelecionados total={selecao.total} ativo={selecao.soSelecionados} onChange={selecao.verSelecionados} />
           </div>
 
           <DicaMenuContexto />
@@ -513,8 +524,8 @@ export function ContasPagarReceberView({
               <span className="text-right">{mostrarSaldo ? "Saldo" : "Valor"}</span>
               <span />
             </div>
-            {lista.length === 0 ? (
-              <EmptyState icon={Wallet} title="Nada em aberto." />
+            {exibidas.length === 0 ? (
+              <EmptyState icon={Wallet} title={selecao.soSelecionados ? "As contas selecionadas não estão mais disponíveis." : "Nada em aberto."} />
             ) : grupos ? (
               grupos.map((g) => (
                 <div key={g.nome}>
@@ -530,7 +541,7 @@ export function ContasPagarReceberView({
             )}
           </div>
           <p className="text-right text-sm text-muted-foreground">
-            {lista.length} lançamentos · total <span className="font-mono">{brl(sinal * totalLista)}</span>
+            {exibidas.length} lançamentos{selecao.soSelecionados ? " selecionados" : ""} · total <span className="font-mono">{brl(sinal * totalLista)}</span>
           </p>
         </div>
       </div>
@@ -566,7 +577,7 @@ export function ContasPagarReceberView({
   // linha com saldo acumulado (sem agrupamento)
   function renderComSaldo() {
     let saldo = 0;
-    return lista.map((l) => {
+    return exibidas.map((l) => {
       saldo += sinal * Number(l.valor);
       return renderLinhaConta(l, mostrarSaldo ? saldo : undefined);
     });

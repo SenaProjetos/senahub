@@ -30,6 +30,7 @@ import {
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
 import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { BarraSelecao } from "@/components/ui/barra-selecao";
+import { BotaoSelecionados } from "@/components/ui/botao-selecionados";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
 import { LinhaComMenu } from "@/components/ui/linha-com-menu";
@@ -286,6 +287,15 @@ export function LancamentosView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itens, modo, ref, de, ate, busca, situacoes, categoriaId, centroId, formaId, projetoId, valorMin, valorMax, contasSel]);
 
+  // "Selecionados (N)": ignora período e filtros e mostra só os marcados (a seleção atravessa os
+  // filtros). Os totais e o saldo do topo continuam sobre `lista`, que é o que os filtros pedem.
+  const exibidas = useMemo(() => {
+    if (!selecao.soSelecionados) return lista;
+    return itens
+      .filter((l) => selecao.ids.has(l.id))
+      .sort((a, b) => ledgerDate(a).getTime() - ledgerDate(b).getTime());
+  }, [lista, itens, selecao.soSelecionados, selecao.ids]);
+
   // saldo anterior projetado (das contas selecionadas) antes do início
   const saldoAnterior = useMemo(() => {
     let s = 0;
@@ -364,7 +374,7 @@ export function LancamentosView({
       return "";
     };
     const m = new Map<string, LivroCaixaItem[]>();
-    for (const l of lista) {
+    for (const l of exibidas) {
       const k = chave(l);
       if (!m.has(k)) m.set(k, []);
       m.get(k)!.push(l);
@@ -375,7 +385,7 @@ export function LancamentosView({
       total: items.reduce((s, l) => s + signed(l), 0),
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lista, agruparPor]);
+  }, [exibidas, agruparPor]);
 
   function toggleSit(s: Situacao) {
     setSituacoes((prev) => { const n = new Set(prev); if (n.has(s)) n.delete(s); else n.add(s); return n; });
@@ -651,6 +661,7 @@ export function LancamentosView({
             <InputMoeda semPrefixo value={valorMin} onChange={setValorMin} placeholder="Valor mín" className="h-8 w-24" />
             <InputMoeda semPrefixo value={valorMax} onChange={setValorMax} placeholder="Valor máx" className="h-8 w-24" />
             {temFiltro() && <Button variant="ghost" size="sm" onClick={limparFiltros}><X className="size-3.5" /> Limpar</Button>}
+            <BotaoSelecionados total={selecao.total} ativo={selecao.soSelecionados} onChange={selecao.verSelecionados} />
           </div>
 
           <DicaMenuContexto />
@@ -673,12 +684,14 @@ export function LancamentosView({
                 ))}
                 <span />
               </div>
-              <div className="grid items-center gap-2 border-b bg-muted/10 px-3 py-1.5 text-xs" style={{ gridTemplateColumns: template }}>
-                <span /><span /><span className="font-medium text-muted-foreground">Saldo anterior</span><span />
-                <span /><span className={`text-right font-mono ${saldoAnterior < 0 ? "text-destructive" : "text-success"}`}>{brl(saldoAnterior)}</span><span />
-              </div>
-              {lista.length === 0 ? (
-                <EmptyState icon={Receipt} title="Nenhum lançamento no filtro." />
+              {!selecao.soSelecionados && (
+                <div className="grid items-center gap-2 border-b bg-muted/10 px-3 py-1.5 text-xs" style={{ gridTemplateColumns: template }}>
+                  <span /><span /><span className="font-medium text-muted-foreground">Saldo anterior</span><span />
+                  <span /><span className={`text-right font-mono ${saldoAnterior < 0 ? "text-destructive" : "text-success"}`}>{brl(saldoAnterior)}</span><span />
+                </div>
+              )}
+              {exibidas.length === 0 ? (
+                <EmptyState icon={Receipt} title={selecao.soSelecionados ? "Os lançamentos selecionados não estão mais disponíveis." : "Nenhum lançamento no filtro."} />
               ) : grupos ? (
                 grupos.map((g) => (
                   <div key={g.nome}>
@@ -694,7 +707,9 @@ export function LancamentosView({
               )}
             </div>
           </div>
-          <p className="text-right text-sm text-muted-foreground">{lista.length} lançamentos</p>
+          <p className="text-right text-sm text-muted-foreground">
+            {exibidas.length} lançamentos{selecao.soSelecionados ? " selecionados, de todos os filtros — o saldo corrido fica oculto" : ""}
+          </p>
         </div>
       </div>
 
@@ -724,6 +739,9 @@ export function LancamentosView({
   );
 
   function renderComSaldo() {
+    // Saldo corrido só existe sobre a lista contínua do período; entre marcados de filtros
+    // diferentes ele não significaria nada.
+    if (selecao.soSelecionados) return exibidas.map((l) => renderLinhaLanc(l));
     let saldo = saldoAnterior;
     return lista.map((l) => {
       saldo += signed(l);

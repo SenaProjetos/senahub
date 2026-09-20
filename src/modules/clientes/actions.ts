@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { registrarAtividade } from "@/modules/comercial/service";
@@ -15,13 +16,32 @@ import {
   consultarCnpjSchema,
   mesclarClientesSchema,
 } from "@/modules/clientes/schemas";
-import { contatosDoCliente, clientesParaDedupe } from "@/modules/clientes/queries";
+import { contatosDoCliente, clientesParaDedupe, listarClientesPorIds } from "@/modules/clientes/queries";
 import { candidatosDuplicata } from "@/modules/comercial/dedupe";
 import { soDigitos } from "@/lib/documento";
 import { mesclarClientes, capturarClientesDaFusao } from "@/modules/clientes/fusao";
 import { buscarDadosCnpj } from "@/modules/clientes/cnpj";
 
 const REVALIDATE = "/clientes";
+
+/** Teto de ids por chamada: bem acima dos 100 do lote, só para não aceitar corpo absurdo. */
+const clientesPorIdsSchema = z.object({ ids: z.array(z.string().min(1)).max(500) });
+
+/**
+ * Clientes por id — a visão "Selecionados (N)" da lista (a seleção atravessa filtro e página).
+ * `audit: false`: é navegação de leitura, cada abertura seria ruído no log.
+ */
+export const carregarClientesPorIds = defineAction(
+  {
+    modulo: "clientes",
+    acao: "ver-clientes-selecionados",
+    recurso: "clientes",
+    permissao: "ver",
+    schema: clientesPorIdsSchema,
+    audit: false,
+  },
+  async (input) => ({ items: await listarClientesPorIds(input.ids) }),
+);
 
 function normalizar<
   T extends { email?: string; tipo?: "PF" | "PJ"; nomeFantasia?: string | null; documento?: string | null },
