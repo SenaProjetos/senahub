@@ -2,6 +2,71 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.20.0](https://github.com/SenaProjetos/senahub/compare/v1.19.0...v1.20.0) (2026-09-21)
+
+
+### ✨ Funcionalidades
+
+* **agenda:** ações comerciais aparecem por padrão na agenda ([7c449bb](https://github.com/SenaProjetos/senahub/commit/7c449bbef5e91da06a275f6ad052f5021bf5c26a))
+* **agenda:** menu de contexto no dia e no compromisso, com editar, duplicar e excluir (onda 2, F5) ([8f7c728](https://github.com/SenaProjetos/senahub/commit/8f7c728da1bfec0f44ecd69e93726513e083d207))
+* **arquivos:** menu de contexto e seleção em lote no diretório e nas aprovações (onda 2, F2) ([a3eafff](https://github.com/SenaProjetos/senahub/commit/a3eafff234960b54cdd3af12dd4a120bd3de2b03))
+* **arquivos:** menu de contexto na tabela de documentos ([983304b](https://github.com/SenaProjetos/senahub/commit/983304b16787a5d9fa14c3651a2f22966dfc2780))
+* **auth:** cookie de sessão por worktree (AUTH_COOKIE_PREFIX) ([eea6d93](https://github.com/SenaProjetos/senahub/commit/eea6d93b238796b8f170d8f718f688114f3adad8))
+* **cadastros:** menu de contexto e seleção em lote em clientes, usuários, parceiros e campanhas (onda 2, F3) ([b86e4db](https://github.com/SenaProjetos/senahub/commit/b86e4db68ceb8d3c1ecbd2f8a5e3f918d393cc45))
+* **catalogos:** menu de contexto e seleção em lote nas disciplinas e no orçamento (onda 2, F3) ([86d24c0](https://github.com/SenaProjetos/senahub/commit/86d24c0e6e6f918eb4c15639768415fd0b199a59))
+* **comercial:** "Nova proposta" abre a composta por padrão, legado e externa seguem (G6) ([d5632d1](https://github.com/SenaProjetos/senahub/commit/d5632d195b6f99483c50f7c4e14e39033b9a54e8))
+* **comercial:** barra de navegação fixa em todas as telas ([f36d5a7](https://github.com/SenaProjetos/senahub/commit/f36d5a702e0b3ae3a96320b70df2ffc0f45ff817))
+* **comercial:** biblioteca de cláusulas e modelos de proposta (G3) ([d65da59](https://github.com/SenaProjetos/senahub/commit/d65da5963a3df5b2593bbc0c2fb72b7781daaf9e))
+* **comercial:** card do funil mostra parceiro, campanha, desconto e responsável ([aab8bfd](https://github.com/SenaProjetos/senahub/commit/aab8bfda198d171e7c039b88cc7e2c5681ff4b48))
+* **comercial:** documento da proposta composta no Estúdio, com link público e PDF (G5) ([9ec4f48](https://github.com/SenaProjetos/senahub/commit/9ec4f4896adba51f123aae73f6efc6fee788e412))
+* **comercial:** editar as disciplinas de interesse da negociação na ficha ([2ae7cdb](https://github.com/SenaProjetos/senahub/commit/2ae7cdb5a17927b95a55f24e2e6fdff463a186da))
+* **comercial:** ficha do card em modal, com edição da negociação ([9f46d23](https://github.com/SenaProjetos/senahub/commit/9f46d23aac0efde0291465c43ac69a5454cd87f2))
+* **comercial:** follow-ups em calendário (semana por padrão) com opção de lista ([2ff18cc](https://github.com/SenaProjetos/senahub/commit/2ff18cccd9b3cf80aa61e74eb0e4596b04e7130b))
+* **comercial:** follow-ups em três linhas e reagendamento arrastando no calendário ([3bf9778](https://github.com/SenaProjetos/senahub/commit/3bf97784e2aaddfb32e88f8c379432a3be375072))
+* **comercial:** limpeza dos PDFs de proposta externa que nunca viraram versão ([79dc41b](https://github.com/SenaProjetos/senahub/commit/79dc41bbb7db6413fbac92c62a4358f4cfab2467))
+* **comercial:** menu de contexto nos quadros de prospecção e negociações e arrasto por toque (onda 2, F4) ([6a8b848](https://github.com/SenaProjetos/senahub/commit/6a8b848d17ed2e96187850c1b5bb7beb7e776f94))
+* **comercial:** migração da proposta composta + concessão de comercial:modelos (G2) ([27855fc](https://github.com/SenaProjetos/senahub/commit/27855fc3cef9de8398b1580f20645882f5f4cffa))
+* **comercial:** montar proposta a partir do modelo, com plano em percentual (G4) ([9747f8f](https://github.com/SenaProjetos/senahub/commit/9747f8f6ee4e6ff1046b2279be51f358acd71a94))
+* **comercial:** nova entrada com alternador PJ/PF, máscara e validação de contato ([6ef3498](https://github.com/SenaProjetos/senahub/commit/6ef3498f64d38208ecd0b4362a857c89d5cdf0f5))
+* **comercial:** novo desenho do diálogo de nova entrada ([ad5b02a](https://github.com/SenaProjetos/senahub/commit/ad5b02a83181b59a087f473cb24aa8edc7b1aebf))
+* **comercial:** parceiros com linha expansível mostrando os leads indicados ([59ee84a](https://github.com/SenaProjetos/senahub/commit/59ee84aa7920e8b0b12acec533ae3aff5139776e))
+* **comercial:** proposta montada fora do sistema, com PDF por versão ([2de83e5](https://github.com/SenaProjetos/senahub/commit/2de83e554ab1dbb526dc47a9120f9449f07d0948))
+* **comercial:** prospecção e negociação num funil único ([6d2639b](https://github.com/SenaProjetos/senahub/commit/6d2639bc64a313be20f1ba0db650be41699da9a9))
+* **comercial:** recolher/expandir todas as colunas do funil e cada fluxo ([9fc9359](https://github.com/SenaProjetos/senahub/commit/9fc9359be0d1611950958a1007f970bae4633586))
+* **comercial:** regras puras da proposta composta — extenso, parcelas, cláusula por UF (G1) ([6fb1215](https://github.com/SenaProjetos/senahub/commit/6fb12152c678883828aa57f25ee0e2301248cd72))
+* **comercial:** schema da proposta composta — modelo, cláusulas, seções e parcelas (G2) ([06d7cdf](https://github.com/SenaProjetos/senahub/commit/06d7cdfb7ce36911265a44c966f85e48f3179799))
+* **comercial:** tela de follow-ups e follow-up na agenda do responsável ([dede053](https://github.com/SenaProjetos/senahub/commit/dede05341cf314ad10262bc098ed75509ab6d19d))
+* **dev:** central do desenvolvedor ciente dos worktrees por IDE ([73bd0c7](https://github.com/SenaProjetos/senahub/commit/73bd0c7bf7874320debabc96e009c3c026eb7956))
+* **dev:** escolha de worktree na Central e guarda de build presa à pasta ([8412e22](https://github.com/SenaProjetos/senahub/commit/8412e2206822a983eb24a849ce2b2d739953e5ad))
+* **documentos:** faixa que cresce com o conteúdo no Estúdio (G0) ([0ae2075](https://github.com/SenaProjetos/senahub/commit/0ae2075660b36fc9f064f26c53325770ef269ebf))
+* **documentos:** zoom estilo CAD no visualizador do Estúdio ([41cbca2](https://github.com/SenaProjetos/senahub/commit/41cbca2591dc1a058cd5fe244fd5fe74295fc53f))
+* **financeiro:** menu de contexto e lote no livro-caixa e nas contas (onda 2, F3) ([53b1778](https://github.com/SenaProjetos/senahub/commit/53b17788779190c2061aad7b9d688f683c4a8e91))
+* **gestao:** menu de contexto e seleção em lote em certidões e acessos (onda 2, F3) ([1fcc683](https://github.com/SenaProjetos/senahub/commit/1fcc683bd7c8942a02460013f69fe71fe3a00f67))
+* **selecao:** "Selecionados (N)" em clientes, lançamentos e contas (onda 2) ([ece88b3](https://github.com/SenaProjetos/senahub/commit/ece88b33a14ee717be05de2c7de89468ac264cb3))
+* **tarefas:** menu de contexto no quadro e na lista de tarefas ([982d479](https://github.com/SenaProjetos/senahub/commit/982d4793cbd3db1dc9b07a865e1383ee80285f0e))
+* **ui:** guarda do menu de contexto, coachmarks e documentação ([71b409a](https://github.com/SenaProjetos/senahub/commit/71b409a750add11343f3c844c182adc0fdb9ca08))
+* **ui:** motor de seleção e ação em lote (onda 2, F1) ([2295370](https://github.com/SenaProjetos/senahub/commit/22953707499376a89a7363b797eb2f7a8261e176))
+
+
+### 🐛 Correções
+
+* **auth:** laço de redirects entre /login e / com cookie de sessão inválido ([33fddc9](https://github.com/SenaProjetos/senahub/commit/33fddc90b7a65fdec2044e147411f1a5319498e4))
+* **comercial:** a composta agora pode ser enviada, aceita e recusada — e a guarda de envio vale (G6) ([642c887](https://github.com/SenaProjetos/senahub/commit/642c887645b2a7923fa0251ac09ee5dbe41f3ed9))
+* **comercial:** botão Meus voltava para a home e funil da Inteligência estava invertido ([27e04fb](https://github.com/SenaProjetos/senahub/commit/27e04fbd764827117002e5afd5e008d2df799210))
+* **comercial:** campo em branco citado pelo LAYOUT também impede publicar (G5) ([a4d182a](https://github.com/SenaProjetos/senahub/commit/a4d182a297272c1eaa3960cfbc7bfea852e4e4d2))
+* **comercial:** editar e criar lead pelo diálogo falhava sempre ([3c9f84b](https://github.com/SenaProjetos/senahub/commit/3c9f84b32af889f1029bbc1a11448d47aa142bca))
+* **comercial:** lista de leads do parceiro não fica presa em "Carregando…" se a busca falhar ([4a65890](https://github.com/SenaProjetos/senahub/commit/4a6589040412f5c7b1df7379cff52d72491e0758))
+* **comercial:** página pública da composta ganha Baixar PDF, envio de documentos e o pixel de abertura ([2b2c62d](https://github.com/SenaProjetos/senahub/commit/2b2c62d3b4f8a1f94e6f4c40c18d8df1cbc58dd5))
+* **dev:** simulação da promoção conta commits como a execução real ([99d7fd1](https://github.com/SenaProjetos/senahub/commit/99d7fd16073abbe2f61f42329d4e03a1628db9b7))
+* **documentos:** modelo recusado pelo schema não abre mais em branco (G0.1) ([42e9cb6](https://github.com/SenaProjetos/senahub/commit/42e9cb6d92f629248cd0be731fc97983a8bc34c8))
+* **mobile:** barra inferior mais larga que a tela na página do projeto ([1e05ba2](https://github.com/SenaProjetos/senahub/commit/1e05ba2b4ff026639b97e7d43a4c8926ce84b1f9))
+* **tarefas,arquivos:** achados do teste em tela do menu de contexto ([3c123b1](https://github.com/SenaProjetos/senahub/commit/3c123b12c855cc7ce3f3a665878c1b4b375ba571))
+
+
+### ♻️ Refatorações
+
+* **comercial:** leituras passam de `externa` para `formato` (G2, passo 2 de 3) ([812f3d3](https://github.com/SenaProjetos/senahub/commit/812f3d3b2180a22b57b25e08591f04e19041995f))
+
 ## [1.19.0](https://github.com/SenaProjetos/senahub/compare/v1.18.0...v1.19.0) (2026-09-18)
 
 
