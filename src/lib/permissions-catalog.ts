@@ -74,7 +74,7 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     recurso: "projetos",
     label: "Projetos",
     acoes: [
-      { acao: "ver", label: "Ver projetos", abre: "Projetos · Apontamentos", leitura: true },
+      { acao: "ver", label: "Ver projetos e a lista de apontamentos", abre: "Projetos · Apontamentos", leitura: true },
       { acao: "gerir", label: "Criar/editar projetos e disciplinas" },
       { acao: "historico", label: "Ver o histórico (CDE) de documentos do projeto", abre: "Aba Histórico do projeto", leitura: true },
       // F4 (2026-09-02): abas que apareciam para todo mundo, sem gate nenhum. A permissão é o
@@ -127,7 +127,7 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     label: "Uploads & Validação",
     // Até 2026-09-15 este par também finalizava a entrega e liberava o pagamento; isso passou
     // para `aprovacoes:disciplina`. Aqui ficou a revisão arquivo a arquivo.
-    acoes: [{ acao: "validar", label: "Revisar arquivos e apontar pendências", abre: "Aprovações" }],
+    acoes: [{ acao: "validar", label: "Revisar arquivos e criar apontamentos na prancha", abre: "Aprovações" }],
   },
   {
     recurso: "arquivos_gerais",

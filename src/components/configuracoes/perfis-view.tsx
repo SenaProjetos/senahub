@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Fragment, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, ShieldCheck } from "lucide-react";
+import { ChevronRight, Plus, Pencil, Trash2, ShieldCheck } from "lucide-react";
+import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { criarPerfil, editarPerfil, alternarPerfilAtivo, excluirPerfil } from "@/modules/perfis/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,17 @@ export type PerfilItem = {
   ativo: boolean;
   usuariosCount: number;
   permissoesCount: number;
+  usuarios: UsuarioDoPerfil[];
+};
+
+export type UsuarioDoPerfil = {
+  id: string;
+  nome: string;
+  email: string;
+  role: Role;
+  ativo: boolean;
+  /** Ajustes nominais (`PermissaoUsuario`) — vencem o perfil, nos dois sentidos. */
+  ajustesIndividuais: number;
 };
 
 /** Perfis demais viram a bagunça que este motor veio substituir — só aviso, não bloqueia. */
@@ -46,6 +58,16 @@ export function PerfisView({ perfis }: { perfis: PerfilItem[] }) {
   const [editando, setEditando] = useState<PerfilItem | null>(null);
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
+
+  function alternarExpansao(id: string) {
+    setExpandidos((atual) => {
+      const novo = new Set(atual);
+      if (novo.has(id)) novo.delete(id);
+      else novo.add(id);
+      return novo;
+    });
+  }
 
   function abrirCriar() {
     setEditando(null);
@@ -152,43 +174,73 @@ export function PerfisView({ perfis }: { perfis: PerfilItem[] }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {perfis.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell>
-                    <Link href={`/configuracoes/perfis/${p.id}`} className="font-medium hover:underline">
-                      {p.nome}
-                    </Link>
-                    {p.descricao && <p className="text-xs text-muted-foreground">{p.descricao}</p>}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-xs text-muted-foreground">{p.chave}</span>
-                      {p.sistema && (
-                        <Badge variant="outline" title="Perfil de sistema: o db:seed do deploy regrava a matriz e descarta edições feitas na tela.">
-                          sistema
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center text-sm">{p.permissoesCount}</TableCell>
-                  <TableCell className="text-center text-sm">{p.usuariosCount}</TableCell>
-                  <TableCell className="text-center">
-                    <Switch checked={p.ativo} onCheckedChange={() => alternarAtivo(p)} disabled={pending} />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Button size="icon" variant="ghost" onClick={() => abrirEditar(p)} title="Editar nome/descrição">
-                        <Pencil className="size-4" />
-                      </Button>
-                      {!p.sistema && p.usuariosCount === 0 && (
-                        <Button size="icon" variant="ghost" onClick={() => excluir(p)} title="Excluir">
-                          <Trash2 className="size-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {perfis.map((p) => {
+                const aberto = expandidos.has(p.id);
+                return (
+                  <Fragment key={p.id}>
+                    <TableRow>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          {p.usuariosCount > 0 ? (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-6 shrink-0"
+                              aria-label={aberto ? `Recolher usuários de ${p.nome}` : `Expandir usuários de ${p.nome}`}
+                              aria-expanded={aberto}
+                              onClick={() => alternarExpansao(p.id)}
+                            >
+                              <ChevronRight className={`size-3.5 transition-transform ${aberto ? "rotate-90" : ""}`} />
+                            </Button>
+                          ) : (
+                            <span className="size-6 shrink-0" aria-hidden />
+                          )}
+                          <div className="min-w-0">
+                            <Link href={`/configuracoes/perfis/${p.id}`} className="font-medium hover:underline">
+                              {p.nome}
+                            </Link>
+                            {p.descricao && <p className="text-xs text-muted-foreground">{p.descricao}</p>}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs text-muted-foreground">{p.chave}</span>
+                          {p.sistema && (
+                            <Badge variant="outline" title="Perfil de sistema: o db:seed do deploy regrava a matriz e descarta edições feitas na tela.">
+                              sistema
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center text-sm">{p.permissoesCount}</TableCell>
+                      <TableCell className="text-center text-sm">{p.usuariosCount}</TableCell>
+                      <TableCell className="text-center">
+                        <Switch checked={p.ativo} onCheckedChange={() => alternarAtivo(p)} disabled={pending} />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button size="icon" variant="ghost" onClick={() => abrirEditar(p)} title="Editar nome/descrição">
+                            <Pencil className="size-4" />
+                          </Button>
+                          {!p.sistema && p.usuariosCount === 0 && (
+                            <Button size="icon" variant="ghost" onClick={() => excluir(p)} title="Excluir">
+                              <Trash2 className="size-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    {aberto && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="bg-muted/30 py-3 pl-11">
+                          <UsuariosDoPerfil usuarios={p.usuarios} />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
@@ -223,5 +275,33 @@ export function PerfisView({ perfis }: { perfis: PerfilItem[] }) {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function UsuariosDoPerfil({ usuarios }: { usuarios: UsuarioDoPerfil[] }) {
+  return (
+    <ul className="space-y-1">
+      {usuarios.map((u) => (
+        <li key={u.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
+          <Link href={`/rh/pessoas/${u.id}`} className="font-medium hover:underline">
+            {u.nome}
+          </Link>
+          <span className="text-xs text-muted-foreground">{u.email}</span>
+          <Badge variant="outline" title="Papel em Usuários — ainda decide a fila de Aprovações e a jornada.">
+            {ROLE_LABELS[u.role]}
+          </Badge>
+          {!u.ativo && <Badge variant="outline">inativo</Badge>}
+          {u.ajustesIndividuais > 0 && (
+            <Badge
+              variant="outline"
+              className="border-warning/40 text-warning"
+              title="Esta pessoa tem permissões concedidas ou negadas individualmente, que valem por cima do perfil."
+            >
+              {u.ajustesIndividuais} {u.ajustesIndividuais === 1 ? "ajuste individual" : "ajustes individuais"}
+            </Badge>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
