@@ -179,7 +179,7 @@ export const regraFollowUpVencido: RegraComercial = {
           href:
             f.entidadeTipo === "LEAD"
               ? `/comercial/${f.entidadeId}`
-              : `/comercial/negociacoes?negociacao=${f.entidadeId}`,
+              : `/comercial/funil?card=NEGOCIACAO:${f.entidadeId}`,
           chaveDedup: dedup(this.chave, f.id, ctx.hoje),
         };
       });
@@ -253,7 +253,7 @@ export const regraNegociacaoSemInteracao: RegraComercial = {
             corpo: n.ultimaInteracaoEm
               ? `"${n.titulo}" está há ${dias} dia(s) sem nenhuma interação registrada.`
               : `"${n.titulo}" foi aberta há ${dias} dia(s) e nunca teve interação registrada.`,
-            href: `/comercial/negociacoes?negociacao=${n.id}`,
+            href: `/comercial/funil?card=NEGOCIACAO:${n.id}`,
             chaveDedup: dedup(this.chave, n.id, ctx.hoje),
           },
         ];
@@ -290,7 +290,7 @@ export const regraNegociacaoParadaNoEstagio: RegraComercial = {
             responsavelId: n.responsavelId,
             titulo: "Negociação parada",
             corpo: `"${n.titulo}" está há ${dias} dia(s) no mesmo estágio.`,
-            href: `/comercial/negociacoes?negociacao=${n.id}`,
+            href: `/comercial/funil?card=NEGOCIACAO:${n.id}`,
             chaveDedup: dedup(this.chave, n.id, ctx.hoje),
           },
         ];

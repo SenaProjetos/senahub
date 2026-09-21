@@ -7,6 +7,7 @@ import { MODALIDADES_PADRAO } from "../src/modules/licitacoes/modalidade";
 import { semearEscalaRolePadrao, semearEscalaContratacao } from "./escalas-padrao";
 import { feriadosNacionais } from "../src/modules/rh/feriados/queries";
 import { seedPerfisAcesso } from "./seed-perfis-acesso";
+import { seedPropostaComposta } from "./seed-proposta-composta";
 import { semearCatalogoDisciplinas, semearListaMestre } from "./seed-catalogos";
 import type { Prisma } from "../src/generated/prisma/client";
 import type { EstagioNegociacao } from "../src/generated/prisma/enums";
@@ -182,6 +183,10 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "administrativo", recurso: "documentos", acao: "gerir" },
   { role: "administrativo", recurso: "comercial", acao: "ver" },
   { role: "administrativo", recurso: "comercial", acao: "gerir" },
+  // ADR-0006: a biblioteca de cláusulas e os modelos de proposta são mantidos SÓ pela gestão —
+  // `comercial:gerir` (quem monta proposta) não basta, porque editar a biblioteca muda o texto
+  // de toda proposta futura. Banco que já existe recebe pela migration de dados do par.
+  { role: "administrativo", recurso: "comercial", acao: "modelos" },
   // O5: jurídico, licitações, qualidade
   { role: "administrativo", recurso: "juridico", acao: "ver" },
   { role: "administrativo", recurso: "juridico", acao: "gerir" },
@@ -726,6 +731,20 @@ async function main() {
     });
   }
   console.log(`✔ ${FUNIL_ETAPAS.length} etapas do funil comercial.`);
+
+  // 9a) Biblioteca de cláusulas e modelos de proposta (ADR-0006). CREATE-ONLY por slug: a gestão
+  // edita o texto na tela e o deploy não pode desfazer a edição.
+  const pc = await seedPropostaComposta(prisma);
+  console.log(
+    `✔ Proposta composta: ${pc.clausulasCriadas} cláusula(s) criada(s) (${pc.clausulasExistentes} já existiam), ` +
+      `${pc.modelosCriados} modelo(s) criado(s) (${pc.modelosExistentes} já existiam), ` +
+      `layout do documento ${pc.documentoCriado ? "criado" : "já existia"}.`,
+  );
+  if (pc.disciplinasNaoEncontradas.length > 0) {
+    console.log(
+      `  ⚠ disciplina do catálogo não encontrada (cláusula entrou sem disciplina): ${pc.disciplinasNaoEncontradas.join(", ")}`,
+    );
+  }
 
   // 9b) Modalidades de licitação (editável em Configurações, que também tem o botão
   // "restaurar padrões" — `semearModalidadesPadrao`, para quem quiser a lista de volta).

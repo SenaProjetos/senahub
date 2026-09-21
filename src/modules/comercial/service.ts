@@ -1,6 +1,6 @@
 import "server-only";
 
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/with-action";
 import { notificar, notificarMuitos } from "@/lib/notificar";
@@ -32,6 +32,8 @@ import { getConfigComercial } from "@/modules/comercial/config/queries";
 import { exigeJustificativaDesconto } from "@/modules/comercial/config/padroes";
 import { calcularStatusComercial } from "@/modules/comercial/status";
 import { arquivarPdfDaVersao } from "@/modules/comercial/pdf-proposta";
+import { existeArquivo, lerArquivo } from "@/lib/storage";
+import { caminhoPdfExternoValido, ehPdf } from "@/modules/comercial/proposta-externa";
 import {
   validarQualificacao,
   validarMovimentoProspeccao,
@@ -229,6 +231,86 @@ export async function mudarStatusProposta(
  *
  * Devolve `criouCliente` para o chamador decidir se revalida `/clientes`.
  */
+/**
+ * Garante cliente e negociação para um lead — o pedaço que TODA proposta nascida de um lead
+ * precisa, seja a do editor antigo ou a composta (ADR-0006). Roda dentro da transação de quem
+ * chama: cliente, negociação e proposta nascem juntos ou nenhum nasce.
+ *
+ * Extraída de `criarPropostaDeLead` sem mudar comportamento (o smoke da Fase 5 cobre os dois
+ * caminhos): a composta precisa dos mesmos dois passos antes de abrir o diálogo de montagem.
+ */
+async function garantirClienteENegociacaoDoLead(
+  tx: Prisma.TransactionClient,
+  lead: Parameters<typeof garantirNegociacaoParaProposta>[1] & {
+    id: string;
+    nome: string;
+    email: string | null;
+    telefone: string | null;
+    observacoes: string | null;
+  },
+  opts: { autorId: string; confirmarReativacao: boolean },
+): Promise<{ clienteId: string; criouCliente: boolean; negociacaoId: string }> {
+  // Garante um cliente: converte o lead se ainda não tiver.
+  let clienteId = lead.clienteId;
+  let criouCliente = false;
+  if (!clienteId) {
+    const cliente = await tx.cliente.create({
+      data: {
+        tipo: "PJ",
+        nome: lead.nome,
+        email: lead.email,
+        telefone: lead.telefone,
+        observacoes: lead.observacoes,
+      },
+    });
+    clienteId = cliente.id;
+    criouCliente = true;
+    await tx.lead.update({ where: { id: lead.id }, data: { clienteId } });
+  }
+
+  // F5.3 — garante a negociação ANTES de criar a proposta, com o `clienteId` já resolvido
+  // (pode ter acabado de nascer linhas acima).
+  const negociacaoId = await garantirNegociacaoParaProposta(
+    tx,
+    { ...lead, clienteId },
+    { autorId: opts.autorId, confirmarReativacao: opts.confirmarReativacao },
+  );
+  return { clienteId, criouCliente, negociacaoId };
+}
+
+/**
+ * "Nova proposta" a partir de um lead, no caminho da COMPOSTA (ADR-0006): não cria a proposta —
+ * a montagem pede modelo, obra e disciplinas, que só a tela sabe —, só garante cliente e
+ * negociação e devolve a negociação, onde o diálogo de montagem abre. Mesmas regras de
+ * reativação e mesmo consentimento explícito de `criarPropostaDeLead` (ADR-21 §5b).
+ */
+export async function prepararNegociacaoDoLead(
+  input: { leadId: string; confirmarReativacao?: boolean },
+  autorId: string,
+): Promise<{ negociacaoId: string; leadId: string; criouCliente: boolean }> {
+  const lead = await prisma.lead.findUnique({
+    where: { id: input.leadId },
+    include: { contatos: { select: { contatoId: true, principal: true } } },
+  });
+  if (!lead) throw new ActionError("Lead não encontrado.");
+
+  const r = await prisma.$transaction(async (tx) => {
+    const g = await garantirClienteENegociacaoDoLead(tx, lead, {
+      autorId,
+      confirmarReativacao: input.confirmarReativacao ?? false,
+    });
+    if (g.criouCliente) {
+      // Mesmo evento que `criarPropostaDeLead` registra: a Empresa 360 começa pela origem.
+      await registrarAtividade(
+        { evento: "EMPRESA_CADASTRADA", nome: lead.nome },
+        { autorId, clienteId: g.clienteId, leadId: lead.id, tx },
+      );
+    }
+    return g;
+  });
+  return { negociacaoId: r.negociacaoId, leadId: lead.id, criouCliente: r.criouCliente };
+}
+
 export async function criarPropostaDeLead(
   input: { leadId: string; titulo: string; confirmarReativacao?: boolean },
   autorId: string,
@@ -240,31 +322,10 @@ export async function criarPropostaDeLead(
   if (!lead) throw new ActionError("Lead não encontrado.");
 
   const { proposta, criouCliente } = await prisma.$transaction(async (tx) => {
-    // Garante um cliente: converte o lead se ainda não tiver.
-    let clienteId = lead.clienteId;
-    let criouCliente = false;
-    if (!clienteId) {
-      const cliente = await tx.cliente.create({
-        data: {
-          tipo: "PJ",
-          nome: lead.nome,
-          email: lead.email,
-          telefone: lead.telefone,
-          observacoes: lead.observacoes,
-        },
-      });
-      clienteId = cliente.id;
-      criouCliente = true;
-      await tx.lead.update({ where: { id: lead.id }, data: { clienteId } });
-    }
-
-    // F5.3 — garante a negociação ANTES de criar a proposta, com o `clienteId` já resolvido
-    // (pode ter acabado de nascer 3 linhas acima).
-    const negociacaoId = await garantirNegociacaoParaProposta(
-      tx,
-      { ...lead, clienteId },
-      { autorId, confirmarReativacao: input.confirmarReativacao ?? false },
-    );
+    const { clienteId, criouCliente, negociacaoId } = await garantirClienteENegociacaoDoLead(tx, lead, {
+      autorId,
+      confirmarReativacao: input.confirmarReativacao ?? false,
+    });
 
     const { ano, sequencial, numero } = await proximoNumeroProposta(tx);
     const proposta = await tx.proposta.create({
@@ -329,6 +390,11 @@ export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
   });
   if (!p) throw new ActionError("Proposta não encontrada.");
   if (p.status === "aceita") throw new ActionError("Proposta aceita não pode ser editada.");
+  // ADR-0005: o conteúdo da externa é o PDF. Salvar pelo editor recriaria itens e valores a
+  // partir de uma tela que não conhece o documento enviado.
+  if (p.formato === "externa") {
+    throw new ActionError("Proposta externa: registre uma nova versão pela ficha da negociação.");
+  }
 
   const snapshot = {
     titulo: i.titulo,
@@ -439,6 +505,195 @@ export async function salvarProposta(i: SalvarPropostaInput, autorId: string) {
   }
 
   return { id: i.id };
+}
+
+/**
+ * Registra uma versão de proposta montada FORA do sistema (ADR-0005): PDF + linhas por
+ * disciplina + desconto + validade + data de envio.
+ *
+ * - **Consome o número sequencial** na primeira versão (decisão do dono): é a identidade do
+ *   documento, igual às propostas do editor. Versões seguintes entram na mesma proposta.
+ * - **Valores pelo mesmo cálculo do editor** (`calcularValoresVersao`) e a mesma regra de
+ *   justificativa de desconto — um desconto de 30% digitado aqui é governado como no editor.
+ * - **As linhas por disciplina viram `itens`**: é delas que o aceite cria o projeto. Sem elas,
+ *   o aceite recusaria (e um projeto sem disciplinas quebraria pagamento e `/recursos`).
+ * - **O PDF entra na versão NA MESMA transação**, com `pdfPath` já preenchido. É o que impede
+ *   `arquivarPdfDaVersao` de congelar uma renderização vazia da página pública em cima dele.
+ * - Hash e tamanho são recalculados do arquivo, não confiados ao payload.
+ */
+export async function registrarVersaoExterna(
+  input: {
+    negociacaoId: string;
+    propostaId?: string;
+    titulo: string;
+    itens: { disciplina: string; valor: number }[];
+    desconto?: number | null;
+    justificativaDesconto?: string;
+    validade?: string;
+    dataEnvio: string;
+    observacao?: string;
+    pdfCaminho: string;
+  },
+  autorId: string,
+): Promise<{ propostaId: string; numero: string; versao: number }> {
+  if (input.itens.length === 0) throw new ActionError("Informe ao menos uma disciplina com valor.");
+  if (!caminhoPdfExternoValido(input.pdfCaminho) || !(await existeArquivo(input.pdfCaminho))) {
+    throw new ActionError("PDF não encontrado. Anexe o arquivo de novo.");
+  }
+  const pdf = await lerArquivo(input.pdfCaminho);
+  if (!ehPdf(pdf)) throw new ActionError("O arquivo anexado não é um PDF.");
+
+  const negociacao = await prisma.negociacao.findUnique({
+    where: { id: input.negociacaoId },
+    select: { id: true, clienteId: true, leadId: true, estagio: true },
+  });
+  if (!negociacao) throw new ActionError("Negociação não encontrada.");
+  if (negociacao.estagio === "CONTRATADO") {
+    throw new ActionError("Negociação já contratada — não recebe nova proposta.");
+  }
+
+  const existente = input.propostaId
+    ? await prisma.proposta.findUnique({
+        where: { id: input.propostaId },
+        select: {
+          id: true,
+          numero: true,
+          negociacaoId: true,
+          formato: true,
+          status: true,
+          versoes: { select: { numero: true } },
+        },
+      })
+    : null;
+  if (input.propostaId) {
+    if (!existente || existente.negociacaoId !== negociacao.id) {
+      throw new ActionError("Proposta não encontrada nesta negociação.");
+    }
+    if (existente.formato !== "externa") {
+      throw new ActionError("Esta proposta foi montada no editor — edite-a por lá.");
+    }
+    if (existente.status === "aceita") throw new ActionError("Proposta aceita não recebe nova versão.");
+  }
+
+  const valores = calcularValoresVersao(input.itens, input.desconto ?? null);
+  if (valores.valorVersao < 0) throw new ActionError("O desconto é maior que o valor da proposta.");
+  const percentual = percentualDesconto(valores);
+  const justificativa = input.justificativaDesconto?.trim() || null;
+  let descontoJustificado = false;
+  if (percentual !== null) {
+    const config = await getConfigComercial();
+    if (exigeJustificativaDesconto(percentual, config)) {
+      if (!justificativa) {
+        throw new ActionError(
+          `Desconto de ${percentual.toFixed(1)}% acima do limite de ${config.descontoMaxSemJustificativa}% ` +
+            "exige justificativa.",
+        );
+      }
+      descontoJustificado = true;
+    }
+  }
+
+  const dataEnvio = isoParaDataValidade(input.dataEnvio);
+  if (!dataEnvio) throw new ActionError("Informe a data de envio.");
+  const validade = isoParaDataValidade(input.validade);
+  const catalogo = await prisma.disciplinaCatalogo.findMany({ select: { id: true, nome: true } });
+  const idsPorNome = new Map(catalogo.map((d) => [d.nome, d.id]));
+
+  const r = await prisma.$transaction(async (tx) => {
+    let propostaId: string;
+    let numero: string;
+    let versao: number;
+    const dados = {
+      titulo: input.titulo.trim(),
+      validade,
+      observacoes: input.observacao?.trim() || null,
+      status: "enviada" as const,
+      enviadaEm: dataEnvio,
+    };
+    if (existente) {
+      await tx.proposta.update({ where: { id: existente.id }, data: dados });
+      propostaId = existente.id;
+      numero = existente.numero;
+      versao = proximoNumeroVersao(existente.versoes);
+    } else {
+      const seq = await proximoNumeroProposta(tx);
+      const criada = await tx.proposta.create({
+        data: {
+          ...dados,
+          ano: seq.ano,
+          sequencial: seq.sequencial,
+          numero: seq.numero,
+          // ESCRITA DUPLA enquanto as duas colunas existem (passo 2 de 3 da troca): um rollback
+          // de código para a versão que lê `externa` precisa encontrar o valor certo lá.
+          // A coluna antiga sai na migração de contração, depois deste deploy.
+          externa: true,
+          formato: "externa",
+          clienteId: negociacao.clienteId,
+          negociacaoId: negociacao.id,
+          leadId: negociacao.leadId,
+          // Coluna obrigatória e única; a externa não tem link público (ADR-0005) — o token
+          // existe só para não quebrar o schema.
+          token: randomBytes(18).toString("hex"),
+          autorId,
+        },
+        select: { id: true, numero: true },
+      });
+      propostaId = criada.id;
+      numero = criada.numero;
+      versao = 1;
+    }
+
+    await tx.propostaItem.deleteMany({ where: { propostaId } });
+    await tx.propostaItem.createMany({
+      data: input.itens.map((it, idx) => ({
+        propostaId,
+        disciplinaTextoLegado: it.disciplina,
+        disciplinaId: idsPorNome.get(it.disciplina) ?? null,
+        valor: it.valor,
+        ordem: idx,
+      })),
+    });
+    await tx.propostaVersao.create({
+      data: {
+        propostaId,
+        numero: versao,
+        snapshot: {
+          externa: true,
+          titulo: dados.titulo,
+          itens: input.itens,
+          desconto: valores.desconto,
+          justificativaDesconto: justificativa,
+          validade: input.validade || null,
+          dataEnvio: input.dataEnvio,
+          observacoes: dados.observacoes,
+        } as unknown as Prisma.InputJsonValue,
+        autorId,
+        valorOriginal: valores.valorOriginal,
+        valorVersao: valores.valorVersao,
+        desconto: valores.desconto,
+        status: "enviada",
+        dataEnvio,
+        validade,
+        observacao: dados.observacoes,
+        pdfPath: input.pdfCaminho,
+        pdfHashSha256: createHash("sha256").update(pdf).digest("hex"),
+        pdfTamanho: pdf.length,
+      },
+    });
+    return { propostaId, numero, versao };
+  });
+
+  await registrarAtividade(
+    { evento: "PROPOSTA_ENVIADA", numero: r.numero, porEmail: false },
+    { autorId, clienteId: negociacao.clienteId, propostaId: r.propostaId },
+  );
+  if (descontoJustificado && percentual !== null && justificativa) {
+    await registrarAtividade(
+      { evento: "DESCONTO_JUSTIFICADO", numero: r.numero, percentual, justificativa },
+      { autorId, clienteId: negociacao.clienteId, propostaId: r.propostaId },
+    );
+  }
+  return r;
 }
 
 /**
@@ -1109,7 +1364,12 @@ async function aplicarQualificacao(
 async function garantirNegociacaoParaProposta(
   tx: Prisma.TransactionClient,
   lead: LeadParaQualificar & { status: StatusProspeccao },
-  opts: { autorId?: string; confirmarReativacao: boolean },
+  opts: {
+    autorId?: string;
+    confirmarReativacao: boolean;
+    /** Só compõe a mensagem de recusa: "criar a proposta", "levar para a negociação"… */
+    acao?: string;
+  },
 ): Promise<string> {
   const existente = await tx.negociacao.findUnique({ where: { leadId: lead.id }, select: { id: true } });
   if (existente) return existente.id;
@@ -1118,7 +1378,7 @@ async function garantirNegociacaoParaProposta(
   if (!podeQualificar(statusAtual)) {
     if (!opts.confirmarReativacao) {
       throw new ActionError(
-        `Esta prospecção está "${STATUS_PROSPECCAO_LABEL[statusAtual]}" — criar a proposta vai ` +
+        `Esta prospecção está "${STATUS_PROSPECCAO_LABEL[statusAtual]}" — ${opts.acao ?? "criar a proposta"} vai ` +
           "reativá-la e abrir uma negociação. Confirme para continuar.",
       );
     }
@@ -1132,6 +1392,176 @@ async function garantirNegociacaoParaProposta(
   validarQualificacao({ status: statusAtual, clienteId: lead.clienteId });
   const { negociacaoId } = await aplicarQualificacao(tx, lead, { autorId: opts.autorId });
   return negociacaoId;
+}
+
+/**
+ * Define o conjunto de disciplinas de interesse da negociação (substitui o anterior). Antes daqui
+ * nada gravava `NegociacaoDisciplina`, e por isso o filtro por disciplina do funil nunca achava
+ * nada. Valida contra o catálogo ativo — um id solto no payload não vira disciplina — e recusa
+ * repetição em vez de deixar o índice único estourar como erro genérico.
+ */
+export async function definirDisciplinasNegociacao(input: {
+  negociacaoId: string;
+  disciplinas: { disciplinaId: string; valor?: number | null }[];
+}): Promise<{ id: string; total: number }> {
+  const negociacao = await prisma.negociacao.findUnique({
+    where: { id: input.negociacaoId },
+    select: { id: true },
+  });
+  if (!negociacao) throw new ActionError("Negociação não encontrada.");
+
+  const ids = input.disciplinas.map((d) => d.disciplinaId);
+  if (new Set(ids).size !== ids.length) throw new ActionError("Disciplina repetida na lista.");
+  if (ids.length > 0) {
+    // Ativa no catálogo, OU já ligada a esta negociação: disciplina arquivada depois não pode
+    // travar a edição do resto — a pessoa a remove se quiser, mas salvar as demais continua valendo.
+    const jaLigadas = await prisma.negociacaoDisciplina.findMany({
+      where: { negociacaoId: negociacao.id },
+      select: { disciplinaId: true },
+    });
+    const validas = await prisma.disciplinaCatalogo.count({
+      where: { id: { in: ids }, OR: [{ ativo: true }, { id: { in: jaLigadas.map((d) => d.disciplinaId) } }] },
+    });
+    if (validas !== ids.length) throw new ActionError("Disciplina não encontrada no catálogo.");
+  }
+
+  await prisma.$transaction([
+    prisma.negociacaoDisciplina.deleteMany({ where: { negociacaoId: negociacao.id } }),
+    prisma.negociacaoDisciplina.createMany({
+      data: input.disciplinas.map((d) => ({
+        negociacaoId: negociacao.id,
+        disciplinaId: d.disciplinaId,
+        valor: d.valor ?? null,
+      })),
+    }),
+  ]);
+  return { id: negociacao.id, total: ids.length };
+}
+
+/** `yyyy-mm-dd` → meia-noite UTC, a convenção de dia-calendário do banco (ver `lib/data.ts`). */
+function diaCalendario(iso: string): Date {
+  const [a, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(a, m - 1, d));
+}
+
+/**
+ * Edita os dados da negociação pela ficha do card (ADR-0004). Três cuidados que não são óbvios:
+ *
+ * - **Estágio não passa por aqui.** `moverEstagio` é o ponto único de escrita (F2.7); um update
+ *   genérico com estágio reabriria o buraco do `atualizarOportunidade` antigo (ADR-10).
+ * - **Probabilidade digitada liga o override** (ADR-12). Gravar o número sem a flag faria a
+ *   próxima mudança de estágio sobrescrevê-lo em silêncio. `null` desliga o override e volta ao
+ *   valor da tabela para o estágio atual.
+ * - **Valor proposto/desconto/negociado não são editáveis**: vêm da versão vigente da proposta
+ *   (F6.1a). Editar à mão faria o forecast divergir do documento que o cliente recebeu.
+ */
+export async function editarNegociacao(input: {
+  id: string;
+  titulo: string;
+  responsavelId?: string;
+  temperatura?: "FRIO" | "MORNO" | "QUENTE" | null;
+  valorEstimado?: number | null;
+  previsaoFechamento?: string;
+  probabilidade?: number | null;
+  parceiroId?: string;
+  campanhaId?: string;
+  tipoEmpreendimentoId?: string;
+  areaM2?: number | null;
+}): Promise<{ id: string }> {
+  const atual = await prisma.negociacao.findUnique({
+    where: { id: input.id },
+    select: { id: true, estagio: true, probabilidade: true },
+  });
+  if (!atual) throw new ActionError("Negociação não encontrada.");
+
+  const [responsavel, parceiro, campanha, tipo] = await Promise.all([
+    input.responsavelId
+      ? prisma.user.findFirst({ where: { id: input.responsavelId, ativo: true }, select: { id: true } })
+      : null,
+    input.parceiroId ? prisma.parceiro.findUnique({ where: { id: input.parceiroId }, select: { id: true } }) : null,
+    input.campanhaId ? prisma.campanha.findUnique({ where: { id: input.campanhaId }, select: { id: true } }) : null,
+    input.tipoEmpreendimentoId
+      ? prisma.tipoEmpreendimento.findUnique({ where: { id: input.tipoEmpreendimentoId }, select: { id: true } })
+      : null,
+  ]);
+  if (input.responsavelId && !responsavel) throw new ActionError("Responsável não encontrado ou inativo.");
+  if (input.parceiroId && !parceiro) throw new ActionError("Parceiro não encontrado.");
+  if (input.campanhaId && !campanha) throw new ActionError("Campanha não encontrada.");
+  if (input.tipoEmpreendimentoId && !tipo) throw new ActionError("Tipo de empreendimento não encontrado.");
+
+  let probabilidade: { probabilidade: number; probabilidadeOverride: boolean };
+  if (input.probabilidade != null) {
+    probabilidade = { probabilidade: input.probabilidade, probabilidadeOverride: true };
+  } else {
+    const linha = await prisma.probabilidadeEstagio.findUnique({
+      where: { estagio: atual.estagio },
+      select: { probabilidade: true },
+    });
+    probabilidade = {
+      probabilidade: probabilidadeDe(atual.estagio, {
+        tabela: linha ? { [atual.estagio]: linha.probabilidade } : {},
+        override: false,
+        atual: atual.probabilidade,
+      }),
+      probabilidadeOverride: false,
+    };
+  }
+
+  await prisma.negociacao.update({
+    where: { id: input.id },
+    data: {
+      titulo: input.titulo.trim(),
+      responsavelId: input.responsavelId || null,
+      temperatura: input.temperatura ?? null,
+      valorEstimado: input.valorEstimado ?? null,
+      previsaoFechamento: input.previsaoFechamento ? diaCalendario(input.previsaoFechamento) : null,
+      parceiroId: input.parceiroId || null,
+      campaignId: input.campanhaId || null,
+      tipoEmpreendimentoId: input.tipoEmpreendimentoId || null,
+      areaM2: input.areaM2 ?? null,
+      ...probabilidade,
+    },
+  });
+  return { id: input.id };
+}
+
+/**
+ * Board único (ADR-0004): soltar um lead em Levantamento qualifica. Mesmo caminho da proposta
+ * (`garantirNegociacaoParaProposta`), numa transação só — lead fora do fluxo é reativado por
+ * `validarMovimentoProspeccao` e SÓ com `confirmarReativacao` no payload (ADR-21 §5b); a
+ * confirmação da UI é onde o consentimento é coletado, não a garantia.
+ */
+export async function qualificarPeloBoard(input: {
+  leadId: string;
+  autorId: string;
+  confirmarReativacao: boolean;
+}): Promise<{ negociacaoId: string; leadId: string }> {
+  const lead = await prisma.lead.findUnique({
+    where: { id: input.leadId },
+    select: {
+      id: true,
+      nome: true,
+      status: true,
+      clienteId: true,
+      canalId: true,
+      campaignId: true,
+      parceiroId: true,
+      origemDetalhada: true,
+      valorEstimado: true,
+      responsavelId: true,
+      contatos: { select: { contatoId: true, principal: true } },
+    },
+  });
+  if (!lead) throw new ActionError("Prospecção não encontrada.");
+
+  const negociacaoId = await prisma.$transaction((tx) =>
+    garantirNegociacaoParaProposta(tx, lead, {
+      autorId: input.autorId,
+      confirmarReativacao: input.confirmarReativacao,
+      acao: "levar para a negociação",
+    }),
+  );
+  return { negociacaoId, leadId: lead.id };
 }
 
 // ── Registro manual de interação (F3.4) ──────────────────────────────────────────────────────
@@ -1564,7 +1994,12 @@ export async function agendarProximaAcao(input: {
   criadorId: string;
   participantesIds?: string[];
 }): Promise<{ id: string }> {
-  const participantes = [...new Set([input.criadorId, ...(input.participantesIds ?? [])])];
+  // O dono do lead/negociação entra na agenda mesmo quando OUTRA pessoa agenda o follow-up —
+  // senão uma ação marcada por um assistente só apareceria na agenda de quem a marcou.
+  const { responsavelId } = await resolverAncoraComercial(input.entidadeTipo, input.entidadeId);
+  const participantes = [
+    ...new Set([input.criadorId, ...(responsavelId ? [responsavelId] : []), ...(input.participantesIds ?? [])]),
+  ];
   const c = await prisma.compromisso.create({
     data: {
       titulo: input.titulo,
@@ -1703,7 +2138,7 @@ export async function concluirProximaAcao(input: {
       {
         titulo: "Interação registrada",
         corpo: `${TIPO_PROXIMA_ACAO_LABEL[c.tipo!]} concluída — ${entidadeNome}`,
-        href: c.entidadeTipo === "LEAD" ? `/comercial/${c.entidadeId}` : "/comercial/negociacoes",
+        href: c.entidadeTipo === "LEAD" ? `/comercial/${c.entidadeId}` : `/comercial/funil?card=NEGOCIACAO:${c.entidadeId}`,
         tag: `comercial-acao-${c.id}`,
       },
       // Categoria nova — "comercial_interacao" ainda não tem alternância nas Preferências
@@ -1728,15 +2163,21 @@ export async function reagendarProximaAcao(input: {
 }): Promise<{ id: string }> {
   const c = await prisma.compromisso.findUnique({
     where: { id: input.compromissoId },
-    select: { id: true, tipo: true, concluidoEm: true },
+    select: { id: true, tipo: true, concluidoEm: true, inicio: true, fim: true },
   });
   if (!c) throw new ActionError("Ação não encontrada.");
   if (!c.tipo) throw new ActionError("Este compromisso não é uma ação comercial.");
   if (c.concluidoEm) throw new ActionError("Esta ação já foi concluída — não dá para reagendar.");
+  if (Number.isNaN(input.novoInicio.getTime())) throw new ActionError("Data inválida.");
 
+  // Se a ação tem hora de término, ela anda junto: mover só o início deixaria o fim ANTES dele.
+  const deslocamento = input.novoInicio.getTime() - c.inicio.getTime();
   await prisma.compromisso.update({
     where: { id: c.id },
-    data: { inicio: input.novoInicio },
+    data: {
+      inicio: input.novoInicio,
+      ...(c.fim ? { fim: new Date(c.fim.getTime() + deslocamento) } : {}),
+    },
   });
   return { id: c.id };
 }

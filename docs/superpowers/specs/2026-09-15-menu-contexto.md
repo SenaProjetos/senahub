@@ -388,7 +388,12 @@ Na publicação que leva o branch para produção — pode ser dias depois de F3
 - Canvas do Estúdio (`documentos/editor/elemento-view.tsx`) — primeira exceção da guarda; exige
   emendar a ADR-0002.
 - Cabeçalho de coluna dos boards.
-- Outros boards: `disciplinas-kanban`, `funil-board`, `negociacao-board`, `prospeccao-board`.
+- Outros boards: `disciplinas-kanban`, `funil-board`.
+  > **Atualizado no merge com a `dev` (2026-09-20).** `negociacao-board` e `prospeccao-board`
+  > deixaram de existir: o funil único (ADR-0004) os substituiu por `funil-comercial-board` +
+  > `funil-comercial-card`, e é neles que o F4 entrega o menu. O descritor
+  > `modules/comercial/acoes-quadro.ts` passou a montar "Mover para" a partir de
+  > `decidirSoltura` — a mesma regra do arrasto —, em vez de uma lista por tipo de quadro.
 - Adotar `DialogAjusteArquivo` / `DialogDwgViewer` nos demais consumidores, se fizer sentido.
 - **EAP do planejamento** (`planejamento/eap-workspace.tsx`, 382 linhas): inserir tarefa acima /
   abaixo / filha, recuar/avançar nível, marcar marco. É onde quem vem do MS Project mais espera

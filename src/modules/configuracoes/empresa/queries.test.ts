@@ -27,6 +27,15 @@ describe("dadosEmpresa", () => {
       logoPath: null,
       encarregadoDados: null,
       foro: null,
+      telefone: null,
+      email: null,
+      banco: null,
+      agencia: null,
+      conta: null,
+      pix: null,
+      responsavelNome: null,
+      responsavelCargo: null,
+      responsavelRegistro: null,
     });
   });
 
@@ -37,7 +46,16 @@ describe("dadosEmpresa", () => {
         cnpj: "00.000.000/0001-00",
         endereco: "Rua X",
         logoPath: "empresa/logo-1.png",
-        encarregadoDados: "Fulana — dpo@sena.com",
+        telefone: "(82) 3333-0000",
+      email: "contato@sena.com",
+      banco: "Banco do Brasil",
+      agencia: "7474",
+      conta: "12345-6",
+      pix: "00.000.000/0001-00",
+      responsavelNome: "Fulano de Tal",
+      responsavelCargo: "Engenheiro responsavel",
+      responsavelRegistro: "CREA-AL 12345",
+      encarregadoDados: "Fulana — dpo@sena.com",
         foro: "Goiânia/GO",
       },
     });
@@ -48,6 +66,15 @@ describe("dadosEmpresa", () => {
       logoPath: "empresa/logo-1.png",
       encarregadoDados: "Fulana — dpo@sena.com",
       foro: "Goiânia/GO",
+      telefone: "(82) 3333-0000",
+      email: "contato@sena.com",
+      banco: "Banco do Brasil",
+      agencia: "7474",
+      conta: "12345-6",
+      pix: "00.000.000/0001-00",
+      responsavelNome: "Fulano de Tal",
+      responsavelCargo: "Engenheiro responsavel",
+      responsavelRegistro: "CREA-AL 12345",
     });
   });
 });

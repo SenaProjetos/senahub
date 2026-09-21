@@ -23,9 +23,17 @@ import {
   moverEstagio,
   moverProspeccao,
   qualificarProspeccao,
+  reagendarProximaAcao,
+  definirDisciplinasNegociacao,
+  qualificarPeloBoard,
+  editarNegociacao,
   registrarInteracaoManual,
 } from "../src/modules/comercial/service";
 import {
+  fichaNegociacao,
+  leadsDoParceiro,
+  followUpsComerciais,
+  funilComercial,
   funilNegociacao,
   funilProspeccao,
   prospeccoesSemProximaAcao,
@@ -275,6 +283,211 @@ async function main() {
   });
   check("registro em NEGOCIACAO ancora negociacaoId, não leadId", atividadeNeg?.negociacaoId === q.negociacaoId && atividadeNeg?.leadId === null);
 
+  console.log("\n── ADR-0004: board único (costura + Encerrados) ─────────────────\n");
+
+  const descartado = await prisma.lead.create({
+    data: {
+      nome: `${TAG}_descartado`,
+      clienteId: emp.id,
+      etapaId: etapa.id,
+      status: "DESCARTADO",
+      origemDetalhada: `${TAG}_OBRA_2`,
+    },
+    select: { id: true },
+  });
+  await recusa(
+    "lead fora do fluxo NÃO é qualificado pelo board sem consentimento no payload",
+    () => qualificarPeloBoard({ leadId: descartado.id, autorId: user.id, confirmarReativacao: false }),
+    /Confirme para continuar/,
+  );
+  const semNeg = await prisma.negociacao.count({ where: { leadId: descartado.id } });
+  check("a recusa não deixa negociação órfã", semNeg === 0);
+
+  const qb = await qualificarPeloBoard({ leadId: descartado.id, autorId: user.id, confirmarReativacao: true });
+  const depois = await prisma.lead.findUnique({ where: { id: descartado.id }, select: { status: true } });
+  check("com consentimento, reativa e qualifica na mesma transação", depois?.status === "OPORTUNIDADE_CRIADA");
+
+  const qb2 = await qualificarPeloBoard({ leadId: descartado.id, autorId: user.id, confirmarReativacao: false });
+  check("soltar de novo em Levantamento é idempotente (reusa a negociação)", qb2.negociacaoId === qb.negociacaoId);
+
+  const encerrado = await prisma.lead.create({
+    data: { nome: `${TAG}_em_espera`, clienteId: emp.id, etapaId: etapa.id, status: "EM_ESPERA" },
+    select: { id: true },
+  });
+  const filtroEmp = lerFiltros({ empresa: emp.id });
+  const padrao = await funilComercial({ filtros: filtroEmp, fechadas: new Set(["ENCERRADOS"]) });
+  const cardsDoLead = padrao.flatMap((c) => c.cards).filter((c) => c.tipo === "LEAD" && c.id === descartado.id);
+  check("lead qualificado NÃO aparece duplicado — quem o representa é a negociação", cardsDoLead.length === 0);
+  const levantamento = padrao.find((c) => c.coluna === "LEVANTAMENTO");
+  check(
+    "a negociação criada aparece em Levantamento",
+    levantamento?.cards.some((c) => c.tipo === "NEGOCIACAO" && c.id === qb.negociacaoId) === true,
+  );
+
+  console.log("\n── ADR-0004: ficha do card (edição da negociação) ────────────────\n");
+
+  const campanhaFicha = await prisma.campanha.create({
+    data: { nome: `${TAG}_campanha_ficha` },
+    select: { id: true },
+  });
+  await editarNegociacao({
+    id: qb.negociacaoId,
+    titulo: `${TAG}_demanda editada`,
+    probabilidade: 42,
+    campanhaId: campanhaFicha.id,
+    previsaoFechamento: "2026-12-15",
+    valorEstimado: 1234.5,
+  });
+  const editada = await prisma.negociacao.findUnique({
+    where: { id: qb.negociacaoId },
+    select: {
+      titulo: true,
+      probabilidade: true,
+      probabilidadeOverride: true,
+      campaignId: true,
+      previsaoFechamento: true,
+      estagio: true,
+    },
+  });
+  check("campanhaId do formulário grava em campaignId", editada?.campaignId === campanhaFicha.id);
+  check("probabilidade digitada liga o override (ADR-12)", editada?.probabilidade === 42 && editada.probabilidadeOverride);
+  check("previsão é dia-calendário (meia-noite UTC)", editada?.previsaoFechamento?.toISOString() === "2026-12-15T00:00:00.000Z");
+  check("editar a ficha não mexe no estágio", editada?.estagio === "LEVANTAMENTO");
+
+  await editarNegociacao({ id: qb.negociacaoId, titulo: `${TAG}_demanda editada`, probabilidade: null });
+  const semOverride = await prisma.negociacao.findUnique({
+    where: { id: qb.negociacaoId },
+    select: { probabilidadeOverride: true, campaignId: true },
+  });
+  check("probabilidade vazia desliga o override", semOverride?.probabilidadeOverride === false);
+  check("campo omitido no formulário é limpo (campanha)", semOverride?.campaignId === null);
+
+  const ficha = await fichaNegociacao(qb.negociacaoId);
+  check(
+    "a ficha da negociação traz o histórico da prospecção que a originou",
+    ficha?.timeline.some((t) => t.nota.length > 0) === true && ficha.lead?.id === descartado.id,
+  );
+
+  console.log("\n── Follow-ups: agenda do responsável + tela dedicada ────────────\n");
+
+  const dono = await prisma.user.findFirst({
+    where: { ativo: true, role: { not: "cliente" }, id: { not: user.id } },
+    select: { id: true },
+  });
+  if (dono) {
+    await prisma.negociacao.update({ where: { id: qb.negociacaoId }, data: { responsavelId: dono.id } });
+    const agendada = await agendarProximaAcao({
+      entidadeTipo: "NEGOCIACAO",
+      entidadeId: qb.negociacaoId,
+      tipo: "FOLLOW_UP",
+      titulo: `${TAG}_follow_ficha`,
+      inicio: new Date(Date.now() - 3 * 86_400_000),
+      criadorId: user.id,
+    });
+    const part = await prisma.compromissoParticipante.findMany({
+      where: { compromissoId: agendada.id },
+      select: { userId: true },
+    });
+    check(
+      "follow-up agendado por OUTRA pessoa entra na agenda do dono da negociação",
+      part.some((x) => x.userId === dono.id) && part.some((x) => x.userId === user.id),
+    );
+    const meus = await followUpsComerciais({ responsavelId: dono.id });
+    const todos = await followUpsComerciais({});
+    check("'meus' traz a ação do dono", meus.itens.some((i) => i.id === agendada.id));
+    check("'todos' também traz, e ela vem atrasada", todos.itens.some((i) => i.id === agendada.id));
+    const deOutro = await followUpsComerciais({ responsavelId: "id-que-nao-existe" });
+    check("'meus' de outra pessoa não traz a ação", !deOutro.itens.some((i) => i.id === agendada.id));
+
+    // Arrastar no calendário reagenda: o fim (quando existe) anda junto, senão ficaria antes do início.
+    const inicioOriginal = new Date(2030, 0, 10, 14, 0);
+    const comFim = await agendarProximaAcao({
+      entidadeTipo: "NEGOCIACAO",
+      entidadeId: qb.negociacaoId,
+      tipo: "REUNIAO",
+      titulo: `${TAG}_reuniao_com_fim`,
+      inicio: inicioOriginal,
+      fim: new Date(2030, 0, 10, 15, 30),
+      criadorId: user.id,
+    });
+    await reagendarProximaAcao({ compromissoId: comFim.id, novoInicio: new Date(2030, 0, 15, 14, 0) });
+    const movida = await prisma.compromisso.findUnique({ where: { id: comFim.id }, select: { inicio: true, fim: true } });
+    check(
+      "reagendar leva o fim junto e mantém a duração de 1h30",
+      movida?.inicio.getTime() === new Date(2030, 0, 15, 14, 0).getTime() &&
+        movida.fim?.getTime() === new Date(2030, 0, 15, 15, 30).getTime(),
+    );
+    await recusa(
+      "reagendar com data inválida é recusado",
+      () => reagendarProximaAcao({ compromissoId: comFim.id, novoInicio: new Date("lixo") }),
+      /Data inválida/,
+    );
+  } else {
+    console.log("[PULO] só há um usuário interno no dev — follow-up cruzado não testado");
+  }
+
+  console.log("\n── Parceiros: leads indicados (linha expandida) ─────────────────\n");
+  const parceiroSmk = await prisma.parceiro.create({ data: { nome: `${TAG}_parceiro`, tipo: "PJ" }, select: { id: true } });
+  const leadIndicado = await prisma.lead.create({
+    data: {
+      nome: `${TAG}_indicado`,
+      clienteId: emp.id,
+      etapaId: etapa.id,
+      status: "EM_CONTATO",
+      parceiroId: parceiroSmk.id,
+      valorEstimado: 7500,
+    },
+    select: { id: true },
+  });
+  const indicados = await leadsDoParceiro(parceiroSmk.id);
+  check("leadsDoParceiro devolve o lead indicado", indicados.length === 1 && indicados[0].id === leadIndicado.id);
+  check(
+    "valor vira número e a data vira ISO (atravessa a Server Action sem perder o tipo)",
+    indicados[0]?.valorEstimado === 7500 && typeof indicados[0]?.createdAt === "string",
+  );
+  check("parceiro sem indicação devolve lista vazia", (await leadsDoParceiro("id-que-nao-existe")).length === 0);
+
+  console.log("\n── Disciplinas de interesse da negociação ───────────────────────\n");
+  const [disc1, disc2] = await prisma.disciplinaCatalogo.findMany({ where: { ativo: true }, take: 2, select: { id: true } });
+  await definirDisciplinasNegociacao({
+    negociacaoId: qb.negociacaoId,
+    disciplinas: [{ disciplinaId: disc1.id, valor: 3000 }, { disciplinaId: disc2.id }],
+  });
+  const ligadas = await prisma.negociacaoDisciplina.findMany({ where: { negociacaoId: qb.negociacaoId }, select: { disciplinaId: true, valor: true } });
+  check("grava as disciplinas, com valor opcional", ligadas.length === 2 && ligadas.some((d) => Number(d.valor) === 3000) && ligadas.some((d) => d.valor === null));
+
+  const filtrada = await funilComercial({ filtros: lerFiltros({ empresa: emp.id, disc: disc1.id }), fechadas: new Set() });
+  check(
+    "o filtro por disciplina do funil passa a achar a negociação",
+    filtrada.flatMap((c) => c.cards).some((c) => c.tipo === "NEGOCIACAO" && c.id === qb.negociacaoId),
+  );
+
+  await definirDisciplinasNegociacao({ negociacaoId: qb.negociacaoId, disciplinas: [{ disciplinaId: disc2.id }] });
+  const substituidas = await prisma.negociacaoDisciplina.count({ where: { negociacaoId: qb.negociacaoId } });
+  check("a lista SUBSTITUI o conjunto anterior (não acumula)", substituidas === 1);
+
+  await recusa(
+    "disciplina repetida é recusada com mensagem de negócio",
+    () => definirDisciplinasNegociacao({ negociacaoId: qb.negociacaoId, disciplinas: [{ disciplinaId: disc1.id }, { disciplinaId: disc1.id }] }),
+    /repetida/i,
+  );
+  await recusa(
+    "id fora do catálogo é recusado",
+    () => definirDisciplinasNegociacao({ negociacaoId: qb.negociacaoId, disciplinas: [{ disciplinaId: "id-que-nao-existe" }] }),
+    /catálogo/i,
+  );
+  const aposRecusas = await prisma.negociacaoDisciplina.count({ where: { negociacaoId: qb.negociacaoId } });
+  check("recusa não apaga o que já estava salvo", aposRecusas === 1);
+
+  const enc = padrao.find((c) => c.coluna === "ENCERRADOS");
+  check("Encerrados recolhido não busca cards", enc?.fechada === true && enc.cards.length === 0);
+  const aberto = await funilComercial({ filtros: filtroEmp, fechadas: new Set() });
+  const encAberto = aberto.find((c) => c.coluna === "ENCERRADOS");
+  check(
+    "Encerrados aberto traz o lead em espera, e o total bate com o banco mesmo recolhido",
+    encAberto?.cards.some((c) => c.id === encerrado.id) === true && (enc?.total ?? -1) === encAberto?.total,
+  );
+
   console.log(`\n${ok ? "✔ Fase 2: tudo verde." : "✖ Fase 2: há falhas acima."}`);
   if (!ok) process.exitCode = 1;
 }
@@ -302,6 +515,7 @@ async function limpar() {
   await prisma.leadContato.deleteMany({ where: { leadId: { in: leads.map((l) => l.id) } } });
   await prisma.lead.deleteMany({ where: { id: { in: leads.map((l) => l.id) } } });
 
+  await prisma.parceiro.deleteMany({ where: { nome: { contains: TAG } } });
   await prisma.campanha.deleteMany({ where: { nome: { contains: TAG } } });
   await prisma.contatoCliente.deleteMany({ where: { nome: { contains: TAG } } });
   await prisma.cliente.deleteMany({ where: { nome: { contains: TAG } } });

@@ -198,7 +198,7 @@ export async function listasReativacao(agora: Date) {
       nome: negociacao.titulo,
       detalhe: `${negociacao.cliente.nome} · atualizada há ${diasDesde(negociacao.updatedAt, agora)} dias`,
       responsavel: negociacao.responsavel?.name ?? null,
-        href: `/comercial/negociacoes?negociacao=${negociacao.id}`,
+        href: `/comercial/funil?card=NEGOCIACAO:${negociacao.id}`,
     })),
     clientesParaReativar: clientesReativacaoRaw.map((cliente) => ({
       id: cliente.id,

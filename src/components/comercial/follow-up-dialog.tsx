@@ -51,12 +51,15 @@ export function FollowUpDialog({
   leadId,
   leadNome,
   leadEmail,
+  entidadeTipo = "LEAD",
   className,
   iniciarAberto,
 }: {
+  /** Id da entidade âncora — lead ou, com `entidadeTipo="NEGOCIACAO"`, a negociação. */
   leadId: string;
   leadNome: string;
   leadEmail?: string | null;
+  entidadeTipo?: "LEAD" | "NEGOCIACAO";
   className?: string;
   /**
    * F2.11 — "sugere agendar a próxima sem sair da tela": ao concluir uma ação, o chamador
@@ -84,13 +87,15 @@ export function FollowUpDialog({
     if (!titulo.trim() || !inicio) return;
     start(async () => {
       const r = await agendarProximaAcao({
-        entidadeTipo: "LEAD",
+        entidadeTipo,
         entidadeId: leadId,
         tipo,
         titulo,
         inicio,
         local,
-        descricao: leadEmail ? `Lead: ${leadNome} (${leadEmail})` : `Lead: ${leadNome}`,
+        descricao: `${entidadeTipo === "LEAD" ? "Lead" : "Negociação"}: ${leadNome}${
+          leadEmail ? ` (${leadEmail})` : ""
+        }`,
       });
       if (r.ok) {
         toast.success("Próxima ação agendada.");

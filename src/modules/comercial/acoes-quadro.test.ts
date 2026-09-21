@@ -1,58 +1,76 @@
 import { describe, expect, it } from "vitest";
 
 import type { AcaoItem, AcaoItemSub } from "@/components/ui/acoes";
+import type { EstagioNegociacao, StatusProspeccao } from "@/generated/prisma/client";
+import type { CardRef } from "@/modules/comercial/funil";
 import {
   ACAO_ABRIR,
   ACAO_COPIAR_NOME,
   ACAO_REABRIR,
   PREFIXO_MOVER,
   destinoDoMover,
-  destinosDeNegociacao,
-  destinosDeProspeccao,
+  destinosDoFunil,
   itensDeCardQuadro,
   negociacaoPodeReabrir,
 } from "./acoes-quadro";
 
-const COLUNAS = [
-  "LEVANTAMENTO",
-  "ORCAMENTO",
-  "PROPOSTA_ENVIADA",
-  "NEGOCIACAO",
-  "CONTRATADO",
-  "PERDIDO",
-  "EM_ESPERA",
-  "CANCELADO",
-] as const;
-
 const achar = (itens: AcaoItem[], id: string) => itens.find((i) => i.id === id);
 const sub = (itens: AcaoItem[]) => achar(itens, "mover") as AcaoItemSub;
 
-describe("destinosDeNegociacao", () => {
-  it("não oferece o estágio atual", () => {
-    expect(destinosDeNegociacao("ORCAMENTO", COLUNAS).map((d) => d.id)).not.toContain("ORCAMENTO");
+const lead = (status: StatusProspeccao): CardRef => ({ tipo: "LEAD", status });
+const neg = (estagio: EstagioNegociacao): CardRef => ({ tipo: "NEGOCIACAO", estagio });
+const dest = (card: CardRef, id: string) => destinosDoFunil(card).find((d) => d.id === id);
+
+describe("destinosDoFunil", () => {
+  it("não oferece a coluna onde o card já está", () => {
+    expect(destinosDoFunil(neg("ORCAMENTO")).map((d) => d.id)).not.toContain("ORCAMENTO");
+    expect(destinosDoFunil(lead("EM_CONTATO")).map((d) => d.id)).not.toContain("EM_CONTATO");
   });
 
-  it("desabilita o que a jornada não permite, com o motivo do servidor", () => {
-    const d = destinosDeNegociacao("LEVANTAMENTO", COLUNAS).find((x) => x.id === "CONTRATADO");
-    expect(d?.desabilitado).toBe('Não é possível mover de "Levantamento" para "Contratado".');
+  it("negociação perdida/cancelada mora em ENCERRADOS: essa coluna não é destino", () => {
+    expect(destinosDoFunil(neg("PERDIDO")).map((d) => d.id)).not.toContain("ENCERRADOS");
   });
 
-  it("libera o que é permitido", () => {
-    const d = destinosDeNegociacao("NEGOCIACAO", COLUNAS);
-    expect(d.find((x) => x.id === "CONTRATADO")?.desabilitado).toBeUndefined();
-    expect(d.find((x) => x.id === "PERDIDO")?.desabilitado).toBeUndefined();
+  it("lead: só as colunas da prospecção, Levantamento (qualifica) e Encerrados ficam livres", () => {
+    const livres = destinosDoFunil(lead("EM_CONTATO"))
+      .filter((d) => !d.desabilitado)
+      .map((d) => d.id);
+    expect(livres).toContain("QUALIFICADO");
+    expect(livres).toContain("LEVANTAMENTO");
+    expect(livres).toContain("ENCERRADOS");
+    expect(livres).not.toContain("ORCAMENTO");
   });
 
-  it("CONTRATADO é terminal: todos os destinos ficam desabilitados", () => {
-    expect(destinosDeNegociacao("CONTRATADO", COLUNAS).every((d) => d.desabilitado)).toBe(true);
+  it("lead não pula para os estágios seguintes: desabilitado com a frase do arrasto", () => {
+    expect(dest(lead("EM_CONTATO"), "PROPOSTA_ENVIADA")?.desabilitado).toBe(
+      "Uma prospecção entra na negociação por Levantamento — solte o card lá.",
+    );
   });
-});
 
-describe("destinosDeProspeccao", () => {
-  it("lista as outras colunas, sem o status atual", () => {
-    const ids = destinosDeProspeccao("EM_CONTATO").map((d) => d.id);
-    expect(ids).not.toContain("EM_CONTATO");
-    expect(ids).toContain("QUALIFICADO");
+  it("negociação não volta para a prospecção", () => {
+    const d = dest(neg("ORCAMENTO"), "EM_CONTATO");
+    expect(d?.desabilitado).toBe(
+      "Esta negociação já saiu da prospecção — mova-a entre os estágios de negociação.",
+    );
+  });
+
+  it("negociação: desabilita o salto que a jornada não permite, com a frase do servidor", () => {
+    expect(dest(neg("LEVANTAMENTO"), "CONTRATADO")?.desabilitado).toBe(
+      'Não é possível mover de "Levantamento" para "Contratado".',
+    );
+  });
+
+  it("negociação: libera o que a jornada permite", () => {
+    expect(dest(neg("NEGOCIACAO"), "CONTRATADO")?.desabilitado).toBeUndefined();
+    expect(dest(neg("NEGOCIACAO"), "ENCERRADOS")?.desabilitado).toBeUndefined();
+  });
+
+  it("CONTRATADO é terminal: nada a oferecer além de coluna desabilitada", () => {
+    expect(destinosDoFunil(neg("CONTRATADO")).every((d) => d.desabilitado)).toBe(true);
+  });
+
+  it("o rótulo é o da coluna, como no cabeçalho do funil", () => {
+    expect(dest(lead("EM_CONTATO"), "LEVANTAMENTO")?.rotulo).toBe("Levantamento");
   });
 });
 
@@ -66,7 +84,7 @@ describe("negociacaoPodeReabrir", () => {
 });
 
 describe("itensDeCardQuadro", () => {
-  const destinos = destinosDeProspeccao("IDENTIFICADO");
+  const destinos = destinosDoFunil(lead("IDENTIFICADO"));
 
   it("Abrir é link quando há href e some quando não há", () => {
     expect(achar(itensDeCardQuadro({ href: "/comercial/1", destinos }), ACAO_ABRIR)).toMatchObject({

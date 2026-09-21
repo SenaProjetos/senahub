@@ -16,6 +16,16 @@ const salvarSchema = z.object({
   logoPath: z.string().trim().optional(),
   encarregadoDados: z.string().trim().max(200).optional(),
   foro: z.string().trim().max(120).optional(),
+  // ADR-0006: contato, dados bancarios e assinatura usados pela proposta composta.
+  telefone: z.string().trim().max(40).optional(),
+  email: z.string().trim().max(160).optional(),
+  banco: z.string().trim().max(80).optional(),
+  agencia: z.string().trim().max(20).optional(),
+  conta: z.string().trim().max(30).optional(),
+  pix: z.string().trim().max(160).optional(),
+  responsavelNome: z.string().trim().max(120).optional(),
+  responsavelCargo: z.string().trim().max(120).optional(),
+  responsavelRegistro: z.string().trim().max(60).optional(),
 });
 
 /**
@@ -34,6 +44,15 @@ export const salvarDadosEmpresa = defineAction(
       logoPath: i.logoPath || null,
       encarregadoDados: i.encarregadoDados || null,
       foro: i.foro || null,
+      telefone: i.telefone || null,
+      email: i.email || null,
+      banco: i.banco || null,
+      agencia: i.agencia || null,
+      conta: i.conta || null,
+      pix: i.pix || null,
+      responsavelNome: i.responsavelNome || null,
+      responsavelCargo: i.responsavelCargo || null,
+      responsavelRegistro: i.responsavelRegistro || null,
     };
     await prisma.configSistema.upsert({
       where: { chave: CHAVE_DADOS_EMPRESA },

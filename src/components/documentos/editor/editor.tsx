@@ -117,6 +117,7 @@ export function DocEditor({
   fonteColunas,
   blocos,
   versoes,
+  schemaIlegivel = false,
 }: {
   modeloId: string;
   nomeInicial: string;
@@ -132,6 +133,11 @@ export function DocEditor({
   fonteColunas: string[];
   blocos: BlocoListItem[];
   versoes: VersaoT[];
+  /**
+   * O JSON salvo não passou no schema e o que está na tela é um documento VAZIO, não o modelo.
+   * Salvar aqui apagaria o original — por isso o salvar fica travado e o aviso é destrutivo.
+   */
+  schemaIlegivel?: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -210,6 +216,10 @@ export function DocEditor({
   }
 
   function salvar() {
+    if (schemaIlegivel) {
+      toast.error("Este modelo não pôde ser lido — salvar apagaria o original.");
+      return;
+    }
     start(async () => {
       const r = await salvarModelo({
         id: modeloId,
@@ -424,11 +434,19 @@ export function DocEditor({
           <Button variant="outline" size="sm" render={<Link href={`/documentos/${modeloId}/preview`} />}>
             <Eye className="size-4" /> Preview
           </Button>
-          <Button size="sm" onClick={salvar} disabled={pending}>
+          <Button size="sm" onClick={salvar} disabled={pending || schemaIlegivel}>
             <Save className="size-4" /> {pending ? "Salvando…" : state.sujo ? "Salvar*" : "Salvar"}
           </Button>
         </div>
       </div>
+
+      {schemaIlegivel && (
+        <div className="border-b border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <strong>Este modelo não pôde ser lido.</strong> O que aparece abaixo é um documento em
+          branco, não o seu modelo — o desenho salvo continua no banco. Salvar está desabilitado
+          para não apagá-lo. Avise o suporte antes de refazer o modelo.
+        </div>
+      )}
 
       <div className="flex min-h-0 flex-1">
         {/* Paleta */}

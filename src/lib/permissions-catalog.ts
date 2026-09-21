@@ -210,6 +210,11 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     acoes: [
       { acao: "ver", label: "Ver funil e propostas", abre: "Comercial", leitura: true },
       { acao: "gerir", label: "Gerir leads, propostas e tabelas de preço" },
+      {
+        acao: "modelos",
+        label: "Manter modelos de proposta e a biblioteca de cláusulas",
+        abre: "Comercial → Modelos de proposta",
+      },
     ],
   },
   {

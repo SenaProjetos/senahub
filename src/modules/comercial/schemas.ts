@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { validarCpfCnpj } from "@/lib/documento";
+import { MENSAGEM_EMAIL, MENSAGEM_TELEFONE, telefoneValido } from "@/modules/comercial/contato-validacao";
 
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 
@@ -95,6 +96,16 @@ export const criarPropostaSchema = z.object({
   negociacaoId: z.string().min(1, "Selecione a negociação."),
 });
 
+/**
+ * ADR-0006: "Nova proposta" de um lead no caminho da composta. Não cria a proposta — garante
+ * cliente e negociação e devolve a negociação, onde o diálogo de montagem abre. Mesmo
+ * consentimento explícito de reativação do `criarPropostaDeLeadSchema` (ADR-21 §5b).
+ */
+export const prepararNegociacaoDoLeadSchema = z.object({
+  leadId: z.string().min(1),
+  confirmarReativacao: z.boolean().optional(),
+});
+
 /** Cria a proposta a partir de um lead (deriva/gera o cliente, garante a negociação — F5.3). */
 export const criarPropostaDeLeadSchema = z.object({
   leadId: z.string().min(1),
@@ -122,6 +133,23 @@ export const salvarPropostaSchema = z.object({
   condicoes: z.array(condicaoPropostaSchema),
   desconto: z.number().nonnegative().optional(),
   justificativaDesconto: opt(z.string()),
+});
+
+/** ADR-0005: versão de proposta montada fora do sistema — PDF + linhas por disciplina. */
+export const registrarVersaoExternaSchema = z.object({
+  negociacaoId: z.string().min(1),
+  /** Vazio = proposta nova (consome o número sequencial). */
+  propostaId: opt(z.string()),
+  titulo: z.string().trim().min(1, "Informe o título."),
+  itens: z
+    .array(z.object({ disciplina: z.string().trim().min(1, "Escolha a disciplina."), valor: z.number().nonnegative() }))
+    .min(1, "Informe ao menos uma disciplina com valor."),
+  desconto: z.number().nonnegative().nullish(),
+  justificativaDesconto: opt(z.string()),
+  validade: opt(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida.")),
+  dataEnvio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Informe a data de envio."),
+  observacao: opt(z.string()),
+  pdfCaminho: z.string().min(1, "Anexe o PDF."),
 });
 
 /** F5.5: `em_negociacao` entra no leque de status que esta action aceita definir. `aceita`
@@ -207,6 +235,40 @@ export const alternarChecklistItemSchema = z.object({
   itemId: z.string().min(1),
 });
 
+/**
+ * Dados editáveis da negociação (ficha do card, ADR-0004). **Não** entram: `estagio` (só
+ * `moverEstagio` escreve — F2.7/ADR-10) nem os valores que vêm da proposta (`valorProposto`,
+ * `desconto`, `valorNegociado`: a versão vigente é a fonte, F6.1a). `campanhaId` é o nome do
+ * formulário; a coluna é `campaignId` — o serviço mapeia (guarda em `lead-campos.test.ts`).
+ */
+export const editarNegociacaoSchema = z.object({
+  id: z.string().min(1),
+  titulo: z.string().trim().min(1, "Informe a demanda."),
+  responsavelId: opt(z.string()),
+  temperatura: z.enum(["FRIO", "MORNO", "QUENTE"]).nullish(),
+  valorEstimado: z.number().nonnegative().nullish(),
+  /** `yyyy-mm-dd` — dia-calendário, não instante. `""` limpa. */
+  previsaoFechamento: opt(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida.")),
+  /** `null` = volta a seguir o estágio (tira o override do ADR-12). */
+  probabilidade: z.number().int().min(0).max(100).nullish(),
+  parceiroId: opt(z.string()),
+  campanhaId: opt(z.string()),
+  tipoEmpreendimentoId: opt(z.string()),
+  areaM2: z.number().nonnegative().nullish(),
+});
+
+/**
+ * Disciplinas de interesse da negociação (ADR-13: valor individual opcional). É o conjunto INTEIRO —
+ * a action substitui o que havia, não faz merge. Não confundir com os itens da proposta: aqui é o
+ * escopo em conversa; o aceite cria o projeto a partir dos itens da proposta.
+ */
+export const definirDisciplinasNegociacaoSchema = z.object({
+  negociacaoId: z.string().min(1),
+  disciplinas: z
+    .array(z.object({ disciplinaId: z.string().min(1), valor: z.number().nonnegative().nullish() }))
+    .max(40, "Disciplinas demais."),
+});
+
 export const qualificarProspeccaoSchema = z.object({
   leadId: z.string().min(1),
   titulo: opt(z.string()),
@@ -264,6 +326,8 @@ export const moverProspeccaoSchema = z.object({
     "EM_ESPERA",
     "DESCARTADO",
   ]),
+  /** ADR-0004 + ADR-21 §5b: só vale quando `para` qualifica um lead fora do fluxo. */
+  confirmarReativacao: z.boolean().optional(),
 });
 
 /** F3.4: registro manual de interação, 2 cliques a partir de qualquer card ou ficha. */
@@ -307,8 +371,9 @@ export const criarProspeccaoRapidaSchema = z.object({
   contato: z.object({
     contatoId: opt(z.string()),
     nome: opt(z.string()),
-    email: opt(z.string().email("E-mail inválido.")),
-    telefone: opt(z.string()),
+    email: opt(z.string().email(MENSAGEM_EMAIL)),
+    // Mesma regra da máscara do diálogo (`telefoneValido`): a tela e a action não divergem.
+    telefone: opt(z.string()).refine((v) => !v || telefoneValido(v), MENSAGEM_TELEFONE),
     cargo: opt(z.string()),
   }),
   campanhaId: opt(z.string()),

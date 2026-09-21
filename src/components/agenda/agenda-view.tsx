@@ -165,10 +165,10 @@ export function AgendaView({
   // `chave` remonta o diálogo a cada pedido, para os campos nascerem do rascunho novo.
   const [novo, setNovo] = useState<{ chave: number; inicial: RascunhoCompromisso } | null>(null);
   const [vista, setVista] = useState<Vista>("mes");
-  // F2.1a (CRM, ADR-17): a agenda passa a poder receber ações comerciais (F2.10+), então o
-  // padrão é escondê-las — quem quiser vê-las junto liga o filtro. Nenhuma reunião some nunca:
-  // isto só filtra o que TEM `tipo` preenchido.
-  const [mostrarComercial, setMostrarComercial] = useState(false);
+  // F2.1a (CRM, ADR-17): ações comerciais têm `tipo` preenchido e podem ser filtradas. Elas
+  // aparecem por padrão — é a agenda do responsável pelo card; quem quiser só as reuniões
+  // desliga o filtro. Nenhuma reunião some nunca: isto só filtra o que TEM `tipo`.
+  const [mostrarComercial, setMostrarComercial] = useState(true);
   // dia/semana de referência (estado local) — começa em hoje ou no mês exibido
   const [refData, setRefData] = useState<Date>(() => {
     const h = new Date();

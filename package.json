@@ -48,6 +48,8 @@
     "smoke:crm-fase6": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-fase6.ts",
     "smoke:crm-fase7": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-fase7.ts",
     "smoke:crm-automacoes": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-automacoes.ts",
+    "verify:documento-proposta": "tsx --tsconfig tsconfig.server.json scripts/verify-documento-proposta.tsx",
+    "smoke:proposta-composta": "tsx --tsconfig tsconfig.server.json scripts/smoke-proposta-composta.ts",
     "smoke:crm-e2e": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-e2e.ts",
     "seed:crm-volume": "tsx --tsconfig tsconfig.server.json scripts/seed-crm-volume.ts",
     "audit:crm-performance": "tsx --tsconfig tsconfig.server.json scripts/audit-crm-performance.ts",

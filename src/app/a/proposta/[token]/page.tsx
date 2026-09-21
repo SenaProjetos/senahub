@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { DocRender } from "@/components/documentos/doc-render";
+import { carregarDocumentoProposta } from "@/modules/comercial/proposta-composta/documento-dados";
 import { FileText } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { brl, formatarData } from "@/lib/utils";
@@ -24,8 +26,13 @@ export default async function PropostaPublicaPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const p = await prisma.proposta.findUnique({
-    where: { token },
+  // ADR-0005: proposta externa não tem página pública (o time envia o PDF por fora). O filtro
+  // não muda nada na renderização das propostas do editor — só recusa as externas.
+  //
+  // Lista do que TEM página pública, em vez de "tudo menos externa": formato novo não passa a
+  // vazar sozinho por esquecimento (a composta entrou aqui de propósito, com ramo próprio na G5).
+  const p = await prisma.proposta.findFirst({
+    where: { token, formato: { in: ["legado", "composta"] } },
     include: {
       cliente: { select: { nome: true } },
       // `disciplina` (catalogo) no include: a pagina publica mostra o nome do catalogo e cai
@@ -35,6 +42,50 @@ export default async function PropostaPublicaPage({
     },
   });
   if (!p) notFound();
+
+  // ── ADR-0006: ramo da proposta COMPOSTA ────────────────────────────────────────────────────
+  // O ramo antigo abaixo não muda uma linha (ADR-21 §6 congelou a renderização porque o PDF já
+  // enviado é impresso dela ao vivo). A composta é escolhida por um valor de `formato` que
+  // nenhuma proposta anterior tem, então nada do que existe passa por aqui.
+  //
+  // Documento com impedimento (plano que não fecha 100%, empresa não configurada, token de
+  // cláusula sem valor) NÃO é publicado: o cliente veria "obra em , " ou um plano zerado. Some
+  // da web como se não existisse; a prévia interna é quem diz o que falta.
+  if (p.formato === "composta") {
+    const doc = await carregarDocumentoProposta(p.id);
+    if (!doc || doc.impedimentos.length > 0) notFound();
+    return (
+      <main className="mx-auto max-w-[850px] px-2 py-6">
+        {/* Fora da área impressa: o PDF é gerado imprimindo esta página, e o botão de baixar
+            não pode sair dentro do próprio PDF. */}
+        <div className="doc-no-print mb-3 flex items-center justify-between gap-4">
+          <p className="text-xs text-muted-foreground">Dúvidas? Responda o e-mail desta proposta.</p>
+          <a
+            href={`/api/t/proposta/${token}/pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 rounded-sm border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+          >
+            Baixar PDF
+          </a>
+        </div>
+
+        <div className="doc-print-area">
+          <DocRender schema={doc.schema} escalar={doc.escalar} linhas={doc.linhas} porFonte={doc.porFonte} />
+        </div>
+
+        {/* O cliente envia documentos pela mesma página, como na proposta antiga. */}
+        <div className="doc-no-print">
+          <PropostaPublicaUpload token={token} />
+        </div>
+
+        {/* Pixel de abertura: é o que alimenta "N abertura(s)" no editor. O ramo composto
+            retornava antes dele, então as aberturas ficariam sempre em zero. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={`/api/t/proposta/${token}/pixel`} alt="" width={1} height={1} className="doc-no-print opacity-0" />
+      </main>
+    );
+  }
 
   const total = p.itens.reduce((s, it) => s + Number(it.valor), 0);
 

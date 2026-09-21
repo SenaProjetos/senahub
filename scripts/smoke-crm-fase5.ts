@@ -33,8 +33,11 @@
 import "dotenv/config";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { utimes } from "node:fs/promises";
 import { prisma } from "../src/lib/prisma";
-import { removerArquivo } from "../src/lib/storage";
+import { existeArquivo, removerArquivo, resolverCaminho, salvarArquivo } from "../src/lib/storage";
+import { limparPdfsExternosOrfaos } from "../src/modules/comercial/proposta-externa-limpeza";
+import { PASTA_PDF_EXTERNO } from "../src/modules/comercial/proposta-externa";
 import { planejarVinculo } from "../src/modules/comercial/vinculo-negociacao";
 import { carregarPendentes, executarVinculo } from "../src/modules/comercial/migracao-vinculo";
 import {
@@ -42,9 +45,11 @@ import {
   aceitarProposta,
   criarProposta,
   criarPropostaDeLead,
+  prepararNegociacaoDoLead,
   mudarStatusProposta,
   moverEstagio,
   reabrirNegociacao,
+  registrarVersaoExterna,
 } from "../src/modules/comercial/service";
 import { versoesComparaveis } from "../src/modules/comercial/propostas-extras/queries";
 import { versaoVigente } from "../src/modules/comercial/versoes";
@@ -863,6 +868,65 @@ async function main() {
   const negD = await prisma.negociacao.findUnique({ where: { id: propostaD.negociacaoId! }, select: { leadId: true, estagio: true } });
   check("(d) a negociação criada é deste lead, no estágio inicial LEVANTAMENTO", negD?.leadId === leadForaDoFluxo.id && negD.estagio === "LEVANTAMENTO");
 
+  console.log("\n── ADR-0006 (G6): prepararNegociacaoDoLead — a composta nasce de um lead ──\n");
+
+  // Mesmas regras de `criarPropostaDeLead`, mas SEM criar a proposta: a montagem pede modelo,
+  // obra e disciplinas, que só a tela sabe. O que se prova é justamente essa diferença.
+  const propostasAntesG6 = await prisma.proposta.count();
+
+  // (a) já qualificado — devolve a negociação existente, não cria outra.
+  const leadG6a = await prisma.lead.create({
+    data: { nome: `${TAG}_LeadG6a`, clienteId: cliF53.id, etapaId: etapa.id, status: "OPORTUNIDADE_CRIADA" },
+  });
+  const negG6a = await prisma.negociacao.create({
+    data: { titulo: `${TAG}_NegG6a`, clienteId: cliF53.id, leadId: leadG6a.id, estagio: "LEVANTAMENTO" },
+  });
+  const negsAntesG6 = await prisma.negociacao.count();
+  const rG6a = await prepararNegociacaoDoLead({ leadId: leadG6a.id }, user.id);
+  check("(G6-a) devolve a negociação JÁ EXISTENTE", rG6a.negociacaoId === negG6a.id);
+  check("(G6-a) nenhuma negociação nova", (await prisma.negociacao.count()) === negsAntesG6);
+
+  // (b) qualificável — qualifica sozinho e devolve a negociação criada.
+  const leadG6b = await prisma.lead.create({
+    data: { nome: `${TAG}_LeadG6b`, clienteId: cliF53.id, etapaId: etapa.id, status: "EM_CONTATO" },
+  });
+  const rG6b = await prepararNegociacaoDoLead({ leadId: leadG6b.id }, user.id);
+  const g6bDepois = await prisma.lead.findUnique({ where: { id: leadG6b.id }, select: { status: true } });
+  check("(G6-b) lead qualificável virou OPORTUNIDADE_CRIADA", g6bDepois?.status === "OPORTUNIDADE_CRIADA");
+  const negG6b = await prisma.negociacao.findUnique({ where: { id: rG6b.negociacaoId }, select: { leadId: true } });
+  check("(G6-b) a negociação criada é deste lead", negG6b?.leadId === leadG6b.id);
+
+  // (c) fora do fluxo sem confirmar — recusa, com a mensagem que a UI reconhece, e nada muda.
+  const leadG6c = await prisma.lead.create({
+    data: { nome: `${TAG}_LeadG6c`, clienteId: cliF53.id, etapaId: etapa.id, status: "DESCARTADO" },
+  });
+  let recusaG6 = "";
+  try {
+    await prepararNegociacaoDoLead({ leadId: leadG6c.id }, user.id);
+  } catch (e) {
+    recusaG6 = (e as Error).message;
+  }
+  check("(G6-c) DESCARTADO sem confirmação é recusado (mensagem fala em reativar)", /reativá-la/i.test(recusaG6), recusaG6);
+  check(
+    "(G6-c) o lead recusado continua DESCARTADO e sem negociação",
+    (await prisma.lead.findUnique({ where: { id: leadG6c.id }, select: { status: true } }))?.status === "DESCARTADO" &&
+      (await prisma.negociacao.findUnique({ where: { leadId: leadG6c.id } })) === null,
+  );
+
+  // (d) mesmo lead, com confirmação — reativa e qualifica.
+  const rG6d = await prepararNegociacaoDoLead({ leadId: leadG6c.id, confirmarReativacao: true }, user.id);
+  const g6dDepois = await prisma.lead.findUnique({ where: { id: leadG6c.id }, select: { status: true } });
+  check("(G6-d) com confirmação, o lead termina OPORTUNIDADE_CRIADA", g6dDepois?.status === "OPORTUNIDADE_CRIADA");
+  check(
+    "(G6-d) negociação criada no estágio inicial",
+    (await prisma.negociacao.findUnique({ where: { id: rG6d.negociacaoId }, select: { estagio: true } }))?.estagio === "LEVANTAMENTO",
+  );
+
+  check(
+    "NENHUMA proposta foi criada em nenhum dos quatro casos (quem monta é a tela, depois)",
+    (await prisma.proposta.count()) === propostasAntesG6,
+  );
+
   console.log("\n── F5.5: StatusProposta.em_negociacao + transições ────────────────\n");
 
   const cliF55 = await prisma.cliente.create({ data: { nome: `${TAG}_EmpresaF55`, tipo: "PJ" } });
@@ -1504,6 +1568,161 @@ async function main() {
     Number(projDesc?.valorContrato) === 8000,
     `${projDesc?.valorContrato}`,
   );
+
+  console.log("\n── ADR-0005: proposta externa (PDF + disciplinas) ────────────────\n");
+
+  const recusaExt = async (nome: string, fn: () => Promise<unknown>, trecho: RegExp) => {
+    try {
+      await fn();
+      check(nome, false, "PASSOU quando deveria ser recusado");
+    } catch (e) {
+      const msg = (e as Error).message ?? "";
+      check(nome, trecho.test(msg), `"${msg.slice(0, 70)}"`);
+    }
+  };
+  const disciplinasCat = await prisma.disciplinaCatalogo.findMany({ take: 2, select: { nome: true } });
+  const negExt = await prisma.negociacao.create({
+    data: { titulo: `${TAG}_NegExterna`, clienteId: cliente.id, estagio: "ORCAMENTO" },
+  });
+  const pdfFalso = async () => {
+    const caminho = `${PASTA_PDF_EXTERNO}${randomBytes(12).toString("hex")}.pdf`;
+    await salvarArquivo(caminho, Buffer.from(`%PDF-1.4\n% ${TAG}\n`));
+    return caminho;
+  };
+  const hoje = new Date().toISOString().slice(0, 10);
+  const itensExt = [
+    { disciplina: disciplinasCat[0].nome, valor: 6000 },
+    { disciplina: disciplinasCat[1].nome, valor: 4000 },
+  ];
+
+  await recusaExt(
+    "caminho de PDF fora da pasta das externas é recusado (não aponta para outro arquivo do storage)",
+    () =>
+      registrarVersaoExterna(
+        { negociacaoId: negExt.id, titulo: "x", itens: itensExt, dataEnvio: hoje, pdfCaminho: "rh/qualquer.pdf" },
+        user.id,
+      ),
+    /PDF não encontrado/,
+  );
+
+  const seqAntes = await prisma.propostaSequencia.findUnique({ where: { ano }, select: { ultimo: true } });
+  const v1 = await registrarVersaoExterna(
+    {
+      negociacaoId: negExt.id,
+      titulo: `${TAG} Externa`,
+      itens: itensExt,
+      desconto: 500,
+      dataEnvio: hoje,
+      validade: hoje,
+      pdfCaminho: await pdfFalso(),
+    },
+    user.id,
+  );
+  const seqDepois = await prisma.propostaSequencia.findUnique({ where: { ano }, select: { ultimo: true } });
+  check("1ª versão consome o número sequencial", (seqDepois?.ultimo ?? 0) === (seqAntes?.ultimo ?? 0) + 1, v1.numero);
+  const ext = await prisma.proposta.findUnique({
+    where: { id: v1.propostaId },
+    select: {
+      externa: true,
+      formato: true,
+      status: true,
+      token: true,
+      itens: { select: { valor: true } },
+      versoes: { select: { numero: true, pdfPath: true, valorVersao: true, desconto: true, status: true } },
+    },
+  });
+  check("nasce externa, enviada, com as linhas por disciplina", ext?.externa === true && ext.status === "enviada" && ext.itens.length === 2);
+  // Passo 2 da troca `externa` -> `formato` (ADR-0006): enquanto as duas colunas existem, a
+  // escrita é DUPLA. Se divergirem, um rollback de código volta a tratar a externa como legado
+  // e o link público dela abre.
+  check("escrita dupla: `formato` acompanha `externa`", ext?.formato === "externa", `formato=${ext?.formato}`);
+  check(
+    "versão 1 guarda o PDF e os valores (10000 − 500)",
+    ext?.versoes[0]?.pdfPath != null && Number(ext.versoes[0].valorVersao) === 9500,
+    `${ext?.versoes[0]?.valorVersao}`,
+  );
+
+  const arq = await arquivarPdfDaVersao(v1.propostaId, { gerar: async () => Buffer.from("%PDF-render-vazio") });
+  check("arquivamento no envio NÃO sobrescreve o PDF anexado", arq.arquivado === false);
+
+  // O MESMO filtro das três rotas públicas por token (página, PDF e anexos), agora por `formato`.
+  const publica = await prisma.proposta.findFirst({
+    where: { token: ext!.token, formato: { in: ["legado", "composta"] } },
+  });
+  check("externa não tem página pública (o filtro das rotas por token não a encontra)", publica === null);
+
+  await recusaExt(
+    "o editor recusa salvar uma proposta externa",
+    () => salvarProposta({ id: v1.propostaId, titulo: "x", itens: [], condicoes: [] }, user.id),
+    /Proposta externa/,
+  );
+
+  const config = await getConfigComercial();
+  const pdfDesconto = await pdfFalso();
+  await recusaExt(
+    "desconto acima do limite sem justificativa é recusado, como no editor",
+    () =>
+      registrarVersaoExterna(
+        {
+          negociacaoId: negExt.id,
+          propostaId: v1.propostaId,
+          titulo: `${TAG} Externa`,
+          itens: itensExt,
+          desconto: 10000 * ((config.descontoMaxSemJustificativa + 5) / 100),
+          dataEnvio: hoje,
+          pdfCaminho: pdfDesconto,
+        },
+        user.id,
+      ),
+    /exige justificativa/,
+  );
+  // A recusa não grava a versão, então o arquivo não está em nenhum `pdfPath` e o `limpar` não o
+  // acharia — é o mesmo órfão que um upload seguido de ação recusada deixa na vida real.
+  await removerArquivo(pdfDesconto);
+
+  const v2 = await registrarVersaoExterna(
+    {
+      negociacaoId: negExt.id,
+      propostaId: v1.propostaId,
+      titulo: `${TAG} Externa`,
+      itens: itensExt,
+      desconto: 1000,
+      dataEnvio: hoje,
+      pdfCaminho: await pdfFalso(),
+    },
+    user.id,
+  );
+  check("2ª versão entra na mesma proposta, mesmo número", v2.propostaId === v1.propostaId && v2.numero === v1.numero && v2.versao === 2);
+  const extPdf1 = await pdfArquivadoDaVersao(v1.propostaId, 1);
+  const extPdf2 = await pdfArquivadoDaVersao(v1.propostaId, 2);
+  check(
+    "cada versão mantém o próprio PDF",
+    extPdf1 != null && extPdf2 != null && extPdf1.versao === 1 && extPdf2.versao === 2,
+  );
+
+  const aceiteExt = await aceitarProposta(v1.propostaId, user.id);
+  const projExt = await prisma.projeto.findUnique({
+    where: { id: aceiteExt.projetoId },
+    select: { valorContrato: true, _count: { select: { disciplinas: true } } },
+  });
+  check(
+    "aceite da externa cria o projeto com as disciplinas e o valor da versão vigente (10000 − 1000)",
+    Number(projExt?.valorContrato) === 9000 && projExt?._count.disciplinas === 2,
+    `${projExt?.valorContrato} / ${projExt?._count.disciplinas} disciplinas`,
+  );
+
+  console.log("\n── ADR-0005: limpeza de PDFs externos órfãos ─────────────────────\n");
+
+  const orfaoAntigo = await pdfFalso();
+  const orfaoRecente = await pdfFalso();
+  const antigo = new Date(Date.now() - 48 * 3_600_000);
+  await utimes(resolverCaminho(orfaoAntigo), antigo, antigo);
+  const removidos = await limparPdfsExternosOrfaos();
+  check("órfão com mais de 24h é removido", !(await existeArquivo(orfaoAntigo)));
+  check("órfão recente (formulário pode estar aberto) é preservado", await existeArquivo(orfaoRecente));
+  check("PDF que já virou versão é preservado", await existeArquivo(ext!.versoes[0].pdfPath!));
+  check("devolve quantos removeu, e rodar de novo não acha mais nada", removidos >= 1 && (await limparPdfsExternosOrfaos()) === 0);
+  await removerArquivo(orfaoRecente);
 
   console.log(`\n${ok ? "✔ Fase 5: tudo verde." : "✖ Fase 5: há falhas acima."}`);
   if (!ok) process.exitCode = 1;

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { nomeDisciplinaItem } from "@/modules/comercial/disciplinas";
@@ -33,6 +33,12 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
     motivosPerdaAtivos(),
   ]);
   if (!p) notFound();
+  // ADR-0005: a externa não tem editor — o documento é o PDF de cada versão. A ficha da
+  // negociação é onde ela é versionada, baixada e aceita.
+  if (p.formato === "externa" && p.negociacaoId) redirect(`/comercial/funil?card=NEGOCIACAO:${p.negociacaoId}`);
+  // ADR-0006: a composta tem editor PRÓPRIO (seções, plano em percentual). Abrir o editor de
+  // itens/condições aqui reescreveria a proposta com uma tela que não conhece o texto dela.
+  if (p.formato === "composta") redirect(`/comercial/propostas/${id}/compor`);
 
   return (
     <div className="space-y-5">

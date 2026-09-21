@@ -6,6 +6,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { smtpConfigurado } from "@/lib/mail";
 import { arquivarPdfDaVersao } from "@/modules/comercial/pdf-proposta";
+import { garantirPropostaEnviavel } from "@/modules/comercial/proposta-composta/service";
 import { enviarEmailTemplate } from "@/lib/email-templates";
 import {
   criarLeadSchema,
@@ -19,6 +20,7 @@ import {
   tabelaPrecoEditSchema,
   criarPropostaSchema,
   criarPropostaDeLeadSchema,
+  prepararNegociacaoDoLeadSchema,
   salvarPropostaSchema,
   statusPropostaSchema,
   criarEtapaSchema,
@@ -36,6 +38,9 @@ import {
   reabrirNegociacaoSchema,
   alternarChecklistItemSchema,
   qualificarProspeccaoSchema,
+  editarNegociacaoSchema,
+  definirDisciplinasNegociacaoSchema,
+  registrarVersaoExternaSchema,
   agendarProximaAcaoSchema,
   concluirProximaAcaoSchema,
   reagendarProximaAcaoSchema,
@@ -59,10 +64,12 @@ import {
   buscarEmpresaParaProspeccaoRapida,
   prospeccoesAtivasDoCliente,
   buscarContatoNaEmpresa,
+  leadsDoParceiro,
 } from "@/modules/comercial/queries";
 import {
   proximoNumeroProposta,
   criarProposta as servicoCriarProposta,
+  prepararNegociacaoDoLead as servicoPrepararNegociacaoDoLead,
   criarPropostaDeLead as servicoCriarPropostaDeLead,
   mudarStatusProposta as servicoMudarStatusProposta,
   salvarProposta as servicoSalvarProposta,
@@ -75,6 +82,10 @@ import {
   concluirProximaAcao as servicoConcluirProximaAcao,
   reagendarProximaAcao as servicoReagendarProximaAcao,
   moverProspeccao as servicoMoverProspeccao,
+  qualificarPeloBoard as servicoQualificarPeloBoard,
+  editarNegociacao as servicoEditarNegociacao,
+  definirDisciplinasNegociacao as servicoDefinirDisciplinasNegociacao,
+  registrarVersaoExterna as servicoRegistrarVersaoExterna,
   registrarAtividade,
   registrarInteracaoManual as servicoRegistrarInteracaoManual,
   comProspeccaoAtivaUnica,
@@ -95,8 +106,7 @@ const idResultadoOuInput = (d: unknown, i: unknown): string | undefined =>
   ((d ?? i) as { id?: string } | undefined)?.id;
 const rev = () => {
   revalidatePath("/comercial");
-  revalidatePath("/comercial/prospeccao");
-  revalidatePath("/comercial/negociacoes");
+  revalidatePath("/comercial/funil");
   revalidatePath("/comercial/propostas");
   revalidatePath("/comercial/parceiros");
 };
@@ -119,6 +129,18 @@ async function validarParceiroId(parceiroId: string | undefined): Promise<string
 }
 
 /**
+ * O formulário fala `campanhaId`, mas a coluna do `Lead` é `campaignId`. Espalhar o payload cru no
+ * `data` do Prisma dá `Unknown argument campanhaId` — falha SEMPRE, porque o diálogo manda a chave
+ * mesmo sem campanha (`""`). Mesma checagem de existência de `validarParceiroId`.
+ */
+async function validarCampanhaId(campanhaId: string | undefined): Promise<string | null> {
+  if (!campanhaId) return null;
+  const existe = await prisma.campanha.findUnique({ where: { id: campanhaId }, select: { id: true } });
+  if (!existe) throw new ActionError("Campanha não encontrada.");
+  return campanhaId;
+}
+
+/**
  * F3.8: `clienteId` só chega aqui quando o usuário aceitou o sinal de reativação e escolheu
  * "vincular" — o formulário nunca deixa digitar um id à mão. Mesmo assim valida a existência
  * antes de gravar, mesmo padrão defensivo de `validarParceiroId`: Server Action aceita payload
@@ -136,16 +158,19 @@ async function validarClienteId(clienteId: string | undefined): Promise<string |
 export const criarLead = defineAction(
   { ...base, acao: "criar-lead", entidade: "Lead", schema: criarLeadSchema, entidadeId: idResultadoOuInput },
   async (i, ctx) => {
+    const { campanhaId: campanhaInformada, ...campos } = i;
     const parceiroId = await validarParceiroId(i.parceiroId);
     const clienteId = await validarClienteId(i.clienteId);
+    const campaignId = await validarCampanhaId(campanhaInformada);
     const lead = await comProspeccaoAtivaUnica(() =>
       prisma.lead.create({
         data: {
-          ...i,
+          ...campos,
           email: i.email || null,
           valorEstimado: i.valorEstimado,
           parceiroId,
           clienteId,
+          campaignId,
           temperatura: i.temperatura ?? null,
         },
       }),
@@ -164,8 +189,9 @@ export const criarLead = defineAction(
 export const editarLead = defineAction(
   { ...base, acao: "editar-lead", entidade: "Lead", schema: editarLeadSchema, entidadeId: idResultadoOuInput },
   async (i) => {
-    const { id, ...rest } = i;
+    const { id, campanhaId: campanhaInformada, ...rest } = i;
     const parceiroId = await validarParceiroId(rest.parceiroId);
+    const campaignId = await validarCampanhaId(campanhaInformada);
     // Editar tambem passa pela guarda: trocar a empresa de um lead pode colidir com uma
     // prospeccao ativa que ja exista naquela empresa, exatamente como criar do zero.
     await comProspeccaoAtivaUnica(() =>
@@ -178,6 +204,7 @@ export const editarLead = defineAction(
           ...rest,
           email: rest.email || null,
           parceiroId,
+          campaignId,
           // null EXPLÍCITO: é o que permite limpar a classificação. `undefined` faria o Prisma
           // ignorar o campo, e "voltar para não classificado" seria um no-op silencioso.
           temperatura: rest.temperatura ?? null,
@@ -555,6 +582,28 @@ export const criarPropostaDeLead = defineAction(
   },
 );
 
+/**
+ * ADR-0006: "Nova proposta" de um lead abre a COMPOSTA. Garante cliente e negociação (mesmas
+ * regras da proposta do editor antigo) e devolve a negociação — é nela que o diálogo de
+ * montagem abre, porque o modelo, a obra e as disciplinas só a tela sabe.
+ */
+export const prepararNegociacaoDoLead = defineAction(
+  {
+    ...base,
+    acao: "preparar-negociacao-lead",
+    entidade: "Negociacao",
+    schema: prepararNegociacaoDoLeadSchema,
+    entidadeId: idResultadoOuInput,
+  },
+  async (i, { user }) => {
+    const r = await servicoPrepararNegociacaoDoLead(i, user.id);
+    rev();
+    revalidatePath(`/comercial/${r.leadId}`);
+    if (r.criouCliente) revalidatePath("/clientes");
+    return { id: r.negociacaoId };
+  },
+);
+
 /** Salva itens/condições e grava versão (snapshot). */
 export const salvarProposta = defineAction(
   {
@@ -635,6 +684,8 @@ export const mudarStatusProposta = defineAction(
     if (i.status === "aceita") {
       throw new ActionError("Use a ação de aceitar (gera o projeto).");
     }
+    // ADR-0006: composta com impedimento não vira "enviada" — o link dela responderia 404.
+    if (i.status === "enviada") await garantirPropostaEnviavel(i.id);
     const r = await servicoMudarStatusProposta(
       {
         id: i.id,
@@ -663,10 +714,27 @@ export const enviarPropostaEmail = defineAction(
       include: { cliente: true, itens: true },
     });
     if (!p) throw new ActionError("Proposta não encontrada.");
+    if (p.formato === "externa") {
+      throw new ActionError("Proposta externa não tem link público — envie o PDF ao cliente por fora.");
+    }
     if (!p.cliente.email) throw new ActionError("Cliente sem e-mail cadastrado.");
+    // ADR-0006: o e-mail leva o link público; se o documento tem impedimento o link responde
+    // 404, então recusa ANTES de mandar (depois não dá para desmandar).
+    if (p.formato === "composta") await garantirPropostaEnviavel(p.id);
 
     const url = `${process.env.APP_URL ?? ""}/a/proposta/${p.token}`;
-    const total = p.itens.reduce((s, it) => s + Number(it.valor), 0);
+    // Composta: o total é o da versão vigente (com desconto). A soma dos itens, que o editor
+    // antigo usa aqui, ignoraria o desconto e o e-mail diria um valor maior que o da proposta.
+    const vigente =
+      p.formato === "composta"
+        ? await prisma.propostaVersao.findFirst({
+            where: { propostaId: p.id },
+            orderBy: { numero: "desc" },
+            select: { valorVersao: true },
+          })
+        : null;
+    const total =
+      vigente?.valorVersao != null ? Number(vigente.valorVersao) : p.itens.reduce((s, it) => s + Number(it.valor), 0);
     const ok = await enviarEmailTemplate(p.cliente.email, "proposta-cliente", {
       nomeCliente: p.cliente.nome,
       numero: p.numero,
@@ -697,6 +765,22 @@ export const enviarPropostaEmail = defineAction(
  * ACEITE: cria o projeto com as disciplinas dos itens (valores incluídos),
  * cria os canais de chat e notifica gestores. Sem redigitação.
  */
+/** Registra a versão enviada de uma proposta montada fora do sistema (ADR-0005). */
+export const registrarVersaoExterna = defineAction(
+  {
+    ...base,
+    acao: "registrar-versao-externa",
+    entidade: "Proposta",
+    schema: registrarVersaoExternaSchema,
+    entidadeId: (d, i) => (d as { propostaId?: string } | undefined)?.propostaId ?? (i as { propostaId?: string }).propostaId,
+  },
+  async (i, { user }) => {
+    const r = await servicoRegistrarVersaoExterna(i, user.id);
+    rev();
+    return r;
+  },
+);
+
 export const aceitarProposta = defineAction(
   {
     ...base,
@@ -772,6 +856,60 @@ export const reabrirNegociacao = defineAction(
   },
   async (i, { user }) => {
     const r = await servicoReabrirNegociacao(i.negociacaoId, user.id);
+    rev();
+    return r;
+  },
+);
+
+/** Disciplinas de interesse da negociação, pela ficha do card — substitui o conjunto (service). */
+export const definirDisciplinasNegociacao = defineAction(
+  {
+    ...base,
+    acao: "definir-disciplinas-negociacao",
+    entidade: "Negociacao",
+    schema: definirDisciplinasNegociacaoSchema,
+    entidadeId: (_d, i) => (i as { negociacaoId: string }).negociacaoId,
+    capturarAntes: async (i) =>
+      prisma.negociacaoDisciplina.findMany({
+        where: { negociacaoId: (i as { negociacaoId: string }).negociacaoId },
+        select: { disciplinaId: true, valor: true },
+      }),
+  },
+  async (i) => {
+    const r = await servicoDefinirDisciplinasNegociacao(i);
+    rev();
+    return r;
+  },
+);
+
+/** Dados da negociação pela ficha do card (ADR-0004) — regras em `editarNegociacao` (service). */
+export const editarNegociacao = defineAction(
+  {
+    ...base,
+    acao: "editar-negociacao",
+    entidade: "Negociacao",
+    schema: editarNegociacaoSchema,
+    entidadeId: idResultadoOuInput,
+    capturarAntes: async (i) =>
+      prisma.negociacao.findUnique({
+        where: { id: (i as { id: string }).id },
+        select: {
+          titulo: true,
+          responsavelId: true,
+          temperatura: true,
+          valorEstimado: true,
+          previsaoFechamento: true,
+          probabilidade: true,
+          probabilidadeOverride: true,
+          parceiroId: true,
+          campaignId: true,
+          tipoEmpreendimentoId: true,
+          areaM2: true,
+        },
+      }),
+  },
+  async (i) => {
+    const r = await servicoEditarNegociacao(i);
     rev();
     return r;
   },
@@ -970,9 +1108,13 @@ export const moverProspeccao = defineAction(
   },
   async (i, { user }) => {
     if (exigeQualificacao(i.para)) {
-      const r = await servicoQualificarProspeccao({ leadId: i.leadId, autorId: user.id });
+      const r = await servicoQualificarPeloBoard({
+        leadId: i.leadId,
+        autorId: user.id,
+        confirmarReativacao: i.confirmarReativacao ?? false,
+      });
       rev();
-      return { id: r.leadId, qualificada: true };
+      return { id: r.leadId, qualificada: true, negociacaoId: r.negociacaoId };
     }
     const r = await servicoMoverProspeccao({ leadId: i.leadId, para: i.para });
     rev();
@@ -1003,6 +1145,20 @@ export async function obterTemplatosNotas() {
  * piso de quem abre o diálogo que chama isto), porque devolve nome + contagem de projetos de
  * empresas que talvez não apareçam para todo mundo.
  */
+/**
+ * Leads indicados por um parceiro — busca sob demanda ao expandir a linha na tela de gestão
+ * (F7.11). Fora de `defineAction` de propósito, mesmo padrão de `buscarEmpresaParaVincularAction`:
+ * é leitura, não mutação. `comercial:gerir` porque a página `/comercial/parceiros` já exige gerir.
+ */
+export async function leadsDoParceiroAction(parceiroId: string) {
+  "use server";
+  const { requireUser } = await import("@/lib/session");
+  const { can } = await import("@/lib/permissions");
+  const user = await requireUser();
+  if (!(await can(user, "comercial", "gerir"))) return [];
+  return leadsDoParceiro(parceiroId);
+}
+
 export async function buscarEmpresaParaVincularAction(input: unknown) {
   "use server";
   const { requireUser } = await import("@/lib/session");

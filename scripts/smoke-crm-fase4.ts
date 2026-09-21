@@ -229,8 +229,9 @@ async function main() {
     "busca informa as demandas ativas para a escolha explícita da UI",
     buscaEmpresa.find((c) => c.id === clienteId)?.prospeccoesAtivas.some((lead) => lead.id === r1.leadId) === true,
   );
-  const buscaVazia = await buscarEmpresaParaProspeccaoRapida("ab");
-  check("busca de empresa com menos de 3 caracteres não roda", buscaVazia.length === 0);
+  // Mínimo é 2 caracteres desde 10efa05f ("Sá", "TJ" são nomes inteiros) — 1 caractere não roda.
+  const buscaVazia = await buscarEmpresaParaProspeccaoRapida("a");
+  check("busca de empresa com menos de 2 caracteres não roda", buscaVazia.length === 0);
 
   const buscaContato = await buscarContatoNaEmpresa(clienteId, `${TAG}_Contato1`);
   check(

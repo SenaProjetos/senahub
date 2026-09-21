@@ -1,16 +1,22 @@
 import { ArrowRightLeft, Copy, Eye, RotateCcw } from "lucide-react";
 
 import { limparSeparadores, type AcaoItem } from "@/components/ui/acoes";
-import type { EstagioNegociacao, StatusProspeccao } from "@/generated/prisma/client";
+import type { EstagioNegociacao } from "@/generated/prisma/client";
+import {
+  COLUNA_FUNIL_LABEL,
+  COLUNAS_FUNIL,
+  colunaDoCard,
+  decidirSoltura,
+  type CardRef,
+} from "@/modules/comercial/funil";
 import { ESTAGIO_LABEL, ESTAGIOS_ENCERRADOS, transicaoPermitida } from "@/modules/comercial/jornada";
-import { COLUNAS_PROSPECCAO, STATUS_PROSPECCAO_LABEL } from "@/modules/comercial/prospeccao";
 
 /**
- * Ações de um card dos quadros do comercial (prospecção e negociações) — **puro**, sem React e sem
- * I/O. O mesmo array alimenta o menu de contexto do card e o `...` (ADR-0002, regra 2).
+ * Ações de um card do funil comercial (prospecção + negociação, ADR-0004) — **puro**, sem React e
+ * sem I/O. O mesmo array alimenta o menu de contexto do card e o `...` (ADR-0002, regra 2).
  *
- * Os quadros não têm seleção de vários cards (arrastar e selecionar disputam o mesmo gesto), então
- * o menu age sempre no card clicado.
+ * O funil não tem seleção de vários cards (arrastar e selecionar disputam o mesmo gesto), então o
+ * menu age sempre no card clicado.
  */
 
 export const ACAO_ABRIR = "abrir";
@@ -27,29 +33,26 @@ export function destinoDoMover(idDaAcao: string): string | null {
 export type DestinoQuadro = { id: string; rotulo: string; desabilitado?: string };
 
 /**
- * Destinos do "Mover para" de uma negociação. Os que a jornada não permite ficam desabilitados,
- * com a mesma frase que o servidor devolveria (regra 5 da ADR-0002).
+ * Destinos do "Mover para" de um card do funil: as demais colunas. O que o arrasto recusaria fica
+ * desabilitado com a mesma frase (regra 5 da ADR-0002) — a decisão é a de `decidirSoltura`, a mesma
+ * que o arrasto usa, para o menu e o arrasto nunca divergirem. Dentro da negociação, a matriz da
+ * jornada também vale: o servidor recusaria o salto, então o menu já diz por quê.
  */
-export function destinosDeNegociacao(
-  atual: EstagioNegociacao,
-  /** As colunas do quadro, na ordem (a constante de origem vive em `queries.ts`, só de servidor). */
-  colunas: readonly EstagioNegociacao[],
-): DestinoQuadro[] {
-  return colunas.filter((e) => e !== atual).map((e) => ({
-    id: e,
-    rotulo: ESTAGIO_LABEL[e],
-    desabilitado: transicaoPermitida(atual, e)
-      ? undefined
-      : `Não é possível mover de "${ESTAGIO_LABEL[atual]}" para "${ESTAGIO_LABEL[e]}".`,
-  }));
-}
-
-/** Prospecção não tem matriz de transições: o servidor recusa o que não cabe (ex.: já qualificada). */
-export function destinosDeProspeccao(atual: StatusProspeccao): DestinoQuadro[] {
-  return COLUNAS_PROSPECCAO.filter((s) => s !== atual).map((s) => ({
-    id: s,
-    rotulo: STATUS_PROSPECCAO_LABEL[s],
-  }));
+export function destinosDoFunil(card: CardRef): DestinoQuadro[] {
+  const origem = colunaDoCard(card);
+  return COLUNAS_FUNIL.filter((c) => c !== origem).map((coluna) => {
+    const soltura = decidirSoltura(card, coluna);
+    let desabilitado: string | undefined;
+    if (soltura.acao === "recusar") desabilitado = soltura.mensagem;
+    else if (
+      soltura.acao === "mover-negociacao" &&
+      card.tipo === "NEGOCIACAO" &&
+      !transicaoPermitida(card.estagio, soltura.para)
+    ) {
+      desabilitado = `Não é possível mover de "${ESTAGIO_LABEL[card.estagio]}" para "${ESTAGIO_LABEL[soltura.para]}".`;
+    }
+    return { id: coluna, rotulo: COLUNA_FUNIL_LABEL[coluna], desabilitado };
+  });
 }
 
 /** Negociação encerrada volta ao estágio anterior sozinha; é o mesmo critério do botão do card. */
@@ -58,7 +61,7 @@ export function negociacaoPodeReabrir(estagio: EstagioNegociacao): boolean {
 }
 
 export function itensDeCardQuadro(opts: {
-  /** Só a prospecção tem página de detalhe; a negociação abre pelo próprio card. */
+  /** Ficha do card (`?card=TIPO:id`, na mesma tela); sem ela o "Abrir" some. */
   href?: string;
   destinos: readonly DestinoQuadro[];
   podeReabrir?: boolean;

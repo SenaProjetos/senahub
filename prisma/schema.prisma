@@ -1051,13 +1051,13 @@ enum StatusDisciplina {
 
 /// Catálogo configurável de disciplinas (Estrutural, Hidráulica…).
 model DisciplinaCatalogo {
-  id        String  @id @default(cuid())
-  nome      String  @unique
+  id           String   @id @default(cuid())
+  nome         String   @unique
   /// Sigla usada na nomenclatura de arquivos (ex.: ELE, ARQ). Opcional/única.
-  codigo    String? @unique
+  codigo       String?  @unique
   /// Número-base da disciplina para a nomenclatura de arquivos (ex.: Estrutural = 4000 →
   /// folhas 4001, 4002…). null = sem bloco; a numeração da folha começa em 1.
-  numeracao Int?
+  numeracao    Int?
   /// Fim da faixa (inclusive) — NÃO dá pra inferir do próximo `numeracao` cadastrado: as
   /// faixas não são blocos uniformes (Arquitetura=3000 tem só 100 números até Acústica=3100;
   /// Elétrico=5000 tem 4 sub-faixas de 100 dentro do próprio bloco). Sem `numeracaoFim`, o
@@ -1065,28 +1065,30 @@ model DisciplinaCatalogo {
   /// como saber onde uma faixa termina. null = sem faixa definida, mesmo com `numeracao` setado.
   numeracaoFim Int?
   /// Grupo de exibição no catálogo (CIVIL, ELÉTRICA…). null = "Outras".
-  categoria String?
+  categoria    String?
   /// Chave da galeria de ícones (lucide, ex.: "Zap"). null = derivar do nome.
-  icone     String?
+  icone        String?
   /// SVG custom já sanitizado (upload). Precede `icone` na resolução do ícone.
-  iconeSvg  String?
-  ativo     Boolean @default(true)
-  ordem     Int     @default(0)
+  iconeSvg     String?
+  ativo        Boolean  @default(true)
+  ordem        Int      @default(0)
   /// Siglas alternativas que o motor de nomenclatura reconhece como esta disciplina (ex.: HID
   /// aceita HDR, ESG). Não é a sigla oficial — essa continua sendo `codigo`. Editável na tela;
   /// carga inicial em `20260915170000_motor_nomenclatura_sinonimos_extensoes` (D2 da spec
   /// `docs/superpowers/specs/2026-09-15-motor-nomenclatura.md`).
-  sinonimos String[] @default([])
+  sinonimos    String[] @default([])
 
-  padroes          PadraoTecnico[]
+  padroes           PadraoTecnico[]
   /// Itens de proposta que já apontam para este catálogo (CRM F1.19).
-  propostaItens    PropostaItem[]
+  propostaItens     PropostaItem[]
+  clausulasProposta ClausulaProposta[]
+  secoesProposta    PropostaSecao[]
   /// Itens de tabela de preço que já apontam para este catálogo (CRM F1.20).
-  itensTabelaPreco ItemTabelaPreco[]
+  itensTabelaPreco  ItemTabelaPreco[]
   /// Disciplinas de projeto que já apontam para este catálogo (CRM F1.19c).
-  disciplinas      Disciplina[]
+  disciplinas       Disciplina[]
   /// Negociações que já apontam para este catálogo (CRM F2.4).
-  negociacoes      NegociacaoDisciplina[]
+  negociacoes       NegociacaoDisciplina[]
 
   @@map("disciplina_catalogo")
 }
@@ -1376,29 +1378,29 @@ enum EscopoLinkArquivos {
 }
 
 model LinkPublicoArquivos {
-  id            String             @id @default(cuid())
+  id             String             @id @default(cuid())
   /// Sem `@unique`: um projeto pode ter vários links (cliente, prefeitura, consultor…),
   /// cada um com seu escopo e sua validade.
-  projetoId     String
-  projeto       Projeto            @relation(fields: [projetoId], references: [id], onDelete: Cascade)
-  token         String             @unique
+  projetoId      String
+  projeto        Projeto            @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  token          String             @unique
   /// Rótulo para diferenciar os links do mesmo projeto ("Prefeitura", "Cliente final").
-  nome          String?
-  escopo        EscopoLinkArquivos @default(disciplinas)
-  ativo         Boolean            @default(true)
+  nome           String?
+  escopo         EscopoLinkArquivos @default(disciplinas)
+  ativo          Boolean            @default(true)
   /// Data/hora de expiração (opcional). Nulo = não expira.
-  expiraEm      DateTime?
+  expiraEm       DateTime?
   /// IDs das disciplinas liberadas no link. Vazio = nenhuma disciplina exposta.
   /// Só vale para escopo=disciplinas.
-  disciplinaIds String[]           @default([])
+  disciplinaIds  String[]           @default([])
   /// Uploads escolhidos a dedo. Só vale para escopo=selecao.
-  uploadIds     String[]           @default([])
+  uploadIds      String[]           @default([])
   /// Pastas por fase na página do cliente. Desligado, ele vê disciplina → formato direto —
   /// útil quando o acervo ainda não tem fase preenchida e quase tudo cairia em "Sem fase".
-  agruparPorFase Boolean           @default(true)
-  criadoPorId   String?
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  agruparPorFase Boolean            @default(true)
+  criadoPorId    String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
   @@index([projetoId])
   @@map("link_publico_arquivos")
@@ -2432,14 +2434,14 @@ model Disciplina {
   /// pontos de leitura que ainda usam `.nome` falham em COMPILAÇÃO, não em runtime.
   /// Fica como fallback enquanto houver disciplina sem FK — a consolidação das 6 grafias
   /// pendentes é a F1.21. Deprecado para escrita nova; ainda lido.
-  disciplinaTextoLegado String              @map("nome")
+  disciplinaTextoLegado  String              @map("nome")
   /// NULLABLE de propósito: em produção há 18 grafias distintas, 12 batendo exato com o
   /// catálogo e 6 precisando de tratamento manual (3 colapsam, 3 são string composta —
   /// ver `docs/crm/03-migracao.md` §5). Item que não resolve fica sem FK — é estado
   /// esperado, não falha. Relação chamada `catalogo`, não `disciplina`, porque o próprio
   /// model já se chama `Disciplina` — `disciplina.disciplina` seria ambíguo de ler.
-  disciplinaId          String?
-  catalogo              DisciplinaCatalogo? @relation(fields: [disciplinaId], references: [id])
+  disciplinaId           String?
+  catalogo               DisciplinaCatalogo? @relation(fields: [disciplinaId], references: [id])
   /// Sobrescreve a faixa de numeração do catálogo global SÓ para este projeto (motor de
   /// nomenclatura reconhecendo disciplina pela numeração do arquivo, 2026-09-16). null nos
   /// dois = usa a faixa do catálogo global; setar um sem o outro não faz sentido — quem
@@ -4633,6 +4635,161 @@ model PropostaSequencia {
   @@map("proposta_sequencia")
 }
 
+/// Como a proposta e montada — substitui o booleano `externa` (ADR-0006).
+///
+/// Enum em vez de mais um booleano porque agora sao TRES formas, e duas flags booleanas
+/// permitiriam o estado impossivel "externa e composta". Valores em minuscula seguindo o resto
+/// do schema (`StatusProposta`, `TipoCondicao`), embora o ADR-0006 os cite em maiuscula.
+enum FormatoProposta {
+  /// Montada no editor de itens/condicoes — tudo que existia antes do ADR-0005.
+  legado
+  /// Montada fora (Word->PDF) e anexada; sem link publico (ADR-0005).
+  externa
+  /// Montada no sistema a partir de modelo + clausulas + plano de pagamento (ADR-0006).
+  composta
+}
+
+/// Secoes do documento da proposta composta, na ordem em que aparecem.
+///
+/// Tabela de valores, parcelas, dados bancarios, validade e assinatura NAO sao secoes: sao
+/// geradas dos dados (ADR-0006). So entra aqui o que e texto de clausula.
+enum SecaoProposta {
+  descricao
+  /// Uma por disciplina contratada.
+  escopo
+  valor_observacao
+  pagamento_observacao
+  nao_incluso
+  competencia_contratada
+  competencia_contratante
+  documentos
+  alteracoes
+}
+
+/// Modelo de proposta composta: quais secoes, em que ordem, com que clausulas por padrao.
+///
+/// Mantido so pela gestao (`comercial:modelos`). As secoes e o plano sugerido ficam em JSON
+/// porque sao uma LISTA ORDENADA de referencias que so este modelo le — tabela filha daria
+/// duas linhas de migracao para cada ajuste de ordem, sem ninguem para consulta-las por fora.
+model ModeloProposta {
+  id        String  @id @default(cuid())
+  /// Estavel, para o seed ser create-only (nao sobrescreve o que a gestao editou depois).
+  slug      String  @unique
+  nome      String
+  /// Familia de servico: "multidisciplinar", "estrutural", "laudo", "pci"... texto livre porque
+  /// e rotulo de organizacao da gestao, nao regra de sistema.
+  familia   String?
+  descricao String?
+
+  /// `[{ secao, titulo?, clausulaSlug?, ordem }]` — as clausulas padrao da familia.
+  secoesJson    Json
+  /// Plano de pagamento sugerido: `[{ descricao, percentual, prazo? }]`. Sugestao — a proposta
+  /// copia e pode mudar; quem valida a soma e `calcularParcelas` (G1), nao o banco.
+  pagamentoJson Json?
+  /// Validade padrao em dias (a proposta grava a data absoluta em `Proposta.validade`).
+  validadeDias  Int   @default(30)
+
+  ativo     Boolean    @default(true)
+  propostas Proposta[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ativo])
+  @@map("modelo_proposta")
+}
+
+/// Biblioteca de clausulas: o texto padrao de cada secao, com variantes.
+///
+/// Uma clausula vale para (secao, disciplina?, UF?); a escolha e `escolherClausula`
+/// (`modules/comercial/proposta-composta/clausulas.ts`, pura e testada), que NUNCA escolhe
+/// variante de outra UF — e o que impede o caso real de obra em AL citar norma de PE.
+model ClausulaProposta {
+  id     String        @id @default(cuid())
+  /// Estavel entre ambientes: o seed e create-only por `slug` e nao pisa em texto editado.
+  slug   String        @unique
+  secao  SecaoProposta
+  /// Nome interno, para a gestao achar na lista (nao sai no documento).
+  titulo String
+  /// Texto com tokens do catalogo de `proposta-composta/campos.ts` (`[Cidade]`, `[TotalExtenso]`).
+  texto  String
+
+  /// Escopo por disciplina; `null` = vale para a secao inteira.
+  disciplinaId String?
+  disciplina   DisciplinaCatalogo? @relation(fields: [disciplinaId], references: [id])
+  /// Variante por estado (norma, concessionaria); `null` = generica, vale em qualquer UF.
+  uf           String?             @db.Char(2)
+
+  ordem Int     @default(0)
+  ativo Boolean @default(true)
+
+  secoesDePropostas PropostaSecao[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([secao, ativo])
+  @@index([disciplinaId])
+  @@map("clausula_proposta")
+}
+
+/// Clausula COPIADA para dentro de uma proposta — e o texto que o cliente le.
+///
+/// Copia, e nao referencia: o texto e editavel por proposta (decisao do dono), e uma referencia
+/// faria a edicao da biblioteca reescrever proposta ja enviada. `clausulaId` fica so para
+/// rastrear a origem (e por isso e `onDelete: SetNull` — apagar da biblioteca nao pode apagar
+/// texto de proposta).
+model PropostaSecao {
+  id         String   @id @default(cuid())
+  propostaId String
+  proposta   Proposta @relation(fields: [propostaId], references: [id], onDelete: Cascade)
+
+  secao  SecaoProposta
+  /// Titulo exibido; `null` usa o rotulo padrao da secao.
+  titulo String?
+  texto  String
+  ordem  Int           @default(0)
+
+  /// De qual disciplina e este escopo (so nas secoes `escopo`).
+  disciplinaId String?
+  disciplina   DisciplinaCatalogo? @relation(fields: [disciplinaId], references: [id])
+  /// Origem na biblioteca, so para rastreio.
+  clausulaId   String?
+  clausula     ClausulaProposta?   @relation(fields: [clausulaId], references: [id], onDelete: SetNull)
+
+  @@index([propostaId])
+  @@index([clausulaId])
+  @@index([disciplinaId])
+  @@map("proposta_secao")
+}
+
+/// Parcela do plano de pagamento da proposta composta.
+///
+/// Guarda o PERCENTUAL, nunca o valor: valor e extenso sao calculados por `calcularParcelas`
+/// (G1) a cada renderizacao. Foi o valor escrito a mao que produziu o plano cobrando R$ 4.750
+/// a mais que o total, achado nas 163 propostas.
+///
+/// NAO reaproveita `PropostaCondicao`: aquela tem `valor` obrigatorio e e impressa pela pagina
+/// publica congelada (ADR-21 6) como `tipo === "percentual" ? "N%" : brl(valor)` — uma linha
+/// da composta com valor vazio sairia "R$ 0,00" para o cliente.
+model PropostaParcela {
+  id         String   @id @default(cuid())
+  propostaId String
+  proposta   Proposta @relation(fields: [propostaId], references: [id], onDelete: Cascade)
+
+  /// Marco: "Assinatura do contrato", "Entrega do estudo preliminar".
+  descricao  String
+  /// Percentual do total, maior que 0 e ate 100, 2 casas. A soma tem de fechar 100% — validada
+  /// em `calcularParcelas`, nao por constraint (o editor salva rascunho que ainda nao soma).
+  percentual Decimal @db.Decimal(5, 2)
+  /// Prazo em texto livre ("5 dias apos o aceite", "a vista").
+  prazo      String?
+  ordem      Int     @default(0)
+
+  @@index([propostaId])
+  @@map("proposta_parcela")
+}
+
 model Proposta {
   id         String  @id @default(cuid())
   ano        Int
@@ -4654,17 +4811,37 @@ model Proposta {
   negociacaoId String?
   negociacao   Negociacao? @relation(fields: [negociacaoId], references: [id])
 
-  status      StatusProposta @default(rascunho)
-  areaM2      Decimal?       @db.Decimal(12, 2)
-  validade    DateTime?      @db.Date
+  status  StatusProposta  @default(rascunho)
+  /// ADR-0005: montada fora do sistema (Word→PDF). O PDF de cada envio vive em
+  /// `PropostaVersao.pdfPath`; as linhas por disciplina continuam em `itens` (o aceite cria o
+  /// projeto a partir delas). Não tem link público nem editor — o time envia o PDF por fora.
+  externa Boolean         @default(false)
+  /// Sucessor de `externa` (ADR-0006). Convivem durante a troca em tres passos (expandir ->
+  /// migrar -> contrair): esta migracao so PREENCHE `formato`; quem le continua em `externa`
+  /// ate o passo 2, e a coluna antiga so cai no passo 3, depois do deploy. Enquanto os dois
+  /// existem, `externa` continua sendo a verdade.
+  formato FormatoProposta @default(legado)
+
+  // -- Proposta composta (ADR-0006) --------------------------
+  /// Modelo que originou a composta. `SetNull`: aposentar um modelo nao pode apagar proposta.
+  modeloId     String?         @map("modelo_proposta_id")
+  modelo       ModeloProposta? @relation(fields: [modeloId], references: [id], onDelete: SetNull)
+  /// Dados do objeto da proposta — alimentam os tokens das clausulas (`[Cidade]`, `[UF]`).
+  /// Ficam aqui, e nao no Cliente: a obra e desta proposta, o mesmo cliente tem varias.
+  obraEndereco String?
+  obraCidade   String?
+  obraUF       String?         @db.Char(2)
+
+  areaM2      Decimal?  @db.Decimal(12, 2)
+  validade    DateTime? @db.Date
   observacoes String?
   /// Token do link público (/a/proposta/[token]).
-  token       String         @unique
+  token       String    @unique
   autorId     String
-  autor       User           @relation("PropostaAutor", fields: [autorId], references: [id])
+  autor       User      @relation("PropostaAutor", fields: [autorId], references: [id])
   /// Projeto gerado no aceite.
-  projetoId   String?        @unique
-  projeto     Projeto?       @relation(fields: [projetoId], references: [id])
+  projetoId   String?   @unique
+  projeto     Projeto?  @relation(fields: [projetoId], references: [id])
 
   enviadaEm        DateTime?
   aceitaEm         DateTime?
@@ -4689,6 +4866,9 @@ model Proposta {
 
   itens         PropostaItem[]
   condicoes     PropostaCondicao[]
+  /// Texto da composta (copia da biblioteca) e plano de pagamento em percentual.
+  secoes        PropostaSecao[]
+  parcelas      PropostaParcela[]
   versoes       PropostaVersao[]
   visualizacoes PropostaVisualizacao[]
   documentos    Documento[]
@@ -4710,6 +4890,9 @@ model Proposta {
   /// F6.11: filas da Home ordenadas por envio e validade.
   @@index([status, enviadaEm])
   @@index([status, validade])
+  /// Passo 2 da troca: as rotas publicas passam a filtrar por `formato`.
+  @@index([formato])
+  @@index([modeloId])
   @@map("proposta")
 }
 
@@ -5078,19 +5261,19 @@ model PranchaCatalogo {
 /// extensão fora daqui vira `ExtensaoLida` desconhecida, sem bloquear o envio (ADR-0003, regra 3).
 /// Global — não há versão por projeto.
 model ExtensaoArquivo {
-  id          String   @id @default(cuid())
+  id           String   @id @default(cuid())
   /// Minúscula, sem ponto. `0000.rvt` representa o backup numerado do Revit (`.0001.rvt`…).
-  extensao    String   @unique
-  categoria   String
-  software    String?
-  ehBackup    Boolean  @default(false)
-  ehTemporario Boolean @default(false)
-  ehConteiner Boolean  @default(false)
-  descricao   String?
-  ativo       Boolean  @default(true)
-  ordem       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  extensao     String   @unique
+  categoria    String
+  software     String?
+  ehBackup     Boolean  @default(false)
+  ehTemporario Boolean  @default(false)
+  ehConteiner  Boolean  @default(false)
+  descricao    String?
+  ativo        Boolean  @default(true)
+  ordem        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@map("extensao_arquivo")
 }
@@ -5509,40 +5692,40 @@ model SolicitacaoExclusaoUpload {
 /// âncora estável para apontamentos. Segue o padrão pai/versão já usado por
 /// Documento/DocumentoVersao, DocumentoJuridico/DocJuridicoVersao, Art/ArtVersao etc.
 model DocumentoDisciplina {
-  id           String           @id @default(cuid())
-  disciplinaId String
-  disciplina   Disciplina       @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  id             String           @id @default(cuid())
+  disciplinaId   String
+  disciplina     Disciplina       @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
   /// Chave de AGRUPAMENTO (dedupe/lookup) — NÃO é a identidade. A identidade é `id`, e é
   /// ela que Pendencia referencia; por isso renomear só reescreve esta chave e não
   /// desancora nada. Normalizada como "A/planta.pdf" ou "pasta:<pastaId>/planta.pdf"
   /// porque UNIQUE no Postgres trata NULL como distinto — com `pacote` XOR `pastaId` crus,
   /// a constraint deixaria passar duplicata. Não "simplificar" de volta para colunas soltas.
-  chave        String
+  chave          String
   /// Nome exibido; espelho de Upload.nomeArquivo das suas versões (renomear atualiza os dois).
-  nomeArquivo  String
+  nomeArquivo    String
   /// Título legível ("Planta de forma do pavimento tipo"). Nulo enquanto ninguém preencher —
   /// a tela cai no `nomeArquivo`, que é o comportamento de hoje.
-  titulo       String?
-  descricao    String?
+  titulo         String?
+  descricao      String?
   /// Fase do documento (Anteprojeto/Projeto Básico/Executivo...). Aponta para o catálogo que
   /// a Lista Mestre já usa; a categoria correta (`fase`) é garantida pela UI, não por
   /// constraint — `PranchaCatalogo` guarda as três categorias na mesma tabela.
-  faseId       String?
-  fase         PranchaCatalogo? @relation("DocumentoFase", fields: [faseId], references: [id], onDelete: SetNull)
+  faseId         String?
+  fase           PranchaCatalogo? @relation("DocumentoFase", fields: [faseId], references: [id], onDelete: SetNull)
   /// Tipo de documento (Planta, Detalhe, Memorial...). Mesmo catálogo de `fase`, categoria
   /// `tipo`. Preenchido pelo motor de nomenclatura (lido do nome) ou à mão — nunca inventado.
-  tipoId       String?
-  tipo         PranchaCatalogo? @relation("DocumentoTipo", fields: [tipoId], references: [id], onDelete: SetNull)
+  tipoId         String?
+  tipo           PranchaCatalogo? @relation("DocumentoTipo", fields: [tipoId], references: [id], onDelete: SetNull)
   /// Número da prancha lido do nome (ex.: 4001 em "260020-EST-EX-4001-DET"). Não confundir com
   /// `Prancha.numeracao`, que é o registro da Lista Mestre — este é metadado do arquivo enviado.
-  numeroPrancha Int?
+  numeroPrancha  Int?
   /// Tamanho do papel (A0–A4). Mesmo catálogo de `fase`, categoria `folha`. Alimenta a Lista
   /// Mestre; preenchido de preferência pela leitura das dimensões do PDF (F4), não pelo nome.
   tamanhoPapelId String?
   tamanhoPapel   PranchaCatalogo? @relation("DocumentoTamanhoPapel", fields: [tamanhoPapelId], references: [id], onDelete: SetNull)
-  statusId     String?
-  status       DocumentoStatus? @relation(fields: [statusId], references: [id], onDelete: SetNull)
-  createdAt    DateTime         @default(now())
+  statusId       String?
+  status         DocumentoStatus? @relation(fields: [statusId], references: [id], onDelete: SetNull)
+  createdAt      DateTime         @default(now())
 
   /// Documento que absorveu este (merge por nome-base, M4). Quando preenchido, esta linha
   /// é um APELIDO histórico: nada novo se pendura nela, mas ela continua existindo para
@@ -6392,21 +6575,21 @@ model Art {
   disciplina   Disciplina? @relation(fields: [disciplinaId], references: [id], onDelete: SetNull)
 
   /// "ART" (CREA) | "RRT" (CAU) | "TRT" (CFT).
-  tipo      String    @default("ART")
+  tipo                  String    @default("ART")
   /// Número do documento no conselho.
-  numero    String
-  descricao String?
+  numero                String
+  descricao             String?
   /// rascunho | registrada | baixada | cancelada | substituida
-  situacao  String    @default("registrada")
-  emitidaEm DateTime? @db.Date
+  situacao              String    @default("registrada")
+  emitidaEm             DateTime? @db.Date
   /// Valor pago da taxa (controle de custo do projeto).
-  valor     Decimal?  @db.Decimal(10, 2)
+  valor                 Decimal?  @db.Decimal(10, 2)
   /// Quem paga a taxa: empresa | reembolso (empresa paga, cliente reembolsa) | cliente (paga direto).
-  custeio   String    @default("empresa")
+  custeio               String    @default("empresa")
   /// Vínculo com o Financeiro (mesmo padrão de ServicoTerceirizado): despesa da taxa e, quando
   /// `custeio = reembolso`, a receita do reembolso. Sincronizados por `sincronizarLancamentosArt`.
-  lancamentoId          String? @unique
-  reembolsoLancamentoId String? @unique
+  lancamentoId          String?   @unique
+  reembolsoLancamentoId String?   @unique
 
   /// Responsável técnico: usuário do sistema (preferencial) OU nome/registro avulsos.
   responsavelUserId   String?
@@ -7177,27 +7360,27 @@ model CustoPrecoHistorico {
 /// — metade das ações de arquivo audita `entidadeId = disciplinaId`, o que não liga ao documento.
 /// Regras e rótulos em `modules/uploads/historico/eventos.ts`.
 model DocumentoEvento {
-  id          String              @id @default(cuid())
-  documentoId String
-  documento   DocumentoDisciplina @relation(fields: [documentoId], references: [id], onDelete: Cascade)
-  uploadId    String?
-  tipo        String
+  id               String              @id @default(cuid())
+  documentoId      String
+  documento        DocumentoDisciplina @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  uploadId         String?
+  tipo             String
   /// `alteracao` | `acesso`. Acesso só aparece para quem tem `arquivos:ver_acessos`.
-  categoria   String
+  categoria        String
   /// `interno` | `link_publico`.
-  origem      String              @default("interno")
+  origem           String              @default("interno")
   /// Escalar (sem relação): o nome é resolvido na leitura e `null` = acesso externo.
-  userId      String?
-  linkId      String?
-  detalhe     Json?
+  userId           String?
+  linkId           String?
+  detalhe          Json?
   /// Acessos repetidos (mesma pessoa/link, arquivo e ação na mesma janela de 10 min) viram UMA
   /// linha: o upsert nesta chave única é o que torna o agrupamento atômico. Nulo em alteração.
-  chaveAgrupamento String?        @unique
-  quantidade  Int                 @default(1)
+  chaveAgrupamento String?             @unique
+  quantidade       Int                 @default(1)
   /// Linha importada do AuditLog pelo backfill — unique garante reexecução sem duplicar.
-  auditLogId  String?             @unique
-  createdAt   DateTime            @default(now())
-  ultimoEm    DateTime            @default(now())
+  auditLogId       String?             @unique
+  createdAt        DateTime            @default(now())
+  ultimoEm         DateTime            @default(now())
 
   @@index([documentoId, createdAt])
   @@map("documento_evento")

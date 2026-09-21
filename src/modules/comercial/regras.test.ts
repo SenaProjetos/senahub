@@ -116,7 +116,7 @@ describe("1 — follow-up vencido", () => {
     });
     const hrefs = regraFollowUpVencido.avaliar(c).map((o) => o.href);
     expect(hrefs).toContain("/comercial/L1");
-    expect(hrefs).toContain("/comercial/negociacoes?negociacao=N1");
+    expect(hrefs).toContain("/comercial/funil?card=NEGOCIACAO:N1");
   });
 });
 

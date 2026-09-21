@@ -27,8 +27,8 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 O menu do **botão direito** (no celular, **tocar e segurar**) chegou às principais listas do
 sistema: diretório de **Arquivos**, **Aprovações**, **Clientes**, **Usuários**, **Lançamentos** e
 **Contas a pagar/receber**, **Campanhas**, **Parceiros**, **Certidões**, **Acessos**, **Catálogo de
-disciplinas**, a planilha do **Orçamento**, os quadros de **Prospecção** e **Negociações** e a
-**Agenda**. Tudo o que está no menu continua também no botão **⋯** da linha ou do cartão.
+disciplinas**, a planilha do **Orçamento**, o **funil** do Comercial e a **Agenda**. Tudo o que
+está no menu continua também no botão **⋯** da linha ou do cartão.
 
 - **Ações em lote.** Marque várias linhas na caixa de seleção e clique com o botão direito em uma
   delas (ou use a barra que aparece na parte de baixo da tela): a ação vale para **todas as
@@ -43,12 +43,12 @@ disciplinas**, a planilha do **Orçamento**, os quadros de **Prospecção** e **
   a seleção passa a ser só ela (como no explorador de arquivos do Windows).
 - **Ação que não serve para vários** (editar, abrir detalhes) aparece **esmaecida, com o motivo
   escrito** — nunca some sem explicação.
-- **Quadros e Agenda.** Nos quadros de **Prospecção** e **Negociações** o menu do cartão tem
-  *Mover para* (os destinos que a jornada não permite ficam esmaecidos, com o motivo), *Reabrir* e
-  *Copiar nome*. Na **Agenda**, clicar com o botão direito num dia oferece *Novo compromisso neste
-  dia*, e cada compromisso ganhou *Editar*, *Duplicar* e *Excluir* — que agora pede confirmação.
-- **No celular**, arrastar um cartão de Prospecção/Negociações pela alça agora arrasta o cartão em
-  vez de rolar a página.
+- **Funil e Agenda.** No **funil** do Comercial o menu do cartão tem *Abrir*, *Mover para* (os
+  destinos que o funil não permite ficam esmaecidos, com o motivo), *Reabrir* e *Copiar nome*. Na
+  **Agenda**, clicar com o botão direito num dia oferece *Novo compromisso neste dia*, e cada
+  compromisso ganhou *Editar*, *Duplicar* e *Excluir* — que agora pede confirmação.
+- **No celular**, arrastar um cartão do funil pela alça agora arrasta o cartão em vez de rolar a
+  página.
 
 Detalhes em [Comercial](clientes-comercial/comercial.md), [Agenda](projetos/agenda.md),
 [Lançamentos](financeiro/lancamentos.md) e nas demais páginas de cada tela.
@@ -71,6 +71,28 @@ menu normal do navegador, então copiar, colar e abrir em nova aba continuam com
 entrar em **Tarefas** pela primeira vez, um pequeno guia aponta o novo menu.
 
 Detalhes em [Tarefas](projetos/tarefas.md) e em [Projetos](projetos/projetos.md).
+
+---
+
+## Proposta montada no sistema, com texto padrão e parcelas calculadas
+
+**Nova proposta** agora monta a proposta a partir de um **modelo** — com o texto de cada seção
+(escopo por disciplina, o que não está incluso, competências, alterações) já pronto e editável.
+O **plano de pagamento** é informado em percentual: o sistema calcula o valor de cada parcela, escreve o
+valor **por extenso** e avisa enquanto a soma não fecha 100%. A **UF da obra** escolhe a versão certa de
+cada cláusula, para uma norma de outro estado nunca aparecer na proposta.
+
+O documento sai com o timbre, o e-mail e os dados bancários de **Configurações → Empresa** (preencha
+uma vez), tem link para o cliente e PDF paginado. A **Pré-visualização** mostra o que impede de enviar. A
+gestão mantém os modelos e as cláusulas em **Comercial → Modelos de proposta**.
+
+O editor antigo continua na aba **Propostas** como **Proposta simples**, e **Registrar proposta enviada
+(PDF)** segue para propostas feitas fora do sistema.
+
+Também nesta versão: no visualizador do Estúdio de Documentos, **Ctrl + roda do mouse** dá zoom só no desenho
+(sem ampliar a página inteira), e o modelo em branco de folhas grandes (como o Carimbo A0) deixou de abrir vazio.
+
+---
 
 ## Arquivos em pastas: disciplina → fase → formato
 

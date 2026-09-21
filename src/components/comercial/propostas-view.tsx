@@ -42,6 +42,8 @@ type Proposta = {
   titulo: string;
   cliente: string;
   status: string;
+  /** ADR-0006: como a proposta foi montada — decide o rótulo e para onde o clique leva. */
+  formato: "legado" | "externa" | "composta";
   total: number;
   visualizacoes: number;
   atualizadoEm: string;
@@ -66,6 +68,7 @@ export function PropostasView({
   clientes,
   negociacoes,
   podeGerir,
+  usaComposta,
   status,
 }: {
   propostas: Proposta[];
@@ -73,6 +76,8 @@ export function PropostasView({
   /** F5.3 — só as que ainda podem receber proposta nova (ver `negociacoesParaSelecao`). */
   negociacoes: { id: string; titulo: string; clienteId: string }[];
   podeGerir: boolean;
+  /** Há modelo de proposta ativo: "Nova proposta" monta a composta (ADR-0006, G6). */
+  usaComposta: boolean;
   status: string;
 }) {
   const router = useRouter();
@@ -92,8 +97,23 @@ export function PropostasView({
     setNegociacaoId(SEM_NEGOCIACAO);
   }
 
-  function criar() {
-    if (!titulo || !clienteId) {
+  /**
+   * ADR-0006 (G6): o caminho padrão. A composta é montada na ficha da negociação (é lá que estão
+   * os modelos, a obra e as disciplinas), então aqui só se escolhe cliente e negociação e se
+   * segue para lá — `?nova=proposta` abre o diálogo de montagem sozinho.
+   */
+  function montar() {
+    if (!clienteId || negociacaoId === SEM_NEGOCIACAO) {
+      toast.error("Selecione o cliente e a negociação.");
+      return;
+    }
+    setOpen(false);
+    router.push(`/comercial/funil?card=NEGOCIACAO:${negociacaoId}&nova=proposta`);
+  }
+
+  function criar(tituloForcado?: string) {
+    const t = (tituloForcado ?? titulo).trim();
+    if (!t || !clienteId) {
       toast.error("Informe título e cliente.");
       return;
     }
@@ -102,7 +122,7 @@ export function PropostasView({
       return;
     }
     start(async () => {
-      const r = await criarProposta({ titulo, clienteId, negociacaoId });
+      const r = await criarProposta({ titulo: t, clienteId, negociacaoId });
       if (r.ok) {
         toast.success(`Proposta ${r.data.numero} criada.`);
         setOpen(false);
@@ -177,6 +197,16 @@ export function PropostasView({
                     <Link href={`/comercial/propostas/${p.id}`} className="hover:underline">
                       {p.titulo}
                     </Link>
+                    {p.formato === "composta" && (
+                      <StatusBadge tone="info" className="ml-2">
+                        Composta
+                      </StatusBadge>
+                    )}
+                    {p.formato === "externa" && (
+                      <StatusBadge tone="neutral" className="ml-2">
+                        Externa
+                      </StatusBadge>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{p.cliente}</TableCell>
                   <TableCell className="text-right font-mono">{brl(p.total)}</TableCell>
@@ -199,10 +229,12 @@ export function PropostasView({
             <DialogTitle>Nova proposta</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label>Título</Label>
-              <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
-            </div>
+            {!usaComposta && (
+              <div className="space-y-1.5">
+                <Label>Título</Label>
+                <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Cliente</Label>
               <Select value={clienteId} onValueChange={(v) => escolherCliente(v ?? "")}>
@@ -251,9 +283,29 @@ export function PropostasView({
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={criar} disabled={pending}>
-              {pending ? "Criando…" : "Criar"}
-            </Button>
+            {usaComposta ? (
+              <>
+                {/* Editor antigo (itens e condições): mantido, mas fora do caminho principal. */}
+                <Button
+                  variant="ghost"
+                  onClick={() =>
+                    // Sem campo de título neste modo: a simples herda o da negociação.
+                    criar(negociacoesDoCliente.find((x) => x.id === negociacaoId)?.titulo)
+                  }
+                  disabled={pending || !clienteId || negociacaoId === SEM_NEGOCIACAO}
+                  title="Editor antigo: só itens e condições, sem o texto padrão da biblioteca"
+                >
+                  Proposta simples
+                </Button>
+                <Button onClick={montar} disabled={pending}>
+                  Montar proposta
+                </Button>
+              </>
+            ) : (
+              <Button onClick={() => criar()} disabled={pending}>
+                {pending ? "Criando…" : "Criar"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

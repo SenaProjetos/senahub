@@ -6,7 +6,16 @@ import {
   COLUNAS_PROSPECCAO,
 } from "@/modules/comercial/prospeccao";
 import { ESTAGIOS_ATIVOS } from "@/modules/comercial/jornada";
-import type { TipoAncoraCompromisso, EstagioNegociacao, StatusProspeccao } from "@/generated/prisma/client";
+import {
+  COLUNAS_FUNIL,
+  COLUNAS_FUNIL_LEAD,
+  COLUNAS_FUNIL_NEGOCIACAO,
+  ENCERRADOS_LEAD,
+  ENCERRADOS_NEGOCIACAO,
+  colunaDoCard,
+  type ColunaFunil,
+} from "@/modules/comercial/funil";
+import type { TipoAncoraCompromisso, EstagioNegociacao, StatusProspeccao, FormatoProposta } from "@/generated/prisma/client";
 import {
   whereProspeccao,
   whereNegociacao,
@@ -14,6 +23,7 @@ import {
 } from "@/modules/comercial/filtros";
 import { candidatosDuplicata, relevanciaNome, tokensDeBusca } from "@/modules/comercial/dedupe";
 import { versaoVigente } from "@/modules/comercial/versoes";
+import { mesclarTimeline } from "@/modules/comercial/atividade";
 import {
   pipelineAberto,
   pipelinePonderado,
@@ -240,6 +250,30 @@ export async function parceirosAtivos() {
   });
 }
 
+/** Leads indicados por um parceiro, mais recente primeiro — a linha expandida da tela de gestão. */
+export async function leadsDoParceiro(parceiroId: string) {
+  const leads = await prisma.lead.findMany({
+    where: { parceiroId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      nome: true,
+      status: true,
+      valorEstimado: true,
+      createdAt: true,
+      cliente: { select: { nome: true } },
+    },
+  });
+  // `valorEstimado` é Decimal — vira Number antes de atravessar a fronteira da Server Action
+  // (mesmo padrão do resto do módulo: Decimal não serializa de volta pro client como número).
+  return leads.map((l) => ({
+    ...l,
+    valorEstimado: l.valorEstimado != null ? Number(l.valorEstimado) : null,
+    createdAt: l.createdAt.toISOString(),
+  }));
+}
+export type LeadDoParceiro = Awaited<ReturnType<typeof leadsDoParceiro>>[number];
+
 // ── Campanhas (F4.2) ──────────────────────────────────────────────
 /** Todas, ativas e inativas — para a tela de gestão. */
 export async function listarCampanhas() {
@@ -421,7 +455,26 @@ export async function funilProspeccao(opts?: {
       ),
     ),
   ]);
-  const ids = idsPorStatus.flatMap((lista) => lista.map((lead) => lead.id));
+  const comAcao = await detalharLeads(idsPorStatus.flatMap((lista) => lista.map((lead) => lead.id)));
+
+  const totalPorStatus = new Map(totais.map((total) => [total.status, total._count]));
+  return COLUNAS_PROSPECCAO.map((status) => {
+    const total = totalPorStatus.get(status) ?? 0;
+    return {
+      status,
+      leads: comAcao.filter((lead) => lead.status === status),
+      total,
+      temMais: total > take,
+    };
+  });
+}
+export type ColunaProspeccao = Awaited<ReturnType<typeof funilProspeccao>>[number];
+
+/**
+ * Cards de lead prontos para o board, a partir dos ids já paginados — relações e próxima ação em
+ * lote (número fixo de consultas, nunca uma por card).
+ */
+async function detalharLeads(ids: string[]) {
   const leads = await prisma.lead.findMany({
     where: { id: { in: ids } },
     orderBy: { updatedAt: "desc" },
@@ -434,8 +487,9 @@ export async function funilProspeccao(opts?: {
       updatedAt: true,
       origemDetalhada: true,
       cliente: { select: { id: true, nome: true } },
-      responsavel: { select: { id: true, name: true } },
+      responsavel: { select: { id: true, name: true, image: true } },
       parceiro: { select: { id: true, nome: true } },
+      campanha: { select: { id: true, nome: true } },
       _count: { select: { propostas: true } },
     },
   });
@@ -457,7 +511,7 @@ export async function funilProspeccao(opts?: {
     if (a.entidadeId && !proximaPorLead.has(a.entidadeId)) proximaPorLead.set(a.entidadeId, a);
   }
 
-  const comAcao = leads.map((l) => {
+  return leads.map((l) => {
     const prox = proximaPorLead.get(l.id);
     return {
       ...l,
@@ -468,20 +522,7 @@ export async function funilProspeccao(opts?: {
         : null,
     };
   });
-
-  const totalPorStatus = new Map(totais.map((total) => [total.status, total._count]));
-  return COLUNAS_PROSPECCAO.map((status) => {
-    const total = totalPorStatus.get(status) ?? 0;
-    return {
-      status,
-      leads: comAcao.filter((lead) => lead.status === status),
-      total,
-      temMais: total > take,
-    };
-  });
 }
-export type ColunaProspeccao = Awaited<ReturnType<typeof funilProspeccao>>[number];
-export type LeadProspeccao = ColunaProspeccao["leads"][number];
 
 // ── Kanban de Negociações (F2.14) ────────────────────────────
 /** Colunas do board de negociação, na ordem do funil. */
@@ -548,7 +589,35 @@ export async function funilNegociacao(opts?: {
       idsPorEstagio[indice].push({ id: alvo.id });
     }
   }
-  const ids = idsPorEstagio.flatMap((lista) => lista.map((negociacao) => negociacao.id));
+  const cards = await detalharNegociacoes(
+    idsPorEstagio.flatMap((lista) => lista.map((negociacao) => negociacao.id)),
+  );
+
+  const totalPorEstagio = new Map(totais.map((t) => [t.estagio, t]));
+
+  return COLUNAS_NEGOCIACAO.map((estagio) => {
+    const doEstagio = cards.filter((c) => c.estagio === estagio);
+    const agregado = totalPorEstagio.get(estagio);
+    return {
+      estagio,
+      cards: doEstagio,
+      /** Total REAL no banco — não o tamanho da página. */
+      total: agregado?._count ?? 0,
+      soma: Number(agregado?._sum.valorEstimado ?? 0),
+      temMais: (agregado?._count ?? 0) > take,
+    };
+  });
+}
+export type ColunaNegociacao = Awaited<ReturnType<typeof funilNegociacao>>[number];
+
+type Dinheiro = { toString(): string } | number | null | undefined;
+function valorDoCard(...candidatos: Dinheiro[]): number | null {
+  const achado = candidatos.find((c) => c != null);
+  return achado != null ? Number(achado) : null;
+}
+
+/** Mesma ideia de `detalharLeads`: ids já paginados → cards com relações, ações e checklist. */
+async function detalharNegociacoes(ids: string[]) {
   const negociacoes = await prisma.negociacao.findMany({
     where: { id: { in: ids } },
     orderBy: { updatedAt: "desc" },
@@ -558,11 +627,12 @@ export async function funilNegociacao(opts?: {
         estagio: true,
         temperatura: true,
         valorEstimado: true,
-        valorProposto: true,
+        valorNegociado: true,
         probabilidade: true,
         updatedAt: true,
         cliente: { select: { id: true, nome: true } },
-        responsavel: { select: { id: true, name: true } },
+        responsavel: { select: { id: true, name: true, image: true } },
+        parceiro: { select: { id: true, nome: true } },
         _count: { select: { disciplinas: true, contatos: true } },
     },
   });
@@ -580,6 +650,21 @@ export async function funilNegociacao(opts?: {
   const proxima = new Map<string, (typeof acoes)[number]>();
   for (const a of acoes) {
     if (a.entidadeId && !proxima.has(a.entidadeId)) proxima.set(a.entidadeId, a);
+  }
+
+  // Valor e desconto do card vêm da versão vigente da proposta mais recente — é lá que o valor do
+  // negócio mora (F6.1a). `Negociacao.valorProposto/desconto` nunca foram escritos por ninguém.
+  // Uma consulta para a página inteira: ordenada da proposta/versão mais nova, a 1ª de cada
+  // negociação vence.
+  const versoes = await prisma.propostaVersao.findMany({
+    where: { proposta: { negociacaoId: { in: negociacoes.map((n) => n.id) } } },
+    orderBy: [{ proposta: { createdAt: "desc" } }, { numero: "desc" }],
+    select: { valorVersao: true, desconto: true, proposta: { select: { negociacaoId: true } } },
+  });
+  const vigentePorNegociacao = new Map<string, (typeof versoes)[number]>();
+  for (const v of versoes) {
+    const nid = v.proposta.negociacaoId;
+    if (nid && !vigentePorNegociacao.has(nid)) vigentePorNegociacao.set(nid, v);
   }
 
   // Checklist SOFT (F7.6): itens + marcado por card, sem N+1 — 2 queries no total (uma para o
@@ -610,7 +695,7 @@ export async function funilNegociacao(opts?: {
     marcadosPorNegociacao.set(m.negociacaoId, s);
   }
 
-  const cards = negociacoes.map((n) => {
+  return negociacoes.map((n) => {
     const p = proxima.get(n.id);
     const itens = itensPorEstagio.get(n.estagio) ?? [];
     const marcadosSet = marcadosPorNegociacao.get(n.id);
@@ -620,11 +705,15 @@ export async function funilNegociacao(opts?: {
       estagio: n.estagio,
       temperatura: n.temperatura,
       valorEstimado: n.valorEstimado != null ? Number(n.valorEstimado) : null,
-      valorProposto: n.valorProposto != null ? Number(n.valorProposto) : null,
+      /** Vigente > negociado > estimado: o que a pessoa deve ver no card, e de onde veio. */
+      valor: valorDoCard(vigentePorNegociacao.get(n.id)?.valorVersao, n.valorNegociado, n.valorEstimado),
+      desconto:
+        vigentePorNegociacao.get(n.id)?.desconto != null ? Number(vigentePorNegociacao.get(n.id)!.desconto) : null,
       probabilidade: n.probabilidade,
       updatedAt: n.updatedAt.toISOString(),
       cliente: n.cliente,
       responsavel: n.responsavel,
+      parceiro: n.parceiro,
       qtdDisciplinas: n._count.disciplinas,
       qtdContatos: n._count.contatos,
       proximaAcao: p
@@ -641,24 +730,169 @@ export async function funilNegociacao(opts?: {
           : null,
     };
   });
+}
+export type CardNegociacao = Awaited<ReturnType<typeof detalharNegociacoes>>[number];
+export type LeadProspeccao = Awaited<ReturnType<typeof detalharLeads>>[number];
 
-  const totalPorEstagio = new Map(totais.map((t) => [t.estagio, t]));
+// ── Board único Prospecção + Negociação (ADR-0004) ───────────
+export type CardFunil =
+  | ({ tipo: "LEAD" } & LeadProspeccao)
+  | ({ tipo: "NEGOCIACAO" } & CardNegociacao);
 
-  return COLUNAS_NEGOCIACAO.map((estagio) => {
-    const doEstagio = cards.filter((c) => c.estagio === estagio);
-    const agregado = totalPorEstagio.get(estagio);
+export type ColunaFunilDados = {
+  coluna: ColunaFunil;
+  cards: CardFunil[];
+  /** Total REAL no banco, mesmo recolhida — só os cards deixam de ser buscados. */
+  total: number;
+  /** Soma de `valorEstimado` das negociações da coluna (0 no lado da prospecção). */
+  soma: number;
+  temMais: boolean;
+  fechada: boolean;
+};
+
+/**
+ * Board único. Compõe o mesmo desenho das duas queries acima — uma busca de ids por coluna, depois
+ * detalhe em lote — com duas diferenças:
+ *
+ * - **Coluna recolhida não busca card nenhum** (só entra no `groupBy` da contagem). É o que paga
+ *   as colunas a mais: fechar Encerrados economiza as 6 buscas dele.
+ * - **Lead em `OPORTUNIDADE_CRIADA` não entra**: a negociação que ele virou é o card (ADR-0004).
+ *
+ * Filtro por disciplina zera o lado da prospecção: lead não tem disciplina (ver `whereProspeccao`),
+ * e ignorar o filtro ali mostraria prospecções que a pessoa pediu para esconder.
+ */
+export async function funilComercial(opts: {
+  pagina?: number;
+  filtros?: FiltrosComerciais;
+  agora?: Date;
+  alvoId?: string | null;
+  fechadas: ReadonlySet<ColunaFunil>;
+}): Promise<ColunaFunilDados[]> {
+  const agora = opts.agora ?? new Date();
+  const take = PAGINA_COLUNA * Math.max(1, opts.pagina ?? 1);
+  const semLeads = Boolean(opts.filtros?.disciplinaId);
+  const whereLead = {
+    arquivado: false,
+    ...(opts.filtros ? whereProspeccao(opts.filtros, agora) : {}),
+  };
+  const whereNeg = opts.filtros ? whereNegociacao(opts.filtros, agora) : {};
+  const aberta = (c: ColunaFunil) => !opts.fechadas.has(c);
+  const encerradosAberto = aberta("ENCERRADOS");
+  const statusLead = [...COLUNAS_FUNIL_LEAD, ...ENCERRADOS_LEAD];
+  const vazio = Promise.resolve([] as { id: string }[]);
+
+  const [totaisLead, totaisNeg, idsLead, idsNeg, idsEncLead, idsEncNeg, alvo] = await Promise.all([
+    semLeads
+      ? Promise.resolve([])
+      : prisma.lead.groupBy({ by: ["status"], where: { ...whereLead, status: { in: statusLead } }, _count: true }),
+    prisma.negociacao.groupBy({
+      by: ["estagio"],
+      where: whereNeg,
+      _count: true,
+      _sum: { valorEstimado: true },
+    }),
+    Promise.all(
+      COLUNAS_FUNIL_LEAD.map((status) =>
+        semLeads || !aberta(status)
+          ? vazio
+          : prisma.lead.findMany({
+              where: { ...whereLead, status },
+              orderBy: { updatedAt: "desc" },
+              take,
+              select: { id: true },
+            }),
+      ),
+    ),
+    Promise.all(
+      COLUNAS_FUNIL_NEGOCIACAO.map((estagio) =>
+        !aberta(estagio)
+          ? vazio
+          : prisma.negociacao.findMany({
+              where: { ...whereNeg, estagio },
+              orderBy: { updatedAt: "desc" },
+              take,
+              select: { id: true },
+            }),
+      ),
+    ),
+    semLeads || !encerradosAberto
+      ? vazio
+      : prisma.lead.findMany({
+          where: { ...whereLead, status: { in: [...ENCERRADOS_LEAD] } },
+          orderBy: { updatedAt: "desc" },
+          take,
+          select: { id: true },
+        }),
+    !encerradosAberto
+      ? vazio
+      : prisma.negociacao.findMany({
+          where: { ...whereNeg, estagio: { in: [...ENCERRADOS_NEGOCIACAO] } },
+          orderBy: { updatedAt: "desc" },
+          take,
+          select: { id: true },
+        }),
+    // Deep link `?negociacao=<id>` (automações F7.3): o alvo entra mesmo fora da primeira página.
+    opts.alvoId
+      ? prisma.negociacao.findFirst({ where: { id: opts.alvoId }, select: { id: true } })
+      : Promise.resolve(null),
+  ]);
+
+  const idsNegociacao = [...idsNeg.flat(), ...idsEncNeg].map((n) => n.id);
+  if (alvo && !idsNegociacao.includes(alvo.id)) idsNegociacao.push(alvo.id);
+  const [leads, negociacoes] = await Promise.all([
+    detalharLeads([...idsLead.flat(), ...idsEncLead].map((l) => l.id)),
+    detalharNegociacoes(idsNegociacao),
+  ]);
+
+  const cards: CardFunil[] = [
+    ...leads.map((l) => ({ tipo: "LEAD" as const, ...l })),
+    ...negociacoes.map((n) => ({ tipo: "NEGOCIACAO" as const, ...n })),
+  ];
+  const porColuna = new Map<ColunaFunil, CardFunil[]>();
+  for (const card of cards) {
+    const coluna = colunaDoCard(
+      card.tipo === "LEAD" ? { tipo: "LEAD", status: card.status } : { tipo: "NEGOCIACAO", estagio: card.estagio },
+    );
+    if (!coluna) continue;
+    // O alvo do deep link pode estar numa coluna recolhida — a pessoa pediu ESTE card.
+    const lista = porColuna.get(coluna) ?? [];
+    lista.push(card);
+    porColuna.set(coluna, lista);
+  }
+
+  const contLead = new Map(totaisLead.map((t) => [t.status, t._count]));
+  const contNeg = new Map(totaisNeg.map((t) => [t.estagio, t]));
+  const totalDe = (coluna: ColunaFunil): { total: number; soma: number } => {
+    if (coluna === "ENCERRADOS") {
+      const neg = ENCERRADOS_NEGOCIACAO.map((e) => contNeg.get(e));
+      return {
+        total:
+          ENCERRADOS_LEAD.reduce((s, st) => s + (contLead.get(st) ?? 0), 0) +
+          neg.reduce((s, t) => s + (t?._count ?? 0), 0),
+        soma: 0,
+      };
+    }
+    if ((COLUNAS_FUNIL_LEAD as readonly string[]).includes(coluna)) {
+      return { total: contLead.get(coluna as StatusProspeccao) ?? 0, soma: 0 };
+    }
+    const t = contNeg.get(coluna as EstagioNegociacao);
+    return { total: t?._count ?? 0, soma: Number(t?._sum.valorEstimado ?? 0) };
+  };
+
+  return COLUNAS_FUNIL.map((coluna) => {
+    const { total, soma } = totalDe(coluna);
+    const lista = (porColuna.get(coluna) ?? []).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     return {
-      estagio,
-      cards: doEstagio,
-      /** Total REAL no banco — não o tamanho da página. */
-      total: agregado?._count ?? 0,
-      soma: Number(agregado?._sum.valorEstimado ?? 0),
-      temMais: (agregado?._count ?? 0) > take,
+      coluna,
+      // Encerrados junta duas buscas de `take` cada; corta no mesmo teto das outras colunas.
+      cards: coluna === "ENCERRADOS" ? lista.slice(0, take) : lista,
+      total,
+      soma,
+      temMais: total > take,
+      fechada: !aberta(coluna),
     };
   });
 }
-export type ColunaNegociacao = Awaited<ReturnType<typeof funilNegociacao>>[number];
-export type CardNegociacao = ColunaNegociacao["cards"][number];
 
 /** Catálogo de motivos de perda para o diálogo (F2.14) — `exigeConcorrente` junto, é a regra. */
 export async function motivosPerdaAtivos() {
@@ -1149,8 +1383,8 @@ export async function homeComercial(agora: Date, responsavelId?: string) {
     tipo: c.tipo,
     href:
       c.entidadeTipo === "LEAD"
-        ? `/comercial/prospeccao?lead=${c.entidadeId}`
-        : "/comercial/negociacoes",
+        ? `/comercial/funil?card=LEAD:${c.entidadeId}`
+        : `/comercial/funil?card=NEGOCIACAO:${c.entidadeId}`,
     nomeEntidade:
       (c.entidadeTipo === "LEAD" ? nomeLead.get(c.entidadeId!) : nomeNeg.get(c.entidadeId!)) ??
       "(sem nome)",
@@ -1206,8 +1440,299 @@ export async function homeComercial(agora: Date, responsavelId?: string) {
         titulo: n.titulo,
         clienteNome: n.cliente.nome,
         diasSemContato: Math.floor((agora.getTime() - n.updatedAt.getTime()) / 86_400_000),
-        href: "/comercial/negociacoes",
+        href: `/comercial/funil?card=NEGOCIACAO:${n.id}`,
       })),
     },
   };
 }
+
+// ── Ficha do card (modal do funil, ADR-0004) ─────────────────
+/** Propostas com o valor da versão vigente — a fonte de valor/desconto (F6.1a), não a negociação. */
+function resumoPropostas(
+  propostas: {
+    id: string;
+    numero: string;
+    titulo: string;
+    status: string;
+    formato: FormatoProposta;
+    versoes: {
+      numero: number;
+      valorOriginal: unknown;
+      desconto: unknown;
+      valorVersao: unknown;
+      pdfPath: string | null;
+    }[];
+  }[],
+) {
+  return propostas.map((p) => {
+    const v = versaoVigente(p.versoes);
+    return {
+      id: p.id,
+      numero: p.numero,
+      titulo: p.titulo,
+      status: p.status,
+      /** Mantido no formato que a tela já consome; a fonte agora é `formato` (ADR-0006). */
+      externa: p.formato === "externa",
+      formato: p.formato,
+      versao: v?.numero ?? null,
+      /** O caminho do arquivo não sai do servidor — só se existe PDF para baixar. */
+      temPdf: Boolean(v?.pdfPath),
+      valorOriginal: v?.valorOriginal != null ? Number(v.valorOriginal) : null,
+      desconto: v?.desconto != null ? Number(v.desconto) : null,
+      valorVersao: v?.valorVersao != null ? Number(v.valorVersao) : null,
+    };
+  });
+}
+
+const SELECT_PROPOSTA_FICHA = {
+  id: true,
+  numero: true,
+  titulo: true,
+  status: true,
+  formato: true,
+  versoes: { select: { numero: true, valorOriginal: true, desconto: true, valorVersao: true, pdfPath: true } },
+} as const;
+
+/** Ações comerciais em aberto, serializadas para o cliente. */
+async function acoesAbertas(entidadeTipo: TipoAncoraCompromisso, id: string) {
+  const acoes = await proximasAcoesDe(entidadeTipo, id);
+  return acoes.map((a) => ({
+    id: a.id,
+    tipo: a.tipo,
+    titulo: a.titulo,
+    inicio: a.inicio.toISOString(),
+    local: a.local,
+    criador: a.criador.name,
+  }));
+}
+
+/**
+ * Ficha da NEGOCIAÇÃO — até aqui não existia (só o card no board). A timeline é contínua: junta
+ * o que aconteceu na prospecção que a originou (legado + nova) com o que aconteceu depois, porque
+ * para quem vende é um negócio só (ADR-0004). Anexos são os do lead de origem: é lá que moram.
+ */
+export async function fichaNegociacao(id: string) {
+  const n = await prisma.negociacao.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      titulo: true,
+      estagio: true,
+      temperatura: true,
+      probabilidade: true,
+      probabilidadeOverride: true,
+      valorEstimado: true,
+      valorNegociado: true,
+      previsaoFechamento: true,
+      areaM2: true,
+      observacaoPerda: true,
+      concorrente: true,
+      responsavelId: true,
+      parceiroId: true,
+      campaignId: true,
+      tipoEmpreendimentoId: true,
+      motivoPerdaRef: { select: { nome: true } },
+      cliente: { select: { id: true, nome: true } },
+      responsavel: { select: { id: true, name: true, image: true } },
+      parceiro: { select: { id: true, nome: true } },
+      campanha: { select: { id: true, nome: true } },
+      tipoEmpreendimento: { select: { id: true, nome: true } },
+      contatos: {
+        select: { principal: true, contato: { select: { id: true, nome: true, email: true, telefone: true } } },
+      },
+      disciplinas: {
+        orderBy: { disciplina: { ordem: "asc" } },
+        select: { disciplinaId: true, valor: true, disciplina: { select: { nome: true } } },
+      },
+      propostas: { orderBy: { createdAt: "desc" }, select: SELECT_PROPOSTA_FICHA },
+      lead: {
+        select: {
+          id: true,
+          nome: true,
+          atividades: { orderBy: { createdAt: "desc" }, include: { autor: { select: { name: true } } } },
+          anexos: {
+            orderBy: { createdAt: "desc" },
+            select: { id: true, nome: true, nomeArquivo: true, tamanho: true, createdAt: true },
+          },
+        },
+      },
+    },
+  });
+  if (!n) return null;
+
+  const [atividades, proximasAcoes] = await Promise.all([
+    prisma.atividade.findMany({
+      where: { OR: [{ negociacaoId: id }, ...(n.lead ? [{ leadId: n.lead.id }] : [])] },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, descricao: true, createdAt: true, tipo: true, autor: { select: { name: true } } },
+    }),
+    acoesAbertas("NEGOCIACAO", id),
+  ]);
+
+  return {
+    ...n,
+    valorEstimado: n.valorEstimado != null ? Number(n.valorEstimado) : null,
+    valorNegociado: n.valorNegociado != null ? Number(n.valorNegociado) : null,
+    disciplinas: n.disciplinas.map((d) => ({
+      disciplinaId: d.disciplinaId,
+      nome: d.disciplina.nome,
+      valor: d.valor != null ? Number(d.valor) : null,
+    })),
+    areaM2: n.areaM2 != null ? Number(n.areaM2) : null,
+    previsaoFechamento: n.previsaoFechamento?.toISOString() ?? null,
+    propostas: resumoPropostas(n.propostas),
+    anexos: n.lead?.anexos ?? [],
+    timeline: mesclarTimeline(n.lead?.atividades ?? [], atividades).map((a) => ({
+      ...a,
+      createdAt: a.createdAt.toISOString(),
+    })),
+    proximasAcoes,
+  };
+}
+export type FichaNegociacao = NonNullable<Awaited<ReturnType<typeof fichaNegociacao>>>;
+
+/** Ficha do LEAD para o modal — mesmo conteúdo da página `/comercial/[id]`, já serializado. */
+export async function fichaLead(id: string) {
+  const lead = await obterLead(id);
+  if (!lead) return null;
+  const [propostas, proximasAcoes] = await Promise.all([
+    prisma.proposta.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" }, select: SELECT_PROPOSTA_FICHA }),
+    acoesAbertas("LEAD", id),
+  ]);
+  // Mantém o formato de `LeadItem` (o `LeadDialog` de edição recebe este objeto).
+  return {
+    ...lead,
+    valorEstimado: lead.valorEstimado != null ? Number(lead.valorEstimado) : null,
+    _count: { propostas: propostas.length },
+    propostasResumo: resumoPropostas(propostas),
+    timeline: mesclarTimeline(lead.atividades, lead.atividadesComerciais).map((a) => ({
+      ...a,
+      createdAt: a.createdAt.toISOString(),
+    })),
+    proximasAcoes,
+  };
+}
+export type FichaLead = NonNullable<Awaited<ReturnType<typeof fichaLead>>>;
+
+/** Tipos de empreendimento ativos — Select da ficha da negociação. */
+export async function tiposEmpreendimentoAtivos() {
+  return prisma.tipoEmpreendimento.findMany({
+    where: { ativo: true },
+    orderBy: [{ ordem: "asc" }, { nome: "asc" }],
+    select: { id: true, nome: true },
+  });
+}
+
+// ── Follow-ups do Comercial (tela dedicada) ──────────────────
+/** Teto de linhas lidas: acima disso a tela avisa em vez de crescer sem limite. */
+export const LIMITE_FOLLOWUPS = 300;
+
+/**
+ * Todas as próximas ações comerciais em aberto, da mais antiga para a mais nova. Com
+ * `responsavelId` ("meus"), vale quem é dono do lead/negociação OU participante do compromisso —
+ * o segundo cobre CLIENTE e os compromissos anteriores à regra que põe o dono na agenda.
+ */
+export async function followUpsComerciais(opts: { responsavelId?: string }) {
+  const compromissos = await prisma.compromisso.findMany({
+    where: {
+      entidadeTipo: { in: ["LEAD", "NEGOCIACAO", "CLIENTE"] },
+      entidadeId: { not: null },
+      tipo: { not: null },
+      concluidoEm: null,
+    },
+    orderBy: { inicio: "asc" },
+    take: LIMITE_FOLLOWUPS,
+    select: {
+      id: true,
+      tipo: true,
+      titulo: true,
+      inicio: true,
+      local: true,
+      entidadeTipo: true,
+      entidadeId: true,
+      participantes: { select: { userId: true } },
+    },
+  });
+
+  const idsDe = (tipo: TipoAncoraCompromisso) => [
+    ...new Set(compromissos.filter((c) => c.entidadeTipo === tipo).map((c) => c.entidadeId!)),
+  ];
+  const dono = { select: { id: true, name: true, image: true } };
+  const [leads, negs, clientes] = await Promise.all([
+    prisma.lead.findMany({
+      where: { id: { in: idsDe("LEAD") } },
+      select: {
+        id: true,
+        nome: true,
+        origemDetalhada: true,
+        cliente: { select: { nome: true } },
+        responsavel: dono,
+      },
+    }),
+    prisma.negociacao.findMany({
+      where: { id: { in: idsDe("NEGOCIACAO") } },
+      select: { id: true, titulo: true, cliente: { select: { nome: true } }, responsavel: dono },
+    }),
+    prisma.cliente.findMany({ where: { id: { in: idsDe("CLIENTE") } }, select: { id: true, nome: true } }),
+  ]);
+  const porId = <T extends { id: string }>(l: T[]) => new Map(l.map((x) => [x.id, x]));
+  const mLead = porId(leads);
+  const mNeg = porId(negs);
+  const mCli = porId(clientes);
+
+  const itens = compromissos.flatMap((c) => {
+    const id = c.entidadeId!;
+    let nomeEntidade: string;
+    // Cliente e demanda separados: a tela mostra em linhas próprias em vez de "Cliente — Demanda".
+    let cliente: string;
+    let demanda: string | null;
+    let href: string;
+    let responsavel: { id: string; name: string; image: string | null } | null = null;
+    if (c.entidadeTipo === "LEAD") {
+      const l = mLead.get(id);
+      if (!l) return [];
+      nomeEntidade = l.cliente?.nome ? `${l.cliente.nome} — ${l.nome}` : l.nome;
+      // Mesma escolha do card do funil: sem empreendimento registrado, cai no nome do lead.
+      cliente = l.cliente?.nome ?? l.nome;
+      demanda = l.origemDetalhada ?? (l.cliente?.nome ? l.nome : null);
+      href = `/comercial/funil?card=LEAD:${id}`;
+      responsavel = l.responsavel;
+    } else if (c.entidadeTipo === "NEGOCIACAO") {
+      const n = mNeg.get(id);
+      if (!n) return [];
+      nomeEntidade = `${n.cliente.nome} — ${n.titulo}`;
+      cliente = n.cliente.nome;
+      demanda = n.titulo;
+      href = `/comercial/funil?card=NEGOCIACAO:${id}`;
+      responsavel = n.responsavel;
+    } else {
+      const cli = mCli.get(id);
+      if (!cli) return [];
+      nomeEntidade = cli.nome;
+      cliente = cli.nome;
+      demanda = null;
+      href = `/clientes/${id}`;
+    }
+    if (opts.responsavelId) {
+      const meu = responsavel?.id === opts.responsavelId || c.participantes.some((p) => p.userId === opts.responsavelId);
+      if (!meu) return [];
+    }
+    return [
+      {
+        id: c.id,
+        tipo: c.tipo,
+        titulo: c.titulo,
+        inicio: c.inicio.toISOString(),
+        local: c.local,
+        href,
+        nomeEntidade,
+        cliente,
+        demanda,
+        responsavel: responsavel ? { name: responsavel.name, image: responsavel.image } : null,
+      },
+    ];
+  });
+
+  return { itens, truncado: compromissos.length >= LIMITE_FOLLOWUPS };
+}
+export type FollowUpComercial = Awaited<ReturnType<typeof followUpsComerciais>>["itens"][number];

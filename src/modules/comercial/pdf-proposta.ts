@@ -22,8 +22,16 @@ import { prisma } from "@/lib/prisma";
 import { salvarArquivo, lerArquivo, existeArquivo } from "@/lib/storage";
 import { versaoVigente } from "@/modules/comercial/versoes";
 
-/** Gera o PDF a partir da página pública, ao vivo. Exige `CHROME_PATH` e o servidor no ar. */
-export async function gerarPdfDaPaginaPublica(token: string): Promise<Buffer> {
+/**
+ * Gera o PDF a partir da página pública, ao vivo. Exige `CHROME_PATH` e o servidor no ar.
+ *
+ * `paginado` (ADR-0006, G5): a proposta COMPOSTA tem várias páginas e precisa de "Página X / Y".
+ * A numeração real só sai do footer NATIVO do Puppeteer — e ele exige reservar a faixa inferior
+ * por `@page` injetado, porque o `@page { margin: 0 }` do `globals.css` vence a margem passada
+ * em `page.pdf()` e o rodapé sairia POR CIMA do texto (`modules/documentos/rodape-pdf.ts`, o
+ * mesmo problema já resolvido no Estúdio). A proposta do editor continua sem rodapé, como sempre.
+ */
+export async function gerarPdfDaPaginaPublica(token: string, opcoes: { paginado?: boolean } = {}): Promise<Buffer> {
   const chrome = process.env.CHROME_PATH;
   if (!chrome) throw new Error("CHROME_PATH não configurado no servidor.");
 
@@ -41,11 +49,23 @@ export async function gerarPdfDaPaginaPublica(token: string): Promise<Buffer> {
     try {
       const page = await browser.newPage();
       await page.goto(url, { waitUntil: "networkidle0", timeout: 30000 });
+      if (opcoes.paginado) {
+        const { reservarFaixaDoRodape } = await import("@/modules/documentos/rodape-pdf");
+        await reservarFaixaDoRodape(page);
+      }
       await page.emulateMediaType("print");
+      const { FAIXA_RODAPE, FOOTER_PAGINACAO } = await import("@/modules/documentos/rodape-pdf");
       const pdf = await page.pdf({
         format: "A4",
         printBackground: true,
-        margin: { top: "12mm", right: "12mm", bottom: "12mm", left: "12mm" },
+        displayHeaderFooter: opcoes.paginado === true,
+        ...(opcoes.paginado
+          ? {
+              headerTemplate: "<span></span>",
+              footerTemplate: FOOTER_PAGINACAO,
+              margin: { top: "12mm", right: "12mm", bottom: FAIXA_RODAPE, left: "12mm" },
+            }
+          : { margin: { top: "12mm", right: "12mm", bottom: "12mm", left: "12mm" } }),
       });
       return Buffer.from(pdf);
     } finally {
@@ -75,7 +95,7 @@ export type ResultadoArquivamento =
  */
 export async function arquivarPdfDaVersao(
   propostaId: string,
-  opts: { gerar?: (token: string) => Promise<Buffer> } = {},
+  opts: { gerar?: (token: string, opcoes?: { paginado?: boolean }) => Promise<Buffer> } = {},
 ): Promise<ResultadoArquivamento> {
   const gerar = opts.gerar ?? gerarPdfDaPaginaPublica;
   try {
@@ -83,6 +103,7 @@ export async function arquivarPdfDaVersao(
       where: { id: propostaId },
       select: {
         token: true,
+        formato: true,
         versoes: { select: { id: true, numero: true, pdfPath: true } },
       },
     });
@@ -94,7 +115,8 @@ export async function arquivarPdfDaVersao(
       return { arquivado: false, motivo: `A versão ${vigente.numero} já tem PDF arquivado.` };
     }
 
-    const buffer = await gerar(p.token);
+    // O PDF arquivado precisa sair IGUAL ao que o cliente baixa: composta é paginada.
+    const buffer = await gerar(p.token, { paginado: p.formato === "composta" });
     // Caminho por VERSÃO, não por proposta: duas versões da mesma proposta são dois documentos
     // diferentes e precisam coexistir. O id da versão evita colisão sem depender do número.
     const caminho = `comercial/propostas/${propostaId}/v${vigente.numero}-${vigente.id}.pdf`;

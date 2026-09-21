@@ -15,10 +15,16 @@ export function ElementoView({
   el,
   textoResolvido,
   ctx,
+  emFluxo,
 }: {
   el: Elemento;
   textoResolvido?: string;
   ctx?: ContextoDados;
+  /**
+   * Faixa em fluxo: o elemento ocupa a altura do próprio conteúdo e nada é cortado. Sem isto o
+   * texto que passa da caixa desenhada some em silêncio (ADR-0006).
+   */
+  emFluxo?: boolean;
 }) {
   const s = el.estilo;
   const texto = textoResolvido ?? el.texto;
@@ -37,9 +43,10 @@ export function ElementoView({
     background: s.bg || undefined,
     border: s.borderW > 0 ? `${s.borderW}px ${borderStyleCss} ${s.borderColor}` : undefined,
     borderRadius: s.radius || undefined,
-    overflow: "hidden",
+    overflow: emFluxo ? "visible" : "hidden",
     lineHeight: 1.25,
   };
+  if (emFluxo) base.height = "auto";
 
   switch (el.tipo) {
     case "linha":
@@ -77,7 +84,8 @@ export function ElementoView({
             ...base,
             whiteSpace: "pre-wrap",
             overflowWrap: "break-word",
-            overflow: "hidden",
+            // overflow vem do `base` (hidden por padrão, visible em faixa em fluxo — ADR-0006).
+            // Fixar "hidden" aqui cortava justamente o parágrafo longo que o fluxo existe p/ deixar sair.
           }}
         >
           {texto}

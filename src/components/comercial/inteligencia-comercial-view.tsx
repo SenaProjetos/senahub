@@ -61,7 +61,9 @@ export function InteligenciaComercialView({ dados }: { dados: InteligenciaComerc
                         className="mx-auto flex min-h-11 items-center justify-center bg-primary px-3 text-sm font-semibold text-primary-foreground"
                         style={{
                           width: `${largura}%`,
-                          clipPath: "polygon(6% 0, 94% 0, 100% 100%, 0 100%)",
+                          // Base larga no topo, estreita embaixo — a etapa seguinte (mais
+                          // estreita) encaixa por baixo e o funil fica contínuo, não invertido.
+                          clipPath: "polygon(0 0, 100% 0, 94% 100%, 6% 100%)",
                         }}
                       >
                         {ESTAGIO_NEGOCIACAO_LABEL[item.etapa]} · {item.quantidade}
