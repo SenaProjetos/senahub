@@ -24,6 +24,7 @@ const COLUNAS = [
   { chave: "fase", titulo: "Fase", largura: 7 },
   { chave: "tipo", titulo: "Tipo", largura: 7 },
   { chave: "folha", titulo: "Folha", largura: 7 },
+  { chave: "sub", titulo: "Sub", largura: 12 },
   { chave: "revisao", titulo: "Rev.", largura: 7 },
   { chave: "formatos", titulo: "Formatos", largura: 14 },
   { chave: "atualizadoEm", titulo: "Atualizado", largura: 12 },

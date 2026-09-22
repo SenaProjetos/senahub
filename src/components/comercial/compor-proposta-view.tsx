@@ -142,6 +142,7 @@ export function ComporPropostaView({
       const r = await aceitarProposta({ id: proposta.id });
       if (r.ok) {
         toast.success(`Projeto ${r.data.codigo} criado com canais de chat.`);
+        for (const aviso of r.data.avisos) toast.warning(aviso);
         router.push(`/projetos/${r.data.projetoId}`);
       } else toast.error(r.error);
     });

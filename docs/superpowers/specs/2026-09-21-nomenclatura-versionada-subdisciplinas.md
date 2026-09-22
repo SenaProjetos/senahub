@@ -340,6 +340,34 @@ o que é gravado já está certo.
 - Requisito do dono (P1/P2): siglas gerais, etapas, cards e subs **todos editáveis pela tela** —
   nenhuma mudança futura da gestão pode exigir script.
 
+**Entregue (2026-09-22, Sonnet):** tela `/configuracoes/nomenclatura` (lista de versões, rascunho
+editável com `EditorModeloNome` — o mesmo editor visual/avançado, texto fixo incluso —, regras de
+número, botão Publicar com a trava do D5 num diálogo de confirmação listando cada redefinição +
+quantos arquivos do acervo têm a sigla); `criarRascunhoVersao`/`editarRascunhoVersao`/
+`excluirRascunhoVersao`/`publicarVersaoNomenclatura` (`modules/projetos/nomenclatura/
+versoes-actions.ts`). `SiglasVersaoDialog` compartilhado (uma linha por faixa de versão,
+oficial/sinônimo, encerrar/reabrir/excluir) aberto a partir do card (Disciplinas), da
+sub-disciplina (`SubdisciplinasDialog`, com CRUD de sub) e do item da Lista Mestre — os três
+catálogos gravam nas colunas antigas (mantém `sincronizarSiglasV1`) e a mudança em
+`SiglaNomenclatura` é direta pela action `criarSiglaVersao` (bloqueia colisão dentro da versão,
+D4; auto-encerra a oficial anterior ao trocar). Filtro "válida na vN" nas telas de Disciplinas e
+Lista Mestre (`valeNaVersao` client-side). `Projeto → Lista Mestre`: `VersaoProjetoSeletor`
+substitui o antigo editor de padrão — botões v1/v2/…/Personalizado, com a contagem do D3
+(`contarForaDoPadraoParaVersao`) antes de confirmar; "Personalizado" reabre o `NomenclaturaForm`
+de sempre. A tela global (Configurações → Lista Mestre) perdeu o editor de padrão
+(`mostrarPadrao={false}` no `NomenclaturaForm`, só exigir/exigirFase) com nota apontando pra
+`/configuracoes/nomenclatura`. `criarProjeto` e `aceitarProposta` passam a fixar
+`nomenclaturaVersaoId` na criação (D2), como a migration já fazia para os projetos existentes.
+
+**D11/R2b — escopo reduzido (documentado, não a lista inteira de `catalogoDisciplinas()`):**
+filtrado só em "adicionar disciplina ao projeto" (`disciplinas-operacionais.tsx`, pela versão DO
+PROJETO) e "compor proposta" (pela versão vigente hoje, com os cards já usados na proposta
+sempre visíveis). Telas que lidam com dado histórico entre versões (funil, modelos de proposta,
+tabela de preço, template de input, filtro do `/projetos`) NÃO filtram — filtrar ali esconderia
+disciplina legítima de projeto/proposta antigos. `aceitarProposta` ganha `avisos: string[]`
+(R2b, non-blocking, comparação por NOME — mesma fragilidade do R1, que segue fora do escopo)
+surfaced como `toast.warning` nos 3 pontos de entrada do aceite.
+
 ### F5 — Telas de uso (Sonnet)
 
 - Card do projeto: agrupamento por sub (sem sub = raiz), filtro por sub na lista V2.
@@ -347,6 +375,22 @@ o que é gravado já está certo.
 - Lista Mestre: ordena card → sub → número; coluna Sub.
 - Zip de download: pasta por sub.
 - V1 (`arquivos-explorer.tsx`) só não quebra; sem feature nova.
+
+**Entregue (2026-09-22, Sonnet):** envio V2 ganha o Select de sub-disciplina (só aparece quando
+o card tem subs), gravado junto com fase/tipo. Lista de documentos: filtro "Sub-disciplina" no
+drawer (`opcoesMetadadosDocumento` traz as subs dos cards do projeto) + coluna "Sub" (opcional,
+`colunas-documento.ts`) na tabela e no card mobile — filtro é SQL de verdade (`FiltrosDoc.sub`,
+sentinel `SUB_SEM` pro "sem sub"), não cliente. Lista Mestre: `montarListaMestre` ordena
+sub → número (raiz do card primeiro, subs em ordem alfabética) e o documento/planilha ganham a
+coluna "Sub" (a prévia da tela, que já era resumida sem fase/tipo/papel, ficou como estava).
+`caminhoNoZip` aceita a sub como pasta extra entre o pacote e a subpasta por extensão, aplicado
+no zip da disciplina e no zip de selecionados.
+
+**Escopo reduzido, documentado:** SEM agrupamento visual por sub na lista (seções com cabeçalho,
+como `GrupoCategoria` faz em Disciplinas) — o filtro + a coluna cobrem "achar os documentos de
+uma sub" sem reestruturar a tabela; a árvore de navegação (`arvore-navegacao.ts`, disciplina →
+fase → extensão) não ganhou um nível de sub. O zip do "Diretório geral" (`/api/arquivos/zip`,
+hierarquia ano/projeto/disciplina/fase, não pacote) não foi tocado — é outra árvore de nomes.
 
 ### F6 — Manual, carga da v2, deploy (Sonnet)
 

@@ -16,6 +16,7 @@ function doc(parcial: Partial<DocumentoCandidato> & { nome: string }): Documento
     faseSigla: "EX",
     tipoSigla: "DET",
     papelSigla: "A1",
+    subdisciplinaNome: null,
     revisaoAtual: 1,
     statusFinal: false,
     pacote: "A",
@@ -147,5 +148,19 @@ describe("nomeDaListaMestre pelo modelo da versão", () => {
         larguraNumero: 3,
       }),
     ).toBe("260010-SENA-HID-EXE-000-LMS");
+  });
+});
+
+describe("montarListaMestre ordena sub antes de número (F5)", () => {
+  it("raiz do card vem antes das subs; subs em ordem alfabética", () => {
+    const linhas = montarListaMestre(
+      [
+        doc({ nome: "b.pdf", numeroPrancha: 1, subdisciplinaNome: "Água Quente" }),
+        doc({ nome: "a.pdf", numeroPrancha: 999, subdisciplinaNome: null }),
+        doc({ nome: "c.pdf", numeroPrancha: 1, subdisciplinaNome: "Água Fria" }),
+      ],
+      "LMS",
+    );
+    expect(linhas.map((l) => l.sub)).toEqual(["", "Água Fria", "Água Quente"]);
   });
 });

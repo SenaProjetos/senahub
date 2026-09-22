@@ -44,6 +44,7 @@ export async function GET(req: Request) {
     where: { id: { in: ids }, excluidoEm: null },
     include: {
       pasta: { select: { caminho: true } },
+      documento: { select: { subdisciplina: { select: { nome: true } } } },
       disciplina: {
         select: {
           disciplinaTextoLegado: true,
@@ -111,7 +112,7 @@ export async function GET(req: Request) {
     const rel =
       u.pastaId && u.pasta
         ? caminhoNoZipPasta(u.pasta.caminho, u.nomeArquivo)
-        : caminhoNoZip(u.pacote!, u.nomeArquivo);
+        : caminhoNoZip(u.pacote!, u.nomeArquivo, u.documento?.subdisciplina?.nome);
     let nome = `${multiDisc ? `${slug(u.disciplina.disciplinaTextoLegado)}/` : ""}${rel}`;
     if (usados.has(nome)) {
       const i = nome.lastIndexOf(".");

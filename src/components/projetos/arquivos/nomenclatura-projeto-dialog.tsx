@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Tags } from "lucide-react";
 import type { PranchaCatalogoRow } from "@/modules/projetos/pranchas/queries";
 import { ListaMestreConfigView } from "@/components/configuracoes/lista-mestre-config-view";
-import { NomenclaturaForm } from "@/components/projetos/nomenclatura-form";
+import { VersaoProjetoSeletor, type VersaoDisponivel } from "@/components/projetos/arquivos/versao-projeto-seletor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -25,15 +25,21 @@ export function NomenclaturaProjetoButton({
   nomenclaturaGlobal,
   siglasProjeto,
   podeEditar,
+  versoes,
+  versaoAtualId,
+  personalizado,
 }: {
   projetoId: string;
   nomenclaturaProjeto: Nomenclatura & { definido: boolean };
   nomenclaturaGlobal: Nomenclatura;
   siglasProjeto: PranchaCatalogoRow[];
   podeEditar: boolean;
+  /** Versões PUBLICADAS, para o seletor "Padrão: v1 · v2 · Personalizado" (D3). */
+  versoes: VersaoDisponivel[];
+  versaoAtualId: string | null;
+  personalizado: boolean;
 }) {
   const [aberto, setAberto] = useState(false);
-  const vigente = nomenclaturaProjeto.definido ? nomenclaturaProjeto : nomenclaturaGlobal;
   const siglasAtivas = siglasProjeto.filter((s) => s.ativo);
 
   return (
@@ -53,30 +59,19 @@ export function NomenclaturaProjetoButton({
           <section className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-sm font-semibold">Padrão de nomenclatura</h3>
-              <Badge
-                variant="outline"
-                className={nomenclaturaProjeto.definido ? "border-primary/40 bg-primary/10" : undefined}
-              >
-                {nomenclaturaProjeto.definido ? "Padrão próprio" : "Herda o padrão global"}
+              <Badge variant="outline" className={personalizado ? "border-primary/40 bg-primary/10" : undefined}>
+                {personalizado ? "Padrão próprio" : "Segue uma versão"}
               </Badge>
             </div>
-            {podeEditar ? (
-              <NomenclaturaForm escopo={{ projetoId }} inicial={nomenclaturaProjeto} global={nomenclaturaGlobal} />
-            ) : (
-              <div className="space-y-1 text-sm text-muted-foreground">
-                <p>
-                  Modelo:{" "}
-                  <span className="font-mono text-foreground">
-                    {vigente.padrao || "{proj}-{disc}-{fase}-{nº}-{tipo}"}
-                  </span>
-                </p>
-                <p>
-                  Nome {vigente.exigir ? "exigido no padrão" : "livre (fora do padrão só gera aviso)"}, fase{" "}
-                  {vigente.exigirFase ? "obrigatória" : "opcional"}. Só quem tem permissão de Configurações pode
-                  alterar.
-                </p>
-              </div>
-            )}
+            <VersaoProjetoSeletor
+              projetoId={projetoId}
+              versoes={versoes}
+              versaoAtualId={versaoAtualId}
+              personalizado={personalizado}
+              podeEditar={podeEditar}
+              nomenclaturaProjeto={nomenclaturaProjeto}
+              nomenclaturaGlobal={nomenclaturaGlobal}
+            />
           </section>
 
           <section className="space-y-2">

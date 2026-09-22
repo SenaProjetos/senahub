@@ -46,6 +46,7 @@ export function DocumentosShell({
   autores,
   tipos,
   papeis,
+  subs,
   categoriasExtensao,
   pacotes,
   temFiltroAtivo,
@@ -83,6 +84,8 @@ export function DocumentosShell({
   autores: string[];
   tipos: OpcaoCatalogoDocumento[];
   papeis: OpcaoCatalogoDocumento[];
+  /** Sub-disciplinas dos cards deste projeto (F5). */
+  subs: { id: string; nome: string }[];
   categoriasExtensao: string[];
   /** Pacotes crus presentes no recorte (sem "B" — o filtro oferece "Backup", que é semântico). */
   pacotes: string[];
@@ -120,6 +123,9 @@ export function DocumentosShell({
     global: React.ComponentProps<typeof NomenclaturaProjetoButton>["nomenclaturaGlobal"];
     siglasProjeto: React.ComponentProps<typeof NomenclaturaProjetoButton>["siglasProjeto"];
     podeEditar: boolean;
+    versoes: React.ComponentProps<typeof NomenclaturaProjetoButton>["versoes"];
+    versaoAtualId: string | null;
+    personalizado: boolean;
   };
   exclusoesPendentes: Set<string>;
 }) {
@@ -143,6 +149,9 @@ export function DocumentosShell({
             nomenclaturaGlobal={nomenclatura.global}
             siglasProjeto={nomenclatura.siglasProjeto}
             podeEditar={nomenclatura.podeEditar}
+            versoes={nomenclatura.versoes}
+            versaoAtualId={nomenclatura.versaoAtualId}
+            personalizado={nomenclatura.personalizado}
           />
           {dadosUploader && (
             <GerarListaMestreButton
@@ -198,6 +207,7 @@ export function DocumentosShell({
               status={status}
               tipos={tipos}
               papeis={papeis}
+              subs={subs}
               categoriasExtensao={categoriasExtensao}
               pacotes={pacotes}
               totalFiltrado={totalFiltrado}

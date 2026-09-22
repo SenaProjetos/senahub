@@ -61,10 +61,14 @@ export function NomenclaturaForm({
   escopo,
   inicial,
   global,
+  mostrarPadrao = true,
 }: {
   escopo: "global" | { projetoId: string };
   inicial: { exigir: boolean; exigirFase: boolean; padrao: string; definido?: boolean };
   global?: { exigir: boolean; exigirFase: boolean; padrao: string };
+  /** false = só exigir/exigirFase; usado na tela global desde que o modelo do nome virou
+   *  versionado (Configurações → Nomenclatura) — editar aqui não muda nada mais (F2/F3). */
+  mostrarPadrao?: boolean;
 }) {
   const router = useRouter();
   const [exigir, setExigir] = useState(inicial.exigir);
@@ -202,17 +206,25 @@ export function NomenclaturaForm({
         <Button type="button" size="sm" variant={exigirFase ? "secondary" : "outline"} onClick={() => setExigirFase((v) => !v)}>
           {exigirFase ? "Exige fases" : "Fase opcional"}
         </Button>
-        <div className="ml-auto flex items-center gap-1">
-          <Button type="button" size="sm" variant={!modoAvancado ? "secondary" : "ghost"} onClick={irParaVisual}>
-            <Sparkles className="size-3.5" /> Editor visual
-          </Button>
-          <Button type="button" size="sm" variant={modoAvancado ? "secondary" : "ghost"} onClick={() => setModoAvancado(true)}>
-            <Code className="size-3.5" /> Avançado (texto)
-          </Button>
-        </div>
+        {mostrarPadrao && (
+          <div className="ml-auto flex items-center gap-1">
+            <Button type="button" size="sm" variant={!modoAvancado ? "secondary" : "ghost"} onClick={irParaVisual}>
+              <Sparkles className="size-3.5" /> Editor visual
+            </Button>
+            <Button type="button" size="sm" variant={modoAvancado ? "secondary" : "ghost"} onClick={() => setModoAvancado(true)}>
+              <Code className="size-3.5" /> Avançado (texto)
+            </Button>
+          </div>
+        )}
       </div>
 
-      {modoAvancado ? (
+      {!mostrarPadrao ? (
+        <p className="text-xs text-muted-foreground">
+          O modelo do nome agora é definido em{" "}
+          <a href="/configuracoes/nomenclatura" className="text-primary hover:underline">Configurações → Nomenclatura</a>{" "}
+          (versionado). Aqui só exigir/exigir fase.
+        </p>
+      ) : modoAvancado ? (
         <div className="space-y-1">
           <Label className="text-xs">Padrão custom (regex ou modelo, opcional)</Label>
           <Input
@@ -358,20 +370,20 @@ export function NomenclaturaForm({
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" onClick={salvar} disabled={pending || (!modoAvancado && visual.blocos.length === 0)}>
+        <Button size="sm" onClick={salvar} disabled={pending || (mostrarPadrao && !modoAvancado && visual.blocos.length === 0)}>
           {pending ? "Salvando…" : "Salvar"}
         </Button>
         {isProjeto && inicial.definido && (
           <Button size="sm" variant="ghost" onClick={limpar} disabled={pending}>
-            Voltar ao global
+            Remover personalização
           </Button>
         )}
-        {!modoAvancado && (
+        {mostrarPadrao && !modoAvancado && (
           <Button type="button" size="sm" variant="link" className="text-xs text-muted-foreground" onClick={comecarDoZero}>
             Recomeçar do zero
           </Button>
         )}
-        {!representavel && modoAvancado && (
+        {mostrarPadrao && !representavel && modoAvancado && (
           <Badge variant="outline" className="border-warning/40 bg-warning/10 text-xs text-warning">
             Escrita que o editor visual não representa
           </Badge>

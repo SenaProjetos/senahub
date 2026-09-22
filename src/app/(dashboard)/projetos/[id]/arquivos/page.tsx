@@ -21,6 +21,7 @@ import { parseListParams, pageCount } from "@/lib/list-params";
 import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
 import { resolverColunasVisiveis, CHAVE_PREF_COLUNAS, idsOcultaveis } from "@/modules/uploads/colunas-documento";
 import { nomenclaturaDoProjeto, nomenclaturaGlobal, resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
+import { listarVersoesPublicadas } from "@/modules/projetos/nomenclatura/versoes-queries";
 import { catalogosPrancha, catalogosPranchaConfig } from "@/modules/projetos/pranchas/queries";
 import {
   carregarCatalogosNomenclaturaDaVersao,
@@ -96,6 +97,7 @@ export default async function ArquivosPage({
     papel?: string;
     catExt?: string;
     pacote?: string;
+    sub?: string;
     page?: string;
     pageSize?: string;
     sort?: string;
@@ -189,6 +191,7 @@ export default async function ArquivosPage({
       catalogosPranchaConfig(id),
       can(user, "configuracoes", "gerir"),
     ]);
+    const versoesNomenclatura = await listarVersoesPublicadas();
     const disciplinasEnviaveis = arvore.disciplinas
       .filter((d) => d.podeEnviar)
       .map((d) => ({
@@ -257,6 +260,7 @@ export default async function ArquivosPage({
       papel: sp?.papel,
       catExt: sp?.catExt,
       pacote: sp?.pacote,
+      sub: sp?.sub,
     };
     const lp = parseListParams(sp ?? {}, {
       sortFields: CAMPOS_ORDENACAO_DOC,
@@ -320,7 +324,7 @@ export default async function ArquivosPage({
     const colunasOcultas = idsOcultaveis().filter((id) => !colunas.has(id));
     const filtrosAtivos = [
       sp?.q, sp?.ext, sp?.autor, sp?.periodo, sp?.val, sp?.fase, sp?.status,
-      sp?.tipo, sp?.papel, sp?.catExt, sp?.pacote,
+      sp?.tipo, sp?.papel, sp?.catExt, sp?.pacote, sp?.sub,
     ].filter((v) => typeof v === "string" && v.trim() !== "").length;
 
     // Áreas do projeto (paridade com o explorer antigo): Recebidos, Base, Geral, ARTs e
@@ -358,6 +362,9 @@ export default async function ArquivosPage({
           global: nomenclaturaDoEscritorio,
           siglasProjeto,
           podeEditar: podeEditarNomenclatura,
+          versoes: versoesNomenclatura,
+          versaoAtualId: nomenclatura.versao?.id ?? null,
+          personalizado: nomenclatura.personalizado,
         }}
         linkPublico={
           podeGerirLink
@@ -375,6 +382,7 @@ export default async function ArquivosPage({
         autores={opcoes.autores}
         tipos={opcoesMetadados.tipos}
         papeis={opcoesMetadados.papeis}
+        subs={opcoesMetadados.subs}
         categoriasExtensao={opcoes.categoriasExtensao}
         pacotes={opcoes.pacotes}
         temFiltroAtivo={filtrosAtivos > 0}

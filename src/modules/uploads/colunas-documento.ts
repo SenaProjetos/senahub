@@ -32,6 +32,7 @@ export const COLUNAS_DOCUMENTO: ColunaDocumento[] = [
   // a fase de dentro da célula do nome devolveu a linha à altura de uma linha só.
   { id: "numero", label: "Nº", prioridadeCorte: 1 },
   { id: "fase", label: "Fase", prioridadeCorte: 2 },
+  { id: "sub", label: "Sub", prioridadeCorte: 2 },
   { id: "tipo", label: "Tipo", prioridadeCorte: 3 },
   { id: "documento", label: "Documento", essencial: true, prioridadeCorte: 0 },
   { id: "revisao", label: "Revisão", prioridadeCorte: 1 },

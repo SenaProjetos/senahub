@@ -73,6 +73,7 @@ export function FiltrosDocumentos({
   papeis,
   categoriasExtensao,
   pacotes,
+  subs,
   totalFiltrado,
 }: {
   extensoes: string[];
@@ -83,6 +84,8 @@ export function FiltrosDocumentos({
   categoriasExtensao: string[];
   /** Pacotes crus presentes no recorte (sem "B" — ver `rotuloPacote`). */
   pacotes: string[];
+  /** Sub-disciplinas dos cards deste projeto (F5, padrão v2). Vazio = nenhum card tem sub. */
+  subs: { id: string; nome: string }[];
   totalFiltrado: number;
 }) {
   const sp = useSearchParams();
@@ -96,6 +99,7 @@ export function FiltrosDocumentos({
   const statusId = sp.get("status") ?? "";
   const tipoId = sp.get("tipo") ?? "";
   const papelId = sp.get("papel") ?? "";
+  const subId = sp.get("sub") ?? "";
   const catExt = sp.get("catExt") ?? "";
   const pacote = sp.get("pacote") ?? "";
 
@@ -121,6 +125,7 @@ export function FiltrosDocumentos({
     statusId ? { chave: "status", rotulo: status.find((item) => item.id === statusId)?.nome ?? "Status" } : null,
     tipoId ? { chave: "tipo", rotulo: tipos.find((item) => item.id === tipoId)?.sigla ?? "Tipo" } : null,
     papelId ? { chave: "papel", rotulo: papeis.find((item) => item.id === papelId)?.sigla ?? "Papel" } : null,
+    subId ? { chave: "sub", rotulo: subs.find((item) => item.id === subId)?.nome ?? "Sub" } : null,
     catExt ? { chave: "catExt", rotulo: CATEGORIA_EXTENSAO_LABEL[catExt as keyof typeof CATEGORIA_EXTENSAO_LABEL] ?? catExt } : null,
     pacote ? { chave: "pacote", rotulo: pacote === "backup" ? "Backup" : rotuloPacote(pacote) } : null,
   ].filter((c): c is { chave: string; rotulo: string } => c !== null);
@@ -128,7 +133,7 @@ export function FiltrosDocumentos({
   function limparTudo() {
     setParams({
       q: null, ext: null, autor: null, periodo: null, val: null, status: null, fase: null,
-      tipo: null, papel: null, catExt: null, pacote: null,
+      tipo: null, papel: null, catExt: null, pacote: null, sub: null,
     });
   }
 
@@ -333,6 +338,27 @@ export function FiltrosDocumentos({
               </Select>
               <p className="text-xs text-muted-foreground">Lido automaticamente da 1ª página do PDF.</p>
             </div>
+
+            {subs.length > 0 && (
+              <div className="space-y-1.5">
+                <Label htmlFor="filtro-sub">Sub-disciplina</Label>
+                <Select
+                  value={subId || "todos"}
+                  onValueChange={(value) => setParams({ sub: !value || value === "todos" ? null : value })}
+                >
+                  <SelectTrigger id="filtro-sub">
+                    <SelectValue placeholder="Todas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todas</SelectItem>
+                    {subs.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>{item.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Etiqueta lida do nome dentro do card (padrão v2).</p>
+              </div>
+            )}
 
             {categoriasExtensao.length > 0 && (
               <div className="space-y-1.5">

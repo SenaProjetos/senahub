@@ -20,6 +20,8 @@ export type DocumentoCandidato = {
   faseSigla: string | null;
   tipoSigla: string | null;
   papelSigla: string | null;
+  /** Sub-disciplina lida do nome (padrão v2); `null` = raiz do card (padrão v1, ou sem sub). */
+  subdisciplinaNome: string | null;
   revisaoAtual: number | null;
   statusFinal: boolean;
   pacote: string | null;
@@ -35,6 +37,8 @@ export type LinhaListaMestre = {
   fase: string;
   tipo: string;
   folha: string;
+  /** "" = raiz do card (sem sub). */
+  sub: string;
   revisao: string;
   formatos: string[];
   atualizadoEm: string;
@@ -69,11 +73,19 @@ export function montarListaMestre(
       fase: d.faseSigla ?? "",
       tipo: d.tipoSigla ?? "",
       folha: d.papelSigla ?? "",
+      sub: d.subdisciplinaNome ?? "",
       revisao: d.revisaoAtual !== null ? rotuloRevisao(d.revisaoAtual) : "",
       formatos: [...new Set(d.arquivos.map((a) => a.ext.toUpperCase()).filter(Boolean))].sort(),
       atualizadoEm: d.atualizadoEm,
     }))
     .sort((a, b) => {
+      // Sub primeiro (F5: "card → sub → número"): raiz do card (sem sub) vem antes das subs,
+      // que ficam em ordem alfabética entre si.
+      if (a.sub !== b.sub) {
+        if (a.sub === "") return -1;
+        if (b.sub === "") return 1;
+        return a.sub.localeCompare(b.sub, "pt-BR");
+      }
       if (a.numero !== b.numero) {
         if (a.numero === null) return 1;
         if (b.numero === null) return -1;

@@ -45,6 +45,7 @@ import { chaveLayoutPainelProjeto } from "@/modules/projetos/painel-layout";
 import { deveDeslocarPrazoDoProjeto } from "@/modules/projetos/prazo-reabertura";
 import { faixaConflitante } from "@/modules/projetos/faixa-numeracao";
 import { sincronizarSiglasV1 } from "@/modules/uploads/nomenclatura/siglas-service";
+import { versaoVigenteHoje } from "@/modules/projetos/nomenclatura/versoes-queries";
 
 
 /**
@@ -118,6 +119,11 @@ export const criarProjeto = defineAction(
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
+    // Versão do padrão de nomenclatura vigente agora (D2) — fixada no projeto na criação, do
+    // mesmo jeito que a migration de 2026-09-22 fixou os projetos existentes na v1. Publicar
+    // uma versão nova depois NÃO muda este projeto (D2): a data de vigência só decide o padrão
+    // de projeto NOVO, e é por isso que a decisão é tomada aqui, uma vez, e não a cada leitura.
+    const versaoNomenclatura = await versaoVigenteHoje();
     const projeto = await prisma.$transaction(async (tx) => {
       const { ano, sequencial, codigo } = await proximoCodigoProjeto(tx);
       const p = await tx.projeto.create({
@@ -135,6 +141,7 @@ export const criarProjeto = defineAction(
           // Planejado em branco acompanha o contrato — divergir é ato deliberado.
           prazoPlanejado: parseData(input.prazoPlanejado ?? input.prazoContrato),
           valorContrato: input.valorContrato,
+          nomenclaturaVersaoId: versaoNomenclatura?.id ?? null,
           membros: {
             create: input.membrosIds.map((userId) => ({ userId })),
           },

@@ -73,6 +73,8 @@ export type FiltrosDoc = {
   validado?: string;
   /** `PranchaCatalogo.id` (categoria `fase`), ou `FASE_SEM` para documento sem fase. */
   fase?: string;
+  /** `SubdisciplinaCatalogo.id` (F5), ou `SUB_SEM` para documento sem sub (raiz do card). */
+  sub?: string;
   status?: string;
   listaId?: string | null;
   /**
@@ -143,6 +145,10 @@ export type LinhaDoc = {
   faseId: string | null;
   faseSigla: string | null;
   faseNome: string | null;
+  /** Sub-disciplina lida do nome (padrão v2). `nome`, não sigla: mostrar o mesmo texto em
+   *  qualquer versão do projeto, sem resolver a sigla de cada uma (F5). */
+  subdisciplinaId: string | null;
+  subdisciplinaNome: string | null;
   atualizadoEm: string;
   tamanhoTotal: number;
   autor: string;
@@ -284,6 +290,9 @@ export async function listarDocumentosAgrupados(opts: {
               and ld."projetoId" = any($1::text[])))
       -- $19: só estes documentos. Nulo = sem filtro; lista vazia casa com nada (any de vazio é falso).
       and ($19::text[] is null or d.id = any($19::text[]))
+      and ($20::text is null
+           or ($20 = '__sem__' and d."subdisciplinaId" is null)
+           or ($20 <> '__sem__' and d."subdisciplinaId" = $20))
       and ($14::text is null or d."tipoId" = $14)
       and ($15::text is null or d."tamanhoPapelId" = $15)
       and ($16::text is null or exists (
@@ -326,6 +335,7 @@ export async function listarDocumentosAgrupados(opts: {
     pacoteLiteral,
     querBackup,
     filtros.documentoIds ? [...filtros.documentoIds] : null,
+    filtros.sub ?? null,
   ];
 
   const totalRows = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
@@ -357,6 +367,7 @@ export async function listarDocumentosAgrupados(opts: {
       descricao: true,
       status: { select: { id: true, nome: true, final: true } },
       fase: { select: { id: true, sigla: true, nome: true } },
+      subdisciplina: { select: { id: true, nome: true } },
       tipo: { select: { id: true, sigla: true, nome: true } },
       numeroPrancha: true,
       tamanhoPapel: { select: { id: true, sigla: true, nome: true } },
@@ -484,6 +495,8 @@ export async function listarDocumentosAgrupados(opts: {
       faseId: d.fase?.id ?? null,
       faseSigla: d.fase?.sigla ?? null,
       faseNome: d.fase?.nome ?? null,
+      subdisciplinaId: d.subdisciplina?.id ?? null,
+      subdisciplinaNome: d.subdisciplina?.nome ?? null,
       atualizadoEm: (maisRecente?.createdAt ?? new Date()).toISOString(),
       tamanhoTotal: d.uploads.reduce((s, u) => s + u.tamanho, 0),
       autor: maisRecente?.autor?.name ?? "—",
@@ -546,7 +559,7 @@ export async function contagemDocumentosPorFase(opts: {
 
 /** Catálogos usados pela edição e pelos filtros da superfície V2. */
 export async function opcoesMetadadosDocumento(projetoId: string) {
-  const [fases, tipos, papeis, status] = await Promise.all([
+  const [fases, tipos, papeis, status, subs] = await Promise.all([
     prisma.pranchaCatalogo.findMany({
       where: {
         categoria: "fase",
@@ -576,9 +589,18 @@ export async function opcoesMetadadosDocumento(projetoId: string) {
       orderBy: [{ ordem: "asc" }, { nome: "asc" }],
       select: { id: true, nome: true, final: true, ativo: true },
     }),
+    // Subs dos cards deste projeto (F5) — join por `Disciplina.disciplinaId` (catálogo).
+    prisma.disciplina.findMany({ where: { projetoId, disciplinaId: { not: null } }, select: { disciplinaId: true } })
+      .then((rows) =>
+        prisma.subdisciplinaCatalogo.findMany({
+          where: { disciplinaCatalogoId: { in: rows.map((r) => r.disciplinaId as string) }, ativo: true },
+          orderBy: [{ ordem: "asc" }, { nome: "asc" }],
+          select: { id: true, nome: true },
+        }),
+      ),
   ]);
 
-  return { fases, tipos, papeis, status };
+  return { fases, tipos, papeis, status, subs };
 }
 
 /**
@@ -649,5 +671,8 @@ export async function arvoreNavegacaoDocumentos(opts: {
     projetoId: projetoDaDisciplina.get(a.disciplinaId)!,
   }));
 }
+
+/** Documento sem sub-disciplina (raiz do card) — mesmo sentinel de `FASE_SEM`. */
+export const SUB_SEM = "__sem__";
 
 export { EXT_OUTROS, FASE_SEM };

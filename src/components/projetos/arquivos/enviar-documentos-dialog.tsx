@@ -54,6 +54,8 @@ type FaseUpload = { id: string; sigla: string; nome: string };
 
 /** Acima disto não vale abrir o PDF só pra ler o carimbo (mesmo teto de `tamanho-papel-pdf.ts`). */
 const LIMITE_LEITURA_CARIMBO_BYTES = 60 * 1024 * 1024;
+/** Valor do Select "sem sub" (fica com a sigla GERAL do card) — base-ui não aceita "" como item. */
+const SEM_SUB_ENVIO = "__geral";
 type ItemEnvio = {
   file: File;
   nome: string;
@@ -1211,6 +1213,10 @@ function RevisarNomesDialog({
     alterar(indice, { tipoId: tipoId || undefined });
   }
 
+  function atualizarSub(indice: number, subdisciplinaId: string | null) {
+    alterar(indice, { subdisciplinaId: subdisciplinaId || undefined });
+  }
+
   /**
    * Aplica uma sugestão do motor. Cada uma some depois de aplicada: renumerar troca o nome
    * (e o arquivo deixa de estar "fora do padrão" se o padrão passar a casar), backup muda o
@@ -1480,6 +1486,25 @@ function RevisarNomesDialog({
                       onFaseChange={(faseId) => atualizarFase(indice, faseId)}
                       onAplicar={(nome) => alterar(indice, { nome, fora: foraDoPadrao(nome, padrao) })}
                     />
+                  )}
+                  {disciplinaDoItem && disciplinaDoItem.subdisciplinas.length > 0 && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">Sub-disciplina (opcional)</Label>
+                      <Select
+                        value={item.subdisciplinaId ?? SEM_SUB_ENVIO}
+                        onValueChange={(v) => atualizarSub(indice, !v || v === SEM_SUB_ENVIO ? null : v)}
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="—" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={SEM_SUB_ENVIO}>— (geral do card)</SelectItem>
+                          {disciplinaDoItem.subdisciplinas.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>{s.sigla}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   )}
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">

@@ -12,6 +12,8 @@ import {
   usuariosInternos,
 } from "@/modules/projetos/queries";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
+import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
+import { valeNaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
 import { tarefasDoProjeto, opcoesTarefa, colunasTarefaAtivas, tarefaBloqueada } from "@/modules/tarefas/queries";
 import { canalDoProjeto, canaisDasDisciplinas } from "@/modules/chat/queries";
 import { AdicionarDisciplinaButton } from "@/components/projetos/adicionar-disciplina-button";
@@ -32,13 +34,20 @@ export async function DisciplinasOperacionais({ projetoId }: { projetoId: string
     can(user, "aprovacoes", "disciplina"),
     podeVerFinanceiro(user),
   ]);
-  const [internos, catalogo, slaFora, canalChat, canaisDisc] = await Promise.all([
+  const [internos, catalogoBruto, slaFora, canalChat, canaisDisc, nomenclatura] = await Promise.all([
     podeGerir ? usuariosInternos() : Promise.resolve([]),
     podeGerir ? catalogoDisciplinas() : Promise.resolve([]),
     podeValidar ? disciplinasForaDeSLA(user) : Promise.resolve([]),
     canalDoProjeto(projeto.id),
     canaisDasDisciplinas(projeto.id),
+    podeGerir ? resolverNomenclatura(projeto.id) : Promise.resolve(null),
   ]);
+  // D11 da spec de nomenclatura versionada: só oferece pra "adicionar disciplina" o que vale na
+  // versão do padrão DESTE projeto (card fora dela — ex.: Cabeamento num projeto v2 — continua
+  // funcionando se já estiver no projeto; só não aparece pra ADICIONAR de novo).
+  const catalogo = nomenclatura?.versao
+    ? catalogoBruto.filter((c) => valeNaVersao(c, nomenclatura.versao!.numero))
+    : catalogoBruto;
 
   // Quem enxerga financeiro vê o valor em qualquer papel; o corte por papel CLT continua para os demais.
   const ocultarValorDisciplina = CLT_ROLES.includes(user.role) && !podeVerValor;
