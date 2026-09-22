@@ -299,6 +299,32 @@ pela lista de versões. Não publicar F2/F3 sem a F4.
 Aceite: correção de nome num projeto v2 gera `260010-SENA-AGF-BAS-002-PLB`; num projeto v1
 gera o formato de hoje.
 
+**Entregue (2026-09-22):** `montarNome` puro em `padrao.ts` (modelo da versão, texto fixo,
+opcional, `???` em obrigatório vazio, regex legada cai no modelo original);
+`codigoPrancha`/`nomeCorrigidoPeloPadrao`/`nomeDaListaMestre` sobre ele. Achado que a spec não
+previa: os geradores também pegavam as siglas das COLUNAS (v1) — num projeto v2 sairia `BS` onde
+o padrão pede `BAS`. `siglas-nome.ts` (puro) traduz fase/tipo/card para a sigla da versão e lista
+as subs do card; o diálogo V2 usa isso na correção unitária (novo seletor de sub-disciplina,
+obrigatório quando o card não tem sigla geral) e na correção em lote (usa a sub lida do nome de
+cada arquivo). Lista Mestre: siglas da versão, número 0 quando a sequência recomeça
+(`sequenciaPor` ≠ faixa), largura da versão no nome, no PDF/XLSX e na prévia.
+`interpretarModeloVisual`/`montarModelo` aceitam bloco de texto fixo; o formulário atual passou a
+operar blocos por posição e ganhou "Adicionar texto fixo" (a tela de versões da F4 o reaproveita).
+
+**Desvios deliberados:**
+- `parsePranchaFilename` FICA em `documentos-agrupados*.ts`: é só reserva de exibição para
+  documento que o motor nunca leu (acervo antigo). Todo envio, de qualquer versão, grava
+  número/tipo pela rota — trocar por `compilarPadrao` por projeto (o diretório lista vários
+  projetos) não mudaria nada visível.
+- `arquivos-explorer.tsx` (V1, Visão Geral) não muda: a correção de nome lá continua no formato
+  original. O fluxo suportado para projeto v2 é o diálogo V2.
+
+**Para a F5 (exibição por versão):** as telas mostram a sigla da COLUNA (v1) — filtro de
+fase/tipo, badges, colunas da tabela, seletores do painel de detalhe e da conferência pós-envio
+mostram `BS` num projeto v2. `tabela-documentos.tsx` mostra o número com 4 dígitos fixos. A
+correção em lote não tem seletor de sub (usa a lida do nome). Tudo isso é leitura/rotulagem:
+o que é gravado já está certo.
+
 ### F4 — Telas de configuração (Sonnet)
 
 - **Configurações → Nomenclatura**: lista de versões (vigente destacada), rascunho editável

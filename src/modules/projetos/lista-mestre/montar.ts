@@ -7,6 +7,8 @@
  * Mestre (PDF + XLSX) no pacote A da disciplina — gerar de novo cria nova revisão dele.
  */
 import { rotuloRevisao } from "@/lib/utils";
+import { montarNome } from "@/modules/uploads/nomenclatura/padrao";
+import type { SequenciaNomenclatura } from "@/modules/projetos/nomenclatura/versao";
 
 /** Subconjunto de `LinhaDoc` (lista de documentos) que a Lista Mestre usa. */
 export type DocumentoCandidato = {
@@ -82,11 +84,18 @@ export function montarListaMestre(
 }
 
 /**
- * Número da Lista Mestre no nome do arquivo: o início da faixa da disciplina. Sem faixa
- * cadastrada, a centena do menor número listado — é o que a oficina já fazia à mão
- * (`260037-DRE-EX-6100-LME` para as folhas 6101–6104). Sem número nenhum, 0.
+ * Número da Lista Mestre no nome do arquivo. Padrão com numeração por FAIXA (v1): o início da
+ * faixa da disciplina; sem faixa cadastrada, a centena do menor número listado — é o que a
+ * oficina já fazia à mão (`260037-DRE-EX-6100-LME` para as folhas 6101–6104). Padrão com
+ * sequência que recomeça (por card ou por sub, v2): 0 — a lista vem antes da folha 001, como o
+ * 6100 vinha antes da 6101. Sem número nenhum, 0.
  */
-export function numeroDaListaMestre(inicioFaixa: number | null, linhas: LinhaListaMestre[]): number {
+export function numeroDaListaMestre(
+  inicioFaixa: number | null,
+  linhas: LinhaListaMestre[],
+  sequenciaPor: SequenciaNomenclatura = "faixa",
+): number {
+  if (sequenciaPor !== "faixa") return 0;
   if (inicioFaixa !== null) return inicioFaixa;
   const numeros = linhas.map((l) => l.numero).filter((n): n is number => n !== null);
   if (numeros.length === 0) return 0;
@@ -102,14 +111,22 @@ export function faseDaListaMestre(linhas: LinhaListaMestre[]): string | null {
   return melhor;
 }
 
-/** `{proj}-{disc}-{fase}-{nº}-{tipo}` — o mesmo modelo que o motor de nomenclatura lê. */
+/**
+ * Nome da Lista Mestre pelo MODELO da versão do padrão do projeto (`{proj}-SENA-{disc}-…` na v2);
+ * sem modelo, o original `{proj}-{disc}-{fase}-{nº}-{tipo}` com 4 dígitos (v1).
+ */
 export function nomeDaListaMestre(partes: {
   codigoProjeto: string;
   siglaDisciplina: string;
   fase: string;
   numero: number;
   siglaTipo: string;
+  modelo?: string | null;
+  larguraNumero?: number;
 }): string {
-  const numero = String(partes.numero).padStart(4, "0");
-  return `${partes.codigoProjeto}-${partes.siglaDisciplina}-${partes.fase}-${numero}-${partes.siglaTipo}`;
+  return montarNome(
+    partes.modelo,
+    { proj: partes.codigoProjeto, disc: partes.siglaDisciplina, fase: partes.fase, num: partes.numero, tipo: partes.siglaTipo },
+    { larguraNumero: partes.larguraNumero ?? 4 },
+  );
 }

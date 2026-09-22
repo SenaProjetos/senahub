@@ -39,6 +39,12 @@ import {
   type Sugestao,
 } from "@/modules/uploads/nomenclatura/interpretar";
 import { resolverDestino } from "@/modules/uploads/nomenclatura/destino";
+import {
+  opcoesNaVersao,
+  siglaDoCardNaVersao,
+  siglaNoLugarDaDisciplina,
+  subsDoCard,
+} from "@/modules/uploads/nomenclatura/siglas-nome";
 import { montarVocabulario, type CatalogosNomenclatura } from "@/modules/uploads/nomenclatura/vocabulario";
 import type { ExtensaoDef } from "@/modules/uploads/nomenclatura/extensoes";
 import { editarMetadadosDocumento } from "@/modules/uploads/actions";
@@ -65,6 +71,8 @@ type ItemEnvio = {
   faseId?: string;
   /** Tipo de documento lido do nome (alta confiança) ou escolhido aqui. */
   tipoId?: string;
+  /** Sub-disciplina lida do nome (padrão v2), só quando é do card da disciplina resolvida. */
+  subdisciplinaId?: string;
   /** "Nova versão de": documento existente que recebe esta revisão, mesmo com outro nome. */
   versaoDeDocumentoId?: string;
   fora: boolean;
@@ -111,6 +119,8 @@ export type DadosEnviarDocumentos = {
     padrao: string | null;
     /** Outras versões do padrão, para o aviso "parece seguir a vN" (D6). */
     outrosPadroes?: { rotulo: string; padrao: string }[];
+    /** Dígitos do número da folha na versão do projeto (v1 = 4, v2 = 3). */
+    larguraNumero?: number;
   };
   existentesPorDisciplina: Record<string, ArquivoExistente[]>;
   fases: FaseUpload[];
@@ -211,6 +221,26 @@ function UploaderDocumentos({
     () => montarVocabulario(dados.catalogosNomenclatura, dados.projeto.id),
     [dados.catalogosNomenclatura, dados.projeto.id],
   );
+  // O que a correção de nome escreve sai na escrita DA VERSÃO do padrão do projeto (BAS na v2,
+  // BS na v1) — as siglas de `dados.fases`/`dados.disciplinas` são as das colunas antigas (v1).
+  const paraCorrecao = useMemo(
+    () => ({
+      fases: opcoesNaVersao(dados.fases, vocabulario, "fase"),
+      tipos: opcoesNaVersao(dados.tipos, vocabulario, "tipo"),
+      disciplinas: dados.disciplinas.map((d) => ({
+        ...d,
+        sigla: siglaDoCardNaVersao(d, dados.catalogosNomenclatura, vocabulario),
+        subdisciplinas: subsDoCard(d.catalogoId, dados.catalogosNomenclatura),
+      })),
+    }),
+    [dados.fases, dados.tipos, dados.disciplinas, dados.catalogosNomenclatura, vocabulario],
+  );
+  /** Sub lida com confiança e do MESMO card da disciplina (D9) — senão, nada. */
+  function subDaLeitura(leitura: ReturnType<typeof interpretarNomeArquivo>, catalogoId: string | null) {
+    return confiavel(leitura.subdisciplina) && catalogoId && vocabulario.paiDe(leitura.subdisciplina.valor) === catalogoId
+      ? leitura.subdisciplina.valor
+      : undefined;
+  }
   // Disciplina lida do nome (sigla ou faixa de numeração) → linha do PROJETO (`Disciplina`,
   // não `DisciplinaCatalogo`) — só entre as que o usuário pode enviar (mesmo filtro de sempre).
   const catalogoParaDisciplina = useMemo(
@@ -290,6 +320,7 @@ function UploaderDocumentos({
       alvo,
       ...(confiavel(leituraFinal.fase) ? { faseId: leituraFinal.fase.valor } : {}),
       ...(confiavel(leituraFinal.tipo) ? { tipoId: leituraFinal.tipo.valor } : {}),
+      subdisciplinaId: subDaLeitura(leituraFinal, disciplinaResolvida.catalogoId),
       // Feedback de padrão sempre visível — `exigir` fica reservado pro dia em que virar
       // bloqueio de verdade; até lá, a equipe já vê e vai se adaptando (pedido do dono).
       fora: alvo === "A" && foraDoPadrao(file.name, dados.nomenclatura.padrao),
@@ -409,6 +440,7 @@ function UploaderDocumentos({
           precisaPasta: false,
           ...(confiavel(leituraFinal.fase) ? { faseId: leituraFinal.fase.valor } : {}),
           ...(confiavel(leituraFinal.tipo) ? { tipoId: leituraFinal.tipo.valor } : {}),
+          subdisciplinaId: subDaLeitura(leituraFinal, disciplinaEscolhida.catalogoId),
           fora: alvo === "A" && foraDoPadrao(file.name, dados.nomenclatura.padrao),
           avisos: leituraFinal.avisos,
           sugestoes: leituraFinal.sugestoes,
@@ -810,11 +842,12 @@ function UploaderDocumentos({
       <RevisarNomesDialog
         itens={pendentes}
         exigirFase={dados.nomenclatura.exigirFase}
-        fases={dados.fases}
-        tipos={dados.tipos}
-        disciplinas={dados.disciplinas}
+        fases={paraCorrecao.fases}
+        tipos={paraCorrecao.tipos}
+        disciplinas={paraCorrecao.disciplinas}
         codigoProjeto={dados.codigoProjeto}
         padrao={dados.nomenclatura.padrao}
+        larguraNumero={dados.nomenclatura.larguraNumero ?? 4}
         onCancel={() => setPendentes(null)}
         onChange={setPendentes}
         onEscolherDisciplina={escolherDisciplina}
@@ -1023,6 +1056,7 @@ function RevisarNomesDialog({
   disciplinas,
   codigoProjeto,
   padrao,
+  larguraNumero,
   onCancel,
   onChange,
   onEscolherDisciplina,
@@ -1034,9 +1068,14 @@ function RevisarNomesDialog({
   exigirFase: boolean;
   fases: FaseUpload[];
   tipos: FaseUpload[];
-  disciplinas: DadosEnviarDocumentos["disciplinas"];
+  /** Com a sigla GERAL do card na versão (null = card identificado só por sub) e as subs dele. */
+  disciplinas: (Omit<DadosEnviarDocumentos["disciplinas"][number], "sigla"> & {
+    sigla: string | null;
+    subdisciplinas: { id: string; sigla: string }[];
+  })[];
   codigoProjeto: string;
   padrao: string | null;
+  larguraNumero: number;
   onCancel: () => void;
   onChange: (itens: ItemEnvio[]) => void;
   onEscolherDisciplina: (indice: number, disciplinaId: string) => void;
@@ -1109,7 +1148,9 @@ function RevisarNomesDialog({
     const atualizados = itens.map((item, i) => {
       if (!selecionados.has(i) || !item.fora) return item;
       const disciplinaDoItem = item.disciplinaId ? disciplinas.find((d) => d.id === item.disciplinaId) : undefined;
-      if (!disciplinaDoItem?.sigla) {
+      // No lugar da disciplina vai a sub lida do nome (padrão v2) ou a sigla geral do card.
+      const siglaDisc = disciplinaDoItem ? siglaNoLugarDaDisciplina(disciplinaDoItem, item.subdisciplinaId) : null;
+      if (!siglaDisc) {
         semSigla += 1;
         return item; // sem sigla cadastrada, não dá pra montar o nome — mantém como está
       }
@@ -1118,15 +1159,19 @@ function RevisarNomesDialog({
       const novoNome = nomeCorrigidoPeloPadrao({
         nomeOriginal: item.file.name,
         codigoProjeto,
-        siglaDisciplina: disciplinaDoItem.sigla,
+        siglaDisciplina: siglaDisc,
         fase: fase.sigla,
         tipo: tipo.sigla,
         numeracao: numero,
+        padrao,
+        larguraNumero,
       });
       return { ...item, nome: novoNome, faseId: loteFaseId, tipoId: loteTipoId, fora: foraDoPadrao(novoNome, padrao) };
     });
     onChange(atualizados);
-    if (semSigla > 0) toast.error(`${semSigla} arquivo(s) não foram renomeados: disciplina sem sigla cadastrada.`);
+    if (semSigla > 0) {
+      toast.error(`${semSigla} arquivo(s) não foram renomeados: disciplina sem sigla — use a correção de cada arquivo e escolha a sub-disciplina.`);
+    }
     setSelecionados(new Set());
     setLoteFaseId("");
     setLoteTipoId("");
@@ -1229,15 +1274,18 @@ function RevisarNomesDialog({
           const indicePreview = itens ? [...selecionados].sort((a, b) => a - b).find((i) => itens[i]?.fora) : undefined;
           const itemPreview = indicePreview !== undefined ? itens?.[indicePreview] : undefined;
           const disciplinaPreview = itemPreview?.disciplinaId ? disciplinas.find((d) => d.id === itemPreview.disciplinaId) : undefined;
-          const nomePreview = fase && tipo && disciplinaPreview?.sigla && itemPreview
+          const siglaPreview = disciplinaPreview ? siglaNoLugarDaDisciplina(disciplinaPreview, itemPreview?.subdisciplinaId) : null;
+          const nomePreview = fase && tipo && siglaPreview && itemPreview
             && Number.isInteger(numeroInicial) && numeroInicial >= 0
             ? nomeCorrigidoPeloPadrao({
                 nomeOriginal: itemPreview.file.name,
                 codigoProjeto,
-                siglaDisciplina: disciplinaPreview.sigla,
+                siglaDisciplina: siglaPreview,
                 fase: fase.sigla,
                 tipo: tipo.sigla,
                 numeracao: numeroInicial,
+                padrao,
+                larguraNumero,
               })
             : null;
           const selecionadosComProjetoErrado = itens ? [...selecionados].filter((i) => itens[i] && temRenumerar(itens[i])).length : 0;
@@ -1333,7 +1381,16 @@ function RevisarNomesDialog({
             const nomeBase = item.nome.endsWith(extensao) ? item.nome.slice(0, item.nome.length - extensao.length) : item.nome;
             const disciplinaDoItem = item.disciplinaId ? disciplinas.find((d) => d.id === item.disciplinaId) : undefined;
             const dadosCorrecao: DadosCorrecaoNomeUpload | null = disciplinaDoItem
-              ? { codigoProjeto, siglaDisciplina: disciplinaDoItem.sigla, fases, tipos }
+              ? {
+                  codigoProjeto,
+                  siglaDisciplina: disciplinaDoItem.sigla,
+                  subdisciplinas: disciplinaDoItem.subdisciplinas,
+                  subdisciplinaId: item.subdisciplinaId,
+                  fases,
+                  tipos,
+                  padrao,
+                  larguraNumero,
+                }
               : null;
             return (
               <div key={`${item.file.name}-${indice}`} className="flex items-start gap-2 rounded-md border p-2">

@@ -29,6 +29,8 @@ type Previa = {
   disciplinaNome: string;
   documentoExistenteId: string | null;
   linhas: LinhaListaMestre[];
+  /** Dígitos do número da folha na versão do padrão do projeto (v1 = 4, v2 = 3). */
+  larguraNumero?: number;
 };
 
 async function lerErro(resposta: Response): Promise<string> {
@@ -239,7 +241,7 @@ export function GerarListaMestreButton({
                   <tbody className="divide-y">
                     {previa.linhas.map((l) => (
                       <tr key={l.documento}>
-                        <td className="px-2 py-1 font-mono">{l.numero === null ? "—" : String(l.numero).padStart(4, "0")}</td>
+                        <td className="px-2 py-1 font-mono">{l.numero === null ? "—" : String(l.numero).padStart(previa.larguraNumero ?? 4, "0")}</td>
                         <td className="px-2 py-1 font-mono">{l.documento}</td>
                         <td className={l.titulo ? "px-2 py-1" : "px-2 py-1 text-muted-foreground"}>{l.titulo || "sem título"}</td>
                         <td className="px-2 py-1 font-mono">{l.revisao || "—"}</td>

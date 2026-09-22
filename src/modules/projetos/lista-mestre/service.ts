@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { podeVerTodasDisciplinas, responsavelOuVeTodas } from "@/modules/arquivos/acesso";
 import { catalogosPrancha, mapaCanonico } from "@/modules/projetos/pranchas/queries";
 import { listarDocumentosAgrupados } from "@/modules/uploads/documentos-agrupados";
+import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
+import { carregarCatalogosNomenclaturaDaVersao } from "@/modules/uploads/nomenclatura/queries";
+import { montarVocabulario } from "@/modules/uploads/nomenclatura/vocabulario";
 import type { SubjectAutorizacao } from "@/lib/permissions";
 import type { EscopoDeDados } from "@/lib/roles";
 import {
@@ -22,8 +25,10 @@ export type ListaMestreCarregada =
       ok: true;
       projeto: { id: string; codigo: string; nome: string };
       disciplina: { id: string; nome: string };
-      /** Nome sem extensão (`{proj}-{disc}-{fase}-{nº}-{tipo}`). */
+      /** Nome sem extensão, pelo modelo da versão do padrão do projeto. */
       nome: string;
+      /** Dígitos do número da folha na versão do padrão (v1 = 4, v2 = 3). */
+      larguraNumero: number;
       faseId: string;
       tipoId: string;
       tipoNome: string;
@@ -42,30 +47,36 @@ export async function carregarListaMestre(
   projeto: { id: string; codigo: string; nome: string },
   disciplinaId: string,
 ): Promise<ListaMestreCarregada> {
-  const [disciplina, veTodas, catalogos] = await Promise.all([
+  const [disciplina, veTodas, catalogos, nomenclatura] = await Promise.all([
     prisma.disciplina.findFirst({
       where: { id: disciplinaId, projetoId: projeto.id },
       select: {
         id: true,
         disciplinaTextoLegado: true,
         numeracaoInicioProjeto: true,
-        catalogo: { select: { nome: true, codigo: true, numeracao: true } },
+        catalogo: { select: { id: true, nome: true, codigo: true, numeracao: true } },
         responsaveis: { select: { userId: true } },
       },
     }),
     podeVerTodasDisciplinas(user),
     catalogosPrancha(projeto.id),
+    resolverNomenclatura(projeto.id),
   ]);
   if (!disciplina || !responsavelOuVeTodas(user.id, veTodas, disciplina.responsaveis)) {
     return { ok: false, status: 404, erro: "Disciplina não encontrada." };
   }
   const nomeDisciplina = disciplina.catalogo?.nome ?? disciplina.disciplinaTextoLegado;
-  const sigla = disciplina.catalogo?.codigo;
+  // Siglas na escrita DA VERSÃO do padrão do projeto (F3 da nomenclatura versionada): `PDA` e não
+  // `SPD` num projeto v2. A lista é do card inteiro, então vai a sigla GERAL do card.
+  const catalogosVersao = await carregarCatalogosNomenclaturaDaVersao(projeto.id, nomenclatura.versao?.numero ?? 1);
+  const vocabulario = montarVocabulario(catalogosVersao, projeto.id);
+  const cardNaVersao = disciplina.catalogo && catalogosVersao.disciplinas.some((d) => d.id === disciplina.catalogo!.id);
+  const sigla = cardNaVersao ? vocabulario.siglaDe("disciplina", disciplina.catalogo!.id) : disciplina.catalogo?.codigo;
   if (!sigla) {
     return {
       ok: false,
       status: 400,
-      erro: `A disciplina ${nomeDisciplina} não tem sigla no catálogo (Configurações → Disciplinas) — sem ela não dá para nomear a Lista Mestre.`,
+      erro: `A disciplina ${nomeDisciplina} não tem sigla geral no padrão de nomenclatura do projeto (Configurações → Disciplinas) — sem ela não dá para nomear a Lista Mestre.`,
     };
   }
 
@@ -130,7 +141,11 @@ export async function carregarListaMestre(
     select: { id: true, status: { select: { final: true } } },
   });
 
-  const numero = numeroDaListaMestre(disciplina.numeracaoInicioProjeto ?? disciplina.catalogo?.numeracao ?? null, linhas);
+  const numero = numeroDaListaMestre(
+    disciplina.numeracaoInicioProjeto ?? disciplina.catalogo?.numeracao ?? null,
+    linhas,
+    nomenclatura.versao?.sequenciaPor ?? "faixa",
+  );
   return {
     ok: true,
     projeto,
@@ -138,10 +153,13 @@ export async function carregarListaMestre(
     nome: nomeDaListaMestre({
       codigoProjeto: projeto.codigo,
       siglaDisciplina: sigla,
-      fase: fase.sigla,
+      fase: vocabulario.siglaDe("fase", fase.id) ?? fase.sigla,
       numero,
-      siglaTipo: tipo.sigla,
+      siglaTipo: vocabulario.siglaDe("tipo", tipo.id) ?? tipo.sigla,
+      modelo: nomenclatura.padrao,
+      larguraNumero: nomenclatura.larguraNumero,
     }),
+    larguraNumero: nomenclatura.larguraNumero,
     faseId: fase.id,
     tipoId: tipo.id,
     documentoExistenteId: anterior && !anterior.status?.final ? anterior.id : null,

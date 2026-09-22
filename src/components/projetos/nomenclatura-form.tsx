@@ -12,6 +12,8 @@ import {
 import {
   CAMPOS_PADRAO,
   LABEL_CAMPO,
+  TEXTO_FIXO_VALIDO,
+  rotuloBloco,
   interpretarModeloVisual,
   montarModelo,
   exemploNomeModelo,
@@ -117,16 +119,35 @@ export function NomenclaturaForm({
     setVisualTocado(true);
   }
 
-  function alternarOpcional(campo: CampoPadrao) {
-    setVisual((v) => ({ ...v, blocos: v.blocos.map((b) => (b.campo === campo ? { ...b, opcional: !b.opcional } : b)) }));
+  // Por POSIÇÃO, não por campo: bloco de texto fixo (`SENA`, padrão v2) pode se repetir e não
+  // tem campo próprio para servir de chave.
+  function alternarOpcional(indice: number) {
+    setVisual((v) => ({
+      ...v,
+      blocos: v.blocos.map((b, i) => (i === indice && b.campo !== "texto" ? { ...b, opcional: !b.opcional } : b)),
+    }));
     setVisualTocado(true);
   }
 
-  function mover(campo: CampoPadrao, direcao: -1 | 1) {
+  function remover(indice: number) {
+    setVisual((v) => ({ ...v, blocos: v.blocos.filter((_, i) => i !== indice) }));
+    setVisualTocado(true);
+  }
+
+  const [textoFixo, setTextoFixo] = useState("");
+  const textoFixoValido = TEXTO_FIXO_VALIDO.test(textoFixo.trim());
+  function adicionarTextoFixo() {
+    const texto = textoFixo.trim().toUpperCase();
+    if (!TEXTO_FIXO_VALIDO.test(texto)) return;
+    setVisual((v) => ({ ...v, blocos: [...v.blocos, { campo: "texto", texto, opcional: false }] }));
+    setTextoFixo("");
+    setVisualTocado(true);
+  }
+
+  function mover(i: number, direcao: -1 | 1) {
     setVisual((v) => {
-      const i = v.blocos.findIndex((b) => b.campo === campo);
       const j = i + direcao;
-      if (i === -1 || j < 0 || j >= v.blocos.length) return v;
+      if (j < 0 || j >= v.blocos.length) return v;
       const blocos = [...v.blocos];
       [blocos[i], blocos[j]] = [blocos[j], blocos[i]];
       return { ...v, blocos };
@@ -221,6 +242,27 @@ export function NomenclaturaForm({
                 );
               })}
             </div>
+            <div className="flex items-center gap-1.5 pt-1">
+              <Input
+                value={textoFixo}
+                onChange={(e) => setTextoFixo(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    adicionarTextoFixo();
+                  }
+                }}
+                placeholder="Texto fixo (ex.: SENA)"
+                aria-label="Texto fixo do nome"
+                className="h-8 w-44 text-xs"
+              />
+              <Button type="button" size="sm" variant="outline" disabled={!textoFixoValido} onClick={adicionarTextoFixo}>
+                Adicionar texto fixo
+              </Button>
+            </div>
+            {textoFixo.trim() !== "" && !textoFixoValido && (
+              <p className="text-[11px] text-destructive">Só letras e números, sem acento, espaço ou separador.</p>
+            )}
           </div>
 
           {visual.blocos.length > 0 && (
@@ -228,12 +270,16 @@ export function NomenclaturaForm({
               <Label className="text-xs">Ordem, obrigatoriedade e separador</Label>
               <div className="divide-y rounded-sm border">
                 {visual.blocos.map((b, i) => (
-                  <div key={b.campo} className="flex items-center gap-2 px-2 py-1.5">
-                    <span className="w-24 shrink-0 text-sm">{LABEL_CAMPO[b.campo]}</span>
-                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Checkbox checked={b.opcional} onCheckedChange={() => alternarOpcional(b.campo)} />
-                      opcional
-                    </label>
+                  <div key={b.campo === "texto" ? `texto-${i}` : b.campo} className="flex items-center gap-2 px-2 py-1.5">
+                    <span className="w-24 shrink-0 text-sm">{rotuloBloco(b)}</span>
+                    {b.campo === "texto" ? (
+                      <span className="text-xs text-muted-foreground">texto fixo</span>
+                    ) : (
+                      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Checkbox checked={b.opcional} onCheckedChange={() => alternarOpcional(i)} />
+                        opcional
+                      </label>
+                    )}
                     <div className="ml-auto flex items-center gap-0.5">
                       <Button
                         type="button"
@@ -241,8 +287,8 @@ export function NomenclaturaForm({
                         variant="ghost"
                         className="size-6"
                         disabled={i === 0}
-                        onClick={() => mover(b.campo, -1)}
-                        aria-label={`Mover ${LABEL_CAMPO[b.campo]} para cima`}
+                        onClick={() => mover(i, -1)}
+                        aria-label={`Mover ${rotuloBloco(b)} para cima`}
                       >
                         <ArrowUp className="size-3.5" />
                       </Button>
@@ -252,8 +298,8 @@ export function NomenclaturaForm({
                         variant="ghost"
                         className="size-6"
                         disabled={i === visual.blocos.length - 1}
-                        onClick={() => mover(b.campo, 1)}
-                        aria-label={`Mover ${LABEL_CAMPO[b.campo]} para baixo`}
+                        onClick={() => mover(i, 1)}
+                        aria-label={`Mover ${rotuloBloco(b)} para baixo`}
                       >
                         <ArrowDown className="size-3.5" />
                       </Button>
@@ -262,8 +308,8 @@ export function NomenclaturaForm({
                         size="icon"
                         variant="ghost"
                         className="size-6 text-muted-foreground hover:text-destructive"
-                        onClick={() => alternarCampo(b.campo)}
-                        aria-label={`Remover ${LABEL_CAMPO[b.campo]}`}
+                        onClick={() => remover(i)}
+                        aria-label={`Remover ${rotuloBloco(b)}`}
                       >
                         <X className="size-3.5" />
                       </Button>
@@ -298,7 +344,7 @@ export function NomenclaturaForm({
                 <span className="font-mono">{exemplo}</span>
                 {visual.blocos.some((b) => b.opcional) && (
                   <span className="text-muted-foreground">
-                    {" "}· opcional: {visual.blocos.filter((b) => b.opcional).map((b) => LABEL_CAMPO[b.campo]).join(", ")}
+                    {" "}· opcional: {visual.blocos.filter((b) => b.opcional).map(rotuloBloco).join(", ")}
                   </span>
                 )}
               </div>

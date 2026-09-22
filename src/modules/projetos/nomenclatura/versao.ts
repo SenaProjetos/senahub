@@ -3,6 +3,8 @@
  * `docs/superpowers/specs/2026-09-21-nomenclatura-versionada-subdisciplinas.md`).
  */
 
+import { MODELO_PADRAO_ORIGINAL } from "@/modules/uploads/nomenclatura/padrao";
+
 export type SequenciaNomenclatura = "faixa" | "card" | "sub";
 
 export type VersaoNomenclatura = {
@@ -24,7 +26,7 @@ export type VersaoNomenclatura = {
  * compilação do modelo não é idêntica a `parsePranchaFilename` e trocar um pelo outro mudaria o
  * que já é "fora do padrão" (achado da F5 do motor, 2026-09-16).
  */
-export const MODELO_PADRAO_ORIGINAL = "{proj}-{disc}-{fase}-{num}-{tipo}";
+export { MODELO_PADRAO_ORIGINAL };
 
 export function rotuloVersao(v: Pick<VersaoNomenclatura, "numero" | "nome">): string {
   return `v${v.numero} (${v.nome})`;

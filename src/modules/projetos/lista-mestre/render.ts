@@ -13,6 +13,8 @@ export type CabecalhoListaMestre = {
   disciplinaNome: string;
   geradoEm: Date;
   geradoPor: string | null;
+  /** Dígitos do número da folha na versão do padrão do projeto (v1 = 4, v2 = 3). */
+  larguraNumero?: number;
 };
 
 const COLUNAS = [
@@ -36,10 +38,10 @@ function data(iso: string | Date): string {
   return d.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
 }
 
-function celula(linha: LinhaListaMestre, chave: (typeof COLUNAS)[number]["chave"]): string {
+function celula(linha: LinhaListaMestre, chave: (typeof COLUNAS)[number]["chave"], larguraNumero: number): string {
   switch (chave) {
     case "numero":
-      return linha.numero === null ? "" : String(linha.numero).padStart(4, "0");
+      return linha.numero === null ? "" : String(linha.numero).padStart(larguraNumero, "0");
     case "formatos":
       return linha.formatos.join(", ");
     case "atualizadoEm":
@@ -56,7 +58,7 @@ export function renderListaMestreHtml(
 ): string {
   const cabecalhoTabela = COLUNAS.map((c) => `<th>${c.titulo}</th>`).join("");
   const corpo = linhas
-    .map((l) => `<tr>${COLUNAS.map((c) => `<td class="${c.chave}">${escapar(celula(l, c.chave))}</td>`).join("")}</tr>`)
+    .map((l) => `<tr>${COLUNAS.map((c) => `<td class="${c.chave}">${escapar(celula(l, c.chave, cab.larguraNumero ?? 4))}</td>`).join("")}</tr>`)
     .join("");
   return `<!doctype html>
 <html lang="pt-BR">
@@ -107,6 +109,6 @@ export function preencherPlanilhaListaMestre(
   COLUNAS.forEach((c, i) => {
     ws.getColumn(i + 1).width = c.largura;
   });
-  for (const l of linhas) ws.addRow(COLUNAS.map((c) => celula(l, c.chave)));
+  for (const l of linhas) ws.addRow(COLUNAS.map((c) => celula(l, c.chave, cab.larguraNumero ?? 4)));
   ws.views = [{ state: "frozen", ySplit: 5 }];
 }

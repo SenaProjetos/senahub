@@ -12,6 +12,8 @@ export type NomenclaturaResolvida = {
   personalizado: boolean;
   /** Padrões das outras versões publicadas, para o aviso "parece seguir a vN" (D6). */
   outrosPadroes: { rotulo: string; padrao: string }[];
+  /** Dígitos do número da folha nos nomes gerados (v1 = 4, v2 = 3). */
+  larguraNumero: number;
 };
 
 const VERSAO_SELECT = {
@@ -53,6 +55,7 @@ export async function resolverNomenclatura(projetoId: string): Promise<Nomenclat
     versao,
     personalizado: proprio !== null,
     outrosPadroes: outrosPadroes(versoes, proprio ? null : (versao?.id ?? null)),
+    larguraNumero: versao?.larguraNumero ?? 4,
   };
 }
 

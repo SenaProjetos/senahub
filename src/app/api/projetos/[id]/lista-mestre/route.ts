@@ -55,6 +55,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       documentoExistenteId: lista.documentoExistenteId,
       disciplinaNome: lista.disciplina.nome,
       linhas: lista.linhas,
+      larguraNumero: lista.larguraNumero,
     });
   }
 
@@ -65,6 +66,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     disciplinaNome: lista.disciplina.nome,
     geradoEm: new Date(),
     geradoPor: session.user.name ?? null,
+    larguraNumero: lista.larguraNumero,
   };
 
   if (formato === "xlsx") {
