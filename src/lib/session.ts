@@ -97,6 +97,8 @@ export const getSession = cache(async () => {
     select: {
       perfilId: true,
       superUsuario: true,
+      ativo: true,
+      acessoAte: true,
       setor: true,
       tipo: true,
       contratacao: true,
@@ -105,6 +107,12 @@ export const getSession = cache(async () => {
       socio: { select: { ativo: true } },
     },
   });
+
+  // Desligamento: a sessão deixa de valer no dia seguinte a `acessoAte`, sem esperar a rotina
+  // noturna que grava `ativo = false`. Desativado também cai aqui — antes, quem tinha a sessão
+  // apagada podia simplesmente logar de novo (o bloqueio de login está em `auth.ts`).
+  const { acessoBloqueado } = await import("@/modules/usuarios/vinculo/desligamento");
+  if (!dados || acessoBloqueado({ ativo: dados.ativo, acessoAte: dados.acessoAte })) return null;
 
   const { permissaoEfetiva } = await import("@/lib/permissao-efetiva");
   const sujeito = {

@@ -245,7 +245,8 @@ export const reativarUsuario = defineAction(
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
-    await prisma.user.update({ where: { id: input.id }, data: { ativo: true } });
+    // `acessoAte` vencido faria `getSession` recusar a pessoa recém-reativada.
+    await prisma.user.update({ where: { id: input.id }, data: { ativo: true, acessoAte: null } });
     revalidatePath(REVALIDATE);
     return { id: input.id };
   },

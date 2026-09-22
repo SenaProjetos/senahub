@@ -55,6 +55,7 @@ import { executarAutomacoesComerciais } from "@/modules/comercial/automacoes";
 import { diasAvisoVencimentoContrato } from "@/modules/juridico/config";
 import { vencimentoEfetivo } from "@/modules/juridico/contrato/estado";
 import { inicioDoDia, inicioDoDiaLocal, inicioDoDiaUtc, prazoVencido } from "@/lib/data";
+import { aplicarDesligamentosVencidos } from "@/modules/usuarios/vinculo/service";
 
 /** Rotinas das automações (chamadas pelos jobs do pg-boss em lib/jobs.ts). */
 
@@ -583,7 +584,7 @@ export async function snapshotLicitacaoMensal() {
 }
 
 /** Rotinas noturnas de RH/comercial: propostas vencidas e férias que iniciam hoje. */
-export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: number; contratosEquipe: number }> {
+export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: number; contratosEquipe: number; vinculosEncerrados: number; acessosEncerrados: number }> {
   // Fronteiras em meia-noite UTC: `validade`/`dataInicio` são colunas de data
   // (00:00Z). Com meia-noite local (03:00Z) a proposta vencia um dia antes.
   const hoje = inicioDoDiaUtc();
@@ -619,7 +620,10 @@ export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: n
     });
   }
   const contratosEquipe = await alertaContratosEquipeVencendo(hoje);
-  return { propostas: props.length, ferias: fer.length, contratosEquipe };
+  // Desligamentos agendados pelo RH cujo último dia (vínculo e/ou login) foi ontem ou antes.
+  // `getSession` já recusa o login desde a meia-noite; aqui o encerramento fica gravado.
+  const deslig = await prisma.$transaction((tx) => aplicarDesligamentosVencidos(tx));
+  return { propostas: props.length, ferias: fer.length, contratosEquipe, ...deslig };
 }
 
 /** Diário: grava a foto dos KPIs do dashboard (série histórica). */

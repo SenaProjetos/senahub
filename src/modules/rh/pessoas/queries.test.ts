@@ -54,6 +54,8 @@ function usuarioBase() {
     cliente: null,
     pj: null,
     socio: null,
+    acessoAte: null,
+    vinculos: [],
   };
 }
 

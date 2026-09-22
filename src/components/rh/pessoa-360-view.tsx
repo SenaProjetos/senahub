@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { CalendarClock, Landmark, Building2, KeyRound, UserRound, ClipboardList, CalendarRange, Clock, Receipt, SlidersHorizontal } from "lucide-react";
 import { brl, formatarData } from "@/lib/utils";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
@@ -15,6 +17,10 @@ import { MinhasContasEditor } from "@/components/rh/minhas-contas-editor";
 import type { PropostaConta } from "@/modules/rh/contas/pendencia";
 import { CadastroIncompletoBadge } from "@/components/rh/cadastro-incompleto-badge";
 import { AlteracaoContratualDialog } from "@/components/rh/alteracao-contratual-dialog";
+import { DesligarDialog } from "@/components/rh/desligar-dialog";
+import { cancelarDesligamentoAction } from "@/modules/rh/desligamento/actions";
+import { MOTIVO_DESLIGAMENTO_LABELS, type MotivoDesligamento } from "@/modules/usuarios/vinculo/desligamento";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { ContaColaborador } from "@/modules/rh/contas/queries";
 import { DependentesEditor } from "@/components/rh/dependentes-editor";
 import { DocumentosEditor } from "@/components/rh/documentos-editor";
@@ -160,6 +166,32 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
   // Um dialog só, compartilhado pelas duas abas (Cadastro e Folha) — evita duas instâncias
   // de estado divergentes para a mesma alteração.
   const [alteracaoOpen, setAlteracaoOpen] = useState(false);
+  const [desligarOpen, setDesligarOpen] = useState(false);
+  const [cancelando, startCancelar] = useTransition();
+  const confirm = useConfirm();
+  const router = useRouter();
+  const deslig = pessoa.desligamento;
+  const podeDesligar = podeEditarCadastro && !self;
+
+  async function cancelarDesligamento() {
+    // Confirm ANTES do startTransition: dentro dele o React 19 suspende o setState do dialog.
+    const ok = await confirm({
+      title: "Cancelar o desligamento?",
+      description: "A data de saída e o corte de login são removidos; o vínculo segue ativo.",
+      confirmLabel: "Cancelar desligamento",
+      cancelLabel: "Voltar",
+    });
+    if (!ok) return;
+    startCancelar(async () => {
+      const res = await cancelarDesligamentoAction({ userId: pessoa.id });
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success("Desligamento cancelado.");
+      router.refresh();
+    });
+  }
 
   useEffect(() => {
     if (aba !== "ponto" || !temPonto || pontoEstado !== "idle") return;
@@ -197,6 +229,14 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                 {pessoa.online ? "Online agora" : "Offline"}
               </span>
               {pessoa.mustChangePassword && <span className="text-xs text-warning">troca de senha pendente</span>}
+              {deslig && (
+                <Badge
+                  variant="outline"
+                  className={deslig.estado === "agendado" ? "border-warning text-warning" : "text-muted-foreground"}
+                >
+                  {deslig.estado === "agendado" ? "Desligamento agendado" : "Desligado"}
+                </Badge>
+              )}
               {pessoa.incompleto && (
                 <CadastroIncompletoBadge
                   camposFaltantes={pessoa.camposFaltantes}
@@ -227,6 +267,13 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
               {pessoa.pj && <span>PJ: {pessoa.pj.razaoSocial}</span>}
               {pessoa.cliente && <span>Cliente: {pessoa.cliente.nome}</span>}
             </div>
+            {deslig && (
+              <p className="text-xs text-muted-foreground">
+                {deslig.estado === "agendado" ? "Saída em" : "Vínculo encerrado em"} {formatarData(deslig.dataFim)}
+                {deslig.motivo && ` · ${MOTIVO_DESLIGAMENTO_LABELS[deslig.motivo as MotivoDesligamento] ?? deslig.motivo}`}
+                {deslig.acessoAte && ` · login até ${formatarData(deslig.acessoAte)}`}
+              </p>
+            )}
             {pessoa.projetosAtivos && pessoa.projetosAtivos.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
                 <span className="text-muted-foreground">Projetos ativos:</span>
@@ -242,6 +289,20 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
               </div>
             )}
           </div>
+          {podeDesligar && (pessoa.podeSerDesligado || deslig?.estado === "agendado") && (
+            <div className="flex shrink-0 gap-2">
+              {pessoa.podeSerDesligado && (
+                <Button size="xs" variant="outline" onClick={() => setDesligarOpen(true)}>
+                  Desligar
+                </Button>
+              )}
+              {deslig?.estado === "agendado" && (
+                <Button size="xs" variant="outline" onClick={cancelarDesligamento} disabled={cancelando}>
+                  Cancelar desligamento
+                </Button>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -641,6 +702,9 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
           cargos={cargos}
           departamentos={departamentos}
         />
+      )}
+      {podeDesligar && pessoa.podeSerDesligado && (
+        <DesligarDialog open={desligarOpen} onOpenChange={setDesligarOpen} userId={pessoa.id} nome={pessoa.name} />
       )}
     </div>
   );
