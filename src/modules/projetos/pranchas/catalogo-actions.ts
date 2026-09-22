@@ -5,6 +5,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { normalizarSinonimos, primeiraColisao } from "@/modules/uploads/nomenclatura/colisao-sinonimo";
+import { sincronizarSiglasV1 } from "@/modules/uploads/nomenclatura/siglas-service";
 
 const base = { modulo: "configuracoes", recurso: "configuracoes", permissao: "gerir" } as const;
 const categoria = z.enum(["folha", "tipo", "fase"]);
@@ -58,15 +59,19 @@ export const criarCatalogoPrancha = defineAction(
       where: { categoria: i.categoria, projetoId },
       _max: { ordem: true },
     });
-    const c = await prisma.pranchaCatalogo.create({
-      data: {
-        categoria: i.categoria,
-        sigla,
-        nome: i.nome,
-        projetoId,
-        sinonimos,
-        ordem: (max._max.ordem ?? -1) + 1,
-      },
+    const c = await prisma.$transaction(async (tx) => {
+      const criado = await tx.pranchaCatalogo.create({
+        data: {
+          categoria: i.categoria,
+          sigla,
+          nome: i.nome,
+          projetoId,
+          sinonimos,
+          ordem: (max._max.ordem ?? -1) + 1,
+        },
+      });
+      await sincronizarSiglasV1(tx, { tipo: "prancha", id: criado.id, categoria: i.categoria, sigla, sinonimos });
+      return criado;
     });
     rev();
     return { id: c.id };
@@ -95,9 +100,12 @@ export const editarCatalogoPrancha = defineAction(
     const sigla = i.sigla.toUpperCase();
     const sinonimos = normalizarSinonimos(sigla, i.sinonimos ?? []);
     await garantirSemColisaoPrancha(existe.categoria, existe.projetoId, { sigla, sinonimos }, i.id);
-    await prisma.pranchaCatalogo.update({
-      where: { id: i.id },
-      data: { sigla, nome: i.nome, ativo: i.ativo, sinonimos },
+    await prisma.$transaction(async (tx) => {
+      await tx.pranchaCatalogo.update({
+        where: { id: i.id },
+        data: { sigla, nome: i.nome, ativo: i.ativo, sinonimos },
+      });
+      await sincronizarSiglasV1(tx, { tipo: "prancha", id: i.id, categoria: existe.categoria, sigla, sinonimos });
     });
     rev();
     return { id: i.id };

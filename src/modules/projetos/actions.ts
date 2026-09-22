@@ -44,6 +44,7 @@ import { escopoProjeto } from "@/modules/projetos/queries";
 import { chaveLayoutPainelProjeto } from "@/modules/projetos/painel-layout";
 import { deveDeslocarPrazoDoProjeto } from "@/modules/projetos/prazo-reabertura";
 import { faixaConflitante } from "@/modules/projetos/faixa-numeracao";
+import { sincronizarSiglasV1 } from "@/modules/uploads/nomenclatura/siglas-service";
 
 
 /**
@@ -1269,8 +1270,12 @@ export const criarDisciplinaCatalogo = defineAction(
     await garantirUnicosCatalogo(dados.nome, dados.codigo, dados.sinonimos, null);
     await garantirFaixaLivre(dados.numeracao, dados.numeracaoFim, null);
     const max = await prisma.disciplinaCatalogo.aggregate({ _max: { ordem: true } });
-    const criada = await prisma.disciplinaCatalogo.create({
-      data: { ...dados, ordem: (max._max.ordem ?? 0) + 1 },
+    const criada = await prisma.$transaction(async (tx) => {
+      const c = await tx.disciplinaCatalogo.create({
+        data: { ...dados, ordem: (max._max.ordem ?? 0) + 1 },
+      });
+      await sincronizarSiglasV1(tx, { tipo: "disciplina", id: c.id, codigo: dados.codigo, sinonimos: dados.sinonimos });
+      return c;
     });
     revCatalogo();
     return { id: criada.id };
@@ -1304,6 +1309,7 @@ export const editarDisciplinaCatalogo = defineAction(
     const nomeMudou = dados.nome !== existe.nome;
     await prisma.$transaction(async (tx) => {
       await tx.disciplinaCatalogo.update({ where: { id: i.id }, data: dados });
+      await sincronizarSiglasV1(tx, { tipo: "disciplina", id: i.id, codigo: dados.codigo, sinonimos: dados.sinonimos });
       if (!nomeMudou) return;
       const candidatas = await tx.disciplina.findMany({
         where: { disciplinaTextoLegado: existe.nome },

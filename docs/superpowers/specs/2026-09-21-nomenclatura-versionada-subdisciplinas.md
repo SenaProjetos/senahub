@@ -52,8 +52,9 @@ escopo da sequência), vigente desde, publicada em/por, descrição.
 `vigenteDesde <= projeto.createdAt`. Publicar versão **não altera** projeto nenhum existente.
 A data não tem outro efeito (não é data de envio, não agenda nada além disso).
 
-**D3 — Projeto preso a uma versão, ou personalizado.** `NomenclaturaConfig` do projeto aponta
-para uma versão **ou** tem padrão próprio (o que já existe hoje). Personalizado nasce como cópia
+**D3 — Projeto preso a uma versão, ou personalizado.** O projeto aponta para uma versão
+(`Projeto.nomenclaturaVersaoId`) **ou** tem padrão próprio (`NomenclaturaConfig.padrao` do
+projeto, o que já existe hoje — vence a versão). Personalizado nasce como cópia
 de uma versão. Trocar a versão é escolha explícita com confirmação, que mostra antes quantos
 documentos passariam a ficar fora do padrão. **Trocar versão nunca renomeia arquivo.**
 
@@ -215,9 +216,12 @@ Tabelas/colunas:
 - `NomenclaturaVersao` — `numero Int @unique`, `nome`, `modelo`, `larguraNumero Int`,
   `sequenciaPor` (`card | sub`), `vigenteDesde DateTime`, `publicadaEm DateTime?` (null =
   rascunho), `publicadaPorId`, `descricao`.
-- `NomenclaturaConfig.versaoId String?` — preenchido = segue a versão; null + `padrao` =
-  personalizado. A linha global (`projetoId null`) deixa de ser "o padrão" e some depois da
-  migração (contração em deploy posterior, como `Proposta.externa`).
+- ~~`NomenclaturaConfig.versaoId`~~ → **`Projeto.nomenclaturaVersaoId String?`** (desvio da F1,
+  2026-09-22): a linha de `NomenclaturaConfig` também carrega `exigir`/`exigirFase`; criar uma
+  por projeto para guardar a versão copiaria esses dois e a chave global deixaria de valer para
+  todos. A versão fica no projeto; a config segue só para padrão personalizado e as duas opções.
+  Null = resolve pela data de criação (D2). O `padrao` da linha global deixa de ser lido depois
+  da F2/F4 (a v1 é cópia dele) e sai na contração.
 - `SubdisciplinaCatalogo` — `disciplinaCatalogoId`, `nome`, `ativo`, `ordem` (sigla fica em
   `SiglaNomenclatura`).
 - `DocumentoDisciplina.subdisciplinaId String?` + índice, `onDelete: SetNull`.
@@ -231,14 +235,23 @@ Tabelas/colunas:
 
 Migration (tudo dentro dela, sem script avulso):
 1. Cria a **v1** com o `padrao` global atual, `vigenteDesde` = data antiga, publicada.
-2. **Todo projeto sem config própria ganha config apontando para a v1** (INSERT … SELECT).
-   Projeto com padrão próprio fica como está (personalizado).
+2. **Todo projeto existente fica com `nomenclaturaVersaoId` = v1** (UPDATE). Projeto com padrão
+   próprio continua personalizado: o `padrao` do projeto vence a versão na leitura.
 3. `codigo`/`sigla` + `sinonimos` atuais viram linhas de `SiglaNomenclatura` com
    `versaoDesde = 1`, `versaoAte = null`. Colunas antigas ficam (expand); leitura passa para a
    tabela nova; `DROP` só num deploy posterior.
 
 Aceite: `prisma-migration-reviewer` limpo; no dev, todo projeto tem versão ou padrão próprio;
 o vocabulário montado pela tabela nova é idêntico ao atual (teste comparando os dois).
+
+**Entregue (2026-09-22):** migration `20260922120000_nomenclatura_versionada` (aplicada no dev);
+`siglas-versao.ts` puro + testado (inclui a prova de equivalência sobre o catálogo de produção);
+`carregarCatalogosNomenclaturaDaVersao` em `nomenclatura/queries.ts` (ainda sem consumidor — a
+F2 troca); espelho transitório `siglas-service.ts` chamado por criar/editar disciplina e sigla
+da Lista Mestre e pelo seed (`semearSiglasFaltantes`); `scripts/verificar-siglas-versao.ts`
+(só leitura) — **rodar em produção logo após o deploy**: deve dar N/N idênticos e 0 projeto
+sem versão fixada. Revisor: 0 crítico; índice de `publicadaPorId` acrescentado na própria
+migration (ainda não publicada).
 
 ### F2 — Motor por versão + sub (Opus)
 
