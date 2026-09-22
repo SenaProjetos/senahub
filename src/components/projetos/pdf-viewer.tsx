@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useTransit
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Toaster } from "@/components/ui/sonner";
 import { ArrowLeft, ArrowRight, BookmarkPlus, Check, CopyPlus, Download, Expand, FileArchive, GitCompare, Loader2, Maximize2, MapPin, MessageSquare, Minimize, PauseCircle, Pencil, RotateCcw, RotateCw, Ruler, Send, Sparkles, Stamp, Table2, Tags, Trash2, Undo2, Wrench, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { PendenciaView, ReincidenciaView } from "@/modules/projetos/pendencias/queries";
 import type { TarefaContextual } from "@/modules/tarefas/queries";
@@ -83,6 +84,7 @@ import { MarcacaoSvg } from "@/components/pdf/marcacao-svg";
 import { PendenciaAnexos } from "@/components/projetos/pendencia-anexos";
 import { PendenciaReferencias } from "@/components/projetos/pendencia-referencias";
 import { descreverNovidades, type Novidades } from "@/modules/projetos/pendencias/novidades";
+import { desgirarPonto, trocaEixos, type Giro } from "@/modules/projetos/pendencias/giro";
 import { sugerirReincidencias, referenciarPendencia } from "@/modules/projetos/pendencias/actions";
 import { partesComMencao } from "@/modules/chat/mencoes";
 import { PdfPagina, type MarcaTexto } from "@/components/pdf/pdf-pagina";
@@ -361,7 +363,7 @@ export function PdfViewer(props: Props) {
   const [larguraAlvo, setLarguraAlvo] = useState(900);
   const [zoom, setZoom] = useState(1);
   /** Giro só de leitura (0|90|180|270) — ver a trava de coordenadas em `Pagina`. */
-  const [rotacao, setRotacao] = useState<0 | 90 | 180 | 270>(0);
+  const [rotacao, setRotacao] = useState<Giro>(0);
   const [emTelaCheia, setEmTelaCheia] = useState(false);
   const raizRef = useRef<HTMLDivElement | null>(null);
   const [arrastando, setArrastando] = useState(false);
@@ -909,7 +911,11 @@ export function PdfViewer(props: Props) {
   const MAX_THUMB = 480;
   async function enviarMiniatura(pendenciaId: string, pagina: number, x: number, y: number, marcacao: Marcacao) {
     try {
-      const canvas = paginaRefs.current.get(pagina)?.querySelector("canvas");
+      const renderizado = paginaRefs.current.get(pagina)?.querySelector("canvas");
+      if (!renderizado) return;
+      // O recorte é calculado no espaço sem giro (o de `x`/`y`); com a prancha girada, desfaz o
+      // giro numa cópia antes de recortar, senão a miniatura sairia de outro trecho da folha.
+      const canvas = rotacao ? canvasSemGiro(renderizado, rotacao) : renderizado;
       if (!canvas) return;
       // Pixels REAIS do canvas (já incluem o DPR); o tamanho CSS daria recorte deslocado em tela retina.
       const { sx, sy, sw, sh } = caixaRecorte(x, y, marcacao, canvas.width, canvas.height);
@@ -1283,14 +1289,15 @@ export function PdfViewer(props: Props) {
   }
 
   function girar() {
-    setRotacao((r) => ((r + 90) % 360) as 0 | 90 | 180 | 270);
-    // Girar desliga o modo de apontar: a camada de coordenadas fica indisponível enquanto
-    // a página não voltar para 0° (ver comentário em `Pagina`).
-    setModoApontar(false);
+    // Não desliga o modo apontar: a camada gira junto e o clique é convertido (ver `Pagina`).
+    setRotacao((r) => ((r + 90) % 360) as Giro);
   }
 
   return (
     <div ref={raizRef} className="flex h-[calc(100vh-2rem)] flex-col bg-background data-fullscreen:h-screen data-fullscreen:p-3" data-fullscreen={emTelaCheia || undefined}>
+      {/* Em tela cheia só o que está DENTRO deste elemento aparece: o Toaster global (no body)
+          continua recebendo os avisos, mas fica invisível. Este espelha os mesmos toasts. */}
+      {emTelaCheia && <Toaster position="top-right" richColors />}
       {/* Cabeçalho */}
       <div className="border-b pb-3">
         <div className="mb-3">
@@ -1490,11 +1497,7 @@ export function PdfViewer(props: Props) {
               className={cn("size-7", rotacao !== 0 && "text-primary")}
               onClick={girar}
               aria-label={`Girar 90° (atual: ${rotacao}°)`}
-              title={
-                rotacao === 0
-                  ? "Girar 90°"
-                  : `Girada ${rotacao}° — apontamentos ficam ocultos até voltar a 0°`
-              }
+              title={rotacao === 0 ? "Girar 90°" : `Girada ${rotacao}° — clique para girar mais 90°`}
             >
               <RotateCw className="size-4" />
             </Button>
@@ -1617,6 +1620,11 @@ export function PdfViewer(props: Props) {
         </div>
       )}
 
+      {/* Faixas de estado (busca, régua, modo apontar). `sticky`: o visualizador é mais alto que a
+          janela, e com a página rolada para baixo estas faixas sumiam acima da borda — quem
+          apontava não via a instrução nem o motivo de o clique não fazer nada. O fundo opaco
+          embaixo das cores translúcidas evita a prancha aparecer por trás ao grudar. */}
+      <div className="sticky top-0 z-30 bg-background empty:hidden">
       {/* Busca sem resultado por falta de texto pesquisável (PDF provavelmente escaneado) */}
       {busca.query.trim() !== "" && busca.semTextoPesquisavel && (
         <div className="flex items-center gap-2 border-b bg-warning/10 px-3 py-1.5 text-xs text-warning">
@@ -1655,6 +1663,7 @@ export function PdfViewer(props: Props) {
           </span>
         </div>
       )}
+      </div>
 
       <div className="flex min-h-0 flex-1">
         {painelTarefasAberto ? (
@@ -1760,11 +1769,6 @@ export function PdfViewer(props: Props) {
                 />
               ))}
             </div>
-          )}
-          {rotacao !== 0 && (
-            <p className="pointer-events-none sticky bottom-2 mx-auto w-fit rounded-sm bg-foreground/90 px-3 py-1.5 text-xs text-background shadow-md">
-              Página girada {rotacao}° — apontamentos ocultos. Volte para 0° para marcar ou medir.
-            </p>
           )}
         </div>
 
@@ -2535,6 +2539,20 @@ export function PdfViewer(props: Props) {
   );
 }
 
+/** Cópia do canvas renderizado (girado `giro` graus no sentido horário) de volta a 0°. */
+function canvasSemGiro(origem: HTMLCanvasElement, giro: Giro): HTMLCanvasElement | null {
+  const troca = trocaEixos(giro);
+  const destino = document.createElement("canvas");
+  destino.width = troca ? origem.height : origem.width;
+  destino.height = troca ? origem.width : origem.height;
+  const ctx = destino.getContext("2d");
+  if (!ctx) return null;
+  ctx.translate(destino.width / 2, destino.height / 2);
+  ctx.rotate((-giro * Math.PI) / 180);
+  ctx.drawImage(origem, -origem.width / 2, -origem.height / 2);
+  return destino;
+}
+
 // ── Página individual (canvas + texto compartilhados via PdfPagina, overlay de pinos aqui) ──
 function Pagina({
   pdf,
@@ -2560,8 +2578,8 @@ function Pagina({
   pdf: PdfDoc;
   pagina: number;
   largura: number;
-  /** Giro só de leitura; com ela != 0 a camada de apontamentos é suprimida (ver PdfViewer). */
-  rotacao: 0 | 90 | 180 | 270;
+  /** Giro de leitura; a camada de apontamentos gira junto (ver `modules/projetos/pendencias/giro.ts`). */
+  rotacao: Giro;
   pins: PinPosicionado[];
   selecionadaId: string | null;
   modoApontar: boolean;
@@ -2597,12 +2615,15 @@ function Pagina({
   const dimPtRef = useRef<{ wPt: number; hPt: number } | null>(null);
   const dimPt = dimPtRef.current;
 
+  // O retângulo da camada girada é a caixa VISÍVEL (já girada); o clique é posicionado nela e
+  // trazido de volta para o espaço sem giro, que é onde `x`/`y` são gravados.
   const posicaoNormalizada = (e: React.PointerEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    return {
-      x: Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)),
-      y: Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height)),
-    };
+    return desgirarPonto(
+      Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)),
+      Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height)),
+      rotacao,
+    );
   };
 
   /**
@@ -2671,17 +2692,21 @@ function Pagina({
 
   return (
     <PdfPagina pdf={pdf} pagina={pagina} largura={largura} registrar={registrar} onTexto={onTexto} marcas={marcas} ocgConfig={ocgConfig} ocgVersao={ocgVersao} rotacao={rotacao}>
-      {(dim) => {
-        // Girado: nada de camada de coordenadas. `x`/`y` (e a geometria das marcações) são
-        // normalizados no espaço NÃO rotacionado — desenhá-los sobre a página girada
-        // colocaria cada pino no lugar errado, e um clique gravaria coordenada inválida
-        // num registro de coordenação. Voltar para 0° devolve tudo.
-        if (rotacao !== 0) return null;
+      {(dimVisivel) => {
+        // `x`/`y` (e a geometria das marcações) vivem no espaço da página SEM o giro de leitura.
+        // Com giro, a camada inteira é montada nesse espaço e girada por CSS em torno do centro:
+        // pinos e formas acompanham a prancha, e só o clique precisa de conversão.
+        const dim = trocaEixos(rotacao)
+          ? { w: dimVisivel.h, h: dimVisivel.w, wPt: dimVisivel.hPt, hPt: dimVisivel.wPt }
+          : dimVisivel;
         dimPtRef.current = { wPt: dim.wPt, hPt: dim.hPt };
+        const estiloGiro: React.CSSProperties | undefined = rotacao
+          ? { width: dim.w, height: dim.h, left: "50%", top: "50%", transform: `translate(-50%, -50%) rotate(${rotacao}deg)` }
+          : undefined;
         return (
         <div
-          className={cn("absolute inset-0", (modoApontar || capturandoReferencia) && "cursor-crosshair")}
-          style={modoApontar && ferramenta !== "ponto" ? { touchAction: "none" } : undefined}
+          className={cn("absolute", !rotacao && "inset-0", (modoApontar || capturandoReferencia) && "cursor-crosshair")}
+          style={{ ...estiloGiro, ...(modoApontar && ferramenta !== "ponto" ? { touchAction: "none" } : {}) }}
           onPointerDown={aoPressionar}
           onPointerMove={aoMover}
           onPointerUp={aoSoltar}
@@ -2741,7 +2766,8 @@ function Pagina({
                   ehRascunho(p) && "opacity-60 ring-dashed ring-muted-foreground",
                   sel && "ring-4 ring-ring",
                 )}
-                style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
+                // O número desgira para continuar legível; a posição gira com a prancha.
+                style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%`, rotate: rotacao ? `${-rotacao}deg` : undefined }}
                 title={tituloPin(p)}
               >
                 {p.numero}

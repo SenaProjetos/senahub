@@ -101,6 +101,13 @@ export async function fichaPessoa(userId: string, acessos: AcessosFichaPessoa) {
       cliente: { select: { id: true, nome: true, tipo: true, documento: true } },
       pj: { select: { id: true, razaoSocial: true, cnpj: true } },
       socio: { select: { ativo: true } },
+      acessoAte: true,
+      // Último vínculo (ativo ou encerrado): alimenta o aviso de desligamento do cabeçalho.
+      vinculos: {
+        orderBy: { dataInicio: "desc" },
+        take: 1,
+        select: { ativo: true, dataFim: true, motivoFim: true },
+      },
     },
   });
   if (!u) return null;
@@ -198,6 +205,23 @@ export async function fichaPessoa(userId: string, acessos: AcessosFichaPessoa) {
     /** Rótulo pronto do registro profissional ("CREA-SP 123456") ou null. */
     registro: formatarRegistro(u),
     socioAtivo: u.socio?.ativo === true,
+    /**
+     * Estado do desligamento. `agendado` = vínculo ainda ativo com data de saída marcada (pode ser
+     * cancelado); `encerrado` = vínculo já encerrado; `null` = sem desligamento. `motivo`
+     * "substituido" (troca de contratação) não é desligamento e fica de fora.
+     */
+    desligamento: (() => {
+      const v = u.vinculos[0];
+      if (!v?.dataFim || v.motivoFim === "substituido") return null;
+      return {
+        estado: v.ativo ? ("agendado" as const) : ("encerrado" as const),
+        dataFim: ymd(v.dataFim)!,
+        motivo: v.motivoFim,
+        acessoAte: ymd(u.acessoAte),
+      };
+    })(),
+    /** Tem vínculo ativo sem saída marcada — é quem pode ser desligado. */
+    podeSerDesligado: u.vinculos[0]?.ativo === true && !u.vinculos[0].dataFim,
     incompleto: faltando.length > 0,
     camposFaltantes: faltando,
     online: usuarioOnline(u.id),

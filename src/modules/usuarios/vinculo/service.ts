@@ -12,6 +12,7 @@
  * Plano: docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md (§5)
  */
 import type { Contratacao, Prisma, Setor, TipoUsuario } from "@/generated/prisma/client";
+import { inicioDoDiaUtc } from "@/lib/data";
 
 /** Cliente Prisma ou transação — permite compor com outras escritas. */
 type Db = Prisma.TransactionClient;
@@ -79,8 +80,87 @@ export async function aplicarVinculo(
     contratacao: dados.contratacao,
     vinculoAtivoId: novo.id,
   });
+  // Vínculo novo = a pessoa fica. Um corte de login agendado por um desligamento anterior
+  // (ex.: fim do estágio seguido de efetivação) derrubaria quem acabou de ser contratado.
+  await db.user.update({ where: { id: userId }, data: { acessoAte: null } });
 
   return novo;
+}
+
+/**
+ * Registra o desligamento: último dia do vínculo e último dia com login.
+ *
+ * Só AGENDA. O vínculo continua `ativo` (e a pessoa batendo ponto) até `dataFim`, e o login vale
+ * até `acessoAte`; quem executa é `aplicarDesligamentosVencidos` — chamado aqui mesmo, para que
+ * datas já passadas valham na hora, e pela rotina diária de RH para as futuras.
+ *
+ * Pré-condições (a action valida): existe vínculo ativo e `dataFim >= dataInicio` dele.
+ */
+export async function agendarDesligamento(
+  db: Db,
+  userId: string,
+  dados: { vinculoId: string; dataFim: Date; motivo: string; acessoAte: Date },
+  agora: Date = new Date(),
+) {
+  await db.vinculo.update({
+    where: { id: dados.vinculoId },
+    data: { dataFim: dados.dataFim, motivoFim: dados.motivo },
+  });
+  await db.user.update({ where: { id: userId }, data: { acessoAte: dados.acessoAte } });
+  return aplicarDesligamentosVencidos(db, agora, userId);
+}
+
+/**
+ * Desfaz um desligamento que ainda não aconteceu (vínculo ainda ativo). Depois de aplicado,
+ * o caminho é reativar o usuário e abrir um vínculo novo — o encerrado é histórico.
+ */
+export async function cancelarDesligamento(db: Db, userId: string, vinculoId: string) {
+  await db.vinculo.update({ where: { id: vinculoId }, data: { dataFim: null, motivoFim: null } });
+  await db.user.update({ where: { id: userId }, data: { acessoAte: null } });
+}
+
+/**
+ * Executa os desligamentos cujas datas já passaram. Idempotente — a rotina diária pode rodar
+ * de novo, ou atrasada, sem efeito extra.
+ *
+ * 1. Vínculo com `dataFim` vencida: `ativo = false` e o cache do usuário zerado (sem setor, sem
+ *    contratação). `tipo` fica como está — a pessoa segue sendo alguém que foi interno, e
+ *    `controlaJornada` lê "só vínculo encerrado" como "não bate ponto" (ver `ponto/jornada.ts`).
+ * 2. Usuário com `acessoAte` vencido: `ativo = false` e sessões apagadas. `getSession` já
+ *    recusa a sessão desde a meia-noite; aqui a desativação fica gravada e as listas de
+ *    usuários ativos deixam de trazê-lo.
+ */
+export async function aplicarDesligamentosVencidos(db: Db, agora: Date = new Date(), userId?: string) {
+  const hoje = inicioDoDiaUtc(agora);
+  const doUsuario = userId ? { userId } : {};
+
+  const vinculos = await db.vinculo.findMany({
+    where: { ...doUsuario, ativo: true, dataFim: { lt: hoje } },
+    select: { id: true, userId: true, user: { select: { tipo: true, vinculoAtivoId: true } } },
+  });
+  for (const v of vinculos) {
+    await db.vinculo.update({ where: { id: v.id }, data: { ativo: false } });
+    if (v.user.vinculoAtivoId === v.id) {
+      await sincronizarCache(db, v.userId, {
+        tipo: v.user.tipo ?? "interno",
+        setor: null,
+        contratacao: null,
+        vinculoAtivoId: null,
+      });
+    }
+  }
+
+  const usuarios = await db.user.findMany({
+    where: { ...(userId ? { id: userId } : {}), ativo: true, acessoAte: { lt: hoje } },
+    select: { id: true },
+  });
+  const ids = usuarios.map((u) => u.id);
+  if (ids.length > 0) {
+    await db.user.updateMany({ where: { id: { in: ids } }, data: { ativo: false } });
+    await db.session.deleteMany({ where: { userId: { in: ids } } });
+  }
+
+  return { vinculosEncerrados: vinculos.length, acessosEncerrados: ids.length };
 }
 
 /** Marca o usuário como externo (portal do cliente): sem setor, sem contratação, sem vínculo. */

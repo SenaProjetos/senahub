@@ -36,9 +36,13 @@ export function LoginForm() {
     if (error) {
       setLoading(false);
       toast.error(
-        error.status === 401 || error.status === 403
-          ? "E-mail ou senha incorretos."
-          : error?.message || "Não foi possível entrar. Tente novamente.",
+        // Desligamento: a senha estava certa, mas o acesso foi encerrado (`auth.ts`). Dizer
+        // "senha incorreta" aqui mandaria a pessoa pedir reset de senha à toa.
+        error.code === "ACESSO_ENCERRADO"
+          ? error.message || "Seu acesso ao sistema foi encerrado."
+          : error.status === 401 || error.status === 403
+            ? "E-mail ou senha incorretos."
+            : error?.message || "Não foi possível entrar. Tente novamente.",
       );
       return;
     }

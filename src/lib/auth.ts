@@ -1,9 +1,11 @@
 import { betterAuth } from "better-auth";
+import { APIError } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
 import { prefixoDoCookie } from "@/lib/auth-cookie";
+import { acessoBloqueado } from "@/modules/usuarios/vinculo/desligamento";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "postgresql" }),
@@ -33,6 +35,29 @@ export const auth = betterAuth({
   databaseHooks: {
     session: {
       create: {
+        // Senha certa não basta: usuário desativado ou com `acessoAte` vencido (desligamento) não
+        // ganha sessão. Sem isto, desativar só derrubava as sessões abertas — o login seguinte
+        // entrava de novo. `getSession` recusa as sessões já existentes pela mesma regra.
+        before: async (session) => {
+          const u = await prisma.user.findUnique({
+            where: { id: session.userId },
+            select: { ativo: true, acessoAte: true },
+          });
+          if (!u || acessoBloqueado(u)) {
+            await logAudit({
+              userId: session.userId,
+              modulo: "auth",
+              acao: "login",
+              tipo: "login",
+              resultado: "bloqueado",
+              ip: session.ipAddress || null,
+            });
+            throw new APIError("FORBIDDEN", {
+              message: "Seu acesso ao sistema foi encerrado. Procure o RH.",
+              code: "ACESSO_ENCERRADO",
+            });
+          }
+        },
         after: async (session) => {
           // Registra cada login bem-sucedido (regra de auditoria).
           await logAudit({

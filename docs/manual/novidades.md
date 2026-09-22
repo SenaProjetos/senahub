@@ -22,6 +22,18 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Desligamento de colaborador
+
+A ficha da pessoa (**RH → Pessoas**) ganhou o botão **Desligar**. O RH informa o motivo, o
+último dia do vínculo e o último dia com login. O ponto e a apuração param na data de saída, o
+login cai no dia seguinte à data escolhida, e o histórico fica guardado. Dá para cancelar enquanto
+as datas não chegam. Veja [Funcionários → Desligamento](rh-ponto/funcionarios.md#desligamento).
+
+Junto veio uma correção: usuário **desativado** não consegue mais entrar de novo com a senha
+antiga. Antes, desativar só derrubava as sessões abertas.
+
+---
+
 ## Botão direito e ações em lote nas listas
 
 O menu do **botão direito** (no celular, **tocar e segurar**) chegou às principais listas do

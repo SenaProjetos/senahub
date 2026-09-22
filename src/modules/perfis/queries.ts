@@ -5,7 +5,16 @@ import { PERMISSOES_CATALOGO } from "@/lib/permissions-catalog";
 export async function listarPerfis() {
   const perfis = await prisma.perfilAcesso.findMany({
     orderBy: [{ sistema: "desc" }, { nome: "asc" }],
-    include: { _count: { select: { usuarios: true, permissoes: true } } },
+    include: {
+      _count: { select: { usuarios: true, permissoes: true } },
+      // Quem está em cada perfil, para a tela responder "por que fulano não consegue X" sem sair
+      // dela. `overrides` entra porque o ajuste individual vence o perfil (`permissaoEfetiva`): a
+      // pessoa pode estar no perfil certo e mesmo assim ter o par negado nominalmente.
+      usuarios: {
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, email: true, role: true, ativo: true, _count: { select: { overrides: true } } },
+      },
+    },
   });
   return perfis.map((p) => ({
     id: p.id,
@@ -16,6 +25,14 @@ export async function listarPerfis() {
     ativo: p.ativo,
     usuariosCount: p._count.usuarios,
     permissoesCount: p._count.permissoes,
+    usuarios: p.usuarios.map((u) => ({
+      id: u.id,
+      nome: u.name,
+      email: u.email,
+      role: u.role,
+      ativo: u.ativo,
+      ajustesIndividuais: u._count.overrides,
+    })),
   }));
 }
 

@@ -124,6 +124,11 @@ model User {
   /// 2026-09-13-folha-clt-import-assinatura.md) — mapeada uma vez por pessoa (não muda mês a
   /// mês), usada pro import automático de PDF da folha casar cada linha com o User certo.
   matriculaFolhaExterna String?            @unique
+  /// Último dia com login, definido pelo RH no desligamento (`agendarDesligamento`). A partir do
+  /// dia seguinte `getSession` recusa a sessão e o login é barrado; a rotina diária de RH então
+  /// grava `ativo = false` e apaga as sessões. É separado de `Vinculo.dataFim` de propósito: o
+  /// RH pode cortar o acesso antes do fim do vínculo (aviso prévio indenizado) ou depois dele.
+  acessoAte             DateTime?          @db.Date
 
   // Item 4 — cadastro completo do colaborador (replicado do RH do sistema antigo).
   // Tipo de contrato = `role`; jornada = `EscalaRole`/`EscalaUsuario` (Ponto v2).
