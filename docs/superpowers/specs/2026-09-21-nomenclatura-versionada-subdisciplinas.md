@@ -399,6 +399,40 @@ hierarquia ano/projeto/disciplina/fase, não pacote) não foi tocado — é outr
 - Deploy: migration da F1; nada de script. Conferir em prod que todo projeto ficou na v1 antes
   de publicar a v2.
 
+**Entregue (2026-09-22, Sonnet):**
+- `docs/manual/projetos/projetos.md` — seção "Padrão de nomenclatura do projeto" reescrita pra
+  versionamento (botões v1/v2/Personalizado, contagem antes de trocar, texto fixo no editor).
+- `docs/manual/sistema/configuracoes.md` — bullets novos "Disciplinas" (sub-disciplina), "Lista
+  Mestre" e "Nomenclatura" (versão imutável, projeto novo pega a vigente, aviso de redefinição).
+- `docs/manual/novidades.md` — entrada nova no topo, linguagem de usuário.
+- `docs/manual/search-index.json` — atualizado à mão (sem gerador automático) nas 3 entradas
+  acima: `nomenclatura`, `sub-disciplina`, `versão do padrão`, `publicar versão` etc., pra
+  `/ajuda` achar (visível a todo papel, cliente incluído).
+
+**NÃO entregue nesta sessão — depende de quem tem acesso à tela/produção:**
+- **Carga real da v2** (o teste de aceite da F4): esta sessão não dirige navegador. Fica pro
+  dono fazer em `/configuracoes/nomenclatura` (+ Disciplinas + Lista Mestre) quando for validar
+  visualmente, usando as respostas do §2 como roteiro. Nenhum dado de v2 foi escrito direto no
+  banco — faria o "sem script a cada mudança" (o motivo de toda a spec) perder a própria prova.
+- **Deploy em produção.** Checklist abaixo, a rodar quando o dono decidir publicar:
+  1. Fazer merge de `feat/nomenclatura-versionada` → `dev` → `master` (workflow de sempre:
+     dev = trabalho, master = deploy).
+  2. Deploy normal (`npm run build` + restart). A migration `20260922120000_nomenclatura_versionada`
+     roda sozinha (`prisma migrate deploy`) — sem script avulso, como todas as anteriores.
+  3. **Logo após o deploy, antes de qualquer outra coisa**: rodar
+     `npx tsx --tsconfig tsconfig.server.json scripts/verificar-siglas-versao.ts` contra o banco
+     de PRODUÇÃO. Tem de dar **N/N vocabulários idênticos** e **0 projetos sem versão fixada**.
+     Em prod há sinônimos reais (HDR/ESG, PE/EXE…) que o dev não tem — é aqui que uma divergência
+     apareceria antes de afetar um envio de verdade.
+  4. Confirmar que `db:seed` (parte do deploy padrão) não criou nada em `sigla_nomenclatura` —
+     `semearSiglasFaltantes` só age em item sem NENHUMA linha, e a migration já cobriu todo o
+     catálogo existente; `0 criada(s)` é o esperado (visto no dev, §"Entregue" da F1).
+  5. **Só depois disso** o dono cadastra e publica a v2 pela tela. Publicar não afeta os
+     projetos existentes (D2) — mas revisar o diálogo de redefinição (D5) com atenção na
+     primeira publicação real, já que o acervo de prod tem os casos genuínos (ESG, ACU, SEG).
+  6. Sem passo de rollback dedicado: a migration é só aditiva (nenhuma coluna sai), e nada some
+     do catálogo por seguir usando o padrão v1 — reverter é não publicar a v2.
+
 ---
 
 ## 6. Fora do escopo

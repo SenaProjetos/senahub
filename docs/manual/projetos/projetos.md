@@ -2,8 +2,8 @@
 titulo: Projetos
 descricao: Cadastro e acompanhamento de projetos, disciplinas, responsáveis, revisões e ciclo de vida.
 resumo: Liste e filtre projetos, crie/edite, gerencie disciplinas e seus status, responsáveis, membros, revisões, duplicação e cancelamento/arquivamento.
-tags: [projetos, disciplinas, status, responsáveis, membros, revisões, duplicar, cancelar, arquivar, progresso]
-palavras-chave: [projeto, disciplina, status, em andamento, em revisão, entregue, aprovado, responsável, membro, revisão, duplicar projeto, cancelar projeto, prazo]
+tags: [projetos, disciplinas, status, responsáveis, membros, revisões, duplicar, cancelar, arquivar, progresso, nomenclatura versionada, sub-disciplina]
+palavras-chave: [projeto, disciplina, status, em andamento, em revisão, entregue, aprovado, responsável, membro, revisão, duplicar projeto, cancelar projeto, prazo, versão do padrão, trocar de versão, sub-disciplina]
 sinonimos: [obras, jobs, contratos de projeto]
 ---
 
@@ -236,26 +236,34 @@ alguém validá-la na aba Arquivos.
 
 ### Padrão de nomenclatura do projeto (botão Nomenclatura, aba Arquivos)
 
-No botão **Nomenclatura**, ao lado de "Enviar documentos", a seção **Padrão de
-nomenclatura** mostra
-se o projeto usa o padrão global (o do escritório) ou tem um **padrão próprio** — a etiqueta
-ao lado do título já denuncia qual dos dois, sem precisar abrir a seção. Um projeto antigo
-que seguia uma numeração diferente do escritório é o caso típico de padrão próprio.
+O padrão de nomenclatura é **versionado**: o escritório publica versões em
+**Configurações → Nomenclatura** (v1, v2…), e cada projeto segue uma delas. Uma versão
+publicada é **fixa** — corrigi-la significa publicar uma versão nova, nunca editar a que já
+está em uso. Um projeto **novo** recebe automaticamente a versão vigente na data em que é
+criado; publicar uma versão nova **não muda** projeto nenhum que já existe.
 
-Dentro dela, o **editor visual** monta o padrão por blocos (Projeto, Disciplina, Fase,
-Número, Tipo, Revisão): clique para adicionar ou remover um bloco, use as setas para reordenar,
-marque **opcional** o que não é sempre exigido (revisão é o caso mais comum), e escolha o
-separador. Uma prévia mostra como um nome ficaria com aquele padrão. Nenhuma sintaxe de
-regex é necessária. Um padrão herdado de configuração antiga que o editor visual não
-consegue representar abre em **modo avançado** (texto) — ele continua funcionando, só não é
-editável em blocos até ser reconstruído do zero no editor visual.
+No botão **Nomenclatura**, ao lado de "Enviar documentos", a seção **Padrão de
+nomenclatura** mostra botões — **v1**, **v2**… e **Personalizado** — com o vigente
+destacado. Trocar de versão mostra antes quantos documentos já enviados ficariam marcados
+como "fora do padrão" com o novo modelo (nenhum arquivo é renomeado — é só o alerta que
+muda) e pede confirmação.
+
+Escolher **Personalizado** abre o mesmo **editor visual** de sempre, por blocos (Projeto,
+Disciplina, Fase, Número, Tipo, Revisão, e também **texto fixo** como "SENA"): clique para
+adicionar ou remover um bloco, use as setas para reordenar, marque **opcional** o que não é
+sempre exigido, e escolha o separador. Uma prévia mostra como um nome ficaria. Nenhuma
+sintaxe de regex é necessária — um padrão que o editor visual não consegue representar abre
+em **modo avançado** (texto), e continua funcionando do mesmo jeito.
 
 No mesmo diálogo ficam as **siglas deste projeto** (fases, tipos e folhas que valem só
 aqui, somadas às globais). Quem não tem permissão de Configurações enxerga o padrão e as
 siglas em vigor, mas não edita.
 
-Esta mesma configuração (herdar ou usar padrão próprio) existe em **Configurações → Lista
-Mestre** para o padrão **global**, que vale para todo projeto que não tiver o seu.
+As versões, as sub-disciplinas de cada card (a etiqueta de documento dentro de uma
+disciplina, como Água Fria dentro de Hidrossanitário) e as siglas de cada versão são
+cadastradas em **Configurações → Nomenclatura**, **Configurações → Disciplinas** e
+**Configurações → Lista Mestre** — sempre pela tela, sem precisar de ajuste no banco a cada
+mudança de padrão da gestão.
 
 ### Taxa de ART no financeiro (aba ARTs)
 

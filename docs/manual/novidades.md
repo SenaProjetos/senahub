@@ -22,6 +22,30 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Padrão de nomenclatura por versão e sub-disciplina
+
+O padrão de nome de arquivo agora é **versionado**: a gestão publica uma versão nova
+(**Configurações → Nomenclatura**) sem mexer na que já está em uso — cada uma, uma vez
+publicada, fica fixa. Um projeto novo recebe automaticamente a versão vigente na data em que
+é criado; publicar uma versão nova **não muda** projeto nenhum que já existe. No botão
+**Nomenclatura** de cada projeto (aba Arquivos), dá para trocar de versão a qualquer momento
+— o sistema mostra antes quantos documentos ficariam marcados como "fora do padrão" (nenhum
+arquivo é renomeado, é só o alerta) e pede confirmação.
+
+Disciplinas ganharam **sub-disciplina**: uma etiqueta de documento dentro de um card — por
+exemplo, Água Fria e Água Quente dentro de Hidrossanitário — sem projetista, prazo ou
+pagamento próprios, reconhecida só pelo nome do arquivo no envio. Cadastre em
+**Configurações → Disciplinas**. A lista de documentos ganhou filtro e coluna de
+sub-disciplina, a Lista Mestre passou a ordenar por ela, e o zip de download organiza os
+arquivos numa pasta por sub.
+
+O editor visual do padrão passou a aceitar **texto fixo** no nome (como "SENA"), além dos
+blocos de sempre.
+
+Veja a seção "Padrão de nomenclatura do projeto" em [Projetos](projetos/projetos.md).
+
+---
+
 ## Desligamento de colaborador
 
 A ficha da pessoa (**RH → Pessoas**) ganhou o botão **Desligar**. O RH informa o motivo, o
