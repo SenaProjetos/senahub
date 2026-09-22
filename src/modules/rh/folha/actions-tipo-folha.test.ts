@@ -66,4 +66,20 @@ describe("gerarHoleritesAutomatico", () => {
     expect(!r.ok && r.error).toMatch(/só para a folha mensal/);
     expect(mocks.userFindMany).not.toHaveBeenCalled();
   });
+
+  // Filtra por CONTRATAÇÃO, não por papel — alguém com role divergente da contratação real
+  // (ex.: USER_TESTE, papel "estagiario" com contratação ainda "clt") não pode sumir da folha.
+  it("seleciona por contratacao: clt, não por role", async () => {
+    mocks.folhaFindUnique.mockResolvedValue({ id: "f-mensal", tipo: "mensal", status: "aberta", holerites: [] });
+    mocks.userFindMany.mockResolvedValue([]);
+    const r = await gerarHoleritesAutomatico({ id: "f-mensal" });
+    expect(r.ok).toBe(false); // "nenhum funcionário pendente" — mock devolve lista vazia
+    expect(mocks.userFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ contratacao: "clt" }),
+      }),
+    );
+    const chamada = mocks.userFindMany.mock.calls[0][0];
+    expect(chamada.where).not.toHaveProperty("role");
+  });
 });
