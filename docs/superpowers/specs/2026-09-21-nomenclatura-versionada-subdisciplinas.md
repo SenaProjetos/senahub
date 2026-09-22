@@ -270,6 +270,21 @@ Aceite: testes com `260010-SENA-AGF-BAS-001-PLB` (v2) e `260018-EST-EX-4012-DET`
 catálogo, cada um lido só pela sua versão; `ESG` resolve HID na v1 e Esgoto na v2; `ACU` card na
 v1 e sub na v2.
 
+**Entregue (2026-09-22):** vocabulário com categoria `subdisciplina` + `paiDe()`; motor acha a
+sub no lugar da disciplina e preenche card-mãe + sub (heurística e `{disc}` do padrão), avisa
+card × sub contraditórios e ganha o aviso `outra_versao`; `versao.ts` puro (`versaoDoProjeto`,
+`outrosPadroes`) + `resolverNomenclatura` com `versao`/`personalizado`/`outrosPadroes`; rota de
+upload, página de arquivos, diálogo V2 e `preencher-metadados-documentos.ts` leem o catálogo da
+versão do projeto; rota grava `subdisciplinaId` (manual via campo `subdisciplinaId` do form, ou
+lida do nome só se a sub for do card da disciplina — D9) e registra no `DocumentoEvento`;
+`primeiraColisaoNaVersao` pura (consumidor na F4). Fixture de duas versões em
+`src/test/catalogo-nomenclatura-versoes.ts`; aceite em `interpretar-versao.test.ts`.
+Card de v2 SEM sigla geral é mantido no vocabulário quando tem sub (senão as subs sumiam junto).
+
+**Efeito transitório até a F4:** o campo "padrão" da nomenclatura GLOBAL (Configurações → Lista
+Mestre) não é mais lido — a v1 é cópia dele. Editar ali não muda nada até a F4 trocar a tela
+pela lista de versões. Não publicar F2/F3 sem a F4.
+
 ### F3 — Geradores de nome (Opus)
 
 - Função pura nova `montarNome(modelo, campos, regras)`: substitui `codigoPrancha` fixo.

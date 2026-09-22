@@ -41,6 +41,7 @@ export type Campo<T> = {
 export type PapelParte =
   | "projeto"
   | "disciplina"
+  | "subdisciplina"
   | "fase"
   | "tipo"
   | "numero"
@@ -56,7 +57,8 @@ export type TipoAviso =
   | "sigla_ambigua"
   | "sigla_desconhecida"
   | "arquivo_temporario"
-  | "extensao_desconhecida";
+  | "extensao_desconhecida"
+  | "outra_versao";
 
 export type Aviso = { tipo: TipoAviso; texto: string };
 
@@ -78,6 +80,12 @@ export type ContextoNomenclatura = {
   extensoes?: readonly ExtensaoDef[];
   /** Documentos da mesma disciplina, para sugerir "nova versão de" quando o nome mudou. */
   documentosExistentes?: readonly DocumentoConhecido[];
+  /**
+   * Padrões das OUTRAS versões publicadas (D6 da spec de nomenclatura versionada). Só geram o
+   * aviso "parece seguir o padrão vN" quando o nome não casa com o do projeto — nunca metadado:
+   * a leitura continua sendo pelo vocabulário da versão do projeto.
+   */
+  outrosPadroes?: readonly { rotulo: string; padrao: string }[];
 };
 
 export type Interpretacao = {
@@ -95,7 +103,10 @@ export type Interpretacao = {
   duplicata: boolean;
   datas: string[];
   projeto?: ProjetoLido;
+  /** Card (`DisciplinaCatalogo`). Quando vem de uma sub, é o card-mãe dela. */
   disciplina?: Campo<string>;
+  /** Sub-disciplina (`SubdisciplinaCatalogo`), padrão v2 em diante. */
+  subdisciplina?: Campo<string>;
   fase?: Campo<string>;
   tipo?: Campo<string>;
   numero?: Campo<number>;
@@ -194,6 +205,9 @@ function montarPartes(base: string, vocabulario: Vocabulario, nomeLivre: boolean
 }
 
 type Candidato = { parte: ParteInterna; categoria: CategoriaVocabulario; id: string; via: "sigla" | "sinonimo"; escopo: "projeto" | "global"; ambigua: boolean };
+
+/** Card ou sub-disciplina: os dois ocupam o lugar da disciplina no nome. */
+const ehDisciplina = (c: Candidato) => c.categoria === "disciplina" || c.categoria === "subdisciplina";
 
 function levantarCandidatos(partes: ParteInterna[], vocabulario: Vocabulario): Candidato[] {
   const candidatos: Candidato[] = [];
@@ -299,7 +313,7 @@ export function interpretarNomeArquivo(nome: string, ctx: ContextoNomenclatura):
   const candidatosFase = doTipo("fase");
   if (candidatosFase.length > 0) {
     const temDiscAntes = (c: Candidato) =>
-      candidatos.some((d) => d.categoria === "disciplina" && d.parte.indice === c.parte.indice - 1);
+      candidatos.some((d) => ehDisciplina(d) && d.parte.indice === c.parte.indice - 1);
     const escolhida = candidatosFase.find(temDiscAntes) ?? candidatosFase[0];
     let conf = confiancaBase(escolhida, nomeLivre);
     if (temDiscAntes(escolhida)) conf += 0.05;
@@ -315,21 +329,46 @@ export function interpretarNomeArquivo(nome: string, ctx: ContextoNomenclatura):
     }
   }
 
-  // Disciplina: a mais próxima ANTES da fase (`CGA_GAS-SPD-PE-…` → SPD, não GAS).
+  // Disciplina: a mais próxima ANTES da fase (`CGA_GAS-SPD-PE-…` → SPD, não GAS). Sub-disciplina
+  // disputa o mesmo lugar (`260010-SENA-AGF-BAS-…`): achada a sub, o card é o dono dela.
   let disciplina: Campo<string> | undefined;
-  const candidatosDisc = doTipo("disciplina");
+  let subdisciplina: Campo<string> | undefined;
+  const cardDe = (c: Candidato) => (c.categoria === "subdisciplina" ? vocabulario.paiDe(c.id) : c.id);
+  const candidatosDisc = [...doTipo("disciplina"), ...doTipo("subdisciplina")].sort(
+    (a, b) => a.parte.indice - b.parte.indice,
+  );
   if (candidatosDisc.length > 0) {
     const antesDaFase = indiceFase === null ? [] : candidatosDisc.filter((c) => c.parte.indice < indiceFase);
     const escolhida =
       antesDaFase.length > 0
         ? antesDaFase[antesDaFase.length - 1]
-        : candidatosDisc.find((c) => c.id === ctx.disciplinaCatalogoId) ?? candidatosDisc[0];
+        : candidatosDisc.find((c) => cardDe(c) === ctx.disciplinaCatalogoId) ?? candidatosDisc[0];
+    const card = cardDe(escolhida);
+    // Card e sub do MESMO card no nome (`HID-AGF`) não são concorrentes — só cards diferentes são.
+    const cardsNoNome = new Set(candidatosDisc.map(cardDe));
     let conf = confiancaBase(escolhida, nomeLivre);
-    if (candidatosDisc.length > 1 && escolhida.id !== ctx.disciplinaCatalogoId) conf -= 0.1;
-    if (conf >= CONFIANCA_MINIMA) {
-      disciplina = campoDeCandidato(escolhida, conf);
-      escolhida.parte.papel = "disciplina";
+    if (cardsNoNome.size > 1 && card !== ctx.disciplinaCatalogoId) conf -= 0.1;
+    if (card && conf >= CONFIANCA_MINIMA) {
+      const campo = campoDeCandidato(escolhida, conf);
+      disciplina = { ...campo, valor: card };
+      escolhida.parte.papel = escolhida.categoria === "subdisciplina" ? "subdisciplina" : "disciplina";
       usadas.add(escolhida.parte.indice);
+      if (escolhida.categoria === "subdisciplina") {
+        subdisciplina = campo;
+        // Sigla de card junto da sub: confirma se é o mesmo card, avisa se o nome se contradiz.
+        const outroCard = candidatosDisc.find(
+          (c) => c.categoria === "disciplina" && c.parte.indice < escolhida.parte.indice,
+        );
+        if (outroCard && outroCard.id === card) {
+          outroCard.parte.papel = "disciplina";
+          usadas.add(outroCard.parte.indice);
+        } else if (outroCard) {
+          avisos.push({
+            tipo: "disciplina_divergente",
+            texto: `"${escolhida.parte.texto}" é sub-disciplina de ${vocabulario.siglaDe("disciplina", card) ?? "outro card"}, e o nome também diz ${outroCard.parte.texto}.`,
+          });
+        }
+      }
     }
   }
 
@@ -412,13 +451,26 @@ export function interpretarNomeArquivo(nome: string, ctx: ContextoNomenclatura):
       for (const [campo, categoria] of Object.entries(porCategoria) as [CampoPadrao, CategoriaVocabulario][]) {
         const texto = campos[campo];
         if (!texto) continue;
-        const entrada = vocabulario.buscar(normalizarParte(texto)).find((e) => e.categoria === categoria);
+        const entradas = vocabulario.buscar(normalizarParte(texto));
+        // O campo `{disc}` do padrão aceita card OU sub (`AGF` no lugar da disciplina, v2).
+        const entrada =
+          entradas.find((e) => e.categoria === categoria) ??
+          (categoria === "disciplina" ? entradas.find((e) => e.categoria === "subdisciplina") : undefined);
         if (!entrada) {
           avisos.push({ tipo: "sigla_desconhecida", texto: `"${texto}" não está no catálogo de ${categoria}.` });
           continue;
         }
         const valor: Campo<string> = { valor: entrada.id, confianca: 0.95, fonte: "padrao_projeto", texto };
-        if (categoria === "disciplina") disciplina = valor;
+        if (entrada.categoria === "subdisciplina") {
+          const card = vocabulario.paiDe(entrada.id);
+          if (card) {
+            subdisciplina = valor;
+            disciplina = { ...valor, valor: card };
+          }
+        } else if (categoria === "disciplina") {
+          disciplina = valor;
+          subdisciplina = undefined;
+        }
         if (categoria === "fase") fase = valor;
         if (categoria === "tipo") tipo = valor;
       }
@@ -427,6 +479,17 @@ export function interpretarNomeArquivo(nome: string, ctx: ContextoNomenclatura):
         const digitos = campos.rev.match(/\d{1,3}$/);
         if (digitos) revisao = { valor: Number(digitos[0]), confianca: 0.95, fonte: "padrao_projeto", texto: campos.rev };
       }
+    }
+  }
+
+  // D6: nome fora do padrão do projeto que casa com o de outra versão — só avisa.
+  if (casouPadrao === false) {
+    const outro = (ctx.outrosPadroes ?? []).find(({ padrao }) => {
+      const c = compilarPadrao(padrao);
+      return c !== null && (c.regex.test(nomeBase) || c.regex.test(baseComCopia));
+    });
+    if (outro) {
+      avisos.push({ tipo: "outra_versao", texto: `Parece seguir o padrão ${outro.rotulo}, não o deste projeto.` });
     }
   }
 
@@ -490,6 +553,7 @@ export function interpretarNomeArquivo(nome: string, ctx: ContextoNomenclatura):
     datas,
     projeto,
     disciplina,
+    subdisciplina,
     fase,
     tipo,
     numero,

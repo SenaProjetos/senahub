@@ -11,7 +11,11 @@
 
 import { normalizarParte } from "./normalizar";
 
-export type CategoriaVocabulario = "disciplina" | "fase" | "tipo";
+/**
+ * `subdisciplina` (padrão v2 em diante): etiqueta dentro de um card (`AGF` em Hidrossanitário).
+ * Achar uma sub no nome também identifica o card — ver `paiDe`.
+ */
+export type CategoriaVocabulario = "disciplina" | "subdisciplina" | "fase" | "tipo";
 
 export type ItemVocabulario = {
   id: string;
@@ -33,8 +37,18 @@ export type DisciplinaVocabulario = {
   numeracaoFim?: number | null;
 };
 
+export type SubdisciplinaVocabulario = {
+  id: string;
+  sigla: string;
+  sinonimos?: readonly string[];
+  /** Id do `DisciplinaCatalogo` (card) dono da sub. */
+  disciplinaId: string;
+};
+
 export type CatalogosNomenclatura = {
   disciplinas: readonly DisciplinaVocabulario[];
+  /** Ausente = versão sem sub-disciplinas (v1). */
+  subdisciplinas?: readonly SubdisciplinaVocabulario[];
   fases: readonly ItemVocabulario[];
   tipos: readonly ItemVocabulario[];
 };
@@ -55,6 +69,8 @@ export type Vocabulario = {
   /** Disciplina dona da faixa de numeração onde o número cai (catálogo à risca). */
   faixaDe(numero: number): Faixa | null;
   siglaDe(categoria: CategoriaVocabulario, id: string): string | null;
+  /** Card (`DisciplinaCatalogo`) dono da sub-disciplina; `null` se a sub não está no vocabulário. */
+  paiDe(subdisciplinaId: string): string | null;
 };
 
 function registrar(
@@ -94,6 +110,15 @@ export function montarVocabulario(catalogos: CatalogosNomenclatura, projetoId: s
   };
 
   for (const d of catalogos.disciplinas) adicionar("disciplina", d.id, d.codigo, d.sinonimos, "global");
+  // Sub só entra com o card no vocabulário: sub de card fora da versão (ou arquivado) não teria
+  // a quem apontar, e o motor não inventa disciplina.
+  const cardsPresentes = new Set(catalogos.disciplinas.map((d) => d.id));
+  const pais = new Map<string, string>();
+  for (const sub of catalogos.subdisciplinas ?? []) {
+    if (!cardsPresentes.has(sub.disciplinaId)) continue;
+    pais.set(sub.id, sub.disciplinaId);
+    adicionar("subdisciplina", sub.id, sub.sigla, sub.sinonimos, "global");
+  }
   for (const [categoria, itens] of [
     ["fase", catalogos.fases],
     ["tipo", catalogos.tipos],
@@ -140,6 +165,9 @@ export function montarVocabulario(catalogos: CatalogosNomenclatura, projetoId: s
     },
     siglaDe(categoria, id) {
       return siglas.get(`${categoria}:${id}`) ?? null;
+    },
+    paiDe(subdisciplinaId) {
+      return pais.get(subdisciplinaId) ?? null;
     },
   };
 }

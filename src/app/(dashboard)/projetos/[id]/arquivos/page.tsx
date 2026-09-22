@@ -23,7 +23,7 @@ import { resolverColunasVisiveis, CHAVE_PREF_COLUNAS, idsOcultaveis } from "@/mo
 import { nomenclaturaDoProjeto, nomenclaturaGlobal, resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { catalogosPrancha, catalogosPranchaConfig } from "@/modules/projetos/pranchas/queries";
 import {
-  carregarCatalogosNomenclatura,
+  carregarCatalogosNomenclaturaDaVersao,
   carregarExtensoesNomenclatura,
   catalogoPorDisciplinaDoProjeto,
 } from "@/modules/uploads/nomenclatura/queries";
@@ -171,6 +171,7 @@ export default async function ArquivosPage({
     }));
     // Motor de nomenclatura no diálogo de envio (F3): o mesmo vocabulário/catálogo que a rota
     // usa, para a sugestão na tela e a gravação no servidor não divergirem.
+    // Desde a nomenclatura versionada, o catálogo é o da versão do padrão do projeto.
     const [
       catalogosNomenclatura,
       extensoesNomenclatura,
@@ -180,7 +181,7 @@ export default async function ArquivosPage({
       siglasProjeto,
       podeEditarNomenclatura,
     ] = await Promise.all([
-      carregarCatalogosNomenclatura(id),
+      carregarCatalogosNomenclaturaDaVersao(id, nomenclatura.versao?.numero ?? 1),
       carregarExtensoesNomenclatura(),
       catalogoPorDisciplinaDoProjeto(id),
       nomenclaturaDoProjeto(id),

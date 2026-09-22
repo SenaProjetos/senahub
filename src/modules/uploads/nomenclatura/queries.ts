@@ -72,18 +72,26 @@ async function faixasDoProjeto(projetoId: string | null): Promise<Map<string, { 
 
 const SIGLA_SELECT = { select: { sigla: true, oficial: true, versaoDesde: true, versaoAte: true } } as const;
 
+/** Sub-disciplinas ativas do catálogo (as de card arquivado caem no filtro do vocabulário). */
+function carregarSubdisciplinas() {
+  return prisma.subdisciplinaCatalogo.findMany({
+    where: { ativo: true },
+    select: { id: true, disciplinaCatalogoId: true, versaoDesde: true, versaoAte: true, siglas: SIGLA_SELECT },
+  });
+}
+
 /**
- * Mesmo resultado de `carregarCatalogosNomenclatura`, mas lendo as siglas de
- * `SiglaNomenclatura` para UMA versão do padrão (D4/D11 da spec de nomenclatura versionada).
- * Mesmos filtros: só ativos, fase/tipo global + do próprio projeto, faixa por projeto aplicada.
- * A F2 troca os consumidores para esta leitura; até lá ela só é conferida contra a antiga
- * (`scripts/verificar-siglas-versao.ts`).
+ * Catálogos de UMA versão do padrão, lendo as siglas de `SiglaNomenclatura` (D4/D11 da spec de
+ * nomenclatura versionada), com as sub-disciplinas. Mesmos filtros de
+ * `carregarCatalogosNomenclatura`: só ativos, fase/tipo global + do próprio projeto, faixa por
+ * projeto aplicada. É a leitura do motor desde a F2; a antiga fica só para
+ * `scripts/verificar-siglas-versao.ts` conferir a v1 até a contração das colunas.
  */
 export async function carregarCatalogosNomenclaturaDaVersao(
   projetoId: string | null,
   versao: number,
 ): Promise<CatalogosNomenclatura> {
-  const [disciplinas, pranchas, overridePorCatalogoId] = await Promise.all([
+  const [disciplinas, subdisciplinas, pranchas, overridePorCatalogoId] = await Promise.all([
     prisma.disciplinaCatalogo.findMany({
       where: { ativo: true },
       select: {
@@ -95,6 +103,7 @@ export async function carregarCatalogosNomenclaturaDaVersao(
         siglas: SIGLA_SELECT,
       },
     }),
+    carregarSubdisciplinas(),
     prisma.pranchaCatalogo.findMany({
       where: {
         ativo: true,
@@ -116,6 +125,7 @@ export async function carregarCatalogosNomenclaturaDaVersao(
           numeracaoFim: override ? override.fim : d.numeracaoFim,
         };
       }),
+      subdisciplinas,
       pranchas,
     },
     versao,

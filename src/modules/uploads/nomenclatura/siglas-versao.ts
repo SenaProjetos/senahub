@@ -8,7 +8,7 @@
  * motor continua sem saber que versões existem.
  */
 
-import type { CatalogosNomenclatura, ItemVocabulario } from "./vocabulario";
+import type { CatalogosNomenclatura, ItemVocabulario, SubdisciplinaVocabulario } from "./vocabulario";
 
 export type FaixaVersao = { versaoDesde: number; versaoAte: number | null };
 
@@ -67,6 +67,12 @@ export type DisciplinaComSiglas = FaixaVersao & {
   siglas: readonly SiglaLinha[];
 };
 
+export type SubdisciplinaComSiglas = FaixaVersao & {
+  id: string;
+  disciplinaCatalogoId: string;
+  siglas: readonly SiglaLinha[];
+};
+
 export type PranchaComSiglas = FaixaVersao & {
   id: string;
   categoria: "fase" | "tipo" | "folha";
@@ -77,20 +83,38 @@ export type PranchaComSiglas = FaixaVersao & {
 /**
  * Catálogos de UMA versão, no formato de `montarVocabulario()`. Item fora da versão não entra;
  * item sem sigla oficial na versão também não (sem sigla não há o que reconhecer no nome, e o
- * gerador de nome não teria o que escrever). Folha fica de fora: o motor não lê tamanho de papel
- * pelo nome.
+ * gerador de nome não teria o que escrever) — exceto o card que tem sub válida na versão: ele
+ * entra com `codigo` null, para as subs terem a quem apontar (card de v2 sem sigla "geral").
+ * Folha fica de fora: o motor não lê tamanho de papel pelo nome.
  *
  * Quem chama já filtrou `ativo` e o escopo de projeto (global + o do próprio projeto), como
  * `carregarCatalogosNomenclatura` faz hoje.
  */
 export function catalogosDaVersao(
-  entrada: { disciplinas: readonly DisciplinaComSiglas[]; pranchas: readonly PranchaComSiglas[] },
+  entrada: {
+    disciplinas: readonly DisciplinaComSiglas[];
+    subdisciplinas?: readonly SubdisciplinaComSiglas[];
+    pranchas: readonly PranchaComSiglas[];
+  },
   versao: number,
 ): CatalogosNomenclatura {
-  const disciplinas = entrada.disciplinas
-    .filter((d) => valeNaVersao(d, versao))
-    .map((d) => ({ d, siglas: siglasNaVersao(d.siglas, versao) }))
+  const cardsNaVersao = new Set(entrada.disciplinas.filter((d) => valeNaVersao(d, versao)).map((d) => d.id));
+  const subdisciplinas: SubdisciplinaVocabulario[] = (entrada.subdisciplinas ?? [])
+    .filter((sub) => cardsNaVersao.has(sub.disciplinaCatalogoId) && valeNaVersao(sub, versao))
+    .map((sub) => ({ sub, siglas: siglasNaVersao(sub.siglas, versao) }))
     .filter(({ siglas }) => siglas.oficial !== null)
+    .map(({ sub, siglas }) => ({
+      id: sub.id,
+      sigla: siglas.oficial as string,
+      sinonimos: siglas.sinonimos,
+      disciplinaId: sub.disciplinaCatalogoId,
+    }));
+  const cardsComSub = new Set(subdisciplinas.map((sub) => sub.disciplinaId));
+
+  const disciplinas = entrada.disciplinas
+    .filter((d) => cardsNaVersao.has(d.id))
+    .map((d) => ({ d, siglas: siglasNaVersao(d.siglas, versao) }))
+    .filter(({ d, siglas }) => siglas.oficial !== null || cardsComSub.has(d.id))
     .map(({ d, siglas }) => ({
       id: d.id,
       codigo: siglas.oficial,
@@ -111,5 +135,5 @@ export function catalogosDaVersao(
         projetoId: p.projetoId,
       }));
 
-  return { disciplinas, fases: itens("fase"), tipos: itens("tipo") };
+  return { disciplinas, subdisciplinas, fases: itens("fase"), tipos: itens("tipo") };
 }

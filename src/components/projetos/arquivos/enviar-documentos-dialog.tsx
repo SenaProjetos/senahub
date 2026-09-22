@@ -105,7 +105,13 @@ export type DadosEnviarDocumentos = {
     /** Id no `DisciplinaCatalogo` — o motor compara com a disciplina lida do nome. */
     catalogoId: string | null;
   }[];
-  nomenclatura: { exigir: boolean; exigirFase: boolean; padrao: string | null };
+  nomenclatura: {
+    exigir: boolean;
+    exigirFase: boolean;
+    padrao: string | null;
+    /** Outras versões do padrão, para o aviso "parece seguir a vN" (D6). */
+    outrosPadroes?: { rotulo: string; padrao: string }[];
+  };
   existentesPorDisciplina: Record<string, ArquivoExistente[]>;
   fases: FaseUpload[];
   tipos: FaseUpload[];
@@ -225,6 +231,7 @@ function UploaderDocumentos({
       projeto: dados.projeto,
       disciplinaCatalogoId: null,
       padrao: dados.nomenclatura.padrao,
+      outrosPadroes: dados.nomenclatura.outrosPadroes,
       vocabulario,
       extensoes: dados.extensoesNomenclatura,
     });
@@ -271,6 +278,7 @@ function UploaderDocumentos({
       projeto: dados.projeto,
       disciplinaCatalogoId: disciplinaResolvida.catalogoId,
       padrao: dados.nomenclatura.padrao,
+      outrosPadroes: dados.nomenclatura.outrosPadroes,
       vocabulario,
       extensoes: dados.extensoesNomenclatura,
       documentosExistentes: documentosDoDestino,
@@ -368,6 +376,7 @@ function UploaderDocumentos({
       projeto: dados.projeto,
       disciplinaCatalogoId: null,
       padrao: dados.nomenclatura.padrao,
+      outrosPadroes: dados.nomenclatura.outrosPadroes,
       vocabulario,
       extensoes: dados.extensoesNomenclatura,
     });
@@ -384,6 +393,7 @@ function UploaderDocumentos({
       projeto: dados.projeto,
       disciplinaCatalogoId: disciplinaEscolhida.catalogoId,
       padrao: dados.nomenclatura.padrao,
+      outrosPadroes: dados.nomenclatura.outrosPadroes,
       vocabulario,
       extensoes: dados.extensoesNomenclatura,
       documentosExistentes: documentosDoDestino,
@@ -430,6 +440,7 @@ function UploaderDocumentos({
       projeto: dados.projeto,
       disciplinaCatalogoId,
       padrao: dados.nomenclatura.padrao,
+      outrosPadroes: dados.nomenclatura.outrosPadroes,
       vocabulario,
       extensoes: dados.extensoesNomenclatura,
       documentosExistentes: documentosDoDestino,

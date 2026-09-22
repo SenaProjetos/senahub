@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { itemQueColide, normalizarSinonimos, primeiraColisao } from "./colisao-sinonimo";
+import {
+  faixasSeSobrepoem,
+  itemQueColide,
+  normalizarSinonimos,
+  primeiraColisao,
+  primeiraColisaoNaVersao,
+} from "./colisao-sinonimo";
 
 describe("normalizarSinonimos", () => {
   it("maiúscula, tira espaço e duplicata", () => {
@@ -44,5 +50,31 @@ describe("primeiraColisao", () => {
 
   it("sem colisão devolve null", () => {
     expect(primeiraColisao({ sigla: "PQT", sinonimos: ["PLQ"] }, outros)).toBeNull();
+  });
+});
+
+describe("primeiraColisaoNaVersao", () => {
+  const l = (sigla: string, versaoDesde: number, versaoAte: number | null, oficial = true) => ({ sigla, oficial, versaoDesde, versaoAte });
+
+  it("mesma sigla em faixas que não se cruzam convive (ESG: HID até a v1, sub Esgoto da v2)", () => {
+    const hid = { id: "d-hid", siglas: [l("HID", 1, null), l("ESG", 1, 1, false)] };
+    const esgoto = { id: "s-esg", siglas: [l("ESG", 2, null)] };
+    expect(primeiraColisaoNaVersao(esgoto, [hid])).toBeNull();
+  });
+
+  it("mesma sigla com faixas cruzadas colide, em qualquer caixa", () => {
+    const hid = { id: "d-hid", siglas: [l("HID", 1, null), l("ESG", 1, null, false)] };
+    const esgoto = { id: "s-esg", siglas: [l("esg", 2, null)] };
+    expect(primeiraColisaoNaVersao(esgoto, [hid])).toEqual({ sigla: "ESG", comItemId: "d-hid" });
+  });
+
+  it("o próprio item não colide consigo", () => {
+    const item = { id: "a", siglas: [l("AGF", 2, null)] };
+    expect(primeiraColisaoNaVersao(item, [item])).toBeNull();
+  });
+
+  it("faixasSeSobrepoem trata fim nulo como sem fim", () => {
+    expect(faixasSeSobrepoem(l("X", 1, null), l("X", 5, 5))).toBe(true);
+    expect(faixasSeSobrepoem(l("X", 1, 1), l("X", 2, null))).toBe(false);
   });
 });
