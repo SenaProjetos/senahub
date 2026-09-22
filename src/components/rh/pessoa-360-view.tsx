@@ -17,6 +17,7 @@ import { MinhasContasEditor } from "@/components/rh/minhas-contas-editor";
 import type { PropostaConta } from "@/modules/rh/contas/pendencia";
 import { CadastroIncompletoBadge } from "@/components/rh/cadastro-incompleto-badge";
 import { AlteracaoContratualDialog } from "@/components/rh/alteracao-contratual-dialog";
+import { TrocarContratacaoDialog } from "@/components/rh/trocar-contratacao-dialog";
 import { DesligarDialog } from "@/components/rh/desligar-dialog";
 import { cancelarDesligamentoAction } from "@/modules/rh/desligamento/actions";
 import { MOTIVO_DESLIGAMENTO_LABELS, type MotivoDesligamento } from "@/modules/usuarios/vinculo/desligamento";
@@ -83,6 +84,8 @@ export type Pessoa360Props = {
   /** Overrides de permissão (Onda C) — vazio quando `!podeGerirAcesso` (a query nem roda). */
   overrides?: OverrideItem[];
   podeGerirAcesso?: boolean;
+  /** Último mês com banco de horas fechado — aviso de troca de contratação retroativa. */
+  ultimoMesFechadoBanco?: { ano: number; mes: number } | null;
 };
 
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -125,7 +128,7 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
   );
 }
 
-export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, controlaJornada = false, holerites, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], cargos = [], departamentos = [], contas = null, contaPendente = null, preferenciasSlot, historicoSlot, overrides = [], podeGerirAcesso = false }: Pessoa360Props) {
+export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, controlaJornada = false, holerites, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], cargos = [], departamentos = [], contas = null, contaPendente = null, preferenciasSlot, historicoSlot, overrides = [], podeGerirAcesso = false, ultimoMesFechadoBanco = null }: Pessoa360Props) {
   // Cadastro no formato do EditarCadastroDialog (junta os escalares + o vínculo PJ do cabeçalho).
   const cadastroDialog: Cadastro | null = cadastro
     ? {
@@ -167,11 +170,15 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
   // de estado divergentes para a mesma alteração.
   const [alteracaoOpen, setAlteracaoOpen] = useState(false);
   const [desligarOpen, setDesligarOpen] = useState(false);
+  const [trocarContratacaoOpen, setTrocarContratacaoOpen] = useState(false);
   const [cancelando, startCancelar] = useTransition();
   const confirm = useConfirm();
   const router = useRouter();
   const deslig = pessoa.desligamento;
   const podeDesligar = podeEditarCadastro && !self;
+  // Admin não tem eixo de contratação no modelo (mapa.ts) — nem mostra o botão, pra não abrir um
+  // diálogo que o servidor vai recusar de qualquer forma.
+  const podeAlterarContratacao = podeEditarCadastro && !self && pessoa.role !== "admin";
 
   async function cancelarDesligamento() {
     // Confirm ANTES do startTransition: dentro dele o React 19 suspende o setState do dialog.
@@ -289,14 +296,19 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
               </div>
             )}
           </div>
-          {podeDesligar && (pessoa.podeSerDesligado || deslig?.estado === "agendado") && (
+          {(podeAlterarContratacao || (podeDesligar && (pessoa.podeSerDesligado || deslig?.estado === "agendado"))) && (
             <div className="flex shrink-0 gap-2">
-              {pessoa.podeSerDesligado && (
+              {podeAlterarContratacao && (
+                <Button size="xs" variant="outline" onClick={() => setTrocarContratacaoOpen(true)}>
+                  Alterar contratação
+                </Button>
+              )}
+              {pessoa.podeSerDesligado && podeDesligar && (
                 <Button size="xs" variant="outline" onClick={() => setDesligarOpen(true)}>
                   Desligar
                 </Button>
               )}
-              {deslig?.estado === "agendado" && (
+              {deslig?.estado === "agendado" && podeDesligar && (
                 <Button size="xs" variant="outline" onClick={cancelarDesligamento} disabled={cancelando}>
                   Cancelar desligamento
                 </Button>
@@ -705,6 +717,18 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
       )}
       {podeDesligar && pessoa.podeSerDesligado && (
         <DesligarDialog open={desligarOpen} onOpenChange={setDesligarOpen} userId={pessoa.id} nome={pessoa.name} />
+      )}
+      {podeAlterarContratacao && (
+        <TrocarContratacaoDialog
+          open={trocarContratacaoOpen}
+          onOpenChange={setTrocarContratacaoOpen}
+          userId={pessoa.id}
+          nome={pessoa.name}
+          roleAtual={pessoa.role as Role}
+          setorAtual={pessoa.setor}
+          ultimoMesFechado={ultimoMesFechadoBanco}
+          pessoasJuridicas={pessoasJuridicas}
+        />
       )}
     </div>
   );

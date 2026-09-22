@@ -15,7 +15,7 @@ import { opcoesCadastroFuncionario } from "@/modules/rh/funcionarios/queries";
 import { contasDoColaborador } from "@/modules/rh/contas/queries";
 import { historicoContratualDaPessoa } from "@/modules/rh/contratual/queries";
 import { HistoricoContratual } from "@/components/rh/historico-contratual";
-import { bancoHorasDe } from "@/modules/rh/banco/queries";
+import { bancoHorasDe, ultimoMesFechado } from "@/modules/rh/banco/queries";
 import { contextoApuracao } from "@/modules/ponto/apuracao";
 import { escalaUsuarioGrade, escalaRoleGrade } from "@/modules/rh/escalas/queries";
 import { overridesDeUsuario } from "@/modules/perfis/queries";
@@ -80,7 +80,7 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
 
   // Ponto (espelhoMes) é a leitura mais cara → carregada sob demanda pela aba (lazy client).
 
-  const [cadastro, ausencias, banco, escalaUsuario, escalaRole, holerites, nf, opcoes, overrides, contas, historico] = await Promise.all([
+  const [cadastro, ausencias, banco, escalaUsuario, escalaRole, holerites, nf, opcoes, overrides, contas, historico, mesFechadoBanco] = await Promise.all([
     isCadastro ? cadastroDaPessoa(id) : Promise.resolve(null),
     controlaJornada ? solicitacoesDoUsuario(id) : Promise.resolve(null),
     controlaJornada && podeVerPonto ? bancoHorasDe(id) : Promise.resolve(null),
@@ -95,6 +95,8 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
     podeFolha ? contasDoColaborador(id) : Promise.resolve(null),
     // Histórico contratual contém remuneração: mesmo gate do salário.
     podeFolha ? historicoContratualDaPessoa(id) : Promise.resolve(null),
+    // Aviso de troca de contratação retroativa (TrocarContratacaoDialog) — só quando o botão aparece.
+    podeEditarCadastro ? ultimoMesFechado() : Promise.resolve(null),
   ]);
 
   const escala = escalaUsuario && escalaRole
@@ -121,6 +123,7 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
       historicoSlot={historico ? <HistoricoContratual historico={historico} /> : undefined}
       overrides={overrides}
       podeGerirAcesso={podeGerirAcesso}
+      ultimoMesFechadoBanco={mesFechadoBanco}
     />
   );
 }
