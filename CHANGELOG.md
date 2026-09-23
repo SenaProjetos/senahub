@@ -2,6 +2,25 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.21.0](https://github.com/SenaProjetos/senahub/compare/v1.20.0...v1.21.0) (2026-09-23)
+
+
+### ✨ Funcionalidades
+
+* **apontamentos:** apontar em prancha girada e avisos sempre visíveis ([770e5ae](https://github.com/SenaProjetos/senahub/commit/770e5aedf998472384b1b120f681772a414b43b8))
+* **nomenclatura:** motor lê pela versão do projeto e reconhece sub-disciplina (F2) ([d24ddca](https://github.com/SenaProjetos/senahub/commit/d24ddca9d4ca220aecb4e30830d70589a49de0ee))
+* **nomenclatura:** nomes gerados seguem o modelo e as siglas da versão do projeto (F3) ([e9b77c2](https://github.com/SenaProjetos/senahub/commit/e9b77c2785a99e160bb22fb0af444b85c600d01f))
+* **nomenclatura:** telas de versão, siglas e sub-disciplina; sub no envio e na lista (F4+F5) ([055fc42](https://github.com/SenaProjetos/senahub/commit/055fc424d30e6a62f2e8f9bc9d30a8e2ce11ceb9))
+* **nomenclatura:** versões do padrão, siglas por versão e sub-disciplinas no schema (F1) ([40e2e2f](https://github.com/SenaProjetos/senahub/commit/40e2e2fe74d3a5686755662891dd1683be167879))
+* **perfis:** lista os usuários de cada perfil de acesso ([b2f9bf5](https://github.com/SenaProjetos/senahub/commit/b2f9bf548ef7ce9c3a83f0b1698725a4b571d92b))
+* **rh:** desligamento de colaborador com corte de login agendado ([0f51f35](https://github.com/SenaProjetos/senahub/commit/0f51f35470f76bc38b398a79854c1ab7e612157e))
+
+
+### 🐛 Correções
+
+* **prisma:** DROP INDEX com IF EXISTS na limpeza de índices órfãos ([3f7a07b](https://github.com/SenaProjetos/senahub/commit/3f7a07b00d2669630af66169d25da028317b4d1c))
+* **schema:** remove índices órfãos de Pendencia/PendenciaAnexo ([bb10680](https://github.com/SenaProjetos/senahub/commit/bb10680fd1cb2c012e5fedf699253337e23c8b9b))
+
 ## [1.20.0](https://github.com/SenaProjetos/senahub/compare/v1.19.0...v1.20.0) (2026-09-21)
 
 
