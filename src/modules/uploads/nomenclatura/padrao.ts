@@ -171,8 +171,22 @@ const TOKEN_CANONICO: Record<CampoPadrao, string> = {
   rev: "Rnn",
 };
 
-export type BlocoModelo = { campo: CampoPadrao; opcional: boolean };
+/**
+ * Bloco do editor visual: um campo do nome, ou um TEXTO FIXO que aparece igual em todo arquivo
+ * (`SENA` em `{proj}-SENA-{disc}-…`, padrão v2). Texto fixo nunca é opcional e não pode conter o
+ * separador (senão viraria dois blocos na leitura).
+ */
+export type BlocoCampo = { campo: CampoPadrao; opcional: boolean };
+export type BlocoTexto = { campo: "texto"; texto: string; opcional: false };
+export type BlocoModelo = BlocoCampo | BlocoTexto;
 export type ModeloVisual = { blocos: BlocoModelo[]; separador: string };
+
+/** Texto aceito num bloco fixo: letras e dígitos, sem acento nem separador. */
+export const TEXTO_FIXO_VALIDO = /^[A-Za-z0-9]+$/;
+
+export function rotuloBloco(bloco: BlocoModelo): string {
+  return bloco.campo === "texto" ? `"${bloco.texto}"` : LABEL_CAMPO[bloco.campo];
+}
 
 type TokenModelo =
   | { tipo: "campo"; campo: CampoPadrao }
@@ -209,10 +223,26 @@ function tokenizarModelo(modelo: string): TokenModelo[] | null {
 }
 
 /**
+ * Separador do modelo: o primeiro trecho de texto que não é letra/dígito (`-` em
+ * `{proj}-SENA-{disc}`). Sem nenhum, o modelo não tem separador representável.
+ */
+function separadorDoModelo(tokens: TokenModelo[]): string | null {
+  for (const tk of tokens) {
+    if (tk.tipo !== "lit") continue;
+    const m = tk.texto.match(/[^A-Za-z0-9]+/);
+    if (m) return m[0];
+  }
+  return null;
+}
+
+/**
  * Reconhece um modelo como blocos + separador único, ou `null` quando a escrita foge desse
  * formato exato — inclusive `R{rev}` (o "R" some no meio do separador, quebrando a regra do
  * separador único) e qualquer campo repetido ou desconhecido. `null` é o sinal para a tela
  * cair no modo avançado (texto), sem tentar converter.
+ *
+ * Texto entre separadores vira bloco fixo (`{proj}-SENA-{disc}` → Projeto · "SENA" · Disciplina).
+ * Dentro de colchete (bloco opcional) só cabe separador + um campo, como antes.
  */
 export function interpretarModeloVisual(padrao: string): ModeloVisual | null {
   if (!ehModelo(padrao)) return null;
@@ -220,7 +250,7 @@ export function interpretarModeloVisual(padrao: string): ModeloVisual | null {
   if (!tokens) return null;
 
   const blocos: BlocoModelo[] = [];
-  let separador: string | null = null;
+  let separador: string | null = separadorDoModelo(tokens);
   let primeiro = true;
 
   function bateSeparador(lit: string): boolean {
@@ -239,6 +269,29 @@ export function interpretarModeloVisual(padrao: string): ModeloVisual | null {
     return true;
   }
 
+  /**
+   * Texto solto fora de colchete: separadores e palavras fixas intercalados. Antes de um campo
+   * ele tem de TERMINAR no separador (ou ser vazio, no começo); depois do último campo pode
+   * terminar numa palavra (`{tipo}-SENA`). Cada palavra vira um bloco fixo.
+   */
+  function consumirTexto(lit: string, antesDeCampo: boolean): boolean {
+    if (separador === null) return false;
+    const pedacos = lit.split(separador);
+    // Começa com separador, salvo no início do nome.
+    if (!primeiro && pedacos[0] !== "") return false;
+    const palavras = pedacos.slice(primeiro ? 0 : 1);
+    if (antesDeCampo) {
+      if (palavras.length === 0 || palavras[palavras.length - 1] !== "") return false;
+      palavras.pop();
+    }
+    for (const palavra of palavras) {
+      if (!TEXTO_FIXO_VALIDO.test(palavra)) return false;
+      blocos.push({ campo: "texto", texto: palavra, opcional: false });
+      primeiro = false;
+    }
+    return true;
+  }
+
   let i = 0;
   while (i < tokens.length) {
     const tk = tokens[i];
@@ -247,11 +300,19 @@ export function interpretarModeloVisual(padrao: string): ModeloVisual | null {
       if (!empilhar(tk.campo, false)) return null;
       i++;
     } else if (tk.tipo === "lit") {
-      if (!bateSeparador(tk.texto)) return null;
+      const proximo = tokens[i + 1];
+      if (proximo?.tipo === "abre") {
+        // Texto antes de um opcional: só palavras fixas terminadas SEM separador (o separador
+        // do opcional mora dentro do colchete).
+        if (!consumirTexto(`${tk.texto}${separador ?? ""}`, true)) return null;
+        i++;
+        continue;
+      }
+      const antesDeCampo = proximo?.tipo === "campo";
+      if (!consumirTexto(tk.texto, antesDeCampo)) return null;
       i++;
-      const campoTk = tokens[i];
-      if (!campoTk || campoTk.tipo !== "campo") return null;
-      if (!empilhar(campoTk.campo, false)) return null;
+      if (!antesDeCampo) continue;
+      if (!empilhar((proximo as { tipo: "campo"; campo: CampoPadrao }).campo, false)) return null;
       i++;
     } else if (tk.tipo === "abre") {
       i++;
@@ -279,9 +340,9 @@ export function interpretarModeloVisual(padrao: string): ModeloVisual | null {
 export function montarModelo(blocos: readonly BlocoModelo[], separador: string): string {
   return blocos
     .map((b, i) => {
-      const token = `{${TOKEN_CANONICO[b.campo]}}`;
+      const token = b.campo === "texto" ? b.texto : `{${TOKEN_CANONICO[b.campo]}}`;
       const comSeparador = i === 0 ? token : `${separador}${token}`;
-      return b.opcional ? `[${i === 0 ? token : `${separador}${token}`}]` : comSeparador;
+      return b.opcional ? `[${comSeparador}]` : comSeparador;
     })
     .join("");
 }
@@ -298,5 +359,88 @@ const EXEMPLO_CAMPO: Record<CampoPadrao, string> = {
 
 /** Nome de exemplo com os blocos escolhidos já preenchidos — a prévia do editor visual. */
 export function exemploNomeModelo(blocos: readonly BlocoModelo[], separador: string): string {
-  return blocos.map((b) => EXEMPLO_CAMPO[b.campo]).join(separador);
+  return blocos.map((b) => (b.campo === "texto" ? b.texto : EXEMPLO_CAMPO[b.campo])).join(separador);
+}
+
+/**
+ * Modelo equivalente ao leitor embutido (padrão v1): o que os geradores usam quando o projeto
+ * não tem modelo, ou tem uma regex legada que não dá para "preencher".
+ */
+export const MODELO_PADRAO_ORIGINAL = "{proj}-{disc}-{fase}-{num}-{tipo}";
+
+export type ValoresNome = {
+  proj: string;
+  /** Sigla que ocupa o lugar da disciplina: a da sub-disciplina, ou a geral do card. */
+  disc: string | null;
+  fase?: string | null;
+  num?: number | null;
+  tipo?: string | null;
+  /** Revisão > 0 entra como `Rnn`; o gerador nunca PEDE revisão (convenção de 2026-09-16). */
+  rev?: number | null;
+};
+
+function valorDoCampo(campo: CampoPadrao, valores: ValoresNome, larguraNumero: number): string | null {
+  switch (campo) {
+    case "proj":
+      return valores.proj || null;
+    case "disc":
+      return valores.disc || null;
+    case "fase":
+      return valores.fase || null;
+    case "tipo":
+      return valores.tipo || null;
+    case "num":
+      return valores.num == null ? null : String(valores.num).padStart(larguraNumero, "0");
+    case "rev":
+      return valores.rev ? `R${String(valores.rev).padStart(2, "0")}` : null;
+  }
+}
+
+/**
+ * Nome de arquivo (sem extensão) montado a partir do MODELO da versão do projeto (F3 da spec de
+ * nomenclatura versionada) — o inverso de `compilarPadrao`. Substitui o formato fixo de
+ * `codigoPrancha`: `{proj}-SENA-{disc}-{fase}-{num}-{tipo}` com largura 3 dá
+ * `260010-SENA-AGF-BAS-002-PLB`.
+ *
+ * - Trecho opcional (`[...]`) sai inteiro se faltar algum campo dele.
+ * - Campo obrigatório sem valor vira `???` — visível para a pessoa corrigir, como antes.
+ * - Modelo vazio, regex legada ou com campo desconhecido: usa `MODELO_PADRAO_ORIGINAL`.
+ * - Revisão > 0 num modelo sem campo de revisão vai no fim como `-Rnn` (compatível com o
+ *   `codigoPrancha` antigo e com a tolerância de `compilarModelo`).
+ */
+export function montarNome(
+  modelo: string | null | undefined,
+  valores: ValoresNome,
+  regras: { larguraNumero: number },
+): string {
+  const texto = modelo?.trim() ?? "";
+  const tokens = (texto && ehModelo(texto) && tokenizarModelo(texto)) || tokenizarModelo(MODELO_PADRAO_ORIGINAL)!;
+  // Pilha de trechos: o de baixo é o nome; cada `[` abre um trecho opcional que só entra se
+  // todos os campos dele tiverem valor.
+  const pilha: { texto: string; faltou: boolean }[] = [{ texto: "", faltou: false }];
+  let temRevisao = false;
+  for (const tk of tokens) {
+    const topo = pilha[pilha.length - 1];
+    if (tk.tipo === "lit") topo.texto += tk.texto;
+    else if (tk.tipo === "abre") pilha.push({ texto: "", faltou: false });
+    else if (tk.tipo === "fecha") {
+      if (pilha.length === 1) continue;
+      const opcional = pilha.pop()!;
+      if (!opcional.faltou) pilha[pilha.length - 1].texto += opcional.texto;
+    } else {
+      if (tk.campo === "rev") temRevisao = true;
+      const valor = valorDoCampo(tk.campo, valores, regras.larguraNumero);
+      if (valor === null) {
+        if (pilha.length > 1) topo.faltou = true;
+        else topo.texto += tk.campo === "rev" ? "R00" : "???";
+      } else topo.texto += valor;
+    }
+  }
+  // Colchete sem fechamento: o que sobrou aberto entra se estiver completo.
+  while (pilha.length > 1) {
+    const opcional = pilha.pop()!;
+    if (!opcional.faltou) pilha[pilha.length - 1].texto += opcional.texto;
+  }
+  const nome = pilha[0].texto;
+  return !temRevisao && valores.rev ? `${nome}-R${String(valores.rev).padStart(2, "0")}` : nome;
 }

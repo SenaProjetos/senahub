@@ -44,6 +44,8 @@ import { escopoProjeto } from "@/modules/projetos/queries";
 import { chaveLayoutPainelProjeto } from "@/modules/projetos/painel-layout";
 import { deveDeslocarPrazoDoProjeto } from "@/modules/projetos/prazo-reabertura";
 import { faixaConflitante } from "@/modules/projetos/faixa-numeracao";
+import { sincronizarSiglasV1 } from "@/modules/uploads/nomenclatura/siglas-service";
+import { versaoVigenteHoje } from "@/modules/projetos/nomenclatura/versoes-queries";
 
 
 /**
@@ -117,6 +119,11 @@ export const criarProjeto = defineAction(
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
+    // Versão do padrão de nomenclatura vigente agora (D2) — fixada no projeto na criação, do
+    // mesmo jeito que a migration de 2026-09-22 fixou os projetos existentes na v1. Publicar
+    // uma versão nova depois NÃO muda este projeto (D2): a data de vigência só decide o padrão
+    // de projeto NOVO, e é por isso que a decisão é tomada aqui, uma vez, e não a cada leitura.
+    const versaoNomenclatura = await versaoVigenteHoje();
     const projeto = await prisma.$transaction(async (tx) => {
       const { ano, sequencial, codigo } = await proximoCodigoProjeto(tx);
       const p = await tx.projeto.create({
@@ -134,6 +141,7 @@ export const criarProjeto = defineAction(
           // Planejado em branco acompanha o contrato — divergir é ato deliberado.
           prazoPlanejado: parseData(input.prazoPlanejado ?? input.prazoContrato),
           valorContrato: input.valorContrato,
+          nomenclaturaVersaoId: versaoNomenclatura?.id ?? null,
           membros: {
             create: input.membrosIds.map((userId) => ({ userId })),
           },
@@ -1269,8 +1277,12 @@ export const criarDisciplinaCatalogo = defineAction(
     await garantirUnicosCatalogo(dados.nome, dados.codigo, dados.sinonimos, null);
     await garantirFaixaLivre(dados.numeracao, dados.numeracaoFim, null);
     const max = await prisma.disciplinaCatalogo.aggregate({ _max: { ordem: true } });
-    const criada = await prisma.disciplinaCatalogo.create({
-      data: { ...dados, ordem: (max._max.ordem ?? 0) + 1 },
+    const criada = await prisma.$transaction(async (tx) => {
+      const c = await tx.disciplinaCatalogo.create({
+        data: { ...dados, ordem: (max._max.ordem ?? 0) + 1 },
+      });
+      await sincronizarSiglasV1(tx, { tipo: "disciplina", id: c.id, codigo: dados.codigo, sinonimos: dados.sinonimos });
+      return c;
     });
     revCatalogo();
     return { id: criada.id };
@@ -1304,6 +1316,7 @@ export const editarDisciplinaCatalogo = defineAction(
     const nomeMudou = dados.nome !== existe.nome;
     await prisma.$transaction(async (tx) => {
       await tx.disciplinaCatalogo.update({ where: { id: i.id }, data: dados });
+      await sincronizarSiglasV1(tx, { tipo: "disciplina", id: i.id, codigo: dados.codigo, sinonimos: dados.sinonimos });
       if (!nomeMudou) return;
       const candidatas = await tx.disciplina.findMany({
         where: { disciplinaTextoLegado: existe.nome },

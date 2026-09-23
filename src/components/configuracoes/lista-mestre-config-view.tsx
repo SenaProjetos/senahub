@@ -4,6 +4,9 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Eye, EyeOff, Tags } from "lucide-react";
+import { SiglasVersaoDialog, type VersaoOpcao } from "@/components/configuracoes/siglas-versao-dialog";
+import { valeNaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   criarCatalogoPrancha,
   editarCatalogoPrancha,
@@ -56,27 +59,55 @@ const SECOES: {
   },
 ];
 
+const TODAS = "__todas__";
+
 export function ListaMestreConfigView({
   catalogos,
   projetoId,
+  versoes = [],
 }: {
   catalogos: PranchaCatalogoRow[];
   /** Quando informado, as siglas criadas ficam restritas a este projeto. */
   projetoId?: string;
+  /** Ausente/vazio (tela por projeto) = sem filtro de versão nem "Siglas por versão". */
+  versoes?: VersaoOpcao[];
 }) {
+  const [filtroVersao, setFiltroVersao] = useState<string>(TODAS);
+  const versaoVigente = versoes.filter((v) => v.publicadaEm).at(-1)?.numero ?? null;
+
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      {SECOES.map((s) => (
-        <SecaoCatalogo
-          key={s.categoria}
-          categoria={s.categoria}
-          titulo={s.titulo}
-          descricao={s.descricao}
-          exemplo={s.exemplo}
-          projetoId={projetoId}
-          rows={catalogos.filter((c) => c.categoria === s.categoria)}
-        />
-      ))}
+    <div className="space-y-3">
+      {versoes.length > 0 && (
+        <div className="flex justify-end">
+          <Select value={filtroVersao} onValueChange={(v) => setFiltroVersao(v ?? TODAS)}>
+            <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODAS}>Todas as versões</SelectItem>
+              {versoes.map((v) => (
+                <SelectItem key={v.id} value={String(v.numero)}>
+                  Válido na v{v.numero}{v.numero === versaoVigente ? " (vigente)" : v.publicadaEm ? "" : " (rascunho)"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      <div className="grid gap-4 lg:grid-cols-3">
+        {SECOES.map((s) => (
+          <SecaoCatalogo
+            key={s.categoria}
+            categoria={s.categoria}
+            titulo={s.titulo}
+            descricao={s.descricao}
+            exemplo={s.exemplo}
+            projetoId={projetoId}
+            versoes={versoes}
+            rows={catalogos.filter(
+              (c) => c.categoria === s.categoria && (filtroVersao === TODAS || valeNaVersao(c, Number(filtroVersao))),
+            )}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -88,6 +119,7 @@ function SecaoCatalogo({
   exemplo,
   rows,
   projetoId,
+  versoes,
 }: {
   categoria: Categoria;
   titulo: string;
@@ -95,6 +127,7 @@ function SecaoCatalogo({
   exemplo: { sigla: string; nome: string; sinonimos: string };
   rows: PranchaCatalogoRow[];
   projetoId?: string;
+  versoes: VersaoOpcao[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -102,6 +135,7 @@ function SecaoCatalogo({
   const [nome, setNome] = useState("");
   const [sinonimos, setSinonimos] = useState("");
   const [editar, setEditar] = useState<PranchaCatalogoRow | null>(null);
+  const [siglasDe, setSiglasDe] = useState<PranchaCatalogoRow | null>(null);
 
   function adicionar() {
     if (!sigla.trim() || !nome.trim()) {
@@ -180,6 +214,11 @@ function SecaoCatalogo({
                 >
                   {row.ativo ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5 text-muted-foreground" />}
                 </Button>
+                {versoes.length > 0 && (
+                  <Button size="icon" variant="ghost" className="size-7" aria-label={`Siglas de ${row.nome} por versão`} title="Siglas por versão" onClick={() => setSiglasDe(row)}>
+                    <Tags className="size-3.5" />
+                  </Button>
+                )}
                 <Button size="icon" variant="ghost" className="size-7" aria-label="Editar" onClick={() => setEditar(row)}>
                   <Pencil className="size-3.5" />
                 </Button>
@@ -216,6 +255,13 @@ function SecaoCatalogo({
       </CardContent>
 
       <EditarDialog row={editar} onClose={() => setEditar(null)} />
+      <SiglasVersaoDialog
+        aberto={siglasDe !== null}
+        onFechar={() => setSiglasDe(null)}
+        alvo={siglasDe ? { tipo: "prancha", id: siglasDe.id } : null}
+        rotuloAlvo={siglasDe?.nome ?? ""}
+        versoes={versoes}
+      />
     </Card>
   );
 }

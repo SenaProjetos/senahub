@@ -24,3 +24,35 @@ describe("nomeCorrigidoPeloPadrao", () => {
     })).not.toContain("-R0");
   });
 });
+
+describe("nomeCorrigidoPeloPadrao pela versão do projeto (F3)", () => {
+  it("projeto v2: modelo com texto fixo, sub no lugar da disciplina, 3 dígitos", () => {
+    expect(
+      nomeCorrigidoPeloPadrao({
+        nomeOriginal: "planta agua fria.pdf",
+        codigoProjeto: "260010",
+        siglaDisciplina: "AGF",
+        fase: "BAS",
+        tipo: "PLB",
+        numeracao: 2,
+        padrao: "{proj}-SENA-{disc}-{fase}-{num}-{tipo}",
+        larguraNumero: 3,
+      }),
+    ).toBe("260010-SENA-AGF-BAS-002-PLB.pdf");
+  });
+
+  it("projeto v1 (sem modelo): o formato de hoje, 4 dígitos", () => {
+    expect(
+      nomeCorrigidoPeloPadrao({
+        nomeOriginal: "x.dwg",
+        codigoProjeto: "260018",
+        siglaDisciplina: "EST",
+        fase: "EX",
+        tipo: "DET",
+        numeracao: 4012,
+        padrao: null,
+        larguraNumero: 4,
+      }),
+    ).toBe("260018-EST-EX-4012-DET.dwg");
+  });
+});

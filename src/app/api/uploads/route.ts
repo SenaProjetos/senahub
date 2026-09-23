@@ -15,7 +15,7 @@ import { baseDirDisciplina, nomeFisico } from "@/modules/uploads/caminho";
 import { chaveDocumento, localDaChave } from "@/modules/uploads/documento";
 import { confiavel, interpretarNomeArquivo } from "@/modules/uploads/nomenclatura/interpretar";
 import {
-  carregarCatalogosNomenclatura,
+  carregarCatalogosNomenclaturaDaVersao,
   carregarExtensoesNomenclatura,
 } from "@/modules/uploads/nomenclatura/queries";
 import { montarVocabulario } from "@/modules/uploads/nomenclatura/vocabulario";
@@ -41,6 +41,7 @@ type Resultado = {
   documentoId?: string;
   faseId?: string;
   tipoId?: string;
+  subdisciplinaId?: string;
   numeroPrancha?: number;
   /** Título que o documento JÁ tem (se tiver) — o cliente não sobrescreve isso. */
   tituloAtual?: string;
@@ -84,6 +85,7 @@ export async function POST(req: Request) {
   const pastaId = String(form.get("pastaId") ?? "") || null;
   const faseIdInformada = String(form.get("faseId") ?? "") || null;
   const tipoIdInformado = String(form.get("tipoId") ?? "") || null;
+  const subdisciplinaIdInformada = String(form.get("subdisciplinaId") ?? "") || null;
   const revisaoDeId = String(form.get("revisaoDeId") ?? "") || null;
   const novaRevisaoAgrupada = form.get("novaRevisaoAgrupada") === "1";
   /** "Nova versão de": revisão nova de um documento JÁ existente, mesmo com outro nome (D10). */
@@ -159,10 +161,12 @@ export async function POST(req: Request) {
   // ── Motor de nomenclatura (F3) ───────────────────────────────────────────────────────────
   // Catálogo efetivo do projeto (global + próprio) + extensões + padrão, carregados UMA vez por
   // requisição; o motor em si é puro e roda por arquivo dentro de `persistir`.
-  const [catalogosNomenclatura, extensoesCatalogo, nomenclatura] = await Promise.all([
-    carregarCatalogosNomenclatura(projeto.id),
+  // O vocabulário é o da VERSÃO do padrão que o projeto segue (D4 da spec de nomenclatura
+  // versionada): um nome de outra versão não ganha metadado, só o aviso do motor.
+  const nomenclatura = await resolverNomenclatura(projeto.id);
+  const [catalogosNomenclatura, extensoesCatalogo] = await Promise.all([
+    carregarCatalogosNomenclaturaDaVersao(projeto.id, nomenclatura.versao?.numero ?? 1),
     carregarExtensoesNomenclatura(),
-    resolverNomenclatura(projeto.id),
   ]);
   const vocabulario = montarVocabulario(catalogosNomenclatura, projeto.id);
   const fasesDoProjeto = catalogosNomenclatura.fases;
@@ -170,13 +174,21 @@ export async function POST(req: Request) {
 
   const faseSelecionada = faseIdInformada ? fasesDoProjeto.find((fase) => fase.id === faseIdInformada) ?? null : null;
   const tipoSelecionado = tipoIdInformado ? tiposDoProjeto.find((tipo) => tipo.id === tipoIdInformado) ?? null : null;
+  // Sub escolhida à mão só vale se for do card desta disciplina (D9: sub não cria nem troca card).
+  const subSelecionada = subdisciplinaIdInformada
+    ? (catalogosNomenclatura.subdisciplinas ?? []).find(
+        (sub) => sub.id === subdisciplinaIdInformada && sub.disciplinaId === cat?.id,
+      ) ?? null
+    : null;
   const erroFase = exigeFase && !faseIdInformada
     ? "Selecione a fase do documento antes de enviar."
     : faseIdInformada && !faseSelecionada
       ? "A fase selecionada não está disponível para este projeto."
       : tipoIdInformado && !tipoSelecionado
         ? "O tipo selecionado não está disponível para este projeto."
-        : null;
+        : subdisciplinaIdInformada && !subSelecionada
+          ? "A sub-disciplina selecionada não pertence a esta disciplina."
+          : null;
 
   /**
    * Lê o nome pelo motor. O contexto não leva `documentosExistentes`: sugerir "nova versão de"
@@ -190,6 +202,7 @@ export async function POST(req: Request) {
       padrao: nomenclatura.padrao,
       vocabulario,
       extensoes: extensoesCatalogo,
+      outrosPadroes: nomenclatura.outrosPadroes,
     });
   const baseDir = baseDirDisciplina({
     ano: projeto.ano,
@@ -227,7 +240,7 @@ export async function POST(req: Request) {
     const documentoEscolhido = versaoDeDocumentoId
       ? await prisma.documentoDisciplina.findUnique({
           where: { id: versaoDeDocumentoId },
-          select: { id: true, disciplinaId: true, chave: true, faseId: true, tipoId: true, numeroPrancha: true, tamanhoPapelId: true, substituidoPorId: true, status: { select: { final: true } } },
+          select: { id: true, disciplinaId: true, chave: true, faseId: true, tipoId: true, subdisciplinaId: true, numeroPrancha: true, tamanhoPapelId: true, substituidoPorId: true, status: { select: { final: true } } },
         })
       : null;
     if (versaoDeDocumentoId) {
@@ -249,7 +262,7 @@ export async function POST(req: Request) {
       ? null
       : await prisma.documentoDisciplina.findUnique({
           where: { disciplinaId_chave: { disciplinaId, chave } },
-          select: { id: true, faseId: true, tipoId: true, numeroPrancha: true, tamanhoPapelId: true, status: { select: { final: true } } },
+          select: { id: true, faseId: true, tipoId: true, subdisciplinaId: true, numeroPrancha: true, tamanhoPapelId: true, status: { select: { final: true } } },
         });
     const documentoExistente = documentoEscolhido ?? documentoPorChave;
 
@@ -310,13 +323,21 @@ export async function POST(req: Request) {
     const faseDoNome = confiavel(interp.fase) ? interp.fase : undefined;
     const tipoDoNome = confiavel(interp.tipo) ? interp.tipo : undefined;
     const numeroDoNome = confiavel(interp.numero) ? interp.numero : undefined;
+    // D9: sub lida do nome só grava se o card dela é o desta disciplina — `AGF` enviado num card
+    // que não é Hidrossanitário fica como aviso do motor, sem metadado.
+    const subDoNome =
+      confiavel(interp.subdisciplina) && vocabulario.paiDe(interp.subdisciplina.valor) === cat?.id
+        ? interp.subdisciplina
+        : undefined;
 
     const faseFinal = resolverMetadado(faseSelecionada?.id, faseDoNome?.valor, documentoExistente?.faseId);
     const tipoFinal = resolverMetadado(tipoSelecionado?.id, tipoDoNome?.valor, documentoExistente?.tipoId);
     const numeroFinal = resolverMetadado<number>(null, numeroDoNome?.valor, documentoExistente?.numeroPrancha);
+    const subFinal = resolverMetadado(subSelecionada?.id, subDoNome?.valor, documentoExistente?.subdisciplinaId);
     const metadados = {
       ...(faseFinal ? { faseId: faseFinal.valor } : {}),
       ...(tipoFinal ? { tipoId: tipoFinal.valor } : {}),
+      ...(subFinal ? { subdisciplinaId: subFinal.valor } : {}),
       ...(numeroFinal ? { numeroPrancha: numeroFinal.valor } : {}),
     };
 
@@ -328,13 +349,13 @@ export async function POST(req: Request) {
       ? await prisma.documentoDisciplina.update({
           where: { id: documentoEscolhido.id },
           data: metadados,
-          select: { id: true, faseId: true, tipoId: true, numeroPrancha: true, titulo: true },
+          select: { id: true, faseId: true, tipoId: true, subdisciplinaId: true, numeroPrancha: true, titulo: true },
         })
       : await prisma.documentoDisciplina.upsert({
           where: { disciplinaId_chave: { disciplinaId, chave } },
           create: { disciplinaId, chave, nomeArquivo: nome, ...metadados },
           update: metadados,
-          select: { id: true, faseId: true, tipoId: true, numeroPrancha: true, titulo: true },
+          select: { id: true, faseId: true, tipoId: true, subdisciplinaId: true, numeroPrancha: true, titulo: true },
         });
 
     // Sem os campos novos, preserva a regra legada: a versão do arquivo determina a
@@ -400,6 +421,7 @@ export async function POST(req: Request) {
     // do mesmo feitio, cada um com a origem (manual = escolhido no diálogo, nome = lido).
     const siglaFase = faseFinal ? vocabulario.siglaDe("fase", faseFinal.valor) : null;
     const siglaTipo = tipoFinal ? vocabulario.siglaDe("tipo", tipoFinal.valor) : null;
+    const siglaSub = subFinal ? vocabulario.siglaDe("subdisciplina", subFinal.valor) : null;
     await registrarEventoDocumento({
       documentoId: documento.id,
       uploadId: criado.id,
@@ -412,6 +434,7 @@ export async function POST(req: Request) {
         ...(versaoDeDocumentoId ? { novaVersaoDe: true } : {}),
         ...(faseFinal && siglaFase ? { fase: siglaFase, faseOrigem: faseFinal.origem } : {}),
         ...(tipoFinal && siglaTipo ? { tipo: siglaTipo, tipoOrigem: tipoFinal.origem } : {}),
+        ...(subFinal && siglaSub ? { subdisciplina: siglaSub, subdisciplinaOrigem: subFinal.origem } : {}),
         ...(numeroFinal ? { numeroPrancha: numeroFinal.valor, numeroPranchaOrigem: numeroFinal.origem } : {}),
       },
     });
@@ -446,6 +469,7 @@ export async function POST(req: Request) {
       documentoId: documento.id,
       ...(documento.faseId ? { faseId: documento.faseId } : {}),
       ...(documento.tipoId ? { tipoId: documento.tipoId } : {}),
+      ...(documento.subdisciplinaId ? { subdisciplinaId: documento.subdisciplinaId } : {}),
       ...(documento.numeroPrancha !== null ? { numeroPrancha: documento.numeroPrancha } : {}),
       // Só leitura: o diálogo usa isto para NÃO sobrescrever com a sugestão do carimbo um
       // título que alguém já escreveu (manual vence motor).

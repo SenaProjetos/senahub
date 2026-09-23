@@ -24,6 +24,9 @@ import {
   renomearCategoriaDisciplinas,
 } from "@/modules/projetos/actions";
 import type { DisciplinaCatalogoAdmin } from "@/modules/projetos/queries";
+import type { VersaoAdmin } from "@/modules/projetos/nomenclatura/versoes-queries";
+import { valeNaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
+import { SubdisciplinasDialog } from "@/components/configuracoes/subdisciplinas-dialog";
 import { normalizar } from "@/lib/disciplinas-core";
 import { iconeDisciplina } from "@/lib/disciplinas";
 import { GALERIA_ICONES, CHAVES_GALERIA } from "@/lib/disciplinas-galeria";
@@ -76,6 +79,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { Layers } from "lucide-react";
 
 const SEM_CATEGORIA = "Outras";
 const TODAS = "__todas__";
@@ -124,7 +128,7 @@ function IconeDisc({
   return <Icone className={className} aria-hidden />;
 }
 
-export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAdmin[] }) {
+export function DisciplinasCatalogoView({ itens, versoes }: { itens: DisciplinaCatalogoAdmin[]; versoes: VersaoAdmin[] }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [pending, start] = useTransition();
@@ -134,6 +138,9 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
   const [busca, setBusca] = useState("");
   const [filtroCat, setFiltroCat] = useState<string>(TODAS);
   const [mostrarArquivadas, setMostrarArquivadas] = useState(false);
+  const versaoVigente = versoes.filter((v) => v.publicadaEm).at(-1)?.numero ?? null;
+  const [filtroVersao, setFiltroVersao] = useState<string>(TODAS);
+  const [subsAbertoPara, setSubsAbertoPara] = useState<{ id: string; nome: string } | null>(null);
   // Seleção compartilhada (ADR-0002, regra 3): o menu de contexto age sobre ela. Atravessa busca e
   // filtros; "Selecionados (N)" mostra só os marcados, de qualquer filtro.
   const selecao = useSelecao();
@@ -151,6 +158,7 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
       if (selecao.soSelecionados) return selecao.ids.has(i.id);
       if (!mostrarArquivadas && !i.ativo) return false;
       if (filtroCat !== TODAS && (i.categoria || SEM_CATEGORIA) !== filtroCat) return false;
+      if (filtroVersao !== TODAS && !valeNaVersao(i, Number(filtroVersao))) return false;
       if (!q) return true;
       return (
         normalizar(i.nome).includes(q) ||
@@ -158,7 +166,7 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
         normalizar(i.categoria ?? "").includes(q)
       );
     });
-  }, [itens, busca, filtroCat, mostrarArquivadas, selecao.soSelecionados, selecao.ids]);
+  }, [itens, busca, filtroCat, filtroVersao, mostrarArquivadas, selecao.soSelecionados, selecao.ids]);
 
   // Agrupa por categoria; "Outras" por último.
   const grupos = useMemo(() => {
@@ -362,6 +370,21 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
             {itens.some((i) => !i.categoria) && <SelectItem value={SEM_CATEGORIA}>{SEM_CATEGORIA}</SelectItem>}
           </SelectContent>
         </Select>
+        {versoes.length > 0 && (
+          <Select value={filtroVersao} onValueChange={(v) => setFiltroVersao(v ?? TODAS)}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODAS}>Todas as versões</SelectItem>
+              {versoes.map((v) => (
+                <SelectItem key={v.id} value={String(v.numero)}>
+                  Válida na v{v.numero}{v.numero === versaoVigente ? " (vigente)" : v.publicadaEm ? "" : " (rascunho)"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-muted-foreground">
           <Switch checked={mostrarArquivadas} onCheckedChange={setMostrarArquivadas} />
           Arquivadas ({totalArquivadas})
@@ -442,6 +465,7 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
                           onSelect={(acao) => aoSelecionarNaLinha(item, cimaId, baixoId, acao)}
                           onMover={(vizinhoId) => mover(item, vizinhoId)}
                           onEditar={() => setDialogo(paraForm(item))}
+                          onSubs={() => setSubsAbertoPara({ id: item.id, nome: item.nome })}
                         />
                       );
                     })}
@@ -487,6 +511,13 @@ export function DisciplinasCatalogoView({ itens }: { itens: DisciplinaCatalogoAd
           onFechar={() => setDialogo(null)}
         />
       )}
+
+      <SubdisciplinasDialog
+        aberto={subsAbertoPara !== null}
+        onFechar={() => setSubsAbertoPara(null)}
+        card={subsAbertoPara}
+        versoes={versoes}
+      />
     </div>
   );
 }
@@ -559,6 +590,7 @@ function ItemLinha({
   onSelect,
   onMover,
   onEditar,
+  onSubs,
 }: {
   item: DisciplinaCatalogoAdmin;
   pending: boolean;
@@ -572,6 +604,7 @@ function ItemLinha({
   onSelect: (acao: AcaoItemAcao) => void;
   onMover: (vizinhoId: string) => void;
   onEditar: () => void;
+  onSubs: () => void;
 }) {
   return (
     <LinhaComMenu
@@ -674,6 +707,9 @@ function ItemLinha({
               </button>
             </div>
           )}
+          <Button size="icon" variant="ghost" className="size-8" aria-label={`Sub-disciplinas e siglas de ${item.nome}`} title="Sub-disciplinas e siglas por versão" onClick={onSubs} disabled={pending}>
+            <Layers className="size-4" />
+          </Button>
           <Button size="icon" variant="ghost" className="size-8" aria-label="Editar" onClick={onEditar} disabled={pending}>
             <Pencil className="size-4" />
           </Button>

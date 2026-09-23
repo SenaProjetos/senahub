@@ -298,6 +298,8 @@ model User {
   credenciaisAtualizados Credencial[]         @relation("CredencialAtualizadoPor")
   credenciaisFavoritas   CredencialFavorito[]
 
+  nomenclaturaVersoesPublicadas NomenclaturaVersao[]
+
   @@index([role])
   @@index([tipo, setor])
   @@index([contratacao])
@@ -1082,6 +1084,15 @@ model DisciplinaCatalogo {
   /// carga inicial em `20260915170000_motor_nomenclatura_sinonimos_extensoes` (D2 da spec
   /// `docs/superpowers/specs/2026-09-15-motor-nomenclatura.md`).
   sinonimos    String[] @default([])
+  /// Validade por versão do padrão de nomenclatura (D11 da spec
+  /// `2026-09-21-nomenclatura-versionada-subdisciplinas.md`): a linha vale da versão
+  /// `versaoDesde` até `versaoAte` (inclusive; null = sem fim). Card que sai ou muda de nome
+  /// ganha `versaoAte` e continua existindo — projetos antigos e propostas apontam para ele.
+  versaoDesde  Int      @default(1)
+  versaoAte    Int?
+
+  subdisciplinas SubdisciplinaCatalogo[]
+  siglas         SiglaNomenclatura[]
 
   padroes           PadraoTecnico[]
   /// Itens de proposta que já apontam para este catálogo (CRM F1.19).
@@ -1233,6 +1244,12 @@ model Projeto {
   lmConfig                LmConfig?
   pranchaCatalogos        PranchaCatalogo[]
   nomenclaturaConfig      NomenclaturaConfig?
+  /// Versão do padrão de nomenclatura que o projeto segue (D2/D3). A migration
+  /// `20260922120000_nomenclatura_versionada` prende todo projeto existente na v1. Null =
+  /// resolve pela data de criação (versão publicada mais recente com `vigenteDesde <= createdAt`).
+  /// Padrão personalizado (`NomenclaturaConfig.padrao` do projeto preenchido) vence a versão.
+  nomenclaturaVersaoId    String?
+  nomenclaturaVersao      NomenclaturaVersao?      @relation(fields: [nomenclaturaVersaoId], references: [id], onDelete: Restrict)
   listasDocumentos        ListaDocumentos[]
   linhasBase              LinhaBase[]
   planejamentos           PlanejamentoPagamento[]
@@ -1259,6 +1276,7 @@ model Projeto {
   updatedAt DateTime @updatedAt
 
   @@unique([ano, sequencial])
+  @@index([nomenclaturaVersaoId])
   @@index([clienteId])
   @@index([situacao])
   @@index([negociacaoId])
@@ -5232,22 +5250,122 @@ model NomenclaturaConfig {
   @@map("nomenclatura_config")
 }
 
+/// Versão publicada do padrão global de nomenclatura (D1 da spec
+/// `2026-09-21-nomenclatura-versionada-subdisciplinas.md`). Publicada = imutável: corrigir é
+/// publicar outra. `publicadaEm` null = rascunho. `vigenteDesde` só decide a versão padrão de
+/// projeto NOVO (D2) — publicar não mexe em projeto existente.
+model NomenclaturaVersao {
+  id             String                @id @default(cuid())
+  numero         Int                   @unique
+  nome           String
+  /// Modelo `{proj}-{disc}-…` (escrita de `padrao.ts`). Null só na v1 herdada de um global vazio
+  /// = leitor embutido (`parsePranchaFilename`), que é o comportamento anterior às versões.
+  modelo         String?
+  /// Dígitos do número da folha, com zeros à esquerda (v1 = 4, v2 = 3).
+  larguraNumero  Int                   @default(3)
+  sequenciaPor   SequenciaNomenclatura @default(sub)
+  vigenteDesde   DateTime
+  publicadaEm    DateTime?
+  publicadaPorId String?
+  publicadaPor   User?                 @relation(fields: [publicadaPorId], references: [id], onDelete: SetNull)
+  descricao      String?
+  projetos       Projeto[]
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@index([publicadaPorId])
+  @@map("nomenclatura_versao")
+}
+
+/// De onde sai o número sequencial da folha: `faixa` = bloco por disciplina do catálogo
+/// (padrão v1, `DisciplinaCatalogo.numeracao`); `card` = recomeça por disciplina do projeto;
+/// `sub` = recomeça por sub-disciplina (padrão v2).
+enum SequenciaNomenclatura {
+  faixa
+  card
+  sub
+}
+
+/// Sub-disciplina: etiqueta de documento dentro de um card (`AGF` em Hidrossanitário). Não tem
+/// projetista, valor, prazo, status nem pagamento (D7). A sigla fica em `SiglaNomenclatura`.
+model SubdisciplinaCatalogo {
+  id                   String                @id @default(cuid())
+  disciplinaCatalogoId String
+  disciplinaCatalogo   DisciplinaCatalogo    @relation(fields: [disciplinaCatalogoId], references: [id], onDelete: Cascade)
+  nome                 String
+  ativo                Boolean               @default(true)
+  ordem                Int                   @default(0)
+  versaoDesde          Int                   @default(1)
+  versaoAte            Int?
+  siglas               SiglaNomenclatura[]
+  documentos           DocumentoDisciplina[]
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  @@unique([disciplinaCatalogoId, nome])
+  @@map("subdisciplina_catalogo")
+}
+
+enum CategoriaSigla {
+  disciplina
+  subdisciplina
+  fase
+  tipo
+  folha
+}
+
+/// Ligação "esta sigla significa este item" por faixa de versões (D4): a mesma sigla pode
+/// significar coisas diferentes em versões diferentes (`ESG` = HID na v1, sub Esgoto na v2).
+/// Exatamente um alvo por linha, e a categoria amarrada ao alvo — CHECKs na migration
+/// `20260922120000_nomenclatura_versionada`. Unicidade (sigla, categoria, versão) é validada na
+/// action: faixa de versões não cabe num UNIQUE simples.
+///
+/// Transição: `DisciplinaCatalogo.codigo`/`sinonimos` e `PranchaCatalogo.sigla`/`sinonimos`
+/// continuam sendo a escrita das telas até a F4; `sincronizarSiglasV1` espelha aqui a cada
+/// gravação. Depois da F4 esta tabela é a fonte e as colunas antigas saem (contração).
+model SiglaNomenclatura {
+  id                   String                 @id @default(cuid())
+  sigla                String
+  categoria            CategoriaSigla
+  /// true = sigla oficial (a que o gerador de nome usa); false = sinônimo.
+  oficial              Boolean                @default(false)
+  versaoDesde          Int                    @default(1)
+  versaoAte            Int?
+  disciplinaCatalogoId String?
+  disciplinaCatalogo   DisciplinaCatalogo?    @relation(fields: [disciplinaCatalogoId], references: [id], onDelete: Cascade)
+  subdisciplinaId      String?
+  subdisciplina        SubdisciplinaCatalogo? @relation(fields: [subdisciplinaId], references: [id], onDelete: Cascade)
+  pranchaCatalogoId    String?
+  pranchaCatalogo      PranchaCatalogo?       @relation(fields: [pranchaCatalogoId], references: [id], onDelete: Cascade)
+  createdAt            DateTime               @default(now())
+
+  @@index([sigla])
+  @@index([disciplinaCatalogoId])
+  @@index([subdisciplinaId])
+  @@index([pranchaCatalogoId])
+  @@map("sigla_nomenclatura")
+}
+
 /// Catálogo de siglas da Lista Mestre (folha/tipo/fase). Global (projetoId null)
 /// ou específico de um projeto. A sigla é usada na composição do código da prancha.
 model PranchaCatalogo {
-  id        String                   @id @default(cuid())
-  categoria CategoriaPranchaCatalogo
-  sigla     String
-  nome      String
-  ativo     Boolean                  @default(true)
-  ordem     Int                      @default(0)
-  projetoId String?
-  projeto   Projeto?                 @relation(fields: [projetoId], references: [id], onDelete: Cascade)
-  createdAt DateTime                 @default(now())
+  id          String                   @id @default(cuid())
+  categoria   CategoriaPranchaCatalogo
+  sigla       String
+  nome        String
+  ativo       Boolean                  @default(true)
+  ordem       Int                      @default(0)
+  projetoId   String?
+  projeto     Projeto?                 @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  createdAt   DateTime                 @default(now())
   /// Siglas alternativas que o motor de nomenclatura resolve para este item (ex.: fase EX
   /// aceita PE, EXE). Válido nas 3 categorias, mas só fase e tipo têm sinônimo hoje (D2 da
   /// spec do motor de nomenclatura). Carga inicial na mesma migration dos sinônimos de disciplina.
-  sinonimos String[]                 @default([])
+  sinonimos   String[]                 @default([])
+  /// Validade por versão do padrão de nomenclatura (D11) — mesma regra de `DisciplinaCatalogo`.
+  versaoDesde Int                      @default(1)
+  versaoAte   Int?
+  siglas      SiglaNomenclatura[]
 
   /// 3 relações NOMEADAS para o mesmo model (fase/tipo/tamanho do papel do documento) — sem
   /// nome, o Prisma não sabe qual FK cada uma representa. Nenhum código lê estas 3 listas
@@ -5697,40 +5815,45 @@ model SolicitacaoExclusaoUpload {
 /// âncora estável para apontamentos. Segue o padrão pai/versão já usado por
 /// Documento/DocumentoVersao, DocumentoJuridico/DocJuridicoVersao, Art/ArtVersao etc.
 model DocumentoDisciplina {
-  id             String           @id @default(cuid())
-  disciplinaId   String
-  disciplina     Disciplina       @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  id              String                 @id @default(cuid())
+  disciplinaId    String
+  disciplina      Disciplina             @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
   /// Chave de AGRUPAMENTO (dedupe/lookup) — NÃO é a identidade. A identidade é `id`, e é
   /// ela que Pendencia referencia; por isso renomear só reescreve esta chave e não
   /// desancora nada. Normalizada como "A/planta.pdf" ou "pasta:<pastaId>/planta.pdf"
   /// porque UNIQUE no Postgres trata NULL como distinto — com `pacote` XOR `pastaId` crus,
   /// a constraint deixaria passar duplicata. Não "simplificar" de volta para colunas soltas.
-  chave          String
+  chave           String
   /// Nome exibido; espelho de Upload.nomeArquivo das suas versões (renomear atualiza os dois).
-  nomeArquivo    String
+  nomeArquivo     String
   /// Título legível ("Planta de forma do pavimento tipo"). Nulo enquanto ninguém preencher —
   /// a tela cai no `nomeArquivo`, que é o comportamento de hoje.
-  titulo         String?
-  descricao      String?
+  titulo          String?
+  descricao       String?
   /// Fase do documento (Anteprojeto/Projeto Básico/Executivo...). Aponta para o catálogo que
   /// a Lista Mestre já usa; a categoria correta (`fase`) é garantida pela UI, não por
   /// constraint — `PranchaCatalogo` guarda as três categorias na mesma tabela.
-  faseId         String?
-  fase           PranchaCatalogo? @relation("DocumentoFase", fields: [faseId], references: [id], onDelete: SetNull)
+  faseId          String?
+  fase            PranchaCatalogo?       @relation("DocumentoFase", fields: [faseId], references: [id], onDelete: SetNull)
   /// Tipo de documento (Planta, Detalhe, Memorial...). Mesmo catálogo de `fase`, categoria
   /// `tipo`. Preenchido pelo motor de nomenclatura (lido do nome) ou à mão — nunca inventado.
-  tipoId         String?
-  tipo           PranchaCatalogo? @relation("DocumentoTipo", fields: [tipoId], references: [id], onDelete: SetNull)
+  tipoId          String?
+  tipo            PranchaCatalogo?       @relation("DocumentoTipo", fields: [tipoId], references: [id], onDelete: SetNull)
   /// Número da prancha lido do nome (ex.: 4001 em "260020-EST-EX-4001-DET"). Não confundir com
   /// `Prancha.numeracao`, que é o registro da Lista Mestre — este é metadado do arquivo enviado.
-  numeroPrancha  Int?
+  numeroPrancha   Int?
   /// Tamanho do papel (A0–A4). Mesmo catálogo de `fase`, categoria `folha`. Alimenta a Lista
   /// Mestre; preenchido de preferência pela leitura das dimensões do PDF (F4), não pelo nome.
-  tamanhoPapelId String?
-  tamanhoPapel   PranchaCatalogo? @relation("DocumentoTamanhoPapel", fields: [tamanhoPapelId], references: [id], onDelete: SetNull)
-  statusId       String?
-  status         DocumentoStatus? @relation(fields: [statusId], references: [id], onDelete: SetNull)
-  createdAt      DateTime         @default(now())
+  tamanhoPapelId  String?
+  tamanhoPapel    PranchaCatalogo?       @relation("DocumentoTamanhoPapel", fields: [tamanhoPapelId], references: [id], onDelete: SetNull)
+  /// Sub-disciplina lida do nome (`AGF` dentro de Hidrossanitário). Só etiqueta: não entra na
+  /// `chave` (a sigla já está no nome), não tem projetista/prazo/status. Null = raiz do card
+  /// (projetos no padrão v1 e documentos gerais do card).
+  subdisciplinaId String?
+  subdisciplina   SubdisciplinaCatalogo? @relation(fields: [subdisciplinaId], references: [id], onDelete: SetNull)
+  statusId        String?
+  status          DocumentoStatus?       @relation(fields: [statusId], references: [id], onDelete: SetNull)
+  createdAt       DateTime               @default(now())
 
   /// Documento que absorveu este (merge por nome-base, M4). Quando preenchido, esta linha
   /// é um APELIDO histórico: nada novo se pendura nela, mas ela continua existindo para
@@ -5754,6 +5877,7 @@ model DocumentoDisciplina {
   @@index([faseId])
   @@index([tipoId])
   @@index([tamanhoPapelId])
+  @@index([subdisciplinaId])
   @@index([statusId])
   @@map("documento_disciplina")
 }

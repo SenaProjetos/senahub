@@ -3,12 +3,17 @@
  * Formato: {projeto}-{sigla disciplina}-{fase}-{numeracao4}-{tipo}[-Rnn]
  */
 
-import { compilarPadrao } from "@/modules/uploads/nomenclatura/padrao";
+import { compilarPadrao, montarNome, MODELO_PADRAO_ORIGINAL } from "@/modules/uploads/nomenclatura/padrao";
 
 export function revisaoLabel(n: number): string {
   return `R${String(Math.max(0, n)).padStart(2, "0")}`;
 }
 
+/**
+ * Código no formato ORIGINAL (padrão v1, folha de 4 dígitos). Quem gera nome para um projeto
+ * deve usar `montarNome` com o modelo e a largura da versão do projeto — este fica para o que é
+ * v1 por definição.
+ */
 export function codigoPrancha(args: {
   projetoCodigo: string;
   siglaDisciplina: string | null;
@@ -17,10 +22,18 @@ export function codigoPrancha(args: {
   tipo: string;
   revisao: number;
 }): string {
-  const esp = args.siglaDisciplina || "???";
-  const num = String(args.numeracao).padStart(4, "0");
-  const base = `${args.projetoCodigo}-${esp}-${args.fase}-${num}-${args.tipo}`;
-  return args.revisao > 0 ? `${base}-${revisaoLabel(args.revisao)}` : base;
+  return montarNome(
+    MODELO_PADRAO_ORIGINAL,
+    {
+      proj: args.projetoCodigo,
+      disc: args.siglaDisciplina,
+      fase: args.fase,
+      num: args.numeracao,
+      tipo: args.tipo,
+      rev: args.revisao,
+    },
+    { larguraNumero: 4 },
+  );
 }
 
 /**

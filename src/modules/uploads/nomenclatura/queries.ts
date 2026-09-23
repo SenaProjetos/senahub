@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { CatalogosNomenclatura } from "./vocabulario";
+import { catalogosDaVersao } from "./siglas-versao";
 import type { ExtensaoDef } from "./extensoes";
 
 /**
@@ -13,7 +14,7 @@ import type { ExtensaoDef } from "./extensoes";
  * de `projetoId` — a precedência (projeto vence global) é resolvida dentro de `montarVocabulario`.
  */
 export async function carregarCatalogosNomenclatura(projetoId: string | null): Promise<CatalogosNomenclatura> {
-  const [disciplinas, pranchas, overrides] = await Promise.all([
+  const [disciplinas, pranchas, overridePorCatalogoId] = await Promise.all([
     prisma.disciplinaCatalogo.findMany({
       where: { ativo: true },
       select: { id: true, codigo: true, numeracao: true, numeracaoFim: true, sinonimos: true },
@@ -26,23 +27,8 @@ export async function carregarCatalogosNomenclatura(projetoId: string | null): P
       },
       select: { id: true, categoria: true, sigla: true, sinonimos: true, projetoId: true },
     }),
-    // Faixa por projeto (2026-09-16): SÓ este projeto pode sobrescrever o início/fim do
-    // catálogo global — não afeta a faixa reconhecida em nenhum outro projeto.
-    projetoId
-      ? prisma.disciplina.findMany({
-          where: {
-            projetoId,
-            disciplinaId: { not: null },
-            numeracaoInicioProjeto: { not: null },
-            numeracaoFimProjeto: { not: null },
-          },
-          select: { disciplinaId: true, numeracaoInicioProjeto: true, numeracaoFimProjeto: true },
-        })
-      : Promise.resolve([]),
+    faixasDoProjeto(projetoId),
   ]);
-  const overridePorCatalogoId = new Map(
-    overrides.map((o) => [o.disciplinaId as string, { inicio: o.numeracaoInicioProjeto!, fim: o.numeracaoFimProjeto! }]),
-  );
 
   return {
     disciplinas: disciplinas.map((d) => {
@@ -62,6 +48,88 @@ export async function carregarCatalogosNomenclatura(projetoId: string | null): P
       .filter((p) => p.categoria === "tipo")
       .map((p) => ({ id: p.id, sigla: p.sigla, sinonimos: p.sinonimos, projetoId: p.projetoId })),
   };
+}
+
+/**
+ * Faixa por projeto (2026-09-16): SÓ este projeto pode sobrescrever o início/fim do catálogo
+ * global — não afeta a faixa reconhecida em nenhum outro projeto.
+ */
+async function faixasDoProjeto(projetoId: string | null): Promise<Map<string, { inicio: number; fim: number }>> {
+  if (!projetoId) return new Map();
+  const overrides = await prisma.disciplina.findMany({
+    where: {
+      projetoId,
+      disciplinaId: { not: null },
+      numeracaoInicioProjeto: { not: null },
+      numeracaoFimProjeto: { not: null },
+    },
+    select: { disciplinaId: true, numeracaoInicioProjeto: true, numeracaoFimProjeto: true },
+  });
+  return new Map(
+    overrides.map((o) => [o.disciplinaId as string, { inicio: o.numeracaoInicioProjeto!, fim: o.numeracaoFimProjeto! }]),
+  );
+}
+
+const SIGLA_SELECT = { select: { sigla: true, oficial: true, versaoDesde: true, versaoAte: true } } as const;
+
+/** Sub-disciplinas ativas do catálogo (as de card arquivado caem no filtro do vocabulário). */
+function carregarSubdisciplinas() {
+  return prisma.subdisciplinaCatalogo.findMany({
+    where: { ativo: true },
+    select: { id: true, disciplinaCatalogoId: true, versaoDesde: true, versaoAte: true, siglas: SIGLA_SELECT },
+  });
+}
+
+/**
+ * Catálogos de UMA versão do padrão, lendo as siglas de `SiglaNomenclatura` (D4/D11 da spec de
+ * nomenclatura versionada), com as sub-disciplinas. Mesmos filtros de
+ * `carregarCatalogosNomenclatura`: só ativos, fase/tipo global + do próprio projeto, faixa por
+ * projeto aplicada. É a leitura do motor desde a F2; a antiga fica só para
+ * `scripts/verificar-siglas-versao.ts` conferir a v1 até a contração das colunas.
+ */
+export async function carregarCatalogosNomenclaturaDaVersao(
+  projetoId: string | null,
+  versao: number,
+): Promise<CatalogosNomenclatura> {
+  const [disciplinas, subdisciplinas, pranchas, overridePorCatalogoId] = await Promise.all([
+    prisma.disciplinaCatalogo.findMany({
+      where: { ativo: true },
+      select: {
+        id: true,
+        numeracao: true,
+        numeracaoFim: true,
+        versaoDesde: true,
+        versaoAte: true,
+        siglas: SIGLA_SELECT,
+      },
+    }),
+    carregarSubdisciplinas(),
+    prisma.pranchaCatalogo.findMany({
+      where: {
+        ativo: true,
+        categoria: { in: ["fase", "tipo"] },
+        OR: [{ projetoId: null }, ...(projetoId ? [{ projetoId }] : [])],
+      },
+      select: { id: true, categoria: true, projetoId: true, versaoDesde: true, versaoAte: true, siglas: SIGLA_SELECT },
+    }),
+    faixasDoProjeto(projetoId),
+  ]);
+
+  return catalogosDaVersao(
+    {
+      disciplinas: disciplinas.map((d) => {
+        const override = overridePorCatalogoId.get(d.id);
+        return {
+          ...d,
+          numeracao: override ? override.inicio : d.numeracao,
+          numeracaoFim: override ? override.fim : d.numeracaoFim,
+        };
+      }),
+      subdisciplinas,
+      pranchas,
+    },
+    versao,
+  );
 }
 
 /** Catálogo de extensões ativo, na forma que `classificarExtensao()` consome. */

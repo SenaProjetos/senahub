@@ -9,6 +9,7 @@ import { feriadosNacionais } from "../src/modules/rh/feriados/queries";
 import { seedPerfisAcesso } from "./seed-perfis-acesso";
 import { seedPropostaComposta } from "./seed-proposta-composta";
 import { semearCatalogoDisciplinas, semearListaMestre } from "./seed-catalogos";
+import { semearSiglasFaltantes } from "../src/modules/uploads/nomenclatura/siglas-service";
 import type { Prisma } from "../src/generated/prisma/client";
 import type { EstagioNegociacao } from "../src/generated/prisma/enums";
 
@@ -607,6 +608,11 @@ async function main() {
         : `✔ Lista Mestre (${lm.categoria}): já existe (${lm.existentes}) — mantida como está.`,
     );
   }
+  // Siglas por versão (F1 da nomenclatura versionada): item de catálogo sem nenhuma linha em
+  // `SiglaNomenclatura` ganha as da v1 a partir das colunas. Só instalação nova tem o que criar;
+  // banco no ar já foi preenchido pela migration e é mantido pelo espelho das telas.
+  const siglas = await semearSiglasFaltantes(prisma);
+  console.log(`✔ Siglas de nomenclatura: ${siglas.criadas} criada(s) para itens sem sigla.`);
 
 
   // 4) Plano de contas (cria pais antes das filhas — array já ordenado).

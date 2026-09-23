@@ -20,7 +20,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ disciplinaId: 
       // Não zipa arquivos na lixeira (excluidoEm) — só o que aparece no navegador.
       uploads: {
         where: { excluidoEm: null },
-        include: { pasta: { select: { caminho: true } } },
+        include: { pasta: { select: { caminho: true } }, documento: { select: { subdisciplina: { select: { nome: true } } } } },
       },
       responsaveis: { select: { userId: true } },
       projeto: { select: { codigo: true, membros: { select: { userId: true } } } },
@@ -73,7 +73,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ disciplinaId: 
     let nome =
       u.pastaId && u.pasta
         ? caminhoNoZipPasta(u.pasta.caminho, u.nomeArquivo)
-        : caminhoNoZip(u.pacote!, u.nomeArquivo);
+        : caminhoNoZip(u.pacote!, u.nomeArquivo, u.documento?.subdisciplina?.nome);
     if (usados.has(nome)) {
       const i = nome.lastIndexOf(".");
       const raiz = i > 0 ? nome.slice(0, i) : nome;

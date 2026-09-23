@@ -30,6 +30,15 @@ lugar.
 - **Encargos da folha** — faixas de **INSS** e **IRRF** usadas no holerite.
 
 ### Projetos & Operação
+- **Disciplinas** — catálogo de disciplinas (sigla, ícone, categoria); cada disciplina pode
+  ter **sub-disciplinas** (etiqueta de documento dentro dela, como Água Fria dentro de
+  Hidrossanitário) e **siglas por versão** do padrão de nomenclatura.
+- **Lista Mestre** — siglas de fase, tipo e tamanho de papel usadas nos nomes de arquivo,
+  também com siglas por versão.
+- **Nomenclatura** — versões do padrão de nome de arquivo. Uma versão publicada é
+  **imutável**; corrigi-la é publicar uma versão nova. Um projeto novo recebe a versão
+  vigente na data em que é criado; publicar não muda projeto já existente. Publicar avisa
+  (sem bloquear) quando uma sigla já significou outra coisa numa versão anterior.
 - **Documentos padrão** — modelo do Estúdio usado por padrão em cada fonte.
 - **Inputs padrão** — perguntas padrão por disciplina no link do cliente.
 - **Feriados** — calendário (ponto, escala, banco de horas).

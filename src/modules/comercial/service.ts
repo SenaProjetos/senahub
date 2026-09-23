@@ -9,7 +9,9 @@ import { proximoCodigoProjeto } from "@/modules/projetos/numbering";
 import { ensureCanaisProjeto } from "@/modules/chat/service";
 import { refletirSincroniaCanais } from "@/lib/socket";
 import { formatarNumeroProposta } from "@/modules/comercial/numeracao";
-import { disciplinasDeItens } from "@/modules/comercial/disciplinas";
+import { disciplinasDeItens, nomeDisciplinaItem } from "@/modules/comercial/disciplinas";
+import { versaoVigenteHoje } from "@/modules/projetos/nomenclatura/versoes-queries";
+import { valeNaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
 import type { SalvarPropostaInput } from "@/modules/comercial/schemas";
 import type {
   EstagioNegociacao,
@@ -800,6 +802,9 @@ export async function aceitarProposta(propostaId: string, autorId?: string) {
   const descontoVigente = p.versoes[0]?.desconto != null ? Number(p.versoes[0].desconto) : 0;
   const valorFinal = somaItens - descontoVigente;
   const aceitaEm = new Date();
+  // D2 da spec de nomenclatura versionada: o projeto criado pelo aceite recebe a versão
+  // vigente hoje, do mesmo jeito que `criarProjeto` faz — o aceite não passa por aquela action.
+  const versaoNomenclatura = await versaoVigenteHoje();
 
   const projeto = await prisma.$transaction(async (tx) => {
     const { ano, sequencial, codigo } = await proximoCodigoProjeto(tx);
@@ -818,6 +823,7 @@ export async function aceitarProposta(propostaId: string, autorId?: string) {
         valorContrato: valorFinal,
         // §8.5, metade 1 de 2 — a outra é o `projetoId` logo abaixo, na mesma transação.
         negociacaoId: p.negociacao?.id ?? null,
+        nomenclaturaVersaoId: versaoNomenclatura?.id ?? null,
         disciplinas: {
           create: disciplinasDeItens(p.itens),
         },
@@ -942,7 +948,26 @@ export async function aceitarProposta(propostaId: string, autorId?: string) {
     { categoria: "proposta" },
   );
 
-  return { projetoId: projeto.id, codigo: projeto.codigo };
+  // R2b da spec de nomenclatura versionada: card da proposta que não vale mais na versão que o
+  // projeto recebeu (ex.: proposta feita com "Cabeamento" antes da v2 substituí-lo por
+  // "Telecomunicações", e só aceita depois de publicada) — SÓ aviso, o card funciona normalmente
+  // no projeto (projetista/valor/prazo intactos); comparação por NOME (mesma fragilidade de
+  // R1, documentada — sem FK confiável em `disciplinasDeItens` hoje).
+  const avisos: string[] = [];
+  if (versaoNomenclatura) {
+    const nomes = [...new Set(p.itens.map((it) => nomeDisciplinaItem(it)))];
+    const catalogo = await prisma.disciplinaCatalogo.findMany({
+      where: { nome: { in: nomes } },
+      select: { nome: true, versaoDesde: true, versaoAte: true },
+    });
+    for (const c of catalogo) {
+      if (!valeNaVersao(c, versaoNomenclatura.numero)) {
+        avisos.push(`"${c.nome}" não faz parte do padrão vigente (v${versaoNomenclatura.numero}) — o card continua funcionando normalmente.`);
+      }
+    }
+  }
+
+  return { projetoId: projeto.id, codigo: projeto.codigo, avisos };
 }
 
 // ── Timeline automática (F3.2) ───────────────────────────────────────────────────────────────

@@ -2,7 +2,7 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { interpretarNomeArquivo, confiavel } from "../src/modules/uploads/nomenclatura/interpretar";
 import { montarVocabulario } from "../src/modules/uploads/nomenclatura/vocabulario";
-import { carregarCatalogosNomenclatura, carregarExtensoesNomenclatura } from "../src/modules/uploads/nomenclatura/queries";
+import { carregarCatalogosNomenclaturaDaVersao, carregarExtensoesNomenclatura } from "../src/modules/uploads/nomenclatura/queries";
 import { resolverNomenclatura } from "../src/modules/projetos/nomenclatura/queries";
 import { catalogosPrancha } from "../src/modules/projetos/pranchas/queries";
 import { lerTamanhoPapelPdf } from "../src/modules/uploads/tamanho-papel-pdf";
@@ -39,7 +39,7 @@ import { camposAlterados } from "../src/modules/uploads/historico/eventos";
 
 const APLICAR = process.argv.includes("--aplicar");
 
-type CatalogoNomenclaturaPorProjeto = Awaited<ReturnType<typeof carregarCatalogosNomenclatura>>;
+type CatalogoNomenclaturaPorProjeto = Awaited<ReturnType<typeof carregarCatalogosNomenclaturaDaVersao>>;
 
 async function tipoENumeroPorNome() {
   const docs = await prisma.documentoDisciplina.findMany({
@@ -81,10 +81,12 @@ async function tipoENumeroPorNome() {
 
   async function contextoDoProjeto(projetoId: string) {
     if (!catalogoPorProjeto.has(projetoId)) {
-      const catalogos = await carregarCatalogosNomenclatura(projetoId);
+      // Mesmo contexto da rota de upload: vocabulário da VERSÃO do padrão do projeto.
+      const nomenclatura = await resolverNomenclatura(projetoId);
+      const catalogos = await carregarCatalogosNomenclaturaDaVersao(projetoId, nomenclatura.versao?.numero ?? 1);
       catalogoPorProjeto.set(projetoId, catalogos);
       vocabPorProjeto.set(projetoId, montarVocabulario(catalogos, projetoId));
-      padraoPorProjeto.set(projetoId, (await resolverNomenclatura(projetoId)).padrao);
+      padraoPorProjeto.set(projetoId, nomenclatura.padrao);
     }
     return {
       catalogos: catalogoPorProjeto.get(projetoId)!,

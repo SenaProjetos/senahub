@@ -20,6 +20,7 @@ import {
   LayoutList,
   Building2,
   FileQuestion,
+  CalendarClock,
 } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -92,6 +93,12 @@ const GRUPOS: Grupo[] = [
         icon: LayoutList,
         titulo: "Lista Mestre",
         descricao: "Siglas de folha, tipo e fase que compõem o código das folhas técnicas.",
+      },
+      {
+        href: "/configuracoes/nomenclatura",
+        icon: CalendarClock,
+        titulo: "Nomenclatura",
+        descricao: "Versões do padrão de nome de arquivo — publicada é imutável, projeto novo recebe a vigente.",
       },
       {
         href: "/configuracoes/extensoes",

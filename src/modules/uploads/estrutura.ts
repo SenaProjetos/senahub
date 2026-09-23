@@ -45,10 +45,14 @@ export function subpastaDe(nome: string): Subpasta {
  * "{Pacote}/{Subpasta}/{nomeArquivo}"
  * (ex.: "Pranchas e arquivos/PDF/260020-EST-EX-4001-DE-R00.pdf").
  * Pacotes fora do mapa (ex.: RECEBIDOS) caem no próprio código como nome de pasta.
+ *
+ * `subdisciplinaNome` (F5, padrão v2) entra como uma pasta a mais, entre o pacote e a subpasta
+ * por extensão — `null`/ausente (padrão v1, ou documento sem sub) mantém o caminho de sempre.
  */
-export function caminhoNoZip(pacote: string, nomeArquivo: string): string {
+export function caminhoNoZip(pacote: string, nomeArquivo: string, subdisciplinaNome?: string | null): string {
   const pastaPacote = PACOTE_LABEL[pacote as Pacote] ?? String(pacote);
-  return `${pastaPacote}/${subpastaDe(nomeArquivo)}/${nomeArquivo}`;
+  const pastaSub = subdisciplinaNome ? `${subdisciplinaNome}/` : "";
+  return `${pastaPacote}/${pastaSub}${subpastaDe(nomeArquivo)}/${nomeArquivo}`;
 }
 
 /**

@@ -16,6 +16,7 @@ function doc(parcial: Partial<DocumentoCandidato> & { nome: string }): Documento
     faseSigla: "EX",
     tipoSigla: "DET",
     papelSigla: "A1",
+    subdisciplinaNome: null,
     revisaoAtual: 1,
     statusFinal: false,
     pacote: "A",
@@ -86,6 +87,11 @@ describe("numeroDaListaMestre", () => {
   it("sem faixa e sem número, 0", () => {
     expect(numeroDaListaMestre(null, [])).toBe(0);
   });
+
+  it("sequência que recomeça (padrão v2): 0, mesmo com faixa cadastrada", () => {
+    expect(numeroDaListaMestre(6000, linhas, "sub")).toBe(0);
+    expect(numeroDaListaMestre(null, linhas, "card")).toBe(0);
+  });
 });
 
 describe("faseDaListaMestre", () => {
@@ -126,5 +132,35 @@ describe("nomeDaListaMestre", () => {
       expect(foraDoPadrao("260037-DRE-EX-6100-LMS.pdf", padrao)).toBe(false);
       expect(foraDoPadrao("260037-DRE-EX-6100-LMS.xlsx", padrao)).toBe(false);
     }
+  });
+});
+
+describe("nomeDaListaMestre pelo modelo da versão", () => {
+  it("padrão v2: texto fixo e 3 dígitos", () => {
+    expect(
+      nomeDaListaMestre({
+        codigoProjeto: "260010",
+        siglaDisciplina: "HID",
+        fase: "EXE",
+        numero: 0,
+        siglaTipo: "LMS",
+        modelo: "{proj}-SENA-{disc}-{fase}-{num}-{tipo}",
+        larguraNumero: 3,
+      }),
+    ).toBe("260010-SENA-HID-EXE-000-LMS");
+  });
+});
+
+describe("montarListaMestre ordena sub antes de número (F5)", () => {
+  it("raiz do card vem antes das subs; subs em ordem alfabética", () => {
+    const linhas = montarListaMestre(
+      [
+        doc({ nome: "b.pdf", numeroPrancha: 1, subdisciplinaNome: "Água Quente" }),
+        doc({ nome: "a.pdf", numeroPrancha: 999, subdisciplinaNome: null }),
+        doc({ nome: "c.pdf", numeroPrancha: 1, subdisciplinaNome: "Água Fria" }),
+      ],
+      "LMS",
+    );
+    expect(linhas.map((l) => l.sub)).toEqual(["", "Água Fria", "Água Quente"]);
   });
 });

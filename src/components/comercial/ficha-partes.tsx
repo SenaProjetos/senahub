@@ -183,6 +183,7 @@ function LinhaProposta({ p, podeGerir }: { p: PropostaFicha; podeGerir: boolean 
       const r = await aceitarProposta({ id: p.id });
       if (r.ok) {
         toast.success("Proposta aceita — projeto criado.");
+        for (const aviso of r.data.avisos) toast.warning(aviso);
         router.refresh();
       } else toast.error(r.error);
     });

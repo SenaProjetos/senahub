@@ -25,7 +25,18 @@ export async function catalogosPranchaConfig(projetoId: string | null) {
   return prisma.pranchaCatalogo.findMany({
     where: { projetoId },
     orderBy: [{ categoria: "asc" }, { ordem: "asc" }, { sigla: "asc" }],
-    select: { id: true, categoria: true, sigla: true, nome: true, ativo: true, ordem: true, projetoId: true, sinonimos: true },
+    select: {
+      id: true,
+      categoria: true,
+      sigla: true,
+      nome: true,
+      ativo: true,
+      ordem: true,
+      projetoId: true,
+      sinonimos: true,
+      versaoDesde: true,
+      versaoAte: true,
+    },
   });
 }
 

@@ -129,6 +129,7 @@ function CartaoDocumento({
   const identificacao = [
     colunas.has("numero") && linha.numeroPrancha !== null ? String(linha.numeroPrancha).padStart(4, "0") : null,
     colunas.has("fase") ? linha.faseSigla : null,
+    colunas.has("sub") ? linha.subdisciplinaNome : null,
     colunas.has("tipo") ? linha.tipoSigla : null,
     colunas.has("papel") ? linha.papelSigla : null,
     colunas.has("revisao") && linha.revisaoAtual !== null ? rotuloRevisao(linha.revisaoAtual) : null,
@@ -434,6 +435,7 @@ export function TabelaDocumentos({
             </SortableHead>
             {colunas.has("numero") && <TableHead>Nº</TableHead>}
             {colunas.has("fase") && <TableHead>Fase</TableHead>}
+            {colunas.has("sub") && <TableHead>Sub</TableHead>}
             {colunas.has("tipo") && <TableHead>Tipo</TableHead>}
             <SortableHead field="nome">Documento</SortableHead>
             {colunas.has("revisao") && <SortableHead field="revisao" className="text-right">Revisão</SortableHead>}
@@ -476,6 +478,11 @@ export function TabelaDocumentos({
               {colunas.has("fase") && (
                 <TableCell className="text-xs" title={l.faseNome ?? undefined}>
                   {l.faseSigla ?? <span className="text-muted-foreground">—</span>}
+                </TableCell>
+              )}
+              {colunas.has("sub") && (
+                <TableCell className="text-xs">
+                  {l.subdisciplinaNome ?? <span className="text-muted-foreground">—</span>}
                 </TableCell>
               )}
               {colunas.has("tipo") && (

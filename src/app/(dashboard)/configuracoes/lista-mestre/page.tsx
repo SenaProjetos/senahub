@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { catalogosPranchaConfig } from "@/modules/projetos/pranchas/queries";
 import { nomenclaturaGlobal } from "@/modules/projetos/nomenclatura/queries";
+import { listarVersoesAdmin } from "@/modules/projetos/nomenclatura/versoes-queries";
 import { ListaMestreConfigView } from "@/components/configuracoes/lista-mestre-config-view";
 import { NomenclaturaForm } from "@/components/projetos/nomenclatura-form";
 
@@ -15,7 +16,11 @@ export default async function ListaMestreConfigPage() {
   // o acesso** — redução deliberada, decidida pelo dono em 2026-09-02. Para devolver,
   // basta marcar o par no perfil Coordenador (a tela agora resolve isso sem deploy).
   await requirePermission("configuracoes", "gerir");
-  const [catalogos, nomencla] = await Promise.all([catalogosPranchaConfig(null), nomenclaturaGlobal()]);
+  const [catalogos, nomencla, versoes] = await Promise.all([
+    catalogosPranchaConfig(null),
+    nomenclaturaGlobal(),
+    listarVersoesAdmin(),
+  ]);
 
   return (
     <div className="space-y-5">
@@ -28,8 +33,12 @@ export default async function ListaMestreConfigPage() {
           Siglas de folha, tipo e fase usadas na composição do código das folhas técnicas (globais a todos os projetos).
         </p>
       </div>
-      <NomenclaturaForm escopo="global" inicial={{ exigir: nomencla.exigir, exigirFase: nomencla.exigirFase, padrao: nomencla.padrao }} />
-      <ListaMestreConfigView catalogos={catalogos} />
+      <NomenclaturaForm
+        escopo="global"
+        inicial={{ exigir: nomencla.exigir, exigirFase: nomencla.exigirFase, padrao: nomencla.padrao }}
+        mostrarPadrao={false}
+      />
+      <ListaMestreConfigView catalogos={catalogos} versoes={versoes} />
     </div>
   );
 }
