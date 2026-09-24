@@ -301,19 +301,36 @@ gerador). A rota `/ajuda` é visível a **todos** os papéis, cliente incluído.
 
 ### Resumo
 
-| Fase | Modelo | Sessões | Risco |
-|---|---|---|---|
-| F0 Fundação de dados | Opus | 3 | alto |
-| F1 Motor | Opus | 4 | alto |
-| F2 Governança | Opus | 3 | médio |
-| F3 Telas | Sonnet | 4 | médio |
-| F4 Disciplina × etapa | Opus | 3 | alto |
-| F5 Recursos | Opus + Sonnet | 3 | médio |
-| F6 Apontamento | Sonnet | 2 | baixo |
-| F7 Custo e dinheiro | Opus | 3 | alto |
-| F8 Valor Agregado | Opus | 2 | médio |
-| F9 Manual | Sonnet | 1 | baixo |
-| **Total** | | **28 sessões** | |
+| Fase | Modelo | Esforço | Ultracode | Sessões | Risco |
+|---|---|---|---|---|---|
+| F0 Fundação de dados | Opus | **xhigh** | não | 3 | alto |
+| F1 Motor | Opus | **xhigh** | **não** | 4 | alto |
+| F2 Governança | Opus | high | **sim** | 3 | médio |
+| F3 Telas | Sonnet | high | **sim** | 4 | médio |
+| F4 Disciplina × etapa | Opus | **xhigh** | não | 3 | alto |
+| F5 Recursos | Opus + Sonnet | high | não | 3 | médio |
+| F6 Apontamento | Sonnet | medium | não | 2 | baixo |
+| F7 Custo e dinheiro | Opus | **xhigh** | não | 3 | alto |
+| F8 Valor Agregado | Opus | high | não | 2 | médio |
+| F9 Manual | Sonnet | medium | não | 1 | baixo |
+| **Total** | | | | **28 sessões** | |
+
+**Por que `xhigh` só em F0/F1/F4/F7:** são as fases cujo erro é *silencioso* — schema
+irreversível, motor que devolve data plausível e errada, migração de dado em produção, rateio
+de dinheiro. As demais quebram barulhento (teste vermelho, tela torta) e `high` basta.
+
+**Por que ultracode só em F2/F3:** ultracode é `xhigh` **mais orquestração paralela**, e só
+paga quando o trabalho se divide em peças independentes — F2 tem 6 entregas que quase não se
+tocam, F3 tem 5 modos de exibição em arquivos distintos.
+
+**Por que ultracode NÃO em F0/F1**, que são as mais caras e a tentação óbvia: o motor é *uma
+coisa só*, profundamente acoplada. Dividir entre agentes cria costura exatamente onde costura é
+mais perigosa — dois agentes decidindo diferente sobre como o lag interage com a restrição, sem
+ninguém perceber. Ali é `xhigh` com um agente pensando o problema inteiro.
+
+**Coordenação:** ultracode abre vários agentes e este repo tem duas worktrees ativas
+(`dev-antigravity`, `dev-vscode`). Antes de disparar F2/F3, confirmar que a outra sessão não
+está nos mesmos arquivos.
 
 **Primeiro valor visível:** fim da F3 (cronograma que anda sozinho e Gantt de duas barras).
 **Ordem inegociável:** F0 → F1 → F2. F4 pode ir em paralelo com F3; F7 depende de F4 e F5;
