@@ -2114,12 +2114,19 @@ model SessaoTrabalho {
   /// Destino das horas quando não há um projeto. Mantém reuniões separadas de
   /// "sem projeto" no ponto e no rateio gerencial.
   tipoAlocacao TipoAlocacaoPonto @default(sem_projeto)
+  /// Tarefa (card) em que a pessoa trabalhou nesta sessão — OPCIONAL (F6, D20). O ponto não
+  /// pode virar burocracia: sem tarefa escolhida a sessão vale exatamente como valia. Só faz
+  /// sentido com `tipoAlocacao = projeto`, e a tarefa tem de ser do mesmo projeto e da pessoa
+  /// (a validação é da action, não do banco). `SetNull`: apagar a tarefa não pode apagar horas.
+  tarefaId     String?
+  tarefa       Tarefa?           @relation(fields: [tarefaId], references: [id], onDelete: SetNull)
   inicio       DateTime
   fim          DateTime?
   createdAt    DateTime          @default(now())
 
   @@index([userId, inicio])
   @@index([projetoId])
+  @@index([tarefaId])
   @@map("sessao_trabalho")
 }
 
@@ -2216,6 +2223,10 @@ model Batida {
   /// padrão de DocumentoFinanceiro.fornecedorId/clienteId: FK escalar por lookup,
   /// para não inflar o model Projeto).
   projetoId String?
+  /// Tarefa escolhida na entrada / volta do descanso (F6) — informativa, sem relação, como o
+  /// `projetoId`. É o que faz a reconciliação de um dia editado (que recria as sessões a
+  /// partir das batidas) preservar a tarefa em vez de perdê-la em silêncio.
+  tarefaId  String?
 
   origem          OrigemBatida @default(app)
   editada         Boolean      @default(false)
@@ -2830,6 +2841,8 @@ model Tarefa {
   concluidaEm  DateTime?
   /// Origem na EAP (P-32): evita gerar a mesma Tarefa operacional duas vezes.
   eapTarefaId  String?      @unique
+  /// Horas apontadas nesta tarefa pelo ponto (F6).
+  sessoesTrabalho SessaoTrabalho[]
 
   responsaveis TarefaResponsavel[]
   itens        TarefaItem[]
