@@ -8,6 +8,7 @@ import {
   planoVsRealProjeto,
   cronogramaProjetoInfo,
   qualidadeDoProjeto,
+  pessoasParaAtribuicao,
 } from "@/modules/planejamento/queries";
 import { EapWorkspace } from "@/components/planejamento/eap-workspace";
 import { PlanoVsReal } from "@/components/planejamento/plano-vs-real";
@@ -32,6 +33,7 @@ export default async function PlanejamentoProjetoPage({
     planoReal,
     cronograma,
     qualidade,
+    pessoas,
   ] = await Promise.all([
     eapDoProjeto(projetoId),
     can(user, "planejamento", "gerir"),
@@ -40,6 +42,7 @@ export default async function PlanejamentoProjetoPage({
     planoVsRealProjeto(projetoId),
     cronogramaProjetoInfo(projetoId),
     qualidadeDoProjeto(projetoId),
+    pessoasParaAtribuicao(),
   ]);
 
   return (
@@ -48,6 +51,7 @@ export default async function PlanejamentoProjetoPage({
         projeto={projeto}
         tarefas={tarefas}
         disciplinas={disciplinas}
+        pessoas={pessoas}
         temLinhaBase={temLinhaBase}
         podeGerir={podeGerir}
         podeAprovar={podeAprovar}

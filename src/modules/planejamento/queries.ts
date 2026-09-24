@@ -565,7 +565,7 @@ export async function matrizRecursos() {
  * régua de apuração.
  */
 export async function cronogramaProjetoInfo(projetoId: string) {
-  const [cronograma, ultimaBaseline] = await Promise.all([
+  const [cronograma, ultimaBaseline, alocacoesTipadas] = await Promise.all([
     prisma.cronogramaProjeto.findUnique({
       where: { projetoId },
       select: { aprovado: true, aprovadoEm: true, dataStatus: true, inicioProjeto: true },
@@ -575,6 +575,10 @@ export async function cronogramaProjetoInfo(projetoId: string) {
       orderBy: { numero: "desc" },
       select: { numero: true, motivo: true, createdAt: true },
     }),
+    // F5 (D17): quantas alocações DIGITADAS o projeto tem — aprovar sem hora estimada nas
+    // linhas as tira da carga da equipe sem substituir por nada. A tela precisa avisar
+    // ANTES de aprovar, não depois: `alocacoesSubstituidas` só existe no resultado.
+    prisma.alocacao.count({ where: { projetoId } }),
   ]);
   return {
     aprovado: cronograma?.aprovado ?? false,
@@ -584,7 +588,17 @@ export async function cronogramaProjetoInfo(projetoId: string) {
     ultimaBaseline: ultimaBaseline
       ? { numero: ultimaBaseline.numero, motivo: ultimaBaseline.motivo, criadaEm: iso(ultimaBaseline.createdAt) }
       : null,
+    alocacoesTipadas,
   };
+}
+
+/** Pessoa ou perfil para atribuir numa linha da EAP (F5) — gente da casa, ativa. */
+export async function pessoasParaAtribuicao() {
+  return prisma.user.findMany({
+    where: { ativo: true, role: { not: "cliente" } },
+    select: { id: true, name: true, image: true },
+    orderBy: { name: "asc" },
+  });
 }
 
 /**

@@ -33,6 +33,8 @@ const REGRA_LABEL: Record<string, string> = {
   futura_com_avanco: "futura com avanço",
   excesso_de_restricoes: "excesso de restrições",
   sem_data_status: "sem Data de Status",
+  atribuicao_sem_horas: "sem horas previstas",
+  atribuicao_em_resumo: "agrupamento com gente atribuída",
 };
 
 const FAIXA_COR: Record<string, string> = {
@@ -56,6 +58,8 @@ export function SaudePainel({
   dataStatus,
   inicioProjeto,
   ultimaBaseline,
+  alocacoesTipadas,
+  linhasSemHora,
   achados,
   nota,
   faixa,
@@ -69,6 +73,10 @@ export function SaudePainel({
   dataStatus: string | null;
   inicioProjeto: string | null;
   ultimaBaseline: { numero: number; motivo: string | null; criadaEm: string } | null;
+  /** F5 (D17): quantas alocações digitadas o projeto tem — somem da carga da equipe ao aprovar. */
+  alocacoesTipadas: number;
+  /** F5: atividades da casa sem NENHUMA hora estimada — aprovar assim some da carga sem substituir. */
+  linhasSemHora: number;
   achados: Achado[];
   nota: number | null;
   faixa: string | null;
@@ -85,11 +93,36 @@ export function SaudePainel({
   const agrupados = agruparPorRegra(achados);
   const bloqueiaAprovacao = contagem.erro > 0;
 
-  function aprovar() {
+  async function aprovar() {
+    // D17: aprovar troca a alocação DIGITADA do projeto pelas horas das linhas. Sem hora
+    // estimada em lugar nenhum, o projeto simplesmente some da carga da equipe — e isso só
+    // aparece depois, em `/recursos`. Tem de avisar ANTES de aprovar, não depois.
+    if (alocacoesTipadas > 0 || linhasSemHora > 0) {
+      const ok = await confirm({
+        title: "Aprovar sem estimar horas?",
+        description: [
+          alocacoesTipadas > 0
+            ? `${alocacoesTipadas} alocação(ões) digitada(s) deste projeto deixam de contar na carga da equipe — a partir daqui ela vem das horas das linhas.`
+            : null,
+          linhasSemHora > 0
+            ? `${linhasSemHora} atividade(s) da equipe ainda não têm nenhuma hora prevista. Sem hora, elas não entram na carga de ninguém nem no custo.`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" "),
+        confirmLabel: "Aprovar assim mesmo",
+      });
+      if (!ok) return;
+    }
     start(async () => {
       const r = await aprovarCronogramaAction({ projetoId });
       if (r.ok) {
-        toast.success(`Cronograma aprovado — BL-${String(r.data.baselineNumero).padStart(2, "0")}.`);
+        toast.success(`Cronograma aprovado — BL-${String(r.data.baselineNumero).padStart(2, "0")}.`, {
+          description:
+            r.data.cardsCriados > 0
+              ? `${r.data.cardsCriados} card(s) criado(s) no quadro de tarefas de quem está escalado.`
+              : undefined,
+        });
         router.refresh();
       } else toast.error(r.error);
     });

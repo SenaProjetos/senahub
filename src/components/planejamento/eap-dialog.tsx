@@ -16,6 +16,7 @@ import {
   definirRestricao,
 } from "@/modules/planejamento/actions";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
+import { EapAtribuicoes } from "@/components/planejamento/eap-atribuicoes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,6 +63,7 @@ export function EapDialog({
   projetoId,
   disciplinas,
   tarefas,
+  pessoas,
 }: {
   tarefa: EapTarefaDTO | null;
   open: boolean;
@@ -69,9 +71,15 @@ export function EapDialog({
   projetoId: string;
   disciplinas: { id: string; nome: string }[];
   tarefas: EapTarefaDTO[];
+  pessoas: { id: string; name: string; image: string | null }[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  // A tarefa vem do estado do PAI, capturada quando o diálogo abriu. Depois de um
+  // `router.refresh()` (ex.: adicionar uma atribuição) `tarefas` chega atualizado mas
+  // `tarefa` continua o objeto antigo — sem isto a seção de Recursos (e `predecessoraIds`,
+  // usado por `toggleDep` abaixo) ficaria uma gravação atrás até o diálogo reabrir.
+  const linhaAtual = tarefa ? tarefas.find((t) => t.id === tarefa.id) ?? tarefa : null;
 
   const hoje = new Date().toISOString().slice(0, 10);
   const vazio = {
@@ -123,9 +131,9 @@ export function EapDialog({
   function salvar() {
     if (!form.nome.trim()) return;
     start(async () => {
-      const r = tarefa
+      const r = linhaAtual
         ? await editarEapTarefa({
-            id: tarefa.id,
+            id: linhaAtual.id,
             nome: form.nome,
             disciplinaId: form.disciplinaId === NONE ? "" : form.disciplinaId,
             inicioPrevisto: form.inicioPrevisto,
@@ -144,7 +152,7 @@ export function EapDialog({
             marco: form.marco,
           });
       if (r.ok) {
-        toast.success(tarefa ? "Tarefa atualizada." : "Tarefa criada.");
+        toast.success(linhaAtual ? "Tarefa atualizada." : "Tarefa criada.");
         onOpenChange(false);
         router.refresh();
       } else toast.error(r.error);
@@ -152,9 +160,9 @@ export function EapDialog({
   }
 
   function excluir() {
-    if (!tarefa) return;
+    if (!linhaAtual) return;
     start(async () => {
-      const r = await excluirEapTarefa({ id: tarefa.id });
+      const r = await excluirEapTarefa({ id: linhaAtual.id });
       if (r.ok) {
         toast.success("Tarefa excluída.");
         onOpenChange(false);
@@ -164,27 +172,27 @@ export function EapDialog({
   }
 
   function toggleDep(predecessoraId: string) {
-    if (!tarefa) return;
-    const tem = tarefa.predecessoraIds.includes(predecessoraId);
+    if (!linhaAtual) return;
+    const tem = linhaAtual.predecessoraIds.includes(predecessoraId);
     start(async () => {
       const r = tem
-        ? await removerDependencia({ tarefaId: tarefa.id, predecessoraId })
-        : await vincularDependencia({ tarefaId: tarefa.id, predecessoraId, tipo: "fs", lagDias: 0 });
+        ? await removerDependencia({ tarefaId: linhaAtual.id, predecessoraId })
+        : await vincularDependencia({ tarefaId: linhaAtual.id, predecessoraId, tipo: "fs", lagDias: 0 });
       if (r.ok) router.refresh();
       else toast.error(r.error);
     });
   }
 
   function mudarVinculo(predecessoraId: string, campo: "tipo" | "lagDias", valor: string | number) {
-    if (!tarefa) return;
-    const atual = tarefa.predecessoras.find((p) => p.predecessoraId === predecessoraId);
-    if (!atual) return;
+    if (!linhaAtual) return;
+    const vinculo = linhaAtual.predecessoras.find((p) => p.predecessoraId === predecessoraId);
+    if (!vinculo) return;
     start(async () => {
       const r = await editarVinculo({
-        tarefaId: tarefa.id,
+        tarefaId: linhaAtual.id,
         predecessoraId,
-        tipo: campo === "tipo" ? (valor as "fs" | "ss" | "ff" | "sf") : atual.tipo,
-        lagDias: campo === "lagDias" ? Number(valor) : atual.lagDias,
+        tipo: campo === "tipo" ? (valor as "fs" | "ss" | "ff" | "sf") : vinculo.tipo,
+        lagDias: campo === "lagDias" ? Number(valor) : vinculo.lagDias,
       });
       if (r.ok) router.refresh();
       else toast.error(r.error);
@@ -192,14 +200,14 @@ export function EapDialog({
   }
 
   function salvarRestricao() {
-    if (!tarefa) return;
+    if (!linhaAtual) return;
     if (restricaoTipo && !restricaoData) {
       toast.error("Informe a data da restrição.");
       return;
     }
     start(async () => {
       const r = await definirRestricao({
-        id: tarefa.id,
+        id: linhaAtual.id,
         tipo: (restricaoTipo || null) as never,
         data: restricaoData || undefined,
       });
@@ -211,14 +219,14 @@ export function EapDialog({
   }
 
   function bloquear() {
-    if (!tarefa) return;
+    if (!linhaAtual) return;
     if (!motivoBloqueio.trim()) {
       toast.error("Descreva o motivo do bloqueio.");
       return;
     }
     start(async () => {
       const r = await definirBloqueio({
-        id: tarefa.id,
+        id: linhaAtual.id,
         motivo: motivoBloqueio,
         previsaoDesbloqueio: previsaoDesbloqueio || undefined,
       });
@@ -230,9 +238,9 @@ export function EapDialog({
   }
 
   function liberar() {
-    if (!tarefa) return;
+    if (!linhaAtual) return;
     start(async () => {
-      const r = await desbloquear({ id: tarefa.id });
+      const r = await desbloquear({ id: linhaAtual.id });
       if (r.ok) {
         toast.success("Bloqueio removido.");
         setMotivoBloqueio("");
@@ -244,20 +252,20 @@ export function EapDialog({
 
   const outras = tarefas.filter((t) => t.id !== tarefa?.id);
   const possiveisPais = outras;
-  const bloqueada = tarefa?.status === "blq";
+  const bloqueada = linhaAtual?.status === "blq";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {tarefa ? tarefa.nome : "Nova tarefa da EAP"}
+            {linhaAtual ? linhaAtual.nome : "Nova tarefa da EAP"}
             {bloqueada && (
               <Badge variant="outline" className="border-destructive/40 text-destructive">
                 <Lock className="mr-1 size-3" /> bloqueada
               </Badge>
             )}
-            {tarefa?.conflitoRestricao && (
+            {linhaAtual?.conflitoRestricao && (
               <Badge variant="outline" className="border-warning/40 text-warning">
                 <Pin className="mr-1 size-3" /> conflito de restrição
               </Badge>
@@ -266,11 +274,11 @@ export function EapDialog({
         </DialogHeader>
 
         <div className="space-y-3">
-          {tarefa && (
+          {linhaAtual && (
             <p className="rounded-sm bg-muted/40 px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground">
-              {tarefa.idCorporativo ?? "—"} · EAP {tarefa.codigoEap ?? "—"} · {tarefa.duracaoDias}d úteis
-              {tarefa.folgaTotal > 0 && ` · folga ${tarefa.folgaTotal}d`}
-              {tarefa.critica && " · caminho crítico"}
+              {linhaAtual.idCorporativo ?? "—"} · EAP {linhaAtual.codigoEap ?? "—"} · {linhaAtual.duracaoDias}d úteis
+              {linhaAtual.folgaTotal > 0 && ` · folga ${linhaAtual.folgaTotal}d`}
+              {linhaAtual.critica && " · caminho crítico"}
             </p>
           )}
 
@@ -369,12 +377,12 @@ export function EapDialog({
             </div>
           )}
 
-          {tarefa && outras.length > 0 && (
+          {linhaAtual && outras.length > 0 && (
             <div className="space-y-1.5">
               <Label>Depende de (predecessoras)</Label>
               <div className="max-h-40 space-y-1 overflow-y-auto">
                 {outras.map((t) => {
-                  const vinculo = tarefa.predecessoras.find((p) => p.predecessoraId === t.id);
+                  const vinculo = linhaAtual.predecessoras.find((p) => p.predecessoraId === t.id);
                   const sel = vinculo != null;
                   return (
                     <div key={t.id} className="flex flex-wrap items-center gap-1.5">
@@ -424,12 +432,27 @@ export function EapDialog({
             </div>
           )}
 
-          {tarefa && (
+          {linhaAtual && (
+            <CollapsibleSection
+              titulo="Recursos"
+              resumo={
+                linhaAtual.atribuicoes.length === 0
+                  ? undefined
+                  : `${linhaAtual.atribuicoes.length} pessoa(s)/perfil(is)${
+                      linhaAtual.trabalhoHoras != null ? ` · ${linhaAtual.trabalhoHoras}h` : ""
+                    }`
+              }
+            >
+              <EapAtribuicoes linha={linhaAtual} pessoas={pessoas} />
+            </CollapsibleSection>
+          )}
+
+          {linhaAtual && (
             <CollapsibleSection
               titulo="Restrição de data"
               resumo={
-                tarefa.restricaoTipo
-                  ? `${RESTRICAO_LABEL[tarefa.restricaoTipo]} ${tarefa.restricaoData}`
+                linhaAtual.restricaoTipo
+                  ? `${RESTRICAO_LABEL[linhaAtual.restricaoTipo]} ${linhaAtual.restricaoData}`
                   : undefined
               }
             >
@@ -475,10 +498,10 @@ export function EapDialog({
             </CollapsibleSection>
           )}
 
-          {tarefa && (
+          {linhaAtual && (
             <CollapsibleSection
               titulo="Bloqueio"
-              resumo={bloqueada ? tarefa.motivoBloqueio ?? "bloqueada" : undefined}
+              resumo={bloqueada ? linhaAtual.motivoBloqueio ?? "bloqueada" : undefined}
             >
               <p className="mb-2 text-xs text-muted-foreground">
                 Bloqueio não pausa o prazo — o atraso continua contando. Ele só registra a
@@ -486,10 +509,10 @@ export function EapDialog({
               </p>
               {bloqueada ? (
                 <div className="space-y-2">
-                  <p className="text-sm">{tarefa.motivoBloqueio}</p>
-                  {tarefa.previsaoDesbloqueio && (
+                  <p className="text-sm">{linhaAtual.motivoBloqueio}</p>
+                  {linhaAtual.previsaoDesbloqueio && (
                     <p className="text-xs text-muted-foreground">
-                      Previsão de solução: {tarefa.previsaoDesbloqueio}
+                      Previsão de solução: {linhaAtual.previsaoDesbloqueio}
                     </p>
                   )}
                   <Button size="sm" variant="outline" onClick={liberar} disabled={pending}>
@@ -523,7 +546,7 @@ export function EapDialog({
         </div>
 
         <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
-          {tarefa ? (
+          {linhaAtual ? (
             <Button variant="ghost" size="sm" onClick={excluir} disabled={pending}>
               <Trash2 className="size-3.5" /> Excluir
             </Button>

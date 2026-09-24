@@ -19,6 +19,7 @@ import {
   FileText,
   Pin,
   Lock,
+  UsersRound,
 } from "lucide-react";
 import {
   aplicarAoProjeto,
@@ -26,7 +27,9 @@ import {
   gerarEapDasDisciplinas,
   reagendarPlano,
 } from "@/modules/planejamento/actions";
+import { herdarResponsaveisDaDisciplina } from "@/modules/planejamento/recursos-actions";
 import type { EapTarefaDTO, cronogramaProjetoInfo } from "@/modules/planejamento/queries";
+import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import type { Achado } from "@/modules/planejamento/qualidade";
 import type { ResultadoSaude } from "@/modules/planejamento/saude";
 import { Button } from "@/components/ui/button";
@@ -59,6 +62,7 @@ export function EapWorkspace({
   projeto,
   tarefas,
   disciplinas,
+  pessoas,
   temLinhaBase,
   podeGerir,
   podeAprovar,
@@ -69,6 +73,7 @@ export function EapWorkspace({
   projeto: { id: string; codigo: string; nome: string };
   tarefas: EapTarefaDTO[];
   disciplinas: { id: string; nome: string }[];
+  pessoas: { id: string; name: string; image: string | null }[];
   temLinhaBase: boolean;
   podeGerir: boolean;
   podeAprovar: boolean;
@@ -189,6 +194,20 @@ export function EapWorkspace({
     });
   }
 
+  function herdar() {
+    start(async () => {
+      const r = await herdarResponsaveisDaDisciplina({ projetoId: projeto.id });
+      if (r.ok) {
+        toast.success(
+          r.data.criadas > 0
+            ? `${r.data.criadas} atribuição(ões) herdada(s) da disciplina.`
+            : "Nenhuma linha sem responsável para herdar — o que já tem gente não é tocado.",
+        );
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
   function reagendar() {
     start(async () => {
       const r = await reagendarPlano({ projetoId: projeto.id });
@@ -251,6 +270,15 @@ export function EapWorkspace({
               <Button size="sm" variant="outline" onClick={reagendar} disabled={pending || tarefas.length === 0}>
                 <CalendarClock className="size-3.5" /> Reagendar
               </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={herdar}
+                disabled={pending || tarefas.length === 0}
+                title="Preenche o responsável da disciplina em toda linha ainda sem ninguém"
+              >
+                <UsersRound className="size-3.5" /> Herdar responsáveis
+              </Button>
               <Button size="sm" variant="outline" onClick={aplicar} disabled={pending || tarefas.length === 0}>
                 <CheckCheck className="size-3.5" /> Aplicar ao projeto
               </Button>
@@ -269,6 +297,10 @@ export function EapWorkspace({
           dataStatus={cronograma.dataStatus}
           inicioProjeto={cronograma.inicioProjeto}
           ultimaBaseline={cronograma.ultimaBaseline}
+          alocacoesTipadas={cronograma.alocacoesTipadas}
+          linhasSemHora={
+            tarefas.filter((t) => !t.ehResumo && t.tipoEap === "atv" && t.trabalhoHoras == null && !t.deTerceiro).length
+          }
           achados={qualidade.achados}
           nota={qualidade.saude?.nota ?? null}
           faixa={qualidade.saude?.faixa ?? null}
@@ -408,6 +440,7 @@ export function EapWorkspace({
                 <tr>
                   <th className="px-3 py-2">Tarefa</th>
                   <th className="px-3 py-2">Disciplina</th>
+                  <th className="px-3 py-2">Recursos</th>
                   <th className="px-3 py-2">Duração</th>
                   <th className="px-3 py-2">Previsto</th>
                   <th className="px-3 py-2">Linha de base</th>
@@ -436,6 +469,35 @@ export function EapWorkspace({
                         )}
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">{t.disciplinaNome ?? "—"}</td>
+                      <td className="px-3 py-2">
+                        {t.ehResumo ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : t.atribuicoes.length === 0 ? (
+                          <span className="text-xs text-warning">sem gente</span>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            {t.atribuicoes.slice(0, 3).map((a) => (
+                              <span key={a.id} title={`${a.nome ?? `(perfil) ${a.rotuloPapel}`} · ${a.rotuloPapel}`}>
+                                {a.userId ? (
+                                  <AvatarUsuario nome={a.nome ?? ""} image={a.image} size="sm" className="size-5" />
+                                ) : (
+                                  <span className="inline-flex size-5 items-center justify-center rounded-full border border-dashed text-[9px] text-muted-foreground">
+                                    P
+                                  </span>
+                                )}
+                              </span>
+                            ))}
+                            {t.atribuicoes.length > 3 && (
+                              <span className="text-[10px] text-muted-foreground">+{t.atribuicoes.length - 3}</span>
+                            )}
+                            {t.trabalhoHoras == null && !t.deTerceiro && (
+                              <span className="text-[10px] text-warning" title="Alguma pessoa nesta linha ainda não tem horas estimadas">
+                                s/h
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </td>
                       <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-muted-foreground">
                         {t.marco ? "marco" : `${t.duracaoDias}d`}
                       </td>
@@ -507,6 +569,7 @@ export function EapWorkspace({
           projetoId={projeto.id}
           disciplinas={disciplinas}
           tarefas={tarefas}
+          pessoas={pessoas}
         />
       )}
     </div>
