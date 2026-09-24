@@ -298,6 +298,19 @@ Um cronograma, quatro modos de exibição (D33) — não duas telas lado a lado.
 
 > Muda o hábito de todo mundo que bate ponto. Vale um aviso em `/ajuda/novidades` antes.
 
+> **Notas de implementação (2026-09-24, F6 pronta, sem olho humano):**
+> - `SessaoTrabalho.tarefaId` (FK `SetNull`) e `Batida.tarefaId` (escalar, como o `projetoId`):
+>   a batida carrega a tarefa para a edição de um dia — que recria batidas e sessões — não perdê-la.
+> - Tudo é OPCIONAL (Q20). Lista curta = cards abertos da pessoa no projeto; card de EAP só na
+>   janela da linha ± 7 dias; teto de 8. Validação dentro da transação da batida.
+> - **Tarefa de uma troca no meio do dia não sobrevive à edição do dia** (a troca não tem batida;
+>   o projeto dela já era perdido assim). Voltar do descanso na tela cheia começa em "sem projeto"
+>   — comportamento antigo do projeto; o cabeçalho retoma projeto e tarefa.
+> - **D19 vence a P-33:** o % da EAP passa a ser o INFORMADO (folha) e o do motor (resumo). O status
+>   da disciplina virou sugestão. Muda o que a coordenação vê em linha ligada a disciplina.
+> - **Horas apontadas NÃO viram sugestão de %:** consumo de orçamento não é avanço (D21; IDP).
+> - Verificação: `npm run smoke:ponto-tarefa`. Deploy da F6 = só a migration.
+
 ### F7 — Custo e dinheiro · Opus · 3 sessões · risco ALTO
 
 | # | Entrega | Detalhe |
