@@ -12,6 +12,7 @@ import { slugAlertaPonto, labelAlertaPonto } from "@/lib/email-templates-meta";
 import { gravarSnapshotQualidade } from "@/modules/qualidade/queries";
 import { gravarSnapshotDashboard } from "@/modules/dashboard/queries";
 import { gravarSnapshotLicitacaoMensal } from "@/modules/licitacoes/dashboard/queries";
+import { cronogramasSemApuracao, fotografarSaudeDeTodos } from "@/modules/planejamento/service";
 import { whereAudiencia, wherePermissao } from "@/lib/audiencias";
 import { corpoResumoSemanal } from "@/lib/resumo-semanal";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -1962,4 +1963,62 @@ export async function alertaAcessos(): Promise<number> {
   }
 
   return enviados;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Cronograma (F2 do motor de planejamento)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Foto semanal da Saúde do Cronograma (D42).
+ *
+ * Roda desde o primeiro dia, mesmo com a nota ainda provisória: este histórico é
+ * irrecuperável, e ligar a série seis meses adiante significaria começar do zero.
+ * A foto guarda `notaProvisoria` para um gráfico futuro não misturar notas de pesos
+ * diferentes como se fossem a mesma medida.
+ */
+export async function fotoSemanalSaudeCronograma(): Promise<{ projetos: number; fotos: number }> {
+  const hoje = new Date().toISOString().slice(0, 10);
+  return fotografarSaudeDeTodos(hoje);
+}
+
+/**
+ * Lembrete de Data de Status vencida (D39).
+ *
+ * Sem apuração, o relatório de atraso mente por omissão: linha que ninguém atualizou há
+ * três semanas aparece como atrasada, quando na verdade é NÃO APURADA — e as duas coisas
+ * pedem ações opostas (replanejar × ligar para o coordenador).
+ *
+ * Só cronograma APROVADO entra: cobrar apuração de rascunho é cobrar disciplina de um
+ * plano que ainda não vale. Notifica quem tem `cronograma:executado`, e não um papel fixo,
+ * para seguir a customização que o dono fez na tela de Perfis.
+ */
+export async function lembreteDataStatus(): Promise<number> {
+  const hoje = new Date().toISOString().slice(0, 10);
+  const pendentes = await cronogramasSemApuracao(hoje);
+  if (pendentes.length === 0) return 0;
+
+  const alvo = await gestoresComPermissao(
+    ["admin", "supervisor", "administrativo", "clt"],
+    "cronograma",
+    "executado",
+  );
+  if (alvo.length === 0) return 0;
+
+  for (const p of pendentes) {
+    await notificarMuitos(
+      alvo,
+      {
+        titulo: `Cronograma sem apuração: ${formatarCodigo(p.codigo)}`,
+        corpo: p.dataStatus
+          ? `Última Data de Status em ${p.dataStatus}. Sem apuração, o relatório de atraso não separa atrasado de não apurado.`
+          : "Este cronograma nunca foi apurado. Defina a Data de Status para o relatório de atraso valer.",
+        href: `/planejamento/${p.projetoId}`,
+        // Semana no tag: o lembrete se repete semanalmente, sem virar notificação diária.
+        tag: `data-status-${p.projetoId}-${getISOWeek(new Date())}`,
+      },
+      { categoria: "risco_projeto" },
+    );
+  }
+  return pendentes.length;
 }

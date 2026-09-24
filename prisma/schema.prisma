@@ -1242,6 +1242,7 @@ model Projeto {
   cronograma              CronogramaProjeto?
   eapBaselines            EapBaseline[]
   eapCatalogos            EapCatalogo[]
+  saudeSnapshots          CronogramaSaudeSnapshot[]
   eapTarefas              EapTarefa[]
   alocacoes               Alocacao[]
   servicos                ServicoTerceirizado[]
@@ -4082,6 +4083,38 @@ model CronogramaProjeto {
 
   @@index([aprovadoPorId])
   @@map("cronograma_projeto")
+}
+
+/// Foto semanal da Saúde do Cronograma (D42). Idempotente por projeto + dia.
+///
+/// Gravada desde o PRIMEIRO dia, mesmo com a nota ainda provisória, porque este histórico
+/// é irrecuperável: ligar a série seis meses depois significa começar do zero, com meio
+/// ano de evolução perdido. Guardar a foto é barato; reconstruir o passado é impossível.
+///
+/// `notaProvisoria` marca as fotos tiradas antes de a metodologia ser oficializada — sem
+/// isso, um gráfico futuro misturaria notas de pesos diferentes como se fossem a mesma
+/// medida. Mesmo papel do `keyVersion` no cofre de credenciais.
+model CronogramaSaudeSnapshot {
+  id        String   @id @default(cuid())
+  projetoId String
+  projeto   Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  dia       DateTime @db.Date
+  /// 0 a 100.
+  nota      Int
+  /// `saudavel` | `atencao` | `critico` — derivado da nota, guardado para o gráfico não
+  /// depender dos cortes vigentes hoje.
+  faixa     String
+  erros     Int      @default(0)
+  alertas   Int      @default(0)
+  /// O que mais puxou a nota para baixo, já em português ("14 × linha sem responsável").
+  /// Nota sem causa não muda comportamento.
+  principalCausa String?
+  notaProvisoria Boolean @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([projetoId, dia])
+  @@index([projetoId, dia])
+  @@map("cronograma_saude_snapshot")
 }
 
 /// Versão da linha de base (BL-00, BL-01…, Doc 03 §20). NUNCA sobrescrita: replanejar

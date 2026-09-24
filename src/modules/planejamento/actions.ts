@@ -6,6 +6,12 @@ import { addDays } from "date-fns";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { reagendarProjeto } from "@/modules/planejamento/agenda";
+import {
+  aprovarCronograma,
+  avaliarQualidade,
+  gravarSaude,
+  replanejar,
+} from "@/modules/planejamento/service";
 import { faixaTemPeriodoValido, haConflitoDeFaixa } from "@/modules/planejamento/alocacao-faixas";
 
 const plan = { modulo: "planejamento", recurso: "planejamento", permissao: "gerir" } as const;
@@ -329,6 +335,133 @@ export const reagendarPlano = defineAction(
     const r = await reagendarProjeto(i.projetoId, ctx.user.id);
     if (r.reagendadas > 0 || r.codigosAtualizados > 0) revProjeto(i.projetoId);
     return r;
+  },
+);
+
+/**
+ * Define a âncora do cronograma — a "Data de Início do Projeto" do MS Project.
+ * Linha sem predecessora e sem restrição passa a nascer aqui.
+ */
+export const definirInicioProjeto = defineAction(
+  {
+    ...plan,
+    acao: "definir-inicio-projeto",
+    entidade: "CronogramaProjeto",
+    schema: z.object({ projetoId: z.string().min(1), inicio: dia }),
+  },
+  async (i) => {
+    await prisma.cronogramaProjeto.upsert({
+      where: { projetoId: i.projetoId },
+      create: { projetoId: i.projetoId, inicioProjeto: new Date(`${i.inicio}T00:00:00.000Z`) },
+      update: { inicioProjeto: new Date(`${i.inicio}T00:00:00.000Z`) },
+    });
+    const r = await reagendarProjeto(i.projetoId);
+    revProjeto(i.projetoId);
+    return r;
+  },
+);
+
+/**
+ * Data de corte da análise (Doc 03 §21). É o que separa "atrasado" de "não apurado" —
+ * sem ela, linha que ninguém atualizou há três semanas aparece como atrasada, e as duas
+ * coisas pedem ações opostas.
+ */
+export const definirDataStatus = defineAction(
+  {
+    ...plan,
+    recurso: "cronograma",
+    permissao: "executado",
+    acao: "definir-data-status",
+    entidade: "CronogramaProjeto",
+    schema: z.object({ projetoId: z.string().min(1), dataStatus: dia }),
+  },
+  async (i) => {
+    const data = new Date(`${i.dataStatus}T00:00:00.000Z`);
+    await prisma.cronogramaProjeto.upsert({
+      where: { projetoId: i.projetoId },
+      create: { projetoId: i.projetoId, dataStatus: data },
+      update: { dataStatus: data },
+    });
+    // A foto do dia reflete a apuração que acabou de entrar.
+    await gravarSaude(i.projetoId, i.dataStatus);
+    revProjeto(i.projetoId);
+    return { dataStatus: i.dataStatus };
+  },
+);
+
+/**
+ * Aprova o cronograma: congela BL-00 e libera. Recusa com erro de qualidade aberto —
+ * aprovar transforma estas datas no combinado com o cliente.
+ */
+export const aprovarCronogramaAction = defineAction(
+  {
+    ...plan,
+    recurso: "cronograma",
+    permissao: "aprovar",
+    acao: "aprovar-cronograma",
+    entidade: "CronogramaProjeto",
+    schema: projetoIdSchema,
+  },
+  async (i, ctx) => {
+    try {
+      const r = await aprovarCronograma(i.projetoId, ctx.user.id);
+      revProjeto(i.projetoId);
+      revalidatePath(`/projetos/${i.projetoId}`);
+      return r;
+    } catch (e) {
+      throw new ActionError(e instanceof Error ? e.message : "Não foi possível aprovar o cronograma.");
+    }
+  },
+);
+
+/**
+ * Replanejamento autorizado: nova versão de baseline, com motivo OBRIGATÓRIO.
+ * Sem motivo, a série de baselines vira uma lista de datas sem história.
+ */
+export const replanejarCronograma = defineAction(
+  {
+    ...plan,
+    recurso: "cronograma",
+    permissao: "aprovar",
+    acao: "replanejar-cronograma",
+    entidade: "EapBaseline",
+    schema: z.object({
+      projetoId: z.string().min(1),
+      motivo: z.string().min(5, "Explique o motivo do replanejamento."),
+      observacao: opt(z.string()),
+    }),
+  },
+  async (i, ctx) => {
+    try {
+      const r = await replanejar(i.projetoId, ctx.user.id, i.motivo, i.observacao || null);
+      revProjeto(i.projetoId);
+      return r;
+    } catch (e) {
+      throw new ActionError(e instanceof Error ? e.message : "Não foi possível replanejar.");
+    }
+  },
+);
+
+/** Roda o verificador sob demanda, para a tela mostrar os achados sem esperar o job. */
+export const conferirQualidade = defineAction(
+  {
+    ...plan,
+    recurso: "cronograma",
+    permissao: "ver",
+    acao: "conferir-qualidade",
+    entidade: "CronogramaProjeto",
+    schema: projetoIdSchema,
+  },
+  async (i) => {
+    const r = await avaliarQualidade(i.projetoId);
+    if (!r) throw new ActionError("Projeto sem EAP: não há o que conferir.");
+    return {
+      achados: r.achados,
+      nota: r.saude?.nota ?? null,
+      faixa: r.saude?.faixa ?? null,
+      provisoria: r.saude?.provisoria ?? true,
+      dataStatus: r.dataStatus,
+    };
   },
 );
 

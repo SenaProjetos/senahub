@@ -15,6 +15,8 @@ import {
   limparDxfOrfaos,
   purgarLixeiraArquivos,
   purgarLixeiraAnotacoes,
+  fotoSemanalSaudeCronograma,
+  lembreteDataStatus,
   processarMensagemAgendada,
   processarImportacaoCusto,
   alertasPrazoApontamento,
@@ -387,6 +389,26 @@ export async function startJobs(): Promise<PgBoss> {
       handler: async () => {
         const n = await purgarLixeiraArquivos();
         if (n > 0) console.log(`[lixeira] ${n} arquivo(s) purgado(s) (retenção esgotada).`);
+      },
+    },
+    {
+      fila: "foto-saude-cronograma",
+      // Segunda 05:10 — a foto da semana sai antes de qualquer um abrir a tela, para o
+      // ponto da série ser o estado de início de semana e não o meio de um dia de edição.
+      cron: "10 5 * * 1",
+      handler: async () => {
+        const r = await fotoSemanalSaudeCronograma();
+        console.log(`[cronograma] saúde fotografada: ${r.fotos}/${r.projetos} projeto(s).`);
+      },
+    },
+    {
+      fila: "lembrete-data-status",
+      // Segunda 08:10 — depois da foto e no começo da semana, quando ainda dá tempo de
+      // apurar antes de o número virar relatório.
+      cron: "10 8 * * 1",
+      handler: async () => {
+        const n = await lembreteDataStatus();
+        if (n > 0) console.log(`[cronograma] ${n} projeto(s) sem apuração avisado(s).`);
       },
     },
     {
