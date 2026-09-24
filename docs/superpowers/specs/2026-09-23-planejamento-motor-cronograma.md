@@ -278,6 +278,11 @@ Um cronograma, quatro modos de exibição (D33) — não duas telas lado a lado.
 > - Papéis = os **8** do Doc 02 §16 (DIR, GER, COO, ENG, PRO, MOD, REV, APR), não só 4.
 > - Aprovar o cronograma tira a alocação digitada do projeto da soma (D17). Aprovar **sem horas
 >   estimadas** faz o projeto sumir da carga da equipe — a tela de aprovação avisa.
+> - **Cards antigos:** antes da F5 o botão "gerar card" criava card em rascunho, sem
+>   responsável. Contar em produção antes do deploy (`Tarefa.eapTarefaId` preenchido): quando o
+>   cronograma desses projetos for aprovado, título, prazo e responsáveis passam a vir da EAP.
+> - **Não mergear a F5 sem a tela:** até o editor de recursos e o novo `/recursos` entrarem, a
+>   tela atual lista alocações "substituídas" cuja soma não bate com o total.
 > - Verificação: `npm run smoke:recursos-eap`.
 
 ### F6 — Apontamento por tarefa · Sonnet · 2 sessões · risco BAIXO
