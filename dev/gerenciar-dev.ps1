@@ -528,7 +528,11 @@ function Invoke-Push {
     Push-Location $AppRoot
     try {
         $branch = (git rev-parse --abbrev-ref HEAD).Trim()
-        git rev-parse --abbrev-ref --symbolic-full-name "@{u}" *> $null
+        # NAO usar `git rev-parse "@{u}"` aqui: sem upstream ele escreve em stderr, e no
+        # PowerShell 5.1 redirecionar stderr de exe nativo (`*>`/`2>&1`) embrulha a linha num
+        # NativeCommandError que aborta a funcao ANTES do ramo `-u` (CLAUDE.md, Gotchas).
+        # `git config --get` responde a mesma pergunta so pelo exit code, sem escrever nada.
+        git config --get ("branch.{0}.remote" -f $branch) | Out-Null
         if ($LASTEXITCODE -ne 0) {
             Write-Host ("Branch '{0}' sem upstream. Criando com -u origin {0}..." -f $branch) -ForegroundColor Cyan
             git push -u origin $branch
