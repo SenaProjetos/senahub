@@ -1428,6 +1428,25 @@ model LinkPublicoArquivos {
   /// Pastas por fase na página do cliente. Desligado, ele vê disciplina → formato direto —
   /// útil quando o acervo ainda não tem fase preenchida e quase tudo cairia em "Sem fase".
   agruparPorFase Boolean            @default(true)
+  /// Fases liberadas no link (D37b): "só o Executivo para o cliente", "só o Básico para a
+  /// prefeitura". IDs de `PranchaCatalogo` categoria `fase`.
+  ///
+  /// ⚠ SEMÂNTICA INVERTIDA EM RELAÇÃO A `disciplinaIds`, DE PROPÓSITO:
+  ///   `disciplinaIds` vazio = NADA exposto (lista branca vazia nega).
+  ///   `faseIds`       vazio = TODAS as fases, sem restrição.
+  /// Vazio tem de valer "tudo" porque é o valor que todo link criado antes da F4 recebe na
+  /// migration, e ele não pode passar a servir menos do que servia. Não "corrigir" para a
+  /// semântica de `disciplinaIds`: isso esvaziaria em silêncio todos os links no ar.
+  ///
+  /// Não vale para escopo `selecao` (arquivo escolhido a dedo vence o recorte) nem para ART
+  /// (documento legal da disciplina, sem fase).
+  faseIds        String[]           @default([])
+  /// Com `faseIds` preenchido, arquivo SEM fase é bloqueado por padrão: não dá para provar
+  /// que pertence à fase liberada, e "só o Básico para a prefeitura" não pode vazar um
+  /// Executivo que ninguém classificou. Ligar isto libera o sem-fase junto — é a saída para o
+  /// acervo que ainda não tem fase preenchida (no dev, 64% dos arquivos servíveis).
+  /// Sem efeito quando `faseIds` está vazio.
+  incluirSemFase Boolean            @default(false)
   criadoPorId    String?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
@@ -2511,6 +2530,8 @@ model Disciplina {
   arts                    Art[]
   apontamentosCoordenacao ApontamentoCoordenacao[]
   documentos              DocumentoDisciplina[]
+  /// Par disciplina × fase (F4). Vazio = disciplina sem etapa, comportamento de sempre.
+  etapas                  DisciplinaEtapa[]
 
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
@@ -2660,6 +2681,82 @@ model AtividadeOportunidade {
 
 // PropostaAnexo (C2) foi absorvido por `Documento` (docs do cliente, §Documentos do cliente).
 // Os anexos existentes são migrados na migration `documentos_cliente`.
+
+/// Etapa de uma disciplina: o par disciplina × fase (D30/D37). Estrutural/Básico e
+/// Estrutural/Executivo viram registros próprios, com prazo, status e percentual de valor.
+///
+/// O QUE A ETAPA NÃO FAZ (fronteira da F4, não esquecimento):
+///   - NÃO deriva `Disciplina.valor`. Aquela coluna já é DERIVADA dos pagamentos por
+///     `sincronizarValorDisciplina` (uploads/pagamento.ts) — uma segunda derivação a partir
+///     das etapas brigaria pela mesma coluna em silêncio e reverteria edições da folha.
+///     O percentual daqui é número de PLANEJAMENTO; o rateio que vira pagamento é a F7,
+///     que reescreve a sincronização no mesmo commit.
+///   - NÃO deriva `Disciplina.status`. Ele tem 8+ escritores (aprovação em 2 etapas,
+///     validação de arquivo, pendências) e é o estado contratual/de aprovação da disciplina.
+///     A etapa tem o seu próprio status, com a MESMA máquina (`transicaoDisciplinaPermitida`),
+///     mas na F4 ela PARA EM `entregue`: `aprovado` é terminal e só nasce de
+///     `validarEntrega`/`confirmarAprovacaoDisciplina`, que agem sobre a disciplina inteira.
+///     Etapa aprovada é a F7 (o marco que libera o pagamento daquela fase) — até lá, "nenhuma
+///     etapa aprovada" não é achado, é o esperado.
+///
+/// O QUE ELA FAZ: `Disciplina.prazo` passa a ser o maior prazo entre as etapas (F4.2) — só
+/// quando a disciplina TEM etapa. Disciplina sem etapa se comporta exatamente como antes,
+/// e é o estado de todas as disciplinas existentes: nada cria etapa sozinho.
+///
+/// A consolidação só olha etapa COM prazo. "Adicionar Básico e Executivo, depois preencher
+/// as datas" é o fluxo normal — a janela em que toda etapa está sem prazo é rotina, não
+/// exceção. Um máximo ingênuo zeraria o prazo contratual da disciplina e calaria em silêncio
+/// `alertasPrazoDisciplina`, `saudeProjeto` e o portal. Sem nenhuma etapa com prazo, o prazo
+/// da disciplina fica como está.
+///
+/// Os QUATRO escritores diretos de `Disciplina.prazo`, e o que cada um faz com etapa:
+///   `aplicarAoProjeto`   escreve na ETAPA que casa com o `etapaId` da linha da EAP; a
+///                        disciplina sai do rollup. Linha sem fase numa disciplina com etapa
+///                        é pulada e reportada — adivinhar a etapa seria inventar prazo.
+///   `editarDisciplina`   o formulário reenvia o prazo sempre; prazo IGUAL é ignorado (quem
+///                        manda é a etapa), prazo DIFERENTE é recusado com o motivo.
+///   `reabrirDisciplina`  grava o novo prazo na etapa que define o prazo da disciplina (a de
+///                        maior prazo) e reconsolida — reabrir não pode travar por ter etapa.
+///   lote do kanban       recusa prazo em massa para disciplina com etapa, nomeando qual.
+/// Em nenhum dos quatro o próximo recálculo pode desfazer a escrita em silêncio.
+///
+/// P-08 (prazo ≤ prazo planejado do projeto) é checada na escrita da ETAPA: se só o
+/// formulário da disciplina checasse, uma etapa levaria o prazo derivado além do planejado
+/// por um caminho que nunca passa pela regra.
+model DisciplinaEtapa {
+  id           String     @id @default(cuid())
+  disciplinaId String
+  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+
+  /// A fase É a identidade da etapa — por isso NOT NULL e `Restrict`. Nullable reabriria o
+  /// buraco do NULL-distinto no `@@unique` (o mesmo que exigiu `eap_catalogo_global_key` na
+  /// F0), e `SetNull` deixaria um prazo sem saber de que fase é. `Cascade` apagaria prazo e
+  /// percentual em silêncio. Excluir uma fase em uso é recusado em `excluirCatalogoPrancha`.
+  etapaId String
+  etapa   PranchaCatalogo @relation("DisciplinaEtapaFase", fields: [etapaId], references: [id], onDelete: Restrict)
+
+  prazo      DateTime?        @db.Date
+  status     StatusDisciplina @default(aguardando)
+  /// Quando a etapa foi entregue/aprovada — mesmo papel de `Disciplina.entregueEm`.
+  entregueEm DateTime?
+  /// Fatia do valor da disciplina, 0 a 100, 2 casas (D38). A soma entre as etapas precisa
+  /// fechar 100 para o rateio valer — validada na regra pura, não por constraint (o editor
+  /// salva rascunho que ainda não soma), igual `PropostaParcela.percentual`.
+  ///
+  /// SEM `@default`, como o precedente: com default 0 uma etapa nasceria "0%" parecendo
+  /// válida. A ação exige o valor; a tela pré-preenche com o que falta para fechar 100.
+  /// NA F4 NINGUÉM LÊ ISTO PARA DINHEIRO: a F7 é quem reparte, e ela RECUSA soma ≠ 100 em vez
+  /// de corrigir em silêncio (mesma regra de `calcularParcelas`).
+  percentual Decimal          @db.Decimal(5, 2)
+  ordem      Int              @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([disciplinaId, etapaId])
+  @@index([etapaId])
+  @@map("disciplina_etapa")
+}
 
 model DisciplinaResponsavel {
   id           String     @id @default(cuid())
@@ -5719,6 +5816,8 @@ model PranchaCatalogo {
   /// Etapa das linhas da EAP (D36): o cronograma reusa o MESMO catálogo de fase que
   /// nomeia os arquivos, em vez de criar um segundo "Projeto Básico".
   eapTarefasEtapa        EapTarefa[]           @relation("EapEtapa")
+  /// Etapas de disciplina (F4). `Restrict` do outro lado: fase em uso não é excluída.
+  disciplinaEtapas       DisciplinaEtapa[]     @relation("DisciplinaEtapaFase")
 
   @@index([categoria, projetoId])
   @@map("prancha_catalogo")
