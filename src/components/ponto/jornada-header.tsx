@@ -20,10 +20,12 @@ import {
   ALOCACAO_SEM_PROJETO,
   rotuloAlocacaoSemProjeto,
   selecaoDaAlocacaoPonto,
+  selecaoEhProjeto,
 } from "@/modules/ponto/alocacao";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { useBatida, useCronometro, EVENTO_PONTO, avisarPontoAtualizado } from "@/components/ponto/use-batida";
 import { BOTAO, COR_ESTADO, ESTADO_LABEL } from "@/components/ponto/batida-meta";
+import { SeletorTarefa } from "@/components/ponto/seletor-tarefa";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -70,6 +72,8 @@ export function JornadaHeader() {
   // Projetos do seletor: carregados só ao abrir o popover (não pesam a navegação).
   const [projetos, setProjetos] = useState<Projeto[] | null>(null);
   const [alocacao, setAlocacao] = useState<string>(ALOCACAO_SEM_PROJETO);
+  // Tarefa da jornada (F6): opcional, "" = nenhuma.
+  const [tarefa, setTarefa] = useState<string>("");
   const [aplicando, setAplicando] = useState(false);
   const { bater, trocar, busy } = useBatida();
 
@@ -131,9 +135,23 @@ export function JornadaHeader() {
       ? (resumo.tipoAlocacaoAtiva ?? resumo.retomarTipoAlocacao ?? "sem_projeto")
       : (resumo.aberto?.tipoAlocacao ?? "sem_projeto");
 
+  // Tarefa da sessão em curso (ou da última, em descanso — o seletor a mantém ao voltar).
+  const tarefaCorrente = !resumo
+    ? null
+    : resumo.modo === "ponto"
+      ? (resumo.tarefaAtiva ?? resumo.retomarTarefa ?? null)
+      : (resumo.aberto?.tarefa ?? null);
+  const tarefaCorrenteId = tarefaCorrente?.id ?? "";
+
   useEffect(() => {
     setAlocacao(selecaoDaAlocacaoPonto(projetoCorrenteId, tipoAlocacaoCorrente));
   }, [projetoCorrenteId, tipoAlocacaoCorrente]);
+
+  // Só quando a tarefa CORRENTE muda no servidor — o poll de 60s não pode apagar a escolha
+  // que o usuário acabou de fazer (mesma regra do seletor de projeto acima).
+  useEffect(() => {
+    setTarefa(tarefaCorrenteId);
+  }, [tarefaCorrenteId]);
 
   const carregarProjetos = useCallback(async () => {
     if (projetos !== null) return;
@@ -247,6 +265,11 @@ export function JornadaHeader() {
           ) : (
             rodando && <span className="text-xs text-muted-foreground">{rotuloAlocacaoSemProjeto(tipoAlocacao)}</span>
           )}
+          {rodando && projeto && tarefaCorrente && (
+            <span className="max-w-full truncate text-[11px] text-muted-foreground" title={tarefaCorrente.titulo}>
+              {tarefaCorrente.titulo}
+            </span>
+          )}
           {resumo.modo === "ponto" && resumo.descansoMin > 0 && (
             <span className="text-[11px] text-muted-foreground">
               Descanso hoje: {fmtHoras(resumo.descansoMin)}
@@ -258,7 +281,14 @@ export function JornadaHeader() {
           {/* Seletor de projeto — mesmo papel do da tela cheia: define o projeto da
               próxima abertura de sessão (entrada / volta do descanso / apontamento)
               ou o destino da troca durante o trabalho. */}
-          <Select value={alocacao} onValueChange={(v) => setAlocacao(v ?? ALOCACAO_SEM_PROJETO)}>
+          <Select
+            value={alocacao}
+            onValueChange={(v) => {
+              setAlocacao(v ?? ALOCACAO_SEM_PROJETO);
+              // A tarefa é do projeto: voltar ao projeto corrente devolve a dele, outro zera.
+              setTarefa(v === selecaoDaAlocacaoPonto(projetoCorrenteId, tipoAlocacaoCorrente) ? tarefaCorrenteId : "");
+            }}
+          >
             <SelectTrigger size="sm" className="w-full" aria-label="Projeto da jornada">
               <SelectValue placeholder="Alocação da jornada…" />
             </SelectTrigger>
@@ -278,6 +308,15 @@ export function JornadaHeader() {
               Você não participa de nenhum projeto em andamento.
             </p>
           )}
+          {selecaoEhProjeto(alocacao) && (
+            <SeletorTarefa
+              projetoId={alocacao}
+              value={tarefa}
+              onChange={setTarefa}
+              tarefaAtual={alocacao === projetoCorrenteId ? tarefaCorrente : null}
+              disabled={ocupado}
+            />
+          )}
 
           {resumo.modo === "ponto" ? (
             <>
@@ -285,8 +324,8 @@ export function JornadaHeader() {
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={ocupado || alocacao === selecaoDaAlocacaoPonto(projetoCorrenteId, tipoAlocacaoCorrente)}
-                  onClick={() => void trocar(alocacao)}
+                  disabled={ocupado || (alocacao === selecaoDaAlocacaoPonto(projetoCorrenteId, tipoAlocacaoCorrente) && tarefa === tarefaCorrenteId)}
+                  onClick={() => void trocar(alocacao, tarefa || undefined)}
                 >
                   <Repeat className="size-4" /> Trocar alocação
                 </Button>
@@ -303,7 +342,7 @@ export function JornadaHeader() {
                     size="sm"
                     variant={b.variant}
                     disabled={ocupado}
-                    onClick={() => void bater(tipo, abreSessao ? alocacao : undefined)}
+                    onClick={() => void bater(tipo, abreSessao ? alocacao : undefined, abreSessao ? tarefa || undefined : undefined)}
                   >
                     <Icon className="size-4" /> {b.label}
                   </Button>
@@ -315,9 +354,9 @@ export function JornadaHeader() {
               <Button
                 size="sm"
                 variant="outline"
-                disabled={ocupado || alocacao === selecaoDaAlocacaoPonto(projetoCorrenteId, tipoAlocacaoCorrente)}
+                disabled={ocupado || (alocacao === selecaoDaAlocacaoPonto(projetoCorrenteId, tipoAlocacaoCorrente) && tarefa === tarefaCorrenteId)}
                 onClick={() =>
-                  void apontar(() => trocarApontamentoAction({ projetoId: alocacao }), "Alocação atualizada.")
+                  void apontar(() => trocarApontamentoAction({ projetoId: alocacao, tarefaId: tarefa }), "Alocação atualizada.")
                 }
               >
                 <Repeat className="size-4" /> Trocar alocação
@@ -337,7 +376,7 @@ export function JornadaHeader() {
               disabled={ocupado}
               onClick={() =>
                 void apontar(
-                  () => abrirApontamentoAction({ projetoId: alocacao }),
+                  () => abrirApontamentoAction({ projetoId: alocacao, tarefaId: tarefa }),
                   "Apontamento iniciado.",
                 )
               }

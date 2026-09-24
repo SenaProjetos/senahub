@@ -21,6 +21,8 @@ import {
   type DiaGrade,
 } from "@/modules/rh/escalas/queries";
 import { normalizarAlocacaoPonto, type TipoAlocacaoPonto } from "@/modules/ponto/alocacao";
+import { herdarTarefasNaEdicao } from "@/modules/ponto/tarefa-ponto";
+import { resolverTarefaDoPonto } from "@/modules/ponto/tarefa-ponto-service";
 
 /** Origem da batida (espelha o enum Prisma OrigemBatida). */
 export type OrigemBatida = "app" | "offline" | "ajuste_proprio" | "ajuste_admin" | "migracao";
@@ -133,6 +135,8 @@ export async function aplicarBatida(params: {
   tipo: TipoBatida;
   horario: Date;
   projetoId?: string | null;
+  /** Tarefa em que a sessão vai trabalhar (F6) — opcional; só vale em entrada / volta do descanso. */
+  tarefaId?: string | null;
   geo?: Prisma.InputJsonValue | null;
   origem: OrigemBatida;
   criadoPorId?: string | null;
@@ -163,12 +167,17 @@ export async function aplicarBatida(params: {
     }
 
     // Acoplamento com a sessão (rateio).
-    if (tipo === "entrada" || tipo === "fim_descanso") {
+    // A tarefa (F6) é validada DENTRO da transação e só existe em quem abre sessão: descanso e
+    // saída ignoram o campo em vez de falhar por causa dele.
+    const abreSessao = tipo === "entrada" || tipo === "fim_descanso";
+    const tarefaId = abreSessao ? await resolverTarefaDoPonto(tx, userId, alocacao, params.tarefaId) : null;
+    if (abreSessao) {
       await tx.sessaoTrabalho.create({
         data: {
           userId,
           projetoId: alocacao.projetoId,
           tipoAlocacao: alocacao.tipoAlocacao,
+          tarefaId,
           inicio: horario,
         },
       });
@@ -183,6 +192,7 @@ export async function aplicarBatida(params: {
         tipo,
         horario,
         projetoId: alocacao.projetoId,
+        tarefaId,
         origem,
         criadoPorId: criadoPorId ?? null,
         geo: geo ?? undefined,
@@ -259,7 +269,7 @@ export async function reconciliarSessoesDoDia(
   tx: Prisma.TransactionClient,
   userId: string,
   dia: Date,
-  batidas: { tipo: TipoBatida; horario: Date; projetoId: string | null; tipoAlocacao: TipoAlocacaoPonto }[],
+  batidas: { tipo: TipoBatida; horario: Date; projetoId: string | null; tipoAlocacao: TipoAlocacaoPonto; tarefaId?: string | null }[],
 ): Promise<void> {
   // `dia` é a meia-noite UTC do dia local → o próprio ISO (não aplicar diaLocal,
   // que deslocaria -3h e cairia no dia anterior).
@@ -282,6 +292,7 @@ export async function reconciliarSessoesDoDia(
         userId,
         projetoId: it.projetoId,
         tipoAlocacao: it.tipoAlocacao,
+        tarefaId: it.tarefaId ?? null,
         inicio: it.inicio,
         fim: it.fim,
       },
@@ -346,13 +357,18 @@ export async function editarDia(params: {
     const antes = await tx.batida.findMany({
       where: { userId, dia },
       orderBy: { horario: "asc" },
-      select: { tipo: true, horario: true, projetoId: true },
+      select: { tipo: true, horario: true, projetoId: true, tarefaId: true },
     });
 
     await tx.batida.deleteMany({ where: { userId, dia } });
 
+    // F6: a edição recria as batidas do zero — sem isto a tarefa escolhida na entrada sumiria
+    // em silêncio. Herda pelo lugar (tipo + projeto + ordem), não pelo horário corrigido.
+    const tarefasHerdadas = herdarTarefasNaEdicao(antes, novas);
+    const novasComTarefa = novas.map((b, i) => ({ ...b, tarefaId: tarefasHerdadas[i] }));
+
     const origem: OrigemBatida = proprio ? "ajuste_proprio" : "ajuste_admin";
-    for (const b of novas) {
+    for (const b of novasComTarefa) {
       await tx.batida.create({
         data: {
           userId,
@@ -360,6 +376,7 @@ export async function editarDia(params: {
           tipo: b.tipo,
           horario: b.horario,
           projetoId: b.projetoId,
+          tarefaId: b.tarefaId,
           origem,
           editada: true,
           criadoPorId: editorId,
@@ -367,7 +384,7 @@ export async function editarDia(params: {
       });
     }
 
-    await reconciliarSessoesDoDia(tx, userId, dia, novas);
+    await reconciliarSessoesDoDia(tx, userId, dia, novasComTarefa);
 
     const ajuste = await tx.ajustePonto.create({
       data: {

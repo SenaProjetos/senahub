@@ -11,6 +11,8 @@ import { montarCalendario, planoDoProjeto, type PlanoDoProjeto } from "@/modules
 import type { Prisma } from "@/generated/prisma/client";
 import { cargaDaEquipe } from "@/modules/planejamento/recursos-queries";
 import { ehEtapaDeTerceiro, ROTULO_PAPEL } from "@/modules/planejamento/recursos";
+import { contextoDeArquivos, sugerirProgresso } from "@/modules/planejamento/progresso-sugerido";
+import { minutosSessao } from "@/modules/ponto/format";
 
 type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 
@@ -41,11 +43,64 @@ const INCLUDE_LINHA = {
 type EapTarefaComRelacoes = Prisma.EapTarefaGetPayload<{ include: typeof INCLUDE_LINHA }>;
 
 /**
+ * O que o sistema já sabe sobre cada linha e a tela usa para SUGERIR o % e mostrar o apontado
+ * (F6). Só a EAP do projeto carrega isto (3 leituras em lote); o Painel Mestre não precisa e
+ * recebe o vazio.
+ */
+type ApoioDaLinha = {
+  /** Minutos apontados no ponto, por linha (via card gerado dela). */
+  apontadoMin: Map<string, number>;
+  /** Checklist do card gerado da linha. */
+  checklist: Map<string, { feitos: number; total: number }>;
+  /** Arquivos enviados por disciplina. */
+  arquivosPorDisciplina: Map<string, number>;
+};
+
+const SEM_APOIO: ApoioDaLinha = { apontadoMin: new Map(), checklist: new Map(), arquivosPorDisciplina: new Map() };
+
+async function carregarApoioDasLinhas(linhas: readonly { id: string; disciplinaId: string | null }[]): Promise<ApoioDaLinha> {
+  const linhaIds = linhas.map((l) => l.id);
+  const disciplinaIds = [...new Set(linhas.map((l) => l.disciplinaId).filter((d): d is string => d != null))];
+  const [cards, sessoes, arquivos] = await Promise.all([
+    prisma.tarefa.findMany({
+      where: { eapTarefaId: { in: linhaIds } },
+      select: { eapTarefaId: true, itens: { select: { concluido: true } } },
+    }),
+    prisma.sessaoTrabalho.findMany({
+      where: { tarefa: { eapTarefaId: { in: linhaIds } } },
+      select: { inicio: true, fim: true, tarefa: { select: { eapTarefaId: true } } },
+    }),
+    disciplinaIds.length === 0
+      ? Promise.resolve([])
+      : prisma.upload.groupBy({
+          by: ["disciplinaId"],
+          where: { disciplinaId: { in: disciplinaIds }, excluidoEm: null },
+          _count: { _all: true },
+        }),
+  ]);
+
+  const apoio: ApoioDaLinha = { apontadoMin: new Map(), checklist: new Map(), arquivosPorDisciplina: new Map() };
+  for (const c of cards) {
+    if (c.eapTarefaId) {
+      apoio.checklist.set(c.eapTarefaId, { feitos: c.itens.filter((i) => i.concluido).length, total: c.itens.length });
+    }
+  }
+  const agora = new Date();
+  for (const ss of sessoes) {
+    const id = ss.tarefa?.eapTarefaId;
+    if (id) apoio.apontadoMin.set(id, (apoio.apontadoMin.get(id) ?? 0) + minutosSessao(ss.inicio, ss.fim ?? agora));
+  }
+  for (const a of arquivos) apoio.arquivosPorDisciplina.set(a.disciplinaId, a._count._all);
+  return apoio;
+}
+
+/**
  * Mapeador único do DTO de linha da EAP. Existe pra `eapDoProjeto` e
  * `cronogramaProjetosAtivos` nunca divergirem de novo — as duas alimentam o mesmo `Gantt`.
  */
-function mapearTarefaDTO(t: EapTarefaComRelacoes, plano: PlanoDoProjeto | null) {
+function mapearTarefaDTO(t: EapTarefaComRelacoes, plano: PlanoDoProjeto | null, apoio: ApoioDaLinha = SEM_APOIO) {
   const agendada = plano?.resultado.linhas.get(t.id);
+  const apontadoMin = apoio.apontadoMin.get(t.id) ?? 0;
   return {
     id: t.id,
     idCorporativo: t.idCorporativo,
@@ -103,6 +158,20 @@ function mapearTarefaDTO(t: EapTarefaComRelacoes, plano: PlanoDoProjeto | null) 
       horas: Number(a.horasPrevistas),
       principal: a.principal,
     })),
+    // ── F6: o que o ponto e o card já sabem desta linha ──
+    /** Horas APONTADAS no ponto nesta linha (via o card gerado dela); o "real" do previsto × real. */
+    horasApontadas: Math.round((apontadoMin / 60) * 10) / 10,
+    /**
+     * O que o sistema sugere para o % (checklist do card, situação da disciplina) — o
+     * coordenador confirma, nunca grava sozinho (D19). Horas apontadas NÃO viram sugestão: ver
+     * `progresso-sugerido.ts`.
+     */
+    sugestoesProgresso: sugerirProgresso({
+      checklist: apoio.checklist.get(t.id) ?? null,
+      progressoDoStatusDaDisciplina: t.disciplina ? progressoDoStatus(t.disciplina.status) : null,
+    }),
+    /** Contexto de arquivos (só texto): enviar não é entregar. */
+    contextoArquivos: t.disciplinaId ? contextoDeArquivos(apoio.arquivosPorDisciplina.get(t.disciplinaId) ?? 0) : null,
   };
 }
 
@@ -171,9 +240,9 @@ export async function eapDoProjeto(projetoId: string) {
   });
   // O motor roda sobre o estado ATUAL do banco e não grava nada: a tela mostra folga e
   // caminho crítico corretos mesmo antes de alguém clicar em "reagendar".
-  const plano = await planoDoProjeto(projetoId);
+  const [plano, apoio] = await Promise.all([planoDoProjeto(projetoId), carregarApoioDasLinhas(tarefas)]);
   return {
-    tarefas: tarefas.map((t) => mapearTarefaDTO(t, plano)),
+    tarefas: tarefas.map((t) => mapearTarefaDTO(t, plano, apoio)),
     // Volta a se chamar `nome` na fronteira da UI (`EapWorkspace` fala "nome"): a F1.19c
     // renomeou a coluna no schema, não o rótulo exibido.
     disciplinas: disciplinas.map((d) => ({ id: d.id, nome: d.disciplinaTextoLegado })),

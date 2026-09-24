@@ -16,6 +16,7 @@ import {
   definirRestricao,
 } from "@/modules/planejamento/actions";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
+import { rotuloHoras } from "@/modules/planejamento/progresso-sugerido";
 import { EapAtribuicoes } from "@/components/planejamento/eap-atribuicoes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -351,6 +352,32 @@ export function EapDialog({
                   onChange={(e) => setForm((f) => ({ ...f, progresso: Number(e.target.value) }))}
                   className="w-full accent-primary"
                 />
+                {linhaAtual && !linhaAtual.ehResumo && (
+                  <div className="space-y-1 pt-0.5">
+                    {linhaAtual.progressoDerivado ? (
+                      <p className="text-[11px] text-muted-foreground">
+                        O avanço desta linha vem da situação da disciplina (automático).
+                      </p>
+                    ) : (
+                      // F6.3 (D19): o sistema SUGERE, o coordenador confirma. "Usar" só preenche o
+                      // controle acima — nada é gravado até clicar em Salvar.
+                      linhaAtual.sugestoesProgresso.map((sug) => (
+                        <button
+                          key={sug.origem}
+                          type="button"
+                          onClick={() => setForm((f) => ({ ...f, progresso: sug.valor }))}
+                          className="block w-full rounded-sm border border-dashed px-2 py-1 text-left text-[11px] text-muted-foreground hover:border-primary hover:text-foreground"
+                        >
+                          Sugestão: <strong className="text-foreground">{sug.valor}%</strong> — {sug.motivo}{" "}
+                          <span className="text-primary">usar</span>
+                        </button>
+                      ))
+                    )}
+                    {linhaAtual.contextoArquivos && (
+                      <p className="text-[11px] text-muted-foreground">{linhaAtual.contextoArquivos}</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -440,9 +467,16 @@ export function EapDialog({
                   ? undefined
                   : `${linhaAtual.atribuicoes.length} pessoa(s)/perfil(is)${
                       linhaAtual.trabalhoHoras != null ? ` · ${linhaAtual.trabalhoHoras}h` : ""
-                    }`
+                    }${linhaAtual.horasApontadas > 0 ? ` · ${rotuloHoras(linhaAtual.horasApontadas)} apontadas` : ""}`
               }
             >
+              {/* Previsto × real (F6): as horas que o ponto já registrou nesta linha, via o card dela. */}
+              {!linhaAtual.ehResumo && (linhaAtual.horasApontadas > 0 || linhaAtual.trabalhoHoras != null) && (
+                <p className="mb-2 text-xs text-muted-foreground">
+                  Apontado no ponto: <strong className="text-foreground">{rotuloHoras(linhaAtual.horasApontadas)}</strong>
+                  {linhaAtual.trabalhoHoras != null ? ` de ${rotuloHoras(linhaAtual.trabalhoHoras)} previstas` : " (sem horas previstas)"}.
+                </p>
+              )}
               <EapAtribuicoes linha={linhaAtual} pessoas={pessoas} />
             </CollapsibleSection>
           )}

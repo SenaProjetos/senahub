@@ -22,7 +22,8 @@ export type ItemFila = {
   kind: "batida" | "troca";
   /** tipo da batida (quando kind === "batida"). */
   tipo?: TipoBatida;
-  payload: { projetoId?: string; geo?: Geo };
+  /** `tarefaId` (F6) é opcional: item enfileirado antes da F6 não tem, e segue válido. */
+  payload: { projetoId?: string; tarefaId?: string; geo?: Geo };
   /** Timestamp (ms) de quando foi enfileirado — vira o horário real da batida. */
   ts: number;
 };
@@ -33,10 +34,11 @@ export type ActionsPonto = {
   registrarBatida: (i: {
     tipo: TipoBatida;
     projetoId?: string;
+    tarefaId?: string;
     geo?: Geo;
     ts?: number;
   }) => Promise<ActionResult>;
-  trocar: (i: { projetoId?: string }) => Promise<ActionResult>;
+  trocar: (i: { projetoId?: string; tarefaId?: string }) => Promise<ActionResult>;
 };
 
 function novoId(): string {
@@ -132,10 +134,11 @@ export async function sincronizar(
           ? await actions.registrarBatida({
               tipo: item.tipo!,
               projetoId: item.payload.projetoId,
+              tarefaId: item.payload.tarefaId,
               geo: item.payload.geo,
               ts: item.ts,
             })
-          : await actions.trocar({ projetoId: item.payload.projetoId });
+          : await actions.trocar({ projetoId: item.payload.projetoId, tarefaId: item.payload.tarefaId });
 
       if (r.ok) {
         limparItem(item.id);

@@ -262,6 +262,39 @@ describe("engine — intervalosComProjeto (reconciliação F5)", () => {
     );
     expect(totalMin).toBe(calcularDia(batidas, AGORA, false).trabalhadoMin);
   });
+
+  it("F6: a tarefa acompanha o intervalo que a batida abriu (entrada e volta do descanso)", () => {
+    const batidas = [
+      { tipo: "entrada" as const, horario: new Date("2026-07-06T08:00:00Z"), projetoId: "A", tarefaId: "t1" },
+      { tipo: "inicio_descanso" as const, horario: new Date("2026-07-06T12:00:00Z"), projetoId: null },
+      { tipo: "fim_descanso" as const, horario: new Date("2026-07-06T13:00:00Z"), projetoId: "A", tarefaId: "t2" },
+      { tipo: "saida" as const, horario: new Date("2026-07-06T17:00:00Z"), projetoId: null },
+    ];
+    const intervalos = intervalosComProjeto(batidas, false);
+    expect(intervalos.map((i) => i.tarefaId)).toEqual(["t1", "t2"]);
+  });
+
+  it("F6: sem tarefa o intervalo tem o MESMO formato de antes — sem a chave", () => {
+    const batidas = [
+      { tipo: "entrada" as const, horario: new Date("2026-07-06T08:00:00Z"), projetoId: "A" },
+      { tipo: "saida" as const, horario: new Date("2026-07-06T12:00:00Z"), projetoId: null },
+    ];
+    const [i] = intervalosComProjeto(batidas, false);
+    expect(i).toEqual({ inicio: batidas[0].horario, fim: batidas[1].horario, projetoId: "A", tipoAlocacao: "projeto" });
+    expect("tarefaId" in i).toBe(false);
+  });
+
+  it("F6: a tarefa do intervalo anterior não vaza para o seguinte (volta sem tarefa)", () => {
+    const batidas = [
+      { tipo: "entrada" as const, horario: new Date("2026-07-06T08:00:00Z"), projetoId: "A", tarefaId: "t1" },
+      { tipo: "inicio_descanso" as const, horario: new Date("2026-07-06T12:00:00Z"), projetoId: null },
+      { tipo: "fim_descanso" as const, horario: new Date("2026-07-06T13:00:00Z"), projetoId: "A" },
+      { tipo: "saida" as const, horario: new Date("2026-07-06T17:00:00Z"), projetoId: null },
+    ];
+    const intervalos = intervalosComProjeto(batidas, false);
+    expect(intervalos[0].tarefaId).toBe("t1");
+    expect(intervalos[1].tarefaId).toBeUndefined();
+  });
 });
 
 describe("engine — diaLocalDate / diaSemanaLocal", () => {

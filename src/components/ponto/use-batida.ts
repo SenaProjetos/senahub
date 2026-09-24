@@ -76,9 +76,9 @@ export function useBatida() {
   );
 
   const bater = useCallback(
-    async (tipo: TipoBatida, projetoId?: string) => {
+    async (tipo: TipoBatida, projetoId?: string, tarefaId?: string) => {
       const geo = await capturarGeo();
-      const payload = { projetoId, geo };
+      const payload = { projetoId, tarefaId, geo };
       const enfileirar = () => {
         enfileirarBatida(tipo, payload);
         setPendentes(contarPendentes());
@@ -90,7 +90,7 @@ export function useBatida() {
       }
       setBusy(true);
       try {
-        const r = await registrarBatida({ tipo, projetoId, geo });
+        const r = await registrarBatida({ tipo, projetoId, tarefaId, geo });
         if (r.ok) concluir(SUCESSO[tipo]);
         else toast.error(r.error);
       } catch {
@@ -103,9 +103,9 @@ export function useBatida() {
   );
 
   const trocar = useCallback(
-    async (projetoId?: string) => {
+    async (projetoId?: string, tarefaId?: string) => {
       const enfileirar = () => {
-        enfileirarTroca({ projetoId });
+        enfileirarTroca({ projetoId, tarefaId });
         setPendentes(contarPendentes());
         toast.info("Sem conexão — troca salva e será enviada ao reconectar.");
       };
@@ -115,7 +115,7 @@ export function useBatida() {
       }
       setBusy(true);
       try {
-        const r = await trocarProjeto({ projetoId });
+        const r = await trocarProjeto({ projetoId, tarefaId });
         if (r.ok) concluir("Alocação atualizada.");
         else toast.error(r.error);
       } catch {

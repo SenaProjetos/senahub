@@ -35,6 +35,7 @@
     "smoke:documentos-escopo": "tsx --tsconfig tsconfig.server.json scripts/smoke-documentos-escopo.ts",
     "smoke:historico-documento": "tsx --tsconfig tsconfig.server.json scripts/smoke-historico-documento.ts",
     "smoke:recursos-eap": "tsx --tsconfig tsconfig.server.json scripts/smoke-recursos-eap.ts",
+    "smoke:ponto-tarefa": "tsx --tsconfig tsconfig.server.json scripts/smoke-ponto-tarefa.ts",
     "smoke:crm-fase1": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-fase1.ts",
     "smoke:crm-dedupe": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-dedupe.ts",
     "smoke:crm-soft-delete": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-soft-delete.ts",

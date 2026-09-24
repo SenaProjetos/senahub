@@ -72,6 +72,8 @@ export type EstadoDia = {
   aberturaInicio: Date | null;
   projetoAtivo: { id: string; codigo: string; nome: string } | null;
   tipoAlocacaoAtiva: TipoAlocacaoPonto | null;
+  /** Tarefa da sessão aberta (F6) — opcional. */
+  tarefaAtiva: { id: string; titulo: string } | null;
   batidas: BatidaDia[];
   /** Timeline do dia: batidas + trocas de projeto, com métricas por projeto. */
   timeline: LinhaTimeline[];
@@ -123,6 +125,10 @@ export type ResumoJornada = {
    */
   retomarProjeto: { id: string; codigo: string; nome: string } | null;
   retomarTipoAlocacao: TipoAlocacaoPonto | null;
+  /** Tarefa da sessão aberta (F6) — opcional. */
+  tarefaAtiva: { id: string; titulo: string } | null;
+  /** Tarefa da última sessão da jornada corrente: o seletor a mantém ao voltar do descanso. */
+  retomarTarefa: { id: string; titulo: string } | null;
   /** Instante do cálculo no servidor — âncora do cronômetro ao vivo no cliente. */
   agora: Date;
 };
@@ -142,6 +148,7 @@ export type ResumoHeader =
         projetoId: string | null;
         tipoAlocacao: TipoAlocacaoPonto;
         projeto: { codigo: string; nome: string } | null;
+        tarefa: { id: string; titulo: string } | null;
       } | null;
       hojeMin: number;
       agora: Date;
@@ -164,7 +171,11 @@ export async function resumoJornada(userId: string): Promise<ResumoJornada> {
       : await prisma.sessaoTrabalho.findFirst({
           where: { userId, ...(calc.estado === "trabalhando" ? { fim: null } : {}) },
           orderBy: { inicio: "desc" },
-          select: { tipoAlocacao: true, projeto: { select: { id: true, codigo: true, nome: true } } },
+          select: {
+            tipoAlocacao: true,
+            projeto: { select: { id: true, codigo: true, nome: true } },
+            tarefa: { select: { id: true, titulo: true } },
+          },
         });
 
   return {
@@ -175,6 +186,8 @@ export async function resumoJornada(userId: string): Promise<ResumoJornada> {
     tipoAlocacaoAtiva: calc.estado === "trabalhando" ? sessao?.tipoAlocacao ?? null : null,
     retomarProjeto: sessao?.projeto ?? null,
     retomarTipoAlocacao: sessao?.tipoAlocacao ?? null,
+    tarefaAtiva: calc.estado === "trabalhando" ? sessao?.tarefa ?? null : null,
+    retomarTarefa: sessao?.tarefa ?? null,
     agora,
   };
 }
@@ -195,7 +208,10 @@ export async function estadoDoDia(userId: string): Promise<EstadoDia> {
       ? await prisma.sessaoTrabalho.findFirst({
           where: { userId, fim: null },
           orderBy: { inicio: "desc" },
-          include: { projeto: { select: { id: true, codigo: true, nome: true } } },
+          include: {
+            projeto: { select: { id: true, codigo: true, nome: true } },
+            tarefa: { select: { id: true, titulo: true } },
+          },
         })
       : null;
 
@@ -209,6 +225,7 @@ export async function estadoDoDia(userId: string): Promise<EstadoDia> {
     aberturaInicio: sessao?.inicio ?? null,
     projetoAtivo: sessao?.projeto ?? null,
     tipoAlocacaoAtiva: sessao?.tipoAlocacao ?? null,
+    tarefaAtiva: sessao?.tarefa ?? null,
     batidas,
     timeline,
     agora,

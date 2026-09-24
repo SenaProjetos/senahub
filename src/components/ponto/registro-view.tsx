@@ -16,6 +16,7 @@ import {
 import { darCienciaAjuste, contestarAjuste } from "@/modules/ponto/actions";
 import { type TipoBatida } from "@/lib/ponto-offline";
 import { useBatida, useCronometro } from "@/components/ponto/use-batida";
+import { SeletorTarefa } from "@/components/ponto/seletor-tarefa";
 import { ESTADO_LABEL, TIPO_LABEL, BOTAO, COR_ESTADO } from "@/components/ponto/batida-meta";
 import { transicoesPermitidas, type EstadoJornada } from "@/modules/ponto/engine";
 import { fmtHoras } from "@/modules/ponto/format";
@@ -25,6 +26,7 @@ import {
   ALOCACAO_SEM_PROJETO,
   rotuloAlocacaoSemProjeto,
   selecaoDaAlocacaoPonto,
+  selecaoEhProjeto,
   type TipoAlocacaoPonto,
 } from "@/modules/ponto/alocacao";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -73,6 +75,7 @@ export type EstadoDiaProp = {
   aberturaInicio: string | Date | null;
   projetoAtivo: Projeto | null;
   tipoAlocacaoAtiva: TipoAlocacaoPonto | null;
+  tarefaAtiva: { id: string; titulo: string } | null;
   timeline: LinhaTimeline[];
   agora: string | Date;
 };
@@ -250,7 +253,11 @@ export function RegistroPonto({
   const [alocacao, setAlocacao] = useState(
     selecaoDaAlocacaoPonto(estadoDia.projetoAtivo?.id ?? null, estadoDia.tipoAlocacaoAtiva ?? "sem_projeto"),
   );
+  // Tarefa da jornada (F6): opcional, "" = nenhuma. Segue a sessão em curso e zera ao escolher
+  // outro projeto — uma tarefa do projeto A não vale no B (o servidor recusaria).
+  const [tarefa, setTarefa] = useState(estadoDia.tarefaAtiva?.id ?? "");
   const { bater, trocar, busy, pendentes, sincronizarFila } = useBatida();
+  const projetoEscolhidoId = selecaoEhProjeto(alocacao) ? alocacao : null;
 
   const trabalhadoMs = useCronometro(
     estadoDia.trabalhadoMin,
@@ -297,7 +304,13 @@ export function RegistroPonto({
 
         {/* Seletor de projeto — para anexar à próxima entrada / volta de descanso, ou trocar durante o trabalho. */}
         <div className="flex flex-wrap items-center justify-center gap-2">
-          <Select value={alocacao} onValueChange={(v) => setAlocacao(v ?? ALOCACAO_SEM_PROJETO)}>
+          <Select
+            value={alocacao}
+            onValueChange={(v) => {
+              setAlocacao(v ?? ALOCACAO_SEM_PROJETO);
+              setTarefa(v === estadoDia.projetoAtivo?.id ? (estadoDia.tarefaAtiva?.id ?? "") : "");
+            }}
+          >
             <SelectTrigger className="w-64">
               <SelectValue placeholder="Alocação da jornada…" />
             </SelectTrigger>
@@ -312,8 +325,19 @@ export function RegistroPonto({
               ))}
             </SelectContent>
           </Select>
+          {projetoEscolhidoId && (
+            <div className="w-64">
+              <SeletorTarefa
+                projetoId={projetoEscolhidoId}
+                value={tarefa}
+                onChange={setTarefa}
+                tarefaAtual={estadoDia.projetoAtivo?.id === projetoEscolhidoId ? estadoDia.tarefaAtiva : null}
+                disabled={busy}
+              />
+            </div>
+          )}
           {estadoDia.estado === "trabalhando" && (
-            <Button variant="outline" disabled={busy} onClick={() => void trocar(alocacao)}>
+            <Button variant="outline" disabled={busy} onClick={() => void trocar(alocacao, tarefa || undefined)}>
               <Repeat className="size-4" /> Trocar alocação
             </Button>
           )}
@@ -329,7 +353,8 @@ export function RegistroPonto({
                 key={tipo}
                 variant={b.variant}
                 disabled={busy}
-                onClick={() => void bater(tipo, alocacao)}
+                // Só entrada e volta do descanso abrem sessão — as outras ignoram a tarefa.
+                onClick={() => void bater(tipo, alocacao, tipo === "entrada" || tipo === "fim_descanso" ? tarefa || undefined : undefined)}
               >
                 <Icon className="size-4" /> {b.label}
               </Button>

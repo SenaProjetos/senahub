@@ -206,24 +206,29 @@ export function trabalhadoPorDia(
  * (F5), que recria uma SessaoTrabalho por intervalo preservando o projeto.
  */
 export function intervalosComProjeto(
-  batidas: (BatidaCalc & { projetoId?: string | null; tipoAlocacao?: TipoAlocacaoPonto })[],
+  batidas: (BatidaCalc & { projetoId?: string | null; tipoAlocacao?: TipoAlocacaoPonto; tarefaId?: string | null })[],
   diaCorrente: boolean,
-): { inicio: Date; fim: Date | null; projetoId: string | null; tipoAlocacao: TipoAlocacaoPonto }[] {
+): { inicio: Date; fim: Date | null; projetoId: string | null; tipoAlocacao: TipoAlocacaoPonto; tarefaId?: string }[] {
   const ordenadas = [...batidas].sort((a, b) => a.horario.getTime() - b.horario.getTime());
-  const intervalos: { inicio: Date; fim: Date | null; projetoId: string | null; tipoAlocacao: TipoAlocacaoPonto }[] = [];
+  const intervalos: { inicio: Date; fim: Date | null; projetoId: string | null; tipoAlocacao: TipoAlocacaoPonto; tarefaId?: string }[] = [];
   let estado: EstadoJornada = "fora";
   let marco: Date | null = null;
   let marcoProj: string | null = null;
   let marcoAlocacao: TipoAlocacaoPonto = "sem_projeto";
-
+  // F6: a tarefa acompanha o intervalo que a batida abriu. Só entra na saída quando existe —
+  // o intervalo sem tarefa continua com o MESMO formato de antes (sem a chave), para o que já
+  // consome isto não enxergar diferença.
+  let marcoTarefa: string | null = null;
+  const comTarefa = () => (marcoTarefa ? { tarefaId: marcoTarefa } : {});
   for (const b of ordenadas) {
     if (estado === "fora" && b.tipo === "entrada") {
       estado = "trabalhando";
       marco = b.horario;
       marcoProj = b.projetoId ?? null;
       marcoAlocacao = b.tipoAlocacao ?? (marcoProj ? "projeto" : "sem_projeto");
+      marcoTarefa = b.tarefaId ?? null;
     } else if (estado === "trabalhando" && b.tipo === "inicio_descanso") {
-      intervalos.push({ inicio: marco!, fim: b.horario, projetoId: marcoProj, tipoAlocacao: marcoAlocacao });
+      intervalos.push({ inicio: marco!, fim: b.horario, projetoId: marcoProj, tipoAlocacao: marcoAlocacao, ...comTarefa() });
       estado = "descansando";
       marco = b.horario;
     } else if (estado === "descansando" && b.tipo === "fim_descanso") {
@@ -231,15 +236,16 @@ export function intervalosComProjeto(
       marco = b.horario;
       marcoProj = b.projetoId ?? null;
       marcoAlocacao = b.tipoAlocacao ?? (marcoProj ? "projeto" : "sem_projeto");
+      marcoTarefa = b.tarefaId ?? null;
     } else if (estado === "trabalhando" && b.tipo === "saida") {
-      intervalos.push({ inicio: marco!, fim: b.horario, projetoId: marcoProj, tipoAlocacao: marcoAlocacao });
+      intervalos.push({ inicio: marco!, fim: b.horario, projetoId: marcoProj, tipoAlocacao: marcoAlocacao, ...comTarefa() });
       estado = "fora";
       marco = null;
     }
   }
 
   if (marco && estado === "trabalhando" && diaCorrente) {
-    intervalos.push({ inicio: marco, fim: null, projetoId: marcoProj, tipoAlocacao: marcoAlocacao });
+    intervalos.push({ inicio: marco, fim: null, projetoId: marcoProj, tipoAlocacao: marcoAlocacao, ...comTarefa() });
   }
   return intervalos;
 }

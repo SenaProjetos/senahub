@@ -13,12 +13,16 @@ import { abrirApontamento, fecharApontamento, trocarApontamento } from "@/module
 const base = { modulo: "rh", roles: PJ_ROLES } as const;
 const rev = () => revalidatePath("/ponto");
 
-const projetoSchema = z.object({ projetoId: z.string().optional().or(z.literal("")) });
+const projetoSchema = z.object({
+  projetoId: z.string().optional().or(z.literal("")),
+  /** F6: tarefa do card em que se trabalha — opcional. */
+  tarefaId: z.string().optional().or(z.literal("")),
+});
 
 export const abrirApontamentoAction = defineAction(
   { ...base, acao: "abrir-apontamento", entidade: "SessaoTrabalho", schema: projetoSchema },
   async (i, { user }) => {
-    const s = await abrirApontamento(user.id, i.projetoId || null);
+    const s = await abrirApontamento(user.id, i.projetoId || null, i.tarefaId || null);
     rev();
     return { id: s.id };
   },
@@ -27,7 +31,7 @@ export const abrirApontamentoAction = defineAction(
 export const trocarApontamentoAction = defineAction(
   { ...base, acao: "trocar-apontamento", entidade: "SessaoTrabalho", schema: projetoSchema },
   async (i, { user }) => {
-    await trocarApontamento(user.id, i.projetoId || null);
+    await trocarApontamento(user.id, i.projetoId || null, i.tarefaId || null);
     rev();
     return { ok: true };
   },

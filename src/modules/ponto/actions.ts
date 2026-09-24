@@ -11,6 +11,7 @@ import { notificar } from "@/lib/notificar";
 import { getSession } from "@/lib/session";
 import { aplicarBatida, editarDia } from "@/modules/ponto/service";
 import { apontamentoAtual } from "@/modules/ponto/apontamento";
+import { resolverTarefaDoPonto, tarefasParaPonto, type TarefaDoPonto } from "@/modules/ponto/tarefa-ponto-service";
 import {
   espelhoDetalhado,
   projetosDoUsuario,
@@ -61,6 +62,7 @@ export async function buscarResumoJornada(): Promise<ResumoHeader | null> {
             projetoId: aberto.projetoId,
             tipoAlocacao: aberto.tipoAlocacao,
             projeto: aberto.projeto,
+            tarefa: aberto.tarefa,
           }
         : null,
       hojeMin,
@@ -80,6 +82,20 @@ export async function buscarProjetosPonto() {
 }
 
 const projetoOpt = z.string().optional().or(z.literal(""));
+/** Tarefa do ponto (F6): OPCIONAL em todo lugar — vazio e ausente são o caso normal. */
+const tarefaOpt = z.string().optional().or(z.literal(""));
+
+/**
+ * Lista curta de tarefas que o ponto oferece para um projeto (F6 — D20): só as ABERTAS da
+ * própria pessoa, no período. Leitura, fora do `defineAction`, como `buscarProjetosPonto`; o
+ * gate de role é explícito porque Server Action é endpoint e `cliente` não pode ler isto.
+ */
+export async function buscarTarefasPonto(projetoId: string): Promise<TarefaDoPonto[]> {
+  const session = await getSession();
+  const user = session?.user;
+  if (!user || !user.ativo || !INTERNAL_ROLES.includes(user.role) || !projetoId) return [];
+  return tarefasParaPonto(user.id, projetoId);
+}
 
 const geoSchema = z
   .object({
@@ -93,6 +109,7 @@ const geoSchema = z
 const registrarBatidaSchema = z.object({
   tipo: z.enum(["entrada", "inicio_descanso", "fim_descanso", "saida"]),
   projetoId: projetoOpt,
+  tarefaId: tarefaOpt,
   geo: geoSchema,
   /**
    * Timestamp do CLIENTE (ms), aceito só de itens da fila offline. Sujeito a
@@ -149,6 +166,7 @@ export const registrarBatida = defineAction(
       tipo: i.tipo,
       horario,
       projetoId: i.projetoId || null,
+      tarefaId: i.tarefaId || null,
       geo: (i.geo ?? undefined) as Prisma.InputJsonValue | undefined,
       origem,
     });
@@ -163,16 +181,23 @@ export const registrarBatida = defineAction(
  * não altera o total do dia, só a fatia por projeto (invariante preservada).
  */
 export const trocarProjeto = defineAction(
-  { ...base, acao: "trocar-projeto", entidade: "SessaoTrabalho", schema: z.object({ projetoId: projetoOpt }) },
+  {
+    ...base,
+    acao: "trocar-projeto",
+    entidade: "SessaoTrabalho",
+    schema: z.object({ projetoId: projetoOpt, tarefaId: tarefaOpt }),
+  },
   async (i, { user }) => {
     const aberta = await prisma.sessaoTrabalho.findFirst({ where: { userId: user.id, fim: null } });
     if (!aberta) throw new ActionError("Nenhuma jornada aberta para trocar de projeto.");
     const agora = new Date();
     const alocacao = normalizarAlocacaoPonto(i.projetoId);
+    // Validada ANTES de fechar a sessão: tarefa inválida não pode deixar a jornada sem sessão.
+    const tarefaId = await resolverTarefaDoPonto(prisma, user.id, alocacao, i.tarefaId);
     await prisma.$transaction([
       prisma.sessaoTrabalho.update({ where: { id: aberta.id }, data: { fim: agora } }),
       prisma.sessaoTrabalho.create({
-        data: { userId: user.id, ...alocacao, inicio: agora },
+        data: { userId: user.id, ...alocacao, tarefaId, inicio: agora },
       }),
     ]);
     rev();
