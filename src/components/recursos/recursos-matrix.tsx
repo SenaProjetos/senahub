@@ -574,7 +574,7 @@ export function RecursosMatrix({
                     )}
                     {!l.superalocado && superJanela && (
                       <span className="mt-0.5 block font-mono text-[10px] text-warning">
-                        superalocado na janela
+                        superalocado na janela (alocação digitada)
                       </span>
                     )}
                   </td>
@@ -793,6 +793,9 @@ function HeatmapView({
         <Legenda cor="hsl(48 90% 70%)" texto="~cheio (≤100%)" />
         <Legenda cor="hsl(28 90% 64%)" texto="estourando (≤125%)" />
         <Legenda cor="hsl(0 75% 60%)" texto="superalocado (>125%)" />
+        <span className="italic">
+          Só alocação digitada — projetos com cronograma aprovado estão na aba “Carga planejada”.
+        </span>
         {!podeGerir && <span className="italic">visualização somente leitura</span>}
       </div>
     </div>

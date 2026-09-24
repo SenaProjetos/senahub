@@ -5,6 +5,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { reagendarProjeto } from "./agenda";
+import { cargaDaEquipe } from "./recursos-queries";
 import { linhaAceitaAtribuicao, linhaAceitaHoras } from "./recursos";
 import { herdarResponsaveisNoProjeto, sincronizarCards, sincronizarPrincipal } from "./recursos-service";
 
@@ -182,6 +183,32 @@ export const herdarResponsaveisDaDisciplina = defineAction(
     });
     revProjeto(i.projetoId);
     return { criadas };
+  },
+);
+
+/**
+ * Sugestões para UMA sobrecarga, sob demanda (D18). Roda o motor e recalcula a carga de todos —
+ * caro demais para a listagem (ver `SobrecargaComSugestao`), barato para um clique.
+ *
+ * Leitura: quem vê a página (`recursos:ver`) vê a carga de todos de qualquer jeito. Aplicar
+ * continua sendo `planejamento:gerir`, em `aplicarSugestaoRecurso`.
+ */
+export const sugestoesDaSobrecarga = defineAction(
+  {
+    modulo: "recursos",
+    recurso: "recursos",
+    permissao: "ver",
+    entidade: "EapAtribuicao",
+    acao: "sugerir-sobrecarga",
+    audit: false,
+    schema: z.object({ userId: z.string().min(1), semana: z.string().regex(/^\d{4}-W\d{2}$/, "Semana inválida.") }),
+  },
+  async (i) => {
+    const carga = await cargaDaEquipe({ semanas: 12, sugestaoDe: { userId: i.userId, semana: i.semana } });
+    const s = carga.sobrecargas.find((x) => x.userId === i.userId && x.semana === i.semana);
+    // Sumiu entre a listagem e o clique (alguém corrigiu): diz isso em vez de "sem sugestão".
+    if (!s) throw new ActionError("Essa sobrecarga já não existe — a carga mudou desde que a tela abriu.");
+    return s.sugestoes;
   },
 );
 

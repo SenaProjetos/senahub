@@ -69,10 +69,20 @@ export function EapAtribuicoes({
   const [pending, start] = useTransition();
   const [novaPessoa, setNovaPessoa] = useState(PERFIL);
   const [novoPapel, setNovoPapel] = useState<Papel>("pro");
+  // Remonta as linhas a cada resposta do servidor: o campo de horas guarda o que se digita
+  // em estado local, e a chave `id:horas` sozinha não muda quando o servidor RECUSA (o valor
+  // gravado continua o mesmo) — o campo seguiria mostrando o valor recusado. Mesma lição do
+  // editor de etapas da F4.
+  const [versao, setVersao] = useState(0);
 
   const aceita = linhaAceitaAtribuicao(linha);
   const aceitaHoras = linhaAceitaHoras(linha);
-  const jaAtribuidos = new Set(linha.atribuicoes.map((a) => a.userId).filter((u): u is string => u != null));
+  // A mesma pessoa pode estar na linha em DOIS papéis (projeta e revisa — D41); o que o banco
+  // recusa é a mesma pessoa duas vezes no MESMO papel. Filtrar por pessoa, só, estreitaria a D41.
+  const jaNoPapel = new Set(
+    linha.atribuicoes.filter((a) => a.papel === novoPapel).map((a) => a.userId).filter((u): u is string => u != null),
+  );
+  const duplicada = novaPessoa !== PERFIL && jaNoPapel.has(novaPessoa);
 
   function adicionar() {
     start(async () => {
@@ -99,6 +109,7 @@ export function EapAtribuicoes({
     start(async () => {
       const r = await removerAtribuicao({ id: a.id });
       if (!r.ok) toast.error(r.error);
+      setVersao((v) => v + 1);
       router.refresh();
     });
   }
@@ -121,6 +132,7 @@ export function EapAtribuicoes({
         horasPrevistas: patch.horas ?? a.horas,
       });
       if (!r.ok) toast.error(r.error);
+      setVersao((v) => v + 1);
       router.refresh();
     });
   }
@@ -157,7 +169,7 @@ export function EapAtribuicoes({
     return <p className="text-xs text-muted-foreground">{aceita.motivo}</p>;
   }
 
-  const livres = pessoas.filter((p) => !jaAtribuidos.has(p.id));
+  const livres = pessoas.filter((p) => !jaNoPapel.has(p.id) || p.id === novaPessoa);
 
   return (
     <div className="space-y-2">
@@ -167,7 +179,7 @@ export function EapAtribuicoes({
         <ul className="divide-y rounded-sm border">
           {linha.atribuicoes.map((a) => (
             <LinhaAtribuicao
-              key={`${a.id}:${a.horas}`}
+              key={`${a.id}:${a.horas}:${versao}`}
               atribuicao={a}
               podeHoras={aceitaHoras}
               pending={pending}
@@ -209,7 +221,13 @@ export function EapAtribuicoes({
             ))}
           </SelectContent>
         </Select>
-        <Button size="sm" variant="outline" disabled={pending} onClick={adicionar}>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={pending || duplicada}
+          onClick={adicionar}
+          title={duplicada ? "Esta pessoa já está nesta linha com esse papel." : undefined}
+        >
           <Plus className="size-3.5" /> Adicionar
         </Button>
       </div>
@@ -269,6 +287,7 @@ function LinhaAtribuicao({
         <input
           type="number"
           min={0}
+          max={99999}
           step="0.5"
           value={horas}
           disabled={pending || !podeHoras}

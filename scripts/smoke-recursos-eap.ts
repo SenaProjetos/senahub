@@ -213,8 +213,18 @@ async function main() {
     const pessoaA = carga.pessoas.find((p) => p.userId === pjA.id);
     check("carga: quem está só em linha aprovada entra na equipe", pessoaA != null);
     check("carga: 80 h contra 40 h na semana das paralelas", pessoaA?.carga["2026-W41"] === 80 && pessoaA?.capacidade["2026-W41"] === 40, pessoaA);
-    const estouro = carga.sobrecargas.find((so) => so.userId === pjA.id && so.semana === "2026-W41");
-    check("sobrecarga acusada com o excesso", estouro?.excesso === 40, estouro && { excesso: estouro.excesso });
+    const listado = carga.sobrecargas.find((so) => so.userId === pjA.id && so.semana === "2026-W41");
+    check("sobrecarga acusada com o excesso", listado?.excesso === 40, listado && { excesso: listado.excesso });
+    check(
+      "a listagem vem SEM sugestões (cada uma roda o motor — só sob demanda)",
+      carga.sobrecargas.every((so) => !so.sugestoes.atrasar && !so.sugestoes.passar),
+    );
+    const pedida = await cargaDaEquipe({ hoje: "2026-10-05", semanas: 6, sugestaoDe: { userId: pjA.id, semana: "2026-W41" } });
+    const estouro = pedida.sobrecargas.find((so) => so.userId === pjA.id && so.semana === "2026-W41");
+    check(
+      "só a sobrecarga pedida recebe sugestão",
+      pedida.sobrecargas.filter((so) => so.sugestoes.atrasar || so.sugestoes.passar).every((so) => so === estouro),
+    );
     check(
       "sugestão 'atrasar' sai verificada e resolve",
       estouro?.sugestoes.atrasar?.resolve === true && [X.id, Y.id].includes(estouro.sugestoes.atrasar.linhaId),

@@ -1,12 +1,12 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { AlertTriangle, CalendarClock, UserRoundCheck, Users } from "lucide-react";
-import { aplicarSugestaoRecurso } from "@/modules/planejamento/recursos-actions";
+import { AlertTriangle, CalendarClock, Lightbulb, UserRoundCheck, Users } from "lucide-react";
+import { aplicarSugestaoRecurso, sugestoesDaSobrecarga } from "@/modules/planejamento/recursos-actions";
 import type { CargaDaEquipe, SobrecargaComSugestao } from "@/modules/planejamento/recursos-queries";
-import type { SugestaoAtraso, SugestaoTroca } from "@/modules/planejamento/sugestoes-recursos";
+import type { SugestaoAtraso, SugestaoTroca, Sugestoes } from "@/modules/planejamento/sugestoes-recursos";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { formatarData } from "@/lib/utils";
 import { AvatarUsuario } from "@/components/ui/avatar-usuario";
@@ -197,7 +197,23 @@ function SobrecargaItem({
   const router = useRouter();
   const confirm = useConfirm();
   const [pending, start] = useTransition();
-  const { atrasar, passar } = s.sugestoes;
+  // Sugestões sob demanda: cada uma roda o motor de novo (ver `SobrecargaComSugestao`). A
+  // listagem vem sem elas e só quem clica paga o cálculo.
+  const [sugestoes, setSugestoes] = useState<Sugestoes | null>(null);
+  const [buscando, startBusca] = useTransition();
+
+  function buscarSugestoes() {
+    startBusca(async () => {
+      const r = await sugestoesDaSobrecarga({ userId: s.userId, semana: s.semana });
+      if (r.ok) setSugestoes(r.data);
+      else {
+        toast.error(r.error);
+        router.refresh();
+      }
+    });
+  }
+  const atrasar = sugestoes?.atrasar ?? null;
+  const passar = sugestoes?.passar ?? null;
 
   async function aplicarAtraso(a: SugestaoAtraso) {
     const ok = await confirm({
@@ -255,6 +271,11 @@ function SobrecargaItem({
         </p>
       )}
 
+      {podeGerir && sugestoes == null && (
+        <Button size="sm" variant="outline" className="mt-2" disabled={buscando} onClick={buscarSugestoes}>
+          <Lightbulb className="size-3.5" /> {buscando ? "Calculando…" : "Ver sugestões"}
+        </Button>
+      )}
       {podeGerir && (atrasar || passar) && (
         <div className="mt-2 flex flex-wrap gap-2">
           {atrasar && (
@@ -271,7 +292,7 @@ function SobrecargaItem({
           )}
         </div>
       )}
-      {podeGerir && !atrasar && !passar && (
+      {podeGerir && sugestoes != null && !atrasar && !passar && (
         <p className="mt-2 text-[11px] text-muted-foreground">
           Nenhuma correção automática cabe sem mexer no prazo do projeto ou sobrecarregar outra pessoa — decisão de
           coordenação.

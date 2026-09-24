@@ -53,6 +53,12 @@ export type PessoaCarga = {
   porProjeto: Record<string, Record<string, number>>;
 };
 
+/**
+ * `sugestoes` vem VAZIA na listagem e só é preenchida quando alguém pede (`sugestaoDe`): cada
+ * sugestão roda o motor de novo e recalcula a carga de todo mundo. Medido com 160 linhas,
+ * 8 pessoas e 10 sobrecargas: 1,3 s com sugestões contra 53 ms sem — e a página é aberta por
+ * qualquer um com `recursos:ver`. Sob demanda, o custo cai em quem clica.
+ */
 export type SobrecargaComSugestao = Sobrecarga & { sugestoes: Sugestoes };
 
 export type DemandaPerfil = {
@@ -82,9 +88,6 @@ export type CargaDaEquipe = {
   demandaPerfis: DemandaPerfil[];
 };
 
-/** Quantas sobrecargas recebem sugestão — cada uma simula o motor algumas vezes. */
-const MAX_COM_SUGESTAO = 30;
-
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 function somarDias(dia: Dia, n: number): Dia {
@@ -98,7 +101,7 @@ function segundaDaSemana(dia: Dia): Dia {
 }
 
 export async function cargaDaEquipe(
-  opcoes: { semanas?: number; hoje?: Dia; semSugestoes?: boolean } = {},
+  opcoes: { semanas?: number; hoje?: Dia; sugestaoDe?: { userId: string; semana: string } } = {},
 ): Promise<CargaDaEquipe> {
   const nSemanas = opcoes.semanas ?? 12;
   const inicio = segundaDaSemana(opcoes.hoje ?? diaLocal(new Date()));
@@ -259,12 +262,13 @@ export async function cargaDaEquipe(
     });
   }
 
-  const comSugestaoAtiva = !opcoes.semSugestoes && sobrecargas.length > 0;
-  const qualificados = comSugestaoAtiva ? await montarQualificados(linhasDb, porPessoa) : () => [];
-  const comSugestao: SobrecargaComSugestao[] = sobrecargas.map((s, i) => ({
+  const alvo = opcoes.sugestaoDe;
+  const pedida = alvo ? sobrecargas.find((s) => s.userId === alvo.userId && s.semana === alvo.semana) : undefined;
+  const qualificados = pedida ? await montarQualificados(linhasDb, porPessoa) : () => [];
+  const comSugestao: SobrecargaComSugestao[] = sobrecargas.map((s) => ({
     ...s,
     sugestoes:
-      comSugestaoAtiva && i < MAX_COM_SUGESTAO
+      s === pedida
         ? sugerirCorrecoes(s, { projetos: contextos, parcelas, capacidade, semanas, cal, qualificados })
         : { atrasar: null, passar: null },
   }));

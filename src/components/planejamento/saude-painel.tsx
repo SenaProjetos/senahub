@@ -99,7 +99,9 @@ export function SaudePainel({
     // aparece depois, em `/recursos`. Tem de avisar ANTES de aprovar, não depois.
     if (alocacoesTipadas > 0 || linhasSemHora > 0) {
       const ok = await confirm({
-        title: "Aprovar sem estimar horas?",
+        // O título diz o que é de fato o aviso: "sem estimar horas" só vale quando falta hora;
+        // com hora em tudo, o aviso é só sobre a alocação digitada que sai da conta.
+        title: linhasSemHora > 0 ? "Aprovar sem estimar horas?" : "Aprovar troca a alocação digitada?",
         description: [
           alocacoesTipadas > 0
             ? `${alocacoesTipadas} alocação(ões) digitada(s) deste projeto deixam de contar na carga da equipe — a partir daqui ela vem das horas das linhas.`

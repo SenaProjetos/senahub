@@ -57,7 +57,7 @@ export type TarefaUI = {
    * disciplina e responsáveis são da EAP e reescritos a cada reprogramação. Regra única em
    * `tarefasTravadasPeloCronograma` — a mesma que faz `editarTarefa` recusar.
    */
-  travadaPeloCronograma?: boolean;
+  travadaPeloCronograma: boolean;
   comentarios?: { id: string; autorId: string; texto: string; autor: string; autorImage?: string | null; data: string; anexoMime: string | null; anexoNome: string | null }[];
 };
 

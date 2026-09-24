@@ -473,7 +473,15 @@ export function EapWorkspace({
                         {t.ehResumo ? (
                           <span className="text-muted-foreground">—</span>
                         ) : t.atribuicoes.length === 0 ? (
-                          <span className="text-xs text-warning">sem gente</span>
+                          // Etapa de terceiro e marco não têm equipe a escalar: aviso de "sem
+                          // gente" ali seria falso alarme (e a linha nem gera card — D24).
+                          t.deTerceiro ? (
+                            <span className="text-xs text-muted-foreground">terceiro</span>
+                          ) : t.marco ? (
+                            <span className="text-muted-foreground">—</span>
+                          ) : (
+                            <span className="text-xs text-warning">sem gente</span>
+                          )
                         ) : (
                           <div className="flex items-center gap-1">
                             {t.atribuicoes.slice(0, 3).map((a) => (

@@ -456,7 +456,7 @@ export async function matrizRecursos() {
       select: { userId: true, dataInicio: true, dataFim: true },
     }),
     prisma.feriado.findMany({ select: { data: true, nome: true } }),
-    cargaDaEquipe({ semanas: 1, hoje: hojeIso, semSugestoes: true }),
+    cargaDaEquipe({ semanas: 1, hoje: hojeIso }),
   ]);
 
   const calculados = new Set(carga.projetosCalculados);
