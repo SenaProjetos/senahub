@@ -53,7 +53,7 @@ export type Pessoa360Props = {
   podeFolha: boolean;
   cadastro: CadastroPessoa | null;
   ausencias: SolicitacoesUsuario | null;
-  escala: { temOverride: boolean; dias: DiaGrade[]; roleDias: DiaGrade[] } | null;
+  escala: { temOverride: boolean; dias: DiaGrade[]; padraoDias: DiaGrade[] } | null;
   banco: BancoRow[] | null;
   temPonto: boolean;
   /** Só CLT/estagiário têm jornada controlada (esperado/saldo); demais cargos veem só o trabalhado. */
@@ -476,7 +476,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
         {escala && (
           <TabsContent value="escala">
             <Card><CardContent className="pt-6">
-              <EscalaGrade temOverride={escala.temOverride} dias={escala.dias} roleDias={escala.roleDias} />
+              <EscalaGrade temOverride={escala.temOverride} dias={escala.dias} padraoDias={escala.padraoDias} />
             </CardContent></Card>
           </TabsContent>
         )}

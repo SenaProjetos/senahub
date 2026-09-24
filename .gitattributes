@@ -9,3 +9,7 @@
 # com LF puro, e o autocrlf entao marca ele como modificado a cada recopia mesmo
 # sem nenhuma diferenca real de conteudo. -text desliga a conversao de EOL nele.
 public/pdf.worker.min.mjs -text
+
+# O Prisma regrava o lock de migrations com LF puro a cada generate/migrate; com o
+# autocrlf o git esperava CRLF e marcava o arquivo como modificado sem diferenca real.
+prisma/migrations/migration_lock.toml text eol=lf
