@@ -144,13 +144,15 @@ export function percentualQueFalta(etapas: readonly { percentual: number }[]): n
 }
 
 /**
- * Transição de status de uma etapa. Mesma máquina da disciplina (`transicaoDisciplinaPermitida`),
- * com um corte a mais na F4: a etapa NÃO chega a `aprovado`.
+ * Transição de status de uma etapa PELO EDITOR (`salvarEtapaDisciplina`). Mesma máquina da
+ * disciplina (`transicaoDisciplinaPermitida`), com um corte a mais: o editor NÃO leva a etapa a
+ * `aprovado`.
  *
- * `aprovado` é terminal e hoje só nasce de `validarEntrega`/`confirmarAprovacaoDisciplina`,
- * que agem sobre a disciplina inteira e são o gatilho do pagamento. Etapa aprovada é a F7 —
- * o marco que libera o pagamento daquela fase. Deixar a etapa virar `aprovado` antes disso
- * criaria uma aprovação que não libera nada, e alguém esperando um pagamento que não vem.
+ * `aprovado` é terminal e é o gatilho do pagamento da fase (F7.4). Só nasce de quem aprova com
+ * `aprovacoes:disciplina` — `aprovarEtapaDisciplina` (uma fase) ou a aprovação da disciplina
+ * inteira (as fases que faltam) —, sempre junto com `liberarPagamentosDaFase`. Deixar o select
+ * do editor marcar `aprovado` criaria uma aprovação que não libera nada, e alguém esperando um
+ * pagamento que não vem. Etapa JÁ aprovada continua aceitando a mesma situação (editar o prazo).
  */
 export function transicaoEtapaPermitida(de: StatusDisciplina, para: StatusDisciplina): boolean {
   if (para === "aprovado" && de !== "aprovado") return false;
