@@ -212,6 +212,7 @@ model User {
   cronogramasAprovados          CronogramaProjeto[]         @relation("CronogramaAprovador")
   eapBaselinesAutor             EapBaseline[]               @relation("EapBaselineAutor")
   eapCodigoHistorico            EapCodigoHistorico[]        @relation("EapCodigoAutor")
+  eapAtribuicoes                EapAtribuicao[]             @relation("EapAtribuicaoPessoa")
   batidas                       Batida[]
   batidasAjustadas              Batida[]                    @relation("BatidaCriador")
   escalasUsuario                EscalaUsuario[]
@@ -4064,6 +4065,21 @@ enum StatusEap {
   arq // Arquivado
 }
 
+/// Papel de quem está na linha (RESP, Doc 02 §16). Lista FECHADA, a do documento: papel
+/// novo exige migration. É de propósito — carga, card e a sugestão "passar para" leem o
+/// papel, e um catálogo editável deixaria essas regras apontando para siglas que ninguém
+/// garantiu que existem.
+enum PapelEap {
+  dir // Diretor
+  ger // Gerente de Projetos
+  coo // Coordenador
+  eng // Engenheiro
+  pro // Projetista
+  mod // Modelador BIM
+  rev // Revisor
+  apr // Aprovador
+}
+
 enum PrioridadeEap {
   bai
   med
@@ -4359,6 +4375,7 @@ model EapTarefa {
   sucessoras    EapDependencia[] @relation("EapPredecessora")
   baselineLinhas EapBaselineLinha[]
   historicoCodigo EapCodigoHistorico[]
+  atribuicoes     EapAtribuicao[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -4412,6 +4429,55 @@ model EapCodigoHistorico {
   @@index([tarefaId])
   @@index([autorId])
   @@map("eap_codigo_historico")
+}
+
+/// Quem trabalha na linha, com qual papel e quantas horas (F5 — D17, D23, D41).
+///
+/// Vários por linha, TODOS entrando na carga: o revisor que gasta 4 horas aparece nessas
+/// 4 horas, senão o alerta de sobrecarga mente (D41). Só linha EXECUTÁVEL (`atv`) recebe
+/// atribuição — resumo contaria as horas dos filhos duas vezes, e marco não tem duração
+/// para espalhar as horas (a action recusa; o banco não expressa isso sem trigger).
+///
+/// Constraints escritas à mão na migration 20260924160000 — o Prisma não expressa nenhuma
+/// delas, então **não aparecem aqui**:
+///   - `eap_atribuicao_principal_key`: índice único PARCIAL, um principal por linha.
+///   - `eap_atribuicao_principal_pessoa`: principal precisa ser pessoa, nunca perfil.
+///   - `eap_atribuicao_horas_nao_negativas`.
+model EapAtribuicao {
+  id       String    @id @default(cuid())
+  tarefaId String
+  tarefa   EapTarefa @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+
+  /// Nulo = PERFIL, o recurso genérico do MS Project. "PRO" numa linha da Elétrica É o
+  /// "Projetista Elétrico": a disciplina vem da linha, então não existe catálogo de perfis
+  /// para manter em paralelo. Preencher a pessoa depois é o "Substituir recurso".
+  ///
+  /// `Restrict`, não `SetNull`: apagar a pessoa viraria a atribuição em perfil, e a
+  /// principal viraria perfil principal — exatamente o que o CHECK proíbe. Usuário não se
+  /// apaga neste sistema (desligamento é `acessoAte`); se alguém tentar, o banco recusa.
+  userId String?
+  user   User?   @relation("EapAtribuicaoPessoa", fields: [userId], references: [id], onDelete: Restrict)
+
+  papel PapelEap @default(pro)
+
+  /// Horas que a pessoa gasta NESTA linha (D23), espalhadas por igual pelos dias úteis
+  /// dela. Zero é o valor de quem herdou a linha e ainda não foi estimado — o verificador
+  /// acusa (`atribuicao_sem_horas`), porque zero é carga zero, custo zero e nenhum alerta.
+  horasPrevistas Decimal @default(0) @db.Decimal(7, 2)
+
+  /// Quem aparece no card e nos filtros (D41). Um por linha, e só pessoa.
+  principal Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// No Postgres `UNIQUE` trata NULL como distinto — e AQUI isso é o comportamento
+  /// desejado, não a pegadinha de `EapCatalogo`: dois perfis "PRO" na mesma linha são
+  /// "preciso de dois projetistas", enquanto a mesma PESSOA duas vezes no mesmo papel
+  /// continua barrada.
+  @@unique([tarefaId, userId, papel])
+  @@index([userId])
+  @@map("eap_atribuicao")
 }
 
 /// Pessoa como recurso de planejamento (multiplicador de capacidade, custo/hora, cor).
