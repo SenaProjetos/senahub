@@ -46,9 +46,23 @@ function num(v: unknown, padrao = 0): number {
  * `feriadosNacionais` deriva todos da Páscoa.
  */
 export async function montarCalendario(anos: number[]): Promise<Calendario> {
+  return (await montarCalendarioComNomes(anos)).calendario;
+}
+
+/**
+ * O mesmo calendário, com o nome de cada feriado — para quem precisa EXPLICAR um dia não
+ * útil ("capacidade menor nesta semana: feriado de Finados"). Uma fonte só: o calendário
+ * sai da mesma lista que dá os nomes.
+ */
+export async function montarCalendarioComNomes(
+  anos: number[],
+): Promise<{ calendario: Calendario; nomes: Map<Dia, string> }> {
   const unicos = [...new Set(anos)].filter((a) => Number.isInteger(a) && a > 1970 && a < 2200);
-  const listas = await Promise.all(unicos.map((ano) => feriadosParaCalculo(ano)));
-  return criarCalendario({ feriados: listas.flat().map((f) => f.data) });
+  const listas = (await Promise.all(unicos.map((ano) => feriadosParaCalculo(ano)))).flat();
+  return {
+    calendario: criarCalendario({ feriados: listas.map((f) => f.data) }),
+    nomes: new Map(listas.map((f) => [f.data, f.nome])),
+  };
 }
 
 /** Anos que um conjunto de datas atravessa, com uma folga de um ano para cada lado. */
@@ -65,6 +79,8 @@ function anosDe(datas: Dia[]): number[] {
 
 export type PlanoDoProjeto = {
   resultado: ResultadoMotor;
+  /** Exatamente o que o motor consumiu — quem simula um "e se" (F5) roda o motor de novo sobre isto. */
+  entrada: LinhaEntrada[];
   calendario: Calendario;
   /** Âncora efetivamente usada — a do cronograma, ou o menor início existente. */
   inicioProjeto: Dia;
@@ -141,6 +157,7 @@ export async function planoDoProjeto(projetoId: string): Promise<PlanoDoProjeto 
 
   return {
     resultado: agendar(linhas, inicioProjeto, calendario),
+    entrada: linhas,
     calendario,
     inicioProjeto,
     semCronograma: cronograma == null,

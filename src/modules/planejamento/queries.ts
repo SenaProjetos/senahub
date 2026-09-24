@@ -7,8 +7,9 @@ import { progressoDoStatus } from "@/modules/projetos/status";
 import { diaLocal, minutosPorDiaSessao } from "@/modules/ponto/engine";
 import { gradesEmLote } from "@/modules/rh/escalas/queries";
 import { chaveSemanaIso, diaEstaNaFaixa, minutosDisponiveisNoDia, percentualAlocadoNoDia } from "@/modules/planejamento/disponibilidade";
-import { planoDoProjeto, type PlanoDoProjeto } from "@/modules/planejamento/agenda";
+import { montarCalendario, planoDoProjeto, type PlanoDoProjeto } from "@/modules/planejamento/agenda";
 import type { Prisma } from "@/generated/prisma/client";
+import { cargaDaEquipe } from "@/modules/planejamento/recursos-queries";
 
 type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 
@@ -298,7 +299,7 @@ export async function cargaSemanalPorRecurso(semanas = 12) {
   if (recursos.length === 0) return { semanas: chavesSemana, linhas: [] };
 
   const userIds = recursos.map((recurso) => recurso.user.id);
-  const [sessoes, grades, feriadosDb, ferias, abonos] = await Promise.all([
+  const [sessoes, grades, calendario, ferias, abonos] = await Promise.all([
     prisma.sessaoTrabalho.findMany({
       where: {
         userId: { in: userIds },
@@ -309,10 +310,9 @@ export async function cargaSemanalPorRecurso(semanas = 12) {
       orderBy: { inicio: "asc" },
     }),
     gradesEmLote(recursos.map((recurso) => ({ id: recurso.user.id, contratacao: recurso.user.contratacao }))),
-    prisma.feriado.findMany({
-      where: { data: { gte: new Date(`${inicio}T00:00:00Z`), lt: new Date(`${fimExclusivo}T00:00:00Z`) } },
-      select: { data: true },
-    }),
+    // O MESMO calendário do cronograma e da carga planejada (F5): lido direto da tabela
+    // `Feriado`, um ano sem feriado importado daria capacidade diferente da planejada.
+    montarCalendario([Number(inicio.slice(0, 4)), Number(fimExclusivo.slice(0, 4))]),
     prisma.ferias.findMany({
       where: { userId: { in: userIds }, status: "aprovado", inicio: { lt: fimVigencia }, fim: { gte: inicioVigencia } },
       select: { userId: true, inicio: true, fim: true },
@@ -323,7 +323,7 @@ export async function cargaSemanalPorRecurso(semanas = 12) {
     }),
   ]);
 
-  const feriados = new Set(feriadosDb.map((feriado) => iso(feriado.data)));
+  const feriados = calendario.feriados;
   const ausenciasPorUsuario = new Map<string, Set<string>>();
   for (const ausencia of [...ferias.map((f) => ({ userId: f.userId, inicio: f.inicio, fim: f.fim })), ...abonos.map((a) => ({ userId: a.userId, inicio: a.dataInicio, fim: a.dataFim }))]) {
     const dias = ausenciasPorUsuario.get(ausencia.userId) ?? new Set<string>();
@@ -387,11 +387,18 @@ function inicioDaSemana(dia: string): string {
  * Matriz de recursos: pessoas (recursos) × projetos.
  * P-29: superalocação considera só as alocações ATIVAS hoje (respeita inicio/fim).
  * P-30: capacidade efetiva desconta ausências de hoje (férias/abono aprovados, feriado).
+ *
+ * F5 (D17) — a matriz vira CÁLCULO nos projetos com cronograma aprovado: o percentual sai
+ * das horas das atribuições na semana corrente, sobre a semana útil da pessoa (a mesma
+ * régua do "50%" digitado). A alocação digitada desses projetos continua listada, marcada
+ * `substituidaPeloCronograma`, e SAI da soma — senão a mesma hora contaria duas vezes (os
+ * "50% na matriz e 120% nas tarefas" da Q17). Projeto sem cronograma aprovado segue com a
+ * alocação digitada, como sempre.
  */
 export async function matrizRecursos() {
   const hojeIso = diaLocal(new Date());
 
-  const [recursos, projetos, usuariosSemRecurso, ferias, abonos, feriados] = await Promise.all([
+  const [recursos, projetos, usuariosSemRecurso, ferias, abonos, feriados, carga] = await Promise.all([
     prisma.recurso.findMany({
       where: { ativo: true },
       include: {
@@ -420,7 +427,13 @@ export async function matrizRecursos() {
       select: { userId: true, dataInicio: true, dataFim: true },
     }),
     prisma.feriado.findMany({ select: { data: true, nome: true } }),
+    cargaDaEquipe({ semanas: 1, hoje: hojeIso, semSugestoes: true }),
   ]);
+
+  const calculados = new Set(carga.projetosCalculados);
+  const semanaAtual = carga.semanas[0];
+  const cargaPorUser = new Map(carga.pessoas.map((p) => [p.userId, p]));
+  const projetoPorId = new Map(projetos.map((p) => [p.id, p]));
 
   // Motivo de ausência de hoje por usuário (feriado afeta todos).
   const ausenciaPorUser = new Map<string, string>();
@@ -443,7 +456,28 @@ export async function matrizRecursos() {
   const linhas = recursos
     .map((r) => {
       const capacidadePct = Math.round(Number(r.capacidade) * 100);
-      const alocadoHoje = r.alocacoes.filter(ativaHoje).reduce((s, a) => s + a.percentual, 0);
+      // Horas da semana corrente em cada projeto aprovado, sobre a semana útil da pessoa.
+      const cargaPessoa = cargaPorUser.get(r.user.id);
+      const base = cargaPessoa?.semanaUtil[semanaAtual] ?? 0;
+      const calculadas = Object.entries(cargaPessoa?.porProjeto ?? {})
+        .filter(([projetoId]) => calculados.has(projetoId))
+        .map(([projetoId, porSemana]) => {
+          const horasSemana = porSemana[semanaAtual] ?? 0;
+          const projeto = projetoPorId.get(projetoId);
+          return {
+            projetoId,
+            projetoCodigo: projeto?.codigo ?? "",
+            projetoNome: projeto?.nome ?? "",
+            horasSemana,
+            // Sem semana útil (jornada vazia), percentual não tem base: fica nulo em vez de
+            // inventar. A sobrecarga de `cargaDaEquipe`, em horas, continua acusando.
+            percentual: base > 0 ? Math.round((horasSemana / base) * 100) : null,
+          };
+        })
+        .filter((c) => c.horasSemana > 0);
+      const alocadoHoje =
+        r.alocacoes.filter((a) => ativaHoje(a) && !calculados.has(a.projetoId)).reduce((s, a) => s + a.percentual, 0) +
+        calculadas.reduce((s, c) => s + (c.percentual ?? 0), 0);
       const motivoAusencia = feriadoHoje ? `feriado (${feriadoHoje})` : (ausenciaPorUser.get(r.user.id) ?? null);
       const ausente = motivoAusencia != null;
       const capacidadeEfetivaPct = ausente ? 0 : capacidadePct;
@@ -484,7 +518,11 @@ export async function matrizRecursos() {
           fim: a.fim ? iso(a.fim) : null,
           ativaHoje: ativaHoje(a),
           observacao: a.observacao,
+          /** Projeto com cronograma aprovado: esta alocação digitada não conta mais (D17). */
+          substituidaPeloCronograma: calculados.has(a.projetoId),
         })),
+        /** Alocação calculada das linhas, nos projetos com cronograma aprovado (D17). */
+        calculadas,
       };
     })
     .sort((a, b) => a.nome.localeCompare(b.nome));

@@ -207,7 +207,7 @@ export async function congelarBaseline(
 export async function aprovarCronograma(
   projetoId: string,
   autorId: string,
-): Promise<ResultadoAprovacao & { avisos: number; cardsCriados: number }> {
+): Promise<ResultadoAprovacao & { avisos: number; cardsCriados: number; alocacoesSubstituidas: number }> {
   const cronograma = await prisma.cronogramaProjeto.findUnique({
     where: { projetoId },
     select: { aprovado: true, inicioProjeto: true },
@@ -233,7 +233,11 @@ export async function aprovarCronograma(
   });
   // Aprovado, a EAP passa a criar os cards de quem está escalado (D14/D24).
   const cards = await sincronizarCards(prisma, projetoId, autorId);
-  return { ...r, avisos: alerta, cardsCriados: cards.criados };
+  // E a matriz de recursos passa a CALCULAR este projeto pelas horas das linhas (D17): a
+  // alocação digitada dele deixa de contar. A tela precisa dizer isso — aprovar sem horas
+  // estimadas faz o projeto sumir da carga da equipe.
+  const alocacoesSubstituidas = await prisma.alocacao.count({ where: { projetoId } });
+  return { ...r, avisos: alerta, cardsCriados: cards.criados, alocacoesSubstituidas };
 }
 
 /**

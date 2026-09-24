@@ -390,6 +390,32 @@ export function parcelasDaAlocacaoDigitada(
   }));
 }
 
+/** Horas de PERFIL (vaga sem pessoa) numa semana — a demanda ainda sem dono. */
+export type ParcelaPerfil = { linhaId: string; projetoId: string; papel: Papel; semana: string; horas: number };
+
+/**
+ * A demanda dos perfis (D17): "Projetista" numa linha da Elétrica, sem ninguém escalado,
+ * espalhado nas semanas como qualquer atribuição. É o que responde "em maio precisamos de
+ * 3 projetistas elétricos e temos 2" — antes de escalar alguém. Não é carga de ninguém, e
+ * por isso fica fora de `parcelasDasLinhas`.
+ */
+export function parcelasDePerfis(linhas: readonly LinhaCarga[], cal: Calendario): ParcelaPerfil[] {
+  const out: ParcelaPerfil[] = [];
+  for (const l of linhas) {
+    if (!linhaAceitaHoras(l) || ENCERRADA.has(l.status)) continue;
+    for (const a of l.atribuicoes) {
+      if (a.userId != null || !(a.horas > 0)) continue;
+      const porSemana = new Map<string, number>();
+      for (const [dia, h] of distribuirHoras(l.inicio, l.fim, a.horas, cal)) {
+        const s = chaveSemanaIso(dia);
+        porSemana.set(s, (porSemana.get(s) ?? 0) + h);
+      }
+      for (const [semana, horas] of porSemana) out.push({ linhaId: l.id, projetoId: l.projetoId, papel: a.papel, semana, horas });
+    }
+  }
+  return out;
+}
+
 /** Soma as parcelas por pessoa × semana. */
 export function somarCarga(parcelas: readonly ParcelaCarga[]): Map<string, Map<string, number>> {
   const out = new Map<string, Map<string, number>>();

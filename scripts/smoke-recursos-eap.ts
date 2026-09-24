@@ -14,12 +14,15 @@
  *   5. Tirar o principal promove o próximo; o card acompanha os responsáveis e o prazo
  *      reprogramado (D32). Linha concluída mantém o card.
  *   6. Atividade que vira agrupamento com gente dentro é acusada.
+ *   7. Carga da equipe: duas atividades paralelas de 40 h para a mesma pessoa estouram a
+ *      semana; as duas sugestões (atrasar e passar) saem VERIFICADAS e resolvendo.
  *
  * Uso: npm run smoke:recursos-eap
  */
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { planoDoProjeto, reagendarProjeto } from "../src/modules/planejamento/agenda";
+import { cargaDaEquipe } from "../src/modules/planejamento/recursos-queries";
 import { aprovarCronograma, avaliarQualidade } from "../src/modules/planejamento/service";
 import {
   herdarResponsaveisNoProjeto,
@@ -166,6 +169,35 @@ async function main() {
     await prisma.eapTarefa.update({ where: { id: B.id }, data: { status: "con", fimReal: d("2026-10-20"), inicioReal: d("2026-10-15"), progresso: 100 } });
     await sincronizarCards(prisma, projeto.id, admin.id);
     check("linha concluída mantém o card (nunca apaga)", (await card(B.id)) !== null);
+
+    // ── 7. Carga da equipe, sobrecarga e sugestões ─────────────────────────
+    const paralela = (nome: string, ordem: number) =>
+      prisma.eapTarefa.create({ data: { ...base, parentId: R.id, nome, tipoEap: "atv", duracaoDias: 5, ordem } });
+    const X = await paralela("Paralela X", 6);
+    const Y = await paralela("Paralela Y", 7);
+    await prisma.eapAtribuicao.createMany({
+      data: [
+        { tarefaId: X.id, userId: pjA.id, horasPrevistas: 40, principal: true },
+        { tarefaId: Y.id, userId: pjA.id, horasPrevistas: 40, principal: true },
+      ],
+    });
+    const carga = await cargaDaEquipe({ hoje: "2026-10-05", semanas: 6 });
+    const pessoaA = carga.pessoas.find((p) => p.userId === pjA.id);
+    check("carga: quem está só em linha aprovada entra na equipe", pessoaA != null);
+    check("carga: 80 h contra 40 h na semana das paralelas", pessoaA?.carga["2026-W41"] === 80 && pessoaA?.capacidade["2026-W41"] === 40, pessoaA);
+    const estouro = carga.sobrecargas.find((so) => so.userId === pjA.id && so.semana === "2026-W41");
+    check("sobrecarga acusada com o excesso", estouro?.excesso === 40, estouro && { excesso: estouro.excesso });
+    check(
+      "sugestão 'atrasar' sai verificada e resolve",
+      estouro?.sugestoes.atrasar?.resolve === true && [X.id, Y.id].includes(estouro.sugestoes.atrasar.linhaId),
+      estouro?.sugestoes.atrasar,
+    );
+    check(
+      "sugestão 'passar' vai para o outro responsável da disciplina, livre",
+      estouro?.sugestoes.passar?.paraUserId === pjB.id && estouro.sugestoes.passar.resolve === true,
+      estouro?.sugestoes.passar,
+    );
+    check("projeto aprovado é calculado pelas linhas", carga.projetosCalculados.includes(projeto.id));
 
     // ── 6. Atividade que virou agrupamento ─────────────────────────────────
     await prisma.eapTarefa.create({ data: { ...base, parentId: A.id, nome: "Sub", tipoEap: "atv", duracaoDias: 2, ordem: 5 } });

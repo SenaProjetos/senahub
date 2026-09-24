@@ -15,6 +15,7 @@ import {
   linhaGeraCard,
   parcelasDaAlocacaoDigitada,
   parcelasDasLinhas,
+  parcelasDePerfis,
   pessoasSemHoras,
   somarCarga,
   type LinhaCarga,
@@ -320,6 +321,15 @@ describe("carga", () => {
     );
     const total = somarCarga(p);
     expect((total.get("joao")?.get("2026-W38") ?? 0) + (total.get("joao")?.get("2026-W39") ?? 0)).toBeCloseTo(4);
+  });
+
+  it("perfil vira DEMANDA, não carga: aparece em parcelasDePerfis e nunca em parcelasDasLinhas", () => {
+    const l = linha({ atribuicoes: [{ id: "a", userId: null, papel: "pro", horas: 60 }] });
+    expect(parcelasDasLinhas([l], cal)).toEqual([]);
+    expect(parcelasDePerfis([l], cal).map((p) => [p.papel, p.semana, p.horas])).toEqual([
+      ["pro", "2026-W38", 30],
+      ["pro", "2026-W39", 30],
+    ]);
   });
 
   it("alocação digitada vira hora: 50% de 8 h/dia é 20 h numa semana cheia", () => {
