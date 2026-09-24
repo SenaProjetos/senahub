@@ -341,6 +341,70 @@ describe("progresso", () => {
     expect(r.linhas.get("disc")!.progresso).toBe(50);
   });
 
+  it("um filho SEM estimativa derruba o peso por horas para duração — não some da conta", () => {
+    // A regra antiga ("algum filho tem horas") daria peso ZERO ao f2: o resumo mostraria
+    // 100% com metade do trabalho por fazer. É o caso da linha herdada da disciplina, que
+    // nasce sem hora estimada.
+    const linhas: LinhaEntrada[] = [
+      { id: "disc", parentId: null, duracaoDias: 1, predecessoras: [] },
+      { id: "f1", parentId: "disc", duracaoDias: 5, predecessoras: [], trabalhoHoras: 40, progresso: 100 },
+      { id: "f2", parentId: "disc", duracaoDias: 5, predecessoras: [], trabalhoHoras: null, progresso: 0 },
+    ];
+    const r = agendar(linhas, ANCORA, cal);
+    expect(r.linhas.get("disc")!.progresso).toBe(50);
+    expect(r.linhas.get("disc")!.trabalhoHoras).toBeNull();
+  });
+
+  it("zero CONHECIDO (etapa de terceiro) mantém o peso por horas e pesa zero", () => {
+    const linhas: LinhaEntrada[] = [
+      { id: "disc", parentId: null, duracaoDias: 1, predecessoras: [] },
+      { id: "modelagem", parentId: "disc", duracaoDias: 5, predecessoras: [], trabalhoHoras: 40, progresso: 50 },
+      { id: "prefeitura", parentId: "disc", duracaoDias: 45, predecessoras: [], trabalhoHoras: 0, progresso: 0 },
+    ];
+    const r = agendar(linhas, ANCORA, cal);
+    // Por horas: só a modelagem pesa. Por duração daria 5*50/50 = 5%.
+    expect(r.linhas.get("disc")!.progresso).toBe(50);
+    expect(r.linhas.get("disc")!.trabalhoHoras).toBe(40);
+  });
+
+  it("tudo estimado em zero cai para duração — não há horas para ponderar", () => {
+    const linhas: LinhaEntrada[] = [
+      { id: "disc", parentId: null, duracaoDias: 1, predecessoras: [] },
+      { id: "f1", parentId: "disc", duracaoDias: 5, predecessoras: [], trabalhoHoras: 0, progresso: 100 },
+      { id: "f2", parentId: "disc", duracaoDias: 15, predecessoras: [], trabalhoHoras: 0, progresso: 0 },
+    ];
+    const r = agendar(linhas, ANCORA, cal);
+    expect(r.linhas.get("disc")!.progresso).toBe(25);
+  });
+
+  it("marco não conta como filho sem estimativa", () => {
+    const linhas: LinhaEntrada[] = [
+      { id: "disc", parentId: null, duracaoDias: 1, predecessoras: [] },
+      { id: "modelagem", parentId: "disc", duracaoDias: 5, predecessoras: [], trabalhoHoras: 30, progresso: 100 },
+      { id: "revisao", parentId: "disc", duracaoDias: 2, predecessoras: [], trabalhoHoras: 10, progresso: 0 },
+      { id: "entrega", parentId: "disc", duracaoDias: 0, predecessoras: [] },
+    ];
+    const r = agendar(linhas, ANCORA, cal);
+    // Por horas: 30*100/40 = 75%. Se o marco derrubasse para duração: 5*100/7 = 71%.
+    expect(r.linhas.get("disc")!.progresso).toBe(75);
+    expect(r.linhas.get("entrega")!.trabalhoHoras).toBe(0);
+  });
+
+  it("horas sobem pela árvore; um neto sem estimativa deixa o avô sem total", () => {
+    const linhas: LinhaEntrada[] = [
+      { id: "prj", parentId: null, duracaoDias: 1, predecessoras: [] },
+      { id: "ele", parentId: "prj", duracaoDias: 1, predecessoras: [] },
+      { id: "ele-mod", parentId: "ele", duracaoDias: 5, predecessoras: [], trabalhoHoras: 40 },
+      { id: "ele-rev", parentId: "ele", duracaoDias: 2, predecessoras: [], trabalhoHoras: 8 },
+      { id: "hid", parentId: "prj", duracaoDias: 1, predecessoras: [] },
+      { id: "hid-mod", parentId: "hid", duracaoDias: 5, predecessoras: [] },
+    ];
+    const r = agendar(linhas, ANCORA, cal);
+    expect(r.linhas.get("ele")!.trabalhoHoras).toBe(48);
+    expect(r.linhas.get("hid")!.trabalhoHoras).toBeNull();
+    expect(r.linhas.get("prj")!.trabalhoHoras).toBeNull();
+  });
+
   it("progresso do resumo é calculado, nunca o que foi digitado nele", () => {
     const linhas: LinhaEntrada[] = [
       { id: "pai", parentId: null, duracaoDias: 1, predecessoras: [], progresso: 90 },

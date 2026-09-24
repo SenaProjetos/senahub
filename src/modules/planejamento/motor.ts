@@ -58,7 +58,12 @@ export type LinhaEntrada = {
   predecessoras: Vinculo[];
   restricaoTipo?: Restricao | null;
   restricaoData?: Dia | null;
-  /** Peso do rollup de progresso. Horas previstas quando existem (D26). */
+  /**
+   * Horas previstas da linha (soma das atribuições, D23) — peso do rollup de progresso
+   * (D26). `null`/ausente = AINDA NÃO ESTIMADA; `0` = estimada como zero (etapa de
+   * terceiro: "aprovação na prefeitura" leva 45 dias e zero hora da casa). A diferença
+   * decide o rollup — ver `aplicarProgresso`. Em linha-resumo é ignorado: soma dos filhos.
+   */
   trabalhoHoras?: number | null;
   /** Progresso informado (0-100). Em linha-resumo é ignorado: o motor calcula. */
   progresso?: number;
@@ -77,6 +82,12 @@ export type LinhaAgendada = {
   critica: boolean;
   /** Progresso — informado na folha, ponderado por horas no resumo. */
   progresso: number;
+  /**
+   * Horas previstas: o informado na folha; no resumo, a soma dos filhos. `null` quando
+   * alguma folha abaixo não foi estimada — somar só as estimadas daria um total que
+   * parece completo e não é (é o que a baseline grava e o Valor Agregado lê).
+   */
+  trabalhoHoras: number | null;
   /** `true` quando a restrição impediu o motor de respeitar uma dependência. */
   conflitoRestricao: boolean;
   ehResumo: boolean;
@@ -420,6 +431,7 @@ export function agendar(
       folgaLivre,
       critica,
       progresso: 0, // preenchido no rollup de progresso, abaixo
+      trabalhoHoras: null, // idem
       conflitoRestricao: conflito.get(l.id) ?? false,
       ehResumo: resumo,
     });
@@ -435,8 +447,16 @@ export function agendar(
  *
  * Nunca digitado no resumo (Doc 03 §23). O peso por horas, e não por duração, é o que
  * impede "aprovação na prefeitura" — 45 dias de espera e 2 horas de trabalho — de dominar
- * sozinha o percentual da disciplina. Sem horas em nenhum filho, cai para duração, que é
- * o padrão do MS Project e o melhor disponível nesse caso.
+ * sozinha o percentual da disciplina.
+ *
+ * Pesa por horas SÓ quando todo filho com peso tem horas CONHECIDAS (`0` conta como
+ * conhecida; `null` não) e o total passa de zero. Basta um filho sem estimativa para o
+ * resumo inteiro voltar a pesar por duração, o padrão do MS Project.
+ *
+ * A regra anterior ("algum filho tem horas → pesa por horas") dava peso ZERO ao irmão
+ * ainda não estimado: o avanço dele sumia da conta em silêncio, e a linha herdada da
+ * disciplina — que nasce com zero hora — reescreveria o percentual de projetos que
+ * ninguém tocou. Marco fica fora da checagem: pesa zero nos dois critérios.
  */
 function aplicarProgresso(
   linhas: LinhaEntrada[],
@@ -445,6 +465,34 @@ function aplicarProgresso(
 ): void {
   const porId = new Map(linhas.map((l) => [l.id, l]));
   const calculado = new Map<string, number>();
+
+  // Folha sem filhos e sem duração: pesa zero em qualquer critério.
+  const ehMarco = (id: string) => (filhos.get(id)?.length ?? 0) === 0 && (porId.get(id)?.duracaoDias ?? 0) === 0;
+
+  // Horas da linha: a informada na folha; no resumo, soma dos filhos — `null` se algum
+  // filho (que não seja marco) estiver sem estimativa.
+  const horasCache = new Map<string, number | null>();
+  const horas = (id: string): number | null => {
+    if (horasCache.has(id)) return horasCache.get(id)!;
+    const meus = filhos.get(id) ?? [];
+    let h: number | null;
+    if (meus.length === 0) {
+      const informado = porId.get(id)?.trabalhoHoras;
+      h = informado != null && Number.isFinite(informado) ? informado : ehMarco(id) ? 0 : null;
+    } else {
+      h = 0;
+      for (const f of meus) {
+        const hf = horas(f);
+        if (hf == null) {
+          h = null;
+          break;
+        }
+        h += hf;
+      }
+    }
+    horasCache.set(id, h);
+    return h;
+  };
 
   const calcular = (id: string): number => {
     const cache = calculado.get(id);
@@ -457,11 +505,13 @@ function aplicarProgresso(
     }
     let somaPeso = 0;
     let somaProduto = 0;
-    const temHoras = meus.some((f) => (porId.get(f)?.trabalhoHoras ?? 0) > 0);
+    const comPeso = meus.filter((f) => !ehMarco(f));
+    const temHoras =
+      comPeso.length > 0 &&
+      comPeso.every((f) => horas(f) != null) &&
+      comPeso.reduce((s, f) => s + (horas(f) ?? 0), 0) > 0;
     for (const f of meus) {
-      const peso = temHoras
-        ? (porId.get(f)?.trabalhoHoras ?? 0)
-        : (resultado.get(f)?.duracaoDias ?? 0);
+      const peso = temHoras ? (horas(f) ?? 0) : (resultado.get(f)?.duracaoDias ?? 0);
       somaPeso += peso;
       somaProduto += peso * calcular(f);
     }
@@ -472,6 +522,8 @@ function aplicarProgresso(
 
   for (const l of linhas) {
     const r = resultado.get(l.id);
-    if (r) r.progresso = calcular(l.id);
+    if (!r) continue;
+    r.progresso = calcular(l.id);
+    r.trabalhoHoras = horas(l.id);
   }
 }
