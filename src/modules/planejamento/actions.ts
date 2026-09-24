@@ -26,6 +26,16 @@ const revProjeto = (projetoId: string) => {
 };
 const revRecursos = () => revalidatePath("/recursos");
 
+/**
+ * Depois de qualquer mudança na EAP que mexa em data ou em gente: com o cronograma
+ * APROVADO, o card do projetista acompanha (D32). Em rascunho não faz nada (D14).
+ * Chamado fora da transação da mudança — o motor precisa ler o estado já gravado.
+ */
+async function aposMudarEap(projetoId: string, autorId: string) {
+  const r = await sincronizarCards(prisma, projetoId, autorId);
+  if (r.criados > 0 || r.atualizados > 0) revalidatePath("/tarefas");
+}
+
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 const dia = z.string().min(1, "Informe a data.");
 
@@ -171,7 +181,7 @@ export const gerarTarefaDeEap = defineAction(
 
 export const criarEapTarefa = defineAction(
   { ...plan, acao: "criar-eap", entidade: "EapTarefa", schema: tarefaSchema },
-  async (i) => {
+  async (i, { user }) => {
     const max = await prisma.eapTarefa.aggregate({
       where: { projetoId: i.projetoId },
       _max: { ordem: true },
@@ -195,6 +205,7 @@ export const criarEapTarefa = defineAction(
     // D22: o responsável da disciplina desce para a linha nova.
     await herdarResponsaveisNoProjeto(prisma, i.projetoId, [t.id]);
     await rollupPai(t.id);
+    await aposMudarEap(i.projetoId, user.id);
     revProjeto(i.projetoId);
     return { id: t.id };
   },
@@ -202,7 +213,8 @@ export const criarEapTarefa = defineAction(
 
 export const editarEapTarefa = defineAction(
   { ...plan, acao: "editar-eap", entidade: "EapTarefa", schema: editarSchema },
-  async (i) => {
+  async (i, { user }) => {
+    const antes = await prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { disciplinaId: true } });
     if (i.marco) {
       // Marco não tem dia para espalhar hora: as horas ficariam gravadas e fora de toda
       // conta — carga, custo e rollup — sem ninguém ver.
@@ -224,10 +236,14 @@ export const editarEapTarefa = defineAction(
       },
       select: { projetoId: true },
     });
-    // Linha que ganhou disciplina agora e ainda não tem ninguém recebe o responsável dela
-    // (D22). Linha que já tem gente não é tocada.
-    await herdarResponsaveisNoProjeto(prisma, t.projetoId, [i.id]);
+    // Linha que MUDOU de disciplina e está sem ninguém recebe o responsável da nova (D22).
+    // Só na mudança: herdar a cada edição devolveria as pessoas a uma linha que o
+    // coordenador esvaziou de propósito — bastaria renomeá-la.
+    if ((antes?.disciplinaId ?? null) !== (i.disciplinaId || null)) {
+      await herdarResponsaveisNoProjeto(prisma, t.projetoId, [i.id]);
+    }
     await rollupPai(i.id);
+    await aposMudarEap(t.projetoId, user.id);
     revProjeto(t.projetoId);
     return { id: i.id };
   },
@@ -235,7 +251,7 @@ export const editarEapTarefa = defineAction(
 
 export const excluirEapTarefa = defineAction(
   { ...plan, acao: "excluir-eap", entidade: "EapTarefa", schema: idSchema },
-  async (i) => {
+  async (i, { user }) => {
     // Capture parentId before deletion so we can roll up afterward.
     const pre = await prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { parentId: true, projetoId: true } });
     await prisma.eapTarefa.delete({ where: { id: i.id } });
@@ -244,6 +260,9 @@ export const excluirEapTarefa = defineAction(
       const sibling = await prisma.eapTarefa.findFirst({ where: { parentId: pre.parentId }, select: { id: true } });
       if (sibling) await rollupPai(sibling.id);
     }
+    // Sucessoras podem ter andado: o prazo dos cards delas acompanha. (O card da linha
+    // excluída fica — nunca se apaga card.)
+    if (pre) await aposMudarEap(pre.projetoId, user.id);
     revProjeto(pre!.projetoId);
     return { id: i.id };
   },
@@ -314,7 +333,7 @@ export const aplicarAoProjeto = defineAction(
  */
 export const gerarEapDasDisciplinas = defineAction(
   { ...plan, acao: "gerar-eap-disciplinas", entidade: "EapTarefa", schema: projetoIdSchema },
-  async (i) => {
+  async (i, { user }) => {
     const [disciplinas, existentes, projeto, maxOrdem] = await Promise.all([
       prisma.disciplina.findMany({
         where: { projetoId: i.projetoId },
@@ -357,6 +376,7 @@ export const gerarEapDasDisciplinas = defineAction(
       }),
     );
     await herdarResponsaveisNoProjeto(prisma, i.projetoId, criadas.map((c) => c.id));
+    await aposMudarEap(i.projetoId, user.id);
     revProjeto(i.projetoId);
     return { criadas: novas.length };
   },
@@ -376,6 +396,7 @@ export const reagendarPlano = defineAction(
     if (total === 0) throw new ActionError("Sem tarefas para reagendar.");
 
     const r = await reagendarProjeto(i.projetoId, ctx.user.id);
+    await aposMudarEap(i.projetoId, ctx.user.id);
     if (r.reagendadas > 0 || r.codigosAtualizados > 0) revProjeto(i.projetoId);
     return r;
   },
@@ -392,13 +413,14 @@ export const definirInicioProjeto = defineAction(
     entidade: "CronogramaProjeto",
     schema: z.object({ projetoId: z.string().min(1), inicio: dia }),
   },
-  async (i) => {
+  async (i, { user }) => {
     await prisma.cronogramaProjeto.upsert({
       where: { projetoId: i.projetoId },
       create: { projetoId: i.projetoId, inicioProjeto: new Date(`${i.inicio}T00:00:00.000Z`) },
       update: { inicioProjeto: new Date(`${i.inicio}T00:00:00.000Z`) },
     });
-    const r = await reagendarProjeto(i.projetoId);
+    const r = await reagendarProjeto(i.projetoId, user.id);
+    await aposMudarEap(i.projetoId, user.id);
     revProjeto(i.projetoId);
     return r;
   },
@@ -526,7 +548,7 @@ async function alcanca(deId: string, alvoId: string): Promise<boolean> {
 
 export const vincularDependencia = defineAction(
   { ...plan, acao: "vincular-dep", entidade: "EapDependencia", schema: vincularSchema },
-  async (i) => {
+  async (i, { user }) => {
     if (i.tarefaId === i.predecessoraId) throw new ActionError("Tarefa não pode depender dela mesma.");
     const [tarefa, pred] = await Promise.all([
       prisma.eapTarefa.findUnique({ where: { id: i.tarefaId }, select: { projetoId: true } }),
@@ -541,6 +563,7 @@ export const vincularDependencia = defineAction(
     await prisma.eapDependencia.create({
       data: { tarefaId: i.tarefaId, predecessoraId: i.predecessoraId, tipo: i.tipo, lagDias: i.lagDias },
     });
+    await aposMudarEap(tarefa.projetoId, user.id);
     revProjeto(tarefa.projetoId);
     return { ok: true };
   },
@@ -549,13 +572,14 @@ export const vincularDependencia = defineAction(
 /** Muda o TIPO (FS/SS/FF/SF) ou o LAG de um vínculo já existente, sem recriá-lo. */
 export const editarVinculo = defineAction(
   { ...plan, acao: "editar-vinculo", entidade: "EapDependencia", schema: editarVinculoSchema },
-  async (i) => {
+  async (i, { user }) => {
     const t = await prisma.eapTarefa.findUnique({ where: { id: i.tarefaId }, select: { projetoId: true } });
     if (!t) throw new ActionError("Tarefa não encontrada.");
     await prisma.eapDependencia.updateMany({
       where: { tarefaId: i.tarefaId, predecessoraId: i.predecessoraId },
       data: { tipo: i.tipo, lagDias: i.lagDias },
     });
+    await aposMudarEap(t.projetoId, user.id);
     revProjeto(t.projetoId);
     return { ok: true };
   },
@@ -603,7 +627,7 @@ export const desbloquear = defineAction(
  */
 export const definirRestricao = defineAction(
   { ...plan, acao: "definir-restricao", entidade: "EapTarefa", schema: restricaoSchema },
-  async (i) => {
+  async (i, { user }) => {
     if (i.tipo && !i.data) throw new ActionError("Informe a data da restrição.");
     const t = await prisma.eapTarefa.update({
       where: { id: i.id },
@@ -613,6 +637,7 @@ export const definirRestricao = defineAction(
       },
       select: { projetoId: true },
     });
+    await aposMudarEap(t.projetoId, user.id);
     revProjeto(t.projetoId);
     return { ok: true };
   },
@@ -620,7 +645,7 @@ export const definirRestricao = defineAction(
 
 export const removerDependencia = defineAction(
   { ...plan, acao: "remover-dep", entidade: "EapDependencia", schema: depSchema },
-  async (i) => {
+  async (i, { user }) => {
     const t = await prisma.eapTarefa.findUnique({
       where: { id: i.tarefaId },
       select: { projetoId: true },
@@ -628,7 +653,10 @@ export const removerDependencia = defineAction(
     await prisma.eapDependencia.deleteMany({
       where: { tarefaId: i.tarefaId, predecessoraId: i.predecessoraId },
     });
-    if (t) revProjeto(t.projetoId);
+    if (t) {
+      await aposMudarEap(t.projetoId, user.id);
+      revProjeto(t.projetoId);
+    }
     return { ok: true };
   },
 );
@@ -688,6 +716,17 @@ export const salvarAlocacao = defineAction(
       : null,
   },
   async (i) => {
+    // Projeto com cronograma APROVADO é calculado pelas linhas (D17): a alocação digitada
+    // dele não entra em conta nenhuma. Gravar seria aceitar um número que não faz nada.
+    const cronograma = await prisma.cronogramaProjeto.findUnique({
+      where: { projetoId: i.projetoId },
+      select: { aprovado: true },
+    });
+    if (cronograma?.aprovado) {
+      throw new ActionError(
+        "Este projeto tem cronograma aprovado: a alocação vem das horas das pessoas nas linhas da EAP, não daqui.",
+      );
+    }
     const faixa = { id: i.id, inicio: i.inicio || null, fim: i.fim || null };
     if (!faixaTemPeriodoValido(faixa)) {
       throw new ActionError("Fim não pode ser antes do início.");

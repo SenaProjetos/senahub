@@ -2,6 +2,7 @@ import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { paraDataUtc, planoDoProjeto } from "./agenda";
 import { ehEtapaDeTerceiro, escolherPrincipal, herdarResponsaveis, linhaGeraCard } from "./recursos";
 
 /**
@@ -103,6 +104,12 @@ export async function sincronizarPrincipal(db: Db, tarefaId: string): Promise<vo
  *
  * Sem notificação nesta versão: aprovar um cronograma de 200 linhas não pode disparar 200
  * avisos. O card aparece no quadro de quem é responsável.
+ *
+ * O PRAZO vem do MOTOR, não de `fimPrevisto` gravado: a coluna só se atualiza quando alguém
+ * reagenda, e a baseline, a qualidade e a carga da equipe já leem o motor. Com a coluna, o
+ * card de um cronograma aprovado sem reagendar nasceria com prazo diferente do combinado.
+ * (O motor lê o que está gravado — dentro de uma transação, enxerga o estado de antes dela;
+ * nenhuma mudança de atribuição mexe em data, então não há o que perder.)
  */
 export async function sincronizarCards(
   db: Db,
@@ -112,7 +119,7 @@ export async function sincronizarCards(
   const cronograma = await db.cronogramaProjeto.findUnique({ where: { projetoId }, select: { aprovado: true } });
   if (!cronograma?.aprovado) return { criados: 0, atualizados: 0 };
 
-  const [linhas, comFilhos] = await Promise.all([
+  const [linhas, comFilhos, plano] = await Promise.all([
     db.eapTarefa.findMany({
       where: { projetoId },
       select: {
@@ -128,7 +135,12 @@ export async function sincronizarCards(
       },
     }),
     idsComFilhos(db, projetoId),
+    planoDoProjeto(projetoId),
   ]);
+  const prazoDe = (l: { id: string; fimPrevisto: Date }) => {
+    const fim = plano?.resultado.linhas.get(l.id)?.fim;
+    return fim ? paraDataUtc(fim) : l.fimPrevisto;
+  };
 
   const elegiveis = linhas.filter((l) =>
     linhaGeraCard(
@@ -176,7 +188,7 @@ export async function sincronizarCards(
           titulo: l.nome,
           descricao: "Gerada do cronograma (EAP).",
           statusId: primeira.id,
-          prazo: l.fimPrevisto,
+          prazo: prazoDe(l),
           projetoId,
           disciplinaId: l.disciplinaId,
           criadorId: autorId,
@@ -191,16 +203,17 @@ export async function sincronizarCards(
     const atuais = new Set(card.responsaveis.map((r) => r.userId));
     const entram = unicas.filter((u) => !atuais.has(u));
     const saem = [...atuais].filter((u) => !unicas.includes(u));
+    const prazo = prazoDe(l);
     const mudouCampo =
       card.titulo !== l.nome ||
       card.disciplinaId !== l.disciplinaId ||
-      card.prazo?.toISOString().slice(0, 10) !== l.fimPrevisto.toISOString().slice(0, 10);
+      card.prazo?.toISOString().slice(0, 10) !== prazo.toISOString().slice(0, 10);
     if (!mudouCampo && entram.length === 0 && saem.length === 0) continue;
 
     await db.tarefa.update({
       where: { id: card.id },
       data: {
-        ...(mudouCampo ? { titulo: l.nome, prazo: l.fimPrevisto, disciplinaId: l.disciplinaId } : {}),
+        ...(mudouCampo ? { titulo: l.nome, prazo, disciplinaId: l.disciplinaId } : {}),
         responsaveis: {
           ...(saem.length ? { deleteMany: { userId: { in: saem } } } : {}),
           ...(entram.length ? { create: entram.map((userId) => ({ userId })) } : {}),

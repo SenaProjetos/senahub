@@ -6,7 +6,6 @@ import { feriadosParaCalculo } from "@/modules/rh/feriados/queries";
 import { agendar, type LinhaEntrada, type ResultadoMotor } from "./motor";
 import { calcularCodigos, diferencaDeCodigos } from "./codigo-eap";
 import { ehEtapaDeTerceiro, horasDaLinha } from "./recursos";
-import { sincronizarCards } from "./recursos-service";
 
 /**
  * Adaptador entre o motor puro e o banco.
@@ -251,15 +250,6 @@ export async function reagendarProjeto(
       ),
     ]);
   }
-
-  // Cronograma aprovado: o prazo do card acompanha a linha (D32). O card precisa de um
-  // criador; sem quem disparou, fica quem aprovou o cronograma.
-  const cronograma = await prisma.cronogramaProjeto.findUnique({
-    where: { projetoId },
-    select: { aprovado: true, aprovadoPorId: true },
-  });
-  const autorCards = autorId ?? cronograma?.aprovadoPorId ?? null;
-  if (cronograma?.aprovado && autorCards) await sincronizarCards(prisma, projetoId, autorCards);
 
   const conflitos = [...plano.resultado.linhas.values()].filter((l) => l.conflitoRestricao).length;
   return {

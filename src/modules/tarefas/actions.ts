@@ -158,9 +158,19 @@ export const editarTarefa = defineAction(
       prisma.tarefaItem.findMany({ where: { tarefaId: id }, select: { id: true } }),
     ]);
     // Card que veio do cronograma (F5 — D32): o que a EAP escreve não se edita aqui, senão a
-    // próxima reprogramação desfaria a edição sem ninguém ver. Linha da EAP apagada solta o
-    // card (`eapTarefaId` não tem FK), e aí ele volta a ser editável por inteiro.
-    if (atual?.eapTarefaId && (await prisma.eapTarefa.count({ where: { id: atual.eapTarefaId } })) > 0) {
+    // próxima reprogramação desfaria a edição sem ninguém ver.
+    //
+    // Trava SÓ com o cronograma aprovado — a mesma condição em que a sincronização age. Antes
+    // da F5 o botão "gerar card" criava card em RASCUNHO, sem responsável; esses cards seguem
+    // livres até a aprovação (quando a EAP passa a mandar neles). Linha da EAP apagada solta
+    // o card (`eapTarefaId` não tem FK), e ele volta a ser editável por inteiro.
+    const linhaDaEap = atual?.eapTarefaId
+      ? await prisma.eapTarefa.findUnique({
+          where: { id: atual.eapTarefaId },
+          select: { projeto: { select: { cronograma: { select: { aprovado: true } } } } },
+        })
+      : null;
+    if (atual && linhaDaEap?.projeto.cronograma?.aprovado) {
       const alterados = camposDoCronogramaAlterados(
         {
           titulo: atual.titulo,

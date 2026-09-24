@@ -125,9 +125,11 @@ async function main() {
     check("verificador: sobra só o B de A sem hora", JSON.stringify(regras("atribuicao_sem_horas")) === JSON.stringify([A.id]), regras("atribuicao_sem_horas"));
 
     // ── 4. Rascunho × aprovado ─────────────────────────────────────────────
+    // SEM reagendar de propósito: as colunas de data gravadas ficam com a data de criação
+    // (05/10 em todas), e o motor diz outra coisa. O card tem de nascer com a data do MOTOR.
     await prisma.cronogramaProjeto.create({ data: { projetoId: projeto.id, inicioProjeto: d("2026-10-05"), dataStatus: d("2026-10-05") } });
-    await reagendarProjeto(projeto.id, admin.id);
-    check("rascunho não gera card (D14)", (await prisma.tarefa.count({ where: { projetoId: projeto.id } })) === 0);
+    const emRascunho = await sincronizarCards(prisma, projeto.id, admin.id);
+    check("rascunho não gera card (D14)", emRascunho.criados === 0 && (await prisma.tarefa.count({ where: { projetoId: projeto.id } })) === 0);
 
     const aprovacao = await aprovarCronograma(projeto.id, admin.id);
     check("aprovar gera card só para as 2 atividades da casa com gente", aprovacao.cardsCriados === 2, aprovacao.cardsCriados);
@@ -144,6 +146,15 @@ async function main() {
     const blA = bl.find((x) => x.tarefaId === A.id);
     const blR = bl.find((x) => x.tarefaId === R.id);
     check("baseline grava as horas", Number(blA?.trabalhoHoras) === 40 && Number(blR?.trabalhoHoras) === 80, bl);
+    const blB = await prisma.eapBaselineLinha.findFirstOrThrow({ where: { tarefaId: B.id }, select: { fim: true } });
+    const cardB = await card(B.id);
+    const gravadoB = await prisma.eapTarefa.findUniqueOrThrow({ where: { id: B.id }, select: { fimPrevisto: true } });
+    check(
+      "card nasce com o prazo do MOTOR (= baseline), não com a coluna gravada sem reagendar",
+      cardB?.prazo?.toISOString().slice(0, 10) === blB.fim.toISOString().slice(0, 10) &&
+        blB.fim.toISOString().slice(0, 10) !== gravadoB.fimPrevisto.toISOString().slice(0, 10),
+      { card: cardB?.prazo, baseline: blB.fim, gravado: gravadoB.fimPrevisto },
+    );
 
     // ── 5. Principal, responsáveis e prazo acompanham ──────────────────────
     await prisma.$transaction(async (tx) => {
@@ -156,15 +167,21 @@ async function main() {
     const cardA2 = await card(A.id);
     check("card acompanha: quem saiu da linha sai do card", JSON.stringify(cardA2?.responsaveis.map((r) => r.userId)) === JSON.stringify([pjB.id]), cardA2?.responsaveis);
 
+    // Muda a duração e sincroniza SEM reagendar: o card segue o motor mesmo assim.
     await prisma.eapTarefa.update({ where: { id: A.id }, data: { duracaoDias: 8 } });
-    await reagendarProjeto(projeto.id, admin.id);
-    const linhaA = await prisma.eapTarefa.findUniqueOrThrow({ where: { id: A.id }, select: { fimPrevisto: true } });
+    await sincronizarCards(prisma, projeto.id, admin.id);
+    const fimMotorA = (await planoDoProjeto(projeto.id))?.resultado.linhas.get(A.id)?.fim;
     const cardA3 = await card(A.id);
     check(
-      "card acompanha: prazo segue o reagendamento (D32)",
-      cardA3?.prazo?.toISOString().slice(0, 10) === linhaA.fimPrevisto.toISOString().slice(0, 10),
-      [cardA3?.prazo, linhaA.fimPrevisto],
+      "card acompanha: prazo segue o motor depois de mudar a duração (D32)",
+      // 05/10 + 8 dias úteis = 15/10: 12/10 é feriado (Nossa Senhora Aparecida) — o calendário real entra.
+      cardA3?.prazo?.toISOString().slice(0, 10) === fimMotorA && fimMotorA === "2026-10-15",
+      [cardA3?.prazo, fimMotorA],
     );
+    // Reagendar grava as datas; o card continua batendo.
+    await reagendarProjeto(projeto.id, admin.id);
+    const linhaA = await prisma.eapTarefa.findUniqueOrThrow({ where: { id: A.id }, select: { fimPrevisto: true } });
+    check("depois de reagendar, coluna gravada e card concordam", linhaA.fimPrevisto.toISOString().slice(0, 10) === fimMotorA);
 
     await prisma.eapTarefa.update({ where: { id: B.id }, data: { status: "con", fimReal: d("2026-10-20"), inicioReal: d("2026-10-15"), progresso: 100 } });
     await sincronizarCards(prisma, projeto.id, admin.id);

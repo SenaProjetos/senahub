@@ -44,9 +44,13 @@ async function linhaParaAtribuir(tarefaId: string) {
   return { ...linha, ehResumo: linha._count.filhas > 0, duracaoDias: Number(linha.duracaoDias) };
 }
 
+/**
+ * Só gente da casa, ativa. Cliente fora — o mesmo corte de `exigirResponsaveisInternos` das
+ * tarefas: escalado aqui, o cliente iria parar no card do projetista.
+ */
 async function pessoaAtiva(userId: string) {
-  const u = await prisma.user.findUnique({ where: { id: userId }, select: { ativo: true } });
-  if (!u?.ativo) throw new ActionError("Pessoa não encontrada ou inativa.");
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { ativo: true, role: true } });
+  if (!u?.ativo || u.role === "cliente") throw new ActionError("Pessoa não encontrada, inativa ou de fora da equipe.");
 }
 
 const salvarSchema = z.object({
@@ -221,6 +225,7 @@ export const aplicarSugestaoRecurso = defineAction(
         data: { restricaoTipo: "iniciar_nao_antes_de", restricaoData: new Date(`${i.novoInicio}T00:00:00.000Z`) },
       });
       const r = await reagendarProjeto(linha.projetoId, user.id);
+      await sincronizarCards(prisma, linha.projetoId, user.id);
       revProjeto(linha.projetoId);
       return { tipo: "atrasar" as const, fimProjeto: r.fimProjeto };
     }
