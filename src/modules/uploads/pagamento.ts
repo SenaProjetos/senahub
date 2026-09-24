@@ -13,12 +13,13 @@ import {
 import {
   MOTIVO_JA_PAGA_INTEIRA,
   bloqueioValorEmModoFase,
+  estadoPagamento,
   modoPagamento,
   poolsDasFasesPendentes,
   rotuloDisciplinaPagamento,
   writeBackFase,
+  type EstadoPagamento,
   type FaseParaPagamento,
-  type ModoPagamento,
 } from "@/modules/uploads/pagamento-fase";
 
 type ResponsavelComUser = {
@@ -52,29 +53,13 @@ async function fasesDaDisciplina(tx: Db, disciplinaId: string): Promise<FaseComS
   }));
 }
 
-export type SituacaoPagamento = {
-  modo: ModoPagamento;
-  temFases: boolean;
-  /**
-   * "Já liberou tudo o que havia para liberar?" — o `jaTemPagamento` das duas aprovações.
-   * Sem fase (ou disciplina que já pagou inteira): existe QUALQUER pagamento, como sempre foi
-   * (cancelado inclusive — é o comportamento de antes, e disciplina sem fase não pode mudar).
-   * Por fase: TODA fase liberada. Sem essa troca, aprovar a disciplina com o Básico já liberado
-   * pularia o Executivo em silêncio.
-   */
-  jaLiberouTudo: boolean;
-};
-
-export async function situacaoPagamento(tx: Db, disciplinaId: string): Promise<SituacaoPagamento> {
+/** `estadoPagamento` lido do banco — ver a regra pura para o que "já liberou tudo" quer dizer. */
+export async function situacaoPagamento(tx: Db, disciplinaId: string): Promise<EstadoPagamento> {
   // Em sequência, não `Promise.all`: dentro de transação é a MESMA conexão, e consulta em
   // paralelo nela é depreciada no driver pg (some no pg@9).
   const pagamentos = await tx.pagamentoProjetista.findMany({ where: { disciplinaId }, select: { etapaId: true, status: true } });
   const fases = await tx.disciplinaEtapa.findMany({ where: { disciplinaId }, select: { liberadaEm: true } });
-  const modo = modoPagamento(pagamentos, fases);
-  const temFases = fases.length > 0;
-  const jaLiberouTudo =
-    temFases && modo !== "disciplina" ? fases.every((f) => f.liberadaEm != null) : pagamentos.length > 0;
-  return { modo, temFases, jaLiberouTudo };
+  return estadoPagamento(pagamentos, fases);
 }
 
 /**

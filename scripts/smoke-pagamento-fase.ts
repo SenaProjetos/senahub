@@ -19,6 +19,7 @@ import {
 } from "../src/modules/uploads/pagamento";
 import { MOTIVO_JA_PAGA_INTEIRA } from "../src/modules/uploads/pagamento-fase";
 import { INCLUDE_PAGAMENTO, comLancamentos } from "../src/modules/financeiro/folha/queries";
+import { disciplinasForaDeSLA } from "../src/modules/projetos/queries";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -121,6 +122,17 @@ async function main() {
   );
   const sit2 = await situacaoPagamento(prisma, disciplina.id);
   check("modo fixado em 'fase', ainda falta liberar", sit2.modo === "fase" && !sit2.jaLiberouTudo, sit2);
+
+  // 2b) Com o Básico liberado e o resto pendente, a disciplina entregue há 30 dias continua
+  // "aguardando validação" — antes da F7.4 o filtro era "não tem pagamento" e ela sumiria do SLA.
+  await prisma.disciplina.update({
+    where: { id: disciplina.id },
+    data: { status: "entregue", entregueEm: new Date(Date.now() - 30 * 86_400_000) },
+  });
+  const viewer = { id: admin.id, role: "admin" as const, superUsuario: true, escopoGlobalPerfil: true };
+  const sla = await disciplinasForaDeSLA(viewer);
+  check("SLA: fase parcial continua aguardando validação", sla.some((d) => d.id === disciplina.id));
+  await prisma.disciplina.update({ where: { id: disciplina.id }, data: { status: "aguardando", entregueEm: null } });
 
   // 3) Idempotente: liberar de novo não cria nada.
   const r3 = await liberar(bs.id);

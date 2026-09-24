@@ -271,6 +271,9 @@ export async function obterProjeto(viewer: Viewer, id: string) {
           },
           // `etapas`: com etapa o prazo é consolidado e o diálogo de edição o trava (F4).
           _count: { select: { pagamentos: true, etapas: true } },
+          // F7.4: "já pagou" por fase é TODA fase liberada (`estadoPagamento`), não "tem pagamento".
+          pagamentos: { select: { etapaId: true, status: true } },
+          etapas: { select: { liberadaEm: true } },
         },
       },
     },
@@ -352,7 +355,16 @@ export async function disciplinasForaDeSLA(viewer: Viewer) {
     where: {
       status: "entregue",
       entregueEm: { lte: limite, not: null },
-      pagamentos: { none: {} },
+      // "Ainda não liberou tudo" (`estadoPagamento`) em forma de filtro. Sem fase: nenhum
+      // pagamento, como sempre. Com fase: falta alguma liberar e a disciplina não pagou inteira —
+      // com o Básico liberado, o resto continua esperando validação e o SLA tem de enxergar.
+      OR: [
+        { etapas: { none: {} }, pagamentos: { none: {} } },
+        {
+          etapas: { some: { liberadaEm: null } },
+          pagamentos: { none: { etapaId: null, status: { not: "cancelado" } } },
+        },
+      ],
       projeto: { AND: [escopoProjeto(viewer)] },
     },
     select: {

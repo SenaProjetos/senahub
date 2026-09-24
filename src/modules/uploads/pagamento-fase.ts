@@ -50,6 +50,34 @@ export function modoPagamento(
   return "indefinido";
 }
 
+export type EstadoPagamento = {
+  modo: ModoPagamento;
+  /**
+   * "Já liberou tudo o que havia para liberar?" — o `jaTemPagamento` das aprovações e o "aprovar
+   * não gera novo" do card. Sem fase (ou disciplina que pagou inteira): existe QUALQUER
+   * pagamento, como sempre foi — cancelado inclusive, que é o comportamento de antes e disciplina
+   * sem fase não pode mudar. Por fase: TODA fase liberada. "Tem pagamento" no lugar disto diria,
+   * com o Básico liberado, que aprovar não gera nada — e aprovar libera o Executivo.
+   */
+  jaLiberouTudo: boolean;
+  /** Por fase: quantas liberadas, de quantas. Nulo sem fase, ou se a disciplina pagou inteira. */
+  fases: { liberadas: number; total: number } | null;
+};
+
+export function estadoPagamento(
+  pagamentos: readonly { etapaId: string | null; status: string }[],
+  fases: readonly { liberadaEm: Date | string | null }[],
+): EstadoPagamento {
+  const modo = modoPagamento(pagamentos, fases);
+  const porFase = fases.length > 0 && modo !== "disciplina";
+  const liberadas = fases.filter((f) => f.liberadaEm != null).length;
+  return {
+    modo,
+    jaLiberouTudo: porFase ? liberadas === fases.length : pagamentos.length > 0,
+    fases: porFase ? { liberadas, total: fases.length } : null,
+  };
+}
+
 /** Mensagem para quem tenta liberar por fase uma disciplina que já pagou inteira. */
 export const MOTIVO_JA_PAGA_INTEIRA =
   "Esta disciplina já teve o pagamento liberado por inteiro — não dá para liberar por fase também.";

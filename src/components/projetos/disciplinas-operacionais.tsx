@@ -14,6 +14,7 @@ import {
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { valeNaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
+import { estadoPagamento } from "@/modules/uploads/pagamento-fase";
 import {
   tarefasDoProjeto,
   opcoesTarefa,
@@ -104,7 +105,10 @@ export async function DisciplinasOperacionais({ projetoId }: { projetoId: string
       temA: uploads.some((upload) => upload.pacote === "A"),
       temB: uploads.some((upload) => upload.pacote === "B"),
       jaValidado: disciplina.status === "aprovado",
-      temPagamento: disciplina._count.pagamentos > 0,
+      ...(() => {
+        const e = estadoPagamento(disciplina.pagamentos, disciplina.etapas);
+        return { pagamentoLiberado: e.jaLiberouTudo, fasesLiberadas: e.fases };
+      })(),
       temEtapas: disciplina._count.etapas > 0,
       exigePacoteA: disciplina.exigePacoteA,
       exigePacoteB: disciplina.exigePacoteB,

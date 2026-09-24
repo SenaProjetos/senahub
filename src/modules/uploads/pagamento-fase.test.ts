@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bloqueioValorEmModoFase,
+  estadoPagamento,
   modoPagamento,
   poolsDasFasesPendentes,
   rotuloDisciplinaPagamento,
@@ -40,6 +41,31 @@ describe("modoPagamento", () => {
   });
   it("pagamento inteiro CANCELADO não fixa o modo", () => {
     expect(modoPagamento([{ etapaId: null, status: "cancelado" }], [{ liberadaEm: null }])).toBe("indefinido");
+  });
+});
+
+describe("estadoPagamento — 'já liberou tudo?'", () => {
+  const vivo = (etapaId: string | null) => ({ etapaId, status: "pendente" });
+  it("sem fase: qualquer pagamento, cancelado inclusive (o de sempre)", () => {
+    expect(estadoPagamento([], [])).toEqual({ modo: "indefinido", jaLiberouTudo: false, fases: null });
+    expect(estadoPagamento([{ etapaId: null, status: "cancelado" }], []).jaLiberouTudo).toBe(true);
+  });
+  it("por fase: Básico liberado e Executivo pendente NÃO é 'já liberou tudo'", () => {
+    const e = estadoPagamento([vivo("bs")], [{ liberadaEm: "x" }, { liberadaEm: null }]);
+    expect(e).toEqual({ modo: "fase", jaLiberouTudo: false, fases: { liberadas: 1, total: 2 } });
+  });
+  it("por fase, todas liberadas: liberou tudo", () => {
+    expect(estadoPagamento([vivo("bs")], [{ liberadaEm: "x" }, { liberadaEm: "y" }]).jaLiberouTudo).toBe(true);
+  });
+  it("com fase mas nada liberado: ainda não", () => {
+    expect(estadoPagamento([], [{ liberadaEm: null }])).toEqual({
+      modo: "indefinido",
+      jaLiberouTudo: false,
+      fases: { liberadas: 0, total: 1 },
+    });
+  });
+  it("pagou inteira e depois ganhou fase: liberou tudo, sem contagem de fase", () => {
+    expect(estadoPagamento([vivo(null)], [{ liberadaEm: null }])).toEqual({ modo: "disciplina", jaLiberouTudo: true, fases: null });
   });
 });
 
