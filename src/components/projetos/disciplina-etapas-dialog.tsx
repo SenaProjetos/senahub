@@ -47,6 +47,7 @@ type Dados = {
   prazoDisciplina: string | null;
   prazoPlanejado: string | null;
   podeAprovarFase: boolean;
+  pagaInteira: boolean;
 };
 
 /**
@@ -265,7 +266,7 @@ function EditorEtapas({
                   valorDaFase={valorDaFase(e)}
                   prazoPlanejado={dados.prazoPlanejado}
                   pending={pending}
-                  podeAprovar={dados.podeAprovarFase}
+                  podeAprovar={dados.podeAprovarFase && !dados.pagaInteira}
                   onSalvar={(patch) => salvar(e, patch)}
                   onAprovar={() => aprovar(e)}
                   onExcluir={() => excluir(e)}
@@ -274,6 +275,13 @@ function EditorEtapas({
             </tbody>
           </table>
         </div>
+      )}
+
+      {dados.pagaInteira && dados.etapas.length > 0 && (
+        <p className="rounded-sm border border-dashed px-3 py-2 text-xs text-muted-foreground">
+          O pagamento desta disciplina já foi liberado por inteiro — as fases servem ao prazo e ao
+          acompanhamento, mas não liberam pagamento.
+        </p>
       )}
 
       {dados.etapas.length > 0 && (

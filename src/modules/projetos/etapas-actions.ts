@@ -10,7 +10,7 @@ import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { notificarMuitos } from "@/lib/notificar";
 import { whereAudiencia } from "@/lib/audiencias";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { liberarPagamentosDaFase } from "@/modules/uploads/pagamento";
+import { liberarPagamentosDaFase, situacaoPagamento } from "@/modules/uploads/pagamento";
 import { bloqueioValorDisciplina, ehPagavel } from "@/modules/uploads/rateio";
 import { mensagemTransicaoDisciplina } from "./status";
 
@@ -234,9 +234,10 @@ export const carregarEtapasDisciplina = defineAction(
       },
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
-    const [verValor, podeAprovarFase] = await Promise.all([
+    const [verValor, podeAprovarFase, situacao] = await Promise.all([
       podeVerFinanceiro(user),
       can(user, "aprovacoes", "disciplina"),
+      situacaoPagamento(prisma, input.disciplinaId),
     ]);
 
     const fases = await prisma.pranchaCatalogo.findMany({
@@ -265,6 +266,11 @@ export const carregarEtapasDisciplina = defineAction(
       prazoPlanejado: dia(disciplina.projeto.prazoPlanejado),
       /** Quem aprova disciplina aprova fase — a tela só mostra o botão para quem pode. */
       podeAprovarFase,
+      /**
+       * Já pagou a disciplina INTEIRA (um modo só): fase não libera pagamento. A tela esconde o
+       * "Aprovar" e explica, em vez de oferecer um botão que o servidor sempre recusaria.
+       */
+      pagaInteira: situacao.modo === "disciplina",
     };
   },
 );
