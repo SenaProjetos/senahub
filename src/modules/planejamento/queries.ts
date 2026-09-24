@@ -10,18 +10,35 @@ import { chaveSemanaIso, diaEstaNaFaixa, minutosDisponiveisNoDia, percentualAloc
 import { montarCalendario, planoDoProjeto, type PlanoDoProjeto } from "@/modules/planejamento/agenda";
 import type { Prisma } from "@/generated/prisma/client";
 import { cargaDaEquipe } from "@/modules/planejamento/recursos-queries";
+import { ehEtapaDeTerceiro, ROTULO_PAPEL } from "@/modules/planejamento/recursos";
 
 type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
-/** Shape mínimo de `EapTarefa` que o mapeador precisa — ambas as queries incluem isto. */
-type EapTarefaComRelacoes = Prisma.EapTarefaGetPayload<{
-  include: {
-    disciplina: { select: { id: true; disciplinaTextoLegado: true; status: true } };
-    predecessoras: { select: { predecessoraId: true; tipo: true; lagDias: true } };
-  };
-}>;
+/**
+ * O `include` de linha que o mapeador precisa — UM só, usado pelas duas queries. Antes cada
+ * uma repetia o seu, e é assim que o DTO do Gantt diverge entre a EAP e o Painel Mestre.
+ */
+const INCLUDE_LINHA = {
+  disciplina: { select: { id: true, disciplinaTextoLegado: true, status: true } },
+  predecessoras: { select: { predecessoraId: true, tipo: true, lagDias: true } },
+  origem: { select: { sigla: true } },
+  // F5: quem está na linha. Principal primeiro — é quem a tela mostra quando cabe um só.
+  atribuicoes: {
+    select: {
+      id: true,
+      userId: true,
+      papel: true,
+      horasPrevistas: true,
+      principal: true,
+      user: { select: { name: true, image: true } },
+    },
+    orderBy: [{ principal: "desc" }, { createdAt: "asc" }],
+  },
+} satisfies Prisma.EapTarefaInclude;
+
+type EapTarefaComRelacoes = Prisma.EapTarefaGetPayload<{ include: typeof INCLUDE_LINHA }>;
 
 /**
  * Mapeador único do DTO de linha da EAP. Existe pra `eapDoProjeto` e
@@ -68,6 +85,24 @@ function mapearTarefaDTO(t: EapTarefaComRelacoes, plano: PlanoDoProjeto | null) 
     folgaTotal: agendada?.folgaTotal ?? 0,
     folgaLivre: agendada?.folgaLivre ?? 0,
     conflitoRestricao: agendada?.conflitoRestricao ?? false,
+    // ── F5: recursos na linha ──
+    /** Linha com filhos — não recebe gente (as horas estão nos filhos). */
+    ehResumo: agendada?.ehResumo ?? false,
+    /** Etapa de terceiro (origem externa): não gera card nem cobra hora. */
+    deTerceiro: ehEtapaDeTerceiro(t.origem?.sigla),
+    /** Horas da linha pelo motor — no resumo, a soma; `null` = alguma folha sem estimativa. */
+    trabalhoHoras: agendada?.trabalhoHoras ?? null,
+    atribuicoes: t.atribuicoes.map((a) => ({
+      id: a.id,
+      /** `null` = perfil (recurso genérico). */
+      userId: a.userId,
+      nome: a.user?.name ?? null,
+      image: a.user?.image ?? null,
+      papel: a.papel,
+      rotuloPapel: ROTULO_PAPEL[a.papel],
+      horas: Number(a.horasPrevistas),
+      principal: a.principal,
+    })),
   };
 }
 
@@ -127,10 +162,7 @@ export async function eapDoProjeto(projetoId: string) {
   const tarefas = await prisma.eapTarefa.findMany({
     where: { projetoId },
     orderBy: { ordem: "asc" },
-    include: {
-      disciplina: { select: { id: true, disciplinaTextoLegado: true, status: true } },
-      predecessoras: { select: { predecessoraId: true, tipo: true, lagDias: true } },
-    },
+    include: INCLUDE_LINHA,
   });
   const disciplinas = await prisma.disciplina.findMany({
     where: { projetoId },
@@ -163,10 +195,7 @@ export async function cronogramaProjetosAtivos() {
       situacao: true,
       eapTarefas: {
         orderBy: { ordem: "asc" },
-        include: {
-          disciplina: { select: { id: true, disciplinaTextoLegado: true, status: true } },
-          predecessoras: { select: { predecessoraId: true, tipo: true, lagDias: true } },
-        },
+        include: INCLUDE_LINHA,
       },
     },
   });
