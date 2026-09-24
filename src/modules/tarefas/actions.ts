@@ -9,6 +9,7 @@ import { notificarMuitos } from "@/lib/notificar";
 import { PRIORIDADES } from "@/modules/tarefas/prioridade";
 import { escopoTarefa } from "@/modules/tarefas/queries";
 import { projetoVisivel } from "@/modules/planejamento/queries";
+import { camposDoCronogramaAlterados, motivoCampoDoCronograma } from "@/modules/tarefas/regras";
 import type { SessionUser } from "@/lib/session";
 
 const base = { modulo: "tarefas", roles: INTERNAL_ROLES } as const;
@@ -149,10 +150,35 @@ export const editarTarefa = defineAction(
     // Item 7: mantém concluidaEm coerente com o status escolhido na edição.
     const [destino, atual, antigosResp, itensAtuais] = await Promise.all([
       prisma.tarefaStatus.findUnique({ where: { id: r.statusId }, select: { concluido: true } }),
-      prisma.tarefa.findUnique({ where: { id }, select: { concluidaEm: true } }),
+      prisma.tarefa.findUnique({
+        where: { id },
+        select: { concluidaEm: true, eapTarefaId: true, titulo: true, prazo: true, projetoId: true, disciplinaId: true },
+      }),
       prisma.tarefaResponsavel.findMany({ where: { tarefaId: id }, select: { userId: true } }),
       prisma.tarefaItem.findMany({ where: { tarefaId: id }, select: { id: true } }),
     ]);
+    // Card que veio do cronograma (F5 — D32): o que a EAP escreve não se edita aqui, senão a
+    // próxima reprogramação desfaria a edição sem ninguém ver. Linha da EAP apagada solta o
+    // card (`eapTarefaId` não tem FK), e aí ele volta a ser editável por inteiro.
+    if (atual?.eapTarefaId && (await prisma.eapTarefa.count({ where: { id: atual.eapTarefaId } })) > 0) {
+      const alterados = camposDoCronogramaAlterados(
+        {
+          titulo: atual.titulo,
+          prazo: atual.prazo ? atual.prazo.toISOString().slice(0, 10) : null,
+          projetoId: atual.projetoId,
+          disciplinaId: atual.disciplinaId,
+          responsaveisIds: antigosResp.map((a) => a.userId),
+        },
+        {
+          titulo: r.titulo,
+          prazo: r.prazo ? r.prazo.slice(0, 10) : null,
+          projetoId: r.projetoId || null,
+          disciplinaId: r.disciplinaId || null,
+          responsaveisIds: r.responsaveisIds,
+        },
+      );
+      if (alterados.length > 0) throw new ActionError(motivoCampoDoCronograma(alterados));
+    }
     const concluidaEm = destino?.concluido ? (atual?.concluidaEm ?? new Date()) : null;
     const disciplinaId = await resolverDisciplina(r.projetoId ?? "", r.disciplinaId ?? "");
 
