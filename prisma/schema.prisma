@@ -2355,23 +2355,46 @@ enum StatusSolicitacao {
 
 /// Abono de faltas via atestado. Supervisor/RH valida.
 model AbonoFalta {
-  id            String            @id @default(cuid())
+  id            String             @id @default(cuid())
   userId        String
-  user          User              @relation("AbonoUser", fields: [userId], references: [id], onDelete: Cascade)
-  dataInicio    DateTime          @db.Date
-  dataFim       DateTime          @db.Date
+  user          User               @relation("AbonoUser", fields: [userId], references: [id], onDelete: Cascade)
+  dataInicio    DateTime           @db.Date
+  dataFim       DateTime           @db.Date
   motivo        String?
   atestadoPath  String?
   atestadoNome  String?
-  status        StatusSolicitacao @default(pendente)
+  /// Por que a pessoa vai/foi ausente. `atestado` = justificativa a posteriori (comportamento original).
+  motivoTipo    MotivoAusencia     @default(atestado)
+  /// Ausência PARCIAL (consulta às 14h–16h): só vale com dataInicio == dataFim. Nulos = dia inteiro.
+  horaInicio    String?
+  horaFim       String?
+  /// Decidido pelo RH ao aprovar: `abonar` = horas não são cobradas; `banco_horas` = ausência justificada,
+  /// mas as horas continuam devidas e saem do banco de horas. Default preserva as aprovações antigas (abonadas).
+  tratamento    TratamentoAusencia @default(abonar)
+  status        StatusSolicitacao  @default(pendente)
   validadoPorId String?
-  validadoPor   User?             @relation("AbonoValidador", fields: [validadoPorId], references: [id])
+  validadoPor   User?              @relation("AbonoValidador", fields: [validadoPorId], references: [id])
   validadoEm    DateTime?
-  createdAt     DateTime          @default(now())
+  createdAt     DateTime           @default(now())
 
   @@index([userId])
   @@index([status])
   @@map("abono_falta")
+}
+
+/// Motivo da ausência avisada/justificada em `AbonoFalta`.
+enum MotivoAusencia {
+  atestado
+  consulta
+  exame
+  compromisso
+  outro
+}
+
+/// Como o RH trata as horas de uma ausência aprovada em `AbonoFalta`.
+enum TratamentoAusencia {
+  abonar
+  banco_horas
 }
 
 /// Solicitação de férias — ou lançamento direto pelo RH (ver `lancadoPorId`).

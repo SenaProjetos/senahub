@@ -5,6 +5,7 @@ import { usuarioOnline } from "@/lib/socket";
 import { espelhoMes } from "@/modules/ponto/queries";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { formatarRegistro } from "@/modules/usuarios/registro";
+import { ehAvisoAntecipado } from "@/modules/rh/ausencia";
 import { camposFaltantes, type EntradaCompletude } from "@/modules/rh/pessoas/completude";
 import { derivarEixos } from "@/modules/usuarios/vinculo/mapa";
 
@@ -301,7 +302,7 @@ export async function solicitacoesDoUsuario(userId: string) {
     prisma.abonoFalta.findMany({
       where: { userId },
       orderBy: { dataInicio: "desc" },
-      select: { id: true, dataInicio: true, dataFim: true, motivo: true, atestadoNome: true, status: true, validadoEm: true, createdAt: true },
+      select: { id: true, dataInicio: true, dataFim: true, motivo: true, motivoTipo: true, tratamento: true, horaInicio: true, horaFim: true, atestadoPath: true, atestadoNome: true, status: true, validadoEm: true, createdAt: true },
     }),
     prisma.ferias.findMany({
       where: { userId },
@@ -312,7 +313,9 @@ export async function solicitacoesDoUsuario(userId: string) {
   return {
     abonos: abonos.map((a) => ({
       id: a.id, dataInicio: ymd(a.dataInicio)!, dataFim: ymd(a.dataFim)!, motivo: a.motivo,
-      atestadoNome: a.atestadoNome, status: a.status, validadoEm: a.validadoEm ? a.validadoEm.toISOString() : null,
+      motivoTipo: a.motivoTipo, tratamento: a.tratamento, horaInicio: a.horaInicio, horaFim: a.horaFim,
+      temAnexo: a.atestadoPath !== null, atestadoNome: a.atestadoNome,
+      antecipado: ehAvisoAntecipado(a.createdAt, a.dataInicio), status: a.status, validadoEm: a.validadoEm ? a.validadoEm.toISOString() : null,
       criadoEm: a.createdAt.toISOString(),
     })),
     ferias: ferias.map((f) => ({

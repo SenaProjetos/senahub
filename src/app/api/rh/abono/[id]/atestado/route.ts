@@ -4,7 +4,17 @@ import { prisma } from "@/lib/prisma";
 import { lerArquivo } from "@/lib/storage";
 import { HR_ADMIN_ROLES } from "@/lib/roles";
 
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+const TIPOS: Record<string, string> = {
+  pdf: "application/pdf",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  gif: "image/gif",
+};
+
+/** `?ver=1` abre no navegador (só PDF/imagem); sem ele — ou para outros formatos — baixa. */
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   const user = session.user;
@@ -26,9 +36,16 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   } catch {
     return NextResponse.json({ error: "Arquivo indisponível." }, { status: 410 });
   }
+  const nome = abono.atestadoNome ?? "atestado";
+  const ext = nome.split(".").pop()?.toLowerCase() ?? "";
+  const tipo = TIPOS[ext];
+  const inline = !!tipo && new URL(req.url).searchParams.get("ver") === "1";
   return new NextResponse(new Uint8Array(conteudo), {
     headers: {
-      "Content-Disposition": `attachment; filename="${encodeURIComponent(abono.atestadoNome ?? "atestado")}"`,
+      "Content-Type": tipo ?? "application/octet-stream",
+      "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(nome)}`,
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "private, no-store",
     },
   });
 }

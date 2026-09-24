@@ -46,6 +46,8 @@ export type EntradaEsperado = {
   teto: string | null;
   /** `false` zera o mês inteiro (contratação sem jornada controlada). */
   controlaJornada: boolean;
+  /** Minutos a abater do esperado por dia ISO (abono parcial aprovado); nunca deixa o dia negativo. */
+  abatimentos?: Readonly<Record<string, number>>;
 };
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -84,7 +86,7 @@ function minutosDoDia(iso: string, e: EntradaEsperado): number {
   if (e.feriados.has(iso) || e.ferias.has(iso)) return 0;
   const grade = e.escala[diaSemanaISO(iso)];
   if (!grade?.ativo) return 0;
-  return Math.round(grade.horasDia * 60);
+  return Math.max(0, Math.round(grade.horasDia * 60) - (e.abatimentos?.[iso] ?? 0));
 }
 
 /**
