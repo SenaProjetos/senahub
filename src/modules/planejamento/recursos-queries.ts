@@ -63,8 +63,18 @@ export type DemandaPerfil = {
   porSemana: Record<string, number>;
 };
 
+/**
+ * Nomes para a tela: as sugestões e sobrecargas carregam IDS (linha, projeto), e "atrasar a
+ * linha cmx3k9…" não diz nada a ninguém. Resolvidos AQUI, uma vez — a tela não busca nome.
+ */
+export type RotulosCarga = {
+  linhas: Record<string, { nome: string; projetoId: string }>;
+  projetos: Record<string, { codigo: string; nome: string }>;
+};
+
 export type CargaDaEquipe = {
   semanas: string[];
+  rotulos: RotulosCarga;
   /** Projetos cuja carga vem das linhas. Os demais vêm da alocação digitada. */
   projetosCalculados: string[];
   pessoas: PessoaCarga[];
@@ -110,6 +120,7 @@ export async function cargaDaEquipe(
         tipoEap: true,
         status: true,
         duracaoDias: true,
+        nome: true,
         inicioReal: true,
         disciplinaId: true,
         disciplina: { select: { disciplinaId: true, catalogo: { select: { nome: true } } } },
@@ -297,8 +308,20 @@ export async function cargaDaEquipe(
     demanda.set(k, d);
   }
 
+  // Rótulos: linhas de projeto aprovado + todo projeto que aparece na carga.
+  const idsProjetos = [...new Set([...aprovados, ...parcelas.map((p) => p.projetoId)])];
+  const projetosDb = await prisma.projeto.findMany({
+    where: { id: { in: idsProjetos } },
+    select: { id: true, codigo: true, nome: true },
+  });
+  const rotulos: RotulosCarga = {
+    linhas: Object.fromEntries(linhasDb.map((l) => [l.id, { nome: l.nome, projetoId: l.projetoId }])),
+    projetos: Object.fromEntries(projetosDb.map((p) => [p.id, { codigo: p.codigo, nome: p.nome }])),
+  };
+
   return {
     semanas,
+    rotulos,
     projetosCalculados: aprovados,
     pessoas: saida,
     sobrecargas: comSugestao,
