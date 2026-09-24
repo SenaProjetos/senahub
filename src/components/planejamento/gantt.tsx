@@ -2,7 +2,6 @@ import { differenceInCalendarDays, addDays, format, startOfMonth, endOfMonth } f
 import { ptBR } from "date-fns/locale";
 import { ListChecks, Flag } from "lucide-react";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
-import { calcularCaminhoCritico } from "@/modules/planejamento/caminho-critico";
 import { EmptyState } from "@/components/ui/empty-state";
 
 export const GANTT_PX_DEFAULT = 18; // pixels por dia
@@ -63,16 +62,11 @@ export function Gantt({
   hoje.setHours(0, 0, 0, 0);
   const hojeOffset = hoje >= inicio && hoje <= fim ? offset(hoje) : null;
 
-  // Caminho crítico (CPM): tarefas com folga 0 ganham destaque na barra.
-  const { criticas } = calcularCaminhoCritico(
-    tarefas.map((t) => ({
-      id: t.id,
-      inicioPrevisto: t.inicioPrevisto,
-      fimPrevisto: t.fimPrevisto,
-      predecessoraIds: t.predecessoraIds,
-    })),
-  );
-  const temCritico = tarefas.some((t) => criticas.has(t.id));
+  // Caminho crítico: vem PRONTO do servidor (F1). Antes era calculado aqui, no cliente,
+  // mas o motor precisa do calendário de trabalho — feriados só existem no banco. Calcular
+  // no cliente voltaria a contar dias corridos e marcaria como crítica a linha errada.
+  const criticas = new Set(tarefas.filter((t) => t.critica).map((t) => t.id));
+  const temCritico = criticas.size > 0;
 
   // Setas de dependência Finish-to-Start: da borda direita do predecessor à borda esquerda da tarefa.
   const taskMeta = new Map(

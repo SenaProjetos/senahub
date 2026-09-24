@@ -17,7 +17,7 @@
  *    quem vende.
  *
  * Puro: sem Prisma, sem relógio (a data de referência entra por parâmetro), sem I/O — mesmo tier
- * de `caminho-critico.ts`, `health.ts` e `encargos.ts`.
+ * de `motor.ts`, `health.ts` e `encargos.ts`.
  */
 
 import { diasAteVencer } from "@/modules/comercial/validade";

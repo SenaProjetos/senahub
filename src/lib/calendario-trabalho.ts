@@ -9,7 +9,7 @@
  *
  * TUDO em `YYYY-MM-DD`, nunca `Date`. Não é preferência de estilo: prazo é dia-calendário
  * (ver `lib/data.ts`), e o único jeito de não errar por fuso é nunca construir um instante.
- * Os outros módulos puros de planejamento (`caminho-critico`, `disponibilidade`) já fazem assim.
+ * Os outros módulos puros de planejamento (`motor`, `disponibilidade`) já fazem assim.
  *
  * DURAÇÃO É INCLUSIVA: uma tarefa de 5 dias que começa na segunda termina na sexta, não no
  * sábado. Marco tem duração 0 e termina no próprio dia de início (Doc 03 §11).

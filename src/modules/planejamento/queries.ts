@@ -7,6 +7,7 @@ import { progressoDoStatus } from "@/modules/projetos/status";
 import { diaLocal, minutosPorDiaSessao } from "@/modules/ponto/engine";
 import { gradesEmLote } from "@/modules/rh/escalas/queries";
 import { chaveSemanaIso, diaEstaNaFaixa, minutosDisponiveisNoDia, percentualAlocadoNoDia } from "@/modules/planejamento/disponibilidade";
+import { planoDoProjeto } from "@/modules/planejamento/agenda";
 
 type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 
@@ -78,6 +79,9 @@ export async function eapDoProjeto(projetoId: string) {
     orderBy: { ordem: "asc" },
     select: { id: true, disciplinaTextoLegado: true },
   });
+  // O motor roda sobre o estado ATUAL do banco e não grava nada: a tela mostra folga e
+  // caminho crítico corretos mesmo antes de alguém clicar em "reagendar".
+  const plano = await planoDoProjeto(projetoId);
   return {
     tarefas: tarefas.map((t) => ({
       id: t.id,
@@ -97,6 +101,12 @@ export async function eapDoProjeto(projetoId: string) {
       // `marco` é DERIVADO de tipoEap (F0): a natureza da linha vive no TEAP, não
       // num booleano paralelo. O contrato da UI segue o mesmo, como `progressoDerivado`.
       marco: t.tipoEap === "mrc",
+      // Criticidade e folga vêm do MOTOR, não do cliente: calcular no navegador voltaria
+      // a contar dias corridos, porque o feriado só existe no banco.
+      critica: plano?.resultado.criticas.has(t.id) ?? false,
+      folgaTotal: plano?.resultado.linhas.get(t.id)?.folgaTotal ?? 0,
+      folgaLivre: plano?.resultado.linhas.get(t.id)?.folgaLivre ?? 0,
+      conflitoRestricao: plano?.resultado.linhas.get(t.id)?.conflitoRestricao ?? false,
     })),
     // Volta a se chamar `nome` na fronteira da UI (`EapWorkspace` fala "nome"): a F1.19c
     // renomeou a coluna no schema, não o rótulo exibido.
@@ -126,6 +136,13 @@ export async function cronogramaProjetosAtivos() {
       },
     },
   });
+  // Um motor por projeto: o calendário é o mesmo, mas a âncora e o grafo não. Rodar em
+  // paralelo mantém a tela consolidada no mesmo custo de antes.
+  const planos = new Map(
+    await Promise.all(
+      projetos.map(async (p) => [p.id, await planoDoProjeto(p.id)] as const),
+    ),
+  );
   return projetos.map((p) => ({
     id: p.id,
     codigo: p.codigo,
@@ -149,6 +166,10 @@ export async function cronogramaProjetosAtivos() {
       // `marco` é DERIVADO de tipoEap (F0): a natureza da linha vive no TEAP, não
       // num booleano paralelo. O contrato da UI segue o mesmo, como `progressoDerivado`.
       marco: t.tipoEap === "mrc",
+      critica: planos.get(p.id)?.resultado.criticas.has(t.id) ?? false,
+      folgaTotal: planos.get(p.id)?.resultado.linhas.get(t.id)?.folgaTotal ?? 0,
+      folgaLivre: planos.get(p.id)?.resultado.linhas.get(t.id)?.folgaLivre ?? 0,
+      conflitoRestricao: planos.get(p.id)?.resultado.linhas.get(t.id)?.conflitoRestricao ?? false,
     })),
   }));
 }

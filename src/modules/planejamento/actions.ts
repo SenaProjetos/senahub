@@ -5,7 +5,7 @@ import { z } from "zod";
 import { addDays } from "date-fns";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { reagendarPorDependencias } from "@/modules/planejamento/caminho-critico";
+import { reagendarProjeto } from "@/modules/planejamento/agenda";
 import { faixaTemPeriodoValido, haConflitoDeFaixa } from "@/modules/planejamento/alocacao-faixas";
 
 const plan = { modulo: "planejamento", recurso: "planejamento", permissao: "gerir" } as const;
@@ -314,44 +314,21 @@ export const gerarEapDasDisciplinas = defineAction(
 );
 
 /**
- * P-34: reagenda as tarefas pelas dependências FS (forward pass do CPM), preservando
- * a duração de cada uma. Não-destrutivo: só altera as que mudam de data.
+ * Reagenda o projeto inteiro pelo motor: duração + calendário + dependências geram as
+ * datas (F1). Substituiu o forward-pass antigo, que deduzia duração das datas digitadas
+ * e contava dias corridos, sem feriado.
+ *
+ * Não-destrutivo: só grava a linha que mudou de data ou de posição na EAP.
  */
 export const reagendarPlano = defineAction(
   { ...plan, acao: "reagendar-plano", entidade: "EapTarefa", schema: projetoIdSchema },
-  async (i) => {
-    const tarefas = await prisma.eapTarefa.findMany({
-      where: { projetoId: i.projetoId },
-      select: {
-        id: true,
-        inicioPrevisto: true,
-        fimPrevisto: true,
-        predecessoras: { select: { predecessoraId: true } },
-      },
-    });
-    if (tarefas.length === 0) throw new ActionError("Sem tarefas para reagendar.");
+  async (i, ctx) => {
+    const total = await prisma.eapTarefa.count({ where: { projetoId: i.projetoId } });
+    if (total === 0) throw new ActionError("Sem tarefas para reagendar.");
 
-    const iso = (d: Date) => d.toISOString().slice(0, 10);
-    const mudancas = reagendarPorDependencias(
-      tarefas.map((t) => ({
-        id: t.id,
-        inicioPrevisto: iso(t.inicioPrevisto),
-        fimPrevisto: iso(t.fimPrevisto),
-        predecessoraIds: t.predecessoras.map((p) => p.predecessoraId),
-      })),
-    );
-    if (mudancas.size > 0) {
-      await prisma.$transaction(
-        [...mudancas.entries()].map(([id, d]) =>
-          prisma.eapTarefa.update({
-            where: { id },
-            data: { inicioPrevisto: new Date(d.inicioPrevisto), fimPrevisto: new Date(d.fimPrevisto) },
-          }),
-        ),
-      );
-      revProjeto(i.projetoId);
-    }
-    return { reagendadas: mudancas.size };
+    const r = await reagendarProjeto(i.projetoId, ctx.user.id);
+    if (r.reagendadas > 0 || r.codigosAtualizados > 0) revProjeto(i.projetoId);
+    return r;
   },
 );
 

@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
  *
  * Escrito conferindo cada afirmação contra o código, não contra o manual (ADR-001):
  * `modules/projetos/{status,health,atraso,prontidao,estrutura-tipo,abas,visao-geral}.ts`,
- * `modules/planejamento/caminho-critico.ts` e o `projeto-visao-geral.tsx`. As divergências
+ * `modules/planejamento/motor.ts` e o `projeto-visao-geral.tsx`. As divergências
  * encontradas estão na §12 do plano.
  *
  * Começa exatamente onde o guia do Comercial termina: o projeto nasce do aceite da proposta.

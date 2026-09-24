@@ -6,7 +6,8 @@
  * (o `Decimal` do Prisma é convertido na fronteira — `Decimal` em conta de motor vira
  * string concatenada sem ninguém notar).
  *
- * INVERTE O CPM ANTIGO. `caminho-critico.ts` deduz a DURAÇÃO das datas digitadas e conta
+ * INVERTE O CPM ANTIGO (`caminho-critico.ts`, removido nesta fase): ele deduzia a DURAÇÃO
+ * das datas digitadas e contava
  * dias corridos; aqui a duração + o calendário + as dependências GERAM as datas. É
  * substituição, não evolução — as duas coisas não podem coexistir sem o cronograma passar
  * a ter duas respostas para "quando isso termina".
