@@ -120,8 +120,8 @@ export function EapWorkspace({
       const limite = somarDias(hoje(), lookahead);
       base = base.filter((t) => t.inicioPrevisto <= limite && t.fimPrevisto >= hoje());
     }
-    // "Minhas atividades": aproximação por disciplina responsável não está disponível na
-    // EAP ainda (o responsável por linha chega na F5) — por ora fica reservado, sem filtrar.
+    // "Minhas atividades": o dado existe desde a F5 (`atribuicoes` por linha), mas o filtro
+    // precisa do usuário logado na tela e ninguém pediu — o projetista nem vê a EAP (Q14).
     return base;
   }, [tarefas, filtro, lookahead]);
 
@@ -541,8 +541,12 @@ export function EapWorkspace({
                             size="icon-sm"
                             variant="ghost"
                             aria-label="Gerar tarefa no kanban"
-                            title="Gerar tarefa no kanban"
-                            disabled={pending}
+                            title={
+                              cronograma.aprovado
+                                ? "Gerar o card desta linha no kanban (nasce sozinho na aprovação, para atividade da equipe com gente escalada)"
+                                : "O card nasce quando o cronograma é aprovado — rascunho não gera card"
+                            }
+                            disabled={pending || !cronograma.aprovado}
                             onClick={(e) => {
                               e.stopPropagation();
                               gerarTarefa(t.id);
