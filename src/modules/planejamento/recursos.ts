@@ -110,6 +110,19 @@ export function horasDaLinha(
   return soma > 0 ? soma : null;
 }
 
+/**
+ * Pessoas com zero hora numa linha que deveria ter hora — o que o verificador acusa
+ * (`atribuicao_sem_horas`). Etapa de terceiro e linha encerrada não entram: zero é a
+ * resposta certa numa, e já não importa na outra. Perfil também não: é vaga, não pessoa.
+ */
+export function pessoasSemHoras(
+  l: LinhaForma & { deTerceiro: boolean; status: StatusLinha },
+  atribuicoes: readonly { userId: string | null; horas: number }[],
+): number {
+  if (!linhaAceitaHoras(l) || l.deTerceiro || ENCERRADA.has(l.status)) return 0;
+  return atribuicoes.filter((a) => a.userId != null && !(a.horas > 0)).length;
+}
+
 // ─────────────────────────────────────────────────────────────
 // Responsável principal (D41)
 // ─────────────────────────────────────────────────────────────

@@ -15,6 +15,7 @@ import {
 import { faixaTemPeriodoValido, haConflitoDeFaixa } from "@/modules/planejamento/alocacao-faixas";
 import { sincronizarPrazoDisciplina } from "@/modules/projetos/etapas-service";
 import { planejarAplicacao } from "@/modules/planejamento/aplicacao";
+import { herdarResponsaveisNoProjeto, sincronizarCards } from "@/modules/planejamento/recursos-service";
 
 const plan = { modulo: "planejamento", recurso: "planejamento", permissao: "gerir" } as const;
 const rec = { modulo: "recursos", recurso: "recursos", permissao: "gerir" } as const;
@@ -130,11 +131,13 @@ const restricaoSchema = z.object({
 const gerarTarefaSchema = z.object({ eapTarefaId: z.string().min(1) });
 
 /**
- * Ponte EAP → Kanban (one-way). Gera uma Tarefa operacional a partir de uma etapa
- * do cronograma. Mapeamento: nome→titulo, projetoId→projetoId, fimPrevisto→prazo;
- * status = primeira coluna do Kanban (menor ordem, ativa); criador = usuário atual.
- * Não copia dependências nem responsáveis. Idempotente (P-32): se já existe uma
- * Tarefa gerada desta EapTarefa, devolve-a em vez de criar outra.
+ * Ponte EAP → card do projetista, sob demanda. Desde a F5 o card nasce SOZINHO quando o
+ * cronograma é aprovado (e acompanha cada reprogramação — `sincronizarCards`); este botão só
+ * força a sincronização para a linha e devolve o card dela.
+ *
+ * Recusa em rascunho (D14): card de cronograma não aprovado mostraria ao projetista um
+ * prazo que ninguém combinou. E recusa linha que não gera card (D24), dizendo por quê —
+ * antes o botão criava card para qualquer linha, sem responsável, até para marco.
  */
 export const gerarTarefaDeEap = defineAction(
   { ...plan, acao: "gerar-tarefa-eap", entidade: "Tarefa", schema: gerarTarefaSchema },
@@ -147,31 +150,22 @@ export const gerarTarefaDeEap = defineAction(
 
     const eap = await prisma.eapTarefa.findUnique({
       where: { id: i.eapTarefaId },
-      select: { nome: true, projetoId: true, disciplinaId: true, fimPrevisto: true },
+      select: { projetoId: true, projeto: { select: { cronograma: { select: { aprovado: true } } } } },
     });
     if (!eap) throw new ActionError("Etapa da EAP não encontrada.");
+    if (!eap.projeto.cronograma?.aprovado) {
+      throw new ActionError("O card nasce quando o cronograma é aprovado — rascunho não gera card.");
+    }
 
-    const primeira = await prisma.tarefaStatus.findFirst({
-      where: { ativo: true },
-      orderBy: { ordem: "asc" },
-      select: { id: true },
-    });
-    if (!primeira) throw new ActionError("Nenhuma coluna de tarefas configurada.");
-
-    const t = await prisma.tarefa.create({
-      data: {
-        titulo: eap.nome,
-        descricao: "Gerada do planejamento (EAP)",
-        statusId: primeira.id,
-        prazo: eap.fimPrevisto,
-        projetoId: eap.projetoId,
-        disciplinaId: eap.disciplinaId,
-        criadorId: user.id,
-        eapTarefaId: i.eapTarefaId,
-      },
-    });
+    await sincronizarCards(prisma, eap.projetoId, user.id);
+    const card = await prisma.tarefa.findUnique({ where: { eapTarefaId: i.eapTarefaId }, select: { id: true } });
+    if (!card) {
+      throw new ActionError(
+        "Esta linha não gera card: precisa ser uma atividade da equipe (não marco nem etapa de terceiro), com alguém escalado, e ainda não concluída.",
+      );
+    }
     revalidatePath("/tarefas");
-    return { id: t.id, jaExistia: false };
+    return { id: card.id, jaExistia: false };
   },
 );
 
@@ -198,6 +192,8 @@ export const criarEapTarefa = defineAction(
         ordem: (max._max.ordem ?? -1) + 1,
       },
     });
+    // D22: o responsável da disciplina desce para a linha nova.
+    await herdarResponsaveisNoProjeto(prisma, i.projetoId, [t.id]);
     await rollupPai(t.id);
     revProjeto(i.projetoId);
     return { id: t.id };
@@ -207,6 +203,14 @@ export const criarEapTarefa = defineAction(
 export const editarEapTarefa = defineAction(
   { ...plan, acao: "editar-eap", entidade: "EapTarefa", schema: editarSchema },
   async (i) => {
+    if (i.marco) {
+      // Marco não tem dia para espalhar hora: as horas ficariam gravadas e fora de toda
+      // conta — carga, custo e rollup — sem ninguém ver.
+      const comHoras = await prisma.eapAtribuicao.count({ where: { tarefaId: i.id, horasPrevistas: { gt: 0 } } });
+      if (comHoras > 0) {
+        throw new ActionError("Esta linha tem horas previstas. Zere as horas das pessoas antes de transformá-la em marco.");
+      }
+    }
     const t = await prisma.eapTarefa.update({
       where: { id: i.id },
       data: {
@@ -220,6 +224,9 @@ export const editarEapTarefa = defineAction(
       },
       select: { projetoId: true },
     });
+    // Linha que ganhou disciplina agora e ainda não tem ninguém recebe o responsável dela
+    // (D22). Linha que já tem gente não é tocada.
+    await herdarResponsaveisNoProjeto(prisma, t.projetoId, [i.id]);
     await rollupPai(i.id);
     revProjeto(t.projetoId);
     return { id: i.id };
@@ -328,7 +335,7 @@ export const gerarEapDasDisciplinas = defineAction(
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     let ordem = (maxOrdem._max.ordem ?? -1) + 1;
-    await prisma.$transaction(
+    const criadas = await prisma.$transaction(
       novas.map((d) => {
         const fim =
           d.prazo && d.prazo > hoje
@@ -345,9 +352,11 @@ export const gerarEapDasDisciplinas = defineAction(
             fimPrevisto: fim,
             ordem: ordem++,
           },
+          select: { id: true },
         });
       }),
     );
+    await herdarResponsaveisNoProjeto(prisma, i.projetoId, criadas.map((c) => c.id));
     revProjeto(i.projetoId);
     return { criadas: novas.length };
   },

@@ -42,6 +42,7 @@ import { etapaQueDefineOPrazo } from "@/modules/projetos/etapas";
 import { sincronizarPrazoDisciplina } from "@/modules/projetos/etapas-service";
 import { semearPastasTemplate, projetoUsaTemplate } from "@/modules/projetos/pastas/seed";
 import { sincronizarPagamentosPorDisciplinaId } from "@/modules/uploads/pagamento";
+import { herdarResponsaveisNoProjeto } from "@/modules/planejamento/recursos-service";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { chaveLayoutPainelProjeto } from "@/modules/projetos/painel-layout";
 import { deveDeslocarPrazoDoProjeto } from "@/modules/projetos/prazo-reabertura";
@@ -748,6 +749,9 @@ export const duplicarProjeto = defineAction(
           }
         }
         if (deps.length > 0) await tx.eapDependencia.createMany({ data: deps, skipDuplicates: true });
+        // D22: as linhas copiadas recebem os responsáveis das disciplinas DO CLONE (as
+        // atribuições da origem não vêm junto — a equipe do projeto novo é outra decisão).
+        await herdarResponsaveisNoProjeto(tx, criado.id);
       }
 
       if (input.copiarComposicao && origem.composicaoPreco) {

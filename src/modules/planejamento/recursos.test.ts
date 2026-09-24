@@ -15,6 +15,7 @@ import {
   linhaGeraCard,
   parcelasDaAlocacaoDigitada,
   parcelasDasLinhas,
+  pessoasSemHoras,
   somarCarga,
   type LinhaCarga,
   type PessoaCapacidade,
@@ -86,6 +87,27 @@ describe("horasDaLinha — o que o motor pondera", () => {
   it("marco e resumo devolvem undefined: o motor decide", () => {
     expect(horasDaLinha({ ...atv, tipoEap: "mrc", duracaoDias: 0 }, [{ horas: 3 }])).toBeUndefined();
     expect(horasDaLinha({ ...atv, ehResumo: true }, [{ horas: 3 }])).toBeUndefined();
+  });
+});
+
+describe("pessoasSemHoras — o que o verificador acusa", () => {
+  const atv = { tipoEap: "atv" as const, ehResumo: false, duracaoDias: 5, deTerceiro: false, status: "nin" as const };
+
+  it("conta PESSOAS com zero hora; perfil sem hora é vaga, não conta", () => {
+    expect(
+      pessoasSemHoras(atv, [
+        { userId: "maria", horas: 0 },
+        { userId: "joao", horas: 8 },
+        { userId: null, horas: 0 },
+      ]),
+    ).toBe(1);
+  });
+
+  it("terceiro, encerrada e marco não cobram hora", () => {
+    const zero = [{ userId: "maria", horas: 0 }];
+    expect(pessoasSemHoras({ ...atv, deTerceiro: true }, zero)).toBe(0);
+    expect(pessoasSemHoras({ ...atv, status: "con" }, zero)).toBe(0);
+    expect(pessoasSemHoras({ ...atv, tipoEap: "mrc", duracaoDias: 0 }, zero)).toBe(0);
   });
 });
 

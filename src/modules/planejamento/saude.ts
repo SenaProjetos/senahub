@@ -46,6 +46,11 @@ const PESO: Record<RegraQualidade, number> = {
   // afetam a leitura de TODO o resto.
   excesso_de_restricoes: 8,
   sem_data_status: 15,
+  // F5 — peso ZERO de propósito (e severidade `info`): entram na lista do verificador mas não
+  // na nota. Só ganham peso quando a metodologia sair do provisório (D42) e a equipe já
+  // tiver tido tempo de estimar as horas.
+  atribuicao_sem_horas: 0,
+  atribuicao_em_resumo: 0,
 };
 
 /**

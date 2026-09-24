@@ -10,6 +10,8 @@ import {
   type LinhaQualidade,
 } from "./qualidade";
 import { calcularSaude, principalCausa, type ResultadoSaude } from "./saude";
+import { ehEtapaDeTerceiro, pessoasSemHoras } from "./recursos";
+import { sincronizarCards } from "./recursos-service";
 
 /**
  * Regras de negócio do cronograma, compartilhadas por `actions.ts` e pelos jobs.
@@ -20,9 +22,13 @@ import { calcularSaude, principalCausa, type ResultadoSaude } from "./saude";
  */
 
 /**
- * `temResponsavel` da F2 vem HERDADO da disciplina (D22): a linha ainda não tem responsável
- * próprio, isso chega na F5 junto com horas e papéis. Até lá, cobrar responsável de uma
- * linha cuja disciplina tem responsável seria acusar um problema que não existe.
+ * `temResponsavel` lê as ATRIBUIÇÕES da linha (F5): tem pessoa, tem responsável. Perfil não
+ * conta — "Projetista Elétrico" sem ninguém escalado é vaga, não responsável (Doc 02 §30).
+ *
+ * Até a F5 a linha herdava a leitura da disciplina. A herança agora é um DADO gravado
+ * (D22 — o responsável da disciplina desce como atribuição), e o script
+ * `herdar-responsaveis-eap` faz isso para as linhas que já existiam. Sem ele rodado no
+ * deploy, toda linha antiga apareceria sem responsável.
  */
 export async function avaliarQualidade(projetoId: string): Promise<{
   achados: Achado[];
@@ -48,7 +54,8 @@ export async function avaliarQualidade(projetoId: string): Promise<{
         inicioReal: true,
         fimReal: true,
         restricaoTipo: true,
-        disciplina: { select: { responsaveis: { select: { id: true }, take: 1 } } },
+        origem: { select: { sigla: true } },
+        atribuicoes: { select: { userId: true, horasPrevistas: true } },
         _count: { select: { predecessoras: true, sucessoras: true } },
       },
     }),
@@ -73,7 +80,18 @@ export async function avaliarQualidade(projetoId: string): Promise<{
       fimPrevisto: agendada?.fim ?? paraDia(t.fimPrevisto),
       inicioReal: t.inicioReal ? paraDia(t.inicioReal) : null,
       fimReal: t.fimReal ? paraDia(t.fimReal) : null,
-      temResponsavel: (t.disciplina?.responsaveis.length ?? 0) > 0,
+      temResponsavel: t.atribuicoes.some((a) => a.userId != null),
+      pessoasSemHoras: pessoasSemHoras(
+        {
+          tipoEap: t.tipoEap,
+          ehResumo: agendada?.ehResumo ?? false,
+          duracaoDias: Number(t.duracaoDias),
+          deTerceiro: ehEtapaDeTerceiro(t.origem?.sigla),
+          status: t.status,
+        },
+        t.atribuicoes.map((a) => ({ userId: a.userId, horas: Number(a.horasPrevistas) })),
+      ),
+      temAtribuicao: t.atribuicoes.length > 0,
       temRestricao: t.restricaoTipo != null,
       temPredecessora: t._count.predecessoras > 0,
       temSucessora: t._count.sucessoras > 0,
@@ -154,6 +172,9 @@ export async function congelarBaseline(
             inicio: paraDataUtc(a.inicio),
             fim: paraDataUtc(a.fim),
             duracaoDias: a.duracaoDias,
+            // Horas combinadas (D23): o "trabalho da linha de base" do MS Project, que o Valor
+            // Agregado (F8) lê. `null` quando a linha não estava estimada ao congelar.
+            trabalhoHoras: a.trabalhoHoras,
             avancoPlanejado: a.progresso,
           },
         ];
@@ -186,7 +207,7 @@ export async function congelarBaseline(
 export async function aprovarCronograma(
   projetoId: string,
   autorId: string,
-): Promise<ResultadoAprovacao & { avisos: number }> {
+): Promise<ResultadoAprovacao & { avisos: number; cardsCriados: number }> {
   const cronograma = await prisma.cronogramaProjeto.findUnique({
     where: { projetoId },
     select: { aprovado: true, inicioProjeto: true },
@@ -210,7 +231,9 @@ export async function aprovarCronograma(
     where: { projetoId },
     data: { aprovado: true, aprovadoEm: new Date(), aprovadoPorId: autorId },
   });
-  return { ...r, avisos: alerta };
+  // Aprovado, a EAP passa a criar os cards de quem está escalado (D14/D24).
+  const cards = await sincronizarCards(prisma, projetoId, autorId);
+  return { ...r, avisos: alerta, cardsCriados: cards.criados };
 }
 
 /**

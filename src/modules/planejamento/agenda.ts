@@ -5,6 +5,8 @@ import { criarCalendario, type Calendario, type Dia } from "@/lib/calendario-tra
 import { feriadosParaCalculo } from "@/modules/rh/feriados/queries";
 import { agendar, type LinhaEntrada, type ResultadoMotor } from "./motor";
 import { calcularCodigos, diferencaDeCodigos } from "./codigo-eap";
+import { ehEtapaDeTerceiro, horasDaLinha } from "./recursos";
+import { sincronizarCards } from "./recursos-service";
 
 /**
  * Adaptador entre o motor puro e o banco.
@@ -83,11 +85,14 @@ export async function planoDoProjeto(projetoId: string): Promise<PlanoDoProjeto 
       select: {
         id: true,
         parentId: true,
+        tipoEap: true,
         duracaoDias: true,
         progresso: true,
         inicioPrevisto: true,
         restricaoTipo: true,
         restricaoData: true,
+        origem: { select: { sigla: true } },
+        atribuicoes: { select: { horasPrevistas: true } },
         predecessoras: { select: { predecessoraId: true, tipo: true, lagDias: true } },
       },
     }),
@@ -98,11 +103,23 @@ export async function planoDoProjeto(projetoId: string): Promise<PlanoDoProjeto 
   ]);
   if (tarefas.length === 0) return null;
 
+  const comFilhos = new Set(tarefas.map((t) => t.parentId).filter((p): p is string => p != null));
   const linhas: LinhaEntrada[] = tarefas.map((t) => ({
     id: t.id,
     parentId: t.parentId,
     duracaoDias: num(t.duracaoDias, 1),
     progresso: t.progresso,
+    // Peso do rollup (D26). `null` = linha ainda não estimada — o motor volta a pesar por
+    // duração em vez de dar peso zero a ela (ver `aplicarProgresso`).
+    trabalhoHoras: horasDaLinha(
+      {
+        tipoEap: t.tipoEap,
+        ehResumo: comFilhos.has(t.id),
+        duracaoDias: num(t.duracaoDias, 1),
+        deTerceiro: ehEtapaDeTerceiro(t.origem?.sigla),
+      },
+      t.atribuicoes.map((a) => ({ horas: num(a.horasPrevistas, 0) })),
+    ),
     restricaoTipo: t.restricaoTipo,
     restricaoData: t.restricaoData ? paraDia(t.restricaoData) : null,
     predecessoras: t.predecessoras.map((p) => ({
@@ -217,6 +234,15 @@ export async function reagendarProjeto(
       ),
     ]);
   }
+
+  // Cronograma aprovado: o prazo do card acompanha a linha (D32). O card precisa de um
+  // criador; sem quem disparou, fica quem aprovou o cronograma.
+  const cronograma = await prisma.cronogramaProjeto.findUnique({
+    where: { projetoId },
+    select: { aprovado: true, aprovadoPorId: true },
+  });
+  const autorCards = autorId ?? cronograma?.aprovadoPorId ?? null;
+  if (cronograma?.aprovado && autorCards) await sincronizarCards(prisma, projetoId, autorCards);
 
   const conflitos = [...plano.resultado.linhas.values()].filter((l) => l.conflitoRestricao).length;
   return {

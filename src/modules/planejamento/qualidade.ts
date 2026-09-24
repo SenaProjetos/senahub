@@ -34,7 +34,11 @@ export type RegraQualidade =
   | "iniciada_sem_inicio_real"
   | "futura_com_avanco"
   | "excesso_de_restricoes"
-  | "sem_data_status";
+  | "sem_data_status"
+  // F5 — acrescentadas no FIM, como toda regra nova: a chave é referenciada pela Saúde e pelos
+  // filtros da tela.
+  | "atribuicao_sem_horas"
+  | "atribuicao_em_resumo";
 
 export type Achado = {
   regra: RegraQualidade;
@@ -56,7 +60,15 @@ export type LinhaQualidade = {
   fimPrevisto: Dia;
   inicioReal: Dia | null;
   fimReal: Dia | null;
+  /** Tem PESSOA atribuída (perfil não conta: é vaga, não responsável — Doc 02 §30). */
   temResponsavel: boolean;
+  /**
+   * Pessoas nesta linha com zero hora, em atividade da casa que aceita hora (F5). Zero hora
+   * é carga zero, custo zero e nenhum alerta de sobrecarga — a falta que não aparece.
+   */
+  pessoasSemHoras?: number;
+  /** Linha que virou resumo e ainda carrega atribuições — as horas dela não contam em lugar nenhum. */
+  temAtribuicao?: boolean;
   temRestricao: boolean;
   temPredecessora: boolean;
   temSucessora: boolean;
@@ -133,6 +145,18 @@ export function verificarCronograma(entrada: EntradaQualidade): Achado[] {
 
   for (const l of linhas) {
     // ── Regras que valem para QUALQUER linha ──────────────────────────────
+    // INFO, não alerta: nenhuma das duas entra na nota nem na contagem de alertas da foto
+    // diária de Saúde. Entraram com a F5, e contar desde o primeiro dia derrubaria a nota de
+    // todo projeto no dia do deploy por algo que a equipe ainda não tinha como preencher.
+    if (l.ehResumo && l.temAtribuicao) {
+      add(
+        "atribuicao_em_resumo",
+        "info",
+        l.id,
+        `"${l.nome}" virou agrupamento e ainda tem pessoas atribuídas — as horas delas não contam. Passe-as para as atividades dentro dela.`,
+      );
+    }
+
     if (l.tipoEap === "mrc" && l.duracaoDias !== 0) {
       add("marco_com_duracao", "erro", l.id, `"${l.nome}" é marco mas tem duração ${l.duracaoDias}. Marco tem duração 0.`);
     }
@@ -164,6 +188,17 @@ export function verificarCronograma(entrada: EntradaQualidade): Achado[] {
 
     if (!l.temResponsavel) {
       add("sem_responsavel", "alerta", l.id, `"${l.nome}" não tem responsável.`);
+    }
+
+    if ((l.pessoasSemHoras ?? 0) > 0) {
+      add(
+        "atribuicao_sem_horas",
+        "info",
+        l.id,
+        l.pessoasSemHoras === 1
+          ? `"${l.nome}" tem uma pessoa sem horas previstas.`
+          : `"${l.nome}" tem ${l.pessoasSemHoras} pessoas sem horas previstas.`,
+      );
     }
 
     if (l.tipoEap === "atv" && l.duracaoDias <= 0) {
