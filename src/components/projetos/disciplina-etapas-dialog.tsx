@@ -11,6 +11,7 @@ import {
 } from "@/modules/projetos/etapas-actions";
 import {
   percentualQueFalta,
+  prazoEtapaValido,
   validarPercentuais,
   type EtapaParaTela,
 } from "@/modules/projetos/etapas";
@@ -136,15 +137,20 @@ function EditorEtapas({
   const router = useRouter();
   const confirm = useConfirm();
   const [pending, start] = useTransition();
+  // Remonta as linhas a cada recarga: o campo guarda o que se digita em estado local, e só a
+  // remontagem traz de volta o que o banco de fato gravou — depois de uma recusa (o campo
+  // mostraria o valor recusado) ou do arredondamento do Decimal(5,2).
+  const [versao, setVersao] = useState(0);
 
   const usadas = new Set(dados.etapas.map((e) => e.etapaId));
   const livres = dados.fases.filter((f) => !usadas.has(f.id));
   const somaOk = validarPercentuais(dados.etapas);
 
-  /** Recarrega depois de gravar: o prazo consolidado e a ordem vêm do servidor. */
+  /** Recarrega depois de gravar — ou de falhar: o prazo consolidado e a ordem vêm do servidor. */
   async function recarregar() {
     const r = await carregarEtapasDisciplina({ disciplinaId });
     if (r.ok) setDados(r.data);
+    setVersao((v) => v + 1);
     router.refresh();
   }
 
@@ -158,8 +164,8 @@ function EditorEtapas({
         percentual: prox.percentual,
         status: prox.status,
       });
-      if (r.ok) await recarregar();
-      else toast.error(r.error);
+      if (!r.ok) toast.error(r.error);
+      await recarregar();
     });
   }
 
@@ -172,8 +178,8 @@ function EditorEtapas({
         // Pré-preenche o que falta para fechar 100%, em vez de a etapa nascer 0% parecendo válida.
         percentual: percentualQueFalta(dados.etapas),
       });
-      if (r.ok) await recarregar();
-      else toast.error(r.error);
+      if (!r.ok) toast.error(r.error);
+      await recarregar();
     });
   }
 
@@ -189,8 +195,8 @@ function EditorEtapas({
     if (!ok) return;
     start(async () => {
       const r = await excluirEtapaDisciplina({ id: e.id });
-      if (r.ok) await recarregar();
-      else toast.error(r.error);
+      if (!r.ok) toast.error(r.error);
+      await recarregar();
     });
   }
 
@@ -216,7 +222,7 @@ function EditorEtapas({
             <tbody className="divide-y">
               {dados.etapas.map((e) => (
                 <LinhaEtapa
-                  key={e.id}
+                  key={`${e.id}:${versao}`}
                   etapa={e}
                   valor={valor}
                   prazoPlanejado={dados.prazoPlanejado}
@@ -283,9 +289,32 @@ function LinhaEtapa({
   onSalvar: (patch: Partial<Pick<EtapaParaTela, "prazo" | "percentual" | "status">>) => void;
   onExcluir: () => void;
 }) {
-  // Percentual editado localmente e gravado ao sair do campo — gravar a cada tecla dispararia
-  // uma action (e um registro de auditoria) por dígito.
+  // Prazo e percentual editados localmente e gravados ao sair do campo (ou Enter). Gravar a
+  // cada tecla dispararia uma action — e um registro de auditoria — por dígito; no campo de
+  // data, pior: apagar um segmento com Backspace já esvazia o valor, e gravar isso zeraria o
+  // prazo da etapa e rebaixaria o da disciplina no meio da digitação.
+  const [data, setData] = useState(etapa.prazo ?? "");
   const [pct, setPct] = useState(String(etapa.percentual));
+
+  function gravarData(input: HTMLInputElement) {
+    if (data === (etapa.prazo ?? "")) return;
+    if (data === "") {
+      // Vazio com segmento pela metade (`badInput`) é digitação interrompida, não pedido de
+      // limpar: volta ao prazo salvo. Vazio de verdade — todos os segmentos apagados — limpa.
+      if (input.validity.badInput) setData(etapa.prazo ?? "");
+      else onSalvar({ prazo: null });
+      return;
+    }
+    if (prazoEtapaValido(data)) onSalvar({ prazo: data });
+    else {
+      toast.error("Data do prazo inválida.");
+      setData(etapa.prazo ?? "");
+    }
+  }
+
+  const enterGrava = (ev: React.KeyboardEvent<HTMLInputElement>) => {
+    if (ev.key === "Enter") ev.currentTarget.blur();
+  };
 
   return (
     <tr>
@@ -296,9 +325,11 @@ function LinhaEtapa({
       <td className="px-3 py-2">
         <Input
           type="date"
-          value={etapa.prazo ?? ""}
+          value={data}
           max={prazoPlanejado ?? undefined}
-          onChange={(ev) => onSalvar({ prazo: ev.target.value || null })}
+          onChange={(ev) => setData(ev.target.value)}
+          onBlur={(ev) => gravarData(ev.currentTarget)}
+          onKeyDown={enterGrava}
           disabled={pending}
           className="h-8 w-36 text-xs"
         />
@@ -309,6 +340,7 @@ function LinhaEtapa({
         ) : (
           <Select
             value={etapa.status}
+            disabled={pending}
             onValueChange={(v) => v && v !== etapa.status && onSalvar({ status: v as EtapaParaTela["status"] })}
           >
             <SelectTrigger className="h-8 w-36 text-xs">
@@ -335,7 +367,9 @@ function LinhaEtapa({
           onBlur={() => {
             const n = Number(pct.replace(",", "."));
             if (Number.isFinite(n) && n !== etapa.percentual) onSalvar({ percentual: n });
+            else setPct(String(etapa.percentual));
           }}
+          onKeyDown={enterGrava}
           disabled={pending}
           className="h-8 w-20 text-xs"
         />

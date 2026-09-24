@@ -30,6 +30,24 @@ function rotuloPercentual(p: number): string {
 }
 
 /**
+ * `YYYY-MM-DD` que é um dia de verdade, num ano plausível para prazo de projeto.
+ *
+ * Existe porque o campo de data nativo do navegador, digitado dígito a dígito, passa por
+ * valores intermediários válidos para o formato ("0002-10-12" enquanto se digita o ano), e
+ * `Date.UTC` não recusa mês 13 nem 30 de fevereiro — rola para o mês seguinte em silêncio. Um
+ * prazo desses consolidaria como o prazo da disciplina. A faixa 2000–2099 não é regra de
+ * negócio: é o corte que separa digitação incompleta de data real.
+ */
+export function prazoEtapaValido(s: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return false;
+  const [ano, mes, dia] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  if (ano < 2000 || ano > 2099) return false;
+  const d = new Date(Date.UTC(ano, mes - 1, dia));
+  return d.getUTCFullYear() === ano && d.getUTCMonth() === mes - 1 && d.getUTCDate() === dia;
+}
+
+/**
  * Prazo da disciplina a partir das etapas (F4.2): o MAIOR prazo entre as etapas que TÊM
  * prazo. Sem nenhuma etapa com prazo, devolve o prazo ATUAL, intocado.
  *

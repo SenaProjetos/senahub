@@ -3,6 +3,7 @@ import {
   consolidarPrazoDisciplina,
   etapaQueDefineOPrazo,
   percentualQueFalta,
+  prazoEtapaValido,
   transicaoEtapaPermitida,
   validarPercentuais,
 } from "./etapas";
@@ -146,5 +147,30 @@ describe("transicaoEtapaPermitida", () => {
 
   it("ficar no mesmo status é sempre permitido", () => {
     expect(transicaoEtapaPermitida("em_andamento", "em_andamento")).toBe(true);
+  });
+});
+
+describe("prazoEtapaValido", () => {
+  it("aceita dia real", () => {
+    expect(prazoEtapaValido("2026-10-12")).toBe(true);
+    expect(prazoEtapaValido("2028-02-29")).toBe(true);
+  });
+
+  it("recusa o ano pela metade que o campo de data produz enquanto se digita", () => {
+    // Digitar "2026" no segmento do ano passa por 0002, 0020, 0202 — todos com formato válido.
+    expect(prazoEtapaValido("0002-10-12")).toBe(false);
+    expect(prazoEtapaValido("0202-10-12")).toBe(false);
+  });
+
+  it("recusa dia que o Date.UTC rolaria em silêncio", () => {
+    expect(prazoEtapaValido("2026-02-30")).toBe(false);
+    expect(prazoEtapaValido("2026-13-01")).toBe(false);
+    expect(prazoEtapaValido("2027-02-29")).toBe(false);
+  });
+
+  it("recusa formato que não é YYYY-MM-DD", () => {
+    expect(prazoEtapaValido("")).toBe(false);
+    expect(prazoEtapaValido("12/10/2026")).toBe(false);
+    expect(prazoEtapaValido("2026-10-12T00:00:00Z")).toBe(false);
   });
 });

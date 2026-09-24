@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { transicaoEtapaPermitida, validarPercentuais, type EtapaParaTela } from "./etapas";
+import { prazoEtapaValido, transicaoEtapaPermitida, validarPercentuais, type EtapaParaTela } from "./etapas";
 import { sincronizarPrazoDisciplina } from "./etapas-service";
 import { mensagemTransicaoDisciplina } from "./status";
 
@@ -25,7 +25,11 @@ const salvarSchema = z.object({
   disciplinaId: z.string().min(1),
   etapaId: z.string().min(1),
   /** `YYYY-MM-DD`. Vazio/nulo = etapa ainda sem prazo, que é estado normal. */
-  prazo: z.string().nullable().optional(),
+  prazo: z
+    .string()
+    .nullable()
+    .optional()
+    .refine((p) => !p || prazoEtapaValido(p), "Data do prazo inválida."),
   percentual: z.number().finite().min(0, "O percentual não pode ser negativo.").max(100, "O percentual não passa de 100%."),
   status: statusEtapa.optional(),
   ordem: z.number().int().optional(),
