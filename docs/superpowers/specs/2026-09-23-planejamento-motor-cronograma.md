@@ -182,6 +182,145 @@ A **Saúde do Cronograma** acompanha a fase 1 (nota provisória + foto semanal),
 
 ---
 
+## 6-A. Fases de implementação, modelo e esforço
+
+**Unidade de esforço:** 1 sessão ≈ meio dia de trabalho focado de um agente + revisão do dono.
+São estimativas, não compromissos — as de risco **alto** são as que mais podem escorregar.
+
+**Critério de modelo:** Opus onde a decisão é irreversível ou o erro é silencioso (schema,
+migration, motor puro, dinheiro, permissão). Sonnet onde o alvo já está definido e o trabalho
+é mecânico (tela sobre dado pronto, documentação, testes de regressão).
+
+### F0 — Fundação de dados · Opus · 3 sessões · risco ALTO
+
+| # | Entrega | Detalhe |
+|---|---|---|
+| F0.1 | Schema da linha | `EapTarefa` ganha `duracao`, `tipoEap` (TEAP: PRJ/FAS/PCT/DISC/LOC/SIS/RES/ATV/MRC), `idCorporativo` (único na empresa, permanente — D29), `codigoEap` recalculável, e as FKs nomeadas da D5 |
+| F0.2 | Classificadores | `etapaId` (reusa `PranchaCatalogo` categoria `fase` — **não criar catálogo novo**), `disciplinaId`, `tipoAtividade` (TAT), `localizacao`, `sistema`, `status`, `prioridade`, `origem`, `risco`. Governança em 3 níveis (Doc 02 §24) |
+| F0.3 | Dependência completa | `EapDependencia` ganha `tipo` (FS/SS/FF/SF) e `lag` em dias úteis. **Entra agora mesmo com a tela só oferecendo FS** — incluir depois obrigaria a reescrever todo cronograma já criado |
+| F0.4 | Baseline versionada | `EapBaseline` (numero, data, autor, motivo, observação) + `EapBaselineLinha` (início/fim/duração/trabalho/avanço planejado). Nunca sobrescreve — D6/Doc 03 §20 |
+| F0.5 | Restrições e pin | 6 restrições do Doc 03 §18 + marca de fixada visível (D34) |
+| F0.6 | Migration + migração do existente | Cronogramas atuais viram **rascunho**, duração derivada das datas, sem baseline (D27). Aditiva; nenhum `DROP` |
+
+> **Armadilha conhecida:** `DROP`/`RENAME` sem `IF EXISTS` derruba deploy (aconteceu duas vezes
+> neste repo). Toda migration desta fase é aditiva.
+
+### F1 — Motor de agendamento · Opus · 4 sessões · risco ALTO
+
+| # | Entrega | Detalhe |
+|---|---|---|
+| F1.1 | Calendário de trabalho | `lib/calendario-trabalho.ts` **puro + testado**: dias úteis, feriados (reusa `FeriadoRecorrente`), soma/subtração de duração. Campo de calendário por projeto previsto, desligado (D8) |
+| F1.2 | Motor | Substitui `caminho-critico.ts`. Forward/backward pass sobre calendário, 4 tipos de vínculo, lag, restrições, predecessora múltipla (o `EAP.pdf` tem linha com 10). Devolve datas, folga total e livre, caminho crítico |
+| F1.3 | Rollup de resumo | Datas do pai = menor início / maior fim dos filhos; nunca digitadas (Doc 03 §8). % ponderado por horas (D26) |
+| F1.4 | Código EAP | Recalcula `1.2.3` ao mover linha, **sem tocar no `idCorporativo`**, com histórico da mudança (Doc 02 §27) |
+| F1.5 | Bateria de testes | O motor é o coração; cobertura densa como `tokens.ts` e `encargos.ts` já têm. Caso-âncora: reproduzir o `EAP.pdf` (185 linhas, 100 dias) e conferir as datas contra o MS Project |
+
+> **Não estender o CPM atual.** Ele deriva duração das datas e conta dias corridos — o oposto
+> do decidido. É substituição, não evolução.
+
+### F2 — Governança do plano · Opus · 3 sessões · risco MÉDIO
+
+| # | Entrega | Detalhe |
+|---|---|---|
+| F2.1 | Rascunho → aprovado | "Aprovar cronograma" congela `BL-00` e libera os cards (D14) |
+| F2.2 | Replanejamento | Nova versão de baseline com autor, data e motivo (D6) |
+| F2.3 | Data de Status | Semanal por projeto + job de lembrete após 10 dias sem atualizar (D39). Distingue *atrasado* de *não apurado* |
+| F2.4 | Verificador de qualidade | As 15 regras do Doc 03 §33, **puro + testado**, oficial desde já (D42) |
+| F2.5 | Saúde do cronograma | Nota **marcada provisória** + foto semanal gravada desde o dia 1 — o histórico é irrecuperável se ligado depois (D42) |
+| F2.6 | Permissões | `cronograma:ver` / `gerir` / `aprovar` / `executado` no catálogo + migration derivando de `recursos:ver` e `recursos:gerir`, com `ON CONFLICT DO NOTHING`. Seed é create-only: **sem migration, ninguém recebe o par** |
+
+### F3 — Telas · Sonnet · 4 sessões · risco MÉDIO
+
+Um cronograma, quatro modos de exibição (D33) — não duas telas lado a lado.
+
+| # | Entrega | Detalhe |
+|---|---|---|
+| F3.1 | Planejar | Árvore + Gantt: estrutura, duração, predecessora. Expandir/recolher níveis |
+| F3.2 | Acompanhar | Gantt de Controle: duas barras por linha (combinado × previsão), % concluído, alerta de ritmo (D21), alfinete visível |
+| F3.3 | Filtros e lookahead | Filtros combinados (Doc 03 §36) + lookahead 7/15/30 (§37) |
+| F3.4 | Painel Mestre | Projetos lado a lado na linha do tempo, **leitura e sequenciamento apenas** (D7). Parte de `cronogramaProjetosAtivos()`, que já existe |
+| F3.5 | Bloqueio | `BLQ` com motivo, origem e responsável pelo desbloqueio; notificação; atraso classificado por origem (D40) |
+
+> Reaproveitar `components/planejamento/` (1113 linhas hoje). `gantt.tsx` precisa de reescrita
+> para as duas barras; `eap-workspace.tsx` vira o modo Planejar.
+
+### F4 — Disciplina × etapa · Opus · 3 sessões · risco ALTO
+
+| # | Entrega | Detalhe |
+|---|---|---|
+| F4.1 | Par disciplina × etapa | Prazo, status e valor próprios por fase (D30/D37). **Arquivos, pastas, responsáveis e portal continuam na disciplina** |
+| F4.2 | Prazo da disciplina | Passa a ser o da última fase; nada muda para quem lê de fora |
+| F4.3 | Link por fase | `LinkPublicoArquivos` ganha filtro por fase ao lado do de disciplina (D37b). Pequeno — o modelo já tem `agruparPorFase` |
+
+> Toca `projetos`, que está em produção. É a fase onde vale um smoke em navegador antes do merge.
+
+### F5 — Recursos · Opus (regras) + Sonnet (tela) · 3 sessões · risco MÉDIO
+
+| # | Entrega | Detalhe |
+|---|---|---|
+| F5.1 | Recurso na linha | Pessoa **ou perfil** (D17). Vários responsáveis com papel `PRO`/`REV`/`APR`/`COO`, todos entrando na carga (D41) |
+| F5.2 | Horas previstas | Por pessoa na linha, não percentual (D23) |
+| F5.3 | Herança do responsável | Desce da disciplina para as linhas; da linha em diante vale o da linha (D22) |
+| F5.4 | Matriz calculada | `matrizRecursos()` passa a somar das linhas. Projeto sem cronograma aprovado **segue com a alocação digitada** durante a transição (D17) |
+| F5.5 | Sobrecarga | Alerta **com sugestão aplicável em um clique**; nunca nivelamento automático (D18). Férias e jornada entram como aviso (D8) |
+| F5.6 | Card do projetista | Uma linha com gente alocada = um card; resumo, marco e etapa de terceiro **não geram card** (D24). A ponte `Tarefa.eapTarefaId` já existe |
+
+### F6 — Apontamento por tarefa · Sonnet · 2 sessões · risco BAIXO
+
+| # | Entrega | Detalhe |
+|---|---|---|
+| F6.1 | `SessaoTrabalho` ganha tarefa | Hoje só tem projeto |
+| F6.2 | Lista curta | Só as tarefas em que a pessoa está alocada no período — nunca todas as do projeto (D20) |
+| F6.3 | % sugerido | Checklist, status da disciplina e arquivo enviado viram sugestão; coordenador confirma (D19/D32) |
+
+> Muda o hábito de todo mundo que bate ponto. Vale um aviso em `/ajuda/novidades` antes.
+
+### F7 — Custo e dinheiro · Opus · 3 sessões · risco ALTO
+
+| # | Entrega | Detalhe |
+|---|---|---|
+| F7.1 | Custo por tarefa | Horas × `Recurso.custoHora`, que já existe |
+| F7.2 | Marco de recebimento | Vira **linha de previsão no financeiro**, conciliada com a cobrança real (D9/D25) |
+| F7.3 | Contrato por entrega | Tipo de contrato decide: parcelas por data **ou** por entrega; nunca os dois no mesmo contrato (D15) |
+| F7.4 | Pagamento por fase | Valor da disciplina rateado por percentual vindo do modelo (D38); marco libera o pagamento do projetista daquela fase (D31) |
+
+> **Mexe na tela de Produção e na folha de projetistas**, refeitas na v1.17.0. Financeiro já
+> validou a regra (2026-09-23), mas esta é a fase que pede conferência em tela antes do deploy.
+
+### F8 — Valor Agregado · Opus · 2 sessões · risco MÉDIO
+
+VP/VA/CR, IDP/IDC sobre o que F1–F7 produziram. **Só depois de todas as anteriores** — índice
+calculado sobre dado incompleto é a forma mais rápida de a equipe perder a confiança no relatório.
+
+### F9 — Manual e novidades · Sonnet · 1 sessão · risco BAIXO
+
+`docs/manual/**` + `novidades.md` em linguagem de usuário, e `search-index.json` à mão (não há
+gerador). A rota `/ajuda` é visível a **todos** os papéis, cliente incluído.
+
+---
+
+### Resumo
+
+| Fase | Modelo | Sessões | Risco |
+|---|---|---|---|
+| F0 Fundação de dados | Opus | 3 | alto |
+| F1 Motor | Opus | 4 | alto |
+| F2 Governança | Opus | 3 | médio |
+| F3 Telas | Sonnet | 4 | médio |
+| F4 Disciplina × etapa | Opus | 3 | alto |
+| F5 Recursos | Opus + Sonnet | 3 | médio |
+| F6 Apontamento | Sonnet | 2 | baixo |
+| F7 Custo e dinheiro | Opus | 3 | alto |
+| F8 Valor Agregado | Opus | 2 | médio |
+| F9 Manual | Sonnet | 1 | baixo |
+| **Total** | | **28 sessões** | |
+
+**Primeiro valor visível:** fim da F3 (cronograma que anda sozinho e Gantt de duas barras).
+**Ordem inegociável:** F0 → F1 → F2. F4 pode ir em paralelo com F3; F7 depende de F4 e F5;
+F8 depende de tudo.
+
+---
+
 ## 7. Decisões que NÃO foram tomadas aqui
 
 - Onde exatamente cada tela vive (é decisão de implementação; a base é o módulo `planejamento`
