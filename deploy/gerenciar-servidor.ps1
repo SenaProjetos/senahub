@@ -21,6 +21,15 @@ $ErrorActionPreference = "Stop"
 # encoding que ja vimos hoje no instalar-servico.ps1).
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 
+# O 'git pull' dispara o 'gc --auto', que empacota os objetos soltos e apaga as pastas
+# .git/objects/XX que ficaram vazias. Quando outro processo segura uma dessas pastas
+# (editor aberto no repo, antivirus, indexador), o Git for Windows pergunta
+# "Deletion of directory ... failed. Should I try again? (y/n)" uma vez POR PASTA -
+# dezenas de 'n' digitados a mao. Com GIT_ASK_YESNO=false ele responde "nao" sozinho:
+# a pasta vazia fica pra tras (inofensiva) e o pull segue. E o mesmo que o deploy
+# automatico ja faz, porque sem console o git nem chega a perguntar.
+$env:GIT_ASK_YESNO = "false"
+
 # Raiz do projeto = pasta-pai deste script (deploy/ -> app root).
 $AppRoot = Split-Path -Parent $PSScriptRoot
 $LogsDir = Join-Path $AppRoot "logs"

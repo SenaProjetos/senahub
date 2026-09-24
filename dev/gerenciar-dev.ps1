@@ -24,6 +24,11 @@ $ErrorActionPreference = "Stop"
 
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 
+# pull/merge/fetch disparam o 'gc --auto' do git; sem isto, cada pasta .git/objects/XX
+# travada por outro processo vira um prompt "Deletion of directory ... failed (y/n)".
+# Explicacao completa no mesmo trecho de deploy/gerenciar-servidor.ps1.
+$env:GIT_ASK_YESNO = "false"
+
 # Raiz do projeto = pasta-pai deste script (dev/ -> app root).
 $AppRoot = Split-Path -Parent $PSScriptRoot
 $LogsDir = Join-Path $AppRoot "logs"
