@@ -169,8 +169,10 @@ A **Saúde do Cronograma** acompanha a fase 1 (nota provisória + foto semanal),
 1. ~~**Financeiro precisa validar D15, D25, D31 e D38.**~~ **Validado pelo dono em 2026-09-23.**
    Atenção ao codar: o rateio do valor da disciplina por fase mexe na tela de Produção e na folha
    de projetistas, ambas em produção desde a v1.17.0.
-2. ~~**Nomenclatura versionada precisa estar publicada.**~~ **Mergeada em `dev-antigravity` em
-   2026-09-23** (F1-F6, aprovada em tela). Falta o deploy — D35 só vale em produção depois dele.
+2. ~~**Nomenclatura versionada precisa estar publicada.**~~ **Em produção em 2026-09-23.**
+   Conferência pós-deploy contra o banco de prod passou: `42/42 vocabulários idênticos ·
+   0 projeto(s) sem versão fixada`. **D35 está liberada.** Resta o dono cadastrar e publicar
+   a v2 pela tela — publicar não afeta projeto existente, e até lá todo projeto segue a v1.
 3. **Permissões.** O perfil *Coordenador* com escopo global entrou na v1.19.0; os recursos novos do
    cronograma ainda não existem no catálogo. Seed de permissão é create-only por par — exige
    migration por par novo (ver memória `permissoes-matriz-legada-nao-autoriza`).
