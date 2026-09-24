@@ -24,22 +24,21 @@ export const diaGradeSchema = z.object({
 const semanaCompleta = (dias: { diaSemana: number }[]) =>
   new Set(dias.map((d) => d.diaSemana)).size === 7 && dias.length === 7;
 
-/** Jornada máxima do estágio (Lei 11.788, art. 10, II): 6h por dia e 30h por semana. */
+/** Horas/dia da grade PADRÃO semeada para o estágio. Não é teto: o dia pode passar disso. */
 export const HORAS_DIA_ESTAGIO = 6;
+/** Jornada semanal máxima do estágio (Lei 11.788, art. 10, II). */
 export const HORAS_SEMANA_ESTAGIO = 30;
 
-const DIAS_SEMANA = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
-
 /**
- * Motivo pelo qual a grade passa do teto legal do estágio, ou `null` se cabe. Espelho de ponto é
+ * Motivo pelo qual a grade passa do teto semanal do estágio, ou `null` se cabe. Espelho de ponto é
  * assinado com hash em `EspelhoAceite` — gravar grade acima do teto documenta jornada ilegal.
+ *
+ * Só a SEMANA é travada, por decisão do dono (2026-09-24): o escritório compensa horários entre os
+ * dias ("jogo de horas") quando o estagiário tem outros compromissos, então um dia pode passar de
+ * 6h desde que a semana feche em até 30h.
  */
-export function excessoJornadaEstagio(dias: { ativo: boolean; horasDia: number; diaSemana: number }[]): string | null {
+export function excessoJornadaEstagio(dias: { ativo: boolean; horasDia: number }[]): string | null {
   const ativos = dias.filter((d) => d.ativo);
-  const acima = ativos.find((d) => d.horasDia > HORAS_DIA_ESTAGIO);
-  if (acima) {
-    return `Estágio tem no máximo ${HORAS_DIA_ESTAGIO}h por dia (Lei 11.788) — ${DIAS_SEMANA[acima.diaSemana]} está com ${acima.horasDia}h.`;
-  }
   const semana = ativos.reduce((acc, d) => acc + d.horasDia, 0);
   if (semana > HORAS_SEMANA_ESTAGIO) {
     return `Estágio tem no máximo ${HORAS_SEMANA_ESTAGIO}h por semana (Lei 11.788) — esta grade soma ${semana}h.`;

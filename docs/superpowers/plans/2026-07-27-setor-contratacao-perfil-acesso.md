@@ -1532,9 +1532,12 @@ rodado antes de o script sair).
 - `/rh/escalas`: aba "Por contratação" (CLT, Estágio) com `salvarEscalaContratacao` gravando só em
   `EscalaContratacao`. Acabou a recusa por divergência entre `clt`/`administrativo`/`ti` — o slot
   é um só. `pj`/`autonomo_rpa`/`pro_labore` continuam sem grade (decisão de §15.18 mantida).
-- **Trava legal do estágio** (Lei 11.788: 6h/dia, 30h/semana) passou a valer na escrita — na grade
-  da contratação e na personalizada de quem é Estágio. Antes só a semente corrigia; a tela aceitava
-  8h. Regra pura em `excessoJornadaEstagio` (`rh/escalas/schemas.ts`), testada.
+- **Trava legal do estágio** (Lei 11.788: 30h/semana) passou a valer na escrita — na grade da
+  contratação e na personalizada de quem é Estágio. Regra pura em `excessoJornadaEstagio`
+  (`rh/escalas/schemas.ts`), testada. **Só a semana é travada, por decisão do dono:** o
+  escritório faz "jogo de horas" (compensa entre os dias quando o estagiário tem outros
+  compromissos), então um dia pode passar de 6h. Pelo mesmo motivo o seed deixou de reescrever
+  para 6h os dias de estágio acima disso — o `db:seed` de cada deploy desfaria a compensação.
 - **Achado:** a ficha (Pessoa 360 e Minha conta) mostrava como "herdada" a grade do PAPEL
   (`escalaRoleGrade(pessoa.role)`) enquanto o cálculo usava a da contratação — iguais só enquanto
   a escrita dupla segurava. Agora usa `escalaPadraoDoUsuario`, a mesma fonte do cálculo.

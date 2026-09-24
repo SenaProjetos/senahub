@@ -29,8 +29,9 @@ não mais por perfil — é a mesma regra que o ponto, o banco de horas e a folh
 autônomo (RPA) e sócio (pró-labore) não têm jornada controlada e continuam sem escala padrão;
 se precisar, personalize por usuário.
 
-- A escala de **estágio** não aceita mais do que **6h por dia** nem **30h por semana** (Lei
-  11.788), nem na escala padrão nem na personalizada de um estagiário.
+- A escala de **estágio** não aceita mais do que **30h por semana** (Lei 11.788), nem na escala
+  padrão nem na personalizada de um estagiário. Dentro disso, dá para compensar horas entre os
+  dias — um dia mais longo e outro mais curto.
 - Na ficha da pessoa e em **Minha conta**, a escala "herdada" mostrada é a da contratação — a
   que realmente vale para o cálculo.
 

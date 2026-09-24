@@ -244,7 +244,8 @@ function AbaContratacao({ gradesPorContratacao }: { gradesPorContratacao: Record
       </div>
       {contratacao === "estagio" && (
         <p className="text-sm text-muted-foreground">
-          Estágio tem no máximo 6h por dia e 30h por semana (Lei 11.788). Grade acima disso não é salva.
+          Estágio tem no máximo 30h por semana (Lei 11.788). Dá para compensar horas entre os dias, mas
+          grade que passa de 30h na semana não é salva.
         </p>
       )}
       <GradeTable dias={dias} onChange={setDias} disabled={pending} />

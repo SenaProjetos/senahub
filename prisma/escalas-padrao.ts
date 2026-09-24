@@ -5,14 +5,12 @@
  * (grade por papel) e era espelhada daqui para `EscalaContratacao`; com a tabela por papel
  * removida, a semente vai direto para a contratação.
  *
- * Estágio tem jornada legal distinta: **máx. 6h/dia e 30h/semana** (Lei 11.788, art. 10, II).
- * Grade de 8h faria o espelho de ponto — assinado com hash SHA-256 em `EspelhoAceite` —
- * documentar jornada acima do limite legal do estágio.
+ * Estágio nasce com 6h × 5 dias (30h/semana, o teto da Lei 11.788, art. 10, II).
  *
- * Regras de idempotência:
- *  - `clt`: cria só se ausente (nunca sobrescreve grade ajustada na tela `/rh/escalas`);
- *  - `estagio`: cria se ausente e **corrige** linhas existentes acima de 6h — a correção legal
- *    não pode ser pulada por idempotência.
+ * Idempotência: cria só o que está ausente e **nunca sobrescreve** linha existente — nem de
+ * estágio. Até 2026-09-24 o seed reescrevia para 6h todo dia de estágio acima disso; saiu porque
+ * o escritório compensa horas entre os dias ("jogo de horas") e o seed de cada deploy desfaria a
+ * compensação. O teto que vale é o semanal, travado na escrita (`excessoJornadaEstagio`).
  *
  * `pj`, `autonomo_rpa` e `pro_labore` ficam SEM linha, de propósito — ver a nota em
  * `EscalaContratacao` no schema.
@@ -38,44 +36,30 @@ const GRADES: GradePadrao[] = [
 
 export async function semearEscalaContratacaoPadrao() {
   let criadas = 0;
-  let corrigidas = 0;
 
   for (const g of GRADES) {
     for (const diaSemana of DIAS_UTEIS) {
       const existe = await prisma.escalaContratacao.findUnique({
         where: { contratacao_diaSemana: { contratacao: g.contratacao, diaSemana } },
-        select: { id: true, horasDia: true },
+        select: { id: true },
       });
+      if (existe) continue;
 
-      if (!existe) {
-        await prisma.escalaContratacao.create({
-          data: {
-            contratacao: g.contratacao,
-            diaSemana,
-            entrada: g.entrada,
-            saida: g.saida,
-            descansos: g.descansos,
-            horasDia: g.horasDia,
-            toleranciaMin: 10,
-          },
-        });
-        criadas++;
-        continue;
-      }
-
-      // Correção legal: estágio acima do teto de 6h volta para a grade legal.
-      if (g.contratacao === "estagio" && Number(existe.horasDia) > HORAS_DIA_ESTAGIO) {
-        await prisma.escalaContratacao.update({
-          where: { id: existe.id },
-          data: { entrada: g.entrada, saida: g.saida, descansos: g.descansos, horasDia: g.horasDia },
-        });
-        corrigidas++;
-      }
+      await prisma.escalaContratacao.create({
+        data: {
+          contratacao: g.contratacao,
+          diaSemana,
+          entrada: g.entrada,
+          saida: g.saida,
+          descansos: g.descansos,
+          horasDia: g.horasDia,
+          toleranciaMin: 10,
+        },
+      });
+      criadas++;
     }
   }
 
-  console.log(
-    `✔ EscalaContratacao: ${criadas} linha(s) criada(s); ${corrigidas} linha(s) de estágio corrigida(s) para ${HORAS_DIA_ESTAGIO}h/dia.`,
-  );
-  return { criadas, corrigidas };
+  console.log(`✔ EscalaContratacao: ${criadas} linha(s) criada(s).`);
+  return { criadas };
 }

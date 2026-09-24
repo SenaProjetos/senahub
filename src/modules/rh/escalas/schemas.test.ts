@@ -22,8 +22,15 @@ describe("excessoJornadaEstagio", () => {
     expect(excessoJornadaEstagio(semana(6))).toBeNull();
   });
 
-  it("recusa dia acima de 6h, citando o dia", () => {
-    expect(excessoJornadaEstagio(semana(8))).toMatch(/6h por dia.*segunda.*8h/);
+  it("aceita dia acima de 6h quando a semana compensa (jogo de horas)", () => {
+    const dias = semana(6).map((d) =>
+      d.diaSemana === 1 ? { ...d, horasDia: 8 } : d.diaSemana === 2 ? { ...d, horasDia: 4 } : d,
+    );
+    expect(excessoJornadaEstagio(dias)).toBeNull();
+  });
+
+  it("recusa semana de 8h × 5 dias (40h)", () => {
+    expect(excessoJornadaEstagio(semana(8))).toMatch(/30h por semana.*40h/);
   });
 
   it("recusa semana acima de 30h mesmo com todo dia dentro do teto", () => {

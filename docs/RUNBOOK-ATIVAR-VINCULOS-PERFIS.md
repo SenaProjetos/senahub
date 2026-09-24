@@ -321,7 +321,7 @@ Branch `feat/onda-e-escala-contratacao`. Uma migration destrutiva:
 O que muda para quem usa:
 - `/rh/escalas` → a aba "Por perfil" vira **"Por contratação"** (CLT e Estágio). PJ, autônomo
   (RPA) e sócio (pró-labore) seguem sem grade padrão, de propósito.
-- Grade de **estágio** acima de 6h/dia ou 30h/semana é recusada — na grade da contratação e na
+- Grade de **estágio** acima de 30h/semana é recusada (o dia pode passar de 6h, para compensação) — na grade da contratação e na
   personalizada de quem tem contratação Estágio.
 - Ficha da pessoa (RH → Pessoas e Minha conta) mostra a grade **da contratação**, que é a que o
   cálculo usa. Antes mostrava a do papel, que podia divergir.
