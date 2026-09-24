@@ -4293,6 +4293,11 @@ model EapBaselineLinha {
   fim            DateTime @db.Date
   duracaoDias    Decimal  @db.Decimal(6, 2)
   trabalhoHoras  Decimal? @db.Decimal(8, 2)
+  /// F7.1: custo previsto da linha ao congelar (horas × custo/hora de quem faz; resumo = soma
+  /// dos filhos). É o VP do Valor Agregado (F8) — congelado aqui porque a taxa muda depois e o
+  /// orçamento combinado não pode mudar junto. Nulo = desconhecido (perfil, pessoa sem taxa,
+  /// linha sem horas) ou baseline anterior à F7.1.
+  custoPrevisto  Decimal? @db.Decimal(14, 2)
   avancoPlanejado Int     @default(0)
 
   @@index([baselineId])
