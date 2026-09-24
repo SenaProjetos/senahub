@@ -10,11 +10,156 @@ import {
   planoVazio,
   type PagamentoAtual,
 } from "@/modules/uploads/sincronizacao-pagamento";
+import {
+  MOTIVO_JA_PAGA_INTEIRA,
+  bloqueioValorEmModoFase,
+  modoPagamento,
+  poolsDasFasesPendentes,
+  rotuloDisciplinaPagamento,
+  writeBackFase,
+  type FaseParaPagamento,
+  type ModoPagamento,
+} from "@/modules/uploads/pagamento-fase";
 
 type ResponsavelComUser = {
   userId: string;
   user: { id: string; name: string; role: string };
 };
+
+type Db = Prisma.TransactionClient;
+
+type FaseComSigla = FaseParaPagamento & { sigla: string };
+
+async function fasesDaDisciplina(tx: Db, disciplinaId: string): Promise<FaseComSigla[]> {
+  const fases = await tx.disciplinaEtapa.findMany({
+    where: { disciplinaId },
+    select: {
+      id: true,
+      ordem: true,
+      percentual: true,
+      liberadaEm: true,
+      valorPagamento: true,
+      etapa: { select: { sigla: true } },
+    },
+  });
+  return fases.map((f) => ({
+    id: f.id,
+    ordem: f.ordem,
+    percentual: Number(f.percentual),
+    liberadaEm: f.liberadaEm,
+    valorPagamento: f.valorPagamento == null ? null : Number(f.valorPagamento),
+    sigla: f.etapa.sigla,
+  }));
+}
+
+export type SituacaoPagamento = {
+  modo: ModoPagamento;
+  temFases: boolean;
+  /**
+   * "Já liberou tudo o que havia para liberar?" — o `jaTemPagamento` das duas aprovações.
+   * Sem fase (ou disciplina que já pagou inteira): existe QUALQUER pagamento, como sempre foi
+   * (cancelado inclusive — é o comportamento de antes, e disciplina sem fase não pode mudar).
+   * Por fase: TODA fase liberada. Sem essa troca, aprovar a disciplina com o Básico já liberado
+   * pularia o Executivo em silêncio.
+   */
+  jaLiberouTudo: boolean;
+};
+
+export async function situacaoPagamento(tx: Db, disciplinaId: string): Promise<SituacaoPagamento> {
+  // Em sequência, não `Promise.all`: dentro de transação é a MESMA conexão, e consulta em
+  // paralelo nela é depreciada no driver pg (some no pg@9).
+  const pagamentos = await tx.pagamentoProjetista.findMany({ where: { disciplinaId }, select: { etapaId: true, status: true } });
+  const fases = await tx.disciplinaEtapa.findMany({ where: { disciplinaId }, select: { liberadaEm: true } });
+  const modo = modoPagamento(pagamentos, fases);
+  const temFases = fases.length > 0;
+  const jaLiberouTudo =
+    temFases && modo !== "disciplina" ? fases.every((f) => f.liberadaEm != null) : pagamentos.length > 0;
+  return { modo, temFases, jaLiberouTudo };
+}
+
+/**
+ * Libera o pagamento de UMA fase (F7.4 — D31): fixa o pool dela pela regra do "que falta"
+ * (`poolsDasFasesPendentes`), marca a fase liberada/aprovada e cria um `PagamentoProjetista`
+ * por responsável pagável — com `etapaId` —, cada um com a sua despesa prevista.
+ *
+ * Idempotente: fase já liberada devolve `jaLiberada` sem tocar em nada. Recusa (ActionError)
+ * disciplina que já pagou INTEIRA (um modo só) e percentuais que não fecham 100%.
+ *
+ * Fase de pool zero (0%, "a fase é só cronograma") é liberada SEM pagamento — criar linha de
+ * R$ 0,00 recriaria exatamente a linha morta na Produção que motivou a trava de valor.
+ */
+export async function liberarPagamentosDaFase(
+  tx: Db,
+  params: {
+    disciplina: {
+      id: string;
+      disciplinaTextoLegado: string;
+      valor: Prisma.Decimal | number | null;
+      responsaveis: ResponsavelComUser[];
+      projeto: { id: string; codigo: string };
+    };
+    faseId: string;
+    autorId: string;
+    agora: Date;
+  },
+): Promise<{ pagaveis: ResponsavelComUser[]; salariados: ResponsavelComUser[]; pool: number; jaLiberada: boolean }> {
+  const { disciplina, faseId, autorId, agora } = params;
+  const fases = await fasesDaDisciplina(tx, disciplina.id);
+  const pagamentos = await tx.pagamentoProjetista.findMany({
+    where: { disciplinaId: disciplina.id },
+    select: { etapaId: true, status: true },
+  });
+  const fase = fases.find((f) => f.id === faseId);
+  if (!fase) throw new ActionError("Fase não encontrada nesta disciplina.");
+  if (fase.liberadaEm != null) return { pagaveis: [], salariados: [], pool: fase.valorPagamento ?? 0, jaLiberada: true };
+  if (modoPagamento(pagamentos, fases) === "disciplina") throw new ActionError(MOTIVO_JA_PAGA_INTEIRA);
+
+  const valorTotal = disciplina.valor ? Number(disciplina.valor) : 0;
+  const r = poolsDasFasesPendentes(valorTotal, fases);
+  if (!r.ok) throw new ActionError(r.motivo);
+  const pool = r.pools.get(faseId) ?? 0;
+
+  // `liberadaEm: null` NA ESCRITA: duas aprovações ao mesmo tempo não liberam a fase duas vezes.
+  const marcada = await tx.disciplinaEtapa.updateMany({
+    where: { id: faseId, liberadaEm: null },
+    data: { liberadaEm: agora, valorPagamento: pool, status: "aprovado", entregueEm: agora },
+  });
+  if (marcada.count === 0) {
+    throw new ActionError("A fase mudou enquanto a tela estava aberta — atualize e tente de novo.");
+  }
+
+  const { pagaveis: cotas, salariados } = ratearPagamentoProjetista(disciplina.responsaveis, pool);
+  const nome = rotuloDisciplinaPagamento(disciplina.disciplinaTextoLegado, fase.sigla);
+  const pagaveis: ResponsavelComUser[] = [];
+  for (const { responsavel: resp, valor } of cotas) {
+    if (!(valor > 0)) continue;
+    const pag = await tx.pagamentoProjetista.create({
+      data: {
+        disciplinaId: disciplina.id,
+        etapaId: faseId,
+        projetistaId: resp.userId,
+        valor,
+        tipoProfissional: resp.user.role,
+        status: "pendente",
+        liberadoEm: agora,
+      },
+    });
+    const lancamentoId = await criarDespesaProjetistaPrevista(tx, {
+      pagamentoId: pag.id,
+      valor,
+      tipoProfissional: resp.user.role,
+      projetistaNome: resp.user.name,
+      disciplinaNome: nome,
+      projetoId: disciplina.projeto.id,
+      projetoCodigo: disciplina.projeto.codigo,
+      autorId,
+      quando: agora,
+    });
+    await tx.pagamentoProjetista.update({ where: { id: pag.id }, data: { lancamentoId } });
+    pagaveis.push(resp);
+  }
+  return { pagaveis, salariados, pool, jaLiberada: false };
+}
 
 /**
  * Libera um `PagamentoProjetista` pendente por responsável PJ/freelancer da disciplina
@@ -39,6 +184,35 @@ export async function liberarPagamentosProjetista(
   },
 ): Promise<{ pagaveis: ResponsavelComUser[]; salariados: ResponsavelComUser[] }> {
   const { disciplina, autorId, agora } = params;
+
+  // F7.4: disciplina com fase, que ainda não pagou inteira, paga POR FASE — aprovar a
+  // disciplina libera as fases que faltam, cada uma pelo seu pool (e a última absorve o
+  // centavo). Nunca um pagamento "inteiro" por cima de fases (um modo só).
+  const fases = await fasesDaDisciplina(tx, disciplina.id);
+  if (fases.length > 0) {
+    const pagamentos = await tx.pagamentoProjetista.findMany({
+      where: { disciplinaId: disciplina.id },
+      select: { etapaId: true, status: true },
+    });
+    if (modoPagamento(pagamentos, fases) !== "disciplina") {
+      const semValor = ratearPagamentoProjetista(disciplina.responsaveis, 0);
+      // 100% CLT: nada a pagar, nem a repartir — e percentual que não fecha não pode travar
+      // uma aprovação que não mexe em dinheiro.
+      if (semValor.pagaveis.length === 0) return { pagaveis: [], salariados: semValor.salariados };
+      const pendentes = fases
+        .filter((f) => f.liberadaEm == null)
+        .sort((a, b) => a.ordem - b.ordem || a.id.localeCompare(b.id));
+      const recebem = new Map<string, ResponsavelComUser>();
+      let salariados: ResponsavelComUser[] = [];
+      for (const f of pendentes) {
+        const r = await liberarPagamentosDaFase(tx, { disciplina, faseId: f.id, autorId, agora });
+        for (const p of r.pagaveis) recebem.set(p.userId, p);
+        salariados = r.salariados;
+      }
+      return { pagaveis: [...recebem.values()], salariados };
+    }
+  }
+
   const valorTotal = disciplina.valor ? Number(disciplina.valor) : 0;
   // Divisão (só entre pagáveis, sobra de centavos no primeiro) vive em `rateio.ts`, puro e testado.
   const { pagaveis: cotas, salariados } = ratearPagamentoProjetista(
@@ -87,7 +261,31 @@ export async function liberarPagamentosProjetista(
  * (soma) sempre bate com os pagamentos vivos — é exatamente a invariante que o próprio
  * rateio mantém quando alguém sai (o remanescente herda o pool inteiro).
  */
-export async function sincronizarValorDisciplina(tx: Prisma.TransactionClient, disciplinaId: string) {
+export async function sincronizarValorDisciplina(
+  tx: Prisma.TransactionClient,
+  disciplinaId: string,
+  /** F7.4: fase do pagamento ajustado. Nulo/ausente = pagamento da disciplina inteira. */
+  etapaId?: string | null,
+) {
+  if (etapaId) {
+    // Pagamento de FASE: o pool dela vira a soma dos vivos dela, e o total da disciplina anda
+    // pela mesma diferença (`writeBackFase`). "Pool = soma dos vivos da DISCIPLINA" daria o
+    // valor só das fases já liberadas — liberado o Básico, o total cairia para 40%.
+    const fase = await tx.disciplinaEtapa.findUnique({ where: { id: etapaId }, select: { valorPagamento: true } });
+    const disciplina = await tx.disciplina.findUnique({ where: { id: disciplinaId }, select: { valor: true } });
+    const agg = await tx.pagamentoProjetista.aggregate({
+      where: { etapaId, status: { not: "cancelado" } },
+      _sum: { valor: true },
+    });
+    const wb = writeBackFase({
+      valorDisciplina: disciplina?.valor == null ? 0 : Number(disciplina.valor),
+      poolFaseAntes: fase?.valorPagamento == null ? 0 : Number(fase.valorPagamento),
+      somaVivosFase: agg._sum.valor == null ? 0 : Number(agg._sum.valor),
+    });
+    await tx.disciplinaEtapa.update({ where: { id: etapaId }, data: { valorPagamento: wb.poolFase } });
+    await tx.disciplina.update({ where: { id: disciplinaId }, data: { valor: wb.valorDisciplina } });
+    return;
+  }
   const agg = await tx.pagamentoProjetista.aggregate({
     where: { disciplinaId, status: { not: "cancelado" } },
     _sum: { valor: true },
@@ -151,8 +349,19 @@ export async function sincronizarPagamentosDisciplina(
 
   const existentes = await tx.pagamentoProjetista.findMany({
     where: { disciplinaId: disciplina.id },
-    select: { id: true, projetistaId: true, valor: true, status: true, folhaId: true, lancamentoId: true },
+    select: { id: true, projetistaId: true, valor: true, status: true, folhaId: true, lancamentoId: true, etapaId: true },
   });
+
+  // F7.4 — modo FASE: fase liberada está congelada (valor e quem recebe); fase pendente ainda
+  // não tem pagamento. Não há o que sincronizar — só o que VALIDAR: mudar o valor alimenta as
+  // fases pendentes, então não pode ficar abaixo do liberado, nem mudar quando não sobra fase.
+  const fases = await fasesDaDisciplina(tx, disciplina.id);
+  if (modoPagamento(existentes, fases) === "fase") {
+    const bloqueio = bloqueioValorEmModoFase(disciplina.valor ? Number(disciplina.valor) : 0, fases);
+    if (bloqueio) throw new ActionError(bloqueio);
+    return { atualizados: 0, cancelados: 0, criados: 0 };
+  }
+
   if (existentes.length === 0) return { atualizados: 0, cancelados: 0, criados: 0 };
 
   const atuais: PagamentoAtual[] = existentes.map((p) => ({

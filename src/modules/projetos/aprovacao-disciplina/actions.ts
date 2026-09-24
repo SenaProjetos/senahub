@@ -8,7 +8,7 @@ import { whereAudiencia } from "@/lib/audiencias";
 import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
-import { liberarPagamentosProjetista } from "@/modules/uploads/pagamento";
+import { liberarPagamentosProjetista, situacaoPagamento } from "@/modules/uploads/pagamento";
 import { bloqueioValorDisciplina } from "@/modules/uploads/rateio";
 import { podeSolicitarAprovacao } from "@/modules/projetos/aprovacao-disciplina/regras";
 import { STATUS_LABEL } from "@/modules/projetos/status";
@@ -161,7 +161,9 @@ export const confirmarAprovacaoDisciplina = defineAction(
     }
 
     const agora = new Date();
-    const jaTemPagamento = disciplina.pagamentos.length > 0;
+    // F7.4: "já tem pagamento" vira "já liberou tudo" — por fase, é TODA fase liberada. Sem
+    // fase, é exatamente o de sempre (existe qualquer pagamento).
+    const jaTemPagamento = (await situacaoPagamento(prisma, disciplina.id)).jaLiberouTudo;
     // Diálogo de confirmação permite ajustar o valor total antes de liberar — só vale
     // quando ainda não há pagamento (reaprovação não recalcula nada).
     const valorFinal =

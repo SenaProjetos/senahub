@@ -3,12 +3,14 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Layers, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, Layers, Lock, Plus, Trash2 } from "lucide-react";
 import {
+  aprovarEtapaDisciplina,
   carregarEtapasDisciplina,
   excluirEtapaDisciplina,
   salvarEtapaDisciplina,
 } from "@/modules/projetos/etapas-actions";
+import { poolsDasFasesPendentes } from "@/modules/uploads/pagamento-fase";
 import {
   percentualQueFalta,
   prazoEtapaValido,
@@ -44,9 +46,13 @@ type Dados = {
   fases: Fase[];
   prazoDisciplina: string | null;
   prazoPlanejado: string | null;
+  podeAprovarFase: boolean;
 };
 
-/** Status que a etapa pode ter na F4 — sem `aprovado`, que é da validação da disciplina (F7). */
+/**
+ * Status que se escolhe na lista. `aprovado` fica de fora: vem do botão "Aprovar" da fase (que
+ * libera o pagamento dela) ou da aprovação da disciplina inteira — nunca de um select.
+ */
 const STATUS_ETAPA = ["aguardando", "em_andamento", "em_revisao", "entregue"] as const;
 
 /**
@@ -145,6 +151,16 @@ function EditorEtapas({
   const usadas = new Set(dados.etapas.map((e) => e.etapaId));
   const livres = dados.fases.filter((f) => !usadas.has(f.id));
   const somaOk = validarPercentuais(dados.etapas);
+  // Valor de cada fase pela MESMA regra da liberação (F7.4): liberada = pool congelado; pendente
+  // = o que falta, pelo % das pendentes. Sem soma 100% não há regra — cai na conta simples, e a
+  // mensagem da soma já está na tela.
+  const pools = valor != null ? poolsDasFasesPendentes(valor, dados.etapas.map(paraPool)) : null;
+  const valorDaFase = (e: EtapaParaTela): number | null => {
+    if (valor == null) return null;
+    if (e.liberada) return e.valorPagamento;
+    if (pools?.ok) return pools.pools.get(e.id) ?? null;
+    return (valor * e.percentual) / 100;
+  };
 
   /** Recarrega depois de gravar — ou de falhar: o prazo consolidado e a ordem vêm do servidor. */
   async function recarregar() {
@@ -179,6 +195,27 @@ function EditorEtapas({
         percentual: percentualQueFalta(dados.etapas),
       });
       if (!r.ok) toast.error(r.error);
+      await recarregar();
+    });
+  }
+
+  async function aprovar(e: EtapaParaTela) {
+    const ok = await confirm({
+      title: `Aprovar a fase ${e.sigla}?`,
+      description:
+        "Libera o pagamento desta fase para os projetistas PJ/freelancer da disciplina. Depois disso o percentual da fase fica fixo e ela não pode mais ser removida.",
+      confirmLabel: "Aprovar fase",
+    });
+    if (!ok) return;
+    start(async () => {
+      const r = await aprovarEtapaDisciplina({ id: e.id });
+      if (!r.ok) toast.error(r.error);
+      else
+        toast.success(
+          r.data.pagamentos > 0
+            ? `Fase ${e.sigla} aprovada — pagamento liberado.`
+            : `Fase ${e.sigla} aprovada.`,
+        );
       await recarregar();
     });
   }
@@ -224,10 +261,13 @@ function EditorEtapas({
                 <LinhaEtapa
                   key={`${e.id}:${versao}`}
                   etapa={e}
-                  valor={valor}
+                  mostrarValor={valor != null}
+                  valorDaFase={valorDaFase(e)}
                   prazoPlanejado={dados.prazoPlanejado}
                   pending={pending}
+                  podeAprovar={dados.podeAprovarFase}
                   onSalvar={(patch) => salvar(e, patch)}
+                  onAprovar={() => aprovar(e)}
                   onExcluir={() => excluir(e)}
                 />
               ))}
@@ -274,21 +314,32 @@ function EditorEtapas({
   );
 }
 
+function paraPool(e: EtapaParaTela) {
+  return { id: e.id, ordem: e.ordem, percentual: e.percentual, liberadaEm: e.liberada ? "liberada" : null, valorPagamento: e.valorPagamento };
+}
+
 function LinhaEtapa({
   etapa,
-  valor,
+  mostrarValor,
+  valorDaFase,
   prazoPlanejado,
   pending,
+  podeAprovar,
   onSalvar,
+  onAprovar,
   onExcluir,
 }: {
   etapa: EtapaParaTela;
-  valor: number | null;
+  mostrarValor: boolean;
+  valorDaFase: number | null;
   prazoPlanejado: string | null;
   pending: boolean;
+  podeAprovar: boolean;
   onSalvar: (patch: Partial<Pick<EtapaParaTela, "prazo" | "percentual" | "status">>) => void;
+  onAprovar: () => void;
   onExcluir: () => void;
 }) {
+  const aprovavel = podeAprovar && (etapa.status === "entregue" || etapa.status === "em_revisao");
   // Prazo e percentual editados localmente e gravados ao sair do campo (ou Enter). Gravar a
   // cada tecla dispararia uma action — e um registro de auditoria — por dígito; no campo de
   // data, pior: apagar um segmento com Backspace já esvazia o valor, e gravar isso zeraria o
@@ -336,7 +387,10 @@ function LinhaEtapa({
       </td>
       <td className="px-3 py-2">
         {etapa.status === "aprovado" ? (
-          <span className="text-xs text-success">{STATUS_LABEL.aprovado}</span>
+          <span className="inline-flex items-center gap-1 text-xs text-success">
+            <CheckCircle2 className="size-3.5" aria-hidden />
+            {etapa.liberada ? "Aprovada · pagamento liberado" : STATUS_LABEL.aprovado}
+          </span>
         ) : (
           <Select
             value={etapa.status}
@@ -370,21 +424,34 @@ function LinhaEtapa({
             else setPct(String(etapa.percentual));
           }}
           onKeyDown={enterGrava}
-          disabled={pending}
+          disabled={pending || etapa.liberada}
+          title={etapa.liberada ? "Pagamento da fase já liberado — o percentual está fixado." : undefined}
           className="h-8 w-20 text-xs"
         />
       </td>
-      {valor != null && (
+      {mostrarValor && (
         <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-xs text-muted-foreground">
-          {/* Só leitura: estimativa de planejamento. Quem reparte de verdade — com sobra de
-              centavos e recusa de soma ≠ 100 — é a F7, na liberação do pagamento. */}
-          {brl((valor * etapa.percentual) / 100)}
+          {/* Liberada: o pool congelado. Pendente: previsão pela regra da liberação — muda se o
+              valor da disciplina mudar antes de a fase ser aprovada. */}
+          {valorDaFase == null ? "—" : brl(valorDaFase)}
+          {etapa.liberada && <Lock className="ml-1 inline size-3" aria-label="Valor fixado na liberação" />}
         </td>
       )}
-      <td className="px-3 py-2 text-right">
-        <Button size="icon-sm" variant="ghost" aria-label={`Remover ${etapa.sigla}`} onClick={onExcluir} disabled={pending}>
-          <Trash2 className="size-3.5" />
-        </Button>
+      <td className="whitespace-nowrap px-3 py-2 text-right">
+        {aprovavel && (
+          <Button size="sm" variant="outline" className="mr-1 h-7 text-xs" onClick={onAprovar} disabled={pending}>
+            Aprovar
+          </Button>
+        )}
+        {etapa.liberada ? (
+          <span className="inline-flex size-7 items-center justify-center" title="Fase com pagamento liberado — não pode ser removida.">
+            <Lock className="size-3.5 text-muted-foreground" aria-label="Fase com pagamento liberado" />
+          </span>
+        ) : (
+          <Button size="icon-sm" variant="ghost" aria-label={`Remover ${etapa.sigla}`} onClick={onExcluir} disabled={pending}>
+            <Trash2 className="size-3.5" />
+          </Button>
+        )}
       </td>
     </tr>
   );

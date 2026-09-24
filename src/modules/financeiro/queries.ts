@@ -1,12 +1,14 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
+import { SELECT_FASE_DO_PAGAMENTO, rotuloDisciplinaPagamento } from "@/modules/uploads/pagamento-fase";
 
 type PagamentoExtratoBruto = Prisma.PagamentoProjetistaGetPayload<{
   include: {
     disciplina: {
       select: { disciplinaTextoLegado: true; projeto: { select: { codigo: true; nome: true } } };
     };
+    etapa: typeof SELECT_FASE_DO_PAGAMENTO;
   };
 }>;
 
@@ -50,6 +52,7 @@ async function comFormaEComprovantes(itens: PagamentoExtratoBruto[]) {
     return {
       ...i,
       valor: Number(i.valor),
+      rotuloDisciplina: rotuloDisciplinaPagamento(i.disciplina.disciplinaTextoLegado, i.etapa?.etapa.sigla),
       forma: l?.forma?.nome ?? null,
       anexos: l?.anexos ?? [],
     };
@@ -65,6 +68,7 @@ export async function meuExtrato(userId: string) {
       disciplina: {
         select: { disciplinaTextoLegado: true, projeto: { select: { codigo: true, nome: true } } },
       },
+      etapa: SELECT_FASE_DO_PAGAMENTO,
     },
   });
   const total = brutos.reduce((s, p) => s + Number(p.valor), 0);

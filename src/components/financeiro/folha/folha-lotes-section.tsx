@@ -388,7 +388,7 @@ function LinhaLote({
                       </span>
                     </TableCell>
                     <TableCell className="text-sm">
-                      {p.disciplina.disciplinaTextoLegado}
+                      {p.rotuloDisciplina}
                       <span className="block text-xs text-muted-foreground">
                         {formatarCodigo(p.disciplina.projeto.codigo)} · {p.disciplina.projeto.nome}
                       </span>

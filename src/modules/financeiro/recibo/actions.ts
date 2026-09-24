@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { notificar } from "@/lib/notificar";
 import { filtrarPorCategoria } from "@/modules/usuarios/preferencias/queries";
 import { textoRecibo, totalRecibo, type ItemRecibo } from "./service";
+import { SELECT_FASE_DO_PAGAMENTO, rotuloDisciplinaPagamento } from "@/modules/uploads/pagamento-fase";
 
 /**
  * Recibo de pagamento de produção (G5/D36). Nasce DEPOIS do pagamento e nunca o trava
@@ -26,6 +27,7 @@ const SELECT_PAGAMENTO = {
   disciplina: {
     select: { disciplinaTextoLegado: true, projeto: { select: { codigo: true, nome: true } } },
   },
+  etapa: SELECT_FASE_DO_PAGAMENTO,
 } as const;
 
 type PagamentoDoRecibo = {
@@ -34,6 +36,7 @@ type PagamentoDoRecibo = {
   liberadoEm: Date;
   pagoEm: Date | null;
   disciplina: { disciplinaTextoLegado: string; projeto: { codigo: string; nome: string } };
+  etapa: { etapa: { sigla: string } } | null;
 };
 
 /** Ordem estável (mais antigo primeiro): o texto assinado não pode variar por sorte da query. */
@@ -43,7 +46,8 @@ function itensDoTexto(pagamentos: PagamentoDoRecibo[]): ItemRecibo[] {
     .map((p) => ({
       projetoCodigo: p.disciplina.projeto.codigo,
       projetoNome: p.disciplina.projeto.nome,
-      disciplina: p.disciplina.disciplinaTextoLegado,
+      // Sem fase, o texto sai idêntico ao de antes da F7 — recibo é texto assinado.
+      disciplina: rotuloDisciplinaPagamento(p.disciplina.disciplinaTextoLegado, p.etapa?.etapa.sigla),
       liberadoEm: p.liberadoEm,
       pagoEm: p.pagoEm,
       valor: Number(p.valor),

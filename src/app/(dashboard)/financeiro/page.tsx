@@ -334,7 +334,7 @@ export default async function FinanceiroPage({
               {pagamentos.map((p) => (
                 <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
                   <div>
-                    <p className="font-medium">{p.disciplina.disciplinaTextoLegado}</p>
+                    <p className="font-medium">{p.rotuloDisciplina}</p>
                     <p className="text-xs text-muted-foreground">
                       {formatarCodigo(p.disciplina.projeto.codigo)} · {p.disciplina.projeto.nome}
                     </p>

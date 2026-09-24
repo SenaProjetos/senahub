@@ -171,4 +171,14 @@ export type EtapaParaTela = {
   status: StatusDisciplina;
   percentual: number;
   ordem: number;
+  /**
+   * F7.4: o pagamento desta fase já foi liberado. Daí em diante o percentual e a própria fase
+   * ficam fixos — o pool dela foi congelado na liberação.
+   */
+  liberada: boolean;
+  /**
+   * Pool congelado na liberação. Nulo enquanto a fase não foi liberada — e SEMPRE nulo para
+   * quem não vê financeiro (o mesmo corte que esconde o valor da disciplina no card).
+   */
+  valorPagamento: number | null;
 };

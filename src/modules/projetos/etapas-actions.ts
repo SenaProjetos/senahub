@@ -6,6 +6,12 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { prazoEtapaValido, transicaoEtapaPermitida, validarPercentuais, type EtapaParaTela } from "./etapas";
 import { sincronizarPrazoDisciplina } from "./etapas-service";
+import { can, podeVerFinanceiro } from "@/lib/permissions";
+import { notificarMuitos } from "@/lib/notificar";
+import { whereAudiencia } from "@/lib/audiencias";
+import { formatarCodigo } from "@/modules/projetos/numbering";
+import { liberarPagamentosDaFase } from "@/modules/uploads/pagamento";
+import { bloqueioValorDisciplina, ehPagavel } from "@/modules/uploads/rateio";
 import { mensagemTransicaoDisciplina } from "./status";
 
 /**
@@ -99,15 +105,20 @@ export const salvarEtapaDisciplina = defineAction(
 
     const existente = await prisma.disciplinaEtapa.findUnique({
       where: { disciplinaId_etapaId: { disciplinaId: input.disciplinaId, etapaId: input.etapaId } },
-      select: { id: true, status: true },
+      select: { id: true, status: true, liberadaEm: true, percentual: true },
     });
     if (!existente && !fase.ativo) {
       throw new ActionError(`A fase "${fase.nome}" está inativa — não pode receber etapa nova.`);
     }
+    // F7.4: o pool da fase foi congelado na liberação. Mudar o percentual depois não mudaria o
+    // pagamento — só faria a tela mentir sobre de onde ele veio.
+    if (existente?.liberadaEm && Math.round(Number(existente.percentual) * 100) !== Math.round(input.percentual * 100)) {
+      throw new ActionError("O pagamento desta fase já foi liberado — o percentual dela está fixado.");
+    }
     if (existente && input.status && !transicaoEtapaPermitida(existente.status, input.status)) {
       throw new ActionError(
         input.status === "aprovado"
-          ? "Etapa não é aprovada por aqui: a aprovação vem da validação da disciplina."
+          ? "Etapa não é aprovada por aqui: use \"Aprovar fase\" (quem aprova disciplinas) ou a aprovação da disciplina."
           : mensagemTransicaoDisciplina(existente.status, input.status),
       );
     }
@@ -168,9 +179,13 @@ export const excluirEtapaDisciplina = defineAction(
   async (input): Promise<ResultadoEtapa> => {
     const etapa = await prisma.disciplinaEtapa.findUnique({
       where: { id: input.id },
-      select: { disciplinaId: true, disciplina: { select: { projetoId: true } } },
+      select: { disciplinaId: true, liberadaEm: true, disciplina: { select: { projetoId: true } } },
     });
     if (!etapa) throw new ActionError("Etapa não encontrada.");
+    // F7.4: fase com pagamento liberado é história de dinheiro — o banco também recusa (FK).
+    if (etapa.liberadaEm) {
+      throw new ActionError("Esta fase já teve o pagamento liberado — não pode ser removida.");
+    }
 
     const prazoDisciplina = await prisma.$transaction(async (tx) => {
       await tx.disciplinaEtapa.delete({ where: { id: input.id } });
@@ -195,7 +210,7 @@ export const carregarEtapasDisciplina = defineAction(
     schema: z.object({ disciplinaId: z.string().min(1) }),
     audit: false,
   },
-  async (input) => {
+  async (input, { user }) => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
       select: {
@@ -211,12 +226,18 @@ export const carregarEtapasDisciplina = defineAction(
             status: true,
             percentual: true,
             ordem: true,
+            liberadaEm: true,
+            valorPagamento: true,
             etapa: { select: { sigla: true, nome: true } },
           },
         },
       },
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
+    const [verValor, podeAprovarFase] = await Promise.all([
+      podeVerFinanceiro(user),
+      can(user, "aprovacoes", "disciplina"),
+    ]);
 
     const fases = await prisma.pranchaCatalogo.findMany({
       where: { categoria: "fase", ativo: true, OR: [{ projetoId: null }, { projetoId: disciplina.projetoId }] },
@@ -234,12 +255,129 @@ export const carregarEtapasDisciplina = defineAction(
       status: e.status,
       percentual: Number(e.percentual),
       ordem: e.ordem,
+      liberada: e.liberadaEm != null,
+      valorPagamento: verValor && e.valorPagamento != null ? Number(e.valorPagamento) : null,
     }));
     return {
       etapas,
       fases,
       prazoDisciplina: dia(disciplina.prazo),
       prazoPlanejado: dia(disciplina.projeto.prazoPlanejado),
+      /** Quem aprova disciplina aprova fase — a tela só mostra o botão para quem pode. */
+      podeAprovarFase,
     };
+  },
+);
+
+/**
+ * Aprova UMA fase e libera o pagamento dela (F7.4 — D31): "Básico de Fundação entregue → libera
+ * o pagamento da etapa Básica". Mesma permissão de quem aprova a disciplina inteira
+ * (`aprovacoes:disciplina`) — é o mesmo ato, só que por fase.
+ *
+ * Aprovar e pagar continuam atos distintos (Q15): esta action não recebe nem devolve valor. O
+ * pool da fase sai da regra (`poolsDasFasesPendentes`), e quem quiser mudá-lo ajusta o valor da
+ * disciplina ANTES (com permissão de financeiro) ou o pagamento na Produção depois.
+ *
+ * Disciplina 100% CLT: a fase é aprovada sem pagamento e sem congelar pool — não há o que
+ * repartir, e percentual que não fecha não pode travar uma aprovação que não mexe em dinheiro.
+ */
+export const aprovarEtapaDisciplina = defineAction(
+  {
+    modulo: "projetos",
+    acao: "aprovar-etapa-disciplina",
+    recurso: "aprovacoes",
+    permissao: "disciplina",
+    entidade: "DisciplinaEtapa",
+    schema: z.object({ id: z.string().min(1) }),
+    capturarAntes: (input) =>
+      prisma.disciplinaEtapa.findUnique({
+        where: { id: input.id },
+        select: { status: true, liberadaEm: true, percentual: true },
+      }),
+  },
+  async (input, { user }) => {
+    const etapa = await prisma.disciplinaEtapa.findUnique({
+      where: { id: input.id },
+      select: { id: true, status: true, liberadaEm: true, disciplinaId: true, etapa: { select: { sigla: true } } },
+    });
+    if (!etapa) throw new ActionError("Fase não encontrada.");
+    if (etapa.liberadaEm || etapa.status === "aprovado") {
+      throw new ActionError("Esta fase já foi aprovada.");
+    }
+    if (etapa.status !== "entregue" && etapa.status !== "em_revisao") {
+      throw new ActionError("A fase precisa estar entregue para ser aprovada.");
+    }
+
+    const disciplina = await prisma.disciplina.findUnique({
+      where: { id: etapa.disciplinaId },
+      select: {
+        id: true,
+        disciplinaTextoLegado: true,
+        valor: true,
+        responsaveis: { select: { userId: true, user: { select: { id: true, name: true, role: true } } } },
+        projeto: { select: { id: true, codigo: true } },
+      },
+    });
+    if (!disciplina) throw new ActionError("Disciplina não encontrada.");
+
+    const temPagavel = disciplina.responsaveis.some(ehPagavel);
+    const agora = new Date();
+    let pagaveis: { userId: string }[] = [];
+    if (temPagavel) {
+      const bloqueio = bloqueioValorDisciplina(
+        disciplina.responsaveis,
+        disciplina.valor == null ? null : Number(disciplina.valor),
+      );
+      if (bloqueio) throw new ActionError(bloqueio);
+      const r = await prisma.$transaction((tx) =>
+        liberarPagamentosDaFase(tx, { disciplina, faseId: etapa.id, autorId: user.id, agora }),
+      );
+      pagaveis = r.pagaveis;
+    } else {
+      const marcada = await prisma.disciplinaEtapa.updateMany({
+        where: { id: etapa.id, liberadaEm: null, status: { in: ["entregue", "em_revisao"] } },
+        data: { status: "aprovado", entregueEm: agora },
+      });
+      if (marcada.count === 0) throw new ActionError("A fase mudou enquanto a tela estava aberta — atualize e tente de novo.");
+    }
+
+    const codigo = formatarCodigo(disciplina.projeto.codigo);
+    const href = `/projetos/${disciplina.projeto.id}`;
+    if (pagaveis.length > 0) {
+      await notificarMuitos(
+        pagaveis.map((p) => p.userId),
+        {
+          titulo: "Pagamento liberado",
+          corpo: `Fase ${etapa.etapa.sigla} de ${disciplina.disciplinaTextoLegado} (${codigo}) aprovada. Pagamento liberado.`,
+          href,
+          // Por FASE: com a tag da disciplina, o aviso do Executivo substituiria o do Básico.
+          tag: `pagto-fase-${etapa.id}`,
+        },
+        { categoria: "pagamento" },
+      );
+    }
+    const gestores = await prisma.user.findMany({
+      where: { ...whereAudiencia("gestao_operacional"), id: { not: user.id } },
+      select: { id: true },
+    });
+    await notificarMuitos(
+      gestores.map((g) => g.id),
+      {
+        titulo: "Fase aprovada",
+        corpo:
+          pagaveis.length > 0
+            ? `Fase ${etapa.etapa.sigla} de ${disciplina.disciplinaTextoLegado} (${codigo}) aprovada — pagamento de projetista criado.`
+            : `Fase ${etapa.etapa.sigla} de ${disciplina.disciplinaTextoLegado} (${codigo}) aprovada — sem pagamento.`,
+        href,
+        tag: `aprovacao-fase-${etapa.id}`,
+      },
+      { categoria: "aprovacao_disciplina" },
+    );
+
+    revalidatePath(href);
+    revalidatePath("/financeiro/folha-projetistas");
+    revalidatePath("/financeiro/lancamentos");
+    revalidatePath("/financeiro/contas-a-pagar");
+    return { id: etapa.id, pagamentos: pagaveis.length };
   },
 );

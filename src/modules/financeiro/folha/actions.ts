@@ -22,6 +22,7 @@ import {
   temValorPagavel,
 } from "@/modules/financeiro/folha/service";
 import { contaPagamento, dataPagamento, formaPagamento } from "@/modules/financeiro/folha/schemas";
+import { SELECT_FASE_DO_PAGAMENTO, rotuloDisciplinaPagamento } from "@/modules/uploads/pagamento-fase";
 
 const pagarSchema = z.object({
   id: z.string().min(1),
@@ -53,6 +54,7 @@ export const pagarProjetista = defineAction(
       include: {
         projetista: { select: { id: true, name: true } },
         disciplina: { select: { disciplinaTextoLegado: true, projetoId: true, projeto: { select: { codigo: true } } } },
+        etapa: SELECT_FASE_DO_PAGAMENTO,
       },
     });
     if (!pag) throw new ActionError("Pagamento não encontrado.");
@@ -79,7 +81,7 @@ export const pagarProjetista = defineAction(
           valor: pag.valor,
           tipoProfissional: pag.tipoProfissional,
           projetistaNome: pag.projetista.name,
-          disciplinaNome: pag.disciplina.disciplinaTextoLegado,
+          disciplinaNome: rotuloDisciplinaPagamento(pag.disciplina.disciplinaTextoLegado, pag.etapa?.etapa.sigla),
           projetoId: pag.disciplina.projetoId,
           projetoCodigo: pag.disciplina.projeto.codigo,
         },
@@ -91,7 +93,7 @@ export const pagarProjetista = defineAction(
 
     await notificar(pag.projetista.id, {
       titulo: "Pagamento efetivado",
-      corpo: `Seu pagamento de ${pag.disciplina.disciplinaTextoLegado} foi efetivado.`,
+      corpo: `Seu pagamento de ${rotuloDisciplinaPagamento(pag.disciplina.disciplinaTextoLegado, pag.etapa?.etapa.sigla)} foi efetivado.`,
       href: "/financeiro",
       tag: `pago-${pag.id}`,
     }, { categoria: "pagamento" });
@@ -258,6 +260,7 @@ export const editarPagamentoProjetista = defineAction(
       include: {
         projetista: { select: { name: true, role: true } },
         disciplina: { select: { disciplinaTextoLegado: true, projetoId: true, projeto: { select: { codigo: true } } } },
+        etapa: SELECT_FASE_DO_PAGAMENTO,
       },
     });
     if (!pag) throw new ActionError("Pagamento não encontrado.");
@@ -285,7 +288,7 @@ export const editarPagamentoProjetista = defineAction(
           valor: input.valor,
           tipoProfissional: pag.tipoProfissional,
           projetistaNome: pag.projetista.name,
-          disciplinaNome: pag.disciplina.disciplinaTextoLegado,
+          disciplinaNome: rotuloDisciplinaPagamento(pag.disciplina.disciplinaTextoLegado, pag.etapa?.etapa.sigla),
           projetoId: pag.disciplina.projetoId,
           projetoCodigo: pag.disciplina.projeto.codigo,
           autorId: user.id,
@@ -297,7 +300,7 @@ export const editarPagamentoProjetista = defineAction(
       if (pag.folhaId) await recalcularTotalFolha(tx, pag.folhaId);
       // Sem isto, a próxima vez que alguém mexer em valor/responsáveis desta disciplina,
       // o rateio parte do Disciplina.valor antigo e desfaz este ajuste em silêncio.
-      await sincronizarValorDisciplina(tx, pag.disciplinaId);
+      await sincronizarValorDisciplina(tx, pag.disciplinaId, pag.etapaId);
     });
 
     revalidatePath("/financeiro/folha-projetistas");
@@ -387,7 +390,7 @@ export const corrigirPagamentoEfetivado = defineAction(
   async (i) => {
     const pag = await prisma.pagamentoProjetista.findUnique({
       where: { id: i.id },
-      select: { id: true, status: true, lancamentoId: true, folhaId: true, disciplinaId: true, projetistaId: true, valor: true, pagoEm: true },
+      select: { id: true, status: true, lancamentoId: true, folhaId: true, disciplinaId: true, etapaId: true, projetistaId: true, valor: true, pagoEm: true },
     });
     if (!pag) throw new ActionError("Pagamento não encontrado.");
     const quando = quandoDoPagamento(i.data);
@@ -460,7 +463,7 @@ export const corrigirPagamentoEfetivado = defineAction(
       }
 
       if (pag.folhaId) await recalcularTotalFolha(tx, pag.folhaId);
-      await sincronizarValorDisciplina(tx, pag.disciplinaId);
+      await sincronizarValorDisciplina(tx, pag.disciplinaId, pag.etapaId);
     });
 
     // G8/B2: fora da transação — notificação não pode fazer a correção voltar se falhar.
@@ -531,7 +534,7 @@ export const estornarPagamentoEfetivado = defineAction(
   async (i, { user }) => {
     const pag = await prisma.pagamentoProjetista.findUnique({
       where: { id: i.id },
-      select: { id: true, status: true, lancamentoId: true, folhaId: true, disciplinaId: true },
+      select: { id: true, status: true, lancamentoId: true, folhaId: true, disciplinaId: true, etapaId: true },
     });
     if (!pag) throw new ActionError("Pagamento não encontrado.");
 
@@ -573,7 +576,7 @@ export const estornarPagamentoEfetivado = defineAction(
       }
 
       if (pag.folhaId) await recalcularTotalFolha(tx, pag.folhaId);
-      await sincronizarValorDisciplina(tx, pag.disciplinaId);
+      await sincronizarValorDisciplina(tx, pag.disciplinaId, pag.etapaId);
     });
 
     revalidatePath("/financeiro/folha-projetistas");
@@ -625,7 +628,7 @@ export const cancelarPagamentoProjetista = defineAction(
         });
       }
       if (pag.folhaId) await recalcularTotalFolha(tx, pag.folhaId);
-      await sincronizarValorDisciplina(tx, pag.disciplinaId);
+      await sincronizarValorDisciplina(tx, pag.disciplinaId, pag.etapaId);
     });
 
     revalidatePath("/financeiro/folha-projetistas");
@@ -672,6 +675,7 @@ export const pagarProjetistasSelecionados = defineAction(
           include: {
             projetista: { select: { id: true, name: true } },
             disciplina: { select: { disciplinaTextoLegado: true, projetoId: true, projeto: { select: { codigo: true } } } },
+            etapa: SELECT_FASE_DO_PAGAMENTO,
           },
         });
         const { pagaveis } = separarPagaveis(pendentes);
@@ -695,7 +699,7 @@ export const pagarProjetistasSelecionados = defineAction(
               valor: pag.valor,
               tipoProfissional: pag.tipoProfissional,
               projetistaNome: pag.projetista.name,
-              disciplinaNome: pag.disciplina.disciplinaTextoLegado,
+              disciplinaNome: rotuloDisciplinaPagamento(pag.disciplina.disciplinaTextoLegado, pag.etapa?.etapa.sigla),
               projetoId: pag.disciplina.projetoId,
               projetoCodigo: pag.disciplina.projeto.codigo,
             },

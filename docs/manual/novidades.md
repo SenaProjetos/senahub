@@ -22,6 +22,33 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Pagamento do projetista por fase (Básico, Executivo…)
+
+Disciplina dividida em etapas (botão de camadas no card da disciplina) agora pode pagar **fase
+a fase**: "entregou o Básico, libera o pagamento do Básico".
+
+- No diálogo **Etapas**, a fase **Entregue** ganha o botão **Aprovar**, para quem aprova
+  disciplinas. Aprovar libera o pagamento daquela fase para os projetistas PJ/freelancer — CLT
+  e estagiário não recebem por entrega, como sempre.
+- O valor de cada fase é o **percentual dela sobre o valor da disciplina**. Os percentuais
+  precisam somar 100%; se não somarem, a aprovação é recusada com o aviso para ajustar.
+- Fase aprovada fica **fixa**: o percentual não muda mais, a fase não pode ser removida, e o
+  valor liberado não muda sozinho — nem se o valor da disciplina mudar depois, nem se o
+  responsável for trocado. Mudar o valor da disciplina só mexe nas fases que ainda faltam, e
+  ele não pode ficar abaixo do que já foi liberado.
+- Aprovar a **disciplina inteira**, como hoje, libera de uma vez as fases que faltam. A soma de
+  tudo fecha no valor da disciplina, no centavo.
+- Na **Produção**, no extrato e no recibo, o pagamento aparece como "Disciplina · SIGLA" (ex.:
+  "Elétrica · BS").
+- Ajuste manual na Produção (editar, estornar, cancelar) fica na fase ajustada: o valor da
+  disciplina anda pela mesma diferença, e as fases seguintes não mudam.
+- Disciplina que já teve o pagamento liberado por inteiro continua assim — não dá para passar a
+  pagar por fase depois. **Disciplina sem etapas funciona exatamente como antes.**
+
+Quem não vê o financeiro continua vendo só os percentuais das fases, sem valores.
+
+---
+
 ## Ponto: escolha em qual tarefa você está trabalhando (opcional)
 
 Ao bater o ponto (ou apontar horas) num projeto, agora dá para dizer **em qual tarefa** você

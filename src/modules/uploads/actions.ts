@@ -13,7 +13,7 @@ import type { SessionUser } from "@/lib/session";
 import { whereAudiencia } from "@/lib/audiencias";
 import { statusValidacao } from "@/modules/uploads/validacao";
 import { chaveDocumento, nomeComExtensaoOriginal, nomeSemExtensao } from "@/modules/uploads/documento";
-import { liberarPagamentosProjetista } from "@/modules/uploads/pagamento";
+import { liberarPagamentosProjetista, situacaoPagamento } from "@/modules/uploads/pagamento";
 import { bloqueioValorDisciplina } from "@/modules/uploads/rateio";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { projetoVisivel } from "@/modules/planejamento/queries";
@@ -85,7 +85,9 @@ export const validarEntrega = defineAction(
     // vindo de importação/seed) apenas conclui SEM gerar pagamento novo, no ramo abaixo.
     // Antes isso valia só para "em_revisao", e a partir de qualquer outro status a
     // disciplina ficava presa: o botão aparecia e a action recusava para sempre.
-    const jaTemPagamento = disciplina.pagamentos.length > 0;
+    // F7.4: por fase, "já tem pagamento" é TODA fase liberada — senão, com o Básico liberado,
+    // validar a disciplina pularia o Executivo em silêncio. Sem fase, é o de sempre.
+    const jaTemPagamento = (await situacaoPagamento(prisma, disciplina.id)).jaLiberouTudo;
 
     const temA = !disciplina.exigePacoteA || disciplina.uploads.some((u) => u.pacote === "A");
     const temB = !disciplina.exigePacoteB || disciplina.uploads.some((u) => u.pacote === "B");

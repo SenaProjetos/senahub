@@ -31,10 +31,10 @@ export async function sincronizarPrazoDisciplina(
   tx: Prisma.TransactionClient,
   disciplinaId: string,
 ): Promise<string | null> {
-  const [disciplina, etapas] = await Promise.all([
-    tx.disciplina.findUnique({ where: { id: disciplinaId }, select: { prazo: true } }),
-    tx.disciplinaEtapa.findMany({ where: { disciplinaId }, select: { prazo: true } }),
-  ]);
+  // Em sequência, não `Promise.all`: dentro de transação é a MESMA conexão, e consulta em
+  // paralelo nela é depreciada no driver pg (some no pg@9).
+  const disciplina = await tx.disciplina.findUnique({ where: { id: disciplinaId }, select: { prazo: true } });
+  const etapas = await tx.disciplinaEtapa.findMany({ where: { disciplinaId }, select: { prazo: true } });
   if (!disciplina) return null;
 
   const atual = disciplina.prazo ? paraDia(disciplina.prazo) : null;
