@@ -4062,6 +4062,12 @@ model CronogramaProjeto {
   aprovadoPorId String?
   aprovadoPor   User?    @relation("CronogramaAprovador", fields: [aprovadoPorId], references: [id], onDelete: SetNull)
 
+  /// Âncora do cronograma: a "Data de Início do Projeto" do MS Project. Linha sem
+  /// predecessora e sem restrição começa AQUI — sem essa âncora o motor não tem de onde
+  /// partir e cairia em "hoje", fazendo o cronograma inteiro andar sozinho a cada dia que
+  /// passa. É também o único dado que o modelo de EAP pede na hora de aplicar (D10).
+  inicioProjeto DateTime? @db.Date
+
   /// Data de corte da análise (Doc 03 §21). Antes dela é passado apurado; depois é plano.
   /// É o que distingue "atrasado" de "não apurado" — sem ela, tarefa que ninguém atualizou
   /// há três semanas aparece como atrasada, e as duas coisas pedem ações opostas.
