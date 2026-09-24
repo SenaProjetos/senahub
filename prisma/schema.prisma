@@ -209,6 +209,9 @@ model User {
   canaisCriados                 Canal[]                     @relation("CanaisCriados")
   mensagens                     Mensagem[]
   sessoes                       SessaoTrabalho[]
+  cronogramasAprovados          CronogramaProjeto[]         @relation("CronogramaAprovador")
+  eapBaselinesAutor             EapBaseline[]               @relation("EapBaselineAutor")
+  eapCodigoHistorico            EapCodigoHistorico[]        @relation("EapCodigoAutor")
   batidas                       Batida[]
   batidasAjustadas              Batida[]                    @relation("BatidaCriador")
   escalasUsuario                EscalaUsuario[]
@@ -1236,6 +1239,9 @@ model Projeto {
   documentos              Documento[]
   licitacao               Licitacao?
   sessoes                 SessaoTrabalho[]
+  cronograma              CronogramaProjeto?
+  eapBaselines            EapBaseline[]
+  eapCatalogos            EapCatalogo[]
   eapTarefas              EapTarefa[]
   alocacoes               Alocacao[]
   servicos                ServicoTerceirizado[]
@@ -3930,8 +3936,200 @@ model TicketMensagem {
 // Planejamento & Recursos (Onda 5)
 // ─────────────────────────────────────────────────────────────
 
-/// Tarefa da EAP (WBS) de um projeto — hierárquica, com datas previstas
-/// (plano atual) e de linha de base (snapshot p/ o gantt de linha dupla).
+/// Natureza de um nó da EAP (TEAP do Doc 02 §5). Substitui o antigo booleano `marco`:
+/// marco É `mrc`, e não uma flag paralela — duas fontes de verdade sobre a mesma coisa
+/// é exatamente o que o Doc 03 §2 ("ID identifica, EAP organiza") proíbe.
+enum TipoEap {
+  prj // Projeto — raiz
+  fas // Fase / macroetapa
+  pct // Pacote de trabalho
+  disc // Disciplina
+  loc // Localização
+  sis // Sistema
+  res // Atividade-resumo
+  atv // Atividade (trabalho executável)
+  mrc // Marco — duração SEMPRE 0 (Doc 03 §11)
+}
+
+/// Situação operacional da linha (STA do Doc 02 §9). "Atrasado" NÃO entra aqui: é
+/// derivado da Data de Status contra o prazo (Doc 03 §26), não um estado cadastrado.
+enum StatusEap {
+  nin // Não iniciado
+  and // Em andamento
+  agu // Aguardando
+  blq // Bloqueado
+  rev // Em revisão
+  apr // Aguardando aprovação
+  con // Concluído — exige progresso 100 + fimReal preenchido
+  sus // Suspenso
+  can // Cancelado
+  arq // Arquivado
+}
+
+enum PrioridadeEap {
+  bai
+  med
+  alt
+  crt
+}
+
+/// Os 4 relacionamentos do Doc 03 §12. Entram no schema JÁ na F0 mesmo com a tela
+/// oferecendo só `fs`: incluir depois obrigaria a reescrever todo cronograma criado
+/// até lá. `sf` existe por completude e o Doc recomenda uso restrito.
+enum TipoVinculoEap {
+  fs // Término → Início (padrão)
+  ss // Início → Início
+  ff // Término → Término
+  sf // Início → Término (excepcional)
+}
+
+/// Restrições de data do Doc 03 §18. `null` = data livre, calculada pelo motor.
+/// Arrastar a barra na tela grava `iniciar_nao_antes_de` e acende o alfinete (D34) —
+/// no MS Project a restrição é gravada em silêncio, e é a origem clássica do
+/// cronograma que ninguém entende por que não anda.
+enum RestricaoEap {
+  iniciar_em
+  iniciar_nao_antes_de
+  iniciar_nao_depois_de
+  terminar_em
+  terminar_nao_antes_de
+  terminar_nao_depois_de
+}
+
+/// Categorias do catálogo de classificadores (Doc 02 §24). Uma tabela só, como
+/// `PranchaCatalogo` já faz com folha/tipo/fase — não 4 tabelas quase idênticas.
+enum CategoriaEapCatalogo {
+  tipo_atividade // TAT — nível 3 (evolutivo): MOD, DIM, DET, REV, EMT…
+  sistema // SIS — nível 3 (evolutivo): ILU, TOM, FOR, HID…
+  localizacao // LOC — nível 2 (por projeto): SS01, TER, PVT, COB…
+  origem // ORG — nível 3 (evolutivo): INT, CLI, ARQ, CMP…
+}
+
+/// Catálogo de classificadores da EAP. `projetoId` nulo = corporativo (vale para todos);
+/// preenchido = específico do projeto, que é o caso previsto para `localizacao`.
+/// Inativo some dos cadastros novos e PERMANECE no histórico (Doc 02 §26).
+model EapCatalogo {
+  id        String               @id @default(cuid())
+  categoria CategoriaEapCatalogo
+  sigla     String
+  nome      String
+  ativo     Boolean              @default(true)
+  ordem     Int                  @default(0)
+  projetoId String?
+  projeto   Projeto?             @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  createdAt DateTime             @default(now())
+
+  tarefasTipoAtividade EapTarefa[] @relation("EapTipoAtividade")
+  tarefasSistema       EapTarefa[] @relation("EapSistema")
+  tarefasLocalizacao   EapTarefa[] @relation("EapLocalizacao")
+  tarefasOrigem        EapTarefa[] @relation("EapOrigem")
+
+  @@unique([categoria, sigla, projetoId])
+  @@index([categoria, projetoId])
+  @@map("eap_catalogo")
+}
+
+/// Contador do ID Corporativo, por prefixo (`ATV-01842`). O ID é a IDENTIDADE PERMANENTE
+/// da linha (Doc 02 §4.1) e nunca é reaproveitado — nem quando a linha é excluída, nem
+/// quando vem de um modelo (Doc 03 §32). Incremento atômico via `UPDATE … RETURNING`
+/// dentro da mesma transação que cria a linha.
+model EapSequencia {
+  prefixo String @id
+  ultimo  Int    @default(0)
+
+  @@map("eap_sequencia")
+}
+
+/// Estado do cronograma de um projeto. Existe como linha própria (e não como campos no
+/// `Projeto`) porque é o dono da Data de Status, do calendário e do ciclo rascunho →
+/// aprovado; pendurar isso em `Projeto` misturaria contrato com planejamento.
+model CronogramaProjeto {
+  id        String  @id @default(cuid())
+  projetoId String  @unique
+  projeto   Projeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+
+  /// `false` = rascunho: não gera card, não entra em relatório, não tem linha de base (D14).
+  /// Cronograma herdado entra como rascunho (D27) — aprovar automaticamente congelaria como
+  /// "combinado com o cliente" datas que ninguém revisou.
+  aprovado     Boolean   @default(false)
+  aprovadoEm   DateTime?
+  aprovadoPorId String?
+  aprovadoPor   User?    @relation("CronogramaAprovador", fields: [aprovadoPorId], references: [id], onDelete: SetNull)
+
+  /// Data de corte da análise (Doc 03 §21). Antes dela é passado apurado; depois é plano.
+  /// É o que distingue "atrasado" de "não apurado" — sem ela, tarefa que ninguém atualizou
+  /// há três semanas aparece como atrasada, e as duas coisas pedem ações opostas.
+  dataStatus DateTime? @db.Date
+
+  /// Calendário do projeto. Nulo = calendário da empresa, que é o único da v1 (D8);
+  /// o campo já existe para a obra que trabalha sábado não exigir migration depois.
+  calendarioChave String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([aprovadoPorId])
+  @@map("cronograma_projeto")
+}
+
+/// Versão da linha de base (BL-00, BL-01…, Doc 03 §20). NUNCA sobrescrita: replanejar
+/// cria uma versão nova, com autor e motivo. É o que responde, no fim do projeto,
+/// "o prazo estourou 40 dias e 25 entraram naquele replanejamento de março, por atraso
+/// de aprovação do cliente" — pergunta que hoje não tem resposta.
+model EapBaseline {
+  id        String  @id @default(cuid())
+  projetoId String
+  projeto   Projeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  /// 0 = BL-00 (a do aprovar). Cresce a cada replanejamento.
+  numero    Int
+  motivo    String?
+  observacao String?
+  autorId   String?
+  autor     User?   @relation("EapBaselineAutor", fields: [autorId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  linhas EapBaselineLinha[]
+
+  @@unique([projetoId, numero])
+  @@index([autorId])
+  @@map("eap_baseline")
+}
+
+/// Foto de uma linha num momento de baseline. Denormaliza o essencial (Doc 03 §19) para
+/// que excluir a tarefa não apague a prova do que foi combinado — por isso `tarefaId`
+/// é `SetNull` e o nome fica copiado.
+model EapBaselineLinha {
+  id         String      @id @default(cuid())
+  baselineId String
+  baseline   EapBaseline @relation(fields: [baselineId], references: [id], onDelete: Cascade)
+  tarefaId   String?
+  tarefa     EapTarefa?  @relation(fields: [tarefaId], references: [id], onDelete: SetNull)
+
+  /// Cópia, não referência: a linha pode ser renomeada ou excluída depois.
+  nome           String
+  codigoEap      String?
+  inicio         DateTime @db.Date
+  fim            DateTime @db.Date
+  duracaoDias    Decimal  @db.Decimal(6, 2)
+  trabalhoHoras  Decimal? @db.Decimal(8, 2)
+  avancoPlanejado Int     @default(0)
+
+  @@index([baselineId])
+  @@index([tarefaId])
+  @@map("eap_baseline_linha")
+}
+
+/// Linha da EAP de um projeto. Pode ser projeto, fase, pacote, disciplina, atividade-resumo,
+/// atividade ou marco — `tipoEap` diz qual (D3).
+///
+/// Três identidades distintas, e nenhuma substitui a outra (Doc 02 §30):
+///   `idCorporativo` (ATV-01842) — identidade permanente, nunca muda
+///   `codigoEap`     (3.2.4)     — posição hierárquica, recalculada ao mover a linha
+///   classificadores (ELE/EXE/DIM) — características, mudam com a natureza do trabalho
+///
+/// A ÁRVORE É LIVRE; o dado é o par disciplina × etapa (D36). Fase-acima (como no EAP.pdf
+/// do escritório) e disciplina-acima (Doc 03 §3) funcionam os dois, porque todo relatório
+/// lê o classificador e não a posição.
 model EapTarefa {
   id             String      @id @default(cuid())
   projetoId      String
@@ -3943,25 +4141,91 @@ model EapTarefa {
   disciplina     Disciplina? @relation(fields: [disciplinaId], references: [id], onDelete: SetNull)
   nome           String
   ordem          Int         @default(0)
-  inicioPrevisto DateTime    @db.Date
-  fimPrevisto    DateTime    @db.Date
-  inicioBaseline DateTime?   @db.Date
-  fimBaseline    DateTime?   @db.Date
-  progresso      Int         @default(0)
-  marco          Boolean     @default(false)
+
+  /// Identidade permanente da linha (`ATV-01842`). Única na empresa inteira, atribuída na
+  /// criação e nunca reaproveitada. O que compara projetos NÃO é este id — é o `tipoAtividade`
+  /// (TAT): "quanto leva uma modelagem elétrica" soma as linhas `ELE + EXE + MOD`.
+  idCorporativo String? @unique
+
+  /// Posição hierárquica (`3.2.4`). MUTÁVEL: mover a linha recalcula este código e deixa o
+  /// `idCorporativo` intacto. Nunca usar como chave (Doc 02 §4.2).
+  codigoEap String?
+
+  tipoEap TipoEap @default(atv)
+
+  /// Duração em dias ÚTEIS do calendário (Doc 03 §16). O motor deriva as datas daqui —
+  /// o inverso do CPM antigo, que deduzia duração das datas digitadas e contava dias
+  /// corridos. Marco (`mrc`) tem duração 0, por definição.
+  duracaoDias Decimal @default(1) @db.Decimal(6, 2)
+
+  /// ── Classificadores (Doc 02 §3) ───────────────────────────────────────────────
+  /// Etapa reusa `PranchaCatalogo` categoria `fase` (BS, EX, AP…) — o MESMO catálogo que
+  /// nomeia os arquivos. Catálogo novo aqui criaria duas verdades sobre "Projeto Básico".
+  /// A linha nunca grava a SIGLA: ela é resolvida na exibição pela versão de nomenclatura
+  /// do projeto (D35), que é o que faz `HID`/`BS` de um projeto antigo continuarem válidos.
+  etapaId String?
+  etapa   PranchaCatalogo? @relation("EapEtapa", fields: [etapaId], references: [id], onDelete: SetNull)
+
+  tipoAtividadeId String?
+  tipoAtividade   EapCatalogo? @relation("EapTipoAtividade", fields: [tipoAtividadeId], references: [id], onDelete: SetNull)
+  sistemaId       String?
+  sistema         EapCatalogo? @relation("EapSistema", fields: [sistemaId], references: [id], onDelete: SetNull)
+  localizacaoId   String?
+  localizacao     EapCatalogo? @relation("EapLocalizacao", fields: [localizacaoId], references: [id], onDelete: SetNull)
+  origemId        String?
+  origem          EapCatalogo? @relation("EapOrigem", fields: [origemId], references: [id], onDelete: SetNull)
+
+  status     StatusEap     @default(nin)
+  prioridade PrioridadeEap @default(med)
+
+  /// ── Datas ─────────────────────────────────────────────────────────────────────
+  /// PREVISTO: onde a linha cai hoje, recalculado pelo motor. REAL: o que aconteceu.
+  /// BASELINE: o combinado, que vive em `EapBaseline` a partir da F2.
+  inicioPrevisto DateTime  @db.Date
+  fimPrevisto    DateTime  @db.Date
+  inicioReal     DateTime? @db.Date
+  fimReal        DateTime? @db.Date
+
+  /// TEMPORÁRIO — cache da baseline ativa, mantido só para as telas atuais não quebrarem
+  /// na F0. A verdade versionada é `EapBaselineLinha`. **Remover na F2**, junto com a
+  /// troca do caminho de leitura; até lá, escritas SÓ pelo serviço que grava a baseline,
+  /// nunca direto, senão vira a segunda fonte de verdade que este spec inteiro evita.
+  inicioBaseline DateTime? @db.Date
+  fimBaseline    DateTime? @db.Date
+
+  /// ── Restrição de data (Doc 03 §18) ────────────────────────────────────────────
+  /// Nulo = data livre. Preenchido = âncora que o motor respeita e a tela mostra com
+  /// alfinete. `restricaoData` é obrigatória quando `restricaoTipo` existe (validado na
+  /// action, não por constraint — o Postgres não expressa isso sem trigger).
+  restricaoTipo RestricaoEap?
+  restricaoData DateTime?     @db.Date
+
+  /// Avanço FÍSICO informado pelo coordenador (Doc 03 §22), com sugestões do que o sistema
+  /// já sabe. Em linha-resumo é CALCULADO, ponderado por horas previstas (D26/Doc 03 §23) —
+  /// nunca digitado.
+  progresso Int @default(0)
 
   predecessoras EapDependencia[] @relation("EapDependente")
   sucessoras    EapDependencia[] @relation("EapPredecessora")
+  baselineLinhas EapBaselineLinha[]
+  historicoCodigo EapCodigoHistorico[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([projetoId])
   @@index([parentId])
+  @@index([projetoId, tipoEap])
+  @@index([disciplinaId, etapaId])
+  @@index([etapaId])
+  @@index([tipoAtividadeId])
+  @@index([sistemaId])
+  @@index([localizacaoId])
+  @@index([origemId])
   @@map("eap_tarefa")
 }
 
-/// Dependência FS entre tarefas da EAP (predecessora termina antes da sucessora iniciar).
+/// Dependência entre linhas da EAP: os 4 tipos do Doc 03 §12 com defasagem (§13).
 model EapDependencia {
   id             String    @id @default(cuid())
   tarefaId       String
@@ -3969,9 +4233,35 @@ model EapDependencia {
   predecessoraId String
   predecessora   EapTarefa @relation("EapPredecessora", fields: [predecessoraId], references: [id], onDelete: Cascade)
 
+  tipo TipoVinculoEap @default(fs)
+
+  /// Defasagem em dias ÚTEIS. Positivo = espera (`FS + 2 dias`); NEGATIVO = antecipação
+  /// (`SS - 2 dias`), que o Doc 03 §13 manda usar com cautela. Decimal porque meio dia
+  /// de lag é pedido real e migrar Int → Decimal depois exigiria reescrever a coluna.
+  lagDias Decimal @default(0) @db.Decimal(6, 2)
+
   @@unique([tarefaId, predecessoraId])
   @@index([predecessoraId])
   @@map("eap_dependencia")
+}
+
+/// Histórico de mudança do código da EAP (Doc 02 §27). Como o código é mutável, é isto
+/// que permite reconstruir a estrutura de um cronograma numa data passada — necessário
+/// em projeto contratual e em auditoria.
+model EapCodigoHistorico {
+  id        String    @id @default(cuid())
+  tarefaId  String
+  tarefa    EapTarefa @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  codigoAnterior String?
+  codigoNovo     String?
+  motivo    String?
+  autorId   String?
+  autor     User?     @relation("EapCodigoAutor", fields: [autorId], references: [id], onDelete: SetNull)
+  createdAt DateTime  @default(now())
+
+  @@index([tarefaId])
+  @@index([autorId])
+  @@map("eap_codigo_historico")
 }
 
 /// Pessoa como recurso de planejamento (multiplicador de capacidade, custo/hora, cor).
@@ -5373,6 +5663,9 @@ model PranchaCatalogo {
   documentosFase         DocumentoDisciplina[] @relation("DocumentoFase")
   documentosTipo         DocumentoDisciplina[] @relation("DocumentoTipo")
   documentosTamanhoPapel DocumentoDisciplina[] @relation("DocumentoTamanhoPapel")
+  /// Etapa das linhas da EAP (D36): o cronograma reusa o MESMO catálogo de fase que
+  /// nomeia os arquivos, em vez de criar um segundo "Projeto Básico".
+  eapTarefasEtapa        EapTarefa[]           @relation("EapEtapa")
 
   @@index([categoria, projetoId])
   @@map("prancha_catalogo")

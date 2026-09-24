@@ -20,6 +20,22 @@ const revRecursos = () => revalidatePath("/recursos");
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 const dia = z.string().min(1, "Informe a data.");
 
+/**
+ * Duração provisória da F0, em DIAS DE CALENDÁRIO inclusivos — exatamente a conta que o
+ * CPM antigo fazia. Não é o calendário de trabalho: a F1 traz `lib/calendario-trabalho.ts`
+ * (dias úteis + feriados, reusando `feriadosParaCalculo`) e RECALCULA toda duração.
+ *
+ * Existe só para a coluna nascer preenchida com a intenção que já estava nas datas. Não
+ * chamar de fora deste arquivo, e remover quando a F1 entrar.
+ */
+function diasUteisEntre(inicioIso: string, fimIso: string): number {
+  const MS_DIA = 86_400_000;
+  const ini = new Date(`${inicioIso}T00:00:00`).getTime();
+  const fim = new Date(`${fimIso}T00:00:00`).getTime();
+  const dias = Math.round((fim - ini) / MS_DIA) + 1;
+  return dias > 0 ? dias : 1;
+}
+
 // ── Roll-up: propaga datas e progresso do filho ao pai ───────
 // Tarefas-resumo (com filhas) derivam inicioPrevisto, fimPrevisto e progresso dos filhos.
 async function rollupPai(tarefaId: string) {
@@ -138,7 +154,10 @@ export const criarEapTarefa = defineAction(
         inicioPrevisto: new Date(i.inicioPrevisto),
         fimPrevisto: i.marco ? new Date(i.inicioPrevisto) : new Date(i.fimPrevisto),
         progresso: i.progresso,
-        marco: i.marco,
+        // F0: a natureza da linha é o TEAP; `marco` continua no contrato da UI mas não
+        // existe mais como coluna. Marco tem duração 0 por definição (Doc 03 §11).
+        tipoEap: i.marco ? "mrc" : "atv",
+        duracaoDias: i.marco ? 0 : diasUteisEntre(i.inicioPrevisto, i.fimPrevisto),
         ordem: (max._max.ordem ?? -1) + 1,
       },
     });
@@ -159,7 +178,8 @@ export const editarEapTarefa = defineAction(
         inicioPrevisto: new Date(i.inicioPrevisto),
         fimPrevisto: i.marco ? new Date(i.inicioPrevisto) : new Date(i.fimPrevisto),
         progresso: i.progresso,
-        marco: i.marco,
+        tipoEap: i.marco ? "mrc" : "atv",
+        duracaoDias: i.marco ? 0 : diasUteisEntre(i.inicioPrevisto, i.fimPrevisto),
       },
       select: { projetoId: true },
     });

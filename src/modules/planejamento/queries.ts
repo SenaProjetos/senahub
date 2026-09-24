@@ -94,7 +94,9 @@ export async function eapDoProjeto(projetoId: string) {
       disciplinaId: t.disciplinaId,
       disciplinaNome: t.disciplina?.disciplinaTextoLegado ?? null,
       predecessoraIds: t.predecessoras.map((p) => p.predecessoraId),
-      marco: t.marco,
+      // `marco` é DERIVADO de tipoEap (F0): a natureza da linha vive no TEAP, não
+      // num booleano paralelo. O contrato da UI segue o mesmo, como `progressoDerivado`.
+      marco: t.tipoEap === "mrc",
     })),
     // Volta a se chamar `nome` na fronteira da UI (`EapWorkspace` fala "nome"): a F1.19c
     // renomeou a coluna no schema, não o rótulo exibido.
@@ -144,7 +146,9 @@ export async function cronogramaProjetosAtivos() {
       disciplinaId: t.disciplinaId,
       disciplinaNome: t.disciplina?.disciplinaTextoLegado ?? null,
       predecessoraIds: t.predecessoras.map((pp) => pp.predecessoraId),
-      marco: t.marco,
+      // `marco` é DERIVADO de tipoEap (F0): a natureza da linha vive no TEAP, não
+      // num booleano paralelo. O contrato da UI segue o mesmo, como `progressoDerivado`.
+      marco: t.tipoEap === "mrc",
     })),
   }));
 }
