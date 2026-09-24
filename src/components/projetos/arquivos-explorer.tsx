@@ -1091,7 +1091,7 @@ function LinhaVersaoDocumento({
       </span>
       <span className="shrink-0 font-mono text-xs">{fmtBytes(v.tamanho)}</span>
       <PreviewPdfButton visivel={extDe(v.nomeArquivo) === "pdf"} url={v.downloadUrl} titulo={`${nome} ${rotuloRevisao(v.numero)}`} />
-      <VisualizarDwgButton desenhoId={refDocumentoDwg(v.id)} nomeArquivo={v.nomeArquivo} titulo={`${nome} ${rotuloRevisao(v.numero)}`} />
+      <VisualizarDwgButton desenhoId={refDocumentoDwg(v.id)} nomeArquivo={v.nomeArquivo} titulo={`${nome} ${rotuloRevisao(v.numero)}`} statusInicial={v.conversaoDwg} />
       <a
         href={v.downloadUrl}
         className="shrink-0 text-primary hover:text-primary/80"
@@ -1288,7 +1288,7 @@ export function RecebidosPasta({
                     <PreviewPdfButton visivel={extDe(d.atual.nomeArquivo) === "pdf"} url={d.atual.downloadUrl} titulo={d.nome} />
                   )}
                   {d.atual && (
-                    <VisualizarDwgButton desenhoId={refDocumentoDwg(d.atual.id)} nomeArquivo={d.atual.nomeArquivo} titulo={d.nome} />
+                    <VisualizarDwgButton desenhoId={refDocumentoDwg(d.atual.id)} nomeArquivo={d.atual.nomeArquivo} titulo={d.nome} statusInicial={d.atual.conversaoDwg} />
                   )}
                   {d.atual && (
                     <a href={d.atual.downloadUrl} className="shrink-0 text-primary hover:text-primary/80" aria-label={`Baixar ${d.nome}`}>
@@ -1511,7 +1511,7 @@ export function PastaBaseArquitetonica({
                     <PreviewPdfButton visivel={extDe(d.atual.nomeArquivo) === "pdf"} url={d.atual.downloadUrl} titulo={d.nome} />
                   )}
                   {d.atual && (
-                    <VisualizarDwgButton desenhoId={refDocumentoDwg(d.atual.id)} nomeArquivo={d.atual.nomeArquivo} titulo={d.nome} />
+                    <VisualizarDwgButton desenhoId={refDocumentoDwg(d.atual.id)} nomeArquivo={d.atual.nomeArquivo} titulo={d.nome} statusInicial={d.atual.conversaoDwg} />
                   )}
                   {d.atual && (
                     <a href={d.atual.downloadUrl} className="shrink-0 text-primary hover:text-primary/80" aria-label={`Baixar ${d.nome}`}>
@@ -1768,7 +1768,7 @@ export function PastaGeral({
                     <PreviewPdfButton visivel={extDe(a.atual.nomeArquivo) === "pdf"} url={a.atual.downloadUrl} titulo={a.nome} />
                   )}
                   {a.atual && (
-                    <VisualizarDwgButton desenhoId={refDocumentoDwg(a.atual.id)} nomeArquivo={a.atual.nomeArquivo} titulo={a.nome} />
+                    <VisualizarDwgButton desenhoId={refDocumentoDwg(a.atual.id)} nomeArquivo={a.atual.nomeArquivo} titulo={a.nome} statusInicial={a.atual.conversaoDwg} />
                   )}
                   {a.atual && (
                     <a
