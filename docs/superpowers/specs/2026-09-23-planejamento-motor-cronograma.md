@@ -265,6 +265,21 @@ Um cronograma, quatro modos de exibição (D33) — não duas telas lado a lado.
 | F5.5 | Sobrecarga | Alerta **com sugestão aplicável em um clique**; nunca nivelamento automático (D18). Férias e jornada entram como aviso (D8) |
 | F5.6 | Card do projetista | Uma linha com gente alocada = um card; resumo, marco e etapa de terceiro **não geram card** (D24). A ponte `Tarefa.eapTarefaId` já existe |
 
+> **Notas de implementação (2026-09-24, regras da F5 prontas; tela pendente):**
+> - **Deploy:** depois da migration `20260924160000_eap_atribuicao`, rodar
+>   `scripts/herdar-responsaveis-eap.ts --gravar` **uma vez**. Sem ele, toda linha antiga
+>   aparece "sem responsável" e a Saúde de todo projeto cai no dia do deploy. Rodar de novo
+>   depois desfaria escolhas do coordenador — para isso existe o botão por projeto.
+> - **A confirmar com o time — "etapa de terceiro" (D24):** reconhecida pela **origem** da
+>   linha: `CLI`, `ARQ`, `EXT`, `FIS`, `APR`, `CON`, `OBR`. `INT`, `CMP` e `ALT` são trabalho da
+>   casa. A D24 não dizia como reconhecer; a origem foi o classificador mais próximo.
+> - **Perfil** = atribuição sem pessoa. "Projetista" numa linha da Elétrica **é** o
+>   "Projetista Elétrico" — a disciplina vem da linha, sem catálogo de perfis paralelo.
+> - Papéis = os **8** do Doc 02 §16 (DIR, GER, COO, ENG, PRO, MOD, REV, APR), não só 4.
+> - Aprovar o cronograma tira a alocação digitada do projeto da soma (D17). Aprovar **sem horas
+>   estimadas** faz o projeto sumir da carga da equipe — a tela de aprovação avisa.
+> - Verificação: `npm run smoke:recursos-eap`.
+
 ### F6 — Apontamento por tarefa · Sonnet · 2 sessões · risco BAIXO
 
 | # | Entrega | Detalhe |
