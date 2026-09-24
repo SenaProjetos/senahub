@@ -21,6 +21,11 @@
 import type { Prisma } from "../src/generated/prisma/client";
 
 type ClienteCatalogos = Pick<Prisma.TransactionClient, "disciplinaCatalogo" | "pranchaCatalogo">;
+type ClienteEapCatalogo = Pick<Prisma.TransactionClient, "eapCatalogo">;
+
+/** Categorias do classificador da EAP, na ordem em que a tela as apresenta. */
+const CATEGORIAS_EAP = ["tipo_atividade", "sistema", "origem", "localizacao"] as const;
+type CategoriaEap = (typeof CATEGORIAS_EAP)[number];
 
 // Item 15: catálogo com sigla (nomenclatura de arquivos) + categoria (agrupamento na UI).
 // Catálogo-base pré-criado. `categoria: null` cai no grupo "Outras" (ver schema/nota da view).
@@ -131,6 +136,111 @@ export async function semearListaMestre(
         ordem: i,
         sinonimos: c.sinonimos ?? [],
       })),
+    });
+    resultado.push({ categoria, criadas: count, existentes: 0 });
+  }
+  return resultado;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Classificadores da EAP (Doc 02 — Dicionário Corporativo de Classificadores)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Vocabulário corporativo das linhas da EAP. Três das quatro categorias são "nível 3"
+ * no Doc 02 §24 (evolutivas: crescem por aprovação administrativa); `localizacao` é
+ * "nível 2" (por projeto) e aqui entra só com a base comum, que cada projeto estende.
+ *
+ * Colisão de sigla ENTRE categorias é esperada e legítima — `DET` é Detalhamento em
+ * `tipo_atividade` e Detecção em `sistema`; `HID` é Hidrantes aqui e Hidrossanitário no
+ * catálogo de disciplinas. São vocabulários distintos, e a unicidade é por categoria.
+ */
+export const EAP_CATALOGO: { categoria: CategoriaEap; sigla: string; nome: string }[] = [
+  // TAT — natureza do trabalho (Doc 02 §8)
+  { categoria: "tipo_atividade", sigla: "PLN", nome: "Planejamento" },
+  { categoria: "tipo_atividade", sigla: "LEV", nome: "Levantamento" },
+  { categoria: "tipo_atividade", sigla: "MOD", nome: "Modelagem" },
+  { categoria: "tipo_atividade", sigla: "LAN", nome: "Lançamento" },
+  { categoria: "tipo_atividade", sigla: "DIM", nome: "Dimensionamento" },
+  { categoria: "tipo_atividade", sigla: "CAL", nome: "Cálculo" },
+  { categoria: "tipo_atividade", sigla: "DET", nome: "Detalhamento" },
+  { categoria: "tipo_atividade", sigla: "DOC", nome: "Documentação" },
+  { categoria: "tipo_atividade", sigla: "CMP", nome: "Compatibilização" },
+  { categoria: "tipo_atividade", sigla: "ANA", nome: "Análise" },
+  { categoria: "tipo_atividade", sigla: "COR", nome: "Correção" },
+  { categoria: "tipo_atividade", sigla: "REV", nome: "Revisão" },
+  { categoria: "tipo_atividade", sigla: "VAL", nome: "Validação" },
+  { categoria: "tipo_atividade", sigla: "APR", nome: "Aprovação" },
+  { categoria: "tipo_atividade", sigla: "EMT", nome: "Emissão" },
+  { categoria: "tipo_atividade", sigla: "RCL", nome: "Reunião com cliente" },
+  { categoria: "tipo_atividade", sigla: "RIN", nome: "Reunião interna" },
+
+  // SIS — sistema técnico (Doc 02 §11), agrupado por disciplina de origem
+  { categoria: "sistema", sigla: "ILU", nome: "Iluminação" },
+  { categoria: "sistema", sigla: "TOM", nome: "Tomadas" },
+  { categoria: "sistema", sigla: "FOR", nome: "Força" },
+  { categoria: "sistema", sigla: "QUA", nome: "Quadros" },
+  { categoria: "sistema", sigla: "MED", nome: "Medição" },
+  { categoria: "sistema", sigla: "ATE", nome: "Aterramento" },
+  { categoria: "sistema", sigla: "SPDA", nome: "SPDA" },
+  { categoria: "sistema", sigla: "EME", nome: "Emergência" },
+  { categoria: "sistema", sigla: "AF", nome: "Água fria" },
+  { categoria: "sistema", sigla: "AQ", nome: "Água quente" },
+  { categoria: "sistema", sigla: "REC", nome: "Recalque" },
+  { categoria: "sistema", sigla: "RES", nome: "Reservação" },
+  { categoria: "sistema", sigla: "ESG", nome: "Esgoto" },
+  { categoria: "sistema", sigla: "VEN", nome: "Ventilação" },
+  { categoria: "sistema", sigla: "GRE", nome: "Gordura" },
+  { categoria: "sistema", sigla: "PLU", nome: "Águas pluviais" },
+  { categoria: "sistema", sigla: "DRE", nome: "Drenagem" },
+  { categoria: "sistema", sigla: "CON", nome: "Condensado" },
+  { categoria: "sistema", sigla: "HID", nome: "Hidrantes" },
+  { categoria: "sistema", sigla: "SPR", nome: "Sprinklers" },
+  { categoria: "sistema", sigla: "EXT", nome: "Extintores" },
+  { categoria: "sistema", sigla: "DET", nome: "Detecção" },
+  { categoria: "sistema", sigla: "ALA", nome: "Alarme" },
+  { categoria: "sistema", sigla: "ROT", nome: "Rotas de fuga" },
+
+  // ORG — origem da demanda (Doc 02 §14). É o que permite responder "quantos dias
+  // perdemos esperando o cliente", em vez de só "o projeto atrasou".
+  { categoria: "origem", sigla: "INT", nome: "Interna" },
+  { categoria: "origem", sigla: "CLI", nome: "Cliente" },
+  { categoria: "origem", sigla: "ARQ", nome: "Arquitetura" },
+  { categoria: "origem", sigla: "EXT", nome: "Projetista externo" },
+  { categoria: "origem", sigla: "CMP", nome: "Compatibilização" },
+  { categoria: "origem", sigla: "FIS", nome: "Fiscalização" },
+  { categoria: "origem", sigla: "APR", nome: "Órgão aprovador" },
+  { categoria: "origem", sigla: "CON", nome: "Concessionária" },
+  { categoria: "origem", sigla: "OBR", nome: "Obra" },
+  { categoria: "origem", sigla: "ALT", nome: "Alteração de escopo" },
+
+  // LOC — base comum (Doc 02 §10). Cada projeto acrescenta a sua (torre, setor, ambiente).
+  { categoria: "localizacao", sigla: "GER", nome: "Geral" },
+  { categoria: "localizacao", sigla: "SS01", nome: "Subsolo 01" },
+  { categoria: "localizacao", sigla: "TER", nome: "Térreo" },
+  { categoria: "localizacao", sigla: "PVT", nome: "Pavimento tipo" },
+  { categoria: "localizacao", sigla: "COB", nome: "Cobertura" },
+  { categoria: "localizacao", sigla: "EXT", nome: "Área externa" },
+];
+
+/**
+ * Cria os classificadores GLOBAIS da EAP, categoria a categoria, só onde a categoria
+ * estiver vazia — mesma regra de `semearListaMestre`: depois da primeira vez quem manda
+ * é a tela, e item novo acrescentado aqui só chega em quem já tem catálogo via migration.
+ */
+export async function semearEapCatalogo(
+  db: ClienteEapCatalogo,
+): Promise<{ categoria: CategoriaEap; criadas: number; existentes: number }[]> {
+  const resultado: { categoria: CategoriaEap; criadas: number; existentes: number }[] = [];
+  for (const categoria of CATEGORIAS_EAP) {
+    const existentes = await db.eapCatalogo.count({ where: { categoria, projetoId: null } });
+    if (existentes > 0) {
+      resultado.push({ categoria, criadas: 0, existentes });
+      continue;
+    }
+    const itens = EAP_CATALOGO.filter((c) => c.categoria === categoria);
+    const { count } = await db.eapCatalogo.createMany({
+      data: itens.map((c, i) => ({ categoria: c.categoria, sigla: c.sigla, nome: c.nome, ordem: i })),
     });
     resultado.push({ categoria, criadas: count, existentes: 0 });
   }

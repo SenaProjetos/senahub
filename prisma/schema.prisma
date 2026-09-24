@@ -4024,6 +4024,12 @@ model EapCatalogo {
   tarefasLocalizacao   EapTarefa[] @relation("EapLocalizacao")
   tarefasOrigem        EapTarefa[] @relation("EapOrigem")
 
+  /// ATENÇÃO: no Postgres `UNIQUE` trata NULL como distinto, então esta constraint NÃO
+  /// impede duas linhas globais com a mesma sigla (mesma pegadinha documentada em
+  /// `DocumentoDisciplina.chave`). Quem garante o caso global é o índice PARCIAL
+  /// `eap_catalogo_global_key` (`WHERE "projetoId" IS NULL`), criado na migration
+  /// 20260924093000 — o Prisma não expressa índice parcial, então ele **não aparece aqui**.
+  /// Não "simplificar" removendo um dos dois: cada um cobre um caso que o outro deixa passar.
   @@unique([categoria, sigla, projetoId])
   @@index([categoria, projetoId])
   @@map("eap_catalogo")

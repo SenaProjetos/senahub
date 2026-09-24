@@ -8,7 +8,7 @@ import { semearEscalaRolePadrao, semearEscalaContratacao } from "./escalas-padra
 import { feriadosNacionais } from "../src/modules/rh/feriados/queries";
 import { seedPerfisAcesso } from "./seed-perfis-acesso";
 import { seedPropostaComposta } from "./seed-proposta-composta";
-import { semearCatalogoDisciplinas, semearListaMestre } from "./seed-catalogos";
+import { semearCatalogoDisciplinas, semearEapCatalogo, semearListaMestre } from "./seed-catalogos";
 import { semearSiglasFaltantes } from "../src/modules/uploads/nomenclatura/siglas-service";
 import type { Prisma } from "../src/generated/prisma/client";
 import type { EstagioNegociacao } from "../src/generated/prisma/enums";
@@ -606,6 +606,15 @@ async function main() {
       lm.criadas > 0
         ? `✔ Lista Mestre (${lm.categoria}): ${lm.criadas} sigla(s) criada(s).`
         : `✔ Lista Mestre (${lm.categoria}): já existe (${lm.existentes}) — mantida como está.`,
+    );
+  }
+  // Classificadores da EAP (Doc 02): TAT, SIS, ORG corporativos + a base de LOC, que cada
+  // projeto estende. Mesma regra — categoria vazia semeia, categoria com conteúdo é da tela.
+  for (const ec of await semearEapCatalogo(prisma)) {
+    console.log(
+      ec.criadas > 0
+        ? `✔ Classificadores da EAP (${ec.categoria}): ${ec.criadas} criado(s).`
+        : `✔ Classificadores da EAP (${ec.categoria}): já existe (${ec.existentes}) — mantido como está.`,
     );
   }
   // Siglas por versão (F1 da nomenclatura versionada): item de catálogo sem nenhuma linha em
