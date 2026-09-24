@@ -27,6 +27,8 @@ interface EditProps {
   exigePacoteB?: boolean;
   /** Aprovação/laudo: usa a árvore de pastas própria, sem pacote A/B — esconde os checkboxes. */
   usaEstruturaPastas?: boolean;
+  /** Com etapa (F4) o prazo é o maior entre as etapas: o campo fica travado aqui. */
+  temEtapas?: boolean;
 }
 
 export function DisciplinaEditDialog({
@@ -39,6 +41,7 @@ export function DisciplinaEditDialog({
   exigePacoteA: exigeAInicial = true,
   exigePacoteB: exigeBInicial = true,
   usaEstruturaPastas = false,
+  temEtapas = false,
 }: EditProps) {
   const [open, setOpen] = useState(false);
   const [nome, setNome] = useState(nomeInicial);
@@ -111,7 +114,12 @@ export function DisciplinaEditDialog({
                 type="date"
                 value={prazo}
                 onChange={(e) => setPrazo(e.target.value)}
+                // Com etapa, o servidor recusa prazo diferente do consolidado. Travar aqui evita a
+                // pessoa descobrir isso só no erro ao salvar.
+                disabled={temEtapas}
+                title={temEtapas ? "Vem das etapas — ajuste o prazo na etapa." : undefined}
               />
+              {temEtapas && <p className="text-[11px] text-muted-foreground">Vem das etapas.</p>}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="valor-disc">Valor (R$)</Label>

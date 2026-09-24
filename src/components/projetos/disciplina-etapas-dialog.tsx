@@ -1,0 +1,357 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Layers, Plus, Trash2 } from "lucide-react";
+import {
+  carregarEtapasDisciplina,
+  excluirEtapaDisciplina,
+  salvarEtapaDisciplina,
+} from "@/modules/projetos/etapas-actions";
+import {
+  percentualQueFalta,
+  validarPercentuais,
+  type EtapaParaTela,
+} from "@/modules/projetos/etapas";
+import { brl, formatarData } from "@/lib/utils";
+import { STATUS_LABEL } from "@/modules/projetos/status";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+type Fase = { id: string; sigla: string; nome: string };
+type Dados = {
+  etapas: EtapaParaTela[];
+  fases: Fase[];
+  prazoDisciplina: string | null;
+  prazoPlanejado: string | null;
+};
+
+/** Status que a etapa pode ter na F4 — sem `aprovado`, que é da validação da disciplina (F7). */
+const STATUS_ETAPA = ["aguardando", "em_andamento", "em_revisao", "entregue"] as const;
+
+/**
+ * Etapas da disciplina (F4 — par disciplina × fase, D30/D37). Carrega os próprios dados ao
+ * abrir, em vez de viajar pela página → lista → card de toda disciplina a cada render.
+ *
+ * Cada linha salva sozinha, como a proposta composta: o plano pode ficar em rascunho sem somar
+ * 100%, e a tela diz a soma o tempo todo. Quem reparte dinheiro (F7) é que recusa.
+ */
+export function DisciplinaEtapasButton({
+  disciplinaId,
+  nome,
+  valor,
+  temEtapas,
+}: {
+  disciplinaId: string;
+  nome: string;
+  /** Valor já mascarado pelo card — quem não vê valor recebe `null` e vê só o percentual. */
+  valor: number | null;
+  temEtapas: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [dados, setDados] = useState<Dados | null>(null);
+  const [carregando, startCarga] = useTransition();
+
+  function abrir() {
+    setOpen(true);
+    startCarga(async () => {
+      const r = await carregarEtapasDisciplina({ disciplinaId });
+      if (r.ok) setDados(r.data);
+      else toast.error(r.error);
+    });
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) setDados(null);
+      }}
+    >
+      <button
+        type="button"
+        onClick={abrir}
+        className="inline-flex size-7 items-center justify-center rounded hover:bg-muted"
+        title={temEtapas ? "Etapas da disciplina" : "Dividir em etapas (Básico, Executivo…)"}
+        aria-label="Etapas da disciplina"
+      >
+        <Layers className={`size-3.5 ${temEtapas ? "text-primary" : "text-muted-foreground"}`} />
+      </button>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Etapas — {nome}</DialogTitle>
+          <DialogDescription>
+            Cada fase da disciplina com prazo, situação e fatia do valor. Com etapa, o prazo da
+            disciplina passa a ser o maior prazo entre elas.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          {!dados || carregando ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">Carregando…</p>
+          ) : (
+            <EditorEtapas disciplinaId={disciplinaId} valor={valor} dados={dados} setDados={setDados} />
+          )}
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
+            Fechar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditorEtapas({
+  disciplinaId,
+  valor,
+  dados,
+  setDados,
+}: {
+  disciplinaId: string;
+  valor: number | null;
+  dados: Dados;
+  setDados: (d: Dados) => void;
+}) {
+  const router = useRouter();
+  const confirm = useConfirm();
+  const [pending, start] = useTransition();
+
+  const usadas = new Set(dados.etapas.map((e) => e.etapaId));
+  const livres = dados.fases.filter((f) => !usadas.has(f.id));
+  const somaOk = validarPercentuais(dados.etapas);
+
+  /** Recarrega depois de gravar: o prazo consolidado e a ordem vêm do servidor. */
+  async function recarregar() {
+    const r = await carregarEtapasDisciplina({ disciplinaId });
+    if (r.ok) setDados(r.data);
+    router.refresh();
+  }
+
+  function salvar(e: EtapaParaTela, patch: Partial<Pick<EtapaParaTela, "prazo" | "percentual" | "status">>) {
+    const prox = { ...e, ...patch };
+    start(async () => {
+      const r = await salvarEtapaDisciplina({
+        disciplinaId,
+        etapaId: prox.etapaId,
+        prazo: prox.prazo,
+        percentual: prox.percentual,
+        status: prox.status,
+      });
+      if (r.ok) await recarregar();
+      else toast.error(r.error);
+    });
+  }
+
+  function adicionar(faseId: string) {
+    start(async () => {
+      const r = await salvarEtapaDisciplina({
+        disciplinaId,
+        etapaId: faseId,
+        prazo: null,
+        // Pré-preenche o que falta para fechar 100%, em vez de a etapa nascer 0% parecendo válida.
+        percentual: percentualQueFalta(dados.etapas),
+      });
+      if (r.ok) await recarregar();
+      else toast.error(r.error);
+    });
+  }
+
+  async function excluir(e: EtapaParaTela) {
+    const ultima = dados.etapas.length === 1;
+    const ok = await confirm({
+      title: `Remover a etapa ${e.sigla}?`,
+      description: ultima
+        ? "É a última etapa: a disciplina volta a ter prazo editado direto, e fica com o prazo atual."
+        : "O prazo da disciplina é recalculado com as etapas que ficam.",
+      confirmLabel: "Remover",
+    });
+    if (!ok) return;
+    start(async () => {
+      const r = await excluirEtapaDisciplina({ id: e.id });
+      if (r.ok) await recarregar();
+      else toast.error(r.error);
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      {dados.etapas.length === 0 ? (
+        <p className="rounded-sm border border-dashed p-4 text-center text-sm text-muted-foreground">
+          Sem etapas: a disciplina tem um prazo só, editado direto. Adicione a primeira fase abaixo.
+        </p>
+      ) : (
+        <div className="overflow-x-auto rounded-sm border">
+          <table className="w-full text-sm">
+            <thead className="border-b bg-muted/40 text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2">Fase</th>
+                <th className="px-3 py-2">Prazo</th>
+                <th className="px-3 py-2">Situação</th>
+                <th className="px-3 py-2">%</th>
+                {valor != null && <th className="px-3 py-2 text-right">Valor</th>}
+                <th className="px-3 py-2" />
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {dados.etapas.map((e) => (
+                <LinhaEtapa
+                  key={e.id}
+                  etapa={e}
+                  valor={valor}
+                  prazoPlanejado={dados.prazoPlanejado}
+                  pending={pending}
+                  onSalvar={(patch) => salvar(e, patch)}
+                  onExcluir={() => excluir(e)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {dados.etapas.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <span className="text-muted-foreground">
+            Prazo da disciplina:{" "}
+            <span className="font-mono text-foreground">
+              {dados.prazoDisciplina ? formatarData(dados.prazoDisciplina) : "—"}
+            </span>{" "}
+            (o maior entre as etapas)
+          </span>
+          <span className={somaOk.ok ? "text-success" : "text-warning"}>
+            {somaOk.ok ? "Soma 100%" : somaOk.mensagem}
+          </span>
+        </div>
+      )}
+
+      {livres.length > 0 && (
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Adicionar fase</Label>
+          <div className="flex flex-wrap gap-1.5">
+            {livres.map((f) => (
+              <Button
+                key={f.id}
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={() => adicionar(f.id)}
+                title={f.nome}
+              >
+                <Plus className="size-3.5" /> {f.sigla} · {f.nome}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LinhaEtapa({
+  etapa,
+  valor,
+  prazoPlanejado,
+  pending,
+  onSalvar,
+  onExcluir,
+}: {
+  etapa: EtapaParaTela;
+  valor: number | null;
+  prazoPlanejado: string | null;
+  pending: boolean;
+  onSalvar: (patch: Partial<Pick<EtapaParaTela, "prazo" | "percentual" | "status">>) => void;
+  onExcluir: () => void;
+}) {
+  // Percentual editado localmente e gravado ao sair do campo — gravar a cada tecla dispararia
+  // uma action (e um registro de auditoria) por dígito.
+  const [pct, setPct] = useState(String(etapa.percentual));
+
+  return (
+    <tr>
+      <td className="whitespace-nowrap px-3 py-2">
+        <span className="font-mono text-xs font-bold">{etapa.sigla}</span>{" "}
+        <span className="text-muted-foreground">{etapa.nome}</span>
+      </td>
+      <td className="px-3 py-2">
+        <Input
+          type="date"
+          value={etapa.prazo ?? ""}
+          max={prazoPlanejado ?? undefined}
+          onChange={(ev) => onSalvar({ prazo: ev.target.value || null })}
+          disabled={pending}
+          className="h-8 w-36 text-xs"
+        />
+      </td>
+      <td className="px-3 py-2">
+        {etapa.status === "aprovado" ? (
+          <span className="text-xs text-success">{STATUS_LABEL.aprovado}</span>
+        ) : (
+          <Select
+            value={etapa.status}
+            onValueChange={(v) => v && v !== etapa.status && onSalvar({ status: v as EtapaParaTela["status"] })}
+          >
+            <SelectTrigger className="h-8 w-36 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_ETAPA.map((s) => (
+                <SelectItem key={s} value={s} className="text-xs">
+                  {STATUS_LABEL[s]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </td>
+      <td className="px-3 py-2">
+        <Input
+          type="number"
+          min={0}
+          max={100}
+          step="0.01"
+          value={pct}
+          onChange={(ev) => setPct(ev.target.value)}
+          onBlur={() => {
+            const n = Number(pct.replace(",", "."));
+            if (Number.isFinite(n) && n !== etapa.percentual) onSalvar({ percentual: n });
+          }}
+          disabled={pending}
+          className="h-8 w-20 text-xs"
+        />
+      </td>
+      {valor != null && (
+        <td className="whitespace-nowrap px-3 py-2 text-right font-mono text-xs text-muted-foreground">
+          {/* Só leitura: estimativa de planejamento. Quem reparte de verdade — com sobra de
+              centavos e recusa de soma ≠ 100 — é a F7, na liberação do pagamento. */}
+          {brl((valor * etapa.percentual) / 100)}
+        </td>
+      )}
+      <td className="px-3 py-2 text-right">
+        <Button size="icon-sm" variant="ghost" aria-label={`Remover ${etapa.sigla}`} onClick={onExcluir} disabled={pending}>
+          <Trash2 className="size-3.5" />
+        </Button>
+      </td>
+    </tr>
+  );
+}

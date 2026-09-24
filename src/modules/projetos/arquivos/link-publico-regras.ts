@@ -72,3 +72,41 @@ export function somenteUltimaRevisao<T extends UploadParaLink>(uploads: T[]): T[
 export function recortarParaLinkPublico<T extends UploadParaLink>(uploads: T[]): T[] {
   return somenteUltimaRevisao(uploads.filter((u) => !ehBackupDoModelo(u)));
 }
+
+/**
+ * Filtro de fase do link (F4, D37b): "só o Executivo para o cliente", "só o Básico para a
+ * prefeitura".
+ *
+ * ⚠ `faseIds` VAZIO = TODAS AS FASES — o contrário de `disciplinaIds`, onde vazio nega tudo.
+ * É o valor que todo link anterior à F4 carrega, e ele não pode passar a servir menos.
+ *
+ * Com lista preenchida, arquivo SEM fase só passa com `incluirSemFase`: não dá para provar
+ * que ele pertence à fase liberada, e o link da prefeitura não pode vazar um Executivo que
+ * ninguém classificou.
+ */
+export type FiltroFases = {
+  faseIds: readonly string[];
+  incluirSemFase: boolean;
+};
+
+/** A fase de UM arquivo está liberada no link? É o teste do download direto. */
+export function faseLiberada(faseId: string | null, filtro: FiltroFases): boolean {
+  if (filtro.faseIds.length === 0) return true;
+  if (faseId === null) return filtro.incluirSemFase;
+  return filtro.faseIds.includes(faseId);
+}
+
+/**
+ * Aplica o filtro de fase a uma lista.
+ *
+ * TEM DE RODAR DEPOIS de `recortarParaLinkPublico`, nunca antes. A fase mora no documento, e
+ * num merge o apelido e o canônico podem ter fases diferentes. Filtrar antes tiraria a
+ * revisão mais alta do grupo e o recorte promoveria uma revisão ANTIGA a "entrega corrente" —
+ * o mesmo mecanismo do pino de comportamento de `recortarParaLinkPublico` (chamado real do
+ * projeto 260032), só que disparado pelo filtro. Filtrando depois, a entrega corrente é
+ * decidida primeiro e, se a fase dela não é liberada, o documento simplesmente sai do link.
+ */
+export function filtrarPorFases<T extends { faseId: string | null }>(itens: T[], filtro: FiltroFases): T[] {
+  if (filtro.faseIds.length === 0) return itens;
+  return itens.filter((i) => faseLiberada(i.faseId, filtro));
+}

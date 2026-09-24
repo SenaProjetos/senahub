@@ -62,7 +62,7 @@ import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arq
 import { PreviewPdfButton } from "@/components/pdf/preview-pdf-button";
 import { VisualizarDwgButton } from "@/components/dwg/visualizar-dwg-button";
 import { refDocumentoDwg } from "@/modules/dwg/desenho-ref";
-import { LinkPublicoArquivosButton, type LinkData } from "@/components/projetos/link-publico-arquivos-dialog";
+import { LinkPublicoArquivosButton, type FasesLink, type LinkData } from "@/components/projetos/link-publico-arquivos-dialog";
 import { LinkSelecaoArquivosButton } from "@/components/projetos/link-selecao-arquivos-button";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
@@ -622,6 +622,7 @@ export function ArquivosExplorer({
   baseUrl,
   clienteEmail,
   linksPublicos,
+  fasesLink,
   arts,
 }: {
   projeto: { id: string; codigo: string; nome: string };
@@ -656,6 +657,8 @@ export function ArquivosExplorer({
   clienteEmail: string | null;
   /** Links públicos de arquivos já criados no projeto (um projeto pode ter vários). */
   linksPublicos: LinkData[];
+  /** Fases do projeto com contagem, para o filtro de fase do link (F4). */
+  fasesLink?: FasesLink;
   /** ARTs do projeto — nó read-only; o cadastro fica na aba ARTs. */
   arts: ArtListItem[];
 }) {
@@ -812,6 +815,7 @@ export function ArquivosExplorer({
             disciplinas={disciplinas.map((d) => ({ id: d.id, nome: d.nome }))}
             links={linksPublicos}
             clienteEmail={clienteEmail}
+            fasesLink={fasesLink}
           />
         )}
       </div>

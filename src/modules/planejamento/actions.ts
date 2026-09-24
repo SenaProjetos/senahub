@@ -13,6 +13,8 @@ import {
   replanejar,
 } from "@/modules/planejamento/service";
 import { faixaTemPeriodoValido, haConflitoDeFaixa } from "@/modules/planejamento/alocacao-faixas";
+import { sincronizarPrazoDisciplina } from "@/modules/projetos/etapas-service";
+import { planejarAplicacao } from "@/modules/planejamento/aplicacao";
 
 const plan = { modulo: "planejamento", recurso: "planejamento", permissao: "gerir" } as const;
 const rec = { modulo: "recursos", recurso: "recursos", permissao: "gerir" } as const;
@@ -254,11 +256,15 @@ export const aplicarAoProjeto = defineAction(
     const [tarefas, todasDiscs] = await Promise.all([
       prisma.eapTarefa.findMany({
         where: { projetoId: i.projetoId, disciplinaId: { not: null } },
-        select: { disciplinaId: true, fimPrevisto: true },
+        select: { disciplinaId: true, etapaId: true, fimPrevisto: true },
       }),
       prisma.disciplina.findMany({
         where: { projetoId: i.projetoId },
-        select: { id: true, disciplinaTextoLegado: true },
+        select: {
+          id: true,
+          disciplinaTextoLegado: true,
+          etapas: { select: { id: true, etapaId: true } },
+        },
       }),
     ]);
     if (tarefas.length === 0) {
@@ -266,17 +272,31 @@ export const aplicarAoProjeto = defineAction(
     }
     const comEap = new Set(tarefas.map((t) => t.disciplinaId));
     const semEap = todasDiscs.filter((d) => !comEap.has(d.id)).map((d) => d.disciplinaTextoLegado);
-    await prisma.$transaction(
-      tarefas.map((t) =>
-        prisma.disciplina.update({
-          where: { id: t.disciplinaId! },
-          data: { prazo: t.fimPrevisto },
-        }),
-      ),
+
+    // A regra (máximo por alvo, casamento de fase, linhas puladas) mora em `aplicacao.ts`,
+    // pura e testada. Aqui só grava o plano.
+    const plano = planejarAplicacao(
+      tarefas.map((t) => ({ disciplinaId: t.disciplinaId!, etapaId: t.etapaId, fimPrevisto: t.fimPrevisto })),
+      todasDiscs.map((d) => ({ id: d.id, nome: d.disciplinaTextoLegado, etapas: d.etapas })),
     );
+
+    await prisma.$transaction(async (tx) => {
+      for (const [id, prazo] of plano.porDisciplina) {
+        await tx.disciplina.update({ where: { id }, data: { prazo } });
+      }
+      for (const [id, prazo] of plano.porEtapa) {
+        await tx.disciplinaEtapa.update({ where: { id }, data: { prazo } });
+      }
+      for (const id of plano.aReconsolidar) await sincronizarPrazoDisciplina(tx, id);
+    });
+
     revProjeto(i.projetoId);
     revalidatePath(`/projetos/${i.projetoId}`);
-    return { aplicadas: tarefas.length, semEap };
+    return {
+      aplicadas: plano.porDisciplina.size + plano.aReconsolidar.size,
+      semEap,
+      ignoradas: plano.ignoradas,
+    };
   },
 );
 

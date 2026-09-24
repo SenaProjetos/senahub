@@ -39,7 +39,7 @@ import { podeGerirDocumento } from "@/modules/documentos-cliente/acesso";
 import type { DocumentoExistente } from "@/components/projetos/arquivos/enviar-documentos-dialog";
 import { podeVerTodasDisciplinas, podeEnviarArquivo } from "@/modules/arquivos/acesso";
 import type { ArquivoExistente } from "@/modules/uploads/revisao-nova";
-import { linksArquivosDoProjeto } from "@/modules/projetos/arquivos/link-publico";
+import { fasesParaLink, linksArquivosDoProjeto } from "@/modules/projetos/arquivos/link-publico";
 import type { LinkData } from "@/components/projetos/link-publico-arquivos-dialog";
 import { listarArtsDoProjeto } from "@/modules/projetos/art/queries";
 import { ArquivosExplorer } from "@/components/projetos/arquivos-explorer";
@@ -60,6 +60,8 @@ function paraLinkData(l: {
   disciplinaIds: string[];
   uploadIds: string[];
   agruparPorFase: boolean;
+  faseIds: string[];
+  incluirSemFase: boolean;
 }): LinkData {
   return {
     id: l.id,
@@ -71,6 +73,8 @@ function paraLinkData(l: {
     disciplinaIds: l.disciplinaIds,
     uploadIds: l.uploadIds,
     agruparPorFase: l.agruparPorFase,
+    faseIds: l.faseIds,
+    incluirSemFase: l.incluirSemFase,
   };
 }
 
@@ -141,6 +145,8 @@ export default async function ArquivosPage({
       catalogosPrancha(id),
     ]);
   const arts = await listarArtsDoProjeto(id);
+  // Filtro de fase do link (F4): só quem gere o link abre o diálogo, então só ele paga a consulta.
+  const fasesLink = podeGerirLink ? await fasesParaLink(id) : undefined;
   const baseUrl = process.env.APP_URL ?? "";
   // Pasta "Geral" (Documento origem=interno) só é carregada p/ quem tem `arquivos_gerais:ver`.
   const geral = podeVerGeral ? await geralDoProjeto(id) : [];
@@ -373,6 +379,7 @@ export default async function ArquivosPage({
                 baseUrl,
                 clienteEmail,
                 links: linksPublicos.map(paraLinkData),
+                fasesLink,
               }
             : null
         }
@@ -451,6 +458,7 @@ export default async function ArquivosPage({
       baseUrl={baseUrl}
       clienteEmail={clienteEmail}
       linksPublicos={linksPublicos.map(paraLinkData)}
+      fasesLink={fasesLink}
     />
   );
 }

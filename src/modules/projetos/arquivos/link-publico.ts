@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { linkVigente } from "@/lib/link-publico";
-import { ehBackupDoModelo, recortarParaLinkPublico } from "./link-publico-regras";
+import { ehBackupDoModelo, faseLiberada, filtrarPorFases, recortarParaLinkPublico } from "./link-publico-regras";
 import {
   FASE_TODAS,
   montarPastasDeArquivos,
@@ -343,7 +343,11 @@ export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPu
           {
             id: d.id,
             nome: d.disciplinaTextoLegado,
-            arquivos: recortarParaLinkPublico(d.uploads.map(paraRecorte)).map(paraArquivoPublico),
+            // Fase DEPOIS do recorte — ver `filtrarPorFases` para o porquê da ordem.
+            arquivos: filtrarPorFases(
+              recortarParaLinkPublico(d.uploads.map(paraRecorte)).map(paraArquivoPublico),
+              link,
+            ),
           },
           extensoes,
           link.agruparPorFase,
@@ -403,10 +407,15 @@ export async function uploadLiberadoNoLink(token: string, uploadId: string) {
 
   const upload = await prisma.upload.findFirst({
     where: { id: uploadId, validado: true, excluidoEm: null, disciplinaId: { in: disciplinaIds } },
-    select: { ...servivel, ...SELECT_REGRAS },
+    // Com fase: é ela que o filtro do link confere. `documento` num select só (ver
+    // SELECT_REGRAS_COM_FASE) — repetir a chave sobrescreveria o `substituidoPorId`.
+    select: { ...servivel, ...SELECT_REGRAS_COM_FASE },
   });
   if (!upload) return null;
   if (!(await sobreviveAoRecorte(upload))) return null;
+  // Sem isto, um link "só Básico" serviria o Executivo a quem soubesse a URL direta: a página
+  // não mostraria o arquivo, mas o endereço dele continuaria abrindo.
+  if (!faseLiberada(upload.documento?.fase?.id ?? null, link)) return null;
 
   return { id: upload.id, nomeArquivo: upload.nomeArquivo, caminho: upload.caminho, mimeType: upload.mimeType };
 }
@@ -533,15 +542,18 @@ export async function uploadsDoLinkParaZip(token: string, recorte: RecorteZip = 
   // o .zip servir arquivo que a página não mostra.
   const entradas = disciplinas.flatMap((d) =>
     entradasEmPastas(
-      recortarParaLinkPublico(d.uploads.map(paraRecorte)).map((u) => ({
-        uploadId: u.id,
-        caminho: u.caminho,
-        nome: u.nomeArquivo,
-        disciplinaNome: d.disciplinaTextoLegado,
-        faseId: u.documento?.fase?.id ?? null,
-        faseSigla: u.documento?.fase?.sigla ?? null,
-        faseNome: u.documento?.fase?.nome ?? null,
-      })),
+      filtrarPorFases(
+        recortarParaLinkPublico(d.uploads.map(paraRecorte)).map((u) => ({
+          uploadId: u.id,
+          caminho: u.caminho,
+          nome: u.nomeArquivo,
+          disciplinaNome: d.disciplinaTextoLegado,
+          faseId: u.documento?.fase?.id ?? null,
+          faseSigla: u.documento?.fase?.sigla ?? null,
+          faseNome: u.documento?.fase?.nome ?? null,
+        })),
+        link,
+      ),
       extensoes,
       { fase: faseAlvo, ext: extAlvo, agruparPorFase: link.agruparPorFase },
     ),
@@ -587,4 +599,55 @@ function entradasEmPastas(
     }
   }
   return entradas;
+}
+
+export type FaseParaLink = { id: string; sigla: string; nome: string; documentos: number };
+export type FasesDoProjeto = {
+  fases: FaseParaLink[];
+  /** Documentos publicáveis sem fase — os que o filtro esconde sem `incluirSemFase`. */
+  semFase: number;
+  total: number;
+};
+
+/**
+ * Fases que o gerenciador do link oferece, com quantos DOCUMENTOS publicáveis cada uma tem.
+ *
+ * Conta documento, não arquivo: é a unidade do projeto (PDF + DWG do mesmo desenho = 1). A
+ * contagem existe para o diálogo avisar ANTES de salvar quanto o filtro esconde — no acervo
+ * de hoje, a maior parte dos documentos não tem fase, e um link "só Executivo" sem o escape
+ * de sem-fase mostraria quase nada ao cliente sem ninguém perceber.
+ *
+ * Aproximação consciente: não passa pelo recorte de revisão (que já é por documento, então a
+ * contagem por documento coincide) nem pelo corte de backup do modelo, que só remove arquivo
+ * de dentro de um documento que continua publicável.
+ */
+export async function fasesParaLink(projetoId: string): Promise<FasesDoProjeto> {
+  const [catalogo, documentos] = await Promise.all([
+    prisma.pranchaCatalogo.findMany({
+      where: { categoria: "fase", ativo: true, OR: [{ projetoId: null }, { projetoId }] },
+      orderBy: [{ ordem: "asc" }, { nome: "asc" }],
+      select: { id: true, sigla: true, nome: true },
+    }),
+    prisma.documentoDisciplina.findMany({
+      where: {
+        disciplina: { projetoId },
+        // Canônico só: o apelido de merge é o mesmo documento, contaria duas vezes.
+        substituidoPorId: null,
+        uploads: { some: { validado: true, excluidoEm: null } },
+      },
+      select: { faseId: true },
+    }),
+  ]);
+
+  const porFase = new Map<string, number>();
+  let semFase = 0;
+  for (const d of documentos) {
+    if (d.faseId) porFase.set(d.faseId, (porFase.get(d.faseId) ?? 0) + 1);
+    else semFase++;
+  }
+  return {
+    fases: catalogo.map((f) => ({ ...f, documentos: porFase.get(f.id) ?? 0 })),
+    semFase,
+    total: documentos.length,
+  };
 }

@@ -40,6 +40,17 @@ export type LinkData = {
   uploadIds: string[];
   /** Pastas por fase na página do cliente. */
   agruparPorFase: boolean;
+  /** Fases liberadas. VAZIO = TODAS — o contrário de `disciplinaIds` (ver schema). */
+  faseIds: string[];
+  /** Com fases escolhidas, libera também o documento sem fase. */
+  incluirSemFase: boolean;
+};
+
+/** Fases do projeto com a contagem de documentos — alimenta o seletor e o aviso. */
+export type FasesLink = {
+  fases: { id: string; sigla: string; nome: string; documentos: number }[];
+  semFase: number;
+  total: number;
 };
 
 const ROTULO_ESCOPO: Record<EscopoLink, string> = {
@@ -77,6 +88,7 @@ export function LinkPublicoArquivosButton({
   disciplinas,
   links,
   clienteEmail,
+  fasesLink,
 }: {
   projetoId: string;
   baseUrl: string;
@@ -84,6 +96,8 @@ export function LinkPublicoArquivosButton({
   links: LinkData[];
   /** E-mail do cliente do projeto — pré-preenche o envio (editável). */
   clienteEmail?: string | null;
+  /** Fases do projeto com contagem (F4). Ausente = sem filtro de fase no diálogo. */
+  fasesLink?: FasesLink;
 }) {
   const [aberto, setAberto] = useState(false);
   const [criando, setCriando] = useState(false);
@@ -127,6 +141,7 @@ export function LinkPublicoArquivosButton({
               baseUrl={baseUrl}
               disciplinas={disciplinas}
               clienteEmail={clienteEmail}
+              fasesLink={fasesLink}
             />
           ))}
 
@@ -134,6 +149,7 @@ export function LinkPublicoArquivosButton({
             <FormularioNovoLink
               projetoId={projetoId}
               disciplinas={disciplinas}
+              fasesLink={fasesLink}
               onPronto={() => setCriando(false)}
             />
           ) : (
@@ -151,10 +167,12 @@ export function LinkPublicoArquivosButton({
 function FormularioNovoLink({
   projetoId,
   disciplinas,
+  fasesLink,
   onPronto,
 }: {
   projetoId: string;
   disciplinas: { id: string; nome: string }[];
+  fasesLink?: FasesLink;
   onPronto: () => void;
 }) {
   const router = useRouter();
@@ -164,6 +182,8 @@ function FormularioNovoLink({
   const [sel, setSel] = useState<Set<string>>(new Set(disciplinas.map((d) => d.id)));
   const [expira, setExpira] = useState("");
   const [agruparPorFase, setAgruparPorFase] = useState(true);
+  const [faseIds, setFaseIds] = useState<Set<string>>(new Set());
+  const [incluirSemFase, setIncluirSemFase] = useState(false);
 
   function criar() {
     if (escopo === "disciplinas" && sel.size === 0) {
@@ -179,6 +199,8 @@ function FormularioNovoLink({
         uploadIds: [],
         expiraEm: localParaIso(expira),
         agruparPorFase,
+        faseIds: [...faseIds],
+        incluirSemFase,
       });
       if (r.ok) {
         toast.success("Link público criado.");
@@ -238,6 +260,16 @@ function FormularioNovoLink({
 
       {escopo === "disciplinas" && (
         <SeletorDisciplinas disciplinas={disciplinas} sel={sel} setSel={setSel} />
+      )}
+
+      {fasesLink && fasesLink.fases.length > 0 && (
+        <SeletorFases
+          fasesLink={fasesLink}
+          faseIds={faseIds}
+          setFaseIds={setFaseIds}
+          incluirSemFase={incluirSemFase}
+          setIncluirSemFase={setIncluirSemFase}
+        />
       )}
 
       {/* Fase vira pasta na tela do cliente. Desligar é o certo quando o acervo ainda não tem
@@ -316,16 +348,97 @@ function SeletorDisciplinas({
   );
 }
 
+/**
+ * Filtro de fase do link (F4, D37b). Nenhuma marcada = todas as fases — o link continua
+ * servindo o projeto inteiro. O aviso embaixo diz ANTES de salvar quantos documentos ficam
+ * de fora: no acervo de hoje a maioria não tem fase, e um "só Executivo" sem liberar o
+ * sem-fase mostraria quase nada ao cliente sem ninguém perceber.
+ */
+function SeletorFases({
+  fasesLink,
+  faseIds,
+  setFaseIds,
+  incluirSemFase,
+  setIncluirSemFase,
+}: {
+  fasesLink: FasesLink;
+  faseIds: Set<string>;
+  setFaseIds: (fn: (prev: Set<string>) => Set<string>) => void;
+  incluirSemFase: boolean;
+  setIncluirSemFase: (v: boolean) => void;
+}) {
+  const filtra = faseIds.size > 0;
+  const liberados = filtra
+    ? fasesLink.fases.filter((f) => faseIds.has(f.id)).reduce((s, f) => s + f.documentos, 0) +
+      (incluirSemFase ? fasesLink.semFase : 0)
+    : fasesLink.total;
+  const foraDoLink = fasesLink.total - liberados;
+
+  return (
+    <fieldset className="space-y-1.5">
+      <legend className="text-xs text-muted-foreground">Fases liberadas</legend>
+      <div className="flex flex-wrap gap-1.5">
+        {fasesLink.fases.map((f) => {
+          const sel = faseIds.has(f.id);
+          return (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() =>
+                setFaseIds((prev) => {
+                  const n = new Set(prev);
+                  if (n.has(f.id)) n.delete(f.id);
+                  else n.add(f.id);
+                  return n;
+                })
+              }
+              className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                sel
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-input text-muted-foreground hover:border-primary/50"
+              }`}
+              title={f.nome}
+            >
+              {f.sigla} · {f.documentos}
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {filtra ? "Só as fases marcadas." : "Nenhuma marcada: todas as fases."}
+      </p>
+      {filtra && (
+        <label className="flex cursor-pointer items-start gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted/50">
+          <Checkbox className="mt-0.5" checked={incluirSemFase} onCheckedChange={(v) => setIncluirSemFase(v === true)} />
+          <span>
+            Incluir documentos sem fase ({fasesLink.semFase})
+            <span className="block text-xs text-muted-foreground">
+              Sem fase não dá para saber se é Básico ou Executivo. Libere só se o link puder mostrar os dois.
+            </span>
+          </span>
+        </label>
+      )}
+      {filtra && foraDoLink > 0 && (
+        <p className="rounded-sm border border-warning/40 bg-warning/10 px-2 py-1.5 text-xs text-warning">
+          {foraDoLink} de {fasesLink.total} documento(s) ficam fora deste link.
+        </p>
+      )}
+    </fieldset>
+  );
+}
+
 function CartaoLink({
   link,
   baseUrl,
   disciplinas,
   clienteEmail,
+  fasesLink,
 }: {
   link: LinkData;
   baseUrl: string;
   disciplinas: { id: string; nome: string }[];
   clienteEmail?: string | null;
+  fasesLink?: FasesLink;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -338,6 +451,8 @@ function CartaoLink({
   const [expira, setExpira] = useState(isoParaLocal(link.expiraEm));
   const [sel, setSel] = useState<Set<string>>(new Set(link.disciplinaIds));
   const [agruparPorFase, setAgruparPorFase] = useState(link.agruparPorFase);
+  const [faseIds, setFaseIds] = useState<Set<string>>(new Set(link.faseIds));
+  const [incluirSemFase, setIncluirSemFase] = useState(link.incluirSemFase);
 
   const url = `${baseUrl}/p/arquivos/${link.token}`;
   const expirado = link.expiraEm !== null && new Date(link.expiraEm).getTime() <= Date.now();
@@ -352,6 +467,8 @@ function CartaoLink({
         ativo: proxAtivo,
         expiraEm: localParaIso(expira),
         agruparPorFase,
+        // Seleção não passa pelo recorte: não manda filtro de fase (o servidor zeraria).
+        ...(link.escopo !== "selecao" ? { faseIds: [...faseIds], incluirSemFase } : {}),
       });
       if (r.ok) {
         toast.success("Link salvo.");
@@ -514,6 +631,16 @@ function CartaoLink({
               <Label className="text-xs text-muted-foreground">Disciplinas liberadas</Label>
               <SeletorDisciplinas disciplinas={disciplinas} sel={sel} setSel={setSel} />
             </div>
+          )}
+
+          {link.escopo !== "selecao" && fasesLink && fasesLink.fases.length > 0 && (
+            <SeletorFases
+              fasesLink={fasesLink}
+              faseIds={faseIds}
+              setFaseIds={setFaseIds}
+              incluirSemFase={incluirSemFase}
+              setIncluirSemFase={setIncluirSemFase}
+            />
           )}
 
           {/* Mesma escolha da criação: um link já entregue ao cliente pode ter sido criado antes

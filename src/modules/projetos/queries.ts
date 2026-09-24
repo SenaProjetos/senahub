@@ -269,7 +269,8 @@ export async function obterProjeto(viewer: Viewer, id: string) {
             orderBy: { ordem: "asc" },
             select: { id: true, parentId: true, nome: true, caminho: true, origem: true, ordem: true },
           },
-          _count: { select: { pagamentos: true } },
+          // `etapas`: com etapa o prazo é consolidado e o diálogo de edição o trava (F4).
+          _count: { select: { pagamentos: true, etapas: true } },
         },
       },
     },

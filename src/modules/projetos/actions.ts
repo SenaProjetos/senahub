@@ -38,6 +38,8 @@ import { normalizar } from "@/lib/disciplinas-core";
 import { normalizarSinonimos, primeiraColisao } from "@/modules/uploads/nomenclatura/colisao-sinonimo";
 import { usaEstruturaCustom, disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { transicaoDisciplinaPermitida, mensagemTransicaoDisciplina } from "@/modules/projetos/status";
+import { etapaQueDefineOPrazo } from "@/modules/projetos/etapas";
+import { sincronizarPrazoDisciplina } from "@/modules/projetos/etapas-service";
 import { semearPastasTemplate, projetoUsaTemplate } from "@/modules/projetos/pastas/seed";
 import { sincronizarPagamentosPorDisciplinaId } from "@/modules/uploads/pagamento";
 import { escopoProjeto } from "@/modules/projetos/queries";
@@ -359,19 +361,41 @@ export const reabrirDisciplina = defineAction(
     if (!novoPrazo) throw new ActionError("Novo prazo inválido.");
 
     const prazoAntigoDoProjeto = disciplina.projeto.prazoPlanejado;
-    const deslocaProjeto = deveDeslocarPrazoDoProjeto(novoPrazo, prazoAntigoDoProjeto);
 
-    await prisma.$transaction(async (tx) => {
-      await tx.disciplina.update({
-        where: { id: input.disciplinaId },
-        data: { status: "em_revisao", prazo: novoPrazo },
+    // Com etapa (F4), o prazo da disciplina é CONSOLIDADO — o maior entre as etapas. Então o
+    // novo prazo vai para a etapa que define esse máximo, e o deslocamento do prazo planejado
+    // do projeto é decidido a partir do prazo FINAL consolidado, nunca do digitado. Decidir
+    // antes (como era) deslocaria o projeto para uma data que a disciplina não tem — ou deixaria
+    // de deslocar quando outra etapa já passava do planejado.
+    const { deslocaProjeto, prazoFinal } = await prisma.$transaction(async (tx) => {
+      const etapas = await tx.disciplinaEtapa.findMany({
+        where: { disciplinaId: input.disciplinaId },
+        select: { id: true, prazo: true, ordem: true },
       });
+      let prazoFinal: Date = novoPrazo;
+      if (etapas.length > 0) {
+        const alvo = etapaQueDefineOPrazo(
+          etapas.map((e) => ({ ...e, prazo: e.prazo ? e.prazo.toISOString().slice(0, 10) : null })),
+        )!;
+        await tx.disciplinaEtapa.update({ where: { id: alvo.id }, data: { prazo: novoPrazo } });
+        await tx.disciplina.update({ where: { id: input.disciplinaId }, data: { status: "em_revisao" } });
+        const consolidado = await sincronizarPrazoDisciplina(tx, input.disciplinaId);
+        if (consolidado) prazoFinal = new Date(`${consolidado}T00:00:00.000Z`);
+      } else {
+        await tx.disciplina.update({
+          where: { id: input.disciplinaId },
+          data: { status: "em_revisao", prazo: novoPrazo },
+        });
+      }
+
+      const deslocaProjeto = deveDeslocarPrazoDoProjeto(prazoFinal, prazoAntigoDoProjeto);
       if (deslocaProjeto) {
         await tx.projeto.update({
           where: { id: disciplina.projetoId },
-          data: { prazoPlanejado: novoPrazo },
+          data: { prazoPlanejado: prazoFinal },
         });
       }
+      return { deslocaProjeto, prazoFinal };
     });
 
     // Registro próprio no histórico do projeto: `entidadeId` precisa cair no
@@ -386,7 +410,9 @@ export const reabrirDisciplina = defineAction(
         detalhe: {
           antes: { prazoPlanejado: prazoAntigoDoProjeto?.toISOString().slice(0, 10) ?? null },
           novo: {
-            prazoPlanejado: input.novoPrazo,
+            // O prazo FINAL, não o digitado: com etapa eles podem divergir, e o histórico tem de
+            // dizer para onde o projeto de fato foi.
+            prazoPlanejado: prazoFinal.toISOString().slice(0, 10),
             motivo: `Reabertura de ${disciplina.disciplinaTextoLegado}: ${input.motivo}`,
             disciplinaId: disciplina.id,
           },
@@ -405,7 +431,7 @@ export const reabrirDisciplina = defineAction(
     if (respIds.length > 0) {
       await notificarMuitos(respIds, {
         titulo: "Disciplina reaberta",
-        corpo: `${disciplina.disciplinaTextoLegado} (${codigo}) reaberta para revisão até ${input.novoPrazo}. Motivo: ${input.motivo}`,
+        corpo: `${disciplina.disciplinaTextoLegado} (${codigo}) reaberta para revisão até ${prazoFinal.toISOString().slice(0, 10)}. Motivo: ${input.motivo}`,
         href,
         tag: `reabertura-${disciplina.id}`,
       });
@@ -414,6 +440,8 @@ export const reabrirDisciplina = defineAction(
       disciplinaId: input.disciplinaId,
       status: "em_revisao" as const,
       prazoProjetoDeslocado: deslocaProjeto,
+      /** O prazo que a disciplina ficou — com etapa pode diferir do digitado (consolidação). */
+      prazoFinal: prazoFinal.toISOString().slice(0, 10),
     };
   },
 );
@@ -790,6 +818,21 @@ export const editarDisciplinasEmMassa = defineAction(
       }
     }
 
+    // F4: prazo em massa não alcança disciplina com etapa — o prazo dela é consolidado das
+    // etapas, e gravá-lo aqui seria desfeito na próxima consolidação sem ninguém ver. Recusa
+    // nomeando qual, em vez de pular em silêncio (o lote pareceria ter funcionado inteiro).
+    if (input.prazo !== undefined) {
+      const comEtapa = await prisma.disciplina.findFirst({
+        where: { id: { in: input.disciplinaIds }, projetoId: input.projetoId, etapas: { some: {} } },
+        select: { disciplinaTextoLegado: true },
+      });
+      if (comEtapa) {
+        throw new ActionError(
+          `${comEtapa.disciplinaTextoLegado} tem etapas — o prazo dela vem das etapas e não muda em massa.`,
+        );
+      }
+    }
+
     const data: Record<string, unknown> = {};
     if (input.status !== undefined) data.status = input.status;
     if (input.prazo !== undefined) data.prazo = input.prazo ? new Date(input.prazo) : null;
@@ -929,12 +972,32 @@ export const editarDisciplina = defineAction(
   async (input, ctx) => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
-      select: { projetoId: true, valor: true, projeto: { select: { prazoPlanejado: true } } },
+      select: {
+        projetoId: true,
+        valor: true,
+        prazo: true,
+        projeto: { select: { prazoPlanejado: true } },
+        _count: { select: { etapas: true } },
+      },
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
 
+    // F4: com etapa, o prazo da disciplina é CONSOLIDADO (o maior entre as etapas) e não se
+    // edita aqui. O formulário reenvia o prazo SEMPRE, então prazo igual ao atual é ignorado —
+    // senão editar só o nome de uma disciplina com etapa quebraria — e prazo diferente é
+    // recusado com o motivo, em vez de gravado e desfeito na próxima consolidação.
+    const temEtapas = disciplina._count.etapas > 0;
+    if (temEtapas && input.prazo !== undefined) {
+      const atual = disciplina.prazo ? disciplina.prazo.toISOString().slice(0, 10) : null;
+      if ((input.prazo ?? null) !== atual) {
+        throw new ActionError("O prazo desta disciplina vem das etapas — ajuste o prazo na etapa.");
+      }
+    }
+    const escrevePrazo = !temEtapas;
+
     // P-08: prazo da disciplina ≤ prazo PLANEJADO do projeto (ver `adicionarDisciplina`).
-    if (input.prazo && disciplina.projeto.prazoPlanejado) {
+    // Só quando o prazo vai ser gravado: com etapa, a P-08 já foi checada em cada etapa.
+    if (escrevePrazo && input.prazo && disciplina.projeto.prazoPlanejado) {
       if (new Date(input.prazo) > disciplina.projeto.prazoPlanejado) {
         throw new ActionError(
           `O prazo da disciplina não pode ultrapassar o prazo planejado do projeto.`,
@@ -963,7 +1026,13 @@ export const editarDisciplina = defineAction(
         where: { id: input.disciplinaId },
         data: {
           disciplinaTextoLegado: input.nome,
-          prazo: input.prazo === null ? null : input.prazo ? new Date(input.prazo) : undefined,
+          prazo: !escrevePrazo
+            ? undefined
+            : input.prazo === null
+              ? null
+              : input.prazo
+                ? new Date(input.prazo)
+                : undefined,
           valor: input.valor === null ? null : input.valor,
           ...(input.exigePacoteA !== undefined ? { exigePacoteA: input.exigePacoteA } : {}),
           ...(input.exigePacoteB !== undefined ? { exigePacoteB: input.exigePacoteB } : {}),

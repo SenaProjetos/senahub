@@ -158,6 +158,11 @@ export function EapWorkspace({
             `${r.data.semEap.length} disciplina(s) sem tarefa na EAP (ignoradas): ${r.data.semEap.join(", ")}.`,
           );
         }
+        if (r.data.ignoradas.length > 0) {
+          toast.warning(`Linhas não aplicadas: ${r.data.ignoradas.join("; ")}.`, {
+            description: "Disciplina com etapas só recebe prazo de linha que tenha a fase da etapa.",
+          });
+        }
         router.refresh();
       } else toast.error(r.error);
     });

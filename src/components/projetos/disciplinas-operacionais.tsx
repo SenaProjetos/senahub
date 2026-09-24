@@ -99,6 +99,7 @@ export async function DisciplinasOperacionais({ projetoId }: { projetoId: string
       temB: uploads.some((upload) => upload.pacote === "B"),
       jaValidado: disciplina.status === "aprovado",
       temPagamento: disciplina._count.pagamentos > 0,
+      temEtapas: disciplina._count.etapas > 0,
       exigePacoteA: disciplina.exigePacoteA,
       exigePacoteB: disciplina.exigePacoteB,
       usaPastas,

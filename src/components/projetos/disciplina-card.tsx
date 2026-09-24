@@ -44,6 +44,7 @@ import {
 import { podeEscreverNoDiario } from "@/modules/projetos/diario/acesso";
 import { DiarioEntradaDialog } from "@/components/projetos/diario-entrada-dialog";
 import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/projetos/disciplina-edit-dialog";
+import { DisciplinaEtapasButton } from "@/components/projetos/disciplina-etapas-dialog";
 import { validarEntrega, gerarAceiteCliente, revogarAceiteCliente } from "@/modules/uploads/actions";
 import { statusValidacao, entregaveisAtuais, type StatusValidacao } from "@/modules/uploads/validacao";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
@@ -135,6 +136,8 @@ type Disc = {
   jaValidado: boolean;
   /** Já existe pagamento de projetista liberado para esta disciplina. */
   temPagamento: boolean;
+  /** Tem etapa (F4): o prazo vira o maior das etapas e não se edita direto. */
+  temEtapas: boolean;
   exigePacoteA: boolean;
   exigePacoteB: boolean;
   /** Aprovação/laudo (só projetos novos): árvore de pastas própria no lugar do pacote A/B. */
@@ -290,6 +293,13 @@ export function DisciplinaCard({
                 exigePacoteA={disciplina.exigePacoteA}
                 exigePacoteB={disciplina.exigePacoteB}
                 usaEstruturaPastas={disciplina.usaPastas}
+                temEtapas={disciplina.temEtapas}
+              />
+              <DisciplinaEtapasButton
+                disciplinaId={disciplina.id}
+                nome={disciplina.nome}
+                valor={disciplina.valor}
+                temEtapas={disciplina.temEtapas}
               />
               {!disciplina.jaValidado && (
                 <DisciplinaDeleteButton disciplinaId={disciplina.id} nome={disciplina.nome} qtdTarefas={qtdTarefas} />
