@@ -85,12 +85,8 @@ async function main() {
     console.log(`     - ${rotulo}: ${g._count._all}`);
   }
 
-  // ── 4. EscalaRole.role — o 4º campo, preso na Onda E ──────────────────────
-  const escalaRoleLinhas = await prisma.escalaRole.count();
-  const escalaContratacaoLinhas = await prisma.escalaContratacao.count();
-  console.log("\n[EscalaRole.role] — 4º campo, NÃO é deste lote (preso ao passo 4 da Onda E)");
-  console.log(`  linhas em escala_role (legado, dual-write): ${escalaRoleLinhas}`);
-  console.log(`  linhas em escala_contratacao (sucessora, já é quem manda): ${escalaContratacaoLinhas}`);
+  // ── 4. EscalaRole.role — tabela removida no passo 4 da Onda E ─────────────
+  console.log("\n[EscalaRole.role] — REMOVIDO: escala_role foi dropada no passo 4 da Onda E");
 
   console.log("\n=== fim do censo — nada foi alterado ===");
 }

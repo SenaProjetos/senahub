@@ -311,6 +311,37 @@ autoriza nada. Para tirar só a exclusão de documento, reverter `fbbeb71a` sozi
 
 ---
 
+## ⚠ DEPLOY 5 — Onda E passo 4: fim da escala por papel, 2026-09-24
+
+Branch `feat/onda-e-escala-contratacao`. Uma migration destrutiva:
+`20260924120000_drop_escala_role` (`DROP TABLE IF EXISTS "escala_role"`). O "Deploy completo" aplica
+— sem comando novo. **Nenhum cálculo muda**: ponto, espelho, banco de horas, folha e rateio leem
+`escala_contratacao` desde a v1.10.0; `escala_role` só recebia a escrita dupla da tela.
+
+O que muda para quem usa:
+- `/rh/escalas` → a aba "Por perfil" vira **"Por contratação"** (CLT e Estágio). PJ, autônomo
+  (RPA) e sócio (pró-labore) seguem sem grade padrão, de propósito.
+- Grade de **estágio** acima de 6h/dia ou 30h/semana é recusada — na grade da contratação e na
+  personalizada de quem tem contratação Estágio.
+- Ficha da pessoa (RH → Pessoas e Minha conta) mostra a grade **da contratação**, que é a que o
+  cálculo usa. Antes mostrava a do papel, que podia divergir.
+
+**Antes do `git pull`, no servidor, contra produção** (só lê; o script ainda existe no código que
+está rodando e sai do repositório neste deploy):
+
+```
+npx tsx --tsconfig tsconfig.server.json scripts/checar-equivalencia-jornada.ts
+```
+
+Esperado: `✔ Jornada idêntica para todo mundo`. Se acusar diferença, **não bloqueia o drop** (o
+cálculo já não lê `escala_role`), mas avise: é sinal de grade editada só no caminho antigo, e o
+valor que vale hoje é o de `escala_contratacao` — confira em `/rh/escalas` depois do deploy.
+
+**Como voltar atrás:** revert dos commits de código basta — nada lê `escala_role`, então não é
+preciso recriar a tabela. O backup do Passo 0 guarda os dados dela, se alguém quiser consultar.
+
+---
+
 ## Passo 0 — provar que o backup funciona (NÃO PULE)
 
 O deploy faz backup antes da migration, mas `Invoke-Backup` **falha macio**: se `PG_DUMP_PATH` ou
@@ -484,6 +515,10 @@ gerado em `logs/equivalencia-permissoes-*.json`.
 ---
 
 ## Passo 6 — (opcional, prep da Onda E) materializar `EscalaUsuario`
+
+> **Histórico.** `scripts/materializar-escala-usuario.ts` e `scripts/checar-equivalencia-jornada.ts`
+> saíram do repositório no DEPLOY 5 (Onda E passo 4), junto com `escala_role`. Os comandos abaixo
+> e no DEPLOY 2 só valem num checkout anterior a ele.
 
 Produção tem 7 linhas de `escala_usuario` para **1** usuário; no dev são 8 usuários. A materialização
 de §14.8 nunca rodou lá. **Não é necessário para a Onda D** — é pré-requisito da Onda E (criar

@@ -4,12 +4,14 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Plus, Trash2, Save } from "lucide-react";
 import {
-  salvarEscalaRole,
+  salvarEscalaContratacao,
   salvarEscalaUsuario,
   removerEscalaUsuario,
 } from "@/modules/rh/escalas/actions";
 import type { DiaGrade } from "@/modules/rh/escalas/queries";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
+import { CONTRATACOES_COM_ESCALA, type ContratacaoComEscala } from "@/modules/rh/escalas/schemas";
+import { CONTRATACAO_LABELS } from "@/modules/usuarios/vinculo/labels";
+import type { Contratacao } from "@/generated/prisma/enums";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Select,
@@ -33,17 +35,21 @@ import {
 
 const DIAS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 
-/** `salvarEscalaRole` recusa o perfil "cliente" (validado no schema) — refletido aqui no tipo. */
-type RoleInterno = Exclude<Role, "cliente">;
-
-type Usuario = { id: string; name: string; role: Role };
+type Usuario = { id: string; name: string; contratacao: Contratacao | null };
 
 type Props = {
-  roles: RoleInterno[];
-  gradesPorRole: Record<string, DiaGrade[]>;
+  gradesPorContratacao: Record<string, DiaGrade[]>;
   usuarios: Usuario[];
   escalasPorUsuario: Record<string, { temOverride: boolean; dias: DiaGrade[] }>;
 };
+
+function rotuloContratacao(c: Contratacao | null): string {
+  return c ? CONTRATACAO_LABELS[c] : "sem contratação";
+}
+
+function temEscalaPadrao(c: Contratacao | null): boolean {
+  return (CONTRATACOES_COM_ESCALA as readonly string[]).includes(c ?? "");
+}
 
 function toMin(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
@@ -199,26 +205,20 @@ function GradeTable({
   );
 }
 
-function AbaPerfil({
-  roles,
-  gradesPorRole,
-}: {
-  roles: RoleInterno[];
-  gradesPorRole: Record<string, DiaGrade[]>;
-}) {
-  const [role, setRole] = useState<RoleInterno>(roles[0]);
-  const [dias, setDias] = useState<DiaGrade[]>(gradesPorRole[roles[0]] ?? []);
+function AbaContratacao({ gradesPorContratacao }: { gradesPorContratacao: Record<string, DiaGrade[]> }) {
+  const [contratacao, setContratacao] = useState<ContratacaoComEscala>("clt");
+  const [dias, setDias] = useState<DiaGrade[]>(gradesPorContratacao.clt ?? []);
   const [pending, startTransition] = useTransition();
 
-  function selecionar(r: RoleInterno) {
-    setRole(r);
-    setDias(gradesPorRole[r] ?? []);
+  function selecionar(c: ContratacaoComEscala) {
+    setContratacao(c);
+    setDias(gradesPorContratacao[c] ?? []);
   }
 
   function salvar() {
     startTransition(async () => {
-      const res = await salvarEscalaRole({ role, dias });
-      if (res.ok) toast.success(`Escala do perfil ${ROLE_LABELS[role]} salva.`);
+      const res = await salvarEscalaContratacao({ contratacao, dias });
+      if (res.ok) toast.success(`Escala da contratação ${CONTRATACAO_LABELS[contratacao]} salva.`);
       else toast.error(res.error);
     });
   }
@@ -226,26 +226,35 @@ function AbaPerfil({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <Select value={role} onValueChange={(v) => v && selecionar(v as RoleInterno)}>
+        <Select value={contratacao} onValueChange={(v) => v && selecionar(v as ContratacaoComEscala)}>
           <SelectTrigger className="w-56">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {roles.map((r) => (
-              <SelectItem key={r} value={r}>
-                {ROLE_LABELS[r]}
+            {CONTRATACOES_COM_ESCALA.map((c) => (
+              <SelectItem key={c} value={c}>
+                {CONTRATACAO_LABELS[c]}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
         <p className="text-sm text-muted-foreground">
-          Escala padrão de todo colaborador deste perfil, sem escala personalizada.
+          Escala padrão de todo colaborador com esta contratação, sem escala personalizada.
         </p>
       </div>
+      {contratacao === "estagio" && (
+        <p className="text-sm text-muted-foreground">
+          Estágio tem no máximo 6h por dia e 30h por semana (Lei 11.788). Grade acima disso não é salva.
+        </p>
+      )}
       <GradeTable dias={dias} onChange={setDias} disabled={pending} />
       <Button onClick={salvar} disabled={pending} loading={pending}>
-        <Save /> Salvar escala do perfil
+        <Save /> Salvar escala da contratação
       </Button>
+      <p className="text-xs text-muted-foreground">
+        PJ, autônomo (RPA) e sócio (pró-labore) não têm jornada controlada, por isso não têm escala padrão
+        aqui. Se precisar de uma grade para alguém nessas contratações, personalize por usuário.
+      </p>
     </div>
   );
 }
@@ -253,11 +262,11 @@ function AbaPerfil({
 function AbaUsuario({
   usuarios,
   escalasPorUsuario,
-  gradesPorRole,
+  gradesPorContratacao,
 }: {
   usuarios: Usuario[];
   escalasPorUsuario: Record<string, { temOverride: boolean; dias: DiaGrade[] }>;
-  gradesPorRole: Record<string, DiaGrade[]>;
+  gradesPorContratacao: Record<string, DiaGrade[]>;
 }) {
   const primeiro = usuarios[0];
   const [userId, setUserId] = useState(primeiro?.id ?? "");
@@ -275,7 +284,7 @@ function AbaUsuario({
   }
 
   function ativarPersonalizada() {
-    const base = gradesPorRole[usuarioAtual?.role ?? ""] ?? dias;
+    const base = gradesPorContratacao[usuarioAtual?.contratacao ?? ""] ?? dias;
     setDias(base.map((d) => ({ ...d })));
     setTemOverride(true);
   }
@@ -292,7 +301,7 @@ function AbaUsuario({
     startTransition(async () => {
       const res = await removerEscalaUsuario({ userId });
       if (res.ok) {
-        toast.success("Escala personalizada removida — volta a usar a escala do perfil.");
+        toast.success("Escala personalizada removida — volta a usar a escala da contratação.");
         setTemOverride(false);
       } else toast.error(res.error);
     });
@@ -312,7 +321,7 @@ function AbaUsuario({
           <SelectContent>
             {usuarios.map((u) => (
               <SelectItem key={u.id} value={u.id}>
-                {u.name} · {ROLE_LABELS[u.role]}
+                {u.name} · {rotuloContratacao(u.contratacao)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -321,7 +330,7 @@ function AbaUsuario({
           <Badge variant="outline">Escala personalizada</Badge>
         ) : (
           <Badge variant="secondary">
-            Usando escala do perfil{usuarioAtual ? ` (${ROLE_LABELS[usuarioAtual.role]})` : ""}
+            Usando escala da contratação{usuarioAtual ? ` (${rotuloContratacao(usuarioAtual.contratacao)})` : ""}
           </Badge>
         )}
       </div>
@@ -329,7 +338,9 @@ function AbaUsuario({
       {!temOverride ? (
         <div className="rounded-lg border border-dashed p-6 text-center">
           <p className="mb-3 text-sm text-muted-foreground">
-            Este usuário segue a escala do perfil{usuarioAtual ? ` ${ROLE_LABELS[usuarioAtual.role]}` : ""}.
+            {usuarioAtual && !temEscalaPadrao(usuarioAtual.contratacao)
+              ? "Sem jornada controlada pela contratação — os cálculos usam 8h nos dias úteis."
+              : `Este usuário segue a escala da contratação ${rotuloContratacao(usuarioAtual?.contratacao ?? null)}.`}
           </p>
           <Button variant="outline" onClick={ativarPersonalizada}>
             Personalizar escala deste usuário
@@ -352,29 +363,29 @@ function AbaUsuario({
   );
 }
 
-export function EscalasView({ roles, gradesPorRole, usuarios, escalasPorUsuario }: Props) {
+export function EscalasView({ gradesPorContratacao, usuarios, escalasPorUsuario }: Props) {
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-extrabold tracking-tight">Escalas de trabalho</h1>
         <p className="text-sm text-muted-foreground">
-          Jornada esperada por perfil, com opção de personalizar por usuário. Usada no banco de horas, no
+          Jornada esperada por contratação, com opção de personalizar por usuário. Usada no banco de horas, no
           espelho de ponto e nos alertas de jornada.
         </p>
       </div>
-      <Tabs defaultValue="perfil">
+      <Tabs defaultValue="contratacao">
         <TabsList>
-          <TabsTrigger value="perfil">Por perfil</TabsTrigger>
+          <TabsTrigger value="contratacao">Por contratação</TabsTrigger>
           <TabsTrigger value="usuario">Por usuário</TabsTrigger>
         </TabsList>
-        <TabsContent value="perfil" className="pt-4">
-          <AbaPerfil roles={roles} gradesPorRole={gradesPorRole} />
+        <TabsContent value="contratacao" className="pt-4">
+          <AbaContratacao gradesPorContratacao={gradesPorContratacao} />
         </TabsContent>
         <TabsContent value="usuario" className="pt-4">
           <AbaUsuario
             usuarios={usuarios}
             escalasPorUsuario={escalasPorUsuario}
-            gradesPorRole={gradesPorRole}
+            gradesPorContratacao={gradesPorContratacao}
           />
         </TabsContent>
       </Tabs>

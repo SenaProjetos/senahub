@@ -3,8 +3,8 @@
 **Data:** 2026-07-27 · **Status (atualizado 2026-08-16):** P1, Fase 0, Onda A, Onda B, **Onda C e
 Onda D implementadas e mergeadas em `dev`** (§15.8-15.18, commit `6eb6762`, tag v1.9.0) — `can()` já
 resolve por `permissaoEfetiva`, `registrarBatida` já restrito a `CLT_ROLES`, nav já é `permissao`+`tipo`.
-**Onda E parcial** (tag v1.10.0): `EscalaContratacao` criada, jornada já resolve por contratação;
-falta o passo 4 (dropar `EscalaRole`) e migrar a tela, que dependem do ciclo em sombra pós-flip.
+**Onda E completa** (2026-09-24, branch `feat/onda-e-escala-contratacao`, §15.21): tela de escalas
+edita por contratação e `EscalaRole` foi dropada — deploy pelo DEPLOY 5 do runbook.
 **Deploy 2 — CONCLUÍDO em 2026-08-19, com um achado.** O status anterior deste cabeçalho dizia que
 ele "não tem confirmação de execução"; **meio certo**. O *código* da virada foi a produção junto com
 o deploy de 2026-08-09 (`6eb6762` entrou em `master` naquele dia), e `can()` resolve por
@@ -1521,3 +1521,27 @@ arquivos não commitados de trabalho não relacionado (pendências, RH, arquivos
 **fechar esse trabalho primeiro**, depois abrir branch nova a partir de `dev` só para a Onda D — que
 é literalmente a mitigação de R8 (`nav-config.ts`/`roles.ts` em conflito permanente numa branch
 longa). Nada da Onda D começa antes disso.
+
+### 15.21 Onda E, passo 4 — `EscalaRole` dropada e tela por contratação (2026-09-24)
+
+O ciclo em sombra que §6.4 pedia está cumprido com folga: a jornada resolve por contratação desde
+a v1.10.0 (2026-08-09), passou por pelo menos uma folha CLT importada (v1.17.0) e o gate de jornada
+deu zero diferença em produção (2026-08-20) e no dev (hoje, 8 usuários × 7 dias + 4 grades,
+rodado antes de o script sair).
+
+- `/rh/escalas`: aba "Por contratação" (CLT, Estágio) com `salvarEscalaContratacao` gravando só em
+  `EscalaContratacao`. Acabou a recusa por divergência entre `clt`/`administrativo`/`ti` — o slot
+  é um só. `pj`/`autonomo_rpa`/`pro_labore` continuam sem grade (decisão de §15.18 mantida).
+- **Trava legal do estágio** (Lei 11.788: 6h/dia, 30h/semana) passou a valer na escrita — na grade
+  da contratação e na personalizada de quem é Estágio. Antes só a semente corrigia; a tela aceitava
+  8h. Regra pura em `excessoJornadaEstagio` (`rh/escalas/schemas.ts`), testada.
+- **Achado:** a ficha (Pessoa 360 e Minha conta) mostrava como "herdada" a grade do PAPEL
+  (`escalaRoleGrade(pessoa.role)`) enquanto o cálculo usava a da contratação — iguais só enquanto
+  a escrita dupla segurava. Agora usa `escalaPadraoDoUsuario`, a mesma fonte do cálculo.
+- Semente vai direto para `EscalaContratacao` (`semearEscalaContratacaoPadrao`). Saíram
+  `escalaRoleGrade`, `checar-equivalencia-jornada.ts` e `materializar-escala-usuario.ts` (não há
+  mais "caminho antigo" para comparar).
+- Migration `20260924120000_drop_escala_role` com `IF EXISTS`; ensaiada no dev dentro de transação
+  com rollback (inclusive reexecução).
+
+`enum Role` perde mais um uso como dado: depois disto, só `User.role` o prende (Onda F).

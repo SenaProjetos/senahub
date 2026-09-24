@@ -1,6 +1,5 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { type Role } from "@/lib/roles";
 import type { Contratacao } from "@/generated/prisma/enums";
 import { whereAudiencia } from "@/lib/audiencias";
 
@@ -62,24 +61,14 @@ function completarSemana(linhas: LinhaDb[]): DiaGrade[] {
 }
 
 /**
- * LEGADO — grade padrão por PAPEL. Continua exportada só para o arnês de jornada
- * (`scripts/checar-equivalencia-jornada.ts`) reconstruir o "antes". Nenhum caminho de cálculo
- * deve chamá-la: a fonte é `escalaContratacaoGrade` desde a Onda E.
- */
-export async function escalaRoleGrade(role: Role): Promise<DiaGrade[]> {
-  const linhas = await prisma.escalaRole.findMany({ where: { role } });
-  return completarSemana(linhas);
-}
-
-/**
  * Grade padrão (7 dias) da CONTRATAÇÃO — usada quando o usuário não tem override ativo.
  *
  * Jornada é matéria trabalhista, e `role` misturava quatro eixos; a chave passa a ser COMO a
  * pessoa é contratada (Onda E, §6.4).
  *
  * `contratacao` nula (admin sem vínculo) ou sem linhas (`pj`, `autonomo_rpa`, `pro_labore`) cai
- * no default de `completarSemana` — 8h nos dias úteis, exatamente como caía via `escalaRoleGrade`
- * para esses papéis, que também não tinham linha. Ver a nota no schema sobre por que "sem
+ * no default de `completarSemana` — 8h nos dias úteis, exatamente como caía pela antiga grade por
+ * papel, que também não tinha linha para eles. Ver a nota no schema sobre por que "sem
  * jornada" NÃO virou 0h: zeraria o custo/hora de PJ sem `Recurso.custoHora`.
  */
 export async function escalaContratacaoGrade(contratacao: Contratacao | null): Promise<DiaGrade[]> {
@@ -88,7 +77,17 @@ export async function escalaContratacaoGrade(contratacao: Contratacao | null): P
   return completarSemana(linhas);
 }
 
-/** Grade + override do usuário. `temOverride` = tem ao menos 1 dia ativo próprio (substitui o perfil inteiro). */
+/**
+ * Grade padrão que vale para o usuário quando ele não tem escala própria — a da contratação
+ * gravada nele. É a mesma que o cálculo de ponto/banco usa; a ficha mostra esta, nunca uma
+ * derivada do papel.
+ */
+export async function escalaPadraoDoUsuario(userId: string): Promise<DiaGrade[]> {
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { contratacao: true } });
+  return escalaContratacaoGrade(u?.contratacao ?? null);
+}
+
+/** Grade + override do usuário. `temOverride` = tem ao menos 1 dia ativo próprio (substitui a grade da contratação inteira). */
 export async function escalaUsuarioGrade(userId: string): Promise<{ temOverride: boolean; dias: DiaGrade[] }> {
   const linhas = await prisma.escalaUsuario.findMany({ where: { userId } });
   if (linhas.length === 0) {
@@ -100,7 +99,7 @@ export async function escalaUsuarioGrade(userId: string): Promise<{ temOverride:
 /**
  * Horas de um dia útil típico do usuário (independente de calendário): maior
  * `horasDia` entre os dias ativos da grade vigente (override do usuário se ativo,
- * senão o perfil); 8 se nenhum dia ativo. Reproduz o antigo `EscalaTrabalho.horasDia`
+ * senão a da contratação); 8 se nenhum dia ativo. Reproduz o antigo `EscalaTrabalho.horasDia`
  * (escalar por usuário) para cálculos de esperado/custo-hora que não dependem de um
  * dia específico da semana. Puro-de-I/O (só leituras).
  */
@@ -119,7 +118,7 @@ export async function horasDiaPadrao(userId: string, contratacao: Contratacao | 
  * Grade semanal vigente de vários usuários — 2 queries no total (evita N+1
  * quando o cálculo roda sobre a equipe toda: rateio, saldo corrente do banco).
  * Mesma resolução de `escalaUsuarioGrade`: override ativo do usuário substitui
- * a grade do perfil POR INTEIRO.
+ * a grade da contratação POR INTEIRO.
  */
 export async function gradesEmLote(
   usuarios: { id: string; contratacao: Contratacao | null }[],
