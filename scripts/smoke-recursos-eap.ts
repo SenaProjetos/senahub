@@ -23,6 +23,7 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { planoDoProjeto, reagendarProjeto } from "../src/modules/planejamento/agenda";
 import { cargaDaEquipe } from "../src/modules/planejamento/recursos-queries";
+import { tarefasTravadasPeloCronograma } from "../src/modules/tarefas/queries";
 import { aprovarCronograma, avaliarQualidade } from "../src/modules/planejamento/service";
 import {
   herdarResponsaveisNoProjeto,
@@ -142,6 +143,16 @@ async function main() {
       cardA?.responsaveis,
     );
     check("terceiro e marco sem card", (await card(T.id)) === null && (await card(M.id)) === null);
+    // Trava do card (regra única de `editarTarefa` e da tela): só com cronograma aprovado.
+    const travadas = await tarefasTravadasPeloCronograma([{ id: cardA!.id, eapTarefaId: A.id }]);
+    check("card de cronograma aprovado fica travado para edição", travadas.has(cardA!.id));
+    await prisma.cronogramaProjeto.update({ where: { projetoId: projeto.id }, data: { aprovado: false } });
+    check(
+      "cronograma em rascunho não trava (card antigo segue livre)",
+      !(await tarefasTravadasPeloCronograma([{ id: cardA!.id, eapTarefaId: A.id }])).has(cardA!.id),
+    );
+    await prisma.cronogramaProjeto.update({ where: { projetoId: projeto.id }, data: { aprovado: true } });
+    check("card sem eapTarefaId nunca trava", (await tarefasTravadasPeloCronograma([{ id: "x", eapTarefaId: null }])).size === 0);
     const bl = await prisma.eapBaselineLinha.findMany({ where: { tarefaId: { in: [A.id, R.id] } }, select: { tarefaId: true, trabalhoHoras: true } });
     const blA = bl.find((x) => x.tarefaId === A.id);
     const blR = bl.find((x) => x.tarefaId === R.id);

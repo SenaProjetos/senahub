@@ -26,6 +26,29 @@ export function escopoTarefa(viewer: Viewer): Prisma.TarefaWhereInput {
   };
 }
 
+/**
+ * Quais destes cards o CRONOGRAMA manda (F5 — D32): o card veio de uma linha da EAP que ainda
+ * existe, num projeto com cronograma APROVADO. Título, prazo, projeto, disciplina e
+ * responsáveis são da EAP e reescritos a cada reprogramação.
+ *
+ * REGRA ÚNICA, lida por `editarTarefa` (que recusa a edição) e pelas telas (que travam o
+ * campo): duas cópias divergiriam, e a tela ofereceria o que o servidor recusa, ou travaria o
+ * que o servidor aceita. Cronograma em rascunho não trava — o card de rascunho não é
+ * sincronizado (D14). Linha da EAP apagada solta o card (`eapTarefaId` não tem FK).
+ */
+export async function tarefasTravadasPeloCronograma(
+  tarefas: readonly { id: string; eapTarefaId: string | null }[],
+): Promise<Set<string>> {
+  const comEap = tarefas.filter((t): t is { id: string; eapTarefaId: string } => t.eapTarefaId != null);
+  if (comEap.length === 0) return new Set();
+  const vivas = await prisma.eapTarefa.findMany({
+    where: { id: { in: comEap.map((t) => t.eapTarefaId) }, projeto: { cronograma: { aprovado: true } } },
+    select: { id: true },
+  });
+  const ids = new Set(vivas.map((v) => v.id));
+  return new Set(comEap.filter((t) => ids.has(t.eapTarefaId)).map((t) => t.id));
+}
+
 /** Include compartilhado do formato "board" de tarefa (colunas e listas por disciplina). */
 const includeTarefaBoard = {
   projeto: { select: { codigo: true, nome: true } },

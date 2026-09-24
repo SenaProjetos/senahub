@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
 import { requireRole } from "@/lib/session";
 import { INTERNAL_ROLES } from "@/lib/roles";
-import { quadroTarefas, opcoesTarefa, tarefaBloqueada, type FiltrosQuadroTarefas } from "@/modules/tarefas/queries";
+import {
+  quadroTarefas,
+  opcoesTarefa,
+  tarefaBloqueada,
+  tarefasTravadasPeloCronograma,
+  type FiltrosQuadroTarefas,
+} from "@/modules/tarefas/queries";
 import { hrefsApontamentoPorItem } from "@/modules/coordenacao/queries";
 import { TarefasBoard } from "@/components/tarefas/tarefas-board";
 import { pageCount, parseListParams } from "@/lib/list-params";
@@ -46,6 +52,8 @@ export default async function TarefasPage({ searchParams }: { searchParams: Prom
   // Atalho "ver no 3D" nos itens de checklist gerados por apontamentos de coordenação.
   const itemIds = colunas.flatMap((c) => c.tarefas.flatMap((t) => t.itens.map((it) => it.id)));
   const hrefApontamento = await hrefsApontamentoPorItem(itemIds);
+  // F5 (D32): cards que a EAP de um cronograma aprovado manda — a tela trava os campos.
+  const travadas = await tarefasTravadasPeloCronograma(colunas.flatMap((c) => c.tarefas));
 
   return (
     <TarefasBoard
@@ -83,6 +91,7 @@ export default async function TarefasPage({ searchParams }: { searchParams: Prom
           })),
           dependeDeIds: t.dependeDe.map((d) => d.dependeDe.id),
           bloqueada: tarefaBloqueada(t),
+          travadaPeloCronograma: travadas.has(t.id),
           comentarios: t.comentarios.map((c) => ({
             id: c.id,
             autorId: c.autorId,

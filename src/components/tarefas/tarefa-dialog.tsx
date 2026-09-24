@@ -52,6 +52,12 @@ export type TarefaUI = {
   itens: { id?: string; descricao: string; concluido: boolean; apontamentoHref?: string }[];
   dependeDeIds: string[];
   bloqueada: boolean;
+  /**
+   * Card gerado pela EAP de um cronograma APROVADO (F5 — D32): título, prazo, projeto,
+   * disciplina e responsáveis são da EAP e reescritos a cada reprogramação. Regra única em
+   * `tarefasTravadasPeloCronograma` — a mesma que faz `editarTarefa` recusar.
+   */
+  travadaPeloCronograma?: boolean;
   comentarios?: { id: string; autorId: string; texto: string; autor: string; autorImage?: string | null; data: string; anexoMime: string | null; anexoNome: string | null }[];
 };
 
@@ -125,6 +131,9 @@ export function TarefaDialog({
   // Item 27 (beta): só quem criou a tarefa (ou tem `tarefas:gerir_todas`) edita/arquiva. Tarefa
   // nova (tarefa === null) é sempre editável — quem cria ainda não tem criadorId atribuído.
   const podeEditar = !tarefa || podeEditarTarefa(tarefa, meId, gereTodasTarefas);
+  // Campos que vêm do cronograma ficam travados MAS continuam no formulário: o payload segue
+  // levando os valores atuais, e `editarTarefa` só recusa o que de fato mudou.
+  const travada = !!tarefa?.travadaPeloCronograma;
   const router = useRouter();
   const [pending, start] = useTransition();
   const vazio = {
@@ -323,10 +332,27 @@ export function TarefaDialog({
               {!itensReadonly && " Você ainda pode marcar os itens do checklist."}
             </p>
           )}
+          {travada && tarefa && (
+            <p className="rounded-sm border border-info/40 bg-info/10 px-2.5 py-1.5 text-xs">
+              Este card vem do cronograma: título, prazo, projeto, disciplina e responsáveis mudam na{" "}
+              {tarefa.projetoId ? (
+                <Link href={`/planejamento/${tarefa.projetoId}`} className="font-medium underline underline-offset-2">
+                  EAP do projeto
+                </Link>
+              ) : (
+                "EAP do projeto"
+              )}
+              . Coluna, prioridade, descrição, checklist e comentários continuam aqui.
+            </p>
+          )}
           <fieldset disabled={!podeEditar} className="m-0 min-w-0 space-y-3 border-0 p-0">
           <div className="space-y-1.5">
             <Label>Título</Label>
-            <Input value={form.titulo} onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))} />
+            <Input
+              value={form.titulo}
+              disabled={travada}
+              onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
+            />
           </div>
           <div className="space-y-1.5">
             <Label>Descrição</Label>
@@ -341,6 +367,7 @@ export function TarefaDialog({
             <Label>Projeto</Label>
             <Select
               value={form.projetoId}
+              disabled={travada}
               onValueChange={(v) => setForm((f) => ({ ...f, projetoId: v ?? NONE, disciplinaId: NONE }))}
             >
               <SelectTrigger className="w-full">
@@ -362,6 +389,7 @@ export function TarefaDialog({
               <Label>Disciplina</Label>
               <Select
                 value={form.disciplinaId}
+                disabled={travada}
                 onValueChange={(v) => setForm((f) => ({ ...f, disciplinaId: v ?? NONE }))}
               >
                 <SelectTrigger className="w-full">
@@ -424,6 +452,7 @@ export function TarefaDialog({
                   type="date"
                   className="w-full sm:w-40"
                   value={form.prazo}
+                  disabled={travada}
                   onChange={(e) => setForm((f) => ({ ...f, prazo: e.target.value }))}
                 />
                 <div className="flex flex-wrap gap-1" aria-label="Atalhos de prazo">
@@ -434,6 +463,7 @@ export function TarefaDialog({
                       variant="outline"
                       size="sm"
                       className="h-8 text-xs"
+                      disabled={travada}
                       onClick={() => setForm((f) => ({ ...f, prazo: p.calc() }))}
                     >
                       {p.label}
@@ -458,7 +488,7 @@ export function TarefaDialog({
                 <Popover onOpenChange={(open) => !open && setBuscaResp("")}>
                   <PopoverTrigger
                     render={
-                      <Button type="button" variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-xs">
+                      <Button type="button" variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-xs" disabled={travada}>
                         {responsaveisSelecionados.length > 0 ? "Alterar" : "Adicionar"}
                       </Button>
                     }

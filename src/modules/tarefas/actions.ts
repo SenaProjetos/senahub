@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { INTERNAL_ROLES } from "@/lib/roles";
 import { notificarMuitos } from "@/lib/notificar";
 import { PRIORIDADES } from "@/modules/tarefas/prioridade";
-import { escopoTarefa } from "@/modules/tarefas/queries";
+import { escopoTarefa, tarefasTravadasPeloCronograma } from "@/modules/tarefas/queries";
 import { projetoVisivel } from "@/modules/planejamento/queries";
 import { camposDoCronogramaAlterados, motivoCampoDoCronograma } from "@/modules/tarefas/regras";
 import type { SessionUser } from "@/lib/session";
@@ -164,13 +164,8 @@ export const editarTarefa = defineAction(
     // da F5 o botão "gerar card" criava card em RASCUNHO, sem responsável; esses cards seguem
     // livres até a aprovação (quando a EAP passa a mandar neles). Linha da EAP apagada solta
     // o card (`eapTarefaId` não tem FK), e ele volta a ser editável por inteiro.
-    const linhaDaEap = atual?.eapTarefaId
-      ? await prisma.eapTarefa.findUnique({
-          where: { id: atual.eapTarefaId },
-          select: { projeto: { select: { cronograma: { select: { aprovado: true } } } } },
-        })
-      : null;
-    if (atual && linhaDaEap?.projeto.cronograma?.aprovado) {
+    const travada = atual ? (await tarefasTravadasPeloCronograma([{ id, eapTarefaId: atual.eapTarefaId }])).has(id) : false;
+    if (atual && travada) {
       const alterados = camposDoCronogramaAlterados(
         {
           titulo: atual.titulo,

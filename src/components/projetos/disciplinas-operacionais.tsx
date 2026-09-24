@@ -14,7 +14,13 @@ import {
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { valeNaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
-import { tarefasDoProjeto, opcoesTarefa, colunasTarefaAtivas, tarefaBloqueada } from "@/modules/tarefas/queries";
+import {
+  tarefasDoProjeto,
+  opcoesTarefa,
+  colunasTarefaAtivas,
+  tarefaBloqueada,
+  tarefasTravadasPeloCronograma,
+} from "@/modules/tarefas/queries";
 import { canalDoProjeto, canaisDasDisciplinas } from "@/modules/chat/queries";
 import { AdicionarDisciplinaButton } from "@/components/projetos/adicionar-disciplina-button";
 import { AdicionarDoCatalogoButton } from "@/components/projetos/adicionar-do-catalogo-button";
@@ -141,6 +147,9 @@ export async function DisciplinasOperacionais({ projetoId }: { projetoId: string
     }
   }
 
+  // F5 (D32): cards que a EAP de um cronograma aprovado manda — a tela trava os campos.
+  const travadasPeloCronograma = await tarefasTravadasPeloCronograma(tarefasProjeto);
+
   const tarefasPorDisciplina = new Map<string, TarefaDaDisciplina[]>();
   for (const tarefa of tarefasProjeto) {
     if (!tarefa.disciplinaId) continue;
@@ -160,6 +169,7 @@ export async function DisciplinasOperacionais({ projetoId }: { projetoId: string
       itens: tarefa.itens.map((itemTarefa) => ({ id: itemTarefa.id, descricao: itemTarefa.descricao, concluido: itemTarefa.concluido })),
       dependeDeIds: tarefa.dependeDe.map((dependencia) => dependencia.dependeDe.id),
       bloqueada: tarefaBloqueada(tarefa),
+      travadaPeloCronograma: travadasPeloCronograma.has(tarefa.id),
       comentarios: tarefa.comentarios.map((comentario) => ({
         id: comentario.id,
         autorId: comentario.autorId,
