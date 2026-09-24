@@ -2762,6 +2762,16 @@ model DisciplinaEtapa {
   percentual Decimal          @db.Decimal(5, 2)
   ordem      Int              @default(0)
 
+  /// F7 (D31): quando o pagamento DESTA fase foi liberado. Nulo = ainda não liberada. É a
+  /// guarda de idempotência — reaprovar a fase (ou a disciplina) não libera de novo.
+  liberadaEm     DateTime?
+  /// F7 (D38): pool de pagamento da fase, FIXADO na liberação. Daí em diante não muda sozinho —
+  /// nem com o valor da disciplina, nem com troca de responsável ("valor a pagar não pode mudar
+  /// sozinho"). Só anda por ajuste manual de um pagamento na Produção, e aí o total da
+  /// disciplina anda pela mesma diferença. Nulo = não liberada.
+  valorPagamento Decimal?         @db.Decimal(12, 2)
+  pagamentos     PagamentoProjetista[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -6970,6 +6980,14 @@ model PagamentoProjetista {
   /// Lote de folha de projetistas (A8).
   folhaId          String?
   folha            FolhaProjetista? @relation(fields: [folhaId], references: [id], onDelete: SetNull)
+  /// F7 (D31): fase paga. Nulo = pagamento da disciplina INTEIRA (o modo de sempre). Uma
+  /// disciplina paga de um jeito OU do outro, nunca os dois — fixado na primeira liberação.
+  ///
+  /// `NoAction`, não `Restrict`: pagamento e fase caem em cascata junto com a disciplina, e o
+  /// RESTRICT é conferido na hora, podendo barrar a cascata pela ordem; NO ACTION confere no fim
+  /// do comando. Apagar só a fase, com pagamento pendurado, continua recusado pelo banco.
+  etapaId          String?
+  etapa            DisciplinaEtapa? @relation(fields: [etapaId], references: [id], onDelete: NoAction)
 
   createdAt DateTime @default(now())
 
@@ -6978,6 +6996,7 @@ model PagamentoProjetista {
   @@index([projetistaId, status])
   @@index([disciplinaId])
   @@index([folhaId])
+  @@index([etapaId])
   /// G4/D40: a tela Produção filtra por status + período de liberação e ordena por
   /// (status, liberadoEm desc) — este é o índice desse recorte. Hoje são 15 linhas em
   /// produção (seq scan é mais rápido que índice nesse tamanho); entra agora para o
