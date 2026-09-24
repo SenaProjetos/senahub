@@ -12,6 +12,9 @@
  *   7. Apagar a tarefa NÃO apaga as horas (SetNull).
  *   8. EAP (F6.3): horas apontadas chegam na linha via card; checklist vira sugestão de %;
  *      horas apontadas NÃO viram sugestão; linha sem card não tem nada a sugerir.
+ *   9. D19: linha com disciplina, card e checklist (o caso REAL — só linha com disciplina tem
+ *      responsável herdado e, portanto, card) mostra o % INFORMADO e oferece as duas
+ *      sugestões; linha-resumo é a única marcada como calculada.
  *
  * Uso: npm run smoke:ponto-tarefa
  */
@@ -21,6 +24,7 @@ import { aplicarBatida, editarDia } from "../src/modules/ponto/service";
 import { tarefasParaPonto } from "../src/modules/ponto/tarefa-ponto-service";
 import { abrirApontamento, fecharApontamento } from "../src/modules/ponto/apontamento";
 import { eapDoProjeto } from "../src/modules/planejamento/queries";
+import { progressoDoStatus } from "../src/modules/projetos/status";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -178,6 +182,46 @@ async function main() {
     check("EAP: horas apontadas não viram sugestão de %", dtoAgora?.sugestoesProgresso.every((x) => x.origem !== ("horas" as never)) === true);
     check("EAP: linha com card sem checklist ou apontado não sugere nada", dtoFutura?.sugestoesProgresso.length === 0 && dtoFutura.horasApontadas === 0, dtoFutura?.sugestoesProgresso);
 
+    // ── 9. D19: o caso real — linha COM disciplina ─────────────────────────
+    const disc = await prisma.disciplina.create({
+      data: { projetoId: proj.id, disciplinaTextoLegado: "Elétrica", status: "em_andamento" },
+    });
+    const pai = await prisma.eapTarefa.create({
+      data: { projetoId: proj.id, nome: "Elétrica (grupo)", tipoEap: "res", inicioPrevisto: d(dia(-1)), fimPrevisto: d(dia(3)) },
+    });
+    const filha = await prisma.eapTarefa.create({
+      data: {
+        projetoId: proj.id,
+        parentId: pai.id,
+        disciplinaId: disc.id,
+        nome: "Circuitos",
+        tipoEap: "atv",
+        duracaoDias: 5,
+        progresso: 30, // o coordenador INFORMOU 30%
+        inicioPrevisto: d(dia(-1)),
+        fimPrevisto: d(dia(3)),
+      },
+    });
+    const cardFilha = await card("Circuitos", proj.id, [maria.id], { eapTarefaId: filha.id, disciplinaId: disc.id });
+    await prisma.tarefaItem.createMany({
+      data: [
+        { tarefaId: cardFilha.id, descricao: "x", concluido: true, ordem: 0 },
+        { tarefaId: cardFilha.id, descricao: "y", concluido: false, ordem: 1 },
+      ],
+    });
+    const eap2 = await eapDoProjeto(proj.id);
+    const dFilha = eap2.tarefas.find((x) => x.id === filha.id);
+    const dPai = eap2.tarefas.find((x) => x.id === pai.id);
+    check("D19: folha com disciplina mostra o % INFORMADO (30), não o do status da disciplina", dFilha?.progresso === 30, dFilha?.progresso);
+    check("D19: folha com disciplina NÃO é 'derivada' — as sugestões têm de aparecer", dFilha?.progressoDerivado === false);
+    check(
+      "D19: as duas sugestões aparecem (checklist 1/2 = 50% e a situação da disciplina)",
+      JSON.stringify(dFilha?.sugestoesProgresso.map((x) => [x.origem, x.valor])) ===
+        JSON.stringify([["checklist", 50], ["status_disciplina", progressoDoStatus("em_andamento")]]),
+      dFilha?.sugestoesProgresso,
+    );
+    check("D19: só a linha-resumo é marcada como calculada", dPai?.progressoDerivado === true && dPai.progresso === 30, [dPai?.progressoDerivado, dPai?.progresso]);
+
     // ── 7. Apagar a tarefa não apaga as horas ──────────────────────────────
     const antes = await prisma.sessaoTrabalho.count({ where: { userId: maria.id } });
     await prisma.tarefa.delete({ where: { id: tAgora.id } });
@@ -189,7 +233,9 @@ async function main() {
     await prisma.batida.deleteMany({ where: { userId: { in: ids } } });
     await prisma.sessaoTrabalho.deleteMany({ where: { userId: { in: ids } } });
     await prisma.tarefa.deleteMany({ where: { projetoId: { in: [proj.id, outro.id] } } });
+    await prisma.eapTarefa.deleteMany({ where: { projetoId: proj.id, parentId: { not: null } } });
     await prisma.eapTarefa.deleteMany({ where: { projetoId: proj.id } });
+    await prisma.disciplina.deleteMany({ where: { projetoId: proj.id } });
     await prisma.projeto.deleteMany({ where: { id: { in: [proj.id, outro.id] } } });
     await prisma.cliente.delete({ where: { id: cliente.id } });
     await prisma.user.deleteMany({ where: { id: { in: ids } } });

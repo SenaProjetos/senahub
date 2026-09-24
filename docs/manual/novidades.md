@@ -22,6 +22,33 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Ponto: escolha em qual tarefa você está trabalhando (opcional)
+
+Ao bater o ponto (ou apontar horas) num projeto, agora dá para dizer **em qual tarefa** você
+vai trabalhar. É **opcional** — quem não escolher bate o ponto exatamente como sempre bateu.
+
+- A lista é **curta**: só as suas tarefas em aberto naquele projeto, e — quando a tarefa vem
+  do cronograma — só as que estão no período (até uma semana antes ou depois das datas dela).
+  Nunca aparecem todas as tarefas do projeto.
+- O campo **só aparece** quando você escolhe um projeto e tem alguma tarefa em aberto nele.
+  Em reunião ou "sem projeto" não há tarefa a escolher.
+- Vale no relógio do cabeçalho e na tela **Ponto**, para quem bate ponto e para quem apenas
+  aponta horas. Ao **trocar de alocação**, dá para trocar a tarefa também; ao voltar do
+  descanso, ela é mantida.
+- Se você corrigir o horário de um dia no espelho, a tarefa escolhida na entrada continua lá.
+  Já a tarefa de uma **troca feita no meio do dia** não é guardada quando o dia é editado.
+- As horas registradas aparecem, para a coordenação, ao lado das horas previstas na linha
+  correspondente do cronograma.
+
+Na EAP do projeto, a coordenação também passa a ver **sugestões de percentual** (com base no
+checklist da tarefa e na situação da disciplina). O percentual continua sendo **informado
+pela coordenação**: a sugestão só preenche o campo, e nada é gravado até clicar em Salvar. A
+tela da EAP agora mostra o percentual **informado** de cada atividade — antes, atividade ligada
+a uma disciplina mostrava o percentual automático da situação dela. Linhas de agrupamento
+continuam calculadas a partir das atividades dentro delas.
+
+---
+
 ## Padrão de nomenclatura por versão e sub-disciplina
 
 O padrão de nome de arquivo agora é **versionado**: a gestão publica uma versão nova

@@ -43,10 +43,10 @@ describe("sugerirProgresso (F6.3)", () => {
 });
 
 describe("contexto e rótulos", () => {
-  it("arquivo enviado é só contexto, e diz que não é entrega", () => {
+  it("arquivo enviado é só contexto (em documentos), e diz que não é entrega", () => {
     expect(contextoDeArquivos(0)).toBeNull();
-    expect(contextoDeArquivos(1)).toBe("1 arquivo enviado na disciplina — envio não é entrega aprovada.");
-    expect(contextoDeArquivos(4)).toBe("4 arquivos enviados na disciplina — envio não é entrega aprovada.");
+    expect(contextoDeArquivos(1)).toBe("1 documento enviado na disciplina — envio não é entrega aprovada.");
+    expect(contextoDeArquivos(4)).toBe("4 documentos enviados na disciplina — envio não é entrega aprovada.");
   });
 
   it("horas em pt-BR com uma casa", () => {

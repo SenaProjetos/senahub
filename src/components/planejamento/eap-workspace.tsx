@@ -522,8 +522,11 @@ export function EapWorkspace({
                           </div>
                           <span className="font-mono text-xs text-muted-foreground">{t.progresso}%</span>
                           {t.progressoDerivado && (
-                            <span className="text-[9px] uppercase text-muted-foreground" title="Progresso derivado do status da disciplina">
-                              auto
+                            <span
+                              className="text-[9px] uppercase text-muted-foreground"
+                              title="Linha de agrupamento: o avanço é calculado dos filhos, ponderado por horas — não se digita"
+                            >
+                              calc
                             </span>
                           )}
                         </div>

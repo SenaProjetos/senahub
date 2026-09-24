@@ -11,7 +11,8 @@
  *    Valor Agregado existe para mostrar. Transformar consumo em progresso faria o IDP se
  *    comparar com ele mesmo e dar 1,00 sempre (D21: o ritmo corrige a PREVISÃO, nunca o %).
  *  - ARQUIVO ENVIADO. Enviar um arquivo não é entregar: só a validação entrega. Entra como
- *    CONTEXTO ("há N arquivos na disciplina"), sem valor — quem decide olha e confirma.
+ *    CONTEXTO ("há N documentos na disciplina"), sem valor — quem decide olha e confirma. A
+ *    contagem é em DOCUMENTOS (PDF + DWG = 1), a unidade do sistema.
  */
 
 export type OrigemSugestao = "checklist" | "status_disciplina";
@@ -69,9 +70,9 @@ export function sugerirProgresso(f: FontesProgresso): SugestaoProgresso[] {
  * Contexto de arquivos, só texto — ver o cabeçalho: enviar não é entregar.
  * `null` quando não há nada a dizer.
  */
-export function contextoDeArquivos(arquivosNaDisciplina: number): string | null {
-  if (arquivosNaDisciplina <= 0) return null;
-  return `${arquivosNaDisciplina} ${arquivosNaDisciplina === 1 ? "arquivo enviado" : "arquivos enviados"} na disciplina — envio não é entrega aprovada.`;
+export function contextoDeArquivos(documentosNaDisciplina: number): string | null {
+  if (documentosNaDisciplina <= 0) return null;
+  return `${documentosNaDisciplina} ${documentosNaDisciplina === 1 ? "documento enviado" : "documentos enviados"} na disciplina — envio não é entrega aprovada.`;
 }
 
 /** Horas em texto curto ("12,5 h"). */

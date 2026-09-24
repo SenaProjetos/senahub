@@ -52,7 +52,7 @@ type ApoioDaLinha = {
   apontadoMin: Map<string, number>;
   /** Checklist do card gerado da linha. */
   checklist: Map<string, { feitos: number; total: number }>;
-  /** Arquivos enviados por disciplina. */
+  /** DOCUMENTOS por disciplina (unidade de contagem do sistema: PDF + DWG = 1). */
   arquivosPorDisciplina: Map<string, number>;
 };
 
@@ -70,11 +70,18 @@ async function carregarApoioDasLinhas(linhas: readonly { id: string; disciplinaI
       where: { tarefa: { eapTarefaId: { in: linhaIds } } },
       select: { inicio: true, fim: true, tarefa: { select: { eapTarefaId: true } } },
     }),
+    // A unidade é o DOCUMENTO (`DocumentoDisciplina`), não o upload: cada versão e cada
+    // extensão é um upload, e contá-los inflaria o número (mesma regra da contagem por fase
+    // do link público). Canônico e com upload validado, como lá.
     disciplinaIds.length === 0
       ? Promise.resolve([])
-      : prisma.upload.groupBy({
+      : prisma.documentoDisciplina.groupBy({
           by: ["disciplinaId"],
-          where: { disciplinaId: { in: disciplinaIds }, excluidoEm: null },
+          where: {
+            disciplinaId: { in: disciplinaIds },
+            substituidoPorId: null,
+            uploads: { some: { validado: true, excluidoEm: null } },
+          },
           _count: { _all: true },
         }),
   ]);
@@ -108,9 +115,15 @@ function mapearTarefaDTO(t: EapTarefaComRelacoes, plano: PlanoDoProjeto | null, 
     parentId: t.parentId,
     nome: t.nome,
     ordem: t.ordem,
-    // P-33: progresso derivado do status da disciplina vinculada; manual quando sem disciplina.
-    progresso: t.disciplina ? progressoDoStatus(t.disciplina.status) : t.progresso,
-    progressoDerivado: t.disciplina != null,
+    // D19 (2026-09-23, mais nova que a P-33): o % é INFORMADO pelo coordenador. Folha mostra o
+    // valor gravado; linha-resumo mostra o do MOTOR, ponderado por horas dos filhos (D26).
+    // A P-33 derivava o % do status da disciplina e o mostrava no lugar do gravado — só que o
+    // motor, a qualidade, a Saúde e a linha de base leem o gravado e o rollup, então a tela
+    // contradizia tudo o que ela mesma alimenta (e o Valor Agregado da F8 leria o número do
+    // motor). O status da disciplina agora é SUGESTÃO (`sugestoesProgresso`), com confirmação.
+    progresso: agendada?.progresso ?? t.progresso,
+    /** Linha-resumo: o % é calculado dos filhos e não se digita (Doc 03 §23). */
+    progressoDerivado: agendada?.ehResumo ?? false,
     inicioPrevisto: iso(t.inicioPrevisto),
     fimPrevisto: iso(t.fimPrevisto),
     inicioBaseline: t.inicioBaseline ? iso(t.inicioBaseline) : null,
@@ -186,7 +199,7 @@ export async function projetosComPlano(viewer: Viewer) {
       nome: true,
       situacao: true,
       eapTarefas: {
-        select: { inicioPrevisto: true, fimPrevisto: true, progresso: true, disciplina: { select: { status: true } } },
+        select: { id: true, parentId: true, inicioPrevisto: true, fimPrevisto: true, progresso: true },
       },
     },
   });
@@ -194,9 +207,12 @@ export async function projetosComPlano(viewer: Viewer) {
     const t = p.eapTarefas;
     const inicio = t.length ? new Date(Math.min(...t.map((x) => x.inicioPrevisto.getTime()))) : null;
     const fim = t.length ? new Date(Math.max(...t.map((x) => x.fimPrevisto.getTime()))) : null;
-    const progresso = t.length
-      ? Math.round(t.reduce((s, x) => s + (x.disciplina ? progressoDoStatus(x.disciplina.status) : x.progresso), 0) / t.length)
-      : 0;
+    // Média do % INFORMADO das folhas (D19) — a mesma base do motor, sem o P-33 que substituía
+    // o gravado pelo status da disciplina. É uma aproximação de índice: o rollup ponderado por
+    // horas exige rodar o motor por projeto, e esta lista não paga isso.
+    const paisIds = new Set(t.map((x) => x.parentId).filter((id): id is string => id != null));
+    const folhas = t.filter((x) => !paisIds.has(x.id));
+    const progresso = folhas.length ? Math.round(folhas.reduce((s, x) => s + x.progresso, 0) / folhas.length) : 0;
     return {
       id: p.id,
       codigo: p.codigo,

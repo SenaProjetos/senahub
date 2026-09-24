@@ -349,30 +349,32 @@ export function EapDialog({
                   max={100}
                   step={5}
                   value={form.progresso}
+                  // Linha-resumo: o % é calculado dos filhos e ignora o que se digitar (Doc 03 §23).
+                  disabled={linhaAtual?.progressoDerivado === true}
                   onChange={(e) => setForm((f) => ({ ...f, progresso: Number(e.target.value) }))}
-                  className="w-full accent-primary"
+                  className="w-full accent-primary disabled:opacity-50"
                 />
-                {linhaAtual && !linhaAtual.ehResumo && (
+                {linhaAtual?.progressoDerivado && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Linha de agrupamento: o avanço é calculado dos filhos, ponderado por horas.
+                  </p>
+                )}
+                {linhaAtual && !linhaAtual.progressoDerivado && (
                   <div className="space-y-1 pt-0.5">
-                    {linhaAtual.progressoDerivado ? (
-                      <p className="text-[11px] text-muted-foreground">
-                        O avanço desta linha vem da situação da disciplina (automático).
-                      </p>
-                    ) : (
-                      // F6.3 (D19): o sistema SUGERE, o coordenador confirma. "Usar" só preenche o
-                      // controle acima — nada é gravado até clicar em Salvar.
-                      linhaAtual.sugestoesProgresso.map((sug) => (
-                        <button
-                          key={sug.origem}
-                          type="button"
-                          onClick={() => setForm((f) => ({ ...f, progresso: sug.valor }))}
-                          className="block w-full rounded-sm border border-dashed px-2 py-1 text-left text-[11px] text-muted-foreground hover:border-primary hover:text-foreground"
-                        >
-                          Sugestão: <strong className="text-foreground">{sug.valor}%</strong> — {sug.motivo}{" "}
-                          <span className="text-primary">usar</span>
-                        </button>
-                      ))
-                    )}
+                    {/* F6.3 (D19): o coordenador INFORMA o %; o sistema só sugere o que já sabe (checklist
+                        do card, situação da disciplina). "Usar" preenche o controle acima — nada é gravado
+                        até clicar em Salvar. */}
+                    {linhaAtual.sugestoesProgresso.map((sug) => (
+                      <button
+                        key={sug.origem}
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, progresso: sug.valor }))}
+                        className="block w-full rounded-sm border border-dashed px-2 py-1 text-left text-[11px] text-muted-foreground hover:border-primary hover:text-foreground"
+                      >
+                        Sugestão: <strong className="text-foreground">{sug.valor}%</strong> — {sug.motivo}{" "}
+                        <span className="text-primary">usar</span>
+                      </button>
+                    ))}
                     {linhaAtual.contextoArquivos && (
                       <p className="text-[11px] text-muted-foreground">{linhaAtual.contextoArquivos}</p>
                     )}
