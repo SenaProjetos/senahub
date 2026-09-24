@@ -1,28 +1,42 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { formatarDiaMes } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Flag, CheckCheck, ArrowLeft, ZoomIn, ZoomOut, Rocket, ListPlus, ListTree, CalendarClock, Download, FileText } from "lucide-react";
 import {
-  definirLinhaBase,
+  Plus,
+  CheckCheck,
+  ArrowLeft,
+  ZoomIn,
+  ZoomOut,
+  Rocket,
+  ListPlus,
+  ListTree,
+  CalendarClock,
+  Download,
+  FileText,
+  Pin,
+  Lock,
+} from "lucide-react";
+import {
   aplicarAoProjeto,
   gerarTarefaDeEap,
   gerarEapDasDisciplinas,
   reagendarPlano,
 } from "@/modules/planejamento/actions";
-import type { EapTarefaDTO } from "@/modules/planejamento/queries";
+import type { EapTarefaDTO, cronogramaProjetoInfo } from "@/modules/planejamento/queries";
+import type { Achado } from "@/modules/planejamento/qualidade";
+import type { ResultadoSaude } from "@/modules/planejamento/saude";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Gantt, GANTT_PX_DEFAULT } from "@/components/planejamento/gantt";
 import { EapDialog } from "@/components/planejamento/eap-dialog";
+import { SaudePainel } from "@/components/planejamento/saude-painel";
 
-const fmt = (iso: string | null) =>
-  iso ? formatarDiaMes(iso) : "—";
+const fmt = (iso: string | null) => (iso ? formatarDiaMes(iso) : "—");
 
 const diasDesvio = (t: EapTarefaDTO) => {
   if (!t.fimBaseline) return 0;
@@ -31,27 +45,51 @@ const diasDesvio = (t: EapTarefaDTO) => {
   return Math.round((a - b) / 86400000);
 };
 
+type Filtro = "todas" | "atrasadas" | "criticas" | "bloqueadas";
+type Lookahead = "todas" | 7 | 15 | 30;
+
+const hoje = () => new Date().toISOString().slice(0, 10);
+const somarDias = (isoDia: string, n: number) => {
+  const d = new Date(isoDia + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
 export function EapWorkspace({
   projeto,
   tarefas,
   disciplinas,
   temLinhaBase,
   podeGerir,
+  podeAprovar,
+  podeExecutado,
+  cronograma,
+  qualidade,
 }: {
   projeto: { id: string; codigo: string; nome: string };
   tarefas: EapTarefaDTO[];
   disciplinas: { id: string; nome: string }[];
   temLinhaBase: boolean;
   podeGerir: boolean;
+  podeAprovar: boolean;
+  podeExecutado: boolean;
+  cronograma: Awaited<ReturnType<typeof cronogramaProjetoInfo>>;
+  qualidade: {
+    achados: Achado[];
+    saude: ResultadoSaude | null;
+    totalLinhas: number;
+    dataStatus: string | null;
+  } | null;
 }) {
   const router = useRouter();
-  const confirm = useConfirm();
   const [pending, start] = useTransition();
   const [px, setPx] = useState(GANTT_PX_DEFAULT);
   const [dialog, setDialog] = useState<{ open: boolean; tarefa: EapTarefaDTO | null }>({
     open: false,
     tarefa: null,
   });
+  const [filtro, setFiltro] = useState<Filtro>("todas");
+  const [lookahead, setLookahead] = useState<Lookahead>("todas");
 
   const abrir = (tarefa: EapTarefaDTO | null) => {
     if (!podeGerir) return;
@@ -60,15 +98,33 @@ export function EapWorkspace({
   const selecionar = (id: string) => abrir(tarefas.find((t) => t.id === id) ?? null);
   const vazio = tarefas.length === 0;
 
-  function linhaBase() {
-    start(async () => {
-      const r = await definirLinhaBase({ projetoId: projeto.id });
-      if (r.ok) {
-        toast.success(temLinhaBase ? "Linha de base atualizada." : "Linha de base definida.");
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
+  // Filtros e lookahead (Doc 03 §36/§37) — aplicados só à VISÃO (Gantt + tabela). O diálogo
+  // continua vendo a EAP inteira: escolher predecessora não pode depender do que está
+  // filtrado na tela naquele momento.
+  const visiveis = useMemo(() => {
+    let base = tarefas;
+    if (filtro === "atrasadas") {
+      const hj = hoje();
+      base = base.filter((t) => t.fimPrevisto < hj && t.progresso < 100 && t.status !== "con");
+    } else if (filtro === "criticas") {
+      base = base.filter((t) => t.critica);
+    } else if (filtro === "bloqueadas") {
+      base = base.filter((t) => t.status === "blq");
+    }
+    if (lookahead !== "todas") {
+      const limite = somarDias(hoje(), lookahead);
+      base = base.filter((t) => t.inicioPrevisto <= limite && t.fimPrevisto >= hoje());
+    }
+    // "Minhas atividades": aproximação por disciplina responsável não está disponível na
+    // EAP ainda (o responsável por linha chega na F5) — por ora fica reservado, sem filtrar.
+    return base;
+  }, [tarefas, filtro, lookahead]);
+
+  const totalAtrasadas = tarefas.filter(
+    (t) => t.fimPrevisto < hoje() && t.progresso < 100 && t.status !== "con",
+  ).length;
+  const totalCriticas = tarefas.filter((t) => t.critica).length;
+  const totalBloqueadas = tarefas.filter((t) => t.status === "blq").length;
 
   // Prévia do que "Aplicar ao projeto" vai gravar: por disciplina vinculada,
   // o prazo passa a ser o MAIOR fimPrevisto entre as tarefas dessa disciplina.
@@ -93,13 +149,6 @@ export function EapWorkspace({
       toast.error("Nenhuma tarefa vinculada a disciplina. Vincule disciplinas para aplicar.");
       return;
     }
-    const linhas = previa.map((d) => `${d.nome} → ${fmt(d.prazo)}`).join("; ");
-    const ok = await confirm({
-      title: `Aplicar prazos a ${previa.length} disciplina(s)?`,
-      description: `Os prazos das disciplinas vinculadas serão sobrescritos pelo fim previsto da EAP: ${linhas}.`,
-      confirmLabel: "Aplicar",
-    });
-    if (!ok) return;
     start(async () => {
       const r = await aplicarAoProjeto({ projetoId: projeto.id });
       if (r.ok) {
@@ -141,8 +190,11 @@ export function EapWorkspace({
       if (r.ok) {
         toast.success(
           r.data.reagendadas > 0
-            ? `${r.data.reagendadas} tarefa(s) reagendada(s) pelas dependências.`
-            : "Cronograma já coerente com as dependências.",
+            ? `${r.data.reagendadas} tarefa(s) reagendada(s) pelo motor.`
+            : "Cronograma já coerente com duração e dependências.",
+          r.data.ciclosIgnorados > 0
+            ? { description: `${r.data.ciclosIgnorados} dependência(s) circular(es) foram ignoradas.` }
+            : undefined,
         );
         router.refresh();
       } else toast.error(r.error);
@@ -194,9 +246,6 @@ export function EapWorkspace({
               <Button size="sm" variant="outline" onClick={reagendar} disabled={pending || tarefas.length === 0}>
                 <CalendarClock className="size-3.5" /> Reagendar
               </Button>
-              <Button size="sm" variant="outline" onClick={linhaBase} disabled={pending || tarefas.length === 0}>
-                <Flag className="size-3.5" /> {temLinhaBase ? "Atualizar linha de base" : "Definir linha de base"}
-              </Button>
               <Button size="sm" variant="outline" onClick={aplicar} disabled={pending || tarefas.length === 0}>
                 <CheckCheck className="size-3.5" /> Aplicar ao projeto
               </Button>
@@ -204,6 +253,23 @@ export function EapWorkspace({
           )}
         </div>
       </div>
+
+      {qualidade && tarefas.length > 0 && (
+        <SaudePainel
+          projetoId={projeto.id}
+          podeAprovar={podeAprovar}
+          podeExecutado={podeExecutado}
+          aprovado={cronograma.aprovado}
+          aprovadoEm={cronograma.aprovadoEm}
+          dataStatus={cronograma.dataStatus}
+          inicioProjeto={cronograma.inicioProjeto}
+          ultimaBaseline={cronograma.ultimaBaseline}
+          achados={qualidade.achados}
+          nota={qualidade.saude?.nota ?? null}
+          faixa={qualidade.saude?.faixa ?? null}
+          provisoria={qualidade.saude?.provisoria ?? true}
+        />
+      )}
 
       {/* N-47: resumo comparativo baseline vs atual */}
       {temLinhaBase && tarefas.some((t) => t.inicioBaseline) && (() => {
@@ -266,16 +332,69 @@ export function EapWorkspace({
         </div>
       ) : (
         <>
-          <div className="flex items-center justify-end gap-1">
-            <span className="mr-1 text-xs text-muted-foreground">Zoom</span>
-            <Button size="icon-sm" variant="outline" aria-label="Diminuir zoom" onClick={() => setPx((p) => Math.max(6, p - 4))} disabled={px <= 6}>
-              <ZoomOut className="size-3.5" />
-            </Button>
-            <Button size="icon-sm" variant="outline" aria-label="Aumentar zoom" onClick={() => setPx((p) => Math.min(48, p + 4))} disabled={px >= 48}>
-              <ZoomIn className="size-3.5" />
-            </Button>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-1">
+              {(
+                [
+                  ["todas", `Todas (${tarefas.length})`],
+                  ["atrasadas", `Atrasadas (${totalAtrasadas})`],
+                  ["criticas", `Críticas (${totalCriticas})`],
+                  ["bloqueadas", `Bloqueadas (${totalBloqueadas})`],
+                ] as [Filtro, string][]
+              ).map(([v, label]) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setFiltro(v)}
+                  className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                    filtro === v
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-input bg-background text-muted-foreground hover:border-primary/50"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+              <span className="mx-1 self-center text-muted-foreground">·</span>
+              {(
+                [
+                  ["todas", "Tudo"],
+                  [7, "7 dias"],
+                  [15, "15 dias"],
+                  [30, "30 dias"],
+                ] as [Lookahead, string][]
+              ).map(([v, label]) => (
+                <button
+                  key={String(v)}
+                  type="button"
+                  onClick={() => setLookahead(v)}
+                  title={typeof v === "number" ? `Só o que começa ou termina nos próximos ${v} dias` : undefined}
+                  className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                    lookahead === v
+                      ? "border-info bg-info text-info-foreground"
+                      : "border-input bg-background text-muted-foreground hover:border-info/50"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="mr-1 text-xs text-muted-foreground">Zoom</span>
+              <Button size="icon-sm" variant="outline" aria-label="Diminuir zoom" onClick={() => setPx((p) => Math.max(6, p - 4))} disabled={px <= 6}>
+                <ZoomOut className="size-3.5" />
+              </Button>
+              <Button size="icon-sm" variant="outline" aria-label="Aumentar zoom" onClick={() => setPx((p) => Math.min(48, p + 4))} disabled={px >= 48}>
+                <ZoomIn className="size-3.5" />
+              </Button>
+            </div>
           </div>
-          <Gantt tarefas={tarefas} onSelecionar={podeGerir ? selecionar : undefined} px={px} />
+
+          {visiveis.length === 0 ? (
+            <EmptyState icon={ListTree} title="Nenhuma tarefa para os filtros selecionados" className="py-10" />
+          ) : (
+            <Gantt tarefas={visiveis} onSelecionar={podeGerir ? selecionar : undefined} px={px} />
+          )}
 
           {/* Lista / EAP */}
           <div className="overflow-x-auto rounded-sm border">
@@ -284,6 +403,7 @@ export function EapWorkspace({
                 <tr>
                   <th className="px-3 py-2">Tarefa</th>
                   <th className="px-3 py-2">Disciplina</th>
+                  <th className="px-3 py-2">Duração</th>
                   <th className="px-3 py-2">Previsto</th>
                   <th className="px-3 py-2">Linha de base</th>
                   <th className="px-3 py-2">Progresso</th>
@@ -292,7 +412,7 @@ export function EapWorkspace({
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {tarefas.map((t) => {
+                {visiveis.map((t) => {
                   const desvio = diasDesvio(t);
                   return (
                     <tr
@@ -301,12 +421,19 @@ export function EapWorkspace({
                       className={podeGerir ? "cursor-pointer hover:bg-muted/40" : ""}
                     >
                       <td className="px-3 py-2" style={{ paddingLeft: t.parentId ? 28 : 12 }}>
-                        <span className={t.parentId ? "text-muted-foreground" : "font-medium"}>{t.nome}</span>
+                        <span className={`inline-flex items-center gap-1 ${t.parentId ? "text-muted-foreground" : "font-medium"}`}>
+                          {t.status === "blq" && <Lock className="size-3 text-destructive" aria-label="Bloqueada" />}
+                          {t.restricaoTipo && <Pin className="size-3 text-muted-foreground" aria-label="Data fixada" />}
+                          {t.nome}
+                        </span>
                         {t.predecessoraIds.length > 0 && (
                           <span className="ml-1 text-[10px] text-warning">↳{t.predecessoraIds.length}</span>
                         )}
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">{t.disciplinaNome ?? "—"}</td>
+                      <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-muted-foreground">
+                        {t.marco ? "marco" : `${t.duracaoDias}d`}
+                      </td>
                       <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">
                         {fmt(t.inicioPrevisto)} – {fmt(t.fimPrevisto)}
                       </td>

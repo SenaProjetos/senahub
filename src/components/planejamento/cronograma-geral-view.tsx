@@ -19,10 +19,15 @@ type ProjetoCron = { id: string; codigo: string; nome: string; situacao: Situaca
 const SITUACOES: Situacao[] = ["em_andamento", "concluido", "arquivado", "cancelado"];
 
 const hoje = new Date().toISOString().slice(0, 10);
+const ENCERRADOS = new Set(["con", "can", "arq"]);
 
+/** Mesma regra de "atrasada" que `qualidade.ts` usa (Doc 03 §26) — status encerrado sai da
+ * conta, senão uma tarefa cancelada no ano passado marcaria o projeto como atrasado para
+ * sempre. Ler `critica` do DTO em vez de recalcular, que é o que faz este painel só
+ * mostrar (D7) — o cálculo mora no motor, não na tela. */
 function temAtraso(p: ProjetoCron) {
   return p.tarefas.some(
-    (t) => t.fimPrevisto && t.fimPrevisto < hoje && (t.progresso ?? 0) < 100,
+    (t) => t.fimPrevisto < hoje && (t.progresso ?? 0) < 100 && !ENCERRADOS.has(t.status),
   );
 }
 
@@ -57,7 +62,8 @@ export function CronogramaGeralView({ projetos }: { projetos: ProjetoCron[] }) {
         <div>
           <h2 className="text-2xl font-extrabold tracking-tight">Cronograma geral</h2>
           <p className="text-sm text-muted-foreground">
-            {visiveis.length} de {projetos.length} projeto(s) · barra clara = previsto, faixa inferior = linha de base.
+            {visiveis.length} de {projetos.length} projeto(s) · leitura e sequenciamento entre projetos —
+            o prazo interno de cada um só se edita dentro dele.
           </p>
         </div>
         <div className="flex items-center gap-1">

@@ -3,19 +3,24 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { Trash2, Pin, PinOff, Lock, Unlock } from "lucide-react";
 import {
   criarEapTarefa,
   editarEapTarefa,
   excluirEapTarefa,
   vincularDependencia,
   removerDependencia,
+  editarVinculo,
+  definirBloqueio,
+  desbloquear,
+  definirRestricao,
 } from "@/modules/planejamento/actions";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -30,8 +35,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { CollapsibleSection } from "@/components/ui/collapsible";
 
 const NONE = "__none";
+
+const TIPO_VINCULO_LABEL: Record<string, string> = {
+  fs: "FS — término → início",
+  ss: "SS — início → início",
+  ff: "FF — término → término",
+  sf: "SF — início → término",
+};
+
+const RESTRICAO_LABEL: Record<string, string> = {
+  iniciar_em: "Iniciar em",
+  iniciar_nao_antes_de: "Iniciar não antes de",
+  iniciar_nao_depois_de: "Iniciar não depois de",
+  terminar_em: "Terminar em",
+  terminar_nao_antes_de: "Terminar não antes de",
+  terminar_nao_depois_de: "Terminar não depois de",
+};
 
 export function EapDialog({
   tarefa,
@@ -76,6 +98,26 @@ export function EapDialog({
   if (lastKey !== key) {
     setLastKey(key);
     setForm(tarefa ? de(tarefa) : vazio);
+  }
+
+  // Restrição — estado próprio, editado por ação dedicada (não faz parte do salvar geral).
+  const [restricaoTipo, setRestricaoTipo] = useState(tarefa?.restricaoTipo ?? "");
+  const [restricaoData, setRestricaoData] = useState(tarefa?.restricaoData ?? hoje);
+  const [lastKeyR, setLastKeyR] = useState(key);
+  if (lastKeyR !== key) {
+    setLastKeyR(key);
+    setRestricaoTipo(tarefa?.restricaoTipo ?? "");
+    setRestricaoData(tarefa?.restricaoData ?? hoje);
+  }
+
+  // Bloqueio — idem: ação própria, com motivo obrigatório.
+  const [motivoBloqueio, setMotivoBloqueio] = useState(tarefa?.motivoBloqueio ?? "");
+  const [previsaoDesbloqueio, setPrevisaoDesbloqueio] = useState(tarefa?.previsaoDesbloqueio ?? "");
+  const [lastKeyB, setLastKeyB] = useState(key);
+  if (lastKeyB !== key) {
+    setLastKeyB(key);
+    setMotivoBloqueio(tarefa?.motivoBloqueio ?? "");
+    setPrevisaoDesbloqueio(tarefa?.previsaoDesbloqueio ?? "");
   }
 
   function salvar() {
@@ -127,23 +169,111 @@ export function EapDialog({
     start(async () => {
       const r = tem
         ? await removerDependencia({ tarefaId: tarefa.id, predecessoraId })
-        : await vincularDependencia({ tarefaId: tarefa.id, predecessoraId });
+        : await vincularDependencia({ tarefaId: tarefa.id, predecessoraId, tipo: "fs", lagDias: 0 });
       if (r.ok) router.refresh();
       else toast.error(r.error);
     });
   }
 
+  function mudarVinculo(predecessoraId: string, campo: "tipo" | "lagDias", valor: string | number) {
+    if (!tarefa) return;
+    const atual = tarefa.predecessoras.find((p) => p.predecessoraId === predecessoraId);
+    if (!atual) return;
+    start(async () => {
+      const r = await editarVinculo({
+        tarefaId: tarefa.id,
+        predecessoraId,
+        tipo: campo === "tipo" ? (valor as "fs" | "ss" | "ff" | "sf") : atual.tipo,
+        lagDias: campo === "lagDias" ? Number(valor) : atual.lagDias,
+      });
+      if (r.ok) router.refresh();
+      else toast.error(r.error);
+    });
+  }
+
+  function salvarRestricao() {
+    if (!tarefa) return;
+    if (restricaoTipo && !restricaoData) {
+      toast.error("Informe a data da restrição.");
+      return;
+    }
+    start(async () => {
+      const r = await definirRestricao({
+        id: tarefa.id,
+        tipo: (restricaoTipo || null) as never,
+        data: restricaoData || undefined,
+      });
+      if (r.ok) {
+        toast.success(restricaoTipo ? "Restrição fixada." : "Restrição removida.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  function bloquear() {
+    if (!tarefa) return;
+    if (!motivoBloqueio.trim()) {
+      toast.error("Descreva o motivo do bloqueio.");
+      return;
+    }
+    start(async () => {
+      const r = await definirBloqueio({
+        id: tarefa.id,
+        motivo: motivoBloqueio,
+        previsaoDesbloqueio: previsaoDesbloqueio || undefined,
+      });
+      if (r.ok) {
+        toast.success("Tarefa bloqueada.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  function liberar() {
+    if (!tarefa) return;
+    start(async () => {
+      const r = await desbloquear({ id: tarefa.id });
+      if (r.ok) {
+        toast.success("Bloqueio removido.");
+        setMotivoBloqueio("");
+        setPrevisaoDesbloqueio("");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
   const outras = tarefas.filter((t) => t.id !== tarefa?.id);
   const possiveisPais = outras;
+  const bloqueada = tarefa?.status === "blq";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{tarefa ? tarefa.nome : "Nova tarefa da EAP"}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {tarefa ? tarefa.nome : "Nova tarefa da EAP"}
+            {bloqueada && (
+              <Badge variant="outline" className="border-destructive/40 text-destructive">
+                <Lock className="mr-1 size-3" /> bloqueada
+              </Badge>
+            )}
+            {tarefa?.conflitoRestricao && (
+              <Badge variant="outline" className="border-warning/40 text-warning">
+                <Pin className="mr-1 size-3" /> conflito de restrição
+              </Badge>
+            )}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
+          {tarefa && (
+            <p className="rounded-sm bg-muted/40 px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground">
+              {tarefa.idCorporativo ?? "—"} · EAP {tarefa.codigoEap ?? "—"} · {tarefa.duracaoDias}d úteis
+              {tarefa.folgaTotal > 0 && ` · folga ${tarefa.folgaTotal}d`}
+              {tarefa.critica && " · caminho crítico"}
+            </p>
+          )}
+
           <div className="space-y-1.5">
             <Label>Nome</Label>
             <Input value={form.nome} onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))} />
@@ -242,27 +372,153 @@ export function EapDialog({
           {tarefa && outras.length > 0 && (
             <div className="space-y-1.5">
               <Label>Depende de (predecessoras)</Label>
-              <div className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
+              <div className="max-h-40 space-y-1 overflow-y-auto">
                 {outras.map((t) => {
-                  const sel = tarefa.predecessoraIds.includes(t.id);
+                  const vinculo = tarefa.predecessoras.find((p) => p.predecessoraId === t.id);
+                  const sel = vinculo != null;
                   return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      disabled={pending}
-                      onClick={() => toggleDep(t.id)}
-                      className={`rounded-sm border px-2 py-1 text-xs transition-colors ${
-                        sel
-                          ? "border-warning bg-warning/15 text-warning"
-                          : "border-border text-muted-foreground hover:border-warning/50"
-                      }`}
-                    >
-                      {t.nome}
-                    </button>
+                    <div key={t.id} className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => toggleDep(t.id)}
+                        className={`rounded-sm border px-2 py-1 text-xs transition-colors ${
+                          sel
+                            ? "border-warning bg-warning/15 text-warning"
+                            : "border-border text-muted-foreground hover:border-warning/50"
+                        }`}
+                      >
+                        {t.nome}
+                      </button>
+                      {sel && vinculo && (
+                        <>
+                          <Select
+                            value={vinculo.tipo}
+                            onValueChange={(v) => v && mudarVinculo(t.id, "tipo", v)}
+                          >
+                            <SelectTrigger className="h-6 w-[7.5rem] text-[11px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(TIPO_VINCULO_LABEL).map(([v, label]) => (
+                                <SelectItem key={v} value={v} className="text-[11px]">
+                                  {label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            type="number"
+                            value={vinculo.lagDias}
+                            onChange={(e) => mudarVinculo(t.id, "lagDias", e.target.value)}
+                            className="h-6 w-16 text-[11px]"
+                            title="Lag em dias úteis (negativo = antecipação)"
+                          />
+                          <span className="text-[10px] text-muted-foreground">dias úteis</span>
+                        </>
+                      )}
+                    </div>
                   );
                 })}
               </div>
             </div>
+          )}
+
+          {tarefa && (
+            <CollapsibleSection
+              titulo="Restrição de data"
+              resumo={
+                tarefa.restricaoTipo
+                  ? `${RESTRICAO_LABEL[tarefa.restricaoTipo]} ${tarefa.restricaoData}`
+                  : undefined
+              }
+            >
+              <p className="mb-2 text-xs text-muted-foreground">
+                Fixa a data e a tela mostra o alfinete. Sem restrição, o motor calcula livremente
+                pelas dependências.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <Select
+                  value={restricaoTipo || NONE}
+                  onValueChange={(v) => setRestricaoTipo(v === NONE ? "" : (v ?? ""))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sem restrição" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE}>Sem restrição</SelectItem>
+                    {Object.entries(RESTRICAO_LABEL).map(([v, label]) => (
+                      <SelectItem key={v} value={v}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="date"
+                  value={restricaoData}
+                  onChange={(e) => setRestricaoData(e.target.value)}
+                  disabled={!restricaoTipo}
+                />
+              </div>
+              <Button size="sm" variant="outline" className="mt-2" onClick={salvarRestricao} disabled={pending}>
+                {restricaoTipo ? (
+                  <>
+                    <Pin className="size-3.5" /> Fixar restrição
+                  </>
+                ) : (
+                  <>
+                    <PinOff className="size-3.5" /> Remover restrição
+                  </>
+                )}
+              </Button>
+            </CollapsibleSection>
+          )}
+
+          {tarefa && (
+            <CollapsibleSection
+              titulo="Bloqueio"
+              resumo={bloqueada ? tarefa.motivoBloqueio ?? "bloqueada" : undefined}
+            >
+              <p className="mb-2 text-xs text-muted-foreground">
+                Bloqueio não pausa o prazo — o atraso continua contando. Ele só registra a
+                origem, para separar &ldquo;atrasado por nós&rdquo; de &ldquo;atrasado esperando o cliente&rdquo;.
+              </p>
+              {bloqueada ? (
+                <div className="space-y-2">
+                  <p className="text-sm">{tarefa.motivoBloqueio}</p>
+                  {tarefa.previsaoDesbloqueio && (
+                    <p className="text-xs text-muted-foreground">
+                      Previsão de solução: {tarefa.previsaoDesbloqueio}
+                    </p>
+                  )}
+                  <Button size="sm" variant="outline" onClick={liberar} disabled={pending}>
+                    <Unlock className="size-3.5" /> Desbloquear
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <textarea
+                    rows={3}
+                    placeholder="Motivo do bloqueio (ex.: aguardando definição da arquitetura)"
+                    value={motivoBloqueio}
+                    onChange={(e) => setMotivoBloqueio(e.target.value)}
+                    className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
+                  />
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Previsão de solução (opcional)</Label>
+                    <Input
+                      type="date"
+                      value={previsaoDesbloqueio}
+                      onChange={(e) => setPrevisaoDesbloqueio(e.target.value)}
+                    />
+                  </div>
+                  <Button size="sm" variant="outline" onClick={bloquear} disabled={pending}>
+                    <Lock className="size-3.5" /> Bloquear
+                  </Button>
+                </div>
+              )}
+            </CollapsibleSection>
           )}
         </div>
 

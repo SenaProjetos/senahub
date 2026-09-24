@@ -2,7 +2,13 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
-import { projetoVisivel, eapDoProjeto, planoVsRealProjeto } from "@/modules/planejamento/queries";
+import {
+  projetoVisivel,
+  eapDoProjeto,
+  planoVsRealProjeto,
+  cronogramaProjetoInfo,
+  qualidadeDoProjeto,
+} from "@/modules/planejamento/queries";
 import { EapWorkspace } from "@/components/planejamento/eap-workspace";
 import { PlanoVsReal } from "@/components/planejamento/plano-vs-real";
 
@@ -18,10 +24,22 @@ export default async function PlanejamentoProjetoPage({
   const projeto = await projetoVisivel(user, projetoId);
   if (!projeto) notFound();
 
-  const [{ tarefas, disciplinas, temLinhaBase }, podeGerir, planoReal] = await Promise.all([
+  const [
+    { tarefas, disciplinas, temLinhaBase },
+    podeGerir,
+    podeAprovar,
+    podeExecutado,
+    planoReal,
+    cronograma,
+    qualidade,
+  ] = await Promise.all([
     eapDoProjeto(projetoId),
     can(user, "planejamento", "gerir"),
+    can(user, "cronograma", "aprovar"),
+    can(user, "cronograma", "executado"),
     planoVsRealProjeto(projetoId),
+    cronogramaProjetoInfo(projetoId),
+    qualidadeDoProjeto(projetoId),
   ]);
 
   return (
@@ -32,6 +50,10 @@ export default async function PlanejamentoProjetoPage({
         disciplinas={disciplinas}
         temLinhaBase={temLinhaBase}
         podeGerir={podeGerir}
+        podeAprovar={podeAprovar}
+        podeExecutado={podeExecutado}
+        cronograma={cronograma}
+        qualidade={qualidade}
       />
       <PlanoVsReal dados={planoReal} />
     </div>

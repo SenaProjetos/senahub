@@ -1,6 +1,6 @@
 import { differenceInCalendarDays, addDays, format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ListChecks, Flag } from "lucide-react";
+import { ListChecks, Flag, Pin, Lock } from "lucide-react";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -157,6 +157,17 @@ export function Gantt({
             const desviado =
               t.fimBaseline != null && differenceInCalendarDays(af, parse(t.fimBaseline)) > 0;
             const critica = criticas.has(t.id);
+            const fixada = t.restricaoTipo != null;
+            const bloqueada = t.status === "blq";
+            const tituloBarra = [
+              bloqueada && `bloqueada: ${t.motivoBloqueio ?? "sem motivo registrado"}`,
+              fixada && `restrição: ${t.restricaoTipo} ${t.restricaoData}`,
+              t.conflitoRestricao && "conflito entre a restrição e a dependência",
+              t.folgaTotal > 0 && `folga ${t.folgaTotal}d`,
+              critica && "caminho crítico (folga 0)",
+            ]
+              .filter(Boolean)
+              .join(" · ") || undefined;
             return (
               <div key={t.id} className="flex border-b last:border-b-0" style={{ height: ROW }}>
                 <button
@@ -164,13 +175,20 @@ export function Gantt({
                   onClick={() => onSelecionar?.(t.id)}
                   className="flex shrink-0 items-center gap-1 truncate border-r px-3 text-left text-sm hover:bg-muted/50"
                   style={{ width: LABEL_W, paddingLeft: 12 + (t.parentId ? 16 : 0) }}
-                  title={critica ? `${t.nome} (caminho crítico)` : t.nome}
+                  title={tituloBarra ?? t.nome}
                 >
                   {t.marco ? (
                     <Flag className="size-3 shrink-0 text-primary" aria-label="Marco" />
                   ) : critica ? (
                     <span className="size-1.5 shrink-0 rounded-full bg-destructive" aria-hidden />
                   ) : null}
+                  {bloqueada && <Lock className="size-3 shrink-0 text-destructive" aria-label="Bloqueada" />}
+                  {fixada && (
+                    <Pin
+                      className={`size-3 shrink-0 ${t.conflitoRestricao ? "text-warning" : "text-muted-foreground"}`}
+                      aria-label="Data fixada"
+                    />
+                  )}
                   <span className="truncate">{t.nome}</span>
                 </button>
                 <div className="relative" style={{ width: timelineW }}>
@@ -178,25 +196,33 @@ export function Gantt({
                   {t.marco ? (
                     <div
                       className={`absolute size-3.5 rotate-45 border ${
-                        critica ? "border-destructive bg-destructive/60" : "border-primary bg-primary/60"
+                        bloqueada
+                          ? "border-destructive bg-destructive/60 [background-image:repeating-linear-gradient(45deg,transparent,transparent_2px,var(--color-destructive)_2px,var(--color-destructive)_3px)]"
+                          : critica
+                            ? "border-destructive bg-destructive/60"
+                            : "border-primary bg-primary/60"
                       }`}
                       style={{ left: left + px / 2 - 7, top: ROW / 2 - 7 }}
-                      title={`Marco: ${t.nome}`}
+                      title={tituloBarra ?? `Marco: ${t.nome}`}
                     />
                   ) : (
                   <div
                     className={`absolute rounded-sm border ${
-                      critica
-                        ? "border-destructive ring-1 ring-destructive/60 bg-destructive/20"
-                        : "border-primary/40 bg-primary/25"
+                      bloqueada
+                        ? "border-destructive [background-image:repeating-linear-gradient(45deg,transparent,transparent_3px,color-mix(in_srgb,var(--color-destructive)_35%,transparent)_3px,color-mix(in_srgb,var(--color-destructive)_35%,transparent)_6px)]"
+                        : critica
+                          ? "border-destructive ring-1 ring-destructive/60 bg-destructive/20"
+                          : "border-primary/40 bg-primary/25"
                     }`}
                     style={{ left, width, top: 6, height: 13 }}
-                    title={critica ? "Caminho crítico (folga 0)" : undefined}
+                    title={tituloBarra}
                   >
-                    <div
-                      className={`h-full rounded-l-sm ${critica ? "bg-destructive" : "bg-primary"}`}
-                      style={{ width: `${t.progresso}%` }}
-                    />
+                    {!bloqueada && (
+                      <div
+                        className={`h-full rounded-l-sm ${critica ? "bg-destructive" : "bg-primary"}`}
+                        style={{ width: `${t.progresso}%` }}
+                      />
+                    )}
                   </div>
                   )}
                   {/* barra de linha de base */}
@@ -214,12 +240,24 @@ export function Gantt({
         </div>
       </div>
       </div>
-      {temCritico && (
-        <div className="flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground">
-          <span className="inline-block h-2 w-3 rounded-sm border border-destructive bg-destructive/20" aria-hidden />
-          Caminho crítico (tarefas com folga 0)
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-3 px-1 text-[11px] text-muted-foreground">
+        {temCritico && (
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2 w-3 rounded-sm border border-destructive bg-destructive/20" aria-hidden />
+            Caminho crítico (folga 0)
+          </span>
+        )}
+        {tarefas.some((t) => t.restricaoTipo != null) && (
+          <span className="flex items-center gap-1.5">
+            <Pin className="size-3" /> Data fixada
+          </span>
+        )}
+        {tarefas.some((t) => t.status === "blq") && (
+          <span className="flex items-center gap-1.5">
+            <Lock className="size-3 text-destructive" /> Bloqueada
+          </span>
+        )}
+      </div>
     </div>
   );
 }

@@ -7,11 +7,68 @@ import { progressoDoStatus } from "@/modules/projetos/status";
 import { diaLocal, minutosPorDiaSessao } from "@/modules/ponto/engine";
 import { gradesEmLote } from "@/modules/rh/escalas/queries";
 import { chaveSemanaIso, diaEstaNaFaixa, minutosDisponiveisNoDia, percentualAlocadoNoDia } from "@/modules/planejamento/disponibilidade";
-import { planoDoProjeto } from "@/modules/planejamento/agenda";
+import { planoDoProjeto, type PlanoDoProjeto } from "@/modules/planejamento/agenda";
+import type { Prisma } from "@/generated/prisma/client";
 
 type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+/** Shape mínimo de `EapTarefa` que o mapeador precisa — ambas as queries incluem isto. */
+type EapTarefaComRelacoes = Prisma.EapTarefaGetPayload<{
+  include: {
+    disciplina: { select: { id: true; disciplinaTextoLegado: true; status: true } };
+    predecessoras: { select: { predecessoraId: true; tipo: true; lagDias: true } };
+  };
+}>;
+
+/**
+ * Mapeador único do DTO de linha da EAP. Existe pra `eapDoProjeto` e
+ * `cronogramaProjetosAtivos` nunca divergirem de novo — as duas alimentam o mesmo `Gantt`.
+ */
+function mapearTarefaDTO(t: EapTarefaComRelacoes, plano: PlanoDoProjeto | null) {
+  const agendada = plano?.resultado.linhas.get(t.id);
+  return {
+    id: t.id,
+    idCorporativo: t.idCorporativo,
+    codigoEap: t.codigoEap,
+    parentId: t.parentId,
+    nome: t.nome,
+    ordem: t.ordem,
+    // P-33: progresso derivado do status da disciplina vinculada; manual quando sem disciplina.
+    progresso: t.disciplina ? progressoDoStatus(t.disciplina.status) : t.progresso,
+    progressoDerivado: t.disciplina != null,
+    inicioPrevisto: iso(t.inicioPrevisto),
+    fimPrevisto: iso(t.fimPrevisto),
+    inicioBaseline: t.inicioBaseline ? iso(t.inicioBaseline) : null,
+    fimBaseline: t.fimBaseline ? iso(t.fimBaseline) : null,
+    disciplinaId: t.disciplinaId,
+    disciplinaNome: t.disciplina?.disciplinaTextoLegado ?? null,
+    predecessoraIds: t.predecessoras.map((p) => p.predecessoraId),
+    // Detalhe completo do vínculo (tipo + lag), pra tela editar sem outra ida ao banco.
+    predecessoras: t.predecessoras.map((p) => ({
+      predecessoraId: p.predecessoraId,
+      tipo: p.tipo,
+      lagDias: Number(p.lagDias),
+    })),
+    // `marco` é DERIVADO de tipoEap (F0): a natureza da linha vive no TEAP, não
+    // num booleano paralelo. O contrato da UI segue o mesmo, como `progressoDerivado`.
+    marco: t.tipoEap === "mrc",
+    tipoEap: t.tipoEap,
+    duracaoDias: Number(t.duracaoDias),
+    status: t.status,
+    restricaoTipo: t.restricaoTipo,
+    restricaoData: t.restricaoData ? iso(t.restricaoData) : null,
+    motivoBloqueio: t.motivoBloqueio,
+    previsaoDesbloqueio: t.previsaoDesbloqueio ? iso(t.previsaoDesbloqueio) : null,
+    // Criticidade e folga vêm do MOTOR, não do cliente: calcular no navegador voltaria
+    // a contar dias corridos, porque o feriado só existe no banco.
+    critica: plano?.resultado.criticas.has(t.id) ?? false,
+    folgaTotal: agendada?.folgaTotal ?? 0,
+    folgaLivre: agendada?.folgaLivre ?? 0,
+    conflitoRestricao: agendada?.conflitoRestricao ?? false,
+  };
+}
 
 /** Projetos visíveis ao viewer + resumo do plano (página índice de Planejamento). */
 export async function projetosComPlano(viewer: Viewer) {
@@ -71,7 +128,7 @@ export async function eapDoProjeto(projetoId: string) {
     orderBy: { ordem: "asc" },
     include: {
       disciplina: { select: { id: true, disciplinaTextoLegado: true, status: true } },
-      predecessoras: { select: { predecessoraId: true } },
+      predecessoras: { select: { predecessoraId: true, tipo: true, lagDias: true } },
     },
   });
   const disciplinas = await prisma.disciplina.findMany({
@@ -83,31 +140,7 @@ export async function eapDoProjeto(projetoId: string) {
   // caminho crítico corretos mesmo antes de alguém clicar em "reagendar".
   const plano = await planoDoProjeto(projetoId);
   return {
-    tarefas: tarefas.map((t) => ({
-      id: t.id,
-      parentId: t.parentId,
-      nome: t.nome,
-      ordem: t.ordem,
-      // P-33: progresso derivado do status da disciplina vinculada; manual quando sem disciplina.
-      progresso: t.disciplina ? progressoDoStatus(t.disciplina.status) : t.progresso,
-      progressoDerivado: t.disciplina != null,
-      inicioPrevisto: iso(t.inicioPrevisto),
-      fimPrevisto: iso(t.fimPrevisto),
-      inicioBaseline: t.inicioBaseline ? iso(t.inicioBaseline) : null,
-      fimBaseline: t.fimBaseline ? iso(t.fimBaseline) : null,
-      disciplinaId: t.disciplinaId,
-      disciplinaNome: t.disciplina?.disciplinaTextoLegado ?? null,
-      predecessoraIds: t.predecessoras.map((p) => p.predecessoraId),
-      // `marco` é DERIVADO de tipoEap (F0): a natureza da linha vive no TEAP, não
-      // num booleano paralelo. O contrato da UI segue o mesmo, como `progressoDerivado`.
-      marco: t.tipoEap === "mrc",
-      // Criticidade e folga vêm do MOTOR, não do cliente: calcular no navegador voltaria
-      // a contar dias corridos, porque o feriado só existe no banco.
-      critica: plano?.resultado.criticas.has(t.id) ?? false,
-      folgaTotal: plano?.resultado.linhas.get(t.id)?.folgaTotal ?? 0,
-      folgaLivre: plano?.resultado.linhas.get(t.id)?.folgaLivre ?? 0,
-      conflitoRestricao: plano?.resultado.linhas.get(t.id)?.conflitoRestricao ?? false,
-    })),
+    tarefas: tarefas.map((t) => mapearTarefaDTO(t, plano)),
     // Volta a se chamar `nome` na fronteira da UI (`EapWorkspace` fala "nome"): a F1.19c
     // renomeou a coluna no schema, não o rótulo exibido.
     disciplinas: disciplinas.map((d) => ({ id: d.id, nome: d.disciplinaTextoLegado })),
@@ -131,7 +164,7 @@ export async function cronogramaProjetosAtivos() {
         orderBy: { ordem: "asc" },
         include: {
           disciplina: { select: { id: true, disciplinaTextoLegado: true, status: true } },
-          predecessoras: { select: { predecessoraId: true } },
+          predecessoras: { select: { predecessoraId: true, tipo: true, lagDias: true } },
         },
       },
     },
@@ -149,28 +182,7 @@ export async function cronogramaProjetosAtivos() {
     nome: p.nome,
     situacao: p.situacao,
     temLinhaBase: p.eapTarefas.some((t) => t.inicioBaseline != null),
-    tarefas: p.eapTarefas.map((t) => ({
-      id: t.id,
-      parentId: t.parentId,
-      nome: t.nome,
-      ordem: t.ordem,
-      progresso: t.disciplina ? progressoDoStatus(t.disciplina.status) : t.progresso,
-      progressoDerivado: t.disciplina != null,
-      inicioPrevisto: iso(t.inicioPrevisto),
-      fimPrevisto: iso(t.fimPrevisto),
-      inicioBaseline: t.inicioBaseline ? iso(t.inicioBaseline) : null,
-      fimBaseline: t.fimBaseline ? iso(t.fimBaseline) : null,
-      disciplinaId: t.disciplinaId,
-      disciplinaNome: t.disciplina?.disciplinaTextoLegado ?? null,
-      predecessoraIds: t.predecessoras.map((pp) => pp.predecessoraId),
-      // `marco` é DERIVADO de tipoEap (F0): a natureza da linha vive no TEAP, não
-      // num booleano paralelo. O contrato da UI segue o mesmo, como `progressoDerivado`.
-      marco: t.tipoEap === "mrc",
-      critica: planos.get(p.id)?.resultado.criticas.has(t.id) ?? false,
-      folgaTotal: planos.get(p.id)?.resultado.linhas.get(t.id)?.folgaTotal ?? 0,
-      folgaLivre: planos.get(p.id)?.resultado.linhas.get(t.id)?.folgaLivre ?? 0,
-      conflitoRestricao: planos.get(p.id)?.resultado.linhas.get(t.id)?.conflitoRestricao ?? false,
-    })),
+    tarefas: p.eapTarefas.map((t) => mapearTarefaDTO(t, planos.get(p.id) ?? null)),
   }));
 }
 
@@ -478,4 +490,42 @@ export async function matrizRecursos() {
     .sort((a, b) => a.nome.localeCompare(b.nome));
 
   return { linhas, projetos, usuariosSemRecurso, feriadoHoje };
+}
+
+/**
+ * Estado de governança do cronograma (F2): aprovado, Data de Status, âncora, versão de
+ * baseline vigente. Tela usa isto para decidir "Aprovar" vs "Replanejar" e mostrar a
+ * régua de apuração.
+ */
+export async function cronogramaProjetoInfo(projetoId: string) {
+  const [cronograma, ultimaBaseline] = await Promise.all([
+    prisma.cronogramaProjeto.findUnique({
+      where: { projetoId },
+      select: { aprovado: true, aprovadoEm: true, dataStatus: true, inicioProjeto: true },
+    }),
+    prisma.eapBaseline.findFirst({
+      where: { projetoId },
+      orderBy: { numero: "desc" },
+      select: { numero: true, motivo: true, createdAt: true },
+    }),
+  ]);
+  return {
+    aprovado: cronograma?.aprovado ?? false,
+    aprovadoEm: cronograma?.aprovadoEm ? iso(cronograma.aprovadoEm) : null,
+    dataStatus: cronograma?.dataStatus ? iso(cronograma.dataStatus) : null,
+    inicioProjeto: cronograma?.inicioProjeto ? iso(cronograma.inicioProjeto) : null,
+    ultimaBaseline: ultimaBaseline
+      ? { numero: ultimaBaseline.numero, motivo: ultimaBaseline.motivo, criadaEm: iso(ultimaBaseline.createdAt) }
+      : null,
+  };
+}
+
+/**
+ * Verificador de qualidade + Saúde do Cronograma, para RSC (`page.tsx`). Fino wrapper
+ * sobre `avaliarQualidade` (service.ts): é leitura pura, mas a convenção do repo é a
+ * página ler por `queries.ts` — mesmo padrão de `planoDoProjeto` sendo consumido aqui.
+ */
+export async function qualidadeDoProjeto(projetoId: string) {
+  const { avaliarQualidade } = await import("@/modules/planejamento/service");
+  return avaliarQualidade(projetoId);
 }

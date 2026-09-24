@@ -4245,6 +4245,14 @@ model EapTarefa {
   restricaoTipo RestricaoEap?
   restricaoData DateTime?     @db.Date
 
+  /// ── Bloqueio (Doc 03 §27, D40) ─────────────────────────────────────────────────
+  /// `status = blq` marca a linha bloqueada; estes dois campos guardam o PORQUÊ. Sem eles,
+  /// bloqueado e atrasado seriam indistinguíveis — e são coisas diferentes: bloqueado é
+  /// "não anda por causa de X", atrasado é "devia ter terminado e não terminou". D40: o
+  /// bloqueio NÃO para o relógio — o atraso continua sendo contado, só a origem muda.
+  motivoBloqueio       String?
+  previsaoDesbloqueio  DateTime? @db.Date
+
   /// Avanço FÍSICO informado pelo coordenador (Doc 03 §22), com sugestões do que o sistema
   /// já sabe. Em linha-resumo é CALCULADO, ponderado por horas previstas (D26/Doc 03 §23) —
   /// nunca digitado.

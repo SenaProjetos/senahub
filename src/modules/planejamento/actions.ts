@@ -96,6 +96,35 @@ const editarSchema = z
 const idSchema = z.object({ id: z.string().min(1) });
 const projetoIdSchema = z.object({ projetoId: z.string().min(1) });
 const depSchema = z.object({ tarefaId: z.string().min(1), predecessoraId: z.string().min(1) });
+const tipoVinculoSchema = z.enum(["fs", "ss", "ff", "sf"]);
+const vincularSchema = depSchema.extend({
+  tipo: tipoVinculoSchema.default("fs"),
+  lagDias: z.number().finite().default(0),
+});
+const editarVinculoSchema = depSchema.extend({
+  tipo: tipoVinculoSchema,
+  lagDias: z.number().finite(),
+});
+const bloqueioSchema = z.object({
+  id: z.string().min(1),
+  motivo: z.string().min(3, "Descreva o motivo do bloqueio."),
+  previsaoDesbloqueio: opt(z.string()),
+  origemId: opt(z.string()),
+});
+const restricaoSchema = z.object({
+  id: z.string().min(1),
+  tipo: z
+    .enum([
+      "iniciar_em",
+      "iniciar_nao_antes_de",
+      "iniciar_nao_depois_de",
+      "terminar_em",
+      "terminar_nao_antes_de",
+      "terminar_nao_depois_de",
+    ])
+    .nullable(),
+  data: opt(z.string()),
+});
 const gerarTarefaSchema = z.object({ eapTarefaId: z.string().min(1) });
 
 /**
@@ -212,26 +241,11 @@ export const excluirEapTarefa = defineAction(
 );
 
 /** Define/redefine a linha de base: copia datas previstas atuais → baseline de TODAS as tarefas. */
-export const definirLinhaBase = defineAction(
-  { ...plan, acao: "definir-linha-base", entidade: "EapTarefa", schema: projetoIdSchema },
-  async (i) => {
-    const tarefas = await prisma.eapTarefa.findMany({
-      where: { projetoId: i.projetoId },
-      select: { id: true, inicioPrevisto: true, fimPrevisto: true },
-    });
-    if (tarefas.length === 0) throw new ActionError("Adicione tarefas antes de definir a linha de base.");
-    await prisma.$transaction(
-      tarefas.map((t) =>
-        prisma.eapTarefa.update({
-          where: { id: t.id },
-          data: { inicioBaseline: t.inicioPrevisto, fimBaseline: t.fimPrevisto },
-        }),
-      ),
-    );
-    revProjeto(i.projetoId);
-    return { total: tarefas.length };
-  },
-);
+// `definirLinhaBase` (P-era) foi REMOVIDA na F3: ela sobrescrevia inicioBaseline/fimBaseline
+// direto, em silêncio, sem passar por `EapBaseline` — exatamente o que a D6/Doc 03 §20
+// proíbem ("baseline nunca sobrescrita"). `aprovarCronogramaAction`/`replanejarCronograma`
+// (F2, abaixo) fazem o mesmo papel, mas versionado. Deixá-la no ar seria um botão que
+// alguém rewire um dia e quebra o invariante sem avisar ninguém.
 
 /** Aplica o plano à execução: tarefas com disciplina vinculada gravam o prazo da disciplina. */
 export const aplicarAoProjeto = defineAction(
@@ -482,7 +496,7 @@ async function alcanca(deId: string, alvoId: string): Promise<boolean> {
 }
 
 export const vincularDependencia = defineAction(
-  { ...plan, acao: "vincular-dep", entidade: "EapDependencia", schema: depSchema },
+  { ...plan, acao: "vincular-dep", entidade: "EapDependencia", schema: vincularSchema },
   async (i) => {
     if (i.tarefaId === i.predecessoraId) throw new ActionError("Tarefa não pode depender dela mesma.");
     const [tarefa, pred] = await Promise.all([
@@ -496,9 +510,81 @@ export const vincularDependencia = defineAction(
       throw new ActionError("Dependência criaria um ciclo.");
     }
     await prisma.eapDependencia.create({
-      data: { tarefaId: i.tarefaId, predecessoraId: i.predecessoraId },
+      data: { tarefaId: i.tarefaId, predecessoraId: i.predecessoraId, tipo: i.tipo, lagDias: i.lagDias },
     });
     revProjeto(tarefa.projetoId);
+    return { ok: true };
+  },
+);
+
+/** Muda o TIPO (FS/SS/FF/SF) ou o LAG de um vínculo já existente, sem recriá-lo. */
+export const editarVinculo = defineAction(
+  { ...plan, acao: "editar-vinculo", entidade: "EapDependencia", schema: editarVinculoSchema },
+  async (i) => {
+    const t = await prisma.eapTarefa.findUnique({ where: { id: i.tarefaId }, select: { projetoId: true } });
+    if (!t) throw new ActionError("Tarefa não encontrada.");
+    await prisma.eapDependencia.updateMany({
+      where: { tarefaId: i.tarefaId, predecessoraId: i.predecessoraId },
+      data: { tipo: i.tipo, lagDias: i.lagDias },
+    });
+    revProjeto(t.projetoId);
+    return { ok: true };
+  },
+);
+
+/**
+ * Bloqueia a linha (D40): marca, registra o motivo e notifica — NÃO para o relógio.
+ * O atraso continua sendo contado; só a ORIGEM muda (Doc 03 §26/§27).
+ */
+export const definirBloqueio = defineAction(
+  { ...plan, acao: "bloquear-eap", entidade: "EapTarefa", schema: bloqueioSchema },
+  async (i) => {
+    const t = await prisma.eapTarefa.update({
+      where: { id: i.id },
+      data: {
+        status: "blq",
+        motivoBloqueio: i.motivo,
+        previsaoDesbloqueio: i.previsaoDesbloqueio ? new Date(i.previsaoDesbloqueio) : null,
+        origemId: i.origemId || undefined,
+      },
+      select: { projetoId: true },
+    });
+    revProjeto(t.projetoId);
+    return { ok: true };
+  },
+);
+
+/** Desbloqueia: volta para "em andamento" e limpa o motivo — a linha some da lista de bloqueadas. */
+export const desbloquear = defineAction(
+  { ...plan, acao: "desbloquear-eap", entidade: "EapTarefa", schema: idSchema },
+  async (i) => {
+    const t = await prisma.eapTarefa.update({
+      where: { id: i.id },
+      data: { status: "and", motivoBloqueio: null, previsaoDesbloqueio: null },
+      select: { projetoId: true },
+    });
+    revProjeto(t.projetoId);
+    return { ok: true };
+  },
+);
+
+/**
+ * Restrição de data (Doc 03 §18) — o "alfinete" da tela. `tipo: null` remove a restrição
+ * e devolve a linha ao cálculo livre do motor.
+ */
+export const definirRestricao = defineAction(
+  { ...plan, acao: "definir-restricao", entidade: "EapTarefa", schema: restricaoSchema },
+  async (i) => {
+    if (i.tipo && !i.data) throw new ActionError("Informe a data da restrição.");
+    const t = await prisma.eapTarefa.update({
+      where: { id: i.id },
+      data: {
+        restricaoTipo: i.tipo,
+        restricaoData: i.tipo && i.data ? new Date(i.data) : null,
+      },
+      select: { projetoId: true },
+    });
+    revProjeto(t.projetoId);
     return { ok: true };
   },
 );
