@@ -281,8 +281,11 @@ Um cronograma, quatro modos de exibição (D33) — não duas telas lado a lado.
 > - **Cards antigos:** antes da F5 o botão "gerar card" criava card em rascunho, sem
 >   responsável. Contar em produção antes do deploy (`Tarefa.eapTarefaId` preenchido): quando o
 >   cronograma desses projetos for aprovado, título, prazo e responsáveis passam a vir da EAP.
-> - **Não mergear a F5 sem a tela:** até o editor de recursos e o novo `/recursos` entrarem, a
->   tela atual lista alocações "substituídas" cuja soma não bate com o total.
+> - **Tela da F5 pronta (2026-09-24), sem olho humano:** editor de recursos no diálogo da EAP,
+>   coluna Recursos, "Herdar responsáveis", `/recursos` com calculadas/substituídas e a aba
+>   "Carga planejada", trava dos campos do card. Build, lint, tsc e smoke passam; **falta o
+>   smoke em navegador do dono antes do merge.** Sugestões de sobrecarga são sob demanda (1,3 s
+>   com 10 sobrecargas se fossem na listagem).
 > - Verificação: `npm run smoke:recursos-eap`.
 
 ### F6 — Apontamento por tarefa · Sonnet · 2 sessões · risco BAIXO
