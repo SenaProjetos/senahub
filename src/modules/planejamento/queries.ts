@@ -28,6 +28,8 @@ const INCLUDE_LINHA = {
   disciplina: { select: { id: true, disciplinaTextoLegado: true, status: true } },
   predecessoras: { select: { predecessoraId: true, tipo: true, lagDias: true } },
   origem: { select: { sigla: true } },
+  // F7.0: fase da linha — liga o marco à etapa da disciplina (D31).
+  etapa: { select: { sigla: true } },
   // F5: quem está na linha. Principal primeiro — é quem a tela mostra quando cabe um só.
   atribuicoes: {
     select: {
@@ -138,6 +140,12 @@ function mapearTarefaDTO(
     fimBaseline: t.fimBaseline ? iso(t.fimBaseline) : null,
     disciplinaId: t.disciplinaId,
     disciplinaNome: t.disciplina?.disciplinaTextoLegado ?? null,
+    /** F7.0: fase da linha (catálogo de fases) — `null` = sem fase. */
+    etapaId: t.etapaId,
+    etapaSigla: t.etapa?.sigla ?? null,
+    /** F7.0: datas reais ("Atualizar tarefa"). */
+    inicioReal: t.inicioReal ? iso(t.inicioReal) : null,
+    fimReal: t.fimReal ? iso(t.fimReal) : null,
     predecessoraIds: t.predecessoras.map((p) => p.predecessoraId),
     // Detalhe completo do vínculo (tipo + lag), pra tela editar sem outra ida ao banco.
     predecessoras: t.predecessoras.map((p) => ({
@@ -268,7 +276,15 @@ export async function eapDoProjeto(
   const disciplinas = await prisma.disciplina.findMany({
     where: { projetoId },
     orderBy: { ordem: "asc" },
-    select: { id: true, disciplinaTextoLegado: true },
+    select: {
+      id: true,
+      disciplinaTextoLegado: true,
+      // F7.0: as fases que a disciplina tem (F4) — as que a linha da EAP pode apontar.
+      etapas: {
+        orderBy: [{ ordem: "asc" }, { id: "asc" }],
+        select: { etapaId: true, etapa: { select: { sigla: true, nome: true } } },
+      },
+    },
   });
   // O motor roda sobre o estado ATUAL do banco e não grava nada: a tela mostra folga e
   // caminho crítico corretos mesmo antes de alguém clicar em "reagendar".
@@ -280,7 +296,11 @@ export async function eapDoProjeto(
     custoTotal: custos ? custos.total : null,
     // Volta a se chamar `nome` na fronteira da UI (`EapWorkspace` fala "nome"): a F1.19c
     // renomeou a coluna no schema, não o rótulo exibido.
-    disciplinas: disciplinas.map((d) => ({ id: d.id, nome: d.disciplinaTextoLegado })),
+    disciplinas: disciplinas.map((d) => ({
+      id: d.id,
+      nome: d.disciplinaTextoLegado,
+      etapas: d.etapas.map((e) => ({ etapaId: e.etapaId, sigla: e.etapa.sigla, nome: e.etapa.nome })),
+    })),
     temLinhaBase: tarefas.some((t) => t.inicioBaseline != null),
   };
 }

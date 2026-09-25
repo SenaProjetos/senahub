@@ -5,7 +5,12 @@ import { z } from "zod";
 import { addDays } from "date-fns";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { reagendarProjeto } from "@/modules/planejamento/agenda";
+import { paraDia, reagendarProjeto } from "@/modules/planejamento/agenda";
+import { statusAoDesbloquear } from "@/modules/planejamento/execucao";
+import { registrarExecucaoNaLinha } from "@/modules/planejamento/execucao-service";
+import { inicioDoDiaUtc } from "@/lib/data";
+import { notificarMuitos } from "@/lib/notificar";
+import { whereAudiencia } from "@/lib/audiencias";
 import {
   aprovarCronograma,
   avaliarQualidade,
@@ -38,6 +43,23 @@ async function aposMudarEap(projetoId: string, autorId: string) {
 
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 const dia = z.string().min(1, "Informe a data.");
+
+/**
+ * Fase da linha (F7.0): um id do catálogo de FASES (global ou deste projeto) — o mesmo que a
+ * etapa da disciplina usa (F4). É o que liga um marco da EAP à fase que ele entrega (D31) e o que
+ * `aplicarAoProjeto` usa para levar a data à etapa certa. Exige disciplina: fase solta, sem
+ * disciplina, não aponta etapa nenhuma. Devolve o id a gravar (ou nulo).
+ */
+async function faseDaLinha(projetoId: string, disciplinaId: string | null, etapaId: string | null | undefined) {
+  if (!etapaId) return null;
+  if (!disciplinaId) throw new ActionError("Escolha a disciplina antes da fase.");
+  const fase = await prisma.pranchaCatalogo.findFirst({
+    where: { id: etapaId, categoria: "fase", OR: [{ projetoId: null }, { projetoId }] },
+    select: { id: true },
+  });
+  if (!fase) throw new ActionError("Fase não encontrada no catálogo.");
+  return fase.id;
+}
 
 /**
  * Duração provisória da F0, em DIAS DE CALENDÁRIO inclusivos — exatamente a conta que o
@@ -82,6 +104,8 @@ const tarefaSchema = z
     projetoId: z.string().min(1),
     parentId: opt(z.string()),
     disciplinaId: opt(z.string()),
+    /** F7.0: fase da linha (catálogo de fases). Vazio = sem fase. */
+    etapaId: opt(z.string()),
     nome: z.string().min(1, "Informe o nome."),
     inicioPrevisto: dia,
     fimPrevisto: dia,
@@ -97,6 +121,8 @@ const editarSchema = z
     id: z.string().min(1),
     nome: z.string().min(1, "Informe o nome."),
     disciplinaId: opt(z.string()),
+    /** F7.0: fase da linha. Ausente = não mexe; vazio = tira a fase. */
+    etapaId: opt(z.string()),
     inicioPrevisto: dia,
     fimPrevisto: dia,
     progresso: z.number().int().min(0).max(100),
@@ -186,11 +212,13 @@ export const criarEapTarefa = defineAction(
       where: { projetoId: i.projetoId },
       _max: { ordem: true },
     });
+    const etapaId = await faseDaLinha(i.projetoId, i.disciplinaId || null, i.etapaId);
     const t = await prisma.eapTarefa.create({
       data: {
         projetoId: i.projetoId,
         parentId: i.parentId || null,
         disciplinaId: i.disciplinaId || null,
+        etapaId,
         nome: i.nome,
         inicioPrevisto: new Date(i.inicioPrevisto),
         fimPrevisto: i.marco ? new Date(i.inicioPrevisto) : new Date(i.fimPrevisto),
@@ -214,7 +242,17 @@ export const criarEapTarefa = defineAction(
 export const editarEapTarefa = defineAction(
   { ...plan, acao: "editar-eap", entidade: "EapTarefa", schema: editarSchema },
   async (i, { user }) => {
-    const antes = await prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { disciplinaId: true } });
+    const antes = await prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { disciplinaId: true, projetoId: true } });
+    if (!antes) throw new ActionError("Tarefa não encontrada.");
+    // Fase: ausente não mexe (quem não manda o campo não apaga a fase de ninguém); trocar de
+    // disciplina sem mandar a fase a limpa — a fase de outra disciplina não aponta etapa desta.
+    const mudouDisciplina = (antes.disciplinaId ?? null) !== (i.disciplinaId || null);
+    const etapaId =
+      i.etapaId !== undefined
+        ? await faseDaLinha(antes.projetoId, i.disciplinaId || null, i.etapaId)
+        : mudouDisciplina
+          ? null
+          : undefined;
     if (i.marco) {
       // Marco não tem dia para espalhar hora: as horas ficariam gravadas e fora de toda
       // conta — carga, custo e rollup — sem ninguém ver.
@@ -228,6 +266,7 @@ export const editarEapTarefa = defineAction(
       data: {
         nome: i.nome,
         disciplinaId: i.disciplinaId || null,
+        ...(etapaId !== undefined ? { etapaId } : {}),
         inicioPrevisto: new Date(i.inicioPrevisto),
         fimPrevisto: i.marco ? new Date(i.inicioPrevisto) : new Date(i.fimPrevisto),
         progresso: i.progresso,
@@ -592,6 +631,9 @@ export const editarVinculo = defineAction(
 export const definirBloqueio = defineAction(
   { ...plan, acao: "bloquear-eap", entidade: "EapTarefa", schema: bloqueioSchema },
   async (i) => {
+    const atual = await prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { status: true } });
+    // Bloquear uma concluída apagaria a conclusão (o status é um só) sem ninguém pedir.
+    if (atual?.status === "con") throw new ActionError("Linha concluída não se bloqueia — reabra a execução antes.");
     const t = await prisma.eapTarefa.update({
       where: { id: i.id },
       data: {
@@ -607,13 +649,28 @@ export const definirBloqueio = defineAction(
   },
 );
 
-/** Desbloqueia: volta para "em andamento" e limpa o motivo — a linha some da lista de bloqueadas. */
+/**
+ * Desbloqueia e limpa o motivo — a linha some da lista de bloqueadas. Volta ao status que as
+ * datas reais dizem (`statusAoDesbloquear`): em andamento se já começou, senão não iniciada.
+ */
 export const desbloquear = defineAction(
   { ...plan, acao: "desbloquear-eap", entidade: "EapTarefa", schema: idSchema },
   async (i) => {
+    const atual = await prisma.eapTarefa.findUnique({
+      where: { id: i.id },
+      select: { inicioReal: true, fimReal: true },
+    });
+    if (!atual) throw new ActionError("Tarefa não encontrada.");
     const t = await prisma.eapTarefa.update({
       where: { id: i.id },
-      data: { status: "and", motivoBloqueio: null, previsaoDesbloqueio: null },
+      data: {
+        status: statusAoDesbloquear({
+          inicioReal: atual.inicioReal ? paraDia(atual.inicioReal) : null,
+          fimReal: atual.fimReal ? paraDia(atual.fimReal) : null,
+        }),
+        motivoBloqueio: null,
+        previsaoDesbloqueio: null,
+      },
       select: { projetoId: true },
     });
     revProjeto(t.projetoId);
@@ -777,5 +834,67 @@ export const removerAlocacao = defineAction(
     await prisma.alocacao.delete({ where: { id: i.id } });
     revRecursos();
     return { id: i.id };
+  },
+);
+
+/**
+ * "Atualizar tarefa" do MS Project (F7.0): início real e término real da linha — no marco, a data
+ * em que ele aconteceu. Permissão `cronograma:executado` ("informar avanço, datas reais").
+ *
+ * Registrar a execução não mexe em dinheiro. Quando ela CONCLUI um marco ligado a uma fase da
+ * disciplina (D31 — "Básico entregue → libera o pagamento do Básico"), a resposta traz a fase, e a
+ * tela oferece aprovar — pela MESMA `aprovarEtapaDisciplina` do diálogo de Etapas, com a permissão
+ * e a confirmação dela. Um caminho só de liberação: o marco não paga nada sozinho.
+ *
+ * O motor não lê datas reais (a D6 ainda não existe): nada é reagendado aqui.
+ */
+export const registrarExecucao = defineAction(
+  {
+    ...plan,
+    recurso: "cronograma",
+    permissao: "executado",
+    acao: "registrar-execucao",
+    entidade: "EapTarefa",
+    schema: z.object({
+      id: z.string().min(1),
+      inicioReal: z.string().nullable(),
+      fimReal: z.string().nullable(),
+    }),
+    capturarAntes: (i) =>
+      prisma.eapTarefa.findUnique({
+        where: { id: i.id },
+        select: { status: true, progresso: true, inicioReal: true, fimReal: true },
+      }),
+  },
+  async (i, { user }) => {
+    const { projetoId, nome, status, fase } = await registrarExecucaoNaLinha({
+      id: i.id,
+      inicioReal: i.inicioReal,
+      fimReal: i.fimReal,
+      hoje: paraDia(inicioDoDiaUtc()),
+    });
+    await rollupPai(i.id);
+
+    // Fase pronta para aprovar: avisa quem aprova (mesma audiência da "aprovação solicitada").
+    // Quem registrou pode nem ter a permissão — o aviso é o que leva o marco até a aprovação.
+    if (fase?.aprovavel) {
+      const gestores = await prisma.user.findMany({
+        where: { ...whereAudiencia("global"), id: { not: user.id } },
+        select: { id: true },
+      });
+      await notificarMuitos(
+        gestores.map((g) => g.id),
+        {
+          titulo: "Marco concluído — fase pronta para aprovar",
+          corpo: `"${nome}" concluído: a fase ${fase.sigla} de ${fase.disciplina} pode ser aprovada (libera o pagamento dela).`,
+          href: `/projetos/${projetoId}`,
+          tag: `marco-fase-${fase.id}`,
+        },
+        { categoria: "aprovacao_disciplina" },
+      );
+    }
+
+    revProjeto(projetoId);
+    return { status, fase };
   },
 );

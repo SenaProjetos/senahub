@@ -20,6 +20,8 @@ import {
   Pin,
   Lock,
   UsersRound,
+  CalendarCheck,
+  CheckCircle2,
 } from "lucide-react";
 import {
   aplicarAoProjeto,
@@ -38,6 +40,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Gantt, GANTT_PX_DEFAULT } from "@/components/planejamento/gantt";
 import { EapDialog } from "@/components/planejamento/eap-dialog";
+import { ExecucaoDialog } from "@/components/planejamento/execucao-dialog";
 import { SaudePainel } from "@/components/planejamento/saude-painel";
 
 const fmt = (iso: string | null) => (iso ? formatarDiaMes(iso) : "—");
@@ -69,12 +72,13 @@ export function EapWorkspace({
   podeGerir,
   podeAprovar,
   podeExecutado,
+  podeAprovarFase,
   cronograma,
   qualidade,
 }: {
   projeto: { id: string; codigo: string; nome: string };
   tarefas: EapTarefaDTO[];
-  disciplinas: { id: string; nome: string }[];
+  disciplinas: { id: string; nome: string; etapas: { etapaId: string; sigla: string; nome: string }[] }[];
   pessoas: { id: string; name: string; image: string | null }[];
   temLinhaBase: boolean;
   /** F7.1: custo previsto do projeto. `null` = o viewer não vê custo (coluna oculta). */
@@ -82,6 +86,8 @@ export function EapWorkspace({
   podeGerir: boolean;
   podeAprovar: boolean;
   podeExecutado: boolean;
+  /** `aprovacoes:disciplina`: aprovar a fase quando o marco dela é concluído (F7.0). */
+  podeAprovarFase: boolean;
   cronograma: Awaited<ReturnType<typeof cronogramaProjetoInfo>>;
   qualidade: {
     achados: Achado[];
@@ -98,6 +104,8 @@ export function EapWorkspace({
     tarefa: null,
   });
   const [filtro, setFiltro] = useState<Filtro>("todas");
+  /** Linha no "Atualizar tarefa" (datas reais) — `null` = fechado. */
+  const [execucao, setExecucao] = useState<EapTarefaDTO | null>(null);
   /** Folhas sem custo conhecido — o que falta cadastrar para o custo previsto fechar. */
   const semCusto = tarefas.filter((t) => !t.ehResumo && t.custo == null).length;
   const [lookahead, setLookahead] = useState<Lookahead>("todas");
@@ -467,7 +475,7 @@ export function EapWorkspace({
                   <th className="px-3 py-2">Linha de base</th>
                   <th className="px-3 py-2">Progresso</th>
                   <th className="px-3 py-2 text-right">Desvio</th>
-                  {podeGerir && <th className="px-3 py-2 text-right">Ações</th>}
+                  {(podeGerir || podeExecutado) && <th className="px-3 py-2 text-right">Ações</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -482,6 +490,12 @@ export function EapWorkspace({
                       <td className="px-3 py-2" style={{ paddingLeft: t.parentId ? 28 : 12 }}>
                         <span className={`inline-flex items-center gap-1 ${t.parentId ? "text-muted-foreground" : "font-medium"}`}>
                           {t.status === "blq" && <Lock className="size-3 text-destructive" aria-label="Bloqueada" />}
+                          {t.status === "con" && (
+                            <CheckCircle2
+                              className="size-3 text-success"
+                              aria-label={t.fimReal ? `Concluída em ${fmt(t.fimReal)}` : "Concluída"}
+                            />
+                          )}
                           {t.restricaoTipo && <Pin className="size-3 text-muted-foreground" aria-label="Data fixada" />}
                           {t.nome}
                         </span>
@@ -489,7 +503,14 @@ export function EapWorkspace({
                           <span className="ml-1 text-[10px] text-warning">↳{t.predecessoraIds.length}</span>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-muted-foreground">{t.disciplinaNome ?? "—"}</td>
+                      <td className="px-3 py-2 text-muted-foreground">
+                        {t.disciplinaNome ?? "—"}
+                        {t.etapaSigla && (
+                          <span className="ml-1 font-mono text-[10px]" title="Fase da linha">
+                            · {t.etapaSigla}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-3 py-2">
                         {t.ehResumo ? (
                           <span className="text-muted-foreground">—</span>
@@ -581,8 +602,24 @@ export function EapWorkspace({
                           <Badge variant="outline">no prazo</Badge>
                         )}
                       </td>
-                      {podeGerir && (
-                        <td className="px-3 py-2 text-right">
+                      {(podeGerir || podeExecutado) && (
+                        <td className="whitespace-nowrap px-3 py-2 text-right">
+                          {podeExecutado && !t.ehResumo && (
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              aria-label="Atualizar tarefa (datas reais)"
+                              title={t.marco ? "Concluir o marco (data real)" : "Atualizar tarefa: início e término reais"}
+                              disabled={pending}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExecucao(t);
+                              }}
+                            >
+                              <CalendarCheck className="size-3.5" />
+                            </Button>
+                          )}
+                          {podeGerir && (
                           <Button
                             size="icon-sm"
                             variant="ghost"
@@ -600,6 +637,7 @@ export function EapWorkspace({
                           >
                             <ListPlus className="size-3.5" />
                           </Button>
+                          )}
                         </td>
                       )}
                     </tr>
@@ -609,6 +647,10 @@ export function EapWorkspace({
             </table>
           </div>
         </>
+      )}
+
+      {podeExecutado && (
+        <ExecucaoDialog linha={execucao} onClose={() => setExecucao(null)} podeAprovarFase={podeAprovarFase} />
       )}
 
       {podeGerir && (

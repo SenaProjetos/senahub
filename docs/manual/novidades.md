@@ -22,6 +22,31 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Datas reais no cronograma e marco que libera a fase
+
+Na EAP do projeto, o botão de calendário com ✓ na coluna **Ações** abre o **Atualizar tarefa**
+(como no MS Project). Ele aparece para quem informa o andamento do cronograma.
+
+- **Atividade:** informe o **início real** e, quando terminar, o **término real**. O término
+  conclui a atividade (100%) e ela ganha um ✓ na lista. Apagar o término reabre a atividade; o
+  percentual volta a ser o que a coordenação informar.
+- **Marco:** uma data só — o dia em que aconteceu. **Reabrir** desfaz a conclusão.
+- Data real no futuro não é aceita: real é o que já aconteceu.
+- Por enquanto as datas reais **não reagendam** o cronograma. A previsão continua vindo das
+  durações e dependências.
+- Desbloquear uma linha agora a devolve à situação certa: "em andamento" se ela já começou, "não
+  iniciada" se não.
+
+**Fase na linha da EAP.** No editor da linha, escolhida a disciplina, aparece o campo **Fase**
+(Básico, Executivo…), com as etapas que a disciplina tem. A coluna Disciplina mostra a sigla.
+
+**Marco da fase.** Quando um marco ligado a uma fase é concluído e a fase está **Entregue**, quem
+aprova disciplinas recebe a oferta de **aprovar a fase** — a mesma aprovação do diálogo Etapas, que
+libera o pagamento daquela fase. Quem não aprova vê o aviso, e quem aprova recebe uma notificação.
+Concluir o marco nunca paga nada sozinho. Se a fase ainda não estiver Entregue, marque-a em Etapas.
+
+---
+
 ## Custo previsto no cronograma (para quem vê o financeiro)
 
 Na EAP do projeto, quem tem acesso ao financeiro passa a ver a coluna **Custo**: as horas

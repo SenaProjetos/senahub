@@ -31,6 +31,7 @@ export default async function PlanejamentoProjetoPage({
     podeGerir,
     podeAprovar,
     podeExecutado,
+    podeAprovarFase,
     planoReal,
     cronograma,
     qualidade,
@@ -40,6 +41,7 @@ export default async function PlanejamentoProjetoPage({
     can(user, "planejamento", "gerir"),
     can(user, "cronograma", "aprovar"),
     can(user, "cronograma", "executado"),
+    can(user, "aprovacoes", "disciplina"),
     planoVsRealProjeto(projetoId),
     cronogramaProjetoInfo(projetoId),
     qualidadeDoProjeto(projetoId),
@@ -58,6 +60,7 @@ export default async function PlanejamentoProjetoPage({
         podeGerir={podeGerir}
         podeAprovar={podeAprovar}
         podeExecutado={podeExecutado}
+        podeAprovarFase={podeAprovarFase}
         cronograma={cronograma}
         qualidade={qualidade}
       />

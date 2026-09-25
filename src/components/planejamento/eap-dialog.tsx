@@ -70,7 +70,7 @@ export function EapDialog({
   open: boolean;
   onOpenChange: (o: boolean) => void;
   projetoId: string;
-  disciplinas: { id: string; nome: string }[];
+  disciplinas: { id: string; nome: string; etapas: { etapaId: string; sigla: string; nome: string }[] }[];
   tarefas: EapTarefaDTO[];
   pessoas: { id: string; name: string; image: string | null }[];
 }) {
@@ -87,6 +87,7 @@ export function EapDialog({
     nome: "",
     parentId: NONE,
     disciplinaId: NONE,
+    etapaId: NONE,
     inicioPrevisto: hoje,
     fimPrevisto: hoje,
     progresso: 0,
@@ -96,6 +97,7 @@ export function EapDialog({
     nome: t.nome,
     parentId: t.parentId ?? NONE,
     disciplinaId: t.disciplinaId ?? NONE,
+    etapaId: t.etapaId ?? NONE,
     inicioPrevisto: t.inicioPrevisto,
     fimPrevisto: t.fimPrevisto,
     progresso: t.progresso,
@@ -137,6 +139,7 @@ export function EapDialog({
             id: linhaAtual.id,
             nome: form.nome,
             disciplinaId: form.disciplinaId === NONE ? "" : form.disciplinaId,
+            etapaId: form.etapaId === NONE ? "" : form.etapaId,
             inicioPrevisto: form.inicioPrevisto,
             fimPrevisto: form.marco ? form.inicioPrevisto : form.fimPrevisto,
             progresso: Number(form.progresso),
@@ -146,6 +149,7 @@ export function EapDialog({
             projetoId,
             parentId: form.parentId === NONE ? "" : form.parentId,
             disciplinaId: form.disciplinaId === NONE ? "" : form.disciplinaId,
+            etapaId: form.etapaId === NONE ? "" : form.etapaId,
             nome: form.nome,
             inicioPrevisto: form.inicioPrevisto,
             fimPrevisto: form.marco ? form.inicioPrevisto : form.fimPrevisto,
@@ -252,6 +256,8 @@ export function EapDialog({
   }
 
   const outras = tarefas.filter((t) => t.id !== tarefa?.id);
+  /** Fases que a disciplina escolhida tem (F4) — as únicas que a linha pode apontar. */
+  const fasesDaDisciplina = disciplinas.find((d) => d.id === form.disciplinaId)?.etapas ?? [];
   const possiveisPais = outras;
   const bloqueada = linhaAtual?.status === "blq";
 
@@ -325,7 +331,14 @@ export function EapDialog({
               <Label>Disciplina (opcional)</Label>
               <Select
                 value={form.disciplinaId}
-                onValueChange={(v) => setForm((f) => ({ ...f, disciplinaId: v ?? NONE }))}
+                onValueChange={(v) =>
+                  setForm((f) => {
+                    const disciplinaId = v ?? NONE;
+                    // Fase de outra disciplina não aponta etapa desta: troca de disciplina limpa a fase.
+                    const aindaVale = disciplinas.find((d) => d.id === disciplinaId)?.etapas.some((e) => e.etapaId === f.etapaId);
+                    return { ...f, disciplinaId, etapaId: aindaVale ? f.etapaId : NONE };
+                  })
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -383,6 +396,31 @@ export function EapDialog({
               </div>
             )}
           </div>
+
+          {fasesDaDisciplina.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Fase (opcional)</Label>
+              <Select value={form.etapaId} onValueChange={(v) => setForm((f) => ({ ...f, etapaId: v ?? NONE }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>—</SelectItem>
+                  {fasesDaDisciplina.map((e) => (
+                    <SelectItem key={e.etapaId} value={e.etapaId}>
+                      {e.sigla} · {e.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {form.marco && (
+                <p className="text-[11px] text-muted-foreground">
+                  Marco de entrega da fase: quando for concluído, quem aprova disciplinas pode aprovar a fase e liberar o
+                  pagamento dela.
+                </p>
+              )}
+            </div>
+          )}
 
           {!tarefa && possiveisPais.length > 0 && (
             <div className="space-y-1.5">

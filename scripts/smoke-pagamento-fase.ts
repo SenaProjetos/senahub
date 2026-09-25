@@ -4,7 +4,8 @@
  * um pagamento por PJ com `etapaId` e a despesa prevista com a sigla; o valor da disciplina só
  * mexe nas fases pendentes; o ajuste na Produção anda o total pela diferença; aprovar a
  * disciplina inteira libera as fases que faltam e fecha no centavo; e o banco recusa apagar
- * fase com pagamento.
+ * fase com pagamento. F7.0: concluir o marco ligado à fase oferece a MESMA liberação — e só quando
+ * a fase está entregue e ainda não liberada.
  *
  * Uso: npm run smoke:pagamento-fase
  */
@@ -20,6 +21,9 @@ import {
 import { MOTIVO_JA_PAGA_INTEIRA } from "../src/modules/uploads/pagamento-fase";
 import { INCLUDE_PAGAMENTO, comLancamentos } from "../src/modules/financeiro/folha/queries";
 import { disciplinasForaDeSLA } from "../src/modules/projetos/queries";
+import { registrarExecucaoNaLinha } from "../src/modules/planejamento/execucao-service";
+import { paraDia } from "../src/modules/planejamento/agenda";
+import { inicioDoDiaUtc } from "../src/lib/data";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -268,8 +272,67 @@ async function main() {
   );
   check("100% CLT: aprova sem pagamento, mesmo com % que não fecha", e12 === null && (await prisma.pagamentoProjetista.count({ where: { disciplinaId: disc3.id } })) === 0, e12);
 
+  // 13) F7.0 — marco da fase: concluir oferece aprovar, pelo mesmo caminho de liberação.
+  const hoje = paraDia(inicioDoDiaUtc());
+  const disc4 = await prisma.disciplina.create({
+    data: { projetoId: projeto.id, disciplinaTextoLegado: "Fundação", valor: 1000, responsaveis: { create: [{ userId: pjA.id }] } },
+  });
+  const fase4 = await prisma.disciplinaEtapa.create({
+    data: { disciplinaId: disc4.id, etapaId: fasesCat[0].id, percentual: 100, ordem: 0, status: "em_andamento" },
+  });
+  const marco = await prisma.eapTarefa.create({
+    data: {
+      projetoId: projeto.id,
+      disciplinaId: disc4.id,
+      etapaId: fasesCat[0].id,
+      nome: "Entrega do Básico",
+      tipoEap: "mrc",
+      duracaoDias: 0,
+      inicioPrevisto: new Date(`${hoje}T00:00:00.000Z`),
+      fimPrevisto: new Date(`${hoje}T00:00:00.000Z`),
+    },
+  });
+  const ex1 = await registrarExecucaoNaLinha({ id: marco.id, inicioReal: null, fimReal: hoje, hoje });
+  const m1 = await prisma.eapTarefa.findUniqueOrThrow({ where: { id: marco.id }, select: { status: true, progresso: true, inicioReal: true, fimReal: true } });
+  check("marco concluído: status con, 100%, início = término", m1.status === "con" && m1.progresso === 100 && m1.inicioReal?.getTime() === m1.fimReal?.getTime(), m1);
+  check("fase ainda não entregue: oferecida, mas não aprovável", ex1.fase?.id === fase4.id && ex1.fase.aprovavel === false, ex1.fase);
+  check("concluir o marco NÃO libera pagamento sozinho", (await prisma.pagamentoProjetista.count({ where: { disciplinaId: disc4.id } })) === 0);
+
+  const reaberto = await registrarExecucaoNaLinha({ id: marco.id, inicioReal: null, fimReal: null, hoje });
+  check("reabrir o marco: não iniciado, sem oferta", reaberto.status === "nin" && reaberto.fase === null, reaberto);
+  await prisma.disciplinaEtapa.update({ where: { id: fase4.id }, data: { status: "entregue" } });
+  const ex2 = await registrarExecucaoNaLinha({ id: marco.id, inicioReal: null, fimReal: hoje, hoje });
+  check("fase entregue: marco concluído oferece aprovar", ex2.fase?.aprovavel === true, ex2.fase);
+  // A tela chama aprovarEtapaDisciplina → liberarPagamentosDaFase: o MESMO caminho da F7.4.
+  await prisma.$transaction(async (tx) =>
+    liberarPagamentosDaFase(tx, {
+      disciplina: await prisma.disciplina.findUniqueOrThrow({
+        where: { id: disc4.id },
+        select: {
+          id: true,
+          disciplinaTextoLegado: true,
+          valor: true,
+          responsaveis: { select: { userId: true, user: { select: { id: true, name: true, role: true } } } },
+          projeto: { select: { id: true, codigo: true } },
+        },
+      }),
+      faseId: ex2.fase!.id,
+      autorId: admin.id,
+      agora: new Date(),
+    }),
+  );
+  check("aprovada pelo marco: 1 pagamento de 1000 com a fase", soma(await pagamentosDe(fase4.id)) === 1000);
+  await registrarExecucaoNaLinha({ id: marco.id, inicioReal: null, fimReal: null, hoje });
+  const ex3 = await registrarExecucaoNaLinha({ id: marco.id, inicioReal: null, fimReal: hoje, hoje });
+  check("fase já liberada: concluir o marco de novo não oferece nada", ex3.fase === null, ex3.fase);
+
+  const amanha = paraDia(new Date(inicioDoDiaUtc().getTime() + 86_400_000));
+  const eFuturo = await erroDe(() => registrarExecucaoNaLinha({ id: marco.id, inicioReal: null, fimReal: amanha, hoje }));
+  check("data real no futuro é recusada", !!eFuturo && /futuro/.test(eFuturo), eFuturo);
+
   // Limpeza — pagamentos antes das fases (FK), lançamentos antes dos pagamentos.
-  const discIds = [disciplina.id, disc2.id, disc3.id];
+  await prisma.eapTarefa.deleteMany({ where: { projetoId: projeto.id } });
+  const discIds = [disciplina.id, disc2.id, disc3.id, disc4.id];
   const pagIds = (await prisma.pagamentoProjetista.findMany({ where: { disciplinaId: { in: discIds } }, select: { id: true } })).map((p) => p.id);
   await prisma.lancamento.deleteMany({ where: { pagamentoProjetistaId: { in: pagIds } } });
   await prisma.pagamentoProjetista.deleteMany({ where: { id: { in: pagIds } } });
