@@ -342,10 +342,13 @@ Um cronograma, quatro modos de exibição (D33) — não duas telas lado a lado.
 >   etiqueta) para quem não a conhece a IGNORAR: fora de aging, inadimplência, "a receber", livro caixa
 >   e conciliação; só a projeção de caixa a inclui. Faturar converte a MESMA linha em `previsto`.
 >   Toda parcela (inclusive a da assinatura) passa por previsão → faturar (D9). `smoke:previsao-recebimento`.
+>   Previsão que passou da data vai para a 1ª semana da projeção, marcada "atrasada" (fora do aging,
+>   sumiria de todas as telas). "Na assinatura" é campo explícito: marco apagado deixa a parcela sem
+>   data, nunca a transforma em cobrança imediata. Contrato sem projeto sincroniza pelo contrato.
 > - **Pré-existente corrigido:** a projeção de caixa cortava na meia-noite local contra vencimento
 >   em meia-noite UTC. **Pré-existente NÃO corrigido:** "faturar entrega" (N-26) cobra do cliente o
 >   `Disciplina.valor`, que é o pool dos PJ.
-> - **Deploy:** 4 migrations aditivas (a do `ADD VALUE` do enum é separada de propósito); nenhum seed,
+> - **Deploy:** 5 migrations aditivas (a do `ADD VALUE` do enum é separada de propósito); nenhum seed,
 >   nenhuma permissão nova.
 
 ### F8 — Valor Agregado · Opus · 2 sessões · risco MÉDIO

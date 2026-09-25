@@ -36,7 +36,8 @@ um só por contrato:
 **Previsão de recebimento.** Com o contrato assinado, cada parcela ainda não faturada aparece no
 **Fluxo de caixa → Projeção** como **previsão do cronograma**: a da assinatura na data dela, as
 de marco na **data do marco** — só com o cronograma **aprovado**. Se o marco andar, a previsão
-anda junto.
+anda junto. Previsão que já passou da data sem ser faturada continua na projeção, na primeira
+semana, com o aviso de que está atrasada.
 
 - A previsão **não é conta a receber**: não aparece em Contas a receber, no aging, no alerta de
   inadimplência nem no livro caixa, e não pode ser recebida, editada ou excluída por lá.
@@ -45,6 +46,8 @@ anda junto.
 - Quando um **marco é concluído** no cronograma, quem gere o financeiro recebe o aviso "parcela a
   faturar" (dá para desligar em Preferências → Parcelas a faturar).
 - Depois de faturar alguma parcela, o plano do contrato trava — ajustes vão pelo financeiro.
+- Se o marco de uma parcela for apagado do cronograma, a parcela fica sem data (não vira cobrança
+  na hora): o diálogo avisa "Marco apagado — escolha" até alguém ligar outro marco.
 
 A projeção de caixa também passou a contar o que vence **hoje** — antes, por causa do fuso, isso
 ficava de fora, e cada semana da projeção começava um dia errado.
