@@ -1729,17 +1729,16 @@ export async function criarProspeccaoRapida(
       throw new ActionError("Informe o nome da demanda ou empreendimento.");
     }
 
-    const [canal, parceiro, campanha] = await Promise.all([
-      input.canalId
-        ? tx.canalAquisicao.findFirst({ where: { id: input.canalId, ativo: true }, select: { id: true, nome: true } })
-        : null,
-      input.parceiroId
-        ? tx.parceiro.findFirst({ where: { id: input.parceiroId, ativo: true }, select: { id: true } })
-        : null,
-      input.campanhaId
-        ? tx.campanha.findFirst({ where: { id: input.campanhaId, ativo: true }, select: { id: true } })
-        : null,
-    ]);
+    // Em sequência: a transação usa uma conexão só, e consultas em paralelo nela são depreciadas pelo pg.
+    const canal = input.canalId
+      ? await tx.canalAquisicao.findFirst({ where: { id: input.canalId, ativo: true }, select: { id: true, nome: true } })
+      : null;
+    const parceiro = input.parceiroId
+      ? await tx.parceiro.findFirst({ where: { id: input.parceiroId, ativo: true }, select: { id: true } })
+      : null;
+    const campanha = input.campanhaId
+      ? await tx.campanha.findFirst({ where: { id: input.campanhaId, ativo: true }, select: { id: true } })
+      : null;
     if (input.canalId && !canal) throw new ActionError("Canal de entrada não encontrado ou inativo.");
     if (input.parceiroId && !parceiro) throw new ActionError("Parceiro não encontrado ou inativo.");
     if (input.campanhaId && !campanha) throw new ActionError("Campanha não encontrada ou inativa.");
@@ -1974,10 +1973,8 @@ export async function criarProspeccaoRapida(
       });
       negociacaoId = aberta.negociacaoId;
       if (campanha && !reaproveitouProspeccaoAtiva) {
-        await Promise.all([
-          tx.lead.update({ where: { id: leadId }, data: { campaignId: campanha.id } }),
-          tx.negociacao.update({ where: { id: negociacaoId }, data: { campaignId: campanha.id } }),
-        ]);
+        await tx.lead.update({ where: { id: leadId }, data: { campaignId: campanha.id } });
+        await tx.negociacao.update({ where: { id: negociacaoId }, data: { campaignId: campanha.id } });
       }
     }
 

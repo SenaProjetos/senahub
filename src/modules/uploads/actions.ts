@@ -537,14 +537,12 @@ export const renomearUpload = defineAction(
         });
       }
       const uploads = await tx.upload.findMany({ where: alvo, select: { id: true, nomeArquivo: true } });
-      await Promise.all(
-        uploads.map((upload) =>
-          tx.upload.update({
-            where: { id: upload.id },
-            data: { nomeArquivo: nomeComExtensaoOriginal(nomeBase, upload.nomeArquivo) },
-          }),
-        ),
-      );
+      for (const upload of uploads) {
+        await tx.upload.update({
+          where: { id: upload.id },
+          data: { nomeArquivo: nomeComExtensaoOriginal(nomeBase, upload.nomeArquivo) },
+        });
+      }
       return { count: uploads.length };
     });
     if (up.documentoId) {
