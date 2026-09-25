@@ -1,5 +1,5 @@
 import "server-only";
-import { can, type SubjectAutorizacao } from "@/lib/permissions";
+import { can, canRole, type SubjectAutorizacao } from "@/lib/permissions";
 
 /**
  * Quem vê as DATAS do planejamento (decisão #3, 2026-09-25). O resto do perfil só de consulta
@@ -16,9 +16,16 @@ const PARES_COM_DATAS = [
   ["cronograma", "aprovar"],
 ] as const;
 
-export async function podeVerDatasDoPlanejamento(user: SubjectAutorizacao): Promise<boolean> {
+export async function podeVerDatasDoPlanejamento(user: SubjectAutorizacao & { ehSocio?: boolean }): Promise<boolean> {
   for (const [recurso, acao] of PARES_COM_DATAS) {
     if (await can(user, recurso, acao)) return true;
+  }
+  // Piso de sócio (só leitura): o sócio ativo lê como supervisor — a mesma regra de `requirePermission`. Sem isto
+  // um sócio de perfil CLT entraria no planejamento (`planejamento:ver`, pelo piso) e não veria data nenhuma.
+  if (user.ehSocio) {
+    for (const [recurso, acao] of PARES_COM_DATAS) {
+      if (await canRole("supervisor", recurso, acao)) return true;
+    }
   }
   return false;
 }
