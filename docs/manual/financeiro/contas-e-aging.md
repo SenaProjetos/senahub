@@ -25,6 +25,9 @@ Acompanhar o que há **a pagar** e **a receber** (lançamentos previstos) e medi
 
 - Listas de pendências por tipo, com **filtros** e **exportação**.
 - Ações de gestão (confirmar/baixar, editar) para quem tem `financeiro:gerir`.
+- **Parcelas a faturar** (aba **A receber**, para quem tem `financeiro:gerir`): as parcelas de
+  [contrato cobrado por entrega](contrato-por-entrega.md) que ainda são só previsão, com o botão
+  **Faturar**. Ao faturar, a parcela vira uma conta a receber comum, nesta mesma lista.
 - **Só cobranças.** A **previsão de recebimento** de um
   [contrato cobrado por entrega](contrato-por-entrega.md) **não aparece aqui** (nem no aging): ela só
   vira conta a receber quando a parcela é **faturada** no contrato.

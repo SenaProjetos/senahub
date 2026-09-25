@@ -92,8 +92,17 @@ aging.
 
 ## Faturar a parcela
 
-Quando a entrega acontece, o financeiro **fatura** a parcela — no mesmo diálogo **Pagamento** do
-contrato assinado, botão **Faturar** na linha (quem tem `financeiro:gerir`):
+Quando a entrega acontece, o financeiro **fatura** a parcela (quem tem `financeiro:gerir`), por dois
+caminhos que fazem a mesma coisa:
+
+- **Financeiro → Contas a pagar e receber → aba A receber → cartão Parcelas a faturar.** A lista traz
+  todas as parcelas de contrato por entrega ainda não faturadas — cliente, contrato, parcela, marco,
+  previsão e valor —, com o **marco concluído** no topo, seguido das parcelas **na assinatura**, das
+  **sem marco** (marco apagado: escolha outro no contrato) e das que **aguardam o marco**. O cartão só
+  aparece quando há o que faturar.
+- **Jurídico → Pagamento** do contrato assinado, botão **Faturar** na linha.
+
+Em qualquer dos dois:
 
 1. escolha o **vencimento** da cobrança e clique em **Confirmar faturamento**;
 2. a **previsão vira conta a receber** — a **mesma linha**, agora com o vencimento escolhido —, e passa
@@ -105,8 +114,9 @@ contrato assinado, botão **Faturar** na linha (quem tem `financeiro:gerir`):
 - O valor é sempre o **calculado** pelo plano — não se digita.
 
 **Aviso automático.** Quando o **marco** de uma parcela é **concluído** no cronograma (**Atualizar
-tarefa**), quem gere o financeiro recebe a notificação **"Marco concluído — parcela a faturar"**. O
-marco **nunca fatura sozinho**. Dá para desligar em **Preferências → Parcelas a faturar**.
+tarefa**), quem gere o financeiro recebe a notificação **"Marco concluído — parcela a faturar"**, que
+leva à lista **Parcelas a faturar**. O marco **nunca fatura sozinho**. Dá para desligar em
+**Preferências → Parcelas a faturar**.
 
 ## Permissões
 
@@ -158,3 +168,7 @@ vigor: a cobrança vem do contrato. Rescinda o contrato, ou use o diálogo **Pag
 **O botão Faturar não aparece.** O contrato precisa estar assinado, a parcela não pode ter sido
 faturada (nem estar recebida), o diálogo precisa estar em **Por entrega**, e você precisa de
 `financeiro:gerir`.
+
+**Não vejo o cartão Parcelas a faturar em Contas a receber.** Ele só aparece para quem tem
+`financeiro:gerir` e quando há parcela de contrato por entrega **assinado** ainda não faturada. Parcela
+com valor "—" está com o plano sem fechar 100% ou o contrato sem valor: ajuste no Jurídico.

@@ -930,7 +930,7 @@ export const registrarExecucao = defineAction(
             parcelasAFaturar.length === 1
               ? `"${nome}" concluído: a parcela "${parcelasAFaturar[0].descricao}" do ${parcelasAFaturar[0].contrato} pode ser faturada.`
               : `"${nome}" concluído: ${parcelasAFaturar.length} parcelas de contrato podem ser faturadas.`,
-          href: "/juridico",
+          href: "/financeiro/contas?tab=receita",
           tag: `marco-parcela-${i.id}`,
         },
         { categoria: "faturamento" },

@@ -56,6 +56,17 @@ Detalhes em [Planejamento](projetos/planejamento.md),
 
 ---
 
+## Parcelas a faturar, direto em Contas a receber
+
+Na aba **A receber** de **Financeiro → Contas a pagar e receber**, quem gere o financeiro passa a ver o
+cartão **Parcelas a faturar**: todas as parcelas de [contrato cobrado por
+entrega](financeiro/contrato-por-entrega.md) que ainda são só previsão, com cliente, contrato, marco,
+previsão e valor. O **marco concluído** vem no topo, e o botão **Faturar** pergunta o vencimento e
+transforma a previsão em conta a receber — sem precisar abrir o Jurídico. O aviso "Marco concluído —
+parcela a faturar" agora leva para essa lista.
+
+---
+
 ## Duplicar projeto copia o cronograma de verdade
 
 Ao **duplicar um projeto** marcando a **EAP**, a cópia agora leva a estrutura do cronograma inteira:

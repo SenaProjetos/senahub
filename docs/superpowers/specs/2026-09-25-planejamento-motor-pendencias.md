@@ -110,9 +110,9 @@ Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
 
 - **As datas reais ainda não movem o cronograma (D6 pendente).** Registrar início/término real não
   empurra as sucessoras; a previsão continua vindo das durações e dependências.
-- **Faturar parcela** fica no diálogo Pagamento do Jurídico (abre para `juridico:gerir`); o botão só
-  aparece para quem também tem `financeiro:gerir`. Quem é só do financeiro não chega lá — falta uma
-  lista "parcelas a faturar" no financeiro (a notificação leva ao /juridico).
+- ~~**Faturar parcela** só pelo diálogo Pagamento do Jurídico; quem é só do financeiro não chegava lá.~~
+  **Resolvido (L2):** cartão "Parcelas a faturar" na aba A receber de Contas (`financeiro:gerir`), com o
+  marco concluído no topo e o mesmo Faturar; a notificação leva para lá. O diálogo do Jurídico segue valendo.
 - **"Aprovar fase"** fica no diálogo Etapas, que só abre para quem edita o projeto.
 - ~~**"Atualizar tarefa"** (datas reais) é de `cronograma:executado` (quem gere recursos); o editor da
   linha é de `planejamento:gerir`. Populações diferentes.~~ **Resolvido (L4):** a migration acima concede
@@ -224,7 +224,11 @@ Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
 - [ ] Atividade criada depois da baseline → aviso (o avanço dela não entra no VA, as horas entram no
       CR — replaneje).
 
-### Correções do §7 (B1, B3, L6)
+### Correções do §7 (B1, B3, L2, L6)
+- [ ] Contas a receber, aba "A receber" (com `financeiro:gerir`): cartão "Parcelas a faturar" com contrato
+      por entrega assinado; marco concluído no topo; Faturar pergunta o vencimento e a parcela sai da lista
+      e entra na lista de contas; sem `financeiro:gerir` o cartão não aparece; o clique na notificação
+      "parcela a faturar" abre esta aba.
 - [ ] Projeto com contrato **por entrega** em vigor: aba Financeiro → "Gerar parcelas" desabilitado com o
       motivo no card; a lista "Faturar por entrega" não aparece.
 - [ ] Projeto sem contrato por entrega: "Faturar" abre a confirmação com o valor DA PROPOSTA preenchido;
@@ -258,7 +262,7 @@ suíte 4293 testes · lint · tsc · build — todos verdes.
 | # | Limitação | Solução proposta | Modelo · risco |
 |---|---|---|---|
 | L1 | Datas reais não movem o cronograma (D6) | Motor lê datas reais: concluída fica nas datas reais; iniciada começa no início real e o restante (duração × (1 − %)) vai para depois da Data de Status — o "Reprogramar trabalho não concluído" do Project; sucessoras empurradas; baseline intocada. Destrava o ritmo observado (D21) e a previsão de término de prazo no Valor Agregado. Fazer JUNTO com B2 | Opus xhigh · alto: bateria de testes + verify |
-| L2 | Faturar só pelo Jurídico | Lista "Parcelas a faturar" em Contas a receber (`financeiro:gerir`): cliente, contrato, parcela, valor, data do marco, marco concluído?, botão Faturar (mesma action); a notificação aponta para lá | Sonnet · baixo |
+| L2 ✅ | Faturar só pelo Jurídico | Lista "Parcelas a faturar" em Contas a receber (`financeiro:gerir`): cliente, contrato, parcela, valor, data do marco, marco concluído?, botão Faturar (mesma action); a notificação aponta para lá | Sonnet · baixo |
 | L3 | "Aprovar fase" só no diálogo Etapas | Seção "Fases a aprovar" em /aprovacoes e botão no card da disciplina para `aprovacoes:disciplina` | Sonnet · baixo |
 | L4 ✅ | "Atualizar tarefa" × editor da EAP com permissões diferentes | Migration dando `cronograma:executado` a quem tem `planejamento:gerir` (mesmo molde da F2.6) — ou ajuste manual em Perfis | Sonnet · mínimo |
 | L5 | Linhas antigas sem fase | Script em modo simulação sugere a fase pelo nome/pai da linha e pela etapa única da disciplina; relatório para revisão; `--gravar` depois | Sonnet · baixo |

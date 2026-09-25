@@ -19,6 +19,8 @@
  *      rescindido não conta; por data com plano definido só avisa.
  *   8. "Faturar entrega" (B1): recusa com contrato por entrega em vigor; cobra o valor INFORMADO, nunca
  *      o `Disciplina.valor` (pool dos projetistas); não fatura duas vezes nem sem valor.
+ *   9. Lista "Parcelas a faturar" do financeiro (L2): traz as parcelas ainda não faturadas com valor e
+ *      situação, destaca o marco concluído e tira a parcela faturada.
  *
  * Uso: npm run smoke:previsao-recebimento
  */
@@ -39,6 +41,7 @@ import { registrarExecucaoNaLinha } from "../src/modules/planejamento/execucao-s
 import { avisoCobrancaContrato } from "../src/modules/projetos/receita/cobranca-contrato";
 import { contratosDeCobranca } from "../src/modules/projetos/receita/queries";
 import { faturarEntregaDaDisciplina } from "../src/modules/projetos/receita/faturamento";
+import { parcelasAFaturar } from "../src/modules/juridico/contrato/parcelas-a-faturar-queries";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -155,10 +158,23 @@ async function main() {
     check("aprovado: parcela do executivo = 3000 na data do marco M2", Number(l2?.valor) === 3000 && paraDia(l2!.vencimento!) === diaM2 && l2?.status === "previsao");
     check("sincronizar de novo não duplica", (await previsoes()).length === 3);
 
+    // L2: a lista do financeiro traz as 3 parcelas (nenhuma faturada), com valor e situação.
+    const listaDoContrato = async () => (await parcelasAFaturar()).filter((x) => x.contratoId === contrato.id);
+    const lista1 = await listaDoContrato();
+    check(
+      "L2: lista de parcelas a faturar traz as 3, com valor e situação (assinatura pronta; marcos aguardando)",
+      lista1.length === 3 &&
+        lista1[0].situacao === "na_assinatura" && lista1[0].valor === 3000 &&
+        lista1.filter((x) => x.situacao === "aguardando_marco").map((x) => x.valor).sort().join() === "3000,4000",
+      lista1.map((x) => [x.descricao, x.situacao, x.valor]),
+    );
+
     // Marco concluído aponta a parcela presa a ele para o financeiro faturar (D9) — sem faturar sozinho.
     const exM2 = await registrarExecucaoNaLinha({ id: m2.id, inicioReal: null, fimReal: hoje, hoje });
     check("marco concluído aponta a parcela a faturar", exM2.parcelasAFaturar.map((x) => x.id).join() === pM2.id, exM2.parcelasAFaturar);
     check("…e não fatura nada sozinho", (await linhaDa(pM2.id))?.status === "previsao");
+    const lista2 = await listaDoContrato();
+    check("L2: marco concluído sobe para o topo da lista, como pronto para faturar", lista2[0]?.parcelaId === pM2.id && lista2[0].situacao === "marco_concluido", lista2.map((x) => [x.descricao, x.situacao]));
     await registrarExecucaoNaLinha({ id: m2.id, inicioReal: null, fimReal: null, hoje });
 
     // ── 3. Marco anda → a MESMA linha anda ───────────────────────────────
@@ -172,6 +188,7 @@ async function main() {
     const fat = await faturarParcela({ parcelaId: pM1.id, vencimento: ontem, autorId: admin.id });
     const l1c = await linhaDa(pM1.id);
     check("faturar converte a MESMA linha em previsto, com o vencimento escolhido", fat.lancamentoId === l1?.id && l1c?.status === "previsto" && paraDia(l1c.vencimento!) === ontem);
+    check("L2: parcela faturada sai da lista", !(await listaDoContrato()).some((x) => x.parcelaId === pM1.id));
     const inad = await prisma.lancamento.findMany({ where: { tipo: "receita", status: "previsto", vencimento: d(ontem) }, select: { id: true } });
     check("faturada e vencida: entra no alerta de inadimplência", inad.some((x) => x.id === l1?.id));
     check("resumo do cliente passa a ter a cobrança (4000)", (await resumoFinanceiroCliente(cliente.id)).total === 4000);
