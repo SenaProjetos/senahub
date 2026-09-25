@@ -38,6 +38,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { CollapsibleSection } from "@/components/ui/collapsible";
+import { formatarData } from "@/lib/utils";
 
 const NONE = "__none";
 
@@ -83,13 +84,15 @@ export function EapDialog({
   const linhaAtual = tarefa ? tarefas.find((t) => t.id === tarefa.id) ?? tarefa : null;
 
   const hoje = new Date().toISOString().slice(0, 10);
+  // B2: a linha é definida pela DURAÇÃO em dias úteis, como no MS Project; início e término saem do
+  // motor (dependências + calendário). Uma data fixa é uma restrição — o alfinete —, não um campo.
   const vazio = {
     nome: "",
     parentId: NONE,
     disciplinaId: NONE,
     etapaId: NONE,
-    inicioPrevisto: hoje,
-    fimPrevisto: hoje,
+    duracao: "5",
+    naoIniciarAntesDe: "",
     progresso: 0,
     marco: false,
   };
@@ -98,8 +101,8 @@ export function EapDialog({
     parentId: t.parentId ?? NONE,
     disciplinaId: t.disciplinaId ?? NONE,
     etapaId: t.etapaId ?? NONE,
-    inicioPrevisto: t.inicioPrevisto,
-    fimPrevisto: t.fimPrevisto,
+    duracao: t.marco ? "" : String(t.duracaoDias).replace(".", ","),
+    naoIniciarAntesDe: "",
     progresso: t.progresso,
     marco: t.marco,
   });
@@ -133,6 +136,12 @@ export function EapDialog({
 
   function salvar() {
     if (!form.nome.trim()) return;
+    const semDuracao = form.marco || linhaAtual?.ehResumo === true;
+    const duracaoDias = Number(form.duracao.replace(",", "."));
+    if (!semDuracao && !(duracaoDias > 0)) {
+      toast.error("Informe a duração em dias úteis (maior que zero).");
+      return;
+    }
     start(async () => {
       const r = linhaAtual
         ? await editarEapTarefa({
@@ -140,8 +149,7 @@ export function EapDialog({
             nome: form.nome,
             disciplinaId: form.disciplinaId === NONE ? "" : form.disciplinaId,
             etapaId: form.etapaId === NONE ? "" : form.etapaId,
-            inicioPrevisto: form.inicioPrevisto,
-            fimPrevisto: form.marco ? form.inicioPrevisto : form.fimPrevisto,
+            duracaoDias: semDuracao ? undefined : duracaoDias,
             progresso: Number(form.progresso),
             marco: form.marco,
           })
@@ -151,13 +159,13 @@ export function EapDialog({
             disciplinaId: form.disciplinaId === NONE ? "" : form.disciplinaId,
             etapaId: form.etapaId === NONE ? "" : form.etapaId,
             nome: form.nome,
-            inicioPrevisto: form.inicioPrevisto,
-            fimPrevisto: form.marco ? form.inicioPrevisto : form.fimPrevisto,
+            duracaoDias: form.marco ? undefined : duracaoDias,
+            naoIniciarAntesDe: form.naoIniciarAntesDe,
             progresso: Number(form.progresso),
             marco: form.marco,
           });
       if (r.ok) {
-        toast.success(linhaAtual ? "Tarefa atualizada." : "Tarefa criada.");
+        toast.success(linhaAtual ? "Tarefa atualizada — datas recalculadas." : "Tarefa criada — datas calculadas.");
         onOpenChange(false);
         router.refresh();
       } else toast.error(r.error);
@@ -258,8 +266,13 @@ export function EapDialog({
   const outras = tarefas.filter((t) => t.id !== tarefa?.id);
   /** Fases que a disciplina escolhida tem (F4) — as únicas que a linha pode apontar. */
   const fasesDaDisciplina = disciplinas.find((d) => d.id === form.disciplinaId)?.etapas ?? [];
-  const possiveisPais = outras;
+  // Marco não tem filhos: não pode ser linha-mãe.
+  const possiveisPais = outras.filter((t) => !t.marco);
   const bloqueada = linhaAtual?.status === "blq";
+  const ehAgrupamento = linhaAtual?.ehResumo === true;
+  // O editor só alterna atividade ↔ marco; disciplina, pacote e agrupamento mantêm o tipo.
+  const podeSerMarco =
+    !linhaAtual || ((linhaAtual.tipoEap === "atv" || linhaAtual.tipoEap === "mrc") && !ehAgrupamento);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -294,37 +307,66 @@ export function EapDialog({
             <Input value={form.nome} onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))} />
           </div>
 
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="marco"
-              checked={form.marco}
-              onCheckedChange={(v) => setForm((f) => ({ ...f, marco: v === true }))}
-            />
-            <Label htmlFor="marco" className="cursor-pointer font-normal">
-              Marco (milestone — data pontual, sem duração)
-            </Label>
-          </div>
-
-          <div className={`grid gap-3 ${form.marco ? "grid-cols-1" : "grid-cols-2"}`}>
-            <div className="space-y-1.5">
-              <Label>{form.marco ? "Data do marco" : "Início previsto"}</Label>
-              <Input
-                type="date"
-                value={form.inicioPrevisto}
-                onChange={(e) => setForm((f) => ({ ...f, inicioPrevisto: e.target.value }))}
+          {podeSerMarco && (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="marco"
+                checked={form.marco}
+                onCheckedChange={(v) => setForm((f) => ({ ...f, marco: v === true }))}
               />
+              <Label htmlFor="marco" className="cursor-pointer font-normal">
+                Marco (milestone — data pontual, sem duração)
+              </Label>
             </div>
-            {!form.marco && (
-              <div className="space-y-1.5">
-                <Label>Fim previsto</Label>
-                <Input
-                  type="date"
-                  value={form.fimPrevisto}
-                  onChange={(e) => setForm((f) => ({ ...f, fimPrevisto: e.target.value }))}
-                />
-              </div>
-            )}
-          </div>
+          )}
+
+          {ehAgrupamento ? (
+            <p className="rounded-sm border border-dashed px-2.5 py-2 text-xs text-muted-foreground">
+              Agrupamento: início, término e duração vêm das atividades dentro dele
+              {linhaAtual && ` (${formatarData(linhaAtual.inicioPrevisto)} – ${formatarData(linhaAtual.fimPrevisto)})`}.
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {!form.marco && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="eap-duracao">Duração (dias úteis)</Label>
+                  <Input
+                    id="eap-duracao"
+                    inputMode="decimal"
+                    value={form.duracao}
+                    onChange={(e) => setForm((f) => ({ ...f, duracao: e.target.value.replace(/[^0-9.,]/g, "") }))}
+                  />
+                </div>
+              )}
+              {linhaAtual ? (
+                <div className="space-y-1.5">
+                  <Label>{form.marco ? "Data calculada" : "Datas calculadas"}</Label>
+                  <p className="flex h-9 items-center font-mono text-sm">
+                    {form.marco || linhaAtual.inicioPrevisto === linhaAtual.fimPrevisto
+                      ? formatarData(linhaAtual.inicioPrevisto)
+                      : `${formatarData(linhaAtual.inicioPrevisto)} – ${formatarData(linhaAtual.fimPrevisto)}`}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <Label htmlFor="eap-nao-antes">Não iniciar antes de (opcional)</Label>
+                  <Input
+                    id="eap-nao-antes"
+                    type="date"
+                    value={form.naoIniciarAntesDe}
+                    onChange={(e) => setForm((f) => ({ ...f, naoIniciarAntesDe: e.target.value }))}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          {!ehAgrupamento && (
+            <p className="-mt-1 text-[11px] text-muted-foreground">
+              {linhaAtual
+                ? "As datas saem da duração, das dependências e do calendário (feriados incluídos) e se recalculam ao salvar. Para prender a tarefa a uma data, use Restrição de data."
+                : "Sem data, a tarefa começa quando as dependências deixarem — ou no início do projeto. Com data, ela fica presa a ela (o alfinete)."}
+            </p>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

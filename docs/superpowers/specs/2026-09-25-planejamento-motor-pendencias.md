@@ -23,10 +23,15 @@ segue em andamento (o que foi feito está marcado em cada item).
    - `20260925140000_valor_agregado_apuracao`
    - `20260925150000_cronograma_executado_para_quem_edita_eap` — só concede permissão (L4); idempotente,
      e nos perfis padrão não muda nada (já tinham os dois lados)
-2. `scripts/herdar-responsaveis-eap.ts --gravar` **UMA vez**. Sem ele, toda linha antiga fica "sem
+2. `scripts/converter-duracao-eap.ts --gravar` **UMA vez, antes de qualquer pessoa mexer num
+   cronograma** (B2). A F0 gravou a duração das linhas antigas em dias CORRIDOS; a partir do B2 toda
+   mudança reagenda pelo motor, que conta dias ÚTEIS, e o cronograma inteiro esticaria ~40% no primeiro
+   clique. Só cronogramas em rascunho; só a duração que ainda é a de dias corridos; rodar de novo não
+   muda nada. Rode primeiro sem `--gravar` e confira a lista.
+3. `scripts/herdar-responsaveis-eap.ts --gravar` **UMA vez**. Sem ele, toda linha antiga fica "sem
    responsável" e a Saúde de todo projeto cai no dia do deploy. Rodar de novo depois desfaria escolhas
    do coordenador — para isso existe o botão "Herdar responsáveis" por projeto.
-3. `npm run verify:motor-cronograma` em produção.
+4. `npm run verify:motor-cronograma` em produção.
 
 Notas:
 - F7 e F8 não pedem seed nem permissão nova (reusam `aprovacoes:disciplina`, `cronograma:executado`,
@@ -162,7 +167,13 @@ Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
   com contrato por entrega em vigor a lista some e a action recusa. Regras em `receita/faturamento.ts` e
   `receita/valor-entrega.ts`; `smoke:previsao-recebimento` §8; oráculo do receber idêntico (fora o campo
   novo `previsaoAtrasada`).
-- `editarEapTarefa` força o tipo atividade/marco mesmo editando linha de disciplina/resumo.
+- ~~`editarEapTarefa` força o tipo atividade/marco mesmo editando linha de disciplina/resumo.~~
+  **Corrigido (B2):** o editor pede **duração em dias úteis** (datas calculadas), só alterna atividade ↔
+  marco (`edicao-linha.ts`, puro), agrupamento não grava duração, toda mudança da EAP reagenda
+  (`aposMudarEap` → `reagendarProjeto`, que também grava o avanço do agrupamento pelo motor — o rollup
+  antigo por média simples saiu) e o DTO mostra as datas do motor. `gerarEapDasDisciplinas` cria a linha
+  com os dias úteis até o prazo. Achado junto: a F0 gravou duração em dias corridos → script
+  `converter-duracao-eap.ts` no deploy (ordem acima).
 - ~~Duplicar projeto copia a EAP sem tipo, duração, restrição e classificadores.~~ **Corrigido (B3):**
   copia estrutura (tipo, duração, prioridade, fase/classificadores globais, tipo e lag das dependências),
   com ID corporativo novo; cronograma novo em rascunho, com início opcional no diálogo. **Não** copia
@@ -277,7 +288,7 @@ suíte 4293 testes · lint · tsc · build — todos verdes.
 | # | Problema | Correção proposta | Modelo · risco |
 |---|---|---|---|
 | B1 ✅ | "Faturar entrega" (N-26) cobra do cliente o `Disciplina.valor` (pool dos PJ) | O diálogo passa a pedir o valor, pré-preenchido pelo item da proposta de origem da mesma disciplina (`PropostaItem` via catálogo) — nunca `Disciplina.valor`. Projeto com contrato "por entrega" esconde o botão (o contrato manda na cobrança) | Sonnet high · médio (dinheiro): teste + smoke |
-| B2 | Editar linha da EAP: força tipo atv/mrc; **duração salva em dias CORRIDOS** (helper provisório da F0 que ficou em `planejamento/actions.ts`) e o motor agenda em dias ÚTEIS — a barra estica ao salvar; as datas digitadas ficam gravadas até alguém reagendar | Tipo só alterna atividade↔marco (os outros tipos ficam, e o "Marco" some para eles); agrupamento não recebe duração; o editor passa a editar **duração (dias úteis) + "não iniciar antes de"** (alfinete, D34), como o Project, e salvar reagenda. Remover o helper provisório | Opus xhigh (regra) + Sonnet (tela) · alto e silencioso: testes + `verify:motor-cronograma` |
+| B2 ✅ | Editar linha da EAP: força tipo atv/mrc; **duração salva em dias CORRIDOS** (helper provisório da F0 que ficou em `planejamento/actions.ts`) e o motor agenda em dias ÚTEIS — a barra estica ao salvar; as datas digitadas ficam gravadas até alguém reagendar | Tipo só alterna atividade↔marco (os outros tipos ficam, e o "Marco" some para eles); agrupamento não recebe duração; o editor passa a editar **duração (dias úteis) + "não iniciar antes de"** (alfinete, D34), como o Project, e salvar reagenda. Remover o helper provisório | Opus xhigh (regra) + Sonnet (tela) · alto e silencioso: testes + `verify:motor-cronograma` |
 | B3 ✅ | Duplicar projeto copia a EAP sem tipo, duração, restrição, classificadores | Copiar tipo, duração, restrição, fase/origem/TAT, tipo e lag das dependências; ID corporativo NOVO (D29); %, status e datas reais zerados; cronograma novo em rascunho, datas pelo motor a partir do início pedido (D10) | Sonnet · baixo |
 | B4 ✅ | `Promise.all` dentro de transação (`comercial/service.ts`) | `await` em sequência + teste-guarda que varre `src/` por `Promise.all([` com `tx.` dentro | Sonnet · mínimo |
 

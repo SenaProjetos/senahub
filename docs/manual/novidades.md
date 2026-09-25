@@ -22,6 +22,23 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Tarefa do cronograma se cria pela duração, como no MS Project
+
+No editor da tarefa (Planejamento → cronograma do projeto), **início e fim** deram lugar à **duração
+em dias úteis**: as datas são calculadas e aparecem ao lado, já contando fins de semana e feriados.
+Antes o editor pedia as duas datas e contava os dias corridos entre elas — e a tarefa terminava
+**depois** do dia digitado quando o cronograma era recalculado.
+
+- **Salvar já recalcula** o projeto inteiro: não é mais preciso clicar em Reagendar.
+- Para prender a tarefa numa data, use **Restrição de data**; ao criar a tarefa, dá para informar
+  **Não iniciar antes de**.
+- Linha de **agrupamento** não tem duração própria (vem das tarefas dentro dela), e linhas de
+  disciplina ou pacote não viram mais atividade ao serem editadas.
+- **Gerar EAP das disciplinas** cria cada linha com a duração até o prazo da disciplina (antes ela
+  nascia com um dia só).
+
+---
+
 ## Planejamento: o cronograma agora calcula as datas, como o MS Project
 
 O cronograma de cada projeto (**Planejamento**) deixou de ser uma lista de datas digitadas: você
@@ -36,8 +53,9 @@ diz **quanto dura** cada tarefa e **do que ela depende**, e o sistema calcula o 
   crítico**, com borda vermelha no gráfico.
 - **Restrições de data** (seis tipos, marcadas com um **alfinete**) e **bloqueio com motivo** — o
   bloqueio não para o relógio, só registra por que a tarefa está parada.
-- **Reagendar.** Depois de mudar uma duração ou uma dependência, clique em **Reagendar**: as datas
-  do projeto inteiro são recalculadas.
+- **Salvar recalcula.** Cada mudança — duração, dependência, restrição, linha nova — recalcula as
+  datas do projeto inteiro na hora. O botão **Reagendar** fica para conferir ou depois de um feriado
+  novo.
 - **Aprovar e linha de base.** Defina o **início do projeto**, corrija os erros do verificador e
   **aprove**: o sistema congela a **linha de base BL-00** (o combinado) e cria os cards no quadro de
   Tarefas de quem está escalado. Mudou o combinado? **Replanejar**, com motivo — cria a BL-01, e as

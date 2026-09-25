@@ -75,10 +75,10 @@ Se você usa o MS Project, isto será familiar:
   jornada individual **não movem datas**: aparecem como aviso na carga da equipe.
 - **A duração manda.** Início e fim de uma tarefa com predecessora saem da **duração + dependência +
   calendário**, e não de datas digitadas.
-- **Depois de mudar duração ou dependência, clique em Reagendar.** O botão recalcula as datas do
-  projeto inteiro e só grava a linha que mudou. A folga e o caminho crítico são sempre calculados na
-  hora, mas as **datas exibidas** só se atualizam quando você reagenda (ou define o início do
-  projeto).
+- **Salvar recalcula.** Toda mudança — duração, dependência, restrição, linha nova ou excluída,
+  data real — reagenda o projeto inteiro na hora, como no MS Project. O botão **Reagendar** continua
+  lá para conferir, ou depois que alguém cadastra um **feriado novo** (o calendário muda sem ninguém
+  mexer no cronograma).
 - **Agrupamento:** as datas de uma linha com filhas são o **menor início** e o **maior término**
   delas, e o **progresso** é a média ponderada pelas **horas previstas** (sem horas, pela
   duração). Nada disso se digita.
@@ -99,13 +99,15 @@ Se você usa o MS Project, isto será familiar:
 
 Clique numa linha (ou em **Nova tarefa**). Quem tem só `planejamento:ver` não abre o editor.
 
-- **Nome** e **Marco** (data pontual, sem duração — como o marco do MS Project).
-- **Início e fim previstos** e **Disciplina** (opcional).
-
-  > **Atenção (versão atual):** o editor pede **início** e **fim** e calcula a duração a partir
-  > desses dois dias. Ao **reagendar**, essa duração é contada em **dias úteis** — por isso uma
-  > tarefa que atravessa fim de semana ou feriado pode terminar **depois** do fim que você digitou.
-  > Depois de reagendar, confira a coluna **Duração** e as datas.
+- **Nome** e **Marco** (data pontual, sem duração — como o marco do MS Project). A opção de marco só
+  aparece em atividade: linha de disciplina, pacote ou agrupamento mantém o tipo que tem.
+- **Duração (dias úteis)** — como no Project, você informa quanto a tarefa dura; **início e término
+  são calculados** (dependências + calendário, feriados incluídos) e aparecem logo ao lado. Aceita
+  meio dia (`0,5`); meio dia ainda ocupa um dia no calendário. Para prender a tarefa numa data, use
+  **Restrição de data** (abaixo) — ao criar, dá para já informar **Não iniciar antes de**.
+- **Agrupamento** (linha com subtarefas): não tem duração própria — início, término e duração vêm das
+  atividades dentro dele, e ele não vira marco.
+- **Disciplina** (opcional).
 - **Fase** (opcional): aparece quando a disciplina escolhida tem
   [etapas](etapas-e-pagamento-por-fase.md). É o que liga um **marco** à fase que ele entrega.
 - **Progresso** (de 5 em 5%), que o coordenador **informa**. O sistema só **sugere**: o
@@ -293,7 +295,7 @@ confira lá o que vale no seu escritório.
 
 ## Regras de negócio
 
-- **A duração e as dependências mandam nas datas**; reagende depois de mudar qualquer uma das duas.
+- **A duração e as dependências mandam nas datas**; salvar recalcula o projeto inteiro.
 - **Aprovar exige zero erro** do verificador e **replanejar exige motivo**.
 - **A linha de base nunca é sobrescrita.** Cada versão guarda autor, data e motivo.
 - **O % de cada atividade é informado** pela coordenação; o sistema só sugere.
@@ -313,8 +315,12 @@ confira lá o que vale no seu escritório.
 "Planejamento" é o cronograma estruturado (EAP/gantt) do projeto. O cronograma aprovado gera os
 cards.
 
-**Mudei uma duração e as datas não andaram.** Clique em **Reagendar**. As datas exibidas só
-mudam quando o projeto é reagendado.
+**Onde digito o início e o fim da tarefa?** Não se digita: você informa a **duração** e as
+**dependências**, e o sistema calcula as datas, como o MS Project. Para prender uma tarefa numa data,
+use **Restrição de data** (o alfinete).
+
+**Cadastrei um feriado e as datas não mudaram.** Clique em **Reagendar**: o calendário mudou sem
+ninguém mexer no cronograma.
 
 **Por que não consigo aprovar?** Há **erros** do verificador (abra **Achados do verificador**), ou
 falta **definir o início do projeto**. Corrija e tente de novo.

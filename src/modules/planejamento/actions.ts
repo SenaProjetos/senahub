@@ -5,7 +5,14 @@ import { z } from "zod";
 import { addDays } from "date-fns";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { paraDia, reagendarProjeto } from "@/modules/planejamento/agenda";
+import {
+  montarCalendario,
+  paraDataUtc,
+  paraDia,
+  reagendarProjeto,
+  type ResumoReagendamento,
+} from "@/modules/planejamento/agenda";
+import { diasUteisEntre } from "@/lib/calendario-trabalho";
 import { statusAoDesbloquear } from "@/modules/planejamento/execucao";
 import { registrarExecucaoNaLinha } from "@/modules/planejamento/execucao-service";
 import { inicioDoDiaUtc } from "@/lib/data";
@@ -24,6 +31,7 @@ import { herdarResponsaveisNoProjeto, sincronizarCards } from "@/modules/planeja
 import { sincronizarPrevisoesDepois } from "@/modules/juridico/contrato/previsao-service";
 import { gravarApuracaoValorAgregado } from "@/modules/planejamento/valor-agregado-service";
 import { reservarIdsParaLinhas } from "@/modules/planejamento/id-corporativo";
+import { regrasDeEdicao } from "@/modules/planejamento/edicao-linha";
 
 const plan = { modulo: "planejamento", recurso: "planejamento", permissao: "gerir" } as const;
 const rec = { modulo: "recursos", recurso: "recursos", permissao: "gerir" } as const;
@@ -35,11 +43,14 @@ const revProjeto = (projetoId: string) => {
 const revRecursos = () => revalidatePath("/recursos");
 
 /**
- * Depois de qualquer mudança na EAP que mexa em data ou em gente: com o cronograma
- * APROVADO, o card do projetista acompanha (D32). Em rascunho não faz nada (D14).
- * Chamado fora da transação da mudança — o motor precisa ler o estado já gravado.
+ * Depois de QUALQUER mudança na EAP (linha, duração, dependência, restrição, datas reais): o motor
+ * reagenda o projeto e grava as datas (B2 — como no MS Project, salvar recalcula; antes as datas
+ * gravadas só andavam quando alguém clicava em Reagendar). Depois, com o cronograma APROVADO, o card
+ * do projetista acompanha (D32; em rascunho não faz nada — D14) e a previsão de recebimento anda com o
+ * marco. Chamado fora da transação da mudança — o motor precisa ler o estado já gravado.
  */
-async function aposMudarEap(projetoId: string, autorId: string) {
+async function aposMudarEap(projetoId: string, autorId: string): Promise<ResumoReagendamento> {
+  const reagendado = await reagendarProjeto(projetoId, autorId);
   const r = await sincronizarCards(prisma, projetoId, autorId);
   if (r.criados > 0 || r.atualizados > 0) revalidatePath("/tarefas");
   // F7.2: marco que andou leva junto a previsão de recebimento do contrato por entrega.
@@ -48,6 +59,7 @@ async function aposMudarEap(projetoId: string, autorId: string) {
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/lancamentos");
   }
+  return reagendado;
 }
 
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
@@ -70,44 +82,19 @@ async function faseDaLinha(projetoId: string, disciplinaId: string | null, etapa
   return fase.id;
 }
 
-/**
- * Duração provisória da F0, em DIAS DE CALENDÁRIO inclusivos — exatamente a conta que o
- * CPM antigo fazia. Não é o calendário de trabalho: a F1 traz `lib/calendario-trabalho.ts`
- * (dias úteis + feriados, reusando `feriadosParaCalculo`) e RECALCULA toda duração.
- *
- * Existe só para a coluna nascer preenchida com a intenção que já estava nas datas. Não
- * chamar de fora deste arquivo, e remover quando a F1 entrar.
- */
-function diasUteisEntre(inicioIso: string, fimIso: string): number {
-  const MS_DIA = 86_400_000;
-  const ini = new Date(`${inicioIso}T00:00:00`).getTime();
-  const fim = new Date(`${fimIso}T00:00:00`).getTime();
-  const dias = Math.round((fim - ini) / MS_DIA) + 1;
-  return dias > 0 ? dias : 1;
-}
-
-// ── Roll-up: propaga datas e progresso do filho ao pai ───────
-// Tarefas-resumo (com filhas) derivam inicioPrevisto, fimPrevisto e progresso dos filhos.
-async function rollupPai(tarefaId: string) {
-  const t = await prisma.eapTarefa.findUnique({ where: { id: tarefaId }, select: { parentId: true } });
-  if (!t?.parentId) return;
-  const irmaos = await prisma.eapTarefa.findMany({
-    where: { parentId: t.parentId },
-    select: { inicioPrevisto: true, fimPrevisto: true, progresso: true },
-  });
-  if (irmaos.length === 0) return;
-  const minInicio = irmaos.reduce((m, s) => (s.inicioPrevisto < m ? s.inicioPrevisto : m), irmaos[0].inicioPrevisto);
-  const maxFim = irmaos.reduce((m, s) => (s.fimPrevisto > m ? s.fimPrevisto : m), irmaos[0].fimPrevisto);
-  const avgProgresso = Math.round(irmaos.reduce((sum, s) => sum + s.progresso, 0) / irmaos.length);
-  await prisma.eapTarefa.update({
-    where: { id: t.parentId },
-    data: { inicioPrevisto: minInicio, fimPrevisto: maxFim, progresso: avgProgresso },
-  });
-  await rollupPai(t.parentId); // propaga hierarquia acima
-}
-
 // ── EAP ──────────────────────────────────────────────────────
 
+const duracao = z
+  .number()
+  .positive("A duração precisa ser maior que zero.")
+  .max(9999, "Duração grande demais — divida a atividade.");
+const diaOpcional = opt(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida."));
+
+/**
+ * B2: a linha se cria pela DURAÇÃO (dias úteis), como no MS Project — as datas saem do motor. Antes o
+ * editor pedia início e fim, gravava a diferença em dias CORRIDOS e o motor, que conta dias úteis,
+ * esticava a barra no primeiro reagendamento.
+ */
 const tarefaSchema = z
   .object({
     projetoId: z.string().min(1),
@@ -116,31 +103,28 @@ const tarefaSchema = z
     /** F7.0: fase da linha (catálogo de fases). Vazio = sem fase. */
     etapaId: opt(z.string()),
     nome: z.string().min(1, "Informe o nome."),
-    inicioPrevisto: dia,
-    fimPrevisto: dia,
+    /** Dias ÚTEIS. Ignorada no marco (duração 0 por definição). */
+    duracaoDias: duracao.optional(),
+    /** "Não iniciar antes de" (D34 — o alfinete). Vazio = o motor decide pelas dependências. */
+    naoIniciarAntesDe: diaOpcional,
     progresso: z.number().int().min(0).max(100).default(0),
     marco: z.boolean().default(false),
   })
-  .refine((v) => new Date(v.fimPrevisto) >= new Date(v.inicioPrevisto), {
-    message: "Fim não pode ser antes do início.",
-    path: ["fimPrevisto"],
+  .refine((v) => v.marco || v.duracaoDias != null, {
+    message: "Informe a duração em dias úteis.",
+    path: ["duracaoDias"],
   });
-const editarSchema = z
-  .object({
-    id: z.string().min(1),
-    nome: z.string().min(1, "Informe o nome."),
-    disciplinaId: opt(z.string()),
-    /** F7.0: fase da linha. Ausente = não mexe; vazio = tira a fase. */
-    etapaId: opt(z.string()),
-    inicioPrevisto: dia,
-    fimPrevisto: dia,
-    progresso: z.number().int().min(0).max(100),
-    marco: z.boolean().default(false),
-  })
-  .refine((v) => new Date(v.fimPrevisto) >= new Date(v.inicioPrevisto), {
-    message: "Fim não pode ser antes do início.",
-    path: ["fimPrevisto"],
-  });
+const editarSchema = z.object({
+  id: z.string().min(1),
+  nome: z.string().min(1, "Informe o nome."),
+  disciplinaId: opt(z.string()),
+  /** F7.0: fase da linha. Ausente = não mexe; vazio = tira a fase. */
+  etapaId: opt(z.string()),
+  /** Dias ÚTEIS. Ausente = mantém. Ignorada em agrupamento (deriva dos filhos) e no marco (0). */
+  duracaoDias: duracao.optional(),
+  progresso: z.number().int().min(0).max(100),
+  marco: z.boolean().default(false),
+});
 const idSchema = z.object({ id: z.string().min(1) });
 const projetoIdSchema = z.object({ projetoId: z.string().min(1) });
 const depSchema = z.object({ tarefaId: z.string().min(1), predecessoraId: z.string().min(1) });
@@ -217,13 +201,25 @@ export const gerarTarefaDeEap = defineAction(
 export const criarEapTarefa = defineAction(
   { ...plan, acao: "criar-eap", entidade: "EapTarefa", schema: tarefaSchema },
   async (i, { user }) => {
-    const max = await prisma.eapTarefa.aggregate({
-      where: { projetoId: i.projetoId },
-      _max: { ordem: true },
-    });
+    const [max, cronograma, pai] = await Promise.all([
+      prisma.eapTarefa.aggregate({ where: { projetoId: i.projetoId }, _max: { ordem: true } }),
+      prisma.cronogramaProjeto.findUnique({ where: { projetoId: i.projetoId }, select: { inicioProjeto: true } }),
+      i.parentId
+        ? prisma.eapTarefa.findUnique({ where: { id: i.parentId }, select: { projetoId: true, tipoEap: true } })
+        : Promise.resolve(null),
+    ]);
+    if (i.parentId && (!pai || pai.projetoId !== i.projetoId)) {
+      throw new ActionError("Linha-mãe não encontrada neste projeto.");
+    }
+    if (pai?.tipoEap === "mrc") throw new ActionError("Marco não tem subtarefas — escolha outra linha-mãe.");
     const etapaId = await faseDaLinha(i.projetoId, i.disciplinaId || null, i.etapaId);
     const tipoEap = i.marco ? "mrc" : "atv";
     const [idCorporativo] = await reservarIdsParaLinhas(prisma, [tipoEap]);
+    // Datas provisórias (a coluna é obrigatória): `aposMudarEap`, logo abaixo, reagenda e grava as
+    // datas que o motor calcula a partir da duração, das dependências e do calendário.
+    const provisoria = i.naoIniciarAntesDe
+      ? paraDataUtc(i.naoIniciarAntesDe)
+      : (cronograma?.inicioProjeto ?? inicioDoDiaUtc());
     const t = await prisma.eapTarefa.create({
       data: {
         idCorporativo,
@@ -232,19 +228,20 @@ export const criarEapTarefa = defineAction(
         disciplinaId: i.disciplinaId || null,
         etapaId,
         nome: i.nome,
-        inicioPrevisto: new Date(i.inicioPrevisto),
-        fimPrevisto: i.marco ? new Date(i.inicioPrevisto) : new Date(i.fimPrevisto),
-        progresso: i.progresso,
-        // F0: a natureza da linha é o TEAP; `marco` continua no contrato da UI mas não
-        // existe mais como coluna. Marco tem duração 0 por definição (Doc 03 §11).
+        inicioPrevisto: provisoria,
+        fimPrevisto: provisoria,
+        progresso: i.marco ? 0 : i.progresso,
+        // Marco tem duração 0 por definição (Doc 03 §11).
         tipoEap,
-        duracaoDias: i.marco ? 0 : diasUteisEntre(i.inicioPrevisto, i.fimPrevisto),
+        duracaoDias: i.marco ? 0 : i.duracaoDias!,
+        ...(i.naoIniciarAntesDe
+          ? { restricaoTipo: "iniciar_nao_antes_de" as const, restricaoData: paraDataUtc(i.naoIniciarAntesDe) }
+          : {}),
         ordem: (max._max.ordem ?? -1) + 1,
       },
     });
     // D22: o responsável da disciplina desce para a linha nova.
     await herdarResponsaveisNoProjeto(prisma, i.projetoId, [t.id]);
-    await rollupPai(t.id);
     await aposMudarEap(i.projetoId, user.id);
     revProjeto(i.projetoId);
     return { id: t.id };
@@ -254,8 +251,26 @@ export const criarEapTarefa = defineAction(
 export const editarEapTarefa = defineAction(
   { ...plan, acao: "editar-eap", entidade: "EapTarefa", schema: editarSchema },
   async (i, { user }) => {
-    const antes = await prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { disciplinaId: true, projetoId: true } });
+    const antes = await prisma.eapTarefa.findUnique({
+      where: { id: i.id },
+      select: { disciplinaId: true, projetoId: true, tipoEap: true, duracaoDias: true, _count: { select: { filhas: true } } },
+    });
     if (!antes) throw new ActionError("Tarefa não encontrada.");
+    // B2 (`edicao-linha.ts`): só alterna atividade ↔ marco; agrupamento não grava duração; marco é 0.
+    const regra = regrasDeEdicao(
+      { tipoEap: antes.tipoEap, duracaoDias: Number(antes.duracaoDias), ehResumo: antes._count.filhas > 0 },
+      { marco: i.marco, duracaoDias: i.duracaoDias },
+    );
+    if (!regra.ok) throw new ActionError(regra.motivo);
+    const { tipoEap, duracaoDias } = regra;
+    if (regra.virouMarco) {
+      // Marco não tem dia para espalhar hora: as horas ficariam gravadas e fora de toda
+      // conta — carga, custo e rollup — sem ninguém ver.
+      const comHoras = await prisma.eapAtribuicao.count({ where: { tarefaId: i.id, horasPrevistas: { gt: 0 } } });
+      if (comHoras > 0) {
+        throw new ActionError("Esta linha tem horas previstas. Zere as horas das pessoas antes de transformá-la em marco.");
+      }
+    }
     // Fase: ausente não mexe (quem não manda o campo não apaga a fase de ninguém); trocar de
     // disciplina sem mandar a fase a limpa — a fase de outra disciplina não aponta etapa desta.
     const mudouDisciplina = (antes.disciplinaId ?? null) !== (i.disciplinaId || null);
@@ -265,35 +280,24 @@ export const editarEapTarefa = defineAction(
         : mudouDisciplina
           ? null
           : undefined;
-    if (i.marco) {
-      // Marco não tem dia para espalhar hora: as horas ficariam gravadas e fora de toda
-      // conta — carga, custo e rollup — sem ninguém ver.
-      const comHoras = await prisma.eapAtribuicao.count({ where: { tarefaId: i.id, horasPrevistas: { gt: 0 } } });
-      if (comHoras > 0) {
-        throw new ActionError("Esta linha tem horas previstas. Zere as horas das pessoas antes de transformá-la em marco.");
-      }
-    }
     const t = await prisma.eapTarefa.update({
       where: { id: i.id },
       data: {
         nome: i.nome,
         disciplinaId: i.disciplinaId || null,
         ...(etapaId !== undefined ? { etapaId } : {}),
-        inicioPrevisto: new Date(i.inicioPrevisto),
-        fimPrevisto: i.marco ? new Date(i.inicioPrevisto) : new Date(i.fimPrevisto),
         progresso: i.progresso,
-        tipoEap: i.marco ? "mrc" : "atv",
-        duracaoDias: i.marco ? 0 : diasUteisEntre(i.inicioPrevisto, i.fimPrevisto),
+        tipoEap,
+        ...(duracaoDias !== undefined ? { duracaoDias } : {}),
       },
       select: { projetoId: true },
     });
     // Linha que MUDOU de disciplina e está sem ninguém recebe o responsável da nova (D22).
     // Só na mudança: herdar a cada edição devolveria as pessoas a uma linha que o
     // coordenador esvaziou de propósito — bastaria renomeá-la.
-    if ((antes?.disciplinaId ?? null) !== (i.disciplinaId || null)) {
+    if (mudouDisciplina) {
       await herdarResponsaveisNoProjeto(prisma, t.projetoId, [i.id]);
     }
-    await rollupPai(i.id);
     await aposMudarEap(t.projetoId, user.id);
     revProjeto(t.projetoId);
     return { id: i.id };
@@ -303,16 +307,10 @@ export const editarEapTarefa = defineAction(
 export const excluirEapTarefa = defineAction(
   { ...plan, acao: "excluir-eap", entidade: "EapTarefa", schema: idSchema },
   async (i, { user }) => {
-    // Capture parentId before deletion so we can roll up afterward.
-    const pre = await prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { parentId: true, projetoId: true } });
+    const pre = await prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { projetoId: true } });
     await prisma.eapTarefa.delete({ where: { id: i.id } });
-    // Roll up from a sibling to update parent summary (pass parentId itself as anchor).
-    if (pre?.parentId) {
-      const sibling = await prisma.eapTarefa.findFirst({ where: { parentId: pre.parentId }, select: { id: true } });
-      if (sibling) await rollupPai(sibling.id);
-    }
-    // Sucessoras podem ter andado: o prazo dos cards delas acompanha. (O card da linha
-    // excluída fica — nunca se apaga card.)
+    // Reagenda: sucessoras podem andar e o agrupamento-pai se refaz; o prazo dos cards acompanha.
+    // (O card da linha excluída fica — nunca se apaga card.)
     if (pre) await aposMudarEap(pre.projetoId, user.id);
     revProjeto(pre!.projetoId);
     return { id: i.id };
@@ -385,7 +383,7 @@ export const aplicarAoProjeto = defineAction(
 export const gerarEapDasDisciplinas = defineAction(
   { ...plan, acao: "gerar-eap-disciplinas", entidade: "EapTarefa", schema: projetoIdSchema },
   async (i, { user }) => {
-    const [disciplinas, existentes, projeto, maxOrdem] = await Promise.all([
+    const [disciplinas, existentes, projeto, maxOrdem, cronograma] = await Promise.all([
       prisma.disciplina.findMany({
         where: { projetoId: i.projetoId },
         orderBy: { ordem: "asc" },
@@ -397,36 +395,43 @@ export const gerarEapDasDisciplinas = defineAction(
       }),
       prisma.projeto.findUnique({ where: { id: i.projetoId }, select: { prazoPlanejado: true } }),
       prisma.eapTarefa.aggregate({ where: { projetoId: i.projetoId }, _max: { ordem: true } }),
+      prisma.cronogramaProjeto.findUnique({ where: { projetoId: i.projetoId }, select: { inicioProjeto: true } }),
     ]);
     const jaComEap = new Set(existentes.map((e) => e.disciplinaId));
     const novas = disciplinas.filter((d) => !jaComEap.has(d.id));
     if (novas.length === 0) throw new ActionError("Todas as disciplinas já têm tarefa na EAP.");
 
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    // A linha nasce na âncora do cronograma (ou hoje) e DURA os dias úteis até o prazo da disciplina
+    // — é o que a põe terminando no prazo quando o motor a agenda. Antes nascia sem duração (1 dia) e
+    // o primeiro reagendamento a encolhia para um dia só.
+    const ancora = paraDia(cronograma?.inicioProjeto ?? inicioDoDiaUtc());
+    const prazoProjeto = projeto?.prazoPlanejado ? paraDia(projeto.prazoPlanejado) : null;
+    const fimDe = (prazo: Date | null) => {
+      const p = prazo ? paraDia(prazo) : null;
+      if (p && p > ancora) return p;
+      if (prazoProjeto && prazoProjeto > ancora) return prazoProjeto;
+      return paraDia(addDays(paraDataUtc(ancora), 14));
+    };
+    const fins = novas.map((d) => fimDe(d.prazo));
+    const cal = await montarCalendario([ancora, ...fins].map((d) => Number(d.slice(0, 4))));
     let ordem = (maxOrdem._max.ordem ?? -1) + 1;
     const idsCorporativos = await reservarIdsParaLinhas(prisma, novas.map(() => "atv" as const));
     const criadas = await prisma.$transaction(
-      novas.map((d, k) => {
-        const fim =
-          d.prazo && d.prazo > hoje
-            ? d.prazo
-            : projeto?.prazoPlanejado && projeto.prazoPlanejado > hoje
-              ? projeto.prazoPlanejado
-              : addDays(hoje, 14);
-        return prisma.eapTarefa.create({
+      novas.map((d, k) =>
+        prisma.eapTarefa.create({
           data: {
             idCorporativo: idsCorporativos[k],
             projetoId: i.projetoId,
             disciplinaId: d.id,
             nome: d.disciplinaTextoLegado,
-            inicioPrevisto: hoje,
-            fimPrevisto: fim,
+            inicioPrevisto: paraDataUtc(ancora),
+            fimPrevisto: paraDataUtc(fins[k]),
+            duracaoDias: Math.max(1, diasUteisEntre(ancora, fins[k], cal)),
             ordem: ordem++,
           },
           select: { id: true },
-        });
-      }),
+        }),
+      ),
     );
     await herdarResponsaveisNoProjeto(prisma, i.projetoId, criadas.map((c) => c.id));
     await aposMudarEap(i.projetoId, user.id);
@@ -448,8 +453,7 @@ export const reagendarPlano = defineAction(
     const total = await prisma.eapTarefa.count({ where: { projetoId: i.projetoId } });
     if (total === 0) throw new ActionError("Sem tarefas para reagendar.");
 
-    const r = await reagendarProjeto(i.projetoId, ctx.user.id);
-    await aposMudarEap(i.projetoId, ctx.user.id);
+    const r = await aposMudarEap(i.projetoId, ctx.user.id);
     if (r.reagendadas > 0 || r.codigosAtualizados > 0) revProjeto(i.projetoId);
     return r;
   },
@@ -472,8 +476,7 @@ export const definirInicioProjeto = defineAction(
       create: { projetoId: i.projetoId, inicioProjeto: new Date(`${i.inicio}T00:00:00.000Z`) },
       update: { inicioProjeto: new Date(`${i.inicio}T00:00:00.000Z`) },
     });
-    const r = await reagendarProjeto(i.projetoId, user.id);
-    await aposMudarEap(i.projetoId, user.id);
+    const r = await aposMudarEap(i.projetoId, user.id);
     revProjeto(i.projetoId);
     return r;
   },
@@ -895,7 +898,7 @@ export const registrarExecucao = defineAction(
       fimReal: i.fimReal,
       hoje: paraDia(inicioDoDiaUtc()),
     });
-    await rollupPai(i.id);
+    await aposMudarEap(projetoId, user.id);
 
     // Fase pronta para aprovar: avisa quem aprova (mesma audiência da "aprovação solicitada").
     // Quem registrou pode nem ter a permissão — o aviso é o que leva o marco até a aprovação.

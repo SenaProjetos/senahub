@@ -135,8 +135,10 @@ function mapearTarefaDTO(
     progresso: agendada?.progresso ?? t.progresso,
     /** Linha-resumo: o % é calculado dos filhos e não se digita (Doc 03 §23). */
     progressoDerivado: agendada?.ehResumo ?? false,
-    inicioPrevisto: iso(t.inicioPrevisto),
-    fimPrevisto: iso(t.fimPrevisto),
+    // Datas do MOTOR (B2): a tela nunca mostra uma data gravada que ficou para trás. O banco é
+    // reagendado a cada mudança, mas feriado cadastrado depois também move o calendário.
+    inicioPrevisto: agendada?.inicio ?? iso(t.inicioPrevisto),
+    fimPrevisto: agendada?.fim ?? iso(t.fimPrevisto),
     inicioBaseline: t.inicioBaseline ? iso(t.inicioBaseline) : null,
     fimBaseline: t.fimBaseline ? iso(t.fimBaseline) : null,
     disciplinaId: t.disciplinaId,

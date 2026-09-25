@@ -172,7 +172,12 @@ export type ResumoReagendamento = {
 };
 
 /**
- * Roda o motor e GRAVA as datas, o código da EAP e o histórico de quem mudou de posição.
+ * Roda o motor e GRAVA as datas, o código da EAP, o avanço dos agrupamentos e o histórico de quem
+ * mudou de posição. Toda mudança na EAP passa por aqui (B2 — `aposMudarEap`).
+ *
+ * O avanço gravado do agrupamento é o do motor (ponderado por horas, D26): quem lê a coluna direto
+ * (a exportação para Excel) vê o mesmo número da tela. Antes um rollup à parte gravava a MÉDIA
+ * simples dos filhos, que contradizia o motor.
  *
  * Não-destrutivo: só escreve a linha que realmente mudou. Isso mantém `updatedAt` honesto
  * (quem não mexeu não aparece como mexido) e deixa o log de auditoria legível.
@@ -194,7 +199,7 @@ export async function reagendarProjeto(
 
   const atuais = await prisma.eapTarefa.findMany({
     where: { projetoId },
-    select: { id: true, inicioPrevisto: true, fimPrevisto: true, codigoEap: true, ordem: true, parentId: true },
+    select: { id: true, inicioPrevisto: true, fimPrevisto: true, codigoEap: true, ordem: true, parentId: true, progresso: true },
   });
 
   const codigos = calcularCodigos(
@@ -206,7 +211,7 @@ export async function reagendarProjeto(
   );
   const codigoPorId = new Map(codigos.map((c) => [c.id, c.codigo]));
 
-  const escritas: { id: string; inicio?: Date; fim?: Date; codigo?: string }[] = [];
+  const escritas: { id: string; inicio?: Date; fim?: Date; codigo?: string; progresso?: number }[] = [];
   for (const t of atuais) {
     const agendada = plano.resultado.linhas.get(t.id);
     if (!agendada) continue;
@@ -214,13 +219,15 @@ export async function reagendarProjeto(
       paraDia(t.inicioPrevisto) !== agendada.inicio || paraDia(t.fimPrevisto) !== agendada.fim;
     const codigoNovo = codigoPorId.get(t.id);
     const mudouCodigo = codigoNovo != null && codigoNovo !== t.codigoEap;
-    if (!mudouData && !mudouCodigo) continue;
+    const mudouAvanco = agendada.ehResumo && agendada.progresso !== t.progresso;
+    if (!mudouData && !mudouCodigo && !mudouAvanco) continue;
     escritas.push({
       id: t.id,
       ...(mudouData
         ? { inicio: paraDataUtc(agendada.inicio), fim: paraDataUtc(agendada.fim) }
         : {}),
       ...(mudouCodigo ? { codigo: codigoNovo } : {}),
+      ...(mudouAvanco ? { progresso: agendada.progresso } : {}),
     });
   }
 
@@ -232,6 +239,7 @@ export async function reagendarProjeto(
           data: {
             ...(e.inicio ? { inicioPrevisto: e.inicio, fimPrevisto: e.fim } : {}),
             ...(e.codigo ? { codigoEap: e.codigo } : {}),
+            ...(e.progresso != null ? { progresso: e.progresso } : {}),
           },
         }),
       ),

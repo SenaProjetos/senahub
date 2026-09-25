@@ -159,8 +159,9 @@ a receber quando você **fatura** a parcela.
 contrato — é o que a converte. Se a cobrança já foi lançada à mão, fature a parcela e ajuste/cancele o
 lançamento duplicado.
 
-**O marco andou e a previsão não mudou.** O cronograma precisa estar **aprovado** e **reagendado**;
-a previsão acompanha a data que o cronograma calcula.
+**O marco andou e a previsão não mudou.** O cronograma precisa estar **aprovado**; a previsão
+acompanha a data que o cronograma calcula a cada mudança. Se foi um feriado novo que moveu o marco,
+clique em **Reagendar** no cronograma.
 
 **Não consigo Gerar parcelas na aba Financeiro do projeto.** O projeto tem contrato **por entrega** em
 vigor: a cobrança vem do contrato. Rescinda o contrato, ou use o diálogo **Pagamento** dele.

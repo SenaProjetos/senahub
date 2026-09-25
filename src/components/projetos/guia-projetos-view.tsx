@@ -333,8 +333,8 @@ export function GuiaProjetosView() {
       >
         <p>
           Em <strong>Planejamento</strong> o projeto é quebrado em tarefas numeradas em árvore — a{" "}
-          <strong>EAP</strong>. Cada tarefa recebe início e fim previstos, e você liga umas às outras
-          dizendo o que precisa terminar antes do que. Com isso o sistema calcula sozinho a{" "}
+          <strong>EAP</strong>. Cada tarefa recebe uma duração em dias úteis, e você liga umas às outras
+          dizendo o que precisa terminar antes do que — as datas o sistema calcula. Com isso o sistema calcula sozinho a{" "}
           <strong>folga</strong> de cada tarefa e destaca o <strong>caminho crítico</strong>.
         </p>
         <Acao
@@ -363,9 +363,8 @@ export function GuiaProjetosView() {
         </div>
         <Dica>
           O cálculo trabalha em <strong>dias úteis</strong> — segunda a sexta, sem os feriados
-          cadastrados — e entende os quatro tipos de dependência, com atraso. Depois de mudar uma
-          duração ou uma dependência, clique em <strong>Reagendar</strong> para as datas se
-          atualizarem.
+          cadastrados — e entende os quatro tipos de dependência, com atraso. Salvar uma tarefa já
+          recalcula o cronograma inteiro.
         </Dica>
         <div className="flex flex-wrap gap-2">
           <Atalho href="/planejamento">Abrir Planejamento</Atalho>

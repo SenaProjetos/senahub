@@ -73,7 +73,8 @@
         "copiar eap",
         "parcelas a faturar",
         "fases a aprovar",
-        "heatmap de recursos"
+        "heatmap de recursos",
+        "duração em dias úteis"
       ],
       "palavrasChave": [
         "novidades",

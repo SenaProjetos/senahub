@@ -73,15 +73,10 @@ da empresa fica reunido, mas cada obra segue em seu próprio lead e em sua próp
 
 ## Projetos, cronograma e pagamento
 
-**Mudei a duração ou uma dependência e as datas não mudaram.**
-As datas exibidas só se atualizam quando você clica em **Reagendar** (ou ao definir o início do
-projeto). A folga e o caminho crítico aparecem sempre calculados na hora. Veja
-[Planejamento](projetos/planejamento.md).
-
-**Uma tarefa terminou depois do dia que eu digitei.**
-O cronograma conta **dias úteis** (segunda a sexta, sem os feriados cadastrados). Uma tarefa que
-atravessa fim de semana ou feriado pode terminar **depois** do fim que você digitou. Confira a coluna
-**Duração** e leia a nota "Atenção (versão atual)" em [Planejamento](projetos/planejamento.md).
+**Onde digito o início e o fim de uma tarefa do cronograma?**
+Não se digita: como no MS Project, você informa a **duração em dias úteis** e as **dependências**, e
+o sistema calcula as datas — pulando fins de semana e feriados — a cada vez que você salva. Para
+prender uma tarefa numa data, use **Restrição de data**. Veja [Planejamento](projetos/planejamento.md).
 
 **O que muda depois que aprovo o cronograma?**
 A aprovação congela a **linha de base** (BL-00) — o combinado —, e ela nunca é alterada. Ajustes de plano

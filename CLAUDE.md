@@ -194,6 +194,10 @@ Spec + 42 decisions: `docs/superpowers/specs/2026-09-23-planejamento-motor-crono
 - Every EAP mutation calls `aposMudarEap` (card sync D24/D32 + receivable forecasts). `custo.ts`: hours ×
   `Recurso.custoHora`, unknown never becomes zero, only for `podeVerFinanceiro`, frozen in the baseline (VP of F8).
 - WBS codes and desvio/baseline exported to Excel via `GET /api/planejamento/[id]/eap-export`.
+- **Every EAP mutation reschedules** (`aposMudarEap` in `planejamento/actions.ts` → `reagendarProjeto`, then card
+  and receivable sync): durations are WORKING days typed in the editor (`edicao-linha.ts` rules), dates are the motor's
+  and the DTO shows the motor's. `scripts/converter-duracao-eap.ts --gravar` must run once on deploy (F0 stored
+  calendar-day durations).
 - **Every new EAP row needs its permanent `idCorporativo`** (`id-corporativo.ts` → `reservarIdsParaLinhas`, atomic
   counter `EapSequencia`, one prefix per `tipoEap`): `criarEapTarefa`, `gerarEapDasDisciplinas` and
   `duplicarProjetoNoBanco` do it; a bare `prisma.eapTarefa.create` leaves the identity null and

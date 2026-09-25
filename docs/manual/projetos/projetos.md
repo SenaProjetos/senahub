@@ -114,7 +114,7 @@ Cada disciplina passa por um ciclo de status:
     descem para as linhas.
   - O **cronograma novo nasce em rascunho**. Informe o **início do cronograma novo** (opcional) e o
     sistema calcula as datas a partir dele; sem data, elas partem das do projeto original — defina o
-    início depois, em [Planejamento](planejamento.md), e clique em **Reagendar**.
+    início depois, em [Planejamento](planejamento.md) — as datas se recalculam ao salvar.
 - **Cancelar / Arquivar:** muda a situação e notifica os membros; o motivo é registrado
   na descrição.
 - **Reabrir disciplina aprovada:** exige **motivo** e **novo prazo**. Se o novo prazo

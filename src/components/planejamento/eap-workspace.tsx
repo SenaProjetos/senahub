@@ -295,7 +295,13 @@ export function EapWorkspace({
                   <ListTree className="size-3.5" /> Gerar EAP das disciplinas
                 </Button>
               )}
-              <Button size="sm" variant="outline" onClick={reagendar} disabled={pending || tarefas.length === 0}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={reagendar}
+                disabled={pending || tarefas.length === 0}
+                title="Salvar já recalcula as datas. Use depois de mudar os feriados ou para conferir."
+              >
                 <CalendarClock className="size-3.5" /> Reagendar
               </Button>
               <Button
