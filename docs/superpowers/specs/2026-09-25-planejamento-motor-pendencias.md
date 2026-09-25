@@ -68,6 +68,36 @@ https://claude.ai/artifact/KB33zeaVCGFkAwYtQcHobG (privada: o dono compartilha c
 **Colaborador**). As respostas ficam no banco da página: coleção `respostas` (um documento por pessoa,
 `itens.<id-da-decisão>` = `{escolha, comentario, em}`) e `final/decisoes` (decisão final, só quem edita).
 
+### Respostas do time (2026-09-25)
+
+Os 19 itens **DECIDIR** abaixo foram respondidos (consenso da equipe, registrado pelo dono na página). O
+texto de cada item continua adiante como histórico; o que vale é esta tabela.
+
+| # | Decisão | Resposta | Estado |
+| --- | --- | --- | --- |
+| 1 | Etapa de terceiro | pelo **recurso atribuído**, com um recurso **"Externo"** sempre disponível (não mais pela origem) | pendente — schema (Opus) |
+| 2 | Meio período | o % é da **capacidade da própria pessoa** | feito (`4ec610f3`) |
+| 3 | Quem vê o Planejamento | mantém a **estrutura, sem datas** | feito (`fa9109ad`) |
+| 4 | Heatmap | manter + **seletor de período** (1, 4, 12 semanas, meses) | feito (`610fbbd1`) |
+| 5 | Modelos de EAP + Tipo de empreendimento | **prioridade alta**; a partir de arquivo do MS Project (XML) | pendente — schema (Opus) |
+| 6 | Datas fixas ao duplicar | manter (não copia) | — |
+| 7 | Linhas antigas sem fase | projetos já criados **não terão EAP nem faseamento** — L5 cancelado | — |
+| 8 | Marco da fase concluído | **marca a fase como Entregue** (aprovar/pagar segue manual) | feito (`76d912be`) |
+| 9 | Fase de disciplina só de CLT | **liberada com R$ 0**; o % passa para as outras fases | pendente — dinheiro (Opus) |
+| 10 | Onde aprovar a fase | **botão também no card da disciplina** | feito (`05cfa313`) |
+| 11 | Parcela "na assinatura" | manter (nasce previsão) | — |
+| 12 | Cobrança lançada à mão | **casar automaticamente** com a previsão | pendente — dinheiro (Opus) |
+| 13 | Previsão no resultado | **incluir** no resultado previsto e no indicador | feito (`f44fcbbf`) |
+| 14 | Cobrança pelo projeto (contrato por data) | manter (só avisa) | — |
+| 15 | Custo/hora em Recursos | **esconder**; só edita quem gere o financeiro | feito (`00b942c6`, L7) |
+| 16 | Custo real no Valor Agregado | **somar** os pagamentos liberados ao PJ | pendente — dinheiro (Opus) |
+| 17 | % concluído no VA | **histórico** do percentual a cada atualização | pendente — schema (Opus) |
+| 18 | % sem data real | manter (como o Project) | — |
+| 19 | Apurar reprograma | manter automático | — |
+
+Diretriz nova do dono (2026-09-25): a tela do planejamento deve ficar **o mais parecida possível com o MS Project**,
+para facilitar a adoção — isto reverte o princípio "sem a interface de planilha" do §1 do spec.
+
 ### Cronograma — realizado (L1, 2026-09-25)
 - **DECIDIR — % sem data real** segue o MS Project: > 0% conta como iniciada no início calculado; 100% como
   concluída nas datas calculadas. Alternativa: exigir a data real (sem início real = não iniciada).
@@ -350,7 +380,7 @@ suíte 4293 testes · lint · tsc · build — todos verdes.
 | L2 ✅ | Faturar só pelo Jurídico | Lista "Parcelas a faturar" em Contas a receber (`financeiro:gerir`): cliente, contrato, parcela, valor, data do marco, marco concluído?, botão Faturar (mesma action); a notificação aponta para lá | Sonnet · baixo |
 | L3 ✅ | "Aprovar fase" só no diálogo Etapas | Seção "Fases a aprovar" em /aprovacoes e botão no card da disciplina para `aprovacoes:disciplina` | Sonnet · baixo |
 | L4 ✅ | "Atualizar tarefa" × editor da EAP com permissões diferentes | Migration dando `cronograma:executado` a quem tem `planejamento:gerir` (mesmo molde da F2.6) — ou ajuste manual em Perfis | Sonnet · mínimo |
-| L5 ✖ | Linhas antigas sem fase | Script em modo simulação sugere a fase pelo nome/pai da linha e pela etapa única da disciplina; relatório para revisão; `--gravar` depois | Sonnet · baixo |
+| L5 ✖ cancelado (#7) | Linhas antigas sem fase | Script em modo simulação sugere a fase pelo nome/pai da linha e pela etapa única da disciplina; relatório para revisão; `--gravar` depois | Sonnet · baixo |
 | L6 ✅ | Parcelas manuais + previsão do contrato somando | "Gerar parcelas" do projeto recusa quando há contrato assinado com cobrança ("use o contrato") | Sonnet · mínimo |
 | L7 ✅ | Custo/hora visível em /recursos sem acesso ao financeiro | Mascarar `custoHora` na matriz e só editar com `financeiro:gerir` (mesma regra da EAP) | Sonnet · mínimo |
 | L8 | Baseline antiga sem custo | Produção não tem cronograma aprovado — nada a fazer; no dev, replanejar | — |
