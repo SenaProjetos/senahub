@@ -23,7 +23,7 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   // Desabilita features de browser que o ERP não usa. Microfone fica liberado
   // para o próprio site (self) — usado no áudio do chat (MediaRecorder).
-  { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=(), payment=()" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(self), payment=()" },
 ];
 
 const visualInspectorLoader = fileURLToPath(new URL("./dev/visual-inspector-loader.cjs", import.meta.url));
