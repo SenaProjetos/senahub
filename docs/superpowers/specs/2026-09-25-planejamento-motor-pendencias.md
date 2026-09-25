@@ -211,3 +211,33 @@ Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
 `smoke:recursos-eap` 52 · `smoke:ponto-tarefa` 24 · `smoke:pagamento-fase` 31 ·
 `smoke:previsao-recebimento` 22 · `smoke:sync-pagamento` 19 · `verify:motor-cronograma` ok ·
 suíte 4293 testes · lint · tsc · build — todos verdes.
+
+---
+
+## 7. Plano de correção (proposto em 2026-09-25, não iniciado)
+
+### Bugs
+| # | Problema | Correção proposta | Modelo · risco |
+|---|---|---|---|
+| B1 | "Faturar entrega" (N-26) cobra do cliente o `Disciplina.valor` (pool dos PJ) | O diálogo passa a pedir o valor, pré-preenchido pelo item da proposta de origem da mesma disciplina (`PropostaItem` via catálogo) — nunca `Disciplina.valor`. Projeto com contrato "por entrega" esconde o botão (o contrato manda na cobrança) | Sonnet high · médio (dinheiro): teste + smoke |
+| B2 | Editar linha da EAP: força tipo atv/mrc; **duração salva em dias CORRIDOS** (helper provisório da F0 que ficou em `planejamento/actions.ts`) e o motor agenda em dias ÚTEIS — a barra estica ao salvar; as datas digitadas ficam gravadas até alguém reagendar | Tipo só alterna atividade↔marco (os outros tipos ficam, e o "Marco" some para eles); agrupamento não recebe duração; o editor passa a editar **duração (dias úteis) + "não iniciar antes de"** (alfinete, D34), como o Project, e salvar reagenda. Remover o helper provisório | Opus xhigh (regra) + Sonnet (tela) · alto e silencioso: testes + `verify:motor-cronograma` |
+| B3 | Duplicar projeto copia a EAP sem tipo, duração, restrição, classificadores | Copiar tipo, duração, restrição, fase/origem/TAT, tipo e lag das dependências; ID corporativo NOVO (D29); %, status e datas reais zerados; cronograma novo em rascunho, datas pelo motor a partir do início pedido (D10) | Sonnet · baixo |
+| B4 | `Promise.all` dentro de transação (`comercial/service.ts`) | `await` em sequência + teste-guarda que varre `src/` por `Promise.all([` com `tx.` dentro | Sonnet · mínimo |
+
+### Limitações
+| # | Limitação | Solução proposta | Modelo · risco |
+|---|---|---|---|
+| L1 | Datas reais não movem o cronograma (D6) | Motor lê datas reais: concluída fica nas datas reais; iniciada começa no início real e o restante (duração × (1 − %)) vai para depois da Data de Status — o "Reprogramar trabalho não concluído" do Project; sucessoras empurradas; baseline intocada. Destrava o ritmo observado (D21) e a previsão de término de prazo no Valor Agregado. Fazer JUNTO com B2 | Opus xhigh · alto: bateria de testes + verify |
+| L2 | Faturar só pelo Jurídico | Lista "Parcelas a faturar" em Contas a receber (`financeiro:gerir`): cliente, contrato, parcela, valor, data do marco, marco concluído?, botão Faturar (mesma action); a notificação aponta para lá | Sonnet · baixo |
+| L3 | "Aprovar fase" só no diálogo Etapas | Seção "Fases a aprovar" em /aprovacoes e botão no card da disciplina para `aprovacoes:disciplina` | Sonnet · baixo |
+| L4 | "Atualizar tarefa" × editor da EAP com permissões diferentes | Migration dando `cronograma:executado` a quem tem `planejamento:gerir` (mesmo molde da F2.6) — ou ajuste manual em Perfis | Sonnet · mínimo |
+| L5 | Linhas antigas sem fase | Script em modo simulação sugere a fase pelo nome/pai da linha e pela etapa única da disciplina; relatório para revisão; `--gravar` depois | Sonnet · baixo |
+| L6 | Parcelas manuais + previsão do contrato somando | "Gerar parcelas" do projeto recusa quando há contrato assinado com cobrança ("use o contrato") | Sonnet · mínimo |
+| L7 | Custo/hora visível em /recursos sem acesso ao financeiro | Mascarar `custoHora` na matriz e só editar com `financeiro:gerir` (mesma regra da EAP) | Sonnet · mínimo |
+| L8 | Baseline antiga sem custo | Produção não tem cronograma aprovado — nada a fazer; no dev, replanejar | — |
+| L9 | Heatmap da matriz só com alocação digitada | Heatmap passa a ler a carga calculada dos projetos aprovados | Sonnet · baixo |
+| L10 | Tarefa de troca no meio do dia perdida na edição do dia | Gravar a tarefa da troca num registro próprio. Valor baixo — sugestão: deixar | — |
+
+**Ordem sugerida:** F9 (manual) → B4, L6, L7, L4 (mínimos, um lote) → B3, B1, L2, L3 → B2 + L1 juntos (Opus
+xhigh) → L5 depois da validação do time → L9. As DECIDIR do §2 entram quando o time responder — cada uma
+está isolada numa regra pura testada.
