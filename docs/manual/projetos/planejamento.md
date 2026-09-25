@@ -219,6 +219,19 @@ linhas, numa área de rolagem só (a tabela fica presa à esquerda e o cabeçalh
     linha. Aceita as siglas do Project em português (**TI, II, TT, IT**) e em inglês (**FS, SS, FF, SF**).
     O atraso é em dias úteis. O sistema recusa vínculo que criaria ciclo, mesmo que o texto esteja certo.
   - Cada gravação recalcula o cronograma; várias em sequência entram na fila e são gravadas uma de cada vez.
+- **Menu da linha** (botão direito, ou o botão **⋯** da coluna Ações): **Informações da tarefa** (a janela
+  completa), **Inserir tarefa acima**, **Recuar**, **Avançar**, **Atualizar tarefa (datas reais)**, **Gerar
+  tarefa no kanban** e **Excluir tarefa**. Os mesmos comandos têm atalho, com a linha selecionada: **Insert**
+  (inserir acima), **Delete** (excluir), **Alt+Shift+→** (recuar) e **Alt+Shift+←** (avançar).
+  - **Inserir acima** cria uma tarefa de 1 dia, no mesmo nível, na disciplina da linha; o nome já abre para
+    você digitar.
+  - **Recuar** faz a tarefa virar a **última subtarefa** da que está logo acima dela, no mesmo nível (a de
+    cima vira um agrupamento; se ela tinha pessoas atribuídas, o sistema avisa que as horas delas deixam
+    de contar). Não recua a primeira tarefa do nível nem sob um marco.
+  - **Avançar** sobe a tarefa um nível, logo depois do agrupamento onde estava. Como no Project, as tarefas
+    que vinham **depois dela** naquele nível passam a ser **subtarefas dela** — é o que a mantém no mesmo
+    lugar da tela.
+  - **Excluir** pede confirmação e diz quantas subtarefas vão junto; os cards já gerados ficam no quadro.
 - **Tabela compacta / completa:** a tabela abre compacta (sem Disciplina, Recursos e Custo) para dar
   espaço ao gráfico; **Tabela completa** mostra todas as colunas, inclusive o **Custo** (só quem vê o
   financeiro). **✓** marca a linha concluída.

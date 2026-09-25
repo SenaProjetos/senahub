@@ -34,6 +34,7 @@ import { gravarApuracaoValorAgregado } from "@/modules/planejamento/valor-agrega
 import { reservarIdsParaLinhas } from "@/modules/planejamento/id-corporativo";
 import { regrasDeEdicao } from "@/modules/planejamento/edicao-linha";
 import { trocarPredecessoras } from "@/modules/planejamento/dependencias-service";
+import { avancarLinha, inserirLinhaAcima, recuarLinha } from "@/modules/planejamento/arvore-service";
 
 const plan = { modulo: "planejamento", recurso: "planejamento", permissao: "gerir" } as const;
 const rec = { modulo: "recursos", recurso: "recursos", permissao: "gerir" } as const;
@@ -303,6 +304,52 @@ export const editarEapTarefa = defineAction(
     await aposMudarEap(t.projetoId, user.id);
     revProjeto(t.projetoId);
     return { id: i.id };
+  },
+);
+
+/**
+ * Estrutura da árvore como no Project: inserir acima, recuar (vira subtarefa da de cima) e avançar (sobe um nível).
+ * Regras em `arvore-eap.ts`; cada uma reagenda o projeto UMA vez.
+ */
+export const inserirEapTarefaAcima = defineAction(
+  { ...plan, acao: "inserir-eap-acima", entidade: "EapTarefa", schema: idSchema },
+  async (i, { user }) => {
+    const r = await inserirLinhaAcima(i.id);
+    await aposMudarEap(r.projetoId, user.id);
+    revProjeto(r.projetoId);
+    return { id: r.novaId };
+  },
+);
+
+export const recuarEapTarefa = defineAction(
+  {
+    ...plan,
+    acao: "recuar-eap",
+    entidade: "EapTarefa",
+    schema: idSchema,
+    capturarAntes: (i) => prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { parentId: true, ordem: true } }),
+  },
+  async (i, { user }) => {
+    const r = await recuarLinha(i.id);
+    await aposMudarEap(r.projetoId, user.id);
+    revProjeto(r.projetoId);
+    return { paiVirouAgrupamentoComGente: r.paiVirouAgrupamentoComGente };
+  },
+);
+
+export const avancarEapTarefa = defineAction(
+  {
+    ...plan,
+    acao: "avancar-eap",
+    entidade: "EapTarefa",
+    schema: idSchema,
+    capturarAntes: (i) => prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { parentId: true, ordem: true } }),
+  },
+  async (i, { user }) => {
+    const r = await avancarLinha(i.id);
+    await aposMudarEap(r.projetoId, user.id);
+    revProjeto(r.projetoId);
+    return { ok: true };
   },
 );
 

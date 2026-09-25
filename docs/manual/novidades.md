@@ -37,6 +37,9 @@ nas mesmas linhas.
 - **Edição direto na tabela:** nome, duração, % concluído e predecessoras (`3TI+2d`) se editam na própria
   célula — Enter grava e desce, Tab vai para a próxima, Esc desiste. Duração `0` vira marco. Duplo clique na
   linha abre a janela completa.
+- **Menu da linha:** botão direito (ou **⋯**) para **inserir tarefa acima**, **recuar** e **avançar** níveis
+  (a tarefa vira subtarefa ou sobe um nível, como no Project), atualizar datas reais, gerar o card e excluir.
+  Atalhos: Insert, Delete, Alt+Shift+→ e Alt+Shift+←.
 
 ---
 

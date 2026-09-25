@@ -10,7 +10,6 @@ import {
   CheckCheck,
   ArrowLeft,
   Rocket,
-  ListPlus,
   ListTree,
   CalendarClock,
   Download,
@@ -20,11 +19,15 @@ import {
 } from "lucide-react";
 import {
   aplicarAoProjeto,
+  avancarEapTarefa,
   definirPredecessorasDaLinha,
   editarEapTarefa,
+  excluirEapTarefa,
   gerarTarefaDeEap,
   gerarEapDasDisciplinas,
+  inserirEapTarefaAcima,
   reagendarPlano,
+  recuarEapTarefa,
 } from "@/modules/planejamento/actions";
 import { herdarResponsaveisDaDisciplina } from "@/modules/planejamento/recursos-actions";
 import type { EapTarefaDTO, cronogramaProjetoInfo } from "@/modules/planejamento/queries";
@@ -36,6 +39,18 @@ import { somarDias } from "@/lib/dias-iso";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { Vinculo } from "@/modules/planejamento/gantt-linhas";
+import {
+  ACAO_ABRIR,
+  ACAO_ATUALIZAR,
+  ACAO_AVANCAR,
+  ACAO_EXCLUIR,
+  ACAO_GERAR_CARD,
+  ACAO_INSERIR_ACIMA,
+  ACAO_RECUAR,
+  itensDeLinhaEap,
+} from "@/modules/planejamento/acoes-eap";
+import type { AcaoItemAcao } from "@/components/ui/acoes";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { PlanoGantt, type EdicaoDeCampo, type ModoGantt } from "@/components/planejamento/plano-gantt";
 import { EapDialog } from "@/components/planejamento/eap-dialog";
 import { ExecucaoDialog } from "@/components/planejamento/execucao-dialog";
@@ -101,6 +116,9 @@ export function EapWorkspace({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [modo, setModo] = useState<ModoGantt>("planejamento");
+  const confirm = useConfirm();
+  /** Linha recém-inserida: o nome dela abre em edição assim que chega na tabela. */
+  const [novaLinhaId, setNovaLinhaId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<{ open: boolean; tarefa: EapTarefaDTO | null }>({
     open: false,
     tarefa: null,
@@ -225,6 +243,67 @@ export function EapWorkspace({
       router.refresh();
       return null;
     });
+  }
+
+  /**
+   * O que cada item do menu da linha faz (o descritor é `itensDeLinhaEap`). O `confirm` vem ANTES de qualquer
+   * gravação — e nenhuma passa por `startTransition`: confirm dentro de transição trava o React 19.
+   */
+  async function aoAcao(t: EapTarefaDTO, item: AcaoItemAcao) {
+    if (item.confirmar) {
+      const ok = await confirm({
+        title: item.confirmar.titulo,
+        description: item.confirmar.descricao,
+        confirmLabel: item.confirmar.rotuloConfirmar ?? "Confirmar",
+      });
+      if (!ok) return;
+    }
+    switch (item.id) {
+      case ACAO_ABRIR:
+        abrir(t);
+        return;
+      case ACAO_ATUALIZAR:
+        setExecucao(t);
+        return;
+      case ACAO_GERAR_CARD:
+        gerarTarefa(t.id);
+        return;
+      case ACAO_INSERIR_ACIMA:
+        await naFila(async () => {
+          const r = await inserirEapTarefaAcima({ id: t.id });
+          if (!r.ok) return void toast.error(r.error);
+          setNovaLinhaId(r.data.id);
+          router.refresh();
+        });
+        return;
+      case ACAO_RECUAR:
+        await naFila(async () => {
+          const r = await recuarEapTarefa({ id: t.id });
+          if (!r.ok) return void toast.error(r.error);
+          if (r.data.paiVirouAgrupamentoComGente) {
+            toast.warning("A tarefa de cima virou agrupamento e ainda tem pessoas atribuídas.", {
+              description: "As horas delas deixam de contar — passe as pessoas para as tarefas dentro do agrupamento.",
+            });
+          }
+          router.refresh();
+        });
+        return;
+      case ACAO_AVANCAR:
+        await naFila(async () => {
+          const r = await avancarEapTarefa({ id: t.id });
+          if (!r.ok) return void toast.error(r.error);
+          router.refresh();
+        });
+        return;
+      case ACAO_EXCLUIR:
+        await naFila(async () => {
+          const r = await excluirEapTarefa({ id: t.id });
+          if (!r.ok) return void toast.error(r.error);
+          toast.success("Tarefa excluída.");
+          router.refresh();
+        });
+        return;
+    }
   }
 
   function gerarTarefa(eapTarefaId: string) {
@@ -527,46 +606,33 @@ export function EapWorkspace({
             onEditarCampo={podeGerir ? editarCampo : undefined}
             onEditarPredecessoras={podeGerir ? editarPredecessoras : undefined}
             onErro={(mensagem) => toast.error(mensagem)}
+            menuDe={(t, contexto) =>
+              itensDeLinhaEap(
+                { nome: t.nome, ehResumo: t.ehResumo, ...contexto },
+                { podeGerir, podeExecutado, cronogramaAprovado: !!cronograma?.aprovado },
+              )
+            }
+            onAcao={(t, item) => void aoAcao(t, item)}
+            focoNomeId={novaLinhaId}
+            onFocoConsumido={() => setNovaLinhaId(null)}
             acoes={
-              podeGerir || podeExecutado
-                ? (t) => (
-                    <>
-                      {podeExecutado && !t.ehResumo && (
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          aria-label="Atualizar tarefa (datas reais)"
-                          title={t.marco ? "Concluir o marco (data real)" : "Atualizar tarefa: início e término reais"}
-                          disabled={pending}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setExecucao(t);
-                          }}
-                        >
-                          <CalendarCheck className="size-3.5" />
-                        </Button>
-                      )}
-                      {podeGerir && (
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          aria-label="Gerar tarefa no kanban"
-                          title={
-                            cronograma?.aprovado
-                              ? "Gerar o card desta linha no kanban (nasce sozinho na aprovação, para atividade da equipe com gente escalada)"
-                              : "O card nasce quando o cronograma é aprovado — rascunho não gera card"
-                          }
-                          disabled={pending || !cronograma?.aprovado}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            gerarTarefa(t.id);
-                          }}
-                        >
-                          <ListPlus className="size-3.5" />
-                        </Button>
-                      )}
-                    </>
-                  )
+              podeExecutado
+                ? (t) =>
+                    !t.ehResumo && (
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label="Atualizar tarefa (datas reais)"
+                        title={t.marco ? "Concluir o marco (data real)" : "Atualizar tarefa: início e término reais"}
+                        disabled={pending}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExecucao(t);
+                        }}
+                      >
+                        <CalendarCheck className="size-3.5" />
+                      </Button>
+                    )
                 : undefined
             }
           />

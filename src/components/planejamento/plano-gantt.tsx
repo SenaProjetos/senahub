@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CheckCircle2, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Flag, ListTree, Lock, Pin } from "lucide-react";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import {
+  contextoDaLinha,
   formatarPredecessoras,
   idsComFilhos,
   lerDuracao,
@@ -13,6 +14,7 @@ import {
   montarGrade,
   soAsDoFiltro,
   textoRecursos,
+  type ContextoDaLinha,
   type LinhaGrade,
   type Vinculo,
 } from "@/modules/planejamento/gantt-linhas";
@@ -21,8 +23,11 @@ import { caminhoDaSeta, type PosicaoBarra } from "@/modules/planejamento/gantt-s
 import { criarCalendario, diasUteisEntre } from "@/lib/calendario-trabalho";
 import { dataCurta, diasEntre } from "@/lib/dias-iso";
 import { brl, cn } from "@/lib/utils";
+import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
+import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LinhaComMenu } from "@/components/ui/linha-com-menu";
 
 /**
  * O cronograma do projeto no molde do MS Project: a TABELA à esquerda e o GRÁFICO à direita, nas mesmas
@@ -72,7 +77,16 @@ export type PlanoGanttProps = {
   onEditarPredecessoras?: (t: EapTarefaDTO, vinculos: Vinculo[]) => Promise<string | null>;
   /** Uma edição que o texto digitado não permite (o que o servidor nem chega a ver). */
   onErro?: (mensagem: string) => void;
-  /** Botões da coluna Ações, por linha. */
+  /**
+   * Ações da linha (inserir, recuar, avançar, excluir…): o MESMO array alimenta o menu de contexto, o `...` e os
+   * atalhos de teclado (ADR-0002). Vem do descritor puro `itensDeLinhaEap`; sem itens a linha fica sem menu.
+   */
+  menuDe?: (t: EapTarefaDTO, contexto: ContextoDaLinha) => AcaoItem[];
+  onAcao?: (t: EapTarefaDTO, item: AcaoItemAcao) => void;
+  /** Uma linha recém-criada cujo nome deve abrir em edição assim que ela aparecer na tabela. */
+  focoNomeId?: string | null;
+  onFocoConsumido?: () => void;
+  /** Botões da coluna Ações, por linha (os de uso frequente; o resto está no `...`). */
   acoes?: (t: EapTarefaDTO) => ReactNode;
   className?: string;
 };
@@ -116,6 +130,10 @@ export function PlanoGantt({
   onEditarCampo,
   onEditarPredecessoras,
   onErro,
+  menuDe,
+  onAcao,
+  focoNomeId = null,
+  onFocoConsumido,
   acoes,
   className,
 }: PlanoGanttProps) {
@@ -138,6 +156,7 @@ export function PlanoGantt({
   const grade = useMemo(() => montarGrade(tarefas), [tarefas]);
   const numeroPorId = useMemo(() => new Map(grade.map((l) => [l.t.id, l.numero])), [grade]);
   const idPorNumero = useMemo(() => new Map(grade.map((l) => [l.numero, l.t.id])), [grade]);
+  const contextos = useMemo(() => new Map(grade.map((l, i) => [l.t.id, contextoDaLinha(grade, i)])), [grade]);
   const linhas: Linha[] = useMemo(
     () => (filtroIds ? soAsDoFiltro(grade, filtroIds) : linhasVisiveis(grade, recolhidos)),
     [grade, filtroIds, recolhidos],
@@ -191,6 +210,15 @@ export function PlanoGantt({
     setInvalida(false);
     setEdicao(null);
   };
+
+  // Linha recém-inserida (ou criada por outro caminho): quando ela chega na tabela, o nome já abre para digitar.
+  useEffect(() => {
+    if (!focoNomeId || !tarefas.some((t) => t.id === focoNomeId)) return;
+    // Sincroniza com um pedido de fora ("edite esta linha"), não com estado derivado.
+    iniciar(focoNomeId, "nome");
+    onFocoConsumido?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só quando o pedido ou a lista mudam
+  }, [focoNomeId, tarefas]);
 
   /** Lê o texto, pede a gravação e devolve se deu certo (ou se nada mudou). */
   async function executar(l: Linha, campo: CampoEditavel, texto: string): Promise<boolean> {
@@ -476,15 +504,27 @@ export function PlanoGantt({
         );
       },
     };
-    const acoesCol: Coluna | null = acoes
-      ? {
-          id: "acoes",
-          rotulo: "Ações",
-          w: 76,
-          alinhar: "right",
-          render: (l) => <div className="flex items-center justify-end gap-0.5">{acoes(l.t)}</div>,
-        }
-      : null;
+    const acoesCol: Coluna | null =
+      acoes || menuDe
+        ? {
+            id: "acoes",
+            rotulo: "Ações",
+            w: 92,
+            alinhar: "right",
+            render: (l) => (
+              <div className="flex items-center justify-end gap-0.5">
+                {acoes?.(l.t)}
+                {menuDe && (
+                  <BotaoAcoes
+                    itens={menuDe(l.t, contextos.get(l.t.id)!)}
+                    onSelect={(item) => onAcao?.(l.t, item)}
+                    rotulo={`Ações da tarefa ${l.numero}: ${l.t.nome}`}
+                  />
+                )}
+              </div>
+            ),
+          }
+        : null;
 
     if (!verDatas) cs.push(numero, nome, disciplina, duracao, progresso, predecessoras, recursos);
     else if (modo === "planejamento") cs.push(numero, nome, disciplina, duracao, inicio, termino, predecessoras, recursos);
@@ -493,7 +533,7 @@ export function PlanoGantt({
     if (acoesCol) cs.push(acoesCol);
     return compacto ? cs.filter((c) => !c.secundaria) : cs;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `envolver`/`gravado` releem o estado da edição a cada render
-  }, [modo, verDatas, mostrarCusto, compacto, acoes, numeroPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, idPorNumero]);
+  }, [modo, verDatas, mostrarCusto, compacto, acoes, numeroPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, idPorNumero, menuDe, onAcao, contextos]);
 
   const larguraTabela = colunas.reduce((s, c) => s + c.w, 0);
 
@@ -607,51 +647,80 @@ export function PlanoGantt({
                   </div>
                 ))}
               </div>
-              {linhas.map((l) => (
-                <div
-                  key={l.t.id}
-                  role="row"
-                  tabIndex={0}
-                  aria-selected={selecionadaId === l.t.id}
-                  onClick={() => setSelecionadaId(l.t.id)}
-                  onDoubleClick={() => onAbrir?.(l.t)}
-                  onKeyDown={(e) => {
-                    if (e.target !== e.currentTarget) return; // teclas de dentro de uma célula em edição não chegam aqui
-                    if (e.key === "F2" && ehEditavel(l, "nome")) {
-                      e.preventDefault();
-                      iniciar(l.t.id, "nome");
-                    } else if ((e.key === "Enter" || e.key === " ") && onAbrir) {
-                      e.preventDefault();
-                      onAbrir(l.t);
+              {linhas.map((l) => {
+                const itens = menuDe ? menuDe(l.t, contextos.get(l.t.id)!) : [];
+                // Atalho = o mesmo item do menu: se está desabilitado (ou não existe para o perfil), a tecla não faz nada.
+                const atalho = (id: string) => {
+                  const item = itens.find((i): i is AcaoItemAcao => i.tipo === "acao" && i.id === id && !i.desabilitado);
+                  if (item) onAcao?.(l.t, item);
+                };
+                return (
+                  <LinhaComMenu
+                    key={l.t.id}
+                    itens={itens}
+                    onSelect={(item) => onAcao?.(l.t, item)}
+                    aoAbrir={(aberto) => {
+                      if (aberto) setSelecionadaId(l.t.id);
+                    }}
+                    render={
+                      <div
+                        role="row"
+                        tabIndex={0}
+                        aria-selected={selecionadaId === l.t.id}
+                        onClick={() => setSelecionadaId(l.t.id)}
+                        onDoubleClick={() => onAbrir?.(l.t)}
+                        onKeyDown={(e) => {
+                          if (e.target !== e.currentTarget) return; // teclas de dentro de uma célula em edição não chegam aqui
+                          if (e.key === "F2" && ehEditavel(l, "nome")) {
+                            e.preventDefault();
+                            iniciar(l.t.id, "nome");
+                          } else if (e.key === "Insert") {
+                            e.preventDefault();
+                            atalho("inserir-acima");
+                          } else if (e.key === "Delete") {
+                            e.preventDefault();
+                            atalho("excluir");
+                          } else if (e.altKey && e.shiftKey && e.key === "ArrowRight") {
+                            e.preventDefault();
+                            atalho("recuar");
+                          } else if (e.altKey && e.shiftKey && e.key === "ArrowLeft") {
+                            e.preventDefault();
+                            atalho("avancar");
+                          } else if ((e.key === "Enter" || e.key === " ") && onAbrir) {
+                            e.preventDefault();
+                            onAbrir(l.t);
+                          }
+                        }}
+                        onMouseEnter={() => setHoverId(l.t.id)}
+                        onMouseLeave={() => setHoverId((h) => (h === l.t.id ? null : h))}
+                        className={cn(
+                          "flex border-b bg-background",
+                          l.temFilhos && "bg-muted/40",
+                          hoverId === l.t.id && "bg-muted",
+                          selecionadaId === l.t.id && "bg-primary/10",
+                        )}
+                        style={{ height: ROW_H }}
+                      />
                     }
-                  }}
-                  onMouseEnter={() => setHoverId(l.t.id)}
-                  onMouseLeave={() => setHoverId((h) => (h === l.t.id ? null : h))}
-                  className={cn(
-                    "flex border-b bg-background",
-                    l.temFilhos && "bg-muted/40",
-                    hoverId === l.t.id && "bg-muted",
-                    selecionadaId === l.t.id && "bg-primary/10",
-                  )}
-                  style={{ height: ROW_H }}
-                >
-                  {colunas.map((c) => (
-                    <div
-                      key={c.id}
-                      role="cell"
-                      className={cn(
-                        "flex min-w-0 shrink-0 items-center overflow-hidden border-r border-border/50 px-2 last:border-r-0",
-                        c.alinhar === "right" && "justify-end",
-                        c.alinhar === "center" && "justify-center",
-                        c.id === "nome" && "px-0 pr-2",
-                      )}
-                      style={{ width: c.w }}
-                    >
-                      {c.render(l)}
-                    </div>
-                  ))}
-                </div>
-              ))}
+                  >
+                    {colunas.map((c) => (
+                      <div
+                        key={c.id}
+                        role="cell"
+                        className={cn(
+                          "flex min-w-0 shrink-0 items-center overflow-hidden border-r border-border/50 px-2 last:border-r-0",
+                          c.alinhar === "right" && "justify-end",
+                          c.alinhar === "center" && "justify-center",
+                          c.id === "nome" && "px-0 pr-2",
+                        )}
+                        style={{ width: c.w }}
+                      >
+                        {c.render(l)}
+                      </div>
+                    ))}
+                  </LinhaComMenu>
+                );
+              })}
             </div>
 
             {/* ── Gráfico ── */}

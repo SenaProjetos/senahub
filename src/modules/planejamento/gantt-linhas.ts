@@ -62,6 +62,31 @@ export function soAsDoFiltro<T extends { id: string }>(
   return grade.filter((l) => ids.has(l.t.id));
 }
 
+/**
+ * O que o menu da linha precisa saber sobre a posição dela na árvore: se existe uma irmã logo acima (no mesmo nível,
+ * sem sair do agrupamento) e se ela é um marco, em que nível a linha está e quantas subtarefas tem. Sempre sobre a
+ * grade COMPLETA — recolher ou filtrar não muda quem é a irmã de cima.
+ */
+export type ContextoDaLinha = { temIrmaAcima: boolean; irmaAcimaEMarco: boolean; nivel: number; subtarefas: number };
+
+export function contextoDaLinha<T extends { id: string; marco?: boolean }>(
+  grade: readonly LinhaGrade<T>[],
+  indice: number,
+): ContextoDaLinha {
+  const l = grade[indice];
+  let irma: LinhaGrade<T> | null = null;
+  for (let i = indice - 1; i >= 0; i--) {
+    if (grade[i].nivel < l.nivel) break; // saiu do agrupamento: não há irmã acima
+    if (grade[i].nivel === l.nivel) {
+      irma = grade[i];
+      break;
+    }
+  }
+  let subtarefas = 0;
+  for (let i = indice + 1; i < grade.length && grade[i].nivel > l.nivel; i++) subtarefas++;
+  return { temIrmaAcima: irma != null, irmaAcimaEMarco: !!irma?.t.marco, nivel: l.nivel, subtarefas };
+}
+
 /** Ids das linhas que têm filhos — o que "recolher tudo" recolhe. */
 export function idsComFilhos<T extends { id: string }>(grade: readonly LinhaGrade<T>[]): string[] {
   return grade.filter((l) => l.temFilhos).map((l) => l.t.id);

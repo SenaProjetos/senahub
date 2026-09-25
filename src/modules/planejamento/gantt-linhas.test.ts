@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  contextoDaLinha,
   formatarLag,
   formatarPredecessoras,
   idsComFilhos,
@@ -220,5 +221,41 @@ describe("lerPercentual", () => {
     expect(lerPercentual("50,5")).toMatchObject({ ok: false });
     expect(lerPercentual("meio")).toMatchObject({ ok: false });
     expect(lerPercentual("")).toMatchObject({ ok: false });
+  });
+});
+
+describe("contextoDaLinha", () => {
+  // 1 proj / 2 est / 3 lanc / 4 form / 5 hid / 6 ent (marco, raiz)
+  const nos = [
+    { id: "proj", parentId: null, ordem: 0 },
+    { id: "est", parentId: "proj", ordem: 1 },
+    { id: "lanc", parentId: "est", ordem: 2 },
+    { id: "form", parentId: "est", ordem: 3, marco: true },
+    { id: "hid", parentId: "proj", ordem: 4 },
+    { id: "ent", parentId: null, ordem: 5, marco: true },
+  ];
+  const g = montarGrade(nos);
+  const ctx = (id: string) => contextoDaLinha(g, g.findIndex((l) => l.t.id === id));
+
+  it("a primeira do nível não tem irmã acima, mesmo com outra linha logo acima na tela", () => {
+    expect(ctx("lanc")).toMatchObject({ temIrmaAcima: false, nivel: 3 });
+    expect(ctx("est")).toMatchObject({ temIrmaAcima: false, nivel: 2 });
+    expect(ctx("proj")).toMatchObject({ temIrmaAcima: false, nivel: 1 });
+  });
+
+  it("a irmã de cima é a do MESMO nível, saltando as subtarefas dela", () => {
+    expect(ctx("hid")).toMatchObject({ temIrmaAcima: true, irmaAcimaEMarco: false, nivel: 2 });
+    expect(ctx("ent")).toMatchObject({ temIrmaAcima: true, irmaAcimaEMarco: false, nivel: 1 });
+  });
+
+  it("sabe quando a irmã de cima é um marco", () => {
+    const g2 = montarGrade([{ id: "a", parentId: null, ordem: 0, marco: true }, { id: "b", parentId: null, ordem: 1 }]);
+    expect(contextoDaLinha(g2, 1)).toMatchObject({ temIrmaAcima: true, irmaAcimaEMarco: true });
+  });
+
+  it("conta as subtarefas em todos os níveis abaixo", () => {
+    expect(ctx("proj").subtarefas).toBe(4);
+    expect(ctx("est").subtarefas).toBe(2);
+    expect(ctx("hid").subtarefas).toBe(0);
   });
 });
