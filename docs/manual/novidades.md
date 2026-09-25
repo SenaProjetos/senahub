@@ -34,6 +34,10 @@ Depois de revisar o novo planejamento, o time decidiu alguns pontos. O que já e
 - **Aprovar fase no card da disciplina:** a fase entregue mostra o botão **Aprovar** na própria
   disciplina, sem precisar abrir o diálogo Etapas nem a página Aprovações.
 - **Heatmap com período à escolha:** 1 semana (por dia), 4 semanas, 12 semanas ou meses.
+- **Previsão de recebimento no resultado do projeto e no painel:** o valor que o contrato por entrega
+  espera receber agora conta como receita **prevista** no resultado do projeto e no indicador Receita
+  prevista do painel inicial, além do fluxo de caixa. Ao faturar, a mesma linha vira cobrança — nada
+  é somado duas vezes.
 - **Marco concluído entrega a fase:** ao concluir o marco de uma fase, ela passa a **Entregue** e quem
   aprova disciplinas é avisado. Aprovar (e liberar o pagamento) continua sendo um passo à parte;
   reabrir o marco não desfaz a entrega.

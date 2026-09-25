@@ -505,6 +505,10 @@ export async function margemProjeto(projetoId: string) {
 
   let receitaConfirmada = 0;
   let receitaPrevista = 0;
+  // Parte da receita prevista que é PREVISÃO do cronograma (contrato por entrega, `status: previsao`) — já
+  // somada em `receitaPrevista` (decisão #13): a tela a destaca, e "faturar" só troca o status da mesma linha,
+  // então nada é contado duas vezes.
+  let receitaPrevisao = 0;
   let despesaConfirmada = 0;
   let despesaPrevista = 0;
   // Composição do custo direto por origem (confirmado + previsto).
@@ -537,7 +541,10 @@ export async function margemProjeto(projetoId: string) {
     }
     if (l.tipo === "receita") {
       if (l.status === "confirmado") receitaConfirmada += realizado;
-      else receitaPrevista += previsto;
+      else {
+        receitaPrevista += previsto;
+        if (l.status === "previsao") receitaPrevisao += previsto;
+      }
       continue;
     }
     // Despesa: classifica por origem.
@@ -589,6 +596,7 @@ export async function margemProjeto(projetoId: string) {
   return {
     receitaConfirmada,
     receitaPrevista,
+    receitaPrevisao,
     despesaDireta: despesaConfirmada,
     despesaDiretaPrevista: despesaPrevista,
     custoHoras,

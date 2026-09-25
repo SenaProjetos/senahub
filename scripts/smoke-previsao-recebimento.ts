@@ -43,6 +43,8 @@ import { avisoCobrancaContrato } from "../src/modules/projetos/receita/cobranca-
 import { contratosDeCobranca } from "../src/modules/projetos/receita/queries";
 import { faturarEntregaDaDisciplina } from "../src/modules/projetos/receita/faturamento";
 import { parcelasAFaturar } from "../src/modules/juridico/contrato/parcelas-a-faturar-queries";
+import { margemProjeto } from "../src/modules/projetos/queries";
+import { kpisHome } from "../src/modules/qualidade/queries";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -159,6 +161,16 @@ async function main() {
     check("aprovado: parcela do executivo = 3000 na data do marco M2", Number(l2?.valor) === 3000 && paraDia(l2!.vencimento!) === diaM2 && l2?.status === "previsao");
     check("sincronizar de novo não duplica", (await previsoes()).length === 3);
 
+    // #13: a previsão do cronograma é receita prevista — no resultado do projeto e no KPI da home.
+    const mgAntes = await margemProjeto(projeto.id);
+    check(
+      "#13: a previsão entra no resultado previsto do projeto (10000, todos vindos do cronograma)",
+      mgAntes.receitaPrevista === 10000 && mgAntes.receitaPrevisao === 10000,
+      { prevista: mgAntes.receitaPrevista, previsao: mgAntes.receitaPrevisao },
+    );
+    const kpiAntes = (await kpisHome()).receitaPrevista;
+    check("#13: e no KPI de receita prevista da home", kpiAntes >= 10000, kpiAntes);
+
     // L2: a lista do financeiro traz as 3 parcelas (nenhuma faturada), com valor e situação.
     const listaDoContrato = async () => (await parcelasAFaturar()).filter((x) => x.contratoId === contrato.id);
     const lista1 = await listaDoContrato();
@@ -203,6 +215,14 @@ async function main() {
     const l1c = await linhaDa(pM1.id);
     check("faturar converte a MESMA linha em previsto, com o vencimento escolhido", fat.lancamentoId === l1?.id && l1c?.status === "previsto" && paraDia(l1c.vencimento!) === ontem);
     check("L2: parcela faturada sai da lista", !(await listaDoContrato()).some((x) => x.parcelaId === pM1.id));
+    const mgDepois = await margemProjeto(projeto.id);
+    const kpiDepois = (await kpisHome()).receitaPrevista;
+    check(
+      "#13: faturar não conta em dobro — a mesma linha só muda de status (resultado e KPI iguais)",
+      mgDepois.receitaPrevista === mgAntes.receitaPrevista && Math.abs(kpiDepois - kpiAntes) < 0.005,
+      { mg: [mgAntes.receitaPrevista, mgDepois.receitaPrevista], kpi: [kpiAntes, kpiDepois] },
+    );
+    check("#13: depois de faturar, só as 2 parcelas restantes (6000) seguem como previsão do cronograma", mgDepois.receitaPrevisao === 6000, mgDepois.receitaPrevisao);
     const inad = await prisma.lancamento.findMany({ where: { tipo: "receita", status: "previsto", vencimento: d(ontem) }, select: { id: true } });
     check("faturada e vencida: entra no alerta de inadimplência", inad.some((x) => x.id === l1?.id));
     check("resumo do cliente passa a ter a cobrança (4000)", (await resumoFinanceiroCliente(cliente.id)).total === 4000);

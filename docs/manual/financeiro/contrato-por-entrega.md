@@ -78,7 +78,9 @@ Casos em que a parcela fica **sem previsão**, sempre com o motivo na tela:
 
 Esta é a regra que protege o financeiro de cobrar quem nunca foi faturado. A previsão do cronograma:
 
-- **entra** na **projeção de caixa** (com o subtotal "Inclui R$ X de previsão do cronograma");
+- **entra** na **projeção de caixa** (com o subtotal "Inclui R$ X de previsão do cronograma"), no
+  **resultado previsto do projeto** (a aba Financeiro do projeto mostra "+ R$ X previsto", destacando a
+  parte "de previsão do cronograma") e no indicador **Receita prevista** do painel inicial;
 - **não entra** em **Contas a receber**, no **aging**, no **alerta de inadimplência**, no **resumo do
   cliente**, no **Livro caixa** (Lançamentos) nem na **conciliação**;
 - **não pode ser recebida, editada, cancelada nem excluída** pelo financeiro — a tentativa diz: "É uma
@@ -135,7 +137,8 @@ leva à lista **Parcelas a faturar**. O marco **nunca fatura sozinho**. Dá para
   duas vezes). Veja [Projetos](../projetos/projetos.md).
 - **Plano precisa fechar 100%** para gerar previsão; o valor de cada parcela sai da **mesma regra** da
   proposta composta (a última absorve o centavo).
-- **Previsão ≠ conta a receber**: só a projeção de caixa a enxerga.
+- **Previsão ≠ conta a receber**: ela conta como receita **prevista** (projeção de caixa, resultado do
+  projeto e indicador do painel), mas não é cobrança.
 - **Faturar converte a mesma linha**; previsão e cobrança nunca somam juntas.
 - **Marco apagado** = parcela sem data, nunca cobrança imediata.
 - **Contrato rescindido ou ainda não assinado** não gera previsão.

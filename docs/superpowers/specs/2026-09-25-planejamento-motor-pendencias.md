@@ -117,8 +117,13 @@ Como no Project, onde o custo de uma tarefa fica fixado quando ela é concluída
   é gerar a da assinatura já como conta a receber.
 - **DECIDIR:** faturar **converte** a previsão na mesma linha. Se o time emite a cobrança por outro
   caminho (NF lançada à mão), a previsão fica sobrando até alguém faturar pela tela do contrato.
-- **DECIDIR:** a previsão entra no fluxo de caixa e no gráfico "previsto × realizado" do dashboard,
-  mas **não** no resultado previsto do projeto nem no KPI de receita prevista. Alinhar.
+- ~~A previsão não entra no resultado previsto do projeto nem no KPI de receita prevista.~~ **Resolvido
+  (decisão #13, 2026-09-25):** entra nos dois. `margemProjeto` já a somava por acidente (tudo que não é
+  confirmado caía em `receitaPrevista`); agora é explícito e destacado (`receitaPrevisao`, mostrado no
+  cartão de margem). O KPI da home (`kpisHome`, que alimenta também o snapshot diário) era o que não a
+  contava. Faturar troca o status da mesma linha: nada em dobro (smoke `previsao-recebimento`).
+  **Continua aberto:** cobrança lançada à mão para a mesma parcela soma com a previsão até a decisão #12
+  (casar automaticamente) ser implementada.
 - Previsão que passou da data sem ser faturada fica na 1ª semana da projeção, marcada "atrasada".
 - Marco apagado deixa a parcela sem data (nunca vira cobrança na hora).
 - Depois de faturar qualquer parcela, o plano do contrato trava.

@@ -43,7 +43,10 @@ export function MargemCard({ margem }: { margem: Margem }) {
             </p>
             <p className="font-mono text-lg font-bold text-success">{brl(margem.receitaConfirmada)}</p>
             {margem.receitaPrevista > 0 && (
-              <p className="text-xs text-muted-foreground">+ {brl(margem.receitaPrevista)} previsto</p>
+              <p className="text-xs text-muted-foreground">
+                + {brl(margem.receitaPrevista)} previsto
+                {margem.receitaPrevisao > 0 && ` (${brl(margem.receitaPrevisao)} de previsão do cronograma)`}
+              </p>
             )}
           </div>
           <div>

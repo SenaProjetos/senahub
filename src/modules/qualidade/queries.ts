@@ -130,7 +130,9 @@ export async function kpisHome(escopo: Prisma.ProjetoWhereInput = {}) {
   const [projetosAtivos, receitaPrevista, entregasPendentes] = await Promise.all([
     prisma.projeto.count({ where: { situacao: "em_andamento", AND: [escopo] } }),
     prisma.lancamento.aggregate({
-      where: { tipo: "receita", status: "previsto" },
+      // Inclui a previsão do cronograma (contrato por entrega): é dinheiro esperado, e faturar só troca o
+      // status da mesma linha — nunca soma duas vezes (decisão #13).
+      where: { tipo: "receita", status: { in: ["previsto", "previsao"] } },
       _sum: { valor: true },
     }),
     prisma.disciplina.count({
