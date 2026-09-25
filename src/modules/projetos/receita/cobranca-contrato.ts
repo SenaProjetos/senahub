@@ -1,7 +1,8 @@
 /**
  * A cobrança de um projeto tem dois caminhos que não devem se misturar: as parcelas manuais do card
  * "Receita / Contrato" e o contrato de cliente (Jurídico → Pagamento). Os dois viram receita prevista:
- * gerar parcelas à mão num projeto que já tem contrato cobra em dobro na projeção de caixa.
+ * gerar parcelas à mão (ou faturar uma entrega) num projeto que já tem contrato cobra em dobro na
+ * projeção de caixa.
  *
  * Contrato por ENTREGA manda na cobrança (parcelas e previsão saem dele) → recusa. Contrato por DATA
  * com plano definido só gera parcelas na assinatura e convive com fluxos antigos → avisa.
@@ -24,7 +25,7 @@ export function avisoCobrancaContrato(contratos: readonly ContratoDeCobranca[]):
   if (porEntrega) {
     return {
       nivel: "recusa",
-      texto: `O contrato "${porEntrega.titulo}" deste projeto é cobrado por entrega: as parcelas e a previsão de recebimento saem dele (Jurídico → Pagamento). Gerar parcelas aqui somaria a cobrança duas vezes.`,
+      texto: `O contrato "${porEntrega.titulo}" deste projeto é cobrado por entrega: as parcelas e a previsão de recebimento saem dele (Jurídico → Pagamento). Cobrar por aqui somaria a cobrança duas vezes.`,
     };
   }
 
@@ -32,7 +33,7 @@ export function avisoCobrancaContrato(contratos: readonly ContratoDeCobranca[]):
   if (porData) {
     return {
       nivel: "aviso",
-      texto: `O contrato "${porData.titulo}" deste projeto já tem parcelas por data. Gerar parcelas aqui soma uma segunda cobrança — confira antes para não cobrar em dobro.`,
+      texto: `O contrato "${porData.titulo}" deste projeto já tem parcelas por data. Cobrar por aqui soma uma segunda cobrança — confira antes para não cobrar em dobro.`,
     };
   }
 

@@ -79,6 +79,11 @@ vigor — as parcelas e a previsão de recebimento já saem do contrato, e gerar
 dobro na projeção de caixa. O card explica o motivo. Com contrato **por data** que já tem plano, ele
 só **avisa** para conferir antes de gerar.
 
+**Faturar por entrega** também mudou: em vez de cobrar do cliente o valor da disciplina (que é o que se
+paga ao projetista — um custo, não uma receita), o botão **Faturar** agora abre uma confirmação com o
+**valor da proposta** já preenchido, para você conferir ou digitar o valor combinado. Com contrato por
+entrega em vigor, a lista some.
+
 ---
 
 ## Valor Agregado no cronograma (VP, VA, CR, IDP e IDC)

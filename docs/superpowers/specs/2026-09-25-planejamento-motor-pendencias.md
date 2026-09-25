@@ -142,8 +142,12 @@ Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
 - Desbloquear uma linha a punha sempre "em andamento", mesmo sem ter começado.
 
 **Não corrigidos (fora do escopo, registrados):**
-- "Faturar entrega" da disciplina (N-26) cobra do **cliente** o `Disciplina.valor`, que é o pool de
-  pagamento dos PJ — custo usado como receita. Com a F7.4, ajuste na Produção mexe nesse valor.
+- ~~"Faturar entrega" da disciplina (N-26) cobra do **cliente** o `Disciplina.valor`, que é o pool de
+  pagamento dos PJ — custo usado como receita.~~ **Corrigido (B1):** o diálogo pede o valor, sugerido pelo
+  item da proposta de origem (mesma disciplina, pelo catálogo ou pelo nome) e nunca por `Disciplina.valor`;
+  com contrato por entrega em vigor a lista some e a action recusa. Regras em `receita/faturamento.ts` e
+  `receita/valor-entrega.ts`; `smoke:previsao-recebimento` §8; oráculo do receber idêntico (fora o campo
+  novo `previsaoAtrasada`).
 - `editarEapTarefa` força o tipo atividade/marco mesmo editando linha de disciplina/resumo.
 - ~~Duplicar projeto copia a EAP sem tipo, duração, restrição e classificadores.~~ **Corrigido (B3):**
   copia estrutura (tipo, duração, prioridade, fase/classificadores globais, tipo e lag das dependências),
@@ -220,6 +224,16 @@ Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
 - [ ] Atividade criada depois da baseline → aviso (o avanço dela não entra no VA, as horas entram no
       CR — replaneje).
 
+### Correções do §7 (B1, B3, L6)
+- [ ] Projeto com contrato **por entrega** em vigor: aba Financeiro → "Gerar parcelas" desabilitado com o
+      motivo no card; a lista "Faturar por entrega" não aparece.
+- [ ] Projeto sem contrato por entrega: "Faturar" abre a confirmação com o valor DA PROPOSTA preenchido;
+      alterar o valor e confirmar cria o recebível previsto com o valor digitado (não o da disciplina);
+      disciplina sem item na proposta pede o valor; faturar a mesma de novo é recusado.
+- [ ] Duplicar projeto marcando EAP: o diálogo mostra o aviso e o campo "Início do cronograma novo";
+      na cópia, marcos continuam marcos, durações e dependências (tipo/atraso) vêm, o cronograma está em
+      rascunho e, com a data, as datas partem dela. Sem a data: defina o início e clique em Reagendar.
+
 ---
 
 ## 6. Verificação automática (2026-09-25)
@@ -235,7 +249,7 @@ suíte 4293 testes · lint · tsc · build — todos verdes.
 ### Bugs
 | # | Problema | Correção proposta | Modelo · risco |
 |---|---|---|---|
-| B1 | "Faturar entrega" (N-26) cobra do cliente o `Disciplina.valor` (pool dos PJ) | O diálogo passa a pedir o valor, pré-preenchido pelo item da proposta de origem da mesma disciplina (`PropostaItem` via catálogo) — nunca `Disciplina.valor`. Projeto com contrato "por entrega" esconde o botão (o contrato manda na cobrança) | Sonnet high · médio (dinheiro): teste + smoke |
+| B1 ✅ | "Faturar entrega" (N-26) cobra do cliente o `Disciplina.valor` (pool dos PJ) | O diálogo passa a pedir o valor, pré-preenchido pelo item da proposta de origem da mesma disciplina (`PropostaItem` via catálogo) — nunca `Disciplina.valor`. Projeto com contrato "por entrega" esconde o botão (o contrato manda na cobrança) | Sonnet high · médio (dinheiro): teste + smoke |
 | B2 | Editar linha da EAP: força tipo atv/mrc; **duração salva em dias CORRIDOS** (helper provisório da F0 que ficou em `planejamento/actions.ts`) e o motor agenda em dias ÚTEIS — a barra estica ao salvar; as datas digitadas ficam gravadas até alguém reagendar | Tipo só alterna atividade↔marco (os outros tipos ficam, e o "Marco" some para eles); agrupamento não recebe duração; o editor passa a editar **duração (dias úteis) + "não iniciar antes de"** (alfinete, D34), como o Project, e salvar reagenda. Remover o helper provisório | Opus xhigh (regra) + Sonnet (tela) · alto e silencioso: testes + `verify:motor-cronograma` |
 | B3 ✅ | Duplicar projeto copia a EAP sem tipo, duração, restrição, classificadores | Copiar tipo, duração, restrição, fase/origem/TAT, tipo e lag das dependências; ID corporativo NOVO (D29); %, status e datas reais zerados; cronograma novo em rascunho, datas pelo motor a partir do início pedido (D10) | Sonnet · baixo |
 | B4 ✅ | `Promise.all` dentro de transação (`comercial/service.ts`) | `await` em sequência + teste-guarda que varre `src/` por `Promise.all([` com `tx.` dentro | Sonnet · mínimo |

@@ -5,15 +5,11 @@ import { z } from "zod";
 import { addMonths } from "date-fns";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { TAG_PARCELA_CONTRATO, TAG_ENTREGA_PREFIXO, contratosDeCobranca } from "@/modules/projetos/receita/queries";
+import { TAG_PARCELA_CONTRATO, contratosDeCobranca } from "@/modules/projetos/receita/queries";
 import { avisoCobrancaContrato } from "@/modules/projetos/receita/cobranca-contrato";
+import { codigoCategoriaReceita } from "@/modules/projetos/receita/categoria";
+import { faturarEntregaDaDisciplina } from "@/modules/projetos/receita/faturamento";
 import { dividirEmParcelas } from "@/modules/projetos/receita/parcelas";
-
-/** Categoria de receita por tipo de projeto (ver seed PLANO_CONTAS). */
-const CATEGORIA_RECEITA: Record<string, string> = {
-  particular: "1.01",
-  licitacao: "1.02",
-};
 
 function rev(projetoId: string) {
   revalidatePath(`/projetos/${projetoId}`);
@@ -70,7 +66,7 @@ export const gerarParcelas = defineAction(
     const aviso = avisoCobrancaContrato(await contratosDeCobranca(i.projetoId));
     if (aviso?.nivel === "recusa") throw new ActionError(aviso.texto);
 
-    const codigoCat = CATEGORIA_RECEITA[projeto.tipo] ?? CATEGORIA_RECEITA.particular;
+    const codigoCat = codigoCategoriaReceita(projeto.tipo);
     const categoria = await prisma.categoriaFinanceira.findUnique({ where: { codigo: codigoCat } });
     if (!categoria) throw new ActionError(`Categoria ${codigoCat} ausente no plano de contas.`);
 
@@ -114,8 +110,9 @@ export const gerarParcelas = defineAction(
 );
 
 /**
- * N-26: fatura uma disciplina entregue, criando uma receita PREVISTA com o valor da
- * disciplina (recebível). Idempotente por disciplina (tag entrega:<id> evita duplicar).
+ * N-26: fatura a entrega de uma disciplina com o valor que quem fatura informa (a tela sugere o do
+ * item da proposta). Regras em `faturamento.ts`: nunca cobra o `Disciplina.valor` (custo do projetista)
+ * e recusa quando o contrato do projeto é cobrado por entrega.
  */
 export const faturarEntrega = defineAction(
   {
@@ -124,46 +121,16 @@ export const faturarEntrega = defineAction(
     recurso: "financeiro",
     permissao: "gerir",
     entidade: "Lancamento",
-    schema: z.object({ disciplinaId: z.string().min(1) }),
+    schema: z.object({
+      disciplinaId: z.string().min(1),
+      valor: z.number().positive("Informe o valor a cobrar do cliente por esta entrega.").max(999_999_999),
+    }),
     entidadeId: (d, i) => ((d ?? i) as { disciplinaId: string }).disciplinaId,
   },
   async (i, { user }) => {
-    const disciplina = await prisma.disciplina.findUnique({
-      where: { id: i.disciplinaId },
-      select: { disciplinaTextoLegado: true, valor: true, projeto: { select: { id: true, tipo: true, codigo: true } } },
-    });
-    if (!disciplina) throw new ActionError("Disciplina não encontrada.");
-    const valor = disciplina.valor != null ? Number(disciplina.valor) : 0;
-    if (valor <= 0) throw new ActionError("Disciplina sem valor para faturar.");
-
-    const tagEntrega = `${TAG_ENTREGA_PREFIXO}${i.disciplinaId}`;
-    const jaFaturada = await prisma.lancamento.findFirst({
-      where: { tipo: "receita", status: { not: "cancelado" }, tags: { has: tagEntrega } },
-      select: { id: true },
-    });
-    if (jaFaturada) throw new ActionError("Esta disciplina já foi faturada.");
-
-    const codigoCat = CATEGORIA_RECEITA[disciplina.projeto.tipo] ?? CATEGORIA_RECEITA.particular;
-    const categoria = await prisma.categoriaFinanceira.findUnique({ where: { codigo: codigoCat } });
-    if (!categoria) throw new ActionError(`Categoria ${codigoCat} ausente no plano de contas.`);
-
-    const agora = new Date();
-    await prisma.lancamento.create({
-      data: {
-        tipo: "receita",
-        descricao: `Faturamento — ${disciplina.disciplinaTextoLegado} (${disciplina.projeto.codigo})`,
-        valor,
-        status: "previsto",
-        data: agora,
-        vencimento: agora,
-        categoriaId: categoria.id,
-        projetoId: disciplina.projeto.id,
-        tags: [TAG_PARCELA_CONTRATO, tagEntrega],
-        autorId: user.id,
-      },
-    });
-    rev(disciplina.projeto.id);
-    return { disciplinaId: i.disciplinaId };
+    const r = await faturarEntregaDaDisciplina({ disciplinaId: i.disciplinaId, valor: i.valor, autorId: user.id });
+    rev(r.projetoId);
+    return { disciplinaId: r.disciplinaId };
   },
 );
 

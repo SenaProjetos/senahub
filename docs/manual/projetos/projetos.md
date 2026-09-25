@@ -2,7 +2,7 @@
 titulo: Projetos
 descricao: Cadastro e acompanhamento de projetos, disciplinas, responsáveis, revisões e ciclo de vida.
 resumo: Liste e filtre projetos, crie/edite, gerencie disciplinas (com etapas por fase) e seus status, responsáveis, membros, revisões, duplicação e cancelamento/arquivamento.
-tags: [projetos, disciplinas, etapas, fase, status, responsáveis, membros, revisões, duplicar, cancelar, arquivar, progresso, nomenclatura versionada, sub-disciplina, receita, parcelas, valor de contrato, copiar eap]
+tags: [projetos, disciplinas, etapas, fase, status, responsáveis, membros, revisões, duplicar, cancelar, arquivar, progresso, nomenclatura versionada, sub-disciplina, receita, parcelas, valor de contrato, copiar eap, faturar entrega]
 palavras-chave: [projeto, disciplina, etapa, fase, pagamento por fase, gerar parcelas, receita do projeto, status, em andamento, em revisão, entregue, aprovado, responsável, membro, revisão, duplicar projeto, cancelar projeto, prazo, versão do padrão, trocar de versão, sub-disciplina]
 sinonimos: [obras, jobs, contratos de projeto]
 ---
@@ -209,7 +209,13 @@ Exige acesso ao financeiro (`financeiro:ver` ou sócio). O card **Receita / Cont
   explica: as parcelas e a previsão de recebimento saem do contrato
   ([Contrato por entrega](../financeiro/contrato-por-entrega.md)), e gerar aqui cobraria em dobro. Com
   contrato **por data** que já tem plano de parcelas, o card só **avisa** para conferir antes de gerar.
-- Gerar e limpar parcelas exigem `financeiro:gerir`; o valor de contrato, `projetos:gerir`.
+- **Faturar por entrega** é a alternativa às parcelas: cada disciplina traz o valor **da proposta**
+  (o item dela, quando existe) e o botão **Faturar** abre a confirmação, onde você **confere ou digita o
+  valor a cobrar do cliente**. Ele cria uma receita prevista com esse valor — que **não** é o valor da
+  disciplina, aquele que se paga ao projetista. A mesma disciplina não é faturada duas vezes, e com
+  contrato **por entrega** em vigor a lista **não aparece** (a cobrança é do contrato).
+- Gerar, limpar parcelas e faturar entregas exigem `financeiro:gerir`; o valor de contrato,
+  `projetos:gerir`.
 
 ### Pastas da aba Arquivos
 

@@ -23,7 +23,7 @@ import {
 import { brl, formatarData } from "@/lib/utils";
 
 type Parcela = { id: string; descricao: string; valor: number; status: string; vencimento: string };
-type DisciplinaFaturavel = { id: string; nome: string; valor: number; status: string; faturada: boolean };
+type DisciplinaFaturavel = { id: string; nome: string; valorSugerido: number | null; status: string; faturada: boolean };
 type Receita = {
   valorContrato: number | null;
   valorReferencia: number | null;
@@ -43,6 +43,7 @@ export function ReceitaContratoCard({ projetoId, receita }: { projetoId: string;
   const [pending, start] = useTransition();
   const [valor, setValor] = useState<number | null>(receita.valorContrato ?? null);
   const [gerar, setGerar] = useState(false);
+  const [faturando, setFaturando] = useState<DisciplinaFaturavel | null>(null);
 
   function salvarContrato(novo?: number) {
     const v = novo ?? valor;
@@ -61,16 +62,6 @@ export function ReceitaContratoCard({ projetoId, receita }: { projetoId: string;
       const r = await limparParcelas({ projetoId });
       if (r.ok) {
         toast.success(`${r.data.removidas} parcela(s) prevista(s) removida(s).`);
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
-
-  function faturar(disciplinaId: string) {
-    start(async () => {
-      const r = await faturarEntrega({ disciplinaId });
-      if (r.ok) {
-        toast.success("Entrega faturada — recebível previsto criado.");
         router.refresh();
       } else toast.error(r.error);
     });
@@ -170,8 +161,8 @@ export function ReceitaContratoCard({ projetoId, receita }: { projetoId: string;
           </ul>
         )}
 
-        {/* N-26: faturar por entrega (alternativa às parcelas) */}
-        {r.disciplinas.length > 0 && (
+        {/* N-26: faturar por entrega (alternativa às parcelas). Com contrato por entrega, a cobrança é dele. */}
+        {r.disciplinas.length > 0 && r.avisoContrato?.nivel !== "recusa" && (
           <div className="space-y-1.5 border-t pt-3">
             <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
               Faturar por entrega
@@ -181,12 +172,14 @@ export function ReceitaContratoCard({ projetoId, receita }: { projetoId: string;
                 <li key={d.id} className="flex items-center justify-between gap-3 py-1.5">
                   <span className="truncate">
                     {d.nome}
-                    <span className="ml-2 font-mono text-xs text-muted-foreground">{brl(d.valor)}</span>
+                    <span className="ml-2 font-mono text-xs text-muted-foreground">
+                      {d.valorSugerido != null ? `proposta ${brl(d.valorSugerido)}` : "sem item na proposta"}
+                    </span>
                   </span>
                   {d.faturada ? (
                     <StatusBadge tone="success">faturada</StatusBadge>
                   ) : (
-                    <Button variant="ghost" size="sm" onClick={() => faturar(d.id)} disabled={pending}>
+                    <Button variant="ghost" size="sm" onClick={() => setFaturando(d)} disabled={pending}>
                       <Receipt className="size-3.5" /> Faturar
                     </Button>
                   )}
@@ -203,6 +196,7 @@ export function ReceitaContratoCard({ projetoId, receita }: { projetoId: string;
         projetoId={projetoId}
         valorSugerido={r.valorReferencia ?? 0}
       />
+      <FaturarEntregaDialog key={faturando?.id ?? "fechado"} disciplina={faturando} onClose={() => setFaturando(null)} />
     </Card>
   );
 }
@@ -213,6 +207,61 @@ function Kpi({ label, valor, cor }: { label: string; valor: string; cor?: string
       <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
       <p className={`font-mono text-lg font-bold ${cor ?? ""}`}>{valor}</p>
     </div>
+  );
+}
+
+function FaturarEntregaDialog({
+  disciplina,
+  onClose,
+}: {
+  disciplina: DisciplinaFaturavel | null;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [valor, setValor] = useState<number | null>(disciplina?.valorSugerido ?? null);
+
+  function confirmar() {
+    if (!disciplina || !valor) return;
+    start(async () => {
+      const res = await faturarEntrega({ disciplinaId: disciplina.id, valor });
+      if (res.ok) {
+        toast.success("Entrega faturada — recebível previsto criado.");
+        onClose();
+        router.refresh();
+      } else toast.error(res.error);
+    });
+  }
+
+  return (
+    <Dialog open={!!disciplina} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Faturar entrega — {disciplina?.nome}</DialogTitle>
+          <DialogDescription>
+            Cria um recebível previsto para o cliente. Informe o valor combinado por esta entrega — ele
+            não é o valor pago ao projetista.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1.5">
+          <Label>Valor a cobrar do cliente (R$)</Label>
+          <InputMoeda value={valor} onChange={setValor} />
+          <p className="text-xs text-muted-foreground">
+            {disciplina?.valorSugerido != null
+              ? "Sugestão: o valor do item da proposta para esta disciplina."
+              : "Esta disciplina não tem item na proposta — digite o valor."}
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={pending}>
+            Cancelar
+          </Button>
+          <Button onClick={confirmar} disabled={pending || !valor}>
+            {pending ? "Faturando…" : "Faturar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

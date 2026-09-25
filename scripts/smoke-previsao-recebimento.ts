@@ -17,6 +17,8 @@
  *      Contrato sem projeto também sincroniza a parcela da assinatura.
  *   7. Parcelas manuais do projeto × contrato (L6): por entrega em vigor recusa "Gerar parcelas";
  *      rescindido não conta; por data com plano definido só avisa.
+ *   8. "Faturar entrega" (B1): recusa com contrato por entrega em vigor; cobra o valor INFORMADO, nunca
+ *      o `Disciplina.valor` (pool dos projetistas); não fatura duas vezes nem sem valor.
  *
  * Uso: npm run smoke:previsao-recebimento
  */
@@ -36,6 +38,7 @@ import { inicioDoDiaUtc } from "../src/lib/data";
 import { registrarExecucaoNaLinha } from "../src/modules/planejamento/execucao-service";
 import { avisoCobrancaContrato } from "../src/modules/projetos/receita/cobranca-contrato";
 import { contratosDeCobranca } from "../src/modules/projetos/receita/queries";
+import { faturarEntregaDaDisciplina } from "../src/modules/projetos/receita/faturamento";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -245,18 +248,39 @@ async function main() {
     // ── 7. Parcelas manuais do projeto × contrato (L6) ───────────────────
     let aviso = avisoCobrancaContrato(await contratosDeCobranca(projeto.id));
     check("L6: contrato por entrega em vigor → 'Gerar parcelas' do projeto é recusado", aviso?.nivel === "recusa" && aviso.texto.includes(contrato.titulo), aviso);
+    const disciplina = await prisma.disciplina.create({ data: { projetoId: projeto.id, disciplinaTextoLegado: "Elétrica", valor: 111 } });
+    const erroDe = async (p: Promise<unknown>) => {
+      try {
+        await p;
+        return null;
+      } catch (e) {
+        return e instanceof Error ? e.message : String(e);
+      }
+    };
+    const recusaEntrega = await erroDe(faturarEntregaDaDisciplina({ disciplinaId: disciplina.id, valor: 2500, autorId: admin.id }));
+    check("B1: contrato por entrega em vigor → 'Faturar entrega' é recusado", !!recusaEntrega && /cobrado por entrega/.test(recusaEntrega), recusaEntrega);
     await prisma.documentoJuridico.update({ where: { id: contrato.id }, data: { statusContrato: "rescindido" } });
     aviso = avisoCobrancaContrato(await contratosDeCobranca(projeto.id));
     check("L6: rescindido não conta; contrato por data sem plano definido não avisa", aviso === null, aviso);
     await prisma.documentoJuridico.update({ where: { id: porData.id }, data: { parcelas: 2, primeiroVencimento: d(hoje) } });
     aviso = avisoCobrancaContrato(await contratosDeCobranca(projeto.id));
     check("L6: contrato por data com plano definido → só avisa, não recusa", aviso?.nivel === "aviso", aviso);
+
+    // ── 8. Faturar entrega (B1): cobra o valor informado, nunca o pool dos projetistas ──
+    const semValor = await erroDe(faturarEntregaDaDisciplina({ disciplinaId: disciplina.id, valor: 0, autorId: admin.id }));
+    check("B1: sem valor informado é recusado", !!semValor && /valor a cobrar/.test(semValor), semValor);
+    const fatEntrega = await faturarEntregaDaDisciplina({ disciplinaId: disciplina.id, valor: 2500, autorId: admin.id });
+    const rec = await prisma.lancamento.findFirst({ where: { projetoId: projeto.id, tags: { has: `entrega:${disciplina.id}` } } });
+    check("B1: a receita prevista sai com o valor INFORMADO (2500), não com o pool da disciplina (111)", fatEntrega.projetoId === projeto.id && Number(rec?.valor) === 2500 && rec?.status === "previsto" && rec.tipo === "receita", rec);
+    const dobro = await erroDe(faturarEntregaDaDisciplina({ disciplinaId: disciplina.id, valor: 2500, autorId: admin.id }));
+    check("B1: faturar a mesma disciplina de novo é recusado", !!dobro && /já foi faturada/.test(dobro), dobro);
   } finally {
     // Limpeza — parcelas (FK para o lançamento) antes dos lançamentos, contratos, EAP.
     const contratos = await prisma.documentoJuridico.findMany({ where: { projetoId: projeto.id }, select: { id: true } });
     const ids = [...contratos.map((c) => c.id), ...extras];
     await prisma.contratoParcelaEntrega.deleteMany({ where: { contratoId: { in: ids } } });
-    await prisma.lancamento.deleteMany({ where: { contratoId: { in: ids } } });
+    await prisma.lancamento.deleteMany({ where: { OR: [{ contratoId: { in: ids } }, { projetoId: projeto.id }] } });
+    await prisma.disciplina.deleteMany({ where: { projetoId: projeto.id } });
     await prisma.documentoJuridico.deleteMany({ where: { id: { in: ids } } });
     await prisma.eapTarefa.deleteMany({ where: { projetoId: projeto.id } });
     await prisma.cronogramaProjeto.deleteMany({ where: { projetoId: projeto.id } });
