@@ -34,6 +34,11 @@ npm run smoke:inputs-link     # link público de inputs: janela da notificação
 npm run smoke:aviso-agendado  # aviso agendado: disparo do tick, claim anti-duplicata, cancelamento
 npm run smoke:sync-pagamento  # pagamento de projetista: sync de valor/responsáveis, cancelamento, total do lote
 npm run smoke:historico-documento  # histórico por documento: agrupamento atômico de acessos, corte de visibilidade, merge
+npm run smoke:recursos-eap    # EAP: herança de responsáveis, horas no motor, cards, carga/sobrecarga, custo previsto
+npm run smoke:ponto-tarefa    # ponto com tarefa: lista curta, validação, edição do dia, apontado × previsto
+npm run smoke:pagamento-fase  # pagamento por fase: pool congelado, write-back por diferença, SLA, marco → aprovar fase
+npm run smoke:previsao-recebimento  # contrato por entrega: previsão no caixa, marco anda, faturar, fora do aging
+npm run verify:motor-cronograma     # motor do cronograma contra os projetos reais do banco
 ```
 
 - **Dev helper (Windows):** `dev.bat` (raiz) → *Central do Desenvolvedor* (`dev/gerenciar-dev.bat` + `.ps1`),
@@ -161,13 +166,33 @@ client-side, cap 100, count in the confirm, partial-failure report). **Never han
 **Soft delete:** `Lancamento` reads are auto-filtered to `excluidoEm: null` via a Prisma client extension
 in `lib/prisma.ts`. To see deleted rows, pass `excluidoEm` explicitly in the `where`.
 
+**`Lancamento.status = previsao`** (F7.2) is a receivable FORECAST from the cronograma (client contract
+billed per delivery, `ContratoParcelaEntrega`), not a receivable. Readers that filter `previsto` ignore it by
+design; only `projecaoCaixa` includes it. A new receivable reader WITHOUT a status filter must exclude it
+(`status: { not: "previsao" }`). "Faturar" converts the same row to `previsto`; the sync
+(`juridico/contrato/previsao-service.ts`) only ever touches `previsao` rows.
+
+**Projetista paid per phase** (F7.4, `PagamentoProjetista.etapaId`): "already paid" means
+`situacaoPagamento().jaLiberouTudo` (every phase released) — never "has any payment" (`_count.pagamentos > 0`),
+which is true after the first phase and hides the rest. Pure rules in `uploads/pagamento-fase.ts`.
+
 **Estúdio (documentos) token system** (`modules/documentos/tokens.ts`) — pure engine, no I/O, tested heavily:
 - Syntax: `[Campo]`, `[Fonte.Campo]`, `[Sum/Avg/Count/Min/Max(X)]`, `[= expr]`, `[Pagina]`, `[Grupo]`
 - Format suffixes: `:c2` (currency), `:d` (date), `:p1` (percent), `:n0` (integer)
 - `ContextoDados` shape: `{ escalar, linhas, linha, grupo, pagina }` — line-repeating sections use `linhas`
 - Data source metadata lives in `modules/documentos/fontes-meta.ts` (pure, client-safe); server resolution in `fontes.ts`
 
-**Planejamento CPM** (`modules/planejamento/caminho-critico.ts`) — pure forward/backward-pass critical-path algorithm on tarefas graph (predecessoras + datas). No Prisma dependency; WBS codes (1.2.3 format) and desvio/baseline exported to Excel via `GET /api/planejamento/[id]/eap-export`.
+**Planejamento (motor de cronograma, MS Project)** (`modules/planejamento/`) — replaced the old `caminho-critico.ts`.
+Spec + 42 decisions: `docs/superpowers/specs/2026-09-23-planejamento-motor-cronograma.md`. Layered like ferramentas:
+- `motor.ts` — pure `agendar()`: forward/backward pass on the working-day calendar (`lib/calendario-trabalho.ts`,
+  holidays), FS/SS/FF/SF + lag, the 6 restrictions, float/critical path, rollup (% weighted by hours). `agenda.ts`
+  is the I/O: `planoDoProjeto` (read, never writes) / `reagendarProjeto` (writes). Real dates (`execucao.ts`) are
+  recorded but the motor does NOT read them yet (D6).
+- `service.ts` — approval freezes `BL-00` (baseline versions, never overwritten), replan, quality verifier
+  (`qualidade.ts`), health (`saude.ts`). `EapAtribuicao` = person or perfil with hours (`recursos.ts`, pure).
+- Every EAP mutation calls `aposMudarEap` (card sync D24/D32 + receivable forecasts). `custo.ts`: hours ×
+  `Recurso.custoHora`, unknown never becomes zero, only for `podeVerFinanceiro`, frozen in the baseline (VP of F8).
+- WBS codes and desvio/baseline exported to Excel via `GET /api/planejamento/[id]/eap-export`.
 
 **Project health** (`modules/projetos/health.ts`) — pure `saudeProjeto(disciplinas, prazoFinal)` → `ok | atencao | critico` (returns `null` for non-`em_andamento`). Feeds the "Saúde" column in the projects list and the admin dashboard `CarteiraDashboard`. Same pattern as CPM/tokens: no I/O, unit-tested.
 

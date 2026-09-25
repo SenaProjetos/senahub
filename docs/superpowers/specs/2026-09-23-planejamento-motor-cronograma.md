@@ -323,6 +323,31 @@ Um cronograma, quatro modos de exibição (D33) — não duas telas lado a lado.
 > **Mexe na tela de Produção e na folha de projetistas**, refeitas na v1.17.0. Financeiro já
 > validou a regra (2026-09-23), mas esta é a fase que pede conferência em tela antes do deploy.
 
+> **Notas de implementação (2026-09-25, F7 pronta, sem olho humano):**
+> - **Ordem feita:** oráculo + regras puras → F7.4 → F7.1 → F7.0 (nova: execução da linha) → F7.2/F7.3.
+>   Dois oráculos fora do git (dinheiro e receber) conferiram cada fatia: disciplina sem fase e
+>   contrato por data saíram idênticos.
+> - **F7.4 pagamento por fase:** fase liberada CONGELA pool e recebedores; o valor da disciplina só
+>   mexe nas fases pendentes (o "que falta" pelo % delas, a última absorve); ajuste na Produção anda o
+>   total pela diferença; um modo por disciplina. "Já pagou" = `jaLiberouTudo`, nunca "tem pagamento"
+>   (card e SLA estavam errados com fase parcial — corrigidos). `smoke:pagamento-fase`.
+> - **F7.1 custo por linha:** horas × `Recurso.custoHora`; desconhecido nunca vira zero; só para quem
+>   vê financeiro; congelado em `EapBaselineLinha.custoPrevisto` (VP da F8). Baseline antiga = nulo.
+> - **F7.0 (não estava na tabela):** nada gravava `status`/`inicioReal`/`fimReal` nem a FASE da linha
+>   (`etapaId`) desde a F0. Entrou o "Atualizar tarefa" (`cronograma:executado`) e o campo Fase. Marco
+>   de fase concluído OFERECE aprovar a fase pela mesma action da F7.4 — nunca paga sozinho. O motor
+>   ainda não lê datas reais (**D6 pendente — a F8 precisa saber**).
+> - **F7.2/F7.3:** contrato de cliente `por_data | por_entrega` (D15); parcela = % ligado a marco ou
+>   "na assinatura". A previsão é `Lancamento.status = previsao` — status próprio (não `previsto` +
+>   etiqueta) para quem não a conhece a IGNORAR: fora de aging, inadimplência, "a receber", livro caixa
+>   e conciliação; só a projeção de caixa a inclui. Faturar converte a MESMA linha em `previsto`.
+>   Toda parcela (inclusive a da assinatura) passa por previsão → faturar (D9). `smoke:previsao-recebimento`.
+> - **Pré-existente corrigido:** a projeção de caixa cortava na meia-noite local contra vencimento
+>   em meia-noite UTC. **Pré-existente NÃO corrigido:** "faturar entrega" (N-26) cobra do cliente o
+>   `Disciplina.valor`, que é o pool dos PJ.
+> - **Deploy:** 4 migrations aditivas (a do `ADD VALUE` do enum é separada de propósito); nenhum seed,
+>   nenhuma permissão nova.
+
 ### F8 — Valor Agregado · Opus · 2 sessões · risco MÉDIO
 
 VP/VA/CR, IDP/IDC sobre o que F1–F7 produziram. **Só depois de todas as anteriores** — índice
