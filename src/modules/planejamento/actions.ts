@@ -23,6 +23,7 @@ import { planejarAplicacao } from "@/modules/planejamento/aplicacao";
 import { herdarResponsaveisNoProjeto, sincronizarCards } from "@/modules/planejamento/recursos-service";
 import { sincronizarPrevisoesDepois } from "@/modules/juridico/contrato/previsao-service";
 import { gravarApuracaoValorAgregado } from "@/modules/planejamento/valor-agregado-service";
+import { reservarIdsParaLinhas } from "@/modules/planejamento/id-corporativo";
 
 const plan = { modulo: "planejamento", recurso: "planejamento", permissao: "gerir" } as const;
 const rec = { modulo: "recursos", recurso: "recursos", permissao: "gerir" } as const;
@@ -221,8 +222,11 @@ export const criarEapTarefa = defineAction(
       _max: { ordem: true },
     });
     const etapaId = await faseDaLinha(i.projetoId, i.disciplinaId || null, i.etapaId);
+    const tipoEap = i.marco ? "mrc" : "atv";
+    const [idCorporativo] = await reservarIdsParaLinhas(prisma, [tipoEap]);
     const t = await prisma.eapTarefa.create({
       data: {
+        idCorporativo,
         projetoId: i.projetoId,
         parentId: i.parentId || null,
         disciplinaId: i.disciplinaId || null,
@@ -233,7 +237,7 @@ export const criarEapTarefa = defineAction(
         progresso: i.progresso,
         // F0: a natureza da linha é o TEAP; `marco` continua no contrato da UI mas não
         // existe mais como coluna. Marco tem duração 0 por definição (Doc 03 §11).
-        tipoEap: i.marco ? "mrc" : "atv",
+        tipoEap,
         duracaoDias: i.marco ? 0 : diasUteisEntre(i.inicioPrevisto, i.fimPrevisto),
         ordem: (max._max.ordem ?? -1) + 1,
       },
@@ -401,8 +405,9 @@ export const gerarEapDasDisciplinas = defineAction(
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     let ordem = (maxOrdem._max.ordem ?? -1) + 1;
+    const idsCorporativos = await reservarIdsParaLinhas(prisma, novas.map(() => "atv" as const));
     const criadas = await prisma.$transaction(
-      novas.map((d) => {
+      novas.map((d, k) => {
         const fim =
           d.prazo && d.prazo > hoje
             ? d.prazo
@@ -411,6 +416,7 @@ export const gerarEapDasDisciplinas = defineAction(
               : addDays(hoje, 14);
         return prisma.eapTarefa.create({
           data: {
+            idCorporativo: idsCorporativos[k],
             projetoId: i.projetoId,
             disciplinaId: d.id,
             nome: d.disciplinaTextoLegado,

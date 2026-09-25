@@ -145,7 +145,16 @@ Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
 - "Faturar entrega" da disciplina (N-26) cobra do **cliente** o `Disciplina.valor`, que é o pool de
   pagamento dos PJ — custo usado como receita. Com a F7.4, ajuste na Produção mexe nesse valor.
 - `editarEapTarefa` força o tipo atividade/marco mesmo editando linha de disciplina/resumo.
-- Duplicar projeto copia a EAP sem tipo, duração, restrição e classificadores.
+- ~~Duplicar projeto copia a EAP sem tipo, duração, restrição e classificadores.~~ **Corrigido (B3):**
+  copia estrutura (tipo, duração, prioridade, fase/classificadores globais, tipo e lag das dependências),
+  com ID corporativo novo; cronograma novo em rascunho, com início opcional no diálogo. **Não** copia
+  restrições de data (datas absolutas do projeto de origem), avanço, datas reais, bloqueio, horas nem
+  pessoas. `smoke:duplicar-projeto` (20 checagens).
+- **Achado no caminho (corrigido junto):** nenhum caminho de criação atribuía o `idCorporativo` — só o
+  backfill da F0. Linhas criadas por "Nova tarefa", "Gerar EAP das disciplinas" e pela duplicação ficavam
+  com a identidade nula, e `verify:motor-cronograma` acusaria. Agora os três (e o `seed:demo`) reservam o
+  ID pelo contador `EapSequencia` (`id-corporativo.ts`). Linhas criadas na branch antes desta correção,
+  em algum banco, precisariam de backfill — em produção não há (a branch ainda não subiu).
 - ~~`Promise.all` dentro de transação em `comercial/service.ts`~~ — **corrigido (B4)**, em 3 pontos
   (2 em `comercial/service.ts`, 1 em `uploads/actions.ts`); teste-guarda em
   `src/lib/promise-all-em-transacao.test.ts`.
@@ -228,7 +237,7 @@ suíte 4293 testes · lint · tsc · build — todos verdes.
 |---|---|---|---|
 | B1 | "Faturar entrega" (N-26) cobra do cliente o `Disciplina.valor` (pool dos PJ) | O diálogo passa a pedir o valor, pré-preenchido pelo item da proposta de origem da mesma disciplina (`PropostaItem` via catálogo) — nunca `Disciplina.valor`. Projeto com contrato "por entrega" esconde o botão (o contrato manda na cobrança) | Sonnet high · médio (dinheiro): teste + smoke |
 | B2 | Editar linha da EAP: força tipo atv/mrc; **duração salva em dias CORRIDOS** (helper provisório da F0 que ficou em `planejamento/actions.ts`) e o motor agenda em dias ÚTEIS — a barra estica ao salvar; as datas digitadas ficam gravadas até alguém reagendar | Tipo só alterna atividade↔marco (os outros tipos ficam, e o "Marco" some para eles); agrupamento não recebe duração; o editor passa a editar **duração (dias úteis) + "não iniciar antes de"** (alfinete, D34), como o Project, e salvar reagenda. Remover o helper provisório | Opus xhigh (regra) + Sonnet (tela) · alto e silencioso: testes + `verify:motor-cronograma` |
-| B3 | Duplicar projeto copia a EAP sem tipo, duração, restrição, classificadores | Copiar tipo, duração, restrição, fase/origem/TAT, tipo e lag das dependências; ID corporativo NOVO (D29); %, status e datas reais zerados; cronograma novo em rascunho, datas pelo motor a partir do início pedido (D10) | Sonnet · baixo |
+| B3 ✅ | Duplicar projeto copia a EAP sem tipo, duração, restrição, classificadores | Copiar tipo, duração, restrição, fase/origem/TAT, tipo e lag das dependências; ID corporativo NOVO (D29); %, status e datas reais zerados; cronograma novo em rascunho, datas pelo motor a partir do início pedido (D10) | Sonnet · baixo |
 | B4 ✅ | `Promise.all` dentro de transação (`comercial/service.ts`) | `await` em sequência + teste-guarda que varre `src/` por `Promise.all([` com `tx.` dentro | Sonnet · mínimo |
 
 ### Limitações

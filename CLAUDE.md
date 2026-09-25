@@ -38,6 +38,7 @@ npm run smoke:recursos-eap    # EAP: herança, horas no motor, cards, carga/sobr
 npm run smoke:ponto-tarefa    # ponto com tarefa: lista curta, validação, edição do dia, apontado × previsto
 npm run smoke:pagamento-fase  # pagamento por fase: pool congelado, write-back por diferença, SLA, marco → aprovar fase
 npm run smoke:previsao-recebimento  # contrato por entrega: previsão no caixa, marco anda, faturar, fora do aging
+npm run smoke:duplicar-projeto      # duplicar projeto com EAP: estrutura, IDs novos, cronograma em rascunho, o que NÃO copia
 npm run verify:motor-cronograma     # motor do cronograma contra os projetos reais do banco
 ```
 
@@ -193,6 +194,11 @@ Spec + 42 decisions: `docs/superpowers/specs/2026-09-23-planejamento-motor-crono
 - Every EAP mutation calls `aposMudarEap` (card sync D24/D32 + receivable forecasts). `custo.ts`: hours ×
   `Recurso.custoHora`, unknown never becomes zero, only for `podeVerFinanceiro`, frozen in the baseline (VP of F8).
 - WBS codes and desvio/baseline exported to Excel via `GET /api/planejamento/[id]/eap-export`.
+- **Every new EAP row needs its permanent `idCorporativo`** (`id-corporativo.ts` → `reservarIdsParaLinhas`, atomic
+  counter `EapSequencia`, one prefix per `tipoEap`): `criarEapTarefa`, `gerarEapDasDisciplinas` and
+  `duplicarProjetoNoBanco` do it; a bare `prisma.eapTarefa.create` leaves the identity null and
+  `verify:motor-cronograma` flags it. Duplicating a project copies the EAP *structure* only (`projetos/duplicar-eap.ts`,
+  pure): not progress, real dates, restrictions (absolute dates), bloqueio, hours or people; the new schedule is a draft.
 
 **Project health** (`modules/projetos/health.ts`) — pure `saudeProjeto(disciplinas, prazoFinal)` → `ok | atencao | critico` (returns `null` for non-`em_andamento`). Feeds the "Saúde" column in the projects list and the admin dashboard `CarteiraDashboard`. Same pattern as CPM/tokens: no I/O, unit-tested.
 
@@ -260,6 +266,9 @@ versão em linguagem de usuário continua em `docs/manual/novidades.md` → `/aj
 
 - **Prisma 7:** client is generated to `src/generated/prisma` — import `{ PrismaClient }` from `@/generated/prisma/client`,
   never from `@prisma/client`. The `DATABASE_URL` lives in `prisma.config.ts`, not in `schema.prisma`.
+- **No `Promise.all` on a transaction client:** a `$transaction` has ONE connection; `Promise.all([tx.a…, tx.b…])`
+  fires concurrent queries on it (deprecated in `pg`, breaks in pg@9). Await them one by one. A guard test
+  (`lib/promise-all-em-transacao.test.ts`) scans `src/`.
 - **shadcn on base-ui, not Radix:** triggers use `render={<Comp />}`, **not** `asChild`. `components.json`
   style is `base-nova`. Don't reach for Radix patterns.
 - REST routes under `src/app/api/` exist only for multipart uploads, public-token endpoints, streaming, and

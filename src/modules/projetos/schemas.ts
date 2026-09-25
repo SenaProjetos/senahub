@@ -93,6 +93,8 @@ export const duplicarProjetoSchema = z.object({
   copiarMembros: z.boolean().default(true),
   copiarEap: z.boolean().default(false),
   copiarComposicao: z.boolean().default(false),
+  /** Início do cronograma do clone (só vale com `copiarEap`). Sem ele, o motor parte do menor início copiado. */
+  inicioCronograma: z.string().date().nullable().optional(),
 });
 
 /** P-48: edição em massa de disciplinas (status, prazo, responsável único). */

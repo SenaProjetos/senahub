@@ -56,6 +56,21 @@ Detalhes em [Planejamento](projetos/planejamento.md),
 
 ---
 
+## Duplicar projeto copia o cronograma de verdade
+
+Ao **duplicar um projeto** marcando a **EAP**, a cópia agora leva a estrutura do cronograma inteira:
+as tarefas em árvore, o **tipo** de cada linha (marco continua marco), as **durações**, a prioridade, a
+fase e os classificadores, e o **tipo e o atraso** de cada dependência. Antes, tudo virava atividade de
+um dia e as dependências perdiam o tipo.
+
+- O **cronograma novo nasce em rascunho**, e cada linha tem seu **ID novo**. Se você informar o **início
+  do cronograma novo** no diálogo, as datas já saem calculadas a partir dele.
+- Não são copiados avanço, datas reais, bloqueios, restrições de data, horas nem pessoas.
+- Linhas criadas pelo botão **Nova tarefa** e por **Gerar EAP das disciplinas** também passaram a
+  receber o ID permanente da linha.
+
+---
+
 ## Receita do projeto: o contrato por entrega manda na cobrança
 
 Na aba **Financeiro** do projeto, o card **Receita / Contrato** não deixa mais **Gerar parcelas**

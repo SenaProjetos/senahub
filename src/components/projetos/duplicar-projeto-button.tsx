@@ -7,6 +7,8 @@ import { Copy } from "lucide-react";
 import { duplicarProjeto } from "@/modules/projetos/actions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +36,7 @@ export function DuplicarProjetoButton({ projetoId }: { projetoId: string }) {
     copiarEap: false,
     copiarComposicao: false,
   });
+  const [inicio, setInicio] = useState("");
 
   function toggle(key: OpcaoKey, value: boolean) {
     setFlags((prev) => ({ ...prev, [key]: value }));
@@ -41,7 +44,11 @@ export function DuplicarProjetoButton({ projetoId }: { projetoId: string }) {
 
   function confirmar() {
     start(async () => {
-      const res = await duplicarProjeto({ id: projetoId, ...flags });
+      const res = await duplicarProjeto({
+        id: projetoId,
+        ...flags,
+        inicioCronograma: flags.copiarEap && inicio ? inicio : null,
+      });
       if (res.ok) {
         toast.success("Projeto duplicado.");
         setOpen(false);
@@ -83,6 +90,24 @@ export function DuplicarProjetoButton({ projetoId }: { projetoId: string }) {
               </label>
             ))}
           </div>
+
+          {flags.copiarEap && (
+            <div className="space-y-2 rounded-md border bg-muted/30 p-3 text-sm">
+              <p className="text-muted-foreground">
+                Copia a estrutura do cronograma: tarefas, durações, dependências, fases e classificadores.
+                Não copia avanço, datas reais, restrições de data, bloqueios nem horas. O cronograma novo
+                nasce em rascunho.
+              </p>
+              <div className="space-y-1.5">
+                <Label htmlFor="dup-inicio">Início do cronograma novo (opcional)</Label>
+                <Input id="dup-inicio" type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
+                <p className="text-xs text-muted-foreground">
+                  Sem data, as datas partem das do projeto original — defina o início depois, em
+                  Planejamento.
+                </p>
+              </div>
+            </div>
+          )}
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>

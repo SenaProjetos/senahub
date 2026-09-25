@@ -68,7 +68,9 @@
         "data de status",
         "saúde do cronograma",
         "receita do projeto",
-        "gerar parcelas"
+        "gerar parcelas",
+        "duplicar projeto",
+        "copiar eap"
       ],
       "palavrasChave": [
         "novidades",
@@ -351,7 +353,8 @@
         "fase",
         "receita",
         "parcelas",
-        "valor de contrato"
+        "valor de contrato",
+        "copiar eap"
       ],
       "palavrasChave": [
         "projeto",

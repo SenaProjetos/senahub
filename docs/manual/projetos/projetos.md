@@ -2,7 +2,7 @@
 titulo: Projetos
 descricao: Cadastro e acompanhamento de projetos, disciplinas, responsáveis, revisões e ciclo de vida.
 resumo: Liste e filtre projetos, crie/edite, gerencie disciplinas (com etapas por fase) e seus status, responsáveis, membros, revisões, duplicação e cancelamento/arquivamento.
-tags: [projetos, disciplinas, etapas, fase, status, responsáveis, membros, revisões, duplicar, cancelar, arquivar, progresso, nomenclatura versionada, sub-disciplina, receita, parcelas, valor de contrato]
+tags: [projetos, disciplinas, etapas, fase, status, responsáveis, membros, revisões, duplicar, cancelar, arquivar, progresso, nomenclatura versionada, sub-disciplina, receita, parcelas, valor de contrato, copiar eap]
 palavras-chave: [projeto, disciplina, etapa, fase, pagamento por fase, gerar parcelas, receita do projeto, status, em andamento, em revisão, entregue, aprovado, responsável, membro, revisão, duplicar projeto, cancelar projeto, prazo, versão do padrão, trocar de versão, sub-disciplina]
 sinonimos: [obras, jobs, contratos de projeto]
 ---
@@ -105,6 +105,15 @@ Cada disciplina passa por um ciclo de status:
 - **Duplicar projeto:** cria uma cópia (`nome (cópia)`, novo código), com disciplinas;
   opcionalmente copia responsáveis, membros, EAP e composição de preço. **Nunca** copia
   arquivos, revisões ou pagamentos.
+  - **Copiar a EAP** leva a **estrutura do cronograma**: as tarefas em árvore, o tipo de cada linha
+    (marco continua marco), as **durações**, a prioridade, a disciplina (a da cópia), a **fase** e os
+    classificadores, e o **tipo e o atraso de cada dependência**. Cada linha ganha um **ID novo**.
+    **Não** leva avanço, datas reais, bloqueios, restrições de data (são datas do projeto original) nem
+    horas e pessoas — a equipe da cópia é outra decisão; os responsáveis das disciplinas da cópia é que
+    descem para as linhas.
+  - O **cronograma novo nasce em rascunho**. Informe o **início do cronograma novo** (opcional) e o
+    sistema calcula as datas a partir dele; sem data, elas partem das do projeto original — defina o
+    início depois, em [Planejamento](planejamento.md), e clique em **Reagendar**.
 - **Cancelar / Arquivar:** muda a situação e notifica os membros; o motivo é registrado
   na descrição.
 - **Reabrir disciplina aprovada:** exige **motivo** e **novo prazo**. Se o novo prazo

@@ -14,6 +14,7 @@ import { addDays, subDays, subMonths } from "date-fns";
 import { prisma } from "../src/lib/prisma";
 import { auth } from "../src/lib/auth";
 import { proximoCodigoProjeto } from "../src/modules/projetos/numbering";
+import { reservarIdsParaLinhas } from "../src/modules/planejamento/id-corporativo";
 import { ensureCanalGeral, ensureCanaisProjeto } from "../src/modules/chat/service";
 import { calcularEncargos, type Faixa } from "../src/lib/encargos";
 import type { StatusDisciplina } from "../src/generated/prisma/client";
@@ -434,14 +435,15 @@ async function main() {
 
   // ── EAP (planejamento) no 1º projeto ────────────────────────
   const projEap = projetos[0];
+  const [idMae, idF1, idF2] = await reservarIdsParaLinhas(prisma, ["atv", "atv", "atv"]);
   const mae = await prisma.eapTarefa.create({
-    data: { projetoId: projEap.id, nome: "Projeto executivo", ordem: 0, inicioPrevisto: dataDate(dia(-20)), fimPrevisto: dataDate(dia(20)), inicioBaseline: dataDate(dia(-20)), fimBaseline: dataDate(dia(10)), progresso: 60 },
+    data: { idCorporativo: idMae, projetoId: projEap.id, nome: "Projeto executivo", ordem: 0, inicioPrevisto: dataDate(dia(-20)), fimPrevisto: dataDate(dia(20)), inicioBaseline: dataDate(dia(-20)), fimBaseline: dataDate(dia(10)), progresso: 60 },
   });
   const f1 = await prisma.eapTarefa.create({
-    data: { projetoId: projEap.id, parentId: mae.id, disciplinaId: projEap.disciplinas[0].id, nome: "Estrutural — cálculo", ordem: 1, inicioPrevisto: dataDate(dia(-15)), fimPrevisto: dataDate(dia(5)), inicioBaseline: dataDate(dia(-15)), fimBaseline: dataDate(dia(0)), progresso: 80 },
+    data: { idCorporativo: idF1, projetoId: projEap.id, parentId: mae.id, disciplinaId: projEap.disciplinas[0].id, nome: "Estrutural — cálculo", ordem: 1, inicioPrevisto: dataDate(dia(-15)), fimPrevisto: dataDate(dia(5)), inicioBaseline: dataDate(dia(-15)), fimBaseline: dataDate(dia(0)), progresso: 80 },
   });
   const f2 = await prisma.eapTarefa.create({
-    data: { projetoId: projEap.id, parentId: mae.id, nome: "Compatibilização", ordem: 2, inicioPrevisto: dataDate(dia(6)), fimPrevisto: dataDate(dia(20)), inicioBaseline: dataDate(dia(1)), fimBaseline: dataDate(dia(12)), progresso: 0 },
+    data: { idCorporativo: idF2, projetoId: projEap.id, parentId: mae.id, nome: "Compatibilização", ordem: 2, inicioPrevisto: dataDate(dia(6)), fimPrevisto: dataDate(dia(20)), inicioBaseline: dataDate(dia(1)), fimBaseline: dataDate(dia(12)), progresso: 0 },
   });
   await prisma.eapDependencia.create({ data: { tarefaId: f2.id, predecessoraId: f1.id } });
 

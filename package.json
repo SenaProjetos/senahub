@@ -38,6 +38,7 @@
     "smoke:ponto-tarefa": "tsx --tsconfig tsconfig.server.json scripts/smoke-ponto-tarefa.ts",
     "smoke:pagamento-fase": "tsx --tsconfig tsconfig.server.json scripts/smoke-pagamento-fase.ts",
     "smoke:previsao-recebimento": "tsx --tsconfig tsconfig.server.json scripts/smoke-previsao-recebimento.ts",
+    "smoke:duplicar-projeto": "tsx --tsconfig tsconfig.server.json scripts/smoke-duplicar-projeto.ts",
     "smoke:crm-fase1": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-fase1.ts",
     "smoke:crm-dedupe": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-dedupe.ts",
     "smoke:crm-soft-delete": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-soft-delete.ts",
