@@ -553,7 +553,7 @@ function inicioDaSemana(dia: string): string {
  * "50% na matriz e 120% nas tarefas" da Q17). Projeto sem cronograma aprovado segue com a
  * alocação digitada, como sempre.
  */
-export async function matrizRecursos() {
+export async function matrizRecursos(opcoes: { verCusto: boolean }) {
   const hojeIso = diaLocal(new Date());
 
   const [recursos, projetos, usuariosSemRecurso, ferias, abonos, feriados, carga] = await Promise.all([
@@ -665,7 +665,9 @@ export async function matrizRecursos() {
         motivoAusencia,
         indisponibilidades,
         cor: r.cor,
-        custoHora: r.custoHora != null ? Number(r.custoHora) : null,
+        // Taxa é dado do financeiro: mascarada AQUI, no servidor — esconder só na tela ainda a mandaria no
+        // payload. Mesma regra do custo na EAP (`podeVerFinanceiro`).
+        custoHora: opcoes.verCusto && r.custoHora != null ? Number(r.custoHora) : null,
         totalAlocado: alocadoHoje,
         alocadoHoje,
         // P-29: superalocação avalia a carga de HOJE contra a capacidade efetiva.

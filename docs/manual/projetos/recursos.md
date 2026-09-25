@@ -90,7 +90,9 @@ Ver [Cronograma: equipe, horas e custo](cronograma-equipe-e-custo.md).
 - **Adicionar recurso** transforma um usuário em recurso, com **capacidade** (multiplicador), **cor**
   e **custo por hora**. **Editar** altera esses dados.
 - O **custo por hora** alimenta o **custo previsto** do cronograma e o
-  [Valor Agregado](valor-agregado.md) em R$.
+  [Valor Agregado](valor-agregado.md) em R$. Ele é dado do **financeiro**: só aparece em Recursos para quem
+  tem acesso ao financeiro, e só quem **gere o financeiro** o altera. Quem não o vê edita capacidade e cor
+  normalmente, sem apagar a taxa que já está gravada.
 - **Habilidades**: o catálogo de competências e o vínculo com cada pessoa (**+ habilidade**), com
   filtro por habilidade.
 - **Usuários sem recurso** (ainda não mapeados) são destacados.

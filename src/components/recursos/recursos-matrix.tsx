@@ -192,6 +192,8 @@ export function RecursosMatrix({
   projetos,
   usuariosSemRecurso,
   podeGerir,
+  verCusto,
+  editarCusto,
   catalogoHabilidades,
   habilidadesPorUser,
   cargaSemanal,
@@ -201,6 +203,10 @@ export function RecursosMatrix({
   projetos: Projeto[];
   usuariosSemRecurso: { id: string; name: string; role: string }[];
   podeGerir: boolean;
+  /** Vê a taxa (custo/hora): só com acesso ao financeiro. Sem ele o servidor a manda nula. */
+  verCusto: boolean;
+  /** Edita a taxa: `financeiro:gerir`. */
+  editarCusto: boolean;
   catalogoHabilidades: Habilidade[];
   habilidadesPorUser: Record<string, Habilidade[]>;
   cargaSemanal: CargaSemanal;
@@ -630,6 +636,8 @@ export function RecursosMatrix({
           />
           <RecursoDialog
             state={recursoDlg}
+            verCusto={verCusto}
+            editarCusto={editarCusto}
             onOpenChange={(o) => setRecursoDlg((s) => ({ ...s, open: o }))}
             pending={pending}
             onSalvar={(payload) =>
@@ -1158,11 +1166,15 @@ function NovoRecursoDialog({
 
 function RecursoDialog({
   state,
+  verCusto,
+  editarCusto,
   onOpenChange,
   pending,
   onSalvar,
 }: {
   state: { open: boolean; linha: Linha | null };
+  verCusto: boolean;
+  editarCusto: boolean;
   onOpenChange: (o: boolean) => void;
   pending: boolean;
   onSalvar: (p: {
@@ -1203,10 +1215,21 @@ function RecursoDialog({
                 onChange={(e) => setCapacidade(e.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label>Custo/hora (R$)</Label>
-              <InputMoeda value={custoHora} onChange={setCustoHora} />
-            </div>
+            {verCusto && (
+              <div className="space-y-1.5">
+                <Label>Custo/hora (R$)</Label>
+                {editarCusto ? (
+                  <InputMoeda value={custoHora} onChange={setCustoHora} />
+                ) : (
+                  <p
+                    className="flex h-9 items-center font-mono text-sm text-muted-foreground"
+                    title="Só quem gere o financeiro altera o custo por hora."
+                  >
+                    {custoHora != null ? custoHora.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) : "—"}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label>Cor</Label>
@@ -1228,7 +1251,7 @@ function RecursoDialog({
               onSalvar({
                 userId: l.userId,
                 capacidade: Number(capacidade),
-                custoHora: custoHora ?? undefined,
+                custoHora: editarCusto ? (custoHora ?? undefined) : undefined,
                 cor,
                 ativo: true,
               })

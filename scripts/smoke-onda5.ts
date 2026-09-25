@@ -111,17 +111,31 @@ async function main() {
   const naLista = lista.find((p) => p.id === projeto.id);
   check("projetosComPlano inclui o projeto com 2 tarefas", naLista?.totalTarefas === 2);
 
-  // 7) Recurso (capacidade 0,5) + alocação 60% → superalocação (60 > 50)
-  const recurso = await prisma.recurso.create({ data: { userId: admin.id, capacidade: 0.5 } });
+  // 7) Meio período (capacidade 0,5): o % é da capacidade DELA (decisão #2) — 60% não é superalocação,
+  //    60% + 60% é. E a taxa (custo/hora) só sai para quem vê o financeiro (decisão #15).
+  const recurso = await prisma.recurso.create({ data: { userId: admin.id, capacidade: 0.5, custoHora: 55 } });
   const aloc = await prisma.alocacao.create({
     data: { recursoId: recurso.id, projetoId: projeto.id, percentual: 60 },
   });
-  const matriz = await matrizRecursos();
+  const matriz = await matrizRecursos({ verCusto: true });
   const linha = matriz.linhas.find((l) => l.recursoId === recurso.id);
-  check("matriz: recurso com capacidade 50% e alocado 60%", linha?.capacidadePct === 50 && linha?.totalAlocado === 60);
-  check("superalocação detectada (60% > 50%)", linha?.superalocado === true);
+  check("matriz: meio período tem capacidade de 100% (a dela) e 60% alocado", linha?.capacidadePct === 100 && linha?.totalAlocado === 60);
+  check("60% da capacidade dela NÃO é superalocação", linha?.superalocado === false);
+  check("quem vê o financeiro recebe o custo/hora", linha?.custoHora === 55);
+  const semCusto = await matrizRecursos({ verCusto: false });
+  check(
+    "quem não vê o financeiro recebe o custo/hora nulo (mascarado no servidor)",
+    semCusto.linhas.find((l) => l.recursoId === recurso.id)?.custoHora === null,
+  );
+  const aloc2 = await prisma.alocacao.create({
+    data: { recursoId: recurso.id, projetoId: projeto.id, percentual: 60 },
+  });
+  const matriz2 = await matrizRecursos({ verCusto: true });
+  const linha2 = matriz2.linhas.find((l) => l.recursoId === recurso.id);
+  check("120% da capacidade dela é superalocação", linha2?.totalAlocado === 120 && linha2?.superalocado === true);
 
   // Limpeza
+  await prisma.alocacao.delete({ where: { id: aloc2.id } });
   await prisma.alocacao.delete({ where: { id: aloc.id } });
   await prisma.recurso.delete({ where: { id: recurso.id } });
   await prisma.projeto.delete({ where: { id: projeto.id } }); // cascata: EAP, dependências, disciplina

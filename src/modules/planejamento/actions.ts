@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { addDays } from "date-fns";
 import { defineAction, ActionError } from "@/lib/with-action";
+import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import {
   montarCalendario,
@@ -774,22 +775,29 @@ const alocacaoSchema = z.object({
   observacao: opt(z.string()),
 });
 
-/** Cria/atualiza o recurso de uma pessoa (capacidade, custo/hora, cor). */
+/**
+ * Cria/atualiza o recurso de uma pessoa (capacidade, custo/hora, cor).
+ *
+ * O custo/hora é do financeiro: quem não o vê e edita (`financeiro:ver` + `financeiro:gerir`) não grava
+ * NEM apaga a taxa. Sem esta guarda, o formulário de quem não vê a taxa (que a recebe mascarada) a
+ * devolveria vazia a cada "Salvar" de capacidade e o `?? null` a zeraria.
+ */
 export const salvarRecurso = defineAction(
   { ...rec, acao: "salvar-recurso", entidade: "Recurso", schema: recursoSchema },
-  async (i) => {
+  async (i, { user }) => {
+    const editaCusto = (await podeVerFinanceiro(user)) && (await can(user, "financeiro", "gerir"));
     const r = await prisma.recurso.upsert({
       where: { userId: i.userId },
       create: {
         userId: i.userId,
         capacidade: i.capacidade,
-        custoHora: i.custoHora,
+        ...(editaCusto ? { custoHora: i.custoHora } : {}),
         cor: i.cor || undefined,
         ativo: i.ativo,
       },
       update: {
         capacidade: i.capacidade,
-        custoHora: i.custoHora ?? null,
+        ...(editaCusto ? { custoHora: i.custoHora ?? null } : {}),
         cor: i.cor || undefined,
         ativo: i.ativo,
       },

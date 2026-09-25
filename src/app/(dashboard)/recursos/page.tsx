@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
-import { can } from "@/lib/permissions";
+import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { matrizRecursos, cargaSemanalPorRecurso } from "@/modules/planejamento/queries";
 import { cargaDaEquipe } from "@/modules/planejamento/recursos-queries";
 import { listarHabilidades, habilidadesDeUsuarios } from "@/modules/rh/habilidades/queries";
@@ -10,9 +10,12 @@ export const metadata: Metadata = { title: "Recursos" };
 
 export default async function RecursosPage() {
   const user = await requirePermission("recursos", "ver");
+  // Custo/hora é dado do financeiro (decisão do time, 2026-09-25): vê quem vê o financeiro, edita quem o gere.
+  const verCusto = await podeVerFinanceiro(user);
+  const editarCusto = verCusto && (await can(user, "financeiro", "gerir"));
   const [{ linhas, projetos, usuariosSemRecurso }, podeGerir, catalogoHabilidades, cargaSemanal, cargaPlanejada] =
     await Promise.all([
-      matrizRecursos(),
+      matrizRecursos({ verCusto }),
       can(user, "recursos", "gerir"),
       listarHabilidades(),
       cargaSemanalPorRecurso(12),
@@ -30,6 +33,8 @@ export default async function RecursosPage() {
       projetos={projetos}
       usuariosSemRecurso={usuariosSemRecurso}
       podeGerir={podeGerir}
+      verCusto={verCusto}
+      editarCusto={editarCusto}
       catalogoHabilidades={catalogoHabilidades}
       habilidadesPorUser={habilidadesPorUser}
       cargaSemanal={cargaSemanal}
