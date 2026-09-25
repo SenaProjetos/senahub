@@ -128,9 +128,10 @@ Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
   mostre custo a quem vê financeiro.
 - Baselines aprovadas antes da F7.1 não têm custo: a coluna R$ do Valor Agregado fica sem número até
   replanejar.
-- Carga: o heatmap da matriz enxerga só alocação digitada; quem está carregado só por projeto aprovado
-  aparece livre ali e sobrecarregado na aba "Carga planejada" (a tela diz isso). Sugestões de
-  sobrecarga são sob demanda (1,3 s com 10 sobrecargas).
+- ~~Carga: o heatmap da matriz enxerga só alocação digitada.~~ **Resolvido (L9):** o heatmap soma a
+  digitada com as horas dos cronogramas aprovados (`heatmap-recursos.ts`), nas 12 semanas que a carga cobre;
+  depois disso, só a digitada. "Superalocado na janela" e o Rebalancear seguem olhando só a digitada.
+  Sugestões de sobrecarga são sob demanda (1,3 s com 10 sobrecargas).
 - Ponto: tarefa escolhida numa troca no meio do dia não sobrevive à edição do dia.
 
 ---
@@ -227,7 +228,9 @@ Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
 - [ ] Atividade criada depois da baseline → aviso (o avanço dela não entra no VA, as horas entram no
       CR — replaneje).
 
-### Correções do §7 (B1, B3, L2, L3, L6)
+### Correções do §7 (B1, B3, L2, L3, L6, L9)
+- [ ] Recursos → Heatmap: pessoa carregada só por projeto aprovado aparece ocupada nas próximas 12 semanas
+      (a célula do mês mostra "digitada X% + cronograma Y%" no mouse); meses além da janela só com a digitada.
 - [ ] Aprovações: seção "Fases a aprovar" só aparece com fase entregue pendente; Aprovar pede confirmação e
       libera o pagamento (mesma mensagem do diálogo Etapas); sem `aprovacoes:disciplina` o botão some; a fase
       aprovada sai da lista; disciplina que pagou inteira não aparece.
@@ -275,7 +278,7 @@ suíte 4293 testes · lint · tsc · build — todos verdes.
 | L6 ✅ | Parcelas manuais + previsão do contrato somando | "Gerar parcelas" do projeto recusa quando há contrato assinado com cobrança ("use o contrato") | Sonnet · mínimo |
 | L7 | Custo/hora visível em /recursos sem acesso ao financeiro | Mascarar `custoHora` na matriz e só editar com `financeiro:gerir` (mesma regra da EAP) | Sonnet · mínimo |
 | L8 | Baseline antiga sem custo | Produção não tem cronograma aprovado — nada a fazer; no dev, replanejar | — |
-| L9 | Heatmap da matriz só com alocação digitada | Heatmap passa a ler a carga calculada dos projetos aprovados | Sonnet · baixo |
+| L9 ✅ | Heatmap da matriz só com alocação digitada | Heatmap passa a ler a carga calculada dos projetos aprovados | Sonnet · baixo |
 | L10 | Tarefa de troca no meio do dia perdida na edição do dia | Gravar a tarefa da troca num registro próprio. Valor baixo — sugestão: deixar | — |
 
 **Ordem sugerida:** ~~F9 (manual)~~ (feita) → B4, L6, L7, L4 (mínimos, um lote) → B3, B1, L2, L3 → B2 + L1 juntos (Opus

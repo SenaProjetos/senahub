@@ -32,7 +32,7 @@ define o período de análise (padrão: de hoje a 90 dias).
 | Visão | O que mostra |
 | --- | --- |
 | **Matriz** | Linhas = pessoas, colunas = projetos, com a alocação de cada uma |
-| **Heatmap** | A alocação **digitada** mês a mês (o pico do mês), pintada conforme a intensidade em relação à capacidade |
+| **Heatmap** | A ocupação mês a mês (o pior dia do mês), pintada conforme a intensidade em relação à capacidade. Soma a alocação **digitada** com as **horas dos cronogramas aprovados** (estas, só nas próximas 12 semanas; depois disso, apenas a digitada). Passe o mouse na célula para ver as duas parcelas |
 | **Carga real** | Nas últimas 12 semanas, `horas registradas / horas disponíveis` por semana, usando escala, fator de capacidade, feriados, férias e abonos aprovados |
 | **Carga planejada** | As **horas previstas nas linhas dos cronogramas aprovados**, por pessoa e semana, contra a capacidade — veja abaixo |
 
@@ -119,9 +119,10 @@ não coincidam. Por exemplo, uma faixa pode terminar em junho e outra começar e
 a participação anterior.
 
 **Aprovei o cronograma e a alocação da pessoa mudou.** É o esperado: a partir da aprovação, a carga do
-projeto vem das **horas das linhas**, e a alocação digitada aparece riscada. Se o projeto não tinha
+projeto vem das **horas das linhas** (o heatmap já as soma), e a alocação digitada aparece riscada. Se o projeto não tinha
 horas estimadas, ele **some da carga** — estime as horas na EAP.
 
-**A pessoa aparece livre no Heatmap e sobrecarregada na Carga planejada.** O heatmap e o "superalocado
-na janela" enxergam só a alocação **digitada**; a carga de quem está só em projeto aprovado aparece na
-**Carga planejada**.
+**A pessoa aparece livre no Heatmap de meses mais distantes e sobrecarregada na Carga planejada.** As
+horas dos cronogramas aprovados entram no heatmap só nas **próximas 12 semanas**; nos meses seguintes ele
+mostra apenas a alocação **digitada**. Já o aviso "superalocado na janela" e o **Rebalancear** olham só a
+alocação digitada — a carga dos projetos aprovados está na **Carga planejada**.

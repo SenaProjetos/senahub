@@ -56,6 +56,16 @@ Detalhes em [Planejamento](projetos/planejamento.md),
 
 ---
 
+## Heatmap de Recursos soma as horas dos cronogramas aprovados
+
+Em **Recursos → Heatmap**, a ocupação de cada pessoa por mês agora soma a alocação **digitada** com as
+**horas das linhas dos cronogramas aprovados** — antes, quem estava carregado só por projeto aprovado
+aparecia livre ali e sobrecarregado na aba **Carga planejada**. As horas dos cronogramas entram nas
+**próximas 12 semanas** (o que a Carga planejada cobre); nos meses mais distantes o heatmap mostra só a
+digitada. Passe o mouse numa célula para ver as duas parcelas. Ver [Recursos](projetos/recursos.md).
+
+---
+
 ## Fila "Fases a aprovar" em Aprovações
 
 A página **Aprovações** ganhou a fila **Fases a aprovar**: cada fase de disciplina já entregue e

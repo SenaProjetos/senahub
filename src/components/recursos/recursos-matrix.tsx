@@ -11,6 +11,7 @@ import { criarHabilidade, alternarHabilidadeUsuario } from "@/modules/rh/habilid
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { percentualAlocadoNoDia, superalocadoNaJanela as temSuperalocacaoNaJanela } from "@/modules/planejamento/disponibilidade";
+import { percentualCalculadoPorSemana, picoDoMes } from "@/modules/planejamento/heatmap-recursos";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AvatarUsuario } from "@/components/ui/avatar-usuario";
@@ -83,8 +84,9 @@ type Habilidade = { id: string; nome: string };
 // ── Heatmap (timeline) ──────────────────────────────────────────────
 // Agrega a alocação de cada pessoa por mês a partir dos períodos das
 // alocações. Sem período definido => conta como vigente em todos os meses
-// da janela (alocação "permanente").
-type MesCell = { ym: string; pct: number };
+// da janela (alocação "permanente"). Soma a carga CALCULADA das horas das
+// linhas dos cronogramas aprovados (L9) nas semanas que a carga planejada cobre.
+type MesCell = { ym: string; pct: number; digitada: number; calculada: number };
 
 function ymKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -117,7 +119,7 @@ function diasDoMes(ym: string): string[] {
  * A janela vai do mês mais antigo de início até o mais distante de fim;
  * com fallback de [mês atual − 1, mês atual + 5] quando não há datas.
  */
-function montarHeatmap(linhas: Linha[]) {
+function montarHeatmap(linhas: Linha[], calculadaDe: (userId: string) => ReadonlyMap<string, number>) {
   const hoje = new Date();
   let min: Date | null = null;
   let max: Date | null = null;
@@ -149,10 +151,10 @@ function montarHeatmap(linhas: Linha[]) {
 
   const meses = mesesEntre(de, ate);
   const matriz = linhas.map((l) => {
-    const cells: MesCell[] = meses.map((ym) => ({
-      ym,
-      pct: Math.max(0, ...diasDoMes(ym).map((dia) => percentualAlocadoNoDia(dia, vigentes(l)))),
-    }));
+    const cells: MesCell[] = meses.map((ym) => {
+      const pico = picoDoMes(diasDoMes(ym), (dia) => percentualAlocadoNoDia(dia, vigentes(l)), calculadaDe(l.userId));
+      return { ym, pct: pico.total, digitada: pico.digitada, calculada: pico.calculada };
+    });
     return { linha: l, cells };
   });
 
@@ -263,7 +265,17 @@ export function RecursosMatrix({
     return base;
   }, [linhas, filtroProjeto, filtroHabilidade, habilidadesPorUser]);
 
-  const heat = useMemo(() => montarHeatmap(linhasFiltradas), [linhasFiltradas]);
+  const calculadaPorUser = useMemo(
+    () =>
+      new Map(
+        cargaPlanejada.pessoas.map((pessoa) => [pessoa.userId, percentualCalculadoPorSemana(pessoa, cargaPlanejada.projetosCalculados)]),
+      ),
+    [cargaPlanejada],
+  );
+  const heat = useMemo(
+    () => montarHeatmap(linhasFiltradas, (userId) => calculadaPorUser.get(userId) ?? new Map()),
+    [linhasFiltradas, calculadaPorUser],
+  );
 
   const totalSuper = linhasFiltradas.filter((l) => l.superalocado).length;
   const projetosAprovados = useMemo(
@@ -768,7 +780,9 @@ function HeatmapView({
                       key={c.ym}
                       className="border-l px-1 py-2 text-center"
                       style={{ background: heatColor(c.pct, l.capacidadePct) }}
-                      title={`${l.nome} · ${ymLabel(c.ym)} — ${c.pct}% alocado (${ratio}% da capacidade)`}
+                      title={`${l.nome} · ${ymLabel(c.ym)} — ${c.pct}% alocado (${ratio}% da capacidade)${
+                        c.calculada > 0 ? ` · digitada ${c.digitada}% + cronograma ${c.calculada}%` : ""
+                      }`}
                     >
                       <span
                         className={`font-mono text-[10px] ${
@@ -794,7 +808,8 @@ function HeatmapView({
         <Legenda cor="hsl(28 90% 64%)" texto="estourando (≤125%)" />
         <Legenda cor="hsl(0 75% 60%)" texto="superalocado (>125%)" />
         <span className="italic">
-          Só alocação digitada — projetos com cronograma aprovado estão na aba “Carga planejada”.
+          Alocação digitada + horas dos cronogramas aprovados (estas, só nas próximas 12 semanas; depois
+          disso, apenas a digitada). O detalhe por semana está em “Carga planejada”.
         </span>
         {!podeGerir && <span className="italic">visualização somente leitura</span>}
       </div>
