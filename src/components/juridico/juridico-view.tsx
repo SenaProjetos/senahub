@@ -798,7 +798,7 @@ function DocsTab({
                 )}
                 {d.projeto && <span className="font-mono text-xs text-muted-foreground">{formatarCodigo(d.projeto)}</span>}
                 {d.cliente && <span className="text-xs text-muted-foreground">{d.cliente}</span>}
-                <div className="ml-auto flex items-center gap-1.5">
+                <div className="ml-auto flex flex-wrap items-center gap-1.5">
                   {podeGerir && (
                     <>
                       <Select value={d.pastaId ?? NONE} onValueChange={(v) => mover(d.id, v ?? NONE)}>
@@ -1287,7 +1287,7 @@ function ContratosEquipeTab({
                   <span className="text-xs text-muted-foreground">até {formatarData(d.dataVencimento)}</span>
                 )}
                 {d.valor != null && <span className="text-xs text-muted-foreground">{brl(d.valor)}</span>}
-                <div className="ml-auto flex items-center gap-1.5">
+                <div className="ml-auto flex flex-wrap items-center gap-1.5">
                   {podeGerir && (
                     <>
                       <Button size="sm" variant="outline" onClick={() => abrirEdicao(d)}>
@@ -1413,7 +1413,7 @@ function ContratosEquipeTab({
                         {resumoAditivo(a) && ` · ${resumoAditivo(a)}`}
                       </span>
                     )}
-                    <div className="ml-auto flex items-center gap-1.5">
+                    <div className="ml-auto flex flex-wrap items-center gap-1.5">
                       {podeGerir && (
                         <>
                           <GerarDoModelo docId={a.id} modelos={modelosContrato} />
