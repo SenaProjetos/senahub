@@ -2,8 +2,8 @@
 titulo: Projetos
 descricao: Cadastro e acompanhamento de projetos, disciplinas, responsáveis, revisões e ciclo de vida.
 resumo: Liste e filtre projetos, crie/edite, gerencie disciplinas (com etapas por fase) e seus status, responsáveis, membros, revisões, duplicação e cancelamento/arquivamento.
-tags: [projetos, disciplinas, etapas, fase, status, responsáveis, membros, revisões, duplicar, cancelar, arquivar, progresso, nomenclatura versionada, sub-disciplina]
-palavras-chave: [projeto, disciplina, etapa, fase, pagamento por fase, status, em andamento, em revisão, entregue, aprovado, responsável, membro, revisão, duplicar projeto, cancelar projeto, prazo, versão do padrão, trocar de versão, sub-disciplina]
+tags: [projetos, disciplinas, etapas, fase, status, responsáveis, membros, revisões, duplicar, cancelar, arquivar, progresso, nomenclatura versionada, sub-disciplina, receita, parcelas, valor de contrato]
+palavras-chave: [projeto, disciplina, etapa, fase, pagamento por fase, gerar parcelas, receita do projeto, status, em andamento, em revisão, entregue, aprovado, responsável, membro, revisão, duplicar projeto, cancelar projeto, prazo, versão do padrão, trocar de versão, sub-disciplina]
 sinonimos: [obras, jobs, contratos de projeto]
 ---
 
@@ -183,8 +183,24 @@ realizada, o card exibe a composição confirmada automaticamente quando está l
 Em um card menor, o resumo permanece compacto. Use **Ver detalhamento financeiro** para consultar
 os valores previstos e a análise completa.
 
-Além disso, há abas para: **Serviços**, **Arquivos**, **Extras**, **Financeiro** e
-**Inputs** (formulários de start). Cada uma será detalhada em sua própria página do manual.
+Além disso, há abas para: **Serviços**, **Arquivos**, **Extras**, **Financeiro** (veja abaixo) e
+**Inputs** (formulários de start). As demais serão detalhadas em suas próprias páginas do manual.
+
+### Aba Financeiro: receita e contrato
+
+Exige acesso ao financeiro (`financeiro:ver` ou sócio). O card **Receita / Contrato** mostra o
+**valor de contrato** (com o atalho **Usar composição**, que adota o total da composição de preço), o
+**contratado**, o **faturado (previsto)**, o **recebido**, **quanto falta faturar** e a lista de parcelas.
+
+- **Gerar parcelas** cria as receitas **previstas** do projeto: informe o valor total, o número de
+  parcelas, o intervalo em meses e a data da primeira. Gerar de novo **substitui as previstas**; as
+  **recebidas** ficam. **Limpar previstas** remove só as previstas.
+- **O contrato do Jurídico manda na cobrança.** Se o projeto tem um contrato de cliente
+  **cobrado por entrega** em vigor (não rescindido), **Gerar parcelas fica desabilitado** e o card
+  explica: as parcelas e a previsão de recebimento saem do contrato
+  ([Contrato por entrega](../financeiro/contrato-por-entrega.md)), e gerar aqui cobraria em dobro. Com
+  contrato **por data** que já tem plano de parcelas, o card só **avisa** para conferir antes de gerar.
+- Gerar e limpar parcelas exigem `financeiro:gerir`; o valor de contrato, `projetos:gerir`.
 
 ### Pastas da aba Arquivos
 

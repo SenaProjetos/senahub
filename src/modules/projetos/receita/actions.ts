@@ -5,7 +5,8 @@ import { z } from "zod";
 import { addMonths } from "date-fns";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { TAG_PARCELA_CONTRATO, TAG_ENTREGA_PREFIXO } from "@/modules/projetos/receita/queries";
+import { TAG_PARCELA_CONTRATO, TAG_ENTREGA_PREFIXO, contratosDeCobranca } from "@/modules/projetos/receita/queries";
+import { avisoCobrancaContrato } from "@/modules/projetos/receita/cobranca-contrato";
 import { dividirEmParcelas } from "@/modules/projetos/receita/parcelas";
 
 /** Categoria de receita por tipo de projeto (ver seed PLANO_CONTAS). */
@@ -65,6 +66,9 @@ export const gerarParcelas = defineAction(
       select: { tipo: true, codigo: true },
     });
     if (!projeto) throw new ActionError("Projeto não encontrado.");
+
+    const aviso = avisoCobrancaContrato(await contratosDeCobranca(i.projetoId));
+    if (aviso?.nivel === "recusa") throw new ActionError(aviso.texto);
 
     const codigoCat = CATEGORIA_RECEITA[projeto.tipo] ?? CATEGORIA_RECEITA.particular;
     const categoria = await prisma.categoriaFinanceira.findUnique({ where: { codigo: codigoCat } });

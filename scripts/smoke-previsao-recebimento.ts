@@ -15,6 +15,8 @@
  *   6. Previsão que passou da data vai para a 1ª semana da projeção, marcada como atrasada — senão
  *      sumiria de todas as telas. Marco APAGADO deixa a parcela sem data (nunca "na assinatura").
  *      Contrato sem projeto também sincroniza a parcela da assinatura.
+ *   7. Parcelas manuais do projeto × contrato (L6): por entrega em vigor recusa "Gerar parcelas";
+ *      rescindido não conta; por data com plano definido só avisa.
  *
  * Uso: npm run smoke:previsao-recebimento
  */
@@ -32,6 +34,8 @@ import { projecaoCaixa } from "../src/modules/financeiro/caixa/queries";
 import { resumoFinanceiroCliente } from "../src/modules/clientes/queries";
 import { inicioDoDiaUtc } from "../src/lib/data";
 import { registrarExecucaoNaLinha } from "../src/modules/planejamento/execucao-service";
+import { avisoCobrancaContrato } from "../src/modules/projetos/receita/cobranca-contrato";
+import { contratosDeCobranca } from "../src/modules/projetos/receita/queries";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -237,6 +241,16 @@ async function main() {
     await sincronizarPrevisoesDoContrato(semProjeto.id, admin.id);
     const prevSemProjeto = await prisma.lancamento.findMany({ where: { contratoId: semProjeto.id, status: "previsao" } });
     check("contrato sem projeto: previsão da assinatura nasce, sem projeto", prevSemProjeto.length === 1 && Number(prevSemProjeto[0].valor) === 500 && prevSemProjeto[0].projetoId === null);
+
+    // ── 7. Parcelas manuais do projeto × contrato (L6) ───────────────────
+    let aviso = avisoCobrancaContrato(await contratosDeCobranca(projeto.id));
+    check("L6: contrato por entrega em vigor → 'Gerar parcelas' do projeto é recusado", aviso?.nivel === "recusa" && aviso.texto.includes(contrato.titulo), aviso);
+    await prisma.documentoJuridico.update({ where: { id: contrato.id }, data: { statusContrato: "rescindido" } });
+    aviso = avisoCobrancaContrato(await contratosDeCobranca(projeto.id));
+    check("L6: rescindido não conta; contrato por data sem plano definido não avisa", aviso === null, aviso);
+    await prisma.documentoJuridico.update({ where: { id: porData.id }, data: { parcelas: 2, primeiroVencimento: d(hoje) } });
+    aviso = avisoCobrancaContrato(await contratosDeCobranca(projeto.id));
+    check("L6: contrato por data com plano definido → só avisa, não recusa", aviso?.nivel === "aviso", aviso);
   } finally {
     // Limpeza — parcelas (FK para o lançamento) antes dos lançamentos, contratos, EAP.
     const contratos = await prisma.documentoJuridico.findMany({ where: { projetoId: projeto.id }, select: { id: true } });

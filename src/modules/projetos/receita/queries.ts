@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { avisoCobrancaContrato, type ContratoDeCobranca } from "./cobranca-contrato";
 
 /** Tag que identifica os lançamentos de receita gerados como parcelas de contrato. */
 export const TAG_PARCELA_CONTRATO = "contrato";
@@ -7,12 +8,20 @@ export const TAG_PARCELA_CONTRATO = "contrato";
 /** Prefixo de tag que vincula um recebível a uma disciplina faturada por entrega. */
 export const TAG_ENTREGA_PREFIXO = "entrega:";
 
+/** Contratos de cliente do projeto (o de equipe é pago pela folha, não por Lançamento). */
+export async function contratosDeCobranca(projetoId: string): Promise<ContratoDeCobranca[]> {
+  return prisma.documentoJuridico.findMany({
+    where: { projetoId, vinculoId: null, clienteId: { not: null }, statusContrato: { not: null } },
+    select: { titulo: true, formaCobranca: true, statusContrato: true, parcelas: true },
+  });
+}
+
 /**
  * Resumo de receita/contrato de um projeto: valor de contrato, total da composição
  * de preço e as parcelas (recebíveis = lançamentos de receita marcados como contrato).
  */
 export async function receitaProjeto(projetoId: string) {
-  const [projeto, composicao, parcelas, disciplinas] = await Promise.all([
+  const [projeto, composicao, parcelas, disciplinas, contratos] = await Promise.all([
     prisma.projeto.findUnique({ where: { id: projetoId }, select: { valorContrato: true, tipo: true } }),
     prisma.projetoComposicaoPreco.findUnique({
       where: { projetoId },
@@ -28,6 +37,7 @@ export async function receitaProjeto(projetoId: string) {
       orderBy: { ordem: "asc" },
       select: { id: true, disciplinaTextoLegado: true, valor: true, status: true },
     }),
+    contratosDeCobranca(projetoId),
   ]);
 
   const totalComposicao = (composicao?.itens ?? []).reduce(
@@ -60,6 +70,7 @@ export async function receitaProjeto(projetoId: string) {
     valorReferencia,
     usandoComposicao,
     tipo: projeto?.tipo ?? "particular",
+    avisoContrato: avisoCobrancaContrato(contratos),
     totalComposicao,
     parcelas: parcelas.map((p) => ({
       id: p.id,

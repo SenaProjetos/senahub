@@ -56,6 +56,16 @@ Detalhes em [Planejamento](projetos/planejamento.md),
 
 ---
 
+## Receita do projeto: o contrato por entrega manda na cobrança
+
+Na aba **Financeiro** do projeto, o card **Receita / Contrato** não deixa mais **Gerar parcelas**
+enquanto o projeto tem um [contrato cobrado por entrega](financeiro/contrato-por-entrega.md) em
+vigor — as parcelas e a previsão de recebimento já saem do contrato, e gerar por ali cobraria em
+dobro na projeção de caixa. O card explica o motivo. Com contrato **por data** que já tem plano, ele
+só **avisa** para conferir antes de gerar.
+
+---
+
 ## Valor Agregado no cronograma (VP, VA, CR, IDP e IDC)
 
 No cronograma do projeto, o quadro **Valor Agregado** mostra se o projeto está adiantado ou

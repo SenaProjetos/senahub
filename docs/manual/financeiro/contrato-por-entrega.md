@@ -120,6 +120,9 @@ marco **nunca fatura sozinho**. Dá para desligar em **Preferências → Parcela
 ## Regras de negócio
 
 - **Um jeito por contrato**: por data **ou** por entrega.
+- **O contrato manda na cobrança do projeto**: enquanto houver contrato por entrega em vigor, o botão
+  **Gerar parcelas** do card **Receita / Contrato** do projeto fica desabilitado (a cobrança sairia
+  duas vezes). Veja [Projetos](../projetos/projetos.md).
 - **Plano precisa fechar 100%** para gerar previsão; o valor de cada parcela sai da **mesma regra** da
   proposta composta (a última absorve o centavo).
 - **Previsão ≠ conta a receber**: só a projeção de caixa a enxerga.
@@ -148,6 +151,9 @@ lançamento duplicado.
 
 **O marco andou e a previsão não mudou.** O cronograma precisa estar **aprovado** e **reagendado**;
 a previsão acompanha a data que o cronograma calcula.
+
+**Não consigo Gerar parcelas na aba Financeiro do projeto.** O projeto tem contrato **por entrega** em
+vigor: a cobrança vem do contrato. Rescinda o contrato, ou use o diálogo **Pagamento** dele.
 
 **O botão Faturar não aparece.** O contrato precisa estar assinado, a parcela não pode ter sido
 faturada (nem estar recebida), o diálogo precisa estar em **Por entrega**, e você precisa de

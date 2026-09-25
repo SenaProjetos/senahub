@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Receipt, Wand2, Trash2 } from "lucide-react";
+import { Receipt, Wand2, Trash2, TriangleAlert } from "lucide-react";
 import { definirValorContrato, gerarParcelas, limparParcelas, faturarEntrega } from "@/modules/projetos/receita/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,7 @@ type Receita = {
   faturadoTotal: number;
   aFaturar: number | null;
   disciplinas: DisciplinaFaturavel[];
+  avisoContrato: { nivel: "recusa" | "aviso"; texto: string } | null;
 };
 
 export function ReceitaContratoCard({ projetoId, receita }: { projetoId: string; receita: Receita }) {
@@ -89,12 +90,25 @@ export function ReceitaContratoCard({ projetoId, receita }: { projetoId: string;
               <Trash2 className="size-3.5" /> Limpar previstas
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={() => setGerar(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setGerar(true)}
+            disabled={r.avisoContrato?.nivel === "recusa"}
+            title={r.avisoContrato?.nivel === "recusa" ? r.avisoContrato.texto : undefined}
+          >
             <Wand2 className="size-3.5" /> Gerar parcelas
           </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {r.avisoContrato && (
+          <div className="flex items-start gap-2 rounded-sm border border-warning/40 bg-warning/10 p-3 text-sm">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" />
+            <p>{r.avisoContrato.texto}</p>
+          </div>
+        )}
+
         {/* Valor de contrato + atalho da composição */}
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1.5">
