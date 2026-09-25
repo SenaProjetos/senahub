@@ -32,7 +32,7 @@ define o período de análise (padrão: de hoje a 90 dias).
 | Visão | O que mostra |
 | --- | --- |
 | **Matriz** | Linhas = pessoas, colunas = projetos, com a alocação de cada uma |
-| **Heatmap** | A ocupação mês a mês (o pior dia do mês), pintada conforme a intensidade em relação à capacidade. Soma a alocação **digitada** com as **horas dos cronogramas aprovados** (estas, só nas próximas 12 semanas; depois disso, apenas a digitada). Passe o mouse na célula para ver as duas parcelas |
+| **Heatmap** | A ocupação por período (o pior dia de cada coluna), pintada conforme a intensidade em relação à capacidade. Escolha o **período** acima da tabela: **1 semana** (um dia por coluna), **4 semanas**, **12 semanas** (uma semana por coluna, a partir da semana de hoje) ou **Meses** (o padrão). Soma a alocação **digitada** com as **horas dos cronogramas aprovados** (estas, só nas próximas 12 semanas; depois disso, apenas a digitada). Passe o mouse na célula para ver as duas parcelas |
 | **Carga real** | Nas últimas 12 semanas, `horas registradas / horas disponíveis` por semana, usando escala, fator de capacidade, feriados, férias e abonos aprovados |
 | **Carga planejada** | As **horas previstas nas linhas dos cronogramas aprovados**, por pessoa e semana, contra a capacidade — veja abaixo |
 

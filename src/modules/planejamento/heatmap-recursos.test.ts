@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { percentualCalculadoPorSemana, percentualDaCapacidade, picoDoMes } from "./heatmap-recursos";
+import {
+  colunasPorPeriodo,
+  percentualCalculadoPorSemana,
+  percentualDaCapacidade,
+  picoDoMes,
+  segundaDaSemana,
+} from "./heatmap-recursos";
 
 describe("percentualDaCapacidade", () => {
   it("jornada cheia: horas sobre a semana útil", () => {
@@ -81,5 +87,49 @@ describe("picoDoMes", () => {
 
   it("nada em lugar nenhum: zero", () => {
     expect(picoDoMes(dias, () => 0, new Map())).toEqual({ total: 0, digitada: 0, calculada: 0 });
+  });
+});
+
+describe("colunasPorPeriodo (decisão #4)", () => {
+  // 2026-09-25 é sexta; a segunda da semana é 2026-09-21.
+  const hoje = "2026-09-25";
+
+  it("a segunda-feira da semana, inclusive de um domingo", () => {
+    expect(segundaDaSemana("2026-09-25")).toBe("2026-09-21");
+    expect(segundaDaSemana("2026-09-21")).toBe("2026-09-21");
+    expect(segundaDaSemana("2026-09-27")).toBe("2026-09-21");
+  });
+
+  it("1 semana: os 5 dias úteis, um por coluna", () => {
+    const c = colunasPorPeriodo("1s", hoje);
+    expect(c.map((x) => x.rotulo)).toEqual(["seg 21", "ter 22", "qua 23", "qui 24", "sex 25"]);
+    expect(c.every((x) => x.dias.length === 1 && x.dias[0] === x.chave)).toBe(true);
+    expect(c[0].titulo).toBe("seg, 21/09");
+  });
+
+  it("4 semanas: uma coluna por semana, de segunda a domingo, a partir da semana de hoje", () => {
+    const c = colunasPorPeriodo("4s", hoje);
+    expect(c).toHaveLength(4);
+    expect(c[0].chave).toBe("2026-09-21");
+    expect(c[0].dias).toHaveLength(7);
+    expect(c[0].dias[6]).toBe("2026-09-27");
+    expect(c[1].chave).toBe("2026-09-28");
+    expect(c[0].titulo).toBe("semana de 21/09 a 27/09");
+    expect(c[3].rotulo).toBe("12/10");
+  });
+
+  it("12 semanas: a janela que a carga calculada cobre, atravessando a virada de ano", () => {
+    const c = colunasPorPeriodo("12s", "2026-12-15");
+    expect(c).toHaveLength(12);
+    expect(c[0].chave).toBe("2026-12-14");
+    expect(c[3].chave).toBe("2027-01-04");
+    expect(c[3].dias[0]).toBe("2027-01-04");
+  });
+
+  it("o pico de uma coluna semanal é o pior dia dela", () => {
+    const [semana] = colunasPorPeriodo("4s", hoje);
+    const digitada = (dia: string) => (dia === "2026-09-23" ? 70 : 20);
+    const calculada = new Map([["2026-W39", 10]]);
+    expect(picoDoMes(semana.dias, digitada, calculada)).toEqual({ total: 80, digitada: 70, calculada: 10 });
   });
 });

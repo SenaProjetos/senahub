@@ -11,7 +11,14 @@ import { criarHabilidade, alternarHabilidadeUsuario } from "@/modules/rh/habilid
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { percentualAlocadoNoDia, superalocadoNaJanela as temSuperalocacaoNaJanela } from "@/modules/planejamento/disponibilidade";
-import { percentualCalculadoPorSemana, picoDoMes } from "@/modules/planejamento/heatmap-recursos";
+import {
+  colunasPorPeriodo,
+  percentualCalculadoPorSemana,
+  PERIODOS_HEATMAP,
+  picoDoMes,
+  type ColunaHeatmap,
+  type PeriodoHeatmap,
+} from "@/modules/planejamento/heatmap-recursos";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AvatarUsuario } from "@/components/ui/avatar-usuario";
@@ -86,7 +93,7 @@ type Habilidade = { id: string; nome: string };
 // alocações. Sem período definido => conta como vigente em todos os meses
 // da janela (alocação "permanente"). Soma a carga CALCULADA das horas das
 // linhas dos cronogramas aprovados (L9) nas semanas que a carga planejada cobre.
-type MesCell = { ym: string; pct: number; digitada: number; calculada: number };
+type HeatCell = { chave: string; pct: number; digitada: number; calculada: number };
 
 function ymKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -114,12 +121,17 @@ function diasDoMes(ym: string): string[] {
   return Array.from({ length: total }, (_, indice) => `${ym}-${String(indice + 1).padStart(2, "0")}`);
 }
 
+/** Hoje na data LOCAL (`toISOString` viraria o dia à noite, por causa do fuso). */
+function hojeLocalIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 /**
- * Constrói a janela de meses visível e a matriz pessoa→(mês→%).
- * A janela vai do mês mais antigo de início até o mais distante de fim;
+ * Colunas mensais: a janela vai do mês mais antigo de início até o mais distante de fim;
  * com fallback de [mês atual − 1, mês atual + 5] quando não há datas.
  */
-function montarHeatmap(linhas: Linha[], calculadaDe: (userId: string) => ReadonlyMap<string, number>) {
+function colunasMensais(linhas: Linha[]): ColunaHeatmap[] {
   const hoje = new Date();
   let min: Date | null = null;
   let max: Date | null = null;
@@ -149,16 +161,28 @@ function montarHeatmap(linhas: Linha[], calculadaDe: (userId: string) => Readonl
     ? fimJanela
     : new Date(hoje.getFullYear(), hoje.getMonth() + 5, 1);
 
-  const meses = mesesEntre(de, ate);
+  return mesesEntre(de, ate).map((ym) => ({ chave: ym, rotulo: ymLabel(ym), titulo: ymLabel(ym), dias: diasDoMes(ym) }));
+}
+
+/**
+ * Colunas do período escolhido e a matriz pessoa→(coluna→%). A célula é o pior dia da coluna
+ * (`picoDoMes`), seja ela um mês, uma semana ou um dia.
+ */
+function montarHeatmap(
+  linhas: Linha[],
+  calculadaDe: (userId: string) => ReadonlyMap<string, number>,
+  periodo: PeriodoHeatmap,
+) {
+  const colunas = periodo === "meses" ? colunasMensais(linhas) : colunasPorPeriodo(periodo, hojeLocalIso());
   const matriz = linhas.map((l) => {
-    const cells: MesCell[] = meses.map((ym) => {
-      const pico = picoDoMes(diasDoMes(ym), (dia) => percentualAlocadoNoDia(dia, vigentes(l)), calculadaDe(l.userId));
-      return { ym, pct: pico.total, digitada: pico.digitada, calculada: pico.calculada };
+    const cells: HeatCell[] = colunas.map((c) => {
+      const pico = picoDoMes(c.dias, (dia) => percentualAlocadoNoDia(dia, vigentes(l)), calculadaDe(l.userId));
+      return { chave: c.chave, pct: pico.total, digitada: pico.digitada, calculada: pico.calculada };
     });
     return { linha: l, cells };
   });
 
-  return { meses, matriz };
+  return { colunas, matriz };
 }
 
 /** N-31: Verifica superalocação durante uma janela: qualquer mês com carga > capacidade. */
@@ -230,6 +254,7 @@ export function RecursosMatrix({
   const [filtroProjeto, setFiltroProjeto] = useState(TODOS);
   const [filtroHabilidade, setFiltroHabilidade] = useState(TODOS);
   const [vista, setVista] = useState<"matriz" | "heatmap" | "carga" | "planejada">("matriz");
+  const [periodoHeat, setPeriodoHeat] = useState<PeriodoHeatmap>("meses");
   const [rebalDlg, setRebalDlg] = useState<Linha | null>(null);
 
   // N-31: Janela de análise para superalocação futura (padrão: hoje + 90 dias).
@@ -279,8 +304,8 @@ export function RecursosMatrix({
     [cargaPlanejada],
   );
   const heat = useMemo(
-    () => montarHeatmap(linhasFiltradas, (userId) => calculadaPorUser.get(userId) ?? new Map()),
-    [linhasFiltradas, calculadaPorUser],
+    () => montarHeatmap(linhasFiltradas, (userId) => calculadaPorUser.get(userId) ?? new Map(), periodoHeat),
+    [linhasFiltradas, calculadaPorUser, periodoHeat],
   );
 
   const totalSuper = linhasFiltradas.filter((l) => l.superalocado).length;
@@ -434,8 +459,10 @@ export function RecursosMatrix({
         <CargaPlanejadaView carga={cargaPlanejada} podeGerir={podeGerir} />
       ) : vista === "heatmap" ? (
         <HeatmapView
-          meses={heat.meses}
+          colunas={heat.colunas}
           matriz={heat.matriz}
+          periodo={periodoHeat}
+          onPeriodo={setPeriodoHeat}
           podeGerir={podeGerir}
           onRebalancear={(l) => setRebalDlg(l)}
         />
@@ -723,13 +750,17 @@ export function RecursosMatrix({
 
 // ── Heatmap timeline (pessoa × mês) ─────────────────────────────────
 function HeatmapView({
-  meses,
+  colunas,
   matriz,
+  periodo,
+  onPeriodo,
   podeGerir,
   onRebalancear,
 }: {
-  meses: string[];
-  matriz: { linha: Linha; cells: MesCell[] }[];
+  colunas: ColunaHeatmap[];
+  matriz: { linha: Linha; cells: HeatCell[] }[];
+  periodo: PeriodoHeatmap;
+  onPeriodo: (p: PeriodoHeatmap) => void;
   podeGerir: boolean;
   onRebalancear: (l: Linha) => void;
 }) {
@@ -742,14 +773,32 @@ function HeatmapView({
   }
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Período</span>
+        <div className="flex overflow-hidden rounded-sm border" role="group" aria-label="Período do mapa de ocupação">
+          {PERIODOS_HEATMAP.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              aria-pressed={periodo === p.id}
+              onClick={() => onPeriodo(p.id)}
+              className={`px-2.5 py-1 text-xs ${
+                periodo === p.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {p.rotulo}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="overflow-x-auto rounded-sm border">
         <table className="w-full border-collapse text-sm">
           <thead className="bg-muted/40 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
             <tr>
               <th className="sticky left-0 z-10 bg-muted/40 px-3 py-2 text-left">Pessoa</th>
-              {meses.map((ym) => (
-                <th key={ym} className="px-1 py-2 text-center font-normal">
-                  {ymLabel(ym)}
+              {colunas.map((c) => (
+                <th key={c.chave} className="px-1 py-2 text-center font-normal" title={c.titulo}>
+                  {c.rotulo}
                 </th>
               ))}
             </tr>
@@ -785,10 +834,10 @@ function HeatmapView({
                   const ratio = l.capacidadePct > 0 ? Math.round((c.pct / l.capacidadePct) * 100) : 0;
                   return (
                     <td
-                      key={c.ym}
+                      key={c.chave}
                       className="border-l px-1 py-2 text-center"
                       style={{ background: heatColor(c.pct, l.capacidadePct) }}
-                      title={`${l.nome} · ${ymLabel(c.ym)} — ${c.pct}% alocado (${ratio}% da capacidade)${
+                      title={`${l.nome} · ${colunas.find((x) => x.chave === c.chave)?.titulo ?? c.chave} — ${c.pct}% alocado (${ratio}% da capacidade)${
                         c.calculada > 0 ? ` · digitada ${c.digitada}% + cronograma ${c.calculada}%` : ""
                       }`}
                     >
@@ -817,7 +866,7 @@ function HeatmapView({
         <Legenda cor="hsl(0 75% 60%)" texto="superalocado (>125%)" />
         <span className="italic">
           Alocação digitada + horas dos cronogramas aprovados (estas, só nas próximas 12 semanas; depois
-          disso, apenas a digitada). O detalhe por semana está em “Carga planejada”.
+          disso, apenas a digitada). Cada célula é o pior dia do período. O detalhe por semana está em “Carga planejada”.
         </span>
         {!podeGerir && <span className="italic">visualização somente leitura</span>}
       </div>
