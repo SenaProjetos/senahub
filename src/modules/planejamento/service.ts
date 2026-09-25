@@ -14,6 +14,7 @@ import { ehEtapaDeTerceiro, pessoasSemHoras } from "./recursos";
 import { sincronizarCards } from "./recursos-service";
 import { custosDoProjeto } from "./custo-service";
 import { sincronizarPrevisoesDoProjeto } from "@/modules/juridico/contrato/previsao-service";
+import { gravarApuracaoValorAgregado } from "./valor-agregado-service";
 
 /**
  * Regras de negócio do cronograma, compartilhadas por `actions.ts` e pelos jobs.
@@ -316,6 +317,8 @@ export async function fotografarSaudeDeTodos(dia: Dia): Promise<{ projetos: numb
   for (const p of projetos) {
     const nota = await gravarSaude(p.id, dia);
     if (nota != null) fotos++;
+    // F8: a apuração do Valor Agregado na Data de Status vigente vai junto na foto semanal.
+    await gravarApuracaoValorAgregado(p.id);
   }
   return { projetos: projetos.length, fotos };
 }

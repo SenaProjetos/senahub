@@ -22,6 +22,7 @@ import { sincronizarPrazoDisciplina } from "@/modules/projetos/etapas-service";
 import { planejarAplicacao } from "@/modules/planejamento/aplicacao";
 import { herdarResponsaveisNoProjeto, sincronizarCards } from "@/modules/planejamento/recursos-service";
 import { sincronizarPrevisoesDoProjeto } from "@/modules/juridico/contrato/previsao-service";
+import { gravarApuracaoValorAgregado } from "@/modules/planejamento/valor-agregado-service";
 
 const plan = { modulo: "planejamento", recurso: "planejamento", permissao: "gerir" } as const;
 const rec = { modulo: "recursos", recurso: "recursos", permissao: "gerir" } as const;
@@ -495,6 +496,8 @@ export const definirDataStatus = defineAction(
     });
     // A foto do dia reflete a apuração que acabou de entrar.
     await gravarSaude(i.projetoId, i.dataStatus);
+    // F8: e o Valor Agregado desta apuração — o % não guarda passado; sem a foto, a curva se perde.
+    await gravarApuracaoValorAgregado(i.projetoId);
     revProjeto(i.projetoId);
     return { dataStatus: i.dataStatus };
   },

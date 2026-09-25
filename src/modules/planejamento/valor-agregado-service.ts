@@ -3,7 +3,18 @@ import { prisma } from "@/lib/prisma";
 import { diasUteisEntre } from "@/lib/calendario-trabalho";
 import { minutosPorDiaSessao } from "@/modules/ponto/engine";
 import { montarCalendario, paraDia, planoDoProjeto } from "./agenda";
-import { calcularRegua, type LinhaBaseEvm, type ResultadoRegua } from "./valor-agregado";
+import { calcularRegua, type IndicesEvm, type LinhaBaseEvm, type ResultadoRegua } from "./valor-agregado";
+
+/** Uma apuração gravada (F8): índices de cada régua; nulo = desconhecido naquela data. */
+export type ApuracaoHistorico = {
+  dataStatus: string;
+  baselineNumero: number;
+  idpHoras: number | null;
+  idcHoras: number | null;
+  /** Só para quem vê o financeiro; senão sempre nulo. */
+  idpCusto: number | null;
+  idcCusto: number | null;
+};
 
 export type ValorAgregadoProjeto =
   | { ok: false; motivo: string }
@@ -17,6 +28,8 @@ export type ValorAgregadoProjeto =
       /** Horas apontadas no projeto até a Data de Status (todas, com ou sem tarefa). */
       horasApontadas: number;
       avisos: string[];
+      /** Apurações gravadas, da mais recente para a mais antiga. */
+      historico: ApuracaoHistorico[];
     };
 
 /** Dia seguinte, `YYYY-MM-DD`. */
@@ -134,6 +147,25 @@ export async function valorAgregadoDoProjeto(
   const excluidas = linhas.filter((l) => !l.resumo && l.tarefaId == null).length;
   if (excluidas > 0) avisos.push(`${excluidas} atividade(s) da linha de base foram excluídas e contam como não feitas.`);
 
+  const apuracoes = await prisma.valorAgregadoApuracao.findMany({
+    where: { projetoId },
+    orderBy: { dataStatus: "desc" },
+    take: 12,
+  });
+  const indice = (a: unknown, b: unknown) => {
+    const x = a == null ? null : Number(a);
+    const y = b == null ? null : Number(b);
+    return x == null || y == null || !(y > 0) ? null : Math.round((x / y) * 1000) / 1000;
+  };
+  const historico: ApuracaoHistorico[] = apuracoes.map((a) => ({
+    dataStatus: paraDia(a.dataStatus),
+    baselineNumero: a.baselineNumero,
+    idpHoras: indice(a.vaHoras, a.vpHoras),
+    idcHoras: indice(a.vaHoras, a.crHoras),
+    idpCusto: opcoes.verCusto ? indice(a.vaCusto, a.vpCusto) : null,
+    idcCusto: opcoes.verCusto ? indice(a.vaCusto, a.crCusto) : null,
+  }));
+
   return {
     ok: true,
     baselineNumero: baseline.numero,
@@ -142,5 +174,37 @@ export async function valorAgregadoDoProjeto(
     custo,
     horasApontadas,
     avisos,
+    historico,
   };
+}
+
+/**
+ * Fotografa a apuração do Valor Agregado na Data de Status atual (F8). Chamada ao definir a Data de
+ * Status e na foto semanal — refazer na mesma data atualiza a linha. Sem baseline ou sem Data de
+ * Status não grava nada. Grava as DUAS réguas (quem lê decide quem vê R$).
+ */
+export async function gravarApuracaoValorAgregado(projetoId: string): Promise<boolean> {
+  const r = await valorAgregadoDoProjeto(projetoId, { verCusto: true });
+  if (!r.ok) return false;
+  const i = (x: ResultadoRegua | null): IndicesEvm | null => (x?.ok ? x.indices : null);
+  const h = i(r.horas);
+  const c = i(r.custo);
+  const dados = {
+    baselineNumero: r.baselineNumero,
+    ontHoras: h?.ont ?? null,
+    vpHoras: h?.vp ?? null,
+    vaHoras: h?.va ?? null,
+    crHoras: h?.cr ?? null,
+    ontCusto: c?.ont ?? null,
+    vpCusto: c?.vp ?? null,
+    vaCusto: c?.va ?? null,
+    crCusto: c?.cr ?? null,
+  };
+  const dataStatus = new Date(`${r.dataStatus}T00:00:00.000Z`);
+  await prisma.valorAgregadoApuracao.upsert({
+    where: { projetoId_dataStatus: { projetoId, dataStatus } },
+    create: { projetoId, dataStatus, ...dados },
+    update: dados,
+  });
+  return true;
 }

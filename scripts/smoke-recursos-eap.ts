@@ -30,7 +30,7 @@ import { cargaDaEquipe } from "../src/modules/planejamento/recursos-queries";
 import { tarefasTravadasPeloCronograma } from "../src/modules/tarefas/queries";
 import { aprovarCronograma, avaliarQualidade } from "../src/modules/planejamento/service";
 import { eapDoProjeto } from "../src/modules/planejamento/queries";
-import { valorAgregadoDoProjeto } from "../src/modules/planejamento/valor-agregado-service";
+import { gravarApuracaoValorAgregado, valorAgregadoDoProjeto } from "../src/modules/planejamento/valor-agregado-service";
 import {
   herdarResponsaveisNoProjeto,
   sincronizarCards,
@@ -222,6 +222,21 @@ async function main() {
     );
     const evmSemVer = await valorAgregadoDoProjeto(projeto.id, { verCusto: false });
     check("quem não vê financeiro: só horas", evmSemVer.ok && evmSemVer.custo === null && evmSemVer.horas.ok);
+    // A apuração é fotografada (o % não guarda passado): refazer na mesma data atualiza, não duplica.
+    await gravarApuracaoValorAgregado(projeto.id);
+    await gravarApuracaoValorAgregado(projeto.id);
+    const apur = await prisma.valorAgregadoApuracao.findMany({ where: { projetoId: projeto.id } });
+    check(
+      "apuração gravada uma vez por Data de Status, com as duas réguas",
+      apur.length === 1 && Number(apur[0].vaHoras) === 20 && Number(apur[0].crHoras) === 10 && Number(apur[0].vaCusto) === 2000,
+      apur.map((a) => ({ va: Number(a.vaHoras), cr: Number(a.crHoras), vaR: Number(a.vaCusto) })),
+    );
+    const comHist = await valorAgregadoDoProjeto(projeto.id, { verCusto: false });
+    check(
+      "histórico: IDP/IDC em horas; R$ escondido de quem não vê financeiro",
+      comHist.ok && comHist.historico.length === 1 && comHist.historico[0].idcHoras === 2 && comHist.historico[0].idcCusto === null,
+      comHist.ok ? comHist.historico : comHist,
+    );
     // Alguém sem custo/hora aponta: o CR em R$ fica desconhecido (nunca zero) — horas seguem.
     const intruso = await prisma.user.create({
       data: { name: `${tag}-C`, email: `${tag}-c@teste.local`, role: "clt", emailVerified: false },

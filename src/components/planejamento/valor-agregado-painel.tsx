@@ -135,6 +135,39 @@ export function ValorAgregadoPainel({ dados }: { dados: ValorAgregadoProjeto }) 
               {a}
             </p>
           ))}
+          {dados.historico.length > 1 && (
+            <div className="space-y-1">
+              <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Apurações anteriores</p>
+              <div className="overflow-x-auto rounded-sm border">
+                <table className="w-full text-xs">
+                  <thead className="border-b bg-muted/40 text-left text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-1.5">Data de Status</th>
+                      <th className="px-3 py-1.5 text-right">IDP (h)</th>
+                      <th className="px-3 py-1.5 text-right">IDC (h)</th>
+                      {dados.custo && <th className="px-3 py-1.5 text-right">IDP (R$)</th>}
+                      {dados.custo && <th className="px-3 py-1.5 text-right">IDC (R$)</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {dados.historico.map((a) => (
+                      <tr key={a.dataStatus}>
+                        <td className="px-3 py-1.5 font-mono">
+                          {formatarData(a.dataStatus)}{" "}
+                          <span className="text-muted-foreground">BL-{String(a.baselineNumero).padStart(2, "0")}</span>
+                        </td>
+                        {[a.idpHoras, a.idcHoras, ...(dados.custo ? [a.idpCusto, a.idcCusto] : [])].map((v, k) => (
+                          <td key={k} className={`px-3 py-1.5 text-right font-mono ${TOM[faixaDoIndice(v)]}`}>
+                            {v == null ? "—" : indiceFmt(v)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           <p className="text-[11px] text-muted-foreground">
             O % é o informado na EAP (D19). O real é o apontado no ponto — quem não aponta horas (ex.: PJ pago por
             entrega) não entra; o pagamento dele está no financeiro. As datas reais ainda não movem a linha de base.
