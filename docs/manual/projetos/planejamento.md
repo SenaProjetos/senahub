@@ -187,16 +187,31 @@ base). Em **rascunho** ainda não existe card nem previsão de recebimento: o cr
 
 - **Resumo da linha de base:** quantas tarefas estão **no prazo**, **adiantadas** ou **atrasadas**
   em relação à linha de base, e o atraso médio.
+A tela segue o layout do MS Project: a **tabela** à esquerda e o **gráfico** à direita, nas mesmas
+linhas, numa área de rolagem só (a tabela fica presa à esquerda e o cabeçalho em cima).
+
+- **Duas visões**, como no Project: **Gráfico de Gantt** (planejamento: Nº, Nome da tarefa, Duração,
+  Início, Término, Predecessoras e Nomes dos recursos) e **Gantt de Controle** (acompanhamento: % concluído,
+  datas, linha de base e **Desvio**, com a barra da linha de base logo abaixo da barra prevista).
 - **Filtros:** **Todas**, **Atrasadas**, **Críticas**, **Bloqueadas**. **Lookahead:** **Tudo**,
-  **7**, **15** ou **30 dias** (só o que começa ou termina no período). Valem para o gráfico e a
-  tabela; o editor continua vendo a EAP inteira. **Zoom** ajusta a escala do gráfico.
-- **Gráfico (gantt):** a barra colorida é a **previsão**, preenchida até o **progresso**; a faixa
-  fina embaixo é a **linha de base** (vermelha quando a previsão passou dela). O **caminho crítico**
-  tem borda vermelha; **marco** aparece como losango; **cadeado** = bloqueada; **alfinete** = data
-  fixada; a linha vertical marca **hoje**.
-- **Tabela:** Tarefa, Disciplina (com a sigla da fase), Recursos, **Custo** (só quem vê o
-  financeiro), Duração, Previsto, Linha de base, Progresso, **Desvio** (dias de diferença para a
-  linha de base) e Ações. **✓** marca a linha concluída; **↳N** conta as predecessoras.
+  **7**, **15** ou **30 dias** (só o que começa ou termina no período). Com filtro ativo a tela mostra só
+  as linhas que casaram, sem esconder nível; o editor continua vendo a EAP inteira.
+- **Escala:** **Dias**, **Semanas** ou **Meses**, com o cabeçalho em dois níveis (semana sobre dia, mês
+  sobre semana, ano sobre mês). Os **fins de semana e feriados** vêm sombreados — o mesmo calendário que
+  agenda as tarefas. **Hoje** rola o gráfico até a data de hoje.
+- **Níveis:** o triângulo antes do nome **recolhe** ou **expande** um agrupamento; **Recolher** e
+  **Expandir** fazem isso com todos. O **Nº** é a posição da linha na lista completa (o "Id" do Project) e
+  não muda ao recolher ou filtrar — é o número que a coluna **Predecessoras** cita.
+- **Predecessoras:** escritas como no Project: `3` (término→início), `3TI+2d` (com espera de 2 dias
+  úteis), `5II`, `2TT-1d`. **TI/II/TT/IT** = término→início, início→início, término→término,
+  início→término. As setas do gráfico seguem o tipo de cada vínculo.
+- **Barras:** a barra colorida é a **previsão**, preenchida até o **progresso**; a barra preta com pontas
+  é o **agrupamento**; o **marco** é um losango; o **caminho crítico** fica em vermelho; **cadeado** =
+  bloqueada; **alfinete** = data fixada; a linha vertical vermelha marca **hoje**. Ao lado da barra
+  aparecem os recursos (ou o % no Gantt de Controle).
+- **Tabela compacta / completa:** a tabela abre compacta (sem Disciplina, Recursos e Custo) para dar
+  espaço ao gráfico; **Tabela completa** mostra todas as colunas, inclusive o **Custo** (só quem vê o
+  financeiro). **✓** marca a linha concluída.
 
 ### Datas reais: Atualizar tarefa
 

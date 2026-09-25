@@ -15,6 +15,8 @@ import { EapWorkspace } from "@/components/planejamento/eap-workspace";
 import { PlanoVsReal } from "@/components/planejamento/plano-vs-real";
 import { ValorAgregadoPainel } from "@/components/planejamento/valor-agregado-painel";
 import { valorAgregadoDoProjeto } from "@/modules/planejamento/valor-agregado-service";
+import { paraDia } from "@/modules/planejamento/agenda";
+import { inicioDoDiaUtc } from "@/lib/data";
 
 export const metadata: Metadata = { title: "Planejamento do projeto" };
 
@@ -32,7 +34,7 @@ export default async function PlanejamentoProjetoPage({
   const verDatas = await podeVerDatasDoPlanejamento(user);
 
   const [
-    { tarefas, disciplinas, temLinhaBase, custoTotal },
+    { tarefas, disciplinas, temLinhaBase, custoTotal, calendario },
     podeGerir,
     podeAprovar,
     podeExecutado,
@@ -71,6 +73,8 @@ export default async function PlanejamentoProjetoPage({
         podeExecutado={podeExecutado}
         podeAprovarFase={podeAprovarFase}
         verDatas={verDatas}
+        calendario={calendario}
+        hoje={paraDia(inicioDoDiaUtc())}
         cronograma={cronograma}
         qualidade={qualidade}
       />

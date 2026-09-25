@@ -40,10 +40,19 @@ describe("caminhoDaSeta — âncoras por tipo de vínculo", () => {
     expect(p.at(-1)!.x).toBeGreaterThan(p.at(-2)!.x);
   });
 
-  it("FS com a sucessora colada (sem espaço para o cotovelo): contorna pela divisa e ainda chega da esquerda", () => {
+  it("FS com a sucessora logo depois (zoom apertado): o cotovelo encolhe, sem contornar, e chega da esquerda", () => {
     const p = pontos(caminhoDaSeta("fs", pred, sucPerto, LINHA));
     expect(p[0]).toEqual({ x: 160, y: 14 });
     expect(p.at(-1)).toEqual({ x: 164, y: 14 + LINHA });
+    expect(p.at(-1)!.x).toBeGreaterThan(p.at(-2)!.x);
+    expect(p.some((q) => q.y === 14 + LINHA / 2)).toBe(false);
+    expect(p.at(-2)!.x).toBe(162);
+  });
+
+  it("FS com a sucessora colada demais (folga menor que 4 px): contorna pela divisa e ainda chega da esquerda", () => {
+    const p = pontos(caminhoDaSeta("fs", pred, { xIni: 162, xFim: 200, y: 14 + LINHA }, LINHA));
+    expect(p[0]).toEqual({ x: 160, y: 14 });
+    expect(p.at(-1)).toEqual({ x: 162, y: 14 + LINHA });
     expect(p.at(-1)!.x).toBeGreaterThan(p.at(-2)!.x);
     expect(p.some((q) => q.y === 14 + LINHA / 2)).toBe(true);
   });

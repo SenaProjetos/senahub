@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { brl, formatarDiaMes } from "@/lib/utils";
+import { brl } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -9,19 +9,14 @@ import {
   Plus,
   CheckCheck,
   ArrowLeft,
-  ZoomIn,
-  ZoomOut,
   Rocket,
   ListPlus,
   ListTree,
   CalendarClock,
   Download,
   FileText,
-  Pin,
-  Lock,
   UsersRound,
   CalendarCheck,
-  CheckCircle2,
 } from "lucide-react";
 import {
   aplicarAoProjeto,
@@ -31,19 +26,17 @@ import {
 } from "@/modules/planejamento/actions";
 import { herdarResponsaveisDaDisciplina } from "@/modules/planejamento/recursos-actions";
 import type { EapTarefaDTO, cronogramaProjetoInfo } from "@/modules/planejamento/queries";
-import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import type { Achado } from "@/modules/planejamento/qualidade";
-import { ROTULO_SEM_CUSTO, type CustoLinha } from "@/modules/planejamento/custo";
+import type { CustoLinha } from "@/modules/planejamento/custo";
 import type { ResultadoSaude } from "@/modules/planejamento/saude";
+import type { CalendarioGantt } from "@/modules/planejamento/gantt-escala";
+import { somarDias } from "@/lib/dias-iso";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Gantt, GANTT_PX_DEFAULT } from "@/components/planejamento/gantt";
+import { PlanoGantt, type ModoGantt } from "@/components/planejamento/plano-gantt";
 import { EapDialog } from "@/components/planejamento/eap-dialog";
 import { ExecucaoDialog } from "@/components/planejamento/execucao-dialog";
 import { SaudePainel } from "@/components/planejamento/saude-painel";
-
-const fmt = (iso: string | null) => (iso ? formatarDiaMes(iso) : "—");
 
 const diasDesvio = (t: EapTarefaDTO) => {
   if (!t.fimBaseline) return 0;
@@ -54,13 +47,6 @@ const diasDesvio = (t: EapTarefaDTO) => {
 
 type Filtro = "todas" | "atrasadas" | "criticas" | "bloqueadas";
 type Lookahead = "todas" | 7 | 15 | 30;
-
-const hoje = () => new Date().toISOString().slice(0, 10);
-const somarDias = (isoDia: string, n: number) => {
-  const d = new Date(isoDia + "T00:00:00");
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
-};
 
 export function EapWorkspace({
   projeto,
@@ -74,6 +60,8 @@ export function EapWorkspace({
   podeExecutado,
   podeAprovarFase,
   verDatas,
+  calendario,
+  hoje,
   cronograma,
   qualidade,
 }: {
@@ -94,6 +82,10 @@ export function EapWorkspace({
    * prazo nem exportação (quem só consulta vê a estrutura).
    */
   verDatas: boolean;
+  /** O calendário do motor (dias úteis e feriados): o gráfico sombreia os dias não úteis com ele. */
+  calendario: CalendarioGantt;
+  /** `YYYY-MM-DD` de hoje, calculado no servidor — o mesmo valor na tela renderizada e na hidratada. */
+  hoje: string;
   /** `null` = quem não vê datas (o servidor nem busca a Data de Status, a baseline nem a Saúde). */
   cronograma: Awaited<ReturnType<typeof cronogramaProjetoInfo>> | null;
   qualidade: {
@@ -105,7 +97,7 @@ export function EapWorkspace({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [px, setPx] = useState(GANTT_PX_DEFAULT);
+  const [modo, setModo] = useState<ModoGantt>("planejamento");
   const [dialog, setDialog] = useState<{ open: boolean; tarefa: EapTarefaDTO | null }>({
     open: false,
     tarefa: null,
@@ -121,7 +113,6 @@ export function EapWorkspace({
     if (!podeGerir) return;
     setDialog({ open: true, tarefa });
   };
-  const selecionar = (id: string) => abrir(tarefas.find((t) => t.id === id) ?? null);
   const vazio = tarefas.length === 0;
 
   // Filtros e lookahead (Doc 03 §36/§37) — aplicados só à VISÃO (Gantt + tabela). O diálogo
@@ -130,7 +121,7 @@ export function EapWorkspace({
   const visiveis = useMemo(() => {
     let base = tarefas;
     if (filtro === "atrasadas") {
-      const hj = hoje();
+      const hj = hoje;
       // Contra o combinado (a linha de base), como o verificador: com a Data de Status, a previsão de
       // uma linha inacabada anda para depois dela e deixaria de parecer atrasada.
       base = base.filter((t) => (t.fimBaseline ?? t.fimPrevisto) < hj && t.progresso < 100 && t.status !== "con");
@@ -140,16 +131,16 @@ export function EapWorkspace({
       base = base.filter((t) => t.status === "blq");
     }
     if (lookahead !== "todas") {
-      const limite = somarDias(hoje(), lookahead);
-      base = base.filter((t) => t.inicioPrevisto <= limite && t.fimPrevisto >= hoje());
+      const limite = somarDias(hoje, lookahead);
+      base = base.filter((t) => t.inicioPrevisto <= limite && t.fimPrevisto >= hoje);
     }
     // "Minhas atividades": o dado existe desde a F5 (`atribuicoes` por linha), mas o filtro
     // precisa do usuário logado na tela e ninguém pediu — o projetista nem vê a EAP (Q14).
     return base;
-  }, [tarefas, filtro, lookahead]);
+  }, [tarefas, filtro, lookahead, hoje]);
 
   const totalAtrasadas = tarefas.filter(
-    (t) => (t.fimBaseline ?? t.fimPrevisto) < hoje() && t.progresso < 100 && t.status !== "con",
+    (t) => (t.fimBaseline ?? t.fimPrevisto) < hoje && t.progresso < 100 && t.status !== "con",
   ).length;
   const totalCriticas = tarefas.filter((t) => t.critica).length;
   const totalBloqueadas = tarefas.filter((t) => t.status === "blq").length;
@@ -412,18 +403,39 @@ export function EapWorkspace({
         </div>
       ) : (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap gap-1">
-              {(
-                [
-                  ["todas", `Todas (${tarefas.length})`],
-                  ["atrasadas", `Atrasadas (${totalAtrasadas})`],
-                  ["criticas", `Críticas (${totalCriticas})`],
-                  ["bloqueadas", `Bloqueadas (${totalBloqueadas})`],
-                ] as [Filtro, string][]
-              )
-                .filter(([v]) => verDatas || v === "todas" || v === "bloqueadas")
-                .map(([v, label]) => (
+          <div className="flex flex-wrap items-center gap-1">
+            {verDatas && (
+              <div className="mr-2 flex overflow-hidden rounded-sm border" role="group" aria-label="Visão do cronograma">
+                {(
+                  [
+                    ["planejamento", "Gráfico de Gantt"],
+                    ["controle", "Gantt de Controle"],
+                  ] as [ModoGantt, string][]
+                ).map(([v, label]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={modo === v}
+                    onClick={() => setModo(v)}
+                    className={`px-3 py-1 text-xs font-medium ${
+                      modo === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {(
+              [
+                ["todas", `Todas (${tarefas.length})`],
+                ["atrasadas", `Atrasadas (${totalAtrasadas})`],
+                ["criticas", `Críticas (${totalCriticas})`],
+                ["bloqueadas", `Bloqueadas (${totalBloqueadas})`],
+              ] as [Filtro, string][]
+            )
+              .filter(([v]) => verDatas || v === "todas" || v === "bloqueadas")
+              .map(([v, label]) => (
                 <button
                   key={v}
                   type="button"
@@ -437,8 +449,9 @@ export function EapWorkspace({
                   {label}
                 </button>
               ))}
-              {verDatas && <span className="mx-1 self-center text-muted-foreground">·</span>}
-              {verDatas && (
+            {verDatas && <span className="mx-1 self-center text-muted-foreground">·</span>}
+            {verDatas &&
+              (
                 [
                   ["todas", "Tudo"],
                   [7, "7 dias"],
@@ -460,217 +473,61 @@ export function EapWorkspace({
                   {label}
                 </button>
               ))}
-            </div>
-            {verDatas && (
-            <div className="flex items-center gap-1">
-              <span className="mr-1 text-xs text-muted-foreground">Zoom</span>
-              <Button size="icon-sm" variant="outline" aria-label="Diminuir zoom" onClick={() => setPx((p) => Math.max(6, p - 4))} disabled={px <= 6}>
-                <ZoomOut className="size-3.5" />
-              </Button>
-              <Button size="icon-sm" variant="outline" aria-label="Aumentar zoom" onClick={() => setPx((p) => Math.min(48, p + 4))} disabled={px >= 48}>
-                <ZoomIn className="size-3.5" />
-              </Button>
-            </div>
-            )}
           </div>
 
-          {visiveis.length === 0 ? (
-            <EmptyState icon={ListTree} title="Nenhuma tarefa para os filtros selecionados" className="py-10" />
-          ) : (
-            verDatas && <Gantt tarefas={visiveis} onSelecionar={podeGerir ? selecionar : undefined} px={px} />
-          )}
-
-          {/* Lista / EAP */}
-          <div className="overflow-x-auto rounded-sm border">
-            <table className="w-full text-sm">
-              <thead className="border-b bg-muted/40 text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2">Tarefa</th>
-                  <th className="px-3 py-2">Disciplina</th>
-                  <th className="px-3 py-2">Recursos</th>
-                  {custoTotal && <th className="px-3 py-2 text-right">Custo</th>}
-                  <th className="px-3 py-2">Duração</th>
-                  {verDatas && <th className="px-3 py-2">Previsto</th>}
-                  {verDatas && <th className="px-3 py-2">Linha de base</th>}
-                  <th className="px-3 py-2">Progresso</th>
-                  {verDatas && <th className="px-3 py-2 text-right">Desvio</th>}
-                  {(podeGerir || podeExecutado) && <th className="px-3 py-2 text-right">Ações</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {visiveis.map((t) => {
-                  const desvio = diasDesvio(t);
-                  return (
-                    <tr
-                      key={t.id}
-                      onClick={() => abrir(t)}
-                      className={podeGerir ? "cursor-pointer hover:bg-muted/40" : ""}
-                    >
-                      <td className="px-3 py-2" style={{ paddingLeft: t.parentId ? 28 : 12 }}>
-                        <span className={`inline-flex items-center gap-1 ${t.parentId ? "text-muted-foreground" : "font-medium"}`}>
-                          {t.status === "blq" && <Lock className="size-3 text-destructive" aria-label="Bloqueada" />}
-                          {t.status === "con" && (
-                            <CheckCircle2
-                              className="size-3 text-success"
-                              aria-label={t.fimReal ? `Concluída em ${fmt(t.fimReal)}` : "Concluída"}
-                            />
-                          )}
-                          {t.restricaoTipo && <Pin className="size-3 text-muted-foreground" aria-label="Data fixada" />}
-                          {t.nome}
-                        </span>
-                        {t.predecessoraIds.length > 0 && (
-                          <span className="ml-1 text-[10px] text-warning">↳{t.predecessoraIds.length}</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {t.disciplinaNome ?? "—"}
-                        {t.etapaSigla && (
-                          <span className="ml-1 font-mono text-[10px]" title="Fase da linha">
-                            · {t.etapaSigla}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2">
-                        {t.ehResumo ? (
-                          <span className="text-muted-foreground">—</span>
-                        ) : t.atribuicoes.length === 0 ? (
-                          // Etapa de terceiro e marco não têm equipe a escalar: aviso de "sem
-                          // gente" ali seria falso alarme (e a linha nem gera card — D24).
-                          t.deTerceiro ? (
-                            <span className="text-xs text-muted-foreground">terceiro</span>
-                          ) : t.marco ? (
-                            <span className="text-muted-foreground">—</span>
-                          ) : (
-                            <span className="text-xs text-warning">sem gente</span>
-                          )
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            {t.atribuicoes.slice(0, 3).map((a) => (
-                              <span key={a.id} title={`${a.nome ?? `(perfil) ${a.rotuloPapel}`} · ${a.rotuloPapel}`}>
-                                {a.userId ? (
-                                  <AvatarUsuario nome={a.nome ?? ""} image={a.image} size="sm" className="size-5" />
-                                ) : (
-                                  <span className="inline-flex size-5 items-center justify-center rounded-full border border-dashed text-[9px] text-muted-foreground">
-                                    P
-                                  </span>
-                                )}
-                              </span>
-                            ))}
-                            {t.atribuicoes.length > 3 && (
-                              <span className="text-[10px] text-muted-foreground">+{t.atribuicoes.length - 3}</span>
-                            )}
-                            {t.trabalhoHoras == null && !t.deTerceiro && (
-                              <span className="text-[10px] text-warning" title="Alguma pessoa nesta linha ainda não tem horas estimadas">
-                                s/h
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                      {custoTotal && (
-                        <td
-                          className={`whitespace-nowrap px-3 py-2 text-right font-mono text-xs ${t.ehResumo ? "" : "text-muted-foreground"}`}
-                          title={t.custoMotivo ? ROTULO_SEM_CUSTO[t.custoMotivo] : undefined}
+          <PlanoGantt
+            tarefas={tarefas}
+            modo={modo}
+            calendario={calendario}
+            verDatas={verDatas}
+            mostrarCusto={custoTotal != null}
+            hoje={hoje}
+            filtroIds={filtro === "todas" && lookahead === "todas" ? null : new Set(visiveis.map((t) => t.id))}
+            selecionadaId={dialog.open ? (dialog.tarefa?.id ?? null) : null}
+            onAbrir={podeGerir ? (t) => abrir(t) : undefined}
+            acoes={
+              podeGerir || podeExecutado
+                ? (t) => (
+                    <>
+                      {podeExecutado && !t.ehResumo && (
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label="Atualizar tarefa (datas reais)"
+                          title={t.marco ? "Concluir o marco (data real)" : "Atualizar tarefa: início e término reais"}
+                          disabled={pending}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExecucao(t);
+                          }}
                         >
-                          {t.custo != null ? (
-                            brl(t.custo)
-                          ) : t.custoMotivo === "perfil" || t.custoMotivo === "sem_custo_hora" ? (
-                            <span className="text-warning">s/ custo</span>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
+                          <CalendarCheck className="size-3.5" />
+                        </Button>
                       )}
-                      <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-muted-foreground">
-                        {t.marco ? "marco" : `${t.duracaoDias}d`}
-                      </td>
-                      {verDatas && (
-                        <>
-                          <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">
-                            {fmt(t.inicioPrevisto)} – {fmt(t.fimPrevisto)}
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-muted-foreground">
-                            {t.inicioBaseline ? `${fmt(t.inicioBaseline)} – ${fmt(t.fimBaseline)}` : "—"}
-                          </td>
-                        </>
+                      {podeGerir && (
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label="Gerar tarefa no kanban"
+                          title={
+                            cronograma?.aprovado
+                              ? "Gerar o card desta linha no kanban (nasce sozinho na aprovação, para atividade da equipe com gente escalada)"
+                              : "O card nasce quando o cronograma é aprovado — rascunho não gera card"
+                          }
+                          disabled={pending || !cronograma?.aprovado}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            gerarTarefa(t.id);
+                          }}
+                        >
+                          <ListPlus className="size-3.5" />
+                        </Button>
                       )}
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <div className="h-1.5 w-20 overflow-hidden rounded-sm bg-muted">
-                            <div className="h-full bg-primary" style={{ width: `${t.progresso}%` }} />
-                          </div>
-                          <span className="font-mono text-xs text-muted-foreground">{t.progresso}%</span>
-                          {t.progressoDerivado && (
-                            <span
-                              className="text-[9px] uppercase text-muted-foreground"
-                              title="Linha de agrupamento: o avanço é calculado dos filhos, ponderado por horas — não se digita"
-                            >
-                              calc
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      {verDatas && (
-                      <td className="px-3 py-2 text-right">
-                        {t.fimBaseline == null ? (
-                          <span className="text-muted-foreground">—</span>
-                        ) : desvio > 0 ? (
-                          <Badge variant="outline" className="border-destructive/40 text-destructive">
-                            +{desvio}d
-                          </Badge>
-                        ) : desvio < 0 ? (
-                          <Badge variant="outline" className="border-success/40 text-success">
-                            {desvio}d
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline">no prazo</Badge>
-                        )}
-                      </td>
-                      )}
-                      {(podeGerir || podeExecutado) && (
-                        <td className="whitespace-nowrap px-3 py-2 text-right">
-                          {podeExecutado && !t.ehResumo && (
-                            <Button
-                              size="icon-sm"
-                              variant="ghost"
-                              aria-label="Atualizar tarefa (datas reais)"
-                              title={t.marco ? "Concluir o marco (data real)" : "Atualizar tarefa: início e término reais"}
-                              disabled={pending}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExecucao(t);
-                              }}
-                            >
-                              <CalendarCheck className="size-3.5" />
-                            </Button>
-                          )}
-                          {podeGerir && (
-                          <Button
-                            size="icon-sm"
-                            variant="ghost"
-                            aria-label="Gerar tarefa no kanban"
-                            title={
-                              cronograma?.aprovado
-                                ? "Gerar o card desta linha no kanban (nasce sozinho na aprovação, para atividade da equipe com gente escalada)"
-                                : "O card nasce quando o cronograma é aprovado — rascunho não gera card"
-                            }
-                            disabled={pending || !cronograma?.aprovado}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              gerarTarefa(t.id);
-                            }}
-                          >
-                            <ListPlus className="size-3.5" />
-                          </Button>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                    </>
+                  )
+                : undefined
+            }
+          />
         </>
       )}
 

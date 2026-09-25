@@ -22,6 +22,21 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Cronograma com a cara do MS Project
+
+A tela do planejamento ganhou o layout que a equipe já conhece: **tabela à esquerda, gráfico à direita**,
+nas mesmas linhas.
+
+- **Duas visões:** **Gráfico de Gantt** (planejamento) e **Gantt de Controle** (acompanhamento, com a barra da
+  linha de base abaixo da barra prevista e a coluna **Desvio**).
+- **Escala em dois níveis** — semana sobre dia, mês sobre semana, ano sobre mês — com **Dias**, **Semanas** e
+  **Meses**, fins de semana e feriados sombreados, e o botão **Hoje**.
+- **Níveis que recolhem e expandem**, número da linha (o "Id" do Project) e a coluna **Predecessoras** no formato
+  `3TI+2d` (TI, II, TT, IT), com as **setas** de cada tipo de vínculo.
+- Agrupamentos em **barra preta**, marcos em **losango** e os recursos escritos ao lado das barras.
+
+---
+
 ## Ajustes do cronograma pedidos pelo time
 
 Depois de revisar o novo planejamento, o time decidiu alguns pontos. O que já está no ar:

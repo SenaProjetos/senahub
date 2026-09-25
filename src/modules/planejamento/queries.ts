@@ -313,6 +313,14 @@ export async function eapDoProjeto(
     }),
     /** `null` = o viewer não vê custo (a coluna nem aparece). */
     custoTotal: custos ? custos.total : null,
+    /**
+     * O calendário do MOTOR (dias úteis e feriados): o Gantt sombreia os dias não úteis com ele — a mesma
+     * régua que agenda as linhas. Sem plano (projeto sem EAP), o calendário padrão da empresa.
+     */
+    calendario: {
+      diasUteis: plano ? [...plano.calendario.diasSemana] : [1, 2, 3, 4, 5],
+      feriados: plano ? [...plano.calendario.feriados] : ([] as string[]),
+    },
     // Volta a se chamar `nome` na fronteira da UI (`EapWorkspace` fala "nome"): a F1.19c
     // renomeou a coluna no schema, não o rótulo exibido.
     disciplinas: disciplinas.map((d) => ({

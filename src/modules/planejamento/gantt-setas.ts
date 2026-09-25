@@ -37,10 +37,15 @@ export function caminhoDaSeta(
 
   let d: string;
   if (tipo === "fs") {
-    d =
-      bx >= ax + 2 * cotovelo
-        ? `M ${n(ax)} ${n(ay)} H ${n(ax + cotovelo)} V ${n(by)} H ${n(bx)}`
-        : `M ${n(ax)} ${n(ay)} H ${n(ax + cotovelo)} V ${n(divisa)} H ${n(bx - cotovelo)} V ${n(by)} H ${n(bx)}`;
+    const folga = bx - ax;
+    if (folga >= 2 * cotovelo) {
+      d = `M ${n(ax)} ${n(ay)} H ${n(ax + cotovelo)} V ${n(by)} H ${n(bx)}`;
+    } else if (folga >= 4) {
+      // Sucessora logo depois (zoom apertado): o cotovelo encolhe para a metade da folga, e a seta ainda chega da esquerda.
+      d = `M ${n(ax)} ${n(ay)} H ${n(ax + folga / 2)} V ${n(by)} H ${n(bx)}`;
+    } else {
+      d = `M ${n(ax)} ${n(ay)} H ${n(ax + cotovelo)} V ${n(divisa)} H ${n(bx - cotovelo)} V ${n(by)} H ${n(bx)}`;
+    }
   } else if (tipo === "ss") {
     d = `M ${n(ax)} ${n(ay)} H ${n(Math.min(ax, bx) - cotovelo)} V ${n(by)} H ${n(bx)}`;
   } else if (tipo === "ff") {
