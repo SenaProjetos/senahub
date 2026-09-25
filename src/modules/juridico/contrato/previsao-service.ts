@@ -25,13 +25,22 @@ const dia = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : 
  *
  * Barata quando não há o que fazer: sem contrato por entrega no projeto, não roda o motor.
  */
-export async function sincronizarPrevisoesDoProjeto(
-  projetoId: string,
+export function sincronizarPrevisoesDoProjeto(projetoId: string, autorId: string) {
+  return sincronizarPrevisoes({ projetoId }, autorId);
+}
+
+/** Contrato SEM projeto: só a parcela "na assinatura" tem data (não há marco possível). */
+export function sincronizarPrevisoesDoContrato(contratoId: string, autorId: string) {
+  return sincronizarPrevisoes({ contratoId }, autorId);
+}
+
+async function sincronizarPrevisoes(
+  alvo: { projetoId: string } | { contratoId: string },
   autorId: string,
 ): Promise<{ criadas: number; atualizadas: number; removidas: number }> {
   const contratos = await prisma.documentoJuridico.findMany({
     where: {
-      projetoId,
+      ...("projetoId" in alvo ? { projetoId: alvo.projetoId } : { id: alvo.contratoId }),
       vinculoId: null,
       clienteId: { not: null },
       // Os por entrega — e qualquer um que ainda tenha previsão pendurada (trocou para por data).
@@ -39,6 +48,7 @@ export async function sincronizarPrevisoesDoProjeto(
     },
     select: {
       id: true,
+      projetoId: true,
       titulo: true,
       formaCobranca: true,
       statusContrato: true,
@@ -51,6 +61,7 @@ export async function sincronizarPrevisoesDoProjeto(
           descricao: true,
           percentual: true,
           ordem: true,
+          naAssinatura: true,
           marcoId: true,
           lancamento: {
             select: { id: true, status: true, valor: true, vencimento: true, descricao: true, excluidoEm: true },
@@ -62,22 +73,30 @@ export async function sincronizarPrevisoesDoProjeto(
   const zero = { criadas: 0, atualizadas: 0, removidas: 0 };
   if (contratos.length === 0) return zero;
 
-  const precisaDoMotor = contratos.some((c) => c.parcelasEntrega.some((p) => p.marcoId != null));
-  const [cronograma, plano] = await Promise.all([
-    prisma.cronogramaProjeto.findUnique({ where: { projetoId }, select: { aprovado: true } }),
-    precisaDoMotor ? planoDoProjeto(projetoId) : Promise.resolve(null),
-  ]);
-  const dataDoMarco = new Map<string, string>();
-  for (const [id, linha] of plano?.resultado.linhas ?? []) dataDoMarco.set(id, linha.fim);
+  // Cronograma e datas de marco por projeto — só roda o motor de quem tem parcela de marco.
+  const porProjeto = new Map<string, { aprovado: boolean; dataDoMarco: Map<string, string> }>();
+  for (const projetoId of new Set(contratos.map((c) => c.projetoId).filter((p): p is string => p != null))) {
+    const precisaDoMotor = contratos.some((c) => c.projetoId === projetoId && c.parcelasEntrega.some((x) => x.marcoId != null));
+    const [cronograma, plano] = await Promise.all([
+      prisma.cronogramaProjeto.findUnique({ where: { projetoId }, select: { aprovado: true } }),
+      precisaDoMotor ? planoDoProjeto(projetoId) : Promise.resolve(null),
+    ]);
+    const dataDoMarco = new Map<string, string>();
+    for (const [id, linha] of plano?.resultado.linhas ?? []) dataDoMarco.set(id, linha.fim);
+    porProjeto.set(projetoId, { aprovado: cronograma?.aprovado ?? false, dataDoMarco });
+  }
+  const semProjeto = { aprovado: false, dataDoMarco: new Map<string, string>() };
 
   let categoriaId: string | null | undefined;
   const r = { ...zero };
   for (const c of contratos) {
+    const proj = (c.projetoId ? porProjeto.get(c.projetoId) : undefined) ?? semProjeto;
     const parcelas: ParcelaEntregaEstado[] = c.parcelasEntrega.map((p) => ({
       id: p.id,
       descricao: p.descricao,
       percentual: Number(p.percentual),
       ordem: p.ordem,
+      naAssinatura: p.naAssinatura,
       marcoId: p.marcoId,
       // Linha excluída no financeiro conta como inexistente: a previsão volta a nascer.
       lancamento:
@@ -99,9 +118,9 @@ export async function sincronizarPrevisoesDoProjeto(
         valor: c.valor == null ? null : Number(c.valor),
         assinadoEm: dia(c.assinadoEm),
       },
-      cronogramaAprovado: cronograma?.aprovado ?? false,
+      cronogramaAprovado: proj.aprovado,
       parcelas,
-      dataDoMarco,
+      dataDoMarco: proj.dataDoMarco,
     });
     if (plan.criar.length === 0 && plan.atualizar.length === 0 && plan.remover.length === 0) continue;
 
@@ -129,7 +148,7 @@ export async function sincronizarPrevisoesDoProjeto(
             vencimento: venc,
             categoriaId: categoriaId!,
             clienteId: c.clienteId,
-            projetoId,
+            projetoId: c.projetoId,
             contratoId: c.id,
             autorId,
           },

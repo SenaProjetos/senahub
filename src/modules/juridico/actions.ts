@@ -16,7 +16,11 @@ import { comRetentativaDeConflito, registrarEventoAssinatura } from "@/modules/j
 import { gerarVersaoDeModelo as gerarVersaoDeModeloContrato } from "@/modules/juridico/contrato/gerar";
 import { decidirPrazoDoProjeto, devePassarParaAssinado, ehDocumentoContratual } from "@/modules/juridico/contrato/estado";
 import { gerarRecebiveisDoContrato } from "@/modules/juridico/contrato/recebiveis";
-import { faturarParcela, sincronizarPrevisoesDoProjeto } from "@/modules/juridico/contrato/previsao-service";
+import {
+  faturarParcela,
+  sincronizarPrevisoesDoContrato,
+  sincronizarPrevisoesDoProjeto,
+} from "@/modules/juridico/contrato/previsao-service";
 import { registrarAlteracaoContratual, type MotivoContratual } from "@/modules/rh/contratual/service";
 
 const base = { modulo: "juridico", recurso: "juridico", permissao: "gerir" } as const;
@@ -379,6 +383,7 @@ export const definirCondicaoPagamento = defineAction(
       },
     });
     if (doc.projetoId) await sincronizarPrevisoesDoProjeto(doc.projetoId, ctx.user.id);
+    else await sincronizarPrevisoesDoContrato(i.id, ctx.user.id);
     rev();
     revalidarFinanceiro();
     return { id: i.id };
@@ -390,7 +395,7 @@ const parcelaEntregaSchema = z.object({
   id: z.string().min(1).optional(),
   descricao: z.string().trim().min(1, "Descreva cada parcela (ex.: Entrega do projeto básico)."),
   percentual: z.number().finite().gt(0, "Percentual deve ser maior que 0%.").max(100, "Percentual até 100%."),
-  /** Marco da EAP. Nulo = cobrada na assinatura. */
+  /** Marco da EAP. Nulo = cobrada na assinatura (grava `naAssinatura`). */
   marcoId: z.string().min(1).nullable(),
 });
 
@@ -465,12 +470,13 @@ export const salvarCobrancaPorEntrega = defineAction(
         }
       }
       for (const [ordem, p] of i.parcelas.entries()) {
-        const dados = { descricao: p.descricao, percentual: p.percentual, marcoId: p.marcoId, ordem };
+        const dados = { descricao: p.descricao, percentual: p.percentual, marcoId: p.marcoId, naAssinatura: p.marcoId == null, ordem };
         if (p.id) await tx.contratoParcelaEntrega.update({ where: { id: p.id }, data: dados });
         else await tx.contratoParcelaEntrega.create({ data: { ...dados, contratoId: i.id } });
       }
     });
     if (doc.projetoId) await sincronizarPrevisoesDoProjeto(doc.projetoId, ctx.user.id);
+    else await sincronizarPrevisoesDoContrato(i.id, ctx.user.id);
     rev();
     revalidarFinanceiro();
     return { id: i.id };
@@ -762,8 +768,9 @@ export const registrarAceite = defineAction(
     // F7.2: contrato por entrega assinado passa a ter previsão de recebimento (a parcela "na
     // assinatura" já; as de marco quando o cronograma estiver aprovado). Fora da transação: roda
     // o motor do cronograma. Idempotente — o segundo signatário não duplica nada.
-    if (doc.formaCobranca === "por_entrega" && doc.projetoId && !doc.vinculoId) {
-      await sincronizarPrevisoesDoProjeto(doc.projetoId, ctx.user.id);
+    if (doc.formaCobranca === "por_entrega" && !doc.vinculoId) {
+      if (doc.projetoId) await sincronizarPrevisoesDoProjeto(doc.projetoId, ctx.user.id);
+      else await sincronizarPrevisoesDoContrato(doc.id, ctx.user.id);
       revalidarFinanceiro();
     }
     rev();

@@ -10,6 +10,12 @@ export type SemanaProjecao = {
   entradas: number;
   /** F7.2: parte de `entradas` que é previsão do cronograma (contrato por entrega, ainda não faturada). */
   previsaoCronograma: number;
+  /**
+   * Parte de `previsaoCronograma` que já passou da data (marco passou, ou a assinatura) e não foi
+   * faturada. Vai para a 1ª semana: é dinheiro ainda esperado — e, ao contrário da conta a receber
+   * vencida, não aparece em aging nenhum. Tirá-la da projeção a faria sumir de todas as telas.
+   */
+  previsaoAtrasada: number;
   saidas: number;
   saldo: number;
 };
@@ -25,10 +31,13 @@ export async function projecaoCaixa(saldoInicial: number, semanas = 8): Promise<
   const fim = new Date(hoje.getTime() + semanas * 7 * MS_DIA);
   const previstos = await prisma.lancamento.findMany({
     where: {
-      vencimento: { gte: hoje, lte: fim },
       // F7.2 (D25): a previsão de recebimento do cronograma entra AQUI, e só aqui — é projeção, não
-      // conta a receber. Aging, inadimplência e "a receber" leem `previsto` e não a veem.
-      OR: [{ status: "previsto" }, { status: "previsao", tipo: "receita" }],
+      // conta a receber. Aging, inadimplência e "a receber" leem `previsto` e não a veem. A previsão
+      // vencida também entra (vai para a 1ª semana); a conta a receber vencida segue de fora.
+      OR: [
+        { status: "previsto", vencimento: { gte: hoje, lte: fim } },
+        { status: "previsao", tipo: "receita", vencimento: { lte: fim } },
+      ],
     },
     select: { tipo: true, valor: true, vencimento: true, status: true },
   });
@@ -40,17 +49,21 @@ export async function projecaoCaixa(saldoInicial: number, semanas = 8): Promise<
       fim: new Date(ini.getTime() + 6 * MS_DIA).toISOString().slice(0, 10),
       entradas: 0,
       previsaoCronograma: 0,
+      previsaoAtrasada: 0,
       saidas: 0,
       saldo: 0,
     };
   });
   for (const l of previstos) {
     if (!l.vencimento) continue;
-    const idx = Math.floor(Math.round((l.vencimento.getTime() - hoje.getTime()) / MS_DIA) / 7);
+    const dias = Math.round((l.vencimento.getTime() - hoje.getTime()) / MS_DIA);
+    const atrasada = l.status === "previsao" && dias < 0;
+    const idx = atrasada ? 0 : Math.floor(dias / 7);
     if (idx < 0 || idx >= semanas) continue;
     if (l.tipo === "receita") {
       buckets[idx].entradas += Number(l.valor);
       if (l.status === "previsao") buckets[idx].previsaoCronograma += Number(l.valor);
+      if (atrasada) buckets[idx].previsaoAtrasada += Number(l.valor);
     } else buckets[idx].saidas += Number(l.valor);
   }
   let saldo = saldoInicial;

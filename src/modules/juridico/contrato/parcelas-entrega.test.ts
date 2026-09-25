@@ -20,6 +20,7 @@ const parcela = (id: string, percentual: number, ordem: number, extra: Partial<P
   descricao: `Parcela ${id}`,
   percentual,
   ordem,
+  naAssinatura: false,
   marcoId: `m-${id}`,
   lancamento: null,
   ...extra,
@@ -31,7 +32,7 @@ const datas = new Map([
 ]);
 
 // 30% na assinatura (sem marco), 40% no básico, 30% no executivo.
-const plano = () => [parcela("a", 30, 0, { marcoId: null }), parcela("b", 40, 1), parcela("c", 30, 2)];
+const plano = () => [parcela("a", 30, 0, { marcoId: null, naAssinatura: true }), parcela("b", 40, 1), parcela("c", 30, 2)];
 
 describe("planejarPrevisoes", () => {
   it("cronograma aprovado: cada parcela com a sua data — a do marco, ou a da assinatura", () => {
@@ -93,6 +94,18 @@ describe("planejarPrevisoes", () => {
     const r = planejarPrevisoes({ contrato: contrato({ statusContrato: "rascunho" }), cronogramaAprovado: true, parcelas: plano(), dataDoMarco: datas });
     expect(r.criar).toEqual([]);
     expect(r.motivo).toMatch(/assinado/);
+  });
+
+  it("marco APAGADO (sem marco e sem 'na assinatura'): sem data — nunca vira cobrança imediata", () => {
+    const ps = plano();
+    ps[2] = parcela("c", 30, 2, {
+      marcoId: null,
+      lancamento: { id: "l-c", status: "previsao", valor: 3000, vencimento: "2026-12-15", descricao: "x" },
+    });
+    const r = planejarPrevisoes({ contrato: contrato(), cronogramaAprovado: true, parcelas: ps, dataDoMarco: datas });
+    expect(r.remover).toEqual([{ parcelaId: "c", lancamentoId: "l-c" }]);
+    expect(r.criar.map((c) => c.parcelaId)).toEqual(["a", "b"]);
+    expect(r.motivo).toMatch(/marco foi apagado/);
   });
 
   it("marco fora do cronograma: a parcela fica sem previsão, e a tela é avisada", () => {

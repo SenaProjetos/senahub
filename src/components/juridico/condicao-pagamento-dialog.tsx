@@ -32,11 +32,14 @@ import {
 } from "@/components/ui/dialog";
 
 const NA_ASSINATURA = "__assinatura";
+/** Parcela cujo marco foi apagado: fica sem data até alguém escolher de novo. */
+const SEM_MARCO = "__sem_marco";
 
 export type ParcelaEntregaTela = {
   id: string;
   descricao: string;
   percentual: number;
+  naAssinatura: boolean;
   marcoId: string | null;
   /** Linha no financeiro: `previsao` (projeção do cronograma), `previsto` (faturada), `confirmado` (recebida). */
   lancamento: { status: string; valor: number; vencimento: string | null } | null;
@@ -64,7 +67,7 @@ const paraLinha = (p: ParcelaEntregaTela): Linha => ({
   id: p.id,
   descricao: p.descricao,
   percentual: String(p.percentual),
-  marcoId: p.marcoId ?? NA_ASSINATURA,
+  marcoId: p.naAssinatura ? NA_ASSINATURA : (p.marcoId ?? SEM_MARCO),
 });
 
 /** Situação da parcela no financeiro, em palavras. */
@@ -132,6 +135,9 @@ export function CondicaoPagamento({ doc, podeFaturar }: { doc: CobrancaContrato;
       if (!Number.isFinite(l.percentual) || l.percentual <= 0) return toast.error("Cada parcela precisa de um percentual maior que 0%.");
     }
     if (linhas.some((l) => !l.descricao.trim())) return toast.error("Descreva cada parcela (ex.: Entrega do projeto básico).");
+    if (linhas.some((l) => l.marcoId === SEM_MARCO)) {
+      return toast.error('Há parcela cujo marco foi apagado — escolha outro marco ou "Na assinatura".');
+    }
     start(async () => {
       const r = await salvarCobrancaPorEntrega({
         id: doc.id,
@@ -297,6 +303,11 @@ export function CondicaoPagamento({ doc, podeFaturar }: { doc: CobrancaContrato;
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
+                                    {l.marcoId === SEM_MARCO && (
+                                      <SelectItem value={SEM_MARCO} className="text-xs text-warning">
+                                        Marco apagado — escolha
+                                      </SelectItem>
+                                    )}
                                     <SelectItem value={NA_ASSINATURA} className="text-xs">
                                       Na assinatura
                                     </SelectItem>

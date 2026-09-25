@@ -8,7 +8,9 @@
  * conta a receber (`previsto`); daí em diante a sincronização não toca mais nela. Assim previsão e
  * cobrança nunca somam juntas.
  *
- * Parcela SEM marco ("30% na assinatura") também nasce como previsão, com a data da assinatura —
+ * Parcela "na assinatura" (`naAssinatura`, "30% na assinatura") também nasce como previsão, com a data
+ * da assinatura — e é explícita: parcela cujo marco foi apagado fica SEM data, nunca vira cobrança
+ * imediata. Todo recebível do contrato por entrega passa pelo mesmo caminho —
  * todo recebível do contrato por entrega passa pelo mesmo caminho: previsão → faturar (D9, "a
  * cobrança continua nascendo no financeiro").
  *
@@ -28,6 +30,9 @@ export type ParcelaEntregaEstado = {
   descricao: string;
   percentual: number;
   ordem: number;
+  /** Cobrada na assinatura — tem a data dela, sem precisar de marco nem de cronograma. */
+  naAssinatura: boolean;
+  /** Marco que a dispara. Nulo sem `naAssinatura` = o marco foi apagado: parcela sem data. */
   marcoId: string | null;
   /** Linha dela no financeiro. Só a de status `previsao` é da sincronização. */
   lancamento: { id: string; status: string; valor: number; vencimento: Dia | null; descricao: string } | null;
@@ -105,12 +110,16 @@ export function planejarPrevisoes(p: {
     if (!v.ok) motivo = v.motivo;
     else {
       let semData = 0;
+      let semMarco = 0;
       let esperandoAprovacao = 0;
       ordenadas.forEach((parcela, i) => {
         if (parcela.lancamento && parcela.lancamento.status !== "previsao") return; // já faturada
         let dia: Dia | null | undefined;
-        if (parcela.marcoId == null) dia = p.contrato.assinadoEm;
-        else if (!p.cronogramaAprovado) {
+        if (parcela.naAssinatura) dia = p.contrato.assinadoEm;
+        else if (parcela.marcoId == null) {
+          semMarco++;
+          return;
+        } else if (!p.cronogramaAprovado) {
           esperandoAprovacao++;
           return;
         } else dia = p.dataDoMarco.get(parcela.marcoId);
@@ -125,9 +134,13 @@ export function planejarPrevisoes(p: {
           descricao: descricaoParcelaEntrega(p.contrato.titulo, i + 1, ordenadas.length, parcela.descricao),
         });
       });
+      const motivos: string[] = [];
+      if (semMarco > 0) motivos.push(`${semMarco} parcela(s) sem marco — o marco foi apagado; escolha outro ou "Na assinatura".`);
       if (esperandoAprovacao > 0) {
-        motivo = "Cronograma do projeto em rascunho — as parcelas de marco ganham previsão quando ele for aprovado.";
-      } else if (semData > 0) motivo = `${semData} parcela(s) com marco que não está no cronograma.`;
+        motivos.push("Cronograma do projeto em rascunho — as parcelas de marco ganham previsão quando ele for aprovado.");
+      }
+      if (semData > 0) motivos.push(`${semData} parcela(s) com marco que não está no cronograma.`);
+      if (motivos.length > 0) motivo = motivos.join(" ");
     }
   }
 

@@ -12,13 +12,20 @@
  *   4. Cronograma de volta ao rascunho tira as previsões de marco; a da assinatura fica.
  *   5. Contrato que cobra por data assina e gera as parcelas mesmo tendo tido previsão (a contagem
  *      de idempotência ignora `previsao`).
+ *   6. Previsão que passou da data vai para a 1ª semana da projeção, marcada como atrasada — senão
+ *      sumiria de todas as telas. Marco APAGADO deixa a parcela sem data (nunca "na assinatura").
+ *      Contrato sem projeto também sincroniza a parcela da assinatura.
  *
  * Uso: npm run smoke:previsao-recebimento
  */
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { planoDoProjeto, paraDia } from "../src/modules/planejamento/agenda";
-import { faturarParcela, sincronizarPrevisoesDoProjeto } from "../src/modules/juridico/contrato/previsao-service";
+import {
+  faturarParcela,
+  sincronizarPrevisoesDoContrato,
+  sincronizarPrevisoesDoProjeto,
+} from "../src/modules/juridico/contrato/previsao-service";
 import { gerarRecebiveisDoContrato } from "../src/modules/juridico/contrato/recebiveis";
 import { agingReport } from "../src/modules/financeiro/aging/queries";
 import { projecaoCaixa } from "../src/modules/financeiro/caixa/queries";
@@ -55,6 +62,7 @@ async function main() {
     },
   });
 
+  const extras: string[] = [];
   try {
     // EAP: Básico (5 dias) → marco M1 → Executivo (5 dias) → marco M2.
     const base = { projetoId: projeto.id, inicioPrevisto: d(hoje), fimPrevisto: d(hoje) };
@@ -82,7 +90,7 @@ async function main() {
         formaCobranca: "por_entrega",
         parcelasEntrega: {
           create: [
-            { descricao: "Assinatura", percentual: 30, ordem: 0 },
+            { descricao: "Assinatura", percentual: 30, ordem: 0, naAssinatura: true },
             { descricao: "Entrega do básico", percentual: 40, ordem: 1, marcoId: m1.id },
             { descricao: "Entrega do executivo", percentual: 30, ordem: 2, marcoId: m2.id },
           ],
@@ -116,6 +124,17 @@ async function main() {
     const projecao = await projecaoCaixa(0, 8);
     const noCaixa = projecao.reduce((s, p) => s + p.previsaoCronograma, 0);
     check("projeção de caixa inclui a previsão, com subtotal próprio", noCaixa >= 3000 && projecao.reduce((s, p) => s + p.entradas, 0) >= 3000, noCaixa);
+
+    // Assinado há 10 dias e não faturado: a previsão passou da data — vai para a 1ª semana, atrasada.
+    const dezDiasAtras = paraDia(new Date(inicioDoDiaUtc().getTime() - 10 * 86_400_000));
+    await prisma.documentoJuridico.update({ where: { id: contrato.id }, data: { assinadoEm: d(dezDiasAtras) } });
+    await sincronizarPrevisoesDoProjeto(projeto.id, admin.id);
+    const atrasada = await projecaoCaixa(0, 8);
+    check(
+      "previsão vencida e não faturada fica na 1ª semana, marcada como atrasada",
+      atrasada[0].previsaoAtrasada >= 3000 && atrasada[0].previsaoCronograma >= 3000,
+      { semana0: atrasada[0] },
+    );
 
     // Cronograma aprovado: as de marco nascem na data do motor.
     await prisma.cronogramaProjeto.update({ where: { projetoId: projeto.id }, data: { aprovado: true } });
@@ -162,6 +181,16 @@ async function main() {
     const l1d = await linhaDa(pM1.id);
     check("faturada: a sincronização não mexe mais nela", paraDia(l1d!.vencimento!) === ontem && l1d?.status === "previsto");
 
+    // Marco apagado (reestruturação da EAP): a parcela fica SEM data — nunca vira "na assinatura".
+    await prisma.eapTarefa.delete({ where: { id: m2.id } });
+    await sincronizarPrevisoesDoProjeto(projeto.id, admin.id);
+    const pM2depois = await prisma.contratoParcelaEntrega.findUniqueOrThrow({ where: { id: pM2.id } });
+    check(
+      "marco apagado: a previsão sai e a parcela NÃO vira cobrança na assinatura",
+      pM2depois.marcoId === null && pM2depois.naAssinatura === false && pM2depois.lancamentoId === null,
+      pM2depois,
+    );
+
     // ── 4. Cronograma volta ao rascunho ──────────────────────────────────
     await prisma.cronogramaProjeto.update({ where: { projetoId: projeto.id }, data: { aprovado: false } });
     await sincronizarPrevisoesDoProjeto(projeto.id, admin.id);
@@ -190,10 +219,28 @@ async function main() {
       }),
     );
     check("por data: previsão não conta na idempotência — as 2 parcelas nascem", g.criadas === 2, g);
+
+    // ── 6. Contrato SEM projeto: a parcela da assinatura também vira previsão ──
+    const semProjeto = await prisma.documentoJuridico.create({
+      data: {
+        titulo: `${tag} sem projeto`,
+        tipo: "contrato",
+        clienteId: cliente.id,
+        valor: 500,
+        statusContrato: "assinado",
+        assinadoEm: d(hoje),
+        formaCobranca: "por_entrega",
+        parcelasEntrega: { create: [{ descricao: "Assinatura", percentual: 100, ordem: 0, naAssinatura: true }] },
+      },
+    });
+    extras.push(semProjeto.id);
+    await sincronizarPrevisoesDoContrato(semProjeto.id, admin.id);
+    const prevSemProjeto = await prisma.lancamento.findMany({ where: { contratoId: semProjeto.id, status: "previsao" } });
+    check("contrato sem projeto: previsão da assinatura nasce, sem projeto", prevSemProjeto.length === 1 && Number(prevSemProjeto[0].valor) === 500 && prevSemProjeto[0].projetoId === null);
   } finally {
     // Limpeza — parcelas (FK para o lançamento) antes dos lançamentos, contratos, EAP.
     const contratos = await prisma.documentoJuridico.findMany({ where: { projetoId: projeto.id }, select: { id: true } });
-    const ids = contratos.map((c) => c.id);
+    const ids = [...contratos.map((c) => c.id), ...extras];
     await prisma.contratoParcelaEntrega.deleteMany({ where: { contratoId: { in: ids } } });
     await prisma.lancamento.deleteMany({ where: { contratoId: { in: ids } } });
     await prisma.documentoJuridico.deleteMany({ where: { id: { in: ids } } });

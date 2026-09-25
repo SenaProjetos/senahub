@@ -35,6 +35,7 @@ export default async function JuridicoPage() {
             id: true,
             descricao: true,
             percentual: true,
+            naAssinatura: true,
             marcoId: true,
             lancamento: { select: { status: true, valor: true, vencimento: true, excluidoEm: true } },
           },
@@ -171,6 +172,7 @@ export default async function JuridicoPage() {
             id: p.id,
             descricao: p.descricao,
             percentual: Number(p.percentual),
+            naAssinatura: p.naAssinatura,
             marcoId: p.marcoId,
             lancamento:
               p.lancamento && !p.lancamento.excluidoEm
