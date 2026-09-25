@@ -113,7 +113,7 @@ export default async function ProjetoLayout({
               </Link>
             </p>
           </div>
-          <div className="flex shrink-0 flex-wrap justify-end gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:shrink-0 sm:flex-wrap sm:justify-end">
           {canalChat && (
             <Button variant="outline" size="sm" render={<Link href={`/chat?c=${canalChat.id}`} />}>
               <MessageSquare className="size-4" /> Chat
