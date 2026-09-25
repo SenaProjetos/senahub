@@ -34,6 +34,9 @@ nas mesmas linhas.
 - **Níveis que recolhem e expandem**, número da linha (o "Id" do Project) e a coluna **Predecessoras** no formato
   `3TI+2d` (TI, II, TT, IT), com as **setas** de cada tipo de vínculo.
 - Agrupamentos em **barra preta**, marcos em **losango** e os recursos escritos ao lado das barras.
+- **Edição direto na tabela:** nome, duração, % concluído e predecessoras (`3TI+2d`) se editam na própria
+  célula — Enter grava e desce, Tab vai para a próxima, Esc desiste. Duração `0` vira marco. Duplo clique na
+  linha abre a janela completa.
 
 ---
 

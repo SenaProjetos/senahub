@@ -3,6 +3,8 @@ import {
   formatarLag,
   formatarPredecessoras,
   idsComFilhos,
+  lerDuracao,
+  lerPercentual,
   lerPredecessoras,
   linhasVisiveis,
   montarGrade,
@@ -179,5 +181,44 @@ describe("textoRecursos", () => {
   it("sem ninguém: vazio, ou 'terceiro' na etapa de terceiro", () => {
     expect(textoRecursos([], false)).toBe("");
     expect(textoRecursos([], true)).toBe("terceiro");
+  });
+});
+
+describe("lerDuracao", () => {
+  it("aceita número, com unidade e com vírgula decimal", () => {
+    expect(lerDuracao("5")).toEqual({ ok: true, marco: false, dias: 5 });
+    expect(lerDuracao("5d")).toEqual({ ok: true, marco: false, dias: 5 });
+    expect(lerDuracao(" 12 dias ")).toEqual({ ok: true, marco: false, dias: 12 });
+    expect(lerDuracao("1,5")).toEqual({ ok: true, marco: false, dias: 1.5 });
+    expect(lerDuracao("0,5d")).toEqual({ ok: true, marco: false, dias: 0.5 });
+  });
+
+  it("zero e a palavra marco tornam a linha um marco", () => {
+    expect(lerDuracao("0")).toEqual({ ok: true, marco: true });
+    expect(lerDuracao("0d")).toEqual({ ok: true, marco: true });
+    expect(lerDuracao("Marco")).toEqual({ ok: true, marco: true });
+  });
+
+  it("recusa o que não é duração, o negativo e o exagero", () => {
+    expect(lerDuracao("")).toMatchObject({ ok: false });
+    expect(lerDuracao("abc")).toMatchObject({ ok: false });
+    expect(lerDuracao("-3")).toMatchObject({ ok: false });
+    expect(lerDuracao("3h")).toMatchObject({ ok: false });
+    expect(lerDuracao("10000")).toEqual({ ok: false, erro: "Duração grande demais — divida a atividade." });
+  });
+});
+
+describe("lerPercentual", () => {
+  it("aceita 0 a 100, com ou sem o sinal", () => {
+    expect(lerPercentual("0")).toEqual({ ok: true, valor: 0 });
+    expect(lerPercentual("60%")).toEqual({ ok: true, valor: 60 });
+    expect(lerPercentual(" 100 % ")).toEqual({ ok: true, valor: 100 });
+  });
+
+  it("recusa acima de 100, decimal e texto", () => {
+    expect(lerPercentual("101")).toEqual({ ok: false, erro: "O % concluído vai de 0 a 100." });
+    expect(lerPercentual("50,5")).toMatchObject({ ok: false });
+    expect(lerPercentual("meio")).toMatchObject({ ok: false });
+    expect(lerPercentual("")).toMatchObject({ ok: false });
   });
 });

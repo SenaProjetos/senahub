@@ -209,6 +209,16 @@ linhas, numa área de rolagem só (a tabela fica presa à esquerda e o cabeçalh
   é o **agrupamento**; o **marco** é um losango; o **caminho crítico** fica em vermelho; **cadeado** =
   bloqueada; **alfinete** = data fixada; a linha vertical vermelha marca **hoje**. Ao lado da barra
   aparecem os recursos (ou o % no Gantt de Controle).
+- **Editar direto na tabela** (só quem monta o cronograma): clique no **Nome**, na **Duração**, no **%
+  concluído** (Gantt de Controle) ou nas **Predecessoras** e digite na própria célula, como no Project.
+  **Enter** grava e desce; **Tab** grava e vai para a próxima célula; **Esc** desiste; clicar fora grava.
+  **Duplo clique** na linha (ou **Enter** com a linha selecionada) abre a janela completa; **F2** edita o
+  nome. Agrupamento só edita o nome — o resto deriva das tarefas dentro dele.
+  - **Duração:** `5` ou `5d` (dias úteis; aceita `1,5`). **`0`** ou **`marco`** transforma a tarefa em marco.
+  - **Predecessoras:** `3`, `3TI+2d`, `5II`, `2TT-1d`, vários separados por `;`. O número é o **Nº** da
+    linha. Aceita as siglas do Project em português (**TI, II, TT, IT**) e em inglês (**FS, SS, FF, SF**).
+    O atraso é em dias úteis. O sistema recusa vínculo que criaria ciclo, mesmo que o texto esteja certo.
+  - Cada gravação recalcula o cronograma; várias em sequência entram na fila e são gravadas uma de cada vez.
 - **Tabela compacta / completa:** a tabela abre compacta (sem Disciplina, Recursos e Custo) para dar
   espaço ao gráfico; **Tabela completa** mostra todas as colunas, inclusive o **Custo** (só quem vê o
   financeiro). **✓** marca a linha concluída.

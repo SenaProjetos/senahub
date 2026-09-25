@@ -159,6 +159,38 @@ export function lerPredecessoras(
 }
 
 // ─────────────────────────────────────────────────────────────
+// Células editáveis: duração e % concluído
+// ─────────────────────────────────────────────────────────────
+
+export type ResultadoDuracao = { ok: true; marco: true } | { ok: true; marco: false; dias: number } | { ok: false; erro: string };
+
+const DURACAO = /^(\d+(?:[.,]\d+)?)\s*(?:d|dia|dias)?$/i;
+
+/**
+ * Lê a célula Duração como o Project: `5`, `5d`, `5 dias`, `1,5`; `0` (ou "marco") torna a linha um marco.
+ * Sempre em dias ÚTEIS — o servidor recusa o resto. Não decide se a linha PODE virar marco (agrupamento não vira,
+ * linha com horas exige zerá-las): isso é `regrasDeEdicao`, no servidor.
+ */
+export function lerDuracao(texto: string): ResultadoDuracao {
+  const t = texto.trim().toLowerCase();
+  if (t === "marco") return { ok: true, marco: true };
+  const m = DURACAO.exec(t);
+  if (!m) return { ok: false, erro: "Informe a duração em dias úteis, como 5 ou 5d — ou 0 para virar marco." };
+  const n = Number(m[1].replace(",", "."));
+  if (n === 0) return { ok: true, marco: true };
+  if (n > 9999) return { ok: false, erro: "Duração grande demais — divida a atividade." };
+  return { ok: true, marco: false, dias: n };
+}
+
+/** Lê a célula % concluído: `60` ou `60%`, de 0 a 100, inteiro. */
+export function lerPercentual(texto: string): { ok: true; valor: number } | { ok: false; erro: string } {
+  const m = /^(\d{1,3})\s*%?$/.exec(texto.trim());
+  if (!m) return { ok: false, erro: "Informe o % concluído, de 0 a 100." };
+  const n = Number(m[1]);
+  return n > 100 ? { ok: false, erro: "O % concluído vai de 0 a 100." } : { ok: true, valor: n };
+}
+
+// ─────────────────────────────────────────────────────────────
 // Nomes dos recursos
 // ─────────────────────────────────────────────────────────────
 

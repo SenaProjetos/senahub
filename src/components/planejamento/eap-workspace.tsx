@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { brl } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import {
   aplicarAoProjeto,
+  definirPredecessorasDaLinha,
+  editarEapTarefa,
   gerarTarefaDeEap,
   gerarEapDasDisciplinas,
   reagendarPlano,
@@ -33,7 +35,8 @@ import type { CalendarioGantt } from "@/modules/planejamento/gantt-escala";
 import { somarDias } from "@/lib/dias-iso";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PlanoGantt, type ModoGantt } from "@/components/planejamento/plano-gantt";
+import type { Vinculo } from "@/modules/planejamento/gantt-linhas";
+import { PlanoGantt, type EdicaoDeCampo, type ModoGantt } from "@/components/planejamento/plano-gantt";
 import { EapDialog } from "@/components/planejamento/eap-dialog";
 import { ExecucaoDialog } from "@/components/planejamento/execucao-dialog";
 import { SaudePainel } from "@/components/planejamento/saude-painel";
@@ -184,6 +187,43 @@ export function EapWorkspace({
         }
         router.refresh();
       } else toast.error(r.error);
+    });
+  }
+
+  // Cada gravação reagenda o projeto inteiro: a fila garante uma de cada vez — a segunda, disparada em paralelo,
+  // trabalharia sobre datas que a primeira ainda vai mudar (Tab/Enter em sequência na tabela faz isso).
+  const fila = useRef<Promise<unknown>>(Promise.resolve());
+  function naFila<T>(tarefa: () => Promise<T>): Promise<T> {
+    const p = fila.current.then(tarefa, tarefa);
+    fila.current = p.catch(() => undefined);
+    return p;
+  }
+
+  /** Edição direto na tabela (Nome, Duração, % concluído). A action grava a linha inteira: o que não muda vai como está. */
+  function editarCampo(t: EapTarefaDTO, e: EdicaoDeCampo): Promise<string | null> {
+    return naFila(async () => {
+      const r = await editarEapTarefa({
+        id: t.id,
+        nome: e.campo === "nome" ? e.nome : t.nome,
+        // Sem a disciplina a action a tiraria da linha.
+        disciplinaId: t.disciplinaId ?? undefined,
+        duracaoDias: e.campo === "duracao" ? e.duracaoDias : t.marco || t.ehResumo ? undefined : t.duracaoDias,
+        progresso: e.campo === "progresso" ? e.progresso : Math.round(t.progresso),
+        marco: e.campo === "duracao" ? e.marco : t.marco,
+      });
+      if (!r.ok) return r.error;
+      router.refresh();
+      return null;
+    });
+  }
+
+  /** A célula Predecessoras: o conjunto inteiro de uma vez, com um reagendamento só. */
+  function editarPredecessoras(t: EapTarefaDTO, vinculos: Vinculo[]): Promise<string | null> {
+    return naFila(async () => {
+      const r = await definirPredecessorasDaLinha({ tarefaId: t.id, vinculos });
+      if (!r.ok) return r.error;
+      router.refresh();
+      return null;
     });
   }
 
@@ -483,8 +523,10 @@ export function EapWorkspace({
             mostrarCusto={custoTotal != null}
             hoje={hoje}
             filtroIds={filtro === "todas" && lookahead === "todas" ? null : new Set(visiveis.map((t) => t.id))}
-            selecionadaId={dialog.open ? (dialog.tarefa?.id ?? null) : null}
             onAbrir={podeGerir ? (t) => abrir(t) : undefined}
+            onEditarCampo={podeGerir ? editarCampo : undefined}
+            onEditarPredecessoras={podeGerir ? editarPredecessoras : undefined}
+            onErro={(mensagem) => toast.error(mensagem)}
             acoes={
               podeGerir || podeExecutado
                 ? (t) => (

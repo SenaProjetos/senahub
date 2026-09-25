@@ -6,11 +6,15 @@ import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import {
   formatarPredecessoras,
   idsComFilhos,
+  lerDuracao,
+  lerPercentual,
+  lerPredecessoras,
   linhasVisiveis,
   montarGrade,
   soAsDoFiltro,
   textoRecursos,
   type LinhaGrade,
+  type Vinculo,
 } from "@/modules/planejamento/gantt-linhas";
 import { montarEscala, ZOOMS_GANTT, type CalendarioGantt, type EscalaGantt, type ZoomGantt } from "@/modules/planejamento/gantt-escala";
 import { caminhoDaSeta, type PosicaoBarra } from "@/modules/planejamento/gantt-setas";
@@ -36,6 +40,16 @@ import { EmptyState } from "@/components/ui/empty-state";
 
 export type ModoGantt = "planejamento" | "controle";
 
+/** O que se edita direto na célula. `pred` (Predecessoras) tem callback próprio: grava o conjunto inteiro. */
+export type CampoEditavel = "nome" | "duracao" | "progresso" | "pred";
+
+export type EdicaoDeCampo =
+  | { campo: "nome"; nome: string }
+  | { campo: "duracao"; marco: boolean; duracaoDias?: number }
+  | { campo: "progresso"; progresso: number };
+
+type Destino = "fica" | "proxima" | "anterior" | "abaixo";
+
 export type PlanoGanttProps = {
   tarefas: EapTarefaDTO[];
   modo: ModoGantt;
@@ -46,8 +60,18 @@ export type PlanoGanttProps = {
   hoje: string;
   /** Ids que passaram nos filtros; `null` = sem filtro (a árvore, com recolher e expandir). */
   filtroIds: ReadonlySet<string> | null;
-  selecionadaId?: string | null;
+  /** Abre a janela completa da linha (duplo clique ou Enter na linha) — só para quem monta o cronograma. */
   onAbrir?: (t: EapTarefaDTO) => void;
+  /**
+   * Edição direto na célula, como no Project (Nome, Duração, % concluído) — só para quem monta o cronograma.
+   * Devolve a mensagem de erro do servidor, ou `null` se gravou. Quem chama serializa as gravações: cada uma
+   * reagenda o projeto, e a segunda trabalharia sobre datas velhas.
+   */
+  onEditarCampo?: (t: EapTarefaDTO, edicao: EdicaoDeCampo) => Promise<string | null>;
+  /** A célula Predecessoras: o conjunto inteiro de uma vez. */
+  onEditarPredecessoras?: (t: EapTarefaDTO, vinculos: Vinculo[]) => Promise<string | null>;
+  /** Uma edição que o texto digitado não permite (o que o servidor nem chega a ver). */
+  onErro?: (mensagem: string) => void;
   /** Botões da coluna Ações, por linha. */
   acoes?: (t: EapTarefaDTO) => ReactNode;
   className?: string;
@@ -88,8 +112,10 @@ export function PlanoGantt({
   mostrarCusto,
   hoje,
   filtroIds,
-  selecionadaId = null,
   onAbrir,
+  onEditarCampo,
+  onEditarPredecessoras,
+  onErro,
   acoes,
   className,
 }: PlanoGanttProps) {
@@ -99,10 +125,19 @@ export function PlanoGantt({
   // com uma nesga de tela. Sem gráfico (sem datas) não há o que poupar.
   const [compacto, setCompacto] = useState(verDatas);
   const [hoverId, setHoverId] = useState<string | null>(null);
+  const [selecionadaId, setSelecionadaId] = useState<string | null>(null);
+  const [edicao, setEdicao] = useState<{ id: string; campo: CampoEditavel } | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const [invalida, setInvalida] = useState(false);
+  // O que a pessoa acabou de gravar aparece já, sem esperar a tela recarregar; some quando chegam os dados novos
+  // (guardado junto da lista que existia na hora — derivado, sem efeito para limpar).
+  const [gravados, setGravados] = useState<{ base: EapTarefaDTO[]; valores: Record<string, string> }>({ base: tarefas, valores: {} });
+  const valoresGravados = gravados.base === tarefas ? gravados.valores : {};
   const rolagemRef = useRef<HTMLDivElement>(null);
 
   const grade = useMemo(() => montarGrade(tarefas), [tarefas]);
   const numeroPorId = useMemo(() => new Map(grade.map((l) => [l.t.id, l.numero])), [grade]);
+  const idPorNumero = useMemo(() => new Map(grade.map((l) => [l.numero, l.t.id])), [grade]);
   const linhas: Linha[] = useMemo(
     () => (filtroIds ? soAsDoFiltro(grade, filtroIds) : linhasVisiveis(grade, recolhidos)),
     [grade, filtroIds, recolhidos],
@@ -116,6 +151,132 @@ export function PlanoGantt({
     const ord = [...datas].sort();
     return montarEscala({ min: ord[0] ?? hoje, max: ord[ord.length - 1] ?? hoje, zoom, calendario });
   }, [verDatas, tarefas, zoom, calendario, hoje]);
+
+  const podeEditar = !!onEditarCampo;
+  const podeEditarPred = !!onEditarPredecessoras;
+  // Agrupamento só edita o nome: duração, % e predecessoras derivam dos filhos (Doc 03 §23). Marco não tem % digitado.
+  const ehEditavel = (l: Linha, campo: CampoEditavel): boolean => {
+    if (campo === "nome") return podeEditar;
+    if (l.temFilhos) return false;
+    if (campo === "duracao") return podeEditar;
+    if (campo === "progresso") return podeEditar && !l.t.marco;
+    return podeEditarPred;
+  };
+  const camposDaVisao: CampoEditavel[] = !verDatas ? ["nome", "duracao", "progresso", "pred"] : modo === "planejamento" ? ["nome", "duracao", "pred"] : ["nome", "progresso"];
+
+  const textoInicial = (l: Linha, campo: CampoEditavel): string => {
+    const t = l.t;
+    if (campo === "nome") return t.nome;
+    if (campo === "duracao") return t.marco ? "0" : String(t.duracaoDias).replace(".", ",");
+    if (campo === "progresso") return String(t.progresso);
+    return formatarPredecessoras(t.predecessoras, numeroPorId);
+  };
+
+  /** A célula seguinte na ordem da tabela: Tab e Shift+Tab andam pela linha, Enter desce na mesma coluna. */
+  const vizinha = (id: string, campo: CampoEditavel, destino: Exclude<Destino, "fica">) => {
+    const celulas = linhas.flatMap((l) => camposDaVisao.filter((c) => ehEditavel(l, c)).map((c) => ({ id: l.t.id, campo: c })));
+    const i = celulas.findIndex((c) => c.id === id && c.campo === campo);
+    if (i < 0) return null;
+    if (destino === "proxima") return celulas[i + 1] ?? null;
+    if (destino === "anterior") return celulas[i - 1] ?? null;
+    return celulas.slice(i + 1).find((c) => c.campo === campo) ?? null;
+  };
+
+  const iniciar = (id: string, campo: CampoEditavel) => {
+    setSelecionadaId(id);
+    setInvalida(false);
+    setEdicao({ id, campo });
+  };
+  const cancelar = () => {
+    setInvalida(false);
+    setEdicao(null);
+  };
+
+  /** Lê o texto, pede a gravação e devolve se deu certo (ou se nada mudou). */
+  async function executar(l: Linha, campo: CampoEditavel, texto: string): Promise<boolean> {
+    const t = l.t;
+    let exibir: string;
+    let erro: string | null;
+    if (campo === "nome") {
+      const nome = texto.trim();
+      if (!nome) {
+        onErro?.("Informe o nome.");
+        return false;
+      }
+      if (nome === t.nome) return true;
+      exibir = nome;
+      erro = await onEditarCampo!(t, { campo: "nome", nome });
+    } else if (campo === "duracao") {
+      const r = lerDuracao(texto);
+      if (!r.ok) {
+        onErro?.(r.erro);
+        return false;
+      }
+      if (r.marco ? t.marco : !t.marco && t.duracaoDias === r.dias) return true;
+      exibir = r.marco ? "marco" : `${r.dias}d`;
+      erro = await onEditarCampo!(t, { campo: "duracao", marco: r.marco, duracaoDias: r.marco ? undefined : r.dias });
+    } else if (campo === "progresso") {
+      const r = lerPercentual(texto);
+      if (!r.ok) {
+        onErro?.(r.erro);
+        return false;
+      }
+      if (r.valor === t.progresso) return true;
+      exibir = `${r.valor}%`;
+      erro = await onEditarCampo!(t, { campo: "progresso", progresso: r.valor });
+    } else {
+      const r = lerPredecessoras(texto, idPorNumero, t.id);
+      if (!r.ok) {
+        onErro?.(r.erro);
+        return false;
+      }
+      exibir = formatarPredecessoras(r.vinculos, numeroPorId);
+      if (exibir === formatarPredecessoras(t.predecessoras, numeroPorId)) return true;
+      erro = await onEditarPredecessoras!(t, r.vinculos);
+    }
+    if (erro) {
+      onErro?.(erro);
+      return false;
+    }
+    setGravados({ base: tarefas, valores: { ...valoresGravados, [`${t.id}:${campo}`]: exibir } });
+    return true;
+  }
+
+  async function confirmar(l: Linha, campo: CampoEditavel, texto: string, destino: Destino): Promise<boolean> {
+    setSalvando(true);
+    const ok = await executar(l, campo, texto);
+    setSalvando(false);
+    if (!ok) {
+      setInvalida(true);
+      return false;
+    }
+    setInvalida(false);
+    const prox = destino === "fica" ? null : vizinha(l.t.id, campo, destino);
+    setEdicao(prox);
+    if (prox) setSelecionadaId(prox.id);
+    return true;
+  }
+
+  /** Envolve o conteúdo de uma célula na edição direto na tabela, quando a linha e a pessoa permitem. */
+  const envolver = (l: Linha, campo: CampoEditavel, rotulo: string, conteudo: ReactNode): ReactNode =>
+    ehEditavel(l, campo) ? (
+      <CelulaEditavel
+        ativa={edicao?.id === l.t.id && edicao.campo === campo}
+        salvando={salvando}
+        invalida={invalida}
+        valorInicial={textoInicial(l, campo)}
+        rotulo={`${rotulo} da tarefa ${l.numero}`}
+        aoIniciar={() => iniciar(l.t.id, campo)}
+        aoConfirmar={(texto, destino) => confirmar(l, campo, texto, destino)}
+        aoCancelar={cancelar}
+        aoDigitar={() => setInvalida(false)}
+      >
+        {conteudo}
+      </CelulaEditavel>
+    ) : (
+      conteudo
+    );
+  const gravado = (id: string, campo: CampoEditavel) => valoresGravados[`${id}:${campo}`];
 
   const colunas: Coluna[] = useMemo(() => {
     const cs: Coluna[] = [];
@@ -158,9 +319,14 @@ export function PlanoGantt({
               />
             )}
             {t.restricaoTipo && <Pin className="mr-1 size-3 shrink-0 text-muted-foreground" aria-label="Data fixada" />}
-            <span className={cn("truncate text-xs", l.temFilhos ? "font-semibold" : "font-medium")} title={t.nome}>
-              {t.nome}
-            </span>
+            {envolver(
+              l,
+              "nome",
+              "Nome",
+              <span className={cn("truncate text-xs", l.temFilhos ? "font-semibold" : "font-medium")} title={t.nome}>
+                {gravado(t.id, "nome") ?? t.nome}
+              </span>,
+            )}
           </div>
         );
       },
@@ -178,10 +344,10 @@ export function PlanoGantt({
       w: 76,
       render: (l) => {
         const t = l.t;
-        if (t.marco) return <span className="font-mono text-xs text-muted-foreground">marco</span>;
         // Agrupamento não tem duração própria: é o que sobra entre o menor início e o maior término, em dias úteis.
         const dias = l.temFilhos && t.inicioPrevisto && t.fimPrevisto ? diasUteisEntre(t.inicioPrevisto, t.fimPrevisto, cal) : t.duracaoDias;
-        return <span className="font-mono text-xs text-muted-foreground">{l.temFilhos && !t.inicioPrevisto ? "—" : `${dias}d`}</span>;
+        const texto = gravado(t.id, "duracao") ?? (t.marco ? "marco" : l.temFilhos && !t.inicioPrevisto ? "—" : `${dias}d`);
+        return envolver(l, "duracao", "Duração", <span className="font-mono text-xs text-muted-foreground">{texto}</span>);
       },
     };
     const inicio: Coluna = {
@@ -200,27 +366,34 @@ export function PlanoGantt({
       id: "progresso",
       rotulo: "% concl.",
       w: 128,
-      render: (l) => (
-        <div className="flex items-center gap-1.5">
-          <div className="h-1.5 w-14 overflow-hidden rounded-sm bg-muted">
-            <div className="h-full bg-primary" style={{ width: `${l.t.progresso}%` }} />
-          </div>
-          <span className="font-mono text-xs text-muted-foreground">{l.t.progresso}%</span>
-          {l.t.progressoDerivado && (
-            <span className="text-[9px] uppercase text-muted-foreground" title="Agrupamento: o avanço é calculado dos filhos, ponderado por horas">
-              calc
-            </span>
-          )}
-        </div>
-      ),
+      render: (l) => {
+        const gravadoPct = gravado(l.t.id, "progresso");
+        const pct = gravadoPct ? Number.parseInt(gravadoPct, 10) : l.t.progresso;
+        return envolver(
+          l,
+          "progresso",
+          "% concluído",
+          <div className="flex items-center gap-1.5">
+            <div className="h-1.5 w-14 overflow-hidden rounded-sm bg-muted">
+              <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
+            </div>
+            <span className="font-mono text-xs text-muted-foreground">{pct}%</span>
+            {l.t.progressoDerivado && (
+              <span className="text-[9px] uppercase text-muted-foreground" title="Agrupamento: o avanço é calculado dos filhos, ponderado por horas">
+                calc
+              </span>
+            )}
+          </div>,
+        );
+      },
     };
     const predecessoras: Coluna = {
       id: "pred",
       rotulo: "Predecessoras",
       w: 112,
       render: (l) => {
-        const texto = formatarPredecessoras(l.t.predecessoras, numeroPorId);
-        return <span className="truncate font-mono text-xs text-muted-foreground" title={texto}>{texto}</span>;
+        const texto = gravado(l.t.id, "pred") ?? formatarPredecessoras(l.t.predecessoras, numeroPorId);
+        return envolver(l, "pred", "Predecessoras", <span className="truncate font-mono text-xs text-muted-foreground" title={texto}>{texto}</span>);
       },
     };
     const recursos: Coluna = {
@@ -319,7 +492,8 @@ export function PlanoGantt({
     if (mostrarCusto && (modo === "planejamento" || !verDatas)) cs.push(custo);
     if (acoesCol) cs.push(acoesCol);
     return compacto ? cs.filter((c) => !c.secundaria) : cs;
-  }, [modo, verDatas, mostrarCusto, compacto, acoes, numeroPorId, recolhidos, filtroIds, cal]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `envolver`/`gravado` releem o estado da edição a cada render
+  }, [modo, verDatas, mostrarCusto, compacto, acoes, numeroPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, idPorNumero]);
 
   const larguraTabela = colunas.reduce((s, c) => s + c.w, 0);
 
@@ -437,10 +611,16 @@ export function PlanoGantt({
                 <div
                   key={l.t.id}
                   role="row"
-                  tabIndex={onAbrir ? 0 : undefined}
-                  onClick={() => onAbrir?.(l.t)}
+                  tabIndex={0}
+                  aria-selected={selecionadaId === l.t.id}
+                  onClick={() => setSelecionadaId(l.t.id)}
+                  onDoubleClick={() => onAbrir?.(l.t)}
                   onKeyDown={(e) => {
-                    if (onAbrir && (e.key === "Enter" || e.key === " ")) {
+                    if (e.target !== e.currentTarget) return; // teclas de dentro de uma célula em edição não chegam aqui
+                    if (e.key === "F2" && ehEditavel(l, "nome")) {
+                      e.preventDefault();
+                      iniciar(l.t.id, "nome");
+                    } else if ((e.key === "Enter" || e.key === " ") && onAbrir) {
                       e.preventDefault();
                       onAbrir(l.t);
                     }
@@ -452,7 +632,6 @@ export function PlanoGantt({
                     l.temFilhos && "bg-muted/40",
                     hoverId === l.t.id && "bg-muted",
                     selecionadaId === l.t.id && "bg-primary/10",
-                    onAbrir && "cursor-pointer",
                   )}
                   style={{ height: ROW_H }}
                 >
@@ -515,6 +694,7 @@ export function PlanoGantt({
                       top={i * ROW_H}
                       destaque={hoverId === l.t.id || selecionadaId === l.t.id}
                       onHover={(h) => setHoverId((atual) => (h ? l.t.id : atual === l.t.id ? null : atual))}
+                      onSelecionar={() => setSelecionadaId(l.t.id)}
                       onAbrir={onAbrir}
                     />
                   ))}
@@ -553,6 +733,7 @@ function BarraDaLinha({
   top,
   destaque,
   onHover,
+  onSelecionar,
   onAbrir,
 }: {
   l: Linha;
@@ -562,6 +743,7 @@ function BarraDaLinha({
   top: number;
   destaque: boolean;
   onHover: (dentro: boolean) => void;
+  onSelecionar: () => void;
   onAbrir?: (t: EapTarefaDTO) => void;
 }) {
   const t = l.t;
@@ -589,7 +771,8 @@ function BarraDaLinha({
       style={{ top, height: ROW_H }}
       onMouseEnter={() => onHover(true)}
       onMouseLeave={() => onHover(false)}
-      onClick={() => onAbrir?.(t)}
+      onClick={onSelecionar}
+      onDoubleClick={() => onAbrir?.(t)}
     >
       {geo && (
         <>
@@ -642,6 +825,107 @@ function BarraDaLinha({
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * A célula que vira campo de texto ao clicar: Enter grava e desce, Tab grava e vai para a próxima, Esc desiste, e
+ * sair do campo (clicar fora) grava. O valor vem NÃO controlado (`defaultValue`) e é lido ao confirmar — a linha
+ * inteira re-renderiza a cada gravação e um campo controlado perderia o que se digita. Definida no nível do módulo:
+ * dentro do componente pai ela remontaria a cada render e o campo perderia o foco a cada tecla.
+ */
+function CelulaEditavel({
+  ativa,
+  salvando,
+  invalida,
+  valorInicial,
+  rotulo,
+  aoIniciar,
+  aoConfirmar,
+  aoCancelar,
+  aoDigitar,
+  children,
+}: {
+  ativa: boolean;
+  salvando: boolean;
+  invalida: boolean;
+  valorInicial: string;
+  rotulo: string;
+  aoIniciar: () => void;
+  aoConfirmar: (texto: string, destino: Destino) => Promise<boolean>;
+  aoCancelar: () => void;
+  aoDigitar: () => void;
+  children: ReactNode;
+}) {
+  const campoRef = useRef<HTMLInputElement | null>(null);
+  const encerrada = useRef(false);
+
+  // Volta o foco depois que a gravação termina (o campo desabilita enquanto salva e perde o foco).
+  useEffect(() => {
+    if (ativa && !salvando) campoRef.current?.focus();
+  }, [ativa, salvando]);
+
+  if (!ativa) {
+    return (
+      <div
+        className="flex h-6 min-w-0 flex-1 cursor-text items-center rounded-sm px-1 hover:bg-primary/5 hover:ring-1 hover:ring-primary/30"
+        onClick={(e) => {
+          e.stopPropagation();
+          aoIniciar();
+        }}
+        title="Clique para editar"
+      >
+        {children}
+      </div>
+    );
+  }
+
+  const confirmar = (texto: string, destino: Destino) => {
+    encerrada.current = true;
+    void aoConfirmar(texto, destino).then((ok) => {
+      if (!ok) encerrada.current = false; // continua editando: o próximo blur ou Enter tenta de novo
+    });
+  };
+
+  return (
+    <input
+      ref={(el) => {
+        if (el && campoRef.current !== el) {
+          campoRef.current = el;
+          encerrada.current = false;
+          el.focus();
+          el.select();
+        }
+      }}
+      defaultValue={valorInicial}
+      disabled={salvando}
+      aria-label={rotulo}
+      aria-invalid={invalida || undefined}
+      className={cn(
+        "h-6 w-full min-w-0 rounded-sm border bg-background px-1 text-xs outline-none disabled:opacity-60",
+        invalida ? "border-destructive ring-1 ring-destructive/40" : "border-primary ring-1 ring-primary/40",
+      )}
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+      onChange={aoDigitar}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          confirmar(e.currentTarget.value, "abaixo");
+        } else if (e.key === "Tab") {
+          e.preventDefault();
+          confirmar(e.currentTarget.value, e.shiftKey ? "anterior" : "proxima");
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          encerrada.current = true;
+          aoCancelar();
+        }
+      }}
+      onBlur={(e) => {
+        if (encerrada.current) return;
+        confirmar(e.currentTarget.value, "fica");
+      }}
+    />
   );
 }
 

@@ -33,6 +33,7 @@ import { sincronizarPrevisoesDepois } from "@/modules/juridico/contrato/previsao
 import { gravarApuracaoValorAgregado } from "@/modules/planejamento/valor-agregado-service";
 import { reservarIdsParaLinhas } from "@/modules/planejamento/id-corporativo";
 import { regrasDeEdicao } from "@/modules/planejamento/edicao-linha";
+import { trocarPredecessoras } from "@/modules/planejamento/dependencias-service";
 
 const plan = { modulo: "planejamento", recurso: "planejamento", permissao: "gerir" } as const;
 const rec = { modulo: "recursos", recurso: "recursos", permissao: "gerir" } as const;
@@ -643,6 +644,48 @@ export const vincularDependencia = defineAction(
     await aposMudarEap(tarefa.projetoId, user.id);
     revProjeto(tarefa.projetoId);
     return { ok: true };
+  },
+);
+
+const predecessorasSchema = z.object({
+  tarefaId: z.string().min(1),
+  vinculos: z
+    .array(
+      z.object({
+        predecessoraId: z.string().min(1),
+        tipo: tipoVinculoSchema,
+        // Dias ÚTEIS; negativo = antecipação (Doc 03 §13).
+        lagDias: z.number().finite().min(-9999).max(9999),
+      }),
+    )
+    .max(50, "Predecessoras demais para uma linha."),
+});
+
+/**
+ * A célula Predecessoras do MS Project: troca o CONJUNTO de predecessoras de uma linha de uma vez — cria o que
+ * é novo, muda tipo e atraso do que ficou e tira o que sumiu do texto. Uma transação e UM reagendamento: fazer
+ * isto vínculo a vínculo reagendaria o projeto N vezes, e a segunda chamada trabalharia sobre datas velhas.
+ *
+ * O ciclo é checado sobre o conjunto INTEIRO já trocado (`criaCiclo`): dois vínculos novos podem formar um ciclo
+ * só juntos, e um teste por vínculo contra o banco atual os deixaria passar.
+ */
+export const definirPredecessorasDaLinha = defineAction(
+  {
+    ...plan,
+    acao: "definir-predecessoras",
+    entidade: "EapDependencia",
+    schema: predecessorasSchema,
+    capturarAntes: (i) =>
+      prisma.eapDependencia.findMany({
+        where: { tarefaId: i.tarefaId },
+        select: { predecessoraId: true, tipo: true, lagDias: true },
+      }),
+  },
+  async (i, { user }) => {
+    const r = await trocarPredecessoras({ tarefaId: i.tarefaId, vinculos: i.vinculos });
+    await aposMudarEap(r.projetoId, user.id);
+    revProjeto(r.projetoId);
+    return { vinculos: i.vinculos.length };
   },
 );
 
