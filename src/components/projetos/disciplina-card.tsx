@@ -25,6 +25,7 @@ import {
   CalendarDays,
   NotebookPen,
   Unlock,
+  Layers,
 } from "lucide-react";
 import {
   atualizarStatusDisciplina,
@@ -45,6 +46,7 @@ import { podeEscreverNoDiario } from "@/modules/projetos/diario/acesso";
 import { DiarioEntradaDialog } from "@/components/projetos/diario-entrada-dialog";
 import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/projetos/disciplina-edit-dialog";
 import { DisciplinaEtapasButton } from "@/components/projetos/disciplina-etapas-dialog";
+import { AprovarFaseButton } from "@/components/projetos/aprovar-fase-button";
 import { validarEntrega, gerarAceiteCliente, revogarAceiteCliente } from "@/modules/uploads/actions";
 import { statusValidacao, entregaveisAtuais, type StatusValidacao } from "@/modules/uploads/validacao";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
@@ -141,6 +143,8 @@ type Disc = {
   pagamentoLiberado: boolean;
   /** Pagamento por fase: quantas liberadas, de quantas. Nulo sem fase ou se pagou inteira. */
   fasesLiberadas: { liberadas: number; total: number } | null;
+  /** Fases entregues aguardando a aprovação que libera o pagamento delas (só no modo por fase). */
+  fasesPendentes: { id: string; sigla: string; nomeFase: string; percentual: number }[];
   /** Tem etapa (F4): o prazo vira o maior das etapas e não se edita direto. */
   temEtapas: boolean;
   exigePacoteA: boolean;
@@ -373,6 +377,25 @@ export function DisciplinaCard({
         <div className="flex items-center gap-1.5 rounded-sm bg-status-revisao/10 px-2 py-1 text-xs text-status-revisao">
           <Unlock className="size-3.5" aria-hidden /> Pagamento liberado em {disciplina.fasesLiberadas?.liberadas} de{" "}
           {disciplina.fasesLiberadas?.total} fases · aprovar libera as que faltam
+        </div>
+      )}
+      {/* Decisão #10: o botão "Aprovar fase" no próprio card, para quem tem `aprovacoes:disciplina` — a mesma
+          ação do diálogo Etapas e da fila de Aprovações. */}
+      {podeAprovarDisciplina && !disciplina.jaValidado && disciplina.fasesPendentes.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-sm bg-info/10 px-2 py-1.5 text-xs">
+          <span className="flex items-center gap-1.5 text-info">
+            <Layers className="size-3.5" aria-hidden />
+            {disciplina.fasesPendentes.length === 1 ? "Fase entregue, aguardando aprovação" : "Fases entregues, aguardando aprovação"}
+          </span>
+          {disciplina.fasesPendentes.map((f) => (
+            <span key={f.id} className="flex items-center gap-1.5">
+              <span className="font-medium">{f.sigla}</span>
+              <span className="text-muted-foreground">
+                {f.nomeFase} · {f.percentual}%
+              </span>
+              <AprovarFaseButton faseId={f.id} sigla={f.sigla} disciplina={disciplina.nome} label={`Aprovar ${f.sigla}`} />
+            </span>
+          ))}
         </div>
       )}
 

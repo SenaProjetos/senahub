@@ -22,6 +22,21 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Ajustes do cronograma pedidos pelo time
+
+Depois de revisar o novo planejamento, o time decidiu alguns pontos. O que já está no ar:
+
+- **Meio período:** o **%** de uma alocação é da **capacidade da própria pessoa**. Quem trabalha meio
+  período fica cheio com 100% — 50% é metade do meio período dela. Matriz, heatmap e Carga planejada
+  agora leem do mesmo jeito. Quem tem capacidade diferente de 1 deve conferir as alocações já digitadas.
+- **Custo por hora em Recursos** só aparece para quem tem acesso ao financeiro, e só quem gere o
+  financeiro o altera. Editar a capacidade ou a cor não apaga a taxa gravada.
+- **Aprovar fase no card da disciplina:** a fase entregue mostra o botão **Aprovar** na própria
+  disciplina, sem precisar abrir o diálogo Etapas nem a página Aprovações.
+- **Heatmap com período à escolha:** 1 semana (por dia), 4 semanas, 12 semanas ou meses.
+
+---
+
 ## Datas reais e Data de Status passam a mover o cronograma
 
 Como no MS Project, o **realizado** agora mexe na **previsão** — a linha de base continua sendo o

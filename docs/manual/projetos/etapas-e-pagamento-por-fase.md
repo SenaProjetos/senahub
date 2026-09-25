@@ -53,8 +53,10 @@ documentos sem fase**.
 ## Aprovar a fase e liberar o pagamento
 
 Quando uma fase está **Entregue** (ou **Em revisão**), quem tem `aprovacoes:disciplina` vê o botão
-**Aprovar** na linha da etapa. Há dois caminhos, que fazem a mesma coisa:
+**Aprovar** na linha da etapa. Há três caminhos, que fazem a mesma coisa:
 
+- o **card da disciplina**, na aba Disciplinas do projeto: uma faixa "Fase entregue, aguardando
+  aprovação" com o botão **Aprovar** de cada fase pendente;
 - o diálogo **Etapas** da disciplina (para quem edita o projeto);
 - a fila **Fases a aprovar**, em **Aprovações**: lista todas as fases entregues e ainda não aprovadas dos
   projetos que você acompanha — disciplina, fase, projeto, prazo e situação —, com o botão **Aprovar**

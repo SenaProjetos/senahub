@@ -1,16 +1,11 @@
 "use client";
 
-import { useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { Layers } from "lucide-react";
-import { aprovarEtapaDisciplina } from "@/modules/projetos/etapas-actions";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import type { FaseAAprovar } from "@/modules/projetos/queries";
-import { Button } from "@/components/ui/button";
+import { AprovarFaseButton } from "@/components/projetos/aprovar-fase-button";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { useConfirm } from "@/components/ui/confirm-dialog";
 import { formatarData } from "@/lib/utils";
 
 /**
@@ -20,30 +15,6 @@ import { formatarData } from "@/lib/utils";
  * para o projeto.
  */
 export function FasesAAprovarView({ fases, podeAprovar }: { fases: FaseAAprovar[]; podeAprovar: boolean }) {
-  const router = useRouter();
-  const confirm = useConfirm();
-  const [pending, start] = useTransition();
-
-  // O confirm vem ANTES do start: dentro da transition o setState do diálogo suspende e trava a tela.
-  async function aprovar(f: FaseAAprovar) {
-    const ok = await confirm({
-      title: `Aprovar a fase ${f.sigla} de ${f.disciplina}?`,
-      description:
-        "Libera o pagamento desta fase para os projetistas PJ/freelancer da disciplina. Depois disso o percentual da fase fica fixo e ela não pode mais ser removida.",
-      confirmLabel: "Aprovar fase",
-    });
-    if (!ok) return;
-    start(async () => {
-      const r = await aprovarEtapaDisciplina({ id: f.id });
-      if (r.ok) {
-        toast.success(
-          r.data.pagamentos > 0 ? `Fase ${f.sigla} aprovada — pagamento liberado.` : `Fase ${f.sigla} aprovada.`,
-        );
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
-
   return (
     <ul className="divide-y rounded-sm border">
       {fases.map((f) => (
@@ -62,11 +33,7 @@ export function FasesAAprovarView({ fases, podeAprovar }: { fases: FaseAAprovar[
             <StatusBadge tone={f.status === "entregue" ? "info" : "warning"}>
               {f.status === "entregue" ? "Entregue" : "Em revisão"}
             </StatusBadge>
-            {podeAprovar && (
-              <Button size="sm" variant="outline" disabled={pending} onClick={() => void aprovar(f)}>
-                Aprovar
-              </Button>
-            )}
+            {podeAprovar && <AprovarFaseButton faseId={f.id} sigla={f.sigla} disciplina={f.disciplina} />}
           </span>
         </li>
       ))}

@@ -340,7 +340,11 @@ export async function obterProjeto(viewer: Viewer, id: string) {
           _count: { select: { pagamentos: true, etapas: true } },
           // F7.4: "já pagou" por fase é TODA fase liberada (`estadoPagamento`), não "tem pagamento".
           pagamentos: { select: { etapaId: true, status: true } },
-          etapas: { select: { liberadaEm: true } },
+          // Também as fases ainda por aprovar: o card da disciplina oferece "Aprovar fase" (decisão #10).
+          etapas: {
+            orderBy: { ordem: "asc" },
+            select: { id: true, status: true, percentual: true, liberadaEm: true, etapa: { select: { sigla: true, nome: true } } },
+          },
         },
       },
     },

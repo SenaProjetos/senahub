@@ -107,7 +107,15 @@ export async function DisciplinasOperacionais({ projetoId }: { projetoId: string
       jaValidado: disciplina.status === "aprovado",
       ...(() => {
         const e = estadoPagamento(disciplina.pagamentos, disciplina.etapas);
-        return { pagamentoLiberado: e.jaLiberouTudo, fasesLiberadas: e.fases };
+        // Fase entregue (ou em revisão) que ainda não liberou o pagamento — o que `aprovarEtapaDisciplina`
+        // aceita. Só no modo por fase: disciplina que pagou inteira não tem mais o que aprovar por fase.
+        const fasesPendentes =
+          e.fases == null
+            ? []
+            : disciplina.etapas
+                .filter((f) => f.liberadaEm == null && (f.status === "entregue" || f.status === "em_revisao"))
+                .map((f) => ({ id: f.id, sigla: f.etapa.sigla, nomeFase: f.etapa.nome, percentual: Number(f.percentual) }));
+        return { pagamentoLiberado: e.jaLiberouTudo, fasesLiberadas: e.fases, fasesPendentes };
       })(),
       temEtapas: disciplina._count.etapas > 0,
       exigePacoteA: disciplina.exigePacoteA,
