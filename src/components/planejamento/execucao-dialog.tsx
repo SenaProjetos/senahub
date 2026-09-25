@@ -22,7 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-type FaseOferecida = { id: string; sigla: string; nome: string; disciplina: string; aprovavel: boolean };
+type FaseOferecida = { id: string; sigla: string; nome: string; disciplina: string; marcadaEntregue: boolean };
 
 /**
  * "Atualizar tarefa" do MS Project (F7.0): início e término reais da linha; no marco, a data em que
@@ -62,20 +62,15 @@ export function ExecucaoDialog({
 
   async function oferecerFase(fase: FaseOferecida) {
     const rotulo = `${fase.sigla} de ${fase.disciplina}`;
-    if (!fase.aprovavel) {
-      toast.info(
-        `Marco concluído. A fase ${rotulo} ainda não está Entregue — marque-a em Etapas da disciplina para aprovar e liberar o pagamento.`,
-      );
-      return;
-    }
+    const entregue = fase.marcadaEntregue ? `A fase ${rotulo} foi marcada como Entregue. ` : "";
     if (!podeAprovarFase) {
-      toast.info(`Marco concluído. Quem aprova disciplinas foi avisado para aprovar a fase ${rotulo}.`);
+      toast.info(`Marco concluído. ${entregue}Quem aprova disciplinas foi avisado para aprovar a fase ${rotulo}.`);
       return;
     }
     const ok = await confirm({
       title: `Aprovar a fase ${rotulo}?`,
       description:
-        "O marco foi concluído. Aprovar a fase libera o pagamento dela para os projetistas PJ/freelancer — é a mesma aprovação do diálogo Etapas da disciplina. Depois disso o percentual da fase fica fixo.",
+        `O marco foi concluído${fase.marcadaEntregue ? " e a fase foi marcada como Entregue" : ""}. Aprovar a fase libera o pagamento dela para os projetistas PJ/freelancer — é a mesma aprovação do diálogo Etapas da disciplina. Depois disso o percentual da fase fica fixo.`,
       confirmLabel: "Aprovar fase",
     });
     if (!ok) return;
@@ -121,8 +116,8 @@ export function ExecucaoDialog({
               <Input id="exec-fim" type="date" value={fim} max={hoje} onChange={(e) => setFim(e.target.value)} />
               {linha?.etapaSigla && !concluida && (
                 <p className="text-xs text-muted-foreground">
-                  Marco da fase {linha.etapaSigla}: ao concluir, quem aprova disciplinas pode aprovar a fase e liberar o
-                  pagamento dela.
+                  Marco da fase {linha.etapaSigla}: ao concluir, a fase é marcada como Entregue e quem aprova
+                  disciplinas pode aprová-la e liberar o pagamento dela.
                 </p>
               )}
             </div>

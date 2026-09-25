@@ -5,18 +5,23 @@ import { ActionError } from "@/lib/action-error";
 import { paraDataUtc } from "./agenda";
 import { aplicarExecucao } from "./execucao";
 
-/** Fase ligada a um marco que acabou de ser concluído — o que a tela oferece aprovar (D31). */
-export type FaseDoMarco = { id: string; sigla: string; nome: string; disciplina: string; aprovavel: boolean };
+/**
+ * Fase ligada a um marco que acabou de ser concluído — o que a tela oferece aprovar (D31). Concluir o marco
+ * ENTREGA a fase (decisão #8): `marcadaEntregue` diz que foi este marco quem a levou a "Entregue".
+ */
+export type FaseDoMarco = { id: string; sigla: string; nome: string; disciplina: string; marcadaEntregue: boolean };
 
 /** Parcela de contrato por entrega que o marco concluído deixa pronta para faturar (F7.2 — D9). */
 export type ParcelaDoMarco = { id: string; descricao: string; contrato: string };
 
 /**
  * Grava a execução de uma linha (F7.0) — regras em `execucao.ts` — e, se ela CONCLUIU agora um
- * marco ligado a uma fase da disciplina que ainda não foi liberada, devolve essa fase.
+ * marco ligado a uma fase da disciplina que ainda não foi liberada, marca a fase como Entregue e a devolve.
  *
- * Não libera pagamento nenhum: quem aprova a fase é `aprovarEtapaDisciplina`, com a permissão e a
- * confirmação dela. Separado da action para o smoke alcançar a regra sem sessão.
+ * Só SOBE o status (aguardando ou em andamento → entregue): fase em revisão, já entregue, aprovada ou com
+ * pagamento liberado não mexe — e reabrir o marco depois não desfaz a entrega. Não libera pagamento nenhum:
+ * quem aprova a fase é `aprovarEtapaDisciplina`, com a permissão e a confirmação dela. Separado da action
+ * para o smoke alcançar a regra sem sessão.
  */
 export async function registrarExecucaoNaLinha(p: {
   id: string;
@@ -76,13 +81,21 @@ export async function registrarExecucaoNaLinha(p: {
       },
     });
     if (de && !de.liberadaEm && de.status !== "aprovado") {
+      let marcadaEntregue = false;
+      if (de.status === "aguardando" || de.status === "em_andamento") {
+        // Condicional na escrita: se alguém aprovou ou liberou a fase entre a leitura e agora, não mexe.
+        const marcada = await prisma.disciplinaEtapa.updateMany({
+          where: { id: de.id, liberadaEm: null, status: { in: ["aguardando", "em_andamento"] } },
+          data: { status: "entregue" },
+        });
+        marcadaEntregue = marcada.count > 0;
+      }
       fase = {
         id: de.id,
         sigla: de.etapa.sigla,
         nome: de.etapa.nome,
         disciplina: de.disciplina.disciplinaTextoLegado,
-        // Mesma regra de `aprovarEtapaDisciplina`: só fase entregue se aprova.
-        aprovavel: de.status === "entregue" || de.status === "em_revisao",
+        marcadaEntregue,
       };
     }
   }

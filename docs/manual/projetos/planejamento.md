@@ -211,9 +211,9 @@ Na coluna **Ações**, o botão de calendário abre **Atualizar tarefa** (como n
 - **Percentual sem data real** segue a regra do MS Project: informar mais de 0% conta como tarefa
   **iniciada** no início calculado, e 100% como **concluída** nas datas calculadas. Para o registro
   ficar certo, informe as datas reais.
-- Concluir o **marco** de uma fase pode oferecer **aprovar a fase** e liberar o pagamento dela —
-  veja [Etapas e pagamento por fase](etapas-e-pagamento-por-fase.md). Se o marco tem parcela de
-  contrato ligada, o financeiro é avisado de que dá para **faturar**.
+- Concluir o **marco** de uma fase **marca a fase como Entregue** e oferece **aprovar** — o que libera o
+  pagamento dela —, veja [Etapas e pagamento por fase](etapas-e-pagamento-por-fase.md). Se o marco tem
+  parcela de contrato ligada, o financeiro é avisado de que dá para **faturar**.
 
 Exige `cronograma:executado`.
 

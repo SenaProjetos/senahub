@@ -921,9 +921,9 @@ export const registrarExecucao = defineAction(
     });
     await aposMudarEap(projetoId, user.id);
 
-    // Fase pronta para aprovar: avisa quem aprova (mesma audiência da "aprovação solicitada").
-    // Quem registrou pode nem ter a permissão — o aviso é o que leva o marco até a aprovação.
-    if (fase?.aprovavel) {
+    // Fase pronta para aprovar (o marco a entregou): avisa quem aprova (mesma audiência da "aprovação
+    // solicitada"). Quem registrou pode nem ter a permissão — o aviso é o que leva o marco até a aprovação.
+    if (fase) {
       const gestores = await prisma.user.findMany({
         where: { ...whereAudiencia("global"), id: { not: user.id } },
         select: { id: true },
@@ -932,7 +932,9 @@ export const registrarExecucao = defineAction(
         gestores.map((g) => g.id),
         {
           titulo: "Marco concluído — fase pronta para aprovar",
-          corpo: `"${nome}" concluído: a fase ${fase.sigla} de ${fase.disciplina} pode ser aprovada (libera o pagamento dela).`,
+          corpo: fase.marcadaEntregue
+            ? `"${nome}" concluído: a fase ${fase.sigla} de ${fase.disciplina} foi marcada como Entregue e pode ser aprovada (libera o pagamento dela).`
+            : `"${nome}" concluído: a fase ${fase.sigla} de ${fase.disciplina} pode ser aprovada (libera o pagamento dela).`,
           href: `/projetos/${projetoId}`,
           tag: `marco-fase-${fase.id}`,
         },
@@ -962,6 +964,8 @@ export const registrarExecucao = defineAction(
     }
 
     revProjeto(projetoId);
+    // A fase que o marco entregou aparece no card da disciplina, na aba do projeto.
+    if (fase?.marcadaEntregue) revalidatePath(`/projetos/${projetoId}`);
     return { status, fase };
   },
 );

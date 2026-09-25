@@ -298,14 +298,29 @@ async function main() {
   const ex1 = await registrarExecucaoNaLinha({ id: marco.id, inicioReal: null, fimReal: hoje, hoje });
   const m1 = await prisma.eapTarefa.findUniqueOrThrow({ where: { id: marco.id }, select: { status: true, progresso: true, inicioReal: true, fimReal: true } });
   check("marco concluído: status con, 100%, início = término", m1.status === "con" && m1.progresso === 100 && m1.inicioReal?.getTime() === m1.fimReal?.getTime(), m1);
-  check("fase ainda não entregue: oferecida, mas não aprovável", ex1.fase?.id === fase4.id && ex1.fase.aprovavel === false, ex1.fase);
+  check("#8: fase em andamento: concluir o marco a marca como Entregue e a oferece", ex1.fase?.id === fase4.id && ex1.fase.marcadaEntregue === true, ex1.fase);
+  check("#8: a fase ficou Entregue no banco", (await prisma.disciplinaEtapa.findUniqueOrThrow({ where: { id: fase4.id } })).status === "entregue");
   check("concluir o marco NÃO libera pagamento sozinho", (await prisma.pagamentoProjetista.count({ where: { disciplinaId: disc4.id } })) === 0);
 
   const reaberto = await registrarExecucaoNaLinha({ id: marco.id, inicioReal: null, fimReal: null, hoje });
   check("reabrir o marco: não iniciado, sem oferta", reaberto.status === "nin" && reaberto.fase === null, reaberto);
-  await prisma.disciplinaEtapa.update({ where: { id: fase4.id }, data: { status: "entregue" } });
+  check("#8: reabrir o marco NÃO desfaz a entrega da fase", (await prisma.disciplinaEtapa.findUniqueOrThrow({ where: { id: fase4.id } })).status === "entregue");
   const ex2 = await registrarExecucaoNaLinha({ id: marco.id, inicioReal: null, fimReal: hoje, hoje });
-  check("fase entregue: marco concluído oferece aprovar", ex2.fase?.aprovavel === true, ex2.fase);
+  check("fase já entregue: marco concluído oferece aprovar, sem marcar de novo", !!ex2.fase && ex2.fase.marcadaEntregue === false, ex2.fase);
+  // Fase em revisão não é rebaixada nem "entregue" de novo: a máquina é entregue ⇄ em_revisao.
+  await prisma.disciplinaEtapa.update({ where: { id: fase4.id }, data: { status: "em_revisao" } });
+  await registrarExecucaoNaLinha({ id: marco.id, inicioReal: null, fimReal: null, hoje });
+  const exRev = await registrarExecucaoNaLinha({ id: marco.id, inicioReal: null, fimReal: hoje, hoje });
+  check(
+    "#8: fase em revisão fica como está (oferecida, não marcada)",
+    !!exRev.fase && exRev.fase.marcadaEntregue === false && (await prisma.disciplinaEtapa.findUniqueOrThrow({ where: { id: fase4.id } })).status === "em_revisao",
+    exRev.fase,
+  );
+  // Fase que ainda não começou (aguardando) também é entregue pelo marco.
+  await prisma.disciplinaEtapa.update({ where: { id: fase4.id }, data: { status: "aguardando" } });
+  await registrarExecucaoNaLinha({ id: marco.id, inicioReal: null, fimReal: null, hoje });
+  const exAg = await registrarExecucaoNaLinha({ id: marco.id, inicioReal: null, fimReal: hoje, hoje });
+  check("#8: fase aguardando também é entregue pelo marco", exAg.fase?.marcadaEntregue === true, exAg.fase);
   const fila2 = await fasesAAprovar(viewer, true);
   const daFila = fila2.find((f) => f.id === fase4.id);
   check("L3: fase entregue e não liberada entra na fila, com disciplina, projeto e sigla", !!daFila && daFila.status === "entregue" && daFila.projetoId === projeto.id && !!daFila.sigla, daFila);

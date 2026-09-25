@@ -121,14 +121,21 @@ liberadas, a mudança é recusada com o aviso de que o ajuste é na Produção.
 - **Alerta de "aguardando validação":** a disciplina entregue com fase parcial continua aparecendo
   enquanto faltar fase a liberar.
 
-## Marco que oferece aprovar a fase
+## Marco que entrega a fase
 
 No [cronograma](planejamento.md), a linha tem o campo **Fase**. Quando o **marco** de uma fase é
-**concluído** (**Atualizar tarefa**) e a fase está **Entregue** e ainda sem pagamento liberado, o
-sistema **oferece aprovar a fase** — pela mesma aprovação deste diálogo, com a mesma permissão e a
-mesma confirmação — e avisa quem aprova. **Concluir o marco nunca paga nada sozinho**; se a fase ainda
-não está Entregue, marque-a em **Etapas** primeiro. O marco também avisa o financeiro quando há
-[parcela de contrato](../financeiro/contrato-por-entrega.md) presa a ele.
+**concluído** (**Atualizar tarefa**), o sistema **marca a fase como Entregue** e, se ela ainda não teve o
+pagamento liberado, **oferece aprovar** — pela mesma aprovação deste diálogo, com a mesma permissão e a
+mesma confirmação — e avisa quem aprova. **Concluir o marco nunca paga nada sozinho**: a aprovação
+continua sendo um passo de quem aprova disciplinas.
+
+- Só **sobe** a situação (Aguardando ou Em andamento → Entregue). Fase **Em revisão**, já **Entregue**,
+  **Aprovada** ou com pagamento liberado não muda.
+- **Reabrir o marco depois não desfaz a entrega**: se a fase precisar voltar, use **Em revisão** em
+  **Etapas**.
+
+O marco também avisa o financeiro quando há [parcela de contrato](../financeiro/contrato-por-entrega.md)
+presa a ele.
 
 ## Permissões
 
