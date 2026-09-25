@@ -134,7 +134,7 @@ export function LancamentoDetalheDialog({
             )}
             {podeGerir && (
               <div className="flex items-center gap-2">
-                <Input ref={fileRef} type="file" className="text-xs" />
+                <Input ref={fileRef} type="file" className="text-base md:text-xs" />
                 <Button size="sm" variant="outline" onClick={enviarAnexo} disabled={busy}>
                   <Upload className="size-3.5" /> {busy ? "Enviando…" : "Anexar"}
                 </Button>

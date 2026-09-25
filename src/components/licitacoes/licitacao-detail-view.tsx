@@ -359,7 +359,7 @@ export function LicitacaoDetailView({
             {podeGerir && (
               <>
                 <Input
-                  className="h-7 w-44 text-xs"
+                  className="h-7 w-44 text-base md:text-xs"
                   placeholder="Título (Edital, Proposta…)"
                   value={docTitulo}
                   onChange={(e) => setDocTitulo(e.target.value)}
@@ -402,10 +402,10 @@ export function LicitacaoDetailView({
               </span>
               {podeGerir && lic.status === "em_execucao" && (
                 <>
-                  <InputMoeda semPrefixo className="h-7 w-28 text-xs" placeholder="Valor (R$)" value={medValor} onChange={setMedValor} />
+                  <InputMoeda semPrefixo className="h-7 w-28 text-base md:text-xs" placeholder="Valor (R$)" value={medValor} onChange={setMedValor} />
                   <Input
                     type="date"
-                    className="h-7 w-36 text-xs"
+                    className="h-7 w-36 text-base md:text-xs"
                     value={medData}
                     onChange={(e) => setMedData(e.target.value)}
                   />
@@ -698,7 +698,7 @@ function LicViabilidade({
             <div className="flex flex-wrap items-center gap-1.5">
               <InputPercentual
                 permiteNegativo
-                className="h-7 w-36 text-xs"
+                className="h-7 w-36 text-base md:text-xs"
                 placeholder="Margem esperada"
                 value={margem}
                 onChange={setMargem}
@@ -711,7 +711,7 @@ function LicViabilidade({
                 Equipe disponível
               </label>
               <Input
-                className="h-7 flex-1 text-xs"
+                className="h-7 flex-1 text-base md:text-xs"
                 placeholder="Concorrência prevista"
                 value={concorrencia}
                 onChange={(e) => setConcorrencia(e.target.value)}
@@ -725,7 +725,7 @@ function LicViabilidade({
               {criterios.map((c, i) => (
                 <div key={i} className="flex flex-wrap items-center gap-1.5">
                   <Input
-                    className="h-7 flex-1 text-xs"
+                    className="h-7 flex-1 text-base md:text-xs"
                     placeholder="Critério"
                     value={c.criterio}
                     onChange={(e) => {
@@ -746,7 +746,7 @@ function LicViabilidade({
                     Atendido
                   </label>
                   <Input
-                    className="h-7 w-36 text-xs"
+                    className="h-7 w-36 text-base md:text-xs"
                     placeholder="Observação"
                     value={c.observacao}
                     onChange={(e) => {
@@ -784,7 +784,7 @@ function LicViabilidade({
           {/* Decisão */}
           <div className="flex flex-wrap items-center gap-1.5 border-t pt-1.5">
             <Input
-              className="h-7 flex-1 text-xs"
+              className="h-7 flex-1 text-base md:text-xs"
               placeholder="Justificativa"
               value={justificativa}
               onChange={(e) => setJustificativa(e.target.value)}
@@ -916,15 +916,15 @@ function LicResponsaveis({
                 <SelectItem value="CAT">CAT</SelectItem>
               </SelectContent>
             </Select>
-            <Input className="h-7 w-32 text-xs" placeholder="Nº documento" value={numDoc} onChange={(e) => setNumDoc(e.target.value)} />
+            <Input className="h-7 w-32 text-base md:text-xs" placeholder="Nº documento" value={numDoc} onChange={(e) => setNumDoc(e.target.value)} />
             <Button size="sm" variant="outline" className="h-7" onClick={vincular} disabled={pending || rtsDisponiveis.length === 0}>
               Vincular
             </Button>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            <Input className="h-7 w-36 text-xs" placeholder="Nome do RT" value={novoNome} onChange={(e) => setNovoNome(e.target.value)} />
-            <Input className="h-7 w-28 text-xs" placeholder="Registro" value={novoRegistro} onChange={(e) => setNovoRegistro(e.target.value)} />
-            <Input className="h-7 w-24 text-xs" placeholder="Conselho (opt.)" value={novoConselho} onChange={(e) => setNovoConselho(e.target.value)} />
+            <Input className="h-7 w-36 text-base md:text-xs" placeholder="Nome do RT" value={novoNome} onChange={(e) => setNovoNome(e.target.value)} />
+            <Input className="h-7 w-28 text-base md:text-xs" placeholder="Registro" value={novoRegistro} onChange={(e) => setNovoRegistro(e.target.value)} />
+            <Input className="h-7 w-24 text-base md:text-xs" placeholder="Conselho (opt.)" value={novoConselho} onChange={(e) => setNovoConselho(e.target.value)} />
             <Button size="sm" variant="outline" className="h-7" onClick={cadastrarRT} disabled={pending || !novoNome.trim() || !novoRegistro.trim()}>
               <Plus className="size-3" /> Cadastrar RT
             </Button>
@@ -1017,7 +1017,7 @@ function LicSubcontratacao({
 
       {podeGerir && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <InputPercentual className="h-7 w-24 text-xs" placeholder="Teto" value={tetoInput} onChange={setTetoInput} />
+          <InputPercentual className="h-7 w-24 text-base md:text-xs" placeholder="Teto" value={tetoInput} onChange={setTetoInput} />
           <Button size="sm" variant="outline" className="h-7" onClick={salvarTeto} disabled={pending}>
             Salvar teto
           </Button>
@@ -1059,10 +1059,10 @@ function LicSubcontratacao({
             </SelectContent>
           </Select>
           {fornId === "__none__" && (
-            <Input className="h-7 w-36 text-xs" placeholder="Nome do subcontratado" value={nomeLivre} onChange={(e) => setNomeLivre(e.target.value)} />
+            <Input className="h-7 w-36 text-base md:text-xs" placeholder="Nome do subcontratado" value={nomeLivre} onChange={(e) => setNomeLivre(e.target.value)} />
           )}
-          <Input className="h-7 flex-1 text-xs min-w-32" placeholder="Objeto" value={objeto} onChange={(e) => setObjeto(e.target.value)} />
-          <InputPercentual className="h-7 w-24 text-xs" value={percentual} onChange={setPercentual} />
+          <Input className="h-7 flex-1 text-base md:text-xs min-w-32" placeholder="Objeto" value={objeto} onChange={(e) => setObjeto(e.target.value)} />
+          <InputPercentual className="h-7 w-24 text-base md:text-xs" value={percentual} onChange={setPercentual} />
           <Button size="sm" variant="outline" className="h-7" onClick={adicionar} disabled={pending || !objeto.trim() || percentual === null}>
             <Plus className="size-3" /> Subcontratado
           </Button>
@@ -1217,7 +1217,7 @@ function LicHabilitacao({
           {itens.map((l, i) => (
             <li key={i} className="flex flex-wrap items-center gap-1.5">
               <Input
-                className="h-7 flex-1 text-xs"
+                className="h-7 flex-1 text-base md:text-xs"
                 placeholder="Exigência"
                 value={l.exigencia}
                 onChange={(e) => {
@@ -1269,7 +1269,7 @@ function LicHabilitacao({
                 Obrigatório
               </label>
               <Input
-                className="h-7 w-32 text-xs"
+                className="h-7 w-32 text-base md:text-xs"
                 placeholder="Observação"
                 value={l.observacao}
                 onChange={(e) => {
@@ -1354,7 +1354,7 @@ function LicMatrizRisco({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
               {itens.map((l, i) => (
                 <li key={i} className="flex flex-wrap items-center gap-1.5">
                   <Input
-                    className="h-7 flex-1 text-xs"
+                    className="h-7 flex-1 text-base md:text-xs"
                     placeholder="Evento"
                     value={l.evento}
                     onChange={(e) => { const next = [...itens]; next[i] = { ...next[i], evento: e.target.value }; setItens(next); }}
@@ -1389,7 +1389,7 @@ function LicMatrizRisco({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
                     </SelectContent>
                   </Select>
                   <Input
-                    className="h-7 w-40 text-xs"
+                    className="h-7 w-40 text-base md:text-xs"
                     placeholder="Mitigação"
                     value={l.mitigacao}
                     onChange={(e) => { const next = [...itens]; next[i] = { ...next[i], mitigacao: e.target.value }; setItens(next); }}
@@ -1527,10 +1527,10 @@ function LicReajuste({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
                 Registrar aqui aplica o reajuste imediatamente (atualiza o valor do contrato). Reajustes pendentes vêm do modo automático.
               </p>
               <div className="flex flex-wrap items-center gap-1.5">
-                <Input className="h-7 w-28 text-xs" placeholder="Índice (ex.: INPC)" value={indice} onChange={(e) => setIndice(e.target.value)} />
-                <InputPercentual permiteNegativo className="h-7 w-28 text-xs" placeholder="Percentual" value={percentual} onChange={setPercentual} />
-                <Input type="date" className="h-7 w-36 text-xs" value={dataBase} onChange={(e) => setDataBase(e.target.value)} />
-                <Input type="date" className="h-7 w-36 text-xs" value={aniversario} onChange={(e) => setAniversario(e.target.value)} />
+                <Input className="h-7 w-28 text-base md:text-xs" placeholder="Índice (ex.: INPC)" value={indice} onChange={(e) => setIndice(e.target.value)} />
+                <InputPercentual permiteNegativo className="h-7 w-28 text-base md:text-xs" placeholder="Percentual" value={percentual} onChange={setPercentual} />
+                <Input type="date" className="h-7 w-36 text-base md:text-xs" value={dataBase} onChange={(e) => setDataBase(e.target.value)} />
+                <Input type="date" className="h-7 w-36 text-base md:text-xs" value={aniversario} onChange={(e) => setAniversario(e.target.value)} />
                 <Button size="sm" variant="outline" className="h-7" onClick={add} disabled={pending || !indice.trim() || !aniversario}>
                   <Plus className="size-3" /> Reajuste
                 </Button>
@@ -1631,20 +1631,20 @@ function LicContrato({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
   const formContrato = (
     <div className="space-y-1.5">
       <div className="flex flex-wrap items-center gap-1.5">
-        <Input className="h-7 w-36 text-xs" placeholder="Nº contrato" value={numeroContrato} onChange={(e) => setNumeroContrato(e.target.value)} />
-        <Input className="h-7 w-36 text-xs" placeholder="Nº empenho" value={numeroEmpenho} onChange={(e) => setNumeroEmpenho(e.target.value)} />
-        <InputMoeda semPrefixo className="h-7 w-36 text-xs" placeholder="Valor homologado *" value={valorHomologado} onChange={setValorHomologado} />
+        <Input className="h-7 w-36 text-base md:text-xs" placeholder="Nº contrato" value={numeroContrato} onChange={(e) => setNumeroContrato(e.target.value)} />
+        <Input className="h-7 w-36 text-base md:text-xs" placeholder="Nº empenho" value={numeroEmpenho} onChange={(e) => setNumeroEmpenho(e.target.value)} />
+        <InputMoeda semPrefixo className="h-7 w-36 text-base md:text-xs" placeholder="Valor homologado *" value={valorHomologado} onChange={setValorHomologado} />
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
-        <Input type="date" className="h-7 w-36 text-xs" value={vigenciaInicio} onChange={(e) => setVigenciaInicio(e.target.value)} />
-        <Input type="date" className="h-7 w-36 text-xs" value={vigenciaFim} onChange={(e) => setVigenciaFim(e.target.value)} />
-        <Input className="h-7 w-28 text-xs" placeholder="Reajuste" value={reajuste} onChange={(e) => setReajuste(e.target.value)} />
+        <Input type="date" className="h-7 w-36 text-base md:text-xs" value={vigenciaInicio} onChange={(e) => setVigenciaInicio(e.target.value)} />
+        <Input type="date" className="h-7 w-36 text-base md:text-xs" value={vigenciaFim} onChange={(e) => setVigenciaFim(e.target.value)} />
+        <Input className="h-7 w-28 text-base md:text-xs" placeholder="Reajuste" value={reajuste} onChange={(e) => setReajuste(e.target.value)} />
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
-        <Input className="h-7 w-28 text-xs" placeholder="Garantia tipo" value={garantiaTipo} onChange={(e) => setGarantiaTipo(e.target.value)} />
-        <InputMoeda semPrefixo className="h-7 w-28 text-xs" placeholder="Garantia (R$)" value={garantiaValor} onChange={setGarantiaValor} />
-        <Input type="date" className="h-7 w-36 text-xs" value={garantiaValidade} onChange={(e) => setGarantiaValidade(e.target.value)} />
-        <InputPercentual className="h-7 w-40 text-xs" placeholder="Limite acréscimo" value={limiteAcrescimoPct} onChange={setLimiteAcrescimoPct} />
+        <Input className="h-7 w-28 text-base md:text-xs" placeholder="Garantia tipo" value={garantiaTipo} onChange={(e) => setGarantiaTipo(e.target.value)} />
+        <InputMoeda semPrefixo className="h-7 w-28 text-base md:text-xs" placeholder="Garantia (R$)" value={garantiaValor} onChange={setGarantiaValor} />
+        <Input type="date" className="h-7 w-36 text-base md:text-xs" value={garantiaValidade} onChange={(e) => setGarantiaValidade(e.target.value)} />
+        <InputPercentual className="h-7 w-40 text-base md:text-xs" placeholder="Limite acréscimo" value={limiteAcrescimoPct} onChange={setLimiteAcrescimoPct} />
       </div>
       <Button size="sm" variant="outline" className="h-7" onClick={salvarContrato} disabled={pending}>
         Salvar contrato
@@ -1739,10 +1739,10 @@ function LicContrato({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
                   <SelectItem value="objeto">Objeto</SelectItem>
                 </SelectContent>
               </Select>
-              <InputMoeda semPrefixo permiteNegativo className="h-7 w-32 text-xs" placeholder="Delta (R$)" title="Delta do aditivo em reais. Use valor negativo para supressão." value={aditValor} onChange={setAditValor} />
-              <Input type="date" className="h-7 w-36 text-xs" value={aditData} onChange={(e) => setAditData(e.target.value)} />
-              <Input type="date" className="h-7 w-36 text-xs" value={aditVigencia} onChange={(e) => setAditVigencia(e.target.value)} />
-              <Input className="h-7 w-40 text-xs" placeholder="Justificativa" value={aditJustif} onChange={(e) => setAditJustif(e.target.value)} />
+              <InputMoeda semPrefixo permiteNegativo className="h-7 w-32 text-base md:text-xs" placeholder="Delta (R$)" title="Delta do aditivo em reais. Use valor negativo para supressão." value={aditValor} onChange={setAditValor} />
+              <Input type="date" className="h-7 w-36 text-base md:text-xs" value={aditData} onChange={(e) => setAditData(e.target.value)} />
+              <Input type="date" className="h-7 w-36 text-base md:text-xs" value={aditVigencia} onChange={(e) => setAditVigencia(e.target.value)} />
+              <Input className="h-7 w-40 text-base md:text-xs" placeholder="Justificativa" value={aditJustif} onChange={(e) => setAditJustif(e.target.value)} />
               <Button size="sm" variant="outline" className="h-7" onClick={addAditivo} disabled={pending || !aditData}>
                 <Plus className="size-3" /> Aditivo
               </Button>
@@ -1831,7 +1831,7 @@ function LicComposicao({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
               {itens.map((l, i) => (
                 <li key={i} className="flex flex-wrap items-center gap-1.5">
                   <Input
-                    className="h-7 flex-1 text-xs"
+                    className="h-7 flex-1 text-base md:text-xs"
                     placeholder="Descrição"
                     value={l.descricao}
                     onChange={(e) => {
@@ -1844,7 +1844,7 @@ function LicComposicao({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
                     type="number"
                     step="any"
                     min="0"
-                    className="h-7 w-20 text-xs"
+                    className="h-7 w-20 text-base md:text-xs"
                     placeholder="Qtd"
                     value={l.quantidade}
                     onChange={(e) => {
@@ -1855,7 +1855,7 @@ function LicComposicao({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
                   />
                   <InputMoeda
                     semPrefixo
-                    className="h-7 w-28 text-xs"
+                    className="h-7 w-28 text-base md:text-xs"
                     placeholder="Unit. (R$)"
                     value={l.valorUnitario}
                     onChange={(v) => {
@@ -1882,7 +1882,7 @@ function LicComposicao({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
           )}
           <div className="flex flex-wrap items-center gap-1.5">
             <Input
-              className="h-7 flex-1 text-xs"
+              className="h-7 flex-1 text-base md:text-xs"
               placeholder="Observação"
               value={obs}
               onChange={(e) => setObs(e.target.value)}
@@ -2060,7 +2060,7 @@ function LicEventos({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
           </Select>
           <Input
             type="date"
-            className="h-7 w-36 text-xs"
+            className="h-7 w-36 text-base md:text-xs"
             value={data}
             onChange={(e) => setData(e.target.value)}
           />
@@ -2076,7 +2076,7 @@ function LicEventos({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
                 </SelectContent>
               </Select>
               <Input
-                className="h-7 w-32 text-xs"
+                className="h-7 w-32 text-base md:text-xs"
                 placeholder="Protocolo"
                 value={protocolo}
                 onChange={(e) => setProtocolo(e.target.value)}
@@ -2084,13 +2084,13 @@ function LicEventos({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
             </>
           )}
           <Input
-            className="h-7 w-40 text-xs"
+            className="h-7 w-40 text-base md:text-xs"
             placeholder="Observação"
             value={observacao}
             onChange={(e) => setObservacao(e.target.value)}
           />
           <Input
-            className="h-7 w-28 text-xs"
+            className="h-7 w-28 text-base md:text-xs"
             placeholder="Alertas (ex.: 7, 1)"
             value={alertaDias}
             onChange={(e) => setAlertaDias(e.target.value)}
@@ -2173,14 +2173,14 @@ function LicResultado({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
           )}
           <div className="flex flex-wrap items-center gap-1.5">
             <Input
-              className="h-7 w-44 text-xs"
+              className="h-7 w-44 text-base md:text-xs"
               placeholder="Vencedor"
               value={vencedor}
               onChange={(e) => setVencedor(e.target.value)}
             />
             <InputMoeda
               semPrefixo
-              className="h-7 w-40 text-xs"
+              className="h-7 w-40 text-base md:text-xs"
               placeholder="Valor vencedor (R$)"
               value={vv}
               onChange={setVv}
@@ -2189,13 +2189,13 @@ function LicResultado({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
               type="number"
               step="1"
               min="1"
-              className="h-7 w-24 text-xs"
+              className="h-7 w-24 text-base md:text-xs"
               placeholder="Classif. (1º…)"
               value={nc}
               onChange={(e) => setNc(e.target.value)}
             />
             <Input
-              className="h-7 flex-1 text-xs"
+              className="h-7 flex-1 text-base md:text-xs"
               placeholder="Observação"
               value={observacao}
               onChange={(e) => setObservacao(e.target.value)}
@@ -2281,13 +2281,13 @@ function LicPNCP({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
         <>
           <div className="flex flex-wrap items-center gap-1.5">
             <Input
-              className="h-7 w-52 text-xs"
+              className="h-7 w-52 text-base md:text-xs"
               placeholder="Nº controle PNCP"
               value={numeroControlePNCP}
               onChange={(e) => setNumeroControlePNCP(e.target.value)}
             />
             <Input
-              className="h-7 flex-1 text-xs"
+              className="h-7 flex-1 text-base md:text-xs"
               placeholder="URL PNCP"
               value={pncpUrl}
               onChange={(e) => setPncpUrl(e.target.value)}
@@ -2375,7 +2375,7 @@ function LicExtras({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
         )}
         {podeGerir && (
           <div className="mt-1.5 flex gap-1.5">
-            <Input value={evento} onChange={(e) => setEvento(e.target.value)} placeholder="Registrar evento…" className="h-8 text-xs" />
+            <Input value={evento} onChange={(e) => setEvento(e.target.value)} placeholder="Registrar evento…" className="h-8 text-base md:text-xs" />
             <Button size="sm" variant="outline" onClick={addEvento} disabled={pending}>+</Button>
           </div>
         )}
@@ -2403,8 +2403,8 @@ function LicExtras({ lic, podeGerir }: { lic: Lic; podeGerir: boolean }) {
         )}
         {podeGerir && (
           <div className="mt-1.5 flex gap-1.5">
-            <Input value={disc} onChange={(e) => setDisc(e.target.value)} placeholder="Disciplina" className="h-8 flex-1 text-xs" />
-            <InputMoeda semPrefixo value={valor} onChange={setValor} placeholder="Valor (R$)" className="h-8 w-24 text-xs" />
+            <Input value={disc} onChange={(e) => setDisc(e.target.value)} placeholder="Disciplina" className="h-8 flex-1 text-base md:text-xs" />
+            <InputMoeda semPrefixo value={valor} onChange={setValor} placeholder="Valor (R$)" className="h-8 w-24 text-base md:text-xs" />
             <Button size="sm" variant="outline" onClick={addValor} disabled={pending}>+</Button>
           </div>
         )}

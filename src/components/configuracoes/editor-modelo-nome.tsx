@@ -106,7 +106,7 @@ export function EditorModeloNome({ modelo, onChange }: { modelo: string; onChang
       {modoAvancado ? (
         <div className="space-y-1">
           <Label className="text-xs">Modelo (ex.: {"{proj}"}-SENA-{"{disc}"}-{"{fase}"}-{"{num}"}-{"{tipo}"})</Label>
-          <Input value={modelo} onChange={(e) => onChange(e.target.value)} className="font-mono text-xs" />
+          <Input value={modelo} onChange={(e) => onChange(e.target.value)} className="font-mono text-base md:text-xs" />
           {modeloInvalido && <p className="text-[11px] text-destructive">Modelo inválido.</p>}
         </div>
       ) : (

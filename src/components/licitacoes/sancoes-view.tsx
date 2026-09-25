@@ -259,19 +259,19 @@ export function SancoesView({ podeGerir, fornecedores, proprias, concorrentes }:
                     ))}
                   </SelectContent>
                 </Select>
-                <InputMoeda semPrefixo className="h-7 w-28 text-xs" placeholder="Valor (R$)" value={pValor} onChange={setPValor} />
+                <InputMoeda semPrefixo className="h-7 w-28 text-base md:text-xs" placeholder="Valor (R$)" value={pValor} onChange={setPValor} />
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Label className="text-xs">De</Label>
                   <Input
                     type="date"
-                    className="h-7 w-36 text-xs"
+                    className="h-7 w-36 text-base md:text-xs"
                     value={pInicio}
                     onChange={(e) => setPInicio(e.target.value)}
                   />
                   <Label className="text-xs">até</Label>
                   <Input
                     type="date"
-                    className="h-7 w-36 text-xs"
+                    className="h-7 w-36 text-base md:text-xs"
                     value={pFim}
                     onChange={(e) => setPFim(e.target.value)}
                   />
@@ -279,19 +279,19 @@ export function SancoesView({ podeGerir, fornecedores, proprias, concorrentes }:
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
                 <Input
-                  className="h-7 w-40 text-xs"
+                  className="h-7 w-40 text-base md:text-xs"
                   placeholder="Órgão"
                   value={pOrgao}
                   onChange={(e) => setPOrgao(e.target.value)}
                 />
                 <Input
-                  className="h-7 w-32 text-xs"
+                  className="h-7 w-32 text-base md:text-xs"
                   placeholder="Processo"
                   value={pProcesso}
                   onChange={(e) => setPProcesso(e.target.value)}
                 />
                 <Input
-                  className="h-7 flex-1 text-xs"
+                  className="h-7 flex-1 text-base md:text-xs"
                   placeholder="Observação"
                   value={pObs}
                   onChange={(e) => setPObs(e.target.value)}
@@ -372,7 +372,7 @@ export function SancoesView({ podeGerir, fornecedores, proprias, concorrentes }:
                 </Select>
                 {cFornId === "__none__" && (
                   <Input
-                    className="h-7 w-40 text-xs"
+                    className="h-7 w-40 text-base md:text-xs"
                     placeholder="Nome do concorrente"
                     value={cNomeLivre}
                     onChange={(e) => setCNomeLivre(e.target.value)}
@@ -390,39 +390,39 @@ export function SancoesView({ podeGerir, fornecedores, proprias, concorrentes }:
                     ))}
                   </SelectContent>
                 </Select>
-                <InputMoeda semPrefixo className="h-7 w-28 text-xs" placeholder="Valor (R$)" value={cValor} onChange={setCValor} />
+                <InputMoeda semPrefixo className="h-7 w-28 text-base md:text-xs" placeholder="Valor (R$)" value={cValor} onChange={setCValor} />
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Label className="text-xs">De</Label>
                   <Input
                     type="date"
-                    className="h-7 w-36 text-xs"
+                    className="h-7 w-36 text-base md:text-xs"
                     value={cInicio}
                     onChange={(e) => setCInicio(e.target.value)}
                   />
                   <Label className="text-xs">até</Label>
                   <Input
                     type="date"
-                    className="h-7 w-36 text-xs"
+                    className="h-7 w-36 text-base md:text-xs"
                     value={cFim}
                     onChange={(e) => setCFim(e.target.value)}
                   />
                 </div>
                 <Input
-                  className="h-7 w-36 text-xs"
+                  className="h-7 w-36 text-base md:text-xs"
                   placeholder="Órgão"
                   value={cOrgao}
                   onChange={(e) => setCOrgao(e.target.value)}
                 />
                 <Input
-                  className="h-7 w-28 text-xs"
+                  className="h-7 w-28 text-base md:text-xs"
                   placeholder="Processo"
                   value={cProcesso}
                   onChange={(e) => setCProcesso(e.target.value)}
                 />
                 <Input
-                  className="h-7 flex-1 text-xs"
+                  className="h-7 flex-1 text-base md:text-xs"
                   placeholder="Observação"
                   value={cObs}
                   onChange={(e) => setCObs(e.target.value)}

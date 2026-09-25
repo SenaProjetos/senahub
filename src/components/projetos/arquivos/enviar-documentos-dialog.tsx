@@ -936,7 +936,7 @@ function UploaderDocumentos({
                         value={doc.titulo ?? ""}
                         placeholder={nomeDoTipo ?? "Título da prancha (Lista Mestre)"}
                         aria-label="Título da prancha"
-                        className="h-8 min-w-0 text-xs"
+                        className="h-8 min-w-0 text-base md:text-xs"
                         disabled={salvando}
                         onChange={(event) => atualizarDocumento(doc.documentoId, { titulo: event.target.value || undefined })}
                         onBlur={(event) => salvarTituloConferencia(doc.documentoId, event.target.value)}
@@ -1472,7 +1472,7 @@ function RevisarNomesDialog({
                     <div className="flex items-center gap-1">
                       <Input
                         value={nomeBase}
-                        className="flex-1 font-mono text-xs"
+                        className="flex-1 font-mono text-base md:text-xs"
                         onChange={(event) => atualizarNome(indice, event.target.value + extensao)}
                       />
                       {extensao && <span className="shrink-0 rounded-md border bg-muted px-1.5 py-1 font-mono text-xs text-muted-foreground">{extensao}</span>}

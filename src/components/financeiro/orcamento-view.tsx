@@ -155,7 +155,7 @@ function Secao({
             value={novoValor}
             onChange={setNovoValor}
             placeholder="Valor planejado"
-            className="h-9 w-40 font-mono text-xs"
+            className="h-9 w-40 font-mono text-base md:text-xs"
           />
           <Button size="sm" variant="outline" onClick={adicionar} disabled={pending || !novaCat}>
             <Plus className="size-3.5" /> Adicionar

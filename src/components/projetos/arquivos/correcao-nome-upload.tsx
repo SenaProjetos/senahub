@@ -99,7 +99,7 @@ export function CorrecaoNomeUpload({
         </div>
         <div className="space-y-1">
           <Label className="text-[11px]">Numeração</Label>
-          <Input type="number" min="0" value={numeracao} onChange={(event) => setNumeracao(event.target.value)} className="h-8 text-xs" />
+          <Input type="number" min="0" value={numeracao} onChange={(event) => setNumeracao(event.target.value)} className="h-8 text-base md:text-xs" />
         </div>
       </div>
       <Button

@@ -2785,7 +2785,7 @@ function RevisarNomesDialog({
                       <div className="flex items-center gap-1">
                         <Input
                           value={base}
-                          className="flex-1 font-mono text-xs"
+                          className="flex-1 font-mono text-base md:text-xs"
                           onChange={(e) => renomear(i, e.target.value + ext)}
                         />
                         {ext && (

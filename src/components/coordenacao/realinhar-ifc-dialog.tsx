@@ -202,7 +202,7 @@ function CampoNumero({
         inputMode="decimal"
         step="0.1"
         value={texto}
-        className="h-8 px-2 text-sm"
+        className="h-8 px-2 text-base md:text-sm"
         onChange={(e) => {
           const t = e.target.value;
           setTexto(t);

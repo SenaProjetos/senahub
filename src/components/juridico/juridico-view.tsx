@@ -290,7 +290,7 @@ function EnviarParaAssinatura({ versaoId, rotulo }: { versaoId: string; rotulo: 
           {url ? (
             <div className="space-y-2">
               <p className="text-sm">Link gerado. Envie para o signatário:</p>
-              <Input readOnly value={url} onFocus={(e) => e.currentTarget.select()} className="font-mono text-xs" />
+              <Input readOnly value={url} onFocus={(e) => e.currentTarget.select()} className="font-mono text-base md:text-xs" />
               <Button
                 size="sm"
                 variant="outline"
@@ -767,7 +767,7 @@ function DocsTab({
         {podeGerir && (
           <span className="inline-flex items-center gap-1">
             <Input
-              className="h-7 w-32 text-xs"
+              className="h-7 w-32 text-base md:text-xs"
               placeholder="Nova pasta…"
               value={novaPasta}
               onChange={(e) => setNovaPasta(e.target.value)}

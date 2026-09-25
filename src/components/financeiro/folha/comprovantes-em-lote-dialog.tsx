@@ -121,7 +121,7 @@ function LinhaComprovante({
         </span>
       ) : (
         <>
-          <Input ref={fileRef} type="file" className="h-8 w-40 text-xs" disabled={enviando} />
+          <Input ref={fileRef} type="file" className="h-8 w-40 text-base md:text-xs" disabled={enviando} />
           <Button size="sm" variant="outline" onClick={enviar} disabled={enviando}>
             <Upload className="size-3.5" /> {enviando ? "…" : "Enviar"}
           </Button>

@@ -148,7 +148,7 @@ export function GerenciarComprovantesDialog({
             </ul>
           )}
           <div className="flex items-center gap-2">
-            <Input ref={fileRef} type="file" className="text-xs" disabled={busy} />
+            <Input ref={fileRef} type="file" className="text-base md:text-xs" disabled={busy} />
             <Button size="sm" variant="outline" onClick={enviar} disabled={busy}>
               <Upload className="size-3.5" /> {busy ? "Enviando…" : "Anexar"}
             </Button>

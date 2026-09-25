@@ -187,7 +187,7 @@ export function PropostaExtras({
           )}
           {podeGerir && (
             <div className="flex items-center gap-2">
-              <Input ref={fileRef} type="file" multiple className="text-xs" />
+              <Input ref={fileRef} type="file" multiple className="text-base md:text-xs" />
               <Button size="sm" variant="outline" onClick={enviar} disabled={busy}>
                 <Upload className="size-3.5" /> {busy ? "Enviando…" : "Enviar"}
               </Button>
