@@ -356,6 +356,23 @@ Um cronograma, quatro modos de exibição (D33) — não duas telas lado a lado.
 VP/VA/CR, IDP/IDC sobre o que F1–F7 produziram. **Só depois de todas as anteriores** — índice
 calculado sobre dado incompleto é a forma mais rápida de a equipe perder a confiança no relatório.
 
+> **Notas de implementação (2026-09-25, F8 pronta, sem olho humano):**
+> - Painel "Valor Agregado" no cronograma do projeto, apurado na **Data de Status** contra a linha
+>   de base mais recente, em duas réguas do mesmo cálculo: **horas** (quem vê o cronograma) e **R$**
+>   (só `podeVerFinanceiro`). VP pela fração da barra de base em dias úteis (uniforme, como o
+>   Project); VA pelo % INFORMADO (D19); CR = horas apontadas no projeto até a Data de Status (com ou
+>   sem tarefa), × custo/hora de Recursos em R$. Regras puras em `valor-agregado.ts`.
+> - **Desconhecido nunca vira zero:** baseline sem horas/custo em alguma folha → régua sem número,
+>   com motivo; alguém apontou sem custo/hora → CR em R$ desconhecido.
+> - Baseline passou a guardar `resumo` (quem era agrupamento no congelamento): sem isso a soma
+>   contava cada trabalho duas vezes.
+> - Cada apuração é gravada (`ValorAgregadoApuracao`, uma por Data de Status) — o % não guarda
+>   passado, então a tendência só existe se fotografada (mesmo motivo da D42).
+> - **DECIDIR (time):** pagamento de PJ por entrega NÃO entra no CR (quem não aponta horas não
+>   aparece); datas reais não entram (D6 pendente); a baseline de antes da F7.1 não tem custo
+>   (replanejar para medir em R$).
+> - Verificação: `smoke:recursos-eap` (checagens 9.x, números exatos).
+
 ### F9 — Manual e novidades · Sonnet · 1 sessão · risco BAIXO
 
 `docs/manual/**` + `novidades.md` em linguagem de usuário, e `search-index.json` à mão (não há

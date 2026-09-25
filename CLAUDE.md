@@ -34,7 +34,7 @@ npm run smoke:inputs-link     # link público de inputs: janela da notificação
 npm run smoke:aviso-agendado  # aviso agendado: disparo do tick, claim anti-duplicata, cancelamento
 npm run smoke:sync-pagamento  # pagamento de projetista: sync de valor/responsáveis, cancelamento, total do lote
 npm run smoke:historico-documento  # histórico por documento: agrupamento atômico de acessos, corte de visibilidade, merge
-npm run smoke:recursos-eap    # EAP: herança de responsáveis, horas no motor, cards, carga/sobrecarga, custo previsto
+npm run smoke:recursos-eap    # EAP: herança, horas no motor, cards, carga/sobrecarga, custo previsto, Valor Agregado
 npm run smoke:ponto-tarefa    # ponto com tarefa: lista curta, validação, edição do dia, apontado × previsto
 npm run smoke:pagamento-fase  # pagamento por fase: pool congelado, write-back por diferença, SLA, marco → aprovar fase
 npm run smoke:previsao-recebimento  # contrato por entrega: previsão no caixa, marco anda, faturar, fora do aging

@@ -22,6 +22,30 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Valor Agregado no cronograma (VP, VA, CR, IDP e IDC)
+
+No cronograma do projeto, o quadro **Valor Agregado** mostra se o projeto está adiantado ou
+atrasado, e gastando mais ou menos do que o previsto — como os campos de valor agregado do MS
+Project (COTA, COTR, CRTR).
+
+- É apurado na **Data de Status** do projeto e medido contra a **linha de base** mais recente.
+  Sem Data de Status ou sem cronograma aprovado, o quadro diz o que falta.
+- **Planejado (VP):** quanto a linha de base previa pronto até a Data de Status. **Agregado (VA):**
+  o orçamento de cada atividade × o % concluído informado na EAP. **Real (CR):** as horas
+  apontadas no ponto no projeto até a Data de Status.
+- **IDP** (prazo) = VA ÷ VP e **IDC** (custo) = VA ÷ CR. Verde a partir de 1, amarelo entre 0,90 e
+  1, vermelho abaixo de 0,90. Passe o mouse em cada linha para ver a explicação.
+- Duas colunas: em **horas**, para quem acompanha o cronograma; em **R$** (horas × custo/hora
+  de Recursos), só para quem vê o financeiro.
+- Número que depende de dado que falta (atividade sem horas ou sem custo na linha de base,
+  alguém que apontou sem custo/hora cadastrado) aparece como "—", com o motivo — nunca como zero.
+- Cada vez que a Data de Status é atualizada, a apuração fica guardada: o quadro mostra as
+  apurações anteriores, para acompanhar a tendência.
+- O real é o que foi **apontado no ponto**: quem não aponta horas (ex.: PJ pago por entrega) não
+  entra — o pagamento dele está no financeiro.
+
+---
+
 ## Contrato cobrado por entrega e previsão de recebimento no fluxo de caixa
 
 No **Jurídico**, o botão **Pagamento** do contrato de cliente agora tem dois jeitos de cobrar —
