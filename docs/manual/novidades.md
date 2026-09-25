@@ -56,6 +56,16 @@ Detalhes em [Planejamento](projetos/planejamento.md),
 
 ---
 
+## Fila "Fases a aprovar" em Aprovações
+
+A página **Aprovações** ganhou a fila **Fases a aprovar**: cada fase de disciplina já entregue e
+ainda não aprovada, com o projeto, o prazo e a situação. Quem tem permissão para aprovar disciplinas
+aprova dali mesmo — é a mesma aprovação do diálogo **Etapas**, que libera o pagamento da fase. Antes
+era preciso abrir a disciplina, uma a uma, para descobrir o que estava esperando. Ver [Etapas e
+pagamento por fase](projetos/etapas-e-pagamento-por-fase.md).
+
+---
+
 ## Parcelas a faturar, direto em Contas a receber
 
 Na aba **A receber** de **Financeiro → Contas a pagar e receber**, quem gere o financeiro passa a ver o

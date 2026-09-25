@@ -5,7 +5,8 @@
  * mexe nas fases pendentes; o ajuste na Produção anda o total pela diferença; aprovar a
  * disciplina inteira libera as fases que faltam e fecha no centavo; e o banco recusa apagar
  * fase com pagamento. F7.0: concluir o marco ligado à fase oferece a MESMA liberação — e só quando
- * a fase está entregue e ainda não liberada.
+ * a fase está entregue e ainda não liberada. L3: a fila "Fases a aprovar" traz a fase entregue e ainda não
+ * liberada, e deixa de fora a de disciplina que já pagou inteira e a fase que já foi liberada.
  *
  * Uso: npm run smoke:pagamento-fase
  */
@@ -20,7 +21,7 @@ import {
 } from "../src/modules/uploads/pagamento";
 import { MOTIVO_JA_PAGA_INTEIRA } from "../src/modules/uploads/pagamento-fase";
 import { INCLUDE_PAGAMENTO, comLancamentos } from "../src/modules/financeiro/folha/queries";
-import { disciplinasForaDeSLA } from "../src/modules/projetos/queries";
+import { disciplinasForaDeSLA, fasesAAprovar } from "../src/modules/projetos/queries";
 import { registrarExecucaoNaLinha } from "../src/modules/planejamento/execucao-service";
 import { paraDia } from "../src/modules/planejamento/agenda";
 import { inicioDoDiaUtc } from "../src/lib/data";
@@ -239,6 +240,8 @@ async function main() {
     ),
   );
   check("pagou inteira → não libera por fase", e11 === MOTIVO_JA_PAGA_INTEIRA, e11);
+  const fila1 = await fasesAAprovar(viewer, true);
+  check("L3: fase de disciplina que pagou inteira fica fora da fila de fases a aprovar", !fila1.some((f) => f.id === fase2.id), fila1.map((f) => f.id));
 
   // 12) 100% CLT com fases que não fecham: aprovar a disciplina não trava nem cria pagamento.
   const disc3 = await prisma.disciplina.create({
@@ -249,7 +252,7 @@ async function main() {
       responsaveis: { create: [{ userId: clt.id }] },
     },
   });
-  await prisma.disciplinaEtapa.create({
+  const fase3 = await prisma.disciplinaEtapa.create({
     data: { disciplinaId: disc3.id, etapaId: fasesCat[0].id, percentual: 30, ordem: 0, status: "entregue" },
   });
   const e12 = await erroDe(() =>
@@ -303,6 +306,14 @@ async function main() {
   await prisma.disciplinaEtapa.update({ where: { id: fase4.id }, data: { status: "entregue" } });
   const ex2 = await registrarExecucaoNaLinha({ id: marco.id, inicioReal: null, fimReal: hoje, hoje });
   check("fase entregue: marco concluído oferece aprovar", ex2.fase?.aprovavel === true, ex2.fase);
+  const fila2 = await fasesAAprovar(viewer, true);
+  const daFila = fila2.find((f) => f.id === fase4.id);
+  check("L3: fase entregue e não liberada entra na fila, com disciplina, projeto e sigla", !!daFila && daFila.status === "entregue" && daFila.projetoId === projeto.id && !!daFila.sigla, daFila);
+  check("L3: fase de disciplina só com CLT também entra (aprova-se sem pagamento)", fila2.some((f) => f.id === fase3.id));
+  const deFora = await fasesAAprovar({ id: "sem-vinculo-nenhum", role: "projetista_pj" as const, superUsuario: false, escopoGlobalPerfil: false }, false);
+  check("L3: quem não é da disciplina nem do projeto não vê a fila dela (muralha)", deFora.length === 0, deFora.map((f) => f.id));
+  const doResponsavel = await fasesAAprovar({ id: pjA.id, role: "projetista_pj" as const, superUsuario: false, escopoGlobalPerfil: false }, false);
+  check("L3: o responsável da disciplina vê a fase dela, e só a dele", doResponsavel.some((f) => f.id === fase4.id) && !doResponsavel.some((f) => f.id === fase3.id), doResponsavel.map((f) => f.id));
   // A tela chama aprovarEtapaDisciplina → liberarPagamentosDaFase: o MESMO caminho da F7.4.
   await prisma.$transaction(async (tx) =>
     liberarPagamentosDaFase(tx, {
@@ -322,6 +333,7 @@ async function main() {
     }),
   );
   check("aprovada pelo marco: 1 pagamento de 1000 com a fase", soma(await pagamentosDe(fase4.id)) === 1000);
+  check("L3: fase liberada sai da fila", !(await fasesAAprovar(viewer, true)).some((f) => f.id === fase4.id));
   await registrarExecucaoNaLinha({ id: marco.id, inicioReal: null, fimReal: null, hoje });
   const ex3 = await registrarExecucaoNaLinha({ id: marco.id, inicioReal: null, fimReal: hoje, hoje });
   check("fase já liberada: concluir o marco de novo não oferece nada", ex3.fase === null, ex3.fase);

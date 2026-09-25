@@ -228,6 +228,73 @@ export async function prontasPorProjeto(
   return mapa;
 }
 
+/**
+ * Fila de FASES a aprovar (L3): fase de disciplina já entregue (ou em revisão) cujo pagamento ainda não
+ * foi liberado — o que `aprovarEtapaDisciplina` aceita. Mesma muralha e mesmo escopo de
+ * `disciplinasProntasParaAprovar`. Disciplina que já pagou INTEIRA fica de fora: é um modo só, e a
+ * ação recusaria.
+ */
+export async function fasesAAprovar(viewer: Viewer, veTodasDisciplinas: boolean) {
+  const etapas = await prisma.disciplinaEtapa.findMany({
+    where: {
+      status: { in: ["entregue", "em_revisao"] },
+      liberadaEm: null,
+      disciplina: {
+        projeto: {
+          AND: [escopoProjeto(viewer), { situacao: { notIn: ["cancelado", "arquivado"] } as never }],
+        },
+        ...(veTodasDisciplinas ? {} : { responsaveis: { some: { userId: viewer.id } } }),
+      },
+    },
+    orderBy: [
+      { disciplina: { projeto: { ano: "desc" } } },
+      { disciplina: { projeto: { sequencial: "desc" } } },
+      { disciplina: { ordem: "asc" } },
+      { ordem: "asc" },
+    ],
+    select: {
+      id: true,
+      status: true,
+      prazo: true,
+      percentual: true,
+      disciplinaId: true,
+      etapa: { select: { sigla: true, nome: true } },
+      disciplina: {
+        select: { disciplinaTextoLegado: true, projetoId: true, projeto: { select: { codigo: true, nome: true } } },
+      },
+    },
+  });
+  if (etapas.length === 0) return [];
+
+  const pagaramInteira = await prisma.pagamentoProjetista.findMany({
+    where: {
+      disciplinaId: { in: [...new Set(etapas.map((e) => e.disciplinaId))] },
+      etapaId: null,
+      status: { not: "cancelado" },
+    },
+    select: { disciplinaId: true },
+  });
+  const inteira = new Set(pagaramInteira.map((x) => x.disciplinaId));
+
+  return etapas
+    .filter((e) => !inteira.has(e.disciplinaId))
+    .map((e) => ({
+      id: e.id,
+      sigla: e.etapa.sigla,
+      nomeFase: e.etapa.nome,
+      status: e.status as "entregue" | "em_revisao",
+      prazo: e.prazo ? e.prazo.toISOString().slice(0, 10) : null,
+      percentual: Number(e.percentual),
+      disciplina: e.disciplina.disciplinaTextoLegado,
+      projetoId: e.disciplina.projetoId,
+      projetoCodigo: e.disciplina.projeto.codigo,
+      projetoNome: e.disciplina.projeto.nome,
+      href: `/projetos/${e.disciplina.projetoId}`,
+    }));
+}
+
+export type FaseAAprovar = Awaited<ReturnType<typeof fasesAAprovar>>[number];
+
 export async function obterProjeto(viewer: Viewer, id: string) {
   const projeto = await prisma.projeto.findFirst({
     where: { id, AND: [escopoProjeto(viewer)] },

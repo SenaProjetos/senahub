@@ -53,7 +53,15 @@ documentos sem fase**.
 ## Aprovar a fase e liberar o pagamento
 
 Quando uma fase está **Entregue** (ou **Em revisão**), quem tem `aprovacoes:disciplina` vê o botão
-**Aprovar** na linha da etapa. Ao confirmar:
+**Aprovar** na linha da etapa. Há dois caminhos, que fazem a mesma coisa:
+
+- o diálogo **Etapas** da disciplina (para quem edita o projeto);
+- a fila **Fases a aprovar**, em **Aprovações**: lista todas as fases entregues e ainda não aprovadas dos
+  projetos que você acompanha — disciplina, fase, projeto, prazo e situação —, com o botão **Aprovar**
+  (só para quem tem `aprovacoes:disciplina`; os demais veem a fila para consulta). Disciplina que já
+  teve o pagamento liberado por inteiro não aparece: o modo de pagamento é um só.
+
+Ao confirmar:
 
 1. a fase passa a **Aprovada · pagamento liberado**;
 2. cada **projetista PJ ou freelancer** da disciplina ganha um **pagamento** daquela fase — o valor da
@@ -126,6 +134,7 @@ não está Entregue, marque-a em **Etapas** primeiro. O marco também avisa o fi
 | --- | --- |
 | Criar, editar e remover etapas | `projetos:gerir` |
 | **Aprovar** a fase (libera o pagamento) | `aprovacoes:disciplina` |
+| Abrir a página **Aprovações** e ver a fila **Fases a aprovar** | `uploads:validar` |
 | Ver o **valor** de cada fase e a coluna Valor | acesso ao financeiro (`financeiro:ver` ou sócio) |
 | Editar o valor da disciplina | `projetos:gerir` (e a regra de valor acima) |
 | Ajustar um pagamento de fase | Produção — ver [Produção](../financeiro/producao.md) |
@@ -148,7 +157,8 @@ não está Entregue, marque-a em **Etapas** primeiro. O marco também avisa o fi
 ## FAQ
 
 **Não vejo o botão Aprovar na etapa.** A fase precisa estar **Entregue** (ou Em revisão), você precisa
-de `aprovacoes:disciplina`, e a disciplina não pode ter pago inteira.
+de `aprovacoes:disciplina`, e a disciplina não pode ter pago inteira. Quem só aprova (sem editar o
+projeto) usa a fila **Fases a aprovar**, em Aprovações.
 
 **"Os percentuais das etapas somam 90%".** Ajuste em **Etapas** até fechar 100% e aprove de novo.
 
