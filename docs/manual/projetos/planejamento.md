@@ -234,6 +234,10 @@ concluído para iniciar após" do MS Project, automático:
   depois da Data de Status;
 - as tarefas que dependem delas andam junto, e o **fim do projeto** mostra o efeito real.
 
+**Qual data usar:** o último dia cujo andamento já está informado — normalmente o **último dia útil
+encerrado**. Apurar com a data de **hoje**, de manhã, leva para amanhã as tarefas de hoje que ainda
+não tiveram início registrado.
+
 Tarefa com data presa por restrição (por exemplo, **Iniciar em**) que precise andar ganha o aviso de
 **conflito de restrição**. Na janela da tarefa aparece "reprogramada para depois da Data de Status".
 

@@ -137,7 +137,10 @@ Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
   - o card antigo de EVM do projeto (`projetos/evm`, aba Financeiro) lê as datas gravadas em dias
     corridos: o VP dele muda quando a previsão é reprogramada;
   - o ritmo observado (D21) ainda não corrige a previsão de término — só a Data de Status e as datas
-    reais movem.
+    reais movem;
+  - o motor não olha o status da linha: uma linha suspensa, cancelada ou arquivada seria reprogramada
+    como qualquer outra (o Project ignora tarefa inativa). Hoje nenhuma tela põe linha nesses status, então
+    não acontece — tratar se isso mudar.
 - ~~**Faturar parcela** só pelo diálogo Pagamento do Jurídico; quem é só do financeiro não chegava lá.~~
   **Resolvido (L2):** cartão "Parcelas a faturar" na aba A receber de Contas (`financeiro:gerir`), com o
   marco concluído no topo e o mesmo Faturar; a notificação leva para lá. O diálogo do Jurídico segue valendo.
