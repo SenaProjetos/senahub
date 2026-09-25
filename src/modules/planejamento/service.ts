@@ -3,6 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Dia } from "@/lib/calendario-trabalho";
 import { paraDataUtc, paraDia, planoDoProjeto } from "./agenda";
+import { agendar } from "./motor";
 import {
   contarPorSeveridade,
   verificarCronograma,
@@ -54,6 +55,7 @@ export async function avaliarQualidade(projetoId: string): Promise<{
         progresso: true,
         inicioPrevisto: true,
         fimPrevisto: true,
+        fimBaseline: true,
         inicioReal: true,
         fimReal: true,
         restricaoTipo: true,
@@ -68,6 +70,10 @@ export async function avaliarQualidade(projetoId: string): Promise<{
     }),
   ]);
 
+  // L1: "atrasada" é contra o combinado — a linha de base; sem ela, o plano SEM a reprogramação da Data
+  // de Status (com ela, a previsão de uma linha inacabada nunca termina antes da data).
+  const semReprogramar = plano.dataStatus ? agendar(plano.entrada, plano.inicioProjeto, plano.calendario) : plano.resultado;
+
   const linhas: LinhaQualidade[] = tarefas.map((t) => {
     const agendada = plano.resultado.linhas.get(t.id);
     return {
@@ -81,6 +87,9 @@ export async function avaliarQualidade(projetoId: string): Promise<{
       // estar desatualizado enquanto ninguém clicou em reagendar.
       inicioPrevisto: agendada?.inicio ?? paraDia(t.inicioPrevisto),
       fimPrevisto: agendada?.fim ?? paraDia(t.fimPrevisto),
+      fimReferencia: t.fimBaseline
+        ? paraDia(t.fimBaseline)
+        : (semReprogramar.linhas.get(t.id)?.fim ?? agendada?.fim ?? paraDia(t.fimPrevisto)),
       inicioReal: t.inicioReal ? paraDia(t.inicioReal) : null,
       fimReal: t.fimReal ? paraDia(t.fimReal) : null,
       temResponsavel: t.atribuicoes.some((a) => a.userId != null),

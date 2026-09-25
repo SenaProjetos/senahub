@@ -187,8 +187,12 @@ which is true after the first phase and hides the rest. Pure rules in `uploads/p
 Spec + 42 decisions: `docs/superpowers/specs/2026-09-23-planejamento-motor-cronograma.md`. Layered like ferramentas:
 - `motor.ts` — pure `agendar()`: forward/backward pass on the working-day calendar (`lib/calendario-trabalho.ts`,
   holidays), FS/SS/FF/SF + lag, the 6 restrictions, float/critical path, rollup (% weighted by hours). `agenda.ts`
-  is the I/O: `planoDoProjeto` (read, never writes) / `reagendarProjeto` (writes). Real dates (`execucao.ts`) are
-  recorded but the motor does NOT read them yet (D6).
+  is the I/O: `planoDoProjeto` (read, never writes) / `reagendarProjeto` (writes). Since L1 the motor READS real dates
+  (D6: done = real dates, started = real start, links no longer bind them) and, given the project's Data de Status,
+  reschedules unfinished work to the next working day after it (MS Project's "reschedule uncompleted work"); % without
+  real dates follows Project (>0 = started at the computed start, 100 = done). The baseline never moves, so "atrasada"
+  (`qualidade.ts`) is measured against the baseline finish (`fimReferencia`), not the rolled forecast. Anyone
+  re-running `agendar` on `plano.entrada` must pass `plano.dataStatus` too (see `sugestoes-recursos.ts`).
 - `service.ts` — approval freezes `BL-00` (baseline versions, never overwritten), replan, quality verifier
   (`qualidade.ts`), health (`saude.ts`). `EapAtribuicao` = person or perfil with hours (`recursos.ts`, pure).
 - Every EAP mutation calls `aposMudarEap` (card sync D24/D32 + receivable forecasts). `custo.ts`: hours ×

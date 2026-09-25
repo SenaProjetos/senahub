@@ -299,6 +299,7 @@ export function EapDialog({
               {linhaAtual.idCorporativo ?? "—"} · EAP {linhaAtual.codigoEap ?? "—"} · {linhaAtual.duracaoDias}d úteis
               {linhaAtual.folgaTotal > 0 && ` · folga ${linhaAtual.folgaTotal}d`}
               {linhaAtual.critica && " · caminho crítico"}
+              {linhaAtual.reprogramada && " · reprogramada para depois da Data de Status"}
             </p>
           )}
 

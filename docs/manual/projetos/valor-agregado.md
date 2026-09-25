@@ -94,8 +94,9 @@ ver a **tendência**.
 
 ## O que o Valor Agregado ainda não faz
 
-- **Não usa as datas reais** para empurrar a linha de base: elas ainda não movem o cronograma. A
-  estimativa no término é só de **custo** (ENT/VNT).
+- **A linha de base não se move** com as datas reais: é o combinado. As datas reais e a Data de Status
+  movem a **previsão** do cronograma, mas o Valor Agregado mede contra a linha de base. A estimativa no
+  término é só de **custo** (ENT/VNT) — ainda não há estimativa de **prazo** pelo ritmo observado.
 - **Não conta o pagamento de PJ por entrega** no real. Quem não aponta horas (freelancer ou PJ pago
   por entrega) não aparece no CR; o que a empresa paga a ele está no financeiro
   ([Produção](../financeiro/producao.md)). Em projeto tocado principalmente por PJ, o IDC tende a

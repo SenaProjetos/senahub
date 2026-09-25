@@ -117,7 +117,8 @@ elas que o sistema mede o desvio.
 Project. A tarefa com restrição aparece marcada com um alfinete.
 
 **Data de Status** — A data "até quando" o andamento está informado. Saúde do cronograma e Valor
-Agregado olham para ela.
+Agregado olham para ela, e ao apurá-la o trabalho ainda não feito vai para depois dela (o "Reprogramar
+trabalho não concluído" do MS Project).
 
 **Valor Agregado (VP, VA, CR)** — Compara o **planejado** com o **realizado**: o **VP** é quanto deveria
 estar feito até a Data de Status, o **VA** é quanto está feito (pelo percentual informado) e o **CR** é

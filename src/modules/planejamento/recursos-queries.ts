@@ -255,6 +255,7 @@ export async function cargaDaEquipe(
       projetoId,
       linhasMotor: plano.entrada,
       inicioProjeto: plano.inicioProjeto,
+      dataStatus: plano.dataStatus,
       fimProjeto: plano.resultado.fimProjeto,
       agendado: plano.resultado.linhas,
       linhasCarga: linhasCarga.filter((l) => l.projetoId === projetoId),

@@ -21,6 +21,7 @@
  *      o `Disciplina.valor` (pool dos projetistas); não fatura duas vezes nem sem valor.
  *   9. Lista "Parcelas a faturar" do financeiro (L2): traz as parcelas ainda não faturadas com valor e
  *      situação, destaca o marco concluído e tira a parcela faturada.
+ *  10. Data de Status (L1): marco não concluído até ela anda para o dia útil seguinte, e a previsão junto.
  *
  * Uso: npm run smoke:previsao-recebimento
  */
@@ -168,6 +169,19 @@ async function main() {
         lista1.filter((x) => x.situacao === "aguardando_marco").map((x) => x.valor).sort().join() === "3000,4000",
       lista1.map((x) => [x.descricao, x.situacao, x.valor]),
     );
+
+    // L1: a Data de Status reprograma o marco não concluído até ela — e a previsão anda junto.
+    await prisma.cronogramaProjeto.update({ where: { projetoId: projeto.id }, data: { dataStatus: d(diaM2!) } });
+    await sincronizarPrevisoesDoProjeto(projeto.id, admin.id);
+    const diaM2Status = (await planoDoProjeto(projeto.id))?.resultado.linhas.get(m2.id)?.fim;
+    const l2Status = await linhaDa(pM2.id);
+    check(
+      "L1: marco não concluído até a Data de Status vai para o dia útil seguinte — a previsão anda junto",
+      !!diaM2Status && diaM2Status > diaM2! && paraDia(l2Status!.vencimento!) === diaM2Status,
+      { antes: diaM2, depois: diaM2Status, previsao: l2Status?.vencimento },
+    );
+    await prisma.cronogramaProjeto.update({ where: { projetoId: projeto.id }, data: { dataStatus: null } });
+    await sincronizarPrevisoesDoProjeto(projeto.id, admin.id);
 
     // Marco concluído aponta a parcela presa a ele para o financeiro faturar (D9) — sem faturar sozinho.
     const exM2 = await registrarExecucaoNaLinha({ id: m2.id, inicioReal: null, fimReal: hoje, hoje });

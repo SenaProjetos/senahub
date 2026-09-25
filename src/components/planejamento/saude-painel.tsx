@@ -155,7 +155,7 @@ export function SaudePainel({
     start(async () => {
       const r = await definirDataStatus({ projetoId, dataStatus: novaDataStatus });
       if (r.ok) {
-        toast.success("Data de Status atualizada.");
+        toast.success("Data de Status atualizada — o trabalho não feito foi para depois dela.");
         router.refresh();
       } else toast.error(r.error);
     });
@@ -259,8 +259,10 @@ export function SaudePainel({
               <Input
                 type="date"
                 value={novaDataStatus}
+                max={new Date().toLocaleDateString("en-CA")}
                 onChange={(e) => setNovaDataStatus(e.target.value)}
                 className="h-8 w-36 text-xs"
+                title="Até quando o andamento está informado. O trabalho não feito vai para depois dela."
               />
               <Button size="sm" variant="outline" onClick={salvarDataStatus} disabled={pending}>
                 <CalendarClock className="size-3.5" /> Apurar

@@ -52,6 +52,7 @@ function cenario(linhas: LinhaCenario[], opcoes: { pessoas: string[]; qualificad
           projetoId: "p1",
           linhasMotor: linhas,
           inicioProjeto: ANCORA,
+          dataStatus: null,
           fimProjeto: motor.fimProjeto,
           agendado: motor.linhas,
           linhasCarga,

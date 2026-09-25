@@ -18,11 +18,22 @@
  *   - folga total e folga livre
  *   - caminho crítico por folga zero
  *   - rollup de resumo: pai deriva do filho, nunca o contrário (Doc 03 §8)
+ *
+ * E o realizado (L1 — D6, "atraso real empurra as sucessoras"), como o "Atualizar projeto" do MS
+ * Project:
+ *   - concluída fica nas datas reais; iniciada começa no início real — a realidade atropela o vínculo;
+ *   - com Data de Status, o trabalho NÃO FEITO vai para o dia útil seguinte a ela ("Reprogramar trabalho
+ *     não concluído para iniciar após"): a parte feita de uma iniciada fica onde está e o restante
+ *     (duração × (1 − %)) anda; a não iniciada que devia ter começado anda inteira;
+ *   - percentual sem data real segue o Project: > 0% conta como iniciada no início calculado, 100% como
+ *     concluída nas datas calculadas.
+ * A linha de base não é tocada: ela é o combinado, e o desvio aparece justamente contra ela.
  */
 import {
   type Calendario,
   type Dia,
   diaUtilAnterior,
+  diaUtilApos,
   diasOcupados,
   diasUteisEntre,
   fimPorDuracao,
@@ -67,6 +78,21 @@ export type LinhaEntrada = {
   trabalhoHoras?: number | null;
   /** Progresso informado (0-100). Em linha-resumo é ignorado: o motor calcula. */
   progresso?: number;
+  /** Início real (L1). Com ele a linha deixa de seguir as dependências e as restrições. */
+  inicioReal?: Dia | null;
+  /** Término real (L1): a linha está concluída nestas datas. */
+  fimReal?: Dia | null;
+};
+
+/** Onde a linha está na execução, pelo realizado (ou pelo %, na regra do MS Project). */
+export type SituacaoExecucao = "nao_iniciada" | "em_andamento" | "concluida";
+
+export type OpcoesAgenda = {
+  /**
+   * Data de Status do projeto (Doc 03 §21). Com ela, trabalho não feito que cairia até esta data vai
+   * para o dia útil seguinte — ninguém trabalha no passado. Sem ela, nada é reprogramado.
+   */
+  dataStatus?: Dia | null;
 };
 
 export type LinhaAgendada = {
@@ -91,6 +117,10 @@ export type LinhaAgendada = {
   /** `true` quando a restrição impediu o motor de respeitar uma dependência. */
   conflitoRestricao: boolean;
   ehResumo: boolean;
+  /** Pelo realizado. No resumo, `nao_iniciada` (o resumo não tem execução própria). */
+  situacao: SituacaoExecucao;
+  /** A Data de Status empurrou o trabalho não feito desta linha para depois dela. */
+  reprogramada: boolean;
 };
 
 export type ResultadoMotor = {
@@ -218,6 +248,21 @@ function inicioMinimoPor(
   }
 }
 
+/** Restrições que PRENDEM a data — empurrar a linha para além delas é conflito, não ajuste. */
+const RESTRICAO_RIGIDA = new Set<Restricao>(["iniciar_em", "iniciar_nao_depois_de", "terminar_em", "terminar_nao_depois_de"]);
+
+/**
+ * Situação da linha pelo realizado. Percentual sem data real segue o MS Project: informar % > 0 grava
+ * o início real no início agendado, e 100% grava o término real no término agendado — aqui isso não é
+ * gravado, só lido assim. É o que evita que uma linha com 40% informado e sem data real vá inteira
+ * para depois da Data de Status, como se nada tivesse sido feito.
+ */
+function situacaoDe(l: LinhaEntrada): SituacaoExecucao {
+  if (l.fimReal || (l.progresso ?? 0) >= 100) return "concluida";
+  if (l.inicioReal || (l.progresso ?? 0) > 0) return "em_andamento";
+  return "nao_iniciada";
+}
+
 /** Aplica a restrição ao início já calculado. Devolve o início e se houve conflito. */
 function aplicarRestricao(
   inicioCalculado: Dia,
@@ -274,7 +319,11 @@ export function agendar(
   linhas: LinhaEntrada[],
   inicioProjeto: Dia,
   cal: Calendario,
+  opcoes: OpcoesAgenda = {},
 ): ResultadoMotor {
+  const dataStatus = opcoes.dataStatus ?? null;
+  // O dia útil a partir do qual o trabalho não feito pode acontecer.
+  const aposStatus = dataStatus ? diaUtilApos(dataStatus, cal) : null;
   const porId = new Map(linhas.map((l) => [l.id, l]));
   const filhos = indexarFilhos(linhas);
   const ehResumo = (id: string) => (filhos.get(id)?.length ?? 0) > 0;
@@ -291,27 +340,89 @@ export function agendar(
   const inicio = new Map<string, Dia>();
   const fim = new Map<string, Dia>();
   const conflito = new Map<string, boolean>();
+  const reprogramada = new Map<string, boolean>();
+  const situacao = new Map<string, SituacaoExecucao>();
   const ancora = proximoDiaUtil(inicioProjeto, cal);
 
   // ── Passe para frente: cada linha no mais cedo que pode ──────────────────
   for (const id of ordem) {
     const l = porId.get(id)!;
     if (ehResumo(id)) continue; // resumo deriva do filho; ver rollup abaixo
+    const sit = situacaoDe(l);
+    situacao.set(id, sit);
 
-    let ini = ancora;
+    // Concluída pelo término real: as datas são as que aconteceram.
+    if (l.fimReal) {
+      const ini = l.inicioReal && l.inicioReal <= l.fimReal ? l.inicioReal : l.fimReal;
+      inicio.set(id, ini);
+      fim.set(id, l.fimReal);
+      conflito.set(id, false);
+      reprogramada.set(id, false);
+      continue;
+    }
+
+    // Início pelo plano: dependências, âncora, restrição. É o início das não iniciadas e, na regra do
+    // Project, o "início real" de quem tem % sem data real.
+    let iniPlano = ancora;
     for (const v of ativa.get(id) ?? []) {
       if (descartada.has(`${id}→${v.predecessoraId}`)) continue;
       const pi = inicio.get(v.predecessoraId);
       const pf = fim.get(v.predecessoraId);
       if (!pi || !pf) continue; // predecessora é resumo ainda não consolidado
       const candidato = inicioMinimoPor(v, { inicio: pi, fim: pf }, l.duracaoDias, cal);
-      if (candidato > ini) ini = candidato;
+      if (candidato > iniPlano) iniPlano = candidato;
+    }
+    const r = aplicarRestricao(iniPlano, l, cal);
+
+    if (sit === "concluida") {
+      // 100% sem término real: concluída nas datas do plano (Project). Não se reprograma o que acabou.
+      const ini = l.inicioReal ?? r.inicio;
+      inicio.set(id, ini);
+      fim.set(id, fimPorDuracao(ini, l.duracaoDias, cal));
+      conflito.set(id, l.inicioReal ? false : r.conflito);
+      reprogramada.set(id, false);
+      continue;
     }
 
-    const r = aplicarRestricao(ini, l, cal);
-    inicio.set(id, r.inicio);
-    fim.set(id, fimPorDuracao(r.inicio, l.duracaoDias, cal));
-    conflito.set(id, r.conflito);
+    if (sit === "em_andamento") {
+      // A parte FEITA (duração × %) fica a partir do início; o restante vem logo depois — ou, se
+      // cairia até a Data de Status, no dia útil seguinte a ela.
+      const ini = l.inicioReal ?? r.inicio;
+      const ocupados = diasOcupados(l.duracaoDias);
+      if (ocupados === 0) {
+        // Marco "em andamento" (% parcial num marco) é dado estranho: fica no dia em que começou.
+        inicio.set(id, ini);
+        fim.set(id, ini);
+        conflito.set(id, false);
+        reprogramada.set(id, false);
+        continue;
+      }
+      const pct = Math.min(99, Math.max(0, l.progresso ?? 0));
+      const feitos = Math.min(ocupados - 1, Math.floor((ocupados * pct) / 100));
+      let inicioRestante = feitos > 0 ? somarDiasUteis(fimPorDuracao(ini, feitos, cal), 1, cal) : proximoDiaUtil(ini, cal);
+      let empurrou = false;
+      if (aposStatus && inicioRestante < aposStatus) {
+        inicioRestante = aposStatus;
+        empurrou = true;
+      }
+      inicio.set(id, ini);
+      fim.set(id, fimPorDuracao(inicioRestante, ocupados - feitos, cal));
+      conflito.set(id, l.inicioReal ? false : r.conflito);
+      reprogramada.set(id, empurrou);
+      continue;
+    }
+
+    // Não iniciada: se devia ter começado até a Data de Status, começa depois dela.
+    let ini = r.inicio;
+    let empurrou = false;
+    if (aposStatus && ini < aposStatus) {
+      ini = aposStatus;
+      empurrou = true;
+    }
+    inicio.set(id, ini);
+    fim.set(id, fimPorDuracao(ini, l.duracaoDias, cal));
+    conflito.set(id, r.conflito || (empurrou && !!l.restricaoTipo && RESTRICAO_RIGIDA.has(l.restricaoTipo)));
+    reprogramada.set(id, empurrou);
   }
 
   // ── Rollup: resumo = menor início e maior fim dos filhos (Doc 03 §8) ──────
@@ -346,7 +457,11 @@ export function agendar(
   // ── Passe de volta: até quando cada linha pode ir sem mover o projeto ─────
   const fimTardio = new Map<string, Dia>();
   const sucessoras = new Map<string, { id: string; v: Vinculo }[]>();
+  const comecou = (id: string) => (situacao.get(id) ?? "nao_iniciada") !== "nao_iniciada";
   for (const l of linhas) {
+    // Sucessora que já começou (ou acabou) não prende mais a predecessora: a realidade já passou por
+    // cima do vínculo, e mantê-lo daria à predecessora um prazo tardio no passado.
+    if (comecou(l.id)) continue;
     for (const v of ativa.get(l.id) ?? []) {
       if (descartada.has(`${l.id}→${v.predecessoraId}`)) continue;
       const s = sucessoras.get(v.predecessoraId);
@@ -419,14 +534,25 @@ export function agendar(
       }
     }
 
-    const critica = !resumo && folgaTotal === 0;
+    // Concluída não é crítica: não há mais atraso possível nela (o Project também a tira do caminho).
+    const concluida = situacao.get(l.id) === "concluida";
+    const critica = !resumo && !concluida && folgaTotal === 0;
     if (critica) criticas.add(l.id);
+
+    // Duração: a do resumo vem dos filhos; a da concluída pelo término real é a que aconteceu.
+    const duracaoDias = resumo
+      ? diasUteisEntre(ini, f, cal)
+      : l.fimReal
+        ? l.duracaoDias === 0
+          ? 0
+          : Math.max(1, diasUteisEntre(ini, f, cal))
+        : l.duracaoDias;
 
     resultado.set(l.id, {
       id: l.id,
       inicio: ini,
       fim: f,
-      duracaoDias: resumo ? diasUteisEntre(ini, f, cal) : l.duracaoDias,
+      duracaoDias,
       folgaTotal,
       folgaLivre,
       critica,
@@ -434,6 +560,8 @@ export function agendar(
       trabalhoHoras: null, // idem
       conflitoRestricao: conflito.get(l.id) ?? false,
       ehResumo: resumo,
+      situacao: resumo ? "nao_iniciada" : (situacao.get(l.id) ?? "nao_iniciada"),
+      reprogramada: reprogramada.get(l.id) ?? false,
     });
   }
 

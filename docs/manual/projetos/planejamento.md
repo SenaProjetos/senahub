@@ -64,6 +64,7 @@ Se você usa o MS Project, isto será familiar:
 | Restrições de tarefa | **Restrição de data** (6 tipos) — marcada com o **alfinete** |
 | Salvar linha de base | **Aprovar cronograma** (BL-00) e **Replanejar** (BL-01…) |
 | Data de status | **Data de Status** (botão **Apurar**) |
+| Atualizar projeto → Reprogramar trabalho não concluído para iniciar após | **Apurar** faz isso sozinho (veja abaixo) |
 | Caminho crítico e folga total | **Caminho crítico** (folga 0) e **folga** |
 | Atualizar tarefas | **Atualizar tarefa** (início e término reais) |
 | Recursos, trabalho | **Recursos** da linha: pessoa ou perfil, papel e **horas previstas** |
@@ -203,8 +204,13 @@ Na coluna **Ações**, o botão de calendário abre **Atualizar tarefa** (como n
 - **Marco:** uma data só — o dia em que aconteceu. **Reabrir** desfaz.
 - Data real **no futuro** não é aceita. Linha de agrupamento, suspensa, cancelada ou arquivada não
   recebe datas reais.
-- **As datas reais ainda não movem o cronograma.** Elas ficam registradas (e alimentam a saúde e o
-  [Valor Agregado](valor-agregado.md)), mas a previsão continua vindo de duração e dependências.
+- **As datas reais mandam na previsão.** Tarefa concluída fica nas datas em que aconteceu; tarefa
+  iniciada começa no início real, mesmo que a dependência dissesse outra coisa (a realidade já passou
+  por cima dela). Se ela **atrasou**, as tarefas que dependem dela **andam junto**; se adiantou, elas
+  podem começar antes. A **linha de base não muda** — é contra ela que o atraso aparece.
+- **Percentual sem data real** segue a regra do MS Project: informar mais de 0% conta como tarefa
+  **iniciada** no início calculado, e 100% como **concluída** nas datas calculadas. Para o registro
+  ficar certo, informe as datas reais.
 - Concluir o **marco** de uma fase pode oferecer **aprovar a fase** e liberar o pagamento dela —
   veja [Etapas e pagamento por fase](etapas-e-pagamento-por-fase.md). Se o marco tem parcela de
   contrato ligada, o financeiro é avisado de que dá para **faturar**.
@@ -213,10 +219,23 @@ Exige `cronograma:executado`.
 
 ### Data de Status e Apurar
 
-A **Data de Status** é o dia em que você declara o estado do cronograma. É ela que separa **atrasado**
-de **não apurado** — linha que ninguém atualizou há três semanas não deve aparecer como atrasada, e
-as duas situações pedem ações opostas. Escolha a data e clique em **Apurar**. Cada apuração fica
-guardada (é o histórico do [Valor Agregado](valor-agregado.md)).
+A **Data de Status** é o dia em que você declara o estado do cronograma: até ela, o andamento está
+informado. É ela que separa **atrasado** de **não apurado** — linha que ninguém atualizou há três
+semanas não deve aparecer como atrasada, e as duas situações pedem ações opostas. Escolha a data e
+clique em **Apurar**. Cada apuração fica guardada (é o histórico do [Valor Agregado](valor-agregado.md)).
+A Data de Status **não pode ser no futuro**.
+
+**Apurar reprograma o que não foi feito** — é o "Atualizar projeto → Reprogramar trabalho não
+concluído para iniciar após" do MS Project, automático:
+
+- tarefa **não iniciada** que já devia ter começado vai para o **dia útil seguinte** à Data de Status
+  (ninguém trabalha no passado);
+- tarefa **em andamento** mantém a parte feita (duração × %) onde está, e o **restante** vai para
+  depois da Data de Status;
+- as tarefas que dependem delas andam junto, e o **fim do projeto** mostra o efeito real.
+
+Tarefa com data presa por restrição (por exemplo, **Iniciar em**) que precise andar ganha o aviso de
+**conflito de restrição**. Na janela da tarefa aparece "reprogramada para depois da Data de Status".
 
 Toda **segunda-feira** o sistema avisa quem tem `cronograma:executado` dos cronogramas **aprovados**
 sem apuração há mais de 10 dias.
@@ -230,12 +249,15 @@ semanal** da nota. Abra **Achados do verificador** para ver as regras que dispar
 
 | Tipo | O que acusa |
 | --- | --- |
-| **Erro** (bloqueia a aprovação) | dependência circular · marco com duração · atividade sem duração · concluída sem término real · **crítica atrasada** (no caminho crítico, já passou do fim previsto) · futura com avanço (ainda não começou e já tem %) |
+| **Erro** (bloqueia a aprovação) | dependência circular · marco com duração · atividade sem duração · concluída sem término real · **crítica atrasada** (no caminho crítico, já passou do término combinado) · futura com avanço (ainda não começou e já tem %) |
 | **Alerta** | sem Data de Status · excesso de restrições · iniciada sem início real · bloqueada · sem responsável · duração excessiva (mais de 20 dias) · atrasada |
 | **Informativo** | sem predecessora · sem sucessora · sem horas previstas · agrupamento com gente atribuída |
 
 As regras de **atraso** (atrasada, crítica atrasada, futura com avanço) só rodam depois que a
-**Data de Status** é definida. "Sem horas previstas" e "agrupamento com gente atribuída" não pesam
+**Data de Status** é definida. **Atrasada** compara com o **término da linha de base** (o combinado);
+sem linha de base (rascunho), com o plano antes da reprogramação — a previsão reprogramada nunca
+termina antes da Data de Status, então ela não serve de régua. O filtro **Atrasadas** da tela usa a
+mesma régua. "Sem horas previstas" e "agrupamento com gente atribuída" não pesam
 na nota.
 
 ### Replanejar
@@ -300,6 +322,8 @@ confira lá o que vale no seu escritório.
 - **A linha de base nunca é sobrescrita.** Cada versão guarda autor, data e motivo.
 - **O % de cada atividade é informado** pela coordenação; o sistema só sugere.
 - **Bloqueio não pausa o prazo.** Férias **não movem** datas.
+- **O realizado move a previsão, nunca o combinado.** Datas reais e a Data de Status empurram as
+  tarefas; a linha de base fica como foi aprovada.
 - **Só coordenação e administração montam e editam.** Quem executa consome os cards.
 
 ## Funcionalidades relacionadas
@@ -330,6 +354,10 @@ anterior fica guardada.
 
 **O que é a Data de Status?** O dia em que você declara o estado do cronograma. Sem ela, o sistema
 não separa "atrasado" de "ainda não apurado".
+
+**Apurei e as tarefas foram para depois da Data de Status. É erro?** Não: é o trabalho que ainda não
+foi feito indo para o futuro, como o "Reprogramar trabalho não concluído" do MS Project. Informe as
+datas reais e o percentual das tarefas em andamento — o que já foi feito fica onde está.
 
 **Onde edito os feriados que o cronograma usa?** Em [Configurações](../sistema/configuracoes.md) →
 **Feriados**. O calendário é um só, o da empresa.

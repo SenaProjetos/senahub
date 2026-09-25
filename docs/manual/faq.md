@@ -78,6 +78,11 @@ Não se digita: como no MS Project, você informa a **duração em dias úteis**
 o sistema calcula as datas — pulando fins de semana e feriados — a cada vez que você salva. Para
 prender uma tarefa numa data, use **Restrição de data**. Veja [Planejamento](projetos/planejamento.md).
 
+**Apurei a Data de Status e as tarefas foram para depois dela.**
+É o trabalho que ainda não foi feito indo para o futuro, como o "Reprogramar trabalho não concluído"
+do MS Project. Informe as datas reais e o percentual das tarefas em andamento: o que já foi feito fica
+onde está. A linha de base não muda.
+
 **O que muda depois que aprovo o cronograma?**
 A aprovação congela a **linha de base** (BL-00) — o combinado —, e ela nunca é alterada. Ajustes de plano
 entram como **Replanejar** (BL-01, BL-02…), sempre com motivo, e o sistema mostra o desvio contra o

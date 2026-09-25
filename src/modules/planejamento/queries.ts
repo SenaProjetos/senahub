@@ -172,6 +172,8 @@ function mapearTarefaDTO(
     folgaTotal: agendada?.folgaTotal ?? 0,
     folgaLivre: agendada?.folgaLivre ?? 0,
     conflitoRestricao: agendada?.conflitoRestricao ?? false,
+    /** L1: a Data de Status empurrou o trabalho não feito desta linha para depois dela. */
+    reprogramada: agendada?.reprogramada ?? false,
     // ── F5: recursos na linha ──
     /** Linha com filhos — não recebe gente (as horas estão nos filhos). */
     ehResumo: agendada?.ehResumo ?? false,

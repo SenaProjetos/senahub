@@ -147,7 +147,7 @@ export function ExecucaoDialog({
           {linha && (
             <p className="text-[11px] text-muted-foreground">
               Previsto: {formatarData(linha.inicioPrevisto)}
-              {marco ? "" : ` – ${formatarData(linha.fimPrevisto)}`}. As datas reais não reagendam o cronograma.
+              {marco ? "" : ` – ${formatarData(linha.fimPrevisto)}`}. Salvar as datas reais recalcula o cronograma: o atraso empurra as tarefas que dependem desta.
             </p>
           )}
         </DialogBody>

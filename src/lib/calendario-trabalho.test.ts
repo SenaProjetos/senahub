@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   criarCalendario,
   diaUtilAnterior,
+  diaUtilApos,
   diasOcupados,
   diasUteisEntre,
   ehDiaUtil,
@@ -205,5 +206,20 @@ describe("guardas", () => {
     // Só domingos úteis, e todos os domingos de um intervalo longo como feriado seria
     // impraticável de montar; o caso realista é o intervalo grande demais.
     expect(() => diasUteisEntre("1990-01-01", "2090-01-01", cal)).toThrow(/grande demais/i);
+  });
+});
+
+describe("diaUtilApos", () => {
+  const cal = criarCalendario({ feriados: ["2026-10-12"] });
+  it("dia útil comum: o dia útil seguinte, nunca o próprio", () => {
+    expect(diaUtilApos("2026-09-15", cal)).toBe("2026-09-16");
+  });
+  it("sexta e sábado caem na segunda — não na terça, como somarDiasUteis(sábado, 1)", () => {
+    expect(diaUtilApos("2026-09-18", cal)).toBe("2026-09-21");
+    expect(diaUtilApos("2026-09-19", cal)).toBe("2026-09-21");
+  });
+  it("véspera de feriado pula o feriado", () => {
+    expect(diaUtilApos("2026-10-09", cal)).toBe("2026-10-13");
+    expect(diaUtilApos("2026-10-12", cal)).toBe("2026-10-13");
   });
 });

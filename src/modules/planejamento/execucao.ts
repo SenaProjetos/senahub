@@ -7,8 +7,8 @@
  *  - o marco concluído, que oferece aprovar a fase ligada a ele (D31, liberação do pagamento);
  *  - o Valor Agregado (F8), que precisa do realizado.
  *
- * O motor NÃO lê as datas reais (a D6 — "atraso real empurra as sucessoras" — ainda não existe):
- * registrar a execução não reagenda nada.
+ * Desde o L1 o motor LÊ as datas reais (D6 — "atraso real empurra as sucessoras"): registrar a
+ * execução reagenda o projeto (`registrarExecucao` → `aposMudarEap`).
  *
  * Datas em `YYYY-MM-DD` (dia-calendário, comparável como texto).
  */

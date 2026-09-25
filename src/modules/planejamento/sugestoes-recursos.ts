@@ -31,6 +31,8 @@ export type ContextoProjeto = {
   /** Exatamente o que o motor consome para este projeto. */
   linhasMotor: readonly LinhaEntrada[];
   inicioProjeto: Dia;
+  /** A Data de Status com que o plano atual rodou — a simulação usa a mesma (L1). */
+  dataStatus: Dia | null;
   fimProjeto: Dia | null;
   /** Resultado atual do motor. */
   agendado: ReadonlyMap<string, LinhaAgendada>;
@@ -159,7 +161,7 @@ export function sugerirAtraso(alvo: Sobrecarga, e: EntradaSugestoes): SugestaoAt
     const linhasMotor = ctx.linhasMotor.map((l) =>
       l.id === linha.id ? { ...l, restricaoTipo: "iniciar_nao_antes_de" as const, restricaoData: novoInicio } : l,
     );
-    const novo = agendar([...linhasMotor], ctx.inicioProjeto, e.cal);
+    const novo = agendar([...linhasMotor], ctx.inicioProjeto, e.cal, { dataStatus: ctx.dataStatus });
     if (novo.fimProjeto !== ctx.fimProjeto) continue;
 
     const novasLinhas = ctx.linhasCarga.map((l) => {

@@ -113,6 +113,18 @@ describe("Data de Status separa atrasado de não apurado", () => {
     expect(regras([boa({ inicioPrevisto: "2026-09-07", fimPrevisto: "2026-09-10" })])).toContain("atrasada");
   });
 
+  it("L1: a previsão reprogramada para depois da Data de Status ainda é atrasada contra o combinado", () => {
+    // O motor pôs o restante depois da Data de Status (fimPrevisto 25/09), mas a linha de base dizia 10/09.
+    const r = rodar([boa({ inicioPrevisto: "2026-09-07", fimPrevisto: "2026-09-25", fimReferencia: "2026-09-10", progresso: 40 })]);
+    const achado = r.find((x) => x.regra === "atrasada");
+    expect(achado?.mensagem).toContain("2026-09-10");
+  });
+
+  it("L1: combinado depois da Data de Status não é atraso, mesmo com a previsão antes", () => {
+    const r = regras([boa({ inicioPrevisto: "2026-09-07", fimPrevisto: "2026-09-10", fimReferencia: "2026-09-30" })]);
+    expect(r).not.toContain("atrasada");
+  });
+
   it("linha crítica atrasada é ERRO, não alerta — arrasta o projeto", () => {
     const a = rodar([boa({ inicioPrevisto: "2026-09-07", fimPrevisto: "2026-09-10", critica: true })]);
     const achado = a.find((x) => x.regra === "critica_atrasada");

@@ -85,6 +85,11 @@ export type PlanoDoProjeto = {
   inicioProjeto: Dia;
   /** `true` quando o projeto não tem `CronogramaProjeto` ainda. */
   semCronograma: boolean;
+  /**
+   * Data de Status com que o motor rodou (L1). Quem simula um "e se" sobre `entrada` passa a MESMA —
+   * comparar um plano reprogramado com um que não foi daria diferença que ninguém causou.
+   */
+  dataStatus: Dia | null;
 };
 
 /**
@@ -104,6 +109,8 @@ export async function planoDoProjeto(projetoId: string): Promise<PlanoDoProjeto 
         duracaoDias: true,
         progresso: true,
         inicioPrevisto: true,
+        inicioReal: true,
+        fimReal: true,
         restricaoTipo: true,
         restricaoData: true,
         origem: { select: { sigla: true } },
@@ -113,7 +120,7 @@ export async function planoDoProjeto(projetoId: string): Promise<PlanoDoProjeto 
     }),
     prisma.cronogramaProjeto.findUnique({
       where: { projetoId },
-      select: { inicioProjeto: true },
+      select: { inicioProjeto: true, dataStatus: true },
     }),
   ]);
   if (tarefas.length === 0) return null;
@@ -137,6 +144,10 @@ export async function planoDoProjeto(projetoId: string): Promise<PlanoDoProjeto 
     ),
     restricaoTipo: t.restricaoTipo,
     restricaoData: t.restricaoData ? paraDia(t.restricaoData) : null,
+    // L1 (D6): o realizado entra no motor — concluída fica nas datas reais, iniciada começa no início
+    // real, e o atraso real empurra as sucessoras.
+    inicioReal: t.inicioReal ? paraDia(t.inicioReal) : null,
+    fimReal: t.fimReal ? paraDia(t.fimReal) : null,
     predecessoras: t.predecessoras.map((p) => ({
       predecessoraId: p.predecessoraId,
       tipo: p.tipo,
@@ -150,16 +161,24 @@ export async function planoDoProjeto(projetoId: string): Promise<PlanoDoProjeto 
     .map((t) => paraDia(t.inicioPrevisto))
     .reduce((a, b) => (a < b ? a : b));
   const inicioProjeto = cronograma?.inicioProjeto ? paraDia(cronograma.inicioProjeto) : menorInicio;
+  const dataStatus = cronograma?.dataStatus ? paraDia(cronograma.dataStatus) : null;
 
-  const datas = [inicioProjeto, ...linhas.map((l) => l.restricaoData).filter((d): d is Dia => !!d)];
+  const datas = [
+    inicioProjeto,
+    ...(dataStatus ? [dataStatus] : []),
+    ...linhas.flatMap((l) => [l.restricaoData, l.inicioReal, l.fimReal]).filter((d): d is Dia => !!d),
+  ];
   const calendario = await montarCalendario(anosDe(datas));
 
   return {
-    resultado: agendar(linhas, inicioProjeto, calendario),
+    // Com Data de Status, o trabalho não feito vai para depois dela ("Reprogramar trabalho não concluído
+    // para iniciar após", do MS Project) — ver `motor.ts`.
+    resultado: agendar(linhas, inicioProjeto, calendario, { dataStatus }),
     entrada: linhas,
     calendario,
     inicioProjeto,
     semCronograma: cronograma == null,
+    dataStatus,
   };
 }
 

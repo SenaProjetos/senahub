@@ -74,7 +74,8 @@
         "parcelas a faturar",
         "fases a aprovar",
         "heatmap de recursos",
-        "duração em dias úteis"
+        "duração em dias úteis",
+        "reprogramar trabalho não concluído"
       ],
       "palavrasChave": [
         "novidades",

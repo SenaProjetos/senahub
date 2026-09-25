@@ -124,7 +124,9 @@ export function EapWorkspace({
     let base = tarefas;
     if (filtro === "atrasadas") {
       const hj = hoje();
-      base = base.filter((t) => t.fimPrevisto < hj && t.progresso < 100 && t.status !== "con");
+      // Contra o combinado (a linha de base), como o verificador: com a Data de Status, a previsão de
+      // uma linha inacabada anda para depois dela e deixaria de parecer atrasada.
+      base = base.filter((t) => (t.fimBaseline ?? t.fimPrevisto) < hj && t.progresso < 100 && t.status !== "con");
     } else if (filtro === "criticas") {
       base = base.filter((t) => t.critica);
     } else if (filtro === "bloqueadas") {
@@ -140,7 +142,7 @@ export function EapWorkspace({
   }, [tarefas, filtro, lookahead]);
 
   const totalAtrasadas = tarefas.filter(
-    (t) => t.fimPrevisto < hoje() && t.progresso < 100 && t.status !== "con",
+    (t) => (t.fimBaseline ?? t.fimPrevisto) < hoje() && t.progresso < 100 && t.status !== "con",
   ).length;
   const totalCriticas = tarefas.filter((t) => t.critica).length;
   const totalBloqueadas = tarefas.filter((t) => t.status === "blq").length;

@@ -27,7 +27,7 @@ const ENCERRADOS = new Set(["con", "can", "arq"]);
  * mostrar (D7) — o cálculo mora no motor, não na tela. */
 function temAtraso(p: ProjetoCron) {
   return p.tarefas.some(
-    (t) => t.fimPrevisto < hoje && (t.progresso ?? 0) < 100 && !ENCERRADOS.has(t.status),
+    (t) => (t.fimBaseline ?? t.fimPrevisto) < hoje && (t.progresso ?? 0) < 100 && !ENCERRADOS.has(t.status),
   );
 }
 

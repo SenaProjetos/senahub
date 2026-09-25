@@ -22,6 +22,23 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Datas reais e Data de Status passam a mover o cronograma
+
+Como no MS Project, o **realizado** agora mexe na **previsão** — a linha de base continua sendo o
+combinado, e é contra ela que o atraso aparece.
+
+- **Datas reais:** tarefa concluída fica nas datas em que aconteceu; tarefa iniciada começa no início
+  real. Se atrasou, as tarefas que dependem dela **andam junto**.
+- **Apurar reprograma:** ao definir a **Data de Status**, o trabalho ainda não feito vai para o dia
+  útil seguinte a ela — o "Reprogramar trabalho não concluído para iniciar após" do Project, sem
+  precisar pedir. A parte feita de uma tarefa em andamento fica onde está; só o restante anda.
+- **Percentual sem data real** segue o Project: mais de 0% conta como iniciada; 100%, como concluída.
+- **Atrasada** passou a comparar com o **término da linha de base**, no verificador e no filtro
+  Atrasadas.
+- A Data de Status não pode mais ser no futuro.
+
+---
+
 ## Tarefa do cronograma se cria pela duração, como no MS Project
 
 No editor da tarefa (Planejamento → cronograma do projeto), **início e fim** deram lugar à **duração
@@ -203,8 +220,6 @@ Na EAP do projeto, o botão de calendário com ✓ na coluna **Ações** abre o 
   percentual volta a ser o que a coordenação informar.
 - **Marco:** uma data só — o dia em que aconteceu. **Reabrir** desfaz a conclusão.
 - Data real no futuro não é aceita: real é o que já aconteceu.
-- Por enquanto as datas reais **não reagendam** o cronograma. A previsão continua vindo das
-  durações e dependências.
 - Desbloquear uma linha agora a devolve à situação certa: "em andamento" se ela já começou, "não
   iniciada" se não.
 

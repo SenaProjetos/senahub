@@ -111,6 +111,17 @@ export function diaUtilAnterior(dia: Dia, cal: Calendario): Dia {
 }
 
 /**
+ * O primeiro dia útil DEPOIS de `dia` — nunca o próprio. É o "após a Data de Status" do MS Project:
+ * status na sexta → segunda; no sábado → segunda; véspera de feriado → o útil depois dele.
+ *
+ * Não é `somarDiasUteis(dia, 1)`: aquela normaliza o ponto de partida ANTES de andar, e a partir de um
+ * sábado cairia na terça.
+ */
+export function diaUtilApos(dia: Dia, cal: Calendario): Dia {
+  return paraDia(buscar(paraNumero(dia) + 1, 1, cal));
+}
+
+/**
  * Anda `n` DIAS ÚTEIS a partir de `dia`. `n` pode ser negativo (anda para trás) e 0
  * apenas normaliza para o dia útil mais próximo na direção pedida.
  *

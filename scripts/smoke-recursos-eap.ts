@@ -243,6 +243,28 @@ async function main() {
       comHist.ok && comHist.historico.length === 1 && comHist.historico[0].idcHoras === 2 && comHist.historico[0].idcCusto === null,
       comHist.ok ? comHist.historico : comHist,
     );
+
+    // L1: a Data de Status REPROGRAMA — trabalho não feito até ela vai para o dia útil seguinte. Com a
+    // data em 29/01/2027 (fim do teste de Valor Agregado), o que não começou foi para depois dela.
+    const planoL1 = await planoDoProjeto(projeto.id);
+    const aL1 = planoL1?.resultado.linhas.get(A.id);
+    const bL1 = planoL1?.resultado.linhas.get(B.id);
+    check(
+      "L1: a 50% e sem data real, A conta como iniciada no início calculado; só o restante vai para depois (01/02)",
+      aL1?.situacao === "em_andamento" && aL1.inicio === "2026-10-05" && aL1.fim > "2027-01-29" && aL1.reprogramada === true,
+      aL1 && { inicio: aL1.inicio, fim: aL1.fim, situacao: aL1.situacao },
+    );
+    check(
+      "L1: B, que não começou e depende de A, anda junto — começa depois que A termina",
+      !!aL1 && bL1?.situacao === "nao_iniciada" && bL1.inicio > aL1.fim,
+      bL1 && { inicio: bL1.inicio, fimA: aL1?.fim },
+    );
+    const qL1 = await avaliarQualidade(projeto.id);
+    check(
+      "L1: 'atrasada' é contra a linha de base — a previsão reprogramada não esconde o atraso",
+      !!qL1?.achados.some((x) => x.tarefaId === B.id && (x.regra === "atrasada" || x.regra === "critica_atrasada")),
+      qL1?.achados.filter((x) => x.tarefaId === B.id).map((x) => x.regra),
+    );
     // Alguém sem custo/hora aponta: o CR em R$ fica desconhecido (nunca zero) — horas seguem.
     const intruso = await prisma.user.create({
       data: { name: `${tag}-C`, email: `${tag}-c@teste.local`, role: "clt", emailVerified: false },
@@ -265,6 +287,8 @@ async function main() {
     await prisma.sessaoTrabalho.deleteMany({ where: { userId: intruso.id } });
     await prisma.user.delete({ where: { id: intruso.id } });
     await prisma.eapTarefa.update({ where: { id: A.id }, data: { progresso: 0 } });
+    // As seções seguintes (cards, carga) medem o PLANO de outubro: sem Data de Status, nada é reprogramado.
+    await prisma.cronogramaProjeto.update({ where: { projetoId: projeto.id }, data: { dataStatus: null } });
     const blB = await prisma.eapBaselineLinha.findFirstOrThrow({ where: { tarefaId: B.id }, select: { fim: true } });
     const cardB = await card(B.id);
     const gravadoB = await prisma.eapTarefa.findUniqueOrThrow({ where: { id: B.id }, select: { fimPrevisto: true } });

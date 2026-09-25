@@ -49,6 +49,18 @@ Notas:
 Tudo abaixo foi implementado com uma escolha padrão. Os itens marcados **DECIDIR** são os que o time
 deve confirmar ou trocar — nenhum trava o uso.
 
+**Respostas do time:** página compartilhável com os 19 itens e um campo de resposta por pessoa —
+https://claude.ai/artifact/KB33zeaVCGFkAwYtQcHobG (privada: o dono compartilha com acesso de
+**Colaborador**). As respostas ficam no banco da página: coleção `respostas` (um documento por pessoa,
+`itens.<id-da-decisão>` = `{escolha, comentario, em}`) e `final/decisoes` (decisão final, só quem edita).
+
+### Cronograma — realizado (L1, 2026-09-25)
+- **DECIDIR — % sem data real** segue o MS Project: > 0% conta como iniciada no início calculado; 100% como
+  concluída nas datas calculadas. Alternativa: exigir a data real (sem início real = não iniciada).
+- **DECIDIR — Apurar já reprograma** o trabalho não feito para depois da Data de Status (no Project é um
+  comando à parte). Alternativa: botão separado "Reprogramar".
+- Data de Status no futuro é recusada (empurraria o trabalho para depois de um dia que não chegou).
+
 ### Cronograma e equipe (F5–F6)
 - **DECIDIR — "etapa de terceiro"** (aprovação do cliente, análise da prefeitura…) não gera card nem
   cobra hora. O sistema reconhece pela **origem** da linha: CLI, ARQ, EXT, FIS, APR, CON, OBR. A D24
@@ -113,8 +125,19 @@ Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
 
 ## 3. Limitações conhecidas
 
-- **As datas reais ainda não movem o cronograma (D6 pendente).** Registrar início/término real não
-  empurra as sucessoras; a previsão continua vindo das durações e dependências.
+- ~~As datas reais ainda não movem o cronograma (D6 pendente).~~ **Resolvido (L1):** o motor lê as
+  datas reais (concluída nas reais, iniciada no início real, sem seguir o vínculo) e, com Data de Status,
+  reprograma o trabalho não feito para o dia útil seguinte a ela (em andamento: a parte feita fica, o
+  restante anda). "Atrasada" (verificador e filtros da tela) passou a medir contra o término da linha de
+  base (sem ela, o plano sem reprogramar). Data de Status futura é recusada. Testes em
+  `motor-execucao.test.ts`; smokes `recursos-eap` (3) e `previsao-recebimento` (1).
+- **Novas limitações do L1 (registradas, não bloqueiam):**
+  - a carga planejada espalha as horas de uma tarefa em andamento desde o início real — parte delas cai
+    no passado e some da carga (o certo seria só as horas restantes, depois da Data de Status);
+  - o card antigo de EVM do projeto (`projetos/evm`, aba Financeiro) lê as datas gravadas em dias
+    corridos: o VP dele muda quando a previsão é reprogramada;
+  - o ritmo observado (D21) ainda não corrige a previsão de término — só a Data de Status e as datas
+    reais movem.
 - ~~**Faturar parcela** só pelo diálogo Pagamento do Jurídico; quem é só do financeiro não chegava lá.~~
   **Resolvido (L2):** cartão "Parcelas a faturar" na aba A receber de Contas (`financeiro:gerir`), com o
   marco concluído no topo e o mesmo Faturar; a notificação leva para lá. O diálogo do Jurídico segue valendo.
@@ -253,7 +276,14 @@ Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
 - [ ] Atividade criada depois da baseline → aviso (o avanço dela não entra no VA, as horas entram no
       CR — replaneje).
 
-### Correções do §7 (B1, B3, L2, L3, L6, L9)
+### Correções do §7 (B1, B2, B3, L1, L2, L3, L6, L9)
+- [ ] B2: nova tarefa pede **Duração (dias úteis)** e, opcional, "Não iniciar antes de"; ao salvar, as datas
+      aparecem calculadas (feriado incluído); editar a duração recalcula na hora, sem clicar em Reagendar;
+      linha de disciplina/agrupamento não mostra "Marco"; agrupamento mostra o texto de duração derivada.
+- [ ] L1: registrar o término real atrasado de uma tarefa empurra a sucessora na hora; Apurar com a Data
+      de Status depois do início de uma tarefa não iniciada a leva para o dia útil seguinte (a janela diz
+      "reprogramada…"); em andamento com % mantém a parte feita; Data de Status futura é recusada; o
+      filtro Atrasadas usa a linha de base.
 - [ ] Recursos → Heatmap: pessoa carregada só por projeto aprovado aparece ocupada nas próximas 12 semanas
       (a célula do mês mostra "digitada X% + cronograma Y%" no mouse); meses além da janela só com a digitada.
 - [ ] Aprovações: seção "Fases a aprovar" só aparece com fase entregue pendente; Aprovar pede confirmação e
@@ -295,7 +325,7 @@ suíte 4293 testes · lint · tsc · build — todos verdes.
 ### Limitações
 | # | Limitação | Solução proposta | Modelo · risco |
 |---|---|---|---|
-| L1 | Datas reais não movem o cronograma (D6) | Motor lê datas reais: concluída fica nas datas reais; iniciada começa no início real e o restante (duração × (1 − %)) vai para depois da Data de Status — o "Reprogramar trabalho não concluído" do Project; sucessoras empurradas; baseline intocada. Destrava o ritmo observado (D21) e a previsão de término de prazo no Valor Agregado. Fazer JUNTO com B2 | Opus xhigh · alto: bateria de testes + verify |
+| L1 ✅ | Datas reais não movem o cronograma (D6) | Motor lê datas reais: concluída fica nas datas reais; iniciada começa no início real e o restante (duração × (1 − %)) vai para depois da Data de Status — o "Reprogramar trabalho não concluído" do Project; sucessoras empurradas; baseline intocada. Destrava o ritmo observado (D21) e a previsão de término de prazo no Valor Agregado. Fazer JUNTO com B2 | Opus xhigh · alto: bateria de testes + verify |
 | L2 ✅ | Faturar só pelo Jurídico | Lista "Parcelas a faturar" em Contas a receber (`financeiro:gerir`): cliente, contrato, parcela, valor, data do marco, marco concluído?, botão Faturar (mesma action); a notificação aponta para lá | Sonnet · baixo |
 | L3 ✅ | "Aprovar fase" só no diálogo Etapas | Seção "Fases a aprovar" em /aprovacoes e botão no card da disciplina para `aprovacoes:disciplina` | Sonnet · baixo |
 | L4 ✅ | "Atualizar tarefa" × editor da EAP com permissões diferentes | Migration dando `cronograma:executado` a quem tem `planejamento:gerir` (mesmo molde da F2.6) — ou ajuste manual em Perfis | Sonnet · mínimo |

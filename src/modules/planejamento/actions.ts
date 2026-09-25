@@ -486,6 +486,10 @@ export const definirInicioProjeto = defineAction(
  * Data de corte da análise (Doc 03 §21). É o que separa "atrasado" de "não apurado" —
  * sem ela, linha que ninguém atualizou há três semanas aparece como atrasada, e as duas
  * coisas pedem ações opostas.
+ *
+ * L1: ela também REPROGRAMA — o trabalho não feito vai para o dia útil seguinte a ela (o "Reprogramar
+ * trabalho não concluído para iniciar após" do MS Project). Por isso reagenda, e por isso não aceita
+ * data futura: empurraria o trabalho para depois de um dia que ainda não chegou.
  */
 export const definirDataStatus = defineAction(
   {
@@ -494,15 +498,23 @@ export const definirDataStatus = defineAction(
     permissao: "executado",
     acao: "definir-data-status",
     entidade: "CronogramaProjeto",
-    schema: z.object({ projetoId: z.string().min(1), dataStatus: dia }),
+    schema: z.object({
+      projetoId: z.string().min(1),
+      dataStatus: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Informe a data."),
+    }),
   },
-  async (i) => {
+  async (i, { user }) => {
+    if (i.dataStatus > paraDia(inicioDoDiaUtc())) {
+      throw new ActionError("A Data de Status não pode ser no futuro — é até quando o andamento está informado.");
+    }
     const data = new Date(`${i.dataStatus}T00:00:00.000Z`);
     await prisma.cronogramaProjeto.upsert({
       where: { projetoId: i.projetoId },
       create: { projetoId: i.projetoId, dataStatus: data },
       update: { dataStatus: data },
     });
+    // O trabalho não feito anda para depois da nova data; cards e previsões de recebimento acompanham.
+    await aposMudarEap(i.projetoId, user.id);
     // A foto do dia reflete a apuração que acabou de entrar.
     await gravarSaude(i.projetoId, i.dataStatus);
     // F8: e o Valor Agregado desta apuração — o % não guarda passado; sem a foto, a curva se perde.
@@ -871,7 +883,8 @@ export const removerAlocacao = defineAction(
  * tela oferece aprovar — pela MESMA `aprovarEtapaDisciplina` do diálogo de Etapas, com a permissão
  * e a confirmação dela. Um caminho só de liberação: o marco não paga nada sozinho.
  *
- * O motor não lê datas reais (a D6 ainda não existe): nada é reagendado aqui.
+ * L1 (D6): as datas reais entram no motor — o projeto é reagendado e o atraso real empurra as
+ * sucessoras; cards e previsões de recebimento acompanham.
  */
 export const registrarExecucao = defineAction(
   {

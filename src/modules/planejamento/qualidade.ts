@@ -58,6 +58,13 @@ export type LinhaQualidade = {
   progresso: number;
   inicioPrevisto: Dia;
   fimPrevisto: Dia;
+  /**
+   * Até quando a linha DEVIA terminar — a régua do "atrasada" (L1). É o término da linha de base
+   * (o combinado); sem ela, o do plano sem reprogramar pela Data de Status. Não pode ser a previsão:
+   * com a Data de Status o motor põe todo trabalho não feito depois dela, e a previsão de uma linha
+   * inacabada nunca termina antes — "atrasada" nunca dispararia. Ausente = a própria previsão.
+   */
+  fimReferencia?: Dia;
   inicioReal: Dia | null;
   fimReal: Dia | null;
   /** Tem PESSOA atribuída (perfil não conta: é vaga, não responsável — Doc 02 §30). */
@@ -235,15 +242,16 @@ export function verificarCronograma(entrada: EntradaQualidade): Achado[] {
     // ── Regras que dependem da Data de Status ─────────────────────────────
     if (!dataStatus) continue;
 
-    // ATRASADA (Doc 03 §26): já passou do término planejado e não está concluída.
+    // ATRASADA (Doc 03 §26): já passou do término combinado e não está concluída.
     const encerrada = l.status === "con" || l.status === "can" || l.status === "arq";
-    if (!encerrada && l.fimPrevisto < dataStatus && l.progresso < 100) {
+    const devia = l.fimReferencia ?? l.fimPrevisto;
+    if (!encerrada && devia < dataStatus && l.progresso < 100) {
       const regra = l.critica ? "critica_atrasada" : "atrasada";
       add(
         regra,
         l.critica ? "erro" : "alerta",
         l.id,
-        `"${l.nome}" deveria ter terminado em ${l.fimPrevisto} e está com ${l.progresso}%` +
+        `"${l.nome}" deveria ter terminado em ${devia} e está com ${l.progresso}%` +
           (l.critica ? " — e está no caminho crítico, então o atraso é do projeto inteiro." : "."),
       );
     }
