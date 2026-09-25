@@ -16,9 +16,17 @@ import { comRetentativaDeConflito, registrarEventoAssinatura } from "@/modules/j
 import { gerarVersaoDeModelo as gerarVersaoDeModeloContrato } from "@/modules/juridico/contrato/gerar";
 import { decidirPrazoDoProjeto, devePassarParaAssinado, ehDocumentoContratual } from "@/modules/juridico/contrato/estado";
 import { gerarRecebiveisDoContrato } from "@/modules/juridico/contrato/recebiveis";
+import { faturarParcela, sincronizarPrevisoesDoProjeto } from "@/modules/juridico/contrato/previsao-service";
 import { registrarAlteracaoContratual, type MotivoContratual } from "@/modules/rh/contratual/service";
 
 const base = { modulo: "juridico", recurso: "juridico", permissao: "gerir" } as const;
+
+/** Previsão/cobrança de contrato mexe no financeiro — as telas dele precisam refazer a leitura. */
+function revalidarFinanceiro() {
+  revalidatePath("/financeiro");
+  revalidatePath("/financeiro/lancamentos");
+  revalidatePath("/financeiro/contas-a-receber");
+}
 const rev = () => revalidatePath("/juridico");
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 
@@ -340,10 +348,16 @@ export const definirCondicaoPagamento = defineAction(
       primeiroVencimento: opt(z.string()),
     }),
   },
-  async (i) => {
+  async (i, ctx) => {
     const doc = await prisma.documentoJuridico.findUnique({
       where: { id: i.id },
-      select: { vinculoId: true, statusContrato: true, _count: { select: { lancamentos: true } } },
+      select: {
+        vinculoId: true,
+        statusContrato: true,
+        projetoId: true,
+        // Previsão do cronograma (F7.2) não é parcela gerada — some sozinha ao voltar para "por data".
+        _count: { select: { lancamentos: { where: { status: { not: "previsao" } } } } },
+      },
     });
     if (!doc) throw new ActionError("Documento não encontrado.");
     if (doc.vinculoId) {
@@ -358,12 +372,133 @@ export const definirCondicaoPagamento = defineAction(
     await prisma.documentoJuridico.update({
       where: { id: i.id },
       data: {
+        // D15: um jeito só — definir parcelas por data tira o contrato do "por entrega".
+        formaCobranca: "por_data",
         parcelas: i.parcelas,
         primeiroVencimento: i.primeiroVencimento ? new Date(i.primeiroVencimento) : null,
       },
     });
+    if (doc.projetoId) await sincronizarPrevisoesDoProjeto(doc.projetoId, ctx.user.id);
     rev();
+    revalidarFinanceiro();
     return { id: i.id };
+  },
+);
+
+const parcelaEntregaSchema = z.object({
+  /** Ausente = parcela nova. */
+  id: z.string().min(1).optional(),
+  descricao: z.string().trim().min(1, "Descreva cada parcela (ex.: Entrega do projeto básico)."),
+  percentual: z.number().finite().gt(0, "Percentual deve ser maior que 0%.").max(100, "Percentual até 100%."),
+  /** Marco da EAP. Nulo = cobrada na assinatura. */
+  marcoId: z.string().min(1).nullable(),
+});
+
+/**
+ * F7.3 (D15) — contrato de cliente cobrado POR ENTREGA: cada parcela é um percentual ligado a um
+ * marco da EAP (ou "na assinatura", sem marco). Salva o plano inteiro de uma vez, como o editor
+ * da proposta composta — a soma pode ficar em rascunho; quem recusa soma ≠ 100 é a previsão.
+ *
+ * Um jeito só (D15): passar para "por entrega" limpa as parcelas por data. E o plano trava quando
+ * alguma parcela já foi faturada — mudar percentual depois disso mudaria o que já foi cobrado.
+ */
+export const salvarCobrancaPorEntrega = defineAction(
+  {
+    ...base,
+    acao: "salvar-cobranca-por-entrega",
+    entidade: "DocumentoJuridico",
+    schema: z.object({ id: z.string().min(1), parcelas: z.array(parcelaEntregaSchema).max(60) }),
+    capturarAntes: (i) =>
+      prisma.documentoJuridico.findUnique({
+        where: { id: i.id },
+        select: {
+          formaCobranca: true,
+          parcelas: true,
+          primeiroVencimento: true,
+          parcelasEntrega: { select: { id: true, descricao: true, percentual: true, marcoId: true, ordem: true } },
+        },
+      }),
+  },
+  async (i, ctx) => {
+    const doc = await prisma.documentoJuridico.findUnique({
+      where: { id: i.id },
+      select: {
+        vinculoId: true,
+        clienteId: true,
+        projetoId: true,
+        parcelasEntrega: { select: { id: true, lancamento: { select: { id: true, status: true } } } },
+        _count: { select: { lancamentos: { where: { status: { notIn: ["previsao", "cancelado"] } } } } },
+      },
+    });
+    if (!doc) throw new ActionError("Documento não encontrado.");
+    if (doc.vinculoId || !doc.clienteId) {
+      throw new ActionError("Só contrato de cliente é cobrado por entrega.");
+    }
+    if (doc._count.lancamentos > 0) {
+      throw new ActionError("Este contrato já tem parcela faturada — ajuste os lançamentos no financeiro.");
+    }
+    const existentes = new Map(doc.parcelasEntrega.map((p) => [p.id, p]));
+    for (const p of i.parcelas) {
+      if (p.id && !existentes.has(p.id)) throw new ActionError("Parcela não pertence a este contrato.");
+    }
+    const marcos = [...new Set(i.parcelas.map((p) => p.marcoId).filter((m): m is string => m != null))];
+    if (marcos.length > 0) {
+      if (!doc.projetoId) throw new ActionError("Ligue o contrato a um projeto antes de escolher marcos da EAP.");
+      const validos = await prisma.eapTarefa.count({
+        where: { id: { in: marcos }, projetoId: doc.projetoId, tipoEap: "mrc" },
+      });
+      if (validos !== marcos.length) throw new ActionError("Marco não encontrado no cronograma deste projeto.");
+    }
+
+    const manter = new Set(i.parcelas.map((p) => p.id).filter((x): x is string => x != null));
+    const saem = doc.parcelasEntrega.filter((p) => !manter.has(p.id));
+    await prisma.$transaction(async (tx) => {
+      await tx.documentoJuridico.update({
+        where: { id: i.id },
+        data: { formaCobranca: "por_entrega", parcelas: null, primeiroVencimento: null },
+      });
+      // Parcela que sai leva a previsão dela junto — previsão sem parcela somaria no caixa para sempre.
+      for (const p of saem) {
+        await tx.contratoParcelaEntrega.delete({ where: { id: p.id } });
+        if (p.lancamento?.status === "previsao") {
+          await tx.lancamento.deleteMany({ where: { id: p.lancamento.id, status: "previsao" } });
+        }
+      }
+      for (const [ordem, p] of i.parcelas.entries()) {
+        const dados = { descricao: p.descricao, percentual: p.percentual, marcoId: p.marcoId, ordem };
+        if (p.id) await tx.contratoParcelaEntrega.update({ where: { id: p.id }, data: dados });
+        else await tx.contratoParcelaEntrega.create({ data: { ...dados, contratoId: i.id } });
+      }
+    });
+    if (doc.projetoId) await sincronizarPrevisoesDoProjeto(doc.projetoId, ctx.user.id);
+    rev();
+    revalidarFinanceiro();
+    return { id: i.id };
+  },
+);
+
+/**
+ * F7.2 (D9) — o financeiro FATURA uma parcela de contrato por entrega: a previsão vira conta a
+ * receber (`previsto`) na MESMA linha, com o vencimento que o financeiro escolher. Daí em diante
+ * a sincronização não mexe mais nela, e a cobrança entra no aging e no alerta de inadimplência.
+ * Sem previsão (cronograma em rascunho, marco sem data), cria a conta a receber direto.
+ *
+ * Permissão do financeiro, não do jurídico: faturar é lançar dinheiro.
+ */
+export const faturarParcelaEntrega = defineAction(
+  {
+    modulo: "financeiro",
+    acao: "faturar-parcela-entrega",
+    recurso: "financeiro",
+    permissao: "gerir",
+    entidade: "ContratoParcelaEntrega",
+    schema: z.object({ parcelaId: z.string().min(1), vencimento: z.string().min(1, "Informe o vencimento.") }),
+  },
+  async (i, ctx) => {
+    const r = await faturarParcela({ parcelaId: i.parcelaId, vencimento: i.vencimento, autorId: ctx.user.id });
+    rev();
+    revalidarFinanceiro();
+    return r;
   },
 );
 
@@ -456,6 +591,7 @@ export const registrarAceite = defineAction(
             clienteId: true,
             parcelas: true,
             primeiroVencimento: true,
+            formaCobranca: true,
             dataVencimento: true,
             projetoId: true,
             titulo: true,
@@ -597,7 +733,15 @@ export const registrarAceite = defineAction(
           // o que gerar, e inventar uma (à vista? 30 dias?) seria escrever regra financeira que
           // ninguém pediu. Contrato de EQUIPE nunca entra: é pago pela folha, não por
           // `Lancamento`.
-          if (!doc.vinculoId && doc.clienteId && doc.parcelas && doc.primeiroVencimento && doc.valor) {
+          // F7.3: só o contrato POR DATA. O por entrega gera previsões pelo cronograma, logo abaixo.
+          if (
+            doc.formaCobranca === "por_data" &&
+            !doc.vinculoId &&
+            doc.clienteId &&
+            doc.parcelas &&
+            doc.primeiroVencimento &&
+            doc.valor
+          ) {
             await gerarRecebiveisDoContrato(tx, {
               contratoId: doc.id,
               titulo: doc.titulo,
@@ -615,6 +759,13 @@ export const registrarAceite = defineAction(
       }),
     );
 
+    // F7.2: contrato por entrega assinado passa a ter previsão de recebimento (a parcela "na
+    // assinatura" já; as de marco quando o cronograma estiver aprovado). Fora da transação: roda
+    // o motor do cronograma. Idempotente — o segundo signatário não duplica nada.
+    if (doc.formaCobranca === "por_entrega" && doc.projetoId && !doc.vinculoId) {
+      await sincronizarPrevisoesDoProjeto(doc.projetoId, ctx.user.id);
+      revalidarFinanceiro();
+    }
     rev();
     return { id: aceite.id, jaAssinado: false };
   },

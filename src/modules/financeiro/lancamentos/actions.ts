@@ -144,9 +144,23 @@ export const criarLancamento = defineAction(
   },
 );
 
+/**
+ * F7.2: a previsão do cronograma (`previsao`) é da sincronização do contrato por entrega — editar,
+ * receber, cancelar ou excluir por aqui seria desfeito na próxima mudança do marco, ou receberia
+ * dinheiro de uma parcela que ninguém faturou. A porta é faturar a parcela no contrato.
+ */
+const MOTIVO_PREVISAO =
+  "É uma previsão do cronograma (contrato por entrega): ela anda com o marco e vira cobrança quando a parcela é faturada no contrato.";
+
+async function barrarSePrevisao(id: string) {
+  const l = await prisma.lancamento.findUnique({ where: { id }, select: { status: true } });
+  if (l?.status === "previsao") throw new ActionError(MOTIVO_PREVISAO);
+}
+
 export const editarLancamento = defineAction(
   { ...base, acao: "editar-lancamento", entidade: "Lancamento", schema: editarLancamentoSchema, capturarAntes: (i) => snapshotLancamento(i.id) },
   async (i) => {
+    await barrarSePrevisao(i.id);
     await prisma.lancamento.update({
       where: { id: i.id },
       data: {
@@ -176,6 +190,7 @@ export const confirmarLancamento = defineAction(
     if (!lanc) throw new ActionError("Lançamento não encontrado.");
     if (lanc.status === "confirmado") throw new ActionError("Já confirmado.");
     if (lanc.status === "aguardando_aprovacao") throw new ActionError("Despesa aguardando aprovação.");
+    if (lanc.status === "previsao") throw new ActionError(MOTIVO_PREVISAO);
 
     // Valor pago: usa o efetivo informado; se < total, o saldo vira um novo lançamento previsto.
     const restante = saldoRestante(Number(lanc.valor), i.valorEfetivo);
@@ -327,6 +342,7 @@ export const cancelarLancamento = defineAction(
       );
     }
     await barrarSeLancamentoDeArt(i.id);
+    if (atual?.status === "previsao") throw new ActionError(MOTIVO_PREVISAO);
     await prisma.lancamento.update({
       where: { id: i.id },
       data: {
@@ -358,6 +374,7 @@ export const excluirLancamento = defineAction(
     if (lanc.pagamentoProjetistaId) {
       throw new ActionError("Lançamento de folha não pode ser excluído aqui.");
     }
+    if (lanc.status === "previsao") throw new ActionError(MOTIVO_PREVISAO);
     await barrarSeLancamentoDeArt(i.id);
     // Soft delete: marca excluidoEm; some das listagens/relatórios (filtro global no prisma).
     await prisma.lancamento.update({ where: { id: i.id }, data: { excluidoEm: new Date() } });

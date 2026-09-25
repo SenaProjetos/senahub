@@ -1,11 +1,15 @@
 import "server-only";
-import { addDays, differenceInCalendarDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
+import { inicioDoDiaUtc } from "@/lib/data";
+
+const MS_DIA = 86_400_000;
 
 export type SemanaProjecao = {
   inicio: string;
   fim: string;
   entradas: number;
+  /** F7.2: parte de `entradas` que é previsão do cronograma (contrato por entrega, ainda não faturada). */
+  previsaoCronograma: number;
   saidas: number;
   saldo: number;
 };
@@ -15,30 +19,39 @@ export type SemanaProjecao = {
  * usando os lançamentos PREVISTOS (a receber/pagar) por vencimento. Detecta gap (saldo < 0).
  */
 export async function projecaoCaixa(saldoInicial: number, semanas = 8): Promise<SemanaProjecao[]> {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const fim = addDays(hoje, semanas * 7);
+  // `vencimento` é `@db.Date` (meia-noite UTC). Com a meia-noite LOCAL (03:00Z) como corte, o que
+  // vence HOJE ficava de fora e cada semana começava um dia errado — a regra de `lib/data.ts`.
+  const hoje = inicioDoDiaUtc();
+  const fim = new Date(hoje.getTime() + semanas * 7 * MS_DIA);
   const previstos = await prisma.lancamento.findMany({
-    where: { status: "previsto", vencimento: { gte: hoje, lte: fim } },
-    select: { tipo: true, valor: true, vencimento: true },
+    where: {
+      vencimento: { gte: hoje, lte: fim },
+      // F7.2 (D25): a previsão de recebimento do cronograma entra AQUI, e só aqui — é projeção, não
+      // conta a receber. Aging, inadimplência e "a receber" leem `previsto` e não a veem.
+      OR: [{ status: "previsto" }, { status: "previsao", tipo: "receita" }],
+    },
+    select: { tipo: true, valor: true, vencimento: true, status: true },
   });
 
   const buckets: SemanaProjecao[] = Array.from({ length: semanas }, (_, i) => {
-    const ini = addDays(hoje, i * 7);
+    const ini = new Date(hoje.getTime() + i * 7 * MS_DIA);
     return {
       inicio: ini.toISOString().slice(0, 10),
-      fim: addDays(ini, 6).toISOString().slice(0, 10),
+      fim: new Date(ini.getTime() + 6 * MS_DIA).toISOString().slice(0, 10),
       entradas: 0,
+      previsaoCronograma: 0,
       saidas: 0,
       saldo: 0,
     };
   });
   for (const l of previstos) {
     if (!l.vencimento) continue;
-    const idx = Math.floor(differenceInCalendarDays(l.vencimento, hoje) / 7);
+    const idx = Math.floor(Math.round((l.vencimento.getTime() - hoje.getTime()) / MS_DIA) / 7);
     if (idx < 0 || idx >= semanas) continue;
-    if (l.tipo === "receita") buckets[idx].entradas += Number(l.valor);
-    else buckets[idx].saidas += Number(l.valor);
+    if (l.tipo === "receita") {
+      buckets[idx].entradas += Number(l.valor);
+      if (l.status === "previsao") buckets[idx].previsaoCronograma += Number(l.valor);
+    } else buckets[idx].saidas += Number(l.valor);
   }
   let saldo = saldoInicial;
   for (const b of buckets) {

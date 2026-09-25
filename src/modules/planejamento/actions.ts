@@ -21,6 +21,7 @@ import { faixaTemPeriodoValido, haConflitoDeFaixa } from "@/modules/planejamento
 import { sincronizarPrazoDisciplina } from "@/modules/projetos/etapas-service";
 import { planejarAplicacao } from "@/modules/planejamento/aplicacao";
 import { herdarResponsaveisNoProjeto, sincronizarCards } from "@/modules/planejamento/recursos-service";
+import { sincronizarPrevisoesDoProjeto } from "@/modules/juridico/contrato/previsao-service";
 
 const plan = { modulo: "planejamento", recurso: "planejamento", permissao: "gerir" } as const;
 const rec = { modulo: "recursos", recurso: "recursos", permissao: "gerir" } as const;
@@ -39,6 +40,12 @@ const revRecursos = () => revalidatePath("/recursos");
 async function aposMudarEap(projetoId: string, autorId: string) {
   const r = await sincronizarCards(prisma, projetoId, autorId);
   if (r.criados > 0 || r.atualizados > 0) revalidatePath("/tarefas");
+  // F7.2: marco que andou leva junto a previsão de recebimento do contrato por entrega.
+  const p = await sincronizarPrevisoesDoProjeto(projetoId, autorId);
+  if (p.criadas + p.atualizadas + p.removidas > 0) {
+    revalidatePath("/financeiro");
+    revalidatePath("/financeiro/lancamentos");
+  }
 }
 
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));

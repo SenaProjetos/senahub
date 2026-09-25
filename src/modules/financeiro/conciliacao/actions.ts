@@ -35,7 +35,8 @@ export const conciliarComLancamento = defineAction(
       // produção depois de desfazer uma conciliação errada). O que continua proibido é
       // roubar o vínculo de outra transação, ou ressuscitar cancelado/excluído.
       const alvo = await tx.lancamento.findFirst({
-        where: { id: i.lancamentoId, excluidoEm: null, status: { not: "cancelado" }, transacao: { is: null } },
+        // `previsao` (F7.2) é projeção do cronograma, não cobrança: não casa com extrato.
+        where: { id: i.lancamentoId, excluidoEm: null, status: { notIn: ["cancelado", "previsao"] }, transacao: { is: null } },
         select: { id: true, pagamentoProjetistaId: true },
       });
       if (!alvo) {
