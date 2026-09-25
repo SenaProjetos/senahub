@@ -46,7 +46,7 @@ export function FloatingChat() {
         type="button"
         onClick={abrir}
         aria-label="Abrir chat"
-        className="fixed bottom-20 right-4 z-40 flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 lg:bottom-6"
+        className="fixed bottom-20 right-4 z-40 hidden size-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 md:flex lg:bottom-6"
       >
         <MessageSquare className="size-5" />
         <ChatBadge className="absolute -right-0.5 -top-0.5 ring-2 ring-background" />
