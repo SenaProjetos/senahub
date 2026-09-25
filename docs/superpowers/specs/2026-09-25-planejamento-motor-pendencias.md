@@ -131,6 +131,16 @@ Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
 - ~~Carga: o heatmap da matriz enxerga só alocação digitada.~~ **Resolvido (L9):** o heatmap soma a
   digitada com as horas dos cronogramas aprovados (`heatmap-recursos.ts`), nas 12 semanas que a carga cobre;
   depois disso, só a digitada. "Superalocado na janela" e o Rebalancear seguem olhando só a digitada.
+  **Revisão (unidades, meio período):** a carga calculada estava na escala da semana útil DA PESSOA
+  (`horas ÷ semanaUtil`), que já vem encolhida pelo multiplicador, enquanto a digitada e a capacidade
+  (`multiplicador × 100`) estão na escala da jornada cheia — quem trabalha 20 h de 20 h (multiplicador 0,5)
+  aparecia com 100 contra capacidade 50 (vermelho). `percentualDaJornadaCheia` volta à escala e vale também
+  para o chip "calc" e o `superalocado` da matriz (`planejamento/queries.ts`).
+- **Aberto (DECIDIR, meio período):** `parcelasDaAlocacaoDigitada` converte a alocação digitada em horas com a
+  capacidade JÁ multiplicada (`h = capacidade × %`), ou seja, "50%" de quem tem multiplicador 0,5 vira 10 h; a
+  matriz compara o mesmo "50%" com a capacidade 50 (jornada cheia). As duas leituras não batem. Falta o time
+  dizer se "50% no projeto" é 50% da **jornada cheia** ou 50% da **capacidade da pessoa** — e alinhar a
+  Carga planejada (horas) à resposta.
   Sugestões de sobrecarga são sob demanda (1,3 s com 10 sobrecargas).
 - Ponto: tarefa escolhida numa troca no meio do dia não sobrevive à edição do dia.
 
@@ -158,6 +168,10 @@ Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
   com ID corporativo novo; cronograma novo em rascunho, com início opcional no diálogo. **Não** copia
   restrições de data (datas absolutas do projeto de origem), avanço, datas reais, bloqueio, horas nem
   pessoas. `smoke:duplicar-projeto` (20 checagens).
+- **B3, revisão:** a cópia também leva as etapas por fase das disciplinas (só fase global; sem prazo,
+  situação nem pagamento) e o vínculo `Disciplina.disciplinaId` com o catálogo — antes a linha copiada
+  guardava uma fase que a disciplina do clone não tinha (invisível e sem como editar). Continuam de fora
+  `exigePacoteA/B` e a faixa de numeração por projeto da disciplina.
 - **Achado no caminho (corrigido junto):** nenhum caminho de criação atribuía o `idCorporativo` — só o
   backfill da F0. Linhas criadas por "Nova tarefa", "Gerar EAP das disciplinas" e pela duplicação ficavam
   com a identidade nula, e `verify:motor-cronograma` acusaria. Agora os três (e o `seed:demo`) reservam o

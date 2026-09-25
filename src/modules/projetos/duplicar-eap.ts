@@ -4,8 +4,8 @@ import type { Prisma, PrioridadeEap, TipoEap, TipoVinculoEap } from "@/generated
  * Cópia da EAP ao duplicar um projeto — PURA: recebe as linhas de origem e devolve o que gravar.
  *
  * Copia a ESTRUTURA do plano: árvore, tipo da linha (marco continua marco), duração em dias úteis,
- * prioridade, disciplina (a do clone), fase e classificadores, e o tipo e a defasagem de cada
- * dependência. Cada linha ganha um id e um ID corporativo NOVOS (D29): a identidade é da linha, não
+ * prioridade, disciplina (a do clone), fase (se a disciplina do clone a tem) e classificadores, e o
+ * tipo e a defasagem de cada dependência. Cada linha ganha um id e um ID corporativo NOVOS (D29): a identidade é da linha, não
  * do plano de onde ela veio.
  *
  * NÃO copia o que é do projeto de origem: avanço, situação, datas reais, bloqueio, linha de base,
@@ -37,9 +37,15 @@ export type ContextoClonagemEap = {
   projetoId: string;
   /** Disciplina de origem → disciplina do clone. */
   disciplinaNova: ReadonlyMap<string, string>;
+  /**
+   * Fases (etapas) que cada disciplina do CLONE tem. A linha só leva a fase se a disciplina dela a tem:
+   * o campo Fase do editor só aparece para disciplina com etapas, e uma fase sem etapa ficaria invisível
+   * e sem como editar.
+   */
+  fasesDaDisciplina: ReadonlyMap<string, ReadonlySet<string>>;
   /** Linha de origem → id e ID corporativo da linha nova. */
   novaLinha: ReadonlyMap<string, { id: string; idCorporativo: string }>;
-  /** Ids de catálogo (fase e classificadores) que valem em QUALQUER projeto — os do projeto de origem não. */
+  /** Ids de classificador que valem em QUALQUER projeto — os do projeto de origem não. */
   catalogosGlobais: ReadonlySet<string>;
 };
 
@@ -63,8 +69,7 @@ export function clonarEap(
       tipoEap: t.tipoEap,
       duracaoDias: t.duracaoDias,
       prioridade: t.prioridade,
-      // A fase só existe ligada a uma disciplina (mesma regra do editor da linha).
-      etapaId: disciplinaId ? global(t.etapaId) : null,
+      etapaId: disciplinaId && t.etapaId && ctx.fasesDaDisciplina.get(disciplinaId)?.has(t.etapaId) ? t.etapaId : null,
       tipoAtividadeId: global(t.tipoAtividadeId),
       sistemaId: global(t.sistemaId),
       localizacaoId: global(t.localizacaoId),

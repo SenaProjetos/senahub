@@ -96,6 +96,8 @@ um dia e as dependências perdiam o tipo.
 
 - O **cronograma novo nasce em rascunho**, e cada linha tem seu **ID novo**. Se você informar o **início
   do cronograma novo** no diálogo, as datas já saem calculadas a partir dele.
+- As **disciplinas** da cópia levam agora o vínculo com o catálogo e a **estrutura de etapas por fase**
+  (fase e percentual, sem prazos), para a fase de cada linha continuar aparecendo e editável.
 - Não são copiados avanço, datas reais, bloqueios, restrições de data, horas nem pessoas.
 - Linhas criadas pelo botão **Nova tarefa** e por **Gerar EAP das disciplinas** também passaram a
   receber o ID permanente da linha.

@@ -102,9 +102,10 @@ Cada disciplina passa por um ciclo de status:
 
 ## Outras ações do projeto
 
-- **Duplicar projeto:** cria uma cópia (`nome (cópia)`, novo código), com disciplinas;
-  opcionalmente copia responsáveis, membros, EAP e composição de preço. **Nunca** copia
-  arquivos, revisões ou pagamentos.
+- **Duplicar projeto:** cria uma cópia (`nome (cópia)`, novo código), com disciplinas — inclusive a
+  **estrutura de etapas por fase** (fase, percentual e ordem; sem os prazos, a situação nem o
+  pagamento das etapas); opcionalmente copia responsáveis, membros, EAP e composição de preço.
+  **Nunca** copia arquivos, revisões ou pagamentos.
   - **Copiar a EAP** leva a **estrutura do cronograma**: as tarefas em árvore, o tipo de cada linha
     (marco continua marco), as **durações**, a prioridade, a disciplina (a da cópia), a **fase** e os
     classificadores, e o **tipo e o atraso de cada dependência**. Cada linha ganha um **ID novo**.

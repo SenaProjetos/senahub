@@ -27,6 +27,7 @@ function contexto(ids: string[], extra: Partial<Parameters<typeof clonarEap>[1]>
   return {
     projetoId: "novo",
     disciplinaNova: new Map([["D1", "ND1"]]),
+    fasesDaDisciplina: new Map([["ND1", new Set(["fase-global"])]]),
     novaLinha: new Map(ids.map((id, i) => [id, { id: `n-${id}`, idCorporativo: `ATV-${String(i + 1).padStart(5, "0")}` }])),
     catalogosGlobais: new Set<string>(),
     ...extra,
@@ -70,21 +71,29 @@ describe("clonarEap", () => {
     expect(linhas.map((l) => l.disciplinaId)).toEqual(["ND1", null, null]);
   });
 
-  it("fase e classificadores só valem se forem do catálogo global", () => {
+  it("classificadores só valem se forem do catálogo global; a fase vem junto com a disciplina que a tem", () => {
     const origem = [
       linha("A", {
         disciplinaId: "D1", etapaId: "fase-global", tipoAtividadeId: "tat-global",
         sistemaId: "sis-do-projeto", localizacaoId: "loc-global", origemId: "org-do-projeto",
       }),
     ];
-    const { linhas } = clonarEap(origem, contexto(["A"], { catalogosGlobais: new Set(["fase-global", "tat-global", "loc-global"]) }));
+    const { linhas } = clonarEap(origem, contexto(["A"], { catalogosGlobais: new Set(["tat-global", "loc-global"]) }));
     expect(linhas[0]).toMatchObject({
       etapaId: "fase-global", tipoAtividadeId: "tat-global", sistemaId: null, localizacaoId: "loc-global", origemId: null,
     });
   });
 
+  it("fase que a disciplina do clone não tem não é copiada — ficaria invisível na tela", () => {
+    const { linhas } = clonarEap(
+      [linha("A", { disciplinaId: "D1", etapaId: "fase-que-a-disciplina-nao-tem" })],
+      contexto(["A"]),
+    );
+    expect(linhas[0].etapaId).toBeNull();
+  });
+
   it("fase sem disciplina não é copiada (a fase só existe ligada a uma disciplina)", () => {
-    const { linhas } = clonarEap([linha("A", { disciplinaId: null, etapaId: "fase-global" })], contexto(["A"], { catalogosGlobais: new Set(["fase-global"]) }));
+    const { linhas } = clonarEap([linha("A", { disciplinaId: null, etapaId: "fase-global" })], contexto(["A"]));
     expect(linhas[0].etapaId).toBeNull();
   });
 

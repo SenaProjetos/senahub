@@ -9,6 +9,8 @@
  *   3. O cronograma do clone nasce em rascunho, com o início pedido; o motor calcula as datas a
  *      partir dele e o código da EAP (1.1, 1.2…) é preenchido.
  *   4. Sem `copiarEap`, não nasce EAP nem cronograma. Duplicar de novo não repete ID.
+ *   5. A disciplina do clone leva o vínculo com o catálogo e a estrutura das etapas por fase (fase, %,
+ *      ordem — sem prazo, situação nem pagamento); a linha só leva a fase que a disciplina do clone tem.
  *
  * Uso: npm run smoke:duplicar-projeto
  */
@@ -34,9 +36,11 @@ const OPCOES = { copiarResponsaveis: true, copiarMembros: true, copiarComposicao
 async function main() {
   const admin = await prisma.user.findFirst({ where: { role: "admin" }, select: { id: true } });
   if (!admin) throw new Error("Sem usuário admin no banco de dev — rode npm run db:seed.");
-  const fase = await prisma.pranchaCatalogo.findFirst({ where: { categoria: "fase", projetoId: null } });
+  const fases = await prisma.pranchaCatalogo.findMany({ where: { categoria: "fase", projetoId: null }, orderBy: { sigla: "asc" }, take: 3 });
   const origemCli = await prisma.eapCatalogo.findFirst({ where: { categoria: "origem", projetoId: null } });
-  if (!fase || !origemCli) throw new Error("Catálogos globais de fase/origem ausentes — rode npm run db:seed.");
+  const catalogo = await prisma.disciplinaCatalogo.findFirst();
+  if (fases.length < 2 || !origemCli || !catalogo) throw new Error("Catálogos globais de fase/origem/disciplina ausentes — rode npm run db:seed.");
+  const fase = fases[0];
 
   const cliente = await prisma.cliente.create({ data: { nome: `${tag}-cliente` } });
   const projeto = await prisma.projeto.create({
@@ -53,7 +57,13 @@ async function main() {
 
   try {
     const disciplina = await prisma.disciplina.create({
-      data: { projetoId: projeto.id, disciplinaTextoLegado: "Elétrica", ordem: 0, prazo: d("2026-12-18") },
+      data: { projetoId: projeto.id, disciplinaId: catalogo.id, disciplinaTextoLegado: "Elétrica", ordem: 0, prazo: d("2026-12-18") },
+    });
+    await prisma.disciplinaEtapa.createMany({
+      data: [
+        { disciplinaId: disciplina.id, etapaId: fases[0].id, percentual: 60, ordem: 0, prazo: d("2026-11-20"), status: "entregue" },
+        { disciplinaId: disciplina.id, etapaId: fases[1].id, percentual: 40, ordem: 1 },
+      ],
     });
     locProjeto = await prisma.eapCatalogo.create({
       data: { categoria: "localizacao", sigla: `L${Date.now()}`.slice(0, 8), nome: `${tag}-loc`, projetoId: projeto.id },
@@ -76,6 +86,8 @@ async function main() {
       data: {
         ...base, idCorporativo: idM, parentId: R.id, disciplinaId: disciplina.id, nome: "Entrega do executivo", tipoEap: "mrc", duracaoDias: 0, ordem: 2,
         status: "blq", motivoBloqueio: "aguardando o cliente",
+        // Fase que a disciplina NÃO tem como etapa: no clone ela ficaria invisível — não é copiada.
+        ...(fases[2] ? { etapaId: fases[2].id } : {}),
       },
     });
     await prisma.eapDependencia.create({ data: { tarefaId: M.id, predecessoraId: A.id, tipo: "ff", lagDias: 2 } });
@@ -98,6 +110,19 @@ async function main() {
     check("bloqueio não é copiado", cM?.status === "nin" && cM?.motivoBloqueio === null);
 
     const dep = await prisma.eapDependencia.findFirst({ where: { tarefaId: cM!.id } });
+    const cDisc = await prisma.disciplina.findFirst({ where: { projetoId: dup.id }, include: { etapas: { orderBy: { ordem: "asc" } } } });
+    check("a disciplina do clone leva o vínculo com o catálogo", cDisc?.disciplinaId === catalogo.id, cDisc?.disciplinaId);
+    check(
+      "etapas por fase copiadas (fase, % e ordem), sem prazo, situação nem pagamento",
+      cDisc?.etapas.length === 2 &&
+        cDisc.etapas[0].etapaId === fases[0].id && Number(cDisc.etapas[0].percentual) === 60 &&
+        cDisc.etapas[1].etapaId === fases[1].id && Number(cDisc.etapas[1].percentual) === 40 &&
+        cDisc.etapas.every((e) => e.prazo === null && e.status === "aguardando" && e.liberadaEm === null && e.valorPagamento === null),
+      cDisc?.etapas,
+    );
+    check("a linha leva a fase que a disciplina do clone tem", cA?.etapaId === fases[0].id);
+    if (fases[2]) check("fase que a disciplina não tem como etapa não é copiada", cM?.etapaId === null, cM?.etapaId);
+
     check("dependência copiada com tipo e defasagem", dep?.predecessoraId === cA?.id && dep?.tipo === "ff" && Number(dep?.lagDias) === 2, dep);
 
     const ids = linhas.map((l) => l.idCorporativo);

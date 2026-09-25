@@ -72,8 +72,8 @@ export function DuplicarProjetoButton({ projetoId }: { projetoId: string }) {
           </DialogHeader>
 
           <p className="text-sm text-muted-foreground">
-            Selecione o que deseja copiar para o novo projeto. Disciplinas (nome, prazo, valor) são
-            sempre copiadas.
+            Selecione o que deseja copiar para o novo projeto. Disciplinas (nome, prazo, valor e etapas
+            por fase, sem os prazos das etapas) são sempre copiadas.
           </p>
 
           <div className="space-y-3">

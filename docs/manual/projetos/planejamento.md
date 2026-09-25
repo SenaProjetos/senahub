@@ -280,9 +280,11 @@ andou?". A tela compara sempre com a linha de base **mais recente**. Exige `cron
 | Ver a coluna **Custo** e o valor em R$ do Valor Agregado | acesso ao financeiro (`financeiro:ver` ou sócio) |
 | Aprovar a **fase** a partir do marco concluído | `aprovacoes:disciplina` |
 
-Quem pode **montar** a EAP (`planejamento:gerir`) também pode **informar o andamento**
-(`cronograma:executado`): as duas permissões andam juntas. **Aprovar** é separado, de propósito — é
-ele que congela o combinado com o cliente.
+Quem pode **montar** a EAP (`planejamento:gerir`) precisa também poder **informar o andamento**
+(`cronograma:executado`). Na atualização que trouxe o cronograma novo, quem já montava passou a poder
+informar o andamento; ao dar `planejamento:gerir` a um perfil pela tela **Configurações → Perfis**,
+marque também `cronograma:executado`. **Aprovar** é separado, de propósito — é ele que congela o
+combinado com o cliente.
 
 Nos perfis padrão, o **Coordenador** e o **Administrativo** montam, aprovam e apuram o cronograma
 (o Administrativo também vê o financeiro; o Coordenador, não). **CLT**, **Estagiário** e **Projetista

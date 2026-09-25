@@ -14,8 +14,8 @@ import { reservarIdsParaLinhas } from "@/modules/planejamento/id-corporativo";
 
 /**
  * Duplica um projeto: novo código AAXXXX, nome + " (cópia)", mesmo cliente/tipo e disciplinas
- * (nome/ordem/valor/prazo). Copia responsáveis, membros, EAP e composição de preço conforme as flags.
- * Uploads, revisões e pagamentos nunca são copiados.
+ * (catálogo/nome/ordem/valor/prazo e a estrutura de etapas por fase). Copia responsáveis, membros, EAP e
+ * composição de preço conforme as flags. Uploads, revisões e pagamentos nunca são copiados.
  *
  * A EAP copiada é a estrutura do plano (ver `duplicar-eap.ts`), num cronograma novo em RASCUNHO. Com
  * `inicioCronograma` o motor calcula as datas a partir dele; sem, parte do menor início copiado.
@@ -42,11 +42,16 @@ export async function duplicarProjetoNoBanco(
         orderBy: { ordem: "asc" },
         select: {
           id: true,
+          disciplinaId: true,
           disciplinaTextoLegado: true,
           valor: true,
           prazo: true,
           ordem: true,
           responsaveis: { select: { userId: true } },
+          etapas: {
+            orderBy: { ordem: "asc" },
+            select: { etapaId: true, percentual: true, ordem: true, etapa: { select: { projetoId: true } } },
+          },
         },
       },
       eapTarefas: {
@@ -103,6 +108,7 @@ export async function duplicarProjetoNoBanco(
         valorContrato: origem.valorContrato,
         disciplinas: {
           create: origem.disciplinas.map((d) => ({
+            disciplinaId: d.disciplinaId,
             disciplinaTextoLegado: d.disciplinaTextoLegado,
             valor: d.valor,
             prazo: d.prazo,
@@ -122,6 +128,21 @@ export async function duplicarProjetoNoBanco(
     for (const orig of origem.disciplinas) {
       const nova = novasDisciplinas.find((d) => d.ordem === orig.ordem);
       if (nova) dMap.set(orig.id, nova.id);
+    }
+
+    // Etapas por fase: a estrutura (fase, %, ordem) vem com a disciplina; prazo, situação e pagamento
+    // não — são do projeto de origem. Só fase do catálogo global (a do projeto de origem não vale aqui).
+    const etapasNovas = origem.disciplinas.flatMap((d) => {
+      const disciplinaId = dMap.get(d.id);
+      if (!disciplinaId) return [];
+      return d.etapas
+        .filter((e) => e.etapa.projetoId == null)
+        .map((e) => ({ disciplinaId, etapaId: e.etapaId, percentual: e.percentual, ordem: e.ordem }));
+    });
+    if (etapasNovas.length > 0) await tx.disciplinaEtapa.createMany({ data: etapasNovas });
+    const fasesDaDisciplina = new Map<string, Set<string>>();
+    for (const e of etapasNovas) {
+      fasesDaDisciplina.set(e.disciplinaId, (fasesDaDisciplina.get(e.disciplinaId) ?? new Set()).add(e.etapaId));
     }
 
     // Duplicar é criar um projeto novo: se o tipo usa árvore-template, semeia em todas
@@ -150,11 +171,6 @@ export async function duplicarProjetoNoBanco(
     }
 
     if (copiouEap) {
-      // Consultas em sequência: a transação tem uma conexão só.
-      const fases = await tx.pranchaCatalogo.findMany({
-        where: { projetoId: null, id: { in: origem.eapTarefas.flatMap((t) => (t.etapaId ? [t.etapaId] : [])) } },
-        select: { id: true },
-      });
       const classificadores = await tx.eapCatalogo.findMany({
         where: {
           projetoId: null,
@@ -174,8 +190,9 @@ export async function duplicarProjetoNoBanco(
       const { linhas, dependencias } = clonarEap(origem.eapTarefas, {
         projetoId: criado.id,
         disciplinaNova: dMap,
+        fasesDaDisciplina,
         novaLinha,
-        catalogosGlobais: new Set([...fases, ...classificadores].map((c) => c.id)),
+        catalogosGlobais: new Set(classificadores.map((c) => c.id)),
       });
       await tx.eapTarefa.createMany({ data: linhas });
       if (dependencias.length > 0) await tx.eapDependencia.createMany({ data: dependencias, skipDuplicates: true });
