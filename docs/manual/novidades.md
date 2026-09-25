@@ -22,6 +22,35 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Contrato cobrado por entrega e previsão de recebimento no fluxo de caixa
+
+No **Jurídico**, o botão **Pagamento** do contrato de cliente agora tem dois jeitos de cobrar —
+um só por contrato:
+
+- **Por data**, como sempre: número de parcelas e 1º vencimento, geradas na assinatura.
+- **Por entrega (marcos)**: cada parcela é um **percentual** do valor, ligado a um **marco do
+  cronograma** do projeto ("40% na entrega do básico") ou **na assinatura**. O valor de cada uma
+  é calculado (a última absorve o centavo) e a soma precisa fechar 100%. Se a proposta tinha
+  plano de pagamento, **Trazer da proposta** copia as parcelas.
+
+**Previsão de recebimento.** Com o contrato assinado, cada parcela ainda não faturada aparece no
+**Fluxo de caixa → Projeção** como **previsão do cronograma**: a da assinatura na data dela, as
+de marco na **data do marco** — só com o cronograma **aprovado**. Se o marco andar, a previsão
+anda junto.
+
+- A previsão **não é conta a receber**: não aparece em Contas a receber, no aging, no alerta de
+  inadimplência nem no livro caixa, e não pode ser recebida, editada ou excluída por lá.
+- **Faturar** (no mesmo diálogo, para quem gere o financeiro) transforma a previsão em conta a
+  receber, com o vencimento que você escolher. A partir daí ela é uma cobrança como qualquer outra.
+- Quando um **marco é concluído** no cronograma, quem gere o financeiro recebe o aviso "parcela a
+  faturar" (dá para desligar em Preferências → Parcelas a faturar).
+- Depois de faturar alguma parcela, o plano do contrato trava — ajustes vão pelo financeiro.
+
+A projeção de caixa também passou a contar o que vence **hoje** — antes, por causa do fuso, isso
+ficava de fora, e cada semana da projeção começava um dia errado.
+
+---
+
 ## Datas reais no cronograma e marco que libera a fase
 
 Na EAP do projeto, o botão de calendário com ✓ na coluna **Ações** abre o **Atualizar tarefa**

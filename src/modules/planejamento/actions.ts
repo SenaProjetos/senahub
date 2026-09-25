@@ -10,7 +10,7 @@ import { statusAoDesbloquear } from "@/modules/planejamento/execucao";
 import { registrarExecucaoNaLinha } from "@/modules/planejamento/execucao-service";
 import { inicioDoDiaUtc } from "@/lib/data";
 import { notificarMuitos } from "@/lib/notificar";
-import { whereAudiencia } from "@/lib/audiencias";
+import { whereAudiencia, wherePermissao } from "@/lib/audiencias";
 import {
   aprovarCronograma,
   avaliarQualidade,
@@ -874,7 +874,7 @@ export const registrarExecucao = defineAction(
       }),
   },
   async (i, { user }) => {
-    const { projetoId, nome, status, fase } = await registrarExecucaoNaLinha({
+    const { projetoId, nome, status, fase, parcelasAFaturar } = await registrarExecucaoNaLinha({
       id: i.id,
       inicioReal: i.inicioReal,
       fimReal: i.fimReal,
@@ -898,6 +898,27 @@ export const registrarExecucao = defineAction(
           tag: `marco-fase-${fase.id}`,
         },
         { categoria: "aprovacao_disciplina" },
+      );
+    }
+
+    // F7.2 (D9): parcela de contrato presa a este marco pode ser faturada — o financeiro fatura.
+    if (parcelasAFaturar.length > 0) {
+      const financeiro = await prisma.user.findMany({
+        where: { ...wherePermissao("financeiro", "gerir"), id: { not: user.id } },
+        select: { id: true },
+      });
+      await notificarMuitos(
+        financeiro.map((f) => f.id),
+        {
+          titulo: "Marco concluído — parcela a faturar",
+          corpo:
+            parcelasAFaturar.length === 1
+              ? `"${nome}" concluído: a parcela "${parcelasAFaturar[0].descricao}" do ${parcelasAFaturar[0].contrato} pode ser faturada.`
+              : `"${nome}" concluído: ${parcelasAFaturar.length} parcelas de contrato podem ser faturadas.`,
+          href: "/juridico",
+          tag: `marco-parcela-${i.id}`,
+        },
+        { categoria: "faturamento" },
       );
     }
 

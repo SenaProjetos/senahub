@@ -8,6 +8,9 @@ import { aplicarExecucao } from "./execucao";
 /** Fase ligada a um marco que acabou de ser concluído — o que a tela oferece aprovar (D31). */
 export type FaseDoMarco = { id: string; sigla: string; nome: string; disciplina: string; aprovavel: boolean };
 
+/** Parcela de contrato por entrega que o marco concluído deixa pronta para faturar (F7.2 — D9). */
+export type ParcelaDoMarco = { id: string; descricao: string; contrato: string };
+
 /**
  * Grava a execução de uma linha (F7.0) — regras em `execucao.ts` — e, se ela CONCLUIU agora um
  * marco ligado a uma fase da disciplina que ainda não foi liberada, devolve essa fase.
@@ -21,7 +24,13 @@ export async function registrarExecucaoNaLinha(p: {
   fimReal: string | null;
   /** Dia local de hoje (`YYYY-MM-DD`) — real é o que já aconteceu. */
   hoje: string;
-}): Promise<{ projetoId: string; nome: string; status: StatusEap; fase: FaseDoMarco | null }> {
+}): Promise<{
+  projetoId: string;
+  nome: string;
+  status: StatusEap;
+  fase: FaseDoMarco | null;
+  parcelasAFaturar: ParcelaDoMarco[];
+}> {
   const linha = await prisma.eapTarefa.findUnique({
     where: { id: p.id },
     select: {
@@ -77,5 +86,18 @@ export async function registrarExecucaoNaLinha(p: {
       };
     }
   }
-  return { projetoId: linha.projetoId, nome: linha.nome, status: r.status, fase };
+  // D9: o marco não fatura — mas é o sinal para o financeiro faturar as parcelas presas a ele.
+  let parcelasAFaturar: ParcelaDoMarco[] = [];
+  if (r.concluiu && linha.tipoEap === "mrc") {
+    const parcelas = await prisma.contratoParcelaEntrega.findMany({
+      where: {
+        marcoId: p.id,
+        contrato: { formaCobranca: "por_entrega", statusContrato: { in: ["assinado", "vencido"] } },
+        OR: [{ lancamentoId: null }, { lancamento: { status: "previsao" } }],
+      },
+      select: { id: true, descricao: true, contrato: { select: { titulo: true } } },
+    });
+    parcelasAFaturar = parcelas.map((x) => ({ id: x.id, descricao: x.descricao, contrato: x.contrato.titulo }));
+  }
+  return { projetoId: linha.projetoId, nome: linha.nome, status: r.status, fase, parcelasAFaturar };
 }

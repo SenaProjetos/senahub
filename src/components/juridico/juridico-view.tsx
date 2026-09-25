@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { formatarData, formatarDataHora, brl } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Upload, Download, Trash2, Folder, FolderPlus, X, FileText, Eye, PenLine, ShieldAlert, Pencil, FilePlus2, ShieldCheck, Send, Receipt, FileEdit } from "lucide-react";
+import { Plus, Upload, Download, Trash2, Folder, FolderPlus, X, FileText, Eye, PenLine, ShieldAlert, Pencil, FilePlus2, ShieldCheck, Send, FileEdit } from "lucide-react";
 import {
   criarDocJuridico,
   excluirDocJuridico,
@@ -16,9 +16,9 @@ import {
   gerarVersaoDeModelo,
   criarAditivoEquipe,
   criarLinkAssinatura,
-  definirCondicaoPagamento,
   atualizarClausulasAdicionais,
 } from "@/modules/juridico/actions";
+import { CondicaoPagamento, type CobrancaContrato } from "@/components/juridico/condicao-pagamento-dialog";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -142,6 +142,8 @@ type Doc = {
   primeiroVencimento: string | null;
   clausulasAdicionais: string | null;
   versoes: VersaoDoc[];
+  /** F7.3: forma de cobrança e o plano por entrega (contrato de cliente). */
+  cobranca: CobrancaContrato;
 };
 type Pasta = { id: string; nome: string; total: number };
 /** Modelo do ESTÚDIO (`DocumentoModelo`, tipo=contrato) — fonte única desde a Fase E2. O pipeline
@@ -190,6 +192,7 @@ export function JuridicoView({
   ativosPorUsuario,
   podeGerir,
   podeVerEquipe,
+  podeFaturar,
 }: {
   docs: Doc[];
   modelosContrato: ModeloEstudio[];
@@ -201,6 +204,8 @@ export function JuridicoView({
   ativosPorUsuario: Record<string, AtivoDevolucao[]>;
   podeGerir: boolean;
   podeVerEquipe: boolean;
+  /** `financeiro:gerir` — faturar parcela de contrato por entrega. */
+  podeFaturar: boolean;
 }) {
   const docsGerais = docs.filter((d) => !d.vinculo);
   const docsEquipe = docs.filter((d) => d.vinculo);
@@ -231,7 +236,7 @@ export function JuridicoView({
         <Card className="mt-3">
           <CardContent className="pt-5">
             <TabsContent value="docs">
-              <DocsTab docs={docsGerais} projetos={projetos} clientes={clientes} pastas={pastas} modelosContrato={modelosContrato} podeGerir={podeGerir} />
+              <DocsTab docs={docsGerais} projetos={projetos} clientes={clientes} pastas={pastas} modelosContrato={modelosContrato} podeGerir={podeGerir} podeFaturar={podeFaturar} />
             </TabsContent>
             {podeVerEquipe && (
               <TabsContent value="equipe">
@@ -408,83 +413,6 @@ function ClausulasAdicionaisDialog({ doc }: { doc: Doc }) {
   );
 }
 
-function CondicaoPagamento({ doc }: { doc: Doc }) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [aberto, setAberto] = useState(false);
-  const [form, setForm] = useState({ parcelas: "", primeiroVencimento: "" });
-
-  function abrir() {
-    setForm({
-      parcelas: doc.parcelas != null ? String(doc.parcelas) : "",
-      primeiroVencimento: doc.primeiroVencimento ? doc.primeiroVencimento.slice(0, 10) : "",
-    });
-    setAberto(true);
-  }
-
-  function salvar() {
-    const n = form.parcelas ? Number(form.parcelas) : null;
-    if (n !== null && (!Number.isInteger(n) || n < 1)) return toast.error("Número de parcelas inválido.");
-    if (n !== null && !form.primeiroVencimento) return toast.error("Informe o vencimento da primeira parcela.");
-    start(async () => {
-      const r = await definirCondicaoPagamento({
-        id: doc.id,
-        parcelas: n,
-        primeiroVencimento: form.primeiroVencimento,
-      });
-      if (r.ok) {
-        toast.success("Condição de pagamento salva.");
-        setAberto(false);
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
-
-  return (
-    <>
-      <Button size="sm" variant="outline" onClick={abrir}>
-        <Receipt className="size-3.5" /> Pagamento
-      </Button>
-      <Dialog open={aberto} onOpenChange={(o) => !o && setAberto(false)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Condição de pagamento</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Parcelas</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={form.parcelas}
-                  onChange={(e) => setForm({ ...form, parcelas: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>1º vencimento</Label>
-                <Input
-                  type="date"
-                  value={form.primeiroVencimento}
-                  onChange={(e) => setForm({ ...form, primeiroVencimento: e.target.value })}
-                />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              As parcelas são criadas no financeiro quando o contrato for <strong>assinado</strong> —
-              não agora. Valor do contrato: {doc.valor != null ? brl(doc.valor) : "não definido"}.
-            </p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAberto(false)}>Cancelar</Button>
-            <Button onClick={salvar} disabled={pending}>Salvar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
-
 /**
  * Gera uma versão do contrato preenchendo um modelo com os dados do próprio documento (Fase B).
  * A ação recusa quando falta dado obrigatório, e a mensagem já diz se o defeito é no modelo ou no
@@ -557,6 +485,7 @@ function DocsTab({
   pastas,
   modelosContrato,
   podeGerir,
+  podeFaturar,
 }: {
   docs: Doc[];
   projetos: { id: string; label: string }[];
@@ -564,6 +493,7 @@ function DocsTab({
   pastas: Pasta[];
   modelosContrato: ModeloEstudio[];
   podeGerir: boolean;
+  podeFaturar: boolean;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -815,7 +745,7 @@ function DocsTab({
                         </SelectContent>
                       </Select>
                       {d.tipo === "contrato" && <GerarDoModelo docId={d.id} modelos={modelosContrato} />}
-                      {d.tipo === "contrato" && <CondicaoPagamento doc={d} />}
+                      {d.tipo === "contrato" && <CondicaoPagamento doc={d.cobranca} podeFaturar={podeFaturar} />}
                       {d.tipo === "contrato" && <ClausulasAdicionaisDialog doc={d} />}
                       <Button
                         size="sm"

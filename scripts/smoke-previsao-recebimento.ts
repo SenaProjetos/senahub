@@ -24,6 +24,7 @@ import { agingReport } from "../src/modules/financeiro/aging/queries";
 import { projecaoCaixa } from "../src/modules/financeiro/caixa/queries";
 import { resumoFinanceiroCliente } from "../src/modules/clientes/queries";
 import { inicioDoDiaUtc } from "../src/lib/data";
+import { registrarExecucaoNaLinha } from "../src/modules/planejamento/execucao-service";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -127,6 +128,12 @@ async function main() {
     check("aprovado: parcela do básico = 4000 na data do marco M1", Number(l1?.valor) === 4000 && paraDia(l1!.vencimento!) === diaM1, { valor: l1?.valor, venc: l1?.vencimento, diaM1 });
     check("aprovado: parcela do executivo = 3000 na data do marco M2", Number(l2?.valor) === 3000 && paraDia(l2!.vencimento!) === diaM2 && l2?.status === "previsao");
     check("sincronizar de novo não duplica", (await previsoes()).length === 3);
+
+    // Marco concluído aponta a parcela presa a ele para o financeiro faturar (D9) — sem faturar sozinho.
+    const exM2 = await registrarExecucaoNaLinha({ id: m2.id, inicioReal: null, fimReal: hoje, hoje });
+    check("marco concluído aponta a parcela a faturar", exM2.parcelasAFaturar.map((x) => x.id).join() === pM2.id, exM2.parcelasAFaturar);
+    check("…e não fatura nada sozinho", (await linhaDa(pM2.id))?.status === "previsao");
+    await registrarExecucaoNaLinha({ id: m2.id, inicioReal: null, fimReal: null, hoje });
 
     // ── 3. Marco anda → a MESMA linha anda ───────────────────────────────
     await prisma.eapTarefa.update({ where: { id: bas.id }, data: { duracaoDias: 8 } });

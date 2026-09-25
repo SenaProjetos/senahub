@@ -11,7 +11,10 @@ export const metadata: Metadata = { title: "Jurídico" };
 
 export default async function JuridicoPage() {
   const user = await requirePermission("juridico", "ver");
-  const podeGerir = await can(user, "juridico", "gerir");
+  const [podeGerir, podeFaturar] = await Promise.all([
+    can(user, "juridico", "gerir"),
+    can(user, "financeiro", "gerir"),
+  ]);
   // Contrato de equipe (vinculoId setado) é dado sensível de RH — quem não é HR_ADMIN_ROLES
   // nem enxerga a linha (spec 2026-08-26-gerenciador-contratos.md, Fase A §3).
   const podeVerEquipe = HR_ADMIN_ROLES.includes(user.role);
@@ -25,6 +28,18 @@ export default async function JuridicoPage() {
         cliente: { select: { nome: true } },
         vinculo: { select: { id: true, userId: true, contratacao: true, dataFim: true, user: { select: { name: true } } } },
         aditivoEquipe: { include: { cargo: { select: { nome: true } } } },
+        // F7.3: plano por entrega e a situação de cada parcela no financeiro.
+        parcelasEntrega: {
+          orderBy: [{ ordem: "asc" }, { id: "asc" }],
+          select: {
+            id: true,
+            descricao: true,
+            percentual: true,
+            marcoId: true,
+            lancamento: { select: { status: true, valor: true, vencimento: true, excluidoEm: true } },
+          },
+        },
+        proposta: { select: { parcelas: { orderBy: { ordem: "asc" }, select: { descricao: true, percentual: true } } } },
         versoes: {
           orderBy: { numero: "desc" },
           include: {
@@ -69,6 +84,20 @@ export default async function JuridicoPage() {
       : Promise.resolve([]),
   ]);
 
+  // F7.3: marcos da EAP de cada projeto com contrato de cliente — as opções do "Quando" da parcela.
+  const projetosComContrato = [...new Set(docs.filter((d) => !d.vinculoId && d.projetoId).map((d) => d.projetoId!))];
+  const marcos = projetosComContrato.length
+    ? await prisma.eapTarefa.findMany({
+        where: { projetoId: { in: projetosComContrato }, tipoEap: "mrc" },
+        orderBy: [{ inicioPrevisto: "asc" }, { ordem: "asc" }],
+        select: { id: true, projetoId: true, nome: true, codigoEap: true },
+      })
+    : [];
+  const marcosPorProjeto: Record<string, { id: string; nome: string }[]> = {};
+  for (const m of marcos) {
+    (marcosPorProjeto[m.projetoId] ??= []).push({ id: m.id, nome: m.codigoEap ? `${m.codigoEap} · ${m.nome}` : m.nome });
+  }
+
   // H5 (spec Fase A): checklist de devolução — ativos de Patrimônio/TI de quem já tem `dataFim`
   // marcado no vínculo. Só busca pros usuários que aparecem em algum contrato de equipe aqui;
   // dataset é pequeno (um vínculo por contrato), não vale a pena condicionar a mais que isso.
@@ -97,6 +126,7 @@ export default async function JuridicoPage() {
     <JuridicoView
       podeGerir={podeGerir}
       podeVerEquipe={podeVerEquipe}
+      podeFaturar={podeFaturar}
       pastas={pastas.map((p) => ({ id: p.id, nome: p.nome, total: p._count.documentos }))}
       docs={docs.map((d) => ({
         id: d.id,
@@ -130,6 +160,31 @@ export default async function JuridicoPage() {
         parcelas: d.parcelas,
         primeiroVencimento: d.primeiroVencimento ? d.primeiroVencimento.toISOString() : null,
         clausulasAdicionais: d.clausulasAdicionais,
+        cobranca: {
+          id: d.id,
+          valor: d.valor ? d.valor.toNumber() : null,
+          statusContrato: d.statusContrato,
+          formaCobranca: d.formaCobranca,
+          parcelas: d.parcelas,
+          primeiroVencimento: d.primeiroVencimento ? d.primeiroVencimento.toISOString() : null,
+          parcelasEntrega: d.parcelasEntrega.map((p) => ({
+            id: p.id,
+            descricao: p.descricao,
+            percentual: Number(p.percentual),
+            marcoId: p.marcoId,
+            lancamento:
+              p.lancamento && !p.lancamento.excluidoEm
+                ? {
+                    status: p.lancamento.status,
+                    valor: Number(p.lancamento.valor),
+                    vencimento: p.lancamento.vencimento ? p.lancamento.vencimento.toISOString() : null,
+                  }
+                : null,
+          })),
+          marcos: d.projetoId ? (marcosPorProjeto[d.projetoId] ?? []) : [],
+          planoProposta: (d.proposta?.parcelas ?? []).map((p) => ({ descricao: p.descricao, percentual: Number(p.percentual) })),
+          temProjeto: d.projetoId != null,
+        },
         versoes: d.versoes.map((v) => ({
           id: v.id,
           numero: v.numero,
