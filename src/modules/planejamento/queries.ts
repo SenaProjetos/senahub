@@ -13,6 +13,8 @@ import { cargaDaEquipe } from "@/modules/planejamento/recursos-queries";
 import { ehEtapaDeTerceiro, ROTULO_PAPEL } from "@/modules/planejamento/recursos";
 import { contextoDeArquivos, sugerirProgresso } from "@/modules/planejamento/progresso-sugerido";
 import { minutosSessao } from "@/modules/ponto/format";
+import { custosDoProjeto } from "@/modules/planejamento/custo-service";
+import type { CustoLinha } from "@/modules/planejamento/custo";
 
 type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 
@@ -105,7 +107,13 @@ async function carregarApoioDasLinhas(linhas: readonly { id: string; disciplinaI
  * Mapeador único do DTO de linha da EAP. Existe pra `eapDoProjeto` e
  * `cronogramaProjetosAtivos` nunca divergirem de novo — as duas alimentam o mesmo `Gantt`.
  */
-function mapearTarefaDTO(t: EapTarefaComRelacoes, plano: PlanoDoProjeto | null, apoio: ApoioDaLinha = SEM_APOIO) {
+function mapearTarefaDTO(
+  t: EapTarefaComRelacoes,
+  plano: PlanoDoProjeto | null,
+  apoio: ApoioDaLinha = SEM_APOIO,
+  /** F7.1: só vem para quem vê financeiro; ausente = a linha sai sem custo (nulo). */
+  custo?: CustoLinha,
+) {
   const agendada = plano?.resultado.linhas.get(t.id);
   const apontadoMin = apoio.apontadoMin.get(t.id) ?? 0;
   return {
@@ -185,6 +193,10 @@ function mapearTarefaDTO(t: EapTarefaComRelacoes, plano: PlanoDoProjeto | null, 
     }),
     /** Contexto de arquivos (só texto): enviar não é entregar. */
     contextoArquivos: t.disciplinaId ? contextoDeArquivos(apoio.arquivosPorDisciplina.get(t.disciplinaId) ?? 0) : null,
+    // ── F7.1: custo previsto (horas × custo/hora) — nulo para quem não vê financeiro ──
+    custo: custo?.custo ?? null,
+    /** Por que não há custo (só quando o viewer vê custo e ele é desconhecido). */
+    custoMotivo: custo?.motivo ?? null,
   };
 }
 
@@ -243,7 +255,11 @@ export async function projetoVisivel(viewer: Viewer, projetoId: string) {
 }
 
 /** EAP completa de um projeto (lista plana ordenada por hierarquia; árvore montada no client). */
-export async function eapDoProjeto(projetoId: string) {
+export async function eapDoProjeto(
+  projetoId: string,
+  /** F7.1: custo por linha é taxa de remuneração — só calcula (e só envia) para quem vê financeiro. */
+  opcoes: { verCusto?: boolean } = {},
+) {
   const tarefas = await prisma.eapTarefa.findMany({
     where: { projetoId },
     orderBy: { ordem: "asc" },
@@ -257,8 +273,11 @@ export async function eapDoProjeto(projetoId: string) {
   // O motor roda sobre o estado ATUAL do banco e não grava nada: a tela mostra folga e
   // caminho crítico corretos mesmo antes de alguém clicar em "reagendar".
   const [plano, apoio] = await Promise.all([planoDoProjeto(projetoId), carregarApoioDasLinhas(tarefas)]);
+  const custos = opcoes.verCusto ? await custosDoProjeto(plano, tarefas) : null;
   return {
-    tarefas: tarefas.map((t) => mapearTarefaDTO(t, plano, apoio)),
+    tarefas: tarefas.map((t) => mapearTarefaDTO(t, plano, apoio, custos?.porLinha.get(t.id))),
+    /** `null` = o viewer não vê custo (a coluna nem aparece). */
+    custoTotal: custos ? custos.total : null,
     // Volta a se chamar `nome` na fronteira da UI (`EapWorkspace` fala "nome"): a F1.19c
     // renomeou a coluna no schema, não o rótulo exibido.
     disciplinas: disciplinas.map((d) => ({ id: d.id, nome: d.disciplinaTextoLegado })),

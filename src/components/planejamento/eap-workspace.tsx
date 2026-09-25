@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { formatarDiaMes } from "@/lib/utils";
+import { brl, formatarDiaMes } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -31,6 +31,7 @@ import { herdarResponsaveisDaDisciplina } from "@/modules/planejamento/recursos-
 import type { EapTarefaDTO, cronogramaProjetoInfo } from "@/modules/planejamento/queries";
 import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import type { Achado } from "@/modules/planejamento/qualidade";
+import { ROTULO_SEM_CUSTO, type CustoLinha } from "@/modules/planejamento/custo";
 import type { ResultadoSaude } from "@/modules/planejamento/saude";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +65,7 @@ export function EapWorkspace({
   disciplinas,
   pessoas,
   temLinhaBase,
+  custoTotal,
   podeGerir,
   podeAprovar,
   podeExecutado,
@@ -75,6 +77,8 @@ export function EapWorkspace({
   disciplinas: { id: string; nome: string }[];
   pessoas: { id: string; name: string; image: string | null }[];
   temLinhaBase: boolean;
+  /** F7.1: custo previsto do projeto. `null` = o viewer não vê custo (coluna oculta). */
+  custoTotal: CustoLinha | null;
   podeGerir: boolean;
   podeAprovar: boolean;
   podeExecutado: boolean;
@@ -94,6 +98,8 @@ export function EapWorkspace({
     tarefa: null,
   });
   const [filtro, setFiltro] = useState<Filtro>("todas");
+  /** Folhas sem custo conhecido — o que falta cadastrar para o custo previsto fechar. */
+  const semCusto = tarefas.filter((t) => !t.ehResumo && t.custo == null).length;
   const [lookahead, setLookahead] = useState<Lookahead>("todas");
 
   const abrir = (tarefa: EapTarefaDTO | null) => {
@@ -240,6 +246,20 @@ export function EapWorkspace({
           </h2>
           <p className="text-sm text-muted-foreground">
             EAP e cronograma. {temLinhaBase ? "Linha de base definida." : "Sem linha de base."}
+            {custoTotal && (
+              <>
+                {" "}
+                {custoTotal.custo != null ? (
+                  <span title="Horas previstas × custo/hora de cada pessoa (Recursos)">
+                    Custo previsto: <span className="font-mono text-foreground">{brl(custoTotal.custo)}</span>.
+                  </span>
+                ) : (
+                  <span className="text-warning" title="Linhas sem horas, com perfil (vaga) ou com pessoa sem custo/hora cadastrado em Recursos">
+                    Custo previsto incompleto — {semCusto} linha(s) sem custo.
+                  </span>
+                )}
+              </>
+            )}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -441,6 +461,7 @@ export function EapWorkspace({
                   <th className="px-3 py-2">Tarefa</th>
                   <th className="px-3 py-2">Disciplina</th>
                   <th className="px-3 py-2">Recursos</th>
+                  {custoTotal && <th className="px-3 py-2 text-right">Custo</th>}
                   <th className="px-3 py-2">Duração</th>
                   <th className="px-3 py-2">Previsto</th>
                   <th className="px-3 py-2">Linha de base</th>
@@ -506,6 +527,20 @@ export function EapWorkspace({
                           </div>
                         )}
                       </td>
+                      {custoTotal && (
+                        <td
+                          className={`whitespace-nowrap px-3 py-2 text-right font-mono text-xs ${t.ehResumo ? "" : "text-muted-foreground"}`}
+                          title={t.custoMotivo ? ROTULO_SEM_CUSTO[t.custoMotivo] : undefined}
+                        >
+                          {t.custo != null ? (
+                            brl(t.custo)
+                          ) : t.custoMotivo === "perfil" || t.custoMotivo === "sem_custo_hora" ? (
+                            <span className="text-warning">s/ custo</span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                      )}
                       <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-muted-foreground">
                         {t.marco ? "marco" : `${t.duracaoDias}d`}
                       </td>

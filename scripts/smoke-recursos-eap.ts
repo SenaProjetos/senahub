@@ -16,6 +16,8 @@
  *   6. Atividade que vira agrupamento com gente dentro é acusada.
  *   7. Carga da equipe: duas atividades paralelas de 40 h para a mesma pessoa estouram a
  *      semana; as duas sugestões (atrasar e passar) saem VERIFICADAS e resolvendo.
+ *   8. Custo previsto (F7.1): horas × custo/hora; pessoa sem taxa deixa a linha e o resumo
+ *      desconhecidos (nunca zero); quem não vê financeiro não recebe custo; a baseline congela.
  *
  * Uso: npm run smoke:recursos-eap
  */
@@ -25,6 +27,7 @@ import { planoDoProjeto, reagendarProjeto } from "../src/modules/planejamento/ag
 import { cargaDaEquipe } from "../src/modules/planejamento/recursos-queries";
 import { tarefasTravadasPeloCronograma } from "../src/modules/tarefas/queries";
 import { aprovarCronograma, avaliarQualidade } from "../src/modules/planejamento/service";
+import { eapDoProjeto } from "../src/modules/planejamento/queries";
 import {
   herdarResponsaveisNoProjeto,
   sincronizarCards,
@@ -125,6 +128,23 @@ async function main() {
     q = await avaliarQualidade(projeto.id);
     check("verificador: sobra só o B de A sem hora", JSON.stringify(regras("atribuicao_sem_horas")) === JSON.stringify([A.id]), regras("atribuicao_sem_horas"));
 
+    // ── 8. Custo previsto (F7.1) ───────────────────────────────────────────
+    // A: 40 h do A. B: 24 h do A + 16 h do B. Só o A tem taxa, por enquanto.
+    await prisma.recurso.create({ data: { userId: pjA.id, custoHora: 100 } });
+    let eap = await eapDoProjeto(projeto.id, { verCusto: true });
+    const c = (id: string) => eap.tarefas.find((t) => t.id === id);
+    check("custo: A = 40 h × 100", c(A.id)?.custo === 4000, c(A.id)?.custo);
+    check("custo: B com pessoa sem taxa é DESCONHECIDO, com o motivo", c(B.id)?.custo === null && c(B.id)?.custoMotivo === "sem_custo_hora", c(B.id));
+    check("custo: resumo com filho desconhecido é desconhecido", c(R.id)?.custo === null && c(R.id)?.custoMotivo === "filho_sem_custo");
+    check("custo: total desconhecido", eap.custoTotal?.custo === null);
+    await prisma.recurso.create({ data: { userId: pjB.id, custoHora: 50 } });
+    eap = await eapDoProjeto(projeto.id, { verCusto: true });
+    check("custo: B = 24 × 100 + 16 × 50", c(B.id)?.custo === 3200, c(B.id)?.custo);
+    check("custo: etapa de terceiro e marco custam zero conhecido", c(T.id)?.custo === 0 && c(M.id)?.custo === 0, [c(T.id)?.custo, c(M.id)?.custo]);
+    check("custo: resumo soma os filhos (7200) e é o total", c(R.id)?.custo === 7200 && eap.custoTotal?.custo === 7200, [c(R.id)?.custo, eap.custoTotal]);
+    const semVer = await eapDoProjeto(projeto.id);
+    check("custo: quem não vê financeiro não recebe custo nenhum", semVer.custoTotal === null && semVer.tarefas.every((t) => t.custo === null && t.custoMotivo === null));
+
     // ── 4. Rascunho × aprovado ─────────────────────────────────────────────
     // SEM reagendar de propósito: as colunas de data gravadas ficam com a data de criação
     // (05/10 em todas), e o motor diz outra coisa. O card tem de nascer com a data do MOTOR.
@@ -157,6 +177,12 @@ async function main() {
     const blA = bl.find((x) => x.tarefaId === A.id);
     const blR = bl.find((x) => x.tarefaId === R.id);
     check("baseline grava as horas", Number(blA?.trabalhoHoras) === 40 && Number(blR?.trabalhoHoras) === 80, bl);
+    const blCusto = await prisma.eapBaselineLinha.findMany({ where: { tarefaId: { in: [A.id, R.id] } }, select: { tarefaId: true, custoPrevisto: true } });
+    check(
+      "baseline congela o custo previsto (VP da F8)",
+      Number(blCusto.find((x) => x.tarefaId === A.id)?.custoPrevisto) === 4000 && Number(blCusto.find((x) => x.tarefaId === R.id)?.custoPrevisto) === 7200,
+      blCusto,
+    );
     const blB = await prisma.eapBaselineLinha.findFirstOrThrow({ where: { tarefaId: B.id }, select: { fim: true } });
     const cardB = await card(B.id);
     const gravadoB = await prisma.eapTarefa.findUniqueOrThrow({ where: { id: B.id }, select: { fimPrevisto: true } });

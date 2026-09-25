@@ -22,6 +22,27 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Custo previsto no cronograma (para quem vê o financeiro)
+
+Na EAP do projeto, quem tem acesso ao financeiro passa a ver a coluna **Custo**: as horas
+previstas de cada pessoa na linha × o **custo/hora** dela, cadastrado em **Recursos**. As linhas
+de agrupamento somam as de dentro, e o topo da tela mostra o custo previsto do projeto.
+
+- Linha sem horas, com **perfil** (vaga ainda sem pessoa) ou com alguém **sem custo/hora
+  cadastrado** fica sem custo — nunca aparece como R$ 0,00. Passe o mouse para ver o que falta.
+  Nesse caso o total do projeto aparece como **incompleto**, dizendo quantas linhas faltam.
+- Marco e etapa do cliente (aprovação, análise externa) custam zero.
+- Ao **aprovar** ou **replanejar** o cronograma, o custo de cada linha fica guardado na linha de
+  base, junto com as datas e as horas. Mudar o custo/hora de alguém depois não altera o que foi
+  combinado.
+- O **Exportar Excel** da EAP traz a coluna de custo para quem vê o financeiro.
+- Quem não vê o financeiro não vê a coluna nem o total.
+
+Para quem recebe por entrega (PJ/freelancer), o que a empresa paga de verdade continua sendo o
+pagamento da disciplina (ou da fase). O custo previsto é a estimativa do cronograma.
+
+---
+
 ## Pagamento do projetista por fase (Básico, Executivo…)
 
 Disciplina dividida em etapas (botão de camadas no card da disciplina) agora pode pagar **fase

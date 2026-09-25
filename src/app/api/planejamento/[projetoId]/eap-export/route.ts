@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createRequire } from "node:module";
 import type ExcelJSType from "exceljs";
 import { getSession } from "@/lib/session";
-import { can } from "@/lib/permissions";
+import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { eapDoProjeto, projetoVisivel } from "@/modules/planejamento/queries";
 
 const require = createRequire(import.meta.url);
@@ -43,7 +43,9 @@ export async function GET(
   const projeto = await projetoVisivel(session.user, projetoId);
   if (!projeto) return NextResponse.json({ error: "Projeto não encontrado." }, { status: 404 });
 
-  const { tarefas, temLinhaBase } = await eapDoProjeto(projetoId);
+  // F7.1: custo por linha só sai para quem vê financeiro — mesma regra da tela.
+  const verCusto = await podeVerFinanceiro(session.user);
+  const { tarefas, temLinhaBase } = await eapDoProjeto(projetoId, { verCusto });
   const wbs = wbsCodes(tarefas);
 
   const wb = new ExcelJS.Workbook();
@@ -59,6 +61,7 @@ export async function GET(
     { header: "Início previsto", key: "inicio", width: 16 },
     { header: "Fim previsto", key: "fim", width: 16 },
     { header: "Progresso (%)", key: "progresso", width: 14 },
+    ...(verCusto ? [{ header: "Custo previsto (R$)", key: "custo", width: 18 }] : []),
     ...(temLinhaBase
       ? [
           { header: "Início baseline", key: "inicioBase", width: 16 },
@@ -95,6 +98,8 @@ export async function GET(
       inicio: t.inicioPrevisto,
       fim: t.fimPrevisto,
       progresso: t.progresso,
+      // Desconhecido fica em branco, nunca 0 — o total de uma coluna com zeros mentiria.
+      ...(verCusto ? { custo: t.custo ?? "" } : {}),
       ...(temLinhaBase ? { inicioBase: t.inicioBaseline ?? "", fimBase: t.fimBaseline ?? "", desvio: desvio ?? "" } : {}),
     });
 
@@ -106,6 +111,7 @@ export async function GET(
   }
 
   ws.getColumn("progresso").numFmt = '0"%"';
+  if (verCusto) ws.getColumn("custo").numFmt = "#,##0.00";
 
   const buffer = await wb.xlsx.writeBuffer();
   const slug = projeto.codigo.replace(/[^a-zA-Z0-9-]/g, "_");

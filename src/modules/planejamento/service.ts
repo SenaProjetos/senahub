@@ -12,6 +12,7 @@ import {
 import { calcularSaude, principalCausa, type ResultadoSaude } from "./saude";
 import { ehEtapaDeTerceiro, pessoasSemHoras } from "./recursos";
 import { sincronizarCards } from "./recursos-service";
+import { custosDoProjeto } from "./custo-service";
 
 /**
  * Regras de negócio do cronograma, compartilhadas por `actions.ts` e pelos jobs.
@@ -136,7 +137,14 @@ export async function congelarBaseline(
   const [tarefas, ultima] = await Promise.all([
     prisma.eapTarefa.findMany({
       where: { projetoId },
-      select: { id: true, nome: true, codigoEap: true, progresso: true },
+      select: {
+        id: true,
+        parentId: true,
+        nome: true,
+        codigoEap: true,
+        progresso: true,
+        atribuicoes: { select: { userId: true, horasPrevistas: true } },
+      },
     }),
     prisma.eapBaseline.findFirst({
       where: { projetoId },
@@ -146,6 +154,8 @@ export async function congelarBaseline(
   ]);
 
   const numero = ultima ? ultima.numero + 1 : 0;
+  // F7.1: o custo previsto congela junto (VP da F8). Taxa que mudar depois não mexe no combinado.
+  const { porLinha: custos } = await custosDoProjeto(plano, tarefas);
 
   await prisma.$transaction(async (tx) => {
     const baseline = await tx.eapBaseline.create({
@@ -175,6 +185,7 @@ export async function congelarBaseline(
             // Horas combinadas (D23): o "trabalho da linha de base" do MS Project, que o Valor
             // Agregado (F8) lê. `null` quando a linha não estava estimada ao congelar.
             trabalhoHoras: a.trabalhoHoras,
+            custoPrevisto: custos.get(t.id)?.custo ?? null,
             avancoPlanejado: a.progresso,
           },
         ];

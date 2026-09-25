@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
-import { can } from "@/lib/permissions";
+import { can, podeVerFinanceiro } from "@/lib/permissions";
 import {
   projetoVisivel,
   eapDoProjeto,
@@ -24,9 +24,10 @@ export default async function PlanejamentoProjetoPage({
   const user = await requirePermission("planejamento", "ver");
   const projeto = await projetoVisivel(user, projetoId);
   if (!projeto) notFound();
+  const verCusto = await podeVerFinanceiro(user);
 
   const [
-    { tarefas, disciplinas, temLinhaBase },
+    { tarefas, disciplinas, temLinhaBase, custoTotal },
     podeGerir,
     podeAprovar,
     podeExecutado,
@@ -35,7 +36,7 @@ export default async function PlanejamentoProjetoPage({
     qualidade,
     pessoas,
   ] = await Promise.all([
-    eapDoProjeto(projetoId),
+    eapDoProjeto(projetoId, { verCusto }),
     can(user, "planejamento", "gerir"),
     can(user, "cronograma", "aprovar"),
     can(user, "cronograma", "executado"),
@@ -53,6 +54,7 @@ export default async function PlanejamentoProjetoPage({
         disciplinas={disciplinas}
         pessoas={pessoas}
         temLinhaBase={temLinhaBase}
+        custoTotal={custoTotal}
         podeGerir={podeGerir}
         podeAprovar={podeAprovar}
         podeExecutado={podeExecutado}
