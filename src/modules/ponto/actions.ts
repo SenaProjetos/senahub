@@ -12,6 +12,7 @@ import { getSession } from "@/lib/session";
 import { aplicarBatida, editarDia } from "@/modules/ponto/service";
 import { apontamentoAtual } from "@/modules/ponto/apontamento";
 import {
+  alocacoesRecentes,
   espelhoDetalhado,
   projetosDoUsuario,
   resumoJornada,
@@ -77,6 +78,17 @@ export async function buscarProjetosPonto() {
   const user = session?.user;
   if (!user || !user.ativo || !INTERNAL_ROLES.includes(user.role)) return [];
   return projetosDoUsuario(user.id);
+}
+
+/**
+ * Atalhos de troca do card de ponto do Início: últimas alocações da própria pessoa. Leitura,
+ * fora do `defineAction` como as duas acima e com o mesmo gate — só lê as sessões de quem pede.
+ */
+export async function buscarAlocacoesRecentes() {
+  const session = await getSession();
+  const user = session?.user;
+  if (!user || !user.ativo || !INTERNAL_ROLES.includes(user.role)) return [];
+  return alocacoesRecentes(user.id);
 }
 
 const projetoOpt = z.string().optional().or(z.literal(""));

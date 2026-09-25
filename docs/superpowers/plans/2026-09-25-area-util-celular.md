@@ -136,7 +136,23 @@ ser divididos entre as duas worktrees).
 
 ## 4. Progresso
 
-- [ ] Lote 1 — 1.1 · 1.2
+- [x] **Lote 1 — concluído em 2026-09-25 (Opus 5.5).**
+  - 1.1: `components/shell/cabecalho-pagina.tsx` + `data-titulo-padrao` e `--barra-global` no
+    header + regra `:has()` em globals.css. Funde na barra a partir de `xl` (abaixo, linha
+    própria; no celular as ações quebram linha). Piloto no Financeiro: números de 164 → 80 px em
+    1366 × 768; HTML do servidor já sem título duplicado. Fusão no celular fica para o 3.1
+    (hoje os controles globais ocupam ~324 px dos 390).
+  - 1.2: `components/ponto/card-ponto-hoje.tsx` (só no celular) + `use-jornada.ts` (estado da
+    jornada extraído da miniatura do header, que passou a usá-lo) + `alocacoesDistintas` (pura,
+    testada) / `alocacoesRecentes` / `buscarAlocacoesRecentes` + `sessaoDesde` no resumo.
+    Início no celular: ponto → "Para você hoje" → resto; números em 2 × 2. Testado em navegador
+    celular com Carla (CLT: escolher → iniciar → trocar → encerrar com confirmação) e Ana (PJ:
+    mesmo fluxo no apontamento) no banco de dev.
+  - **Achado fora do escopo (não mexido):** `next.config.ts` manda
+    `Permissions-Policy: geolocation=()`, então a geolocalização opcional das batidas (S6 do
+    Ponto v2) nunca é capturada, nem em produção. Decisão do dono.
+  - Dev: depois de criar export novo (Server Action, atributo no header), o `next dev` desta
+    pasta serviu versão velha até ser reiniciado (500 `reading 'apply'` / hidratação).
 - [ ] Lote 2
 - [ ] Lote 3
 - [ ] Lote 4

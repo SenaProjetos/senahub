@@ -11,7 +11,12 @@ import { escalaContratacaoGrade, escalaUsuarioGrade, type DiaGrade } from "@/mod
 import { acumuladoAte } from "@/modules/rh/banco/queries";
 import { esperadoPorDiaMes, somarEsperadoAte } from "@/modules/ponto/esperado";
 import { contextoApuracao } from "@/modules/ponto/apuracao";
-import { rotuloAlocacaoSemProjeto, type TipoAlocacaoPonto } from "@/modules/ponto/alocacao";
+import {
+  alocacoesDistintas,
+  rotuloAlocacaoSemProjeto,
+  type AlocacaoRecente,
+  type TipoAlocacaoPonto,
+} from "@/modules/ponto/alocacao";
 import {
   calcularDia,
   trabalhadoPorDia,
@@ -123,6 +128,8 @@ export type ResumoJornada = {
    */
   retomarProjeto: { id: string; codigo: string; nome: string } | null;
   retomarTipoAlocacao: TipoAlocacaoPonto | null;
+  /** Início da sessão aberta (trabalhando) — "neste projeto desde 10:40" no card do Início. */
+  sessaoDesde: Date | null;
   /** Instante do cálculo no servidor — âncora do cronômetro ao vivo no cliente. */
   agora: Date;
 };
@@ -164,7 +171,7 @@ export async function resumoJornada(userId: string): Promise<ResumoJornada> {
       : await prisma.sessaoTrabalho.findFirst({
           where: { userId, ...(calc.estado === "trabalhando" ? { fim: null } : {}) },
           orderBy: { inicio: "desc" },
-          select: { tipoAlocacao: true, projeto: { select: { id: true, codigo: true, nome: true } } },
+          select: { inicio: true, tipoAlocacao: true, projeto: { select: { id: true, codigo: true, nome: true } } },
         });
 
   return {
@@ -175,8 +182,38 @@ export async function resumoJornada(userId: string): Promise<ResumoJornada> {
     tipoAlocacaoAtiva: calc.estado === "trabalhando" ? sessao?.tipoAlocacao ?? null : null,
     retomarProjeto: sessao?.projeto ?? null,
     retomarTipoAlocacao: sessao?.tipoAlocacao ?? null,
+    sessaoDesde: calc.estado === "trabalhando" ? sessao?.inicio ?? null : null,
     agora,
   };
+}
+
+/**
+ * Alocações que a pessoa usou por último (projeto em andamento ou reunião), para a troca em um
+ * toque no card de ponto do Início. Janela de 45 dias e teto de 200 sessões: quem trabalha no
+ * mesmo projeto a semana toda não empurra os outros para fora, e a consulta continua barata.
+ */
+export async function alocacoesRecentes(userId: string, limite = 4): Promise<AlocacaoRecente[]> {
+  const desde = new Date(Date.now() - 45 * 86_400_000);
+  const sessoes = await prisma.sessaoTrabalho.findMany({
+    where: { userId, inicio: { gte: desde } },
+    orderBy: { inicio: "desc" },
+    take: 200,
+    select: {
+      tipoAlocacao: true,
+      projeto: { select: { id: true, codigo: true, nome: true, situacao: true } },
+    },
+  });
+  // Mesmo recorte do seletor (`projetosDoUsuario`): só projeto em andamento vira atalho.
+  return alocacoesDistintas(
+    sessoes.map((s) => ({
+      tipoAlocacao: s.tipoAlocacao,
+      projeto:
+        s.projeto && s.projeto.situacao === "em_andamento"
+          ? { id: s.projeto.id, codigo: s.projeto.codigo, nome: s.projeto.nome }
+          : null,
+    })),
+    limite,
+  );
 }
 
 /**

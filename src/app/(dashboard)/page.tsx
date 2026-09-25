@@ -10,7 +10,22 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Sparkline } from "@/components/ui/sparkline";
-import { Building2, Upload, MessageSquare, Clock, KanbanSquare, type LucideIcon } from "lucide-react";
+import {
+  Building2,
+  Upload,
+  MessageSquare,
+  Clock,
+  KanbanSquare,
+  PencilRuler,
+  Hourglass,
+  FileCheck2,
+  CalendarClock,
+  ShieldAlert,
+  ChevronRight,
+  type LucideIcon,
+} from "lucide-react";
+import { CardPontoHoje } from "@/components/ponto/card-ponto-hoje";
+import { ChatBadge } from "@/components/chat/chat-badge";
 import { requireUser } from "@/lib/session";
 import { kpisHome } from "@/modules/qualidade/queries";
 import { agingReport } from "@/modules/financeiro/aging/queries";
@@ -163,8 +178,50 @@ export default async function HomePage() {
       : []),
   ];
 
+  // "Para você hoje" do celular — só contagens que esta página já busca, em linhas de toque.
+  const paraHoje: { label: string; valor: number; href: string; icon: LucideIcon }[] = [
+    { label: "Minhas disciplinas em revisão", valor: kpisMeu.emRevisao, href: "/projetos/meu-trabalho", icon: PencilRuler },
+    { label: "Minhas entregas aguardando validação", valor: kpisMeu.validacoesPendentes, href: "/projetos/meu-trabalho", icon: Hourglass },
+    ...(podeAprovar ? [{ label: "Arquivos para aprovar", valor: pendentesAprov, href: "/aprovacoes", icon: FileCheck2 }] : []),
+    { label: "Entregas em até 7 dias", valor: kpis.entregasPendentes, href: "/projetos", icon: CalendarClock },
+    ...(certidoes.vencidas + certidoes.venceEmBreve > 0
+      ? [{ label: "Certidões a renovar", valor: certidoes.vencidas + certidoes.venceEmBreve, href: "/certidoes", icon: ShieldAlert }]
+      : []),
+  ];
+
   return (
     <div className="space-y-6">
+      {/* Celular (plano 2026-09-25, 1.2): o ponto primeiro e o que pede atenção hoje em linhas
+          grandes. No computador essas duas coisas já estão no header e nos cartões abaixo. */}
+      <div className="space-y-3 md:hidden">
+        <CardPontoHoje />
+        <section aria-labelledby="para-voce-hoje" className="rounded-md border bg-card">
+          <h2 id="para-voce-hoje" className="px-4 pb-1 pt-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            Para você hoje
+          </h2>
+          <ul className="divide-y">
+            {paraHoje.map((l) => (
+              <li key={l.label}>
+                <Link href={l.href} className="flex min-h-14 items-center gap-3 px-4 hover:bg-muted/40">
+                  <l.icon className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+                  <span className="min-w-0 flex-1 text-[15px]">{l.label}</span>
+                  <span className={`font-mono text-base font-semibold tabular-nums ${l.valor === 0 ? "text-muted-foreground" : ""}`}>{l.valor}</span>
+                  <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                </Link>
+              </li>
+            ))}
+            <li>
+              <Link href="/chat" className="flex min-h-14 items-center gap-3 px-4 hover:bg-muted/40">
+                <MessageSquare className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+                <span className="min-w-0 flex-1 text-[15px]">Mensagens</span>
+                <ChatBadge className="h-5 min-w-5 px-1.5 text-xs" />
+                <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+              </Link>
+            </li>
+          </ul>
+        </section>
+      </div>
+
       <HeroCard nome={user.name} aniversariantes={aniversarios} humorAtual={humorHoje} />
 
       {/* Ações rápidas (porte da versão antiga) */}
@@ -181,13 +238,15 @@ export default async function HomePage() {
       </div>
 
       {/* KPIs do colaborador + sparkline (Mód 1) */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/* No celular, as duas primeiras contagens já estão em "Para você hoje". */}
+      <div className="hidden gap-4 sm:grid sm:grid-cols-3">
         <KpiSpark label="Projetos em revisão" valor={kpisMeu.emRevisao} serie={kpisMeu.serieEmRevisao} href="/projetos/meu-trabalho" />
         <KpiSpark label="Aprovados no mês" valor={kpisMeu.aprovadosMes} serie={kpisMeu.serieAprovados} href="/projetos/meu-trabalho" />
         <KpiSpark label="Validações pendentes" valor={kpisMeu.validacoesPendentes} serie={kpisMeu.serieValidacoes} href="/projetos/meu-trabalho" />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Celular: grade 2 × 2 com o número e o rótulo; a explicação do número fica para telas maiores. */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {cards.map((kpi) => (
           <Link key={kpi.label} href={kpi.href}>
             <Card className="h-full transition-colors hover:bg-muted/40">
@@ -195,9 +254,9 @@ export default async function HomePage() {
                 <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">
                   {kpi.label}
                 </CardDescription>
-                <CardTitle className="text-3xl font-extrabold tracking-tight">{kpi.value}</CardTitle>
+                <CardTitle className="text-xl font-extrabold tracking-tight sm:text-3xl">{kpi.value}</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="hidden sm:block">
                 <p className="text-xs text-muted-foreground">{kpi.delta}</p>
               </CardContent>
             </Card>

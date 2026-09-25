@@ -5,14 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Clock, Coffee, Play, Repeat, Square, TimerReset } from "lucide-react";
-import { buscarProjetosPonto, buscarResumoJornada } from "@/modules/ponto/actions";
+import { buscarProjetosPonto } from "@/modules/ponto/actions";
 import {
   abrirApontamentoAction,
   fecharApontamentoAction,
   trocarApontamentoAction,
 } from "@/modules/ponto/apontamento-actions";
 import { transicoesPermitidas } from "@/modules/ponto/engine";
-import type { ResumoHeader } from "@/modules/ponto/queries";
 import { fmtHoras } from "@/modules/ponto/format";
 import {
   ALOCACAO_REUNIAO_EXTERNA,
@@ -22,7 +21,8 @@ import {
   selecaoDaAlocacaoPonto,
 } from "@/modules/ponto/alocacao";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { useBatida, useCronometro, EVENTO_PONTO, avisarPontoAtualizado } from "@/components/ponto/use-batida";
+import { useBatida, avisarPontoAtualizado } from "@/components/ponto/use-batida";
+import { useJornada } from "@/components/ponto/use-jornada";
 import { BOTAO, COR_ESTADO, ESTADO_LABEL } from "@/components/ponto/batida-meta";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -35,10 +35,6 @@ import {
 } from "@/components/ui/select";
 
 type Projeto = { id: string; codigo: string; nome: string };
-
-const POLL_MS = 60_000;
-/** Âncora estável enquanto não há resumo (cronômetro parado) — evita recriar a data a cada render. */
-const EPOCH = new Date(0);
 
 function hhmmss(ms: number): string {
   const tot = Math.max(0, Math.floor(ms / 1000));
@@ -65,71 +61,15 @@ function projetoLabel(p: { codigo: string; nome: string }): string {
  */
 export function JornadaHeader() {
   const router = useRouter();
-  // undefined = carregando · null = usuário sem jornada (cliente) → não renderiza.
-  const [resumo, setResumo] = useState<ResumoHeader | null | undefined>(undefined);
+  // `resumo`: undefined = carregando · null = usuário sem jornada (cliente) → não renderiza.
+  const { resumo, rodando, ms, projetoCorrenteId, tipoAlocacaoCorrente } = useJornada();
   // Projetos do seletor: carregados só ao abrir o popover (não pesam a navegação).
   const [projetos, setProjetos] = useState<Projeto[] | null>(null);
   const [alocacao, setAlocacao] = useState<string>(ALOCACAO_SEM_PROJETO);
   const [aplicando, setAplicando] = useState(false);
   const { bater, trocar, busy } = useBatida();
 
-  const carregar = useCallback(async () => {
-    try {
-      setResumo(await buscarResumoJornada());
-    } catch {
-      // Offline/erro de rede: mantém o último estado conhecido em vez de sumir com o relógio.
-    }
-  }, []);
-
-  // `null` = perfil sem jornada (cliente): o papel não muda no meio da sessão, então
-  // encerra o polling de vez — senão todo usuário do portal bateria na action a cada minuto.
-  const semJornada = resumo === null;
-
-  useEffect(() => {
-    if (semJornada) return;
-    void carregar();
-    // Aba em segundo plano não precisa de poll — `visibilitychange` recarrega na volta.
-    const id = setInterval(() => {
-      if (document.visibilityState === "visible") void carregar();
-    }, POLL_MS);
-    const aoVoltar = () => {
-      if (document.visibilityState === "visible") void carregar();
-    };
-    const aoAtualizar = () => void carregar();
-    document.addEventListener("visibilitychange", aoVoltar);
-    window.addEventListener(EVENTO_PONTO, aoAtualizar);
-    return () => {
-      clearInterval(id);
-      document.removeEventListener("visibilitychange", aoVoltar);
-      window.removeEventListener(EVENTO_PONTO, aoAtualizar);
-    };
-  }, [carregar, semJornada]);
-
   const ehPonto = resumo?.modo === "ponto";
-  const rodando = resumo
-    ? resumo.modo === "ponto"
-      ? resumo.estado === "trabalhando"
-      : resumo.aberto !== null
-    : false;
-  const baseMin = resumo ? (resumo.modo === "ponto" ? resumo.trabalhadoMin : resumo.hojeMin) : 0;
-  const ms = useCronometro(baseMin, resumo?.agora ?? EPOCH, rodando);
-
-  /**
-   * Projeto que o servidor considera corrente — o da sessão aberta ou, em descanso, o da
-   * última sessão (para retomar no mesmo). O seletor acompanha, mas só quando ESTE valor
-   * muda: senão um poll de 60s apagaria a escolha que o usuário acabou de fazer.
-   */
-  const projetoCorrenteId = !resumo
-    ? null
-    : resumo.modo === "ponto"
-      ? (resumo.projetoAtivo?.id ?? resumo.retomarProjeto?.id ?? null)
-      : (resumo.aberto?.projetoId ?? null);
-
-  const tipoAlocacaoCorrente = !resumo
-    ? "sem_projeto"
-    : resumo.modo === "ponto"
-      ? (resumo.tipoAlocacaoAtiva ?? resumo.retomarTipoAlocacao ?? "sem_projeto")
-      : (resumo.aberto?.tipoAlocacao ?? "sem_projeto");
 
   useEffect(() => {
     setAlocacao(selecaoDaAlocacaoPonto(projetoCorrenteId, tipoAlocacaoCorrente));

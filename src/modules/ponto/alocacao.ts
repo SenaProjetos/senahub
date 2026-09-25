@@ -58,3 +58,37 @@ export function selecaoDaAlocacaoPonto(
 export function rotuloAlocacaoSemProjeto(tipoAlocacao: TipoAlocacaoPonto): string {
   return tipoAlocacao === "projeto" ? "Projeto" : ROTULO_TIPO_ALOCACAO[tipoAlocacao];
 }
+
+export type ProjetoAlocacao = { id: string; codigo: string; nome: string };
+
+/** Uma alocação já usada, pronta para virar linha de troca rápida no card de ponto. */
+export type AlocacaoRecente = {
+  /** Valor do seletor (id do projeto ou `ALOCACAO_*`) — o mesmo que `trocarProjeto` recebe. */
+  selecao: string;
+  tipoAlocacao: TipoAlocacaoPonto;
+  projeto: ProjetoAlocacao | null;
+};
+
+/**
+ * Alocações distintas, na ordem em que chegam (mais recente primeiro), até `limite`.
+ * "Sem projeto" fica de fora: está sempre à mão na lista completa, e como atalho só ocuparia
+ * a vaga de um projeto. Sessão de projeto sem o projeto (apagado ou fora de andamento, filtrado
+ * pela consulta) também sai — não há para onde trocar.
+ */
+export function alocacoesDistintas(
+  sessoes: { tipoAlocacao: TipoAlocacaoPonto; projeto: ProjetoAlocacao | null }[],
+  limite: number,
+): AlocacaoRecente[] {
+  const vistas = new Set<string>();
+  const out: AlocacaoRecente[] = [];
+  for (const s of sessoes) {
+    if (out.length >= limite) break;
+    if (s.tipoAlocacao === "sem_projeto") continue;
+    if (s.tipoAlocacao === "projeto" && !s.projeto) continue;
+    const selecao = selecaoDaAlocacaoPonto(s.projeto?.id ?? null, s.tipoAlocacao);
+    if (vistas.has(selecao)) continue;
+    vistas.add(selecao);
+    out.push({ selecao, tipoAlocacao: s.tipoAlocacao, projeto: s.tipoAlocacao === "projeto" ? s.projeto : null });
+  }
+  return out;
+}
