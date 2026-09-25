@@ -2,8 +2,8 @@
 titulo: Tarefas
 descricao: Quadro de tarefas (kanban) em colunas por status, com checklist, dependências e comentários.
 resumo: Organize tarefas em colunas, atribua responsáveis, defina prazo e prioridade, vincule a projetos, use checklists, dependências e comentários com anexo.
-tags: [tarefas, kanban, quadro, checklist, dependências, comentários, prioridade, prazo, botão direito, menu de contexto]
-palavras-chave: [tarefa, kanban, quadro, coluna, status, checklist, dependência, bloqueada, comentário, anexo, prioridade, botão direito, clique direito, toque longo, menu de contexto, atalho, mover, arquivar]
+tags: [tarefas, kanban, quadro, checklist, dependências, comentários, prioridade, prazo, botão direito, menu de contexto, cronograma, cards do cronograma]
+palavras-chave: [tarefa, kanban, quadro, coluna, status, checklist, dependência, bloqueada, comentário, anexo, prioridade, botão direito, clique direito, toque longo, menu de contexto, atalho, mover, arquivar, card do cronograma, prazo travado, tarefa do planejamento]
 sinonimos: [to-do, board, atividades, cartões]
 ---
 
@@ -48,6 +48,20 @@ em colunas de status, com responsáveis, prazo, prioridade, checklists e depend�
   ser concluída.
 - **Comentários:** texto e **anexo** (arquivo), com autor e data.
 
+## Cards que vêm do cronograma
+
+Quando o [cronograma](planejamento.md) de um projeto é **aprovado**, cada **atividade da equipe** com
+pessoa escalada vira um **card** aqui, para cada uma dessas pessoas.
+
+- O card **acompanha o cronograma**: se a data ou a equipe da atividade muda na EAP, o card muda junto.
+- **Título, prazo, projeto, disciplina e responsáveis ficam travados** no card — o aviso diz "Este card
+  vem do cronograma… mudam na EAP do projeto" e leva até lá. **Coluna, prioridade, descrição, checklist
+  e comentários** continuam livres: você trabalha no dia a dia sem mexer no combinado.
+- O **checklist** do card alimenta a **sugestão de percentual** que a coordenação vê na EAP.
+- Marco, agrupamento, etapa de terceiro e atividade só com perfil (sem pessoa) **não** geram card.
+
+Detalhes em [Cronograma: equipe, horas e custo](cronograma-equipe-e-custo.md).
+
 ## Menu de ações (botão direito)
 
 Clique com o **botão direito** em um cartão do quadro (ou em uma linha da visão em lista)
@@ -84,7 +98,8 @@ com as mesmas ações. Ele aparece ao passar o mouse e quando você chega nele c
 
 ## Funcionalidades relacionadas
 
-- [Agenda](agenda.md) (mostra prazos de tarefas) · [Projetos](projetos.md)
+- [Agenda](agenda.md) (mostra prazos de tarefas) · [Projetos](projetos.md) ·
+  [Planejamento](planejamento.md) (o cronograma aprovado gera os cards)
 
 ## FAQ
 

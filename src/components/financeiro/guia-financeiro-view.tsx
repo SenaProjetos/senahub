@@ -57,6 +57,12 @@ const VOCABULARIO: readonly TermoGuia[] = [
     exemplo: "A nota que você vai receber dia 30 é um previsto até cair na conta.",
   },
   {
+    termo: "Previsão do cronograma",
+    definicao:
+      "O recebimento esperado de uma parcela de contrato cobrado por entrega, na data do marco do cronograma. Aparece só na projeção de caixa: não é conta a receber e não entra no aging nem na inadimplência até a parcela ser faturada no contrato.",
+    exemplo: "“40% na entrega do básico” aparece como previsão na semana do marco; ao faturar, vira um previsto de verdade.",
+  },
+  {
     termo: "Confirmado",
     definicao:
       "O dinheiro andou de verdade. É o único estado que entra no caixa e no resultado do mês. Confirmar é o ato central do Financeiro — antes disso, nenhum número de resultado enxerga o lançamento.",

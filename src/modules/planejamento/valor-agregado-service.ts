@@ -65,7 +65,7 @@ export async function valorAgregadoDoProjeto(
     return { ok: false, motivo: "Aprove o cronograma: o Valor Agregado mede o projeto contra a linha de base." };
   }
   if (!cronograma?.dataStatus) {
-    return { ok: false, motivo: "Defina a Data de Status: é a data em que o Valor Agregado é apurado (D39)." };
+    return { ok: false, motivo: "Defina a Data de Status: é a data em que o Valor Agregado é apurado." };
   }
   const dataStatus = paraDia(cronograma.dataStatus);
 

@@ -2,8 +2,8 @@
 titulo: Contas a pagar e receber (e Aging)
 descricao: Pendências financeiras por tipo, com filtros, e a análise de atraso (aging) por faixas.
 resumo: Veja contas a pagar e a receber pendentes em abas, filtre e exporte; o aging agrupa os valores previstos por faixa de atraso e destaca os mais vencidos.
-tags: [contas a pagar, contas a receber, aging, atraso, vencido, a vencer, pendências]
-palavras-chave: [conta a pagar, conta a receber, aging, atraso, vencido, a vencer, faixa, inadimplência, pendência]
+tags: [contas a pagar, contas a receber, aging, atraso, vencido, a vencer, pendências, previsão de recebimento]
+palavras-chave: [conta a pagar, conta a receber, aging, atraso, vencido, a vencer, faixa, inadimplência, pendência, previsão do cronograma, parcela faturada]
 sinonimos: [pendências financeiras, AR, AP, cobranças]
 ---
 
@@ -25,6 +25,9 @@ Acompanhar o que há **a pagar** e **a receber** (lançamentos previstos) e medi
 
 - Listas de pendências por tipo, com **filtros** e **exportação**.
 - Ações de gestão (confirmar/baixar, editar) para quem tem `financeiro:gerir`.
+- **Só cobranças.** A **previsão de recebimento** de um
+  [contrato cobrado por entrega](contrato-por-entrega.md) **não aparece aqui** (nem no aging): ela só
+  vira conta a receber quando a parcela é **faturada** no contrato.
 
 ## Aging (faixas de atraso)
 
@@ -56,6 +59,10 @@ uma vez** pela barra da parte de baixo da tela; se alguma falhar, o resultado di
 - [Lançamentos](lancamentos.md) · [Visão geral](visao-geral.md) · [Relatórios](relatorios.md)
 
 ## FAQ
+
+**Cadê a parcela do contrato por entrega?** Enquanto não é faturada, ela é só **previsão** — aparece
+no **Fluxo de caixa**, não aqui. Fature a parcela no diálogo **Pagamento** do contrato e ela entra em
+Contas a receber. Ver [Contrato por entrega](contrato-por-entrega.md).
 
 **O aging conta o que já foi pago?** Não — só os **previstos** (em aberto). Ao confirmar,
 a conta sai do aging.

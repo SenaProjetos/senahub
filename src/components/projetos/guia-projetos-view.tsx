@@ -103,12 +103,12 @@ const VOCABULARIO: readonly TermoGuia[] = [
   {
     termo: "EAP",
     definicao:
-      "A decomposição do projeto em tarefas numeradas em árvore (1, 1.2, 1.2.3). É o cronograma: cada tarefa tem início e fim previstos e pode depender de outra terminar antes.",
+      "A decomposição do projeto em tarefas numeradas em árvore (1, 1.2, 1.2.3). É o cronograma: cada tarefa tem uma duração em dias úteis e pode depender de outra, e o sistema calcula as datas a partir disso.",
   },
   {
     termo: "Caminho crítico e folga",
     definicao:
-      "A folga é quanto uma tarefa pode atrasar sem empurrar o fim do projeto. Tarefas com folga zero formam o caminho crítico — atrasou uma delas, atrasou tudo.",
+      "A folga é quanto uma tarefa pode atrasar (em dias úteis) sem empurrar o fim do projeto. Tarefas com folga zero formam o caminho crítico — atrasou uma delas, atrasou tudo.",
     exemplo: "Se o levantamento em campo tem folga zero, uma semana perdida ali é uma semana no fim do projeto.",
   },
   {
@@ -220,7 +220,7 @@ const DUVIDAS: readonly DuvidaGuia[] = [
   {
     pergunta: "O que é “folga zero” no cronograma?",
     resposta:
-      "Que a tarefa está no caminho crítico: qualquer atraso nela atrasa a entrega final. O cálculo usa dias de calendário e considera só dependências do tipo “termina antes de começar”, sem feriados nem calendário de trabalho.",
+      "Que a tarefa está no caminho crítico: qualquer atraso nela atrasa a entrega final. O cálculo conta dias úteis (segunda a sexta, sem os feriados cadastrados) e entende os quatro tipos de dependência, com atraso opcional.",
   },
   {
     pergunta: "Onde vejo só o que é meu?",
@@ -355,15 +355,17 @@ export function GuiaProjetosView() {
             <ClipboardCheck className="mb-2 size-4 text-primary" aria-hidden="true" />
             <p className="font-semibold">Plano × realidade</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              O cronograma guarda o previsto e mostra o desvio conforme as tarefas andam. É assim que
-              se percebe o atraso enquanto ainda dá para reagir.
+              Ao aprovar o cronograma, o sistema congela a linha de base — o combinado — e passa a
+              mostrar o desvio conforme as tarefas andam. É assim que se percebe o atraso enquanto
+              ainda dá para reagir.
             </p>
           </div>
         </div>
         <Dica>
-          O cálculo trabalha em <strong>dias de calendário</strong> e só entende dependência do tipo
-          “termina antes de começar”. Feriado e fim de semana não são descontados — se o cronograma
-          precisa disso, embuta a folga na duração da tarefa.
+          O cálculo trabalha em <strong>dias úteis</strong> — segunda a sexta, sem os feriados
+          cadastrados — e entende os quatro tipos de dependência, com atraso. Depois de mudar uma
+          duração ou uma dependência, clique em <strong>Reagendar</strong> para as datas se
+          atualizarem.
         </Dica>
         <div className="flex flex-wrap gap-2">
           <Atalho href="/planejamento">Abrir Planejamento</Atalho>

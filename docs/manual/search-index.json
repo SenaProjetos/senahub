@@ -59,7 +59,14 @@
         "IDP",
         "IDC",
         "aprovar fase",
-        "tarefa no ponto"
+        "tarefa no ponto",
+        "planejamento",
+        "cronograma",
+        "caminho crítico",
+        "linha de base",
+        "reagendar",
+        "data de status",
+        "saúde do cronograma"
       ],
       "palavrasChave": [
         "novidades",
@@ -80,7 +87,15 @@
         "toque longo",
         "atalho",
         "seleção em lote",
-        "ações em lote"
+        "ações em lote",
+        "cronograma",
+        "reagendar",
+        "linha de base",
+        "dependência",
+        "caminho crítico",
+        "folga",
+        "EAP",
+        "parcela a faturar"
       ],
       "sinonimos": [
         "release notes",
@@ -135,7 +150,10 @@
         "erros",
         "problemas",
         "suporte",
-        "ajuda"
+        "ajuda",
+        "cronograma",
+        "pagamento por fase",
+        "contrato por entrega"
       ],
       "palavrasChave": [
         "faq",
@@ -148,7 +166,12 @@
         "acesso negado",
         "cliente por indicação",
         "nova obra",
-        "nova demanda"
+        "nova demanda",
+        "reagendar",
+        "linha de base",
+        "replanejar",
+        "previsão de recebimento",
+        "faturar parcela"
       ],
       "sinonimos": [
         "perguntas frequentes",
@@ -168,7 +191,11 @@
         "definições",
         "conceitos",
         "perfis",
-        "módulos"
+        "módulos",
+        "eap",
+        "cronograma",
+        "linha de base",
+        "valor agregado"
       ],
       "palavrasChave": [
         "glossário",
@@ -178,7 +205,17 @@
         "termo",
         "sigla",
         "entrada comercial",
-        "lead"
+        "lead",
+        "eap",
+        "marco",
+        "dependência",
+        "folga",
+        "caminho crítico",
+        "linha de base",
+        "data de status",
+        "valor agregado",
+        "etapa",
+        "contrato por entrega"
       ],
       "sinonimos": [
         "dicionário",
@@ -252,8 +289,8 @@
     {
       "titulo": "Projetos",
       "path": "projetos/projetos.md",
-      "descricao": "Cadastro e acompanhamento de projetos, com visão geral executiva personalizável, disciplinas, riscos, horas registradas, resultado financeiro, revisões e ciclo de vida.",
-      "resumo": "Liste e filtre projetos, acompanhe prazo, progresso, pendências, riscos, cronograma, horas da equipe e resultado financeiro; organize o painel pessoal, gerencie disciplinas, responsáveis, arquivos, revisões, duplicação e cancelamento/arquivamento.",
+      "descricao": "Cadastro e acompanhamento de projetos, disciplinas, responsáveis, revisões e ciclo de vida.",
+      "resumo": "Liste e filtre projetos, crie/edite, gerencie disciplinas (com etapas por fase) e seus status, responsáveis, membros, revisões, duplicação e cancelamento/arquivamento.",
       "tags": [
         "projetos",
         "visão geral",
@@ -307,7 +344,9 @@
         "blocos do nome",
         "botão direito",
         "menu de contexto",
-        "ações do documento"
+        "ações do documento",
+        "etapas",
+        "fase"
       ],
       "palavrasChave": [
         "projeto",
@@ -380,7 +419,12 @@
         "atalho",
         "copiar link",
         "copiar nome",
-        "menu do documento"
+        "menu do documento",
+        "etapa",
+        "fase",
+        "pagamento por fase",
+        "versão do padrão",
+        "sub-disciplina"
       ],
       "sinonimos": [
         "obras",
@@ -426,8 +470,8 @@
     {
       "titulo": "Tarefas",
       "path": "projetos/tarefas.md",
-      "descricao": "Quadro de tarefas (kanban) em colunas por status, com checklist, dependências, comentários e filtros.",
-      "resumo": "Organize tarefas em colunas, atribua responsáveis, defina prazo e prioridade, filtre os resultados e acompanhe o progresso do checklist. O botão direito (ou toque longo) no cartão abre as ações: abrir, mover, copiar título e arquivar.",
+      "descricao": "Quadro de tarefas (kanban) em colunas por status, com checklist, dependências e comentários.",
+      "resumo": "Organize tarefas em colunas, atribua responsáveis, defina prazo e prioridade, vincule a projetos, use checklists, dependências e comentários com anexo.",
       "tags": [
         "tarefas",
         "kanban",
@@ -439,7 +483,9 @@
         "prazo",
         "filtros",
         "botão direito",
-        "menu de contexto"
+        "menu de contexto",
+        "cronograma",
+        "cards do cronograma"
       ],
       "palavrasChave": [
         "tarefa",
@@ -462,7 +508,12 @@
         "atalho",
         "mover tarefa",
         "arquivar tarefa",
-        "nova tarefa na coluna"
+        "nova tarefa na coluna",
+        "mover",
+        "arquivar",
+        "card do cronograma",
+        "prazo travado",
+        "tarefa do planejamento"
       ],
       "sinonimos": [
         "to-do",
@@ -508,10 +559,10 @@
       ]
     },
     {
-      "titulo": "Planejamento (EAP e Cronograma)",
+      "titulo": "Planejamento (EAP e cronograma)",
       "path": "projetos/planejamento.md",
-      "descricao": "EAP e cronograma (gantt) por projeto, com linha de base e caminho crítico, além do cronograma geral.",
-      "resumo": "Selecione um projeto para montar a EAP e o gantt com linha de base; veja progresso, datas e o cronograma geral do escritório.",
+      "descricao": "Monte o cronograma do projeto como no MS Project — duração, dependências e calendário geram as datas; aprove a linha de base, acompanhe e replaneje.",
+      "resumo": "Cada projeto tem uma EAP (lista de tarefas em árvore) com duração, dependências e responsáveis. O sistema calcula as datas em dias úteis, mostra o caminho crítico, congela a linha de base ao aprovar, e permite acompanhar (datas reais, Data de Status, saúde) e replanejar com motivo.",
       "tags": [
         "planejamento",
         "eap",
@@ -519,7 +570,15 @@
         "gantt",
         "linha de base",
         "caminho crítico",
-        "cpm"
+        "cpm",
+        "baseline",
+        "dependência",
+        "marco",
+        "data de status",
+        "saúde do cronograma",
+        "replanejar",
+        "reagendar",
+        "ms project"
       ],
       "palavrasChave": [
         "planejamento",
@@ -530,19 +589,41 @@
         "linha de base",
         "caminho crítico",
         "cpm",
-        "tarefa de projeto"
+        "tarefa de projeto",
+        "wbs",
+        "BL-00",
+        "aprovar cronograma",
+        "replanejar",
+        "reagendar",
+        "folga",
+        "dependência",
+        "predecessora",
+        "latência",
+        "marco",
+        "restrição de data",
+        "alfinete",
+        "bloqueio",
+        "data de status",
+        "apurar",
+        "saúde do cronograma",
+        "atualizar tarefa",
+        "cronograma geral"
       ],
       "sinonimos": [
         "cronograma de projeto",
         "gantt",
-        "wbs"
+        "wbs",
+        "ms project",
+        "project",
+        "plano do projeto",
+        "linha de base do cronograma"
       ]
     },
     {
       "titulo": "Recursos (alocação da equipe)",
       "path": "projetos/recursos.md",
-      "descricao": "Matriz de alocação de pessoas em projetos, carga semanal disponível e habilidades.",
-      "resumo": "Veja alocações por faixa, horas registradas versus capacidade disponível e habilidades de cada pessoa.",
+      "descricao": "Matriz de alocação de pessoas em projetos, com carga real e planejada por semana, sobrecarga e habilidades.",
+      "resumo": "Veja quem está alocado em quais projetos, a carga de trabalho por semana (a real, do ponto, e a planejada, das horas do cronograma), as semanas acima da capacidade com sugestões de correção e as habilidades de cada pessoa.",
       "tags": [
         "recursos",
         "alocação",
@@ -551,7 +632,10 @@
         "habilidades",
         "capacidade",
         "férias",
-        "abonos"
+        "abonos",
+        "carga planejada",
+        "sobrecarga",
+        "heatmap"
       ],
       "palavrasChave": [
         "recursos",
@@ -560,12 +644,161 @@
         "capacidade",
         "equipe",
         "habilidade",
-        "competência"
+        "competência",
+        "carga real",
+        "carga planejada",
+        "superalocado",
+        "sobrecarga",
+        "rebalancear",
+        "heatmap",
+        "alocação calculada",
+        "demanda sem pessoa",
+        "perfil"
       ],
       "sinonimos": [
         "alocação de equipe",
         "capacity",
-        "planejamento de recursos"
+        "planejamento de recursos",
+        "histograma de recursos",
+        "superalocação"
+      ]
+    },
+    {
+      "titulo": "Cronograma: equipe, horas e custo",
+      "path": "projetos/cronograma-equipe-e-custo.md",
+      "descricao": "Como atribuir pessoas e horas às linhas da EAP, como o cronograma aprovado gera os cards e a carga da equipe, e como o custo previsto é calculado.",
+      "resumo": "Cada atividade do cronograma recebe pessoas (ou perfis) com papel e horas previstas. Ao aprovar, isso vira cards no quadro de tarefas, carga planejada por semana em Recursos e custo previsto por linha (só para quem vê o financeiro).",
+      "tags": [
+        "cronograma",
+        "recursos",
+        "equipe",
+        "horas previstas",
+        "papel",
+        "perfil",
+        "card",
+        "carga planejada",
+        "custo previsto",
+        "custo por hora",
+        "sobrecarga"
+      ],
+      "palavrasChave": [
+        "recursos da linha",
+        "atribuição",
+        "pessoa",
+        "perfil",
+        "papel",
+        "horas previstas",
+        "responsável principal",
+        "herdar responsáveis",
+        "card do cronograma",
+        "carga planejada",
+        "sobrecarga",
+        "sugestão",
+        "custo previsto",
+        "custo por hora",
+        "etapa de terceiro",
+        "sem gente",
+        "s/h"
+      ],
+      "sinonimos": [
+        "alocação por tarefa",
+        "atribuição de recursos",
+        "esforço",
+        "trabalho previsto",
+        "custo da tarefa",
+        "orçamento da linha"
+      ]
+    },
+    {
+      "titulo": "Valor Agregado (VP, VA, CR, IDP e IDC)",
+      "path": "projetos/valor-agregado.md",
+      "descricao": "O quadro que mostra se o projeto está adiantado ou atrasado, e gastando mais ou menos do que o previsto, contra a linha de base.",
+      "resumo": "O Valor Agregado compara o que a linha de base previa pronto (VP), o que foi realmente concluído (VA) e o que foi gasto (CR) na Data de Status. Sai em horas para quem coordena e em R$ para quem vê o financeiro, com os índices IDP (prazo) e IDC (custo).",
+      "tags": [
+        "valor agregado",
+        "evm",
+        "vp",
+        "va",
+        "cr",
+        "idp",
+        "idc",
+        "cota",
+        "cotr",
+        "crtr",
+        "linha de base",
+        "data de status",
+        "apuração",
+        "índice de desempenho"
+      ],
+      "palavrasChave": [
+        "valor agregado",
+        "EVM",
+        "VP",
+        "VA",
+        "CR",
+        "IDP",
+        "IDC",
+        "ENT",
+        "VNT",
+        "COTA",
+        "COTR",
+        "CRTR",
+        "valor planejado",
+        "custo real",
+        "índice de desempenho de prazo",
+        "índice de desempenho de custo",
+        "apuração",
+        "data de status",
+        "estimativa no término"
+      ],
+      "sinonimos": [
+        "earned value",
+        "análise de valor agregado",
+        "EVM",
+        "desempenho do projeto",
+        "cota cotr crtr"
+      ]
+    },
+    {
+      "titulo": "Etapas da disciplina e pagamento por fase",
+      "path": "projetos/etapas-e-pagamento-por-fase.md",
+      "descricao": "Divida uma disciplina em fases (Básico, Executivo…), com prazo, situação e fatia do valor próprios, e libere o pagamento do projetista fase a fase.",
+      "resumo": "Cada disciplina pode ter etapas — uma por fase do catálogo — com prazo, situação e percentual do valor. Aprovar uma fase libera o pagamento dela para os projetistas PJ/freelancer; o valor liberado fica fixo e a soma das fases fecha no valor da disciplina.",
+      "tags": [
+        "etapas",
+        "fase",
+        "disciplina",
+        "pagamento por fase",
+        "aprovar fase",
+        "básico",
+        "executivo",
+        "percentual",
+        "projetista",
+        "liberar pagamento",
+        "link por fase"
+      ],
+      "palavrasChave": [
+        "etapa",
+        "fase",
+        "básico",
+        "executivo",
+        "as-built",
+        "percentual por fase",
+        "aprovar fase",
+        "liberar pagamento",
+        "pagamento por fase",
+        "disciplina · sigla",
+        "pool de pagamento",
+        "valor da fase",
+        "prazo por fase",
+        "link público por fase",
+        "marco da fase"
+      ],
+      "sinonimos": [
+        "divisão da disciplina por fase",
+        "entrega por fase",
+        "pagamento parcial",
+        "medição por fase"
       ]
     },
     {
@@ -748,7 +981,7 @@
       "titulo": "Financeiro — Visão geral e Meu extrato",
       "path": "financeiro/visao-geral.md",
       "descricao": "Painel gerencial do financeiro (KPIs, DRE, projeção de caixa, aging) e o extrato pessoal de pagamentos.",
-      "resumo": "O /financeiro mostra um painel completo para quem tem visão financeira ou o 'Meu extrato' para prestadores e clientes.",
+      "resumo": "O /financeiro mostra um painel completo para quem tem visão financeira (período, KPIs, gráficos, aging, atalhos) ou o \"Meu extrato\" para prestadores e clientes.",
       "tags": [
         "financeiro",
         "painel",
@@ -757,7 +990,9 @@
         "projeção de caixa",
         "aging",
         "extrato",
-        "kpi"
+        "kpi",
+        "previsão de recebimento",
+        "pagamento por fase"
       ],
       "palavrasChave": [
         "financeiro",
@@ -768,7 +1003,9 @@
         "projeção",
         "contas vencidas",
         "meu extrato",
-        "pagamentos"
+        "pagamentos",
+        "previsão do cronograma",
+        "contrato por entrega"
       ],
       "sinonimos": [
         "dashboard financeiro",
@@ -822,7 +1059,7 @@
       "titulo": "Contas a pagar e receber (e Aging)",
       "path": "financeiro/contas-e-aging.md",
       "descricao": "Pendências financeiras por tipo, com filtros, e a análise de atraso (aging) por faixas.",
-      "resumo": "Veja contas a pagar e a receber pendentes em abas, filtre e exporte; o aging agrupa os previstos por faixa de atraso.",
+      "resumo": "Veja contas a pagar e a receber pendentes em abas, filtre e exporte; o aging agrupa os valores previstos por faixa de atraso e destaca os mais vencidos.",
       "tags": [
         "contas a pagar",
         "contas a receber",
@@ -830,7 +1067,8 @@
         "atraso",
         "vencido",
         "a vencer",
-        "pendências"
+        "pendências",
+        "previsão de recebimento"
       ],
       "palavrasChave": [
         "conta a pagar",
@@ -845,7 +1083,9 @@
         "botão direito",
         "menu de contexto",
         "seleção em lote",
-        "quitar em lote"
+        "quitar em lote",
+        "previsão do cronograma",
+        "parcela faturada"
       ],
       "sinonimos": [
         "pendências financeiras",
@@ -988,7 +1228,7 @@
     {
       "titulo": "Produção (pagamento de projetistas)",
       "path": "financeiro/producao.md",
-      "descricao": "Pagamento de projetistas PJ e freelancers pelas entregas validadas, com comprovantes, recibos assinados, correção/estorno de pago, lotes mensais e alerta de parado.",
+      "descricao": "Pagamento de projetistas PJ e freelancers pelas entregas validadas (da disciplina ou por fase), com comprovantes, recibos assinados, correção/estorno de pago, lotes mensais e alerta de parado.",
       "resumo": "Veja e pague os pagamentos de produção liberados por entrega, agrupados por projetista ou em tabela, com filtros, comprovante, recibo, rastreabilidade completa e exportação.",
       "tags": [
         "produção",
@@ -997,7 +1237,8 @@
         "projetista",
         "freelancer",
         "lote",
-        "pj"
+        "pj",
+        "pagamento por fase"
       ],
       "palavrasChave": [
         "produção",
@@ -1014,12 +1255,52 @@
         "estornar pagamento",
         "conciliado",
         "alerta parado",
-        "timbrado"
+        "timbrado",
+        "pagamento por fase",
+        "disciplina sigla"
       ],
       "sinonimos": [
         "folha de projetistas",
         "pagamento de produção",
         "folha pj"
+      ]
+    },
+    {
+      "titulo": "Contrato por entrega e previsão de recebimento",
+      "path": "financeiro/contrato-por-entrega.md",
+      "descricao": "Contrato de cliente cobrado por entrega — parcelas em percentual ligadas a marcos do cronograma —, a previsão de recebimento no fluxo de caixa e como faturar cada parcela.",
+      "resumo": "No Jurídico, o contrato de cliente pode cobrar por data ou por entrega. Por entrega, cada parcela é um percentual ligado a um marco do cronograma (ou à assinatura); enquanto não é faturada, aparece só na projeção de caixa como previsão, com a data do marco. O financeiro fatura a parcela quando a entrega acontece.",
+      "tags": [
+        "contrato",
+        "contrato por entrega",
+        "parcela",
+        "marco",
+        "previsão de recebimento",
+        "fluxo de caixa",
+        "projeção de caixa",
+        "faturar",
+        "contas a receber",
+        "cronograma"
+      ],
+      "palavrasChave": [
+        "contrato por entrega",
+        "contrato por data",
+        "condição de pagamento",
+        "parcela por marco",
+        "previsão do cronograma",
+        "projeção de caixa",
+        "faturar parcela",
+        "conta a receber",
+        "na assinatura",
+        "trazer da proposta",
+        "parcelas a faturar",
+        "marco concluído"
+      ],
+      "sinonimos": [
+        "medição por entrega",
+        "cobrança por marco",
+        "recebimento previsto",
+        "faturamento por etapa"
       ]
     },
     {
@@ -1425,8 +1706,8 @@
     {
       "titulo": "Jurídico",
       "path": "gestao/juridico.md",
-      "descricao": "Documentos jurídicos com versões e aceite assinado, pastas e modelos de contrato.",
-      "resumo": "Organize documentos jurídicos em pastas (com versões e aceite por hash) e use modelos de contrato.",
+      "descricao": "Documentos jurídicos com versões e aceite assinado, pastas, modelos de contrato e a condição de pagamento do contrato de cliente.",
+      "resumo": "Organize documentos jurídicos em pastas (com versões e aceite/assinatura por hash), use modelos de contrato e defina como o contrato de cliente é cobrado — por data ou por entrega (marcos do cronograma).",
       "tags": [
         "jurídico",
         "documentos",
@@ -1434,7 +1715,9 @@
         "versão",
         "aceite",
         "assinatura",
-        "pasta"
+        "pasta",
+        "condição de pagamento",
+        "contrato por entrega"
       ],
       "palavrasChave": [
         "jurídico",
@@ -1445,7 +1728,11 @@
         "assinatura",
         "hash",
         "pasta",
-        "modelo de contrato"
+        "modelo de contrato",
+        "condição de pagamento",
+        "contrato por entrega",
+        "parcela por marco",
+        "faturar parcela"
       ],
       "sinonimos": [
         "legal",
@@ -1788,8 +2075,8 @@
     {
       "titulo": "Preferências",
       "path": "sistema/preferencias.md",
-      "descricao": "Dados do seu perfil, ajustes de chat (som/recibos) e opt-out de notificações por categoria.",
-      "resumo": "Veja seu perfil, ligue/desligue som e recibos do chat e escolha quais categorias de notificação deseja receber.",
+      "descricao": "Seu perfil, tema, ajustes de chat (som/recibos), opt-out de notificações por categoria, push neste dispositivo e e-mail dos lembretes de ponto.",
+      "resumo": "Edite foto, nome e telefone, escolha o tema, ligue/desligue som e recibos do chat, decida quais das 19 categorias de notificação automática deseja receber, ative o push no dispositivo e escolha o e-mail dos lembretes de ponto.",
       "tags": [
         "preferências",
         "perfil",
@@ -1798,7 +2085,12 @@
         "som",
         "recibos",
         "notificações",
-        "opt-out"
+        "opt-out",
+        "tema",
+        "aparência",
+        "push",
+        "lembretes de ponto",
+        "parcelas a faturar"
       ],
       "palavrasChave": [
         "preferências",
@@ -1808,7 +2100,16 @@
         "recibos de leitura",
         "notificação",
         "categoria",
-        "desativar aviso"
+        "desativar aviso",
+        "foto",
+        "tema claro escuro",
+        "push",
+        "e-mail do ponto",
+        "resumo diário",
+        "parcelas a faturar",
+        "cotações",
+        "acessos e credenciais",
+        "coordenação BIM"
       ],
       "sinonimos": [
         "ajustes",

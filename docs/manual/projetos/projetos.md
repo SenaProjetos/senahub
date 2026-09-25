@@ -1,9 +1,9 @@
 ---
 titulo: Projetos
 descricao: Cadastro e acompanhamento de projetos, disciplinas, responsáveis, revisões e ciclo de vida.
-resumo: Liste e filtre projetos, crie/edite, gerencie disciplinas e seus status, responsáveis, membros, revisões, duplicação e cancelamento/arquivamento.
-tags: [projetos, disciplinas, status, responsáveis, membros, revisões, duplicar, cancelar, arquivar, progresso, nomenclatura versionada, sub-disciplina]
-palavras-chave: [projeto, disciplina, status, em andamento, em revisão, entregue, aprovado, responsável, membro, revisão, duplicar projeto, cancelar projeto, prazo, versão do padrão, trocar de versão, sub-disciplina]
+resumo: Liste e filtre projetos, crie/edite, gerencie disciplinas (com etapas por fase) e seus status, responsáveis, membros, revisões, duplicação e cancelamento/arquivamento.
+tags: [projetos, disciplinas, etapas, fase, status, responsáveis, membros, revisões, duplicar, cancelar, arquivar, progresso, nomenclatura versionada, sub-disciplina]
+palavras-chave: [projeto, disciplina, etapa, fase, pagamento por fase, status, em andamento, em revisão, entregue, aprovado, responsável, membro, revisão, duplicar projeto, cancelar projeto, prazo, versão do padrão, trocar de versão, sub-disciplina]
 sinonimos: [obras, jobs, contratos de projeto]
 ---
 
@@ -87,6 +87,10 @@ Cada disciplina passa por um ciclo de status:
 - **Regras:** o **prazo da disciplina não pode ultrapassar o prazo do projeto**; não é
   possível **excluir** disciplina que já tenha **arquivos enviados** ou **pagamentos
   liberados**.
+- **Etapas por fase:** o botão de camadas no card da disciplina divide o trabalho em fases (Básico,
+  Executivo…), cada uma com **prazo, situação e percentual do valor**. Com etapas, o **prazo da
+  disciplina** passa a ser o maior prazo entre elas, e aprovar uma fase **libera o pagamento dela**.
+  Veja [Etapas da disciplina e pagamento por fase](etapas-e-pagamento-por-fase.md).
 
 ## Responsáveis, membros e revisões
 
@@ -342,6 +346,12 @@ não derruba os outros. Quem acessa não faz login: só vê e baixa.
 | Projeto inteiro | Todas as disciplinas, inclusive as criadas depois do link |
 | Arquivos escolhidos | Exatamente os arquivos que você marcou na tabela |
 
+Nos dois primeiros tipos há ainda o campo **Fases liberadas**: marque só o **Básico** para a
+prefeitura e só o **Executivo** para o cliente — dois links do mesmo projeto. Sem nenhuma fase marcada,
+vale **todas as fases**. Documentos **sem fase** só entram se você marcar **Incluir documentos sem
+fase** (sem fase não dá para saber se é Básico ou Executivo). **Separar por fase** faz o cliente ver
+disciplina → fase → formato.
+
 **Nos dois primeiros tipos, o link mostra apenas a entrega corrente.** Ficam de fora:
 
 - as **revisões anteriores** — de cada documento sai só a última;
@@ -421,7 +431,8 @@ menu normal do navegador.
 | Ação | Permissão |
 | --- | --- |
 | Ver lista/detalhe | `projetos:ver` |
-| Criar/editar projeto, disciplinas, membros | `projetos:gerir` |
+| Criar/editar projeto, disciplinas, etapas por fase, membros | `projetos:gerir` |
+| Aprovar uma fase (libera o pagamento dela) | `aprovacoes:disciplina` |
 | Alterar status / registrar revisão | Responsável da disciplina **ou** gestor |
 | Ver downloads e visualizações no histórico do documento | `arquivos:ver_acessos` |
 
@@ -437,7 +448,8 @@ menu normal do navegador.
 
 ## Funcionalidades relacionadas
 
-- [Meu trabalho](meu-trabalho.md) · [Planejamento](planejamento.md) · [Tarefas](tarefas.md)
+- [Meu trabalho](meu-trabalho.md) · [Planejamento](planejamento.md) · [Tarefas](tarefas.md) ·
+  [Etapas e pagamento por fase](etapas-e-pagamento-por-fase.md)
 - [Clientes](../clientes-comercial/README.md) · [Portal do cliente](../inicio/portal-cliente.md)
 
 ## FAQ

@@ -5,7 +5,8 @@ notas de implementação por fase).
 
 **Estado:** branch `feat/planejamento-motor`, **sem push**. F0 a F8 prontas no código, com testes,
 smokes, lint e build verdes. **Nenhuma tela foi vista por olho humano**: o merge espera o smoke em
-navegador do dono (checklists no fim). Falta a **F9** (manual) — fase de Sonnet.
+navegador do dono (checklists no fim). **F9 (manual) feita em 2026-09-25**; o plano de correção do §7
+segue em andamento (o que foi feito está marcado em cada item).
 
 ---
 
@@ -238,6 +239,6 @@ suíte 4293 testes · lint · tsc · build — todos verdes.
 | L9 | Heatmap da matriz só com alocação digitada | Heatmap passa a ler a carga calculada dos projetos aprovados | Sonnet · baixo |
 | L10 | Tarefa de troca no meio do dia perdida na edição do dia | Gravar a tarefa da troca num registro próprio. Valor baixo — sugestão: deixar | — |
 
-**Ordem sugerida:** F9 (manual) → B4, L6, L7, L4 (mínimos, um lote) → B3, B1, L2, L3 → B2 + L1 juntos (Opus
+**Ordem sugerida:** ~~F9 (manual)~~ (feita) → B4, L6, L7, L4 (mínimos, um lote) → B3, B1, L2, L3 → B2 + L1 juntos (Opus
 xhigh) → L5 depois da validação do time → L9. As DECIDIR do §2 entram quando o time responder — cada uma
 está isolada numa regra pura testada.

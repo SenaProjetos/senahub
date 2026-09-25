@@ -169,7 +169,7 @@ export function ValorAgregadoPainel({ dados }: { dados: ValorAgregadoProjeto }) 
             </div>
           )}
           <p className="text-[11px] text-muted-foreground">
-            O % é o informado na EAP (D19). O real é o apontado no ponto — quem não aponta horas (ex.: PJ pago por
+            O % é o informado na EAP. O real é o apontado no ponto — quem não aponta horas (ex.: PJ pago por
             entrega) não entra; o pagamento dele está no financeiro. As datas reais ainda não movem a linha de base.
           </p>
         </CardContent>

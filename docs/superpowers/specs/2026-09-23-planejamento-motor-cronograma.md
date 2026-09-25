@@ -2,7 +2,8 @@
 
 **Data:** 2026-09-23
 **Origem:** sessão de grilling com o dono (42 decisões, 5 rodadas)
-**Status:** decidido, não implementado
+**Status:** implementado (F0–F9) na branch `feat/planejamento-motor`, sem push; falta o smoke do dono em
+navegador. Pendências, decisões e plano de correção em `2026-09-25-planejamento-motor-pendencias.md`
 **Documentos da equipe que este spec consolida:**
 - `Padrão Corporativo de EAP e Estrutura de Cronogramas — SenaHub` (Doc 03, v1.0)
 - `Dicionário Corporativo de Classificadores — SenaHub` (Doc 02, v1.1)
@@ -377,6 +378,24 @@ calculado sobre dado incompleto é a forma mais rápida de a equipe perder a con
 
 `docs/manual/**` + `novidades.md` em linguagem de usuário, e `search-index.json` à mão (não há
 gerador). A rota `/ajuda` é visível a **todos** os papéis, cliente incluído.
+
+> **Notas de implementação (2026-09-25, F9 pronta):**
+> - Páginas novas em `docs/manual/`: `projetos/cronograma-equipe-e-custo.md`, `projetos/valor-agregado.md`,
+>   `projetos/etapas-e-pagamento-por-fase.md` e `financeiro/contrato-por-entrega.md`. Reescritas:
+>   `projetos/planejamento.md` e `projetos/recursos.md`. Ajustadas: tarefas, projetos, juridico, producao,
+>   contas-e-aging, visao-geral, os READMEs, preferencias (as 19 categorias reais de notificação),
+>   glossário, FAQ e novidades (entrada de abertura do motor, F0–F5, além das de F7/F8).
+> - Os guias em tela (`/guias/*`) são páginas React, não markdown: `guia-projetos-view.tsx` afirmava
+>   dias de calendário e só um tipo de dependência (falso desde a F1) — corrigido; `guia-financeiro-view.tsx`
+>   ganhou o termo "Previsão do cronograma".
+> - Fatos conferidos no código antes de escrever (e não no spec): a matriz de permissões dos perfis padrão
+>   (CLT, estagiário e PJ têm `planejamento:ver`, o que contradiz D4/Q14 — ver pendências), os nomes das
+>   origens (Projetista externo, Órgão aprovador…), que o Faturar fica **oculto** sem `financeiro:gerir` e
+>   que o bloqueio registra motivo, não origem.
+> - **Ao corrigir B2/L1** (pendências §7): remover a nota "Atenção (versão atual)" de
+>   `projetos/planejamento.md`, a pergunta "Uma tarefa terminou depois do dia que eu digitei" do `faq.md` e
+>   a linha "as datas reais ainda não movem o cronograma" de `planejamento.md` e `novidades.md`. Ao expor
+>   a Origem no editor da EAP, retirar a "Limitação atual" de `projetos/cronograma-equipe-e-custo.md`.
 
 ---
 

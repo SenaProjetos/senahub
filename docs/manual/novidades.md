@@ -22,6 +22,40 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Planejamento: o cronograma agora calcula as datas, como o MS Project
+
+O cronograma de cada projeto (**Planejamento**) deixou de ser uma lista de datas digitadas: você
+diz **quanto dura** cada tarefa e **do que ela depende**, e o sistema calcula o resto.
+
+- **Dias úteis e feriados.** Um calendário só, o da empresa: segunda a sexta, menos os feriados
+  cadastrados em Configurações. Férias não movem datas — aparecem como aviso na carga da equipe.
+- **Dependências completas.** Os quatro tipos (término → início, início → início, término →
+  término e início → término), com **atraso** em dias úteis (negativo = antecipação). Dependência
+  circular é recusada.
+- **Folga e caminho crítico.** Cada tarefa mostra a folga; as de folga zero formam o **caminho
+  crítico**, com borda vermelha no gráfico.
+- **Restrições de data** (seis tipos, marcadas com um **alfinete**) e **bloqueio com motivo** — o
+  bloqueio não para o relógio, só registra por que a tarefa está parada.
+- **Reagendar.** Depois de mudar uma duração ou uma dependência, clique em **Reagendar**: as datas
+  do projeto inteiro são recalculadas.
+- **Aprovar e linha de base.** Defina o **início do projeto**, corrija os erros do verificador e
+  **aprove**: o sistema congela a **linha de base BL-00** (o combinado) e cria os cards no quadro de
+  Tarefas de quem está escalado. Mudou o combinado? **Replanejar**, com motivo — cria a BL-01, e as
+  anteriores ficam guardadas.
+- **Data de Status e Apurar.** Declare até quando o andamento está informado. Toda segunda-feira o
+  sistema avisa quem apura cronogramas aprovados parados há mais de 10 dias.
+- **Saúde do cronograma.** Uma nota de 0 a 100 (saudável, atenção ou crítico), com a lista dos
+  achados do verificador. A nota é **provisória**: os pesos serão calibrados com projetos reais.
+- **Equipe e horas.** Cada linha ganha responsáveis e horas previstas, e a **carga planejada** por
+  semana aparece em Recursos, com sugestões conferidas para as semanas acima da capacidade.
+- **Cronograma geral.** Os projetos lado a lado na mesma linha do tempo, só para leitura.
+
+Detalhes em [Planejamento](projetos/planejamento.md),
+[Cronograma: equipe, horas e custo](projetos/cronograma-equipe-e-custo.md) e
+[Recursos](projetos/recursos.md).
+
+---
+
 ## Valor Agregado no cronograma (VP, VA, CR, IDP e IDC)
 
 No cronograma do projeto, o quadro **Valor Agregado** mostra se o projeto está adiantado ou

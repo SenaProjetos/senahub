@@ -3,7 +3,7 @@ titulo: Financeiro
 descricao: Mapa do módulo financeiro — painel, lançamentos, contas, conciliação, aprovações, relatórios e o Estúdio de Documentos.
 resumo: Índice do financeiro e seu modelo de acesso (visão completa, gestão e extrato pessoal), com link para cada funcionalidade.
 tags: [financeiro, índice, lançamentos, contas, conciliação, aprovações, relatórios, dre, caixa, aging]
-palavras-chave: [financeiro, índice, lançamento, conta a pagar, conta a receber, conciliação, ofx, aprovação, dre, fluxo de caixa, extrato]
+palavras-chave: [financeiro, índice, lançamento, conta a pagar, conta a receber, conciliação, ofx, aprovação, dre, fluxo de caixa, extrato, contrato por entrega, previsão de recebimento]
 sinonimos: [finanças, tesouraria, contas]
 ---
 
@@ -37,6 +37,7 @@ O que você vê no financeiro depende de **3 níveis**:
 | [Relatórios gerenciais](relatorios.md) | `/financeiro/relatorios` e afins | ✅ documentado |
 | [Estúdio de Documentos](estudio-documentos.md) | `/documentos` | ✅ documentado |
 | [Produção (pagamento de projetistas)](producao.md) | `/financeiro/folha-projetistas` | ✅ documentado |
+| [Contrato por entrega e previsão de recebimento](contrato-por-entrega.md) | `/juridico` · `/financeiro/fluxo-caixa` | ✅ documentado |
 
 ### Ainda a documentar (rodada futura)
 Planejamento de pagamentos (`/financeiro/planejamento`), Fechamento mensal
