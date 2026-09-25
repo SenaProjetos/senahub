@@ -1244,6 +1244,7 @@ model Projeto {
   eapBaselines            EapBaseline[]
   eapCatalogos            EapCatalogo[]
   saudeSnapshots          CronogramaSaudeSnapshot[]
+  apuracoesValorAgregado  ValorAgregadoApuracao[]
   eapTarefas              EapTarefa[]
   alocacoes               Alocacao[]
   servicos                ServicoTerceirizado[]
@@ -4309,6 +4310,37 @@ model CronogramaSaudeSnapshot {
   @@unique([projetoId, dia])
   @@index([projetoId, dia])
   @@map("cronograma_saude_snapshot")
+}
+
+/// Valor Agregado APURADO numa Data de Status (F8). O % informado muda e não guarda passado, então
+/// a curva do projeto (VP × VA × CR no tempo) só existe se cada apuração for fotografada na hora —
+/// mesmo motivo da foto semanal da Saúde (D42): ligado depois, o histórico é irrecuperável.
+///
+/// Uma linha por (projeto, Data de Status); refazer a apuração na mesma data a atualiza. Nulo =
+/// desconhecido naquela régua (nunca zero). Valores em R$ são taxa de remuneração: só para quem vê
+/// o financeiro, na leitura.
+model ValorAgregadoApuracao {
+  id             String   @id @default(cuid())
+  projetoId      String
+  projeto        Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  dataStatus     DateTime @db.Date
+  baselineNumero Int
+
+  ontHoras Decimal? @db.Decimal(12, 2)
+  vpHoras  Decimal? @db.Decimal(12, 2)
+  vaHoras  Decimal? @db.Decimal(12, 2)
+  crHoras  Decimal? @db.Decimal(12, 2)
+
+  ontCusto Decimal? @db.Decimal(14, 2)
+  vpCusto  Decimal? @db.Decimal(14, 2)
+  vaCusto  Decimal? @db.Decimal(14, 2)
+  crCusto  Decimal? @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projetoId, dataStatus])
+  @@map("valor_agregado_apuracao")
 }
 
 /// Versão da linha de base (BL-00, BL-01…, Doc 03 §20). NUNCA sobrescrita: replanejar
