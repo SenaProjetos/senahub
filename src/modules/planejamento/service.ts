@@ -13,7 +13,7 @@ import { calcularSaude, principalCausa, type ResultadoSaude } from "./saude";
 import { ehEtapaDeTerceiro, pessoasSemHoras } from "./recursos";
 import { sincronizarCards } from "./recursos-service";
 import { custosDoProjeto } from "./custo-service";
-import { sincronizarPrevisoesDoProjeto } from "@/modules/juridico/contrato/previsao-service";
+import { sincronizarPrevisoesDepois } from "@/modules/juridico/contrato/previsao-service";
 import { gravarApuracaoValorAgregado } from "./valor-agregado-service";
 
 /**
@@ -249,7 +249,7 @@ export async function aprovarCronograma(
   // Aprovado, a EAP passa a criar os cards de quem está escalado (D14/D24).
   const cards = await sincronizarCards(prisma, projetoId, autorId);
   // F7.2: aprovado, os marcos de contrato por entrega passam a prever recebimento (D14/D25).
-  await sincronizarPrevisoesDoProjeto(projetoId, autorId);
+  await sincronizarPrevisoesDepois({ projetoId }, autorId);
   // E a matriz de recursos passa a CALCULAR este projeto pelas horas das linhas (D17): a
   // alocação digitada dele deixa de contar. A tela precisa dizer isso — aprovar sem horas
   // estimadas faz o projeto sumir da carga da equipe.
@@ -317,8 +317,15 @@ export async function fotografarSaudeDeTodos(dia: Dia): Promise<{ projetos: numb
   for (const p of projetos) {
     const nota = await gravarSaude(p.id, dia);
     if (nota != null) fotos++;
-    // F8: a apuração do Valor Agregado na Data de Status vigente vai junto na foto semanal.
-    await gravarApuracaoValorAgregado(p.id);
+    // F8: a apuração do Valor Agregado na Data de Status vigente vai junto — SÓ CRIA: se o
+    // coordenador não mudou a data, regravar toda semana poria % e taxas de depois na linha
+    // daquela data, que é justamente a deriva que a tabela existe para impedir. Isolado por
+    // projeto: uma falha aqui não pode tirar a foto da Saúde dos projetos seguintes (D42).
+    try {
+      await gravarApuracaoValorAgregado(p.id, { modo: "so_criar" });
+    } catch (e) {
+      console.error("[valor-agregado] falha na apuração semanal", p.id, e);
+    }
   }
   return { projetos: projetos.length, fotos };
 }

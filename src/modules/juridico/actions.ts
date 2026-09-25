@@ -16,11 +16,7 @@ import { comRetentativaDeConflito, registrarEventoAssinatura } from "@/modules/j
 import { gerarVersaoDeModelo as gerarVersaoDeModeloContrato } from "@/modules/juridico/contrato/gerar";
 import { decidirPrazoDoProjeto, devePassarParaAssinado, ehDocumentoContratual } from "@/modules/juridico/contrato/estado";
 import { gerarRecebiveisDoContrato } from "@/modules/juridico/contrato/recebiveis";
-import {
-  faturarParcela,
-  sincronizarPrevisoesDoContrato,
-  sincronizarPrevisoesDoProjeto,
-} from "@/modules/juridico/contrato/previsao-service";
+import { faturarParcela, sincronizarPrevisoesDepois } from "@/modules/juridico/contrato/previsao-service";
 import { registrarAlteracaoContratual, type MotivoContratual } from "@/modules/rh/contratual/service";
 
 const base = { modulo: "juridico", recurso: "juridico", permissao: "gerir" } as const;
@@ -382,8 +378,7 @@ export const definirCondicaoPagamento = defineAction(
         primeiroVencimento: i.primeiroVencimento ? new Date(i.primeiroVencimento) : null,
       },
     });
-    if (doc.projetoId) await sincronizarPrevisoesDoProjeto(doc.projetoId, ctx.user.id);
-    else await sincronizarPrevisoesDoContrato(i.id, ctx.user.id);
+    await sincronizarPrevisoesDepois(doc.projetoId ? { projetoId: doc.projetoId } : { contratoId: i.id }, ctx.user.id);
     rev();
     revalidarFinanceiro();
     return { id: i.id };
@@ -475,8 +470,7 @@ export const salvarCobrancaPorEntrega = defineAction(
         else await tx.contratoParcelaEntrega.create({ data: { ...dados, contratoId: i.id } });
       }
     });
-    if (doc.projetoId) await sincronizarPrevisoesDoProjeto(doc.projetoId, ctx.user.id);
-    else await sincronizarPrevisoesDoContrato(i.id, ctx.user.id);
+    await sincronizarPrevisoesDepois(doc.projetoId ? { projetoId: doc.projetoId } : { contratoId: i.id }, ctx.user.id);
     rev();
     revalidarFinanceiro();
     return { id: i.id };
@@ -769,8 +763,7 @@ export const registrarAceite = defineAction(
     // assinatura" já; as de marco quando o cronograma estiver aprovado). Fora da transação: roda
     // o motor do cronograma. Idempotente — o segundo signatário não duplica nada.
     if (doc.formaCobranca === "por_entrega" && !doc.vinculoId) {
-      if (doc.projetoId) await sincronizarPrevisoesDoProjeto(doc.projetoId, ctx.user.id);
-      else await sincronizarPrevisoesDoContrato(doc.id, ctx.user.id);
+      await sincronizarPrevisoesDepois(doc.projetoId ? { projetoId: doc.projetoId } : { contratoId: doc.id }, ctx.user.id);
       revalidarFinanceiro();
     }
     rev();

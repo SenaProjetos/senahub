@@ -29,6 +29,23 @@ export function sincronizarPrevisoesDoProjeto(projetoId: string, autorId: string
   return sincronizarPrevisoes({ projetoId }, autorId);
 }
 
+/**
+ * Para chamar DEPOIS de uma mudança já gravada (EAP, aprovação, assinatura, plano do contrato): a
+ * falha na previsão não pode fazer a ação parecer que falhou — o que ela gravou já está gravado.
+ * Loga e segue; a próxima mudança do projeto sincroniza de novo (a sincronização é idempotente).
+ */
+export async function sincronizarPrevisoesDepois(
+  alvo: { projetoId: string } | { contratoId: string },
+  autorId: string,
+): Promise<{ criadas: number; atualizadas: number; removidas: number } | null> {
+  try {
+    return await sincronizarPrevisoes(alvo, autorId);
+  } catch (e) {
+    console.error("[previsao-recebimento] falha ao sincronizar", alvo, e);
+    return null;
+  }
+}
+
 /** Contrato SEM projeto: só a parcela "na assinatura" tem data (não há marco possível). */
 export function sincronizarPrevisoesDoContrato(contratoId: string, autorId: string) {
   return sincronizarPrevisoes({ contratoId }, autorId);

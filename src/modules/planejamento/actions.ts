@@ -21,7 +21,7 @@ import { faixaTemPeriodoValido, haConflitoDeFaixa } from "@/modules/planejamento
 import { sincronizarPrazoDisciplina } from "@/modules/projetos/etapas-service";
 import { planejarAplicacao } from "@/modules/planejamento/aplicacao";
 import { herdarResponsaveisNoProjeto, sincronizarCards } from "@/modules/planejamento/recursos-service";
-import { sincronizarPrevisoesDoProjeto } from "@/modules/juridico/contrato/previsao-service";
+import { sincronizarPrevisoesDepois } from "@/modules/juridico/contrato/previsao-service";
 import { gravarApuracaoValorAgregado } from "@/modules/planejamento/valor-agregado-service";
 
 const plan = { modulo: "planejamento", recurso: "planejamento", permissao: "gerir" } as const;
@@ -42,8 +42,8 @@ async function aposMudarEap(projetoId: string, autorId: string) {
   const r = await sincronizarCards(prisma, projetoId, autorId);
   if (r.criados > 0 || r.atualizados > 0) revalidatePath("/tarefas");
   // F7.2: marco que andou leva junto a previsão de recebimento do contrato por entrega.
-  const p = await sincronizarPrevisoesDoProjeto(projetoId, autorId);
-  if (p.criadas + p.atualizadas + p.removidas > 0) {
+  const p = await sincronizarPrevisoesDepois({ projetoId }, autorId);
+  if (p && p.criadas + p.atualizadas + p.removidas > 0) {
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/lancamentos");
   }
@@ -497,7 +497,13 @@ export const definirDataStatus = defineAction(
     // A foto do dia reflete a apuração que acabou de entrar.
     await gravarSaude(i.projetoId, i.dataStatus);
     // F8: e o Valor Agregado desta apuração — o % não guarda passado; sem a foto, a curva se perde.
-    await gravarApuracaoValorAgregado(i.projetoId);
+    // Refazer a apuração na mesma data ATUALIZA (é o coordenador reapurando). Isolado: a Data de
+    // Status já foi gravada, e uma falha aqui não pode fazer a ação parecer que falhou.
+    try {
+      await gravarApuracaoValorAgregado(i.projetoId, { modo: "atualizar" });
+    } catch (e) {
+      console.error("[valor-agregado] falha ao gravar a apuração", i.projetoId, e);
+    }
     revProjeto(i.projetoId);
     return { dataStatus: i.dataStatus };
   },

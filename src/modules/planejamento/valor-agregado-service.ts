@@ -142,7 +142,9 @@ export async function valorAgregadoDoProjeto(
   const folhasHoje = [...(plano?.resultado.linhas ?? new Map()).entries()].filter(([, l]) => !l.ehResumo);
   const foraDaBase = folhasHoje.filter(([id]) => !naBaseline.has(id)).length;
   if (foraDaBase > 0) {
-    avisos.push(`${foraDaBase} atividade(s) criada(s) depois da linha de base não entram — replaneje para incluí-las.`);
+    avisos.push(
+      `${foraDaBase} atividade(s) criada(s) depois da linha de base: o avanço delas não entra no VA, mas as horas apontadas nelas entram no CR — o IDC fica menor do que é. Replaneje para incluí-las.`,
+    );
   }
   const excluidas = linhas.filter((l) => !l.resumo && l.tarefaId == null).length;
   if (excluidas > 0) avisos.push(`${excluidas} atividade(s) da linha de base foram excluídas e contam como não feitas.`);
@@ -183,7 +185,25 @@ export async function valorAgregadoDoProjeto(
  * Status e na foto semanal — refazer na mesma data atualiza a linha. Sem baseline ou sem Data de
  * Status não grava nada. Grava as DUAS réguas (quem lê decide quem vê R$).
  */
-export async function gravarApuracaoValorAgregado(projetoId: string): Promise<boolean> {
+export async function gravarApuracaoValorAgregado(
+  projetoId: string,
+  opcoes: {
+    /**
+     * `atualizar`: o coordenador reapurou a MESMA Data de Status — vale o número novo.
+     * `so_criar`: a foto semanal — não reescreve a apuração de uma data já fotografada.
+     */
+    modo: "atualizar" | "so_criar";
+  },
+): Promise<boolean> {
+  if (opcoes.modo === "so_criar") {
+    const cron = await prisma.cronogramaProjeto.findUnique({ where: { projetoId }, select: { dataStatus: true } });
+    if (!cron?.dataStatus) return false;
+    const ja = await prisma.valorAgregadoApuracao.findUnique({
+      where: { projetoId_dataStatus: { projetoId, dataStatus: cron.dataStatus } },
+      select: { id: true },
+    });
+    if (ja) return false;
+  }
   const r = await valorAgregadoDoProjeto(projetoId, { verCusto: true });
   if (!r.ok) return false;
   const i = (x: ResultadoRegua | null): IndicesEvm | null => (x?.ok ? x.indices : null);

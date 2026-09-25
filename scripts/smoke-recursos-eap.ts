@@ -223,14 +223,20 @@ async function main() {
     const evmSemVer = await valorAgregadoDoProjeto(projeto.id, { verCusto: false });
     check("quem não vê financeiro: só horas", evmSemVer.ok && evmSemVer.custo === null && evmSemVer.horas.ok);
     // A apuração é fotografada (o % não guarda passado): refazer na mesma data atualiza, não duplica.
-    await gravarApuracaoValorAgregado(projeto.id);
-    await gravarApuracaoValorAgregado(projeto.id);
+    await gravarApuracaoValorAgregado(projeto.id, { modo: "atualizar" });
+    await gravarApuracaoValorAgregado(projeto.id, { modo: "atualizar" });
     const apur = await prisma.valorAgregadoApuracao.findMany({ where: { projetoId: projeto.id } });
     check(
       "apuração gravada uma vez por Data de Status, com as duas réguas",
       apur.length === 1 && Number(apur[0].vaHoras) === 20 && Number(apur[0].crHoras) === 10 && Number(apur[0].vaCusto) === 2000,
       apur.map((a) => ({ va: Number(a.vaHoras), cr: Number(a.crHoras), vaR: Number(a.vaCusto) })),
     );
+    // A foto semanal não reescreve uma data já fotografada: muda o %, roda "só criar", fica o antigo.
+    await prisma.eapTarefa.update({ where: { id: A.id }, data: { progresso: 100 } });
+    await gravarApuracaoValorAgregado(projeto.id, { modo: "so_criar" });
+    const aposSemanal = await prisma.valorAgregadoApuracao.findFirstOrThrow({ where: { projetoId: projeto.id } });
+    check("foto semanal não reescreve a apuração de uma data já fotografada", Number(aposSemanal.vaHoras) === 20, Number(aposSemanal.vaHoras));
+    await prisma.eapTarefa.update({ where: { id: A.id }, data: { progresso: 50 } });
     const comHist = await valorAgregadoDoProjeto(projeto.id, { verCusto: false });
     check(
       "histórico: IDP/IDC em horas; R$ escondido de quem não vê financeiro",
