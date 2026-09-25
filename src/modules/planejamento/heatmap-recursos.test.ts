@@ -1,5 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { percentualCalculadoPorSemana, picoDoMes } from "./heatmap-recursos";
+import { percentualCalculadoPorSemana, percentualDaJornadaCheia, picoDoMes } from "./heatmap-recursos";
+
+describe("percentualDaJornadaCheia", () => {
+  it("jornada cheia: horas sobre a semana útil", () => {
+    expect(percentualDaJornadaCheia(20, 40, 1)).toBe(50);
+    expect(percentualDaJornadaCheia(60, 40, 1)).toBe(150);
+  });
+
+  it("meio período: a semana útil já vem encolhida, e a conta volta à escala da jornada cheia", () => {
+    // Semana útil de 20 h (40 h × 0,5). 20 h nela ocupam 50 da jornada cheia — a capacidade dela (50) — e não 100.
+    expect(percentualDaJornadaCheia(20, 20, 0.5)).toBe(50);
+    expect(percentualDaJornadaCheia(10, 20, 0.5)).toBe(25);
+    expect(percentualDaJornadaCheia(30, 20, 0.5)).toBe(75);
+  });
+
+  it("sem semana útil não há base: nulo, nunca zero", () => {
+    expect(percentualDaJornadaCheia(10, 0, 1)).toBeNull();
+  });
+});
 
 describe("percentualCalculadoPorSemana", () => {
   const pessoa = {
@@ -12,25 +30,34 @@ describe("percentualCalculadoPorSemana", () => {
   };
 
   it("soma só as horas dos projetos com cronograma aprovado, sobre a semana útil", () => {
-    const r = percentualCalculadoPorSemana(pessoa, ["A", "B"]);
+    const r = percentualCalculadoPorSemana(pessoa, ["A", "B"], 1);
     expect(r.get("2026-W40")).toBe(75);
     expect(r.get("2026-W41")).toBe(50);
   });
 
   it("projeto que não é calculado (alocação digitada convertida) não entra", () => {
-    const r = percentualCalculadoPorSemana(pessoa, ["A"]);
+    const r = percentualCalculadoPorSemana(pessoa, ["A"], 1);
     expect(r.get("2026-W40")).toBe(50);
   });
 
   it("semana sem horas ou sem semana útil não gera entrada", () => {
-    const r = percentualCalculadoPorSemana(pessoa, ["A", "B"]);
+    const r = percentualCalculadoPorSemana(pessoa, ["A", "B"], 1);
     expect(r.has("2026-W42")).toBe(false);
-    expect(percentualCalculadoPorSemana(pessoa, []).size).toBe(0);
+    expect(percentualCalculadoPorSemana(pessoa, [], 1).size).toBe(0);
   });
 
   it("passa de 100% quando as horas superam a semana útil", () => {
-    const r = percentualCalculadoPorSemana({ semanaUtil: { "2026-W40": 40 }, porProjeto: { A: { "2026-W40": 60 } } }, ["A"]);
+    const r = percentualCalculadoPorSemana({ semanaUtil: { "2026-W40": 40 }, porProjeto: { A: { "2026-W40": 60 } } }, ["A"], 1);
     expect(r.get("2026-W40")).toBe(150);
+  });
+
+  it("meio período (multiplicador 0,5): 20 h numa semana útil de 20 h dá 50 — a capacidade, não superalocado", () => {
+    const meio = { semanaUtil: { "2026-W40": 20 }, porProjeto: { A: { "2026-W40": 20 } } };
+    const r = percentualCalculadoPorSemana(meio, ["A"], 0.5);
+    expect(r.get("2026-W40")).toBe(50);
+    // …e 30 h passam da capacidade (75 contra 50).
+    const passou = percentualCalculadoPorSemana({ ...meio, porProjeto: { A: { "2026-W40": 30 } } }, ["A"], 0.5);
+    expect(passou.get("2026-W40")).toBe(75);
   });
 });
 

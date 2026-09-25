@@ -265,13 +265,15 @@ export function RecursosMatrix({
     return base;
   }, [linhas, filtroProjeto, filtroHabilidade, habilidadesPorUser]);
 
-  const calculadaPorUser = useMemo(
-    () =>
-      new Map(
-        cargaPlanejada.pessoas.map((pessoa) => [pessoa.userId, percentualCalculadoPorSemana(pessoa, cargaPlanejada.projetosCalculados)]),
-      ),
-    [cargaPlanejada],
-  );
+  const calculadaPorUser = useMemo(() => {
+    const capacidadeDe = new Map(linhas.map((l) => [l.userId, l.capacidade]));
+    return new Map(
+      cargaPlanejada.pessoas.map((pessoa) => [
+        pessoa.userId,
+        percentualCalculadoPorSemana(pessoa, cargaPlanejada.projetosCalculados, capacidadeDe.get(pessoa.userId) ?? 1),
+      ]),
+    );
+  }, [cargaPlanejada, linhas]);
   const heat = useMemo(
     () => montarHeatmap(linhasFiltradas, (userId) => calculadaPorUser.get(userId) ?? new Map()),
     [linhasFiltradas, calculadaPorUser],

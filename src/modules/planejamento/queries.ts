@@ -11,6 +11,7 @@ import { montarCalendario, planoDoProjeto, type PlanoDoProjeto } from "@/modules
 import type { Prisma } from "@/generated/prisma/client";
 import { cargaDaEquipe } from "@/modules/planejamento/recursos-queries";
 import { ehEtapaDeTerceiro, ROTULO_PAPEL } from "@/modules/planejamento/recursos";
+import { percentualDaJornadaCheia } from "@/modules/planejamento/heatmap-recursos";
 import { contextoDeArquivos, sugerirProgresso } from "@/modules/planejamento/progresso-sugerido";
 import { minutosSessao } from "@/modules/ponto/format";
 import { custosDoProjeto } from "@/modules/planejamento/custo-service";
@@ -622,9 +623,11 @@ export async function matrizRecursos() {
             projetoCodigo: projeto?.codigo ?? "",
             projetoNome: projeto?.nome ?? "",
             horasSemana,
-            // Sem semana útil (jornada vazia), percentual não tem base: fica nulo em vez de
-            // inventar. A sobrecarga de `cargaDaEquipe`, em horas, continua acusando.
-            percentual: base > 0 ? Math.round((horasSemana / base) * 100) : null,
+            // Na régua do "50% no projeto" digitado (100 = jornada cheia): quem trabalha meio período
+            // tem capacidade 50, e `alocadoHoje` é comparado a ela. Sem semana útil (jornada vazia),
+            // percentual não tem base: fica nulo em vez de inventar. A sobrecarga de `cargaDaEquipe`,
+            // em horas, continua acusando.
+            percentual: percentualDaJornadaCheia(horasSemana, base, Number(r.capacidade)),
           };
         })
         .filter((c) => c.horasSemana > 0);
