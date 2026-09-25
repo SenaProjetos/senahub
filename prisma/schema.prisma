@@ -1690,6 +1690,12 @@ enum StatusLancamento {
   aguardando_aprovacao // despesa acima da alçada, trava até aprovação
   confirmado // pago/recebido (entra no caixa e na DRE)
   cancelado
+  // F7.2 (D25): previsão de recebimento do CRONOGRAMA — parcela de contrato por entrega, com a
+  // data do marco. NÃO é conta a receber: fica fora de aging, inadimplência e "a receber" (que
+  // leem `previsto`) e entra só onde é pedida (projeção de caixa). Faturar a parcela a converte,
+  // na mesma linha, em `previsto`. Status próprio, e não `previsto` + etiqueta, para que quem
+  // não souber dela a IGNORE em vez de cobrar um cliente que nunca foi faturado.
+  previsao
 }
 
 /// Lançamento financeiro. previsto = conta a pagar/receber; confirmado = realizado.
@@ -1731,6 +1737,8 @@ model Lancamento {
   /// existindo. Nulo em todo lançamento criado à mão, que segue sendo o caminho normal.
   contratoId            String?
   contrato              DocumentoJuridico?          @relation("LancamentosDoContrato", fields: [contratoId], references: [id], onDelete: SetNull)
+  /// F7.2/F7.3: parcela de contrato por entrega que esta linha representa (previsão ou cobrança).
+  parcelaEntrega        ContratoParcelaEntrega?
   /// Etiquetas livres (A6).
   tags                  String[]                    @default([])
   /// Documento-fonte (NF/contrato/proposta/medição) — rastreabilidade de origem (Fase 2).
@@ -2918,6 +2926,14 @@ enum StatusContrato {
   rescindido
 }
 
+/// F7.3 (D15): como o contrato de cliente cobra. Nunca os dois no mesmo contrato.
+enum FormaCobranca {
+  /// Parcelas mensais a partir do 1º vencimento (Fase G) — como sempre foi.
+  por_data
+  /// Parcelas ligadas a marcos da EAP (`ContratoParcelaEntrega`): a data vem do cronograma.
+  por_entrega
+}
+
 model DocumentoJuridico {
   id         String         @id @default(cuid())
   titulo     String
@@ -2981,6 +2997,10 @@ model DocumentoJuridico {
   primeiroVencimento DateTime?    @db.Date
   /// Parcelas já geradas a partir deste contrato.
   lancamentos        Lancamento[] @relation("LancamentosDoContrato")
+  /// F7.3: por data (as duas colunas acima) ou por entrega (`parcelasEntrega`). Default = o de
+  /// sempre, então nenhum contrato existente muda.
+  formaCobranca      FormaCobranca @default(por_data)
+  parcelasEntrega    ContratoParcelaEntrega[]
 
   /// ── Cláusulas específicas (Fase E3) ───────────────────────────────────────────────────────
   /// Texto livre injetado no token `[ClausulasAdicionais]` do modelo do Estúdio. Resolve a
@@ -2999,6 +3019,39 @@ model DocumentoJuridico {
   @@index([statusContrato])
   @@index([contratoOrigemId])
   @@map("documento_juridico")
+}
+
+/// Parcela de contrato cobrado POR ENTREGA (F7.3 — D15): um percentual do valor, ligado a um marco
+/// da EAP. A data não é digitada — vem do marco, pelo cronograma aprovado (F7.2 — D9/D25).
+///
+/// `lancamentoId` é a linha dela no financeiro: nasce `previsao` (projeção, com a data do marco) e
+/// vira `previsto` quando o financeiro fatura — a MESMA linha, para a previsão nunca somar junto
+/// com a cobrança. A sincronização só mexe em linha `previsao`.
+///
+/// Parcela sem marco ("na assinatura") vira recebível `previsto` na assinatura do contrato.
+model ContratoParcelaEntrega {
+  id         String            @id @default(cuid())
+  contratoId String
+  contrato   DocumentoJuridico @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+
+  /// "Entrega do projeto básico", "Assinatura".
+  descricao  String
+  /// Percentual do valor do contrato, >0 e ≤100, 2 casas. A soma fecha 100% — validada na regra
+  /// pura (`calcularParcelas`), não por constraint (o editor salva rascunho), como `PropostaParcela`.
+  percentual Decimal @db.Decimal(5, 2)
+  ordem      Int     @default(0)
+
+  /// Marco da EAP que dispara a parcela. `SetNull`: apagar a linha da EAP não apaga o combinado —
+  /// a parcela fica sem data até alguém ligar outro marco.
+  marcoId String?
+  marco   EapTarefa? @relation(fields: [marcoId], references: [id], onDelete: SetNull)
+
+  lancamentoId String?     @unique
+  lancamento   Lancamento? @relation(fields: [lancamentoId], references: [id], onDelete: SetNull)
+
+  @@index([contratoId])
+  @@index([marcoId])
+  @@map("contrato_parcela_entrega")
 }
 
 /// Delta contratual de um aditivo de EQUIPE (1:1 com o `DocumentoJuridico` de `tipo = "aditivo"`).
@@ -4402,6 +4455,8 @@ model EapTarefa {
   predecessoras EapDependencia[] @relation("EapDependente")
   sucessoras    EapDependencia[] @relation("EapPredecessora")
   baselineLinhas EapBaselineLinha[]
+  /// F7.3: parcelas de contrato por entrega que este marco dispara.
+  parcelasEntrega ContratoParcelaEntrega[]
   historicoCodigo EapCodigoHistorico[]
   atribuicoes     EapAtribuicao[]
 
