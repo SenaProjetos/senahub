@@ -1,16 +1,22 @@
 import { type NextRequest, NextResponse } from "next/server";
 import puppeteer from "puppeteer-core";
 import { requirePermission } from "@/lib/session";
+import { podeVerDatasDoPlanejamento } from "@/modules/planejamento/acesso";
 
 /** N-44: PDF do cronograma (gantt) de um projeto via puppeteer. */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ projetoId: string }> },
 ) {
+  let user;
   try {
-    await requirePermission("planejamento", "ver");
+    user = await requirePermission("planejamento", "ver");
   } catch {
     return new Response("Não autorizado.", { status: 401 });
+  }
+  // O PDF é o Gantt inteiro: quem só vê a estrutura do planejamento (decisão #3) não o gera.
+  if (!(await podeVerDatasDoPlanejamento(user))) {
+    return new Response("Sem permissão para exportar as datas do cronograma.", { status: 403 });
   }
 
   const { projetoId } = await params;

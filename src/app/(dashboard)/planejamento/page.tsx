@@ -3,6 +3,7 @@ import Link from "next/link";
 import { GanttChart, Rocket, ListTree } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { projetosComPlano } from "@/modules/planejamento/queries";
+import { podeVerDatasDoPlanejamento } from "@/modules/planejamento/acesso";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +17,8 @@ const fmt = (d: string | null) =>
 
 export default async function PlanejamentoPage() {
   const user = await requirePermission("planejamento", "ver");
-  const projetos = await projetosComPlano(user);
+  const verDatas = await podeVerDatasDoPlanejamento(user);
+  const projetos = await projetosComPlano(user, { verDatas });
 
   return (
     <div className="space-y-6">
@@ -27,9 +29,11 @@ export default async function PlanejamentoPage() {
             EAP e cronograma (gantt) por projeto, com linha de base. Selecione um projeto.
           </p>
         </div>
-        <Button variant="outline" size="sm" render={<Link href="/planejamento/cronograma" />}>
-          <GanttChart className="size-4" /> Cronograma geral
-        </Button>
+        {verDatas && (
+          <Button variant="outline" size="sm" render={<Link href="/planejamento/cronograma" />}>
+            <GanttChart className="size-4" /> Cronograma geral
+          </Button>
+        )}
       </div>
 
       {projetos.length === 0 ? (
@@ -71,9 +75,11 @@ export default async function PlanejamentoPage() {
                     <>
                       <div className="flex justify-between text-xs text-muted-foreground">
                         <span>{p.totalTarefas} tarefa(s)</span>
-                        <span className="font-mono">
-                          {fmt(p.inicio)} – {fmt(p.fim)}
-                        </span>
+                        {verDatas && (
+                          <span className="font-mono">
+                            {fmt(p.inicio)} – {fmt(p.fim)}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="h-2 flex-1 overflow-hidden rounded-sm bg-muted">

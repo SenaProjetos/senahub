@@ -4,6 +4,7 @@ import type ExcelJSType from "exceljs";
 import { getSession } from "@/lib/session";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { eapDoProjeto, projetoVisivel } from "@/modules/planejamento/queries";
+import { podeVerDatasDoPlanejamento } from "@/modules/planejamento/acesso";
 
 const require = createRequire(import.meta.url);
 const ExcelJS = require("exceljs") as typeof import("exceljs");
@@ -38,6 +39,10 @@ export async function GET(
   if (!(await can(session.user, "planejamento", "ver"))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
+  // A planilha é toda datas (previsto, linha de base, desvio): quem só vê a estrutura (decisão #3) não a exporta.
+  if (!(await podeVerDatasDoPlanejamento(session.user))) {
+    return NextResponse.json({ error: "Sem permissão para exportar as datas do cronograma." }, { status: 403 });
+  }
 
   const { projetoId } = await params;
   const projeto = await projetoVisivel(session.user, projetoId);
@@ -45,7 +50,7 @@ export async function GET(
 
   // F7.1: custo por linha só sai para quem vê financeiro — mesma regra da tela.
   const verCusto = await podeVerFinanceiro(session.user);
-  const { tarefas, temLinhaBase } = await eapDoProjeto(projetoId, { verCusto });
+  const { tarefas, temLinhaBase } = await eapDoProjeto(projetoId, { verCusto, verDatas: true });
   const wbs = wbsCodes(tarefas);
 
   const wb = new ExcelJS.Workbook();

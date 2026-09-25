@@ -170,7 +170,7 @@ async function main() {
         { tarefaId: tAgora.id, descricao: "d", concluido: false, ordem: 3 },
       ],
     });
-    const eap = await eapDoProjeto(proj.id);
+    const eap = await eapDoProjeto(proj.id, { verDatas: true });
     const dtoAgora = eap.tarefas.find((x) => x.id === linhaAgora.id);
     const dtoFutura = eap.tarefas.find((x) => x.id === linhaFutura.id);
     check("EAP: horas apontadas chegam na linha pelo card", (dtoAgora?.horasApontadas ?? 0) > 0, dtoAgora?.horasApontadas);
@@ -209,7 +209,7 @@ async function main() {
         { tarefaId: cardFilha.id, descricao: "y", concluido: false, ordem: 1 },
       ],
     });
-    const eap2 = await eapDoProjeto(proj.id);
+    const eap2 = await eapDoProjeto(proj.id, { verDatas: true });
     const dFilha = eap2.tarefas.find((x) => x.id === filha.id);
     const dPai = eap2.tarefas.find((x) => x.id === pai.id);
     check("D19: folha com disciplina mostra o % INFORMADO (30), não o do status da disciplina", dFilha?.progresso === 30, dFilha?.progresso);

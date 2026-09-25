@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
 import { projetoVisivel, eapDoProjeto } from "@/modules/planejamento/queries";
+import { podeVerDatasDoPlanejamento } from "@/modules/planejamento/acesso";
 import { Gantt } from "@/components/planejamento/gantt";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 
@@ -13,8 +14,10 @@ export default async function PrintCronogramaPage({
   const user = await requirePermission("planejamento", "ver");
   const projeto = await projetoVisivel(user, projetoId);
   if (!projeto) notFound();
+  // O PDF é o Gantt inteiro: quem só vê a estrutura do planejamento (decisão #3) não tem o que imprimir.
+  if (!(await podeVerDatasDoPlanejamento(user))) notFound();
 
-  const { tarefas } = await eapDoProjeto(projetoId);
+  const { tarefas } = await eapDoProjeto(projetoId, { verDatas: true });
 
   return (
     <html lang="pt-BR">

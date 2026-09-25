@@ -39,7 +39,10 @@ combinado original guardado para comparar.
 - Clique num projeto para abrir o cronograma dele (`/planejamento/{projeto}`).
 - O botão **Cronograma geral** abre a visão de todos os projetos lado a lado (veja abaixo).
 
-> **Ver × editar.** Quem tem só `planejamento:ver` **vê** o cronograma (sem botões de edição).
+> **Ver × editar.** Quem tem só `planejamento:ver` **vê a estrutura** do planejamento — as tarefas, as
+> pessoas, a duração e o avanço —, **sem nenhuma data**: não aparecem o Gantt, os prazos, a linha de base,
+> o Cronograma geral, a Saúde, o Valor Agregado nem a exportação. Ver as datas exige montar (`planejamento:gerir`),
+> ver o cronograma (`cronograma:ver`) ou acompanhá-lo (`cronograma:executado` ou `cronograma:aprovar`).
 > Montar e editar exige `planejamento:gerir`. A tabela de permissões está no fim da página.
 
 ## O caminho de um cronograma
@@ -301,7 +304,8 @@ andou?". A tela compara sempre com a linha de base **mais recente**. Exige `cron
 
 | Ação | Permissão |
 | --- | --- |
-| Ver a lista, o cronograma, o Cronograma geral e exportar | `planejamento:ver` |
+| Ver a lista de projetos e a **estrutura** da EAP (sem datas) | `planejamento:ver` |
+| Ver as **datas**: Gantt, prazos, linha de base, Cronograma geral, Saúde, Valor Agregado, exportar Excel e PDF | `planejamento:gerir`, `cronograma:ver`, `cronograma:executado` ou `cronograma:aprovar` |
 | Montar e editar a EAP (tarefas, dependências, restrição, bloqueio, recursos, reagendar, aplicar ao projeto) | `planejamento:gerir` |
 | Definir a Data de Status (**Apurar**) e **Atualizar tarefa** (datas reais) | `cronograma:executado` |
 | **Aprovar** o cronograma e **Replanejar** | `cronograma:aprovar` |
@@ -316,7 +320,7 @@ combinado com o cliente.
 
 Nos perfis padrão, o **Coordenador** e o **Administrativo** montam, aprovam e apuram o cronograma
 (o Administrativo também vê o financeiro; o Coordenador, não). **CLT**, **Estagiário** e **Projetista
-PJ** têm só `planejamento:ver`. Os perfis são editáveis em **Configurações → Perfis**, então
+PJ** têm só `planejamento:ver`: veem a estrutura, sem datas. Os perfis são editáveis em **Configurações → Perfis**, então
 confira lá o que vale no seu escritório.
 
 ## Regras de negócio
@@ -368,3 +372,6 @@ datas reais e o percentual das tarefas em andamento — o que já foi feito fica
 
 **Não vejo os botões de editar.** Você tem só `planejamento:ver`. Montar e editar exige
 `planejamento:gerir`; aprovar, `cronograma:aprovar`.
+
+**Não vejo as datas nem o Gantt.** O seu perfil vê só a estrutura do planejamento. Quem precisa dos prazos
+usa o **card da tarefa** (que o cronograma gera com o prazo) ou pede ao coordenador.

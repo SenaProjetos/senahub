@@ -38,6 +38,9 @@ Depois de revisar o novo planejamento, o time decidiu alguns pontos. O que já e
   espera receber agora conta como receita **prevista** no resultado do projeto e no indicador Receita
   prevista do painel inicial, além do fluxo de caixa. Ao faturar, a mesma linha vira cobrança — nada
   é somado duas vezes.
+- **Planejamento sem datas para quem só consulta:** CLT, estagiário e projetista PJ continuam vendo a
+  estrutura do planejamento (tarefas, pessoas, duração e avanço), mas não veem mais datas, Gantt,
+  Cronograma geral nem a exportação. Os prazos deles seguem nos cards de tarefas.
 - **Marco concluído entrega a fase:** ao concluir o marco de uma fase, ela passa a **Entregue** e quem
   aprova disciplinas é avisado. Aprovar (e liberar o pagamento) continua sendo um passo à parte;
   reabrir o marco não desfaz a entrega.

@@ -73,6 +73,7 @@ export function EapWorkspace({
   podeAprovar,
   podeExecutado,
   podeAprovarFase,
+  verDatas,
   cronograma,
   qualidade,
 }: {
@@ -88,7 +89,13 @@ export function EapWorkspace({
   podeExecutado: boolean;
   /** `aprovacoes:disciplina`: aprovar a fase quando o marco dela é concluído (F7.0). */
   podeAprovarFase: boolean;
-  cronograma: Awaited<ReturnType<typeof cronogramaProjetoInfo>>;
+  /**
+   * Decisão #3: sem isto o servidor já mandou as linhas SEM datas — a tela não desenha Gantt, datas, filtros de
+   * prazo nem exportação (quem só consulta vê a estrutura).
+   */
+  verDatas: boolean;
+  /** `null` = quem não vê datas (o servidor nem busca a Data de Status, a baseline nem a Saúde). */
+  cronograma: Awaited<ReturnType<typeof cronogramaProjetoInfo>> | null;
   qualidade: {
     achados: Achado[];
     saude: ResultadoSaude | null;
@@ -273,7 +280,7 @@ export function EapWorkspace({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {tarefas.length > 0 && (
+          {verDatas && tarefas.length > 0 && (
             <>
               <a href={`/api/planejamento/${projeto.id}/eap-export`} download>
                 <Button size="sm" variant="outline" type="button">
@@ -323,7 +330,7 @@ export function EapWorkspace({
         </div>
       </div>
 
-      {qualidade && tarefas.length > 0 && (
+      {qualidade && cronograma && tarefas.length > 0 && (
         <SaudePainel
           projetoId={projeto.id}
           podeAprovar={podeAprovar}
@@ -345,7 +352,7 @@ export function EapWorkspace({
       )}
 
       {/* N-47: resumo comparativo baseline vs atual */}
-      {temLinhaBase && tarefas.some((t) => t.inicioBaseline) && (() => {
+      {verDatas && temLinhaBase && tarefas.some((t) => t.inicioBaseline) && (() => {
         const comBase = tarefas.filter((t) => t.fimBaseline);
         const atrasadas = comBase.filter((t) => diasDesvio(t) > 0);
         const adiantadas = comBase.filter((t) => diasDesvio(t) < 0);
@@ -414,7 +421,9 @@ export function EapWorkspace({
                   ["criticas", `Críticas (${totalCriticas})`],
                   ["bloqueadas", `Bloqueadas (${totalBloqueadas})`],
                 ] as [Filtro, string][]
-              ).map(([v, label]) => (
+              )
+                .filter(([v]) => verDatas || v === "todas" || v === "bloqueadas")
+                .map(([v, label]) => (
                 <button
                   key={v}
                   type="button"
@@ -428,8 +437,8 @@ export function EapWorkspace({
                   {label}
                 </button>
               ))}
-              <span className="mx-1 self-center text-muted-foreground">·</span>
-              {(
+              {verDatas && <span className="mx-1 self-center text-muted-foreground">·</span>}
+              {verDatas && (
                 [
                   ["todas", "Tudo"],
                   [7, "7 dias"],
@@ -452,6 +461,7 @@ export function EapWorkspace({
                 </button>
               ))}
             </div>
+            {verDatas && (
             <div className="flex items-center gap-1">
               <span className="mr-1 text-xs text-muted-foreground">Zoom</span>
               <Button size="icon-sm" variant="outline" aria-label="Diminuir zoom" onClick={() => setPx((p) => Math.max(6, p - 4))} disabled={px <= 6}>
@@ -461,12 +471,13 @@ export function EapWorkspace({
                 <ZoomIn className="size-3.5" />
               </Button>
             </div>
+            )}
           </div>
 
           {visiveis.length === 0 ? (
             <EmptyState icon={ListTree} title="Nenhuma tarefa para os filtros selecionados" className="py-10" />
           ) : (
-            <Gantt tarefas={visiveis} onSelecionar={podeGerir ? selecionar : undefined} px={px} />
+            verDatas && <Gantt tarefas={visiveis} onSelecionar={podeGerir ? selecionar : undefined} px={px} />
           )}
 
           {/* Lista / EAP */}
@@ -479,10 +490,10 @@ export function EapWorkspace({
                   <th className="px-3 py-2">Recursos</th>
                   {custoTotal && <th className="px-3 py-2 text-right">Custo</th>}
                   <th className="px-3 py-2">Duração</th>
-                  <th className="px-3 py-2">Previsto</th>
-                  <th className="px-3 py-2">Linha de base</th>
+                  {verDatas && <th className="px-3 py-2">Previsto</th>}
+                  {verDatas && <th className="px-3 py-2">Linha de base</th>}
                   <th className="px-3 py-2">Progresso</th>
-                  <th className="px-3 py-2 text-right">Desvio</th>
+                  {verDatas && <th className="px-3 py-2 text-right">Desvio</th>}
                   {(podeGerir || podeExecutado) && <th className="px-3 py-2 text-right">Ações</th>}
                 </tr>
               </thead>
@@ -573,12 +584,16 @@ export function EapWorkspace({
                       <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-muted-foreground">
                         {t.marco ? "marco" : `${t.duracaoDias}d`}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">
-                        {fmt(t.inicioPrevisto)} – {fmt(t.fimPrevisto)}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-muted-foreground">
-                        {t.inicioBaseline ? `${fmt(t.inicioBaseline)} – ${fmt(t.fimBaseline)}` : "—"}
-                      </td>
+                      {verDatas && (
+                        <>
+                          <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">
+                            {fmt(t.inicioPrevisto)} – {fmt(t.fimPrevisto)}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-muted-foreground">
+                            {t.inicioBaseline ? `${fmt(t.inicioBaseline)} – ${fmt(t.fimBaseline)}` : "—"}
+                          </td>
+                        </>
+                      )}
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2">
                           <div className="h-1.5 w-20 overflow-hidden rounded-sm bg-muted">
@@ -595,6 +610,7 @@ export function EapWorkspace({
                           )}
                         </div>
                       </td>
+                      {verDatas && (
                       <td className="px-3 py-2 text-right">
                         {t.fimBaseline == null ? (
                           <span className="text-muted-foreground">—</span>
@@ -610,6 +626,7 @@ export function EapWorkspace({
                           <Badge variant="outline">no prazo</Badge>
                         )}
                       </td>
+                      )}
                       {(podeGerir || podeExecutado) && (
                         <td className="whitespace-nowrap px-3 py-2 text-right">
                           {podeExecutado && !t.ehResumo && (
@@ -633,11 +650,11 @@ export function EapWorkspace({
                             variant="ghost"
                             aria-label="Gerar tarefa no kanban"
                             title={
-                              cronograma.aprovado
+                              cronograma?.aprovado
                                 ? "Gerar o card desta linha no kanban (nasce sozinho na aprovação, para atividade da equipe com gente escalada)"
                                 : "O card nasce quando o cronograma é aprovado — rascunho não gera card"
                             }
-                            disabled={pending || !cronograma.aprovado}
+                            disabled={pending || !cronograma?.aprovado}
                             onClick={(e) => {
                               e.stopPropagation();
                               gerarTarefa(t.id);

@@ -103,13 +103,25 @@ async function main() {
   check("aplicar ao projeto → prazo da disciplina = fim previsto", discAtual?.prazo?.toISOString().slice(0, 10) === "2026-07-08");
 
   // 5) query eapDoProjeto
-  const eap = await eapDoProjeto(projeto.id);
+  const eap = await eapDoProjeto(projeto.id, { verDatas: true });
   check("eapDoProjeto: tarefas + baseline + dependência", eap.tarefas.length === 2 && eap.temLinhaBase && eap.tarefas.some((t) => t.predecessoraIds.length === 1));
+  // Decisão #3: quem só consulta o planejamento vê a estrutura, sem nenhuma data (tirada no servidor).
+  const semDatas = await eapDoProjeto(projeto.id, { verDatas: false });
+  check(
+    "#3: sem datas — mesma estrutura, nenhuma data, nada de caminho crítico",
+    semDatas.tarefas.length === eap.tarefas.length &&
+      semDatas.tarefas.every((t) => t.inicioPrevisto === "" && t.fimPrevisto === "" && t.inicioBaseline === null && t.fimBaseline === null && !t.critica) &&
+      semDatas.tarefas.some((t) => t.predecessoraIds.length === 1) &&
+      !/\d{4}-\d{2}-\d{2}/.test(JSON.stringify(semDatas.tarefas)),
+  );
 
   // 6) projetosComPlano (viewer admin = global)
-  const lista = await projetosComPlano({ id: admin.id, role: admin.role as Role, superUsuario: true, escopoGlobalPerfil: true });
+  const viewerAdmin = { id: admin.id, role: admin.role as Role, superUsuario: true, escopoGlobalPerfil: true };
+  const lista = await projetosComPlano(viewerAdmin, { verDatas: true });
   const naLista = lista.find((p) => p.id === projeto.id);
   check("projetosComPlano inclui o projeto com 2 tarefas", naLista?.totalTarefas === 2);
+  const listaSemDatas = (await projetosComPlano(viewerAdmin, { verDatas: false })).find((p) => p.id === projeto.id);
+  check("#3: a lista sem datas traz o projeto, o total e o avanço, mas nem início nem fim", listaSemDatas?.totalTarefas === 2 && listaSemDatas.inicio === null && listaSemDatas.fim === null);
 
   // 7) Meio período (capacidade 0,5): o % é da capacidade DELA (decisão #2) — 60% não é superalocação,
   //    60% + 60% é. E a taxa (custo/hora) só sai para quem vê o financeiro (decisão #15).

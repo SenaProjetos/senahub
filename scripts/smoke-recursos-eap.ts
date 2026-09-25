@@ -134,18 +134,18 @@ async function main() {
     // ── 8. Custo previsto (F7.1) ───────────────────────────────────────────
     // A: 40 h do A. B: 24 h do A + 16 h do B. Só o A tem taxa, por enquanto.
     await prisma.recurso.create({ data: { userId: pjA.id, custoHora: 100 } });
-    let eap = await eapDoProjeto(projeto.id, { verCusto: true });
+    let eap = await eapDoProjeto(projeto.id, { verCusto: true, verDatas: true });
     const c = (id: string) => eap.tarefas.find((t) => t.id === id);
     check("custo: A = 40 h × 100", c(A.id)?.custo === 4000, c(A.id)?.custo);
     check("custo: B com pessoa sem taxa é DESCONHECIDO, com o motivo", c(B.id)?.custo === null && c(B.id)?.custoMotivo === "sem_custo_hora", c(B.id));
     check("custo: resumo com filho desconhecido é desconhecido", c(R.id)?.custo === null && c(R.id)?.custoMotivo === "filho_sem_custo");
     check("custo: total desconhecido", eap.custoTotal?.custo === null);
     await prisma.recurso.create({ data: { userId: pjB.id, custoHora: 50 } });
-    eap = await eapDoProjeto(projeto.id, { verCusto: true });
+    eap = await eapDoProjeto(projeto.id, { verCusto: true, verDatas: true });
     check("custo: B = 24 × 100 + 16 × 50", c(B.id)?.custo === 3200, c(B.id)?.custo);
     check("custo: etapa de terceiro e marco custam zero conhecido", c(T.id)?.custo === 0 && c(M.id)?.custo === 0, [c(T.id)?.custo, c(M.id)?.custo]);
     check("custo: resumo soma os filhos (7200) e é o total", c(R.id)?.custo === 7200 && eap.custoTotal?.custo === 7200, [c(R.id)?.custo, eap.custoTotal]);
-    const semVer = await eapDoProjeto(projeto.id);
+    const semVer = await eapDoProjeto(projeto.id, { verDatas: true });
     check("custo: quem não vê financeiro não recebe custo nenhum", semVer.custoTotal === null && semVer.tarefas.every((t) => t.custo === null && t.custoMotivo === null));
 
     // ── 4. Rascunho × aprovado ─────────────────────────────────────────────

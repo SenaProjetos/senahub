@@ -12,6 +12,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { cargaDaEquipe } from "@/modules/planejamento/recursos-queries";
 import { ehEtapaDeTerceiro, ROTULO_PAPEL } from "@/modules/planejamento/recursos";
 import { percentualDaCapacidade } from "@/modules/planejamento/heatmap-recursos";
+import { semDatasDaLinha } from "@/modules/planejamento/visao-sem-datas";
 import { contextoDeArquivos, sugerirProgresso } from "@/modules/planejamento/progresso-sugerido";
 import { minutosSessao } from "@/modules/ponto/format";
 import { custosDoProjeto } from "@/modules/planejamento/custo-service";
@@ -213,8 +214,11 @@ function mapearTarefaDTO(
   };
 }
 
-/** Projetos visíveis ao viewer + resumo do plano (página índice de Planejamento). */
-export async function projetosComPlano(viewer: Viewer) {
+/**
+ * Projetos visíveis ao viewer + resumo do plano (página índice de Planejamento). `verDatas` é OBRIGATÓRIO: o
+ * compilador enumera quem chama, e ninguém esquece a decisão #3 (quem só consulta não vê datas).
+ */
+export async function projetosComPlano(viewer: Viewer, opcoes: { verDatas: boolean }) {
   const projetos = await prisma.projeto.findMany({
     where: escopoProjeto(viewer),
     orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
@@ -244,8 +248,8 @@ export async function projetosComPlano(viewer: Viewer) {
       nome: p.nome,
       situacao: p.situacao,
       totalTarefas: t.length,
-      inicio: inicio ? iso(inicio) : null,
-      fim: fim ? iso(fim) : null,
+      inicio: opcoes.verDatas && inicio ? iso(inicio) : null,
+      fim: opcoes.verDatas && fim ? iso(fim) : null,
       progresso,
     };
   });
@@ -270,8 +274,15 @@ export async function projetoVisivel(viewer: Viewer, projetoId: string) {
 /** EAP completa de um projeto (lista plana ordenada por hierarquia; árvore montada no client). */
 export async function eapDoProjeto(
   projetoId: string,
-  /** F7.1: custo por linha é taxa de remuneração — só calcula (e só envia) para quem vê financeiro. */
-  opcoes: { verCusto?: boolean } = {},
+  opcoes: {
+    /** F7.1: custo por linha é taxa de remuneração — só calcula (e só envia) para quem vê financeiro. */
+    verCusto?: boolean;
+    /**
+     * Decisão #3: sem datas, a linha sai só com a estrutura (`semDatasDaLinha`). OBRIGATÓRIO — quem chama
+     * decide por `podeVerDatasDoPlanejamento`, e o compilador acusa quem esquecer.
+     */
+    verDatas: boolean;
+  },
 ) {
   const tarefas = await prisma.eapTarefa.findMany({
     where: { projetoId },
@@ -296,7 +307,10 @@ export async function eapDoProjeto(
   const [plano, apoio] = await Promise.all([planoDoProjeto(projetoId), carregarApoioDasLinhas(tarefas)]);
   const custos = opcoes.verCusto ? await custosDoProjeto(plano, tarefas) : null;
   return {
-    tarefas: tarefas.map((t) => mapearTarefaDTO(t, plano, apoio, custos?.porLinha.get(t.id))),
+    tarefas: tarefas.map((t) => {
+      const dto = mapearTarefaDTO(t, plano, apoio, custos?.porLinha.get(t.id));
+      return opcoes.verDatas ? dto : semDatasDaLinha(dto);
+    }),
     /** `null` = o viewer não vê custo (a coluna nem aparece). */
     custoTotal: custos ? custos.total : null,
     // Volta a se chamar `nome` na fronteira da UI (`EapWorkspace` fala "nome"): a F1.19c
