@@ -3028,7 +3028,8 @@ model DocumentoJuridico {
 /// vira `previsto` quando o financeiro fatura — a MESMA linha, para a previsão nunca somar junto
 /// com a cobrança. A sincronização só mexe em linha `previsao`.
 ///
-/// Parcela sem marco ("na assinatura") vira recebível `previsto` na assinatura do contrato.
+/// Parcela "na assinatura" (`naAssinatura`) tem a data da assinatura do contrato; as outras, a do
+/// marco. Marco apagado deixa a parcela SEM data (nunca a transforma em "na assinatura").
 model ContratoParcelaEntrega {
   id         String            @id @default(cuid())
   contratoId String
@@ -3040,6 +3041,10 @@ model ContratoParcelaEntrega {
   /// pura (`calcularParcelas`), não por constraint (o editor salva rascunho), como `PropostaParcela`.
   percentual Decimal @db.Decimal(5, 2)
   ordem      Int     @default(0)
+
+  /// Cobrada na assinatura do contrato ("30% na assinatura"). Explícito, e não "sem marco": com o
+  /// marco `SetNull`, apagar uma linha da EAP transformaria a parcela em cobrança imediata em silêncio.
+  naAssinatura Boolean @default(false)
 
   /// Marco da EAP que dispara a parcela. `SetNull`: apagar a linha da EAP não apaga o combinado —
   /// a parcela fica sem data até alguém ligar outro marco.
