@@ -1,4 +1,7 @@
+import { somarDias, segundaDaSemana } from "@/lib/dias-iso";
 import { chaveSemanaIso } from "./disponibilidade";
+
+export { segundaDaSemana };
 
 /**
  * Heatmap de Recursos (L9): a ocupação de cada pessoa por mês soma a alocação DIGITADA (projetos sem
@@ -60,19 +63,6 @@ export const PERIODOS_HEATMAP: readonly { id: PeriodoHeatmap; rotulo: string }[]
 export type ColunaHeatmap = { chave: string; rotulo: string; titulo: string; dias: string[] };
 
 const SEMANA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"] as const;
-
-/** Soma `n` dias a um `YYYY-MM-DD`, em UTC — sem virar o dia por fuso. */
-function somarDias(dia: string, n: number): string {
-  const d = new Date(`${dia}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
-/** A segunda-feira da semana de `dia`. */
-export function segundaDaSemana(dia: string): string {
-  const dow = new Date(`${dia}T00:00:00Z`).getUTCDay();
-  return somarDias(dia, dow === 0 ? -6 : 1 - dow);
-}
 
 const ddmm = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}`;
 
