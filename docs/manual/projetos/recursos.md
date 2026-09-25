@@ -39,7 +39,10 @@ define o período de análise (padrão: de hoje a 90 dias).
 ## A matriz
 
 Cada pessoa mostra: **habilidades**, o aviso **ausente** (quando está de férias ou abono hoje), a
-**capacidade** (multiplicador; 1,00 = jornada cheia) e as **alocações** por projeto, em chips.
+**capacidade** (multiplicador; 1,00 = jornada cheia, 0,50 = meio período) e as **alocações** por projeto,
+em chips. O **%** de uma alocação é sempre **da capacidade da própria pessoa**: 100% é tudo o que ela
+dedica a projetos, então quem trabalha meio período fica cheio com 100% (e 50% é metade do meio período
+dela), não com 50%.
 
 ### Alocação digitada × calculada
 
@@ -56,7 +59,7 @@ Cada pessoa mostra: **habilidades**, o aviso **ausente** (quando está de féria
 
 ### Superalocação
 
-A barra de cada pessoa mostra o total alocado contra a capacidade, e o quanto está alocado **hoje**.
+A barra de cada pessoa mostra o total alocado contra a capacidade (100%), e o quanto está alocado **hoje**.
 Pessoa **acima da capacidade** fica destacada com **Rebalancear**; **superalocado na janela** avisa
 quando algum mês da janela passa da capacidade (nesses dois casos, considera só a alocação
 **digitada**).

@@ -265,15 +265,13 @@ export function RecursosMatrix({
     return base;
   }, [linhas, filtroProjeto, filtroHabilidade, habilidadesPorUser]);
 
-  const calculadaPorUser = useMemo(() => {
-    const capacidadeDe = new Map(linhas.map((l) => [l.userId, l.capacidade]));
-    return new Map(
-      cargaPlanejada.pessoas.map((pessoa) => [
-        pessoa.userId,
-        percentualCalculadoPorSemana(pessoa, cargaPlanejada.projetosCalculados, capacidadeDe.get(pessoa.userId) ?? 1),
-      ]),
-    );
-  }, [cargaPlanejada, linhas]);
+  const calculadaPorUser = useMemo(
+    () =>
+      new Map(
+        cargaPlanejada.pessoas.map((pessoa) => [pessoa.userId, percentualCalculadoPorSemana(pessoa, cargaPlanejada.projetosCalculados)]),
+      ),
+    [cargaPlanejada],
+  );
   const heat = useMemo(
     () => montarHeatmap(linhasFiltradas, (userId) => calculadaPorUser.get(userId) ?? new Map()),
     [linhasFiltradas, calculadaPorUser],
@@ -294,7 +292,7 @@ export function RecursosMatrix({
         <div>
           <h2 className="text-2xl font-extrabold tracking-tight">Matriz de recursos</h2>
           <p className="text-sm text-muted-foreground">
-            Alocação por pessoa × projeto. Capacidade é o multiplicador (1,0 = jornada cheia).
+            Alocação por pessoa × projeto. O % é da capacidade da própria pessoa: 100% é tudo o que ela dedica a projetos.
             {totalSuper > 0 && (
               <span className="ml-1 text-destructive">
                 {totalSuper} superalocado(s) hoje.
@@ -1136,6 +1134,10 @@ function NovoRecursoDialog({
               value={capacidade}
               onChange={(e) => setCapacidade(e.target.value)}
             />
+            <p className="text-xs text-muted-foreground">
+              1 = jornada cheia; 0,5 = meio período. As alocações em % valem sobre a capacidade da pessoa: 100% é tudo o
+              que ela dedica a projetos.
+            </p>
           </div>
         </div>
         <DialogFooter>

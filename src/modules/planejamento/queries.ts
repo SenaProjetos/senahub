@@ -11,7 +11,7 @@ import { montarCalendario, planoDoProjeto, type PlanoDoProjeto } from "@/modules
 import type { Prisma } from "@/generated/prisma/client";
 import { cargaDaEquipe } from "@/modules/planejamento/recursos-queries";
 import { ehEtapaDeTerceiro, ROTULO_PAPEL } from "@/modules/planejamento/recursos";
-import { percentualDaJornadaCheia } from "@/modules/planejamento/heatmap-recursos";
+import { percentualDaCapacidade } from "@/modules/planejamento/heatmap-recursos";
 import { contextoDeArquivos, sugerirProgresso } from "@/modules/planejamento/progresso-sugerido";
 import { minutosSessao } from "@/modules/ponto/format";
 import { custosDoProjeto } from "@/modules/planejamento/custo-service";
@@ -613,7 +613,10 @@ export async function matrizRecursos() {
 
   const linhas = recursos
     .map((r) => {
-      const capacidadePct = Math.round(Number(r.capacidade) * 100);
+      // O % digitado é da capacidade da PRÓPRIA pessoa (decisão do time, 2026-09-25): 100 é tudo o que
+      // ela dedica a projeto — quem trabalha meio período se enche com 100%, não com 50%. O multiplicador
+      // (`capacidade`) só encolhe as horas dela (`cargaDaEquipe`); não muda a régua do percentual.
+      const capacidadePct = 100;
       // Horas da semana corrente em cada projeto aprovado, sobre a semana útil da pessoa.
       const cargaPessoa = cargaPorUser.get(r.user.id);
       const base = cargaPessoa?.semanaUtil[semanaAtual] ?? 0;
@@ -627,11 +630,10 @@ export async function matrizRecursos() {
             projetoCodigo: projeto?.codigo ?? "",
             projetoNome: projeto?.nome ?? "",
             horasSemana,
-            // Na régua do "50% no projeto" digitado (100 = jornada cheia): quem trabalha meio período
-            // tem capacidade 50, e `alocadoHoje` é comparado a ela. Sem semana útil (jornada vazia),
-            // percentual não tem base: fica nulo em vez de inventar. A sobrecarga de `cargaDaEquipe`,
-            // em horas, continua acusando.
-            percentual: percentualDaJornadaCheia(horasSemana, base, Number(r.capacidade)),
+            // Mesma régua do "50% no projeto" digitado (100 = capacidade dela). Sem semana útil (jornada
+            // vazia), percentual não tem base: fica nulo em vez de inventar. A sobrecarga de
+            // `cargaDaEquipe`, em horas, continua acusando.
+            percentual: percentualDaCapacidade(horasSemana, base),
           };
         })
         .filter((c) => c.horasSemana > 0);

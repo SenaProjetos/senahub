@@ -10,15 +10,15 @@ import { chaveSemanaIso } from "./disponibilidade";
  */
 
 /**
- * % da jornada CHEIA que `horas` ocupam numa semana. É a régua da alocação digitada ("50% no projeto"),
- * em que 100 = jornada cheia e a capacidade de quem trabalha meio período é `multiplicador × 100` — a
- * mesma com que a tela compara a ocupação. `semanaUtil` já vem encolhida pelo multiplicador, então a
- * conta volta a escala: quem gasta 20 h numa semana útil de 20 h (multiplicador 0,5) ocupa 50, não 100.
+ * % da capacidade da PRÓPRIA pessoa que `horas` ocupam numa semana. É a régua da alocação digitada
+ * ("50% no projeto"): 100 = tudo o que a pessoa dedica a projeto, inclusive para quem trabalha meio
+ * período — 50% dela é metade do meio período dela (decisão do time, 2026-09-25). `semanaUtil` já vem
+ * com o multiplicador aplicado, então a conta é direta: 20 h numa semana útil de 20 h ocupam 100.
  * Sem semana útil (jornada vazia) não há base: `null`, nunca um número inventado.
  */
-export function percentualDaJornadaCheia(horas: number, semanaUtil: number, multiplicador: number): number | null {
+export function percentualDaCapacidade(horas: number, semanaUtil: number): number | null {
   if (!(semanaUtil > 0)) return null;
-  return Math.round((horas / semanaUtil) * multiplicador * 100);
+  return Math.round((horas / semanaUtil) * 100);
 }
 
 export type CargaDePessoa = {
@@ -28,20 +28,16 @@ export type CargaDePessoa = {
   porProjeto: Readonly<Record<string, Readonly<Record<string, number>>>>;
 };
 
-/**
- * % da jornada cheia ocupado pelas horas dos projetos `calculados`, por semana ISO (`2026-W40`).
- * `multiplicador` é a capacidade do recurso (1 = jornada cheia).
- */
+/** % da capacidade da pessoa ocupado pelas horas dos projetos `calculados`, por semana ISO (`2026-W40`). */
 export function percentualCalculadoPorSemana(
   pessoa: CargaDePessoa,
   calculados: readonly string[],
-  multiplicador: number,
 ): Map<string, number> {
   const pct = new Map<string, number>();
   for (const [semana, util] of Object.entries(pessoa.semanaUtil)) {
     const horas = calculados.reduce((s, projetoId) => s + (pessoa.porProjeto[projetoId]?.[semana] ?? 0), 0);
     if (!(horas > 0)) continue;
-    const p = percentualDaJornadaCheia(horas, util, multiplicador);
+    const p = percentualDaCapacidade(horas, util);
     if (p != null) pct.set(semana, p);
   }
   return pct;

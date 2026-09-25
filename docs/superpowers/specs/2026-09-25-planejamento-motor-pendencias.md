@@ -33,6 +33,20 @@ segue em andamento (o que foi feito está marcado em cada item).
    do coordenador — para isso existe o botão "Herdar responsáveis" por projeto.
 4. `npm run verify:motor-cronograma` em produção.
 
+Antes do deploy (meio período, decisão #2): listar quem tem capacidade diferente de 1 e as alocações digitadas
+dessas pessoas, para o time redigitar o %, que agora vale sobre a capacidade DELA (50 → 100 se a pessoa está
+cheia):
+
+```sql
+SELECT u.name, r.capacidade, p.codigo, a.percentual, a.inicio, a.fim
+FROM recurso r
+JOIN "user" u ON u.id = r."userId"
+JOIN alocacao a ON a."recursoId" = r.id
+JOIN projeto p ON p.id = a."projetoId"
+WHERE r.capacidade <> 1
+ORDER BY u.name, p.codigo;
+```
+
 Notas:
 - F7 e F8 não pedem seed nem permissão nova (reusam `aprovacoes:disciplina`, `cronograma:executado`,
   `financeiro:gerir`, `juridico:gerir`). A permissão do cronograma veio por migration na F2.6.
@@ -162,16 +176,15 @@ Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
 - ~~Carga: o heatmap da matriz enxerga só alocação digitada.~~ **Resolvido (L9):** o heatmap soma a
   digitada com as horas dos cronogramas aprovados (`heatmap-recursos.ts`), nas 12 semanas que a carga cobre;
   depois disso, só a digitada. "Superalocado na janela" e o Rebalancear seguem olhando só a digitada.
-  **Revisão (unidades, meio período):** a carga calculada estava na escala da semana útil DA PESSOA
-  (`horas ÷ semanaUtil`), que já vem encolhida pelo multiplicador, enquanto a digitada e a capacidade
-  (`multiplicador × 100`) estão na escala da jornada cheia — quem trabalha 20 h de 20 h (multiplicador 0,5)
-  aparecia com 100 contra capacidade 50 (vermelho). `percentualDaJornadaCheia` volta à escala e vale também
-  para o chip "calc" e o `superalocado` da matriz (`planejamento/queries.ts`).
-- **Aberto (DECIDIR, meio período):** `parcelasDaAlocacaoDigitada` converte a alocação digitada em horas com a
-  capacidade JÁ multiplicada (`h = capacidade × %`), ou seja, "50%" de quem tem multiplicador 0,5 vira 10 h; a
-  matriz compara o mesmo "50%" com a capacidade 50 (jornada cheia). As duas leituras não batem. Falta o time
-  dizer se "50% no projeto" é 50% da **jornada cheia** ou 50% da **capacidade da pessoa** — e alinhar a
-  Carga planejada (horas) à resposta.
+- ~~Meio período: as duas telas liam o "50%" de jeitos diferentes.~~ **Resolvido (decisão #2, 2026-09-25):**
+  o % de uma alocação é da **capacidade da própria pessoa** (100 = tudo o que ela dedica a projetos; quem
+  trabalha meio período se enche com 100%). A Carga planejada (`parcelasDaAlocacaoDigitada`, em horas)
+  já lia assim; a matriz, o heatmap e o chip "calc" passaram a ler igual — `capacidadePct` é sempre 100 e
+  `percentualDaCapacidade` (`heatmap-recursos.ts`) divide as horas pela semana útil DELA. Isto desfaz a
+  "Revisão (unidades)" do L9, que tinha ido para a jornada cheia.
+  **Dado que muda de significado:** em produção a matriz comparava a alocação digitada com
+  `multiplicador × 100`. Quem tem `capacidade ≠ 1` e alocação digitada passa a aparecer com metade da
+  ocupação — ver o passo "Antes do deploy" da ordem de deploy.
   Sugestões de sobrecarga são sob demanda (1,3 s com 10 sobrecargas).
 - Ponto: tarefa escolhida numa troca no meio do dia não sobrevive à edição do dia.
 
