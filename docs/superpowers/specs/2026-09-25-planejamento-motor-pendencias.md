@@ -21,6 +21,8 @@ segue em andamento (o que foi feito está marcado em cada item).
    - `20260925120000_parcela_na_assinatura`
    - `20260925130000_baseline_linha_resumo` — com backfill pela árvore atual
    - `20260925140000_valor_agregado_apuracao`
+   - `20260925150000_cronograma_executado_para_quem_edita_eap` — só concede permissão (L4); idempotente,
+     e nos perfis padrão não muda nada (já tinham os dois lados)
 2. `scripts/herdar-responsaveis-eap.ts --gravar` **UMA vez**. Sem ele, toda linha antiga fica "sem
    responsável" e a Saúde de todo projeto cai no dia do deploy. Rodar de novo depois desfaria escolhas
    do coordenador — para isso existe o botão "Herdar responsáveis" por projeto.
@@ -112,11 +114,13 @@ Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
   aparece para quem também tem `financeiro:gerir`. Quem é só do financeiro não chega lá — falta uma
   lista "parcelas a faturar" no financeiro (a notificação leva ao /juridico).
 - **"Aprovar fase"** fica no diálogo Etapas, que só abre para quem edita o projeto.
-- **"Atualizar tarefa"** (datas reais) é de `cronograma:executado` (quem gere recursos); o editor da
-  linha é de `planejamento:gerir`. Populações diferentes — conferir na tela de Perfis.
+- ~~**"Atualizar tarefa"** (datas reais) é de `cronograma:executado` (quem gere recursos); o editor da
+  linha é de `planejamento:gerir`. Populações diferentes.~~ **Resolvido (L4):** a migration acima concede
+  `cronograma:executado` e `cronograma:ver` a quem já tem `planejamento:gerir`. Aprovar segue separado.
 - As linhas da EAP existentes estão **sem fase**: nada gravava a fase até a F7.0.
-- Parcelas manuais do projeto e previsão de contrato por entrega podem somar juntas na projeção se o
-  time usar os dois no mesmo projeto.
+- ~~Parcelas manuais do projeto e previsão de contrato por entrega podem somar juntas na projeção.~~
+  **Resolvido (L6):** "Gerar parcelas" do projeto recusa com contrato por entrega em vigor; com contrato por
+  data que já tem plano, só avisa.
 - A página /recursos mostra o custo/hora de cada pessoa a quem tem `recursos:ver`, embora a EAP só
   mostre custo a quem vê financeiro.
 - Baselines aprovadas antes da F7.1 não têm custo: a coluna R$ do Valor Agregado fica sem número até
@@ -142,7 +146,9 @@ Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
   pagamento dos PJ — custo usado como receita. Com a F7.4, ajuste na Produção mexe nesse valor.
 - `editarEapTarefa` força o tipo atividade/marco mesmo editando linha de disciplina/resumo.
 - Duplicar projeto copia a EAP sem tipo, duração, restrição e classificadores.
-- `Promise.all` dentro de transação em `comercial/service.ts` (depreciado no driver pg, quebra no pg@9).
+- ~~`Promise.all` dentro de transação em `comercial/service.ts`~~ — **corrigido (B4)**, em 3 pontos
+  (2 em `comercial/service.ts`, 1 em `uploads/actions.ts`); teste-guarda em
+  `src/lib/promise-all-em-transacao.test.ts`.
 
 ---
 
@@ -223,7 +229,7 @@ suíte 4293 testes · lint · tsc · build — todos verdes.
 | B1 | "Faturar entrega" (N-26) cobra do cliente o `Disciplina.valor` (pool dos PJ) | O diálogo passa a pedir o valor, pré-preenchido pelo item da proposta de origem da mesma disciplina (`PropostaItem` via catálogo) — nunca `Disciplina.valor`. Projeto com contrato "por entrega" esconde o botão (o contrato manda na cobrança) | Sonnet high · médio (dinheiro): teste + smoke |
 | B2 | Editar linha da EAP: força tipo atv/mrc; **duração salva em dias CORRIDOS** (helper provisório da F0 que ficou em `planejamento/actions.ts`) e o motor agenda em dias ÚTEIS — a barra estica ao salvar; as datas digitadas ficam gravadas até alguém reagendar | Tipo só alterna atividade↔marco (os outros tipos ficam, e o "Marco" some para eles); agrupamento não recebe duração; o editor passa a editar **duração (dias úteis) + "não iniciar antes de"** (alfinete, D34), como o Project, e salvar reagenda. Remover o helper provisório | Opus xhigh (regra) + Sonnet (tela) · alto e silencioso: testes + `verify:motor-cronograma` |
 | B3 | Duplicar projeto copia a EAP sem tipo, duração, restrição, classificadores | Copiar tipo, duração, restrição, fase/origem/TAT, tipo e lag das dependências; ID corporativo NOVO (D29); %, status e datas reais zerados; cronograma novo em rascunho, datas pelo motor a partir do início pedido (D10) | Sonnet · baixo |
-| B4 | `Promise.all` dentro de transação (`comercial/service.ts`) | `await` em sequência + teste-guarda que varre `src/` por `Promise.all([` com `tx.` dentro | Sonnet · mínimo |
+| B4 ✅ | `Promise.all` dentro de transação (`comercial/service.ts`) | `await` em sequência + teste-guarda que varre `src/` por `Promise.all([` com `tx.` dentro | Sonnet · mínimo |
 
 ### Limitações
 | # | Limitação | Solução proposta | Modelo · risco |
@@ -231,9 +237,9 @@ suíte 4293 testes · lint · tsc · build — todos verdes.
 | L1 | Datas reais não movem o cronograma (D6) | Motor lê datas reais: concluída fica nas datas reais; iniciada começa no início real e o restante (duração × (1 − %)) vai para depois da Data de Status — o "Reprogramar trabalho não concluído" do Project; sucessoras empurradas; baseline intocada. Destrava o ritmo observado (D21) e a previsão de término de prazo no Valor Agregado. Fazer JUNTO com B2 | Opus xhigh · alto: bateria de testes + verify |
 | L2 | Faturar só pelo Jurídico | Lista "Parcelas a faturar" em Contas a receber (`financeiro:gerir`): cliente, contrato, parcela, valor, data do marco, marco concluído?, botão Faturar (mesma action); a notificação aponta para lá | Sonnet · baixo |
 | L3 | "Aprovar fase" só no diálogo Etapas | Seção "Fases a aprovar" em /aprovacoes e botão no card da disciplina para `aprovacoes:disciplina` | Sonnet · baixo |
-| L4 | "Atualizar tarefa" × editor da EAP com permissões diferentes | Migration dando `cronograma:executado` a quem tem `planejamento:gerir` (mesmo molde da F2.6) — ou ajuste manual em Perfis | Sonnet · mínimo |
+| L4 ✅ | "Atualizar tarefa" × editor da EAP com permissões diferentes | Migration dando `cronograma:executado` a quem tem `planejamento:gerir` (mesmo molde da F2.6) — ou ajuste manual em Perfis | Sonnet · mínimo |
 | L5 | Linhas antigas sem fase | Script em modo simulação sugere a fase pelo nome/pai da linha e pela etapa única da disciplina; relatório para revisão; `--gravar` depois | Sonnet · baixo |
-| L6 | Parcelas manuais + previsão do contrato somando | "Gerar parcelas" do projeto recusa quando há contrato assinado com cobrança ("use o contrato") | Sonnet · mínimo |
+| L6 ✅ | Parcelas manuais + previsão do contrato somando | "Gerar parcelas" do projeto recusa quando há contrato assinado com cobrança ("use o contrato") | Sonnet · mínimo |
 | L7 | Custo/hora visível em /recursos sem acesso ao financeiro | Mascarar `custoHora` na matriz e só editar com `financeiro:gerir` (mesma regra da EAP) | Sonnet · mínimo |
 | L8 | Baseline antiga sem custo | Produção não tem cronograma aprovado — nada a fazer; no dev, replanejar | — |
 | L9 | Heatmap da matriz só com alocação digitada | Heatmap passa a ler a carga calculada dos projetos aprovados | Sonnet · baixo |
