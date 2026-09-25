@@ -172,6 +172,20 @@
   --loader-slate: #64818a;
 }
 
+/*
+ * Cabeçalho de página único (components/shell/cabecalho-pagina.tsx). Quando a página declara o
+ * próprio cabeçalho, o título padrão da barra do topo sai; o seletor não depende de JS, então o
+ * HTML do servidor já nasce sem título duplicado. `--barra-global` é a largura dos controles da
+ * barra: a barra mede e sobrescreve depois de hidratar; este é só o valor do primeiro desenho
+ * (medido em 1366 px), largo de propósito — sobrar espaço é melhor que o título passar por baixo.
+ */
+:root {
+  --barra-global: 36rem;
+}
+header:has(~ main [data-cabecalho-pagina]) [data-titulo-padrao] {
+  display: none;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

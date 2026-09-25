@@ -25,6 +25,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { brl, formatarData } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Financeiro" };
@@ -128,16 +129,16 @@ export default async function FinanceiroPage({
       : ATALHOS;
     return (
       <div className="space-y-6">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="text-2xl font-extrabold tracking-tight">Financeiro</h2>
-            <p className="text-sm text-muted-foreground">Visão geral · {mesRotulo}.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {botaoGuia}
-            <PeriodoSelector periodo={periodo} />
-          </div>
-        </div>
+        <CabecalhoPagina
+          titulo="Financeiro"
+          descricao={`Visão geral · ${mesRotulo}`}
+          acoes={
+            <>
+              {botaoGuia}
+              <PeriodoSelector periodo={periodo} />
+            </>
+          }
+        />
 
         {vencidoTotal > 0 && (
           <Link href="/financeiro/contas">
@@ -291,13 +292,11 @@ export default async function FinanceiroPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Meu extrato</h2>
-          <p className="text-sm text-muted-foreground">Seus pagamentos por entregas validadas.</p>
-        </div>
-        {botaoGuia}
-      </div>
+      <CabecalhoPagina
+        titulo="Meu extrato"
+        descricao="Seus pagamentos por entregas validadas"
+        acoes={botaoGuia}
+      />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
