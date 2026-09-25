@@ -4357,6 +4357,10 @@ model EapBaselineLinha {
   /// linha sem horas) ou baseline anterior à F7.1.
   custoPrevisto  Decimal? @db.Decimal(14, 2)
   avancoPlanejado Int     @default(0)
+  /// F8: era linha de AGRUPAMENTO quando a baseline foi congelada. O Valor Agregado soma só as
+  /// folhas — sem isto, a baseline (que guarda também os resumos, com horas e custo somados)
+  /// contaria cada trabalho duas vezes, e a árvore de HOJE pode ser outra.
+  resumo         Boolean  @default(false)
 
   @@index([baselineId])
   @@index([tarefaId])
