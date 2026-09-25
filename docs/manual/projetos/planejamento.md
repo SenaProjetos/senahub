@@ -2,8 +2,8 @@
 titulo: Planejamento (EAP e cronograma)
 descricao: Monte o cronograma do projeto como no MS Project — duração, dependências e calendário geram as datas; aprove a linha de base, acompanhe e replaneje.
 resumo: Cada projeto tem uma EAP (lista de tarefas em árvore) com duração, dependências e responsáveis. O sistema calcula as datas em dias úteis, mostra o caminho crítico, congela a linha de base ao aprovar, e permite acompanhar (datas reais, Data de Status, saúde) e replanejar com motivo.
-tags: [planejamento, eap, cronograma, gantt, linha de base, baseline, caminho crítico, dependência, marco, data de status, saúde do cronograma, replanejar, reagendar, ms project]
-palavras-chave: [planejamento, eap, wbs, cronograma, gantt, linha de base, baseline, BL-00, aprovar cronograma, replanejar, reagendar, caminho crítico, folga, dependência, predecessora, latência, marco, restrição de data, alfinete, bloqueio, data de status, apurar, saúde do cronograma, atualizar tarefa, cronograma geral]
+tags: [planejamento, eap, cronograma, gantt, linha de base, baseline, caminho crítico, dependência, marco, data de status, saúde do cronograma, replanejar, reagendar, ms project, gantt de controle, tabela do cronograma, escala, editar na célula, menu da linha, recuar, avançar, predecessoras]
+palavras-chave: [planejamento, eap, wbs, cronograma, gantt, linha de base, baseline, BL-00, aprovar cronograma, replanejar, reagendar, caminho crítico, folga, dependência, predecessora, latência, marco, restrição de data, alfinete, bloqueio, data de status, apurar, saúde do cronograma, atualizar tarefa, cronograma geral, TI, II, TT, IT, id da tarefa, número da linha, inserir tarefa, excluir tarefa, recolher, expandir, nível, subtarefa, agrupamento, gantt de controle, atalho, zoom, escala de tempo, duração zero, editar na tabela]
 sinonimos: [cronograma de projeto, gantt, wbs, ms project, project, plano do projeto, linha de base do cronograma]
 ---
 

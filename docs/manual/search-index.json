@@ -75,7 +75,16 @@
         "fases a aprovar",
         "heatmap de recursos",
         "duração em dias úteis",
-        "reprogramar trabalho não concluído"
+        "reprogramar trabalho não concluído",
+        "gantt de controle",
+        "editar na tabela",
+        "menu da linha",
+        "recuar e avançar níveis",
+        "previsão de recebimento no resultado",
+        "custo por hora escondido",
+        "aprovar fase no card",
+        "heatmap por período",
+        "marco entrega a fase"
       ],
       "palavrasChave": [
         "novidades",
@@ -594,7 +603,15 @@
         "saúde do cronograma",
         "replanejar",
         "reagendar",
-        "ms project"
+        "ms project",
+        "gantt de controle",
+        "tabela do cronograma",
+        "escala",
+        "editar na célula",
+        "menu da linha",
+        "recuar",
+        "avançar",
+        "predecessoras"
       ],
       "palavrasChave": [
         "planejamento",
@@ -623,7 +640,26 @@
         "apurar",
         "saúde do cronograma",
         "atualizar tarefa",
-        "cronograma geral"
+        "cronograma geral",
+        "TI",
+        "II",
+        "TT",
+        "IT",
+        "id da tarefa",
+        "número da linha",
+        "inserir tarefa",
+        "excluir tarefa",
+        "recolher",
+        "expandir",
+        "nível",
+        "subtarefa",
+        "agrupamento",
+        "gantt de controle",
+        "atalho",
+        "zoom",
+        "escala de tempo",
+        "duração zero",
+        "editar na tabela"
       ],
       "sinonimos": [
         "cronograma de projeto",
