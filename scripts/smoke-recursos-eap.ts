@@ -18,6 +18,8 @@
  *      semana; as duas sugestões (atrasar e passar) saem VERIFICADAS e resolvendo.
  *   8. Custo previsto (F7.1): horas × custo/hora; pessoa sem taxa deixa a linha e o resumo
  *      desconhecidos (nunca zero); quem não vê financeiro não recebe custo; a baseline congela.
+ *   9. Valor Agregado (F8): baseline guarda quem era agrupamento; VP/VA/CR em horas e em R$ na
+ *      Data de Status; agrupamento não conta em dobro; sem taxa, o CR em R$ fica desconhecido.
  *
  * Uso: npm run smoke:recursos-eap
  */
@@ -28,6 +30,7 @@ import { cargaDaEquipe } from "../src/modules/planejamento/recursos-queries";
 import { tarefasTravadasPeloCronograma } from "../src/modules/tarefas/queries";
 import { aprovarCronograma, avaliarQualidade } from "../src/modules/planejamento/service";
 import { eapDoProjeto } from "../src/modules/planejamento/queries";
+import { valorAgregadoDoProjeto } from "../src/modules/planejamento/valor-agregado-service";
 import {
   herdarResponsaveisNoProjeto,
   sincronizarCards,
@@ -183,6 +186,64 @@ async function main() {
       Number(blCusto.find((x) => x.tarefaId === A.id)?.custoPrevisto) === 4000 && Number(blCusto.find((x) => x.tarefaId === R.id)?.custoPrevisto) === 7200,
       blCusto,
     );
+
+    // ── 9. Valor Agregado (F8) ─────────────────────────────────────────────
+    const blResumo = await prisma.eapBaselineLinha.findFirstOrThrow({ where: { tarefaId: R.id }, select: { resumo: true } });
+    check("baseline marca o agrupamento (resumo)", blResumo.resumo === true);
+    const semData = await valorAgregadoDoProjeto(projeto.id, { verCusto: true });
+    // O cronograma do smoke nasce com Data de Status; tirar e pôr de novo prova as duas pontas.
+    await prisma.cronogramaProjeto.update({ where: { projetoId: projeto.id }, data: { dataStatus: null } });
+    const semStatus = await valorAgregadoDoProjeto(projeto.id, { verCusto: true });
+    check("sem Data de Status: pede a data, sem número", !semStatus.ok && /Data de Status/.test(semStatus.motivo), semStatus);
+    // Data de Status depois de tudo: VP = orçamento inteiro. A 50%, B 0%. 10 h do A apontadas.
+    await prisma.cronogramaProjeto.update({ where: { projetoId: projeto.id }, data: { dataStatus: d("2027-01-29") } });
+    await prisma.eapTarefa.update({ where: { id: A.id }, data: { progresso: 50 } });
+    await prisma.sessaoTrabalho.create({
+      data: {
+        userId: pjA.id,
+        projetoId: projeto.id,
+        tipoAlocacao: "projeto",
+        inicio: new Date("2026-10-06T11:00:00.000Z"),
+        fim: new Date("2026-10-06T21:00:00.000Z"),
+      },
+    });
+    const evm = await valorAgregadoDoProjeto(projeto.id, { verCusto: true });
+    const eh = evm.ok && evm.horas.ok ? evm.horas.indices : null;
+    const ec = evm.ok && evm.custo?.ok ? evm.custo.indices : null;
+    check(
+      "EVM em horas: ONT 80 (agrupamento fora), VP 80, VA 20, CR 10, IDP 0,25, IDC 2",
+      eh?.ont === 80 && eh.vp === 80 && eh.va === 20 && eh.cr === 10 && eh.idp === 0.25 && eh.idc === 2,
+      { eh, semData: semData.ok },
+    );
+    check(
+      "EVM em R$: ONT 7200, VA 2000 (metade do A), CR 1000 (10 h × 100)",
+      ec?.ont === 7200 && ec.va === 2000 && ec.cr === 1000 && ec.idc === 2,
+      ec,
+    );
+    const evmSemVer = await valorAgregadoDoProjeto(projeto.id, { verCusto: false });
+    check("quem não vê financeiro: só horas", evmSemVer.ok && evmSemVer.custo === null && evmSemVer.horas.ok);
+    // Alguém sem custo/hora aponta: o CR em R$ fica desconhecido (nunca zero) — horas seguem.
+    const intruso = await prisma.user.create({
+      data: { name: `${tag}-C`, email: `${tag}-c@teste.local`, role: "clt", emailVerified: false },
+    });
+    await prisma.sessaoTrabalho.create({
+      data: {
+        userId: intruso.id,
+        projetoId: projeto.id,
+        tipoAlocacao: "projeto",
+        inicio: new Date("2026-10-07T11:00:00.000Z"),
+        fim: new Date("2026-10-07T13:00:00.000Z"),
+      },
+    });
+    const evm2 = await valorAgregadoDoProjeto(projeto.id, { verCusto: true });
+    check(
+      "apontou sem custo/hora: CR em R$ desconhecido, horas somam (12 h)",
+      evm2.ok && evm2.custo?.ok === true && evm2.custo.indices.cr === null && evm2.horas.ok && evm2.horas.indices.cr === 12,
+      evm2.ok ? { custo: evm2.custo, horasCr: evm2.horas.ok ? evm2.horas.indices.cr : null } : evm2,
+    );
+    await prisma.sessaoTrabalho.deleteMany({ where: { userId: intruso.id } });
+    await prisma.user.delete({ where: { id: intruso.id } });
+    await prisma.eapTarefa.update({ where: { id: A.id }, data: { progresso: 0 } });
     const blB = await prisma.eapBaselineLinha.findFirstOrThrow({ where: { tarefaId: B.id }, select: { fim: true } });
     const cardB = await card(B.id);
     const gravadoB = await prisma.eapTarefa.findUniqueOrThrow({ where: { id: B.id }, select: { fimPrevisto: true } });
@@ -269,6 +330,7 @@ async function main() {
     check("atividade que virou agrupamento com gente dentro é acusada", regras("atribuicao_em_resumo").includes(A.id), regras("atribuicao_em_resumo"));
   } finally {
     // Limpeza — ordem importa: cards, baseline (linha da baseline aponta para a tarefa), EAP.
+    await prisma.sessaoTrabalho.deleteMany({ where: { projetoId: projeto.id } });
     await prisma.tarefa.deleteMany({ where: { projetoId: projeto.id } });
     await prisma.eapBaseline.deleteMany({ where: { projetoId: projeto.id } });
     await prisma.eapTarefa.deleteMany({ where: { projetoId: projeto.id, parentId: { not: null } } });

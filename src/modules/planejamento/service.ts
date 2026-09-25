@@ -188,6 +188,8 @@ export async function congelarBaseline(
             trabalhoHoras: a.trabalhoHoras,
             custoPrevisto: custos.get(t.id)?.custo ?? null,
             avancoPlanejado: a.progresso,
+            // F8: o Valor Agregado soma só as folhas DESTA baseline (a árvore de hoje pode ser outra).
+            resumo: a.ehResumo,
           },
         ];
       }),

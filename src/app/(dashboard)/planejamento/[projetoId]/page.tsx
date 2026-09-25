@@ -12,6 +12,8 @@ import {
 } from "@/modules/planejamento/queries";
 import { EapWorkspace } from "@/components/planejamento/eap-workspace";
 import { PlanoVsReal } from "@/components/planejamento/plano-vs-real";
+import { ValorAgregadoPainel } from "@/components/planejamento/valor-agregado-painel";
+import { valorAgregadoDoProjeto } from "@/modules/planejamento/valor-agregado-service";
 
 export const metadata: Metadata = { title: "Planejamento do projeto" };
 
@@ -36,6 +38,7 @@ export default async function PlanejamentoProjetoPage({
     cronograma,
     qualidade,
     pessoas,
+    valorAgregado,
   ] = await Promise.all([
     eapDoProjeto(projetoId, { verCusto }),
     can(user, "planejamento", "gerir"),
@@ -46,6 +49,8 @@ export default async function PlanejamentoProjetoPage({
     cronogramaProjetoInfo(projetoId),
     qualidadeDoProjeto(projetoId),
     pessoasParaAtribuicao(),
+    // F8: horas para quem coordena; R$ só para quem vê o financeiro (taxa de remuneração).
+    valorAgregadoDoProjeto(projetoId, { verCusto }),
   ]);
 
   return (
@@ -64,6 +69,7 @@ export default async function PlanejamentoProjetoPage({
         cronograma={cronograma}
         qualidade={qualidade}
       />
+      <ValorAgregadoPainel dados={valorAgregado} />
       <PlanoVsReal dados={planoReal} />
     </div>
   );
