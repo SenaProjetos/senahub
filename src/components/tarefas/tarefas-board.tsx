@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { FiltrosGaveta } from "@/components/ui/filtros-gaveta";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import { formatarData } from "@/lib/utils";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSetParams } from "@/lib/use-set-param";
@@ -93,6 +94,22 @@ export function TarefasBoard({
   const searchParams = useSearchParams();
   const [, start] = useTransition();
   const [arrastando, setArrastando] = useState<TarefaUI | null>(null);
+  const [etapaCelular, setEtapaCelular] = useState<string | null>(null);
+  const etapaCelularId = colunas.some((c) => c.id === etapaCelular) ? etapaCelular : (colunas[0]?.id ?? null);
+  const quadroRef = useRef<HTMLDivElement>(null);
+  const [alturaQuadro, setAlturaQuadro] = useState<string | undefined>(undefined);
+  useLayoutEffect(() => {
+    const el = quadroRef.current;
+    if (!el) return;
+    const medir = () => {
+      if (!window.matchMedia("(min-width: 80rem)").matches) return setAlturaQuadro(undefined);
+      const topo = el.getBoundingClientRect().top + window.scrollY;
+      setAlturaQuadro(`${Math.max(352, window.innerHeight - topo - 110)}px`);
+    };
+    medir();
+    window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  });
   // `{ nova }` carrega a coluna de destino de "Nova tarefa em X" (menu da área da coluna).
   const [dialog, setDialog] = useState<TarefaUI | { nova: true; statusId?: string } | null>(null);
   const novaEm = dialog && "nova" in dialog ? dialog : null;
@@ -220,6 +237,7 @@ export function TarefasBoard({
           className="h-8 w-full sm:w-64"
         />
 
+        <FiltrosGaveta ativos={[projeto, disciplina, responsavel, periodo, prioridade].filter(Boolean).length}>
         <Select
           value={projeto ?? TODOS}
           onValueChange={(v) => setParams({ projeto: v && v !== TODOS ? v : null, disciplina: null })}
@@ -310,6 +328,7 @@ export function TarefasBoard({
             Limpar filtros
           </Button>
         )}
+        </FiltrosGaveta>
       </div>
 
       <DicaMenuContexto />
@@ -319,10 +338,35 @@ export function TarefasBoard({
       ) : (
         <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
           {/* Grid responsivo: colunas preenchem a largura e quebram em telas estreitas (sem scroll-h / corte). */}
-          <div className="grid grid-cols-1 gap-3 pb-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          {/* Celular: uma etapa por vez, escolhida nestas fichas. */}
+          <div className="-mx-1 mb-2 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:hidden" role="tablist" aria-label="Etapa">
+            {colunas.map((col) => (
+              <button
+                key={col.id}
+                type="button"
+                role="tab"
+                aria-selected={col.id === etapaCelularId}
+                onClick={() => setEtapaCelular(col.id)}
+                className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm ${
+                  col.id === etapaCelularId ? "border-primary bg-primary text-primary-foreground" : "text-muted-foreground"
+                }`}
+              >
+                {col.nome}
+                <span className="font-mono text-xs opacity-80">{col.tarefas.length}</span>
+              </button>
+            ))}
+          </div>
+          {/* Do `xl` em diante as 5 colunas cabem numa linha: o quadro usa a altura que sobra e cada
+              coluna rola por dentro. Abaixo disso as colunas quebram em linhas e a página rola. */}
+          <div
+            ref={quadroRef}
+            style={alturaQuadro ? { height: alturaQuadro } : undefined}
+            className="grid grid-cols-1 gap-3 pb-2 sm:grid-cols-2 lg:grid-cols-3 xl:min-h-[22rem] xl:grid-cols-5"
+          >
             {colunas.map((col) => (
               <ColunaView
                 key={col.id}
+                mostrarNoCelular={col.id === etapaCelularId}
                 col={col}
                 onAbrir={abrirTarefa}
                 meId={meId}
@@ -503,6 +547,7 @@ function ListaView({
 }
 
 function ColunaView({
+  mostrarNoCelular,
   col,
   onAbrir,
   meId,
@@ -512,6 +557,7 @@ function ColunaView({
   onNovaTarefa,
   onLimparFiltros,
 }: {
+  mostrarNoCelular: boolean;
   col: Coluna;
   onAbrir: (t: TarefaUI) => void;
   meId: string;
@@ -543,12 +589,12 @@ function ColunaView({
   }
 
   return (
-    <div className="min-w-0">
+    <div className={`min-w-0 xl:h-full ${mostrarNoCelular ? "" : "hidden sm:block"}`}>
       {/* O Trigger envolve o TÍTULO junto com a área dos cards: só a borda tracejada era alvo
           pequeno demais para o botão direito, já que a margem entre cards é estreita.
           O Trigger do card é aninhado neste — o botão direito num card abre só o menu do card. */}
       <ContextMenu disabled={menuDeCardAberto}>
-        <ContextMenuTrigger className="block">
+        <ContextMenuTrigger className="block xl:flex xl:h-full xl:flex-col">
           <div className="mb-2 flex items-center gap-2">
             <span className="size-2.5 rounded-full" style={{ background: col.cor ?? "#576980" }} />
             <span className="text-sm font-semibold">{col.nome}</span>
@@ -558,7 +604,7 @@ function ColunaView({
           </div>
           <div
             ref={setNodeRef}
-            className={`min-h-[16rem] space-y-2 rounded-sm border p-2 transition-colors ${
+            className={`min-h-[16rem] space-y-2 rounded-sm border p-2 transition-colors xl:min-h-0 xl:flex-1 xl:overflow-y-auto ${
               isOver ? "border-primary bg-primary/5" : "border-dashed"
             }`}
           >
