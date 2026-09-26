@@ -198,8 +198,22 @@ ser divididos entre as duas worktrees).
     tamanho padrão se incomodar.
   - 4.5: `AcessoPagina.dispositivo` (migração `20260926090000`, aditiva) + beacon + coluna
     "Celular" e total em /auditoria/uso. **Deploy: `npx prisma migrate deploy`** (sem backfill).
-- [ ] Lote 5
-- [ ] Lote 6
+- [x] **Lote 5 — concluído em 2026-09-26 (Sonnet 5).**
+  - 5.1: cabeçalho do projeto sem breadcrumb próprio, com abas ~35 px mais acima; no celular
+    ações atrás de "Ações". Não fiz "nome do projeto na barra do topo" no celular: o nome já
+    aparece em até 2 linhas no cabeçalho. Histórico, Serviços e Extras sem o "← projeto".
+  - 5.2: trilho com nome sob o ícone e seções em lista flutuante; menu aberto com alfinete
+    para "Fixados" (UserPreference `menu_fixados`); Chat e Ajuda na barra do topo (computador).
+    O trilho ainda rola em 768 px de altura (17 entradas).
+  - 5.3: Funil na altura da tela; no celular uma etapa por vez, filtros em gaveta. "Mover
+    para…" já existia no menu do cartão.
+  - 5.4: Tarefas idem (altura a partir de 1280 px).
+  - 5.5: tela Ponto no celular com o cartão em lista. Apontamento de PJ não foi trocado.
+  - Aviso de hidratação de id no botão do menu (dev): intermitente e anterior a este lote.
+- [x] **Lote 6 — concluído em 2026-09-26 (Sonnet 5).**
+  - 6.1: Arquivos na altura da tela (768 = 768 em 1366 × 768) e modo foco (menu, topo e
+    cabeçalho do projeto somem; Esc sai). Compatibilização usa a altura medida e o botão de
+    foco, mas o visualizador 3D não foi visto no navegador (sem IFC no projeto de teste).
 - [ ] Lote 7
 - [ ] Lote 8
 - [ ] Lote 9 (bloqueado)
