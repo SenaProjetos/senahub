@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -177,6 +177,16 @@ export function AgendaView({
       : new Date(ano, mes - 1, 1);
   });
 
+  // Celular: abre no dia de hoje (lista), não na grade do mês, que fica apertada em 390 px. Só no
+  // mês corrente — quem navegou para outro mês (?m=) quer ver o mês. Roda depois da hidratação para
+  // o servidor e o cliente concordarem no primeiro render.
+  useEffect(() => {
+    const h = new Date();
+    const mesCorrente = h.getFullYear() === ano && h.getMonth() + 1 === mes;
+    if (mesCorrente && window.matchMedia("(max-width: 47.99rem)").matches) setVista("dia");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só na abertura da tela.
+  }, []);
+
   function navMes(delta: number) {
     const d = new Date(ano, mes - 1 + delta, 1);
     router.push(`/agenda?m=${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
@@ -255,7 +265,7 @@ export function AgendaView({
             </Button>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             onClick={() => baixarIcs(compromissosVisiveis(vista, compromissosFiltrados, refData, diasDaSemana), nomeArquivoIcs(vista, refData, ano, mes))}
