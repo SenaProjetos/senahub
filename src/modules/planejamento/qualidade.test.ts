@@ -49,6 +49,9 @@ describe("cronograma saudável não gera achado", () => {
 describe("regras estruturais", () => {
   it("acusa falta de responsável", () => {
     expect(regras([boa({ temResponsavel: false })])).toContain("sem_responsavel");
+    // Etapa de terceiro (recurso "Externo"): cobrar responsável obrigaria a escalar alguém da
+    // casa para esperar a prefeitura.
+    expect(regras([boa({ temResponsavel: false, deTerceiro: true })])).not.toContain("sem_responsavel");
   });
 
   it("acusa atividade sem duração", () => {

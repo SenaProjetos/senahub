@@ -130,8 +130,7 @@ export async function sincronizarCards(
         duracaoDias: true,
         disciplinaId: true,
         fimPrevisto: true,
-        origem: { select: { sigla: true } },
-        atribuicoes: { where: { userId: { not: null } }, select: { userId: true, principal: true } },
+        atribuicoes: { select: { userId: true, papel: true, principal: true } },
       },
     }),
     idsComFilhos(db, projetoId),
@@ -149,8 +148,8 @@ export async function sincronizarCards(
         ehResumo: comFilhos.has(l.id),
         duracaoDias: Number(l.duracaoDias),
         status: l.status,
-        deTerceiro: ehEtapaDeTerceiro(l.origem?.sigla),
-        pessoas: l.atribuicoes.map((a) => a.userId!),
+        deTerceiro: ehEtapaDeTerceiro(l.atribuicoes),
+        pessoas: l.atribuicoes.filter((a) => a.userId != null).map((a) => a.userId!),
       },
       true,
     ),
@@ -178,7 +177,10 @@ export async function sincronizarCards(
   let atualizados = 0;
   for (const l of elegiveis) {
     // Principal primeiro: é quem o quadro mostra quando há espaço para um só.
-    const pessoas = [...l.atribuicoes].sort((a, b) => Number(b.principal) - Number(a.principal)).map((a) => a.userId!);
+    const pessoas = [...l.atribuicoes]
+      .filter((a) => a.userId != null)
+      .sort((a, b) => Number(b.principal) - Number(a.principal))
+      .map((a) => a.userId!);
     const unicas = [...new Set(pessoas)];
     const card = cardPorLinha.get(l.id);
 

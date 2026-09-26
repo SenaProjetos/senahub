@@ -70,6 +70,12 @@ export type LinhaQualidade = {
   /** Tem PESSOA atribuída (perfil não conta: é vaga, não responsável — Doc 02 §30). */
   temResponsavel: boolean;
   /**
+   * Etapa de terceiro (recurso "Externo", decisão #1): quem executa está fora da casa. O
+   * verificador não cobra responsável dela — cobrar obrigaria a escalar alguém da equipe para
+   * esperar a prefeitura, que é exatamente o que a marca existe para evitar.
+   */
+  deTerceiro?: boolean;
+  /**
    * Pessoas nesta linha com zero hora, em atividade da casa que aceita hora (F5). Zero hora
    * é carga zero, custo zero e nenhum alerta de sobrecarga — a falta que não aparece.
    */
@@ -193,7 +199,7 @@ export function verificarCronograma(entrada: EntradaQualidade): Achado[] {
     // ── Regras só para o que é executável ─────────────────────────────────
     if (!executavel(l)) continue;
 
-    if (!l.temResponsavel) {
+    if (!l.temResponsavel && !l.deTerceiro) {
       add("sem_responsavel", "alerta", l.id, `"${l.nome}" não tem responsável.`);
     }
 

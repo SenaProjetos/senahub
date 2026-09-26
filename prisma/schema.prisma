@@ -4160,6 +4160,10 @@ enum PapelEap {
   mod // Modelador BIM
   rev // Revisor
   apr // Aprovador
+  /// Externo — quem executa a linha é de FORA da casa (cliente, prefeitura, concessionária).
+  /// Não é um papel que se dá a alguém: é a marca da ETAPA DE TERCEIRO (decisão #1 de
+  /// 2026-09-25). Nunca tem pessoa nem horas — ver o comentário de `EapAtribuicao.papel`.
+  ext
 }
 
 enum PrioridadeEap {
@@ -4582,6 +4586,15 @@ model EapAtribuicao {
   userId String?
   user   User?   @relation("EapAtribuicaoPessoa", fields: [userId], references: [id], onDelete: Restrict)
 
+  /// `ext` (Externo) marca a ETAPA DE TERCEIRO (decisão #1 de 2026-09-25): quem executa é o
+  /// cliente, a prefeitura, a concessionária. A linha segura prazo, mas não gera card (D24)
+  /// nem cobra hora da casa. Antes isso era ADIVINHADO pela ORIGEM da linha (CLI, ARQ, EXT…),
+  /// que responde "de onde veio a demanda", não "quem faz" — uma revisão pedida pelo cliente
+  /// saía do cronograma sem card e sem hora.
+  ///
+  /// Dois CHECKs guardam o sentido (migration 20260925160100): `ext` nunca tem pessoa (não é
+  /// ninguém da casa) nem horas (zero hora da casa é a estimativa certa, e é o que o motor
+  /// espera de uma etapa de terceiro — ver `horasDaLinha`).
   papel PapelEap @default(pro)
 
   /// Horas que a pessoa gasta NESTA linha (D23), espalhadas por igual pelos dias úteis

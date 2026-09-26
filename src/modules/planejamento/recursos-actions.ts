@@ -6,7 +6,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { reagendarProjeto } from "./agenda";
 import { cargaDaEquipe } from "./recursos-queries";
-import { linhaAceitaAtribuicao, linhaAceitaHoras } from "./recursos";
+import { linhaAceitaAtribuicao, linhaAceitaHoras, regraDoRecursoExterno } from "./recursos";
 import { herdarResponsaveisNoProjeto, sincronizarCards, sincronizarPrincipal } from "./recursos-service";
 
 /**
@@ -18,7 +18,8 @@ import { herdarResponsaveisNoProjeto, sincronizarCards, sincronizarPrincipal } f
  */
 const plan = { modulo: "planejamento", recurso: "planejamento", permissao: "gerir", entidade: "EapAtribuicao" } as const;
 
-const PAPEIS = ["dir", "ger", "coo", "eng", "pro", "mod", "rev", "apr"] as const;
+/** `ext` entra aqui: é como a tela marca a etapa de terceiro (decisão #1). */
+const PAPEIS = ["dir", "ger", "coo", "eng", "pro", "mod", "rev", "apr", "ext"] as const;
 
 const revProjeto = (projetoId: string) => {
   revalidatePath(`/planejamento/${projetoId}`);
@@ -81,6 +82,17 @@ export const salvarAtribuicao = defineAction(
     if (!aceita.ok) throw new ActionError(aceita.motivo);
     if (i.horasPrevistas > 0 && !linhaAceitaHoras(linha)) {
       throw new ActionError("Marco não tem horas — ele não ocupa dia no cronograma.");
+    }
+    const externo = regraDoRecursoExterno({ papel: i.papel, userId: i.userId, horas: i.horasPrevistas });
+    if (!externo.ok) throw new ActionError(externo.motivo);
+    // Duas marcas de terceiro na mesma linha não significam nada, e o índice único não as
+    // barra: com `userId` nulo o Postgres trata cada par como distinto.
+    if (i.papel === "ext") {
+      const jaExterna = await prisma.eapAtribuicao.findFirst({
+        where: { tarefaId: i.tarefaId, papel: "ext", ...(i.id ? { id: { not: i.id } } : {}) },
+        select: { id: true },
+      });
+      if (jaExterna) throw new ActionError("Esta linha já está marcada como etapa de terceiro.");
     }
     if (i.userId) await pessoaAtiva(i.userId);
 

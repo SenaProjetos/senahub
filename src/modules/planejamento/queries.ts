@@ -178,8 +178,8 @@ function mapearTarefaDTO(
     // ── F5: recursos na linha ──
     /** Linha com filhos — não recebe gente (as horas estão nos filhos). */
     ehResumo: agendada?.ehResumo ?? false,
-    /** Etapa de terceiro (origem externa): não gera card nem cobra hora. */
-    deTerceiro: ehEtapaDeTerceiro(t.origem?.sigla),
+    /** Etapa de terceiro (tem o recurso "Externo"): não gera card nem cobra hora. */
+    deTerceiro: ehEtapaDeTerceiro(t.atribuicoes),
     /** Horas da linha pelo motor — no resumo, a soma; `null` = alguma folha sem estimativa. */
     trabalhoHoras: agendada?.trabalhoHoras ?? null,
     atribuicoes: t.atribuicoes.map((a) => ({

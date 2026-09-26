@@ -68,12 +68,18 @@ ponderado pela duração, e o custo fica "sem custo". O verificador acusa ("sem 
 
 É a linha cujo trabalho é **de fora da casa** — esperar o cliente, a arquitetura, a prefeitura, a
 concessionária. Ela segura prazo no cronograma, mas **não gera card, não cobra horas e custa zero**.
-O sistema reconhece pela **origem** da linha: **Cliente**, **Arquitetura**, **Projetista externo**,
-**Fiscalização**, **Órgão aprovador**, **Concessionária** ou **Obra**. (Origem **Interna**,
-**Compatibilização** e **Alteração de escopo** são trabalho da casa.)
 
-> **Limitação atual:** o editor da linha ainda **não tem o campo Origem** — por isso, na prática,
-> toda linha conta como trabalho da casa. Linha que espera o cliente hoje gera card e cobra horas.
+Para marcar, abra a linha e clique em **Etapa de terceiro**, na seção **Recursos**. Ela entra na
+lista como **Externo (etapa de terceiro)**, sem pessoa e sem horas — não é um papel que se dá a
+alguém, é a marca de que **quem executa está fora**. Para desmarcar, use a lixeira dessa linha da
+lista.
+
+Pode haver **gente da casa junto**: o coordenador que acompanha a aprovação na prefeitura fica na
+linha com zero hora, e a linha continua sendo de terceiro (não gera card e não cobra hora). O
+verificador **não** cobra responsável de etapa de terceiro.
+
+A coluna **Recursos** mostra **terceiro** nessas linhas, e o custo previsto delas é **zero** — que é
+o valor certo, não a falta dele.
 
 ## Cards no quadro de Tarefas
 

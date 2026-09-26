@@ -31,7 +31,13 @@ segue em andamento (o que foi feito está marcado em cada item).
 3. `scripts/herdar-responsaveis-eap.ts --gravar` **UMA vez**. Sem ele, toda linha antiga fica "sem
    responsável" e a Saúde de todo projeto cai no dia do deploy. Rodar de novo depois desfaria escolhas
    do coordenador — para isso existe o botão "Herdar responsáveis" por projeto.
-4. `npm run verify:motor-cronograma` em produção.
+4. `scripts/marcar-etapas-de-terceiro.ts` **UMA vez** (decisão #1). Converte a linha que era
+   reconhecida como etapa de terceiro pela ORIGEM (CLI, ARQ, EXT, FIS, APR, CON, OBR) para a marca
+   nova, o recurso "Externo". Sem ele, essas linhas voltam a contar como trabalho da casa: ganham card
+   ao aprovar o cronograma e passam a ser cobradas de hora e de responsável. Rode primeiro sem
+   `--gravar` e confira a lista (no banco de dev, 2026-09-25, não havia nenhuma). Rodar de novo depois
+   do deploy remarcaria linha que alguém desmarcou de propósito — é uma vez, e depois pela tela.
+5. `npm run verify:motor-cronograma` em produção.
 
 Antes do deploy (meio período, decisão #2): listar quem tem capacidade diferente de 1 e as alocações digitadas
 dessas pessoas, para o time redigitar o %, que agora vale sobre a capacidade DELA (50 → 100 se a pessoa está
@@ -75,7 +81,7 @@ texto de cada item continua adiante como histórico; o que vale é esta tabela.
 
 | # | Decisão | Resposta | Estado |
 | --- | --- | --- | --- |
-| 1 | Etapa de terceiro | pelo **recurso atribuído**, com um recurso **"Externo"** sempre disponível (não mais pela origem) | pendente — schema (Opus) |
+| 1 | Etapa de terceiro | pelo **recurso atribuído**, com um recurso **"Externo"** sempre disponível (não mais pela origem) | feito (`PapelEap.ext`) |
 | 2 | Meio período | o % é da **capacidade da própria pessoa** | feito (`4ec610f3`) |
 | 3 | Quem vê o Planejamento | mantém a **estrutura, sem datas** | feito (`fa9109ad`) |
 | 4 | Heatmap | manter + **seletor de período** (1, 4, 12 semanas, meses) | feito (`610fbbd1`) |
@@ -106,9 +112,13 @@ para facilitar a adoção — isto reverte o princípio "sem a interface de plan
 - Data de Status no futuro é recusada (empurraria o trabalho para depois de um dia que não chegou).
 
 ### Cronograma e equipe (F5–F6)
-- **DECIDIR — "etapa de terceiro"** (aprovação do cliente, análise da prefeitura…) não gera card nem
-  cobra hora. O sistema reconhece pela **origem** da linha: CLI, ARQ, EXT, FIS, APR, CON, OBR. A D24
-  não dizia como reconhecer.
+- ~~**DECIDIR — "etapa de terceiro"** reconhecida pela **origem** da linha (CLI, ARQ, EXT, FIS, APR,
+  CON, OBR).~~ **RESOLVIDO (decisão #1, 2026-09-25):** quem marca é o **recurso "Externo"**
+  (`PapelEap.ext`), posto na linha pelo botão **Etapa de terceiro** da seção Recursos. Origem responde
+  "de onde veio a demanda", não "quem faz" — e o editor da linha nunca teve o campo Origem, então na
+  prática nenhuma linha era de terceiro. `ext` nunca tem pessoa nem horas (dois CHECKs no banco), a
+  linha aceita gente da casa junto (o coordenador que acompanha), o verificador não cobra responsável
+  dela e ela não gera card. Verificação: `npm run smoke:etapa-terceiro`.
 - Aprovar o cronograma não avisa ninguém dos cards novos (200 linhas não podem disparar 200 avisos).
 - "Projetista" numa linha da disciplina Elétrica **é** o "Projetista Elétrico": o perfil não tem
   catálogo separado.

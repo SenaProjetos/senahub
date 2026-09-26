@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Star, Trash2 } from "lucide-react";
+import { Building2, Plus, Star, Trash2 } from "lucide-react";
 import {
   salvarAtribuicao,
   removerAtribuicao,
@@ -12,6 +12,7 @@ import {
 import {
   linhaAceitaAtribuicao,
   linhaAceitaHoras,
+  PAPEIS_DE_PESSOA,
   ROTULO_PAPEL,
   type Papel,
   type TipoLinha,
@@ -27,8 +28,15 @@ import {
 } from "@/components/ui/select";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
-const PAPEIS = Object.keys(ROTULO_PAPEL) as Papel[];
 const PERFIL = "__perfil";
+
+/**
+ * Como a atribuição se chama na lista. O "Externo" não é uma vaga de projetista: é a marca de
+ * que a linha é executada fora da casa, e dizer "(perfil) Externo" faria parecer que falta
+ * escalar alguém.
+ */
+const rotuloAtribuicao = (a: { nome: string | null; papel: Papel }) =>
+  a.papel === "ext" ? "Externo (etapa de terceiro)" : (a.nome ?? `(perfil) ${ROTULO_PAPEL[a.papel]}`);
 
 export type AtribuicaoEditavel = {
   id: string;
@@ -114,6 +122,18 @@ export function EapAtribuicoes({
     });
   }
 
+  /**
+   * Marca a linha como etapa de terceiro (decisão #1): o recurso "Externo", sem pessoa e sem
+   * hora. Quem desmarca é o mesmo botão de remover da linha da lista.
+   */
+  function marcarTerceiro() {
+    start(async () => {
+      const r = await salvarAtribuicao({ tarefaId: linha.id, userId: null, papel: "ext", horasPrevistas: 0 });
+      if (r.ok) router.refresh();
+      else toast.error(r.error);
+    });
+  }
+
   function tornarPrincipal(a: AtribuicaoEditavel) {
     start(async () => {
       const r = await definirPrincipal({ id: a.id });
@@ -153,7 +173,7 @@ export function EapAtribuicoes({
             <li key={a.id} className="flex items-center justify-between gap-2 px-2.5 py-1.5">
               <span className="flex items-center gap-2 text-sm">
                 {a.userId ? <AvatarUsuario nome={a.nome ?? ""} image={a.image} size="sm" className="size-5 shrink-0" /> : null}
-                {a.nome ?? `(perfil) ${ROTULO_PAPEL[a.papel]}`}
+                {rotuloAtribuicao(a)}
               </span>
               <Button size="icon-sm" variant="ghost" aria-label="Remover" disabled={pending} onClick={() => remover(a)}>
                 <Trash2 className="size-3.5" />
@@ -170,6 +190,7 @@ export function EapAtribuicoes({
   }
 
   const livres = pessoas.filter((p) => !jaNoPapel.has(p.id) || p.id === novaPessoa);
+  const jaEhTerceiro = linha.atribuicoes.some((a) => a.papel === "ext");
 
   return (
     <div className="space-y-2">
@@ -195,6 +216,12 @@ export function EapAtribuicoes({
         <p className="text-[11px] text-muted-foreground">Marco não tem horas — ele não ocupa dia no cronograma.</p>
       )}
 
+      {jaEhTerceiro && (
+        <p className="text-[11px] text-muted-foreground">
+          Etapa de terceiro: a linha segura prazo, mas não gera card nem cobra hora da equipe.
+        </p>
+      )}
+
       <div className="flex flex-wrap items-center gap-1.5">
         <Select value={novaPessoa} onValueChange={(v) => v && setNovaPessoa(v)}>
           <SelectTrigger className="h-8 w-48 text-xs">
@@ -214,7 +241,7 @@ export function EapAtribuicoes({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {PAPEIS.map((p) => (
+            {PAPEIS_DE_PESSOA.map((p) => (
               <SelectItem key={p} value={p} className="text-xs">
                 {ROTULO_PAPEL[p]}
               </SelectItem>
@@ -230,6 +257,17 @@ export function EapAtribuicoes({
         >
           <Plus className="size-3.5" /> Adicionar
         </Button>
+        {!jaEhTerceiro && (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={pending}
+            onClick={marcarTerceiro}
+            title="Quem executa está fora da casa: cliente, arquitetura, prefeitura, concessionária."
+          >
+            <Building2 className="size-3.5" /> Etapa de terceiro
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -253,6 +291,7 @@ function LinhaAtribuicao({
   // Horas em estado local, gravadas no blur/Enter — mesma razão do editor de etapas: gravar
   // a cada tecla dispara uma action (e um registro de auditoria) por dígito.
   const [horas, setHoras] = useState(String(atribuicao.horas));
+  const externo = atribuicao.papel === "ext";
 
   function gravarHoras() {
     const n = Number(horas.replace(",", "."));
@@ -266,38 +305,46 @@ function LinhaAtribuicao({
         {atribuicao.userId ? (
           <AvatarUsuario nome={atribuicao.nome ?? ""} image={atribuicao.image} size="sm" className="size-5 shrink-0" />
         ) : (
-          <span className="rounded-sm border border-dashed px-1 py-0.5 text-[10px] text-muted-foreground">perfil</span>
+          <span className="rounded-sm border border-dashed px-1 py-0.5 text-[10px] text-muted-foreground">
+            {externo ? "terceiro" : "perfil"}
+          </span>
         )}
-        <span className="truncate">{atribuicao.nome ?? "(sem pessoa)"}</span>
+        <span className="truncate">{externo ? rotuloAtribuicao(atribuicao) : (atribuicao.nome ?? "(sem pessoa)")}</span>
         {atribuicao.principal && <Star className="size-3 shrink-0 fill-warning text-warning" aria-label="Principal" />}
       </span>
       <span className="flex shrink-0 items-center gap-1.5">
+        {externo ? null : (
         <Select value={atribuicao.papel} onValueChange={(v) => v && v !== atribuicao.papel && onSalvarCampo({ papel: v as Papel })}>
           <SelectTrigger className="h-7 w-32 text-[11px]" disabled={pending}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {(Object.keys(ROTULO_PAPEL) as Papel[]).map((p) => (
+            {PAPEIS_DE_PESSOA.map((p) => (
               <SelectItem key={p} value={p} className="text-[11px]">
                 {ROTULO_PAPEL[p]}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <input
-          type="number"
-          min={0}
-          max={99999}
-          step="0.5"
-          value={horas}
-          disabled={pending || !podeHoras}
-          onChange={(e) => setHoras(e.target.value)}
-          onBlur={gravarHoras}
-          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-          title="Horas previstas"
-          className="h-7 w-16 rounded-sm border bg-background px-1.5 text-[11px] disabled:opacity-50"
-        />
-        <span className="text-[10px] text-muted-foreground">h</span>
+        )}
+        {externo ? null : (
+          <>
+            <input
+              type="number"
+              min={0}
+              max={99999}
+              step="0.5"
+              value={horas}
+              disabled={pending || !podeHoras}
+              onChange={(e) => setHoras(e.target.value)}
+              onBlur={gravarHoras}
+              onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+              title="Horas previstas"
+              className="h-7 w-16 rounded-sm border bg-background px-1.5 text-[11px] disabled:opacity-50"
+            />
+            <span className="text-[10px] text-muted-foreground">h</span>
+          </>
+        )}
         {atribuicao.userId && !atribuicao.principal && (
           <Button size="icon-sm" variant="ghost" aria-label="Tornar principal" disabled={pending} onClick={onTornarPrincipal}>
             <Star className="size-3.5" />

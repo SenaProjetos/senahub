@@ -47,6 +47,12 @@ nas mesmas linhas.
 
 Depois de revisar o novo planejamento, o time decidiu alguns pontos. O que já está no ar:
 
+- **Etapa de terceiro marcada na mão:** na seção **Recursos** da linha há o botão **Etapa de
+  terceiro**. A linha passa a valer como trabalho de fora da casa (cliente, arquitetura, prefeitura,
+  concessionária): segura prazo, mas **não gera card, não cobra hora e custa zero**, e o verificador
+  não pede responsável dela. Pode deixar alguém da casa junto para acompanhar. Antes o sistema
+  tentava adivinhar isso pela **origem** da linha — e como o editor não tinha esse campo, toda linha
+  contava como trabalho da casa.
 - **Meio período:** o **%** de uma alocação é da **capacidade da própria pessoa**. Quem trabalha meio
   período fica cheio com 100% — 50% é metade do meio período dela. Matriz, heatmap e Carga planejada
   agora leem do mesmo jeito. Quem tem capacidade diferente de 1 deve conferir as alocações já digitadas.

@@ -12,7 +12,7 @@
 import { ehDiaUtil, type Calendario, type Dia } from "@/lib/calendario-trabalho";
 import { chaveSemanaIso } from "./disponibilidade";
 
-export type Papel = "dir" | "ger" | "coo" | "eng" | "pro" | "mod" | "rev" | "apr";
+export type Papel = "dir" | "ger" | "coo" | "eng" | "pro" | "mod" | "rev" | "apr" | "ext";
 export type TipoLinha = "prj" | "fas" | "pct" | "disc" | "loc" | "sis" | "res" | "atv" | "mrc";
 export type StatusLinha = "nin" | "and" | "agu" | "blq" | "rev" | "apr" | "con" | "sus" | "can" | "arq";
 
@@ -25,7 +25,15 @@ export const ROTULO_PAPEL: Record<Papel, string> = {
   mod: "Modelador BIM",
   rev: "Revisor",
   apr: "Aprovador",
+  ext: "Externo",
 };
+
+/**
+ * Papéis de quem é da CASA — os que a tela oferece ao escalar alguém. O "Externo" (`ext`)
+ * fica fora: não é um papel que se dá a uma pessoa, é a marca de que a linha é executada
+ * por terceiro, e a tela a oferece em outro lugar (um botão, não a lista de papéis).
+ */
+export const PAPEIS_DE_PESSOA: readonly Papel[] = ["dir", "ger", "coo", "eng", "pro", "mod", "rev", "apr"];
 
 /** Linha que já não gera trabalho: fora da carga, do card e da cobrança de horas. */
 const ENCERRADA: ReadonlySet<StatusLinha> = new Set(["con", "can", "arq"]);
@@ -62,26 +70,46 @@ export function linhaAceitaHoras(l: LinhaForma): boolean {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Etapa de terceiro
+// Etapa de terceiro — o recurso "Externo" (decisão #1)
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Origens (Doc 02 §14) em que o trabalho da linha é de FORA da casa: esperar o cliente,
- * a arquitetura, a prefeitura, a concessionária. A linha existe no cronograma porque
- * segura prazo — mas ninguém daqui a executa.
+ * A linha é etapa de terceiro? É quando alguém pôs o recurso "Externo" (`ext`) nela: esperar
+ * o cliente, a arquitetura, a prefeitura, a concessionária. A linha existe no cronograma
+ * porque segura prazo — mas ninguém daqui a executa, então ela não gera card (D24), não cobra
+ * hora e não entra no custo.
  *
- * `INT` (interna), `CMP` (compatibilização) e `ALT` (alteração de escopo) ficam de fora:
- * são demanda de outra origem executada pela equipe. Origem que não está nesta lista —
- * inclusive uma criada depois — conta como interna: se alguém foi escalado para ela, o
- * trabalho aparece (e aparece errado de forma visível, não some).
+ * DECISÃO #1 do time (2026-09-25): antes isto era ADIVINHADO pela origem da linha (`CLI`,
+ * `ARQ`, `EXT`, `FIS`, `APR`, `CON`, `OBR`). Origem responde "de onde veio a demanda", não
+ * "quem faz": uma revisão pedida pelo cliente (origem `CLI`) é trabalho da casa e saía do
+ * cronograma sem card e sem hora — errado do lado que não aparece. Agora quem responde é o
+ * recurso, como no MS Project, e a marca fica visível na própria linha.
  *
- * DECISÃO DE IMPLEMENTAÇÃO, a confirmar com o time: a D24 diz que "etapa de terceiro não
- * gera card", sem dizer como reconhecê-la. A origem foi o classificador mais próximo.
+ * Linha sem atribuição nenhuma NÃO é de terceiro: é linha da casa que ninguém escalou ainda,
+ * e é isso que o verificador cobra (`sem_responsavel`).
  */
-export const ORIGENS_DE_TERCEIRO: ReadonlySet<string> = new Set(["CLI", "ARQ", "EXT", "FIS", "APR", "CON", "OBR"]);
+export function ehEtapaDeTerceiro(atribuicoes: readonly { papel: Papel }[] | null | undefined): boolean {
+  return atribuicoes?.some((a) => a.papel === "ext") ?? false;
+}
 
-export function ehEtapaDeTerceiro(origemSigla: string | null | undefined): boolean {
-  return origemSigla != null && ORIGENS_DE_TERCEIRO.has(origemSigla.toUpperCase());
+/**
+ * O que o recurso "Externo" aceita: ninguém da casa e zero hora — os dois também são CHECK no
+ * banco (migration 20260925160100). Zero hora aqui não é estimativa que falta: é a estimativa
+ * certa, porque a casa não gasta hora esperando a prefeitura.
+ */
+export function regraDoRecursoExterno(a: {
+  papel: Papel;
+  userId: string | null;
+  horas: number;
+}): { ok: true } | { ok: false; motivo: string } {
+  if (a.papel !== "ext") return { ok: true };
+  if (a.userId != null) {
+    return { ok: false, motivo: "Etapa de terceiro não leva gente da equipe — quem executa está fora da casa." };
+  }
+  if (a.horas > 0) {
+    return { ok: false, motivo: "Etapa de terceiro não consome hora da equipe — deixe as horas em zero." };
+  }
+  return { ok: true };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -142,7 +170,7 @@ const ORDEM_PRINCIPAL: readonly Papel[] = ["pro", "mod", "eng", "coo", "ger", "d
 export function escolherPrincipal<T extends { id: string; userId: string | null; papel: Papel; principal: boolean }>(
   atribuicoes: readonly T[],
 ): string | null {
-  const pessoas = atribuicoes.filter((a) => a.userId != null);
+  const pessoas = atribuicoes.filter((a) => a.userId != null && a.papel !== "ext");
   const atual = pessoas.find((a) => a.principal);
   if (atual) return atual.id;
   let melhor: T | null = null;
@@ -404,7 +432,9 @@ export function parcelasDePerfis(linhas: readonly LinhaCarga[], cal: Calendario)
   for (const l of linhas) {
     if (!linhaAceitaHoras(l) || ENCERRADA.has(l.status)) continue;
     for (const a of l.atribuicoes) {
-      if (a.userId != null || !(a.horas > 0)) continue;
+      // `ext` é etapa de terceiro, não vaga: contá-lo aqui pediria um projetista para esperar
+      // a prefeitura. O banco já garante zero hora; o filtro deixa a intenção escrita.
+      if (a.userId != null || a.papel === "ext" || !(a.horas > 0)) continue;
       const porSemana = new Map<string, number>();
       for (const [dia, h] of distribuirHoras(l.inicio, l.fim, a.horas, cal)) {
         const s = chaveSemanaIso(dia);

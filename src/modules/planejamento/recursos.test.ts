@@ -17,6 +17,7 @@ import {
   parcelasDasLinhas,
   parcelasDePerfis,
   pessoasSemHoras,
+  regraDoRecursoExterno,
   somarCarga,
   type LinhaCarga,
   type PessoaCapacidade,
@@ -53,15 +54,70 @@ describe("o que a linha aceita", () => {
   });
 });
 
-describe("etapa de terceiro", () => {
-  it("origem de fora da casa é terceiro; interna, compatibilização e alteração não", () => {
-    for (const s of ["CLI", "ARQ", "EXT", "FIS", "APR", "CON", "OBR"]) expect(ehEtapaDeTerceiro(s)).toBe(true);
-    for (const s of ["INT", "CMP", "ALT"]) expect(ehEtapaDeTerceiro(s)).toBe(false);
+describe('etapa de terceiro — o recurso "Externo" (decisão #1)', () => {
+  it('a linha com o recurso "Externo" é de terceiro, mesmo tendo gente da casa junto', () => {
+    expect(ehEtapaDeTerceiro([{ papel: "ext" }])).toBe(true);
+    expect(ehEtapaDeTerceiro([{ papel: "coo" }, { papel: "ext" }])).toBe(true);
   });
 
-  it("sem origem é da casa; origem desconhecida também — aparece em vez de sumir", () => {
+  it("linha só com gente da casa não é de terceiro", () => {
+    expect(ehEtapaDeTerceiro([{ papel: "pro" }, { papel: "rev" }])).toBe(false);
+  });
+
+  it("linha SEM ninguém não é de terceiro — é linha da casa que ninguém escalou ainda", () => {
+    expect(ehEtapaDeTerceiro([])).toBe(false);
     expect(ehEtapaDeTerceiro(null)).toBe(false);
-    expect(ehEtapaDeTerceiro("XYZ")).toBe(false);
+    expect(ehEtapaDeTerceiro(undefined)).toBe(false);
+  });
+
+  it('"Externo" não leva pessoa nem hora — os dois também são CHECK no banco', () => {
+    expect(regraDoRecursoExterno({ papel: "ext", userId: null, horas: 0 }).ok).toBe(true);
+    const comPessoa = regraDoRecursoExterno({ papel: "ext", userId: "u1", horas: 0 });
+    expect(comPessoa.ok).toBe(false);
+    expect(comPessoa.ok === false && comPessoa.motivo).toContain("fora da casa");
+    const comHora = regraDoRecursoExterno({ papel: "ext", userId: null, horas: 8 });
+    expect(comHora.ok).toBe(false);
+    expect(comHora.ok === false && comHora.motivo).toContain("hora");
+  });
+
+  it("a regra só olha o Externo: pessoa com hora em qualquer outro papel passa", () => {
+    expect(regraDoRecursoExterno({ papel: "pro", userId: "u1", horas: 40 }).ok).toBe(true);
+    expect(regraDoRecursoExterno({ papel: "pro", userId: null, horas: 40 }).ok).toBe(true);
+  });
+});
+
+describe('carga e principal com o recurso "Externo"', () => {
+  const linha = (atribuicoes: LinhaCarga["atribuicoes"]): LinhaCarga => ({
+    id: "l1",
+    projetoId: "p1",
+    tipoEap: "atv",
+    ehResumo: false,
+    duracaoDias: 5,
+    status: "nin",
+    inicio: "2026-09-14",
+    fim: "2026-09-18",
+    atribuicoes,
+  });
+
+  it('"Externo" não entra na demanda por perfil — não é vaga esperando projetista', () => {
+    const l = linha([
+      { id: "a1", userId: null, papel: "ext", horas: 0 },
+      { id: "a2", userId: null, papel: "pro", horas: 40 },
+    ]);
+    expect(parcelasDePerfis([l], cal).map((x) => x.papel)).toEqual(["pro"]);
+  });
+
+  it('"Externo" não entra na carga de ninguém (não tem pessoa)', () => {
+    expect(parcelasDasLinhas([linha([{ id: "a1", userId: null, papel: "ext", horas: 0 }])], cal)).toEqual([]);
+  });
+
+  it('"Externo" nunca é o principal, mesmo se um dado ruim lhe der pessoa', () => {
+    expect(
+      escolherPrincipal([
+        { id: "a1", userId: "u1", papel: "ext", principal: false },
+        { id: "a2", userId: "u2", papel: "rev", principal: false },
+      ]),
+    ).toBe("a2");
   });
 });
 
