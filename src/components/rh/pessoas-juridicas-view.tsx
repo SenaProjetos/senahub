@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -71,17 +72,17 @@ export function PessoasJuridicasView({
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Pessoas Jurídicas</h2>
-          <p className="text-sm text-muted-foreground">
-            CNPJs que agrupam vários perfis de projetista (PJ/freelancer).
-          </p>
-        </div>
-        <Button size="sm" onClick={() => setDlg({ ...VAZIO })}>
-          <Plus className="size-4" /> Nova PJ
-        </Button>
-      </div>
+      <CabecalhoPagina
+        titulo="Pessoas Jurídicas"
+        descricao="CNPJs que agrupam vários perfis de projetista (PJ/freelancer)."
+        acoes={
+          <>
+          <Button size="sm" onClick={() => setDlg({ ...VAZIO })}>
+            <Plus className="size-4" /> Nova PJ
+          </Button>
+          </>
+        }
+      />
 
       {pjs.length === 0 ? (
         <Card>

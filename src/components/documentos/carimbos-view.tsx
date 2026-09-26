@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -46,18 +47,17 @@ export function CarimbosView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Carimbos de prancha</h2>
-          <p className="text-sm text-muted-foreground">
-            Selos padrão por formato ABNT (NBR 10068), em paisagem, com margens e carimbo no canto
-            inferior direito. Escolha o formato para gerar o modelo e abrir no editor.
-          </p>
-        </div>
-        <Button variant="outline" render={<Link href="/documentos" />}>
-          <ArrowLeft className="size-4" /> Voltar aos modelos
-        </Button>
-      </div>
+      <CabecalhoPagina
+        titulo="Carimbos de prancha"
+        descricao="Selos padrão por formato ABNT (NBR 10068), em paisagem, com margens e carimbo no canto inferior direito. Escolha o formato para gerar o modelo e abrir no editor."
+        acoes={
+          <>
+          <Button variant="outline" render={<Link href="/documentos" />}>
+            <ArrowLeft className="size-4" /> Voltar aos modelos
+          </Button>
+          </>
+        }
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {FORMATOS_CARIMBO.map(({ formato, label }) => {

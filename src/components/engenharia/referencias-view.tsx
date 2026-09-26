@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -170,19 +171,19 @@ export function ReferenciasView({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight">Referências Técnicas</h1>
-          <p className="text-sm text-muted-foreground">
-            Artigos, livros, notas técnicas e materiais de referência — busca por título, autor ou tags.
-          </p>
-        </div>
-        {podeIncluir && (
-          <Button size="sm" onClick={abrirNova}>
-            <Plus className="size-3.5" /> Incluir referência
-          </Button>
-        )}
-      </div>
+      <CabecalhoPagina
+        titulo="Referências Técnicas"
+        descricao="Artigos, livros, notas técnicas e materiais de referência — busca por título, autor ou tags."
+        acoes={
+          <>
+          {podeIncluir && (
+            <Button size="sm" onClick={abrirNova}>
+              <Plus className="size-3.5" /> Incluir referência
+            </Button>
+          )}
+          </>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative w-full max-w-sm">

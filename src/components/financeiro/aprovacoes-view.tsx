@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -70,10 +71,7 @@ export function AprovacoesView({
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Aprovações financeiras</h2>
-        <p className="text-sm text-muted-foreground">Despesas acima da alçada aguardando liberação.</p>
-      </div>
+      <CabecalhoPagina titulo="Aprovações financeiras" descricao="Despesas acima da alçada aguardando liberação." />
 
       {podeGerir && (
         <Card>

@@ -1,3 +1,4 @@
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Gauge } from "lucide-react";
@@ -21,12 +22,7 @@ export default async function QualidadePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Índice de qualidade</h2>
-        <p className="text-sm text-muted-foreground">
-          Retrabalho = % de disciplinas ativas com ao menos uma revisão (RVxx). Menor é melhor.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Índice de qualidade" descricao="Retrabalho = % de disciplinas ativas com ao menos uma revisão (RVxx). Menor é melhor." />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>

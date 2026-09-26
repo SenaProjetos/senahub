@@ -1,3 +1,4 @@
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { balancoGerencial } from "@/modules/financeiro/relatorios/queries";
@@ -21,12 +22,7 @@ export default async function BalancoPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Balanço gerencial</h2>
-        <p className="text-sm text-muted-foreground">
-          Posição simplificada base caixa: caixa + a receber = ativo; a pagar = passivo; PL = ativo − passivo.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Balanço gerencial" descricao="Posição simplificada base caixa: caixa + a receber = ativo; a pagar = passivo; PL = ativo − passivo." />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card>

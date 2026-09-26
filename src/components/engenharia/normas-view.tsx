@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -111,19 +112,19 @@ export function NormasView({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight">Normas Técnicas</h1>
-          <p className="text-sm text-muted-foreground">
-            Catálogo de normas em PDF — número, título e ano da versão. Busca por qualquer campo.
-          </p>
-        </div>
-        {podeIncluir && (
-          <Button size="sm" onClick={() => setNovo(true)}>
-            <Plus className="size-3.5" /> Incluir norma
-          </Button>
-        )}
-      </div>
+      <CabecalhoPagina
+        titulo="Normas Técnicas"
+        descricao="Catálogo de normas em PDF — número, título e ano da versão. Busca por qualquer campo."
+        acoes={
+          <>
+          {podeIncluir && (
+            <Button size="sm" onClick={() => setNovo(true)}>
+              <Plus className="size-3.5" /> Incluir norma
+            </Button>
+          )}
+          </>
+        }
+      />
 
       <div className="relative w-full max-w-sm">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />

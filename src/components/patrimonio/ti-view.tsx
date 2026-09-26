@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -95,17 +96,19 @@ export function TiView({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Gerenciamento de TI</h2>
-          <p className="text-sm text-muted-foreground">{maquinas.length} máquina(s) cadastrada(s).</p>
-        </div>
-        {podeTi && (
-          <Button onClick={() => abrir("nova")}>
-            <Plus className="size-4" /> Nova máquina
-          </Button>
-        )}
-      </div>
+      <CabecalhoPagina
+        titulo="Gerenciamento de TI"
+        descricao={<>{maquinas.length} máquina(s) cadastrada(s).</>}
+        acoes={
+          <>
+          {podeTi && (
+            <Button onClick={() => abrir("nova")}>
+              <Plus className="size-4" /> Nova máquina
+            </Button>
+          )}
+          </>
+        }
+      />
 
       {maquinas.length === 0 ? (
         <Card>

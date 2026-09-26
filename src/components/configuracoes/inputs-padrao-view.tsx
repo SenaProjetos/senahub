@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -65,12 +66,7 @@ export function InputsPadraoView({ templates, disciplinas }: { templates: Templa
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Inputs padrão</h2>
-        <p className="text-sm text-muted-foreground">
-          Perguntas padrão por disciplina, aplicadas automaticamente ao gerar o link de inputs do cliente.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Inputs padrão" descricao="Perguntas padrão por disciplina, aplicadas automaticamente ao gerar o link de inputs do cliente." />
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-2 pt-5">

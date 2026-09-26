@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -173,19 +174,19 @@ export function DocumentosFinanceirosView({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Documentos financeiros</h2>
-          <p className="text-sm text-muted-foreground">
-            NF, contratos, propostas e medições como origem das movimentações. Gere parcelas vinculadas.
-          </p>
-        </div>
-        {podeGerir && (
-          <Button size="sm" onClick={() => setNovo(true)}>
-            <Plus className="size-3.5" /> Documento
-          </Button>
-        )}
-      </div>
+      <CabecalhoPagina
+        titulo="Documentos financeiros"
+        descricao="NF, contratos, propostas e medições como origem das movimentações. Gere parcelas vinculadas."
+        acoes={
+          <>
+          {podeGerir && (
+            <Button size="sm" onClick={() => setNovo(true)}>
+              <Plus className="size-3.5" /> Documento
+            </Button>
+          )}
+          </>
+        }
+      />
 
       <Card>
         <CardContent className="p-0">

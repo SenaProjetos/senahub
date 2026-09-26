@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSetParams } from "@/lib/use-set-param";
 import type { BasePrecoItem, InsumoListItem, ComposicaoListItem } from "@/modules/custos/composicoes/queries";
@@ -46,10 +47,7 @@ export function BancosView({
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Bancos — Engenharia de Custos</h2>
-        <p className="text-sm text-muted-foreground">Insumos, composições e bases de preço.</p>
-      </div>
+      <CabecalhoPagina titulo="Bancos — Engenharia de Custos" descricao="Insumos, composições e bases de preço." />
 
       <Tabs value={aba} onValueChange={(v) => v && setParams({ tab: v === "bases" ? null : v, q: null, page: null })}>
         <TabsList className="flex-wrap">

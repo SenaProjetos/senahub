@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useMemo, useState, useTransition } from "react";
 import { formatarData } from "@/lib/utils";
 import Link from "next/link";
@@ -251,30 +252,30 @@ export function DocumentosView({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Estúdio de Documentos</h2>
-          <p className="text-sm text-muted-foreground">
-            Modelos de relatórios, propostas, contratos e recibos com dados dinâmicos do Hub.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <VariaveisDialog />
-          {podeGerir && (
-            <>
-              <Button variant="ghost" size="sm" render={<Link href="/documentos/carimbos" />}>
-                Carimbos
-              </Button>
-              <Button variant="ghost" size="sm" render={<Link href="/documentos/datasets" />}>
-                Datasets
-              </Button>
-              <Button onClick={() => setOpen(true)}>
-                <Plus className="size-4" /> Novo modelo
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
+      <CabecalhoPagina
+        titulo="Estúdio de Documentos"
+        descricao="Modelos de relatórios, propostas, contratos e recibos com dados dinâmicos do Hub."
+        acoes={
+          <>
+          <div className="flex flex-wrap items-center gap-2">
+            <VariaveisDialog />
+            {podeGerir && (
+              <>
+                <Button variant="ghost" size="sm" render={<Link href="/documentos/carimbos" />}>
+                  Carimbos
+                </Button>
+                <Button variant="ghost" size="sm" render={<Link href="/documentos/datasets" />}>
+                  Datasets
+                </Button>
+                <Button onClick={() => setOpen(true)}>
+                  <Plus className="size-4" /> Novo modelo
+                </Button>
+              </>
+            )}
+          </div>
+          </>
+        }
+      />
 
       {modelos.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">

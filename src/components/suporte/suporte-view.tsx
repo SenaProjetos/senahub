@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useEffect, useState, useTransition } from "react";
 import { formatarData } from "@/lib/utils";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -193,50 +194,46 @@ export function SuporteView({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Suporte</h2>
-          <p className="text-sm text-muted-foreground">
-            {!ehGestor
-              ? "Seus tickets."
-              : escopo === "todos"
-                ? "Todos os tickets."
-                : "Tickets abertos por você."}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Select
-            value={prioridadeFiltro}
-            items={{ todas: "Todas", urgente: "Urgente", alta: "Alta", media: "Média", baixa: "Baixa" }}
-            onValueChange={mudarPrioridadeFiltro}
-          >
-            <SelectTrigger className="h-9 w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todas prioridades</SelectItem>
-              <SelectItem value="urgente">Urgente</SelectItem>
-              <SelectItem value="alta">Alta</SelectItem>
-              <SelectItem value="media">Média</SelectItem>
-              <SelectItem value="baixa">Baixa</SelectItem>
-            </SelectContent>
-          </Select>
-          {ehGestor && (
-            <Select value={escopo} items={{ todos: "Todos", meus: "Meus tickets" }} onValueChange={mudarEscopo}>
-              <SelectTrigger className="h-9 w-44">
+      <CabecalhoPagina
+        titulo="Suporte"
+        descricao={<>{!ehGestor ? "Seus tickets." : escopo === "todos" ? "Todos os tickets." : "Tickets abertos por você."}</>}
+        acoes={
+          <>
+          <div className="flex items-center gap-2">
+            <Select
+              value={prioridadeFiltro}
+              items={{ todas: "Todas", urgente: "Urgente", alta: "Alta", media: "Média", baixa: "Baixa" }}
+              onValueChange={mudarPrioridadeFiltro}
+            >
+              <SelectTrigger className="h-9 w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="meus">Meus tickets</SelectItem>
+                <SelectItem value="todas">Todas prioridades</SelectItem>
+                <SelectItem value="urgente">Urgente</SelectItem>
+                <SelectItem value="alta">Alta</SelectItem>
+                <SelectItem value="media">Média</SelectItem>
+                <SelectItem value="baixa">Baixa</SelectItem>
               </SelectContent>
             </Select>
-          )}
-          <Button onClick={() => setDialogNovo(true)}>
-            <Plus className="size-4" /> Abrir ticket
-          </Button>
-        </div>
-      </div>
+            {ehGestor && (
+              <Select value={escopo} items={{ todos: "Todos", meus: "Meus tickets" }} onValueChange={mudarEscopo}>
+                <SelectTrigger className="h-9 w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  <SelectItem value="meus">Meus tickets</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+            <Button onClick={() => setDialogNovo(true)}>
+              <Plus className="size-4" /> Abrir ticket
+            </Button>
+          </div>
+          </>
+        }
+      />
 
       <div className="space-y-3">
         {tickets.length === 0 ? (

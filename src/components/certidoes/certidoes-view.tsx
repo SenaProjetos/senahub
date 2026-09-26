@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -282,36 +283,38 @@ export function CertidoesView({
 
   return (
     <div className="space-y-4">
-      <DicaMenuContexto />
+      {/* CabecalhoPagina precisa ser o 1º elemento (funde na barra do topo em telas amplas);
+          a dica do menu de contexto vem depois. */}
       {/* §2 — hierarquia: título, subtítulo e a ação principal à direita. */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Certidões</h2>
-          <p className="text-sm text-muted-foreground">
-            Controle de validade, versionamento e compartilhamento das certidões da empresa.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          <Button size="sm" variant="outline" render={<a href="/api/certidoes/exportar" rel="noopener" />}>
-            <FileSpreadsheet className="size-3.5" aria-hidden /> Exportar
-          </Button>
-          {podeGerir && (
-            <Button size="sm" variant="outline" onClick={() => setCompartilharAberto(true)}>
-              <Share2 className="size-3.5" aria-hidden /> Compartilhar
+      <CabecalhoPagina
+        titulo="Certidões"
+        descricao="Controle de validade, versionamento e compartilhamento das certidões da empresa."
+        acoes={
+          <>
+          <div className="flex flex-wrap gap-1.5">
+            <Button size="sm" variant="outline" render={<a href="/api/certidoes/exportar" rel="noopener" />}>
+              <FileSpreadsheet className="size-3.5" aria-hidden /> Exportar
             </Button>
-          )}
-          {podeGerir && (
-            <Button size="sm" variant="outline" onClick={() => setTiposAberto(true)}>
-              <Tags className="size-3.5" aria-hidden /> Gerenciar tipos
-            </Button>
-          )}
-          {podeGerir && (
-            <Button size="sm" onClick={() => setNovaAberta(true)}>
-              <Plus className="size-3.5" aria-hidden /> Nova certidão
-            </Button>
-          )}
-        </div>
-      </div>
+            {podeGerir && (
+              <Button size="sm" variant="outline" onClick={() => setCompartilharAberto(true)}>
+                <Share2 className="size-3.5" aria-hidden /> Compartilhar
+              </Button>
+            )}
+            {podeGerir && (
+              <Button size="sm" variant="outline" onClick={() => setTiposAberto(true)}>
+                <Tags className="size-3.5" aria-hidden /> Gerenciar tipos
+              </Button>
+            )}
+            {podeGerir && (
+              <Button size="sm" onClick={() => setNovaAberta(true)}>
+                <Plus className="size-3.5" aria-hidden /> Nova certidão
+              </Button>
+            )}
+          </div>
+          </>
+        }
+      />
+      <DicaMenuContexto />
 
       <CertidoesResumo panorama={panorama} filtros={filtros} onFiltrar={aplicarFiltro} />
 

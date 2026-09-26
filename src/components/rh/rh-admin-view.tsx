@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
@@ -96,10 +97,7 @@ export function RhAdminView({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">RH — administração</h2>
-        <p className="text-sm text-muted-foreground">Validações pendentes e clima da equipe.</p>
-      </div>
+      <CabecalhoPagina titulo="RH — administração" descricao="Validações pendentes e clima da equipe." />
 
       <Card>
         <CardHeader>

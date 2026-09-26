@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useRef, useState, useTransition } from "react";
 import { formatarData, formatarDataHora, brl } from "@/lib/utils";
 import { useRouter } from "next/navigation";
@@ -207,16 +208,7 @@ export function JuridicoView({
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Jurídico</h2>
-        <p className="text-sm text-muted-foreground">
-          Contratos versionados. Certidões da empresa agora ficam em{" "}
-          <a href="/certidoes" className="underline underline-offset-2">
-            Certidões
-          </a>
-          .
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Jurídico" descricao={<>Contratos versionados. Certidões da empresa agora ficam em{" "} <a href="/certidoes" className="underline underline-offset-2"> Certidões </a> .</>} />
 
       <Tabs defaultValue="docs">
         <TabsList>

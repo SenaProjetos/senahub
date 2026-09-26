@@ -1,3 +1,4 @@
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
 import { TriangleAlert } from "lucide-react";
 import { requirePermission } from "@/lib/session";
@@ -178,12 +179,7 @@ export default async function FolhaProjetistasPage({
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">Produção</h1>
-        <p className="text-sm text-muted-foreground">
-          Pagamentos de projetistas PJ/freelancer liberados por entregas validadas.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Produção" descricao="Pagamentos de projetistas PJ/freelancer liberados por entregas validadas." />
 
       {semValor > 0 && (
         <div role="alert" className="flex items-start gap-2 rounded-sm border border-warning/40 bg-warning/10 p-3 text-sm">

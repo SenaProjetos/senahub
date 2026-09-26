@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -194,26 +195,26 @@ export function OrcamentoView({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Orçamento anual</h2>
-          <p className="text-sm text-muted-foreground">
-            Planejado × previsto × realizado por categoria. Edite o valor planejado por linha.
-          </p>
-        </div>
-        <Select value={String(ano)} onValueChange={(v) => router.push(`/financeiro/orcamento?ano=${v ?? ano}`)}>
-          <SelectTrigger className="w-32">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {anos.map((a) => (
-              <SelectItem key={a} value={String(a)}>
-                {a}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <CabecalhoPagina
+        titulo="Orçamento anual"
+        descricao="Planejado × previsto × realizado por categoria. Edite o valor planejado por linha."
+        acoes={
+          <>
+          <Select value={String(ano)} onValueChange={(v) => router.push(`/financeiro/orcamento?ano=${v ?? ano}`)}>
+            <SelectTrigger className="w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {anos.map((a) => (
+                <SelectItem key={a} value={String(a)}>
+                  {a}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          </>
+        }
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((k) => (

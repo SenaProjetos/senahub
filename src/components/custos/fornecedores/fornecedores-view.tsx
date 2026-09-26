@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -81,23 +82,22 @@ export function FornecedoresView({ fornecedores }: { fornecedores: Fornecedor[] 
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Fornecedores</h2>
-          <p className="text-sm text-muted-foreground">
-            Cadastro de fornecedores de material/insumo pra cotações (RFQ) — independente do cadastro de
-            fornecedores do financeiro.
-          </p>
-        </div>
-        <Button
-          onClick={() => {
-            setEdit(null);
-            setOpen(true);
-          }}
-        >
-          <Plus className="size-4" /> Novo fornecedor
-        </Button>
-      </div>
+      <CabecalhoPagina
+        titulo="Fornecedores"
+        descricao="Cadastro de fornecedores de material/insumo pra cotações (RFQ) — independente do cadastro de fornecedores do financeiro."
+        acoes={
+          <>
+          <Button
+            onClick={() => {
+              setEdit(null);
+              setOpen(true);
+            }}
+          >
+            <Plus className="size-4" /> Novo fornecedor
+          </Button>
+          </>
+        }
+      />
       <ul className="divide-y rounded-sm border">
         {fornecedores.length === 0 ? (
           <li><EmptyState icon={Truck} title="Nenhum fornecedor." /></li>

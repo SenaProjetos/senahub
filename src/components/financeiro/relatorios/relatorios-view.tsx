@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileSpreadsheet, ArrowUp, ArrowDown, BarChart3, Receipt, ArrowLeftRight } from "lucide-react";
@@ -51,44 +52,43 @@ export function RelatoriosView({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Relatórios</h2>
-          <p className="text-sm text-muted-foreground">
-            DRE com análise vertical (AV), horizontal (AH) e EBITDA. Só o DRE respeita o regime
-            escolhido abaixo — os demais cartões desta página são sempre confirmados por caixa.
-          </p>
-        </div>
-        <div className="flex items-end gap-2">
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">De</Label>
-            <Input type="date" value={de} onChange={(e) => setDe(e.target.value)} className="w-40" />
+      <CabecalhoPagina
+        titulo="Relatórios"
+        descricao="DRE com análise vertical (AV), horizontal (AH) e EBITDA. Só o DRE respeita o regime escolhido abaixo — os demais cartões desta página são sempre confirmados por caixa."
+        acoes={
+          <>
+          <div className="flex items-end gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">De</Label>
+              <Input type="date" value={de} onChange={(e) => setDe(e.target.value)} className="w-40" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Até</Label>
+              <Input type="date" value={ate} onChange={(e) => setAte(e.target.value)} className="w-40" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground" title="Afeta só o card do DRE abaixo — os demais cartões desta página seguem caixa sempre.">
+                Regime (só o DRE)
+              </Label>
+              <Select value={regime} onValueChange={(v) => setRegime((v as "caixa" | "competencia") ?? "caixa")}>
+                <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="caixa">Caixa</SelectItem>
+                  <SelectItem value="competencia">Competência</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={aplicar}>Aplicar</Button>
+            <Button
+              variant="outline"
+              render={<a href={`/api/financeiro/relatorios/dre/xlsx?de=${de}&ate=${ate}`} />}
+            >
+              <FileSpreadsheet className="size-4" /> Excel
+            </Button>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Até</Label>
-            <Input type="date" value={ate} onChange={(e) => setAte(e.target.value)} className="w-40" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground" title="Afeta só o card do DRE abaixo — os demais cartões desta página seguem caixa sempre.">
-              Regime (só o DRE)
-            </Label>
-            <Select value={regime} onValueChange={(v) => setRegime((v as "caixa" | "competencia") ?? "caixa")}>
-              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="caixa">Caixa</SelectItem>
-                <SelectItem value="competencia">Competência</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <Button onClick={aplicar}>Aplicar</Button>
-          <Button
-            variant="outline"
-            render={<a href={`/api/financeiro/relatorios/dre/xlsx?de=${de}&ate=${ate}`} />}
-          >
-            <FileSpreadsheet className="size-4" /> Excel
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard titulo="Resultado" valor={dre.resultado} cor variacao={ahResultado} />

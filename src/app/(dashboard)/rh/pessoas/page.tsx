@@ -1,3 +1,4 @@
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { can, canRole } from "@/lib/permissions";
@@ -30,22 +31,22 @@ export default async function PessoasPage() {
   ]);
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight">Pessoas</h1>
-          <p className="text-sm text-muted-foreground">
-            Ficha única de cada pessoa — cadastro, ausências, escala, banco de horas e acesso num só lugar.
-          </p>
-        </div>
-        {podeCriar && opcoes && (
-          <WizardCadastroFuncionario
-            templates={opcoes.templates}
-            pessoasJuridicas={opcoes.pessoasJuridicas}
-            cargos={opcoes.cargos}
-            departamentos={opcoes.departamentos}
-          />
-        )}
-      </div>
+      <CabecalhoPagina
+        titulo="Pessoas"
+        descricao="Ficha única de cada pessoa — cadastro, ausências, escala, banco de horas e acesso num só lugar."
+        acoes={
+          <>
+          {podeCriar && opcoes && (
+            <WizardCadastroFuncionario
+              templates={opcoes.templates}
+              pessoasJuridicas={opcoes.pessoasJuridicas}
+              cargos={opcoes.cargos}
+              departamentos={opcoes.departamentos}
+            />
+          )}
+          </>
+        }
+      />
       <PendenciasCadastro pendencias={pendencias} />
       <PendenciasContas pendencias={pendenciasContas} />
       <PessoasLista pessoas={pessoas} />

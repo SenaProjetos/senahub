@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -183,19 +184,19 @@ export function SancoesView({ podeGerir, fornecedores, proprias, concorrentes }:
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Sanções</h2>
-          <p className="text-sm text-muted-foreground">
-            Compliance da empresa e inteligência competitiva.
-          </p>
-        </div>
-        <Link href="/licitacoes">
-          <Button variant="outline" size="sm">
-            Voltar
-          </Button>
-        </Link>
-      </div>
+      <CabecalhoPagina
+        titulo="Sanções"
+        descricao="Compliance da empresa e inteligência competitiva."
+        acoes={
+          <>
+          <Link href="/licitacoes">
+            <Button variant="outline" size="sm">
+              Voltar
+            </Button>
+          </Link>
+          </>
+        }
+      />
 
       {/* Sanções próprias */}
       <Card>

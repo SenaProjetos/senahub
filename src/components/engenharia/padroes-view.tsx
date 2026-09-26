@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -138,19 +139,19 @@ export function PadroesView({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight">Padrões Técnicos</h1>
-          <p className="text-sm text-muted-foreground">
-            Biblioteca de pranchas, carimbos, detalhes e notas padrão, organizada por disciplina.
-          </p>
-        </div>
-        {podeIncluir && (
-          <Button size="sm" onClick={() => setNovo(true)}>
-            <Plus className="size-3.5" /> Incluir padrão
-          </Button>
-        )}
-      </div>
+      <CabecalhoPagina
+        titulo="Padrões Técnicos"
+        descricao="Biblioteca de pranchas, carimbos, detalhes e notas padrão, organizada por disciplina."
+        acoes={
+          <>
+          {podeIncluir && (
+            <Button size="sm" onClick={() => setNovo(true)}>
+              <Plus className="size-3.5" /> Incluir padrão
+            </Button>
+          )}
+          </>
+        }
+      />
 
       <div className="relative w-full max-w-sm">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />

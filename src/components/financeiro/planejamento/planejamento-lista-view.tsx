@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -27,13 +28,15 @@ export function PlanejamentoListaView({ planos, opcoes }: { planos: PlanoResumo[
   const [open, setOpen] = useState(false);
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Planejamento de pagamentos</h2>
-          <p className="text-sm text-muted-foreground">Simule o uso do caixa disponível antes de pagar.</p>
-        </div>
-        <Button onClick={() => setOpen(true)}><Plus className="size-4" /> Novo cenário</Button>
-      </div>
+      <CabecalhoPagina
+        titulo="Planejamento de pagamentos"
+        descricao="Simule o uso do caixa disponível antes de pagar."
+        acoes={
+          <>
+          <Button onClick={() => setOpen(true)}><Plus className="size-4" /> Novo cenário</Button>
+          </>
+        }
+      />
 
       {planos.length === 0 ? (
         <Card>

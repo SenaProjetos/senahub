@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -210,23 +211,25 @@ export function ClientesView({
 
   return (
     <div className="space-y-4">
+      <CabecalhoPagina
+        titulo="Clientes"
+        descricao={<>{total} cliente(s).</>}
+        acoes={
+          <>
+          {podeGerir && (
+            <div className="flex gap-2">
+              <Button variant="outline" render={<a href={`/api/comercial/export/empresas?${paramsExport}`} />}>
+                <Download className="size-4" /> Exportar CSV
+              </Button>
+              <Button onClick={novo}>
+                <UserPlus className="size-4" /> Novo cliente
+              </Button>
+            </div>
+          )}
+          </>
+        }
+      />
       <DicaMenuContexto />
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Clientes</h2>
-          <p className="text-sm text-muted-foreground">{total} cliente(s).</p>
-        </div>
-        {podeGerir && (
-          <div className="flex gap-2">
-            <Button variant="outline" render={<a href={`/api/comercial/export/empresas?${paramsExport}`} />}>
-              <Download className="size-4" /> Exportar CSV
-            </Button>
-            <Button onClick={novo}>
-              <UserPlus className="size-4" /> Novo cliente
-            </Button>
-          </div>
-        )}
-      </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex w-full max-w-sm items-center gap-2">

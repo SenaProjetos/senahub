@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -185,57 +186,59 @@ export function ProjetosView({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Projetos</h2>
-          <p className="text-sm text-muted-foreground">{total} projeto(s).</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {mostrarGuia && (
-            <Button variant="secondary" size="sm" render={<Link href="/guias/projetos" />}>
-              <BookOpenText className="size-4" /> Guia de uso
-            </Button>
-          )}
-          <div className="flex items-center rounded-sm border p-0.5">
-            {TOGGLES.map((t) => (
-              <Button
-                key={t.v}
-                type="button"
-                variant={vista === t.v ? "secondary" : "ghost"}
-                size="icon"
-                className="size-7"
-                aria-label={t.label}
-                aria-pressed={vista === t.v}
-                onClick={() => mudarVista(t.v)}
-              >
-                <t.icon className="size-4" />
+      <CabecalhoPagina
+        titulo="Projetos"
+        descricao={<>{total} projeto(s).</>}
+        acoes={
+          <>
+          <div className="flex flex-wrap items-center gap-2">
+            {mostrarGuia && (
+              <Button variant="secondary" size="sm" render={<Link href="/guias/projetos" />}>
+                <BookOpenText className="size-4" /> Guia de uso
               </Button>
-            ))}
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button variant="outline" size="sm" aria-label="Exportar carteira">
-                  <Download className="size-4" /> Exportar
+            )}
+            <div className="flex items-center rounded-sm border p-0.5">
+              {TOGGLES.map((t) => (
+                <Button
+                  key={t.v}
+                  type="button"
+                  variant={vista === t.v ? "secondary" : "ghost"}
+                  size="icon"
+                  className="size-7"
+                  aria-label={t.label}
+                  aria-pressed={vista === t.v}
+                  onClick={() => mudarVista(t.v)}
+                >
+                  <t.icon className="size-4" />
                 </Button>
-              }
-            />
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem render={<a href="/api/projetos/carteira?formato=xlsx" download />}>
-                <FileSpreadsheet className="size-4" /> Excel (.xlsx)
-              </DropdownMenuItem>
-              <DropdownMenuItem render={<a href="/api/projetos/carteira?formato=csv" download />}>
-                <FileText className="size-4" /> CSV
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {podeGerir && (
-            <Button onClick={() => setFormOpen(true)}>
-              <Plus className="size-4" /> Novo projeto
-            </Button>
-          )}
-        </div>
-      </div>
+              ))}
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="outline" size="sm" aria-label="Exportar carteira">
+                    <Download className="size-4" /> Exportar
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem render={<a href="/api/projetos/carteira?formato=xlsx" download />}>
+                  <FileSpreadsheet className="size-4" /> Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem render={<a href="/api/projetos/carteira?formato=csv" download />}>
+                  <FileText className="size-4" /> CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {podeGerir && (
+              <Button onClick={() => setFormOpen(true)}>
+                <Plus className="size-4" /> Novo projeto
+              </Button>
+            )}
+          </div>
+          </>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex max-w-sm flex-1 items-center gap-2">

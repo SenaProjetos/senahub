@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState } from "react";
 import Link from "next/link";
 import { Calculator, Search, Database, ClipboardList, Truck } from "lucide-react";
@@ -53,30 +54,32 @@ export function CustosView({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Engenharia de Custos</h2>
-          <p className="text-sm text-muted-foreground">{total} orçamento(s).</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {podeBancos && (
-            <Button variant="outline" render={<Link href="/custos/bancos" />}>
-              <Database className="size-4" /> Bancos
-            </Button>
-          )}
-          {podeCotacao && (
-            <Button variant="outline" render={<Link href="/custos/cotacoes" />}>
-              <ClipboardList className="size-4" /> Cotações
-            </Button>
-          )}
-          {podeCotacao && (
-            <Button variant="outline" render={<Link href="/custos/fornecedores" />}>
-              <Truck className="size-4" /> Fornecedores
-            </Button>
-          )}
-          {podeGerir && <NovoOrcamentoDialog />}
-        </div>
-      </div>
+      <CabecalhoPagina
+        titulo="Engenharia de Custos"
+        descricao={<>{total} orçamento(s).</>}
+        acoes={
+          <>
+          <div className="flex items-center gap-2">
+            {podeBancos && (
+              <Button variant="outline" render={<Link href="/custos/bancos" />}>
+                <Database className="size-4" /> Bancos
+              </Button>
+            )}
+            {podeCotacao && (
+              <Button variant="outline" render={<Link href="/custos/cotacoes" />}>
+                <ClipboardList className="size-4" /> Cotações
+              </Button>
+            )}
+            {podeCotacao && (
+              <Button variant="outline" render={<Link href="/custos/fornecedores" />}>
+                <Truck className="size-4" /> Fornecedores
+              </Button>
+            )}
+            {podeGerir && <NovoOrcamentoDialog />}
+          </div>
+          </>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex w-full max-w-sm items-center gap-2">

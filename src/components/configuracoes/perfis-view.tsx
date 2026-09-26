@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { Fragment, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -133,19 +134,17 @@ export function PerfisView({ perfis }: { perfis: PerfilItem[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Perfis de acesso</h2>
-          <p className="text-sm text-muted-foreground">
-            O que cada perfil pode fazer no sistema. Setor e Contratação não concedem acesso — só o
-            Perfil concede. Fora daqui ficam a fila de Aprovações e a jornada (ponto × apontamento),
-            que ainda dependem do <span className="font-medium">Papel</span> em Usuários.
-          </p>
-        </div>
-        <Button onClick={abrirCriar}>
-          <Plus className="size-4" /> Novo perfil
-        </Button>
-      </div>
+      <CabecalhoPagina
+        titulo="Perfis de acesso"
+        descricao={<>O que cada perfil pode fazer no sistema. Setor e Contratação não concedem acesso — só o Perfil concede. Fora daqui ficam a fila de Aprovações e a jornada (ponto × apontamento), que ainda dependem do <span className="font-medium">Papel</span> em Usuários.</>}
+        acoes={
+          <>
+          <Button onClick={abrirCriar}>
+            <Plus className="size-4" /> Novo perfil
+          </Button>
+          </>
+        }
+      />
 
       {ativos > LIMITE_AVISO && (
         <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">

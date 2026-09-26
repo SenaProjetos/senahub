@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import Link from "next/link";
 import { Clock, PackageCheck, ListChecks, TriangleAlert, TrendingDown, Users, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,33 +32,33 @@ export function ProdutividadeView({
 }) {
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Produtividade por projetista</h2>
-          <p className="text-sm text-muted-foreground">
-            Comparação de cada projetista com a <strong>própria média</strong> do período — destaca quedas de produção.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-sm border p-0.5 text-sm">
-            {(["semana", "mes"] as const).map((g) => (
-              <Link
-                key={g}
-                href={`/rh/produtividade?g=${g}`}
-                className={`rounded-sm px-3 py-1 ${granularidade === g ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                {g === "semana" ? "Semanal" : "Mensal"}
-              </Link>
-            ))}
+      <CabecalhoPagina
+        titulo="Produtividade por projetista"
+        descricao={<>Comparação de cada projetista com a <strong>própria média</strong> do período — destaca quedas de produção.</>}
+        acoes={
+          <>
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-sm border p-0.5 text-sm">
+              {(["semana", "mes"] as const).map((g) => (
+                <Link
+                  key={g}
+                  href={`/rh/produtividade?g=${g}`}
+                  className={`rounded-sm px-3 py-1 ${granularidade === g ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  {g === "semana" ? "Semanal" : "Mensal"}
+                </Link>
+              ))}
+            </div>
+            <a
+              href={`/api/rh/produtividade/export?g=${granularidade}`}
+              className="inline-flex items-center gap-1.5 rounded-sm border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+            >
+              <Download className="size-4" /> CSV
+            </a>
           </div>
-          <a
-            href={`/api/rh/produtividade/export?g=${granularidade}`}
-            className="inline-flex items-center gap-1.5 rounded-sm border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <Download className="size-4" /> CSV
-          </a>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1"><PackageCheck className="size-3.5" /> entregas validadas</span>

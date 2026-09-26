@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -45,12 +46,7 @@ export function FechamentoView({
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Fechamento mensal</h2>
-        <p className="text-sm text-muted-foreground">
-          Consolida receita/despesa e a produção (projetistas PJ) do mês, com retenções automáticas.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Fechamento mensal" descricao="Consolida receita/despesa e a produção (projetistas PJ) do mês, com retenções automáticas." />
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 py-4">

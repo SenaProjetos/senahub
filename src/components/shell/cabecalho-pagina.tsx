@@ -47,10 +47,14 @@ export function CabecalhoPagina({
         className,
       )}
     >
-      <div className="min-w-0 flex-[1_1_10rem]">
+      {/* min-w (mesmo piso do flex-basis, 10rem) em vez de min-w-0: com muitas ações (3+ botões),
+          o título não pode sumir por completo — encolhe até este piso e deixa as ações
+          estourarem/quebrarem, não o inverso. */}
+      <div className="min-w-40 flex-[1_1_10rem]">
         <Breadcrumb items={trilha} />
         <div className="flex min-w-0 items-baseline gap-2">
-          <h1 className="truncate text-lg font-bold tracking-tight">{titulo}</h1>
+          {/* shrink-0: o título nunca perde espaço para a descrição — só ela encolhe/some. */}
+          <h1 className="shrink-0 truncate text-lg font-bold tracking-tight">{titulo}</h1>
           {descricao && (
             <p className="hidden min-w-0 truncate text-sm text-muted-foreground md:block">
               <span aria-hidden>· </span>

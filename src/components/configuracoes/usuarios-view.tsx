@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -422,21 +423,19 @@ export function UsuariosView({
 
   return (
     <div className="space-y-4">
+      <CabecalhoPagina
+        titulo="Usuários"
+        descricao={<>{visiveis.length} usuário(s). Usuários com histórico são apenas desativados; contas desativadas sem atividade podem ser excluídas pelo admin.</>}
+        acoes={
+          <>
+          <Button onClick={() => setForm({ ...EMPTY })}>
+            <UserPlus className="size-4" /> Nova pessoa
+          </Button>
+          </>
+        }
+      />
       <DicaMenuContexto />
       <SolicitacoesCadastro pedidos={pedidos} onAvaliar={avaliarPedido} pending={pending} />
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Usuários</h2>
-          <p className="text-sm text-muted-foreground">
-            {visiveis.length} usuário(s). Usuários com histórico são apenas desativados; contas
-            desativadas sem atividade podem ser excluídas pelo admin.
-          </p>
-        </div>
-        <Button onClick={() => setForm({ ...EMPTY })}>
-          <UserPlus className="size-4" /> Nova pessoa
-        </Button>
-      </div>
 
       <div className="flex items-center gap-2">
         <Switch id="inativos" checked={mostrarInativos} onCheckedChange={setMostrarInativos} />

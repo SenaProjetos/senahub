@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Info, TriangleAlert, Users } from "lucide-react";
@@ -63,13 +64,7 @@ export function PisoSocioView({
   return (
     <TooltipProvider>
       <div className="space-y-4">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Piso de sócio</h2>
-          <p className="max-w-3xl text-sm text-muted-foreground">
-            O que um <span className="font-medium">sócio ativo</span> alcança além do que o Perfil
-            de acesso dele concede. É o único eixo de acesso que não aparece em nenhuma outra tela.
-          </p>
-        </div>
+        <CabecalhoPagina titulo="Piso de sócio" descricao={<>O que um <span className="font-medium">sócio ativo</span> alcança além do que o Perfil de acesso dele concede. É o único eixo de acesso que não aparece em nenhuma outra tela.</>} />
 
         <div className="grid gap-2 sm:grid-cols-3">
           <Cartao rotulo="Permissões no piso" valor={pares.length} />

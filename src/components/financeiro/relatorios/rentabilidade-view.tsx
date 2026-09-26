@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -67,35 +68,35 @@ export function RentabilidadeView({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Rentabilidade por projeto</h2>
-          <p className="text-sm text-muted-foreground">
-            DRE por projeto. Indiretos (despesas sem projeto) rateados pela receita.
-          </p>
-        </div>
-        <div className="flex items-end gap-2">
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">De</Label>
-            <Input type="date" value={de} onChange={(e) => setDe(e.target.value)} className="w-36" />
+      <CabecalhoPagina
+        titulo="Rentabilidade por projeto"
+        descricao="DRE por projeto. Indiretos (despesas sem projeto) rateados pela receita."
+        acoes={
+          <>
+          <div className="flex items-end gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">De</Label>
+              <Input type="date" value={de} onChange={(e) => setDe(e.target.value)} className="w-36" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Até</Label>
+              <Input type="date" value={ate} onChange={(e) => setAte(e.target.value)} className="w-36" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Margem mín. (%)</Label>
+              <InputPercentual value={margem} onChange={setMargem} className="w-24" />
+            </div>
+            <Button onClick={aplicar}>Aplicar</Button>
+            <Button variant="outline" onClick={() => exportar("xlsx")} disabled={exportando || dados.projetos.length === 0}>
+              <FileSpreadsheet className="size-4" /> XLSX
+            </Button>
+            <Button variant="outline" onClick={() => exportar("csv")} disabled={exportando || dados.projetos.length === 0}>
+              <Download className="size-4" /> CSV
+            </Button>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Até</Label>
-            <Input type="date" value={ate} onChange={(e) => setAte(e.target.value)} className="w-36" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Margem mín. (%)</Label>
-            <InputPercentual value={margem} onChange={setMargem} className="w-24" />
-          </div>
-          <Button onClick={aplicar}>Aplicar</Button>
-          <Button variant="outline" onClick={() => exportar("xlsx")} disabled={exportando || dados.projetos.length === 0}>
-            <FileSpreadsheet className="size-4" /> XLSX
-          </Button>
-          <Button variant="outline" onClick={() => exportar("csv")} disabled={exportando || dados.projetos.length === 0}>
-            <Download className="size-4" /> CSV
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi titulo="Receita" valor={brl(t.receita)} />

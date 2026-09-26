@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -260,13 +261,7 @@ export function AvisoGeralView({
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Novo aviso</h2>
-        <p className="text-sm text-muted-foreground">
-          Comunicado que aparece em tela cheia para o destinatário e (opcionalmente) exige confirmação de
-          leitura.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Novo aviso" descricao="Comunicado que aparece em tela cheia para o destinatário e (opcionalmente) exige confirmação de leitura." />
 
       <Card data-tour="aviso-mensagem" className="max-w-2xl">
         <CardHeader className="pb-2">

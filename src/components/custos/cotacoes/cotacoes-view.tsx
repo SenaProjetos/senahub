@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState } from "react";
 import Link from "next/link";
 import { Search, ClipboardList } from "lucide-react";
@@ -41,18 +42,20 @@ export function CotacoesView({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Cotações (RFQ)</h2>
-          <p className="text-sm text-muted-foreground">{total} solicitação(ões) de cotação.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" render={<Link href="/custos" />}>
-            Voltar
-          </Button>
-          <NovaRfqDialog />
-        </div>
-      </div>
+      <CabecalhoPagina
+        titulo="Cotações (RFQ)"
+        descricao={<>{total} solicitação(ões) de cotação.</>}
+        acoes={
+          <>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" render={<Link href="/custos" />}>
+              Voltar
+            </Button>
+            <NovaRfqDialog />
+          </div>
+          </>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex w-full max-w-sm items-center gap-2">

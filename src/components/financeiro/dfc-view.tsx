@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -53,26 +54,26 @@ export function DfcView({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">DFC — Fluxo de caixa</h2>
-          <p className="text-sm text-muted-foreground">
-            Método direto: movimentos confirmados por atividade. Variação do caixa no ano.
-          </p>
-        </div>
-        <Select value={String(ano)} onValueChange={(v) => router.push(`/financeiro/dfc?ano=${v ?? ano}`)}>
-          <SelectTrigger className="w-32">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {anos.map((a) => (
-              <SelectItem key={a} value={String(a)}>
-                {a}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <CabecalhoPagina
+        titulo="DFC — Fluxo de caixa"
+        descricao="Método direto: movimentos confirmados por atividade. Variação do caixa no ano."
+        acoes={
+          <>
+          <Select value={String(ano)} onValueChange={(v) => router.push(`/financeiro/dfc?ano=${v ?? ano}`)}>
+            <SelectTrigger className="w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {anos.map((a) => (
+                <SelectItem key={a} value={String(a)}>
+                  {a}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          </>
+        }
+      />
 
       <div className="grid gap-4 lg:grid-cols-3">
         {dfc.atividades.map((a) => (

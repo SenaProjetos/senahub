@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -55,47 +56,47 @@ export function FolhasView({ folhas }: { folhas: FolhaResumo[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Folha CLT</h2>
-          <p className="text-sm text-muted-foreground">
-            Histórico de holerites (mensal e 13º salário); fechar gera o custo na DRE (categoria 2.03).
-          </p>
-        </div>
-        <div className="flex items-end gap-2">
-          <Select value={tipo} items={ROTULO_TIPO_FOLHA} onValueChange={(v) => v && setTipo(v as TipoFolha)}>
-            <SelectTrigger className="w-36" aria-label="Tipo de folha">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TIPOS_FOLHA.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {ROTULO_TIPO_FOLHA[t]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input
-            type="number"
-            className="w-20"
-            value={mes}
-            min={1}
-            max={12}
-            onChange={(e) => setMes(e.target.value)}
-            aria-label="Mês"
-          />
-          <Input
-            type="number"
-            className="w-28"
-            value={ano}
-            onChange={(e) => setAno(e.target.value)}
-            aria-label="Ano"
-          />
-          <Button onClick={criar} disabled={pending}>
-            <Plus className="size-4" /> Nova folha
-          </Button>
-        </div>
-      </div>
+      <CabecalhoPagina
+        titulo="Folha CLT"
+        descricao="Histórico de holerites (mensal e 13º salário); fechar gera o custo na DRE (categoria 2.03)."
+        acoes={
+          <>
+          <div className="flex items-end gap-2">
+            <Select value={tipo} items={ROTULO_TIPO_FOLHA} onValueChange={(v) => v && setTipo(v as TipoFolha)}>
+              <SelectTrigger className="w-36" aria-label="Tipo de folha">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TIPOS_FOLHA.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {ROTULO_TIPO_FOLHA[t]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              type="number"
+              className="w-20"
+              value={mes}
+              min={1}
+              max={12}
+              onChange={(e) => setMes(e.target.value)}
+              aria-label="Mês"
+            />
+            <Input
+              type="number"
+              className="w-28"
+              value={ano}
+              onChange={(e) => setAno(e.target.value)}
+              aria-label="Ano"
+            />
+            <Button onClick={criar} disabled={pending}>
+              <Plus className="size-4" /> Nova folha
+            </Button>
+          </div>
+          </>
+        }
+      />
 
       <div className="rounded-sm border">
         <Table>

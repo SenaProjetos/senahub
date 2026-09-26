@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -161,13 +162,7 @@ export function ImportadorView({ importacoes }: { importacoes: ImportacaoItem[] 
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Importar dados financeiros</h2>
-        <p className="text-sm text-muted-foreground">
-          Migre uma planilha do Meu Dinheiro (ou outro ERP). Os cadastros referenciados são criados
-          automaticamente.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Importar dados financeiros" descricao="Migre uma planilha do Meu Dinheiro (ou outro ERP). Os cadastros referenciados são criados automaticamente." />
 
       <Passos step={step} />
 

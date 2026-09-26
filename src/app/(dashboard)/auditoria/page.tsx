@@ -1,3 +1,4 @@
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { listarAuditoria } from "@/modules/auditoria/queries";
@@ -35,12 +36,7 @@ export default async function AuditoriaPage({
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Auditoria</h2>
-        <p className="text-sm text-muted-foreground">
-          Registro imutável de toda atividade do sistema. {data.total} eventos.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Auditoria" descricao={<>Registro imutável de toda atividade do sistema. {data.total} eventos.</>} />
       <AuditoriaTabela data={data} filtro={sp} />
     </div>
   );

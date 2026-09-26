@@ -1,3 +1,4 @@
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { fluxoCaixa, projecaoCaixa } from "@/modules/financeiro/caixa/queries";
@@ -28,10 +29,7 @@ export default async function FluxoCaixaPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Fluxo de caixa</h2>
-        <p className="text-sm text-muted-foreground">Saldos e movimentos confirmados.</p>
-      </div>
+      <CabecalhoPagina titulo="Fluxo de caixa" descricao="Saldos e movimentos confirmados." />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>

@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Plus, Trash2, Save } from "lucide-react";
@@ -367,13 +368,7 @@ function AbaUsuario({
 export function EscalasView({ gradesPorContratacao, usuarios, escalasPorUsuario }: Props) {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">Escalas de trabalho</h1>
-        <p className="text-sm text-muted-foreground">
-          Jornada esperada por contratação, com opção de personalizar por usuário. Usada no banco de horas, no
-          espelho de ponto e nos alertas de jornada.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Escalas de trabalho" descricao="Jornada esperada por contratação, com opção de personalizar por usuário. Usada no banco de horas, no espelho de ponto e nos alertas de jornada." />
       <Tabs defaultValue="contratacao">
         <TabsList>
           <TabsTrigger value="contratacao">Por contratação</TabsTrigger>

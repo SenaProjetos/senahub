@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -64,12 +65,7 @@ export function ConciliacaoView({
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Conciliação bancária</h2>
-        <p className="text-sm text-muted-foreground">
-          Importe o extrato OFX; o sistema concilia automaticamente os valores que batem.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Conciliação bancária" descricao="Importe o extrato OFX; o sistema concilia automaticamente os valores que batem." />
 
       <Card>
         <CardHeader className="pb-3">

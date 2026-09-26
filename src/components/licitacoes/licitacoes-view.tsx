@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useEffect, useState, useTransition } from "react";
 import { formatarData } from "@/lib/utils";
 import Link from "next/link";
@@ -42,7 +43,10 @@ export function LicitacoesView({
   pages,
   pageSize,
   filtro,
+  resumo,
 }: {
+  /** Cartões de resumo: vêm depois do cabeçalho (que precisa ser o 1º elemento da página). */
+  resumo?: React.ReactNode;
   licitacoes: ResumoLicitacao[];
   podeGerir: boolean;
   total: number;
@@ -130,46 +134,47 @@ export function LicitacoesView({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Licitações</h2>
-          <p className="text-sm text-muted-foreground">
-            {total} processo(s){total > 0 && ` · exibindo ${inicio}–${fim}`}.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link href="/guias/gestao">
-            <Button variant="secondary">
-              <BookOpenText className="size-4" /> Guia de uso
-            </Button>
-          </Link>
-          <Link href="/licitacoes/sancoes">
-            <Button variant="outline">Sanções</Button>
-          </Link>
-          {(() => {
-            const exportQs = new URLSearchParams();
-            if (filtro.status.length) exportQs.set("status", filtro.status.join(","));
-            if (filtro.orgao) exportQs.set("orgao", filtro.orgao);
-            if (filtro.q) exportQs.set("q", filtro.q);
-            const exportUrl = `/api/licitacoes/export/xlsx${exportQs.toString() ? `?${exportQs}` : ""}`;
-            return (
-              <Button
-                variant="outline"
-                size="sm"
-                render={<a href={exportUrl} />}
-                nativeButton={false}
-              >
-                Exportar Excel
+      <CabecalhoPagina
+        titulo="Licitações"
+        descricao={<>{total} processo(s){total > 0 && ` · exibindo ${inicio}–${fim}`}.</>}
+        acoes={
+          <>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/guias/gestao">
+              <Button variant="secondary">
+                <BookOpenText className="size-4" /> Guia de uso
               </Button>
-            );
-          })()}
-          {podeGerir && (
-            <Button onClick={() => setDialogNova(true)}>
-              <Plus className="size-4" /> Nova licitação
-            </Button>
-          )}
-        </div>
-      </div>
+            </Link>
+            <Link href="/licitacoes/sancoes">
+              <Button variant="outline">Sanções</Button>
+            </Link>
+            {(() => {
+              const exportQs = new URLSearchParams();
+              if (filtro.status.length) exportQs.set("status", filtro.status.join(","));
+              if (filtro.orgao) exportQs.set("orgao", filtro.orgao);
+              if (filtro.q) exportQs.set("q", filtro.q);
+              const exportUrl = `/api/licitacoes/export/xlsx${exportQs.toString() ? `?${exportQs}` : ""}`;
+              return (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  render={<a href={exportUrl} />}
+                  nativeButton={false}
+                >
+                  Exportar Excel
+                </Button>
+              );
+            })()}
+            {podeGerir && (
+              <Button onClick={() => setDialogNova(true)}>
+                <Plus className="size-4" /> Nova licitação
+              </Button>
+            )}
+          </div>
+          </>
+        }
+      />
+      {resumo}
 
       {/* Filtros */}
       <div className="space-y-2">

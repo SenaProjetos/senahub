@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { FiltrosGaveta } from "@/components/ui/filtros-gaveta";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import { formatarData } from "@/lib/utils";
@@ -187,43 +188,43 @@ export function TarefasBoard({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Tarefas</h2>
-          <p className="text-sm text-muted-foreground">
-            Kanban com dependências — tarefas bloqueadas só concluem após as dependências.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center rounded-sm border p-0.5">
-            <Button
-              type="button"
-              variant={vista === "quadro" ? "secondary" : "ghost"}
-              size="icon"
-              className="size-7"
-              aria-label="Visão em quadro"
-              aria-pressed={vista === "quadro"}
-              onClick={() => setParams({ vista: null })}
-            >
-              <LayoutGrid className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant={vista === "lista" ? "secondary" : "ghost"}
-              size="icon"
-              className="size-7"
-              aria-label="Visão em lista"
-              aria-pressed={vista === "lista"}
-              onClick={() => setParams({ vista: "lista" })}
-            >
-              <List className="size-4" />
+      <CabecalhoPagina
+        titulo="Tarefas"
+        descricao="Kanban com dependências — tarefas bloqueadas só concluem após as dependências."
+        acoes={
+          <>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center rounded-sm border p-0.5">
+              <Button
+                type="button"
+                variant={vista === "quadro" ? "secondary" : "ghost"}
+                size="icon"
+                className="size-7"
+                aria-label="Visão em quadro"
+                aria-pressed={vista === "quadro"}
+                onClick={() => setParams({ vista: null })}
+              >
+                <LayoutGrid className="size-4" />
+              </Button>
+              <Button
+                type="button"
+                variant={vista === "lista" ? "secondary" : "ghost"}
+                size="icon"
+                className="size-7"
+                aria-label="Visão em lista"
+                aria-pressed={vista === "lista"}
+                onClick={() => setParams({ vista: "lista" })}
+              >
+                <List className="size-4" />
+              </Button>
+            </div>
+            <Button onClick={() => setDialog({ nova: true })}>
+              <Plus className="size-4" /> Nova tarefa
             </Button>
           </div>
-          <Button onClick={() => setDialog({ nova: true })}>
-            <Plus className="size-4" /> Nova tarefa
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <Input

@@ -1,3 +1,4 @@
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { GanttChart, Rocket, ListTree } from "lucide-react";
@@ -20,17 +21,17 @@ export default async function PlanejamentoPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Planejamento</h2>
-          <p className="text-sm text-muted-foreground">
-            EAP e cronograma (gantt) por projeto, com linha de base. Selecione um projeto.
-          </p>
-        </div>
-        <Button variant="outline" size="sm" render={<Link href="/planejamento/cronograma" />}>
-          <GanttChart className="size-4" /> Cronograma geral
-        </Button>
-      </div>
+      <CabecalhoPagina
+        titulo="Planejamento"
+        descricao="EAP e cronograma (gantt) por projeto, com linha de base. Selecione um projeto."
+        acoes={
+          <>
+          <Button variant="outline" size="sm" render={<Link href="/planejamento/cronograma" />}>
+            <GanttChart className="size-4" /> Cronograma geral
+          </Button>
+          </>
+        }
+      />
 
       {projetos.length === 0 ? (
         <Card>

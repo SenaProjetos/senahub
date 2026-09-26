@@ -1,3 +1,4 @@
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { catalogosAdmin } from "@/modules/rh/catalogos/queries";
@@ -13,12 +14,7 @@ export default async function CatalogosPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">Cargos e departamentos</h1>
-        <p className="text-sm text-muted-foreground">
-          As listas que aparecem no cadastro das pessoas. Item em uso não pode ser excluído — arquive-o.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Cargos e departamentos" descricao="As listas que aparecem no cadastro das pessoas. Item em uso não pode ser excluído — arquive-o." />
       <CatalogosView catalogos={catalogos} />
     </div>
   );

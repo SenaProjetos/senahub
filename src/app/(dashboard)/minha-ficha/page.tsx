@@ -1,3 +1,4 @@
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
@@ -76,13 +77,7 @@ export default async function MinhaFichaPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">Minha conta</h1>
-        <p className="text-sm text-muted-foreground">
-          Seus dados de cadastro, ponto, ausências, escala e preferências num só lugar. Contato e endereço você mesmo pode alterar — as
-          mudanças passam por validação do RH. Contas bancárias são cadastradas pelo RH.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Minha conta" descricao="Seus dados de cadastro, ponto, ausências, escala e preferências num só lugar. Contato e endereço você mesmo pode alterar — as mudanças passam por validação do RH. Contas bancárias são cadastradas pelo RH." />
 
       {acesso && <MeuAcesso acesso={acesso} />}
 

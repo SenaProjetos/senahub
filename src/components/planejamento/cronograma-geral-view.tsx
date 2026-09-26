@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { ZoomIn, ZoomOut, Flag, ListTree, Search } from "lucide-react";
@@ -53,23 +54,23 @@ export function CronogramaGeralView({ projetos }: { projetos: ProjetoCron[] }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Cronograma geral</h2>
-          <p className="text-sm text-muted-foreground">
-            {visiveis.length} de {projetos.length} projeto(s) · barra clara = previsto, faixa inferior = linha de base.
-          </p>
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="mr-1 text-xs text-muted-foreground">Zoom</span>
-          <Button size="icon-sm" variant="outline" aria-label="Diminuir zoom" onClick={() => setPx((p) => Math.max(4, p - 3))} disabled={px <= 4}>
-            <ZoomOut className="size-3.5" />
-          </Button>
-          <Button size="icon-sm" variant="outline" aria-label="Aumentar zoom" onClick={() => setPx((p) => Math.min(48, p + 3))} disabled={px >= 48}>
-            <ZoomIn className="size-3.5" />
-          </Button>
-        </div>
-      </div>
+      <CabecalhoPagina
+        titulo="Cronograma geral"
+        descricao={<>{visiveis.length} de {projetos.length} projeto(s) · barra clara = previsto, faixa inferior = linha de base.</>}
+        acoes={
+          <>
+          <div className="flex items-center gap-1">
+            <span className="mr-1 text-xs text-muted-foreground">Zoom</span>
+            <Button size="icon-sm" variant="outline" aria-label="Diminuir zoom" onClick={() => setPx((p) => Math.max(4, p - 3))} disabled={px <= 4}>
+              <ZoomOut className="size-3.5" />
+            </Button>
+            <Button size="icon-sm" variant="outline" aria-label="Aumentar zoom" onClick={() => setPx((p) => Math.min(48, p + 3))} disabled={px >= 48}>
+              <ZoomIn className="size-3.5" />
+            </Button>
+          </div>
+          </>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative max-w-xs flex-1">

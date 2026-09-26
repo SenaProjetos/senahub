@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -117,22 +118,24 @@ export function PatrimonioView({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Patrimônio</h2>
-          <p className="text-sm text-muted-foreground">{ativos.length} ativo(s) no inventário.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" render={<a href="/api/patrimonio/export" download />}>
-            <Download className="size-4" /> Exportar XLSX
-          </Button>
-          {podeGerir && (
-            <Button onClick={() => abrir("novo")}>
-              <Plus className="size-4" /> Novo ativo
+      <CabecalhoPagina
+        titulo="Patrimônio"
+        descricao={<>{ativos.length} ativo(s) no inventário.</>}
+        acoes={
+          <>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" render={<a href="/api/patrimonio/export" download />}>
+              <Download className="size-4" /> Exportar XLSX
             </Button>
-          )}
-        </div>
-      </div>
+            {podeGerir && (
+              <Button onClick={() => abrir("novo")}>
+                <Plus className="size-4" /> Novo ativo
+              </Button>
+            )}
+          </div>
+          </>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex max-w-xs flex-1 items-center gap-2">

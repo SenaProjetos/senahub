@@ -1,3 +1,4 @@
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
@@ -190,10 +191,7 @@ export default async function ConfiguracoesPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Configurações</h2>
-        <p className="text-sm text-muted-foreground">Administração do sistema.</p>
-      </div>
+      <CabecalhoPagina titulo="Configurações" descricao="Administração do sistema." />
 
       {GRUPOS.map((grupo) => (
         <section key={grupo.titulo} className="space-y-3">

@@ -35,8 +35,8 @@ export default async function LicitacoesPage({
   ]);
   return (
     <div className="space-y-5">
-      <DashboardLicitacoes data={dash} />
       <LicitacoesView
+        resumo={<DashboardLicitacoes data={dash} />}
         podeGerir={podeGerir}
         licitacoes={data.rows}
         total={data.total}

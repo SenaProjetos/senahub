@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { PlanoContasSection } from "./plano-contas-section";
@@ -60,12 +61,7 @@ export function CadastrosView({
 }) {
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Cadastros financeiros</h2>
-        <p className="text-sm text-muted-foreground">
-          Plano de contas, contas bancárias, fornecedores, sócios e auxiliares.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Cadastros financeiros" descricao="Plano de contas, contas bancárias, fornecedores, sócios e auxiliares." />
 
       <Tabs defaultValue="plano">
         <TabsList className="flex-wrap">

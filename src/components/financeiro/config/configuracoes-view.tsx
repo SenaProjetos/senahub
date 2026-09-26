@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -56,10 +57,7 @@ export function ConfiguracoesView({
 
   return (
     <div className="max-w-2xl space-y-6">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Configurações financeiras</h2>
-        <p className="text-sm text-muted-foreground">Regras do módulo financeiro.</p>
-      </div>
+      <CabecalhoPagina titulo="Configurações financeiras" descricao="Regras do módulo financeiro." />
 
       <Card>
         <CardHeader>

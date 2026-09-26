@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useRef, useState, useTransition } from "react";
 import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
@@ -50,17 +51,17 @@ export function RhView({
         `requireRole` da própria página (`(dashboard)/rh/page.tsx`) já admite só papéis internos —
         `cliente` nem chega aqui. Um gate a mais seria código morto.
       */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">RH</h2>
-          <p className="text-sm text-muted-foreground">
-            {podeSolicitarFerias ? "Abono, férias e clima." : "Abono e clima."}
-          </p>
-        </div>
-        <Button variant="secondary" size="sm" render={<Link href="/guias/rh-ponto" />}>
-          <BookOpenText className="size-4" /> Guia de uso
-        </Button>
-      </div>
+      <CabecalhoPagina
+        titulo="RH"
+        descricao={<>{podeSolicitarFerias ? "Abono, férias e clima." : "Abono e clima."}</>}
+        acoes={
+          <>
+          <Button variant="secondary" size="sm" render={<Link href="/guias/rh-ponto" />}>
+            <BookOpenText className="size-4" /> Guia de uso
+          </Button>
+          </>
+        }
+      />
 
       <ClimaCard humorAtual={humorAtual} />
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -237,29 +238,19 @@ export function RecursosMatrix({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Matriz de recursos</h2>
-          <p className="text-sm text-muted-foreground">
-            Alocação por pessoa × projeto. Capacidade é o multiplicador (1,0 = jornada cheia).
-            {totalSuper > 0 && (
-              <span className="ml-1 text-destructive">
-                {totalSuper} superalocado(s) hoje.
-              </span>
-            )}
-            {totalSuperJanela > 0 && (
-              <span className="ml-1 text-warning">
-                {totalSuperJanela} na janela de análise.
-              </span>
-            )}
-          </p>
-        </div>
-        {podeGerir && usuariosSemRecurso.length > 0 && (
-          <Button size="sm" onClick={() => setNovoOpen(true)}>
-            <UserPlus className="size-3.5" /> Adicionar recurso
-          </Button>
-        )}
-      </div>
+      <CabecalhoPagina
+        titulo="Matriz de recursos"
+        descricao={<>Alocação por pessoa × projeto. Capacidade é o multiplicador (1,0 = jornada cheia). {totalSuper > 0 && ( <span className="ml-1 text-destructive"> {totalSuper} superalocado(s) hoje. </span> )} {totalSuperJanela > 0 && ( <span className="ml-1 text-warning"> {totalSuperJanela} na janela de análise. </span> )}</>}
+        acoes={
+          <>
+          {podeGerir && usuariosSemRecurso.length > 0 && (
+            <Button size="sm" onClick={() => setNovoOpen(true)}>
+              <UserPlus className="size-3.5" /> Adicionar recurso
+            </Button>
+          )}
+          </>
+        }
+      />
 
       {/* Controles: filtro por projeto + janela de análise + alternância de visão */}
       <div className="flex flex-wrap items-center gap-3">

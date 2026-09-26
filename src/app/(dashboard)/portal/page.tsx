@@ -1,3 +1,4 @@
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
 import { formatarData } from "@/lib/utils";
 import Link from "next/link";
@@ -39,10 +40,7 @@ export default async function PortalPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Meus projetos</h2>
-        <p className="text-sm text-muted-foreground">Acompanhe o andamento dos seus projetos.</p>
-      </div>
+      <CabecalhoPagina titulo="Meus projetos" descricao="Acompanhe o andamento dos seus projetos." />
 
       {projetos.length === 0 ? (
         <Card>
