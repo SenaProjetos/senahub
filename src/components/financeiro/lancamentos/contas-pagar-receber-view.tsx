@@ -410,7 +410,7 @@ export function ContasPagarReceberView({
 
       {tab === "receita" && topoReceita}
 
-      <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
         {/* coluna esquerda */}
         <div className="space-y-4">
           <PeriodoCard
@@ -520,7 +520,7 @@ export function ContasPagarReceberView({
           <DicaMenuContexto />
 
           {/* lista */}
-          <div ref={printRef} className="rounded-sm border">
+          <div ref={printRef} className="overflow-x-auto rounded-sm border *:min-w-[37.5rem]">
             <div className="grid grid-cols-[28px_96px_1fr_140px_120px_140px] gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
               <span />
               <span>Vencimento</span>

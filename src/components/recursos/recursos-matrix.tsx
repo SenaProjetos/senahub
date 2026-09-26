@@ -385,7 +385,7 @@ export function RecursosMatrix({
         )}
 
         {/* N-31: Janela de análise */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
             Janela
           </span>

@@ -57,7 +57,7 @@ export function RelatoriosView({
         descricao="DRE com análise vertical (AV), horizontal (AH) e EBITDA. Só o DRE respeita o regime escolhido abaixo — os demais cartões desta página são sempre confirmados por caixa."
         acoes={
           <>
-          <div className="flex items-end gap-2">
+          <div className="flex flex-wrap items-end gap-2">
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">De</Label>
               <Input type="date" value={de} onChange={(e) => setDe(e.target.value)} className="w-40" />

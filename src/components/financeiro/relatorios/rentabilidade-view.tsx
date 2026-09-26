@@ -73,7 +73,7 @@ export function RentabilidadeView({
         descricao="DRE por projeto. Indiretos (despesas sem projeto) rateados pela receita."
         acoes={
           <>
-          <div className="flex items-end gap-2">
+          <div className="flex flex-wrap items-end gap-2">
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">De</Label>
               <Input type="date" value={de} onChange={(e) => setDe(e.target.value)} className="w-36" />
