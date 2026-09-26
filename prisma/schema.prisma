@@ -61,6 +61,8 @@ enum TipoUsuario {
 
 model User {
   id            String  @id @default(cuid())
+  /// Modelos de EAP que esta pessoa importou (decisão #5).
+  modelosEap    ModeloEap[] @relation("ModeloEapAutor")
   /// Nome de EXIBIÇÃO — mostrado nas telas (o usuário pode escolher/encurtar o próprio).
   name          String
   /// Nome COMPLETO (cadastro/documentos formais: holerite, contrato, NF). Cai em `name` quando vazio.
@@ -1201,6 +1203,11 @@ model Projeto {
   /// Código de exibição AAXXXX (ex.: 260142).
   codigo         String          @unique
   tipo           TipoProjeto     @default(particular)
+  /// Tipo de Empreendimento (D13): sugere o modelo de EAP na criação e vem preenchido quando o
+  /// projeto nasce de uma negociação. NULO no banco de propósito — a tabela já tem projeto, e
+  /// "obrigatório na criação" é regra do formulário, não do banco (projeto antigo não se inventa).
+  tipoEmpreendimentoId String?
+  tipoEmpreendimento   TipoEmpreendimento? @relation(fields: [tipoEmpreendimentoId], references: [id], onDelete: SetNull)
   situacao       SituacaoProjeto @default(em_andamento)
   nome           String
   descricao      String?
@@ -1289,6 +1296,7 @@ model Projeto {
   @@index([clienteId])
   @@index([situacao])
   @@index([negociacaoId])
+  @@index([tipoEmpreendimentoId])
   @@map("projeto")
 }
 
@@ -5074,15 +5082,60 @@ model MetaComercial {
 // fabricar duas fontes de verdade concorrentes.
 // ─────────────────────────────────────────────────────────────
 
-/// Tipo de empreendimento da negociação (residencial, galpão, hospital…).
+/// Tipo de empreendimento (residencial, galpão, hospital…). Nasceu na negociação (CRM) e agora
+/// também classifica o PROJETO (D13) e o modelo de EAP que ele sugere (decisão #5): o projeto que vem
+/// de uma negociação já chega com o tipo dela preenchido.
 model TipoEmpreendimento {
   id          String       @id @default(cuid())
   nome        String       @unique
   ativo       Boolean      @default(true)
   ordem       Int          @default(0)
   negociacoes Negociacao[]
+  projetos    Projeto[]
+  modelosEap  ModeloEap[]
 
   @@map("tipo_empreendimento")
+}
+
+/// De onde a estrutura do modelo veio — o que muda o que se pode esperar dela ao revisar.
+enum OrigemModeloEap {
+  mspdi // Arquivo XML do MS Project
+  projeto // Copiado de um projeto do sistema
+}
+
+/// Modelo de EAP (decisão #5): a estrutura de cronograma que a casa reusa em projeto novo, montada a
+/// partir de um XML do MS Project. O Tipo de Empreendimento do projeto sugere qual usar (D13).
+///
+/// A estrutura vive em UMA coluna JSON, não em duas tabelas (linhas + vínculos), porque o modelo é
+/// lido e gravado INTEIRO, nunca consultado linha a linha, e a autoria continua no MS Project —
+/// "editar o modelo" é reimportar o arquivo. A forma do JSON é validada por Zod em
+/// `modules/planejamento/modelos/estrutura.ts`, que é também a entrada da função que aplica o modelo.
+/// Se algum dia a casa quiser editar linha a linha AQUI, aí vale trocar por tabela.
+///
+/// O que o JSON NÃO guarda: nenhum id de disciplina do projeto (ele é global, serve para qualquer
+/// projeto), datas, progresso, pessoas ou horas. Disciplina e fase entram como id de CATÁLOGO, e são
+/// reconferidos na hora de aplicar.
+model ModeloEap {
+  id                   String              @id @default(cuid())
+  nome                 String
+  descricao            String?
+  tipoEmpreendimentoId String?
+  tipoEmpreendimento   TipoEmpreendimento? @relation(fields: [tipoEmpreendimentoId], references: [id], onDelete: SetNull)
+  origem               OrigemModeloEap     @default(mspdi)
+  /// Arquivo de onde a estrutura saiu — a primeira pergunta de quem revisa o modelo.
+  arquivoNome          String?
+  estrutura            Json
+  /// Números repetidos fora do JSON para a lista não precisar abri-lo.
+  totalLinhas          Int                 @default(0)
+  totalMarcos          Int                 @default(0)
+  ativo                Boolean             @default(true)
+  autorId              String?
+  autor                User?               @relation("ModeloEapAutor", fields: [autorId], references: [id], onDelete: SetNull)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@index([tipoEmpreendimentoId])
+  @@map("modelo_eap")
 }
 
 /// Motivo padronizado de perda — substitui o `Lead.motivoPerda` de texto livre.
