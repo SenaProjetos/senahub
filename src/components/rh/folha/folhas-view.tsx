@@ -61,7 +61,7 @@ export function FolhasView({ folhas }: { folhas: FolhaResumo[] }) {
         descricao="Histórico de holerites (mensal e 13º salário); fechar gera o custo na DRE (categoria 2.03)."
         acoes={
           <>
-          <div className="flex items-end gap-2">
+          <div className="flex flex-wrap items-end gap-2">
             <Select value={tipo} items={ROTULO_TIPO_FOLHA} onValueChange={(v) => v && setTipo(v as TipoFolha)}>
               <SelectTrigger className="w-36" aria-label="Tipo de folha">
                 <SelectValue />

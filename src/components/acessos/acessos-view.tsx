@@ -94,7 +94,7 @@ export function AcessosView({
             Central de contas, portais, softwares e licenças da empresa
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {podeCategorias && (
             <Button variant="outline" render={<Link href="/acessos/categorias" />}>
               <Tags className="size-4" aria-hidden />
