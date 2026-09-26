@@ -49,6 +49,17 @@ projeto tem 40 h concluídas (VA = 40), tendo gasto 50 h (CR = 50). IDP = 40 ÷ 
 do combinado) e IDC = 40 ÷ 50 = **0,80** (cada hora gasta rendeu 80% do previsto). ENT = 100 ÷ 0,80 =
 **125 h**: no ritmo atual, faltam 25 h além do orçado.
 
+## O custo real: duas fontes, cada pessoa em uma
+
+- **Quem recebe por hora** (CLT, estágio) entra pelas **horas apontadas × custo/hora**.
+- **Quem tem pagamento liberado no projeto** (PJ, freelancer pago por entrega) entra pelo **valor do
+  pagamento** liberado até a Data de Status — e as horas dessa pessoa **não** contam em R$, senão o mesmo
+  trabalho contaria duas vezes.
+- Em **horas**, todo mundo conta igual: hora apontada é hora trabalhada.
+
+O quadro avisa quanto do custo real veio de pagamento. Pagamento liberado **depois** da Data de Status
+não entra — o custo real é o que já aconteceu.
+
 ## Duas colunas: Horas e R$
 
 - **Horas** — para quem acompanha o cronograma. Orçamento = **horas previstas** congeladas na linha
@@ -110,10 +121,6 @@ de Status naquele momento), então reapurar uma data passada devolve o mesmo nú
 - **A linha de base não se move** com as datas reais: é o combinado. As datas reais e a Data de Status
   movem a **previsão** do cronograma, mas o Valor Agregado mede contra a linha de base. A estimativa no
   término é só de **custo** (ENT/VNT) — ainda não há estimativa de **prazo** pelo ritmo observado.
-- **Não conta o pagamento de PJ por entrega** no real. Quem não aponta horas (freelancer ou PJ pago
-  por entrega) não aparece no CR; o que a empresa paga a ele está no financeiro
-  ([Produção](../financeiro/producao.md)). Em projeto tocado principalmente por PJ, o IDC tende a
-  parecer melhor do que é.
 - **Mede contra a linha de base mais recente.** Depois de **replanejar**, a régua passa a ser a
   nova versão (BL-01, BL-02…).
 

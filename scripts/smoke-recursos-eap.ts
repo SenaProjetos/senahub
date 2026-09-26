@@ -89,6 +89,10 @@ async function main() {
     const T = await prisma.eapTarefa.create({
       data: { ...base, parentId: R.id, nome: "Aprovação do cliente", tipoEap: "atv", duracaoDias: 10, ordem: 3, origemId: cli.id },
     });
+    // Decisão #1 (2026-09-25): etapa de terceiro é marcada pelo RECURSO "Externo", não mais pela origem
+    // da linha. A origem fica no cadastro (é de onde veio a demanda), mas quem diz "ninguém daqui
+    // executa" é esta atribuição.
+    await prisma.eapAtribuicao.create({ data: { tarefaId: T.id, papel: "ext", horasPrevistas: 0 } });
     const M = await prisma.eapTarefa.create({ data: { ...base, parentId: R.id, nome: "Entrega", tipoEap: "mrc", duracaoDias: 0, ordem: 4 } });
     await prisma.eapDependencia.createMany({
       data: [
@@ -100,7 +104,14 @@ async function main() {
 
     // ── 1. Herança ─────────────────────────────────────────────────────────
     const herdadas = await herdarResponsaveisNoProjeto(prisma, projeto.id);
-    check("herança: 2 responsáveis × 4 linhas executáveis (atividades + marco)", herdadas === 8, herdadas);
+    check("herança: 2 responsáveis × 3 linhas executáveis (a de terceiro fica fora)", herdadas === 6, herdadas);
+    // Decisão #1: a linha marcada como etapa de terceiro já tem atribuição (o "Externo"), então a herança
+    // não a toca — ninguém da casa é escalado para esperar o cliente.
+    check(
+      "herança: a linha de terceiro fica só com o Externo",
+      (await prisma.eapAtribuicao.count({ where: { tarefaId: T.id, userId: { not: null } } })) === 0,
+      await prisma.eapAtribuicao.findMany({ where: { tarefaId: T.id }, select: { papel: true, userId: true } }),
+    );
     check("herança: o agrupamento não recebe ninguém", (await prisma.eapAtribuicao.count({ where: { tarefaId: R.id } })) === 0);
     const principalA = await prisma.eapAtribuicao.findFirst({ where: { tarefaId: A.id, principal: true } });
     check("herança: principal é o primeiro por nome", principalA?.userId === pjA.id, principalA?.userId);
@@ -220,6 +231,44 @@ async function main() {
       ec?.ont === 7200 && ec.va === 2000 && ec.cr === 1000 && ec.idc === 2,
       ec,
     );
+    // Decisão #16: pagamento liberado ao PJ entra no custo real, e as horas DELE saem do R$ (senão o
+    // mesmo trabalho conta duas vezes). Em horas nada muda.
+    const pagamento = await prisma.pagamentoProjetista.create({
+      data: {
+        disciplinaId: disciplina.id,
+        projetistaId: pjA.id,
+        valor: 3000,
+        tipoProfissional: "projetista_pj",
+        liberadoEm: new Date("2026-10-07T12:00:00.000Z"),
+      },
+      select: { id: true },
+    });
+    const evmPago = await valorAgregadoDoProjeto(projeto.id, { verCusto: true });
+    const ecPago = evmPago.ok && evmPago.custo?.ok ? evmPago.custo.indices : null;
+    const ehPago = evmPago.ok && evmPago.horas.ok ? evmPago.horas.indices : null;
+    check(
+      "decisão #16: CR em R$ = pagamento liberado (3000), sem as 10 h do PJ; em horas segue 10",
+      ecPago?.cr === 3000 && ehPago?.cr === 10,
+      { ecPago, ehPago },
+    );
+    check(
+      "e o quadro avisa que o pagamento entrou e as horas dele não",
+      evmPago.ok && evmPago.avisos.some((x) => /pago\(s\) por entrega/.test(x)),
+      evmPago.ok ? evmPago.avisos : evmPago,
+    );
+    // Pagamento liberado DEPOIS da Data de Status não conta (o custo é o que já aconteceu).
+    await prisma.pagamentoProjetista.update({
+      where: { id: pagamento.id },
+      data: { liberadoEm: new Date("2027-02-10T12:00:00.000Z") },
+    });
+    const evmFuturo = await valorAgregadoDoProjeto(projeto.id, { verCusto: true });
+    check(
+      "pagamento liberado depois da Data de Status não entra no custo real",
+      evmFuturo.ok && evmFuturo.custo?.ok && evmFuturo.custo.indices.cr === 1000,
+      evmFuturo.ok && evmFuturo.custo?.ok ? evmFuturo.custo.indices : evmFuturo,
+    );
+    await prisma.pagamentoProjetista.delete({ where: { id: pagamento.id } });
+
     const evmSemVer = await valorAgregadoDoProjeto(projeto.id, { verCusto: false });
     check("quem não vê financeiro: só horas", evmSemVer.ok && evmSemVer.custo === null && evmSemVer.horas.ok);
     // A apuração é fotografada (o % não guarda passado): refazer na mesma data atualiza, não duplica.

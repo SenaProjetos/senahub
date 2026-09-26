@@ -113,21 +113,41 @@ export async function valorAgregadoDoProjeto(
 
   const horas = calcularRegua({ regua: "horas", linhas, progresso, dataStatus, diasUteis, realizado: horasApontadas });
 
+  // Decisão #16 — o que o projeto JÁ CUSTOU em R$ tem duas fontes, e cada pessoa entra por UMA:
+  //  · quem recebe por hora (CLT, estágio): horas apontadas × custo/hora;
+  //  · quem recebe por entrega (PJ, freelancer): o PAGAMENTO liberado até a Data de Status.
+  // Somar os dois para a mesma pessoa contaria o mesmo trabalho duas vezes; deixar o PJ de fora dos dois
+  // (o que acontecia antes) fazia o IDC parecer melhor do que é justamente no projeto tocado por PJ.
+  // Em HORAS nada muda: hora apontada é hora trabalhada, de quem for.
+  const pagamentos = await prisma.pagamentoProjetista.findMany({
+    where: {
+      disciplina: { projetoId },
+      liberadoEm: { lt: new Date(`${diaSeguinte(dataStatus)}T00:00:00-03:00`) },
+    },
+    select: { projetistaId: true, valor: true },
+  });
+  const porEntrega = new Set(pagamentos.map((x) => x.projetistaId));
+  const totalPago = Math.round(pagamentos.reduce((s, x) => s + Math.round(Number(x.valor) * 100), 0)) / 100;
+
   let custo: ResultadoRegua | null = null;
   if (opcoes.verCusto) {
+    // Quem é pago por entrega NESTE projeto não precisa de custo/hora para o R$ — e não entra na conta
+    // por hora.
+    const porHora = [...minutosPorPessoa.entries()].filter(([u]) => !porEntrega.has(u));
     const taxas = new Map(
       (
         await prisma.recurso.findMany({
-          where: { userId: { in: [...minutosPorPessoa.keys()] }, custoHora: { not: null } },
+          where: { userId: { in: porHora.map(([u]) => u) }, custoHora: { not: null } },
           select: { userId: true, custoHora: true },
         })
       ).map((r) => [r.userId, Number(r.custoHora)]),
     );
-    const semTaxa = [...minutosPorPessoa.keys()].filter((u) => !taxas.has(u));
+    const semTaxa = porHora.filter(([u]) => !taxas.has(u));
     const realizado = semTaxa.length
       ? null
       : Math.round(
-          [...minutosPorPessoa.entries()].reduce((s, [u, m]) => s + Math.round((m / 60) * (taxas.get(u) as number) * 100), 0),
+          porHora.reduce((s, [u, m]) => s + Math.round((m / 60) * (taxas.get(u) as number) * 100), 0) +
+            Math.round(totalPago * 100),
         ) / 100;
     custo = calcularRegua({
       regua: "custo",
@@ -155,6 +175,11 @@ export async function valorAgregadoDoProjeto(
   if (excluidas > 0) avisos.push(`${excluidas} atividade(s) da linha de base foram excluídas e contam como não feitas.`);
   // Decisão #17: linha com avanço e sem nenhuma mudança registrada usa o % de HOJE, como antes do
   // histórico. Numa Data de Status passada isso deixa o VA otimista — e calado seria pior.
+  if (opcoes.verCusto && totalPago > 0) {
+    avisos.push(
+      `O custo real inclui ${porEntrega.size} projetista(s) pago(s) por entrega (R$ ${totalPago.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} liberados até a Data de Status). As horas apontadas por essas pessoas entram na régua de HORAS, mas não em R$ — senão o mesmo trabalho contaria duas vezes.`,
+    );
+  }
   const semHistoricoNaBase = semHistorico.filter((id) => naBaseline.has(id)).length;
   if (semHistoricoNaBase > 0) {
     avisos.push(

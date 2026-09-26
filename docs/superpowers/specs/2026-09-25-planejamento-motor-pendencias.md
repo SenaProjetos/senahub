@@ -96,7 +96,7 @@ texto de cada item continua adiante como histórico; o que vale é esta tabela.
 | 13 | Previsão no resultado | **incluir** no resultado previsto e no indicador | feito (`f44fcbbf`) |
 | 14 | Cobrança pelo projeto (contrato por data) | manter (só avisa) | — |
 | 15 | Custo/hora em Recursos | **esconder**; só edita quem gere o financeiro | feito (`00b942c6`, L7) |
-| 16 | Custo real no Valor Agregado | **somar** os pagamentos liberados ao PJ | pendente — dinheiro (Opus) |
+| 16 | Custo real no Valor Agregado | **somar** os pagamentos liberados ao PJ | feito (`smoke:recursos-eap`) |
 | 17 | % concluído no VA | **histórico** do percentual a cada atualização | feito (`EapProgressoRegistro`) |
 | 18 | % sem data real | manter (como o Project) | — |
 | 19 | Apurar reprograma | manter automático | — |
@@ -215,10 +215,14 @@ Como no Project, onde o custo de uma tarefa fica fixado quando ela é concluída
 
 ### Valor Agregado (F8)
 Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
-- **DECIDIR:** o custo real (CR) é o **apontado no ponto**. Pagamento de PJ por entrega **não**
-  entra: PJ que não aponta horas some do realizado, e o IDC fica otimista em projeto tocado por PJ.
-  A alternativa é somar os pagamentos liberados até a Data de Status — mas aí as horas desse PJ não
-  podem somar também.
+- ~~**DECIDIR:** o custo real (CR) é só o **apontado no ponto**; pagamento de PJ por entrega não entra.~~
+  **RESOLVIDO (decisão #16, 2026-09-26):** em R$, cada pessoa entra por UMA fonte — quem recebe por hora
+  (CLT, estágio) entra por horas apontadas × custo/hora; quem tem **pagamento liberado neste projeto**
+  entra pelo VALOR do pagamento, e as horas dele saem da conta em R$ (somar os dois contaria o mesmo
+  trabalho duas vezes). Em **horas** nada muda: hora apontada é hora trabalhada, de quem for. Só conta
+  pagamento liberado **até a Data de Status**. O quadro avisa quanto veio de pagamento e que as horas
+  dessas pessoas ficaram fora do R$. "Quem é pago por entrega" não é papel cadastrado: é quem TEM
+  pagamento liberado no projeto — o dado, não o rótulo.
 - ~~**DECIDIR:** o VA usa o % informado **de hoje** (o sistema não guarda histórico de %).~~
   **RESOLVIDO (decisão #17, 2026-09-26):** `EapProgressoRegistro` guarda uma linha por MUDANÇA de %, com o
   valor `anterior`, o autor, a origem (`informado` na edição / `execucao` nas datas reais) e a **Data de

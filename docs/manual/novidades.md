@@ -60,6 +60,10 @@ Depois de revisar o novo planejamento, o time decidiu alguns pontos. O que já e
   Executivo 60%, somando 100%): aplicando o modelo, essas fases são cadastradas nas disciplinas do
   projeto que ainda não têm fase, que é o que faz o marco marcar a fase como Entregue e o pagamento por
   fase funcionar.
+- **Custo real do Valor Agregado passa a contar o PJ:** quem recebe por entrega entra pelo **pagamento
+  liberado** até a Data de Status, e as horas dessa pessoa saem da conta em R$ (em horas continuam
+  contando). Antes o PJ não aparecia no custo real, e o índice de custo parecia melhor do que era em
+  projeto tocado por PJ.
 - **O Valor Agregado passa a usar o % da Data de Status, não o de hoje:** o sistema guarda o histórico
   do percentual concluído a cada atualização, então reapurar uma semana passada devolve o avanço que
   havia naquela semana. Atualizar os percentuais na segunda "referentes à sexta" continua valendo para a
