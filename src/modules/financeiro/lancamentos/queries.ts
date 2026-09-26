@@ -32,7 +32,8 @@ export async function listarLancamentos(opts?: {
   ate?: string;
   q?: string;
 }) {
-  const where: Prisma.LancamentoWhereInput = {};
+  // Previsão do cronograma (F7.2) não é lançamento do livro — vive na projeção de caixa e no contrato.
+  const where: Prisma.LancamentoWhereInput = { status: { not: "previsao" } };
   if (opts?.tipo) where.tipo = opts.tipo;
   if (opts?.status) where.status = opts.status;
   if (opts?.q) where.descricao = { contains: opts.q, mode: "insensitive" };
@@ -80,7 +81,12 @@ export async function opcoesLancamento() {
  */
 export async function dadosLivroCaixa() {
   const [rows, contas] = await Promise.all([
-    prisma.lancamento.findMany({ orderBy: [{ data: "asc" }, { createdAt: "asc" }], include: INCLUDE }),
+    // Todo status MENOS a previsão do cronograma (F7.2): ela não é lançamento, é projeção.
+    prisma.lancamento.findMany({
+      where: { status: { not: "previsao" } },
+      orderBy: [{ data: "asc" }, { createdAt: "asc" }],
+      include: INCLUDE,
+    }),
     prisma.contaBancaria.findMany({
       where: { ativo: true },
       orderBy: { ordem: "asc" },

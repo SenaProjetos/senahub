@@ -6,10 +6,20 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, AlertTriangle, Trash2, UserPlus, Users, LayoutGrid, CalendarRange, Scale } from "lucide-react";
 import { salvarRecurso, salvarAlocacao, removerAlocacao } from "@/modules/planejamento/actions";
+import type { CargaDaEquipe } from "@/modules/planejamento/recursos-queries";
+import { CargaPlanejadaView } from "@/components/recursos/carga-planejada-view";
 import { criarHabilidade, alternarHabilidadeUsuario } from "@/modules/rh/habilidades/actions";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { percentualAlocadoNoDia, superalocadoNaJanela as temSuperalocacaoNaJanela } from "@/modules/planejamento/disponibilidade";
+import {
+  colunasPorPeriodo,
+  percentualCalculadoPorSemana,
+  PERIODOS_HEATMAP,
+  picoDoMes,
+  type ColunaHeatmap,
+  type PeriodoHeatmap,
+} from "@/modules/planejamento/heatmap-recursos";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AvatarUsuario } from "@/components/ui/avatar-usuario";
@@ -41,6 +51,16 @@ type Alocacao = {
   fim: string | null;
   ativaHoje?: boolean;
   observacao: string | null;
+  /** Projeto com cronograma aprovado: a alocação vem das linhas da EAP e esta NÃO conta (D17). */
+  substituidaPeloCronograma?: boolean;
+};
+/** Alocação calculada das horas das linhas, na semana corrente, num projeto com cronograma aprovado. */
+type Calculada = {
+  projetoId: string;
+  projetoCodigo: string;
+  projetoNome: string;
+  horasSemana: number;
+  percentual: number | null;
 };
 type Linha = {
   recursoId: string;
@@ -60,6 +80,7 @@ type Linha = {
   alocadoHoje: number;
   superalocado: boolean;
   alocacoes: Alocacao[];
+  calculadas?: Calculada[];
 };
 type Projeto = { id: string; codigo: string; nome: string };
 
@@ -71,8 +92,9 @@ type Habilidade = { id: string; nome: string };
 // ── Heatmap (timeline) ──────────────────────────────────────────────
 // Agrega a alocação de cada pessoa por mês a partir dos períodos das
 // alocações. Sem período definido => conta como vigente em todos os meses
-// da janela (alocação "permanente").
-type MesCell = { ym: string; pct: number };
+// da janela (alocação "permanente"). Soma a carga CALCULADA das horas das
+// linhas dos cronogramas aprovados (L9) nas semanas que a carga planejada cobre.
+type HeatCell = { chave: string; pct: number; digitada: number; calculada: number };
 
 function ymKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -100,12 +122,17 @@ function diasDoMes(ym: string): string[] {
   return Array.from({ length: total }, (_, indice) => `${ym}-${String(indice + 1).padStart(2, "0")}`);
 }
 
+/** Hoje na data LOCAL (`toISOString` viraria o dia à noite, por causa do fuso). */
+function hojeLocalIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 /**
- * Constrói a janela de meses visível e a matriz pessoa→(mês→%).
- * A janela vai do mês mais antigo de início até o mais distante de fim;
+ * Colunas mensais: a janela vai do mês mais antigo de início até o mais distante de fim;
  * com fallback de [mês atual − 1, mês atual + 5] quando não há datas.
  */
-function montarHeatmap(linhas: Linha[]) {
+function colunasMensais(linhas: Linha[]): ColunaHeatmap[] {
   const hoje = new Date();
   let min: Date | null = null;
   let max: Date | null = null;
@@ -135,21 +162,43 @@ function montarHeatmap(linhas: Linha[]) {
     ? fimJanela
     : new Date(hoje.getFullYear(), hoje.getMonth() + 5, 1);
 
-  const meses = mesesEntre(de, ate);
+  return mesesEntre(de, ate).map((ym) => ({ chave: ym, rotulo: ymLabel(ym), titulo: ymLabel(ym), dias: diasDoMes(ym) }));
+}
+
+/**
+ * Colunas do período escolhido e a matriz pessoa→(coluna→%). A célula é o pior dia da coluna
+ * (`picoDoMes`), seja ela um mês, uma semana ou um dia.
+ */
+function montarHeatmap(
+  linhas: Linha[],
+  calculadaDe: (userId: string) => ReadonlyMap<string, number>,
+  periodo: PeriodoHeatmap,
+) {
+  const colunas = periodo === "meses" ? colunasMensais(linhas) : colunasPorPeriodo(periodo, hojeLocalIso());
   const matriz = linhas.map((l) => {
-    const cells: MesCell[] = meses.map((ym) => ({
-      ym,
-      pct: Math.max(0, ...diasDoMes(ym).map((dia) => percentualAlocadoNoDia(dia, l.alocacoes))),
-    }));
+    const cells: HeatCell[] = colunas.map((c) => {
+      const pico = picoDoMes(c.dias, (dia) => percentualAlocadoNoDia(dia, vigentes(l)), calculadaDe(l.userId));
+      return { chave: c.chave, pct: pico.total, digitada: pico.digitada, calculada: pico.calculada };
+    });
     return { linha: l, cells };
   });
 
-  return { meses, matriz };
+  return { colunas, matriz };
 }
 
 /** N-31: Verifica superalocação durante uma janela: qualquer mês com carga > capacidade. */
 function superalocadoNaJanela(l: Linha, inicio: string, fim: string): boolean {
-  return temSuperalocacaoNaJanela(inicio, fim, l.capacidadePct, l.alocacoes, l.indisponibilidades);
+  return temSuperalocacaoNaJanela(inicio, fim, l.capacidadePct, vigentes(l), l.indisponibilidades);
+}
+
+/**
+ * Alocações digitadas que AINDA contam: as de projeto com cronograma aprovado foram
+ * substituídas pelas horas das linhas (D17). Heatmap e "superalocado na janela" rodam aqui
+ * no cliente sobre a lista — sem este filtro contradiriam o total, que já as descarta. A
+ * carga dos projetos aprovados aparece na aba "Carga planejada".
+ */
+function vigentes(l: Linha): Alocacao[] {
+  return l.alocacoes.filter((a) => !a.substituidaPeloCronograma);
 }
 
 /** Cor graduada por ocupação: verde (folga) → amarelo (~100%) → vermelho (>100%). */
@@ -168,17 +217,25 @@ export function RecursosMatrix({
   projetos,
   usuariosSemRecurso,
   podeGerir,
+  verCusto,
+  editarCusto,
   catalogoHabilidades,
   habilidadesPorUser,
   cargaSemanal,
+  cargaPlanejada,
 }: {
   linhas: Linha[];
   projetos: Projeto[];
   usuariosSemRecurso: { id: string; name: string; role: string }[];
   podeGerir: boolean;
+  /** Vê a taxa (custo/hora): só com acesso ao financeiro. Sem ele o servidor a manda nula. */
+  verCusto: boolean;
+  /** Edita a taxa: `financeiro:gerir`. */
+  editarCusto: boolean;
   catalogoHabilidades: Habilidade[];
   habilidadesPorUser: Record<string, Habilidade[]>;
   cargaSemanal: CargaSemanal;
+  cargaPlanejada: CargaDaEquipe;
 }) {
   const router = useRouter();
   const [habDlg, setHabDlg] = useState<{ userId: string; nome: string } | null>(null);
@@ -197,7 +254,8 @@ export function RecursosMatrix({
   // Filtro por projeto, habilidade, alternância de visão e rebalanceamento.
   const [filtroProjeto, setFiltroProjeto] = useState(TODOS);
   const [filtroHabilidade, setFiltroHabilidade] = useState(TODOS);
-  const [vista, setVista] = useState<"matriz" | "heatmap" | "carga">("matriz");
+  const [vista, setVista] = useState<"matriz" | "heatmap" | "carga" | "planejada">("matriz");
+  const [periodoHeat, setPeriodoHeat] = useState<PeriodoHeatmap>("meses");
   const [rebalDlg, setRebalDlg] = useState<Linha | null>(null);
 
   // N-31: Janela de análise para superalocação futura (padrão: hoje + 90 dias).
@@ -219,9 +277,19 @@ export function RecursosMatrix({
   const linhasFiltradas = useMemo(() => {
     let base = linhas;
     if (filtroProjeto !== TODOS) {
+      // Casa também pela carga CALCULADA: quem está num projeto aprovado só pelas linhas da
+      // EAP não tem alocação digitada nele, e sumiria do filtro.
       base = base
-        .filter((l) => l.alocacoes.some((a) => a.projetoId === filtroProjeto))
-        .map((l) => ({ ...l, alocacoes: l.alocacoes.filter((a) => a.projetoId === filtroProjeto) }));
+        .filter(
+          (l) =>
+            l.alocacoes.some((a) => a.projetoId === filtroProjeto) ||
+            (l.calculadas ?? []).some((c) => c.projetoId === filtroProjeto),
+        )
+        .map((l) => ({
+          ...l,
+          alocacoes: l.alocacoes.filter((a) => a.projetoId === filtroProjeto),
+          calculadas: (l.calculadas ?? []).filter((c) => c.projetoId === filtroProjeto),
+        }));
     }
     if (filtroHabilidade !== TODOS) {
       base = base.filter((l) => (habilidadesPorUser[l.userId] ?? []).some((h) => h.id === filtroHabilidade));
@@ -229,9 +297,23 @@ export function RecursosMatrix({
     return base;
   }, [linhas, filtroProjeto, filtroHabilidade, habilidadesPorUser]);
 
-  const heat = useMemo(() => montarHeatmap(linhasFiltradas), [linhasFiltradas]);
+  const calculadaPorUser = useMemo(
+    () =>
+      new Map(
+        cargaPlanejada.pessoas.map((pessoa) => [pessoa.userId, percentualCalculadoPorSemana(pessoa, cargaPlanejada.projetosCalculados)]),
+      ),
+    [cargaPlanejada],
+  );
+  const heat = useMemo(
+    () => montarHeatmap(linhasFiltradas, (userId) => calculadaPorUser.get(userId) ?? new Map(), periodoHeat),
+    [linhasFiltradas, calculadaPorUser, periodoHeat],
+  );
 
   const totalSuper = linhasFiltradas.filter((l) => l.superalocado).length;
+  const projetosAprovados = useMemo(
+    () => new Set(cargaPlanejada.projetosCalculados),
+    [cargaPlanejada.projetosCalculados],
+  );
   const totalSuperJanela = useMemo(() => {
     return linhasFiltradas.filter((l) => superalocadoNaJanela(l, janelaIni, janelaFim)).length;
   }, [linhasFiltradas, janelaIni, janelaFim]);
@@ -240,15 +322,24 @@ export function RecursosMatrix({
     <div className="space-y-5">
       <CabecalhoPagina
         titulo="Matriz de recursos"
-        descricao={<>Alocação por pessoa × projeto. Capacidade é o multiplicador (1,0 = jornada cheia). {totalSuper > 0 && ( <span className="ml-1 text-destructive"> {totalSuper} superalocado(s) hoje. </span> )} {totalSuperJanela > 0 && ( <span className="ml-1 text-warning"> {totalSuperJanela} na janela de análise. </span> )}</>}
-        acoes={
+        descricao={
           <>
-          {podeGerir && usuariosSemRecurso.length > 0 && (
+            Alocação por pessoa × projeto. O % é da capacidade da própria pessoa: 100% é tudo o que ela dedica a projetos.
+            {totalSuper > 0 && <span className="ml-1 text-destructive">{totalSuper} superalocado(s) hoje.</span>}
+            {totalSuperJanela > 0 && <span className="ml-1 text-warning">{totalSuperJanela} na janela de análise.</span>}
+            {cargaPlanejada.sobrecargas.length > 0 && (
+              <button type="button" onClick={() => setVista("planejada")} className="ml-1 text-destructive underline-offset-2 hover:underline">
+                {cargaPlanejada.sobrecargas.length} semana(s) acima da capacidade na carga planejada.
+              </button>
+            )}
+          </>
+        }
+        acoes={
+          podeGerir && usuariosSemRecurso.length > 0 ? (
             <Button size="sm" onClick={() => setNovoOpen(true)}>
               <UserPlus className="size-3.5" /> Adicionar recurso
             </Button>
-          )}
-          </>
+          ) : undefined
         }
       />
 
@@ -341,15 +432,28 @@ export function RecursosMatrix({
           >
             <CalendarRange className="size-3.5" /> Carga real
           </button>
+          <button
+            type="button"
+            onClick={() => setVista("planejada")}
+            className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium ${
+              vista === "planejada" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <CalendarRange className="size-3.5" /> Carga planejada
+          </button>
         </div>
       </div>
 
       {vista === "carga" ? (
         <CargaRealView cargaSemanal={cargaSemanal} />
+      ) : vista === "planejada" ? (
+        <CargaPlanejadaView carga={cargaPlanejada} podeGerir={podeGerir} />
       ) : vista === "heatmap" ? (
         <HeatmapView
-          meses={heat.meses}
+          colunas={heat.colunas}
           matriz={heat.matriz}
+          periodo={periodoHeat}
+          onPeriodo={setPeriodoHeat}
           podeGerir={podeGerir}
           onRebalancear={(l) => setRebalDlg(l)}
         />
@@ -433,7 +537,7 @@ export function RecursosMatrix({
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-1">
-                      {l.alocacoes.length === 0 ? (
+                      {l.alocacoes.length === 0 && (l.calculadas ?? []).length === 0 ? (
                         <span className="text-xs text-muted-foreground">—</span>
                       ) : (
                         l.alocacoes.map((a) => (
@@ -444,13 +548,30 @@ export function RecursosMatrix({
                             onClick={() => setAlocDlg({ open: true, linha: l, aloc: a })}
                             className={`rounded-sm border px-1.5 py-0.5 font-mono text-[11px] ${
                               podeGerir ? "hover:border-primary" : ""
-                            }`}
-                            title={`${a.projetoNome}${a.observacao ? ` — ${a.observacao}` : ""}`}
+                            } ${a.substituidaPeloCronograma ? "border-dashed text-muted-foreground line-through" : ""}`}
+                            title={
+                              a.substituidaPeloCronograma
+                                ? `${a.projetoNome} — substituída: este projeto tem cronograma aprovado e a alocação vem das horas nas linhas da EAP. Pode remover.`
+                                : `${a.projetoNome}${a.observacao ? ` — ${a.observacao}` : ""}`
+                            }
                           >
                             {formatarCodigo(a.projetoCodigo)} <span className="text-muted-foreground">{a.percentual}%</span>
                           </button>
                         ))
                       )}
+                      {(l.calculadas ?? []).map((c) => (
+                        <span
+                          key={c.projetoId}
+                          className="rounded-sm border border-info/40 bg-info/10 px-1.5 py-0.5 font-mono text-[11px]"
+                          title={`${c.projetoNome} — calculada das horas nas linhas da EAP (${c.horasSemana}h esta semana). Edite na EAP do projeto.`}
+                        >
+                          {formatarCodigo(c.projetoCodigo)}{" "}
+                          <span className="text-muted-foreground">
+                            {c.percentual != null ? `${c.percentual}%` : `${c.horasSemana}h`}
+                          </span>{" "}
+                          <span className="text-[9px] uppercase text-info">calc</span>
+                        </span>
+                      ))}
                       {podeGerir && projetos.length > 0 && (
                         <button
                           type="button"
@@ -489,7 +610,7 @@ export function RecursosMatrix({
                     )}
                     {!l.superalocado && superJanela && (
                       <span className="mt-0.5 block font-mono text-[10px] text-warning">
-                        superalocado na janela
+                        superalocado na janela (alocação digitada)
                       </span>
                     )}
                   </td>
@@ -533,6 +654,8 @@ export function RecursosMatrix({
           />
           <RecursoDialog
             state={recursoDlg}
+            verCusto={verCusto}
+            editarCusto={editarCusto}
             onOpenChange={(o) => setRecursoDlg((s) => ({ ...s, open: o }))}
             pending={pending}
             onSalvar={(payload) =>
@@ -549,6 +672,7 @@ export function RecursosMatrix({
           <AlocacaoDialog
             state={alocDlg}
             projetos={projetos}
+            projetosAprovados={projetosAprovados}
             onOpenChange={(o) => setAlocDlg((s) => ({ ...s, open: o }))}
             pending={pending}
             onSalvar={(payload) =>
@@ -617,13 +741,17 @@ export function RecursosMatrix({
 
 // ── Heatmap timeline (pessoa × mês) ─────────────────────────────────
 function HeatmapView({
-  meses,
+  colunas,
   matriz,
+  periodo,
+  onPeriodo,
   podeGerir,
   onRebalancear,
 }: {
-  meses: string[];
-  matriz: { linha: Linha; cells: MesCell[] }[];
+  colunas: ColunaHeatmap[];
+  matriz: { linha: Linha; cells: HeatCell[] }[];
+  periodo: PeriodoHeatmap;
+  onPeriodo: (p: PeriodoHeatmap) => void;
   podeGerir: boolean;
   onRebalancear: (l: Linha) => void;
 }) {
@@ -636,14 +764,32 @@ function HeatmapView({
   }
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Período</span>
+        <div className="flex overflow-hidden rounded-sm border" role="group" aria-label="Período do mapa de ocupação">
+          {PERIODOS_HEATMAP.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              aria-pressed={periodo === p.id}
+              onClick={() => onPeriodo(p.id)}
+              className={`px-2.5 py-1 text-xs ${
+                periodo === p.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {p.rotulo}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="overflow-x-auto rounded-sm border">
         <table className="w-full border-collapse text-sm">
           <thead className="bg-muted/40 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
             <tr>
               <th className="sticky left-0 z-10 bg-muted/40 px-3 py-2 text-left">Pessoa</th>
-              {meses.map((ym) => (
-                <th key={ym} className="px-1 py-2 text-center font-normal">
-                  {ymLabel(ym)}
+              {colunas.map((c) => (
+                <th key={c.chave} className="px-1 py-2 text-center font-normal" title={c.titulo}>
+                  {c.rotulo}
                 </th>
               ))}
             </tr>
@@ -679,10 +825,12 @@ function HeatmapView({
                   const ratio = l.capacidadePct > 0 ? Math.round((c.pct / l.capacidadePct) * 100) : 0;
                   return (
                     <td
-                      key={c.ym}
+                      key={c.chave}
                       className="border-l px-1 py-2 text-center"
                       style={{ background: heatColor(c.pct, l.capacidadePct) }}
-                      title={`${l.nome} · ${ymLabel(c.ym)} — ${c.pct}% alocado (${ratio}% da capacidade)`}
+                      title={`${l.nome} · ${colunas.find((x) => x.chave === c.chave)?.titulo ?? c.chave} — ${c.pct}% alocado (${ratio}% da capacidade)${
+                        c.calculada > 0 ? ` · digitada ${c.digitada}% + cronograma ${c.calculada}%` : ""
+                      }`}
                     >
                       <span
                         className={`font-mono text-[10px] ${
@@ -707,6 +855,10 @@ function HeatmapView({
         <Legenda cor="hsl(48 90% 70%)" texto="~cheio (≤100%)" />
         <Legenda cor="hsl(28 90% 64%)" texto="estourando (≤125%)" />
         <Legenda cor="hsl(0 75% 60%)" texto="superalocado (>125%)" />
+        <span className="italic">
+          Alocação digitada + horas dos cronogramas aprovados (estas, só nas próximas 12 semanas; depois
+          disso, apenas a digitada). Cada célula é o pior dia do período. O detalhe por semana está em “Carga planejada”.
+        </span>
         {!podeGerir && <span className="italic">visualização somente leitura</span>}
       </div>
     </div>
@@ -826,7 +978,8 @@ function RebalancearDialog({
   if (!linha) return null;
   const l = linha;
   const excedente = l.totalAlocado - l.capacidadePct;
-  const ordenadas = [...l.alocacoes].sort((a, b) => b.percentual - a.percentual);
+  // Só as que contam: as substituídas pelo cronograma aprovado não entram no total acima.
+  const ordenadas = vigentes(l).sort((a, b) => b.percentual - a.percentual);
   const maior = ordenadas[0];
 
   return (
@@ -1029,6 +1182,10 @@ function NovoRecursoDialog({
               value={capacidade}
               onChange={(e) => setCapacidade(e.target.value)}
             />
+            <p className="text-xs text-muted-foreground">
+              1 = jornada cheia; 0,5 = meio período. As alocações em % valem sobre a capacidade da pessoa: 100% é tudo o
+              que ela dedica a projetos.
+            </p>
           </div>
         </div>
         <DialogFooter>
@@ -1049,11 +1206,15 @@ function NovoRecursoDialog({
 
 function RecursoDialog({
   state,
+  verCusto,
+  editarCusto,
   onOpenChange,
   pending,
   onSalvar,
 }: {
   state: { open: boolean; linha: Linha | null };
+  verCusto: boolean;
+  editarCusto: boolean;
   onOpenChange: (o: boolean) => void;
   pending: boolean;
   onSalvar: (p: {
@@ -1094,10 +1255,21 @@ function RecursoDialog({
                 onChange={(e) => setCapacidade(e.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label>Custo/hora (R$)</Label>
-              <InputMoeda value={custoHora} onChange={setCustoHora} />
-            </div>
+            {verCusto && (
+              <div className="space-y-1.5">
+                <Label>Custo/hora (R$)</Label>
+                {editarCusto ? (
+                  <InputMoeda value={custoHora} onChange={setCustoHora} />
+                ) : (
+                  <p
+                    className="flex h-9 items-center font-mono text-sm text-muted-foreground"
+                    title="Só quem gere o financeiro altera o custo por hora."
+                  >
+                    {custoHora != null ? custoHora.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) : "—"}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label>Cor</Label>
@@ -1119,7 +1291,7 @@ function RecursoDialog({
               onSalvar({
                 userId: l.userId,
                 capacidade: Number(capacidade),
-                custoHora: custoHora ?? undefined,
+                custoHora: editarCusto ? (custoHora ?? undefined) : undefined,
                 cor,
                 ativo: true,
               })
@@ -1136,6 +1308,7 @@ function RecursoDialog({
 function AlocacaoDialog({
   state,
   projetos,
+  projetosAprovados,
   onOpenChange,
   pending,
   onSalvar,
@@ -1143,6 +1316,8 @@ function AlocacaoDialog({
 }: {
   state: { open: boolean; linha: Linha | null; aloc: Alocacao | null };
   projetos: Projeto[];
+  /** Projetos com cronograma aprovado — a alocação deles vem das linhas, não se digita (D17). */
+  projetosAprovados: ReadonlySet<string>;
   onOpenChange: (o: boolean) => void;
   pending: boolean;
   onSalvar: (p: {
@@ -1173,6 +1348,11 @@ function AlocacaoDialog({
     setObservacao(aloc?.observacao ?? "");
   }
   if (!l) return null;
+  // Alocação substituída só pode ser removida — editar não muda nada (não conta mais). A
+  // recusa do servidor tem a mesma frase.
+  const somenteRemover = !!aloc?.substituidaPeloCronograma;
+  const MOTIVO_APROVADO =
+    "Este projeto tem cronograma aprovado: a alocação vem das horas das pessoas nas linhas da EAP, não daqui.";
 
   return (
     <Dialog open={state.open} onOpenChange={onOpenChange}>
@@ -1180,6 +1360,11 @@ function AlocacaoDialog({
         <DialogHeader>
           <DialogTitle>Alocação · {l.nome}</DialogTitle>
         </DialogHeader>
+        {somenteRemover && (
+          <p className="rounded-sm border border-warning/30 bg-warning/5 px-2.5 py-2 text-xs text-muted-foreground">
+            {MOTIVO_APROVADO} Esta alocação já não conta — só resta removê-la.
+          </p>
+        )}
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label>Projeto</Label>
@@ -1193,12 +1378,18 @@ function AlocacaoDialog({
               </SelectTrigger>
               <SelectContent>
                 {projetos.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
+                  <SelectItem key={p.id} value={p.id} disabled={projetosAprovados.has(p.id)}>
                     {formatarCodigo(p.codigo)} · {p.nome}
+                    {projetosAprovados.has(p.id) ? " — cronograma aprovado" : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {projetosAprovados.size > 0 && !aloc && (
+              <p className="text-[11px] text-muted-foreground">
+                Projeto com cronograma aprovado não recebe alocação digitada: a carga vem das horas nas linhas da EAP.
+              </p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label>Percentual: {percentual}%</Label>
@@ -1209,6 +1400,7 @@ function AlocacaoDialog({
               step={5}
               value={percentual}
               onChange={(e) => setPercentual(e.target.value)}
+              disabled={somenteRemover}
               className="w-full accent-primary"
             />
           </div>
@@ -1240,7 +1432,7 @@ function AlocacaoDialog({
               Cancelar
             </Button>
             <Button
-              disabled={pending || projetoId === NONE}
+              disabled={pending || projetoId === NONE || somenteRemover || projetosAprovados.has(projetoId)}
               onClick={() =>
                 onSalvar({
                   id: aloc?.id,

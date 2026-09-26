@@ -44,6 +44,20 @@ async function uploadsValidos(projetoId: string, ids: string[]): Promise<string[
   return ups.map((u) => u.id);
 }
 
+/**
+ * IDs de fase que existem de verdade no catálogo de FASE (global ou deste projeto) — barra
+ * id forjado, de outra categoria ("folha") ou de outro projeto. Mesmo papel de
+ * `disciplinasValidas`: sem isto a lista branca do link aceitaria qualquer string.
+ */
+async function fasesValidas(projetoId: string, ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const fases = await prisma.pranchaCatalogo.findMany({
+    where: { id: { in: ids }, categoria: "fase", OR: [{ projetoId: null }, { projetoId }] },
+    select: { id: true },
+  });
+  return fases.map((f) => f.id);
+}
+
 /** Carrega o link garantindo que ele existe; devolve também o projeto para o revalidate. */
 async function carregarLink(linkId: string) {
   const link = await prisma.linkPublicoArquivos.findUnique({ where: { id: linkId } });
@@ -71,6 +85,9 @@ export const criarLinkArquivos = defineAction(
       expiraEm: z.string().datetime().nullable().optional(),
       /** Pastas por fase na página do cliente (ver `link-publico.ts`). Omitido = agrupa. */
       agruparPorFase: z.boolean().optional(),
+      /** Fases liberadas (F4). Vazio/omitido = TODAS — ver a semântica invertida no schema. */
+      faseIds: z.array(z.string()).optional(),
+      incluirSemFase: z.boolean().optional(),
     }),
     entidadeId: (d) => (d as { linkId: string } | undefined)?.linkId,
   },
@@ -102,6 +119,9 @@ export const criarLinkArquivos = defineAction(
         ativo: true,
         expiraEm: input.expiraEm ? new Date(input.expiraEm) : null,
         agruparPorFase: input.agruparPorFase ?? true,
+        // Seleção manual não passa pelo recorte, então o filtro de fase não teria efeito ali.
+        faseIds: input.escopo === "selecao" ? [] : await fasesValidas(input.projetoId, input.faseIds ?? []),
+        incluirSemFase: input.incluirSemFase ?? false,
         disciplinaIds,
         uploadIds,
         criadoPorId: user.id,
@@ -226,6 +246,9 @@ export const atualizarLinkArquivos = defineAction(
       ativo: z.boolean(),
       expiraEm: z.string().datetime().nullable().optional(),
       agruparPorFase: z.boolean().optional(),
+      /** `undefined` = não mexe (como `uploadIds`): diálogo que não conhece fase não apaga o filtro. */
+      faseIds: z.array(z.string()).optional(),
+      incluirSemFase: z.boolean().optional(),
     }),
     entidadeId: idLink,
     capturarAntes: (i) => prisma.linkPublicoArquivos.findUnique({ where: { id: i.linkId } }),
@@ -262,6 +285,13 @@ export const atualizarLinkArquivos = defineAction(
         ativo: input.ativo,
         expiraEm: input.expiraEm ? new Date(input.expiraEm) : null,
         agruparPorFase: input.agruparPorFase,
+        faseIds:
+          escopo === "selecao"
+            ? []
+            : input.faseIds === undefined
+              ? undefined
+              : await fasesValidas(link.projetoId, input.faseIds),
+        incluirSemFase: input.incluirSemFase,
       },
     });
     revalidatePath(`/projetos/${link.projetoId}/arquivos`);

@@ -38,6 +38,11 @@ export function normalizarAlocacaoPonto(selecao?: string | null): {
   }
 }
 
+/** A seleção é um projeto REAL — e não "sem projeto" nem reunião? Só nesse caso há tarefa a escolher (F6). */
+export function selecaoEhProjeto(selecao: string | null | undefined): boolean {
+  return normalizarAlocacaoPonto(selecao).tipoAlocacao === "projeto";
+}
+
 /** Valor que deve voltar ao seletor para representar a sessão persistida. */
 export function selecaoDaAlocacaoPonto(
   projetoId: string | null,

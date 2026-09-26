@@ -1,5 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { avisoCobrancaContrato, type ContratoDeCobranca } from "./cobranca-contrato";
+import { valorSugeridoPorDisciplina } from "./valor-entrega";
 
 /** Tag que identifica os lançamentos de receita gerados como parcelas de contrato. */
 export const TAG_PARCELA_CONTRATO = "contrato";
@@ -7,12 +9,20 @@ export const TAG_PARCELA_CONTRATO = "contrato";
 /** Prefixo de tag que vincula um recebível a uma disciplina faturada por entrega. */
 export const TAG_ENTREGA_PREFIXO = "entrega:";
 
+/** Contratos de cliente do projeto (o de equipe é pago pela folha, não por Lançamento). */
+export async function contratosDeCobranca(projetoId: string): Promise<ContratoDeCobranca[]> {
+  return prisma.documentoJuridico.findMany({
+    where: { projetoId, vinculoId: null, clienteId: { not: null }, statusContrato: { not: null } },
+    select: { titulo: true, formaCobranca: true, statusContrato: true, parcelas: true },
+  });
+}
+
 /**
  * Resumo de receita/contrato de um projeto: valor de contrato, total da composição
  * de preço e as parcelas (recebíveis = lançamentos de receita marcados como contrato).
  */
 export async function receitaProjeto(projetoId: string) {
-  const [projeto, composicao, parcelas, disciplinas] = await Promise.all([
+  const [projeto, composicao, parcelas, disciplinas, contratos, proposta] = await Promise.all([
     prisma.projeto.findUnique({ where: { id: projetoId }, select: { valorContrato: true, tipo: true } }),
     prisma.projetoComposicaoPreco.findUnique({
       where: { projetoId },
@@ -26,7 +36,12 @@ export async function receitaProjeto(projetoId: string) {
     prisma.disciplina.findMany({
       where: { projetoId },
       orderBy: { ordem: "asc" },
-      select: { id: true, disciplinaTextoLegado: true, valor: true, status: true },
+      select: { id: true, disciplinaId: true, disciplinaTextoLegado: true, status: true },
+    }),
+    contratosDeCobranca(projetoId),
+    prisma.proposta.findUnique({
+      where: { projetoId },
+      select: { itens: { select: { disciplinaId: true, disciplinaTextoLegado: true, valor: true } } },
     }),
   ]);
 
@@ -49,6 +64,17 @@ export async function receitaProjeto(projetoId: string) {
   const usandoComposicao = totalComposicao > 0;
   const valorReferencia = usandoComposicao ? totalComposicao : valorContrato;
 
+  // Valor sugerido para faturar cada entrega: o item da proposta de origem — nunca `Disciplina.valor`
+  // (o pool de pagamento dos projetistas).
+  const sugeridos = valorSugeridoPorDisciplina(
+    disciplinas.map((d) => ({ id: d.id, disciplinaId: d.disciplinaId, nome: d.disciplinaTextoLegado })),
+    (proposta?.itens ?? []).map((it) => ({
+      disciplinaId: it.disciplinaId,
+      disciplinaTextoLegado: it.disciplinaTextoLegado,
+      valor: Number(it.valor),
+    })),
+  );
+
   // Disciplinas já faturadas por entrega (tag entrega:<disciplinaId> em algum recebível).
   const faturadas = new Set<string>();
   for (const p of parcelas) {
@@ -60,6 +86,7 @@ export async function receitaProjeto(projetoId: string) {
     valorReferencia,
     usandoComposicao,
     tipo: projeto?.tipo ?? "particular",
+    avisoContrato: avisoCobrancaContrato(contratos),
     totalComposicao,
     parcelas: parcelas.map((p) => ({
       id: p.id,
@@ -73,15 +100,13 @@ export async function receitaProjeto(projetoId: string) {
     faturadoTotal,
     // Quanto da referência (composição ou contrato) ainda não virou parcela (recebível).
     aFaturar: valorReferencia != null ? Math.round((valorReferencia - faturadoTotal) * 100) / 100 : null,
-    // Disciplinas faturáveis por entrega (com valor), marcando as já faturadas.
-    disciplinas: disciplinas
-      .filter((d) => d.valor != null && Number(d.valor) > 0)
-      .map((d) => ({
-        id: d.id,
-        nome: d.disciplinaTextoLegado,
-        valor: Number(d.valor),
-        status: d.status,
-        faturada: faturadas.has(d.id),
-      })),
+    // Disciplinas faturáveis por entrega, marcando as já faturadas e trazendo o valor sugerido.
+    disciplinas: disciplinas.map((d) => ({
+      id: d.id,
+      nome: d.disciplinaTextoLegado,
+      valorSugerido: sugeridos.get(d.id) ?? null,
+      status: d.status,
+      faturada: faturadas.has(d.id),
+    })),
   };
 }

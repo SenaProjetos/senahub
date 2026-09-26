@@ -81,7 +81,7 @@ export function MoverPagamentoDialog({
             {alvo && (
               <>
                 {alvo.pagamento.projetista.name} — {brl(alvo.pagamento.valor)} ·{" "}
-                {alvo.pagamento.disciplina.disciplinaTextoLegado}
+                {alvo.pagamento.rotuloDisciplina}
               </>
             )}
           </DialogDescription>

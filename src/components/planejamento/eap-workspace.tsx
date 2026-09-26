@@ -1,28 +1,61 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { formatarDiaMes } from "@/lib/utils";
+import { useMemo, useRef, useState, useTransition } from "react";
+import { brl } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, Flag, CheckCheck, ArrowLeft, ZoomIn, ZoomOut, Rocket, ListPlus, ListTree, CalendarClock, Download, FileText } from "lucide-react";
 import {
-  definirLinhaBase,
+  Plus,
+  CheckCheck,
+  ArrowLeft,
+  Rocket,
+  ListTree,
+  CalendarClock,
+  Download,
+  FileText,
+  UsersRound,
+  CalendarCheck,
+} from "lucide-react";
+import {
   aplicarAoProjeto,
+  avancarEapTarefa,
+  definirPredecessorasDaLinha,
+  editarEapTarefa,
+  excluirEapTarefa,
   gerarTarefaDeEap,
   gerarEapDasDisciplinas,
+  inserirEapTarefaAcima,
   reagendarPlano,
+  recuarEapTarefa,
 } from "@/modules/planejamento/actions";
-import type { EapTarefaDTO } from "@/modules/planejamento/queries";
+import { herdarResponsaveisDaDisciplina } from "@/modules/planejamento/recursos-actions";
+import type { EapTarefaDTO, cronogramaProjetoInfo } from "@/modules/planejamento/queries";
+import type { Achado } from "@/modules/planejamento/qualidade";
+import type { CustoLinha } from "@/modules/planejamento/custo";
+import type { ResultadoSaude } from "@/modules/planejamento/saude";
+import type { CalendarioGantt } from "@/modules/planejamento/gantt-escala";
+import { somarDias } from "@/lib/dias-iso";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { AplicarModeloDialog, type PreviaDeModelo } from "@/components/planejamento/modelos/aplicar-modelo-dialog";
+import type { Vinculo } from "@/modules/planejamento/gantt-linhas";
+import {
+  ACAO_ABRIR,
+  ACAO_ATUALIZAR,
+  ACAO_AVANCAR,
+  ACAO_EXCLUIR,
+  ACAO_GERAR_CARD,
+  ACAO_INSERIR_ACIMA,
+  ACAO_RECUAR,
+  itensDeLinhaEap,
+} from "@/modules/planejamento/acoes-eap";
+import type { AcaoItemAcao } from "@/components/ui/acoes";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { Gantt, GANTT_PX_DEFAULT } from "@/components/planejamento/gantt";
+import { PlanoGantt, type EdicaoDeCampo, type ModoGantt } from "@/components/planejamento/plano-gantt";
 import { EapDialog } from "@/components/planejamento/eap-dialog";
-
-const fmt = (iso: string | null) =>
-  iso ? formatarDiaMes(iso) : "—";
+import { ExecucaoDialog } from "@/components/planejamento/execucao-dialog";
+import { SaudePainel } from "@/components/planejamento/saude-painel";
 
 const diasDesvio = (t: EapTarefaDTO) => {
   if (!t.fimBaseline) return 0;
@@ -31,44 +64,114 @@ const diasDesvio = (t: EapTarefaDTO) => {
   return Math.round((a - b) / 86400000);
 };
 
+type Filtro = "todas" | "atrasadas" | "criticas" | "bloqueadas";
+type Lookahead = "todas" | 7 | 15 | 30;
+
 export function EapWorkspace({
   projeto,
   tarefas,
   disciplinas,
+  pessoas,
   temLinhaBase,
+  custoTotal,
   podeGerir,
+  podeAprovar,
+  podeExecutado,
+  podeAprovarFase,
+  verDatas,
+  calendario,
+  hoje,
+  cronograma,
+  qualidade,
+  previasModelos = [],
 }: {
   projeto: { id: string; codigo: string; nome: string };
   tarefas: EapTarefaDTO[];
-  disciplinas: { id: string; nome: string }[];
+  disciplinas: { id: string; nome: string; etapas: { etapaId: string; sigla: string; nome: string }[] }[];
+  pessoas: { id: string; name: string; image: string | null }[];
   temLinhaBase: boolean;
+  /** F7.1: custo previsto do projeto. `null` = o viewer não vê custo (coluna oculta). */
+  custoTotal: CustoLinha | null;
   podeGerir: boolean;
+  podeAprovar: boolean;
+  podeExecutado: boolean;
+  /** `aprovacoes:disciplina`: aprovar a fase quando o marco dela é concluído (F7.0). */
+  podeAprovarFase: boolean;
+  /**
+   * Decisão #3: sem isto o servidor já mandou as linhas SEM datas — a tela não desenha Gantt, datas, filtros de
+   * prazo nem exportação (quem só consulta vê a estrutura).
+   */
+  verDatas: boolean;
+  /** O calendário do motor (dias úteis e feriados): o gráfico sombreia os dias não úteis com ele. */
+  calendario: CalendarioGantt;
+  /** `YYYY-MM-DD` de hoje, calculado no servidor — o mesmo valor na tela renderizada e na hidratada. */
+  hoje: string;
+  /** `null` = quem não vê datas (o servidor nem busca a Data de Status, a baseline nem a Saúde). */
+  cronograma: Awaited<ReturnType<typeof cronogramaProjetoInfo>> | null;
+  qualidade: {
+    achados: Achado[];
+    saude: ResultadoSaude | null;
+    totalLinhas: number;
+    dataStatus: string | null;
+  } | null;
+  /**
+   * Decisão #5: modelos de EAP com a prévia já calculada para ESTE projeto. Vem vazio quando a EAP já
+   * tem linha, quem olha não monta EAP, ou não há modelo cadastrado — e aí o botão não aparece.
+   */
+  previasModelos?: PreviaDeModelo[];
 }) {
   const router = useRouter();
-  const confirm = useConfirm();
   const [pending, start] = useTransition();
-  const [px, setPx] = useState(GANTT_PX_DEFAULT);
+  const [modo, setModo] = useState<ModoGantt>("planejamento");
+  const confirm = useConfirm();
+  /** Linha recém-inserida: o nome dela abre em edição assim que chega na tabela. */
+  const [novaLinhaId, setNovaLinhaId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<{ open: boolean; tarefa: EapTarefaDTO | null }>({
     open: false,
     tarefa: null,
   });
+  const [filtro, setFiltro] = useState<Filtro>("todas");
+  /** Linha no "Atualizar tarefa" (datas reais) — `null` = fechado. */
+  const [execucao, setExecucao] = useState<EapTarefaDTO | null>(null);
+  /** Folhas sem custo conhecido — o que falta cadastrar para o custo previsto fechar. */
+  const semCusto = tarefas.filter((t) => !t.ehResumo && t.custo == null).length;
+  const [lookahead, setLookahead] = useState<Lookahead>("todas");
 
   const abrir = (tarefa: EapTarefaDTO | null) => {
     if (!podeGerir) return;
     setDialog({ open: true, tarefa });
   };
-  const selecionar = (id: string) => abrir(tarefas.find((t) => t.id === id) ?? null);
   const vazio = tarefas.length === 0;
 
-  function linhaBase() {
-    start(async () => {
-      const r = await definirLinhaBase({ projetoId: projeto.id });
-      if (r.ok) {
-        toast.success(temLinhaBase ? "Linha de base atualizada." : "Linha de base definida.");
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
+  // Filtros e lookahead (Doc 03 §36/§37) — aplicados só à VISÃO (Gantt + tabela). O diálogo
+  // continua vendo a EAP inteira: escolher predecessora não pode depender do que está
+  // filtrado na tela naquele momento.
+  const visiveis = useMemo(() => {
+    let base = tarefas;
+    if (filtro === "atrasadas") {
+      const hj = hoje;
+      // Contra o combinado (a linha de base), como o verificador: com a Data de Status, a previsão de
+      // uma linha inacabada anda para depois dela e deixaria de parecer atrasada.
+      base = base.filter((t) => (t.fimBaseline ?? t.fimPrevisto) < hj && t.progresso < 100 && t.status !== "con");
+    } else if (filtro === "criticas") {
+      base = base.filter((t) => t.critica);
+    } else if (filtro === "bloqueadas") {
+      base = base.filter((t) => t.status === "blq");
+    }
+    if (lookahead !== "todas") {
+      const limite = somarDias(hoje, lookahead);
+      base = base.filter((t) => t.inicioPrevisto <= limite && t.fimPrevisto >= hoje);
+    }
+    // "Minhas atividades": o dado existe desde a F5 (`atribuicoes` por linha), mas o filtro
+    // precisa do usuário logado na tela e ninguém pediu — o projetista nem vê a EAP (Q14).
+    return base;
+  }, [tarefas, filtro, lookahead, hoje]);
+
+  const totalAtrasadas = tarefas.filter(
+    (t) => (t.fimBaseline ?? t.fimPrevisto) < hoje && t.progresso < 100 && t.status !== "con",
+  ).length;
+  const totalCriticas = tarefas.filter((t) => t.critica).length;
+  const totalBloqueadas = tarefas.filter((t) => t.status === "blq").length;
 
   // Prévia do que "Aplicar ao projeto" vai gravar: por disciplina vinculada,
   // o prazo passa a ser o MAIOR fimPrevisto entre as tarefas dessa disciplina.
@@ -93,13 +196,6 @@ export function EapWorkspace({
       toast.error("Nenhuma tarefa vinculada a disciplina. Vincule disciplinas para aplicar.");
       return;
     }
-    const linhas = previa.map((d) => `${d.nome} → ${fmt(d.prazo)}`).join("; ");
-    const ok = await confirm({
-      title: `Aplicar prazos a ${previa.length} disciplina(s)?`,
-      description: `Os prazos das disciplinas vinculadas serão sobrescritos pelo fim previsto da EAP: ${linhas}.`,
-      confirmLabel: "Aplicar",
-    });
-    if (!ok) return;
     start(async () => {
       const r = await aplicarAoProjeto({ projetoId: projeto.id });
       if (r.ok) {
@@ -109,9 +205,112 @@ export function EapWorkspace({
             `${r.data.semEap.length} disciplina(s) sem tarefa na EAP (ignoradas): ${r.data.semEap.join(", ")}.`,
           );
         }
+        if (r.data.ignoradas.length > 0) {
+          toast.warning(`Linhas não aplicadas: ${r.data.ignoradas.join("; ")}.`, {
+            description: "Disciplina com etapas só recebe prazo de linha que tenha a fase da etapa.",
+          });
+        }
         router.refresh();
       } else toast.error(r.error);
     });
+  }
+
+  // Cada gravação reagenda o projeto inteiro: a fila garante uma de cada vez — a segunda, disparada em paralelo,
+  // trabalharia sobre datas que a primeira ainda vai mudar (Tab/Enter em sequência na tabela faz isso).
+  const fila = useRef<Promise<unknown>>(Promise.resolve());
+  function naFila<T>(tarefa: () => Promise<T>): Promise<T> {
+    const p = fila.current.then(tarefa, tarefa);
+    fila.current = p.catch(() => undefined);
+    return p;
+  }
+
+  /** Edição direto na tabela (Nome, Duração, % concluído). A action grava a linha inteira: o que não muda vai como está. */
+  function editarCampo(t: EapTarefaDTO, e: EdicaoDeCampo): Promise<string | null> {
+    return naFila(async () => {
+      const r = await editarEapTarefa({
+        id: t.id,
+        nome: e.campo === "nome" ? e.nome : t.nome,
+        // Sem a disciplina a action a tiraria da linha.
+        disciplinaId: t.disciplinaId ?? undefined,
+        duracaoDias: e.campo === "duracao" ? e.duracaoDias : t.marco || t.ehResumo ? undefined : t.duracaoDias,
+        progresso: e.campo === "progresso" ? e.progresso : Math.round(t.progresso),
+        marco: e.campo === "duracao" ? e.marco : t.marco,
+      });
+      if (!r.ok) return r.error;
+      router.refresh();
+      return null;
+    });
+  }
+
+  /** A célula Predecessoras: o conjunto inteiro de uma vez, com um reagendamento só. */
+  function editarPredecessoras(t: EapTarefaDTO, vinculos: Vinculo[]): Promise<string | null> {
+    return naFila(async () => {
+      const r = await definirPredecessorasDaLinha({ tarefaId: t.id, vinculos });
+      if (!r.ok) return r.error;
+      router.refresh();
+      return null;
+    });
+  }
+
+  /**
+   * O que cada item do menu da linha faz (o descritor é `itensDeLinhaEap`). O `confirm` vem ANTES de qualquer
+   * gravação — e nenhuma passa por `startTransition`: confirm dentro de transição trava o React 19.
+   */
+  async function aoAcao(t: EapTarefaDTO, item: AcaoItemAcao) {
+    if (item.confirmar) {
+      const ok = await confirm({
+        title: item.confirmar.titulo,
+        description: item.confirmar.descricao,
+        confirmLabel: item.confirmar.rotuloConfirmar ?? "Confirmar",
+      });
+      if (!ok) return;
+    }
+    switch (item.id) {
+      case ACAO_ABRIR:
+        abrir(t);
+        return;
+      case ACAO_ATUALIZAR:
+        setExecucao(t);
+        return;
+      case ACAO_GERAR_CARD:
+        gerarTarefa(t.id);
+        return;
+      case ACAO_INSERIR_ACIMA:
+        await naFila(async () => {
+          const r = await inserirEapTarefaAcima({ id: t.id });
+          if (!r.ok) return void toast.error(r.error);
+          setNovaLinhaId(r.data.id);
+          router.refresh();
+        });
+        return;
+      case ACAO_RECUAR:
+        await naFila(async () => {
+          const r = await recuarEapTarefa({ id: t.id });
+          if (!r.ok) return void toast.error(r.error);
+          if (r.data.paiVirouAgrupamentoComGente) {
+            toast.warning("A tarefa de cima virou agrupamento e ainda tem pessoas atribuídas.", {
+              description: "As horas delas deixam de contar — passe as pessoas para as tarefas dentro do agrupamento.",
+            });
+          }
+          router.refresh();
+        });
+        return;
+      case ACAO_AVANCAR:
+        await naFila(async () => {
+          const r = await avancarEapTarefa({ id: t.id });
+          if (!r.ok) return void toast.error(r.error);
+          router.refresh();
+        });
+        return;
+      case ACAO_EXCLUIR:
+        await naFila(async () => {
+          const r = await excluirEapTarefa({ id: t.id });
+          if (!r.ok) return void toast.error(r.error);
+          toast.success("Tarefa excluída.");
+          router.refresh();
+        });
+        return;
+    }
   }
 
   function gerarTarefa(eapTarefaId: string) {
@@ -135,14 +334,31 @@ export function EapWorkspace({
     });
   }
 
+  function herdar() {
+    start(async () => {
+      const r = await herdarResponsaveisDaDisciplina({ projetoId: projeto.id });
+      if (r.ok) {
+        toast.success(
+          r.data.criadas > 0
+            ? `${r.data.criadas} atribuição(ões) herdada(s) da disciplina.`
+            : "Nenhuma linha sem responsável para herdar — o que já tem gente não é tocado.",
+        );
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
   function reagendar() {
     start(async () => {
       const r = await reagendarPlano({ projetoId: projeto.id });
       if (r.ok) {
         toast.success(
           r.data.reagendadas > 0
-            ? `${r.data.reagendadas} tarefa(s) reagendada(s) pelas dependências.`
-            : "Cronograma já coerente com as dependências.",
+            ? `${r.data.reagendadas} tarefa(s) reagendada(s) pelo motor.`
+            : "Cronograma já coerente com duração e dependências.",
+          r.data.ciclosIgnorados > 0
+            ? { description: `${r.data.ciclosIgnorados} dependência(s) circular(es) foram ignoradas.` }
+            : undefined,
         );
         router.refresh();
       } else toast.error(r.error);
@@ -164,10 +380,24 @@ export function EapWorkspace({
           </h2>
           <p className="text-sm text-muted-foreground">
             EAP e cronograma. {temLinhaBase ? "Linha de base definida." : "Sem linha de base."}
+            {custoTotal && (
+              <>
+                {" "}
+                {custoTotal.custo != null ? (
+                  <span title="Horas previstas × custo/hora de cada pessoa (Recursos)">
+                    Custo previsto: <span className="font-mono text-foreground">{brl(custoTotal.custo)}</span>.
+                  </span>
+                ) : (
+                  <span className="text-warning" title="Linhas sem horas, com perfil (vaga) ou com pessoa sem custo/hora cadastrado em Recursos">
+                    Custo previsto incompleto — {semCusto} linha(s) sem custo.
+                  </span>
+                )}
+              </>
+            )}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {tarefas.length > 0 && (
+          {verDatas && tarefas.length > 0 && (
             <>
               <a href={`/api/planejamento/${projeto.id}/eap-export`} download>
                 <Button size="sm" variant="outline" type="button">
@@ -191,11 +421,23 @@ export function EapWorkspace({
                   <ListTree className="size-3.5" /> Gerar EAP das disciplinas
                 </Button>
               )}
-              <Button size="sm" variant="outline" onClick={reagendar} disabled={pending || tarefas.length === 0}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={reagendar}
+                disabled={pending || tarefas.length === 0}
+                title="Salvar já recalcula as datas. Use depois de mudar os feriados ou para conferir."
+              >
                 <CalendarClock className="size-3.5" /> Reagendar
               </Button>
-              <Button size="sm" variant="outline" onClick={linhaBase} disabled={pending || tarefas.length === 0}>
-                <Flag className="size-3.5" /> {temLinhaBase ? "Atualizar linha de base" : "Definir linha de base"}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={herdar}
+                disabled={pending || tarefas.length === 0}
+                title="Preenche o responsável da disciplina em toda linha ainda sem ninguém"
+              >
+                <UsersRound className="size-3.5" /> Herdar responsáveis
               </Button>
               <Button size="sm" variant="outline" onClick={aplicar} disabled={pending || tarefas.length === 0}>
                 <CheckCheck className="size-3.5" /> Aplicar ao projeto
@@ -205,8 +447,29 @@ export function EapWorkspace({
         </div>
       </div>
 
+      {qualidade && cronograma && tarefas.length > 0 && (
+        <SaudePainel
+          projetoId={projeto.id}
+          podeAprovar={podeAprovar}
+          podeExecutado={podeExecutado}
+          aprovado={cronograma.aprovado}
+          aprovadoEm={cronograma.aprovadoEm}
+          dataStatus={cronograma.dataStatus}
+          inicioProjeto={cronograma.inicioProjeto}
+          ultimaBaseline={cronograma.ultimaBaseline}
+          alocacoesTipadas={cronograma.alocacoesTipadas}
+          linhasSemHora={
+            tarefas.filter((t) => !t.ehResumo && t.tipoEap === "atv" && t.trabalhoHoras == null && !t.deTerceiro).length
+          }
+          achados={qualidade.achados}
+          nota={qualidade.saude?.nota ?? null}
+          faixa={qualidade.saude?.faixa ?? null}
+          provisoria={qualidade.saude?.provisoria ?? true}
+        />
+      )}
+
       {/* N-47: resumo comparativo baseline vs atual */}
-      {temLinhaBase && tarefas.some((t) => t.inicioBaseline) && (() => {
+      {verDatas && temLinhaBase && tarefas.some((t) => t.inicioBaseline) && (() => {
         const comBase = tarefas.filter((t) => t.fimBaseline);
         const atrasadas = comBase.filter((t) => diasDesvio(t) > 0);
         const adiantadas = comBase.filter((t) => diasDesvio(t) < 0);
@@ -255,6 +518,9 @@ export function EapWorkspace({
                       <ListTree className="size-3.5" /> Gerar EAP das disciplinas
                     </Button>
                   )}
+                  {previasModelos.length > 0 && (
+                    <AplicarModeloDialog projetoId={projeto.id} previas={previasModelos} />
+                  )}
                   <Button variant={disciplinas.length > 0 ? "outline" : "default"} onClick={() => abrir(null)}>
                     <Rocket className="size-3.5" /> Criar tarefa manual
                   </Button>
@@ -266,105 +532,125 @@ export function EapWorkspace({
         </div>
       ) : (
         <>
-          <div className="flex items-center justify-end gap-1">
-            <span className="mr-1 text-xs text-muted-foreground">Zoom</span>
-            <Button size="icon-sm" variant="outline" aria-label="Diminuir zoom" onClick={() => setPx((p) => Math.max(6, p - 4))} disabled={px <= 6}>
-              <ZoomOut className="size-3.5" />
-            </Button>
-            <Button size="icon-sm" variant="outline" aria-label="Aumentar zoom" onClick={() => setPx((p) => Math.min(48, p + 4))} disabled={px >= 48}>
-              <ZoomIn className="size-3.5" />
-            </Button>
+          <div className="flex flex-wrap items-center gap-1">
+            {verDatas && (
+              <div className="mr-2 flex overflow-hidden rounded-sm border" role="group" aria-label="Visão do cronograma">
+                {(
+                  [
+                    ["planejamento", "Gráfico de Gantt"],
+                    ["controle", "Gantt de Controle"],
+                  ] as [ModoGantt, string][]
+                ).map(([v, label]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={modo === v}
+                    onClick={() => setModo(v)}
+                    className={`px-3 py-1 text-xs font-medium ${
+                      modo === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {(
+              [
+                ["todas", `Todas (${tarefas.length})`],
+                ["atrasadas", `Atrasadas (${totalAtrasadas})`],
+                ["criticas", `Críticas (${totalCriticas})`],
+                ["bloqueadas", `Bloqueadas (${totalBloqueadas})`],
+              ] as [Filtro, string][]
+            )
+              .filter(([v]) => verDatas || v === "todas" || v === "bloqueadas")
+              .map(([v, label]) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setFiltro(v)}
+                  className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                    filtro === v
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-input bg-background text-muted-foreground hover:border-primary/50"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            {verDatas && <span className="mx-1 self-center text-muted-foreground">·</span>}
+            {verDatas &&
+              (
+                [
+                  ["todas", "Tudo"],
+                  [7, "7 dias"],
+                  [15, "15 dias"],
+                  [30, "30 dias"],
+                ] as [Lookahead, string][]
+              ).map(([v, label]) => (
+                <button
+                  key={String(v)}
+                  type="button"
+                  onClick={() => setLookahead(v)}
+                  title={typeof v === "number" ? `Só o que começa ou termina nos próximos ${v} dias` : undefined}
+                  className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                    lookahead === v
+                      ? "border-info bg-info text-info-foreground"
+                      : "border-input bg-background text-muted-foreground hover:border-info/50"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
           </div>
-          <Gantt tarefas={tarefas} onSelecionar={podeGerir ? selecionar : undefined} px={px} />
 
-          {/* Lista / EAP */}
-          <div className="overflow-x-auto rounded-sm border">
-            <table className="w-full text-sm">
-              <thead className="border-b bg-muted/40 text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2">Tarefa</th>
-                  <th className="px-3 py-2">Disciplina</th>
-                  <th className="px-3 py-2">Previsto</th>
-                  <th className="px-3 py-2">Linha de base</th>
-                  <th className="px-3 py-2">Progresso</th>
-                  <th className="px-3 py-2 text-right">Desvio</th>
-                  {podeGerir && <th className="px-3 py-2 text-right">Ações</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {tarefas.map((t) => {
-                  const desvio = diasDesvio(t);
-                  return (
-                    <tr
-                      key={t.id}
-                      onClick={() => abrir(t)}
-                      className={podeGerir ? "cursor-pointer hover:bg-muted/40" : ""}
-                    >
-                      <td className="px-3 py-2" style={{ paddingLeft: t.parentId ? 28 : 12 }}>
-                        <span className={t.parentId ? "text-muted-foreground" : "font-medium"}>{t.nome}</span>
-                        {t.predecessoraIds.length > 0 && (
-                          <span className="ml-1 text-[10px] text-warning">↳{t.predecessoraIds.length}</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">{t.disciplinaNome ?? "—"}</td>
-                      <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">
-                        {fmt(t.inicioPrevisto)} – {fmt(t.fimPrevisto)}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-muted-foreground">
-                        {t.inicioBaseline ? `${fmt(t.inicioBaseline)} – ${fmt(t.fimBaseline)}` : "—"}
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <div className="h-1.5 w-20 overflow-hidden rounded-sm bg-muted">
-                            <div className="h-full bg-primary" style={{ width: `${t.progresso}%` }} />
-                          </div>
-                          <span className="font-mono text-xs text-muted-foreground">{t.progresso}%</span>
-                          {t.progressoDerivado && (
-                            <span className="text-[9px] uppercase text-muted-foreground" title="Progresso derivado do status da disciplina">
-                              auto
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        {t.fimBaseline == null ? (
-                          <span className="text-muted-foreground">—</span>
-                        ) : desvio > 0 ? (
-                          <Badge variant="outline" className="border-destructive/40 text-destructive">
-                            +{desvio}d
-                          </Badge>
-                        ) : desvio < 0 ? (
-                          <Badge variant="outline" className="border-success/40 text-success">
-                            {desvio}d
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline">no prazo</Badge>
-                        )}
-                      </td>
-                      {podeGerir && (
-                        <td className="px-3 py-2 text-right">
-                          <Button
-                            size="icon-sm"
-                            variant="ghost"
-                            aria-label="Gerar tarefa no kanban"
-                            title="Gerar tarefa no kanban"
-                            disabled={pending}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              gerarTarefa(t.id);
-                            }}
-                          >
-                            <ListPlus className="size-3.5" />
-                          </Button>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <PlanoGantt
+            tarefas={tarefas}
+            modo={modo}
+            calendario={calendario}
+            verDatas={verDatas}
+            mostrarCusto={custoTotal != null}
+            hoje={hoje}
+            filtroIds={filtro === "todas" && lookahead === "todas" ? null : new Set(visiveis.map((t) => t.id))}
+            onAbrir={podeGerir ? (t) => abrir(t) : undefined}
+            onEditarCampo={podeGerir ? editarCampo : undefined}
+            onEditarPredecessoras={podeGerir ? editarPredecessoras : undefined}
+            onErro={(mensagem) => toast.error(mensagem)}
+            menuDe={(t, contexto) =>
+              itensDeLinhaEap(
+                { nome: t.nome, ehResumo: t.ehResumo, ...contexto },
+                { podeGerir, podeExecutado, cronogramaAprovado: !!cronograma?.aprovado },
+              )
+            }
+            onAcao={(t, item) => void aoAcao(t, item)}
+            focoNomeId={novaLinhaId}
+            onFocoConsumido={() => setNovaLinhaId(null)}
+            acoes={
+              podeExecutado
+                ? (t) =>
+                    !t.ehResumo && (
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label="Atualizar tarefa (datas reais)"
+                        title={t.marco ? "Concluir o marco (data real)" : "Atualizar tarefa: início e término reais"}
+                        disabled={pending}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExecucao(t);
+                        }}
+                      >
+                        <CalendarCheck className="size-3.5" />
+                      </Button>
+                    )
+                : undefined
+            }
+          />
         </>
+      )}
+
+      {podeExecutado && (
+        <ExecucaoDialog linha={execucao} onClose={() => setExecucao(null)} podeAprovarFase={podeAprovarFase} />
       )}
 
       {podeGerir && (
@@ -375,6 +661,7 @@ export function EapWorkspace({
           projetoId={projeto.id}
           disciplinas={disciplinas}
           tarefas={tarefas}
+          pessoas={pessoas}
         />
       )}
     </div>

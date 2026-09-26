@@ -80,11 +80,14 @@ export function ContasPagarReceberView({
   opcoes,
   tabInicial = "despesa",
   podeGerir = false,
+  topoReceita,
 }: {
   itens: LancamentoItem[];
   opcoes: OpcoesLancamento;
   tabInicial?: "despesa" | "receita";
   podeGerir?: boolean;
+  /** Bloco exibido acima da lista, só na aba "A receber" (ex.: parcelas de contrato a faturar). */
+  topoReceita?: React.ReactNode;
 }) {
   const router = useRouter();
   const [, start] = useTransition();
@@ -404,6 +407,8 @@ export function ContasPagarReceberView({
           </button>
         ))}
       </div>
+
+      {tab === "receita" && topoReceita}
 
       <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
         {/* coluna esquerda */}

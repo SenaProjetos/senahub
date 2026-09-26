@@ -157,6 +157,13 @@ export function LancamentoForm({
       });
       if (r.ok) {
         toast.success(r.data.ocorrencias > 1 ? `${r.data.ocorrencias} lançamentos criados.` : "Lançamento criado.");
+        // Decisão #12: a cobrança assumiu a parcela do contrato por entrega, e a previsão saiu do caixa.
+        if (r.data.previsaoCasada) {
+          toast.info(`Casado com a previsão do cronograma: ${r.data.previsaoCasada}. A previsão saiu do caixa para não contar duas vezes.`);
+        } else if (r.data.avisoPrevisao) {
+          // Duplicidade possível: melhor dizer agora, com a tela aberta, que deixar duas linhas somando.
+          toast.warning(r.data.avisoPrevisao, { duration: 12000 });
+        }
         reset();
         onOpenChange(false);
         router.refresh();

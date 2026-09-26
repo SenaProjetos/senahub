@@ -1,9 +1,9 @@
 ---
 titulo: Projetos
 descricao: Cadastro e acompanhamento de projetos, disciplinas, responsáveis, revisões e ciclo de vida.
-resumo: Liste e filtre projetos, crie/edite, gerencie disciplinas e seus status, responsáveis, membros, revisões, duplicação e cancelamento/arquivamento.
-tags: [projetos, disciplinas, status, responsáveis, membros, revisões, duplicar, cancelar, arquivar, progresso, nomenclatura versionada, sub-disciplina]
-palavras-chave: [projeto, disciplina, status, em andamento, em revisão, entregue, aprovado, responsável, membro, revisão, duplicar projeto, cancelar projeto, prazo, versão do padrão, trocar de versão, sub-disciplina]
+resumo: Liste e filtre projetos, crie/edite, gerencie disciplinas (com etapas por fase) e seus status, responsáveis, membros, revisões, duplicação e cancelamento/arquivamento.
+tags: [projetos, disciplinas, etapas, fase, status, responsáveis, membros, revisões, duplicar, cancelar, arquivar, progresso, nomenclatura versionada, sub-disciplina, receita, parcelas, valor de contrato, copiar eap, faturar entrega]
+palavras-chave: [projeto, disciplina, etapa, fase, pagamento por fase, gerar parcelas, receita do projeto, status, em andamento, em revisão, entregue, aprovado, responsável, membro, revisão, duplicar projeto, cancelar projeto, prazo, versão do padrão, trocar de versão, sub-disciplina]
 sinonimos: [obras, jobs, contratos de projeto]
 ---
 
@@ -87,6 +87,10 @@ Cada disciplina passa por um ciclo de status:
 - **Regras:** o **prazo da disciplina não pode ultrapassar o prazo do projeto**; não é
   possível **excluir** disciplina que já tenha **arquivos enviados** ou **pagamentos
   liberados**.
+- **Etapas por fase:** o botão de camadas no card da disciplina divide o trabalho em fases (Básico,
+  Executivo…), cada uma com **prazo, situação e percentual do valor**. Com etapas, o **prazo da
+  disciplina** passa a ser o maior prazo entre elas, e aprovar uma fase **libera o pagamento dela**.
+  Veja [Etapas da disciplina e pagamento por fase](etapas-e-pagamento-por-fase.md).
 
 ## Responsáveis, membros e revisões
 
@@ -98,9 +102,19 @@ Cada disciplina passa por um ciclo de status:
 
 ## Outras ações do projeto
 
-- **Duplicar projeto:** cria uma cópia (`nome (cópia)`, novo código), com disciplinas;
-  opcionalmente copia responsáveis, membros, EAP e composição de preço. **Nunca** copia
-  arquivos, revisões ou pagamentos.
+- **Duplicar projeto:** cria uma cópia (`nome (cópia)`, novo código), com disciplinas — inclusive a
+  **estrutura de etapas por fase** (fase, percentual e ordem; sem os prazos, a situação nem o
+  pagamento das etapas); opcionalmente copia responsáveis, membros, EAP e composição de preço.
+  **Nunca** copia arquivos, revisões ou pagamentos.
+  - **Copiar a EAP** leva a **estrutura do cronograma**: as tarefas em árvore, o tipo de cada linha
+    (marco continua marco), as **durações**, a prioridade, a disciplina (a da cópia), a **fase** e os
+    classificadores, e o **tipo e o atraso de cada dependência**. Cada linha ganha um **ID novo**.
+    **Não** leva avanço, datas reais, bloqueios, restrições de data (são datas do projeto original) nem
+    horas e pessoas — a equipe da cópia é outra decisão; os responsáveis das disciplinas da cópia é que
+    descem para as linhas.
+  - O **cronograma novo nasce em rascunho**. Informe o **início do cronograma novo** (opcional) e o
+    sistema calcula as datas a partir dele; sem data, elas partem das do projeto original — defina o
+    início depois, em [Planejamento](planejamento.md) — as datas se recalculam ao salvar.
 - **Cancelar / Arquivar:** muda a situação e notifica os membros; o motivo é registrado
   na descrição.
 - **Reabrir disciplina aprovada:** exige **motivo** e **novo prazo**. Se o novo prazo
@@ -179,8 +193,30 @@ realizada, o card exibe a composição confirmada automaticamente quando está l
 Em um card menor, o resumo permanece compacto. Use **Ver detalhamento financeiro** para consultar
 os valores previstos e a análise completa.
 
-Além disso, há abas para: **Serviços**, **Arquivos**, **Extras**, **Financeiro** e
-**Inputs** (formulários de start). Cada uma será detalhada em sua própria página do manual.
+Além disso, há abas para: **Serviços**, **Arquivos**, **Extras**, **Financeiro** (veja abaixo) e
+**Inputs** (formulários de start). As demais serão detalhadas em suas próprias páginas do manual.
+
+### Aba Financeiro: receita e contrato
+
+Exige acesso ao financeiro (`financeiro:ver` ou sócio). O card **Receita / Contrato** mostra o
+**valor de contrato** (com o atalho **Usar composição**, que adota o total da composição de preço), o
+**contratado**, o **faturado (previsto)**, o **recebido**, **quanto falta faturar** e a lista de parcelas.
+
+- **Gerar parcelas** cria as receitas **previstas** do projeto: informe o valor total, o número de
+  parcelas, o intervalo em meses e a data da primeira. Gerar de novo **substitui as previstas**; as
+  **recebidas** ficam. **Limpar previstas** remove só as previstas.
+- **O contrato do Jurídico manda na cobrança.** Se o projeto tem um contrato de cliente
+  **cobrado por entrega** em vigor (não rescindido), **Gerar parcelas fica desabilitado** e o card
+  explica: as parcelas e a previsão de recebimento saem do contrato
+  ([Contrato por entrega](../financeiro/contrato-por-entrega.md)), e gerar aqui cobraria em dobro. Com
+  contrato **por data** que já tem plano de parcelas, o card só **avisa** para conferir antes de gerar.
+- **Faturar por entrega** é a alternativa às parcelas: cada disciplina traz o valor **da proposta**
+  (o item dela, quando existe) e o botão **Faturar** abre a confirmação, onde você **confere ou digita o
+  valor a cobrar do cliente**. Ele cria uma receita prevista com esse valor — que **não** é o valor da
+  disciplina, aquele que se paga ao projetista. A mesma disciplina não é faturada duas vezes, e com
+  contrato **por entrega** em vigor a lista **não aparece** (a cobrança é do contrato).
+- Gerar, limpar parcelas e faturar entregas exigem `financeiro:gerir`; o valor de contrato,
+  `projetos:gerir`.
 
 ### Pastas da aba Arquivos
 
@@ -342,6 +378,12 @@ não derruba os outros. Quem acessa não faz login: só vê e baixa.
 | Projeto inteiro | Todas as disciplinas, inclusive as criadas depois do link |
 | Arquivos escolhidos | Exatamente os arquivos que você marcou na tabela |
 
+Nos dois primeiros tipos há ainda o campo **Fases liberadas**: marque só o **Básico** para a
+prefeitura e só o **Executivo** para o cliente — dois links do mesmo projeto. Sem nenhuma fase marcada,
+vale **todas as fases**. Documentos **sem fase** só entram se você marcar **Incluir documentos sem
+fase** (sem fase não dá para saber se é Básico ou Executivo). **Separar por fase** faz o cliente ver
+disciplina → fase → formato.
+
 **Nos dois primeiros tipos, o link mostra apenas a entrega corrente.** Ficam de fora:
 
 - as **revisões anteriores** — de cada documento sai só a última;
@@ -421,7 +463,8 @@ menu normal do navegador.
 | Ação | Permissão |
 | --- | --- |
 | Ver lista/detalhe | `projetos:ver` |
-| Criar/editar projeto, disciplinas, membros | `projetos:gerir` |
+| Criar/editar projeto, disciplinas, etapas por fase, membros | `projetos:gerir` |
+| Aprovar uma fase (libera o pagamento dela) | `aprovacoes:disciplina` |
 | Alterar status / registrar revisão | Responsável da disciplina **ou** gestor |
 | Ver downloads e visualizações no histórico do documento | `arquivos:ver_acessos` |
 
@@ -437,7 +480,8 @@ menu normal do navegador.
 
 ## Funcionalidades relacionadas
 
-- [Meu trabalho](meu-trabalho.md) · [Planejamento](planejamento.md) · [Tarefas](tarefas.md)
+- [Meu trabalho](meu-trabalho.md) · [Planejamento](planejamento.md) · [Tarefas](tarefas.md) ·
+  [Etapas e pagamento por fase](etapas-e-pagamento-por-fase.md)
 - [Clientes](../clientes-comercial/README.md) · [Portal do cliente](../inicio/portal-cliente.md)
 
 ## FAQ

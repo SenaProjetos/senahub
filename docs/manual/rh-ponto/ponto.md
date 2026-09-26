@@ -32,6 +32,14 @@ Registrar a jornada de trabalho por **sessões com uma alocação**, gerando o *
 3. **Encerrar sessão** para fechar o período.
 4. O **espelho do mês** consolida suas horas do mês corrente.
 
+### Tarefa da sessão (opcional)
+
+Quando você escolhe um **projeto**, aparece um segundo campo, **Tarefa (opcional)**, com as
+suas tarefas em aberto nele — só as do período, uma lista curta. Escolher uma tarefa registra
+em qual delas você trabalhou; não escolher funciona como sempre. Reunião e "sem projeto" não
+têm tarefa. Ao trocar de alocação você pode trocar a tarefa, e ao voltar do descanso ela é
+mantida. Corrigir o horário de um dia no espelho preserva a tarefa da entrada.
+
 ## Para gestores (RH)
 
 - Quem é gestor de RH (admin/supervisor/administrativo) vê também o **rateio do mês** —

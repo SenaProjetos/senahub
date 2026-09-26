@@ -166,7 +166,8 @@ export async function obterCliente(id: string) {
 /** Resumo financeiro do cliente: receitas vinculadas (total / pago / em aberto). */
 export async function resumoFinanceiroCliente(clienteId: string) {
   const lancamentos = await prisma.lancamento.findMany({
-    where: { clienteId, tipo: "receita", status: { not: "cancelado" } },
+    // Sem a previsão do cronograma (F7.2): "em aberto" é o que foi cobrado e não pago.
+    where: { clienteId, tipo: "receita", status: { notIn: ["cancelado", "previsao"] } },
     select: { valor: true, valorEfetivo: true, status: true },
   });
   let total = 0;

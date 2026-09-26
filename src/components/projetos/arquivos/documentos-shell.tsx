@@ -38,6 +38,7 @@ type LinkPublicoProps = {
   baseUrl: string;
   clienteEmail: string | null;
   links: React.ComponentProps<typeof LinkPublicoArquivosButton>["links"];
+  fasesLink?: React.ComponentProps<typeof LinkPublicoArquivosButton>["fasesLink"];
 };
 
 export function DocumentosShell({
@@ -170,6 +171,7 @@ export function DocumentosShell({
               baseUrl={linkPublico.baseUrl}
               clienteEmail={linkPublico.clienteEmail}
               links={linkPublico.links}
+              fasesLink={linkPublico.fasesLink}
             />
           )}
           {dadosUploader && <EnviarDocumentosDialog dados={dadosUploader} abrirAoCarregar={abrirEnvio} />}

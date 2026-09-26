@@ -115,6 +115,15 @@ export const editarCatalogoPrancha = defineAction(
 export const excluirCatalogoPrancha = defineAction(
   { ...base, acao: "excluir-catalogo-prancha", entidade: "PranchaCatalogo", schema: z.object({ id: z.string().min(1) }) },
   async (i) => {
+    // Fase em uso por etapa de disciplina (F4) não é excluída: a FK é RESTRICT, porque a fase
+    // é a identidade da etapa. Sem esta checagem o Postgres recusaria do mesmo jeito, mas a
+    // pessoa veria só "algo deu errado" em vez do motivo e da saída (desativar).
+    const emUso = await prisma.disciplinaEtapa.count({ where: { etapaId: i.id } });
+    if (emUso > 0) {
+      throw new ActionError(
+        `Esta fase é usada por ${emUso} etapa(s) de disciplina e não pode ser excluída. Desative-a para ela sumir dos cadastros novos.`,
+      );
+    }
     await prisma.pranchaCatalogo.delete({ where: { id: i.id } });
     rev();
     return { id: i.id };

@@ -120,6 +120,7 @@ export function ProjetosView({
   clientes,
   catalogo,
   internos,
+  tiposEmpreendimento = [],
   prontasPorProjeto,
   mostrarGuia,
 }: {
@@ -139,6 +140,8 @@ export function ProjetosView({
   clientes: { id: string; nome: string }[];
   catalogo: string[];
   internos: { id: string; name: string; role: string }[];
+  /** D13: tipos de empreendimento para o formulário de projeto novo. */
+  tiposEmpreendimento?: { id: string; nome: string }[];
   /** projetoId → nº de disciplinas prontas para aprovar (já escopado no server). */
   prontasPorProjeto: Record<string, number>;
   /**
@@ -367,6 +370,7 @@ export function ProjetosView({
           clientes={clientes}
           catalogo={catalogo}
           internos={internos}
+          tiposEmpreendimento={tiposEmpreendimento}
         />
       )}
     </div>

@@ -11,6 +11,7 @@ import { erroMoverLote, recalcularTotalFolha } from "./service";
 import { contaPagamento, dataPagamento, formaPagamento } from "@/modules/financeiro/folha/schemas";
 
 import { listarPagamentosDoLote, type PagamentoDoLote } from "./queries";
+import { SELECT_FASE_DO_PAGAMENTO, rotuloDisciplinaPagamento } from "@/modules/uploads/pagamento-fase";
 
 // Recorte fino da F4 (2026-09-02): era `permissao: "gerir"`, o mesmo interruptor de lançar
 // boleto. Semeado para quem tinha `gerir`, então ninguém perdeu nada — passa a poder ser
@@ -112,6 +113,7 @@ export const pagarFolhaProjetista = defineAction(
           include: {
             projetista: { select: { id: true, name: true } },
             disciplina: { select: { disciplinaTextoLegado: true, projetoId: true, projeto: { select: { codigo: true } } } },
+            etapa: SELECT_FASE_DO_PAGAMENTO,
           },
         },
       },
@@ -147,7 +149,7 @@ export const pagarFolhaProjetista = defineAction(
             valor: pag.valor,
             tipoProfissional: pag.tipoProfissional,
             projetistaNome: pag.projetista.name,
-            disciplinaNome: pag.disciplina.disciplinaTextoLegado,
+            disciplinaNome: rotuloDisciplinaPagamento(pag.disciplina.disciplinaTextoLegado, pag.etapa?.etapa.sigla),
             projetoId: pag.disciplina.projetoId,
             projetoCodigo: pag.disciplina.projeto.codigo,
           },

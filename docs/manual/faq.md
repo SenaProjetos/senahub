@@ -2,8 +2,8 @@
 titulo: Perguntas Frequentes (FAQ)
 descricao: Dúvidas e erros comuns do SenaHub com solução objetiva.
 resumo: Respostas rápidas para acesso, senha, permissões, busca e problemas do dia a dia.
-tags: [faq, dúvidas, erros, problemas, suporte, ajuda]
-palavras-chave: [faq, perguntas, dúvida, erro, não consigo, esqueci a senha, permissão, acesso negado]
+tags: [faq, dúvidas, erros, problemas, suporte, ajuda, cronograma, pagamento por fase, contrato por entrega]
+palavras-chave: [faq, perguntas, dúvida, erro, não consigo, esqueci a senha, permissão, acesso negado, reagendar, linha de base, replanejar, previsão de recebimento, faturar parcela]
 sinonimos: [perguntas frequentes, troubleshooting, solução de problemas, ajuda comum]
 ---
 
@@ -29,7 +29,8 @@ preciso, use **Esqueci minha senha**.
 Na tela de login, clique em **Solicitar acesso** e preencha o pedido de cadastro.
 
 **Como troco minha foto de perfil?**
-Menu da conta → **Alterar foto** → escolha uma imagem.
+Menu da conta → **Alterar foto** → escolha uma imagem. Também dá para trocar em **Preferências → Meu
+perfil**.
 
 **Como saio com segurança?**
 Menu da conta → **Sair**. A sessão é encerrada.
@@ -69,6 +70,41 @@ quando o contato ainda precisa ser desenvolvido.
 **A empresa já é cliente e trouxe outra obra. Devo criar outra empresa?**
 Não. Selecione a empresa existente e escolha **Nova demanda / novo projeto**. Assim o histórico
 da empresa fica reunido, mas cada obra segue em seu próprio lead e em sua própria negociação.
+
+## Projetos, cronograma e pagamento
+
+**Onde digito o início e o fim de uma tarefa do cronograma?**
+Não se digita: como no MS Project, você informa a **duração em dias úteis** e as **dependências**, e
+o sistema calcula as datas — pulando fins de semana e feriados — a cada vez que você salva. Para
+prender uma tarefa numa data, use **Restrição de data**. Veja [Planejamento](projetos/planejamento.md).
+
+**Apurei a Data de Status e as tarefas foram para depois dela.**
+É o trabalho que ainda não foi feito indo para o futuro, como o "Reprogramar trabalho não concluído"
+do MS Project. Informe as datas reais e o percentual das tarefas em andamento: o que já foi feito fica
+onde está. A linha de base não muda.
+
+**O que muda depois que aprovo o cronograma?**
+A aprovação congela a **linha de base** (BL-00) — o combinado —, e ela nunca é alterada. Ajustes de plano
+entram como **Replanejar** (BL-01, BL-02…), sempre com motivo, e o sistema mostra o desvio contra o
+combinado.
+
+**O card do meu quadro de Tarefas não deixa mudar o prazo.**
+Card que vem do cronograma acompanha a EAP: título, prazo, projeto, disciplina e responsáveis ficam
+travados e mudam na EAP do projeto. Coluna, prioridade, descrição, checklist e comentários continuam
+livres. Veja [Tarefas](projetos/tarefas.md).
+
+**A mesma disciplina aparece em duas linhas na Produção para o mesmo projetista.**
+É o **pagamento por fase**: cada fase aprovada tem a sua linha ("Elétrica · BS"), e a soma delas é o
+valor da disciplina. Veja [Etapas e pagamento por fase](projetos/etapas-e-pagamento-por-fase.md).
+
+**A parcela do contrato por entrega não aparece em Contas a receber.**
+Enquanto não é faturada, ela é só **previsão** — aparece no **Fluxo de caixa**. Vira conta a receber
+quando o financeiro clica em **Faturar** no diálogo **Pagamento** do contrato. Veja
+[Contrato por entrega](financeiro/contrato-por-entrega.md).
+
+**Não vejo valores em R$ no Valor Agregado.**
+A régua em R$ e o custo só aparecem para quem tem acesso ao financeiro; os demais veem a régua em
+**horas**. Veja [Valor Agregado](projetos/valor-agregado.md).
 
 ## Problemas comuns
 

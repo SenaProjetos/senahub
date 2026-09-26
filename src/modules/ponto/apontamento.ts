@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { minutosSessao } from "@/modules/ponto/format";
 import { normalizarAlocacaoPonto, type TipoAlocacaoPonto } from "@/modules/ponto/alocacao";
+import { resolverTarefaDoPonto } from "@/modules/ponto/tarefa-ponto-service";
 
 /**
  * Apontamento de horas — jornada aberta/fechada em `SessaoTrabalho`, SEM o vocabulário de
@@ -36,6 +37,7 @@ export type ApontamentoAtual = {
     tipoAlocacao: TipoAlocacaoPonto;
     inicio: Date;
     projeto: { codigo: string; nome: string } | null;
+    tarefa: { id: string; titulo: string } | null;
   } | null;
   hojeMin: number;
 };
@@ -50,6 +52,7 @@ export async function apontamentoAtual(userId: string): Promise<ApontamentoAtual
       tipoAlocacao: true,
       inicio: true,
       projeto: { select: { codigo: true, nome: true } },
+      tarefa: { select: { id: true, titulo: true } },
     },
   });
 
@@ -64,23 +67,27 @@ export async function apontamentoAtual(userId: string): Promise<ApontamentoAtual
   return { aberto, hojeMin };
 }
 
-export async function abrirApontamento(userId: string, projetoId: string | null) {
+export async function abrirApontamento(userId: string, projetoId: string | null, tarefaId?: string | null) {
   const aberto = await prisma.sessaoTrabalho.findFirst({ where: { userId, fim: null } });
   if (aberto) throw new ActionError("Já existe um apontamento em aberto — encerre antes de iniciar outro.");
+  const alocacao = normalizarAlocacaoPonto(projetoId);
+  const tarefa = await resolverTarefaDoPonto(prisma, userId, alocacao, tarefaId);
   return prisma.sessaoTrabalho.create({
-    data: { userId, ...normalizarAlocacaoPonto(projetoId), inicio: new Date() },
+    data: { userId, ...alocacao, tarefaId: tarefa, inicio: new Date() },
   });
 }
 
 /** Troca de projeto SEM perder o tempo: fecha a sessão atual e abre outra no mesmo instante. */
-export async function trocarApontamento(userId: string, projetoId: string | null) {
+export async function trocarApontamento(userId: string, projetoId: string | null, tarefaId?: string | null) {
   const aberto = await prisma.sessaoTrabalho.findFirst({ where: { userId, fim: null } });
   if (!aberto) throw new ActionError("Nenhum apontamento em aberto para trocar de projeto.");
   const agora = new Date();
   const alocacao = normalizarAlocacaoPonto(projetoId);
+  // Validada ANTES de fechar: tarefa inválida não pode deixar o apontamento sem sessão.
+  const tarefa = await resolverTarefaDoPonto(prisma, userId, alocacao, tarefaId);
   await prisma.$transaction([
     prisma.sessaoTrabalho.update({ where: { id: aberto.id }, data: { fim: agora } }),
-    prisma.sessaoTrabalho.create({ data: { userId, ...alocacao, inicio: agora } }),
+    prisma.sessaoTrabalho.create({ data: { userId, ...alocacao, tarefaId: tarefa, inicio: agora } }),
   ]);
 }
 

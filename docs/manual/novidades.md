@@ -22,6 +22,375 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Cronograma com a cara do MS Project
+
+A tela do planejamento ganhou o layout que a equipe já conhece: **tabela à esquerda, gráfico à direita**,
+nas mesmas linhas.
+
+- **Duas visões:** **Gráfico de Gantt** (planejamento) e **Gantt de Controle** (acompanhamento, com a barra da
+  linha de base abaixo da barra prevista e a coluna **Desvio**).
+- **Escala em dois níveis** — semana sobre dia, mês sobre semana, ano sobre mês — com **Dias**, **Semanas** e
+  **Meses**, fins de semana e feriados sombreados, e o botão **Hoje**.
+- **Níveis que recolhem e expandem**, número da linha (o "Id" do Project) e a coluna **Predecessoras** no formato
+  `3TI+2d` (TI, II, TT, IT), com as **setas** de cada tipo de vínculo.
+- Agrupamentos em **barra preta**, marcos em **losango** e os recursos escritos ao lado das barras.
+- **Edição direto na tabela:** nome, duração, % concluído e predecessoras (`3TI+2d`) se editam na própria
+  célula — Enter grava e desce, Tab vai para a próxima, Esc desiste. Duração `0` vira marco. Duplo clique na
+  linha abre a janela completa.
+- **Menu da linha:** botão direito (ou **⋯**) para **inserir tarefa acima**, **recuar** e **avançar** níveis
+  (a tarefa vira subtarefa ou sobe um nível, como no Project), atualizar datas reais, gerar o card e excluir.
+  Atalhos: Insert, Delete, Alt+Shift+→ e Alt+Shift+←.
+
+---
+
+## Ajustes do cronograma pedidos pelo time
+
+Depois de revisar o novo planejamento, o time decidiu alguns pontos. O que já está no ar:
+
+- **Modelos de EAP importados do MS Project:** em **Gestão → Modelos de EAP** dá para importar um
+  cronograma exportado do Project (`Arquivo → Salvar como → XML`) e guardá-lo como modelo da casa. Na
+  importação o sistema mostra o que entendeu de cada agrupamento — fase, disciplina ou agrupamento
+  comum — e você confirma; o que não bate com o catálogo (`GLP`, `TELECOMUNICAÇÕES`) você escolhe, e a
+  escolha fica lembrada para a próxima vez. Num projeto com a **EAP vazia**, o botão **Usar modelo de
+  EAP** cria a estrutura inteira em rascunho, já dizendo quantas linhas vai criar e o que fica de fora
+  (disciplina que o projeto não tem). Do arquivo vêm árvore, durações, dependências e marcos; datas,
+  horas e pessoas continuam sendo do projeto. O projeto ganhou também o campo **Tipo de
+  empreendimento**, que vem preenchido quando ele nasce de uma negociação e serve para sugerir o
+  modelo. Na importação você informa **quanto do valor da disciplina cabe a cada fase** (Básico 40%,
+  Executivo 60%, somando 100%): aplicando o modelo, essas fases são cadastradas nas disciplinas do
+  projeto que ainda não têm fase, que é o que faz o marco marcar a fase como Entregue e o pagamento por
+  fase funcionar.
+- **Cobrança lançada à mão casa com a previsão do cronograma:** ao lançar uma receita do projeto com o
+  mesmo valor de uma parcela que o contrato por entrega ainda mostra como previsão, o sistema junta as
+  duas — a parcela passa a apontar para a cobrança e a previsão sai do caixa, sem contar duas vezes. A
+  tela diz com qual parcela casou; quando não dá para saber (valor diferente, duas parcelas iguais,
+  vencimento distante), ela avisa o motivo em vez de escolher por você.
+- **Fase de disciplina feita pela equipe própria fica liberada com R$ 0:** aprovar uma fase de
+  disciplina sem projetista PJ agora a marca como liberada (sem criar pagamento), e o percentual dela
+  passa para as fases que faltam. Antes ela ficava pendente e, se um PJ entrasse depois, aquela fase já
+  aprovada voltava a pagar.
+- **Custo real do Valor Agregado passa a contar o PJ:** quem recebe por entrega entra pelo **pagamento
+  liberado** até a Data de Status, e as horas dessa pessoa saem da conta em R$ (em horas continuam
+  contando). Antes o PJ não aparecia no custo real, e o índice de custo parecia melhor do que era em
+  projeto tocado por PJ.
+- **O Valor Agregado passa a usar o % da Data de Status, não o de hoje:** o sistema guarda o histórico
+  do percentual concluído a cada atualização, então reapurar uma semana passada devolve o avanço que
+  havia naquela semana. Atualizar os percentuais na segunda "referentes à sexta" continua valendo para a
+  sexta, enquanto ela for a Data de Status. Atividade que já tinha avanço antes desta versão não tem
+  histórico: nela vale o % atual, e o quadro avisa.
+- **Etapa de terceiro marcada na mão:** na seção **Recursos** da linha há o botão **Etapa de
+  terceiro**. A linha passa a valer como trabalho de fora da casa (cliente, arquitetura, prefeitura,
+  concessionária): segura prazo, mas **não gera card, não cobra hora e custa zero**, e o verificador
+  não pede responsável dela. Pode deixar alguém da casa junto para acompanhar. Antes o sistema
+  tentava adivinhar isso pela **origem** da linha — e como o editor não tinha esse campo, toda linha
+  contava como trabalho da casa.
+- **Meio período:** o **%** de uma alocação é da **capacidade da própria pessoa**. Quem trabalha meio
+  período fica cheio com 100% — 50% é metade do meio período dela. Matriz, heatmap e Carga planejada
+  agora leem do mesmo jeito. Quem tem capacidade diferente de 1 deve conferir as alocações já digitadas.
+- **Custo por hora em Recursos** só aparece para quem tem acesso ao financeiro, e só quem gere o
+  financeiro o altera. Editar a capacidade ou a cor não apaga a taxa gravada.
+- **Aprovar fase no card da disciplina:** a fase entregue mostra o botão **Aprovar** na própria
+  disciplina, sem precisar abrir o diálogo Etapas nem a página Aprovações.
+- **Heatmap com período à escolha:** 1 semana (por dia), 4 semanas, 12 semanas ou meses.
+- **Previsão de recebimento no resultado do projeto e no painel:** o valor que o contrato por entrega
+  espera receber agora conta como receita **prevista** no resultado do projeto e no indicador Receita
+  prevista do painel inicial, além do fluxo de caixa. Ao faturar, a mesma linha vira cobrança — nada
+  é somado duas vezes.
+- **Planejamento sem datas para quem só consulta:** CLT, estagiário e projetista PJ continuam vendo a
+  estrutura do planejamento (tarefas, pessoas, duração e avanço), mas não veem mais datas, Gantt,
+  Cronograma geral nem a exportação. Os prazos deles seguem nos cards de tarefas.
+- **Marco concluído entrega a fase:** ao concluir o marco de uma fase, ela passa a **Entregue** e quem
+  aprova disciplinas é avisado. Aprovar (e liberar o pagamento) continua sendo um passo à parte;
+  reabrir o marco não desfaz a entrega.
+
+---
+
+## Datas reais e Data de Status passam a mover o cronograma
+
+Como no MS Project, o **realizado** agora mexe na **previsão** — a linha de base continua sendo o
+combinado, e é contra ela que o atraso aparece.
+
+- **Datas reais:** tarefa concluída fica nas datas em que aconteceu; tarefa iniciada começa no início
+  real. Se atrasou, as tarefas que dependem dela **andam junto**.
+- **Apurar reprograma:** ao definir a **Data de Status**, o trabalho ainda não feito vai para o dia
+  útil seguinte a ela — o "Reprogramar trabalho não concluído para iniciar após" do Project, sem
+  precisar pedir. A parte feita de uma tarefa em andamento fica onde está; só o restante anda.
+- **Percentual sem data real** segue o Project: mais de 0% conta como iniciada; 100%, como concluída.
+- **Atrasada** passou a comparar com o **término da linha de base**, no verificador e no filtro
+  Atrasadas.
+- A Data de Status não pode mais ser no futuro.
+
+---
+
+## Tarefa do cronograma se cria pela duração, como no MS Project
+
+No editor da tarefa (Planejamento → cronograma do projeto), **início e fim** deram lugar à **duração
+em dias úteis**: as datas são calculadas e aparecem ao lado, já contando fins de semana e feriados.
+Antes o editor pedia as duas datas e contava os dias corridos entre elas — e a tarefa terminava
+**depois** do dia digitado quando o cronograma era recalculado.
+
+- **Salvar já recalcula** o projeto inteiro: não é mais preciso clicar em Reagendar.
+- Para prender a tarefa numa data, use **Restrição de data**; ao criar a tarefa, dá para informar
+  **Não iniciar antes de**.
+- Linha de **agrupamento** não tem duração própria (vem das tarefas dentro dela), e linhas de
+  disciplina ou pacote não viram mais atividade ao serem editadas.
+- **Gerar EAP das disciplinas** cria cada linha com a duração até o prazo da disciplina (antes ela
+  nascia com um dia só).
+
+---
+
+## Planejamento: o cronograma agora calcula as datas, como o MS Project
+
+O cronograma de cada projeto (**Planejamento**) deixou de ser uma lista de datas digitadas: você
+diz **quanto dura** cada tarefa e **do que ela depende**, e o sistema calcula o resto.
+
+- **Dias úteis e feriados.** Um calendário só, o da empresa: segunda a sexta, menos os feriados
+  cadastrados em Configurações. Férias não movem datas — aparecem como aviso na carga da equipe.
+- **Dependências completas.** Os quatro tipos (término → início, início → início, término →
+  término e início → término), com **atraso** em dias úteis (negativo = antecipação). Dependência
+  circular é recusada.
+- **Folga e caminho crítico.** Cada tarefa mostra a folga; as de folga zero formam o **caminho
+  crítico**, com borda vermelha no gráfico.
+- **Restrições de data** (seis tipos, marcadas com um **alfinete**) e **bloqueio com motivo** — o
+  bloqueio não para o relógio, só registra por que a tarefa está parada.
+- **Salvar recalcula.** Cada mudança — duração, dependência, restrição, linha nova — recalcula as
+  datas do projeto inteiro na hora. O botão **Reagendar** fica para conferir ou depois de um feriado
+  novo.
+- **Aprovar e linha de base.** Defina o **início do projeto**, corrija os erros do verificador e
+  **aprove**: o sistema congela a **linha de base BL-00** (o combinado) e cria os cards no quadro de
+  Tarefas de quem está escalado. Mudou o combinado? **Replanejar**, com motivo — cria a BL-01, e as
+  anteriores ficam guardadas.
+- **Data de Status e Apurar.** Declare até quando o andamento está informado. Toda segunda-feira o
+  sistema avisa quem apura cronogramas aprovados parados há mais de 10 dias.
+- **Saúde do cronograma.** Uma nota de 0 a 100 (saudável, atenção ou crítico), com a lista dos
+  achados do verificador. A nota é **provisória**: os pesos serão calibrados com projetos reais.
+- **Equipe e horas.** Cada linha ganha responsáveis e horas previstas, e a **carga planejada** por
+  semana aparece em Recursos, com sugestões conferidas para as semanas acima da capacidade.
+- **Cronograma geral.** Os projetos lado a lado na mesma linha do tempo, só para leitura.
+
+Detalhes em [Planejamento](projetos/planejamento.md),
+[Cronograma: equipe, horas e custo](projetos/cronograma-equipe-e-custo.md) e
+[Recursos](projetos/recursos.md).
+
+---
+
+## Heatmap de Recursos soma as horas dos cronogramas aprovados
+
+Em **Recursos → Heatmap**, a ocupação de cada pessoa por mês agora soma a alocação **digitada** com as
+**horas das linhas dos cronogramas aprovados** — antes, quem estava carregado só por projeto aprovado
+aparecia livre ali e sobrecarregado na aba **Carga planejada**. As horas dos cronogramas entram nas
+**próximas 12 semanas** (o que a Carga planejada cobre); nos meses mais distantes o heatmap mostra só a
+digitada. Passe o mouse numa célula para ver as duas parcelas. Ver [Recursos](projetos/recursos.md).
+
+---
+
+## Fila "Fases a aprovar" em Aprovações
+
+A página **Aprovações** ganhou a fila **Fases a aprovar**: cada fase de disciplina já entregue e
+ainda não aprovada, com o projeto, o prazo e a situação. Quem tem permissão para aprovar disciplinas
+aprova dali mesmo — é a mesma aprovação do diálogo **Etapas**, que libera o pagamento da fase. Antes
+era preciso abrir a disciplina, uma a uma, para descobrir o que estava esperando. Ver [Etapas e
+pagamento por fase](projetos/etapas-e-pagamento-por-fase.md).
+
+---
+
+## Parcelas a faturar, direto em Contas a receber
+
+Na aba **A receber** de **Financeiro → Contas a pagar e receber**, quem gere o financeiro passa a ver o
+cartão **Parcelas a faturar**: todas as parcelas de [contrato cobrado por
+entrega](financeiro/contrato-por-entrega.md) que ainda são só previsão, com cliente, contrato, marco,
+previsão e valor. O **marco concluído** vem no topo, e o botão **Faturar** pergunta o vencimento e
+transforma a previsão em conta a receber — sem precisar abrir o Jurídico. O aviso "Marco concluído —
+parcela a faturar" agora leva para essa lista.
+
+---
+
+## Duplicar projeto copia o cronograma de verdade
+
+Ao **duplicar um projeto** marcando a **EAP**, a cópia agora leva a estrutura do cronograma inteira:
+as tarefas em árvore, o **tipo** de cada linha (marco continua marco), as **durações**, a prioridade, a
+fase e os classificadores, e o **tipo e o atraso** de cada dependência. Antes, tudo virava atividade de
+um dia e as dependências perdiam o tipo.
+
+- O **cronograma novo nasce em rascunho**, e cada linha tem seu **ID novo**. Se você informar o **início
+  do cronograma novo** no diálogo, as datas já saem calculadas a partir dele.
+- As **disciplinas** da cópia levam agora o vínculo com o catálogo e a **estrutura de etapas por fase**
+  (fase e percentual, sem prazos), para a fase de cada linha continuar aparecendo e editável.
+- Não são copiados avanço, datas reais, bloqueios, restrições de data, horas nem pessoas.
+- Linhas criadas pelo botão **Nova tarefa** e por **Gerar EAP das disciplinas** também passaram a
+  receber o ID permanente da linha.
+
+---
+
+## Receita do projeto: o contrato por entrega manda na cobrança
+
+Na aba **Financeiro** do projeto, o card **Receita / Contrato** não deixa mais **Gerar parcelas**
+enquanto o projeto tem um [contrato cobrado por entrega](financeiro/contrato-por-entrega.md) em
+vigor — as parcelas e a previsão de recebimento já saem do contrato, e gerar por ali cobraria em
+dobro na projeção de caixa. O card explica o motivo. Com contrato **por data** que já tem plano, ele
+só **avisa** para conferir antes de gerar.
+
+**Faturar por entrega** também mudou: em vez de cobrar do cliente o valor da disciplina (que é o que se
+paga ao projetista — um custo, não uma receita), o botão **Faturar** agora abre uma confirmação com o
+**valor da proposta** já preenchido, para você conferir ou digitar o valor combinado. Com contrato por
+entrega em vigor, a lista some.
+
+---
+
+## Valor Agregado no cronograma (VP, VA, CR, IDP e IDC)
+
+No cronograma do projeto, o quadro **Valor Agregado** mostra se o projeto está adiantado ou
+atrasado, e gastando mais ou menos do que o previsto — como os campos de valor agregado do MS
+Project (COTA, COTR, CRTR).
+
+- É apurado na **Data de Status** do projeto e medido contra a **linha de base** mais recente.
+  Sem Data de Status ou sem cronograma aprovado, o quadro diz o que falta.
+- **Planejado (VP):** quanto a linha de base previa pronto até a Data de Status. **Agregado (VA):**
+  o orçamento de cada atividade × o % concluído informado na EAP. **Real (CR):** as horas
+  apontadas no ponto no projeto até a Data de Status.
+- **IDP** (prazo) = VA ÷ VP e **IDC** (custo) = VA ÷ CR. Verde a partir de 1, amarelo entre 0,90 e
+  1, vermelho abaixo de 0,90. Passe o mouse em cada linha para ver a explicação.
+- Duas colunas: em **horas**, para quem acompanha o cronograma; em **R$** (horas × custo/hora
+  de Recursos), só para quem vê o financeiro.
+- Número que depende de dado que falta (atividade sem horas ou sem custo na linha de base,
+  alguém que apontou sem custo/hora cadastrado) aparece como "—", com o motivo — nunca como zero.
+- Cada vez que a Data de Status é atualizada, a apuração fica guardada: o quadro mostra as
+  apurações anteriores, para acompanhar a tendência.
+- O real é o que foi **apontado no ponto**: quem não aponta horas (ex.: PJ pago por entrega) não
+  entra — o pagamento dele está no financeiro.
+
+---
+
+## Contrato cobrado por entrega e previsão de recebimento no fluxo de caixa
+
+No **Jurídico**, o botão **Pagamento** do contrato de cliente agora tem dois jeitos de cobrar —
+um só por contrato:
+
+- **Por data**, como sempre: número de parcelas e 1º vencimento, geradas na assinatura.
+- **Por entrega (marcos)**: cada parcela é um **percentual** do valor, ligado a um **marco do
+  cronograma** do projeto ("40% na entrega do básico") ou **na assinatura**. O valor de cada uma
+  é calculado (a última absorve o centavo) e a soma precisa fechar 100%. Se a proposta tinha
+  plano de pagamento, **Trazer da proposta** copia as parcelas.
+
+**Previsão de recebimento.** Com o contrato assinado, cada parcela ainda não faturada aparece no
+**Fluxo de caixa → Projeção** como **previsão do cronograma**: a da assinatura na data dela, as
+de marco na **data do marco** — só com o cronograma **aprovado**. Se o marco andar, a previsão
+anda junto. Previsão que já passou da data sem ser faturada continua na projeção, na primeira
+semana, com o aviso de que está atrasada.
+
+- A previsão **não é conta a receber**: não aparece em Contas a receber, no aging, no alerta de
+  inadimplência nem no livro caixa, e não pode ser recebida, editada ou excluída por lá.
+- **Faturar** (no mesmo diálogo, para quem gere o financeiro) transforma a previsão em conta a
+  receber, com o vencimento que você escolher. A partir daí ela é uma cobrança como qualquer outra.
+- Quando um **marco é concluído** no cronograma, quem gere o financeiro recebe o aviso "parcela a
+  faturar" (dá para desligar em Preferências → Parcelas a faturar).
+- Depois de faturar alguma parcela, o plano do contrato trava — ajustes vão pelo financeiro.
+- Se o marco de uma parcela for apagado do cronograma, a parcela fica sem data (não vira cobrança
+  na hora): o diálogo avisa "Marco apagado — escolha" até alguém ligar outro marco.
+
+A projeção de caixa também passou a contar o que vence **hoje** — antes, por causa do fuso, isso
+ficava de fora, e cada semana da projeção começava um dia errado.
+
+---
+
+## Datas reais no cronograma e marco que libera a fase
+
+Na EAP do projeto, o botão de calendário com ✓ na coluna **Ações** abre o **Atualizar tarefa**
+(como no MS Project). Ele aparece para quem informa o andamento do cronograma.
+
+- **Atividade:** informe o **início real** e, quando terminar, o **término real**. O término
+  conclui a atividade (100%) e ela ganha um ✓ na lista. Apagar o término reabre a atividade; o
+  percentual volta a ser o que a coordenação informar.
+- **Marco:** uma data só — o dia em que aconteceu. **Reabrir** desfaz a conclusão.
+- Data real no futuro não é aceita: real é o que já aconteceu.
+- Desbloquear uma linha agora a devolve à situação certa: "em andamento" se ela já começou, "não
+  iniciada" se não.
+
+**Fase na linha da EAP.** No editor da linha, escolhida a disciplina, aparece o campo **Fase**
+(Básico, Executivo…), com as etapas que a disciplina tem. A coluna Disciplina mostra a sigla.
+
+**Marco da fase.** Quando um marco ligado a uma fase é concluído e a fase está **Entregue**, quem
+aprova disciplinas recebe a oferta de **aprovar a fase** — a mesma aprovação do diálogo Etapas, que
+libera o pagamento daquela fase. Quem não aprova vê o aviso, e quem aprova recebe uma notificação.
+Concluir o marco nunca paga nada sozinho. Se a fase ainda não estiver Entregue, marque-a em Etapas.
+
+---
+
+## Custo previsto no cronograma (para quem vê o financeiro)
+
+Na EAP do projeto, quem tem acesso ao financeiro passa a ver a coluna **Custo**: as horas
+previstas de cada pessoa na linha × o **custo/hora** dela, cadastrado em **Recursos**. As linhas
+de agrupamento somam as de dentro, e o topo da tela mostra o custo previsto do projeto.
+
+- Linha sem horas, com **perfil** (vaga ainda sem pessoa) ou com alguém **sem custo/hora
+  cadastrado** fica sem custo — nunca aparece como R$ 0,00. Passe o mouse para ver o que falta.
+  Nesse caso o total do projeto aparece como **incompleto**, dizendo quantas linhas faltam.
+- Marco e etapa do cliente (aprovação, análise externa) custam zero.
+- Ao **aprovar** ou **replanejar** o cronograma, o custo de cada linha fica guardado na linha de
+  base, junto com as datas e as horas. Mudar o custo/hora de alguém depois não altera o que foi
+  combinado.
+- O **Exportar Excel** da EAP traz a coluna de custo para quem vê o financeiro.
+- Quem não vê o financeiro não vê a coluna nem o total.
+
+Para quem recebe por entrega (PJ/freelancer), o que a empresa paga de verdade continua sendo o
+pagamento da disciplina (ou da fase). O custo previsto é a estimativa do cronograma.
+
+---
+
+## Pagamento do projetista por fase (Básico, Executivo…)
+
+Disciplina dividida em etapas (botão de camadas no card da disciplina) agora pode pagar **fase
+a fase**: "entregou o Básico, libera o pagamento do Básico".
+
+- No diálogo **Etapas**, a fase **Entregue** ganha o botão **Aprovar**, para quem aprova
+  disciplinas. Aprovar libera o pagamento daquela fase para os projetistas PJ/freelancer — CLT
+  e estagiário não recebem por entrega, como sempre.
+- O valor de cada fase é o **percentual dela sobre o valor da disciplina**. Os percentuais
+  precisam somar 100%; se não somarem, a aprovação é recusada com o aviso para ajustar.
+- Fase aprovada fica **fixa**: o percentual não muda mais, a fase não pode ser removida, e o
+  valor liberado não muda sozinho — nem se o valor da disciplina mudar depois, nem se o
+  responsável for trocado. Mudar o valor da disciplina só mexe nas fases que ainda faltam, e
+  ele não pode ficar abaixo do que já foi liberado.
+- Aprovar a **disciplina inteira**, como hoje, libera de uma vez as fases que faltam. A soma de
+  tudo fecha no valor da disciplina, no centavo.
+- Na **Produção**, no extrato e no recibo, o pagamento aparece como "Disciplina · SIGLA" (ex.:
+  "Elétrica · BS").
+- Ajuste manual na Produção (editar, estornar, cancelar) fica na fase ajustada: o valor da
+  disciplina anda pela mesma diferença, e as fases seguintes não mudam.
+- Disciplina que já teve o pagamento liberado por inteiro continua assim — não dá para passar a
+  pagar por fase depois. **Disciplina sem etapas funciona exatamente como antes.**
+
+Quem não vê o financeiro continua vendo só os percentuais das fases, sem valores.
+
+---
+
+## Ponto: escolha em qual tarefa você está trabalhando (opcional)
+
+Ao bater o ponto (ou apontar horas) num projeto, agora dá para dizer **em qual tarefa** você
+vai trabalhar. É **opcional** — quem não escolher bate o ponto exatamente como sempre bateu.
+
+- A lista é **curta**: só as suas tarefas em aberto naquele projeto, e — quando a tarefa vem
+  do cronograma — só as que estão no período (até uma semana antes ou depois das datas dela).
+  Nunca aparecem todas as tarefas do projeto.
+- O campo **só aparece** quando você escolhe um projeto e tem alguma tarefa em aberto nele.
+  Em reunião ou "sem projeto" não há tarefa a escolher.
+- Vale no relógio do cabeçalho e na tela **Ponto**, para quem bate ponto e para quem apenas
+  aponta horas. Ao **trocar de alocação**, dá para trocar a tarefa também; ao voltar do
+  descanso, ela é mantida.
+- Se você corrigir o horário de um dia no espelho, a tarefa escolhida na entrada continua lá.
+  Já a tarefa de uma **troca feita no meio do dia** não é guardada quando o dia é editado.
+- As horas registradas aparecem, para a coordenação, ao lado das horas previstas na linha
+  correspondente do cronograma.
+
+Na EAP do projeto, a coordenação também passa a ver **sugestões de percentual** (com base no
+checklist da tarefa e na situação da disciplina). O percentual continua sendo **informado
+pela coordenação**: a sugestão só preenche o campo, e nada é gravado até clicar em Salvar. A
+tela da EAP agora mostra o percentual **informado** de cada atividade — antes, atividade ligada
+a uma disciplina mostrava o percentual automático da situação dela. Linhas de agrupamento
+continuam calculadas a partir das atividades dentro delas.
+
+---
+
 ## Escalas de trabalho por contratação
 
 Em **RH → Escalas**, a escala padrão agora é definida **por contratação** (CLT e Estágio), e

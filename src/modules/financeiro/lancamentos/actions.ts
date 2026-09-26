@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { addMonths } from "date-fns";
 import { defineAction, ActionError } from "@/lib/with-action";
+import { casarCobrancaManualComPrevisao } from "@/modules/juridico/contrato/previsao-service";
 import { prisma } from "@/lib/prisma";
 import {
   criarLancamentoSchema,
@@ -130,7 +131,43 @@ export const criarLancamento = defineAction(
       dataCompetencia: compBase ? addMonths(compBase, n) : null,
     }));
 
-    await prisma.lancamento.createMany({ data: registros });
+    // Decisão #12: receita de projeto lançada à mão pode ser a cobrança de uma parcela que o cronograma
+    // ainda mostra como PREVISÃO — as duas linhas somariam no caixa. Cria uma a uma quando é lançamento
+    // único, para ter o id e tentar o casamento; recorrência não é parcela de entrega.
+    let casamento: {
+      casou: boolean;
+      parcela: string | null;
+      aviso: string | null;
+      previsaoRemovidaId: string | null;
+    } | null = null;
+    if (registros.length === 1) {
+      const criado = await prisma.lancamento.create({ data: registros[0], select: { id: true, vencimento: true, data: true } });
+      if (i.tipo === "receita" && i.projetoId && statusInicial !== "aguardando_aprovacao") {
+        const quando = (criado.vencimento ?? criado.data).toISOString().slice(0, 10);
+        try {
+          casamento = await casarCobrancaManualComPrevisao({
+            lancamentoId: criado.id,
+            projetoId: i.projetoId,
+            valor: i.valor,
+            vencimento: quando,
+            autorId: user.id,
+          });
+        } catch (e) {
+          // O lançamento JÁ existe: falhar aqui faria a tela mostrar erro e a pessoa lançar de novo,
+          // duplicando a receita. O casamento é um extra — sem ele, sobra a previsão, que está à vista.
+          casamento = {
+            casou: false,
+            parcela: null,
+            aviso: `O lançamento foi criado, mas não foi possível casá-lo com a previsão do cronograma${
+              e instanceof Error && e.message.length < 160 ? `: ${e.message}` : "."
+            } Confira a previsão na tela do contrato.`,
+            previsaoRemovidaId: null,
+          };
+        }
+      }
+    } else {
+      await prisma.lancamento.createMany({ data: registros });
+    }
     if (precisaAprovar) {
       const ids = await aprovadoresPorPapeis(papeisAprovadores(i.valor, niveis));
       await notificarMuitos(ids.filter((id) => id !== user.id), {
@@ -140,13 +177,36 @@ export const criarLancamento = defineAction(
       });
     }
     rev();
-    return { ocorrencias: registros.length, aguardandoAprovacao: precisaAprovar };
+    return {
+      ocorrencias: registros.length,
+      aguardandoAprovacao: precisaAprovar,
+      /** Decisão #12: a parcela cuja previsão esta cobrança assumiu (`null` = nenhuma). */
+      previsaoCasada: casamento?.casou ? casamento.parcela : null,
+      /** Por que não casou, quando havia previsão no projeto e vale avisar. */
+      avisoPrevisao: casamento?.aviso ?? null,
+      /** Id da linha de previsão que saiu do caixa — fica no registro de auditoria desta ação. */
+      previsaoRemovidaId: casamento?.previsaoRemovidaId ?? null,
+    };
   },
 );
+
+/**
+ * F7.2: a previsão do cronograma (`previsao`) é da sincronização do contrato por entrega — editar,
+ * receber, cancelar ou excluir por aqui seria desfeito na próxima mudança do marco, ou receberia
+ * dinheiro de uma parcela que ninguém faturou. A porta é faturar a parcela no contrato.
+ */
+const MOTIVO_PREVISAO =
+  "É uma previsão do cronograma (contrato por entrega): ela anda com o marco e vira cobrança quando a parcela é faturada no contrato.";
+
+async function barrarSePrevisao(id: string) {
+  const l = await prisma.lancamento.findUnique({ where: { id }, select: { status: true } });
+  if (l?.status === "previsao") throw new ActionError(MOTIVO_PREVISAO);
+}
 
 export const editarLancamento = defineAction(
   { ...base, acao: "editar-lancamento", entidade: "Lancamento", schema: editarLancamentoSchema, capturarAntes: (i) => snapshotLancamento(i.id) },
   async (i) => {
+    await barrarSePrevisao(i.id);
     await prisma.lancamento.update({
       where: { id: i.id },
       data: {
@@ -176,6 +236,7 @@ export const confirmarLancamento = defineAction(
     if (!lanc) throw new ActionError("Lançamento não encontrado.");
     if (lanc.status === "confirmado") throw new ActionError("Já confirmado.");
     if (lanc.status === "aguardando_aprovacao") throw new ActionError("Despesa aguardando aprovação.");
+    if (lanc.status === "previsao") throw new ActionError(MOTIVO_PREVISAO);
 
     // Valor pago: usa o efetivo informado; se < total, o saldo vira um novo lançamento previsto.
     const restante = saldoRestante(Number(lanc.valor), i.valorEfetivo);
@@ -327,6 +388,7 @@ export const cancelarLancamento = defineAction(
       );
     }
     await barrarSeLancamentoDeArt(i.id);
+    if (atual?.status === "previsao") throw new ActionError(MOTIVO_PREVISAO);
     await prisma.lancamento.update({
       where: { id: i.id },
       data: {
@@ -358,6 +420,7 @@ export const excluirLancamento = defineAction(
     if (lanc.pagamentoProjetistaId) {
       throw new ActionError("Lançamento de folha não pode ser excluído aqui.");
     }
+    if (lanc.status === "previsao") throw new ActionError(MOTIVO_PREVISAO);
     await barrarSeLancamentoDeArt(i.id);
     // Soft delete: marca excluidoEm; some das listagens/relatórios (filtro global no prisma).
     await prisma.lancamento.update({ where: { id: i.id }, data: { excluidoEm: new Date() } });

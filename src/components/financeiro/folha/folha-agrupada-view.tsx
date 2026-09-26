@@ -242,7 +242,7 @@ function GrupoProjetista({
                 return (
                   <TableRow key={p.id}>
                     <TableCell className="text-sm">
-                      {p.disciplina.disciplinaTextoLegado}
+                      {p.rotuloDisciplina}
                       <span className="block text-xs text-muted-foreground">
                         {TIPO_PROFISSIONAL_LABEL[p.tipoProfissional] ?? p.tipoProfissional}
                         {" · "}

@@ -6,6 +6,7 @@ import { paraData, MESES_CURTOS } from "@/lib/data";
 import { lerFiltrosFolha, whereDoStatus } from "./service";
 import type { FiltrosFolha, FiltroStatus } from "./status";
 import { recibosPorPagamento } from "@/modules/financeiro/recibo/queries";
+import { SELECT_FASE_DO_PAGAMENTO, rotuloDisciplinaPagamento } from "@/modules/uploads/pagamento-fase";
 
 type RawParams = Record<string, string | string[] | undefined>;
 
@@ -17,6 +18,8 @@ export const INCLUDE_PAGAMENTO = {
   disciplina: {
     select: { disciplinaTextoLegado: true, projetoId: true, projeto: { select: { codigo: true, nome: true } } },
   },
+  // F7.4: pagamento por fase — a mesma disciplina tem uma linha por fase liberada.
+  etapa: SELECT_FASE_DO_PAGAMENTO,
   // D34: de que lote o pagamento faz parte, do lado da aba Pagamentos — hoje o vínculo só
   // aparecia de dentro do lote (F10). Relação de verdade (`folhaId`/`@relation`), diferente
   // do lançamento (colunas soltas).
@@ -58,6 +61,7 @@ function whereSemStatus(f: FiltrosFolha): Prisma.PagamentoProjetistaWhereInput {
         { projetista: { name: contem } },
         { disciplina: { disciplinaTextoLegado: contem } },
         { disciplina: { projeto: { nome: contem } } },
+        { etapa: { etapa: { sigla: contem } } },
       ],
     });
   }
@@ -186,6 +190,8 @@ export async function comLancamentos<T extends PagamentoBruto>(itens: T[]) {
       ...i,
       // Serializa Decimal → number (Client Components não aceitam Decimal).
       valor: Number(i.valor),
+      /** "Elétrica · BS" no pagamento por fase; só a disciplina no pagamento inteiro. */
+      rotuloDisciplina: rotuloDisciplinaPagamento(i.disciplina.disciplinaTextoLegado, i.etapa?.etapa.sigla),
       lancamento: l
         ? {
             id: l.id,

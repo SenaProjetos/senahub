@@ -188,7 +188,7 @@ export function FolhaView({
                       </span>
                     </TableCell>
                     <TableCell className="text-sm">
-                      {p.disciplina.disciplinaTextoLegado}
+                      {p.rotuloDisciplina}
                       <span className="block text-xs text-muted-foreground">
                         {links.projeto ? (
                           <Link href={`/projetos/${p.disciplina.projetoId}/disciplinas`} className={linkCls}>

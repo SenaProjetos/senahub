@@ -1,9 +1,9 @@
 ---
 titulo: Produção (pagamento de projetistas)
-descricao: Pagamento de projetistas PJ e freelancers pelas entregas validadas, com comprovantes, recibos assinados, correção/estorno de pago, lotes mensais e alerta de parado.
+descricao: Pagamento de projetistas PJ e freelancers pelas entregas validadas (da disciplina ou por fase), com comprovantes, recibos assinados, correção/estorno de pago, lotes mensais e alerta de parado.
 resumo: Veja e pague os pagamentos de produção liberados por entrega, agrupados por projetista ou em tabela, com filtros, comprovante, recibo, rastreabilidade completa e exportação.
-tags: [produção, folha de projetistas, pagamento, projetista, freelancer, lote, pj]
-palavras-chave: [produção, folha de projetistas, pagamento de projetista, projetista pj, freelancer, lote mensal, pagar selecionados, conta obrigatória, comprovante, recibo, corrigir pagamento, estornar pagamento, conciliado, alerta parado, timbrado]
+tags: [produção, folha de projetistas, pagamento, projetista, freelancer, lote, pj, pagamento por fase]
+palavras-chave: [produção, folha de projetistas, pagamento de projetista, pagamento por fase, disciplina sigla, projetista pj, freelancer, lote mensal, pagar selecionados, conta obrigatória, comprovante, recibo, corrigir pagamento, estornar pagamento, conciliado, alerta parado, timbrado]
 sinonimos: [folha de projetistas, pagamento de produção, folha pj]
 ---
 
@@ -12,8 +12,9 @@ sinonimos: [folha de projetistas, pagamento de produção, folha pj]
 ## Objetivo
 
 Pagar projetistas **PJ** e **freelancers** pelas entregas de disciplina já validadas —
-cada entrega liberada gera um pagamento pendente, que esta tela mostra, deixa corrigir
-quando necessário e efetiva no caixa. Depois de pago, ainda dá para anexar o comprovante,
+cada entrega liberada (a disciplina inteira, ou **cada fase**, quando a disciplina tem etapas)
+gera um pagamento pendente, que esta tela mostra, deixa corrigir quando necessário e efetiva no
+caixa. Depois de pago, ainda dá para anexar o comprovante,
 gerar um recibo assinável, corrigir um valor lançado errado ou estornar por engano.
 
 CLT e estagiário não aparecem aqui: eles são remunerados pela folha de ponto, não por
@@ -189,6 +190,21 @@ há mais de 30 dias** e a soma dos valores — uma única notificação, não um
 Sem nenhum parado, ninguém recebe nada naquela semana. O link da notificação já abre a
 lista filtrada em "A pagar", com os mais antigos no topo.
 
+## Pagamento por fase
+
+Quando a disciplina tem [etapas](../projetos/etapas-e-pagamento-por-fase.md), **cada fase aprovada**
+gera os **seus** pagamentos — e a mesma disciplina passa a ter **uma linha por fase e por
+projetista**. Para distingui-las, o texto traz a sigla da fase: **"Elétrica · BS"**. Isso vale na lista
+(por projetista e por pagamento), no lote, nos diálogos de correção e de mover de lote, no extrato do
+projetista, no recibo e na despesa que entra no financeiro. A **busca** encontra pela sigla. Sem fase,
+o texto é o de sempre.
+
+- O **valor de cada fase** vem do percentual dela sobre o valor da disciplina, e **fica congelado** na
+  aprovação — o valor da disciplina que mudar depois só afeta as fases que ainda faltam.
+- **Corrigir valor**, **estornar** ou **cancelar** um pagamento de fase muda o valor **daquela fase**;
+  o valor da disciplina anda pela **mesma diferença**, e as fases seguintes não mudam.
+- Fase de **0%** não gera linha de R$ 0,00 — é aprovada sem pagamento.
+
 ## Do lado do projetista
 
 O próprio projetista/freelancer vê seus pagamentos em **Meu extrato**
@@ -229,6 +245,10 @@ bancário. A forma de pagamento continua opcional.
 **O que muda entre "por projetista" e "por pagamento"?** Nada nos dados — é a mesma
 lista, só organizada diferente. Use "por projetista" para ver quanto deve a cada pessoa;
 "por pagamento" para ordenar, filtrar linha a linha ou selecionar um conjunto específico.
+
+**A mesma disciplina aparece em duas linhas para o mesmo projetista.** É o pagamento por fase: cada
+fase aprovada tem a sua linha ("Elétrica · BS", "Elétrica · EX"). A soma das fases é o valor da
+disciplina.
 
 **A exportação respeita o filtro que apliquei?** Sim — o arquivo baixado é exatamente o
 que a tela está mostrando no momento, com o mesmo filtro e ordenação.

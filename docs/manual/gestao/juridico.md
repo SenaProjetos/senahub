@@ -1,9 +1,9 @@
 ---
 titulo: Jurídico
-descricao: Documentos jurídicos com versões e aceite assinado, pastas e modelos de contrato.
-resumo: Organize documentos jurídicos em pastas (com versões e aceite/assinatura por hash) e use modelos de contrato.
-tags: [jurídico, documentos, contrato, versão, aceite, assinatura, pasta]
-palavras-chave: [jurídico, documento jurídico, contrato, versão, aceite, assinatura, hash, pasta, modelo de contrato]
+descricao: Documentos jurídicos com versões e aceite assinado, pastas, modelos de contrato e a condição de pagamento do contrato de cliente.
+resumo: Organize documentos jurídicos em pastas (com versões e aceite/assinatura por hash), use modelos de contrato e defina como o contrato de cliente é cobrado — por data ou por entrega (marcos do cronograma).
+tags: [jurídico, documentos, contrato, versão, aceite, assinatura, pasta, condição de pagamento, contrato por entrega]
+palavras-chave: [jurídico, documento jurídico, contrato, versão, aceite, assinatura, hash, pasta, modelo de contrato, condição de pagamento, contrato por entrega, parcela por marco, faturar parcela]
 sinonimos: [legal, contratos, documentação jurídica]
 ---
 
@@ -27,13 +27,19 @@ têm tela própria — veja [Certidões](certidoes.md).
 - **Aceite / assinatura:** cada versão pode registrar **aceites** com **hash do arquivo**
   e data — prova de quem aceitou o quê e quando.
 - **Modelos de contrato:** modelos por categoria, com conteúdo reutilizável.
+- **Condição de pagamento (contrato de cliente):** o botão **Pagamento** do contrato define como ele
+  é cobrado — **por data** (parcelas mensais a partir do 1º vencimento) ou **por entrega** (parcelas em
+  percentual ligadas a **marcos do cronograma** do projeto). No contrato por entrega, o financeiro
+  também **fatura** cada parcela dali. Veja
+  [Contrato por entrega e previsão de recebimento](../financeiro/contrato-por-entrega.md).
 
 ## Permissões
 
 | Ação | Permissão |
 | --- | --- |
 | Ver documentos | `juridico:ver` |
-| Criar/editar, versões, aceites, modelos | `juridico:gerir` |
+| Criar/editar, versões, aceites, modelos, condição de pagamento | `juridico:gerir` |
+| **Faturar** uma parcela de contrato por entrega | `financeiro:gerir` |
 
 ## Regras de negócio
 
@@ -41,7 +47,8 @@ têm tela própria — veja [Certidões](certidoes.md).
 
 ## Funcionalidades relacionadas
 
-- [Certidões](certidoes.md) · [Licitações](licitacoes.md) (habilitação/certidões) · [Clientes](../clientes-comercial/clientes.md) · [Termos de uso](../sistema/README.md)
+- [Certidões](certidoes.md) · [Licitações](licitacoes.md) (habilitação/certidões) · [Clientes](../clientes-comercial/clientes.md) · [Termos de uso](../sistema/README.md) ·
+  [Contrato por entrega](../financeiro/contrato-por-entrega.md)
 
 ## FAQ
 

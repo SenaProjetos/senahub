@@ -16,7 +16,7 @@ export type RecebiveisTx = {
     findFirst(args: { where: { codigo: string } }): Promise<{ id: string } | null>;
   };
   lancamento: {
-    count(args: { where: { contratoId: string } }): Promise<number>;
+    count(args: { where: { contratoId: string; status: { not: "previsao" } } }): Promise<number>;
     create(args: { data: Record<string, unknown> }): Promise<{ id: string }>;
   };
 };
@@ -51,7 +51,9 @@ export async function gerarRecebiveisDoContrato(
   tx: RecebiveisTx,
   e: EntradaRecebiveis,
 ): Promise<{ criadas: number }> {
-  const jaExistem = await tx.lancamento.count({ where: { contratoId: e.contratoId } });
+  // Previsão do cronograma (F7.2) não é parcela gerada: sem este filtro, um contrato que já teve
+  // previsão e passou a cobrar por data assinaria sem gerar parcela nenhuma, em silêncio.
+  const jaExistem = await tx.lancamento.count({ where: { contratoId: e.contratoId, status: { not: "previsao" } } });
   if (jaExistem > 0) return { criadas: 0 };
 
   const categoria = await tx.categoriaFinanceira.findFirst({ where: { codigo: CODIGO_CATEGORIA_RECEITA } });

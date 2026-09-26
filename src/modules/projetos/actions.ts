@@ -38,8 +38,11 @@ import { normalizar } from "@/lib/disciplinas-core";
 import { normalizarSinonimos, primeiraColisao } from "@/modules/uploads/nomenclatura/colisao-sinonimo";
 import { usaEstruturaCustom, disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { transicaoDisciplinaPermitida, mensagemTransicaoDisciplina } from "@/modules/projetos/status";
+import { etapaQueDefineOPrazo } from "@/modules/projetos/etapas";
+import { sincronizarPrazoDisciplina } from "@/modules/projetos/etapas-service";
 import { semearPastasTemplate, projetoUsaTemplate } from "@/modules/projetos/pastas/seed";
 import { sincronizarPagamentosPorDisciplinaId } from "@/modules/uploads/pagamento";
+import { duplicarProjetoNoBanco } from "@/modules/projetos/duplicar-service";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { chaveLayoutPainelProjeto } from "@/modules/projetos/painel-layout";
 import { deveDeslocarPrazoDoProjeto } from "@/modules/projetos/prazo-reabertura";
@@ -141,6 +144,7 @@ export const criarProjeto = defineAction(
           // Planejado em branco acompanha o contrato — divergir é ato deliberado.
           prazoPlanejado: parseData(input.prazoPlanejado ?? input.prazoContrato),
           valorContrato: input.valorContrato,
+          tipoEmpreendimentoId: input.tipoEmpreendimentoId ?? null,
           nomenclaturaVersaoId: versaoNomenclatura?.id ?? null,
           membros: {
             create: input.membrosIds.map((userId) => ({ userId })),
@@ -195,6 +199,8 @@ export const editarProjeto = defineAction(
         prazoContrato: parseData(rest.prazoContrato),
         prazoPlanejado: parseData(rest.prazoPlanejado ?? rest.prazoContrato),
         valorContrato: rest.valorContrato,
+        // D13: `undefined` não mexe (formulário que não manda o campo), `null` limpa.
+        ...(rest.tipoEmpreendimentoId === undefined ? {} : { tipoEmpreendimentoId: rest.tipoEmpreendimentoId }),
         abasConfig: rest.abasConfig,
         // P-03: troca de cliente.
         ...(rest.clienteId ? { clienteId: rest.clienteId } : {}),
@@ -359,19 +365,41 @@ export const reabrirDisciplina = defineAction(
     if (!novoPrazo) throw new ActionError("Novo prazo inválido.");
 
     const prazoAntigoDoProjeto = disciplina.projeto.prazoPlanejado;
-    const deslocaProjeto = deveDeslocarPrazoDoProjeto(novoPrazo, prazoAntigoDoProjeto);
 
-    await prisma.$transaction(async (tx) => {
-      await tx.disciplina.update({
-        where: { id: input.disciplinaId },
-        data: { status: "em_revisao", prazo: novoPrazo },
+    // Com etapa (F4), o prazo da disciplina é CONSOLIDADO — o maior entre as etapas. Então o
+    // novo prazo vai para a etapa que define esse máximo, e o deslocamento do prazo planejado
+    // do projeto é decidido a partir do prazo FINAL consolidado, nunca do digitado. Decidir
+    // antes (como era) deslocaria o projeto para uma data que a disciplina não tem — ou deixaria
+    // de deslocar quando outra etapa já passava do planejado.
+    const { deslocaProjeto, prazoFinal } = await prisma.$transaction(async (tx) => {
+      const etapas = await tx.disciplinaEtapa.findMany({
+        where: { disciplinaId: input.disciplinaId },
+        select: { id: true, prazo: true, ordem: true },
       });
+      let prazoFinal: Date = novoPrazo;
+      if (etapas.length > 0) {
+        const alvo = etapaQueDefineOPrazo(
+          etapas.map((e) => ({ ...e, prazo: e.prazo ? e.prazo.toISOString().slice(0, 10) : null })),
+        )!;
+        await tx.disciplinaEtapa.update({ where: { id: alvo.id }, data: { prazo: novoPrazo } });
+        await tx.disciplina.update({ where: { id: input.disciplinaId }, data: { status: "em_revisao" } });
+        const consolidado = await sincronizarPrazoDisciplina(tx, input.disciplinaId);
+        if (consolidado) prazoFinal = new Date(`${consolidado}T00:00:00.000Z`);
+      } else {
+        await tx.disciplina.update({
+          where: { id: input.disciplinaId },
+          data: { status: "em_revisao", prazo: novoPrazo },
+        });
+      }
+
+      const deslocaProjeto = deveDeslocarPrazoDoProjeto(prazoFinal, prazoAntigoDoProjeto);
       if (deslocaProjeto) {
         await tx.projeto.update({
           where: { id: disciplina.projetoId },
-          data: { prazoPlanejado: novoPrazo },
+          data: { prazoPlanejado: prazoFinal },
         });
       }
+      return { deslocaProjeto, prazoFinal };
     });
 
     // Registro próprio no histórico do projeto: `entidadeId` precisa cair no
@@ -386,7 +414,9 @@ export const reabrirDisciplina = defineAction(
         detalhe: {
           antes: { prazoPlanejado: prazoAntigoDoProjeto?.toISOString().slice(0, 10) ?? null },
           novo: {
-            prazoPlanejado: input.novoPrazo,
+            // O prazo FINAL, não o digitado: com etapa eles podem divergir, e o histórico tem de
+            // dizer para onde o projeto de fato foi.
+            prazoPlanejado: prazoFinal.toISOString().slice(0, 10),
             motivo: `Reabertura de ${disciplina.disciplinaTextoLegado}: ${input.motivo}`,
             disciplinaId: disciplina.id,
           },
@@ -405,7 +435,7 @@ export const reabrirDisciplina = defineAction(
     if (respIds.length > 0) {
       await notificarMuitos(respIds, {
         titulo: "Disciplina reaberta",
-        corpo: `${disciplina.disciplinaTextoLegado} (${codigo}) reaberta para revisão até ${input.novoPrazo}. Motivo: ${input.motivo}`,
+        corpo: `${disciplina.disciplinaTextoLegado} (${codigo}) reaberta para revisão até ${prazoFinal.toISOString().slice(0, 10)}. Motivo: ${input.motivo}`,
         href,
         tag: `reabertura-${disciplina.id}`,
       });
@@ -414,6 +444,8 @@ export const reabrirDisciplina = defineAction(
       disciplinaId: input.disciplinaId,
       status: "em_revisao" as const,
       prazoProjetoDeslocado: deslocaProjeto,
+      /** O prazo que a disciplina ficou — com etapa pode diferir do digitado (consolidação). */
+      prazoFinal: prazoFinal.toISOString().slice(0, 10),
     };
   },
 );
@@ -566,9 +598,8 @@ export const definirMembros = defineAction(
 );
 
 /**
- * Duplica um projeto: novo código AAXXXX, nome + " (cópia)", mesmo cliente/tipo e
- * disciplinas (nome/ordem/valor/prazo). Copia responsáveis, membros, EAP e composição
- * de preço conforme as flags recebidas. Uploads/revisões/pagamentos nunca são copiados.
+ * Duplica um projeto (regras em `duplicar-service.ts`): novo código, mesmo cliente/tipo, disciplinas
+ * e, conforme as flags, responsáveis, membros, EAP e composição de preço.
  */
 export const duplicarProjeto = defineAction(
   {
@@ -580,168 +611,8 @@ export const duplicarProjeto = defineAction(
     schema: duplicarProjetoSchema,
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
-  async (input) => {
-    const origem = await prisma.projeto.findUnique({
-      where: { id: input.id },
-      select: {
-        tipo: true,
-        nome: true,
-        clienteId: true,
-        descricao: true,
-        areaM2: true,
-        endereco: true,
-        prazoContrato: true,
-        prazoPlanejado: true,
-        valorContrato: true,
-        membros: { select: { userId: true } },
-        disciplinas: {
-          orderBy: { ordem: "asc" },
-          select: {
-            id: true,
-            disciplinaTextoLegado: true,
-            valor: true,
-            prazo: true,
-            ordem: true,
-            responsaveis: { select: { userId: true } },
-          },
-        },
-        eapTarefas: {
-          orderBy: { ordem: "asc" },
-          select: {
-            id: true,
-            parentId: true,
-            disciplinaId: true,
-            nome: true,
-            ordem: true,
-            inicioPrevisto: true,
-            fimPrevisto: true,
-            predecessoras: { select: { predecessoraId: true } },
-          },
-        },
-        composicaoPreco: {
-          select: {
-            observacao: true,
-            itens: {
-              orderBy: { ordem: "asc" },
-              select: { descricao: true, quantidade: true, valorUnitario: true, ordem: true },
-            },
-          },
-        },
-      },
-    });
-    if (!origem) throw new ActionError("Projeto não encontrado.");
-
-    const novo = await prisma.$transaction(async (tx) => {
-      const { ano, sequencial, codigo } = await proximoCodigoProjeto(tx);
-      const criado = await tx.projeto.create({
-        data: {
-          ano,
-          sequencial,
-          codigo,
-          tipo: origem.tipo,
-          nome: `${origem.nome} (cópia)`,
-          clienteId: origem.clienteId,
-          descricao: origem.descricao,
-          areaM2: origem.areaM2,
-          endereco: origem.endereco,
-          prazoContrato: origem.prazoContrato,
-          prazoPlanejado: origem.prazoPlanejado,
-          valorContrato: origem.valorContrato,
-          disciplinas: {
-            create: origem.disciplinas.map((d) => ({
-              disciplinaTextoLegado: d.disciplinaTextoLegado,
-              valor: d.valor,
-              prazo: d.prazo,
-              ordem: d.ordem,
-            })),
-          },
-        },
-      });
-
-      // Mapa oldDisciplinaId → newDisciplinaId (por ordem, que é preservada).
-      const novasDisciplinas = await tx.disciplina.findMany({
-        where: { projetoId: criado.id },
-        orderBy: { ordem: "asc" },
-        select: { id: true, ordem: true },
-      });
-      const dMap = new Map<string, string>();
-      for (const orig of origem.disciplinas) {
-        const nova = novasDisciplinas.find((d) => d.ordem === orig.ordem);
-        if (nova) dMap.set(orig.id, nova.id);
-      }
-
-      // Duplicar é criar um projeto novo: se o tipo usa árvore-template, semeia em todas
-      // as disciplinas do clone (mesma regra de "só projetos novos" da criação normal).
-      if (usaEstruturaCustom(origem.tipo)) {
-        for (const nova of novasDisciplinas) {
-          await semearPastasTemplate(tx, nova.id, origem.tipo);
-        }
-      }
-
-      if (input.copiarResponsaveis) {
-        const rows: { disciplinaId: string; userId: string }[] = [];
-        for (const d of origem.disciplinas) {
-          const newDId = dMap.get(d.id);
-          if (!newDId) continue;
-          for (const r of d.responsaveis) rows.push({ disciplinaId: newDId, userId: r.userId });
-        }
-        if (rows.length > 0) await tx.disciplinaResponsavel.createMany({ data: rows, skipDuplicates: true });
-      }
-
-      if (input.copiarMembros && origem.membros.length > 0) {
-        await tx.projetoMembro.createMany({
-          data: origem.membros.map((m) => ({ projetoId: criado.id, userId: m.userId })),
-          skipDuplicates: true,
-        });
-      }
-
-      if (input.copiarEap && origem.eapTarefas.length > 0) {
-        const tMap = new Map<string, string>();
-        for (const t of origem.eapTarefas) tMap.set(t.id, crypto.randomUUID());
-        await tx.eapTarefa.createMany({
-          data: origem.eapTarefas.map((t) => ({
-            id: tMap.get(t.id)!,
-            projetoId: criado.id,
-            parentId: t.parentId ? (tMap.get(t.parentId) ?? null) : null,
-            disciplinaId: t.disciplinaId ? (dMap.get(t.disciplinaId) ?? null) : null,
-            nome: t.nome,
-            ordem: t.ordem,
-            progresso: 0,
-            inicioPrevisto: t.inicioPrevisto,
-            fimPrevisto: t.fimPrevisto,
-          })),
-        });
-        const deps: { tarefaId: string; predecessoraId: string }[] = [];
-        for (const t of origem.eapTarefas) {
-          for (const dep of t.predecessoras) {
-            const newT = tMap.get(t.id);
-            const newP = tMap.get(dep.predecessoraId);
-            if (newT && newP) deps.push({ tarefaId: newT, predecessoraId: newP });
-          }
-        }
-        if (deps.length > 0) await tx.eapDependencia.createMany({ data: deps, skipDuplicates: true });
-      }
-
-      if (input.copiarComposicao && origem.composicaoPreco) {
-        await tx.projetoComposicaoPreco.create({
-          data: {
-            projetoId: criado.id,
-            observacao: origem.composicaoPreco.observacao,
-            itens: {
-              create: origem.composicaoPreco.itens.map((item) => ({
-                descricao: item.descricao,
-                quantidade: item.quantidade,
-                valorUnitario: item.valorUnitario,
-                ordem: item.ordem,
-              })),
-            },
-          },
-        });
-      }
-
-      return criado;
-    });
-
+  async (input, { user }) => {
+    const novo = await duplicarProjetoNoBanco(input, user.id);
     refletirSincroniaCanais(await ensureCanaisProjeto(novo.id));
     revalidatePath("/projetos");
     revalidatePath("/planejamento");
@@ -787,6 +658,21 @@ export const editarDisciplinasEmMassa = defineAction(
       const invalida = atuais.find((d) => !transicaoDisciplinaPermitida(d.status, input.status!));
       if (invalida) {
         throw new ActionError(`${invalida.disciplinaTextoLegado}: ${mensagemTransicaoDisciplina(invalida.status, input.status!)}`);
+      }
+    }
+
+    // F4: prazo em massa não alcança disciplina com etapa — o prazo dela é consolidado das
+    // etapas, e gravá-lo aqui seria desfeito na próxima consolidação sem ninguém ver. Recusa
+    // nomeando qual, em vez de pular em silêncio (o lote pareceria ter funcionado inteiro).
+    if (input.prazo !== undefined) {
+      const comEtapa = await prisma.disciplina.findFirst({
+        where: { id: { in: input.disciplinaIds }, projetoId: input.projetoId, etapas: { some: {} } },
+        select: { disciplinaTextoLegado: true },
+      });
+      if (comEtapa) {
+        throw new ActionError(
+          `${comEtapa.disciplinaTextoLegado} tem etapas — o prazo dela vem das etapas e não muda em massa.`,
+        );
       }
     }
 
@@ -929,12 +815,32 @@ export const editarDisciplina = defineAction(
   async (input, ctx) => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
-      select: { projetoId: true, valor: true, projeto: { select: { prazoPlanejado: true } } },
+      select: {
+        projetoId: true,
+        valor: true,
+        prazo: true,
+        projeto: { select: { prazoPlanejado: true } },
+        _count: { select: { etapas: true } },
+      },
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
 
+    // F4: com etapa, o prazo da disciplina é CONSOLIDADO (o maior entre as etapas) e não se
+    // edita aqui. O formulário reenvia o prazo SEMPRE, então prazo igual ao atual é ignorado —
+    // senão editar só o nome de uma disciplina com etapa quebraria — e prazo diferente é
+    // recusado com o motivo, em vez de gravado e desfeito na próxima consolidação.
+    const temEtapas = disciplina._count.etapas > 0;
+    if (temEtapas && input.prazo !== undefined) {
+      const atual = disciplina.prazo ? disciplina.prazo.toISOString().slice(0, 10) : null;
+      if ((input.prazo ?? null) !== atual) {
+        throw new ActionError("O prazo desta disciplina vem das etapas — ajuste o prazo na etapa.");
+      }
+    }
+    const escrevePrazo = !temEtapas;
+
     // P-08: prazo da disciplina ≤ prazo PLANEJADO do projeto (ver `adicionarDisciplina`).
-    if (input.prazo && disciplina.projeto.prazoPlanejado) {
+    // Só quando o prazo vai ser gravado: com etapa, a P-08 já foi checada em cada etapa.
+    if (escrevePrazo && input.prazo && disciplina.projeto.prazoPlanejado) {
       if (new Date(input.prazo) > disciplina.projeto.prazoPlanejado) {
         throw new ActionError(
           `O prazo da disciplina não pode ultrapassar o prazo planejado do projeto.`,
@@ -963,7 +869,13 @@ export const editarDisciplina = defineAction(
         where: { id: input.disciplinaId },
         data: {
           disciplinaTextoLegado: input.nome,
-          prazo: input.prazo === null ? null : input.prazo ? new Date(input.prazo) : undefined,
+          prazo: !escrevePrazo
+            ? undefined
+            : input.prazo === null
+              ? null
+              : input.prazo
+                ? new Date(input.prazo)
+                : undefined,
           valor: input.valor === null ? null : input.valor,
           ...(input.exigePacoteA !== undefined ? { exigePacoteA: input.exigePacoteA } : {}),
           ...(input.exigePacoteB !== undefined ? { exigePacoteB: input.exigePacoteB } : {}),

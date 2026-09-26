@@ -25,6 +25,7 @@ import {
   CalendarDays,
   NotebookPen,
   Unlock,
+  Layers,
 } from "lucide-react";
 import {
   atualizarStatusDisciplina,
@@ -44,6 +45,8 @@ import {
 import { podeEscreverNoDiario } from "@/modules/projetos/diario/acesso";
 import { DiarioEntradaDialog } from "@/components/projetos/diario-entrada-dialog";
 import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/projetos/disciplina-edit-dialog";
+import { DisciplinaEtapasButton } from "@/components/projetos/disciplina-etapas-dialog";
+import { AprovarFaseButton } from "@/components/projetos/aprovar-fase-button";
 import { validarEntrega, gerarAceiteCliente, revogarAceiteCliente } from "@/modules/uploads/actions";
 import { statusValidacao, entregaveisAtuais, type StatusValidacao } from "@/modules/uploads/validacao";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
@@ -133,8 +136,17 @@ type Disc = {
   temA: boolean;
   temB: boolean;
   jaValidado: boolean;
-  /** Já existe pagamento de projetista liberado para esta disciplina. */
-  temPagamento: boolean;
+  /**
+   * O pagamento de projetista já foi liberado POR INTEIRO — aprovar de novo não gera nada. Por
+   * fase, só quando toda fase foi liberada (`estadoPagamento`).
+   */
+  pagamentoLiberado: boolean;
+  /** Pagamento por fase: quantas liberadas, de quantas. Nulo sem fase ou se pagou inteira. */
+  fasesLiberadas: { liberadas: number; total: number } | null;
+  /** Fases entregues aguardando a aprovação que libera o pagamento delas (só no modo por fase). */
+  fasesPendentes: { id: string; sigla: string; nomeFase: string; percentual: number }[];
+  /** Tem etapa (F4): o prazo vira o maior das etapas e não se edita direto. */
+  temEtapas: boolean;
   exigePacoteA: boolean;
   exigePacoteB: boolean;
   /** Aprovação/laudo (só projetos novos): árvore de pastas própria no lugar do pacote A/B. */
@@ -290,6 +302,13 @@ export function DisciplinaCard({
                 exigePacoteA={disciplina.exigePacoteA}
                 exigePacoteB={disciplina.exigePacoteB}
                 usaEstruturaPastas={disciplina.usaPastas}
+                temEtapas={disciplina.temEtapas}
+              />
+              <DisciplinaEtapasButton
+                disciplinaId={disciplina.id}
+                nome={disciplina.nome}
+                valor={disciplina.valor}
+                temEtapas={disciplina.temEtapas}
               />
               {!disciplina.jaValidado && (
                 <DisciplinaDeleteButton disciplinaId={disciplina.id} nome={disciplina.nome} qtdTarefas={qtdTarefas} />
@@ -349,9 +368,34 @@ export function DisciplinaCard({
       {/* Pagamento já liberado numa disciplina ainda não aprovada (reabertura, ou base
           importada): aprovar NÃO gera outro pagamento. Sem este aviso a dúvida "vou pagar
           de novo?" trava a aprovação. */}
-      {!disciplina.jaValidado && disciplina.temPagamento && (
+      {!disciplina.jaValidado && disciplina.pagamentoLiberado && (
         <div className="flex items-center gap-1.5 rounded-sm bg-status-revisao/10 px-2 py-1 text-xs text-status-revisao">
           <Unlock className="size-3.5" aria-hidden /> Pagamento já liberado · aprovar não gera novo
+        </div>
+      )}
+      {!disciplina.jaValidado && !disciplina.pagamentoLiberado && (disciplina.fasesLiberadas?.liberadas ?? 0) > 0 && (
+        <div className="flex items-center gap-1.5 rounded-sm bg-status-revisao/10 px-2 py-1 text-xs text-status-revisao">
+          <Unlock className="size-3.5" aria-hidden /> Pagamento liberado em {disciplina.fasesLiberadas?.liberadas} de{" "}
+          {disciplina.fasesLiberadas?.total} fases · aprovar libera as que faltam
+        </div>
+      )}
+      {/* Decisão #10: o botão "Aprovar fase" no próprio card, para quem tem `aprovacoes:disciplina` — a mesma
+          ação do diálogo Etapas e da fila de Aprovações. */}
+      {podeAprovarDisciplina && !disciplina.jaValidado && disciplina.fasesPendentes.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-sm bg-info/10 px-2 py-1.5 text-xs">
+          <span className="flex items-center gap-1.5 text-info">
+            <Layers className="size-3.5" aria-hidden />
+            {disciplina.fasesPendentes.length === 1 ? "Fase entregue, aguardando aprovação" : "Fases entregues, aguardando aprovação"}
+          </span>
+          {disciplina.fasesPendentes.map((f) => (
+            <span key={f.id} className="flex items-center gap-1.5">
+              <span className="font-medium">{f.sigla}</span>
+              <span className="text-muted-foreground">
+                {f.nomeFase} · {f.percentual}%
+              </span>
+              <AprovarFaseButton faseId={f.id} sigla={f.sigla} disciplina={disciplina.nome} label={`Aprovar ${f.sigla}`} />
+            </span>
+          ))}
         </div>
       )}
 
@@ -641,11 +685,21 @@ function FluxoAprovacaoDisciplina({
           </span>
           {podeConfirmar && (
             <div className="ml-auto flex gap-1.5">
-              {disciplina.temPagamento ? (
+              {disciplina.pagamentoLiberado ? (
                 // Reaprovação: pagamento já liberado, sem valor a rever.
                 <Button size="sm" className="h-7 px-2" onClick={() => confirmar()} disabled={pending}>
                   <CheckCircle className="size-3.5" /> Confirmar
                 </Button>
+              ) : (disciplina.fasesLiberadas?.liberadas ?? 0) > 0 ? (
+                // Por fase, com alguma já liberada: o valor da disciplina não se reparte mais
+                // inteiro (parte já foi paga), então a prévia "valor ÷ projetistas" mentiria.
+                // Confirma sem editar valor; os valores por fase ficam em Etapas.
+                <ConfirmarAprovacaoSemValorDialog
+                  disciplina={disciplina}
+                  pending={pending}
+                  onConfirmar={() => confirmar()}
+                  descricao="A disciplina fica aprovada e o pagamento das fases que faltam é liberado, cada uma pelo seu percentual. Os valores por fase estão em Etapas. Essa confirmação não pode ser desfeita por aqui."
+                />
               ) : podeVerValor ? (
                 <ConfirmarAprovacaoDialog disciplina={disciplina} pending={pending} onConfirmar={confirmar} />
               ) : (
@@ -688,7 +742,7 @@ function FluxoAprovacaoDisciplina({
  * Diálogo do passo 2 (confirmar): mostra o valor a enviar ao financeiro e o split por
  * projetista ANTES de liberar o pagamento — resposta direta às disciplinas concluídas
  * sem valor (viravam PagamentoProjetista de R$ 0,00 na folha, sem lançamento). Só
- * aparece quando ainda não há pagamento liberado (`!disciplina.temPagamento`);
+ * aparece quando ainda não há pagamento liberado (`!disciplina.pagamentoLiberado`, nenhuma fase);
  * reaprovação usa o botão simples, sem valor a rever.
  */
 function ConfirmarAprovacaoDialog({
@@ -790,10 +844,12 @@ function ConfirmarAprovacaoSemValorDialog({
   disciplina,
   pending,
   onConfirmar,
+  descricao = "A disciplina fica aprovada e a demanda é liberada para o financeiro, que paga pelo valor já cadastrado. Essa confirmação não pode ser desfeita por aqui.",
 }: {
   disciplina: Disc;
   pending: boolean;
   onConfirmar: () => void;
+  descricao?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -808,10 +864,7 @@ function ConfirmarAprovacaoSemValorDialog({
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Confirmar aprovação — {disciplina.nome}</DialogTitle>
-          <DialogDescription>
-            A disciplina fica aprovada e a demanda é liberada para o financeiro, que paga pelo valor já
-            cadastrado. Essa confirmação não pode ser desfeita por aqui.
-          </DialogDescription>
+          <DialogDescription>{descricao}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>

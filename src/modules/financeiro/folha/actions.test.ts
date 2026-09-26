@@ -84,6 +84,8 @@ const PAGAMENTO_PAGO = {
   lancamentoId: "lanc1",
   folhaId: null,
   disciplinaId: "disc1",
+  // Pagamento da disciplina inteira (sem fase) — o de antes da F7.4.
+  etapaId: null,
   projetistaId: "proj1",
   valor: 1000,
   pagoEm: new Date("2026-04-05T00:00:00.000Z"),
@@ -315,7 +317,19 @@ describe("estornarPagamentoEfetivado", () => {
       data: { lancamentoId: "lanc1", de: "confirmado", para: "cancelado", autorId: "u1" },
     });
     expect(mocks.recalcularTotalFolha).toHaveBeenCalledWith(tx, "lote1");
-    expect(mocks.sincronizarValorDisciplina).toHaveBeenCalledWith(tx, "disc1");
+    expect(mocks.sincronizarValorDisciplina).toHaveBeenCalledWith(tx, "disc1", null);
+  });
+
+  it("pagamento de FASE: o write-back recebe a fase (anda o total pela diferença, não recalcula)", async () => {
+    mocks.pagamentoFindUnique.mockResolvedValue({ ...PAGAMENTO_PAGO, etapaId: "fase1" });
+    mocks.lancamentoFindFirst.mockResolvedValue(LANCAMENTO_CONFIRMADO);
+    mocks.pagamentoUpdateMany.mockResolvedValue({ count: 1 });
+    mocks.lancamentoUpdateMany.mockResolvedValue({ count: 1 });
+
+    const r = await estornarPagamentoEfetivado(input);
+
+    expect(r.ok).toBe(true);
+    expect(mocks.sincronizarValorDisciplina).toHaveBeenCalledWith(tx, "disc1", "fase1");
   });
 
   it("lançamento já cancelado: não repete o cancelamento nem o histórico (estado que a action existe para limpar)", async () => {

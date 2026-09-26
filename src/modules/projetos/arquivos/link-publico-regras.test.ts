@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   ehBackupDoModelo,
+  faseLiberada,
+  filtrarPorFases,
   recortarParaLinkPublico,
   somenteUltimaRevisao,
   type UploadParaLink,
@@ -135,5 +137,56 @@ describe("recortarParaLinkPublico", () => {
   it("promove a revisão anterior quando as posteriores não chegam (lixeira/não validadas)", () => {
     const r = recortarParaLinkPublico([up("r1", { documentoId: "doc", revisaoNumero: 1 })]);
     expect(ids(r)).toEqual(["r1"]);
+  });
+});
+
+describe("filtro de fase do link (F4)", () => {
+  const f = (faseIds: string[], incluirSemFase = false) => ({ faseIds, incluirSemFase });
+  const arq = (id: string, faseId: string | null) => ({ id, faseId });
+
+  it("faseIds VAZIO libera todas as fases, inclusive sem fase — link antigo não perde nada", () => {
+    // Semântica INVERTIDA em relação a `disciplinaIds` (vazio = nada), de propósito: é o
+    // valor que todo link criado antes da F4 recebe na migration.
+    const itens = [arq("bs", "BS"), arq("ex", "EX"), arq("solto", null)];
+    expect(filtrarPorFases(itens, f([]))).toEqual(itens);
+    expect(faseLiberada(null, f([]))).toBe(true);
+  });
+
+  it("lista preenchida é lista branca", () => {
+    const r = filtrarPorFases([arq("bs", "BS"), arq("ex", "EX")], f(["EX"]));
+    expect(r.map((x) => x.id)).toEqual(["ex"]);
+  });
+
+  it("com lista, arquivo SEM fase é bloqueado por padrão — não vaza Executivo não classificado", () => {
+    expect(faseLiberada(null, f(["BS"]))).toBe(false);
+  });
+
+  it("`incluirSemFase` libera o sem-fase junto — a saída para acervo sem fase preenchida", () => {
+    expect(faseLiberada(null, f(["BS"], true))).toBe(true);
+    // Mas não libera outra fase por tabela.
+    expect(faseLiberada("EX", f(["BS"], true))).toBe(false);
+  });
+
+  it("`incluirSemFase` sem lista não muda nada — vazio já libera tudo", () => {
+    expect(faseLiberada(null, f([], false))).toBe(true);
+  });
+
+  it("ORDEM: recortar ANTES, filtrar fase DEPOIS — merge de fase divergente não promove revisão antiga", () => {
+    // O apelido (fase EX) carrega a R03, a entrega corrente; o canônico (fase BS) só tem
+    // R01. Link liberado só para BS.
+    type U = UploadParaLink & { faseId: string | null };
+    const uploads: U[] = [
+      { id: "r1", documentoId: "canon", revisaoNumero: 1, pacote: "A", faseId: "BS" },
+      { id: "r3", documentoId: "apelido", documentoCanonicoId: "canon", revisaoNumero: 3, pacote: "A", faseId: "EX" },
+    ];
+
+    // Certo: a entrega corrente é a R03 (EX), que não é liberada → o documento sai inteiro.
+    const certo = filtrarPorFases(recortarParaLinkPublico(uploads), f(["BS"]));
+    expect(certo).toEqual([]);
+
+    // Errado (o que esta ordem impede): filtrar antes tira a R03, e o recorte promove a R01
+    // a "entrega" — o cliente receberia uma revisão vencida como se fosse a corrente.
+    const errado = recortarParaLinkPublico(filtrarPorFases(uploads, f(["BS"])));
+    expect(errado.map((u) => u.id)).toEqual(["r1"]);
   });
 });

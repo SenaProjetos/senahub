@@ -3,12 +3,13 @@
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { ZoomIn, ZoomOut, Flag, ListTree, Search } from "lucide-react";
-import { Gantt, GANTT_PX_DEFAULT } from "@/components/planejamento/gantt";
+import { Flag, ListTree, Search } from "lucide-react";
+import { GanttMini } from "@/components/planejamento/gantt-mini";
+import type { ModoGantt } from "@/components/planejamento/gantt-barra";
+import { ZOOMS_GANTT, type CalendarioGantt, type ZoomGantt } from "@/modules/planejamento/gantt-escala";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { SITUACAO_PROJETO_LABEL } from "@/modules/projetos/status";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -19,16 +20,33 @@ type ProjetoCron = { id: string; codigo: string; nome: string; situacao: Situaca
 
 const SITUACOES: Situacao[] = ["em_andamento", "concluido", "arquivado", "cancelado"];
 
-const hoje = new Date().toISOString().slice(0, 10);
+const ENCERRADOS = new Set(["con", "can", "arq"]);
 
-function temAtraso(p: ProjetoCron) {
+/** Mesma regra de "atrasada" que `qualidade.ts` usa (Doc 03 §26) — status encerrado sai da
+ * conta, senão uma tarefa cancelada no ano passado marcaria o projeto como atrasado para
+ * sempre. Ler `critica` do DTO em vez de recalcular, que é o que faz este painel só
+ * mostrar (D7) — o cálculo mora no motor, não na tela. */
+function temAtraso(p: ProjetoCron, hoje: string) {
   return p.tarefas.some(
-    (t) => t.fimPrevisto && t.fimPrevisto < hoje && (t.progresso ?? 0) < 100,
+    (t) => (t.fimBaseline ?? t.fimPrevisto) < hoje && (t.progresso ?? 0) < 100 && !ENCERRADOS.has(t.status),
   );
 }
 
-export function CronogramaGeralView({ projetos }: { projetos: ProjetoCron[] }) {
-  const [px, setPx] = useState(Math.max(6, GANTT_PX_DEFAULT - 6));
+export function CronogramaGeralView({
+  projetos,
+  calendario,
+  hoje,
+}: {
+  projetos: ProjetoCron[];
+  /** O calendário do motor, um só para a carteira (D8) — sombreia o dia não útil. */
+  calendario: CalendarioGantt;
+  /** `YYYY-MM-DD` do servidor. */
+  hoje: string;
+}) {
+  // Semanas: o panorama da carteira raramente cabe em dias, e em meses a barra de uma tarefa de 3 dias
+  // vira um risco. O seletor é o mesmo do cronograma do projeto.
+  const [zoom, setZoom] = useState<ZoomGantt>("semanas");
+  const [modo, setModo] = useState<ModoGantt>("planejamento");
   const [busca, setBusca] = useState("");
   const [situacoes, setSituacoes] = useState<Set<Situacao>>(new Set(["em_andamento"]));
   const [soAtrasados, setSoAtrasados] = useState(false);
@@ -37,11 +55,11 @@ export function CronogramaGeralView({ projetos }: { projetos: ProjetoCron[] }) {
     const q = busca.trim().toLowerCase();
     return projetos.filter((p) => {
       if (!situacoes.has(p.situacao)) return false;
-      if (soAtrasados && !temAtraso(p)) return false;
+      if (soAtrasados && !temAtraso(p, hoje)) return false;
       if (!q) return true;
       return p.nome.toLowerCase().includes(q) || p.codigo.includes(q.replace(/\D/g, ""));
     });
-  }, [projetos, busca, situacoes, soAtrasados]);
+  }, [projetos, busca, situacoes, soAtrasados, hoje]);
 
   function toggleSituacao(s: Situacao) {
     setSituacoes((prev) => {
@@ -56,19 +74,45 @@ export function CronogramaGeralView({ projetos }: { projetos: ProjetoCron[] }) {
     <div className="space-y-5">
       <CabecalhoPagina
         titulo="Cronograma geral"
-        descricao={<>{visiveis.length} de {projetos.length} projeto(s) · barra clara = previsto, faixa inferior = linha de base.</>}
+        descricao={<>{visiveis.length} de {projetos.length} projeto(s) · leitura e sequenciamento entre projetos — o prazo interno de cada um só se edita dentro dele.</>}
         acoes={
-          <>
-          <div className="flex items-center gap-1">
-            <span className="mr-1 text-xs text-muted-foreground">Zoom</span>
-            <Button size="icon-sm" variant="outline" aria-label="Diminuir zoom" onClick={() => setPx((p) => Math.max(4, p - 3))} disabled={px <= 4}>
-              <ZoomOut className="size-3.5" />
-            </Button>
-            <Button size="icon-sm" variant="outline" aria-label="Aumentar zoom" onClick={() => setPx((p) => Math.min(48, p + 3))} disabled={px >= 48}>
-              <ZoomIn className="size-3.5" />
-            </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex overflow-hidden rounded-sm border" role="group" aria-label="Visão do cronograma">
+              {(
+                [
+                  ["planejamento", "Gráfico de Gantt"],
+                  ["controle", "Gantt de Controle"],
+                ] as [ModoGantt, string][]
+              ).map(([v, rotulo]) => (
+                <button
+                  key={v}
+                  type="button"
+                  aria-pressed={modo === v}
+                  onClick={() => setModo(v)}
+                  className={`px-3 py-1 text-xs font-medium ${
+                    modo === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {rotulo}
+                </button>
+              ))}
+            </div>
+            <div className="flex overflow-hidden rounded-sm border" role="group" aria-label="Escala de tempo">
+              {ZOOMS_GANTT.map((z) => (
+                <button
+                  key={z.id}
+                  type="button"
+                  aria-pressed={zoom === z.id}
+                  onClick={() => setZoom(z.id)}
+                  className={`px-3 py-1 text-xs font-medium ${
+                    zoom === z.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {z.rotulo}
+                </button>
+              ))}
+            </div>
           </div>
-          </>
         }
       />
 
@@ -134,7 +178,7 @@ export function CronogramaGeralView({ projetos }: { projetos: ProjetoCron[] }) {
               </div>
             </CardHeader>
             <CardContent>
-              <Gantt tarefas={p.tarefas} px={px} />
+              <GanttMini tarefas={p.tarefas} calendario={calendario} hoje={hoje} zoom={zoom} modo={modo} />
             </CardContent>
           </Card>
         ))

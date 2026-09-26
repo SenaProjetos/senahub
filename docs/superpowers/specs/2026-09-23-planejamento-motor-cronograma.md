@@ -2,7 +2,8 @@
 
 **Data:** 2026-09-23
 **Origem:** sessão de grilling com o dono (42 decisões, 5 rodadas)
-**Status:** decidido, não implementado
+**Status:** implementado (F0–F9) na branch `feat/planejamento-motor`, sem push; falta o smoke do dono em
+navegador. Pendências, decisões e plano de correção em `2026-09-25-planejamento-motor-pendencias.md`
 **Documentos da equipe que este spec consolida:**
 - `Padrão Corporativo de EAP e Estrutura de Cronogramas — SenaHub` (Doc 03, v1.0)
 - `Dicionário Corporativo de Classificadores — SenaHub` (Doc 02, v1.1)
@@ -169,14 +170,271 @@ A **Saúde do Cronograma** acompanha a fase 1 (nota provisória + foto semanal),
 1. ~~**Financeiro precisa validar D15, D25, D31 e D38.**~~ **Validado pelo dono em 2026-09-23.**
    Atenção ao codar: o rateio do valor da disciplina por fase mexe na tela de Produção e na folha
    de projetistas, ambas em produção desde a v1.17.0.
-2. ~~**Nomenclatura versionada precisa estar publicada.**~~ **Mergeada em `dev-antigravity` em
-   2026-09-23** (F1-F6, aprovada em tela). Falta o deploy — D35 só vale em produção depois dele.
+2. ~~**Nomenclatura versionada precisa estar publicada.**~~ **Em produção em 2026-09-23.**
+   Conferência pós-deploy contra o banco de prod passou: `42/42 vocabulários idênticos ·
+   0 projeto(s) sem versão fixada`. **D35 está liberada.** Resta o dono cadastrar e publicar
+   a v2 pela tela — publicar não afeta projeto existente, e até lá todo projeto segue a v1.
 3. **Permissões.** O perfil *Coordenador* com escopo global entrou na v1.19.0; os recursos novos do
    cronograma ainda não existem no catálogo. Seed de permissão é create-only por par — exige
    migration por par novo (ver memória `permissoes-matriz-legada-nao-autoriza`).
 4. **Doc 02 precisa ser atualizado** com o resultado de D29 (ID = instância, não tipo; a comparação
    entre projetos é pelo TAT) e D35 (siglas por versão de nomenclatura), e a colisão interna
    `EST` disciplina × `EST` etapa precisa ser resolvida pela equipe.
+
+---
+
+## 6-A. Fases de implementação, modelo e esforço
+
+**Unidade de esforço:** 1 sessão ≈ meio dia de trabalho focado de um agente + revisão do dono.
+São estimativas, não compromissos — as de risco **alto** são as que mais podem escorregar.
+
+**Critério de modelo:** Opus onde a decisão é irreversível ou o erro é silencioso (schema,
+migration, motor puro, dinheiro, permissão). Sonnet onde o alvo já está definido e o trabalho
+é mecânico (tela sobre dado pronto, documentação, testes de regressão).
+
+### F0 — Fundação de dados · Opus · 3 sessões · risco ALTO
+
+| # | Entrega | Detalhe |
+|---|---|---|
+| F0.1 | Schema da linha | `EapTarefa` ganha `duracao`, `tipoEap` (TEAP: PRJ/FAS/PCT/DISC/LOC/SIS/RES/ATV/MRC), `idCorporativo` (único na empresa, permanente — D29), `codigoEap` recalculável, e as FKs nomeadas da D5 |
+| F0.2 | Classificadores | `etapaId` (reusa `PranchaCatalogo` categoria `fase` — **não criar catálogo novo**), `disciplinaId`, `tipoAtividade` (TAT), `localizacao`, `sistema`, `status`, `prioridade`, `origem`, `risco`. Governança em 3 níveis (Doc 02 §24) |
+| F0.3 | Dependência completa | `EapDependencia` ganha `tipo` (FS/SS/FF/SF) e `lag` em dias úteis. **Entra agora mesmo com a tela só oferecendo FS** — incluir depois obrigaria a reescrever todo cronograma já criado |
+| F0.4 | Baseline versionada | `EapBaseline` (numero, data, autor, motivo, observação) + `EapBaselineLinha` (início/fim/duração/trabalho/avanço planejado). Nunca sobrescreve — D6/Doc 03 §20 |
+| F0.5 | Restrições e pin | 6 restrições do Doc 03 §18 + marca de fixada visível (D34) |
+| F0.6 | Migration + migração do existente | Cronogramas atuais viram **rascunho**, duração derivada das datas, sem baseline (D27). Aditiva; nenhum `DROP` |
+
+> **Armadilha conhecida:** `DROP`/`RENAME` sem `IF EXISTS` derruba deploy (aconteceu duas vezes
+> neste repo). Toda migration desta fase é aditiva.
+
+### F1 — Motor de agendamento · Opus · 4 sessões · risco ALTO
+
+| # | Entrega | Detalhe |
+|---|---|---|
+| F1.1 | Calendário de trabalho | `lib/calendario-trabalho.ts` **puro + testado**: dias úteis, feriados (reusa `FeriadoRecorrente`), soma/subtração de duração. Campo de calendário por projeto previsto, desligado (D8) |
+| F1.2 | Motor | Substitui `caminho-critico.ts`. Forward/backward pass sobre calendário, 4 tipos de vínculo, lag, restrições, predecessora múltipla (o `EAP.pdf` tem linha com 10). Devolve datas, folga total e livre, caminho crítico |
+| F1.3 | Rollup de resumo | Datas do pai = menor início / maior fim dos filhos; nunca digitadas (Doc 03 §8). % ponderado por horas (D26) |
+| F1.4 | Código EAP | Recalcula `1.2.3` ao mover linha, **sem tocar no `idCorporativo`**, com histórico da mudança (Doc 02 §27) |
+| F1.5 | Bateria de testes | O motor é o coração; cobertura densa como `tokens.ts` e `encargos.ts` já têm. Caso-âncora: reproduzir o `EAP.pdf` (185 linhas, 100 dias) e conferir as datas contra o MS Project |
+
+> **Não estender o CPM atual.** Ele deriva duração das datas e conta dias corridos — o oposto
+> do decidido. É substituição, não evolução.
+
+### F2 — Governança do plano · Opus · 3 sessões · risco MÉDIO
+
+| # | Entrega | Detalhe |
+|---|---|---|
+| F2.1 | Rascunho → aprovado | "Aprovar cronograma" congela `BL-00` e libera os cards (D14) |
+| F2.2 | Replanejamento | Nova versão de baseline com autor, data e motivo (D6) |
+| F2.3 | Data de Status | Semanal por projeto + job de lembrete após 10 dias sem atualizar (D39). Distingue *atrasado* de *não apurado* |
+| F2.4 | Verificador de qualidade | As 15 regras do Doc 03 §33, **puro + testado**, oficial desde já (D42) |
+| F2.5 | Saúde do cronograma | Nota **marcada provisória** + foto semanal gravada desde o dia 1 — o histórico é irrecuperável se ligado depois (D42) |
+| F2.6 | Permissões | `cronograma:ver` / `gerir` / `aprovar` / `executado` no catálogo + migration derivando de `recursos:ver` e `recursos:gerir`, com `ON CONFLICT DO NOTHING`. Seed é create-only: **sem migration, ninguém recebe o par** |
+
+### F3 — Telas · Sonnet · 4 sessões · risco MÉDIO
+
+Um cronograma, quatro modos de exibição (D33) — não duas telas lado a lado.
+
+| # | Entrega | Detalhe |
+|---|---|---|
+| F3.1 | Planejar | Árvore + Gantt: estrutura, duração, predecessora. Expandir/recolher níveis |
+| F3.2 | Acompanhar | Gantt de Controle: duas barras por linha (combinado × previsão), % concluído, alerta de ritmo (D21), alfinete visível |
+| F3.3 | Filtros e lookahead | Filtros combinados (Doc 03 §36) + lookahead 7/15/30 (§37) |
+| F3.4 | Painel Mestre | Projetos lado a lado na linha do tempo, **leitura e sequenciamento apenas** (D7). Parte de `cronogramaProjetosAtivos()`, que já existe |
+| F3.5 | Bloqueio | `BLQ` com motivo, origem e responsável pelo desbloqueio; notificação; atraso classificado por origem (D40) |
+
+> Reaproveitar `components/planejamento/` (1113 linhas hoje). `gantt.tsx` precisa de reescrita
+> para as duas barras; `eap-workspace.tsx` vira o modo Planejar.
+
+### F4 — Disciplina × etapa · Opus · 3 sessões · risco ALTO
+
+| # | Entrega | Detalhe |
+|---|---|---|
+| F4.1 | Par disciplina × etapa | Prazo, status e valor próprios por fase (D30/D37). **Arquivos, pastas, responsáveis e portal continuam na disciplina** |
+| F4.2 | Prazo da disciplina | Passa a ser o da última fase; nada muda para quem lê de fora |
+| F4.3 | Link por fase | `LinkPublicoArquivos` ganha filtro por fase ao lado do de disciplina (D37b). Pequeno — o modelo já tem `agruparPorFase` |
+
+> Toca `projetos`, que está em produção. É a fase onde vale um smoke em navegador antes do merge.
+
+### F5 — Recursos · Opus (regras) + Sonnet (tela) · 3 sessões · risco MÉDIO
+
+| # | Entrega | Detalhe |
+|---|---|---|
+| F5.1 | Recurso na linha | Pessoa **ou perfil** (D17). Vários responsáveis com papel `PRO`/`REV`/`APR`/`COO`, todos entrando na carga (D41) |
+| F5.2 | Horas previstas | Por pessoa na linha, não percentual (D23) |
+| F5.3 | Herança do responsável | Desce da disciplina para as linhas; da linha em diante vale o da linha (D22) |
+| F5.4 | Matriz calculada | `matrizRecursos()` passa a somar das linhas. Projeto sem cronograma aprovado **segue com a alocação digitada** durante a transição (D17) |
+| F5.5 | Sobrecarga | Alerta **com sugestão aplicável em um clique**; nunca nivelamento automático (D18). Férias e jornada entram como aviso (D8) |
+| F5.6 | Card do projetista | Uma linha com gente alocada = um card; resumo, marco e etapa de terceiro **não geram card** (D24). A ponte `Tarefa.eapTarefaId` já existe |
+
+> **Notas de implementação (2026-09-24, regras da F5 prontas; tela pendente):**
+> - **Deploy:** depois da migration `20260924160000_eap_atribuicao`, rodar
+>   `scripts/herdar-responsaveis-eap.ts --gravar` **uma vez**. Sem ele, toda linha antiga
+>   aparece "sem responsável" e a Saúde de todo projeto cai no dia do deploy. Rodar de novo
+>   depois desfaria escolhas do coordenador — para isso existe o botão por projeto.
+> - **A confirmar com o time — "etapa de terceiro" (D24):** reconhecida pela **origem** da
+>   linha: `CLI`, `ARQ`, `EXT`, `FIS`, `APR`, `CON`, `OBR`. `INT`, `CMP` e `ALT` são trabalho da
+>   casa. A D24 não dizia como reconhecer; a origem foi o classificador mais próximo.
+> - **Perfil** = atribuição sem pessoa. "Projetista" numa linha da Elétrica **é** o
+>   "Projetista Elétrico" — a disciplina vem da linha, sem catálogo de perfis paralelo.
+> - Papéis = os **8** do Doc 02 §16 (DIR, GER, COO, ENG, PRO, MOD, REV, APR), não só 4.
+> - Aprovar o cronograma tira a alocação digitada do projeto da soma (D17). Aprovar **sem horas
+>   estimadas** faz o projeto sumir da carga da equipe — a tela de aprovação avisa.
+> - **Cards antigos:** antes da F5 o botão "gerar card" criava card em rascunho, sem
+>   responsável. Contar em produção antes do deploy (`Tarefa.eapTarefaId` preenchido): quando o
+>   cronograma desses projetos for aprovado, título, prazo e responsáveis passam a vir da EAP.
+> - **Tela da F5 pronta (2026-09-24), sem olho humano:** editor de recursos no diálogo da EAP,
+>   coluna Recursos, "Herdar responsáveis", `/recursos` com calculadas/substituídas e a aba
+>   "Carga planejada", trava dos campos do card. Build, lint, tsc e smoke passam; **falta o
+>   smoke em navegador do dono antes do merge.** Sugestões de sobrecarga são sob demanda (1,3 s
+>   com 10 sobrecargas se fossem na listagem).
+> - Verificação: `npm run smoke:recursos-eap`.
+
+### F6 — Apontamento por tarefa · Sonnet · 2 sessões · risco BAIXO
+
+| # | Entrega | Detalhe |
+|---|---|---|
+| F6.1 | `SessaoTrabalho` ganha tarefa | Hoje só tem projeto |
+| F6.2 | Lista curta | Só as tarefas em que a pessoa está alocada no período — nunca todas as do projeto (D20) |
+| F6.3 | % sugerido | Checklist, status da disciplina e arquivo enviado viram sugestão; coordenador confirma (D19/D32) |
+
+> Muda o hábito de todo mundo que bate ponto. Vale um aviso em `/ajuda/novidades` antes.
+
+> **Notas de implementação (2026-09-24, F6 pronta, sem olho humano):**
+> - `SessaoTrabalho.tarefaId` (FK `SetNull`) e `Batida.tarefaId` (escalar, como o `projetoId`):
+>   a batida carrega a tarefa para a edição de um dia — que recria batidas e sessões — não perdê-la.
+> - Tudo é OPCIONAL (Q20). Lista curta = cards abertos da pessoa no projeto; card de EAP só na
+>   janela da linha ± 7 dias; teto de 8. Validação dentro da transação da batida.
+> - **Tarefa de uma troca no meio do dia não sobrevive à edição do dia** (a troca não tem batida;
+>   o projeto dela já era perdido assim). Voltar do descanso na tela cheia começa em "sem projeto"
+>   — comportamento antigo do projeto; o cabeçalho retoma projeto e tarefa.
+> - **D19 vence a P-33:** o % da EAP passa a ser o INFORMADO (folha) e o do motor (resumo). O status
+>   da disciplina virou sugestão. Muda o que a coordenação vê em linha ligada a disciplina.
+> - **Horas apontadas NÃO viram sugestão de %:** consumo de orçamento não é avanço (D21; IDP).
+> - Verificação: `npm run smoke:ponto-tarefa`. Deploy da F6 = só a migration.
+
+### F7 — Custo e dinheiro · Opus · 3 sessões · risco ALTO
+
+| # | Entrega | Detalhe |
+|---|---|---|
+| F7.1 | Custo por tarefa | Horas × `Recurso.custoHora`, que já existe |
+| F7.2 | Marco de recebimento | Vira **linha de previsão no financeiro**, conciliada com a cobrança real (D9/D25) |
+| F7.3 | Contrato por entrega | Tipo de contrato decide: parcelas por data **ou** por entrega; nunca os dois no mesmo contrato (D15) |
+| F7.4 | Pagamento por fase | Valor da disciplina rateado por percentual vindo do modelo (D38); marco libera o pagamento do projetista daquela fase (D31) |
+
+> **Mexe na tela de Produção e na folha de projetistas**, refeitas na v1.17.0. Financeiro já
+> validou a regra (2026-09-23), mas esta é a fase que pede conferência em tela antes do deploy.
+
+> **Notas de implementação (2026-09-25, F7 pronta, sem olho humano):**
+> - **Ordem feita:** oráculo + regras puras → F7.4 → F7.1 → F7.0 (nova: execução da linha) → F7.2/F7.3.
+>   Dois oráculos fora do git (dinheiro e receber) conferiram cada fatia: disciplina sem fase e
+>   contrato por data saíram idênticos.
+> - **F7.4 pagamento por fase:** fase liberada CONGELA pool e recebedores; o valor da disciplina só
+>   mexe nas fases pendentes (o "que falta" pelo % delas, a última absorve); ajuste na Produção anda o
+>   total pela diferença; um modo por disciplina. "Já pagou" = `jaLiberouTudo`, nunca "tem pagamento"
+>   (card e SLA estavam errados com fase parcial — corrigidos). `smoke:pagamento-fase`.
+> - **F7.1 custo por linha:** horas × `Recurso.custoHora`; desconhecido nunca vira zero; só para quem
+>   vê financeiro; congelado em `EapBaselineLinha.custoPrevisto` (VP da F8). Baseline antiga = nulo.
+> - **F7.0 (não estava na tabela):** nada gravava `status`/`inicioReal`/`fimReal` nem a FASE da linha
+>   (`etapaId`) desde a F0. Entrou o "Atualizar tarefa" (`cronograma:executado`) e o campo Fase. Marco
+>   de fase concluído OFERECE aprovar a fase pela mesma action da F7.4 — nunca paga sozinho. O motor
+>   ainda não lê datas reais (**D6 pendente — a F8 precisa saber**).
+> - **F7.2/F7.3:** contrato de cliente `por_data | por_entrega` (D15); parcela = % ligado a marco ou
+>   "na assinatura". A previsão é `Lancamento.status = previsao` — status próprio (não `previsto` +
+>   etiqueta) para quem não a conhece a IGNORAR: fora de aging, inadimplência, "a receber", livro caixa
+>   e conciliação; só a projeção de caixa a inclui. Faturar converte a MESMA linha em `previsto`.
+>   Toda parcela (inclusive a da assinatura) passa por previsão → faturar (D9). `smoke:previsao-recebimento`.
+>   Previsão que passou da data vai para a 1ª semana da projeção, marcada "atrasada" (fora do aging,
+>   sumiria de todas as telas). "Na assinatura" é campo explícito: marco apagado deixa a parcela sem
+>   data, nunca a transforma em cobrança imediata. Contrato sem projeto sincroniza pelo contrato.
+> - **Pré-existente corrigido:** a projeção de caixa cortava na meia-noite local contra vencimento
+>   em meia-noite UTC. **Pré-existente NÃO corrigido:** "faturar entrega" (N-26) cobra do cliente o
+>   `Disciplina.valor`, que é o pool dos PJ.
+> - **Deploy:** 5 migrations aditivas (a do `ADD VALUE` do enum é separada de propósito); nenhum seed,
+>   nenhuma permissão nova.
+
+### F8 — Valor Agregado · Opus · 2 sessões · risco MÉDIO
+
+VP/VA/CR, IDP/IDC sobre o que F1–F7 produziram. **Só depois de todas as anteriores** — índice
+calculado sobre dado incompleto é a forma mais rápida de a equipe perder a confiança no relatório.
+
+> **Notas de implementação (2026-09-25, F8 pronta, sem olho humano):**
+> - Painel "Valor Agregado" no cronograma do projeto, apurado na **Data de Status** contra a linha
+>   de base mais recente, em duas réguas do mesmo cálculo: **horas** (quem vê o cronograma) e **R$**
+>   (só `podeVerFinanceiro`). VP pela fração da barra de base em dias úteis (uniforme, como o
+>   Project); VA pelo % INFORMADO (D19); CR = horas apontadas no projeto até a Data de Status (com ou
+>   sem tarefa), × custo/hora de Recursos em R$. Regras puras em `valor-agregado.ts`.
+> - **Desconhecido nunca vira zero:** baseline sem horas/custo em alguma folha → régua sem número,
+>   com motivo; alguém apontou sem custo/hora → CR em R$ desconhecido.
+> - Baseline passou a guardar `resumo` (quem era agrupamento no congelamento): sem isso a soma
+>   contava cada trabalho duas vezes.
+> - Cada apuração é gravada (`ValorAgregadoApuracao`, uma por Data de Status) — o % não guarda
+>   passado, então a tendência só existe se fotografada (mesmo motivo da D42).
+> - **DECIDIR (time):** pagamento de PJ por entrega NÃO entra no CR (quem não aponta horas não
+>   aparece); datas reais não entram (D6 pendente); a baseline de antes da F7.1 não tem custo
+>   (replanejar para medir em R$).
+> - Verificação: `smoke:recursos-eap` (checagens 9.x, números exatos).
+
+### F9 — Manual e novidades · Sonnet · 1 sessão · risco BAIXO
+
+`docs/manual/**` + `novidades.md` em linguagem de usuário, e `search-index.json` à mão (não há
+gerador). A rota `/ajuda` é visível a **todos** os papéis, cliente incluído.
+
+> **Notas de implementação (2026-09-25, F9 pronta):**
+> - Páginas novas em `docs/manual/`: `projetos/cronograma-equipe-e-custo.md`, `projetos/valor-agregado.md`,
+>   `projetos/etapas-e-pagamento-por-fase.md` e `financeiro/contrato-por-entrega.md`. Reescritas:
+>   `projetos/planejamento.md` e `projetos/recursos.md`. Ajustadas: tarefas, projetos, juridico, producao,
+>   contas-e-aging, visao-geral, os READMEs, preferencias (as 19 categorias reais de notificação),
+>   glossário, FAQ e novidades (entrada de abertura do motor, F0–F5, além das de F7/F8).
+> - Os guias em tela (`/guias/*`) são páginas React, não markdown: `guia-projetos-view.tsx` afirmava
+>   dias de calendário e só um tipo de dependência (falso desde a F1) — corrigido; `guia-financeiro-view.tsx`
+>   ganhou o termo "Previsão do cronograma".
+> - Fatos conferidos no código antes de escrever (e não no spec): a matriz de permissões dos perfis padrão
+>   (CLT, estagiário e PJ têm `planejamento:ver`, o que contradiz D4/Q14 — ver pendências), os nomes das
+>   origens (Projetista externo, Órgão aprovador…), que o Faturar fica **oculto** sem `financeiro:gerir` e
+>   que o bloqueio registra motivo, não origem.
+> - **Ao corrigir B2/L1** (pendências §7): remover a nota "Atenção (versão atual)" de
+>   `projetos/planejamento.md`, a pergunta "Uma tarefa terminou depois do dia que eu digitei" do `faq.md` e
+>   a linha "as datas reais ainda não movem o cronograma" de `planejamento.md` e `novidades.md`. Ao expor
+>   a Origem no editor da EAP, retirar a "Limitação atual" de `projetos/cronograma-equipe-e-custo.md`.
+
+---
+
+### Resumo
+
+| Fase | Modelo | Esforço | Ultracode | Sessões | Risco |
+|---|---|---|---|---|---|
+| F0 Fundação de dados | Opus | **xhigh** | não | 3 | alto |
+| F1 Motor | Opus | **xhigh** | **não** | 4 | alto |
+| F2 Governança | Opus | high | **sim** | 3 | médio |
+| F3 Telas | Sonnet | high | **sim** | 4 | médio |
+| F4 Disciplina × etapa | Opus | **xhigh** | não | 3 | alto |
+| F5 Recursos | Opus + Sonnet | high | não | 3 | médio |
+| F6 Apontamento | Sonnet | medium | não | 2 | baixo |
+| F7 Custo e dinheiro | Opus | **xhigh** | não | 3 | alto |
+| F8 Valor Agregado | Opus | high | não | 2 | médio |
+| F9 Manual | Sonnet | medium | não | 1 | baixo |
+| **Total** | | | | **28 sessões** | |
+
+**Por que `xhigh` só em F0/F1/F4/F7:** são as fases cujo erro é *silencioso* — schema
+irreversível, motor que devolve data plausível e errada, migração de dado em produção, rateio
+de dinheiro. As demais quebram barulhento (teste vermelho, tela torta) e `high` basta.
+
+**Por que ultracode só em F2/F3:** ultracode é `xhigh` **mais orquestração paralela**, e só
+paga quando o trabalho se divide em peças independentes — F2 tem 6 entregas que quase não se
+tocam, F3 tem 5 modos de exibição em arquivos distintos.
+
+**Por que ultracode NÃO em F0/F1**, que são as mais caras e a tentação óbvia: o motor é *uma
+coisa só*, profundamente acoplada. Dividir entre agentes cria costura exatamente onde costura é
+mais perigosa — dois agentes decidindo diferente sobre como o lag interage com a restrição, sem
+ninguém perceber. Ali é `xhigh` com um agente pensando o problema inteiro.
+
+**Coordenação:** ultracode abre vários agentes e este repo tem duas worktrees ativas
+(`dev-antigravity`, `dev-vscode`). Antes de disparar F2/F3, confirmar que a outra sessão não
+está nos mesmos arquivos.
+
+**Primeiro valor visível:** fim da F3 (cronograma que anda sozinho e Gantt de duas barras).
+**Ordem inegociável:** F0 → F1 → F2. F4 pode ir em paralelo com F3; F7 depende de F4 e F5;
+F8 depende de tudo.
 
 ---
 

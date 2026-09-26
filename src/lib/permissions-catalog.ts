@@ -271,6 +271,18 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     ],
   },
   {
+    recurso: "cronograma",
+    label: "Cronograma",
+    acoes: [
+      { acao: "ver", label: "Ver cronograma e caminho crítico", abre: "Cronograma", leitura: true },
+      { acao: "gerir", label: "Montar e editar o cronograma" },
+      // Separada de `gerir` de propósito: aprovar congela a linha de base, que é o que
+      // vira o combinado com o cliente. Quem monta não é necessariamente quem assume isso.
+      { acao: "aprovar", label: "Aprovar cronograma e replanejar a linha de base" },
+      { acao: "executado", label: "Informar avanço, datas reais e Data de Status" },
+    ],
+  },
+  {
     recurso: "documentos",
     label: "Estúdio de Documentos",
     acoes: [

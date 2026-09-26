@@ -2,8 +2,8 @@
 titulo: Financeiro — Visão geral e Meu extrato
 descricao: Painel gerencial do financeiro (KPIs, DRE, projeção de caixa, aging) e o extrato pessoal de pagamentos.
 resumo: O /financeiro mostra um painel completo para quem tem visão financeira (período, KPIs, gráficos, aging, atalhos) ou o "Meu extrato" para prestadores e clientes.
-tags: [financeiro, painel, dashboard, dre, projeção de caixa, aging, extrato, kpi]
-palavras-chave: [financeiro, visão geral, painel, resultado, saldo em caixa, projeção, contas vencidas, meu extrato, pagamentos]
+tags: [financeiro, painel, dashboard, dre, projeção de caixa, aging, extrato, kpi, previsão de recebimento, pagamento por fase]
+palavras-chave: [financeiro, visão geral, painel, resultado, saldo em caixa, projeção, contas vencidas, meu extrato, pagamentos, previsão do cronograma, contrato por entrega]
 sinonimos: [dashboard financeiro, painel financeiro, extrato]
 ---
 
@@ -30,7 +30,10 @@ Para quem tem `financeiro:ver` ou é sócio:
 - **Gráficos:** resultado mensal do ano e despesas por subcategoria (rosca).
 - **DRE do período:** receitas − despesas = resultado (lançamentos confirmados).
 - **Projeção de caixa:** saldo atual + a receber previsto − a pagar previsto, semana a
-  semana (próximas 8 semanas), com saldos por conta.
+  semana (próximas 8 semanas), com saldos por conta. Ela também soma a **previsão de recebimento do
+  cronograma** (parcelas de [contratos por entrega](contrato-por-entrega.md) ainda não faturadas, na
+  data do marco); a tela de **Fluxo de caixa** mostra esse subtotal e quanto já passou da data sem ser
+  faturado. Essa previsão **não** entra no aging nem em Contas a receber.
 - **Aging:** painel de contas a receber e a pagar por faixa de atraso.
 - **Cartões de atalho** para todas as ferramentas (Lançamentos, Contas, Folha de
   projetistas, Fluxo de caixa, Conciliação, Relatórios, Rentabilidade, DFC, Balanço,
@@ -45,7 +48,8 @@ Para quem tem **só** `financeiro:extrato`:
 
 - **Resumo:** Total, Recebido, Em aberto.
 - **Lista de pagamentos** por **entregas validadas** (disciplina + projeto), com valor e
-  status (pago / pendente).
+  status (pago / pendente). Disciplina paga [por fase](../projetos/etapas-e-pagamento-por-fase.md)
+  aparece com a sigla da fase ("Elétrica · BS"), uma linha por fase.
 - Um pagamento **pago** mostra também a **data** e a **forma** de pagamento (pix, TED
   etc.), e os **anexos** do lançamento — clique para baixar. A **conta bancária da
   empresa** não aparece: só quem gerencia Produção vê de onde o dinheiro saiu.

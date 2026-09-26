@@ -14,7 +14,14 @@ import {
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { valeNaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
-import { tarefasDoProjeto, opcoesTarefa, colunasTarefaAtivas, tarefaBloqueada } from "@/modules/tarefas/queries";
+import { estadoPagamento } from "@/modules/uploads/pagamento-fase";
+import {
+  tarefasDoProjeto,
+  opcoesTarefa,
+  colunasTarefaAtivas,
+  tarefaBloqueada,
+  tarefasTravadasPeloCronograma,
+} from "@/modules/tarefas/queries";
 import { canalDoProjeto, canaisDasDisciplinas } from "@/modules/chat/queries";
 import { AdicionarDisciplinaButton } from "@/components/projetos/adicionar-disciplina-button";
 import { AdicionarDoCatalogoButton } from "@/components/projetos/adicionar-do-catalogo-button";
@@ -98,7 +105,19 @@ export async function DisciplinasOperacionais({ projetoId }: { projetoId: string
       temA: uploads.some((upload) => upload.pacote === "A"),
       temB: uploads.some((upload) => upload.pacote === "B"),
       jaValidado: disciplina.status === "aprovado",
-      temPagamento: disciplina._count.pagamentos > 0,
+      ...(() => {
+        const e = estadoPagamento(disciplina.pagamentos, disciplina.etapas);
+        // Fase entregue (ou em revisão) que ainda não liberou o pagamento — o que `aprovarEtapaDisciplina`
+        // aceita. Só no modo por fase: disciplina que pagou inteira não tem mais o que aprovar por fase.
+        const fasesPendentes =
+          e.fases == null
+            ? []
+            : disciplina.etapas
+                .filter((f) => f.liberadaEm == null && (f.status === "entregue" || f.status === "em_revisao"))
+                .map((f) => ({ id: f.id, sigla: f.etapa.sigla, nomeFase: f.etapa.nome, percentual: Number(f.percentual) }));
+        return { pagamentoLiberado: e.jaLiberouTudo, fasesLiberadas: e.fases, fasesPendentes };
+      })(),
+      temEtapas: disciplina._count.etapas > 0,
       exigePacoteA: disciplina.exigePacoteA,
       exigePacoteB: disciplina.exigePacoteB,
       usaPastas,
@@ -140,6 +159,9 @@ export async function DisciplinasOperacionais({ projetoId }: { projetoId: string
     }
   }
 
+  // F5 (D32): cards que a EAP de um cronograma aprovado manda — a tela trava os campos.
+  const travadasPeloCronograma = await tarefasTravadasPeloCronograma(tarefasProjeto);
+
   const tarefasPorDisciplina = new Map<string, TarefaDaDisciplina[]>();
   for (const tarefa of tarefasProjeto) {
     if (!tarefa.disciplinaId) continue;
@@ -159,6 +181,7 @@ export async function DisciplinasOperacionais({ projetoId }: { projetoId: string
       itens: tarefa.itens.map((itemTarefa) => ({ id: itemTarefa.id, descricao: itemTarefa.descricao, concluido: itemTarefa.concluido })),
       dependeDeIds: tarefa.dependeDe.map((dependencia) => dependencia.dependeDe.id),
       bloqueada: tarefaBloqueada(tarefa),
+      travadaPeloCronograma: travadasPeloCronograma.has(tarefa.id),
       comentarios: tarefa.comentarios.map((comentario) => ({
         id: comentario.id,
         autorId: comentario.autorId,

@@ -459,7 +459,7 @@ export function EditarValorDialog({ pagamento, onClose }: { pagamento: FolhaItem
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Editar pagamento</DialogTitle>
-          <DialogDescription>{pagamento?.projetista.name} — {pagamento?.disciplina.disciplinaTextoLegado}</DialogDescription>
+          <DialogDescription>{pagamento?.projetista.name} — {pagamento?.rotuloDisciplina}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">

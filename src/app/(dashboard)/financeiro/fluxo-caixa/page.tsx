@@ -23,6 +23,8 @@ export default async function FluxoCaixaPage() {
   const { contas, saldoTotal, entradas, saidas, movimentos } = await fluxoCaixa();
   const projecao = await projecaoCaixa(saldoTotal, 8);
   const temGap = projecao.some((p) => p.saldo < 0);
+  const previsaoCronograma = projecao.reduce((s, p) => s + p.previsaoCronograma, 0);
+  const previsaoAtrasada = projecao.reduce((s, p) => s + p.previsaoAtrasada, 0);
 
   const dataCurta = (iso: string) =>
     formatarDiaMes(iso);
@@ -77,6 +79,17 @@ export default async function FluxoCaixaPage() {
           <CardTitle className="text-base">Projeção de caixa — 8 semanas</CardTitle>
           <CardDescription>
             Saldo projetado a partir do saldo atual e dos lançamentos previstos (por vencimento).
+            {previsaoCronograma > 0 && (
+              <span className="ml-1">
+                Inclui {brl(previsaoCronograma)} de previsão do cronograma — parcelas de contrato por entrega ainda não
+                faturadas, na data do marco.
+                {previsaoAtrasada > 0 && (
+                  <span className="ml-1 text-warning">
+                    {brl(previsaoAtrasada)} já passou da data sem ser faturado (contado na 1ª semana).
+                  </span>
+                )}
+              </span>
+            )}
             {temGap && <span className="ml-1 text-destructive">Atenção: saldo fica negativo.</span>}
           </CardDescription>
         </CardHeader>

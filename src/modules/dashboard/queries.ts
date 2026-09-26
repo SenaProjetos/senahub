@@ -266,9 +266,19 @@ export async function serieReceita(meses = 6) {
       where: { tipo: "receita", status: "confirmado", dataConfirmacao: { gte: inicio, lte: fim } },
       select: { valor: true, valorEfetivo: true, dataConfirmacao: true },
     }),
-    // Previsto ORIGINAL: toda receita com vencimento no período, independente do status.
+    // Previsto ORIGINAL: receita com vencimento no período, em QUALQUER estágio da cobrança — inclusive
+    // a previsão do cronograma (decisão #13), pelo mesmo motivo do KPI "Receita prevista" desta mesma
+    // tela: é dinheiro esperado, e faturar só troca o status da linha (nunca soma duas vezes). Os status
+    // estão escritos um a um de propósito: "independente do status" já incluiu `previsao` sem ninguém
+    // decidir quando o status nasceu, e a próxima adição ao enum faria o mesmo em silêncio.
     prisma.lancamento.findMany({
-      where: { tipo: "receita", vencimento: { gte: inicio, lte: fim } },
+      where: {
+        tipo: "receita",
+        // `cancelado` sai: cobrança cancelada não é dinheiro esperado. O "independente do status" antigo
+        // a somava — bug pequeno e antigo, que fica claro agora que os status estão escritos.
+        status: { in: ["previsto", "previsao", "confirmado", "aguardando_aprovacao"] },
+        vencimento: { gte: inicio, lte: fim },
+      },
       select: { valor: true, vencimento: true },
     }),
   ]);

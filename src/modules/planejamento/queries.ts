@@ -7,13 +7,218 @@ import { progressoDoStatus } from "@/modules/projetos/status";
 import { diaLocal, minutosPorDiaSessao } from "@/modules/ponto/engine";
 import { gradesEmLote } from "@/modules/rh/escalas/queries";
 import { chaveSemanaIso, diaEstaNaFaixa, minutosDisponiveisNoDia, percentualAlocadoNoDia } from "@/modules/planejamento/disponibilidade";
+import { montarCalendario, planoDoProjeto, type PlanoDoProjeto } from "@/modules/planejamento/agenda";
+import type { Prisma } from "@/generated/prisma/client";
+import { cargaDaEquipe } from "@/modules/planejamento/recursos-queries";
+import { ehEtapaDeTerceiro, ROTULO_PAPEL } from "@/modules/planejamento/recursos";
+import { percentualDaCapacidade } from "@/modules/planejamento/heatmap-recursos";
+import { semDatasDaLinha } from "@/modules/planejamento/visao-sem-datas";
+import { contextoDeArquivos, sugerirProgresso } from "@/modules/planejamento/progresso-sugerido";
+import { minutosSessao } from "@/modules/ponto/format";
+import { custosDoProjeto } from "@/modules/planejamento/custo-service";
+import type { CustoLinha } from "@/modules/planejamento/custo";
 
 type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
-/** Projetos visíveis ao viewer + resumo do plano (página índice de Planejamento). */
-export async function projetosComPlano(viewer: Viewer) {
+/**
+ * O `include` de linha que o mapeador precisa — UM só, usado pelas duas queries. Antes cada
+ * uma repetia o seu, e é assim que o DTO do Gantt diverge entre a EAP e o Painel Mestre.
+ */
+const INCLUDE_LINHA = {
+  disciplina: { select: { id: true, disciplinaTextoLegado: true, status: true } },
+  predecessoras: { select: { predecessoraId: true, tipo: true, lagDias: true } },
+  origem: { select: { sigla: true } },
+  // F7.0: fase da linha — liga o marco à etapa da disciplina (D31).
+  etapa: { select: { sigla: true } },
+  // F5: quem está na linha. Principal primeiro — é quem a tela mostra quando cabe um só.
+  atribuicoes: {
+    select: {
+      id: true,
+      userId: true,
+      papel: true,
+      horasPrevistas: true,
+      principal: true,
+      user: { select: { name: true, image: true } },
+    },
+    orderBy: [{ principal: "desc" }, { createdAt: "asc" }],
+  },
+} satisfies Prisma.EapTarefaInclude;
+
+type EapTarefaComRelacoes = Prisma.EapTarefaGetPayload<{ include: typeof INCLUDE_LINHA }>;
+
+/**
+ * O que o sistema já sabe sobre cada linha e a tela usa para SUGERIR o % e mostrar o apontado
+ * (F6). Só a EAP do projeto carrega isto (3 leituras em lote); o Painel Mestre não precisa e
+ * recebe o vazio.
+ */
+type ApoioDaLinha = {
+  /** Minutos apontados no ponto, por linha (via card gerado dela). */
+  apontadoMin: Map<string, number>;
+  /** Checklist do card gerado da linha. */
+  checklist: Map<string, { feitos: number; total: number }>;
+  /** DOCUMENTOS por disciplina (unidade de contagem do sistema: PDF + DWG = 1). */
+  arquivosPorDisciplina: Map<string, number>;
+};
+
+const SEM_APOIO: ApoioDaLinha = { apontadoMin: new Map(), checklist: new Map(), arquivosPorDisciplina: new Map() };
+
+async function carregarApoioDasLinhas(linhas: readonly { id: string; disciplinaId: string | null }[]): Promise<ApoioDaLinha> {
+  const linhaIds = linhas.map((l) => l.id);
+  const disciplinaIds = [...new Set(linhas.map((l) => l.disciplinaId).filter((d): d is string => d != null))];
+  const [cards, sessoes, arquivos] = await Promise.all([
+    prisma.tarefa.findMany({
+      where: { eapTarefaId: { in: linhaIds } },
+      select: { eapTarefaId: true, itens: { select: { concluido: true } } },
+    }),
+    prisma.sessaoTrabalho.findMany({
+      where: { tarefa: { eapTarefaId: { in: linhaIds } } },
+      select: { inicio: true, fim: true, tarefa: { select: { eapTarefaId: true } } },
+    }),
+    // A unidade é o DOCUMENTO (`DocumentoDisciplina`), não o upload: cada versão e cada
+    // extensão é um upload, e contá-los inflaria o número (mesma regra da contagem por fase
+    // do link público). Canônico e com upload validado, como lá.
+    disciplinaIds.length === 0
+      ? Promise.resolve([])
+      : prisma.documentoDisciplina.groupBy({
+          by: ["disciplinaId"],
+          where: {
+            disciplinaId: { in: disciplinaIds },
+            substituidoPorId: null,
+            uploads: { some: { validado: true, excluidoEm: null } },
+          },
+          _count: { _all: true },
+        }),
+  ]);
+
+  const apoio: ApoioDaLinha = { apontadoMin: new Map(), checklist: new Map(), arquivosPorDisciplina: new Map() };
+  for (const c of cards) {
+    if (c.eapTarefaId) {
+      apoio.checklist.set(c.eapTarefaId, { feitos: c.itens.filter((i) => i.concluido).length, total: c.itens.length });
+    }
+  }
+  const agora = new Date();
+  for (const ss of sessoes) {
+    const id = ss.tarefa?.eapTarefaId;
+    if (id) apoio.apontadoMin.set(id, (apoio.apontadoMin.get(id) ?? 0) + minutosSessao(ss.inicio, ss.fim ?? agora));
+  }
+  for (const a of arquivos) apoio.arquivosPorDisciplina.set(a.disciplinaId, a._count._all);
+  return apoio;
+}
+
+/**
+ * Mapeador único do DTO de linha da EAP. Existe pra `eapDoProjeto` e
+ * `cronogramaProjetosAtivos` nunca divergirem de novo — as duas alimentam o mesmo `Gantt`.
+ */
+function mapearTarefaDTO(
+  t: EapTarefaComRelacoes,
+  plano: PlanoDoProjeto | null,
+  apoio: ApoioDaLinha = SEM_APOIO,
+  /** F7.1: só vem para quem vê financeiro; ausente = a linha sai sem custo (nulo). */
+  custo?: CustoLinha,
+) {
+  const agendada = plano?.resultado.linhas.get(t.id);
+  const apontadoMin = apoio.apontadoMin.get(t.id) ?? 0;
+  return {
+    id: t.id,
+    idCorporativo: t.idCorporativo,
+    codigoEap: t.codigoEap,
+    parentId: t.parentId,
+    nome: t.nome,
+    ordem: t.ordem,
+    // D19 (2026-09-23, mais nova que a P-33): o % é INFORMADO pelo coordenador. Folha mostra o
+    // valor gravado; linha-resumo mostra o do MOTOR, ponderado por horas dos filhos (D26).
+    // A P-33 derivava o % do status da disciplina e o mostrava no lugar do gravado — só que o
+    // motor, a qualidade, a Saúde e a linha de base leem o gravado e o rollup, então a tela
+    // contradizia tudo o que ela mesma alimenta (e o Valor Agregado da F8 leria o número do
+    // motor). O status da disciplina agora é SUGESTÃO (`sugestoesProgresso`), com confirmação.
+    progresso: agendada?.progresso ?? t.progresso,
+    /** Linha-resumo: o % é calculado dos filhos e não se digita (Doc 03 §23). */
+    progressoDerivado: agendada?.ehResumo ?? false,
+    // Datas do MOTOR (B2): a tela nunca mostra uma data gravada que ficou para trás. O banco é
+    // reagendado a cada mudança, mas feriado cadastrado depois também move o calendário.
+    inicioPrevisto: agendada?.inicio ?? iso(t.inicioPrevisto),
+    fimPrevisto: agendada?.fim ?? iso(t.fimPrevisto),
+    inicioBaseline: t.inicioBaseline ? iso(t.inicioBaseline) : null,
+    fimBaseline: t.fimBaseline ? iso(t.fimBaseline) : null,
+    disciplinaId: t.disciplinaId,
+    disciplinaNome: t.disciplina?.disciplinaTextoLegado ?? null,
+    /** F7.0: fase da linha (catálogo de fases) — `null` = sem fase. */
+    etapaId: t.etapaId,
+    etapaSigla: t.etapa?.sigla ?? null,
+    /** F7.0: datas reais ("Atualizar tarefa"). */
+    inicioReal: t.inicioReal ? iso(t.inicioReal) : null,
+    fimReal: t.fimReal ? iso(t.fimReal) : null,
+    predecessoraIds: t.predecessoras.map((p) => p.predecessoraId),
+    // Detalhe completo do vínculo (tipo + lag), pra tela editar sem outra ida ao banco.
+    predecessoras: t.predecessoras.map((p) => ({
+      predecessoraId: p.predecessoraId,
+      tipo: p.tipo,
+      lagDias: Number(p.lagDias),
+    })),
+    // `marco` é DERIVADO de tipoEap (F0): a natureza da linha vive no TEAP, não
+    // num booleano paralelo. O contrato da UI segue o mesmo, como `progressoDerivado`.
+    marco: t.tipoEap === "mrc",
+    tipoEap: t.tipoEap,
+    duracaoDias: Number(t.duracaoDias),
+    status: t.status,
+    restricaoTipo: t.restricaoTipo,
+    restricaoData: t.restricaoData ? iso(t.restricaoData) : null,
+    motivoBloqueio: t.motivoBloqueio,
+    previsaoDesbloqueio: t.previsaoDesbloqueio ? iso(t.previsaoDesbloqueio) : null,
+    // Criticidade e folga vêm do MOTOR, não do cliente: calcular no navegador voltaria
+    // a contar dias corridos, porque o feriado só existe no banco.
+    critica: plano?.resultado.criticas.has(t.id) ?? false,
+    folgaTotal: agendada?.folgaTotal ?? 0,
+    folgaLivre: agendada?.folgaLivre ?? 0,
+    conflitoRestricao: agendada?.conflitoRestricao ?? false,
+    /** L1: a Data de Status empurrou o trabalho não feito desta linha para depois dela. */
+    reprogramada: agendada?.reprogramada ?? false,
+    // ── F5: recursos na linha ──
+    /** Linha com filhos — não recebe gente (as horas estão nos filhos). */
+    ehResumo: agendada?.ehResumo ?? false,
+    /** Etapa de terceiro (tem o recurso "Externo"): não gera card nem cobra hora. */
+    deTerceiro: ehEtapaDeTerceiro(t.atribuicoes),
+    /** Horas da linha pelo motor — no resumo, a soma; `null` = alguma folha sem estimativa. */
+    trabalhoHoras: agendada?.trabalhoHoras ?? null,
+    atribuicoes: t.atribuicoes.map((a) => ({
+      id: a.id,
+      /** `null` = perfil (recurso genérico). */
+      userId: a.userId,
+      nome: a.user?.name ?? null,
+      image: a.user?.image ?? null,
+      papel: a.papel,
+      rotuloPapel: ROTULO_PAPEL[a.papel],
+      horas: Number(a.horasPrevistas),
+      principal: a.principal,
+    })),
+    // ── F6: o que o ponto e o card já sabem desta linha ──
+    /** Horas APONTADAS no ponto nesta linha (via o card gerado dela); o "real" do previsto × real. */
+    horasApontadas: Math.round((apontadoMin / 60) * 10) / 10,
+    /**
+     * O que o sistema sugere para o % (checklist do card, situação da disciplina) — o
+     * coordenador confirma, nunca grava sozinho (D19). Horas apontadas NÃO viram sugestão: ver
+     * `progresso-sugerido.ts`.
+     */
+    sugestoesProgresso: sugerirProgresso({
+      checklist: apoio.checklist.get(t.id) ?? null,
+      progressoDoStatusDaDisciplina: t.disciplina ? progressoDoStatus(t.disciplina.status) : null,
+    }),
+    /** Contexto de arquivos (só texto): enviar não é entregar. */
+    contextoArquivos: t.disciplinaId ? contextoDeArquivos(apoio.arquivosPorDisciplina.get(t.disciplinaId) ?? 0) : null,
+    // ── F7.1: custo previsto (horas × custo/hora) — nulo para quem não vê financeiro ──
+    custo: custo?.custo ?? null,
+    /** Por que não há custo (só quando o viewer vê custo e ele é desconhecido). */
+    custoMotivo: custo?.motivo ?? null,
+  };
+}
+
+/**
+ * Projetos visíveis ao viewer + resumo do plano (página índice de Planejamento). `verDatas` é OBRIGATÓRIO: o
+ * compilador enumera quem chama, e ninguém esquece a decisão #3 (quem só consulta não vê datas).
+ */
+export async function projetosComPlano(viewer: Viewer, opcoes: { verDatas: boolean }) {
   const projetos = await prisma.projeto.findMany({
     where: escopoProjeto(viewer),
     orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
@@ -23,7 +228,7 @@ export async function projetosComPlano(viewer: Viewer) {
       nome: true,
       situacao: true,
       eapTarefas: {
-        select: { inicioPrevisto: true, fimPrevisto: true, progresso: true, disciplina: { select: { status: true } } },
+        select: { id: true, parentId: true, inicioPrevisto: true, fimPrevisto: true, progresso: true },
       },
     },
   });
@@ -31,17 +236,20 @@ export async function projetosComPlano(viewer: Viewer) {
     const t = p.eapTarefas;
     const inicio = t.length ? new Date(Math.min(...t.map((x) => x.inicioPrevisto.getTime()))) : null;
     const fim = t.length ? new Date(Math.max(...t.map((x) => x.fimPrevisto.getTime()))) : null;
-    const progresso = t.length
-      ? Math.round(t.reduce((s, x) => s + (x.disciplina ? progressoDoStatus(x.disciplina.status) : x.progresso), 0) / t.length)
-      : 0;
+    // Média do % INFORMADO das folhas (D19) — a mesma base do motor, sem o P-33 que substituía
+    // o gravado pelo status da disciplina. É uma aproximação de índice: o rollup ponderado por
+    // horas exige rodar o motor por projeto, e esta lista não paga isso.
+    const paisIds = new Set(t.map((x) => x.parentId).filter((id): id is string => id != null));
+    const folhas = t.filter((x) => !paisIds.has(x.id));
+    const progresso = folhas.length ? Math.round(folhas.reduce((s, x) => s + x.progresso, 0) / folhas.length) : 0;
     return {
       id: p.id,
       codigo: p.codigo,
       nome: p.nome,
       situacao: p.situacao,
       totalTarefas: t.length,
-      inicio: inicio ? iso(inicio) : null,
-      fim: fim ? iso(fim) : null,
+      inicio: opcoes.verDatas && inicio ? iso(inicio) : null,
+      fim: opcoes.verDatas && fim ? iso(fim) : null,
       progresso,
     };
   });
@@ -64,41 +272,62 @@ export async function projetoVisivel(viewer: Viewer, projetoId: string) {
 }
 
 /** EAP completa de um projeto (lista plana ordenada por hierarquia; árvore montada no client). */
-export async function eapDoProjeto(projetoId: string) {
+export async function eapDoProjeto(
+  projetoId: string,
+  opcoes: {
+    /** F7.1: custo por linha é taxa de remuneração — só calcula (e só envia) para quem vê financeiro. */
+    verCusto?: boolean;
+    /**
+     * Decisão #3: sem datas, a linha sai só com a estrutura (`semDatasDaLinha`). OBRIGATÓRIO — quem chama
+     * decide por `podeVerDatasDoPlanejamento`, e o compilador acusa quem esquecer.
+     */
+    verDatas: boolean;
+  },
+) {
   const tarefas = await prisma.eapTarefa.findMany({
     where: { projetoId },
     orderBy: { ordem: "asc" },
-    include: {
-      disciplina: { select: { id: true, disciplinaTextoLegado: true, status: true } },
-      predecessoras: { select: { predecessoraId: true } },
-    },
+    include: INCLUDE_LINHA,
   });
   const disciplinas = await prisma.disciplina.findMany({
     where: { projetoId },
     orderBy: { ordem: "asc" },
-    select: { id: true, disciplinaTextoLegado: true },
+    select: {
+      id: true,
+      disciplinaTextoLegado: true,
+      // F7.0: as fases que a disciplina tem (F4) — as que a linha da EAP pode apontar.
+      etapas: {
+        orderBy: [{ ordem: "asc" }, { id: "asc" }],
+        select: { etapaId: true, etapa: { select: { sigla: true, nome: true } } },
+      },
+    },
   });
+  // O motor roda sobre o estado ATUAL do banco e não grava nada: a tela mostra folga e
+  // caminho crítico corretos mesmo antes de alguém clicar em "reagendar".
+  const [plano, apoio] = await Promise.all([planoDoProjeto(projetoId), carregarApoioDasLinhas(tarefas)]);
+  const custos = opcoes.verCusto ? await custosDoProjeto(plano, tarefas) : null;
   return {
-    tarefas: tarefas.map((t) => ({
-      id: t.id,
-      parentId: t.parentId,
-      nome: t.nome,
-      ordem: t.ordem,
-      // P-33: progresso derivado do status da disciplina vinculada; manual quando sem disciplina.
-      progresso: t.disciplina ? progressoDoStatus(t.disciplina.status) : t.progresso,
-      progressoDerivado: t.disciplina != null,
-      inicioPrevisto: iso(t.inicioPrevisto),
-      fimPrevisto: iso(t.fimPrevisto),
-      inicioBaseline: t.inicioBaseline ? iso(t.inicioBaseline) : null,
-      fimBaseline: t.fimBaseline ? iso(t.fimBaseline) : null,
-      disciplinaId: t.disciplinaId,
-      disciplinaNome: t.disciplina?.disciplinaTextoLegado ?? null,
-      predecessoraIds: t.predecessoras.map((p) => p.predecessoraId),
-      marco: t.marco,
-    })),
+    tarefas: tarefas.map((t) => {
+      const dto = mapearTarefaDTO(t, plano, apoio, custos?.porLinha.get(t.id));
+      return opcoes.verDatas ? dto : semDatasDaLinha(dto);
+    }),
+    /** `null` = o viewer não vê custo (a coluna nem aparece). */
+    custoTotal: custos ? custos.total : null,
+    /**
+     * O calendário do MOTOR (dias úteis e feriados): o Gantt sombreia os dias não úteis com ele — a mesma
+     * régua que agenda as linhas. Sem plano (projeto sem EAP), o calendário padrão da empresa.
+     */
+    calendario: {
+      diasUteis: plano ? [...plano.calendario.diasSemana] : [1, 2, 3, 4, 5],
+      feriados: plano ? [...plano.calendario.feriados] : ([] as string[]),
+    },
     // Volta a se chamar `nome` na fronteira da UI (`EapWorkspace` fala "nome"): a F1.19c
     // renomeou a coluna no schema, não o rótulo exibido.
-    disciplinas: disciplinas.map((d) => ({ id: d.id, nome: d.disciplinaTextoLegado })),
+    disciplinas: disciplinas.map((d) => ({
+      id: d.id,
+      nome: d.disciplinaTextoLegado,
+      etapas: d.etapas.map((e) => ({ etapaId: e.etapaId, sigla: e.etapa.sigla, nome: e.etapa.nome })),
+    })),
     temLinhaBase: tarefas.some((t) => t.inicioBaseline != null),
   };
 }
@@ -117,36 +346,36 @@ export async function cronogramaProjetosAtivos() {
       situacao: true,
       eapTarefas: {
         orderBy: { ordem: "asc" },
-        include: {
-          disciplina: { select: { id: true, disciplinaTextoLegado: true, status: true } },
-          predecessoras: { select: { predecessoraId: true } },
-        },
+        include: INCLUDE_LINHA,
       },
     },
   });
-  return projetos.map((p) => ({
-    id: p.id,
-    codigo: p.codigo,
-    nome: p.nome,
-    situacao: p.situacao,
-    temLinhaBase: p.eapTarefas.some((t) => t.inicioBaseline != null),
-    tarefas: p.eapTarefas.map((t) => ({
-      id: t.id,
-      parentId: t.parentId,
-      nome: t.nome,
-      ordem: t.ordem,
-      progresso: t.disciplina ? progressoDoStatus(t.disciplina.status) : t.progresso,
-      progressoDerivado: t.disciplina != null,
-      inicioPrevisto: iso(t.inicioPrevisto),
-      fimPrevisto: iso(t.fimPrevisto),
-      inicioBaseline: t.inicioBaseline ? iso(t.inicioBaseline) : null,
-      fimBaseline: t.fimBaseline ? iso(t.fimBaseline) : null,
-      disciplinaId: t.disciplinaId,
-      disciplinaNome: t.disciplina?.disciplinaTextoLegado ?? null,
-      predecessoraIds: t.predecessoras.map((pp) => pp.predecessoraId),
-      marco: t.marco,
+  // Um motor por projeto: o calendário é o mesmo, mas a âncora e o grafo não. Rodar em
+  // paralelo mantém a tela consolidada no mesmo custo de antes.
+  const planos = new Map(
+    await Promise.all(
+      projetos.map(async (p) => [p.id, await planoDoProjeto(p.id)] as const),
+    ),
+  );
+  // O calendário é o MESMO para todos (um calendário da empresa, D8): vai uma vez, para o gráfico sombrear
+  // dia não útil com o mesmo conjunto que agendou as linhas. Sem plano nenhum (projeto sem cronograma), cai
+  // em seg-sex sem feriado — só afeta o sombreado.
+  const algumPlano = [...planos.values()].find((x) => x != null) ?? null;
+
+  return {
+    calendario: {
+      diasUteis: algumPlano ? [...algumPlano.calendario.diasSemana] : [1, 2, 3, 4, 5],
+      feriados: algumPlano ? [...algumPlano.calendario.feriados] : ([] as string[]),
+    },
+    projetos: projetos.map((p) => ({
+      id: p.id,
+      codigo: p.codigo,
+      nome: p.nome,
+      situacao: p.situacao,
+      temLinhaBase: p.eapTarefas.some((t) => t.inicioBaseline != null),
+      tarefas: p.eapTarefas.map((t) => mapearTarefaDTO(t, planos.get(p.id) ?? null)),
     })),
-  }));
+  };
 }
 
 /**
@@ -261,7 +490,7 @@ export async function cargaSemanalPorRecurso(semanas = 12) {
   if (recursos.length === 0) return { semanas: chavesSemana, linhas: [] };
 
   const userIds = recursos.map((recurso) => recurso.user.id);
-  const [sessoes, grades, feriadosDb, ferias, abonos] = await Promise.all([
+  const [sessoes, grades, calendario, ferias, abonos] = await Promise.all([
     prisma.sessaoTrabalho.findMany({
       where: {
         userId: { in: userIds },
@@ -272,10 +501,9 @@ export async function cargaSemanalPorRecurso(semanas = 12) {
       orderBy: { inicio: "asc" },
     }),
     gradesEmLote(recursos.map((recurso) => ({ id: recurso.user.id, contratacao: recurso.user.contratacao }))),
-    prisma.feriado.findMany({
-      where: { data: { gte: new Date(`${inicio}T00:00:00Z`), lt: new Date(`${fimExclusivo}T00:00:00Z`) } },
-      select: { data: true },
-    }),
+    // O MESMO calendário do cronograma e da carga planejada (F5): lido direto da tabela
+    // `Feriado`, um ano sem feriado importado daria capacidade diferente da planejada.
+    montarCalendario([Number(inicio.slice(0, 4)), Number(fimExclusivo.slice(0, 4))]),
     prisma.ferias.findMany({
       where: { userId: { in: userIds }, status: "aprovado", inicio: { lt: fimVigencia }, fim: { gte: inicioVigencia } },
       select: { userId: true, inicio: true, fim: true },
@@ -286,7 +514,7 @@ export async function cargaSemanalPorRecurso(semanas = 12) {
     }),
   ]);
 
-  const feriados = new Set(feriadosDb.map((feriado) => iso(feriado.data)));
+  const feriados = calendario.feriados;
   const ausenciasPorUsuario = new Map<string, Set<string>>();
   for (const ausencia of [...ferias.map((f) => ({ userId: f.userId, inicio: f.inicio, fim: f.fim })), ...abonos.map((a) => ({ userId: a.userId, inicio: a.dataInicio, fim: a.dataFim }))]) {
     const dias = ausenciasPorUsuario.get(ausencia.userId) ?? new Set<string>();
@@ -350,11 +578,18 @@ function inicioDaSemana(dia: string): string {
  * Matriz de recursos: pessoas (recursos) × projetos.
  * P-29: superalocação considera só as alocações ATIVAS hoje (respeita inicio/fim).
  * P-30: capacidade efetiva desconta ausências de hoje (férias/abono aprovados, feriado).
+ *
+ * F5 (D17) — a matriz vira CÁLCULO nos projetos com cronograma aprovado: o percentual sai
+ * das horas das atribuições na semana corrente, sobre a semana útil da pessoa (a mesma
+ * régua do "50%" digitado). A alocação digitada desses projetos continua listada, marcada
+ * `substituidaPeloCronograma`, e SAI da soma — senão a mesma hora contaria duas vezes (os
+ * "50% na matriz e 120% nas tarefas" da Q17). Projeto sem cronograma aprovado segue com a
+ * alocação digitada, como sempre.
  */
-export async function matrizRecursos() {
+export async function matrizRecursos(opcoes: { verCusto: boolean }) {
   const hojeIso = diaLocal(new Date());
 
-  const [recursos, projetos, usuariosSemRecurso, ferias, abonos, feriados] = await Promise.all([
+  const [recursos, projetos, usuariosSemRecurso, ferias, abonos, feriados, carga] = await Promise.all([
     prisma.recurso.findMany({
       where: { ativo: true },
       include: {
@@ -383,7 +618,13 @@ export async function matrizRecursos() {
       select: { userId: true, dataInicio: true, dataFim: true },
     }),
     prisma.feriado.findMany({ select: { data: true, nome: true } }),
+    cargaDaEquipe({ semanas: 1, hoje: hojeIso }),
   ]);
+
+  const calculados = new Set(carga.projetosCalculados);
+  const semanaAtual = carga.semanas[0];
+  const cargaPorUser = new Map(carga.pessoas.map((p) => [p.userId, p]));
+  const projetoPorId = new Map(projetos.map((p) => [p.id, p]));
 
   // Motivo de ausência de hoje por usuário (feriado afeta todos).
   const ausenciaPorUser = new Map<string, string>();
@@ -405,8 +646,33 @@ export async function matrizRecursos() {
 
   const linhas = recursos
     .map((r) => {
-      const capacidadePct = Math.round(Number(r.capacidade) * 100);
-      const alocadoHoje = r.alocacoes.filter(ativaHoje).reduce((s, a) => s + a.percentual, 0);
+      // O % digitado é da capacidade da PRÓPRIA pessoa (decisão do time, 2026-09-25): 100 é tudo o que
+      // ela dedica a projeto — quem trabalha meio período se enche com 100%, não com 50%. O multiplicador
+      // (`capacidade`) só encolhe as horas dela (`cargaDaEquipe`); não muda a régua do percentual.
+      const capacidadePct = 100;
+      // Horas da semana corrente em cada projeto aprovado, sobre a semana útil da pessoa.
+      const cargaPessoa = cargaPorUser.get(r.user.id);
+      const base = cargaPessoa?.semanaUtil[semanaAtual] ?? 0;
+      const calculadas = Object.entries(cargaPessoa?.porProjeto ?? {})
+        .filter(([projetoId]) => calculados.has(projetoId))
+        .map(([projetoId, porSemana]) => {
+          const horasSemana = porSemana[semanaAtual] ?? 0;
+          const projeto = projetoPorId.get(projetoId);
+          return {
+            projetoId,
+            projetoCodigo: projeto?.codigo ?? "",
+            projetoNome: projeto?.nome ?? "",
+            horasSemana,
+            // Mesma régua do "50% no projeto" digitado (100 = capacidade dela). Sem semana útil (jornada
+            // vazia), percentual não tem base: fica nulo em vez de inventar. A sobrecarga de
+            // `cargaDaEquipe`, em horas, continua acusando.
+            percentual: percentualDaCapacidade(horasSemana, base),
+          };
+        })
+        .filter((c) => c.horasSemana > 0);
+      const alocadoHoje =
+        r.alocacoes.filter((a) => ativaHoje(a) && !calculados.has(a.projetoId)).reduce((s, a) => s + a.percentual, 0) +
+        calculadas.reduce((s, c) => s + (c.percentual ?? 0), 0);
       const motivoAusencia = feriadoHoje ? `feriado (${feriadoHoje})` : (ausenciaPorUser.get(r.user.id) ?? null);
       const ausente = motivoAusencia != null;
       const capacidadeEfetivaPct = ausente ? 0 : capacidadePct;
@@ -432,7 +698,9 @@ export async function matrizRecursos() {
         motivoAusencia,
         indisponibilidades,
         cor: r.cor,
-        custoHora: r.custoHora != null ? Number(r.custoHora) : null,
+        // Taxa é dado do financeiro: mascarada AQUI, no servidor — esconder só na tela ainda a mandaria no
+        // payload. Mesma regra do custo na EAP (`podeVerFinanceiro`).
+        custoHora: opcoes.verCusto && r.custoHora != null ? Number(r.custoHora) : null,
         totalAlocado: alocadoHoje,
         alocadoHoje,
         // P-29: superalocação avalia a carga de HOJE contra a capacidade efetiva.
@@ -447,10 +715,66 @@ export async function matrizRecursos() {
           fim: a.fim ? iso(a.fim) : null,
           ativaHoje: ativaHoje(a),
           observacao: a.observacao,
+          /** Projeto com cronograma aprovado: esta alocação digitada não conta mais (D17). */
+          substituidaPeloCronograma: calculados.has(a.projetoId),
         })),
+        /** Alocação calculada das linhas, nos projetos com cronograma aprovado (D17). */
+        calculadas,
       };
     })
     .sort((a, b) => a.nome.localeCompare(b.nome));
 
   return { linhas, projetos, usuariosSemRecurso, feriadoHoje };
+}
+
+/**
+ * Estado de governança do cronograma (F2): aprovado, Data de Status, âncora, versão de
+ * baseline vigente. Tela usa isto para decidir "Aprovar" vs "Replanejar" e mostrar a
+ * régua de apuração.
+ */
+export async function cronogramaProjetoInfo(projetoId: string) {
+  const [cronograma, ultimaBaseline, alocacoesTipadas] = await Promise.all([
+    prisma.cronogramaProjeto.findUnique({
+      where: { projetoId },
+      select: { aprovado: true, aprovadoEm: true, dataStatus: true, inicioProjeto: true },
+    }),
+    prisma.eapBaseline.findFirst({
+      where: { projetoId },
+      orderBy: { numero: "desc" },
+      select: { numero: true, motivo: true, createdAt: true },
+    }),
+    // F5 (D17): quantas alocações DIGITADAS o projeto tem — aprovar sem hora estimada nas
+    // linhas as tira da carga da equipe sem substituir por nada. A tela precisa avisar
+    // ANTES de aprovar, não depois: `alocacoesSubstituidas` só existe no resultado.
+    prisma.alocacao.count({ where: { projetoId } }),
+  ]);
+  return {
+    aprovado: cronograma?.aprovado ?? false,
+    aprovadoEm: cronograma?.aprovadoEm ? iso(cronograma.aprovadoEm) : null,
+    dataStatus: cronograma?.dataStatus ? iso(cronograma.dataStatus) : null,
+    inicioProjeto: cronograma?.inicioProjeto ? iso(cronograma.inicioProjeto) : null,
+    ultimaBaseline: ultimaBaseline
+      ? { numero: ultimaBaseline.numero, motivo: ultimaBaseline.motivo, criadaEm: iso(ultimaBaseline.createdAt) }
+      : null,
+    alocacoesTipadas,
+  };
+}
+
+/** Pessoa ou perfil para atribuir numa linha da EAP (F5) — gente da casa, ativa. */
+export async function pessoasParaAtribuicao() {
+  return prisma.user.findMany({
+    where: { ativo: true, role: { not: "cliente" } },
+    select: { id: true, name: true, image: true },
+    orderBy: { name: "asc" },
+  });
+}
+
+/**
+ * Verificador de qualidade + Saúde do Cronograma, para RSC (`page.tsx`). Fino wrapper
+ * sobre `avaliarQualidade` (service.ts): é leitura pura, mas a convenção do repo é a
+ * página ler por `queries.ts` — mesmo padrão de `planoDoProjeto` sendo consumido aqui.
+ */
+export async function qualidadeDoProjeto(projetoId: string) {
+  const { avaliarQualidade } = await import("@/modules/planejamento/service");
+  return avaliarQualidade(projetoId);
 }

@@ -61,6 +61,10 @@ enum TipoUsuario {
 
 model User {
   id            String  @id @default(cuid())
+  /// Modelos de EAP que esta pessoa importou (decisão #5).
+  modelosEap    ModeloEap[] @relation("ModeloEapAutor")
+  /// % concluído que esta pessoa informou em linhas da EAP (decisão #17).
+  progressosEap EapProgressoRegistro[] @relation("EapProgressoAutor")
   /// Nome de EXIBIÇÃO — mostrado nas telas (o usuário pode escolher/encurtar o próprio).
   name          String
   /// Nome COMPLETO (cadastro/documentos formais: holerite, contrato, NF). Cai em `name` quando vazio.
@@ -209,6 +213,10 @@ model User {
   canaisCriados                 Canal[]                     @relation("CanaisCriados")
   mensagens                     Mensagem[]
   sessoes                       SessaoTrabalho[]
+  cronogramasAprovados          CronogramaProjeto[]         @relation("CronogramaAprovador")
+  eapBaselinesAutor             EapBaseline[]               @relation("EapBaselineAutor")
+  eapCodigoHistorico            EapCodigoHistorico[]        @relation("EapCodigoAutor")
+  eapAtribuicoes                EapAtribuicao[]             @relation("EapAtribuicaoPessoa")
   batidas                       Batida[]
   batidasAjustadas              Batida[]                    @relation("BatidaCriador")
   escalasUsuario                EscalaUsuario[]
@@ -1200,6 +1208,11 @@ model Projeto {
   /// Código de exibição AAXXXX (ex.: 260142).
   codigo         String          @unique
   tipo           TipoProjeto     @default(particular)
+  /// Tipo de Empreendimento (D13): sugere o modelo de EAP na criação e vem preenchido quando o
+  /// projeto nasce de uma negociação. NULO no banco de propósito — a tabela já tem projeto, e
+  /// "obrigatório na criação" é regra do formulário, não do banco (projeto antigo não se inventa).
+  tipoEmpreendimentoId String?
+  tipoEmpreendimento   TipoEmpreendimento? @relation(fields: [tipoEmpreendimentoId], references: [id], onDelete: SetNull)
   situacao       SituacaoProjeto @default(em_andamento)
   nome           String
   descricao      String?
@@ -1239,6 +1252,11 @@ model Projeto {
   documentos              Documento[]
   licitacao               Licitacao?
   sessoes                 SessaoTrabalho[]
+  cronograma              CronogramaProjeto?
+  eapBaselines            EapBaseline[]
+  eapCatalogos            EapCatalogo[]
+  saudeSnapshots          CronogramaSaudeSnapshot[]
+  apuracoesValorAgregado  ValorAgregadoApuracao[]
   eapTarefas              EapTarefa[]
   alocacoes               Alocacao[]
   servicos                ServicoTerceirizado[]
@@ -1283,6 +1301,7 @@ model Projeto {
   @@index([clienteId])
   @@index([situacao])
   @@index([negociacaoId])
+  @@index([tipoEmpreendimentoId])
   @@map("projeto")
 }
 
@@ -1424,6 +1443,25 @@ model LinkPublicoArquivos {
   /// Pastas por fase na página do cliente. Desligado, ele vê disciplina → formato direto —
   /// útil quando o acervo ainda não tem fase preenchida e quase tudo cairia em "Sem fase".
   agruparPorFase Boolean            @default(true)
+  /// Fases liberadas no link (D37b): "só o Executivo para o cliente", "só o Básico para a
+  /// prefeitura". IDs de `PranchaCatalogo` categoria `fase`.
+  ///
+  /// ⚠ SEMÂNTICA INVERTIDA EM RELAÇÃO A `disciplinaIds`, DE PROPÓSITO:
+  ///   `disciplinaIds` vazio = NADA exposto (lista branca vazia nega).
+  ///   `faseIds`       vazio = TODAS as fases, sem restrição.
+  /// Vazio tem de valer "tudo" porque é o valor que todo link criado antes da F4 recebe na
+  /// migration, e ele não pode passar a servir menos do que servia. Não "corrigir" para a
+  /// semântica de `disciplinaIds`: isso esvaziaria em silêncio todos os links no ar.
+  ///
+  /// Não vale para escopo `selecao` (arquivo escolhido a dedo vence o recorte) nem para ART
+  /// (documento legal da disciplina, sem fase).
+  faseIds        String[]           @default([])
+  /// Com `faseIds` preenchido, arquivo SEM fase é bloqueado por padrão: não dá para provar
+  /// que pertence à fase liberada, e "só o Básico para a prefeitura" não pode vazar um
+  /// Executivo que ninguém classificou. Ligar isto libera o sem-fase junto — é a saída para o
+  /// acervo que ainda não tem fase preenchida (no dev, 64% dos arquivos servíveis).
+  /// Sem efeito quando `faseIds` está vazio.
+  incluirSemFase Boolean            @default(false)
   criadoPorId    String?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
@@ -1666,6 +1704,12 @@ enum StatusLancamento {
   aguardando_aprovacao // despesa acima da alçada, trava até aprovação
   confirmado // pago/recebido (entra no caixa e na DRE)
   cancelado
+  // F7.2 (D25): previsão de recebimento do CRONOGRAMA — parcela de contrato por entrega, com a
+  // data do marco. NÃO é conta a receber: fica fora de aging, inadimplência e "a receber" (que
+  // leem `previsto`) e entra só onde é pedida (projeção de caixa). Faturar a parcela a converte,
+  // na mesma linha, em `previsto`. Status próprio, e não `previsto` + etiqueta, para que quem
+  // não souber dela a IGNORE em vez de cobrar um cliente que nunca foi faturado.
+  previsao
 }
 
 /// Lançamento financeiro. previsto = conta a pagar/receber; confirmado = realizado.
@@ -1707,6 +1751,8 @@ model Lancamento {
   /// existindo. Nulo em todo lançamento criado à mão, que segue sendo o caminho normal.
   contratoId            String?
   contrato              DocumentoJuridico?          @relation("LancamentosDoContrato", fields: [contratoId], references: [id], onDelete: SetNull)
+  /// F7.2/F7.3: parcela de contrato por entrega que esta linha representa (previsão ou cobrança).
+  parcelaEntrega        ContratoParcelaEntrega?
   /// Etiquetas livres (A6).
   tags                  String[]                    @default([])
   /// Documento-fonte (NF/contrato/proposta/medição) — rastreabilidade de origem (Fase 2).
@@ -2090,12 +2136,19 @@ model SessaoTrabalho {
   /// Destino das horas quando não há um projeto. Mantém reuniões separadas de
   /// "sem projeto" no ponto e no rateio gerencial.
   tipoAlocacao TipoAlocacaoPonto @default(sem_projeto)
+  /// Tarefa (card) em que a pessoa trabalhou nesta sessão — OPCIONAL (F6, D20). O ponto não
+  /// pode virar burocracia: sem tarefa escolhida a sessão vale exatamente como valia. Só faz
+  /// sentido com `tipoAlocacao = projeto`, e a tarefa tem de ser do mesmo projeto e da pessoa
+  /// (a validação é da action, não do banco). `SetNull`: apagar a tarefa não pode apagar horas.
+  tarefaId     String?
+  tarefa       Tarefa?           @relation(fields: [tarefaId], references: [id], onDelete: SetNull)
   inicio       DateTime
   fim          DateTime?
   createdAt    DateTime          @default(now())
 
   @@index([userId, inicio])
   @@index([projetoId])
+  @@index([tarefaId])
   @@map("sessao_trabalho")
 }
 
@@ -2192,6 +2245,10 @@ model Batida {
   /// padrão de DocumentoFinanceiro.fornecedorId/clienteId: FK escalar por lookup,
   /// para não inflar o model Projeto).
   projetoId String?
+  /// Tarefa escolhida na entrada / volta do descanso (F6) — informativa, sem relação, como o
+  /// `projetoId`. É o que faz a reconciliação de um dia editado (que recria as sessões a
+  /// partir das batidas) preservar a tarefa em vez de perdê-la em silêncio.
+  tarefaId  String?
 
   origem          OrigemBatida @default(app)
   editada         Boolean      @default(false)
@@ -2487,6 +2544,8 @@ model Disciplina {
   arts                    Art[]
   apontamentosCoordenacao ApontamentoCoordenacao[]
   documentos              DocumentoDisciplina[]
+  /// Par disciplina × fase (F4). Vazio = disciplina sem etapa, comportamento de sempre.
+  etapas                  DisciplinaEtapa[]
 
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
@@ -2637,6 +2696,92 @@ model AtividadeOportunidade {
 // PropostaAnexo (C2) foi absorvido por `Documento` (docs do cliente, §Documentos do cliente).
 // Os anexos existentes são migrados na migration `documentos_cliente`.
 
+/// Etapa de uma disciplina: o par disciplina × fase (D30/D37). Estrutural/Básico e
+/// Estrutural/Executivo viram registros próprios, com prazo, status e percentual de valor.
+///
+/// O QUE A ETAPA NÃO FAZ (fronteira da F4, não esquecimento):
+///   - NÃO deriva `Disciplina.valor`. Aquela coluna já é DERIVADA dos pagamentos por
+///     `sincronizarValorDisciplina` (uploads/pagamento.ts) — uma segunda derivação a partir
+///     das etapas brigaria pela mesma coluna em silêncio e reverteria edições da folha.
+///     O percentual daqui é número de PLANEJAMENTO; o rateio que vira pagamento é a F7,
+///     que reescreve a sincronização no mesmo commit.
+///   - NÃO deriva `Disciplina.status`. Ele tem 8+ escritores (aprovação em 2 etapas,
+///     validação de arquivo, pendências) e é o estado contratual/de aprovação da disciplina.
+///     A etapa tem o seu próprio status, com a MESMA máquina (`transicaoDisciplinaPermitida`),
+///     mas na F4 ela PARA EM `entregue`: `aprovado` é terminal e só nasce de
+///     `validarEntrega`/`confirmarAprovacaoDisciplina`, que agem sobre a disciplina inteira.
+///     Etapa aprovada é a F7 (o marco que libera o pagamento daquela fase) — até lá, "nenhuma
+///     etapa aprovada" não é achado, é o esperado.
+///
+/// O QUE ELA FAZ: `Disciplina.prazo` passa a ser o maior prazo entre as etapas (F4.2) — só
+/// quando a disciplina TEM etapa. Disciplina sem etapa se comporta exatamente como antes,
+/// e é o estado de todas as disciplinas existentes: nada cria etapa sozinho.
+///
+/// A consolidação só olha etapa COM prazo. "Adicionar Básico e Executivo, depois preencher
+/// as datas" é o fluxo normal — a janela em que toda etapa está sem prazo é rotina, não
+/// exceção. Um máximo ingênuo zeraria o prazo contratual da disciplina e calaria em silêncio
+/// `alertasPrazoDisciplina`, `saudeProjeto` e o portal. Sem nenhuma etapa com prazo, o prazo
+/// da disciplina fica como está.
+///
+/// Os QUATRO escritores diretos de `Disciplina.prazo`, e o que cada um faz com etapa:
+///   `aplicarAoProjeto`   escreve na ETAPA que casa com o `etapaId` da linha da EAP; a
+///                        disciplina sai do rollup. Linha sem fase numa disciplina com etapa
+///                        é pulada e reportada — adivinhar a etapa seria inventar prazo.
+///   `editarDisciplina`   o formulário reenvia o prazo sempre; prazo IGUAL é ignorado (quem
+///                        manda é a etapa), prazo DIFERENTE é recusado com o motivo.
+///   `reabrirDisciplina`  grava o novo prazo na etapa que define o prazo da disciplina (a de
+///                        maior prazo) e reconsolida — reabrir não pode travar por ter etapa.
+///   lote do kanban       recusa prazo em massa para disciplina com etapa, nomeando qual.
+/// Em nenhum dos quatro o próximo recálculo pode desfazer a escrita em silêncio.
+///
+/// P-08 (prazo ≤ prazo planejado do projeto) é checada na escrita da ETAPA: se só o
+/// formulário da disciplina checasse, uma etapa levaria o prazo derivado além do planejado
+/// por um caminho que nunca passa pela regra.
+model DisciplinaEtapa {
+  id           String     @id @default(cuid())
+  disciplinaId String
+  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+
+  /// A fase É a identidade da etapa — por isso NOT NULL e `Restrict`. Nullable reabriria o
+  /// buraco do NULL-distinto no `@@unique` (o mesmo que exigiu `eap_catalogo_global_key` na
+  /// F0), e `SetNull` deixaria um prazo sem saber de que fase é. `Cascade` apagaria prazo e
+  /// percentual em silêncio. Excluir uma fase em uso é recusado em `excluirCatalogoPrancha`.
+  etapaId String
+  etapa   PranchaCatalogo @relation("DisciplinaEtapaFase", fields: [etapaId], references: [id], onDelete: Restrict)
+
+  prazo      DateTime?        @db.Date
+  status     StatusDisciplina @default(aguardando)
+  /// Quando a etapa foi entregue/aprovada — mesmo papel de `Disciplina.entregueEm`.
+  entregueEm DateTime?
+  /// Fatia do valor da disciplina, 0 a 100, 2 casas (D38). A soma entre as etapas precisa
+  /// fechar 100 para o rateio valer — validada na regra pura, não por constraint (o editor
+  /// salva rascunho que ainda não soma), igual `PropostaParcela.percentual`.
+  ///
+  /// SEM `@default`, como o precedente: com default 0 uma etapa nasceria "0%" parecendo
+  /// válida. A ação exige o valor; a tela pré-preenche com o que falta para fechar 100.
+  /// NA F4 NINGUÉM LÊ ISTO PARA DINHEIRO: a F7 é quem reparte, e ela RECUSA soma ≠ 100 em vez
+  /// de corrigir em silêncio (mesma regra de `calcularParcelas`).
+  percentual Decimal          @db.Decimal(5, 2)
+  ordem      Int              @default(0)
+
+  /// F7 (D31): quando o pagamento DESTA fase foi liberado. Nulo = ainda não liberada. É a
+  /// guarda de idempotência — reaprovar a fase (ou a disciplina) não libera de novo.
+  liberadaEm     DateTime?
+  /// F7 (D38): pool de pagamento da fase, FIXADO na liberação. Daí em diante não muda sozinho —
+  /// nem com o valor da disciplina, nem com troca de responsável ("valor a pagar não pode mudar
+  /// sozinho"). Só anda por ajuste manual de um pagamento na Produção, e aí o total da
+  /// disciplina anda pela mesma diferença. Nulo = não liberada.
+  valorPagamento Decimal?         @db.Decimal(12, 2)
+  pagamentos     PagamentoProjetista[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([disciplinaId, etapaId])
+  @@index([etapaId])
+  @@map("disciplina_etapa")
+}
+
 model DisciplinaResponsavel {
   id           String     @id @default(cuid())
   disciplinaId String
@@ -2708,6 +2853,8 @@ model Tarefa {
   concluidaEm  DateTime?
   /// Origem na EAP (P-32): evita gerar a mesma Tarefa operacional duas vezes.
   eapTarefaId  String?      @unique
+  /// Horas apontadas nesta tarefa pelo ponto (F6).
+  sessoesTrabalho SessaoTrabalho[]
 
   responsaveis TarefaResponsavel[]
   itens        TarefaItem[]
@@ -2773,6 +2920,14 @@ enum StatusContrato {
   rescindido
 }
 
+/// F7.3 (D15): como o contrato de cliente cobra. Nunca os dois no mesmo contrato.
+enum FormaCobranca {
+  /// Parcelas mensais a partir do 1º vencimento (Fase G) — como sempre foi.
+  por_data
+  /// Parcelas ligadas a marcos da EAP (`ContratoParcelaEntrega`): a data vem do cronograma.
+  por_entrega
+}
+
 model DocumentoJuridico {
   id         String         @id @default(cuid())
   titulo     String
@@ -2836,6 +2991,10 @@ model DocumentoJuridico {
   primeiroVencimento DateTime?    @db.Date
   /// Parcelas já geradas a partir deste contrato.
   lancamentos        Lancamento[] @relation("LancamentosDoContrato")
+  /// F7.3: por data (as duas colunas acima) ou por entrega (`parcelasEntrega`). Default = o de
+  /// sempre, então nenhum contrato existente muda.
+  formaCobranca      FormaCobranca @default(por_data)
+  parcelasEntrega    ContratoParcelaEntrega[]
 
   /// ── Cláusulas específicas (Fase E3) ───────────────────────────────────────────────────────
   /// Texto livre injetado no token `[ClausulasAdicionais]` do modelo do Estúdio. Resolve a
@@ -2854,6 +3013,44 @@ model DocumentoJuridico {
   @@index([statusContrato])
   @@index([contratoOrigemId])
   @@map("documento_juridico")
+}
+
+/// Parcela de contrato cobrado POR ENTREGA (F7.3 — D15): um percentual do valor, ligado a um marco
+/// da EAP. A data não é digitada — vem do marco, pelo cronograma aprovado (F7.2 — D9/D25).
+///
+/// `lancamentoId` é a linha dela no financeiro: nasce `previsao` (projeção, com a data do marco) e
+/// vira `previsto` quando o financeiro fatura — a MESMA linha, para a previsão nunca somar junto
+/// com a cobrança. A sincronização só mexe em linha `previsao`.
+///
+/// Parcela "na assinatura" (`naAssinatura`) tem a data da assinatura do contrato; as outras, a do
+/// marco. Marco apagado deixa a parcela SEM data (nunca a transforma em "na assinatura").
+model ContratoParcelaEntrega {
+  id         String            @id @default(cuid())
+  contratoId String
+  contrato   DocumentoJuridico @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+
+  /// "Entrega do projeto básico", "Assinatura".
+  descricao  String
+  /// Percentual do valor do contrato, >0 e ≤100, 2 casas. A soma fecha 100% — validada na regra
+  /// pura (`calcularParcelas`), não por constraint (o editor salva rascunho), como `PropostaParcela`.
+  percentual Decimal @db.Decimal(5, 2)
+  ordem      Int     @default(0)
+
+  /// Cobrada na assinatura do contrato ("30% na assinatura"). Explícito, e não "sem marco": com o
+  /// marco `SetNull`, apagar uma linha da EAP transformaria a parcela em cobrança imediata em silêncio.
+  naAssinatura Boolean @default(false)
+
+  /// Marco da EAP que dispara a parcela. `SetNull`: apagar a linha da EAP não apaga o combinado —
+  /// a parcela fica sem data até alguém ligar outro marco.
+  marcoId String?
+  marco   EapTarefa? @relation(fields: [marcoId], references: [id], onDelete: SetNull)
+
+  lancamentoId String?     @unique
+  lancamento   Lancamento? @relation(fields: [lancamentoId], references: [id], onDelete: SetNull)
+
+  @@index([contratoId])
+  @@index([marcoId])
+  @@map("contrato_parcela_entrega")
 }
 
 /// Delta contratual de um aditivo de EQUIPE (1:1 com o `DocumentoJuridico` de `tipo = "aditivo"`).
@@ -3913,8 +4110,349 @@ model TicketMensagem {
 // Planejamento & Recursos (Onda 5)
 // ─────────────────────────────────────────────────────────────
 
-/// Tarefa da EAP (WBS) de um projeto — hierárquica, com datas previstas
-/// (plano atual) e de linha de base (snapshot p/ o gantt de linha dupla).
+/// Natureza de um nó da EAP (TEAP do Doc 02 §5). Substitui o antigo booleano `marco`:
+/// marco É `mrc`, e não uma flag paralela — duas fontes de verdade sobre a mesma coisa
+/// é exatamente o que o Doc 03 §2 ("ID identifica, EAP organiza") proíbe.
+enum TipoEap {
+  prj // Projeto — raiz
+  fas // Fase / macroetapa
+  pct // Pacote de trabalho
+  disc // Disciplina
+  loc // Localização
+  sis // Sistema
+  res // Atividade-resumo
+  atv // Atividade (trabalho executável)
+  mrc // Marco — duração SEMPRE 0 (Doc 03 §11)
+}
+
+/// Situação operacional da linha (STA do Doc 02 §9). "Atrasado" NÃO entra aqui: é
+/// derivado da Data de Status contra o prazo (Doc 03 §26), não um estado cadastrado.
+enum StatusEap {
+  nin // Não iniciado
+  and // Em andamento
+  agu // Aguardando
+  blq // Bloqueado
+  rev // Em revisão
+  apr // Aguardando aprovação
+  con // Concluído — exige progresso 100 + fimReal preenchido
+  sus // Suspenso
+  can // Cancelado
+  arq // Arquivado
+}
+
+/// Papel de quem está na linha (RESP, Doc 02 §16). Lista FECHADA, a do documento: papel
+/// novo exige migration. É de propósito — carga, card e a sugestão "passar para" leem o
+/// papel, e um catálogo editável deixaria essas regras apontando para siglas que ninguém
+/// garantiu que existem.
+enum PapelEap {
+  dir // Diretor
+  ger // Gerente de Projetos
+  coo // Coordenador
+  eng // Engenheiro
+  pro // Projetista
+  mod // Modelador BIM
+  rev // Revisor
+  apr // Aprovador
+  /// Externo — quem executa a linha é de FORA da casa (cliente, prefeitura, concessionária).
+  /// Não é um papel que se dá a alguém: é a marca da ETAPA DE TERCEIRO (decisão #1 de
+  /// 2026-09-25). Nunca tem pessoa nem horas — ver o comentário de `EapAtribuicao.papel`.
+  ext
+}
+
+enum PrioridadeEap {
+  bai
+  med
+  alt
+  crt
+}
+
+/// Os 4 relacionamentos do Doc 03 §12. Entram no schema JÁ na F0 mesmo com a tela
+/// oferecendo só `fs`: incluir depois obrigaria a reescrever todo cronograma criado
+/// até lá. `sf` existe por completude e o Doc recomenda uso restrito.
+enum TipoVinculoEap {
+  fs // Término → Início (padrão)
+  ss // Início → Início
+  ff // Término → Término
+  sf // Início → Término (excepcional)
+}
+
+/// Restrições de data do Doc 03 §18. `null` = data livre, calculada pelo motor.
+/// Arrastar a barra na tela grava `iniciar_nao_antes_de` e acende o alfinete (D34) —
+/// no MS Project a restrição é gravada em silêncio, e é a origem clássica do
+/// cronograma que ninguém entende por que não anda.
+enum RestricaoEap {
+  iniciar_em
+  iniciar_nao_antes_de
+  iniciar_nao_depois_de
+  terminar_em
+  terminar_nao_antes_de
+  terminar_nao_depois_de
+}
+
+/// Categorias do catálogo de classificadores (Doc 02 §24). Uma tabela só, como
+/// `PranchaCatalogo` já faz com folha/tipo/fase — não 4 tabelas quase idênticas.
+enum CategoriaEapCatalogo {
+  tipo_atividade // TAT — nível 3 (evolutivo): MOD, DIM, DET, REV, EMT…
+  sistema // SIS — nível 3 (evolutivo): ILU, TOM, FOR, HID…
+  localizacao // LOC — nível 2 (por projeto): SS01, TER, PVT, COB…
+  origem // ORG — nível 3 (evolutivo): INT, CLI, ARQ, CMP…
+}
+
+/// Catálogo de classificadores da EAP. `projetoId` nulo = corporativo (vale para todos);
+/// preenchido = específico do projeto, que é o caso previsto para `localizacao`.
+/// Inativo some dos cadastros novos e PERMANECE no histórico (Doc 02 §26).
+model EapCatalogo {
+  id        String               @id @default(cuid())
+  categoria CategoriaEapCatalogo
+  sigla     String
+  nome      String
+  ativo     Boolean              @default(true)
+  ordem     Int                  @default(0)
+  projetoId String?
+  projeto   Projeto?             @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  createdAt DateTime             @default(now())
+
+  tarefasTipoAtividade EapTarefa[] @relation("EapTipoAtividade")
+  tarefasSistema       EapTarefa[] @relation("EapSistema")
+  tarefasLocalizacao   EapTarefa[] @relation("EapLocalizacao")
+  tarefasOrigem        EapTarefa[] @relation("EapOrigem")
+
+  /// ATENÇÃO: no Postgres `UNIQUE` trata NULL como distinto, então esta constraint NÃO
+  /// impede duas linhas globais com a mesma sigla (mesma pegadinha documentada em
+  /// `DocumentoDisciplina.chave`). Quem garante o caso global é o índice PARCIAL
+  /// `eap_catalogo_global_key` (`WHERE "projetoId" IS NULL`), criado na migration
+  /// 20260924093000 — o Prisma não expressa índice parcial, então ele **não aparece aqui**.
+  /// Não "simplificar" removendo um dos dois: cada um cobre um caso que o outro deixa passar.
+  @@unique([categoria, sigla, projetoId])
+  @@index([categoria, projetoId])
+  @@map("eap_catalogo")
+}
+
+/// Contador do ID Corporativo, por prefixo (`ATV-01842`). O ID é a IDENTIDADE PERMANENTE
+/// da linha (Doc 02 §4.1) e nunca é reaproveitado — nem quando a linha é excluída, nem
+/// quando vem de um modelo (Doc 03 §32). Incremento atômico via `UPDATE … RETURNING`
+/// dentro da mesma transação que cria a linha.
+model EapSequencia {
+  prefixo String @id
+  ultimo  Int    @default(0)
+
+  @@map("eap_sequencia")
+}
+
+/// Estado do cronograma de um projeto. Existe como linha própria (e não como campos no
+/// `Projeto`) porque é o dono da Data de Status, do calendário e do ciclo rascunho →
+/// aprovado; pendurar isso em `Projeto` misturaria contrato com planejamento.
+model CronogramaProjeto {
+  id        String  @id @default(cuid())
+  projetoId String  @unique
+  projeto   Projeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+
+  /// `false` = rascunho: não gera card, não entra em relatório, não tem linha de base (D14).
+  /// Cronograma herdado entra como rascunho (D27) — aprovar automaticamente congelaria como
+  /// "combinado com o cliente" datas que ninguém revisou.
+  aprovado     Boolean   @default(false)
+  aprovadoEm   DateTime?
+  aprovadoPorId String?
+  aprovadoPor   User?    @relation("CronogramaAprovador", fields: [aprovadoPorId], references: [id], onDelete: SetNull)
+
+  /// Âncora do cronograma: a "Data de Início do Projeto" do MS Project. Linha sem
+  /// predecessora e sem restrição começa AQUI — sem essa âncora o motor não tem de onde
+  /// partir e cairia em "hoje", fazendo o cronograma inteiro andar sozinho a cada dia que
+  /// passa. É também o único dado que o modelo de EAP pede na hora de aplicar (D10).
+  inicioProjeto DateTime? @db.Date
+
+  /// Data de corte da análise (Doc 03 §21). Antes dela é passado apurado; depois é plano.
+  /// É o que distingue "atrasado" de "não apurado" — sem ela, tarefa que ninguém atualizou
+  /// há três semanas aparece como atrasada, e as duas coisas pedem ações opostas.
+  dataStatus DateTime? @db.Date
+
+  /// Calendário do projeto. Nulo = calendário da empresa, que é o único da v1 (D8);
+  /// o campo já existe para a obra que trabalha sábado não exigir migration depois.
+  calendarioChave String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([aprovadoPorId])
+  @@map("cronograma_projeto")
+}
+
+/// Foto semanal da Saúde do Cronograma (D42). Idempotente por projeto + dia.
+///
+/// Gravada desde o PRIMEIRO dia, mesmo com a nota ainda provisória, porque este histórico
+/// é irrecuperável: ligar a série seis meses depois significa começar do zero, com meio
+/// ano de evolução perdido. Guardar a foto é barato; reconstruir o passado é impossível.
+///
+/// `notaProvisoria` marca as fotos tiradas antes de a metodologia ser oficializada — sem
+/// isso, um gráfico futuro misturaria notas de pesos diferentes como se fossem a mesma
+/// medida. Mesmo papel do `keyVersion` no cofre de credenciais.
+model CronogramaSaudeSnapshot {
+  id        String   @id @default(cuid())
+  projetoId String
+  projeto   Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  dia       DateTime @db.Date
+  /// 0 a 100.
+  nota      Int
+  /// `saudavel` | `atencao` | `critico` — derivado da nota, guardado para o gráfico não
+  /// depender dos cortes vigentes hoje.
+  faixa     String
+  erros     Int      @default(0)
+  alertas   Int      @default(0)
+  /// O que mais puxou a nota para baixo, já em português ("14 × linha sem responsável").
+  /// Nota sem causa não muda comportamento.
+  principalCausa String?
+  notaProvisoria Boolean @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([projetoId, dia])
+  @@index([projetoId, dia])
+  @@map("cronograma_saude_snapshot")
+}
+
+/// Valor Agregado APURADO numa Data de Status (F8). O % informado muda e não guarda passado, então
+/// a curva do projeto (VP × VA × CR no tempo) só existe se cada apuração for fotografada na hora —
+/// mesmo motivo da foto semanal da Saúde (D42): ligado depois, o histórico é irrecuperável.
+///
+/// Uma linha por (projeto, Data de Status); refazer a apuração na mesma data a atualiza. Nulo =
+/// desconhecido naquela régua (nunca zero). Valores em R$ são taxa de remuneração: só para quem vê
+/// o financeiro, na leitura.
+model ValorAgregadoApuracao {
+  id             String   @id @default(cuid())
+  projetoId      String
+  projeto        Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  dataStatus     DateTime @db.Date
+  baselineNumero Int
+
+  ontHoras Decimal? @db.Decimal(12, 2)
+  vpHoras  Decimal? @db.Decimal(12, 2)
+  vaHoras  Decimal? @db.Decimal(12, 2)
+  crHoras  Decimal? @db.Decimal(12, 2)
+
+  ontCusto Decimal? @db.Decimal(14, 2)
+  vpCusto  Decimal? @db.Decimal(14, 2)
+  vaCusto  Decimal? @db.Decimal(14, 2)
+  crCusto  Decimal? @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projetoId, dataStatus])
+  @@map("valor_agregado_apuracao")
+}
+
+/// De onde veio o percentual informado — o que separa "a coordenação digitou 60%" de "alguém marcou
+/// a tarefa como concluída e o sistema derivou 100%".
+enum OrigemProgressoEap {
+  informado // Digitado no editor da linha ou na célula da tabela
+  execucao // Derivado das datas reais ("Atualizar tarefa")
+}
+
+/// Histórico do % concluído de uma linha (decisão #17 de 2026-09-25). Uma linha por MUDANÇA.
+///
+/// Existe porque o Valor Agregado precisa do % que valia NA DATA DE STATUS, não o de hoje: sem
+/// histórico, reapurar uma data passada usava o avanço atual e dava um VA otimista — e a apuração
+/// gravada na semana passada não podia ser recalculada nem conferida.
+///
+/// `anterior` é o que faz a leitura funcionar sem backfill: para uma data ANTES do primeiro registro,
+/// vale o `anterior` do registro mais antigo (o valor de então), não o mais novo. Sem ele, uma data de
+/// antes da mudança leria o valor de depois dela.
+///
+/// `dataStatusVigente` é a Data de Status do projeto no momento em que alguém digitou. É o que cobre o
+/// jeito normal de trabalhar: a Data de Status é sexta, a coordenação atualiza os percentuais na
+/// segunda "referentes a sexta" e apura. Filtrar só pelo relógio jogaria fora tudo o que foi digitado
+/// na segunda. Depois não há como reconstruir esse valor, por isso é gravado aqui.
+///
+/// Só linha-folha entra: o % de resumo é rollup do motor, não informação de ninguém.
+model EapProgressoRegistro {
+  id       String    @id @default(cuid())
+  tarefaId String
+  tarefa   EapTarefa @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+
+  /// 0–100 informado agora.
+  progresso Int
+  /// 0–100 que a linha tinha antes desta mudança.
+  anterior  Int
+
+  /// Relógio da gravação.
+  em                DateTime           @default(now())
+  /// Data de Status do projeto naquele momento (`null` = projeto sem Data de Status definida).
+  dataStatusVigente DateTime?          @db.Date
+  origem            OrigemProgressoEap @default(informado)
+
+  autorId String?
+  autor   User?   @relation("EapProgressoAutor", fields: [autorId], references: [id], onDelete: SetNull)
+
+  @@index([tarefaId, em])
+  @@map("eap_progresso_registro")
+}
+
+/// Versão da linha de base (BL-00, BL-01…, Doc 03 §20). NUNCA sobrescrita: replanejar
+/// cria uma versão nova, com autor e motivo. É o que responde, no fim do projeto,
+/// "o prazo estourou 40 dias e 25 entraram naquele replanejamento de março, por atraso
+/// de aprovação do cliente" — pergunta que hoje não tem resposta.
+model EapBaseline {
+  id        String  @id @default(cuid())
+  projetoId String
+  projeto   Projeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  /// 0 = BL-00 (a do aprovar). Cresce a cada replanejamento.
+  numero    Int
+  motivo    String?
+  observacao String?
+  autorId   String?
+  autor     User?   @relation("EapBaselineAutor", fields: [autorId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  linhas EapBaselineLinha[]
+
+  @@unique([projetoId, numero])
+  @@index([autorId])
+  @@map("eap_baseline")
+}
+
+/// Foto de uma linha num momento de baseline. Denormaliza o essencial (Doc 03 §19) para
+/// que excluir a tarefa não apague a prova do que foi combinado — por isso `tarefaId`
+/// é `SetNull` e o nome fica copiado.
+model EapBaselineLinha {
+  id         String      @id @default(cuid())
+  baselineId String
+  baseline   EapBaseline @relation(fields: [baselineId], references: [id], onDelete: Cascade)
+  tarefaId   String?
+  tarefa     EapTarefa?  @relation(fields: [tarefaId], references: [id], onDelete: SetNull)
+
+  /// Cópia, não referência: a linha pode ser renomeada ou excluída depois.
+  nome           String
+  codigoEap      String?
+  inicio         DateTime @db.Date
+  fim            DateTime @db.Date
+  duracaoDias    Decimal  @db.Decimal(6, 2)
+  trabalhoHoras  Decimal? @db.Decimal(8, 2)
+  /// F7.1: custo previsto da linha ao congelar (horas × custo/hora de quem faz; resumo = soma
+  /// dos filhos). É o VP do Valor Agregado (F8) — congelado aqui porque a taxa muda depois e o
+  /// orçamento combinado não pode mudar junto. Nulo = desconhecido (perfil, pessoa sem taxa,
+  /// linha sem horas) ou baseline anterior à F7.1.
+  custoPrevisto  Decimal? @db.Decimal(14, 2)
+  avancoPlanejado Int     @default(0)
+  /// F8: era linha de AGRUPAMENTO quando a baseline foi congelada. O Valor Agregado soma só as
+  /// folhas — sem isto, a baseline (que guarda também os resumos, com horas e custo somados)
+  /// contaria cada trabalho duas vezes, e a árvore de HOJE pode ser outra.
+  resumo         Boolean  @default(false)
+
+  @@index([baselineId])
+  @@index([tarefaId])
+  @@map("eap_baseline_linha")
+}
+
+/// Linha da EAP de um projeto. Pode ser projeto, fase, pacote, disciplina, atividade-resumo,
+/// atividade ou marco — `tipoEap` diz qual (D3).
+///
+/// Três identidades distintas, e nenhuma substitui a outra (Doc 02 §30):
+///   `idCorporativo` (ATV-01842) — identidade permanente, nunca muda
+///   `codigoEap`     (3.2.4)     — posição hierárquica, recalculada ao mover a linha
+///   classificadores (ELE/EXE/DIM) — características, mudam com a natureza do trabalho
+///
+/// A ÁRVORE É LIVRE; o dado é o par disciplina × etapa (D36). Fase-acima (como no EAP.pdf
+/// do escritório) e disciplina-acima (Doc 03 §3) funcionam os dois, porque todo relatório
+/// lê o classificador e não a posição.
 model EapTarefa {
   id             String      @id @default(cuid())
   projetoId      String
@@ -3926,25 +4464,105 @@ model EapTarefa {
   disciplina     Disciplina? @relation(fields: [disciplinaId], references: [id], onDelete: SetNull)
   nome           String
   ordem          Int         @default(0)
-  inicioPrevisto DateTime    @db.Date
-  fimPrevisto    DateTime    @db.Date
-  inicioBaseline DateTime?   @db.Date
-  fimBaseline    DateTime?   @db.Date
-  progresso      Int         @default(0)
-  marco          Boolean     @default(false)
+
+  /// Identidade permanente da linha (`ATV-01842`). Única na empresa inteira, atribuída na
+  /// criação e nunca reaproveitada. O que compara projetos NÃO é este id — é o `tipoAtividade`
+  /// (TAT): "quanto leva uma modelagem elétrica" soma as linhas `ELE + EXE + MOD`.
+  idCorporativo String? @unique
+
+  /// Posição hierárquica (`3.2.4`). MUTÁVEL: mover a linha recalcula este código e deixa o
+  /// `idCorporativo` intacto. Nunca usar como chave (Doc 02 §4.2).
+  codigoEap String?
+
+  tipoEap TipoEap @default(atv)
+
+  /// Duração em dias ÚTEIS do calendário (Doc 03 §16). O motor deriva as datas daqui —
+  /// o inverso do CPM antigo, que deduzia duração das datas digitadas e contava dias
+  /// corridos. Marco (`mrc`) tem duração 0, por definição.
+  duracaoDias Decimal @default(1) @db.Decimal(6, 2)
+
+  /// ── Classificadores (Doc 02 §3) ───────────────────────────────────────────────
+  /// Etapa reusa `PranchaCatalogo` categoria `fase` (BS, EX, AP…) — o MESMO catálogo que
+  /// nomeia os arquivos. Catálogo novo aqui criaria duas verdades sobre "Projeto Básico".
+  /// A linha nunca grava a SIGLA: ela é resolvida na exibição pela versão de nomenclatura
+  /// do projeto (D35), que é o que faz `HID`/`BS` de um projeto antigo continuarem válidos.
+  etapaId String?
+  etapa   PranchaCatalogo? @relation("EapEtapa", fields: [etapaId], references: [id], onDelete: SetNull)
+
+  tipoAtividadeId String?
+  tipoAtividade   EapCatalogo? @relation("EapTipoAtividade", fields: [tipoAtividadeId], references: [id], onDelete: SetNull)
+  sistemaId       String?
+  sistema         EapCatalogo? @relation("EapSistema", fields: [sistemaId], references: [id], onDelete: SetNull)
+  localizacaoId   String?
+  localizacao     EapCatalogo? @relation("EapLocalizacao", fields: [localizacaoId], references: [id], onDelete: SetNull)
+  origemId        String?
+  origem          EapCatalogo? @relation("EapOrigem", fields: [origemId], references: [id], onDelete: SetNull)
+
+  status     StatusEap     @default(nin)
+  prioridade PrioridadeEap @default(med)
+
+  /// ── Datas ─────────────────────────────────────────────────────────────────────
+  /// PREVISTO: onde a linha cai hoje, recalculado pelo motor. REAL: o que aconteceu.
+  /// BASELINE: o combinado, que vive em `EapBaseline` a partir da F2.
+  inicioPrevisto DateTime  @db.Date
+  fimPrevisto    DateTime  @db.Date
+  inicioReal     DateTime? @db.Date
+  fimReal        DateTime? @db.Date
+
+  /// TEMPORÁRIO — cache da baseline ativa, mantido só para as telas atuais não quebrarem
+  /// na F0. A verdade versionada é `EapBaselineLinha`. **Remover na F2**, junto com a
+  /// troca do caminho de leitura; até lá, escritas SÓ pelo serviço que grava a baseline,
+  /// nunca direto, senão vira a segunda fonte de verdade que este spec inteiro evita.
+  inicioBaseline DateTime? @db.Date
+  fimBaseline    DateTime? @db.Date
+
+  /// ── Restrição de data (Doc 03 §18) ────────────────────────────────────────────
+  /// Nulo = data livre. Preenchido = âncora que o motor respeita e a tela mostra com
+  /// alfinete. `restricaoData` é obrigatória quando `restricaoTipo` existe (validado na
+  /// action, não por constraint — o Postgres não expressa isso sem trigger).
+  restricaoTipo RestricaoEap?
+  restricaoData DateTime?     @db.Date
+
+  /// ── Bloqueio (Doc 03 §27, D40) ─────────────────────────────────────────────────
+  /// `status = blq` marca a linha bloqueada; estes dois campos guardam o PORQUÊ. Sem eles,
+  /// bloqueado e atrasado seriam indistinguíveis — e são coisas diferentes: bloqueado é
+  /// "não anda por causa de X", atrasado é "devia ter terminado e não terminou". D40: o
+  /// bloqueio NÃO para o relógio — o atraso continua sendo contado, só a origem muda.
+  motivoBloqueio       String?
+  previsaoDesbloqueio  DateTime? @db.Date
+
+  /// Avanço FÍSICO informado pelo coordenador (Doc 03 §22), com sugestões do que o sistema
+  /// já sabe. Em linha-resumo é CALCULADO, ponderado por horas previstas (D26/Doc 03 §23) —
+  /// nunca digitado.
+  progresso Int @default(0)
 
   predecessoras EapDependencia[] @relation("EapDependente")
   sucessoras    EapDependencia[] @relation("EapPredecessora")
+  baselineLinhas EapBaselineLinha[]
+  /// F7.3: parcelas de contrato por entrega que este marco dispara.
+  parcelasEntrega ContratoParcelaEntrega[]
+  historicoCodigo EapCodigoHistorico[]
+  atribuicoes     EapAtribuicao[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([projetoId])
   @@index([parentId])
+  @@index([projetoId, tipoEap])
+  @@index([disciplinaId, etapaId])
+  @@index([etapaId])
+  @@index([tipoAtividadeId])
+  @@index([sistemaId])
+  @@index([localizacaoId])
+  @@index([origemId])
+  /// Histórico do % informado (decisão #17).
+  progressos EapProgressoRegistro[]
+
   @@map("eap_tarefa")
 }
 
-/// Dependência FS entre tarefas da EAP (predecessora termina antes da sucessora iniciar).
+/// Dependência entre linhas da EAP: os 4 tipos do Doc 03 §12 com defasagem (§13).
 model EapDependencia {
   id             String    @id @default(cuid())
   tarefaId       String
@@ -3952,9 +4570,93 @@ model EapDependencia {
   predecessoraId String
   predecessora   EapTarefa @relation("EapPredecessora", fields: [predecessoraId], references: [id], onDelete: Cascade)
 
+  tipo TipoVinculoEap @default(fs)
+
+  /// Defasagem em dias ÚTEIS. Positivo = espera (`FS + 2 dias`); NEGATIVO = antecipação
+  /// (`SS - 2 dias`), que o Doc 03 §13 manda usar com cautela. Decimal porque meio dia
+  /// de lag é pedido real e migrar Int → Decimal depois exigiria reescrever a coluna.
+  lagDias Decimal @default(0) @db.Decimal(6, 2)
+
   @@unique([tarefaId, predecessoraId])
   @@index([predecessoraId])
   @@map("eap_dependencia")
+}
+
+/// Histórico de mudança do código da EAP (Doc 02 §27). Como o código é mutável, é isto
+/// que permite reconstruir a estrutura de um cronograma numa data passada — necessário
+/// em projeto contratual e em auditoria.
+model EapCodigoHistorico {
+  id        String    @id @default(cuid())
+  tarefaId  String
+  tarefa    EapTarefa @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  codigoAnterior String?
+  codigoNovo     String?
+  motivo    String?
+  autorId   String?
+  autor     User?     @relation("EapCodigoAutor", fields: [autorId], references: [id], onDelete: SetNull)
+  createdAt DateTime  @default(now())
+
+  @@index([tarefaId])
+  @@index([autorId])
+  @@map("eap_codigo_historico")
+}
+
+/// Quem trabalha na linha, com qual papel e quantas horas (F5 — D17, D23, D41).
+///
+/// Vários por linha, TODOS entrando na carga: o revisor que gasta 4 horas aparece nessas
+/// 4 horas, senão o alerta de sobrecarga mente (D41). Só linha EXECUTÁVEL (`atv`) recebe
+/// atribuição — resumo contaria as horas dos filhos duas vezes, e marco não tem duração
+/// para espalhar as horas (a action recusa; o banco não expressa isso sem trigger).
+///
+/// Constraints escritas à mão na migration 20260924160000 — o Prisma não expressa nenhuma
+/// delas, então **não aparecem aqui**:
+///   - `eap_atribuicao_principal_key`: índice único PARCIAL, um principal por linha.
+///   - `eap_atribuicao_principal_pessoa`: principal precisa ser pessoa, nunca perfil.
+///   - `eap_atribuicao_horas_nao_negativas`.
+model EapAtribuicao {
+  id       String    @id @default(cuid())
+  tarefaId String
+  tarefa   EapTarefa @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+
+  /// Nulo = PERFIL, o recurso genérico do MS Project. "PRO" numa linha da Elétrica É o
+  /// "Projetista Elétrico": a disciplina vem da linha, então não existe catálogo de perfis
+  /// para manter em paralelo. Preencher a pessoa depois é o "Substituir recurso".
+  ///
+  /// `Restrict`, não `SetNull`: apagar a pessoa viraria a atribuição em perfil, e a
+  /// principal viraria perfil principal — exatamente o que o CHECK proíbe. Usuário não se
+  /// apaga neste sistema (desligamento é `acessoAte`); se alguém tentar, o banco recusa.
+  userId String?
+  user   User?   @relation("EapAtribuicaoPessoa", fields: [userId], references: [id], onDelete: Restrict)
+
+  /// `ext` (Externo) marca a ETAPA DE TERCEIRO (decisão #1 de 2026-09-25): quem executa é o
+  /// cliente, a prefeitura, a concessionária. A linha segura prazo, mas não gera card (D24)
+  /// nem cobra hora da casa. Antes isso era ADIVINHADO pela ORIGEM da linha (CLI, ARQ, EXT…),
+  /// que responde "de onde veio a demanda", não "quem faz" — uma revisão pedida pelo cliente
+  /// saía do cronograma sem card e sem hora.
+  ///
+  /// Dois CHECKs guardam o sentido (migration 20260925160100): `ext` nunca tem pessoa (não é
+  /// ninguém da casa) nem horas (zero hora da casa é a estimativa certa, e é o que o motor
+  /// espera de uma etapa de terceiro — ver `horasDaLinha`).
+  papel PapelEap @default(pro)
+
+  /// Horas que a pessoa gasta NESTA linha (D23), espalhadas por igual pelos dias úteis
+  /// dela. Zero é o valor de quem herdou a linha e ainda não foi estimado — o verificador
+  /// acusa (`atribuicao_sem_horas`), porque zero é carga zero, custo zero e nenhum alerta.
+  horasPrevistas Decimal @default(0) @db.Decimal(7, 2)
+
+  /// Quem aparece no card e nos filtros (D41). Um por linha, e só pessoa.
+  principal Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// No Postgres `UNIQUE` trata NULL como distinto — e AQUI isso é o comportamento
+  /// desejado, não a pegadinha de `EapCatalogo`: dois perfis "PRO" na mesma linha são
+  /// "preciso de dois projetistas", enquanto a mesma PESSOA duas vezes no mesmo papel
+  /// continua barrada.
+  @@unique([tarefaId, userId, papel])
+  @@index([userId])
+  @@map("eap_atribuicao")
 }
 
 /// Pessoa como recurso de planejamento (multiplicador de capacidade, custo/hora, cor).
@@ -4414,15 +5116,60 @@ model MetaComercial {
 // fabricar duas fontes de verdade concorrentes.
 // ─────────────────────────────────────────────────────────────
 
-/// Tipo de empreendimento da negociação (residencial, galpão, hospital…).
+/// Tipo de empreendimento (residencial, galpão, hospital…). Nasceu na negociação (CRM) e agora
+/// também classifica o PROJETO (D13) e o modelo de EAP que ele sugere (decisão #5): o projeto que vem
+/// de uma negociação já chega com o tipo dela preenchido.
 model TipoEmpreendimento {
   id          String       @id @default(cuid())
   nome        String       @unique
   ativo       Boolean      @default(true)
   ordem       Int          @default(0)
   negociacoes Negociacao[]
+  projetos    Projeto[]
+  modelosEap  ModeloEap[]
 
   @@map("tipo_empreendimento")
+}
+
+/// De onde a estrutura do modelo veio — o que muda o que se pode esperar dela ao revisar.
+enum OrigemModeloEap {
+  mspdi // Arquivo XML do MS Project
+  projeto // Copiado de um projeto do sistema
+}
+
+/// Modelo de EAP (decisão #5): a estrutura de cronograma que a casa reusa em projeto novo, montada a
+/// partir de um XML do MS Project. O Tipo de Empreendimento do projeto sugere qual usar (D13).
+///
+/// A estrutura vive em UMA coluna JSON, não em duas tabelas (linhas + vínculos), porque o modelo é
+/// lido e gravado INTEIRO, nunca consultado linha a linha, e a autoria continua no MS Project —
+/// "editar o modelo" é reimportar o arquivo. A forma do JSON é validada por Zod em
+/// `modules/planejamento/modelos/estrutura.ts`, que é também a entrada da função que aplica o modelo.
+/// Se algum dia a casa quiser editar linha a linha AQUI, aí vale trocar por tabela.
+///
+/// O que o JSON NÃO guarda: nenhum id de disciplina do projeto (ele é global, serve para qualquer
+/// projeto), datas, progresso, pessoas ou horas. Disciplina e fase entram como id de CATÁLOGO, e são
+/// reconferidos na hora de aplicar.
+model ModeloEap {
+  id                   String              @id @default(cuid())
+  nome                 String
+  descricao            String?
+  tipoEmpreendimentoId String?
+  tipoEmpreendimento   TipoEmpreendimento? @relation(fields: [tipoEmpreendimentoId], references: [id], onDelete: SetNull)
+  origem               OrigemModeloEap     @default(mspdi)
+  /// Arquivo de onde a estrutura saiu — a primeira pergunta de quem revisa o modelo.
+  arquivoNome          String?
+  estrutura            Json
+  /// Números repetidos fora do JSON para a lista não precisar abri-lo.
+  totalLinhas          Int                 @default(0)
+  totalMarcos          Int                 @default(0)
+  ativo                Boolean             @default(true)
+  autorId              String?
+  autor                User?               @relation("ModeloEapAutor", fields: [autorId], references: [id], onDelete: SetNull)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@index([tipoEmpreendimentoId])
+  @@map("modelo_eap")
 }
 
 /// Motivo padronizado de perda — substitui o `Lead.motivoPerda` de texto livre.
@@ -5356,6 +6103,11 @@ model PranchaCatalogo {
   documentosFase         DocumentoDisciplina[] @relation("DocumentoFase")
   documentosTipo         DocumentoDisciplina[] @relation("DocumentoTipo")
   documentosTamanhoPapel DocumentoDisciplina[] @relation("DocumentoTamanhoPapel")
+  /// Etapa das linhas da EAP (D36): o cronograma reusa o MESMO catálogo de fase que
+  /// nomeia os arquivos, em vez de criar um segundo "Projeto Básico".
+  eapTarefasEtapa        EapTarefa[]           @relation("EapEtapa")
+  /// Etapas de disciplina (F4). `Restrict` do outro lado: fase em uso não é excluída.
+  disciplinaEtapas       DisciplinaEtapa[]     @relation("DisciplinaEtapaFase")
 
   @@index([categoria, projetoId])
   @@map("prancha_catalogo")
@@ -6429,6 +7181,14 @@ model PagamentoProjetista {
   /// Lote de folha de projetistas (A8).
   folhaId          String?
   folha            FolhaProjetista? @relation(fields: [folhaId], references: [id], onDelete: SetNull)
+  /// F7 (D31): fase paga. Nulo = pagamento da disciplina INTEIRA (o modo de sempre). Uma
+  /// disciplina paga de um jeito OU do outro, nunca os dois — fixado na primeira liberação.
+  ///
+  /// `NoAction`, não `Restrict`: pagamento e fase caem em cascata junto com a disciplina, e o
+  /// RESTRICT é conferido na hora, podendo barrar a cascata pela ordem; NO ACTION confere no fim
+  /// do comando. Apagar só a fase, com pagamento pendurado, continua recusado pelo banco.
+  etapaId          String?
+  etapa            DisciplinaEtapa? @relation(fields: [etapaId], references: [id], onDelete: NoAction)
 
   createdAt DateTime @default(now())
 
@@ -6437,6 +7197,7 @@ model PagamentoProjetista {
   @@index([projetistaId, status])
   @@index([disciplinaId])
   @@index([folhaId])
+  @@index([etapaId])
   /// G4/D40: a tela Produção filtra por status + período de liberação e ordena por
   /// (status, liberadoEm desc) — este é o índice desse recorte. Hoje são 15 linhas em
   /// produção (seq scan é mais rápido que índice nesse tamanho); entra agora para o

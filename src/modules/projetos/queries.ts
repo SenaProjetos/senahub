@@ -228,6 +228,73 @@ export async function prontasPorProjeto(
   return mapa;
 }
 
+/**
+ * Fila de FASES a aprovar (L3): fase de disciplina já entregue (ou em revisão) cujo pagamento ainda não
+ * foi liberado — o que `aprovarEtapaDisciplina` aceita. Mesma muralha e mesmo escopo de
+ * `disciplinasProntasParaAprovar`. Disciplina que já pagou INTEIRA fica de fora: é um modo só, e a
+ * ação recusaria.
+ */
+export async function fasesAAprovar(viewer: Viewer, veTodasDisciplinas: boolean) {
+  const etapas = await prisma.disciplinaEtapa.findMany({
+    where: {
+      status: { in: ["entregue", "em_revisao"] },
+      liberadaEm: null,
+      disciplina: {
+        projeto: {
+          AND: [escopoProjeto(viewer), { situacao: { notIn: ["cancelado", "arquivado"] } as never }],
+        },
+        ...(veTodasDisciplinas ? {} : { responsaveis: { some: { userId: viewer.id } } }),
+      },
+    },
+    orderBy: [
+      { disciplina: { projeto: { ano: "desc" } } },
+      { disciplina: { projeto: { sequencial: "desc" } } },
+      { disciplina: { ordem: "asc" } },
+      { ordem: "asc" },
+    ],
+    select: {
+      id: true,
+      status: true,
+      prazo: true,
+      percentual: true,
+      disciplinaId: true,
+      etapa: { select: { sigla: true, nome: true } },
+      disciplina: {
+        select: { disciplinaTextoLegado: true, projetoId: true, projeto: { select: { codigo: true, nome: true } } },
+      },
+    },
+  });
+  if (etapas.length === 0) return [];
+
+  const pagaramInteira = await prisma.pagamentoProjetista.findMany({
+    where: {
+      disciplinaId: { in: [...new Set(etapas.map((e) => e.disciplinaId))] },
+      etapaId: null,
+      status: { not: "cancelado" },
+    },
+    select: { disciplinaId: true },
+  });
+  const inteira = new Set(pagaramInteira.map((x) => x.disciplinaId));
+
+  return etapas
+    .filter((e) => !inteira.has(e.disciplinaId))
+    .map((e) => ({
+      id: e.id,
+      sigla: e.etapa.sigla,
+      nomeFase: e.etapa.nome,
+      status: e.status as "entregue" | "em_revisao",
+      prazo: e.prazo ? e.prazo.toISOString().slice(0, 10) : null,
+      percentual: Number(e.percentual),
+      disciplina: e.disciplina.disciplinaTextoLegado,
+      projetoId: e.disciplina.projetoId,
+      projetoCodigo: e.disciplina.projeto.codigo,
+      projetoNome: e.disciplina.projeto.nome,
+      href: `/projetos/${e.disciplina.projetoId}`,
+    }));
+}
+
+export type FaseAAprovar = Awaited<ReturnType<typeof fasesAAprovar>>[number];
+
 export async function obterProjeto(viewer: Viewer, id: string) {
   const projeto = await prisma.projeto.findFirst({
     where: { id, AND: [escopoProjeto(viewer)] },
@@ -269,7 +336,15 @@ export async function obterProjeto(viewer: Viewer, id: string) {
             orderBy: { ordem: "asc" },
             select: { id: true, parentId: true, nome: true, caminho: true, origem: true, ordem: true },
           },
-          _count: { select: { pagamentos: true } },
+          // `etapas`: com etapa o prazo é consolidado e o diálogo de edição o trava (F4).
+          _count: { select: { pagamentos: true, etapas: true } },
+          // F7.4: "já pagou" por fase é TODA fase liberada (`estadoPagamento`), não "tem pagamento".
+          pagamentos: { select: { etapaId: true, status: true } },
+          // Também as fases ainda por aprovar: o card da disciplina oferece "Aprovar fase" (decisão #10).
+          etapas: {
+            orderBy: { ordem: "asc" },
+            select: { id: true, status: true, percentual: true, liberadaEm: true, etapa: { select: { sigla: true, nome: true } } },
+          },
         },
       },
     },
@@ -351,7 +426,16 @@ export async function disciplinasForaDeSLA(viewer: Viewer) {
     where: {
       status: "entregue",
       entregueEm: { lte: limite, not: null },
-      pagamentos: { none: {} },
+      // "Ainda não liberou tudo" (`estadoPagamento`) em forma de filtro. Sem fase: nenhum
+      // pagamento, como sempre. Com fase: falta alguma liberar e a disciplina não pagou inteira —
+      // com o Básico liberado, o resto continua esperando validação e o SLA tem de enxergar.
+      OR: [
+        { etapas: { none: {} }, pagamentos: { none: {} } },
+        {
+          etapas: { some: { liberadaEm: null } },
+          pagamentos: { none: { etapaId: null, status: { not: "cancelado" } } },
+        },
+      ],
       projeto: { AND: [escopoProjeto(viewer)] },
     },
     select: {
@@ -421,6 +505,10 @@ export async function margemProjeto(projetoId: string) {
 
   let receitaConfirmada = 0;
   let receitaPrevista = 0;
+  // Parte da receita prevista que é PREVISÃO do cronograma (contrato por entrega, `status: previsao`) — já
+  // somada em `receitaPrevista` (decisão #13): a tela a destaca, e "faturar" só troca o status da mesma linha,
+  // então nada é contado duas vezes.
+  let receitaPrevisao = 0;
   let despesaConfirmada = 0;
   let despesaPrevista = 0;
   // Composição do custo direto por origem (confirmado + previsto).
@@ -453,7 +541,10 @@ export async function margemProjeto(projetoId: string) {
     }
     if (l.tipo === "receita") {
       if (l.status === "confirmado") receitaConfirmada += realizado;
-      else receitaPrevista += previsto;
+      else {
+        receitaPrevista += previsto;
+        if (l.status === "previsao") receitaPrevisao += previsto;
+      }
       continue;
     }
     // Despesa: classifica por origem.
@@ -505,6 +596,7 @@ export async function margemProjeto(projetoId: string) {
   return {
     receitaConfirmada,
     receitaPrevista,
+    receitaPrevisao,
     despesaDireta: despesaConfirmada,
     despesaDiretaPrevista: despesaPrevista,
     custoHoras,
@@ -534,6 +626,8 @@ export async function obterProjetoMinimo(viewer: Viewer, id: string) {
       areaM2: true,
       endereco: true,
       valorContrato: true,
+      // D13: classifica o projeto e sugere o modelo de EAP — editável no mesmo diálogo.
+      tipoEmpreendimentoId: true,
       abasConfig: true,
       cliente: { select: { id: true, nome: true } },
     },

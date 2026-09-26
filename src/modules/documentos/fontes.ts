@@ -11,6 +11,7 @@ import type { SubjectAutorizacao } from "@/lib/permissions";
 import type { DocSchema } from "@/modules/documentos/schema";
 import type { Escalar, Linha } from "@/modules/documentos/tokens";
 import { rotuloFolha } from "@/modules/rh/folha/tipo-folha";
+import { SELECT_FASE_DO_PAGAMENTO, rotuloDisciplinaPagamento } from "@/modules/uploads/pagamento-fase";
 
 /**
  * Resolução das fontes de dados do Estúdio de Documentos (server).
@@ -222,6 +223,7 @@ export async function resolverFonte(
           orderBy: { liberadoEm: "desc" },
           include: {
             disciplina: { select: { disciplinaTextoLegado: true, projeto: { select: { codigo: true } } } },
+            etapa: SELECT_FASE_DO_PAGAMENTO,
           },
         }),
       ]);
@@ -235,7 +237,7 @@ export async function resolverFonte(
         },
         linhas: pagamentos.map((x) => ({
           Projeto: formatarCodigo(x.disciplina.projeto.codigo),
-          Disciplina: x.disciplina.disciplinaTextoLegado,
+          Disciplina: rotuloDisciplinaPagamento(x.disciplina.disciplinaTextoLegado, x.etapa?.etapa.sigla),
           Valor: Number(x.valor),
           Status: x.status,
           LiberadoEm: x.liberadoEm,
