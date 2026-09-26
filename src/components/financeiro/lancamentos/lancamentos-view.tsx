@@ -564,7 +564,7 @@ export function LancamentosView({
         <Button onClick={() => setFormOpen(true)}><Plus className="size-4" /> Novo lançamento</Button>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
         {/* coluna esquerda */}
         <div className="space-y-4">
           <PeriodoCard modo={modo} setModo={setModo} refData={ref} setRef={setRef} de={de} setDe={setDe} ate={ate} setAte={setAte} />
