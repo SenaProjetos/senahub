@@ -3,7 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { ActionError } from "@/lib/action-error";
 import { criarDespesaProjetistaPrevista } from "@/modules/financeiro/custo/lancamento-custo";
 import { recalcularTotalFolha } from "@/modules/financeiro/folha-lote/service";
-import { ratearPagamentoProjetista } from "@/modules/uploads/rateio";
+import { ehPagavel, ratearPagamentoProjetista } from "@/modules/uploads/rateio";
 import {
   planejarSincronizacao,
   bloqueioSincronizacao,
@@ -98,6 +98,24 @@ export async function liberarPagamentosDaFase(
   if (!fase) throw new ActionError("Fase não encontrada nesta disciplina.");
   if (fase.liberadaEm != null) return { pagaveis: [], salariados: [], pool: fase.valorPagamento ?? 0, jaLiberada: true };
   if (modoPagamento(pagamentos, fases) === "disciplina") throw new ActionError(MOTIVO_JA_PAGA_INTEIRA);
+
+  // Decisão #9 (2026-09-25): disciplina sem ninguém a pagar (100% CLT, ou ainda sem responsável) tem a
+  // fase LIBERADA com R$ 0 — não apenas "aprovada". Deixá-la pendente fazia o % dela continuar disputando
+  // o pool: bastava um PJ entrar depois para essa fase, já aprovada, voltar a pagar. Liberada em zero, o %
+  // dela passa para as fases que faltam (regra 2 de `pagamento-fase`).
+  //
+  // Sem exigir soma 100% dos percentuais: aqui não há dinheiro a repartir, e travar a aprovação de uma
+  // fase de equipe própria por causa de um plano de percentual em rascunho seria trava sem motivo.
+  if (!disciplina.responsaveis.some(ehPagavel)) {
+    const zerada = await tx.disciplinaEtapa.updateMany({
+      where: { id: faseId, liberadaEm: null },
+      data: { liberadaEm: agora, valorPagamento: 0, status: "aprovado", entregueEm: agora },
+    });
+    if (zerada.count === 0) {
+      throw new ActionError("A fase mudou enquanto a tela estava aberta — atualize e tente de novo.");
+    }
+    return { pagaveis: [], salariados: [...disciplina.responsaveis], pool: 0, jaLiberada: false };
+  }
 
   const valorTotal = disciplina.valor ? Number(disciplina.valor) : 0;
   const r = poolsDasFasesPendentes(valorTotal, fases);

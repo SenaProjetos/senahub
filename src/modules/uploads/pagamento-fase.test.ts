@@ -176,6 +176,32 @@ describe("bloqueioValorEmModoFase", () => {
     expect(bloqueioValorEmModoFase(10000, f)).toBeNull();
     expect(bloqueioValorEmModoFase(11000, f)).toMatch(/Produção/);
   });
+
+  it("decisão #9: todas liberadas em R$ 0 (equipe própria) não mandam para a Produção — não há pagamento lá", () => {
+    const f = [fase("bs", 40, 0, { liberadaEm: "x", valorPagamento: 0 }), fase("ex", 60, 1, { liberadaEm: "x", valorPagamento: 0 })];
+    expect(bloqueioValorEmModoFase(0, f)).toBeNull();
+    const motivo = bloqueioValorEmModoFase(5000, f);
+    expect(motivo).toMatch(/equipe própria/);
+    expect(motivo).not.toMatch(/Produção/);
+  });
+});
+
+describe("decisão #9 — fase liberada em zero devolve o % dela às que faltam", () => {
+  it("o Básico aprovado sem ninguém a pagar deixa todo o valor para o Executivo", () => {
+    const f = [fase("bs", 40, 0, { liberadaEm: "x", valorPagamento: 0 }), fase("ex", 60, 1)];
+    const r = poolsDasFasesPendentes(10000, f);
+    expect(r.ok && r.pools.get("ex")).toBe(10000);
+  });
+
+  it("com três fases, as duas que faltam dividem tudo pelo % delas", () => {
+    const f = [
+      fase("bs", 20, 0, { liberadaEm: "x", valorPagamento: 0 }),
+      fase("ex", 50, 1),
+      fase("ab", 30, 2),
+    ];
+    const r = poolsDasFasesPendentes(8000, f);
+    expect(r.ok && [r.pools.get("ex"), r.pools.get("ab")]).toEqual([5000, 3000]);
+  });
 });
 
 describe("rotuloDisciplinaPagamento", () => {

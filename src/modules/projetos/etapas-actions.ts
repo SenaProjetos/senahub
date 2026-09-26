@@ -328,24 +328,19 @@ export const aprovarEtapaDisciplina = defineAction(
 
     const temPagavel = disciplina.responsaveis.some(ehPagavel);
     const agora = new Date();
-    let pagaveis: { userId: string }[] = [];
     if (temPagavel) {
       const bloqueio = bloqueioValorDisciplina(
         disciplina.responsaveis,
         disciplina.valor == null ? null : Number(disciplina.valor),
       );
       if (bloqueio) throw new ActionError(bloqueio);
-      const r = await prisma.$transaction((tx) =>
-        liberarPagamentosDaFase(tx, { disciplina, faseId: etapa.id, autorId: user.id, agora }),
-      );
-      pagaveis = r.pagaveis;
-    } else {
-      const marcada = await prisma.disciplinaEtapa.updateMany({
-        where: { id: etapa.id, liberadaEm: null, status: { in: ["entregue", "em_revisao"] } },
-        data: { status: "aprovado", entregueEm: agora },
-      });
-      if (marcada.count === 0) throw new ActionError("A fase mudou enquanto a tela estava aberta — atualize e tente de novo.");
     }
+    // Um caminho só: `liberarPagamentosDaFase` decide o que fazer, inclusive quando não há ninguém a pagar
+    // (decisão #9 — a fase é liberada com R$ 0 e o % dela passa para as que faltam). A regra de dinheiro
+    // fica no serviço, não em dois ramos de action.
+    const { pagaveis } = await prisma.$transaction((tx) =>
+      liberarPagamentosDaFase(tx, { disciplina, faseId: etapa.id, autorId: user.id, agora }),
+    );
 
     const codigo = formatarCodigo(disciplina.projeto.codigo);
     const href = `/projetos/${disciplina.projeto.id}`;

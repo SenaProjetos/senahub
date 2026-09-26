@@ -264,7 +264,7 @@ async function main() {
     const evmFuturo = await valorAgregadoDoProjeto(projeto.id, { verCusto: true });
     check(
       "pagamento liberado depois da Data de Status não entra no custo real",
-      evmFuturo.ok && evmFuturo.custo?.ok && evmFuturo.custo.indices.cr === 1000,
+      evmFuturo.ok && evmFuturo.custo?.ok === true && evmFuturo.custo.indices.cr === 1000,
       evmFuturo.ok && evmFuturo.custo?.ok ? evmFuturo.custo.indices : evmFuturo,
     );
     await prisma.pagamentoProjetista.delete({ where: { id: pagamento.id } });

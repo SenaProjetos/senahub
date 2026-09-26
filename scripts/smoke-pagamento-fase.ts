@@ -275,6 +275,81 @@ async function main() {
   );
   check("100% CLT: aprova sem pagamento, mesmo com % que não fecha", e12 === null && (await prisma.pagamentoProjetista.count({ where: { disciplinaId: disc3.id } })) === 0, e12);
 
+  // 12b) Decisão #9: fase de disciplina 100% CLT é LIBERADA com R$ 0, e o % dela passa para as que faltam.
+  const discClt = await prisma.disciplina.create({
+    data: {
+      projetoId: projeto.id,
+      disciplinaTextoLegado: "Telecom",
+      valor: null,
+      responsaveis: { create: [{ userId: clt.id }] },
+    },
+  });
+  const cltBs = await prisma.disciplinaEtapa.create({
+    data: { disciplinaId: discClt.id, etapaId: fasesCat[0].id, percentual: 40, ordem: 0, status: "entregue" },
+  });
+  const cltEx = await prisma.disciplinaEtapa.create({
+    data: { disciplinaId: discClt.id, etapaId: fasesCat[1].id, percentual: 60, ordem: 1, status: "entregue" },
+  });
+  const disciplinaClt = (id: string) =>
+    prisma.disciplina.findUniqueOrThrow({
+      where: { id },
+      select: {
+        id: true,
+        disciplinaTextoLegado: true,
+        valor: true,
+        responsaveis: { select: { userId: true, user: { select: { id: true, name: true, role: true } } } },
+        projeto: { select: { id: true, codigo: true } },
+      },
+    });
+
+  const rClt = await prisma.$transaction(async (tx) =>
+    liberarPagamentosDaFase(tx, {
+      disciplina: await disciplinaClt(discClt.id),
+      faseId: cltBs.id,
+      autorId: admin.id,
+      agora: new Date(),
+    }),
+  );
+  const cltBsDepois = await prisma.disciplinaEtapa.findUniqueOrThrow({
+    where: { id: cltBs.id },
+    select: { liberadaEm: true, valorPagamento: true, status: true },
+  });
+  check(
+    "decisão #9: fase 100% CLT fica LIBERADA com R$ 0 e aprovada",
+    rClt.pool === 0 &&
+      cltBsDepois.liberadaEm != null &&
+      Number(cltBsDepois.valorPagamento) === 0 &&
+      cltBsDepois.status === "aprovado",
+    { pool: rClt.pool, ...cltBsDepois },
+  );
+  check(
+    "e sem criar linha de R$ 0,00 na Produção",
+    (await prisma.pagamentoProjetista.count({ where: { disciplinaId: discClt.id } })) === 0,
+  );
+
+  // Um PJ entra depois e a disciplina ganha valor: a fase que falta leva TUDO (o % da liberada em zero
+  // passou para ela). Antes, a fase de CLT ficava pendente e voltava a pagar.
+  await prisma.disciplinaResponsavel.create({ data: { disciplinaId: discClt.id, userId: pjA.id } });
+  await prisma.disciplina.update({ where: { id: discClt.id }, data: { valor: 10000 } });
+  const rPj = await prisma.$transaction(async (tx) =>
+    liberarPagamentosDaFase(tx, {
+      disciplina: await disciplinaClt(discClt.id),
+      faseId: cltEx.id,
+      autorId: admin.id,
+      agora: new Date(),
+    }),
+  );
+  check("decisão #9: a fase que falta recebe o valor inteiro (10000), não 60%", rPj.pool === 10000, rPj.pool);
+  const pagsClt = await prisma.pagamentoProjetista.findMany({
+    where: { disciplinaId: discClt.id },
+    select: { projetistaId: true, valor: true, etapaId: true },
+  });
+  check(
+    "e o pagamento sai só para o PJ, na fase certa",
+    pagsClt.length === 1 && pagsClt[0].projetistaId === pjA.id && Number(pagsClt[0].valor) === 10000 && pagsClt[0].etapaId === cltEx.id,
+    pagsClt,
+  );
+
   // 13) F7.0 — marco da fase: concluir oferece aprovar, pelo mesmo caminho de liberação.
   const hoje = paraDia(inicioDoDiaUtc());
   const disc4 = await prisma.disciplina.create({

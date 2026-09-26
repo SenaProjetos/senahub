@@ -77,7 +77,9 @@ Detalhes que importam:
   da regra abaixo. Quem quiser mudá-lo ajusta o valor da disciplina **antes** (no editor da
   disciplina) ou o pagamento na [Produção](../financeiro/producao.md) **depois**.
 - **CLT e estagiário não recebem por entrega** (o custo deles vem do ponto). Disciplina só com CLT tem a
-  fase aprovada **sem pagamento** — e sem exigir que os percentuais fechem.
+  fase aprovada e **liberada com R$ 0**, sem pagamento nenhum — e sem exigir que os percentuais fechem.
+  O percentual dessa fase **passa para as fases que faltam**: se o Básico (40%) foi feito pela equipe
+  própria e depois um PJ entra, o Executivo recebe o valor **inteiro** da disciplina, não 60%.
 - Fase de **0%** é aprovada **sem pagamento** (não cria linha de R$ 0,00 na Produção).
 - **Aprovar a disciplina inteira** libera de uma vez as fases que ainda faltam, cada uma pelo seu valor.
   O card avisa: "Pagamento liberado em **N de M** fases · aprovar libera as que faltam".
@@ -177,4 +179,9 @@ projeto) usa a fila **Fases a aprovar**, em Aprovações.
 da disciplina acompanha pela diferença.
 
 **A disciplina é só de CLT. Preciso fechar 100%?** Não para aprovar; sem projetista PJ/freelancer não
-há o que repartir.
+há o que repartir. A fase fica **liberada com R$ 0**, e o percentual dela passa para as fases que faltam.
+
+**Aprovei uma fase quando só havia CLT e agora entrou um PJ. Ele recebe pela fase que já aprovei?** Não.
+A fase aprovada está liberada (em R$ 0) e congelada; o valor da disciplina vai todo para as fases que
+ainda faltam. Se o combinado foi pagar algo por aquela fase, lance o pagamento pela
+[Produção](../financeiro/producao.md).

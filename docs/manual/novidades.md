@@ -60,6 +60,10 @@ Depois de revisar o novo planejamento, o time decidiu alguns pontos. O que já e
   Executivo 60%, somando 100%): aplicando o modelo, essas fases são cadastradas nas disciplinas do
   projeto que ainda não têm fase, que é o que faz o marco marcar a fase como Entregue e o pagamento por
   fase funcionar.
+- **Fase de disciplina feita pela equipe própria fica liberada com R$ 0:** aprovar uma fase de
+  disciplina sem projetista PJ agora a marca como liberada (sem criar pagamento), e o percentual dela
+  passa para as fases que faltam. Antes ela ficava pendente e, se um PJ entrasse depois, aquela fase já
+  aprovada voltava a pagar.
 - **Custo real do Valor Agregado passa a contar o PJ:** quem recebe por entrega entra pelo **pagamento
   liberado** até a Data de Status, e as horas dessa pessoa saem da conta em R$ (em horas continuam
   contando). Antes o PJ não aparecia no custo real, e o índice de custo parecia melhor do que era em

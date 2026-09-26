@@ -175,6 +175,11 @@ export function bloqueioValorEmModoFase(valorNovo: number, fases: readonly FaseP
     .reduce((s, f) => s + centavos(f.valorPagamento ?? 0), 0);
   if (pendentes.length === 0) {
     if (centavos(valorNovo) === liberadoCent) return null;
+    // Decisão #9: fase de disciplina sem ninguém a pagar é liberada com R$ 0. Se TODAS foram assim, não
+    // há pagamento nenhum na Produção — mandar ajustar lá seria mandar para uma tela vazia.
+    if (liberadoCent === 0) {
+      return "Todas as fases foram aprovadas sem pagamento de projetista (trabalho de equipe própria) — não há pagamento por fase para receber este valor.";
+    }
     return "Todas as fases já tiveram o pagamento liberado — ajuste os pagamentos na Produção, não o valor da disciplina.";
   }
   if (centavos(valorNovo) < liberadoCent) {

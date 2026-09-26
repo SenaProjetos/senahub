@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ActionError } from "@/lib/action-error";
 
 /**
  * Controle das actions de etapa que mexem com dinheiro (F7.4): `aprovarEtapaDisciplina` e as
@@ -154,29 +155,38 @@ describe("aprovarEtapaDisciplina", () => {
     );
   });
 
-  it("100% CLT: aprova a fase sem liberar pagamento nem avisar pagamento", async () => {
+  it("100% CLT: aprova sem pagamento e sem avisar pagamento — e passa pelo MESMO serviço (decisão #9)", async () => {
     mocks.etapaFindUnique.mockResolvedValue(FASE_ENTREGUE);
     mocks.disciplinaFindUnique.mockResolvedValue(disciplina([CLT], null));
-    mocks.etapaUpdateMany.mockResolvedValue({ count: 1 });
+    // É o serviço que decide: sem ninguém a pagar, libera a fase com R$ 0 e não devolve pagável.
+    mocks.liberarPagamentosDaFase.mockResolvedValue({ pagaveis: [], salariados: [CLT], pool: 0, jaLiberada: false });
 
     const r = await aprovarEtapaDisciplina({ id: "de1" });
 
     expect(r).toEqual({ ok: true, data: { id: "de1", pagamentos: 0 } });
-    expect(mocks.liberarPagamentosDaFase).not.toHaveBeenCalled();
-    expect(mocks.etapaUpdateMany).toHaveBeenCalledWith({
-      where: { id: "de1", liberadaEm: null, status: { in: ["entregue", "em_revisao"] } },
-      data: expect.objectContaining({ status: "aprovado" }),
-    });
+    expect(mocks.liberarPagamentosDaFase).toHaveBeenCalledWith(tx, expect.objectContaining({ faseId: "de1" }));
     expect(mocks.notificarMuitos).toHaveBeenCalledTimes(1);
     expect(mocks.notificarMuitos).toHaveBeenCalledWith(["g1"], expect.objectContaining({ titulo: "Fase aprovada" }), {
       categoria: "aprovacao_disciplina",
     });
   });
 
-  it("100% CLT e a fase mudou no meio: recusa em vez de fingir sucesso", async () => {
+  it("sem valor e sem ninguém a pagar, a trava de valor não dispara (é o serviço que resolve)", async () => {
     mocks.etapaFindUnique.mockResolvedValue(FASE_ENTREGUE);
     mocks.disciplinaFindUnique.mockResolvedValue(disciplina([CLT], null));
-    mocks.etapaUpdateMany.mockResolvedValue({ count: 0 });
+    mocks.liberarPagamentosDaFase.mockResolvedValue({ pagaveis: [], salariados: [CLT], pool: 0, jaLiberada: false });
+
+    const r = await aprovarEtapaDisciplina({ id: "de1" });
+
+    expect(r.ok).toBe(true);
+  });
+
+  it("a fase mudou no meio: a recusa do serviço chega ao usuário, sem fingir sucesso", async () => {
+    mocks.etapaFindUnique.mockResolvedValue(FASE_ENTREGUE);
+    mocks.disciplinaFindUnique.mockResolvedValue(disciplina([CLT], null));
+    mocks.liberarPagamentosDaFase.mockRejectedValue(
+      new ActionError("A fase mudou enquanto a tela estava aberta — atualize e tente de novo."),
+    );
 
     const r = await aprovarEtapaDisciplina({ id: "de1" });
 

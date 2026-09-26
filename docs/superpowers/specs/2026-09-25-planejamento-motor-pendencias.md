@@ -89,7 +89,7 @@ texto de cada item continua adiante como histórico; o que vale é esta tabela.
 | 6 | Datas fixas ao duplicar | manter (não copia) | — |
 | 7 | Linhas antigas sem fase | projetos já criados **não terão EAP nem faseamento** — L5 cancelado | — |
 | 8 | Marco da fase concluído | **marca a fase como Entregue** (aprovar/pagar segue manual) | feito (`76d912be`) |
-| 9 | Fase de disciplina só de CLT | **liberada com R$ 0**; o % passa para as outras fases | pendente — dinheiro (Opus) |
+| 9 | Fase de disciplina só de CLT | **liberada com R$ 0**; o % passa para as outras fases | feito (`liberarPagamentosDaFase`) |
 | 10 | Onde aprovar a fase | **botão também no card da disciplina** | feito (`05cfa313`) |
 | 11 | Parcela "na assinatura" | manter (nasce previsão) | — |
 | 12 | Cobrança lançada à mão | **casar automaticamente** com a previsão | pendente — dinheiro (Opus) |
@@ -179,9 +179,17 @@ Como no Project, onde o custo de uma tarefa fica fixado quando ela é concluída
 - A disciplina paga **inteira ou por fase**, nunca os dois (fixado na primeira liberação).
 - Com fases cadastradas, a soma dos % precisa fechar 100% para aprovar — antes as fases eram só prazo.
 - Fase de 0% é aprovada sem pagamento (não cria linha de R$ 0,00 na Produção).
-- **DECIDIR (raro):** fase aprovada quando a disciplina era 100% CLT fica "aprovada" mas não
-  "liberada". Se um PJ entrar depois e a disciplina inteira for aprovada, essa fase também paga. A
-  alternativa é tratá-la como liberada com R$ 0 (o % dela passa para as outras fases).
+- ~~**DECIDIR (raro):** fase aprovada quando a disciplina era 100% CLT fica "aprovada" mas não
+  "liberada".~~ **RESOLVIDO (decisão #9, 2026-09-26):** a fase é **liberada com R$ 0**. Pendente, o % dela
+  continuava disputando o pool — bastava um PJ entrar depois para uma fase já aprovada voltar a pagar.
+  Liberada em zero, o % dela passa para as fases que faltam (regra 2 de `pagamento-fase.ts`): Básico 40%
+  feito pela equipe própria + PJ que entra depois = Executivo com o valor INTEIRO da disciplina. Nenhuma
+  linha de R$ 0,00 nasce na Produção, e a soma dos percentuais continua dispensada quando não há ninguém a
+  pagar (travar por causa de plano em rascunho seria trava sem dinheiro em jogo).
+  A regra saiu do `if/else` da action para `liberarPagamentosDaFase`: um caminho só decide dinheiro, e o
+  smoke alcança a regra sem sessão. `bloqueioValorEmModoFase` ganhou mensagem própria para o caso de todas
+  as fases liberadas em zero — mandar "ajuste na Produção" apontaria para uma tela vazia.
+  Verificação: `npm run smoke:pagamento-fase`.
 
 ### Datas reais e marcos (F7.0)
 - **DECIDIR:** concluir o **marco** de uma fase **não** marca a fase como Entregue — só oferece
