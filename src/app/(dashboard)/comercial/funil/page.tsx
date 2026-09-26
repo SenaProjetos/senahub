@@ -125,7 +125,7 @@ export default async function FunilComercialPage({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-[1_1_16rem]">
           <h2 className="text-2xl font-extrabold tracking-tight">Funil comercial</h2>
           <p className="text-sm text-muted-foreground">
             {emProspeccao} em prospecção · {emNegociacao} em negociação · pipeline em aberto{" "}
@@ -134,13 +134,16 @@ export default async function FunilComercialPage({
         </div>
         {podeGerir && (
           <>
-            <Button variant="outline" size="sm" render={<a href={`/api/comercial/export/prospeccoes?${qs}`} />}>
+            {/* Exportar é tarefa de mesa: fora do celular. */}
+            <Button variant="outline" size="sm" className="hidden sm:inline-flex" render={<a href={`/api/comercial/export/prospeccoes?${qs}`} />}>
               <Download className="size-4" /> Prospecções
             </Button>
-            <Button variant="outline" size="sm" render={<a href={`/api/comercial/export/negociacoes?${qs}`} />}>
+            {/* Exportar é tarefa de mesa: fora do celular. */}
+            <Button variant="outline" size="sm" className="hidden sm:inline-flex" render={<a href={`/api/comercial/export/negociacoes?${qs}`} />}>
               <Download className="size-4" /> Negociações
             </Button>
-            <Button variant="outline" size="sm" render={<a href={`/api/comercial/export/contatos?${qs}`} />}>
+            {/* Exportar é tarefa de mesa: fora do celular. */}
+            <Button variant="outline" size="sm" className="hidden sm:inline-flex" render={<a href={`/api/comercial/export/contatos?${qs}`} />}>
               <Download className="size-4" /> Contatos
             </Button>
             <ProspeccaoRapidaDialog

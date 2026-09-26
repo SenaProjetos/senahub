@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
 import { useSetParams } from "@/lib/use-set-param";
+import { FiltrosGaveta } from "@/components/ui/filtros-gaveta";
 import { PERIODOS, PERIODO_LABEL } from "@/modules/comercial/filtros";
 import {
   PERFIS_CLIENTE,
@@ -80,7 +81,7 @@ export function FiltrosComerciais({
   ].filter((k) => sp.get(k));
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <FiltrosGaveta ativos={ativos.length}>
       <Campo
         valor={val("resp")}
         onTrocar={trocar("resp")}
@@ -199,7 +200,7 @@ export function FiltrosComerciais({
           <X className="size-3.5" /> Limpar ({ativos.length})
         </Button>
       )}
-    </div>
+    </FiltrosGaveta>
   );
 }
 

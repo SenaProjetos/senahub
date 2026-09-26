@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -256,6 +256,24 @@ export function FunilComercialBoard({
     else moverNegociacao(alvo, opcao.para, "ENCERRADOS");
   }
 
+  const [etapaCelular, setEtapaCelular] = useState<ColunaFunil>(exibidas[0]?.coluna ?? COLUNAS_FUNIL[0]);
+  const quadroRef = useRef<HTMLDivElement>(null);
+  const [alturaQuadro, setAlturaQuadro] = useState<string | undefined>(undefined);
+
+  useLayoutEffect(() => {
+    const el = quadroRef.current;
+    if (!el) return;
+    const medir = () => {
+      // Só do `sm` em diante; no celular a página rola normalmente.
+      if (!window.matchMedia("(min-width: 40rem)").matches) return setAlturaQuadro(undefined);
+      const topo = el.getBoundingClientRect().top + window.scrollY;
+      setAlturaQuadro(`${Math.max(352, window.innerHeight - topo - 40)}px`);
+    };
+    medir();
+    window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  });
+
   const tudoFechado = COLUNAS_FUNIL.every((c) => fechadas.has(c));
   const prospeccaoFechada = COLUNAS_FUNIL_LEAD.every((c) => fechadas.has(c));
   const negociacaoFechada = COLUNAS_FUNIL_NEGOCIACAO.every((c) => fechadas.has(c));
@@ -263,7 +281,8 @@ export function FunilComercialBoard({
   return (
     <>
       <DicaMenuContexto />
-      <div className="flex flex-wrap items-center gap-1.5">
+      {/* Recolher/expandir colunas só faz sentido com as colunas lado a lado. */}
+      <div className="hidden flex-wrap items-center gap-1.5 sm:flex">
         <Button variant="outline" size="sm" onClick={() => alternarGrupo(COLUNAS_FUNIL)}>
           {tudoFechado ? <ChevronsDown className="size-3.5" /> : <ChevronsUp className="size-3.5" />}
           {tudoFechado ? "Expandir tudo" : "Recolher tudo"}
@@ -284,10 +303,36 @@ export function FunilComercialBoard({
       >
         {/* Mesma regra dos boards anteriores (F2.17): empilha em tela pequena, lado a lado a
             partir de `sm` — por CSS, para não piscar layout errado antes da hidratação. */}
-        <div className="flex flex-col gap-3 pb-2 sm:flex-row sm:overflow-x-auto">
+        {/* Celular: uma etapa por vez, escolhida nestas fichas (o resto empilhado obrigava a rolar
+            a página inteira). "Mover para…" continua no menu de cada cartão. */}
+        <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:hidden" role="tablist" aria-label="Etapa do funil">
+          {exibidas.map((c) => (
+            <button
+              key={c.coluna}
+              type="button"
+              role="tab"
+              aria-selected={c.coluna === etapaCelular}
+              onClick={() => setEtapaCelular(c.coluna)}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm ${
+                c.coluna === etapaCelular ? "border-primary bg-primary text-primary-foreground" : "text-muted-foreground"
+              }`}
+            >
+              {COLUNA_FUNIL_LABEL[c.coluna]}
+              <span className="font-mono text-xs opacity-80">{c.total}</span>
+            </button>
+          ))}
+        </div>
+        {/* Computador: as colunas usam a altura que sobra na tela e rolam por dentro, em vez de a
+            página inteira rolar. A altura é medida (a barra do comercial e os avisos variam). */}
+        <div
+          ref={quadroRef}
+          style={alturaQuadro ? { height: alturaQuadro } : undefined}
+          className="flex flex-col gap-3 pb-2 sm:min-h-[22rem] sm:flex-row sm:overflow-x-auto"
+        >
           {exibidas.map((c, i) => (
             <Coluna
               key={c.coluna}
+              mostrarNoCelular={c.coluna === etapaCelular}
               dados={c}
               fechada={fechadas.has(c.coluna)}
               aguardandoDados={!fechadas.has(c.coluna) && c.fechada}
@@ -352,6 +397,7 @@ export function FunilComercialBoard({
 }
 
 function Coluna({
+  mostrarNoCelular,
   dados,
   fechada,
   aguardandoDados,
@@ -361,6 +407,7 @@ function Coluna({
   alvoId,
   onMover,
 }: {
+  mostrarNoCelular: boolean;
   dados: ColunaFunilDados;
   fechada: boolean;
   aguardandoDados: boolean;
@@ -374,12 +421,13 @@ function Coluna({
   const label = COLUNA_FUNIL_LABEL[dados.coluna];
   const borda = isOver ? "border-primary bg-primary/5" : "border-border/60";
   const divisa = inicioNegociacao ? "sm:ml-3 sm:border-l-primary/40" : "";
+  const celular = mostrarNoCelular ? "" : "hidden sm:flex";
 
   if (fechada) {
     return (
       <div
         ref={setNodeRef}
-        className={`flex shrink-0 items-center gap-2 rounded-sm border p-2 transition-colors sm:w-11 sm:flex-col ${borda} ${divisa}`}
+        className={`flex shrink-0 items-center gap-2 rounded-sm border p-2 transition-colors sm:w-11 sm:flex-col ${borda} ${divisa} ${celular}`}
       >
         <Button
           variant="ghost"
@@ -402,7 +450,7 @@ function Coluna({
   return (
     <div
       ref={setNodeRef}
-      className={`flex w-full shrink-0 flex-col rounded-sm border p-2 transition-colors sm:w-72 ${borda} ${divisa}`}
+      className={`flex w-full shrink-0 flex-col rounded-sm border p-2 transition-colors sm:h-full sm:w-72 ${borda} ${divisa} ${celular}`}
     >
       <div className="mb-2">
         <div className="flex items-center justify-between gap-1">
@@ -425,7 +473,7 @@ function Coluna({
         </div>
         {dados.soma > 0 && <p className="font-mono text-[11px] text-muted-foreground">{brlInteiro(dados.soma)}</p>}
       </div>
-      <div className="space-y-2">
+      <div className="space-y-2 sm:min-h-0 sm:flex-1 sm:overflow-y-auto">
         {aguardandoDados ? (
           <p className="px-1 py-4 text-center text-[11px] text-muted-foreground">Carregando…</p>
         ) : dados.cards.length === 0 ? (
