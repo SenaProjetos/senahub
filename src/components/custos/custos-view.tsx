@@ -59,7 +59,7 @@ export function CustosView({
         descricao={<>{total} orçamento(s).</>}
         acoes={
           <>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {podeBancos && (
               <Button variant="outline" render={<Link href="/custos/bancos" />}>
                 <Database className="size-4" /> Bancos

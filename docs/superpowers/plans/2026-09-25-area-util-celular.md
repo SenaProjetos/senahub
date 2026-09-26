@@ -214,6 +214,24 @@ ser divididos entre as duas worktrees).
   - 6.1: Arquivos na altura da tela (768 = 768 em 1366 × 768) e modo foco (menu, topo e
     cabeçalho do projeto somem; Esc sai). Compatibilização usa a altura medida e o botão de
     foco, mas o visualizador 3D não foi visto no navegador (sem IFC no projeto de teste).
-- [ ] Lote 7
+- [x] **Lote 7 — quase concluído em 2026-09-26 (Sonnet 5, não Haiku — dono mandou seguir sem trocar).**
+  - Migradas ~40 páginas de RH, Financeiro, Engenharia, Custos, Patrimônio, Planejamento,
+    Licitações, Qualidade, Suporte, Jurídico, Recursos, Auditoria, Certidões,
+    Configurações, Documentos, Clientes, Tarefas e Projetos — codemod (padrão
+    `<div><h2/><p/></div>`) + revisão manual de cada arquivo.
+  - **2 correções no próprio `CabecalhoPagina`** (valem para todos os usos, inclusive os
+    pilotos do lote 1.1): piso de 10rem no título (tinha `min-w-0`, sumia por completo
+    com 3+ botões de ação) e o título nunca mais cede espaço para a descrição.
+  - **Comercial (8 páginas) ficou de fora, revertido**: o layout do módulo tem uma barra
+    de abas própria (`ComercialNav`) antes do conteúdo, e o cabeçalho exige ser o
+    primeiro elemento da página. Falta decidir a abordagem (mover a barra, ou um
+    cabeçalho por módulo em vez de por página) antes de migrar.
+  - Avisos (tabs com 2 cabeçalhos), Ponto/Espelho (sub-abas fora do componente) e Ajuda
+    (ícone solto antes do título) também revertidos pelo mesmo motivo, por ora.
+  - Achado não corrigido (pré-existente, fora do escopo): `/financeiro/lancamentos`
+    passa de 1366 px — para o lote 8.
+  - Verificação: as 110 rotas do menu percorridas em 1366×768, lint + tsc + 3981 testes.
+  - **Falta:** achar uma abordagem para Comercial/Avisos/Ponto/Ajuda, e rodar tudo de
+    novo no celular (só testei desktop neste lote).
 - [ ] Lote 8
 - [ ] Lote 9 (bloqueado)
