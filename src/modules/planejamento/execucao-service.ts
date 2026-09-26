@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { paraDataUtc } from "./agenda";
 import { aplicarExecucao } from "./execucao";
+import { registrarProgresso } from "./progresso-historico-service";
 
 /**
  * Fase ligada a um marco que acabou de ser concluído — o que a tela oferece aprovar (D31). Concluir o marco
@@ -29,6 +30,8 @@ export async function registrarExecucaoNaLinha(p: {
   fimReal: string | null;
   /** Dia local de hoje (`YYYY-MM-DD`) — real é o que já aconteceu. */
   hoje: string;
+  /** Quem informou — vai para o histórico do % (decisão #17). */
+  autorId?: string | null;
 }): Promise<{
   projetoId: string;
   nome: string;
@@ -58,14 +61,27 @@ export async function registrarExecucaoNaLinha(p: {
   );
   if (!r.ok) throw new ActionError(r.motivo);
 
-  await prisma.eapTarefa.update({
-    where: { id: p.id },
-    data: {
-      inicioReal: r.inicioReal ? paraDataUtc(r.inicioReal) : null,
-      fimReal: r.fimReal ? paraDataUtc(r.fimReal) : null,
-      status: r.status,
+  // Decisão #17: o % derivado das datas reais também é histórico — "marcou como concluída na terça" é
+  // informação de alguém, e o Valor Agregado de uma data passada depende dela.
+  await prisma.$transaction(async (tx) => {
+    await tx.eapTarefa.update({
+      where: { id: p.id },
+      data: {
+        inicioReal: r.inicioReal ? paraDataUtc(r.inicioReal) : null,
+        fimReal: r.fimReal ? paraDataUtc(r.fimReal) : null,
+        status: r.status,
+        progresso: r.progresso,
+      },
+    });
+    await registrarProgresso(tx, {
+      tarefaId: p.id,
+      projetoId: linha.projetoId,
+      anterior: linha.progresso,
       progresso: r.progresso,
-    },
+      autorId: p.autorId ?? null,
+      origem: "execucao",
+      ehResumo: linha._count.filhas > 0,
+    });
   });
 
   let fase: FaseDoMarco | null = null;

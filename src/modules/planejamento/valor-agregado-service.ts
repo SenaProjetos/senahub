@@ -4,6 +4,7 @@ import { diasUteisEntre } from "@/lib/calendario-trabalho";
 import { minutosPorDiaSessao } from "@/modules/ponto/engine";
 import { montarCalendario, paraDia, planoDoProjeto } from "./agenda";
 import { calcularRegua, type IndicesEvm, type LinhaBaseEvm, type ResultadoRegua } from "./valor-agregado";
+import { progressoDoProjetoNaData } from "./progresso-historico-service";
 
 /** Uma apuração gravada (F8): índices de cada régua; nulo = desconhecido naquela data. */
 export type ApuracaoHistorico = {
@@ -70,8 +71,12 @@ export async function valorAgregadoDoProjeto(
   const dataStatus = paraDia(cronograma.dataStatus);
 
   const plano = await planoDoProjeto(projetoId);
-  const progresso = new Map<string, number>();
-  for (const [id, l] of plano?.resultado.linhas ?? []) progresso.set(id, l.progresso);
+  const atuais = new Map<string, number>();
+  for (const [id, l] of plano?.resultado.linhas ?? []) atuais.set(id, l.progresso);
+  // Decisão #17: o % que valia NA Data de Status, não o de hoje. Sem o histórico, reapurar uma data
+  // passada aplicava o avanço atual a uma semana atrás e o VA saía otimista — e a apuração gravada não
+  // podia ser recalculada nem conferida.
+  const { progresso, semHistorico } = await progressoDoProjetoNaData(projetoId, dataStatus, atuais);
 
   const linhas: LinhaBaseEvm[] = baseline.linhas.map((l) => ({
     tarefaId: l.tarefaId && progresso.has(l.tarefaId) ? l.tarefaId : null,
@@ -148,6 +153,14 @@ export async function valorAgregadoDoProjeto(
   }
   const excluidas = linhas.filter((l) => !l.resumo && l.tarefaId == null).length;
   if (excluidas > 0) avisos.push(`${excluidas} atividade(s) da linha de base foram excluídas e contam como não feitas.`);
+  // Decisão #17: linha com avanço e sem nenhuma mudança registrada usa o % de HOJE, como antes do
+  // histórico. Numa Data de Status passada isso deixa o VA otimista — e calado seria pior.
+  const semHistoricoNaBase = semHistorico.filter((id) => naBaseline.has(id)).length;
+  if (semHistoricoNaBase > 0) {
+    avisos.push(
+      `${semHistoricoNaBase} atividade(s) com avanço não têm histórico de % (o avanço foi informado antes de o sistema passar a guardá-lo): nelas, vale o percentual de hoje, então o VA de uma data passada fica otimista.`,
+    );
+  }
 
   const apuracoes = await prisma.valorAgregadoApuracao.findMany({
     where: { projetoId },

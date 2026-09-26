@@ -97,7 +97,7 @@ texto de cada item continua adiante como histórico; o que vale é esta tabela.
 | 14 | Cobrança pelo projeto (contrato por data) | manter (só avisa) | — |
 | 15 | Custo/hora em Recursos | **esconder**; só edita quem gere o financeiro | feito (`00b942c6`, L7) |
 | 16 | Custo real no Valor Agregado | **somar** os pagamentos liberados ao PJ | pendente — dinheiro (Opus) |
-| 17 | % concluído no VA | **histórico** do percentual a cada atualização | pendente — schema (Opus) |
+| 17 | % concluído no VA | **histórico** do percentual a cada atualização | feito (`EapProgressoRegistro`) |
 | 18 | % sem data real | manter (como o Project) | — |
 | 19 | Apurar reprograma | manter automático | — |
 
@@ -219,8 +219,22 @@ Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
   entra: PJ que não aponta horas some do realizado, e o IDC fica otimista em projeto tocado por PJ.
   A alternativa é somar os pagamentos liberados até a Data de Status — mas aí as horas desse PJ não
   podem somar também.
-- **DECIDIR:** o VA usa o % informado **de hoje** (o sistema não guarda histórico de %). Por isso cada
-  apuração é gravada na hora em que a Data de Status é definida.
+- ~~**DECIDIR:** o VA usa o % informado **de hoje** (o sistema não guarda histórico de %).~~
+  **RESOLVIDO (decisão #17, 2026-09-26):** `EapProgressoRegistro` guarda uma linha por MUDANÇA de %, com o
+  valor `anterior`, o autor, a origem (`informado` na edição / `execucao` nas datas reais) e a **Data de
+  Status vigente** no momento da digitação. O VA lê o % vigente na Data de Status
+  (`progresso-historico.ts`, puro). Três regras que o smoke fixa:
+  - Vale também o que foi digitado DEPOIS, se foi digitado **enquanto aquela era a Data de Status** — é a
+    ordem normal (atualizar na segunda o que valia na sexta e só então apurar). Filtrar só pelo relógio
+    deixaria a apuração PIOR que antes do histórico.
+  - Antes do primeiro registro vale o `anterior` dele, nunca o valor de depois (trazer o futuro para o
+    passado era o erro óbvio). É também o que dispensa script de backfill.
+  - Linha sem registro nenhum cai no % de hoje (o comportamento antigo) e o quadro AVISA quantas são —
+    calar deixaria o VA otimista sem ninguém ver.
+  Escrita na MESMA transação do `update` da linha; linha-resumo não entra (o % dela é rollup do motor). A
+  tabela serve à conta do VA: o rastro para o usuário continua no histórico do projeto, pela auditoria da
+  ação. Verificação: `npm run smoke:progresso-historico`. Cada apuração continua sendo gravada quando a
+  Data de Status é definida.
 - O planejado (VP) espalha o orçamento da atividade igualmente pelos dias úteis da barra de base
   (perfil uniforme, o padrão do Project).
 - Duas colunas: em horas, para quem acompanha o cronograma; em R$, só para quem vê o financeiro.

@@ -60,6 +60,11 @@ Depois de revisar o novo planejamento, o time decidiu alguns pontos. O que já e
   Executivo 60%, somando 100%): aplicando o modelo, essas fases são cadastradas nas disciplinas do
   projeto que ainda não têm fase, que é o que faz o marco marcar a fase como Entregue e o pagamento por
   fase funcionar.
+- **O Valor Agregado passa a usar o % da Data de Status, não o de hoje:** o sistema guarda o histórico
+  do percentual concluído a cada atualização, então reapurar uma semana passada devolve o avanço que
+  havia naquela semana. Atualizar os percentuais na segunda "referentes à sexta" continua valendo para a
+  sexta, enquanto ela for a Data de Status. Atividade que já tinha avanço antes desta versão não tem
+  histórico: nela vale o % atual, e o quadro avisa.
 - **Etapa de terceiro marcada na mão:** na seção **Recursos** da linha há o botão **Etapa de
   terceiro**. A linha passa a valer como trabalho de fora da casa (cliente, arquitetura, prefeitura,
   concessionária): segura prazo, mas **não gera card, não cobra hora e custa zero**, e o verificador

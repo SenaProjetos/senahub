@@ -92,6 +92,19 @@ Status ainda não tiver uma — ela **nunca reescreve** uma data já fotografada
 **Apurações anteriores** com IDP e IDC de cada uma (em R$ só para quem vê o financeiro), para você
 ver a **tendência**.
 
+## O percentual que a apuração usa
+
+O VA pergunta a cada atividade **quanto ela tinha de avanço na Data de Status** — não quanto tem hoje.
+O sistema guarda o histórico do **% concluído** a cada mudança (quem informou, quando e qual era a Data
+de Status naquele momento), então reapurar uma data passada devolve o mesmo número de então.
+
+- **Atualizar na segunda, referente à sexta, funciona.** Enquanto a Data de Status for sexta, o que você
+  digitar conta para sexta — é a ordem normal de trabalho: primeiro os percentuais, depois **Apurar**.
+- **Antes da primeira mudança registrada** vale o percentual que a atividade tinha antes dela.
+- **Atividade com avanço e sem histórico** (informado antes de o sistema passar a guardá-lo) usa o % de
+  hoje, e o quadro avisa: nessas, o VA de uma data passada fica otimista.
+- O % de **agrupamento** não tem histórico: ele é calculado a partir das atividades dentro dele.
+
 ## O que o Valor Agregado ainda não faz
 
 - **A linha de base não se move** com as datas reais: é o combinado. As datas reais e a Data de Status

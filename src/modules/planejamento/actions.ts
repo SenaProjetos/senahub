@@ -29,6 +29,7 @@ import { regrasDeEdicao } from "@/modules/planejamento/edicao-linha";
 import { trocarPredecessoras } from "@/modules/planejamento/dependencias-service";
 import { avancarLinha, inserirLinhaAcima, recuarLinha } from "@/modules/planejamento/arvore-service";
 import { aposMudarEap } from "@/modules/planejamento/pos-eap";
+import { registrarProgresso } from "@/modules/planejamento/progresso-historico-service";
 
 const plan = { modulo: "planejamento", recurso: "planejamento", permissao: "gerir" } as const;
 const rec = { modulo: "recursos", recurso: "recursos", permissao: "gerir" } as const;
@@ -231,7 +232,14 @@ export const editarEapTarefa = defineAction(
   async (i, { user }) => {
     const antes = await prisma.eapTarefa.findUnique({
       where: { id: i.id },
-      select: { disciplinaId: true, projetoId: true, tipoEap: true, duracaoDias: true, _count: { select: { filhas: true } } },
+      select: {
+        disciplinaId: true,
+        projetoId: true,
+        tipoEap: true,
+        duracaoDias: true,
+        progresso: true,
+        _count: { select: { filhas: true } },
+      },
     });
     if (!antes) throw new ActionError("Tarefa não encontrada.");
     // B2 (`edicao-linha.ts`): só alterna atividade ↔ marco; agrupamento não grava duração; marco é 0.
@@ -258,17 +266,31 @@ export const editarEapTarefa = defineAction(
         : mudouDisciplina
           ? null
           : undefined;
-    const t = await prisma.eapTarefa.update({
-      where: { id: i.id },
-      data: {
-        nome: i.nome,
-        disciplinaId: i.disciplinaId || null,
-        ...(etapaId !== undefined ? { etapaId } : {}),
+    // Decisão #17: a mudança do % vai para o histórico NA MESMA TRANSAÇÃO — é o histórico que responde
+    // pelo número que o Valor Agregado publica numa data passada.
+    const t = await prisma.$transaction(async (tx) => {
+      const linha = await tx.eapTarefa.update({
+        where: { id: i.id },
+        data: {
+          nome: i.nome,
+          disciplinaId: i.disciplinaId || null,
+          ...(etapaId !== undefined ? { etapaId } : {}),
+          progresso: i.progresso,
+          tipoEap,
+          ...(duracaoDias !== undefined ? { duracaoDias } : {}),
+        },
+        select: { projetoId: true },
+      });
+      await registrarProgresso(tx, {
+        tarefaId: i.id,
+        projetoId: linha.projetoId,
+        anterior: antes.progresso,
         progresso: i.progresso,
-        tipoEap,
-        ...(duracaoDias !== undefined ? { duracaoDias } : {}),
-      },
-      select: { projetoId: true },
+        autorId: user.id,
+        origem: "informado",
+        ehResumo: antes._count.filhas > 0,
+      });
+      return linha;
     });
     // Linha que MUDOU de disciplina e está sem ninguém recebe o responsável da nova (D22).
     // Só na mudança: herdar a cada edição devolveria as pessoas a uma linha que o
@@ -983,6 +1005,7 @@ export const registrarExecucao = defineAction(
       inicioReal: i.inicioReal,
       fimReal: i.fimReal,
       hoje: paraDia(inicioDoDiaUtc()),
+      autorId: user.id,
     });
     await aposMudarEap(projetoId, user.id);
 

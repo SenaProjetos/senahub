@@ -63,6 +63,8 @@ model User {
   id            String  @id @default(cuid())
   /// Modelos de EAP que esta pessoa importou (decisão #5).
   modelosEap    ModeloEap[] @relation("ModeloEapAutor")
+  /// % concluído que esta pessoa informou em linhas da EAP (decisão #17).
+  progressosEap EapProgressoRegistro[] @relation("EapProgressoAutor")
   /// Nome de EXIBIÇÃO — mostrado nas telas (o usuário pode escolher/encurtar o próprio).
   name          String
   /// Nome COMPLETO (cadastro/documentos formais: holerite, contrato, NF). Cai em `name` quando vazio.
@@ -4355,6 +4357,52 @@ model ValorAgregadoApuracao {
   @@map("valor_agregado_apuracao")
 }
 
+/// De onde veio o percentual informado — o que separa "a coordenação digitou 60%" de "alguém marcou
+/// a tarefa como concluída e o sistema derivou 100%".
+enum OrigemProgressoEap {
+  informado // Digitado no editor da linha ou na célula da tabela
+  execucao // Derivado das datas reais ("Atualizar tarefa")
+}
+
+/// Histórico do % concluído de uma linha (decisão #17 de 2026-09-25). Uma linha por MUDANÇA.
+///
+/// Existe porque o Valor Agregado precisa do % que valia NA DATA DE STATUS, não o de hoje: sem
+/// histórico, reapurar uma data passada usava o avanço atual e dava um VA otimista — e a apuração
+/// gravada na semana passada não podia ser recalculada nem conferida.
+///
+/// `anterior` é o que faz a leitura funcionar sem backfill: para uma data ANTES do primeiro registro,
+/// vale o `anterior` do registro mais antigo (o valor de então), não o mais novo. Sem ele, uma data de
+/// antes da mudança leria o valor de depois dela.
+///
+/// `dataStatusVigente` é a Data de Status do projeto no momento em que alguém digitou. É o que cobre o
+/// jeito normal de trabalhar: a Data de Status é sexta, a coordenação atualiza os percentuais na
+/// segunda "referentes a sexta" e apura. Filtrar só pelo relógio jogaria fora tudo o que foi digitado
+/// na segunda. Depois não há como reconstruir esse valor, por isso é gravado aqui.
+///
+/// Só linha-folha entra: o % de resumo é rollup do motor, não informação de ninguém.
+model EapProgressoRegistro {
+  id       String    @id @default(cuid())
+  tarefaId String
+  tarefa   EapTarefa @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+
+  /// 0–100 informado agora.
+  progresso Int
+  /// 0–100 que a linha tinha antes desta mudança.
+  anterior  Int
+
+  /// Relógio da gravação.
+  em                DateTime           @default(now())
+  /// Data de Status do projeto naquele momento (`null` = projeto sem Data de Status definida).
+  dataStatusVigente DateTime?          @db.Date
+  origem            OrigemProgressoEap @default(informado)
+
+  autorId String?
+  autor   User?   @relation("EapProgressoAutor", fields: [autorId], references: [id], onDelete: SetNull)
+
+  @@index([tarefaId, em])
+  @@map("eap_progresso_registro")
+}
+
 /// Versão da linha de base (BL-00, BL-01…, Doc 03 §20). NUNCA sobrescrita: replanejar
 /// cria uma versão nova, com autor e motivo. É o que responde, no fim do projeto,
 /// "o prazo estourou 40 dias e 25 entraram naquele replanejamento de março, por atraso
@@ -4525,6 +4573,9 @@ model EapTarefa {
   @@index([sistemaId])
   @@index([localizacaoId])
   @@index([origemId])
+  /// Histórico do % informado (decisão #17).
+  progressos EapProgressoRegistro[]
+
   @@map("eap_tarefa")
 }
 
