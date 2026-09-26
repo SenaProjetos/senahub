@@ -27,21 +27,21 @@ segue em andamento (o que foi feito está marcado em cada item).
    - `20260925160100_atribuicao_externa_sem_pessoa` — os dois CHECKs do recurso "Externo"
    - `20260926090000_modelo_eap` — `modelo_eap` + `projeto.tipoEmpreendimentoId` (decisão #5 / D13)
    - `20260926120000_eap_progresso_historico` — histórico do % concluído (decisão #17); sem backfill
-2. `scripts/converter-duracao-eap.ts --gravar` **UMA vez, antes de qualquer pessoa mexer num
-   cronograma** (B2). A F0 gravou a duração das linhas antigas em dias CORRIDOS; a partir do B2 toda
-   mudança reagenda pelo motor, que conta dias ÚTEIS, e o cronograma inteiro esticaria ~40% no primeiro
-   clique. Só cronogramas em rascunho; só a duração que ainda é a de dias corridos; rodar de novo não
-   muda nada. Rode primeiro sem `--gravar` e confira a lista.
-3. `scripts/herdar-responsaveis-eap.ts --gravar` **UMA vez**. Sem ele, toda linha antiga fica "sem
-   responsável" e a Saúde de todo projeto cai no dia do deploy. Rodar de novo depois desfaria escolhas
-   do coordenador — para isso existe o botão "Herdar responsáveis" por projeto.
-4. `scripts/marcar-etapas-de-terceiro.ts` **UMA vez** (decisão #1). Converte a linha que era
-   reconhecida como etapa de terceiro pela ORIGEM (CLI, ARQ, EXT, FIS, APR, CON, OBR) para a marca
-   nova, o recurso "Externo". Sem ele, essas linhas voltam a contar como trabalho da casa: ganham card
-   ao aprovar o cronograma e passam a ser cobradas de hora e de responsável. Rode primeiro sem
-   `--gravar` e confira a lista (no banco de dev, 2026-09-25, não havia nenhuma). Rodar de novo depois
-   do deploy remarcaria linha que alguém desmarcou de propósito — é uma vez, e depois pela tela.
-5. `npm run verify:motor-cronograma` em produção.
+2. **Os três scripts de "uma vez só" são NO-OP nesta casa** (dono, 2026-09-26: *"em produção não tem
+   nenhuma linha antiga. não usávamos EAP antes"*). Todos existem para converter linha de EAP que já
+   existia, e produção não tem nenhuma. Rode os três **em simulação** (sem `--gravar`) só para confirmar
+   por escrito, e siga:
+   - `scripts/converter-duracao-eap.ts` (B2) — a F0 gravou a duração das linhas antigas em dias CORRIDOS,
+     e a partir do B2 toda mudança reagenda contando dias ÚTEIS. Sem linha antiga, nada a converter.
+   - `scripts/herdar-responsaveis-eap.ts` — preenche o responsável das linhas de antes da F5. Sem linha
+     antiga, nada a herdar (o botão "Herdar responsáveis" por projeto continua servindo no dia a dia).
+   - `scripts/marcar-etapas-de-terceiro.ts` (decisão #1) — converte a linha reconhecida como etapa de
+     terceiro pela ORIGEM (CLI, ARQ, EXT, FIS, APR, CON, OBR) para o recurso "Externo". Sem linha antiga,
+     nada a marcar; daqui para a frente quem marca é o botão da tela.
+
+   **Se algum deles listar alguma linha**, aí o pressuposto mudou: rode com `--gravar`, uma vez, na ordem
+   acima e ANTES de alguém abrir um cronograma. Rodar de novo depois desfaria escolha de coordenador.
+3. `npm run verify:motor-cronograma` em produção.
 
 Antes do deploy (meio período, decisão #2): listar quem tem capacidade diferente de 1 e as alocações digitadas
 dessas pessoas, para o time redigitar o %, que agora vale sobre a capacidade DELA (50 → 100 se a pessoa está
@@ -60,11 +60,11 @@ ORDER BY u.name, p.codigo;
 Notas:
 - F7 e F8 não pedem seed nem permissão nova (reusam `aprovacoes:disciplina`, `cronograma:executado`,
   `financeiro:gerir`, `juridico:gerir`). A permissão do cronograma veio por migration na F2.6.
-- Antes do deploy, contar em produção os cards com `Tarefa.eapTarefaId` preenchido (criados em
-  rascunho pelo botão antigo, sem responsável): quando o cronograma desses projetos for aprovado,
-  título, prazo e responsáveis passam a vir da EAP.
-- Nenhum dado existente muda: nenhum cronograma de produção está aprovado (D27), disciplina sem
-  etapas paga como antes, contrato existente fica "por data".
+- ~~Antes do deploy, contar em produção os cards com `Tarefa.eapTarefaId` preenchido.~~ Zero, pela mesma
+  razão: a casa não usava EAP em produção, então não há card vindo dela.
+- Nenhum dado existente muda: **produção não tem linha de EAP nenhuma** (a casa não usava EAP antes),
+  nenhum cronograma está aprovado (D27), disciplina sem etapas paga como antes, contrato existente fica
+  "por data". Na prática, o deploy é `migrate deploy` + `verify:motor-cronograma`.
 
 ---
 
