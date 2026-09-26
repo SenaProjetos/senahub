@@ -1,10 +1,10 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { salvarFaixasEncargo, salvarDeducaoDependente } from "@/modules/rh/encargos/actions";
 import type { FaixaDTO } from "@/modules/rh/encargos/queries";
 import { Button } from "@/components/ui/button";
@@ -144,19 +144,7 @@ function DeducaoDependente({ inicial }: { inicial: number }) {
 export function EncargosView({ inss, irrf, deducaoDep }: { inss: FaixaDTO[]; irrf: FaixaDTO[]; deducaoDep: number }) {
   return (
     <div className="space-y-5">
-      <div>
-        <Link
-          href="/configuracoes"
-          className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-3" /> Configurações
-        </Link>
-        <h2 className="text-2xl font-extrabold tracking-tight">Encargos da folha</h2>
-        <p className="text-sm text-muted-foreground">
-          Faixas progressivas de INSS e IRRF. Informe os valores vigentes; o holerite usa estas
-          faixas no botão “Calcular encargos”. Para a última faixa, use um limite alto.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Encargos da folha" descricao="Faixas progressivas de INSS e IRRF. Informe os valores vigentes; o holerite usa estas faixas no botão “Calcular encargos”. Para a última faixa, use um limite alto." />
 
       <DeducaoDependente inicial={deducaoDep} />
       <div className="grid gap-4 lg:grid-cols-2">

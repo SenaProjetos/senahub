@@ -1,6 +1,5 @@
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { analiseUso } from "@/modules/auditoria/queries";
 import { PeriodoSelect } from "@/components/auditoria/periodo-select";
@@ -26,23 +25,15 @@ export default async function UsoPage({ searchParams }: { searchParams: Promise<
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <Link
-            href="/auditoria"
-            className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="size-3" /> Auditoria
-          </Link>
-          <h2 className="text-2xl font-extrabold tracking-tight">Uso por seção</h2>
-          <p className="text-sm text-muted-foreground">
-            Acessos (page-views) e ações por seção nos últimos {dias} dias — {data.totalAcessos} acessos · {data.totalAcoes} ações.
-            {data.porDispositivo.celular + data.porDispositivo.computador > 0 &&
-              ` Celular: ${Math.round((data.porDispositivo.celular / (data.porDispositivo.celular + data.porDispositivo.computador)) * 100)}% dos acessos com dispositivo registrado (${data.porDispositivo.celular} celular · ${data.porDispositivo.computador} computador).`}
-          </p>
-        </div>
-        <PeriodoSelect dias={dias} />
-      </div>
+      <CabecalhoPagina
+        titulo="Uso por seção"
+        descricao={<>Acessos (page-views) e ações por seção nos últimos {dias} dias — {data.totalAcessos} acessos · {data.totalAcoes} ações. {data.porDispositivo.celular + data.porDispositivo.computador > 0 && ` Celular: ${Math.round((data.porDispositivo.celular / (data.porDispositivo.celular + data.porDispositivo.computador)) * 100)}% dos acessos com dispositivo registrado (${data.porDispositivo.celular} celular · ${data.porDispositivo.computador} computador).`}</>}
+        acoes={
+          <>
+          <PeriodoSelect dias={dias} />
+          </>
+        }
+      />
 
       <UsoCards metricas={data.metricas} dias={dias} />
 

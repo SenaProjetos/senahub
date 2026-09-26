@@ -1,10 +1,10 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Pencil, Trash2, Eye, EyeOff, FileQuestion } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, EyeOff, FileQuestion } from "lucide-react";
 import {
   criarExtensaoArquivo,
   editarExtensaoArquivo,
@@ -144,21 +144,17 @@ export function ExtensoesCatalogoView({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link href="/configuracoes" className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="size-3" /> Configurações
-          </Link>
-          <h2 className="text-2xl font-extrabold tracking-tight">Catálogo de extensões</h2>
-          <p className="text-sm text-muted-foreground">
-            O que cada formato de arquivo significa para o motor de nomenclatura: categoria, software, se é
-            backup, temporário ou um pacote que contém outros arquivos.
-          </p>
-        </div>
-        <Button onClick={() => setDialogo(VAZIO)} disabled={pending}>
-          <Plus className="size-4" /> Cadastrar extensão
-        </Button>
-      </div>
+      <CabecalhoPagina
+        titulo="Catálogo de extensões"
+        descricao="O que cada formato de arquivo significa para o motor de nomenclatura: categoria, software, se é backup, temporário ou um pacote que contém outros arquivos."
+        acoes={
+          <>
+          <Button onClick={() => setDialogo(VAZIO)} disabled={pending}>
+            <Plus className="size-4" /> Cadastrar extensão
+          </Button>
+          </>
+        }
+      />
 
       {desconhecidas.length > 0 && (
         <Card className="border-dashed">

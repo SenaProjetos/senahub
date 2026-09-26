@@ -1,6 +1,5 @@
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { catalogosPranchaConfig } from "@/modules/projetos/pranchas/queries";
 import { nomenclaturaGlobal } from "@/modules/projetos/nomenclatura/queries";
@@ -24,15 +23,7 @@ export default async function ListaMestreConfigPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <Link href="/configuracoes" className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="size-3" /> Configurações
-        </Link>
-        <h2 className="text-2xl font-extrabold tracking-tight">Lista Mestre</h2>
-        <p className="text-sm text-muted-foreground">
-          Siglas de folha, tipo e fase usadas na composição do código das folhas técnicas (globais a todos os projetos).
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Lista Mestre" descricao="Siglas de folha, tipo e fase usadas na composição do código das folhas técnicas (globais a todos os projetos)." />
       <NomenclaturaForm
         escopo="global"
         inicial={{ exigir: nomencla.exigir, exigirFase: nomencla.exigirFase, padrao: nomencla.padrao }}

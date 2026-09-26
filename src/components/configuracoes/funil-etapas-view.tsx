@@ -1,10 +1,10 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Check, X, Funnel } from "lucide-react";
+import { Plus, Check, X, Funnel } from "lucide-react";
 import {
   criarEtapaFunil,
   editarEtapaFunil,
@@ -61,18 +61,7 @@ export function FunilEtapasView({ etapas }: { etapas: EtapaFunilConfig[] }) {
 
   return (
     <div className="space-y-5">
-      <div>
-        <Link
-          href="/configuracoes"
-          className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-3" /> Configurações
-        </Link>
-        <h2 className="text-2xl font-extrabold tracking-tight">Etapas do funil comercial</h2>
-        <p className="text-sm text-muted-foreground">
-          Estágios do pipeline de vendas. Desative etapas sem remover histórico de leads.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Etapas do funil comercial" descricao="Estágios do pipeline de vendas. Desative etapas sem remover histórico de leads." />
 
       <Card>
         <CardHeader className="pb-2">

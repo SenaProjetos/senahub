@@ -1,6 +1,5 @@
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { detalheSecao } from "@/modules/auditoria/queries";
 import { moduloLabel } from "@/modules/auditoria/labels";
@@ -29,16 +28,7 @@ export default async function SecaoUsoPage({
 
   return (
     <div className="space-y-4">
-      <div>
-        <Link
-          href={`/auditoria/uso?dias=${dias}`}
-          className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-3" /> Uso por seção
-        </Link>
-        <h2 className="text-2xl font-extrabold tracking-tight">{moduloLabel(secao)}</h2>
-        <p className="text-sm text-muted-foreground">Detalhe de uso nos últimos {dias} dias.</p>
-      </div>
+      <CabecalhoPagina titulo={<>{moduloLabel(secao)}</>} descricao={<>Detalhe de uso nos últimos {dias} dias.</>} />
       <DetalheSecaoView d={d} />
     </div>
   );

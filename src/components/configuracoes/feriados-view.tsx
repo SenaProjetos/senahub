@@ -1,10 +1,10 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Download, CalendarOff, Repeat } from "lucide-react";
+import { Plus, Trash2, Download, CalendarOff, Repeat } from "lucide-react";
 import {
   salvarFeriado,
   excluirFeriado,
@@ -130,15 +130,7 @@ export function FeriadosView({
 
   return (
     <div className="space-y-5">
-      <div>
-        <Link href="/configuracoes" className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="size-3" /> Configurações
-        </Link>
-        <h2 className="text-2xl font-extrabold tracking-tight">Feriados</h2>
-        <p className="text-sm text-muted-foreground">
-          Usados no ponto/escala (descontam do esperado) e exibidos na Agenda. Feriados de data fixa podem repetir todo ano.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Feriados" descricao="Usados no ponto/escala (descontam do esperado) e exibidos na Agenda. Feriados de data fixa podem repetir todo ano." />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Select value={String(ano)} onValueChange={(v) => router.push(`/configuracoes/feriados?ano=${v ?? ano}`)}>

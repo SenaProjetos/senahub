@@ -1,6 +1,6 @@
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { documentosGerados } from "@/modules/documentos/queries";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,18 +20,7 @@ export default async function DocumentosGeradosPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <Link
-          href="/documentos"
-          className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-3" /> Estúdio de Documentos
-        </Link>
-        <h2 className="text-2xl font-extrabold tracking-tight">Documentos gerados</h2>
-        <p className="text-sm text-muted-foreground">
-          Histórico imutável do que foi produzido (modelo, parâmetros, autor e data).
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Documentos gerados" descricao="Histórico imutável do que foi produzido (modelo, parâmetros, autor e data)." />
 
       <Card>
         <CardContent className="p-0">

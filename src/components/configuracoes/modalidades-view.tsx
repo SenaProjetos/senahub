@@ -1,10 +1,10 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, RotateCcw, Check, X, Tags } from "lucide-react";
+import { Plus, Trash2, RotateCcw, Check, X, Tags } from "lucide-react";
 import {
   salvarModalidade,
   alternarModalidade,
@@ -74,15 +74,7 @@ export function ModalidadesView({ modalidades }: { modalidades: Modalidade[] }) 
 
   return (
     <div className="space-y-5">
-      <div>
-        <Link href="/configuracoes" className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="size-3" /> Configurações
-        </Link>
-        <h2 className="text-2xl font-extrabold tracking-tight">Modalidades de licitação</h2>
-        <p className="text-sm text-muted-foreground">
-          Lista usada no cadastro/edição de licitações. Desative para esconder do select sem apagar.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Modalidades de licitação" descricao="Lista usada no cadastro/edição de licitações. Desative para esconder do select sem apagar." />
 
       <div className="flex justify-end">
         <Button size="sm" variant="outline" onClick={restaurar} disabled={pending}>

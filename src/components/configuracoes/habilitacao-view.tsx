@@ -1,10 +1,10 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, ListChecks, FileText } from "lucide-react";
+import { Plus, Trash2, ListChecks, FileText } from "lucide-react";
 import {
   salvarChecklistModelo,
   excluirChecklistModelo,
@@ -171,18 +171,7 @@ export function HabilitacaoView({ modelos }: { modelos: Modelo[] }) {
 
   return (
     <div className="space-y-5">
-      <div>
-        <Link
-          href="/configuracoes"
-          className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-3" /> Configurações
-        </Link>
-        <h2 className="text-2xl font-extrabold tracking-tight">Checklist de habilitação</h2>
-        <p className="text-sm text-muted-foreground">
-          Modelos de exigências de habilitação usados nas licitações.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Checklist de habilitação" descricao="Modelos de exigências de habilitação usados nas licitações." />
 
       <Card>
         <CardHeader className="pb-2">

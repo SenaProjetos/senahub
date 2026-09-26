@@ -1,10 +1,10 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { salvarConfigLicitacoes } from "@/modules/licitacoes/config/actions";
 import type { ConfigLicitacoes } from "@/modules/licitacoes/config/defaults";
 import { Button } from "@/components/ui/button";
@@ -121,18 +121,7 @@ export function LicitacoesConfigView({ config }: { config: ConfigLicitacoes }) {
 
   return (
     <div className="space-y-5">
-      <div>
-        <Link
-          href="/configuracoes"
-          className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-3" /> Configurações
-        </Link>
-        <h2 className="text-2xl font-extrabold tracking-tight">Parâmetros de licitação</h2>
-        <p className="text-sm text-muted-foreground">
-          Prazos de recurso, limite de aditivo, modo PNCP/reajuste e alertas.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Parâmetros de licitação" descricao="Prazos de recurso, limite de aditivo, modo PNCP/reajuste e alertas." />
 
       <div className="flex items-start gap-2 rounded-lg border border-warning/50 bg-warning/10 p-3 text-sm text-warning-foreground">
         <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />

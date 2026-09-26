@@ -1,10 +1,10 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 import { salvarPadraoDocumento } from "@/modules/documentos/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -42,19 +42,7 @@ export function PadroesDocumentoView({ fontes }: { fontes: Fonte[] }) {
 
   return (
     <div className="space-y-5">
-      <div>
-        <Link
-          href="/configuracoes"
-          className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-3" /> Configurações
-        </Link>
-        <h2 className="text-2xl font-extrabold tracking-tight">Documentos padrão</h2>
-        <p className="text-sm text-muted-foreground">
-          Modelo do Estúdio usado por padrão em cada fonte (ex.: proposta usa o modelo X). O botão
-          “Gerar documento” mostra o padrão em primeiro lugar.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Documentos padrão" descricao="Modelo do Estúdio usado por padrão em cada fonte (ex.: proposta usa o modelo X). O botão “Gerar documento” mostra o padrão em primeiro lugar." />
 
       {fontes.length === 0 ? (
         <Card>

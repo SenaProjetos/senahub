@@ -1,11 +1,11 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
-  ArrowLeft,
   Plus,
   Pencil,
   Upload,
@@ -326,24 +326,18 @@ export function DisciplinasCatalogoView({ itens, versoes }: { itens: DisciplinaC
 
   return (
     <div className="space-y-5">
+      <CabecalhoPagina
+        titulo="Catálogo de Disciplinas"
+        descricao="Nomes canônicos usados em projetos e propostas. O código é usado na nomenclatura de arquivos."
+        acoes={
+          <>
+          <Button onClick={() => setDialogo(VAZIO)} disabled={pending}>
+            <Plus className="size-4" /> Adicionar nova disciplina
+          </Button>
+          </>
+        }
+      />
       <DicaMenuContexto />
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link
-            href="/configuracoes"
-            className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="size-3" /> Configurações
-          </Link>
-          <h2 className="text-2xl font-extrabold tracking-tight">Catálogo de Disciplinas</h2>
-          <p className="text-sm text-muted-foreground">
-            Nomes canônicos usados em projetos e propostas. O código é usado na nomenclatura de arquivos.
-          </p>
-        </div>
-        <Button onClick={() => setDialogo(VAZIO)} disabled={pending}>
-          <Plus className="size-4" /> Adicionar nova disciplina
-        </Button>
-      </div>
 
       {/* Barra de ferramentas: busca · categoria · arquivadas */}
       <div className="flex flex-wrap items-center gap-3">

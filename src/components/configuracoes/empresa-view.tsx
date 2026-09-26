@@ -1,10 +1,10 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowLeft, Building2, FileSignature, Landmark, Upload, X } from "lucide-react";
+import { AlertTriangle, Building2, FileSignature, Landmark, Upload, X } from "lucide-react";
 import { salvarDadosEmpresa } from "@/modules/configuracoes/empresa/actions";
 import type { DadosEmpresa } from "@/modules/configuracoes/empresa/queries";
 import { camposTermoPendentes } from "@/modules/legal/marcadores-empresa";
@@ -113,19 +113,7 @@ export function EmpresaView({ dados }: { dados: DadosEmpresa | null }) {
 
   return (
     <div className="space-y-5">
-      <div>
-        <Link
-          href="/configuracoes"
-          className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-3" /> Configurações
-        </Link>
-        <h2 className="text-2xl font-extrabold tracking-tight">Dados da empresa</h2>
-        <p className="text-sm text-muted-foreground">
-          Razão social, CNPJ, endereço e logo usados no timbrado dos PDFs gerados pelo sistema
-          (hoje: holerite do funcionário CLT) e na identificação da empresa no Termo de Uso.
-        </p>
-      </div>
+      <CabecalhoPagina titulo="Dados da empresa" descricao="Razão social, CNPJ, endereço e logo usados no timbrado dos PDFs gerados pelo sistema (hoje: holerite do funcionário CLT) e na identificação da empresa no Termo de Uso." />
 
       <Card className="max-w-xl">
         <CardHeader>
