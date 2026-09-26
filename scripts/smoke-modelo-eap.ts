@@ -109,12 +109,25 @@ async function main() {
     check("o atraso de 4800 décimos virou 1 dia útil", previa.estrutura.linhas.some((l) => l.predecessoras.some((v) => v.lagDias === 1)));
 
     // ── 2. Gravar o modelo ─────────────────────────────────────────────────
+    check("a prévia lista a fase do modelo para pedir o percentual (D38)", previa.fasesDoModelo.some((f) => f.etapaId === fase.id), previa.fasesDoModelo);
     const salvo = await salvarModeloDeEap({
       nome: `${tag}-modelo`,
       estrutura: previa.estrutura,
       arquivoNome: "teste.xml",
       autorId: admin.id,
+      // D38: o arquivo tem uma fase só, então ela leva 100% do valor da disciplina.
+      respostas: { percentuaisPorFase: { [fase.id]: 100 } },
     });
+
+    const somaErrada = await erroDe(() =>
+      salvarModeloDeEap({
+        nome: `${tag}-modelo-ruim`,
+        estrutura: previa.estrutura,
+        autorId: admin.id,
+        respostas: { percentuaisPorFase: { [fase.id]: 40 } },
+      }),
+    );
+    check("percentual que não fecha 100 é recusado ao gravar", !!somaErrada && /100%/.test(somaErrada), somaErrada);
     modeloId = salvo.id;
     check("modelo gravado com a contagem de linhas e marcos", salvo.totalLinhas === 7 && salvo.totalMarcos === 1, salvo);
 
@@ -125,14 +138,11 @@ async function main() {
     check("e aplicar é recusado com a MESMA frase", recusa === semDisciplina.impedimento, { recusa });
 
     // ── 4. Só a disciplina A no projeto: o galho da B é podado ─────────────
+    // Projeto NOVO de verdade: disciplina sem fase nenhuma cadastrada. É o caso que descartaria a fase de
+    // toda linha antes do D38 — quem cadastra a fase agora é a aplicação do modelo.
     const discNoProjeto = await prisma.disciplina.create({
       data: { projetoId: projeto.id, disciplinaTextoLegado: discA.nome, disciplinaId: discA.id, ordem: 0 },
       select: { id: true },
-    });
-    // A fase só desce para a linha se a disciplina DO PROJETO tiver essa etapa cadastrada (mesma regra
-    // da clonagem): sem etapa, o campo Fase não existe no editor e a linha ficaria com fase invisível.
-    await prisma.disciplinaEtapa.create({
-      data: { disciplinaId: discNoProjeto.id, etapaId: fase.id, percentual: 100, ordem: 0 },
     });
     const previa2 = await previaDaAplicacao({ projetoId: projeto.id, modeloId: salvo.id });
     check("a prévia diz quantas linhas cria e o que poda", previa2.criar === 5 && previa2.podadas.length === 1, {
@@ -140,10 +150,27 @@ async function main() {
       podadas: previa2.podadas,
     });
     check("sem impedimento agora", previa2.impedimento === null, previa2.impedimento);
+    check(
+      "a prévia avisa que vai cadastrar a fase da disciplina, com o percentual",
+      previa2.fasesACriar.length === 1 && previa2.fasesACriar[0].percentual === 100,
+      previa2.fasesACriar,
+    );
+    check("e nenhuma disciplina fica sem fase", previa2.disciplinasSemFase.length === 0, previa2.disciplinasSemFase);
 
     const r = await aplicarModeloNoProjeto({ projetoId: projeto.id, modeloId: salvo.id });
     check("aplicou criando as linhas que sobraram", r.criadas === 5, r);
     check("com o vínculo e a etapa de terceiro", r.vinculos === 1 && r.terceiros === 1, r);
+    check("cadastrou a fase da disciplina (D38)", r.fasesCadastradas === 1 && r.disciplinasSemFase === 0, r);
+
+    const etapaCriada = await prisma.disciplinaEtapa.findFirst({
+      where: { disciplinaId: discNoProjeto.id },
+      select: { etapaId: true, percentual: true, ordem: true },
+    });
+    check(
+      "a fase cadastrada é a do modelo, com 100% e ordem 0",
+      etapaCriada?.etapaId === fase.id && Number(etapaCriada?.percentual) === 100 && etapaCriada?.ordem === 0,
+      etapaCriada,
+    );
 
     const linhas = await prisma.eapTarefa.findMany({
       where: { projetoId: projeto.id },

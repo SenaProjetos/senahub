@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { aplicarRespostas, chaveDeNome, mapearArquivo, sugereTerceiro, type CatalogosParaMapear } from "./mapeamento";
+import {
+  aplicarRespostas,
+  chaveDeNome,
+  fasesDoModelo,
+  mapearArquivo,
+  sugereTerceiro,
+  validarPercentuaisPorFase,
+  type CatalogosParaMapear,
+} from "./mapeamento";
 import type { ArquivoMspdi, LinhaMspdi } from "./mspdi";
 
 const disciplinas = [
@@ -209,5 +217,73 @@ describe("aplicarRespostas", () => {
     const r = aplicarRespostas(base, { terceiros: ["1", "2", "3"] });
     const por = new Map(r.linhas.map((x) => [x.id, x]));
     expect([por.get("1")!.deTerceiro, por.get("2")!.deTerceiro, por.get("3")!.deTerceiro]).toEqual([false, false, true]);
+  });
+});
+
+describe("percentual por fase (D38)", () => {
+  const comDuasFases = mapearArquivo(
+    arq([
+      l("1", 1, "BÁSICO", { resumo: true }),
+      l("2", 2, "ESTRUTURAL", { resumo: true }),
+      l("3", 3, "Modelagem básica"),
+      l("4", 1, "EXECUTIVO", { resumo: true }),
+      l("5", 2, "ESTRUTURAL", { resumo: true }),
+      l("6", 3, "Detalhamento"),
+    ]),
+    cat,
+  ).estrutura;
+
+  it("lista só as fases que o modelo usa, com quantas linhas caem em cada", () => {
+    expect(fasesDoModelo(comDuasFases)).toEqual([
+      { etapaId: "f-bs", linhas: 3 },
+      { etapaId: "f-ex", linhas: 3 },
+    ]);
+  });
+
+  it("vazio é resposta válida: não cadastra fase nenhuma", () => {
+    expect(validarPercentuaisPorFase(comDuasFases)).toEqual({ ok: true, cadastrar: false });
+  });
+
+  it("soma 100 fecha", () => {
+    const r = aplicarRespostas(comDuasFases, { percentuaisPorFase: { "f-bs": 40, "f-ex": 60 } });
+    expect(validarPercentuaisPorFase(r)).toEqual({ ok: true, cadastrar: true });
+  });
+
+  it("centavos fecham (33,33 + 33,33 + 33,34)", () => {
+    const tres = aplicarRespostas(
+      mapearArquivo(
+        arq([
+          l("1", 1, "BÁSICO", { resumo: true }),
+          l("2", 2, "Atividade"),
+          l("3", 1, "EXECUTIVO", { resumo: true }),
+          l("4", 2, "Atividade"),
+          l("5", 1, "AS BUILT", { resumo: true }),
+          l("6", 2, "Atividade"),
+        ]),
+        { ...cat, fases: [...fases, { id: "f-ab", nome: "As Built", sigla: "AB", sinonimos: [] }] },
+      ).estrutura,
+      { percentuaisPorFase: { "f-bs": 33.33, "f-ex": 33.33, "f-ab": 33.34 } },
+    );
+    expect(validarPercentuaisPorFase(tres)).toEqual({ ok: true, cadastrar: true });
+  });
+
+  it("soma que não fecha é recusada, dizendo quanto deu", () => {
+    const r = aplicarRespostas(comDuasFases, { percentuaisPorFase: { "f-bs": 40, "f-ex": 40 } });
+    const v = validarPercentuaisPorFase(r);
+    expect(v.ok).toBe(false);
+    expect(v.ok === false && v.motivo).toContain("80%");
+  });
+
+  it("informar só uma das fases é recusado — 100% da disciplina ficaria numa fase só", () => {
+    const r = aplicarRespostas(comDuasFases, { percentuaisPorFase: { "f-bs": 100 } });
+    const v = validarPercentuaisPorFase(r);
+    expect(v.ok).toBe(false);
+    expect(v.ok === false && v.motivo).toContain("todas as 2 fases");
+  });
+
+  it("trocar a fase por disciplina na conferência descarta o percentual dela", () => {
+    const comPct = aplicarRespostas(comDuasFases, { percentuaisPorFase: { "f-bs": 40, "f-ex": 60 } });
+    const semExecutivo = aplicarRespostas(comPct, { mapaFase: { executivo: null } });
+    expect(Object.keys(semExecutivo.percentuaisPorFase)).toEqual(["f-bs"]);
   });
 });

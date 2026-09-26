@@ -24,6 +24,10 @@ export type PreviaDeModelo = {
   vinculos: number;
   terceiros: number;
   podadas: { disciplina: string; linhas: number }[];
+  /** D38: fases que aplicar cadastra nas disciplinas do projeto, com o percentual do modelo. */
+  fasesACriar: { disciplina: string; fase: string; percentual: number }[];
+  /** Disciplinas que ficam sem fase — a linha delas perde a fase. */
+  disciplinasSemFase: string[];
   impedimento: string | null;
 };
 
@@ -49,7 +53,9 @@ export function AplicarModeloDialog({ projetoId, previas }: { projetoId: string;
       const r = await aplicarModeloEap({ projetoId, modeloId: previa.modeloId });
       if (!r.ok) return void toast.error(r.error);
       toast.success(
-        `${r.data.criadas} linha(s) criadas do modelo${r.data.podadas > 0 ? ` (${r.data.podadas} de fora, por disciplina)` : ""}.`,
+        `${r.data.criadas} linha(s) criadas do modelo` +
+          `${r.data.podadas > 0 ? ` (${r.data.podadas} de fora, por disciplina)` : ""}` +
+          `${r.data.fasesCadastradas > 0 ? ` · ${r.data.fasesCadastradas} fase(s) cadastrada(s)` : ""}.`,
       );
       setAberto(false);
       router.refresh();
@@ -105,6 +111,27 @@ export function AplicarModeloDialog({ projetoId, previas }: { projetoId: string;
                 ))}
               </ul>
             </div>
+          )}
+
+          {previa.fasesACriar.length > 0 && (
+            <div className="rounded-sm border px-3 py-2 text-xs">
+              <p className="font-medium">Cadastra as fases da disciplina (e o pagamento passa a ser por fase):</p>
+              <ul className="mt-1 list-disc pl-4 text-muted-foreground">
+                {previa.fasesACriar.map((f) => (
+                  <li key={`${f.disciplina}-${f.fase}`}>
+                    {f.disciplina} · {f.fase} — {f.percentual}%
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {previa.disciplinasSemFase.length > 0 && (
+            <p className="flex items-start gap-1.5 text-xs text-warning">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+              Sem fase cadastrada: {previa.disciplinasSemFase.join(", ")}. As linhas entram sem fase, e o
+              marco dessas disciplinas não marca a fase como Entregue.
+            </p>
           )}
 
           {previa.impedimento && (

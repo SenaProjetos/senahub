@@ -56,7 +56,10 @@ Depois de revisar o novo planejamento, o time decidiu alguns pontos. O que já e
   (disciplina que o projeto não tem). Do arquivo vêm árvore, durações, dependências e marcos; datas,
   horas e pessoas continuam sendo do projeto. O projeto ganhou também o campo **Tipo de
   empreendimento**, que vem preenchido quando ele nasce de uma negociação e serve para sugerir o
-  modelo.
+  modelo. Na importação você informa **quanto do valor da disciplina cabe a cada fase** (Básico 40%,
+  Executivo 60%, somando 100%): aplicando o modelo, essas fases são cadastradas nas disciplinas do
+  projeto que ainda não têm fase, que é o que faz o marco marcar a fase como Entregue e o pagamento por
+  fase funcionar.
 - **Etapa de terceiro marcada na mão:** na seção **Recursos** da linha há o botão **Etapa de
   terceiro**. A linha passa a valer como trabalho de fora da casa (cliente, arquitetura, prefeitura,
   concessionária): segura prazo, mas **não gera card, não cobra hora e custa zero**, e o verificador

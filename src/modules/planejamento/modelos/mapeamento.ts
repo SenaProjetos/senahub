@@ -207,6 +207,48 @@ function montarArvore(linhas: readonly Preparada[]): Map<string, string | null> 
   return pai;
 }
 
+/**
+ * As fases que o modelo realmente usa, com quantas linhas caem em cada uma. É a lista que a
+ * conferência pede percentual (D38) — fase que o modelo não usa não entra na divisão do valor.
+ */
+export function fasesDoModelo(estrutura: EstruturaModelo): { etapaId: string; linhas: number }[] {
+  const por = new Map<string, number>();
+  for (const l of estrutura.linhas) {
+    if (!l.etapaId) continue;
+    por.set(l.etapaId, (por.get(l.etapaId) ?? 0) + 1);
+  }
+  return [...por.entries()].map(([etapaId, linhas]) => ({ etapaId, linhas })).sort((a, b) => b.linhas - a.linhas);
+}
+
+/**
+ * Os percentuais por fase fecham 100? Vazio é resposta válida ("não cadastrar fase"), e aí quem avisa o
+ * que se perde é a tela. Preenchido pela metade, não: o pagamento por fase exige soma 100 para aprovar,
+ * e gravar 40 + 40 deixaria 20% do valor da disciplina sem fase nenhuma.
+ */
+export function validarPercentuaisPorFase(
+  estrutura: EstruturaModelo,
+): { ok: true; cadastrar: boolean } | { ok: false; motivo: string } {
+  const fases = fasesDoModelo(estrutura);
+  const informados = Object.entries(estrutura.percentuaisPorFase).filter(([, v]) => Number.isFinite(v));
+  if (informados.length === 0) return { ok: true, cadastrar: false };
+
+  const doModelo = new Set(fases.map((f) => f.etapaId));
+  const sobrando = informados.filter(([id]) => !doModelo.has(id));
+  if (sobrando.length > 0) {
+    return { ok: false, motivo: "Há percentual informado para uma fase que este modelo não usa." };
+  }
+  const faltando = fases.filter((f) => !informados.some(([id]) => id === f.etapaId));
+  if (faltando.length > 0) {
+    return { ok: false, motivo: `Informe o percentual de todas as ${fases.length} fases do modelo, ou de nenhuma.` };
+  }
+  // Centavos, para 33,33 + 33,33 + 33,34 fechar.
+  const soma = informados.reduce((s, [, v]) => s + Math.round(v * 100), 0);
+  if (soma !== 10_000) {
+    return { ok: false, motivo: `A soma dos percentuais por fase é ${soma / 100}% — precisa fechar 100%.` };
+  }
+  return { ok: true, cadastrar: true };
+}
+
 export type ResultadoMapeamento = {
   estrutura: EstruturaModelo;
   conferencia: Conferencia;
@@ -378,6 +420,9 @@ export function mapearArquivo(arquivo: ArquivoMspdi, cat: CatalogosParaMapear): 
       linhas: linhasModelo,
       mapaDisciplina: Object.fromEntries([...paresDisc.values()].map((p) => [p.chave, p.catalogoId])),
       mapaFase: Object.fromEntries([...paresFase.values()].map((p) => [p.chave, p.catalogoId])),
+      // D38: o arquivo não tem valor nenhum, então o percentual por fase nasce vazio e vem da
+      // conferência (é dinheiro — ninguém adivinha).
+      percentuaisPorFase: {},
       avisos,
     },
     conferencia: {
@@ -408,6 +453,8 @@ export function aplicarRespostas(
     mapaFase?: Readonly<Record<string, string | null>>;
     /** Ids de linha que a pessoa marcou/desmarcou como etapa de terceiro. */
     terceiros?: readonly string[];
+    /** D38: percentual por fase do catálogo. `{}` = não cadastrar fase nenhuma. */
+    percentuaisPorFase?: Readonly<Record<string, number>>;
   },
 ): EstruturaModelo {
   const mapaDisciplina = { ...estrutura.mapaDisciplina, ...(respostas.mapaDisciplina ?? {}) };
@@ -442,6 +489,13 @@ export function aplicarRespostas(
     ...estrutura,
     mapaDisciplina,
     mapaFase,
+    // Só as fases que sobraram no modelo: trocar um agrupamento de fase para disciplina na conferência
+    // não pode deixar percentual órfão somando no total.
+    percentuaisPorFase: Object.fromEntries(
+      Object.entries(respostas.percentuaisPorFase ?? estrutura.percentuaisPorFase).filter(([id]) =>
+        [...faseDe.values()].includes(id),
+      ),
+    ),
     linhas: estrutura.linhas.map((l) => {
       const ehAgrupamento = comFilho.has(l.id);
       const tipoEap: LinhaModelo["tipoEap"] =

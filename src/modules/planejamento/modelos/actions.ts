@@ -24,6 +24,8 @@ const respostasSchema = z
     mapaDisciplina: z.record(z.string(), z.string().min(1).nullable()).optional(),
     mapaFase: z.record(z.string(), z.string().min(1).nullable()).optional(),
     terceiros: z.array(z.string().min(1)).max(2000).optional(),
+    /** D38: percentual do valor da disciplina por fase do catálogo. */
+    percentuaisPorFase: z.record(z.string(), z.number().finite().min(0).max(100)).optional(),
   })
   .optional();
 

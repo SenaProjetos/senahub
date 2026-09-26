@@ -27,6 +27,12 @@ export type ContextoAplicacao = {
   disciplinaDoProjeto: ReadonlyMap<string, string>;
   /** Fases (etapas) cadastradas em cada disciplina DO PROJETO. */
   fasesDaDisciplina: ReadonlyMap<string, ReadonlySet<string>>;
+  /**
+   * D38: quando o modelo traz percentual por fase, aplicar CADASTRA as fases das disciplinas que ainda
+   * não têm nenhuma — e por isso a linha guarda a fase que está sendo criada na mesma transação. Sem
+   * isto, projeto novo (que nunca tem fase cadastrada) perderia a fase de toda linha.
+   */
+  cadastrarFases: boolean;
   /** Linha do modelo → id e ID corporativo reservados (D29: identidade nova, nunca a do modelo). */
   novaLinha: ReadonlyMap<string, { id: string; idCorporativo: string }>;
   /** Data provisória de toda linha — a âncora do cronograma do projeto. */
@@ -45,6 +51,14 @@ export type ResultadoAplicacao = {
   dependencias: Prisma.EapDependenciaCreateManyInput[];
   /** Etapas de terceiro: nascem com o recurso "Externo" (decisão #1). */
   atribuicoesExternas: Prisma.EapAtribuicaoCreateManyInput[];
+  /**
+   * D38 — fases a cadastrar na disciplina DO PROJETO, com o percentual do modelo. Só para disciplina
+   * que ainda não tem fase nenhuma: quem já tem fase cadastrada não é tocado (o valor pode já estar
+   * repartido, e a primeira liberação fixa se a disciplina paga inteira ou por fase).
+   */
+  etapasParaCriar: Prisma.DisciplinaEtapaCreateManyInput[];
+  /** Disciplinas do projeto que ficam SEM fase — a linha delas perde a fase (o marco não fecha nada). */
+  disciplinasSemFase: string[];
   podadas: LinhaPodada[];
   /** Vínculos descartados porque uma das pontas foi podada. */
   vinculosDescartados: number;
@@ -120,6 +134,39 @@ export function aplicarModelo(estrutura: EstruturaModelo, ctx: ContextoAplicacao
     if (novo) ids.set(l.id, novo);
   }
 
+  // D38 — quais fases cadastrar: por disciplina do projeto que ficou com linha, as fases que essas
+  // linhas usam, desde que a disciplina não tenha NENHUMA fase hoje e o modelo tenha o percentual.
+  const percentuais = estrutura.percentuaisPorFase ?? {};
+  const fasesPorDisciplina = new Map<string, Set<string>>();
+  for (const l of manter) {
+    if (!l.disciplinaCatalogoId || !l.etapaId) continue;
+    const disciplinaId = ctx.disciplinaDoProjeto.get(l.disciplinaCatalogoId);
+    if (!disciplinaId) continue;
+    const jaTem = ctx.fasesDaDisciplina.get(disciplinaId);
+    if (jaTem && jaTem.size > 0) continue;
+    if (!(l.etapaId in percentuais)) continue;
+    const s = fasesPorDisciplina.get(disciplinaId) ?? new Set<string>();
+    s.add(l.etapaId);
+    fasesPorDisciplina.set(disciplinaId, s);
+  }
+
+  const etapasParaCriar: Prisma.DisciplinaEtapaCreateManyInput[] = [];
+  const criando = new Map<string, Set<string>>();
+  if (ctx.cadastrarFases) {
+    for (const [disciplinaId, fases] of fasesPorDisciplina) {
+      // Ordem pela ordem em que a fase aparece no modelo (Básico antes de Executivo, como no arquivo).
+      const ordemNoModelo = manter.filter((l) => l.etapaId && fases.has(l.etapaId)).map((l) => l.etapaId!);
+      const unicas = [...new Set(ordemNoModelo)];
+      unicas.forEach((etapaId, i) => {
+        etapasParaCriar.push({ disciplinaId, etapaId, percentual: percentuais[etapaId], ordem: i });
+      });
+      criando.set(disciplinaId, new Set(unicas));
+    }
+  }
+
+  const temFase = (disciplinaId: string, etapaId: string) =>
+    ctx.fasesDaDisciplina.get(disciplinaId)?.has(etapaId) === true || criando.get(disciplinaId)?.has(etapaId) === true;
+
   // Ordem por irmão, recontada depois da poda: um galho que saiu no meio deixaria buracos, e a ordem
   // é o que o `calcularCodigos` usa para escrever 1.1, 1.2…
   const ordemPorPai = new Map<string | null, number>();
@@ -135,8 +182,7 @@ export function aplicarModelo(estrutura: EstruturaModelo, ctx: ContextoAplicacao
     ordemPorPai.set(chavePai, ordem + 1);
 
     const disciplinaId = l.disciplinaCatalogoId ? (ctx.disciplinaDoProjeto.get(l.disciplinaCatalogoId) ?? null) : null;
-    const etapaId =
-      disciplinaId && l.etapaId && ctx.fasesDaDisciplina.get(disciplinaId)?.has(l.etapaId) ? l.etapaId : null;
+    const etapaId = disciplinaId && l.etapaId && temFase(disciplinaId, l.etapaId) ? l.etapaId : null;
 
     linhas.push({
       id: novo.id,
@@ -174,5 +220,16 @@ export function aplicarModelo(estrutura: EstruturaModelo, ctx: ContextoAplicacao
     }
   }
 
-  return { linhas, dependencias, atribuicoesExternas, podadas, vinculosDescartados };
+  // Disciplina que ficou com linha mas sem fase nenhuma: a linha dela perde a fase, e o marco dessa
+  // disciplina não vai marcar fase como Entregue. Quem chama mostra isso ANTES de aplicar.
+  const disciplinasSemFase = [
+    ...new Set(
+      linhas
+        .filter((l) => l.disciplinaId && !l.etapaId)
+        .map((l) => l.disciplinaId as string)
+        .filter((disciplinaId) => (ctx.fasesDaDisciplina.get(disciplinaId)?.size ?? 0) === 0 && !criando.has(disciplinaId)),
+    ),
+  ];
+
+  return { linhas, dependencias, atribuicoesExternas, etapasParaCriar, disciplinasSemFase, podadas, vinculosDescartados };
 }

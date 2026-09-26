@@ -9,7 +9,15 @@ import { reservarIdsParaLinhas } from "../id-corporativo";
 import { herdarResponsaveisNoProjeto } from "../recursos-service";
 import { lerEstrutura, type EstruturaModelo } from "./estrutura";
 import { aplicarModelo, podar } from "./aplicar";
-import { aplicarRespostas, chaveDeNome, mapearArquivo, type CatalogosParaMapear, type Conferencia } from "./mapeamento";
+import {
+  aplicarRespostas,
+  chaveDeNome,
+  fasesDoModelo,
+  mapearArquivo,
+  validarPercentuaisPorFase,
+  type CatalogosParaMapear,
+  type Conferencia,
+} from "./mapeamento";
 import { lerMspdi } from "./mspdi";
 
 /**
@@ -77,6 +85,11 @@ export type PreviaDoArquivo = {
     disciplinas: { id: string; nome: string }[];
     fases: { id: string; nome: string; sigla: string | null }[];
   };
+  /**
+   * D38 — as fases que o modelo usa, que são as que pedem percentual na conferência. Vem com o nome
+   * resolvido para a tela não ter de cruzar ids.
+   */
+  fasesDoModelo: { etapaId: string; nome: string; linhas: number }[];
 };
 
 /** Lê o XML e devolve a prévia + a conferência. NÃO grava nada. */
@@ -84,6 +97,7 @@ export async function previaDoArquivo(xml: string): Promise<PreviaDoArquivo> {
   const cat = await catalogosParaMapear();
   const arquivo = lerMspdi(xml);
   const { estrutura, conferencia } = mapearArquivo(arquivo, cat);
+  const nomeFase = new Map(cat.fases.map((f) => [f.id, f.nome]));
   return {
     titulo: arquivo.titulo,
     estrutura,
@@ -92,6 +106,7 @@ export async function previaDoArquivo(xml: string): Promise<PreviaDoArquivo> {
       disciplinas: cat.disciplinas.map((d) => ({ id: d.id, nome: d.nome })),
       fases: cat.fases.map((f) => ({ id: f.id, nome: f.nome, sigla: f.sigla ?? null })),
     },
+    fasesDoModelo: fasesDoModelo(estrutura).map((f) => ({ ...f, nome: nomeFase.get(f.etapaId) ?? "fase" })),
   };
 }
 
@@ -99,6 +114,8 @@ export type RespostasDaConferencia = {
   mapaDisciplina?: Record<string, string | null>;
   mapaFase?: Record<string, string | null>;
   terceiros?: string[];
+  /** D38: percentual do valor da disciplina por fase. `{}` = não cadastrar fase nenhuma. */
+  percentuaisPorFase?: Record<string, number>;
 };
 
 /**
@@ -132,6 +149,10 @@ export async function salvarModeloDeEap(p: {
   }
 
   const estrutura = p.respostas ? aplicarRespostas(base, p.respostas) : base;
+  // D38: soma que não fecha 100 deixaria parte do valor da disciplina sem fase — e o pagamento por fase
+  // recusaria a aprovação depois, quando já fosse tarde.
+  const percentuais = validarPercentuaisPorFase(estrutura);
+  if (!percentuais.ok) throw new ActionError(percentuais.motivo);
   const totalLinhas = estrutura.linhas.length;
   const totalMarcos = estrutura.linhas.filter((l) => l.tipoEap === "mrc").length;
 
@@ -172,9 +193,37 @@ export type PreviaDaAplicacao = {
   terceiros: number;
   /** Disciplinas do modelo que este projeto não tem — o galho delas fica de fora. */
   podadas: { disciplina: string; linhas: number }[];
+  /**
+   * D38 — fases que aplicar vai CADASTRAR nas disciplinas do projeto (com o percentual do modelo). Isso
+   * põe a disciplina no pagamento por fase, então a tela diz antes.
+   */
+  fasesACriar: { disciplina: string; fase: string; percentual: number }[];
+  /** Disciplinas que ficam SEM fase: a linha delas perde a fase e o marco não marca fase Entregue. */
+  disciplinasSemFase: string[];
   /** Impedimento: quando presente, aplicar é recusado com esta frase. */
   impedimento: string | null;
 };
+
+/**
+ * O cálculo da prévia é o MESMO da aplicação (`aplicarModelo`), com ids de faz-de-conta: duas contas
+ * separadas divergiriam na primeira mudança de regra, e a prévia é o que a pessoa aprova.
+ */
+function contarAplicacao(
+  estrutura: EstruturaModelo,
+  ctx: Awaited<ReturnType<typeof contextoDoProjeto>>,
+  projetoId: string,
+) {
+  const { manter } = podar(estrutura, ctx.disciplinaDoProjeto);
+  const novaLinha = new Map(manter.map((l, i) => [l.id, { id: `previa-${l.id}`, idCorporativo: `PREVIA-${i}` }]));
+  return aplicarModelo(estrutura, {
+    projetoId,
+    disciplinaDoProjeto: ctx.disciplinaDoProjeto,
+    fasesDaDisciplina: ctx.fasesDaDisciplina,
+    novaLinha,
+    ancora: new Date(),
+    cadastrarFases: validarPercentuaisPorFase(estrutura).ok && Object.keys(estrutura.percentuaisPorFase).length > 0,
+  });
+}
 
 async function contextoDoProjeto(projetoId: string) {
   const [projeto, disciplinas, etapas, quantasLinhas, baseline, cronograma] = await Promise.all([
@@ -234,31 +283,45 @@ export async function previaDaAplicacao(p: { projetoId: string; modeloId: string
   if (!estrutura) throw new ActionError("Este modelo está em formato inválido. Importe o arquivo de novo.");
 
   const ctx = await contextoDoProjeto(p.projetoId);
-  const { manter, podadas } = podar(estrutura, ctx.disciplinaDoProjeto);
+  const r = contarAplicacao(estrutura, ctx, p.projetoId);
 
   const porDisciplina = new Map<string, number>();
-  for (const l of podadas) {
+  for (const l of r.podadas) {
     const chave = l.disciplinaCatalogoId ?? "—";
     porDisciplina.set(chave, (porDisciplina.get(chave) ?? 0) + 1);
   }
-  const nomesCatalogo = new Map(
-    (await prisma.disciplinaCatalogo.findMany({ where: { id: { in: [...porDisciplina.keys()] } }, select: { id: true, nome: true } })).map(
-      (d) => [d.id, d.nome],
-    ),
-  );
+  const [nomesCatalogo, nomesFase, nomesDisciplinaProjeto] = await Promise.all([
+    prisma.disciplinaCatalogo
+      .findMany({ where: { id: { in: [...porDisciplina.keys()] } }, select: { id: true, nome: true } })
+      .then((l) => new Map(l.map((d) => [d.id, d.nome]))),
+    prisma.pranchaCatalogo
+      .findMany({ where: { id: { in: r.etapasParaCriar.map((e) => e.etapaId) } }, select: { id: true, nome: true } })
+      .then((l) => new Map(l.map((f) => [f.id, f.nome]))),
+    prisma.disciplina
+      .findMany({
+        where: { id: { in: [...r.etapasParaCriar.map((e) => e.disciplinaId), ...r.disciplinasSemFase] } },
+        select: { id: true, disciplinaTextoLegado: true, catalogo: { select: { nome: true } } },
+      })
+      .then((l) => new Map(l.map((d) => [d.id, d.catalogo?.nome ?? d.disciplinaTextoLegado]))),
+  ]);
 
-  const idsMantidos = new Set(manter.map((l) => l.id));
   return {
     modeloNome: modelo.nome,
-    criar: manter.length,
-    marcos: manter.filter((l) => l.tipoEap === "mrc").length,
-    vinculos: manter.reduce((s, l) => s + l.predecessoras.filter((v) => idsMantidos.has(v.id)).length, 0),
-    terceiros: manter.filter((l) => l.deTerceiro).length,
+    criar: r.linhas.length,
+    marcos: r.linhas.filter((l) => l.tipoEap === "mrc").length,
+    vinculos: r.dependencias.length,
+    terceiros: r.atribuicoesExternas.length,
     podadas: [...porDisciplina.entries()].map(([id, linhas]) => ({
       disciplina: nomesCatalogo.get(id) ?? "Sem disciplina no catálogo",
       linhas,
     })),
-    impedimento: impedimentoParaAplicar(ctx, manter.length),
+    fasesACriar: r.etapasParaCriar.map((e) => ({
+      disciplina: nomesDisciplinaProjeto.get(e.disciplinaId) ?? "disciplina",
+      fase: nomesFase.get(e.etapaId) ?? "fase",
+      percentual: Number(e.percentual),
+    })),
+    disciplinasSemFase: r.disciplinasSemFase.map((id) => nomesDisciplinaProjeto.get(id) ?? "disciplina"),
+    impedimento: impedimentoParaAplicar(ctx, r.linhas.length),
   };
 }
 
@@ -272,7 +335,14 @@ export async function previaDaAplicacao(p: { projetoId: string; modeloId: string
 export async function aplicarModeloNoProjeto(p: {
   projetoId: string;
   modeloId: string;
-}): Promise<{ criadas: number; podadas: number; terceiros: number; vinculos: number }> {
+}): Promise<{
+  criadas: number;
+  podadas: number;
+  terceiros: number;
+  vinculos: number;
+  fasesCadastradas: number;
+  disciplinasSemFase: number;
+}> {
   const modelo = await prisma.modeloEap.findUnique({
     where: { id: p.modeloId },
     select: { estrutura: true, ativo: true },
@@ -303,8 +373,11 @@ export async function aplicarModeloNoProjeto(p: {
       fasesDaDisciplina: ctx.fasesDaDisciplina,
       novaLinha,
       ancora,
+      cadastrarFases: validarPercentuaisPorFase(estrutura).ok && Object.keys(estrutura.percentuaisPorFase).length > 0,
     });
 
+    // D38 — as fases ANTES das linhas: a linha guarda `etapaId` de fase que está sendo criada aqui.
+    if (r.etapasParaCriar.length > 0) await tx.disciplinaEtapa.createMany({ data: r.etapasParaCriar });
     await tx.eapTarefa.createMany({ data: r.linhas });
     if (r.dependencias.length > 0) await tx.eapDependencia.createMany({ data: r.dependencias, skipDuplicates: true });
     // A marca de terceiro vem ANTES da herança: linha com o "Externo" já conta como "tem atribuição",
@@ -321,6 +394,8 @@ export async function aplicarModeloNoProjeto(p: {
       podadas: r.podadas.length,
       terceiros: r.atribuicoesExternas.length,
       vinculos: r.dependencias.length,
+      fasesCadastradas: r.etapasParaCriar.length,
+      disciplinasSemFase: r.disciplinasSemFase.length,
     };
   });
 
@@ -344,43 +419,77 @@ export async function previasDosModelos(projetoId: string): Promise<(PreviaDaApl
   ]);
   if (modelos.length === 0) return [];
 
-  const nomesCatalogo = new Map(
-    (await prisma.disciplinaCatalogo.findMany({ select: { id: true, nome: true } })).map((d) => [d.id, d.nome]),
-  );
-
-  return modelos.map((m) => {
+  const contas = modelos.map((m) => {
     const estrutura = lerEstrutura(m.estrutura);
-    if (!estrutura) {
+    return { modelo: m, estrutura, conta: estrutura ? contarAplicacao(estrutura, ctx, projetoId) : null };
+  });
+
+  const idsDisciplinaCatalogo = new Set<string>();
+  const idsFase = new Set<string>();
+  const idsDisciplinaProjeto = new Set<string>();
+  for (const { conta } of contas) {
+    if (!conta) continue;
+    for (const p of conta.podadas) if (p.disciplinaCatalogoId) idsDisciplinaCatalogo.add(p.disciplinaCatalogoId);
+    for (const e of conta.etapasParaCriar) {
+      idsFase.add(e.etapaId);
+      idsDisciplinaProjeto.add(e.disciplinaId);
+    }
+    for (const d of conta.disciplinasSemFase) idsDisciplinaProjeto.add(d);
+  }
+
+  const [nomesCatalogo, nomesFase, nomesDisciplinaProjeto] = await Promise.all([
+    prisma.disciplinaCatalogo
+      .findMany({ where: { id: { in: [...idsDisciplinaCatalogo] } }, select: { id: true, nome: true } })
+      .then((l) => new Map(l.map((d) => [d.id, d.nome]))),
+    prisma.pranchaCatalogo
+      .findMany({ where: { id: { in: [...idsFase] } }, select: { id: true, nome: true } })
+      .then((l) => new Map(l.map((f) => [f.id, f.nome]))),
+    prisma.disciplina
+      .findMany({
+        where: { id: { in: [...idsDisciplinaProjeto] } },
+        select: { id: true, disciplinaTextoLegado: true, catalogo: { select: { nome: true } } },
+      })
+      .then((l) => new Map(l.map((d) => [d.id, d.catalogo?.nome ?? d.disciplinaTextoLegado]))),
+  ]);
+
+  return contas.map(({ modelo, conta }) => {
+    if (!conta) {
       return {
-        modeloId: m.id,
-        modeloNome: m.nome,
+        modeloId: modelo.id,
+        modeloNome: modelo.nome,
         criar: 0,
         marcos: 0,
         vinculos: 0,
         terceiros: 0,
         podadas: [],
+        fasesACriar: [],
+        disciplinasSemFase: [],
         impedimento: "Este modelo está em formato inválido. Importe o arquivo de novo.",
       };
     }
-    const { manter, podadas } = podar(estrutura, ctx.disciplinaDoProjeto);
-    const idsMantidos = new Set(manter.map((l) => l.id));
     const porDisciplina = new Map<string, number>();
-    for (const l of podadas) {
+    for (const l of conta.podadas) {
       const chave = l.disciplinaCatalogoId ?? "—";
       porDisciplina.set(chave, (porDisciplina.get(chave) ?? 0) + 1);
     }
     return {
-      modeloId: m.id,
-      modeloNome: m.nome,
-      criar: manter.length,
-      marcos: manter.filter((l) => l.tipoEap === "mrc").length,
-      vinculos: manter.reduce((s, l) => s + l.predecessoras.filter((v) => idsMantidos.has(v.id)).length, 0),
-      terceiros: manter.filter((l) => l.deTerceiro).length,
+      modeloId: modelo.id,
+      modeloNome: modelo.nome,
+      criar: conta.linhas.length,
+      marcos: conta.linhas.filter((l) => l.tipoEap === "mrc").length,
+      vinculos: conta.dependencias.length,
+      terceiros: conta.atribuicoesExternas.length,
       podadas: [...porDisciplina.entries()].map(([id, linhas]) => ({
         disciplina: nomesCatalogo.get(id) ?? "Sem disciplina no catálogo",
         linhas,
       })),
-      impedimento: impedimentoParaAplicar(ctx, manter.length),
+      fasesACriar: conta.etapasParaCriar.map((e) => ({
+        disciplina: nomesDisciplinaProjeto.get(e.disciplinaId) ?? "disciplina",
+        fase: nomesFase.get(e.etapaId) ?? "fase",
+        percentual: Number(e.percentual),
+      })),
+      disciplinasSemFase: conta.disciplinasSemFase.map((id) => nomesDisciplinaProjeto.get(id) ?? "disciplina"),
+      impedimento: impedimentoParaAplicar(ctx, conta.linhas.length),
     };
   });
 }

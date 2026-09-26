@@ -22,6 +22,7 @@ const estrutura = (linhas: LinhaModelo[]): EstruturaModelo => ({
   linhas,
   mapaDisciplina: {},
   mapaFase: {},
+  percentuaisPorFase: {},
   avisos: [],
 });
 
@@ -33,6 +34,7 @@ const ctx = (ids: string[], extra: Partial<ContextoAplicacao> = {}): ContextoApl
   fasesDaDisciplina: new Map([["disc-est", new Set(["f-bs"])]]),
   novaLinha: new Map(ids.map((id, i) => [id, { id: `n-${id}`, idCorporativo: `ATV-0000${i + 1}` }])),
   ancora,
+  cadastrarFases: false,
   ...extra,
 });
 
@@ -166,5 +168,39 @@ describe("aplicarModelo", () => {
   it("linha sem id reservado não é gravada — melhor faltar linha que gravar sem identidade", () => {
     const { linhas } = aplicarModelo(modelo, ctx(["fase"]));
     expect(linhas.map((l) => l.id)).toEqual(["n-fase"]);
+  });
+});
+
+describe("aplicarModelo — fases da disciplina (D38)", () => {
+  const comPercentual = { ...modelo, percentuaisPorFase: { "f-bs": 100 } };
+
+  it("cadastra a fase na disciplina que não tem nenhuma, com o percentual do modelo", () => {
+    const r = aplicarModelo(comPercentual, ctx(["fase", "est", "a1", "m1"], { fasesDaDisciplina: new Map(), cadastrarFases: true }));
+    expect(r.etapasParaCriar).toEqual([{ disciplinaId: "disc-est", etapaId: "f-bs", percentual: 100, ordem: 0 }]);
+  });
+
+  it("e a linha GUARDA a fase que está sendo criada na mesma transação (sem isso o marco não fecha fase)", () => {
+    const r = aplicarModelo(comPercentual, ctx(["fase", "est", "a1", "m1"], { fasesDaDisciplina: new Map(), cadastrarFases: true }));
+    expect(r.linhas.find((l) => l.id === "n-m1")!.etapaId).toBe("f-bs");
+    expect(r.disciplinasSemFase).toEqual([]);
+  });
+
+  it("disciplina que JÁ tem fase não é tocada", () => {
+    const r = aplicarModelo(comPercentual, ctx(["fase", "est", "a1", "m1"], { cadastrarFases: true }));
+    expect(r.etapasParaCriar).toEqual([]);
+    expect(r.linhas.find((l) => l.id === "n-a1")!.etapaId).toBe("f-bs");
+  });
+
+  it("sem percentual no modelo, nada é cadastrado e a disciplina aparece como SEM FASE", () => {
+    const r = aplicarModelo(modelo, ctx(["fase", "est", "a1", "m1"], { fasesDaDisciplina: new Map(), cadastrarFases: false }));
+    expect(r.etapasParaCriar).toEqual([]);
+    expect(r.linhas.every((l) => l.etapaId == null)).toBe(true);
+    expect(r.disciplinasSemFase).toEqual(["disc-est"]);
+  });
+
+  it("fase sem percentual informado não é cadastrada (a validação já barra o meio a meio)", () => {
+    const so = { ...modelo, percentuaisPorFase: {} };
+    const r = aplicarModelo(so, ctx(["fase", "est", "a1", "m1"], { fasesDaDisciplina: new Map(), cadastrarFases: true }));
+    expect(r.etapasParaCriar).toEqual([]);
   });
 });

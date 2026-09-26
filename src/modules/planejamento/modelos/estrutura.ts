@@ -56,6 +56,19 @@ export const estruturaModeloSchema = z.object({
   mapaDisciplina: z.record(z.string(), z.string().min(1).nullable()),
   /** Idem para fase: nome do arquivo (normalizado) → fase do catálogo. */
   mapaFase: z.record(z.string(), z.string().min(1).nullable()),
+  /**
+   * D38 — percentual do valor da disciplina por FASE ("Básico 40%, Executivo 60%"), por id de fase do
+   * catálogo. Vem da conferência da importação, não do arquivo (o XML não tem valor nenhum).
+   *
+   * Existe porque projeto NOVO não tem fase cadastrada em disciplina nenhuma (só o editor de etapas e a
+   * duplicação criam `DisciplinaEtapa`): sem isto, aplicar o modelo descartaria a fase de TODA linha —
+   * e sem fase na linha o marco não marca a fase como Entregue (decisão #8) e o pagamento por fase não
+   * tem em que se apoiar. Com os percentuais, aplicar o modelo cadastra as fases das disciplinas.
+   *
+   * Vazio = não cadastrar fase nenhuma (a tela avisa o que isso custa). Quando preenchido, a soma tem
+   * de fechar 100 — é dinheiro, e é a regra que o pagamento por fase já exige para aprovar.
+   */
+  percentuaisPorFase: z.record(z.string(), z.number().finite().min(0).max(100)).default({}),
   /** O que o leitor do arquivo ignorou ou converteu com ressalva. */
   avisos: z.array(z.string()).max(200),
 });

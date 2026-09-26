@@ -53,6 +53,21 @@ contido (`BÁSICO` → Projeto Básico). **O que ele não adivinha**, você esco
 **Por que isso não é detalhe:** linha sem disciplina não herda o responsável da disciplina, não fecha
 o marco da fase e aparece como "sem responsável" na Saúde do projeto.
 
+### Quanto do valor cabe a cada fase
+
+Se o modelo tem fases (Básico, Executivo…), a conferência pede **quanto do valor da disciplina cabe a
+cada uma** — é o que divide o pagamento do projetista por fase. A soma tem de fechar **100%**.
+
+Ao aplicar o modelo, essas fases são **cadastradas nas disciplinas do projeto** que ainda não têm
+nenhuma, com esses percentuais; disciplina que já tem fase cadastrada não é mexida.
+
+**Deixar em branco é permitido**, e significa "não cadastrar fase". Nesse caso as linhas entram sem
+fase, o marco não marca a fase como **Entregue** e o pagamento por fase não tem em que se apoiar — a
+tela de aplicar avisa quais disciplinas ficariam assim.
+
+> Cadastrar as fases põe a disciplina no **pagamento por fase**. É por isso que o sistema pede o
+> percentual em vez de dividir sozinho: é dinheiro.
+
 ### Etapas de terceiro
 
 O sistema **sugere** quais linhas são trabalho de fora da casa pelo nome ("Receber projeto
@@ -72,6 +87,8 @@ mostra, para cada modelo, **quantas linhas ele criaria neste projeto** e o que f
   dependências.
 - O cronograma nasce em **rascunho**: nada vale até alguém revisar e aprovar.
 - As linhas herdam o **responsável da disciplina**, como qualquer linha nova (as de terceiro não).
+- As **fases da disciplina** são cadastradas com o percentual do modelo, quando a disciplina ainda não
+  tem fase nenhuma (veja acima).
 
 **Quando o botão não aparece, ou aparece bloqueado:**
 
@@ -81,6 +98,10 @@ mostra, para cada modelo, **quantas linhas ele criaria neste projeto** e o que f
 | O projeto já tem linha de base aprovada | Aplicar mudaria o combinado; não é permitido |
 | Nenhuma disciplina do projeto está ligada ao catálogo | Cadastre as disciplinas pelo catálogo |
 | Nenhuma disciplina do modelo está no projeto | Nada sobraria para criar — use outro modelo |
+
+**Se aparecer "sem fase cadastrada":** o modelo não trouxe os percentuais por fase, ou aquela
+disciplina já tem fases próprias. Cadastre pelas **Etapas da disciplina** no projeto — veja
+[Etapas da disciplina e pagamento por fase](etapas-e-pagamento-por-fase.md).
 
 ## Tipo de empreendimento
 
@@ -99,6 +120,7 @@ os projetos já criados não mudam.
 - **Disciplina fora do projeto é podada**, com tudo dentro dela, e a tela diz o que saiu.
 - **Aplicar exige EAP vazia** e projeto sem linha de base.
 - **Toda linha criada ganha ID corporativo novo** — a identidade é da linha, não do modelo.
+- **O percentual por fase soma 100%** ou não é gravado; em branco, nenhuma fase é cadastrada.
 - **Editar é reimportar.**
 
 ## Funcionalidades relacionadas

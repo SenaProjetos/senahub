@@ -33,6 +33,7 @@ type Previa = {
   estrutura: EstruturaModelo;
   conferencia: Conferencia;
   opcoes: Opcoes;
+  fasesDoModelo: { etapaId: string; nome: string; linhas: number }[];
 };
 
 /** Valor do seletor de cada nome do arquivo. */
@@ -65,6 +66,8 @@ export function ImportarModeloDialog({ tiposEmpreendimento }: { tiposEmpreendime
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
   const [tipoId, setTipoId] = useState<string>("");
+  /** D38: percentual do valor da disciplina por fase. Texto, porque o campo aceita vírgula. */
+  const [percentuais, setPercentuais] = useState<Record<string, string>>({});
 
   function limpar() {
     setPrevia(null);
@@ -73,6 +76,7 @@ export function ImportarModeloDialog({ tiposEmpreendimento }: { tiposEmpreendime
     setNome("");
     setDescricao("");
     setTipoId("");
+    setPercentuais({});
     if (inputArquivo.current) inputArquivo.current.value = "";
   }
 
@@ -98,6 +102,7 @@ export function ImportarModeloDialog({ tiposEmpreendimento }: { tiposEmpreendime
       }
       setEscolha(inicial);
       setTerceiros(new Set(p.conferencia.terceiros.map((t) => t.id)));
+      setPercentuais({});
     } catch {
       toast.error("Falha ao enviar o arquivo.");
     } finally {
@@ -121,6 +126,11 @@ export function ImportarModeloDialog({ tiposEmpreendimento }: { tiposEmpreendime
         mapaFase[chave] = null;
       }
     }
+    const percentuaisPorFase: Record<string, number> = {};
+    for (const [etapaId, texto] of Object.entries(percentuais)) {
+      const n = Number(texto.replace(",", "."));
+      if (texto.trim() !== "" && Number.isFinite(n)) percentuaisPorFase[etapaId] = n;
+    }
     start(async () => {
       const r = await salvarModeloEap({
         nome,
@@ -128,7 +138,7 @@ export function ImportarModeloDialog({ tiposEmpreendimento }: { tiposEmpreendime
         tipoEmpreendimentoId: tipoId || null,
         arquivoNome: previa.arquivoNome,
         estrutura: previa.estrutura,
-        respostas: { mapaDisciplina, mapaFase, terceiros: [...terceiros] },
+        respostas: { mapaDisciplina, mapaFase, terceiros: [...terceiros], percentuaisPorFase },
       });
       if (!r.ok) return void toast.error(r.error);
       toast.success(`Modelo "${nome}" gravado com ${r.data.totalLinhas} linhas.`);
@@ -140,6 +150,16 @@ export function ImportarModeloDialog({ tiposEmpreendimento }: { tiposEmpreendime
 
   const conf = previa?.conferencia;
   const semPar = conf ? [...conf.fases, ...conf.disciplinas].filter((p) => p.catalogoId == null).length : 0;
+  // As fases que o modelo usa DEPOIS das escolhas desta tela: trocar um agrupamento de fase para
+  // disciplina tira a fase da lista (e o percentual dela deixa de contar).
+  const fasesVisiveis = (previa?.fasesDoModelo ?? []).filter((f) =>
+    Object.values(escolha).includes(chaveFase(f.etapaId)),
+  );
+  const informados = fasesVisiveis
+    .map((f) => Number((percentuais[f.etapaId] ?? "").replace(",", ".")))
+    .filter((n) => Number.isFinite(n));
+  const somaPercentual = informados.length > 0 ? Math.round(informados.reduce((a, b) => a + b, 0) * 100) / 100 : null;
+  const somaFecha = somaPercentual === null || (somaPercentual === 100 && informados.length === fasesVisiveis.length);
 
   return (
     <Dialog
@@ -212,6 +232,43 @@ export function ImportarModeloDialog({ tiposEmpreendimento }: { tiposEmpreendime
                   ))}
                 </ul>
               </div>
+
+              {fasesVisiveis.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label>Quanto do valor da disciplina cabe a cada fase</Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    É o que divide o pagamento do projetista por fase (ex.: Básico 40%, Executivo 60%).
+                    Aplicando este modelo, as fases são cadastradas nas disciplinas do projeto com esses
+                    percentuais. <strong>Deixe em branco</strong> para não cadastrar fase — e aí o marco
+                    da fase não marca a fase como Entregue.
+                  </p>
+                  <ul className="divide-y rounded-sm border">
+                    {fasesVisiveis.map((f) => (
+                      <li key={f.etapaId} className="flex items-center justify-between gap-2 px-2.5 py-1.5">
+                        <span className="min-w-0 text-sm">
+                          {f.nome}
+                          <span className="ml-1 text-[11px] text-muted-foreground">({f.linhas} linhas)</span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Input
+                            className="h-8 w-20 text-right text-xs"
+                            inputMode="decimal"
+                            placeholder="—"
+                            value={percentuais[f.etapaId] ?? ""}
+                            onChange={(e) => setPercentuais((p) => ({ ...p, [f.etapaId]: e.target.value }))}
+                          />
+                          <span className="text-xs text-muted-foreground">%</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {somaPercentual !== null && (
+                    <p className={`text-[11px] ${somaFecha ? "text-muted-foreground" : "text-destructive"}`}>
+                      Soma: {somaPercentual}% {somaFecha ? "" : "— precisa fechar 100%"}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {conf.terceiros.length > 0 && (
                 <div className="space-y-1.5">
@@ -299,7 +356,7 @@ export function ImportarModeloDialog({ tiposEmpreendimento }: { tiposEmpreendime
           <Button variant="ghost" onClick={() => setAberto(false)} disabled={gravando}>
             Cancelar
           </Button>
-          <Button onClick={gravar} disabled={!previa || gravando || nome.trim().length < 2}>
+          <Button onClick={gravar} disabled={!previa || gravando || nome.trim().length < 2 || !somaFecha}>
             <Building2 className="size-3.5" /> Gravar modelo
           </Button>
         </DialogFooter>

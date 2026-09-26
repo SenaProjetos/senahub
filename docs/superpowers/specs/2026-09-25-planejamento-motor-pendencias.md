@@ -131,9 +131,23 @@ Decisões de implementação que o time deve conhecer:
 - Verificações: `npm run smoke:modelo-eap` (19 conferências) e `npm run verify:modelo-mspdi` (roda o
   arquivo real de `docs/samples`, fora do git).
 
-**Ainda em aberto:** o percentual por fase do D38 ("Básico 40%, Executivo 60%") não vem do modelo — a
-importação não tem de onde tirá-lo (o XML não tem valor). Continua sendo cadastrado por projeto, nas
-etapas da disciplina.
+**D38 resolvido no mesmo pacote.** O XML não tem valor nenhum, mas o percentual por fase não podia
+ficar de fora: `DisciplinaEtapa` só nasce pelo editor de etapas (F4) ou pela duplicação, então **projeto
+novo não tem fase cadastrada em disciplina nenhuma** — e aplicar o modelo descartaria a fase de TODA
+linha (a regra "a fase só acompanha a disciplina que a tem"), levando embora o marco que marca a fase
+como Entregue (decisão #8) e a base do pagamento por fase, em silêncio.
+
+Agora a **conferência da importação pede o percentual de cada fase que o modelo usa** ("Básico 40%,
+Executivo 60%"), com soma obrigatória de 100 (a mesma regra que o pagamento por fase exige para
+aprovar; validada em centavos, então 33,33 + 33,33 + 33,34 fecha). Aplicar o modelo **cadastra essas
+fases nas disciplinas do projeto que ainda não têm nenhuma**, na mesma transação das linhas — e por isso
+a linha já guarda a fase que está sendo criada. Disciplina que JÁ tem fase não é tocada (o valor pode
+estar repartido, e a primeira liberação fixa se a disciplina paga inteira ou por fase).
+
+Deixar os percentuais em branco é resposta válida: nenhuma fase é cadastrada, e a tela de aplicar avisa,
+em amarelo, quais disciplinas ficam sem fase e o que isso custa. A prévia lista, antes do clique, as
+fases que serão cadastradas com o percentual — porque cadastrar fase põe a disciplina no **pagamento por
+fase**, e isso é decisão de dinheiro.
 
 ### Cronograma — realizado (L1, 2026-09-25)
 - **DECIDIR — % sem data real** segue o MS Project: > 0% conta como iniciada no início calculado; 100% como
