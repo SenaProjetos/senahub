@@ -153,7 +153,20 @@ ser divididos entre as duas worktrees).
     Ponto v2) nunca é capturada, nem em produção. Decisão do dono.
   - Dev: depois de criar export novo (Server Action, atributo no header), o `next dev` desta
     pasta serviu versão velha até ser reiniciado (500 `reading 'apply'` / hidratação).
-- [ ] Lote 2
+- [x] **Lote 2 — concluído em 2026-09-25, exceto 2.6.**
+  - Geolocalização das batidas liberada (Permissions-Policy sem `geolocation=()`; captura já
+    existia em `use-batida.ts` e `Batida.geo` no schema). Fora do plano, a pedido do dono.
+  - 2.1/2.2: ações do cabeçalho do projeto em coluna no celular; abas sem `shrink-0`.
+    Não achei fileiras sem quebra em Custos, Acessos, Licitações, Suporte, Folha CLT nem
+    "Pagar tudo" (já têm `flex-wrap`): reconferir na varredura do lote 8.
+  - 2.3: chat flutuante só a partir de `md`.
+  - 2.4: Pessoas com rolagem lateral; 3 fileiras de ações de contrato/aditivo do Jurídico
+    quebram linha.
+  - 2.5: 14 arquivos, `text-base md:text-xs|sm` em Input/InputMoeda/InputPercentual (o
+    `className` do chamador vence o `text-base` do base). Medido em 390 px.
+  - **2.6 reclassificada:** o Diário só tem texto (`DiarioEntrada` sem anexo). "Foto da câmera"
+    exige campo/tabela de anexo, rota de upload e migração: é feature M/G, não ajuste P.
+    Decisão do dono se entra (e em qual lote).
 - [ ] Lote 3
 - [ ] Lote 4
 - [ ] Lote 5
