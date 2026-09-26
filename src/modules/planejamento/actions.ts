@@ -6,13 +6,7 @@ import { addDays } from "date-fns";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import {
-  montarCalendario,
-  paraDataUtc,
-  paraDia,
-  reagendarProjeto,
-  type ResumoReagendamento,
-} from "@/modules/planejamento/agenda";
+import { montarCalendario, paraDataUtc, paraDia } from "@/modules/planejamento/agenda";
 import { diasUteisEntre } from "@/lib/calendario-trabalho";
 import { statusAoDesbloquear } from "@/modules/planejamento/execucao";
 import { registrarExecucaoNaLinha } from "@/modules/planejamento/execucao-service";
@@ -29,12 +23,12 @@ import { faixaTemPeriodoValido, haConflitoDeFaixa } from "@/modules/planejamento
 import { sincronizarPrazoDisciplina } from "@/modules/projetos/etapas-service";
 import { planejarAplicacao } from "@/modules/planejamento/aplicacao";
 import { herdarResponsaveisNoProjeto, sincronizarCards } from "@/modules/planejamento/recursos-service";
-import { sincronizarPrevisoesDepois } from "@/modules/juridico/contrato/previsao-service";
 import { gravarApuracaoValorAgregado } from "@/modules/planejamento/valor-agregado-service";
 import { reservarIdsParaLinhas } from "@/modules/planejamento/id-corporativo";
 import { regrasDeEdicao } from "@/modules/planejamento/edicao-linha";
 import { trocarPredecessoras } from "@/modules/planejamento/dependencias-service";
 import { avancarLinha, inserirLinhaAcima, recuarLinha } from "@/modules/planejamento/arvore-service";
+import { aposMudarEap } from "@/modules/planejamento/pos-eap";
 
 const plan = { modulo: "planejamento", recurso: "planejamento", permissao: "gerir" } as const;
 const rec = { modulo: "recursos", recurso: "recursos", permissao: "gerir" } as const;
@@ -45,25 +39,6 @@ const revProjeto = (projetoId: string) => {
 };
 const revRecursos = () => revalidatePath("/recursos");
 
-/**
- * Depois de QUALQUER mudança na EAP (linha, duração, dependência, restrição, datas reais): o motor
- * reagenda o projeto e grava as datas (B2 — como no MS Project, salvar recalcula; antes as datas
- * gravadas só andavam quando alguém clicava em Reagendar). Depois, com o cronograma APROVADO, o card
- * do projetista acompanha (D32; em rascunho não faz nada — D14) e a previsão de recebimento anda com o
- * marco. Chamado fora da transação da mudança — o motor precisa ler o estado já gravado.
- */
-async function aposMudarEap(projetoId: string, autorId: string): Promise<ResumoReagendamento> {
-  const reagendado = await reagendarProjeto(projetoId, autorId);
-  const r = await sincronizarCards(prisma, projetoId, autorId);
-  if (r.criados > 0 || r.atualizados > 0) revalidatePath("/tarefas");
-  // F7.2: marco que andou leva junto a previsão de recebimento do contrato por entrega.
-  const p = await sincronizarPrevisoesDepois({ projetoId }, autorId);
-  if (p && p.criadas + p.atualizadas + p.removidas > 0) {
-    revalidatePath("/financeiro");
-    revalidatePath("/financeiro/lancamentos");
-  }
-  return reagendado;
-}
 
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 const dia = z.string().min(1, "Informe a data.");
