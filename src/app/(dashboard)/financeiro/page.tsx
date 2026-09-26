@@ -154,7 +154,7 @@ export default async function FinanceiroPage({
           </Link>
         )}
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <KpiCard titulo="Receita do período" valor={dreMes.totalReceitas} tom="success" />
           <KpiCard titulo="Despesa do período" valor={dreMes.totalDespesas} tom="destructive" />
           <KpiCard titulo="Resultado do período" valor={dreMes.resultado} colorido />

@@ -137,7 +137,7 @@ export function LicitacoesView({
             {total} processo(s){total > 0 && ` · exibindo ${inicio}–${fim}`}.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link href="/guias/gestao">
             <Button variant="secondary">
               <BookOpenText className="size-4" /> Guia de uso

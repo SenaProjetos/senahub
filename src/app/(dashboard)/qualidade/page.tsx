@@ -64,7 +64,7 @@ export default async function QualidadePage() {
 
       <div>
         <h3 className="mb-2 text-lg font-bold tracking-tight">SLA de entregas</h3>
-        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
           <Card>
             <CardHeader className="pb-2">
               <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">% no prazo</CardDescription>

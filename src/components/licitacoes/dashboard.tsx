@@ -9,7 +9,7 @@ export function DashboardLicitacoes({ data }: { data: DashboardLicitacoes }) {
   return (
     <div className="space-y-3">
       {/* KPIs */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi titulo="Total" valor={String(data.total)} />
         <Kpi titulo="Taxa de vitória" valor={`${data.taxaVitoria}%`} />
         <Kpi titulo="Valor em disputa" valor={brl(data.valorEmDisputa)} />
