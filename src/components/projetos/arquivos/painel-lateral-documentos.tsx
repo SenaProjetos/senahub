@@ -47,7 +47,7 @@ export function PainelLateralDocumentos({ children }: { children: React.ReactNod
         </Sheet>
       </div>
 
-      <aside className="hidden rounded-md border border-border bg-card md:block md:sticky md:top-20">
+      <aside className="hidden rounded-md border border-border bg-card md:block md:max-h-full md:overflow-y-auto">
         {children}
       </aside>
     </>

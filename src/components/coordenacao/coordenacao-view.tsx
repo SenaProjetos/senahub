@@ -1,5 +1,7 @@
 "use client";
 
+import { useAlturaRestante } from "@/lib/use-altura-restante";
+import { ModoFocoBotao } from "@/components/ui/modo-foco-botao";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -90,6 +92,7 @@ export function CoordenacaoView({
 }) {
   const router = useRouter();
   const engineRef = useRef<ViewerEngine | null>(null);
+  const quadroViewer = useAlturaRestante<HTMLDivElement>({ minimo: 560 });
   const [carregados, setCarregados] = useState<Set<string>>(new Set());
   const [carregando, setCarregando] = useState<Set<string>>(new Set());
   const [selecao, setSelecao] = useState<SelecaoInfo | null>(null);
@@ -647,7 +650,8 @@ export function CoordenacaoView({
 
   return (
     <>
-    <div className="relative h-[calc(100vh-160px)] min-h-[560px] overflow-hidden rounded-lg border bg-muted/20">
+    <div ref={quadroViewer.ref} style={quadroViewer.style} className="relative h-[70svh] min-h-[560px] overflow-hidden rounded-lg border bg-muted/20">
+        <ModoFocoBotao className="absolute right-3 top-3 z-20 bg-background/90" />
         <ViewerToolbar
           temSelecao={temSelecao}
           corte={corte}

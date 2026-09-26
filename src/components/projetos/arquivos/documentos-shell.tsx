@@ -16,6 +16,8 @@ import { EnviarDocumentosDialog, type DadosEnviarDocumentos } from "@/components
 import { SeletorFasesDocumentos, type OpcaoFaseDocumento } from "@/components/projetos/arquivos/seletor-fases-documentos";
 import type { OpcaoStatusDocumento } from "@/components/projetos/arquivos/painel-documento-detalhe";
 import { Pagination } from "@/components/ui/pagination";
+import { QuadroAlturaTela } from "@/components/ui/quadro-altura-tela";
+import { ModoFocoBotao } from "@/components/ui/modo-foco-botao";
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
 
 /**
@@ -171,10 +173,11 @@ export function DocumentosShell({
             />
           )}
           {dadosUploader && <EnviarDocumentosDialog dados={dadosUploader} abrirAoCarregar={abrirEnvio} />}
+          <ModoFocoBotao />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-[260px_1fr] md:items-start">
+      <QuadroAlturaTela folga={40} className="grid grid-cols-1 gap-4 md:grid-cols-[260px_1fr] md:items-start">
         <PainelLateralDocumentos>
           <PainelNavegacaoDocumentos
             projetoId={projeto.id}
@@ -190,7 +193,7 @@ export function DocumentosShell({
           <PainelAreasProjeto areas={areas} selecionada={areaSelecionada} />
         </PainelLateralDocumentos>
 
-        <main className="min-w-0 space-y-3">
+        <main className="min-w-0 space-y-3 md:flex md:h-full md:min-h-0 md:flex-col md:space-y-0 md:gap-3">
           {areaSelecionada ? (
             // Área do projeto escolhida: o conteúdo dela ocupa o lugar da tabela. Filtros e
             // paginação são de documento de disciplina e não se aplicam aqui.
@@ -220,6 +223,7 @@ export function DocumentosShell({
             </div>
             <SeletorColunas ocultas={colunasOcultas} />
           </div>
+          <div className="md:min-h-0 md:flex-1 md:overflow-y-auto">
           <TabelaDocumentos
             projetoId={projeto.id}
             linhas={linhas}
@@ -239,6 +243,7 @@ export function DocumentosShell({
             colunas={colunas}
             exclusoesPendentes={exclusoesPendentes}
           />
+          </div>
           <Pagination
             page={paginacao.page}
             pageCount={paginacao.pageCount}
@@ -248,7 +253,7 @@ export function DocumentosShell({
           </>
           )}
         </main>
-      </div>
+      </QuadroAlturaTela>
     </div>
   );
 }

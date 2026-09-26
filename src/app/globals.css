@@ -453,3 +453,13 @@ header:has(~ main [data-cabecalho-pagina]) [data-titulo-padrao] {
   border-radius: 1px;
   color: transparent;
 }
+
+/* Modo foco (components/ui/modo-foco-botao.tsx): dá a tela inteira à tabela de Arquivos ou ao
+   visualizador da Compatibilização, escondendo o menu lateral, a barra do topo e o cabeçalho do
+   projeto. Sai pelo botão na própria área de trabalho ou com Esc. */
+:root[data-modo-foco] [data-tour="nav"],
+:root[data-modo-foco] header.sticky,
+:root[data-modo-foco] nav[aria-label="Seções do projeto"],
+:root[data-modo-foco] [data-foco-esconder] {
+  display: none;
+}

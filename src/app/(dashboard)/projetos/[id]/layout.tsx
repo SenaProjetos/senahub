@@ -82,7 +82,7 @@ export default async function ProjetoLayout({
   return (
     <div className="space-y-0">
       {/* Cabeçalho */}
-      <div className="border-b pb-3">
+      <div className="border-b pb-3" data-foco-esconder>
         <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
           <Button variant="ghost" size="icon" render={<Link href="/projetos" aria-label="Voltar para projetos" />}>
             <ArrowLeft className="size-4" />
