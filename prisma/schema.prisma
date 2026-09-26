@@ -710,6 +710,9 @@ model AcessoPagina {
   userId    String
   secao     String
   path      String
+  /// "celular" | "computador" — decidido no cliente (largura < 768 px). Nulo = registro anterior
+  /// ao campo ou cliente antigo; a análise de uso mostra esses como "sem informação".
+  dispositivo String?
   createdAt DateTime @default(now())
 
   @@index([secao, createdAt])

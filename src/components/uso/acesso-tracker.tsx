@@ -16,7 +16,11 @@ export function AcessoTracker() {
     if (!pathname || pathname === ultimo.current) return;
     ultimo.current = pathname;
     try {
-      const blob = new Blob([JSON.stringify({ path: pathname })], { type: "application/json" });
+      const blob = new Blob([JSON.stringify({
+        path: pathname,
+        // Mesmo corte do restante do sistema: abaixo de `md` (768 px) é celular.
+        dispositivo: window.matchMedia("(max-width: 47.99rem)").matches ? "celular" : "computador",
+      })], { type: "application/json" });
       if (typeof navigator.sendBeacon === "function") {
         navigator.sendBeacon("/api/uso/acesso", blob);
       } else {

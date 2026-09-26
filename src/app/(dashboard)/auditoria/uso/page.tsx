@@ -37,6 +37,8 @@ export default async function UsoPage({ searchParams }: { searchParams: Promise<
           <h2 className="text-2xl font-extrabold tracking-tight">Uso por seção</h2>
           <p className="text-sm text-muted-foreground">
             Acessos (page-views) e ações por seção nos últimos {dias} dias — {data.totalAcessos} acessos · {data.totalAcoes} ações.
+            {data.porDispositivo.celular + data.porDispositivo.computador > 0 &&
+              ` Celular: ${Math.round((data.porDispositivo.celular / (data.porDispositivo.celular + data.porDispositivo.computador)) * 100)}% dos acessos com dispositivo registrado (${data.porDispositivo.celular} celular · ${data.porDispositivo.computador} computador).`}
           </p>
         </div>
         <PeriodoSelect dias={dias} />

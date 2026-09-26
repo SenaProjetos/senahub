@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { montarHeatmap, type HeatmapUso } from "./heatmap";
-import { metricasPorSecao, serieDiaria, distribuicaoDiaHora, type MetricaSecao } from "./uso";
+import { metricasPorSecao, serieDiaria, distribuicaoDiaHora, acessosPorDispositivo, type MetricaSecao } from "./uso";
 
 function janela(dias: number, hoje: Date) {
   const inicioAtual = new Date(hoje);
@@ -17,6 +17,7 @@ export type AnaliseUso = {
   dias: number;
   totalAcessos: number;
   totalAcoes: number;
+  porDispositivo: { celular: number; computador: number; semInfo: number };
   metricas: MetricaSecao[];
   heatmapSecaoDia: HeatmapUso;
   diaHora: { matriz: number[][]; max: number };
@@ -32,12 +33,12 @@ export async function analiseUso(dias = 14): Promise<AnaliseUso> {
   const { inicioAtual, inicioAnterior } = janela(dias, hoje);
 
   const [acessos, acessosAnt, acoes] = await Promise.all([
-    prisma.acessoPagina.findMany({ where: { createdAt: { gte: inicioAtual } }, select: { secao: true, userId: true, createdAt: true }, take: 100000 }),
+    prisma.acessoPagina.findMany({ where: { createdAt: { gte: inicioAtual } }, select: { secao: true, userId: true, createdAt: true, dispositivo: true }, take: 100000 }),
     prisma.acessoPagina.findMany({ where: { createdAt: { gte: inicioAnterior, lt: inicioAtual } }, select: { secao: true, userId: true, createdAt: true }, take: 100000 }),
     prisma.auditLog.findMany({ where: { createdAt: { gte: inicioAtual } }, select: { modulo: true, acao: true, userId: true, resultado: true, createdAt: true }, take: 100000 }),
   ]);
 
-  const evAcessos = acessos.map((a) => ({ secao: a.secao, userId: a.userId, em: a.createdAt }));
+  const evAcessos = acessos.map((a) => ({ secao: a.secao, userId: a.userId, em: a.createdAt, dispositivo: a.dispositivo }));
   const evAcessosAnt = acessosAnt.map((a) => ({ secao: a.secao, userId: a.userId, em: a.createdAt }));
   const evAcoes = acoes.map((a) => ({ modulo: a.modulo, acao: a.acao, userId: a.userId, em: a.createdAt, resultado: a.resultado }));
 
@@ -49,7 +50,7 @@ export async function analiseUso(dias = 14): Promise<AnaliseUso> {
   const users = ids.length ? await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }) : [];
   const nomes = Object.fromEntries(users.map((u) => [u.id, u.name]));
 
-  return { dias, totalAcessos: evAcessos.length, totalAcoes: evAcoes.length, metricas, heatmapSecaoDia, diaHora, nomes };
+  return { dias, totalAcessos: evAcessos.length, totalAcoes: evAcoes.length, porDispositivo: acessosPorDispositivo(evAcessos), metricas, heatmapSecaoDia, diaHora, nomes };
 }
 
 export type DetalheSecao = {

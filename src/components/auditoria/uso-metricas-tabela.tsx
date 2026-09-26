@@ -71,6 +71,7 @@ export function UsoMetricasTabela({
           <tr>
             <th className="px-3 py-2">Seção</th>
             <Th c="acessos" label="Acessos" className="text-right" />
+            <th className="px-3 py-2 text-right" title="Parcela dos acessos com dispositivo registrado que veio do celular">Celular</th>
             <Th c="usuariosUnicos" label="Usuários" className="text-right" />
             <Th c="deltaPct" label="Δ" className="text-right" />
             <Th c="acoes" label="Ações" className="text-right" />
@@ -92,6 +93,11 @@ export function UsoMetricasTabela({
                 )}
               </td>
               <td className="px-3 py-2 text-right font-mono">{m.acessos}</td>
+              <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">
+                {m.acessosCelular + m.acessosComputador > 0
+                  ? `${Math.round((m.acessosCelular / (m.acessosCelular + m.acessosComputador)) * 100)}%`
+                  : "—"}
+              </td>
               <td className="px-3 py-2 text-right font-mono">{m.usuariosUnicos}</td>
               <td className="px-3 py-2 text-right"><Delta pct={m.deltaPct} dir={m.deltaDir} /></td>
               <td className="px-3 py-2 text-right font-mono">{m.acoes}</td>

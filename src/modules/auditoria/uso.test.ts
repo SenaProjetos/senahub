@@ -5,6 +5,7 @@ import {
   serieDiaria,
   distribuicaoDiaHora,
   metricasPorSecao,
+  acessosPorDispositivo,
   type EventoAcesso,
   type EventoAcao,
 } from "./uso";
@@ -83,5 +84,30 @@ describe("metricasPorSecao", () => {
     expect(fin.acessos).toBe(1);
     expect(fin.acoes).toBe(0);
     expect(fin.topAcao).toBeNull();
+  });
+});
+
+describe("celular x computador", () => {
+  const em = new Date(2026, 5, 27, 10);
+  const acessos: EventoAcesso[] = [
+    { secao: "tarefas", userId: "a", em, dispositivo: "celular" },
+    { secao: "tarefas", userId: "b", em, dispositivo: "computador" },
+    { secao: "tarefas", userId: "b", em, dispositivo: "computador" },
+    { secao: "tarefas", userId: "c", em }, // registro antigo, sem o campo
+    { secao: "ponto", userId: "a", em, dispositivo: "celular" },
+  ];
+
+  it("divide os acessos de cada seção e deixa o sem-informação de fora", () => {
+    const linhas = metricasPorSecao(acessos, [], []);
+    const tarefas = linhas.find((l) => l.secao === "tarefas")!;
+    expect(tarefas.acessos).toBe(4);
+    expect(tarefas.acessosCelular).toBe(1);
+    expect(tarefas.acessosComputador).toBe(2);
+    expect(linhas.find((l) => l.secao === "ponto")!.acessosCelular).toBe(1);
+  });
+
+  it("totaliza por dispositivo e conta o que veio sem informação", () => {
+    expect(acessosPorDispositivo(acessos)).toEqual({ celular: 2, computador: 2, semInfo: 1 });
+    expect(acessosPorDispositivo([])).toEqual({ celular: 0, computador: 0, semInfo: 0 });
   });
 });

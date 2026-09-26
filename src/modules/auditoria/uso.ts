@@ -4,7 +4,7 @@
  * séries e distribuições. Reaproveita `montarHeatmap` (seção × dia).
  */
 
-export type EventoAcesso = { secao: string; userId: string; em: Date };
+export type EventoAcesso = { secao: string; userId: string; em: Date; dispositivo?: string | null };
 export type EventoAcao = {
   modulo: string;
   acao: string;
@@ -16,6 +16,9 @@ export type EventoAcao = {
 export type MetricaSecao = {
   secao: string;
   acessos: number;
+  /** Acessos vindos do celular; os sem informação de dispositivo não entram aqui nem no computador. */
+  acessosCelular: number;
+  acessosComputador: number;
   usuariosUnicos: number;
   deltaPct: number | null; // null = sem base anterior (novo)
   deltaDir: "up" | "down" | "flat";
@@ -84,6 +87,8 @@ export function metricasPorSecao(
 ): MetricaSecao[] {
   type Acc = {
     acessos: number;
+    celular: number;
+    computador: number;
     users: Set<string>;
     ultimo: number;
     acoes: number;
@@ -96,7 +101,7 @@ export function metricasPorSecao(
   const get = (k: string): Acc => {
     let a = m.get(k);
     if (!a) {
-      a = { acessos: 0, users: new Set(), ultimo: 0, acoes: 0, porAcao: new Map(), porUser: new Map(), falhas: 0, bloqueios: 0 };
+      a = { acessos: 0, celular: 0, computador: 0, users: new Set(), ultimo: 0, acoes: 0, porAcao: new Map(), porUser: new Map(), falhas: 0, bloqueios: 0 };
       m.set(k, a);
     }
     return a;
@@ -105,6 +110,8 @@ export function metricasPorSecao(
   for (const e of acessos) {
     const a = get(e.secao);
     a.acessos += 1;
+    if (e.dispositivo === "celular") a.celular += 1;
+    else if (e.dispositivo === "computador") a.computador += 1;
     a.users.add(e.userId);
     a.porUser.set(e.userId, (a.porUser.get(e.userId) ?? 0) + 1);
     const t = e.em.getTime();
@@ -139,6 +146,8 @@ export function metricasPorSecao(
     linhas.push({
       secao,
       acessos: a.acessos,
+      acessosCelular: a.celular,
+      acessosComputador: a.computador,
       usuariosUnicos: a.users.size,
       deltaPct: d.pct,
       deltaDir: d.direcao,
@@ -153,4 +162,19 @@ export function metricasPorSecao(
   }
   linhas.sort((x, y) => y.acessos - x.acessos || y.acoes - x.acoes || x.secao.localeCompare(y.secao));
   return linhas;
+}
+
+/** Total de acessos por dispositivo. `semInfo` = registros anteriores ao campo. */
+export function acessosPorDispositivo(eventos: { dispositivo?: string | null }[]): {
+  celular: number;
+  computador: number;
+  semInfo: number;
+} {
+  let celular = 0;
+  let computador = 0;
+  for (const e of eventos) {
+    if (e.dispositivo === "celular") celular += 1;
+    else if (e.dispositivo === "computador") computador += 1;
+  }
+  return { celular, computador, semInfo: eventos.length - celular - computador };
 }
