@@ -14,6 +14,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -85,6 +87,7 @@ export function PreferenciasView({
   /** Alertas de jornada por horário são só p/ CLT/estagiário — controla a seção de e-mail. */
   mostrarAlertasPonto: boolean;
 }) {
+  const [aba, setAba] = useState<"perfil" | "avisos">("perfil");
   const [somChat, setSomChat] = useState(somChatInicial);
   const [mostrarRecibos, setMostrarRecibos] = useState(recibosInicial);
   const [notifPrazoDisciplina, setNotifPrazoDisciplina] = useState(notifPrazoDisciplinaInicial);
@@ -287,9 +290,21 @@ export function PreferenciasView({
         <p className="text-sm text-muted-foreground">Ajustes pessoais — salvos na sua conta.</p>
       </div>
 
-      <MeuPerfilCard perfil={perfil} />
-      <AparenciaCard />
+      {/* Celular: duas abas em vez de uma pilha de cartões. No computador tudo continua junto — os
+          passos do tour de boas-vindas apontam para cartões das duas metades. */}
+      <Tabs value={aba} onValueChange={(v) => setAba(v as "perfil" | "avisos")} className="md:hidden">
+        <TabsList variant="line" className="w-full">
+          <TabsTrigger value="perfil">Perfil e aparência</TabsTrigger>
+          <TabsTrigger value="avisos">Notificações</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
+      <div className={cn("space-y-5", aba !== "perfil" && "hidden md:block")}>
+        <MeuPerfilCard perfil={perfil} />
+        <AparenciaCard />
+      </div>
+
+      <div className={cn("space-y-5", aba !== "avisos" && "hidden md:block")}>
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Chat</CardTitle>
@@ -352,6 +367,7 @@ export function PreferenciasView({
           </CardContent>
         </Card>
       )}
+      </div>
     </div>
   );
 }
