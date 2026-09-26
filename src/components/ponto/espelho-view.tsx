@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -330,7 +331,10 @@ export function EspelhoView({
   projetos,
   podeEditar,
   diarioPorProjeto,
+  subnav,
 }: {
+  /** Sub-abas do módulo, desenhadas depois do cabeçalho (que tem de ser o 1º elemento). */
+  subnav?: React.ReactNode;
   detalhe: EspelhoDetalhado;
   ano: number;
   mes: number;
@@ -412,56 +416,59 @@ export function EspelhoView({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight">Espelho de ponto</h1>
-          <p className="text-sm text-muted-foreground">{detalhe.nome}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {usuarios && (
-            <Select value={usuarioSelecionadoId} onValueChange={(v) => v && navegar(ano, mes, v)}>
-              <SelectTrigger className="w-52">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {usuarios.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>
-                    {u.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          <div className="flex items-center gap-1">
-            <Button variant="outline" size="icon" onClick={mesAnterior} aria-label="Mês anterior">
-              <ChevronLeft />
-            </Button>
-            <span className="min-w-36 text-center text-sm font-medium capitalize">
-              {MESES[mes - 1]} {ano}
-            </span>
-            <Button variant="outline" size="icon" onClick={mesProximo} aria-label="Próximo mês">
-              <ChevronRight />
-            </Button>
+      <CabecalhoPagina
+        titulo="Espelho de ponto"
+        descricao={<>{detalhe.nome}</>}
+        acoes={
+          <>
+          <div className="flex flex-wrap items-center gap-2">
+            {usuarios && (
+              <Select value={usuarioSelecionadoId} onValueChange={(v) => v && navegar(ano, mes, v)}>
+                <SelectTrigger className="w-52">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {usuarios.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="icon" onClick={mesAnterior} aria-label="Mês anterior">
+                <ChevronLeft />
+              </Button>
+              <span className="min-w-36 text-center text-sm font-medium capitalize">
+                {MESES[mes - 1]} {ano}
+              </span>
+              <Button variant="outline" size="icon" onClick={mesProximo} aria-label="Próximo mês">
+                <ChevronRight />
+              </Button>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button size="sm" variant="outline">
+                    <Download className="size-4" /> Exportar
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => void exportarXlsx()}>
+                  <FileSpreadsheet className="size-4" /> Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => window.print()}>
+                  <Printer className="size-4" /> Imprimir / PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button size="sm" variant="outline">
-                  <Download className="size-4" /> Exportar
-                </Button>
-              }
-            />
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => void exportarXlsx()}>
-                <FileSpreadsheet className="size-4" /> Excel (.xlsx)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => window.print()}>
-                <Printer className="size-4" /> Imprimir / PDF
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
+          </>
+        }
+      />
+      {subnav}
 
       {equipe && <EquipeAgoraCard equipe={equipe} ano={ano} mes={mes} />}
 

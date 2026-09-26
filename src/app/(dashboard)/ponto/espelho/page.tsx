@@ -66,8 +66,8 @@ export default async function EspelhoPontoPage({
 
   return (
     <div className="space-y-4">
-      <PontoSubnav />
       <EspelhoView
+        subnav={<PontoSubnav />}
         detalhe={detalhe}
         ano={ano}
         mes={mes}

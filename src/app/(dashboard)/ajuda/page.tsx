@@ -1,6 +1,7 @@
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BookOpen, Rocket, HelpCircle, BookMarked, ArrowRight } from "lucide-react";
+import { Rocket, HelpCircle, BookMarked, ArrowRight } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { lerManifesto, listarSecoes, pathParaSlug } from "@/lib/manual";
 import { AjudaBusca, type ItemBusca } from "@/components/ajuda/ajuda-busca";
@@ -30,15 +31,7 @@ export default async function AjudaPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-start gap-3">
-        <BookOpen className="mt-0.5 size-7 shrink-0 text-primary" />
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Ajuda &amp; Manual</h2>
-          <p className="text-sm text-muted-foreground">
-            Documentação oficial do SenaHub. Pesquise ou navegue pelas seções.
-          </p>
-        </div>
-      </div>
+      <CabecalhoPagina titulo={<>Ajuda &amp; Manual</>} descricao="Documentação oficial do SenaHub. Pesquise ou navegue pelas seções." />
 
       <AjudaBusca itens={itens} />
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import Link from "next/link";
 import { Clock, Download, Info, FileSpreadsheet, FileText, CalendarClock } from "lucide-react";
 import {
@@ -124,6 +125,7 @@ export function PontoView({
   controlaJornada,
   usaApontamento,
   apontamento,
+  subnav,
 }: {
   estadoDia: EstadoDiaProp;
   projetos: Projeto[];
@@ -135,6 +137,8 @@ export function PontoView({
   diarioPorProjeto: Record<string, DisciplinaEscrevivel[]>;
   /** Só CLT/estagiário têm controle de jornada (esperado/saldo); demais cargos são informativos. */
   controlaJornada: boolean;
+  /** Sub-abas do módulo. Vêm da página, mas precisam ser desenhadas DEPOIS do cabeçalho (que tem de ser o 1º elemento). */
+  subnav?: React.ReactNode;
   /** PJ/freelancer: registra horas por projeto, sem vocabulário de ponto (ver apontamento.ts). */
   usaApontamento: boolean;
   apontamento: {
@@ -252,14 +256,8 @@ export function PontoView({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">{usaApontamento ? "Apontamento de horas" : "Ponto"}</h2>
-        <p className="text-sm text-muted-foreground">
-          {usaApontamento
-            ? "Registre suas horas por projeto para o rateio. Troque de projeto sem perder tempo."
-            : "Registre sua jornada: entrada, descansos e saída. Troque de projeto sem perder tempo."}
-        </p>
-      </div>
+      <CabecalhoPagina titulo={<>{usaApontamento ? "Apontamento de horas" : "Ponto"}</>} descricao={<>{usaApontamento ? "Registre suas horas por projeto para o rateio. Troque de projeto sem perder tempo." : "Registre sua jornada: entrada, descansos e saída. Troque de projeto sem perder tempo."}</>} />
+      {subnav}
 
       {usaApontamento && apontamento ? (
         <ApontamentoHoras aberto={apontamento.aberto} hojeMin={apontamento.hojeMin} projetos={projetos} />

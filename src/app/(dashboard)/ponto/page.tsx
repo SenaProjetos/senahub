@@ -55,8 +55,8 @@ export default async function PontoPage() {
 
   return (
     <div className="space-y-4">
-      <PontoSubnav />
       <PontoView
+        subnav={<PontoSubnav />}
         estadoDia={estadoDia}
         projetos={projetos}
         espelho={espelho}
