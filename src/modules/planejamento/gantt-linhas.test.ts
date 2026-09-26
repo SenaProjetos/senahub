@@ -183,6 +183,22 @@ describe("textoRecursos", () => {
     expect(textoRecursos([], false)).toBe("");
     expect(textoRecursos([], true)).toBe("terceiro");
   });
+
+  it('o recurso "Externo" não é escrito como perfil — a linha diz "terceiro"', () => {
+    expect(textoRecursos([{ nome: null, papel: "ext", rotuloPapel: "Externo" }], true)).toBe("terceiro");
+  });
+
+  it("quem da casa acompanha a etapa de terceiro aparece depois da marca", () => {
+    expect(
+      textoRecursos(
+        [
+          { nome: null, papel: "ext", rotuloPapel: "Externo" },
+          { nome: "Maria", papel: "coo", rotuloPapel: "Coordenador" },
+        ],
+        true,
+      ),
+    ).toBe("terceiro; Maria");
+  });
 });
 
 describe("lerDuracao", () => {

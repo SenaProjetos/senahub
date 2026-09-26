@@ -8,6 +8,7 @@ import { usaEstruturaCustom } from "@/modules/projetos/estrutura-tipo";
 import { semearPastasTemplate } from "@/modules/projetos/pastas/seed";
 import type { duplicarProjetoSchema } from "@/modules/projetos/schemas";
 import { clonarEap } from "@/modules/projetos/duplicar-eap";
+import { ehEtapaDeTerceiro } from "@/modules/planejamento/recursos";
 import { herdarResponsaveisNoProjeto } from "@/modules/planejamento/recursos-service";
 import { paraDataUtc, reagendarProjeto } from "@/modules/planejamento/agenda";
 import { reservarIdsParaLinhas } from "@/modules/planejamento/id-corporativo";
@@ -57,6 +58,8 @@ export async function duplicarProjetoNoBanco(
       eapTarefas: {
         orderBy: { ordem: "asc" },
         select: {
+          // Só o papel: a marca de etapa de terceiro vai junto na cópia; as PESSOAS, não.
+          atribuicoes: { select: { papel: true } },
           id: true,
           parentId: true,
           disciplinaId: true,
@@ -187,7 +190,8 @@ export async function duplicarProjetoNoBanco(
       const novaLinha = new Map(
         origem.eapTarefas.map((t, i) => [t.id, { id: randomUUID(), idCorporativo: idsCorporativos[i] }] as const),
       );
-      const { linhas, dependencias } = clonarEap(origem.eapTarefas, {
+      const origemComMarca = origem.eapTarefas.map((t) => ({ ...t, deTerceiro: ehEtapaDeTerceiro(t.atribuicoes) }));
+      const { linhas, dependencias, atribuicoesExternas } = clonarEap(origemComMarca, {
         projetoId: criado.id,
         disciplinaNova: dMap,
         fasesDaDisciplina,
@@ -196,6 +200,10 @@ export async function duplicarProjetoNoBanco(
       });
       await tx.eapTarefa.createMany({ data: linhas });
       if (dependencias.length > 0) await tx.eapDependencia.createMany({ data: dependencias, skipDuplicates: true });
+      // A marca de etapa de terceiro vem ANTES da herança: a linha que tem o "Externo" já conta como
+      // "tem atribuição", então `herdarResponsaveisNoProjeto` não põe um projetista para esperar a
+      // prefeitura.
+      if (atribuicoesExternas.length > 0) await tx.eapAtribuicao.createMany({ data: atribuicoesExternas });
       // Cronograma novo em RASCUNHO (D27): nada vale até alguém revisar e aprovar.
       await tx.cronogramaProjeto.create({
         data: { projetoId: criado.id, inicioProjeto: input.inicioCronograma ? paraDataUtc(input.inicioCronograma) : null },

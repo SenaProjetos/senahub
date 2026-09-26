@@ -12,6 +12,7 @@ const linha = (id: string, o: Partial<LinhaEapOrigem> = {}): LinhaEapOrigem => (
   tipoEap: "atv",
   duracaoDias: 5,
   prioridade: "med",
+  deTerceiro: false,
   etapaId: null,
   tipoAtividadeId: null,
   sistemaId: null,
@@ -95,6 +96,11 @@ describe("clonarEap", () => {
   it("fase sem disciplina não é copiada (a fase só existe ligada a uma disciplina)", () => {
     const { linhas } = clonarEap([linha("A", { disciplinaId: null, etapaId: "fase-global" })], contexto(["A"]));
     expect(linhas[0].etapaId).toBeNull();
+  });
+
+  it('a marca de etapa de terceiro vai junto (é o que a linha É), as pessoas não', () => {
+    const r = clonarEap([linha("a", { deTerceiro: true }), linha("b")], contexto(["a", "b"]));
+    expect(r.atribuicoesExternas).toEqual([{ tarefaId: "n-a", papel: "ext", horasPrevistas: 0 }]);
   });
 
   it("dependências levam tipo e defasagem, e só entre linhas copiadas", () => {

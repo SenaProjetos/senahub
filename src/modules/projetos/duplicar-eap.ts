@@ -12,6 +12,11 @@ import type { Prisma, PrioridadeEap, TipoEap, TipoVinculoEap } from "@/generated
  * horas e pessoas (a equipe do clone é outra decisão) e restrições de data — elas são datas
  * absolutas, e num projeto que começa em outro dia viram travas sem sentido. As datas previstas
  * copiadas são só o ponto de partida: o motor as recalcula a partir do início do cronograma novo.
+ *
+ * A marca de ETAPA DE TERCEIRO (o recurso "Externo", decisão #1) É copiada, ao contrário das
+ * pessoas: ela diz o que a linha É — "esperar a prefeitura" continua sendo esperar a prefeitura no
+ * projeto novo —, não quem a faz. Sem isso a linha clonada voltaria a contar como trabalho da casa,
+ * ganhando card e responsável herdado.
  */
 
 export type LinhaEapOrigem = {
@@ -31,6 +36,8 @@ export type LinhaEapOrigem = {
   inicioPrevisto: Date;
   fimPrevisto: Date;
   predecessoras: { predecessoraId: string; tipo: TipoVinculoEap; lagDias: Prisma.Decimal | number | string }[];
+  /** Tem o recurso "Externo" (etapa de terceiro)? Calculado com `ehEtapaDeTerceiro`. */
+  deTerceiro: boolean;
 };
 
 export type ContextoClonagemEap = {
@@ -52,7 +59,11 @@ export type ContextoClonagemEap = {
 export function clonarEap(
   linhas: readonly LinhaEapOrigem[],
   ctx: ContextoClonagemEap,
-): { linhas: Prisma.EapTarefaCreateManyInput[]; dependencias: Prisma.EapDependenciaCreateManyInput[] } {
+): {
+  linhas: Prisma.EapTarefaCreateManyInput[];
+  dependencias: Prisma.EapDependenciaCreateManyInput[];
+  atribuicoesExternas: Prisma.EapAtribuicaoCreateManyInput[];
+} {
   const global = (id: string | null) => (id && ctx.catalogosGlobais.has(id) ? id : null);
 
   const novasLinhas = linhas.map((t): Prisma.EapTarefaCreateManyInput => {
@@ -91,5 +102,13 @@ export function clonarEap(
     }
   }
 
-  return { linhas: novasLinhas, dependencias };
+  const atribuicoesExternas = linhas
+    .filter((t) => t.deTerceiro)
+    .map((t): Prisma.EapAtribuicaoCreateManyInput => ({
+      tarefaId: ctx.novaLinha.get(t.id)!.id,
+      papel: "ext",
+      horasPrevistas: 0,
+    }));
+
+  return { linhas: novasLinhas, dependencias, atribuicoesExternas };
 }

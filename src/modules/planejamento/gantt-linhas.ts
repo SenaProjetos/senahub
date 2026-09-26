@@ -221,12 +221,17 @@ export function lerPercentual(texto: string): { ok: true; valor: number } | { ok
 
 /**
  * O que a coluna Recursos mostra: as pessoas separadas por `;` e, para vaga sem pessoa, o perfil entre
- * parênteses ("(Projetista)"). Linha de terceiro sem ninguém mostra "terceiro".
+ * parênteses ("(Projetista)"). Linha de terceiro começa por "terceiro".
+ *
+ * O recurso "Externo" (decisão #1) NÃO entra como perfil: ele não é vaga esperando gente, é a marca de
+ * que a linha é executada fora da casa — escrever "(Externo)" faria parecer que falta escalar alguém.
+ * Quem da casa acompanha a etapa aparece depois da marca ("terceiro; Maria").
  */
 export function textoRecursos(
-  atribuicoes: readonly { nome: string | null; rotuloPapel: string }[],
+  atribuicoes: readonly { nome: string | null; papel?: string; rotuloPapel: string }[],
   deTerceiro: boolean,
 ): string {
-  if (atribuicoes.length === 0) return deTerceiro ? "terceiro" : "";
-  return atribuicoes.map((a) => a.nome ?? `(${a.rotuloPapel})`).join("; ");
+  const daCasa = atribuicoes.filter((a) => a.papel !== "ext").map((a) => a.nome ?? `(${a.rotuloPapel})`);
+  if (deTerceiro) return ["terceiro", ...daCasa].join("; ");
+  return daCasa.join("; ");
 }

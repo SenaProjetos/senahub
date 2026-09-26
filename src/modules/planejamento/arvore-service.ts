@@ -36,7 +36,10 @@ export async function recuarLinha(id: string): Promise<{ projetoId: string; paiV
   if (!plano.ok) throw new ActionError(plano.motivo);
   // O novo pai vira agrupamento: as horas de quem estava nele deixam de contar (o verificador acusa). Avisa a tela.
   const jaTinhaFilhos = nos.some((n) => n.parentId === plano.novoPaiId);
-  const comGente = jaTinhaFilhos ? 0 : await prisma.eapAtribuicao.count({ where: { tarefaId: plano.novoPaiId } });
+  // `ext` (Externo) fora da conta: é a marca de etapa de terceiro, sem horas para perder.
+  const comGente = jaTinhaFilhos
+    ? 0
+    : await prisma.eapAtribuicao.count({ where: { tarefaId: plano.novoPaiId, papel: { not: "ext" } } });
   await prisma.$transaction(async (tx) => {
     await tx.eapTarefa.update({ where: { id }, data: { parentId: plano.novoPaiId, ordem: await proximaOrdem(tx, projetoId) } });
   });

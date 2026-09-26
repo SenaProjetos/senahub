@@ -111,7 +111,7 @@ async function main() {
     check("linha da casa sem ninguém segue sem estimativa (null)", hC === null, { hC });
 
     const q = await avaliarQualidade(projeto.id);
-    const semResp = q.achados.filter((a) => a.regra === "sem_responsavel").map((a) => a.tarefaId);
+    const semResp = (q?.achados ?? []).filter((a) => a.regra === "sem_responsavel").map((a) => a.tarefaId);
     check("verificador não cobra responsável da etapa de terceiro", !semResp.includes(A.id), semResp);
     check("e continua cobrando da linha da casa sem ninguém", semResp.includes(semNinguem.id), semResp);
 

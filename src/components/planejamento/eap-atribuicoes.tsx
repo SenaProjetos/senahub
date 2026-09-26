@@ -109,7 +109,7 @@ export function EapAtribuicoes({
 
   async function remover(a: AtribuicaoEditavel) {
     const ok = await confirm({
-      title: `Remover ${a.nome ?? "este perfil"} da linha?`,
+      title: `Remover ${a.papel === "ext" ? "a marca de etapa de terceiro" : (a.nome ?? "este perfil")} da linha?`,
       description: a.principal ? "Era o principal — outra atribuição assume, se houver." : undefined,
       confirmLabel: "Remover",
     });

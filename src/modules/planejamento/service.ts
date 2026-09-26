@@ -103,7 +103,9 @@ export async function avaliarQualidade(projetoId: string): Promise<{
         },
         t.atribuicoes.map((a) => ({ userId: a.userId, horas: Number(a.horasPrevistas) })),
       ),
-      temAtribuicao: t.atribuicoes.length > 0,
+      // Só gente e perfis: o recurso "Externo" não tem hora, então não há hora para deixar de
+      // contar quando a linha vira agrupamento — e o texto do alerta fala de pessoas.
+      temAtribuicao: t.atribuicoes.some((a) => a.papel !== "ext"),
       temRestricao: t.restricaoTipo != null,
       temPredecessora: t._count.predecessoras > 0,
       temSucessora: t._count.sucessoras > 0,
