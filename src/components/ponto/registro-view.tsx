@@ -1,5 +1,6 @@
 "use client";
 
+import { CardPontoHoje } from "@/components/ponto/card-ponto-hoje";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -273,6 +274,10 @@ export function RegistroPonto({
           </div>
         )}
 
+        {/* Celular: o mesmo cartão em lista do Início (atividade atual, recentes, botões grandes). */}
+        <CardPontoHoje semLinkParaPagina />
+
+        <div className="hidden flex-col gap-5 md:flex">
         <div className="flex flex-col items-center gap-2">
           <Relogio ms={trabalhadoMs} ativo={estadoDia.estado === "trabalhando"} />
           <div className="flex items-center gap-2 text-sm">
@@ -335,6 +340,7 @@ export function RegistroPonto({
               </Button>
             );
           })}
+        </div>
         </div>
 
         {!podeEscolherProjeto && estadoDia.estado === "descansando" && (

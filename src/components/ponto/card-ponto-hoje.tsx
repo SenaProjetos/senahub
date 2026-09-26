@@ -73,7 +73,7 @@ function useEhCelular(): boolean {
  * 1º nível apenas (projeto, reunião, sem projeto). O 2º (atividade da EAP) espera a reforma das
  * EAPs — lote 9 do plano.
  */
-export function CardPontoHoje() {
+export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina?: boolean } = {}) {
   const ehCelular = useEhCelular();
   const router = useRouter();
   const confirmar = useConfirm();
@@ -312,9 +312,11 @@ export function CardPontoHoje() {
           </Button>
         )}
       </div>
-      <Link href="/ponto" className="mt-2 block px-1 text-center text-xs text-muted-foreground hover:text-foreground">
+{!semLinkParaPagina && (
+              <Link href="/ponto" className="mt-2 block px-1 text-center text-xs text-muted-foreground hover:text-foreground">
         {ehPonto ? "Abrir o relógio de ponto e o espelho" : "Abrir o apontamento de horas"}
       </Link>
+      )}
 
       <Sheet open={gaveta} onOpenChange={setGaveta}>
         <SheetContent side="bottom" className="max-h-[85svh] gap-0 rounded-t-xl p-0">
