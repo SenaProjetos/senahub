@@ -167,7 +167,17 @@ ser divididos entre as duas worktrees).
   - **2.6 reclassificada:** o Diário só tem texto (`DiarioEntrada` sem anexo). "Foto da câmera"
     exige campo/tabela de anexo, rota de upload e migração: é feature M/G, não ajuste P.
     Decisão do dono se entra (e em qual lote).
-- [ ] Lote 3
+- [ ] **Lote 3 — em andamento (Sonnet 5): feitos 3.1, 3.2, 3.3, 3.7; faltam 3.4, 3.5, 3.6.**
+  - 3.1: no celular saem relógio da jornada, data e tema da barra do topo (tema → menu da conta).
+  - 3.2: barra de baixo = Início, Projetos, Tarefas, Ponto, Chat, Mais (ordem fixa; "Mais" abre
+    o menu lateral por evento). Em dev, o botão do inspetor visual cobre o "Mais" (só dev).
+  - 3.3: `pointer-coarse:` em Button, Input, Select e itens de menu (40/44 px); desktop igual.
+    Na lista de Projetos em 390 px: 1 de 29 alvos abaixo de 32 px.
+  - 3.7: grade 2 × 2 em Financeiro, Licitações e Qualidade. Certidões não tem cartões de
+    números; resumo recolhível de Licitações não feito.
+  - Sobras do 2.1 achadas aqui: fileiras de ações sem `flex-wrap` em Projetos (466 px) e
+    Licitações (487 px), que empurravam a barra de baixo para fora; corrigidas. Reconferir as
+    demais telas na varredura do lote 8.
 - [ ] Lote 4
 - [ ] Lote 5
 - [ ] Lote 6
