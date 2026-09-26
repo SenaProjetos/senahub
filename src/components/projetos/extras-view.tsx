@@ -2,9 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Check, X, Save, Camera, GitBranch, FileText, ShieldAlert, TrendingDown } from "lucide-react";
+import { Plus, Trash2, Check, X, Save, Camera, GitBranch, FileText, ShieldAlert, TrendingDown } from "lucide-react";
 import {
   solicitarRevisao,
   responderRevisao,
@@ -20,7 +19,6 @@ import {
   excluirRisco,
 } from "@/modules/projetos/extras/actions";
 import type { extrasDoProjeto } from "@/modules/projetos/extras/queries";
-import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
@@ -187,9 +185,6 @@ export function ExtrasView({
   return (
     <div className="space-y-5">
       <div>
-        <Link href={`/projetos/${projeto.id}`} className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="size-3" /> {formatarCodigo(projeto.codigo)} · {projeto.nome}
-        </Link>
         <h2 className="text-2xl font-extrabold tracking-tight">Mais funções do projeto</h2>
       </div>
 

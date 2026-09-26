@@ -1,7 +1,5 @@
-import Link from "next/link";
-import { ArrowLeft, History, ShieldCheck } from "lucide-react";
+import { History, ShieldCheck } from "lucide-react";
 import type { HistoricoProjeto, HistoricoItem } from "@/modules/projetos/historico/queries";
-import { formatarCodigo } from "@/modules/projetos/numbering";
 import { formatarDataHora } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -217,19 +215,10 @@ function resumo(item: HistoricoItem, nomes: Record<string, string>): string | nu
   }
 }
 
-export function HistoricoView({
-  projeto,
-  historico,
-}: {
-  projeto: { id: string; codigo: string; nome: string };
-  historico: HistoricoProjeto;
-}) {
+export function HistoricoView({ historico }: { historico: HistoricoProjeto }) {
   return (
     <div className="space-y-5">
       <div>
-        <Link href={`/projetos/${projeto.id}`} className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="size-3" /> {formatarCodigo(projeto.codigo)} · {projeto.nome}
-        </Link>
         <h2 className="flex items-center gap-2 text-2xl font-extrabold tracking-tight">
           Histórico <ShieldCheck className="size-5 text-muted-foreground" />
         </h2>

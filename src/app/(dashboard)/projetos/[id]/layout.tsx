@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ChevronRight, MessageSquare } from "lucide-react";
+import { ArrowLeft, MessageSquare } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { obterProjetoMinimo, abasComConteudo } from "@/modules/projetos/queries";
@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { DuplicarProjetoButton } from "@/components/projetos/duplicar-projeto-button";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { ProjetoTabNav } from "@/components/projetos/projeto-tab-nav";
+import { AcoesProjetoRecolhiveis } from "@/components/projetos/acoes-projeto-recolhiveis";
 import { ProjetoAcoesMenu } from "@/components/projetos/projeto-acoes-menu";
 import { EditarProjetoDialog } from "@/components/projetos/editar-projeto-dialog";
 import { inicioDoDia, inicioDoDiaLocal } from "@/lib/data";
@@ -81,24 +82,17 @@ export default async function ProjetoLayout({
   return (
     <div className="space-y-0">
       {/* Cabeçalho */}
-      <div className="border-b pb-4">
-        <nav aria-label="Navegação estrutural" className="mb-3 flex items-center gap-1 text-xs text-muted-foreground">
-          <Link href="/" className="hover:text-foreground">Início</Link>
-          <ChevronRight className="size-3" aria-hidden />
-          <Link href="/projetos" className="hover:text-foreground">Projetos</Link>
-          <ChevronRight className="size-3" aria-hidden />
-          <span aria-current="page">Detalhe</span>
-        </nav>
-        <div className="flex items-start gap-3">
+      <div className="border-b pb-3">
+        <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
           <Button variant="ghost" size="icon" render={<Link href="/projetos" aria-label="Voltar para projetos" />}>
             <ArrowLeft className="size-4" />
           </Button>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="min-w-0 flex-[1_1_14rem]">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="font-mono text-sm font-semibold text-muted-foreground">
                 {formatarCodigo(projeto.codigo)}
               </span>
-              <h1 className="truncate text-xl font-extrabold tracking-tight sm:text-2xl">{projeto.nome}</h1>
+              <h1 className="line-clamp-2 text-xl font-extrabold tracking-tight sm:truncate sm:text-2xl">{projeto.nome}</h1>
               <Badge variant="outline">{TIPO_PROJETO_LABEL[projeto.tipo] ?? projeto.tipo}</Badge>
               <Badge variant="outline">{SITUACAO_PROJETO_LABEL[projeto.situacao]}</Badge>
               {diasAtraso > 0 && (
@@ -107,13 +101,13 @@ export default async function ProjetoLayout({
                 </Badge>
               )}
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-0.5 text-sm text-muted-foreground">
               <Link href={`/clientes/${projeto.cliente.id}`} className="hover:underline">
                 {projeto.cliente.nome}
               </Link>
             </p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:shrink-0 sm:flex-wrap sm:justify-end">
+          <AcoesProjetoRecolhiveis>
           {canalChat && (
             <Button variant="outline" size="sm" render={<Link href={`/chat?c=${canalChat.id}`} />}>
               <MessageSquare className="size-4" /> Chat
@@ -141,7 +135,7 @@ export default async function ProjetoLayout({
           {podeGerir && <DuplicarProjetoButton projetoId={id} />}
           <GerarDocumentoButton modelos={modelosDoc} paramId="projetoId" valor={id} />
           {podeGerir && <ProjetoAcoesMenu projetoId={id} situacao={projeto.situacao} />}
-          </div>
+          </AcoesProjetoRecolhiveis>
         </div>
       </div>
 

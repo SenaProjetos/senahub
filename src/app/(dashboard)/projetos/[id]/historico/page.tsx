@@ -26,5 +26,5 @@ export default async function HistoricoPage({
   const sp = await searchParams;
   const historico = await historicoDocumentosProjeto(id, { page: sp.page ? Number(sp.page) : 1 });
 
-  return <HistoricoView projeto={projeto} historico={historico} />;
+  return <HistoricoView historico={historico} />;
 }
