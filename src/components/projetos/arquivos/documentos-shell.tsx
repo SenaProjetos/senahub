@@ -133,13 +133,13 @@ export function DocumentosShell({
     <div className="space-y-4">
 
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Documentos</h2>
-          <p className="text-sm text-muted-foreground tabular-nums">
+        <h2 className="flex flex-wrap items-baseline gap-x-2 text-xl font-extrabold tracking-tight">
+          Documentos
+          <span className="text-sm font-normal text-muted-foreground tabular-nums">
             {totalDocumentos} {totalDocumentos === 1 ? "documento" : "documentos"} · {totalDisciplinas}{" "}
             {totalDisciplinas === 1 ? "disciplina" : "disciplinas"}
-          </p>
-        </div>
+          </span>
+        </h2>
         {/* Celular: os 4 botões quebrariam em 3 linhas e empurrariam a tabela pra baixo da
             dobra. Viram uma fita que rola de lado; a partir de sm voltam a quebrar em linhas. */}
         <div className="-mx-1 flex w-full min-w-0 items-center gap-2 overflow-x-auto px-1 pb-1 [&>*]:shrink-0 sm:mx-0 sm:w-auto sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
@@ -200,7 +200,9 @@ export function DocumentosShell({
             </section>
           ) : (
           <>
-          <div className="flex flex-wrap items-start justify-between gap-2">
+          {/* Barra única: busca, filtros, fases e colunas na mesma linha (quebra só se faltar largura). */}
+          <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+            <div className="min-w-0 flex-1 basis-72">
             <FiltrosDocumentos
               extensoes={extensoes}
               autores={autores}
@@ -212,9 +214,12 @@ export function DocumentosShell({
               pacotes={pacotes}
               totalFiltrado={totalFiltrado}
             />
+            </div>
+            <div className="order-last min-w-0 flex-[1_1_100%] xl:order-none xl:flex-[0_1_auto]">
+              <SeletorFasesDocumentos fases={fases} documentosPorFase={documentosPorFase} />
+            </div>
             <SeletorColunas ocultas={colunasOcultas} />
           </div>
-          <SeletorFasesDocumentos fases={fases} documentosPorFase={documentosPorFase} />
           <TabelaDocumentos
             projetoId={projeto.id}
             linhas={linhas}

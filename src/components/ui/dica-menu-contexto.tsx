@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { MousePointerClick } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { prazoVencido } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
@@ -45,21 +46,33 @@ export function DicaMenuContexto({ className }: { className?: string }) {
     }
   }
 
+  // Balão, não faixa: a faixa de largura inteira roubava uma linha de altura em 17 telas. A pílula
+  // ocupa uma linha curta e o texto só aparece se a pessoa abrir.
   return (
-    <div
-      className={cn(
-        "flex items-center gap-2 rounded-sm border border-dashed bg-muted/40 px-3 py-2 text-xs text-muted-foreground",
-        className,
-      )}
-    >
-      <MousePointerClick className="size-4 shrink-0" aria-hidden />
-      <p className="min-w-0 flex-1 text-pretty">
-        <span className="font-medium text-foreground">Novidade:</span> clique com o botão direito
-        em uma linha, um cartão ou um arquivo para ver as ações. No celular, toque e segure.
-      </p>
-      <Button type="button" variant="ghost" size="sm" className="h-7 shrink-0" onClick={dispensar}>
-        Entendi
-      </Button>
+    <div className={cn("flex", className)}>
+      <Popover defaultOpen={false}>
+        <PopoverTrigger
+          render={
+            <button
+              type="button"
+              className="inline-flex h-6 items-center gap-1.5 rounded-full border border-dashed bg-muted/40 px-2.5 text-xs text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:h-8"
+            >
+              <MousePointerClick className="size-3.5 shrink-0" aria-hidden />
+              <span className="font-medium text-foreground">Novidade</span>
+              <span className="hidden sm:inline">· menu de ações no botão direito</span>
+            </button>
+          }
+        />
+        <PopoverContent align="start" className="w-72 text-sm">
+          <p className="text-pretty">
+            Clique com o botão direito em uma linha, um cartão ou um arquivo para ver as ações. No
+            celular, toque e segure.
+          </p>
+          <Button type="button" size="sm" className="mt-2" onClick={dispensar}>
+            Entendi
+          </Button>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
