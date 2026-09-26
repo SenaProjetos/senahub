@@ -186,7 +186,18 @@ ser divididos entre as duas worktrees).
   - Sobras do 2.1 achadas aqui: fileiras de ações sem `flex-wrap` em Projetos (466 px) e
     Licitações (487 px), que empurravam a barra de baixo para fora; corrigidas. Reconferir as
     demais telas na varredura do lote 8.
-- [ ] Lote 4
+- [x] **Lote 4 — concluído em 2026-09-26 (Sonnet 5).**
+  - 4.1: Arquivos com barra única (busca, Filtros, fases, Colunas na mesma linha a partir de
+    1280 px; tabela ~70 px mais acima); Novidade virou pílula com balão (17 telas).
+  - 4.2: `FiltrosGaveta` (botão "Filtros · N" no celular) em Projetos, Clientes, Produção e
+    Auditoria. Corrigida a linha de cada projetista em Produção (alargava a página, 420 px).
+  - 4.3: cartões no celular em Clientes e Pessoas; Aprovações com nome do arquivo visível.
+    Certidões já era lista.
+  - 4.4: grade de painéis da Visão Geral liga com contêiner ≥ 960 px (antes 1280): 3620 → ~1880
+    px em 1366. No limite, o cartão "Indicadores críticos" corta o último indicador; ajustar
+    tamanho padrão se incomodar.
+  - 4.5: `AcessoPagina.dispositivo` (migração `20260926090000`, aditiva) + beacon + coluna
+    "Celular" e total em /auditoria/uso. **Deploy: `npx prisma migrate deploy`** (sem backfill).
 - [ ] Lote 5
 - [ ] Lote 6
 - [ ] Lote 7
