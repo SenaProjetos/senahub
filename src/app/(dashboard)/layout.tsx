@@ -66,6 +66,9 @@ export default async function DashboardLayout({
     // menu e gate divergirem produz "vê o link e toma 404".
     tipo: tipoEfetivo(eixos?.tipo, user.role),
     setor: eixos?.setor ?? null,
+    fixados: Array.isArray(prefs.menu_fixados)
+      ? prefs.menu_fixados.filter((h): h is string => typeof h === "string")
+      : [],
   };
 
   // Bolinha numerada de Certidões. Derivada de `nav.permitidas` (já pago acima) e não de um

@@ -15,10 +15,8 @@ export function Sidebar({ nav }: { nav: ContextoNav }) {
   const [collapsed, setCollapsed] = useState(false);
   // Cliente (tipo "externo") não vê o histórico técnico de versões — é linguagem de commit.
   const interno = nav.tipo === "interno";
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     setCollapsed(localStorage.getItem(COLLAPSED_KEY) === "1");
   }, []);
 
@@ -33,7 +31,7 @@ export function Sidebar({ nav }: { nav: ContextoNav }) {
       data-tour="nav"
       className={cn(
         "sticky top-0 hidden h-svh shrink-0 flex-col overflow-x-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 lg:flex",
-        collapsed ? "w-16" : "w-64",
+        collapsed ? "w-[4.75rem]" : "w-64",
       )}
     >
       {/* Logo: completa expandida, símbolo quando colapsada */}
@@ -57,7 +55,7 @@ export function Sidebar({ nav }: { nav: ContextoNav }) {
         </Link>
       </div>
 
-      <SidebarNav nav={nav} collapsed={collapsed} mounted={mounted} />
+      <SidebarNav nav={nav} collapsed={collapsed} />
 
       <div className={cn("border-t border-sidebar-border p-2", collapsed && "flex justify-center")}>
         <Button

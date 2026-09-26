@@ -106,6 +106,12 @@ export type ContextoNav = {
    * O Chat não entra aqui: o badge dele é do socket (tempo real), não do servidor por request.
    */
   alertas?: Record<string, AlertaNav>;
+  /**
+   * Atalhos que a pessoa fixou no topo do menu (`href`s, na ordem em que fixou). É dado da conta,
+   * guardado em `UserPreference` (`menu_fixados`) — mesmo motivo de `alertas` para viver aqui e
+   * não em `NavItem`.
+   */
+  fixados?: string[];
 };
 
 export type NavGroup = {

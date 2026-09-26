@@ -2,39 +2,62 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useEffect, useState, useTransition } from "react";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  ChevronDown,
+  ChevronRight,
+  LayoutGrid,
+  Pin,
+  PinOff,
+  Ruler,
+  Settings,
+  ShieldCheck,
+  Users,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { salvarPreferencia } from "@/modules/usuarios/preferencias/actions";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { navItemsPara, type AlertaNav, type ContextoNav, type NavGroup, type NavItem } from "@/lib/nav-config";
 import { ChatBadge } from "@/components/chat/chat-badge";
 import { NavBadge } from "@/components/shell/nav-badge";
 
-
 const GROUP_KEY = (title: string) => `navGroups:${title}`;
+/** Chave em `UserPreference` dos atalhos fixados (lista de `href`, na ordem em que foram fixados). */
+export const CHAVE_MENU_FIXADOS = "menu_fixados";
+
+/** Ícone de cada seção no trilho (a seção não tem ícone próprio em `NAV_GROUPS`). */
+const ICONE_DA_SECAO: Record<string, LucideIcon> = {
+  RH: Users,
+  Financeiro: Wallet,
+  Engenharia: Ruler,
+  Gestão: ShieldCheck,
+  Sistema: Settings,
+};
 
 function isItemActive(item: NavItem, pathname: string) {
   return item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
 }
 
+type Fixacao = {
+  fixados: string[];
+  alternar: (href: string) => void;
+};
+
 function NavList({
   items,
   pathname,
-  collapsed,
-  mounted,
   alertas,
   onNavigate,
+  fixacao,
 }: {
   items: NavItem[];
   pathname: string;
-  collapsed: boolean;
-  mounted: boolean;
   alertas?: Record<string, AlertaNav>;
   onNavigate?: () => void;
+  fixacao?: Fixacao;
 }) {
   return (
     <ul className="space-y-1">
@@ -43,37 +66,38 @@ function NavList({
         // Chat tem badge próprio (socket, tempo real); o resto vem do servidor por request.
         const isChat = item.href === "/chat";
         const alerta = isChat ? undefined : alertas?.[item.href];
-        const link = (
-          <Link
-            href={item.href}
-            onClick={onNavigate}
-            className={cn(
-              "flex items-center gap-3 rounded-sm px-2.5 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-              collapsed && "justify-center px-0",
-              active
-                ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
-            )}
-          >
-            <span className="relative shrink-0">
-              <item.icon className="size-[18px]" />
-              {isChat && collapsed && <ChatBadge dot className="absolute -right-1 -top-1" />}
-              {alerta && collapsed && <NavBadge alerta={alerta} dot className="absolute -right-1 -top-1" />}
-            </span>
-            {!collapsed && <span className="truncate">{item.title}</span>}
-            {isChat && !collapsed && <ChatBadge className="ml-auto" />}
-            {alerta && !collapsed && <NavBadge alerta={alerta} className="ml-auto" />}
-          </Link>
-        );
+        const fixado = fixacao?.fixados.includes(item.href) ?? false;
         return (
-          <li key={item.href}>
-            {collapsed && mounted ? (
-              <Tooltip>
-                <TooltipTrigger render={link} />
-                <TooltipContent side="right">{item.title}</TooltipContent>
-              </Tooltip>
-            ) : (
-              link
+          <li key={item.href} className="group/item flex items-center">
+            <Link
+              href={item.href}
+              onClick={onNavigate}
+              className={cn(
+                "flex min-w-0 flex-1 items-center gap-3 rounded-sm px-2.5 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                active
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                  : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+              )}
+            >
+              <item.icon className="size-[18px] shrink-0" />
+              <span className="truncate">{item.title}</span>
+              {isChat && <ChatBadge className="ml-auto" />}
+              {alerta && <NavBadge alerta={alerta} className="ml-auto" />}
+            </Link>
+            {fixacao && (
+              <button
+                type="button"
+                onClick={() => fixacao.alternar(item.href)}
+                aria-label={fixado ? `Desafixar ${item.title}` : `Fixar ${item.title} no topo do menu`}
+                aria-pressed={fixado}
+                title={fixado ? "Desafixar" : "Fixar no topo"}
+                className={cn(
+                  "ml-0.5 grid size-7 shrink-0 place-items-center rounded-sm text-muted-foreground outline-none transition-opacity hover:bg-sidebar-accent/60 hover:text-sidebar-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                  fixado ? "opacity-100" : "opacity-0 group-hover/item:opacity-100 pointer-coarse:opacity-50",
+                )}
+              >
+                {fixado ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
+              </button>
             )}
           </li>
         );
@@ -85,15 +109,15 @@ function NavList({
 function CollapsibleGroup({
   group,
   pathname,
-  mounted,
   alertas,
   onNavigate,
+  fixacao,
 }: {
   group: NavGroup & { title: string };
   pathname: string;
-  mounted: boolean;
   alertas?: Record<string, AlertaNav>;
   onNavigate?: () => void;
+  fixacao?: Fixacao;
 }) {
   // Aberto por padrão; restaura preferência do localStorage após montar.
   const [open, setOpen] = useState(true);
@@ -146,10 +170,9 @@ function CollapsibleGroup({
           <NavList
             items={group.items}
             pathname={pathname}
-            collapsed={false}
-            mounted={mounted}
             alertas={alertas}
             onNavigate={onNavigate}
+            fixacao={fixacao}
           />
         </div>
       )}
@@ -169,33 +192,164 @@ function somarAlertas(items: NavItem[], alertas?: Record<string, AlertaNav>): Al
   };
 }
 
+const CLASSE_ENTRADA_TRILHO =
+  "relative flex w-full flex-col items-center gap-0.5 rounded-sm px-1 py-1.5 text-[10px] font-medium leading-tight transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring";
+
+function classeTrilho(ativo: boolean) {
+  return cn(
+    CLASSE_ENTRADA_TRILHO,
+    ativo
+      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+      : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+  );
+}
+
+/** Item avulso do trilho: ícone com o nome embaixo (o trilho antigo só tinha ícones, sem nome). */
+function ItemTrilho({ item, pathname, alertas }: { item: NavItem; pathname: string; alertas?: Record<string, AlertaNav> }) {
+  const isChat = item.href === "/chat";
+  const alerta = isChat ? undefined : alertas?.[item.href];
+  return (
+    <li>
+      <Link href={item.href} className={classeTrilho(isItemActive(item, pathname))} title={item.title}>
+        <span className="relative">
+          <item.icon className="size-[18px]" />
+          {isChat && <ChatBadge dot className="absolute -right-1 -top-1" />}
+          {alerta && <NavBadge alerta={alerta} dot className="absolute -right-1 -top-1" />}
+        </span>
+        <span className="w-full truncate text-center">{item.title}</span>
+      </Link>
+    </li>
+  );
+}
+
+/** Seção inteira do trilho: um botão com o nome da seção que abre a lista dos itens ao lado. */
+function SecaoTrilho({
+  group,
+  pathname,
+  alertas,
+}: {
+  group: NavGroup & { title: string };
+  pathname: string;
+  alertas?: Record<string, AlertaNav>;
+}) {
+  const [aberta, setAberta] = useState(false);
+  const Icone = ICONE_DA_SECAO[group.title] ?? LayoutGrid;
+  const ativa = group.items.some((i) => isItemActive(i, pathname));
+  const alerta = somarAlertas(group.items, alertas);
+
+  return (
+    <li>
+      <Popover open={aberta} onOpenChange={setAberta}>
+        <PopoverTrigger
+          render={
+            <button type="button" className={classeTrilho(ativa)} aria-label={`Seção ${group.title}`} title={group.title}>
+              <span className="relative">
+                <Icone className="size-[18px]" />
+                {alerta && <NavBadge alerta={alerta} dot className="absolute -right-1 -top-1" />}
+              </span>
+              <span className="w-full truncate text-center">{group.title}</span>
+            </button>
+          }
+        />
+        <PopoverContent side="right" align="start" sideOffset={8} className="w-60 p-2">
+          <p className="mb-1 px-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{group.title}</p>
+          <NavList
+            items={group.items}
+            pathname={pathname}
+            alertas={alertas}
+            onNavigate={() => setAberta(false)}
+          />
+        </PopoverContent>
+      </Popover>
+    </li>
+  );
+}
+
 /**
  * Conteúdo de navegação compartilhado entre a sidebar fixa (desktop) e o
- * drawer mobile. `collapsed` só é usado no modo icon-only do desktop; o drawer
+ * drawer mobile. `collapsed` só é usado no trilho do desktop; o drawer
  * sempre passa `collapsed={false}` e um `onNavigate` para fechar ao navegar.
  */
 export function SidebarNav({
   nav,
   collapsed = false,
-  mounted = true,
   onNavigate,
 }: {
   nav: ContextoNav;
   collapsed?: boolean;
-  mounted?: boolean;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
   const groups = navItemsPara(nav);
+  const [fixados, setFixados] = useState<string[]>(nav.fixados ?? []);
+  const [, iniciar] = useTransition();
+
+  // Só fixa o que o menu de fato mostra a esta pessoa (permissão pode ter mudado depois).
+  const todosOsItens = groups.flatMap((g) => g.items);
+  const itensFixados = fixados
+    .map((href) => todosOsItens.find((i) => i.href === href))
+    .filter((i): i is NavItem => !!i);
+
+  function alternar(href: string) {
+    const proximo = fixados.includes(href) ? fixados.filter((h) => h !== href) : [...fixados, href];
+    setFixados(proximo);
+    iniciar(async () => {
+      const r = await salvarPreferencia({ chave: CHAVE_MENU_FIXADOS, valor: proximo });
+      if (!r.ok) {
+        setFixados(fixados);
+        toast.error("Não foi possível salvar os atalhos fixados.");
+      }
+    });
+  }
+  const fixacao: Fixacao = { fixados, alternar };
+
+  if (collapsed) {
+    return (
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-1.5 py-2" aria-label="Menu principal">
+        <ul className="space-y-0.5">
+          {itensFixados.map((item) => (
+            <ItemTrilho key={`fixo-${item.href}`} item={item} pathname={pathname} alertas={nav.alertas} />
+          ))}
+          {itensFixados.length > 0 && <li aria-hidden className="mx-2 my-1 border-t border-sidebar-border" />}
+          {groups.map((group, gi) =>
+            !group.title || group.items.length === 1 ? (
+              group.items.map((item) => (
+                <ItemTrilho key={item.href} item={item} pathname={pathname} alertas={nav.alertas} />
+              ))
+            ) : (
+              <SecaoTrilho
+                key={group.title ?? gi}
+                group={group as NavGroup & { title: string }}
+                pathname={pathname}
+                alertas={nav.alertas}
+              />
+            ),
+          )}
+        </ul>
+      </nav>
+    );
+  }
 
   return (
     <nav className="flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-3 py-4">
+      {itensFixados.length > 0 && (
+        <div>
+          <p className="mb-1 px-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Fixados</p>
+          <NavList
+            items={itensFixados}
+            pathname={pathname}
+            alertas={nav.alertas}
+            onNavigate={onNavigate}
+            fixacao={fixacao}
+          />
+        </div>
+      )}
       {groups.map((group, gi) => {
-        // Sem título, sidebar colapsada (icon-only) OU grupo de item único: estático, sem seta de expandir.
-        if (!group.title || collapsed || group.items.length === 1) {
+        // Sem título ou grupo de item único: estático, sem seta de expandir.
+        if (!group.title || group.items.length === 1) {
           return (
             <div key={group.title ?? gi}>
-              {group.title && !collapsed && (
+              {group.title && (
                 <p className="mb-1 px-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                   {group.title}
                 </p>
@@ -203,10 +357,9 @@ export function SidebarNav({
               <NavList
                 items={group.items}
                 pathname={pathname}
-                collapsed={collapsed}
-                mounted={mounted}
                 alertas={nav.alertas}
                 onNavigate={onNavigate}
+                fixacao={fixacao}
               />
             </div>
           );
@@ -216,9 +369,9 @@ export function SidebarNav({
             key={group.title}
             group={group as NavGroup & { title: string }}
             pathname={pathname}
-            mounted={mounted}
             alertas={nav.alertas}
             onNavigate={onNavigate}
+            fixacao={fixacao}
           />
         );
       })}

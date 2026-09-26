@@ -2,7 +2,9 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { Search } from "lucide-react";
+import Link from "next/link";
+import { HelpCircle, MessageSquare, Search } from "lucide-react";
+import { ChatBadge } from "@/components/chat/chat-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/shell/user-menu";
 import { MobileNav } from "@/components/shell/mobile-nav";
@@ -10,7 +12,7 @@ import { NotificationBell } from "@/components/notificacoes/notification-bell";
 import { AgendaResumo } from "@/components/agenda/agenda-resumo";
 import { JornadaHeader } from "@/components/ponto/jornada-header";
 import { Breadcrumb } from "@/components/shell/breadcrumb";
-import { NAV_GROUPS, type ContextoNav } from "@/lib/nav-config";
+import { NAV_GROUPS, navItemsPara, type ContextoNav } from "@/lib/nav-config";
 import type { Role } from "@/lib/roles";
 
 function titleFromPath(pathname: string): string {
@@ -33,6 +35,9 @@ export function Header({
   const pathname = usePathname();
   const resolved = title ?? titleFromPath(pathname);
   const globaisRef = useRef<HTMLDivElement>(null);
+  const itensDoMenu = navItemsPara(nav).flatMap((g) => g.items);
+  const temChat = itensDoMenu.some((i) => i.href === "/chat");
+  const temAjuda = itensDoMenu.some((i) => i.href === "/ajuda");
 
   // Largura dos controles globais → `--barra-global`, que o `CabecalhoPagina` usa para não passar
   // por baixo deles quando sobe para esta linha. Muda com o relógio da jornada, o nome da conta e
@@ -78,6 +83,29 @@ export function Header({
           <span className="hidden sm:inline">Buscar</span>
           <kbd className="hidden font-mono text-[10px] text-muted-foreground sm:inline">Ctrl K</kbd>
         </button>
+        {/* Atalhos de uso diário que saíram do fundo do menu: no computador, chat e ajuda ficam à mão
+            aqui (no celular o Chat está na barra de baixo). Só aparecem se o item existe para a pessoa. */}
+        {temChat && (
+          <Link
+            href="/chat"
+            aria-label="Chat"
+            title="Chat"
+            className="relative hidden size-8 place-items-center rounded-sm text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring md:grid"
+          >
+            <MessageSquare className="size-4" />
+            <ChatBadge dot className="absolute right-0.5 top-0.5" />
+          </Link>
+        )}
+        {temAjuda && (
+          <Link
+            href="/ajuda"
+            aria-label="Ajuda"
+            title="Ajuda e manual"
+            className="hidden size-8 place-items-center rounded-sm text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring md:grid"
+          >
+            <HelpCircle className="size-4" />
+          </Link>
+        )}
         <span className="hidden md:contents">
           <AgendaResumo />
         </span>
