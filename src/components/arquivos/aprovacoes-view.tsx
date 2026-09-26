@@ -220,9 +220,10 @@ export function AprovacoesView({ pendentes }: { pendentes: PendenteAprovacao[] }
                       onCheckedChange={() => selecao.alternar(a.id)}
                       aria-label={`Selecionar ${a.nome}`}
                     />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="truncate text-sm font-medium">{a.nome}</span>
+                    {/* Base de 12rem: no celular as ações descem para a linha de baixo e o nome usa a linha inteira (quebrando, não cortado em "2600…"). */}
+                    <div className="min-w-0 flex-[1_1_12rem]">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:flex-nowrap">
+                        <span className="break-all text-sm font-medium sm:truncate sm:break-normal">{a.nome}</span>
                         {a.versao > 1 && <span className="shrink-0 text-[10px] text-muted-foreground">{rotuloRevisao(a.versao)}</span>}
                         {a.ajusteObs && (
                           <Badge variant="outline" className="shrink-0 gap-1 text-warning" title={a.ajusteObs}>

@@ -23,8 +23,33 @@ export function PessoasLista({ pessoas }: { pessoas: PessoaListItem[] }) {
         <Input placeholder="Buscar por nome ou e-mail…" value={q} onChange={(e) => setQ(e.target.value)} className="pl-8" />
       </div>
 
-      <div className="overflow-x-auto rounded-sm border">
-        <table className="w-full min-w-[40rem] text-sm">
+      {/* Celular: um cartão por pessoa em vez da tabela de 4 colunas. */}
+      <ul className="divide-y overflow-hidden rounded-sm border md:hidden" aria-label="Pessoas">
+        {visiveis.map((p) => (
+          <li key={p.id} className={`p-3 ${p.ativo ? "" : "opacity-60"}`}>
+            <div className="flex items-start justify-between gap-2">
+              <Link href={`/rh/pessoas/${p.id}`} className="min-w-0 text-[15px] font-medium hover:underline">
+                {p.name}
+                {p.socioAtivo && <Badge variant="secondary" className="ml-2 align-middle">Sócio</Badge>}
+              </Link>
+              <span className={`shrink-0 text-xs ${p.ativo ? "text-success" : "text-muted-foreground"}`}>
+                {p.ativo ? "Ativo" : "Inativo"}
+              </span>
+            </div>
+            <p className="truncate text-xs text-muted-foreground">{p.email}</p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <Badge variant="outline">{ROLE_LABELS[p.role as Role]}</Badge>
+              <CadastroIncompletoBadge camposFaltantes={p.camposFaltantes} />
+            </div>
+          </li>
+        ))}
+        {visiveis.length === 0 && (
+          <li className="p-6 text-center text-sm text-muted-foreground">Nenhuma pessoa encontrada.</li>
+        )}
+      </ul>
+
+      <div className="hidden overflow-x-auto rounded-sm border md:block">
+        <table className="w-full text-sm">
           <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               <th className="px-4 py-2 font-medium">Nome</th>

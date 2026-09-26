@@ -374,7 +374,57 @@ export function ClientesView({
         </div>
       )}
 
-      <div className="rounded-sm border">
+      {/* Celular: um cartão por cliente (a tabela de 9 colunas só serviria com rolagem lateral). */}
+      <ul className="divide-y overflow-hidden rounded-sm border md:hidden" aria-label="Clientes">
+        {linhas.length === 0 ? (
+          <li className="p-4 text-center text-sm text-muted-foreground">
+            {visao.carregando ? "Carregando os selecionados…" : "Nenhum cliente."}
+          </li>
+        ) : (
+          linhas.map((c) => {
+            const menuItens =
+              selecao.total > 1 && selecao.marcado(c.id) ? itensDoLote : itensDeCliente(c, { podeGerir });
+            return (
+              <LinhaComMenu
+                key={c.id}
+                itens={menuItens}
+                onSelect={(item) => aoSelecionarNaLinha(c, item)}
+                aoAbrir={(aberto) => { if (aberto) selecao.aoAbrirMenu(c.id); }}
+                render={<li data-marcada={selecao.marcado(c.id)} className={`flex items-start gap-3 p-3 data-[marcada=true]:bg-accent/40 data-[popup-open]:bg-muted/50 ${c.ativo ? "" : "opacity-60"}`} />}
+              >
+                {podeGerir && (
+                  <Checkbox
+                    className="mt-1"
+                    checked={selecao.marcado(c.id)}
+                    onCheckedChange={() => selecao.alternar(c.id)}
+                    aria-label={`Selecionar ${c.nome}`}
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  <Link href={`/clientes/${c.id}`} className="block truncate text-[15px] font-medium hover:underline">
+                    {c.nome}
+                  </Link>
+                  {c.nomeFantasia && <span className="block truncate text-xs text-muted-foreground">{c.nomeFantasia}</span>}
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <Badge variant="outline">{c.tipo}</Badge>
+                    {c.categoria && <Badge variant="secondary">{c.categoria}</Badge>}
+                    <Badge variant="outline">{STATUS_COMERCIAL_LABEL[c.status]}</Badge>
+                    <span className={`text-xs ${c.ativo ? "text-success" : "text-muted-foreground"}`}>
+                      {c.ativo ? "Ativo" : "Inativo"}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {[c.documento, c.cidade ? `${c.cidade}/${c.uf ?? ""}` : null].filter(Boolean).join(" · ") || "—"}
+                  </p>
+                </div>
+                <BotaoAcoes itens={menuItens} onSelect={(item) => aoSelecionarNaLinha(c, item)} rotulo={`Ações de ${c.nome}`} />
+              </LinhaComMenu>
+            );
+          })
+        )}
+      </ul>
+
+      <div className="hidden rounded-sm border md:block">
         <Table>
           <TableHeader>
             <TableRow>
