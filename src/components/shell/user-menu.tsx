@@ -3,8 +3,9 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { LogOut, KeyRound, Camera, Pencil, HelpCircle, Moon, Sun } from "lucide-react";
+import { LogOut, KeyRound, Camera, Pencil, HelpCircle, Moon, Sun, Smartphone } from "lucide-react";
 import { useTheme } from "next-themes";
+import { AbrirNoCelularDialog } from "@/components/pwa/abrir-no-celular";
 import { signOut } from "@/lib/auth-client";
 import { atualizarNomeExibicao } from "@/modules/usuarios/actions";
 import { useOnboarding } from "@/components/onboarding/onboarding-provider";
@@ -52,6 +53,7 @@ export function UserMenu({
   const [enviando, setEnviando] = useState(false);
   const [fotoParaAjustar, setFotoParaAjustar] = useState<File | null>(null);
   const [nomeAberto, setNomeAberto] = useState(false);
+  const [qrAberto, setQrAberto] = useState(false);
   const [nome, setNome] = useState(user.name);
   const [salvando, startSalvar] = useTransition();
 
@@ -165,6 +167,10 @@ export function UserMenu({
             Rever guia da tela
           </DropdownMenuItem>
         )}
+        <DropdownMenuItem className="hidden md:flex" onClick={() => setQrAberto(true)}>
+          <Smartphone className="size-4" />
+          Abrir no celular
+        </DropdownMenuItem>
         <DropdownMenuItem className="md:hidden" onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}>
           {resolvedTheme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
           {resolvedTheme === "dark" ? "Tema claro" : "Tema escuro"}
@@ -175,6 +181,8 @@ export function UserMenu({
         </DropdownMenuItem>
       </DropdownMenuContent>
       </DropdownMenu>
+
+      <AbrirNoCelularDialog aberto={qrAberto} onOpenChange={setQrAberto} />
 
       <Dialog open={nomeAberto} onOpenChange={setNomeAberto}>
         <DialogContent className="sm:max-w-sm">

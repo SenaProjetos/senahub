@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { capturarInstalacao } from "@/components/pwa/instalacao";
 
 /** Converte a chave VAPID base64-url para o formato aceito pelo PushManager. */
 function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
@@ -18,6 +19,8 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
  * reaproveita se já concedida (o pedido vem de um clique, ver useHabilitarPush).
  */
 export function PushManager() {
+  useEffect(() => capturarInstalacao(), []);
+
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
 

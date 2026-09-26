@@ -25,6 +25,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { CardPontoHoje } from "@/components/ponto/card-ponto-hoje";
+import { InstalarApp } from "@/components/pwa/instalar-app";
 import { ChatBadge } from "@/components/chat/chat-badge";
 import { requireUser } from "@/lib/session";
 import { kpisHome } from "@/modules/qualidade/queries";
@@ -195,6 +196,7 @@ export default async function HomePage() {
           grandes. No computador essas duas coisas já estão no header e nos cartões abaixo. */}
       <div className="space-y-3 md:hidden">
         <CardPontoHoje />
+        <InstalarApp />
         <section aria-labelledby="para-voce-hoje" className="rounded-md border bg-card">
           <h2 id="para-voce-hoje" className="px-4 pb-1 pt-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
             Para você hoje
