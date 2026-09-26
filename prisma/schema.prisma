@@ -135,7 +135,7 @@ model User {
   acessoAte             DateTime?          @db.Date
 
   // Item 4 — cadastro completo do colaborador (replicado do RH do sistema antigo).
-  // Tipo de contrato = `role`; jornada = `EscalaRole`/`EscalaUsuario` (Ponto v2).
+  // Tipo de contrato = `role`; jornada = `EscalaContratacao`/`EscalaUsuario`.
   // Dados pessoais
   cpf                      String?
   rg                       String?
@@ -2264,31 +2264,11 @@ model Batida {
   @@map("batida")
 }
 
-/// Escala de trabalho padrão por role — uma linha por dia da semana (0=domingo
-/// .. 6=sábado). Resolução: EscalaUsuario ativa (override) → EscalaRole do
-/// role → fallback seg-sex 8h sem horários.
-model EscalaRole {
-  id        String @id @default(cuid())
-  role      Role
-  diaSemana Int
-
-  /// Horário previsto "HH:MM" — null = day off / sem horário fixo.
-  entrada       String?
-  saida         String?
-  /// Descansos previstos: `[{inicio,fim}]` em "HH:MM" — múltiplos permitidos.
-  descansos     Json    @default("[]")
-  horasDia      Decimal @default(8) @db.Decimal(4, 2)
-  ativo         Boolean @default(true)
-  /// Tolerância de atraso em minutos (CLT art. 58 §1º) — informativo (S3), não altera falta/ok.
-  toleranciaMin Int     @default(10)
-
-  @@unique([role, diaSemana])
-  @@map("escala_role")
-}
-
-/// Escala PADRÃO por contratação — sucessora de `EscalaRole` (Onda E, §6.4 do plano de Setor ×
-/// Contratação × Perfil). A chave passa a ser COMO a pessoa é contratada, não o papel que ela
-/// tem no app: jornada é matéria trabalhista, e `role` misturava quatro eixos.
+/// Escala PADRÃO por contratação — uma linha por dia da semana (0=domingo .. 6=sábado).
+/// Resolução: EscalaUsuario ativa (override) → EscalaContratacao da contratação → fallback
+/// seg-sex 8h. Sucedeu `EscalaRole` (grade por papel), removida no passo 4 da Onda E (§6.4 do
+/// plano de Setor × Contratação × Perfil): jornada é matéria trabalhista, e `role` misturava
+/// quatro eixos.
 ///
 /// `pj`, `autonomo_rpa` e `pro_labore` NÃO têm linha aqui, de propósito: quem não tem jornada
 /// controlada continua caindo no default de `completarSemana` (8h úteis), exatamente como cai
@@ -2313,8 +2293,8 @@ model EscalaContratacao {
   @@map("escala_contratacao")
 }
 
-/// Override de escala por usuário — mesma grade da EscalaRole. Se o usuário
-/// tem qualquer linha ativa, a grade dele substitui a do role POR INTEIRO
+/// Override de escala por usuário — mesma grade da EscalaContratacao. Se o usuário
+/// tem qualquer linha ativa, a grade dele substitui a da contratação POR INTEIRO
 /// (não mescla dia a dia).
 model EscalaUsuario {
   id        String @id @default(cuid())

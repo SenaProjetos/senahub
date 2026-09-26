@@ -4,7 +4,7 @@ import { auth } from "../src/lib/auth";
 import { docVazio, novoId, type DocSchema } from "../src/modules/documentos/schema";
 import { modelosDeFabrica } from "../src/modules/documentos/modelos-fabrica-contrato";
 import { MODALIDADES_PADRAO } from "../src/modules/licitacoes/modalidade";
-import { semearEscalaRolePadrao, semearEscalaContratacao } from "./escalas-padrao";
+import { semearEscalaContratacaoPadrao } from "./escalas-padrao";
 import { feriadosNacionais } from "../src/modules/rh/feriados/queries";
 import { seedPerfisAcesso } from "./seed-perfis-acesso";
 import { seedPropostaComposta } from "./seed-proposta-composta";
@@ -848,9 +848,8 @@ async function main() {
     console.log(`✔ Modelo de fábrica "${m.nome}" criado.`);
   }
 
-  // 11) Escala padrão por perfil (corrige a jornada legal do estagiário — 6h/dia)
-  await semearEscalaRolePadrao();
-  await semearEscalaContratacao();
+  // 11) Escala padrão por contratação (corrige a jornada legal do estágio — 6h/dia)
+  await semearEscalaContratacaoPadrao();
 
   // 12) Perfis de acesso semente (Onda B) — espelha `Permissao` (acima) em PerfilAcesso.
   // Autorização real segue 100% em `role` até a Onda D; isto só prepara o dado.

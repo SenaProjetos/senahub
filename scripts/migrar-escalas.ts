@@ -1,5 +1,5 @@
 /**
- * Semeia a escala PADRÃO por perfil (`EscalaRole`).
+ * Semeia a escala PADRÃO por contratação (`EscalaContratacao`).
  *
  * A lógica vive em `prisma/escalas-padrao.ts` e passou a rodar dentro do `npm run db:seed`
  * (passo 11) — este script continua existindo apenas para rodar a semeadura isolada, sem o
@@ -14,10 +14,10 @@
  */
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
-import { semearEscalaRolePadrao } from "../prisma/escalas-padrao";
+import { semearEscalaContratacaoPadrao } from "../prisma/escalas-padrao";
 
 async function main() {
-  await semearEscalaRolePadrao();
+  await semearEscalaContratacaoPadrao();
   await prisma.$disconnect();
 }
 

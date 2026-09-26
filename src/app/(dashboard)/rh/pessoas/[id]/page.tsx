@@ -17,7 +17,7 @@ import { historicoContratualDaPessoa } from "@/modules/rh/contratual/queries";
 import { HistoricoContratual } from "@/components/rh/historico-contratual";
 import { bancoHorasDe } from "@/modules/rh/banco/queries";
 import { contextoApuracao } from "@/modules/ponto/apuracao";
-import { escalaUsuarioGrade, escalaRoleGrade } from "@/modules/rh/escalas/queries";
+import { escalaUsuarioGrade, escalaPadraoDoUsuario } from "@/modules/rh/escalas/queries";
 import { overridesDeUsuario } from "@/modules/perfis/queries";
 import { Pessoa360View } from "@/components/rh/pessoa-360-view";
 
@@ -80,12 +80,12 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
 
   // Ponto (espelhoMes) é a leitura mais cara → carregada sob demanda pela aba (lazy client).
 
-  const [cadastro, ausencias, banco, escalaUsuario, escalaRole, holerites, nf, opcoes, overrides, contas, historico] = await Promise.all([
+  const [cadastro, ausencias, banco, escalaUsuario, escalaPadrao, holerites, nf, opcoes, overrides, contas, historico] = await Promise.all([
     isCadastro ? cadastroDaPessoa(id) : Promise.resolve(null),
     controlaJornada ? solicitacoesDoUsuario(id) : Promise.resolve(null),
     controlaJornada && podeVerPonto ? bancoHorasDe(id) : Promise.resolve(null),
     temEscala ? escalaUsuarioGrade(id) : Promise.resolve(null),
-    temEscala ? escalaRoleGrade(pessoa.role) : Promise.resolve(null),
+    temEscala ? escalaPadraoDoUsuario(id) : Promise.resolve(null),
     podeFolha ? holeritesDaPessoa(id) : Promise.resolve(null),
     isPJ ? notasDoUsuario(id) : Promise.resolve(null),
     podeEditarCadastro ? opcoesCadastroFuncionario() : Promise.resolve(null),
@@ -97,8 +97,8 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
     podeFolha ? historicoContratualDaPessoa(id) : Promise.resolve(null),
   ]);
 
-  const escala = escalaUsuario && escalaRole
-    ? { temOverride: escalaUsuario.temOverride, dias: escalaUsuario.dias, roleDias: escalaRole }
+  const escala = escalaUsuario && escalaPadrao
+    ? { temOverride: escalaUsuario.temOverride, dias: escalaUsuario.dias, padraoDias: escalaPadrao }
     : null;
 
   return (

@@ -391,6 +391,21 @@ continuam calculadas a partir das atividades dentro delas.
 
 ---
 
+## Escalas de trabalho por contratação
+
+Em **RH → Escalas**, a escala padrão agora é definida **por contratação** (CLT e Estágio), e
+não mais por perfil — é a mesma regra que o ponto, o banco de horas e a folha já usavam. PJ,
+autônomo (RPA) e sócio (pró-labore) não têm jornada controlada e continuam sem escala padrão;
+se precisar, personalize por usuário.
+
+- A escala de **estágio** não aceita mais do que **30h por semana** (Lei 11.788), nem na escala
+  padrão nem na personalizada de um estagiário. Dentro disso, dá para compensar horas entre os
+  dias — um dia mais longo e outro mais curto.
+- Na ficha da pessoa e em **Minha conta**, a escala "herdada" mostrada é a da contratação — a
+  que realmente vale para o cálculo.
+
+---
+
 ## Padrão de nomenclatura por versão e sub-disciplina
 
 O padrão de nome de arquivo agora é **versionado**: a gestão publica uma versão nova

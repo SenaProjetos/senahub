@@ -16,7 +16,7 @@ import {
   pontoDoMes,
   notasDoUsuario,
 } from "../src/modules/rh/pessoas/queries";
-import { escalaUsuarioGrade, escalaRoleGrade } from "../src/modules/rh/escalas/queries";
+import { escalaUsuarioGrade, escalaContratacaoGrade } from "../src/modules/rh/escalas/queries";
 import { bancoHorasDe } from "../src/modules/rh/banco/queries";
 
 async function main() {
@@ -99,9 +99,9 @@ async function main() {
     check("pontoDoMes => totais numéricos", typeof p.totalMinutos === "number" && typeof p.esperadoMinutos === "number" && typeof p.saldoMinutos === "number");
 
     const eu = await escalaUsuarioGrade(clt.id);
-    const er = await escalaRoleGrade("clt");
+    const er = await escalaContratacaoGrade("clt");
     check("escalaUsuarioGrade => 7 dias", eu.dias.length === 7);
-    check("escalaRoleGrade => 7 dias", er.length === 7);
+    check("escalaContratacaoGrade => 7 dias", er.length === 7);
 
     const b = await bancoHorasDe(clt.id);
     check("bancoHorasDe => array", Array.isArray(b));

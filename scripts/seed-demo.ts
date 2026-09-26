@@ -31,7 +31,7 @@ async function limpar() {
   await prisma.bancoHorasMensal.deleteMany({});
   await prisma.sessaoTrabalho.deleteMany({});
   // Ponto v2: batidas + workflow de ajuste + aceites + escalas de usuário
-  // (EscalaRole é catálogo por perfil, preservado como os demais catálogos).
+  // (EscalaContratacao é catálogo por contratação, preservado como os demais catálogos).
   await prisma.ajustePonto.deleteMany({});
   await prisma.espelhoAceite.deleteMany({});
   await prisma.alertaPontoEnviado.deleteMany({});
