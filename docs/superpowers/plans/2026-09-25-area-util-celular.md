@@ -233,5 +233,28 @@ ser divididos entre as duas worktrees).
   - Verificação: as 110 rotas do menu percorridas em 1366×768, lint + tsc + 3981 testes.
   - **Falta:** achar uma abordagem para Comercial/Avisos/Ponto/Ajuda, e rodar tudo de
     novo no celular (só testei desktop neste lote).
-- [ ] Lote 8
+- [x] **Lote 8 — varredura de comparação feita em 2026-09-26** (mesmos scripts da auditoria,
+  dev :3001, admin de teste; `/arquivos` e `/chat` fora da conta por 500 de dev a frio que
+  some ao reiniciar o servidor — artefato de HMR, não de código).
+
+  | Computador (1366 × 768) | Antes | Depois |
+  |---|---|---|
+  | Telas com título grande repetindo o da barra | 53 de 58 | 20 de 56 |
+  | Início do conteúdo (mediana) | 212 px (28%) | 133 px (17%) |
+  | Telas que rolam a página inteira | 32 de 58 | 27 de 56 |
+  | Menu minimizado | 45 ícones sem nome, 1798 px | 12 entradas com nome, 805 px |
+  | Telas que pioraram | | 0 |
+
+  | Celular (390 × 844) | Antes | Depois |
+  |---|---|---|
+  | Telas mais largas que o celular | 19 de 56 | 0 de 56 |
+  | Alvos de toque < 32 px | 48% | 27% |
+  | Campos com letra < 16 px | 77 em 20 telas | 71 em 18 telas (só contam os que o script alcança) |
+  | Tabelas mais largas que a tela | 16 | 16 (rolam por dentro) |
+  | Barra de baixo com Ponto | 0 telas | 56 telas |
+
+  Sobras: os 71 campos < 16 px continuam (não investiguei de onde vêm — o 2.5 só cobriu
+  `Input`/`InputMoeda`/`InputPercentual`); os títulos grandes que restam estão no Comercial, no
+  Início, nas abas do projeto e em telas com formato fora do codemod.
+  Não atualizei o artefato de aprovação (fica com os números antigos).
 - [ ] Lote 9 (bloqueado)
