@@ -257,4 +257,19 @@ ser divididos entre as duas worktrees).
   `Input`/`InputMoeda`/`InputPercentual`); os títulos grandes que restam estão no Comercial, no
   Início, nas abas do projeto e em telas com formato fora do codemod.
   Não atualizei o artefato de aprovação (fica com os números antigos).
-- [ ] Lote 9 (bloqueado)
+- [x] **Depois do lote 8 (2026-09-26, Sonnet 5 → revisão Opus 5.5).**
+  - Campos < 16 px: regra global em `globals.css` para `pointer: coarse` — 52 → 1 nas 110
+    rotas (o que sobra é um `input[type=color]`, sem teclado).
+  - Largura: Lançamentos e Contas (grade sem `minmax`), Relatórios, Rentabilidade e Recursos
+    (filtros sem `flex-wrap`). Varredura das 111 rotas: 0 mais largas que 390 px e 0 que
+    1366 px, 0 sobreposições do cabeçalho.
+  - Avisos: o `CabecalhoPagina` tinha ficado dentro da aba "Novo aviso" (sobrepunha as abas);
+    voltou o `h2` antigo até a decisão.
+  - `dev` (reforma da EAP) incorporado na branch; conflitos em Planejamento, Cronograma geral,
+    Recursos e `resumoJornada` (`sessaoDesde` + `tarefaAtiva`/`retomarTarefa` convivem).
+  - Artefato de aprovação atualizado com a aba "Resultado e decisões" e as opções A/B/C de
+    Comercial (11 telas; barra de 49 px + título de 52–72 px em 1366 × 768) e Avisos.
+- [ ] Lote 9 — **escopo menor:** a EAP (F6) já grava `SessaoTrabalho.tarefaId` (opcional, card
+  de `Tarefa`). Falta só levar essa escolha para a lista do card de ponto (Início e Ponto no
+  celular), no lugar da prévia "disciplina › atividade". Sem schema novo.
+- [ ] Comercial e Avisos: aguardam a escolha do dono (A/B/C no artefato).
