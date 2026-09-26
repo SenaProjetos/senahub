@@ -29,6 +29,7 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { planoDoProjeto, paraDia } from "../src/modules/planejamento/agenda";
 import {
+  casarCobrancaManualComPrevisao,
   faturarParcela,
   sincronizarPrevisoesDoContrato,
   sincronizarPrevisoesDoProjeto,
@@ -255,6 +256,87 @@ async function main() {
     prev = await previsoes();
     check("rascunho: previsão de marco sai, a da assinatura fica", prev.length === 1 && prev[0].id === (await linhaDa(pAss.id))?.id, prev.map((l) => Number(l.valor)));
     check("a parcela sem previsão fica desligada", (await linhaDa(pM2.id)) === null);
+
+    // ── 4b. Decisão #12: cobrança lançada à mão casa com a previsão da parcela ─
+    await prisma.cronogramaProjeto.update({ where: { projetoId: projeto.id }, data: { aprovado: true } });
+    await sincronizarPrevisoesDoProjeto(projeto.id, admin.id);
+    const paraCasar = await previsoes();
+    check("volta a ter previsão para casar", paraCasar.length >= 1, paraCasar.map((l) => Number(l.valor)));
+
+    const alvo = paraCasar[0];
+    const catReceita = await prisma.categoriaFinanceira.findFirstOrThrow({ where: { codigo: "1.01" }, select: { id: true } });
+    const manual = await prisma.lancamento.create({
+      data: {
+        tipo: "receita",
+        status: "previsto",
+        descricao: `${tag} NF lançada à mão`,
+        valor: alvo.valor,
+        data: alvo.vencimento ?? d(hoje),
+        vencimento: alvo.vencimento ?? d(hoje),
+        categoriaId: catReceita.id,
+        clienteId: cliente.id,
+        projetoId: projeto.id,
+        autorId: admin.id,
+      },
+      select: { id: true },
+    });
+    const casou = await casarCobrancaManualComPrevisao({
+      lancamentoId: manual.id,
+      projetoId: projeto.id,
+      valor: Number(alvo.valor),
+      vencimento: paraDia(alvo.vencimento ?? d(hoje)),
+      autorId: admin.id,
+    });
+    check("decisão #12: a cobrança manual casa com a previsão de mesmo valor", casou.casou === true, casou);
+    const previsaoSumiu = await prisma.lancamento.findUnique({ where: { id: alvo.id }, select: { excluidoEm: true } });
+    check("a previsão sai do caixa (excluída), sem apagar a cobrança", previsaoSumiu?.excluidoEm != null, previsaoSumiu);
+    const parcelaAgora = await prisma.contratoParcelaEntrega.findFirst({
+      where: { lancamentoId: manual.id },
+      select: { id: true },
+    });
+    check("e a parcela passa a apontar para a cobrança manual", parcelaAgora != null, parcelaAgora);
+    let fatDepois = "sem recusa";
+    if (parcelaAgora) {
+      try {
+        await faturarParcela({ parcelaId: parcelaAgora.id, vencimento: hoje, autorId: admin.id });
+      } catch (e) {
+        fatDepois = e instanceof Error ? e.message : String(e);
+      }
+    }
+    check("faturar essa parcela depois é recusado (já tem cobrança)", fatDepois !== "sem recusa", fatDepois);
+
+    // Valor diferente não casa — dinheiro não se casa por aproximação.
+    const outro = await prisma.lancamento.create({
+      data: {
+        tipo: "receita",
+        status: "previsto",
+        descricao: `${tag} valor que não bate`,
+        valor: 7.77,
+        data: d(hoje),
+        vencimento: d(hoje),
+        categoriaId: catReceita.id,
+        clienteId: cliente.id,
+        projetoId: projeto.id,
+        autorId: admin.id,
+      },
+      select: { id: true },
+    });
+    const naoCasou = await casarCobrancaManualComPrevisao({
+      lancamentoId: outro.id,
+      projetoId: projeto.id,
+      valor: 7.77,
+      vencimento: hoje,
+      autorId: admin.id,
+    });
+    // Sem previsão sobrando no projeto (a única foi casada acima): não casa e NÃO avisa — não há
+    // duplicidade possível. A frase do "valor que não bate" é coberta no teste da regra pura.
+    check(
+      "projeto sem previsão sobrando: não casa e não inventa aviso",
+      naoCasou.casou === false && naoCasou.aviso === null,
+      naoCasou,
+    );
+    const semParcela = await prisma.contratoParcelaEntrega.count({ where: { lancamentoId: outro.id } });
+    check("e a cobrança que não casou não rouba parcela de ninguém", semParcela === 0, semParcela);
 
     // ── 5. Contrato por data com previsão pendurada ainda gera as parcelas ─
     const porData = await prisma.documentoJuridico.create({

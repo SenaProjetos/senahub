@@ -60,6 +60,11 @@ Depois de revisar o novo planejamento, o time decidiu alguns pontos. O que já e
   Executivo 60%, somando 100%): aplicando o modelo, essas fases são cadastradas nas disciplinas do
   projeto que ainda não têm fase, que é o que faz o marco marcar a fase como Entregue e o pagamento por
   fase funcionar.
+- **Cobrança lançada à mão casa com a previsão do cronograma:** ao lançar uma receita do projeto com o
+  mesmo valor de uma parcela que o contrato por entrega ainda mostra como previsão, o sistema junta as
+  duas — a parcela passa a apontar para a cobrança e a previsão sai do caixa, sem contar duas vezes. A
+  tela diz com qual parcela casou; quando não dá para saber (valor diferente, duas parcelas iguais,
+  vencimento distante), ela avisa o motivo em vez de escolher por você.
 - **Fase de disciplina feita pela equipe própria fica liberada com R$ 0:** aprovar uma fase de
   disciplina sem projetista PJ agora a marca como liberada (sem criar pagamento), e o percentual dela
   passa para as fases que faltam. Antes ela ficava pendente e, se um PJ entrasse depois, aquela fase já

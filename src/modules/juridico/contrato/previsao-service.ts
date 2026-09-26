@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { paraDataUtc, planoDoProjeto } from "@/modules/planejamento/agenda";
 import { CODIGO_CATEGORIA_RECEITA } from "./recebiveis";
+import { casarComPrevisao, motivoDoNaoCasamento, type PrevisaoCandidata } from "./casamento-previsao";
 import {
   motivoNaoFatura,
   ordenarParcelas,
@@ -286,4 +287,67 @@ export async function faturarParcela(p: {
     return novo.id;
   });
   return { parcelaId: parcela.id, valor, lancamentoId };
+}
+
+/**
+ * Casa uma cobrança lançada À MÃO com a previsão de recebimento da parcela (decisão #12). Regra em
+ * `casamento-previsao.ts`.
+ *
+ * O que "casar" significa nos dados: a PARCELA passa a apontar para o lançamento manual e a linha de
+ * previsão é excluída. Não é um campo novo — é o mesmo estado em que a parcela fica quando alguém clica
+ * em "Faturar": parcela com cobrança de verdade. Daí em diante a sincronização não a recria (ela só toca
+ * linhas `previsao`) e "Faturar" fica bloqueado com a razão de sempre ("já existe cobrança").
+ *
+ * Só conta para receita COM projeto e vencimento: sem projeto não há parcela a que se referir.
+ */
+export async function casarCobrancaManualComPrevisao(p: {
+  lancamentoId: string;
+  projetoId: string;
+  valor: number;
+  /** `YYYY-MM-DD` — o vencimento digitado, ou a data do lançamento. */
+  vencimento: string;
+  autorId: string;
+}): Promise<{ casou: boolean; parcela: string | null; aviso: string | null }> {
+  const parcelas = await prisma.contratoParcelaEntrega.findMany({
+    where: {
+      contrato: { projetoId: p.projetoId, formaCobranca: "por_entrega" },
+      lancamento: { status: "previsao", excluidoEm: null },
+    },
+    select: {
+      id: true,
+      descricao: true,
+      lancamento: { select: { id: true, valor: true, vencimento: true, descricao: true } },
+    },
+  });
+
+  const candidatas: PrevisaoCandidata[] = parcelas
+    .filter((x) => x.lancamento != null)
+    .map((x) => ({
+      parcelaId: x.id,
+      lancamentoId: x.lancamento!.id,
+      descricao: x.lancamento!.descricao,
+      valor: Number(x.lancamento!.valor),
+      vencimento: dia(x.lancamento!.vencimento),
+    }));
+
+  const r = casarComPrevisao(candidatas, { valor: p.valor, vencimento: p.vencimento });
+  if (!r.casou) return { casou: false, parcela: null, aviso: motivoDoNaoCasamento(r) };
+
+  const feito = await prisma.$transaction(async (tx) => {
+    // `status: "previsao"` na escrita: se alguém faturou a parcela nesse meio-tempo, não há o que casar —
+    // e a cobrança manual fica como está (duplicidade visível, que é melhor que previsão apagada à toa).
+    const previsao = await tx.lancamento.updateMany({
+      where: { id: r.candidata.lancamentoId, status: "previsao", excluidoEm: null },
+      data: { excluidoEm: new Date() },
+    });
+    if (previsao.count === 0) return false;
+    await tx.contratoParcelaEntrega.update({
+      where: { id: r.candidata.parcelaId },
+      data: { lancamentoId: p.lancamentoId },
+    });
+    return true;
+  });
+
+  if (!feito) return { casou: false, parcela: null, aviso: null };
+  return { casou: true, parcela: r.candidata.descricao, aviso: null };
 }

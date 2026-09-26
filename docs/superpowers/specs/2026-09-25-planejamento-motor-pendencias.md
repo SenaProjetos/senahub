@@ -92,7 +92,7 @@ texto de cada item continua adiante como histórico; o que vale é esta tabela.
 | 9 | Fase de disciplina só de CLT | **liberada com R$ 0**; o % passa para as outras fases | feito (`liberarPagamentosDaFase`) |
 | 10 | Onde aprovar a fase | **botão também no card da disciplina** | feito (`05cfa313`) |
 | 11 | Parcela "na assinatura" | manter (nasce previsão) | — |
-| 12 | Cobrança lançada à mão | **casar automaticamente** com a previsão | pendente — dinheiro (Opus) |
+| 12 | Cobrança lançada à mão | **casar automaticamente** com a previsão | feito (`casamento-previsao.ts`) |
 | 13 | Previsão no resultado | **incluir** no resultado previsto e no indicador | feito (`f44fcbbf`) |
 | 14 | Cobrança pelo projeto (contrato por data) | manter (só avisa) | — |
 | 15 | Custo/hora em Recursos | **esconder**; só edita quem gere o financeiro | feito (`00b942c6`, L7) |
@@ -208,15 +208,26 @@ Como no Project, onde o custo de uma tarefa fica fixado quando ela é concluída
 - **DECIDIR:** a parcela "**na assinatura**" também nasce como **previsão** e só vira cobrança
   quando o financeiro **fatura**. A D9 fala de parcela de marco; a da assinatura não é. A alternativa
   é gerar a da assinatura já como conta a receber.
-- **DECIDIR:** faturar **converte** a previsão na mesma linha. Se o time emite a cobrança por outro
-  caminho (NF lançada à mão), a previsão fica sobrando até alguém faturar pela tela do contrato.
+- Faturar **converte** a previsão na mesma linha.
+- ~~Se o time emite a cobrança por outro caminho (NF lançada à mão), a previsão fica sobrando.~~
+  **RESOLVIDO (decisão #12, 2026-09-26):** receita de PROJETO lançada à mão procura a previsão da parcela
+  e a assume. Casar, nos dados, é o mesmo estado de "Faturar": a **parcela passa a apontar para o
+  lançamento manual** e a linha de previsão é excluída — sem campo novo, e com as invariantes de sempre (a
+  sincronização só toca linhas `previsao`; "Faturar" depois é recusado com "já existe cobrança").
+  A regra (`casamento-previsao.ts`, pura) é deliberadamente conservadora, porque o erro é assimétrico:
+  casar errado APAGA a previsão de uma parcela que ninguém faturou, e não casar deixa a duplicidade
+  visível na tela. Então exige **valor exato ao centavo**, vencimento a no máximo **45 dias**, e **empate
+  não casa** (duas parcelas do mesmo valor e mesma distância → avisa e não escolhe). Recorrência não entra
+  (não é parcela de entrega), nem despesa, nem receita sem projeto, nem lançamento que entra aguardando
+  aprovação. Quando não casa mas havia previsão no projeto, a tela recebe o aviso na hora — com o diálogo
+  ainda aberto. Verificação: `npm run smoke:previsao-recebimento`.
 - ~~A previsão não entra no resultado previsto do projeto nem no KPI de receita prevista.~~ **Resolvido
   (decisão #13, 2026-09-25):** entra nos dois. `margemProjeto` já a somava por acidente (tudo que não é
   confirmado caía em `receitaPrevista`); agora é explícito e destacado (`receitaPrevisao`, mostrado no
   cartão de margem). O KPI da home (`kpisHome`, que alimenta também o snapshot diário) era o que não a
   contava. Faturar troca o status da mesma linha: nada em dobro (smoke `previsao-recebimento`).
-  **Continua aberto:** cobrança lançada à mão para a mesma parcela soma com a previsão até a decisão #12
-  (casar automaticamente) ser implementada.
+  **Fechado pela decisão #12 (2026-09-26):** a cobrança lançada à mão para a mesma parcela agora a assume,
+  e a previsão sai do caixa.
 - Previsão que passou da data sem ser faturada fica na 1ª semana da projeção, marcada "atrasada".
 - Marco apagado deixa a parcela sem data (nunca vira cobrança na hora).
 - Depois de faturar qualquer parcela, o plano do contrato trava.

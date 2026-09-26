@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { addMonths } from "date-fns";
 import { defineAction, ActionError } from "@/lib/with-action";
+import { casarCobrancaManualComPrevisao } from "@/modules/juridico/contrato/previsao-service";
 import { prisma } from "@/lib/prisma";
 import {
   criarLancamentoSchema,
@@ -130,7 +131,25 @@ export const criarLancamento = defineAction(
       dataCompetencia: compBase ? addMonths(compBase, n) : null,
     }));
 
-    await prisma.lancamento.createMany({ data: registros });
+    // Decisão #12: receita de projeto lançada à mão pode ser a cobrança de uma parcela que o cronograma
+    // ainda mostra como PREVISÃO — as duas linhas somariam no caixa. Cria uma a uma quando é lançamento
+    // único, para ter o id e tentar o casamento; recorrência não é parcela de entrega.
+    let casamento: { casou: boolean; parcela: string | null; aviso: string | null } | null = null;
+    if (registros.length === 1) {
+      const criado = await prisma.lancamento.create({ data: registros[0], select: { id: true, vencimento: true, data: true } });
+      if (i.tipo === "receita" && i.projetoId && statusInicial !== "aguardando_aprovacao") {
+        const quando = (criado.vencimento ?? criado.data).toISOString().slice(0, 10);
+        casamento = await casarCobrancaManualComPrevisao({
+          lancamentoId: criado.id,
+          projetoId: i.projetoId,
+          valor: i.valor,
+          vencimento: quando,
+          autorId: user.id,
+        });
+      }
+    } else {
+      await prisma.lancamento.createMany({ data: registros });
+    }
     if (precisaAprovar) {
       const ids = await aprovadoresPorPapeis(papeisAprovadores(i.valor, niveis));
       await notificarMuitos(ids.filter((id) => id !== user.id), {
@@ -140,7 +159,14 @@ export const criarLancamento = defineAction(
       });
     }
     rev();
-    return { ocorrencias: registros.length, aguardandoAprovacao: precisaAprovar };
+    return {
+      ocorrencias: registros.length,
+      aguardandoAprovacao: precisaAprovar,
+      /** Decisão #12: a parcela cuja previsão esta cobrança assumiu (`null` = nenhuma). */
+      previsaoCasada: casamento?.casou ? casamento.parcela : null,
+      /** Por que não casou, quando havia previsão no projeto e vale avisar. */
+      avisoPrevisao: casamento?.aviso ?? null,
+    };
   },
 );
 

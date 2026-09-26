@@ -120,6 +120,24 @@ tarefa**), quem gere o financeiro recebe a notificação **"Marco concluído —
 leva à lista **Parcelas a faturar**. O marco **nunca fatura sozinho**. Dá para desligar em
 **Preferências → Parcelas a faturar**.
 
+## Cobrança lançada à mão
+
+Quando a nota sai por outro caminho e a receita é lançada direto no financeiro, o sistema procura a
+previsão daquela parcela e **casa** as duas: a parcela passa a apontar para a cobrança lançada, e a linha
+de previsão sai do caixa — nada conta duas vezes. Depois disso, **Faturar** naquela parcela é recusado
+("já existe cobrança").
+
+O casamento é conservador de propósito, porque errar apaga a previsão de uma parcela que ninguém faturou:
+
+| Exige | Por quê |
+| --- | --- |
+| **Mesmo valor, ao centavo** | Dinheiro não se casa por aproximação |
+| **Vencimento a até 45 dias** | Mais longe que isso é outra parcela, ou outro acerto |
+| **Uma única candidata** | Duas parcelas do mesmo valor e mesma distância: o sistema avisa e não escolhe |
+
+Fora do casamento: **despesa**, receita **sem projeto**, lançamento **recorrente** (não é parcela de
+entrega) e lançamento que entra **aguardando aprovação**. Quando não casa, a tela mostra o motivo na hora.
+
 ## Permissões
 
 | Ação | Permissão |
@@ -158,9 +176,11 @@ leva à lista **Parcelas a faturar**. O marco **nunca fatura sozinho**. Dá para
 **Por que a previsão não aparece em Contas a receber?** Porque ainda não é uma cobrança. Ela vira conta
 a receber quando você **fatura** a parcela.
 
-**Emiti a cobrança por outro caminho.** A previsão continua até alguém **faturar** a parcela pelo
-contrato — é o que a converte. Se a cobrança já foi lançada à mão, fature a parcela e ajuste/cancele o
-lançamento duplicado.
+**Emiti a cobrança por outro caminho (lancei a receita à mão).** O sistema **casa sozinho**: ao criar uma
+receita **do projeto** com o **mesmo valor** (ao centavo) e vencimento próximo, ela assume a parcela e a
+previsão sai do caixa — a tela avisa com qual parcela casou. Se não casar (valor diferente, duas parcelas
+iguais, vencimento muito distante), a tela diz por quê e você resolve pela tela do contrato: **faturar** a
+parcela é o que converte a previsão.
 
 **O marco andou e a previsão não mudou.** O cronograma precisa estar **aprovado**; a previsão
 acompanha a data que o cronograma calcula a cada mudança. Se foi um feriado novo que moveu o marco,
