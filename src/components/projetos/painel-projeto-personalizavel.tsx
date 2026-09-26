@@ -106,7 +106,8 @@ export function PainelProjetoPersonalizavel({ projetoId, layoutSalvo, paineis }:
   const ignorarProximaAtualizacaoLayoutRef = React.useRef(false);
   const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: true });
   const painelPorId = React.useMemo(() => new Map(paineis.map((painel) => [painel.id, painel])), [paineis]);
-  const desktop = mounted && width >= 1280;
+  // 960 px de contêiner = tela de 1280 com o menu lateral aberto; com 1280 a grade só ligava em telas acima de ~1600.
+  const desktop = mounted && width >= 960;
 
   React.useEffect(() => {
     setLayout(layoutInicial);
