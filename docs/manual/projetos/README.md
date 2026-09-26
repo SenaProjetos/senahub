@@ -20,6 +20,7 @@ Documentação de projetos e do trabalho operacional.
 | [Planejamento (EAP e cronograma)](planejamento.md) | `/planejamento` | ✅ documentado |
 | [Cronograma: equipe, horas e custo](cronograma-equipe-e-custo.md) | `/planejamento/{projeto}` | ✅ documentado |
 | [Valor Agregado](valor-agregado.md) | `/planejamento/{projeto}` | ✅ documentado |
+| [Modelos de EAP (importar do MS Project)](modelos-de-eap.md) | `/planejamento/modelos` | ✅ documentado |
 | [Etapas da disciplina e pagamento por fase](etapas-e-pagamento-por-fase.md) | `/projetos/{projeto}` | ✅ documentado |
 | [Recursos](recursos.md) | `/recursos` | ✅ documentado |
 

@@ -85,7 +85,7 @@ texto de cada item continua adiante como histórico; o que vale é esta tabela.
 | 2 | Meio período | o % é da **capacidade da própria pessoa** | feito (`4ec610f3`) |
 | 3 | Quem vê o Planejamento | mantém a **estrutura, sem datas** | feito (`fa9109ad`) |
 | 4 | Heatmap | manter + **seletor de período** (1, 4, 12 semanas, meses) | feito (`610fbbd1`) |
-| 5 | Modelos de EAP + Tipo de empreendimento | **prioridade alta**; a partir de arquivo do MS Project (XML) | pendente — schema (Opus) |
+| 5 | Modelos de EAP + Tipo de empreendimento | **prioridade alta**; a partir de arquivo do MS Project (XML) | feito (`ModeloEap` + importação) |
 | 6 | Datas fixas ao duplicar | manter (não copia) | — |
 | 7 | Linhas antigas sem fase | projetos já criados **não terão EAP nem faseamento** — L5 cancelado | — |
 | 8 | Marco da fase concluído | **marca a fase como Entregue** (aprovar/pagar segue manual) | feito (`76d912be`) |
@@ -103,6 +103,37 @@ texto de cada item continua adiante como histórico; o que vale é esta tabela.
 
 Diretriz nova do dono (2026-09-25): a tela do planejamento deve ficar **o mais parecida possível com o MS Project**,
 para facilitar a adoção — isto reverte o princípio "sem a interface de planilha" do §1 do spec.
+
+### Modelos de EAP (decisão #5, 2026-09-26)
+
+Feito. `ModeloEap` guarda a estrutura numa coluna JSON validada por Zod (`modelos/estrutura.ts`) — não
+em duas tabelas: o modelo é lido e gravado inteiro, nunca consultado linha a linha, e a autoria continua
+no MS Project ("editar" é reimportar). `Projeto.tipoEmpreendimentoId` (D13) reusa o `TipoEmpreendimento`
+que a `Negociacao` já tinha, e vem preenchido no aceite da proposta.
+
+Camadas: `modelos/mspdi.ts` (leitor puro do XML) → `modelos/mapeamento.ts` (árvore, tipo de linha,
+conferência de nome, sugestão de terceiro) → `modelos/aplicar.ts` (o que gravar) → `modelos/service.ts`
++ `actions.ts` + rota `/api/planejamento/modelos/previa`. Tela: `/planejamento/modelos` (biblioteca +
+assistente de importação) e o botão "Usar modelo de EAP" no estado vazio da EAP do projeto.
+
+Decisões de implementação que o time deve conhecer:
+- **Horas não são importadas.** No arquivo real, `Work == Duration` nas 159 atribuições (recurso −65535):
+  é o padrão do Project, não estimativa de ninguém.
+- **Datas e pessoas não vêm** (mesma regra da duplicação de projeto). O motor reagenda na hora.
+- **O casamento de nome é conferido por gente.** Dos 10 nomes de disciplina do arquivo real, 3 não têm par
+  no catálogo (`TELECOMUNICAÇÕES`, `SEGURANÇA E ALARME`, `GLP`) e 3 agrupamentos são do processo, não
+  disciplina. Adivinhar deixaria linha sem disciplina — que não herda responsável (D22) nem fecha marco de
+  fase (decisão #8), em silêncio. A resposta fica gravada no modelo e é reusada na importação seguinte.
+- **Disciplina que o projeto não tem é podada com o galho inteiro**, e a tela diz o que saiu. O sistema
+  NÃO cria `Disciplina` no projeto (ela carrega valor, responsáveis e pagamento).
+- **Aplicar exige EAP vazia e projeto sem linha de base**; o cronograma nasce em rascunho (D14/D27).
+- O arquivo sobe por rota multipart (966 KB no real; Server Action corta em 1 MB).
+- Verificações: `npm run smoke:modelo-eap` (19 conferências) e `npm run verify:modelo-mspdi` (roda o
+  arquivo real de `docs/samples`, fora do git).
+
+**Ainda em aberto:** o percentual por fase do D38 ("Básico 40%, Executivo 60%") não vem do modelo — a
+importação não tem de onde tirá-lo (o XML não tem valor). Continua sendo cadastrado por projeto, nas
+etapas da disciplina.
 
 ### Cronograma — realizado (L1, 2026-09-25)
 - **DECIDIR — % sem data real** segue o MS Project: > 0% conta como iniciada no início calculado; 100% como

@@ -37,6 +37,7 @@ import {
   HandCoins,
   KeyRound,
   type LucideIcon,
+  ListTree,
 } from "lucide-react";
 import type { Setor } from "@/generated/prisma/enums";
 
@@ -334,6 +335,12 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Planejamento",
         href: "/planejamento",
         icon: GanttChart,
+        permissao: "planejamento:ver",
+      },
+      {
+        title: "Modelos de EAP",
+        href: "/planejamento/modelos",
+        icon: ListTree,
         permissao: "planejamento:ver",
       },
       {

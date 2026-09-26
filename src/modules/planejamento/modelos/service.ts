@@ -327,6 +327,64 @@ export async function aplicarModeloNoProjeto(p: {
   return resultado;
 }
 
+/**
+ * Prévia de TODOS os modelos ativos para um projeto, num só passe: o contexto do projeto é lido uma
+ * vez e a poda é pura. É o que a tela do projeto precisa para mostrar o seletor já dizendo quantas
+ * linhas cada modelo criaria — sem isto, escolher um modelo seria às cegas ou custaria uma consulta
+ * por modelo a cada clique.
+ */
+export async function previasDosModelos(projetoId: string): Promise<(PreviaDaAplicacao & { modeloId: string })[]> {
+  const [modelos, ctx] = await Promise.all([
+    prisma.modeloEap.findMany({
+      where: { ativo: true },
+      select: { id: true, nome: true, estrutura: true, tipoEmpreendimentoId: true },
+      orderBy: { updatedAt: "desc" },
+    }),
+    contextoDoProjeto(projetoId),
+  ]);
+  if (modelos.length === 0) return [];
+
+  const nomesCatalogo = new Map(
+    (await prisma.disciplinaCatalogo.findMany({ select: { id: true, nome: true } })).map((d) => [d.id, d.nome]),
+  );
+
+  return modelos.map((m) => {
+    const estrutura = lerEstrutura(m.estrutura);
+    if (!estrutura) {
+      return {
+        modeloId: m.id,
+        modeloNome: m.nome,
+        criar: 0,
+        marcos: 0,
+        vinculos: 0,
+        terceiros: 0,
+        podadas: [],
+        impedimento: "Este modelo está em formato inválido. Importe o arquivo de novo.",
+      };
+    }
+    const { manter, podadas } = podar(estrutura, ctx.disciplinaDoProjeto);
+    const idsMantidos = new Set(manter.map((l) => l.id));
+    const porDisciplina = new Map<string, number>();
+    for (const l of podadas) {
+      const chave = l.disciplinaCatalogoId ?? "—";
+      porDisciplina.set(chave, (porDisciplina.get(chave) ?? 0) + 1);
+    }
+    return {
+      modeloId: m.id,
+      modeloNome: m.nome,
+      criar: manter.length,
+      marcos: manter.filter((l) => l.tipoEap === "mrc").length,
+      vinculos: manter.reduce((s, l) => s + l.predecessoras.filter((v) => idsMantidos.has(v.id)).length, 0),
+      terceiros: manter.filter((l) => l.deTerceiro).length,
+      podadas: [...porDisciplina.entries()].map(([id, linhas]) => ({
+        disciplina: nomesCatalogo.get(id) ?? "Sem disciplina no catálogo",
+        linhas,
+      })),
+      impedimento: impedimentoParaAplicar(ctx, manter.length),
+    };
+  });
+}
+
 /** Modelos para a lista e para o seletor da tela do projeto. */
 export async function listarModelos(p?: { tipoEmpreendimentoId?: string | null }) {
   return prisma.modeloEap.findMany({

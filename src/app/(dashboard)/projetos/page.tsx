@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
+import { prisma } from "@/lib/prisma";
 import { acessoGlobal, tipoEfetivo } from "@/lib/roles";
 import {
   listarProjetos,
@@ -61,13 +62,19 @@ export default async function ProjetosPage({
     items.map((p) => p.id),
   );
 
-  const [clientes, catalogo, internos] = podeGerir
+  const [clientes, catalogo, internos, tiposEmpreendimento] = podeGerir
     ? await Promise.all([
         listarClientes({ incluirInativos: false }),
         catalogoDisciplinas(),
         usuariosInternos(),
+        // D13: classifica o projeto e é o que sugere o modelo de EAP no planejamento.
+        prisma.tipoEmpreendimento.findMany({
+          where: { ativo: true },
+          select: { id: true, nome: true },
+          orderBy: [{ ordem: "asc" }, { nome: "asc" }],
+        }),
       ])
-    : [[], [], []];
+    : [[], [], [], []];
 
   return (
     <ProjetosView
@@ -85,6 +92,7 @@ export default async function ProjetosPage({
       pageSize={pageSize}
       total={total}
       clientes={clientes.map((c) => ({ id: c.id, nome: c.nome }))}
+      tiposEmpreendimento={tiposEmpreendimento}
       catalogo={catalogo.map((d) => d.nome)}
       internos={internos}
       prontasPorProjeto={prontas}

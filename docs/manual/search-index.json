@@ -672,6 +672,42 @@
       ]
     },
     {
+      "path": "projetos/modelos-de-eap.md",
+      "titulo": "Modelos de EAP (importar do MS Project)",
+      "descricao": "A estrutura de cronograma que a casa reusa em projeto novo, importada de um arquivo XML do MS Project.",
+      "resumo": "Um modelo de EAP guarda a árvore de fases, disciplinas, atividades e marcos, com as durações e as dependências, importada do MS Project. Aplicado num projeto, cria a EAP inteira em rascunho; disciplina que o projeto não tem fica de fora. Datas, horas e pessoas não vêm do modelo.",
+      "tags": [
+        "modelo de eap",
+        "template",
+        "ms project",
+        "importar xml",
+        "mspdi",
+        "tipo de empreendimento",
+        "estrutura padrão",
+        "cronograma padrão",
+        "aplicar modelo"
+      ],
+      "palavrasChave": [
+        "modelo de EAP",
+        "template de cronograma",
+        "importar MS Project",
+        "XML",
+        "mspdi",
+        "tipo de empreendimento",
+        "EAP padrão",
+        "estrutura padrão",
+        "aplicar modelo",
+        "conferência de disciplina",
+        "etapa de terceiro"
+      ],
+      "sinonimos": [
+        "template de EAP",
+        "cronograma padrão",
+        "EAP padrão",
+        "importar do Project"
+      ]
+    },
+    {
       "titulo": "Recursos (alocação da equipe)",
       "path": "projetos/recursos.md",
       "descricao": "Matriz de alocação de pessoas em projetos, com carga real e planejada por semana, sobrecarga e habilidades.",

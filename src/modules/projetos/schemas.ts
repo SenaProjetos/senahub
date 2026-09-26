@@ -34,6 +34,11 @@ export const criarProjetoSchema = z.object({
   /** Meta interna. Vazio = nasce copiando o prazo de contrato. */
   prazoPlanejado: z.string().optional(),
   valorContrato: z.number().nonnegative().optional(),
+  /**
+   * Tipo de Empreendimento (D13): é o que sugere o modelo de EAP. Opcional no schema porque a lista é
+   * cadastro do comercial e pode estar vazia — quando há opção, a tela pede.
+   */
+  tipoEmpreendimentoId: z.string().min(1).optional(),
   disciplinas: z.array(disciplinaInputSchema).min(1, "Adicione ao menos uma disciplina."),
   membrosIds: z.array(z.string()).default([]),
 });
@@ -52,6 +57,8 @@ export const editarProjetoSchema = z.object({
   /** Vazio = acompanha o prazo de contrato. */
   prazoPlanejado: z.string().optional(),
   valorContrato: z.number().nonnegative().optional(),
+  /** D13: vazio limpa o tipo. */
+  tipoEmpreendimentoId: z.string().nullish(),
   abasConfig: z.array(abaConfigItemSchema).optional(),
 });
 

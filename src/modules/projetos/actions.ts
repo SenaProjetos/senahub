@@ -144,6 +144,7 @@ export const criarProjeto = defineAction(
           // Planejado em branco acompanha o contrato — divergir é ato deliberado.
           prazoPlanejado: parseData(input.prazoPlanejado ?? input.prazoContrato),
           valorContrato: input.valorContrato,
+          tipoEmpreendimentoId: input.tipoEmpreendimentoId ?? null,
           nomenclaturaVersaoId: versaoNomenclatura?.id ?? null,
           membros: {
             create: input.membrosIds.map((userId) => ({ userId })),
@@ -198,6 +199,8 @@ export const editarProjeto = defineAction(
         prazoContrato: parseData(rest.prazoContrato),
         prazoPlanejado: parseData(rest.prazoPlanejado ?? rest.prazoContrato),
         valorContrato: rest.valorContrato,
+        // D13: `undefined` não mexe (formulário que não manda o campo), `null` limpa.
+        ...(rest.tipoEmpreendimentoId === undefined ? {} : { tipoEmpreendimentoId: rest.tipoEmpreendimentoId }),
         abasConfig: rest.abasConfig,
         // P-03: troca de cliente.
         ...(rest.clienteId ? { clienteId: rest.clienteId } : {}),

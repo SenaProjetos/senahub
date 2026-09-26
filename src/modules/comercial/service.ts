@@ -747,6 +747,10 @@ export async function aceitarProposta(propostaId: string, autorId?: string) {
           probabilidade: true,
           probabilidadeOverride: true,
           responsavelId: true,
+          // D13 — o Tipo de Empreendimento que o comercial já classificou desce para o projeto, e é
+          // ele que sugere o modelo de EAP no planejamento. Perguntar de novo seria perguntar duas
+          // vezes a mesma coisa.
+          tipoEmpreendimentoId: true,
         },
       },
       // F5.4 — a versão vigente recebe o carimbo de "foi esta que o cliente aceitou".
@@ -823,6 +827,8 @@ export async function aceitarProposta(propostaId: string, autorId?: string) {
         valorContrato: valorFinal,
         // §8.5, metade 1 de 2 — a outra é o `projetoId` logo abaixo, na mesma transação.
         negociacaoId: p.negociacao?.id ?? null,
+        // D13: o tipo classificado na negociação nasce no projeto.
+        tipoEmpreendimentoId: p.negociacao?.tipoEmpreendimentoId ?? null,
         nomenclaturaVersaoId: versaoNomenclatura?.id ?? null,
         disciplinas: {
           create: disciplinasDeItens(p.itens),

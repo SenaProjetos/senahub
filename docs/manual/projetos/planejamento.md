@@ -371,10 +371,13 @@ confira lá o que vale no seu escritório.
 - **O realizado move a previsão, nunca o combinado.** Datas reais e a Data de Status empurram as
   tarefas; a linha de base fica como foi aprovada.
 - **Só coordenação e administração montam e editam.** Quem executa consome os cards.
+- **A EAP pode nascer de um modelo** importado do MS Project (só com a EAP vazia) —
+  [Modelos de EAP](modelos-de-eap.md).
 
 ## Funcionalidades relacionadas
 
-- [Cronograma: equipe, horas e custo](cronograma-equipe-e-custo.md) · [Valor Agregado](valor-agregado.md) ·
+- [Modelos de EAP (importar do MS Project)](modelos-de-eap.md) ·
+  [Cronograma: equipe, horas e custo](cronograma-equipe-e-custo.md) · [Valor Agregado](valor-agregado.md) ·
   [Etapas e pagamento por fase](etapas-e-pagamento-por-fase.md) · [Recursos](recursos.md) ·
   [Tarefas](tarefas.md) · [Projetos](projetos.md) ·
   [Contrato por entrega](../financeiro/contrato-por-entrega.md)

@@ -38,6 +38,7 @@ import type { CalendarioGantt } from "@/modules/planejamento/gantt-escala";
 import { somarDias } from "@/lib/dias-iso";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { AplicarModeloDialog, type PreviaDeModelo } from "@/components/planejamento/modelos/aplicar-modelo-dialog";
 import type { Vinculo } from "@/modules/planejamento/gantt-linhas";
 import {
   ACAO_ABRIR,
@@ -82,6 +83,7 @@ export function EapWorkspace({
   hoje,
   cronograma,
   qualidade,
+  previasModelos = [],
 }: {
   projeto: { id: string; codigo: string; nome: string };
   tarefas: EapTarefaDTO[];
@@ -112,6 +114,11 @@ export function EapWorkspace({
     totalLinhas: number;
     dataStatus: string | null;
   } | null;
+  /**
+   * Decisão #5: modelos de EAP com a prévia já calculada para ESTE projeto. Vem vazio quando a EAP já
+   * tem linha, quem olha não monta EAP, ou não há modelo cadastrado — e aí o botão não aparece.
+   */
+  previasModelos?: PreviaDeModelo[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -510,6 +517,9 @@ export function EapWorkspace({
                     <Button onClick={gerarEap} disabled={pending}>
                       <ListTree className="size-3.5" /> Gerar EAP das disciplinas
                     </Button>
+                  )}
+                  {previasModelos.length > 0 && (
+                    <AplicarModeloDialog projetoId={projeto.id} previas={previasModelos} />
                   )}
                   <Button variant={disciplinas.length > 0 ? "outline" : "default"} onClick={() => abrir(null)}>
                     <Rocket className="size-3.5" /> Criar tarefa manual

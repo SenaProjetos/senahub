@@ -15,6 +15,7 @@ import { EapWorkspace } from "@/components/planejamento/eap-workspace";
 import { PlanoVsReal } from "@/components/planejamento/plano-vs-real";
 import { ValorAgregadoPainel } from "@/components/planejamento/valor-agregado-painel";
 import { valorAgregadoDoProjeto } from "@/modules/planejamento/valor-agregado-service";
+import { previasDosModelos } from "@/modules/planejamento/modelos/service";
 import { paraDia } from "@/modules/planejamento/agenda";
 import { inicioDoDiaUtc } from "@/lib/data";
 
@@ -59,6 +60,10 @@ export default async function PlanejamentoProjetoPage({
     verDatas ? valorAgregadoDoProjeto(projetoId, { verCusto }) : Promise.resolve(null),
   ]);
 
+  // Decisão #5: o seletor de modelo só aparece com a EAP vazia e para quem monta — e a prévia (quantas
+  // linhas cada modelo criaria AQUI) é calculada num passe só, com o contexto do projeto lido uma vez.
+  const previasModelos = podeGerir && tarefas.length === 0 ? await previasDosModelos(projetoId) : [];
+
   return (
     <div className="space-y-6">
       <EapWorkspace
@@ -77,6 +82,7 @@ export default async function PlanejamentoProjetoPage({
         hoje={paraDia(inicioDoDiaUtc())}
         cronograma={cronograma}
         qualidade={qualidade}
+        previasModelos={previasModelos}
       />
       {valorAgregado && <ValorAgregadoPainel dados={valorAgregado} />}
       <PlanoVsReal dados={planoReal} />

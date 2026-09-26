@@ -35,12 +35,15 @@ export function ProjetoForm({
   clientes,
   catalogo,
   internos,
+  tiposEmpreendimento = [],
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   clientes: { id: string; nome: string }[];
   catalogo: string[];
   internos: Interno[];
+  /** D13: classifica o projeto e é o que sugere o modelo de EAP. Vazio = cadastro sem opções. */
+  tiposEmpreendimento?: { id: string; nome: string }[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -51,6 +54,7 @@ export function ProjetoForm({
   const [prazoContrato, setPrazoContrato] = useState("");
   const [prazoPlanejado, setPrazoPlanejado] = useState("");
   const [valorContrato, setValorContrato] = useState<number | null>(null);
+  const [tipoEmpreendimentoId, setTipoEmpreendimentoId] = useState("");
   const [disciplinas, setDisciplinas] = useState<DiscDraft[]>([]);
 
   function addDisciplina() {
@@ -101,6 +105,7 @@ export function ProjetoForm({
         // Vazio = nasce igual ao contrato (o servidor faz a cópia).
         prazoPlanejado: prazoPlanejado || undefined,
         valorContrato: valorContrato ?? undefined,
+        tipoEmpreendimentoId: tipoEmpreendimentoId || undefined,
         membrosIds: [],
         disciplinas: disciplinas.map((d) => ({
           nome: d.nome,
@@ -118,6 +123,7 @@ export function ProjetoForm({
         setPrazoContrato("");
         setPrazoPlanejado("");
         setValorContrato(null);
+        setTipoEmpreendimentoId("");
         setDisciplinas([]);
         router.push(`/projetos/${res.data.id}`);
       } else {
@@ -173,6 +179,27 @@ export function ProjetoForm({
             <Label>Nome do projeto</Label>
             <Input value={nome} onChange={(e) => setNome(e.target.value)} />
           </div>
+
+          {tiposEmpreendimento.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Tipo de empreendimento</Label>
+              <Select value={tipoEmpreendimentoId} onValueChange={(v) => setTipoEmpreendimentoId(v ?? "")}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tiposEmpreendimento.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                É o que sugere o modelo de EAP no planejamento deste projeto.
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
