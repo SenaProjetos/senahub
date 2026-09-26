@@ -47,7 +47,16 @@ export const estruturaModeloSchema = z.object({
   versao: z.literal(1),
   /** Jornada do arquivo de origem, em minutos — o que converteu hora em dia. Guardada para auditoria. */
   jornadaMinutos: z.number().int().min(60).max(1440),
-  linhas: z.array(linhaModeloSchema).min(1).max(2000),
+  /**
+   * Teto de linhas: a estrutura viaja numa Server Action ao gravar, e Server Action corta o corpo em
+   * 1 MB. O arquivo real da casa tem 184 linhas e 46,5 KB (≈ 259 B/linha, medido por
+   * `verify:modelo-mspdi`); 1200 linhas ficam em ~300 KB, com folga para nomes longos. Recusar aqui, com
+   * frase, é melhor que a Server Action falhar sem explicação no meio da importação.
+   */
+  linhas: z
+    .array(linhaModeloSchema)
+    .min(1)
+    .max(1200, "Este cronograma tem mais de 1200 linhas — grande demais para virar modelo. Exporte só a parte que a casa reusa."),
   /**
    * O que a pessoa respondeu na conferência: nome do arquivo (normalizado) → disciplina do catálogo.
    * `null` = "não é disciplina" (a linha vira agrupamento comum). Guardar isto é o que faz a

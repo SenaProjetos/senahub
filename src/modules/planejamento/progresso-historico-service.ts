@@ -2,6 +2,7 @@ import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { inicioDoDiaLocal } from "@/lib/data";
 import { paraDia } from "./agenda";
 import { progressoNaData, linhasSemHistorico, type RegistroProgresso } from "./progresso-historico";
 
@@ -82,9 +83,10 @@ export async function progressoDoProjetoNaData(
     tarefaId: r.tarefaId,
     progresso: r.progresso,
     anterior: r.anterior,
-    // Dia LOCAL (Brasília) da gravação: o dia de trabalho de quem digitou, que é o que a regra compara
-    // com a Data de Status. Em UTC, tudo o que for digitado depois das 21 h cairia no dia seguinte.
-    emDia: new Date(r.em.getTime() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    // Dia LOCAL da gravação: é o dia de trabalho de quem digitou que a regra compara com a Data de
+    // Status. Em UTC puro, o que for digitado depois das 21 h cairia no dia seguinte. `inicioDoDiaLocal`
+    // é a regra única do fuso (`lib/data.ts`) — não repetir o "-3 h" aqui.
+    emDia: paraDia(inicioDoDiaLocal(r.em)),
     emOrdem: r.em.getTime(),
     dataStatus: r.dataStatusVigente ? paraDia(r.dataStatusVigente) : null,
   }));

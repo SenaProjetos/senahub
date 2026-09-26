@@ -40,6 +40,8 @@ type ProjetoEditavel = {
   prazoPlanejado: string | null; // ISO date (yyyy-mm-dd)
   valorContrato: number | null;
   clienteId: string;
+  /** D13: `null` = projeto anterior ao campo, ou sem tipo escolhido. */
+  tipoEmpreendimentoId: string | null;
   abasConfig: AbaConfigItem[] | null;
 };
 
@@ -47,9 +49,12 @@ type ProjetoEditavel = {
 export function EditarProjetoDialog({
   projeto,
   clientes,
+  tiposEmpreendimento = [],
 }: {
   projeto: ProjetoEditavel;
   clientes: { id: string; nome: string }[];
+  /** D13: classifica o projeto e sugere o modelo de EAP. Vazio = cadastro sem opções. */
+  tiposEmpreendimento?: { id: string; nome: string }[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -65,6 +70,7 @@ export function EditarProjetoDialog({
   const [prazoContrato, setPrazoContrato] = useState(projeto.prazoContrato ?? "");
   const [prazoPlanejado, setPrazoPlanejado] = useState(projeto.prazoPlanejado ?? "");
   const [valorContrato, setValorContrato] = useState<number | null>(projeto.valorContrato ?? null);
+  const [tipoEmpreendimentoId, setTipoEmpreendimentoId] = useState(projeto.tipoEmpreendimentoId ?? "");
   const [abas, setAbas] = useState<AbaConfigItem[]>(() => abasParaEdicao(projeto.abasConfig));
 
   function moverAba(i: number, direcao: -1 | 1) {
@@ -89,6 +95,7 @@ export function EditarProjetoDialog({
     setClienteId(projeto.clienteId);
     setDescricao(projeto.descricao ?? "");
     setAreaM2(projeto.areaM2 != null ? String(projeto.areaM2) : "");
+    setTipoEmpreendimentoId(projeto.tipoEmpreendimentoId ?? "");
     setEndereco(projeto.endereco ?? "");
     setPrazoContrato(projeto.prazoContrato ?? "");
     setPrazoPlanejado(projeto.prazoPlanejado ?? "");
@@ -115,6 +122,8 @@ export function EditarProjetoDialog({
         prazoContrato,
         prazoPlanejado: prazoPlanejado || undefined,
         valorContrato: valorContrato ?? undefined,
+        // `null` limpa o tipo; string vazia não é id.
+        tipoEmpreendimentoId: tipoEmpreendimentoId || null,
         abasConfig: abas,
       });
       if (res.ok) {
@@ -210,6 +219,25 @@ export function EditarProjetoDialog({
             </div>
 
             <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Tipo de empreendimento</Label>
+                {tiposEmpreendimento.length > 0 ? (
+                  <Select value={tipoEmpreendimentoId} onValueChange={(v) => setTipoEmpreendimentoId(v ?? "")}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Não definido" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tiposEmpreendimento.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Nenhum tipo cadastrado no comercial.</p>
+                )}
+              </div>
               <div className="space-y-1.5">
                 <Label>Área (m²)</Label>
                 <Input type="number" value={areaM2} onChange={(e) => setAreaM2(e.target.value)} />

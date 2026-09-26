@@ -134,18 +134,36 @@ export const criarLancamento = defineAction(
     // Decisão #12: receita de projeto lançada à mão pode ser a cobrança de uma parcela que o cronograma
     // ainda mostra como PREVISÃO — as duas linhas somariam no caixa. Cria uma a uma quando é lançamento
     // único, para ter o id e tentar o casamento; recorrência não é parcela de entrega.
-    let casamento: { casou: boolean; parcela: string | null; aviso: string | null } | null = null;
+    let casamento: {
+      casou: boolean;
+      parcela: string | null;
+      aviso: string | null;
+      previsaoRemovidaId: string | null;
+    } | null = null;
     if (registros.length === 1) {
       const criado = await prisma.lancamento.create({ data: registros[0], select: { id: true, vencimento: true, data: true } });
       if (i.tipo === "receita" && i.projetoId && statusInicial !== "aguardando_aprovacao") {
         const quando = (criado.vencimento ?? criado.data).toISOString().slice(0, 10);
-        casamento = await casarCobrancaManualComPrevisao({
-          lancamentoId: criado.id,
-          projetoId: i.projetoId,
-          valor: i.valor,
-          vencimento: quando,
-          autorId: user.id,
-        });
+        try {
+          casamento = await casarCobrancaManualComPrevisao({
+            lancamentoId: criado.id,
+            projetoId: i.projetoId,
+            valor: i.valor,
+            vencimento: quando,
+            autorId: user.id,
+          });
+        } catch (e) {
+          // O lançamento JÁ existe: falhar aqui faria a tela mostrar erro e a pessoa lançar de novo,
+          // duplicando a receita. O casamento é um extra — sem ele, sobra a previsão, que está à vista.
+          casamento = {
+            casou: false,
+            parcela: null,
+            aviso: `O lançamento foi criado, mas não foi possível casá-lo com a previsão do cronograma${
+              e instanceof Error && e.message.length < 160 ? `: ${e.message}` : "."
+            } Confira a previsão na tela do contrato.`,
+            previsaoRemovidaId: null,
+          };
+        }
       }
     } else {
       await prisma.lancamento.createMany({ data: registros });
@@ -166,6 +184,8 @@ export const criarLancamento = defineAction(
       previsaoCasada: casamento?.casou ? casamento.parcela : null,
       /** Por que não casou, quando havia previsão no projeto e vale avisar. */
       avisoPrevisao: casamento?.aviso ?? null,
+      /** Id da linha de previsão que saiu do caixa — fica no registro de auditoria desta ação. */
+      previsaoRemovidaId: casamento?.previsaoRemovidaId ?? null,
     };
   },
 );

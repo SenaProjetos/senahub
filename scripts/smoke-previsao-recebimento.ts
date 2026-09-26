@@ -305,6 +305,23 @@ async function main() {
     }
     check("faturar essa parcela depois é recusado (já tem cobrança)", fatDepois !== "sem recusa", fatDepois);
 
+    const manualDepois = await prisma.lancamento.findUnique({ where: { id: manual.id }, select: { contratoId: true } });
+    check("a cobrança manual passa a ser do contrato (quem lê pelo contrato precisa achá-la)", manualDepois?.contratoId === contrato.id, manualDepois);
+    check("e o serviço devolve qual previsão saiu do caixa (para a auditoria)", casou.previsaoRemovidaId === alvo.id, casou);
+
+    // Caminho de volta: casou errado? Excluir a cobrança manual e sincronizar traz a previsão de novo.
+    await prisma.lancamento.update({ where: { id: manual.id }, data: { excluidoEm: new Date() } });
+    await sincronizarPrevisoesDoProjeto(projeto.id, admin.id);
+    const voltou = await prisma.contratoParcelaEntrega.findUnique({
+      where: { id: parcelaAgora!.id },
+      select: { lancamento: { select: { id: true, status: true, excluidoEm: true } } },
+    });
+    check(
+      "desfazer: excluída a cobrança manual, a sincronização recria a previsão da parcela",
+      voltou?.lancamento?.status === "previsao" && voltou.lancamento.excluidoEm === null && voltou.lancamento.id !== manual.id,
+      voltou,
+    );
+
     // Valor diferente não casa — dinheiro não se casa por aproximação.
     const outro = await prisma.lancamento.create({
       data: {
@@ -328,11 +345,11 @@ async function main() {
       vencimento: hoje,
       autorId: admin.id,
     });
-    // Sem previsão sobrando no projeto (a única foi casada acima): não casa e NÃO avisa — não há
-    // duplicidade possível. A frase do "valor que não bate" é coberta no teste da regra pura.
+    // A previsão voltou (o desfazer acima), com outro valor que não bate: não casa, e a tela recebe o
+    // aviso — duplicidade possível se avisada é duplicidade que alguém corrige.
     check(
-      "projeto sem previsão sobrando: não casa e não inventa aviso",
-      naoCasou.casou === false && naoCasou.aviso === null,
+      "valor que não bate não casa, e a tela recebe o aviso",
+      naoCasou.casou === false && !!naoCasou.aviso && /valor exato/.test(naoCasou.aviso),
       naoCasou,
     );
     const semParcela = await prisma.contratoParcelaEntrega.count({ where: { lancamentoId: outro.id } });

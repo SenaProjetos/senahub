@@ -626,6 +626,8 @@ export async function obterProjetoMinimo(viewer: Viewer, id: string) {
       areaM2: true,
       endereco: true,
       valorContrato: true,
+      // D13: classifica o projeto e sugere o modelo de EAP — editável no mesmo diálogo.
+      tipoEmpreendimentoId: true,
       abasConfig: true,
       cliente: { select: { id: true, nome: true } },
     },

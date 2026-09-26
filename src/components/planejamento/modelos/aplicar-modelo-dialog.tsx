@@ -28,6 +28,8 @@ export type PreviaDeModelo = {
   fasesACriar: { disciplina: string; fase: string; percentual: number }[];
   /** Disciplinas que ficam sem fase — a linha delas perde a fase. */
   disciplinasSemFase: string[];
+  /** D13: mesmo Tipo de Empreendimento do projeto — vem primeiro e já selecionado. */
+  sugerido: boolean;
   impedimento: string | null;
 };
 
@@ -89,7 +91,14 @@ export function AplicarModeloDialog({ projetoId, previas }: { projetoId: string;
                     onChange={() => setEscolhido(p.modeloId)}
                   />
                   <span className="min-w-0">
-                    <span className="block text-sm font-medium">{p.modeloNome}</span>
+                    <span className="block text-sm font-medium">
+                      {p.modeloNome}
+                      {p.sugerido && (
+                        <span className="ml-1.5 rounded-sm bg-primary/10 px-1 py-0.5 text-[10px] font-normal text-primary">
+                          sugerido pelo tipo do projeto
+                        </span>
+                      )}
+                    </span>
                     <span className="block text-[11px] text-muted-foreground">
                       {p.criar} linha(s) neste projeto · {p.marcos} marcos · {p.vinculos} dependências
                       {p.terceiros > 0 ? ` · ${p.terceiros} de terceiro` : ""}

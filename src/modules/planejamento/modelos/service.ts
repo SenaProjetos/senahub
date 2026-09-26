@@ -200,6 +200,8 @@ export type PreviaDaAplicacao = {
   fasesACriar: { disciplina: string; fase: string; percentual: number }[];
   /** Disciplinas que ficam SEM fase: a linha delas perde a fase e o marco não marca fase Entregue. */
   disciplinasSemFase: string[];
+  /** D13: o modelo é do mesmo Tipo de Empreendimento do projeto — a tela o destaca e o pré-seleciona. */
+  sugerido: boolean;
   /** Impedimento: quando presente, aplicar é recusado com esta frase. */
   impedimento: string | null;
 };
@@ -227,7 +229,9 @@ function contarAplicacao(
 
 async function contextoDoProjeto(projetoId: string) {
   const [projeto, disciplinas, etapas, quantasLinhas, baseline, cronograma] = await Promise.all([
-    prisma.projeto.findUnique({ where: { id: projetoId }, select: { id: true, nome: true } }),
+    // D13: o Tipo de Empreendimento do projeto é o que SUGERE o modelo — sem ele, a lista sairia na ordem
+    // de importação e a pessoa escolheria às cegas.
+    prisma.projeto.findUnique({ where: { id: projetoId }, select: { id: true, nome: true, tipoEmpreendimentoId: true } }),
     prisma.disciplina.findMany({
       where: { projetoId },
       select: { id: true, disciplinaId: true, disciplinaTextoLegado: true },
@@ -276,7 +280,7 @@ function impedimentoParaAplicar(ctx: Awaited<ReturnType<typeof contextoDoProjeto
 export async function previaDaAplicacao(p: { projetoId: string; modeloId: string }): Promise<PreviaDaAplicacao> {
   const modelo = await prisma.modeloEap.findUnique({
     where: { id: p.modeloId },
-    select: { nome: true, estrutura: true, ativo: true },
+    select: { nome: true, estrutura: true, ativo: true, tipoEmpreendimentoId: true },
   });
   if (!modelo || !modelo.ativo) throw new ActionError("Modelo não encontrado.");
   const estrutura = lerEstrutura(modelo.estrutura);
@@ -321,6 +325,8 @@ export async function previaDaAplicacao(p: { projetoId: string; modeloId: string
       percentual: Number(e.percentual),
     })),
     disciplinasSemFase: r.disciplinasSemFase.map((id) => nomesDisciplinaProjeto.get(id) ?? "disciplina"),
+    sugerido:
+      ctx.projeto.tipoEmpreendimentoId != null && modelo.tipoEmpreendimentoId === ctx.projeto.tipoEmpreendimentoId,
     impedimento: impedimentoParaAplicar(ctx, r.linhas.length),
   };
 }
@@ -452,7 +458,10 @@ export async function previasDosModelos(projetoId: string): Promise<(PreviaDaApl
       .then((l) => new Map(l.map((d) => [d.id, d.catalogo?.nome ?? d.disciplinaTextoLegado]))),
   ]);
 
-  return contas.map(({ modelo, conta }) => {
+  const tipoDoProjeto = ctx.projeto.tipoEmpreendimentoId;
+  const ehSugerido = (tipoDoModelo: string | null) => tipoDoProjeto != null && tipoDoModelo === tipoDoProjeto;
+
+  const previas = contas.map(({ modelo, conta }) => {
     if (!conta) {
       return {
         modeloId: modelo.id,
@@ -464,6 +473,7 @@ export async function previasDosModelos(projetoId: string): Promise<(PreviaDaApl
         podadas: [],
         fasesACriar: [],
         disciplinasSemFase: [],
+        sugerido: ehSugerido(modelo.tipoEmpreendimentoId),
         impedimento: "Este modelo está em formato inválido. Importe o arquivo de novo.",
       };
     }
@@ -489,9 +499,14 @@ export async function previasDosModelos(projetoId: string): Promise<(PreviaDaApl
         percentual: Number(e.percentual),
       })),
       disciplinasSemFase: conta.disciplinasSemFase.map((id) => nomesDisciplinaProjeto.get(id) ?? "disciplina"),
+      sugerido: ehSugerido(modelo.tipoEmpreendimentoId),
       impedimento: impedimentoParaAplicar(ctx, conta.linhas.length),
     };
   });
+
+  // D13: o modelo do mesmo Tipo de Empreendimento vem primeiro (a tela pré-seleciona o primeiro). Entre
+  // iguais, mantém a ordem de atualização — o mais recente antes.
+  return previas.sort((a, b) => Number(b.sugerido) - Number(a.sugerido));
 }
 
 /** Modelos para a lista e para o seletor da tela do projeto. */

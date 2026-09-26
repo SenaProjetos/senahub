@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { diasUteisEntre } from "@/lib/calendario-trabalho";
+import { brl } from "@/lib/utils";
 import { minutosPorDiaSessao } from "@/modules/ponto/engine";
 import { montarCalendario, paraDia, planoDoProjeto } from "./agenda";
 import { calcularRegua, type IndicesEvm, type LinhaBaseEvm, type ResultadoRegua } from "./valor-agregado";
@@ -123,6 +124,9 @@ export async function valorAgregadoDoProjeto(
     where: {
       disciplina: { projetoId },
       liberadoEm: { lt: new Date(`${diaSeguinte(dataStatus)}T00:00:00-03:00`) },
+      // Cancelado é história, não custo — o mesmo corte de `modoPagamento`. Sem isto, um pagamento
+      // estornado seguiria inflando o custo real (e piorando o IDC) para sempre.
+      status: { not: "cancelado" },
     },
     select: { projetistaId: true, valor: true },
   });
@@ -177,7 +181,7 @@ export async function valorAgregadoDoProjeto(
   // histórico. Numa Data de Status passada isso deixa o VA otimista — e calado seria pior.
   if (opcoes.verCusto && totalPago > 0) {
     avisos.push(
-      `O custo real inclui ${porEntrega.size} projetista(s) pago(s) por entrega (R$ ${totalPago.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} liberados até a Data de Status). As horas apontadas por essas pessoas entram na régua de HORAS, mas não em R$ — senão o mesmo trabalho contaria duas vezes.`,
+      `O custo real inclui ${porEntrega.size} projetista(s) pago(s) por entrega (${brl(totalPago)} liberados até a Data de Status). As horas apontadas por essas pessoas entram na régua de HORAS, mas não em R$ — senão o mesmo trabalho contaria duas vezes.`,
     );
   }
   const semHistoricoNaBase = semHistorico.filter((id) => naBaseline.has(id)).length;

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ChevronRight, MessageSquare } from "lucide-react";
 import { requirePermission } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
 import { obterProjetoMinimo, abasComConteudo } from "@/modules/projetos/queries";
 import type { AbaConfigItem } from "@/modules/projetos/abas";
@@ -47,6 +48,7 @@ export default async function ProjetoLayout({
     canalChat,
     modelosDoc,
     conteudoPorAba,
+    tiposEmpreendimento,
   ] = await Promise.all([
     can(user, "projetos", "gerir"),
     can(user, "financeiro", "ver"),
@@ -64,6 +66,12 @@ export default async function ProjetoLayout({
     canalDoProjeto(id),
     modelosPorFonte("projeto"),
     abasComConteudo(id),
+    // D13: tipos de empreendimento para o diálogo de edição (o campo sugere o modelo de EAP).
+    prisma.tipoEmpreendimento.findMany({
+      where: { ativo: true },
+      select: { id: true, nome: true },
+      orderBy: [{ ordem: "asc" }, { nome: "asc" }],
+    }),
   ]);
   // Item 12 (beta): editar todos os campos do projeto — só busca clientes se puder editar.
   const clientes = podeGerir ? await listarClientes({ incluirInativos: false }) : [];
@@ -133,9 +141,11 @@ export default async function ProjetoLayout({
                 prazoPlanejado: projeto.prazoPlanejado ? projeto.prazoPlanejado.toISOString().slice(0, 10) : null,
                 valorContrato: projeto.valorContrato != null ? Number(projeto.valorContrato) : null,
                 clienteId: projeto.cliente.id,
+                tipoEmpreendimentoId: projeto.tipoEmpreendimentoId,
                 abasConfig: (projeto.abasConfig as AbaConfigItem[] | null) ?? null,
               }}
               clientes={clientes.map((c) => ({ id: c.id, nome: c.nome }))}
+              tiposEmpreendimento={tiposEmpreendimento}
             />
           )}
           {podeGerir && <DuplicarProjetoButton projetoId={id} />}

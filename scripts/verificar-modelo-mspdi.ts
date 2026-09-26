@@ -86,6 +86,16 @@ async function main() {
   }, {});
   console.log("\nTipos de linha:", tipos);
 
+  // Tamanho do JSON gravado: a estrutura viaja numa Server Action (limite de 1 MB de corpo) ao salvar o
+  // modelo, então o teto de linhas do schema tem de caber nesse limite com folga.
+  const bytes = Buffer.byteLength(JSON.stringify(estrutura), "utf8");
+  const porLinha = Math.round(bytes / estrutura.linhas.length);
+  console.log(
+    `
+JSON da estrutura: ${(bytes / 1024).toFixed(1)} KB (${porLinha} B/linha) · ` +
+      `extrapolado para o teto de 2000 linhas: ${((porLinha * 2000) / 1024).toFixed(0)} KB`,
+  );
+
   const semDisciplina = estrutura.linhas.filter((l) => l.disciplinaCatalogoId == null);
   console.log(`\nLinhas SEM disciplina (${semDisciplina.length}) — não herdam responsável nem fecham fase:`);
   for (const l of semDisciplina.slice(0, 15)) console.log(`  [${l.tipoEap}] ${l.nome}`);

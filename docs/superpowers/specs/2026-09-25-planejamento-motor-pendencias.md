@@ -224,7 +224,12 @@ Como no Project, onde o custo de uma tarefa fica fixado quando ela é concluída
   não casa** (duas parcelas do mesmo valor e mesma distância → avisa e não escolhe). Recorrência não entra
   (não é parcela de entrega), nem despesa, nem receita sem projeto, nem lançamento que entra aguardando
   aprovação. Quando não casa mas havia previsão no projeto, a tela recebe o aviso na hora — com o diálogo
-  ainda aberto. Verificação: `npm run smoke:previsao-recebimento`.
+  ainda aberto. O caminho de volta existe e está no smoke: excluída a cobrança manual, a sincronização
+  recria a previsão da parcela (a parcela volta a "sem lançamento vivo").
+  **Fora do escopo, de propósito:** importação de extrato (OFX) e conciliação bancária criam lançamento
+  SEM projeto — não há como saber de que parcela é aquele crédito, e casar por valor solto seria adivinhar
+  com o dinheiro de outro. Nessas, quem fecha a parcela continua sendo "Faturar" na tela do contrato.
+  Verificação: `npm run smoke:previsao-recebimento`.
 - ~~A previsão não entra no resultado previsto do projeto nem no KPI de receita prevista.~~ **Resolvido
   (decisão #13, 2026-09-25):** entra nos dois. `margemProjeto` já a somava por acidente (tudo que não é
   confirmado caía em `receitaPrevista`); agora é explícito e destacado (`receitaPrevisao`, mostrado no
@@ -365,6 +370,55 @@ Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
 ---
 
 ## 5. Checklists em navegador (antes do merge)
+
+### Lote de decisões do time (2026-09-25/26) — NENHUMA destas telas foi aberta em navegador
+
+**#1 — Etapa de terceiro (recurso "Externo")**
+- [ ] Recursos da linha: botão **Etapa de terceiro** marca; a lista mostra "Externo (etapa de terceiro)"
+      com a etiqueta *terceiro*, sem campo de papel nem de horas; a lixeira desmarca (o confirm fala em
+      "marca de etapa de terceiro", não em perfil).
+- [ ] Marcar duas vezes é recusado com "já está marcada como etapa de terceiro".
+- [ ] Coluna **Recursos** da tabela mostra `terceiro`; com alguém da casa junto, `terceiro; Maria`.
+- [ ] O verificador não acusa "sem responsável" nessa linha; aprovar o cronograma não gera card dela.
+- [ ] Duplicar o projeto: a linha de terceiro continua marcada no clone (e não ganha responsável herdado).
+
+**#5 — Modelos de EAP (importar do MS Project)**
+- [ ] Gestão → **Modelos de EAP** → Importar do MS Project com o XML real da casa.
+- [ ] Conferência: cada agrupamento com o palpite e a etiqueta de como casou; trocar `GLP` para **Gás**;
+      deixar `GESTÃO E INICIAÇÃO` como **Agrupamento**; desmarcar um terceiro sugerido que não seja.
+- [ ] **% por fase** (D38): deixar em branco grava; preencher 40/60 grava; 40/40 bloqueia o botão com a
+      soma na tela; informar só uma fase é recusado.
+- [ ] Modelo gravado aparece na lista com contagem, tipo e arquivo; a página dele mostra o que cada nome
+      virou e a árvore.
+- [ ] Projeto novo com EAP vazia: **Usar modelo de EAP** mostra a prévia (linhas, marcos, vínculos,
+      terceiros), o que fica de fora por disciplina, as fases que serão cadastradas e a etiqueta
+      **sugerido pelo tipo do projeto**.
+- [ ] Aplicar: a EAP nasce inteira, em rascunho, já reagendada; as fases aparecem em Etapas da disciplina
+      com o percentual; o marco de fase fecha a fase.
+- [ ] Aplicar de novo é bloqueado com a frase, sem tentar.
+- [ ] Projeto novo: campo **Tipo de empreendimento** no formulário e no diálogo de edição; projeto vindo
+      de proposta aceita já vem com o tipo da negociação.
+
+**#17 — Histórico do % / Valor Agregado**
+- [ ] Editar o % de uma linha (célula e janela) e conferir no Valor Agregado que a Data de Status antiga
+      mantém o número antigo.
+- [ ] Atualizar o % com a Data de Status numa sexta e apurar na segunda: o valor digitado conta.
+- [ ] O quadro avisa quando há atividade com avanço e sem histórico.
+
+**#16 — Custo real com PJ**
+- [ ] Projeto com pagamento liberado a PJ: o CR em R$ soma o pagamento, o CR em horas não muda, e o
+      quadro avisa. Cancelar o pagamento tira do CR.
+
+**#9 — Fase de equipe própria**
+- [ ] Disciplina só com CLT: aprovar a fase mostra "aprovada" e o valor da fase como R$ 0 (cadeado), sem
+      linha nova na Produção; a fase seguinte mostra o valor inteiro quando entra um PJ.
+
+**#12 — Cobrança lançada à mão**
+- [ ] Novo lançamento: receita do projeto com o valor exato de uma previsão → aviso "casado com a
+      previsão…"; a previsão sai de Contas a receber e do fluxo de caixa; **Faturar** naquela parcela
+      passa a ser recusado.
+- [ ] Mesmo caso com valor diferente → aviso amarelo explicando por que não casou.
+- [ ] Excluir a cobrança lançada à mão e reagendar/sincronizar: a previsão volta.
 
 ### F4 — Etapas
 - [ ] Abrir Etapas numa disciplina, adicionar BS e EX; editar data por teclado (inclusive Backspace

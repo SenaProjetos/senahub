@@ -307,7 +307,7 @@ export async function casarCobrancaManualComPrevisao(p: {
   /** `YYYY-MM-DD` — o vencimento digitado, ou a data do lançamento. */
   vencimento: string;
   autorId: string;
-}): Promise<{ casou: boolean; parcela: string | null; aviso: string | null }> {
+}): Promise<{ casou: boolean; parcela: string | null; aviso: string | null; previsaoRemovidaId: string | null }> {
   const parcelas = await prisma.contratoParcelaEntrega.findMany({
     where: {
       contrato: { projetoId: p.projetoId, formaCobranca: "por_entrega" },
@@ -316,6 +316,7 @@ export async function casarCobrancaManualComPrevisao(p: {
     select: {
       id: true,
       descricao: true,
+      contratoId: true,
       lancamento: { select: { id: true, valor: true, vencimento: true, descricao: true } },
     },
   });
@@ -331,7 +332,9 @@ export async function casarCobrancaManualComPrevisao(p: {
     }));
 
   const r = casarComPrevisao(candidatas, { valor: p.valor, vencimento: p.vencimento });
-  if (!r.casou) return { casou: false, parcela: null, aviso: motivoDoNaoCasamento(r) };
+  if (!r.casou) return { casou: false, parcela: null, aviso: motivoDoNaoCasamento(r), previsaoRemovidaId: null };
+
+  const contratoId = parcelas.find((x) => x.id === r.candidata.parcelaId)?.contratoId ?? null;
 
   const feito = await prisma.$transaction(async (tx) => {
     // `status: "previsao"` na escrita: se alguém faturou a parcela nesse meio-tempo, não há o que casar —
@@ -345,9 +348,17 @@ export async function casarCobrancaManualComPrevisao(p: {
       where: { id: r.candidata.parcelaId },
       data: { lancamentoId: p.lancamentoId },
     });
+    // O lançamento manual passa a ser do CONTRATO: a parcela diz "faturada", e quem lê pelo contrato (a
+    // aba financeira dele, o resumo do cliente, o aviso de cobrança) precisa achar a cobrança.
+    if (contratoId) {
+      await tx.lancamento.updateMany({
+        where: { id: p.lancamentoId, contratoId: null },
+        data: { contratoId },
+      });
+    }
     return true;
   });
 
-  if (!feito) return { casou: false, parcela: null, aviso: null };
-  return { casou: true, parcela: r.candidata.descricao, aviso: null };
+  if (!feito) return { casou: false, parcela: null, aviso: null, previsaoRemovidaId: null };
+  return { casou: true, parcela: r.candidata.descricao, aviso: null, previsaoRemovidaId: r.candidata.lancamentoId };
 }
