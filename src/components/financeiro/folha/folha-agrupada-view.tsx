@@ -186,9 +186,9 @@ function GrupoProjetista({
           de tela e (no caso do link) fica de fora da ordem de tabulação. Sem link (quem
           não tem `rh:cadastro`), o nome é texto puro e cabe dentro do trigger — clicar
           em qualquer parte da linha expande, como antes. */}
-      <div className="flex items-center gap-2 p-3">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 p-3">
         <CollapsibleTrigger
-          className="group/proj flex flex-1 items-center gap-2 text-left"
+          className="group/proj flex min-w-0 flex-[1_1_9rem] items-center gap-2 text-left"
           aria-label={links.pessoa ? `${rotuloEntregas}, expandir` : `${grupo.projetistaNome} — ${rotuloEntregas}, expandir`}
         >
           <ChevronDown
@@ -203,7 +203,7 @@ function GrupoProjetista({
             {grupo.projetistaNome}
           </Link>
         )}
-        <div className="ml-auto flex shrink-0 items-center gap-3">
+        <div className="ml-auto flex items-center gap-3">
           <span className="font-mono text-sm text-warning">{brl(grupo.totalPendente)}</span>
           {pagaveis.length > 0 && (
             <Button size="sm" onClick={() => onPagarTudo(grupo)}>

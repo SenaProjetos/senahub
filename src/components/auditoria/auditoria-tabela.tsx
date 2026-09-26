@@ -1,5 +1,6 @@
 "use client";
 
+import { FiltrosGaveta } from "@/components/ui/filtros-gaveta";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -85,6 +86,7 @@ export function AuditoriaTabela({
             if (e.key === "Enter") setParam("q", (e.target as HTMLInputElement).value || null);
           }}
         />
+        <FiltrosGaveta ativos={[filtro.modulo, filtro.resultado, filtro.de, filtro.ate].filter(Boolean).length}>
         <Select
           value={filtro.modulo ?? "todos"}
           onValueChange={(v) => setParam("modulo", v === "todos" ? null : v)}
@@ -140,6 +142,7 @@ export function AuditoriaTabela({
             onChange={(e) => setParam("ate", e.target.value || null)}
           />
         </div>
+        </FiltrosGaveta>
         <Button
           variant="outline"
           className="ml-auto"

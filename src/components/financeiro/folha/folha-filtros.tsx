@@ -1,5 +1,6 @@
 "use client";
 
+import { FiltrosGaveta } from "@/components/ui/filtros-gaveta";
 import { useEffect, useState } from "react";
 import { Search, X } from "lucide-react";
 import { useSetParams } from "@/lib/use-set-param";
@@ -51,6 +52,8 @@ export function FolhaFiltros({
     const t = setTimeout(() => setParams({ q: busca || null }, { replace: true }), 400);
     return () => clearTimeout(t);
   }, [busca, filtros.q, setParams]);
+
+  const nAtivos = [filtros.status, filtros.projetistaId, filtros.projetoId, filtros.folhaId, filtros.de, filtros.ate, filtros.semComprovante].filter(Boolean).length;
 
   const temFiltro = Boolean(
     filtros.status ||
@@ -114,6 +117,7 @@ export function FolhaFiltros({
         <ExportarFolhaButton />
       </div>
 
+      <FiltrosGaveta className="w-full md:block" ativos={nAtivos}>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <div className="space-y-1.5">
           <Label htmlFor="filtro-status">Status</Label>
@@ -226,6 +230,7 @@ export function FolhaFiltros({
           Só pagos sem comprovante
         </Label>
       </div>
+      </FiltrosGaveta>
 
       {filtros.status === null && canceladosOcultos > 0 && (
         <p className="text-xs text-muted-foreground">

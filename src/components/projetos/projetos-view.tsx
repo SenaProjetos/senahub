@@ -53,6 +53,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SortableHead } from "@/components/ui/sortable-head";
 import { Pagination } from "@/components/ui/pagination";
 import { useSetParams } from "@/lib/use-set-param";
+import { FiltrosGaveta } from "@/components/ui/filtros-gaveta";
 import { inicioDoDia, inicioDoDiaLocal } from "@/lib/data";
 import { formatarData } from "@/lib/utils";
 import { saudeProjeto, type NivelSaude } from "@/modules/projetos/health";
@@ -180,6 +181,8 @@ export function ProjetosView({
     { v: "kanban", icon: KanbanSquare, label: "Visão em kanban" },
   ];
 
+  const filtrosAtivos = [situacao, meusProjetos, sortRisco, clienteId, responsavelId, disciplina].filter(Boolean).length;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -246,6 +249,7 @@ export function ProjetosView({
             <Search className="size-4" />
           </Button>
         </div>
+        <FiltrosGaveta ativos={filtrosAtivos}>
         <Select
           value={situacao || "ativos"}
           onValueChange={(v) => setParams({ situacao: v === "ativos" ? null : v })}
@@ -332,6 +336,7 @@ export function ProjetosView({
             </Select>
           </>
         )}
+        </FiltrosGaveta>
       </div>
 
       {items.length === 0 ? (

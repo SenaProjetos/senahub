@@ -58,6 +58,7 @@ import {
 } from "@/modules/clientes/acoes";
 import { Pagination } from "@/components/ui/pagination";
 import { useSetParams } from "@/lib/use-set-param";
+import { FiltrosGaveta } from "@/components/ui/filtros-gaveta";
 
 type FormCliente = CriarClienteInput & {
   id?: string;
@@ -240,6 +241,7 @@ export function ClientesView({
           </Button>
         </div>
 
+        <FiltrosGaveta ativos={[tipo, situacao, uf, categoria, segmentoId, status, listaSN].filter(Boolean).length}>
         <Select
           value={tipo || TODOS}
           onValueChange={(v) => setParams({ tipo: v === TODOS ? null : v })}
@@ -354,6 +356,7 @@ export function ClientesView({
             <SelectItem value="1">Só lista SN</SelectItem>
           </SelectContent>
         </Select>
+        </FiltrosGaveta>
       </div>
 
       {selecao.total > 0 && (
