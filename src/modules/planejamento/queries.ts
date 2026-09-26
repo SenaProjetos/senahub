@@ -357,14 +357,25 @@ export async function cronogramaProjetosAtivos() {
       projetos.map(async (p) => [p.id, await planoDoProjeto(p.id)] as const),
     ),
   );
-  return projetos.map((p) => ({
-    id: p.id,
-    codigo: p.codigo,
-    nome: p.nome,
-    situacao: p.situacao,
-    temLinhaBase: p.eapTarefas.some((t) => t.inicioBaseline != null),
-    tarefas: p.eapTarefas.map((t) => mapearTarefaDTO(t, planos.get(p.id) ?? null)),
-  }));
+  // O calendário é o MESMO para todos (um calendário da empresa, D8): vai uma vez, para o gráfico sombrear
+  // dia não útil com o mesmo conjunto que agendou as linhas. Sem plano nenhum (projeto sem cronograma), cai
+  // em seg-sex sem feriado — só afeta o sombreado.
+  const algumPlano = [...planos.values()].find((x) => x != null) ?? null;
+
+  return {
+    calendario: {
+      diasUteis: algumPlano ? [...algumPlano.calendario.diasSemana] : [1, 2, 3, 4, 5],
+      feriados: algumPlano ? [...algumPlano.calendario.feriados] : ([] as string[]),
+    },
+    projetos: projetos.map((p) => ({
+      id: p.id,
+      codigo: p.codigo,
+      nome: p.nome,
+      situacao: p.situacao,
+      temLinhaBase: p.eapTarefas.some((t) => t.inicioBaseline != null),
+      tarefas: p.eapTarefas.map((t) => mapearTarefaDTO(t, planos.get(p.id) ?? null)),
+    })),
+  };
 }
 
 /**

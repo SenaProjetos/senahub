@@ -28,6 +28,14 @@ import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LinhaComMenu } from "@/components/ui/linha-com-menu";
+import {
+  BarraDaLinha,
+  CabecalhoEscala,
+  HEAD_H,
+  MARCO,
+  ROW_H,
+  type ModoGantt,
+} from "@/components/planejamento/gantt-barra";
 
 /**
  * O cronograma do projeto no molde do MS Project: a TABELA à esquerda e o GRÁFICO à direita, nas mesmas
@@ -43,7 +51,8 @@ import { LinhaComMenu } from "@/components/ui/linha-com-menu";
  * mandou as datas vazias: aqui não há gráfico nem coluna de data.
  */
 
-export type ModoGantt = "planejamento" | "controle";
+/** Re-exportado de `gantt-barra` (onde a barra vive): quem já importava daqui não muda. */
+export type { ModoGantt } from "@/components/planejamento/gantt-barra";
 
 /** O que se edita direto na célula. `pred` (Predecessoras) tem callback próprio: grava o conjunto inteiro. */
 export type CampoEditavel = "nome" | "duracao" | "progresso" | "pred";
@@ -91,10 +100,7 @@ export type PlanoGanttProps = {
   className?: string;
 };
 
-const ROW_H = 28;
-const HEAD_H = 48;
-const TIER_H = HEAD_H / 2;
-const MARCO = 10;
+
 
 type Linha = LinhaGrade<EapTarefaDTO>;
 
@@ -727,20 +733,7 @@ export function PlanoGantt({
             {escala && (
               <div className="relative shrink-0" style={{ width: escala.largura }}>
                 <div className="sticky top-0 z-10 border-b bg-muted" style={{ height: HEAD_H }} aria-hidden>
-                  <div className="relative border-b" style={{ height: TIER_H }}>
-                    {escala.topo.map((f) => (
-                      <div key={f.chave} title={f.titulo} className="absolute top-0 flex h-full items-center overflow-hidden whitespace-nowrap border-l px-1.5 text-[11px] font-medium" style={{ left: f.x, width: f.largura }}>
-                        {f.rotulo}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="relative" style={{ height: TIER_H }}>
-                    {escala.base.map((f) => (
-                      <div key={f.chave} title={f.titulo} className="absolute top-0 flex h-full items-center justify-center overflow-hidden whitespace-nowrap border-l text-[10px] text-muted-foreground" style={{ left: f.x, width: f.largura }}>
-                        {f.rotulo}
-                      </div>
-                    ))}
-                  </div>
+                  <CabecalhoEscala escala={escala} />
                 </div>
 
                 <div className="relative" style={{ height: linhas.length * ROW_H }}>
@@ -790,109 +783,6 @@ export function PlanoGantt({
       )}
 
       {verDatas && linhas.length > 0 && <Legenda modo={modo} tarefas={tarefas} />}
-    </div>
-  );
-}
-
-function BarraDaLinha({
-  l,
-  modo,
-  escala,
-  geo,
-  top,
-  destaque,
-  onHover,
-  onSelecionar,
-  onAbrir,
-}: {
-  l: Linha;
-  modo: ModoGantt;
-  escala: EscalaGantt;
-  geo: { x: number; w: number } | undefined;
-  top: number;
-  destaque: boolean;
-  onHover: (dentro: boolean) => void;
-  onSelecionar: () => void;
-  onAbrir?: (t: EapTarefaDTO) => void;
-}) {
-  const t = l.t;
-  const bloqueada = t.status === "blq";
-  const critica = t.critica && t.status !== "con";
-  const titulo =
-    [
-      bloqueada && `bloqueada: ${t.motivoBloqueio ?? "sem motivo registrado"}`,
-      t.restricaoTipo && `restrição: ${t.restricaoTipo} ${t.restricaoData ?? ""}`.trim(),
-      t.conflitoRestricao && "conflito entre a restrição e a dependência",
-      t.reprogramada && "reprogramada para depois da Data de Status",
-      t.folgaTotal > 0 && `folga ${t.folgaTotal}d`,
-      critica && "caminho crítico (folga 0)",
-    ]
-      .filter(Boolean)
-      .join(" · ") || undefined;
-
-  const baseIni = t.inicioBaseline ? escala.x(t.inicioBaseline) : null;
-  const baseFim = t.fimBaseline ? escala.xFim(t.fimBaseline) : null;
-  const desviada = t.fimBaseline != null && t.fimPrevisto > t.fimBaseline;
-
-  return (
-    <div
-      className={cn("absolute inset-x-0 overflow-hidden border-b border-border/50", destaque && "bg-muted/60")}
-      style={{ top, height: ROW_H }}
-      onMouseEnter={() => onHover(true)}
-      onMouseLeave={() => onHover(false)}
-      onClick={onSelecionar}
-      onDoubleClick={() => onAbrir?.(t)}
-    >
-      {geo && (
-        <>
-          {t.marco ? (
-            <div
-              className={cn("absolute rotate-45 border", critica ? "border-destructive bg-destructive" : "border-foreground bg-foreground")}
-              style={{ left: geo.x + escala.pxPorDia / 2 - MARCO / 2, top: (ROW_H - MARCO) / 2, width: MARCO, height: MARCO }}
-              title={titulo ?? `Marco: ${t.nome}`}
-            />
-          ) : l.temFilhos ? (
-            <div title={titulo}>
-              <div className={cn("absolute", critica ? "bg-destructive" : "bg-foreground")} style={{ left: geo.x, width: geo.w, top: 8, height: 6 }} />
-              {[geo.x, geo.x + geo.w - 10].map((left) => (
-                <div
-                  key={left}
-                  className={cn("absolute h-0 w-0 border-x-[5px] border-t-[6px] border-x-transparent", critica ? "border-t-destructive" : "border-t-foreground")}
-                  style={{ left, top: 14 }}
-                />
-              ))}
-            </div>
-          ) : (
-            <div
-              className={cn(
-                "absolute overflow-hidden rounded-sm border",
-                bloqueada
-                  ? "border-destructive [background-image:repeating-linear-gradient(45deg,transparent,transparent_3px,color-mix(in_srgb,var(--color-destructive)_35%,transparent)_3px,color-mix(in_srgb,var(--color-destructive)_35%,transparent)_6px)]"
-                  : critica
-                    ? "border-destructive bg-destructive/20"
-                    : "border-primary/50 bg-primary/25",
-              )}
-              style={{ left: geo.x, width: geo.w, top: 7, height: 14 }}
-              title={titulo}
-            >
-              {!bloqueada && <div className={cn("h-full", critica ? "bg-destructive" : "bg-primary")} style={{ width: `${t.progresso}%` }} />}
-            </div>
-          )}
-          {modo === "controle" && baseIni != null && baseFim != null && !t.marco && (
-            <div
-              className={cn("absolute rounded-sm", desviada ? "bg-destructive/50" : "bg-muted-foreground/40")}
-              style={{ left: baseIni, width: Math.max(escala.pxPorDia, baseFim - baseIni), top: 22, height: 4 }}
-              title="Linha de base"
-            />
-          )}
-          <span
-            className="absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[11px] text-muted-foreground"
-            style={{ left: geo.x + geo.w + (t.marco ? MARCO : 6) }}
-          >
-            {modo === "controle" ? `${t.progresso}%` : l.temFilhos ? "" : textoRecursos(t.atribuicoes, t.deTerceiro)}
-          </span>
-        </>
-      )}
     </div>
   );
 }

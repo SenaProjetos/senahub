@@ -4,6 +4,8 @@ import { requirePermission } from "@/lib/session";
 import { cronogramaProjetosAtivos } from "@/modules/planejamento/queries";
 import { podeVerDatasDoPlanejamento } from "@/modules/planejamento/acesso";
 import { CronogramaGeralView } from "@/components/planejamento/cronograma-geral-view";
+import { paraDia } from "@/modules/planejamento/agenda";
+import { inicioDoDiaUtc } from "@/lib/data";
 import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata: Metadata = { title: "Cronograma geral" };
@@ -21,6 +23,7 @@ export default async function CronogramaGeralPage() {
       />
     );
   }
-  const projetos = await cronogramaProjetosAtivos();
-  return <CronogramaGeralView projetos={projetos} />;
+  const { projetos, calendario } = await cronogramaProjetosAtivos();
+  // `hoje` do servidor: a marca do dia tem de ser a mesma no HTML e depois da hidratação.
+  return <CronogramaGeralView projetos={projetos} calendario={calendario} hoje={paraDia(inicioDoDiaUtc())} />;
 }

@@ -275,6 +275,17 @@ Os campos de valor agregado do Project: VP = COTA, VA = COTR, CR = CRTR.
 
 ## 3. Limitações conhecidas
 
+- **O Cronograma geral (Painel Mestre) passou para o layout do MS Project** (2026-09-26): mesma escala de
+  dois níveis, mesmas barras (agrupamento preto, marco em losango, crítico em vermelho, hachura no
+  bloqueado), seletor Dias/Semanas/Meses e as duas visões (Gantt e Gantt de Controle). A barra e o
+  cabeçalho viraram peça compartilhada (`components/planejamento/gantt-barra.tsx`) entre o cronograma do
+  projeto e o painel — duas cópias divergiriam no primeiro ajuste. Cada projeto mostra 12 linhas e oferece
+  "Ver as N linhas"; a carteira inteira aberta seriam metros de rolagem.
+- **A página de impressão (`/planejamento/[projetoId]/print`) segue com o Gantt antigo** — e o PDF sai
+  SEM COR: é um documento HTML próprio, que não carrega o Tailwind, e o Gantt antigo pinta por classe. É
+  anterior a este lote (não foi introduzido agora). Para resolver, ou a página passa a carregar a folha de
+  estilo, ou o Gantt de impressão pinta por `style` inline.
+
 - ~~As datas reais ainda não movem o cronograma (D6 pendente).~~ **Resolvido (L1):** o motor lê as
   datas reais (concluída nas reais, iniciada no início real, sem seguir o vínculo) e, com Data de Status,
   reprograma o trabalho não feito para o dia útil seguinte a ela (em andamento: a parte feita fica, o
