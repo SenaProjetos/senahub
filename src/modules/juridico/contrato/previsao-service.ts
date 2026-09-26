@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
+import { logAudit } from "@/lib/audit";
 import { paraDataUtc, planoDoProjeto } from "@/modules/planejamento/agenda";
 import { CODIGO_CATEGORIA_RECEITA } from "./recebiveis";
 import { casarComPrevisao, motivoDoNaoCasamento, type PrevisaoCandidata } from "./casamento-previsao";
@@ -360,5 +361,23 @@ export async function casarCobrancaManualComPrevisao(p: {
   });
 
   if (!feito) return { casou: false, parcela: null, aviso: null, previsaoRemovidaId: null };
+
+  // Registro próprio: `defineAction` audita o INPUT da action (a receita que alguém digitou), e o que
+  // saiu do caixa foi OUTRA linha, escolhida por regra. Sem esta entrada, a previsão desapareceria do
+  // fluxo de caixa sem nada no histórico dizendo por quê.
+  await logAudit({
+    userId: p.autorId,
+    modulo: "financeiro",
+    acao: "casar-cobranca-com-previsao",
+    entidade: "Lancamento",
+    entidadeId: r.candidata.lancamentoId,
+    detalhe: {
+      previsaoRemovida: { id: r.candidata.lancamentoId, descricao: r.candidata.descricao, valor: r.candidata.valor },
+      cobrancaManual: { id: p.lancamentoId, valor: p.valor, vencimento: p.vencimento },
+      parcelaId: r.candidata.parcelaId,
+      contratoId,
+    },
+  });
+
   return { casou: true, parcela: r.candidata.descricao, aviso: null, previsaoRemovidaId: r.candidata.lancamentoId };
 }
