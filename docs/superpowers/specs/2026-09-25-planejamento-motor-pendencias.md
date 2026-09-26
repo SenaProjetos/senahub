@@ -23,6 +23,10 @@ segue em andamento (o que foi feito está marcado em cada item).
    - `20260925140000_valor_agregado_apuracao`
    - `20260925150000_cronograma_executado_para_quem_edita_eap` — só concede permissão (L4); idempotente,
      e nos perfis padrão não muda nada (já tinham os dois lados)
+   - `20260925160000_papel_eap_externo` — só o `ADD VALUE` do enum (decisão #1), separada de propósito
+   - `20260925160100_atribuicao_externa_sem_pessoa` — os dois CHECKs do recurso "Externo"
+   - `20260926090000_modelo_eap` — `modelo_eap` + `projeto.tipoEmpreendimentoId` (decisão #5 / D13)
+   - `20260926120000_eap_progresso_historico` — histórico do % concluído (decisão #17); sem backfill
 2. `scripts/converter-duracao-eap.ts --gravar` **UMA vez, antes de qualquer pessoa mexer num
    cronograma** (B2). A F0 gravou a duração das linhas antigas em dias CORRIDOS; a partir do B2 toda
    mudança reagenda pelo motor, que conta dias ÚTEIS, e o cronograma inteiro esticaria ~40% no primeiro
