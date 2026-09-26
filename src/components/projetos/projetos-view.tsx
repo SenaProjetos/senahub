@@ -187,7 +187,7 @@ export function ProjetosView({
           <h2 className="text-2xl font-extrabold tracking-tight">Projetos</h2>
           <p className="text-sm text-muted-foreground">{total} projeto(s).</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {mostrarGuia && (
             <Button variant="secondary" size="sm" render={<Link href="/guias/projetos" />}>
               <BookOpenText className="size-4" /> Guia de uso

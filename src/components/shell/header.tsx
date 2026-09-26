@@ -62,7 +62,11 @@ export function Header({
       <div ref={globaisRef} className="flex items-center gap-1.5">
         {/* Relógio da jornada antes da busca: dois relógios mono lado a lado (jornada +
             agenda) se confundem — a busca separa os dois visualmente. */}
-        <JornadaHeader />
+        {/* Celular: relógio, data e tema saem da barra (o ponto está na barra de baixo e no Início;
+            o tema, no menu da conta). `contents` mantém os filhos como itens do flex no desktop. */}
+        <span className="hidden md:contents">
+          <JornadaHeader />
+        </span>
         <button
           type="button"
           data-tour="busca"
@@ -74,11 +78,15 @@ export function Header({
           <span className="hidden sm:inline">Buscar</span>
           <kbd className="hidden font-mono text-[10px] text-muted-foreground sm:inline">Ctrl K</kbd>
         </button>
-        <AgendaResumo />
+        <span className="hidden md:contents">
+          <AgendaResumo />
+        </span>
         <span data-tour="notificacoes" className="flex">
           <NotificationBell />
         </span>
-        <ThemeToggle />
+        <span className="hidden md:contents">
+          <ThemeToggle />
+        </span>
         <span data-tour="conta" className="flex">
           <UserMenu user={user} />
         </span>

@@ -5,14 +5,21 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { navItemsPara, type ContextoNav } from "@/lib/nav-config";
 import { ChatBadge } from "@/components/chat/chat-badge";
+import { Menu } from "lucide-react";
+import { EVENTO_ABRIR_MENU } from "@/components/shell/mobile-nav";
 
 
 export function BottomNav({ nav }: { nav: ContextoNav }) {
   const pathname = usePathname();
-  const items = navItemsPara(nav)
+  const disponiveis = navItemsPara(nav)
     .flatMap((g) => g.items)
-    .filter((i) => i.mobile)
-    .slice(0, 6);
+    .filter((i) => i.mobile);
+  // Ordem fixa (não a do menu): o que se usa no dia a dia no celular, com o Ponto no meio. Quem não
+  // tem algum destes (cliente, sem chat…) completa com o que sobrar, e o resto fica em "Mais".
+  const ORDEM = ["/", "/portal", "/projetos", "/tarefas", "/ponto", "/chat", "/ajuda"];
+  const items = ORDEM.map((href) => disponiveis.find((i) => i.href === href))
+    .filter((i): i is NonNullable<typeof i> => Boolean(i))
+    .slice(0, 5);
 
   return (
     // `max-w-[100vw]` é trava de segurança, não enfeite: no celular o Chrome dimensiona elemento
@@ -46,6 +53,16 @@ export function BottomNav({ nav }: { nav: ContextoNav }) {
             </li>
           );
         })}
+        <li className="min-w-0 flex-1">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event(EVENTO_ABRIR_MENU))}
+            className="flex w-full flex-col items-center gap-0.5 py-2 text-[10px] font-medium text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          >
+            <Menu className="size-5" />
+            <span className="truncate">Mais</span>
+          </button>
+        </li>
       </ul>
     </nav>
   );

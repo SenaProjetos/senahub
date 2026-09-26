@@ -3,7 +3,8 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { LogOut, KeyRound, Camera, Pencil, HelpCircle } from "lucide-react";
+import { LogOut, KeyRound, Camera, Pencil, HelpCircle, Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
 import { signOut } from "@/lib/auth-client";
 import { atualizarNomeExibicao } from "@/modules/usuarios/actions";
 import { useOnboarding } from "@/components/onboarding/onboarding-provider";
@@ -45,6 +46,7 @@ export function UserMenu({
   user: { name: string; email: string; role: Role; image?: string | null };
 }) {
   const router = useRouter();
+  const { setTheme, resolvedTheme } = useTheme();
   const { temGuia, reverGuiaDaTela } = useOnboarding();
   const fileRef = useRef<HTMLInputElement>(null);
   const [enviando, setEnviando] = useState(false);
@@ -163,6 +165,10 @@ export function UserMenu({
             Rever guia da tela
           </DropdownMenuItem>
         )}
+        <DropdownMenuItem className="md:hidden" onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}>
+          {resolvedTheme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+          {resolvedTheme === "dark" ? "Tema claro" : "Tema escuro"}
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={logout} variant="destructive">
           <LogOut className="size-4" />
           Sair

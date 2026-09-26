@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -14,8 +14,17 @@ import type { ContextoNav } from "@/lib/nav-config";
  * SidebarNav). Fecha ao navegar, no backdrop, no Esc. No lg+ fica oculto —
  * a sidebar fixa assume.
  */
+/** O "Mais" da barra de baixo abre este mesmo painel. */
+export const EVENTO_ABRIR_MENU = "abrir-menu-mobile";
+
 export function MobileNav({ nav }: { nav: ContextoNav }) {
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const abrir = () => setOpen(true);
+    window.addEventListener(EVENTO_ABRIR_MENU, abrir);
+    return () => window.removeEventListener(EVENTO_ABRIR_MENU, abrir);
+  }, []);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
