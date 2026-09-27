@@ -264,6 +264,14 @@ describe("contextoDaLinha", () => {
     expect(ctx("ent")).toMatchObject({ temIrmaAcima: true, irmaAcimaEMarco: false, nivel: 1 });
   });
 
+  it("irmã abaixo: a próxima do mesmo nível depois das subtarefas, sem sair do agrupamento", () => {
+    expect(ctx("est")).toMatchObject({ temIrmaAbaixo: true }); // hid, depois das filhas do est
+    expect(ctx("form")).toMatchObject({ temIrmaAbaixo: false }); // última do est
+    expect(ctx("hid")).toMatchObject({ temIrmaAbaixo: false }); // o próximo (ent) é de outro nível
+    expect(ctx("proj")).toMatchObject({ temIrmaAbaixo: true }); // ent, na raiz
+    expect(ctx("ent")).toMatchObject({ temIrmaAbaixo: false });
+  });
+
   it("sabe quando a irmã de cima é um marco", () => {
     const g2 = montarGrade([{ id: "a", parentId: null, ordem: 0, marco: true }, { id: "b", parentId: null, ordem: 1 }]);
     expect(contextoDaLinha(g2, 1)).toMatchObject({ temIrmaAcima: true, irmaAcimaEMarco: true });

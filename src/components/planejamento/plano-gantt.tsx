@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CheckCircle2, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Flag, ListTree, Lock, Pin } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
+import { CheckCircle2, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Flag, GripVertical, ListTree, Lock, Pin } from "lucide-react";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import {
   contextoDaLinha,
@@ -92,6 +92,11 @@ export type PlanoGanttProps = {
    */
   menuDe?: (t: EapTarefaDTO, contexto: ContextoDaLinha) => AcaoItem[];
   onAcao?: (t: EapTarefaDTO, item: AcaoItemAcao) => void;
+  /**
+   * Arrastar a linha pela alça da coluna Nº (como no Project): ela vai para antes/depois de `alvoId`, no nível dele, com as
+   * subtarefas junto. Sem esta prop não há alça. Mover para cima/baixo pelo teclado passa pelo menu (`onAcao`).
+   */
+  onMover?: (t: EapTarefaDTO, alvoId: string, posicao: "antes" | "depois") => void;
   /** Uma linha recém-criada cujo nome deve abrir em edição assim que ela aparecer na tabela. */
   focoNomeId?: string | null;
   onFocoConsumido?: () => void;
@@ -138,6 +143,7 @@ export function PlanoGantt({
   onErro,
   menuDe,
   onAcao,
+  onMover,
   focoNomeId = null,
   onFocoConsumido,
   acoes,
@@ -158,6 +164,9 @@ export function PlanoGantt({
   const [gravados, setGravados] = useState<{ base: EapTarefaDTO[]; valores: Record<string, string> }>({ base: tarefas, valores: {} });
   const valoresGravados = gravados.base === tarefas ? gravados.valores : {};
   const rolagemRef = useRef<HTMLDivElement>(null);
+  // Arrasto em curso: a linha e o que vai com ela (não se solta dentro de si mesma); e onde ela cairia agora.
+  const [arrasto, setArrasto] = useState<{ id: string; junto: ReadonlySet<string> } | null>(null);
+  const [destino, setDestino] = useState<{ id: string; posicao: "antes" | "depois" } | null>(null);
 
   const grade = useMemo(() => montarGrade(tarefas), [tarefas]);
   const numeroPorId = useMemo(() => new Map(grade.map((l) => [l.t.id, l.numero])), [grade]);
@@ -312,6 +321,43 @@ export function PlanoGantt({
     );
   const gravado = (id: string, campo: CampoEditavel) => valoresGravados[`${id}:${campo}`];
 
+  // Arrastar só na árvore inteira: com filtro, "logo acima" na tela não é a linha de cima de verdade.
+  const podeArrastar = !!onMover && !filtroIds;
+  function iniciarArrasto(l: Linha, e: DragEvent) {
+    const i = grade.findIndex((g) => g.t.id === l.t.id);
+    const junto = new Set([l.t.id]);
+    for (let j = i + 1; j < grade.length && grade[j].nivel > l.nivel; j++) junto.add(grade[j].t.id);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", l.t.nome);
+    setArrasto({ id: l.t.id, junto });
+  }
+  function encerrarArrasto() {
+    setArrasto(null);
+    setDestino(null);
+  }
+  function sobreLinha(l: Linha, e: DragEvent<HTMLDivElement>) {
+    if (!arrasto || arrasto.junto.has(l.t.id)) return; // sem preventDefault o navegador recusa soltar aqui
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    const r = e.currentTarget.getBoundingClientRect();
+    const posicao = e.clientY - r.top < r.height / 2 ? "antes" : "depois";
+    if (destino?.id !== l.t.id || destino.posicao !== posicao) setDestino({ id: l.t.id, posicao });
+  }
+  function soltarNaLinha(e: DragEvent) {
+    e.preventDefault();
+    if (arrasto && destino) {
+      let alvo = destino;
+      // Logo abaixo de um agrupamento ABERTO fica a primeira subtarefa dele: é lá que a linha aparece caindo.
+      const i = grade.findIndex((g) => g.t.id === destino.id);
+      if (destino.posicao === "depois" && grade[i]?.temFilhos && !recolhidos.has(destino.id) && grade[i + 1]) {
+        alvo = { id: grade[i + 1].t.id, posicao: "antes" };
+      }
+      const movida = grade.find((g) => g.t.id === arrasto.id)?.t;
+      if (movida && alvo.id !== arrasto.id) onMover?.(movida, alvo.id, alvo.posicao);
+    }
+    encerrarArrasto();
+  }
+
   const colunas: Coluna[] = useMemo(() => {
     const cs: Coluna[] = [];
     const nome: Coluna = {
@@ -368,9 +414,25 @@ export function PlanoGantt({
     const numero: Coluna = {
       id: "numero",
       rotulo: "Nº",
-      w: 44,
+      w: podeArrastar ? 56 : 44,
       alinhar: "right",
-      render: (l) => <span className="font-mono text-[11px] text-muted-foreground">{l.numero}</span>,
+      render: (l) => (
+        <span className="flex w-full items-center justify-end gap-1">
+          {podeArrastar && (
+            <span
+              draggable
+              onDragStart={(e) => iniciarArrasto(l, e)}
+              onDragEnd={encerrarArrasto}
+              title="Arraste para mover a tarefa, com as subtarefas"
+              aria-hidden
+              className="mr-auto cursor-grab text-muted-foreground opacity-0 transition-opacity group-hover/linha:opacity-70 hover:!opacity-100 active:cursor-grabbing"
+            >
+              <GripVertical className="size-3.5" />
+            </span>
+          )}
+          <span className="font-mono text-[11px] text-muted-foreground">{l.numero}</span>
+        </span>
+      ),
     };
     const duracao: Coluna = {
       id: "duracao",
@@ -539,7 +601,7 @@ export function PlanoGantt({
     if (acoesCol) cs.push(acoesCol);
     return compacto ? cs.filter((c) => !c.secundaria) : cs;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `envolver`/`gravado` releem o estado da edição a cada render
-  }, [modo, verDatas, mostrarCusto, compacto, acoes, numeroPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, idPorNumero, menuDe, onAcao, contextos]);
+  }, [modo, verDatas, mostrarCusto, compacto, acoes, numeroPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, idPorNumero, menuDe, onAcao, contextos, podeArrastar, grade]);
 
   const larguraTabela = colunas.reduce((s, c) => s + c.w, 0);
 
@@ -692,6 +754,12 @@ export function PlanoGantt({
                           } else if (e.altKey && e.shiftKey && e.key === "ArrowLeft") {
                             e.preventDefault();
                             atalho("avancar");
+                          } else if (e.altKey && e.shiftKey && e.key === "ArrowUp") {
+                            e.preventDefault();
+                            atalho("mover-cima");
+                          } else if (e.altKey && e.shiftKey && e.key === "ArrowDown") {
+                            e.preventDefault();
+                            atalho("mover-baixo");
                           } else if ((e.key === "Enter" || e.key === " ") && onAbrir) {
                             e.preventDefault();
                             onAbrir(l.t);
@@ -699,11 +767,19 @@ export function PlanoGantt({
                         }}
                         onMouseEnter={() => setHoverId(l.t.id)}
                         onMouseLeave={() => setHoverId((h) => (h === l.t.id ? null : h))}
+                        onDragOver={podeArrastar ? (e) => sobreLinha(l, e) : undefined}
+                        onDrop={podeArrastar ? soltarNaLinha : undefined}
                         className={cn(
-                          "flex border-b bg-background",
+                          "group/linha flex border-b bg-background",
                           l.temFilhos && "bg-muted/40",
                           hoverId === l.t.id && "bg-muted",
                           selecionadaId === l.t.id && "bg-primary/10",
+                          arrasto?.junto.has(l.t.id) && "opacity-50",
+                          // Onde a linha vai cair: um traço em cima ou embaixo desta.
+                          destino?.id === l.t.id &&
+                            (destino.posicao === "antes"
+                              ? "shadow-[inset_0_2px_0_0_var(--color-primary)]"
+                              : "shadow-[inset_0_-2px_0_0_var(--color-primary)]"),
                         )}
                         style={{ height: ROW_H }}
                       />

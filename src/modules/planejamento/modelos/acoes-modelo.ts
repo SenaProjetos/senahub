@@ -1,7 +1,7 @@
 import { IndentDecrease, IndentIncrease, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { limparSeparadores, type AcaoItem } from "@/components/ui/acoes";
-import { ACAO_ABRIR, ACAO_AVANCAR, ACAO_EXCLUIR, ACAO_INSERIR_ACIMA, ACAO_RECUAR, type LinhaParaAcoes } from "../acoes-eap";
+import { ACAO_ABRIR, ACAO_AVANCAR, ACAO_EXCLUIR, ACAO_INSERIR_ACIMA, ACAO_RECUAR, itensDeMover, type LinhaParaAcoes } from "../acoes-eap";
 import { MOTIVO_IRMA_E_MARCO, MOTIVO_NIVEL_MAIS_ALTO, MOTIVO_SEM_IRMA_ACIMA } from "../arvore-eap";
 import { MOTIVO_ULTIMA_LINHA } from "./edicao";
 
@@ -21,6 +21,7 @@ export function itensDeLinhaModelo(l: LinhaParaAcoes, ctx: { podeEditar: boolean
     { tipo: "acao", id: ACAO_INSERIR_ACIMA, rotulo: "Inserir tarefa acima", icone: Plus },
     { tipo: "acao", id: ACAO_RECUAR, rotulo: "Recuar (tornar subtarefa)", icone: IndentIncrease, desabilitado: motivoRecuar },
     { tipo: "acao", id: ACAO_AVANCAR, rotulo: "Avançar (subir um nível)", icone: IndentDecrease, desabilitado: motivoAvancar },
+    ...itensDeMover(l),
     { tipo: "separador", id: "sep-excluir" },
     {
       tipo: "acao",

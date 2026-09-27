@@ -8,7 +8,15 @@ import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import type { CalendarioGantt } from "@/modules/planejamento/gantt-escala";
 import type { Vinculo } from "@/modules/planejamento/gantt-linhas";
 import type { LinhaModelo } from "@/modules/planejamento/modelos/estrutura";
-import { ACAO_ABRIR, ACAO_AVANCAR, ACAO_EXCLUIR, ACAO_INSERIR_ACIMA, ACAO_RECUAR } from "@/modules/planejamento/acoes-eap";
+import {
+  ACAO_ABRIR,
+  ACAO_AVANCAR,
+  ACAO_EXCLUIR,
+  ACAO_INSERIR_ACIMA,
+  ACAO_MOVER_BAIXO,
+  ACAO_MOVER_CIMA,
+  ACAO_RECUAR,
+} from "@/modules/planejamento/acoes-eap";
 import { itensDeLinhaModelo } from "@/modules/planejamento/modelos/acoes-modelo";
 import {
   adicionarNoFim,
@@ -18,6 +26,8 @@ import {
   inserirAcima,
   mudarDuracao,
   mudarInformacoes,
+  mover,
+  moverNoNivel,
   recuar,
   renomear,
   type Edicao,
@@ -155,6 +165,10 @@ export function ModeloEapEditor({
         return mudarOuAvisar((l) => recuar(l, t.id));
       case ACAO_AVANCAR:
         return mudarOuAvisar((l) => avancar(l, t.id));
+      case ACAO_MOVER_CIMA:
+        return mudarOuAvisar((l) => moverNoNivel(l, t.id, -1));
+      case ACAO_MOVER_BAIXO:
+        return mudarOuAvisar((l) => moverNoNivel(l, t.id, 1));
       case ACAO_EXCLUIR:
         return mudarOuAvisar((l) => excluir(l, t.id));
     }
@@ -248,6 +262,7 @@ export function ModeloEapEditor({
         onErro={(mensagem) => toast.error(mensagem)}
         menuDe={(t, contexto) => itensDeLinhaModelo({ nome: t.nome, ehResumo: t.ehResumo, ...contexto }, { podeEditar, totalLinhas: linhas.length })}
         onAcao={(t, item) => void aoAcao(t, item)}
+        onMover={podeEditar ? (t, alvoId, posicao) => mudarOuAvisar((l) => mover(l, t.id, alvoId, posicao)) : undefined}
         focoNomeId={novaLinhaId}
         onFocoConsumido={() => setNovaLinhaId(null)}
       />

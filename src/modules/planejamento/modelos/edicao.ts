@@ -9,7 +9,16 @@
  * `ordem` segue a convenção do projeto: só a ordem relativa entre irmãos importa, então abrir lugar é empurrar
  * as `ordem` maiores uma casa, e "ir para o fim" é pegar o maior `ordem` + 1.
  */
-import { MOTIVO_IRMA_E_MARCO, planoDeAvanco, planoDeInsercaoAcima, planoDeRecuo } from "../arvore-eap";
+import {
+  MOTIVO_IRMA_E_MARCO,
+  planoDeAvanco,
+  planoDeInsercaoAcima,
+  planoDeMoverNoNivel,
+  planoDeMovimento,
+  planoDeRecuo,
+  type Movimento,
+  type Posicao,
+} from "../arvore-eap";
 import { criaCiclo } from "../ciclo-dependencias";
 import { regrasDeEdicao } from "../edicao-linha";
 import type { LinhaModelo, VinculoModelo } from "./estrutura";
@@ -165,6 +174,29 @@ export function avancar(linhas: readonly LinhaModelo[], id: string): Edicao {
       return empurrada === l.ordem ? l : { ...l, ordem: empurrada };
     }),
   };
+}
+
+function aplicarMovimento(linhas: readonly LinhaModelo[], id: string, plano: Movimento): Edicao {
+  if (!plano.ok) return plano;
+  const ordens = new Map(plano.ordens.map((o) => [o.id, o.ordem]));
+  return {
+    ok: true,
+    linhas: linhas.map((l) => {
+      if (l.id === id) return { ...l, parentId: plano.novoPaiId, ordem: ordens.get(l.id) ?? l.ordem };
+      const ordem = ordens.get(l.id);
+      return ordem === undefined ? l : { ...l, ordem };
+    }),
+  };
+}
+
+/** Mover (arrastar a linha): vai para antes/depois de `alvoId`, no nível dele, com as subtarefas junto. */
+export function mover(linhas: readonly LinhaModelo[], id: string, alvoId: string, posicao: Posicao): Edicao {
+  return aplicarMovimento(linhas, id, planoDeMovimento(linhas, id, alvoId, posicao));
+}
+
+/** Mover para cima (`-1`) ou para baixo (`1`) no mesmo nível, com as subtarefas junto. */
+export function moverNoNivel(linhas: readonly LinhaModelo[], id: string, direcao: -1 | 1): Edicao {
+  return aplicarMovimento(linhas, id, planoDeMoverNoNivel(linhas, id, direcao));
 }
 
 /** Ids da linha e de tudo abaixo dela. */

@@ -11,6 +11,8 @@ import {
   inserirAcima,
   mudarDuracao,
   mudarInformacoes,
+  mover,
+  moverNoNivel,
   recuar,
   renomear,
   validarIntegridade,
@@ -169,5 +171,26 @@ describe("validarIntegridade", () => {
       linhas = ok(passo(linhas)).linhas;
       expect(validarIntegridade(linhas)).toEqual({ ok: true });
     }
+  });
+});
+
+describe("mover", () => {
+  it("move uma fase inteira para depois do marco, com as subtarefas e os vínculos", () => {
+    const r = ok(mover(base(), "1", "5", "depois"));
+    expect(ordemDeTela(r.linhas)).toEqual(["·>5", "·>1", "1>2", "1>3", "1>4"]);
+    // o marco continua dependendo da 4, que agora vem depois dele na tela — a dependência não muda com a posição
+    expect(r.linhas.find((x) => x.id === "5")!.predecessoras).toEqual([{ id: "4", tipo: "fs", lagDias: 0 }]);
+    expect(validarIntegridade(r.linhas)).toEqual({ ok: true });
+  });
+
+  it("muda de nível e recusa ir para dentro dela mesma", () => {
+    expect(ordemDeTela(ok(mover(base(), "5", "3", "antes")).linhas)).toEqual(["·>1", "1>2", "1>5", "1>3", "1>4"]);
+    expect(mover(base(), "1", "3", "depois").ok).toBe(false);
+  });
+
+  it("mover para cima e para baixo no mesmo nível", () => {
+    expect(ordemDeTela(ok(moverNoNivel(base(), "4", -1)).linhas)).toEqual(["·>1", "1>2", "1>4", "1>3", "·>5"]);
+    expect(ordemDeTela(ok(moverNoNivel(base(), "1", 1)).linhas)).toEqual(["·>5", "·>1", "1>2", "1>3", "1>4"]);
+    expect(moverNoNivel(base(), "2", -1).ok).toBe(false);
   });
 });

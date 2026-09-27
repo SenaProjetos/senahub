@@ -15,6 +15,9 @@ export type NoArvore = { id: string; parentId: string | null; ordem: number; tip
 export const MOTIVO_SEM_IRMA_ACIMA = "Não há uma tarefa acima, no mesmo nível, para receber esta como subtarefa.";
 export const MOTIVO_IRMA_E_MARCO = "A tarefa acima é um marco e não pode ter subtarefas.";
 export const MOTIVO_NIVEL_MAIS_ALTO = "Esta tarefa já está no nível mais alto.";
+export const MOTIVO_PRIMEIRA_DO_NIVEL = "Esta tarefa já é a primeira do nível.";
+export const MOTIVO_ULTIMA_DO_NIVEL = "Esta tarefa já é a última do nível.";
+export const MOTIVO_DENTRO_DELA_MESMA = "Uma tarefa não pode ir para dentro dela mesma nem das subtarefas dela.";
 
 const comparar = (a: NoArvore, b: NoArvore) => (a.ordem !== b.ordem ? a.ordem - b.ordem : a.id.localeCompare(b.id));
 
@@ -77,4 +80,64 @@ export function planoDeInsercaoAcima(nos: readonly NoArvore[], id: string): Inse
   if (!x) return { ok: false, motivo: "Tarefa não encontrada." };
   const ids = new Set(nos.map((n) => n.id));
   return { ok: true, paiId: paiDe(x, ids), aPartirDeOrdem: x.ordem };
+}
+
+export type Posicao = "antes" | "depois";
+
+export type Movimento =
+  | {
+      ok: true;
+      /** O pai no novo lugar (`null` = raiz): o pai da linha de referência. */
+      novoPaiId: string | null;
+      /** As `ordem` que mudam — a linha movida e as irmãs do novo nível, na sequência nova. */
+      ordens: { id: string; ordem: number }[];
+    }
+  | { ok: false; motivo: string };
+
+/**
+ * Mover, como arrastar a linha no MS Project: a tarefa vai para ANTES ou DEPOIS de `alvoId`, no nível do alvo (vira
+ * irmã dele), e leva junto tudo o que está dentro dela — as subtarefas apontam para ela como pai, então nada mais muda.
+ *
+ * As irmãs do novo nível são renumeradas a partir da menor `ordem` delas, em sequência: com empate de `ordem` (desfeito
+ * pelo `id`), reaproveitar os valores antigos poderia trocar duas irmãs de lugar sem ninguém pedir. Os números podem
+ * coincidir com os de linhas de outros agrupamentos — não importa, a ordem só vale entre irmãos.
+ */
+export function planoDeMovimento(nos: readonly NoArvore[], id: string, alvoId: string, posicao: Posicao): Movimento {
+  const x = nos.find((n) => n.id === id);
+  const alvo = nos.find((n) => n.id === alvoId);
+  if (!x || !alvo) return { ok: false, motivo: "Tarefa não encontrada." };
+  if (id === alvoId) return { ok: false, motivo: "A tarefa já está nesse lugar." };
+  const ids = new Set(nos.map((n) => n.id));
+  const porId = new Map(nos.map((n) => [n.id, n]));
+  // O alvo não pode estar dentro da tarefa movida: subir pelos pais do alvo nunca passa por ela.
+  const vistos = new Set<string>();
+  for (let p = paiDe(alvo, ids); p != null && !vistos.has(p); p = paiDe(porId.get(p)!, ids)) {
+    if (p === id) return { ok: false, motivo: MOTIVO_DENTRO_DELA_MESMA };
+    vistos.add(p);
+  }
+  const novoPaiId = paiDe(alvo, ids);
+  const irmaos = irmaosDe(nos, novoPaiId).filter((n) => n.id !== id);
+  const indice = irmaos.findIndex((n) => n.id === alvoId) + (posicao === "depois" ? 1 : 0);
+  const sequencia = [...irmaos.slice(0, indice), x, ...irmaos.slice(indice)];
+  const inicio = Math.min(...sequencia.map((n) => n.ordem));
+  const ordens = sequencia
+    .map((n, i) => ({ id: n.id, ordem: inicio + i }))
+    .filter((o) => o.id === id || porId.get(o.id)!.ordem !== o.ordem);
+  return { ok: true, novoPaiId, ordens };
+}
+
+/** A irmã logo acima (`-1`) ou logo abaixo (`1`) no mesmo nível — o alvo de "Mover para cima/baixo". */
+export function irmaVizinha(nos: readonly NoArvore[], id: string, direcao: -1 | 1): string | null {
+  const x = nos.find((n) => n.id === id);
+  if (!x) return null;
+  const ids = new Set(nos.map((n) => n.id));
+  const irmaos = irmaosDe(nos, paiDe(x, ids));
+  return irmaos[irmaos.findIndex((n) => n.id === id) + direcao]?.id ?? null;
+}
+
+/** Mover para cima/baixo: troca de lugar com a irmã vizinha, levando as subtarefas. */
+export function planoDeMoverNoNivel(nos: readonly NoArvore[], id: string, direcao: -1 | 1): Movimento {
+  const vizinha = irmaVizinha(nos, id, direcao);
+  if (!vizinha) return { ok: false, motivo: direcao === -1 ? MOTIVO_PRIMEIRA_DO_NIVEL : MOTIVO_ULTIMA_DO_NIVEL };
+  return planoDeMovimento(nos, id, vizinha, direcao === -1 ? "antes" : "depois");
 }

@@ -2,12 +2,20 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
-import { planoDeAvanco, planoDeInsercaoAcima, planoDeRecuo } from "./arvore-eap";
+import {
+  planoDeAvanco,
+  planoDeInsercaoAcima,
+  planoDeMoverNoNivel,
+  planoDeMovimento,
+  planoDeRecuo,
+  type Movimento,
+  type Posicao,
+} from "./arvore-eap";
 import { reservarIdsParaLinhas } from "./id-corporativo";
 import { herdarResponsaveisNoProjeto } from "./recursos-service";
 
 /**
- * Recuar, avançar e inserir na árvore da EAP (I/O) — as decisões estão em `arvore-eap.ts`. Cada função devolve o
+ * Recuar, avançar, inserir e mover na árvore da EAP (I/O) — as decisões estão em `arvore-eap.ts`. Cada função devolve o
  * projeto: quem chama reagenda UMA vez (o motor recalcula datas, códigos da EAP e o agrupamento que mudou).
  * Separadas da action para o smoke alcançar a regra sem sessão.
  */
@@ -92,4 +100,34 @@ export async function inserirLinhaAcima(id: string): Promise<{ projetoId: string
   // D22: o responsável da disciplina desce para a linha nova.
   await herdarResponsaveisNoProjeto(prisma, projetoId, [nova.id]);
   return { projetoId, novaId: nova.id };
+}
+
+/** Grava um movimento: o novo pai da linha e as `ordem` das irmãs do novo nível. As subtarefas vão junto sozinhas. */
+async function gravarMovimento(id: string, plano: Movimento): Promise<void> {
+  if (!plano.ok) throw new ActionError(plano.motivo);
+  await prisma.$transaction(async (tx) => {
+    const propria = plano.ordens.find((o) => o.id === id);
+    await tx.eapTarefa.update({ where: { id }, data: { parentId: plano.novoPaiId, ...(propria ? { ordem: propria.ordem } : {}) } });
+    for (const o of plano.ordens) {
+      if (o.id !== id) await tx.eapTarefa.update({ where: { id: o.id }, data: { ordem: o.ordem } });
+    }
+  });
+}
+
+/**
+ * Mover (arrastar a linha): antes/depois de outra linha DO MESMO cronograma, no nível dela. A disciplina da linha não
+ * muda com o lugar — trocar de disciplina é na janela da tarefa (mexe em responsável, card e pagamento).
+ */
+export async function moverLinha(id: string, alvoId: string, posicao: Posicao): Promise<{ projetoId: string }> {
+  const { projetoId, nos } = await carregar(id);
+  if (!nos.some((n) => n.id === alvoId)) throw new ActionError("A linha de destino não é deste cronograma.");
+  await gravarMovimento(id, planoDeMovimento(nos, id, alvoId, posicao));
+  return { projetoId };
+}
+
+/** Mover para cima (`-1`) ou para baixo (`1`) no mesmo nível. */
+export async function moverLinhaNoNivel(id: string, direcao: -1 | 1): Promise<{ projetoId: string }> {
+  const { projetoId, nos } = await carregar(id);
+  await gravarMovimento(id, planoDeMoverNoNivel(nos, id, direcao));
+  return { projetoId };
 }

@@ -1,7 +1,13 @@
-import { CalendarCheck, IndentDecrease, IndentIncrease, ListPlus, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, CalendarCheck, IndentDecrease, IndentIncrease, ListPlus, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { limparSeparadores, type AcaoItem } from "@/components/ui/acoes";
-import { MOTIVO_IRMA_E_MARCO, MOTIVO_NIVEL_MAIS_ALTO, MOTIVO_SEM_IRMA_ACIMA } from "./arvore-eap";
+import {
+  MOTIVO_IRMA_E_MARCO,
+  MOTIVO_NIVEL_MAIS_ALTO,
+  MOTIVO_PRIMEIRA_DO_NIVEL,
+  MOTIVO_SEM_IRMA_ACIMA,
+  MOTIVO_ULTIMA_DO_NIVEL,
+} from "./arvore-eap";
 
 /**
  * Ações de uma linha do cronograma (EAP) — **puro**. O mesmo array alimenta o menu de contexto, o `...` e os
@@ -14,6 +20,8 @@ export const ACAO_ABRIR = "abrir";
 export const ACAO_INSERIR_ACIMA = "inserir-acima";
 export const ACAO_RECUAR = "recuar";
 export const ACAO_AVANCAR = "avancar";
+export const ACAO_MOVER_CIMA = "mover-cima";
+export const ACAO_MOVER_BAIXO = "mover-baixo";
 export const ACAO_ATUALIZAR = "atualizar";
 export const ACAO_GERAR_CARD = "gerar-card";
 export const ACAO_EXCLUIR = "excluir";
@@ -26,9 +34,21 @@ export type LinhaParaAcoes = {
   ehResumo: boolean;
   temIrmaAcima: boolean;
   irmaAcimaEMarco: boolean;
+  temIrmaAbaixo: boolean;
   nivel: number;
   subtarefas: number;
 };
+
+/**
+ * Mover para cima/baixo no mesmo nível, levando as subtarefas (arrastar a linha faz o mesmo, e também muda de nível).
+ * Compartilhado com o menu do modelo de EAP.
+ */
+export function itensDeMover(l: Pick<LinhaParaAcoes, "temIrmaAcima" | "temIrmaAbaixo">): AcaoItem[] {
+  return [
+    { tipo: "acao", id: ACAO_MOVER_CIMA, rotulo: "Mover para cima", icone: ArrowUp, desabilitado: l.temIrmaAcima ? undefined : MOTIVO_PRIMEIRA_DO_NIVEL },
+    { tipo: "acao", id: ACAO_MOVER_BAIXO, rotulo: "Mover para baixo", icone: ArrowDown, desabilitado: l.temIrmaAbaixo ? undefined : MOTIVO_ULTIMA_DO_NIVEL },
+  ];
+}
 
 export function itensDeLinhaEap(
   l: LinhaParaAcoes,
@@ -46,6 +66,7 @@ export function itensDeLinhaEap(
     ctx.podeGerir
       ? { tipo: "acao", id: ACAO_AVANCAR, rotulo: "Avançar (subir um nível)", icone: IndentDecrease, desabilitado: motivoAvancar }
       : null,
+    ...(ctx.podeGerir ? itensDeMover(l) : []),
     { tipo: "separador", id: "sep-execucao" },
     ctx.podeExecutado && !l.ehResumo
       ? { tipo: "acao", id: ACAO_ATUALIZAR, rotulo: "Atualizar tarefa (datas reais)", icone: CalendarCheck }

@@ -27,7 +27,7 @@ import { gravarApuracaoValorAgregado } from "@/modules/planejamento/valor-agrega
 import { reservarIdsParaLinhas } from "@/modules/planejamento/id-corporativo";
 import { regrasDeEdicao } from "@/modules/planejamento/edicao-linha";
 import { trocarPredecessoras } from "@/modules/planejamento/dependencias-service";
-import { avancarLinha, inserirLinhaAcima, recuarLinha } from "@/modules/planejamento/arvore-service";
+import { avancarLinha, inserirLinhaAcima, moverLinha, moverLinhaNoNivel, recuarLinha } from "@/modules/planejamento/arvore-service";
 import { aposMudarEap } from "@/modules/planejamento/pos-eap";
 import { registrarProgresso } from "@/modules/planejamento/progresso-historico-service";
 
@@ -344,6 +344,40 @@ export const avancarEapTarefa = defineAction(
   },
   async (i, { user }) => {
     const r = await avancarLinha(i.id);
+    await aposMudarEap(r.projetoId, user.id);
+    revProjeto(r.projetoId);
+    return { ok: true };
+  },
+);
+
+/** Arrastar a linha: vai para antes/depois de outra, no nível dela, com as subtarefas junto. */
+export const moverEapTarefa = defineAction(
+  {
+    ...plan,
+    acao: "mover-eap",
+    entidade: "EapTarefa",
+    schema: z.object({ id: z.string().min(1), alvoId: z.string().min(1), posicao: z.enum(["antes", "depois"]) }),
+    capturarAntes: (i) => prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { parentId: true, ordem: true } }),
+  },
+  async (i, { user }) => {
+    const r = await moverLinha(i.id, i.alvoId, i.posicao);
+    await aposMudarEap(r.projetoId, user.id);
+    revProjeto(r.projetoId);
+    return { ok: true };
+  },
+);
+
+/** Mover para cima/baixo no mesmo nível (menu da linha, Alt+Shift+↑/↓). */
+export const moverEapTarefaNoNivel = defineAction(
+  {
+    ...plan,
+    acao: "mover-eap",
+    entidade: "EapTarefa",
+    schema: z.object({ id: z.string().min(1), direcao: z.union([z.literal(-1), z.literal(1)]) }),
+    capturarAntes: (i) => prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { parentId: true, ordem: true } }),
+  },
+  async (i, { user }) => {
+    const r = await moverLinhaNoNivel(i.id, i.direcao);
     await aposMudarEap(r.projetoId, user.id);
     revProjeto(r.projetoId);
     return { ok: true };

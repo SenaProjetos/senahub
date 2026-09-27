@@ -26,6 +26,8 @@ import {
   gerarTarefaDeEap,
   gerarEapDasDisciplinas,
   inserirEapTarefaAcima,
+  moverEapTarefa,
+  moverEapTarefaNoNivel,
   reagendarPlano,
   recuarEapTarefa,
 } from "@/modules/planejamento/actions";
@@ -47,6 +49,8 @@ import {
   ACAO_EXCLUIR,
   ACAO_GERAR_CARD,
   ACAO_INSERIR_ACIMA,
+  ACAO_MOVER_BAIXO,
+  ACAO_MOVER_CIMA,
   ACAO_RECUAR,
   itensDeLinhaEap,
 } from "@/modules/planejamento/acoes-eap";
@@ -302,6 +306,14 @@ export function EapWorkspace({
           router.refresh();
         });
         return;
+      case ACAO_MOVER_CIMA:
+      case ACAO_MOVER_BAIXO:
+        await naFila(async () => {
+          const r = await moverEapTarefaNoNivel({ id: t.id, direcao: item.id === ACAO_MOVER_CIMA ? -1 : 1 });
+          if (!r.ok) return void toast.error(r.error);
+          router.refresh();
+        });
+        return;
       case ACAO_EXCLUIR:
         await naFila(async () => {
           const r = await excluirEapTarefa({ id: t.id });
@@ -311,6 +323,15 @@ export function EapWorkspace({
         });
         return;
     }
+  }
+
+  /** Arrastar a linha (alça da coluna Nº): antes/depois de outra, no nível dela, com as subtarefas junto. */
+  function mover(t: EapTarefaDTO, alvoId: string, posicao: "antes" | "depois") {
+    void naFila(async () => {
+      const r = await moverEapTarefa({ id: t.id, alvoId, posicao });
+      if (!r.ok) return void toast.error(r.error);
+      router.refresh();
+    });
   }
 
   function gerarTarefa(eapTarefaId: string) {
@@ -623,6 +644,7 @@ export function EapWorkspace({
               )
             }
             onAcao={(t, item) => void aoAcao(t, item)}
+            onMover={podeGerir ? mover : undefined}
             focoNomeId={novaLinhaId}
             onFocoConsumido={() => setNovaLinhaId(null)}
             acoes={

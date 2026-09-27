@@ -6,21 +6,38 @@ import {
   ACAO_EXCLUIR,
   ACAO_GERAR_CARD,
   ACAO_INSERIR_ACIMA,
+  ACAO_MOVER_BAIXO,
+  ACAO_MOVER_CIMA,
   ACAO_RECUAR,
   MOTIVO_SEM_CARD_EM_RASCUNHO,
   itensDeLinhaEap,
   type LinhaParaAcoes,
 } from "./acoes-eap";
-import { MOTIVO_IRMA_E_MARCO, MOTIVO_NIVEL_MAIS_ALTO, MOTIVO_SEM_IRMA_ACIMA } from "./arvore-eap";
+import {
+  MOTIVO_IRMA_E_MARCO,
+  MOTIVO_NIVEL_MAIS_ALTO,
+  MOTIVO_PRIMEIRA_DO_NIVEL,
+  MOTIVO_SEM_IRMA_ACIMA,
+  MOTIVO_ULTIMA_DO_NIVEL,
+} from "./arvore-eap";
 
-const linha: LinhaParaAcoes = { nome: "Fôrmas", ehResumo: false, temIrmaAcima: true, irmaAcimaEMarco: false, nivel: 2, subtarefas: 0 };
+const linha: LinhaParaAcoes = { nome: "Fôrmas", ehResumo: false, temIrmaAcima: true, irmaAcimaEMarco: false, temIrmaAbaixo: true, nivel: 2, subtarefas: 0 };
 const admin = { podeGerir: true, podeExecutado: true, cronogramaAprovado: true };
 const ids = (l: LinhaParaAcoes, ctx = admin) => itensDeLinhaEap(l, ctx).flatMap((i) => (i.tipo === "acao" ? [i.id] : []));
 const item = (l: LinhaParaAcoes, id: string, ctx = admin) => itensDeLinhaEap(l, ctx).find((i) => i.id === id);
 
 describe("itensDeLinhaEap", () => {
   it("quem monta e acompanha vê tudo", () => {
-    expect(ids(linha)).toEqual([ACAO_ABRIR, ACAO_INSERIR_ACIMA, ACAO_RECUAR, ACAO_AVANCAR, ACAO_ATUALIZAR, ACAO_GERAR_CARD, ACAO_EXCLUIR]);
+    expect(ids(linha)).toEqual([
+      ACAO_ABRIR, ACAO_INSERIR_ACIMA, ACAO_RECUAR, ACAO_AVANCAR, ACAO_MOVER_CIMA, ACAO_MOVER_BAIXO, ACAO_ATUALIZAR, ACAO_GERAR_CARD, ACAO_EXCLUIR,
+    ]);
+  });
+
+  it("mover para cima/baixo: desabilitado nas pontas do nível, com o motivo", () => {
+    const primeira = { ...linha, temIrmaAcima: false, temIrmaAbaixo: true };
+    expect(item(primeira, ACAO_MOVER_CIMA)).toMatchObject({ desabilitado: MOTIVO_PRIMEIRA_DO_NIVEL });
+    expect(item(primeira, ACAO_MOVER_BAIXO)).not.toHaveProperty("desabilitado", expect.anything());
+    expect(item({ ...linha, temIrmaAbaixo: false }, ACAO_MOVER_BAIXO)).toMatchObject({ desabilitado: MOTIVO_ULTIMA_DO_NIVEL });
   });
 
   it("perfil só de acompanhamento vê só 'atualizar' — e uma ação só não vira menu", () => {
@@ -59,7 +76,9 @@ describe("itensDeLinhaEap", () => {
   });
 
   it("agrupamento não atualiza datas reais nem gera card", () => {
-    expect(ids({ ...linha, ehResumo: true, subtarefas: 3 })).toEqual([ACAO_ABRIR, ACAO_INSERIR_ACIMA, ACAO_RECUAR, ACAO_AVANCAR, ACAO_EXCLUIR]);
+    expect(ids({ ...linha, ehResumo: true, subtarefas: 3 })).toEqual([
+      ACAO_ABRIR, ACAO_INSERIR_ACIMA, ACAO_RECUAR, ACAO_AVANCAR, ACAO_MOVER_CIMA, ACAO_MOVER_BAIXO, ACAO_EXCLUIR,
+    ]);
   });
 
   it("excluir é destrutivo e pede confirmação, dizendo quantas subtarefas vão junto", () => {

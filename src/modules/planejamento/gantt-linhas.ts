@@ -67,7 +67,14 @@ export function soAsDoFiltro<T extends { id: string }>(
  * sem sair do agrupamento) e se ela é um marco, em que nível a linha está e quantas subtarefas tem. Sempre sobre a
  * grade COMPLETA — recolher ou filtrar não muda quem é a irmã de cima.
  */
-export type ContextoDaLinha = { temIrmaAcima: boolean; irmaAcimaEMarco: boolean; nivel: number; subtarefas: number };
+export type ContextoDaLinha = {
+  temIrmaAcima: boolean;
+  irmaAcimaEMarco: boolean;
+  /** Existe irmã logo abaixo, no mesmo nível (depois das subtarefas desta) — o "Mover para baixo". */
+  temIrmaAbaixo: boolean;
+  nivel: number;
+  subtarefas: number;
+};
 
 export function contextoDaLinha<T extends { id: string; marco?: boolean }>(
   grade: readonly LinhaGrade<T>[],
@@ -84,7 +91,9 @@ export function contextoDaLinha<T extends { id: string; marco?: boolean }>(
   }
   let subtarefas = 0;
   for (let i = indice + 1; i < grade.length && grade[i].nivel > l.nivel; i++) subtarefas++;
-  return { temIrmaAcima: irma != null, irmaAcimaEMarco: !!irma?.t.marco, nivel: l.nivel, subtarefas };
+  const depois = grade[indice + 1 + subtarefas];
+  const temIrmaAbaixo = depois != null && depois.nivel === l.nivel;
+  return { temIrmaAcima: irma != null, irmaAcimaEMarco: !!irma?.t.marco, temIrmaAbaixo, nivel: l.nivel, subtarefas };
 }
 
 /** Ids das linhas que têm filhos — o que "recolher tudo" recolhe. */

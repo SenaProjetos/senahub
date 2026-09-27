@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { planoDeAvanco, planoDeInsercaoAcima, planoDeRecuo, type NoArvore } from "./arvore-eap";
+import {
+  MOTIVO_DENTRO_DELA_MESMA,
+  MOTIVO_PRIMEIRA_DO_NIVEL,
+  MOTIVO_ULTIMA_DO_NIVEL,
+  irmaVizinha,
+  planoDeAvanco,
+  planoDeInsercaoAcima,
+  planoDeMoverNoNivel,
+  planoDeMovimento,
+  planoDeRecuo,
+  type Movimento,
+  type NoArvore,
+} from "./arvore-eap";
 
 const no = (id: string, parentId: string | null, ordem: number, tipoEap = "atv"): NoArvore => ({ id, parentId, ordem, tipoEap });
 
@@ -86,5 +98,77 @@ describe("planoDeInsercaoAcima", () => {
 
   it("tarefa inexistente", () => {
     expect(planoDeInsercaoAcima(nos, "x")).toEqual({ ok: false, motivo: "Tarefa não encontrada." });
+  });
+});
+
+/** Aplica o movimento e devolve a tela: cada linha como "pai>id", em ordem de árvore. */
+function aplicar(lista: NoArvore[], id: string, m: Movimento): string[] {
+  if (!m.ok) throw new Error(m.motivo);
+  const nova = lista.map((n) => {
+    const o = m.ordens.find((x) => x.id === n.id);
+    return { ...n, parentId: n.id === id ? m.novoPaiId : n.parentId, ordem: o ? o.ordem : n.ordem };
+  });
+  const saida: string[] = [];
+  const descer = (pai: string | null) => {
+    for (const n of nova.filter((x) => x.parentId === pai).sort((a, b) => a.ordem - b.ordem || a.id.localeCompare(b.id))) {
+      saida.push(`${pai ?? "·"}>${n.id}`);
+      descer(n.id);
+    }
+  };
+  descer(null);
+  return saida;
+}
+
+describe("planoDeMovimento", () => {
+  it("move no mesmo nível, levando as subtarefas junto", () => {
+    // Hidráulica para antes de Estrutural: o Estrutural vai inteiro (com as 3 filhas) para baixo dela.
+    expect(aplicar(nos, "hid", planoDeMovimento(nos, "hid", "est", "antes"))).toEqual([
+      "·>proj", "proj>hid", "proj>est", "est>lanc", "est>form", "est>arm", "·>ent",
+    ]);
+  });
+
+  it("muda de nível: vira irmã da linha de referência", () => {
+    expect(aplicar(nos, "hid", planoDeMovimento(nos, "hid", "form", "depois"))).toEqual([
+      "·>proj", "proj>est", "est>lanc", "est>form", "est>hid", "est>arm", "·>ent",
+    ]);
+    // um agrupamento inteiro para a raiz, depois do marco
+    expect(aplicar(nos, "est", planoDeMovimento(nos, "est", "ent", "depois"))).toEqual([
+      "·>proj", "proj>hid", "·>ent", "·>est", "est>lanc", "est>form", "est>arm",
+    ]);
+  });
+
+  it("não vai para dentro dela mesma", () => {
+    expect(planoDeMovimento(nos, "est", "form", "antes")).toEqual({ ok: false, motivo: MOTIVO_DENTRO_DELA_MESMA });
+    expect(planoDeMovimento(nos, "proj", "lanc", "depois")).toEqual({ ok: false, motivo: MOTIVO_DENTRO_DELA_MESMA });
+    expect(planoDeMovimento(nos, "est", "est", "antes").ok).toBe(false);
+  });
+
+  it("renumera as irmãs em sequência mesmo com ordem empatada", () => {
+    const empatadas = [no("a", null, 5), no("b", null, 5), no("c", null, 5)];
+    expect(aplicar(empatadas, "c", planoDeMovimento(empatadas, "c", "a", "antes"))).toEqual(["·>c", "·>a", "·>b"]);
+  });
+
+  it("só devolve as ordens que mudam", () => {
+    const m = planoDeMovimento(nos, "arm", "form", "antes");
+    expect(m.ok && m.ordens.map((o) => o.id).sort()).toEqual(["arm", "form"]);
+  });
+});
+
+describe("mover para cima e para baixo", () => {
+  it("troca com a irmã vizinha do mesmo nível", () => {
+    expect(irmaVizinha(nos, "form", -1)).toBe("lanc");
+    expect(irmaVizinha(nos, "form", 1)).toBe("arm");
+    expect(aplicar(nos, "form", planoDeMoverNoNivel(nos, "form", -1))).toEqual([
+      "·>proj", "proj>est", "est>form", "est>lanc", "est>arm", "proj>hid", "·>ent",
+    ]);
+    expect(aplicar(nos, "proj", planoDeMoverNoNivel(nos, "proj", 1))).toEqual([
+      "·>ent", "·>proj", "proj>est", "est>lanc", "est>form", "est>arm", "proj>hid",
+    ]);
+  });
+
+  it("a primeira não sobe e a última não desce", () => {
+    expect(planoDeMoverNoNivel(nos, "lanc", -1)).toEqual({ ok: false, motivo: MOTIVO_PRIMEIRA_DO_NIVEL });
+    expect(planoDeMoverNoNivel(nos, "arm", 1)).toEqual({ ok: false, motivo: MOTIVO_ULTIMA_DO_NIVEL });
+    expect(planoDeMoverNoNivel(nos, "ent", 1)).toEqual({ ok: false, motivo: MOTIVO_ULTIMA_DO_NIVEL });
   });
 });

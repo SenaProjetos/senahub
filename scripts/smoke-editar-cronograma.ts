@@ -15,7 +15,7 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { trocarPredecessoras } from "../src/modules/planejamento/dependencias-service";
 import { reservarIdsParaLinhas } from "../src/modules/planejamento/id-corporativo";
-import { avancarLinha, inserirLinhaAcima, recuarLinha } from "../src/modules/planejamento/arvore-service";
+import { avancarLinha, inserirLinhaAcima, moverLinha, moverLinhaNoNivel, recuarLinha } from "../src/modules/planejamento/arvore-service";
 import { calcularCodigos } from "../src/modules/planejamento/codigo-eap";
 
 let falhas = 0;
@@ -185,6 +185,36 @@ async function main() {
     await inserirLinhaAcima(TB.id);
     const cods = await codigos();
     check("inserir acima de B (filha de A): nasce como filha de A, antes de B", cods["B"] === "2.2" && cods["C"] === "2.3", cods);
+
+    // mover (arrastar a linha, ou Alt+Shift+↑/↓): vai com as subtarefas
+    const P = await nova("P", null, 300);
+    const P1 = await nova("P1", P.id, 301);
+    const P2 = await nova("P2", P.id, 302);
+    const Q = await nova("Q", null, 303);
+    const posicoes = async () => {
+      const linhas = await prisma.eapTarefa.findMany({ where: { projetoId: arvore.id }, select: { id: true, parentId: true, ordem: true } });
+      const c = new Map(calcularCodigos(linhas).map((x) => [x.id, x.codigo]));
+      return [P, P1, P2, Q].map((x) => c.get(x.id)!);
+    };
+    const n = Number((await posicoes())[0]);
+    await moverLinhaNoNivel(Q.id, -1);
+    check(
+      "mover Q para cima: passa para antes de P, e P leva P1 e P2 junto",
+      JSON.stringify(await posicoes()) === JSON.stringify([`${n + 1}`, `${n + 1}.1`, `${n + 1}.2`, `${n}`]),
+      await posicoes(),
+    );
+    await moverLinha(P2.id, Q.id, "antes");
+    check(
+      "arrastar P2 para antes de Q: sai de dentro de P e vira irmã de Q",
+      JSON.stringify(await posicoes()) === JSON.stringify([`${n + 2}`, `${n + 2}.1`, `${n}`, `${n + 1}`]),
+      await posicoes(),
+    );
+    const dentro = await erroDe(() => moverLinha(P.id, P1.id, "depois"));
+    check("arrastar P para dentro da própria subtarefa é recusado", !!dentro && /dentro dela mesma/.test(dentro), dentro);
+    const ultima = await erroDe(() => moverLinhaNoNivel(P1.id, 1));
+    check("mover para baixo a última do nível é recusado", !!ultima && /última do nível/.test(ultima), ultima);
+    const deFora = await erroDe(() => moverLinha(P.id, X.id, "antes"));
+    check("arrastar para uma linha de outro projeto é recusado", !!deFora && /não é deste cronograma/.test(deFora), deFora);
 
     // marco não recebe subtarefa
     const M = await nova("M", null, 100, "mrc");
