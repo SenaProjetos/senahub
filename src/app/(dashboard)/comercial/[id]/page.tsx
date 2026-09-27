@@ -1,3 +1,4 @@
+import { NavComercial } from "@/components/comercial/nav-comercial";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
@@ -45,6 +46,7 @@ export default async function LeadDetalhePage({
 
   return (
     <LeadDetalheView
+      subnav={<NavComercial />}
       usaComposta={modelosProposta.length > 0}
       lead={leadItem}
       etapaAtual={{ id: lead.etapa.id, nome: lead.etapa.nome, cor: lead.etapa.cor }}

@@ -1,3 +1,5 @@
+import { NavComercial } from "@/components/comercial/nav-comercial";
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
@@ -29,12 +31,11 @@ export default async function ComercialPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Comercial</h2>
-        <p className="text-sm text-muted-foreground">
-          {resumo.leadsAtivos} lead(s) ativo(s) · {resumo.enviadas} proposta(s) enviada(s)
-        </p>
-      </div>
+      <CabecalhoPagina
+        titulo="Comercial"
+        descricao={<>{resumo.leadsAtivos} lead(s) ativo(s) · {resumo.enviadas} proposta(s) enviada(s)</>}
+      />
+      <NavComercial />
 
       <AlternanciaVisaoComercial meus={meus} />
 

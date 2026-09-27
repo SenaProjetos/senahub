@@ -1,3 +1,4 @@
+import { NavComercial } from "@/components/comercial/nav-comercial";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
@@ -31,12 +32,15 @@ export default async function ComporPropostaPage({ params }: { params: Promise<{
   const jaUsados = new Set(proposta.itens.map((i) => i.disciplina));
   const disciplinas = catalogoBruto.filter((d) => jaUsados.has(d.nome) || !versaoVigente || valeNaVersao(d, versaoVigente.numero));
   return (
-    <ComporPropostaView
-      proposta={proposta}
-      disciplinas={disciplinas.map((d) => d.nome)}
-      descontoMaxSemJustificativa={config.descontoMaxSemJustificativa}
-      baseUrl={process.env.APP_URL ?? ""}
-      motivosPerda={motivos}
-    />
+    <div className="space-y-4">
+      <NavComercial />
+      <ComporPropostaView
+        proposta={proposta}
+        disciplinas={disciplinas.map((d) => d.nome)}
+        descontoMaxSemJustificativa={config.descontoMaxSemJustificativa}
+        baseUrl={process.env.APP_URL ?? ""}
+        motivosPerda={motivos}
+      />
+    </div>
   );
 }

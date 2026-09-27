@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -49,7 +50,10 @@ export function ModelosPropostaView({
   clausulas,
   modelos,
   disciplinas,
+  subnav,
 }: {
+  /** Barra de atalhos do Comercial, desenhada logo depois do cabeçalho (que tem de ser o 1º elemento). */
+  subnav?: React.ReactNode;
   clausulas: ClausulaDaLista[];
   modelos: ModeloDaLista[];
   disciplinas: Disciplina[];
@@ -58,13 +62,11 @@ export function ModelosPropostaView({
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Modelos de proposta</h2>
-        <p className="text-sm text-muted-foreground">
-          O texto padrão que entra nas propostas. Editar uma cláusula aqui muda as próximas
-          propostas — as já enviadas ficam como estão, porque cada proposta guarda a própria cópia.
-        </p>
-      </div>
+      <CabecalhoPagina
+        titulo="Modelos de proposta"
+        descricao="O texto padrão que entra nas propostas. Editar uma cláusula aqui muda as próximas propostas — as já enviadas ficam como estão, porque cada proposta guarda a própria cópia."
+      />
+      {subnav}
 
       <div className="flex gap-2">
         <Button variant={aba === "clausulas" ? "default" : "outline"} size="sm" onClick={() => setAba("clausulas")}>

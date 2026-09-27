@@ -1,3 +1,4 @@
+import { NavComercial } from "@/components/comercial/nav-comercial";
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
@@ -25,6 +26,7 @@ export default async function PropostasPage({
 
   return (
     <PropostasView
+      subnav={<NavComercial />}
       podeGerir={podeGerir}
       usaComposta={modelos.length > 0}
       status={sp.status ?? ""}

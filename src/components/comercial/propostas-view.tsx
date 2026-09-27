@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -70,7 +71,10 @@ export function PropostasView({
   podeGerir,
   usaComposta,
   status,
+  subnav,
 }: {
+  /** Barra de atalhos do Comercial, desenhada logo depois do cabeçalho (que tem de ser o 1º elemento). */
+  subnav?: React.ReactNode;
   propostas: Proposta[];
   clientes: { id: string; nome: string }[];
   /** F5.3 — só as que ainda podem receber proposta nova (ver `negociacoesParaSelecao`). */
@@ -133,17 +137,18 @@ export function PropostasView({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Propostas</h2>
-          <p className="text-sm text-muted-foreground">{propostas.length} proposta(s).</p>
-        </div>
-        {podeGerir && (
-          <Button onClick={() => setOpen(true)}>
-            <Plus className="size-4" /> Nova proposta
-          </Button>
-        )}
-      </div>
+      <CabecalhoPagina
+        titulo="Propostas"
+        descricao={<>{propostas.length} proposta(s)</>}
+        acoes={
+          podeGerir ? (
+            <Button size="sm" onClick={() => setOpen(true)}>
+              <Plus className="size-4" /> Nova proposta
+            </Button>
+          ) : undefined
+        }
+      />
+      {subnav}
 
       <Select
         value={status || "todas"}

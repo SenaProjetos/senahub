@@ -1,3 +1,4 @@
+import { NavComercial } from "@/components/comercial/nav-comercial";
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { catalogoDisciplinas } from "@/modules/projetos/queries";
@@ -19,6 +20,7 @@ export default async function ModelosPropostaPage() {
   ]);
   return (
     <ModelosPropostaView
+      subnav={<NavComercial />}
       clausulas={clausulas}
       modelos={modelos}
       disciplinas={disciplinas.map((d) => ({ id: d.id, nome: d.nome }))}

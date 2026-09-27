@@ -1,11 +1,11 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition, type ComponentType } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  ArrowLeft,
   Pencil,
   Mail,
   Phone,
@@ -65,7 +65,10 @@ export function LeadDetalheView({
   proximasAcoes,
   ultimaInteracao,
   usaComposta = false,
+  subnav,
 }: {
+  /** Barra de atalhos do Comercial, desenhada logo depois do cabeçalho (que tem de ser o 1º elemento). */
+  subnav?: React.ReactNode;
   /** Há modelo de proposta ativo: "Nova proposta" abre a composta (ADR-0006). */
   usaComposta?: boolean;
   lead: LeadItem;
@@ -142,29 +145,25 @@ export function LeadDetalheView({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <Link
-            href="/comercial/funil"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-          >
-            <ArrowLeft className="size-3.5" /> Voltar ao funil
-          </Link>
-          <h2 className="text-2xl font-extrabold tracking-tight">{lead.nome}</h2>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <CabecalhoPagina
+        titulo={lead.nome}
+        trilha={[
+          { href: "/", label: "Início" },
+          { href: "/comercial", label: "Comercial" },
+          { href: "/comercial/funil", label: "Funil" },
+        ]}
+        descricao={
+          <>
             <span
-              className="size-2.5 rounded-full"
+              className="mr-1.5 inline-block size-2.5 rounded-full align-middle"
               style={{ background: etapaAtual.cor ?? "#576980" }}
             />
-            <span>{etapaAtual.nome}</span>
-            {lead.cliente && (
-              <Badge variant="outline" className="ml-1 text-[10px]">
-                Cliente: {lead.cliente.nome}
-              </Badge>
-            )}
-          </div>
-        </div>
-        <div className="flex gap-2">
+            {etapaAtual.nome}
+            {lead.cliente && <> · Cliente: {lead.cliente.nome}</>}
+          </>
+        }
+        acoes={
+          <>
           <ContatoRapidoBotoes
             telefone={lead.telefone}
             email={lead.email}
@@ -185,8 +184,10 @@ export function LeadDetalheView({
           <Button size="sm" onClick={() => setEditar(true)}>
             <Pencil className="size-3.5" /> Editar
           </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
+      {subnav}
 
       {perdido && lead.motivoPerda && (
         <div className="flex items-start gap-2 rounded-sm border border-destructive/40 bg-destructive/5 p-3 text-sm">

@@ -1,3 +1,4 @@
+import { NavComercial } from "@/components/comercial/nav-comercial";
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { getConfigComercial } from "@/modules/comercial/config/queries";
@@ -8,5 +9,5 @@ export const metadata: Metadata = { title: "Configurações do Comercial" };
 export default async function ConfiguracoesComercialPage() {
   await requirePermission("comercial", "gerir");
   const config = await getConfigComercial();
-  return <ConfiguracoesComercialView config={config} />;
+  return <ConfiguracoesComercialView config={config} subnav={<NavComercial />} />;
 }

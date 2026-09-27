@@ -1,3 +1,4 @@
+import { NavComercial } from "@/components/comercial/nav-comercial";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -23,6 +24,7 @@ export default async function PreviaPropostaPage({ params }: { params: Promise<{
 
   return (
     <div className="space-y-3">
+      <NavComercial />
       <div className="doc-no-print flex flex-wrap items-center gap-2">
         <Button variant="ghost" size="sm" render={<Link href={`/comercial/propostas/${id}/compor`} />}>
           <ArrowLeft className="size-4" /> Voltar ao editor

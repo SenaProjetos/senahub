@@ -1,3 +1,5 @@
+import { NavComercial } from "@/components/comercial/nav-comercial";
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
@@ -23,13 +25,11 @@ export default async function FollowUpsPage({
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Follow-ups</h2>
-        <p className="text-sm text-muted-foreground">
-          {itens.length} ação(ões) em aberto · elas também aparecem na Agenda de quem as agendou e do
-          responsável
-        </p>
-      </div>
+      <CabecalhoPagina
+        titulo="Follow-ups"
+        descricao={<>{itens.length} ação(ões) em aberto · elas também aparecem na Agenda de quem as agendou e do responsável</>}
+      />
+      <NavComercial />
       <AlternanciaVisaoComercial meus={meus} basePath="/comercial/follow-ups" />
       <FollowUpsView itens={itens} truncado={truncado} podeGerir={podeGerir} />
     </div>

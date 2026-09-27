@@ -1,6 +1,9 @@
+import { ExportarFunil } from "@/components/comercial/exportar-funil";
+import { NavComercial } from "@/components/comercial/nav-comercial";
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { Download, KanbanSquare } from "lucide-react";
+import { KanbanSquare } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import {
@@ -32,7 +35,6 @@ import { FunilComercialBoard } from "@/components/comercial/funil-comercial-boar
 import { ProspeccaoRapidaDialog } from "@/components/comercial/prospeccao-rapida-dialog";
 import { modelosAtivos } from "@/modules/comercial/proposta-composta/queries";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Button } from "@/components/ui/button";
 import { brlInteiro } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Funil comercial" };
@@ -124,37 +126,24 @@ export default async function FunilComercialPage({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="min-w-0 flex-[1_1_16rem]">
-          <h2 className="text-2xl font-extrabold tracking-tight">Funil comercial</h2>
-          <p className="text-sm text-muted-foreground">
-            {emProspeccao} em prospecção · {emNegociacao} em negociação · pipeline em aberto{" "}
-            {brlInteiro(pipeline)} · arraste para mudar de etapa
-          </p>
-        </div>
-        {podeGerir && (
+      <CabecalhoPagina
+        titulo="Funil comercial"
+        descricao={
           <>
-            {/* Exportar é tarefa de mesa: fora do celular. */}
-            <Button variant="outline" size="sm" className="hidden sm:inline-flex" render={<a href={`/api/comercial/export/prospeccoes?${qs}`} />}>
-              <Download className="size-4" /> Prospecções
-            </Button>
-            {/* Exportar é tarefa de mesa: fora do celular. */}
-            <Button variant="outline" size="sm" className="hidden sm:inline-flex" render={<a href={`/api/comercial/export/negociacoes?${qs}`} />}>
-              <Download className="size-4" /> Negociações
-            </Button>
-            {/* Exportar é tarefa de mesa: fora do celular. */}
-            <Button variant="outline" size="sm" className="hidden sm:inline-flex" render={<a href={`/api/comercial/export/contatos?${qs}`} />}>
-              <Download className="size-4" /> Contatos
-            </Button>
-            <ProspeccaoRapidaDialog
-              campanhas={campanhas}
-              canais={canais}
-              parceiros={parceiros}
-              clientes={clientes}
-            />
+            {emProspeccao} em prospecção · {emNegociacao} em negociação · pipeline em aberto {brlInteiro(pipeline)} ·
+            arraste para mudar de etapa
           </>
-        )}
-      </div>
+        }
+        acoes={
+          podeGerir ? (
+            <>
+              <ExportarFunil qs={qs} />
+              <ProspeccaoRapidaDialog campanhas={campanhas} canais={canais} parceiros={parceiros} clientes={clientes} />
+            </>
+          ) : undefined
+        }
+      />
+      <NavComercial />
 
       <FiltrosComerciais opcoes={opcoes} mostrarDisciplina />
       {filtros.disciplinaId && (

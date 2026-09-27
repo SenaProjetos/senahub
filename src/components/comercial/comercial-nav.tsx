@@ -49,7 +49,8 @@ function ativo(pathname: string, item: Item): boolean {
 }
 
 /**
- * Barra de navegação do Comercial — fixa em toda rota `/comercial/**` (vive no `layout.tsx`).
+ * Barra de navegação do Comercial — cada tela a desenha logo depois do próprio `CabecalhoPagina`
+ * (via `NavComercial`, que resolve as permissões); as telas de edição de proposta, no topo.
  * Só o item da página atual fica em destaque; fichas individuais (`/comercial/[id]`) não marcam
  * nenhum, porque não são uma das telas do menu.
  */

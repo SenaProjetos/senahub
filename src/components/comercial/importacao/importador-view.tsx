@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -44,7 +45,14 @@ const STATUS_LABEL: Record<StatusLinha, string> = {
   erro: "Erro",
 };
 
-export function ImportadorComercialView({ campanhas }: { campanhas: { id: string; nome: string }[] }) {
+export function ImportadorComercialView({
+  campanhas,
+  subnav,
+}: {
+  campanhas: { id: string; nome: string }[];
+  /** Barra de atalhos do Comercial, desenhada logo depois do cabeçalho (que tem de ser o 1º elemento). */
+  subnav?: React.ReactNode;
+}) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -124,13 +132,11 @@ export function ImportadorComercialView({ campanhas }: { campanhas: { id: string
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Importar prospecções (CSV/Excel)</h2>
-        <p className="text-sm text-muted-foreground">
-          Uma lista do Sales Navigator ou de outra planilha comercial. Empresas e contatos já
-          cadastrados são reaproveitados — nada é duplicado nem sobrescrito em silêncio.
-        </p>
-      </div>
+      <CabecalhoPagina
+        titulo="Importar prospecções (CSV/Excel)"
+        descricao="Uma lista do Sales Navigator ou de outra planilha comercial. Empresas e contatos já cadastrados são reaproveitados — nada é duplicado nem sobrescrito em silêncio."
+      />
+      {subnav}
 
       <Passos step={step} />
 

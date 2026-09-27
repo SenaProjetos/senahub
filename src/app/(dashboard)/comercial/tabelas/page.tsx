@@ -1,3 +1,4 @@
+import { NavComercial } from "@/components/comercial/nav-comercial";
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { listarTabelasPreco } from "@/modules/comercial/queries";
@@ -11,6 +12,7 @@ export default async function TabelasPage() {
   const [tabelas, catalogo] = await Promise.all([listarTabelasPreco(), catalogoDisciplinas()]);
   return (
     <TabelasView
+      subnav={<NavComercial />}
       catalogo={catalogo.map((d) => d.nome)}
       tabelas={tabelas}
     />

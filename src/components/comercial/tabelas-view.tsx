@@ -1,5 +1,6 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -12,7 +13,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 type Tabela = { id: string; nome: string; itens: { disciplina: string; valorM2: number }[] };
 
-export function TabelasView({ tabelas, catalogo }: { tabelas: Tabela[]; catalogo: string[] }) {
+export function TabelasView({
+  tabelas,
+  catalogo,
+  subnav,
+}: {
+  tabelas: Tabela[];
+  catalogo: string[];
+  /** Barra de atalhos do Comercial, desenhada logo depois do cabeçalho (que tem de ser o 1º elemento). */
+  subnav?: React.ReactNode;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [novoNome, setNovoNome] = useState("");
@@ -34,12 +44,11 @@ export function TabelasView({ tabelas, catalogo }: { tabelas: Tabela[]; catalogo
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Tabelas de preço</h2>
-        <p className="text-sm text-muted-foreground">
-          Valor por m² por disciplina — usadas nos preços automáticos das propostas.
-        </p>
-      </div>
+      <CabecalhoPagina
+        titulo="Tabelas de preço"
+        descricao="Valor por m² por disciplina — usadas nos preços automáticos das propostas."
+      />
+      {subnav}
 
       <div className="flex max-w-md items-center gap-2">
         <Input

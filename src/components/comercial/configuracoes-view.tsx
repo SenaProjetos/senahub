@@ -1,10 +1,10 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Save } from "lucide-react";
-import Link from "next/link";
+import { Save } from "lucide-react";
 import { salvarConfigComercial } from "@/modules/comercial/actions";
 import type { ConfigComercial } from "@/modules/comercial/config/padroes";
 import { Button } from "@/components/ui/button";
@@ -70,7 +70,7 @@ const CAMPOS: {
   },
 ];
 
-export function ConfiguracoesComercialView({ config }: { config: ConfigComercial }) {
+export function ConfiguracoesComercialView({ config, subnav }: { config: ConfigComercial; subnav?: React.ReactNode }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [valores, setValores] = useState<ConfigComercial>(config);
@@ -90,18 +90,13 @@ export function ConfiguracoesComercialView({ config }: { config: ConfigComercial
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" render={<Link href="/comercial" aria-label="Voltar" />}>
-          <ArrowLeft className="size-4" />
-        </Button>
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Configurações do Comercial</h2>
-          <p className="text-sm text-muted-foreground">
-            Limiares usados por desconto, alertas e automações — nada aqui fica cravado no código.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <CabecalhoPagina
+        titulo="Configurações do Comercial"
+        descricao="Limiares usados por desconto, alertas e automações — nada aqui fica cravado no código."
+      />
+      {subnav}
+      <div className="max-w-2xl space-y-6">
 
       <Card>
         <CardHeader>
@@ -145,6 +140,7 @@ export function ConfiguracoesComercialView({ config }: { config: ConfigComercial
         <Button onClick={salvar} disabled={pending}>
           <Save className="size-4" /> {pending ? "Salvando…" : "Salvar"}
         </Button>
+      </div>
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+import { NavComercial } from "@/components/comercial/nav-comercial";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { requirePermission } from "@/lib/session";
@@ -42,6 +43,7 @@ export default async function PropostaPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="space-y-5">
+    <NavComercial />
     <PropostaEditor
       podeGerir={podeGerir}
       baseUrl={process.env.APP_URL ?? ""}

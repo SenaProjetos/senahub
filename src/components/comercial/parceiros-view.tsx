@@ -1,10 +1,11 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { Fragment, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import { arquivarParceiro, leadsDoParceiroAction, reativarParceiro } from "@/modules/comercial/actions";
 import type { LeadDoParceiro, ParceiroItem } from "@/modules/comercial/queries";
 import { STATUS_PROSPECCAO_LABEL } from "@/modules/comercial/prospeccao";
@@ -39,7 +40,7 @@ import {
   itensDeLoteArquivaveis,
 } from "@/modules/comercial/acoes-cadastro";
 
-export function ParceirosView({ parceiros }: { parceiros: ParceiroItem[] }) {
+export function ParceirosView({ parceiros, subnav }: { parceiros: ParceiroItem[]; subnav?: React.ReactNode }) {
   const router = useRouter();
   const [, start] = useTransition();
   // Seleção compartilhada (ADR-0002, regra 3): o menu de contexto age sobre ela.
@@ -124,21 +125,17 @@ export function ParceirosView({ parceiros }: { parceiros: ParceiroItem[] }) {
 
   return (
     <div className="space-y-4">
+      <CabecalhoPagina
+        titulo="Parceiros"
+        descricao="Quem indica negócio — escolhido por lista no lead, nunca digitado (ADR-19)."
+        acoes={
+          <Button size="sm" onClick={abrirNovo}>
+            <Plus className="size-4" /> Novo parceiro
+          </Button>
+        }
+      />
+      {subnav}
       <DicaMenuContexto />
-      <div className="flex flex-wrap items-center gap-3">
-        <Button variant="ghost" size="icon" render={<Link href="/comercial" aria-label="Voltar" />}>
-          <ArrowLeft className="size-4" />
-        </Button>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-2xl font-extrabold tracking-tight">Parceiros</h2>
-          <p className="text-sm text-muted-foreground">
-            Quem indica negócio — escolhido por lista no lead, nunca digitado (ADR-19).
-          </p>
-        </div>
-        <Button size="sm" onClick={abrirNovo}>
-          <Plus className="size-4" /> Novo parceiro
-        </Button>
-      </div>
 
       {parceiros.length === 0 ? (
         <EmptyState

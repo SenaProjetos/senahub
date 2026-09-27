@@ -1,3 +1,4 @@
+import { NavComercial } from "@/components/comercial/nav-comercial";
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { listarCampanhas, canaisAtivos, responsaveisAtivos } from "@/modules/comercial/queries";
@@ -12,5 +13,5 @@ export default async function CampanhasPage() {
     canaisAtivos(),
     responsaveisAtivos(),
   ]);
-  return <CampanhasView campanhas={campanhas} canais={canais} responsaveis={responsaveis} />;
+  return <CampanhasView campanhas={campanhas} canais={canais} responsaveis={responsaveis} subnav={<NavComercial />} />;
 }

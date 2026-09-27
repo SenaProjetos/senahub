@@ -1,10 +1,10 @@
 "use client";
 
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { arquivarCampanha, reativarCampanha } from "@/modules/comercial/actions";
 import type { CampanhaItem } from "@/modules/comercial/queries";
 import { CampanhaDialog } from "./campanha-dialog";
@@ -47,7 +47,10 @@ export function CampanhasView({
   campanhas,
   canais,
   responsaveis,
+  subnav,
 }: {
+  /** Barra de atalhos do Comercial, desenhada logo depois do cabeçalho (que tem de ser o 1º elemento). */
+  subnav?: React.ReactNode;
   campanhas: CampanhaItem[];
   canais: { id: string; nome: string }[];
   responsaveis: { id: string; name: string }[];
@@ -115,21 +118,17 @@ export function CampanhasView({
 
   return (
     <div className="space-y-4">
+      <CabecalhoPagina
+        titulo="Campanhas"
+        descricao="Marketing/prospecção — vinculada a prospecções e negociações, com meta e período."
+        acoes={
+          <Button size="sm" onClick={abrirNovo}>
+            <Plus className="size-4" /> Nova campanha
+          </Button>
+        }
+      />
+      {subnav}
       <DicaMenuContexto />
-      <div className="flex flex-wrap items-center gap-3">
-        <Button variant="ghost" size="icon" render={<Link href="/comercial" aria-label="Voltar" />}>
-          <ArrowLeft className="size-4" />
-        </Button>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-2xl font-extrabold tracking-tight">Campanhas</h2>
-          <p className="text-sm text-muted-foreground">
-            Marketing/prospecção — vinculada a prospecções e negociações, com meta e período.
-          </p>
-        </div>
-        <Button size="sm" onClick={abrirNovo}>
-          <Plus className="size-4" /> Nova campanha
-        </Button>
-      </div>
 
       {campanhas.length === 0 ? (
         <EmptyState
