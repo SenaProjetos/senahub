@@ -288,7 +288,7 @@ ser divididos entre as duas worktrees).
   portão; Funil com menu Exportar. Avisos: página abre na lista, Novo aviso em janela
   (`NovoAvisoDialog`), guia de primeiro acesso v2. Com o menu aberto a 1366 px o cabeçalho do
   Funil desce uma linha — some quando data e tema saírem da barra (desvio abaixo).
-- [ ] **Lote de correção: executado ≠ aprovado** (dono apontou em 2026-09-27). Os lotes seguiram o
+- [x] **Lote de correção: executado ≠ aprovado** (dono apontou em 2026-09-27; corrigido no mesmo dia, Opus 5.5). Os lotes seguiram o
   texto resumido do plano e a verificação mediu números, não conformidade com o mock. Desvios:
   1. Menu recolhido: aprovado 9 seções nomeadas sem rolagem → feito 12 itens soltos + 5 seções,
      rótulos cortados, ainda rola a 768 px.
@@ -301,3 +301,14 @@ ser divididos entre as duas worktrees).
      Duplicar continua botão; nome na barra do celular não feito.
   6. Arquivos: aprovado Nomenclatura/Lista Mestre/Link público no ⋯ → continuam botões.
   Fechar só depois de comparar cada tela, lado a lado, com a imagem aprovada.
+  **Feito** (conferido por medida contra o modelo, sem depender de imagem — `comparar-modelo.cjs`):
+  barra do topo 56 px só com ícones (data na dica da agenda, tema e Minha conta/Preferências no menu
+  da conta, "?" com Ajuda e Guias, chat sem botão flutuante e abrindo pela barra); menu recolhido
+  64 px com as 9 seções sem rolagem, abrindo no hover e no clique, com seta nas seções; aberto
+  224 px com só a seção atual; cabeçalho do projeto 56–100 (modelo 56–100), abas 100–137
+  (100–139), barra de ferramentas de Arquivos 150 (151), tabela 195 (191); ⋯ do projeto e de
+  Arquivos; Novidade como balão sem linha; Arquivos no celular com pastas na linha da busca e
+  Enviar flutuante (lista de 305 → 221 px). Cabeçalho na barra: 74/74 com menu recolhido, 72/74
+  aberto (Relatórios e Rentabilidade descem). 111 rotas sem sobreposição e sem estourar 1366/390.
+  **Ainda diferente do modelo (pergunta ao dono):** o modo foco esconde menu, barra e abas; o
+  modelo só recolhia o cabeçalho do projeto no computador.
