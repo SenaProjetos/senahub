@@ -93,9 +93,12 @@ Se você usa o MS Project, isto será familiar:
 
 - **Nova tarefa** — abre o editor. Para uma subtarefa, escolha a linha em **Subtarefa de**; a
   numeração em árvore (1, 1.2, 1.2.3) é recalculada sozinha.
-- **Gerar EAP das disciplinas** — cria uma tarefa para cada disciplina do projeto que ainda não
-  tem uma (o fim vem do prazo da disciplina). É de **mão única**: disciplina nova entra na EAP, mas
-  criar uma linha na EAP **não** cria disciplina.
+- **Gerar EAP das disciplinas** — abre uma janela com cada disciplina do projeto que ainda não tem
+  tarefa na EAP. Quem tem **modelo de disciplina** (veja [Modelos de EAP](modelos-de-eap.md)) vem com ele
+  escolhido e ganha o conteúdo do modelo: a linha da disciplina, as fases e as tarefas, com os vínculos.
+  Sem modelo (ou escolhendo **Linha única**), a disciplina entra como uma tarefa só, que termina no prazo
+  dela. É de **mão única**: disciplina nova entra na EAP, mas criar uma linha na EAP **não** cria
+  disciplina.
 - **Herdar responsáveis** — preenche, em cada linha ainda **sem ninguém**, os responsáveis da
   disciplina dela. O que já tem gente não é tocado.
 

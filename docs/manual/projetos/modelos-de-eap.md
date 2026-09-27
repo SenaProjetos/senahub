@@ -104,6 +104,29 @@ mostra, para cada modelo, **quantas linhas ele criaria neste projeto** e o que f
 disciplina já tem fases próprias. Cadastre pelas **Etapas da disciplina** no projeto — veja
 [Etapas da disciplina e pagamento por fase](etapas-e-pagamento-por-fase.md).
 
+## Modelos de disciplina
+
+Além do modelo do **projeto inteiro**, a casa guarda o conteúdo de **cada disciplina**: a linha da
+disciplina, as fases dela (Básico, Executivo…) e as tarefas de cada fase. É o que o botão **Gerar EAP das
+disciplinas**, na aba Planejamento do projeto, aplica em cada disciplina que ainda não tem tarefa — e dá
+para escolher o modelo, disciplina por disciplina, ou deixar em **Linha única**.
+
+**Criar:** abra um modelo de projeto e clique em **Criar modelos de disciplina**. Sai um modelo para cada
+disciplina ligada ao catálogo ("Estrutural (de EDIFÍCIO)"), com:
+
+- as tarefas da disciplina em cada fase, sob a linha da disciplina;
+- os vínculos **de dentro** da disciplina. Os que ligam a outra disciplina ou a uma etapa geral (gestão,
+  validação do cliente) **ficam de fora** — a outra ponta não existe no modelo de disciplina. O aviso do
+  modelo diz quantos;
+- **cada fase começando depois do fim da anterior** (o marco que fecha a fase), para o Executivo não
+  começar junto com o Básico;
+- os **percentuais por fase** do modelo de projeto, quando a disciplina está em todas as fases que têm
+  percentual.
+
+Rodar de novo não duplica: o que já existe com o mesmo nome fica. O modelo de disciplina se edita como
+qualquer modelo (veja abaixo) e aparece em **Modelos de EAP → Modelos de disciplina**. Quando há mais de
+um para a mesma disciplina, vem escolhido o do mesmo **tipo de empreendimento** do projeto, senão o geral.
+
 ## Tipo de empreendimento
 
 Campo do projeto (residência, prédio, galpão…), que serve para **sugerir o modelo**. Quando o projeto
