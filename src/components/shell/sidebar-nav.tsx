@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import {
+  Briefcase,
   ChevronDown,
   ChevronRight,
   LayoutGrid,
@@ -12,6 +13,7 @@ import {
   Ruler,
   Settings,
   ShieldCheck,
+  TrendingUp,
   Users,
   Wallet,
   type LucideIcon,
@@ -24,12 +26,13 @@ import { navItemsPara, type AlertaNav, type ContextoNav, type NavGroup, type Nav
 import { ChatBadge } from "@/components/chat/chat-badge";
 import { NavBadge } from "@/components/shell/nav-badge";
 
-const GROUP_KEY = (title: string) => `navGroups:${title}`;
 /** Chave em `UserPreference` dos atalhos fixados (lista de `href`, na ordem em que foram fixados). */
 export const CHAVE_MENU_FIXADOS = "menu_fixados";
 
 /** Ícone de cada seção no trilho (a seção não tem ícone próprio em `NAV_GROUPS`). */
 const ICONE_DA_SECAO: Record<string, LucideIcon> = {
+  Trabalho: Briefcase,
+  Comercial: TrendingUp,
   RH: Users,
   Financeiro: Wallet,
   Engenharia: Ruler,
@@ -119,26 +122,15 @@ function CollapsibleGroup({
   onNavigate?: () => void;
   fixacao?: Fixacao;
 }) {
-  // Aberto por padrão; restaura preferência do localStorage após montar.
-  const [open, setOpen] = useState(true);
-
-  useEffect(() => {
-    const stored = localStorage.getItem(GROUP_KEY(group.title));
-    if (stored !== null) setOpen(stored === "1");
-  }, [group.title]);
+  // Modelo aprovado: só a seção da página atual vem aberta. O clique abre/fecha as outras durante
+  // a sessão (sem gravar: ao voltar, o menu mostra de novo só onde a pessoa está).
+  const hasActive = group.items.some((item) => isItemActive(item, pathname));
+  const [manual, setManual] = useState<boolean | null>(null);
+  const expanded = manual ?? hasActive;
 
   function toggle() {
-    setOpen((prev) => {
-      const next = !prev;
-      localStorage.setItem(GROUP_KEY(group.title), next ? "1" : "0");
-      return next;
-    });
+    setManual(!expanded);
   }
-
-  // Mantém o grupo visível (e ignora o estado fechado) se houver item ativo dentro,
-  // para nunca esconder a página atual.
-  const hasActive = group.items.some((item) => isItemActive(item, pathname));
-  const expanded = open || hasActive;
 
   // Grupo fechado esconde os itens — e esconderia o badge junto. Some os alertas de dentro e
   // mostra o total no cabeçalho enquanto está fechado, senão "3 certidões vencidas" fica
@@ -241,13 +233,18 @@ function SecaoTrilho({
     <li>
       <Popover open={aberta} onOpenChange={setAberta}>
         <PopoverTrigger
+          openOnHover
+          delay={120}
+          closeDelay={250}
           render={
-            <button type="button" className={classeTrilho(ativa)} aria-label={`Seção ${group.title}`} title={group.title}>
+            <button type="button" className={classeTrilho(ativa)} aria-label={`Seção ${group.title}: abre a lista`} title={group.title}>
               <span className="relative">
                 <Icone className="size-[18px]" />
                 {alerta && <NavBadge alerta={alerta} dot className="absolute -right-1 -top-1" />}
               </span>
               <span className="w-full truncate text-center">{group.title}</span>
+              {/* Seta: diferencia a seção (abre uma lista) do item que vai direto para a página. */}
+              <ChevronRight className="absolute top-1/2 right-0 size-3 -translate-y-1/2 opacity-60" aria-hidden />
             </button>
           }
         />
@@ -280,12 +277,16 @@ export function SidebarNav({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
-  const groups = navItemsPara(nav);
+  const visiveis = navItemsPara(nav);
+  const groups = visiveis
+    .map((g) => ({ ...g, items: g.items.filter((i) => !i.foraDoMenu) }))
+    .filter((g) => g.items.length > 0);
   const [fixados, setFixados] = useState<string[]>(nav.fixados ?? []);
   const [, iniciar] = useTransition();
 
-  // Só fixa o que o menu de fato mostra a esta pessoa (permissão pode ter mudado depois).
-  const todosOsItens = groups.flatMap((g) => g.items);
+  // Só fixa o que esta pessoa pode ver (permissão pode ter mudado depois) — inclusive o que mora
+  // fora do menu (Minha conta, Ajuda…): quem fixou continua com o atalho.
+  const todosOsItens = visiveis.flatMap((g) => g.items);
   const itensFixados = fixados
     .map((href) => todosOsItens.find((i) => i.href === href))
     .filter((i): i is NavItem => !!i);

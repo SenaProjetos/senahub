@@ -71,7 +71,12 @@ export type NavItem = {
   /** Some para estes setores. Ver a nota acima antes de acrescentar outro. */
   setorExcluido?: Setor[];
   /** Aparece na barra inferior do mobile. */
-  mobile?: boolean;
+  mobile?: boolean;  /**
+   * Fica fora do menu lateral, mas continua valendo para o resto (trilha, busca, gate): Guias e
+   * Ajuda moram no "?" da barra do topo; Minha conta e Preferências, no menu da conta (modelo
+   * aprovado do menu, 2026-09-24).
+   */
+  foraDoMenu?: boolean;
 };
 
 /**
@@ -136,6 +141,11 @@ export const NAV_GROUPS: NavGroup[] = [
         mobile: true,
       },
       { title: "Meus projetos", href: "/portal", icon: FolderKanban, tipo: "externo", mobile: true },
+    ],
+  },
+  {
+    title: "Trabalho",
+    items: [
       {
         title: "Projetos",
         href: "/projetos",
@@ -165,18 +175,6 @@ export const NAV_GROUPS: NavGroup[] = [
         permissao: "uploads:validar",
       },
       {
-        title: "Clientes",
-        href: "/clientes",
-        icon: Users,
-        permissao: "clientes:ver",
-      },
-      {
-        title: "Comercial",
-        href: "/comercial",
-        icon: TrendingUp,
-        permissao: "comercial:ver",
-      },
-      {
         title: "Tarefas",
         href: "/tarefas",
         icon: KanbanSquare,
@@ -191,6 +189,27 @@ export const NAV_GROUPS: NavGroup[] = [
         tipo: "interno",
         setorExcluido: ["ti"],
       },
+    ],
+  },
+  {
+    title: "Comercial",
+    items: [
+      {
+        title: "Clientes",
+        href: "/clientes",
+        icon: Users,
+        permissao: "clientes:ver",
+      },
+      {
+        title: "Comercial",
+        href: "/comercial",
+        icon: TrendingUp,
+        permissao: "comercial:ver",
+      },
+    ],
+  },
+  {
+    items: [
       {
         title: "Chat",
         href: "/chat",
@@ -198,13 +217,6 @@ export const NAV_GROUPS: NavGroup[] = [
         permissao: "chat:usar",
         mobile: true,
       },
-      // Guias de uso — formação por setor. `tipo: "interno"` e NÃO uma permissão de módulo: é
-      // material de treinamento, e ler sobre o Financeiro sem ter `financeiro:ver` é o caso de uso
-      // (quem ainda não trabalha no setor é o público). Fica colado na Ajuda: formação e
-      // referência são o par, e o guia linka para o manual o tempo todo.
-      { title: "Guias de uso", href: "/guias", icon: BookMarked, tipo: "interno" },
-      // Ajuda/Manual — sem `roles`: visível a todos os perfis (inclusive cliente).
-      { title: "Ajuda", href: "/ajuda", icon: BookOpen, mobile: true },
     ],
   },
   {
@@ -223,6 +235,7 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/minha-ficha",
         icon: IdCard,
         tipo: "interno",
+        foraDoMenu: true,
       },
       {
         title: "RH",
@@ -423,6 +436,7 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: UserCog,
         tipo: "interno",
         setorExcluido: ["ti"],
+        foraDoMenu: true,
       },
       {
         title: "Configurações",
@@ -443,6 +457,18 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Activity,
         permissao: "auditoria:ver",
       },
+    ],
+  },
+  // Fora do menu lateral: Guias e Ajuda ficam no "?" da barra do topo (e no menu da conta).
+  {
+    items: [
+      // Guias de uso — formação por setor. `tipo: "interno"` e NÃO uma permissão de módulo: é
+      // material de treinamento, e ler sobre o Financeiro sem ter `financeiro:ver` é o caso de uso
+      // (quem ainda não trabalha no setor é o público). Fica colado na Ajuda: formação e
+      // referência são o par, e o guia linka para o manual o tempo todo.
+      { title: "Guias de uso", href: "/guias", icon: BookMarked, tipo: "interno", foraDoMenu: true },
+      // Ajuda/Manual — sem `roles`: visível a todos os perfis (inclusive cliente).
+      { title: "Ajuda", href: "/ajuda", icon: BookOpen, mobile: true, foraDoMenu: true },
     ],
   },
 ];

@@ -31,11 +31,11 @@ export function Sidebar({ nav }: { nav: ContextoNav }) {
       data-tour="nav"
       className={cn(
         "sticky top-0 hidden h-svh shrink-0 flex-col overflow-x-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 lg:flex",
-        collapsed ? "w-[4.75rem]" : "w-64",
+        collapsed ? "w-16" : "w-56",
       )}
     >
       {/* Logo: completa expandida, símbolo quando colapsada */}
-      <div className={cn("flex h-16 items-center border-b border-sidebar-border", collapsed ? "justify-center px-2" : "px-5")}>
+      <div className={cn("flex h-14 items-center border-b border-sidebar-border", collapsed ? "justify-center px-2" : "px-5")}>
         <Link href="/" className="flex items-center overflow-hidden">
           {collapsed ? (
             <>
