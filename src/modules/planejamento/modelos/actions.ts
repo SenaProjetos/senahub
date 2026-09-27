@@ -6,7 +6,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { aposMudarEap } from "../pos-eap";
 import { estruturaModeloSchema } from "./estrutura";
-import { aplicarModeloNoProjeto, salvarModeloDeEap } from "./service";
+import { aplicarModeloNoProjeto, salvarEdicaoDoModelo, salvarModeloDeEap } from "./service";
 
 /**
  * Modelos de EAP (decisão #5). Mesma permissão de quem monta a EAP (`planejamento:gerir`): o modelo é
@@ -64,6 +64,35 @@ export const salvarModeloEap = defineAction(
       autorId: user.id,
     });
     revalidatePath("/planejamento/modelos");
+    return r;
+  },
+);
+
+/**
+ * A estrutura editada na tela do modelo (plano 2026-09-27-editar-modelo-eap). As linhas ficam FORA da
+ * auditoria (`redact`, ~100 KB por gravação); o cabeçalho com os totais de antes vai em `antes`.
+ */
+export const editarEstruturaModeloEap = defineAction(
+  {
+    ...plan,
+    acao: "editar-estrutura-modelo-eap",
+    schema: z.object({
+      id: z.string().min(1),
+      /** `updatedAt` que a tela abriu (M6: conflito de edição). */
+      versao: z.string().min(1),
+      linhas: estruturaModeloSchema.shape.linhas,
+    }),
+    redact: ["linhas"],
+    capturarAntes: async (i) =>
+      prisma.modeloEap.findUnique({
+        where: { id: i.id },
+        select: { id: true, nome: true, totalLinhas: true, totalMarcos: true, updatedAt: true },
+      }),
+  },
+  async (i) => {
+    const r = await salvarEdicaoDoModelo({ id: i.id, versao: i.versao, linhas: i.linhas });
+    revalidatePath("/planejamento/modelos");
+    revalidatePath(`/planejamento/modelos/${i.id}`);
     return r;
   },
 );

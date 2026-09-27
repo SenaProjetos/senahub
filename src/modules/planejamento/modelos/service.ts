@@ -7,7 +7,8 @@ import { inicioDoDiaUtc } from "@/lib/data";
 import { paraDataUtc, paraDia } from "../agenda";
 import { reservarIdsParaLinhas } from "../id-corporativo";
 import { herdarResponsaveisNoProjeto } from "../recursos-service";
-import { lerEstrutura, type EstruturaModelo } from "./estrutura";
+import { estruturaModeloSchema, lerEstrutura, type EstruturaModelo, type LinhaModelo } from "./estrutura";
+import { validarIntegridade } from "./edicao";
 import { aplicarModelo, podar } from "./aplicar";
 import {
   aplicarRespostas,
@@ -575,4 +576,57 @@ export async function modeloParaRevisar(id: string) {
     .sort((a, b) => a.origem.localeCompare(b.origem));
 
   return { ...m, estrutura, nomes };
+}
+
+export const MOTIVO_MODELO_MUDOU =
+  "Alguém salvou este modelo depois que você o abriu. Recarregue a página para ver a versão nova — o que você mudou aqui não foi gravado.";
+
+/**
+ * Grava a estrutura editada na tela (plano 2026-09-27-editar-modelo-eap). Confere, nesta ordem:
+ *
+ *  - M6, conflito: `versao` é o `updatedAt` que a tela abriu. A gravação só acontece se ele ainda for o
+ *    atual (`updateMany` com a versão no `where`, atômico) — senão a segunda pessoa apagaria a primeira.
+ *  - M5, integridade: pai e predecessora existem, sem ciclo (`validarIntegridade`), e disciplina e fase
+ *    existem no catálogo. Só o que é NOVO na edição precisa estar ativo no catálogo: uma disciplina que foi
+ *    arquivada depois da importação não pode travar a correção de um nome de tarefa.
+ *  - O schema inteiro da estrutura (tetos de tamanho e formato), com o resto do modelo intacto: mapas da
+ *    conferência, percentuais por fase e avisos continuam os da importação.
+ */
+export async function salvarEdicaoDoModelo(p: {
+  id: string;
+  versao: string;
+  linhas: LinhaModelo[];
+}): Promise<{ versao: string; totalLinhas: number; totalMarcos: number }> {
+  const atual = await prisma.modeloEap.findUnique({ where: { id: p.id }, select: { estrutura: true, updatedAt: true } });
+  if (!atual) throw new ActionError("Modelo não encontrado.");
+  if (atual.updatedAt.toISOString() !== p.versao) throw new ActionError(MOTIVO_MODELO_MUDOU);
+  const base = lerEstrutura(atual.estrutura);
+  if (!base) throw new ActionError("Este modelo foi gravado num formato que o sistema não lê mais. Importe o arquivo do MS Project de novo.");
+
+  const integridade = validarIntegridade(p.linhas);
+  if (!integridade.ok) throw new ActionError(integridade.motivo);
+
+  const cat = await catalogosParaMapear();
+  const disciplinasValidas = new Set([...cat.disciplinas.map((d) => d.id), ...base.linhas.map((l) => l.disciplinaCatalogoId)]);
+  const fasesValidas = new Set([...cat.fases.map((f) => f.id), ...base.linhas.map((l) => l.etapaId)]);
+  for (const l of p.linhas) {
+    if (l.disciplinaCatalogoId && !disciplinasValidas.has(l.disciplinaCatalogoId)) {
+      throw new ActionError(`A disciplina da tarefa "${l.nome}" não existe mais no catálogo.`);
+    }
+    if (l.etapaId && !fasesValidas.has(l.etapaId)) throw new ActionError(`A fase da tarefa "${l.nome}" não existe mais no catálogo.`);
+  }
+
+  const lido = estruturaModeloSchema.safeParse({ ...base, linhas: p.linhas });
+  if (!lido.success) throw new ActionError(lido.error.issues[0]?.message ?? "A estrutura editada está em formato inválido.");
+  const estrutura = lido.data;
+  const totalLinhas = estrutura.linhas.length;
+  const totalMarcos = estrutura.linhas.filter((l) => l.tipoEap === "mrc").length;
+
+  const r = await prisma.modeloEap.updateMany({
+    where: { id: p.id, updatedAt: atual.updatedAt },
+    data: { estrutura: estrutura as unknown as object, totalLinhas, totalMarcos },
+  });
+  if (r.count === 0) throw new ActionError(MOTIVO_MODELO_MUDOU);
+  const depois = await prisma.modeloEap.findUniqueOrThrow({ where: { id: p.id }, select: { updatedAt: true } });
+  return { versao: depois.updatedAt.toISOString(), totalLinhas, totalMarcos };
 }
