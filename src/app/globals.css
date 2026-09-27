@@ -180,7 +180,7 @@
  * (medido em 1366 px), largo de propósito — sobrar espaço é melhor que o título passar por baixo.
  */
 :root {
-  --barra-global: 36rem;
+  --barra-global: 20rem;
 }
 header:has(~ main [data-cabecalho-pagina]) [data-titulo-padrao] {
   display: none;

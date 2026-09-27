@@ -46,7 +46,7 @@ export function CabecalhoPagina({
         // Estreito: as ações descem para a linha de baixo quando não sobram 10rem para o título
         // (sem isso o título virava "Finan…" no celular). Na barra (`xl`), uma linha só.
         "flex min-h-10 min-w-0 flex-wrap items-center gap-x-3 gap-y-2",
-        "xl:sticky xl:top-0 xl:z-30 xl:-mt-[5.5rem] xl:mb-4 xl:h-16 xl:flex-nowrap xl:mr-[calc(var(--barra-global)+0.75rem)]",
+        "xl:sticky xl:top-0 xl:z-30 xl:-mt-20 xl:mb-4 xl:h-14 xl:flex-nowrap xl:mr-[calc(var(--barra-global)+0.75rem)]",
         className,
       )}
     >

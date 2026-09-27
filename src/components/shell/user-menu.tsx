@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { LogOut, KeyRound, Camera, Pencil, HelpCircle, Moon, Sun, Smartphone } from "lucide-react";
+import { LogOut, KeyRound, Camera, Pencil, HelpCircle, Moon, Sun, Smartphone, IdCard, SlidersHorizontal, BookOpen, BookMarked } from "lucide-react";
 import { useTheme } from "next-themes";
 import { AbrirNoCelularDialog } from "@/components/pwa/abrir-no-celular";
 import { signOut } from "@/lib/auth-client";
@@ -41,10 +41,15 @@ function initials(name: string): string {
     .join("");
 }
 
+/** Telas que saíram do menu lateral e moram aqui (modelo aprovado do menu). */
+export type AtalhosConta = { minhaConta: boolean; preferencias: boolean; ajuda: boolean; guias: boolean };
+
 export function UserMenu({
   user,
+  atalhos,
 }: {
   user: { name: string; email: string; role: Role; image?: string | null };
+  atalhos?: AtalhosConta;
 }) {
   const router = useRouter();
   const { setTheme, resolvedTheme } = useTheme();
@@ -121,18 +126,11 @@ export function UserMenu({
       <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="ghost" aria-label="Conta" className="h-9 gap-2 rounded-full px-1 sm:rounded-sm sm:pr-2.5">
+          <Button variant="ghost" aria-label={`Conta de ${user.name}`} title={user.name} className="size-9 rounded-full p-0">
             <Avatar className="size-8 shrink-0">
               {user.image && <AvatarImage src={user.image} alt={user.name} />}
               <AvatarFallback className="text-xs">{initials(user.name)}</AvatarFallback>
             </Avatar>
-            {/* Nome + função visíveis em telas largas (Mód 14); só avatar no mobile. */}
-            <span className="hidden min-w-0 flex-col items-start leading-tight sm:flex">
-              <span className="max-w-[9rem] truncate text-xs font-medium">{user.name}</span>
-              <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
-                {ROLE_LABELS[user.role]}
-              </span>
-            </span>
           </Button>
         }
       />
@@ -149,6 +147,32 @@ export function UserMenu({
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {atalhos?.minhaConta && (
+          <DropdownMenuItem onClick={() => router.push("/minha-ficha")}>
+            <IdCard className="size-4" />
+            Minha conta
+          </DropdownMenuItem>
+        )}
+        {atalhos?.preferencias && (
+          <DropdownMenuItem onClick={() => router.push("/preferencias")}>
+            <SlidersHorizontal className="size-4" />
+            Preferências
+          </DropdownMenuItem>
+        )}
+        {/* No celular a barra do topo não tem o "?": Ajuda e Guias ficam aqui. */}
+        {atalhos?.ajuda && (
+          <DropdownMenuItem className="md:hidden" onClick={() => router.push("/ajuda")}>
+            <BookOpen className="size-4" />
+            Ajuda e manual
+          </DropdownMenuItem>
+        )}
+        {atalhos?.guias && (
+          <DropdownMenuItem className="md:hidden" onClick={() => router.push("/guias")}>
+            <BookMarked className="size-4" />
+            Guias de uso
+          </DropdownMenuItem>
+        )}
+        {(atalhos?.minhaConta || atalhos?.preferencias) && <DropdownMenuSeparator />}
         <DropdownMenuItem onClick={() => { setNome(user.name); setNomeAberto(true); }}>
           <Pencil className="size-4" />
           Nome de exibição
@@ -171,7 +195,7 @@ export function UserMenu({
           <Smartphone className="size-4" />
           Abrir no celular
         </DropdownMenuItem>
-        <DropdownMenuItem className="md:hidden" onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}>
+        <DropdownMenuItem onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}>
           {resolvedTheme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
           {resolvedTheme === "dark" ? "Tema claro" : "Tema escuro"}
         </DropdownMenuItem>

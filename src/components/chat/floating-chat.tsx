@@ -1,10 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { MessageSquare } from "lucide-react";
 import { ChatView } from "@/components/chat/chat-view";
-import { ChatBadge } from "@/components/chat/chat-badge";
 import type { CanalListItem } from "@/modules/chat/queries";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -17,12 +15,24 @@ type Bootstrap = {
   mostrarRecibos: boolean;
 };
 
-/** Chat flutuante em todas as telas. Dados carregados sob demanda (não pesam a navegação). */
+/** Evento que o ícone de chat da barra do topo dispara para abrir a janelinha de conversa. */
+export const ABRIR_CHAT = "senahub:abrir-chat";
+
+/**
+ * Janelinha de conversa aberta pelo ícone de chat da barra do topo (sem botão flutuante: ele cobria
+ * a última coluna das tabelas). Dados carregados sob demanda (não pesam a navegação).
+ */
 export function FloatingChat() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<Bootstrap | null>(null);
   const [carregando, setCarregando] = useState(false);
+
+  useEffect(() => {
+    const aoPedir = () => void abrir();
+    window.addEventListener(ABRIR_CHAT, aoPedir);
+    return () => window.removeEventListener(ABRIR_CHAT, aoPedir);
+  });
 
   // Na própria tela de chat o widget é redundante (e evita 2 instâncias no socket).
   if (pathname?.startsWith("/chat")) return null;
@@ -42,16 +52,6 @@ export function FloatingChat() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={abrir}
-        aria-label="Abrir chat"
-        className="fixed bottom-20 right-4 z-40 hidden size-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 md:flex lg:bottom-6"
-      >
-        <MessageSquare className="size-5" />
-        <ChatBadge className="absolute -right-0.5 -top-0.5 ring-2 ring-background" />
-      </button>
-
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="h-[85vh] w-[min(1000px,96vw)] max-w-none overflow-hidden p-3 sm:max-w-[min(1000px,96vw)]">
           <DialogHeader className="sr-only">

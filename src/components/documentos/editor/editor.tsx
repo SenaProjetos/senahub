@@ -307,7 +307,7 @@ export function DocEditor({
   );
 
   return (
-    <div className="-m-4 flex h-[calc(100svh-4rem)] flex-col lg:-m-6">
+    <div className="-m-4 flex h-[calc(100svh-4rem)] md:h-[calc(100svh-3.5rem)] flex-col lg:-m-6">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 border-b bg-card px-3 py-2">
         <Button variant="ghost" size="icon" render={<Link href="/documentos" aria-label="Voltar" />}>

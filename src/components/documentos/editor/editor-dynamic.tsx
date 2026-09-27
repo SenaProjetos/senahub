@@ -18,7 +18,7 @@ const DocEditor = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="-m-4 flex h-[calc(100svh-4rem)] items-center justify-center lg:-m-6">
+      <div className="-m-4 flex h-[calc(100svh-4rem)] md:h-[calc(100svh-3.5rem)] items-center justify-center lg:-m-6">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />
           Carregando editor…

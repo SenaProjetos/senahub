@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { NAV_GROUPS } from "@/lib/nav-config";
 import { getFerramenta } from "@/modules/ferramentas/registry";
+import { useRotuloDaBarra, type RotuloBarra } from "@/components/shell/rotulo-da-barra";
 
 /** Mapa href -> título, montado a partir do NAV_GROUPS (1º segmento). */
 const HREF_TO_TITLE: Record<string, string> = (() => {
@@ -47,7 +48,7 @@ function looksLikeId(segment: string): boolean {
 
 export type BreadcrumbItem = { href?: string; label: string };
 
-function buildCrumbs(pathname: string): BreadcrumbItem[] {
+function buildCrumbs(pathname: string, rotulo: RotuloBarra | null): BreadcrumbItem[] {
   const segments = pathname.split("/").filter(Boolean);
   const crumbs: BreadcrumbItem[] = [{ href: "/", label: "Início" }];
 
@@ -63,7 +64,7 @@ function buildCrumbs(pathname: string): BreadcrumbItem[] {
       // Slug da ferramenta → nome amigável do registry (nunca expor a chave crua).
       label = getFerramenta(segment)?.nome ?? capitalize(segment);
     } else if (looksLikeId(segment)) {
-      label = "Detalhe";
+      label = rotulo?.segmento === segment ? rotulo.nome : "Detalhe";
     } else {
       label = capitalize(segment);
     }
@@ -85,11 +86,12 @@ export function Breadcrumb({
   ariaLabel?: string;
 } = {}) {
   const pathname = usePathname();
+  const rotulo = useRotuloDaBarra(pathname);
 
   // Raiz: sem breadcrumb.
   if ((!items && pathname === "/") || items?.length === 0) return null;
 
-  const crumbs = items ?? buildCrumbs(pathname);
+  const crumbs = items ?? buildCrumbs(pathname, rotulo);
 
   return (
     <nav aria-label={ariaLabel} className="min-w-0">

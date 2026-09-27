@@ -60,7 +60,7 @@ export function ComercialNav({ podeGerir, podeModelos }: { podeGerir: boolean; p
   return (
     <nav
       aria-label="Navegação do Comercial"
-      className="sticky top-16 z-10 -mx-4 border-b bg-background/90 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/75 lg:-mx-6 lg:px-6"
+      className="sticky top-16 z-10 md:top-14 -mx-4 border-b bg-background/90 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/75 lg:-mx-6 lg:px-6"
     >
       <div className="flex items-center gap-2 overflow-x-auto">
         <Button

@@ -54,11 +54,11 @@ export function AgendaResumo() {
         render={
           <button
             type="button"
-            aria-label="Resumo da agenda de hoje"
-            className="flex items-center gap-1.5 rounded-sm px-1.5 py-1 font-mono text-xs tabular-nums text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`Agenda de hoje · ${label}`}
+            title={`Agenda de hoje · ${label}`}
+            className="grid size-8 place-items-center rounded-sm text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <CalendarDays className="size-3.5" />
-            {label}
+            <CalendarDays className="size-4" />
           </button>
         }
       />
