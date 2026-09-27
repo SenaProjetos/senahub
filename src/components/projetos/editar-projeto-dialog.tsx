@@ -28,7 +28,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-type ProjetoEditavel = {
+export type ProjetoEditavel = {
   id: string;
   nome: string;
   tipo: "particular" | "licitacao" | "aprovacao" | "laudo";
@@ -50,14 +50,24 @@ export function EditarProjetoDialog({
   projeto,
   clientes,
   tiposEmpreendimento = [],
+  gatilho = "botao",
+  aberto,
+  onAbertoChange,
 }: {
   projeto: ProjetoEditavel;
   clientes: { id: string; nome: string }[];
   /** D13: classifica o projeto e sugere o modelo de EAP. Vazio = cadastro sem opções. */
   tiposEmpreendimento?: { id: string; nome: string }[];
+  /** "botao" = botão com texto; "icone" = só o lápis; "nenhum" = aberto por fora (item de um ⋯). */
+  gatilho?: "botao" | "icone" | "nenhum";
+  /** Controle externo da janela — quem abre por fora remonta com `key` para recarregar os valores. */
+  aberto?: boolean;
+  onAbertoChange?: (v: boolean) => void;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [openInterno, setOpenInterno] = useState(false);
+  const open = aberto ?? openInterno;
+  const setOpen = (v: boolean) => (onAbertoChange ? onAbertoChange(v) : setOpenInterno(v));
   const [pending, start] = useTransition();
 
   const [nome, setNome] = useState(projeto.nome);
@@ -138,9 +148,16 @@ export function EditarProjetoDialog({
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={abrir}>
-        <Pencil className="size-4" /> Editar
-      </Button>
+      {gatilho === "botao" && (
+        <Button variant="outline" size="sm" onClick={abrir}>
+          <Pencil className="size-4" /> Editar
+        </Button>
+      )}
+      {gatilho === "icone" && (
+        <Button variant="ghost" size="icon" className="size-8" aria-label="Editar projeto" title="Editar projeto" onClick={abrir}>
+          <Pencil className="size-4" />
+        </Button>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">

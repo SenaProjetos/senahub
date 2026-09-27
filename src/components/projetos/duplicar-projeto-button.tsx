@@ -26,9 +26,22 @@ const OPCOES = [
 
 type OpcaoKey = (typeof OPCOES)[number]["key"];
 
-export function DuplicarProjetoButton({ projetoId }: { projetoId: string }) {
+export function DuplicarProjetoButton({
+  projetoId,
+  semBotao = false,
+  aberto,
+  onAbertoChange,
+}: {
+  projetoId: string;
+  /** Aberto por fora (item de um ⋯): não desenha o botão. */
+  semBotao?: boolean;
+  aberto?: boolean;
+  onAbertoChange?: (v: boolean) => void;
+}) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [openInterno, setOpenInterno] = useState(false);
+  const open = aberto ?? openInterno;
+  const setOpen = (v: boolean) => (onAbertoChange ? onAbertoChange(v) : setOpenInterno(v));
   const [pending, start] = useTransition();
   const [flags, setFlags] = useState<Record<OpcaoKey, boolean>>({
     copiarResponsaveis: true,
@@ -61,9 +74,11 @@ export function DuplicarProjetoButton({ projetoId }: { projetoId: string }) {
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <Copy className="size-4" /> Duplicar
-      </Button>
+      {!semBotao && (
+        <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+          <Copy className="size-4" /> Duplicar
+        </Button>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm">

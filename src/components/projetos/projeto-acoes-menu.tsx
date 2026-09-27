@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { MoreHorizontal, Archive, XCircle, RefreshCw } from "lucide-react";
+import Link from "next/link";
+import { MoreHorizontal, Archive, XCircle, RefreshCw, Copy, FileText, MessageSquare, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +11,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
@@ -20,15 +24,40 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { cancelarOuArquivarProjeto } from "@/modules/projetos/actions";
+import { DuplicarProjetoButton } from "@/components/projetos/duplicar-projeto-button";
+import { EditarProjetoDialog, type ProjetoEditavel } from "@/components/projetos/editar-projeto-dialog";
 
+/**
+ * O ⋯ do cabeçalho do projeto. No computador: Duplicar, Gerar documento e o ciclo de vida
+ * (Chat e Editar ficam como ícones ao lado). No celular (`celular`), ao lado das abas, leva também
+ * Chat e Editar — o cabeçalho do projeto não aparece nessa largura.
+ */
 export function ProjetoAcoesMenu({
   projetoId,
   situacao,
+  podeGerir,
+  modelosDoc,
+  celular = false,
+  canalChatId,
+  editar,
 }: {
   projetoId: string;
   situacao: string;
+  podeGerir: boolean;
+  modelosDoc: { id: string; nome: string }[];
+  celular?: boolean;
+  canalChatId?: string | null;
+  editar?: {
+    projeto: ProjetoEditavel;
+    clientes: { id: string; nome: string }[];
+    tiposEmpreendimento: { id: string; nome: string }[];
+  } | null;
 }) {
   const [dialog, setDialog] = useState<"cancelar" | "arquivar" | null>(null);
+  const [duplicar, setDuplicar] = useState(false);
+  const [editarAberto, setEditarAberto] = useState(false);
+  // remonta a janela de edição a cada abertura para recarregar os valores atuais do projeto
+  const [chaveEditar, setChaveEditar] = useState(0);
   const [motivo, setMotivo] = useState("");
   const [pending, startTransition] = useTransition();
 
@@ -63,6 +92,11 @@ export function ProjetoAcoesMenu({
     });
   };
 
+  const temChat = celular && !!canalChatId;
+  const temEditar = celular && !!editar;
+  const temDocs = modelosDoc.length > 0;
+  if (!podeGerir && !temDocs && !temChat && !temEditar) return null;
+
   return (
     <>
       <DropdownMenu>
@@ -74,7 +108,46 @@ export function ProjetoAcoesMenu({
           }
         />
         <DropdownMenuContent align="end">
-          {ativo ? (
+          {temChat && (
+            <DropdownMenuItem className="gap-2" render={<Link href={`/chat?c=${canalChatId}`} />}>
+              <MessageSquare className="size-4" /> Chat do projeto
+            </DropdownMenuItem>
+          )}
+          {temEditar && (
+            <DropdownMenuItem
+              className="gap-2"
+              onClick={() => {
+                setChaveEditar((k) => k + 1);
+                setEditarAberto(true);
+              }}
+            >
+              <Pencil className="size-4" /> Editar projeto
+            </DropdownMenuItem>
+          )}
+          {podeGerir && (
+            <DropdownMenuItem className="gap-2" onClick={() => setDuplicar(true)}>
+              <Copy className="size-4" /> Duplicar projeto
+            </DropdownMenuItem>
+          )}
+          {temDocs && (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="gap-2">
+                <FileText className="size-4" /> Gerar documento
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {modelosDoc.map((m) => (
+                  <DropdownMenuItem
+                    key={m.id}
+                    render={<Link href={`/documentos/${m.id}/preview?projetoId=${encodeURIComponent(projetoId)}`} />}
+                  >
+                    {m.nome}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )}
+          {podeGerir && <DropdownMenuSeparator />}
+          {!podeGerir ? null : ativo ? (
             <>
               <DropdownMenuItem onClick={() => setDialog("arquivar")} className="gap-2">
                 <Archive className="size-4" /> Arquivar
@@ -94,6 +167,19 @@ export function ProjetoAcoesMenu({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {podeGerir && <DuplicarProjetoButton projetoId={projetoId} semBotao aberto={duplicar} onAbertoChange={setDuplicar} />}
+      {temEditar && editar && (
+        <EditarProjetoDialog
+          key={chaveEditar}
+          projeto={editar.projeto}
+          clientes={editar.clientes}
+          tiposEmpreendimento={editar.tiposEmpreendimento}
+          gatilho="nenhum"
+          aberto={editarAberto}
+          onAbertoChange={setEditarAberto}
+        />
+      )}
 
       <Dialog open={dialog !== null} onOpenChange={(v) => !v && setDialog(null)}>
         <DialogContent className="max-w-sm">
