@@ -312,3 +312,16 @@ ser divididos entre as duas worktrees).
   aberto (Relatórios e Rentabilidade descem). 111 rotas sem sobreposição e sem estourar 1366/390.
   **Ainda diferente do modelo (pergunta ao dono):** o modo foco esconde menu, barra e abas; o
   modelo só recolhia o cabeçalho do projeto no computador.
+- [x] **Menu aberto igual ao modelo** (dono apontou em 2026-09-27 que o aberto só tinha ganhado os
+  alfinetes; feito no mesmo dia, Opus 5.5). Referência: `renderExpanded` + CSS `.grp/.gh/.items/.row/
+  .cap2` do artefato. Seção = botão de 34 px (▸/▾, nome 13,5 px em negrito, contagem mono 10,5 px);
+  itens recuados sob a linha-guia (margem 17 + borda 1 + recuo 14), linhas de 30 px / 12,5 px; Início,
+  Chat e seção de item único como linhas soltas de 32 px / 13 px, sem ☆; "Fixados" no topo com ★ e
+  teto de 5 atalhos ("Máximo de 5 atalhos"); rodapé "« Minimizar · v1.21.0" numa linha (commit no
+  `title`). Medido contra o modelo: 18/18 entradas com a mesma altura, fonte, peso, posição do texto e
+  linha-guia (tudo 8 px acima porque a faixa do logo é 56 px, alinhada à barra do topo aprovada; o
+  modelo do menu tinha 64). Na gaveta do celular as linhas vão a 40 px pela regra de toque
+  (`pointer-coarse`). A lista flutuante do recolhido herdou as linhas de 32 px / 13 px do modelo.
+  **Ainda diferente do modelo no recolhido (fora do pedido, perguntar):** título da lista flutuante
+  ("TRABALHO" mono × "Trabalho · 6 itens" em negrito), ☆ nos itens da lista flutuante, e nomes do
+  trilho cortados ("Produç…", "Comer…"; o modelo cabe com 9,5 px).
