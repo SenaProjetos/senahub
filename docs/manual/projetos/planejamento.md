@@ -2,7 +2,7 @@
 titulo: Planejamento (EAP e cronograma)
 descricao: Monte o cronograma do projeto como no MS Project — duração, dependências e calendário geram as datas; aprove a linha de base, acompanhe e replaneje.
 resumo: Cada projeto tem uma EAP (lista de tarefas em árvore) com duração, dependências e responsáveis. O sistema calcula as datas em dias úteis, mostra o caminho crítico, congela a linha de base ao aprovar, e permite acompanhar (datas reais, Data de Status, saúde) e replanejar com motivo.
-tags: [planejamento, eap, cronograma, gantt, linha de base, baseline, caminho crítico, dependência, marco, data de status, saúde do cronograma, replanejar, reagendar, ms project, gantt de controle, tabela do cronograma, escala, editar na célula, menu da linha, recuar, avançar, predecessoras]
+tags: [planejamento, eap, cronograma, gantt, linha de base, baseline, caminho crítico, dependência, marco, data de status, saúde do cronograma, replanejar, reagendar, ms project, gantt de controle, tabela do cronograma, escala, editar na célula, menu da linha, recuar, avançar, mover, arrastar, predecessoras]
 palavras-chave: [planejamento, eap, wbs, cronograma, gantt, linha de base, baseline, BL-00, aprovar cronograma, replanejar, reagendar, caminho crítico, folga, dependência, predecessora, latência, marco, restrição de data, alfinete, bloqueio, data de status, apurar, saúde do cronograma, atualizar tarefa, cronograma geral, TI, II, TT, IT, id da tarefa, número da linha, inserir tarefa, excluir tarefa, recolher, expandir, nível, subtarefa, agrupamento, gantt de controle, atalho, zoom, escala de tempo, duração zero, editar na tabela]
 sinonimos: [cronograma de projeto, gantt, wbs, ms project, project, plano do projeto, linha de base do cronograma]
 ---
@@ -220,9 +220,10 @@ linhas, numa área de rolagem só (a tabela fica presa à esquerda e o cabeçalh
     O atraso é em dias úteis. O sistema recusa vínculo que criaria ciclo, mesmo que o texto esteja certo.
   - Cada gravação recalcula o cronograma; várias em sequência entram na fila e são gravadas uma de cada vez.
 - **Menu da linha** (botão direito, ou o botão **⋯** da coluna Ações): **Informações da tarefa** (a janela
-  completa), **Inserir tarefa acima**, **Recuar**, **Avançar**, **Atualizar tarefa (datas reais)**, **Gerar
-  tarefa no kanban** e **Excluir tarefa**. Os mesmos comandos têm atalho, com a linha selecionada: **Insert**
-  (inserir acima), **Delete** (excluir), **Alt+Shift+→** (recuar) e **Alt+Shift+←** (avançar).
+  completa), **Inserir tarefa acima**, **Recuar**, **Avançar**, **Mover para cima**, **Mover para baixo**,
+  **Atualizar tarefa (datas reais)**, **Gerar tarefa no kanban** e **Excluir tarefa**. Os mesmos comandos têm
+  atalho, com a linha selecionada: **Insert** (inserir acima), **Delete** (excluir), **Alt+Shift+→** (recuar),
+  **Alt+Shift+←** (avançar), **Alt+Shift+↑** e **Alt+Shift+↓** (mover).
   - **Inserir acima** cria uma tarefa de 1 dia, no mesmo nível, na disciplina da linha; o nome já abre para
     você digitar.
   - **Recuar** faz a tarefa virar a **última subtarefa** da que está logo acima dela, no mesmo nível (a de
@@ -231,6 +232,13 @@ linhas, numa área de rolagem só (a tabela fica presa à esquerda e o cabeçalh
   - **Avançar** sobe a tarefa um nível, logo depois do agrupamento onde estava. Como no Project, as tarefas
     que vinham **depois dela** naquele nível passam a ser **subtarefas dela** — é o que a mantém no mesmo
     lugar da tela.
+  - **Mover para cima/baixo** troca a tarefa de lugar com a vizinha do mesmo nível. **Tudo o que está dentro
+    dela vai junto**: mover uma fase leva as disciplinas e as tarefas dela.
+  - **Arrastar:** passe o mouse na linha e segure a alça **⋮⋮** da coluna **Nº**. Um traço mostra onde ela
+    vai cair: acima ou abaixo da linha sob o mouse, **no nível dela** — é assim que se tira uma tarefa de um
+    agrupamento e se põe em outro. Soltar logo abaixo de um agrupamento aberto põe a tarefa como a primeira
+    dele. Não se solta uma tarefa dentro dela mesma. Com filtro ligado não há alça (use o menu). A
+    **disciplina** da tarefa não muda com o lugar: troque na janela da tarefa, se for o caso.
   - **Excluir** pede confirmação e diz quantas subtarefas vão junto; os cards já gerados ficam no quadro.
 - **Tabela compacta / completa:** a tabela abre compacta (sem Disciplina, Recursos e Custo) para dar
   espaço ao gráfico; **Tabela completa** mostra todas as colunas, inclusive o **Custo** (só quem vê o

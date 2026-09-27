@@ -117,8 +117,10 @@ a lado), e quem **monta a EAP** (`planejamento:gerir`) edita do mesmo jeito que 
 - **Na célula:** clique no nome, na duração ou nas predecessoras. Duração `0` vira **marco**;
   predecessora se escreve como no Project (`3TI+2d`, `5II`).
 - **No menu da linha** (botão direito, toque e segure, ou o `⋯`): **Inserir tarefa acima**,
-  **Recuar**, **Avançar** e **Excluir** (com as subtarefas). Atalhos: `Insert`, `Delete`,
-  `Alt+Shift+→` / `Alt+Shift+←`, `F2` para renomear.
+  **Recuar**, **Avançar**, **Mover para cima/baixo** e **Excluir** (com as subtarefas). Atalhos: `Insert`,
+  `Delete`, `Alt+Shift+→` / `Alt+Shift+←`, `Alt+Shift+↑` / `Alt+Shift+↓`, `F2` para renomear.
+- **Arrastando a linha** pela alça **⋮⋮** da coluna Nº, como no Project: mover uma fase ou disciplina leva
+  tudo o que está dentro dela.
 - **Na janela da linha** (duplo clique ou `Enter`): **disciplina**, **fase** e **etapa de terceiro**.
 - **Adicionar tarefa** põe uma linha nova no fim; recue para colocá-la dentro de um agrupamento.
 
