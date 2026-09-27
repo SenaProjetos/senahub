@@ -489,14 +489,16 @@ header:has(~ main [data-cabecalho-pagina]) [data-titulo-padrao] {
   color: transparent;
 }
 
-/* Modo foco (components/ui/modo-foco-botao.tsx): dá a tela inteira à tabela de Arquivos ou ao
-   visualizador da Compatibilização, escondendo o menu lateral, a barra do topo e o cabeçalho do
-   projeto. Sai pelo botão na própria área de trabalho ou com Esc. */
-:root[data-modo-foco] [data-tour="nav"],
-:root[data-modo-foco] header.sticky,
-:root[data-modo-foco] nav[aria-label="Seções do projeto"],
+/* Modo foco (components/ui/modo-foco-botao.tsx), como no modelo aprovado: no computador recolhe só
+   o cabeçalho do projeto (menu, barra do topo e abas ficam); no celular somem as abas do projeto e a
+   barra de baixo. Sai pelo botão na própria área de trabalho ou com Esc. */
 :root[data-modo-foco] [data-foco-esconder] {
   display: none;
+}
+@media (width < 48rem) {
+  :root[data-modo-foco] [data-foco-celular] {
+    display: none;
+  }
 }
 
 /* iPhone dá zoom ao focar campo de texto com letra menor que 16 px. Em tela de toque, todo campo de
