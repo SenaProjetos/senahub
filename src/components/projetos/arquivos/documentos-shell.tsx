@@ -6,8 +6,9 @@ import { rotuloArea, type AreaDisponivel, type AreaProjeto } from "@/modules/upl
 import { ConteudoAreaProjeto, type DadosAreas } from "@/components/projetos/arquivos/conteudo-area-projeto";
 import { LinkPublicoArquivosButton } from "@/components/projetos/link-publico-arquivos-dialog";
 import { NomenclaturaProjetoButton } from "@/components/projetos/arquivos/nomenclatura-projeto-dialog";
+import { MenuArquivos } from "@/components/projetos/arquivos/menu-arquivos";
 import { GerarListaMestreButton } from "@/components/projetos/arquivos/gerar-lista-mestre-dialog";
-import { PainelLateralDocumentos } from "@/components/projetos/arquivos/painel-lateral-documentos";
+import { BotaoPastas, PainelLateralDocumentos } from "@/components/projetos/arquivos/painel-lateral-documentos";
 import type { ListaPainel } from "@/components/projetos/arquivos/painel-listas";
 import { TabelaDocumentos } from "@/components/projetos/arquivos/tabela-documentos";
 import { FiltrosDocumentos, type OpcaoCatalogoDocumento } from "@/components/projetos/arquivos/filtros-documentos";
@@ -58,7 +59,6 @@ export function DocumentosShell({
   totalFiltrado,
   paginacao,
   totalDocumentos,
-  totalDisciplinas,
   arvore,
   selecao,
   listas,
@@ -99,7 +99,6 @@ export function DocumentosShell({
   totalFiltrado: number;
   paginacao: { page: number; pageCount: number; pageSize: number };
   totalDocumentos: number;
-  totalDisciplinas: number;
   arvore: ArvoreDaDisciplina[];
   selecao: SelecaoArvore;
   listas: ListaPainel[];
@@ -135,49 +134,40 @@ export function DocumentosShell({
   return (
     <div className="space-y-4">
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <h2 className="flex flex-wrap items-baseline gap-x-2 text-xl font-extrabold tracking-tight">
-          Documentos
-          <span className="text-sm font-normal text-muted-foreground tabular-nums">
-            {totalDocumentos} {totalDocumentos === 1 ? "documento" : "documentos"} · {totalDisciplinas}{" "}
-            {totalDisciplinas === 1 ? "disciplina" : "disciplinas"}
-          </span>
-        </h2>
-        {/* Celular: os 4 botões quebrariam em 3 linhas e empurrariam a tabela pra baixo da
-            dobra. Viram uma fita que rola de lado; a partir de sm voltam a quebrar em linhas. */}
-        <div className="-mx-1 flex w-full min-w-0 items-center gap-2 overflow-x-auto px-1 pb-1 [&>*]:shrink-0 sm:mx-0 sm:w-auto sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
-          <NomenclaturaProjetoButton
-            projetoId={projeto.id}
-            nomenclaturaProjeto={nomenclatura.projeto}
-            nomenclaturaGlobal={nomenclatura.global}
-            siglasProjeto={nomenclatura.siglasProjeto}
-            podeEditar={nomenclatura.podeEditar}
-            versoes={nomenclatura.versoes}
-            versaoAtualId={nomenclatura.versaoAtualId}
-            personalizado={nomenclatura.personalizado}
-          />
-          {dadosUploader && (
-            <GerarListaMestreButton
-              projetoId={projeto.id}
-              disciplinas={dadosUploader.disciplinas.filter((d) => !d.usaPastas).map((d) => ({ id: d.id, nome: d.nome }))}
-              podeEditarMetadados={dadosUploader.podeEditarMetadados}
-              podeValidar={podeValidar}
-            />
-          )}
-          {linkPublico && (
-            <LinkPublicoArquivosButton
-              projetoId={projeto.id}
-              disciplinas={linkPublico.disciplinas}
-              baseUrl={linkPublico.baseUrl}
-              clienteEmail={linkPublico.clienteEmail}
-              links={linkPublico.links}
-              fasesLink={linkPublico.fasesLink}
-            />
-          )}
-          {dadosUploader && <EnviarDocumentosDialog dados={dadosUploader} abrirAoCarregar={abrirEnvio} />}
-          <ModoFocoBotao />
-        </div>
-      </div>
+      {/* Janelas abertas pelo ⋯ da barra (Nomenclatura, Lista Mestre, Link público, modo foco):
+          montadas aqui, fora do menu, para não fecharem junto com ele. */}
+      <NomenclaturaProjetoButton
+        semBotao
+        projetoId={projeto.id}
+        nomenclaturaProjeto={nomenclatura.projeto}
+        nomenclaturaGlobal={nomenclatura.global}
+        siglasProjeto={nomenclatura.siglasProjeto}
+        podeEditar={nomenclatura.podeEditar}
+        versoes={nomenclatura.versoes}
+        versaoAtualId={nomenclatura.versaoAtualId}
+        personalizado={nomenclatura.personalizado}
+      />
+      {dadosUploader && (
+        <GerarListaMestreButton
+          semBotao
+          projetoId={projeto.id}
+          disciplinas={dadosUploader.disciplinas.filter((d) => !d.usaPastas).map((d) => ({ id: d.id, nome: d.nome }))}
+          podeEditarMetadados={dadosUploader.podeEditarMetadados}
+          podeValidar={podeValidar}
+        />
+      )}
+      {linkPublico && (
+        <LinkPublicoArquivosButton
+          semBotao
+          projetoId={projeto.id}
+          disciplinas={linkPublico.disciplinas}
+          baseUrl={linkPublico.baseUrl}
+          clienteEmail={linkPublico.clienteEmail}
+          links={linkPublico.links}
+          fasesLink={linkPublico.fasesLink}
+        />
+      )}
+      <ModoFocoBotao semBotao />
 
       <QuadroAlturaTela folga={40} className="grid grid-cols-1 gap-4 md:grid-cols-[260px_1fr] md:items-start">
         <PainelLateralDocumentos>
@@ -207,7 +197,8 @@ export function DocumentosShell({
           <>
           {/* Barra única: busca, filtros, fases e colunas na mesma linha (quebra só se faltar largura). */}
           <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
-            <div className="min-w-0 flex-1 basis-72">
+            <BotaoPastas />
+            <div className="min-w-0 flex-1 basis-0 md:basis-72">
             <FiltrosDocumentos
               extensoes={extensoes}
               autores={autores}
@@ -223,7 +214,17 @@ export function DocumentosShell({
             <div className="order-last min-w-0 flex-[1_1_100%] xl:order-none xl:flex-[0_1_auto]">
               <SeletorFasesDocumentos fases={fases} documentosPorFase={documentosPorFase} />
             </div>
-            <SeletorColunas ocultas={colunasOcultas} />
+            {/* Colunas, ⋯ e Enviar no fim da mesma linha (modelo aprovado, Fase 2). */}
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              <div className="hidden md:contents">
+                <SeletorColunas ocultas={colunasOcultas} />
+              </div>
+              <MenuArquivos
+                listaMestre={dadosUploader ? dadosUploader.disciplinas.some((d) => !d.usaPastas) : null}
+                linkPublico={linkPublico ? linkPublico.links.filter((l) => l.ativo).length : null}
+              />
+              {dadosUploader && <EnviarDocumentosDialog dados={dadosUploader} abrirAoCarregar={abrirEnvio} />}
+            </div>
           </div>
           <div className="md:min-h-0 md:flex-1 md:overflow-y-auto">
           <TabelaDocumentos

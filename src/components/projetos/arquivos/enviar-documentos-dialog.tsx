@@ -177,8 +177,13 @@ export function EnviarDocumentosDialog({
     >
       <DialogTrigger
         render={
-          <Button size="sm">
-            <UploadIcon className="size-3.5" /> Enviar documentos
+          // Celular: botão flutuante acima da barra de baixo (modelo aprovado); computador: no fim da
+          // barra de ferramentas.
+          <Button
+            size="sm"
+            className="max-md:fixed max-md:right-4 max-md:bottom-20 max-md:z-30 max-md:h-11 max-md:rounded-full max-md:px-4 max-md:shadow-lg"
+          >
+            <UploadIcon className="size-3.5" /> Enviar<span className="hidden md:inline"> documentos</span>
           </Button>
         }
       />

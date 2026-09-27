@@ -7,12 +7,15 @@ import { cn } from "@/lib/utils";
 
 const ATRIBUTO = "data-modo-foco";
 
+/** Disparado por um item de ⋯ para ligar/desligar o modo foco. */
+export const EVENTO_MODO_FOCO = "senahub:modo-foco";
+
 /**
  * Modo foco: esconde o menu lateral, a barra do topo e o cabeçalho do projeto para dar a tela
  * inteira à tabela ou ao visualizador. A regra de CSS está em `globals.css`; o botão fica dentro da
  * área de trabalho, então continua à mão para sair (Esc também sai). Só no computador.
  */
-export function ModoFocoBotao({ className }: { className?: string }) {
+export function ModoFocoBotao({ className, semBotao = false }: { className?: string; /** Acionado pelo ⋯: não desenha o botão. */ semBotao?: boolean }) {
   const [ativo, setAtivo] = useState(false);
 
   function aplicar(novo: boolean) {
@@ -25,6 +28,13 @@ export function ModoFocoBotao({ className }: { className?: string }) {
   }
 
   useEffect(() => {
+    if (!semBotao) return;
+    const alternar = () => aplicar(!document.documentElement.hasAttribute(ATRIBUTO));
+    window.addEventListener(EVENTO_MODO_FOCO, alternar);
+    return () => window.removeEventListener(EVENTO_MODO_FOCO, alternar);
+  }, [semBotao]);
+
+  useEffect(() => {
     const aoTeclar = (e: KeyboardEvent) => {
       if (e.key === "Escape" && document.documentElement.hasAttribute(ATRIBUTO)) aplicar(false);
     };
@@ -35,6 +45,8 @@ export function ModoFocoBotao({ className }: { className?: string }) {
       document.documentElement.removeAttribute(ATRIBUTO);
     };
   }, []);
+
+  if (semBotao) return null;
 
   return (
     <Button

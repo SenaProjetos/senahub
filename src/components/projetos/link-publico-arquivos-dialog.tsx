@@ -1,5 +1,7 @@
 "use client";
 
+import { EVENTO_ARQUIVOS } from "@/components/projetos/arquivos/menu-arquivos";
+import { useAbrirPorEvento } from "@/lib/use-abrir-por-evento";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -89,7 +91,10 @@ export function LinkPublicoArquivosButton({
   links,
   clienteEmail,
   fasesLink,
+  semBotao = false,
 }: {
+  /** Aberto pelo ⋯ de Arquivos: não desenha o botão. */
+  semBotao?: boolean;
   projetoId: string;
   baseUrl: string;
   disciplinas: { id: string; nome: string }[];
@@ -101,22 +106,25 @@ export function LinkPublicoArquivosButton({
 }) {
   const [aberto, setAberto] = useState(false);
   const [criando, setCriando] = useState(false);
+  useAbrirPorEvento(semBotao ? EVENTO_ARQUIVOS.linkPublico : undefined, () => setAberto(true));
   const ativos = links.filter((l) => l.ativo).length;
 
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>
-      <DialogTrigger
-        render={
-          <Button variant="outline" size="sm">
-            <Share2 className="size-3.5" /> Link público
-            {ativos > 0 && (
-              <Badge variant="secondary" className="ml-1 tabular-nums">
-                {ativos}
-              </Badge>
-            )}
-          </Button>
-        }
-      />
+      {!semBotao && (
+        <DialogTrigger
+          render={
+            <Button variant="outline" size="sm">
+              <Share2 className="size-3.5" /> Link público
+              {ativos > 0 && (
+                <Badge variant="secondary" className="ml-1 tabular-nums">
+                  {ativos}
+                </Badge>
+              )}
+            </Button>
+          }
+        />
+      )}
       <DialogContent className="max-h-[85svh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Links públicos de arquivos</DialogTitle>

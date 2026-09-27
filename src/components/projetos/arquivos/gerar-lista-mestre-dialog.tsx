@@ -1,5 +1,7 @@
 "use client";
 
+import { EVENTO_ARQUIVOS } from "@/components/projetos/arquivos/menu-arquivos";
+import { useAbrirPorEvento } from "@/lib/use-abrir-por-evento";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -53,7 +55,10 @@ export function GerarListaMestreButton({
   disciplinas,
   podeEditarMetadados,
   podeValidar,
+  semBotao = false,
 }: {
+  /** Aberta pelo ⋯ de Arquivos: não desenha o botão. */
+  semBotao?: boolean;
   projetoId: string;
   /** Só disciplinas em que a pessoa pode enviar e que usam pacotes (pasta não tem Lista Mestre). */
   disciplinas: { id: string; nome: string }[];
@@ -165,11 +170,17 @@ export function GerarListaMestreButton({
     }
   }
 
+  useAbrirPorEvento(semBotao ? EVENTO_ARQUIVOS.listaMestre : undefined, () => {
+    if (disciplinas.length > 0) alternar(true);
+  });
+
   return (
     <Dialog open={aberto} onOpenChange={alternar}>
-      <Button size="sm" variant="outline" onClick={() => alternar(true)} disabled={disciplinas.length === 0}>
-        <ListChecks className="size-3.5" /> Gerar Lista Mestre
-      </Button>
+      {!semBotao && (
+        <Button size="sm" variant="outline" onClick={() => alternar(true)} disabled={disciplinas.length === 0}>
+          <ListChecks className="size-3.5" /> Gerar Lista Mestre
+        </Button>
+      )}
       <DialogContent className="sm:max-w-3xl" showCloseButton={!gerando}>
         <DialogHeader>
           <DialogTitle>Gerar Lista Mestre</DialogTitle>

@@ -397,7 +397,6 @@ export default async function ArquivosPage({
         colunasOcultas={colunasOcultas}
         totalDocumentos={totalDocumentos}
         totalFiltrado={pagina.total}
-        totalDisciplinas={disciplinasArvore.length}
         arvore={arvoreNavegacao}
         selecao={{ disciplinaId: selecionadaId, fase: sp?.fase ?? null, ext: sp?.ext ?? null }}
         listas={listas}

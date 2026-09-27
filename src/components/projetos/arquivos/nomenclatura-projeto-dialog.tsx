@@ -1,5 +1,7 @@
 "use client";
 
+import { EVENTO_ARQUIVOS } from "@/components/projetos/arquivos/menu-arquivos";
+import { useAbrirPorEvento } from "@/lib/use-abrir-por-evento";
 import { useState } from "react";
 import { Tags } from "lucide-react";
 import type { PranchaCatalogoRow } from "@/modules/projetos/pranchas/queries";
@@ -28,7 +30,10 @@ export function NomenclaturaProjetoButton({
   versoes,
   versaoAtualId,
   personalizado,
+  semBotao = false,
 }: {
+  /** Aberta pelo ⋯ de Arquivos: não desenha o botão. */
+  semBotao?: boolean;
   projetoId: string;
   nomenclaturaProjeto: Nomenclatura & { definido: boolean };
   nomenclaturaGlobal: Nomenclatura;
@@ -40,13 +45,16 @@ export function NomenclaturaProjetoButton({
   personalizado: boolean;
 }) {
   const [aberto, setAberto] = useState(false);
+  useAbrirPorEvento(semBotao ? EVENTO_ARQUIVOS.nomenclatura : undefined, () => setAberto(true));
   const siglasAtivas = siglasProjeto.filter((s) => s.ativo);
 
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>
-      <Button size="sm" variant="outline" onClick={() => setAberto(true)}>
-        <Tags className="size-3.5" /> Nomenclatura
-      </Button>
+      {!semBotao && (
+        <Button size="sm" variant="outline" onClick={() => setAberto(true)}>
+          <Tags className="size-3.5" /> Nomenclatura
+        </Button>
+      )}
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Nomenclatura do projeto</DialogTitle>

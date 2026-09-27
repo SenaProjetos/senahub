@@ -53,9 +53,15 @@ export function SeletorColunas({ ocultas }: { ocultas: string[] }) {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="outline" size="sm" disabled={pendente}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={pendente}
+            className="shrink-0 gap-1 px-2"
+            aria-label="Colunas"
+            title={local.length > 0 ? `Colunas (${visiveis} de ${ocultaveis.length} visíveis)` : "Colunas"}
+          >
             <Columns3 className="size-3.5" />
-            Colunas
             {local.length > 0 && (
               <span className="tabular-nums text-muted-foreground">
                 {visiveis}/{ocultaveis.length}
