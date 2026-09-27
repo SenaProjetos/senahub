@@ -2,12 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { addDays } from "date-fns";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { montarCalendario, paraDataUtc, paraDia } from "@/modules/planejamento/agenda";
-import { diasUteisEntre } from "@/lib/calendario-trabalho";
+import { paraDataUtc, paraDia } from "@/modules/planejamento/agenda";
 import { statusAoDesbloquear } from "@/modules/planejamento/execucao";
 import { registrarExecucaoNaLinha } from "@/modules/planejamento/execucao-service";
 import { inicioDoDiaUtc } from "@/lib/data";
@@ -28,6 +26,7 @@ import { reservarIdsParaLinhas } from "@/modules/planejamento/id-corporativo";
 import { regrasDeEdicao } from "@/modules/planejamento/edicao-linha";
 import { trocarPredecessoras } from "@/modules/planejamento/dependencias-service";
 import { avancarLinha, inserirLinhaAcima, moverLinha, moverLinhaNoNivel, recuarLinha } from "@/modules/planejamento/arvore-service";
+import { gerarEapDasDisciplinasNoProjeto } from "@/modules/planejamento/modelos/disciplina-service";
 import { aposMudarEap } from "@/modules/planejamento/pos-eap";
 import { registrarProgresso } from "@/modules/planejamento/progresso-historico-service";
 
@@ -456,67 +455,25 @@ export const aplicarAoProjeto = defineAction(
 );
 
 /**
- * P-36: cria uma tarefa de EAP por disciplina que ainda não tem uma (vínculo
- * disciplinaId). Datas: fim = prazo da disciplina (ou prazo final do projeto, ou
- * hoje+14); início = hoje. Bootstrap rápido para sair do "Sem tarefas de EAP".
+ * "Gerar EAP das disciplinas": cada disciplina sem linha na EAP ganha o conteúdo do modelo de DISCIPLINA escolhido
+ * (fases e tarefas) ou, sem modelo, uma linha só até o prazo dela (P-36). Regra em `modelos/disciplina-service.ts`.
  */
 export const gerarEapDasDisciplinas = defineAction(
-  { ...plan, acao: "gerar-eap-disciplinas", entidade: "EapTarefa", schema: projetoIdSchema },
+  {
+    ...plan,
+    acao: "gerar-eap-disciplinas",
+    entidade: "EapTarefa",
+    schema: z.object({
+      projetoId: z.string().min(1),
+      /** Por disciplina, o modelo escolhido (`null` = linha única). Sem isto, o modelo padrão de cada uma. */
+      escolhas: z.array(z.object({ disciplinaId: z.string().min(1), modeloId: z.string().min(1).nullable() })).max(200).optional(),
+    }),
+  },
   async (i, { user }) => {
-    const [disciplinas, existentes, projeto, maxOrdem, cronograma] = await Promise.all([
-      prisma.disciplina.findMany({
-        where: { projetoId: i.projetoId },
-        orderBy: { ordem: "asc" },
-        select: { id: true, disciplinaTextoLegado: true, prazo: true },
-      }),
-      prisma.eapTarefa.findMany({
-        where: { projetoId: i.projetoId, disciplinaId: { not: null } },
-        select: { disciplinaId: true },
-      }),
-      prisma.projeto.findUnique({ where: { id: i.projetoId }, select: { prazoPlanejado: true } }),
-      prisma.eapTarefa.aggregate({ where: { projetoId: i.projetoId }, _max: { ordem: true } }),
-      prisma.cronogramaProjeto.findUnique({ where: { projetoId: i.projetoId }, select: { inicioProjeto: true } }),
-    ]);
-    const jaComEap = new Set(existentes.map((e) => e.disciplinaId));
-    const novas = disciplinas.filter((d) => !jaComEap.has(d.id));
-    if (novas.length === 0) throw new ActionError("Todas as disciplinas já têm tarefa na EAP.");
-
-    // A linha nasce na âncora do cronograma (ou hoje) e DURA os dias úteis até o prazo da disciplina
-    // — é o que a põe terminando no prazo quando o motor a agenda. Antes nascia sem duração (1 dia) e
-    // o primeiro reagendamento a encolhia para um dia só.
-    const ancora = paraDia(cronograma?.inicioProjeto ?? inicioDoDiaUtc());
-    const prazoProjeto = projeto?.prazoPlanejado ? paraDia(projeto.prazoPlanejado) : null;
-    const fimDe = (prazo: Date | null) => {
-      const p = prazo ? paraDia(prazo) : null;
-      if (p && p > ancora) return p;
-      if (prazoProjeto && prazoProjeto > ancora) return prazoProjeto;
-      return paraDia(addDays(paraDataUtc(ancora), 14));
-    };
-    const fins = novas.map((d) => fimDe(d.prazo));
-    const cal = await montarCalendario([ancora, ...fins].map((d) => Number(d.slice(0, 4))));
-    let ordem = (maxOrdem._max.ordem ?? -1) + 1;
-    const idsCorporativos = await reservarIdsParaLinhas(prisma, novas.map(() => "atv" as const));
-    const criadas = await prisma.$transaction(
-      novas.map((d, k) =>
-        prisma.eapTarefa.create({
-          data: {
-            idCorporativo: idsCorporativos[k],
-            projetoId: i.projetoId,
-            disciplinaId: d.id,
-            nome: d.disciplinaTextoLegado,
-            inicioPrevisto: paraDataUtc(ancora),
-            fimPrevisto: paraDataUtc(fins[k]),
-            duracaoDias: Math.max(1, diasUteisEntre(ancora, fins[k], cal)),
-            ordem: ordem++,
-          },
-          select: { id: true },
-        }),
-      ),
-    );
-    await herdarResponsaveisNoProjeto(prisma, i.projetoId, criadas.map((c) => c.id));
+    const r = await gerarEapDasDisciplinasNoProjeto({ projetoId: i.projetoId, escolhas: i.escolhas });
     await aposMudarEap(i.projetoId, user.id);
     revProjeto(i.projetoId);
-    return { criadas: novas.length };
+    return r;
   },
 );
 

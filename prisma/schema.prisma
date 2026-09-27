@@ -1114,6 +1114,8 @@ model DisciplinaCatalogo {
   itensTabelaPreco  ItemTabelaPreco[]
   /// Disciplinas de projeto que já apontam para este catálogo (CRM F1.19c).
   disciplinas       Disciplina[]
+  /// Modelos de EAP desta disciplina (`ModeloEap.disciplinaCatalogoId`).
+  modelosEap        ModeloEap[]
   /// Negociações que já apontam para este catálogo (CRM F2.4).
   negociacoes       NegociacaoDisciplina[]
 
@@ -5165,10 +5167,16 @@ model ModeloEap {
   ativo                Boolean             @default(true)
   autorId              String?
   autor                User?               @relation("ModeloEapAutor", fields: [autorId], references: [id], onDelete: SetNull)
+  /// Modelo de DISCIPLINA: o conteúdo de uma disciplina (fases e tarefas), que "Gerar EAP das disciplinas"
+  /// aplica em cada disciplina do projeto. Nulo = modelo de projeto (a EAP inteira). Restrict: disciplina
+  /// do catálogo com modelo se arquiva, não se apaga.
+  disciplinaCatalogoId String?
+  disciplinaCatalogo   DisciplinaCatalogo? @relation(fields: [disciplinaCatalogoId], references: [id], onDelete: Restrict)
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
   @@index([tipoEmpreendimentoId])
+  @@index([disciplinaCatalogoId])
   @@map("modelo_eap")
 }
 

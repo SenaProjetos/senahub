@@ -281,9 +281,10 @@ function impedimentoParaAplicar(ctx: Awaited<ReturnType<typeof contextoDoProjeto
 export async function previaDaAplicacao(p: { projetoId: string; modeloId: string }): Promise<PreviaDaAplicacao> {
   const modelo = await prisma.modeloEap.findUnique({
     where: { id: p.modeloId },
-    select: { nome: true, estrutura: true, ativo: true, tipoEmpreendimentoId: true },
+    select: { nome: true, estrutura: true, ativo: true, tipoEmpreendimentoId: true, disciplinaCatalogoId: true },
   });
   if (!modelo || !modelo.ativo) throw new ActionError("Modelo não encontrado.");
+  if (modelo.disciplinaCatalogoId) throw new ActionError(MOTIVO_MODELO_DE_DISCIPLINA);
   const estrutura = lerEstrutura(modelo.estrutura);
   if (!estrutura) throw new ActionError("Este modelo está em formato inválido. Importe o arquivo de novo.");
 
@@ -352,9 +353,10 @@ export async function aplicarModeloNoProjeto(p: {
 }> {
   const modelo = await prisma.modeloEap.findUnique({
     where: { id: p.modeloId },
-    select: { estrutura: true, ativo: true },
+    select: { estrutura: true, ativo: true, disciplinaCatalogoId: true },
   });
   if (!modelo || !modelo.ativo) throw new ActionError("Modelo não encontrado.");
+  if (modelo.disciplinaCatalogoId) throw new ActionError(MOTIVO_MODELO_DE_DISCIPLINA);
   const estrutura = lerEstrutura(modelo.estrutura);
   if (!estrutura) throw new ActionError("Este modelo está em formato inválido. Importe o arquivo de novo.");
 
@@ -418,7 +420,8 @@ export async function aplicarModeloNoProjeto(p: {
 export async function previasDosModelos(projetoId: string): Promise<(PreviaDaAplicacao & { modeloId: string })[]> {
   const [modelos, ctx] = await Promise.all([
     prisma.modeloEap.findMany({
-      where: { ativo: true },
+      // Só modelos de PROJETO: o de disciplina entra por "Gerar EAP das disciplinas".
+      where: { ativo: true, disciplinaCatalogoId: null },
       select: { id: true, nome: true, estrutura: true, tipoEmpreendimentoId: true },
       orderBy: { updatedAt: "desc" },
     }),
@@ -525,6 +528,8 @@ export async function listarModelos(p?: { tipoEmpreendimentoId?: string | null }
       updatedAt: true,
       tipoEmpreendimento: { select: { id: true, nome: true } },
       autor: { select: { name: true } },
+      /** Preenchido = modelo de DISCIPLINA; a lista mostra os dois tipos separados. */
+      disciplinaCatalogo: { select: { id: true, nome: true } },
     },
     orderBy: [{ updatedAt: "desc" }],
   });
@@ -547,6 +552,7 @@ export async function modeloParaRevisar(id: string) {
       estrutura: true,
       createdAt: true,
       updatedAt: true,
+      disciplinaCatalogo: { select: { id: true, nome: true } },
     },
   });
   if (!m) return null;
@@ -577,6 +583,9 @@ export async function modeloParaRevisar(id: string) {
 
   return { ...m, estrutura, nomes };
 }
+
+export const MOTIVO_MODELO_DE_DISCIPLINA =
+  "Este é um modelo de disciplina: ele entra pelo botão \"Gerar EAP das disciplinas\", não como EAP do projeto inteiro.";
 
 export const MOTIVO_MODELO_MUDOU =
   "Alguém salvou este modelo depois que você o abriu. Recarregue a página para ver a versão nova — o que você mudou aqui não foi gravado.";

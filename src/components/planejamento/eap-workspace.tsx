@@ -10,7 +10,6 @@ import {
   CheckCheck,
   ArrowLeft,
   Rocket,
-  ListTree,
   CalendarClock,
   Download,
   FileText,
@@ -24,7 +23,6 @@ import {
   editarEapTarefa,
   excluirEapTarefa,
   gerarTarefaDeEap,
-  gerarEapDasDisciplinas,
   inserirEapTarefaAcima,
   moverEapTarefa,
   moverEapTarefaNoNivel,
@@ -41,6 +39,8 @@ import { somarDias } from "@/lib/dias-iso";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AplicarModeloDialog, type PreviaDeModelo } from "@/components/planejamento/modelos/aplicar-modelo-dialog";
+import { GerarEapDisciplinasDialog } from "@/components/planejamento/modelos/gerar-eap-disciplinas-dialog";
+import type { OpcaoDeDisciplina } from "@/modules/planejamento/modelos/disciplina-service";
 import type { Vinculo } from "@/modules/planejamento/gantt-linhas";
 import {
   ACAO_ABRIR,
@@ -88,6 +88,7 @@ export function EapWorkspace({
   cronograma,
   qualidade,
   previasModelos = [],
+  opcoesDisciplinas = [],
 }: {
   projeto: { id: string; codigo: string; nome: string };
   tarefas: EapTarefaDTO[];
@@ -123,6 +124,8 @@ export function EapWorkspace({
    * tem linha, quem olha não monta EAP, ou não há modelo cadastrado — e aí o botão não aparece.
    */
   previasModelos?: PreviaDeModelo[];
+  /** Disciplinas sem tarefa na EAP, com os modelos de disciplina que servem ("Gerar EAP das disciplinas"). */
+  opcoesDisciplinas?: OpcaoDeDisciplina[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -345,16 +348,6 @@ export function EapWorkspace({
     });
   }
 
-  function gerarEap() {
-    start(async () => {
-      const r = await gerarEapDasDisciplinas({ projetoId: projeto.id });
-      if (r.ok) {
-        toast.success(`${r.data.criadas} tarefa(s) criada(s) a partir das disciplinas.`);
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
-
   function herdar() {
     start(async () => {
       const r = await herdarResponsaveisDaDisciplina({ projetoId: projeto.id });
@@ -438,9 +431,11 @@ export function EapWorkspace({
                 <Plus className="size-3.5" /> Nova tarefa
               </Button>
               {disciplinas.length > 0 && (
-                <Button size="sm" variant="outline" onClick={gerarEap} disabled={pending}>
-                  <ListTree className="size-3.5" /> Gerar EAP das disciplinas
-                </Button>
+                <GerarEapDisciplinasDialog
+                  key={opcoesDisciplinas.map((o) => o.disciplinaId).join()}
+                  projetoId={projeto.id}
+                  opcoes={opcoesDisciplinas}
+                />
               )}
               <Button
                 size="sm"
@@ -535,9 +530,13 @@ export function EapWorkspace({
               podeGerir ? (
                 <div className="flex flex-wrap justify-center gap-2">
                   {disciplinas.length > 0 && (
-                    <Button onClick={gerarEap} disabled={pending}>
-                      <ListTree className="size-3.5" /> Gerar EAP das disciplinas
-                    </Button>
+                    <GerarEapDisciplinasDialog
+                      key={opcoesDisciplinas.map((o) => o.disciplinaId).join()}
+                      projetoId={projeto.id}
+                      opcoes={opcoesDisciplinas}
+                      variante="default"
+                      tamanho="default"
+                    />
                   )}
                   {previasModelos.length > 0 && (
                     <AplicarModeloDialog projetoId={projeto.id} previas={previasModelos} />

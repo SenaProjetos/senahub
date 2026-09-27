@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { aposMudarEap } from "../pos-eap";
 import { estruturaModeloSchema } from "./estrutura";
 import { aplicarModeloNoProjeto, salvarEdicaoDoModelo, salvarModeloDeEap } from "./service";
+import { criarModelosDeDisciplina } from "./disciplina-service";
 
 /**
  * Modelos de EAP (decisão #5). Mesma permissão de quem monta a EAP (`planejamento:gerir`): o modelo é
@@ -93,6 +94,19 @@ export const editarEstruturaModeloEap = defineAction(
     const r = await salvarEdicaoDoModelo({ id: i.id, versao: i.versao, linhas: i.linhas });
     revalidatePath("/planejamento/modelos");
     revalidatePath(`/planejamento/modelos/${i.id}`);
+    return r;
+  },
+);
+
+/**
+ * Um modelo de DISCIPLINA para cada disciplina do catálogo que o modelo de projeto tem (pedido do dono,
+ * 2026-09-27): é o que "Gerar EAP das disciplinas" aplica. Não duplica o que já existe com o mesmo nome.
+ */
+export const criarModelosDeDisciplinaEap = defineAction(
+  { ...plan, acao: "criar-modelos-disciplina", schema: z.object({ modeloId: z.string().min(1) }) },
+  async (i, { user }) => {
+    const r = await criarModelosDeDisciplina({ modeloId: i.modeloId, autorId: user.id });
+    revalidatePath("/planejamento/modelos");
     return r;
   },
 );

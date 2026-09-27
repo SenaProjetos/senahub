@@ -8,12 +8,14 @@ import { inicioDoDiaUtc } from "@/lib/data";
 import { montarCalendario, paraDia } from "@/modules/planejamento/agenda";
 import { podeVerDatasDoPlanejamento } from "@/modules/planejamento/acesso";
 import { catalogosParaMapear, modeloParaRevisar } from "@/modules/planejamento/modelos/service";
+import { disciplinasDoModelo } from "@/modules/planejamento/modelos/por-disciplina";
 import { formatarDataHora } from "@/lib/utils";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CollapsibleSection } from "@/components/ui/collapsible";
 import { ModeloEapEditor } from "@/components/planejamento/modelos/modelo-eap-editor";
+import { CriarModelosDisciplinaBotao } from "@/components/planejamento/modelos/criar-modelos-disciplina-botao";
 
 export const metadata: Metadata = { title: "Modelo de EAP" };
 
@@ -40,15 +42,23 @@ export default async function ModeloEapPage({ params }: { params: Promise<{ id: 
   const [calendario, catalogos] = estrutura
     ? await Promise.all([montarCalendario([ano - 1, ano, ano + 1, ano + 2, ano + 3]), catalogosParaMapear()])
     : [null, null];
+  // Modelo de PROJETO com disciplina do catálogo pode dar origem a modelos de disciplina.
+  const nomeDisciplina = new Map((catalogos?.disciplinas ?? []).map((d) => [d.id, d.nome]));
+  const disciplinasParaExtrair =
+    podeEditar && estrutura && !modelo.disciplinaCatalogo
+      ? disciplinasDoModelo(estrutura).flatMap((id) => (nomeDisciplina.has(id) ? [nomeDisciplina.get(id)!] : []))
+      : [];
 
   return (
     <div className="space-y-4">
       <CabecalhoPagina
         titulo={modelo.nome}
         descricao={
-          podeEditar
-            ? "Edite como na EAP do projeto: na célula, nas predecessoras e no menu da linha. Salve no fim."
-            : "A estrutura do modelo, como ela entra num projeto."
+          modelo.disciplinaCatalogo
+            ? `Modelo da disciplina ${modelo.disciplinaCatalogo.nome}: entra pelo "Gerar EAP das disciplinas" do projeto.`
+            : podeEditar
+              ? "Edite como na EAP do projeto: na célula, nas predecessoras e no menu da linha. Salve no fim."
+              : "A estrutura do modelo, como ela entra num projeto."
         }
         trilha={[
           { href: "/", label: "Início" },
@@ -57,9 +67,14 @@ export default async function ModeloEapPage({ params }: { params: Promise<{ id: 
           { label: modelo.nome },
         ]}
         acoes={
-          <Button variant="outline" size="sm" render={<Link href="/planejamento/modelos" />}>
-            <ArrowLeft className="size-3.5" /> Modelos
-          </Button>
+          <>
+            {disciplinasParaExtrair.length > 0 && (
+              <CriarModelosDisciplinaBotao modeloId={modelo.id} disciplinas={disciplinasParaExtrair} />
+            )}
+            <Button variant="outline" size="sm" render={<Link href="/planejamento/modelos" />}>
+              <ArrowLeft className="size-3.5" /> Modelos
+            </Button>
+          </>
         }
       />
       <p className="text-xs text-muted-foreground">
@@ -86,7 +101,7 @@ export default async function ModeloEapPage({ params }: { params: Promise<{ id: 
             verDatas={verDatas}
           />
 
-          {modelo.nomes.length > 0 && (
+          {modelo.nomes.length > 0 && !modelo.disciplinaCatalogo && (
             <CollapsibleSection
               titulo="O que cada nome do arquivo virou"
               descricao="A conferência da importação: cada agrupamento do arquivo e a disciplina ou fase que ele virou."
