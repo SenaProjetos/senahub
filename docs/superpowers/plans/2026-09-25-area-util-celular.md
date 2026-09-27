@@ -269,6 +269,17 @@ ser divididos entre as duas worktrees).
     Recursos e `resumoJornada` (`sessaoDesde` + `tarefaAtiva`/`retomarTarefa` convivem).
   - Artefato de aprovação atualizado com a aba "Resultado e decisões" e as opções A/B/C de
     Comercial (11 telas; barra de 49 px + título de 52–72 px em 1366 × 768) e Avisos.
+- [x] **Revisão com Opus 5.5 (2026-09-26, segunda rodada).**
+  - Com o menu **aberto** a 1366 px, 18 de 74 cabeçalhos estouravam a barra (botões quebrando
+    linha por cima do relógio e da busca). A varredura do lote 7 só olhava o menu recolhido e a
+    caixa do cabeçalho, não os filhos. Corrigido com `AjusteCabecalho` (`data-apertado` → linha
+    própria); com o menu aberto, 15 telas descem e 6 continuam na barra.
+  - 51 de 73 descrições saem cortadas na barra. O texto inteiro virou dica (title); Recursos
+    (avisos de superalocação e botão da carga planejada) e Jurídico (link) tinham conteúdo
+    clicável escondido e foram corrigidos. Encurtar as descrições longas fica como pendência.
+  - Regras viraram padrão no CLAUDE.md ("Page header and screen layout").
+  - Modelo interativo de Comercial e Avisos (A/B/C, computador e celular) e antes/depois por tela
+    na página de aprovação.
 - [ ] Lote 9 — **escopo menor:** a EAP (F6) já grava `SessaoTrabalho.tarefaId` (opcional, card
   de `Tarefa`). Falta só levar essa escolha para a lista do card de ponto (Início e Ponto no
   celular), no lugar da prévia "disciplina › atividade". Sem schema novo.
