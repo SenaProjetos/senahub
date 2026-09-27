@@ -103,15 +103,19 @@ export function Breadcrumb({
               {index > 0 && (
                 <ChevronRight className="size-3 shrink-0 text-muted-foreground/60" aria-hidden />
               )}
-              <li className="min-w-0">
+              {/* O item atual (repetido no título) encolhe primeiro; os outros têm um piso, para
+                  "Início" não virar "I…". */}
+              <li className={isLast ? "min-w-0 shrink-[4]" : "min-w-8"}>
                 {isLast || !crumb.href ? (
-                  <span className="truncate font-medium text-foreground" aria-current="page">
+                  // `block`: truncate em elemento em linha não corta — o texto vazava por cima do vizinho
+                  // (e do botão ao lado) quando a trilha não cabia, no celular.
+                  <span className="block truncate font-medium text-foreground" aria-current="page">
                     {crumb.label}
                   </span>
                 ) : (
                   <Link
                     href={crumb.href}
-                    className="truncate transition-colors hover:text-foreground"
+                    className="block truncate transition-colors hover:text-foreground"
                   >
                     {crumb.label}
                   </Link>

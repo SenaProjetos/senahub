@@ -56,8 +56,9 @@ export function CabecalhoPagina({
       <div className="min-w-40 flex-[1_1_10rem]">
         <Breadcrumb items={trilha} />
         <div className="flex min-w-0 items-baseline gap-2">
-          {/* shrink-0: o título nunca perde espaço para a descrição — só ela encolhe/some. */}
-          <h1 className="shrink-0 truncate text-lg font-bold tracking-tight">{titulo}</h1>
+          {/* shrink-0: o título nunca perde espaço para a descrição — só ela encolhe/some. `max-w-full`: mas
+              também nunca passa da própria coluna (título longo no celular corria por baixo das ações). */}
+          <h1 className="max-w-full shrink-0 truncate text-lg font-bold tracking-tight">{titulo}</h1>
           {descricao && (
             <p className="hidden min-w-0 truncate text-sm text-muted-foreground md:block">
               <span aria-hidden>· </span>
