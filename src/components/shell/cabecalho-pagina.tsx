@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { AjusteCabecalho } from "@/components/shell/ajuste-cabecalho";
 import { Breadcrumb, type BreadcrumbItem } from "@/components/shell/breadcrumb";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,8 @@ import { cn } from "@/lib/utils";
  *   barra + padding do `main`) e reserva à direita a largura dos controles globais, que a barra
  *   mede e publica em `--barra-global`. Abaixo de `xl` a largura não comporta os dois (com o menu
  *   aberto sobraria pouco para o título), então ele fica numa linha própria logo abaixo da barra.
+ *   Mesmo em `xl`, se título e ações não couberem (menu aberto, muitas ações), `AjusteCabecalho`
+ *   marca `data-apertado` e ele volta para a linha própria.
  *
  * Deve ser o PRIMEIRO elemento da página, sem ancestral com padding/borda no topo nem `overflow`
  * diferente de `visible` entre ele e o `main` — a margem negativa e o `sticky` dependem disso.
@@ -63,7 +66,12 @@ export function CabecalhoPagina({
           )}
         </div>
       </div>
-      {acoes && <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2 xl:flex-nowrap">{acoes}</div>}
+      {acoes && (
+        <div data-cabecalho-acoes className="flex max-w-full shrink-0 flex-wrap items-center gap-2 xl:flex-nowrap">
+          {acoes}
+        </div>
+      )}
+      <AjusteCabecalho />
     </div>
   );
 }

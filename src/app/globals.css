@@ -185,6 +185,20 @@
 header:has(~ main [data-cabecalho-pagina]) [data-titulo-padrao] {
   display: none;
 }
+/* Não coube na barra (components/shell/ajuste-cabecalho.tsx): volta para uma linha própria, como
+   abaixo de xl. Fora de @layer para vencer as utilidades `xl:` do componente. */
+@media (width >= 80rem) {
+  [data-cabecalho-pagina][data-apertado] {
+    position: static;
+    height: auto;
+    margin-top: 0;
+    margin-right: 0;
+    flex-wrap: wrap;
+  }
+  [data-cabecalho-pagina][data-apertado] > [data-cabecalho-acoes] {
+    flex-wrap: wrap;
+  }
+}
 
 @layer base {
   * {
