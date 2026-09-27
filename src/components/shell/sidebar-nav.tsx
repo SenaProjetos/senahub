@@ -2,17 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import {
   Briefcase,
-  ChevronDown,
   ChevronRight,
   LayoutGrid,
-  Pin,
-  PinOff,
   Ruler,
   Settings,
   ShieldCheck,
+  Star,
   TrendingUp,
   Users,
   Wallet,
@@ -28,6 +26,9 @@ import { NavBadge } from "@/components/shell/nav-badge";
 
 /** Chave em `UserPreference` dos atalhos fixados (lista de `href`, na ordem em que foram fixados). */
 export const CHAVE_MENU_FIXADOS = "menu_fixados";
+
+/** Teto de atalhos fixados (modelo aprovado): mais que isso empurra as seções do trilho para fora da tela. */
+const MAXIMO_FIXADOS = 5;
 
 /** Ícone de cada seção no trilho (a seção não tem ícone próprio em `NAV_GROUPS`). */
 const ICONE_DA_SECAO: Record<string, LucideIcon> = {
@@ -49,40 +50,66 @@ type Fixacao = {
   alternar: (href: string) => void;
 };
 
+/**
+ * Altura e fonte de cada linha, do modelo aprovado: linha solta (Início, Chat, Fixados, lista do
+ * trilho) 32 px / 13 px; item de seção, recuado sob a linha-guia, 30 px / 12,5 px. Em tela de toque
+ * as duas vão a 40 px, a mesma regra de botões e campos (`pointer-coarse`).
+ */
+const LINHA = {
+  solta: "h-8 text-[13px]",
+  secao: "h-[30px] text-[12.5px]",
+} as const;
+
 function NavList({
   items,
   pathname,
   alertas,
   onNavigate,
   fixacao,
+  linha = "solta",
+  className,
+  id,
 }: {
   items: NavItem[];
   pathname: string;
   alertas?: Record<string, AlertaNav>;
   onNavigate?: () => void;
   fixacao?: Fixacao;
+  linha?: keyof typeof LINHA;
+  className?: string;
+  id?: string;
 }) {
+  const cheio = (fixacao?.fixados.length ?? 0) >= MAXIMO_FIXADOS;
   return (
-    <ul className="space-y-1">
+    <ul id={id} className={cn("flex flex-col gap-px", className)}>
       {items.map((item) => {
         const active = isItemActive(item, pathname);
         // Chat tem badge próprio (socket, tempo real); o resto vem do servidor por request.
         const isChat = item.href === "/chat";
         const alerta = isChat ? undefined : alertas?.[item.href];
         const fixado = fixacao?.fixados.includes(item.href) ?? false;
+        const bloqueado = !fixado && cheio;
         return (
-          <li key={item.href} className="group/item flex items-center">
+          // A linha inteira (com a ☆) é o alvo do destaque, como no modelo; o link ocupa o resto dela.
+          <li
+            key={item.href}
+            className={cn(
+              "group/item flex shrink-0 items-center rounded-sm transition-colors pointer-coarse:h-10",
+              LINHA[linha],
+              active
+                ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground"
+                : "text-sidebar-foreground hover:bg-sidebar-accent/60",
+            )}
+          >
             <Link
               href={item.href}
               onClick={onNavigate}
-              className={cn(
-                "flex min-w-0 flex-1 items-center gap-3 rounded-sm px-2.5 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-                active
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
-              )}
+              aria-current={active ? "page" : undefined}
+              className="flex h-full min-w-0 flex-1 items-center gap-2.5 rounded-sm px-2 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
             >
-              <item.icon className="size-[18px] shrink-0" />
+              <span className="grid size-5 shrink-0 place-items-center text-muted-foreground">
+                <item.icon className="size-[18px]" />
+              </span>
               <span className="truncate">{item.title}</span>
               {isChat && <ChatBadge className="ml-auto" />}
               {alerta && <NavBadge alerta={alerta} className="ml-auto" />}
@@ -90,16 +117,19 @@ function NavList({
             {fixacao && (
               <button
                 type="button"
-                onClick={() => fixacao.alternar(item.href)}
+                onClick={() => {
+                  if (!bloqueado) fixacao.alternar(item.href);
+                }}
                 aria-label={fixado ? `Desafixar ${item.title}` : `Fixar ${item.title} no topo do menu`}
                 aria-pressed={fixado}
-                title={fixado ? "Desafixar" : "Fixar no topo"}
+                aria-disabled={bloqueado || undefined}
+                title={fixado ? "Desafixar" : bloqueado ? `Máximo de ${MAXIMO_FIXADOS} atalhos` : "Fixar no topo"}
                 className={cn(
-                  "ml-0.5 grid size-7 shrink-0 place-items-center rounded-sm text-muted-foreground outline-none transition-opacity hover:bg-sidebar-accent/60 hover:text-sidebar-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-                  fixado ? "opacity-100" : "opacity-0 group-hover/item:opacity-100 pointer-coarse:opacity-50",
+                  "mr-1 grid size-6 shrink-0 place-items-center rounded-sm text-muted-foreground outline-none transition-opacity focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                  fixado ? "opacity-100" : "opacity-55 group-hover/item:opacity-100",
                 )}
               >
-                {fixado ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
+                <Star className={cn("size-3", fixado && "fill-warning text-warning")} />
               </button>
             )}
           </li>
@@ -109,6 +139,10 @@ function NavList({
   );
 }
 
+/**
+ * Seção do menu aberto (modelo aprovado): um botão de 34 px com seta, nome em negrito e a
+ * contagem de itens à direita; aberta, os itens ficam recuados sob uma linha-guia vertical.
+ */
 function CollapsibleGroup({
   group,
   pathname,
@@ -127,6 +161,7 @@ function CollapsibleGroup({
   const hasActive = group.items.some((item) => isItemActive(item, pathname));
   const [manual, setManual] = useState<boolean | null>(null);
   const expanded = manual ?? hasActive;
+  const idLista = useId();
 
   function toggle() {
     setManual(!expanded);
@@ -138,35 +173,37 @@ function CollapsibleGroup({
   const alertaDoGrupo = somarAlertas(group.items, alertas);
 
   return (
-    <div>
+    <div className="flex flex-col">
       <button
         type="button"
         onClick={toggle}
         aria-expanded={expanded}
-        className="flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1 text-left transition-colors outline-none hover:bg-sidebar-accent/40 focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+        aria-controls={expanded ? idLista : undefined}
+        className="flex h-[34px] w-full shrink-0 items-center gap-2.5 rounded-sm px-2 text-left text-[13.5px] font-semibold text-sidebar-foreground transition-colors outline-none hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-sidebar-ring pointer-coarse:h-10"
       >
-        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-          {group.title}
+        <span aria-hidden className="w-2.5 shrink-0 text-[11px] text-muted-foreground">
+          {expanded ? "▾" : "▸"}
         </span>
-        <span className="flex items-center gap-1.5">
+        <span className="min-w-0 truncate">{group.title}</span>
+        <span className="ml-auto flex shrink-0 items-center gap-1.5">
           {!expanded && alertaDoGrupo && <NavBadge alerta={alertaDoGrupo} />}
-          {expanded ? (
-            <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
-          )}
+          <span className="font-mono text-[10.5px] font-medium text-muted-foreground">
+            {group.items.length}
+            <span className="sr-only">{group.items.length === 1 ? " item" : " itens"}</span>
+          </span>
         </span>
       </button>
       {expanded && (
-        <div className="mt-1">
-          <NavList
-            items={group.items}
-            pathname={pathname}
-            alertas={alertas}
-            onNavigate={onNavigate}
-            fixacao={fixacao}
-          />
-        </div>
+        <NavList
+          items={group.items}
+          pathname={pathname}
+          alertas={alertas}
+          onNavigate={onNavigate}
+          fixacao={fixacao}
+          linha="secao"
+          id={idLista}
+          className="ml-[17px] border-l border-sidebar-border pl-3.5"
+        />
       )}
     </div>
   );
@@ -292,7 +329,9 @@ export function SidebarNav({
     .filter((i): i is NavItem => !!i);
 
   function alternar(href: string) {
-    const proximo = fixados.includes(href) ? fixados.filter((h) => h !== href) : [...fixados, href];
+    const fixando = !fixados.includes(href);
+    if (fixando && fixados.length >= MAXIMO_FIXADOS) return;
+    const proximo = fixando ? [...fixados, href] : fixados.filter((h) => h !== href);
     setFixados(proximo);
     iniciar(async () => {
       const r = await salvarPreferencia({ chave: CHAVE_MENU_FIXADOS, valor: proximo });
@@ -331,41 +370,41 @@ export function SidebarNav({
     );
   }
 
+  // Menu aberto, como no modelo aprovado: "Fixados" no topo, linhas soltas (Início, Chat e seção de
+  // um item só, como no trilho) e as demais seções recolhíveis. `*:shrink-0`: a lista rola dentro
+  // da coluna flex sem espremer as linhas.
   return (
-    <nav className="flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-3 py-4">
+    <nav
+      className="flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden px-2 py-2.5 *:shrink-0"
+      aria-label="Menu principal"
+    >
       {itensFixados.length > 0 && (
-        <div>
-          <p className="mb-1 px-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Fixados</p>
+        <>
+          <p className="px-2 pt-1.5 pb-0.5 font-mono text-[9.5px] uppercase tracking-[0.14em] text-muted-foreground">
+            Fixados
+          </p>
           <NavList
             items={itensFixados}
             pathname={pathname}
             alertas={nav.alertas}
             onNavigate={onNavigate}
             fixacao={fixacao}
+            className="gap-0.5"
           />
-        </div>
+          <hr className="mx-1 my-1.5 border-sidebar-border" />
+        </>
       )}
-      {groups.map((group, gi) => {
-        // Sem título ou grupo de item único: estático, sem seta de expandir.
-        if (!group.title || group.items.length === 1) {
-          return (
-            <div key={group.title ?? gi}>
-              {group.title && (
-                <p className="mb-1 px-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                  {group.title}
-                </p>
-              )}
-              <NavList
-                items={group.items}
-                pathname={pathname}
-                alertas={nav.alertas}
-                onNavigate={onNavigate}
-                fixacao={fixacao}
-              />
-            </div>
-          );
-        }
-        return (
+      {groups.map((group, gi) =>
+        !group.title || group.items.length === 1 ? (
+          <NavList
+            key={group.title ?? `solta-${gi}`}
+            items={group.items}
+            pathname={pathname}
+            alertas={nav.alertas}
+            onNavigate={onNavigate}
+            className="gap-0.5"
+          />
+        ) : (
           <CollapsibleGroup
             key={group.title}
             group={group as NavGroup & { title: string }}
@@ -374,8 +413,8 @@ export function SidebarNav({
             onNavigate={onNavigate}
             fixacao={fixacao}
           />
-        );
-      })}
+        ),
+      )}
     </nav>
   );
 }
