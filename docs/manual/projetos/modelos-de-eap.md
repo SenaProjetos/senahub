@@ -12,7 +12,8 @@ sinonimos: [template de EAP, cronograma padrão, EAP padrão, importar do Projec
 ## Objetivo
 
 Guardar a **estrutura de cronograma que a casa já usa** e aplicá-la em projeto novo, em vez de digitar
-as mesmas 180 linhas a cada contrato. O modelo é montado **no MS Project** e importado aqui.
+as mesmas 180 linhas a cada contrato. O modelo nasce **no MS Project**, é importado aqui e, depois
+disso, pode ser ajustado aqui mesmo, no Gantt, sem voltar ao arquivo.
 
 ## Como acessar
 
@@ -110,9 +111,29 @@ nasce de uma negociação aceita, ele já vem preenchido com o tipo que o comerc
 
 ## Editar um modelo
 
-Não se edita linha a linha aqui: a autoria continua no **MS Project**. Ajuste o arquivo, importe de
-novo (as respostas da conferência vêm lembradas) e remova o modelo antigo. Remover é **desativar** —
-os projetos já criados não mudam.
+Abra o modelo em **Modelos de EAP**. Ele aparece no mesmo Gantt da EAP do projeto (tabela e gráfico lado
+a lado), e quem **monta a EAP** (`planejamento:gerir`) edita do mesmo jeito que num projeto:
+
+- **Na célula:** clique no nome, na duração ou nas predecessoras. Duração `0` vira **marco**;
+  predecessora se escreve como no Project (`3TI+2d`, `5II`).
+- **No menu da linha** (botão direito, toque e segure, ou o `⋯`): **Inserir tarefa acima**,
+  **Recuar**, **Avançar** e **Excluir** (com as subtarefas). Atalhos: `Insert`, `Delete`,
+  `Alt+Shift+→` / `Alt+Shift+←`, `F2` para renomear.
+- **Na janela da linha** (duplo clique ou `Enter`): **disciplina**, **fase** e **etapa de terceiro**.
+- **Adicionar tarefa** põe uma linha nova no fim; recue para colocá-la dentro de um agrupamento.
+
+**Nada é gravado até você clicar em Salvar.** Enquanto houver mudança, a tela mostra "Alterações não
+salvas", **Descartar** volta ao que está gravado e o navegador pergunta antes de fechar a aba. Se outra
+pessoa salvou o mesmo modelo depois que você o abriu, o sistema **recusa** a gravação e pede para
+recarregar — assim ninguém apaga o trabalho do outro sem saber.
+
+**As datas do Gantt do modelo** saem do mesmo motor, a partir do **Início de referência** (hoje, por
+padrão; mude para ver outro cenário). Elas mostram a forma do cronograma — término em dias úteis,
+caminho crítico, o que corre em paralelo — e **não são gravadas**: no projeto, quem agenda é o motor,
+a partir da âncora do cronograma.
+
+Importar o arquivo de novo continua possível: cria **outro** modelo (as respostas da conferência vêm
+lembradas). Remover um modelo é **desativar** — os projetos já criados não mudam.
 
 ## Regras de negócio
 
@@ -121,7 +142,9 @@ os projetos já criados não mudam.
 - **Aplicar exige EAP vazia** e projeto sem linha de base.
 - **Toda linha criada ganha ID corporativo novo** — a identidade é da linha, não do modelo.
 - **O percentual por fase soma 100%** ou não é gravado; em branco, nenhuma fase é cadastrada.
-- **Editar é reimportar.**
+- **Editar o modelo não mexe em projeto nenhum.** O modelo só vale para o que for aplicado depois.
+- **Gravar confere o modelo inteiro:** linha dentro de linha que não existe, predecessora apagada ou
+  dependência em ciclo não são gravadas.
 
 ## Funcionalidades relacionadas
 
