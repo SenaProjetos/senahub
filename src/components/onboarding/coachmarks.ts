@@ -56,9 +56,10 @@ export const GUIAS: Guia[] = [
   },
   {
     rota: "/configuracoes/avisos",
+    versao: 2,
     passos: [
-      { alvo: '[data-tour="aviso-mensagem"]', titulo: "Monte o comunicado", texto: "Título, mensagem e, se quiser, uma imagem que aparece no aviso e no e-mail." },
-      { alvo: '[data-tour="aviso-preview"]', titulo: "Pré-visualização", texto: "Alterne entre como o aviso fica no sistema e no e-mail antes de enviar." },
+      { alvo: '[data-tour="aviso-novo"]', titulo: "Novo comunicado", texto: "Abre o formulário: título, mensagem, imagem, destinatários e agendamento, com pré-visualização no sistema e no e-mail." },
+      { alvo: '[data-tour="aviso-lista"]', titulo: "Agendados e enviados", texto: "Acompanhe quem confirmou a leitura e cancele um aviso agendado antes de ele disparar." },
     ],
   },
 ];

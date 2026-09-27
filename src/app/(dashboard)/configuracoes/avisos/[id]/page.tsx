@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Check, Clock } from "lucide-react";
+import { Check, Clock } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { detalheAviso } from "@/modules/notificacoes/avisos/queries";
 import { statusAviso } from "@/modules/notificacoes/avisos/agendamento";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { formatarDataHora } from "@/lib/utils";
 import { CorpoAviso } from "@/components/notificacoes/corpo-aviso";
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -26,30 +26,31 @@ export default async function AvisoDetalhePage({ params }: { params: Promise<{ i
 
   return (
     <div className="space-y-5">
-      <Link
-        href="/configuracoes/avisos"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-3.5" /> Avisos
-      </Link>
+      <CabecalhoPagina
+        titulo={aviso.titulo}
+        trilha={[
+          { href: "/", label: "Início" },
+          { href: "/configuracoes", label: "Configurações" },
+          { href: "/configuracoes/avisos", label: "Avisos" },
+        ]}
+      />
 
       <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">{aviso.titulo}</h2>
-        {aviso.corpo && <CorpoAviso corpo={aviso.corpo} className="mt-1 text-muted-foreground" />}
         {status === "enviado" ? (
-          <p className="mt-2 text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Enviado por {aviso.criadoPor.name} em {formatarDataHora(aviso.enviadoEm ?? aviso.criadoEm)} ·{" "}
             <strong>{confirmados}</strong> de <strong>{total}</strong> confirmaram
             {aviso.exigeConfirmacao ? "" : " · sem confirmação obrigatória"}
           </p>
         ) : (
-          <p className="mt-2 text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Criado por {aviso.criadoPor.name} em {formatarDataHora(aviso.criadoEm)} ·{" "}
             {status === "cancelado"
               ? `envio cancelado em ${formatarDataHora(aviso.canceladoEm!)}`
               : `envio agendado para ${aviso.agendadoPara ? formatarDataHora(aviso.agendadoPara) : "—"}`}
           </p>
         )}
+        {aviso.corpo && <CorpoAviso corpo={aviso.corpo} className="mt-2 text-muted-foreground" />}
       </div>
 
       {status !== "enviado" ? (

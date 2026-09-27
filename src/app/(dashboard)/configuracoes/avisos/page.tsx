@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { listarAvisos } from "@/modules/notificacoes/avisos/queries";
-import { AvisoGeralView, type UsuarioAlvo } from "@/components/configuracoes/aviso-geral-view";
+import type { UsuarioAlvo } from "@/components/configuracoes/aviso-geral-view";
+import { NovoAvisoDialog } from "@/components/configuracoes/novo-aviso-dialog";
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { perfisAtivosParaSelect } from "@/modules/perfis/queries";
 import { AvisosRegistro } from "@/components/configuracoes/avisos-registro";
 import { AvisosAgendados } from "@/components/configuracoes/avisos-agendados";
@@ -31,37 +33,25 @@ export default async function AvisosPage() {
 
   return (
     <div className="space-y-5">
-      <Tabs defaultValue="novo">
+      <CabecalhoPagina
+        titulo="Avisos gerais"
+        descricao="Comunicados em tela cheia, com confirmação de leitura."
+        acoes={<NovoAvisoDialog usuarios={usuarios as UsuarioAlvo[]} perfis={perfis} />}
+      />
+      <Tabs defaultValue="enviados" data-tour="aviso-lista">
         <TabsList>
-          <TabsTrigger value="novo">Novo aviso</TabsTrigger>
           <TabsTrigger value="agendados">Agendados ({aguardando})</TabsTrigger>
           <TabsTrigger value="enviados">Enviados ({enviados.length})</TabsTrigger>
         </TabsList>
-        <TabsContent value="novo">
-          <AvisoGeralView usuarios={usuarios as UsuarioAlvo[]} perfis={perfis} />
+        <TabsContent value="agendados" className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Programados que ainda não dispararam. Os destinatários são apurados na hora do envio.
+          </p>
+          <AvisosAgendados avisos={agendados} />
         </TabsContent>
-        <TabsContent value="agendados">
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-2xl font-extrabold tracking-tight">Avisos agendados</h2>
-              <p className="text-sm text-muted-foreground">
-                Comunicados programados que ainda não dispararam. Os destinatários são apurados na hora
-                do envio.
-              </p>
-            </div>
-            <AvisosAgendados avisos={agendados} />
-          </div>
-        </TabsContent>
-        <TabsContent value="enviados">
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-2xl font-extrabold tracking-tight">Avisos enviados</h2>
-              <p className="text-sm text-muted-foreground">
-                Registro de comunicados com o total de confirmações de leitura.
-              </p>
-            </div>
-            <AvisosRegistro avisos={enviados} />
-          </div>
+        <TabsContent value="enviados" className="space-y-3">
+          <p className="text-sm text-muted-foreground">Registro de comunicados com o total de confirmações de leitura.</p>
+          <AvisosRegistro avisos={enviados} />
         </TabsContent>
       </Tabs>
     </div>

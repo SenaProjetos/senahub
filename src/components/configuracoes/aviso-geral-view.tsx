@@ -27,7 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DialogBody, DialogClose, DialogFooter } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { CorpoAviso } from "@/components/notificacoes/corpo-aviso";
@@ -41,12 +41,19 @@ type AlvoTipo = "todos" | "usuarios" | "setor" | "contratacao" | "perfil";
 
 export type PerfilAlvo = { chave: string; nome: string };
 
+/**
+ * Formulário do aviso geral, desenhado DENTRO de um `DialogContent` (ver `NovoAvisoDialog`): os
+ * campos rolam no `DialogBody` e o rodapé com Cancelar/Enviar fica fixo.
+ */
 export function AvisoGeralView({
   usuarios,
   perfis,
+  onConcluido,
 }: {
   usuarios: UsuarioAlvo[];
   perfis: PerfilAlvo[];
+  /** Chamado depois de enviar ou agendar com sucesso (a janela fecha). */
+  onConcluido?: () => void;
 }) {
   const [titulo, setTitulo] = useState("");
   const [corpo, setCorpo] = useState("");
@@ -254,28 +261,14 @@ export function AvisoGeralView({
         setQuando("");
         removerImagem();
         router.refresh(); // atualiza as abas Agendados/Enviados
+        onConcluido?.();
       } else toast.error(r.error);
     });
   }
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-2xl font-extrabold tracking-tight">Novo aviso</h2>
-        <p className="text-sm text-muted-foreground">
-          Comunicado que aparece em tela cheia para o destinatário e (opcionalmente) exige confirmação de
-          leitura.
-        </p>
-      </div>
-
-      <Card data-tour="aviso-mensagem" className="max-w-2xl">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Megaphone className="size-4" /> Mensagem
-          </CardTitle>
-          <CardDescription>Título, mensagem e imagem opcional do comunicado.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+    <>
+      <DialogBody className="space-y-4">
           <div className="space-y-1.5">
             <Label>Título</Label>
             <Input
@@ -617,18 +610,20 @@ export function AvisoGeralView({
             )}
           </div>
 
-          <Button onClick={enviar} disabled={pending}>
-            {agendar ? <Clock className="size-3.5" /> : <Megaphone className="size-3.5" />}
-            {agendar
-              ? pending
-                ? "Agendando…"
-                : "Agendar aviso"
-              : pending
-                ? "Enviando…"
-                : "Enviar aviso"}
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
+      </DialogBody>
+      <DialogFooter>
+        <DialogClose render={<Button variant="outline" />}>Cancelar</DialogClose>
+        <Button onClick={enviar} disabled={pending}>
+          {agendar ? <Clock className="size-3.5" /> : <Megaphone className="size-3.5" />}
+          {agendar
+            ? pending
+              ? "Agendando…"
+              : "Agendar aviso"
+            : pending
+              ? "Enviando…"
+              : "Enviar aviso"}
+        </Button>
+      </DialogFooter>
+    </>
   );
 }
