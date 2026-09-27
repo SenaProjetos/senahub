@@ -118,7 +118,27 @@ export type ContextoNav = {
    * não em `NavItem`.
    */
   fixados?: string[];
+  /**
+   * Seções do menu aberto que ficaram abertas (título da seção). Também da conta
+   * (`UserPreference.menu_secoes_abertas`): o menu lembra o que ficou aberto ao minimizar, trocar de
+   * página e recarregar.
+   */
+  secoesAbertas?: string[];
 };
+
+/**
+ * `href` do item da página atual: o MAIS ESPECÍFICO que casa, por segmento. Com `startsWith` puro,
+ * `/planejamento/modelos/x` acendia "Planejamento" e "Modelos de EAP" juntos, e `/rhx` casaria com
+ * `/rh`. Pura: serve o menu, o título da barra e a barra de baixo.
+ */
+export function hrefAtivo(pathname: string, items: readonly { href: string }[]): string | null {
+  let melhor: string | null = null;
+  for (const { href } of items) {
+    const casa = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
+    if (casa && (melhor === null || href.length > melhor.length)) melhor = href;
+  }
+  return melhor;
+}
 
 export type NavGroup = {
   title?: string;

@@ -19,15 +19,13 @@ import { AgendaResumo } from "@/components/agenda/agenda-resumo";
 import { JornadaHeader } from "@/components/ponto/jornada-header";
 import { Breadcrumb } from "@/components/shell/breadcrumb";
 import { useRotuloDaBarra } from "@/components/shell/rotulo-da-barra";
-import { NAV_GROUPS, navItemsPara, type ContextoNav } from "@/lib/nav-config";
+import { NAV_GROUPS, hrefAtivo, navItemsPara, type ContextoNav } from "@/lib/nav-config";
 import type { Role } from "@/lib/roles";
 
 function titleFromPath(pathname: string): string {
   const items = NAV_GROUPS.flatMap((g) => g.items);
-  const match = items.find((i) =>
-    i.href === "/" ? pathname === "/" : pathname.startsWith(i.href),
-  );
-  return match?.title ?? "SenaHub";
+  const href = hrefAtivo(pathname, items);
+  return items.find((i) => i.href === href)?.title ?? "SenaHub";
 }
 
 export function Header({

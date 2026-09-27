@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { navItemsPara, type ContextoNav } from "@/lib/nav-config";
+import { hrefAtivo, navItemsPara, type ContextoNav } from "@/lib/nav-config";
 import { ChatBadge } from "@/components/chat/chat-badge";
 import { Menu } from "lucide-react";
 import { EVENTO_ABRIR_MENU } from "@/components/shell/mobile-nav";
@@ -20,6 +20,7 @@ export function BottomNav({ nav }: { nav: ContextoNav }) {
   const items = ORDEM.map((href) => disponiveis.find((i) => i.href === href))
     .filter((i): i is NonNullable<typeof i> => Boolean(i))
     .slice(0, 5);
+  const ativo = hrefAtivo(pathname, items);
 
   return (
     // `max-w-[100vw]` é trava de segurança, não enfeite: no celular o Chrome dimensiona elemento
@@ -31,8 +32,7 @@ export function BottomNav({ nav }: { nav: ContextoNav }) {
     <nav className="pb-safe fixed inset-x-0 bottom-0 z-30 max-w-[100vw] border-t border-border bg-background/95 backdrop-blur lg:hidden">
       <ul className="flex items-stretch justify-around">
         {items.map((item) => {
-          const active =
-            item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+          const active = item.href === ativo;
           return (
             <li key={item.href} className="min-w-0 flex-1">
               <Link

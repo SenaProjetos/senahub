@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useId, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import {
   Briefcase,
   ChevronRight,
@@ -20,12 +20,27 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { salvarPreferencia } from "@/modules/usuarios/preferencias/actions";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { navItemsPara, type AlertaNav, type ContextoNav, type NavGroup, type NavItem } from "@/lib/nav-config";
+import { hrefAtivo, navItemsPara, type AlertaNav, type ContextoNav, type NavGroup, type NavItem } from "@/lib/nav-config";
 import { ChatBadge } from "@/components/chat/chat-badge";
 import { NavBadge } from "@/components/shell/nav-badge";
 
 /** Chave em `UserPreference` dos atalhos fixados (lista de `href`, na ordem em que foram fixados). */
 export const CHAVE_MENU_FIXADOS = "menu_fixados";
+
+/** Chave em `UserPreference` das seções do menu aberto que ficaram abertas (títulos das seções). */
+export const CHAVE_MENU_SECOES = "menu_secoes_abertas";
+
+/**
+ * Último estado do menu NESTA aba. A gaveta do celular desmonta ao fechar e o `nav` do layout é o da
+ * carga da página: sem isto, o que a pessoa fixou ou abriu na gaveta sumia ao reabrir, até recarregar.
+ * Só é escrito no navegador (efeitos), nunca no servidor — então não vaza entre requests.
+ */
+const memoria: { fixados?: string[]; secoesAbertas?: string[]; secoesSalvas?: string } = {};
+
+/** Acrescenta a seção à lista (sem repetir); `null` = página fora das seções. */
+function comSecao(abertas: string[], secao: string | null) {
+  return secao && !abertas.includes(secao) ? [...abertas, secao] : abertas;
+}
 
 /** Teto de atalhos fixados (modelo aprovado): mais que isso empurra as seções do trilho para fora da tela. */
 const MAXIMO_FIXADOS = 5;
@@ -40,10 +55,6 @@ const ICONE_DA_SECAO: Record<string, LucideIcon> = {
   Gestão: ShieldCheck,
   Sistema: Settings,
 };
-
-function isItemActive(item: NavItem, pathname: string) {
-  return item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-}
 
 type Fixacao = {
   fixados: string[];
@@ -62,7 +73,7 @@ const LINHA = {
 
 function NavList({
   items,
-  pathname,
+  ativo,
   alertas,
   onNavigate,
   fixacao,
@@ -71,7 +82,8 @@ function NavList({
   id,
 }: {
   items: NavItem[];
-  pathname: string;
+  /** `href` do item da página atual (`hrefAtivo`): só ele acende. */
+  ativo: string | null;
   alertas?: Record<string, AlertaNav>;
   onNavigate?: () => void;
   fixacao?: Fixacao;
@@ -83,7 +95,7 @@ function NavList({
   return (
     <ul id={id} className={cn("flex flex-col gap-px", className)}>
       {items.map((item) => {
-        const active = isItemActive(item, pathname);
+        const active = item.href === ativo;
         // Chat tem badge próprio (socket, tempo real); o resto vem do servidor por request.
         const isChat = item.href === "/chat";
         const alerta = isChat ? undefined : alertas?.[item.href];
@@ -105,6 +117,7 @@ function NavList({
               href={item.href}
               onClick={onNavigate}
               aria-current={active ? "page" : undefined}
+              title={item.title}
               className="flex h-full min-w-0 flex-1 items-center gap-2.5 rounded-sm px-2 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
             >
               <span className="grid size-5 shrink-0 place-items-center text-muted-foreground">
@@ -142,30 +155,26 @@ function NavList({
 /**
  * Seção do menu aberto (modelo aprovado): um botão de 34 px com seta, nome em negrito e a
  * contagem de itens à direita; aberta, os itens ficam recuados sob uma linha-guia vertical.
+ * Aberta ou fechada é decidido pelo `SidebarNav` (lembrado na conta), não aqui.
  */
 function CollapsibleGroup({
   group,
-  pathname,
+  ativo,
+  expanded,
+  onToggle,
   alertas,
   onNavigate,
   fixacao,
 }: {
   group: NavGroup & { title: string };
-  pathname: string;
+  ativo: string | null;
+  expanded: boolean;
+  onToggle: () => void;
   alertas?: Record<string, AlertaNav>;
   onNavigate?: () => void;
   fixacao?: Fixacao;
 }) {
-  // Modelo aprovado: só a seção da página atual vem aberta. O clique abre/fecha as outras durante
-  // a sessão (sem gravar: ao voltar, o menu mostra de novo só onde a pessoa está).
-  const hasActive = group.items.some((item) => isItemActive(item, pathname));
-  const [manual, setManual] = useState<boolean | null>(null);
-  const expanded = manual ?? hasActive;
   const idLista = useId();
-
-  function toggle() {
-    setManual(!expanded);
-  }
 
   // Grupo fechado esconde os itens — e esconderia o badge junto. Some os alertas de dentro e
   // mostra o total no cabeçalho enquanto está fechado, senão "3 certidões vencidas" fica
@@ -176,7 +185,7 @@ function CollapsibleGroup({
     <div className="flex flex-col">
       <button
         type="button"
-        onClick={toggle}
+        onClick={onToggle}
         aria-expanded={expanded}
         aria-controls={expanded ? idLista : undefined}
         className="flex h-[34px] w-full shrink-0 items-center gap-2.5 rounded-sm px-2 text-left text-[13.5px] font-semibold text-sidebar-foreground transition-colors outline-none hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-sidebar-ring pointer-coarse:h-10"
@@ -196,7 +205,7 @@ function CollapsibleGroup({
       {expanded && (
         <NavList
           items={group.items}
-          pathname={pathname}
+          ativo={ativo}
           alertas={alertas}
           onNavigate={onNavigate}
           fixacao={fixacao}
@@ -234,12 +243,12 @@ function classeTrilho(ativo: boolean) {
 }
 
 /** Item avulso do trilho: ícone com o nome embaixo (o trilho antigo só tinha ícones, sem nome). */
-function ItemTrilho({ item, pathname, alertas }: { item: NavItem; pathname: string; alertas?: Record<string, AlertaNav> }) {
+function ItemTrilho({ item, ativo, alertas }: { item: NavItem; ativo: string | null; alertas?: Record<string, AlertaNav> }) {
   const isChat = item.href === "/chat";
   const alerta = isChat ? undefined : alertas?.[item.href];
   return (
     <li>
-      <Link href={item.href} className={classeTrilho(isItemActive(item, pathname))} title={item.title}>
+      <Link href={item.href} className={classeTrilho(item.href === ativo)} title={item.title}>
         <span className="relative">
           <item.icon className="size-[18px]" />
           {isChat && <ChatBadge dot className="absolute -right-1 -top-1" />}
@@ -254,16 +263,16 @@ function ItemTrilho({ item, pathname, alertas }: { item: NavItem; pathname: stri
 /** Seção inteira do trilho: um botão com o nome da seção que abre a lista dos itens ao lado. */
 function SecaoTrilho({
   group,
-  pathname,
+  ativo,
   alertas,
 }: {
   group: NavGroup & { title: string };
-  pathname: string;
+  ativo: string | null;
   alertas?: Record<string, AlertaNav>;
 }) {
   const [aberta, setAberta] = useState(false);
   const Icone = ICONE_DA_SECAO[group.title] ?? LayoutGrid;
-  const ativa = group.items.some((i) => isItemActive(i, pathname));
+  const ativa = group.items.some((i) => i.href === ativo);
   const alerta = somarAlertas(group.items, alertas);
 
   return (
@@ -289,7 +298,7 @@ function SecaoTrilho({
           <p className="mb-1 px-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{group.title}</p>
           <NavList
             items={group.items}
-            pathname={pathname}
+            ativo={ativo}
             alertas={alertas}
             onNavigate={() => setAberta(false)}
           />
@@ -318,12 +327,49 @@ export function SidebarNav({
   const groups = visiveis
     .map((g) => ({ ...g, items: g.items.filter((i) => !i.foraDoMenu) }))
     .filter((g) => g.items.length > 0);
-  const [fixados, setFixados] = useState<string[]>(nav.fixados ?? []);
+  // Inclui o que mora fora do menu (Minha conta, Ajuda…): na página deles, nada do menu acende.
+  const todosOsItens = visiveis.flatMap((g) => g.items);
+  const ativo = hrefAtivo(pathname, todosOsItens);
+  const recolhivel = (g: NavGroup): g is NavGroup & { title: string } => !!g.title && g.items.length > 1;
+  const secaoAtual = groups.find((g) => recolhivel(g) && g.items.some((i) => i.href === ativo))?.title ?? null;
+
+  const [fixados, setFixados] = useState<string[]>(() => memoria.fixados ?? nav.fixados ?? []);
   const [, iniciar] = useTransition();
+
+  // Seções abertas, lembradas na conta: o que está aberto continua aberto ao minimizar, trocar de
+  // página e recarregar. A seção da página atual abre ao entrar nela e fica aberta até a pessoa
+  // fechar (na primeira vez, é só ela, como no modelo aprovado).
+  const [abertas, setAbertas] = useState<string[]>(() =>
+    comSecao(memoria.secoesAbertas ?? nav.secoesAbertas ?? [], secaoAtual),
+  );
+  const [secaoVista, setSecaoVista] = useState(secaoAtual);
+  if (secaoAtual !== secaoVista) {
+    setSecaoVista(secaoAtual);
+    setAbertas((a) => comSecao(a, secaoAtual));
+  }
+
+  useEffect(() => {
+    memoria.fixados = fixados;
+  }, [fixados]);
+
+  useEffect(() => {
+    memoria.secoesAbertas = abertas;
+    const json = JSON.stringify(abertas);
+    if (json === (memoria.secoesSalvas ?? JSON.stringify(nav.secoesAbertas ?? []))) return;
+    // Espera a pessoa parar de clicar: uma gravação por rajada, não uma por seção.
+    const t = setTimeout(() => {
+      memoria.secoesSalvas = json;
+      salvarPreferencia({ chave: CHAVE_MENU_SECOES, valor: abertas }).catch(() => {});
+    }, 600);
+    return () => clearTimeout(t);
+  }, [abertas, nav.secoesAbertas]);
+
+  function alternarSecao(titulo: string) {
+    setAbertas((a) => (a.includes(titulo) ? a.filter((t) => t !== titulo) : [...a, titulo]));
+  }
 
   // Só fixa o que esta pessoa pode ver (permissão pode ter mudado depois) — inclusive o que mora
   // fora do menu (Minha conta, Ajuda…): quem fixou continua com o atalho.
-  const todosOsItens = visiveis.flatMap((g) => g.items);
   const itensFixados = fixados
     .map((href) => todosOsItens.find((i) => i.href === href))
     .filter((i): i is NavItem => !!i);
@@ -345,24 +391,19 @@ export function SidebarNav({
 
   if (collapsed) {
     return (
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-1.5 py-2" aria-label="Menu principal">
+      <nav className="rolagem-fina flex-1 overflow-y-auto overflow-x-hidden px-1.5 py-2" aria-label="Menu principal">
         <ul className="space-y-0.5">
           {itensFixados.map((item) => (
-            <ItemTrilho key={`fixo-${item.href}`} item={item} pathname={pathname} alertas={nav.alertas} />
+            <ItemTrilho key={`fixo-${item.href}`} item={item} ativo={ativo} alertas={nav.alertas} />
           ))}
           {itensFixados.length > 0 && <li aria-hidden className="mx-2 my-1 border-t border-sidebar-border" />}
           {groups.map((group, gi) =>
-            !group.title || group.items.length === 1 ? (
+            !recolhivel(group) ? (
               group.items.map((item) => (
-                <ItemTrilho key={item.href} item={item} pathname={pathname} alertas={nav.alertas} />
+                <ItemTrilho key={item.href} item={item} ativo={ativo} alertas={nav.alertas} />
               ))
             ) : (
-              <SecaoTrilho
-                key={group.title ?? gi}
-                group={group as NavGroup & { title: string }}
-                pathname={pathname}
-                alertas={nav.alertas}
-              />
+              <SecaoTrilho key={group.title ?? gi} group={group} ativo={ativo} alertas={nav.alertas} />
             ),
           )}
         </ul>
@@ -375,7 +416,7 @@ export function SidebarNav({
   // da coluna flex sem espremer as linhas.
   return (
     <nav
-      className="flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden px-2 py-2.5 *:shrink-0"
+      className="rolagem-fina flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden px-2 py-2.5 *:shrink-0"
       aria-label="Menu principal"
     >
       {itensFixados.length > 0 && (
@@ -385,7 +426,7 @@ export function SidebarNav({
           </p>
           <NavList
             items={itensFixados}
-            pathname={pathname}
+            ativo={ativo}
             alertas={nav.alertas}
             onNavigate={onNavigate}
             fixacao={fixacao}
@@ -395,11 +436,11 @@ export function SidebarNav({
         </>
       )}
       {groups.map((group, gi) =>
-        !group.title || group.items.length === 1 ? (
+        !recolhivel(group) ? (
           <NavList
             key={group.title ?? `solta-${gi}`}
             items={group.items}
-            pathname={pathname}
+            ativo={ativo}
             alertas={nav.alertas}
             onNavigate={onNavigate}
             className="gap-0.5"
@@ -407,8 +448,10 @@ export function SidebarNav({
         ) : (
           <CollapsibleGroup
             key={group.title}
-            group={group as NavGroup & { title: string }}
-            pathname={pathname}
+            group={group}
+            ativo={ativo}
+            expanded={abertas.includes(group.title)}
+            onToggle={() => alternarSecao(group.title)}
             alertas={nav.alertas}
             onNavigate={onNavigate}
             fixacao={fixacao}

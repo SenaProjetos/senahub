@@ -232,6 +232,27 @@ header:has(~ main [data-cabecalho-pagina]) [data-titulo-padrao] {
   mask-image: radial-gradient(120% 90% at 50% 0%, transparent 28%, black 78%);
 }
 
+/* Rolagem fina do menu lateral (modelo aprovado: 6 px). A barra padrão do Windows tem ~17 px e, com
+   várias seções abertas, cortava os nomes ("Meu traba…"). Chrome e Edge usam o ::-webkit-scrollbar;
+   `scrollbar-width` só onde ele não existe (Firefox), porque no Chrome 121+ ele desliga o webkit. */
+.rolagem-fina::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.rolagem-fina::-webkit-scrollbar-track {
+  background: transparent;
+}
+.rolagem-fina::-webkit-scrollbar-thumb {
+  background: var(--sidebar-border);
+  border-radius: 3px;
+}
+@supports not selector(::-webkit-scrollbar) {
+  .rolagem-fina {
+    scrollbar-width: thin;
+    scrollbar-color: var(--sidebar-border) transparent;
+  }
+}
+
 /* Áreas seguras do aparelho (PWA, notch) */
 @supports (padding: env(safe-area-inset-bottom)) {
   .pb-safe {
