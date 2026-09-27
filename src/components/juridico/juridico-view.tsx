@@ -213,7 +213,7 @@ export function JuridicoView({
 
   return (
     <div className="space-y-4">
-      <CabecalhoPagina titulo="Jurídico" descricao={<>Contratos versionados. Certidões da empresa agora ficam em{" "} <a href="/certidoes" className="underline underline-offset-2"> Certidões </a> .</>} />
+      <CabecalhoPagina titulo="Jurídico" descricao="Contratos versionados. As certidões da empresa ficam em Gestão › Certidões." />
 
       <Tabs defaultValue="docs">
         <TabsList>

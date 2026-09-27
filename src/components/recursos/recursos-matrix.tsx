@@ -322,18 +322,7 @@ export function RecursosMatrix({
     <div className="space-y-5">
       <CabecalhoPagina
         titulo="Matriz de recursos"
-        descricao={
-          <>
-            Alocação por pessoa × projeto. O % é da capacidade da própria pessoa: 100% é tudo o que ela dedica a projetos.
-            {totalSuper > 0 && <span className="ml-1 text-destructive">{totalSuper} superalocado(s) hoje.</span>}
-            {totalSuperJanela > 0 && <span className="ml-1 text-warning">{totalSuperJanela} na janela de análise.</span>}
-            {cargaPlanejada.sobrecargas.length > 0 && (
-              <button type="button" onClick={() => setVista("planejada")} className="ml-1 text-destructive underline-offset-2 hover:underline">
-                {cargaPlanejada.sobrecargas.length} semana(s) acima da capacidade na carga planejada.
-              </button>
-            )}
-          </>
-        }
+        descricao="Alocação por pessoa × projeto. O % é da capacidade da própria pessoa: 100% é tudo o que ela dedica a projetos."
         acoes={
           podeGerir && usuariosSemRecurso.length > 0 ? (
             <Button size="sm" onClick={() => setNovoOpen(true)}>
@@ -342,6 +331,17 @@ export function RecursosMatrix({
           ) : undefined
         }
       />
+      {(totalSuper > 0 || totalSuperJanela > 0 || cargaPlanejada.sobrecargas.length > 0) && (
+        <p className="flex flex-wrap gap-x-3 text-sm">
+          {totalSuper > 0 && <span className="text-destructive">{totalSuper} superalocado(s) hoje.</span>}
+          {totalSuperJanela > 0 && <span className="text-warning">{totalSuperJanela} na janela de análise.</span>}
+          {cargaPlanejada.sobrecargas.length > 0 && (
+            <button type="button" onClick={() => setVista("planejada")} className="text-destructive underline-offset-2 hover:underline">
+              {cargaPlanejada.sobrecargas.length} semana(s) acima da capacidade na carga planejada.
+            </button>
+          )}
+        </p>
+      )}
 
       {/* Controles: filtro por projeto + janela de análise + alternância de visão */}
       <div className="flex flex-wrap items-center gap-3">
