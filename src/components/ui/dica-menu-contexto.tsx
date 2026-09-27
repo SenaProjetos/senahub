@@ -3,13 +3,11 @@
 import { useEffect, useState } from "react";
 import { MousePointerClick } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { prazoVencido } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
 /**
- * Faixa temporária que ensina o menu de contexto (botão direito / toque longo) nas telas que
+ * Balão temporário que ensina o menu de contexto (botão direito / toque longo) nas telas que
  * ganharam um. Some sozinha depois desta data — comparação por dia-calendário, via `lib/data`.
  *
  * **Provisória de propósito:** a data aqui é um teto folgado para o teste manual; o checklist de
@@ -46,33 +44,28 @@ export function DicaMenuContexto({ className }: { className?: string }) {
     }
   }
 
-  // Balão, não faixa: a faixa de largura inteira roubava uma linha de altura em 17 telas. A pílula
-  // ocupa uma linha curta e o texto só aparece se a pessoa abrir.
+  // Balão por cima do começo da lista (modelo aprovado): altura zero no fluxo, então não rouba
+  // linha nenhuma — nem a pílula de antes. Some com "Entendi" e não volta.
   return (
-    <div className={cn("flex", className)}>
-      <Popover defaultOpen={false}>
-        <PopoverTrigger
-          render={
-            <button
-              type="button"
-              className="inline-flex h-6 items-center gap-1.5 rounded-full border border-dashed bg-muted/40 px-2.5 text-xs text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:h-8"
-            >
-              <MousePointerClick className="size-3.5 shrink-0" aria-hidden />
-              <span className="font-medium text-foreground">Novidade</span>
-              <span className="hidden sm:inline">· menu de ações no botão direito</span>
-            </button>
-          }
-        />
-        <PopoverContent align="start" className="w-72 text-sm">
-          <p className="text-pretty">
-            Clique com o botão direito em uma linha, um cartão ou um arquivo para ver as ações. No
-            celular, toque e segure.
-          </p>
-          <Button type="button" size="sm" className="mt-2" onClick={dispensar}>
+    <div className={cn("relative z-20 my-0 h-0", className)}>
+      <div
+        role="status"
+        className="absolute top-2 left-2 flex max-w-xs items-start gap-2 rounded-md bg-primary px-3 py-2 text-xs text-primary-foreground shadow-lg"
+      >
+        <MousePointerClick className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+        <p className="text-pretty">
+          <b>Novidade:</b>{" "}
+          <span className="pointer-coarse:hidden">clique com o botão direito numa linha para ver as ações.</span>
+          <span className="hidden pointer-coarse:inline">toque e segure um cartão para ver as ações.</span>
+          <button
+            type="button"
+            onClick={dispensar}
+            className="ml-2 font-semibold underline-offset-2 opacity-90 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-primary-foreground"
+          >
             Entendi
-          </Button>
-        </PopoverContent>
-      </Popover>
+          </button>
+        </p>
+      </div>
     </div>
   );
 }
