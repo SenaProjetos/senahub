@@ -283,4 +283,21 @@ ser divididos entre as duas worktrees).
 - [ ] Lote 9 — **escopo menor:** a EAP (F6) já grava `SessaoTrabalho.tarefaId` (opcional, card
   de `Tarefa`). Falta só levar essa escolha para a lista do card de ponto (Início e Ponto no
   celular), no lugar da prévia "disciplina › atividade". Sem schema novo.
-- [ ] Comercial e Avisos: aguardam a escolha do dono (A/B/C no artefato).
+- [x] **Comercial = opção A, Avisos = opção B** (decisão do dono, 2026-09-27; implementado e
+  conferido em navegador). Comercial: `NavComercial` logo depois do cabeçalho, layout só com o
+  portão; Funil com menu Exportar. Avisos: página abre na lista, Novo aviso em janela
+  (`NovoAvisoDialog`), guia de primeiro acesso v2. Com o menu aberto a 1366 px o cabeçalho do
+  Funil desce uma linha — some quando data e tema saírem da barra (desvio abaixo).
+- [ ] **Lote de correção: executado ≠ aprovado** (dono apontou em 2026-09-27). Os lotes seguiram o
+  texto resumido do plano e a verificação mediu números, não conformidade com o mock. Desvios:
+  1. Menu recolhido: aprovado 9 seções nomeadas sem rolagem → feito 12 itens soltos + 5 seções,
+     rótulos cortados, ainda rola a 768 px.
+  2. Menu aberto: aprovado 224 px, só a seção atual aberta, sem Guias/Ajuda/Minha conta/
+     Preferências → feito 256 px e os 4 itens continuam.
+  3. Barra do topo no computador: aprovado data só como ícone da agenda e tema no menu da conta →
+     feito só no celular (causa raiz do cabeçalho que não cabe na barra).
+  4. Chat: aprovado sem botão flutuante → continua no computador.
+  5. Cabeçalho do projeto: aprovado Duplicar/Gerar documento no ⋯ e nome na barra no celular →
+     Duplicar continua botão; nome na barra do celular não feito.
+  6. Arquivos: aprovado Nomenclatura/Lista Mestre/Link público no ⋯ → continuam botões.
+  Fechar só depois de comparar cada tela, lado a lado, com a imagem aprovada.
