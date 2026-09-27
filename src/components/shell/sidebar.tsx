@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ChevronsLeft, ChevronsRight } from "lucide-react";
+import { ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SidebarNav } from "@/components/shell/sidebar-nav";
@@ -57,49 +57,44 @@ export function Sidebar({ nav }: { nav: ContextoNav }) {
 
       <SidebarNav nav={nav} collapsed={collapsed} />
 
-      <div className={cn("border-t border-sidebar-border p-2", collapsed && "flex justify-center")}>
-        <Button
-          variant="ghost"
-          size={collapsed ? "icon" : "sm"}
-          className={cn("text-muted-foreground", !collapsed && "w-full justify-start gap-2")}
-          onClick={toggle}
-          aria-label={collapsed ? "Expandir menu" : "Minimizar menu"}
-        >
-          {collapsed ? (
+      {collapsed ? (
+        <div className="flex justify-center border-t border-sidebar-border p-2">
+          <Button variant="ghost" size="icon" className="text-muted-foreground" onClick={toggle} aria-label="Expandir menu">
             <ChevronsRight className="size-4" />
-          ) : (
-            <>
-              <ChevronsLeft className="size-4" />
-              <span className="text-xs">Minimizar</span>
-            </>
-          )}
-        </Button>
-        {!collapsed &&
-          (interno ? (
-            // Interno: a versão abre o histórico de mudanças. `select-all` sai porque o
-            // clique agora navega — quem precisa copiar a versão para o suporte tem o
-            // rótulo completo no `title` e no topo da própria página.
-            <Link
-              href="/versoes"
-              title={`${VERSION_LABEL} — ver histórico de versões`}
-              className="mt-1 block px-2 text-center text-[10px] tracking-wide text-muted-foreground/70 transition-colors hover:text-foreground hover:underline"
-            >
-              {VERSION_LABEL}
-            </Link>
-          ) : (
-            <p
-              className="mt-1 px-2 text-center text-[10px] tracking-wide text-muted-foreground/70 select-all"
-              title={VERSION_LABEL}
-            >
-              {VERSION_LABEL}
-            </p>
-          ))}
-        {collapsed && (
+          </Button>
           <span className="sr-only" title={VERSION_LABEL}>
             {APP_VERSION}
           </span>
-        )}
-      </div>
+        </div>
+      ) : (
+        // Aberto, como no modelo aprovado: uma linha só, "« Minimizar · v1.21.0". O rótulo completo
+        // (com o commit, para o suporte) fica no `title` e no topo de /versoes.
+        <div className="flex items-center justify-center gap-0.5 border-t border-sidebar-border p-2 text-[11px] text-muted-foreground">
+          <button
+            type="button"
+            onClick={toggle}
+            aria-label="Minimizar menu"
+            className="rounded-sm px-0.5 transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+          >
+            « Minimizar
+          </button>
+          <span aria-hidden>·</span>
+          {interno ? (
+            // Interno: a versão abre o histórico de mudanças.
+            <Link
+              href="/versoes"
+              title={`${VERSION_LABEL} — ver histórico de versões`}
+              className="rounded-sm px-0.5 transition-colors outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+            >
+              v{APP_VERSION}
+            </Link>
+          ) : (
+            <span className="px-0.5 select-all" title={VERSION_LABEL}>
+              v{APP_VERSION}
+            </span>
+          )}
+        </div>
+      )}
     </aside>
   );
 }
