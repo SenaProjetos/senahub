@@ -22,6 +22,18 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Visualizador de pranchas com o dobro de área para a planta
+
+- Ao abrir uma prancha, o cabeçalho e as abas do projeto saem de cena (volte por **← Arquivos**) e o
+  cabeçalho do documento cabe numa linha só.
+- O visualizador ocupa exatamente a altura da janela: a página não rola mais junto com a prancha.
+- Os painéis de tarefas e de detalhes começam fechados quando a prancha não tem apontamento (a seta
+  da borda mostra quantos há) e abrem sozinhos ao criar o primeiro.
+- Numa tela de notebook (1366×768) com o menu minimizado, a área da planta foi de cerca de um terço
+  para 71% da tela.
+
+---
+
 ## Rabisco com cores, várias medidas por apontamento e menu minimizado com os mesmos itens
 
 - **Rabisco com cor e espessura:** ao desenhar, escolha a cor (vermelho, azul, verde, laranja, preto
