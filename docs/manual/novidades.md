@@ -22,6 +22,20 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Ponto no celular: escolha a tarefa também
+
+No celular, o cartão de ponto do **Início** e da tela **Ponto** agora deixa dizer **em qual tarefa**
+você está trabalhando — o mesmo que já dava para fazer no computador. Continua **opcional**.
+
+- Quando o projeto escolhido tem tarefa sua em aberto, aparece a linha **Tarefa · opcional** logo
+  abaixo da atividade atual. Toque nela e escolha na lista (ou "Sem tarefa").
+- Jornada parada: a tarefa vai junto quando você inicia ou volta da pausa.
+- Jornada rodando: trocar de tarefa fecha o tempo da anterior e começa o da nova na hora, sem
+  mudar o total do dia.
+- Trocar de projeto pelos atalhos continua sendo um toque só.
+
+---
+
 ## Cronograma com a cara do MS Project
 
 A tela do planejamento ganhou o layout que a equipe já conhece: **tabela à esquerda, gráfico à direita**,

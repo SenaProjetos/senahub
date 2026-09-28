@@ -40,6 +40,13 @@ em qual delas você trabalhou; não escolher funciona como sempre. Reunião e "s
 têm tarefa. Ao trocar de alocação você pode trocar a tarefa, e ao voltar do descanso ela é
 mantida. Corrigir o horário de um dia no espelho preserva a tarefa da entrada.
 
+**No celular** (Início e Ponto), a tarefa aparece numa linha **Tarefa · opcional** logo abaixo da
+atividade atual — só quando o projeto escolhido tem tarefa sua em aberto. Toque nela para escolher.
+Com a jornada parada, a tarefa vai junto quando você inicia ou volta da pausa; com a jornada
+rodando, trocar de tarefa fecha o tempo da anterior e começa o da nova na hora, sem mudar o total
+do dia. Trocar de projeto pelos atalhos continua sendo um toque só — a tarefa volta para "Sem
+tarefa" e você escolhe outra se quiser.
+
 ## Para gestores (RH)
 
 - Quem é gestor de RH (admin/supervisor/administrativo) vê também o **rateio do mês** —

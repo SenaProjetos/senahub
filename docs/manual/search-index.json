@@ -1455,7 +1455,9 @@
         "projeto",
         "espelho",
         "banco de horas",
-        "rateio"
+        "rateio",
+        "tarefa no ponto",
+        "ponto no celular"
       ],
       "sinonimos": [
         "registro de jornada",

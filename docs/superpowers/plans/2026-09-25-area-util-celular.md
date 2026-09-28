@@ -280,9 +280,14 @@ ser divididos entre as duas worktrees).
   - Regras viraram padrão no CLAUDE.md ("Page header and screen layout").
   - Modelo interativo de Comercial e Avisos (A/B/C, computador e celular) e antes/depois por tela
     na página de aprovação.
-- [ ] Lote 9 — **escopo menor:** a EAP (F6) já grava `SessaoTrabalho.tarefaId` (opcional, card
+- [x] Lote 9 — **escopo menor:** a EAP (F6) já grava `SessaoTrabalho.tarefaId` (opcional, card
   de `Tarefa`). Falta só levar essa escolha para a lista do card de ponto (Início e Ponto no
   celular), no lugar da prévia "disciplina › atividade". Sem schema novo.
+  **Feito em 2026-09-28 (Opus 5.5):** linha "Tarefa · opcional" abaixo da atividade atual, gaveta
+  com as tarefas; rodando troca na hora, parada vai junto na entrada/volta. Busca e tarefa
+  corrente compartilhadas com o seletor do computador (`useTarefasDoPonto`, `useJornada`); regra
+  pura `tarefaDoDestino` testada. Conferido em Chrome a 390×844 (escolher, entrar, trocar rodando,
+  Início, header do computador) e no banco.
 - [x] **Comercial = opção A, Avisos = opção B** (decisão do dono, 2026-09-27; implementado e
   conferido em navegador). Comercial: `NavComercial` logo depois do cabeçalho, layout só com o
   portão; Funil com menu Exportar. Avisos: página abre na lista, Novo aviso em janela
