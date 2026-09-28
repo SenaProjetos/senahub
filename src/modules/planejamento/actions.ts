@@ -27,6 +27,7 @@ import { regrasDeEdicao } from "@/modules/planejamento/edicao-linha";
 import { trocarPredecessoras } from "@/modules/planejamento/dependencias-service";
 import { avancarLinha, inserirLinhaAcima, moverLinha, moverLinhaNoNivel, recuarLinha } from "@/modules/planejamento/arvore-service";
 import { gerarEapDasDisciplinasNoProjeto } from "@/modules/planejamento/modelos/disciplina-service";
+import { apagarEapDoProjeto } from "@/modules/planejamento/apagar-eap-service";
 import { aposMudarEap } from "@/modules/planejamento/pos-eap";
 import { registrarProgresso } from "@/modules/planejamento/progresso-historico-service";
 
@@ -471,6 +472,33 @@ export const gerarEapDasDisciplinas = defineAction(
   },
   async (i, { user }) => {
     const r = await gerarEapDasDisciplinasNoProjeto({ projetoId: i.projetoId, escolhas: i.escolhas });
+    await aposMudarEap(i.projetoId, user.id);
+    revProjeto(i.projetoId);
+    return r;
+  },
+);
+
+/**
+ * Apaga a EAP inteira do projeto para recomeçar com outro modelo (pedido do dono, 2026-09-27). Só em rascunho limpo — a
+ * regra e as frases estão em `apagar-eap.ts`. A auditoria guarda quantas linhas e as linhas de cima, no projeto (as
+ * linhas apagadas não existem mais para o histórico achar).
+ */
+export const apagarEap = defineAction(
+  {
+    ...plan,
+    acao: "apagar-eap",
+    entidade: "EapTarefa",
+    schema: projetoIdSchema,
+    entidadeId: (_d, i) => i.projetoId,
+    capturarAntes: async (i) => ({
+      linhas: await prisma.eapTarefa.count({ where: { projetoId: i.projetoId } }),
+      raizes: (
+        await prisma.eapTarefa.findMany({ where: { projetoId: i.projetoId, parentId: null }, select: { nome: true }, orderBy: { ordem: "asc" }, take: 50 })
+      ).map((r) => r.nome),
+    }),
+  },
+  async (i, { user }) => {
+    const r = await apagarEapDoProjeto(i.projetoId);
     await aposMudarEap(i.projetoId, user.id);
     revProjeto(i.projetoId);
     return r;

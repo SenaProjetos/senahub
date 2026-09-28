@@ -17,6 +17,7 @@ import { ValorAgregadoPainel } from "@/components/planejamento/valor-agregado-pa
 import { valorAgregadoDoProjeto } from "@/modules/planejamento/valor-agregado-service";
 import { previasDosModelos } from "@/modules/planejamento/modelos/service";
 import { opcoesParaGerarDisciplinas } from "@/modules/planejamento/modelos/disciplina-service";
+import { impedimentoParaApagarEapDoProjeto } from "@/modules/planejamento/apagar-eap-service";
 import { paraDia } from "@/modules/planejamento/agenda";
 import { inicioDoDiaUtc } from "@/lib/data";
 
@@ -65,6 +66,7 @@ export default async function PlanejamentoProjetoPage({
   // linhas cada modelo criaria AQUI) é calculada num passe só, com o contexto do projeto lido uma vez.
   const previasModelos = podeGerir && tarefas.length === 0 ? await previasDosModelos(projetoId) : [];
   const opcoesDisciplinas = podeGerir ? await opcoesParaGerarDisciplinas(projetoId) : [];
+  const impedimentoApagar = podeGerir && tarefas.length > 0 ? await impedimentoParaApagarEapDoProjeto(projetoId) : null;
 
   return (
     <div className="space-y-6">
@@ -86,6 +88,7 @@ export default async function PlanejamentoProjetoPage({
         qualidade={qualidade}
         previasModelos={previasModelos}
         opcoesDisciplinas={opcoesDisciplinas}
+        impedimentoApagar={impedimentoApagar}
       />
       {valorAgregado && <ValorAgregadoPainel dados={valorAgregado} />}
       <PlanoVsReal dados={planoReal} />

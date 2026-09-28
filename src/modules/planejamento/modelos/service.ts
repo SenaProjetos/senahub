@@ -263,7 +263,7 @@ async function contextoDoProjeto(projetoId: string) {
 /** Por que aplicar seria recusado — a mesma frase que a action lança, para a tela desabilitar o botão. */
 function impedimentoParaAplicar(ctx: Awaited<ReturnType<typeof contextoDoProjeto>>, vaiCriar: number): string | null {
   if (ctx.quantasLinhas > 0) {
-    return "Este projeto já tem linhas na EAP. O modelo só entra em projeto com a EAP vazia — apague as linhas ou duplique o projeto.";
+    return "Este projeto já tem linhas na EAP. O modelo só entra em projeto com a EAP vazia — use Apagar EAP (enquanto o cronograma é rascunho) ou duplique o projeto.";
   }
   if (ctx.baseline > 0) {
     return "Este projeto já tem linha de base aprovada: aplicar um modelo mudaria o combinado.";

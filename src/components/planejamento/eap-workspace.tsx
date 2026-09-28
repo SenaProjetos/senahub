@@ -11,6 +11,7 @@ import {
   ArrowLeft,
   Rocket,
   CalendarClock,
+  Trash2,
   Download,
   FileText,
   UsersRound,
@@ -24,6 +25,7 @@ import {
   excluirEapTarefa,
   gerarTarefaDeEap,
   inserirEapTarefaAcima,
+  apagarEap,
   moverEapTarefa,
   moverEapTarefaNoNivel,
   reagendarPlano,
@@ -89,6 +91,7 @@ export function EapWorkspace({
   qualidade,
   previasModelos = [],
   opcoesDisciplinas = [],
+  impedimentoApagar = null,
 }: {
   projeto: { id: string; codigo: string; nome: string };
   tarefas: EapTarefaDTO[];
@@ -126,6 +129,8 @@ export function EapWorkspace({
   previasModelos?: PreviaDeModelo[];
   /** Disciplinas sem tarefa na EAP, com os modelos de disciplina que servem ("Gerar EAP das disciplinas"). */
   opcoesDisciplinas?: OpcaoDeDisciplina[];
+  /** Por que "Apagar EAP" não pode (`null` = pode) — a mesma frase da action. */
+  impedimentoApagar?: string | null;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -348,6 +353,25 @@ export function EapWorkspace({
     });
   }
 
+  /** Apagar a EAP inteira para recomeçar com outro modelo. O confirm vem ANTES da transição. */
+  async function apagarTudo() {
+    const ok = await confirm({
+      title: "Apagar a EAP deste projeto?",
+      description:
+        `As ${tarefas.length} linhas da EAP — tarefas, marcos, vínculos e pessoas atribuídas — serão apagadas, para você usar ` +
+        "outro modelo ou gerar de novo. Ficam as fases cadastradas nas disciplinas e o início do cronograma. Não dá para desfazer.",
+      confirmLabel: "Apagar a EAP",
+      variant: "destructive",
+    });
+    if (!ok) return;
+    start(async () => {
+      const r = await apagarEap({ projetoId: projeto.id });
+      if (!r.ok) return void toast.error(r.error);
+      toast.success(`EAP apagada (${r.data.apagadas} linhas).`, { description: "Agora dá para usar outro modelo ou gerar das disciplinas." });
+      router.refresh();
+    });
+  }
+
   function herdar() {
     start(async () => {
       const r = await herdarResponsaveisDaDisciplina({ projetoId: projeto.id });
@@ -458,6 +482,18 @@ export function EapWorkspace({
               <Button size="sm" variant="outline" onClick={aplicar} disabled={pending || tarefas.length === 0}>
                 <CheckCheck className="size-3.5" /> Aplicar ao projeto
               </Button>
+              {tarefas.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => void apagarTudo()}
+                  disabled={pending || !!impedimentoApagar}
+                  title={impedimentoApagar ?? "Apaga todas as linhas da EAP para recomeçar com outro modelo"}
+                >
+                  <Trash2 className="size-3.5" /> Apagar EAP
+                </Button>
+              )}
             </>
           )}
         </div>
