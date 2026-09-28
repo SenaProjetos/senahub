@@ -453,7 +453,12 @@ export function GuiaProjetosView() {
         </div>
         <Acao
           tela="Prancha aberta no visualizador"
-          clique={<NomeBotao>Apontar</NomeBotao>}
+          clique={
+            <>
+              <NomeBotao>Pino</NomeBotao> na barra acima da prancha, e depois no ponto — ou botão direito
+              na prancha → <NomeBotao>Novo apontamento aqui</NomeBotao>
+            </>
+          }
           resultado="Cria um apontamento numerado no ponto clicado, com autor e descrição, visível para o responsável da disciplina."
         />
         <Dica>

@@ -164,6 +164,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn, formatarData, formatarDataHora, rotuloRevisao } from "@/lib/utils";
+import { copiarTexto } from "@/lib/clipboard";
 
 // pdf.js é carregado dinamicamente no cliente (evita SSR e mantém o chunk fora do bundle inicial).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1732,10 +1733,10 @@ export function PdfViewer(props: Props) {
         if (ponto?.pagina != null) abrirNovo(ponto.pagina, ponto.x, ponto.y);
         return;
       case ACAO_COPIAR_TEXTO:
+        // `copiarTexto` cobre o http fora do localhost (sem `navigator.clipboard`) e a permissão negada.
         if (ponto?.texto) {
-          navigator.clipboard.writeText(ponto.texto).then(
-            () => toast.success("Texto copiado."),
-            () => toast.error("Não foi possível copiar o texto."),
+          void copiarTexto(ponto.texto).then((ok) =>
+            ok ? toast.success("Texto copiado.") : toast.error("Não foi possível copiar o texto. Use Ctrl+C."),
           );
         }
         return;
@@ -2374,7 +2375,7 @@ export function PdfViewer(props: Props) {
             {pendencias.length === 0 ? (
               <p className="px-3 py-6 text-center text-xs text-muted-foreground">
                 {podeApontar
-                  ? "Clique em “Apontar” e toque na prancha para criar uma pendência."
+                  ? "Escolha o pino na barra acima da prancha e clique onde está a pendência — ou use o botão direito na prancha."
                   : "Nenhum apontamento nesta prancha."}
               </p>
             ) : !pendenciaSelecionada ? (
