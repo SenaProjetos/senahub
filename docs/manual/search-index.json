@@ -1765,6 +1765,40 @@
       ]
     },
     {
+      "titulo": "Normas Técnicas",
+      "path": "engenharia/normas-tecnicas.md",
+      "descricao": "Catálogo de normas técnicas em PDF, organizado em pastas por disciplina.",
+      "resumo": "Onde guardar e encontrar as normas (NBR, NR…) usadas nos projetos — uma pasta por disciplina, busca por número, título, ano ou disciplina.",
+      "tags": [
+        "normas",
+        "nbr",
+        "nr",
+        "abnt",
+        "engenharia",
+        "pastas",
+        "disciplina",
+        "biblioteca técnica"
+      ],
+      "palavrasChave": [
+        "norma técnica",
+        "nbr",
+        "abnt",
+        "nr",
+        "pdf",
+        "pasta",
+        "disciplina",
+        "estrutural",
+        "hidrossanitário",
+        "elétrico",
+        "arquitetura"
+      ],
+      "sinonimos": [
+        "normas abnt",
+        "biblioteca de normas",
+        "acervo de normas"
+      ]
+    },
+    {
       "titulo": "Licitações",
       "path": "gestao/licitacoes.md",
       "descricao": "Acompanhamento de licitações com painel, filtros por status/órgão e gestão dos processos.",

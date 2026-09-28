@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { removerArquivo } from "@/lib/storage";
-import { criarPadraoSchema, criarNormaSchema, idSchema } from "./schemas";
+import { criarPadraoSchema, criarNormaSchema, editarNormaSchema, idSchema } from "./schemas";
 
 // ── Padrões técnicos ──
 
@@ -68,6 +68,22 @@ export const excluirPadrao = defineAction(
 
 // ── Normas técnicas ──
 
+/**
+ * Pastas pedidas, sem repetição, conferidas contra o catálogo. Aceita disciplina inativa que já
+ * esteja na norma: desativar um card no catálogo não pode travar a edição do número/título.
+ */
+async function disciplinasValidas(ids: string[], jaNaNorma: string[] = []): Promise<string[]> {
+  const unicos = [...new Set(ids)];
+  if (unicos.length === 0) return [];
+  const achadas = await prisma.disciplinaCatalogo.findMany({
+    where: { id: { in: unicos } },
+    select: { id: true, ativo: true },
+  });
+  const validas = achadas.filter((d) => d.ativo || jaNaNorma.includes(d.id));
+  if (validas.length !== unicos.length) throw new ActionError("Disciplina inválida.");
+  return unicos;
+}
+
 export const criarNorma = defineAction(
   {
     modulo: "engenharia",
@@ -79,6 +95,7 @@ export const criarNorma = defineAction(
     entidadeId: (data) => (data as { id: string }).id,
   },
   async (input, ctx) => {
+    const disciplinaIds = await disciplinasValidas(input.disciplinaIds);
     const n = await prisma.normaTecnica.create({
       data: {
         numero: input.numero,
@@ -90,9 +107,55 @@ export const criarNorma = defineAction(
         tamanho: input.meta.tamanho,
         hashSha256: input.meta.hashSha256 ?? null,
         autorId: ctx.user.id,
+        disciplinas: { create: disciplinaIds.map((disciplinaId) => ({ disciplinaId })) },
       },
     });
     return { id: n.id };
+  },
+);
+
+export const editarNorma = defineAction(
+  {
+    modulo: "engenharia",
+    acao: "editar-norma",
+    recurso: "biblioteca_tecnica",
+    permissao: "incluir",
+    schema: editarNormaSchema,
+    entidade: "NormaTecnica",
+    entidadeId: (_data, input) => input.id,
+    capturarAntes: (input) =>
+      prisma.normaTecnica.findUnique({
+        where: { id: input.id },
+        include: { disciplinas: { select: { disciplinaId: true } } },
+      }),
+  },
+  async (input, ctx) => {
+    const n = await prisma.normaTecnica.findUnique({
+      where: { id: input.id },
+      include: { disciplinas: { select: { disciplinaId: true } } },
+    });
+    if (!n || !n.ativo) throw new ActionError("Norma não encontrada.");
+    // Mesma regra do excluir: autor mexe na própria; na de terceiros exige `gerir`.
+    if (n.autorId !== ctx.user.id && !(await can(ctx.user, "biblioteca_tecnica", "gerir"))) {
+      throw new ActionError("Sem permissão para editar esta norma.");
+    }
+    const disciplinaIds = await disciplinasValidas(
+      input.disciplinaIds,
+      n.disciplinas.map((d) => d.disciplinaId),
+    );
+    await prisma.$transaction(async (tx) => {
+      await tx.normaTecnica.update({
+        where: { id: input.id },
+        data: { numero: input.numero, titulo: input.titulo, ano: input.ano },
+      });
+      await tx.normaTecnicaDisciplina.deleteMany({ where: { normaId: input.id } });
+      if (disciplinaIds.length > 0) {
+        await tx.normaTecnicaDisciplina.createMany({
+          data: disciplinaIds.map((disciplinaId) => ({ normaId: input.id, disciplinaId })),
+        });
+      }
+    });
+    return { id: input.id, disciplinaIds };
   },
 );
 

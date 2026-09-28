@@ -32,12 +32,19 @@ export const criarPadraoSchema = z.object({
 });
 export type CriarPadraoInput = z.infer<typeof criarPadraoSchema>;
 
-export const criarNormaSchema = z.object({
+const camposNorma = {
   numero: z.string().trim().min(1, "Informe o número.").max(120),
   titulo: z.string().trim().min(1, "Informe o título.").max(300),
   ano: z.coerce.number().int().gte(1900, "Ano inválido.").lte(2100, "Ano inválido."),
-  meta: metaArquivo,
-});
+  /** Pastas de disciplina da norma. Vazio = pasta "Geral". */
+  disciplinaIds: z.array(z.string().min(1)).max(40).default([]),
+};
+
+export const criarNormaSchema = z.object({ ...camposNorma, meta: metaArquivo });
 export type CriarNormaInput = z.infer<typeof criarNormaSchema>;
+
+/** Editar = metadados e pastas. Trocar o PDF é excluir e incluir de novo. */
+export const editarNormaSchema = z.object({ id: z.string().min(1), ...camposNorma });
+export type EditarNormaInput = z.infer<typeof editarNormaSchema>;
 
 export const idSchema = z.object({ id: z.string().min(1) });

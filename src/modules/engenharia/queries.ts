@@ -27,6 +27,8 @@ export type NormaItem = {
   numero: string;
   titulo: string;
   ano: number;
+  /** Pastas da norma, na ordem do catálogo. Vazio = pasta "Geral". */
+  disciplinas: { id: string; nome: string; ordem: number }[];
   arquivoNome: string;
   tamanho: number;
   autor: string;
@@ -103,11 +105,12 @@ export async function listarPadroes(): Promise<GrupoPadroes[]> {
     }));
 }
 
-/** Normas catalogadas, mais recentes primeiro (busca é client-side por numero/titulo/ano). */
+/** Normas catalogadas com suas pastas de disciplina (pasta e busca são client-side). */
 export async function listarNormas(): Promise<NormaItem[]> {
   const normas = await prisma.normaTecnica.findMany({
     where: { ativo: true },
     orderBy: [{ numero: "asc" }, { ano: "desc" }],
+    include: { disciplinas: { select: { disciplina: { select: { id: true, nome: true, ordem: true } } } } },
   });
   const autores = await nomesAutores(normas.map((n) => n.autorId));
   return normas.map((n) => ({
@@ -115,6 +118,9 @@ export async function listarNormas(): Promise<NormaItem[]> {
     numero: n.numero,
     titulo: n.titulo,
     ano: n.ano,
+    disciplinas: n.disciplinas
+      .map((nd) => nd.disciplina)
+      .sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome, "pt-BR")),
     arquivoNome: n.arquivoNome,
     tamanho: n.tamanho,
     autor: autores.get(n.autorId) ?? "—",

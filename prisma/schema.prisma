@@ -1106,6 +1106,8 @@ model DisciplinaCatalogo {
   siglas         SiglaNomenclatura[]
 
   padroes           PadraoTecnico[]
+  /// Normas técnicas guardadas na pasta desta disciplina (uma norma pode estar em várias).
+  normas            NormaTecnicaDisciplina[]
   /// Itens de proposta que já apontam para este catálogo (CRM F1.19).
   propostaItens     PropostaItem[]
   clausulasProposta ClausulaProposta[]
@@ -1164,8 +1166,25 @@ model NormaTecnica {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  /// Pastas de disciplina onde a norma aparece. Nenhuma = pasta "Geral".
+  disciplinas NormaTecnicaDisciplina[]
+
   @@index([numero])
   @@map("norma_tecnica")
+}
+
+/// Norma ↔ disciplina do catálogo: as "pastas" da tela de Normas Técnicas (chamado de
+/// 2026-09-10). N:N porque há norma de mais de uma disciplina (NBR 15575, NBR 9077).
+model NormaTecnicaDisciplina {
+  id           String             @id @default(cuid())
+  normaId      String
+  norma        NormaTecnica       @relation(fields: [normaId], references: [id], onDelete: Cascade)
+  disciplinaId String
+  disciplina   DisciplinaCatalogo @relation(fields: [disciplinaId], references: [id])
+
+  @@unique([normaId, disciplinaId])
+  @@index([disciplinaId])
+  @@map("norma_tecnica_disciplina")
 }
 
 /// Biblioteca de referências técnicas soltas (artigo/livro/nota técnica/outro).

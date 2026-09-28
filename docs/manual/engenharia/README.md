@@ -14,5 +14,6 @@ Documentação das ferramentas de engenharia.
 | Funcionalidade | Rota | Estado |
 | --- | --- | --- |
 | [Ferramentas (calculadoras NBR)](ferramentas.md) | `/ferramentas` | ✅ documentado |
+| [Normas Técnicas (pastas por disciplina)](normas-tecnicas.md) | `/engenharia/normas` | ✅ documentado |
 
 [← Índice do manual](../README.md)
