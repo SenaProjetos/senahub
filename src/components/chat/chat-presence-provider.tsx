@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { getSocket, tocarSom } from "@/lib/chat-client";
+import { aoPushSemSocket, aoReconectar, getSocket, tocarSom } from "@/lib/chat-client";
 import { decidirAlerta } from "@/lib/chat-badge-store";
 import { ChatBadgeContext } from "@/components/chat/chat-badge-context";
 
@@ -94,11 +94,17 @@ export function ChatPresenceProvider({ children }: { children: React.ReactNode }
     s.on("chat-lido-proprio", onLidoProprio);
     s.on("status-proprio", onStatusProprio);
     s.on("entrar-canal-novo", onNovoCanal);
+    // O que chegou com o socket fora do ar não é reenviado: o badge rebusca ao reconectar
+    // e quando um push de mensagem chega sem o socket ter entregado a mensagem.
+    const pararReconexao = aoReconectar(refetch);
+    const pararPush = aoPushSemSocket(refetch);
     return () => {
       s.off("mensagem", onMensagem);
       s.off("chat-lido-proprio", onLidoProprio);
       s.off("status-proprio", onStatusProprio);
       s.off("entrar-canal-novo", onNovoCanal);
+      pararReconexao();
+      pararPush();
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [buscarTotal, refetch, router]);

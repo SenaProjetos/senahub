@@ -21,7 +21,8 @@ import {
   extrairMencoes,
 } from "@/modules/chat/mencoes";
 import { parseFormatacao, partesComLink, textoParaPreview } from "@/modules/chat/formatacao";
-import { getSocket, tocarSom } from "@/lib/chat-client";
+import { incluirMensagem, mesclarCanais, mesclarMensagens } from "@/modules/chat/sincronia";
+import { aoPushSemSocket, aoReconectar, getSocket, tocarSom } from "@/lib/chat-client";
 import { precisaChunk, enviarEmChunks } from "@/lib/upload-grande";
 import { PushBanner } from "@/components/notificacoes/push-ativar";
 import { useChatBadge } from "@/components/chat/chat-badge-context";
@@ -619,15 +620,12 @@ export function ChatView({
   // um canal específico via deep-link (ex.: botão "Chat" de um projeto).
   const [sel, setSel] = useState<string | null>(sp.get("c") ?? null);
 
-  // Mescla canais que vieram de um router.refresh() (ex.: grupo recém-criado ou
-  // sincronização do "Sócios") no estado local, sem perder os updates ao vivo de
-  // não-lidas/última mensagem dos canais já presentes. Faz grupos aparecerem sem F5.
+  // Mescla a lista que veio do servidor — router.refresh() (grupo recém-criado, "Sócios") ou a
+  // rebusca do chat minimizado ao reabrir — no estado local: canais novos entram e os existentes
+  // assumem não lidas/última mensagem do servidor (o aberto fica zerado). Só acrescentar deixava
+  // o chat minimizado com as não lidas da primeira abertura.
   useEffect(() => {
-    setCanais((prev) => {
-      const existentes = new Set(prev.map((c) => c.id));
-      const novos = canaisIniciais.filter((c) => !existentes.has(c.id));
-      return novos.length > 0 ? [...prev, ...novos] : prev;
-    });
+    setCanais((prev) => mesclarCanais(prev, canaisIniciais, selRef.current));
   }, [canaisIniciais]);
   const [mensagens, setMensagens] = useState<Msg[]>([]);
   const [fixadas, setFixadas] = useState<Fixada[]>([]);
@@ -746,6 +744,8 @@ export function ChatView({
   const scrollAlvoRef = useRef<string | null>(null);
   const selRef = useRef(sel);
   selRef.current = sel;
+  const mensagensRef = useRef(mensagens);
+  mensagensRef.current = mensagens;
   const statusRef = useRef(status);
   statusRef.current = status;
   const silenciadosRef = useRef(silenciados);
@@ -904,7 +904,9 @@ export function ChatView({
       // #2: confirma entrega (recebeu no dispositivo) de mensagens de outros — em qualquer canal.
       if (p.autor.id !== meId) bufferEntrega(p.canalId, p.id);
       if (p.canalId === selRef.current) {
-        setMensagens((m) => [...m, p]);
+        // Sem duplicar: a própria mensagem também entra pelo retorno do envio, e a
+        // ressincronização pode ter trazido esta antes do evento chegar.
+        setMensagens((m) => incluirMensagem(m, p));
         // Reordena a lista ao vivo: atualiza a última mensagem do canal aberto também
         // (naoLidas fica 0 porque está sendo lido). Sem isso o canal aberto só subia ao sair.
         setCanais((cs) =>
@@ -1116,6 +1118,65 @@ export function ChatView({
     };
   }, [meId, router, somChat, bufferEntrega]);
 
+  // Recupera o que o socket perdeu enquanto esteve fora do ar (aba congelada pelo navegador,
+  // notebook que dormiu, troca de rede, reinício do servidor): o socket.io não reenvia o que foi
+  // emitido nesse intervalo, e o push chega por outro caminho — a pessoa ouvia o aviso e a
+  // mensagem só aparecia ao trocar de conversa. Roda ao reconectar e quando chega um push de
+  // mensagem que o socket não entregou. Um pedido durante outra rodada vira mais uma rodada no fim.
+  const ressincRef = useRef({ rodando: false, denovo: false });
+  const ressincronizar = useCallback(async () => {
+    if (ressincRef.current.rodando) {
+      ressincRef.current.denovo = true;
+      return;
+    }
+    ressincRef.current.rodando = true;
+    try {
+      do {
+        ressincRef.current.denovo = false;
+        const canal = selRef.current;
+        // Canal observado (admin) não entra no room sozinho ao reconectar.
+        if (canal) getSocket().emit("entrar-canal", canal);
+        const json = (url: string) =>
+          fetch(url)
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null);
+        const [pagina, lista] = await Promise.all([
+          canal ? json(`/api/chat/canais/${canal}/mensagens`) : Promise.resolve(null),
+          json("/api/chat/bootstrap"),
+        ]);
+        if (canal && pagina?.mensagens && selRef.current === canal) {
+          const frescas = pagina.mensagens as Msg[];
+          const temMaisFrescas = !!pagina.temMais;
+          const idsNaTela = new Set(mensagensRef.current.map((m) => m.id));
+          const { substituiu } = mesclarMensagens(mensagensRef.current, frescas, temMaisFrescas);
+          setMensagens((ms) => mesclarMensagens(ms, frescas, temMaisFrescas).mensagens);
+          if (substituiu) setTemMais(temMaisFrescas);
+          setFixadas(pagina.fixadas ?? []);
+          setMembrosCanalAtual(pagina.membros ?? []);
+          const chegaram = frescas.filter((m) => !idsNaTela.has(m.id) && m.autor.id !== meId);
+          if (chegaram.length > 0) {
+            for (const m of chegaram) bufferEntrega(canal, m.id);
+            void marcarLido({ canalId: canal });
+          }
+        }
+        if (Array.isArray(lista?.canais)) {
+          setCanais((prev) => mesclarCanais(prev, lista.canais as CanalListItem[], selRef.current));
+        }
+      } while (ressincRef.current.denovo);
+    } finally {
+      ressincRef.current.rodando = false;
+    }
+  }, [meId, bufferEntrega]);
+
+  useEffect(() => {
+    const pararReconexao = aoReconectar(() => void ressincronizar());
+    const pararPush = aoPushSemSocket(() => void ressincronizar());
+    return () => {
+      pararReconexao();
+      pararPush();
+    };
+  }, [ressincronizar]);
+
   useLayoutEffect(() => {
     // Ao pré-carregar histórico antigo, restaura a posição: compensa o crescimento do conteúdo
     // acima da viewport para o usuário não "pular" (C4-3). Demais mudanças rolam ao fim.
@@ -1239,6 +1300,7 @@ export function ChatView({
       const meta = await subirAnexoChat(canalId, arquivo, (pct) => setAnexoProgresso({ nome: arquivo.name, pct }));
       const r = await enviarMensagem({ canalId, conteudo: "", anexoPath: meta.anexoPath, anexoNome: meta.anexoNome, anexoMime: meta.anexoMime });
       if (!r.ok) toast.error(r.error);
+      else mostrarEnviada(canalId, r.data);
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -1335,6 +1397,13 @@ export function ChatView({
 
     const r = await enviarMensagem({ canalId: sel, conteudo, respostaAId: replyId, anexos: metas });
     if (!r.ok) toast.error(r.error);
+    else mostrarEnviada(sel, r.data);
+  }
+
+  // A própria mensagem aparece pelo retorno do envio, não só pelo socket: com o socket caído,
+  // quem enviava não via o que tinha acabado de mandar.
+  function mostrarEnviada(canalId: string, m: Msg) {
+    if (selRef.current === canalId) setMensagens((ms) => incluirMensagem(ms, m));
   }
 
   async function salvarEdicao(msgId: string) {

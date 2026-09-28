@@ -21,6 +21,11 @@ export const ABRIR_CHAT = "senahub:abrir-chat";
 /**
  * Janelinha de conversa aberta pelo ícone de chat da barra do topo (sem botão flutuante: ele cobria
  * a última coluna das tabelas). Dados carregados sob demanda (não pesam a navegação).
+ *
+ * A lista é rebuscada a CADA abertura. O conteúdo do diálogo desmonta ao fechar e, com a lista
+ * guardada da primeira abertura, o ChatView remontava com as não lidas daquele momento (conversa
+ * já lida voltava a pedir leitura) e sem as conversas iniciadas depois. Enquanto a nova não chega,
+ * mostra a guardada; ao chegar, o ChatView a mescla (`mesclarCanais`).
  */
 export function FloatingChat() {
   const pathname = usePathname();
@@ -39,14 +44,13 @@ export function FloatingChat() {
 
   async function abrir() {
     setOpen(true);
-    if (!data && !carregando) {
-      setCarregando(true);
-      try {
-        const res = await fetch("/api/chat/bootstrap");
-        if (res.ok) setData(await res.json());
-      } finally {
-        setCarregando(false);
-      }
+    if (carregando) return;
+    setCarregando(true);
+    try {
+      const res = await fetch("/api/chat/bootstrap");
+      if (res.ok) setData(await res.json());
+    } finally {
+      setCarregando(false);
     }
   }
 
