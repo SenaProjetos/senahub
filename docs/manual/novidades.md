@@ -22,6 +22,26 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Rabisco nos apontamentos, zoom até 2000%, normas em pastas e links no chat
+
+- **Rabisco nos apontamentos:** nova marcação **Rabisco** (tecla **6** no modo Apontar) para
+  desenhar à mão livre sobre a planta e indicar a solução. Vários traços por apontamento, com
+  **Desfazer** (Ctrl+Z), **Descartar** (Esc) e **Concluir** (Enter). O desenho aparece na prancha,
+  na miniatura da lista e no PDF carimbado. Detalhes em [Projetos](projetos/projetos.md#zoom-e-rabisco-no-visualizador-de-pranchas).
+- **Zoom até 2000%** (antes, 500%) no visualizador de pranchas e no de PDFs. Os botões andam em
+  degraus maiores quando o zoom já está alto, e o **Ctrl + roda** aproxima mantendo parado o ponto
+  sob o cursor. A parte da planta que está na tela fica nítida mesmo no zoom máximo.
+- **Normas Técnicas em pastas por disciplina:** uma pasta para cada disciplina que tem norma,
+  mais **Geral** para as sem disciplina. A mesma norma pode estar em mais de uma pasta, e o lápis
+  (**Editar**) muda as pastas de uma norma. As normas que já existiam estão em **Geral** até
+  alguém marcar as disciplinas. Detalhes em [Normas Técnicas](engenharia/normas-tecnicas.md).
+- **Chat:** endereço colado na mensagem (`https://…`, `www.…`) vira **link clicável**, abrindo em
+  nova aba.
+- **Correção:** no visualizador de PDFs dos Recebidos/Geral/RH, com zoom alto, a parte esquerda
+  da página ficava fora do alcance da rolagem.
+
+---
+
 ## Padrão de nomenclatura: a versão como tabela, e importar a planilha
 
 Cada versão do padrão de nomes de arquivo ganhou o seu **Catálogo** (Configurações →
