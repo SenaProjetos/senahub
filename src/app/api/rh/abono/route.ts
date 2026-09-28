@@ -5,8 +5,11 @@ import { notificar } from "@/lib/notificar";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { salvarArquivo, slug, nomeArquivoLimpo } from "@/lib/storage";
 import { whereAudiencia } from "@/lib/audiencias";
+import { minutosHHMM, minutosJanela } from "@/modules/ponto/abono";
+import { formatarData } from "@/lib/utils";
 
 const MAX = 25 * 1024 * 1024;
+const MOTIVOS = ["atestado", "consulta", "exame", "compromisso", "outro"];
 
 export async function POST(req: Request) {
   const session = await getSession();
@@ -18,8 +21,28 @@ export async function POST(req: Request) {
   const dataFim = String(form.get("dataFim") ?? "");
   const motivo = String(form.get("motivo") ?? "");
   const atestado = form.get("atestado");
+  const motivoTipo = String(form.get("motivoTipo") ?? "atestado");
+  const horaInicio = String(form.get("horaInicio") ?? "") || null;
+  const horaFim = String(form.get("horaFim") ?? "") || null;
   if (!dataInicio || !dataFim) {
     return NextResponse.json({ error: "Datas obrigatórias." }, { status: 400 });
+  }
+  if (!MOTIVOS.includes(motivoTipo)) {
+    return NextResponse.json({ error: "Motivo inválido." }, { status: 400 });
+  }
+  if (dataFim < dataInicio) {
+    return NextResponse.json({ error: "A data de fim não pode ser anterior ao início." }, { status: 400 });
+  }
+  if (horaInicio || horaFim) {
+    if (!horaInicio || !horaFim || minutosHHMM(horaInicio) == null || minutosHHMM(horaFim) == null) {
+      return NextResponse.json({ error: "Informe o horário de início e de fim." }, { status: 400 });
+    }
+    if (minutosJanela(horaInicio, horaFim) === 0) {
+      return NextResponse.json({ error: "O horário de fim deve ser depois do início." }, { status: 400 });
+    }
+    if (dataInicio !== dataFim) {
+      return NextResponse.json({ error: "Ausência com horário vale para um único dia." }, { status: 400 });
+    }
   }
 
   let atestadoPath: string | null = null;
@@ -41,10 +64,18 @@ export async function POST(req: Request) {
       dataInicio: new Date(dataInicio),
       dataFim: new Date(dataFim),
       motivo: motivo || null,
+      motivoTipo: motivoTipo as "atestado",
+      horaInicio,
+      horaFim,
       atestadoPath,
       atestadoNome,
     },
   });
+
+  // Aviso antecipado: pedido feito ANTES do dia da ausência (consulta/compromisso).
+  const hojeISO = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  const antecipado = dataInicio > hojeISO;
+  const quando = horaInicio ? `${formatarData(dataInicio)}, ${horaInicio}–${horaFim}` : formatarData(dataInicio);
 
   const gestores = await prisma.user.findMany({
     where: whereAudiencia("rh_admin"),
@@ -53,8 +84,10 @@ export async function POST(req: Request) {
   await Promise.all(
     gestores.map((g) =>
       notificar(g.id, {
-        titulo: "Abono de falta para validar",
-        corpo: `${user.name} solicitou abono.`,
+        titulo: antecipado ? "Aviso antecipado de ausência" : "Abono de falta para validar",
+        corpo: antecipado
+          ? `${user.name} avisou uma ausência (${motivoTipo}) em ${quando}.`
+          : `${user.name} solicitou abono.`,
         href: "/rh/admin",
       }),
     ),

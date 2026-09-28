@@ -32,6 +32,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { AnexoAbono } from "@/components/rh/anexo-abono";
+import { rotuloJanela, rotuloMotivo, rotuloTratamento } from "@/modules/rh/ausencia";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type {
@@ -468,13 +470,21 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                 ) : (
                   <ul className="divide-y text-sm">
                     {ausencias.abonos.map((a) => (
-                      <li key={a.id} className="flex items-center justify-between gap-3 py-2">
+                      <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
                         <span>
                           {formatarData(a.dataInicio)}{a.dataFim !== a.dataInicio ? ` — ${formatarData(a.dataFim)}` : ""}
+                          {rotuloJanela(a.horaInicio, a.horaFim) ? ` · ${rotuloJanela(a.horaInicio, a.horaFim)}` : ""}
+                          <span className="text-muted-foreground"> · {rotuloMotivo(a.motivoTipo)}</span>
+                          {a.antecipado && <Badge variant="outline" className="ml-2 align-middle">Aviso antecipado</Badge>}
                           {a.motivo ? <span className="text-muted-foreground"> · {a.motivo}</span> : null}
-                          {a.atestadoNome ? <span className="text-muted-foreground"> · 📎 {a.atestadoNome}</span> : null}
                         </span>
-                        <StatusBadge status={a.status} />
+                        <span className="flex items-center gap-2">
+                          {a.temAnexo && <AnexoAbono id={a.id} nome={a.atestadoNome} />}
+                          {rotuloTratamento(a.status, a.tratamento) && (
+                            <span className="text-xs text-muted-foreground">{rotuloTratamento(a.status, a.tratamento)}</span>
+                          )}
+                          <StatusBadge status={a.status} />
+                        </span>
                       </li>
                     ))}
                   </ul>

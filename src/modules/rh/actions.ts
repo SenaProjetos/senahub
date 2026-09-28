@@ -94,22 +94,33 @@ export const registrarHumorFeedback = defineAction(
 // ── Validação (gestores) ──────────────────────────────────────
 const validarSchema = z.object({ id: z.string().min(1), aprovar: z.boolean() });
 
+const validarAbonoSchema = validarSchema.extend({
+  /** Só vale ao aprovar. Omitido: atestado abona; consulta/exame/compromisso/outro descontam do banco. */
+  tratamento: z.enum(["abonar", "banco_horas"]).optional(),
+});
+
 export const validarAbono = defineAction(
-  { ...adminBase, acao: "validar-abono", entidade: "AbonoFalta", schema: validarSchema },
+  { ...adminBase, acao: "validar-abono", entidade: "AbonoFalta", schema: validarAbonoSchema },
   async (i, { user }) => {
     const abono = await prisma.abonoFalta.findUnique({ where: { id: i.id } });
     if (!abono) throw new ActionError("Abono não encontrado.");
+    const tratamento = i.tratamento ?? (abono.motivoTipo === "atestado" ? "abonar" : "banco_horas");
     await prisma.abonoFalta.update({
       where: { id: i.id },
       data: {
         status: i.aprovar ? "aprovado" : "rejeitado",
+        ...(i.aprovar ? { tratamento } : {}),
         validadoPorId: user.id,
         validadoEm: new Date(),
       },
     });
     await notificar(abono.userId, {
-      titulo: i.aprovar ? "Abono aprovado" : "Abono rejeitado",
-      corpo: "Sua solicitação de abono foi avaliada.",
+      titulo: i.aprovar ? "Ausência aprovada" : "Ausência rejeitada",
+      corpo: !i.aprovar
+        ? "Sua solicitação de abono foi avaliada."
+        : tratamento === "abonar"
+          ? "Sua ausência foi aprovada e abonada: as horas não serão cobradas."
+          : "Sua ausência foi aprovada e será descontada do banco de horas.",
       href: "/rh",
     });
     revalidatePath("/rh/admin");

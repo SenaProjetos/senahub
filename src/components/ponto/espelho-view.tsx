@@ -57,6 +57,8 @@ const STATUS_META: Record<StatusDiaEspelho, { tone: "success" | "warning" | "dan
   ok: { tone: "success", label: "OK" },
   incompleto: { tone: "warning", label: "Incompleto" },
   falta: { tone: "danger", label: "Falta" },
+  abonada: { tone: "info", label: "Falta abonada" },
+  justificada: { tone: "warning", label: "Justificada · banco" },
   folga: { tone: "neutral", label: "Folga" },
   feriado: { tone: "info", label: "Feriado" },
   ferias: { tone: "info", label: "Férias" },
@@ -183,6 +185,11 @@ function LinhaDia({
         <td className="px-2 py-1.5 text-center">
           <span className="inline-flex items-center gap-1">
             <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
+            {dia.abonoParcial && (
+              <Badge variant="outline" title="Ausência avisada e aprovada: o atraso é medido depois dela. Se foi abonada, essas horas não são cobradas; se foi pelo banco de horas, saem do saldo.">
+                Ausência {dia.abonoParcial.horaInicio}–{dia.abonoParcial.horaFim}
+              </Badge>
+            )}
             {dia.ajustes.length > 0 && (
               <span
                 role="img"

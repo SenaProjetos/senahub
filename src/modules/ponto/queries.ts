@@ -11,6 +11,7 @@ import { escalaContratacaoGrade, escalaUsuarioGrade, type DiaGrade } from "@/mod
 import { acumuladoAte } from "@/modules/rh/banco/queries";
 import { esperadoPorDiaMes, somarEsperadoAte } from "@/modules/ponto/esperado";
 import { contextoApuracao } from "@/modules/ponto/apuracao";
+import { abatimentoParcial, expandirAbonos, type AbonoParcial, type AbonosDoMes } from "@/modules/ponto/abono";
 import {
   alocacoesDistintas,
   rotuloAlocacaoSemProjeto,
@@ -470,6 +471,21 @@ async function diasFeriasNoMes(userId: string, ano: number, mes: number): Promis
 }
 
 /**
+ * Abonos de falta APROVADOS no mês (dia inteiro e parciais — ver `abono.ts`).
+ * Dia inteiro: não gera hora esperada, como férias. Parcial: abate só a janela.
+ * Se a pessoa bateu ponto no dia, o trabalhado continua valendo.
+ */
+async function abonosNoMes(userId: string, ano: number, mes: number): Promise<AbonosDoMes> {
+  const ini = new Date(Date.UTC(ano, mes - 1, 1));
+  const fimExcl = new Date(Date.UTC(ano, mes, 1));
+  const rows = await prisma.abonoFalta.findMany({
+    where: { userId, status: "aprovado", dataInicio: { lt: fimExcl }, dataFim: { gte: ini } },
+    select: { dataInicio: true, dataFim: true, horaInicio: true, horaFim: true, tratamento: true },
+  });
+  return expandirAbonos(rows, ini, fimExcl);
+}
+
+/**
  * Espelho de ponto do mês: minutos por dia, total e saldo de banco de horas.
  *
  * HÍBRIDO: um dia que tem Batida usa o motor (fonte de verdade da jornada, trata
@@ -541,13 +557,16 @@ export async function espelhoMes(userId: string, ano: number, mes: number) {
   // cliente E do total mensal. Regra única em `esperado.ts` (mesma que
   // `espelhoDetalhado` usa para `devidasMin`).
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { contratacao: true } });
-  const [uGrade, rGrade, ctx, feriadosAno, feriasSet] = await Promise.all([
+  const [uGrade, rGrade, ctx, feriadosAno, feriasDias, abonos] = await Promise.all([
     escalaUsuarioGrade(userId),
     escalaContratacaoGrade(user?.contratacao ?? null),
     contextoApuracao(userId, ano, mes),
     feriadosParaCalculo(ano),
     diasFeriasNoMes(userId, ano, mes),
+    abonosNoMes(userId, ano, mes),
   ]);
+  // Férias e abono de dia inteiro zeram o esperado do dia do mesmo jeito.
+  const feriasSet = new Set([...feriasDias, ...abonos.inteiros]);
   const prefixoMes = `${ano}-${String(mes).padStart(2, "0")}-`;
   const feriadoSet = new Set(
     feriadosAno.filter((f) => f.data.startsWith(prefixoMes)).map((f) => f.data),
@@ -562,6 +581,7 @@ export async function espelhoMes(userId: string, ano: number, mes: number) {
     piso: ctx.piso,
     teto: ctx.teto,
     controlaJornada: ctx.controlaJornada,
+    abatimentos: abatimentoParcial(abonos.parciais),
   });
 
   // Esperado do mês SÓ até HOJE (inclusive): evita saldo negativo gigante e
@@ -615,6 +635,10 @@ export type StatusDiaEspelho =
   | "ok"
   | "incompleto"
   | "falta"
+  /** Falta com abono aprovado pelo RH — não debita o banco de horas. */
+  | "abonada"
+  /** Falta justificada, mas as horas saem do banco de horas (tratamento `banco_horas`). */
+  | "justificada"
   | "folga"
   | "feriado"
   | "ferias"
@@ -658,6 +682,8 @@ export type DiaEspelhoDetalhe = {
   extrasMin: number;
   atrasado: boolean;
   atrasoMin: number;
+  /** Ausência parcial aprovada no dia (consulta/compromisso com horário) — justifica o atraso; só abate o esperado se abonada. */
+  abonoParcial: AbonoParcial | null;
   status: StatusDiaEspelho;
   batidas: BatidaDetalhe[];
   /** TODOS os ajustes do dia (mais recente primeiro) — histórico completo de edições. */
@@ -803,7 +829,10 @@ export async function espelhoDetalhado(
   const feriadoPorDia = new Map(
     feriadosAno.filter((f) => f.data.startsWith(prefixo)).map((f) => [f.data, f.nome]),
   );
-  const feriasSet = await diasFeriasNoMes(userId, ano, mes);
+  const [feriasSet, abonos] = await Promise.all([
+    diasFeriasNoMes(userId, ano, mes),
+    abonosNoMes(userId, ano, mes),
+  ]);
 
   const hojeISO = diaLocal(new Date());
   const ultimoDia = new Date(ano, mes, 0).getDate();
@@ -827,7 +856,18 @@ export async function espelhoDetalhado(
     // grade, fora do vínculo e contratação sem jornada controlada já vêm zerados.
     const devidasMin = esp.esperadoPorDia[iso] ?? 0;
     const extrasMin = Math.max(0, trabalhadoMin - devidasMin);
-    const atraso = avaliarAtraso(resumo.entrada, grade.ativo ? grade.entrada : null, grade.toleranciaMin);
+    // Abono parcial que cobre a hora de entrada da escala (consulta de manhã): o atraso
+    // passa a ser medido contra o FIM da janela abonada, não contra a entrada da escala.
+    const abonoParcial = abonos.parciais.get(iso) ?? abonos.bancoParciais.get(iso) ?? null;
+    const entradaEfetiva =
+      grade.ativo && grade.entrada && abonoParcial && abonoParcial.horaInicio <= grade.entrada && abonoParcial.horaFim > grade.entrada
+        ? abonoParcial.horaFim
+        : grade.ativo
+          ? grade.entrada
+          : null;
+    const atraso = abonos.inteiros.has(iso) || abonos.bancoInteiros.has(iso)
+      ? { atrasado: false, atrasoMin: 0 }
+      : avaliarAtraso(resumo.entrada, entradaEfetiva, grade.toleranciaMin);
     // Dia fora da janela do vínculo (antes da admissão / depois do desligamento).
     const foraVinculo =
       (!!ctxApuracao.piso && iso < ctxApuracao.piso) ||
@@ -844,6 +884,8 @@ export async function espelhoDetalhado(
     else if (feriado) status = "feriado";
     else if (foraVinculo) status = "fora_vinculo";
     else if (!grade.ativo) status = "folga";
+    else if (abonos.inteiros.has(iso)) status = "abonada";
+    else if (abonos.bancoInteiros.has(iso) && esp.controlaJornada) status = "justificada";
     else if (iso > hojeISO) status = "agendado";
     // Sem jornada controlada (PJ/autônomo/pró-labore) não existe falta — o dia
     // sem batida é só um dia sem registro.
@@ -865,6 +907,7 @@ export async function espelhoDetalhado(
       extrasMin,
       atrasado: atraso.atrasado,
       atrasoMin: atraso.atrasoMin,
+      abonoParcial,
       status,
       batidas: bat.map((b) => {
         const sessao = sessaoPorInicio.get(b.horario.getTime());

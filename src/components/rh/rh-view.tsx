@@ -15,6 +15,9 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AnexoAbono } from "@/components/rh/anexo-abono";
+import { MOTIVOS_AUSENCIA, rotuloJanela, rotuloMotivo, rotuloTratamento } from "@/modules/rh/ausencia";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FeriasAcoes, type FeriaItem } from "@/components/rh/ferias-acoes";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "danger" | "neutral"> = {
@@ -25,7 +28,18 @@ const STATUS_TONE: Record<string, "success" | "warning" | "danger" | "neutral"> 
 const HUMORES = ["😞", "🙁", "😐", "🙂", "😄"];
 const HUMOR_LABELS = ["Muito insatisfeito", "Insatisfeito", "Neutro", "Satisfeito", "Muito satisfeito"];
 
-type Abono = { id: string; dataInicio: string | Date; dataFim: string | Date; status: string; atestadoPath: string | null };
+type Abono = {
+  id: string;
+  dataInicio: string | Date;
+  dataFim: string | Date;
+  status: string;
+  atestadoPath: string | null;
+  atestadoNome: string | null;
+  motivoTipo: string;
+  tratamento: string;
+  horaInicio: string | null;
+  horaFim: string | null;
+};
 type Feria = FeriaItem;
 
 function dt(d: string | Date) {
@@ -53,7 +67,7 @@ export function RhView({
       */}
       <CabecalhoPagina
         titulo="RH"
-        descricao={<>{podeSolicitarFerias ? "Abono, férias e clima." : "Abono e clima."}</>}
+        descricao={<>{podeSolicitarFerias ? "Abono e aviso de ausência, férias e clima." : "Abono e aviso de ausência, e clima."}</>}
         acoes={
           <>
           <Button variant="secondary" size="sm" render={<Link href="/guias/rh-ponto" />}>
@@ -83,6 +97,8 @@ type Solicitacao = {
   status: string;
   /** Só nas férias — habilita editar / propor alteração / responder proposta. */
   feria?: Feria;
+  /** Só no abono — motivo, janela de horário e anexo. */
+  abono?: Abono;
 };
 
 function MinhasSolicitacoes({ abonos, ferias }: { abonos: Abono[]; ferias: Feria[] }) {
@@ -93,6 +109,7 @@ function MinhasSolicitacoes({ abonos, ferias }: { abonos: Abono[]; ferias: Feria
       inicio: a.dataInicio,
       fim: a.dataFim,
       status: a.status,
+      abono: a,
     })),
     ...ferias.map((f) => ({
       id: `ferias-${f.id}`,
@@ -129,6 +146,14 @@ function MinhasSolicitacoes({ abonos, ferias }: { abonos: Abono[]; ferias: Feria
                     {" · "}
                     {dt(s.inicio)} – {dt(s.fim)}
                   </span>
+                  {s.abono && (
+                    <span className="text-muted-foreground">
+                      {" · "}
+                      {rotuloMotivo(s.abono.motivoTipo)}
+                      {rotuloJanela(s.abono.horaInicio, s.abono.horaFim) ? ` ${rotuloJanela(s.abono.horaInicio, s.abono.horaFim)}` : ""}
+                      {rotuloTratamento(s.status, s.abono.tratamento) ? ` · ${rotuloTratamento(s.status, s.abono.tratamento)}` : ""}
+                    </span>
+                  )}
                   {s.feria?.lancadaPeloRh && (
                     <Badge variant="outline" className="ml-2 align-middle">
                       Lançada pelo RH
@@ -137,6 +162,7 @@ function MinhasSolicitacoes({ abonos, ferias }: { abonos: Abono[]; ferias: Feria
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {s.feria && <FeriasAcoes feria={s.feria} />}
+                  {s.abono?.atestadoPath && <AnexoAbono id={s.abono.id} nome={s.abono.atestadoNome} />}
                   <StatusBadge tone={STATUS_TONE[s.status] ?? "neutral"}>{s.status}</StatusBadge>
                 </div>
               </li>
@@ -198,12 +224,20 @@ function ClimaCard({ humorAtual }: { humorAtual: number | null }) {
   );
 }
 
+/** Hoje (YYYY-MM-DD) em Brasília — dia de início futuro = aviso antecipado. */
+function hojeLocal() {
+  return new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+}
+
 function AbonoCard() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [inicio, setInicio] = useState("");
   const [fim, setFim] = useState("");
   const [motivo, setMotivo] = useState("");
+  const [motivoTipo, setMotivoTipo] = useState("atestado");
+  const [horaInicio, setHoraInicio] = useState("");
+  const [horaFim, setHoraFim] = useState("");
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -217,19 +251,39 @@ function AbonoCard() {
       toast.error("Informe as datas.");
       return;
     }
+    if (horaInicio || horaFim) {
+      if (!horaInicio || !horaFim) {
+        toast.error("Informe o horário de início e de fim.");
+        return;
+      }
+      if (horaFim <= horaInicio) {
+        toast.error("O horário de fim deve ser depois do início.");
+        return;
+      }
+      if (inicio !== fim) {
+        toast.error("Ausência com horário vale para um único dia.");
+        return;
+      }
+    }
     setEnviando(true);
     try {
       const fd = new FormData();
+      fd.set("motivoTipo", motivoTipo);
+      fd.set("horaInicio", horaInicio);
+      fd.set("horaFim", horaFim);
       fd.set("dataInicio", inicio);
       fd.set("dataFim", fim);
       fd.set("motivo", motivo);
       if (arquivo) fd.set("atestado", arquivo);
       const res = await fetch("/api/rh/abono", { method: "POST", body: fd });
       if (res.ok) {
-        toast.success("Abono solicitado.");
+        toast.success(inicio > hojeLocal() ? "Aviso enviado ao RH." : "Abono solicitado.");
         setInicio("");
         setFim("");
         setMotivo("");
+        setMotivoTipo("atestado");
+        setHoraInicio("");
+        setHoraFim("");
         limparArquivo();
         router.refresh();
       } else {
@@ -244,9 +298,11 @@ function AbonoCard() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <FileText className="size-4" /> Abono de falta
+          <FileText className="size-4" /> Abono e aviso de ausência
         </CardTitle>
-        <CardDescription>Anexe o atestado; o RH valida.</CardDescription>
+        <CardDescription>
+          Falta, consulta ou compromisso — avise com antecedência ou justifique depois anexando o comprovante; o RH valida.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-2 gap-2">
@@ -259,7 +315,35 @@ function AbonoCard() {
             <Input type="date" value={fim} onChange={(e) => setFim(e.target.value)} />
           </div>
         </div>
-        <Input placeholder="Motivo (opcional)" value={motivo} onChange={(e) => setMotivo(e.target.value)} />
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-xs">Motivo</Label>
+            <Select value={motivoTipo} onValueChange={(v) => setMotivoTipo(v ?? "atestado")}>
+              <SelectTrigger className="w-full">
+                <SelectValue>{rotuloMotivo(motivoTipo)}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {MOTIVOS_AUSENCIA.map((m) => (
+                  <SelectItem key={m.valor} value={m.valor}>{m.rotulo}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Das</Label>
+              <Input type="time" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Às</Label>
+              <Input type="time" value={horaFim} onChange={(e) => setHoraFim(e.target.value)} />
+            </div>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Deixe o horário em branco para o dia inteiro; com horário, vale só para um dia e abate apenas essas horas.
+        </p>
+        <Input placeholder="Detalhes (opcional)" value={motivo} onChange={(e) => setMotivo(e.target.value)} />
 
         <div className="space-y-1.5">
           <input
@@ -296,7 +380,7 @@ function AbonoCard() {
         </div>
 
         <Button onClick={enviar} disabled={enviando} className="w-full">
-          {enviando ? "Enviando…" : "Solicitar abono"}
+          {enviando ? "Enviando…" : inicio > hojeLocal() ? "Enviar aviso" : "Solicitar abono"}
         </Button>
       </CardContent>
     </Card>

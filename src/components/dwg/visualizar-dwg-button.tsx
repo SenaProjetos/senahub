@@ -29,29 +29,35 @@ export function VisualizarDwgButton({
   nomeArquivo,
   titulo,
   classeIcone = "size-3.5",
+  statusInicial,
 }: {
   desenhoId: string;
   nomeArquivo: string;
   titulo: string;
+  /** Estado da conversão já lido pelo servidor junto com a lista. Quando vem, o botão não
+   *  pergunta nada ao montar e só consulta de novo se a conversão estiver em andamento —
+   *  uma lista com N DWGs deixa de disparar N Server Actions (que rodam em fila, uma por vez). */
+  statusInicial?: StatusConversaoDwgProbe;
   /** Tamanho do ícone. O badge de extensão usa `size-3` pro olho do DWG ficar igual ao do PDF,
    *  que fica ao lado dele na mesma linha da tabela. */
   classeIcone?: string;
 }) {
   const ehDwg = extDe(nomeArquivo) === "dwg";
   const [aberto, setAberto] = useState(false);
-  const [status, setStatus] = useState<StatusConversaoDwgProbe | undefined>(undefined);
+  const [status, setStatus] = useState<StatusConversaoDwgProbe | undefined>(statusInicial);
   const [pendente, start] = useTransition();
 
   useEffect(() => {
     if (!ehDwg) return;
+    const emAndamento = !status || status.status === "fila" || status.status === "processando";
+    if (!emAndamento) return;
     let cancelado = false;
     async function carregar() {
       const s = await buscarStatusConversaoDwg(desenhoId);
       if (!cancelado) setStatus(s);
     }
-    carregar();
-    const emAndamento = status === undefined || status?.status === "fila" || status?.status === "processando";
-    if (!emAndamento) return;
+    // Sem estado nenhum (nem do servidor), pergunta já; com estado em andamento, o intervalo basta.
+    if (status === undefined) carregar();
     const t = setInterval(carregar, POLL_MS);
     return () => {
       cancelado = true;

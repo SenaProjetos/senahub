@@ -38,6 +38,11 @@ export default async function RhPage() {
           dataFim: a.dataFim,
           status: a.status,
           atestadoPath: a.atestadoPath,
+          atestadoNome: a.atestadoNome,
+          motivoTipo: a.motivoTipo,
+          tratamento: a.tratamento,
+          horaInicio: a.horaInicio,
+          horaFim: a.horaFim,
         }))}
         ferias={ferias.map((f) => ({
           id: f.id,

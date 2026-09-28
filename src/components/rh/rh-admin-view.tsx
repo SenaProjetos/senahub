@@ -5,7 +5,9 @@ import { useState, useTransition } from "react";
 import { formatarData } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, X, Download, Smile, MessageSquare, CalendarSync } from "lucide-react";
+import { Check, X, Smile, MessageSquare, CalendarSync } from "lucide-react";
+import { AnexoAbono } from "@/components/rh/anexo-abono";
+import { ehAvisoAntecipado, rotuloJanela, rotuloMotivo } from "@/modules/rh/ausencia";
 import { validarAbono, validarFerias, responderAlteracaoFerias, proporAlteracaoFerias } from "@/modules/rh/actions";
 import type {
   AbonoPendente,
@@ -60,11 +62,13 @@ export function RhAdminView({
   const [pending, start] = useTransition();
   const [janelaClima, setJanelaClima] = useState<(typeof JANELAS)[number]>(30);
 
-  function decidirAbono(id: string, aprovar: boolean) {
+  function decidirAbono(id: string, aprovar: boolean, tratamento?: "abonar" | "banco_horas") {
     start(async () => {
-      const r = await validarAbono({ id, aprovar });
+      const r = await validarAbono({ id, aprovar, tratamento });
       if (r.ok) {
-        toast.success(aprovar ? "Abono aprovado." : "Abono rejeitado.");
+        toast.success(
+          !aprovar ? "Abono rejeitado." : tratamento === "banco_horas" ? "Aprovado — horas pelo banco de horas." : "Aprovado e abonado.",
+        );
         router.refresh();
       } else toast.error(r.error);
     });
@@ -225,15 +229,31 @@ export function RhAdminView({
                         {dt(a.dataInicio)} – {dt(a.dataFim)}
                       </span>
                     </div>
+                    <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                      <span>{rotuloMotivo(a.motivoTipo)}</span>
+                      {rotuloJanela(a.horaInicio, a.horaFim) && <span>· {rotuloJanela(a.horaInicio, a.horaFim)}</span>}
+                      {ehAvisoAntecipado(a.createdAt, a.dataInicio) && <Badge variant="outline">Aviso antecipado</Badge>}
+                    </p>
                     {a.motivo && <p className="text-xs text-muted-foreground">{a.motivo}</p>}
-                    <div className="flex items-center gap-2">
-                      {a.atestadoPath && (
-                        <Button size="sm" variant="ghost" render={<a href={`/api/rh/abono/${a.id}/atestado`} />}>
-                          <Download className="size-3.5" /> Atestado
-                        </Button>
-                      )}
-                      <Button size="sm" variant="outline" disabled={pending} onClick={() => decidirAbono(a.id, true)}>
-                        <Check className="size-3.5" /> Aprovar
+                    <div className="flex flex-wrap items-center gap-2">
+                      {a.atestadoPath && <AnexoAbono id={a.id} nome={a.atestadoNome} />}
+                      <Button
+                        size="sm"
+                        variant={a.motivoTipo === "atestado" ? "default" : "outline"}
+                        disabled={pending}
+                        title="Aprova e não cobra as horas dessa ausência."
+                        onClick={() => decidirAbono(a.id, true, "abonar")}
+                      >
+                        <Check className="size-3.5" /> Aprovar e abonar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={a.motivoTipo === "atestado" ? "outline" : "default"}
+                        disabled={pending}
+                        title="Aprova como justificada, mas as horas continuam devidas e saem do banco de horas."
+                        onClick={() => decidirAbono(a.id, true, "banco_horas")}
+                      >
+                        <Check className="size-3.5" /> Aprovar · banco de horas
                       </Button>
                       <Button size="sm" variant="ghost" disabled={pending} onClick={() => decidirAbono(a.id, false)}>
                         <X className="size-3.5" /> Rejeitar

@@ -5,7 +5,16 @@ import type { Prisma } from "@/generated/prisma/client";
 const incluir = {
   versoes: {
     orderBy: { numero: "desc" },
-    select: { id: true, numero: true, nomeArquivo: true, mime: true, tamanho: true, createdAt: true, autorId: true },
+    select: {
+      id: true,
+      numero: true,
+      nomeArquivo: true,
+      mime: true,
+      tamanho: true,
+      createdAt: true,
+      autorId: true,
+      conversaoDesenho: { select: { status: true, progresso: true, erro: true } },
+    },
   },
   autor: { select: { name: true } },
 } satisfies Prisma.DocumentoInclude;
@@ -34,6 +43,7 @@ function mapear(d: DocumentoComVersoes) {
           tamanho: atual.tamanho,
           criadoEm: atual.createdAt.toISOString(),
           downloadUrl: `/api/documentos/${atual.id}/download`,
+          conversaoDwg: atual.conversaoDesenho,
         }
       : null,
     // Histórico completo (numero desc → [0] = atual). Alimenta o acordeão "ver versões".
@@ -44,6 +54,9 @@ function mapear(d: DocumentoComVersoes) {
       tamanho: v.tamanho,
       criadoEm: v.createdAt.toISOString(),
       downloadUrl: `/api/documentos/${v.id}/download`,
+      // Estado da conversão DWG→DXF já na lista: sem isso, cada linha com DWG perguntava ao
+      // servidor ao montar (Server Actions rodam em fila, uma por vez) — `null` = sem conversão.
+      conversaoDwg: v.conversaoDesenho,
     })),
   };
 }

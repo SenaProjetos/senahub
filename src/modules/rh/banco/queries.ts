@@ -7,6 +7,7 @@ import { gradesEmLote } from "@/modules/rh/escalas/queries";
 import { feriadosParaCalculo } from "@/modules/rh/feriados/queries";
 import { CONTRATACOES_JORNADA, contextoApuracaoEmLote } from "@/modules/ponto/apuracao";
 import { esperadoPorDiaMes, somarEsperadoAte } from "@/modules/ponto/esperado";
+import { abatimentoParcial, expandirAbonos, type AbonosDoMes } from "@/modules/ponto/abono";
 import { diaLocal, trabalhadoPorDia, type TipoBatida } from "@/modules/ponto/engine";
 
 /**
@@ -156,7 +157,7 @@ export async function saldoCorrenteEquipe(ano: number, mes: number): Promise<Sal
   const diaIni = new Date(Date.UTC(ano, mes - 1, 1));
   const diaFimExcl = new Date(Date.UTC(ano, mes, 1));
 
-  const [batidas, sessoes, feriadosAno, grades, feriasRows, contextos] = await Promise.all([
+  const [batidas, sessoes, feriadosAno, grades, feriasRows, abonoRows, contextos] = await Promise.all([
     prisma.batida.findMany({
       where: { userId: { in: ids }, dia: { gte: diaIni, lt: diaFimExcl } },
       orderBy: { horario: "asc" },
@@ -178,8 +179,23 @@ export async function saldoCorrenteEquipe(ano: number, mes: number): Promise<Sal
       },
       select: { userId: true, inicio: true, fim: true },
     }),
+    prisma.abonoFalta.findMany({
+      where: {
+        userId: { in: ids },
+        status: "aprovado",
+        dataInicio: { lt: diaFimExcl },
+        dataFim: { gte: diaIni },
+      },
+      select: { userId: true, dataInicio: true, dataFim: true, horaInicio: true, horaFim: true, tratamento: true },
+    }),
     contextoApuracaoEmLote(ids, ano, mes),
   ]);
+  // Abono aprovado: dia inteiro zera o esperado como as férias; parcial só abate a janela.
+  const abonosPorUser = new Map<string, AbonosDoMes>();
+  for (const id of ids) {
+    const linhas = abonoRows.filter((r) => r.userId === id);
+    if (linhas.length) abonosPorUser.set(id, expandirAbonos(linhas, diaIni, diaFimExcl));
+  }
 
   const prefixoMes = `${ano}-${String(mes).padStart(2, "0")}-`;
   const feriadoSet = new Set(
@@ -234,10 +250,11 @@ export async function saldoCorrenteEquipe(ano: number, mes: number): Promise<Sal
         mes,
         escala: grades.get(u.id) ?? [],
         feriados: feriadoSet,
-        ferias: feriasPorUser.get(u.id) ?? new Set<string>(),
+        ferias: new Set([...(feriasPorUser.get(u.id) ?? []), ...(abonosPorUser.get(u.id)?.inteiros ?? [])]),
         piso: ctx.piso,
         teto: ctx.teto,
         controlaJornada: ctx.controlaJornada,
+        abatimentos: abonosPorUser.has(u.id) ? abatimentoParcial(abonosPorUser.get(u.id)!.parciais) : undefined,
       }),
       hojeISO,
     );
