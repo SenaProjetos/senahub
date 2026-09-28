@@ -131,7 +131,8 @@ export function Header({
               className="relative hidden size-8 place-items-center rounded-sm text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring md:grid"
             >
               <MessageSquare className="size-4" />
-              <ChatBadge dot className="absolute right-0.5 top-0.5" />
+              {/* Número como o do sino, na mesma posição; a cor (primária) separa chat de notificação. */}
+              <ChatBadge className="absolute -right-0.5 -top-0.5 h-4 font-bold" />
             </button>
           ))}
         <span data-tour="notificacoes" className="flex">
