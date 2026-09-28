@@ -465,7 +465,15 @@
         "cor do traço",
         "espessura",
         "visualizador de pranchas",
-        "painel de tarefas"
+        "painel de tarefas",
+        "lista de pranchas",
+        "próxima prancha",
+        "número da prancha",
+        "barra de ferramentas",
+        "paleta de ferramentas",
+        "medir com cliques",
+        "tela cheia",
+        "menu da bolinha"
       ],
       "sinonimos": [
         "obras",

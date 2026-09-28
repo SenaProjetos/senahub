@@ -461,11 +461,43 @@ menu normal do navegador.
 ### Zoom e rabisco no visualizador de pranchas
 
 **A tela é da prancha.** Ao abrir uma prancha, o cabeçalho e as abas do projeto saem de cena (volte
-por **← Arquivos**), o nome, a revisão, a situação e as extensões ficam numa linha só com as
-ferramentas, e o visualizador ocupa exatamente a altura da janela — a página não rola, só a prancha.
-Os painéis **Tarefas do documento** e **Detalhes do apontamento** começam fechados quando a prancha
-não tem apontamento (abrem pelas setas nas bordas, que mostram quantos apontamentos há) e se abrem
-sozinhos ao criar o primeiro.
+por **← Arquivos**) e o visualizador ocupa exatamente a altura da janela — a página não rola, só a
+prancha. Os painéis **Tarefas do documento** (à esquerda) e **Detalhes do apontamento** (à direita)
+vão do topo ao fim da tela; o nome do arquivo, a revisão, a situação e a barra de ferramentas ficam
+só em cima da prancha, entre os dois. Os painéis começam fechados quando a prancha não tem
+apontamento (abrem pelas setas nas bordas, que mostram quantos apontamentos há) e se abrem sozinhos
+ao criar o primeiro.
+
+**Barra de ferramentas só com ícones.** Pare o mouse sobre um botão (ou chegue nele com Tab) para
+ver o nome, a tecla de atalho e o que ele faz. Da esquerda para a direita: o arquivo desta revisão
+(e as outras extensões), as **pranchas**, a **busca** (lupa, ou **Ctrl+F**), o zoom, girar, tela
+cheia e comparar revisões; à direita, validar a prancha e, para quem aponta, a paleta de ferramentas
+— **mão** (navegar, **Esc**), **pino** (1), **retângulo** (2), **seta** (3), **nuvem** (4),
+**medida** (5) e **rabisco** (6) —, a escala da página (compasso), quantos apontamentos estão em
+rascunho e **Enviar**. A tecla **A** liga e desliga o modo apontar.
+
+**Pranchas do projeto.** As setas levam à prancha anterior e à seguinte; o botão do meio
+(**1/4**) abre a lista dos PDFs do projeto que você pode abrir, por disciplina, com o **número** e
+o **título** de cada prancha. Digite para filtrar (número, título ou nome do arquivo) e **Enter**
+abre a primeira que sobrou. Por padrão a lista e as setas ficam na **etapa** da prancha aberta
+(Executivo, Básico…); **Projeto inteiro** mostra todas — a escolha fica lembrada no navegador.
+Quem só atua em algumas disciplinas vê só as pranchas delas.
+
+**Botão direito na prancha.** Abre as mesmas ferramentas da barra: **Novo apontamento aqui**
+(pino exatamente onde você clicou), zoom (aproxima no ponto clicado), ajustar à largura, girar,
+tela cheia, buscar, a troca de ferramenta, a escala da página e, com texto selecionado, **Copiar
+texto**. Com rabisco ou medidas em andamento, **Concluir**, **Desfazer** e **Descartar** aparecem
+no topo. No toque, é o toque longo — exceto com uma ferramenta de desenho na mão, para não abrir o
+menu no meio do traço.
+
+**Botão direito na bolinha do apontamento.** Mostra as ações daquele apontamento — responder,
+editar, assumir, resolver, não procede, adiar, classificar, replicar, excluir —, as mesmas do
+painel de detalhes. O que o seu perfil não pode fazer não aparece; o que a situação impede aparece
+apagado, com o motivo (por exemplo, editar depois de virar tarefa). **Excluir** pede confirmação.
+No painel, parar o mouse sobre cada ação mostra o que ela faz.
+
+**Tela cheia.** Janelas, menus e dicas também funcionam em tela cheia (antes, a janela de novo
+apontamento abria escondida atrás da prancha).
 
 **Zoom até 2000%.** Os botões **−**/**+** andam em degraus (100%, 125%… 500%, 600%, 800%, 1000%,
 1200%, 1600%, 2000%). **Ctrl + roda do mouse** (ou a pinça com dois dedos, no tablet) aproxima
@@ -476,7 +508,7 @@ visualizador de PDF dos Recebidos, do Geral e dos documentos de RH.
 
 **Rabisco (desenho livre) nos apontamentos.** Para indicar a solução direto na planta:
 
-1. Clique em **Apontar** e escolha **Rabisco** no seletor de marcação (atalho: tecla **6**).
+1. Escolha **Rabisco** na paleta de ferramentas (atalho: tecla **6**).
 2. Na faixa da dica, escolha a **cor** (vermelho, azul, verde, laranja, preto ou a cor da situação
    do apontamento) e a **espessura** (fina, média ou grossa). Dá para trocar entre um traço e outro;
    a última escolha fica lembrada no navegador.
@@ -491,9 +523,11 @@ O rabisco aparece na prancha, na miniatura da lista e no **PDF carimbado** com a
 escolhidas. Traço na "cor da situação" muda de cor junto com o apontamento (aberto, fechado…). O
 desenho é de uma página só: para rabiscar em outra página, conclua ou descarte o atual primeiro.
 
-**Medidas (várias no mesmo apontamento).** Com a página calibrada (botão da escala, ao lado de
-**Apontando…**), escolha **Medida** (tecla **5**) e arraste sobre o que quer medir: o valor aparece
-**enquanto você arrasta**. Cada arraste soma uma medida; a faixa acima da prancha lista os valores.
+**Medidas (várias no mesmo apontamento).** Com a página calibrada (botão da escala, o compasso ao
+lado da paleta), escolha **Medida** (tecla **5**) e **arraste** sobre o que quer medir — ou **clique
+no início e depois no fim**: depois do primeiro clique a linha segue o cursor, e **Esc** desiste só
+dela. O valor aparece **enquanto a linha se move**. Cada medida soma no mesmo apontamento, em
+qualquer zoom (até em 2000% uma medida curta conta); a faixa acima da prancha lista os valores.
 **Desfazer** (Ctrl+Z) tira a última, e **Concluir** (Enter) abre a janela com as medidas já escritas
 no texto ("Medidas: 3,53 m; 7,06 m."). Os valores ficam congelados com a escala do momento, e cada
 medida aparece com o seu valor na prancha, no PDF carimbado e no relatório em planilha. Arrastar

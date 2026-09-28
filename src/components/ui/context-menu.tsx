@@ -4,6 +4,7 @@ import { ContextMenu as ContextMenuPrimitive } from "@base-ui/react/context-menu
 
 import { MENU_POPUP_CLASSES } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import { usePortalContainer } from "@/components/ui/portal-container"
 
 /**
  * Menu de contexto próprio (botão direito / toque longo de 500 ms) — regras na ADR-0002.
@@ -59,8 +60,9 @@ function ContextMenuContent({
     ContextMenuPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset"
   >) {
+  const container = usePortalContainer()
   return (
-    <ContextMenuPrimitive.Portal>
+    <ContextMenuPrimitive.Portal container={container}>
       <ContextMenuPrimitive.Positioner
         className="isolate z-50 outline-none"
         align={align}

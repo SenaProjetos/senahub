@@ -22,6 +22,24 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Visualizador de pranchas: barra de ícones, lista de pranchas e botão direito
+
+- **Painéis até o topo:** tarefas à esquerda e detalhes à direita vão do topo ao fim da tela; o nome
+  do arquivo e as ferramentas ficam só em cima da prancha.
+- **Ferramentas só com ícones:** pare o mouse sobre um botão para ver o nome, o atalho e o que ele
+  faz. O seletor de marcação virou uma paleta (mão, pino, retângulo, seta, nuvem, medida, rabisco).
+- **Lista de pranchas:** o "1/4" abre a lista dos PDFs do projeto com número e título de cada
+  prancha, com busca. Por padrão mostra a etapa da prancha aberta; dá para ver o projeto inteiro.
+- **Botão direito na prancha:** novo apontamento no ponto clicado, zoom, girar, tela cheia, busca e
+  troca de ferramenta. **Na bolinha do apontamento:** responder, editar, assumir, resolver, não
+  procede, adiar, classificar, replicar e excluir (agora com confirmação).
+- **Dicas nas ações do apontamento:** cada botão do painel de detalhes explica o que faz.
+- **Medida corrigida:** com zoom alto, uma medida curta era ignorada sem aviso — agora conta em
+  qualquer zoom. E dá para medir clicando no início e no fim, além de arrastar.
+- **Tela cheia:** a janela de novo apontamento (e menus e dicas) aparece também em tela cheia.
+
+---
+
 ## Visualizador de pranchas com o dobro de área para a planta
 
 - Ao abrir uma prancha, o cabeçalho e as abas do projeto saem de cena (volte por **← Arquivos**) e o

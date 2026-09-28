@@ -303,6 +303,10 @@ versão em linguagem de usuário continua em `docs/manual/novidades.md` → `/aj
   a reset.
 - Convention: code/identifiers in English, all user-facing strings in Portuguese, commits semantic + pt-BR.
 - **`Select` `onValueChange`** returns `string | null`, not `string` (base-ui diverges from Radix here).
+- **Fullscreen API hides portals:** dialogs/menus/selects/popovers/tooltips portal to `body` and open *invisible*
+  behind an element in fullscreen. Wrap the fullscreen subtree in `PortalContainerProvider container={el}`
+  (`components/ui/portal-container.tsx`, read by all six primitives) while it is fullscreen — as `pdf-viewer.tsx` does.
+  `useConfirm()` renders at the app root and still hides there: use a local `Dialog` inside the subtree.
 - **Env vars:**
   - Required: `DATABASE_URL`, `BETTER_AUTH_SECRET` (32+ bytes), `BETTER_AUTH_URL` (origin for CSRF), `APP_URL` (base URL for links in notifications/emails), `STORAGE_BASE_PATH` (Windows upload path, must exist), `CHROME_PATH` (Chrome exe for puppeteer-core PDF), `ACESSOS_ENCRYPTION_KEY` (**exactly** 32 bytes base64 — AES-256-GCM key for the Acessos credential vault; `lib/encryption.ts` throws at first use if absent or wrong length, and never falls back to plaintext. Losing it makes every stored credential unrecoverable — the DB dump alone does not restore them)
   - Optional: `ODA_CONVERTER_PATH` (**ODAFileConverter.exe** — external app, not an npm package; without it every DWG→DXF conversion fails, see `docs/DEPLOY.md` §4.1), `ENABLE_BACKUP=1` + `BACKUP_PATH` + `PG_DUMP_PATH` (pg_dump.exe path) + `STORAGE_BACKUP_PATH` (storage mirror target, defaults to `BACKUP_PATH\storage`) + `PG_BIN_PATH` (Postgres bin dir, used by the restore script to find `pg_restore.exe`), `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` (web push), `SMTP_HOST` + `SMTP_PORT` + `SMTP_USER` + `SMTP_PASS` + `SMTP_FROM` (email), `AUTH_COOKIE_PREFIX` (dev only — session-cookie name per worktree, letters/digits/`-`/`_`; unset = better-auth default, so production is unchanged; changing it invalidates that server's open sessions; `src/lib/auth-cookie.ts`)

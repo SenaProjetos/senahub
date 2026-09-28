@@ -31,6 +31,12 @@ export type AcaoItemAcao = {
    * de documento.
    */
   confirmar?: { titulo: string; descricao?: string; rotuloConfirmar?: string };
+  /** Opção em vigor numa escolha exclusiva (ex.: a ferramenta ativa) — o menu mostra um ✓. */
+  marcado?: boolean;
+  /** Tecla de atalho, só exibida à direita do item (quem trata a tecla é a tela). */
+  atalho?: string;
+  /** O que a ação faz, em uma frase — a dica (hover) de quem desenha o item como botão. */
+  dica?: string;
 };
 
 /** Navegação. Vira um `<a>` de verdade, preservando nova aba / copiar endereço / clique do meio. */

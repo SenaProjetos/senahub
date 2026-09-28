@@ -6,7 +6,8 @@ import { acessoGlobal } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { pendenciasDoUpload, calibracoesDaPrancha, padroesDaDisciplina, novidadesDoDocumento } from "@/modules/projetos/pendencias/queries";
-import { pranchasPdfVigentesDisciplina, pranchasVigentesDisciplina, resolverDocumentoCanonico, revisoesDoDocumento } from "@/modules/uploads/queries";
+import { pranchasPdfVigentesProjeto, pranchasVigentesDisciplina, resolverDocumentoCanonico, revisoesDoDocumento } from "@/modules/uploads/queries";
+import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
 import { extensao } from "@/modules/uploads/destino";
 import { contextoTarefasDasPendencias, opcoesTarefa } from "@/modules/tarefas/queries";
 import { PdfViewer } from "@/components/projetos/pdf-viewer";
@@ -147,10 +148,22 @@ export default async function VisualizarPage({
   // Mesma regra do comparador: outro arquivo (ex.: DWG) na mesma revisão não habilita
   // comparação de PDF, que exige ao menos duas revisões DA MESMA extensão.
   const temOutraRevisao = revisoesMesmaExtensao.length > 1;
+  // Seletor de pranchas: PDFs do projeto inteiro que esta pessoa consegue abrir. Mesma muralha
+  // da rota de download — sem `arquivos:ver_todas_disciplinas`, só as disciplinas de que é
+  // responsável (senão a lista ofereceria prancha que dá 403 ao abrir).
+  const veTodasDisciplinas = ehGlobal || (await podeVerTodasDisciplinas(user));
+  const disciplinasVisiveis = veTodasDisciplinas
+    ? null
+    : (
+        await prisma.disciplina.findMany({
+          where: { projetoId: id, responsaveis: { some: { userId: user.id } } },
+          select: { id: true },
+        })
+      ).map((d) => d.id);
   // Candidatas a destino do "replicar apontamento" (item 30) — só quem valida aponta mesmo.
   const [pranchasParaReplicar, pranchasNavegaveis] = await Promise.all([
     podeValidar ? pranchasVigentesDisciplina(upload.disciplinaId, uploadId) : [],
-    pranchasPdfVigentesDisciplina(upload.disciplinaId),
+    pranchasPdfVigentesProjeto(id, disciplinasVisiveis),
   ]);
   // Escala calibrada por página (item 28) — escopo do documento, então revisão nova herda.
   const calibracoes = await calibracoesDaPrancha(uploadId, upload.documentoId);

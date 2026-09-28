@@ -12,10 +12,14 @@ type Props = {
   onProxima: () => void;
   onAnterior: () => void;
   className?: string;
+  /** Foca o campo ao montar — quando a barra abre sob demanda (lupa / Ctrl+F). */
+  autoFocus?: boolean;
+  /** Esc no campo: quem abre a barra sob demanda a fecha aqui. */
+  onFechar?: () => void;
 };
 
 /** Barra de busca textual (destaca tudo + contador "X de Y" + navegação), pros dois visualizadores de PDF. */
-export function BarraBuscaPdf({ query, onQueryChange, total, indiceAtual, pronto, onProxima, onAnterior, className }: Props) {
+export function BarraBuscaPdf({ query, onQueryChange, total, indiceAtual, pronto, onProxima, onAnterior, className, autoFocus, onFechar }: Props) {
   const temQuery = query.trim().length > 0;
   return (
     <div className={className}>
@@ -26,8 +30,16 @@ export function BarraBuscaPdf({ query, onQueryChange, total, indiceAtual, pronto
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
           placeholder="Buscar no documento…"
+          aria-label="Buscar no documento"
+          autoFocus={autoFocus}
+          data-busca-pdf
           className="h-7 w-36 rounded-sm border bg-background pl-7 pr-6 text-xs outline-none focus:border-primary sm:w-52"
           onKeyDown={(e) => {
+            if (e.key === "Escape" && onFechar) {
+              e.preventDefault();
+              onFechar();
+              return;
+            }
             if (e.key !== "Enter") return;
             e.preventDefault();
             if (e.shiftKey) onAnterior();

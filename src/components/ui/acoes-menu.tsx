@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreHorizontal } from "lucide-react";
+import { Check, MoreHorizontal } from "lucide-react";
 
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLinkItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -88,6 +89,12 @@ export function AcoesMenuItens({
           <DropdownMenuItem key={item.id} variant={item.variant} onClick={() => onSelect(item)}>
             {Icone ? <Icone aria-hidden /> : null}
             {item.rotulo}
+            {item.marcado ? (
+              // Só visual: o estado acessível é o `aria-pressed` do botão equivalente (regra 2).
+              <Check aria-hidden className="ml-auto" />
+            ) : item.atalho ? (
+              <DropdownMenuShortcut>{item.atalho}</DropdownMenuShortcut>
+            ) : null}
           </DropdownMenuItem>
         );
       })}

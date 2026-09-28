@@ -54,6 +54,13 @@ viewer BIM (`CameraControls` gira a câmera com ele) e o viewer DWG.
   prevista é o canvas do Estúdio (onda 2). **Incluir qualquer arquivo na lista exige emendar esta
   ADR.** A supressão feita pela biblioteca vive em `node_modules` e não é alvo do teste.
 - Chat e viewers (BIM/DWG) ficam fora do menu de contexto.
+- **Emenda (2026-09-28) — visualizador de pranchas (PDF):** ganha menu próprio a pedido do dono, em
+  duas superfícies, sem entrar na lista de exceções (usa a primitiva): a **prancha** (ferramentas da
+  barra, "Novo apontamento aqui" e o **Copiar texto** que o nativo daria na seleção) e a **bolinha do
+  apontamento** (as ações do painel de detalhes). Paridade: a barra acima da prancha e os botões do
+  painel são o caminho por teclado; os dois menus leem descritores puros
+  (`pendencias/acoes-visualizador.ts`, `pendencias/acoes-apontamento.ts`). No toque, o menu da prancha
+  fica desligado com uma ferramenta de desenho na mão (o toque longo parado abriria no meio do traço).
 
 Planos de execução: [onda 1](../superpowers/specs/2026-09-15-menu-contexto.md) (entregue) ·
 [onda 2](../superpowers/specs/2026-09-20-menu-contexto-onda2.md) (decidida, não implementada).

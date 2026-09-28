@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { diasRestantesLixeira, DIAS_LIXEIRA } from "./lixeira";
 import { agruparPorDocumento } from "./exclusao-escopo";
+import type { PranchaNavegavel } from "./pranchas-navegacao";
 
 export async function listarUploadsDisciplina(disciplinaId: string) {
   const uploads = await prisma.upload.findMany({
@@ -201,13 +202,24 @@ export async function pranchasVigentesDisciplina(disciplinaId: string, excluirUp
   return vigentes;
 }
 
-export type PranchaNavegavel = { uploadId: string; nomeArquivo: string; revisao: number };
+export type { PranchaNavegavel } from "./pranchas-navegacao";
 
-/** PDFs vigentes da disciplina, ordenados pelo nome para navegação linear no visualizador. */
-export async function pranchasPdfVigentesDisciplina(disciplinaId: string): Promise<PranchaNavegavel[]> {
+/**
+ * PDFs vigentes (a versão mais recente de cada documento) do PROJETO, para o seletor de pranchas
+ * do visualizador. `disciplinaIds` é a muralha por disciplina já resolvida por quem chama — a
+ * mesma regra da rota de download (`podeVerTodasDisciplinas` ou responsável): `null` = todas as
+ * disciplinas do projeto; lista = só estas. Assim a lista nunca oferece prancha que daria 403
+ * ao abrir. A ordem e o recorte por etapa ficam em `pranchas-navegacao.ts` (puro).
+ */
+export async function pranchasPdfVigentesProjeto(
+  projetoId: string,
+  disciplinaIds: readonly string[] | null,
+): Promise<PranchaNavegavel[]> {
+  if (disciplinaIds && disciplinaIds.length === 0) return [];
   const uploads = await prisma.upload.findMany({
     where: {
-      disciplinaId,
+      disciplina: { projetoId },
+      ...(disciplinaIds ? { disciplinaId: { in: [...disciplinaIds] } } : {}),
       nomeArquivo: { endsWith: ".pdf", mode: "insensitive" },
     },
     select: {
@@ -216,23 +228,43 @@ export async function pranchasPdfVigentesDisciplina(disciplinaId: string): Promi
       documentoId: true,
       versao: true,
       pacote: true,
+      disciplinaId: true,
       revisao: { select: { numero: true } },
+      disciplina: { select: { disciplinaTextoLegado: true, ordem: true } },
+      documento: {
+        select: {
+          titulo: true,
+          numeroPrancha: true,
+          faseId: true,
+          fase: { select: { sigla: true, nome: true } },
+        },
+      },
     },
     orderBy: { versao: "desc" },
   });
   const vistos = new Set<string>();
   const vigentes: PranchaNavegavel[] = [];
   for (const upload of uploads) {
-    const chave = upload.documentoId ?? `${upload.pacote ?? ""}/${upload.nomeArquivo}`;
+    // Mesma chave de "mesmo documento" de `pranchasVigentesDisciplina`, com a disciplina junto:
+    // o fallback por nome só vale dentro dela.
+    const chave = upload.documentoId ?? `${upload.disciplinaId}/${upload.pacote ?? ""}/${upload.nomeArquivo}`;
     if (vistos.has(chave)) continue;
     vistos.add(chave);
     vigentes.push({
       uploadId: upload.id,
       nomeArquivo: upload.nomeArquivo,
       revisao: upload.revisao?.numero ?? upload.versao,
+      titulo: upload.documento?.titulo ?? null,
+      numeroPrancha: upload.documento?.numeroPrancha ?? null,
+      disciplinaId: upload.disciplinaId,
+      disciplinaNome: upload.disciplina.disciplinaTextoLegado,
+      disciplinaOrdem: upload.disciplina.ordem,
+      faseId: upload.documento?.faseId ?? null,
+      faseSigla: upload.documento?.fase?.sigla ?? null,
+      faseNome: upload.documento?.fase?.nome ?? null,
     });
   }
-  return vigentes.sort((a, b) => a.nomeArquivo.localeCompare(b.nomeArquivo, "pt-BR"));
+  return vigentes;
 }
 
 export async function revisoesDoDocumento(

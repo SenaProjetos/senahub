@@ -112,8 +112,20 @@ export const MAX_MEDIDAS = 30;
  */
 export const TOLERANCIA_TRACO = 0.0008;
 
-/** Arrasto menor que isto (em fração da página) é considerado clique, não desenho. */
+/**
+ * Arrasto menor que isto (em fração da página) é considerado clique, não desenho — o PADRÃO das
+ * funções abaixo. Na tela, quem desenha passa `minimoNaTela(...)`: 0,5% da folha são 4 px com a
+ * prancha ajustada à largura, mas 110 px a 2000% — e medir um detalhe ampliado falhava calado.
+ */
 export const ARRASTO_MINIMO = 0.005;
+
+/** Abaixo disto, em pixels de TELA, o gesto é clique (e não arrasto) em qualquer zoom. */
+export const PX_ARRASTO_MINIMO = 4;
+
+/** `PX_ARRASTO_MINIMO` convertido para fração da página, na largura em que ela está desenhada. */
+export function minimoNaTela(larguraPaginaPx: number): number {
+  return PX_ARRASTO_MINIMO / Math.max(1, larguraPaginaPx);
+}
 
 const limitar = (v: number, min: number, max: number) => (v < min ? min : v > max ? max : v);
 
@@ -247,11 +259,12 @@ const arredondar = (v: number) => Math.round(v * 1e5) / 1e5;
  * outras formas, então o desenho acompanha a âncora textual numa revisão de layout deslocado.
  *
  * Devolve `null` quando não sobra traço, ou quando o desenho inteiro cabe num ponto (menor que
- * `ARRASTO_MINIMO` nos dois eixos): aí o chamador trata como clique, igual às outras formas.
+ * `minimo` nos dois eixos): aí o chamador trata como clique, igual às outras formas.
  */
 export function construirRabisco(
   tracos: readonly (readonly { x: number; y: number }[])[],
   estilos: readonly EstiloTraco[] = [],
+  minimo = ARRASTO_MINIMO,
 ): { x: number; y: number; marcacao: Marcacao } | null {
   // Estilo anda junto do traço desde já: filtrar traço curto depois desalinharia as listas.
   const pares = tracos
@@ -267,7 +280,7 @@ export function construirRabisco(
   const todos = limpos.flat();
   const larg = Math.max(...todos.map((p) => p.x)) - Math.min(...todos.map((p) => p.x));
   const alt = Math.max(...todos.map((p) => p.y)) - Math.min(...todos.map((p) => p.y));
-  if (larg < ARRASTO_MINIMO && alt < ARRASTO_MINIMO) return null;
+  if (larg < minimo && alt < minimo) return null;
 
   const x = limpos[0][0].x;
   const y = limpos[0][0].y;
@@ -292,6 +305,7 @@ export function construirRabisco(
  */
 export function construirMedidas(
   segmentos: readonly { a: { x: number; y: number }; b: { x: number; y: number }; mm: number }[],
+  minimo = ARRASTO_MINIMO,
 ): { x: number; y: number; marcacao: Marcacao } | null {
   const validos = segmentos
     .map((s) => ({
@@ -303,7 +317,7 @@ export function construirMedidas(
       (s) =>
         Number.isFinite(s.mm) &&
         s.mm > 0 &&
-        (Math.abs(s.b.x - s.a.x) >= ARRASTO_MINIMO || Math.abs(s.b.y - s.a.y) >= ARRASTO_MINIMO),
+        (Math.abs(s.b.x - s.a.x) >= minimo || Math.abs(s.b.y - s.a.y) >= minimo),
     )
     .slice(0, MAX_MEDIDAS);
   if (validos.length === 0) return null;
@@ -321,6 +335,7 @@ export function construirMarcacao(
   tipo: TipoMarcacao,
   inicio: { x: number; y: number },
   fim: { x: number; y: number },
+  minimo = ARRASTO_MINIMO,
 ): { x: number; y: number; marcacao: Marcacao } | null {
   const x = limitar(inicio.x, 0, 1);
   const y = limitar(inicio.y, 0, 1);
@@ -329,7 +344,7 @@ export function construirMarcacao(
   if (tipo === "livre") return null;
   const dx = limitar(fim.x, 0, 1) - x;
   const dy = limitar(fim.y, 0, 1) - y;
-  if (Math.abs(dx) < ARRASTO_MINIMO && Math.abs(dy) < ARRASTO_MINIMO) return null;
+  if (Math.abs(dx) < minimo && Math.abs(dy) < minimo) return null;
   return { x, y, marcacao: { tipo, pontos: [{ dx, dy }] } };
 }
 

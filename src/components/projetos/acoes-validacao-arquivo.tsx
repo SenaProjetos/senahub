@@ -3,12 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ShieldCheck, XCircle } from "lucide-react";
+import { ShieldCheck, Undo2, XCircle } from "lucide-react";
 import {
   validarArquivo,
   reverterValidacaoArquivo,
   solicitarAjusteArquivo,
 } from "@/modules/uploads/actions";
+import { BotaoFerramenta } from "@/components/pdf/botao-ferramenta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,15 +27,19 @@ import {
  * validar · desfazer · solicitar ajuste (com motivo). Compartilhado pelo card da
  * disciplina e pelo explorer de arquivos. Só deve ser renderizado para quem tem
  * `uploads:validar` e enquanto a entrega não foi finalizada.
+ *
+ * `compacto` = só ícones, com o nome e a função na dica (barra do visualizador de pranchas).
  */
 export function AcoesValidacaoArquivo({
   uploadId,
   nomeArquivo,
   validado,
+  compacto = false,
 }: {
   uploadId: string;
   nomeArquivo: string;
   validado: boolean;
+  compacto?: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -74,6 +79,14 @@ export function AcoesValidacaoArquivo({
     });
   }
 
+  if (validado && compacto) {
+    return (
+      <BotaoFerramenta rotulo="Desfazer validação" dica="A prancha volta a aguardar validação." onClick={reverter} disabled={pending}>
+        <Undo2 />
+      </BotaoFerramenta>
+    );
+  }
+
   if (validado) {
     return (
       <Button
@@ -91,27 +104,52 @@ export function AcoesValidacaoArquivo({
 
   return (
     <div className="flex shrink-0 items-center gap-0.5">
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-6 gap-1 px-1.5 text-xs text-status-aprovado"
-        onClick={validar}
-        disabled={pending}
-        title="Validar arquivo"
-      >
-        <ShieldCheck className="size-3.5" /> validar
-      </Button>
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-6 px-1 text-xs text-warning"
-        onClick={() => setAjusteOpen(true)}
-        disabled={pending}
-        title="Solicitar ajuste"
-        aria-label="Solicitar ajuste"
-      >
-        <XCircle className="size-3.5" />
-      </Button>
+      {compacto ? (
+        <>
+          <BotaoFerramenta
+            rotulo="Validar arquivo"
+            dica="Dá a prancha por conferida e aceita nesta revisão."
+            onClick={validar}
+            disabled={pending}
+            className="text-status-aprovado"
+          >
+            <ShieldCheck />
+          </BotaoFerramenta>
+          <BotaoFerramenta
+            rotulo="Solicitar ajuste"
+            dica="Devolve só este arquivo ao projetista, com o motivo."
+            onClick={() => setAjusteOpen(true)}
+            disabled={pending}
+            className="text-warning"
+          >
+            <XCircle />
+          </BotaoFerramenta>
+        </>
+      ) : (
+        <>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 gap-1 px-1.5 text-xs text-status-aprovado"
+            onClick={validar}
+            disabled={pending}
+            title="Validar arquivo"
+          >
+            <ShieldCheck className="size-3.5" /> validar
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-1 text-xs text-warning"
+            onClick={() => setAjusteOpen(true)}
+            disabled={pending}
+            title="Solicitar ajuste"
+            aria-label="Solicitar ajuste"
+          >
+            <XCircle className="size-3.5" />
+          </Button>
+        </>
+      )}
       <Dialog open={ajusteOpen} onOpenChange={setAjusteOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

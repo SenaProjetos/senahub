@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
-import { ArrowLeft, ArrowRight, BookmarkPlus, Check, CopyPlus, Download, Expand, FileArchive, GitCompare, Loader2, Maximize2, MapPin, MessageSquare, Minimize, PauseCircle, Pencil, PenLine, RotateCcw, RotateCw, Ruler, Send, Sparkles, Stamp, Table2, Tags, Trash2, Undo2, Wrench, X, ZoomIn, ZoomOut } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, BookmarkPlus, Check, Download, DraftingCompass, Expand, FileArchive, FilePen, GitCompare, Loader2, Maximize2, MapPin, Minimize, PenLine, RotateCw, Ruler, Search, Send, Sparkles, Stamp, Table2, Trash2, Undo2, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { PendenciaView, ReincidenciaView } from "@/modules/projetos/pendencias/queries";
 import type { TarefaContextual } from "@/modules/tarefas/queries";
 import {
@@ -28,12 +28,48 @@ import {
   excluirRespostaPendencia,
 } from "@/modules/projetos/pendencias/actions";
 import type { PranchaNavegavel, PranchaVigente } from "@/modules/uploads/queries";
+import {
+  ACAO_CLASSIFICAR,
+  ACAO_EDITAR,
+  ACAO_EXCLUIR,
+  ACAO_REPLICAR,
+  ACAO_RESOLVER_NA_REVISAO,
+  ACAO_RESPONDER,
+  destinoDoItem,
+  itensDoApontamento,
+} from "@/modules/projetos/pendencias/acoes-apontamento";
+import {
+  ACAO_AJUSTAR,
+  ACAO_APONTAR_AQUI,
+  ACAO_BUSCAR,
+  ACAO_CALIBRAR,
+  ACAO_COPIAR_TEXTO,
+  ACAO_ESBOCO_CONCLUIR,
+  ACAO_ESBOCO_DESCARTAR,
+  ACAO_ESBOCO_DESFAZER,
+  ACAO_GIRAR,
+  ACAO_NAVEGAR,
+  ACAO_TELA_CHEIA,
+  ACAO_ZOOM_MAIS,
+  ACAO_ZOOM_MENOS,
+  FERRAMENTA_META,
+  NAVEGAR_META,
+  ferramentaDoItem,
+  itensDoVisualizador,
+} from "@/modules/projetos/pendencias/acoes-visualizador";
+import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
+import { AcoesMenuItens } from "@/components/ui/acoes-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { LinhaComMenu } from "@/components/ui/linha-com-menu";
+import { PortalContainerProvider } from "@/components/ui/portal-container";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { BotaoFerramenta, SeparadorBarra } from "@/components/pdf/botao-ferramenta";
+import { SeletorPranchas } from "@/components/projetos/arquivos/seletor-pranchas";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TarefaDialog, type OpcoesUI } from "@/components/tarefas/tarefa-dialog";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
 import {
   rotuloItemPendencia,
-  transicoesPossiveis,
   temEvidencia,
   STATUS_LABEL,
   STATUS_TERMINAIS,
@@ -53,7 +89,6 @@ import {
 } from "@/modules/projetos/pendencias/helpers";
 import { construirAncora, relocalizarAncora } from "@/modules/projetos/pendencias/ancora";
 import {
-  ARRASTO_MINIMO,
   caixaRecorte,
   construirMarcacao,
   construirMedidas,
@@ -67,6 +102,8 @@ import {
   MARCACAO_LABEL,
   MAX_MEDIDAS,
   MAX_TRACOS_RABISCO,
+  minimoNaTela,
+  PX_ARRASTO_MINIMO,
   TIPOS_MARCACAO,
   type CorRabisco,
   type EstiloTraco,
@@ -227,26 +264,44 @@ const STATUS_META: Record<string, { label: string; cls: string; pin: string; tra
   adiado: { label: STATUS_LABEL.adiado, cls: "text-muted-foreground border-dashed border-muted-foreground/40", pin: "bg-muted text-muted-foreground", traco: "text-muted-foreground" },
 };
 
-/** Botão de cada transição — o rótulo/ícone que a máquina de estados (item 22) oferece. */
+/**
+ * O que cada transição (item 22) chama e como aparece no painel. Rótulo, ícone e dica vêm do
+ * descritor `itensDoApontamento` — o mesmo que monta o menu da bolinha na prancha.
+ */
 const ACAO_TRANSICAO: Record<
   StatusPendencia,
   {
-    rotulo: string;
     sucesso: string;
     cls: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    icone: any;
     /** `null` quando a transição NÃO é direta — "não procede" passa pela janela de justificativa. */
     acao: ((i: { id: string }) => Promise<{ ok: boolean; error?: string }>) | null;
   }
 > = {
-  em_correcao: { rotulo: "assumir", sucesso: "Assumida para correção.", cls: "text-primary", icone: Wrench, acao: assumirCorrecaoPendencia },
-  resolvida: { rotulo: "resolver", sucesso: "Marcada como resolvida.", cls: "text-info", icone: Check, acao: resolverPendencia },
-  aberta: { rotulo: "voltar à fila", sucesso: "Voltou para a fila.", cls: "", icone: Undo2, acao: reabrirPendencia },
-  fechada: { rotulo: "fechar", sucesso: "Apontamento fechado.", cls: "text-status-aprovado", icone: Check, acao: fecharPendencia },
-  descartada: { rotulo: "não procede", sucesso: "Marcado como não procede.", cls: "text-muted-foreground", icone: RotateCcw, acao: null },
-  adiado: { rotulo: "adiar", sucesso: "Apontamento adiado.", cls: "text-muted-foreground", icone: PauseCircle, acao: adiarPendencia },
+  em_correcao: { sucesso: "Assumida para correção.", cls: "text-primary", acao: assumirCorrecaoPendencia },
+  resolvida: { sucesso: "Marcada como resolvida.", cls: "text-info", acao: resolverPendencia },
+  aberta: { sucesso: "Voltou para a fila.", cls: "", acao: reabrirPendencia },
+  fechada: { sucesso: "Apontamento fechado.", cls: "text-status-aprovado", acao: fecharPendencia },
+  descartada: { sucesso: "Marcado como não procede.", cls: "text-muted-foreground", acao: null },
+  adiado: { sucesso: "Apontamento adiado.", cls: "text-muted-foreground", acao: adiarPendencia },
 };
+
+/** Cor do botão de cada ação no painel de detalhes (as de estado vêm de `ACAO_TRANSICAO`). */
+function classeDoItem(id: string): string {
+  const destino = destinoDoItem(id);
+  if (destino) return ACAO_TRANSICAO[destino].cls;
+  if (id === ACAO_EXCLUIR) return "text-destructive";
+  if (id === ACAO_RESOLVER_NA_REVISAO) return "text-info";
+  if (id === ACAO_EDITAR) return "";
+  return "text-muted-foreground";
+}
+
+/** "Responder" → "responder": o painel usa minúscula; "Resolver na R01" mantém o R. */
+function comMinuscula(s: string): string {
+  return s.charAt(0).toLowerCase() + s.slice(1);
+}
+
+/** Onde o menu da prancha foi aberto: página, ponto (sem giro) e o texto selecionado naquela hora. */
+type PontoMenuPrancha = { pagina: number | null; x: number; y: number; clientX: number; clientY: number; texto: string };
 
 /**
  * Cor da severidade (item 11). Só o `impeditivo` usa `destructive` cheio: é o único nível que
@@ -383,11 +438,6 @@ export function PdfViewer(props: Props) {
   const { uploadId, projetoId, disciplinaId, nomeArquivo, codigo, projetoNome, disciplinaNome, versao, revisionNumber, revisionId, documentStatus, revisionFiles, canViewCoordination, versaoAtual, validado, finalizada, podeValidar, ehResponsavel, ehAdmin, colunasTarefa, opcoesTarefa, responsaveisPadrao, temOutraRevisao, documentoId, pranchasParaReplicar, pranchasNavegaveis, pinInicial, paginaInicial } = props;
 
   const downloadUrl = `/api/uploads/${uploadId}/download?disposition=inline`;
-  const indicePrancha = pranchasNavegaveis.findIndex((prancha) => prancha.uploadId === uploadId);
-  const pranchaAnterior = indicePrancha > 0 ? pranchasNavegaveis[indicePrancha - 1] : null;
-  const proximaPrancha = indicePrancha >= 0 && indicePrancha < pranchasNavegaveis.length - 1
-    ? pranchasNavegaveis[indicePrancha + 1]
-    : null;
   // Apontar é permitido mesmo com a entrega já validada — nesse caso o envio abre revisão
   // (mantém a validação financeira). Só a versão vigente recebe pinos novos.
   const podeApontar = podeValidar && versaoAtual;
@@ -405,6 +455,17 @@ export function PdfViewer(props: Props) {
   const raizRef = useRef<HTMLDivElement | null>(null);
   // `folga` = padding de baixo do <main> nesta tela no computador (8 px, globals.css).
   const { ref: alturaRef, style: estiloAltura } = useAlturaRestante<HTMLDivElement>({ folga: 8, aPartirDe: "(min-width: 64rem)" });
+  // O elemento raiz também em estado: em tela cheia ele vira o contêiner dos portais (janelas,
+  // menus, dicas) — e o valor precisa provocar novo render, coisa que a ref sozinha não faz.
+  const [raizEl, setRaizEl] = useState<HTMLDivElement | null>(null);
+  const refRaiz = useCallback(
+    (el: HTMLDivElement | null) => {
+      raizRef.current = el;
+      alturaRef.current = el;
+      setRaizEl(el);
+    },
+    [alturaRef],
+  );
   const [arrastando, setArrastando] = useState(false);
   const panRef = useRef<{ sx: number; sy: number; left: number; top: number } | null>(null);
 
@@ -581,6 +642,12 @@ export function PdfViewer(props: Props) {
   // Replicar apontamento pra outras pranchas (item 30).
   const [replicarId, setReplicarId] = useState<string | null>(null);
   const [replicarDestinos, setReplicarDestinos] = useState<Set<string>>(new Set());
+  // Excluir apontamento: id à espera da confirmação (janela própria, ver o diálogo no fim).
+  const [excluirId, setExcluirId] = useState<string | null>(null);
+  // Busca: a barra mostra só a lupa até abrir (clique ou Ctrl+F) — ou enquanto houver termo.
+  const [buscaAberta, setBuscaAberta] = useState(false);
+  // Onde o menu da prancha foi aberto e o texto que estava selecionado naquela hora.
+  const [menuPrancha, setMenuPrancha] = useState<PontoMenuPrancha | null>(null);
 
   const paginaRefs = useRef(new Map<number, HTMLDivElement>());
   // Zoom por pinça de 2 dedos (item 34-touch) — pan de 1 dedo já existia via Pointer Events.
@@ -1129,7 +1196,12 @@ export function PdfViewer(props: Props) {
   function concluirEsboco() {
     if (!esboco) return;
     if (esboco.tipo === "livre") {
-      const feito = construirRabisco(esboco.tracos.map((t) => t.pontos), esboco.tracos.map((t) => t.estilo));
+      // Mínimo em px da tela, não em fração da folha: a 2000% um detalhe rabiscado era "pequeno demais".
+      const feito = construirRabisco(
+        esboco.tracos.map((t) => t.pontos),
+        esboco.tracos.map((t) => t.estilo),
+        minimoNaTela(larguraAlvo * zoom),
+      );
       if (!feito) {
         toast.info("Desenho pequeno demais — faça um traço maior.");
         return;
@@ -1137,7 +1209,7 @@ export function PdfViewer(props: Props) {
       abrirNovo(esboco.pagina, feito.x, feito.y, feito.marcacao);
       return;
     }
-    const feito = construirMedidas(esboco.segmentos);
+    const feito = construirMedidas(esboco.segmentos, minimoNaTela(larguraAlvo * zoom));
     if (!feito) {
       toast.info("Nenhuma medida válida — arraste sobre o que quer medir.");
       return;
@@ -1493,12 +1565,220 @@ export function PdfViewer(props: Props) {
     setRotacao((r) => ((r + 90) % 360) as Giro);
   }
 
+  // ── Ações do apontamento (painel de detalhes e menu da bolinha na prancha) ──────────────
+  const contextoAcoes = {
+    papeis: papeisNaTela,
+    usuarioId: props.currentUserId,
+    ehAdmin,
+    podeValidar,
+    temPranchaParaReplicar: pranchasParaReplicar.length > 0,
+    revisaoAtualId: revisionId,
+    revisaoAtualNumero: revisionNumber,
+  };
+  const acoesDe = (p: PendenciaView): AcaoItem[] =>
+    itensDoApontamento(
+      {
+        numero: p.numero,
+        status: p.status,
+        autorId: p.autorId,
+        tarefaId: p.tarefaId,
+        totalRespostas: p.respostas.length,
+        deOutraRevisao: p.deOutraRevisao,
+        revisaoOrigemId: p.revisaoOrigemId,
+      },
+      contextoAcoes,
+    );
+  // Regra 4 da ADR-0002: bolinha com uma ação só (quem só lê tem "responder") fica sem menu — o
+  // clique já abre os detalhes, onde a ação está.
+  const itensDoPin = (p: PendenciaView): AcaoItem[] => {
+    const itens = acoesDe(p);
+    return itens.filter((i) => i.tipo === "acao" && !i.desabilitado).length > 1 ? itens : [];
+  };
+
+  /** Uma ação do apontamento — igual venha do botão do painel ou do menu da bolinha. */
+  function executarAcaoApontamento(p: PendenciaView, item: AcaoItemAcao, doPainel = false) {
+    if (item.desabilitado) return;
+    setSelecionadaId(p.id);
+    setPainelDetalhesAberto(true);
+    switch (item.id) {
+      case ACAO_RESPONDER:
+        // No painel o botão alterna a conversa; pelo menu da bolinha, sempre abre.
+        setThreadId((atual) => (doPainel && atual === p.id ? null : p.id));
+        setRespostaTexto("");
+        return;
+      case ACAO_EDITAR:
+        abrirEdicao(p);
+        return;
+      case ACAO_EXCLUIR:
+        setExcluirId(p.id);
+        return;
+      case ACAO_CLASSIFICAR:
+        abrirClassificacao(p);
+        return;
+      case ACAO_REPLICAR:
+        setReplicarId(p.id);
+        setReplicarDestinos(new Set());
+        return;
+      case ACAO_RESOLVER_NA_REVISAO:
+        resolverEmRevisao(p.id);
+        return;
+    }
+    const destino = destinoDoItem(item.id);
+    if (!destino) return;
+    const meta = ACAO_TRANSICAO[destino];
+    // Sem action direta = precisa de janela ("não procede" pede justificativa).
+    if (!meta.acao) setDescartarId(p.id);
+    else mudarStatus(p.id, meta.acao, destino, meta.sucesso);
+  }
+
+  const pendenciaExcluir = excluirId ? pendencias.find((p) => p.id === excluirId) ?? null : null;
+  const confirmacaoExcluir = pendenciaExcluir
+    ? (acoesDe(pendenciaExcluir).find((i): i is AcaoItemAcao => i.tipo === "acao" && i.id === ACAO_EXCLUIR)?.confirmar ?? null)
+    : null;
+
+  // ── Busca (ícone na barra; Ctrl+F abre) ──────────────────────────────────────────────
+  const buscaVisivel = buscaAberta || busca.query !== "";
+  function abrirBusca() {
+    setBuscaAberta(true);
+    // Já aberta: só devolve o foco ao campo.
+    requestAnimationFrame(() => raizRef.current?.querySelector<HTMLInputElement>("[data-busca-pdf]")?.focus());
+  }
+  useEffect(() => {
+    function aoTeclar(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.key.toLowerCase() !== "f") return;
+      // A busca do navegador não enxerga o que está desenhado no canvas — a nossa, sim.
+      if ((e.target as HTMLElement | null)?.closest("[role='dialog']")) return;
+      e.preventDefault();
+      setBuscaAberta(true);
+      requestAnimationFrame(() => raizRef.current?.querySelector<HTMLInputElement>("[data-busca-pdf]")?.focus());
+    }
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, []);
+
+  // ── Menu da prancha (botão direito / toque longo) ────────────────────────────────────
+  // No toque, com uma ferramenta de desenho na mão, o toque longo parado no começo de um traço
+  // abriria o menu no meio do desenho: lá o menu da prancha só vale fora do modo apontar.
+  const [toque, setToque] = useState(false);
+  useEffect(() => {
+    setToque(window.matchMedia?.("(pointer: coarse)").matches ?? false);
+  }, []);
+  const menuPranchaDesligado = toque && modoApontar;
+
+  function aoAbrirMenuPrancha(aberto: boolean, detalhes?: { event?: Event }) {
+    if (!aberto) return;
+    const ev = detalhes?.event;
+    let clientX = 0;
+    let clientY = 0;
+    if (ev && "touches" in ev) {
+      const t = (ev as TouchEvent).touches[0] ?? (ev as TouchEvent).changedTouches[0];
+      if (t) {
+        clientX = t.clientX;
+        clientY = t.clientY;
+      }
+    } else if (ev && "clientX" in ev) {
+      clientX = (ev as MouseEvent).clientX;
+      clientY = (ev as MouseEvent).clientY;
+    }
+    // O ponto é convertido como no clique de apontar: na caixa visível (girada) e de volta ao
+    // espaço sem giro, onde `x`/`y` são gravados.
+    const camada = (document.elementFromPoint(clientX, clientY) as HTMLElement | null)?.closest<HTMLElement>(
+      "[data-camada-apontamentos]",
+    );
+    let pagina: number | null = null;
+    let x = 0;
+    let y = 0;
+    if (camada) {
+      const r = camada.getBoundingClientRect();
+      const p = desgirarPonto(
+        Math.min(1, Math.max(0, (clientX - r.left) / r.width)),
+        Math.min(1, Math.max(0, (clientY - r.top) / r.height)),
+        rotacao,
+      );
+      pagina = Number(camada.dataset.camadaApontamentos) || null;
+      x = p.x;
+      y = p.y;
+    }
+    // Guardado na abertura: clicar no item do menu desfaz a seleção antes de o "Copiar" rodar.
+    const sel = window.getSelection();
+    const texto = sel && colunaRef.current?.contains(sel.anchorNode) ? sel.toString().trim() : "";
+    setMenuPrancha({ pagina, x, y, clientX, clientY, texto });
+  }
+
+  const itensMenuPrancha = itensDoVisualizador({
+    podeApontar,
+    modoApontar,
+    ferramenta,
+    zoom,
+    zoomMin: ZOOM_PDF_MIN,
+    zoomMax: ZOOM_PDF_MAX,
+    emTelaCheia,
+    pagina: menuPrancha?.pagina ?? null,
+    temTextoSelecionado: !!menuPrancha?.texto,
+    esboco: esboco ? { tipo: esboco.tipo } : null,
+  });
+
+  function executarItemVisualizador(item: AcaoItemAcao) {
+    const ponto = menuPrancha;
+    const ferr = ferramentaDoItem(item.id);
+    if (ferr) {
+      escolherFerramenta(ferr);
+      return;
+    }
+    switch (item.id) {
+      case ACAO_APONTAR_AQUI:
+        if (ponto?.pagina != null) abrirNovo(ponto.pagina, ponto.x, ponto.y);
+        return;
+      case ACAO_COPIAR_TEXTO:
+        if (ponto?.texto) {
+          navigator.clipboard.writeText(ponto.texto).then(
+            () => toast.success("Texto copiado."),
+            () => toast.error("Não foi possível copiar o texto."),
+          );
+        }
+        return;
+      case ACAO_ESBOCO_CONCLUIR:
+        concluirEsboco();
+        return;
+      case ACAO_ESBOCO_DESFAZER:
+        desfazerEsboco();
+        return;
+      case ACAO_ESBOCO_DESCARTAR:
+        setEsboco(null);
+        return;
+      case ACAO_ZOOM_MAIS:
+      case ACAO_ZOOM_MENOS: {
+        // Pelo menu, o zoom fica ancorado onde se clicou — como na roda do mouse.
+        const direcao = item.id === ACAO_ZOOM_MAIS ? 1 : -1;
+        setZoom((z) => passoZoom(z, direcao), ponto ? { clientX: ponto.clientX, clientY: ponto.clientY } : undefined);
+        return;
+      }
+      case ACAO_AJUSTAR:
+        setZoom(1);
+        return;
+      case ACAO_GIRAR:
+        girar();
+        return;
+      case ACAO_TELA_CHEIA:
+        void alternarTelaCheia();
+        return;
+      case ACAO_BUSCAR:
+        abrirBusca();
+        return;
+      case ACAO_CALIBRAR:
+        if (ponto?.pagina != null) abrirCalibracao(ponto.pagina);
+        return;
+      case ACAO_NAVEGAR:
+        setModoApontar(false);
+        return;
+    }
+  }
+
+  const IconeNavegar = NAVEGAR_META.icone;
+
   return (
     <div
-      ref={(el) => {
-        raizRef.current = el;
-        alturaRef.current = el;
-      }}
+      ref={refRaiz}
       // Altura MEDIDA do topo do visualizador até o fim da janela (a partir de `lg`): o antigo
       // `100vh - 2rem` ignorava a barra do topo e o que vem acima, e a página inteira rolava 119 px
       // junto com a prancha (1366×768). Em tela cheia vale o `h-screen` da classe.
@@ -1508,39 +1788,138 @@ export function PdfViewer(props: Props) {
       // Marcador do globals.css: nesta tela o cabeçalho e as abas do projeto saem (a área é da prancha).
       data-visualizador-prancha
     >
-      {/* Em tela cheia só o que está DENTRO deste elemento aparece: o Toaster global (no body)
-          continua recebendo os avisos, mas fica invisível. Este espelha os mesmos toasts. */}
+      {/* Em tela cheia só o que está DENTRO deste elemento aparece. Janelas, menus e dicas passam a
+          se pendurar nele (sem isso, criar apontamento em tela cheia abria uma janela invisível), e
+          este Toaster espelha os avisos do global, que mora no body. */}
+      <PortalContainerProvider container={emTelaCheia ? raizEl : null}>
       {emTelaCheia && <Toaster position="top-right" richColors />}
-      {/* Cabeçalho numa linha só: nome, revisão, situação, extensões e as ferramentas. A trilha
-          (projeto › disciplina › arquivo) saiu — a barra do topo já mostra onde se está — e o
-          "código · projeto · disciplina" foi para a dica do nome. */}
-      <div className="border-b pb-2">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <Link
-          href={`/projetos/${projetoId}/arquivos`}
-          className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          title={`Voltar para os arquivos de ${disciplinaNome}`}
-        >
-          <ArrowLeft className="size-3.5" /> Arquivos
-        </Link>
-        <div className="flex min-w-48 flex-1 flex-wrap items-center gap-1.5">
-          <h1
-            className="min-w-0 max-w-full truncate text-base font-bold leading-tight"
-            title={`${nomeArquivo} — ${codigo} · ${projetoNome} · ${disciplinaNome}`}
+      {/* Três colunas de altura inteira — tarefas | prancha | detalhes. Os painéis sobem até o topo
+          e o nome e as ferramentas ficam só sobre a prancha (pedido do dono, 2026-09-28). */}
+      <div className="flex min-h-0 flex-1">
+        {painelTarefasAberto ? (
+          <div
+            ref={painelTarefasRef}
+            id="painel-tarefas-workspace"
+            className="hidden w-72 shrink-0 overflow-hidden border-r lg:flex"
           >
-            {nomeArquivo}
-          </h1>
-          {!versaoAtual && (
-            <Badge variant="outline" className="shrink-0 text-[10px] text-warning" title="Existe uma versão mais nova deste arquivo">
-              versão anterior
-            </Badge>
-          )}
+            <PainelTarefasDocumento
+              pendencias={pendencias}
+              selecionadaId={selecionadaId}
+              onSelecionarPendencia={selecionarPendencia}
+              podeCriarTarefa={podeApontar}
+              quantidadeSemTarefa={abertasSemTarefa}
+              onCriarTarefa={enviar}
+              pending={pending}
+              tituloId="tarefas-documento-titulo-desktop"
+              acaoCabecalho={
+                <BotaoFerramenta rotulo="Recolher painel de tarefas" onClick={recolherPainelTarefas}>
+                  <ArrowLeft />
+                </BotaoFerramenta>
+              }
+            />
+          </div>
+        ) : (
+          <div className="hidden w-10 shrink-0 flex-col items-center gap-1 border-r pt-2 lg:flex">
+            <Button
+              ref={abrirTarefasRef}
+              size="icon"
+              variant="ghost"
+              className="size-7"
+              onClick={() => setPainelTarefasAberto(true)}
+              aria-expanded={false}
+              aria-controls="painel-tarefas-workspace"
+              aria-label={`Abrir painel de tarefas (${pendencias.length} ${pendencias.length === 1 ? "apontamento" : "apontamentos"})`}
+              title="Abrir painel de tarefas"
+            >
+              <ArrowRight className="size-3.5" />
+            </Button>
+            {pendencias.length > 0 && <ContagemRecolhida total={pendencias.length} />}
+          </div>
+        )}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Identidade do arquivo: nome, revisão e situação. A trilha fica na barra do topo e o
+              "código · projeto · disciplina", na dica do nome. */}
+          <div className="flex min-h-9 flex-wrap items-center gap-x-2 gap-y-1 px-2 pt-1">
+            <Link
+              href={`/projetos/${projetoId}/arquivos`}
+              className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              title={`Voltar para os arquivos de ${disciplinaNome}`}
+            >
+              <ArrowLeft className="size-3.5" /> Arquivos
+            </Link>
+            <h1
+              className="min-w-0 max-w-full truncate text-base font-bold leading-tight"
+              title={`${nomeArquivo} — ${codigo} · ${projetoNome} · ${disciplinaNome}`}
+            >
+              {nomeArquivo}
+            </h1>
+            {!versaoAtual && (
+              <Badge
+                variant="outline"
+                className="shrink-0 text-[10px] text-warning"
+                title={
+                  podeValidar
+                    ? "Existe uma versão mais nova deste arquivo — aponte na versão atual."
+                    : "Existe uma versão mais nova deste arquivo"
+                }
+              >
+                versão anterior
+              </Badge>
+            )}
             <Badge variant="outline" className="shrink-0 font-mono text-[10px] tracking-wide" title="Revisão do documento">
               {rotuloRevisao(revisionNumber)}
             </Badge>
             <Badge variant="outline" className="shrink-0 text-xs" title="Status documental">
               {documentStatus ? `${documentStatus.name}${documentStatus.final ? " (final)" : ""}` : "Sem status"}
             </Badge>
+            {(presentes.length > 0 || avisoNovidades) && (
+              <div className="ml-auto flex min-w-0 flex-wrap items-center gap-2">
+                {/* Presença (item 32) — só quando alguém mais está com o mesmo documento aberto. Sem
+                    Socket.io ativo (`npm run dev` puro), `presentes` fica sempre vazio — degrada
+                    para "nada aparece", nunca erro. */}
+                {presentes.length > 0 && (
+                  <div
+                    className="flex items-center -space-x-2"
+                    title={`Também vendo agora: ${presentes.map((u) => u.nome).join(", ")}`}
+                  >
+                    {presentes.slice(0, 3).map((u) => (
+                      <Avatar key={u.userId} className="size-6 border-2 border-background">
+                        {u.image && <AvatarImage src={u.image} alt={u.nome} />}
+                        <AvatarFallback className="text-[10px]">{u.nome.slice(0, 2).toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                    ))}
+                    {presentes.length > 3 && (
+                      <span className="flex size-6 items-center justify-center rounded-full border-2 border-background bg-muted text-[10px] font-medium">
+                        +{presentes.length - 3}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {avisoNovidades && (
+                  <span
+                    className="inline-flex items-center gap-1 rounded-sm border border-info/40 px-1.5 py-0.5 text-xs text-info"
+                    title="Contado a partir da última vez que você abriu esta prancha."
+                  >
+                    <Sparkles className="size-3" />
+                    {avisoNovidades}
+                    <button
+                      type="button"
+                      aria-label="Dispensar aviso de novidades"
+                      className="ml-0.5 text-info/70 hover:text-info"
+                      onClick={() => setAvisoNovidades(null)}
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Ferramentas só com ícone; o nome, a tecla e o que cada uma faz aparecem na dica. As
+              mesmas estão no menu do botão direito sobre a prancha — esta barra é o caminho que
+              também serve ao teclado (ADR-0002, regra 2). */}
+          <div role="toolbar" aria-label="Ferramentas da prancha" className="flex flex-wrap items-center gap-1 border-b px-2 py-1">
             <nav className="flex shrink-0 flex-wrap items-center gap-1" aria-label="Arquivos desta revisão">
               <span className="sr-only">Extensões:</span>
               {revisionFiles.map((file) =>
@@ -1581,438 +1960,365 @@ export function PdfViewer(props: Props) {
                 ),
               )}
             </nav>
-            {pranchasNavegaveis.length > 1 && (
-              <nav className="flex items-center gap-0.5 rounded-sm border px-1" aria-label="Navegação entre pranchas">
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  disabled={!pranchaAnterior}
-                  aria-label="Prancha anterior"
-                  title={pranchaAnterior ? `Anterior: ${pranchaAnterior.nomeArquivo}` : "Não há prancha anterior"}
-                  render={pranchaAnterior ? <Link href={`/projetos/${projetoId}/arquivos/${pranchaAnterior.uploadId}/visualizar`} /> : undefined}
+            <SeletorPranchas projetoId={projetoId} uploadId={uploadId} pranchas={pranchasNavegaveis} />
+            {pdf && (
+              <>
+                <SeparadorBarra />
+                {buscaVisivel ? (
+                  // Fecha sozinha quando o foco sai com o campo vazio — aberta sem termo só ocupa espaço.
+                  <div
+                    className="flex items-center"
+                    onBlur={(e) => {
+                      if (!busca.query && !e.currentTarget.contains(e.relatedTarget as Node | null)) setBuscaAberta(false);
+                    }}
+                  >
+                    <BarraBuscaPdf
+                      query={busca.query}
+                      onQueryChange={busca.setQuery}
+                      total={busca.total}
+                      indiceAtual={busca.indiceAtual}
+                      pronto={busca.pronto}
+                      onProxima={busca.proxima}
+                      onAnterior={busca.anterior}
+                      autoFocus={buscaAberta}
+                      onFechar={() => {
+                        busca.setQuery("");
+                        setBuscaAberta(false);
+                      }}
+                      className="flex items-center gap-1"
+                    />
+                  </div>
+                ) : (
+                  <BotaoFerramenta
+                    rotulo="Buscar no documento"
+                    atalho="Ctrl+F"
+                    dica="Procura um texto na prancha e destaca cada ocorrência."
+                    onClick={abrirBusca}
+                  >
+                    <Search />
+                  </BotaoFerramenta>
+                )}
+                {/* Camadas/OCG — só aparece quando o PDF de fato tem alguma (raro fora de export CAD/Revit). */}
+                {camadas.temCamadas && <CamadasPdf grupos={camadas.grupos} onAlternar={camadas.alternar} />}
+                <SeparadorBarra />
+                <BotaoFerramenta rotulo="Diminuir zoom" atalho="Ctrl+roda" onClick={() => ajustarZoom(-1)} disabled={zoom <= ZOOM_PDF_MIN}>
+                  <ZoomOut />
+                </BotaoFerramenta>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        onClick={() => setZoom(1)}
+                        aria-label={`Zoom de ${Math.round(zoom * 100)}% — voltar a 100%`}
+                        className="min-w-[4.5ch] rounded-sm text-center text-xs tabular-nums text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                      />
+                    }
+                  >
+                    {Math.round(zoom * 100)}%
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Zoom atual — clique para voltar a 100%</TooltipContent>
+                </Tooltip>
+                <BotaoFerramenta rotulo="Aumentar zoom" atalho="Ctrl+roda" onClick={() => ajustarZoom(1)} disabled={zoom >= ZOOM_PDF_MAX}>
+                  <ZoomIn />
+                </BotaoFerramenta>
+                <BotaoFerramenta rotulo="Ajustar à largura" dica="A prancha volta a 100%, na largura da área de leitura." onClick={() => setZoom(1)}>
+                  <Maximize2 />
+                </BotaoFerramenta>
+                <BotaoFerramenta
+                  rotulo="Girar 90°"
+                  dica={
+                    rotacao === 0
+                      ? "Gira só a leitura; os apontamentos giram junto e continuam no lugar."
+                      : `Girada ${rotacao}° — clique para girar mais 90°.`
+                  }
+                  className={cn(rotacao !== 0 && "text-primary")}
+                  onClick={girar}
                 >
-                  <ArrowLeft className="size-3" />
-                </Button>
-                <span className="max-w-40 truncate px-1 text-[11px] text-muted-foreground" title={nomeArquivo}>
-                  {indicePrancha + 1}/{pranchasNavegaveis.length} pranchas
-                </span>
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  disabled={!proximaPrancha}
-                  aria-label="Próxima prancha"
-                  title={proximaPrancha ? `Próxima: ${proximaPrancha.nomeArquivo}` : "Não há próxima prancha"}
-                  render={proximaPrancha ? <Link href={`/projetos/${projetoId}/arquivos/${proximaPrancha.uploadId}/visualizar`} /> : undefined}
+                  <RotateCw />
+                </BotaoFerramenta>
+                <BotaoFerramenta
+                  rotulo={emTelaCheia ? "Sair da tela cheia" : "Tela cheia"}
+                  atalho={emTelaCheia ? "Esc" : undefined}
+                  dica={emTelaCheia ? undefined : "Usa a tela inteira só para a prancha e os painéis."}
+                  onClick={alternarTelaCheia}
                 >
-                  <ArrowRight className="size-3" />
-                </Button>
-              </nav>
+                  {emTelaCheia ? <Minimize /> : <Expand />}
+                </BotaoFerramenta>
+                {/* Comparar revisões (itens 4/5) — só quando existe outra versão pra comparar. */}
+                {temOutraRevisao && (
+                  <BotaoFerramenta
+                    rotulo="Comparar revisões"
+                    dica="Abre esta prancha ao lado de outra revisão do mesmo documento."
+                    render={<Link href={`/projetos/${projetoId}/arquivos/${uploadId}/comparar`} />}
+                  >
+                    <GitCompare />
+                  </BotaoFerramenta>
+                )}
+              </>
             )}
-        </div>
-        {/* Busca textual */}
-        {pdf && (
-          <BarraBuscaPdf
-            query={busca.query}
-            onQueryChange={busca.setQuery}
-            total={busca.total}
-            indiceAtual={busca.indiceAtual}
-            pronto={busca.pronto}
-            onProxima={busca.proxima}
-            onAnterior={busca.anterior}
-            className="flex items-center gap-1"
-          />
-        )}
-        {/* Camadas/OCG — só aparece quando o PDF de fato tem alguma (raro fora de export CAD/Revit). */}
-        {pdf && camadas.temCamadas && <CamadasPdf grupos={camadas.grupos} onAlternar={camadas.alternar} />}
-        {/* Presença (item 32) — só quando alguém mais está com o mesmo documento aberto. Sem
-            Socket.io ativo (`npm run dev` puro), `presentes` fica sempre vazio — degrada
-            para "nada aparece", nunca erro. */}
-        {presentes.length > 0 && (
-          <div
-            className="flex items-center -space-x-2"
-            title={`Também vendo agora: ${presentes.map((u) => u.nome).join(", ")}`}
-          >
-            {presentes.slice(0, 3).map((u) => (
-              <Avatar key={u.userId} className="size-6 border-2 border-background">
-                {u.image && <AvatarImage src={u.image} alt={u.nome} />}
-                <AvatarFallback className="text-[10px]">{u.nome.slice(0, 2).toUpperCase()}</AvatarFallback>
-              </Avatar>
-            ))}
-            {presentes.length > 3 && (
-              <span className="flex size-6 items-center justify-center rounded-full border-2 border-background bg-muted text-[10px] font-medium">
-                +{presentes.length - 3}
-              </span>
-            )}
+            <div className="ml-auto flex flex-wrap items-center gap-1">
+              {podeValidarArquivo ? (
+                <AcoesValidacaoArquivo uploadId={uploadId} nomeArquivo={nomeArquivo} validado={validado} compacto />
+              ) : (
+                podeValidar &&
+                versaoAtual &&
+                !finalizada &&
+                !validado &&
+                temApontamentoAberto && (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <span
+                          tabIndex={0}
+                          aria-label={temImpeditivo ? "Validação bloqueada por apontamento impeditivo" : "Validação bloqueada por apontamento em aberto"}
+                          className={cn(
+                            "inline-flex size-7 items-center justify-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            temImpeditivo ? "text-destructive" : "text-warning",
+                          )}
+                        />
+                      }
+                    >
+                      <AlertTriangle className="size-4" aria-hidden />
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-64">
+                      {temImpeditivo
+                        ? "Há apontamento IMPEDITIVO em aberto — a prancha não pode ser validada."
+                        : "Há apontamento em aberto — resolva ou feche para validar a prancha."}
+                    </TooltipContent>
+                  </Tooltip>
+                )
+              )}
+              {podeApontar && (
+                <>
+                  <SeparadorBarra />
+                  {/* Paleta de ferramentas (item 9): a mão navega; as demais ligam o modo apontar. */}
+                  <div role="group" aria-label="Ferramenta" className="flex items-center gap-0.5 rounded-lg border p-0.5">
+                    <BotaoFerramenta
+                      rotulo={NAVEGAR_META.rotulo}
+                      atalho={NAVEGAR_META.atalho}
+                      dica={`${NAVEGAR_META.dica} A tecla A liga e desliga o modo apontar.`}
+                      ativo={!modoApontar}
+                      onClick={() => setModoApontar(false)}
+                    >
+                      <IconeNavegar />
+                    </BotaoFerramenta>
+                    {TIPOS_MARCACAO.map((t) => {
+                      const Icone = FERRAMENTA_META[t].icone;
+                      return (
+                        <BotaoFerramenta
+                          key={t}
+                          rotulo={MARCACAO_LABEL[t]}
+                          atalho={FERRAMENTA_META[t].atalho}
+                          dica={FERRAMENTA_META[t].dica}
+                          ativo={modoApontar && ferramenta === t}
+                          onClick={() => escolherFerramenta(t)}
+                        >
+                          <Icone />
+                        </BotaoFerramenta>
+                      );
+                    })}
+                  </div>
+                  {/* Escala da página visível (item 28) — clicável pra (re)calibrar. */}
+                  {modoApontar && (
+                    <BotaoFerramenta
+                      rotulo={`Escala da página ${paginaVisivel}`}
+                      dica={`${rotuloCalibracao(calibracaoDaPagina(paginaVisivel)?.modo, calibracaoDaPagina(paginaVisivel)?.escalaDenominador)} — clique para calibrar. A medida usa esta escala.`}
+                      onClick={() => abrirCalibracao(paginaVisivel)}
+                    >
+                      <DraftingCompass />
+                    </BotaoFerramenta>
+                  )}
+                  {rascunhos.length > 0 && (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <span
+                            tabIndex={0}
+                            aria-label={`${rascunhos.length} em rascunho`}
+                            className="inline-flex h-7 items-center gap-0.5 rounded-lg border border-dashed px-1.5 text-xs tabular-nums text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          />
+                        }
+                      >
+                        <FilePen className="size-3.5" aria-hidden /> {rascunhos.length}
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-64">
+                        {rascunhos.length} em rascunho — só você vê até enviar a rodada.
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                  <BotaoFerramenta
+                    rotulo="Enviar apontamentos"
+                    destaque
+                    dica={
+                      finalizada
+                        ? `Junta os ${abertasSemTarefa} apontamento(s) sem tarefa numa tarefa de ajustes. A entrega já foi validada: o envio abre revisão.`
+                        : `Junta os ${abertasSemTarefa} apontamento(s) sem tarefa numa tarefa de ajustes para os responsáveis.`
+                    }
+                    onClick={enviar}
+                    disabled={pending || abertasSemTarefa === 0}
+                    className="w-auto gap-1 px-1.5"
+                  >
+                    <Send />
+                    {abertasSemTarefa > 0 && <span className="text-xs tabular-nums">{abertasSemTarefa}</span>}
+                  </BotaoFerramenta>
+                </>
+              )}
+            </div>
           </div>
-        )}
-        {/* Comparar revisões (itens 4/5) — só quando existe outra versão pra comparar. */}
-        {temOutraRevisao && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="size-7"
-            aria-label="Comparar revisões"
-            title="Comparar revisões"
-            render={<Link href={`/projetos/${projetoId}/arquivos/${uploadId}/comparar`} />}
-          >
-            <GitCompare className="size-4" />
-          </Button>
-        )}
-        {/* Zoom / ajuste à largura */}
-        {pdf && (
-          <div className="flex items-center gap-0.5 rounded-sm border px-1">
-            <Button
-              size="icon"
-              variant="ghost"
-              className="size-7"
-              onClick={() => ajustarZoom(-1)}
-              disabled={zoom <= ZOOM_PDF_MIN}
-              aria-label="Diminuir zoom"
-              title="Diminuir zoom"
-            >
-              <ZoomOut className="size-4" />
-            </Button>
-            <button
-              type="button"
-              onClick={() => setZoom(1)}
-              className="min-w-[4.5ch] text-center text-xs tabular-nums text-muted-foreground hover:text-foreground"
-              title="Ajustar à largura (100%)"
-            >
-              {Math.round(zoom * 100)}%
-            </button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="size-7"
-              onClick={() => ajustarZoom(1)}
-              disabled={zoom >= ZOOM_PDF_MAX}
-              aria-label="Aumentar zoom"
-              title="Aumentar zoom"
-            >
-              <ZoomIn className="size-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="size-7"
-              onClick={() => setZoom(1)}
-              aria-label="Ajustar à largura"
-              title="Ajustar à largura"
-            >
-              <Maximize2 className="size-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className={cn("size-7", rotacao !== 0 && "text-primary")}
-              onClick={girar}
-              aria-label={`Girar 90° (atual: ${rotacao}°)`}
-              title={rotacao === 0 ? "Girar 90°" : `Girada ${rotacao}° — clique para girar mais 90°`}
-            >
-              <RotateCw className="size-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="size-7"
-              onClick={alternarTelaCheia}
-              aria-label={emTelaCheia ? "Sair da tela cheia" : "Abrir em tela cheia"}
-              title={emTelaCheia ? "Sair da tela cheia" : "Tela cheia"}
-            >
-              {emTelaCheia ? <Minimize className="size-4" /> : <Expand className="size-4" />}
-            </Button>
-          </div>
-        )}
-        {podeValidarArquivo ? (
-          <AcoesValidacaoArquivo uploadId={uploadId} nomeArquivo={nomeArquivo} validado={validado} />
-        ) : (
-          podeValidar &&
-          versaoAtual &&
-          !finalizada &&
-          !validado &&
-          temApontamentoAberto && (
-            <span
-              className={cn("text-xs", temImpeditivo ? "font-medium text-destructive" : "text-warning")}
-              title={
-                temImpeditivo
-                  ? "Há apontamento IMPEDITIVO em aberto — a prancha não pode ser liberada."
-                  : "Resolva ou feche os apontamentos abertos para validar a prancha"
-              }
-            >
-              {temImpeditivo
-                ? "Apontamento IMPEDITIVO em aberto — não é possível validar."
-                : "Apontamento(s) em aberto — não é possível validar."}
-            </span>
-          )
-        )}
-        {avisoNovidades && (
-          <span
-            className="inline-flex items-center gap-1 rounded-sm border border-info/40 px-1.5 py-0.5 text-xs text-info"
-            title="Contado a partir da última vez que você abriu esta prancha."
-          >
-            <Sparkles className="size-3" />
-            {avisoNovidades}
-            <button
-              type="button"
-              aria-label="Dispensar aviso de novidades"
-              className="ml-0.5 text-info/70 hover:text-info"
-              onClick={() => setAvisoNovidades(null)}
-            >
-              <X className="size-3" />
-            </button>
-          </span>
-        )}
-        {rascunhos.length > 0 && (
-          <span className="text-xs text-muted-foreground" title="Só você enxerga estes apontamentos até enviar a rodada.">
-            {rascunhos.length} em rascunho
-          </span>
-        )}
-        {podeApontar ? (
-          <>
-            <Button
-              size="sm"
-              variant={modoApontar ? "default" : "outline"}
-              onClick={() => setModoApontar((v) => !v)}
-              className="gap-1"
-              title="Ative e clique na prancha para criar um apontamento (atalho: A)"
-            >
-              <MapPin className="size-4" /> {modoApontar ? "Apontando…" : "Apontar"}
-            </Button>
-            {/* Escala da página visível (item 28) — clicável pra (re)calibrar. */}
-            {modoApontar && (
+
+          {/* Aviso: apontar numa entrega já validada abre revisão */}
+          {podeApontar && finalizada && (
+            <div className="flex items-center gap-2 border-b bg-warning/10 px-3 py-1.5 text-xs text-warning">
+              <MapPin className="size-3.5 shrink-0" /> Entrega já validada — enviar apontamentos abre revisão.
+            </div>
+          )}
+
+          {/* Faixas de estado (busca, régua, modo apontar). `sticky`: o visualizador é mais alto que a
+              janela, e com a página rolada para baixo estas faixas sumiam acima da borda — quem
+              apontava não via a instrução nem o motivo de o clique não fazer nada. O fundo opaco
+              embaixo das cores translúcidas evita a prancha aparecer por trás ao grudar. */}
+          <div className="sticky top-0 z-30 bg-background empty:hidden">
+          {/* Busca sem resultado por falta de texto pesquisável (PDF provavelmente escaneado) */}
+          {busca.query.trim() !== "" && busca.semTextoPesquisavel && (
+            <div className="flex items-center gap-2 border-b bg-warning/10 px-3 py-1.5 text-xs text-warning">
+              Esta prancha não possui texto pesquisável (provavelmente escaneada).
+            </div>
+          )}
+
+          {/* Régua de calibração armada (item 28): a janela está recolhida esperando o traço. */}
+          {tracandoReferencia != null && (
+            <div className="flex items-center gap-2 border-b bg-primary/5 px-3 py-1.5 text-xs text-primary">
+              <Ruler className="size-3.5 shrink-0" />
+              Arraste — ou clique nas duas pontas — sobre uma dimensão conhecida da página {tracandoReferencia} (uma cota, um vão).
               <Button
                 size="sm"
-                variant="outline"
-                className="h-8 gap-1 px-2 text-xs"
-                onClick={() => abrirCalibracao(paginaVisivel)}
-                title={`Escala da página ${paginaVisivel} — clique para calibrar`}
+                variant="ghost"
+                className="ml-auto h-6 px-2 text-xs"
+                onClick={() => {
+                  setTracandoReferencia(null);
+                  setCalibrarPagina(tracandoReferencia);
+                }}
               >
-                <Ruler className="size-3.5" />
-                {rotuloCalibracao(calibracaoDaPagina(paginaVisivel)?.modo, calibracaoDaPagina(paginaVisivel)?.escalaDenominador)}
+                Cancelar
               </Button>
-            )}
-            {/* Ferramenta de marcação (item 9) — só aparece no modo apontar, senão ocupa a
-                barra com um controle que não faz nada. */}
-            {modoApontar && (
-              <Select value={ferramenta} onValueChange={(v) => escolherFerramenta((v as TipoMarcacao) ?? "ponto")}>
-                <SelectTrigger className="h-8 w-40 text-xs" aria-label="Tipo de marcação">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TIPOS_MARCACAO.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {MARCACAO_LABEL[t]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            <Button
-              size="sm"
-              onClick={enviar}
-              disabled={pending || abertasSemTarefa === 0}
-              className="gap-1"
-              title={finalizada ? "Abrirá revisão (mantém a validação financeira)" : undefined}
-            >
-              <Send className="size-4" /> Enviar {abertasSemTarefa > 0 && `(${abertasSemTarefa})`}
-            </Button>
-          </>
-        ) : podeValidar ? (
-          <span className="text-xs text-muted-foreground">Versão anterior — aponte na versão atual.</span>
-        ) : null}
-        </div>
-      </div>
-
-      {/* Aviso: apontar numa entrega já validada abre revisão */}
-      {podeApontar && finalizada && (
-        <div className="flex items-center gap-2 border-b bg-warning/10 px-3 py-1.5 text-xs text-warning">
-          <MapPin className="size-3.5 shrink-0" /> Entrega já validada — enviar apontamentos abre revisão.
-        </div>
-      )}
-
-      {/* Faixas de estado (busca, régua, modo apontar). `sticky`: o visualizador é mais alto que a
-          janela, e com a página rolada para baixo estas faixas sumiam acima da borda — quem
-          apontava não via a instrução nem o motivo de o clique não fazer nada. O fundo opaco
-          embaixo das cores translúcidas evita a prancha aparecer por trás ao grudar. */}
-      <div className="sticky top-0 z-30 bg-background empty:hidden">
-      {/* Busca sem resultado por falta de texto pesquisável (PDF provavelmente escaneado) */}
-      {busca.query.trim() !== "" && busca.semTextoPesquisavel && (
-        <div className="flex items-center gap-2 border-b bg-warning/10 px-3 py-1.5 text-xs text-warning">
-          Esta prancha não possui texto pesquisável (provavelmente escaneada).
-        </div>
-      )}
-
-      {/* Régua de calibração armada (item 28): a janela está recolhida esperando o traço. */}
-      {tracandoReferencia != null && (
-        <div className="flex items-center gap-2 border-b bg-primary/5 px-3 py-1.5 text-xs text-primary">
-          <Ruler className="size-3.5 shrink-0" />
-          Arraste sobre uma dimensão conhecida da página {tracandoReferencia} (uma cota, um vão).
-          <Button
-            size="sm"
-            variant="ghost"
-            className="ml-auto h-6 px-2 text-xs"
-            onClick={() => {
-              setTracandoReferencia(null);
-              setCalibrarPagina(tracandoReferencia);
-            }}
-          >
-            Cancelar
-          </Button>
-        </div>
-      )}
-
-      {/* Dica do modo apontar. Com rabisco/medidas em andamento, o resumo e os botões do esboço
-          ocupam ESTA linha, no lugar da instrução: uma faixa a mais surgindo no 1º traço empurrava a
-          prancha ~30 px para baixo, debaixo do cursor, e o 2º traço caía fora do lugar. */}
-      {modoApontar && (
-        // `min-h-[37px]` (botão 24 + padding 12 + borda 1): a mesma altura com ou sem os botões do
-        // esboço — senão a linha cresce no 1º traço e a prancha ainda anda sob o cursor.
-        <div className="flex min-h-[37px] flex-wrap items-center gap-x-2 gap-y-1 border-b bg-primary/5 px-3 py-1.5 text-xs text-primary">
-          {esboco ? (
-            <ResumoEsboco esboco={esboco} />
-          ) : (
-            <>
-              <MapPin className="size-3.5 shrink-0" />{" "}
-              {ferramenta === "ponto"
-                ? "Clique no ponto da prancha onde está a pendência."
-                : ferramenta === "livre"
-                  ? "Desenhe à mão livre na prancha — quantos traços quiser. Enter conclui, Ctrl+Z desfaz o último."
-                  : ferramenta === "medida"
-                    ? "Arraste sobre o que quer medir — quantas medidas quiser no mesmo apontamento. Enter conclui, Ctrl+Z desfaz a última."
-                    : `Arraste na prancha para desenhar ${MARCACAO_LABEL[ferramenta].toLowerCase()} — cancelar na janela descarta o desenho.`}
-            </>
+            </div>
           )}
-          {ferramenta === "livre" && <SeletorEstilo estilo={estiloRabisco} onEscolher={escolherEstilo} />}
-          {esboco ? (
-            <BotoesEsboco esboco={esboco} onDesfazer={desfazerEsboco} onDescartar={() => setEsboco(null)} onConcluir={concluirEsboco} />
-          ) : (
-            <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
-              Atalhos: 1 pino · 2 retângulo · 3 seta · 4 nuvem · 5 medida · 6 rabisco · Esc sai
-            </span>
+
+          {/* Dica do modo apontar. Com rabisco/medidas em andamento, o resumo e os botões do esboço
+              ocupam ESTA linha, no lugar da instrução: uma faixa a mais surgindo no 1º traço empurrava a
+              prancha ~30 px para baixo, debaixo do cursor, e o 2º traço caía fora do lugar. */}
+          {modoApontar && (
+            // `min-h-[37px]` (botão 24 + padding 12 + borda 1): a mesma altura com ou sem os botões do
+            // esboço — senão a linha cresce no 1º traço e a prancha ainda anda sob o cursor.
+            <div className="flex min-h-[37px] flex-wrap items-center gap-x-2 gap-y-1 border-b bg-primary/5 px-3 py-1.5 text-xs text-primary">
+              {esboco ? (
+                <ResumoEsboco esboco={esboco} />
+              ) : (
+                <>
+                  <MapPin className="size-3.5 shrink-0" />{" "}
+                  {ferramenta === "ponto"
+                    ? "Clique no ponto da prancha onde está a pendência."
+                    : ferramenta === "livre"
+                      ? "Desenhe à mão livre na prancha — quantos traços quiser. Enter conclui, Ctrl+Z desfaz o último."
+                      : ferramenta === "medida"
+                        ? `Arraste — ou clique no início e no fim — sobre o que quer medir; quantas medidas quiser no mesmo apontamento (escala ${rotuloCalibracao(calibracaoDaPagina(paginaVisivel)?.modo, calibracaoDaPagina(paginaVisivel)?.escalaDenominador)}). Enter conclui, Ctrl+Z desfaz a última.`
+                        : `Arraste na prancha para desenhar ${MARCACAO_LABEL[ferramenta].toLowerCase()} — cancelar na janela descarta o desenho.`}
+                </>
+              )}
+              {ferramenta === "livre" && <SeletorEstilo estilo={estiloRabisco} onEscolher={escolherEstilo} />}
+              {esboco ? (
+                <BotoesEsboco esboco={esboco} onDesfazer={desfazerEsboco} onDescartar={() => setEsboco(null)} onConcluir={concluirEsboco} />
+              ) : (
+                <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
+                  Atalhos: 1 pino · 2 retângulo · 3 seta · 4 nuvem · 5 medida · 6 rabisco · Esc sai
+                </span>
+              )}
+            </div>
           )}
-        </div>
-      )}
 
-      {/* Fora do modo apontar, o esboço continua à vista numa faixa própria, para não se perder. */}
-      {esboco && !modoApontar && (
-        <div className="flex flex-wrap items-center gap-2 border-b bg-primary/5 px-3 py-1.5 text-xs text-primary">
-          <ResumoEsboco esboco={esboco} />
-          <BotoesEsboco esboco={esboco} onDesfazer={desfazerEsboco} onDescartar={() => setEsboco(null)} onConcluir={concluirEsboco} />
-        </div>
-      )}
-      </div>
+          {/* Fora do modo apontar, o esboço continua à vista numa faixa própria, para não se perder. */}
+          {esboco && !modoApontar && (
+            <div className="flex flex-wrap items-center gap-2 border-b bg-primary/5 px-3 py-1.5 text-xs text-primary">
+              <ResumoEsboco esboco={esboco} />
+              <BotoesEsboco esboco={esboco} onDesfazer={desfazerEsboco} onDescartar={() => setEsboco(null)} onConcluir={concluirEsboco} />
+            </div>
+          )}
+          </div>
 
-      <div className="flex min-h-0 flex-1">
-        {painelTarefasAberto ? (
+          {/* Coluna de páginas */}
           <div
-            ref={painelTarefasRef}
-            id="painel-tarefas-workspace"
-            className="hidden w-72 shrink-0 overflow-hidden border-r lg:flex"
+            ref={colunaRef}
+            className={cn(
+              "min-w-0 flex-1 overflow-auto bg-muted/30 p-3",
+              !modoApontar && (arrastando ? "cursor-grabbing select-none" : "cursor-grab"),
+            )}
+            // O pan (1 dedo) e o zoom (2 dedos) já são 100% custom via Pointer Events — sem
+            // isto, o gesto NATIVO do navegador (scroll/pinch-zoom da página) rodaria junto e
+            // brigaria com `panMove`/`usePinchZoom` (double-scroll, ou pinça some cedo demais).
+            style={{ touchAction: "none" }}
+            onPointerDown={panDown}
+            onPointerMove={panMove}
+            onPointerUp={panUp}
+            onPointerLeave={panUp}
           >
-            <PainelTarefasDocumento
-              pendencias={pendencias}
-              selecionadaId={selecionadaId}
-              onSelecionarPendencia={selecionarPendencia}
-              podeCriarTarefa={podeApontar}
-              quantidadeSemTarefa={abertasSemTarefa}
-              onCriarTarefa={enviar}
-              pending={pending}
-              tituloId="tarefas-documento-titulo-desktop"
-              acaoCabecalho={
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="size-7"
-                  onClick={recolherPainelTarefas}
-                  aria-label="Recolher painel de tarefas"
-                  title="Recolher painel de tarefas"
-                >
-                  <ArrowLeft className="size-3.5" />
-                </Button>
-              }
-            />
+            {erro ? (
+              <div className="mx-auto mt-16 max-w-sm text-center text-sm text-destructive">{erro}</div>
+            ) : !pdf ? (
+              <div className="mt-16 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" /> Carregando prancha…
+              </div>
+            ) : (
+              // Menu da prancha (botão direito / toque longo): as ferramentas da barra, o zoom no
+              // ponto clicado, "Novo apontamento aqui" e o "Copiar" que o menu nativo daria.
+              <ContextMenu onOpenChange={aoAbrirMenuPrancha} disabled={menuPranchaDesligado}>
+                <ContextMenuTrigger render={<div className="flex flex-col gap-4" />}>
+                  {Array.from({ length: numPages }, (_, i) => i + 1).map((n) => (
+                    <Pagina
+                      key={n}
+                      registrar={(el) => {
+                        if (el) paginaRefs.current.set(n, el);
+                        else paginaRefs.current.delete(n);
+                      }}
+                      pdf={pdf}
+                      pagina={n}
+                      largura={Math.round(larguraAlvo * zoom)}
+                      pins={pinsPosicionados.filter((p) => p.pagina === n)}
+                      selecionadaId={selecionadaId}
+                      modoApontar={modoApontar}
+                      ferramenta={ferramenta}
+                      mmPorPonto={calibracaoDaPagina(n)?.mmPorPonto ?? null}
+                      modoCalibracao={(calibracaoDaPagina(n)?.modo as ModoCalibracao | undefined) ?? null}
+                      capturandoReferencia={tracandoReferencia === n}
+                      onSegmentoReferencia={(pagina, pontos) => {
+                        setRefSegmento({ pagina, pontos });
+                        // Traçou: recolhe o modo régua e traz a janela de volta pra digitar o valor.
+                        setTracandoReferencia(null);
+                        setCalibrarPagina(pagina);
+                      }}
+                      onSelecionar={(id) => selecionarPendencia(id, false)}
+                      onApontar={(x, y, marcacao, medida) => abrirNovo(n, x, y, marcacao, medida)}
+                      esboco={esboco?.pagina === n ? esboco : null}
+                      estiloRabisco={estiloRabisco}
+                      onTracoRabisco={adicionarTraco}
+                      onMedida={adicionarMedida}
+                      onMedidaSemEscala={medidaSemEscala}
+                      onTexto={busca.registrarTexto}
+                      marcas={busca.ocorrenciasPorPagina(n)}
+                      ocgConfig={camadas.config}
+                      ocgVersao={camadas.versao}
+                      rotacao={rotacao}
+                      itensDoPin={itensDoPin}
+                      onAcaoPin={executarAcaoApontamento}
+                    />
+                  ))}
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <AcoesMenuItens itens={itensMenuPrancha} onSelect={executarItemVisualizador} />
+                </ContextMenuContent>
+              </ContextMenu>
+            )}
           </div>
-        ) : (
-          <div className="hidden w-10 shrink-0 flex-col items-center gap-1 border-r pt-2 lg:flex">
-            <Button
-              ref={abrirTarefasRef}
-              size="icon"
-              variant="ghost"
-              className="size-7"
-              onClick={() => setPainelTarefasAberto(true)}
-              aria-expanded={false}
-              aria-controls="painel-tarefas-workspace"
-              aria-label={`Abrir painel de tarefas (${pendencias.length} ${pendencias.length === 1 ? "apontamento" : "apontamentos"})`}
-              title="Abrir painel de tarefas"
-            >
-              <ArrowRight className="size-3.5" />
-            </Button>
-            {pendencias.length > 0 && <ContagemRecolhida total={pendencias.length} />}
-          </div>
-        )}
-        {/* Coluna de páginas */}
-        <div
-          ref={colunaRef}
-          className={cn(
-            "min-w-0 flex-1 overflow-auto bg-muted/30 p-3",
-            !modoApontar && (arrastando ? "cursor-grabbing select-none" : "cursor-grab"),
-          )}
-          // O pan (1 dedo) e o zoom (2 dedos) já são 100% custom via Pointer Events — sem
-          // isto, o gesto NATIVO do navegador (scroll/pinch-zoom da página) rodaria junto e
-          // brigaria com `panMove`/`usePinchZoom` (double-scroll, ou pinça some cedo demais).
-          style={{ touchAction: "none" }}
-          onPointerDown={panDown}
-          onPointerMove={panMove}
-          onPointerUp={panUp}
-          onPointerLeave={panUp}
-        >
-          {erro ? (
-            <div className="mx-auto mt-16 max-w-sm text-center text-sm text-destructive">{erro}</div>
-          ) : !pdf ? (
-            <div className="mt-16 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" /> Carregando prancha…
-            </div>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {Array.from({ length: numPages }, (_, i) => i + 1).map((n) => (
-                <Pagina
-                  key={n}
-                  registrar={(el) => {
-                    if (el) paginaRefs.current.set(n, el);
-                    else paginaRefs.current.delete(n);
-                  }}
-                  pdf={pdf}
-                  pagina={n}
-                  largura={Math.round(larguraAlvo * zoom)}
-                  pins={pinsPosicionados.filter((p) => p.pagina === n)}
-                  selecionadaId={selecionadaId}
-                  modoApontar={modoApontar}
-                  ferramenta={ferramenta}
-                  mmPorPonto={calibracaoDaPagina(n)?.mmPorPonto ?? null}
-                  modoCalibracao={(calibracaoDaPagina(n)?.modo as ModoCalibracao | undefined) ?? null}
-                  capturandoReferencia={tracandoReferencia === n}
-                  onSegmentoReferencia={(pagina, pontos) => {
-                    setRefSegmento({ pagina, pontos });
-                    // Traçou: recolhe o modo régua e traz a janela de volta pra digitar o valor.
-                    setTracandoReferencia(null);
-                    setCalibrarPagina(pagina);
-                  }}
-                  onSelecionar={(id) => selecionarPendencia(id, false)}
-                  onApontar={(x, y, marcacao, medida) => abrirNovo(n, x, y, marcacao, medida)}
-                  esboco={esboco?.pagina === n ? esboco : null}
-                  estiloRabisco={estiloRabisco}
-                  onTracoRabisco={adicionarTraco}
-                  onMedida={adicionarMedida}
-                  onMedidaSemEscala={medidaSemEscala}
-                  onTexto={busca.registrarTexto}
-                  marcas={busca.ocorrenciasPorPagina(n)}
-                  ocgConfig={camadas.config}
-                  ocgVersao={camadas.versao}
-                  rotacao={rotacao}
-                />
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Painel de detalhes */}
@@ -2030,52 +2336,36 @@ export function PdfViewer(props: Props) {
                 {pendencias.length}
               </Badge>
               {pendencias.length > 0 && (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="size-6"
-                  aria-label="Exportar apontamentos em BCF"
-                  title="Exportar apontamentos em BCF (Revit/Navisworks/BIMcollab)"
+                <BotaoFerramenta
+                  rotulo="Exportar em BCF"
+                  dica="Arquivo BCF com os apontamentos, para abrir no Revit, Navisworks ou BIMcollab."
                   render={<a href={`/api/pendencias/bcf?projeto=${projetoId}&ids=${pendencias.map((p) => p.id).join(",")}`} />}
                 >
-                  <FileArchive className="size-3.5" />
-                </Button>
+                  <FileArchive />
+                </BotaoFerramenta>
               )}
               {pendencias.length > 0 && (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="size-6"
-                  aria-label="Baixar relatório em planilha"
-                  title="Relatório de apontamentos (.xlsx)"
+                <BotaoFerramenta
+                  rotulo="Relatório em planilha"
+                  dica="Baixa os apontamentos desta prancha em .xlsx."
                   render={<a href={`/api/pendencias/relatorio?upload=${uploadId}`} />}
                 >
-                  <Table2 className="size-3.5" />
-                </Button>
+                  <Table2 />
+                </BotaoFerramenta>
               )}
               {pendencias.length > 0 && (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="size-6"
-                  aria-label="Baixar PDF carimbado"
-                  title="PDF carimbado (marcações + bloco de análise)"
+                <BotaoFerramenta
+                  rotulo="PDF carimbado"
+                  dica="Baixa a prancha com as marcações desenhadas e o bloco de análise."
                   onClick={baixarCarimbado}
                   disabled={carimbando}
                 >
-                  {carimbando ? <Loader2 className="size-3.5 animate-spin" /> : <Stamp className="size-3.5" />}
-                </Button>
+                  {carimbando ? <Loader2 className="animate-spin" /> : <Stamp />}
+                </BotaoFerramenta>
               )}
-              <Button
-                size="icon"
-                variant="ghost"
-                className="size-6"
-                aria-label="Recolher painel de detalhes"
-                title="Recolher painel de detalhes"
-                onClick={recolherPainelDetalhes}
-              >
-                <ArrowRight className="size-3.5" />
-              </Button>
+              <BotaoFerramenta rotulo="Recolher painel de detalhes" onClick={recolherPainelDetalhes}>
+                <ArrowRight />
+              </BotaoFerramenta>
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
@@ -2095,9 +2385,10 @@ export function PdfViewer(props: Props) {
                     const meta = STATUS_META[p.status] ?? STATUS_META.aberta;
                     const tarefa = p.tarefaId ? tarefasContextuaisPorId.get(p.tarefaId) : null;
                     const itemTarefa = tarefa?.itens.find((item) => item.id === p.tarefaItemId) ?? null;
-                    // Editar/excluir: só quem criou o apontamento (ou admin), enquanto aberto e sem tarefa.
-                    const editavel =
-                      (p.autorId === props.currentUserId || ehAdmin) && p.status === "aberta" && !p.tarefaId;
+                    // Os mesmos itens do menu da bolinha; aqui só os que podem ser usados agora.
+                    const acoesPainel = acoesDe(p).filter(
+                      (i): i is AcaoItemAcao => i.tipo === "acao" && !i.desabilitado,
+                    );
                     return (
                       <li
                         key={p.id}
@@ -2269,96 +2560,44 @@ export function PdfViewer(props: Props) {
                             )}
                           </div>
                         )}
+                        {/* Evidência do "depois" (item 7): avisa exatamente no momento em que
+                            alguém marcou como resolvida e o validador vai fechar. Não bloqueia
+                            — há correção que não rende foto (uma cota que passou a existir na
+                            revisão nova), e travar o fechamento por isso pararia o fluxo. */}
+                        {p.status === "resolvida" && !temEvidencia(p.anexos, "depois") && (
+                          <p className="mt-1.5 text-[10px] text-muted-foreground">Sem evidência do “depois” anexada.</p>
+                        )}
+                        {/* Ações (item 22 e cia.): saem de `itensDoApontamento`, o mesmo descritor do
+                            menu da bolinha, e as transições da MESMA máquina que a action usa para
+                            recusar — a tela nunca oferece um movimento que o servidor vai negar. A
+                            dica de cada botão diz o que ele faz. */}
                         <div className="mt-1.5 flex flex-wrap items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 gap-1 px-1.5 text-xs text-muted-foreground"
-                            onClick={() => {
-                              setThreadId((atual) => (atual === p.id ? null : p.id));
-                              setRespostaTexto("");
-                            }}
-                            disabled={pending}
-                          >
-                            <MessageSquare className="size-3" />
-                            {p.respostas.length > 0 ? `responder (${p.respostas.length})` : "responder"}
-                          </Button>
-                          {editavel && (
-                            <>
-                              <Button size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-xs" onClick={() => abrirEdicao(p)} disabled={pending}>
-                                <Pencil className="size-3" /> editar
-                              </Button>
-                              <Button size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-xs text-destructive" onClick={() => excluir(p.id)} disabled={pending}>
-                                <Trash2 className="size-3" /> excluir
-                              </Button>
-                            </>
-                          )}
-                          {/* Evidência do "depois" (item 7): avisa exatamente no momento em que
-                              alguém marcou como resolvida e o validador vai fechar. Não bloqueia
-                              — há correção que não rende foto (uma cota que passou a existir na
-                              revisão nova), e travar o fechamento por isso pararia o fluxo. */}
-                          {p.status === "resolvida" && !temEvidencia(p.anexos, "depois") && (
-                            <span className="w-full text-[10px] text-muted-foreground">
-                              Sem evidência do “depois” anexada.
-                            </span>
-                          )}
-                          {/* Transições (item 22): a lista sai da MESMA máquina que a action
-                              usa pra recusar, então a tela nunca oferece um movimento que o
-                              servidor vai negar. */}
-                          {transicoesPossiveis(p.status, papeisNaTela).map((destino) => {
-                            const meta = ACAO_TRANSICAO[destino];
-                            const Icone = meta.icone;
-                            const resolverNestaRevisao =
-                              destino === "resolvida" &&
-                              p.deOutraRevisao &&
-                              revisionId != null &&
-                              p.revisaoOrigemId != null &&
-                              p.revisaoOrigemId !== revisionId;
-                            const rotulo = resolverNestaRevisao
-                              ? `resolver na ${rotuloRevisao(revisionNumber)}`
-                              : destino === "aberta" && p.status === "resolvida"
-                                ? "reabrir"
-                                : meta.rotulo;
+                          {acoesPainel.map((item) => {
+                            const Icone = item.icone;
                             return (
-                              <Button
-                                key={destino}
-                                size="sm"
-                                variant="ghost"
-                                className={cn("h-6 gap-1 px-1.5 text-xs", meta.cls)}
-                                onClick={() => {
-                                  // "Não procede" precisa de justificativa: abre a janela.
-                                  // Sem action direta = precisa de janela (só "não procede" hoje).
-                                  if (resolverNestaRevisao) resolverEmRevisao(p.id);
-                                  else if (!meta.acao) setDescartarId(p.id);
-                                  else mudarStatus(p.id, meta.acao, destino, meta.sucesso);
-                                }}
-                                disabled={pending}
-                              >
-                                <Icone className="size-3" /> {rotulo}
-                              </Button>
+                              <Tooltip key={item.id}>
+                                <TooltipTrigger
+                                  render={
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className={cn("h-6 gap-1 px-1.5 text-xs", classeDoItem(item.id))}
+                                      onClick={() => executarAcaoApontamento(p, item, true)}
+                                      disabled={pending}
+                                    />
+                                  }
+                                >
+                                  {Icone && <Icone className="size-3" aria-hidden />}
+                                  {comMinuscula(item.rotulo)}
+                                </TooltipTrigger>
+                                {item.dica && (
+                                  <TooltipContent side="bottom" className="max-w-64 text-pretty">
+                                    {item.dica}
+                                  </TooltipContent>
+                                )}
+                              </Tooltip>
                             );
                           })}
-                          {podeValidar && !STATUS_TERMINAIS.includes(p.status as StatusPendencia) && (
-                            /* Triagem (item 11): vale DEPOIS do envio, quando "editar" já fechou —
-                               é justamente aí que se decide o que é impeditivo. */
-                            <Button size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-xs text-muted-foreground" onClick={() => abrirClassificacao(p)} disabled={pending}>
-                              <Tags className="size-3" /> classificar
-                            </Button>
-                          )}
-                          {podeValidar && pranchasParaReplicar.length > 0 && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 gap-1 px-1.5 text-xs text-muted-foreground"
-                              onClick={() => {
-                                setReplicarId(p.id);
-                                setReplicarDestinos(new Set());
-                              }}
-                              disabled={pending}
-                            >
-                              <CopyPlus className="size-3" /> replicar
-                            </Button>
-                          )}
                         </div>
                       </li>
                     );
@@ -2503,6 +2742,39 @@ export function PdfViewer(props: Props) {
             </Button>
             <Button onClick={salvarDraft} disabled={pending || !texto.trim()}>
               {editId ? "Salvar" : "Criar apontamento"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Excluir apontamento (regra 4 da ADR-0002: destrutivo confirma). Janela própria e não o
+          `useConfirm`: o provedor dele mora fora deste elemento, e em tela cheia a janela dele
+          abriria invisível. Título e texto vêm do descritor (`confirmar` do item). */}
+      <Dialog
+        open={excluirId != null}
+        onOpenChange={(o) => {
+          if (!o) setExcluirId(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-sm" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>{confirmacaoExcluir?.titulo ?? "Excluir o apontamento?"}</DialogTitle>
+            {confirmacaoExcluir?.descricao && <DialogDescription>{confirmacaoExcluir.descricao}</DialogDescription>}
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExcluirId(null)} disabled={pending}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                const id = excluirId;
+                setExcluirId(null);
+                if (id) excluir(id);
+              }}
+              disabled={pending}
+            >
+              {confirmacaoExcluir?.rotuloConfirmar ?? "Excluir"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2779,6 +3051,7 @@ export function PdfViewer(props: Props) {
           onSubmit={submeterTarefa}
         />
       )}
+      </PortalContainerProvider>
     </div>
   );
 }
@@ -2823,6 +3096,8 @@ function Pagina({
   ocgConfig,
   ocgVersao,
   rotacao,
+  itensDoPin,
+  onAcaoPin,
 }: {
   pdf: PdfDoc;
   pagina: number;
@@ -2863,11 +3138,17 @@ function Pagina({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ocgConfig?: any;
   ocgVersao?: number;
+  /** Ações do menu da bolinha (o mesmo descritor do painel); vazio = sem menu. */
+  itensDoPin: (p: PinPosicionado) => AcaoItem[];
+  onAcaoPin: (p: PinPosicionado, item: AcaoItemAcao) => void;
 }) {
   // Arrasto em andamento (item 9). Fica em estado local da PÁGINA, não do viewer: só a página
   // desenhada precisa saber do traço provisório, e assim mover o mouse não re-renderiza a
   // lista lateral nem as outras páginas do documento.
-  const [tracando, setTracando] = useState<{ x: number; y: number; ax: number; ay: number } | null>(null);
+  // `cx`/`cy` = onde o ponteiro desceu, em px de TELA: é por eles que clique e arrasto se
+  // distinguem em qualquer zoom. `clique` = medida (ou régua) armada por um clique: a linha segue
+  // o cursor e o próximo clique a fecha — quem mede costuma clicar início e fim, não arrastar.
+  const [tracando, setTracando] = useState<{ x: number; y: number; ax: number; ay: number; cx: number; cy: number; clique: boolean } | null>(null);
   // Traço do rabisco em andamento (local, como `tracando`: só esta página redesenha ao mover).
   const [tracoLivre, setTracoLivre] = useState<{ x: number; y: number }[] | null>(null);
   // Dimensões da página em PONTOS do PDF (espaço visual, `/Rotate` já aplicado). Vem do
@@ -2875,6 +3156,27 @@ function Pagina({
   // roda dentro do callback de render — e guardar em estado provocaria re-render por página.
   const dimPtRef = useRef<{ wPt: number; hPt: number } | null>(null);
   const dimPt = dimPtRef.current;
+
+  // Trocar de ferramenta (ou sair do modo apontar) larga o que estava pela metade.
+  useEffect(() => {
+    setTracando(null);
+    setTracoLivre(null);
+  }, [modoApontar, ferramenta, capturandoReferencia]);
+
+  // Com a linha armada, Esc desarma só ela — antes de o viewer tratar o Esc (que descarta o esboço
+  // inteiro ou sai do modo apontar). Captura na janela: roda antes do ouvinte do viewer.
+  const armada = tracando?.clique === true;
+  useEffect(() => {
+    if (!armada) return;
+    function aoTeclar(ev: KeyboardEvent) {
+      if (ev.key !== "Escape") return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      setTracando(null);
+    }
+    window.addEventListener("keydown", aoTeclar, true);
+    return () => window.removeEventListener("keydown", aoTeclar, true);
+  }, [armada]);
 
   // O retângulo da camada girada é a caixa VISÍVEL (já girada); o clique é posicionado nela e
   // trazido de volta para o espaço sem giro, que é onde `x`/`y` são gravados.
@@ -2906,9 +3208,14 @@ function Pagina({
       setTracoLivre([posicaoNormalizada(e)]);
       return;
     }
+    // Linha já armada por um clique: este apertar só leva ao segundo — o fim sai no soltar.
+    if (tracando?.clique) {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      return;
+    }
     const p = posicaoNormalizada(e);
     e.currentTarget.setPointerCapture(e.pointerId);
-    setTracando({ x: p.x, y: p.y, ax: p.x, ay: p.y });
+    setTracando({ x: p.x, y: p.y, ax: p.x, ay: p.y, cx: e.clientX, cy: e.clientY, clique: false });
   }
 
   function aoMover(e: React.PointerEvent<HTMLDivElement>) {
@@ -2944,6 +3251,14 @@ function Pagina({
     if (!tracando) return;
     const p = posicaoNormalizada(e);
     const inicio = { x: tracando.x, y: tracando.y };
+    // Clique × arrasto pela distância em px de TELA. Em fração da folha (o critério antigo), um
+    // arrasto de 30 px a 600% contava como clique e a medida sumia sem aviso.
+    const curto = Math.hypot(e.clientX - tracando.cx, e.clientY - tracando.cy) < PX_ARRASTO_MINIMO;
+    if (curto && (ferramenta === "medida" || capturandoReferencia)) {
+      // 1º clique arma a linha; clicar de novo no mesmo ponto não mede nada — segue armada.
+      if (!tracando.clique) setTracando({ ...tracando, clique: true });
+      return;
+    }
     setTracando(null);
 
     // Calibrando por dois pontos: o arrasto é a RÉGUA, não um apontamento. Reporta o
@@ -2962,7 +3277,6 @@ function Pagina({
     // Medida: cada arrasto é uma medida do esboço (várias por apontamento); Concluir cria. O
     // valor é calculado AQUI, que é quem tem as dimensões da página em pontos, e fica congelado.
     if (ferramenta === "medida") {
-      if (Math.abs(p.x - inicio.x) < ARRASTO_MINIMO && Math.abs(p.y - inicio.y) < ARRASTO_MINIMO) return;
       const mm = mmPorPonto && dimPt ? medirMm(inicio, p, dimPt.wPt, dimPt.hPt, mmPorPonto) : null;
       // Sem valor calculável (página sem escala) não vira medição fantasma: pede a calibração.
       if (mm == null || !mmPorPonto) {
@@ -2972,9 +3286,10 @@ function Pagina({
       onMedida(pagina, inicio, p, mm, mmPorPonto, modoCalibracao ?? "escala");
       return;
     }
-    const feito = construirMarcacao(ferramenta, inicio, p);
     // Arrasto curto demais degrada pra pino em vez de recusar em silêncio — quem só clicou
-    // com o retângulo selecionado ainda consegue criar o apontamento.
+    // com o retângulo selecionado ainda consegue criar o apontamento. O tamanho já foi julgado
+    // em px de tela (`curto`), então a folha aceita qualquer arrasto que passou dali.
+    const feito = curto ? null : construirMarcacao(ferramenta, inicio, p, 0);
     if (!feito) {
       onApontar(inicio.x, inicio.y, null, null);
       return;
@@ -2982,9 +3297,11 @@ function Pagina({
     onApontar(feito.x, feito.y, feito.marcacao, null);
   }
 
+  // A régua da calibração aparece como cota (antes, com o pino selecionado, não se via o traço).
+  const tipoPrevia: TipoMarcacao | null = capturandoReferencia ? "medida" : ferramenta !== "ponto" ? ferramenta : null;
   const previa: Marcacao | null =
-    tracando && ferramenta !== "ponto"
-      ? { tipo: ferramenta, pontos: [{ dx: tracando.ax - tracando.x, dy: tracando.ay - tracando.y }] }
+    tracando && tipoPrevia
+      ? { tipo: tipoPrevia, pontos: [{ dx: tracando.ax - tracando.x, dy: tracando.ay - tracando.y }] }
       : null;
   // Medida ao vivo: o valor acompanha o arrasto (antes aparecia "—" até soltar o mouse).
   const medidaAoVivo =
@@ -3015,6 +3332,8 @@ function Pagina({
           : undefined;
         return (
         <div
+          // Lido pelo menu da prancha para saber a página e o ponto sob o botão direito.
+          data-camada-apontamentos={pagina}
           className={cn("absolute", !rotacao && "inset-0", (modoApontar || capturandoReferencia) && "cursor-crosshair")}
           style={{ ...estiloGiro, ...(modoApontar && ferramenta !== "ponto" ? { touchAction: "none" } : {}) }}
           onPointerDown={aoPressionar}
@@ -3073,34 +3392,45 @@ function Pagina({
           {pins.map((p) => {
             const meta = STATUS_META[p.status] ?? STATUS_META.aberta;
             const sel = selecionadaId === p.id;
+            // Botão direito / toque longo na bolinha: as ações do apontamento (as mesmas do painel
+            // de detalhes). Abrir o menu já seleciona o apontamento, como o clique.
             return (
-              <button
+              <LinhaComMenu
                 key={p.id}
-                type="button"
-                data-pendencia-id={p.id}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSelecionar(p.id);
+                itens={itensDoPin(p)}
+                onSelect={(item) => onAcaoPin(p, item)}
+                aoAbrir={(aberto) => {
+                  if (aberto) onSelecionar(p.id);
                 }}
-                className={cn(
-                  "absolute flex size-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-[11px] font-bold shadow ring-2 ring-white transition",
-                  meta.pin,
-                  // Herdado e sem conseguir confirmar a posição nesta revisão: sinaliza em vez
-                  // de fingir precisão. Herdado mas relocalizado pela âncora textual volta ao
-                  // visual normal — a posição foi reconferida contra o texto desta revisão.
-                  p.incerta && "opacity-70 ring-muted-foreground",
-                  // Rascunho: mesma linguagem visual do "incerto" (esmaecido), sem inventar
-                  // um terceiro código de cor.
-                  ehRascunho(p) && "opacity-60 ring-dashed ring-muted-foreground",
-                  sel && "ring-4 ring-ring",
-                )}
-                // O número desgira para continuar legível; a posição gira com a prancha.
-                style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%`, rotate: rotacao ? `${-rotacao}deg` : undefined }}
-                title={tituloPin(p)}
+                render={
+                  <button
+                    type="button"
+                    data-pendencia-id={p.id}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelecionar(p.id);
+                    }}
+                    className={cn(
+                      "absolute flex size-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-[11px] font-bold shadow ring-2 ring-white transition",
+                      meta.pin,
+                      // Herdado e sem conseguir confirmar a posição nesta revisão: sinaliza em vez
+                      // de fingir precisão. Herdado mas relocalizado pela âncora textual volta ao
+                      // visual normal — a posição foi reconferida contra o texto desta revisão.
+                      p.incerta && "opacity-70 ring-muted-foreground",
+                      // Rascunho: mesma linguagem visual do "incerto" (esmaecido), sem inventar
+                      // um terceiro código de cor.
+                      ehRascunho(p) && "opacity-60 ring-dashed ring-muted-foreground",
+                      sel && "ring-4 ring-ring",
+                    )}
+                    // O número desgira para continuar legível; a posição gira com a prancha.
+                    style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%`, rotate: rotacao ? `${-rotacao}deg` : undefined }}
+                    title={tituloPin(p)}
+                  />
+                }
               >
                 {p.numero}
-              </button>
+              </LinhaComMenu>
             );
           })}
         </div>

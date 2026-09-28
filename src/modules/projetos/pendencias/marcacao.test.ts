@@ -14,6 +14,8 @@ import {
   lerMarcacao,
   MARCACAO_LABEL,
   MAX_PONTOS_RABISCO,
+  minimoNaTela,
+  PX_ARRASTO_MINIMO,
   simplificarTraco,
   TIPOS_MARCACAO,
   type Marcacao,
@@ -48,6 +50,23 @@ describe("construirMarcacao", () => {
   it("arrasto curto demais vira null (o chamador trata como clique)", () => {
     const curto = ARRASTO_MINIMO / 2;
     expect(construirMarcacao("retangulo", { x: 0.5, y: 0.5 }, { x: 0.5 + curto, y: 0.5 + curto })).toBeNull();
+  });
+
+  // Zoom alto: 0,5% da folha passam de 100 px na tela. Quem desenha passa o mínimo em px da tela.
+  it("com o mínimo da tela, um arrasto pequeno na folha (zoom alto) vale", () => {
+    const curto = ARRASTO_MINIMO / 2;
+    const zoom2000 = minimoNaTela(22000);
+    expect(construirMarcacao("retangulo", { x: 0.5, y: 0.5 }, { x: 0.5 + curto, y: 0.5 + curto }, zoom2000)).not.toBeNull();
+    expect(construirMedidas([{ a: { x: 0.5, y: 0.5 }, b: { x: 0.5 + curto, y: 0.5 }, mm: 12 }], zoom2000)).not.toBeNull();
+    expect(construirMedidas([{ a: { x: 0.5, y: 0.5 }, b: { x: 0.5 + curto, y: 0.5 }, mm: 12 }])).toBeNull();
+    const traco = [{ x: 0.5, y: 0.5 }, { x: 0.5 + curto, y: 0.5 + curto }];
+    expect(construirRabisco([traco], [], zoom2000)).not.toBeNull();
+    expect(construirRabisco([traco])).toBeNull();
+  });
+
+  it("minimoNaTela converte os 4 px de tela para fração da página desenhada", () => {
+    expect(minimoNaTela(1000)).toBeCloseTo(PX_ARRASTO_MINIMO / 1000);
+    expect(minimoNaTela(0)).toBe(PX_ARRASTO_MINIMO);
   });
 
   it("arrasto só na horizontal (ou só na vertical) ainda vale — seta reta é legítima", () => {
