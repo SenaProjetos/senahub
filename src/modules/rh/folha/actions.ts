@@ -59,6 +59,12 @@ export const criarFolha = defineAction(
  * e não tem como distinguir. Até o recibo de bolsa-auxílio existir como documento próprio, o RH
  * lança a bolsa do estagiário à mão (`salvarHolerite`).
  * Plano: docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md (§4a)
+ *
+ * Filtra por CONTRATAÇÃO, não por papel (`User.role`): são eixos independentes desde a reforma
+ * de Setor × Contratação × Perfil, e o papel pode divergir da contratação real (ex.: alguém com
+ * papel `estagiario` mas contratação `clt` continua sendo CLT para a folha — é a mesma regra que
+ * `ponto/jornada.ts` já usa para bater ponto). Decisão em
+ * docs/superpowers/specs/2026-09-22-alterar-contratacao.md.
  */
 export const gerarHoleritesAutomatico = defineAction(
   { ...base, acao: "gerar-holerites-auto", entidade: "FolhaPagamento", schema: idSchema },
@@ -77,7 +83,7 @@ export const gerarHoleritesAutomatico = defineAction(
 
     const jaTem = folha.holerites.map((h) => h.userId);
     const funcionarios = await prisma.user.findMany({
-      where: { ativo: true, role: "clt", salarioBase: { not: null }, id: { notIn: jaTem } },
+      where: { ativo: true, contratacao: "clt", salarioBase: { not: null }, id: { notIn: jaTem } },
       select: { id: true, salarioBase: true },
     });
     if (funcionarios.length === 0) {
