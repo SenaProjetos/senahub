@@ -240,9 +240,9 @@ function renderFormatado(txt: string, opts?: { mencaoValidas?: Set<string>; meu?
 }
 
 /**
- * Renderiza o conteúdo da mensagem: referências internas viram links clicáveis,
- * o restante passa por formatação inline (negrito/itálico/sublinhado/código) e
- * realce de @menções.
+ * Renderiza o conteúdo da mensagem: referências internas e endereços colados (https://, www.)
+ * viram links clicáveis, o restante passa por formatação inline
+ * (negrito/itálico/sublinhado/código) e realce de @menções.
  */
 function renderConteudo(
   txt: string,
@@ -261,6 +261,23 @@ function renderConteudo(
         >
           {p.label}
         </Link>
+      );
+    }
+    if (p.tipo === "url") {
+      // Endereço de fora do sistema: nova aba, sem `opener` (a página aberta não alcança o chat).
+      return (
+        <a
+          key={`u${i}`}
+          href={p.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            "underline underline-offset-2 hover:decoration-2",
+            opts?.meu ? "text-primary-foreground" : "text-primary",
+          )}
+        >
+          {p.texto}
+        </a>
       );
     }
     return <Fragment key={`t${i}`}>{renderFormatado(p.texto, opts)}</Fragment>;

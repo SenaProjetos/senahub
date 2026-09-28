@@ -88,24 +88,83 @@ export function removerFormatacao(texto: string): string {
 /**
  * Referências internas: sintaxe Markdown-link restrita a caminhos internos —
  * `[rótulo](/projetos/ID)`. Usada para inserir menções a Projeto/Documento no chat.
+ *
+ * `//host` e `/\host` ficam de fora: o navegador lê os dois como endereço de OUTRO site, e o
+ * rótulo esconderia o destino de quem clica — um link externo disfarçado de projeto.
  */
-const REGEX_REFERENCIA = /\[([^\]\n]+)\]\((\/[^)\s]*)\)/g;
+const REGEX_REFERENCIA = /\[([^\]\n]+)\]\((\/(?![/\\])[^)\s]*)\)/g;
+
+/**
+ * Endereço colado no texto (`https://…`, `http://…` ou `www.…`). Só esses dois esquemas: nada
+ * de `javascript:`/`data:` virando link. O texto mostrado é o próprio endereço, então quem clica
+ * vê para onde vai.
+ */
+const REGEX_URL = /\b(?:https?:\/\/|www\.)[^\s<>"]+/gi;
+
+/** Pontuação que encerra a frase, não o endereço: "veja https://x.com." */
+const PONTUACAO_FINAL = /[.,;:!?'"*_~]+$/;
 
 export type ParteTexto =
   | { tipo: "texto"; texto: string }
-  | { tipo: "link"; label: string; href: string };
+  | { tipo: "link"; label: string; href: string }
+  | { tipo: "url"; texto: string; href: string };
 
-/** Divide o texto separando as referências internas do texto normal. */
+/**
+ * Tira do fim do endereço o que é da frase: pontuação e o `)` de quem escreveu o link entre
+ * parênteses. Parêntese que abre DENTRO do endereço (Wikipédia) fica, porque está equilibrado.
+ */
+function aparaFimDaUrl(url: string): string {
+  let u = url;
+  for (;;) {
+    const semPontuacao = u.replace(PONTUACAO_FINAL, "");
+    if (semPontuacao !== u) {
+      u = semPontuacao;
+      continue;
+    }
+    const fim = u.at(-1);
+    const par = fim === ")" ? "(" : fim === "]" ? "[" : null;
+    if (par && u.split(par).length < u.split(fim!).length) {
+      u = u.slice(0, -1);
+      continue;
+    }
+    return u;
+  }
+}
+
+/** Separa os endereços colados do texto comum. */
+function partesComUrl(texto: string): ParteTexto[] {
+  const out: ParteTexto[] = [];
+  let last = 0;
+  for (const m of texto.matchAll(REGEX_URL)) {
+    const idx = m.index ?? 0;
+    const url = aparaFimDaUrl(m[0]);
+    // "www." sozinho (ou "https://" sem nada) não é endereço.
+    if (!/^(?:https?:\/\/|www\.)[^./]/i.test(url)) continue;
+    if (idx > last) out.push({ tipo: "texto", texto: texto.slice(last, idx) });
+    const href = /^www\./i.test(url) ? `https://${url}` : url;
+    out.push({ tipo: "url", texto: url, href });
+    last = idx + url.length;
+  }
+  if (last < texto.length) out.push({ tipo: "texto", texto: texto.slice(last) });
+  return out;
+}
+
+/**
+ * Divide o texto separando as referências internas e os endereços colados do texto normal.
+ *
+ * Os endereços saem ANTES da formatação de propósito: `_`, `*` e `~` são comuns em URL e, lidos
+ * como marcador, quebrariam o endereço em itálico/negrito no meio.
+ */
 export function partesComLink(texto: string): ParteTexto[] {
   const out: ParteTexto[] = [];
   let last = 0;
   for (const m of texto.matchAll(REGEX_REFERENCIA)) {
     const idx = m.index ?? 0;
-    if (idx > last) out.push({ tipo: "texto", texto: texto.slice(last, idx) });
+    if (idx > last) out.push(...partesComUrl(texto.slice(last, idx)));
     out.push({ tipo: "link", label: m[1], href: m[2] });
     last = idx + m[0].length;
   }
-  if (last < texto.length) out.push({ tipo: "texto", texto: texto.slice(last) });
+  if (last < texto.length) out.push(...partesComUrl(texto.slice(last)));
   return out;
 }
 

@@ -39,6 +39,9 @@ diretas**.
 - **Som** de notificação e **recibos de leitura** — configuráveis (ligados por padrão);
   ajuste em [Preferências](../sistema/README.md).
 - **Menções** a pessoas geram notificação ao mencionado.
+- **Links:** endereço colado na mensagem (`https://…`, `http://…` ou `www.…`, como um link do
+  Dropbox) vira link clicável e abre em nova aba. O texto mostrado é o próprio endereço, então
+  dá para ver para onde ele leva antes de clicar.
 
 ## Requisitos técnicos
 

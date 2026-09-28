@@ -2085,7 +2085,9 @@
         "anotações",
         "links",
         "lixeira",
-        "restaurar"
+        "restaurar",
+        "link",
+        "link clicável"
       ],
       "sinonimos": [
         "mensageria",
