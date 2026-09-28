@@ -99,6 +99,13 @@ Se você usa o MS Project, isto será familiar:
   Sem modelo (ou escolhendo **Linha única**), a disciplina entra como uma tarefa só, que termina no prazo
   dela. É de **mão única**: disciplina nova entra na EAP, mas criar uma linha na EAP **não** cria
   disciplina.
+- **Apagar EAP** — apaga **todas** as linhas da EAP (tarefas, marcos, vínculos e pessoas atribuídas) para
+  recomeçar, por exemplo quando o modelo aplicado foi o errado. Depois, a tela vazia volta a oferecer
+  **Usar modelo de EAP** e **Gerar EAP das disciplinas**. Ficam as **fases cadastradas nas disciplinas** (mexem
+  em pagamento) e o início do cronograma. Pede confirmação e **não dá para desfazer**. Só vale enquanto o
+  cronograma é rascunho: o botão fica desabilitado, com o motivo ao passar o mouse, quando o cronograma já
+  foi aprovado, quando alguma linha tem andamento (% ou data real), quando já há card gerado da EAP ou
+  quando uma parcela do contrato está ligada a um marco.
 - **Herdar responsáveis** — preenche, em cada linha ainda **sem ninguém**, os responsáveis da
   disciplina dela. O que já tem gente não é tocado.
 

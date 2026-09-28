@@ -40,6 +40,7 @@ npm run smoke:pagamento-fase  # pagamento por fase: pool congelado, write-back p
 npm run smoke:previsao-recebimento  # contrato por entrega: previsão no caixa, marco anda, faturar, fora do aging
 npm run smoke:duplicar-projeto      # duplicar projeto com EAP: estrutura, IDs novos, cronograma em rascunho, o que NÃO copia
 npm run smoke:modelo-disciplina     # modelos de EAP por disciplina: criar do modelo de projeto, "Gerar EAP das disciplinas", fases encadeadas
+npm run smoke:apagar-eap            # apagar a EAP inteira (rascunho): o que impede, o que vai junto, o que fica
 npm run verify:motor-cronograma     # motor do cronograma contra os projetos reais do banco
 ```
 

@@ -95,7 +95,7 @@ mostra, para cada modelo, **quantas linhas ele criaria neste projeto** e o que f
 
 | Situação | O que fazer |
 | --- | --- |
-| A EAP já tem linhas | O modelo só entra em EAP vazia — apague as linhas ou duplique outro projeto |
+| A EAP já tem linhas | O modelo só entra em EAP vazia — use **Apagar EAP** (enquanto o cronograma é rascunho) ou duplique outro projeto |
 | O projeto já tem linha de base aprovada | Aplicar mudaria o combinado; não é permitido |
 | Nenhuma disciplina do projeto está ligada ao catálogo | Cadastre as disciplinas pelo catálogo |
 | Nenhuma disciplina do modelo está no projeto | Nada sobraria para criar — use outro modelo |
