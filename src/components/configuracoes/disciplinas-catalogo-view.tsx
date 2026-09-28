@@ -364,6 +364,16 @@ export function DisciplinasCatalogoView({ itens, versoes }: { itens: DisciplinaC
           </>
         }
       />
+      {versoes.length > 0 && (
+        <p className="text-sm text-muted-foreground">
+          Sub-disciplina se cria dentro do card (ícone de camadas na linha). Para montar uma versão do padrão inteira, como
+          na planilha (cards e subs), use o{" "}
+          <Link href={`/configuracoes/nomenclatura/${versaoMaisNova(versoes)}`} className="text-primary hover:underline">
+            Catálogo da v{versaoMaisNova(versoes)}
+          </Link>
+          .
+        </p>
+      )}
       <DicaMenuContexto />
 
       {/* Barra de ferramentas: busca · categoria · arquivadas */}
@@ -839,6 +849,14 @@ function DisciplinaDialog({
   onFechar: () => void;
 }) {
   const [form, setForm] = useState<FormState>(inicial);
+  // Numeração por faixa (4000–4999) só existe nas versões numeradas por faixa (a v1). Card que só
+  // vale em versões que recomeçam a numeração por sub não usa — o campo só confundia.
+  const faixaCard = faixaDoForm(form.faixa);
+  const usaFaixa =
+    versoes.length === 0 ||
+    versoes.some((v) => v.sequenciaPor === "faixa" && valeNaVersao(faixaCard, v.numero)) ||
+    form.numeracao.trim() !== "" ||
+    form.numeracaoFim.trim() !== "";
 
   async function onArquivoSvg(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -896,6 +914,8 @@ function DisciplinaDialog({
             />
           )}
 
+          {usaFaixa ? (
+          <>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Numeração — início</Label>
@@ -924,7 +944,15 @@ function DisciplinaDialog({
             Bloco na nomenclatura (ex.: 4000–4999 → folhas 4001, 4002…). Sem o fim da faixa, o
             envio não reconhece a disciplina só pelo número do arquivo. Faixa abaixo de 1000
             (ex.: Topografia) também não é reconhecida por número sozinha — só a sigla no nome.
+            Só vale nas versões numeradas por faixa (a v1).
           </p>
+          </>
+          ) : (
+            <p className="text-[11px] text-muted-foreground">
+              Sem faixa de numeração: nas versões em que esta disciplina existe, o número da folha recomeça em cada
+              sub-disciplina (001, 002…).
+            </p>
+          )}
 
           <div className="space-y-1.5">
             <Label>Sinônimos</Label>

@@ -38,25 +38,9 @@ lugar.
 - **Nomenclatura** — versões do padrão de nome de arquivo. Uma versão publicada é
   **imutável**; corrigi-la é publicar uma versão nova. Um projeto novo recebe a versão
   vigente na data em que é criado; publicar não muda projeto já existente. Publicar avisa
-  (sem bloquear) quando uma sigla já significou outra coisa numa versão anterior.
-
-**Montar uma versão nova do padrão (disciplinas, sub-disciplinas, fases e tipos):**
-- Cada disciplina, sub-disciplina e item da Lista Mestre tem **"Vale a partir da / Até a"**:
-  as versões em que ele existe. Fora delas ele não aparece para adicionar em projeto nem em
-  proposta nova, e o envio não o reconhece; o que já está em projeto continua funcionando. Ex.:
-  Cabeamento "até a v1", Entrada de Energia "a partir da v2".
-- Cadastro novo (disciplina, sub-disciplina, item, sigla) já abre na **versão mais nova**.
-  Confira o seletor antes de salvar: "a partir da v1" faz o item valer também nos projetos
-  antigos.
-- **Trocar a sigla** de um item (SPD → PDA) é cadastrar a nova em **"Siglas por versão"**, a
-  partir da versão nova; a antiga se encerra sozinha na versão anterior. Para só **encerrar**
-  uma sigla, clique no X dela e escolha até qual versão ela vale.
-- Depois que um item ganha siglas por versão, os campos de sigla e sinônimos do lápis ficam
-  **travados** (a lista mostra "siglas por versão"): mude-os pelo diálogo de siglas. Salvar o
-  lápis para trocar ícone, nome ou categoria não mexe nas siglas.
-- A mesma sigla não pode ter dois donos na mesma versão. Para passar o SEG do CFTV para
-  Segurança e Alarme, encerre o SEG no CFTV (ou marque o CFTV "até a v1") antes; o sistema
-  diz qual item está usando a sigla.
+  (sem bloquear) quando uma sigla já significou outra coisa numa versão anterior. Cada versão
+  tem o seu **Catálogo** (botão "Catálogo da vN"): a tabela do padrão daquela versão — ver
+  [Montar uma versão do padrão](#montar-uma-versão-do-padrão-de-nomenclatura).
 - **Documentos padrão** — modelo do Estúdio usado por padrão em cada fonte.
 - **Inputs padrão** — perguntas padrão por disciplina no link do cliente.
 - **Feriados** — calendário (ponto, escala, banco de horas).
@@ -97,6 +81,53 @@ lugar.
 - **E-mail (SMTP)** e **Web Push (VAPID)** mostram se estão **configurados**. O sistema é
   **on-premise**: serviços rodam no próprio servidor e são definidos por **variáveis de
   ambiente** — não há integrações SaaS externas.
+
+## Montar uma versão do padrão de nomenclatura
+
+O jeito mais simples é pelo **Catálogo da versão** (Configurações → Nomenclatura → escolha a
+versão → **Catálogo da vN**). Ele mostra a versão como na planilha da gestão: cada **CARD**
+(disciplina que abre card no projeto, com projetista, prazo e pagamento) com as suas **SUBs**
+(etiqueta do documento, lida do nome do arquivo), a sigla de cada um, e as fases e tipos. Ao
+lado de cada linha aparece o que mudou em relação à versão anterior ("novo na v2", "sigla nova
+(era SPD)"), e embaixo o que **saiu**.
+
+**Importar a planilha** (botão no topo do catálogo), em .xlsx ou .csv, uma linha por item:
+- `Nome · Sigla · CARD` — disciplina; a sigla pode faltar quando o card tem subs;
+- `Nome · Sigla · SUB` — sub-disciplina do CARD mais próximo acima dela;
+- linha só com o nome é título de grupo (só organiza).
+
+Antes de gravar, o sistema mostra a **prévia** e nada é salvo até você clicar em **Aplicar**:
+- cada linha é ligada ao cadastro pela **sigla** e, sem sigla, pelo **nome** (sem acento, sem
+  "GERAL", sem o que está entre parênteses). Nome diferente **não renomeia** o cadastro;
+- nome só **parecido** (ex.: "Prevenção de Incêndio" × "Incêndio (PPCI)") vira uma ligação para
+  você confirmar;
+- o que está na versão e **não está na planilha sai** dela (continua nas versões anteriores);
+- se uma sigla da planilha já é de outro item na versão, **a planilha manda**: a sigla deixa de
+  valer no outro item a partir da versão (aparece em "Consequências");
+- dá para **desmarcar** qualquer mudança; desmarcar um card novo tira junto as subs dele;
+- sigla com acento é gravada sem (ORÇ → ORC), e linhas que valem conferir aparecem no topo.
+
+Aplicar grava tudo de uma vez (ou nada, se algo falhar). Importar a mesma planilha de novo não
+muda nada. Se a versão já está **publicada**, a mudança vale também para os projetos que a
+seguem — para não afetá-los, crie uma versão nova.
+
+**Ajustes avulsos**, no mesmo catálogo: **+ Disciplina**, **+** numa linha de card (nova
+sub-disciplina), **Trocar sigla** (a nova vale desta versão em diante; a antiga fica nas
+anteriores) e **Tirar da versão**. Numa edição avulsa a sigla nunca é tomada de outro item: se
+ela já tem dono na versão, o sistema diz quem é.
+
+**Pelas telas de catálogo** (Disciplinas e Lista Mestre) também dá:
+- cada disciplina, sub-disciplina e item da Lista Mestre tem **"Vale a partir da / Até a"**;
+  cadastro novo já abre na **versão mais nova** — confira antes de salvar, porque "a partir da
+  v1" faz o item valer também nos projetos antigos;
+- disciplina que só existe em versões numeradas por sub não mostra a **faixa de numeração**
+  (4000–4999): ela só vale nas versões numeradas por faixa (a v1);
+- **Siglas por versão** (ícone de camadas na linha da disciplina, de etiqueta na Lista Mestre):
+  trocar a sigla é cadastrar a nova a partir da versão nova; para só **encerrar** uma sigla,
+  clique no X e escolha até qual versão ela vale;
+- depois que um item ganha siglas por versão, **sigla e sinônimos ficam travados** no lápis
+  (a lista mostra "siglas por versão"); salvar o lápis para trocar ícone, nome ou categoria
+  não mexe nas siglas.
 
 ## Menu de ações e seleção em lote
 

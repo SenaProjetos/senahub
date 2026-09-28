@@ -22,6 +22,24 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Padrão de nomenclatura: a versão como tabela, e importar a planilha
+
+Cada versão do padrão de nomes de arquivo ganhou o seu **Catálogo** (Configurações →
+Nomenclatura → **Catálogo da vN**): as disciplinas (CARD), as sub-disciplinas (SUB) de cada uma,
+as fases e os tipos daquela versão, no formato da planilha da gestão — com o que entrou, saiu ou
+mudou de sigla em relação à versão anterior.
+
+- **Importar planilha** (.xlsx ou .csv, com nome, sigla e CARD/SUB): o sistema liga cada linha ao
+  cadastro pela sigla ou pelo nome, mostra a prévia (o que entra, o que sai, as siglas que mudam
+  e o que precisa de confirmação) e só grava quando você aplica. Dá para desmarcar qualquer item.
+- Ajustes avulsos no mesmo lugar: adicionar disciplina ou sub, trocar sigla, tirar da versão.
+- No cadastro de disciplina, a **faixa de numeração** (4000–4999) só aparece para quem existe em
+  versão numerada por faixa (a v1) — na versão nova o número recomeça em cada sub.
+
+Detalhes em [Montar uma versão do padrão](sistema/configuracoes.md#montar-uma-versão-do-padrão-de-nomenclatura).
+
+---
+
 ## Padrão de nomenclatura: validade por versão e siglas que não se perdem
 
 Para montar a versão nova do padrão de nomes de arquivo em **Configurações**:

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Rocket, Trash2, CalendarClock, TriangleAlert } from "lucide-react";
+import { Plus, Rocket, Trash2, CalendarClock, TriangleAlert, Table2 } from "lucide-react";
 import {
   criarRascunhoVersao,
   editarRascunhoVersao,
@@ -209,7 +210,7 @@ function VersaoDetalhe({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
+      <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-2">
         <div>
           <CardTitle className="text-base">
             v{versao.numero} — {versao.nome}
@@ -221,16 +222,21 @@ function VersaoDetalhe({
             {versao.projetosFixados > 0 && ` · ${versao.projetosFixados} projeto(s) nesta versão.`}
           </p>
         </div>
-        {editavel && (
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" render={<Link href={`/configuracoes/nomenclatura/${versao.numero}`} />}>
+            <Table2 className="size-3.5" /> Catálogo da v{versao.numero}
+          </Button>
+          {editavel && (
+            <>
             <Button variant="outline" size="sm" disabled={pending} onClick={excluir}>
               <Trash2 className="size-3.5" /> Excluir
             </Button>
             <Button size="sm" disabled={pending} onClick={() => publicar(false)}>
               <Rocket className="size-3.5" /> Publicar
             </Button>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">

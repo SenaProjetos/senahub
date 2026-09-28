@@ -1,0 +1,143 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { defineAction, ActionError } from "@/lib/with-action";
+import { prisma } from "@/lib/prisma";
+import { normalizarSigla } from "./planilha";
+import { operacoesEscolhidas, planejarImportacao } from "./importacao";
+import { colisoes, simular, versoesAPartirDe, type OperacaoComId } from "./versao";
+import { carregarCatalogoSnap, numerosDasVersoes } from "./queries";
+import { executarOperacoes } from "./service";
+
+const base = { modulo: "configuracoes", recurso: "configuracoes", permissao: "gerir" } as const;
+
+function rev(versao: number) {
+  revalidatePath(`/configuracoes/nomenclatura/${versao}`);
+  revalidatePath("/configuracoes/nomenclatura");
+  revalidatePath("/configuracoes/disciplinas");
+  revalidatePath("/configuracoes/lista-mestre");
+}
+
+async function garantirVersao(versao: number) {
+  const v = await prisma.nomenclaturaVersao.findUnique({ where: { numero: versao }, select: { id: true } });
+  if (!v) throw new ActionError(`A v${versao} não existe.`);
+}
+
+/** Muitas escritas pequenas (uma planilha inteira): transação com folga, como as outras importações. */
+const OPCOES_TX = { maxWait: 15000, timeout: 120000 };
+
+const linhaPlanilhaSchema = z.object({
+  linha: z.number().int().min(1),
+  tipo: z.enum(["card", "sub"]),
+  nome: z.string().trim().min(1).max(120),
+  sigla: z.string().trim().max(6).nullable(),
+  siglaLida: z.string().max(20).nullable(),
+  grupo: z.string().max(120).nullable(),
+  paiLinha: z.number().int().nullable(),
+});
+
+/**
+ * Aplica a planilha lida (`/api/configuracoes/nomenclatura/catalogo-planilha`) à versão. O plano é
+ * RECALCULADO aqui contra o banco de agora — o cliente manda só as linhas lidas e o que desmarcou —,
+ * validado na simulação e gravado numa transação: ou entra tudo, ou nada.
+ */
+export const aplicarImportacaoCatalogo = defineAction(
+  {
+    ...base,
+    acao: "importar-catalogo-versao",
+    entidade: "NomenclaturaVersao",
+    schema: z.object({
+      versao: z.number().int().min(1),
+      linhas: z.array(linhaPlanilhaSchema).min(1).max(2000),
+      desmarcados: z.array(z.string().max(200)).max(4000),
+    }),
+  },
+  async (i) => {
+    await garantirVersao(i.versao);
+    const linhas = i.linhas.map((l) => ({ ...l, sigla: l.sigla ? normalizarSigla(l.sigla) : null }));
+    const [snap, versoes] = await Promise.all([carregarCatalogoSnap(), numerosDasVersoes()]);
+    const desmarcados = new Set(i.desmarcados);
+    const plano = planejarImportacao(snap, i.versao, { linhas, avisos: [] }, { desmarcados, versoesExistentes: versoes });
+    if (plano.erros.length > 0) {
+      throw new ActionError(plano.erros.length === 1 ? plano.erros[0] : `${plano.erros[0]} (e mais ${plano.erros.length - 1} problema(s))`);
+    }
+    const ops = operacoesEscolhidas(plano.itens, desmarcados);
+    if (ops.length === 0) throw new ActionError("Nada a aplicar: a versão já está como a planilha.");
+    await prisma.$transaction((tx) => executarOperacoes(tx, i.versao, ops), OPCOES_TX);
+    rev(i.versao);
+    const conta = (tipo: OperacaoComId["tipo"]) => ops.filter((o) => o.tipo === tipo).length;
+    return {
+      aplicadas: ops.length,
+      cardsNovos: conta("card-novo"),
+      subsNovas: conta("sub-nova"),
+      siglasNovas: conta("sigla-nova"),
+      saem: conta("sai"),
+      voltam: conta("entra"),
+      siglasEncerradas: conta("encerrar-sigla"),
+    };
+  },
+);
+
+const siglaSchema = z
+  .string()
+  .trim()
+  .transform((s, ctx) => {
+    const n = normalizarSigla(s);
+    if (!n) {
+      ctx.addIssue({ code: "custom", message: "Sigla de 2 a 6 letras ou números." });
+      return z.NEVER;
+    }
+    return n;
+  });
+
+const alvoSchema = z.object({ tipo: z.enum(["disciplina", "subdisciplina", "prancha"]), id: z.string().min(1) });
+const nomeSchema = z.string().trim().min(1, "Informe o nome.").max(120);
+
+const operacaoSchema = z.discriminatedUnion("tipo", [
+  z.object({ tipo: z.literal("card-novo"), nome: nomeSchema, sigla: siglaSchema.nullable() }),
+  z.object({ tipo: z.literal("sub-nova"), cardId: z.string().min(1), nome: nomeSchema, sigla: siglaSchema.nullable() }),
+  z.object({ tipo: z.literal("item-novo"), categoria: z.enum(["fase", "tipo"]), nome: nomeSchema, sigla: siglaSchema }),
+  z.object({ tipo: z.literal("sigla-nova"), alvo: alvoSchema, sigla: siglaSchema }),
+  z.object({ tipo: z.literal("sai"), alvo: alvoSchema }),
+  z.object({ tipo: z.literal("entra"), alvo: alvoSchema }),
+]);
+
+/**
+ * Uma edição avulsa na tabela da versão (adicionar, trocar sigla, tirar, voltar). Diferente da
+ * importação, aqui a sigla NÃO é tomada de outro item: se ela já tem dono na versão, a action
+ * recusa e diz quem é — quem edita decide o que fazer com o outro.
+ */
+export const alterarCatalogoNaVersao = defineAction(
+  {
+    ...base,
+    acao: "alterar-catalogo-versao",
+    entidade: "NomenclaturaVersao",
+    schema: z.object({ versao: z.number().int().min(1), operacao: operacaoSchema }),
+  },
+  async (i) => {
+    await garantirVersao(i.versao);
+    const o = i.operacao;
+    const op: OperacaoComId =
+      o.tipo === "card-novo"
+        ? { id: "op", tipo: "card-novo", chave: "op", nome: o.nome, sigla: o.sigla, categoria: null }
+        : o.tipo === "sub-nova"
+          ? { id: "op", tipo: "sub-nova", card: { id: o.cardId }, nome: o.nome, sigla: o.sigla }
+          : { id: "op", ...o };
+
+    const [snap, versoes] = await Promise.all([carregarCatalogoSnap(), numerosDasVersoes()]);
+    const depois = simular(snap, i.versao, [op]);
+    const conflito = colisoes(depois, versoesAPartirDe(i.versao, versoes)).find((c) =>
+      c.donos.some((d) => d.linhaId.startsWith("nova:")),
+    );
+    if (conflito) {
+      const outros = conflito.donos.filter((d) => !d.linhaId.startsWith("nova:")).map((d) => `“${d.rotulo}”`);
+      throw new ActionError(
+        `A sigla ${conflito.sigla} já é de ${outros.join(" e ") || "outro item"} na v${conflito.versao}. Troque a sigla de lá (ou tire o item da versão) antes.`,
+      );
+    }
+    await prisma.$transaction((tx) => executarOperacoes(tx, i.versao, [op]), OPCOES_TX);
+    rev(i.versao);
+    return { ok: true };
+  },
+);
