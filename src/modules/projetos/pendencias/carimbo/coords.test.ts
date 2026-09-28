@@ -5,6 +5,7 @@ import {
   normalizarRotacao,
   paraPdf,
   paraVisual,
+  posicaoRotuloCota,
   tamanhoVisual,
   type Rotacao,
 } from "@/modules/projetos/pendencias/carimbo/coords";
@@ -144,3 +145,56 @@ describe("anguloTextoEmPe", () => {
     for (const rot of ROTACOES) expect(anguloTextoEmPe(rot)).toBe(rot);
   });
 });
+
+describe("posicaoRotuloCota", () => {
+  const LARG = 40; // largura do texto "3,53 m" em pt
+  const CORPO = 9;
+  const FOLGA = 2;
+
+  /** Cantos da caixa do texto (em pé na leitura `graus`) a partir do início da linha de base. */
+  function cantos(p: { x: number; y: number }, graus: number) {
+    const t = (graus * Math.PI) / 180;
+    const ex = { x: Math.cos(t), y: Math.sin(t) };
+    const ey = { x: -Math.sin(t), y: Math.cos(t) };
+    const h = CORPO * 0.72;
+    return [
+      p,
+      { x: p.x + ex.x * LARG, y: p.y + ex.y * LARG },
+      { x: p.x + ey.x * h, y: p.y + ey.y * h },
+      { x: p.x + ex.x * LARG + ey.x * h, y: p.y + ex.y * LARG + ey.y * h },
+    ];
+  }
+  /** Distância com sinal de cada canto à reta da cota. */
+  const lado = (a: { x: number; y: number }, b: { x: number; y: number }, q: { x: number; y: number }) => {
+    const c = Math.hypot(b.x - a.x, b.y - a.y);
+    return ((b.x - a.x) * (q.y - a.y) - (b.y - a.y) * (q.x - a.x)) / c;
+  };
+
+  it("cota horizontal: texto acima e centralizado, como antes", () => {
+    const p = posicaoRotuloCota({ x: 0, y: 0 }, { x: 100, y: 0 }, LARG, CORPO, 0, FOLGA);
+    expect(p.x).toBeCloseTo(50 - LARG / 2);
+    expect(p.y).toBeCloseTo(FOLGA);
+  });
+
+  it("cota vertical: texto AO LADO (à esquerda), não em cima do traço", () => {
+    const p = posicaoRotuloCota({ x: 0, y: 0 }, { x: 0, y: 100 }, LARG, CORPO, 0, FOLGA);
+    const xs = cantos(p, 0).map((q) => q.x);
+    expect(Math.max(...xs)).toBeLessThanOrEqual(-FOLGA + 1e-9);
+    // A mesma cota desenhada ao contrário sai no mesmo lugar.
+    expect(posicaoRotuloCota({ x: 0, y: 100 }, { x: 0, y: 0 }, LARG, CORPO, 0, FOLGA)).toEqual(p);
+  });
+
+  it("em qualquer inclinação e giro de folha, a caixa inteira fica de um lado da cota, com folga", () => {
+    for (const graus of [0, 90, 180, 270]) {
+      for (let ang = 0; ang < 360; ang += 15) {
+        const r = (ang * Math.PI) / 180;
+        const a = { x: 500, y: 500 };
+        const b = { x: 500 + Math.cos(r) * 120, y: 500 + Math.sin(r) * 120 };
+        const d = cantos(posicaoRotuloCota(a, b, LARG, CORPO, graus, FOLGA), graus).map((q) => lado(a, b, q));
+        const mesmoLado = d.every((v) => v >= FOLGA - 1e-6) || d.every((v) => v <= -FOLGA + 1e-6);
+        expect(mesmoLado, `giro ${graus}°, cota a ${ang}°: ${d.map((v) => v.toFixed(2))}`).toBe(true);
+      }
+    }
+  });
+});
+

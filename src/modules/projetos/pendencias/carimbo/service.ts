@@ -15,7 +15,7 @@ import {
 } from "@/modules/projetos/pendencias/marcacao";
 import { formatarMedida } from "@/modules/projetos/pendencias/medicao";
 import { SEVERIDADE_LABEL, contaComoTrabalho, type Severidade } from "@/modules/projetos/pendencias/helpers";
-import { anguloTextoEmPe, caixaPdf, normalizarRotacao, paraPdf } from "@/modules/projetos/pendencias/carimbo/coords";
+import { anguloTextoEmPe, caixaPdf, normalizarRotacao, paraPdf, posicaoRotuloCota } from "@/modules/projetos/pendencias/carimbo/coords";
 
 /**
  * PDF carimbado (itens 20 e 25) — desenha os apontamentos SOBRE o PDF original e acrescenta o
@@ -223,12 +223,12 @@ export function desenharMarcacao(
       // O rótulo sai SEMPRE em pé na orientação de leitura da folha (como os números dos
       // pinos), não alinhado à cota: numa prancha /Rotate 270 acompanhar a linha deixaria o
       // número deitado.
+      // Ao lado da linha, nunca em cima: numa cota vertical o texto em pé cruzava o traço.
       const graus = anguloTextoEmPe(r);
-      const r0 = (graus * Math.PI) / 180;
-      const meio = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const inicio = posicaoRotuloCota(a, b, largura, corpo, graus, 3 * k);
       pagina.drawText(rotulo, {
-        x: meio.x - (Math.cos(r0) * largura) / 2 - Math.sin(r0) * (5 * k),
-        y: meio.y - (Math.sin(r0) * largura) / 2 + Math.cos(r0) * (5 * k),
+        x: inicio.x,
+        y: inicio.y,
         size: corpo,
         font: extras.fonte,
         color: cor,

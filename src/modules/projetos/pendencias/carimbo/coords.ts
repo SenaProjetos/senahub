@@ -97,3 +97,42 @@ export function caixaPdf(
     height: Math.abs(b.y - a.y),
   };
 }
+
+/**
+ * Início (linha de base, à esquerda) do rótulo de uma cota no PDF carimbado. O texto sai EM PÉ na
+ * leitura da folha (`grausTexto`, de `anguloTextoEmPe`), então centralizá-lo no meio da linha o
+ * punha em cima do traço numa cota vertical. A caixa do texto é afastada pela normal da linha o
+ * quanto a própria caixa se projeta nela: cota horizontal → texto acima; vertical → ao lado.
+ * Prefere o lado de cima da leitura; numa cota exatamente vertical, o da esquerda.
+ */
+export function posicaoRotuloCota(
+  a: PontoPdf,
+  b: PontoPdf,
+  larguraTexto: number,
+  corpo: number,
+  grausTexto: number,
+  folga: number,
+): PontoPdf {
+  const t = (grausTexto * Math.PI) / 180;
+  const ex = { x: Math.cos(t), y: Math.sin(t) }; // direção de leitura
+  const ey = { x: -Math.sin(t), y: Math.cos(t) }; // "para cima" na leitura
+  const comp = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  let n = { x: -(b.y - a.y) / comp, y: (b.x - a.x) / comp };
+  const acima = n.x * ey.x + n.y * ey.y;
+  const paraDireita = n.x * ex.x + n.y * ex.y;
+  if (acima < -1e-9 || (Math.abs(acima) <= 1e-9 && paraDireita > 0)) n = { x: -n.x, y: -n.y };
+  // Altura útil dos algarismos ≈ 0,72 do corpo: é ela que não pode encostar no traço.
+  const meiaAlt = corpo * 0.36;
+  const meiaLarg = larguraTexto / 2;
+  const alcance =
+    meiaLarg * Math.abs(n.x * ex.x + n.y * ex.y) + meiaAlt * Math.abs(n.x * ey.x + n.y * ey.y);
+  const centro = {
+    x: (a.x + b.x) / 2 + n.x * (alcance + folga),
+    y: (a.y + b.y) / 2 + n.y * (alcance + folga),
+  };
+  return {
+    x: centro.x - ex.x * meiaLarg - ey.x * meiaAlt,
+    y: centro.y - ex.y * meiaLarg - ey.y * meiaAlt,
+  };
+}
+
