@@ -6,8 +6,11 @@ import {
   caixaMarcacao,
   caminhoNuvem,
   construirMarcacao,
+  construirRabisco,
   lerMarcacao,
   MARCACAO_LABEL,
+  MAX_PONTOS_RABISCO,
+  simplificarTraco,
   TIPOS_MARCACAO,
   type Marcacao,
 } from "@/modules/projetos/pendencias/marcacao";
@@ -228,5 +231,73 @@ describe("caixaRecorte (item 14)", () => {
     const frente = caixaRecorte(0.3, 0.4, { tipo: "retangulo", pontos: [{ dx: 0.2, dy: 0.1 }] }, CW, CH);
     const tras = caixaRecorte(0.5, 0.5, { tipo: "retangulo", pontos: [{ dx: -0.2, dy: -0.1 }] }, CW, CH);
     expect(tras).toEqual(frente);
+  });
+});
+
+describe("rabisco (desenho livre)", () => {
+  const reta = (x0: number, y0: number, x1: number, y1: number, n = 50) =>
+    Array.from({ length: n }, (_, i) => ({ x: x0 + ((x1 - x0) * i) / (n - 1), y: y0 + ((y1 - y0) * i) / (n - 1) }));
+
+  it("simplificar tira os pontos do meio de uma reta e guarda as quinas", () => {
+    expect(simplificarTraco(reta(0.1, 0.1, 0.5, 0.1))).toEqual([{ x: 0.1, y: 0.1 }, { x: 0.5, y: 0.1 }]);
+    const l = [...reta(0.1, 0.1, 0.5, 0.1), ...reta(0.5, 0.1, 0.5, 0.4).slice(1)];
+    expect(simplificarTraco(l)).toEqual([{ x: 0.1, y: 0.1 }, { x: 0.5, y: 0.1 }, { x: 0.5, y: 0.4 }]);
+  });
+
+  it("âncora no 1º ponto do 1º traço; traços viram offsets, cada um separado", () => {
+    const r = construirRabisco([reta(0.2, 0.2, 0.4, 0.2), reta(0.3, 0.3, 0.3, 0.5)])!;
+    expect(r.x).toBe(0.2);
+    expect(r.y).toBe(0.2);
+    expect(r.marcacao.tipo).toBe("livre");
+    expect(r.marcacao.pontos).toEqual([]);
+    expect(r.marcacao.tracos).toEqual([
+      [{ dx: 0, dy: 0 }, { dx: 0.2, dy: 0 }],
+      [{ dx: 0.1, dy: 0.1 }, { dx: 0.1, dy: 0.3 }],
+    ]);
+  });
+
+  it("toque sem arrastar (1 ponto) e rabisco do tamanho de um ponto não viram forma", () => {
+    expect(construirRabisco([[{ x: 0.5, y: 0.5 }]])).toBeNull();
+    expect(construirRabisco([reta(0.5, 0.5, 0.5 + ARRASTO_MINIMO / 2, 0.5)])).toBeNull();
+    expect(construirRabisco([])).toBeNull();
+  });
+
+  it("ponto fora da página é preso à borda", () => {
+    const r = construirRabisco([[{ x: -0.1, y: 0.5 }, { x: 0.3, y: 1.2 }]])!;
+    expect(r.x).toBe(0);
+    expect(r.marcacao.tracos![0][1]).toEqual({ dx: 0.3, dy: 0.5 });
+  });
+
+  it("respeita o teto de pontos", () => {
+    // Zigue-zague: nenhum ponto some na simplificação.
+    const zigue = Array.from({ length: MAX_PONTOS_RABISCO + 500 }, (_, i) => ({ x: (i % 2) * 0.2 + 0.1, y: 0.1 + i * 1e-4 }));
+    const r = construirRabisco([zigue])!;
+    expect(r.marcacao.tracos!.flat().length).toBeLessThanOrEqual(MAX_PONTOS_RABISCO);
+  });
+
+  it("gravado e lido de volta é o mesmo desenho", () => {
+    const r = construirRabisco([reta(0.2, 0.2, 0.4, 0.3), reta(0.25, 0.4, 0.35, 0.45)])!;
+    const geo = JSON.parse(JSON.stringify({ pontos: [], tracos: r.marcacao.tracos }));
+    expect(lerMarcacao("livre", geo)).toEqual(r.marcacao);
+  });
+
+  it("leitura: sem traço válido não há forma; traço de 1 ponto sai; lixo cai no pino", () => {
+    expect(lerMarcacao("livre", { pontos: [] })).toBeNull();
+    expect(lerMarcacao("livre", { tracos: [[{ dx: 0, dy: 0 }]] })).toBeNull();
+    expect(lerMarcacao("livre", { tracos: [[{ dx: 0, dy: 0 }], [{ dx: 0, dy: 0 }, { dx: 0.1, dy: 0 }]] })!.tracos).toHaveLength(1);
+    expect(lerMarcacao("livre", { tracos: [[{ dx: "a", dy: 0 }]] })).toBeNull();
+  });
+
+  it("caixa cobre todos os traços, não só o primeiro", () => {
+    const m: Marcacao = { tipo: "livre", pontos: [], tracos: [[{ dx: 0, dy: 0 }, { dx: 0.1, dy: 0 }], [{ dx: -0.05, dy: 0.2 }, { dx: 0, dy: 0.3 }]] };
+    const c = caixaMarcacao(0.5, 0.5, m);
+    expect(c.esquerda).toBeCloseTo(0.45);
+    expect(c.topo).toBeCloseTo(0.5);
+    expect(c.largura).toBeCloseTo(0.15);
+    expect(c.altura).toBeCloseTo(0.3);
+  });
+
+  it("arrasto de dois pontos não fabrica rabisco", () => {
+    expect(construirMarcacao("livre", { x: 0.1, y: 0.1 }, { x: 0.5, y: 0.5 })).toBeNull();
   });
 });

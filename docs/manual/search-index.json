@@ -449,7 +449,12 @@
         "versão do padrão",
         "sub-disciplina",
         "gerar parcelas",
-        "receita do projeto"
+        "receita do projeto",
+        "zoom",
+        "rabisco",
+        "desenho livre",
+        "apontamento",
+        "prancha"
       ],
       "sinonimos": [
         "obras",

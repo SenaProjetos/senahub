@@ -1,6 +1,6 @@
 import "server-only";
 import fs from "node:fs/promises";
-import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { LineCapStyle, PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { prisma } from "@/lib/prisma";
 import { resolverCaminho } from "@/lib/storage";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -124,8 +124,12 @@ function desenharBloco(
   });
 }
 
-/** Desenha uma marcação vetorial (item 9) no espaço do PDF. */
-function desenharMarcacao(
+/**
+ * Desenha uma marcação vetorial (item 9) no espaço do PDF. Exportada para poder ser conferida
+ * isolada (uma página em branco, sem banco nem storage) — o eixo Y invertido do PDF é o erro
+ * clássico aqui, e só aparece olhando o resultado.
+ */
+export function desenharMarcacao(
   pagina: PDFPage,
   m: Marcacao,
   x: number,
@@ -136,10 +140,31 @@ function desenharMarcacao(
 ) {
   const { width: W, height: H } = pagina.getSize();
   const r = normalizarRotacao(rot);
-  const p = m.pontos[0];
-  if (!p) return;
   const k = escalaFolha(W, H);
   const traco = 1.8 * k;
+
+  if (m.tipo === "livre") {
+    // Rabisco: cada traço vira um caminho. `drawSvgPath` lê em convenção SVG (y para baixo) a
+    // partir da âncora dada; ancorando em (0, H) e escrevendo H − y, o ponto sai onde `paraPdf`
+    // o colocou — o mesmo espaço (com /Rotate) das outras formas.
+    for (const t of m.tracos ?? []) {
+      const pts = t.map((o) => paraPdf(x + o.dx, y + o.dy, W, H, r));
+      if (pts.length < 2) continue;
+      const d = pts.map((q, i) => `${i === 0 ? "M" : "L"}${q.x.toFixed(2)} ${(H - q.y).toFixed(2)}`).join(" ");
+      pagina.drawSvgPath(d, {
+        x: 0,
+        y: H,
+        borderColor: cor,
+        borderWidth: traco,
+        borderLineCap: LineCapStyle.Round,
+        color: undefined,
+      });
+    }
+    return;
+  }
+
+  const p = m.pontos[0];
+  if (!p) return;
 
   if (m.tipo === "medida") {
     // Linha de cota + travessões nas pontas + o valor. Precisa de ramo próprio: sem ele a

@@ -458,6 +458,29 @@ selecionar.
 O botão direito ainda não existe no diretório geral (menu **Arquivos**), que segue com o
 menu normal do navegador.
 
+### Zoom e rabisco no visualizador de pranchas
+
+**Zoom até 2000%.** Os botões **−**/**+** andam em degraus (100%, 125%… 500%, 600%, 800%, 1000%,
+1200%, 1600%, 2000%). **Ctrl + roda do mouse** (ou a pinça com dois dedos, no tablet) aproxima
+mantendo parado o ponto que está sob o cursor, então a planta não "foge" a cada passo. Com zoom
+alto, o trecho que está na tela é desenhado em resolução cheia logo depois de você parar de
+arrastar: por um instante ele pode aparecer borrado e em seguida fica nítido. O mesmo vale para o
+visualizador de PDF dos Recebidos, do Geral e dos documentos de RH.
+
+**Rabisco (desenho livre) nos apontamentos.** Para indicar a solução direto na planta:
+
+1. Clique em **Apontar** e escolha **Rabisco** no seletor de marcação (atalho: tecla **6**).
+2. Desenhe na prancha com o mouse, a caneta ou o dedo. Pode fazer quantos traços quiser na mesma
+   página. A barra acima da prancha mostra quantos traços já tem.
+3. **Desfazer** (ou **Ctrl+Z**) apaga o último traço; **Descartar** (ou **Esc**) apaga o desenho
+   todo.
+4. Clique em **Concluir** (ou **Enter**) para abrir a janela do apontamento, descreva e crie.
+   Cancelar a janela não perde o desenho: ele continua na tela para você ajustar.
+
+O rabisco aparece na prancha com a cor da situação do apontamento, na miniatura da lista (com os
+traços) e no **PDF carimbado**. O desenho é de uma página só: para rabiscar em outra página,
+conclua ou descarte o atual primeiro.
+
 ## Permissões (resumo)
 
 | Ação | Permissão |

@@ -39,6 +39,14 @@ export function MarcacaoSvg({
     strokeLinejoin: "round" as const,
   };
 
+  if (marcacao.tipo === "livre") {
+    // Rabisco: um `<path>` só, com um "M" por traço — traços soltos não se ligam.
+    const d = (marcacao.tracos ?? [])
+      .map((t) => t.map((o, i) => `${i === 0 ? "M" : "L"}${((x + o.dx) * dim.w).toFixed(2)} ${((y + o.dy) * dim.h).toFixed(2)}`).join(" "))
+      .join(" ");
+    return <path d={d} {...comum} />;
+  }
+
   if (marcacao.tipo === "medida") {
     // Linha de cota: traço entre os dois pontos + travessões perpendiculares nas pontas, e o
     // valor por cima. Sem seta — cota de projeto não aponta pra lugar nenhum, ela delimita.

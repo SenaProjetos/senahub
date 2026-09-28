@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
-import { ArrowLeft, ArrowRight, BookmarkPlus, Check, CopyPlus, Download, Expand, FileArchive, GitCompare, Loader2, Maximize2, MapPin, MessageSquare, Minimize, PauseCircle, Pencil, RotateCcw, RotateCw, Ruler, Send, Sparkles, Stamp, Table2, Tags, Trash2, Undo2, Wrench, X, ZoomIn, ZoomOut } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookmarkPlus, Check, CopyPlus, Download, Expand, FileArchive, GitCompare, Loader2, Maximize2, MapPin, MessageSquare, Minimize, PauseCircle, Pencil, PenLine, RotateCcw, RotateCw, Ruler, Send, Sparkles, Stamp, Table2, Tags, Trash2, Undo2, Wrench, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { PendenciaView, ReincidenciaView } from "@/modules/projetos/pendencias/queries";
 import type { TarefaContextual } from "@/modules/tarefas/queries";
 import {
@@ -55,7 +55,9 @@ import { construirAncora, relocalizarAncora } from "@/modules/projetos/pendencia
 import {
   caixaRecorte,
   construirMarcacao,
+  construirRabisco,
   MARCACAO_LABEL,
+  MAX_TRACOS_RABISCO,
   TIPOS_MARCACAO,
   type Marcacao,
   type TipoMarcacao,
@@ -406,6 +408,12 @@ export function PdfViewer(props: Props) {
   const [modoApontar, setModoApontar] = useState(false);
   // Ferramenta de marcação (item 9). "ponto" = clique simples, o comportamento de sempre.
   const [ferramenta, setFerramenta] = useState<TipoMarcacao>("ponto");
+  /**
+   * Rabisco em andamento: vários traços numa página só, em coordenadas normalizadas SEM giro
+   * (as de `x`/`y`). Fica aqui, e não na página, porque a barra que conclui/desfaz é do viewer.
+   * Só some ao CRIAR o apontamento: cancelar a janela devolve o desenho para continuar.
+   */
+  const [rabisco, setRabisco] = useState<{ pagina: number; tracos: { x: number; y: number }[][] } | null>(null);
   // Calibração por página (item 28) — chega do servidor e é atualizada in loco ao calibrar.
   const [calibracoes, setCalibracoes] = useState<CalibracaoView[]>(props.calibracoesIniciais);
   const calibracaoDaPagina = useCallback(
@@ -686,14 +694,34 @@ export function PdfViewer(props: Props) {
   useEffect(() => {
     if (!podeApontar) return;
     function aoTeclar(e: KeyboardEvent) {
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.altKey) return;
       const alvo = e.target as HTMLElement | null;
       const tag = alvo?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || alvo?.isContentEditable) return;
       if (draft || editId || classificarId || replicarId || threadId) return;
       if (alvo?.closest("[role='dialog'],[role='listbox'],[role='combobox']")) return;
 
+      // Ctrl+Z desfaz o último traço do rabisco; os demais atalhos com Ctrl ficam com o navegador.
+      if (e.ctrlKey || e.metaKey) {
+        if (rabisco && e.key.toLowerCase() === "z") {
+          desfazerTraco();
+          e.preventDefault();
+        }
+        return;
+      }
+      if (rabisco && e.key === "Enter") {
+        concluirRabisco();
+        e.preventDefault();
+        return;
+      }
+
       if (e.key === "Escape") {
+        // Com rabisco na tela, o primeiro Esc descarta o desenho; o seguinte sai do modo apontar.
+        if (rabisco) {
+          setRabisco(null);
+          e.preventDefault();
+          return;
+        }
         if (modoApontar) {
           setModoApontar(false);
           e.preventDefault();
@@ -706,7 +734,7 @@ export function PdfViewer(props: Props) {
         e.preventDefault();
         return;
       }
-      const porTecla: Record<string, TipoMarcacao> = { "1": "ponto", "2": "retangulo", "3": "seta", "4": "nuvem", "5": "medida" };
+      const porTecla: Record<string, TipoMarcacao> = { "1": "ponto", "2": "retangulo", "3": "seta", "4": "nuvem", "5": "medida", "6": "livre" };
       const ferr = porTecla[e.key];
       if (ferr) {
         escolherFerramenta(ferr);
@@ -719,7 +747,7 @@ export function PdfViewer(props: Props) {
     // calibrações) — listá-la aqui reassinaria o listener a cada rolagem. As dependências
     // reais são as que decidem se o atalho pode disparar.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [podeApontar, modoApontar, draft, editId, classificarId, replicarId, threadId, paginaVisivel, calibracoes]);
+  }, [podeApontar, modoApontar, draft, editId, classificarId, replicarId, threadId, paginaVisivel, calibracoes, rabisco]);
 
   // Descobre a página visível pela rolagem: a primeira cujo fim ainda está abaixo do topo da
   // janela. Escuta o container (não o window) porque a rolagem do viewer é interna.
@@ -866,6 +894,7 @@ export function PdfViewer(props: Props) {
         };
         setPendencias((ps) => [...ps, nova]);
         setSelecionadaId(nova.id);
+        if (draft.marcacao?.tipo === "livre") setRabisco(null);
         // Reincidência confirmada (item 17) → vira a MESMA referência cruzada do item 13. Não
         // existe "vínculo de reincidência" à parte: seria uma segunda ligação entre os mesmos
         // dois apontamentos, com a mesma semântica e outra tela pra manter.
@@ -925,6 +954,27 @@ export function PdfViewer(props: Props) {
       const ctx = destino.getContext("2d");
       if (!ctx) return;
       ctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, destino.width, destino.height);
+      // No rabisco o desenho é o conteúdo (a solução indicada): sem ele, a miniatura mostraria
+      // só a planta. Nas outras formas o recorte já É a área marcada.
+      const cor = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim();
+      if (marcacao.tipo === "livre" && marcacao.tracos && cor) {
+        const ex = destino.width / sw;
+        const ey = destino.height / sh;
+        ctx.strokeStyle = cor;
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        for (const t of marcacao.tracos) {
+          ctx.beginPath();
+          t.forEach((o, i) => {
+            const px = ((x + o.dx) * canvas.width - sx) * ex;
+            const py = ((y + o.dy) * canvas.height - sy) * ey;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          });
+          ctx.stroke();
+        }
+      }
       const blob = await new Promise<Blob | null>((r) => destino.toBlob(r, "image/png"));
       if (!blob) return;
       const form = new FormData();
@@ -949,6 +999,34 @@ export function PdfViewer(props: Props) {
    * de deixar o usuário arrastar e não receber número nenhum. `medidaMm` é congelado na
    * criação, então não existe estado de "medida sem valor" pra consertar depois.
    */
+  /** Traço terminado numa página. O rabisco é de UMA página: outra página pede concluir antes. */
+  function adicionarTraco(pagina: number, pontos: { x: number; y: number }[]) {
+    if (rabisco && rabisco.pagina !== pagina) {
+      toast.info(`Conclua ou descarte o rabisco da página ${rabisco.pagina} antes de desenhar em outra.`);
+      return;
+    }
+    if (rabisco && rabisco.tracos.length >= MAX_TRACOS_RABISCO) {
+      toast.info(`Limite de ${MAX_TRACOS_RABISCO} traços por rabisco. Conclua este e comece outro.`);
+      return;
+    }
+    setRabisco((r) => ({ pagina, tracos: [...(r?.tracos ?? []), pontos] }));
+  }
+
+  function desfazerTraco() {
+    setRabisco((r) => (r && r.tracos.length > 1 ? { ...r, tracos: r.tracos.slice(0, -1) } : null));
+  }
+
+  /** Abre a janela do apontamento com o desenho. O rabisco continua na tela até criar. */
+  function concluirRabisco() {
+    if (!rabisco) return;
+    const feito = construirRabisco(rabisco.tracos);
+    if (!feito) {
+      toast.info("Desenho pequeno demais — faça um traço maior.");
+      return;
+    }
+    abrirNovo(rabisco.pagina, feito.x, feito.y, feito.marcacao);
+  }
+
   function escolherFerramenta(t: TipoMarcacao) {
     setFerramenta(t);
     setModoApontar(true);
@@ -1656,10 +1734,33 @@ export function PdfViewer(props: Props) {
           <MapPin className="size-3.5 shrink-0" />{" "}
           {ferramenta === "ponto"
             ? "Clique no ponto da prancha onde está a pendência."
-            : `Arraste na prancha para desenhar ${MARCACAO_LABEL[ferramenta].toLowerCase()} — cancelar na janela descarta o desenho.`}
+            : ferramenta === "livre"
+              ? "Desenhe à mão livre na prancha — quantos traços quiser. Enter conclui, Ctrl+Z desfaz o último."
+              : `Arraste na prancha para desenhar ${MARCACAO_LABEL[ferramenta].toLowerCase()} — cancelar na janela descarta o desenho.`}
           <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
-            Atalhos: 1 pino · 2 retângulo · 3 seta · 4 nuvem · Esc sai
+            Atalhos: 1 pino · 2 retângulo · 3 seta · 4 nuvem · 6 rabisco · Esc sai
           </span>
+        </div>
+      )}
+
+      {/* Rabisco em andamento: fica à vista mesmo trocando de ferramenta, para não se perder. */}
+      {rabisco && (
+        <div className="flex flex-wrap items-center gap-2 border-b bg-primary/5 px-3 py-1.5 text-xs text-primary">
+          <PenLine className="size-3.5 shrink-0" />
+          <span>
+            Rabisco na página {rabisco.pagina}: {rabisco.tracos.length} {rabisco.tracos.length === 1 ? "traço" : "traços"}
+          </span>
+          <div className="ml-auto flex items-center gap-1">
+            <Button size="sm" variant="ghost" className="h-6 gap-1 px-2 text-xs" onClick={desfazerTraco} title="Desfazer o último traço (Ctrl+Z)">
+              <Undo2 className="size-3.5" /> Desfazer
+            </Button>
+            <Button size="sm" variant="ghost" className="h-6 gap-1 px-2 text-xs" onClick={() => setRabisco(null)} title="Descartar o desenho (Esc)">
+              <X className="size-3.5" /> Descartar
+            </Button>
+            <Button size="sm" className="h-6 gap-1 px-2 text-xs" onClick={concluirRabisco} title="Criar o apontamento com este desenho (Enter)">
+              <Check className="size-3.5" /> Concluir
+            </Button>
+          </div>
         </div>
       )}
       </div>
@@ -1760,6 +1861,8 @@ export function PdfViewer(props: Props) {
                   }}
                   onSelecionar={(id) => selecionarPendencia(id, false)}
                   onApontar={(x, y, marcacao, medida) => abrirNovo(n, x, y, marcacao, medida)}
+                  rabisco={rabisco?.pagina === n ? rabisco.tracos : null}
+                  onTracoRabisco={adicionarTraco}
                   onTexto={busca.registrarTexto}
                   marcas={busca.ocorrenciasPorPagina(n)}
                   ocgConfig={camadas.config}
@@ -2567,6 +2670,8 @@ function Pagina({
   onSegmentoReferencia,
   onSelecionar,
   onApontar,
+  rabisco,
+  onTracoRabisco,
   registrar,
   onTexto,
   marcas,
@@ -2597,6 +2702,10 @@ function Pagina({
   onSegmentoReferencia: (pagina: number, pontos: number) => void;
   onSelecionar: (id: string) => void;
   onApontar: (x: number, y: number, marcacao: Marcacao | null, medida: MedidaCalculada | null) => void;
+  /** Traços já feitos do rabisco NESTA página (normalizados, sem giro); `null` = nenhum. */
+  rabisco: { x: number; y: number }[][] | null;
+  /** Um traço do rabisco terminou (ferramenta "livre"). */
+  onTracoRabisco: (pagina: number, pontos: { x: number; y: number }[]) => void;
   registrar: (el: HTMLDivElement | null) => void;
   onTexto: (pagina: number, itens: ItemPagina[]) => void;
   marcas: MarcaTexto[];
@@ -2608,6 +2717,8 @@ function Pagina({
   // desenhada precisa saber do traço provisório, e assim mover o mouse não re-renderiza a
   // lista lateral nem as outras páginas do documento.
   const [tracando, setTracando] = useState<{ x: number; y: number; ax: number; ay: number } | null>(null);
+  // Traço do rabisco em andamento (local, como `tracando`: só esta página redesenha ao mover).
+  const [tracoLivre, setTracoLivre] = useState<{ x: number; y: number }[] | null>(null);
   // Dimensões da página em PONTOS do PDF (espaço visual, `/Rotate` já aplicado). Vem do
   // `PdfPagina` no render e fica em ref porque quem precisa é o handler de pointerup, que não
   // roda dentro do callback de render — e guardar em estado provocaria re-render por página.
@@ -2616,14 +2727,14 @@ function Pagina({
 
   // O retângulo da camada girada é a caixa VISÍVEL (já girada); o clique é posicionado nela e
   // trazido de volta para o espaço sem giro, que é onde `x`/`y` são gravados.
-  const posicaoNormalizada = (e: React.PointerEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    return desgirarPonto(
-      Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)),
-      Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height)),
+  const posicaoNaCaixa = (clientX: number, clientY: number, rect: DOMRect) =>
+    desgirarPonto(
+      Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)),
+      Math.min(1, Math.max(0, (clientY - rect.top) / rect.height)),
       rotacao,
     );
-  };
+  const posicaoNormalizada = (e: React.PointerEvent<HTMLDivElement>) =>
+    posicaoNaCaixa(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect());
 
   /**
    * O apontamento SEMPRE nasce no `pointerup`, nunca no `pointerdown` — inclusive o pino
@@ -2634,18 +2745,51 @@ function Pagina({
    */
   function aoPressionar(e: React.PointerEvent<HTMLDivElement>) {
     if ((!modoApontar && !capturandoReferencia) || e.button !== 0) return;
+    if (ferramenta === "livre" && !capturandoReferencia) {
+      // Segundo dedo no meio do traço é pinça, não desenho: larga o traço.
+      if (tracoLivre) {
+        setTracoLivre(null);
+        return;
+      }
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setTracoLivre([posicaoNormalizada(e)]);
+      return;
+    }
     const p = posicaoNormalizada(e);
     e.currentTarget.setPointerCapture(e.pointerId);
     setTracando({ x: p.x, y: p.y, ax: p.x, ay: p.y });
   }
 
   function aoMover(e: React.PointerEvent<HTMLDivElement>) {
+    if (tracoLivre) {
+      // Eventos agrupados pelo navegador entre dois quadros: com caneta/mouse rápido, sem eles
+      // a curva sai em segmentos retos. Ponto a menos de ~1,5 px do anterior não entra.
+      const rect = e.currentTarget.getBoundingClientRect();
+      const eventos = e.nativeEvent.getCoalescedEvents?.() ?? [];
+      const brutos = eventos.length > 0 ? eventos : [e.nativeEvent];
+      const novos: { x: number; y: number }[] = [];
+      let ultimo = tracoLivre[tracoLivre.length - 1];
+      for (const ev of brutos) {
+        const q = posicaoNaCaixa(ev.clientX, ev.clientY, rect);
+        if (Math.hypot((q.x - ultimo.x) * rect.width, (q.y - ultimo.y) * rect.height) < 1.5) continue;
+        novos.push(q);
+        ultimo = q;
+      }
+      if (novos.length > 0) setTracoLivre((t) => (t ? [...t, ...novos] : t));
+      return;
+    }
     if (!tracando) return;
     const p = posicaoNormalizada(e);
     setTracando((t) => (t ? { ...t, ax: p.x, ay: p.y } : t));
   }
 
   function aoSoltar(e: React.PointerEvent<HTMLDivElement>) {
+    if (tracoLivre) {
+      const pontos = tracoLivre;
+      setTracoLivre(null);
+      if (pontos.length >= 2) onTracoRabisco(pagina, pontos);
+      return;
+    }
     if (!tracando) return;
     const p = posicaoNormalizada(e);
     const inicio = { x: tracando.x, y: tracando.y };
@@ -2717,7 +2861,10 @@ function Pagina({
           onPointerDown={aoPressionar}
           onPointerMove={aoMover}
           onPointerUp={aoSoltar}
-          onPointerCancel={() => setTracando(null)}
+          onPointerCancel={() => {
+            setTracando(null);
+            setTracoLivre(null);
+          }}
         >
           {/* Formas: SVG único por página, atrás dos pinos (que continuam clicáveis).
               `pointer-events-none` para não roubar o arrasto de quem está desenhando. */}
@@ -2745,6 +2892,20 @@ function Pagina({
               <g className="text-primary">
                 <MarcacaoSvg dim={dim} x={tracando.x} y={tracando.y} marcacao={previa} />
               </g>
+            )}
+            {(rabisco || tracoLivre) && (
+              <path
+                className="text-primary"
+                d={[...(rabisco ?? []), ...(tracoLivre ? [tracoLivre] : [])]
+                  .map((t) => t.map((q, i) => `${i === 0 ? "M" : "L"}${(q.x * dim.w).toFixed(1)} ${(q.y * dim.h).toFixed(1)}`).join(" "))
+                  .join(" ")}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
             )}
           </svg>
 

@@ -21,7 +21,7 @@ import {
   STATUS_ABERTOS,
   TIPOS_PENDENCIA,
 } from "@/modules/projetos/pendencias/helpers";
-import { TIPOS_MARCACAO } from "@/modules/projetos/pendencias/marcacao";
+import { MAX_PONTOS_RABISCO, MAX_TRACOS_RABISCO, TIPOS_MARCACAO } from "@/modules/projetos/pendencias/marcacao";
 import { MODOS_CALIBRACAO } from "@/modules/projetos/pendencias/medicao";
 import { extrairMencoes } from "@/modules/chat/mencoes";
 import { buscarPendenciasParaReferencia, possiveisReincidencias } from "@/modules/projetos/pendencias/queries";
@@ -35,6 +35,10 @@ const classificacaoSchema = {
   severidade: z.enum(SEVERIDADES).nullish(),
   tipo: z.enum(TIPOS_PENDENCIA).nullish(),
 };
+
+/** Offset de marcação (fração da página a partir da âncora). */
+const offsetMarcacao = z.object({ dx: z.number().min(-1).max(1), dy: z.number().min(-1).max(1) });
+
 const criarSchema = z.object({
   uploadId: z.string().min(1),
   pagina: z.number().int().min(1),
@@ -46,10 +50,20 @@ const criarSchema = z.object({
   prazo: z.string().trim().min(1).max(10).nullish(),
   // Marcação vetorial (item 9). Só o cliente sabe o que foi desenhado; `x`/`y` acima continuam
   // sendo a âncora (início do arrasto) e os pontos são OFFSETS a partir dela. Ausente = pino.
+  // Rabisco (`livre`) manda os traços em `tracos` — e só ele manda.
   marcacao: z
     .object({
       tipo: z.enum(TIPOS_MARCACAO),
-      pontos: z.array(z.object({ dx: z.number().min(-1).max(1), dy: z.number().min(-1).max(1) })).max(2),
+      pontos: z.array(offsetMarcacao).max(2),
+      tracos: z.array(z.array(offsetMarcacao).min(2)).min(1).max(MAX_TRACOS_RABISCO).optional(),
+    })
+    .superRefine((m, ctx) => {
+      if ((m.tipo === "livre") !== Boolean(m.tracos)) {
+        ctx.addIssue({ code: "custom", message: "Desenho inválido." });
+      }
+      if (m.tracos && m.tracos.reduce((n, t) => n + t.length, 0) > MAX_PONTOS_RABISCO) {
+        ctx.addIssue({ code: "custom", message: "Desenho grande demais. Divida em mais de um apontamento." });
+      }
     })
     .nullish(),
   // Medição (item 28) — valor CONGELADO no momento da criação, junto do fator e do modo que
@@ -323,7 +337,11 @@ export const criarPendencia = defineAction(
           // Pino simples não grava geometria — `null` mantém a linha idêntica à de antes do item 9.
           marcacaoTipo: input.marcacao && input.marcacao.tipo !== "ponto" ? input.marcacao.tipo : null,
           marcacaoGeo:
-            input.marcacao && input.marcacao.tipo !== "ponto" ? { pontos: input.marcacao.pontos } : undefined,
+            input.marcacao && input.marcacao.tipo !== "ponto"
+              ? input.marcacao.tipo === "livre"
+                ? { pontos: [], tracos: input.marcacao.tracos }
+                : { pontos: input.marcacao.pontos }
+              : undefined,
           medidaMm: input.medida?.mm ?? null,
           medidaFator: input.medida?.fator ?? null,
           medidaModo: input.medida?.modo ?? null,
