@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useId, useState, useTransition } from "react";
 import {
   Briefcase,
+  ChevronDown,
   ChevronRight,
   LayoutGrid,
   Ruler,
@@ -260,15 +261,20 @@ function ItemTrilho({ item, ativo, alertas }: { item: NavItem; ativo: string | n
   );
 }
 
-/** Seção inteira do trilho: um botão com o nome da seção que abre a lista dos itens ao lado. */
+/**
+ * Seção FECHADA do trilho: o nome da seção; passar o mouse mostra a lista dos itens ao lado, e o
+ * clique abre a seção no próprio trilho (mesmo estado do menu aberto — ver `SecaoTrilhoAberta`).
+ */
 function SecaoTrilho({
   group,
   ativo,
   alertas,
+  onToggle,
 }: {
   group: NavGroup & { title: string };
   ativo: string | null;
   alertas?: Record<string, AlertaNav>;
+  onToggle: () => void;
 }) {
   const [aberta, setAberta] = useState(false);
   const Icone = ICONE_DA_SECAO[group.title] ?? LayoutGrid;
@@ -283,7 +289,17 @@ function SecaoTrilho({
           delay={120}
           closeDelay={250}
           render={
-            <button type="button" className={classeTrilho(ativa)} aria-label={`Seção ${group.title}: abre a lista`} title={group.title}>
+            <button
+              type="button"
+              className={classeTrilho(ativa)}
+              aria-label={`Seção ${group.title}: abre a lista`}
+              aria-expanded={false}
+              title={group.title}
+              onClick={() => {
+                setAberta(false);
+                onToggle();
+              }}
+            >
               <span className="relative">
                 <Icone className="size-[18px]" />
                 {alerta && <NavBadge alerta={alerta} dot className="absolute -right-1 -top-1" />}
@@ -304,6 +320,49 @@ function SecaoTrilho({
           />
         </PopoverContent>
       </Popover>
+    </li>
+  );
+}
+
+/**
+ * Seção ABERTA do trilho: os itens aparecem no próprio trilho, sob a seção, como no menu aberto
+ * (pedido do dono, 2026-09-28: minimizado e aberto mostram os mesmos itens). Aberta ou fechada é o
+ * mesmo estado lembrado na conta (`abertas`): abrir num menu abre no outro. A linha-guia à esquerda
+ * é a mesma do menu aberto e diz que os ícones são da seção de cima.
+ */
+function SecaoTrilhoAberta({
+  group,
+  ativo,
+  alertas,
+  onToggle,
+}: {
+  group: NavGroup & { title: string };
+  ativo: string | null;
+  alertas?: Record<string, AlertaNav>;
+  onToggle: () => void;
+}) {
+  const Icone = ICONE_DA_SECAO[group.title] ?? LayoutGrid;
+  const idLista = useId();
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onToggle}
+        className={classeTrilho(false)}
+        aria-expanded
+        aria-controls={idLista}
+        aria-label={`Seção ${group.title}: fechar`}
+        title={`${group.title} — fechar a seção`}
+      >
+        <Icone className="size-[18px]" />
+        <span className="w-full truncate text-center">{group.title}</span>
+        <ChevronDown className="absolute top-1/2 right-0 size-3 -translate-y-1/2 opacity-60" aria-hidden />
+      </button>
+      <ul id={idLista} className="mt-0.5 ml-1 space-y-0.5 border-l border-sidebar-border pl-0.5">
+        {group.items.map((item) => (
+          <ItemTrilho key={item.href} item={item} ativo={ativo} alertas={alertas} />
+        ))}
+      </ul>
     </li>
   );
 }
@@ -402,8 +461,22 @@ export function SidebarNav({
               group.items.map((item) => (
                 <ItemTrilho key={item.href} item={item} ativo={ativo} alertas={nav.alertas} />
               ))
+            ) : abertas.includes(group.title) ? (
+              <SecaoTrilhoAberta
+                key={group.title}
+                group={group}
+                ativo={ativo}
+                alertas={nav.alertas}
+                onToggle={() => alternarSecao(group.title)}
+              />
             ) : (
-              <SecaoTrilho key={group.title ?? gi} group={group} ativo={ativo} alertas={nav.alertas} />
+              <SecaoTrilho
+                key={group.title ?? gi}
+                group={group}
+                ativo={ativo}
+                alertas={nav.alertas}
+                onToggle={() => alternarSecao(group.title)}
+              />
             ),
           )}
         </ul>
