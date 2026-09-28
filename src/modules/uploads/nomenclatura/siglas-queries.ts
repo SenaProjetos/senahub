@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { LinhaSigla } from "./publicacao";
+import { intersecaoFaixas, type FaixaVersao } from "./siglas-versao";
 
 export type AlvoSigla =
   | { tipo: "disciplina"; id: string }
@@ -25,7 +26,10 @@ export type SiglaDoAlvo = Awaited<ReturnType<typeof siglasDoAlvo>>[number];
 
 /**
  * Todas as siglas do sistema, com o rótulo legível do alvo — para a trava de publicação (D5,
- * `publicacao.ts`) e para qualquer tela que precise mostrar "esta sigla pertence a quem".
+ * `publicacao.ts`) e para qualquer tela que precise mostrar "esta sigla pertence a quem". A faixa
+ * de cada linha já vem recortada pela validade do item (e do card-mãe, para sub): o `SEG` de um
+ * CFTV encerrado na v1 não pode aparecer como dono do `SEG` na v2, senão a trava compara o card
+ * antigo com ele mesmo e não avisa da redefinição.
  */
 export async function todasAsSiglasComRotulo(): Promise<LinhaSigla[]> {
   const [siglas, disciplinas, subs, pranchas] = await Promise.all([
@@ -41,24 +45,48 @@ export async function todasAsSiglasComRotulo(): Promise<LinhaSigla[]> {
         pranchaCatalogoId: true,
       },
     }),
-    prisma.disciplinaCatalogo.findMany({ select: { id: true, nome: true } }),
-    prisma.subdisciplinaCatalogo.findMany({ select: { id: true, nome: true, disciplinaCatalogo: { select: { nome: true } } } }),
-    prisma.pranchaCatalogo.findMany({ select: { id: true, nome: true } }),
+    prisma.disciplinaCatalogo.findMany({ select: { id: true, nome: true, versaoDesde: true, versaoAte: true } }),
+    prisma.subdisciplinaCatalogo.findMany({
+      select: {
+        id: true,
+        nome: true,
+        versaoDesde: true,
+        versaoAte: true,
+        disciplinaCatalogo: { select: { nome: true, versaoDesde: true, versaoAte: true } },
+      },
+    }),
+    prisma.pranchaCatalogo.findMany({ select: { id: true, nome: true, versaoDesde: true, versaoAte: true } }),
   ]);
-  const nomeDisc = new Map(disciplinas.map((d) => [d.id, d.nome]));
-  const nomeSub = new Map(subs.map((s) => [s.id, `${s.nome} (sub de ${s.disciplinaCatalogo.nome})`]));
-  const nomePrancha = new Map(pranchas.map((p) => [p.id, p.nome]));
+  type Alvo = { rotulo: string; faixas: FaixaVersao[] };
+  const porDisc = new Map<string, Alvo>(disciplinas.map((d) => [d.id, { rotulo: d.nome, faixas: [d] }]));
+  const porSub = new Map<string, Alvo>(
+    subs.map((s) => [s.id, { rotulo: `${s.nome} (sub de ${s.disciplinaCatalogo.nome})`, faixas: [s, s.disciplinaCatalogo] }]),
+  );
+  const porPrancha = new Map<string, Alvo>(pranchas.map((p) => [p.id, { rotulo: p.nome, faixas: [p] }]));
 
   return siglas.flatMap((s): LinhaSigla[] => {
-    const [alvoChave, alvoRotulo] = s.disciplinaCatalogoId
-      ? [`disciplina:${s.disciplinaCatalogoId}`, nomeDisc.get(s.disciplinaCatalogoId) ?? "?"]
+    const [alvoChave, alvo] = s.disciplinaCatalogoId
+      ? [`disciplina:${s.disciplinaCatalogoId}`, porDisc.get(s.disciplinaCatalogoId)]
       : s.subdisciplinaId
-        ? [`subdisciplina:${s.subdisciplinaId}`, nomeSub.get(s.subdisciplinaId) ?? "?"]
+        ? [`subdisciplina:${s.subdisciplinaId}`, porSub.get(s.subdisciplinaId)]
         : s.pranchaCatalogoId
-          ? [`prancha:${s.pranchaCatalogoId}`, nomePrancha.get(s.pranchaCatalogoId) ?? "?"]
-          : [null, null];
+          ? [`prancha:${s.pranchaCatalogoId}`, porPrancha.get(s.pranchaCatalogoId)]
+          : [null, undefined];
     if (!alvoChave) return [];
-    return [{ sigla: s.sigla, categoria: s.categoria, oficial: s.oficial, versaoDesde: s.versaoDesde, versaoAte: s.versaoAte, alvoChave, alvoRotulo }];
+    let faixa: FaixaVersao | null = { versaoDesde: s.versaoDesde, versaoAte: s.versaoAte };
+    for (const f of alvo?.faixas ?? []) faixa = faixa && intersecaoFaixas(faixa, f);
+    if (!faixa) return [];
+    return [
+      {
+        sigla: s.sigla,
+        categoria: s.categoria,
+        oficial: s.oficial,
+        versaoDesde: faixa.versaoDesde,
+        versaoAte: faixa.versaoAte,
+        alvoChave,
+        alvoRotulo: alvo?.rotulo ?? "?",
+      },
+    ];
   });
 }
 

@@ -5,7 +5,15 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Eye, EyeOff, Tags } from "lucide-react";
 import { SiglasVersaoDialog, type VersaoOpcao } from "@/components/configuracoes/siglas-versao-dialog";
-import { valeNaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
+import { rotuloFaixa, valeNaVersao, versaoMaisNova } from "@/modules/uploads/nomenclatura/siglas-versao";
+import {
+  ValidadeVersaoCampos,
+  faixaDoForm,
+  faixaParaForm,
+  mostrarValidade,
+  rotuloVersaoOpcao,
+  type FaixaForm,
+} from "@/components/configuracoes/validade-versao-campos";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   criarCatalogoPrancha,
@@ -134,6 +142,10 @@ function SecaoCatalogo({
   const [sigla, setSigla] = useState("");
   const [nome, setNome] = useState("");
   const [sinonimos, setSinonimos] = useState("");
+  // "A partir da" do item novo: abre na versão mais nova, como as siglas. Só na tela global — a
+  // sigla própria de um projeto não tem validade por versão.
+  const [desde, setDesde] = useState(() => String(versaoMaisNova(versoes) ?? 1));
+  const ordenadas = [...versoes].sort((a, b) => a.numero - b.numero);
   const [editar, setEditar] = useState<PranchaCatalogoRow | null>(null);
   const [siglasDe, setSiglasDe] = useState<PranchaCatalogoRow | null>(null);
 
@@ -143,7 +155,14 @@ function SecaoCatalogo({
       return;
     }
     start(async () => {
-      const r = await criarCatalogoPrancha({ categoria, sigla, nome, projetoId, sinonimos: sinonimosDoTexto(sinonimos) });
+      const r = await criarCatalogoPrancha({
+        categoria,
+        sigla,
+        nome,
+        projetoId,
+        sinonimos: sinonimosDoTexto(sinonimos),
+        ...(projetoId ? {} : { versaoDesde: Number(desde) || 1 }),
+      });
       if (r.ok) {
         toast.success("Sigla adicionada.");
         setSigla("");
@@ -194,7 +213,16 @@ function SecaoCatalogo({
                 <Badge variant="outline" className="shrink-0 font-mono">{row.sigla}</Badge>
                 <span className={`min-w-0 flex-1 truncate ${row.ativo ? "" : "text-muted-foreground line-through"}`}>
                   {row.nome}
-                  {row.sinonimos.length > 0 && (
+                  {rotuloFaixa(row) && <span className="ml-1.5 text-xs text-muted-foreground">· {rotuloFaixa(row)}</span>}
+                  {row.siglasPorVersao && (
+                    <span
+                      className="ml-1.5 text-xs text-muted-foreground"
+                      title="Este item tem siglas diferentes por versão — veja em “Siglas por versão”."
+                    >
+                      · siglas por versão
+                    </span>
+                  )}
+                  {row.sinonimos.length > 0 && !row.siglasPorVersao && (
                     <span
                       className="ml-1.5 text-xs text-muted-foreground"
                       title={`O motor de nomenclatura também reconhece: ${row.sinonimos.join(", ")}`}
@@ -247,6 +275,19 @@ function SecaoCatalogo({
               <Plus className="size-4" />
             </Button>
           </div>
+          {!projetoId && ordenadas.length > 1 && (
+            <div className="space-y-1">
+              <Label className="text-xs">Vale a partir da</Label>
+              <Select value={desde} onValueChange={(v) => setDesde(v ?? "1")}>
+                <SelectTrigger className="w-full text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ordenadas.map((v) => (
+                    <SelectItem key={v.id} value={String(v.numero)}>{rotuloVersaoOpcao(v)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-1">
             <Label className="text-xs">Sinônimos desta sigla (opcional)</Label>
             <Input value={sinonimos} onChange={(e) => setSinonimos(e.target.value)} placeholder={exemplo.sinonimos || undefined} />
@@ -254,7 +295,7 @@ function SecaoCatalogo({
         </div>
       </CardContent>
 
-      <EditarDialog row={editar} onClose={() => setEditar(null)} />
+      <EditarDialog row={editar} versoes={projetoId ? [] : versoes} onClose={() => setEditar(null)} />
       <SiglasVersaoDialog
         aberto={siglasDe !== null}
         onFechar={() => setSiglasDe(null)}
@@ -266,12 +307,22 @@ function SecaoCatalogo({
   );
 }
 
-function EditarDialog({ row, onClose }: { row: PranchaCatalogoRow | null; onClose: () => void }) {
+function EditarDialog({
+  row,
+  versoes,
+  onClose,
+}: {
+  row: PranchaCatalogoRow | null;
+  /** Vazio = sigla própria de projeto (sem validade por versão). */
+  versoes: VersaoOpcao[];
+  onClose: () => void;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [sigla, setSigla] = useState("");
   const [nome, setNome] = useState("");
   const [sinonimos, setSinonimos] = useState("");
+  const [faixa, setFaixa] = useState<FaixaForm>({ desde: "1", ate: "" });
   const [lastId, setLastId] = useState<string | null>(null);
 
   // Sincroniza o form quando abre em outra linha (sem useEffect).
@@ -280,7 +331,9 @@ function EditarDialog({ row, onClose }: { row: PranchaCatalogoRow | null; onClos
     setSigla(row.sigla);
     setNome(row.nome);
     setSinonimos(row.sinonimos.join(", "));
+    setFaixa(faixaParaForm(row));
   }
+  const travado = row?.siglasPorVersao ?? false;
 
   function salvar() {
     if (!row) return;
@@ -289,7 +342,14 @@ function EditarDialog({ row, onClose }: { row: PranchaCatalogoRow | null; onClos
       return;
     }
     start(async () => {
-      const r = await editarCatalogoPrancha({ id: row.id, sigla, nome, ativo: row.ativo, sinonimos: sinonimosDoTexto(sinonimos) });
+      const r = await editarCatalogoPrancha({
+        id: row.id,
+        sigla,
+        nome,
+        ativo: row.ativo,
+        sinonimos: sinonimosDoTexto(sinonimos),
+        ...(versoes.length > 0 ? faixaDoForm(faixa) : {}),
+      });
       if (r.ok) {
         toast.success("Sigla atualizada.");
         onClose();
@@ -300,7 +360,7 @@ function EditarDialog({ row, onClose }: { row: PranchaCatalogoRow | null; onClos
 
   return (
     <Dialog open={!!row} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Editar sigla</DialogTitle>
         </DialogHeader>
@@ -308,7 +368,7 @@ function EditarDialog({ row, onClose }: { row: PranchaCatalogoRow | null; onClos
           <div className="flex items-end gap-2">
             <div className="w-20 space-y-1.5">
               <Label>Sigla</Label>
-              <Input value={sigla} onChange={(e) => setSigla(e.target.value.toUpperCase())} className="font-mono" />
+              <Input value={sigla} disabled={travado} onChange={(e) => setSigla(e.target.value.toUpperCase())} className="font-mono" />
             </div>
             <div className="flex-1 space-y-1.5">
               <Label>Nome</Label>
@@ -317,11 +377,16 @@ function EditarDialog({ row, onClose }: { row: PranchaCatalogoRow | null; onClos
           </div>
           <div className="space-y-1.5">
             <Label>Sinônimos</Label>
-            <Input value={sinonimos} onChange={(e) => setSinonimos(e.target.value)} placeholder="PE, EXE" />
+            <Input value={sinonimos} disabled={travado} onChange={(e) => setSinonimos(e.target.value)} placeholder="PE, EXE" />
             <p className="text-[11px] text-muted-foreground">
-              Siglas alternativas que o motor de nomenclatura reconhece como esta, separadas por vírgula.
+              {travado
+                ? "As siglas deste item já são definidas por versão. Para mudar sigla ou sinônimos, use “Siglas por versão” (ícone de etiqueta na linha) — aqui eles ficam como estão."
+                : "Siglas alternativas que o motor de nomenclatura reconhece como esta, separadas por vírgula."}
             </p>
           </div>
+          {versoes.length > 0 && mostrarValidade(versoes, faixa) && (
+            <ValidadeVersaoCampos versoes={versoes} valor={faixa} onChange={setFaixa} />
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>

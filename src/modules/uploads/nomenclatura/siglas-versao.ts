@@ -19,25 +19,135 @@ export function valeNaVersao(faixa: FaixaVersao, versao: number): boolean {
   return faixa.versaoDesde <= versao && (faixa.versaoAte === null || versao <= faixa.versaoAte);
 }
 
+const SEMPRE: FaixaVersao = { versaoDesde: 1, versaoAte: null };
+
 /**
- * Sigla oficial + sinônimos das colunas antigas (`codigo`/`sigla` + `sinonimos`) como linhas da
- * v1 em diante. Mesma normalização da migration `20260922120000_nomenclatura_versionada`
- * (maiúscula, sem espaço nas pontas, sem vazio, sinônimo igual à oficial sai, sem duplicata) —
- * as duas precisam dar o mesmo resultado, senão o espelho das telas diverge do que a migration
- * gravou.
+ * Sigla oficial + sinônimos das colunas antigas (`codigo`/`sigla` + `sinonimos`) como linhas na
+ * faixa do item (padrão: da v1 em diante). Mesma normalização da migration
+ * `20260922120000_nomenclatura_versionada` (maiúscula, sem espaço nas pontas, sem vazio, sinônimo
+ * igual à oficial sai, sem duplicata) — as duas precisam dar o mesmo resultado, senão o espelho
+ * das telas diverge do que a migration gravou.
  */
-export function siglasDasColunas(oficial: string | null, sinonimos: readonly string[]): SiglaLinha[] {
+export function siglasDasColunas(
+  oficial: string | null,
+  sinonimos: readonly string[],
+  faixa: FaixaVersao = SEMPRE,
+): SiglaLinha[] {
+  const { versaoDesde, versaoAte } = faixa;
   const siglaOficial = (oficial ?? "").trim().toUpperCase();
   const linhas: SiglaLinha[] = [];
-  if (siglaOficial) linhas.push({ sigla: siglaOficial, oficial: true, versaoDesde: 1, versaoAte: null });
+  if (siglaOficial) linhas.push({ sigla: siglaOficial, oficial: true, versaoDesde, versaoAte });
   const vistos = new Set<string>();
   for (const bruto of sinonimos) {
     const sigla = bruto.trim().toUpperCase();
     if (!sigla || sigla === siglaOficial || vistos.has(sigla)) continue;
     vistos.add(sigla);
-    linhas.push({ sigla, oficial: false, versaoDesde: 1, versaoAte: null });
+    linhas.push({ sigla, oficial: false, versaoDesde, versaoAte });
   }
   return linhas;
+}
+
+export type ColunasSigla = { oficial: string | null; sinonimos: readonly string[] };
+
+function mesmasLinhas(a: readonly SiglaLinha[], b: readonly SiglaLinha[]): boolean {
+  const chaves = (ls: readonly SiglaLinha[]) =>
+    ls.map((l) => `${l.sigla.trim().toUpperCase()}|${l.oficial ? 1 : 0}|${l.versaoDesde}|${l.versaoAte ?? ""}`).sort();
+  const ka = chaves(a);
+  const kb = chaves(b);
+  return ka.length === kb.length && ka.every((k, i) => k === kb[i]);
+}
+
+/**
+ * As siglas do item ainda são só o espelho das colunas, na faixa do próprio item? É o estado de
+ * todo item que nunca passou por "Siglas por versão". Depois que alguém registra uma sigla por
+ * versão (PDA a partir da v2, ESG encerrado na v1), as linhas deixam de bater com as colunas — e
+ * a tabela de siglas passa a ser a única fonte.
+ */
+export function siglasSaoEspelho(linhas: readonly SiglaLinha[], colunas: ColunasSigla, faixa: FaixaVersao): boolean {
+  return mesmasLinhas(linhas, siglasDasColunas(colunas.oficial, colunas.sinonimos, faixa));
+}
+
+/**
+ * O que fazer com as siglas do item quando o formulário dele (card ou item da Lista Mestre) é
+ * salvo — pelo lápis, pelo olho de ativar/desativar, por qualquer caminho:
+ * - `espelhar`: as linhas ainda eram o espelho das colunas e algo mudou (sigla, sinônimo ou a
+ *   faixa do item) → regravar as linhas a partir das colunas novas;
+ * - `manter`: nada a regravar (espelho sem mudança, ou item com siglas por versão cujas colunas
+ *   não mudaram — é o caso de só trocar o ícone ou desativar);
+ * - `bloquear`: o item tem siglas por versão e o formulário tentou mudar sigla/sinônimo pelas
+ *   colunas — regravar apagaria as decisões por versão (o bug que isto corrige: salvar o lápis
+ *   recriava o `ESG` "da v1 em diante" por cima do ESG encerrado na v1).
+ */
+export function decidirSiglasAoSalvar(entrada: {
+  linhas: readonly SiglaLinha[];
+  colunasAntes: ColunasSigla;
+  faixaAntes: FaixaVersao;
+  colunasDepois: ColunasSigla;
+  faixaDepois: FaixaVersao;
+}): "espelhar" | "manter" | "bloquear" {
+  const { linhas, colunasAntes, faixaAntes, colunasDepois, faixaDepois } = entrada;
+  if (siglasSaoEspelho(linhas, colunasAntes, faixaAntes)) {
+    return siglasSaoEspelho(linhas, colunasDepois, faixaDepois) ? "manter" : "espelhar";
+  }
+  const colunasMudaram = !mesmasLinhas(
+    siglasDasColunas(colunasAntes.oficial, colunasAntes.sinonimos),
+    siglasDasColunas(colunasDepois.oficial, colunasDepois.sinonimos),
+  );
+  return colunasMudaram ? "bloquear" : "manter";
+}
+
+/** Parte comum de duas faixas; null quando não têm versão em comum. */
+export function intersecaoFaixas(a: FaixaVersao, b: FaixaVersao): FaixaVersao | null {
+  const versaoDesde = Math.max(a.versaoDesde, b.versaoDesde);
+  const versaoAte =
+    a.versaoAte === null ? b.versaoAte : b.versaoAte === null ? a.versaoAte : Math.min(a.versaoAte, b.versaoAte);
+  if (versaoAte !== null && versaoAte < versaoDesde) return null;
+  return { versaoDesde, versaoAte };
+}
+
+/**
+ * Linhas de sigla recortadas pela validade do item (e do card-mãe, para sub): é o que vale de
+ * fato. Um card encerrado na v1 com a sigla ainda "em aberto" não ocupa a sigla na v2 — sem o
+ * recorte, a checagem de colisão e a trava de publicação enxergariam o card antigo na v2.
+ */
+export function siglasEfetivas<L extends SiglaLinha>(linhas: readonly L[], ...faixas: FaixaVersao[]): L[] {
+  const saida: L[] = [];
+  for (const linha of linhas) {
+    let faixa: FaixaVersao | null = linha;
+    for (const f of faixas) {
+      faixa = faixa && intersecaoFaixas(faixa, f);
+    }
+    if (faixa) saida.push({ ...linha, versaoDesde: faixa.versaoDesde, versaoAte: faixa.versaoAte });
+  }
+  return saida;
+}
+
+/**
+ * A versão mais nova cadastrada (rascunho incluso): o "a partir da" padrão das telas de catálogo,
+ * porque cadastro novo quase sempre é a preparação da próxima versão. Abrir na v1 fazia a sigla
+ * nova valer também nos projetos antigos quando alguém esquecia de trocar.
+ */
+export function versaoMaisNova(versoes: readonly { numero: number }[]): number | null {
+  return versoes.length === 0 ? null : Math.max(...versoes.map((v) => v.numero));
+}
+
+/**
+ * "Vale até" sugerido ao encerrar uma sigla: a versão anterior à mais nova (ela deixa de valer a
+ * partir da mais nova), sem ficar antes do início da própria linha.
+ */
+export function versaoAteSugerida(versoes: readonly { numero: number }[], versaoDesde: number): number {
+  const nova = versaoMaisNova(versoes) ?? versaoDesde;
+  return Math.max(versaoDesde, nova - 1);
+}
+
+/** Rótulo curto da validade de um item para as listas; null quando vale sempre (o caso comum). */
+export function rotuloFaixa(faixa: FaixaVersao): string | null {
+  const { versaoDesde: de, versaoAte: ate } = faixa;
+  if (de <= 1 && ate === null) return null;
+  if (ate === null) return `a partir da v${de}`;
+  if (de === ate) return `só na v${de}`;
+  if (de <= 1) return `até a v${ate}`;
+  return `da v${de} à v${ate}`;
 }
 
 /**

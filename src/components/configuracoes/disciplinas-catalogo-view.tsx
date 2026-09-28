@@ -25,8 +25,15 @@ import {
 } from "@/modules/projetos/actions";
 import type { DisciplinaCatalogoAdmin } from "@/modules/projetos/queries";
 import type { VersaoAdmin } from "@/modules/projetos/nomenclatura/versoes-queries";
-import { valeNaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
+import { rotuloFaixa, valeNaVersao, versaoMaisNova } from "@/modules/uploads/nomenclatura/siglas-versao";
 import { SubdisciplinasDialog } from "@/components/configuracoes/subdisciplinas-dialog";
+import {
+  ValidadeVersaoCampos,
+  faixaDoForm,
+  faixaParaForm,
+  mostrarValidade,
+  type FaixaForm,
+} from "@/components/configuracoes/validade-versao-campos";
 import { normalizar } from "@/lib/disciplinas-core";
 import { iconeDisciplina } from "@/lib/disciplinas";
 import { GALERIA_ICONES, CHAVES_GALERIA } from "@/lib/disciplinas-galeria";
@@ -96,9 +103,24 @@ type FormState = {
   iconeSvg: string | null;
   /** Sinônimos p/ o motor de nomenclatura (uma sigla por linha ou separados por vírgula). */
   sinonimos: string;
+  /** Versões do padrão em que o card existe (D11). */
+  faixa: FaixaForm;
+  /** Siglas já definidas por versão: código e sinônimos ficam travados aqui (edição pelo diálogo). */
+  siglasPorVersao: boolean;
 };
 
-const VAZIO: FormState = { nome: "", codigo: "", numeracao: "", numeracaoFim: "", categoria: "", icone: null, iconeSvg: null, sinonimos: "" };
+const VAZIO: FormState = {
+  nome: "",
+  codigo: "",
+  numeracao: "",
+  numeracaoFim: "",
+  categoria: "",
+  icone: null,
+  iconeSvg: null,
+  sinonimos: "",
+  faixa: { desde: "1", ate: "" },
+  siglasPorVersao: false,
+};
 
 /** "hdr, esg" ou "hdr\nesg" → ["HDR", "ESG"]. A action normaliza de novo (dedupe, própria sigla). */
 function sinonimosDoTexto(texto: string): string[] {
@@ -195,6 +217,7 @@ export function DisciplinasCatalogoView({ itens, versoes }: { itens: DisciplinaC
         icone: form.icone || undefined,
         iconeSvg: form.iconeSvg || undefined,
         sinonimos: sinonimosDoTexto(form.sinonimos),
+        ...faixaDoForm(form.faixa),
       };
       const r = form.id
         ? await editarDisciplinaCatalogo({ id: form.id, ...payload })
@@ -331,7 +354,11 @@ export function DisciplinasCatalogoView({ itens, versoes }: { itens: DisciplinaC
         descricao="Nomes canônicos usados em projetos e propostas. O código é usado na nomenclatura de arquivos."
         acoes={
           <>
-          <Button onClick={() => setDialogo(VAZIO)} disabled={pending}>
+          <Button
+            // Card novo nasce na versão mais nova (a que está sendo preparada), como as siglas.
+            onClick={() => setDialogo({ ...VAZIO, faixa: { desde: String(versaoMaisNova(versoes) ?? 1), ate: "" } })}
+            disabled={pending}
+          >
             <Plus className="size-4" /> Adicionar nova disciplina
           </Button>
           </>
@@ -499,6 +526,7 @@ export function DisciplinasCatalogoView({ itens, versoes }: { itens: DisciplinaC
       {dialogo && (
         <DisciplinaDialog
           inicial={dialogo}
+          versoes={versoes}
           categorias={categorias}
           pending={pending}
           onSalvar={salvar}
@@ -527,6 +555,8 @@ function paraForm(item: DisciplinaCatalogoAdmin): FormState {
     icone: item.icone,
     iconeSvg: item.iconeSvg,
     sinonimos: item.sinonimos.join(", "),
+    faixa: faixaParaForm(item),
+    siglasPorVersao: item.siglasPorVersao,
   };
 }
 
@@ -626,7 +656,12 @@ function ItemLinha({
               arquivada
             </Badge>
           )}
-          {!item.codigo && (
+          {rotuloFaixa(item) && (
+            <Badge variant="outline" className="text-[10px] text-muted-foreground" title="Versões do padrão de nomenclatura em que o card existe">
+              {rotuloFaixa(item)}
+            </Badge>
+          )}
+          {!item.codigo && !item.siglasPorVersao && (
             <span
               className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"
               title="Sem sigla — a nomenclatura de arquivos usará o nome inteiro."
@@ -651,7 +686,7 @@ function ItemLinha({
             <Badge variant="outline" className="w-fit font-mono text-[10px] uppercase">
               {item.codigo}
             </Badge>
-            {item.sinonimos.length > 0 && (
+            {item.sinonimos.length > 0 && !item.siglasPorVersao && (
               <span
                 className="text-[10px] text-muted-foreground"
                 title={`O motor de nomenclatura também reconhece: ${item.sinonimos.join(", ")}`}
@@ -659,7 +694,10 @@ function ItemLinha({
                 = {item.sinonimos.join(", ")}
               </span>
             )}
+            {item.siglasPorVersao && <SiglasPorVersaoMarca />}
           </div>
+        ) : item.siglasPorVersao ? (
+          <SiglasPorVersaoMarca />
         ) : (
           <span className="text-xs text-muted-foreground">—</span>
         )}
@@ -773,14 +811,28 @@ function RenomearCategoriaDialog({
   );
 }
 
+/** Aviso de que a sigla da coluna é a original: as de cada versão estão no diálogo de camadas. */
+function SiglasPorVersaoMarca() {
+  return (
+    <span
+      className="text-[10px] text-muted-foreground"
+      title="Esta disciplina tem siglas diferentes por versão — veja em “Sub-disciplinas e siglas por versão” (ícone de camadas)."
+    >
+      siglas por versão
+    </span>
+  );
+}
+
 function DisciplinaDialog({
   inicial,
+  versoes,
   categorias,
   pending,
   onSalvar,
   onFechar,
 }: {
   inicial: FormState;
+  versoes: VersaoAdmin[];
   categorias: string[];
   pending: boolean;
   onSalvar: (f: FormState) => void;
@@ -825,9 +877,24 @@ function DisciplinaDialog({
               maxLength={6}
               placeholder="ELE"
               className="font-mono uppercase"
+              disabled={form.siglasPorVersao}
               onChange={(e) => setForm((f) => ({ ...f, codigo: e.target.value.toUpperCase() }))}
             />
+            {form.siglasPorVersao && (
+              <p className="text-[11px] text-muted-foreground">
+                As siglas desta disciplina já são definidas por versão. Para mudar código ou sinônimos, use
+                “Sub-disciplinas e siglas por versão” (ícone de camadas na linha) — aqui eles ficam como estão.
+              </p>
+            )}
           </div>
+
+          {mostrarValidade(versoes, form.faixa) && (
+            <ValidadeVersaoCampos
+              versoes={versoes}
+              valor={form.faixa}
+              onChange={(faixa) => setForm((f) => ({ ...f, faixa }))}
+            />
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -864,7 +931,7 @@ function DisciplinaDialog({
             <Input
               value={form.sinonimos}
               placeholder="HDR, ESG"
-              disabled={!form.codigo.trim()}
+              disabled={!form.codigo.trim() || form.siglasPorVersao}
               onChange={(e) => setForm((f) => ({ ...f, sinonimos: e.target.value }))}
             />
             <p className="text-[11px] text-muted-foreground">

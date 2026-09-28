@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { siglasSaoEspelho } from "@/modules/uploads/nomenclatura/siglas-versao";
 import type { Prisma } from "@/generated/prisma/client";
 import { acessoGlobal, type Role, type EscopoDeDados } from "@/lib/roles";
 import { whereAudiencia } from "@/lib/audiencias";
@@ -384,7 +385,10 @@ export async function catalogoDisciplinas() {
  */
 export async function catalogoDisciplinasAdmin() {
   const [itens, disciplinas] = await Promise.all([
-    prisma.disciplinaCatalogo.findMany({ orderBy: [{ ordem: "asc" }, { nome: "asc" }] }),
+    prisma.disciplinaCatalogo.findMany({
+      orderBy: [{ ordem: "asc" }, { nome: "asc" }],
+      include: { siglas: { select: { sigla: true, oficial: true, versaoDesde: true, versaoAte: true } } },
+    }),
     prisma.disciplina.findMany({ select: { disciplinaTextoLegado: true, projetoId: true } }),
   ]);
   const usoPorNome = new Map<string, Set<string>>();
@@ -394,7 +398,12 @@ export async function catalogoDisciplinasAdmin() {
     if (!set) usoPorNome.set(k, (set = new Set()));
     set.add(d.projetoId);
   }
-  return itens.map((c) => ({ ...c, uso: usoPorNome.get(normalizar(c.nome))?.size ?? 0 }));
+  return itens.map(({ siglas, ...c }) => ({
+    ...c,
+    uso: usoPorNome.get(normalizar(c.nome))?.size ?? 0,
+    // Siglas definidas por versão: o formulário trava código/sinônimos (ver `decidirSiglasAoSalvar`).
+    siglasPorVersao: !siglasSaoEspelho(siglas, { oficial: c.codigo, sinonimos: c.sinonimos }, c),
+  }));
 }
 
 export type DisciplinaCatalogoAdmin = Awaited<ReturnType<typeof catalogoDisciplinasAdmin>>[number];

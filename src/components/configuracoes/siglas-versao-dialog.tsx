@@ -20,6 +20,7 @@ import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTi
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
+import { versaoAteSugerida, versaoMaisNova } from "@/modules/uploads/nomenclatura/siglas-versao";
 
 export type AlvoSiglaDialog = { tipo: "disciplina" | "subdisciplina" | "prancha"; id: string };
 
@@ -66,6 +67,8 @@ export function SiglasVersaoDialog({
   const [versaoDesde, setVersaoDesde] = useState<string>("");
   const [semFim, setSemFim] = useState(true);
   const [versaoAte, setVersaoAte] = useState<string>("");
+  /** Linha sendo encerrada + a versão escolhida para o fim — encerrar pergunta "até qual". */
+  const [encerrando, setEncerrando] = useState<{ linha: SiglaRow; ate: string } | null>(null);
 
   const versoesOrdenadas = [...versoes].sort((a, b) => a.numero - b.numero);
 
@@ -79,8 +82,12 @@ export function SiglasVersaoDialog({
     setOficial(true);
     setSemFim(true);
     setVersaoAte("");
-    const vigente = versoesOrdenadas.find((v) => v.publicadaEm) ?? versoesOrdenadas[0];
-    setVersaoDesde(vigente ? String(vigente.numero) : "");
+    setEncerrando(null);
+    // Abre na versão mais nova (rascunho incluso): cadastrar sigla quase sempre é preparar a
+    // próxima versão. Abrir na v1 fazia a sigla valer também nos projetos antigos quando alguém
+    // esquecia de trocar o seletor.
+    const nova = versaoMaisNova(versoesOrdenadas);
+    setVersaoDesde(nova !== null ? String(nova) : "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aberto, alvo]);
 
@@ -108,12 +115,19 @@ export function SiglasVersaoDialog({
     });
   }
 
-  function encerrar(linha: SiglaRow) {
-    const versaoAtual = versoesOrdenadas.find((v) => v.publicadaEm)?.numero ?? linha.versaoDesde;
+  function pedirEncerramento(linha: SiglaRow) {
+    setEncerrando({ linha, ate: String(versaoAteSugerida(versoesOrdenadas, linha.versaoDesde)) });
+  }
+
+  function confirmarEncerramento() {
+    if (!encerrando) return;
+    const { linha, ate } = encerrando;
     start(async () => {
-      const r = await encerrarSiglaVersao({ id: linha.id, versaoAte: Math.max(versaoAtual, linha.versaoDesde) });
-      if (r.ok) recarregar();
-      else toast.error(r.error);
+      const r = await encerrarSiglaVersao({ id: linha.id, versaoAte: Number(ate) });
+      if (r.ok) {
+        setEncerrando(null);
+        recarregar();
+      } else toast.error(r.error);
     });
   }
 
@@ -172,7 +186,7 @@ export function SiglasVersaoDialog({
                     </TableCell>
                     <TableCell className="text-right">
                       {l.versaoAte === null ? (
-                        <Button size="icon" variant="ghost" className="size-7" aria-label={`Encerrar ${l.sigla} na versão atual`} title="Encerrar nesta versão" disabled={pending} onClick={() => encerrar(l)}>
+                        <Button size="icon" variant="ghost" className="size-7" aria-label={`Encerrar ${l.sigla}`} title="Encerrar (escolher até qual versão vale)" disabled={pending} onClick={() => pedirEncerramento(l)}>
                           <X className="size-3.5" />
                         </Button>
                       ) : (
@@ -190,6 +204,35 @@ export function SiglasVersaoDialog({
             </Table>
           )}
 
+          {encerrando && (
+            <div className="space-y-2 rounded-md border bg-muted/40 p-2.5">
+              <p className="text-xs font-medium">
+                Encerrar <span className="font-mono">{encerrando.linha.sigla}</span>
+              </p>
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="w-48 min-w-0 space-y-1">
+                  <Label className="text-xs">Vale até a</Label>
+                  <Select value={encerrando.ate} onValueChange={(v) => v && setEncerrando({ ...encerrando, ate: v })}>
+                    <SelectTrigger className="w-full text-xs"><SelectValue placeholder="Versão" /></SelectTrigger>
+                    <SelectContent>
+                      {versoesOrdenadas
+                        .filter((v) => v.numero >= encerrando.linha.versaoDesde)
+                        .map((v) => (
+                          <SelectItem key={v.id} value={String(v.numero)}>{rotuloVersao(v)}</SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button size="sm" disabled={pending || !encerrando.ate} onClick={confirmarEncerramento}>Encerrar</Button>
+                <Button size="sm" variant="ghost" disabled={pending} onClick={() => setEncerrando(null)}>Cancelar</Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                A partir da v{Number(encerrando.ate) + 1} a sigla deixa de ser reconhecida. Projetos nas versões anteriores
+                não mudam.
+              </p>
+            </div>
+          )}
+
           <div className="space-y-2 rounded-md border border-dashed p-2.5">
             <p className="text-xs font-medium">Nova sigla</p>
             <div className="flex flex-wrap items-end gap-2">
@@ -200,10 +243,10 @@ export function SiglasVersaoDialog({
               <label className="flex items-center gap-1.5 pb-1.5 text-xs">
                 <Checkbox checked={oficial} onCheckedChange={(v) => setOficial(!!v)} /> oficial
               </label>
-              <div className="w-32 space-y-1">
+              <div className="w-48 min-w-0 space-y-1">
                 <Label className="text-xs">A partir da</Label>
                 <Select value={versaoDesde} onValueChange={(v) => setVersaoDesde(v ?? "")}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Versão" /></SelectTrigger>
+                  <SelectTrigger className="w-full text-xs"><SelectValue placeholder="Versão" /></SelectTrigger>
                   <SelectContent>
                     {versoesOrdenadas.map((v) => (
                       <SelectItem key={v.id} value={String(v.numero)}>{rotuloVersao(v)}</SelectItem>
@@ -219,10 +262,10 @@ export function SiglasVersaoDialog({
               <Checkbox checked={!semFim} onCheckedChange={(v) => setSemFim(!v)} /> tem versão final
             </label>
             {!semFim && (
-              <div className="w-32 space-y-1">
+              <div className="w-48 min-w-0 space-y-1">
                 <Label className="text-xs">Até a versão</Label>
                 <Select value={versaoAte} onValueChange={(v) => setVersaoAte(v ?? "")}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Versão" /></SelectTrigger>
+                  <SelectTrigger className="w-full text-xs"><SelectValue placeholder="Versão" /></SelectTrigger>
                   <SelectContent>
                     {versoesOrdenadas.map((v) => (
                       <SelectItem key={v.id} value={String(v.numero)}>{rotuloVersao(v)}</SelectItem>

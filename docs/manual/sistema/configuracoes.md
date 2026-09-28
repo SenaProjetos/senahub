@@ -39,6 +39,24 @@ lugar.
   **imutável**; corrigi-la é publicar uma versão nova. Um projeto novo recebe a versão
   vigente na data em que é criado; publicar não muda projeto já existente. Publicar avisa
   (sem bloquear) quando uma sigla já significou outra coisa numa versão anterior.
+
+**Montar uma versão nova do padrão (disciplinas, sub-disciplinas, fases e tipos):**
+- Cada disciplina, sub-disciplina e item da Lista Mestre tem **"Vale a partir da / Até a"**:
+  as versões em que ele existe. Fora delas ele não aparece para adicionar em projeto nem em
+  proposta nova, e o envio não o reconhece; o que já está em projeto continua funcionando. Ex.:
+  Cabeamento "até a v1", Entrada de Energia "a partir da v2".
+- Cadastro novo (disciplina, sub-disciplina, item, sigla) já abre na **versão mais nova**.
+  Confira o seletor antes de salvar: "a partir da v1" faz o item valer também nos projetos
+  antigos.
+- **Trocar a sigla** de um item (SPD → PDA) é cadastrar a nova em **"Siglas por versão"**, a
+  partir da versão nova; a antiga se encerra sozinha na versão anterior. Para só **encerrar**
+  uma sigla, clique no X dela e escolha até qual versão ela vale.
+- Depois que um item ganha siglas por versão, os campos de sigla e sinônimos do lápis ficam
+  **travados** (a lista mostra "siglas por versão"): mude-os pelo diálogo de siglas. Salvar o
+  lápis para trocar ícone, nome ou categoria não mexe nas siglas.
+- A mesma sigla não pode ter dois donos na mesma versão. Para passar o SEG do CFTV para
+  Segurança e Alarme, encerre o SEG no CFTV (ou marque o CFTV "até a v1") antes; o sistema
+  diz qual item está usando a sigla.
 - **Documentos padrão** — modelo do Estúdio usado por padrão em cada fonte.
 - **Inputs padrão** — perguntas padrão por disciplina no link do cliente.
 - **Feriados** — calendário (ponto, escala, banco de horas).

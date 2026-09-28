@@ -170,6 +170,10 @@ export const criarDisciplinaCatalogoSchema = z.object({
   /** Siglas alternativas p/ o motor de nomenclatura (ex.: HID aceita HDR, ESG). Normalizadas
    *  (uppercase, dedupe) na action; colisão com outra disciplina é validada lá. */
   sinonimos: z.array(z.string().trim().max(10)).max(10).optional(),
+  /** Validade do card por versão do padrão de nomenclatura (D11). Ausente = na criação, da v1
+   *  em diante; na edição, mantém o que está gravado. `versaoAte` null = sem fim. */
+  versaoDesde: z.number().int().min(1).optional(),
+  versaoAte: z.number().int().min(1).nullable().optional(),
 });
 
 export const editarDisciplinaCatalogoSchema = criarDisciplinaCatalogoSchema.extend({

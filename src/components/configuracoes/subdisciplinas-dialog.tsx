@@ -16,8 +16,18 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { rotuloFaixa, versaoMaisNova } from "@/modules/uploads/nomenclatura/siglas-versao";
+import {
+  ValidadeVersaoCampos,
+  faixaDoForm,
+  faixaParaForm,
+  mostrarValidade,
+  rotuloVersaoOpcao,
+  type FaixaForm,
+} from "@/components/configuracoes/validade-versao-campos";
 
-type Sub = { id: string; nome: string; ativo: boolean; siglaAtual: string | null };
+type Sub = { id: string; nome: string; ativo: boolean; siglaAtual: string | null; versaoDesde: number; versaoAte: number | null };
 
 /**
  * Sub-disciplinas de UM card + acesso às siglas por versão (D7/D11). Aberto a partir da linha
@@ -38,6 +48,9 @@ export function SubdisciplinasDialog({
   const [pending, start] = useTransition();
   const [subs, setSubs] = useState<Sub[] | null>(null);
   const [nome, setNome] = useState("");
+  /** "A partir da" da sub nova — abre na versão mais nova, como as siglas. */
+  const [desde, setDesde] = useState("1");
+  const ordenadas = [...versoes].sort((a, b) => a.numero - b.numero);
   const [editando, setEditando] = useState<Sub | null>(null);
   const [siglasAlvo, setSiglasAlvo] = useState<{ alvo: AlvoSiglaDialog; rotulo: string } | null>(null);
 
@@ -45,6 +58,8 @@ export function SubdisciplinasDialog({
     if (!aberto || !card) return;
     listarSubdisciplinasAction({ disciplinaCatalogoId: card.id }).then((r) => setSubs(r.ok ? r.data : []));
     setNome("");
+    setDesde(String(versaoMaisNova(versoes) ?? 1));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aberto, card]);
 
   function recarregar() {
@@ -56,7 +71,7 @@ export function SubdisciplinasDialog({
   function adicionar() {
     if (!card || !nome.trim()) return;
     start(async () => {
-      const r = await criarSubdisciplina({ disciplinaCatalogoId: card.id, nome: nome.trim() });
+      const r = await criarSubdisciplina({ disciplinaCatalogoId: card.id, nome: nome.trim(), versaoDesde: Number(desde) || 1 });
       if (r.ok) {
         toast.success("Sub-disciplina criada.");
         setNome("");
@@ -104,10 +119,13 @@ export function SubdisciplinasDialog({
                   <li key={s.id} className="flex items-center gap-2 py-1.5 text-sm">
                     {s.siglaAtual && <Badge variant="outline" className="shrink-0 font-mono">{s.siglaAtual}</Badge>}
                     <span className={`min-w-0 flex-1 truncate ${s.ativo ? "" : "text-muted-foreground line-through"}`}>{s.nome}</span>
+                    {rotuloFaixa(s) && (
+                      <Badge variant="outline" className="shrink-0 text-[10px] text-muted-foreground">{rotuloFaixa(s)}</Badge>
+                    )}
                     <Button size="icon" variant="ghost" className="size-7" aria-label={s.ativo ? "Desativar" : "Ativar"} disabled={pending} onClick={() => alternarAtivo(s)}>
                       {s.ativo ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5 text-muted-foreground" />}
                     </Button>
-                    <Button size="icon" variant="ghost" className="size-7" aria-label="Renomear" onClick={() => setEditando(s)}>
+                    <Button size="icon" variant="ghost" className="size-7" aria-label={`Editar ${s.nome}`} title="Nome e versões" onClick={() => setEditando(s)}>
                       <Pencil className="size-3.5" />
                     </Button>
                     <Button size="icon" variant="ghost" className="size-7" aria-label={`Siglas de ${s.nome}`} onClick={() => setSiglasAlvo({ alvo: { tipo: "subdisciplina", id: s.id }, rotulo: `${s.nome} (sub de ${card?.nome})` })}>
@@ -118,11 +136,24 @@ export function SubdisciplinasDialog({
               </ul>
             )}
 
-            <div className="flex items-end gap-2 border-t pt-3">
-              <div className="flex-1 space-y-1">
+            <div className="flex flex-wrap items-end gap-2 border-t pt-3">
+              <div className="min-w-40 flex-1 space-y-1">
                 <Label className="text-xs">Nova sub-disciplina</Label>
                 <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Água Fria" />
               </div>
+              {ordenadas.length > 1 && (
+                <div className="w-40 space-y-1">
+                  <Label className="text-xs">A partir da</Label>
+                  <Select value={desde} onValueChange={(v) => setDesde(v ?? "1")}>
+                    <SelectTrigger className="w-full text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {ordenadas.map((v) => (
+                        <SelectItem key={v.id} value={String(v.numero)}>{rotuloVersaoOpcao(v)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <Button size="icon" aria-label="Adicionar sub-disciplina" disabled={pending || !nome.trim()} onClick={adicionar}>
                 <Plus className="size-4" />
               </Button>
@@ -134,7 +165,7 @@ export function SubdisciplinasDialog({
         </DialogContent>
       </Dialog>
 
-      <RenomearSubDialog sub={editando} onClose={() => { setEditando(null); recarregar(); }} />
+      <EditarSubDialog sub={editando} versoes={versoes} onClose={() => { setEditando(null); recarregar(); }} />
 
       <SiglasVersaoDialog
         aberto={siglasAlvo !== null}
@@ -147,22 +178,24 @@ export function SubdisciplinasDialog({
   );
 }
 
-function RenomearSubDialog({ sub, onClose }: { sub: Sub | null; onClose: () => void }) {
+function EditarSubDialog({ sub, versoes, onClose }: { sub: Sub | null; versoes: VersaoOpcao[]; onClose: () => void }) {
   const [pending, start] = useTransition();
   const [nome, setNome] = useState("");
+  const [faixa, setFaixa] = useState<FaixaForm>({ desde: "1", ate: "" });
   const [lastId, setLastId] = useState<string | null>(null);
 
   if (sub && sub.id !== lastId) {
     setLastId(sub.id);
     setNome(sub.nome);
+    setFaixa(faixaParaForm(sub));
   }
 
   function salvar() {
     if (!sub || !nome.trim()) return;
     start(async () => {
-      const r = await editarSubdisciplina({ id: sub.id, nome: nome.trim(), ativo: sub.ativo });
+      const r = await editarSubdisciplina({ id: sub.id, nome: nome.trim(), ativo: sub.ativo, ...faixaDoForm(faixa) });
       if (r.ok) {
-        toast.success("Sub-disciplina renomeada.");
+        toast.success("Sub-disciplina atualizada.");
         onClose();
       } else toast.error(r.error);
     });
@@ -170,11 +203,14 @@ function RenomearSubDialog({ sub, onClose }: { sub: Sub | null; onClose: () => v
 
   return (
     <Dialog open={!!sub} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader><DialogTitle>Renomear sub-disciplina</DialogTitle></DialogHeader>
-        <div className="space-y-1.5">
-          <Label>Nome</Label>
-          <Input value={nome} onChange={(e) => setNome(e.target.value)} />
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>Editar sub-disciplina</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Nome</Label>
+            <Input value={nome} onChange={(e) => setNome(e.target.value)} />
+          </div>
+          {mostrarValidade(versoes, faixa) && <ValidadeVersaoCampos versoes={versoes} valor={faixa} onChange={setFaixa} />}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>

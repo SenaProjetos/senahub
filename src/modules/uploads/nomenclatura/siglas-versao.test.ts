@@ -2,9 +2,16 @@ import { describe, expect, it } from "vitest";
 import { CATALOGO_SENA } from "@/test/catalogo-nomenclatura";
 import {
   catalogosDaVersao,
+  decidirSiglasAoSalvar,
+  intersecaoFaixas,
+  rotuloFaixa,
   siglasDasColunas,
+  siglasEfetivas,
   siglasNaVersao,
+  siglasSaoEspelho,
   valeNaVersao,
+  versaoAteSugerida,
+  versaoMaisNova,
   type DisciplinaComSiglas,
   type PranchaComSiglas,
   type SiglaLinha,
@@ -39,6 +46,145 @@ describe("siglasDasColunas", () => {
   it("item sem sigla oficial só leva os sinônimos", () => {
     expect(siglasDasColunas(null, ["X"])).toEqual([linha("X", false)]);
     expect(siglasDasColunas("  ", [])).toEqual([]);
+  });
+
+  it("as linhas levam a faixa do item (card novo só a partir da v2)", () => {
+    expect(siglasDasColunas("ENE", ["ENT"], { versaoDesde: 2, versaoAte: null })).toEqual([
+      linha("ENE", true, 2),
+      linha("ENT", false, 2),
+    ]);
+  });
+});
+
+describe("siglasSaoEspelho", () => {
+  const faixa = { versaoDesde: 1, versaoAte: null };
+
+  it("item que nunca passou por 'Siglas por versão' é espelho, em qualquer ordem e caixa", () => {
+    const linhas = [linha("HDR", false), linha("HID", true)];
+    expect(siglasSaoEspelho(linhas, { oficial: "hid", sinonimos: ["hdr"] }, faixa)).toBe(true);
+  });
+
+  it("sem sigla nenhuma também é espelho (nada a preservar)", () => {
+    expect(siglasSaoEspelho([], { oficial: null, sinonimos: [] }, faixa)).toBe(true);
+  });
+
+  it("sigla trocada por versão deixa de ser espelho", () => {
+    const spda = [linha("SPD", true, 1, 1), linha("PDA", true, 2)];
+    expect(siglasSaoEspelho(spda, { oficial: "SPD", sinonimos: [] }, faixa)).toBe(false);
+  });
+
+  it("card criado sem sigla e com SEG pelo diálogo não é espelho das colunas vazias", () => {
+    const seg = [linha("SEG", true, 2)];
+    expect(siglasSaoEspelho(seg, { oficial: null, sinonimos: [] }, { versaoDesde: 2, versaoAte: null })).toBe(false);
+  });
+});
+
+describe("decidirSiglasAoSalvar", () => {
+  const sempre = { versaoDesde: 1, versaoAte: null };
+  // HID com ESG encerrado na v1 (ESG vira a sub Esgoto na v2): as colunas ainda dizem "ESG".
+  const hidVersionado = [linha("HID", true), linha("HDR", false), linha("ESG", false, 1, 1)];
+  const colunasHid = { oficial: "HID", sinonimos: ["HDR", "ESG"] };
+
+  it("salvar o lápis sem mexer na sigla não regrava as siglas por versão (o bug)", () => {
+    expect(
+      decidirSiglasAoSalvar({
+        linhas: hidVersionado,
+        colunasAntes: colunasHid,
+        faixaAntes: sempre,
+        colunasDepois: { oficial: "hid", sinonimos: ["esg", "hdr"] },
+        faixaDepois: sempre,
+      }),
+    ).toBe("manter");
+  });
+
+  it("mudar sigla ou sinônimo pelas colunas de item versionado é bloqueado", () => {
+    expect(
+      decidirSiglasAoSalvar({
+        linhas: hidVersionado,
+        colunasAntes: colunasHid,
+        faixaAntes: sempre,
+        colunasDepois: { oficial: "HID", sinonimos: ["HDR"] },
+        faixaDepois: sempre,
+      }),
+    ).toBe("bloquear");
+  });
+
+  it("mudar só a validade de item versionado mantém as linhas", () => {
+    expect(
+      decidirSiglasAoSalvar({
+        linhas: hidVersionado,
+        colunasAntes: colunasHid,
+        faixaAntes: sempre,
+        colunasDepois: colunasHid,
+        faixaDepois: { versaoDesde: 1, versaoAte: 3 },
+      }),
+    ).toBe("manter");
+  });
+
+  it("item espelho: mudar sigla ou validade regrava; não mudar nada mantém", () => {
+    const log = [linha("LOG", true)];
+    const colunas = { oficial: "LOG", sinonimos: [] };
+    const base = { linhas: log, colunasAntes: colunas, faixaAntes: sempre };
+    expect(decidirSiglasAoSalvar({ ...base, colunasDepois: colunas, faixaDepois: sempre })).toBe("manter");
+    expect(decidirSiglasAoSalvar({ ...base, colunasDepois: { oficial: "CAB", sinonimos: [] }, faixaDepois: sempre })).toBe(
+      "espelhar",
+    );
+    expect(decidirSiglasAoSalvar({ ...base, colunasDepois: colunas, faixaDepois: { versaoDesde: 1, versaoAte: 1 } })).toBe(
+      "espelhar",
+    );
+  });
+});
+
+describe("faixas efetivas", () => {
+  it("intersecaoFaixas trata fim nulo como sem fim e devolve null sem versão em comum", () => {
+    expect(intersecaoFaixas({ versaoDesde: 1, versaoAte: null }, { versaoDesde: 2, versaoAte: null })).toEqual({
+      versaoDesde: 2,
+      versaoAte: null,
+    });
+    expect(intersecaoFaixas({ versaoDesde: 1, versaoAte: null }, { versaoDesde: 1, versaoAte: 1 })).toEqual({
+      versaoDesde: 1,
+      versaoAte: 1,
+    });
+    expect(intersecaoFaixas({ versaoDesde: 2, versaoAte: null }, { versaoDesde: 1, versaoAte: 1 })).toBeNull();
+  });
+
+  it("card CFTV encerrado na v1 não ocupa o SEG da v2, mesmo com a sigla em aberto", () => {
+    const efetivas = siglasEfetivas([linha("SEG", true)], { versaoDesde: 1, versaoAte: 1 });
+    expect(efetivas).toEqual([linha("SEG", true, 1, 1)]);
+  });
+
+  it("sub recortada pela própria validade e pela do card; linha fora de tudo some", () => {
+    const efetivas = siglasEfetivas(
+      [linha("AGF", true), linha("XXX", false, 5)],
+      { versaoDesde: 2, versaoAte: null },
+      { versaoDesde: 1, versaoAte: 3 },
+    );
+    expect(efetivas).toEqual([linha("AGF", true, 2, 3)]);
+  });
+});
+
+describe("versão padrão das telas", () => {
+  const versoes = [{ numero: 1 }, { numero: 2 }];
+
+  it("'a partir da' abre na versão mais nova (rascunho incluso)", () => {
+    expect(versaoMaisNova(versoes)).toBe(2);
+    expect(versaoMaisNova([])).toBeNull();
+  });
+
+  it("'vale até' sugere a anterior à mais nova, sem ficar antes do início da linha", () => {
+    expect(versaoAteSugerida(versoes, 1)).toBe(1);
+    expect(versaoAteSugerida(versoes, 2)).toBe(2);
+    expect(versaoAteSugerida([{ numero: 1 }], 1)).toBe(1);
+  });
+});
+
+describe("rotuloFaixa", () => {
+  it("só rotula o que não vale sempre", () => {
+    expect(rotuloFaixa({ versaoDesde: 1, versaoAte: null })).toBeNull();
+    expect(rotuloFaixa({ versaoDesde: 2, versaoAte: null })).toBe("a partir da v2");
+    expect(rotuloFaixa({ versaoDesde: 1, versaoAte: 1 })).toBe("só na v1");
+    expect(rotuloFaixa({ versaoDesde: 1, versaoAte: 2 })).toBe("até a v2");
+    expect(rotuloFaixa({ versaoDesde: 2, versaoAte: 3 })).toBe("da v2 à v3");
   });
 });
 

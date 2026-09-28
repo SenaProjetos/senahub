@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { siglasSaoEspelho } from "@/modules/uploads/nomenclatura/siglas-versao";
 
 /** Catálogos ativos (folha/tipo/fase): globais + específicos do projeto (se informado). */
 export async function catalogosPrancha(projetoId?: string) {
@@ -22,7 +23,7 @@ export type CatalogosPrancha = Awaited<ReturnType<typeof catalogosPrancha>>;
 
 /** Todos os catálogos (inclui inativos) — para a tela de configuração. */
 export async function catalogosPranchaConfig(projetoId: string | null) {
-  return prisma.pranchaCatalogo.findMany({
+  const rows = await prisma.pranchaCatalogo.findMany({
     where: { projetoId },
     orderBy: [{ categoria: "asc" }, { ordem: "asc" }, { sigla: "asc" }],
     select: {
@@ -36,8 +37,14 @@ export async function catalogosPranchaConfig(projetoId: string | null) {
       sinonimos: true,
       versaoDesde: true,
       versaoAte: true,
+      siglas: { select: { sigla: true, oficial: true, versaoDesde: true, versaoAte: true } },
     },
   });
+  return rows.map(({ siglas, ...r }) => ({
+    ...r,
+    // Siglas definidas por versão: o formulário trava sigla/sinônimos (ver `decidirSiglasAoSalvar`).
+    siglasPorVersao: !siglasSaoEspelho(siglas, { oficial: r.sigla, sinonimos: r.sinonimos }, r),
+  }));
 }
 
 export type PranchaCatalogoRow = Awaited<ReturnType<typeof catalogosPranchaConfig>>[number];

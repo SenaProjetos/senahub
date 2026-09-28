@@ -5,11 +5,19 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { normalizarSinonimos, primeiraColisao } from "@/modules/uploads/nomenclatura/colisao-sinonimo";
-import { sincronizarSiglasV1 } from "@/modules/uploads/nomenclatura/siglas-service";
+import { espelharSiglasDasColunas } from "@/modules/uploads/nomenclatura/siglas-service";
+import { decidirSiglasAoSalvar, siglasDasColunas, type FaixaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
+import { garantirFaixaVersao, garantirSiglasSemColisao } from "@/modules/uploads/nomenclatura/siglas-guardas";
 
 const base = { modulo: "configuracoes", recurso: "configuracoes", permissao: "gerir" } as const;
 const categoria = z.enum(["folha", "tipo", "fase"]);
 const sinonimosSchema = z.array(z.string().trim().max(10)).max(10).optional();
+/** Validade do item por versão do padrão (D11). Ausente = na criação, da v1 em diante; na edição,
+ *  mantém o gravado (o olho de ativar/desativar não manda). `versaoAte` null = sem fim. */
+const faixaSchema = {
+  versaoDesde: z.number().int().min(1).optional(),
+  versaoAte: z.number().int().min(1).nullable().optional(),
+};
 
 function rev() {
   revalidatePath("/configuracoes/lista-mestre");
@@ -48,13 +56,22 @@ export const criarCatalogoPrancha = defineAction(
       nome: z.string().min(1).max(80),
       projetoId: z.string().optional(),
       sinonimos: sinonimosSchema,
+      ...faixaSchema,
     }),
   },
   async (i) => {
     const sigla = i.sigla.toUpperCase();
     const projetoId = i.projetoId ?? null;
     const sinonimos = normalizarSinonimos(sigla, i.sinonimos ?? []);
+    // Sigla própria de projeto não tem validade por versão: o projeto segue uma versão só.
+    const faixa: FaixaVersao = projetoId ? { versaoDesde: 1, versaoAte: null } : { versaoDesde: i.versaoDesde ?? 1, versaoAte: i.versaoAte ?? null };
+    await garantirFaixaVersao(faixa);
     await garantirSemColisaoPrancha(i.categoria, projetoId, { sigla, sinonimos }, null);
+    await garantirSiglasSemColisao(
+      { tipo: "prancha", id: null, faixa },
+      { tipo: "prancha", categoria: i.categoria, projetoId },
+      siglasDasColunas(sigla, sinonimos, faixa),
+    );
     const max = await prisma.pranchaCatalogo.aggregate({
       where: { categoria: i.categoria, projetoId },
       _max: { ordem: true },
@@ -67,10 +84,11 @@ export const criarCatalogoPrancha = defineAction(
           nome: i.nome,
           projetoId,
           sinonimos,
+          ...faixa,
           ordem: (max._max.ordem ?? -1) + 1,
         },
       });
-      await sincronizarSiglasV1(tx, { tipo: "prancha", id: criado.id, categoria: i.categoria, sigla, sinonimos });
+      await espelharSiglasDasColunas(tx, { tipo: "prancha", id: criado.id, categoria: i.categoria, sigla, sinonimos }, faixa);
       return criado;
     });
     rev();
@@ -89,23 +107,61 @@ export const editarCatalogoPrancha = defineAction(
       nome: z.string().min(1).max(80),
       ativo: z.boolean(),
       sinonimos: sinonimosSchema,
+      ...faixaSchema,
     }),
   },
   async (i) => {
     const existe = await prisma.pranchaCatalogo.findUnique({
       where: { id: i.id },
-      select: { categoria: true, projetoId: true },
+      select: {
+        nome: true,
+        categoria: true,
+        projetoId: true,
+        sigla: true,
+        sinonimos: true,
+        versaoDesde: true,
+        versaoAte: true,
+        siglas: { select: { sigla: true, oficial: true, versaoDesde: true, versaoAte: true } },
+      },
     });
     if (!existe) throw new ActionError("Sigla não encontrada.");
     const sigla = i.sigla.toUpperCase();
     const sinonimos = normalizarSinonimos(sigla, i.sinonimos ?? []);
+    const faixaAntes: FaixaVersao = { versaoDesde: existe.versaoDesde, versaoAte: existe.versaoAte };
+    const faixa: FaixaVersao = existe.projetoId
+      ? faixaAntes
+      : { versaoDesde: i.versaoDesde ?? existe.versaoDesde, versaoAte: i.versaoAte === undefined ? existe.versaoAte : i.versaoAte };
+    await garantirFaixaVersao(faixa);
+    // Item com siglas por versão (PL → PRE na v2): o formulário e o olho de ativar/desativar só
+    // regravam as siglas se elas ainda forem o espelho das colunas — ver `decidirSiglasAoSalvar`.
+    const siglas = decidirSiglasAoSalvar({
+      linhas: existe.siglas,
+      colunasAntes: { oficial: existe.sigla, sinonimos: existe.sinonimos },
+      faixaAntes,
+      colunasDepois: { oficial: sigla, sinonimos },
+      faixaDepois: faixa,
+    });
+    if (siglas === "bloquear") {
+      throw new ActionError(
+        `As siglas de “${existe.nome}” já são definidas por versão. Para mudar a sigla ou os sinônimos, use “Siglas por versão” na linha dele.`,
+      );
+    }
     await garantirSemColisaoPrancha(existe.categoria, existe.projetoId, { sigla, sinonimos }, i.id);
+    if (siglas === "espelhar") {
+      await garantirSiglasSemColisao(
+        { tipo: "prancha", id: i.id, faixa },
+        { tipo: "prancha", categoria: existe.categoria, projetoId: existe.projetoId },
+        siglasDasColunas(sigla, sinonimos, faixa),
+      );
+    }
     await prisma.$transaction(async (tx) => {
       await tx.pranchaCatalogo.update({
         where: { id: i.id },
-        data: { sigla, nome: i.nome, ativo: i.ativo, sinonimos },
+        data: { sigla, nome: i.nome, ativo: i.ativo, sinonimos, ...faixa },
       });
-      await sincronizarSiglasV1(tx, { tipo: "prancha", id: i.id, categoria: existe.categoria, sigla, sinonimos });
+      if (siglas === "espelhar") {
+        await espelharSiglasDasColunas(tx, { tipo: "prancha", id: i.id, categoria: existe.categoria, sigla, sinonimos }, faixa);
+      }
     });
     rev();
     return { id: i.id };

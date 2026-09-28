@@ -22,6 +22,24 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Padrão de nomenclatura: validade por versão e siglas que não se perdem
+
+Para montar a versão nova do padrão de nomes de arquivo em **Configurações**:
+
+- **Disciplinas, sub-disciplinas e fases/tipos da Lista Mestre** agora têm **"Vale a partir da /
+  Até a"**. Dá para dizer que Cabeamento vale só até a v1 e que Entrada de Energia existe a partir
+  da v2 — fora da faixa, o item some de "adicionar disciplina" e da proposta nova.
+- Cadastro novo e "Siglas por versão" **abrem na versão mais nova**, e encerrar uma sigla
+  pergunta **até qual versão** ela vale.
+- **Correção:** salvar uma disciplina ou item pelo lápis (ou ativar/desativar) desfazia as siglas
+  definidas por versão. Agora, quando o item tem siglas por versão, a sigla e os sinônimos do lápis
+  ficam travados e só mudam pelo diálogo de siglas.
+- Quando uma sigla já está em uso na mesma versão, o aviso diz **qual item** a está usando.
+
+Detalhes em [Configurações](sistema/configuracoes.md).
+
+---
+
 ## Ponto no celular: escolha a tarefa também
 
 No celular, o cartão de ponto do **Início** e da tela **Ponto** agora deixa dizer **em qual tarefa**

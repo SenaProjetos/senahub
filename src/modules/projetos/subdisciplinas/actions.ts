@@ -5,12 +5,21 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { subdisciplinasDoCard } from "./queries";
+import { garantirFaixaVersao } from "@/modules/uploads/nomenclatura/siglas-guardas";
+import type { FaixaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
 
 const base = { modulo: "configuracoes", recurso: "configuracoes", permissao: "gerir" } as const;
 
 function rev() {
   revalidatePath("/configuracoes/disciplinas");
 }
+
+/** Validade da sub por versão do padrão (D11). Na edição, ausente = mantém a gravada (o olho de
+ *  ativar/desativar não manda). `versaoAte` null = sem fim. */
+const faixaSchema = {
+  versaoDesde: z.number().int().min(1).optional(),
+  versaoAte: z.number().int().min(1).nullable().optional(),
+};
 
 export const listarSubdisciplinasAction = defineAction(
   { ...base, acao: "listar-subdisciplinas", audit: false, schema: z.object({ disciplinaCatalogoId: z.string().min(1) }) },
@@ -22,10 +31,12 @@ export const criarSubdisciplina = defineAction(
     ...base,
     acao: "criar-subdisciplina",
     entidade: "SubdisciplinaCatalogo",
-    schema: z.object({ disciplinaCatalogoId: z.string().min(1), nome: z.string().trim().min(1).max(80) }),
+    schema: z.object({ disciplinaCatalogoId: z.string().min(1), nome: z.string().trim().min(1).max(80), ...faixaSchema }),
     entidadeId: (d) => (d as { id: string }).id,
   },
   async (i) => {
+    const faixa: FaixaVersao = { versaoDesde: i.versaoDesde ?? 1, versaoAte: i.versaoAte ?? null };
+    await garantirFaixaVersao(faixa);
     const existe = await prisma.subdisciplinaCatalogo.findUnique({
       where: { disciplinaCatalogoId_nome: { disciplinaCatalogoId: i.disciplinaCatalogoId, nome: i.nome } },
       select: { id: true },
@@ -36,7 +47,7 @@ export const criarSubdisciplina = defineAction(
       _max: { ordem: true },
     });
     const criada = await prisma.subdisciplinaCatalogo.create({
-      data: { disciplinaCatalogoId: i.disciplinaCatalogoId, nome: i.nome, ordem: (max._max.ordem ?? -1) + 1 },
+      data: { disciplinaCatalogoId: i.disciplinaCatalogoId, nome: i.nome, ...faixa, ordem: (max._max.ordem ?? -1) + 1 },
     });
     rev();
     return { id: criada.id };
@@ -49,18 +60,26 @@ export const editarSubdisciplina = defineAction(
     acao: "editar-subdisciplina",
     entidade: "SubdisciplinaCatalogo",
     entidadeId: (_d, i) => i.id,
-    schema: z.object({ id: z.string().min(1), nome: z.string().trim().min(1).max(80), ativo: z.boolean() }),
+    schema: z.object({ id: z.string().min(1), nome: z.string().trim().min(1).max(80), ativo: z.boolean(), ...faixaSchema }),
     capturarAntes: (i) => prisma.subdisciplinaCatalogo.findUnique({ where: { id: i.id } }),
   },
   async (i) => {
-    const existe = await prisma.subdisciplinaCatalogo.findUnique({ where: { id: i.id }, select: { disciplinaCatalogoId: true } });
+    const existe = await prisma.subdisciplinaCatalogo.findUnique({
+      where: { id: i.id },
+      select: { disciplinaCatalogoId: true, versaoDesde: true, versaoAte: true },
+    });
     if (!existe) throw new ActionError("Sub-disciplina não encontrada.");
+    const faixa: FaixaVersao = {
+      versaoDesde: i.versaoDesde ?? existe.versaoDesde,
+      versaoAte: i.versaoAte === undefined ? existe.versaoAte : i.versaoAte,
+    };
+    await garantirFaixaVersao(faixa);
     const conflito = await prisma.subdisciplinaCatalogo.findFirst({
       where: { disciplinaCatalogoId: existe.disciplinaCatalogoId, nome: i.nome, id: { not: i.id } },
       select: { id: true },
     });
     if (conflito) throw new ActionError(`"${i.nome}" já existe neste card.`);
-    await prisma.subdisciplinaCatalogo.update({ where: { id: i.id }, data: { nome: i.nome, ativo: i.ativo } });
+    await prisma.subdisciplinaCatalogo.update({ where: { id: i.id }, data: { nome: i.nome, ativo: i.ativo, ...faixa } });
     rev();
     return { id: i.id };
   },
