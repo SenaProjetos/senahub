@@ -4,7 +4,8 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 
 type Opts = {
   zoom: number;
-  setZoom: (fn: (z: number) => number) => void;
+  /** Recebe também o meio dos dedos, para o zoom manter aquele ponto parado (`useZoomAncorado`). */
+  setZoom: (fn: (z: number) => number, foco?: { clientX: number; clientY: number }) => void;
   min: number;
   max: number;
 };
@@ -57,7 +58,8 @@ export function usePinchZoom(containerRef: RefObject<HTMLElement | null>, opts: 
       const { min, max, setZoom } = optsRef.current;
       const fator = d / distanciaInicial.current;
       const novo = Math.min(max, Math.max(min, +(zoomInicial.current * fator).toFixed(2)));
-      setZoom(() => novo);
+      const [a, b] = [...pointers.current.values()];
+      setZoom(() => novo, { clientX: (a.x + b.x) / 2, clientY: (a.y + b.y) / 2 });
     }
     function onFim(e: PointerEvent) {
       pointers.current.delete(e.pointerId);

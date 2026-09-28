@@ -9,6 +9,8 @@ import { BarraBuscaPdf } from "@/components/pdf/barra-busca-pdf";
 import { usePdfCamadas } from "@/components/pdf/use-pdf-camadas";
 import { CamadasPdf } from "@/components/pdf/camadas-pdf";
 import { usePinchZoom } from "@/components/pdf/use-pinch-zoom";
+import { useZoomAncorado } from "@/components/pdf/use-zoom-ancorado";
+import { passoZoom, ZOOM_PDF_MAX, ZOOM_PDF_MIN, zoomPelaRodaPdf } from "@/lib/pdf-zoom";
 
 // pdf.js é carregado dinamicamente no cliente (evita SSR e mantém o chunk fora do bundle inicial).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -25,18 +27,15 @@ export function DocumentoViewer({ url }: { url: string }) {
   const [numPages, setNumPages] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
   const [larguraAlvo, setLarguraAlvo] = useState(800);
-  const [zoom, setZoom] = useState(1);
   const colunaRef = useRef<HTMLDivElement | null>(null);
   const paginaRefs = useRef(new Map<number, HTMLDivElement>());
 
-  const ZOOM_MIN = 0.5;
-  const ZOOM_MAX = 5;
-  const ajustarZoom = useCallback((delta: number) => {
-    setZoom((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(z + delta).toFixed(2))));
-  }, []);
+  // Até 2000%, mantendo parado o ponto sob o cursor/dedos (`lib/pdf-zoom.ts`).
+  const { zoom, setZoom } = useZoomAncorado(colunaRef);
+  const ajustarZoom = useCallback((direcao: 1 | -1) => setZoom((z) => passoZoom(z, direcao)), [setZoom]);
   // Zoom por pinça de 2 dedos (item 34-touch). Sem pan por arraste aqui (usa scroll nativo do
   // navegador, ao contrário do PdfViewer) — só a pinça é custom.
-  usePinchZoom(colunaRef, { zoom, setZoom, min: ZOOM_MIN, max: ZOOM_MAX });
+  usePinchZoom(colunaRef, { zoom, setZoom, min: ZOOM_PDF_MIN, max: ZOOM_PDF_MAX });
 
   const busca = usePdfBusca(numPages);
   const camadas = usePdfCamadas(pdf);
@@ -86,11 +85,11 @@ export function DocumentoViewer({ url }: { url: string }) {
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
-      ajustarZoom(e.deltaY < 0 ? 0.2 : -0.2);
+      setZoom((z) => zoomPelaRodaPdf(z, e.deltaY), { clientX: e.clientX, clientY: e.clientY });
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [ajustarZoom]);
+  }, [setZoom]);
 
   // Ao navegar pra uma ocorrência: rola até a página e, na sequência, até a marca exata.
   useEffect(() => {
@@ -124,11 +123,11 @@ export function DocumentoViewer({ url }: { url: string }) {
           </>
         )}
         <div className="mx-1 h-5 w-px bg-border" />
-        <Button variant="outline" size="icon" className="size-7" onClick={() => ajustarZoom(-0.2)} aria-label="Diminuir zoom">
+        <Button variant="outline" size="icon" className="size-7" onClick={() => ajustarZoom(-1)} disabled={zoom <= ZOOM_PDF_MIN} aria-label="Diminuir zoom">
           <ZoomOut className="size-3.5" />
         </Button>
         <span className="w-12 text-center text-xs tabular-nums text-muted-foreground">{Math.round(zoom * 100)}%</span>
-        <Button variant="outline" size="icon" className="size-7" onClick={() => ajustarZoom(0.2)} aria-label="Aumentar zoom">
+        <Button variant="outline" size="icon" className="size-7" onClick={() => ajustarZoom(1)} disabled={zoom >= ZOOM_PDF_MAX} aria-label="Aumentar zoom">
           <ZoomIn className="size-3.5" />
         </Button>
       </div>
@@ -147,7 +146,10 @@ export function DocumentoViewer({ url }: { url: string }) {
             <Loader2 className="size-4 animate-spin" /> Carregando PDF…
           </p>
         ) : (
-          <div className="flex flex-col items-center gap-3">
+          // Sem `items-center`: página maior que a coluna seria centralizada para os dois lados
+          // e a parte esquerda ficaria fora do alcance da rolagem. O `mx-auto` da página centraliza
+          // quando cabe.
+          <div className="flex flex-col gap-3">
             {Array.from({ length: numPages }, (_, i) => i + 1).map((n) => (
               <PdfPagina
                 key={n}
@@ -157,7 +159,7 @@ export function DocumentoViewer({ url }: { url: string }) {
                 }}
                 pdf={pdf}
                 pagina={n}
-                largura={larguraAlvo * zoom}
+                largura={Math.round(larguraAlvo * zoom)}
                 onTexto={busca.registrarTexto}
                 marcas={busca.ocorrenciasPorPagina(n)}
                 ocgConfig={camadas.config}

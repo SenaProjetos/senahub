@@ -93,6 +93,8 @@ import { BarraBuscaPdf } from "@/components/pdf/barra-busca-pdf";
 import { usePdfCamadas } from "@/components/pdf/use-pdf-camadas";
 import { CamadasPdf } from "@/components/pdf/camadas-pdf";
 import { usePinchZoom } from "@/components/pdf/use-pinch-zoom";
+import { useZoomAncorado } from "@/components/pdf/use-zoom-ancorado";
+import { passoZoom, ZOOM_PDF_MAX, ZOOM_PDF_MIN, zoomPelaRodaPdf } from "@/lib/pdf-zoom";
 import { usePresencaDocumento } from "@/components/pdf/use-presenca-documento";
 import { Breadcrumb } from "@/components/shell/breadcrumb";
 import { BadgeExtensao } from "@/components/projetos/arquivos/badge-extensao";
@@ -361,7 +363,9 @@ export function PdfViewer(props: Props) {
   const [numPages, setNumPages] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
   const [larguraAlvo, setLarguraAlvo] = useState(900);
-  const [zoom, setZoom] = useState(1);
+  const colunaRef = useRef<HTMLDivElement | null>(null);
+  // Até 2000%, mantendo parado o ponto sob o cursor/dedos (`lib/pdf-zoom.ts`).
+  const { zoom, setZoom } = useZoomAncorado(colunaRef);
   /** Giro só de leitura (0|90|180|270) — ver a trava de coordenadas em `Pagina`. */
   const [rotacao, setRotacao] = useState<Giro>(0);
   const [emTelaCheia, setEmTelaCheia] = useState(false);
@@ -369,11 +373,7 @@ export function PdfViewer(props: Props) {
   const [arrastando, setArrastando] = useState(false);
   const panRef = useRef<{ sx: number; sy: number; left: number; top: number } | null>(null);
 
-  const ZOOM_MIN = 0.5;
-  const ZOOM_MAX = 5;
-  const ajustarZoom = useCallback((delta: number) => {
-    setZoom((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(z + delta).toFixed(2))));
-  }, []);
+  const ajustarZoom = useCallback((direcao: 1 | -1) => setZoom((z) => passoZoom(z, direcao)), [setZoom]);
 
   const [pendencias, setPendencias] = useState<PendenciaView[]>(props.pendenciasIniciais);
   // "Em aberto" = aberta OU em_correcao (item 22): quem assumiu a correção ainda tem trabalho
@@ -513,10 +513,9 @@ export function PdfViewer(props: Props) {
   const [replicarId, setReplicarId] = useState<string | null>(null);
   const [replicarDestinos, setReplicarDestinos] = useState<Set<string>>(new Set());
 
-  const colunaRef = useRef<HTMLDivElement | null>(null);
   const paginaRefs = useRef(new Map<number, HTMLDivElement>());
   // Zoom por pinça de 2 dedos (item 34-touch) — pan de 1 dedo já existia via Pointer Events.
-  const pinch = usePinchZoom(colunaRef, { zoom, setZoom, min: ZOOM_MIN, max: ZOOM_MAX });
+  const pinch = usePinchZoom(colunaRef, { zoom, setZoom, min: ZOOM_PDF_MIN, max: ZOOM_PDF_MAX });
 
   // ── Carrega o documento ──────────────────────────────────────
   useEffect(() => {
@@ -566,11 +565,11 @@ export function PdfViewer(props: Props) {
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
-      ajustarZoom(e.deltaY < 0 ? 0.2 : -0.2);
+      setZoom((z) => zoomPelaRodaPdf(z, e.deltaY), { clientX: e.clientX, clientY: e.clientY });
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [ajustarZoom]);
+  }, [setZoom]);
 
   const irParaPagina = useCallback((pagina: number) => {
     const alvo = paginaRefs.current.get(pagina);
@@ -637,7 +636,7 @@ export function PdfViewer(props: Props) {
         });
       });
     },
-    [irParaPagina],
+    [irParaPagina, setZoom],
   );
 
   const selecionarPendencia = useCallback(
@@ -1455,8 +1454,8 @@ export function PdfViewer(props: Props) {
               size="icon"
               variant="ghost"
               className="size-7"
-              onClick={() => ajustarZoom(-0.25)}
-              disabled={zoom <= ZOOM_MIN}
+              onClick={() => ajustarZoom(-1)}
+              disabled={zoom <= ZOOM_PDF_MIN}
               aria-label="Diminuir zoom"
               title="Diminuir zoom"
             >
@@ -1474,8 +1473,8 @@ export function PdfViewer(props: Props) {
               size="icon"
               variant="ghost"
               className="size-7"
-              onClick={() => ajustarZoom(0.25)}
-              disabled={zoom >= ZOOM_MAX}
+              onClick={() => ajustarZoom(1)}
+              disabled={zoom >= ZOOM_PDF_MAX}
               aria-label="Aumentar zoom"
               title="Aumentar zoom"
             >
@@ -2700,8 +2699,16 @@ function Pagina({
           ? { w: dimVisivel.h, h: dimVisivel.w, wPt: dimVisivel.hPt, hPt: dimVisivel.wPt }
           : dimVisivel;
         dimPtRef.current = { wPt: dim.wPt, hPt: dim.hPt };
+        // Em % da caixa visível (não em px): no zoom a caixa muda na hora e `dim` só depois do
+        // desenho — em px, a camada girada ficaria do tamanho antigo nesse intervalo.
         const estiloGiro: React.CSSProperties | undefined = rotacao
-          ? { width: dim.w, height: dim.h, left: "50%", top: "50%", transform: `translate(-50%, -50%) rotate(${rotacao}deg)` }
+          ? {
+              width: `${(dim.w / dimVisivel.w) * 100}%`,
+              height: `${(dim.h / dimVisivel.h) * 100}%`,
+              left: "50%",
+              top: "50%",
+              transform: `translate(-50%, -50%) rotate(${rotacao}deg)`,
+            }
           : undefined;
         return (
         <div

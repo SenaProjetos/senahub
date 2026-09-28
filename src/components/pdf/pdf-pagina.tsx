@@ -2,6 +2,14 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ItemPagina } from "@/lib/pdf-busca";
+import {
+  escalaDoCanvas,
+  MAX_PIXELS_DETALHE,
+  MAX_PIXELS_PAGINA,
+  MAX_PIXELS_PAGINA_TOQUE,
+  precisaDetalhe,
+  regiaoDetalhe,
+} from "@/lib/pdf-zoom";
 import { posicaoNormalizadaItem } from "@/modules/projetos/pendencias/ancora";
 
 // pdf.js é carregado dinamicamente no cliente pelo componente pai (evita SSR e mantém o
@@ -52,6 +60,35 @@ type Props = {
   rotacao?: 0 | 90 | 180 | 270;
 };
 
+/** Densidade da tela, com teto 2 (acima disso o ganho não paga a memória). */
+function dprDaTela(): number {
+  return Math.min(window.devicePixelRatio || 1, 2);
+}
+
+/** Aparelho de toque tem menos memória para canvas (iOS recusa acima de ~16,7 Mpx). */
+function maxPixelsPagina(): number {
+  return window.matchMedia?.("(pointer: coarse)").matches ? MAX_PIXELS_PAGINA_TOQUE : MAX_PIXELS_PAGINA;
+}
+
+/** Primeiro ancestral que rola — é o "visor" da página. Sem nenhum, vale a janela. */
+function ancestralRolavel(el: HTMLElement): HTMLElement | null {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const { overflowX, overflowY } = getComputedStyle(p);
+    if (/(auto|scroll)/.test(overflowX + overflowY)) return p;
+  }
+  return null;
+}
+
+/** Copia o que foi desenhado fora da tela para o canvas visível, de uma vez (sem piscar em branco). */
+function transferir(de: HTMLCanvasElement, para: HTMLCanvasElement) {
+  para.width = de.width;
+  para.height = de.height;
+  para.getContext("2d")?.drawImage(de, 0, 0);
+  // Solta a memória do canvas temporário já, sem esperar o coletor de lixo.
+  de.width = 0;
+  de.height = 0;
+}
+
 /**
  * Canvas + camada de texto (pdf.js `TextLayer`) de UMA página, compartilhado entre
  * `PdfViewer` (prancha + apontamentos) e `DocumentoViewer` (somente-leitura). Antes desta
@@ -59,11 +96,27 @@ type Props = {
  *
  * Pinta as marcas de busca com `<mark>` via DOM API (createTextNode/createElement) — nunca
  * `innerHTML`: o texto vem do PDF e não é confiável como HTML.
+ *
+ * **Zoom alto (até 2000%, `lib/pdf-zoom.ts`).** A página inteira vai para um canvas de
+ * resolução limitada; quando esse limite deixa a página abaixo da densidade da tela, um segundo
+ * canvas desenha SÓ o trecho visível em resolução cheia, e é refeito ao rolar/arrastar. O
+ * tamanho da caixa segue `largura` na hora (proporção da última renderização), com o desenho
+ * antigo esticado até o novo ficar pronto: o zoom responde no clique e quem chama consegue
+ * manter o ponto sob o cursor parado, porque o layout já mudou quando o efeito dele roda.
  */
 export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, ocgConfig, ocgVersao, rotacao = 0, children }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const detalheRef = useRef<HTMLCanvasElement | null>(null);
+  const caixaRef = useRef<HTMLDivElement | null>(null);
   const textLayerRef = useRef<HTMLDivElement | null>(null);
   const [dim, setDim] = useState<{ w: number; h: number; wPt: number; hPt: number } | null>(null);
+  /** altura/largura da página (com giro). Conhecida, a caixa acompanha `largura` sem esperar o desenho. */
+  const [proporcao, setProporcao] = useState<number | null>(null);
+  /** Sobe a cada página inteira desenhada; o trecho em detalhe é refeito em seguida. */
+  const [versaoBase, setVersaoBase] = useState(0);
+  const [comDetalhe, setComDetalhe] = useState(false);
+  /** Giro com que o detalhe atual foi desenhado — com outro giro ele estaria no lugar errado. */
+  const giroDetalheRef = useRef(rotacao);
 
   // Sobrevive entre a troca de `marcas` sem precisar re-render da página inteira.
   const textDivsRef = useRef<HTMLElement[] | null>(null);
@@ -125,21 +178,33 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
         const viewport = page.getViewport({ scale, rotation: rotacao });
         const canvas = canvasRef.current;
         if (!canvas || cancelado) return;
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        canvas.width = Math.floor(viewport.width * dpr);
-        canvas.height = Math.floor(viewport.height * dpr);
-        canvas.style.width = `${Math.floor(viewport.width)}px`;
-        canvas.style.height = `${Math.floor(viewport.height)}px`;
-        const ctx = canvas.getContext("2d");
+        setProporcao(viewport.height / viewport.width);
+        // Girou: o detalhe desenhado com o giro antigo está no lugar errado até ser refeito.
+        if (giroDetalheRef.current !== rotacao && detalheRef.current) detalheRef.current.style.display = "none";
+        const dpr = dprDaTela();
+        const escala = escalaDoCanvas(viewport.width, viewport.height, dpr, maxPixelsPagina());
+        // Desenha fora da tela e só então troca: o desenho anterior (esticado) fica à vista
+        // enquanto o novo não termina, em vez de a página piscar em branco a cada zoom.
+        const fora = document.createElement("canvas");
+        fora.width = Math.floor(viewport.width * escala);
+        fora.height = Math.floor(viewport.height * escala);
+        const ctx = fora.getContext("2d");
         if (!ctx) return;
         renderTask = page.render({
           canvasContext: ctx,
           viewport,
-          transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined,
+          transform: escala !== 1 ? [escala, 0, 0, escala, 0, 0] : undefined,
           optionalContentConfigPromise: ocgConfig ? Promise.resolve(ocgConfig) : undefined,
         });
         await renderTask.promise;
-        if (cancelado) return;
+        if (cancelado) {
+          fora.width = 0;
+          fora.height = 0;
+          return;
+        }
+        transferir(fora, canvas);
+        setComDetalhe(precisaDetalhe(escala, dpr));
+        setVersaoBase((v) => v + 1);
         // `wPt`/`hPt` são as dimensões do viewport em escala 1 — ou seja, a página em PONTOS
         // do PDF, com `/Rotate` JÁ aplicado (espaço visual). É o que a medição (item 28)
         // precisa: usar a MediaBox não rotacionada erraria 41% numa prancha /Rotate 270.
@@ -211,9 +276,111 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pdf, pagina, largura, ocgVersao, rotacao]);
 
+  // Trecho visível em resolução cheia (só quando a página inteira ficou abaixo da densidade da
+  // tela). Refeito depois de cada página inteira desenhada e, com uma pausa curta, ao rolar.
+  useEffect(() => {
+    const detalhe = detalheRef.current;
+    const caixa = caixaRef.current;
+    if (!detalhe || !caixa) return;
+    if (!comDetalhe) {
+      detalhe.style.display = "none";
+      detalhe.width = 0;
+      detalhe.height = 0;
+      return;
+    }
+    const visor = ancestralRolavel(caixa);
+    let cancelado = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let tarefa: any;
+
+    async function desenhar() {
+      try {
+        tarefa?.cancel?.();
+      } catch {
+        /* noop */
+      }
+      if (!caixa || !detalhe) return;
+      const rp = caixa.getBoundingClientRect();
+      const rv = visor ? visor.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+      const reg = regiaoDetalhe({ pagina: rp, visor: rv, dpr: dprDaTela(), maxPixels: MAX_PIXELS_DETALHE });
+      if (!reg || rp.width <= 0) return;
+      try {
+        const page = await pdf.getPage(pagina);
+        if (cancelado) return;
+        const base = page.getViewport({ scale: 1, rotation: rotacao });
+        // Escala pela caixa MEDIDA: é nela que o trecho foi calculado.
+        const viewport = page.getViewport({ scale: rp.width / base.width, rotation: rotacao });
+        const fora = document.createElement("canvas");
+        fora.width = Math.max(1, Math.floor(reg.w * reg.escala));
+        fora.height = Math.max(1, Math.floor(reg.h * reg.escala));
+        const ctx = fora.getContext("2d");
+        if (!ctx) return;
+        const e = reg.escala;
+        tarefa = page.render({
+          canvasContext: ctx,
+          viewport,
+          // Leva o canto do trecho para a origem do canvas; o que cai fora é recortado.
+          transform: [e, 0, 0, e, -reg.x * e, -reg.y * e],
+          optionalContentConfigPromise: ocgConfig ? Promise.resolve(ocgConfig) : undefined,
+        });
+        await tarefa.promise;
+        if (cancelado) {
+          fora.width = 0;
+          fora.height = 0;
+          return;
+        }
+        transferir(fora, detalhe);
+        // Em % da página: num zoom seguinte o trecho estica junto com a página até ser refeito.
+        detalhe.style.left = `${(reg.x / rp.width) * 100}%`;
+        detalhe.style.top = `${(reg.y / rp.height) * 100}%`;
+        detalhe.style.width = `${(reg.w / rp.width) * 100}%`;
+        detalhe.style.height = `${(reg.h / rp.height) * 100}%`;
+        detalhe.style.display = "block";
+        giroDetalheRef.current = rotacao;
+      } catch (err) {
+        // Cancelar o desenho (rolou de novo, zoom mudou) dispara exceção esperada.
+        if (!cancelado) console.debug("[pdf-pagina] falha no detalhe pág.", pagina, err);
+      }
+    }
+
+    const agendar = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => void desenhar(), 150);
+    };
+    agendar();
+    const alvo: HTMLElement | Window = visor ?? window;
+    alvo.addEventListener("scroll", agendar, { passive: true });
+    window.addEventListener("resize", agendar);
+    return () => {
+      cancelado = true;
+      clearTimeout(timer);
+      alvo.removeEventListener("scroll", agendar);
+      window.removeEventListener("resize", agendar);
+      try {
+        tarefa?.cancel?.();
+      } catch {
+        /* noop */
+      }
+    };
+    // `versaoBase` cobre largura/giro/camadas: toda página inteira nova refaz o detalhe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comDetalhe, versaoBase]);
+
   return (
-    <div ref={registrar} className="relative mx-auto shadow-sm" style={{ width: dim?.w }}>
-      <canvas ref={canvasRef} className="block bg-white" />
+    <div
+      ref={(el) => {
+        caixaRef.current = el;
+        registrar?.(el);
+      }}
+      data-pdf-pagina={pagina}
+      className="relative mx-auto shadow-sm"
+      style={{ width: largura, height: proporcao ? Math.round(largura * proporcao) : undefined }}
+    >
+      {/* Antes da primeira medida o canvas fica no tamanho natural; depois, preenche a caixa
+          (e estica o desenho anterior durante um zoom, até o novo ficar pronto). */}
+      <canvas ref={canvasRef} className={proporcao ? "block size-full bg-white" : "block bg-white"} />
+      <canvas ref={detalheRef} className="pointer-events-none absolute hidden" aria-hidden />
       <div ref={textLayerRef} className="textLayer" style={{ width: dim?.w, height: dim?.h }} />
       {/* Overlay do chamador (pinos/formas/clique) — ele mesmo é responsável pelo próprio
           `absolute inset-0`, igual já fazia antes desta extração. A forma de função só é
