@@ -391,7 +391,7 @@ export function SidebarNav({
 
   if (collapsed) {
     return (
-      <nav className="rolagem-fina flex-1 overflow-y-auto overflow-x-hidden px-1.5 py-2" aria-label="Menu principal">
+      <nav className="rolagem-fina relative flex-1 overflow-y-auto overflow-x-hidden px-1.5 py-2" aria-label="Menu principal">
         <ul className="space-y-0.5">
           {itensFixados.map((item) => (
             <ItemTrilho key={`fixo-${item.href}`} item={item} ativo={ativo} alertas={nav.alertas} />
@@ -414,9 +414,13 @@ export function SidebarNav({
   // Menu aberto, como no modelo aprovado: "Fixados" no topo, linhas soltas (Início, Chat e seção de
   // um item só, como no trilho) e as demais seções recolhíveis. `*:shrink-0`: a lista rola dentro
   // da coluna flex sem espremer as linhas.
+  // `relative` (aqui e no trilho): a lista tem de ser a referência de posição do que é absoluto lá
+  // dentro. Sem isso, o `sr-only` da contagem de cada seção ("6 itens") se posicionava pela coluna
+  // inteira (`aside` sticky), escapava do recorte da lista e fazia a COLUNA rolar também — duas
+  // barras de rolagem no menu (2026-09-28).
   return (
     <nav
-      className="rolagem-fina flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden px-2 py-2.5 *:shrink-0"
+      className="rolagem-fina relative flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden px-2 py-2.5 *:shrink-0"
       aria-label="Menu principal"
     >
       {itensFixados.length > 0 && (
