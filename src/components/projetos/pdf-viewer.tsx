@@ -240,8 +240,10 @@ type Props = {
   documentoId: string | null;
   /** Pranchas vigentes da mesma disciplina, exceto esta — destinos possíveis de "replicar" (item 30). */
   pranchasParaReplicar: PranchaVigente[];
-  /** PDFs vigentes e autorizados da disciplina, inclusive esta prancha. */
+  /** PDFs vigentes do projeto que a pessoa pode abrir (seletor de pranchas). */
   pranchasNavegaveis: PranchaNavegavel[];
+  /** Documento desta prancha e o canônico (após merge): liga uma revisão anterior à vigente na lista. */
+  documentosDaPrancha: string[];
   /** Calibração de escala por página (item 28) — vazio = nenhuma página calibrada ainda. */
   calibracoesIniciais: CalibracaoView[];
   /** Biblioteca de apontamentos-padrão aplicável a esta disciplina (item 10). */
@@ -1960,7 +1962,7 @@ export function PdfViewer(props: Props) {
                 ),
               )}
             </nav>
-            <SeletorPranchas projetoId={projetoId} uploadId={uploadId} pranchas={pranchasNavegaveis} />
+            <SeletorPranchas projetoId={projetoId} uploadId={uploadId} documentoIds={props.documentosDaPrancha} pranchas={pranchasNavegaveis} />
             {pdf && (
               <>
                 <SeparadorBarra />
@@ -3179,6 +3181,8 @@ function Pagina({
     if (!armada) return;
     function aoTeclar(ev: KeyboardEvent) {
       if (ev.key !== "Escape") return;
+      // Esc dentro de uma janela ou campo é deles (fechar a calibração, limpar a busca).
+      if ((ev.target as HTMLElement | null)?.closest?.("[role='dialog'],input,textarea")) return;
       ev.preventDefault();
       ev.stopPropagation();
       setTracando(null);

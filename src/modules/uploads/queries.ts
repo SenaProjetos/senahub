@@ -252,6 +252,7 @@ export async function pranchasPdfVigentesProjeto(
     vistos.add(chave);
     vigentes.push({
       uploadId: upload.id,
+      documentoId: upload.documentoId,
       nomeArquivo: upload.nomeArquivo,
       revisao: upload.revisao?.numero ?? upload.versao,
       titulo: upload.documento?.titulo ?? null,

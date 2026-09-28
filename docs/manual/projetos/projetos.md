@@ -481,7 +481,9 @@ rascunho e **Enviar**. A tecla **A** liga e desliga o modo apontar.
 o **título** de cada prancha. Digite para filtrar (número, título ou nome do arquivo) e **Enter**
 abre a primeira que sobrou. Por padrão a lista e as setas ficam na **etapa** da prancha aberta
 (Executivo, Básico…); **Projeto inteiro** mostra todas — a escolha fica lembrada no navegador.
-Quem só atua em algumas disciplinas vê só as pranchas delas.
+Quem só atua em algumas disciplinas vê só as pranchas delas. A lista traz a revisão vigente de cada
+prancha: aberta uma revisão anterior, a posição e as setas seguem a vigente, marcada como
+"versão vigente desta prancha".
 
 **Botão direito na prancha.** Abre as mesmas ferramentas da barra: **Novo apontamento aqui**
 (pino exatamente onde você clicou), zoom (aproxima no ponto clicado), ajustar à largura, girar,

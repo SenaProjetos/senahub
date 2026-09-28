@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   agruparPorDisciplina,
+  ancoraNaLista,
   escopoEtapaDisponivel,
   filtrarPranchas,
   ordenarPranchas,
@@ -14,6 +15,7 @@ import {
 function prancha(uploadId: string, extra: Partial<PranchaNavegavel> = {}): PranchaNavegavel {
   return {
     uploadId,
+    documentoId: `doc-${uploadId}`,
     nomeArquivo: `${uploadId}.pdf`,
     revisao: 1,
     titulo: null,
@@ -105,5 +107,22 @@ describe("rotuloPrancha e agruparPorDisciplina", () => {
       ["Arquitetura", 1],
       ["Estrutural", 4],
     ]);
+  });
+});
+
+describe("ancoraNaLista", () => {
+  it("a própria prancha quando ela é a vigente", () => {
+    expect(ancoraNaLista(lista, "est-4001", [])).toBe("est-4001");
+  });
+
+  it("revisão anterior (fora da lista) ancora na vigente do mesmo documento", () => {
+    expect(ancoraNaLista(lista, "est-4001-r0", ["doc-est-4001"])).toBe("est-4001");
+    // Depois de um merge, o documento canônico também casa.
+    expect(ancoraNaLista(lista, "antigo", ["alias", "doc-est-4010"])).toBe("est-4010");
+  });
+
+  it("sem documento que case, devolve o próprio id (nada ancorado)", () => {
+    expect(ancoraNaLista(lista, "solta", ["doc-inexistente"])).toBe("solta");
+    expect(vizinhas(lista, ancoraNaLista(lista, "solta", [])).posicao).toBe(0);
   });
 });

@@ -209,6 +209,7 @@ export default async function VisualizarPage({
       documentoId={upload.documentoId}
       pranchasParaReplicar={pranchasParaReplicar}
       pranchasNavegaveis={pranchasNavegaveis}
+      documentosDaPrancha={[upload.documentoId, documentoCanonicoId].filter((d): d is string => !!d)}
       calibracoesIniciais={calibracoes}
       padroes={padroes}
       novidades={novidades}

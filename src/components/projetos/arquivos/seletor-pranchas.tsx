@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn, rotuloRevisao } from "@/lib/utils";
 import {
   agruparPorDisciplina,
+  ancoraNaLista,
   escopoEtapaDisponivel,
   filtrarPranchas,
   pranchasDoEscopo,
@@ -30,10 +31,13 @@ const CHAVE_ESCOPO = "senahub:pranchas-escopo";
 export function SeletorPranchas({
   projetoId,
   uploadId,
+  documentoIds,
   pranchas,
 }: {
   projetoId: string;
   uploadId: string;
+  /** Documento lógico da prancha aberta (e o canônico, após merge) — ver `ancoraNaLista`. */
+  documentoIds: string[];
   pranchas: PranchaNavegavel[];
 }) {
   const router = useRouter();
@@ -59,16 +63,19 @@ export function SeletorPranchas({
     }
   }
 
-  const temEtapa = escopoEtapaDisponivel(pranchas, uploadId);
+  // Revisão anterior aberta: a lista (só vigentes) se ancora na vigente do mesmo documento.
+  const ancora = ancoraNaLista(pranchas, uploadId, documentoIds);
+  const revisaoAntiga = ancora !== uploadId;
+  const temEtapa = escopoEtapaDisponivel(pranchas, ancora);
   const efetivo: EscopoPranchas = temEtapa ? escopo : "projeto";
-  const lista = useMemo(() => pranchasDoEscopo(pranchas, uploadId, efetivo), [pranchas, uploadId, efetivo]);
-  const atual = pranchas.find((p) => p.uploadId === uploadId) ?? null;
-  const { anterior, proxima, posicao } = vizinhas(lista, uploadId);
+  const lista = useMemo(() => pranchasDoEscopo(pranchas, ancora, efetivo), [pranchas, ancora, efetivo]);
+  const atual = pranchas.find((p) => p.uploadId === ancora) ?? null;
+  const { anterior, proxima, posicao } = vizinhas(lista, ancora);
   const filtradas = useMemo(() => filtrarPranchas(lista, termo), [lista, termo]);
   const grupos = agruparPorDisciplina(filtradas);
   // A sigla da etapa em cada linha só informa quando a lista mistura etapas.
   const variasEtapas = new Set(lista.map((p) => p.faseId)).size > 1;
-  const totalEtapa = temEtapa ? pranchasDoEscopo(pranchas, uploadId, "etapa").length : 0;
+  const totalEtapa = temEtapa ? pranchasDoEscopo(pranchas, ancora, "etapa").length : 0;
   const href = (p: PranchaNavegavel) => `/projetos/${projetoId}/arquivos/${p.uploadId}/visualizar`;
 
   if (pranchas.length <= 1) return null;
@@ -158,13 +165,13 @@ export function SeletorPranchas({
                   </h3>
                   <ul>
                     {g.pranchas.map((p) => {
-                      const ehAtual = p.uploadId === uploadId;
+                      const ehAtual = p.uploadId === ancora;
                       return (
                         <li key={p.uploadId}>
                           <Link
                             href={href(p)}
                             onClick={() => setAberto(false)}
-                            aria-current={ehAtual ? "page" : undefined}
+                            aria-current={ehAtual && !revisaoAntiga ? "page" : undefined}
                             className={cn(
                               "flex items-start gap-2 px-3 py-1.5 outline-none hover:bg-muted focus-visible:bg-muted",
                               ehAtual && "bg-primary/10",
@@ -179,6 +186,7 @@ export function SeletorPranchas({
                               </span>
                               <span className="block truncate text-[11px] text-muted-foreground">
                                 {p.nomeArquivo} · {rotuloRevisao(p.revisao)}
+                                {ehAtual && revisaoAntiga ? " · versão vigente desta prancha" : ""}
                                 {variasEtapas && p.faseSigla ? ` · ${p.faseSigla}` : ""}
                               </span>
                             </span>

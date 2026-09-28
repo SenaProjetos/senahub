@@ -7,6 +7,8 @@
 /** Um PDF vigente do projeto que a pessoa pode abrir. */
 export type PranchaNavegavel = {
   uploadId: string;
+  /** Documento lógico da prancha (`null` em linha legada) — liga uma revisão antiga à vigente. */
+  documentoId: string | null;
   nomeArquivo: string;
   /** Número da revisão lógica (R00 = 1); versão do Upload em linha legada. */
   revisao: number;
@@ -73,6 +75,18 @@ export function filtrarPranchas(lista: readonly PranchaNavegavel[], termo: strin
   return lista.filter((p) =>
     normalizar(`${p.numeroPrancha ?? ""} ${p.titulo ?? ""} ${p.nomeArquivo} ${p.disciplinaNome}`).includes(t),
   );
+}
+
+/**
+ * Qual linha da lista representa a prancha aberta. A lista só tem a versão VIGENTE de cada
+ * documento: aberta uma revisão anterior, ela não está lá — e o "1/N", as setas e o recorte por
+ * etapa ficavam sem referência. Aí vale a vigente do mesmo documento (`documentoIds` = o do upload
+ * e o canônico, depois de um merge). Sem documento que case, devolve o próprio `uploadId`.
+ */
+export function ancoraNaLista(lista: readonly PranchaNavegavel[], uploadId: string, documentoIds: readonly string[]): string {
+  if (lista.some((p) => p.uploadId === uploadId)) return uploadId;
+  const doMesmoDocumento = lista.find((p) => p.documentoId != null && documentoIds.includes(p.documentoId));
+  return doMesmoDocumento?.uploadId ?? uploadId;
 }
 
 /** Anterior e seguinte da prancha aberta dentro da lista já recortada; posição 1-based. */
