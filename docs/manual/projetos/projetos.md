@@ -460,6 +460,13 @@ menu normal do navegador.
 
 ### Zoom e rabisco no visualizador de pranchas
 
+**A tela é da prancha.** Ao abrir uma prancha, o cabeçalho e as abas do projeto saem de cena (volte
+por **← Arquivos**), o nome, a revisão, a situação e as extensões ficam numa linha só com as
+ferramentas, e o visualizador ocupa exatamente a altura da janela — a página não rola, só a prancha.
+Os painéis **Tarefas do documento** e **Detalhes do apontamento** começam fechados quando a prancha
+não tem apontamento (abrem pelas setas nas bordas, que mostram quantos apontamentos há) e se abrem
+sozinhos ao criar o primeiro.
+
 **Zoom até 2000%.** Os botões **−**/**+** andam em degraus (100%, 125%… 500%, 600%, 800%, 1000%,
 1200%, 1600%, 2000%). **Ctrl + roda do mouse** (ou a pinça com dois dedos, no tablet) aproxima
 mantendo parado o ponto que está sob o cursor, então a planta não "foge" a cada passo. Com zoom

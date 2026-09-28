@@ -107,9 +107,9 @@ import { usePdfCamadas } from "@/components/pdf/use-pdf-camadas";
 import { CamadasPdf } from "@/components/pdf/camadas-pdf";
 import { usePinchZoom } from "@/components/pdf/use-pinch-zoom";
 import { useZoomAncorado } from "@/components/pdf/use-zoom-ancorado";
+import { useAlturaRestante } from "@/lib/use-altura-restante";
 import { passoZoom, ZOOM_PDF_MAX, ZOOM_PDF_MIN, zoomPelaRodaPdf } from "@/lib/pdf-zoom";
 import { usePresencaDocumento } from "@/components/pdf/use-presenca-documento";
-import { Breadcrumb } from "@/components/shell/breadcrumb";
 import { BadgeExtensao } from "@/components/projetos/arquivos/badge-extensao";
 import { PainelTarefasDocumento } from "@/components/projetos/arquivos/painel-tarefas-documento";
 import type { ItemPagina } from "@/lib/pdf-busca";
@@ -403,6 +403,8 @@ export function PdfViewer(props: Props) {
   const [rotacao, setRotacao] = useState<Giro>(0);
   const [emTelaCheia, setEmTelaCheia] = useState(false);
   const raizRef = useRef<HTMLDivElement | null>(null);
+  // `folga` = padding de baixo do <main> nesta tela no computador (8 px, globals.css).
+  const { ref: alturaRef, style: estiloAltura } = useAlturaRestante<HTMLDivElement>({ folga: 8, aPartirDe: "(min-width: 64rem)" });
   const [arrastando, setArrastando] = useState(false);
   const panRef = useRef<{ sx: number; sy: number; left: number; top: number } | null>(null);
 
@@ -430,8 +432,15 @@ export function PdfViewer(props: Props) {
   // aberto (força resolver/fechar as pendências antes de dar por validada).
   const podeValidarArquivo = podeValidar && versaoAtual && !finalizada && !temApontamentoAberto;
   const [selecionadaId, setSelecionadaId] = useState<string | null>(null);
-  const [painelTarefasAberto, setPainelTarefasAberto] = useState(true);
-  const [painelDetalhesAberto, setPainelDetalhesAberto] = useState(true);
+  // Painéis laterais só começam abertos quando têm o que mostrar (apontamento na prancha ou pino
+  // pedido no link): vazios, eram 608 px de largura tirados da prancha para dizer "nenhum
+  // apontamento". Fechados, o botão da borda mostra quantos há.
+  const [painelTarefasAberto, setPainelTarefasAberto] = useState(
+    () => props.pendenciasIniciais.length > 0 || props.pinInicial != null,
+  );
+  const [painelDetalhesAberto, setPainelDetalhesAberto] = useState(
+    () => props.pendenciasIniciais.length > 0 || props.pinInicial != null,
+  );
   const painelTarefasRef = useRef<HTMLDivElement | null>(null);
   const painelDetalhesRef = useRef<HTMLElement | null>(null);
   const abrirTarefasRef = useRef<HTMLButtonElement | null>(null);
@@ -953,6 +962,9 @@ export function PdfViewer(props: Props) {
         };
         setPendencias((ps) => [...ps, nova]);
         setSelecionadaId(nova.id);
+        // O primeiro apontamento de uma prancha vazia nasce com os painéis fechados: abre os
+        // detalhes para a pessoa ver o que acabou de criar.
+        setPainelDetalhesAberto(true);
         if (draft.marcacao?.tipo === "livre" || draft.marcacao?.tipo === "medida") setEsboco(null);
         // Reincidência confirmada (item 17) → vira a MESMA referência cruzada do item 13. Não
         // existe "vínculo de reincidência" à parte: seria uma segunda ligação entre os mesmos
@@ -1482,44 +1494,55 @@ export function PdfViewer(props: Props) {
   }
 
   return (
-    <div ref={raizRef} className="flex h-[calc(100vh-2rem)] flex-col bg-background data-fullscreen:h-screen data-fullscreen:p-3" data-fullscreen={emTelaCheia || undefined}>
+    <div
+      ref={(el) => {
+        raizRef.current = el;
+        alturaRef.current = el;
+      }}
+      // Altura MEDIDA do topo do visualizador até o fim da janela (a partir de `lg`): o antigo
+      // `100vh - 2rem` ignorava a barra do topo e o que vem acima, e a página inteira rolava 119 px
+      // junto com a prancha (1366×768). Em tela cheia vale o `h-screen` da classe.
+      style={emTelaCheia ? undefined : estiloAltura}
+      className="flex h-[calc(100svh-2rem)] flex-col bg-background data-fullscreen:h-screen data-fullscreen:p-3"
+      data-fullscreen={emTelaCheia || undefined}
+      // Marcador do globals.css: nesta tela o cabeçalho e as abas do projeto saem (a área é da prancha).
+      data-visualizador-prancha
+    >
       {/* Em tela cheia só o que está DENTRO deste elemento aparece: o Toaster global (no body)
           continua recebendo os avisos, mas fica invisível. Este espelha os mesmos toasts. */}
       {emTelaCheia && <Toaster position="top-right" richColors />}
-      {/* Cabeçalho */}
-      <div className="border-b pb-3">
-        <div className="mb-3">
-          <Breadcrumb
-            ariaLabel="Localização do documento"
-            items={[
-              { label: projetoNome, href: `/projetos/${projetoId}` },
-              { label: disciplinaNome, href: `/projetos/${projetoId}/arquivos` },
-              { label: nomeArquivo },
-            ]}
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
+      {/* Cabeçalho numa linha só: nome, revisão, situação, extensões e as ferramentas. A trilha
+          (projeto › disciplina › arquivo) saiu — a barra do topo já mostra onde se está — e o
+          "código · projeto · disciplina" foi para a dica do nome. */}
+      <div className="border-b pb-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <Link
           href={`/projetos/${projetoId}/arquivos`}
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          title={`Voltar para os arquivos de ${disciplinaNome}`}
         >
           <ArrowLeft className="size-3.5" /> Arquivos
         </Link>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg font-bold leading-tight">{nomeArquivo}</h1>
-          <p className="truncate text-xs text-muted-foreground">
-            {codigo} · {projetoNome} · {disciplinaNome}
-            {!versaoAtual && " (versão anterior)"}
-          </p>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <Badge variant="outline" className="font-mono text-[10px] tracking-wide" title="Revisão do documento">
+        <div className="flex min-w-48 flex-1 flex-wrap items-center gap-1.5">
+          <h1
+            className="min-w-0 max-w-full truncate text-base font-bold leading-tight"
+            title={`${nomeArquivo} — ${codigo} · ${projetoNome} · ${disciplinaNome}`}
+          >
+            {nomeArquivo}
+          </h1>
+          {!versaoAtual && (
+            <Badge variant="outline" className="shrink-0 text-[10px] text-warning" title="Existe uma versão mais nova deste arquivo">
+              versão anterior
+            </Badge>
+          )}
+            <Badge variant="outline" className="shrink-0 font-mono text-[10px] tracking-wide" title="Revisão do documento">
               {rotuloRevisao(revisionNumber)}
             </Badge>
-            <Badge variant="outline" className="text-xs" title="Status documental">
+            <Badge variant="outline" className="shrink-0 text-xs" title="Status documental">
               {documentStatus ? `${documentStatus.name}${documentStatus.final ? " (final)" : ""}` : "Sem status"}
             </Badge>
-            <nav className="flex flex-wrap items-center gap-1" aria-label="Arquivos desta revisão">
-              <span className="text-xs text-muted-foreground">Extensões:</span>
+            <nav className="flex shrink-0 flex-wrap items-center gap-1" aria-label="Arquivos desta revisão">
+              <span className="sr-only">Extensões:</span>
               {revisionFiles.map((file) =>
                 file.id === uploadId ? (
                   <span
@@ -1585,7 +1608,6 @@ export function PdfViewer(props: Props) {
                 </Button>
               </nav>
             )}
-          </div>
         </div>
         {/* Busca textual */}
         {pdf && (
@@ -1911,7 +1933,7 @@ export function PdfViewer(props: Props) {
             />
           </div>
         ) : (
-          <div className="hidden w-10 shrink-0 items-start justify-center border-r pt-2 lg:flex">
+          <div className="hidden w-10 shrink-0 flex-col items-center gap-1 border-r pt-2 lg:flex">
             <Button
               ref={abrirTarefasRef}
               size="icon"
@@ -1920,11 +1942,12 @@ export function PdfViewer(props: Props) {
               onClick={() => setPainelTarefasAberto(true)}
               aria-expanded={false}
               aria-controls="painel-tarefas-workspace"
-              aria-label="Abrir painel de tarefas"
+              aria-label={`Abrir painel de tarefas (${pendencias.length} ${pendencias.length === 1 ? "apontamento" : "apontamentos"})`}
               title="Abrir painel de tarefas"
             >
               <ArrowRight className="size-3.5" />
             </Button>
+            {pendencias.length > 0 && <ContagemRecolhida total={pendencias.length} />}
           </div>
         )}
         {/* Coluna de páginas */}
@@ -2345,7 +2368,7 @@ export function PdfViewer(props: Props) {
           </div>
         </aside>
         ) : (
-          <div className="hidden w-10 shrink-0 items-start justify-center border-l pt-2 lg:flex">
+          <div className="hidden w-10 shrink-0 flex-col items-center gap-1 border-l pt-2 lg:flex">
             <Button
               ref={abrirDetalhesRef}
               size="icon"
@@ -2359,6 +2382,7 @@ export function PdfViewer(props: Props) {
             >
               <ArrowLeft className="size-3.5" />
             </Button>
+            {pendencias.length > 0 && <ContagemRecolhida total={pendencias.length} />}
           </div>
         )}
       </div>
@@ -3195,5 +3219,14 @@ function BotoesEsboco({
         <Check className="size-3.5" /> Concluir
       </Button>
     </div>
+  );
+}
+
+/** Quantos apontamentos há, no trilho do painel recolhido — fechado não pode esconder que há trabalho. */
+function ContagemRecolhida({ total }: { total: number }) {
+  return (
+    <span className="rounded-full bg-muted px-1.5 font-mono text-[10px] tabular-nums text-muted-foreground" aria-hidden>
+      {total}
+    </span>
   );
 }
