@@ -49,37 +49,55 @@ Na tela de login há ainda:
 
 Depois de entrar, a tela tem três áreas:
 
-- **Menu lateral (esquerda):** navegação por seções (Início, Projetos, RH,
+- **Menu lateral (esquerda):** navegação por seções (Trabalho, Comercial, RH,
   Financeiro, etc.). No celular, o menu vira um botão e uma barra inferior com os
   atalhos principais.
 - **Barra do topo:** título da página atual + **trilha de navegação** (breadcrumb), e
-  à direita: **Buscar (Ctrl K)**, **resumo da Agenda**, **sino de notificações**,
-  **alternar tema (claro/escuro)** e o **menu da sua conta**.
+  à direita, só com ícones: **jornada do ponto** (relógio), **Buscar (Ctrl K)**, **Agenda**,
+  **Chat** (com o número de mensagens não lidas), **sino de notificações**, **Ajuda e guias (?)** e
+  o **menu da sua conta**.
 - **Área central:** o conteúdo da página (listas, formulários, painéis).
 
 ### Menu da conta (canto superior direito)
 
-Clique no seu avatar/nome para:
+Clique no seu avatar para:
 
-- **Alterar foto** — envia uma imagem de perfil.
+- **Minha conta** e **Preferências** (notificações, som do chat, etc.).
+- **Nome de exibição** e **Alterar foto**.
 - **Trocar senha** — define uma nova senha.
+- **Rever guia da tela** — repete o tour da página, quando ela tem um.
+- **Abrir no celular** — QR code com o endereço (no computador).
+- **Tema claro / Tema escuro**.
 - **Sair** — encerra a sessão com segurança.
+
+No celular, **Ajuda e manual** e **Guias de uso** também ficam neste menu.
 
 ---
 
 ## 4. Menus principais
 
 O menu lateral é agrupado por área. Os itens que aparecem **dependem do seu perfil**.
-Visão geral dos grupos:
+Visão geral das seções (visão do administrador):
 
-| Grupo | Itens principais |
+| Seção | Itens |
 | --- | --- |
-| (Topo) | Início, Projetos, Meu trabalho, Clientes, Comercial, Tarefas, Agenda, Chat |
-| **RH** | Ponto, RH, RH — admin, Folha CLT, Funcionários, Produtividade, Pessoas Jurídicas |
-| **Financeiro** | Financeiro, Documentos (Estúdio) |
-| **Engenharia** | Ferramentas |
-| **Gestão** | Planejamento, Recursos, Jurídico, Licitações, Qualidade, Patrimônio, TI, Suporte |
-| **Sistema** | Preferências, Configurações, Auditoria, Uso por seção |
+| (soltos) | Início, Chat |
+| **Trabalho** | Projetos, Meu trabalho, Arquivos, Aprovações, Tarefas, Agenda |
+| **Comercial** | Clientes, Comercial |
+| **RH** | Ponto, RH, Pessoas, Cargos e departamentos, RH — admin, Produtividade, Pessoas Jurídicas, Escalas |
+| **Financeiro** | Financeiro, Produção, Folha CLT, Doc Studio |
+| **Engenharia** | Ferramentas, Padrões Técnicos, Normas Técnicas, Referências Técnicas, Engenharia de Custos |
+| **Gestão** | Planejamento, Modelos de EAP, Recursos, Apontamentos, Jurídico, Certidões, Acessos, Licitações, Qualidade, Patrimônio, TI, Suporte |
+| **Sistema** | Configurações, Auditoria, Uso por seção |
+
+Como o menu funciona:
+
+- **Seções** abrem e fecham com um clique no nome. O que você deixa aberto fica lembrado na sua
+  conta, e a seção da página em que você está abre sozinha.
+- **Fixados:** a estrela (☆) ao lado de um item fixa até 5 atalhos no topo do menu.
+- **« Minimizar** (rodapé do menu) deixa só os ícones. O menu minimizado mostra **os mesmos itens**
+  do aberto: seção aberta aparece com os ícones dos itens logo abaixo; seção fechada mostra a lista
+  ao passar o mouse, e o clique abre a seção. Abrir ou fechar uma seção vale para os dois modos.
 
 > **Cliente externo** vê uma visão reduzida: **Meus projetos** (portal) e
 > **Financeiro** (seu extrato), além de Suporte.

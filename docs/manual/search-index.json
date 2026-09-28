@@ -147,7 +147,12 @@
         "menu",
         "pesquisar",
         "atalho",
-        "Ctrl K"
+        "Ctrl K",
+        "minimizar menu",
+        "fixar atalho",
+        "seções do menu",
+        "menu da conta",
+        "tema escuro"
       ],
       "sinonimos": [
         "getting started",
