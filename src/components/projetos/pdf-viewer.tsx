@@ -3163,6 +3163,15 @@ function Pagina({
     setTracoLivre(null);
   }, [modoApontar, ferramenta, capturandoReferencia]);
 
+  // O esboço desta página fechou (virou apontamento ou foi descartado): uma linha armada por
+  // clique não pode ficar seguindo o cursor — o próximo clique começaria outro esboço sem querer.
+  const temEsboco = esboco != null;
+  const tinhaEsbocoRef = useRef(temEsboco);
+  useEffect(() => {
+    if (tinhaEsbocoRef.current && !temEsboco) setTracando((t) => (t?.clique ? null : t));
+    tinhaEsbocoRef.current = temEsboco;
+  }, [temEsboco]);
+
   // Com a linha armada, Esc desarma só ela — antes de o viewer tratar o Esc (que descarta o esboço
   // inteiro ou sai do modo apontar). Captura na janela: roda antes do ouvinte do viewer.
   const armada = tracando?.clique === true;

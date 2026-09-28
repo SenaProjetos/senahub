@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { X, ArrowUp, ArrowDown, Sparkles, Code } from "lucide-react";
@@ -221,7 +222,7 @@ export function NomenclaturaForm({
       {!mostrarPadrao ? (
         <p className="text-xs text-muted-foreground">
           O modelo do nome agora é definido em{" "}
-          <a href="/configuracoes/nomenclatura" className="text-primary hover:underline">Configurações → Nomenclatura</a>{" "}
+          <Link href="/configuracoes/nomenclatura" className="text-primary hover:underline">Configurações → Nomenclatura</Link>{" "}
           (versionado). Aqui só exigir/exigir fase.
         </p>
       ) : modoAvancado ? (
