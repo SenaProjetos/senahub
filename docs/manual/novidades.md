@@ -22,6 +22,22 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Rabisco com cores, várias medidas por apontamento e menu minimizado com os mesmos itens
+
+- **Rabisco com cor e espessura:** ao desenhar, escolha a cor (vermelho, azul, verde, laranja, preto
+  ou a cor da situação do apontamento) e a espessura (fina, média, grossa) na faixa acima da
+  prancha — dá para trocar a cada traço. As cores saem iguais na prancha, na miniatura e no PDF
+  carimbado.
+- **Medida ao vivo:** o valor aparece enquanto você arrasta (antes só aparecia ao soltar).
+- **Várias medidas no mesmo apontamento:** cada arraste soma uma medida; **Concluir** (Enter) cria o
+  apontamento com todas, e o texto já vem com os valores. Detalhes em
+  [Projetos](projetos/projetos.md#zoom-e-rabisco-no-visualizador-de-pranchas).
+- **Menu minimizado com os mesmos itens do aberto:** seção aberta num menu fica aberta no outro, com
+  os itens à vista; seção fechada continua abrindo a lista ao passar o mouse.
+- **Correção:** o menu lateral mostrava duas barras de rolagem.
+
+---
+
 ## Rabisco nos apontamentos, zoom até 2000%, normas em pastas e links no chat
 
 - **Rabisco nos apontamentos:** nova marcação **Rabisco** (tecla **6** no modo Apontar) para
