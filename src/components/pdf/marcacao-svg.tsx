@@ -1,7 +1,80 @@
 "use client";
 
-import { abasSeta, caixaMarcacao, caminhoNuvem, type Marcacao } from "@/modules/projetos/pendencias/marcacao";
+import {
+  abasSeta,
+  caixaMarcacao,
+  caminhoNuvem,
+  type CorFixaRabisco,
+  type Marcacao,
+} from "@/modules/projetos/pendencias/marcacao";
 import { formatarMedida } from "@/modules/projetos/pendencias/medicao";
+
+/**
+ * Classe de texto de cada cor fixa do rabisco (`--marcacao-*` no globals.css). Literal, e não
+ * montada por string, para o Tailwind achar a classe. "situação" não está aqui: herda a cor do
+ * `<g>` pai (a do status do apontamento).
+ */
+export const CLASSE_COR_RABISCO: Record<CorFixaRabisco, string> = {
+  vermelho: "text-marcacao-vermelho",
+  azul: "text-marcacao-azul",
+  verde: "text-marcacao-verde",
+  laranja: "text-marcacao-laranja",
+  preto: "text-marcacao-preto",
+};
+
+/** Mesmas cores como fundo — as amostras do seletor de cor. */
+export const CLASSE_FUNDO_RABISCO: Record<CorFixaRabisco, string> = {
+  vermelho: "bg-marcacao-vermelho",
+  azul: "bg-marcacao-azul",
+  verde: "bg-marcacao-verde",
+  laranja: "bg-marcacao-laranja",
+  preto: "bg-marcacao-preto",
+};
+
+/** Cota: traço entre os dois pontos, travessões nas pontas e o valor por cima. */
+function Cota({
+  a,
+  b,
+  rotulo,
+  comum,
+}: {
+  a: { x: number; y: number };
+  b: { x: number; y: number };
+  rotulo: string;
+  comum: React.SVGProps<SVGLineElement>;
+}) {
+  const ang = Math.atan2(b.y - a.y, b.x - a.x);
+  // Perpendicular unitária, para os travessões das extremidades.
+  const nx = -Math.sin(ang);
+  const ny = Math.cos(ang);
+  const t = 6;
+  const meio = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  // Mantém o texto sempre legível: viraria de cabeça pra baixo entre 90° e 270°.
+  const grausTexto = (ang * 180) / Math.PI;
+  const grausLegivel = grausTexto > 90 || grausTexto < -90 ? grausTexto + 180 : grausTexto;
+  return (
+    <>
+      <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} {...comum} />
+      <line x1={a.x - nx * t} y1={a.y - ny * t} x2={a.x + nx * t} y2={a.y + ny * t} {...comum} />
+      <line x1={b.x - nx * t} y1={b.y - ny * t} x2={b.x + nx * t} y2={b.y + ny * t} {...comum} />
+      <text
+        x={meio.x}
+        y={meio.y}
+        transform={`rotate(${grausLegivel} ${meio.x} ${meio.y}) translate(0 -5)`}
+        textAnchor="middle"
+        fill="currentColor"
+        stroke="none"
+        fontSize={12}
+        fontWeight={600}
+        // O traço passa por baixo do texto; o contorno claro mantém o número legível.
+        paintOrder="stroke"
+        style={{ paintOrder: "stroke", stroke: "white", strokeWidth: 3 }}
+      >
+        {rotulo}
+      </text>
+    </>
+  );
+}
 
 /**
  * Desenha UMA marcação vetorial (item 9) sobre a página, em px, dentro de um `<svg>` do
@@ -40,50 +113,55 @@ export function MarcacaoSvg({
   };
 
   if (marcacao.tipo === "livre") {
-    // Rabisco: um `<path>` só, com um "M" por traço — traços soltos não se ligam.
-    const d = (marcacao.tracos ?? [])
-      .map((t) => t.map((o, i) => `${i === 0 ? "M" : "L"}${((x + o.dx) * dim.w).toFixed(2)} ${((y + o.dy) * dim.h).toFixed(2)}`).join(" "))
-      .join(" ");
-    return <path d={d} {...comum} />;
+    // Rabisco: um `<path>` por traço, cada um com a sua cor e espessura. "situação" herda a cor
+    // do `<g>` pai; a seleção (`espessura` 3 em vez de 2) engrossa todos na mesma medida.
+    const extra = espessura - 2;
+    return (
+      <>
+        {(marcacao.tracos ?? []).map((t, i) => {
+          const estilo = marcacao.estilos?.[i];
+          const d = t.map((o, j) => `${j === 0 ? "M" : "L"}${((x + o.dx) * dim.w).toFixed(2)} ${((y + o.dy) * dim.h).toFixed(2)}`).join(" ");
+          return (
+            <path
+              key={i}
+              d={d}
+              {...comum}
+              strokeWidth={(estilo?.espessura ?? 2) + extra}
+              className={estilo && estilo.cor !== "situacao" ? CLASSE_COR_RABISCO[estilo.cor] : undefined}
+            />
+          );
+        })}
+      </>
+    );
   }
 
   if (marcacao.tipo === "medida") {
     // Linha de cota: traço entre os dois pontos + travessões perpendiculares nas pontas, e o
     // valor por cima. Sem seta — cota de projeto não aponta pra lugar nenhum, ela delimita.
+    // Várias medidas no mesmo apontamento: uma cota por medida, cada uma com o seu valor.
+    if (marcacao.medidas && marcacao.medidas.length > 0) {
+      return (
+        <>
+          {marcacao.medidas.map((s, i) => (
+            <Cota
+              key={i}
+              a={{ x: (x + s.de.dx) * dim.w, y: (y + s.de.dy) * dim.h }}
+              b={{ x: (x + s.ate.dx) * dim.w, y: (y + s.ate.dy) * dim.h }}
+              rotulo={formatarMedida(s.mm)}
+              comum={comum}
+            />
+          ))}
+        </>
+      );
+    }
     const p = marcacao.pontos[0];
-    const a = { x: x * dim.w, y: y * dim.h };
-    const b = { x: (x + p.dx) * dim.w, y: (y + p.dy) * dim.h };
-    const ang = Math.atan2(b.y - a.y, b.x - a.x);
-    // Perpendicular unitária, para os travessões das extremidades.
-    const nx = -Math.sin(ang);
-    const ny = Math.cos(ang);
-    const t = 6;
-    const meio = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-    const rotulo = formatarMedida(medidaMm);
-    // Mantém o texto sempre legível: viraria de cabeça pra baixo entre 90° e 270°.
-    const grausTexto = (ang * 180) / Math.PI;
-    const grausLegivel = grausTexto > 90 || grausTexto < -90 ? grausTexto + 180 : grausTexto;
     return (
-      <>
-        <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} {...comum} />
-        <line x1={a.x - nx * t} y1={a.y - ny * t} x2={a.x + nx * t} y2={a.y + ny * t} {...comum} />
-        <line x1={b.x - nx * t} y1={b.y - ny * t} x2={b.x + nx * t} y2={b.y + ny * t} {...comum} />
-        <text
-          x={meio.x}
-          y={meio.y}
-          transform={`rotate(${grausLegivel} ${meio.x} ${meio.y}) translate(0 -5)`}
-          textAnchor="middle"
-          fill="currentColor"
-          stroke="none"
-          fontSize={12}
-          fontWeight={600}
-          // O traço passa por baixo do texto; o contorno claro mantém o número legível.
-          paintOrder="stroke"
-          style={{ paintOrder: "stroke", stroke: "white", strokeWidth: 3 }}
-        >
-          {rotulo}
-        </text>
-      </>
+      <Cota
+        a={{ x: x * dim.w, y: y * dim.h }}
+        b={{ x: (x + p.dx) * dim.w, y: (y + p.dy) * dim.h }}
+        rotulo={formatarMedida(medidaMm)}
+        comum={comum}
+      />
     );
   }
 

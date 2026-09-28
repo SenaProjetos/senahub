@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   abasSeta,
@@ -6,7 +7,10 @@ import {
   caixaMarcacao,
   caminhoNuvem,
   construirMarcacao,
+  construirMedidas,
   construirRabisco,
+  CORES_RABISCO,
+  HEX_COR_RABISCO,
   lerMarcacao,
   MARCACAO_LABEL,
   MAX_PONTOS_RABISCO,
@@ -299,5 +303,91 @@ describe("rabisco (desenho livre)", () => {
 
   it("arrasto de dois pontos não fabrica rabisco", () => {
     expect(construirMarcacao("livre", { x: 0.1, y: 0.1 }, { x: 0.5, y: 0.5 })).toBeNull();
+  });
+});
+
+describe("cor e espessura do rabisco", () => {
+  const reta = (x0: number, y0: number, x1: number, y1: number) => [{ x: x0, y: y0 }, { x: x1, y: y1 }];
+
+  it("cada traço leva o seu estilo; traço descartado leva o estilo junto", () => {
+    const r = construirRabisco(
+      [reta(0.1, 0.1, 0.3, 0.1), [{ x: 0.5, y: 0.5 }], reta(0.2, 0.2, 0.2, 0.4)],
+      [{ cor: "vermelho", espessura: 4 }, { cor: "azul", espessura: 7 }, { cor: "verde", espessura: 2 }],
+    )!;
+    expect(r.marcacao.tracos).toHaveLength(2);
+    expect(r.marcacao.estilos).toEqual([{ cor: "vermelho", espessura: 4 }, { cor: "verde", espessura: 2 }]);
+  });
+
+  it("sem estilo, ou estilo fora do catálogo, vira o padrão (cor da situação, fina)", () => {
+    const r = construirRabisco([reta(0.1, 0.1, 0.3, 0.1)], [{ cor: "roxo" as never, espessura: 99 }])!;
+    expect(r.marcacao.estilos).toEqual([{ cor: "situacao", espessura: 2 }]);
+    // Rabisco gravado antes das cores (sem `estilos`) continua abrindo.
+    expect(lerMarcacao("livre", { tracos: [[{ dx: 0, dy: 0 }, { dx: 0.1, dy: 0 }]] })!.estilos).toEqual([{ cor: "situacao", espessura: 2 }]);
+  });
+
+  it("ler de volta mantém cores e espessuras alinhadas aos traços", () => {
+    const r = construirRabisco([reta(0.1, 0.1, 0.3, 0.1), reta(0.2, 0.2, 0.2, 0.4)], [{ cor: "preto", espessura: 7 }, { cor: "laranja", espessura: 4 }])!;
+    const geo = JSON.parse(JSON.stringify({ pontos: [], tracos: r.marcacao.tracos, estilos: r.marcacao.estilos }));
+    expect(lerMarcacao("livre", geo)).toEqual(r.marcacao);
+  });
+
+  it("as cores do PDF carimbado são as mesmas do globals.css", () => {
+    const css = readFileSync("src/app/globals.css", "utf8");
+    for (const cor of CORES_RABISCO) {
+      if (cor === "situacao") continue;
+      const m = css.match(new RegExp(`--marcacao-${cor}:\\s*(#[0-9a-fA-F]{6})`));
+      expect(m?.[1]?.toLowerCase(), cor).toBe(HEX_COR_RABISCO[cor]);
+    }
+  });
+});
+
+describe("várias medidas num apontamento", () => {
+  it("âncora no início da 1ª; cada medida com o seu valor; pontos = ponta da 1ª", () => {
+    const r = construirMedidas([
+      { a: { x: 0.2, y: 0.2 }, b: { x: 0.5, y: 0.2 }, mm: 3000 },
+      { a: { x: 0.2, y: 0.3 }, b: { x: 0.2, y: 0.6 }, mm: 2100 },
+    ])!;
+    expect(r.x).toBe(0.2);
+    expect(r.y).toBe(0.2);
+    expect(r.marcacao.pontos).toEqual([{ dx: 0.3, dy: 0 }]);
+    expect(r.marcacao.medidas).toEqual([
+      { de: { dx: 0, dy: 0 }, ate: { dx: 0.3, dy: 0 }, mm: 3000 },
+      { de: { dx: 0, dy: 0.1 }, ate: { dx: 0, dy: 0.4 }, mm: 2100 },
+    ]);
+  });
+
+  it("clique (segmento curto) e medida sem valor saem; nada sobrando = null", () => {
+    const r = construirMedidas([
+      { a: { x: 0.2, y: 0.2 }, b: { x: 0.2 + ARRASTO_MINIMO / 3, y: 0.2 }, mm: 5 },
+      { a: { x: 0.3, y: 0.3 }, b: { x: 0.6, y: 0.3 }, mm: 0 },
+      { a: { x: 0.1, y: 0.5 }, b: { x: 0.4, y: 0.5 }, mm: 1500 },
+    ])!;
+    expect(r.marcacao.medidas).toHaveLength(1);
+    expect(r.x).toBe(0.1);
+    expect(construirMedidas([])).toBeNull();
+  });
+
+  it("gravado e lido de volta; medida antiga (só pontos) continua lendo", () => {
+    const r = construirMedidas([
+      { a: { x: 0.2, y: 0.2 }, b: { x: 0.5, y: 0.2 }, mm: 3000 },
+      { a: { x: 0.2, y: 0.3 }, b: { x: 0.2, y: 0.6 }, mm: 2100 },
+    ])!;
+    const geo = JSON.parse(JSON.stringify({ pontos: r.marcacao.pontos, medidas: r.marcacao.medidas }));
+    expect(lerMarcacao("medida", geo)).toEqual(r.marcacao);
+    expect(lerMarcacao("medida", { pontos: [{ dx: 0.1, dy: 0 }] })).toEqual({ tipo: "medida", pontos: [{ dx: 0.1, dy: 0 }] });
+    // Lixo em `medidas` não derruba: cai na medida única de `pontos`.
+    expect(lerMarcacao("medida", { pontos: [{ dx: 0.1, dy: 0 }], medidas: [{ de: 1 }] })!.medidas).toBeUndefined();
+  });
+
+  it("caixa cobre todas as medidas", () => {
+    const r = construirMedidas([
+      { a: { x: 0.2, y: 0.2 }, b: { x: 0.5, y: 0.2 }, mm: 3000 },
+      { a: { x: 0.1, y: 0.3 }, b: { x: 0.1, y: 0.6 }, mm: 2100 },
+    ])!;
+    const c = caixaMarcacao(r.x, r.y, r.marcacao);
+    expect(c.esquerda).toBeCloseTo(0.1);
+    expect(c.topo).toBeCloseTo(0.2);
+    expect(c.largura).toBeCloseTo(0.4);
+    expect(c.altura).toBeCloseTo(0.4);
   });
 });

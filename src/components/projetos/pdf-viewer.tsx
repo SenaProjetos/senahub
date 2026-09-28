@@ -53,12 +53,23 @@ import {
 } from "@/modules/projetos/pendencias/helpers";
 import { construirAncora, relocalizarAncora } from "@/modules/projetos/pendencias/ancora";
 import {
+  ARRASTO_MINIMO,
   caixaRecorte,
   construirMarcacao,
+  construirMedidas,
   construirRabisco,
+  COR_RABISCO_LABEL,
+  CORES_RABISCO,
+  ESPESSURA_RABISCO_LABEL,
+  ESPESSURAS_RABISCO,
+  ESTILO_TRACO_PADRAO,
+  lerEstilo,
   MARCACAO_LABEL,
+  MAX_MEDIDAS,
   MAX_TRACOS_RABISCO,
   TIPOS_MARCACAO,
+  type CorRabisco,
+  type EstiloTraco,
   type Marcacao,
   type TipoMarcacao,
 } from "@/modules/projetos/pendencias/marcacao";
@@ -82,7 +93,7 @@ import {
   SITUACAO_PRAZO_LABEL,
   type SituacaoPrazo,
 } from "@/modules/projetos/pendencias/prazo";
-import { MarcacaoSvg } from "@/components/pdf/marcacao-svg";
+import { CLASSE_COR_RABISCO, CLASSE_FUNDO_RABISCO, MarcacaoSvg } from "@/components/pdf/marcacao-svg";
 import { PendenciaAnexos } from "@/components/projetos/pendencia-anexos";
 import { PendenciaReferencias } from "@/components/projetos/pendencia-referencias";
 import { descreverNovidades, type Novidades } from "@/modules/projetos/pendencias/novidades";
@@ -252,6 +263,26 @@ const SEVERIDADE_CLS: Record<Severidade, string> = {
 /** Medição pronta pra persistir (item 28) — valor + fator + modo que o produziram. */
 type MedidaCalculada = { mm: number; fator: number; modo: ModoCalibracao };
 
+type PontoPagina = { x: number; y: number };
+
+/**
+ * Desenho em andamento, antes de virar apontamento: vários traços do rabisco ou várias medidas,
+ * numa página só, em coordenadas normalizadas SEM giro (as de `x`/`y`). As medidas levam o fator
+ * da calibração com que foram feitas — todas do mesmo esboço usam o mesmo.
+ */
+type Esboco =
+  | { tipo: "livre"; pagina: number; tracos: { pontos: PontoPagina[]; estilo: EstiloTraco }[] }
+  | {
+      tipo: "medida";
+      pagina: number;
+      fator: number;
+      modo: ModoCalibracao;
+      segmentos: { a: PontoPagina; b: PontoPagina; mm: number }[];
+    };
+
+/** Onde o navegador lembra a última cor/espessura do rabisco (conveniência de quem desenha). */
+const CHAVE_ESTILO_RABISCO = "senahub:rabisco-estilo";
+
 /** Cor do badge de prazo (item 18). Só vencido usa `destructive` — é o que exige ação hoje. */
 const PRAZO_CLS: Record<SituacaoPrazo, string> = {
   sem_prazo: "",
@@ -409,11 +440,32 @@ export function PdfViewer(props: Props) {
   // Ferramenta de marcação (item 9). "ponto" = clique simples, o comportamento de sempre.
   const [ferramenta, setFerramenta] = useState<TipoMarcacao>("ponto");
   /**
-   * Rabisco em andamento: vários traços numa página só, em coordenadas normalizadas SEM giro
-   * (as de `x`/`y`). Fica aqui, e não na página, porque a barra que conclui/desfaz é do viewer.
-   * Só some ao CRIAR o apontamento: cancelar a janela devolve o desenho para continuar.
+   * Rabisco ou medidas em andamento (ver `Esboco`). Fica aqui, e não na página, porque a barra que
+   * conclui/desfaz é do viewer. Só some ao CRIAR o apontamento: cancelar a janela devolve o
+   * desenho para continuar.
    */
-  const [rabisco, setRabisco] = useState<{ pagina: number; tracos: { x: number; y: number }[][] } | null>(null);
+  const [esboco, setEsboco] = useState<Esboco | null>(null);
+  // Cor e espessura do próximo traço do rabisco — a última escolhida fica lembrada no navegador.
+  const [estiloRabisco, setEstiloRabisco] = useState<EstiloTraco>(ESTILO_TRACO_PADRAO);
+  useEffect(() => {
+    try {
+      const salvo = localStorage.getItem(CHAVE_ESTILO_RABISCO);
+      if (salvo) setEstiloRabisco(lerEstilo(JSON.parse(salvo)));
+    } catch {
+      /* sem armazenamento (aba privada): fica o padrão */
+    }
+  }, []);
+  function escolherEstilo(parcial: Partial<EstiloTraco>) {
+    setEstiloRabisco((atual) => {
+      const novo = { ...atual, ...parcial };
+      try {
+        localStorage.setItem(CHAVE_ESTILO_RABISCO, JSON.stringify(novo));
+      } catch {
+        /* idem */
+      }
+      return novo;
+    });
+  }
   // Calibração por página (item 28) — chega do servidor e é atualizada in loco ao calibrar.
   const [calibracoes, setCalibracoes] = useState<CalibracaoView[]>(props.calibracoesIniciais);
   const calibracaoDaPagina = useCallback(
@@ -703,22 +755,22 @@ export function PdfViewer(props: Props) {
 
       // Ctrl+Z desfaz o último traço do rabisco; os demais atalhos com Ctrl ficam com o navegador.
       if (e.ctrlKey || e.metaKey) {
-        if (rabisco && e.key.toLowerCase() === "z") {
-          desfazerTraco();
+        if (esboco && e.key.toLowerCase() === "z") {
+          desfazerEsboco();
           e.preventDefault();
         }
         return;
       }
-      if (rabisco && e.key === "Enter") {
-        concluirRabisco();
+      if (esboco && e.key === "Enter") {
+        concluirEsboco();
         e.preventDefault();
         return;
       }
 
       if (e.key === "Escape") {
-        // Com rabisco na tela, o primeiro Esc descarta o desenho; o seguinte sai do modo apontar.
-        if (rabisco) {
-          setRabisco(null);
+        // Com rabisco/medidas na tela, o primeiro Esc descarta o desenho; o seguinte sai do modo apontar.
+        if (esboco) {
+          setEsboco(null);
           e.preventDefault();
           return;
         }
@@ -747,7 +799,7 @@ export function PdfViewer(props: Props) {
     // calibrações) — listá-la aqui reassinaria o listener a cada rolagem. As dependências
     // reais são as que decidem se o atalho pode disparar.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [podeApontar, modoApontar, draft, editId, classificarId, replicarId, threadId, paginaVisivel, calibracoes, rabisco]);
+  }, [podeApontar, modoApontar, draft, editId, classificarId, replicarId, threadId, paginaVisivel, calibracoes, esboco]);
 
   // Descobre a página visível pela rolagem: a primeira cujo fim ainda está abaixo do topo da
   // janela. Escuta o container (não o window) porque a rolagem do viewer é interna.
@@ -809,7 +861,14 @@ export function PdfViewer(props: Props) {
     setEditId(null);
     // Medição já entra com o valor no texto — é o que o usuário ia digitar de qualquer jeito,
     // e deixa o apontamento legível na lista sem depender do desenho.
-    setTexto(medida ? `Medida: ${formatarMedida(medida.mm)}. ` : "");
+    const medidas = marcacao?.medidas;
+    setTexto(
+      medidas && medidas.length > 1
+        ? `Medidas: ${medidas.map((m) => formatarMedida(m.mm)).join("; ")}. `
+        : medida
+          ? `Medida: ${formatarMedida(medida.mm)}. `
+          : "",
+    );
     setSeveridade(null);
     setTipo(null);
     setPrazo("");
@@ -894,7 +953,7 @@ export function PdfViewer(props: Props) {
         };
         setPendencias((ps) => [...ps, nova]);
         setSelecionadaId(nova.id);
-        if (draft.marcacao?.tipo === "livre") setRabisco(null);
+        if (draft.marcacao?.tipo === "livre" || draft.marcacao?.tipo === "medida") setEsboco(null);
         // Reincidência confirmada (item 17) → vira a MESMA referência cruzada do item 13. Não
         // existe "vínculo de reincidência" à parte: seria uma segunda ligação entre os mesmos
         // dois apontamentos, com a mesma semântica e outra tela pra manter.
@@ -956,24 +1015,29 @@ export function PdfViewer(props: Props) {
       ctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, destino.width, destino.height);
       // No rabisco o desenho é o conteúdo (a solução indicada): sem ele, a miniatura mostraria
       // só a planta. Nas outras formas o recorte já É a área marcada.
-      const cor = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim();
-      if (marcacao.tipo === "livre" && marcacao.tracos && cor) {
+      // A cor vem dos tokens do globals.css ("situação" = a primária, que é como o esboço aparecia).
+      const estilos = getComputedStyle(document.documentElement);
+      const corDe = (c: CorRabisco) => estilos.getPropertyValue(c === "situacao" ? "--primary" : `--marcacao-${c}`).trim();
+      if (marcacao.tipo === "livre" && marcacao.tracos) {
         const ex = destino.width / sw;
         const ey = destino.height / sh;
-        ctx.strokeStyle = cor;
-        ctx.lineWidth = 2.5;
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
-        for (const t of marcacao.tracos) {
+        marcacao.tracos.forEach((t, i) => {
+          const estilo = marcacao.estilos?.[i] ?? ESTILO_TRACO_PADRAO;
+          const cor = corDe(estilo.cor);
+          if (!cor) return;
+          ctx.strokeStyle = cor;
+          ctx.lineWidth = Math.max(1.5, estilo.espessura * 1.2);
           ctx.beginPath();
-          t.forEach((o, i) => {
+          t.forEach((o, j) => {
             const px = ((x + o.dx) * canvas.width - sx) * ex;
             const py = ((y + o.dy) * canvas.height - sy) * ey;
-            if (i === 0) ctx.moveTo(px, py);
+            if (j === 0) ctx.moveTo(px, py);
             else ctx.lineTo(px, py);
           });
           ctx.stroke();
-        }
+        });
       }
       const blob = await new Promise<Blob | null>((r) => destino.toBlob(r, "image/png"));
       if (!blob) return;
@@ -999,32 +1063,79 @@ export function PdfViewer(props: Props) {
    * de deixar o usuário arrastar e não receber número nenhum. `medidaMm` é congelado na
    * criação, então não existe estado de "medida sem valor" pra consertar depois.
    */
-  /** Traço terminado numa página. O rabisco é de UMA página: outra página pede concluir antes. */
-  function adicionarTraco(pagina: number, pontos: { x: number; y: number }[]) {
-    if (rabisco && rabisco.pagina !== pagina) {
-      toast.info(`Conclua ou descarte o rabisco da página ${rabisco.pagina} antes de desenhar em outra.`);
-      return;
-    }
-    if (rabisco && rabisco.tracos.length >= MAX_TRACOS_RABISCO) {
+  /** O esboço é de UMA página e de UM tipo: desenhar outra coisa pede concluir o atual antes. */
+  function avisoEsbocoAberto(e: Esboco) {
+    toast.info(`Conclua ou descarte ${e.tipo === "livre" ? "o rabisco" : "as medidas"} da página ${e.pagina} antes.`);
+  }
+
+  /** Traço do rabisco terminado numa página, com a cor/espessura escolhidas agora. */
+  function adicionarTraco(pagina: number, pontos: PontoPagina[]) {
+    if (esboco && (esboco.tipo !== "livre" || esboco.pagina !== pagina)) return avisoEsbocoAberto(esboco);
+    if (esboco?.tipo === "livre" && esboco.tracos.length >= MAX_TRACOS_RABISCO) {
       toast.info(`Limite de ${MAX_TRACOS_RABISCO} traços por rabisco. Conclua este e comece outro.`);
       return;
     }
-    setRabisco((r) => ({ pagina, tracos: [...(r?.tracos ?? []), pontos] }));
+    const traco = { pontos, estilo: estiloRabisco };
+    setEsboco((e) => ({ tipo: "livre", pagina, tracos: [...(e?.tipo === "livre" ? e.tracos : []), traco] }));
   }
 
-  function desfazerTraco() {
-    setRabisco((r) => (r && r.tracos.length > 1 ? { ...r, tracos: r.tracos.slice(0, -1) } : null));
-  }
-
-  /** Abre a janela do apontamento com o desenho. O rabisco continua na tela até criar. */
-  function concluirRabisco() {
-    if (!rabisco) return;
-    const feito = construirRabisco(rabisco.tracos);
-    if (!feito) {
-      toast.info("Desenho pequeno demais — faça um traço maior.");
+  /** Medida terminada numa página: o valor já vem calculado (e congelado) pela página. */
+  function adicionarMedida(pagina: number, a: PontoPagina, b: PontoPagina, mm: number, fator: number, modo: ModoCalibracao) {
+    if (esboco && (esboco.tipo !== "medida" || esboco.pagina !== pagina)) return avisoEsbocoAberto(esboco);
+    if (esboco?.tipo === "medida" && esboco.fator !== fator) {
+      toast.info("A escala da página mudou. Conclua as medidas já feitas antes de medir de novo.");
       return;
     }
-    abrirNovo(rabisco.pagina, feito.x, feito.y, feito.marcacao);
+    if (esboco?.tipo === "medida" && esboco.segmentos.length >= MAX_MEDIDAS) {
+      toast.info(`Limite de ${MAX_MEDIDAS} medidas por apontamento. Conclua estas e comece outro.`);
+      return;
+    }
+    const segmento = { a, b, mm };
+    setEsboco((e) => ({
+      tipo: "medida",
+      pagina,
+      fator,
+      modo,
+      segmentos: [...(e?.tipo === "medida" ? e.segmentos : []), segmento],
+    }));
+  }
+
+  function medidaSemEscala(pagina: number) {
+    toast.info(`A página ${pagina} não tem escala. Calibre para poder medir.`);
+    abrirCalibracao(pagina);
+  }
+
+  function desfazerEsboco() {
+    setEsboco((e) => {
+      if (!e) return e;
+      if (e.tipo === "livre") return e.tracos.length > 1 ? { ...e, tracos: e.tracos.slice(0, -1) } : null;
+      return e.segmentos.length > 1 ? { ...e, segmentos: e.segmentos.slice(0, -1) } : null;
+    });
+  }
+
+  /** Abre a janela do apontamento com o desenho. O esboço continua na tela até criar. */
+  function concluirEsboco() {
+    if (!esboco) return;
+    if (esboco.tipo === "livre") {
+      const feito = construirRabisco(esboco.tracos.map((t) => t.pontos), esboco.tracos.map((t) => t.estilo));
+      if (!feito) {
+        toast.info("Desenho pequeno demais — faça um traço maior.");
+        return;
+      }
+      abrirNovo(esboco.pagina, feito.x, feito.y, feito.marcacao);
+      return;
+    }
+    const feito = construirMedidas(esboco.segmentos);
+    if (!feito) {
+      toast.info("Nenhuma medida válida — arraste sobre o que quer medir.");
+      return;
+    }
+    // A coluna `medidaMm` guarda a 1ª (quem lê só ela continua certo); todas vão em `medidas`.
+    abrirNovo(esboco.pagina, feito.x, feito.y, feito.marcacao, {
+      mm: feito.marcacao.medidas![0].mm,
+      fator: esboco.fator,
+      modo: esboco.modo,
+    });
   }
 
   function escolherFerramenta(t: TipoMarcacao) {
@@ -1728,39 +1839,43 @@ export function PdfViewer(props: Props) {
         </div>
       )}
 
-      {/* Dica do modo-apontar */}
+      {/* Dica do modo apontar. Com rabisco/medidas em andamento, o resumo e os botões do esboço
+          ocupam ESTA linha, no lugar da instrução: uma faixa a mais surgindo no 1º traço empurrava a
+          prancha ~30 px para baixo, debaixo do cursor, e o 2º traço caía fora do lugar. */}
       {modoApontar && (
-        <div className="flex items-center gap-2 border-b bg-primary/5 px-3 py-1.5 text-xs text-primary">
-          <MapPin className="size-3.5 shrink-0" />{" "}
-          {ferramenta === "ponto"
-            ? "Clique no ponto da prancha onde está a pendência."
-            : ferramenta === "livre"
-              ? "Desenhe à mão livre na prancha — quantos traços quiser. Enter conclui, Ctrl+Z desfaz o último."
-              : `Arraste na prancha para desenhar ${MARCACAO_LABEL[ferramenta].toLowerCase()} — cancelar na janela descarta o desenho.`}
-          <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
-            Atalhos: 1 pino · 2 retângulo · 3 seta · 4 nuvem · 6 rabisco · Esc sai
-          </span>
+        // `min-h-[37px]` (botão 24 + padding 12 + borda 1): a mesma altura com ou sem os botões do
+        // esboço — senão a linha cresce no 1º traço e a prancha ainda anda sob o cursor.
+        <div className="flex min-h-[37px] flex-wrap items-center gap-x-2 gap-y-1 border-b bg-primary/5 px-3 py-1.5 text-xs text-primary">
+          {esboco ? (
+            <ResumoEsboco esboco={esboco} />
+          ) : (
+            <>
+              <MapPin className="size-3.5 shrink-0" />{" "}
+              {ferramenta === "ponto"
+                ? "Clique no ponto da prancha onde está a pendência."
+                : ferramenta === "livre"
+                  ? "Desenhe à mão livre na prancha — quantos traços quiser. Enter conclui, Ctrl+Z desfaz o último."
+                  : ferramenta === "medida"
+                    ? "Arraste sobre o que quer medir — quantas medidas quiser no mesmo apontamento. Enter conclui, Ctrl+Z desfaz a última."
+                    : `Arraste na prancha para desenhar ${MARCACAO_LABEL[ferramenta].toLowerCase()} — cancelar na janela descarta o desenho.`}
+            </>
+          )}
+          {ferramenta === "livre" && <SeletorEstilo estilo={estiloRabisco} onEscolher={escolherEstilo} />}
+          {esboco ? (
+            <BotoesEsboco esboco={esboco} onDesfazer={desfazerEsboco} onDescartar={() => setEsboco(null)} onConcluir={concluirEsboco} />
+          ) : (
+            <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
+              Atalhos: 1 pino · 2 retângulo · 3 seta · 4 nuvem · 5 medida · 6 rabisco · Esc sai
+            </span>
+          )}
         </div>
       )}
 
-      {/* Rabisco em andamento: fica à vista mesmo trocando de ferramenta, para não se perder. */}
-      {rabisco && (
+      {/* Fora do modo apontar, o esboço continua à vista numa faixa própria, para não se perder. */}
+      {esboco && !modoApontar && (
         <div className="flex flex-wrap items-center gap-2 border-b bg-primary/5 px-3 py-1.5 text-xs text-primary">
-          <PenLine className="size-3.5 shrink-0" />
-          <span>
-            Rabisco na página {rabisco.pagina}: {rabisco.tracos.length} {rabisco.tracos.length === 1 ? "traço" : "traços"}
-          </span>
-          <div className="ml-auto flex items-center gap-1">
-            <Button size="sm" variant="ghost" className="h-6 gap-1 px-2 text-xs" onClick={desfazerTraco} title="Desfazer o último traço (Ctrl+Z)">
-              <Undo2 className="size-3.5" /> Desfazer
-            </Button>
-            <Button size="sm" variant="ghost" className="h-6 gap-1 px-2 text-xs" onClick={() => setRabisco(null)} title="Descartar o desenho (Esc)">
-              <X className="size-3.5" /> Descartar
-            </Button>
-            <Button size="sm" className="h-6 gap-1 px-2 text-xs" onClick={concluirRabisco} title="Criar o apontamento com este desenho (Enter)">
-              <Check className="size-3.5" /> Concluir
-            </Button>
-          </div>
+          <ResumoEsboco esboco={esboco} />
+          <BotoesEsboco esboco={esboco} onDesfazer={desfazerEsboco} onDescartar={() => setEsboco(null)} onConcluir={concluirEsboco} />
         </div>
       )}
       </div>
@@ -1861,8 +1976,11 @@ export function PdfViewer(props: Props) {
                   }}
                   onSelecionar={(id) => selecionarPendencia(id, false)}
                   onApontar={(x, y, marcacao, medida) => abrirNovo(n, x, y, marcacao, medida)}
-                  rabisco={rabisco?.pagina === n ? rabisco.tracos : null}
+                  esboco={esboco?.pagina === n ? esboco : null}
+                  estiloRabisco={estiloRabisco}
                   onTracoRabisco={adicionarTraco}
+                  onMedida={adicionarMedida}
+                  onMedidaSemEscala={medidaSemEscala}
                   onTexto={busca.registrarTexto}
                   marcas={busca.ocorrenciasPorPagina(n)}
                   ocgConfig={camadas.config}
@@ -2670,8 +2788,11 @@ function Pagina({
   onSegmentoReferencia,
   onSelecionar,
   onApontar,
-  rabisco,
+  esboco,
+  estiloRabisco,
   onTracoRabisco,
+  onMedida,
+  onMedidaSemEscala,
   registrar,
   onTexto,
   marcas,
@@ -2702,10 +2823,16 @@ function Pagina({
   onSegmentoReferencia: (pagina: number, pontos: number) => void;
   onSelecionar: (id: string) => void;
   onApontar: (x: number, y: number, marcacao: Marcacao | null, medida: MedidaCalculada | null) => void;
-  /** Traços já feitos do rabisco NESTA página (normalizados, sem giro); `null` = nenhum. */
-  rabisco: { x: number; y: number }[][] | null;
+  /** Rabisco ou medidas em andamento NESTA página; `null` = nenhum. */
+  esboco: Esboco | null;
+  /** Cor/espessura do próximo traço do rabisco (a do traço sendo desenhado agora). */
+  estiloRabisco: EstiloTraco;
   /** Um traço do rabisco terminou (ferramenta "livre"). */
-  onTracoRabisco: (pagina: number, pontos: { x: number; y: number }[]) => void;
+  onTracoRabisco: (pagina: number, pontos: PontoPagina[]) => void;
+  /** Uma medida terminou, com o valor já calculado pela escala desta página. */
+  onMedida: (pagina: number, a: PontoPagina, b: PontoPagina, mm: number, fator: number, modo: ModoCalibracao) => void;
+  /** Arrastou para medir numa página sem escala. */
+  onMedidaSemEscala: (pagina: number) => void;
   registrar: (el: HTMLDivElement | null) => void;
   onTexto: (pagina: number, itens: ItemPagina[]) => void;
   marcas: MarcaTexto[];
@@ -2808,6 +2935,19 @@ function Pagina({
       onApontar(inicio.x, inicio.y, null, null);
       return;
     }
+    // Medida: cada arrasto é uma medida do esboço (várias por apontamento); Concluir cria. O
+    // valor é calculado AQUI, que é quem tem as dimensões da página em pontos, e fica congelado.
+    if (ferramenta === "medida") {
+      if (Math.abs(p.x - inicio.x) < ARRASTO_MINIMO && Math.abs(p.y - inicio.y) < ARRASTO_MINIMO) return;
+      const mm = mmPorPonto && dimPt ? medirMm(inicio, p, dimPt.wPt, dimPt.hPt, mmPorPonto) : null;
+      // Sem valor calculável (página sem escala) não vira medição fantasma: pede a calibração.
+      if (mm == null || !mmPorPonto) {
+        onMedidaSemEscala(pagina);
+        return;
+      }
+      onMedida(pagina, inicio, p, mm, mmPorPonto, modoCalibracao ?? "escala");
+      return;
+    }
     const feito = construirMarcacao(ferramenta, inicio, p);
     // Arrasto curto demais degrada pra pino em vez de recusar em silêncio — quem só clicou
     // com o retângulo selecionado ainda consegue criar o apontamento.
@@ -2815,22 +2955,17 @@ function Pagina({
       onApontar(inicio.x, inicio.y, null, null);
       return;
     }
-    let medida: MedidaCalculada | null = null;
-    if (ferramenta === "medida" && mmPorPonto && dimPt) {
-      const mm = medirMm(inicio, p, dimPt.wPt, dimPt.hPt, mmPorPonto);
-      // Sem valor calculável (fator inválido ou segmento nulo) não vira medição fantasma.
-      if (mm == null) {
-        onApontar(inicio.x, inicio.y, null, null);
-        return;
-      }
-      medida = { mm, fator: mmPorPonto, modo: modoCalibracao ?? "escala" };
-    }
-    onApontar(feito.x, feito.y, feito.marcacao, medida);
+    onApontar(feito.x, feito.y, feito.marcacao, null);
   }
 
   const previa: Marcacao | null =
     tracando && ferramenta !== "ponto"
       ? { tipo: ferramenta, pontos: [{ dx: tracando.ax - tracando.x, dy: tracando.ay - tracando.y }] }
+      : null;
+  // Medida ao vivo: o valor acompanha o arrasto (antes aparecia "—" até soltar o mouse).
+  const medidaAoVivo =
+    tracando && ferramenta === "medida" && !capturandoReferencia && mmPorPonto && dimPt
+      ? medirMm({ x: tracando.x, y: tracando.y }, { x: tracando.ax, y: tracando.ay }, dimPt.wPt, dimPt.hPt, mmPorPonto)
       : null;
 
   return (
@@ -2890,23 +3025,25 @@ function Pagina({
             )}
             {previa && tracando && (
               <g className="text-primary">
-                <MarcacaoSvg dim={dim} x={tracando.x} y={tracando.y} marcacao={previa} />
+                <MarcacaoSvg dim={dim} x={tracando.x} y={tracando.y} marcacao={previa} medidaMm={medidaAoVivo} />
               </g>
             )}
-            {(rabisco || tracoLivre) && (
-              <path
-                className="text-primary"
-                d={[...(rabisco ?? []), ...(tracoLivre ? [tracoLivre] : [])]
-                  .map((t) => t.map((q, i) => `${i === 0 ? "M" : "L"}${(q.x * dim.w).toFixed(1)} ${(q.y * dim.h).toFixed(1)}`).join(" "))
-                  .join(" ")}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2.5}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                vectorEffect="non-scaling-stroke"
-              />
-            )}
+            {/* Esboço: traços do rabisco (cada um com a sua cor/espessura) e medidas já feitas. */}
+            {esboco?.tipo === "livre" &&
+              esboco.tracos.map((t, i) => <TracoEsboco key={i} pontos={t.pontos} estilo={t.estilo} dim={dim} />)}
+            {tracoLivre && <TracoEsboco pontos={tracoLivre} estilo={estiloRabisco} dim={dim} />}
+            {esboco?.tipo === "medida" &&
+              esboco.segmentos.map((m, i) => (
+                <g key={i} className="text-primary">
+                  <MarcacaoSvg
+                    dim={dim}
+                    x={m.a.x}
+                    y={m.a.y}
+                    marcacao={{ tipo: "medida", pontos: [{ dx: m.b.x - m.a.x, dy: m.b.y - m.a.y }] }}
+                    medidaMm={m.mm}
+                  />
+                </g>
+              ))}
           </svg>
 
           {pins.map((p) => {
@@ -2946,5 +3083,117 @@ function Pagina({
         );
       }}
     </PdfPagina>
+  );
+}
+
+/** Um traço do esboço do rabisco, na cor/espessura escolhidas ("situação" = primária, até virar apontamento). */
+function TracoEsboco({ pontos, estilo, dim }: { pontos: PontoPagina[]; estilo: EstiloTraco; dim: { w: number; h: number } }) {
+  if (pontos.length < 2) return null;
+  return (
+    <path
+      className={estilo.cor === "situacao" ? "text-primary" : CLASSE_COR_RABISCO[estilo.cor]}
+      d={pontos.map((q, i) => `${i === 0 ? "M" : "L"}${(q.x * dim.w).toFixed(1)} ${(q.y * dim.h).toFixed(1)}`).join(" ")}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={estilo.espessura}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      vectorEffect="non-scaling-stroke"
+    />
+  );
+}
+
+/** Cor e espessura do rabisco, na faixa do modo apontar (só com a ferramenta Rabisco). */
+function SeletorEstilo({ estilo, onEscolher }: { estilo: EstiloTraco; onEscolher: (e: Partial<EstiloTraco>) => void }) {
+  return (
+    <div className="flex shrink-0 items-center gap-2">
+      <div className="flex items-center gap-0.5" role="group" aria-label="Cor do traço">
+        {CORES_RABISCO.map((c) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => onEscolher({ cor: c })}
+            aria-pressed={estilo.cor === c}
+            aria-label={COR_RABISCO_LABEL[c]}
+            title={COR_RABISCO_LABEL[c]}
+            className={cn(
+              "grid size-6 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              estilo.cor === c ? "ring-2 ring-foreground" : "hover:ring-1 hover:ring-border",
+            )}
+          >
+            {c === "situacao" ? (
+              // Sem cor própria: segue a situação do apontamento (aberta, em correção, fechada…).
+              <span className="size-3.5 rounded-full border-2 border-dashed border-warning bg-warning/30" />
+            ) : (
+              <span className={cn("size-3.5 rounded-full", CLASSE_FUNDO_RABISCO[c])} />
+            )}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-0.5" role="group" aria-label="Espessura do traço">
+        {ESPESSURAS_RABISCO.map((e) => (
+          <button
+            key={e}
+            type="button"
+            onClick={() => onEscolher({ espessura: e })}
+            aria-pressed={estilo.espessura === e}
+            aria-label={`Traço ${ESPESSURA_RABISCO_LABEL[e].toLowerCase()}`}
+            title={`Traço ${ESPESSURA_RABISCO_LABEL[e].toLowerCase()}`}
+            className={cn(
+              "grid h-6 w-7 place-items-center rounded-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              estilo.espessura === e ? "bg-primary/15 ring-1 ring-primary" : "hover:bg-accent",
+            )}
+          >
+            <span className="block w-4 rounded-full bg-current" style={{ height: e }} />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Resumo do esboço: quantos traços, ou as medidas com os valores. */
+function ResumoEsboco({ esboco }: { esboco: Esboco }) {
+  return (
+    <>
+      {esboco.tipo === "livre" ? <PenLine className="size-3.5 shrink-0" /> : <Ruler className="size-3.5 shrink-0" />}
+      <span className="min-w-0">
+        {esboco.tipo === "livre"
+          ? `Rabisco na página ${esboco.pagina}: ${esboco.tracos.length} ${esboco.tracos.length === 1 ? "traço" : "traços"}`
+          : `${esboco.segmentos.length === 1 ? "Medida" : `${esboco.segmentos.length} medidas`} na página ${esboco.pagina}: ${esboco.segmentos.map((m) => formatarMedida(m.mm)).join(" · ")}`}
+      </span>
+    </>
+  );
+}
+
+function BotoesEsboco({
+  esboco,
+  onDesfazer,
+  onDescartar,
+  onConcluir,
+}: {
+  esboco: Esboco;
+  onDesfazer: () => void;
+  onDescartar: () => void;
+  onConcluir: () => void;
+}) {
+  return (
+    <div className="ml-auto flex items-center gap-1">
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-6 gap-1 px-2 text-xs"
+        onClick={onDesfazer}
+        title={esboco.tipo === "livre" ? "Desfazer o último traço (Ctrl+Z)" : "Desfazer a última medida (Ctrl+Z)"}
+      >
+        <Undo2 className="size-3.5" /> Desfazer
+      </Button>
+      <Button size="sm" variant="ghost" className="h-6 gap-1 px-2 text-xs" onClick={onDescartar} title="Descartar tudo (Esc)">
+        <X className="size-3.5" /> Descartar
+      </Button>
+      <Button size="sm" className="h-6 gap-1 px-2 text-xs" onClick={onConcluir} title="Criar o apontamento (Enter)">
+        <Check className="size-3.5" /> Concluir
+      </Button>
+    </div>
   );
 }

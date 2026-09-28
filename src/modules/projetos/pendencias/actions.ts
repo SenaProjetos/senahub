@@ -21,7 +21,13 @@ import {
   STATUS_ABERTOS,
   TIPOS_PENDENCIA,
 } from "@/modules/projetos/pendencias/helpers";
-import { MAX_PONTOS_RABISCO, MAX_TRACOS_RABISCO, TIPOS_MARCACAO } from "@/modules/projetos/pendencias/marcacao";
+import {
+  CORES_RABISCO,
+  MAX_MEDIDAS,
+  MAX_PONTOS_RABISCO,
+  MAX_TRACOS_RABISCO,
+  TIPOS_MARCACAO,
+} from "@/modules/projetos/pendencias/marcacao";
 import { MODOS_CALIBRACAO } from "@/modules/projetos/pendencias/medicao";
 import { extrairMencoes } from "@/modules/chat/mencoes";
 import { buscarPendenciasParaReferencia, possiveisReincidencias } from "@/modules/projetos/pendencias/queries";
@@ -50,15 +56,31 @@ const criarSchema = z.object({
   prazo: z.string().trim().min(1).max(10).nullish(),
   // Marcação vetorial (item 9). Só o cliente sabe o que foi desenhado; `x`/`y` acima continuam
   // sendo a âncora (início do arrasto) e os pontos são OFFSETS a partir dela. Ausente = pino.
-  // Rabisco (`livre`) manda os traços em `tracos` — e só ele manda.
+  // Rabisco (`livre`) manda os traços em `tracos` (e a cor/espessura de cada um em `estilos`) — e
+  // só ele manda. Medida com várias medidas manda `medidas`, cada uma com o valor congelado.
   marcacao: z
     .object({
       tipo: z.enum(TIPOS_MARCACAO),
       pontos: z.array(offsetMarcacao).max(2),
       tracos: z.array(z.array(offsetMarcacao).min(2)).min(1).max(MAX_TRACOS_RABISCO).optional(),
+      estilos: z
+        .array(z.object({ cor: z.enum(CORES_RABISCO), espessura: z.number().min(1).max(12) }))
+        .max(MAX_TRACOS_RABISCO)
+        .optional(),
+      medidas: z
+        .array(z.object({ de: offsetMarcacao, ate: offsetMarcacao, mm: z.number().positive().finite() }))
+        .min(1)
+        .max(MAX_MEDIDAS)
+        .optional(),
     })
     .superRefine((m, ctx) => {
       if ((m.tipo === "livre") !== Boolean(m.tracos)) {
+        ctx.addIssue({ code: "custom", message: "Desenho inválido." });
+      }
+      if (m.estilos && (m.tipo !== "livre" || m.estilos.length !== m.tracos?.length)) {
+        ctx.addIssue({ code: "custom", message: "Desenho inválido." });
+      }
+      if (m.medidas && m.tipo !== "medida") {
         ctx.addIssue({ code: "custom", message: "Desenho inválido." });
       }
       if (m.tracos && m.tracos.reduce((n, t) => n + t.length, 0) > MAX_PONTOS_RABISCO) {
@@ -339,8 +361,10 @@ export const criarPendencia = defineAction(
           marcacaoGeo:
             input.marcacao && input.marcacao.tipo !== "ponto"
               ? input.marcacao.tipo === "livre"
-                ? { pontos: [], tracos: input.marcacao.tracos }
-                : { pontos: input.marcacao.pontos }
+                ? { pontos: [], tracos: input.marcacao.tracos, estilos: input.marcacao.estilos }
+                : input.marcacao.medidas
+                  ? { pontos: input.marcacao.pontos, medidas: input.marcacao.medidas }
+                  : { pontos: input.marcacao.pontos }
               : undefined,
           medidaMm: input.medida?.mm ?? null,
           medidaFator: input.medida?.fator ?? null,

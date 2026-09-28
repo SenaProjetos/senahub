@@ -51,6 +51,12 @@
   --color-status-revisao: var(--status-revisao);
   --color-status-entregue: var(--status-entregue);
   --color-status-aprovado: var(--status-aprovado);
+  /* Marcação sobre a prancha (rabisco dos apontamentos) */
+  --color-marcacao-vermelho: var(--marcacao-vermelho);
+  --color-marcacao-azul: var(--marcacao-azul);
+  --color-marcacao-verde: var(--marcacao-verde);
+  --color-marcacao-laranja: var(--marcacao-laranja);
+  --color-marcacao-preto: var(--marcacao-preto);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -170,6 +176,20 @@
   /* LogoLoader — navy do kit vira quase invisível no dark; usa o tom claro do logo_hub_v_dark.svg */
   --loader-navy: #ccccca;
   --loader-slate: #64818a;
+}
+
+/*
+ * Cores de marcação sobre a prancha (rabisco dos apontamentos). NÃO mudam no tema escuro de
+ * propósito: o traço fica sobre a folha do PDF, que é sempre branca — um "preto" que virasse
+ * claro no escuro sumiria. Espelhadas em `HEX_COR_RABISCO` (pendencias/marcacao.ts) para o PDF
+ * carimbado; um teste garante que os dois batem.
+ */
+:root {
+  --marcacao-vermelho: #d62828;
+  --marcacao-azul: #1f5fd1;
+  --marcacao-verde: #1b8a3a;
+  --marcacao-laranja: #e07000;
+  --marcacao-preto: #1a1a1a;
 }
 
 /*

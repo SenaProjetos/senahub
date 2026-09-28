@@ -129,7 +129,12 @@ export async function GET(req: Request) {
       marcacao: marcacao ? MARCACAO_LABEL[marcacao.tipo] : MARCACAO_LABEL.ponto,
       // Só apontamento de medição tem valor; nos outros a coluna fica vazia (o "—" de
       // `formatarMedida` seria ruído numa planilha que vai ser filtrada).
-      medida: p.medidaMm != null ? formatarMedida(p.medidaMm) : "",
+      // Várias medidas no mesmo apontamento: todas, na ordem em que foram feitas.
+      medida: marcacao?.medidas
+        ? marcacao.medidas.map((m) => formatarMedida(m.mm)).join("; ")
+        : p.medidaMm != null
+          ? formatarMedida(p.medidaMm)
+          : "",
       texto: p.texto,
       autor: nomeAutor.get(p.autorId) ?? "—",
       criado: dataHora(p.createdAt),

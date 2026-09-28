@@ -35,23 +35,76 @@ export function ehSegmento(tipo: TipoMarcacao): boolean {
 export type OffsetPonto = { dx: number; dy: number };
 
 /**
+ * Cores do rabisco. "situacao" é a cor da situação do apontamento (muda de aberta para fechada,
+ * como as outras formas); as demais são fixas e NÃO mudam no tema escuro — o traço fica sobre a
+ * prancha, que é sempre branca. Os valores moram em `globals.css` (`--marcacao-*`); o espelho em
+ * hex abaixo existe para quem não lê CSS (PDF carimbado) e um teste garante que os dois batem.
+ */
+export const CORES_RABISCO = ["situacao", "vermelho", "azul", "verde", "laranja", "preto"] as const;
+export type CorRabisco = (typeof CORES_RABISCO)[number];
+export type CorFixaRabisco = Exclude<CorRabisco, "situacao">;
+
+export const COR_RABISCO_LABEL: Record<CorRabisco, string> = {
+  situacao: "Cor da situação do apontamento",
+  vermelho: "Vermelho",
+  azul: "Azul",
+  verde: "Verde",
+  laranja: "Laranja",
+  preto: "Preto",
+};
+
+/** Espelho de `--marcacao-*` (globals.css) — ver comentário de `CORES_RABISCO`. */
+export const HEX_COR_RABISCO: Record<CorFixaRabisco, string> = {
+  vermelho: "#d62828",
+  azul: "#1f5fd1",
+  verde: "#1b8a3a",
+  laranja: "#e07000",
+  preto: "#1a1a1a",
+};
+
+/** Espessuras do rabisco, em px de tela (constantes em qualquer zoom, como as outras formas). */
+export const ESPESSURAS_RABISCO = [2, 4, 7] as const;
+export const ESPESSURA_RABISCO_LABEL: Record<(typeof ESPESSURAS_RABISCO)[number], string> = {
+  2: "Fina",
+  4: "Média",
+  7: "Grossa",
+};
+
+export type EstiloTraco = { cor: CorRabisco; espessura: number };
+export const ESTILO_TRACO_PADRAO: EstiloTraco = { cor: "situacao", espessura: 2 };
+
+/** Uma medida de um apontamento com várias: início e fim (offsets da âncora) e o valor congelado. */
+export type SegmentoMedida = { de: OffsetPonto; ate: OffsetPonto; mm: number };
+
+/**
  * Geometria da marcação. `pontos` é sempre relativo à âncora:
  * - `ponto`   → `[]` (a âncora já é tudo)
  * - `retangulo`/`nuvem` → `[cantoOposto]` (a âncora é o primeiro canto)
  * - `seta`/`medida`    → `[ponta]` (a âncora é a cauda / início da medição)
  * - `livre` (rabisco)  → `pontos: []` e o desenho em `tracos`: um ou mais traços à mão livre,
- *   cada um uma lista de offsets. A âncora é o primeiro ponto do primeiro traço.
+ *   cada um uma lista de offsets, com a cor/espessura de cada um em `estilos` (mesma ordem). A
+ *   âncora é o primeiro ponto do primeiro traço.
+ * - `medida` com várias medidas → `medidas`, uma por segmento, cada uma com o valor congelado;
+ *   `pontos` continua com a ponta da PRIMEIRA, então leitor antigo desenha ao menos ela.
  *
  * Lista, e não campos nomeados, porque as formas futuras (polilinha, cota de medição do item
  * 28) são o mesmo desenho com mais vértices — e aí não muda nem o schema nem esta assinatura.
  * O rabisco precisou de `tracos` à parte porque vários traços soltos não são UMA lista de
  * vértices: juntar tudo em `pontos` ligaria o fim de um traço ao começo do seguinte.
  */
-export type Marcacao = { tipo: TipoMarcacao; pontos: OffsetPonto[]; tracos?: OffsetPonto[][] };
+export type Marcacao = {
+  tipo: TipoMarcacao;
+  pontos: OffsetPonto[];
+  tracos?: OffsetPonto[][];
+  estilos?: EstiloTraco[];
+  medidas?: SegmentoMedida[];
+};
 
 /** Tetos do rabisco — o mesmo número vale na tela (para parar de aceitar traço) e no servidor. */
 export const MAX_TRACOS_RABISCO = 60;
 export const MAX_PONTOS_RABISCO = 4000;
+/** Teto de medidas num apontamento — tela e servidor. */
+export const MAX_MEDIDAS = 30;
 
 /**
  * Tolerância da simplificação do traço, em fração da página: ~0,7 mm numa A1, menos de 1 px
@@ -84,6 +137,10 @@ export function lerMarcacao(tipo: string | null | undefined, geo: unknown): Marc
   // Toda forma conhecida hoje precisa de exatamente 1 offset; uma quantidade diferente é dado
   // corrompido (ou de uma versão futura) — melhor cair no pino do que desenhar lixo.
   if (limpos.length !== 1) return null;
+  if (tipo === "medida") {
+    const medidas = lerMedidas(geo);
+    if (medidas) return { tipo: "medida", pontos: limpos, medidas };
+  }
   return { tipo: tipo as TipoMarcacao, pontos: limpos };
 }
 
@@ -94,22 +151,50 @@ function lerOffset(p: unknown): OffsetPonto | null {
   return { dx, dy };
 }
 
-/** Rabisco gravado: traço com menos de 2 pontos é descartado; nenhum traço válido = sem forma. */
+/** Estilo gravado (ou lembrado no navegador); fora do catálogo volta ao padrão (nunca derruba o desenho). */
+export function lerEstilo(e: unknown): EstiloTraco {
+  const cor = (e as EstiloTraco)?.cor;
+  const espessura = (e as EstiloTraco)?.espessura;
+  return {
+    cor: (CORES_RABISCO as readonly string[]).includes(cor) ? cor : ESTILO_TRACO_PADRAO.cor,
+    espessura: typeof espessura === "number" && espessura >= 1 && espessura <= 12 ? espessura : ESTILO_TRACO_PADRAO.espessura,
+  };
+}
+
+/**
+ * Rabisco gravado: traço com menos de 2 pontos é descartado (junto com o seu estilo, para as
+ * listas continuarem alinhadas); nenhum traço válido = sem forma. Rabisco sem `estilos` (gravado
+ * antes das cores) sai no estilo padrão.
+ */
 function lerRabisco(geo: unknown): Marcacao | null {
   const tracos = (geo as { tracos?: unknown })?.tracos;
   if (!Array.isArray(tracos)) return null;
+  const estilosBrutos = (geo as { estilos?: unknown })?.estilos;
   const limpos: OffsetPonto[][] = [];
-  for (const t of tracos) {
-    if (!Array.isArray(t)) return null;
-    const pts: OffsetPonto[] = [];
-    for (const p of t) {
-      const o = lerOffset(p);
-      if (!o) return null;
-      pts.push(o);
-    }
-    if (pts.length >= 2) limpos.push(pts);
+  const estilos: EstiloTraco[] = [];
+  tracos.forEach((t, i) => {
+    if (!Array.isArray(t)) return;
+    const pts = t.map(lerOffset);
+    if (pts.length < 2 || pts.some((o) => !o)) return;
+    limpos.push(pts as OffsetPonto[]);
+    estilos.push(lerEstilo(Array.isArray(estilosBrutos) ? estilosBrutos[i] : undefined));
+  });
+  return limpos.length > 0 ? { tipo: "livre", pontos: [], tracos: limpos, estilos } : null;
+}
+
+/** Medidas gravadas; `null` se ausentes ou com qualquer item inválido (aí vale só `pontos`). */
+function lerMedidas(geo: unknown): SegmentoMedida[] | null {
+  const brutas = (geo as { medidas?: unknown })?.medidas;
+  if (!Array.isArray(brutas) || brutas.length === 0) return null;
+  const out: SegmentoMedida[] = [];
+  for (const m of brutas) {
+    const de = lerOffset((m as SegmentoMedida)?.de);
+    const ate = lerOffset((m as SegmentoMedida)?.ate);
+    const mm = (m as SegmentoMedida)?.mm;
+    if (!de || !ate || typeof mm !== "number" || !Number.isFinite(mm) || mm <= 0) return null;
+    out.push({ de, ate, mm });
   }
-  return limpos.length > 0 ? { tipo: "livre", pontos: [], tracos: limpos } : null;
+  return out;
 }
 
 /** Distância do ponto `p` ao segmento `a`–`b`. */
@@ -166,11 +251,17 @@ const arredondar = (v: number) => Math.round(v * 1e5) / 1e5;
  */
 export function construirRabisco(
   tracos: readonly (readonly { x: number; y: number }[])[],
+  estilos: readonly EstiloTraco[] = [],
 ): { x: number; y: number; marcacao: Marcacao } | null {
-  const limpos = tracos
-    .map((t) => simplificarTraco(t.map((p) => ({ x: limitar(p.x, 0, 1), y: limitar(p.y, 0, 1) }))))
-    .filter((t) => t.length >= 2)
+  // Estilo anda junto do traço desde já: filtrar traço curto depois desalinharia as listas.
+  const pares = tracos
+    .map((t, i) => ({
+      pontos: simplificarTraco(t.map((p) => ({ x: limitar(p.x, 0, 1), y: limitar(p.y, 0, 1) }))),
+      estilo: lerEstilo(estilos[i]),
+    }))
+    .filter((t) => t.pontos.length >= 2)
     .slice(0, MAX_TRACOS_RABISCO);
+  const limpos = pares.map((t) => t.pontos);
   if (limpos.length === 0) return null;
 
   const todos = limpos.flat();
@@ -182,13 +273,44 @@ export function construirRabisco(
   const y = limpos[0][0].y;
   let restantes = MAX_PONTOS_RABISCO;
   const offsets: OffsetPonto[][] = [];
-  for (const t of limpos) {
+  const estilosFinais: EstiloTraco[] = [];
+  for (const t of pares) {
     if (restantes < 2) break;
-    const parte = t.slice(0, restantes);
+    const parte = t.pontos.slice(0, restantes);
     restantes -= parte.length;
     offsets.push(parte.map((p) => ({ dx: arredondar(p.x - x), dy: arredondar(p.y - y) })));
+    estilosFinais.push(t.estilo);
   }
-  return { x, y, marcacao: { tipo: "livre", pontos: [], tracos: offsets } };
+  return { x, y, marcacao: { tipo: "livre", pontos: [], tracos: offsets, estilos: estilosFinais } };
+}
+
+/**
+ * Monta um apontamento com VÁRIAS medidas (pedido do dono, 2026-09-28), a partir dos segmentos
+ * medidos na página (coordenadas normalizadas sem giro, valor já calculado e congelado). A âncora é
+ * o início da primeira; `pontos` guarda a ponta da primeira (compatível com quem só conhece uma).
+ * Segmento curto demais (clique) ou sem valor sai. `null` = não sobrou medida.
+ */
+export function construirMedidas(
+  segmentos: readonly { a: { x: number; y: number }; b: { x: number; y: number }; mm: number }[],
+): { x: number; y: number; marcacao: Marcacao } | null {
+  const validos = segmentos
+    .map((s) => ({
+      a: { x: limitar(s.a.x, 0, 1), y: limitar(s.a.y, 0, 1) },
+      b: { x: limitar(s.b.x, 0, 1), y: limitar(s.b.y, 0, 1) },
+      mm: s.mm,
+    }))
+    .filter(
+      (s) =>
+        Number.isFinite(s.mm) &&
+        s.mm > 0 &&
+        (Math.abs(s.b.x - s.a.x) >= ARRASTO_MINIMO || Math.abs(s.b.y - s.a.y) >= ARRASTO_MINIMO),
+    )
+    .slice(0, MAX_MEDIDAS);
+  if (validos.length === 0) return null;
+  const { x, y } = validos[0].a;
+  const off = (q: { x: number; y: number }) => ({ dx: arredondar(q.x - x), dy: arredondar(q.y - y) });
+  const medidas = validos.map((s) => ({ de: off(s.a), ate: off(s.b), mm: s.mm }));
+  return { x, y, marcacao: { tipo: "medida", pontos: [medidas[0].ate], medidas } };
 }
 
 /**
@@ -220,8 +342,8 @@ export function caixaMarcacao(
   y: number,
   m: Marcacao | null,
 ): { esquerda: number; topo: number; largura: number; altura: number } {
-  if (m?.tipo === "livre" && m.tracos?.length) {
-    const todos = m.tracos.flat();
+  if ((m?.tipo === "livre" && m.tracos?.length) || m?.medidas?.length) {
+    const todos = m.tipo === "livre" ? m.tracos!.flat() : m.medidas!.flatMap((s) => [s.de, s.ate]);
     const xs = todos.map((o) => x + o.dx);
     const ys = todos.map((o) => y + o.dy);
     const esquerda = Math.min(x, ...xs);

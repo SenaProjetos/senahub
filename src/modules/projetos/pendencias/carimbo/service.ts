@@ -5,7 +5,14 @@ import { prisma } from "@/lib/prisma";
 import { resolverCaminho } from "@/lib/storage";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { formatarDataHora, rotuloRevisao } from "@/lib/utils";
-import { lerMarcacao, caminhoNuvem, abasSeta, type Marcacao } from "@/modules/projetos/pendencias/marcacao";
+import {
+  lerMarcacao,
+  caminhoNuvem,
+  abasSeta,
+  HEX_COR_RABISCO,
+  type CorFixaRabisco,
+  type Marcacao,
+} from "@/modules/projetos/pendencias/marcacao";
 import { formatarMedida } from "@/modules/projetos/pendencias/medicao";
 import { SEVERIDADE_LABEL, contaComoTrabalho, type Severidade } from "@/modules/projetos/pendencias/helpers";
 import { anguloTextoEmPe, caixaPdf, normalizarRotacao, paraPdf } from "@/modules/projetos/pendencias/carimbo/coords";
@@ -32,6 +39,17 @@ const COR_STATUS: Record<string, ReturnType<typeof rgb>> = {
   descartada: rgb(0.45, 0.45, 0.45),
 };
 const PRETO = rgb(0.1, 0.1, 0.1);
+
+/** Hex `#rrggbb` → cor do pdf-lib. Só para `HEX_COR_RABISCO` (espelho do globals.css). */
+function rgbDeHex(hex: string): ReturnType<typeof rgb> {
+  const n = Number.parseInt(hex.slice(1), 16);
+  return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
+}
+
+/** Cores fixas do rabisco no PDF — as mesmas da tela (`--marcacao-*`). */
+const COR_RABISCO_PDF = Object.fromEntries(
+  Object.entries(HEX_COR_RABISCO).map(([k, hex]) => [k, rgbDeHex(hex)]),
+) as Record<CorFixaRabisco, ReturnType<typeof rgb>>;
 const BRANCO = rgb(1, 1, 1);
 /** Aberto E impeditivo sai em vermelho — na folha que vai pra obra, é o que não pode passar batido. */
 const COR_IMPEDITIVO = rgb(0.79, 0.09, 0.12);
@@ -147,18 +165,38 @@ export function desenharMarcacao(
     // Rabisco: cada traço vira um caminho. `drawSvgPath` lê em convenção SVG (y para baixo) a
     // partir da âncora dada; ancorando em (0, H) e escrevendo H − y, o ponto sai onde `paraPdf`
     // o colocou — o mesmo espaço (com /Rotate) das outras formas.
-    for (const t of m.tracos ?? []) {
+    // Cor e espessura de cada traço: "situação" segue a cor do apontamento; a espessura (px de
+    // tela, 2 = a das outras formas) vira a mesma proporção do traço padrão da folha.
+    (m.tracos ?? []).forEach((t, i) => {
       const pts = t.map((o) => paraPdf(x + o.dx, y + o.dy, W, H, r));
-      if (pts.length < 2) continue;
-      const d = pts.map((q, i) => `${i === 0 ? "M" : "L"}${q.x.toFixed(2)} ${(H - q.y).toFixed(2)}`).join(" ");
+      if (pts.length < 2) return;
+      const estilo = m.estilos?.[i];
+      const corTraco = estilo && estilo.cor !== "situacao" ? COR_RABISCO_PDF[estilo.cor] : cor;
+      const d = pts.map((q, j) => `${j === 0 ? "M" : "L"}${q.x.toFixed(2)} ${(H - q.y).toFixed(2)}`).join(" ");
       pagina.drawSvgPath(d, {
         x: 0,
         y: H,
-        borderColor: cor,
-        borderWidth: traco,
+        borderColor: corTraco,
+        borderWidth: traco * ((estilo?.espessura ?? 2) / 2),
         borderLineCap: LineCapStyle.Round,
         color: undefined,
       });
+    });
+    return;
+  }
+
+  // Várias medidas: cada uma é uma cota com o seu valor (desenhadas pelo ramo de medida única).
+  if (m.tipo === "medida" && m.medidas && m.medidas.length > 0) {
+    for (const s of m.medidas) {
+      desenharMarcacao(
+        pagina,
+        { tipo: "medida", pontos: [{ dx: s.ate.dx - s.de.dx, dy: s.ate.dy - s.de.dy }] },
+        x + s.de.dx,
+        y + s.de.dy,
+        cor,
+        rot,
+        { medidaMm: s.mm, fonte: extras?.fonte },
+      );
     }
     return;
   }

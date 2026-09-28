@@ -454,7 +454,11 @@
         "rabisco",
         "desenho livre",
         "apontamento",
-        "prancha"
+        "prancha",
+        "medida",
+        "várias medidas",
+        "cor do traço",
+        "espessura"
       ],
       "sinonimos": [
         "obras",

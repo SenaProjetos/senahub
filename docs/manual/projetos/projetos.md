@@ -470,16 +470,27 @@ visualizador de PDF dos Recebidos, do Geral e dos documentos de RH.
 **Rabisco (desenho livre) nos apontamentos.** Para indicar a solução direto na planta:
 
 1. Clique em **Apontar** e escolha **Rabisco** no seletor de marcação (atalho: tecla **6**).
-2. Desenhe na prancha com o mouse, a caneta ou o dedo. Pode fazer quantos traços quiser na mesma
-   página. A barra acima da prancha mostra quantos traços já tem.
-3. **Desfazer** (ou **Ctrl+Z**) apaga o último traço; **Descartar** (ou **Esc**) apaga o desenho
+2. Na faixa da dica, escolha a **cor** (vermelho, azul, verde, laranja, preto ou a cor da situação
+   do apontamento) e a **espessura** (fina, média ou grossa). Dá para trocar entre um traço e outro;
+   a última escolha fica lembrada no navegador.
+3. Desenhe na prancha com o mouse, a caneta ou o dedo. Pode fazer quantos traços quiser na mesma
+   página. A faixa acima da prancha mostra quantos traços já tem.
+4. **Desfazer** (ou **Ctrl+Z**) apaga o último traço; **Descartar** (ou **Esc**) apaga o desenho
    todo.
-4. Clique em **Concluir** (ou **Enter**) para abrir a janela do apontamento, descreva e crie.
+5. Clique em **Concluir** (ou **Enter**) para abrir a janela do apontamento, descreva e crie.
    Cancelar a janela não perde o desenho: ele continua na tela para você ajustar.
 
-O rabisco aparece na prancha com a cor da situação do apontamento, na miniatura da lista (com os
-traços) e no **PDF carimbado**. O desenho é de uma página só: para rabiscar em outra página,
-conclua ou descarte o atual primeiro.
+O rabisco aparece na prancha, na miniatura da lista e no **PDF carimbado** com as cores e espessuras
+escolhidas. Traço na "cor da situação" muda de cor junto com o apontamento (aberto, fechado…). O
+desenho é de uma página só: para rabiscar em outra página, conclua ou descarte o atual primeiro.
+
+**Medidas (várias no mesmo apontamento).** Com a página calibrada (botão da escala, ao lado de
+**Apontando…**), escolha **Medida** (tecla **5**) e arraste sobre o que quer medir: o valor aparece
+**enquanto você arrasta**. Cada arraste soma uma medida; a faixa acima da prancha lista os valores.
+**Desfazer** (Ctrl+Z) tira a última, e **Concluir** (Enter) abre a janela com as medidas já escritas
+no texto ("Medidas: 3,53 m; 7,06 m."). Os valores ficam congelados com a escala do momento, e cada
+medida aparece com o seu valor na prancha, no PDF carimbado e no relatório em planilha. Arrastar
+numa página sem escala abre a calibração.
 
 ## Permissões (resumo)
 
