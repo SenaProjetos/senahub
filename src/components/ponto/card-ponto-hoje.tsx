@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, ChevronRight, Search } from "lucide-react";
+import { Check, ChevronRight, ListChecks, Search } from "lucide-react";
 import { buscarAlocacoesRecentes, buscarProjetosPonto } from "@/modules/ponto/actions";
 import {
   abrirApontamentoAction,
@@ -16,12 +16,15 @@ import {
   ALOCACAO_REUNIAO_EXTERNA,
   ALOCACAO_REUNIAO_INTERNA,
   ALOCACAO_SEM_PROJETO,
+  selecaoEhProjeto,
+  tarefaDoDestino,
   type AlocacaoRecente,
   type ProjetoAlocacao,
 } from "@/modules/ponto/alocacao";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { useBatida, avisarPontoAtualizado, EVENTO_PONTO } from "@/components/ponto/use-batida";
 import { useJornada } from "@/components/ponto/use-jornada";
+import { useTarefasDoPonto } from "@/components/ponto/seletor-tarefa";
 import { BOTAO, COR_ESTADO, ESTADO_LABEL } from "@/components/ponto/batida-meta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,19 +73,25 @@ function useEhCelular(): boolean {
  * (PJ/freelancer). Trocar com a jornada rodando usa `trocarProjeto`, que fecha a sessão e abre a
  * outra no mesmo instante — sem batida nova, sem mudar o total do dia.
  *
- * 1º nível apenas (projeto, reunião, sem projeto). O 2º (atividade da EAP) espera a reforma das
- * EAPs — lote 9 do plano.
+ * Tarefa (F6, lote 9): quando o destino é um projeto com tarefa aberta da pessoa, uma linha
+ * "Tarefa · opcional" logo abaixo abre a gaveta das tarefas — as mesmas do seletor do computador
+ * (`useTarefasDoPonto`). Rodando, trocar de tarefa grava na hora (`trocarProjeto` no mesmo projeto);
+ * parado, a escolhida vai junto na entrada/volta do descanso. Nunca é obrigatória nem entra no
+ * caminho da troca de projeto em um toque (Q20).
  */
 export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina?: boolean } = {}) {
   const ehCelular = useEhCelular();
   const router = useRouter();
   const confirmar = useConfirm();
-  const { resumo, rodando, ms, selecaoCorrente } = useJornada({ ativo: ehCelular });
+  const { resumo, rodando, ms, selecaoCorrente, tarefaCorrente } = useJornada({ ativo: ehCelular });
   const { bater, trocar, busy } = useBatida();
   const [recentes, setRecentes] = useState<AlocacaoRecente[]>([]);
   const [projetos, setProjetos] = useState<ProjetoAlocacao[] | null>(null);
   const [escolha, setEscolha] = useState<string | null>(null);
   const [gaveta, setGaveta] = useState(false);
+  // Tarefa escolhida para o destino com a jornada parada; `null` = seguir o padrão (`tarefaDoDestino`).
+  const [escolhaTarefa, setEscolhaTarefa] = useState<string | null>(null);
+  const [gavetaTarefa, setGavetaTarefa] = useState(false);
   const [busca, setBusca] = useState("");
   const [aplicando, setAplicando] = useState(false);
 
@@ -104,7 +113,10 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
 
   // Com a jornada rodando, a escolha local não vale mais: o que manda é a sessão aberta.
   useEffect(() => {
-    if (rodando) setEscolha(null);
+    if (rodando) {
+      setEscolha(null);
+      setEscolhaTarefa(null);
+    }
   }, [rodando]);
 
   const abrirGaveta = useCallback(async () => {
@@ -132,6 +144,20 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
     return m;
   }, [projetos, recentes, resumo]);
 
+  const ehPonto = resumo?.modo === "ponto";
+  const estado = resumo?.modo === "ponto" ? resumo.estado : rodando ? "trabalhando" : "fora";
+  // Parado (fora ou em descanso): a linha de cima é para onde a pessoa VAI. Em descanso o padrão
+  // é retomar a última alocação; fora da jornada, a mais recente.
+  const alvo = rodando
+    ? selecaoCorrente
+    : (escolha ?? (estado === "descansando" ? selecaoCorrente : recentes[0]?.selecao ?? ALOCACAO_SEM_PROJETO));
+  const tarefaCorrenteId = tarefaCorrente?.id ?? "";
+  const tarefaId = tarefaDoDestino({ destino: alvo, rodando, selecaoCorrente, tarefaCorrenteId, escolhida: escolhaTarefa });
+  const tarefas = useTarefasDoPonto(
+    ehCelular && resumo && selecaoEhProjeto(alvo) ? alvo : null,
+    alvo === selecaoCorrente ? tarefaCorrente : null,
+  );
+
   if (!ehCelular || !resumo) return null;
 
   const rotulo = (selecao: string) => {
@@ -140,14 +166,10 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
     return p ? { titulo: p.nome, codigo: formatarCodigo(p.codigo) } : { titulo: "Projeto", codigo: null };
   };
 
-  const ehPonto = resumo.modo === "ponto";
-  const estado = ehPonto ? resumo.estado : rodando ? "trabalhando" : "fora";
-  // Parado (fora ou em descanso): a linha de cima é para onde a pessoa VAI. Em descanso o padrão
-  // é retomar a última alocação; fora da jornada, a mais recente.
-  const alvo = rodando
-    ? selecaoCorrente
-    : (escolha ?? (estado === "descansando" ? selecaoCorrente : recentes[0]?.selecao ?? ALOCACAO_SEM_PROJETO));
   const atual = rotulo(alvo);
+  // A linha da tarefa só existe quando há o que escolher (mesma regra do seletor do computador).
+  const mostrarTarefa = tarefas !== null && tarefas.length > 0;
+  const tituloTarefa = tarefaId ? (tarefas?.find((t) => t.id === tarefaId)?.titulo ?? null) : null;
   const desde = ehPonto ? resumo.sessaoDesde : resumo.aberto?.inicio ?? null;
   const atalhos = recentes.filter((r) => r.selecao !== alvo).slice(0, 3);
   const ocupado = busy || aplicando;
@@ -171,11 +193,24 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
     setGaveta(false);
     if (!rodando) {
       setEscolha(selecao);
+      setEscolhaTarefa(null);
       return;
     }
     if (selecao === selecaoCorrente) return;
     if (ehPonto) await trocar(selecao);
     else await apontar(() => trocarApontamentoAction({ projetoId: selecao }), "Alocação atualizada.");
+  }
+
+  /** Escolher a tarefa do destino: rodando, troca na hora no mesmo projeto; parada, só marca. */
+  async function escolherTarefa(id: string) {
+    setGavetaTarefa(false);
+    if (!rodando) {
+      setEscolhaTarefa(id);
+      return;
+    }
+    if (id === tarefaCorrenteId) return;
+    if (ehPonto) await trocar(selecaoCorrente, id || undefined);
+    else await apontar(() => trocarApontamentoAction({ projetoId: selecaoCorrente, tarefaId: id }), "Tarefa atualizada.");
   }
 
   async function encerrar() {
@@ -198,11 +233,12 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
     !q || p.nome.toLowerCase().includes(q) || formatarCodigo(p.codigo).toLowerCase().includes(q) || p.codigo.includes(q);
   const idsRecentes = new Set(recentes.map((r) => r.selecao));
 
-  const opcao = (selecao: string, titulo: string, codigo?: string | null) => (
+  /** Linha das gavetas (projetos e tarefas): mesmo alvo de toque, mesmo ✓ na escolha atual. */
+  const linhaDaGaveta = (chave: string, titulo: string, marcada: boolean, onClick: () => void, codigo?: string | null) => (
     <button
-      key={selecao}
+      key={chave}
       type="button"
-      onClick={() => void escolher(selecao)}
+      onClick={onClick}
       disabled={ocupado}
       className="flex min-h-12 w-full items-center gap-3 border-b px-4 text-left text-[15px] last:border-b-0 hover:bg-muted/50 disabled:opacity-50"
     >
@@ -210,9 +246,11 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
         {codigo && <span className="font-mono text-muted-foreground">{codigo} · </span>}
         {titulo}
       </span>
-      {selecao === alvo && <Check className="size-4 shrink-0 text-primary" aria-label="atual" />}
+      {marcada && <Check className="size-4 shrink-0 text-primary" aria-label="atual" />}
     </button>
   );
+  const opcao = (selecao: string, titulo: string, codigo?: string | null) =>
+    linhaDaGaveta(selecao, titulo, selecao === alvo, () => void escolher(selecao), codigo);
 
   return (
     <section aria-label="Ponto" className="rounded-md border bg-card p-3 shadow-sm">
@@ -245,6 +283,27 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
           </span>
           <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
         </button>
+
+        {mostrarTarefa && (
+          <button
+            type="button"
+            onClick={() => setGavetaTarefa(true)}
+            disabled={ocupado}
+            aria-haspopup="dialog"
+            className="flex min-h-12 w-full items-center gap-3 border-t border-border/60 bg-muted/60 px-3 py-1.5 text-left hover:bg-muted disabled:opacity-50"
+          >
+            <ListChecks className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="min-w-0 flex-1">
+              <span className="block font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                Tarefa · opcional
+              </span>
+              <span className={cn("block truncate text-[15px]", !tituloTarefa && "text-muted-foreground")}>
+                {tituloTarefa ?? "Sem tarefa"}
+              </span>
+            </span>
+            <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+          </button>
+        )}
 
         {atalhos.length > 0 && (
           <p className="border-t px-3 pb-1 pt-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
@@ -292,7 +351,11 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
                 variant={b.variant}
                 disabled={ocupado}
                 className={cn("h-12 text-base", principal && "col-span-2")}
-                onClick={() => void (tipo === "saida" ? encerrar() : bater(tipo, abreSessao ? alvo : undefined))}
+                onClick={() =>
+                  void (tipo === "saida"
+                    ? encerrar()
+                    : bater(tipo, abreSessao ? alvo : undefined, abreSessao ? tarefaId || undefined : undefined))
+                }
               >
                 <Icon className="size-5" /> {tipo === "inicio_descanso" ? "Pausa" : tipo === "saida" ? "Encerrar" : b.label}
               </Button>
@@ -306,16 +369,18 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
           <Button
             disabled={ocupado}
             className="col-span-2 h-12 text-base"
-            onClick={() => void apontar(() => abrirApontamentoAction({ projetoId: alvo }), "Apontamento iniciado.")}
+            onClick={() =>
+              void apontar(() => abrirApontamentoAction({ projetoId: alvo, tarefaId }), "Apontamento iniciado.")
+            }
           >
             Iniciar apontamento
           </Button>
         )}
       </div>
-{!semLinkParaPagina && (
-              <Link href="/ponto" className="mt-2 block px-1 text-center text-xs text-muted-foreground hover:text-foreground">
-        {ehPonto ? "Abrir o relógio de ponto e o espelho" : "Abrir o apontamento de horas"}
-      </Link>
+      {!semLinkParaPagina && (
+        <Link href="/ponto" className="mt-2 block px-1 text-center text-xs text-muted-foreground hover:text-foreground">
+          {ehPonto ? "Abrir o relógio de ponto e o espelho" : "Abrir o apontamento de horas"}
+        </Link>
       )}
 
       <Sheet open={gaveta} onOpenChange={setGaveta}>
@@ -372,6 +437,23 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
               })()
             )}
             {!q && opcao(ALOCACAO_SEM_PROJETO, "Sem projeto")}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={gavetaTarefa} onOpenChange={setGavetaTarefa}>
+        <SheetContent side="bottom" className="max-h-[85svh] gap-0 rounded-t-xl p-0">
+          <SheetHeader className="px-4 pb-2 pt-4">
+            <SheetTitle>Em qual tarefa?</SheetTitle>
+            <SheetDescription>
+              {rodando
+                ? "Trocar fecha o tempo da tarefa atual e começa o da nova agora. O total do dia não muda."
+                : "Opcional. São as suas tarefas em aberto neste projeto."}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto border-t pb-[env(safe-area-inset-bottom)]">
+            {linhaDaGaveta("__sem_tarefa", "Sem tarefa", !tarefaId, () => void escolherTarefa(""))}
+            {(tarefas ?? []).map((t) => linhaDaGaveta(t.id, t.titulo, t.id === tarefaId, () => void escolherTarefa(t.id)))}
           </div>
         </SheetContent>
       </Sheet>

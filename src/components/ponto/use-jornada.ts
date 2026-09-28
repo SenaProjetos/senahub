@@ -79,6 +79,13 @@ export function useJornada({ ativo = true }: { ativo?: boolean } = {}) {
       ? (resumo.tipoAlocacaoAtiva ?? resumo.retomarTipoAlocacao ?? "sem_projeto")
       : (resumo.aberto?.tipoAlocacao ?? "sem_projeto");
 
+  /** Tarefa (F6) da sessão em curso ou, em descanso, a da última — o seletor a mantém ao voltar. */
+  const tarefaCorrente = !resumo
+    ? null
+    : resumo.modo === "ponto"
+      ? (resumo.tarefaAtiva ?? resumo.retomarTarefa ?? null)
+      : (resumo.aberto?.tarefa ?? null);
+
   return {
     resumo,
     carregar,
@@ -87,5 +94,6 @@ export function useJornada({ ativo = true }: { ativo?: boolean } = {}) {
     projetoCorrenteId,
     tipoAlocacaoCorrente,
     selecaoCorrente: selecaoDaAlocacaoPonto(projetoCorrenteId, tipoAlocacaoCorrente),
+    tarefaCorrente,
   };
 }

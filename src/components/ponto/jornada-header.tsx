@@ -64,7 +64,7 @@ function projetoLabel(p: { codigo: string; nome: string }): string {
 export function JornadaHeader() {
   const router = useRouter();
   // `resumo`: undefined = carregando · null = usuário sem jornada (cliente) → não renderiza.
-  const { resumo, rodando, ms, projetoCorrenteId, tipoAlocacaoCorrente } = useJornada();
+  const { resumo, rodando, ms, projetoCorrenteId, tipoAlocacaoCorrente, tarefaCorrente } = useJornada();
   // Projetos do seletor: carregados só ao abrir o popover (não pesam a navegação).
   const [projetos, setProjetos] = useState<Projeto[] | null>(null);
   const [alocacao, setAlocacao] = useState<string>(ALOCACAO_SEM_PROJETO);
@@ -75,12 +75,6 @@ export function JornadaHeader() {
 
   const ehPonto = resumo?.modo === "ponto";
 
-  // Tarefa da sessão em curso (ou da última, em descanso — o seletor a mantém ao voltar).
-  const tarefaCorrente = !resumo
-    ? null
-    : resumo.modo === "ponto"
-      ? (resumo.tarefaAtiva ?? resumo.retomarTarefa ?? null)
-      : (resumo.aberto?.tarefa ?? null);
   const tarefaCorrenteId = tarefaCorrente?.id ?? "";
 
   useEffect(() => {

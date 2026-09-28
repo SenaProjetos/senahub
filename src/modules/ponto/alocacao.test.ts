@@ -6,6 +6,7 @@ import {
   alocacoesDistintas,
   normalizarAlocacaoPonto,
   selecaoDaAlocacaoPonto,
+  tarefaDoDestino,
 } from "./alocacao";
 
 describe("alocação de ponto", () => {
@@ -69,5 +70,32 @@ describe("alocações recentes", () => {
       2,
     );
     expect(r.map((a) => a.selecao)).toEqual(["p5", "p1"]);
+  });
+});
+
+describe("tarefa do destino no card do celular", () => {
+  const base = { destino: "p1", rodando: false, selecaoCorrente: "p1", tarefaCorrenteId: "t1", escolhida: null };
+
+  it("rodando, vale a tarefa da sessão aberta", () => {
+    expect(tarefaDoDestino({ ...base, rodando: true, escolhida: "t9" })).toBe("t1");
+    expect(tarefaDoDestino({ ...base, rodando: true, tarefaCorrenteId: "" })).toBe("");
+  });
+
+  it("parado no mesmo projeto, retoma a tarefa da última sessão", () => {
+    expect(tarefaDoDestino(base)).toBe("t1");
+  });
+
+  it("parado em outro projeto, começa sem tarefa", () => {
+    expect(tarefaDoDestino({ ...base, destino: "p2" })).toBe("");
+  });
+
+  it("a escolha da gaveta vence, inclusive escolher nenhuma", () => {
+    expect(tarefaDoDestino({ ...base, destino: "p2", escolhida: "t5" })).toBe("t5");
+    expect(tarefaDoDestino({ ...base, escolhida: "" })).toBe("");
+  });
+
+  it("reunião e sem projeto nunca têm tarefa", () => {
+    expect(tarefaDoDestino({ ...base, destino: ALOCACAO_REUNIAO_INTERNA, selecaoCorrente: ALOCACAO_REUNIAO_INTERNA })).toBe("");
+    expect(tarefaDoDestino({ ...base, destino: ALOCACAO_SEM_PROJETO, escolhida: "t5" })).toBe("");
   });
 });

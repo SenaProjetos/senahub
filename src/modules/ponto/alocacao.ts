@@ -60,6 +60,27 @@ export function selecaoDaAlocacaoPonto(
   }
 }
 
+/**
+ * Tarefa (F6) que vale para o destino do card de ponto do celular, ou "" para nenhuma. Rodando, é a
+ * da sessão aberta — trocar de tarefa grava na hora, então não há escolha pendente. Parado, é a que
+ * a pessoa escolheu na gaveta ou, sem escolha, a da sessão a retomar quando o destino é o mesmo
+ * projeto dela (volta do descanso mantém a tarefa, como no seletor do computador). Destino que não
+ * é projeto não tem tarefa.
+ */
+export function tarefaDoDestino(p: {
+  destino: string;
+  rodando: boolean;
+  selecaoCorrente: string;
+  tarefaCorrenteId: string;
+  /** `null` = a pessoa não escolheu nada para este destino. */
+  escolhida: string | null;
+}): string {
+  if (!selecaoEhProjeto(p.destino)) return "";
+  if (p.rodando) return p.destino === p.selecaoCorrente ? p.tarefaCorrenteId : "";
+  if (p.escolhida !== null) return p.escolhida;
+  return p.destino === p.selecaoCorrente ? p.tarefaCorrenteId : "";
+}
+
 export function rotuloAlocacaoSemProjeto(tipoAlocacao: TipoAlocacaoPonto): string {
   return tipoAlocacao === "projeto" ? "Projeto" : ROTULO_TIPO_ALOCACAO[tipoAlocacao];
 }
