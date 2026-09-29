@@ -221,12 +221,27 @@ Exige acesso ao financeiro (`financeiro:ver` ou sócio). O card **Receita / Cont
 ### Pastas da aba Arquivos
 
 O painel da esquerda é uma árvore: **disciplina → fase → formato** (PDF, DWG, IFC… e a pasta
-**Outros**). Não são pastas de verdade no servidor — clicar num nó filtra a lista ao lado —, e
+**Outros**). Não são pastas de verdade no servidor — é a mesma organização vista como pastas —, e
 só aparece pasta que tem arquivo. O número ao lado de cada pasta conta **documentos**; um
 documento com PDF e DWG conta nas duas pastas de formato, então somar as pastas pode passar do
-total da fase.
+total da fase. Os formatos contam a **revisão vigente**: um DWG que só existiu numa revisão
+antiga não cria a pasta DWG.
 
-Arquivo cujo documento ainda não tem fase cai em **Sem fase**.
+**A lista funciona como o Google Drive.** Cada nível mostra só o que está dentro dele, com as
+pastas no topo — clique numa pasta para entrar (a árvore da esquerda acompanha):
+
+- **Todos os documentos:** as pastas das disciplinas e, depois delas, as áreas do projeto
+  (Recebidos do cliente, Base Arquitetônica, Geral, ARTs).
+- **Disciplina:** as pastas das fases e, soltos, os documentos que ainda não têm fase.
+- **Fase:** as pastas dos formatos (PDF, DWG…).
+- **Formato:** as pranchas, cada uma **só com o arquivo daquele formato** — na pasta PDF, abrir,
+  baixar e marcar várias para baixar em .zip pega só os PDFs; na pasta DWG, só os DWGs.
+
+Acima da lista, o caminho (**Todos os documentos › Estrutural › EX › PDF**) volta a qualquer
+nível. Cada pasta tem o ícone de download, que baixa **a pasta inteira em .zip** com as
+subpastas dentro (a da pasta PDF leva só PDFs); o mesmo está no **botão direito** e no **⋯** da
+pasta, junto com abrir em nova aba e copiar o link. Com **busca ou filtro** ativo a lista vira
+resultado de pesquisa: todos os documentos que casam, sem pastas.
 
 O cliente vê as mesmas pastas no link público e pode baixar em .zip qualquer nível: formato,
 fase, disciplina ou o projeto inteiro.
@@ -465,13 +480,14 @@ por **← Arquivos**) e o visualizador ocupa exatamente a altura da janela — a
 prancha. Os painéis **Tarefas do documento** (à esquerda) e **Detalhes do apontamento** (à direita)
 vão do topo ao fim da tela; o nome do arquivo, a revisão, a situação e a barra de ferramentas ficam
 só em cima da prancha, entre os dois. Os painéis começam fechados quando a prancha não tem
-apontamento (abrem pelas setas nas bordas, que mostram quantos apontamentos há) e se abrem sozinhos
-ao criar o primeiro.
+apontamento (abrem clicando na faixa da borda, que mostra o nome do painel em pé e quantos
+apontamentos há) e se abrem sozinhos ao criar o primeiro.
 
 **Barra de ferramentas só com ícones.** Pare o mouse sobre um botão (ou chegue nele com Tab) para
-ver o nome, a tecla de atalho e o que ele faz. Da esquerda para a direita: o arquivo desta revisão
-(e as outras extensões), as **pranchas**, a **busca** (lupa, ou **Ctrl+F**), o zoom, girar, tela
-cheia e comparar revisões; à direita, validar a prancha e, para quem aponta, a paleta de ferramentas
+ver o nome, a tecla de atalho e o que ele faz. À esquerda: o arquivo desta revisão (e as outras
+extensões) e a **busca** (lupa, ou **Ctrl+F**). No centro, sobre o meio da prancha: as
+**pranchas**, o zoom, girar, tela cheia e comparar revisões. À direita: validar a prancha e, para
+quem aponta, a paleta de ferramentas
 — **mão** (navegar, **Esc**), **pino** (1), **retângulo** (2), **seta** (3), **nuvem** (4),
 **medida** (5) e **rabisco** (6) —, a escala da página (compasso), quantos apontamentos estão em
 rascunho e **Enviar**. A tecla **A** liga e desliga o modo apontar.

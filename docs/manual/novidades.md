@@ -22,6 +22,19 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Arquivos do projeto em pastas, como no Google Drive
+
+- **Pastas de verdade na lista:** na aba **Arquivos**, cada nível mostra só o que está dentro dele.
+  Primeiro as disciplinas (e as áreas: Recebidos, Base Arquitetônica, Geral); dentro da disciplina,
+  as fases e os documentos sem fase; dentro da fase, os formatos (PDF, DWG…); dentro do formato,
+  as pranchas. O caminho acima da lista volta a qualquer nível.
+- **Cada formato no seu lugar:** na pasta PDF a prancha mostra, abre e baixa só o PDF; na pasta
+  DWG, só o DWG. Marcar várias e baixar em .zip também respeita o formato da pasta.
+- **Baixar a pasta inteira:** o ícone de download ao lado de cada pasta (ou o botão direito nela)
+  baixa um .zip com tudo o que está dentro, já organizado em subpastas.
+- **Visualizador de pranchas:** a lista de pranchas e o zoom ficam no centro da barra, sobre o meio
+  da prancha; os painéis recolhidos mostram o nome em pé e abrem com um clique na faixa.
+
 ## Visualizador de pranchas: barra de ícones, lista de pranchas e botão direito
 
 - **Painéis até o topo:** tarefas à esquerda e detalhes à direita vão do topo ao fim da tela; o nome

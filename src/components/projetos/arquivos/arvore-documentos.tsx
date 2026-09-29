@@ -6,7 +6,7 @@ import type { StatusDisciplina } from "@/generated/prisma/client";
 import { normalizar } from "@/lib/disciplinas-core";
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { STATUS_LABEL, STATUS_TEXT } from "@/modules/projetos/status";
-import type { ArvoreDaDisciplina, NoFase } from "@/modules/uploads/arvore-navegacao";
+import { FASE_SEM, type ArvoreDaDisciplina, type NoFase } from "@/modules/uploads/arvore-navegacao";
 import { useSetParams } from "@/lib/use-set-param";
 import { cn } from "@/lib/utils";
 
@@ -47,12 +47,24 @@ export function ArvoreDocumentos({
 }) {
   const [busca, setBusca] = useState("");
   // Abre sozinho o caminho da seleção (voltar no navegador, link com filtro, recarregar).
-  const [abertas, setAbertas] = useState<Set<string>>(
-    () => new Set([selecao.disciplinaId, selecao.disciplinaId && selecao.fase ? `${selecao.disciplinaId}/${selecao.fase}` : null].filter((c): c is string => !!c)),
+  const caminho = [selecao.disciplinaId, selecao.disciplinaId && selecao.fase ? `${selecao.disciplinaId}/${selecao.fase}` : null].filter(
+    (c): c is string => !!c,
   );
+  const [abertas, setAbertas] = useState<Set<string>>(() => new Set(caminho));
+  // E de novo quando a seleção muda por fora da árvore — entrar numa pasta pela lista da direita
+  // deixaria o nó marcado dentro de um ramo recolhido. Só ABRE: o que a pessoa fechou à mão
+  // continua fechado enquanto a seleção não passar por ali.
+  const chaveCaminho = caminho.join("|");
+  const [caminhoVisto, setCaminhoVisto] = useState(chaveCaminho);
+  if (caminhoVisto !== chaveCaminho) {
+    setCaminhoVisto(chaveCaminho);
+    setAbertas((atual) => new Set([...atual, ...caminho]));
+  }
   const setParams = useSetParams();
 
-  const fasesPorDisciplina = new Map(arvore.map((a) => [a.disciplinaId, a.fases]));
+  // "Sem fase" não é pasta: o documento sem fase mora solto na disciplina (a lista da direita o
+  // mostra ao abrir a disciplina, como arquivo fora de subpasta no Google Drive).
+  const fasesPorDisciplina = new Map(arvore.map((a) => [a.disciplinaId, a.fases.filter((f) => f.chave !== FASE_SEM)]));
   const termo = normalizar(busca.trim());
   const filtradas = termo ? disciplinas.filter((d) => normalizar(d.nome).includes(termo)) : disciplinas;
 

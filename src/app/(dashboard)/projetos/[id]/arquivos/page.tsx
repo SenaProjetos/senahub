@@ -16,7 +16,10 @@ import {
   opcoesMetadadosDocumento,
   contagemDocumentosPorFase,
   arvoreNavegacaoDocumentos,
+  FASE_SEM,
+  type LinhaDoc,
 } from "@/modules/uploads/documentos-agrupados";
+import { nivelDaPasta } from "@/modules/uploads/pastas-da-lista";
 import { parseListParams, pageCount } from "@/lib/list-params";
 import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
 import { resolverColunasVisiveis, CHAVE_PREF_COLUNAS, idsOcultaveis } from "@/modules/uploads/colunas-documento";
@@ -250,6 +253,19 @@ export default async function ArquivosPage({
     const selecionadaId =
       sp?.disciplinaId && disciplinasDoProjeto.some((d) => d.id === sp.disciplinaId) ? sp.disciplinaId : null;
     const listaSelecionadaId = sp?.listaId && listas.some((lista) => lista.id === sp.listaId) ? sp.listaId : null;
+    const preenchido = (v: unknown) => typeof v === "string" && v.trim() !== "";
+    // Fase e formato são também as pastas da árvore; o resto é busca/filtro de verdade.
+    const filtrosAlemDaPasta = [
+      sp?.q, sp?.autor, sp?.periodo, sp?.val, sp?.status,
+      sp?.tipo, sp?.papel, sp?.catExt, sp?.pacote, sp?.sub,
+    ].filter(preenchido).length;
+    const filtrosAtivos = filtrosAlemDaPasta + [sp?.ext, sp?.fase].filter(preenchido).length;
+    const selecaoPasta = { disciplinaId: selecionadaId, fase: sp?.fase ?? null, ext: sp?.ext ?? null };
+    // Navegação por pastas (como no Google Drive): cada nível lista só o que está DIRETAMENTE
+    // nele. Raiz e fase só têm subpastas; a disciplina tem as fases e, soltos, os documentos sem
+    // fase; a pasta de formato, os documentos com só aquele arquivo. Com busca, filtro ou lista,
+    // `nivel` é null e a lista volta a ser o resultado corrido de sempre.
+    const nivel = listaSelecionadaId === null && filtrosAlemDaPasta === 0 ? nivelDaPasta(selecaoPasta) : null;
     // Filtro, ordenação e recorte acontecem no Postgres (F1-PR10): projeto com milhares de
     // arquivos não pode trafegar inteiro até o client a cada carga da tela.
     const filtros = {
@@ -260,7 +276,7 @@ export default async function ArquivosPage({
       autor: sp?.autor,
       periodo: sp?.periodo,
       validado: sp?.val,
-      fase: sp?.fase,
+      fase: nivel === "disciplina" ? FASE_SEM : sp?.fase,
       status: sp?.status,
       tipo: sp?.tipo,
       papel: sp?.papel,
@@ -273,7 +289,9 @@ export default async function ArquivosPage({
       defaultPageSize: 24,
     });
     const [pagina, opcoes, opcoesMetadados, documentosPorFase, arvoreNavegacao] = await Promise.all([
-      listarDocumentosAgrupados({
+      nivel === "raiz" || nivel === "fase"
+        ? Promise.resolve({ total: 0, pagina: 1, linhas: [] as LinhaDoc[] })
+        : listarDocumentosAgrupados({
         // Um id só: a aba do projeto não muda de escopo. A consulta passou a aceitar um
         // conjunto para o diretório geral reusar a mesma regra (ver `normalizarEscopoProjetos`).
         projetoIds: [id],
@@ -288,13 +306,14 @@ export default async function ArquivosPage({
         take: lp.take,
         sort: campoOrdenacaoDocValido(lp.sort),
         dir: lp.dir,
+        formatoDosArquivos: nivel === "formato" ? (sp?.ext ?? undefined) : undefined,
       }),
       opcoesFiltroDocumentos({ projetoId: id, userId: user.id, veTodas, disciplinaId: selecionadaId }),
       opcoesMetadadosDocumento(id),
       contagemDocumentosPorFase({ projetoId: id, userId: user.id, veTodas, disciplinaId: selecionadaId }),
       // Árvore do painel esquerdo: fases e formatos de TODAS as disciplinas visíveis (não do
       // recorte da página) — é navegação, tem de continuar mostrando para onde ir.
-      arvoreNavegacaoDocumentos({ projetoIds: [id], userId: user.id, veTodas }),
+      arvoreNavegacaoDocumentos({ projetoIds: [id], userId: user.id, veTodas, somenteRevisaoAtual: true }),
     ]);
     // FONTE ÚNICA da contagem de documentos: `DocumentoDisciplina`, via árvore de navegação.
     //
@@ -328,10 +347,6 @@ export default async function ArquivosPage({
     const prefs = await getPreferencias(user.id);
     const colunas = resolverColunasVisiveis(prefs[CHAVE_PREF_COLUNAS]);
     const colunasOcultas = idsOcultaveis().filter((id) => !colunas.has(id));
-    const filtrosAtivos = [
-      sp?.q, sp?.ext, sp?.autor, sp?.periodo, sp?.val, sp?.fase, sp?.status,
-      sp?.tipo, sp?.papel, sp?.catExt, sp?.pacote, sp?.sub,
-    ].filter((v) => typeof v === "string" && v.trim() !== "").length;
 
     // Áreas do projeto (paridade com o explorer antigo): Recebidos, Base, Geral, ARTs e
     // Lixeira. Cada uma só é listada para quem pode vê-la — a permissão já foi resolvida
@@ -393,6 +408,7 @@ export default async function ArquivosPage({
         categoriasExtensao={opcoes.categoriasExtensao}
         pacotes={opcoes.pacotes}
         temFiltroAtivo={filtrosAtivos > 0}
+        nivel={nivel}
         colunas={colunas}
         colunasOcultas={colunasOcultas}
         totalDocumentos={totalDocumentos}

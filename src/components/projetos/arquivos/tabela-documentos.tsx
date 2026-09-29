@@ -25,9 +25,14 @@ import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
 import { AcoesMenuItens, BotaoAcoes } from "@/components/ui/acoes-menu";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
+import { CartaoPasta, LinhaPasta, useNavegacaoPastas } from "@/components/projetos/arquivos/pastas-na-lista";
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
+import type { NivelPasta, PastaNaLista } from "@/modules/uploads/pastas-da-lista";
 import { ACAO_DETALHES, type DocumentoParaAcoes } from "@/modules/uploads/acoes-documento";
 import { formatarData, formatarDataHora, rotuloRevisao } from "@/lib/utils";
+
+/** Colunas opcionais da tabela, na ordem em que aparecem — o nome da pasta atravessa todas. */
+const COLUNAS_OPCIONAIS = ["numero", "fase", "sub", "tipo", "revisao", "validado", "extensao", "papel", "responsavel", "data", "tamanho"];
 
 function fmtBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -263,6 +268,8 @@ function CartaoDocumento({
 export function TabelaDocumentos({
   projetoId,
   linhas,
+  pastas = [],
+  nivel = null,
   filtradaPorDisciplina,
   filtradaPorLista,
   temFiltroAtivo,
@@ -281,6 +288,10 @@ export function TabelaDocumentos({
 }: {
   projetoId: string;
   linhas: LinhaDoc[];
+  /** Subpastas do nó aberto na árvore, desenhadas antes dos documentos (como no Google Drive). */
+  pastas?: PastaNaLista[];
+  /** Nível da pasta aberta (`null` = lista filtrada, sem pastas) — só muda o texto do vazio. */
+  nivel?: NivelPasta | null;
   filtradaPorDisciplina: boolean;
   filtradaPorLista: boolean;
   temFiltroAtivo: boolean;
@@ -343,6 +354,9 @@ export function TabelaDocumentos({
   // Painel de detalhes aberto pelo menu: ele vive na linha (é o gatilho do título), então quem
   // controla é a tabela — o `portal` do hook não o alcança.
   const [detalhesDe, setDetalhesDe] = useState<string | null>(null);
+  const navPastas = useNavegacaoPastas();
+  // Documento mais as opcionais visíveis: o nome da pasta vai do Nº até antes das ações.
+  const colunasDoNome = 1 + COLUNAS_OPCIONAIS.filter((c) => colunas.has(c)).length;
 
   function acoesDa(linha: LinhaDoc): AcoesDaLinha | null {
     const documento = linhaParaMenu(linha);
@@ -359,10 +373,21 @@ export function TabelaDocumentos({
     };
   }
 
-  if (ordenadas.length === 0) {
+  // Pasta com subpastas e sem documento solto (a raiz, uma fase) não é vazio: as pastas são o conteúdo.
+  if (ordenadas.length === 0 && pastas.length === 0) {
     // Três vazios diferentes: filtro sem resultado, disciplina sem arquivo, projeto sem nada.
     // O usuário precisa saber qual dos três é para agir certo (limpar filtro vs. enviar arquivo).
-    const vazio = temFiltroAtivo
+    const vazio = nivel === "fase"
+      ? {
+          title: "Nenhum documento nesta fase",
+          description: "Escolha outra fase ou pasta no painel ao lado, ou envie o primeiro arquivo.",
+        }
+      : nivel === "formato"
+        ? {
+            title: "Nenhum documento neste formato",
+            description: "Volte para a fase pelo caminho acima da lista e escolha outro formato.",
+          }
+      : temFiltroAtivo
       ? {
           title: "Nenhum documento encontrado",
           description: "Nenhum documento corresponde à busca e aos filtros aplicados. Remova um filtro para ampliar o resultado.",
@@ -397,6 +422,9 @@ export function TabelaDocumentos({
       {/* Celular: um cartão por documento. A tabela continua sendo a tela de trabalho no
           computador — aqui ela sairia em rolagem lateral, com tudo espremido. */}
       <ul className="overflow-hidden rounded-md border border-border bg-card md:hidden" aria-label="Documentos">
+        {pastas.map((pasta) => (
+          <CartaoPasta key={`pasta:${pasta.chave}`} pasta={pasta} nav={navPastas} />
+        ))}
         {ordenadas.map((l) => (
           <CartaoDocumento
             key={l.id}
@@ -424,6 +452,7 @@ export function TabelaDocumentos({
               <Checkbox
                 checked={todasMarcadas}
                 onCheckedChange={alternarTodas}
+                disabled={ordenadas.length === 0}
                 aria-label={todasMarcadas ? "Limpar seleção" : "Selecionar todos os documentos da lista"}
               />
             </TableHead>
@@ -449,6 +478,9 @@ export function TabelaDocumentos({
           </TableRow>
         </TableHeader>
         <TableBody>
+          {pastas.map((pasta) => (
+            <LinhaPasta key={`pasta:${pasta.chave}`} pasta={pasta} colunasDoNome={colunasDoNome} nav={navPastas} />
+          ))}
           {ordenadas.map((l) => {
             const validacao = estadoValidacao(l.arquivos);
             const acoesLinha = acoesDa(l);

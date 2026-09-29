@@ -16,6 +16,7 @@ import {
   type DocumentoParaArvore,
 } from "@/modules/uploads/arvore-navegacao";
 import type { Pacote } from "@/modules/uploads/estrutura";
+import { arquivoNoFormato } from "@/modules/uploads/pastas-da-lista";
 import { mapaCanonico, canonizar } from "@/modules/projetos/pranchas/queries";
 
 /**
@@ -218,6 +219,12 @@ export async function listarDocumentosAgrupados(opts: {
   take: number;
   sort: CampoOrdenacaoDoc | null;
   dir: "asc" | "desc";
+  /**
+   * Pasta de formato aberta (`pdf`, `dwg`… ou `EXT_OUTROS`): cada linha traz SÓ os arquivos
+   * daquele formato — é o que se vê, se baixa e se seleciona dentro da pasta PDF. O filtro
+   * `filtros.ext` decide QUAIS documentos entram; este recorta os arquivos de cada um.
+   */
+  formatoDosArquivos?: string;
 }) {
   const { userId, veTodas, filtros, skip, take, sort, dir } = opts;
   const projetoIds = normalizarEscopoProjetos(opts.projetoIds);
@@ -262,14 +269,32 @@ export async function listarDocumentosAgrupados(opts: {
       -- Extensão: a pasta "Outros" da árvore é "tem algum arquivo cuja extensão não está no
       -- catálogo" (inclui arquivo sem extensão) — o mesmo critério que a árvore usa para montar
       -- o nó, senão clicar na pasta traria uma lista diferente da que a contagem prometeu.
+      --
+      -- Na pasta de formato ($21) só conta a revisão VIGENTE, que é o que a linha mostra e baixa:
+      -- um DWG que só existiu na R00 não pode pôr o documento na pasta DWG sem nada dentro.
+      -- Vigente = a maior revisão com upload vivo; upload legado sem revisão conta como vigente
+      -- (a mesma regra de arquivosDaRevisaoAtual).
       and ($6::text is null
-           or ($6 = '__outros__' and exists (
+           or ($21::boolean is true and exists (
+                 select 1 from upload uv
+                 left join documento_revisao rv on rv.id = uv."revisaoId"
+                 where uv."documentoId" = d.id and uv."excluidoEm" is null
+                   and (uv."revisaoId" is null or rv.numero = (
+                         select max(rw.numero) from upload uw
+                         join documento_revisao rw on rw.id = uw."revisaoId"
+                         where uw."documentoId" = d.id and uw."excluidoEm" is null))
+                   and (case when $6 = '__outros__'
+                          then not exists (
+                            select 1 from extensao_arquivo eav
+                            where eav.extensao = lower(substring(uv."nomeArquivo" from '\\.([^.]+)$')))
+                          else lower(uv."nomeArquivo") like '%.' || lower($6) end)))
+           or ($21::boolean is not true and $6 = '__outros__' and exists (
                  select 1 from upload ux
                  where ux."documentoId" = d.id and ux."excluidoEm" is null
                    and not exists (
                      select 1 from extensao_arquivo eax
                      where eax.extensao = lower(substring(ux."nomeArquivo" from '\\.([^.]+)$')))))
-           or ($6 <> '__outros__' and lower(u."nomeArquivo") like '%.' || lower($6)))
+           or ($21::boolean is not true and $6 <> '__outros__' and lower(u."nomeArquivo") like '%.' || lower($6)))
       and ($7::text is null or au.name = $7)
       and ($8::timestamptz is null or u."createdAt" >= $8)
       and ($9::text is null or d."statusId" = $9)
@@ -336,6 +361,7 @@ export async function listarDocumentosAgrupados(opts: {
     querBackup,
     filtros.documentoIds ? [...filtros.documentoIds] : null,
     filtros.sub ?? null,
+    opts.formatoDosArquivos ? true : null,
   ];
 
   const totalRows = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
@@ -403,9 +429,9 @@ export async function listarDocumentosAgrupados(opts: {
   // `ehBackup` por extensão (catálogo do motor de nomenclatura) — carregado uma vez para a
   // página inteira, não por documento; é um mapa pequeno (~40 linhas) reaproveitável em toda a
   // listagem.
-  const extensoesBackup = new Set(
-    (await carregarExtensoesNomenclatura()).filter((e) => e.ehBackup).map((e) => e.extensao),
-  );
+  const catalogoExtensoes = await carregarExtensoesNomenclatura();
+  const extensoesBackup = new Set(catalogoExtensoes.filter((e) => e.ehBackup).map((e) => e.extensao));
+  const extensoesConhecidas = new Set(catalogoExtensoes.map((e) => e.extensao.toLowerCase()));
 
   // Título de fallback vem da Lista Mestre: uma consulta só para as disciplinas da página,
   // casada em memória pela trinca numeração+tipo+fase do nome.
@@ -453,7 +479,9 @@ export async function listarDocumentosAgrupados(opts: {
     const revisaoAtual = revisaoAtualDosUploads(d.uploads);
     // Upload legado sem revisão continua visível: escondê-lo só porque outro arquivo do
     // documento já foi migrado seria uma perda de acesso na tela.
-    const daAtual = arquivosDaRevisaoAtual(d.uploads);
+    const vigentes = arquivosDaRevisaoAtual(d.uploads);
+    const formato = opts.formatoDosArquivos;
+    const daAtual = formato ? vigentes.filter((u) => arquivoNoFormato(u.nomeArquivo, formato, extensoesConhecidas)) : vigentes;
     const maisRecente = [...d.uploads].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
     const parseado = parsePranchaFilename(d.nomeArquivo);
     // "Backup" cobre pacote B e qualquer extensão marcada `ehBackup` no catálogo — o
@@ -498,7 +526,8 @@ export async function listarDocumentosAgrupados(opts: {
       subdisciplinaId: d.subdisciplina?.id ?? null,
       subdisciplinaNome: d.subdisciplina?.nome ?? null,
       atualizadoEm: (maisRecente?.createdAt ?? new Date()).toISOString(),
-      tamanhoTotal: d.uploads.reduce((s, u) => s + u.tamanho, 0),
+      // Na pasta de formato o tamanho é o do arquivo que a linha mostra, não o do documento.
+      tamanhoTotal: (formato ? daAtual : d.uploads).reduce((s, u) => s + u.tamanho, 0),
       autor: maisRecente?.autor?.name ?? "—",
       podeGerir:
         opts.podeEnviarCap &&
@@ -625,6 +654,12 @@ export async function arvoreNavegacaoDocumentos(opts: {
   projetoIds: readonly string[];
   userId: string;
   veTodas: boolean;
+  /**
+   * Conta só os arquivos da revisão VIGENTE de cada documento — a aba do projeto, onde a pasta
+   * de formato mostra e baixa a vigente. Sem isto conta todos os vivos, como o diretório geral,
+   * cujo .zip leva todas as revisões.
+   */
+  somenteRevisaoAtual?: boolean;
 }): Promise<ArvoreDaDisciplinaComProjeto[]> {
   const { userId, veTodas } = opts;
   const projetoIds = normalizarEscopoProjetos(opts.projetoIds);
@@ -646,7 +681,10 @@ export async function arvoreNavegacaoDocumentos(opts: {
         // Qual projeto é a disciplina: com escopo de vários, quem consome precisa agrupar.
         disciplina: { select: { projetoId: true } },
         fase: { select: { id: true, sigla: true, nome: true } },
-        uploads: { where: { excluidoEm: null }, select: { nomeArquivo: true } },
+        uploads: {
+          where: { excluidoEm: null },
+          select: { nomeArquivo: true, revisaoId: true, revisao: { select: { numero: true } } },
+        },
       },
     }),
     carregarExtensoesNomenclatura(),
@@ -661,7 +699,7 @@ export async function arvoreNavegacaoDocumentos(opts: {
     // Sem `filter`: uma entrada POR ARQUIVO, inclusive vazia (nome sem ponto). O comprimento
     // é o número de arquivos do documento, e a árvore conta os .zip a partir dele; filtrar
     // faria o arquivo sem extensão sumir da contagem e o botão prometer menos do que baixa.
-    extensoes: d.uploads.map((u) => extensaoDe(u.nomeArquivo)),
+    extensoes: (opts.somenteRevisaoAtual ? arquivosDaRevisaoAtual(d.uploads) : d.uploads).map((u) => extensaoDe(u.nomeArquivo)),
   }));
   // `montarArvoreNavegacao` continua pura e cega a projeto — o vínculo é costurado aqui, para
   // não mexer no contrato de contagem do módulo (que o link público também usa).

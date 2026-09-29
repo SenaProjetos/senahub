@@ -20,6 +20,8 @@ import { Pagination } from "@/components/ui/pagination";
 import { QuadroAlturaTela } from "@/components/ui/quadro-altura-tela";
 import { ModoFocoBotao } from "@/components/ui/modo-foco-botao";
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
+import { pastasDoNivel, trilhaDaPasta, type NivelPasta } from "@/modules/uploads/pastas-da-lista";
+import { TrilhaPastas } from "@/components/projetos/arquivos/pastas-na-lista";
 
 /**
  * Casca da nova tela de Documentos (Fase 1, F1-PR1 — ver docs/auditoria/03-plano-refatoracao.md).
@@ -54,6 +56,7 @@ export function DocumentosShell({
   categoriasExtensao,
   pacotes,
   temFiltroAtivo,
+  nivel,
   colunas,
   colunasOcultas,
   totalFiltrado,
@@ -93,6 +96,11 @@ export function DocumentosShell({
   /** Pacotes crus presentes no recorte (sem "B" — o filtro oferece "Backup", que é semântico). */
   pacotes: string[];
   temFiltroAtivo: boolean;
+  /**
+   * Nível da pasta aberta, quando a tela é navegação por pastas; `null` com busca, filtro ou
+   * lista — aí a lista é resultado corrido, sem pastas (decidido na página, que monta a consulta).
+   */
+  nivel: NivelPasta | null;
   colunas: Set<string>;
   colunasOcultas: string[];
   /** Total que casa com os filtros (o `linhas` traz só a página atual). */
@@ -131,6 +139,16 @@ export function DocumentosShell({
   };
   exclusoesPendentes: Set<string>;
 }) {
+  // Pastas no topo da lista, como no Google Drive: só na navegação por pastas (com busca ou
+  // filtro o resultado é de pesquisa, e a contagem da pasta, que ignora o filtro, mentiria) e só
+  // na página 1 — da 2 em diante a lista já passou das pastas. Na raiz, depois das disciplinas,
+  // entram as áreas do projeto; a Lixeira fica só no painel (não é pasta de trabalho).
+  const trilha = listaSelecionadaId === null ? trilhaDaPasta(selecao, disciplinas, arvore) : [];
+  const areasComoPasta = areas
+    .filter((a) => a.visivel && a.id !== "lixeira")
+    .map((a) => ({ id: a.id, rotulo: rotuloArea(a.id), total: a.total }));
+  const pastas = nivel !== null && paginacao.page === 1 ? pastasDoNivel(selecao, disciplinas, arvore, areasComoPasta) : [];
+
   return (
     <div className="space-y-4">
 
@@ -226,10 +244,13 @@ export function DocumentosShell({
               {dadosUploader && <EnviarDocumentosDialog dados={dadosUploader} abrirAoCarregar={abrirEnvio} />}
             </div>
           </div>
+          <TrilhaPastas trilha={trilha} />
           <div className="md:min-h-0 md:flex-1 md:overflow-y-auto">
           <TabelaDocumentos
             projetoId={projeto.id}
             linhas={linhas}
+            pastas={pastas}
+            nivel={nivel}
             filtradaPorDisciplina={selecao.disciplinaId !== null}
             filtradaPorLista={listaSelecionadaId !== null}
             temFiltroAtivo={temFiltroAtivo}
@@ -247,12 +268,15 @@ export function DocumentosShell({
             exclusoesPendentes={exclusoesPendentes}
           />
           </div>
-          <Pagination
-            page={paginacao.page}
-            pageCount={paginacao.pageCount}
-            pageSize={paginacao.pageSize}
-            total={totalFiltrado}
-          />
+          {/* Pasta só com subpastas (raiz, fase) não tem documento para paginar. */}
+          {totalFiltrado > 0 && (
+            <Pagination
+              page={paginacao.page}
+              pageCount={paginacao.pageCount}
+              pageSize={paginacao.pageSize}
+              total={totalFiltrado}
+            />
+          )}
           </>
           )}
         </main>

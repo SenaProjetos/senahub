@@ -30,11 +30,11 @@ import { cn } from "@/lib/utils";
  * na carga da página. O `import()` é idempotente (o bundler guarda o módulo), chamar de novo no
  * hover não custa nada.
  */
-function preCarregarConteudoArea() {
+export function preCarregarConteudoArea() {
   void import("@/components/projetos/arquivos/conteudo-area-projeto");
 }
 
-const ICONE: Record<AreaProjeto, LucideIcon> = {
+export const ICONE_AREA: Record<AreaProjeto, LucideIcon> = {
   recebidos: Inbox,
   base: Ruler,
   geral: FolderOpen,
@@ -75,7 +75,7 @@ export function PainelAreasProjeto({
       <ul className="space-y-0.5" role="list">
         {visiveis.map((a) => {
           const meta = AREA_ROTULO[a.id];
-          const Icone = ICONE[a.id];
+          const Icone = ICONE_AREA[a.id];
           const ativa = selecionada === a.id;
           return (
             <li key={a.id}>
