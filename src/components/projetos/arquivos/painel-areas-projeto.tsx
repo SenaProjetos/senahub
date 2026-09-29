@@ -45,9 +45,12 @@ export const ICONE_AREA: Record<AreaProjeto, LucideIcon> = {
 export function PainelAreasProjeto({
   areas,
   selecionada,
+  aninhada = false,
 }: {
   areas: AreaDisponivel[];
   selecionada: AreaProjeto | null;
+  /** Dentro do nó do projeto na árvore do diretório geral: sem a moldura de painel próprio. */
+  aninhada?: boolean;
 }) {
   const setParams = useSetParams();
   const visiveis = areas.filter((a) => a.visivel);
@@ -68,7 +71,7 @@ export function PainelAreasProjeto({
   if (!temAreas) return null;
 
   return (
-    <div className="border-t border-border p-2">
+    <div className={aninhada ? "pt-1" : "border-t border-border p-2"}>
       <p className="px-2 pb-1 font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
         Áreas do projeto
       </p>

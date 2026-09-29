@@ -17,6 +17,7 @@ export function PainelNavegacaoDocumentos({
   listaSelecionadaId,
   podeGerirListas,
   areaAtiva = false,
+  pastas,
 }: {
   projetoId: string;
   disciplinas: DisciplinaArvore[];
@@ -27,6 +28,8 @@ export function PainelNavegacaoDocumentos({
   listaSelecionadaId: string | null;
   podeGerirListas: boolean;
   areaAtiva?: boolean;
+  /** Árvore pronta para a aba Pastas (o diretório geral a monta dentro da árvore de anos). */
+  pastas?: React.ReactNode;
 }) {
   const [aba, setAba] = useState(listaSelecionadaId ? "listas" : "disciplinas");
   return (
@@ -36,7 +39,9 @@ export function PainelNavegacaoDocumentos({
         <TabsTrigger value="listas" className="text-xs">Listas</TabsTrigger>
       </TabsList>
       <TabsContent value="disciplinas">
-        <ArvoreDocumentos disciplinas={disciplinas} arvore={arvore} totalGeral={totalGeral} selecao={selecao} areaAtiva={areaAtiva} />
+        {pastas ?? (
+          <ArvoreDocumentos disciplinas={disciplinas} arvore={arvore} totalGeral={totalGeral} selecao={selecao} areaAtiva={areaAtiva} />
+        )}
       </TabsContent>
       <TabsContent value="listas">
         <PainelListas projetoId={projetoId} listas={listas} selecionadaId={listaSelecionadaId} podeGerir={podeGerirListas} />

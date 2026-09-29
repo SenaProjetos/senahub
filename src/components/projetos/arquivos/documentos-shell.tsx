@@ -1,4 +1,4 @@
-import { type DisciplinaArvore, type SelecaoArvore } from "@/components/projetos/arquivos/arvore-documentos";
+import { ArvoreDocumentos, type DisciplinaArvore, type SelecaoArvore } from "@/components/projetos/arquivos/arvore-documentos";
 import type { ArvoreDaDisciplina } from "@/modules/uploads/arvore-navegacao";
 import { PainelNavegacaoDocumentos } from "@/components/projetos/arquivos/painel-navegacao-documentos";
 import { PainelAreasProjeto } from "@/components/projetos/arquivos/painel-areas-projeto";
@@ -35,6 +35,19 @@ import { TrilhaPastas } from "@/components/projetos/arquivos/pastas-na-lista";
  * cabeçalho do projeto mostra código e nome logo acima — uma segunda trilha aqui só empilhava
  * a mesma informação duas vezes (visto ao rodar a tela).
  */
+/**
+ * O que o diretório geral (/arquivos) põe em volta da tela de um projeto — ela é a MESMA da aba
+ * Arquivos do projeto, com dois níveis por cima (ano → projeto).
+ */
+export type MolduraDiretorio = {
+  /** Envolve a árvore do projeto (disciplinas e áreas) na árvore de ano → projeto. */
+  arvore: (doProjeto: React.ReactNode) => React.ReactNode;
+  /** Trechos da trilha acima do projeto ("Todos os projetos › 2026"), com endereço. */
+  trilhaAcima: { rotulo: string; href: string }[];
+  /** Nome do projeto na trilha, no lugar de "Todos os documentos". */
+  rotuloRaiz: string;
+};
+
 /** Props do botão de link público — o shell só repassa, quem monta é a page. */
 type LinkPublicoProps = {
   disciplinas: { id: string; nome: string }[];
@@ -45,6 +58,7 @@ type LinkPublicoProps = {
 };
 
 export function DocumentosShell({
+  moldura,
   projeto,
   disciplinas,
   linhas,
@@ -83,6 +97,8 @@ export function DocumentosShell({
   nomenclatura,
   exclusoesPendentes,
 }: {
+  /** Só no diretório geral: a árvore de ano → projeto e o começo da trilha. */
+  moldura?: MolduraDiretorio;
   projeto: { id: string; nome: string; codigo: string };
   disciplinas: DisciplinaArvore[];
   linhas: LinhaDoc[];
@@ -143,7 +159,11 @@ export function DocumentosShell({
   // filtro o resultado é de pesquisa, e a contagem da pasta, que ignora o filtro, mentiria) e só
   // na página 1 — da 2 em diante a lista já passou das pastas. Na raiz, depois das disciplinas,
   // entram as áreas do projeto; a Lixeira fica só no painel (não é pasta de trabalho).
-  const trilha = listaSelecionadaId === null ? trilhaDaPasta(selecao, disciplinas, arvore) : [];
+  const trilha = areaSelecionada
+    ? [{ chave: `area:${areaSelecionada}`, rotulo: rotuloArea(areaSelecionada), titulo: null, destino: { disciplinaId: null, fase: null, ext: null, area: areaSelecionada } }]
+    : listaSelecionadaId === null
+      ? trilhaDaPasta(selecao, disciplinas, arvore)
+      : [];
   const areasComoPasta = areas
     .filter((a) => a.visivel && a.id !== "lixeira")
     .map((a) => ({ id: a.id, rotulo: rotuloArea(a.id), total: a.total }));
@@ -199,16 +219,35 @@ export function DocumentosShell({
             listaSelecionadaId={listaSelecionadaId}
             podeGerirListas={podeGerirListas}
             areaAtiva={areaSelecionada !== null}
+            // No diretório, as pastas do projeto aparecem DENTRO do nó dele na árvore de anos.
+            pastas={
+              moldura
+                ? moldura.arvore(
+                    <>
+                      <ArvoreDocumentos
+                        aninhada
+                        disciplinas={disciplinas}
+                        arvore={arvore}
+                        totalGeral={totalDocumentos}
+                        selecao={selecao}
+                        areaAtiva={areaSelecionada !== null}
+                      />
+                      <PainelAreasProjeto aninhada areas={areas} selecionada={areaSelecionada} />
+                    </>,
+                  )
+                : undefined
+            }
           />
-          <PainelAreasProjeto areas={areas} selecionada={areaSelecionada} />
+          {!moldura && <PainelAreasProjeto areas={areas} selecionada={areaSelecionada} />}
         </PainelLateralDocumentos>
 
         <main className="min-w-0 space-y-3 md:flex md:h-full md:min-h-0 md:flex-col md:space-y-0 md:gap-3">
           {areaSelecionada ? (
             // Área do projeto escolhida: o conteúdo dela ocupa o lugar da tabela. Filtros e
             // paginação são de documento de disciplina e não se aplicam aqui.
-            <section className="rounded-md border border-border bg-card p-3">
-              <h3 className="mb-2 text-sm font-semibold">{rotuloArea(areaSelecionada)}</h3>
+            <section className="space-y-2 rounded-md border border-border bg-card p-3">
+              <TrilhaPastas trilha={trilha} inicio={moldura?.trilhaAcima} rotuloRaiz={moldura?.rotuloRaiz} />
+              <h3 className="text-sm font-semibold">{rotuloArea(areaSelecionada)}</h3>
               <ConteudoAreaProjeto area={areaSelecionada} dados={dadosAreas} />
             </section>
           ) : (
@@ -244,7 +283,7 @@ export function DocumentosShell({
               {dadosUploader && <EnviarDocumentosDialog dados={dadosUploader} abrirAoCarregar={abrirEnvio} />}
             </div>
           </div>
-          <TrilhaPastas trilha={trilha} />
+          <TrilhaPastas trilha={trilha} inicio={moldura?.trilhaAcima} rotuloRaiz={moldura?.rotuloRaiz} />
           <div className="md:min-h-0 md:flex-1 md:overflow-y-auto">
           <TabelaDocumentos
             projetoId={projeto.id}

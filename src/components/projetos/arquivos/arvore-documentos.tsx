@@ -37,6 +37,7 @@ export function ArvoreDocumentos({
   totalGeral,
   selecao,
   areaAtiva = false,
+  aninhada = false,
 }: {
   disciplinas: DisciplinaArvore[];
   arvore: ArvoreDaDisciplina[];
@@ -44,6 +45,11 @@ export function ArvoreDocumentos({
   selecao: SelecaoArvore;
   /** Área do projeto aberta: "Todos os documentos" não está em exibição, então não destaca. */
   areaAtiva?: boolean;
+  /**
+   * Dentro do nó do projeto na árvore do diretório geral: sem a busca e sem "Todos os
+   * documentos" — o próprio nó do projeto é a raiz, e a busca de lá é por projeto.
+   */
+  aninhada?: boolean;
 }) {
   const [busca, setBusca] = useState("");
   // Abre sozinho o caminho da seleção (voltar no navegador, link com filtro, recarregar).
@@ -89,6 +95,7 @@ export function ArvoreDocumentos({
 
   return (
     <div>
+      {!aninhada && (
       <div className="border-b border-border p-2">
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
@@ -102,8 +109,14 @@ export function ArvoreDocumentos({
           />
         </div>
       </div>
+      )}
 
-      <ul className="space-y-0.5 p-2" role="tree" aria-label="Documentos por disciplina, fase e formato">
+      <ul
+        className={aninhada ? "space-y-0.5" : "space-y-0.5 p-2"}
+        role={aninhada ? "group" : "tree"}
+        aria-label={aninhada ? undefined : "Documentos por disciplina, fase e formato"}
+      >
+        {!aninhada && (
         <li role="none">
           <button
             type="button"
@@ -117,6 +130,7 @@ export function ArvoreDocumentos({
             <span className="font-normal tabular-nums text-muted-foreground">{totalGeral}</span>
           </button>
         </li>
+        )}
 
         {filtradas.map((d) => {
           const fases = fasesPorDisciplina.get(d.id) ?? [];

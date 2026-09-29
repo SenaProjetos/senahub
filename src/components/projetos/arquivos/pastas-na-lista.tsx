@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronRight, Download, Folder } from "lucide-react";
+import { ChevronRight, Download, Folder, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
-import { TableCell, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { AcoesMenuItens, BotaoAcoes } from "@/components/ui/acoes-menu";
 import type { AcaoItemAcao } from "@/components/ui/acoes";
@@ -211,21 +212,48 @@ export function CartaoPasta({ pasta, nav }: { pasta: PastaNaLista; nav: Navegaca
 
 /**
  * Onde se está: "Todos os documentos › Estrutural › EX › PDF". Cada trecho volta para aquela
- * pasta; o último é a pasta aberta e não é link.
+ * pasta; o último é a pasta aberta e não é link. No diretório geral a trilha começa acima do
+ * projeto ("Todos os projetos › 2026 › 260004 · Galpão › Estrutural").
  */
-export function TrilhaPastas({ trilha }: { trilha: SegmentoTrilha[] }) {
+export function TrilhaPastas({
+  trilha,
+  inicio = [],
+  rotuloRaiz = "Todos os documentos",
+}: {
+  trilha: SegmentoTrilha[];
+  /** Trechos acima da raiz, com endereço pronto (diretório geral: todos os projetos, o ano). */
+  inicio?: { rotulo: string; href: string }[];
+  /** Nome da raiz: "Todos os documentos" na aba do projeto; o projeto, no diretório. */
+  rotuloRaiz?: string;
+}) {
   const nav = useNavegacaoPastas();
-  if (trilha.length === 0) return null;
+  // Na raiz da aba do projeto não há para onde voltar; no diretório, há (o ano, todos).
+  if (trilha.length === 0 && inicio.length === 0) return null;
+  const naRaiz = trilha.length === 0;
 
   const classeLink =
     "truncate rounded-sm text-muted-foreground outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring";
   return (
     <nav aria-label="Caminho da pasta" className="min-w-0">
       <ol className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs">
-        <li>
-          <Link href={nav.hrefDe({ disciplinaId: null, fase: null, ext: null, area: null })} scroll={false} className={classeLink}>
-            Todos os documentos
-          </Link>
+        {inicio.map((t) => (
+          <li key={t.href} className="flex min-w-0 items-center gap-1">
+            <Link href={t.href} scroll={false} className={classeLink}>
+              {t.rotulo}
+            </Link>
+            <ChevronRight className="size-3 shrink-0 text-muted-foreground" aria-hidden />
+          </li>
+        ))}
+        <li className="min-w-0">
+          {naRaiz ? (
+            <span aria-current="page" className="truncate font-medium text-foreground">
+              {rotuloRaiz}
+            </span>
+          ) : (
+            <Link href={nav.hrefDe({ disciplinaId: null, fase: null, ext: null, area: null })} scroll={false} className={classeLink}>
+              {rotuloRaiz}
+            </Link>
+          )}
         </li>
         {trilha.map((segmento, i) => {
           const ultimo = i === trilha.length - 1;
@@ -246,5 +274,49 @@ export function TrilhaPastas({ trilha }: { trilha: SegmentoTrilha[] }) {
         })}
       </ol>
     </nav>
+  );
+}
+
+/**
+ * Lista só de pastas, para os níveis do diretório geral acima do projeto (os anos; os projetos
+ * de um ano). As linhas são as mesmas das pastas da aba Arquivos; sem documento, a tabela só tem
+ * nome e ações.
+ */
+export function TabelaPastas({ pastas, vazio }: { pastas: PastaNaLista[]; vazio: { title: string; description: string } }) {
+  const nav = useNavegacaoPastas();
+  if (pastas.length === 0) {
+    return (
+      <div className="rounded-md border border-border bg-card">
+        <EmptyState icon={FolderOpen} title={vazio.title} description={vazio.description} />
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      <ul className="overflow-hidden rounded-md border border-border bg-card md:hidden" aria-label="Pastas">
+        {pastas.map((pasta) => (
+          <CartaoPasta key={pasta.chave} pasta={pasta} nav={nav} />
+        ))}
+      </ul>
+      <div className="hidden overflow-hidden rounded-md border border-border bg-card md:block">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-9" />
+              <TableHead className="w-12" />
+              <TableHead>Nome</TableHead>
+              <TableHead className="w-10">
+                <span className="sr-only">Ações</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pastas.map((pasta) => (
+              <LinhaPasta key={pasta.chave} pasta={pasta} colunasDoNome={1} nav={nav} />
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
   );
 }

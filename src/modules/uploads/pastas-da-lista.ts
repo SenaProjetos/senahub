@@ -19,8 +19,19 @@ export type SelecaoPasta = { disciplinaId: string | null; fase: string | null; e
 
 export type NivelPasta = "raiz" | "disciplina" | "fase" | "formato";
 
-/** Para onde o clique leva: os parâmetros da URL que a árvore e as áreas já usam. */
-export type DestinoPasta = { disciplinaId: string | null; fase: string | null; ext: string | null; area: string | null };
+/**
+ * Para onde o clique leva: os parâmetros da URL que a árvore e as áreas já usam. `ano` e
+ * `projetoId` só existem no diretório geral (/arquivos), acima do projeto; ausentes, ficam como
+ * estão na URL.
+ */
+export type DestinoPasta = {
+  disciplinaId: string | null;
+  fase: string | null;
+  ext: string | null;
+  area: string | null;
+  ano?: string | null;
+  projetoId?: string | null;
+};
 
 /** Recorte do .zip de uma pasta (`/api/uploads/pasta/zip`). */
 export type RecorteZipPasta = { disciplinaId: string; fase: string | null; ext: string | null };
@@ -29,7 +40,7 @@ export type DisciplinaDaPasta = { id: string; nome: string; status: StatusDiscip
 export type AreaDaPasta = { id: string; rotulo: string; total: number };
 
 export type PastaNaLista = {
-  tipo: "disciplina" | "fase" | "extensao" | "area";
+  tipo: "ano" | "projeto" | "disciplina" | "fase" | "extensao" | "area";
   chave: string;
   rotulo: string;
   /** Nome por extenso da fase, para o `title`; `null` quando o rótulo já diz tudo. */
@@ -196,6 +207,7 @@ export function hrefDaPasta(pathname: string, buscaAtual: string, alvo: DestinoP
   params.delete("page");
   params.delete("listaId");
   for (const [chave, valor] of Object.entries(alvo)) {
+    if (valor === undefined) continue;
     if (valor) params.set(chave, valor);
     else params.delete(chave);
   }
