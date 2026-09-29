@@ -1822,22 +1822,15 @@ export function PdfViewer(props: Props) {
             />
           </div>
         ) : (
-          <div className="hidden w-10 shrink-0 flex-col items-center gap-1 border-r pt-2 lg:flex">
-            <Button
-              ref={abrirTarefasRef}
-              size="icon"
-              variant="ghost"
-              className="size-7"
-              onClick={() => setPainelTarefasAberto(true)}
-              aria-expanded={false}
-              aria-controls="painel-tarefas-workspace"
-              aria-label={`Abrir painel de tarefas (${pendencias.length} ${pendencias.length === 1 ? "apontamento" : "apontamentos"})`}
-              title="Abrir painel de tarefas"
-            >
-              <ArrowRight className="size-3.5" />
-            </Button>
-            {pendencias.length > 0 && <ContagemRecolhida total={pendencias.length} />}
-          </div>
+          <TrilhoRecolhido
+            ref={abrirTarefasRef}
+            lado="esquerda"
+            titulo="Tarefas do documento"
+            total={pendencias.length}
+            onAbrir={() => setPainelTarefasAberto(true)}
+            controla="painel-tarefas-workspace"
+            rotulo={`Abrir painel de tarefas (${pendencias.length} ${pendencias.length === 1 ? "apontamento" : "apontamentos"})`}
+          />
         )}
         <div className="flex min-w-0 flex-1 flex-col">
           {/* Identidade do arquivo: nome, revisão e situação. A trilha fica na barra do topo e o
@@ -1922,7 +1915,13 @@ export function PdfViewer(props: Props) {
           {/* Ferramentas só com ícone; o nome, a tecla e o que cada uma faz aparecem na dica. As
               mesmas estão no menu do botão direito sobre a prancha — esta barra é o caminho que
               também serve ao teclado (ADR-0002, regra 2). */}
-          <div role="toolbar" aria-label="Ferramentas da prancha" className="flex flex-wrap items-center gap-1 border-b px-2 py-1">
+          {/* Três blocos: arquivo e busca | pranchas e zoom, no CENTRO da prancha | marcação. As
+              laterais crescem por igual a partir de zero (`flex-1`), então o meio fica no centro
+              sempre que cada lateral cabe na sua metade; se a da direita não cabe, o meio só se
+              desloca. A marcação não quebra por dentro: sem espaço na linha, ela desce inteira. */}
+          <div role="toolbar" aria-label="Ferramentas da prancha" className="border-b px-2 py-1">
+          <div className="flex flex-wrap items-center gap-1">
+          <div className="flex flex-1 flex-wrap items-center gap-1">
             <nav className="flex shrink-0 flex-wrap items-center gap-1" aria-label="Arquivos desta revisão">
               <span className="sr-only">Extensões:</span>
               {revisionFiles.map((file) =>
@@ -1963,7 +1962,6 @@ export function PdfViewer(props: Props) {
                 ),
               )}
             </nav>
-            <SeletorPranchas projetoId={projetoId} uploadId={uploadId} documentoIds={props.documentosDaPrancha} pranchas={pranchasNavegaveis} />
             {pdf && (
               <>
                 <SeparadorBarra />
@@ -2003,6 +2001,13 @@ export function PdfViewer(props: Props) {
                 )}
                 {/* Camadas/OCG — só aparece quando o PDF de fato tem alguma (raro fora de export CAD/Revit). */}
                 {camadas.temCamadas && <CamadasPdf grupos={camadas.grupos} onAlternar={camadas.alternar} />}
+              </>
+            )}
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center justify-center gap-1 sm:flex-nowrap">
+            <SeletorPranchas projetoId={projetoId} uploadId={uploadId} documentoIds={props.documentosDaPrancha} pranchas={pranchasNavegaveis} />
+            {pdf && (
+              <>
                 <SeparadorBarra />
                 <BotaoFerramenta rotulo="Diminuir zoom" atalho="Ctrl+roda" onClick={() => ajustarZoom(-1)} disabled={zoom <= ZOOM_PDF_MIN}>
                   <ZoomOut />
@@ -2060,7 +2065,8 @@ export function PdfViewer(props: Props) {
                 )}
               </>
             )}
-            <div className="ml-auto flex flex-wrap items-center gap-1">
+          </div>
+            <div className="flex flex-1 flex-wrap items-center justify-end gap-1 sm:flex-nowrap">
               {podeValidarArquivo ? (
                 <AcoesValidacaoArquivo uploadId={uploadId} nomeArquivo={nomeArquivo} validado={validado} compacto />
               ) : (
@@ -2168,6 +2174,7 @@ export function PdfViewer(props: Props) {
                 </>
               )}
             </div>
+          </div>
           </div>
 
           {/* Aviso: apontar numa entrega já validada abre revisão */}
@@ -2610,22 +2617,15 @@ export function PdfViewer(props: Props) {
           </div>
         </aside>
         ) : (
-          <div className="hidden w-10 shrink-0 flex-col items-center gap-1 border-l pt-2 lg:flex">
-            <Button
-              ref={abrirDetalhesRef}
-              size="icon"
-              variant="ghost"
-              className="size-7"
-              onClick={() => setPainelDetalhesAberto(true)}
-              aria-expanded={false}
-              aria-controls="painel-detalhes-workspace"
-              aria-label="Abrir detalhes do apontamento"
-              title="Abrir detalhes do apontamento"
-            >
-              <ArrowLeft className="size-3.5" />
-            </Button>
-            {pendencias.length > 0 && <ContagemRecolhida total={pendencias.length} />}
-          </div>
+          <TrilhoRecolhido
+            ref={abrirDetalhesRef}
+            lado="direita"
+            titulo="Detalhes do apontamento"
+            total={pendencias.length}
+            onAbrir={() => setPainelDetalhesAberto(true)}
+            controla="painel-detalhes-workspace"
+            rotulo="Abrir detalhes do apontamento"
+          />
         )}
       </div>
 
@@ -3566,11 +3566,53 @@ function BotoesEsboco({
   );
 }
 
-/** Quantos apontamentos há, no trilho do painel recolhido — fechado não pode esconder que há trabalho. */
-function ContagemRecolhida({ total }: { total: number }) {
+/**
+ * Painel recolhido: um trilho estreito que é, inteiro, o botão de reabrir — com a seta, quantos
+ * apontamentos há (fechado não pode esconder que há trabalho) e o título do painel em pé, para
+ * se saber o que abre sem passar o mouse.
+ */
+function TrilhoRecolhido({
+  ref,
+  lado,
+  titulo,
+  total,
+  onAbrir,
+  controla,
+  rotulo,
+}: {
+  ref: React.Ref<HTMLButtonElement>;
+  lado: "esquerda" | "direita";
+  titulo: string;
+  total: number;
+  onAbrir: () => void;
+  /** Id do painel que o trilho abre (`aria-controls`). */
+  controla: string;
+  rotulo: string;
+}) {
+  const Seta = lado === "esquerda" ? ArrowRight : ArrowLeft;
   return (
-    <span className="rounded-full bg-muted px-1.5 font-mono text-[10px] tabular-nums text-muted-foreground" aria-hidden>
-      {total}
-    </span>
+    <button
+      ref={ref}
+      type="button"
+      onClick={onAbrir}
+      aria-expanded={false}
+      aria-controls={controla}
+      aria-label={rotulo}
+      title={`Abrir ${titulo.toLowerCase()}`}
+      className={cn(
+        "hidden w-10 shrink-0 flex-col items-center gap-2 py-3 text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset lg:flex",
+        lado === "esquerda" ? "border-r" : "border-l",
+      )}
+    >
+      <Seta className="size-3.5 shrink-0" aria-hidden />
+      {total > 0 && (
+        <span className="rounded-full bg-muted px-1.5 font-mono text-[10px] tabular-nums" aria-hidden>
+          {total}
+        </span>
+      )}
+      <span className="text-xs font-semibold whitespace-nowrap [writing-mode:vertical-rl]" aria-hidden>
+        {titulo}
+      </span>
+    </button>
   );
 }

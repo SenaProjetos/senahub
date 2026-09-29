@@ -112,7 +112,7 @@ export function SeletorPranchas({
           {posicao || "–"}/{lista.length}
           <ChevronDown aria-hidden className="size-3" />
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-[min(26rem,calc(100vw-2rem))] gap-0 p-0">
+        <PopoverContent align="center" className="w-[min(26rem,calc(100vw-2rem))] gap-0 p-0">
           <div className="space-y-2 border-b p-2">
             <div className="relative">
               <Search aria-hidden className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
