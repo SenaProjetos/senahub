@@ -90,7 +90,7 @@ describe("layout do painel de projeto", () => {
 
   // `normalizarLayoutPainelProjeto` cai no padrão quando o layout salvo se sobrepõe, mas não
   // valida o próprio padrão: um arranjo inicial inválido quebraria a grade de todo mundo em
-  // silêncio. Como `layoutPadraoPainelProjeto` só REMOVE itens, checar os 14 cobre todo
+  // silêncio. Como `layoutPadraoPainelProjeto` só REMOVE itens, checar todos cobre todo
   // subconjunto que a filtragem por permissão/dados possa gerar.
   it("mantém o arranjo padrão completo válido: sem sobreposição e dentro da grade", () => {
     const layout = layoutPadraoPainelProjeto(PAINEIS_PROJETO);

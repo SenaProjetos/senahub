@@ -36,6 +36,61 @@ export const definirValorContrato = defineAction(
 );
 
 /**
+ * Salva a composição de preço (memória de cálculo) do projeto, substituindo os itens. Mora na
+ * aba Financeiro desde 2026-09-29 — a tela só abre com `financeiro:ver`; o gate de escrita é o
+ * mesmo do valor de contrato, que ela substitui como referência de receita.
+ */
+export const salvarComposicaoPreco = defineAction(
+  {
+    modulo: "projetos",
+    acao: "salvar-composicao",
+    recurso: "projetos",
+    permissao: "gerir",
+    entidade: "ProjetoComposicaoPreco",
+    schema: z.object({
+      projetoId: z.string().min(1),
+      observacao: z.string().optional().or(z.literal("")),
+      itens: z
+        .array(
+          z.object({
+            descricao: z.string().trim().min(1, "Descreva cada item."),
+            quantidade: z.number().min(0),
+            valorUnitario: z.number().min(0),
+          }),
+        )
+        .max(200),
+    }),
+    entidadeId: (_d, i) => i.projetoId,
+    capturarAntes: async (i) =>
+      prisma.projetoComposicaoPreco.findUnique({ where: { projetoId: i.projetoId }, include: { itens: true } }),
+  },
+  async (i) => {
+    await prisma.$transaction(async (tx) => {
+      const comp = await tx.projetoComposicaoPreco.upsert({
+        where: { projetoId: i.projetoId },
+        create: { projetoId: i.projetoId, observacao: i.observacao || null },
+        update: { observacao: i.observacao || null },
+      });
+      await tx.itemComposicaoPreco.deleteMany({ where: { composicaoId: comp.id } });
+      if (i.itens.length > 0) {
+        await tx.itemComposicaoPreco.createMany({
+          data: i.itens.map((it, n) => ({
+            composicaoId: comp.id,
+            descricao: it.descricao,
+            quantidade: it.quantidade,
+            valorUnitario: it.valorUnitario,
+            ordem: n,
+          })),
+        });
+      }
+    });
+    rev(i.projetoId);
+    revalidatePath(`/projetos/${i.projetoId}/financeiro`);
+    return { projetoId: i.projetoId };
+  },
+);
+
+/**
  * Gera N parcelas de recebível (receita PREVISTA) somando `valorTotal`, vencendo a
  * partir de `dataPrimeira` a cada `intervaloMeses`. Substitui as parcelas previstas
  * existentes (as já recebidas/confirmadas são preservadas). Reusa Lancamento.

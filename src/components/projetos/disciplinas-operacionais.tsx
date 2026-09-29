@@ -23,6 +23,7 @@ import {
   tarefasTravadasPeloCronograma,
 } from "@/modules/tarefas/queries";
 import { canalDoProjeto, canaisDasDisciplinas } from "@/modules/chat/queries";
+import { solicitacoesRevisaoDoProjeto, type SolicitacaoRevisaoView } from "@/modules/projetos/solicitacoes-revisao/queries";
 import { PaginaDisciplinas } from "@/components/projetos/pagina-disciplinas";
 import { contarPorStatus, filtrarDisciplinas, ordenarDisciplinas, statusDoFiltro } from "@/modules/projetos/ordem-disciplinas";
 import { DisciplinaCard, type TarefaDaDisciplina } from "@/components/projetos/disciplina-card";
@@ -47,14 +48,21 @@ export async function DisciplinasOperacionais({
     can(user, "aprovacoes", "disciplina"),
     podeVerFinanceiro(user),
   ]);
-  const [internos, catalogoBruto, slaFora, canalChat, canaisDisc, nomenclatura] = await Promise.all([
+  const [internos, catalogoBruto, slaFora, canalChat, canaisDisc, nomenclatura, solicitacoesRevisao] = await Promise.all([
     podeGerir ? usuariosInternos() : Promise.resolve([]),
     podeGerir ? catalogoDisciplinas() : Promise.resolve([]),
     podeValidar ? disciplinasForaDeSLA(user) : Promise.resolve([]),
     canalDoProjeto(projeto.id),
     canaisDasDisciplinas(projeto.id),
     podeGerir ? resolverNomenclatura(projeto.id) : Promise.resolve(null),
+    solicitacoesRevisaoDoProjeto(projeto.id),
   ]);
+  const solicitacoesPorDisciplina = new Map<string, SolicitacaoRevisaoView[]>();
+  for (const solicitacao of solicitacoesRevisao) {
+    const lista = solicitacoesPorDisciplina.get(solicitacao.disciplinaId);
+    if (lista) lista.push(solicitacao);
+    else solicitacoesPorDisciplina.set(solicitacao.disciplinaId, [solicitacao]);
+  }
   // D11 da spec de nomenclatura versionada: só oferece pra "adicionar disciplina" o que vale na
   // versão do padrão DESTE projeto (card fora dela — ex.: Cabeamento num projeto v2 — continua
   // funcionando se já estiver no projeto; só não aparece pra ADICIONAR de novo).
@@ -107,6 +115,7 @@ export async function DisciplinasOperacionais({
         autor: revisao.autor.name,
         data: new Date(revisao.createdAt).toISOString(),
       })),
+      solicitacoesRevisao: solicitacoesPorDisciplina.get(disciplina.id) ?? [],
       uploads,
       temA: uploads.some((upload) => upload.pacote === "A"),
       temB: uploads.some((upload) => upload.pacote === "B"),

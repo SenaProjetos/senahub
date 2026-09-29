@@ -649,7 +649,7 @@ export async function obterProjetoMinimo(viewer: Viewer, id: string) {
  * Visão Geral e Histórico ficam fora: sempre relevantes.
  */
 export async function abasComConteudo(projetoId: string) {
-  const [inputs, financeiro, servicos, arquivos, arts, coordenacao, diario, extras] =
+  const [inputs, financeiro, servicos, arquivos, arts, coordenacao, diario] =
     await Promise.all([
       prisma.inputProjeto.count({ where: { projetoId } }),
       prisma.lancamento.count({ where: { projetoId } }),
@@ -660,7 +660,6 @@ export async function abasComConteudo(projetoId: string) {
         where: { disciplina: { projetoId }, nomeArquivo: { endsWith: ".ifc", mode: "insensitive" } },
       }),
       prisma.diarioEntrada.count({ where: { projetoId } }),
-      contarExtras(projetoId),
     ]);
   return {
     "/inputs": inputs > 0,
@@ -670,21 +669,7 @@ export async function abasComConteudo(projetoId: string) {
     "/arts": arts > 0,
     "/coordenacao": coordenacao > 0,
     "/diario": diario > 0,
-    "/extras": extras > 0,
   } as Record<string, boolean>;
-}
-
-/** "Extras" reúne 6 sub-recursos independentes — conta como usada se qualquer um tiver dado. */
-async function contarExtras(projetoId: string): Promise<number> {
-  const [solic, composicao, lm, linhas, checklist, riscos] = await Promise.all([
-    prisma.solicitacaoRevisao.count({ where: { disciplina: { projetoId } } }),
-    prisma.projetoComposicaoPreco.count({ where: { projetoId, itens: { some: {} } } }),
-    prisma.lmConfig.count({ where: { projetoId, conteudo: { not: "" } } }),
-    prisma.linhaBase.count({ where: { projetoId } }),
-    prisma.checklistItemProjeto.count({ where: { projetoId } }),
-    prisma.riscoProjeto.count({ where: { projetoId } }),
-  ]);
-  return solic + composicao + lm + linhas + checklist + riscos;
 }
 
 /** N-07: eventos de mudança de status das disciplinas de um projeto, via AuditLog. */

@@ -1283,7 +1283,6 @@ model Projeto {
   servicos                ServicoTerceirizado[]
   rateios                 RateioHora[]
   composicaoPreco         ProjetoComposicaoPreco?
-  lmConfig                LmConfig?
   pranchaCatalogos        PranchaCatalogo[]
   nomenclaturaConfig      NomenclaturaConfig?
   /// Versão do padrão de nomenclatura que o projeto segue (D2/D3). A migration
@@ -1293,9 +1292,7 @@ model Projeto {
   nomenclaturaVersaoId    String?
   nomenclaturaVersao      NomenclaturaVersao?      @relation(fields: [nomenclaturaVersaoId], references: [id], onDelete: Restrict)
   listasDocumentos        ListaDocumentos[]
-  linhasBase              LinhaBase[]
   planejamentos           PlanejamentoPagamento[]
-  checklist               ChecklistItemProjeto[]
   riscos                  RiscoProjeto[]
   calculosFerramenta      CalculoFerramenta[]
   diarioEntradas          DiarioEntrada[]
@@ -1324,22 +1321,6 @@ model Projeto {
   @@index([negociacaoId])
   @@index([tipoEmpreendimentoId])
   @@map("projeto")
-}
-
-/// N-34: item de checklist livre por projeto.
-model ChecklistItemProjeto {
-  id          String    @id @default(cuid())
-  projetoId   String
-  descricao   String
-  concluido   Boolean   @default(false)
-  concluidoEm DateTime?
-  ordem       Int       @default(0)
-  createdAt   DateTime  @default(now())
-
-  projeto Projeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
-
-  @@index([projetoId])
-  @@map("checklist_item_projeto")
 }
 
 /// N-39: risco identificado para um projeto.
@@ -2623,27 +2604,23 @@ model DiarioEntrada {
   @@map("diario_entrada")
 }
 
-enum StatusSolicRevisao {
-  pendente
-  aceita
-  recusada
-}
-
-/// Pedido formal de revisão de uma disciplina (workflow), com anexo opcional (B2).
+/// Solicitação de revisão de uma disciplina. Nasce do envio de apontamentos da prancha
+/// (`enviarApontamentos`): uma rodada enviada = uma solicitação, registrada no card da
+/// disciplina. Não tem estado gravado — "em aberto" ou "atendida" sai dos apontamentos da
+/// rodada (`solicitacoes-revisao/situacao.ts`), então não há o que sincronizar.
 model SolicitacaoRevisao {
-  id             String             @id @default(cuid())
-  disciplinaId   String
-  disciplina     Disciplina         @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
-  solicitanteId  String
-  motivo         String
-  status         StatusSolicRevisao @default(pendente)
-  respostaMotivo String?
-  anexoPath      String?
-  anexoNome      String?
-  createdAt      DateTime           @default(now())
-  respondidoEm   DateTime?
+  id            String     @id @default(cuid())
+  disciplinaId  String
+  disciplina    Disciplina @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  solicitanteId String
+  motivo        String
+  /// Tarefa criada pelo envio — a mesma de `Pendencia.tarefaId` (sem FK, como lá). Nulo só
+  /// nas solicitações anteriores a 2026-09-29, feitas à mão na antiga aba Extras.
+  tarefaId      String?
+  createdAt     DateTime   @default(now())
 
   @@index([disciplinaId])
+  @@index([tarefaId])
   @@map("solicitacao_revisao")
 }
 
@@ -2672,30 +2649,6 @@ model ItemComposicaoPreco {
   @@map("item_composicao_preco")
 }
 
-/// Configuração de Lista de Materiais (BIM) do projeto — texto livre (B4).
-model LmConfig {
-  id        String   @id @default(cuid())
-  projetoId String   @unique
-  projeto   Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
-  conteudo  String   @default("")
-  updatedAt DateTime @updatedAt
-
-  @@map("lm_config")
-}
-
-/// Linha de base do cronograma: snapshot nomeado das datas da EAP (B5).
-model LinhaBase {
-  id        String   @id @default(cuid())
-  projetoId String
-  projeto   Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
-  nome      String
-  /// Snapshot [{ id, nome, inicio, fim }] das tarefas da EAP no momento.
-  snapshot  Json
-  createdAt DateTime @default(now())
-
-  @@index([projetoId])
-  @@map("linha_base")
-}
 
 enum StatusOportunidade {
   aberta

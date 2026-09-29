@@ -43,7 +43,6 @@ export default async function ProjetoLayout({
     podeServicos,
     podeArts,
     podeDiario,
-    podeExtras,
     canalChat,
     modelosDoc,
     conteudoPorAba,
@@ -54,14 +53,13 @@ export default async function ProjetoLayout({
     can(user, "projetos", "historico"),
     can(user, "coordenacao", "ver"),
     can(user, "custos", "ver"),
-    // F4 (2026-09-02): Serviços, ARTs, Diário e Extras não tinham gate nenhum (Diário só
+    // F4 (2026-09-02): Serviços, ARTs e Diário não tinham gate nenhum (Diário só
     // `INTERNAL_ROLES`). A permissão é o TETO e o `abasConfig` do projeto recorta DENTRO dela
     // (decisão do dono, opção C): sem o par, a aba nunca aparece; com o par, aparece se aquele
     // projeto a mantiver ligada. Semeadas para quem tem `projetos:ver`, então ninguém perdeu aba.
     can(user, "projetos", "servicos"),
     can(user, "projetos", "arts"),
     can(user, "projetos", "diario"),
-    can(user, "projetos", "extras"),
     canalDoProjeto(id),
     modelosPorFonte("projeto"),
     abasComConteudo(id),
@@ -180,7 +178,6 @@ export default async function ProjetoLayout({
               ...(podeCoordenacao ? ["/coordenacao"] : []),
               ...(podeCustos ? ["/custos"] : []),
               ...(podeDiario ? ["/diario"] : []),
-              ...(podeExtras ? ["/extras"] : []),
               // Histórico (CDE) só para admin ou cargos autorizados em Configurações.
               ...(podeHistorico ? ["/historico"] : []),
             ]}

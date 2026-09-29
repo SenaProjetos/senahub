@@ -83,7 +83,6 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
       { acao: "servicos", label: "Ver a aba Serviços do projeto", abre: "Aba Serviços do projeto", leitura: true },
       { acao: "arts", label: "Ver a aba ARTs do projeto", abre: "Aba ARTs do projeto", leitura: true },
       { acao: "diario", label: "Ver o Diário de obra do projeto", abre: "Aba Diário do projeto", leitura: true },
-      { acao: "extras", label: "Ver a aba Extras do projeto", abre: "Aba Extras do projeto", leitura: true },
       { acao: "pastas", label: "Redesenhar a árvore de pastas do projeto" },
       // 2026-09-15: era `GLOBAL_ROLES` (papel admin/supervisor) em ~10 gates de escrita espalhados —
       // a coordenadora contratada CLT com perfil Coordenador não conseguia agir fora da própria

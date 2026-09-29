@@ -26,7 +26,10 @@ export async function receitaProjeto(projetoId: string) {
     prisma.projeto.findUnique({ where: { id: projetoId }, select: { valorContrato: true, tipo: true } }),
     prisma.projetoComposicaoPreco.findUnique({
       where: { projetoId },
-      select: { itens: { select: { quantidade: true, valorUnitario: true } } },
+      select: {
+        observacao: true,
+        itens: { orderBy: { ordem: "asc" }, select: { id: true, descricao: true, quantidade: true, valorUnitario: true } },
+      },
     }),
     prisma.lancamento.findMany({
       where: { projetoId, tipo: "receita", tags: { has: TAG_PARCELA_CONTRATO }, status: { not: "cancelado" } },
@@ -88,6 +91,17 @@ export async function receitaProjeto(projetoId: string) {
     tipo: projeto?.tipo ?? "particular",
     avisoContrato: avisoCobrancaContrato(contratos),
     totalComposicao,
+    // Memória de cálculo do valor (editada no card "Composição de preço" desta aba desde
+    // 2026-09-29; antes ficava na aba Extras, aberta a quem não tinha `financeiro:ver`).
+    composicao: {
+      observacao: composicao?.observacao ?? null,
+      itens: (composicao?.itens ?? []).map((it) => ({
+        id: it.id,
+        descricao: it.descricao,
+        quantidade: Number(it.quantidade),
+        valorUnitario: Number(it.valorUnitario),
+      })),
+    },
     parcelas: parcelas.map((p) => ({
       id: p.id,
       descricao: p.descricao,

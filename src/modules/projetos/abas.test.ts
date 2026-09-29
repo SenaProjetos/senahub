@@ -17,8 +17,8 @@ describe("aplicarConfigAbas", () => {
   });
 
   it("remove abas marcadas como ocultas", () => {
-    const ordem = aplicarConfigAbas(TODAS, [{ suffix: "/extras", oculta: true }]);
-    expect(ordem).not.toContain("/extras");
+    const ordem = aplicarConfigAbas(TODAS, [{ suffix: "/arts", oculta: true }]);
+    expect(ordem).not.toContain("/arts");
   });
 
   it("ignora aba oculta/reordenada que não está mais liberada por permissão", () => {
@@ -30,7 +30,7 @@ describe("aplicarConfigAbas", () => {
   it("aba nova (fora da config salva) aparece no final, na ordem padrão", () => {
     const ordem = aplicarConfigAbas(TODAS, [{ suffix: "/diario", oculta: false }]);
     expect(ordem[ordem.length - 1]).not.toBe("/diario");
-    expect(ordem).toContain("/extras");
+    expect(ordem).toContain("/arts");
   });
 });
 

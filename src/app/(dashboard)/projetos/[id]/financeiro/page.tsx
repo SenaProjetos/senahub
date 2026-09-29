@@ -9,6 +9,7 @@ import { receitaProjeto } from "@/modules/projetos/receita/queries";
 import { planoVsRealProjeto } from "@/modules/planejamento/queries";
 import { evmProjeto } from "@/modules/projetos/evm/queries";
 import { ReceitaContratoCard } from "@/components/projetos/receita-contrato-card";
+import { ComposicaoPrecoCard } from "@/components/projetos/composicao-preco-card";
 import { MargemCard } from "@/components/projetos/margem-card";
 import { PlanoRealCard } from "@/components/projetos/plano-real-card";
 import { EvmCard } from "@/components/projetos/evm-card";
@@ -48,6 +49,7 @@ export default async function ProjetoFinanceiroPage({
   return (
     <div className="space-y-6">
       <ReceitaContratoCard projetoId={id} receita={receita} />
+      <ComposicaoPrecoCard projetoId={id} composicao={receita.composicao} podeGerir={podeGerir} />
       <MargemCard margem={margem} />
       {evm && <EvmCard evm={evm} />}
       {planoReal && planoReal.linhas.length > 0 && <PlanoRealCard planoReal={planoReal} />}

@@ -103,6 +103,7 @@ import {
   type TomPasso,
 } from "@/modules/projetos/proximo-passo";
 import { prazoVencido } from "@/lib/data";
+import type { SolicitacaoRevisaoView } from "@/modules/projetos/solicitacoes-revisao/queries";
 
 /** Tarefa da disciplina para a lista (formato do board + nome/cor/concluído do status). */
 export type TarefaDaDisciplina = TarefaUI & { statusNome: string; statusCor: string | null; concluido: boolean };
@@ -142,6 +143,8 @@ type Disc = {
   responsaveis: { userId: string; name: string; role: string }[];
   ehResponsavel: boolean;
   revisoes: { id: string; numero: number; motivo: string | null; autor: string; data: string }[];
+  /** Solicitações de revisão — uma por envio de apontamentos; só leitura no card. */
+  solicitacoesRevisao: SolicitacaoRevisaoView[];
   uploads: UploadItem[];
   temA: boolean;
   temB: boolean;
@@ -1515,6 +1518,7 @@ function arquivosComRevisaoPendente(disciplina: Disc) {
 function RevisaoDialog({ disciplina, controle }: { disciplina: Disc; controle?: ControleJanela }) {
   const [open, setOpen] = useAberto(controle);
   const pendentes = arquivosComRevisaoPendente(disciplina);
+  const solicitacoes = disciplina.solicitacoesRevisao;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -1530,30 +1534,81 @@ function RevisaoDialog({ disciplina, controle }: { disciplina: Disc; controle?: 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{disciplina.nome} — revisões</DialogTitle>
-          <DialogDescription>Ajustes solicitados nos arquivos, ainda não reenviados/validados.</DialogDescription>
+          <DialogDescription>
+            Cada envio de apontamentos registra uma solicitação de revisão. Ela fica em aberto até os apontamentos
+            daquele envio saírem da fila.
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-60 space-y-2 overflow-y-auto">
-          {pendentes.length === 0 ? (
-            <EmptyState icon={GitBranch} title="Nenhum ajuste pendente nos arquivos" />
-          ) : (
-            pendentes.map((a) => (
-              <div key={a.id} className="rounded-sm border p-2 text-sm">
-                <div className="flex items-center gap-2">
-                  <GitBranch className="size-3.5 text-muted-foreground" />
-                  <span className="font-medium">{a.nomeArquivo}</span>
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {a.ajusteEm && formatarData(a.ajusteEm)}
-                  </span>
+        <div className="max-h-[60svh] space-y-4 overflow-y-auto">
+          <section className="space-y-2">
+            <h3 className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+              Solicitações de revisão
+            </h3>
+            {solicitacoes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma solicitação. Elas surgem quando alguém envia apontamentos de uma prancha.</p>
+            ) : (
+              solicitacoes.map((s) => (
+                <div key={s.id} className="rounded-sm border p-2 text-sm">
+                  <div className="flex items-start gap-2">
+                    <span className="min-w-0 flex-1 font-medium">{s.motivo}</span>
+                    <SituacaoSolicitacaoBadge situacao={s.situacao} />
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {s.solicitante} · {formatarData(s.data)}
+                    {s.apontamentos.total > 0 &&
+                      (s.apontamentos.abertos > 0
+                        ? ` · ${s.apontamentos.abertos} de ${s.apontamentos.total} apontamento(s) em aberto`
+                        : ` · ${s.apontamentos.total} apontamento(s) tratado(s)`)}
+                  </p>
                 </div>
-                {a.ajusteObs && <p className="mt-1 text-muted-foreground">{a.ajusteObs}</p>}
-              </div>
-            ))
-          )}
+              ))
+            )}
+          </section>
+
+          <section className="space-y-2">
+            <h3 className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+              Arquivos com ajuste pendente
+            </h3>
+            {pendentes.length === 0 ? (
+              <EmptyState icon={GitBranch} title="Nenhum ajuste pendente nos arquivos" />
+            ) : (
+              pendentes.map((a) => (
+                <div key={a.id} className="rounded-sm border p-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <GitBranch className="size-3.5 text-muted-foreground" />
+                    <span className="font-medium">{a.nomeArquivo}</span>
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      {a.ajusteEm && formatarData(a.ajusteEm)}
+                    </span>
+                  </div>
+                  {a.ajusteObs && <p className="mt-1 text-muted-foreground">{a.ajusteObs}</p>}
+                </div>
+              ))
+            )}
+          </section>
         </div>
       </DialogContent>
     </Dialog>
   );
+}
+
+function SituacaoSolicitacaoBadge({ situacao }: { situacao: SolicitacaoRevisaoView["situacao"] }) {
+  if (situacao === "em_aberto") {
+    return (
+      <Badge variant="outline" className="shrink-0 border-warning/40 bg-warning/10 text-warning">
+        Em aberto
+      </Badge>
+    );
+  }
+  if (situacao === "atendida") {
+    return (
+      <Badge variant="outline" className="shrink-0 border-success/40 bg-success/10 text-success">
+        Atendida
+      </Badge>
+    );
+  }
+  return null;
 }
 
 function ResponsaveisDialog({

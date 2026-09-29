@@ -127,6 +127,13 @@ Ao abrir um projeto, a **Visão Geral** mostra a situação executiva: progresso
 área, disciplinas entregues, pendências que requerem atenção, última atualização, riscos,
 equipe e atividade recente.
 
+- **Riscos em destaque** mostra os três riscos mais graves, com os abertos primeiro. **Ver todos**
+  abre a lista inteira; quem gerencia o projeto registra, edita (probabilidade, impacto, situação e
+  **plano de mitigação**) e exclui riscos ali. Sem nenhum risco, o botão se chama **Registrar risco**.
+- **Acessos relacionados** aparece para quem tem acesso à tela de Acessos e o projeto tem
+  credenciais ligadas: mostra cada uma com a situação e o link do portal. A senha não aparece
+  aqui; **Abrir o cofre** leva à tela de Acessos.
+
 Todo projeto tem **dois prazos**: o **prazo de contrato** (o combinado com o cliente,
 obrigatório no cadastro) e o **prazo planejado** (a meta interna da equipe). Ao criar o
 projeto, deixar o planejado em branco faz ele nascer igual ao contrato. A contagem de dias,
@@ -137,7 +144,8 @@ O card de prazos avisa quando o planejado estoura o contrato.
 - A **Linha do tempo** usa somente o planejamento cadastrado na EAP. Sem planejamento,
   ela informa que o cronograma ainda não foi cadastrado.
 - O total de pendências reúne somente itens abertos aos quais você tem acesso: apontamentos,
-  apontamentos de compatibilização, tarefas, solicitações de revisão e aprovações pendentes.
+  apontamentos de compatibilização, tarefas, solicitações de revisão em aberto e aprovações
+  pendentes.
 - A tabela **Disciplinas do projeto** é um resumo. Clique em uma disciplina ou em
   **Abrir disciplinas** para acompanhar e trabalhar nos detalhes.
 
@@ -158,6 +166,11 @@ validações, revisões, tarefas e diário, um card por disciplina.
 - **Rodapé:** responsáveis (clique para alterar, se você gere o projeto), etiqueta de pagamento
   ("Pagamento já liberado", "Pago 1 de 3 fases"), valor e os atalhos **Arquivos** (abre a aba
   Arquivos já na pasta da disciplina), **Revisões**, **Tarefas**, **Diário** e o **chat**.
+- **Revisões:** lista as **solicitações de revisão** da disciplina e os arquivos com ajuste
+  pendente. Cada **Enviar** de apontamentos no visualizador registra uma solicitação, que fica
+  **Em aberto** enquanto algum apontamento daquele envio estiver aberto ou em correção e passa a
+  **Atendida** quando todos saem da fila. É só consulta: não se cria nem se responde solicitação
+  pelo card.
 - **Botão direito e ⋯:** o card inteiro responde ao botão direito (toque longo no celular) com as
   mesmas ações do ⋯: mudar status, aprovar, **Entrega e aceite do cliente…** (validação por
   arquivo e link de aceite), responsáveis, etapas, editar, copiar link e excluir. O que você não
@@ -213,7 +226,7 @@ realizada, o card exibe a composição confirmada automaticamente quando está l
 Em um card menor, o resumo permanece compacto. Use **Ver detalhamento financeiro** para consultar
 os valores previstos e a análise completa.
 
-Além disso, há abas para: **Serviços**, **Arquivos**, **Extras**, **Financeiro** (veja abaixo) e
+Além disso, há abas para: **Serviços**, **Arquivos**, **Financeiro** (veja abaixo) e
 **Inputs** (formulários de start). As demais serão detalhadas em suas próprias páginas do manual.
 
 ### Aba Financeiro: receita e contrato
@@ -237,6 +250,11 @@ Exige acesso ao financeiro (`financeiro:ver` ou sócio). O card **Receita / Cont
   contrato **por entrega** em vigor a lista **não aparece** (a cobrança é do contrato).
 - Gerar, limpar parcelas e faturar entregas exigem `financeiro:gerir`; o valor de contrato,
   `projetos:gerir`.
+
+Logo abaixo, o card **Composição de preço** guarda a memória de cálculo do valor do projeto:
+descrição, quantidade e valor unitário de cada item, com o total. Com itens, o total passa a ser
+a referência de receita do card **Receita / Contrato** (no lugar do valor de contrato). Editar e
+**Salvar** exigem `projetos:gerir`; quem só vê o financeiro enxerga a tabela sem editar.
 
 ### Pastas da aba Arquivos
 
@@ -503,7 +521,8 @@ extensões) e a **busca** (lupa, ou **Ctrl+F**). No centro, sobre o meio da pran
 quem aponta, a paleta de ferramentas
 — **mão** (navegar, **Esc**), **pino** (1), **retângulo** (2), **seta** (3), **nuvem** (4),
 **medida** (5) e **rabisco** (6) —, a escala da página (compasso), quantos apontamentos estão em
-rascunho e **Enviar**. A tecla **A** liga e desliga o modo apontar.
+rascunho e **Enviar**. A tecla **A** liga e desliga o modo apontar. **Enviar** cria a tarefa dos
+ajustes e registra uma **solicitação de revisão** no card da disciplina (botão **Revisões**).
 
 **Pranchas do projeto.** As setas levam à prancha anterior e à seguinte; o botão do meio
 (**1/4**) abre a lista dos PDFs do projeto que você pode abrir, por disciplina, com o **número** e

@@ -22,6 +22,20 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Projeto: a aba Extras saiu, o que era útil foi para o lugar certo
+
+- **Riscos na Visão Geral:** **Ver todos**, no painel **Riscos em destaque**, abre a lista inteira.
+  Ali quem gerencia o projeto registra, edita e exclui riscos, agora com o **plano de mitigação**
+  (antes não havia onde escrevê-lo).
+- **Acessos relacionados** virou um painel da Visão Geral.
+- **Composição de preço** está na aba **Financeiro** do projeto, visível só para quem vê o
+  financeiro.
+- **Solicitação de revisão automática:** cada **Enviar** de apontamentos registra a solicitação no
+  card da disciplina (botão **Revisões**), que fica **Em aberto** até os apontamentos daquele envio
+  serem tratados.
+- Saíram o índice de qualidade, a lista de materiais, a linha de base antiga (a do cronograma
+  continua no Planejamento) e o checklist, que nenhum projeto usava.
+
 ## Menu Arquivos igual à aba Arquivos do projeto
 
 - **Uma tela só:** o item **Arquivos** do menu agora é a mesma tela da aba Arquivos de cada

@@ -3,6 +3,9 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@/lib/roles";
 import { STATUS_ABERTOS } from "@/modules/projetos/pendencias/helpers";
+import { ordenarRiscos } from "@/modules/projetos/riscos/regras";
+import { solicitacoesRevisaoDoProjeto } from "@/modules/projetos/solicitacoes-revisao/queries";
+import { emAbertoPorDisciplina } from "@/modules/projetos/solicitacoes-revisao/situacao";
 import { contarTarefasAbertasDoProjeto } from "@/modules/tarefas/queries";
 import { STATUS_PENDENTES, TIPOS_CONTRATUAIS } from "@/modules/juridico/contrato/estado";
 
@@ -26,7 +29,7 @@ export async function visaoGeralProjeto(
   const [
     riscos,
     tarefasEap,
-    revisoesPendentesPorDisciplina,
+    solicitacoesRevisao,
     aprovacoesInternasPendentes,
     aceitesPendentes,
     apontamentosPrancha,
@@ -36,6 +39,7 @@ export async function visaoGeralProjeto(
   ] = await Promise.all([
     prisma.riscoProjeto.findMany({
       where: { projetoId },
+      orderBy: { createdAt: "asc" },
       select: {
         id: true,
         descricao: true,
@@ -54,11 +58,7 @@ export async function visaoGeralProjeto(
         progresso: true,
       },
     }),
-    prisma.solicitacaoRevisao.groupBy({
-      by: ["disciplinaId"],
-      where: { disciplina: { projetoId }, status: "pendente" },
-      _count: { _all: true },
-    }),
+    solicitacoesRevisaoDoProjeto(projetoId),
     prisma.disciplina.count({
       where: { projetoId, aprovacaoSolicitadaEm: { not: null } },
     }),
@@ -95,11 +95,14 @@ export async function visaoGeralProjeto(
     }),
   ]);
 
+  // Solicitação de revisão em aberto = rodada de apontamentos enviada com apontamento ainda aberto.
+  const revisoesPorDisciplina = emAbertoPorDisciplina(solicitacoesRevisao);
+
   const pendencias = {
     apontamentosPrancha,
     apontamentosCoordenacao,
     tarefas: tarefasAbertas,
-    revisoes: revisoesPendentesPorDisciplina.reduce((total, revisao) => total + revisao._count._all, 0),
+    revisoes: [...revisoesPorDisciplina.values()].reduce((total, quantidade) => total + quantidade, 0),
     aprovacoes: aprovacoesInternasPendentes + aceitesPendentes,
   };
 
@@ -109,28 +112,15 @@ export async function visaoGeralProjeto(
       ...pendencias,
       total: Object.values(pendencias).reduce<number>((total, quantidade) => total + (quantidade ?? 0), 0),
     },
-    riscos: riscos
-      .sort((a, b) => {
-        const scoreA = a.probabilidade * a.impacto;
-        const scoreB = b.probabilidade * b.impacto;
-        if ((a.status === "aberto") !== (b.status === "aberto")) return a.status === "aberto" ? -1 : 1;
-        return scoreB - scoreA;
-      })
-      .slice(0, 3)
-      .map((risco) => ({
-        ...risco,
-        score: risco.probabilidade * risco.impacto,
-      })),
+    // Todos, na ordem do registro: o painel destaca os primeiros e a janela "Ver todos" lista o resto.
+    riscos: ordenarRiscos(riscos),
     tarefasEap: tarefasEap.map((tarefa) => ({
       disciplinaId: tarefa.disciplinaId!,
       inicioPrevisto: tarefa.inicioPrevisto.toISOString(),
       fimPrevisto: tarefa.fimPrevisto.toISOString(),
       progresso: tarefa.progresso,
     })),
-    revisoesPendentesPorDisciplina: revisoesPendentesPorDisciplina.map((revisao) => ({
-      disciplinaId: revisao.disciplinaId,
-      quantidade: revisao._count._all,
-    })),
+    revisoesPendentesPorDisciplina: [...revisoesPorDisciplina].map(([disciplinaId, quantidade]) => ({ disciplinaId, quantidade })),
   };
 }
 

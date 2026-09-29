@@ -35,6 +35,11 @@ import { MargemDonut } from "@/components/projetos/margem-donut";
 import { PontoProjeto } from "@/components/ponto/ponto-projeto";
 import { RegistrosPontoProjeto } from "@/components/ponto/registros-ponto-projeto";
 import { PainelProjetoPersonalizavel } from "@/components/projetos/painel-projeto-personalizavel";
+import { RiscosProjetoDialog } from "@/components/projetos/riscos-projeto-dialog";
+import { NIVEL_RISCO_VISUAL } from "@/components/projetos/riscos-visual";
+import { AcessosDoProjeto } from "@/components/acessos/acessos-do-projeto";
+import type { AcessoDoProjeto } from "@/modules/acessos/queries";
+import { GRAU_RISCO_LABEL, NIVEL_RISCO_LABEL, nivelRisco } from "@/modules/projetos/riscos/regras";
 import type { PainelProjetoId } from "@/modules/projetos/painel-layout";
 import type { RegistrosDiariosProjeto } from "@/modules/ponto/registros-projeto";
 
@@ -56,6 +61,8 @@ type Props = {
   registrosPontoEquipe: RegistrosDiariosProjeto[];
   margem: Awaited<ReturnType<typeof margemProjeto>> | null;
   layoutSalvo: unknown;
+  /** Credenciais do cofre ligadas ao projeto, já no escopo de quem vê (vazio sem `acessos:ver`). */
+  acessos: AcessoDoProjeto[];
 };
 
 const MS_DIA = 86_400_000;
@@ -169,7 +176,7 @@ function tooltipPendencias(p: VisaoGeralProjeto["pendencias"]): string {
     (p.apontamentosPrancha ?? 0) > 0 && `${p.apontamentosPrancha} apontamento(s) de prancha`,
     (p.apontamentosCoordenacao ?? 0) > 0 && `${p.apontamentosCoordenacao} de compatibilização`,
     (p.tarefas ?? 0) > 0 && `${p.tarefas} tarefa(s) aberta(s)`,
-    p.revisoes > 0 && `${p.revisoes} revisão(ões) pendente(s)`,
+    p.revisoes > 0 && `${p.revisoes} solicitação(ões) de revisão em aberto`,
     p.aprovacoes > 0 && `${p.aprovacoes} aprovação(ões) aguardando`,
   ].filter(Boolean);
   const resumo = partes.length > 0 ? partes.join(", ") : "nenhum item em aberto";
@@ -347,33 +354,30 @@ function TimelineOverview({
   );
 }
 
-function RiskHighlights({ projetoId, riscos }: { projetoId: string; riscos: VisaoGeralProjeto["riscos"] }) {
-  const nivel = (score: number) => {
-    if (score >= 6) return { label: "Alto", className: "border-destructive/40 bg-destructive/10 text-destructive", edge: "border-l-destructive" };
-    if (score >= 3) return { label: "Médio", className: "border-warning/40 bg-warning/10 text-warning", edge: "border-l-warning" };
-    return { label: "Baixo", className: "border-muted-foreground/40 bg-muted text-muted-foreground", edge: "border-l-muted-foreground" };
-  };
+/** Quantos riscos o painel destaca; a lista inteira fica na janela "Ver todos". */
+const RISCOS_EM_DESTAQUE = 3;
 
+function RiskHighlights({ projetoId, riscos, podeGerir }: { projetoId: string; riscos: VisaoGeralProjeto["riscos"]; podeGerir: boolean }) {
   return (
     <Card size="sm" className="h-full">
       <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 border-b">
         <CardTitle className="text-sm">Riscos em destaque</CardTitle>
-        <Link href={`/projetos/${projetoId}/extras`} className="text-xs font-medium text-primary hover:underline">Ver todos</Link>
+        <RiscosProjetoDialog projetoId={projetoId} riscos={riscos} podeGerir={podeGerir} />
       </CardHeader>
       <CardContent className="min-h-0 flex-1 space-y-3 overflow-auto pt-4">
         {riscos.length === 0 ? (
-          <EmptyState icon={ShieldAlert} title="Nenhum risco cadastrado" description="Registre riscos na aba Extras." />
+          <EmptyState icon={ShieldAlert} title="Nenhum risco cadastrado" description={podeGerir ? "Registre os riscos do projeto em “Registrar risco”." : undefined} />
         ) : (
-          riscos.map((risco) => {
-            const config = nivel(risco.score);
+          riscos.slice(0, RISCOS_EM_DESTAQUE).map((risco) => {
+            const nivel = nivelRisco(risco.probabilidade, risco.impacto);
             return (
-              <div key={risco.id} className={cn("border-l-2 pl-3", config.edge)}>
+              <div key={risco.id} className={cn("border-l-2 pl-3", NIVEL_RISCO_VISUAL[nivel].borda)}>
                 <div className="flex items-start justify-between gap-2">
                   <p className={cn("text-xs font-semibold", risco.status !== "aberto" && "text-muted-foreground line-through")}>{risco.descricao}</p>
-                  <Badge variant="outline" className={cn("h-5 text-[10px]", config.className)}>{config.label}</Badge>
+                  <Badge variant="outline" className={cn("h-5 text-[10px]", NIVEL_RISCO_VISUAL[nivel].badge)}>{NIVEL_RISCO_LABEL[nivel]}</Badge>
                 </div>
-                <p className="mt-1 text-[11px] text-muted-foreground">Probabilidade: {risco.probabilidade} · Impacto: {risco.impacto}</p>
-                {risco.mitigacao && <p className="mt-1 text-[11px] text-muted-foreground">{risco.mitigacao}</p>}
+                <p className="mt-1 text-[11px] text-muted-foreground">Probabilidade: {GRAU_RISCO_LABEL[risco.probabilidade]} · Impacto: {GRAU_RISCO_LABEL[risco.impacto]}</p>
+                {risco.mitigacao && <p className="mt-1 text-[11px] text-muted-foreground">Mitigação: {risco.mitigacao}</p>}
               </div>
             );
           })
@@ -639,6 +643,7 @@ export function ProjetoVisaoGeral({
   registrosPontoEquipe,
   margem,
   layoutSalvo,
+  acessos,
 }: Props) {
   const progresso = progressoProjeto(projeto.disciplinas.map((disciplina) => disciplina.status));
   const hoje = inicioDoDiaLocal();
@@ -727,7 +732,7 @@ export function ProjetoVisaoGeral({
           <CardContent className="pt-4"><div className="grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-4">
             <IndicadorCritico label="Atraso no prazo" value={diasPrazo != null && diasPrazo < 0 ? `${Math.abs(diasPrazo)}d` : "—"} description={diasPrazo != null && diasPrazo < 0 ? "Prazo vencido" : prazoPlanejado ? "Dentro do prazo" : "Sem prazo definido"} tone={diasPrazo != null && diasPrazo < 0 ? "danger" : "success"} />
             <IndicadorCritico label="Desvios de entregas" value={`${disciplinasAtrasadas} / ${projeto.disciplinas.length}`} description={disciplinasAtrasadas > 0 ? "Com prazo vencido" : "Nenhuma em atraso"} tone={disciplinasAtrasadas > 0 ? "danger" : "success"} />
-            <IndicadorCritico label="Revisões em atraso" value={String(dados.pendencias.revisoes)} description={dados.pendencias.revisoes > 0 ? "Solicitações pendentes" : "Nenhuma pendente"} tone={dados.pendencias.revisoes > 0 ? "warning" : "success"} />
+            <IndicadorCritico label="Revisões em aberto" value={String(dados.pendencias.revisoes)} description={dados.pendencias.revisoes > 0 ? "Apontamentos enviados ainda abertos" : "Nenhuma em aberto"} tone={dados.pendencias.revisoes > 0 ? "warning" : "success"} />
             <IndicadorCritico label="Aprovações pendentes" value={String(dados.pendencias.aprovacoes)} description={dados.pendencias.aprovacoes > 0 ? "Aguardando retorno" : "Nenhuma pendente"} tone={dados.pendencias.aprovacoes > 0 ? "warning" : "success"} />
             <IndicadorCritico label="Apontamentos abertos" value={String(apontamentosAbertos)} description={apontamentosAbertos > 0 ? "Prancha ou coordenação" : "Nenhum aberto"} tone={apontamentosAbertos > 0 ? "warning" : "success"} />
           </div></CardContent>
@@ -739,7 +744,7 @@ export function ProjetoVisaoGeral({
       conteudo: <TimelineOverview disciplinas={projeto.disciplinas.map((disciplina) => ({ id: disciplina.id, nome: disciplina.disciplinaTextoLegado, status: disciplina.status }))} tarefas={dados.tarefasEap} />,
     },
     { id: "disciplinas", conteudo: <DisciplinesTable projeto={projeto} dados={dados} /> },
-    { id: "riscos", conteudo: <RiskHighlights projetoId={projeto.id} riscos={dados.riscos} /> },
+    { id: "riscos", conteudo: <RiskHighlights projetoId={projeto.id} riscos={dados.riscos} podeGerir={podeGerir} /> },
     { id: "equipe", conteudo: <TeamSummary projeto={projeto} podeGerir={podeGerir} internos={internos} papeisSugeridos={papeisSugeridos} /> },
     { id: "atividade", conteudo: <RecentActivity projetoId={projeto.id} eventos={eventos} podeVerHistorico={podeVerHistorico} /> },
   ];
@@ -749,6 +754,10 @@ export function ProjetoVisaoGeral({
       id: "financeiro",
       conteudo: <Card size="sm"><CardHeader><CardTitle className="text-sm">Resultado financeiro</CardTitle></CardHeader><CardContent><MargemDonut receitaConfirmada={margem.receitaConfirmada} despesaDireta={margem.despesaDireta} custoHoras={margem.custoHoras} margem={margem.margem} margemPct={margem.margemPct} custo={margem.custo} rateioHoras={margem.rateioHoras} /><p className="mt-3 text-xs text-muted-foreground">Dados confirmados. <Link href={`/projetos/${projeto.id}/financeiro`} className="font-medium text-primary hover:underline">Ver detalhamento financeiro</Link></p></CardContent></Card>,
     });
+  }
+
+  if (acessos.length > 0) {
+    paineis.push({ id: "acessos", conteudo: <AcessosDoProjeto acessos={acessos} /> });
   }
 
   if (podeVerRegistrosPontoEquipe) {

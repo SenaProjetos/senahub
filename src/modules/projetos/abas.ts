@@ -13,7 +13,6 @@ export const ABAS_CONFIGURAVEIS = [
   "/coordenacao",
   "/custos",
   "/diario",
-  "/extras",
   "/historico",
 ] as const;
 
@@ -30,7 +29,6 @@ export const ABA_LABEL: Record<"" | AbaSuffix, string> = {
   "/coordenacao": "Compatibilização",
   "/custos": "Custos",
   "/diario": "Diário",
-  "/extras": "Extras",
   "/historico": "Histórico",
 };
 

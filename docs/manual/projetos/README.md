@@ -24,7 +24,7 @@ Documentação de projetos e do trabalho operacional.
 | [Etapas da disciplina e pagamento por fase](etapas-e-pagamento-por-fase.md) | `/projetos/{projeto}` | ✅ documentado |
 | [Recursos](recursos.md) | `/recursos` | ✅ documentado |
 
-> Abas do detalhe do projeto (Serviços, Arquivos, Extras, Financeiro do projeto, Inputs)
+> Abas do detalhe do projeto (Serviços, Arquivos, Financeiro do projeto, Inputs)
 > serão documentadas em páginas próprias numa próxima rodada.
 
 [← Índice do manual](../README.md)

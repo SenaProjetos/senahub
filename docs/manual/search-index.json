@@ -84,7 +84,11 @@
         "custo por hora escondido",
         "aprovar fase no card",
         "heatmap por período",
-        "marco entrega a fase"
+        "marco entrega a fase",
+        "aba extras",
+        "plano de mitigação",
+        "composição de preço",
+        "solicitação de revisão"
       ],
       "palavrasChave": [
         "novidades",
@@ -374,7 +378,12 @@
         "parcelas",
         "valor de contrato",
         "copiar eap",
-        "faturar entrega"
+        "faturar entrega",
+        "registrar risco",
+        "plano de mitigação",
+        "acessos relacionados",
+        "composição de preço",
+        "solicitação de revisão"
       ],
       "palavrasChave": [
         "projeto",

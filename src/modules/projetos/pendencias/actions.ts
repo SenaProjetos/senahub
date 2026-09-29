@@ -568,7 +568,8 @@ export const excluirPendencia = defineAction(
 /**
  * Fecha a rodada: agrupa as pendências abertas (sem tarefa) desta prancha em UMA tarefa,
  * cada apontamento vira item de checklist, e notifica os responsáveis. Estende o fluxo de
- * "solicitar ajuste" (marca o arquivo como ajuste solicitado).
+ * "solicitar ajuste" (marca o arquivo como ajuste solicitado) e registra a solicitação de
+ * revisão que aparece no card da disciplina.
  */
 export const enviarApontamentos = defineAction(
   { ...baseValidador, acao: "enviar-apontamentos", entidade: "Upload", schema: enviarSchema, entidadeId: (_d, i) => i.uploadId },
@@ -653,6 +654,11 @@ export const enviarApontamentos = defineAction(
       await tx.upload.update({
         where: { id: upload.id },
         data: { validado: false, validadoPorId: null, validadoEm: null, revisaoObs: resumo, revisaoEm: new Date(), revisaoPorId: user.id },
+      });
+      // Registra a solicitação de revisão no card da disciplina (2026-09-29): a rodada enviada
+      // É o pedido de revisão. A situação sai dos apontamentos desta tarefa, não é gravada.
+      await tx.solicitacaoRevisao.create({
+        data: { disciplinaId: upload.disciplinaId, solicitanteId: user.id, motivo: resumo, tarefaId: tarefa.id },
       });
 
       let revisaoNumero: number | null = null;
