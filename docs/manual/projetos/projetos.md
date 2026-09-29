@@ -87,7 +87,7 @@ Cada disciplina passa por um ciclo de status:
 - **Regras:** o **prazo da disciplina não pode ultrapassar o prazo do projeto**; não é
   possível **excluir** disciplina que já tenha **arquivos enviados** ou **pagamentos
   liberados**.
-- **Etapas por fase:** o botão de camadas no card da disciplina divide o trabalho em fases (Básico,
+- **Etapas por fase:** **Etapas e fases…** (no ⋯ ou no botão direito do card) divide o trabalho em fases (Básico,
   Executivo…), cada uma com **prazo, situação e percentual do valor**. Com etapas, o **prazo da
   disciplina** passa a ser o maior prazo entre elas, e aprovar uma fase **libera o pagamento dela**.
   Veja [Etapas da disciplina e pagamento por fase](etapas-e-pagamento-por-fase.md).
@@ -141,9 +141,29 @@ O card de prazos avisa quando o planejado estoura o contrato.
 - A tabela **Disciplinas do projeto** é um resumo. Clique em uma disciplina ou em
   **Abrir disciplinas** para acompanhar e trabalhar nos detalhes.
 
-A aba **Disciplinas** concentra o trabalho operacional: kanban, alteração de status,
-responsáveis, arquivos, validações, revisões, tarefas e diário. Ela preserva todas as ações
-do acompanhamento detalhado em uma área própria.
+A aba **Disciplinas** concentra o trabalho operacional: status, responsáveis, arquivos,
+validações, revisões, tarefas e diário, um card por disciplina.
+
+- **Ordem dos cards:** primeiro o que pede ação — **Aguardando → Em revisão → Em andamento →
+  Entregue → Aprovado** — e, dentro de cada status, o **prazo mais próximo** primeiro. O que já
+  foi aprovado fica no fim.
+- **Filtro e busca:** os botões no topo mostram quantas disciplinas há em cada status e filtram
+  a lista; a busca procura pelo nome da disciplina ou do responsável.
+- **O card:** o ícone da disciplina e a faixa no topo têm a cor do status. O **status é o
+  próprio botão** (ex.: "Entregue ▾"): ele oferece só as mudanças permitidas — **Aprovado** só se
+  alcança aprovando a entrega.
+- **Próximo passo:** um único aviso diz o que falta ou o que dá para fazer agora, com o botão da
+  ação — **Enviar arquivos**, **Ver arquivos** (validar), **Aprovar entrega**, **Aprovar** uma fase,
+  **Confirmar/Recusar** (aprovação/laudo), **Definir responsável**.
+- **Rodapé:** responsáveis (clique para alterar, se você gere o projeto), etiqueta de pagamento
+  ("Pagamento já liberado", "Pago 1 de 3 fases"), valor e os atalhos **Arquivos** (abre a aba
+  Arquivos já na pasta da disciplina), **Revisões**, **Tarefas**, **Diário** e o **chat**.
+- **Botão direito e ⋯:** o card inteiro responde ao botão direito (toque longo no celular) com as
+  mesmas ações do ⋯: mudar status, aprovar, **Entrega e aceite do cliente…** (validação por
+  arquivo e link de aceite), responsáveis, etapas, editar, copiar link e excluir. O que você não
+  pode fazer não aparece; o que a situação impede aparece apagado, com o motivo.
+- **Botão direito no espaço vazio da página:** adicionar disciplina, adicionar do catálogo e
+  filtrar por status — as mesmas opções do ⋯ ao lado de **Adicionar disciplina**.
 
 ### Organizar a Visão Geral
 
@@ -248,25 +268,19 @@ fase, disciplina ou o projeto inteiro.
 
 ### Diretório geral (menu Arquivos)
 
-O item **Arquivos** do menu mostra os documentos de **todos** os projetos que você enxerga, na
-mesma lógica de pastas da aba do projeto, com dois níveis a mais em cima: **ano → projeto →
-disciplina → fase → formato**. O cliente não vira pasta — o código do projeto já traz o ano, e é
-por projeto que se trabalha.
+O item **Arquivos** do menu é a mesma tela da aba **Arquivos** do projeto, com dois níveis a mais
+em cima: **Todos os projetos → ano → projeto**. Na raiz aparecem os anos; num ano, os projetos
+dele; dentro de um projeto, exatamente o que a aba do projeto mostra — disciplinas e áreas,
+fases, formatos e pranchas, com a mesma barra, os mesmos filtros e as mesmas ações (validar,
+enviar, excluir, listas, link público), cada uma liberada pelas mesmas permissões da aba. O
+cliente não vira pasta: o código do projeto já traz o ano, e é por projeto que se trabalha.
 
-Ao lado das disciplinas de cada projeto ficam as **áreas** (Recebidos do cliente, Base
-Arquitetônica, Geral, ARTs, Lixeira). Elas, e as pastas de disciplinas de aprovação/laudo, são
-**atalhos para a aba do projeto**, onde cada uma tem a tela e as ações próprias — o ícone de seta
-avisa que o clique muda de tela.
+A árvore da esquerda mostra os anos e os projetos; o projeto aberto se desdobra nas pastas dele.
+O caminho acima da lista (**Todos os projetos › 2026 › 260004 · Galpão › Estrutural**) volta a
+qualquer nível. O .zip de cada pasta leva a **revisão vigente** de cada prancha, como na aba.
 
-Para baixar em .zip, o botão aparece de **projeto para baixo**: projeto, disciplina, fase e
-formato. Ano inteiro não tem botão. Também dá para marcar documentos na lista e usar **Baixar
-selecionados** — a seleção vale só para o que está na tela, e trocar de pasta ou de página limpa.
-Acima de 500 arquivos o botão fica apagado, mostrando quantos são: escolha uma fase ou um formato
-para recortar.
-
-O diretório é uma tela de **consulta**. Ele mostra se o arquivo está validado, mas validar (ou
-desfazer) continua na aba do projeto, junto do contexto da entrega. Editar metadado, também: o
-código do projeto em cada linha leva para lá.
+Acima do projeto, a busca procura em **todos** os projetos (ou nos do ano aberto) e mostra o
+resultado em lista corrida, com o projeto de cada documento.
 
 ### Lista Mestre (aba Arquivos)
 
@@ -470,8 +484,7 @@ selecionar.
 > logado e ter acesso ao projeto. Para mandar arquivos ao cliente, use os
 > [links públicos](#links-públicos-de-arquivos-aba-arquivos).
 
-O botão direito ainda não existe no diretório geral (menu **Arquivos**), que segue com o
-menu normal do navegador.
+No diretório geral (menu **Arquivos**) o botão direito funciona igual, dentro de cada projeto.
 
 ### Zoom e rabisco no visualizador de pranchas
 
@@ -517,8 +530,9 @@ No painel, parar o mouse sobre cada ação mostra o que ela faz.
 **Tela cheia.** Janelas, menus e dicas também funcionam em tela cheia (antes, a janela de novo
 apontamento abria escondida atrás da prancha).
 
-**Zoom até 2000%.** Os botões **−**/**+** andam em degraus (100%, 125%… 500%, 600%, 800%, 1000%,
-1200%, 1600%, 2000%). **Ctrl + roda do mouse** (ou a pinça com dois dedos, no tablet) aproxima
+**Zoom até 2000%.** Clique no **número da %** para escolher direto um zoom pronto (de 50% a 2000%;
+100% é a prancha na largura da tela), sem precisar subir de passo em passo. Os botões **−**/**+**
+andam em degraus (100%, 125%… 500%, 600%, 800%, 1000%, 1200%, 1600%, 2000%). **Ctrl + roda do mouse** (ou a pinça com dois dedos, no tablet) aproxima
 mantendo parado o ponto que está sob o cursor, então a planta não "foge" a cada passo. Com zoom
 alto, o trecho que está na tela é desenhado em resolução cheia logo depois de você parar de
 arrastar: por um instante ele pode aparecer borrado e em seguida fica nítido. O mesmo vale para o

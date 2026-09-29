@@ -23,13 +23,19 @@ import {
   tarefasTravadasPeloCronograma,
 } from "@/modules/tarefas/queries";
 import { canalDoProjeto, canaisDasDisciplinas } from "@/modules/chat/queries";
-import { AdicionarDisciplinaButton } from "@/components/projetos/adicionar-disciplina-button";
-import { AdicionarDoCatalogoButton } from "@/components/projetos/adicionar-do-catalogo-button";
+import { PaginaDisciplinas } from "@/components/projetos/pagina-disciplinas";
+import { contarPorStatus, filtrarDisciplinas, ordenarDisciplinas, statusDoFiltro } from "@/modules/projetos/ordem-disciplinas";
 import { DisciplinaCard, type TarefaDaDisciplina } from "@/components/projetos/disciplina-card";
-import { DisciplinasKanban } from "@/components/projetos/disciplinas-kanban";
 
 /** Área operacional preservada da ficha anterior, agora isolada na aba Disciplinas. */
-export async function DisciplinasOperacionais({ projetoId }: { projetoId: string }) {
+export async function DisciplinasOperacionais({
+  projetoId,
+  sp = {},
+}: {
+  projetoId: string;
+  /** Filtro da página (`?status=`, `?q=`) — na URL, como o resto do sistema. */
+  sp?: { status?: string; q?: string };
+}) {
   const user = await requirePermission("projetos", "ver");
   const projeto = await obterProjeto(user, projetoId);
   if (!projeto) notFound();
@@ -203,21 +209,23 @@ export async function DisciplinasOperacionais({ projetoId }: { projetoId: string
 
   const disciplinasSla = slaFora.filter((disciplina) => disciplina.projetoId === projeto.id);
 
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold tracking-tight">Disciplinas</h2>
-          <p className="text-sm text-muted-foreground">Gestão operacional, entregas, arquivos, revisões e responsáveis.</p>
-        </div>
-        {podeGerir && (
-          <div className="flex items-center gap-1">
-            <AdicionarDisciplinaButton projetoId={projeto.id} internos={internos.map((interno) => ({ id: interno.id, name: interno.name }))} prazoContrato={projeto.prazoPlanejado?.toISOString() ?? null} />
-            {catalogo.length > 0 && <AdicionarDoCatalogoButton projetoId={projeto.id} catalogo={catalogo} />}
-          </div>
-        )}
-      </div>
+  // Ordem decidida pelo dono (2026-09-29): status do que pede ação primeiro e, dentro de cada
+  // status, o prazo mais próximo — o kanban saiu, a ordem e o filtro dão a visão por status.
+  const filtroStatus = statusDoFiltro(sp.status);
+  const busca = sp.q ?? "";
+  const visiveis = filtrarDisciplinas(ordenarDisciplinas(disciplinas), { status: filtroStatus, q: busca });
 
+  return (
+    <PaginaDisciplinas
+      projetoId={projeto.id}
+      podeGerir={podeGerir}
+      internos={internos.map((interno) => ({ id: interno.id, name: interno.name }))}
+      prazoContrato={projeto.prazoPlanejado?.toISOString() ?? null}
+      catalogo={catalogo}
+      filtro={filtroStatus}
+      contagem={contarPorStatus(disciplinas)}
+      total={disciplinas.length}
+    >
       {disciplinasSla.length > 0 && (
         <div className="flex gap-2 border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning-foreground">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
@@ -225,10 +233,16 @@ export async function DisciplinasOperacionais({ projetoId }: { projetoId: string
         </div>
       )}
 
-      <DisciplinasKanban projetoId={projeto.id} disciplinas={disciplinas} podeGerir={podeGerir} internos={internos.map((interno) => ({ id: interno.id, name: interno.name }))} />
+      {visiveis.length === 0 && (
+        <div className="rounded-sm border border-dashed bg-card px-4 py-8 text-center text-sm text-muted-foreground">
+          {disciplinas.length === 0
+            ? "Nenhuma disciplina neste projeto ainda."
+            : "Nenhuma disciplina neste filtro. Escolha outro status ou limpe a busca."}
+        </div>
+      )}
 
-      <div className="grid gap-3 md:grid-cols-2">
-        {disciplinas.map((disciplina) => (
+      <div className="grid items-start gap-3 md:grid-cols-2">
+        {visiveis.map((disciplina) => (
           <div key={disciplina.id} id={`disciplina-${disciplina.id}`} className="scroll-mt-24">
             <DisciplinaCard
               projetoId={projeto.id}
@@ -250,6 +264,6 @@ export async function DisciplinasOperacionais({ projetoId }: { projetoId: string
           </div>
         ))}
       </div>
-    </div>
+    </PaginaDisciplinas>
   );
 }

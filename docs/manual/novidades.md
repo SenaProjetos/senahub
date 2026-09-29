@@ -22,6 +22,36 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Menu Arquivos igual à aba Arquivos do projeto
+
+- **Uma tela só:** o item **Arquivos** do menu agora é a mesma tela da aba Arquivos de cada
+  projeto, com dois níveis a mais em cima — Todos os projetos → ano → projeto. Dentro do projeto,
+  as pastas, a barra, os filtros e as ações são os mesmos (quem pode validar ou enviar na aba pode
+  aqui também).
+- **.zip só da revisão vigente**, como na aba.
+- **Busca em todos os projetos** na raiz (ou no ano aberto).
+
+## Disciplinas: card novo, ordem por urgência e botão direito
+
+- **Card redesenhado:** ícone da disciplina e faixa na cor do status; o status é o próprio botão
+  (só oferece as mudanças permitidas); um único aviso de **próximo passo**, com o botão da ação.
+- **Sem kanban:** a página ordena por status (Aguardando → Em revisão → Em andamento → Entregue →
+  Aprovado) e, dentro de cada um, pelo prazo; os botões do topo filtram por status.
+- **Botão direito** no card (ou toque longo) com todas as ações, e no espaço vazio da página para
+  adicionar disciplina ou filtrar.
+- **Arquivos** no card abre a aba Arquivos já na pasta da disciplina.
+- **No celular:** filtros numa linha só (arraste para o lado), busca na largura toda, o "+" em
+  ícone ao lado do título, e o card mais enxuto — o trilho mostra só a etapa atual e os atalhos do
+  rodapé cabem numa linha.
+
+## Zoom da prancha: lista de zooms prontos e sem travar
+
+- **Escolha o zoom direto:** clique no número da % no visualizador de pranchas (ou de PDF) e
+  escolha um zoom pronto — 50%, 100%, 200%… até 2000% — em vez de subir de passo em passo ou girar
+  a roda do mouse até lá.
+- **Zoom alto sem travar:** acima de uns 500% a tela travava a cada passo de zoom; agora a prancha
+  aproxima na hora e o trecho à vista fica nítido logo em seguida.
+
 ## Arquivos do projeto em pastas, como no Google Drive
 
 - **Pastas de verdade na lista:** na aba **Arquivos**, cada nível mostra só o que está dentro dele.

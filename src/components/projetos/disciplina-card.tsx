@@ -26,6 +26,7 @@ import {
   NotebookPen,
   Unlock,
   Layers,
+  ChevronDown,
 } from "lucide-react";
 import {
   atualizarStatusDisciplina,
@@ -45,6 +46,7 @@ import {
 import { podeEscreverNoDiario } from "@/modules/projetos/diario/acesso";
 import { DiarioEntradaDialog } from "@/components/projetos/diario-entrada-dialog";
 import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/projetos/disciplina-edit-dialog";
+import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { DisciplinaEtapasButton } from "@/components/projetos/disciplina-etapas-dialog";
 import { AprovarFaseButton } from "@/components/projetos/aprovar-fase-button";
 import { validarEntrega, gerarAceiteCliente, revogarAceiteCliente } from "@/modules/uploads/actions";
@@ -56,28 +58,16 @@ import type { PastaFlat } from "@/modules/projetos/pastas/arvore";
 import { ratearPagamentoProjetista, bloqueioValorDisciplina } from "@/modules/uploads/rateio";
 import {
   STATUS_LABEL,
-  STATUS_TONE,
-  transicaoDisciplinaPermitida,
   ETAPAS_DISCIPLINA,
   etapaDisciplina,
   rotuloEtapaDisciplina,
 } from "@/modules/projetos/status";
-import { prontidaoAprovacao } from "@/modules/projetos/prontidao";
 import { diasDeAtraso } from "@/modules/projetos/atraso";
 import type { StatusDisciplina } from "@/generated/prisma/client";
-import { STATUS_DISCIPLINA } from "@/modules/projetos/schemas";
 import { Button } from "@/components/ui/button";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -91,7 +81,27 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { TarefaDialog, type TarefaUI, type OpcoesUI } from "@/components/tarefas/tarefa-dialog";
 import { PRIORIDADE_LABEL, PRIORIDADE_CLASS, ehPrioridade } from "@/modules/tarefas/prioridade";
 import { Badge } from "@/components/ui/badge";
-import { brl, formatarData, rotuloRevisao } from "@/lib/utils";
+import { brl, cn, formatarData, rotuloRevisao } from "@/lib/utils";
+import { useAberto, type ControleJanela } from "@/lib/use-aberto";
+import { copiarTexto } from "@/lib/clipboard";
+import { AcoesMenuItens, BotaoAcoes } from "@/components/ui/acoes-menu";
+import type { AcaoItemAcao } from "@/components/ui/acoes";
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  ACAO_DISCIPLINA,
+  PREFIXO_STATUS,
+  itensDeDisciplina,
+  itensDeStatus,
+} from "@/modules/projetos/acoes-disciplina";
+import {
+  ROTULO_ACAO_PASSO,
+  etiquetaPagamento,
+  proximoPasso,
+  type AcaoPasso,
+  type ProximoPasso,
+  type TomPasso,
+} from "@/modules/projetos/proximo-passo";
 import { prazoVencido } from "@/lib/data";
 
 /** Tarefa da disciplina para a lista (formato do board + nome/cor/concluído do status). */
@@ -163,6 +173,83 @@ function tamanhoLegivel(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+/** Janelas do card — abertas pelo rodapé, pelo aviso, pelo ⋯ ou pelo botão direito. */
+type Janela =
+  | "arquivos"
+  | "revisoes"
+  | "tarefas"
+  | "diario"
+  | "responsaveis"
+  | "etapas"
+  | "editar"
+  | "excluir"
+  | "reabrir"
+  | "confirmar"
+  | "recusar";
+
+const JANELAS = new Set<string>([
+  "arquivos",
+  "revisoes",
+  "tarefas",
+  "diario",
+  "responsaveis",
+  "etapas",
+  "editar",
+  "excluir",
+  "reabrir",
+  "confirmar",
+  "recusar",
+]);
+
+/**
+ * Cor do status nos dois lugares que a carregam: a faixa no topo do card e o quadro do ícone
+ * (decisão A do redesenho: a faixa fica). As classes vão por extenso para o Tailwind as gerar.
+ */
+const STATUS_VISUAL: Record<StatusDisciplina, { faixa: string; quadro: string; pilula: string }> = {
+  aguardando: {
+    faixa: "border-t-status-aguardando",
+    quadro: "bg-status-aguardando/10 text-status-aguardando",
+    pilula: "border-status-aguardando/40 bg-status-aguardando/10 text-status-aguardando",
+  },
+  em_andamento: {
+    faixa: "border-t-status-andamento",
+    quadro: "bg-status-andamento/10 text-status-andamento",
+    pilula: "border-status-andamento/40 bg-status-andamento/10 text-status-andamento",
+  },
+  em_revisao: {
+    faixa: "border-t-status-revisao",
+    quadro: "bg-status-revisao/10 text-status-revisao",
+    pilula: "border-status-revisao/40 bg-status-revisao/10 text-status-revisao",
+  },
+  entregue: {
+    faixa: "border-t-status-entregue",
+    quadro: "bg-status-entregue/10 text-status-entregue",
+    pilula: "border-status-entregue/40 bg-status-entregue/10 text-status-entregue",
+  },
+  aprovado: {
+    faixa: "border-t-status-aprovado",
+    quadro: "bg-status-aprovado/10 text-status-aprovado",
+    pilula: "border-status-aprovado/40 bg-status-aprovado/10 text-status-aprovado",
+  },
+};
+
+function iniciais(nome: string): string {
+  const partes = nome.trim().split(/\s+/);
+  const primeira = partes[0]?.[0] ?? "";
+  const ultima = partes.length > 1 ? (partes[partes.length - 1]?.[0] ?? "") : "";
+  return (primeira + ultima).toUpperCase();
+}
+
+/**
+ * Card de disciplina — redesenho aprovado pelo dono em 2026-09-29 (artifact "Card de disciplina
+ * — proposta"): ícone da disciplina num quadro na cor do status, faixa da mesma cor no topo, o
+ * status como botão (só as transições permitidas), UM aviso de próximo passo com a ação dele, e
+ * as ações no ⋯ e no botão direito (ADR-0002) — o mesmo array para os dois.
+ *
+ * As janelas (arquivos, revisões, tarefas, diário, responsáveis, etapas, editar, excluir,
+ * reabrir, confirmar/recusar) moram FORA do menu e do gatilho do botão direito: dentro do
+ * gatilho, um clique direito numa janela aberta subiria pela árvore do React até o card.
+ */
 export function DisciplinaCard({
   projetoId,
   disciplina,
@@ -201,331 +288,75 @@ export function DisciplinaCard({
   /** `podeVerFinanceiro` — só com isto o diálogo de confirmação mostra e edita o valor. */
   podeVerValor?: boolean;
 }) {
+  const router = useRouter();
   const [pending, start] = useTransition();
+  const [janela, setJanela] = useState<Janela | null>(null);
+  const controle = (qual: Janela) => ({ aberto: janela === qual, aoMudar: (v: boolean) => setJanela(v ? qual : null) });
+
   const podeMexerStatus = podeGerir || disciplina.ehResponsavel;
   const podeEnviar = podeGerir || disciplina.ehResponsavel;
   const podeDiario = podeEscreverNoDiario({ atuaEmDisciplinaAlheia, ehResponsavelDaDisciplina: disciplina.ehResponsavel });
+  const temTarefas = !!(tarefaOpcoes && tarefaColunas && meId && meRole);
   const atraso = diasDeAtraso(disciplina.prazo, disciplina.status);
   const rotulo = rotuloCatalogo(disciplina.nome, disciplina.catalogoNome);
   const qtdTarefas = tarefas?.length ?? 0;
   const qtdAtrasadas = tarefas?.filter(tarefaAtrasada).length ?? 0;
+  const qtdArquivos = disciplina.usaPastas
+    ? disciplina.arquivosPasta.length
+    : new Set(disciplina.uploads.map((u) => `${u.pacote}/${u.nomeArquivo}`)).size;
+  const qtdRevisoes = arquivosComRevisaoPendente(disciplina).length;
+  const visual = STATUS_VISUAL[disciplina.status];
+  const hrefArquivos = `/projetos/${projetoId}/arquivos?${new URLSearchParams({ disciplinaId: disciplina.id })}`;
+  const hrefEnviar = `/projetos/${projetoId}/arquivos?${new URLSearchParams({ disciplinaId: disciplina.id, enviar: "1" })}`;
   // Fonte única do progresso de validação: o card e o dialog de arquivos leem o MESMO
-  // objeto, senão o painel de conclusão e o botão do rodapé podem discordar.
+  // objeto, senão o aviso e o botão do rodapé podem discordar.
   const stVal = statusValidacao(disciplina.uploads, {
     exigePacoteA: disciplina.exigePacoteA,
     exigePacoteB: disciplina.exigePacoteB,
   });
+  const passo = proximoPasso(
+    { ...disciplina, qtdResponsaveis: disciplina.responsaveis.length },
+    { podeAprovar: podeAprovarDisciplina, podeEnviar, podeGerir },
+  );
+  const pagamento = etiquetaPagamento(disciplina);
+  const podeSolicitar = podeSolicitarAprovacao({
+    ehResponsavel: disciplina.ehResponsavel,
+    status: disciplina.status,
+    aprovacaoSolicitadaEm: disciplina.aprovacaoSolicitadaEm,
+  });
+  const itens = itensDeDisciplina(
+    {
+      status: disciplina.status,
+      usaPastas: disciplina.usaPastas,
+      qtdArquivos,
+      qtdRevisoes,
+      aguardandoConfirmacao: disciplina.aprovacaoSolicitadaEm != null,
+      podeSolicitar,
+      passo,
+    },
+    {
+      podeGerir,
+      podeMexerStatus,
+      podeEnviar,
+      podeDiario,
+      podeAprovar: podeAprovarDisciplina,
+      qtdTarefas: temTarefas ? qtdTarefas : null,
+      hrefArquivos,
+      hrefEnviar,
+      hrefChat: canalChatId ? `/chat?c=${canalChatId}` : null,
+    },
+  );
+  const podeTrocarStatus = podeMexerStatus && disciplina.status !== "aprovado";
 
-  function mudarStatus(status: string | null) {
-    if (!status) return;
+  function mudarStatus(status: StatusDisciplina) {
     start(async () => {
-      const res = await atualizarStatusDisciplina({
-        disciplinaId: disciplina.id,
-        status: status as StatusDisciplina,
-      });
+      const res = await atualizarStatusDisciplina({ disciplinaId: disciplina.id, status });
       if (res.ok) toast.success("Status atualizado.");
       else toast.error(res.error);
     });
   }
 
-  return (
-    <div className="space-y-3 rounded-sm border bg-card p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h4 className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 font-semibold">
-            {disciplina.nome}
-            {rotulo && (
-              <span
-                className="text-xs font-normal text-muted-foreground"
-                title={`Classificada no catálogo como ${rotulo}`}
-              >
-                · {rotulo}
-              </span>
-            )}
-          </h4>
-          {disciplina.prazo && (
-            <p className="text-xs text-muted-foreground">
-              Prazo: {formatarData(disciplina.prazo)}
-            </p>
-          )}
-          {atraso > 0 && (
-            <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-destructive">
-              <AlertTriangle className="size-3.5" aria-hidden />
-              atrasada {atraso}d
-            </p>
-          )}
-          {qtdTarefas > 0 && (
-            <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-              <ListTodo className="size-3.5" aria-hidden />
-              {qtdTarefas} tarefa{qtdTarefas > 1 ? "s" : ""}
-              {qtdAtrasadas > 0 && (
-                <span className="font-medium text-destructive">
-                  {" "}· {qtdAtrasadas} atrasada{qtdAtrasadas > 1 ? "s" : ""}
-                </span>
-              )}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          <StatusBadge tone={STATUS_TONE[disciplina.status] ?? "neutral"}>
-            {rotuloStatusDisciplina({
-              status: disciplina.status,
-              aprovacaoSolicitadaEm: disciplina.aprovacaoSolicitadaEm,
-            })}
-          </StatusBadge>
-          {canalChatId && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7"
-              title="Abrir chat da disciplina"
-              render={
-                <Link
-                  href={`/chat?c=${canalChatId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                />
-              }
-            >
-              <MessageSquare className="size-3.5" />
-            </Button>
-          )}
-          {podeGerir && (
-            <>
-              <DisciplinaEditDialog
-                disciplinaId={disciplina.id}
-                nome={disciplina.nome}
-                prazo={disciplina.prazo}
-                valor={disciplina.valor}
-                responsaveisIds={disciplina.responsaveis.map((r) => r.userId)}
-                internos={internos}
-                exigePacoteA={disciplina.exigePacoteA}
-                exigePacoteB={disciplina.exigePacoteB}
-                usaEstruturaPastas={disciplina.usaPastas}
-                temEtapas={disciplina.temEtapas}
-              />
-              <DisciplinaEtapasButton
-                disciplinaId={disciplina.id}
-                nome={disciplina.nome}
-                valor={disciplina.valor}
-                temEtapas={disciplina.temEtapas}
-              />
-              {!disciplina.jaValidado && (
-                <DisciplinaDeleteButton disciplinaId={disciplina.id} nome={disciplina.nome} qtdTarefas={qtdTarefas} />
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 text-xs">
-        {disciplina.responsaveis.length > 0 ? (
-          disciplina.responsaveis.map((r) => (
-            <span key={r.userId} className="rounded-sm bg-muted px-2 py-0.5">
-              {r.name}
-            </span>
-          ))
-        ) : (
-          <span className="text-muted-foreground">Sem responsável</span>
-        )}
-        {disciplina.valor != null && (
-          <span className="ml-auto font-mono text-muted-foreground">{brl(disciplina.valor)}</span>
-        )}
-      </div>
-
-      <TrilhoEtapas disciplina={disciplina} />
-
-      {podeMexerStatus && disciplina.status !== "aprovado" && (
-        <Select value={disciplina.status} items={STATUS_LABEL} onValueChange={mudarStatus} disabled={pending}>
-          <SelectTrigger className="h-8">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {/* Só transições válidas da máquina de estados. "aprovado" fica de fora — só via validação. */}
-            {STATUS_DISCIPLINA.filter(
-              (s) =>
-                s === disciplina.status ||
-                (s !== "aprovado" && transicaoDisciplinaPermitida(disciplina.status, s)),
-            ).map((s) => (
-              <SelectItem key={s} value={s}>
-                {STATUS_LABEL[s]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
-
-      {disciplina.status === "aprovado" && podeGerir && (
-        <ReabrirDisciplinaDialog disciplina={disciplina} />
-      )}
-
-      {disciplina.jaValidado && (
-        <div className="flex items-center gap-1.5 rounded-sm bg-status-aprovado/10 px-2 py-1 text-xs text-status-aprovado">
-          <ShieldCheck className="size-3.5" /> Entrega validada · pagamento liberado
-        </div>
-      )}
-
-      {/* Pagamento já liberado numa disciplina ainda não aprovada (reabertura, ou base
-          importada): aprovar NÃO gera outro pagamento. Sem este aviso a dúvida "vou pagar
-          de novo?" trava a aprovação. */}
-      {!disciplina.jaValidado && disciplina.pagamentoLiberado && (
-        <div className="flex items-center gap-1.5 rounded-sm bg-status-revisao/10 px-2 py-1 text-xs text-status-revisao">
-          <Unlock className="size-3.5" aria-hidden /> Pagamento já liberado · aprovar não gera novo
-        </div>
-      )}
-      {!disciplina.jaValidado && !disciplina.pagamentoLiberado && (disciplina.fasesLiberadas?.liberadas ?? 0) > 0 && (
-        <div className="flex items-center gap-1.5 rounded-sm bg-status-revisao/10 px-2 py-1 text-xs text-status-revisao">
-          <Unlock className="size-3.5" aria-hidden /> Pagamento liberado em {disciplina.fasesLiberadas?.liberadas} de{" "}
-          {disciplina.fasesLiberadas?.total} fases · aprovar libera as que faltam
-        </div>
-      )}
-      {/* Decisão #10: o botão "Aprovar fase" no próprio card, para quem tem `aprovacoes:disciplina` — a mesma
-          ação do diálogo Etapas e da fila de Aprovações. */}
-      {podeAprovarDisciplina && !disciplina.jaValidado && disciplina.fasesPendentes.length > 0 && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-sm bg-info/10 px-2 py-1.5 text-xs">
-          <span className="flex items-center gap-1.5 text-info">
-            <Layers className="size-3.5" aria-hidden />
-            {disciplina.fasesPendentes.length === 1 ? "Fase entregue, aguardando aprovação" : "Fases entregues, aguardando aprovação"}
-          </span>
-          {disciplina.fasesPendentes.map((f) => (
-            <span key={f.id} className="flex items-center gap-1.5">
-              <span className="font-medium">{f.sigla}</span>
-              <span className="text-muted-foreground">
-                {f.nomeFase} · {f.percentual}%
-              </span>
-              <AprovarFaseButton faseId={f.id} sigla={f.sigla} disciplina={disciplina.nome} label={`Aprovar ${f.sigla}`} />
-            </span>
-          ))}
-        </div>
-      )}
-
-      {disciplina.usaPastas ? (
-        <FluxoAprovacaoDisciplina disciplina={disciplina} podeConfirmar={podeAprovarDisciplina} podeVerValor={podeVerValor} />
-      ) : (
-        !disciplina.jaValidado &&
-        disciplina.status !== "aprovado" && (
-          <PainelEntrega disciplina={disciplina} stVal={stVal} podeAprovar={podeAprovarDisciplina} />
-        )
-      )}
-
-      <div className="flex flex-wrap gap-1.5">
-        <ArquivosDialog
-          projetoId={projetoId}
-          disciplina={disciplina}
-          stVal={stVal}
-          podeEnviar={podeEnviar}
-          podeValidar={podeValidar}
-          podeAprovar={podeAprovarDisciplina}
-        />
-        <RevisaoDialog disciplina={disciplina} />
-        {podeGerir && <ResponsaveisDialog disciplina={disciplina} internos={internos} />}
-        {podeDiario && <DiarioAtalhoButton projetoId={projetoId} disciplina={disciplina} />}
-        {tarefaOpcoes && tarefaColunas && meId && meRole && (
-          <TarefasDisciplinaDialog
-            projetoId={projetoId}
-            disciplinaId={disciplina.id}
-            disciplinaNome={disciplina.nome}
-            tarefas={tarefas ?? []}
-            opcoes={tarefaOpcoes}
-            colunas={tarefaColunas}
-            meId={meId}
-            meRole={meRole}
-            gereTodasTarefas={gereTodasTarefas}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Trilho de etapas da disciplina — deixa visível que "Aprovado" é a CHEGADA do fluxo, não
- * uma opção do seletor. São 4 pontos porque `entregue` e `em_revisao` são o mesmo ponto do
- * caminho (a máquina alterna entre eles); o rótulo dessa etapa mostra o estado real.
- */
-function TrilhoEtapas({ disciplina }: { disciplina: Disc }) {
-  const atual = etapaDisciplina(disciplina.status);
-  return (
-    <ol className="flex items-center gap-1" aria-label="Etapas da disciplina">
-      {ETAPAS_DISCIPLINA.map((_, i) => {
-        const rotulo = rotuloEtapaDisciplina(i, disciplina.status, disciplina.aprovacaoSolicitadaEm);
-        const percorrida = i <= atual;
-        return (
-          <Fragment key={i}>
-            {i > 0 && (
-              <span
-                aria-hidden
-                className={`h-px flex-1 ${i <= atual ? "bg-status-aprovado" : "bg-muted"}`}
-              />
-            )}
-            <li
-              className={`flex items-center gap-1 text-[10px] leading-tight ${
-                i === atual ? "font-semibold text-foreground" : "text-muted-foreground"
-              }`}
-              aria-current={i === atual ? "step" : undefined}
-            >
-              <span
-                aria-hidden
-                className={`size-1.5 shrink-0 rounded-full ${
-                  percorrida ? "bg-status-aprovado" : "bg-muted-foreground/30"
-                }`}
-              />
-              {rotulo}
-            </li>
-          </Fragment>
-        );
-      })}
-    </ol>
-  );
-}
-
-/**
- * Painel de conclusão da entrega (fluxo pacote A/B) — resposta ao "cadê o status Aprovado?".
- *
- * `aprovado` é terminal e nunca aparece no seletor de status: só entra por `validarEntrega`.
- * Antes, o único botão vivia no rodapé do dialog de Arquivos, então o card não dava nenhum
- * sinal do que faltava. Aqui o card mostra SEMPRE um dos dois: o botão que conclui a entrega,
- * ou o motivo exato de ele ainda não estar disponível.
- *
- * As condições seguem as pré-condições do servidor (`validarEntrega`) para que o botão não
- * seja oferecido a uma chamada que a action vai recusar. Não é paridade exata: a contagem de
- * pacotes aqui usa `entregaveisAtuais` (só origem `manual`), enquanto o servidor aceita
- * qualquer upload no pacote — na prática só torna a exigência do painel mais estrita.
- */
-function PainelEntrega({
-  disciplina,
-  stVal,
-  podeAprovar,
-}: {
-  disciplina: Disc;
-  stVal: StatusValidacao;
-  /** `aprovacoes:disciplina` — o gate de `validarEntrega`. */
-  podeAprovar: boolean;
-}) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-
-  const semResponsavel = disciplina.responsaveis.length === 0;
-  // Mesmos entregáveis que `statusValidacao` conta — a mensagem nunca contradiz `stVal`.
-  const atuais = entregaveisAtuais(disciplina.uploads);
-  const faltamPacotes = [
-    disciplina.exigePacoteA && !atuais.some((u) => u.pacote === "A") ? "Pranchas e arquivos" : null,
-    disciplina.exigePacoteB && !atuais.some((u) => u.pacote === "B") ? "Backup do modelo" : null,
-  ].filter((s): s is string => s !== null);
-  // Mesma regra que pinta o badge na lista/dashboard/Aprovações — se divergisse, a lista
-  // diria "pronta para aprovar" e o card abriria sem botão.
-  const pronta =
-    prontidaoAprovacao({
-      status: disciplina.status,
-      usaPastas: disciplina.usaPastas,
-      aprovacaoSolicitadaEm: disciplina.aprovacaoSolicitadaEm,
-      exigePacoteA: disciplina.exigePacoteA,
-      exigePacoteB: disciplina.exigePacoteB,
-      qtdResponsaveis: disciplina.responsaveis.length,
-      uploads: disciplina.uploads,
-    }) === "pronta_validacao";
-
-  function validar() {
+  function aprovarEntrega() {
     start(async () => {
       const res = await validarEntrega({ disciplinaId: disciplina.id });
       if (res.ok) {
@@ -535,93 +366,9 @@ function PainelEntrega({
             : "Entrega aprovada. Sem pagamento (equipe CLT/estágio).",
         );
         router.refresh();
-      } else {
-        toast.error(res.error);
-      }
+      } else toast.error(res.error);
     });
   }
-
-  if (pronta) {
-    return (
-      <div className="flex flex-wrap items-center gap-2 rounded-sm border border-status-aprovado/40 bg-status-aprovado/10 px-2.5 py-1.5 text-xs">
-        <span className="text-status-aprovado">
-          {stVal.total} arquivo(s) validado(s) — pronta para aprovação.
-        </span>
-        {podeAprovar ? (
-          <Button size="sm" className="ml-auto h-7 px-2" onClick={validar} disabled={pending}>
-            <ShieldCheck className="size-3.5" /> {pending ? "Aprovando…" : "Aprovar entrega"}
-          </Button>
-        ) : (
-          <span className="ml-auto text-muted-foreground">Aguardando validação do gestor.</span>
-        )}
-      </div>
-    );
-  }
-
-  // Não está pronta: dizer exatamente o que falta, na ordem em que o servidor cobraria.
-  const motivo =
-    stVal.total === 0
-      ? "Envie os arquivos da entrega para poder aprovar."
-      : faltamPacotes.length > 0
-        ? `Para aprovar, falta enviar: ${faltamPacotes.join(" e ")}.`
-        : stVal.pendentes > 0
-          ? `${stVal.validados} de ${stVal.total} arquivo(s) validado(s) — valide os ${stVal.pendentes} restante(s) em "Arquivos" para aprovar.`
-          : semResponsavel
-            ? "Defina ao menos um responsável para poder aprovar."
-            : null;
-  if (!motivo) return null;
-
-  return (
-    <p className="flex items-start gap-1.5 rounded-sm border border-dashed px-2.5 py-1.5 text-xs text-muted-foreground">
-      <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-      <span>{motivo}</span>
-    </p>
-  );
-}
-
-/** Atalho do diário no card (visão geral): abre o modal compartilhado já fixado nesta disciplina. */
-function DiarioAtalhoButton({ projetoId, disciplina }: { projetoId: string; disciplina: Disc }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <NotebookPen className="size-3.5" /> Diário
-      </Button>
-      <DiarioEntradaDialog
-        open={open}
-        onOpenChange={setOpen}
-        disciplinas={[{ id: disciplina.id, nome: disciplina.nome }]}
-        projetoId={projetoId}
-        linkParaPainel
-      />
-    </>
-  );
-}
-
-/**
- * Fluxo de aprovação em 2 etapas (aprovação/laudo): responsável marca "projeto aprovado";
- * quem tem `aprovacoes:disciplina` confirma (terminal) ou recusa (volta pra em_andamento, com motivo).
- */
-function FluxoAprovacaoDisciplina({
-  disciplina,
-  podeConfirmar,
-  podeVerValor,
-}: {
-  disciplina: Disc;
-  podeConfirmar: boolean;
-  podeVerValor: boolean;
-}) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [recusando, setRecusando] = useState(false);
-  const [motivo, setMotivo] = useState("");
-
-  const podeSolicitar = podeSolicitarAprovacao({
-    ehResponsavel: disciplina.ehResponsavel,
-    status: disciplina.status,
-    aprovacaoSolicitadaEm: disciplina.aprovacaoSolicitadaEm,
-  });
-  const aguardando = disciplina.aprovacaoSolicitadaEm != null;
 
   function solicitar() {
     start(async () => {
@@ -643,98 +390,461 @@ function FluxoAprovacaoDisciplina({
     });
   }
 
-  function recusar() {
-    if (!motivo.trim()) return;
+  function recusar(motivo: string) {
     start(async () => {
       const res = await recusarAprovacaoDisciplina({ disciplinaId: disciplina.id, motivo });
       if (res.ok) {
         toast.success("Aprovação recusada.");
-        setRecusando(false);
-        setMotivo("");
+        setJanela(null);
         router.refresh();
       } else toast.error(res.error);
     });
   }
 
-  // Sem ação disponível: em vez de sumir (o que deixava o card sem nenhuma pista de como
-  // chegar em "aprovado"), explicar de quem é a vez. `aprovado` não entra aqui — o card já
-  // mostra "Reabrir" nesse caso.
-  if (!podeSolicitar && !aguardando) {
-    if (disciplina.status === "aprovado") return null;
-    const motivo =
-      disciplina.responsaveis.length === 0
-        ? "Defina ao menos um responsável — só ele pode marcar o projeto como aprovado."
-        : disciplina.status === "aguardando"
-          ? "Coloque a disciplina em andamento para poder marcá-la como aprovada."
-          : "Aguardando o responsável marcar o projeto como aprovado.";
-    return (
-      <p className="flex items-start gap-1.5 rounded-sm border border-dashed px-2.5 py-1.5 text-xs text-muted-foreground">
-        <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-        <span>{motivo}</span>
-      </p>
-    );
+  function aoSelecionar(item: AcaoItemAcao) {
+    if (item.id.startsWith(PREFIXO_STATUS)) {
+      const novo = item.id.slice(PREFIXO_STATUS.length) as StatusDisciplina;
+      if (novo !== disciplina.status) mudarStatus(novo);
+      return;
+    }
+    if (item.id === ACAO_DISCIPLINA.aprovar) return aprovarEntrega();
+    if (item.id === ACAO_DISCIPLINA.entrega) return setJanela("arquivos");
+    if (item.id === ACAO_DISCIPLINA.solicitar) return solicitar();
+    if (item.id === ACAO_DISCIPLINA.copiarLink) {
+      void copiarTexto(`${window.location.origin}/projetos/${projetoId}/disciplinas#disciplina-${disciplina.id}`).then((ok) =>
+        ok ? toast.success("Link da disciplina copiado.") : toast.error("Não foi possível copiar o link."),
+      );
+      return;
+    }
+    if (JANELAS.has(item.id)) setJanela(item.id as Janela);
   }
 
+  function aoAcaoPasso(acao: AcaoPasso | "recusar") {
+    if (acao === "aprovar") return aprovarEntrega();
+    if (acao === "solicitar") return solicitar();
+    if (acao === "confirmar") return setJanela("confirmar");
+    if (acao === "recusar") return setJanela("recusar");
+    if (acao === "validar") return setJanela("arquivos");
+    if (acao === "responsavel") return setJanela("responsaveis");
+  }
+
+  const rotuloStatus = rotuloStatusDisciplina({ status: disciplina.status, aprovacaoSolicitadaEm: disciplina.aprovacaoSolicitadaEm });
+  const pilula = (
+    <>
+      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-current" />
+      {rotuloStatus}
+    </>
+  );
+
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-sm border border-status-entregue/40 bg-status-entregue/10 px-2.5 py-1.5 text-xs">
-      {aguardando ? (
-        <>
-          <span className="text-status-entregue">
-            Aguardando confirmação
-            {disciplina.aprovacaoSolicitadaPorNome ? ` · solicitado por ${disciplina.aprovacaoSolicitadaPorNome}` : ""}
-          </span>
-          {podeConfirmar && (
-            <div className="ml-auto flex gap-1.5">
-              {disciplina.pagamentoLiberado ? (
-                // Reaprovação: pagamento já liberado, sem valor a rever.
-                <Button size="sm" className="h-7 px-2" onClick={() => confirmar()} disabled={pending}>
-                  <CheckCircle className="size-3.5" /> Confirmar
-                </Button>
-              ) : (disciplina.fasesLiberadas?.liberadas ?? 0) > 0 ? (
-                // Por fase, com alguma já liberada: o valor da disciplina não se reparte mais
-                // inteiro (parte já foi paga), então a prévia "valor ÷ projetistas" mentiria.
-                // Confirma sem editar valor; os valores por fase ficam em Etapas.
-                <ConfirmarAprovacaoSemValorDialog
-                  disciplina={disciplina}
-                  pending={pending}
-                  onConfirmar={() => confirmar()}
-                  descricao="A disciplina fica aprovada e o pagamento das fases que faltam é liberado, cada uma pelo seu percentual. Os valores por fase estão em Etapas. Essa confirmação não pode ser desfeita por aqui."
-                />
-              ) : podeVerValor ? (
-                <ConfirmarAprovacaoDialog disciplina={disciplina} pending={pending} onConfirmar={confirmar} />
-              ) : (
-                <ConfirmarAprovacaoSemValorDialog disciplina={disciplina} pending={pending} onConfirmar={() => confirmar()} />
+    <>
+      <ContextMenu>
+        <ContextMenuTrigger
+          render={
+            <article
+              aria-label={`Disciplina ${disciplina.nome}`}
+              className={cn(
+                "flex flex-col rounded-sm border border-t-[3px] bg-card data-[popup-open]:ring-2 data-[popup-open]:ring-ring/30",
+                visual.faixa,
               )}
-              <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => setRecusando(true)} disabled={pending}>
-                <XCircle className="size-3.5" /> Recusar
-              </Button>
+            />
+          }
+        >
+          {/* No celular o status desce para a linha de baixo, alinhado ao nome: dividindo a linha
+              com o nome e o ⋯, o prazo quebrava no meio. */}
+          <header className="flex flex-wrap items-start gap-x-3 gap-y-2 px-4 pt-3.5 pb-2.5 sm:flex-nowrap">
+            <span
+              className={cn("flex size-10 shrink-0 items-center justify-center rounded-sm", visual.quadro)}
+              title={STATUS_LABEL[disciplina.status]}
+            >
+              <DisciplinaIcone nome={disciplina.catalogoNome ?? disciplina.nome} className="size-6" />
+            </span>
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <h4 className="flex flex-wrap items-baseline gap-x-1.5 font-semibold leading-tight">
+                {disciplina.nome}
+                {rotulo && (
+                  <span className="text-xs font-normal text-muted-foreground" title={`Classificada no catálogo como ${rotulo}`}>
+                    · {rotulo}
+                  </span>
+                )}
+              </h4>
+              <p className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                {disciplina.prazo && (
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                    <CalendarDays className="size-3.5" aria-hidden />
+                    Prazo {formatarData(disciplina.prazo)}
+                  </span>
+                )}
+                {atraso > 0 && (
+                  <span className="inline-flex items-center gap-1 font-medium whitespace-nowrap text-destructive">
+                    <AlertTriangle className="size-3.5" aria-hidden />
+                    atrasada {atraso}d
+                  </span>
+                )}
+                {qtdTarefas > 0 && (
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                    <ListTodo className="size-3.5" aria-hidden />
+                    {qtdTarefas} tarefa{qtdTarefas > 1 ? "s" : ""}
+                    {qtdAtrasadas > 0 && (
+                      <span className="font-medium text-destructive">
+                        · {qtdAtrasadas} atrasada{qtdAtrasadas > 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="shrink-0 max-sm:order-last max-sm:basis-full max-sm:pl-[52px]">
+            {podeTrocarStatus ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <button
+                      type="button"
+                      disabled={pending}
+                      aria-label={`Status: ${rotuloStatus}. Mudar status`}
+                      className={cn(
+                        "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
+                        visual.pilula,
+                      )}
+                    />
+                  }
+                >
+                  {pilula}
+                  <ChevronDown className="size-3.5" aria-hidden />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <AcoesMenuItens itens={itensDeStatus(disciplina.status)} onSelect={aoSelecionar} />
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <span
+                className={cn("inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold", visual.pilula)}
+              >
+                {pilula}
+              </span>
+            )}
+            </div>
+            <BotaoAcoes itens={itens} onSelect={aoSelecionar} rotulo={`Ações de ${disciplina.nome}`} className="size-8" />
+          </header>
+
+          <div className="px-4">
+            <TrilhoEtapas disciplina={disciplina} />
+          </div>
+
+          {passo && (
+            <div className="px-4 pt-3">
+              <PassoDisciplina passo={passo} disciplina={disciplina} hrefEnviar={hrefEnviar} pending={pending} onAcao={aoAcaoPasso} />
             </div>
           )}
-        </>
-      ) : (
-        <Button size="sm" className="h-7 px-2" onClick={solicitar} disabled={pending}>
-          <CheckCircle className="size-3.5" /> Marcar projeto aprovado
-        </Button>
-      )}
 
-      <Dialog open={recusando} onOpenChange={setRecusando}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Recusar aprovação</DialogTitle>
-            <DialogDescription>Explique o motivo — o responsável será notificado.</DialogDescription>
-          </DialogHeader>
-          <Input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Motivo da recusa" />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRecusando(false)} disabled={pending}>
-              Cancelar
+          <div className="flex flex-wrap items-center gap-2 px-4 pt-3 pb-2.5 text-xs">
+            {disciplina.responsaveis.length > 0 ? (
+              <button
+                type="button"
+                onClick={podeGerir ? () => setJanela("responsaveis") : undefined}
+                disabled={!podeGerir}
+                title={podeGerir ? "Responsáveis — clique para alterar" : "Responsáveis"}
+                className="flex min-w-0 items-center gap-2 rounded-sm text-left outline-none enabled:hover:underline focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
+              >
+                <span className="flex shrink-0 -space-x-1.5" aria-hidden>
+                  {disciplina.responsaveis.slice(0, 3).map((r) => (
+                    <span
+                      key={r.userId}
+                      className="flex size-6 items-center justify-center rounded-full border-2 border-card bg-muted text-[10px] font-semibold text-foreground"
+                    >
+                      {iniciais(r.name)}
+                    </span>
+                  ))}
+                </span>
+                <span className="min-w-0 truncate">{disciplina.responsaveis.map((r) => r.name).join(", ")}</span>
+              </button>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-destructive">
+                <Users className="size-3.5" aria-hidden /> Sem responsável
+              </span>
+            )}
+            {pagamento && (
+              <span
+                title={pagamento.dica}
+                className="inline-flex h-5 items-center gap-1 rounded-full bg-muted px-2 text-[11px] text-muted-foreground"
+              >
+                <Unlock className="size-3" aria-hidden /> {pagamento.texto}
+              </span>
+            )}
+            {disciplina.valor != null && (
+              <span className="ml-auto font-mono text-muted-foreground">{brl(disciplina.valor)}</span>
+            )}
+          </div>
+
+          <nav aria-label={`Atalhos de ${disciplina.nome}`} className="flex flex-wrap items-center gap-0.5 border-t px-2 py-1">
+            <Button variant="ghost" size="sm" render={<Link href={hrefArquivos} />} title="Abrir a pasta da disciplina na aba Arquivos">
+              <FolderUp className="size-3.5" /> Arquivos <span className="font-mono text-muted-foreground">{qtdArquivos}</span>
             </Button>
-            <Button variant="destructive" onClick={recusar} disabled={pending || !motivo.trim()}>
-              Recusar
+            {/* Celular: Revisões, Tarefas e Diário só com ícone (e contagem) — com os nomes, o
+                rodapé quebrava em duas linhas. O nome continua para leitor de tela e na dica. */}
+            <Button variant="ghost" size="sm" onClick={() => setJanela("revisoes")} title="Revisões">
+              <History className="size-3.5" /> <span className="max-sm:sr-only">Revisões</span>{" "}
+              <span className="font-mono text-muted-foreground">{qtdRevisoes}</span>
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            {temTarefas && (
+              <Button variant="ghost" size="sm" onClick={() => setJanela("tarefas")} title="Tarefas">
+                <ListTodo className="size-3.5" /> <span className="max-sm:sr-only">Tarefas</span>{" "}
+                <span className="font-mono text-muted-foreground">{qtdTarefas}</span>
+              </Button>
+            )}
+            {podeDiario && (
+              <Button variant="ghost" size="sm" onClick={() => setJanela("diario")} title="Diário">
+                <NotebookPen className="size-3.5" /> <span className="max-sm:sr-only">Diário</span>
+              </Button>
+            )}
+            <span className="flex-1" />
+            {canalChatId && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                aria-label="Chat da disciplina (abre em nova aba)"
+                title="Chat da disciplina"
+                render={<Link href={`/chat?c=${canalChatId}`} target="_blank" rel="noopener noreferrer" />}
+              >
+                <MessageSquare className="size-3.5" />
+              </Button>
+            )}
+          </nav>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <AcoesMenuItens itens={itens} onSelect={aoSelecionar} />
+        </ContextMenuContent>
+      </ContextMenu>
+
+      <ArquivosDialog
+        projetoId={projetoId}
+        disciplina={disciplina}
+        stVal={stVal}
+        podeEnviar={podeEnviar}
+        podeValidar={podeValidar}
+        podeAprovar={podeAprovarDisciplina}
+        controle={controle("arquivos")}
+      />
+      <RevisaoDialog disciplina={disciplina} controle={controle("revisoes")} />
+      {temTarefas && (
+        <TarefasDisciplinaDialog
+          projetoId={projetoId}
+          disciplinaId={disciplina.id}
+          disciplinaNome={disciplina.nome}
+          tarefas={tarefas ?? []}
+          opcoes={tarefaOpcoes!}
+          colunas={tarefaColunas!}
+          meId={meId!}
+          meRole={meRole!}
+          gereTodasTarefas={gereTodasTarefas}
+          controle={controle("tarefas")}
+        />
+      )}
+      {podeDiario && (
+        <DiarioEntradaDialog
+          open={janela === "diario"}
+          onOpenChange={(v) => setJanela(v ? "diario" : null)}
+          disciplinas={[{ id: disciplina.id, nome: disciplina.nome }]}
+          projetoId={projetoId}
+          linkParaPainel
+        />
+      )}
+      {podeGerir && (
+        <>
+          <ResponsaveisDialog disciplina={disciplina} internos={internos} controle={controle("responsaveis")} />
+          <DisciplinaEditDialog
+            disciplinaId={disciplina.id}
+            nome={disciplina.nome}
+            prazo={disciplina.prazo}
+            valor={disciplina.valor}
+            responsaveisIds={disciplina.responsaveis.map((r) => r.userId)}
+            internos={internos}
+            exigePacoteA={disciplina.exigePacoteA}
+            exigePacoteB={disciplina.exigePacoteB}
+            usaEstruturaPastas={disciplina.usaPastas}
+            temEtapas={disciplina.temEtapas}
+            controle={controle("editar")}
+          />
+          <DisciplinaEtapasButton
+            disciplinaId={disciplina.id}
+            nome={disciplina.nome}
+            valor={disciplina.valor}
+            temEtapas={disciplina.temEtapas}
+            controle={controle("etapas")}
+          />
+          {disciplina.status !== "aprovado" && (
+            <DisciplinaDeleteButton disciplinaId={disciplina.id} nome={disciplina.nome} qtdTarefas={qtdTarefas} controle={controle("excluir")} />
+          )}
+          {disciplina.status === "aprovado" && <ReabrirDisciplinaDialog disciplina={disciplina} controle={controle("reabrir")} />}
+        </>
+      )}
+      {podeAprovarDisciplina && disciplina.usaPastas && disciplina.aprovacaoSolicitadaEm != null && (
+        <>
+          {disciplina.pagamentoLiberado ? (
+            // Reaprovação: pagamento já liberado, sem valor a rever.
+            <ConfirmarAprovacaoSemValorDialog
+              disciplina={disciplina}
+              pending={pending}
+              onConfirmar={() => confirmar()}
+              descricao="A disciplina fica aprovada de novo. O pagamento já tinha sido liberado — nada novo é gerado."
+              controle={controle("confirmar")}
+            />
+          ) : (disciplina.fasesLiberadas?.liberadas ?? 0) > 0 ? (
+            // Por fase, com alguma já liberada: o valor da disciplina não se reparte mais inteiro
+            // (parte já foi paga), então a prévia "valor ÷ projetistas" mentiria.
+            <ConfirmarAprovacaoSemValorDialog
+              disciplina={disciplina}
+              pending={pending}
+              onConfirmar={() => confirmar()}
+              descricao="A disciplina fica aprovada e o pagamento das fases que faltam é liberado, cada uma pelo seu percentual. Os valores por fase estão em Etapas. Essa confirmação não pode ser desfeita por aqui."
+              controle={controle("confirmar")}
+            />
+          ) : podeVerValor ? (
+            <ConfirmarAprovacaoDialog disciplina={disciplina} pending={pending} onConfirmar={confirmar} controle={controle("confirmar")} />
+          ) : (
+            <ConfirmarAprovacaoSemValorDialog disciplina={disciplina} pending={pending} onConfirmar={() => confirmar()} controle={controle("confirmar")} />
+          )}
+          <RecusarAprovacaoDialog pending={pending} onRecusar={recusar} controle={controle("recusar")} />
+        </>
+      )}
+    </>
+  );
+}
+
+/**
+ * Trilho de etapas da disciplina — deixa visível que "Aprovado" é a CHEGADA do fluxo, não
+ * uma opção do status. São 4 pontos porque `entregue` e `em_revisao` são o mesmo ponto do
+ * caminho (a máquina alterna entre eles); o rótulo dessa etapa mostra o estado real.
+ */
+function TrilhoEtapas({ disciplina }: { disciplina: Disc }) {
+  const atual = etapaDisciplina(disciplina.status);
+  return (
+    <ol className="flex items-center gap-1" aria-label="Etapas da disciplina">
+      {ETAPAS_DISCIPLINA.map((_, i) => {
+        const rotulo = rotuloEtapaDisciplina(i, disciplina.status, disciplina.aprovacaoSolicitadaEm);
+        const percorrida = i <= atual;
+        return (
+          <Fragment key={i}>
+            {i > 0 && <span aria-hidden className={`h-px flex-1 ${i <= atual ? "bg-status-aprovado" : "bg-muted"}`} />}
+            <li
+              className={`flex items-center gap-1 text-[11px] leading-tight ${
+                i === atual ? "font-semibold text-foreground" : "text-muted-foreground"
+              }`}
+              aria-current={i === atual ? "step" : undefined}
+            >
+              <span
+                aria-hidden
+                className={`size-2 shrink-0 rounded-full ${percorrida ? "bg-status-aprovado" : "bg-muted-foreground/30"}`}
+              />
+              {/* Celular: só o nome da etapa atual; os quatro nomes não cabiam numa linha. */}
+              <span className={cn("whitespace-nowrap", i !== atual && "max-sm:sr-only")}>{rotulo}</span>
+            </li>
+          </Fragment>
+        );
+      })}
+    </ol>
+  );
+}
+
+const TOM_PASSO: Record<TomPasso, string> = {
+  ok: "border-transparent bg-status-aprovado/10 text-status-aprovado",
+  pronto: "border-status-aprovado/40 bg-status-aprovado/10 text-status-aprovado",
+  confirmar: "border-status-entregue/40 bg-status-entregue/10 text-status-entregue",
+  fase: "border-info/40 bg-info/10 text-info",
+  aviso: "border-dashed text-muted-foreground",
+};
+
+/**
+ * O único aviso do card (`proximoPasso`): o que falta, ou o que dá para fazer agora, com o botão
+ * da ação. Antes podiam aparecer três avisos empilhados, cada um num canto do card.
+ */
+function PassoDisciplina({
+  passo,
+  disciplina,
+  hrefEnviar,
+  pending,
+  onAcao,
+}: {
+  passo: ProximoPasso;
+  disciplina: Disc;
+  hrefEnviar: string;
+  pending: boolean;
+  onAcao: (acao: AcaoPasso | "recusar") => void;
+}) {
+  const Icone =
+    passo.tom === "ok" ? ShieldCheck : passo.tom === "fase" ? Layers : passo.tom === "aviso" ? AlertTriangle : CheckCircle;
+  return (
+    <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-sm border px-2.5 py-1.5 text-xs", TOM_PASSO[passo.tom])}>
+      <span className="flex min-w-0 flex-1 items-start gap-1.5 max-sm:basis-full">
+        <Icone className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+        <span>{passo.texto}</span>
+      </span>
+      {passo.acao === "aprovar_fase" && passo.fases ? (
+        <span className="flex flex-wrap items-center gap-1.5">
+          {passo.fases.map((f) => (
+            <AprovarFaseButton key={f.id} faseId={f.id} sigla={f.sigla} disciplina={disciplina.nome} label={`Aprovar ${f.sigla}`} />
+          ))}
+        </span>
+      ) : passo.acao === "confirmar" ? (
+        <span className="flex gap-1.5">
+          <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => onAcao("recusar")} disabled={pending}>
+            <XCircle className="size-3.5" /> Recusar
+          </Button>
+          <Button size="sm" className="h-7 px-2" onClick={() => onAcao("confirmar")} disabled={pending}>
+            <CheckCircle className="size-3.5" /> Confirmar
+          </Button>
+        </span>
+      ) : passo.acao === "enviar" ? (
+        <Button size="sm" variant="outline" className="h-7 px-2" render={<Link href={hrefEnviar} />}>
+          <UploadIcon className="size-3.5" /> {ROTULO_ACAO_PASSO.enviar}
+        </Button>
+      ) : passo.acao ? (
+        <Button
+          size="sm"
+          variant={passo.acao === "aprovar" || passo.acao === "solicitar" ? "default" : "outline"}
+          className="h-7 px-2"
+          onClick={() => onAcao(passo.acao!)}
+          disabled={pending}
+        >
+          {passo.acao === "aprovar" && <ShieldCheck className="size-3.5" />}
+          {pending && passo.acao === "aprovar" ? "Aprovando…" : ROTULO_ACAO_PASSO[passo.acao]}
+        </Button>
+      ) : null}
     </div>
+  );
+}
+
+/** Recusar a marcação de "aprovado" (aprovação/laudo): o motivo vai ao responsável. */
+function RecusarAprovacaoDialog({
+  pending,
+  onRecusar,
+  controle,
+}: {
+  pending: boolean;
+  onRecusar: (motivo: string) => void;
+  controle: ControleJanela;
+}) {
+  const [motivo, setMotivo] = useState("");
+  return (
+    <Dialog open={controle.aberto} onOpenChange={controle.aoMudar}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Recusar aprovação</DialogTitle>
+          <DialogDescription>Explique o motivo — o responsável será notificado.</DialogDescription>
+        </DialogHeader>
+        <Input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Motivo da recusa" autoFocus />
+        <DialogFooter>
+          <Button variant="outline" onClick={() => controle.aoMudar(false)} disabled={pending}>
+            Cancelar
+          </Button>
+          <Button variant="destructive" onClick={() => onRecusar(motivo.trim())} disabled={pending || !motivo.trim()}>
+            Recusar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -749,12 +859,14 @@ function ConfirmarAprovacaoDialog({
   disciplina,
   pending,
   onConfirmar,
+  controle,
 }: {
   disciplina: Disc;
   pending: boolean;
   onConfirmar: (valor: number) => void;
+  controle?: ControleJanela;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useAberto(controle);
   const [valorTexto, setValorTexto] = useState<number | null>(disciplina.valor ?? null);
 
   const responsaveisComRole = disciplina.responsaveis.map((r) => ({
@@ -777,13 +889,15 @@ function ConfirmarAprovacaoDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) setValorTexto(disciplina.valor ?? null); }}>
-      <DialogTrigger
-        render={
-          <Button size="sm" className="h-7 px-2">
-            <CheckCircle className="size-3.5" /> Confirmar
-          </Button>
-        }
-      />
+      {!controle && (
+        <DialogTrigger
+          render={
+            <Button size="sm" className="h-7 px-2">
+              <CheckCircle className="size-3.5" /> Confirmar
+            </Button>
+          }
+        />
+      )}
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Confirmar aprovação — {disciplina.nome}</DialogTitle>
@@ -845,22 +959,26 @@ function ConfirmarAprovacaoSemValorDialog({
   pending,
   onConfirmar,
   descricao = "A disciplina fica aprovada e a demanda é liberada para o financeiro, que paga pelo valor já cadastrado. Essa confirmação não pode ser desfeita por aqui.",
+  controle,
 }: {
   disciplina: Disc;
   pending: boolean;
   onConfirmar: () => void;
   descricao?: string;
+  controle?: ControleJanela;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useAberto(controle);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button size="sm" className="h-7 px-2">
-            <CheckCircle className="size-3.5" /> Confirmar
-          </Button>
-        }
-      />
+      {!controle && (
+        <DialogTrigger
+          render={
+            <Button size="sm" className="h-7 px-2">
+              <CheckCircle className="size-3.5" /> Confirmar
+            </Button>
+          }
+        />
+      )}
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Confirmar aprovação — {disciplina.nome}</DialogTitle>
@@ -915,6 +1033,7 @@ function ArquivosDialog({
   podeEnviar,
   podeValidar,
   podeAprovar,
+  controle,
 }: {
   projetoId: string;
   disciplina: Disc;
@@ -923,9 +1042,10 @@ function ArquivosDialog({
   podeValidar: boolean;
   /** `aprovacoes:disciplina` — o gate de `validarEntrega`. */
   podeAprovar: boolean;
+  controle?: ControleJanela;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useAberto(controle);
   const [validando, start] = useTransition();
   const [versoesAbertas, setVersoesAbertas] = useState<Set<string>>(new Set());
   const alternarVersoes = (id: string) =>
@@ -1027,14 +1147,16 @@ function ArquivosDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button variant="outline" size="sm">
-            <FolderUp className="size-3.5" />{" "}
-            Arquivos ({disciplina.usaPastas ? disciplina.arquivosPasta.length : contarLogicos(disciplina.uploads)})
-          </Button>
-        }
-      />
+      {!controle && (
+        <DialogTrigger
+          render={
+            <Button variant="outline" size="sm">
+              <FolderUp className="size-3.5" />{" "}
+              Arquivos ({disciplina.usaPastas ? disciplina.arquivosPasta.length : contarLogicos(disciplina.uploads)})
+            </Button>
+          }
+        />
+      )}
       <DialogContent className="max-h-[90svh] overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{disciplina.nome} — arquivos</DialogTitle>
@@ -1301,8 +1423,8 @@ function ArquivosDialog({
  * prazo — ambos ficam na auditoria. Se o novo prazo passar do prazo planejado do
  * projeto, o servidor desloca o planejado junto e registra no histórico.
  */
-function ReabrirDisciplinaDialog({ disciplina }: { disciplina: Disc }) {
-  const [open, setOpen] = useState(false);
+function ReabrirDisciplinaDialog({ disciplina, controle }: { disciplina: Disc; controle?: ControleJanela }) {
+  const [open, setOpen] = useAberto(controle);
   const [motivo, setMotivo] = useState("");
   const [novoPrazo, setNovoPrazo] = useState("");
   const [pending, start] = useTransition();
@@ -1339,13 +1461,15 @@ function ReabrirDisciplinaDialog({ disciplina }: { disciplina: Disc }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button variant="outline" size="sm" className="w-full">
-            <Unlock className="size-3.5" /> Reabrir disciplina
-          </Button>
-        }
-      />
+      {!controle && (
+        <DialogTrigger
+          render={
+            <Button variant="outline" size="sm" className="w-full">
+              <Unlock className="size-3.5" /> Reabrir disciplina
+            </Button>
+          }
+        />
+      )}
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Reabrir {disciplina.nome}</DialogTitle>
@@ -1388,19 +1512,21 @@ function arquivosComRevisaoPendente(disciplina: Disc) {
   return disciplina.uploads.filter((u) => u.ajusteEm);
 }
 
-function RevisaoDialog({ disciplina }: { disciplina: Disc }) {
-  const [open, setOpen] = useState(false);
+function RevisaoDialog({ disciplina, controle }: { disciplina: Disc; controle?: ControleJanela }) {
+  const [open, setOpen] = useAberto(controle);
   const pendentes = arquivosComRevisaoPendente(disciplina);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button variant="outline" size="sm">
-            <History className="size-3.5" /> Revisões ({pendentes.length})
-          </Button>
-        }
-      />
+      {!controle && (
+        <DialogTrigger
+          render={
+            <Button variant="outline" size="sm">
+              <History className="size-3.5" /> Revisões ({pendentes.length})
+            </Button>
+          }
+        />
+      )}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{disciplina.nome} — revisões</DialogTitle>
@@ -1433,11 +1559,13 @@ function RevisaoDialog({ disciplina }: { disciplina: Disc }) {
 function ResponsaveisDialog({
   disciplina,
   internos,
+  controle,
 }: {
   disciplina: Disc;
   internos: { id: string; name: string; role: string }[];
+  controle?: ControleJanela;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useAberto(controle);
   const [sel, setSel] = useState<string[]>(disciplina.responsaveis.map((r) => r.userId));
   const [pending, start] = useTransition();
 
@@ -1459,13 +1587,15 @@ function ResponsaveisDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button variant="outline" size="sm">
-            <Users className="size-3.5" /> Responsáveis
-          </Button>
-        }
-      />
+      {!controle && (
+        <DialogTrigger
+          render={
+            <Button variant="outline" size="sm">
+              <Users className="size-3.5" /> Responsáveis
+            </Button>
+          }
+        />
+      )}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{disciplina.nome} — responsáveis</DialogTitle>
@@ -1511,6 +1641,7 @@ function TarefasDisciplinaDialog({
   meId,
   meRole,
   gereTodasTarefas,
+  controle,
 }: {
   projetoId: string;
   disciplinaId: string;
@@ -1521,20 +1652,23 @@ function TarefasDisciplinaDialog({
   meId: string;
   meRole: string;
   gereTodasTarefas: boolean;
+  controle?: ControleJanela;
 }) {
-  const [openLista, setOpenLista] = useState(false);
+  const [openLista, setOpenLista] = useAberto(controle);
   const [editar, setEditar] = useState<TarefaDaDisciplina | "nova" | null>(null);
 
   return (
     <>
       <Dialog open={openLista} onOpenChange={setOpenLista}>
-        <DialogTrigger
-          render={
-            <Button variant="outline" size="sm">
-              <ListTodo className="size-3.5" /> Tarefas ({tarefas.length})
-            </Button>
-          }
-        />
+        {!controle && (
+          <DialogTrigger
+            render={
+              <Button variant="outline" size="sm">
+                <ListTodo className="size-3.5" /> Tarefas ({tarefas.length})
+              </Button>
+            }
+          />
+        )}
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{disciplinaNome} — tarefas</DialogTitle>

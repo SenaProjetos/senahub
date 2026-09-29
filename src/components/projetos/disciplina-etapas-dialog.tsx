@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CheckCircle2, Layers, Lock, Plus, Trash2 } from "lucide-react";
@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useAberto, type ControleJanela } from "@/lib/use-aberto";
 import {
   Select,
   SelectContent,
@@ -68,25 +69,40 @@ export function DisciplinaEtapasButton({
   nome,
   valor,
   temEtapas,
+  controle,
 }: {
   disciplinaId: string;
   nome: string;
   /** Valor já mascarado pelo card — quem não vê valor recebe `null` e vê só o percentual. */
   valor: number | null;
   temEtapas: boolean;
+  /** Aberta pelo menu do card: sem o botão próprio. */
+  controle?: ControleJanela;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useAberto(controle);
   const [dados, setDados] = useState<Dados | null>(null);
   const [carregando, startCarga] = useTransition();
 
-  function abrir() {
-    setOpen(true);
+  function carregar() {
     startCarga(async () => {
       const r = await carregarEtapasDisciplina({ disciplinaId });
       if (r.ok) setDados(r.data);
       else toast.error(r.error);
     });
   }
+
+  function abrir() {
+    setOpen(true);
+    carregar();
+  }
+
+  // Aberta pelo menu (sem passar por `abrir`): carrega ao abrir.
+  const abertaAntes = useRef(open);
+  useEffect(() => {
+    if (controle && open && !abertaAntes.current) carregar();
+    abertaAntes.current = open;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   return (
     <Dialog
@@ -96,15 +112,17 @@ export function DisciplinaEtapasButton({
         if (!o) setDados(null);
       }}
     >
-      <button
-        type="button"
-        onClick={abrir}
-        className="inline-flex size-7 items-center justify-center rounded hover:bg-muted"
-        title={temEtapas ? "Etapas da disciplina" : "Dividir em etapas (Básico, Executivo…)"}
-        aria-label="Etapas da disciplina"
-      >
-        <Layers className={`size-3.5 ${temEtapas ? "text-primary" : "text-muted-foreground"}`} />
-      </button>
+      {!controle && (
+        <button
+          type="button"
+          onClick={abrir}
+          className="inline-flex size-7 items-center justify-center rounded hover:bg-muted"
+          title={temEtapas ? "Etapas da disciplina" : "Dividir em etapas (Básico, Executivo…)"}
+          aria-label="Etapas da disciplina"
+        >
+          <Layers className={`size-3.5 ${temEtapas ? "text-primary" : "text-muted-foreground"}`} />
+        </button>
+      )}
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Etapas — {nome}</DialogTitle>

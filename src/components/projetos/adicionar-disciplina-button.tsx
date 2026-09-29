@@ -15,15 +15,18 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { criarDisciplina } from "@/modules/projetos/actions";
+import { useAberto, type ControleJanela } from "@/lib/use-aberto";
 
 interface Props {
+  /** Aberta pelo menu da página (botão direito): sem o botão próprio. */
+  controle?: ControleJanela;
   projetoId: string;
   internos: { id: string; name: string }[];
   prazoContrato?: string | null;
 }
 
-export function AdicionarDisciplinaButton({ projetoId, internos, prazoContrato }: Props) {
-  const [open, setOpen] = useState(false);
+export function AdicionarDisciplinaButton({ projetoId, internos, prazoContrato, controle }: Props) {
+  const [open, setOpen] = useAberto(controle);
   const [nome, setNome] = useState("");
   const [prazo, setPrazo] = useState("");
   const [valor, setValor] = useState<number | null>(null);
@@ -69,13 +72,15 @@ export function AdicionarDisciplinaButton({ projetoId, internos, prazoContrato }
         if (!v) reset();
       }}
     >
-      <DialogTrigger
-        render={
-          <Button variant="outline" size="sm">
-            <Plus className="size-4" /> Adicionar disciplina
-          </Button>
-        }
-      />
+      {!controle && (
+        <DialogTrigger
+          render={
+            <Button variant="outline" size="sm">
+              <Plus className="size-4" /> Adicionar disciplina
+            </Button>
+          }
+        />
+      )}
       <DialogContent className="max-w-md">
         <DialogTitle>Adicionar disciplina</DialogTitle>
         <DialogDescription className="sr-only">

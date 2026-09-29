@@ -15,6 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { editarDisciplina, excluirDisciplina } from "@/modules/projetos/actions";
+import { useAberto, type ControleJanela } from "@/lib/use-aberto";
 
 interface EditProps {
   disciplinaId: string;
@@ -29,6 +30,8 @@ interface EditProps {
   usaEstruturaPastas?: boolean;
   /** Com etapa (F4) o prazo é o maior entre as etapas: o campo fica travado aqui. */
   temEtapas?: boolean;
+  /** Aberta pelo menu do card: sem o botão próprio. */
+  controle?: ControleJanela;
 }
 
 export function DisciplinaEditDialog({
@@ -42,8 +45,9 @@ export function DisciplinaEditDialog({
   exigePacoteB: exigeBInicial = true,
   usaEstruturaPastas = false,
   temEtapas = false,
+  controle,
 }: EditProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useAberto(controle);
   const [nome, setNome] = useState(nomeInicial);
   const [prazo, setPrazo] = useState(prazoInicial?.slice(0, 10) ?? "");
   const [valor, setValor] = useState<number | null>(valorInicial ?? null);
@@ -83,14 +87,16 @@ export function DisciplinaEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex size-7 items-center justify-center rounded hover:bg-muted"
-        title="Editar disciplina"
-      >
-        <Pencil className="size-3.5 text-muted-foreground" />
-      </button>
+      {!controle && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="inline-flex size-7 items-center justify-center rounded hover:bg-muted"
+          title="Editar disciplina"
+        >
+          <Pencil className="size-3.5 text-muted-foreground" />
+        </button>
+      )}
       <DialogContent className="max-w-md">
         <DialogTitle>Editar disciplina</DialogTitle>
         <DialogDescription className="sr-only">
@@ -190,13 +196,16 @@ export function DisciplinaDeleteButton({
   disciplinaId,
   nome,
   qtdTarefas = 0,
+  controle,
 }: {
   disciplinaId: string;
   nome: string;
   /** Tarefas vinculadas — avisadas como "serão desvinculadas" (onDelete: SetNull). */
   qtdTarefas?: number;
+  /** Aberta pelo menu do card: sem o botão próprio. */
+  controle?: ControleJanela;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useAberto(controle);
   const [pending, startTransition] = useTransition();
 
   const handleDelete = () => {
@@ -214,14 +223,16 @@ export function DisciplinaDeleteButton({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex size-7 items-center justify-center rounded hover:bg-muted"
-        title="Excluir disciplina"
-      >
-        <Trash2 className="size-3.5 text-destructive" />
-      </button>
+      {!controle && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="inline-flex size-7 items-center justify-center rounded hover:bg-muted"
+          title="Excluir disciplina"
+        >
+          <Trash2 className="size-3.5 text-destructive" />
+        </button>
+      )}
       <DialogContent className="max-w-sm">
         <DialogTitle>Excluir disciplina</DialogTitle>
         <DialogDescription>

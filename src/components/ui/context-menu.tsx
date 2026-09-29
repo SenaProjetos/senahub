@@ -34,11 +34,19 @@ function ContextMenu({ ...props }: ContextMenuPrimitive.Root.Props) {
  * O `select-none` fica só em ponteiro grosso: no desktop a seleção de texto continua livre, no
  * toque ele evita que o toque longo comece a selecionar o texto do card.
  */
-function ContextMenuTrigger({ className, ...props }: ContextMenuPrimitive.Trigger.Props) {
+function ContextMenuTrigger({ className, onContextMenu, ...props }: ContextMenuPrimitive.Trigger.Props) {
   return (
     <ContextMenuPrimitive.Trigger
       data-slot="context-menu-trigger"
       className={cn("pointer-coarse:select-none", className)}
+      onContextMenu={(event) => {
+        // Clique direito dentro de algo desenhado em portal (janela aberta pelo card, menu ⋯
+        // aberto) chega aqui pela árvore do React, não pelo DOM: não é deste gatilho. Deixa o
+        // navegador mostrar o menu dele ali, e o evento seguir sem abrir o menu do card atrás.
+        const alvo = event.target
+        if (alvo instanceof Node && !event.currentTarget.contains(alvo)) event.preventBaseUIHandler()
+        onContextMenu?.(event)
+      }}
       {...props}
     />
   )

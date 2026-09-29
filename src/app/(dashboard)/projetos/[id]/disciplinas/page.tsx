@@ -3,7 +3,13 @@ import { DisciplinasOperacionais } from "@/components/projetos/disciplinas-opera
 
 export const metadata: Metadata = { title: "Disciplinas — projeto" };
 
-export default async function DisciplinasProjetoPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function DisciplinasProjetoPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ status?: string; q?: string }>;
+}) {
   const { id } = await params;
-  return <DisciplinasOperacionais projetoId={id} />;
+  return <DisciplinasOperacionais projetoId={id} sp={await searchParams} />;
 }

@@ -62,5 +62,17 @@ viewer BIM (`CameraControls` gira a câmera com ele) e o viewer DWG.
   (`pendencias/acoes-visualizador.ts`, `pendencias/acoes-apontamento.ts`). No toque, o menu da prancha
   fica desligado com uma ferramenta de desenho na mão (o toque longo parado abriria no meio do traço).
 
+- **Emenda (2026-09-29) — página Disciplinas do projeto:** a pedido do dono, é a **primeira exceção à
+  regra 1 no espaço vazio**: o fundo da página (fora dos cards) abre um menu com as ações da página
+  (Adicionar disciplina, Adicionar do catálogo, Mostrar ▸ por status), sem repor o menu do navegador
+  ali. Paridade: o ⋯ do cabeçalho tem o mesmo array (`itensDaPaginaDisciplinas`). Cada card tem o
+  próprio menu (`itensDeDisciplina`), que ganha do da página. Não entra na lista de exceções do
+  teste-guarda: usa a primitiva. Outras páginas continuam com o nativo no vazio — estender isto
+  exige nova emenda.
+- **Emenda (2026-09-29) — clique vindo de portal:** um clique direito dentro de algo desenhado em
+  portal (janela aberta pelo card, menu ⋯ aberto) chegava ao gatilho pela árvore do React e abria o
+  menu do card (ou da página) por cima da janela. O `ContextMenuTrigger` agora ignora o evento cujo
+  alvo não está DENTRO dele no DOM (`preventBaseUIHandler`): ali vale o menu do navegador.
+
 Planos de execução: [onda 1](../superpowers/specs/2026-09-15-menu-contexto.md) (entregue) ·
 [onda 2](../superpowers/specs/2026-09-20-menu-contexto-onda2.md) (decidida, não implementada).

@@ -15,15 +15,18 @@ import {
 } from "@/components/ui/dialog";
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { adicionarDisciplinasDoCatalogo } from "@/modules/projetos/actions";
+import { useAberto, type ControleJanela } from "@/lib/use-aberto";
 
 interface Props {
+  /** Aberta pelo menu da página (botão direito): sem o botão próprio. */
+  controle?: ControleJanela;
   projetoId: string;
   /** `numeracao` = bloco-base da folha na Lista Mestre (EST 4000 → 1ª folha 4001). */
   catalogo: { id: string; nome: string; numeracao: number | null }[];
 }
 
-export function AdicionarDoCatalogoButton({ projetoId, catalogo }: Props) {
-  const [open, setOpen] = useState(false);
+export function AdicionarDoCatalogoButton({ projetoId, catalogo, controle }: Props) {
+  const [open, setOpen] = useAberto(controle);
   const [selecionados, setSelecionados] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();
 
@@ -76,13 +79,15 @@ export function AdicionarDoCatalogoButton({ projetoId, catalogo }: Props) {
         if (!v) setSelecionados([]);
       }}
     >
-      <DialogTrigger
-        render={
-          <Button variant="ghost" size="sm">
-            <BookOpen className="size-4" /> Do catálogo
-          </Button>
-        }
-      />
+      {!controle && (
+        <DialogTrigger
+          render={
+            <Button variant="ghost" size="sm">
+              <BookOpen className="size-4" /> Do catálogo
+            </Button>
+          }
+        />
+      )}
       <DialogContent className="max-w-md">
         <DialogTitle>Adicionar do catálogo</DialogTitle>
         <DialogDescription>
