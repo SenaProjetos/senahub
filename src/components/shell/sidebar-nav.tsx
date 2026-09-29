@@ -251,7 +251,7 @@ function ItemTrilho({ item, ativo, alertas }: { item: NavItem; ativo: string | n
     <li>
       <Link href={item.href} className={classeTrilho(item.href === ativo)} title={item.title}>
         <span className="relative">
-          <item.icon className="size-[18px]" />
+          <item.icon className="size-[25px]" />
           {isChat && <ChatBadge dot className="absolute -right-1 -top-1" />}
           {alerta && <NavBadge alerta={alerta} dot className="absolute -right-1 -top-1" />}
         </span>
@@ -301,7 +301,7 @@ function SecaoTrilho({
               }}
             >
               <span className="relative">
-                <Icone className="size-[18px]" />
+                <Icone className="size-[25px]" />
                 {alerta && <NavBadge alerta={alerta} dot className="absolute -right-1 -top-1" />}
               </span>
               <span className="w-full truncate text-center">{group.title}</span>
@@ -354,7 +354,7 @@ function SecaoTrilhoAberta({
         aria-label={`Seção ${group.title}: fechar`}
         title={`${group.title} — fechar a seção`}
       >
-        <Icone className="size-[18px]" />
+        <Icone className="size-[25px]" />
         <span className="w-full truncate text-center">{group.title}</span>
         <ChevronDown className="absolute top-1/2 right-0 size-3 -translate-y-1/2 opacity-60" aria-hidden />
       </button>
@@ -450,7 +450,7 @@ export function SidebarNav({
 
   if (collapsed) {
     return (
-      <nav className="rolagem-fina relative flex-1 overflow-y-auto overflow-x-hidden px-1.5 py-2" aria-label="Menu principal">
+      <nav className="rolagem-fina relative flex-1 overflow-y-auto overflow-x-hidden px-1 py-2" aria-label="Menu principal">
         <ul className="space-y-0.5">
           {itensFixados.map((item) => (
             <ItemTrilho key={`fixo-${item.href}`} item={item} ativo={ativo} alertas={nav.alertas} />
