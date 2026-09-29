@@ -41,7 +41,7 @@ disciplinas técnicas, responsáveis, prazos, progresso, revisões e situação.
 - **Busca** por texto e **filtros**: situação, cliente, responsável, disciplina e
   **"meus projetos"** (onde você é membro).
 - **Ordenação** por código, nome, situação ou cliente.
-- **Paginação** padrão (12/24/48 por página).
+- **Paginação** padrão (12/24/48 por página): o tamanho que você escolhe **fica guardado para aquela lista**.
 - O botão **Novo projeto** e as ações de edição aparecem apenas para quem tem
   **`projetos:gerir`**.
 
@@ -268,8 +268,9 @@ antiga não cria a pasta DWG.
 **A lista funciona como o Google Drive.** Cada nível mostra só o que está dentro dele, com as
 pastas no topo — clique numa pasta para entrar (a árvore da esquerda acompanha):
 
-- **Todos os documentos:** as pastas das disciplinas e, depois delas, as áreas do projeto
-  (Recebidos do cliente, Base Arquitetônica, Geral, ARTs).
+- **Todos os documentos:** as pastas das disciplinas e, depois delas, as **pastas do cliente**
+  (**Compartilhado** e **Liberado para obra**, veja abaixo) e as áreas do projeto (Recebidos do cliente,
+  Base Arquitetônica, Geral, ARTs). As áreas já abrem **abertas** na página delas.
 - **Disciplina:** as pastas das fases e, soltos, os documentos que ainda não têm fase.
 - **Fase:** as pastas dos formatos (PDF, DWG…).
 - **Formato:** as pranchas, cada uma **só com o arquivo daquele formato** — na pasta PDF, abrir,
@@ -454,6 +455,46 @@ link vazou) ou **apagar** de vez.
 As **ARTs** continuam saindo com o histórico completo de versões: são documento legal e o
 cliente precisa da série inteira.
 
+**Pastas Compartilhado e Liberado para obra (um link só).** Um link novo já nasce com essa opção ligada
+(dá para ligar ou desligar em cada link, no gerenciador): o cliente vê **duas pastas** no mesmo endereço —
+**Compartilhado** (o que foi enviado para a análise dele) e **Liberado para obra** —, cada uma com
+disciplina → fase → formato, e não mais "a última revisão validada de tudo". Um endereço só, de propósito:
+dois links confundiriam o cliente. O download de cada arquivo e o .zip seguem **a mesma regra** da página,
+então uma revisão tirada da pasta deixa de abrir mesmo para quem guardou o endereço. Links que já existiam
+continuam como eram até você ligar a opção neles.
+
+**Documento Obsoleto ou Arquivado não aparece em link nenhum** (de disciplinas ou do projeto inteiro): ele foi
+aposentado, e o cliente não pode seguir baixando como se valesse.
+
+### Status do documento e as pastas do cliente (aba Arquivos)
+
+Cada documento tem um **status documental**, com cor: **Em elaboração**, **Enviado**, **Em análise**,
+**Correção solicitada**, **Aprovado**, **Aprovado com ressalvas**, **Compartilhado**, **Liberado para obra**,
+**Obsoleto** e **Arquivado**. Ele aparece como etiqueta colorida na linha, no painel de detalhes e no
+visualizador, e muda no painel **Detalhes do documento** (a etiqueta da linha muda na hora).
+
+**O sistema anda sozinho com alguns:**
+
+- a **primeira revisão nova** enviada põe **Enviado**;
+- **validar a prancha** da revisão vigente põe **Aprovado** (se o documento ainda não estava aprovado);
+- desfazer a validação devolve o documento para **Enviado**; se foi **ajuste solicitado** ou envio de
+  **apontamentos**, vai para **Correção solicitada**.
+
+**Em análise**, **Aprovado com ressalvas** e os demais continuam sendo escolhidos por você. Documento
+**Obsoleto** ou **Arquivado** não muda sozinho. Cada troca automática fica no histórico do documento,
+marcada como "automático".
+
+**Compartilhado e Liberado para obra marcam a revisão.** Ao escolher um deles, o sistema guarda **qual
+revisão** foi para o cliente — a mais nova **com arquivo validado**; sem nenhuma, ele recusa ("Aprove a
+prancha antes de compartilhar"). Depois disso, a equipe pode enviar a R02, a R03… e o cliente **continua na
+revisão marcada**: só vê a nova quando alguém marcar de novo. Na linha, a etiqueta lembra ("Compartilhado
+R00") quando o cliente está numa revisão diferente da que a equipe está trabalhando.
+
+Na aba **Arquivos**, as duas pastas ficam na raiz, ao lado das disciplinas, e dentro delas a navegação é a de
+sempre (disciplina → fase → formato), **só com o que foi marcado**, cada documento na revisão marcada. Nada é
+copiado nem movido: é o mesmo arquivo visto por outro filtro. Para **tirar** um documento de uma pasta, use o
+botão direito na linha: **Tirar de Compartilhado (R00)** (o status volta a **Aprovado**).
+
 ### Histórico de cada documento (aba Arquivos)
 
 Clique no nome de um documento na tabela para abrir o painel de detalhes. No fim do painel,
@@ -481,6 +522,7 @@ abre exatamente as mesmas ações, e é o caminho para quem usa o teclado.
 
 - **Visualizar em nova aba** e **Comparar revisões** — o primeiro para documentos com PDF;
   comparar só aparece a partir da 2ª revisão.
+- **Tirar de Compartilhado** / **Tirar de Liberado para obra** — só aparece se o documento está na pasta.
 - **Baixar**, **Copiar link** e **Copiar nome**.
 - **Histórico de revisões**.
 - **Validar**, **Desfazer validação** e **Solicitar ajuste**.
@@ -507,7 +549,8 @@ No diretório geral (menu **Arquivos**) o botão direito funciona igual, dentro 
 ### Zoom e rabisco no visualizador de pranchas
 
 **A tela é da prancha.** Ao abrir uma prancha, o cabeçalho e as abas do projeto saem de cena (volte
-por **← Arquivos**) e o visualizador ocupa exatamente a altura da janela — a página não rola, só a
+por **← Arquivos**, que leva de volta **à mesma pasta, filtro e página** em que você estava; andar entre
+pranchas pelas setas não empilha histórico, então o **Voltar** do navegador também sai do visualizador) e o visualizador ocupa exatamente a altura da janela — a página não rola, só a
 prancha. Os painéis **Tarefas do documento** (à esquerda) e **Detalhes do apontamento** (à direita)
 vão do topo ao fim da tela; o nome do arquivo, a revisão, a situação e a barra de ferramentas ficam
 só em cima da prancha, entre os dois. Os painéis começam fechados quando a prancha não tem

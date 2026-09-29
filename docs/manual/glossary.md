@@ -110,7 +110,7 @@ se recalcularem em cadeia quando uma tarefa muda.
 inteiro atrasa. CPM é o nome do método de cálculo.
 
 **Linha de base (baseline, BL-00)** — A "foto" do cronograma no momento em que ele é aprovado: o
-**combinado**. Replanejar cria a BL-01, BL-02… com um motivo, e as anteriores **nunca mudam** — é contra
+**combinado**. **Nova linha de base** (o antigo *Replanejar*) cria a BL-01, BL-02… com um motivo, e as anteriores **nunca mudam** — é contra
 elas que o sistema mede o desvio.
 
 **Restrição de data (alfinete)** — Trava que prende uma tarefa a uma data, do jeito das restrições do MS

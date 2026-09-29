@@ -85,7 +85,7 @@ onde está. A linha de base não muda.
 
 **O que muda depois que aprovo o cronograma?**
 A aprovação congela a **linha de base** (BL-00) — o combinado —, e ela nunca é alterada. Ajustes de plano
-entram como **Replanejar** (BL-01, BL-02…), sempre com motivo, e o sistema mostra o desvio contra o
+entram como **Nova linha de base** (BL-01, BL-02…), sempre com motivo, e o sistema mostra o desvio contra o
 combinado.
 
 **O card do meu quadro de Tarefas não deixa mudar o prazo.**

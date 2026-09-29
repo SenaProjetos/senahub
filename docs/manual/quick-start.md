@@ -195,8 +195,9 @@ digite `25`; para 7,5%, digite `7,5`. O símbolo **%** já aparece no campo.
 - A maioria das listas tem um **campo de busca** (filtra por texto) e **filtros**
   específicos do módulo.
 - Cabeçalhos de coluna ordenáveis alternam **crescente/decrescente** ao clicar.
-- A **paginação** mostra 12 itens por padrão (também 24 ou 48). Ao mudar qualquer
-  filtro, a lista volta para a página 1 automaticamente.
+- A **paginação** mostra 12 itens por padrão (também 24 ou 48). O tamanho que você escolhe
+  **fica guardado para aquela lista** (Projetos, Tarefas, Clientes…) — 48 em uma não muda as outras. Ao mudar
+  qualquer filtro, a lista volta para a página 1 automaticamente.
 - Filtros, ordenação e página ficam na **URL** — você pode salvar nos favoritos ou
   compartilhar o link com a mesma visão.
 

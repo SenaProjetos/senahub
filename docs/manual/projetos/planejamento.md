@@ -2,8 +2,8 @@
 titulo: Planejamento (EAP e cronograma)
 descricao: Monte o cronograma do projeto como no MS Project — duração, dependências e calendário geram as datas; aprove a linha de base, acompanhe e replaneje.
 resumo: Cada projeto tem uma EAP (lista de tarefas em árvore) com duração, dependências e responsáveis. O sistema calcula as datas em dias úteis, mostra o caminho crítico, congela a linha de base ao aprovar, e permite acompanhar (datas reais, Data de Status, saúde) e replanejar com motivo.
-tags: [planejamento, eap, cronograma, gantt, linha de base, baseline, caminho crítico, dependência, marco, data de status, saúde do cronograma, replanejar, reagendar, ms project, gantt de controle, tabela do cronograma, escala, editar na célula, menu da linha, recuar, avançar, mover, arrastar, predecessoras]
-palavras-chave: [planejamento, eap, wbs, cronograma, gantt, linha de base, baseline, BL-00, aprovar cronograma, replanejar, reagendar, caminho crítico, folga, dependência, predecessora, latência, marco, restrição de data, alfinete, bloqueio, data de status, apurar, saúde do cronograma, atualizar tarefa, cronograma geral, TI, II, TT, IT, id da tarefa, número da linha, inserir tarefa, excluir tarefa, recolher, expandir, nível, subtarefa, agrupamento, gantt de controle, atalho, zoom, escala de tempo, duração zero, editar na tabela]
+tags: [planejamento, eap, cronograma, gantt, linha de base, baseline, nova linha de base, versões da linha de base, edt, código da eap, caminho crítico, dependência, marco, data de status, saúde do cronograma, replanejar, reagendar, ms project, gantt de controle, tabela do cronograma, escala, editar na célula, menu da linha, recuar, avançar, mover, arrastar, predecessoras]
+palavras-chave: [planejamento, eap, wbs, edt, código da tarefa, cronograma, gantt, linha de base, baseline, nova linha de base, comparar com, BL-00, BL-01, aprovar cronograma, replanejar, reagendar, caminho crítico, folga, dependência, predecessora, latência, marco, restrição de data, alfinete, bloqueio, data de status, apurar, saúde do cronograma, atualizar tarefa, cronograma geral, TI, II, TT, IT, id da tarefa, número da linha, inserir tarefa, excluir tarefa, recolher, expandir, nível, subtarefa, agrupamento, gantt de controle, atalho, zoom, escala de tempo, duração zero, editar na tabela]
 sinonimos: [cronograma de projeto, gantt, wbs, ms project, project, plano do projeto, linha de base do cronograma]
 ---
 
@@ -53,7 +53,7 @@ combinado original guardado para comparar.
 | **2. Início do projeto** | Define a data que ancora o cronograma. | **Definir início do projeto** |
 | **3. Aprovar** | Congela a **linha de base BL-00**, cria os cards de quem está escalado. | **Aprovar cronograma** |
 | **4. Acompanhar** | Informa datas reais, a Data de Status, e confere a saúde. | **Atualizar tarefa**, **Apurar** |
-| **5. Replanejar** | Nova versão da linha de base (BL-01, BL-02…), com motivo. | **Replanejar** |
+| **5. Nova linha de base** | Nova versão da linha de base (BL-01, BL-02…), com motivo; a anterior fica guardada. | **Nova linha de base** |
 
 ## Como o cronograma calcula as datas
 
@@ -65,7 +65,7 @@ Se você usa o MS Project, isto será familiar:
 | Duração | **Duração**, em **dias úteis** |
 | Predecessoras (TI, II, TT, IT) e latência | **Depende de**: FS, SS, FF, SF, com **atraso** em dias úteis |
 | Restrições de tarefa | **Restrição de data** (6 tipos) — marcada com o **alfinete** |
-| Salvar linha de base | **Aprovar cronograma** (BL-00) e **Replanejar** (BL-01…) |
+| Salvar linha de base | **Aprovar cronograma** (BL-00) e **Nova linha de base** (BL-01…) |
 | Data de status | **Data de Status** (botão **Apurar**) |
 | Atualizar projeto → Reprogramar trabalho não concluído para iniciar após | **Apurar** faz isso sozinho (veja abaixo) |
 | Caminho crítico e folga total | **Caminho crítico** (folga 0) e **folga** |
@@ -200,9 +200,12 @@ base). Em **rascunho** ainda não existe card nem previsão de recebimento: o cr
 A tela segue o layout do MS Project: a **tabela** à esquerda e o **gráfico** à direita, nas mesmas
 linhas, numa área de rolagem só (a tabela fica presa à esquerda e o cabeçalho em cima).
 
-- **Duas visões**, como no Project: **Gráfico de Gantt** (planejamento: Nº, Nome da tarefa, Duração,
+- **Duas visões**, como no Project: **Gráfico de Gantt** (planejamento: EDT, Nome da tarefa, Duração,
   Início, Término, Predecessoras e Nomes dos recursos) e **Gantt de Controle** (acompanhamento: % concluído,
-  datas, linha de base e **Desvio**, com a barra da linha de base logo abaixo da barra prevista).
+  datas, linha de base e **Desvio**, com a barra da linha de base — **cinza escuro e fininha** — logo abaixo
+  da barra prevista). Com mais de uma versão da linha de base, **Comparar com** escolhe qual delas o
+  controle desenha e usa no Desvio (veja **Nova linha de base**, abaixo). As linhas de **agrupamento** têm um
+  fundo um pouco mais escuro que as tarefas, para a estrutura saltar aos olhos.
 - **Filtros:** **Todas**, **Atrasadas**, **Críticas**, **Bloqueadas**. **Lookahead:** **Tudo**,
   **7**, **15** ou **30 dias** (só o que começa ou termina no período). Com filtro ativo a tela mostra só
   as linhas que casaram, sem esconder nível; o editor continua vendo a EAP inteira.
@@ -210,10 +213,11 @@ linhas, numa área de rolagem só (a tabela fica presa à esquerda e o cabeçalh
   sobre semana, ano sobre mês). Os **fins de semana e feriados** vêm sombreados — o mesmo calendário que
   agenda as tarefas. **Hoje** rola o gráfico até a data de hoje.
 - **Níveis:** o triângulo antes do nome **recolhe** ou **expande** um agrupamento; **Recolher** e
-  **Expandir** fazem isso com todos. O **Nº** é a posição da linha na lista completa (o "Id" do Project) e
-  não muda ao recolher ou filtrar — é o número que a coluna **Predecessoras** cita.
-- **Predecessoras:** escritas como no Project: `3` (término→início), `3TI+2d` (com espera de 2 dias
-  úteis), `5II`, `2TT-1d`. **TI/II/TT/IT** = término→início, início→início, término→término,
+  **Expandir** fazem isso com todos. O **EDT** é o **código da linha na EAP** — 1, 1.1, 1.1.1… (a EDT do Project). Ele se
+  **refaz sozinho** quando você move, insere ou exclui linhas (mover a fase 33 para o lugar da 43 renumera tudo
+  o que está dentro dela), não muda ao recolher ou filtrar, e é o que a coluna **Predecessoras** cita.
+- **Predecessoras:** escritas como no Project, com o **código da tarefa**: `1.2` (término→início), `1.2TI+2d`
+  (com espera de 2 dias úteis), `1.5II`, `2.1TT-1d`. **TI/II/TT/IT** = término→início, início→início, término→término,
   início→término. As setas do gráfico seguem o tipo de cada vínculo.
 - **Barras:** a barra colorida é a **previsão**, preenchida até o **progresso**; a barra preta com pontas
   é o **agrupamento**; o **marco** é um losango; o **caminho crítico** fica em vermelho; **cadeado** =
@@ -225,8 +229,9 @@ linhas, numa área de rolagem só (a tabela fica presa à esquerda e o cabeçalh
   **Duplo clique** na linha (ou **Enter** com a linha selecionada) abre a janela completa; **F2** edita o
   nome. Agrupamento só edita o nome — o resto deriva das tarefas dentro dele.
   - **Duração:** `5` ou `5d` (dias úteis; aceita `1,5`). **`0`** ou **`marco`** transforma a tarefa em marco.
-  - **Predecessoras:** `3`, `3TI+2d`, `5II`, `2TT-1d`, vários separados por `;`. O número é o **Nº** da
-    linha. Aceita as siglas do Project em português (**TI, II, TT, IT**) e em inglês (**FS, SS, FF, SF**).
+  - **Predecessoras:** `1.2`, `1.2TI+2d`, `1.5II`, `2.1TT-1d`, vários separados por `;`. O número é o **EDT** da
+    linha. **A dependência segue a tarefa, não o código:** ao mover uma linha, o texto das que dependem dela passa
+    a citar o código novo, mas continuam dependendo da mesma tarefa. Aceita as siglas do Project em português (**TI, II, TT, IT**) e em inglês (**FS, SS, FF, SF**).
     O atraso é em dias úteis. O sistema recusa vínculo que criaria ciclo, mesmo que o texto esteja certo.
   - Cada gravação recalcula o cronograma; várias em sequência entram na fila e são gravadas uma de cada vez.
 - **Menu da linha** (botão direito, ou o botão **⋯** da coluna Ações): **Informações da tarefa** (a janela
@@ -244,7 +249,7 @@ linhas, numa área de rolagem só (a tabela fica presa à esquerda e o cabeçalh
     lugar da tela.
   - **Mover para cima/baixo** troca a tarefa de lugar com a vizinha do mesmo nível. **Tudo o que está dentro
     dela vai junto**: mover uma fase leva as disciplinas e as tarefas dela.
-  - **Arrastar:** passe o mouse na linha e segure a alça **⋮⋮** da coluna **Nº**. Um traço mostra onde ela
+  - **Arrastar:** passe o mouse na linha e segure a alça **⋮⋮** da coluna **EDT**. Um traço mostra onde ela
     vai cair: acima ou abaixo da linha sob o mouse, **no nível dela** — é assim que se tira uma tarefa de um
     agrupamento e se põe em outro. Soltar logo abaixo de um agrupamento aberto põe a tarefa como a primeira
     dele. Não se solta uma tarefa dentro dela mesma. Com filtro ligado não há alça (use o menu). A
@@ -323,12 +328,21 @@ termina antes da Data de Status, então ela não serve de régua. O filtro **Atr
 mesma régua. "Sem horas previstas" e "agrupamento com gente atribuída" não pesam
 na nota.
 
-### Replanejar
+### Nova linha de base
 
-Depois de aprovado, o cronograma **não se edita "por cima"**: para mudar o combinado, use
-**Replanejar**, informe o **motivo** (obrigatório) e confirme. Isso cria **BL-01** (depois BL-02…), e
-as versões anteriores **ficam guardadas**. É o que responde, no fim do projeto, "por que o prazo
-andou?". A tela compara sempre com a linha de base **mais recente**. Exige `cronograma:aprovar`.
+A linha de base aprovada **nunca é sobrescrita**. Quando o combinado muda — atraso do cliente, aditivo de
+contrato, uma disciplina que entrou no meio do caminho — use **Nova linha de base** (o antigo *Replanejar*):
+informe o **motivo** (obrigatório) e confirme. O cronograma de hoje vira a nova referência (**BL-01**, depois
+BL-02…) e as anteriores **ficam guardadas**. É o que responde, no fim do projeto, "por que o prazo andou?".
+Exige `cronograma:aprovar`.
+
+- **Versões da linha de base** (no painel de saúde): cada versão com o **motivo**, a **data**, o **autor** e
+  quantas linhas guardou; a mais nova aparece como **atual**.
+- **Comparar com** (no **Gantt de Controle**, quando há mais de uma versão): escolhe com qual delas o plano de
+  hoje é comparado. A barra, as colunas de início/término base e o **Desvio**, a legenda ("Linha de base
+  BL-00") e o resumo acima do gráfico acompanham a escolha. Uma tarefa que **não existia** naquela versão
+  fica sem linha de base — comparar com nada é mais honesto que comparar com a de hoje. Sem escolher, vale
+  sempre a mais recente.
 
 ## 4. Ligações com o resto do sistema
 
@@ -364,7 +378,7 @@ andou?". A tela compara sempre com a linha de base **mais recente**. Exige `cron
 | Ver as **datas**: Gantt, prazos, linha de base, Cronograma geral, Saúde, Valor Agregado, exportar Excel e PDF | `planejamento:gerir`, `cronograma:ver`, `cronograma:executado` ou `cronograma:aprovar` |
 | Montar e editar a EAP (tarefas, dependências, restrição, bloqueio, recursos, reagendar, aplicar ao projeto) | `planejamento:gerir` |
 | Definir a Data de Status (**Apurar**) e **Atualizar tarefa** (datas reais) | `cronograma:executado` |
-| **Aprovar** o cronograma e **Replanejar** | `cronograma:aprovar` |
+| **Aprovar** o cronograma e criar **Nova linha de base** | `cronograma:aprovar` |
 | Ver a coluna **Custo** e o valor em R$ do Valor Agregado | acesso ao financeiro (`financeiro:ver` ou sócio) |
 | Aprovar a **fase** a partir do marco concluído | `aprovacoes:disciplina` |
 
@@ -382,7 +396,7 @@ confira lá o que vale no seu escritório.
 ## Regras de negócio
 
 - **A duração e as dependências mandam nas datas**; salvar recalcula o projeto inteiro.
-- **Aprovar exige zero erro** do verificador e **replanejar exige motivo**.
+- **Aprovar exige zero erro** do verificador e **a nova linha de base exige motivo**.
 - **A linha de base nunca é sobrescrita.** Cada versão guarda autor, data e motivo.
 - **O % de cada atividade é informado** pela coordenação; o sistema só sugere.
 - **Bloqueio não pausa o prazo.** Férias **não movem** datas.
@@ -416,8 +430,8 @@ ninguém mexer no cronograma.
 **Por que não consigo aprovar?** Há **erros** do verificador (abra **Achados do verificador**), ou
 falta **definir o início do projeto**. Corrija e tente de novo.
 
-**Aprovei e preciso mudar uma data. E agora?** Use **Replanejar** com o motivo. A linha de base
-anterior fica guardada.
+**Aprovei e preciso mudar uma data. E agora?** Use **Nova linha de base** com o motivo. A linha de base
+anterior fica guardada, e o Gantt de Controle deixa comparar com qualquer versão.
 
 **O que é a Data de Status?** O dia em que você declara o estado do cronograma. Sem ela, o sistema
 não separa "atrasado" de "ainda não apurado".

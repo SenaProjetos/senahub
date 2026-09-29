@@ -22,6 +22,40 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Reunião de 29/09: arquivos para o cliente, status do documento e cronograma
+
+**Arquivos**
+
+- **Status do documento com cor**, e o novo status **Compartilhado**. O sistema anda sozinho com parte do
+  fluxo: enviar uma revisão põe **Enviado**; validar a prancha põe **Aprovado**. Trocar o status em
+  **Detalhes do documento** já muda a etiqueta da linha na hora.
+- **Pastas Compartilhado e Liberado para obra** na aba Arquivos. Marcar um documento com um desses status guarda
+  **qual revisão** foi para o cliente: a equipe segue enviando revisões novas e o cliente continua vendo a
+  marcada, até alguém marcar de novo. Para tirar, botão direito → **Tirar de…**.
+- **Link público com as duas pastas** (um endereço só). Links novos já nascem assim; os que existiam ficam
+  como eram. Documento **Obsoleto** ou **Arquivado** deixa de aparecer nos links.
+- **← Arquivos** no visualizador volta **à mesma pasta e página** em que você estava, e andar entre pranchas
+  não enche o histórico do navegador.
+- A **Base Arquitetônica**, as **ARTs** e a **Lixeira** abrem já abertas.
+
+**Listas**
+
+- O **tamanho da página** (12, 24 ou 48) fica guardado **por lista**: 48 em Projetos não muda Tarefas.
+
+**Planejamento**
+
+- A coluna **Nº** virou **EDT**: o código da linha na EAP (**1, 1.1, 1.1.1…**), que se refaz sozinho ao
+  mover linhas. As **predecessoras** agora citam esse código (`1.2TI+2d`).
+- **Nova linha de base** (o antigo *Replanejar*), com a **lista das versões** e o **Comparar com** no Gantt de
+  Controle para ver o desvio contra a BL-00, a BL-01…
+- A linha de base aparece sempre em **cinza escuro**, fininha, e as linhas de agrupamento ficaram um pouco
+  mais escuras.
+- No modelo de EAP, definir a **disciplina de um agrupamento** vale para tudo dentro dele; a tela avisa o que
+  entra sem disciplina e o que não virou modelo.
+
+> O módulo de Planejamento foi publicado, mas o time só vai **usá-lo depois da validação** em reuniões nesta
+> semana — por isso os projetos em andamento seguem como estão.
+
 ## Projeto: a aba Extras saiu, o que era útil foi para o lugar certo
 
 - **Riscos na Visão Geral:** **Ver todos**, no painel **Riscos em destaque**, abre a lista inteira.

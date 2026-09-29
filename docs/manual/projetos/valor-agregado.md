@@ -87,7 +87,7 @@ O cálculo é o mesmo nas duas; só muda a régua.
 
 - **"—" com motivo, nunca zero.** Se uma atividade da linha de base **não tem horas** (ou **não tem
   custo**: vaga sem pessoa, pessoa sem custo por hora, ou linha de base aprovada antes do custo
-  previsto existir), a régua inteira fica **sem número** e diz o que completar — e **replanejar**
+  previsto existir), a régua inteira fica **sem número** e diz o que completar — e uma **nova linha de base**
   gera uma nova linha de base. Um índice calculado sobre orçamento incompleto é pior que nenhum.
 - **Alguém apontou horas sem custo por hora cadastrado:** o CR **em R$** fica desconhecido (as horas
   seguem somando). Cadastre o custo em [Recursos](recursos.md).
@@ -121,7 +121,7 @@ de Status naquele momento), então reapurar uma data passada devolve o mesmo nú
 - **A linha de base não se move** com as datas reais: é o combinado. As datas reais e a Data de Status
   movem a **previsão** do cronograma, mas o Valor Agregado mede contra a linha de base. A estimativa no
   término é só de **custo** (ENT/VNT) — ainda não há estimativa de **prazo** pelo ritmo observado.
-- **Mede contra a linha de base mais recente.** Depois de **replanejar**, a régua passa a ser a
+- **Mede contra a linha de base mais recente.** Depois de uma **nova linha de base**, a régua passa a ser a
   nova versão (BL-01, BL-02…).
 
 ## Permissões

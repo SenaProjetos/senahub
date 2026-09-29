@@ -130,7 +130,7 @@ filhas**, e o topo da tela mostra o **custo previsto do projeto**.
   **sem custo por hora cadastrado** fica **s/ custo** — passe o mouse para ver o que falta. O total
   do projeto aparece então como **incompleto**, com o número de linhas sem custo.
 - **Marco** e **etapa de terceiro** custam zero (é o valor certo, não a falta dele).
-- Ao **aprovar** ou **replanejar**, o custo de cada linha fica **guardado na linha de base**. Mudar o
+- Ao **aprovar** ou criar uma **nova linha de base**, o custo de cada linha fica **guardado na linha de base**. Mudar o
   custo por hora de alguém depois não altera o que foi combinado.
 - **Exportar Excel** traz a coluna de custo, com o desconhecido em branco.
 - Quem **não** vê o financeiro não recebe a coluna, o total nem a coluna de R$ do

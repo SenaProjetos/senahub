@@ -138,13 +138,16 @@ Abra o modelo em **Modelos de EAP**. Ele aparece no mesmo Gantt da EAP do projet
 a lado), e quem **monta a EAP** (`planejamento:gerir`) edita do mesmo jeito que num projeto:
 
 - **Na célula:** clique no nome, na duração ou nas predecessoras. Duração `0` vira **marco**;
-  predecessora se escreve como no Project (`3TI+2d`, `5II`).
+  predecessora se escreve como no Project, com o código da tarefa (`1.2TI+2d`, `1.5II`).
 - **No menu da linha** (botão direito, toque e segure, ou o `⋯`): **Inserir tarefa acima**,
   **Recuar**, **Avançar**, **Mover para cima/baixo** e **Excluir** (com as subtarefas). Atalhos: `Insert`,
   `Delete`, `Alt+Shift+→` / `Alt+Shift+←`, `Alt+Shift+↑` / `Alt+Shift+↓`, `F2` para renomear.
-- **Arrastando a linha** pela alça **⋮⋮** da coluna Nº, como no Project: mover uma fase ou disciplina leva
+- **Arrastando a linha** pela alça **⋮⋮** da coluna EDT, como no Project: mover uma fase ou disciplina leva
   tudo o que está dentro dela.
-- **Na janela da linha** (duplo clique ou `Enter`): **disciplina**, **fase** e **etapa de terceiro**.
+- **Na janela da linha** (duplo clique ou `Enter`): **disciplina**, **fase** e **etapa de terceiro**. Num
+  **agrupamento**, a disciplina e a fase valem para **tudo o que está dentro dele** (o que já tem outra
+  disciplina fica como está), e o agrupamento passa a ser "disciplina" — é assim que se corrige o que a
+  importação não reconheceu (por exemplo, o agrupamento **GLP** que devia ser **Gás**).
 - **Adicionar tarefa** põe uma linha nova no fim; recue para colocá-la dentro de um agrupamento.
 
 **Nada é gravado até você clicar em Salvar.** Enquanto houver mudança, a tela mostra "Alterações não
