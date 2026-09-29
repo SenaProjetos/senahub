@@ -7,6 +7,8 @@
  *  - `acesso`: quem baixou/visualizou — monitoramento de colegas, só com `arquivos:ver_acessos`.
  */
 
+import { rotuloRevisao } from "@/lib/utils";
+
 export type CategoriaEvento = "alteracao" | "acesso";
 export type OrigemEvento = "interno" | "link_publico";
 
@@ -29,6 +31,8 @@ export const TIPOS_EVENTO = {
   aceite_revogado: { categoria: "alteracao", rotulo: "Revogou link de aceite do cliente" },
   lista_adicionado: { categoria: "alteracao", rotulo: "Adicionou a uma lista" },
   lista_removido: { categoria: "alteracao", rotulo: "Removeu de uma lista" },
+  situacao_marcada: { categoria: "alteracao", rotulo: "Pôs na pasta do cliente" },
+  situacao_retirada: { categoria: "alteracao", rotulo: "Tirou da pasta do cliente" },
   download: { categoria: "acesso", rotulo: "Baixou" },
   visualizacao: { categoria: "acesso", rotulo: "Visualizou" },
 } as const satisfies Record<string, { categoria: CategoriaEvento; rotulo: string }>;
@@ -143,6 +147,12 @@ export function complementoEvento(tipo: TipoEvento, detalhe: unknown): string | 
     case "lista_adicionado":
     case "lista_removido":
       return texto("lista");
+    case "situacao_marcada":
+    case "situacao_retirada": {
+      const pasta = texto("pasta");
+      const revisao = typeof d.revisao === "number" ? rotuloRevisao(d.revisao) : null;
+      return [pasta, revisao].filter(Boolean).join(" · ") || null;
+    }
     case "envio": {
       // Só o que ESTE envio classificou (o motor de nomenclatura não sobrescreve o que já
       // existia, então a ausência aqui significa "não mexeu", não "não tem").

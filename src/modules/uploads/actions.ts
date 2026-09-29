@@ -25,6 +25,15 @@ import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { expiraAceiteEm, linkAceiteEstaAtivo } from "@/modules/uploads/aceite";
 import { registrarEventoDocumento, registrarEventoUploads } from "@/modules/uploads/historico/service";
 import { statusAposDesvalidacao, statusAposValidacao } from "@/modules/uploads/status-automatico";
+import {
+  CAMPO_DA_SITUACAO,
+  ROTULO_SITUACAO,
+  SITUACOES,
+  revisaoParaMarcar,
+  situacaoDoStatus,
+  statusAoRetirar,
+  type Situacao,
+} from "@/modules/uploads/revisao-marcada";
 import { camposAlterados } from "@/modules/uploads/historico/eventos";
 import { historicoDocumento } from "@/modules/uploads/historico/queries";
 
@@ -1464,6 +1473,20 @@ const atualizarStatusDocumentoSchema = z.object({
   statusId: z.string().min(1).nullable(),
 });
 
+const retirarDaSituacaoSchema = z.object({
+  documentoId: z.string().min(1),
+  situacao: z.enum(SITUACOES as [Situacao, ...Situacao[]]),
+});
+
+/** Revisões do documento com a marca de "tem arquivo validado fora da lixeira" — o que `revisaoParaMarcar` lê. */
+async function revisoesParaMarcar(documentoId: string) {
+  const revisoes = await prisma.documentoRevisao.findMany({
+    where: { documentoId },
+    select: { id: true, numero: true, uploads: { where: { excluidoEm: null, validado: true }, select: { id: true }, take: 1 } },
+  });
+  return revisoes.map((r) => ({ id: r.id, numero: r.numero, temArquivoValidado: r.uploads.length > 0 }));
+}
+
 type DisciplinaDoDocumento = { projetoId: string; responsaveis: { userId: string }[] };
 
 /** A muralha de escrita é a mesma de Upload, mas o id público desta ação é o DocumentoDisciplina. */
@@ -1625,7 +1648,7 @@ export const atualizarStatusDocumento = defineAction(
     capturarAntes: (input) =>
       prisma.documentoDisciplina.findUnique({
         where: { id: input.documentoId },
-        select: { statusId: true, disciplinaId: true },
+        select: { statusId: true, disciplinaId: true, revisaoCompartilhadaId: true, revisaoLiberadaObraId: true },
       }),
   },
   async (input, { user }) => {
@@ -1633,13 +1656,24 @@ export const atualizarStatusDocumento = defineAction(
     await exigirEscopoDocumento(user, documento.disciplina);
 
     let nomeNovo: string | null = null;
+    let situacao: Situacao | null = null;
     if (input.statusId) {
       const status = await prisma.documentoStatus.findFirst({
         where: { id: input.statusId, ativo: true },
-        select: { id: true, nome: true },
+        select: { id: true, nome: true, chave: true },
       });
       if (!status) throw new ActionError("O status selecionado não está ativo.");
       nomeNovo = status.nome;
+      situacao = situacaoDoStatus(status.chave);
+    }
+
+    // "Compartilhado" e "Liberado para obra" põem o documento na pasta do cliente, na revisão mais nova com
+    // arquivo validado (revisao-marcada.ts). Revisão nova depois disso não move a marca.
+    let marcada: { revisaoId: string; numero: number } | null = null;
+    if (situacao) {
+      const r = revisaoParaMarcar(await revisoesParaMarcar(documento.id), situacao);
+      if (!r.ok) throw new ActionError(r.motivo);
+      marcada = r;
     }
 
     const atual = await prisma.documentoDisciplina.findUnique({
@@ -1648,7 +1682,7 @@ export const atualizarStatusDocumento = defineAction(
     });
     await prisma.documentoDisciplina.update({
       where: { id: documento.id },
-      data: { statusId: input.statusId },
+      data: { statusId: input.statusId, ...(situacao && marcada ? { [CAMPO_DA_SITUACAO[situacao]]: marcada.revisaoId } : {}) },
     });
     const de = atual?.status?.nome ?? null;
     if (de !== nomeNovo) {
@@ -1659,10 +1693,78 @@ export const atualizarStatusDocumento = defineAction(
         detalhe: { de, para: nomeNovo },
       });
     }
+    if (situacao && marcada) {
+      await registrarEventoDocumento({
+        documentoId: documento.id,
+        tipo: "situacao_marcada",
+        userId: user.id,
+        detalhe: { pasta: ROTULO_SITUACAO[situacao], revisao: marcada.numero },
+      });
+    }
     // Sem `revalidarArquivos` de propósito: `revalidatePath` faz o Next re-renderizar a página de
     // Arquivos inteira DENTRO da resposta desta action, e o painel ficava com o botão travado
     // durante essa renderização (a rota é pesada). O painel atualiza a si mesmo na hora e pede
     // `router.refresh()` em segundo plano; as rotas são dinâmicas, então nenhuma outra fica velha.
+    return { documentoId: documento.id };
+  },
+);
+
+/**
+ * Tira o documento de uma pasta do cliente ("Compartilhado" ou "Liberado para obra"). O arquivo continua
+ * onde está; só sai do link. Se o status era o da própria pasta, volta a "Aprovado" (`statusAoRetirar`).
+ */
+export const retirarDocumentoDaSituacao = defineAction(
+  {
+    modulo: "uploads",
+    acao: "retirar-documento-situacao",
+    recurso: "arquivos",
+    permissao: "alterar_status",
+    entidade: "DocumentoDisciplina",
+    schema: retirarDaSituacaoSchema,
+    entidadeId: (data) => (data as { documentoId: string }).documentoId,
+    capturarAntes: (input) =>
+      prisma.documentoDisciplina.findUnique({
+        where: { id: input.documentoId },
+        select: { statusId: true, revisaoCompartilhadaId: true, revisaoLiberadaObraId: true },
+      }),
+  },
+  async (input, { user }) => {
+    const documento = await carregarDocumentoEditavel(input.documentoId);
+    await exigirEscopoDocumento(user, documento.disciplina);
+
+    const atual = await prisma.documentoDisciplina.findUnique({
+      where: { id: documento.id },
+      select: {
+        status: { select: { nome: true, chave: true } },
+        revisaoCompartilhada: { select: { numero: true } },
+        revisaoLiberadaObra: { select: { numero: true } },
+      },
+    });
+    const revisao = input.situacao === "compartilhado" ? atual?.revisaoCompartilhada : atual?.revisaoLiberadaObra;
+    if (!revisao) throw new ActionError(`Este documento não está na pasta "${ROTULO_SITUACAO[input.situacao]}".`);
+
+    const voltaPara = statusAoRetirar(atual?.status?.chave, input.situacao);
+    const statusNovo = voltaPara
+      ? await prisma.documentoStatus.findFirst({ where: { chave: voltaPara, ativo: true }, select: { id: true, nome: true } })
+      : null;
+    await prisma.documentoDisciplina.update({
+      where: { id: documento.id },
+      data: { [CAMPO_DA_SITUACAO[input.situacao]]: null, ...(statusNovo ? { statusId: statusNovo.id } : {}) },
+    });
+    await registrarEventoDocumento({
+      documentoId: documento.id,
+      tipo: "situacao_retirada",
+      userId: user.id,
+      detalhe: { pasta: ROTULO_SITUACAO[input.situacao], revisao: revisao.numero },
+    });
+    if (statusNovo) {
+      await registrarEventoDocumento({
+        documentoId: documento.id,
+        tipo: "status",
+        userId: user.id,
+        detalhe: { de: atual?.status?.nome ?? null, para: statusNovo.nome },
+      });
+    }
     return { documentoId: documento.id };
   },
 );

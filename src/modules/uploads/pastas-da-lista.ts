@@ -2,14 +2,19 @@
  * Pastas na lista de documentos (regra pura, sem I/O): a aba Arquivos navegada como o Google
  * Drive — cada nível mostra só o que está DIRETAMENTE nele, com as subpastas no topo.
  *
- *   raiz        → pastas das disciplinas + áreas do projeto (Recebidos, Base, Geral, ARTs)
+ *   raiz        → pastas das disciplinas + pastas do cliente (Compartilhado, Liberado para obra)
+ *                 + áreas do projeto (Recebidos, Base, Geral, ARTs)
  *   disciplina  → pastas das fases + documentos sem fase, soltos
  *   fase        → pastas dos formatos (PDF, DWG… e Outros)
  *   formato     → os documentos, cada um só com o arquivo daquele formato
  *
  * São os mesmos nós de `montarArvoreNavegacao`, com as mesmas contagens: a pasta da lista é o
  * mesmo filtro da árvore da esquerda. "Sem fase" deixou de ser pasta — o documento sem fase mora
- * solto na disciplina. Busca e filtros não navegam: com eles a lista é resultado de pesquisa,
+ * solto na disciplina.
+ *
+ * As pastas do cliente (reunião de 29/09/2026) não são outro lugar: são `?situacao=` por cima da mesma
+ * navegação — dentro de "Compartilhado" a raiz volta a ser disciplina → fase → formato, só com o que foi
+ * marcado, na revisão marcada. Nada é copiado nem movido. Busca e filtros não navegam: com eles a lista é resultado de pesquisa,
  * corrida, e quem decide isso é a página (`nivelDaPasta` só lê a posição na árvore).
  */
 import type { StatusDisciplina } from "@/generated/prisma/client";
@@ -31,6 +36,8 @@ export type DestinoPasta = {
   area: string | null;
   ano?: string | null;
   projetoId?: string | null;
+  /** Pasta do cliente (`compartilhado` | `liberado_obra`). Ausente = continua a da URL. */
+  situacao?: string | null;
 };
 
 /** Recorte do .zip de uma pasta (`/api/uploads/pasta/zip`). */
@@ -38,9 +45,11 @@ export type RecorteZipPasta = { disciplinaId: string; fase: string | null; ext: 
 
 export type DisciplinaDaPasta = { id: string; nome: string; status: StatusDisciplina; total: number };
 export type AreaDaPasta = { id: string; rotulo: string; total: number };
+/** Pasta do cliente na raiz: `id` é a situação (`compartilhado` | `liberado_obra`). */
+export type SituacaoDaPasta = { id: string; rotulo: string; total: number };
 
 export type PastaNaLista = {
-  tipo: "ano" | "projeto" | "disciplina" | "fase" | "extensao" | "area";
+  tipo: "ano" | "projeto" | "disciplina" | "fase" | "extensao" | "area" | "situacao";
   chave: string;
   rotulo: string;
   /** Nome por extenso da fase, para o `title`; `null` quando o rótulo já diz tudo. */
@@ -52,7 +61,7 @@ export type PastaNaLista = {
   /** Documentos distintos no nó — a mesma conta da árvore. Na área, os itens dela. */
   total: number;
   destino: DestinoPasta;
-  /** `null` = pasta sem .zip (área do projeto, que tem tela própria, ou pasta vazia). */
+  /** `null` = pasta sem .zip (área do projeto, pasta do cliente, ou pasta vazia). */
   zip: RecorteZipPasta | null;
 };
 
@@ -88,14 +97,15 @@ export function nivelDaPasta(selecaoBruta: SelecaoPasta): NivelPasta | null {
  * Subpastas do nível aberto, na ordem da árvore. Vazio no formato (folha) e fora da árvore.
  *
  * Na raiz entram TODAS as disciplinas visíveis, inclusive as sem documento — a árvore também as
- * mostra, e é por elas que se chega ao "envie o primeiro arquivo" — e depois as áreas que quem
- * chama liberou.
+ * mostra, e é por elas que se chega ao "envie o primeiro arquivo" —, depois as pastas do cliente e as
+ * áreas que quem chama liberou.
  */
 export function pastasDoNivel(
   selecaoBruta: SelecaoPasta,
   disciplinas: DisciplinaDaPasta[],
   arvore: ArvoreDaDisciplina[],
   areas: AreaDaPasta[] = [],
+  situacoes: SituacaoDaPasta[] = [],
 ): PastaNaLista[] {
   const selecao = normalizar(selecaoBruta);
   const nivel = nivelDaPasta(selecao);
@@ -112,6 +122,18 @@ export function pastasDoNivel(
         total: d.total,
         destino: destino(d.id),
         zip: d.total > 0 ? { disciplinaId: d.id, fase: null, ext: null } : null,
+      })),
+      ...situacoes.map((s): PastaNaLista => ({
+        tipo: "situacao",
+        chave: `situacao:${s.id}`,
+        rotulo: s.rotulo,
+        titulo: "O que o cliente vê no link",
+        status: null,
+        disciplinaNome: null,
+        total: s.total,
+        destino: { disciplinaId: null, fase: null, ext: null, area: null, situacao: s.id },
+        // O .zip da pasta leva a revisão VIGENTE; aqui vale a marcada — o cliente baixa pelo link.
+        zip: null,
       })),
       ...areas.map((a): PastaNaLista => ({
         tipo: "area",

@@ -6591,6 +6591,14 @@ model DocumentoDisciplina {
   subdisciplina   SubdisciplinaCatalogo? @relation(fields: [subdisciplinaId], references: [id], onDelete: SetNull)
   statusId        String?
   status          DocumentoStatus?       @relation(fields: [statusId], references: [id], onDelete: SetNull)
+  /// Revisão que o CLIENTE vê nas pastas do link ("Compartilhado" e "Liberado para obra"), marcada ao
+  /// pôr o status correspondente (reunião de 29/09/2026). Revisão nova NÃO move o ponteiro: a equipe
+  /// segue versionando e o cliente só vê a próxima quando alguém marcar de novo. Nulo = fora da pasta.
+  /// Regras em modules/uploads/revisao-marcada.ts.
+  revisaoCompartilhadaId String?
+  revisaoCompartilhada   DocumentoRevisao? @relation("RevisaoCompartilhada", fields: [revisaoCompartilhadaId], references: [id], onDelete: SetNull)
+  revisaoLiberadaObraId  String?
+  revisaoLiberadaObra    DocumentoRevisao? @relation("RevisaoLiberadaObra", fields: [revisaoLiberadaObraId], references: [id], onDelete: SetNull)
   createdAt       DateTime               @default(now())
 
   /// Documento que absorveu este (merge por nome-base, M4). Quando preenchido, esta linha
@@ -6617,6 +6625,8 @@ model DocumentoDisciplina {
   @@index([tamanhoPapelId])
   @@index([subdisciplinaId])
   @@index([statusId])
+  @@index([revisaoCompartilhadaId])
+  @@index([revisaoLiberadaObraId])
   @@map("documento_disciplina")
 }
 
@@ -6704,6 +6714,9 @@ model DocumentoRevisao {
   uploads             Upload[]
   pendenciasOrigem    Pendencia[] @relation("PendenciaRevisaoOrigem")
   pendenciasResolucao Pendencia[] @relation("PendenciaRevisaoResolucao")
+  /// Documentos que mostram ESTA revisão ao cliente (ponteiros em DocumentoDisciplina).
+  compartilhadaEm     DocumentoDisciplina[] @relation("RevisaoCompartilhada")
+  liberadaObraEm      DocumentoDisciplina[] @relation("RevisaoLiberadaObra")
 
   @@unique([documentoId, numero])
   @@index([documentoId])

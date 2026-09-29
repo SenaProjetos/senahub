@@ -28,9 +28,10 @@ import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
 import { CartaoPasta, LinhaPasta, useNavegacaoPastas } from "@/components/projetos/arquivos/pastas-na-lista";
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
 import type { NivelPasta, PastaNaLista } from "@/modules/uploads/pastas-da-lista";
-import { ACAO_DETALHES, type DocumentoParaAcoes } from "@/modules/uploads/acoes-documento";
+import { ACAO_DETALHES, documentoParaAcoes, type DocumentoParaAcoes } from "@/modules/uploads/acoes-documento";
 import { cn, formatarData, formatarDataHora, rotuloRevisao } from "@/lib/utils";
 import { classeDoStatus } from "@/modules/uploads/status-documento";
+import { ROTULO_SITUACAO, marcasVisiveis } from "@/modules/uploads/revisao-marcada";
 
 /** Colunas opcionais da tabela, na ordem em que aparecem — o nome da pasta atravessa todas. */
 const COLUNAS_OPCIONAIS = ["numero", "fase", "sub", "tipo", "revisao", "validado", "extensao", "papel", "responsavel", "data", "tamanho"];
@@ -53,18 +54,38 @@ function estadoValidacao(arquivos: LinhaDoc["arquivos"]): "validado" | "pendente
  * As ações agem sobre um Upload; o primeiro arquivo da revisão vigente o ancora. Os demais
  * arquivos entram em `arquivos`, para o menu repor baixar/copiar link de cada um.
  * Sem arquivo não há menu — nem de contexto: a linha mantém o menu nativo (ADR-0002).
+ * É o mesmo `documentoParaAcoes` do diretório geral: o menu também oferece tirar o documento das
+ * pastas do cliente, e para isso precisa do documento e das revisões marcadas.
  */
 function linhaParaMenu(linha: LinhaDoc): DocumentoParaAcoes | null {
-  const arquivo = linha.arquivos[0];
-  if (!arquivo) return null;
-  return {
-    id: arquivo.id,
-    nome: arquivo.nome,
-    versao: linha.revisaoAtual ?? 0,
-    validado: arquivo.validado,
-    podeGerir: linha.podeGerir,
-    arquivos: linha.arquivos,
-  };
+  return documentoParaAcoes(linha);
+}
+
+/**
+ * A revisão que o cliente vê em cada pasta do link, quando o status não diz isso sozinho (ex.: a equipe já
+ * subiu a R02 e o cliente segue na R01). Componente de topo: definido dentro da linha, remontaria a cada render.
+ */
+function MarcasDoCliente({
+  linha,
+}: {
+  linha: Pick<LinhaDoc, "statusChave" | "revisaoAtual" | "revisaoCompartilhada" | "revisaoLiberadaObra">;
+}) {
+  const marcas = marcasVisiveis({
+    statusChave: linha.statusChave,
+    revisaoAtual: linha.revisaoAtual,
+    compartilhado: linha.revisaoCompartilhada,
+    liberadoObra: linha.revisaoLiberadaObra,
+  });
+  return marcas.map((m) => (
+    <Badge
+      key={m.situacao}
+      variant="outline"
+      className={cn("shrink-0", classeDoStatus(m.situacao === "compartilhado" ? "info" : "primario"))}
+      title={`O cliente vê a ${rotuloRevisao(m.revisao)} na pasta ${ROTULO_SITUACAO[m.situacao]} do link`}
+    >
+      {ROTULO_SITUACAO[m.situacao]} {rotuloRevisao(m.revisao)}
+    </Badge>
+  ));
 }
 
 /** Par devolvido por `useAcoesDocumento`, já ligado a um documento. */
@@ -193,6 +214,7 @@ function CartaoDocumento({
             {linha.statusNome}
           </Badge>
         )}
+        <MarcasDoCliente linha={linha} />
         {linha.ehBackup && (
           <Badge variant="outline" className="border-warning/40 bg-warning/10 text-warning" title="Backup do modelo">
             Backup
@@ -556,6 +578,7 @@ export function TabelaDocumentos({
                       {l.statusNome}
                     </Badge>
                   )}
+                  <MarcasDoCliente linha={l} />
                   {/* Pendência original da V2 (item 1 da spec de nomenclatura): backup do modelo
                       (pacote B) e extensão de backup (.qibzip, .tqs…) apareciam sem rótulo. */}
                   {l.ehBackup && (

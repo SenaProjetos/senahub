@@ -35,6 +35,7 @@ npm run smoke:aviso-agendado  # aviso agendado: disparo do tick, claim anti-dupl
 npm run smoke:sync-pagamento  # pagamento de projetista: sync de valor/responsáveis, cancelamento, total do lote
 npm run smoke:historico-documento  # histórico por documento: agrupamento atômico de acessos, corte de visibilidade, merge
 npm run smoke:status-documento     # status documental automático: Enviado/Aprovado/Correção pela chave, revisão vigente, evento automático
+npm run smoke:pastas-cliente       # pastas Compartilhado/Liberado para obra: revisão marcada na lista/árvore, contagem, validação desfeita
 npm run smoke:recursos-eap    # EAP: herança, horas no motor, cards, carga/sobrecarga, custo previsto, Valor Agregado
 npm run smoke:ponto-tarefa    # ponto com tarefa: lista curta, validação, edição do dia, apontado × previsto
 npm run smoke:pagamento-fase  # pagamento por fase: pool congelado, write-back por diferença, SLA, marco → aprovar fase

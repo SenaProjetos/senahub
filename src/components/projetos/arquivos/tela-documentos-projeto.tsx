@@ -14,10 +14,12 @@ import {
   opcoesMetadadosDocumento,
   contagemDocumentosPorFase,
   arvoreNavegacaoDocumentos,
+  contagemPorSituacao,
   FASE_SEM,
   type LinhaDoc,
 } from "@/modules/uploads/documentos-agrupados";
 import { nivelDaPasta } from "@/modules/uploads/pastas-da-lista";
+import { ROTULO_SITUACAO, SITUACOES, situacaoValida } from "@/modules/uploads/revisao-marcada";
 import { parseListParams, pageCount } from "@/lib/list-params";
 import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
 import { resolverColunasVisiveis, CHAVE_PREF_COLUNAS, idsOcultaveis } from "@/modules/uploads/colunas-documento";
@@ -85,6 +87,8 @@ export type ParamsTelaDocumentos = {
   enviar?: string;
   listaId?: string;
   area?: string;
+  /** Pasta do cliente (`compartilhado` | `liberado_obra`): a mesma navegação, só com o que foi marcado. */
+  situacao?: string;
   q?: string;
   ext?: string;
   autor?: string;
@@ -261,6 +265,8 @@ export async function TelaDocumentosProjeto({
   ].filter(preenchido).length;
   const filtrosAtivos = filtrosAlemDaPasta + [sp?.ext, sp?.fase].filter(preenchido).length;
   const selecaoPasta = { disciplinaId: selecionadaId, fase: sp?.fase ?? null, ext: sp?.ext ?? null };
+  // Pasta do cliente (reunião de 29/09/2026): filtro por cima da navegação, não um lugar à parte.
+  const situacao = situacaoValida(sp?.situacao);
   // Navegação por pastas (como no Google Drive): cada nível lista só o que está DIRETAMENTE
   // nele. Raiz e fase só têm subpastas; a disciplina tem as fases e, soltos, os documentos sem
   // fase; a pasta de formato, os documentos com só aquele arquivo. Com busca, filtro ou lista,
@@ -283,12 +289,13 @@ export async function TelaDocumentosProjeto({
     catExt: sp?.catExt,
     pacote: sp?.pacote,
     sub: sp?.sub,
+    situacao,
   };
   const lp = parseListParams(sp ?? {}, {
     sortFields: CAMPOS_ORDENACAO_DOC,
     defaultPageSize: 24,
   });
-  const [pagina, opcoes, opcoesMetadados, documentosPorFase, arvoreNavegacao] = await Promise.all([
+  const [pagina, opcoes, opcoesMetadados, documentosPorFase, arvoreNavegacao, porSituacao] = await Promise.all([
     nivel === "raiz" || nivel === "fase"
       ? Promise.resolve({ total: 0, pagina: 1, linhas: [] as LinhaDoc[] })
       : listarDocumentosAgrupados({
@@ -313,7 +320,9 @@ export async function TelaDocumentosProjeto({
     contagemDocumentosPorFase({ projetoId: id, userId: user.id, veTodas, disciplinaId: selecionadaId }),
     // Árvore do painel esquerdo: fases e formatos de TODAS as disciplinas visíveis (não do
     // recorte da página) — é navegação, tem de continuar mostrando para onde ir.
-    arvoreNavegacaoDocumentos({ projetoIds: [id], userId: user.id, veTodas, somenteRevisaoAtual: true }),
+    arvoreNavegacaoDocumentos({ projetoIds: [id], userId: user.id, veTodas, somenteRevisaoAtual: true, situacao }),
+    // O número das pastas do cliente na raiz — dentro delas não se mostra de novo.
+    situacao ? Promise.resolve(null) : contagemPorSituacao({ projetoIds: [id], userId: user.id, veTodas }),
   ]);
   // FONTE ÚNICA da contagem de documentos: `DocumentoDisciplina`, via árvore de navegação.
   //
@@ -337,10 +346,16 @@ export async function TelaDocumentosProjeto({
   const totalPorDisciplina = new Map(
     arvoreNavegacao.map((a) => [a.disciplinaId, a.fases.reduce((soma, f) => soma + f.total, 0)]),
   );
-  const disciplinasArvore = disciplinasDoProjeto.map((d) => ({
-    ...d,
-    total: totalPorDisciplina.get(d.id) ?? 0,
-  }));
+  const disciplinasArvore = disciplinasDoProjeto
+    .map((d) => ({
+      ...d,
+      total: totalPorDisciplina.get(d.id) ?? 0,
+    }))
+    // Dentro da pasta do cliente só as disciplinas que têm algo lá — a raiz não convida a enviar.
+    .filter((d) => situacao === null || d.total > 0);
+  const situacoes = porSituacao
+    ? SITUACOES.map((s) => ({ id: s, rotulo: ROTULO_SITUACAO[s], total: porSituacao[s] }))
+    : [];
   const totalDocumentos = disciplinasArvore.reduce((soma, d) => soma + d.total, 0);
   // Colunas visíveis: preferência do USUÁRIO (vale em qualquer projeto), resolvida no
   // servidor para a tabela já nascer com o recorte certo — sem piscar mostrando tudo.
@@ -367,6 +382,8 @@ export async function TelaDocumentosProjeto({
       exclusoesPendentes={new Set(exclusoesPendentes)}
       areas={areas}
       areaSelecionada={areaSelecionada}
+      situacao={situacao}
+      situacoes={situacoes}
       dadosAreas={{
         projetoId: id,
         clienteId,

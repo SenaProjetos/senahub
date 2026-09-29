@@ -20,7 +20,8 @@ import { Pagination } from "@/components/ui/pagination";
 import { QuadroAlturaTela } from "@/components/ui/quadro-altura-tela";
 import { ModoFocoBotao } from "@/components/ui/modo-foco-botao";
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
-import { pastasDoNivel, trilhaDaPasta, type NivelPasta } from "@/modules/uploads/pastas-da-lista";
+import { pastasDoNivel, trilhaDaPasta, type NivelPasta, type SituacaoDaPasta } from "@/modules/uploads/pastas-da-lista";
+import { ROTULO_SITUACAO, type Situacao } from "@/modules/uploads/revisao-marcada";
 import { TrilhaPastas } from "@/components/projetos/arquivos/pastas-na-lista";
 
 /**
@@ -92,6 +93,8 @@ export function DocumentosShell({
   podeSolicitarExclusao,
   areas,
   areaSelecionada,
+  situacao,
+  situacoes,
   dadosAreas,
   linkPublico,
   nomenclatura,
@@ -141,6 +144,10 @@ export function DocumentosShell({
   podeSolicitarExclusao: boolean;
   areas: AreaDisponivel[];
   areaSelecionada: AreaProjeto | null;
+  /** Pasta do cliente aberta (`?situacao=`), ou `null`. */
+  situacao: Situacao | null;
+  /** As pastas do cliente na raiz, com o número de documentos (vazio dentro delas). */
+  situacoes: SituacaoDaPasta[];
   dadosAreas: DadosAreas;
   /** `null` quando o usuário não pode gerir o link público — o botão nem aparece. */
   linkPublico: LinkPublicoProps | null;
@@ -159,15 +166,33 @@ export function DocumentosShell({
   // filtro o resultado é de pesquisa, e a contagem da pasta, que ignora o filtro, mentiria) e só
   // na página 1 — da 2 em diante a lista já passou das pastas. Na raiz, depois das disciplinas,
   // entram as áreas do projeto; a Lixeira fica só no painel (não é pasta de trabalho).
+  // Dentro de uma pasta do cliente a trilha começa nela: "Todos os documentos › Compartilhado › Estrutural".
+  const inicioSituacao = situacao
+    ? [
+        {
+          chave: `situacao:${situacao}`,
+          rotulo: ROTULO_SITUACAO[situacao],
+          titulo: "O que o cliente vê no link",
+          destino: { disciplinaId: null, fase: null, ext: null, area: null, situacao },
+        },
+      ]
+    : [];
   const trilha = areaSelecionada
     ? [{ chave: `area:${areaSelecionada}`, rotulo: rotuloArea(areaSelecionada), titulo: null, destino: { disciplinaId: null, fase: null, ext: null, area: areaSelecionada } }]
     : listaSelecionadaId === null
-      ? trilhaDaPasta(selecao, disciplinas, arvore)
+      ? [...inicioSituacao, ...trilhaDaPasta(selecao, disciplinas, arvore)]
       : [];
-  const areasComoPasta = areas
-    .filter((a) => a.visivel && a.id !== "lixeira")
-    .map((a) => ({ id: a.id, rotulo: rotuloArea(a.id), total: a.total }));
-  const pastas = nivel !== null && paginacao.page === 1 ? pastasDoNivel(selecao, disciplinas, arvore, areasComoPasta) : [];
+  // Dentro da pasta do cliente não há áreas (Recebidos, Base…) nem as próprias pastas do cliente.
+  const areasComoPasta = situacao
+    ? []
+    : areas.filter((a) => a.visivel && a.id !== "lixeira").map((a) => ({ id: a.id, rotulo: rotuloArea(a.id), total: a.total }));
+  const pastas =
+    nivel !== null && paginacao.page === 1
+      ? pastasDoNivel(selecao, disciplinas, arvore, areasComoPasta, situacoes).map((p) =>
+          // O .zip da pasta (`/api/uploads/pasta/zip`) leva a revisão VIGENTE; aqui vale a marcada.
+          situacao ? { ...p, zip: null } : p,
+        )
+      : [];
 
   return (
     <div className="space-y-4">
@@ -284,6 +309,12 @@ export function DocumentosShell({
             </div>
           </div>
           <TrilhaPastas trilha={trilha} inicio={moldura?.trilhaAcima} rotuloRaiz={moldura?.rotuloRaiz} />
+          {situacao && (
+            <p className="text-xs text-muted-foreground">
+              O que o cliente vê na pasta {ROTULO_SITUACAO[situacao]} do link: cada documento na revisão marcada, mesmo que
+              a equipe já tenha enviado outra. Para mudar, ponha o status de novo; para tirar, use o menu do documento.
+            </p>
+          )}
           <div className="md:min-h-0 md:flex-1 md:overflow-y-auto">
           <TabelaDocumentos
             projetoId={projeto.id}

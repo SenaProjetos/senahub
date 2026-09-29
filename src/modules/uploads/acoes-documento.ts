@@ -2,6 +2,7 @@ import {
   Copy,
   Download,
   Eye,
+  FolderMinus,
   FolderOpen,
   GitCompare,
   History,
@@ -16,6 +17,8 @@ import {
 } from "lucide-react";
 
 import { limparSeparadores, type AcaoItem } from "@/components/ui/acoes";
+import { rotuloRevisao } from "@/lib/utils";
+import { ROTULO_SITUACAO, SITUACOES, type Situacao } from "./revisao-marcada";
 
 /**
  * Descritor das ações de uma linha da tabela de documentos (aba Arquivos do projeto) — **puro**,
@@ -43,6 +46,15 @@ export const ACAO_EXCLUIR = "excluir";
 export const ACAO_SOLICITAR_EXCLUSAO = "solicitar-exclusao";
 /** "copiar-link:<uploadId>" — um por arquivo da revisão. */
 export const PREFIXO_COPIAR_LINK = "copiar-link:";
+/** "retirar-situacao:<situacao>" — tirar o documento de uma pasta do cliente. */
+export const PREFIXO_RETIRAR_SITUACAO = "retirar-situacao:";
+
+/** Extrai a pasta de um id de "Tirar de…"; `null` se não for esse item. */
+export function situacaoDoRetirar(idDaAcao: string): Situacao | null {
+  if (!idDaAcao.startsWith(PREFIXO_RETIRAR_SITUACAO)) return null;
+  const s = idDaAcao.slice(PREFIXO_RETIRAR_SITUACAO.length);
+  return (SITUACOES as readonly string[]).includes(s) ? (s as Situacao) : null;
+}
 
 /** Extrai o arquivo de um id de "Copiar link"; `null` se não for esse item. */
 export function arquivoDoCopiarLink(idDaAcao: string): string | null {
@@ -71,6 +83,12 @@ export type DocumentoParaAcoes = {
   podeGerir: boolean;
   /** Todos os arquivos da revisão vigente (PDF + DWG da mesma prancha, por exemplo). */
   arquivos: readonly ArquivoParaAcoes[];
+  /** O DocumentoDisciplina — o que "Tirar de Compartilhado" muda. Ausente = sem esse item. */
+  documentoId?: string;
+  /** `arquivos:alterar_status` + muralha, já resolvidos na linha. */
+  podeAlterarStatus?: boolean;
+  /** Revisão (número do banco) que o cliente vê em cada pasta do link. */
+  naPasta?: { compartilhado: number | null; liberado_obra: number | null };
 };
 
 export type ContextoAcoesDocumento = {
@@ -112,9 +130,13 @@ function porArquivo(
 
 /** O que `documentoParaAcoes` precisa saber de uma linha de tabela — cabe em `LinhaDoc`. */
 type LinhaParaAcoes = {
+  id?: string;
   projetoId: string;
   revisaoAtual: number | null;
   podeGerir: boolean;
+  podeAlterarStatus?: boolean;
+  revisaoCompartilhada?: number | null;
+  revisaoLiberadaObra?: number | null;
   arquivos: readonly (ArquivoParaAcoes & { validado: boolean | null })[];
 };
 
@@ -134,7 +156,42 @@ export function documentoParaAcoes(linha: LinhaParaAcoes): DocumentoParaAcoes | 
     validado: arquivo.validado,
     podeGerir: linha.podeGerir,
     arquivos: linha.arquivos,
+    documentoId: linha.id,
+    podeAlterarStatus: linha.podeAlterarStatus,
+    naPasta: { compartilhado: linha.revisaoCompartilhada ?? null, liberado_obra: linha.revisaoLiberadaObra ?? null },
   };
+}
+
+/** O grupo com o seu separador na frente — ou nada, quando o grupo é vazio (o separador ficaria órfão). */
+function comSeparador(id: string, itens: AcaoItem[]): AcaoItem[] {
+  return itens.length > 0 ? [{ tipo: "separador", id }, ...itens] : [];
+}
+
+/**
+ * Pastas do cliente (reunião de 29/09/2026): o documento entra pelo status ("Compartilhado", "Liberado para
+ * obra") e sai por aqui, um item por pasta em que está. A tela de consulta não mexe.
+ */
+function itensDasPastasDoCliente(d: DocumentoParaAcoes, ctx: ContextoAcoesDocumento, travado: string | undefined): AcaoItem[] {
+  if (!d.documentoId || !d.podeAlterarStatus || ctx.consulta) return [];
+  return SITUACOES.flatMap((situacao): AcaoItem[] => {
+    const revisao = d.naPasta?.[situacao];
+    if (revisao == null) return [];
+    const rotulo = ROTULO_SITUACAO[situacao];
+    return [
+      {
+        tipo: "acao",
+        id: PREFIXO_RETIRAR_SITUACAO + situacao,
+        rotulo: `Tirar de ${rotulo} (${rotuloRevisao(revisao)})`,
+        icone: FolderMinus,
+        desabilitado: travado,
+        confirmar: {
+          titulo: `Tirar da pasta ${rotulo}?`,
+          descricao: "O cliente deixa de ver este documento no link. O arquivo continua na aba Arquivos.",
+          rotuloConfirmar: "Tirar da pasta",
+        },
+      },
+    ];
+  });
 }
 
 export function itensDeDocumento(d: DocumentoParaAcoes, ctx: ContextoAcoesDocumento): AcaoItem[] {
@@ -209,6 +266,8 @@ export function itensDeDocumento(d: DocumentoParaAcoes, ctx: ContextoAcoesDocume
             { tipo: "acao", id: ACAO_SOLICITAR_AJUSTE, rotulo: "Solicitar ajuste", icone: XCircle } satisfies AcaoItem,
           ]
       : []),
+
+    ...comSeparador("sep-cliente", itensDasPastasDoCliente(d, ctx, travado)),
 
     { tipo: "separador", id: "sep-gerir" },
     // Diretório é consulta: mesmo quem gere a disciplina renomeia pela aba do projeto.

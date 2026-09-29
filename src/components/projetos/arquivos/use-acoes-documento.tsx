@@ -10,6 +10,7 @@ import {
   reverterValidacaoArquivo,
   solicitarAjusteArquivo,
   solicitarExclusaoUpload,
+  retirarDocumentoDaSituacao,
 } from "@/modules/uploads/actions";
 import {
   ACAO_COPIAR_NOME,
@@ -22,6 +23,7 @@ import {
   ACAO_VALIDAR,
   arquivoDoCopiarLink,
   itensDeDocumento,
+  situacaoDoRetirar,
   type DocumentoParaAcoes,
 } from "@/modules/uploads/acoes-documento";
 import type { AcaoItemAcao } from "@/components/ui/acoes";
@@ -117,8 +119,8 @@ export function useAcoesDocumento({
 
   const aoSelecionar = useCallback(
     async (d: DocumentoParaAcoes, item: AcaoItemAcao) => {
-      // Nenhum item deste descritor pede `confirmar` hoje (excluir abre o diálogo de escopo),
-      // mas o contrato do `AcaoItem` vale aqui também — e o confirm vem antes do start().
+      // "Tirar de Compartilhado" pede `confirmar` (excluir abre o diálogo de escopo, não este);
+      // o confirm vem antes do start().
       if (item.confirmar) {
         const ok = await confirm({
           title: item.confirmar.titulo,
@@ -137,6 +139,13 @@ export function useAcoesDocumento({
         const ok = await copiarTexto(new URL(arquivo.downloadUrl, window.location.origin).href);
         if (ok) toast.success("Link copiado.");
         else toast.error("Não foi possível copiar o link.");
+        return;
+      }
+
+      const situacao = situacaoDoRetirar(item.id);
+      if (situacao && d.documentoId) {
+        const documentoId = d.documentoId;
+        executar(() => retirarDocumentoDaSituacao({ documentoId, situacao }), "Documento tirado da pasta do cliente.");
         return;
       }
 

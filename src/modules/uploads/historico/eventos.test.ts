@@ -80,6 +80,7 @@ describe("complementoEvento", () => {
 
   it("status e renomeio mostram de → para", () => {
     expect(complementoEvento("status", { de: "Em análise", para: "Aprovado" })).toBe('"Em análise" → "Aprovado"');
+    expect(complementoEvento("situacao_marcada", { pasta: "Compartilhado", revisao: 3 })).toBe("Compartilhado · R02");
     expect(complementoEvento("status", { de: "Enviado", para: "Aprovado", automatico: true, razao: "prancha validada" })).toBe(
       '"Enviado" → "Aprovado" · automático, prancha validada',
     );

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronRight, Download, Folder, FolderOpen } from "lucide-react";
+import { ChevronRight, Download, Folder, FolderOpen, HardHat, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -52,8 +52,13 @@ function tituloDa(pasta: PastaNaLista): string | undefined {
   return pasta.titulo ?? undefined;
 }
 
-/** Coluna Disc.: a disciplina onde a pasta mora (colorida pelo status na pasta da própria), ou o ícone da área. */
+/** Coluna Disc.: a disciplina onde a pasta mora (colorida pelo status na pasta da própria), ou o ícone da área ou da pasta do cliente. */
 function IconeDaColuna({ pasta }: { pasta: PastaNaLista }) {
+  // Pasta do cliente: o que foi mandado para análise × o que está liberado para a obra.
+  if (pasta.tipo === "situacao") {
+    const Icone = pasta.destino.situacao === "liberado_obra" ? HardHat : Send;
+    return <Icone className="size-4 shrink-0 text-info" aria-hidden />;
+  }
   const area = pasta.tipo === "area" ? areaValida(pasta.destino.area) : null;
   if (area) {
     const Icone = ICONE_AREA[area];
@@ -250,7 +255,7 @@ export function TrilhaPastas({
               {rotuloRaiz}
             </span>
           ) : (
-            <Link href={nav.hrefDe({ disciplinaId: null, fase: null, ext: null, area: null })} scroll={false} className={classeLink}>
+            <Link href={nav.hrefDe({ disciplinaId: null, fase: null, ext: null, area: null, situacao: null })} scroll={false} className={classeLink}>
               {rotuloRaiz}
             </Link>
           )}

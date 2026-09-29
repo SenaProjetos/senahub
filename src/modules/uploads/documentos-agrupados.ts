@@ -17,6 +17,7 @@ import {
 } from "@/modules/uploads/arvore-navegacao";
 import type { Pacote } from "@/modules/uploads/estrutura";
 import { arquivoNoFormato } from "@/modules/uploads/pastas-da-lista";
+import { CAMPO_DA_SITUACAO, arquivosDaRevisaoMarcada, type Situacao } from "@/modules/uploads/revisao-marcada";
 import { mapaCanonico, canonizar } from "@/modules/projetos/pranchas/queries";
 
 /**
@@ -77,6 +78,11 @@ export type FiltrosDoc = {
   /** `SubdisciplinaCatalogo.id` (F5), ou `SUB_SEM` para documento sem sub (raiz do card). */
   sub?: string;
   status?: string;
+  /**
+   * Pasta do cliente (reunião de 29/09/2026): só documentos marcados nela, cada um com os arquivos da
+   * REVISÃO MARCADA (validados, fora da lixeira) no lugar da vigente — é o que o cliente vê no link.
+   */
+  situacao?: Situacao | null;
   listaId?: string | null;
   /**
    * Restringe a estes documentos — a visão "Selecionados" do diretório, que junta linhas de
@@ -145,6 +151,11 @@ export type LinhaDoc = {
   statusFinal: boolean;
   /** Token de cor do status (`classeDoStatus`), nunca hex. */
   statusCor: string | null;
+  /** Chave estável do status (`CHAVE_STATUS`); `null` = status do escritório ou sem status. */
+  statusChave: string | null;
+  /** Revisão (número do banco) que o cliente vê em cada pasta do link; `null` = fora dela. */
+  revisaoCompartilhada: number | null;
+  revisaoLiberadaObra: number | null;
   faseId: string | null;
   faseSigla: string | null;
   faseNome: string | null;
@@ -281,10 +292,15 @@ export async function listarDocumentosAgrupados(opts: {
                  select 1 from upload uv
                  left join documento_revisao rv on rv.id = uv."revisaoId"
                  where uv."documentoId" = d.id and uv."excluidoEm" is null
-                   and (uv."revisaoId" is null or rv.numero = (
-                         select max(rw.numero) from upload uw
-                         join documento_revisao rw on rw.id = uw."revisaoId"
-                         where uw."documentoId" = d.id and uw."excluidoEm" is null))
+                   -- Na pasta do cliente ($22) a revisão é a MARCADA, não a vigente.
+                   and (case
+                          when $22::text = 'compartilhado' then uv.validado and uv."revisaoId" = d."revisaoCompartilhadaId"
+                          when $22::text = 'liberado_obra' then uv.validado and uv."revisaoId" = d."revisaoLiberadaObraId"
+                          else (uv."revisaoId" is null or rv.numero = (
+                                 select max(rw.numero) from upload uw
+                                 join documento_revisao rw on rw.id = uw."revisaoId"
+                                 where uw."documentoId" = d.id and uw."excluidoEm" is null))
+                        end)
                    and (case when $6 = '__outros__'
                           then not exists (
                             select 1 from extensao_arquivo eav
@@ -297,6 +313,12 @@ export async function listarDocumentosAgrupados(opts: {
                      select 1 from extensao_arquivo eax
                      where eax.extensao = lower(substring(ux."nomeArquivo" from '\\.([^.]+)$')))))
            or ($21::boolean is not true and $6 <> '__outros__' and lower(u."nomeArquivo") like '%.' || lower($6)))
+      -- $22: pasta do cliente — o documento só entra se a revisão marcada ainda tem arquivo validado vivo
+      -- (validação desfeita ou revisão na lixeira depois da marca = some da pasta, como some do link).
+      and ($22::text is null or exists (
+            select 1 from upload um
+            where um."documentoId" = d.id and um."excluidoEm" is null and um.validado
+              and um."revisaoId" = (case when $22 = 'compartilhado' then d."revisaoCompartilhadaId" else d."revisaoLiberadaObraId" end)))
       and ($7::text is null or au.name = $7)
       and ($8::timestamptz is null or u."createdAt" >= $8)
       and ($9::text is null or d."statusId" = $9)
@@ -364,6 +386,7 @@ export async function listarDocumentosAgrupados(opts: {
     filtros.documentoIds ? [...filtros.documentoIds] : null,
     filtros.sub ?? null,
     opts.formatoDosArquivos ? true : null,
+    filtros.situacao ?? null,
   ];
 
   const totalRows = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
@@ -393,7 +416,11 @@ export async function listarDocumentosAgrupados(opts: {
       nomeArquivo: true,
       titulo: true,
       descricao: true,
-      status: { select: { id: true, nome: true, final: true, cor: true } },
+      status: { select: { id: true, nome: true, final: true, cor: true, chave: true } },
+      revisaoCompartilhadaId: true,
+      revisaoLiberadaObraId: true,
+      revisaoCompartilhada: { select: { numero: true } },
+      revisaoLiberadaObra: { select: { numero: true } },
       fase: { select: { id: true, sigla: true, nome: true } },
       subdisciplina: { select: { id: true, nome: true } },
       tipo: { select: { id: true, sigla: true, nome: true } },
@@ -478,10 +505,16 @@ export async function listarDocumentosAgrupados(opts: {
     // A revisão vigente é a maior que ainda tem ao menos um upload FORA da lixeira. Usar
     // `d.revisoes` aqui escolheria uma R02 inteiramente excluída e deixaria a linha da R01
     // ativa sem badges acionáveis (A-04 da auditoria de 2026-08-23).
-    const revisaoAtual = revisaoAtualDosUploads(d.uploads);
+    // Na pasta do cliente a linha é a da revisão MARCADA (o que o cliente vê), não a vigente.
+    const marcadaId = filtros.situacao
+      ? d[CAMPO_DA_SITUACAO[filtros.situacao]]
+      : null;
+    const revisaoAtual = filtros.situacao
+      ? ((filtros.situacao === "compartilhado" ? d.revisaoCompartilhada : d.revisaoLiberadaObra)?.numero ?? null)
+      : revisaoAtualDosUploads(d.uploads);
     // Upload legado sem revisão continua visível: escondê-lo só porque outro arquivo do
     // documento já foi migrado seria uma perda de acesso na tela.
-    const vigentes = arquivosDaRevisaoAtual(d.uploads);
+    const vigentes = filtros.situacao ? arquivosDaRevisaoMarcada(d.uploads, marcadaId) : arquivosDaRevisaoAtual(d.uploads);
     const formato = opts.formatoDosArquivos;
     const daAtual = formato ? vigentes.filter((u) => arquivoNoFormato(u.nomeArquivo, formato, extensoesConhecidas)) : vigentes;
     const maisRecente = [...d.uploads].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
@@ -525,6 +558,9 @@ export async function listarDocumentosAgrupados(opts: {
       statusNome: d.status?.nome ?? null,
       statusFinal: d.status?.final ?? false,
       statusCor: d.status?.cor ?? null,
+      statusChave: d.status?.chave ?? null,
+      revisaoCompartilhada: d.revisaoCompartilhada?.numero ?? null,
+      revisaoLiberadaObra: d.revisaoLiberadaObra?.numero ?? null,
       faseId: d.fase?.id ?? null,
       faseSigla: d.fase?.sigla ?? null,
       faseNome: d.fase?.nome ?? null,
@@ -665,6 +701,8 @@ export async function arvoreNavegacaoDocumentos(opts: {
    * cujo .zip leva todas as revisões.
    */
   somenteRevisaoAtual?: boolean;
+  /** Pasta do cliente: só documentos marcados, contando os arquivos da revisão marcada. */
+  situacao?: Situacao | null;
 }): Promise<ArvoreDaDisciplinaComProjeto[]> {
   const { userId, veTodas } = opts;
   const projetoIds = normalizarEscopoProjetos(opts.projetoIds);
@@ -679,33 +717,46 @@ export async function arvoreNavegacaoDocumentos(opts: {
           ...(veTodas ? {} : { responsaveis: { some: { userId } } }),
         },
         uploads: { some: { excluidoEm: null } },
+        ...(opts.situacao ? { [CAMPO_DA_SITUACAO[opts.situacao]]: { not: null } } : {}),
       },
       select: {
         id: true,
         disciplinaId: true,
+        revisaoCompartilhadaId: true,
+        revisaoLiberadaObraId: true,
         // Qual projeto é a disciplina: com escopo de vários, quem consome precisa agrupar.
         disciplina: { select: { projetoId: true } },
         fase: { select: { id: true, sigla: true, nome: true } },
         uploads: {
           where: { excluidoEm: null },
-          select: { nomeArquivo: true, revisaoId: true, revisao: { select: { numero: true } } },
+          select: { nomeArquivo: true, validado: true, revisaoId: true, revisao: { select: { numero: true } } },
         },
       },
     }),
     carregarExtensoesNomenclatura(),
   ]);
 
-  const paraArvore: DocumentoParaArvore[] = documentos.map((d) => ({
-    id: d.id,
-    disciplinaId: d.disciplinaId,
-    faseId: d.fase?.id ?? null,
-    faseSigla: d.fase?.sigla ?? null,
-    faseNome: d.fase?.nome ?? null,
-    // Sem `filter`: uma entrada POR ARQUIVO, inclusive vazia (nome sem ponto). O comprimento
-    // é o número de arquivos do documento, e a árvore conta os .zip a partir dele; filtrar
-    // faria o arquivo sem extensão sumir da contagem e o botão prometer menos do que baixa.
-    extensoes: (opts.somenteRevisaoAtual ? arquivosDaRevisaoAtual(d.uploads) : d.uploads).map((u) => extensaoDe(u.nomeArquivo)),
-  }));
+  const arquivosDe = (d: (typeof documentos)[number]) =>
+    opts.situacao
+      ? arquivosDaRevisaoMarcada(d.uploads, d[CAMPO_DA_SITUACAO[opts.situacao]])
+      : opts.somenteRevisaoAtual
+        ? arquivosDaRevisaoAtual(d.uploads)
+        : d.uploads;
+  const paraArvore: DocumentoParaArvore[] = documentos
+    // Na pasta do cliente, documento cuja revisão marcada perdeu os arquivos validados não aparece
+    // (a mesma regra da lista, $22).
+    .filter((d) => !opts.situacao || arquivosDe(d).length > 0)
+    .map((d) => ({
+      id: d.id,
+      disciplinaId: d.disciplinaId,
+      faseId: d.fase?.id ?? null,
+      faseSigla: d.fase?.sigla ?? null,
+      faseNome: d.fase?.nome ?? null,
+      // Sem `filter`: uma entrada POR ARQUIVO, inclusive vazia (nome sem ponto). O comprimento
+      // é o número de arquivos do documento, e a árvore conta os .zip a partir dele; filtrar
+      // faria o arquivo sem extensão sumir da contagem e o botão prometer menos do que baixa.
+      extensoes: arquivosDe(d).map((u) => extensaoDe(u.nomeArquivo)),
+    }));
   // `montarArvoreNavegacao` continua pura e cega a projeto — o vínculo é costurado aqui, para
   // não mexer no contrato de contagem do módulo (que o link público também usa).
   const projetoDaDisciplina = new Map(documentos.map((d) => [d.disciplinaId, d.disciplina.projetoId]));
@@ -713,6 +764,40 @@ export async function arvoreNavegacaoDocumentos(opts: {
     ...a,
     projetoId: projetoDaDisciplina.get(a.disciplinaId)!,
   }));
+}
+
+/**
+ * Quantos documentos cada pasta do cliente tem (o número da pasta na raiz). Mesma muralha da lista e a
+ * mesma regra do $22: conta só quem ainda tem arquivo validado vivo na revisão marcada.
+ */
+export async function contagemPorSituacao(opts: {
+  projetoIds: readonly string[];
+  userId: string;
+  veTodas: boolean;
+}): Promise<Record<Situacao, number>> {
+  const projetoIds = normalizarEscopoProjetos(opts.projetoIds);
+  if (projetoIds.length === 0) return { compartilhado: 0, liberado_obra: 0 };
+  const rows = await prisma.$queryRawUnsafe<{ compartilhado: bigint; liberado_obra: bigint }[]>(
+    `select
+       count(*) filter (where exists (
+         select 1 from upload u where u."documentoId" = d.id and u."excluidoEm" is null and u.validado
+           and u."revisaoId" = d."revisaoCompartilhadaId"))::bigint as compartilhado,
+       count(*) filter (where exists (
+         select 1 from upload u where u."documentoId" = d.id and u."excluidoEm" is null and u.validado
+           and u."revisaoId" = d."revisaoLiberadaObraId"))::bigint as liberado_obra
+     from documento_disciplina d
+     join disciplina disc on disc.id = d."disciplinaId"
+     where d."substituidoPorId" is null
+       and disc."projetoId" = any($1::text[])
+       and ($2::boolean is true or exists (
+             select 1 from disciplina_responsavel dr
+             where dr."disciplinaId" = disc.id and dr."userId" = $3))
+       and (d."revisaoCompartilhadaId" is not null or d."revisaoLiberadaObraId" is not null)`,
+    projetoIds,
+    opts.veTodas,
+    opts.userId,
+  );
+  return { compartilhado: Number(rows[0]?.compartilhado ?? 0), liberado_obra: Number(rows[0]?.liberado_obra ?? 0) };
 }
 
 /** Documento sem sub-disciplina (raiz do card) — mesmo sentinel de `FASE_SEM`. */

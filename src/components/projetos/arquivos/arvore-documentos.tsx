@@ -120,7 +120,7 @@ export function ArvoreDocumentos({
         <li role="none">
           <button
             type="button"
-            onClick={() => setParams({ disciplinaId: null, fase: null, ext: null, listaId: null, area: null })}
+            onClick={() => setParams({ disciplinaId: null, fase: null, ext: null, listaId: null, area: null, situacao: null })}
             className={cn(
               "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-xs font-semibold transition-colors",
               selecao.disciplinaId === null && !areaAtiva ? "bg-accent text-foreground" : "text-foreground hover:bg-accent/60",

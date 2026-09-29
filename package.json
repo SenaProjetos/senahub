@@ -44,6 +44,7 @@
     "smoke:modelo-eap": "tsx --tsconfig tsconfig.server.json scripts/smoke-modelo-eap.ts",
     "smoke:modelo-disciplina": "tsx --tsconfig tsconfig.server.json scripts/smoke-modelo-disciplina.ts",
     "smoke:status-documento": "tsx --tsconfig tsconfig.server.json scripts/smoke-status-documento.ts",
+    "smoke:pastas-cliente": "tsx --tsconfig tsconfig.server.json scripts/smoke-pastas-cliente.ts",
     "smoke:apagar-eap": "tsx --tsconfig tsconfig.server.json scripts/smoke-apagar-eap.ts",
     "smoke:etapa-terceiro": "tsx --tsconfig tsconfig.server.json scripts/smoke-etapa-terceiro.ts",
     "smoke:crm-fase1": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-fase1.ts",

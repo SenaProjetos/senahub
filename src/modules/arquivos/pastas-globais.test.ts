@@ -31,7 +31,7 @@ describe("pastasGlobais", () => {
       ["projeto", "260001 · Residencial", 6],
       ["projeto", "260004 · Galpão", 7],
     ]);
-    expect(pastas[1].destino).toEqual({ ano: "2026", projetoId: "p4", disciplinaId: null, fase: null, ext: null, area: null });
+    expect(pastas[1].destino).toEqual({ ano: "2026", projetoId: "p4", disciplinaId: null, fase: null, ext: null, area: null, situacao: null });
   });
 
   it("ano que não existe não lista nada", () => {

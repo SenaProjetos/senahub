@@ -4,8 +4,11 @@ import type { AcaoItem } from "@/components/ui/acoes";
 import {
   MOTIVO_OCUPADO,
   PREFIXO_COPIAR_LINK,
+  PREFIXO_RETIRAR_SITUACAO,
   arquivoDoCopiarLink,
+  documentoParaAcoes,
   itensDeDocumento,
+  situacaoDoRetirar,
   type ContextoAcoesDocumento,
   type DocumentoParaAcoes,
 } from "./acoes-documento";
@@ -201,5 +204,43 @@ describe("itensDeDocumento — modo consulta (diretório geral)", () => {
   it("o projeto da linha vale também na aba, quando o contexto tem o mesmo", () => {
     const naAba = itensDeDocumento({ ...doc, projetoId: undefined }, ctx);
     expect(achar(naAba, "visualizar")).toMatchObject({ href: `/projetos/p1/arquivos/${PDF.id}/visualizar` });
+  });
+});
+
+describe("pastas do cliente", () => {
+  const marcado: DocumentoParaAcoes = {
+    ...doc,
+    documentoId: "d1",
+    podeAlterarStatus: true,
+    naPasta: { compartilhado: 2, liberado_obra: null },
+  };
+
+  it("oferece tirar só da pasta em que o documento está, com a revisão e confirmação", () => {
+    const itens = itensDeDocumento(marcado, ctx);
+    const item = achar(itens, `${PREFIXO_RETIRAR_SITUACAO}compartilhado`);
+    expect(item).toMatchObject({ rotulo: "Tirar de Compartilhado (R01)", confirmar: { rotuloConfirmar: "Tirar da pasta" } });
+    expect(achar(itens, `${PREFIXO_RETIRAR_SITUACAO}liberado_obra`)).toBeUndefined();
+  });
+
+  it("some sem permissão de status e na tela de consulta", () => {
+    expect(achar(itensDeDocumento({ ...marcado, podeAlterarStatus: false }, ctx), `${PREFIXO_RETIRAR_SITUACAO}compartilhado`)).toBeUndefined();
+    expect(achar(itensDeDocumento(marcado, { ...ctx, consulta: true }), `${PREFIXO_RETIRAR_SITUACAO}compartilhado`)).toBeUndefined();
+  });
+
+  it("id → pasta, e a linha da tabela chega ao descritor com as marcas", () => {
+    expect(situacaoDoRetirar(`${PREFIXO_RETIRAR_SITUACAO}liberado_obra`)).toBe("liberado_obra");
+    expect(situacaoDoRetirar(`${PREFIXO_RETIRAR_SITUACAO}outra`)).toBeNull();
+    expect(situacaoDoRetirar("validar")).toBeNull();
+    const d = documentoParaAcoes({
+      id: "d1",
+      projetoId: "p1",
+      revisaoAtual: 3,
+      podeGerir: true,
+      podeAlterarStatus: true,
+      revisaoCompartilhada: 2,
+      revisaoLiberadaObra: null,
+      arquivos: [{ ...PDF, validado: true }],
+    });
+    expect(d).toMatchObject({ documentoId: "d1", podeAlterarStatus: true, naPasta: { compartilhado: 2, liberado_obra: null } });
   });
 });

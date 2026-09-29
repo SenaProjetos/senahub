@@ -214,3 +214,25 @@ describe("entradasZipDaPasta", () => {
     ]);
   });
 });
+
+describe("pastas do cliente (reunião de 29/09/2026)", () => {
+  it("entram na raiz depois das disciplinas e antes das áreas, sem .zip e levando a situação na URL", () => {
+    const raiz = pastasDoNivel(
+      { disciplinaId: null, fase: null, ext: null },
+      [{ id: "d-est", nome: "Estrutural", status: "em_andamento", total: 2 }],
+      [],
+      [{ id: "base", rotulo: "Base Arquitetônica", total: 1 }],
+      [{ id: "compartilhado", rotulo: "Compartilhado", total: 3 }],
+    );
+    expect(raiz.map((p) => p.tipo)).toEqual(["disciplina", "situacao", "area"]);
+    const pasta = raiz[1];
+    expect(pasta).toMatchObject({ rotulo: "Compartilhado", total: 3, zip: null });
+    expect(hrefDaPasta("/projetos/p1/arquivos", "sort=nome", pasta.destino)).toBe("/projetos/p1/arquivos?sort=nome&situacao=compartilhado");
+  });
+
+  it("entrar numa disciplina não perde a situação; voltar à raiz com situacao null tira", () => {
+    const dentro = "situacao=compartilhado";
+    expect(hrefDaPasta("/a", dentro, { disciplinaId: "d-est", fase: null, ext: null, area: null })).toBe("/a?situacao=compartilhado&disciplinaId=d-est");
+    expect(hrefDaPasta("/a", dentro, { disciplinaId: null, fase: null, ext: null, area: null, situacao: null })).toBe("/a");
+  });
+});
