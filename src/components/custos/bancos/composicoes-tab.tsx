@@ -90,7 +90,7 @@ export function ComposicoesTab({
         </Table>
       </div>
 
-      <Pagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
+      <Pagination lista="custos-composicoes" page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
     </div>
   );
 }

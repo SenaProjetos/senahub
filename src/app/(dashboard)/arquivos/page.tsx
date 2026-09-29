@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { parseListParams } from "@/lib/list-params";
+import { porPaginaDaLista } from "@/modules/usuarios/preferencias/por-pagina";
 import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
 import { arvoreGlobalArquivos } from "@/modules/arquivos/arvore-global-queries";
 import { pastasGlobais, rotuloProjeto, trilhaGlobal, type AnoDoDiretorio } from "@/modules/arquivos/pastas-globais";
@@ -104,7 +105,7 @@ export default async function ArquivosDiretorioPage({ searchParams }: { searchPa
   // ── Acima do projeto: pastas (anos, ou os projetos do ano) e a busca em todos ───────────────
   const q = texto(sp.q);
   const projetoIds = (doAno ? doAno.projetos : anos.flatMap((a) => a.projetos)).map((p) => p.projetoId);
-  const lp = parseListParams(sp, { sortFields: ["nome", "data", "disciplina", "numero", "tamanho"], defaultSort: "data" });
+  const lp = parseListParams(sp, { sortFields: ["nome", "data", "disciplina", "numero", "tamanho"], defaultSort: "data", defaultPageSize: await porPaginaDaLista("arquivos") });
   const resultado = q
     ? await listarDocumentosAgrupados({
         projetoIds,

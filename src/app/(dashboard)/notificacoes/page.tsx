@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/session";
 import { listarNotificacoesPaginado, type FiltroNotificacao } from "@/modules/notificacoes/queries";
 import { NotificacoesView } from "@/components/notificacoes/notificacoes-view";
 import { parseListParams } from "@/lib/list-params";
+import { porPaginaDaLista } from "@/modules/usuarios/preferencias/por-pagina";
 
 export const metadata: Metadata = { title: "Notificações" };
 
@@ -18,7 +19,7 @@ export default async function NotificacoesPage({
 
   const { page, pageSize, skip, take } = parseListParams(sp, {
     sortFields: [],
-    defaultPageSize: 24,
+    defaultPageSize: await porPaginaDaLista("notificacoes", 24),
   });
 
   const filtro: FiltroNotificacao =

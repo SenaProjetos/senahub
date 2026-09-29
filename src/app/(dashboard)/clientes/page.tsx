@@ -4,6 +4,7 @@ import { can } from "@/lib/permissions";
 import { listarClientesPaginado, listarFiltrosClientes } from "@/modules/clientes/queries";
 import { ClientesView } from "@/components/clientes/clientes-view";
 import { parseListParams, pageCount } from "@/lib/list-params";
+import { porPaginaDaLista } from "@/modules/usuarios/preferencias/por-pagina";
 import { STATUS_COMERCIAL_LABEL } from "@/modules/comercial/labels";
 import type { StatusComercialCliente } from "@/generated/prisma/enums";
 
@@ -36,6 +37,7 @@ export default async function ClientesPage({
 
   const { page, pageSize, skip, take, sort, dir, q } = parseListParams(sp, {
     sortFields: ["nome", "cidade", "createdAt"],
+    defaultPageSize: await porPaginaDaLista("clientes"),
     defaultSort: "nome",
     defaultDir: "asc",
   });

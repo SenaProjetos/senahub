@@ -235,7 +235,7 @@ export function FolhaView({
         </Table>
       </div>
 
-      <Pagination page={page} pageCount={pageCount(total, pageSize)} pageSize={pageSize} total={total} />
+      <Pagination lista="folha" page={page} pageCount={pageCount(total, pageSize)} pageSize={pageSize} total={total} />
 
       <PagarDialog pagamento={pagar} onClose={() => setPagar(null)} contas={contas} formas={formas} />
       <EditarValorDialog pagamento={editar} onClose={() => setEditar(null)} />

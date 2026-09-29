@@ -162,7 +162,7 @@ export function CustosView({
         </Table>
       </div>
 
-      <Pagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
+      <Pagination lista="custos" page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
     </div>
   );
 }

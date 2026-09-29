@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { parseListParams } from "@/lib/list-params";
+import { porPaginaDaLista } from "@/modules/usuarios/preferencias/por-pagina";
 import { paraData, MESES_CURTOS } from "@/lib/data";
 import { lerFiltrosFolha, whereDoStatus } from "./service";
 import type { FiltrosFolha, FiltroStatus } from "./status";
@@ -221,7 +222,10 @@ export async function comLancamentos<T extends PagamentoBruto>(itens: T[]) {
 /** Modo "por pagamento" (F2): tabela plana, paginada, com filtro/ordenação na URL. */
 export async function listarFolha(sp: RawParams) {
   const filtros = lerFiltrosFolha(sp);
-  const { page, pageSize, skip, take, sort, dir } = parseListParams(sp, { sortFields: SORT_PAGAMENTO });
+  const { page, pageSize, skip, take, sort, dir } = parseListParams(sp, {
+    sortFields: SORT_PAGAMENTO,
+    defaultPageSize: await porPaginaDaLista("folha"),
+  });
 
   // DOIS `where`, de propósito — não unificar: a TABELA respeita o filtro de status; os
   // TOTAIS não. Eles são o desdobramento por status do recorte filtrado: se herdassem o

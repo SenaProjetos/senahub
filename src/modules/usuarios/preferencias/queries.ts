@@ -1,13 +1,17 @@
 import "server-only";
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { controlaJornada } from "@/modules/ponto/jornada";
 
-/** Preferências (chave-valor) do usuário (E8). */
-export async function getPreferencias(userId: string): Promise<Record<string, unknown>> {
+/**
+ * Preferências (chave-valor) do usuário (E8). `cache`: o layout e a página leem na mesma requisição, e agora
+ * cada lista lê o seu "itens por página" — uma ida ao banco só.
+ */
+export const getPreferencias = cache(async (userId: string): Promise<Record<string, unknown>> => {
   const p = await prisma.userPreference.findUnique({ where: { userId } });
   return (p?.dados as Record<string, unknown> | null) ?? {};
-}
+});
 
 /**
  * Bundle pronto para a `PreferenciasView` (perfil + flags de notificação + ponto).

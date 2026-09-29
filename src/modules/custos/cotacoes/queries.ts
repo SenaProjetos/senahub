@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { parseListParams } from "@/lib/list-params";
+import { porPaginaDaLista } from "@/modules/usuarios/preferencias/por-pagina";
 import { compararPropostas } from "./comparador";
 
 type RawParams = Record<string, string | string[] | undefined>;
@@ -22,6 +23,7 @@ const SORT_RFQ = ["titulo", "status", "prazoResposta", "createdAt"] as const;
 export async function listarRfqs(sp: RawParams, filtros?: { status?: string }) {
   const { page, pageSize, skip, take, sort, dir, q } = parseListParams(sp, {
     sortFields: SORT_RFQ,
+    defaultPageSize: await porPaginaDaLista("custos-cotacoes"),
     defaultSort: "createdAt",
     defaultDir: "desc",
   });

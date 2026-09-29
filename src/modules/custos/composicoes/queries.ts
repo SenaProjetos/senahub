@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { parseListParams } from "@/lib/list-params";
+import { porPaginaDaLista } from "@/modules/usuarios/preferencias/por-pagina";
 import { calcularCustoUnitario, type ItemComposicaoRef } from "./composicao";
 
 type RawParams = Record<string, string | string[] | undefined>;
@@ -55,6 +56,7 @@ const SORT_INSUMO = ["codigo", "descricao", "categoria"] as const;
 export async function listarInsumos(sp: RawParams, filtros?: { categoria?: string }) {
   const { page, pageSize, skip, take, sort, dir, q } = parseListParams(sp, {
     sortFields: SORT_INSUMO,
+    defaultPageSize: await porPaginaDaLista("custos-insumos"),
     defaultSort: "codigo",
     defaultDir: "asc",
   });
@@ -129,6 +131,7 @@ const SORT_COMPOSICAO = ["codigo", "descricao", "grupo"] as const;
 export async function listarComposicoes(sp: RawParams) {
   const { page, pageSize, skip, take, sort, dir, q } = parseListParams(sp, {
     sortFields: SORT_COMPOSICAO,
+    defaultPageSize: await porPaginaDaLista("custos-composicoes"),
     defaultSort: "codigo",
     defaultDir: "asc",
   });

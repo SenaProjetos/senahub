@@ -129,7 +129,7 @@ export function RecibosSection({
         </Table>
       </div>
 
-      <Pagination page={page} pageCount={pageCount(total, pageSize)} pageSize={pageSize} total={total} />
+      <Pagination lista="recibos" page={page} pageCount={pageCount(total, pageSize)} pageSize={pageSize} total={total} />
     </div>
   );
 }

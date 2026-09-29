@@ -4,6 +4,7 @@ import type { Prisma, StatusCustoOrcamento } from "@/generated/prisma/client";
 import { acessoGlobal, type Role, type EscopoDeDados } from "@/lib/roles";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { parseListParams } from "@/lib/list-params";
+import { porPaginaDaLista } from "@/modules/usuarios/preferencias/por-pagina";
 import { calcularBdi, type EntradaBdi, type ResultadoBdi } from "./bdi";
 import { calcularEncargos, type OverrideEncargo, type ResultadoEncargos } from "./encargos-obra";
 
@@ -45,6 +46,7 @@ export async function listarOrcamentos(
 ): Promise<{ itens: OrcamentoListItem[]; total: number; page: number; pageSize: number }> {
   const { page, pageSize, skip, take, sort, dir, q } = parseListParams(sp, {
     sortFields: SORT_FIELDS,
+    defaultPageSize: await porPaginaDaLista("custos"),
     defaultSort: "createdAt",
     defaultDir: "desc",
   });

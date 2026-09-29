@@ -302,7 +302,7 @@ export function AcessosTabela({
         <p className="text-xs tabular-nums text-muted-foreground">
           Mostrando {skip + 1} a {ate} de {total} {total === 1 ? "conta" : "contas"}
         </p>
-        <Pagination page={page} pageCount={pageCount} pageSize={pageSize} />
+        <Pagination lista="acessos" page={page} pageCount={pageCount} pageSize={pageSize} />
       </div>
     </>
   );

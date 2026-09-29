@@ -342,7 +342,7 @@ export function DocumentosShell({
           </div>
           {/* Pasta só com subpastas (raiz, fase) não tem documento para paginar. */}
           {totalFiltrado > 0 && (
-            <Pagination
+            <Pagination lista="documentos"
               page={paginacao.page}
               pageCount={paginacao.pageCount}
               pageSize={paginacao.pageSize}

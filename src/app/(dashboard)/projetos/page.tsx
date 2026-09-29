@@ -13,6 +13,7 @@ import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
 import { listarClientes } from "@/modules/clientes/queries";
 import { ProjetosView } from "@/components/projetos/projetos-view";
 import { parseListParams, pageCount } from "@/lib/list-params";
+import { porPaginaDaLista } from "@/modules/usuarios/preferencias/por-pagina";
 
 export const metadata: Metadata = { title: "Projetos" };
 
@@ -36,6 +37,7 @@ export default async function ProjetosPage({
   const sp = await searchParams;
   const { page, pageSize, skip, take, sort, dir, q } = parseListParams(sp, {
     sortFields: ["codigo", "nome", "situacao", "cliente"],
+    defaultPageSize: await porPaginaDaLista("projetos"),
     defaultSort: undefined,
     defaultDir: "desc",
   });

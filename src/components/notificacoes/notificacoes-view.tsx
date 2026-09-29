@@ -169,7 +169,7 @@ export function NotificacoesView({
         </CardContent>
       </Card>
 
-      <Pagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
+      <Pagination lista="notificacoes" page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
     </div>
   );
 }

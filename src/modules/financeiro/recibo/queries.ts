@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { parseListParams } from "@/lib/list-params";
+import { porPaginaDaLista } from "@/modules/usuarios/preferencias/por-pagina";
 
 type RawParams = Record<string, string | string[] | undefined>;
 
@@ -134,7 +135,10 @@ function whereRecibo(projetistaId: string, status: FiltroStatusRecibo): Prisma.R
  * era "atirar e esquecer": nenhuma tela mostrava se foi assinado ou continua parado.
  */
 export async function listarRecibos(sp: RawParams) {
-  const { page, pageSize, skip, take } = parseListParams(sp, { sortFields: SORT_RECIBO });
+  const { page, pageSize, skip, take } = parseListParams(sp, {
+    sortFields: SORT_RECIBO,
+    defaultPageSize: await porPaginaDaLista("recibos"),
+  });
   // Nomes de param DIFERENTES dos da aba Pagamentos (`status`/`projetistaId`) de propósito —
   // as duas abas leem a MESMA URL; reusar o mesmo nome faria um filtro escolhido aqui
   // vazar pra Pagamentos ao trocar de aba, sem o usuário ter pedido isso lá (mesmo cuidado

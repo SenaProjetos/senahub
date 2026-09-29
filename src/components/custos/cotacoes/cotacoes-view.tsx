@@ -125,7 +125,7 @@ export function CotacoesView({
         </Table>
       </div>
 
-      <Pagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
+      <Pagination lista="custos-cotacoes" page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
     </div>
   );
 }

@@ -140,7 +140,7 @@ export function InsumosTab({
         </Table>
       </div>
 
-      <Pagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
+      <Pagination lista="custos-insumos" page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
     </div>
   );
 }

@@ -11,6 +11,7 @@ import {
 import { hrefsApontamentoPorItem } from "@/modules/coordenacao/queries";
 import { TarefasBoard } from "@/components/tarefas/tarefas-board";
 import { pageCount, parseListParams } from "@/lib/list-params";
+import { porPaginaDaLista } from "@/modules/usuarios/preferencias/por-pagina";
 
 export const metadata: Metadata = { title: "Tarefas" };
 
@@ -30,7 +31,7 @@ export default async function TarefasPage({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const { page, pageSize, skip, take, q } = parseListParams(sp, {
     sortFields: [],
-    defaultPageSize: 24,
+    defaultPageSize: await porPaginaDaLista("tarefas", 24),
   });
   const periodo = ["atrasadas", "semana", "mes"].includes(sp.periodo ?? "")
     ? (sp.periodo as FiltrosQuadroTarefas["periodo"])

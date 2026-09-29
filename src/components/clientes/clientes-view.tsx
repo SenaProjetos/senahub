@@ -525,7 +525,7 @@ export function ClientesView({
         </Table>
       </div>
 
-      {!selecao.soSelecionados && <Pagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} />}
+      {!selecao.soSelecionados && <Pagination lista="clientes" page={page} pageCount={pageCount} pageSize={pageSize} total={total} />}
 
       <BarraSelecao
         total={selecao.total}

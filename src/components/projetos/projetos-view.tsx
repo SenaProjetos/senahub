@@ -361,7 +361,7 @@ export function ProjetosView({
         <ProjetosTabela items={items} prontas={prontasPorProjeto} />
       )}
 
-      <Pagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
+      <Pagination lista="projetos" page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
 
       {podeGerir && (
         <ProjetoForm

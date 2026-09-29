@@ -21,6 +21,7 @@ import {
 import { nivelDaPasta } from "@/modules/uploads/pastas-da-lista";
 import { ROTULO_SITUACAO, SITUACOES, situacaoValida } from "@/modules/uploads/revisao-marcada";
 import { parseListParams, pageCount } from "@/lib/list-params";
+import { porPaginaDaLista } from "@/modules/usuarios/preferencias/por-pagina";
 import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
 import { resolverColunasVisiveis, CHAVE_PREF_COLUNAS, idsOcultaveis } from "@/modules/uploads/colunas-documento";
 import { nomenclaturaDoProjeto, nomenclaturaGlobal, resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
@@ -295,7 +296,7 @@ export async function TelaDocumentosProjeto({
   };
   const lp = parseListParams(sp ?? {}, {
     sortFields: CAMPOS_ORDENACAO_DOC,
-    defaultPageSize: 24,
+    defaultPageSize: await porPaginaDaLista("documentos", 24),
   });
   const [pagina, opcoes, opcoesMetadados, documentosPorFase, arvoreNavegacao, porSituacao] = await Promise.all([
     nivel === "raiz" || nivel === "fase"

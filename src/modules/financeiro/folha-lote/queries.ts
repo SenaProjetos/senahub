@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { parseListParams } from "@/lib/list-params";
+import { porPaginaDaLista } from "@/modules/usuarios/preferencias/por-pagina";
 import { INCLUDE_PAGAMENTO, comLancamentos } from "@/modules/financeiro/folha/queries";
 import { resumirLotes, RESUMO_LOTE_VAZIO } from "./service";
 
@@ -14,7 +15,7 @@ type RawParams = Record<string, string | string[] | undefined>;
  * (mesmo erro do D11 do plano de refatoração, com outro nome: D12).
  */
 export async function listarFolhasProjetista(sp: RawParams) {
-  const parsed = parseListParams(sp, { sortFields: [] });
+  const parsed = parseListParams(sp, { sortFields: [], defaultPageSize: await porPaginaDaLista("folha-lotes") });
   const { pageSize } = parsed;
   let { page, skip, take } = parsed;
 

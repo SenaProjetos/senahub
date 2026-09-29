@@ -383,7 +383,7 @@ export function TarefasBoard({
         </DndContext>
       )}
 
-      <Pagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
+      <Pagination lista="tarefas" page={page} pageCount={pageCount} pageSize={pageSize} total={total} />
 
       <TarefaDialog
         tarefa={tarefaDoDialog}

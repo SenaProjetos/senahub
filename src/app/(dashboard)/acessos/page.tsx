@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { parseListParams, pageCount } from "@/lib/list-params";
+import { porPaginaDaLista } from "@/modules/usuarios/preferencias/por-pagina";
 import {
   listarCredenciaisPaginado,
   listarCategorias,
@@ -42,6 +43,7 @@ export default async function AcessosPage({ searchParams }: { searchParams: Prom
 
   const { page, pageSize, skip, take, sort, dir, q } = parseListParams(sp, {
     sortFields: SORT_ACESSOS,
+    defaultPageSize: await porPaginaDaLista("acessos"),
     defaultSort: "nome",
     defaultDir: "asc",
   });

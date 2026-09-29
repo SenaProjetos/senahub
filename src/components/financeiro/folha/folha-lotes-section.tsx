@@ -184,7 +184,7 @@ export function FolhaLotesSection({
                 />
               ))}
             </div>
-            <Pagination page={page} pageCount={pageCount(total, pageSize)} pageSize={pageSize} total={total} />
+            <Pagination lista="folha-lotes" page={page} pageCount={pageCount(total, pageSize)} pageSize={pageSize} total={total} />
           </>
         )}
       </CardContent>

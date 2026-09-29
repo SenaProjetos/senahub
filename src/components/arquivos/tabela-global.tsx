@@ -400,7 +400,7 @@ export function TabelaGlobalArquivos({
       )}
 
       {paginacao && !selecao.soSelecionados && paginacao.total > paginacao.pageSize && (
-        <Pagination
+        <Pagination lista="arquivos"
           page={paginacao.page}
           pageCount={paginacao.pageCount}
           pageSize={paginacao.pageSize}
