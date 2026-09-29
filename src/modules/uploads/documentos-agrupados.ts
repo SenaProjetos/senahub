@@ -502,7 +502,9 @@ export async function listarDocumentosAgrupados(opts: {
         : null;
     linhas.push({
       id: d.id,
-      nome: d.nomeArquivo,
+      // O nome do documento vem do primeiro arquivo enviado (em geral o PDF): na pasta DWG ele
+      // diria ".pdf" numa linha que só tem o DWG. Ali vale o nome do arquivo daquele formato.
+      nome: formato && daAtual[0] ? daAtual[0].nomeArquivo : d.nomeArquivo,
       titulo: d.titulo,
       tituloPrancha,
       numeroPrancha: d.numeroPrancha ?? parseado?.numeracao ?? null,
