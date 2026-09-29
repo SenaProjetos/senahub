@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   contextoDaLinha,
   formatarLag,
+  compararCodigos,
   formatarPredecessoras,
   idsComFilhos,
   lerDuracao,
@@ -88,31 +89,44 @@ describe("recolher e filtrar", () => {
   });
 });
 
-describe("formatarPredecessoras", () => {
-  const numeros = new Map([["a", 3], ["b", 5], ["c", 12]]);
+describe("compararCodigos", () => {
+  it("ordem natural: 1.2 antes de 1.10, e o pai antes dos filhos", () => {
+    const cods = ["1.10", "1", "2", "1.2", "1.2.1", "10", "1.1"];
+    expect([...cods].sort(compararCodigos)).toEqual(["1", "1.1", "1.2", "1.2.1", "1.10", "2", "10"]);
+  });
+});
 
-  it("término→início sem atraso é só o número", () => {
-    expect(formatarPredecessoras([{ predecessoraId: "a", tipo: "fs", lagDias: 0 }], numeros)).toBe("3");
+describe("formatarPredecessoras", () => {
+  const codigos = new Map([["a", "1.3"], ["b", "1.5"], ["c", "2.12"]]);
+
+  it("término→início sem atraso é só o código", () => {
+    expect(formatarPredecessoras([{ predecessoraId: "a", tipo: "fs", lagDias: 0 }], codigos)).toBe("1.3");
   });
 
   it("com atraso ou outro tipo, mostra a sigla (em português por padrão)", () => {
-    expect(formatarPredecessoras([{ predecessoraId: "a", tipo: "fs", lagDias: 2 }], numeros)).toBe("3TI+2d");
-    expect(formatarPredecessoras([{ predecessoraId: "b", tipo: "ss", lagDias: 0 }], numeros)).toBe("5II");
-    expect(formatarPredecessoras([{ predecessoraId: "c", tipo: "ff", lagDias: -1 }], numeros)).toBe("12TT-1d");
-    expect(formatarPredecessoras([{ predecessoraId: "a", tipo: "sf", lagDias: 0 }], numeros)).toBe("3IT");
+    expect(formatarPredecessoras([{ predecessoraId: "a", tipo: "fs", lagDias: 2 }], codigos)).toBe("1.3TI+2d");
+    expect(formatarPredecessoras([{ predecessoraId: "b", tipo: "ss", lagDias: 0 }], codigos)).toBe("1.5II");
+    expect(formatarPredecessoras([{ predecessoraId: "c", tipo: "ff", lagDias: -1 }], codigos)).toBe("2.12TT-1d");
+    expect(formatarPredecessoras([{ predecessoraId: "a", tipo: "sf", lagDias: 0 }], codigos)).toBe("1.3IT");
   });
 
   it("em inglês", () => {
-    expect(formatarPredecessoras([{ predecessoraId: "a", tipo: "fs", lagDias: 2 }], numeros, "en")).toBe("3FS+2d");
+    expect(formatarPredecessoras([{ predecessoraId: "a", tipo: "fs", lagDias: 2 }], codigos, "en")).toBe("1.3FS+2d");
   });
 
-  it("vários, em ordem de número; predecessora sem número é ignorada", () => {
+  it("vários, em ordem de código (1.10 depois de 1.9); predecessora sem código é ignorada", () => {
     const v = [
       { predecessoraId: "c", tipo: "fs" as const, lagDias: 0 },
       { predecessoraId: "fantasma", tipo: "fs" as const, lagDias: 0 },
       { predecessoraId: "a", tipo: "ss" as const, lagDias: 1.5 },
     ];
-    expect(formatarPredecessoras(v, numeros)).toBe("3II+1,5d;12");
+    expect(formatarPredecessoras(v, codigos)).toBe("1.3II+1,5d;2.12");
+    const dezenas = new Map([["x", "1.10"], ["y", "1.9"]]);
+    const ordem = [
+      { predecessoraId: "x", tipo: "fs" as const, lagDias: 0 },
+      { predecessoraId: "y", tipo: "fs" as const, lagDias: 0 },
+    ];
+    expect(formatarPredecessoras(ordem, dezenas)).toBe("1.9;1.10");
   });
 
   it("lag: zero some, decimal usa vírgula", () => {
@@ -123,30 +137,40 @@ describe("formatarPredecessoras", () => {
 });
 
 describe("lerPredecessoras", () => {
-  const idPorNumero = new Map([[1, "a"], [3, "c"], [5, "e"], [12, "l"]]);
-  const ler = (t: string) => lerPredecessoras(t, idPorNumero, "e");
+  const idPorCodigo = new Map([["1", "a"], ["1.3", "c"], ["2", "e"], ["2.12", "l"]]);
+  const ler = (t: string) => lerPredecessoras(t, idPorCodigo, "e");
 
   it("vazio = nenhuma predecessora", () => {
     expect(ler("")).toEqual({ ok: true, vinculos: [] });
     expect(ler("   ")).toEqual({ ok: true, vinculos: [] });
   });
 
-  it("número puro é término→início sem atraso", () => {
-    expect(ler("3")).toEqual({ ok: true, vinculos: [{ predecessoraId: "c", tipo: "fs", lagDias: 0 }] });
+  it("código puro é término→início sem atraso", () => {
+    expect(ler("1.3")).toEqual({ ok: true, vinculos: [{ predecessoraId: "c", tipo: "fs", lagDias: 0 }] });
+    expect(ler("1")).toEqual({ ok: true, vinculos: [{ predecessoraId: "a", tipo: "fs", lagDias: 0 }] });
   });
 
   it("aceita as siglas em português e em inglês, com atraso positivo, negativo e decimal", () => {
-    expect(ler("3TI+2d")).toEqual({ ok: true, vinculos: [{ predecessoraId: "c", tipo: "fs", lagDias: 2 }] });
-    expect(ler("3fs+2d")).toEqual({ ok: true, vinculos: [{ predecessoraId: "c", tipo: "fs", lagDias: 2 }] });
+    expect(ler("1.3TI+2d")).toEqual({ ok: true, vinculos: [{ predecessoraId: "c", tipo: "fs", lagDias: 2 }] });
+    expect(ler("1.3fs+2d")).toEqual({ ok: true, vinculos: [{ predecessoraId: "c", tipo: "fs", lagDias: 2 }] });
     expect(ler("1II-1 dia")).toEqual({ ok: true, vinculos: [{ predecessoraId: "a", tipo: "ss", lagDias: -1 }] });
-    expect(ler("12 TT + 1,5d")).toEqual({ ok: true, vinculos: [{ predecessoraId: "l", tipo: "ff", lagDias: 1.5 }] });
-    expect(ler("3IT")).toEqual({ ok: true, vinculos: [{ predecessoraId: "c", tipo: "sf", lagDias: 0 }] });
+    expect(ler("2.12 TT + 1,5d")).toEqual({ ok: true, vinculos: [{ predecessoraId: "l", tipo: "ff", lagDias: 1.5 }] });
+    expect(ler("2.12TT+1.5d")).toEqual({ ok: true, vinculos: [{ predecessoraId: "l", tipo: "ff", lagDias: 1.5 }] });
+    expect(ler("1.3IT")).toEqual({ ok: true, vinculos: [{ predecessoraId: "c", tipo: "sf", lagDias: 0 }] });
+  });
+
+  it("zeros à esquerda não mudam a tarefa", () => {
+    expect(ler("01.03")).toEqual({ ok: true, vinculos: [{ predecessoraId: "c", tipo: "fs", lagDias: 0 }] });
   });
 
   it("vários separados por ponto e vírgula, ou por vírgula quando não há atraso decimal", () => {
     const esperado = { ok: true, vinculos: [{ predecessoraId: "a", tipo: "fs", lagDias: 0 }, { predecessoraId: "c", tipo: "ss", lagDias: 2 }] };
-    expect(ler("1;3II+2d")).toEqual(esperado);
-    expect(ler("1, 3II+2d")).toEqual(esperado);
+    expect(ler("1;1.3II+2d")).toEqual(esperado);
+    expect(ler("1, 1.3II+2d")).toEqual(esperado);
+    expect(ler("1.3,2.12")).toEqual({
+      ok: true,
+      vinculos: [{ predecessoraId: "c", tipo: "fs", lagDias: 0 }, { predecessoraId: "l", tipo: "fs", lagDias: 0 }],
+    });
   });
 
   it("vírgula decimal no atraso não é separador", () => {
@@ -154,22 +178,24 @@ describe("lerPredecessoras", () => {
   });
 
   it("recusa com mensagem clara", () => {
-    expect(ler("99")).toEqual({ ok: false, erro: "Não existe a tarefa 99." });
-    expect(ler("5")).toEqual({ ok: false, erro: "Uma tarefa não pode ser predecessora de si mesma." });
-    expect(ler("3;3")).toEqual({ ok: false, erro: "A tarefa 3 aparece duas vezes." });
+    expect(ler("9.9")).toEqual({ ok: false, erro: "Não existe a tarefa 9.9." });
+    expect(ler("2")).toEqual({ ok: false, erro: "Uma tarefa não pode ser predecessora de si mesma." });
+    expect(ler("1.3;1.3")).toEqual({ ok: false, erro: "A tarefa 1.3 aparece duas vezes." });
     expect(ler("abc")).toMatchObject({ ok: false });
-    expect((ler("3TI+2h") as { erro: string }).erro).toMatch(/dias úteis/);
-    expect((ler("3XX") as { erro: string }).erro).toMatch(/Não entendi/);
+    expect(ler("1.")).toMatchObject({ ok: false });
+    expect((ler("1.3TI+2h") as { erro: string }).erro).toMatch(/dias úteis/);
+    expect((ler("1.3XX") as { erro: string }).erro).toMatch(/Não entendi/);
+    expect((ler("x") as { erro: string }).erro).toMatch(/código da tarefa/);
   });
 
   it("o que a tela mostra, a leitura devolve", () => {
-    const numeros = new Map([["a", 1], ["c", 3]]);
+    const codigos = new Map([["a", "1"], ["c", "1.3"]]);
     const vinculos = [
       { predecessoraId: "a", tipo: "ff" as const, lagDias: -2 },
       { predecessoraId: "c", tipo: "fs" as const, lagDias: 0 },
     ];
-    const texto = formatarPredecessoras(vinculos, numeros);
-    const lido = lerPredecessoras(texto, idPorNumero, "e");
+    const texto = formatarPredecessoras(vinculos, codigos);
+    const lido = lerPredecessoras(texto, idPorCodigo, "e");
     expect(lido).toEqual({ ok: true, vinculos });
   });
 });

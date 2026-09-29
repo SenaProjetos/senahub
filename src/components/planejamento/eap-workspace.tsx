@@ -333,7 +333,7 @@ export function EapWorkspace({
     }
   }
 
-  /** Arrastar a linha (alça da coluna Nº): antes/depois de outra, no nível dela, com as subtarefas junto. */
+  /** Arrastar a linha (alça da coluna EDT): antes/depois de outra, no nível dela, com as subtarefas junto. */
   function mover(t: EapTarefaDTO, alvoId: string, posicao: "antes" | "depois") {
     void naFila(async () => {
       const r = await moverEapTarefa({ id: t.id, alvoId, posicao });

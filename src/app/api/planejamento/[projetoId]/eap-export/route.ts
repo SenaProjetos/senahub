@@ -5,29 +5,18 @@ import { getSession } from "@/lib/session";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { eapDoProjeto, projetoVisivel } from "@/modules/planejamento/queries";
 import { podeVerDatasDoPlanejamento } from "@/modules/planejamento/acesso";
+import { calcularCodigos } from "@/modules/planejamento/codigo-eap";
+import { compararCodigos } from "@/modules/planejamento/gantt-linhas";
 
 const require = createRequire(import.meta.url);
 const ExcelJS = require("exceljs") as typeof import("exceljs");
 
-/** Computa código WBS (ex: "1.2.3") a partir da lista plana com parentId. */
-function wbsCodes(tarefas: { id: string; parentId: string | null; ordem: number }[]): Map<string, string> {
-  const byParent = new Map<string | null, typeof tarefas>();
-  for (const t of tarefas) {
-    const list = byParent.get(t.parentId) ?? [];
-    list.push(t);
-    byParent.set(t.parentId, list);
-  }
-  const codes = new Map<string, string>();
-  function walk(parentId: string | null, prefix: string) {
-    const children = (byParent.get(parentId) ?? []).sort((a, b) => a.ordem - b.ordem);
-    children.forEach((c, i) => {
-      const code = prefix ? `${prefix}.${i + 1}` : `${i + 1}`;
-      codes.set(c.id, code);
-      walk(c.id, code);
-    });
-  }
-  walk(null, "");
-  return codes;
+/**
+ * Código da EAP (EDT: "1.2.3") de cada linha — o MESMO cálculo da tela (`calcularCodigos`), para a planilha e o
+ * Gantt nunca discordarem. Tinha uma cópia própria, sem o desempate por id e sem tratar linha órfã.
+ */
+function codigosDaEap(tarefas: { id: string; parentId: string | null; ordem: number }[]): Map<string, string> {
+  return new Map(calcularCodigos(tarefas).map((c) => [c.id, c.codigo]));
 }
 
 export async function GET(
@@ -51,7 +40,7 @@ export async function GET(
   // F7.1: custo por linha só sai para quem vê financeiro — mesma regra da tela.
   const verCusto = await podeVerFinanceiro(session.user);
   const { tarefas, temLinhaBase } = await eapDoProjeto(projetoId, { verCusto, verDatas: true });
-  const wbs = wbsCodes(tarefas);
+  const wbs = codigosDaEap(tarefas);
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "SenaHub";
@@ -60,7 +49,7 @@ export async function GET(
   const ws = wb.addWorksheet("EAP");
 
   const COLUNAS: Partial<ExcelJSType.Column>[] = [
-    { header: "WBS", key: "wbs", width: 10 },
+    { header: "EDT", key: "wbs", width: 10 },
     { header: "Tarefa", key: "nome", width: 42 },
     { header: "Disciplina", key: "disciplina", width: 28 },
     { header: "Início previsto", key: "inicio", width: 16 },
@@ -83,11 +72,7 @@ export async function GET(
   headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1C2D58" } };
   headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
 
-  const sorted = [...tarefas].sort((a, b) => {
-    const wa = wbs.get(a.id) ?? "";
-    const wb_ = wbs.get(b.id) ?? "";
-    return wa.localeCompare(wb_, undefined, { numeric: true });
-  });
+  const sorted = [...tarefas].sort((a, b) => compararCodigos(wbs.get(a.id) ?? "0", wbs.get(b.id) ?? "0"));
 
   for (const t of sorted) {
     const code = wbs.get(t.id) ?? "";

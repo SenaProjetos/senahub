@@ -42,7 +42,7 @@ import {
  * linhas, dentro de UMA área de rolagem — a tabela fica presa à esquerda e o cabeçalho preso em cima,
  * então as duas metades nunca desalinham. Duas visões, como no Project:
  *
- *  - planejamento ("Gráfico de Gantt"): Nº, tarefa, duração, início, término, predecessoras, recursos;
+ *  - planejamento ("Gráfico de Gantt"): EDT, tarefa, duração, início, término, predecessoras, recursos;
  *  - controle ("Gantt de Controle"): % concluído, datas, linha de base e desvio, com a barra da base
  *    logo abaixo da barra prevista.
  *
@@ -93,7 +93,7 @@ export type PlanoGanttProps = {
   menuDe?: (t: EapTarefaDTO, contexto: ContextoDaLinha) => AcaoItem[];
   onAcao?: (t: EapTarefaDTO, item: AcaoItemAcao) => void;
   /**
-   * Arrastar a linha pela alça da coluna Nº (como no Project): ela vai para antes/depois de `alvoId`, no nível dele, com as
+   * Arrastar a linha pela alça da coluna EDT (como no Project): ela vai para antes/depois de `alvoId`, no nível dele, com as
    * subtarefas junto. Sem esta prop não há alça. Mover para cima/baixo pelo teclado passa pelo menu (`onAcao`).
    */
   onMover?: (t: EapTarefaDTO, alvoId: string, posicao: "antes" | "depois") => void;
@@ -169,8 +169,9 @@ export function PlanoGantt({
   const [destino, setDestino] = useState<{ id: string; posicao: "antes" | "depois" } | null>(null);
 
   const grade = useMemo(() => montarGrade(tarefas), [tarefas]);
-  const numeroPorId = useMemo(() => new Map(grade.map((l) => [l.t.id, l.numero])), [grade]);
-  const idPorNumero = useMemo(() => new Map(grade.map((l) => [l.numero, l.t.id])), [grade]);
+  // A linha se identifica pelo CÓDIGO da EAP (1.2.3): é o que a coluna EDT mostra e o que as predecessoras citam.
+  const codigoPorId = useMemo(() => new Map(grade.map((l) => [l.t.id, l.codigo])), [grade]);
+  const idPorCodigo = useMemo(() => new Map(grade.map((l) => [l.codigo, l.t.id])), [grade]);
   const contextos = useMemo(() => new Map(grade.map((l, i) => [l.t.id, contextoDaLinha(grade, i)])), [grade]);
   const linhas: Linha[] = useMemo(
     () => (filtroIds ? soAsDoFiltro(grade, filtroIds) : linhasVisiveis(grade, recolhidos)),
@@ -203,7 +204,7 @@ export function PlanoGantt({
     if (campo === "nome") return t.nome;
     if (campo === "duracao") return t.marco ? "0" : String(t.duracaoDias).replace(".", ",");
     if (campo === "progresso") return String(t.progresso);
-    return formatarPredecessoras(t.predecessoras, numeroPorId);
+    return formatarPredecessoras(t.predecessoras, codigoPorId);
   };
 
   /** A célula seguinte na ordem da tabela: Tab e Shift+Tab andam pela linha, Enter desce na mesma coluna. */
@@ -268,13 +269,13 @@ export function PlanoGantt({
       exibir = `${r.valor}%`;
       erro = await onEditarCampo!(t, { campo: "progresso", progresso: r.valor });
     } else {
-      const r = lerPredecessoras(texto, idPorNumero, t.id);
+      const r = lerPredecessoras(texto, idPorCodigo, t.id);
       if (!r.ok) {
         onErro?.(r.erro);
         return false;
       }
-      exibir = formatarPredecessoras(r.vinculos, numeroPorId);
-      if (exibir === formatarPredecessoras(t.predecessoras, numeroPorId)) return true;
+      exibir = formatarPredecessoras(r.vinculos, codigoPorId);
+      if (exibir === formatarPredecessoras(t.predecessoras, codigoPorId)) return true;
       erro = await onEditarPredecessoras!(t, r.vinculos);
     }
     if (erro) {
@@ -308,7 +309,7 @@ export function PlanoGantt({
         salvando={salvando}
         invalida={invalida}
         valorInicial={textoInicial(l, campo)}
-        rotulo={`${rotulo} da tarefa ${l.numero}`}
+        rotulo={`${rotulo} da tarefa ${l.codigo}`}
         aoIniciar={() => iniciar(l.t.id, campo)}
         aoConfirmar={(texto, destino) => confirmar(l, campo, texto, destino)}
         aoCancelar={cancelar}
@@ -411,10 +412,12 @@ export function PlanoGantt({
         );
       },
     };
-    const numero: Coluna = {
-      id: "numero",
-      rotulo: "Nº",
-      w: podeArrastar ? 56 : 44,
+    // Reunião de 29/09/2026: no lugar do Nº (posição na lista), o código da EAP — 1, 1.1, 1.1.1… —, que se refaz
+    // sozinho ao mover linha. É ele que as predecessoras citam. Largura para até quatro níveis de dois dígitos.
+    const codigo: Coluna = {
+      id: "codigo",
+      rotulo: "EDT",
+      w: podeArrastar ? 96 : 76,
       alinhar: "right",
       render: (l) => (
         <span className="flex w-full items-center justify-end gap-1">
@@ -430,7 +433,9 @@ export function PlanoGantt({
               <GripVertical className="size-3.5" />
             </span>
           )}
-          <span className="font-mono text-[11px] text-muted-foreground">{l.numero}</span>
+          <span className="font-mono text-[11px] text-muted-foreground" title={`Código da EAP: ${l.codigo}`}>
+            {l.codigo}
+          </span>
         </span>
       ),
     };
@@ -488,7 +493,7 @@ export function PlanoGantt({
       rotulo: "Predecessoras",
       w: 112,
       render: (l) => {
-        const texto = gravado(l.t.id, "pred") ?? formatarPredecessoras(l.t.predecessoras, numeroPorId);
+        const texto = gravado(l.t.id, "pred") ?? formatarPredecessoras(l.t.predecessoras, codigoPorId);
         return envolver(l, "pred", "Predecessoras", <span className="truncate font-mono text-xs text-muted-foreground" title={texto}>{texto}</span>);
       },
     };
@@ -586,7 +591,7 @@ export function PlanoGantt({
                   <BotaoAcoes
                     itens={menuDe(l.t, contextos.get(l.t.id)!)}
                     onSelect={(item) => onAcao?.(l.t, item)}
-                    rotulo={`Ações da tarefa ${l.numero}: ${l.t.nome}`}
+                    rotulo={`Ações da tarefa ${l.codigo}: ${l.t.nome}`}
                   />
                 )}
               </div>
@@ -594,14 +599,14 @@ export function PlanoGantt({
           }
         : null;
 
-    if (!verDatas) cs.push(numero, nome, disciplina, duracao, progresso, predecessoras, recursos);
-    else if (modo === "planejamento") cs.push(numero, nome, disciplina, duracao, inicio, termino, predecessoras, recursos);
-    else cs.push(numero, nome, progresso, inicio, termino, inicioBase, terminoBase, desvio);
+    if (!verDatas) cs.push(codigo, nome, disciplina, duracao, progresso, predecessoras, recursos);
+    else if (modo === "planejamento") cs.push(codigo, nome, disciplina, duracao, inicio, termino, predecessoras, recursos);
+    else cs.push(codigo, nome, progresso, inicio, termino, inicioBase, terminoBase, desvio);
     if (mostrarCusto && (modo === "planejamento" || !verDatas)) cs.push(custo);
     if (acoesCol) cs.push(acoesCol);
     return compacto ? cs.filter((c) => !c.secundaria) : cs;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `envolver`/`gravado` releem o estado da edição a cada render
-  }, [modo, verDatas, mostrarCusto, compacto, acoes, numeroPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, idPorNumero, menuDe, onAcao, contextos, podeArrastar, grade]);
+  }, [modo, verDatas, mostrarCusto, compacto, acoes, codigoPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, idPorCodigo, menuDe, onAcao, contextos, podeArrastar, grade]);
 
   const larguraTabela = colunas.reduce((s, c) => s + c.w, 0);
 

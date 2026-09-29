@@ -1,18 +1,19 @@
 /**
- * A grade do planejamento no molde do MS Project: as linhas na ordem da árvore (o "Id" 1, 2, 3…), recolher e
- * expandir níveis, e o texto das colunas Predecessoras e Nomes dos recursos.
+ * A grade do planejamento no molde do MS Project: as linhas na ordem da árvore, recolher e expandir níveis, e o
+ * texto das colunas Predecessoras e Nomes dos recursos.
  *
- * PURO. O número de uma linha é a posição dela na lista COMPLETA, sem filtro e sem nível recolhido — como o "Id"
- * do Project, que não muda quando você esconde linhas. É esse número que a coluna Predecessoras cita ("3TI+2d"):
- * não é o código da EAP (`1.2.3`, posição hierárquica) nem o índice da lista filtrada.
+ * PURO. A linha é identificada pelo CÓDIGO da EAP (`1.2.3`, a posição hierárquica — o "EDT" do Project): é ele que a
+ * coluna EDT mostra e que a coluna Predecessoras cita ("1.2.3TI+2d"). Ele se refaz sozinho ao mover ou inserir linha
+ * (reunião de 29/09/2026: "1.1, 1.1.1… e atualiza tudo"), e é calculado sobre a lista COMPLETA — esconder linhas
+ * (recolher, filtrar) não muda código nenhum. O vínculo continua gravado pelo id da linha; o código é só como se lê.
  */
 import { calcularCodigos, type NoEap } from "./codigo-eap";
 
 export type LinhaGrade<T> = {
   t: T;
-  /** O "Id" do Project: 1-based, na ordem da árvore, da lista completa. */
+  /** Posição 1-based na ordem da árvore, da lista completa (não é o que a tela mostra: ver `codigo`). */
   numero: number;
-  /** Código da EAP (`1.2.3`). */
+  /** Código da EAP (`1.2.3`): o que a coluna EDT mostra e o que as predecessoras citam. */
   codigo: string;
   /** Profundidade: raiz = 1. */
   nivel: number;
@@ -102,7 +103,7 @@ export function idsComFilhos<T extends { id: string }>(grade: readonly LinhaGrad
 }
 
 // ─────────────────────────────────────────────────────────────
-// Predecessoras: "3TI+2d;5"
+// Predecessoras: "1.2TI+2d;1.10"
 // ─────────────────────────────────────────────────────────────
 
 export type TipoVinculo = "fs" | "ss" | "ff" | "sf";
@@ -123,6 +124,18 @@ const TIPO_DA_SIGLA: Record<string, TipoVinculo> = { fs: "fs", ti: "fs", ss: "ss
 
 const numeroBr = (n: number) => String(Math.abs(n)).replace(".", ",");
 
+/** Ordem natural dos códigos da EAP: `1.2` antes de `1.10`, e o pai (`1`) antes dos filhos (`1.1`). */
+export function compararCodigos(a: string, b: string): number {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] ?? -1;
+    const y = pb[i] ?? -1;
+    if (x !== y) return x - y;
+  }
+  return 0;
+}
+
 /** `+2d`, `-1d`, `+1,5d`; vazio para zero. Atraso é sempre em dias ÚTEIS. */
 export function formatarLag(lagDias: number): string {
   if (!lagDias) return "";
@@ -130,36 +143,36 @@ export function formatarLag(lagDias: number): string {
 }
 
 /**
- * `3` (término→início sem atraso), `3TI+2d`, `5II`, `2TT-1d`. Vínculos separados por `;`, em ordem de número.
- * Predecessora fora do conjunto (sem número) é ignorada.
+ * `1.2` (término→início sem atraso), `1.2TI+2d`, `3.1II`, `2TT-1d`. Vínculos separados por `;`, em ordem de código.
+ * Predecessora fora do conjunto (sem código) é ignorada.
  */
 export function formatarPredecessoras(
   vinculos: readonly Vinculo[],
-  numeroPorId: ReadonlyMap<string, number>,
+  codigoPorId: ReadonlyMap<string, string>,
   idioma: IdiomaVinculo = IDIOMA_VINCULO,
 ): string {
   return vinculos
-    .map((v) => ({ n: numeroPorId.get(v.predecessoraId), v }))
-    .filter((x): x is { n: number; v: Vinculo } => x.n != null)
-    .sort((a, b) => a.n - b.n)
-    .map(({ n, v }) => `${n}${v.tipo === "fs" && !v.lagDias ? "" : SIGLA[idioma][v.tipo]}${formatarLag(v.lagDias)}`)
+    .map((v) => ({ codigo: codigoPorId.get(v.predecessoraId), v }))
+    .filter((x): x is { codigo: string; v: Vinculo } => x.codigo != null)
+    .sort((a, b) => compararCodigos(a.codigo, b.codigo))
+    .map(({ codigo, v }) => `${codigo}${v.tipo === "fs" && !v.lagDias ? "" : SIGLA[idioma][v.tipo]}${formatarLag(v.lagDias)}`)
     .join(";");
 }
 
 export type ResultadoPredecessoras = { ok: true; vinculos: Vinculo[] } | { ok: false; erro: string };
 
-const TOKEN = /^(\d+)\s*(fs|ss|ff|sf|ti|ii|tt|it)?\s*(?:([+-])\s*(\d+(?:[.,]\d+)?)\s*(?:d|dia|dias)?)?$/i;
+const TOKEN = /^(\d+(?:\.\d+)*)\s*(fs|ss|ff|sf|ti|ii|tt|it)?\s*(?:([+-])\s*(\d+(?:[.,]\d+)?)\s*(?:d|dia|dias)?)?$/i;
 
 /**
- * Lê o texto da célula Predecessoras. Aceita `3`, `3TI`, `3FS+2d`, `3II-1 dia`, vários separados por `;` (ou por
- * vírgula, quando não há atraso decimal). `idPorNumero` é o "Id" → id da linha, da lista COMPLETA; `propriaId`
- * é a linha que está sendo editada (não pode citar a si mesma). Vazio = sem predecessoras.
+ * Lê o texto da célula Predecessoras. Aceita `1.2`, `1.2TI`, `1.2FS+2d`, `3II-1 dia`, vários separados por `;` (ou
+ * por vírgula, quando não há atraso decimal). `idPorCodigo` é o código da EAP → id da linha, da lista COMPLETA;
+ * `propriaId` é a linha que está sendo editada (não pode citar a si mesma). Vazio = sem predecessoras.
  *
  * Só valida o que dá para ver no texto. Ciclo (A depende de B que depende de A) só o servidor enxerga.
  */
 export function lerPredecessoras(
   texto: string,
-  idPorNumero: ReadonlyMap<number, string>,
+  idPorCodigo: ReadonlyMap<string, string>,
   propriaId: string,
 ): ResultadoPredecessoras {
   const limpo = texto.trim();
@@ -167,7 +180,7 @@ export function lerPredecessoras(
   const virgulaSepara = !limpo.includes(";") && !/[+-]\s*\d+,\d/.test(limpo);
   const partes = limpo.split(virgulaSepara ? /[;,]/ : ";").map((p) => p.trim()).filter(Boolean);
 
-  const vistos = new Set<number>();
+  const vistos = new Set<string>();
   const vinculos: Vinculo[] = [];
   for (const parte of partes) {
     const m = TOKEN.exec(parte);
@@ -176,16 +189,17 @@ export function lerPredecessoras(
       return {
         ok: false,
         erro: tipoDeAtraso
-          ? `Não entendi "${parte}". O atraso é em dias úteis, como 3TI+2d.`
-          : `Não entendi "${parte}". Use o número da tarefa, o tipo (TI, II, TT, IT) e o atraso, como 3TI+2d.`,
+          ? `Não entendi "${parte}". O atraso é em dias úteis, como 1.2TI+2d.`
+          : `Não entendi "${parte}". Use o código da tarefa (como 1.2.3), o tipo (TI, II, TT, IT) e o atraso, como 1.2TI+2d.`,
       };
     }
-    const numero = Number(m[1]);
-    const id = idPorNumero.get(numero);
-    if (!id) return { ok: false, erro: `Não existe a tarefa ${numero}.` };
+    // "01.2" e "1.2" são a mesma tarefa: cada trecho passa por Number.
+    const codigo = m[1].split(".").map((seg) => String(Number(seg))).join(".");
+    const id = idPorCodigo.get(codigo);
+    if (!id) return { ok: false, erro: `Não existe a tarefa ${codigo}.` };
     if (id === propriaId) return { ok: false, erro: "Uma tarefa não pode ser predecessora de si mesma." };
-    if (vistos.has(numero)) return { ok: false, erro: `A tarefa ${numero} aparece duas vezes.` };
-    vistos.add(numero);
+    if (vistos.has(codigo)) return { ok: false, erro: `A tarefa ${codigo} aparece duas vezes.` };
+    vistos.add(codigo);
     const lag = m[4] ? Number(m[4].replace(",", ".")) * (m[3] === "-" ? -1 : 1) : 0;
     vinculos.push({ predecessoraId: id, tipo: m[2] ? TIPO_DA_SIGLA[m[2].toLowerCase()] : "fs", lagDias: lag });
   }
