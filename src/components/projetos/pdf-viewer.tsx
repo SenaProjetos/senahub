@@ -256,6 +256,10 @@ type Props = {
   novidades: Novidades;
   paginaInicial: number | null;
   pinInicial: number | null;
+  /** Para onde o "← Arquivos" volta (já validado no servidor). */
+  hrefVolta: string;
+  /** O `?volta=` recebido, validado — repassado ao trocar de prancha para não se perder pelo caminho. */
+  voltaParam: string | null;
 };
 
 // `traco` é a cor do desenho vetorial (item 9): o SVG usa `currentColor`, então basta a classe
@@ -1840,7 +1844,7 @@ export function PdfViewer(props: Props) {
               "código · projeto · disciplina", na dica do nome. */}
           <div className="flex min-h-9 flex-wrap items-center gap-x-2 gap-y-1 px-2 pt-1">
             <Link
-              href={`/projetos/${projetoId}/arquivos`}
+              href={props.hrefVolta}
               className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
               title={`Voltar para os arquivos de ${disciplinaNome}`}
             >
@@ -2008,7 +2012,13 @@ export function PdfViewer(props: Props) {
             )}
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-center gap-1 sm:flex-nowrap">
-            <SeletorPranchas projetoId={projetoId} uploadId={uploadId} documentoIds={props.documentosDaPrancha} pranchas={pranchasNavegaveis} />
+            <SeletorPranchas
+              projetoId={projetoId}
+              uploadId={uploadId}
+              documentoIds={props.documentosDaPrancha}
+              pranchas={pranchasNavegaveis}
+              volta={props.voltaParam}
+            />
             {pdf && (
               <>
                 <SeparadorBarra />

@@ -11,6 +11,7 @@ import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
 import { extensao } from "@/modules/uploads/destino";
 import { contextoTarefasDasPendencias, opcoesTarefa } from "@/modules/tarefas/queries";
 import { PdfViewer } from "@/components/projetos/pdf-viewer";
+import { PARAM_VOLTA, voltaPadrao, voltaValida } from "@/modules/uploads/volta-visualizador";
 
 export const metadata: Metadata = { title: "Visualizar prancha" };
 
@@ -19,7 +20,7 @@ export default async function VisualizarPage({
   searchParams,
 }: {
   params: Promise<{ id: string; uploadId: string }>;
-  searchParams: Promise<{ pagina?: string; pin?: string }>;
+  searchParams: Promise<{ pagina?: string; pin?: string; volta?: string }>;
 }) {
   const user = await requirePermission("projetos", "ver");
   const { id, uploadId } = await params;
@@ -89,7 +90,7 @@ export default async function VisualizarPage({
     documentoCanonicoId
       ? prisma.documentoDisciplina.findUnique({
           where: { id: documentoCanonicoId },
-          select: { status: { select: { nome: true, final: true, cor: true } } },
+          select: { faseId: true, status: { select: { nome: true, final: true, cor: true } } },
         })
       : Promise.resolve(null),
     upload.revisaoId
@@ -213,6 +214,13 @@ export default async function VisualizarPage({
       calibracoesIniciais={calibracoes}
       padroes={padroes}
       novidades={novidades}
+      // "← Arquivos" volta para onde a pessoa estava (a pasta, o filtro, a página da lista). Sem `volta`
+      // válido — link antigo, e-mail, outra aba —, cai na pasta PDF da fase do documento.
+      hrefVolta={
+        voltaValida(sp[PARAM_VOLTA], id) ??
+        voltaPadrao(id, { disciplinaId: upload.disciplinaId, faseId: documentoCanonico?.faseId ?? null })
+      }
+      voltaParam={voltaValida(sp[PARAM_VOLTA], id)}
       paginaInicial={sp.pagina ? Number(sp.pagina) : null}
       pinInicial={sp.pin ? Number(sp.pin) : null}
     />

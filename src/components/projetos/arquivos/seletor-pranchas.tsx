@@ -19,6 +19,7 @@ import {
   type EscopoPranchas,
   type PranchaNavegavel,
 } from "@/modules/uploads/pranchas-navegacao";
+import { comVolta } from "@/modules/uploads/volta-visualizador";
 
 /** Onde o navegador lembra o recorte escolhido (etapa × projeto) — conveniência de quem navega. */
 const CHAVE_ESCOPO = "senahub:pranchas-escopo";
@@ -33,12 +34,15 @@ export function SeletorPranchas({
   uploadId,
   documentoIds,
   pranchas,
+  volta,
 }: {
   projetoId: string;
   uploadId: string;
   /** Documento lógico da prancha aberta (e o canônico, após merge) — ver `ancoraNaLista`. */
   documentoIds: string[];
   pranchas: PranchaNavegavel[];
+  /** Endereço de volta que veio na URL — segue junto a cada prancha, para o "← Arquivos" não o perder. */
+  volta: string | null;
 }) {
   const router = useRouter();
   const [escopo, setEscopo] = useState<EscopoPranchas>("etapa");
@@ -76,7 +80,7 @@ export function SeletorPranchas({
   // A sigla da etapa em cada linha só informa quando a lista mistura etapas.
   const variasEtapas = new Set(lista.map((p) => p.faseId)).size > 1;
   const totalEtapa = temEtapa ? pranchasDoEscopo(pranchas, ancora, "etapa").length : 0;
-  const href = (p: PranchaNavegavel) => `/projetos/${projetoId}/arquivos/${p.uploadId}/visualizar`;
+  const href = (p: PranchaNavegavel) => comVolta(`/projetos/${projetoId}/arquivos/${p.uploadId}/visualizar`, volta);
 
   if (pranchas.length <= 1) return null;
 
@@ -86,7 +90,8 @@ export function SeletorPranchas({
         rotulo="Prancha anterior"
         dica={anterior ? rotuloPrancha(anterior) : "Esta é a primeira da lista."}
         disabled={!anterior}
-        render={anterior ? <Link href={href(anterior)} /> : undefined}
+        // `replace`: andar de prancha em prancha não empilha histórico — o Voltar do navegador sai do visualizador.
+        render={anterior ? <Link href={href(anterior)} replace /> : undefined}
       >
         <ArrowLeft />
       </BotaoFerramenta>
@@ -125,7 +130,7 @@ export function SeletorPranchas({
                   if (e.key === "Enter" && filtradas[0]) {
                     e.preventDefault();
                     setAberto(false);
-                    router.push(href(filtradas[0]));
+                    router.replace(href(filtradas[0]));
                   }
                 }}
                 placeholder="Número, título ou arquivo…"
@@ -170,6 +175,7 @@ export function SeletorPranchas({
                         <li key={p.uploadId}>
                           <Link
                             href={href(p)}
+                            replace
                             onClick={() => setAberto(false)}
                             aria-current={ehAtual && !revisaoAntiga ? "page" : undefined}
                             className={cn(
@@ -205,7 +211,7 @@ export function SeletorPranchas({
         rotulo="Próxima prancha"
         dica={proxima ? rotuloPrancha(proxima) : "Esta é a última da lista."}
         disabled={!proxima}
-        render={proxima ? <Link href={href(proxima)} /> : undefined}
+        render={proxima ? <Link href={href(proxima)} replace /> : undefined}
       >
         <ArrowRight />
       </BotaoFerramenta>

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Download, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { VisualizarDwgButton } from "@/components/dwg/visualizar-dwg-button";
+import { useVoltaAtual } from "@/components/projetos/arquivos/use-volta-atual";
+import { comVolta } from "@/modules/uploads/volta-visualizador";
 
 /**
  * Badge de extensão com a ação apropriada ao tipo (F1-PR4, item 9 da spec).
@@ -42,6 +44,8 @@ export function BadgeExtensao({
   /** Cabeçalhos compactos mantêm o download, mas não iniciam o probe de conversão DWG. */
   showDwgViewer?: boolean;
 }) {
+  // O visualizador abre em outra aba: leva o endereço daqui para o "← Arquivos" dele voltar à mesma pasta.
+  const volta = useVoltaAtual();
   if (!ext) {
     return <span className="text-xs text-muted-foreground">—</span>;
   }
@@ -67,7 +71,7 @@ export function BadgeExtensao({
           <Download className="size-3" aria-hidden />
         </a>
         <Link
-          href={`/projetos/${projetoId}/arquivos/${uploadId}/visualizar`}
+          href={comVolta(`/projetos/${projetoId}/arquivos/${uploadId}/visualizar`, volta)}
           target="_blank"
           rel="noopener"
           className="flex items-center px-1.5 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:outline-none"

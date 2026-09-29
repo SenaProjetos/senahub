@@ -244,3 +244,13 @@ describe("pastas do cliente", () => {
     expect(d).toMatchObject({ documentoId: "d1", podeAlterarStatus: true, naPasta: { compartilhado: 2, liberado_obra: null } });
   });
 });
+
+describe("visualizar leva o endereço de volta", () => {
+  it("com `volta` no contexto, o link do visualizador o carrega; sem, fica como estava", () => {
+    const com = achar(itensDeDocumento(doc, { ...ctx, volta: "/projetos/p1/arquivos?disciplinaId=d1&fase=f1" }), "visualizar");
+    const href = new URL((com as { href: string }).href, "http://x");
+    expect(href.pathname).toBe("/projetos/p1/arquivos/u-pdf/visualizar");
+    expect(href.searchParams.get("volta")).toBe("/projetos/p1/arquivos?disciplinaId=d1&fase=f1");
+    expect((achar(itensDeDocumento(doc, ctx), "visualizar") as { href: string }).href).toBe("/projetos/p1/arquivos/u-pdf/visualizar");
+  });
+});

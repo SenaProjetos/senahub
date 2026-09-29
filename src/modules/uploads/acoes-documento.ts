@@ -19,6 +19,7 @@ import {
 import { limparSeparadores, type AcaoItem } from "@/components/ui/acoes";
 import { rotuloRevisao } from "@/lib/utils";
 import { ROTULO_SITUACAO, SITUACOES, type Situacao } from "./revisao-marcada";
+import { comVolta } from "./volta-visualizador";
 
 /**
  * Descritor das ações de uma linha da tabela de documentos (aba Arquivos do projeto) — **puro**,
@@ -104,6 +105,8 @@ export type ContextoAcoesDocumento = {
   podeSolicitarExclusao: boolean;
   /** Uma ação desta tabela ainda está em curso — trava as que mudam o documento. */
   ocupado?: boolean;
+  /** Endereço atual da lista (`/caminho?busca`): "Visualizar" o leva junto para o "← Arquivos" voltar aqui. */
+  volta?: string;
 };
 
 export const MOTIVO_OCUPADO = "Aguarde a ação anterior terminar.";
@@ -220,7 +223,7 @@ export function itensDeDocumento(d: DocumentoParaAcoes, ctx: ContextoAcoesDocume
           id: "visualizar",
           rotulo: "Visualizar em nova aba",
           icone: Eye,
-          href: `/projetos/${projetoId}/arquivos/${pdf.id}/visualizar`,
+          href: comVolta(`/projetos/${projetoId}/arquivos/${pdf.id}/visualizar`, ctx.volta),
           novaAba: true,
         }
       : null,

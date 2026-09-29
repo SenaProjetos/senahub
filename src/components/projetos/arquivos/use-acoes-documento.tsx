@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/dialog";
 import { copiarTexto } from "@/lib/clipboard";
 import { HistoricoRevisoesDialog } from "@/components/projetos/arquivos/historico-revisoes-dialog";
+import { useVoltaAtual } from "@/components/projetos/arquivos/use-volta-atual";
 import {
   EscopoExclusaoDialog,
   type EscolhaEscopo,
@@ -76,6 +77,7 @@ export function useAcoesDocumento({
 }) {
   const router = useRouter();
   const confirm = useConfirm();
+  const volta = useVoltaAtual();
   const [pendente, start] = useTransition();
   // Documento dos diálogos. Não volta a `null` ao fechar: o diálogo precisa do conteúdo
   // durante a animação de saída.
@@ -89,8 +91,8 @@ export function useAcoesDocumento({
 
   const itens = useCallback(
     (d: DocumentoParaAcoes) =>
-      itensDeDocumento(d, { projetoId, consulta, podeValidar, podeExcluir, podeSolicitarExclusao, ocupado: pendente }),
-    [projetoId, consulta, podeValidar, podeExcluir, podeSolicitarExclusao, pendente],
+      itensDeDocumento(d, { projetoId, consulta, podeValidar, podeExcluir, podeSolicitarExclusao, ocupado: pendente, volta }),
+    [projetoId, consulta, podeValidar, podeExcluir, podeSolicitarExclusao, pendente, volta],
   );
 
   const fechar = useCallback(() => {
