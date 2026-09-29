@@ -1358,12 +1358,15 @@ export function PastaBaseArquitetonica({
   arquivos,
   podeGerir,
   podeExcluir,
+  abertoInicial = false,
 }: {
   projetoId: string;
   clienteId: string | null;
   arquivos: DocumentoItem[];
   podeGerir: boolean;
   podeExcluir: boolean;
+  /** A tela de Documentos abre a área sozinha na página dela; a tela antiga a deixa fechada entre as outras pastas. */
+  abertoInicial?: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -1460,6 +1463,7 @@ export function PastaBaseArquitetonica({
         nome="Base Arquitetônica"
         contagem={arquivos.length}
         nivel={0}
+        abertoInicial={abertoInicial}
         acao={
           podeGerir ? (
             <Button
@@ -1946,12 +1950,21 @@ export function PastaGeral({
 
 // ── Pasta "ARTs": read-only. O cadastro (criar/versionar/anexar) fica na aba ARTs. ──
 
-export function ArtsPasta({ projetoId, arts }: { projetoId: string; arts: ArtListItem[] }) {
+export function ArtsPasta({
+  projetoId,
+  arts,
+  abertoInicial = false,
+}: {
+  projetoId: string;
+  arts: ArtListItem[];
+  abertoInicial?: boolean;
+}) {
   return (
     <Pasta
       nome="ARTs"
       contagem={arts.length}
       nivel={0}
+      abertoInicial={abertoInicial}
       acao={
         <Button size="xs" variant="ghost" render={<Link href={`/projetos/${projetoId}/arts`} />}>
           Gerir ARTs
@@ -1988,7 +2001,7 @@ export function ArtsPasta({ projetoId, arts }: { projetoId: string; arts: ArtLis
 
 // ── Pasta "Lixeira": arquivos de disciplina na lixeira (soft delete), só admin ──
 
-export function LixeiraPasta({ itens }: { itens: LixeiraItem[] }) {
+export function LixeiraPasta({ itens, abertoInicial = false }: { itens: LixeiraItem[]; abertoInicial?: boolean }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [pending, start] = useTransition();
@@ -2033,7 +2046,7 @@ export function LixeiraPasta({ itens }: { itens: LixeiraItem[] }) {
 
   return (
     <>
-    <Pasta nome="Lixeira" contagem={itens.length} nivel={0}>
+    <Pasta nome="Lixeira" contagem={itens.length} nivel={0} abertoInicial={abertoInicial}>
       {itens.length === 0 ? (
         <p className="py-1.5 pl-10 text-xs text-muted-foreground">
           Arquivos excluídos ficam aqui por até {DIAS_LIXEIRA} dias antes da remoção definitiva. Lixeira vazia.

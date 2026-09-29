@@ -20,6 +20,9 @@ import type { ArtListItem } from "@/modules/projetos/art/queries";
  * Recebidos — e reimplementar isso na estética nova seria trocar código que funciona por
  * código novo sem ganho para quem usa. A diferença visual (árvore, não tabela) é o preço
  * honesto de não duplicar essa lógica.
+ *
+ * Cada área ocupa a página inteira, então a pasta de dentro já nasce ABERTA (reunião de 29/09/2026: a Base
+ * Arquitetônica abria como "pasta dentro de pasta, fechada"). Recebidos e Geral já faziam isso.
  */
 
 export type DadosAreas = {
@@ -55,6 +58,7 @@ export function ConteudoAreaProjeto({ area, dados }: { area: AreaProjeto; dados:
           arquivos={dados.baseArquitetonica}
           podeGerir={dados.podeGerirRecebidos}
           podeExcluir={dados.podeExcluirDocumento}
+          abertoInicial
         />
       );
     case "geral":
@@ -68,8 +72,8 @@ export function ConteudoAreaProjeto({ area, dados }: { area: AreaProjeto; dados:
         />
       );
     case "arts":
-      return <ArtsPasta projetoId={dados.projetoId} arts={dados.arts} />;
+      return <ArtsPasta projetoId={dados.projetoId} arts={dados.arts} abertoInicial />;
     case "lixeira":
-      return <LixeiraPasta itens={dados.lixeira} />;
+      return <LixeiraPasta itens={dados.lixeira} abertoInicial />;
   }
 }

@@ -272,7 +272,9 @@ export function DocumentosShell({
             // paginação são de documento de disciplina e não se aplicam aqui.
             <section className="space-y-2 rounded-md border border-border bg-card p-3">
               <TrilhaPastas trilha={trilha} inicio={moldura?.trilhaAcima} rotuloRaiz={moldura?.rotuloRaiz} />
-              <h3 className="text-sm font-semibold">{rotuloArea(areaSelecionada)}</h3>
+              {/* O nome da área já está na trilha acima e na pasta logo abaixo (com contagem e "Enviar"):
+                  o título fica só para leitor de tela, senão o mesmo nome aparecia três vezes. */}
+              <h3 className="sr-only">{rotuloArea(areaSelecionada)}</h3>
               <ConteudoAreaProjeto area={areaSelecionada} dados={dadosAreas} />
             </section>
           ) : (

@@ -134,6 +134,7 @@ function CartaoDocumento({
   acoes,
   detalhesAberto,
   onDetalhesChange,
+  onStatusAtualizado,
   exclusoesPendentes,
   fases,
   status,
@@ -148,6 +149,7 @@ function CartaoDocumento({
   acoes: AcoesDaLinha | null;
   detalhesAberto: boolean;
   onDetalhesChange: (aberto: boolean) => void;
+  onStatusAtualizado: (statusId: string | null) => void;
   exclusoesPendentes: Set<string>;
   fases: OpcaoFaseDocumento[];
   status: OpcaoStatusDocumento[];
@@ -186,6 +188,7 @@ function CartaoDocumento({
             status={status}
             aberto={detalhesAberto}
             onAbertoChange={onDetalhesChange}
+            onStatusAtualizado={onStatusAtualizado}
           />
           {(linha.titulo ?? linha.tituloPrancha) && (
             <p className="truncate text-xs text-muted-foreground" title={linha.nome}>
@@ -334,9 +337,33 @@ export function TabelaDocumentos({
   /** Ids de Upload com pedido de exclusão pendente — sinal na linha do documento dono. */
   exclusoesPendentes: Set<string>;
 }) {
+  // Status recém-gravado, por documento: a etiqueta muda na hora e o servidor confirma depois. Some quando
+  // chega a página nova (padrão "derivar estado da prop": comparar durante o render, sem efeito).
+  const [sobrescritas, setSobrescritas] = useState<Record<string, Pick<LinhaDoc, "statusId" | "statusNome" | "statusFinal" | "statusCor" | "statusChave">>>({});
+  const [linhasVistas, setLinhasVistas] = useState(linhas);
+  if (linhasVistas !== linhas) {
+    setLinhasVistas(linhas);
+    setSobrescritas({});
+  }
+  function aplicarStatus(documentoId: string, statusId: string | null) {
+    const opcao = statusId ? status.find((s) => s.id === statusId) : null;
+    setSobrescritas((atual) => ({
+      ...atual,
+      [documentoId]: {
+        statusId: opcao?.id ?? null,
+        statusNome: opcao?.nome ?? null,
+        statusFinal: opcao?.final ?? false,
+        statusCor: opcao?.cor ?? null,
+        statusChave: opcao?.chave ?? null,
+      },
+    }));
+  }
   // A página já vem ordenada e recortada do banco (F1-PR10) — o `SortableHead` só empurra
   // `?sort=&dir=` para a URL, e a query do servidor faz o trabalho.
-  const ordenadas = linhas;
+  const ordenadas = useMemo(
+    () => linhas.map((l) => (sobrescritas[l.id] ? { ...l, ...sobrescritas[l.id] } : l)),
+    [linhas, sobrescritas],
+  );
 
   const [selecao, setSelecao] = useState<Set<string>>(new Set());
   // Só conta o que ainda está na tela: trocar de disciplina (ou filtrar, em F1-PR7) troca as
@@ -460,6 +487,7 @@ export function TabelaDocumentos({
             acoes={acoesDa(l)}
             detalhesAberto={detalhesDe === l.id}
             onDetalhesChange={(v) => setDetalhesDe(v ? l.id : null)}
+            onStatusAtualizado={(id) => aplicarStatus(l.id, id)}
             exclusoesPendentes={exclusoesPendentes}
             fases={fases}
             status={status}
@@ -553,6 +581,7 @@ export function TabelaDocumentos({
                     status={status}
                     aberto={detalhesDe === l.id}
                     onAbertoChange={(v) => setDetalhesDe(v ? l.id : null)}
+                    onStatusAtualizado={(id) => aplicarStatus(l.id, id)}
                   />
                   {/* Com título, o nome do arquivo vira referência secundária; sem título, o
                       próprio nome já é o texto do gatilho e repeti-lo seria ruído. */}

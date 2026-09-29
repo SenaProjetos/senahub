@@ -657,7 +657,7 @@ export async function opcoesMetadadosDocumento(projetoId: string) {
     // filtráveis; a ação de escrita aceita apenas status ativos.
     prisma.documentoStatus.findMany({
       orderBy: [{ ordem: "asc" }, { nome: "asc" }],
-      select: { id: true, nome: true, final: true, ativo: true, cor: true },
+      select: { id: true, nome: true, final: true, ativo: true, cor: true, chave: true },
     }),
     // Subs dos cards deste projeto (F5) — join por `Disciplina.disciplinaId` (catálogo).
     prisma.disciplina.findMany({ where: { projetoId, disciplinaId: { not: null } }, select: { disciplinaId: true } })

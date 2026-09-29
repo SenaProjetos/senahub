@@ -67,7 +67,6 @@ export function BarraDaLinha({
 
   const baseIni = t.inicioBaseline ? escala.x(t.inicioBaseline) : null;
   const baseFim = t.fimBaseline ? escala.xFim(t.fimBaseline) : null;
-  const desviada = t.fimBaseline != null && t.fimPrevisto > t.fimBaseline;
 
   return (
     <div
@@ -115,7 +114,10 @@ export function BarraDaLinha({
           )}
           {modo === "controle" && baseIni != null && baseFim != null && !t.marco && (
             <div
-              className={cn("absolute rounded-sm", desviada ? "bg-destructive/50" : "bg-muted-foreground/40")}
+              // Sempre cinza escuro, fininho sob a barra grossa (reunião de 29/09/2026): a linha de base é a
+              // referência e não deve chamar atenção. O atraso já aparece na coluna Desvio, e ficar vermelho aqui
+              // competia com o caminho crítico.
+              className="absolute rounded-sm bg-muted-foreground"
               style={{ left: baseIni, width: Math.max(escala.pxPorDia, baseFim - baseIni), top: 22, height: 4 }}
               title="Linha de base"
             />

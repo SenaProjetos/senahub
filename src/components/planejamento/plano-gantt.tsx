@@ -771,8 +771,10 @@ export function PlanoGantt({
                         onDrop={podeArrastar ? soltarNaLinha : undefined}
                         className={cn(
                           "group/linha flex border-b bg-background",
-                          l.temFilhos && "bg-muted/40",
-                          hoverId === l.t.id && "bg-muted",
+                          // Reunião de 29/09/2026: o agrupamento mais escuro que a tarefa, para a estrutura saltar
+                          // aos olhos. No hover ele escurece mais um degrau, senão não mudaria nada.
+                          l.temFilhos && "bg-muted",
+                          hoverId === l.t.id && (l.temFilhos ? "bg-border/60" : "bg-muted"),
                           selecionadaId === l.t.id && "bg-primary/10",
                           arrasto?.junto.has(l.t.id) && "opacity-50",
                           // Onde a linha vai cair: um traço em cima ou embaixo desta.
@@ -990,7 +992,7 @@ function Legenda({ modo, tarefas }: { modo: ModoGantt; tarefas: EapTarefaDTO[] }
       )}
       {modo === "controle" && (
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-1 w-5 rounded-sm bg-muted-foreground/40" aria-hidden /> Linha de base
+          <span className="inline-block h-1 w-5 rounded-sm bg-muted-foreground" aria-hidden /> Linha de base
         </span>
       )}
       <span className="flex items-center gap-1.5">

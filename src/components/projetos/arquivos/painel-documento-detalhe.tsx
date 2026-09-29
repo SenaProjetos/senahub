@@ -25,7 +25,15 @@ import {
 } from "@/components/ui/sheet";
 
 /** `cor` = token do design system (`classeDoStatus`). */
-export type OpcaoStatusDocumento = { id: string; nome: string; final: boolean; ativo: boolean; cor: string | null };
+export type OpcaoStatusDocumento = {
+  id: string;
+  nome: string;
+  final: boolean;
+  ativo: boolean;
+  cor: string | null;
+  /** Chave estável (`CHAVE_STATUS`); `null` = status criado pelo escritório. */
+  chave: string | null;
+};
 
 const SEM_FASE = "sem-fase";
 const SEM_STATUS = "sem-status";
@@ -37,10 +45,16 @@ export function PainelDocumentoDetalhe({
   status,
   aberto: abertoControlado,
   onAbertoChange,
+  onStatusAtualizado,
 }: {
   linha: LinhaDoc;
   fases: OpcaoFaseDocumento[];
   status: OpcaoStatusDocumento[];
+  /**
+   * Chamado quando o servidor aceitou o status novo: quem lista atualiza a etiqueta da linha NA HORA, sem
+   * esperar o `router.refresh()` da página inteira (reunião de 29/09/2026, "ele não atualiza automático").
+   */
+  onStatusAtualizado?: (statusId: string | null) => void;
   /** Controlado por quem lista (o menu de contexto da linha abre o painel por aqui). */
   aberto?: boolean;
   onAbertoChange?: (aberto: boolean) => void;
@@ -144,6 +158,7 @@ export function PainelDocumentoDetalhe({
         return;
       }
       toast.success("Status documental atualizado.");
+      onStatusAtualizado?.(novoStatusId === SEM_STATUS ? null : novoStatusId);
       setSalvamentos((n) => n + 1);
       atualizarTabela();
     });
