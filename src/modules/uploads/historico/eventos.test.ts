@@ -80,6 +80,9 @@ describe("complementoEvento", () => {
 
   it("status e renomeio mostram de → para", () => {
     expect(complementoEvento("status", { de: "Em análise", para: "Aprovado" })).toBe('"Em análise" → "Aprovado"');
+    expect(complementoEvento("status", { de: "Enviado", para: "Aprovado", automatico: true, razao: "prancha validada" })).toBe(
+      '"Enviado" → "Aprovado" · automático, prancha validada',
+    );
   });
 
   it("detalhe ausente ou malformado não quebra, só omite", () => {

@@ -6671,7 +6671,14 @@ model ListaDocumentoItem {
 model DocumentoStatus {
   id    String  @id @default(cuid())
   nome  String  @unique
+  /// Identidade estável dos status que o SISTEMA muda sozinho ("enviado" ao subir revisão nova,
+  /// "aprovado" ao validar a prancha, "compartilhado"/"liberado_obra" das pastas do cliente) — o nome
+  /// é do escritório e pode mudar; a automação procura pela chave. Nulo = status criado pelo
+  /// escritório, que a automação nunca toca. Ver modules/uploads/status-documento.ts.
+  chave String? @unique
   ordem Int     @default(0)
+  /// Nome de um TOKEN de cor do design system (`aprovado`, `info`, `neutro`…), nunca hex: a badge
+  /// segue claro/escuro pelo globals.css. Mapa em `status-documento.ts` (`CLASSE_DA_COR`).
   cor   String?
   /// Estado terminal: o documento não deve mais receber revisão (obsoleto/arquivado).
   final Boolean @default(false)

@@ -7,6 +7,7 @@ import { defineAction } from "@/lib/with-action";
 import { ActionError } from "@/lib/action-error";
 import { catalogosPrancha, mapaCanonico } from "@/modules/projetos/pranchas/queries";
 import { registrarEventoUploads } from "@/modules/uploads/historico/service";
+import { statusAposValidacao } from "@/modules/uploads/status-automatico";
 
 /**
  * Marca como validados os arquivos (PDF + planilha) da Lista Mestre recém-gerada.
@@ -68,6 +69,7 @@ export const validarListaMestreGerada = defineAction(
       data: { validado: true, validadoPorId: user.id, validadoEm: new Date() },
     });
     await registrarEventoUploads({ uploadIds: ids, tipo: "validacao", userId: user.id });
+    await statusAposValidacao({ uploadIds: ids, userId: user.id });
 
     const { projetoId } = revisao.documento.disciplina;
     revalidatePath(`/projetos/${projetoId}`);

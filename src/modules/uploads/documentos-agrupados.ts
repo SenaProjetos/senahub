@@ -143,6 +143,8 @@ export type LinhaDoc = {
   statusId: string | null;
   statusNome: string | null;
   statusFinal: boolean;
+  /** Token de cor do status (`classeDoStatus`), nunca hex. */
+  statusCor: string | null;
   faseId: string | null;
   faseSigla: string | null;
   faseNome: string | null;
@@ -391,7 +393,7 @@ export async function listarDocumentosAgrupados(opts: {
       nomeArquivo: true,
       titulo: true,
       descricao: true,
-      status: { select: { id: true, nome: true, final: true } },
+      status: { select: { id: true, nome: true, final: true, cor: true } },
       fase: { select: { id: true, sigla: true, nome: true } },
       subdisciplina: { select: { id: true, nome: true } },
       tipo: { select: { id: true, sigla: true, nome: true } },
@@ -522,6 +524,7 @@ export async function listarDocumentosAgrupados(opts: {
       statusId: d.status?.id ?? null,
       statusNome: d.status?.nome ?? null,
       statusFinal: d.status?.final ?? false,
+      statusCor: d.status?.cor ?? null,
       faseId: d.fase?.id ?? null,
       faseSigla: d.fase?.sigla ?? null,
       faseNome: d.fase?.nome ?? null,
@@ -618,7 +621,7 @@ export async function opcoesMetadadosDocumento(projetoId: string) {
     // filtráveis; a ação de escrita aceita apenas status ativos.
     prisma.documentoStatus.findMany({
       orderBy: [{ ordem: "asc" }, { nome: "asc" }],
-      select: { id: true, nome: true, final: true, ativo: true },
+      select: { id: true, nome: true, final: true, ativo: true, cor: true },
     }),
     // Subs dos cards deste projeto (F5) — join por `Disciplina.disciplinaId` (catálogo).
     prisma.disciplina.findMany({ where: { projetoId, disciplinaId: { not: null } }, select: { disciplinaId: true } })

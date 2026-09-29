@@ -24,6 +24,7 @@ import { expandirSelecao } from "@/modules/uploads/exclusao-escopo";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { expiraAceiteEm, linkAceiteEstaAtivo } from "@/modules/uploads/aceite";
 import { registrarEventoDocumento, registrarEventoUploads } from "@/modules/uploads/historico/service";
+import { statusAposDesvalidacao, statusAposValidacao } from "@/modules/uploads/status-automatico";
 import { camposAlterados } from "@/modules/uploads/historico/eventos";
 import { historicoDocumento } from "@/modules/uploads/historico/queries";
 
@@ -305,6 +306,7 @@ export const validarArquivo = defineAction(
       },
     });
     await registrarEventoUploads({ uploadIds: [upload.id], tipo: "validacao", userId: user.id });
+    await statusAposValidacao({ uploadIds: [upload.id], userId: user.id });
     revalidarArquivos(upload.disciplina.projetoId);
     return { uploadId: upload.id, nome: upload.nomeArquivo };
   },
@@ -320,6 +322,7 @@ export const reverterValidacaoArquivo = defineAction(
       data: { validado: false, validadoPorId: null, validadoEm: null },
     });
     await registrarEventoUploads({ uploadIds: [upload.id], tipo: "validacao_revertida", userId: user.id });
+    await statusAposDesvalidacao({ uploadIds: [upload.id], userId: user.id, motivo: "reverter" });
     revalidarArquivos(upload.disciplina.projetoId);
     return { uploadId: upload.id, nome: upload.nomeArquivo };
   },
@@ -347,6 +350,7 @@ export const solicitarAjusteArquivo = defineAction(
       userId: user.id,
       detalhe: { motivo: input.motivo },
     });
+    await statusAposDesvalidacao({ uploadIds: [upload.id], userId: user.id, motivo: "correcao" });
 
     const { disciplina } = upload;
     const codigo = formatarCodigo(disciplina.projeto.codigo);
@@ -433,6 +437,7 @@ export const validarArquivosLote = defineAction(
       },
     });
     await registrarEventoUploads({ uploadIds: validos.map((u) => u.id), tipo: "validacao", userId: user.id });
+    await statusAposValidacao({ uploadIds: validos.map((u) => u.id), userId: user.id });
     revalidarArquivos(input.projetoId);
     return { total: validos.length, ignorados: input.uploadIds.length - validos.length };
   },

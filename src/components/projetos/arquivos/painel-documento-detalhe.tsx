@@ -8,6 +8,7 @@ import { editarMetadadosDocumento, atualizarStatusDocumento } from "@/modules/up
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
 import type { OpcaoFaseDocumento } from "@/components/projetos/arquivos/seletor-fases-documentos";
 import { cn, rotuloRevisao } from "@/lib/utils";
+import { classeDoStatus } from "@/modules/uploads/status-documento";
 import { HistoricoDocumento } from "@/components/projetos/arquivos/historico-documento";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
-export type OpcaoStatusDocumento = { id: string; nome: string; final: boolean; ativo: boolean };
+/** `cor` = token do design system (`classeDoStatus`). */
+export type OpcaoStatusDocumento = { id: string; nome: string; final: boolean; ativo: boolean; cor: string | null };
 
 const SEM_FASE = "sem-fase";
 const SEM_STATUS = "sem-status";
@@ -269,13 +271,16 @@ export function PainelDocumentoDetalhe({
                     <SelectItem value={SEM_STATUS}>Sem status</SelectItem>
                     {status.map((opcao) => (
                       <SelectItem key={opcao.id} value={opcao.id} disabled={!opcao.ativo && opcao.id !== linha.statusId}>
+                        <span aria-hidden className={cn("inline-block size-2.5 shrink-0 rounded-full border", classeDoStatus(opcao.cor))} />
                         {opcao.nome}{opcao.final ? " (final)" : ""}{!opcao.ativo ? " (inativo)" : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               ) : linha.statusNome ? (
-                <Badge variant="outline">{linha.statusNome}{linha.statusFinal ? " (final)" : ""}</Badge>
+                <Badge variant="outline" className={classeDoStatus(linha.statusCor)}>
+                  {linha.statusNome}{linha.statusFinal ? " (final)" : ""}
+                </Badge>
               ) : (
                 <span className="text-sm text-muted-foreground">Sem status</span>
               )}

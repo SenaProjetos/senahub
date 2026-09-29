@@ -124,7 +124,12 @@ export function complementoEvento(tipo: TipoEvento, detalhe: unknown): string | 
         .filter(Boolean);
       return partes.length ? partes.join(" · ") : null;
     }
-    case "status":
+    case "status": {
+      // Troca feita pelo sistema (status-automatico.ts): diz que foi automática e por quê.
+      const t = mudancaTexto(d);
+      if (!t || d.automatico !== true) return t;
+      return `${t} · automático${texto("razao") ? `, ${texto("razao")}` : ""}`;
+    }
     case "renomeio":
       return mudancaTexto(d);
     case "ajuste_solicitado":

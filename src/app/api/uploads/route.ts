@@ -22,6 +22,7 @@ import { montarVocabulario } from "@/modules/uploads/nomenclatura/vocabulario";
 import { resolverMetadado } from "@/modules/uploads/nomenclatura/precedencia";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { registrarEventoDocumento } from "@/modules/uploads/historico/service";
+import { statusAposEnvio } from "@/modules/uploads/status-automatico";
 import { LIMITE_FINALIZACOES_UPLOAD } from "@/modules/uploads/limites";
 import { enfileirarConversao } from "@/modules/coordenacao/service";
 import { enfileirarConversaoDwg } from "@/modules/dwg/service";
@@ -438,6 +439,9 @@ export async function POST(req: Request) {
         ...(numeroFinal ? { numeroPrancha: numeroFinal.valor, numeroPranchaOrigem: numeroFinal.origem } : {}),
       },
     });
+    // Status documental (reunião de 29/09/2026): o 1º arquivo de uma revisão nova põe "Enviado". Não
+    // derruba o envio se falhar (status-automatico.ts).
+    await statusAposEnvio({ uploadId: criado.id, userId: user.id });
 
     // Coordenação BIM: cada IFC enviado (inclusive nova versão) entra na fila de
     // conversão p/ Fragments. Fire-and-forget — não bloqueia nem derruba o upload.

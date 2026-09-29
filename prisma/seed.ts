@@ -499,15 +499,17 @@ const ONBOARDING_PADRAO = {
  * CERTIDAO_TIPOS e CARGOS_BASE).
  */
 const DOCUMENTO_STATUS = [
-  { nome: "Em elaboração", final: false },
-  { nome: "Enviado", final: false },
-  { nome: "Em análise", final: false },
-  { nome: "Correção solicitada", final: false },
-  { nome: "Aprovado", final: false },
-  { nome: "Aprovado com ressalvas", final: false },
-  { nome: "Liberado para obra", final: false },
-  { nome: "Obsoleto", final: true },
-  { nome: "Arquivado", final: true },
+  { nome: "Em elaboração", chave: "em_elaboracao", cor: "neutro", final: false },
+  { nome: "Enviado", chave: "enviado", cor: "aguardando", final: false },
+  { nome: "Em análise", chave: "em_analise", cor: "andamento", final: false },
+  { nome: "Correção solicitada", chave: "correcao_solicitada", cor: "revisao", final: false },
+  { nome: "Aprovado", chave: "aprovado", cor: "aprovado", final: false },
+  { nome: "Aprovado com ressalvas", chave: "aprovado_ressalvas", cor: "entregue", final: false },
+  // Reunião de 29/09/2026: o que foi mandado ao cliente para análise (pasta "Compartilhado" do link).
+  { nome: "Compartilhado", chave: "compartilhado", cor: "info", final: false },
+  { nome: "Liberado para obra", chave: "liberado_obra", cor: "primario", final: false },
+  { nome: "Obsoleto", chave: "obsoleto", cor: "neutro", final: true },
+  { nome: "Arquivado", chave: "arquivado", cor: "neutro", final: true },
 ];
 
 /**
@@ -707,10 +709,11 @@ async function main() {
   // 8c) Status documental (Fase 2 de Documentos) — catálogo do status de cada documento,
   // distinto do status da disciplina (enum) e do status de tarefa (acima).
   for (let i = 0; i < DOCUMENTO_STATUS.length; i++) {
+    // `chave` é identidade (a automação procura por ela), então o update a garante; `cor` não.
     await prisma.documentoStatus.upsert({
       where: { nome: DOCUMENTO_STATUS[i].nome },
       create: { ...DOCUMENTO_STATUS[i], ordem: i },
-      update: { ordem: i, final: DOCUMENTO_STATUS[i].final },
+      update: { ordem: i, final: DOCUMENTO_STATUS[i].final, chave: DOCUMENTO_STATUS[i].chave },
     });
   }
   console.log(`✔ ${DOCUMENTO_STATUS.length} status documentais garantidos.`);

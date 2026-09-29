@@ -89,7 +89,7 @@ export default async function VisualizarPage({
     documentoCanonicoId
       ? prisma.documentoDisciplina.findUnique({
           where: { id: documentoCanonicoId },
-          select: { status: { select: { nome: true, final: true } } },
+          select: { status: { select: { nome: true, final: true, cor: true } } },
         })
       : Promise.resolve(null),
     upload.revisaoId
@@ -187,7 +187,7 @@ export default async function VisualizarPage({
       revisionId={upload.revisaoId}
       documentStatus={
         documentoCanonico?.status
-          ? { name: documentoCanonico.status.nome, final: documentoCanonico.status.final }
+          ? { name: documentoCanonico.status.nome, final: documentoCanonico.status.final, cor: documentoCanonico.status.cor }
           : null
       }
       revisionFiles={revisionFiles}

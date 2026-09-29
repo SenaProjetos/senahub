@@ -32,6 +32,7 @@ import { MODOS_CALIBRACAO } from "@/modules/projetos/pendencias/medicao";
 import { extrairMencoes } from "@/modules/chat/mencoes";
 import { buscarPendenciasParaReferencia, possiveisReincidencias } from "@/modules/projetos/pendencias/queries";
 import { registrarEventoUploads } from "@/modules/uploads/historico/service";
+import { statusAposDesvalidacao } from "@/modules/uploads/status-automatico";
 
 // ── Schemas ────────────────────────────────────────────────────
 // Classificação (item 11) é OPCIONAL: exigir severidade/tipo em todo pino transformaria o
@@ -696,6 +697,8 @@ export const enviarApontamentos = defineAction(
       userId: user.id,
       detalhe: { total: pendencias.length },
     });
+    // A prancha voltou a "ajuste solicitado": o "Aprovado" que a validação pôs vira "Correção solicitada".
+    await statusAposDesvalidacao({ uploadIds: [upload.id], userId: user.id, motivo: "correcao" });
     revalidarViewer(disciplina.projetoId, upload.id);
     revalidatePath("/tarefas");
     revalidatePath(`/projetos/${disciplina.projetoId}`);

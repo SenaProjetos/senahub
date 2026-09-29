@@ -29,7 +29,8 @@ import { CartaoPasta, LinhaPasta, useNavegacaoPastas } from "@/components/projet
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
 import type { NivelPasta, PastaNaLista } from "@/modules/uploads/pastas-da-lista";
 import { ACAO_DETALHES, type DocumentoParaAcoes } from "@/modules/uploads/acoes-documento";
-import { formatarData, formatarDataHora, rotuloRevisao } from "@/lib/utils";
+import { cn, formatarData, formatarDataHora, rotuloRevisao } from "@/lib/utils";
+import { classeDoStatus } from "@/modules/uploads/status-documento";
 
 /** Colunas opcionais da tabela, na ordem em que aparecem — o nome da pasta atravessa todas. */
 const COLUNAS_OPCIONAIS = ["numero", "fase", "sub", "tipo", "revisao", "validado", "extensao", "papel", "responsavel", "data", "tamanho"];
@@ -188,7 +189,7 @@ function CartaoDocumento({
         )}
         {colunas.has("validado") && <BadgeValidacao estado={validacao} />}
         {linha.statusNome && (
-          <Badge variant="outline" title={linha.statusFinal ? "Status final" : undefined}>
+          <Badge variant="outline" className={classeDoStatus(linha.statusCor)} title={linha.statusFinal ? "Status final" : undefined}>
             {linha.statusNome}
           </Badge>
         )}
@@ -547,7 +548,11 @@ export function TabelaDocumentos({
                     </Badge>
                   )}
                   {l.statusNome && (
-                    <Badge variant="outline" className="shrink-0" title={l.statusFinal ? "Status final" : undefined}>
+                    <Badge
+                      variant="outline"
+                      className={cn("shrink-0", classeDoStatus(l.statusCor))}
+                      title={l.statusFinal ? "Status final" : undefined}
+                    >
                       {l.statusNome}
                     </Badge>
                   )}

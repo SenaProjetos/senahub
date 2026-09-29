@@ -165,6 +165,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn, formatarData, formatarDataHora, rotuloRevisao } from "@/lib/utils";
+import { classeDoStatus } from "@/modules/uploads/status-documento";
 import { copiarTexto } from "@/lib/clipboard";
 
 // pdf.js é carregado dinamicamente no cliente (evita SSR e mantém o chunk fora do bundle inicial).
@@ -177,7 +178,8 @@ type PdfDoc = any;
  */
 type PinPosicionado = PendenciaView & { incerta: boolean; relocalizado: boolean };
 type RevisionFile = { id: string; name: string; ext: string; downloadUrl: string };
-type DocumentStatus = { name: string; final: boolean };
+/** `cor` = token do design system (`classeDoStatus`). */
+type DocumentStatus = { name: string; final: boolean; cor: string | null };
 
 /**
  * Realça tokens @nome no texto do apontamento (item 33). O servidor já resolveu quem foi
@@ -1866,7 +1868,7 @@ export function PdfViewer(props: Props) {
             <Badge variant="outline" className="shrink-0 font-mono text-[10px] tracking-wide" title="Revisão do documento">
               {rotuloRevisao(revisionNumber)}
             </Badge>
-            <Badge variant="outline" className="shrink-0 text-xs" title="Status documental">
+            <Badge variant="outline" className={cn("shrink-0 text-xs", documentStatus && classeDoStatus(documentStatus.cor))} title="Status documental">
               {documentStatus ? `${documentStatus.name}${documentStatus.final ? " (final)" : ""}` : "Sem status"}
             </Badge>
             {(presentes.length > 0 || avisoNovidades) && (
