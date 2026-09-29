@@ -46,7 +46,8 @@ export const obterComposicaoDetalhe = defineAction(
 export const buscarInsumosParaItem = defineAction(
   { ...leitura, acao: "buscar-insumos-item", schema: z.object({ q: z.string().optional() }) },
   async (input) => {
-    const r = await listarInsumos({ q: input.q });
+    // Tamanho fixo: é um seletor, não a lista — a preferência de página da lista de insumos não vale aqui.
+    const r = await listarInsumos({ q: input.q, pageSize: "12" });
     return r.itens;
   },
 );
@@ -55,7 +56,7 @@ export const buscarInsumosParaItem = defineAction(
 export const buscarComposicoesParaItem = defineAction(
   { ...leitura, acao: "buscar-composicoes-item", schema: z.object({ q: z.string().optional() }) },
   async (input) => {
-    const r = await listarComposicoes({ q: input.q });
+    const r = await listarComposicoes({ q: input.q, pageSize: "12" });
     return r.itens;
   },
 );

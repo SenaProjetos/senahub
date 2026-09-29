@@ -33,6 +33,7 @@ describe("voltaValida", () => {
       expect(voltaValida(ruim, "p1")).toBeNull();
     }
     expect(voltaValida(null, "p1")).toBeNull();
+    expect(voltaValida(["/projetos/p1/arquivos", "/projetos/p1/arquivos"], "p1")).toBeNull();
     expect(voltaValida(undefined, "p1")).toBeNull();
   });
 
