@@ -1464,6 +1464,11 @@ model LinkPublicoArquivos {
   /// acervo que ainda não tem fase preenchida (no dev, 64% dos arquivos servíveis).
   /// Sem efeito quando `faseIds` está vazio.
   incluirSemFase Boolean            @default(false)
+  /// Reunião de 29/09/2026: o cliente vê DUAS pastas, "Compartilhado" e "Liberado para obra", cada uma
+  /// com os documentos marcados na revisão marcada (`DocumentoDisciplina.revisaoCompartilhadaId`/
+  /// `revisaoLiberadaObraId`) — não "a última validada". Disciplinas e fases continuam recortando.
+  /// Falso (links anteriores) = o comportamento de sempre. Não vale para escopo `selecao`.
+  porSituacao    Boolean            @default(false)
   criadoPorId    String?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt

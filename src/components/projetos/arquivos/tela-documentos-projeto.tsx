@@ -62,6 +62,7 @@ export function paraLinkData(l: {
   agruparPorFase: boolean;
   faseIds: string[];
   incluirSemFase: boolean;
+  porSituacao: boolean;
 }): LinkData {
   return {
     id: l.id,
@@ -75,6 +76,7 @@ export function paraLinkData(l: {
     agruparPorFase: l.agruparPorFase,
     faseIds: l.faseIds,
     incluirSemFase: l.incluirSemFase,
+    porSituacao: l.porSituacao,
   };
 }
 

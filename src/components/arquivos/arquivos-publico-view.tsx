@@ -10,6 +10,8 @@ import {
   File as FileIcon,
   Folder,
   FolderOpen,
+  HardHat,
+  Send,
 } from "lucide-react";
 import type { ConteudoPublico } from "@/modules/projetos/arquivos/link-publico";
 import { FASE_TODAS } from "@/modules/uploads/arvore-navegacao";
@@ -87,12 +89,15 @@ function PastasDeFormato({
   disciplina,
   fase,
   prefixoRotulo,
+  recorteBase,
   recuo = "pl-10",
 }: {
   token: string;
   disciplina: ConteudoPublico["disciplinas"][number];
   fase: ConteudoPublico["disciplinas"][number]["pastas"][number];
   prefixoRotulo: string;
+  /** Recorte de cima que todo .zip daqui leva junto (a pasta do cliente, no link por situação). */
+  recorteBase: Record<string, string>;
   recuo?: string;
 }) {
   return (
@@ -110,8 +115,8 @@ function PastasDeFormato({
               rotulo={`${prefixoRotulo} / ${pasta.rotulo}`}
               params={
                 fase.chave === FASE_TODAS
-                  ? { disciplinaId: disciplina.id, ext: pasta.chave }
-                  : { disciplinaId: disciplina.id, fase: fase.chave, ext: pasta.chave }
+                  ? { ...recorteBase, disciplinaId: disciplina.id, ext: pasta.chave }
+                  : { ...recorteBase, disciplinaId: disciplina.id, fase: fase.chave, ext: pasta.chave }
               }
             />
           </div>
@@ -133,9 +138,15 @@ function PastasDeFormato({
 function Disciplina({
   token,
   disciplina,
+  recorteBase = {},
+  recuo = "",
 }: {
   token: string;
   disciplina: ConteudoPublico["disciplinas"][number];
+  /** Recorte de cima que todo .zip daqui leva junto (a pasta do cliente, no link por situação). */
+  recorteBase?: Record<string, string>;
+  /** Recuo extra quando a disciplina mora dentro de uma pasta do cliente. */
+  recuo?: string;
 }) {
   const [aberto, setAberto] = useState(true);
   const [fasesAbertas, setFasesAbertas] = useState<Set<string>>(new Set());
@@ -150,7 +161,7 @@ function Disciplina({
   }
 
   return (
-    <div>
+    <div className={recuo}>
       <div className="flex items-center gap-1.5 rounded-sm py-2 pr-1 hover:bg-muted/50">
         <button
           type="button"
@@ -165,7 +176,7 @@ function Disciplina({
             {disciplina.total} arquivo{disciplina.total === 1 ? "" : "s"}
           </span>
         </button>
-        <BaixarPasta token={token} rotulo={`"${disciplina.nome}"`} params={{ disciplinaId: disciplina.id }} />
+        <BaixarPasta token={token} rotulo={`"${disciplina.nome}"`} params={{ ...recorteBase, disciplinaId: disciplina.id }} />
       </div>
 
       {aberto && (
@@ -178,7 +189,14 @@ function Disciplina({
             if (fase.chave === FASE_TODAS) {
               return (
                 <li key={fase.chave}>
-                  <PastasDeFormato token={token} disciplina={disciplina} fase={fase} prefixoRotulo={disciplina.nome} recuo="pl-6" />
+                  <PastasDeFormato
+                    token={token}
+                    disciplina={disciplina}
+                    fase={fase}
+                    prefixoRotulo={disciplina.nome}
+                    recorteBase={recorteBase}
+                    recuo="pl-6"
+                  />
                 </li>
               );
             }
@@ -204,7 +222,7 @@ function Disciplina({
                   <BaixarPasta
                     token={token}
                     rotulo={`${disciplina.nome} / ${fase.rotulo}`}
-                    params={{ disciplinaId: disciplina.id, fase: fase.chave }}
+                    params={{ ...recorteBase, disciplinaId: disciplina.id, fase: fase.chave }}
                   />
                 </div>
 
@@ -214,6 +232,7 @@ function Disciplina({
                     disciplina={disciplina}
                     fase={fase}
                     prefixoRotulo={`${disciplina.nome} / ${fase.rotulo}`}
+                    recorteBase={recorteBase}
                   />
                 )}
               </li>
@@ -221,6 +240,51 @@ function Disciplina({
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+const EXPLICACAO_SITUACAO: Record<string, string> = {
+  compartilhado: "Enviados para a sua análise.",
+  liberado_obra: "Aprovados e liberados para execução na obra.",
+};
+
+/**
+ * Pasta do cliente num link por situação (reunião de 29/09/2026): "Compartilhado" e "Liberado para obra",
+ * cada uma com as disciplinas dentro. Sempre as duas — vazia diz que ainda não há nada, em vez de sumir.
+ */
+function PastaSituacao({ token, situacao }: { token: string; situacao: ConteudoPublico["situacoes"][number] }) {
+  const [aberto, setAberto] = useState(true);
+  const Icone = situacao.id === "liberado_obra" ? HardHat : Send;
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 rounded-sm py-2 pr-1 hover:bg-muted/50">
+        <button
+          type="button"
+          onClick={() => setAberto((v) => !v)}
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+          aria-expanded={aberto}
+        >
+          <ChevronRight className={cn("size-4 shrink-0 text-muted-foreground transition-transform", aberto && "rotate-90")} />
+          <Icone className="size-4 shrink-0 text-info" aria-hidden />
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-semibold">{situacao.rotulo}</span>
+            <span className="block truncate text-xs font-normal text-muted-foreground">{EXPLICACAO_SITUACAO[situacao.id]}</span>
+          </span>
+          <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">
+            {situacao.total} arquivo{situacao.total === 1 ? "" : "s"}
+          </span>
+        </button>
+        {situacao.total > 0 && <BaixarPasta token={token} rotulo={`"${situacao.rotulo}"`} params={{ situacao: situacao.id }} />}
+      </div>
+      {aberto &&
+        (situacao.disciplinas.length === 0 ? (
+          <p className="py-2 pl-12 text-xs text-muted-foreground">Nada nesta pasta ainda.</p>
+        ) : (
+          situacao.disciplinas.map((d) => (
+            <Disciplina key={d.id} token={token} disciplina={d} recorteBase={{ situacao: situacao.id }} recuo="pl-6" />
+          ))
+        ))}
     </div>
   );
 }
@@ -298,7 +362,8 @@ function ArtsPublicas({ token, arts }: { token: string; arts: ConteudoPublico["a
 }
 
 export function ArquivosPublicoView({ token, conteudo }: { token: string; conteudo: ConteudoPublico }) {
-  const total = conteudo.disciplinas.reduce((n, d) => n + d.total, 0);
+  const total =
+    conteudo.disciplinas.reduce((n, d) => n + d.total, 0) + conteudo.situacoes.reduce((n, s) => n + s.total, 0);
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-10">
       <CabecalhoPublico
@@ -316,6 +381,9 @@ export function ArquivosPublicoView({ token, conteudo }: { token: string; conteu
 
       <Card>
         <CardContent className="divide-y p-2">
+          {conteudo.situacoes.map((s) => (
+            <PastaSituacao key={s.id} token={token} situacao={s} />
+          ))}
           {conteudo.disciplinas.map((d) => (
             <Disciplina key={d.id} token={token} disciplina={d} />
           ))}

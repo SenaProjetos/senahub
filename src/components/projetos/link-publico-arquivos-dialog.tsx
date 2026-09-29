@@ -46,6 +46,8 @@ export type LinkData = {
   faseIds: string[];
   /** Com fases escolhidas, libera também o documento sem fase. */
   incluirSemFase: boolean;
+  /** Pastas "Compartilhado" e "Liberado para obra" na revisão marcada (reunião de 29/09/2026). */
+  porSituacao: boolean;
 };
 
 /** Fases do projeto com a contagem de documentos — alimenta o seletor e o aviso. */
@@ -192,6 +194,8 @@ function FormularioNovoLink({
   const [agruparPorFase, setAgruparPorFase] = useState(true);
   const [faseIds, setFaseIds] = useState<Set<string>>(new Set());
   const [incluirSemFase, setIncluirSemFase] = useState(false);
+  // Link novo já nasce com as pastas do cliente: é o combinado da reunião de 29/09/2026.
+  const [porSituacao, setPorSituacao] = useState(true);
 
   function criar() {
     if (escopo === "disciplinas" && sel.size === 0) {
@@ -209,6 +213,7 @@ function FormularioNovoLink({
         agruparPorFase,
         faseIds: [...faseIds],
         incluirSemFase,
+        porSituacao,
       });
       if (r.ok) {
         toast.success("Link público criado.");
@@ -279,6 +284,18 @@ function FormularioNovoLink({
           setIncluirSemFase={setIncluirSemFase}
         />
       )}
+
+      {/* Reunião de 29/09/2026: um link só, com duas pastas — o cliente não confunde dois endereços. */}
+      <label className="flex cursor-pointer items-start gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted/50">
+        <Checkbox className="mt-0.5" checked={porSituacao} onCheckedChange={(v) => setPorSituacao(v === true)} />
+        <span>
+          Pastas Compartilhado e Liberado para obra
+          <span className="block text-xs text-muted-foreground">
+            O cliente vê só o que foi marcado com esses status, na revisão marcada — a equipe pode seguir
+            enviando revisões sem que ele note. Desligado, vê a última revisão validada de tudo.
+          </span>
+        </span>
+      </label>
 
       {/* Fase vira pasta na tela do cliente. Desligar é o certo quando o acervo ainda não tem
           fase preenchida: senão quase tudo cairia numa pasta "Sem fase". */}
@@ -461,6 +478,7 @@ function CartaoLink({
   const [agruparPorFase, setAgruparPorFase] = useState(link.agruparPorFase);
   const [faseIds, setFaseIds] = useState<Set<string>>(new Set(link.faseIds));
   const [incluirSemFase, setIncluirSemFase] = useState(link.incluirSemFase);
+  const [porSituacao, setPorSituacao] = useState(link.porSituacao);
 
   const url = `${baseUrl}/p/arquivos/${link.token}`;
   const expirado = link.expiraEm !== null && new Date(link.expiraEm).getTime() <= Date.now();
@@ -476,7 +494,7 @@ function CartaoLink({
         expiraEm: localParaIso(expira),
         agruparPorFase,
         // Seleção não passa pelo recorte: não manda filtro de fase (o servidor zeraria).
-        ...(link.escopo !== "selecao" ? { faseIds: [...faseIds], incluirSemFase } : {}),
+        ...(link.escopo !== "selecao" ? { faseIds: [...faseIds], incluirSemFase, porSituacao } : {}),
       });
       if (r.ok) {
         toast.success("Link salvo.");
@@ -551,6 +569,7 @@ function CartaoLink({
           <p className="truncate text-sm font-semibold">{link.nome || "Link sem nome"}</p>
           <p className="text-xs text-muted-foreground">
             {ROTULO_ESCOPO[link.escopo]} · {resumo}
+            {link.porSituacao && " · pastas Compartilhado e Liberado para obra"}
             {link.expiraEm && ` · ${expirado ? "expirou" : "expira"} em ${new Date(link.expiraEm).toLocaleString("pt-BR")}`}
           </p>
         </div>
@@ -649,6 +668,19 @@ function CartaoLink({
               incluirSemFase={incluirSemFase}
               setIncluirSemFase={setIncluirSemFase}
             />
+          )}
+
+          {link.escopo !== "selecao" && (
+            <label className="flex cursor-pointer items-start gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted/50">
+              <Checkbox className="mt-0.5" checked={porSituacao} onCheckedChange={(v) => setPorSituacao(v === true)} />
+              <span>
+                Pastas Compartilhado e Liberado para obra
+                <span className="block text-xs text-muted-foreground">
+                  O cliente vê só o que foi marcado com esses status, na revisão marcada. Desligado, vê a última
+                  revisão validada de tudo.
+                </span>
+              </span>
+            </label>
           )}
 
           {/* Mesma escolha da criação: um link já entregue ao cliente pode ter sido criado antes

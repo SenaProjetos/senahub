@@ -6,6 +6,7 @@ import {
   recortarParaLinkPublico,
   somenteUltimaRevisao,
   type UploadParaLink,
+  situacoesDoUpload,
 } from "./link-publico-regras";
 
 function up(id: string, p: Partial<UploadParaLink> = {}): UploadParaLink {
@@ -188,5 +189,40 @@ describe("filtro de fase do link (F4)", () => {
     // a "entrega" — o cliente receberia uma revisão vencida como se fosse a corrente.
     const errado = recortarParaLinkPublico(filtrarPorFases(uploads, f(["BS"])));
     expect(errado.map((u) => u.id)).toEqual(["r1"]);
+  });
+});
+
+describe("documento final fora do link (reunião de 29/09/2026)", () => {
+  it("Obsoleto/Arquivado some inteiro — não promove a revisão anterior", () => {
+    const ups = [
+      { id: "a1", documentoId: "A", revisaoNumero: 1, pacote: "A", documentoFinal: true },
+      { id: "a2", documentoId: "A", revisaoNumero: 2, pacote: "A", documentoFinal: true },
+      { id: "b1", documentoId: "B", revisaoNumero: 1, pacote: "A" },
+    ];
+    expect(recortarParaLinkPublico(ups).map((u) => u.id)).toEqual(["b1"]);
+  });
+});
+
+describe("situacoesDoUpload (link com as pastas do cliente)", () => {
+  const doc = { substituidoPorId: null, final: false, revisaoCompartilhadaId: "r1", revisaoLiberadaObraId: "r2" };
+
+  it("aparece na pasta cuja revisão marcada é a dele — nas duas, se as duas marcam a mesma", () => {
+    expect(situacoesDoUpload({ revisaoId: "r1", pacote: "A", documento: doc })).toEqual(["compartilhado"]);
+    expect(situacoesDoUpload({ revisaoId: "r2", pacote: "A", documento: doc })).toEqual(["liberado_obra"]);
+    expect(
+      situacoesDoUpload({ revisaoId: "r2", pacote: "A", documento: { ...doc, revisaoCompartilhadaId: "r2" } }),
+    ).toEqual(["compartilhado", "liberado_obra"]);
+  });
+
+  it("revisão mais nova que a marcada não aparece", () => {
+    expect(situacoesDoUpload({ revisaoId: "r3", pacote: "A", documento: doc })).toEqual([]);
+  });
+
+  it("backup, documento final, apelido de merge e upload sem revisão: nunca", () => {
+    expect(situacoesDoUpload({ revisaoId: "r1", pacote: "B", documento: doc })).toEqual([]);
+    expect(situacoesDoUpload({ revisaoId: "r1", pacote: "A", documento: { ...doc, final: true } })).toEqual([]);
+    expect(situacoesDoUpload({ revisaoId: "r1", pacote: "A", documento: { ...doc, substituidoPorId: "X" } })).toEqual([]);
+    expect(situacoesDoUpload({ revisaoId: null, pacote: "A", documento: doc })).toEqual([]);
+    expect(situacoesDoUpload({ revisaoId: "r1", pacote: "A", documento: null })).toEqual([]);
   });
 });

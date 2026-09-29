@@ -84,6 +84,10 @@ export function statusAoDesaprovar(p: {
 /**
  * `DocumentoStatus.cor` guarda o nome de um token, e a classe sai daqui — escrita por inteiro para o
  * Tailwind enxergar. Cor desconhecida ou vazia cai no neutro.
+ *
+ * `info` e `primario` são PREENCHIDAS: são as cores dos dois status que o cliente vê (Compartilhado, Liberado
+ * para obra), e o contorno delas se confundia — `info` tem o mesmo tom de `andamento` (Em análise), e o
+ * `primary` do tema escuro é um cinza que parecia badge desabilitada (visto em tela, 29/09/2026).
  */
 const CLASSE_DA_COR: Record<string, string> = {
   neutro: "border-border bg-muted text-muted-foreground",
@@ -92,8 +96,8 @@ const CLASSE_DA_COR: Record<string, string> = {
   revisao: "border-status-revisao/40 bg-status-revisao/10 text-status-revisao",
   entregue: "border-status-entregue/40 bg-status-entregue/10 text-status-entregue",
   aprovado: "border-status-aprovado/40 bg-status-aprovado/10 text-status-aprovado",
-  info: "border-info/40 bg-info/10 text-info",
-  primario: "border-primary/40 bg-primary/10 text-primary",
+  info: "border-info bg-info text-info-foreground",
+  primario: "border-primary bg-primary text-primary-foreground",
   perigo: "border-destructive/40 bg-destructive/10 text-destructive",
 };
 

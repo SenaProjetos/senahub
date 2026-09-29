@@ -88,6 +88,8 @@ export const criarLinkArquivos = defineAction(
       /** Fases liberadas (F4). Vazio/omitido = TODAS — ver a semântica invertida no schema. */
       faseIds: z.array(z.string()).optional(),
       incluirSemFase: z.boolean().optional(),
+      /** Pastas "Compartilhado" e "Liberado para obra" (reunião de 29/09/2026). Omitido = desligado. */
+      porSituacao: z.boolean().optional(),
     }),
     entidadeId: (d) => (d as { linkId: string } | undefined)?.linkId,
   },
@@ -122,6 +124,8 @@ export const criarLinkArquivos = defineAction(
         // Seleção manual não passa pelo recorte, então o filtro de fase não teria efeito ali.
         faseIds: input.escopo === "selecao" ? [] : await fasesValidas(input.projetoId, input.faseIds ?? []),
         incluirSemFase: input.incluirSemFase ?? false,
+        // Seleção é escolha a dedo: não passa pelas pastas do cliente.
+        porSituacao: input.escopo === "selecao" ? false : (input.porSituacao ?? false),
         disciplinaIds,
         uploadIds,
         criadoPorId: user.id,
@@ -249,6 +253,8 @@ export const atualizarLinkArquivos = defineAction(
       /** `undefined` = não mexe (como `uploadIds`): diálogo que não conhece fase não apaga o filtro. */
       faseIds: z.array(z.string()).optional(),
       incluirSemFase: z.boolean().optional(),
+      /** `undefined` = não mexe. */
+      porSituacao: z.boolean().optional(),
     }),
     entidadeId: idLink,
     capturarAntes: (i) => prisma.linkPublicoArquivos.findUnique({ where: { id: i.linkId } }),
@@ -292,6 +298,7 @@ export const atualizarLinkArquivos = defineAction(
               ? undefined
               : await fasesValidas(link.projetoId, input.faseIds),
         incluirSemFase: input.incluirSemFase,
+        porSituacao: escopo === "selecao" ? false : input.porSituacao,
       },
     });
     revalidatePath(`/projetos/${link.projetoId}/arquivos`);

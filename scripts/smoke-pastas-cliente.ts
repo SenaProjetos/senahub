@@ -1,8 +1,10 @@
 /**
  * Smoke das pastas do cliente — "Compartilhado" e "Liberado para obra" (reunião de 29/09/2026) — contra o
- * banco de dev. O vitest cobre as regras puras (`revisao-marcada.ts`, `pastas-da-lista.ts`); aqui vai o SQL:
- * a lista e a árvore da aba Arquivos dentro da pasta (revisão MARCADA, não a vigente), a contagem da raiz e o
- * documento que some da pasta quando a revisão marcada perde a validação.
+ * banco de dev. O vitest cobre as regras puras (`revisao-marcada.ts`, `pastas-da-lista.ts`,
+ * `link-publico-regras.ts`); aqui vai o SQL: a lista e a árvore da aba Arquivos dentro da pasta (revisão
+ * MARCADA, não a vigente), a contagem da raiz, o link público com as duas pastas (página, download direto e
+ * .zip com a MESMA regra), o documento Obsoleto fora do link comum, e o documento que some da pasta quando a
+ * revisão marcada perde a validação.
  *
  * Cria cliente + projeto + documentos throwaway e apaga tudo no final. Exige as migrações
  * 20260929150000 e 20260929160000 aplicadas.
@@ -12,6 +14,12 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { proximoCodigoProjeto } from "../src/modules/projetos/numbering";
+import { randomBytes } from "node:crypto";
+import {
+  conteudoPublicoPorToken,
+  uploadLiberadoNoLink,
+  uploadsDoLinkParaZip,
+} from "../src/modules/projetos/arquivos/link-publico";
 import {
   arvoreNavegacaoDocumentos,
   contagemPorSituacao,
@@ -102,7 +110,9 @@ async function main() {
     await prisma.documentoDisciplina.update({ where: { id: d2.id }, data: { revisaoLiberadaObraId: r2a.id } });
     const d3 = await documento("d3");
     const r3 = await revisao(d3.id, 1);
-    await arquivo(d3.id, r3.id, `${tag}-d3-R00.pdf`, true);
+    const pdf3 = await arquivo(d3.id, r3.id, `${tag}-d3-R00.pdf`, true);
+    const pdfNovo = await prisma.upload.findFirstOrThrow({ where: { revisaoId: r2.id }, select: { id: true } });
+    const pdfD2 = await prisma.upload.findFirstOrThrow({ where: { revisaoId: r2a.id }, select: { id: true } });
 
     const contagem = await contagemPorSituacao({ projetoIds: [projeto.id], userId: usuario.id, veTodas: true });
     check("contagem da raiz: 1 compartilhado, 1 liberado para obra", contagem.compartilhado === 1 && contagem.liberado_obra === 1);
@@ -128,11 +138,50 @@ async function main() {
     const d1Normal = normal.linhas.find((l) => l.id === d1.id);
     check("fora da pasta a linha segue a vigente (R02) e sabe que o cliente está na R01", d1Normal?.revisaoAtual === 2 && d1Normal?.revisaoCompartilhada === 1);
 
+    // ── link público com as duas pastas ──
+    const novoLink = (porSituacao: boolean) =>
+      prisma.linkPublicoArquivos.create({
+        data: { projetoId: projeto.id, token: randomBytes(18).toString("hex"), escopo: "projeto_todo", porSituacao },
+      });
+    const linkPastas = await novoLink(true);
+    const linkComum = await novoLink(false);
+
+    const pagina = await conteudoPublicoPorToken(linkPastas.token);
+    const [pComp, pObra] = pagina?.situacoes ?? [];
+    const idsComp = pComp?.disciplinas.flatMap((d) => d.pastas.flatMap((f) => f.extensoes.flatMap((e) => e.arquivos.map((a) => a.id)))) ?? [];
+    const idsObra = pObra?.disciplinas.flatMap((d) => d.pastas.flatMap((f) => f.extensoes.flatMap((e) => e.arquivos.map((a) => a.id)))) ?? [];
+    check("link por situação: as duas pastas, nessa ordem, sem disciplinas soltas", pComp?.id === "compartilhado" && pObra?.id === "liberado_obra" && pagina?.disciplinas.length === 0);
+    check("Compartilhado mostra o PDF+DWG da revisão marcada, não a R02 nem o documento sem marca", idsComp.sort().join() === [pdf1.id, dwg1.id].sort().join());
+    check("Liberado para obra mostra só o documento liberado", idsObra.join() === pdfD2.id);
+
+    check("download direto: arquivo da revisão marcada abre", (await uploadLiberadoNoLink(linkPastas.token, pdf1.id)) !== null);
+    check("download direto: R02 em análise NÃO abre", (await uploadLiberadoNoLink(linkPastas.token, pdfNovo.id)) === null);
+    check("download direto: documento sem marca NÃO abre", (await uploadLiberadoNoLink(linkPastas.token, pdf3.id)) === null);
+
+    const zip = await uploadsDoLinkParaZip(linkPastas.token);
+    const nomes = zip?.entradas.map((e) => e.nome) ?? [];
+    check("o .zip espelha as pastas (Compartilhado/… e Liberado para obra/…)", nomes.length === 3 && nomes.every((n) => n.startsWith("Compartilhado/") || n.startsWith("Liberado para obra/")));
+    const soObra = await uploadsDoLinkParaZip(linkPastas.token, { situacao: "liberado_obra" });
+    check(".zip de uma pasta só leva ela", soObra?.entradas.length === 1 && soObra.entradas[0].uploadId === pdfD2.id);
+
+    const comum = await conteudoPublicoPorToken(linkComum.token);
+    const idsComum = comum?.disciplinas.flatMap((d) => d.pastas.flatMap((f) => f.extensoes.flatMap((e) => e.arquivos.map((a) => a.id)))) ?? [];
+    check("link comum (antigo) continua igual: última revisão validada de tudo", comum?.situacoes.length === 0 && idsComum.includes(pdf3.id));
+
+    // Obsoleto sai do link comum — inteiro, sem promover revisão anterior — e da URL direta.
+    const obsoleto = await prisma.documentoStatus.findUniqueOrThrow({ where: { chave: "obsoleto" }, select: { id: true } });
+    await prisma.documentoDisciplina.update({ where: { id: d3.id }, data: { statusId: obsoleto.id } });
+    const comumDepois = await conteudoPublicoPorToken(linkComum.token);
+    const idsDepois = comumDepois?.disciplinas.flatMap((d) => d.pastas.flatMap((f) => f.extensoes.flatMap((e) => e.arquivos.map((a) => a.id)))) ?? [];
+    check("documento Obsoleto sai do link comum", !idsDepois.includes(pdf3.id));
+    check("e a URL direta dele para de abrir", (await uploadLiberadoNoLink(linkComum.token, pdf3.id)) === null);
+
     // Validação desfeita na revisão marcada: some da pasta (e do link), como o link sempre fez.
     await prisma.upload.updateMany({ where: { revisaoId: r1.id }, data: { validado: false } });
     const depois = await listar({ situacao: "compartilhado" });
     const contagemDepois = await contagemPorSituacao({ projetoIds: [projeto.id], userId: usuario.id, veTodas: true });
     check("revisão marcada sem arquivo validado sai da pasta", depois.total === 0 && contagemDepois.compartilhado === 0);
+    check("…e do link", (await uploadLiberadoNoLink(linkPastas.token, pdf1.id)) === null);
   } finally {
     await prisma.projeto.delete({ where: { id: projeto.id } });
     await prisma.cliente.delete({ where: { id: cliente.id } });

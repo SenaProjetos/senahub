@@ -5,7 +5,9 @@
  *  - nada de lixeira (`excluidoEm`, filtrado na consulta);
  *  - nada de revisão anterior — de cada documento sai só a última;
  *  - nada de "backup do modelo" (pacote B), que é arquivo de software (RVT/NWD/TQS),
- *    não entrega.
+ *    não entrega;
+ *  - nada de documento com status FINAL (Obsoleto, Arquivado — reunião de 29/09/2026): ele
+ *    foi aposentado, e o cliente não pode seguir baixando como se valesse.
  *
  * Fica separado das consultas porque as MESMAS regras valem em quatro lugares —
  * página, download de um arquivo, download de ART e .zip. Quando o recorte mora numa
@@ -31,6 +33,8 @@ export type UploadParaLink = {
   revisaoNumero: number | null;
   /** Pacote legado; "B" = backup do modelo. Nulo quando o arquivo vive numa PastaProjeto. */
   pacote: string | null;
+  /** O documento (o canônico, num merge) está com status final — Obsoleto, Arquivado. */
+  documentoFinal?: boolean;
 };
 
 /** Backup do modelo (pacote B): arquivo de software, nunca entrega ao cliente. */
@@ -68,9 +72,41 @@ export function somenteUltimaRevisao<T extends UploadParaLink>(uploads: T[]): T[
   });
 }
 
-/** Recorte completo de um link por disciplina: sem backup do modelo, só a última revisão. */
+/**
+ * Recorte completo de um link por disciplina: sem backup do modelo, sem documento final, só a última
+ * revisão. O final sai ANTES de escolher a revisão: documento aposentado não tem entrega corrente.
+ */
 export function recortarParaLinkPublico<T extends UploadParaLink>(uploads: T[]): T[] {
-  return somenteUltimaRevisao(uploads.filter((u) => !ehBackupDoModelo(u)));
+  return somenteUltimaRevisao(uploads.filter((u) => !ehBackupDoModelo(u) && !u.documentoFinal));
+}
+
+/**
+ * Link com as pastas do cliente (`porSituacao`, reunião de 29/09/2026): em quais das duas pastas um upload
+ * VALIDADO e fora da lixeira aparece. Não é "a última revisão": é a revisão que alguém marcou no documento
+ * (`revisaoCompartilhadaId` / `revisaoLiberadaObraId`) — a equipe segue versionando e o cliente só vê a
+ * próxima quando ela for marcada. Backup do modelo, documento final e apelido de merge não aparecem.
+ *
+ * É a MESMA regra na página, no download direto e no .zip — senão a URL de um arquivo desmarcado
+ * continuaria abrindo.
+ */
+export type UploadParaSituacao = {
+  revisaoId: string | null;
+  pacote: string | null;
+  documento: {
+    substituidoPorId: string | null;
+    final: boolean;
+    revisaoCompartilhadaId: string | null;
+    revisaoLiberadaObraId: string | null;
+  } | null;
+};
+
+export function situacoesDoUpload(u: UploadParaSituacao): ("compartilhado" | "liberado_obra")[] {
+  const d = u.documento;
+  if (ehBackupDoModelo(u) || !d || d.substituidoPorId || d.final || !u.revisaoId) return [];
+  const situacoes: ("compartilhado" | "liberado_obra")[] = [];
+  if (u.revisaoId === d.revisaoCompartilhadaId) situacoes.push("compartilhado");
+  if (u.revisaoId === d.revisaoLiberadaObraId) situacoes.push("liberado_obra");
+  return situacoes;
 }
 
 /**

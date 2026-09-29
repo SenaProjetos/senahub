@@ -8,7 +8,8 @@ import { registrarAcessoUploads } from "@/modules/uploads/historico/service";
 /**
  * Download público (.zip) dos arquivos de um link somente-leitura. Sem parâmetro empacota tudo
  * que o link libera; `disciplinaId`, `fase` e `ext` recortam uma pasta da árvore que o cliente
- * vê (disciplina → fase → formato). Espelha o streaming de `/api/uploads/disciplina/[id]/zip`.
+ * vê (disciplina → fase → formato), e `situacao` a pasta do cliente num link com "Compartilhado" e
+ * "Liberado para obra". Espelha o streaming de `/api/uploads/disciplina/[id]/zip`.
  *
  * Os três parâmetros só RECORTAM o que o token já libera — quem resolve o alcance continua
  * sendo `uploadsDoLinkParaZip`, que aplica a whitelist e o recorte antes de montar as pastas.
@@ -19,8 +20,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
   const disciplinaId = sp.get("disciplinaId") ?? undefined;
   const fase = sp.get("fase") ?? undefined;
   const ext = sp.get("ext") ?? undefined;
+  const situacao = sp.get("situacao") ?? undefined;
 
-  const pacote = await uploadsDoLinkParaZip(token, { disciplinaId, fase, ext });
+  const pacote = await uploadsDoLinkParaZip(token, { disciplinaId, fase, ext, situacao });
   if (!pacote) return NextResponse.json({ error: "Arquivos indisponíveis." }, { status: 404 });
 
   await logAudit({
@@ -28,7 +30,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
     acao: "download-link-publico-zip",
     resultado: "sucesso",
     entidade: "Projeto",
-    detalhe: { token, disciplinaId, fase, ext },
+    detalhe: { token, disciplinaId, fase, ext, situacao },
     ip: await getClientIp(),
   });
   // Sem await: um pacote grande não pode atrasar o início do download. O serviço nunca rejeita
@@ -65,7 +67,12 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
 
   // O nome do arquivo acompanha a pasta pedida, senão três downloads diferentes chegam na
   // pasta de Downloads do cliente com o mesmo nome.
-  const sufixo = [disciplinaId ? "disciplina" : null, fase ? "fase" : null, ext ? ext.replace("__outros__", "outros") : null]
+  const sufixo = [
+    situacao === "compartilhado" ? "compartilhado" : situacao === "liberado_obra" ? "obra" : null,
+    disciplinaId ? "disciplina" : null,
+    fase ? "fase" : null,
+    ext ? ext.replace("__outros__", "outros") : null,
+  ]
     .filter(Boolean)
     .join("-");
   const nome = `${pacote.codigo}_arquivos${sufixo ? `_${sufixo}` : ""}.zip`;

@@ -1,7 +1,15 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { linkVigente } from "@/lib/link-publico";
-import { ehBackupDoModelo, faseLiberada, filtrarPorFases, recortarParaLinkPublico } from "./link-publico-regras";
+import {
+  ehBackupDoModelo,
+  faseLiberada,
+  filtrarPorFases,
+  recortarParaLinkPublico,
+  situacoesDoUpload,
+  type UploadParaSituacao,
+} from "./link-publico-regras";
+import { ROTULO_SITUACAO, SITUACOES, situacaoValida, type Situacao } from "@/modules/uploads/revisao-marcada";
 import {
   FASE_TODAS,
   montarPastasDeArquivos,
@@ -24,6 +32,10 @@ import { carregarExtensoesNomenclatura } from "@/modules/uploads/nomenclatura/qu
  *  - de cada documento, só a ÚLTIMA revisão;
  *  - nada de "backup do modelo" (pacote B) — é arquivo de software, não entrega;
  *  - `ativo=false` revoga na hora; `expiraEm` no passado desliga o link.
+ *
+ * Link com `porSituacao` (reunião de 29/09/2026) troca "a última revisão" pelas duas pastas do cliente,
+ * "Compartilhado" e "Liberado para obra", cada uma com a revisão MARCADA no documento
+ * (`situacoesDoUpload`). Disciplinas e fases continuam recortando; documento final nunca entra.
  *
  * No escopo `selecao` a escolha manual vence as duas regras do meio (dá para mandar uma
  * revisão antiga ou um backup de propósito), mas a lixeira continua fora: arquivo na
@@ -84,19 +96,32 @@ export type ArtPublica = {
   /** Versões históricas COM arquivo — o cliente vê o histórico completo. */
   versoes: { id: string; numero: number; rotulo: string }[];
 };
+/** Pasta do cliente num link `porSituacao`: as disciplinas com o que foi marcado nela. */
+export type SituacaoPublica = { id: Situacao; rotulo: string; total: number; disciplinas: DisciplinaPublica[] };
 export type ConteudoPublico = {
   projeto: { codigo: string; nome: string };
   /** Rótulo do link ("Prefeitura", "Cliente final"), quando quem criou deu um. */
   titulo: string | null;
+  /** Link comum: as disciplinas direto. Link `porSituacao`: vazio — o conteúdo vem em `situacoes`. */
   disciplinas: DisciplinaPublica[];
+  /** Só no link `porSituacao`: "Compartilhado" e "Liberado para obra", sempre as duas, nessa ordem. */
+  situacoes: SituacaoPublica[];
   arts: ArtPublica[];
 };
 
-/** Campos que o recorte de `link-publico-regras.ts` precisa ver em cada upload. */
+/**
+ * Campos que o recorte de `link-publico-regras.ts` precisa ver em cada upload. O status final é o do
+ * CANÔNICO quando há merge: é o documento que a tela mostra e que alguém marcou como Obsoleto.
+ */
+const DOCUMENTO_REGRAS = {
+  substituidoPorId: true,
+  status: { select: { final: true } },
+  substituidoPor: { select: { status: { select: { final: true } } } },
+} as const;
 const SELECT_REGRAS = {
   pacote: true,
   documentoId: true,
-  documento: { select: { substituidoPorId: true } },
+  documento: { select: DOCUMENTO_REGRAS },
   revisao: { select: { numero: true } },
 } as const;
 
@@ -109,26 +134,79 @@ const SELECT_REGRAS_COM_FASE = {
   ...SELECT_REGRAS,
   documento: {
     select: {
-      substituidoPorId: true,
+      ...DOCUMENTO_REGRAS,
       fase: { select: { id: true, sigla: true, nome: true } },
     },
   },
 } as const;
 
+/** O que a regra das pastas do cliente (`situacoesDoUpload`) precisa ver de cada upload, com a fase. */
+const SELECT_SITUACAO = {
+  revisaoId: true,
+  pacote: true,
+  documento: {
+    select: {
+      substituidoPorId: true,
+      status: { select: { final: true } },
+      revisaoCompartilhadaId: true,
+      revisaoLiberadaObraId: true,
+      fase: { select: { id: true, sigla: true, nome: true } },
+    },
+  },
+} as const;
+
+type LinhaSituacao = {
+  revisaoId: string | null;
+  pacote: string | null;
+  documento: {
+    substituidoPorId: string | null;
+    status: { final: boolean } | null;
+    revisaoCompartilhadaId: string | null;
+    revisaoLiberadaObraId: string | null;
+  } | null;
+};
+
+function paraSituacao(u: LinhaSituacao): UploadParaSituacao {
+  const d = u.documento;
+  return {
+    revisaoId: u.revisaoId,
+    pacote: u.pacote,
+    documento: d
+      ? {
+          substituidoPorId: d.substituidoPorId,
+          final: d.status?.final ?? false,
+          revisaoCompartilhadaId: d.revisaoCompartilhadaId,
+          revisaoLiberadaObraId: d.revisaoLiberadaObraId,
+        }
+      : null,
+  };
+}
+
+/** O upload está na pasta `situacao` do cliente? */
+function naSituacao(u: LinhaSituacao, situacao: Situacao): boolean {
+  return situacoesDoUpload(paraSituacao(u)).includes(situacao);
+}
+
 type LinhaRegras = {
   id: string;
   pacote: string | null;
   documentoId: string | null;
-  documento: { substituidoPorId: string | null } | null;
+  documento: {
+    substituidoPorId: string | null;
+    status: { final: boolean } | null;
+    substituidoPor: { status: { final: boolean } | null } | null;
+  } | null;
   revisao: { numero: number } | null;
 };
 
 /** Achata o formato do Prisma no formato plano que o recorte puro espera. */
 function paraRecorte<T extends LinhaRegras>(u: T) {
+  const doc = u.documento;
   return {
     ...u,
-    documentoCanonicoId: u.documento?.substituidoPorId ?? null,
+    documentoCanonicoId: doc?.substituidoPorId ?? null,
     revisaoNumero: u.revisao?.numero ?? null,
+    documentoFinal: (doc?.substituidoPor ? doc.substituidoPor.status?.final : doc?.status?.final) ?? false,
   };
 }
 
@@ -302,11 +380,48 @@ export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPu
   if (link.escopo === "selecao") {
     const disciplinas = await conteudoDaSelecao(link.uploadIds, link.agruparPorFase);
     if (disciplinas.length === 0) return null;
-    return { projeto, titulo: link.nome, disciplinas, arts: [] };
+    return { projeto, titulo: link.nome, disciplinas, situacoes: [], arts: [] };
   }
 
   const disciplinaIds = await disciplinasDoLink(link);
   if (!disciplinaIds) return null;
+
+  if (link.porSituacao) {
+    const [disciplinas, extensoes, arts] = await Promise.all([
+      prisma.disciplina.findMany({
+        where: { id: { in: disciplinaIds } },
+        orderBy: { ordem: "asc" },
+        select: {
+          id: true,
+          disciplinaTextoLegado: true,
+          uploads: {
+            where: { validado: true, excluidoEm: null },
+            orderBy: { nomeArquivo: "asc" },
+            select: { id: true, nomeArquivo: true, tamanho: true, versao: true, ...SELECT_SITUACAO },
+          },
+        },
+      }),
+      carregarExtensoesNomenclatura(),
+      artsPublicasDoLink(link.projetoId, disciplinaIds),
+    ]);
+    const situacoes = SITUACOES.map((situacao): SituacaoPublica => {
+      const naPasta = disciplinas
+        .map((d) =>
+          emPastas(
+            {
+              id: d.id,
+              nome: d.disciplinaTextoLegado,
+              arquivos: filtrarPorFases(d.uploads.filter((u) => naSituacao(u, situacao)).map(paraArquivoPublico), link),
+            },
+            extensoes,
+            link.agruparPorFase,
+          ),
+        )
+        .filter((d) => d.total > 0);
+      return { id: situacao, rotulo: ROTULO_SITUACAO[situacao], total: naPasta.reduce((n, d) => n + d.total, 0), disciplinas: naPasta };
+    });
+    return { projeto, titulo: link.nome, disciplinas: [], situacoes, arts };
+  }
 
   const [disciplinas, extensoes] = await Promise.all([
     prisma.disciplina.findMany({
@@ -337,6 +452,7 @@ export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPu
     projeto,
     titulo: link.nome,
     arts,
+    situacoes: [],
     disciplinas: disciplinas
       .map((d) =>
         emPastas(
@@ -405,6 +521,17 @@ export async function uploadLiberadoNoLink(token: string, uploadId: string) {
   const disciplinaIds = await disciplinasDoLink(link);
   if (!disciplinaIds) return null;
 
+  if (link.porSituacao) {
+    // A mesma regra da página: arquivo validado da revisão MARCADA, numa das duas pastas.
+    const u = await prisma.upload.findFirst({
+      where: { id: uploadId, validado: true, excluidoEm: null, disciplinaId: { in: disciplinaIds } },
+      select: { ...servivel, ...SELECT_SITUACAO },
+    });
+    if (!u || situacoesDoUpload(paraSituacao(u)).length === 0) return null;
+    if (!faseLiberada(u.documento?.fase?.id ?? null, link)) return null;
+    return { id: u.id, nomeArquivo: u.nomeArquivo, caminho: u.caminho, mimeType: u.mimeType };
+  }
+
   const upload = await prisma.upload.findFirst({
     where: { id: uploadId, validado: true, excluidoEm: null, disciplinaId: { in: disciplinaIds } },
     // Com fase: é ela que o filtro do link confere. `documento` num select só (ver
@@ -467,6 +594,8 @@ export type RecorteZip = {
   fase?: string;
   /** Chave da pasta de formato (extensão ou `__outros__`). */
   ext?: string;
+  /** Pasta do cliente (`compartilhado` | `liberado_obra`) — só no link `porSituacao`. */
+  situacao?: string;
 };
 
 export async function uploadsDoLinkParaZip(token: string, recorte: RecorteZip = {}) {
@@ -518,6 +647,49 @@ export async function uploadsDoLinkParaZip(token: string, recorte: RecorteZip = 
   if (!alcance) return null;
   const alvo = disciplinaId ? (alcance.includes(disciplinaId) ? [disciplinaId] : []) : alcance;
   if (alvo.length === 0) return null;
+
+  if (link.porSituacao) {
+    const situacaoAlvo = recorte.situacao ? situacaoValida(recorte.situacao) : null;
+    if (recorte.situacao && !situacaoAlvo) return null;
+    const disciplinas = await prisma.disciplina.findMany({
+      where: { id: { in: alvo } },
+      orderBy: { ordem: "asc" },
+      select: {
+        disciplinaTextoLegado: true,
+        uploads: {
+          where: { validado: true, excluidoEm: null },
+          orderBy: { nomeArquivo: "asc" },
+          select: { id: true, caminho: true, nomeArquivo: true, ...SELECT_SITUACAO },
+        },
+      },
+    });
+    // O .zip espelha a página: "Compartilhado/Estrutural/EX/PDF/arquivo". Arquivo marcado nas duas
+    // pastas vai nas duas, como aparece nas duas.
+    const entradas = (situacaoAlvo ? [situacaoAlvo] : SITUACOES).flatMap((situacao) =>
+      disciplinas.flatMap((d) =>
+        entradasEmPastas(
+          filtrarPorFases(
+            d.uploads
+              .filter((u) => naSituacao(u, situacao))
+              .map((u) => ({
+                uploadId: u.id,
+                caminho: u.caminho,
+                nome: u.nomeArquivo,
+                disciplinaNome: d.disciplinaTextoLegado,
+                faseId: u.documento?.fase?.id ?? null,
+                faseSigla: u.documento?.fase?.sigla ?? null,
+                faseNome: u.documento?.fase?.nome ?? null,
+              })),
+            link,
+          ),
+          extensoes,
+          { fase: faseAlvo, ext: extAlvo, agruparPorFase: link.agruparPorFase },
+        ).map((e) => ({ ...e, nome: `${ROTULO_SITUACAO[situacao]}/${e.nome}` })),
+      ),
+    );
+    if (entradas.length === 0) return null;
+    return { linkId: link.id, codigo: link.projeto.codigo, entradas };
+  }
 
   const disciplinas = await prisma.disciplina.findMany({
     where: { id: { in: alvo } },
