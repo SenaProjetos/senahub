@@ -10,6 +10,7 @@ import { usePdfCamadas } from "@/components/pdf/use-pdf-camadas";
 import { CamadasPdf } from "@/components/pdf/camadas-pdf";
 import { usePinchZoom } from "@/components/pdf/use-pinch-zoom";
 import { useZoomAncorado } from "@/components/pdf/use-zoom-ancorado";
+import { SeletorZoom } from "@/components/pdf/seletor-zoom";
 import { passoZoom, ZOOM_PDF_MAX, ZOOM_PDF_MIN, zoomPelaRodaPdf } from "@/lib/pdf-zoom";
 
 // pdf.js é carregado dinamicamente no cliente (evita SSR e mantém o chunk fora do bundle inicial).
@@ -126,7 +127,7 @@ export function DocumentoViewer({ url }: { url: string }) {
         <Button variant="outline" size="icon" className="size-7" onClick={() => ajustarZoom(-1)} disabled={zoom <= ZOOM_PDF_MIN} aria-label="Diminuir zoom">
           <ZoomOut className="size-3.5" />
         </Button>
-        <span className="w-12 text-center text-xs tabular-nums text-muted-foreground">{Math.round(zoom * 100)}%</span>
+        <SeletorZoom zoom={zoom} onEscolher={(z) => setZoom(z)} />
         <Button variant="outline" size="icon" className="size-7" onClick={() => ajustarZoom(1)} disabled={zoom >= ZOOM_PDF_MAX} aria-label="Aumentar zoom">
           <ZoomIn className="size-3.5" />
         </Button>

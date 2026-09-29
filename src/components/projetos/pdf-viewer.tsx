@@ -65,6 +65,7 @@ import { PortalContainerProvider } from "@/components/ui/portal-container";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { BotaoFerramenta, SeparadorBarra } from "@/components/pdf/botao-ferramenta";
 import { SeletorPranchas } from "@/components/projetos/arquivos/seletor-pranchas";
+import { SeletorZoom } from "@/components/pdf/seletor-zoom";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TarefaDialog, type OpcoesUI } from "@/components/tarefas/tarefa-dialog";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
@@ -2012,21 +2013,7 @@ export function PdfViewer(props: Props) {
                 <BotaoFerramenta rotulo="Diminuir zoom" atalho="Ctrl+roda" onClick={() => ajustarZoom(-1)} disabled={zoom <= ZOOM_PDF_MIN}>
                   <ZoomOut />
                 </BotaoFerramenta>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <button
-                        type="button"
-                        onClick={() => setZoom(1)}
-                        aria-label={`Zoom de ${Math.round(zoom * 100)}% — voltar a 100%`}
-                        className="min-w-[4.5ch] rounded-sm text-center text-xs tabular-nums text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                      />
-                    }
-                  >
-                    {Math.round(zoom * 100)}%
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">Zoom atual — clique para voltar a 100%</TooltipContent>
-                </Tooltip>
+                <SeletorZoom zoom={zoom} onEscolher={(z) => setZoom(z)} />
                 <BotaoFerramenta rotulo="Aumentar zoom" atalho="Ctrl+roda" onClick={() => ajustarZoom(1)} disabled={zoom >= ZOOM_PDF_MAX}>
                   <ZoomIn />
                 </BotaoFerramenta>

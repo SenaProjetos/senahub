@@ -19,6 +19,12 @@ export const ZOOM_PDF_MAX = 20;
  */
 export const DEGRAUS_ZOOM = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 16, 20] as const;
 
+/**
+ * Zooms prontos da caixa de % (clique nela abre a lista): ir direto a 800% em vez de subir
+ * degrau por degrau ou girar a roda até lá. 100% é a prancha na largura da área de leitura.
+ */
+export const ZOOM_PREDEFINIDOS = [0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 10, 15, 20] as const;
+
 /** Fator por "clique" de roda com Ctrl: multiplicativo, então subir e descer voltam ao mesmo ponto. */
 const FATOR_RODA = 1.2;
 

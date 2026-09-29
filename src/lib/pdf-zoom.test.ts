@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEGRAUS_ZOOM,
+  ZOOM_PREDEFINIDOS,
   escalaDoCanvas,
   limitarZoomPdf,
   MAX_PIXELS_DETALHE,
@@ -103,5 +104,15 @@ describe("regiaoDetalhe", () => {
     })!;
     expect(r.w * r.h * r.escala * r.escala).toBeLessThanOrEqual(8_000_000 * 1.0001);
     expect(r.w).toBeGreaterThanOrEqual(1900);
+  });
+});
+
+describe("ZOOM_PREDEFINIDOS", () => {
+  it("vão do mínimo ao máximo, em ordem, passando por 100%", () => {
+    expect(ZOOM_PREDEFINIDOS[0]).toBe(ZOOM_PDF_MIN);
+    expect(ZOOM_PREDEFINIDOS.at(-1)).toBe(ZOOM_PDF_MAX);
+    expect(ZOOM_PREDEFINIDOS).toContain(1);
+    expect([...ZOOM_PREDEFINIDOS].sort((a, b) => a - b)).toEqual([...ZOOM_PREDEFINIDOS]);
+    for (const z of ZOOM_PREDEFINIDOS) expect(limitarZoomPdf(z)).toBe(z);
   });
 });

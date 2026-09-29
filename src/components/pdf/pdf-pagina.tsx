@@ -117,6 +117,17 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
   const [comDetalhe, setComDetalhe] = useState(false);
   /** Giro com que o detalhe atual foi desenhado — com outro giro ele estaria no lugar errado. */
   const giroDetalheRef = useRef(rotacao);
+  /**
+   * O que está no canvas da página inteira agora. No teto de pixels o bitmap tem SEMPRE o mesmo
+   * tamanho, qualquer que seja o zoom — redesenhá-lo a cada passo era refazer a prancha inteira
+   * (~134 MB por canvas, dois de uma vez) sem ganhar um pixel de nitidez, e travava a tela.
+   */
+  const desenhoRef = useRef<{ pdf: PdfDoc; pagina: number; rotacao: number; ocgVersao?: number; w: number; h: number } | null>(null);
+  /** Camada de texto viva e a página dela: o zoom só a reajusta (`update`), sem refazer. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const camadaTextoRef = useRef<{ textLayer: any; page: any } | null>(null);
+  const larguraRef = useRef(largura);
+  larguraRef.current = largura;
 
   // Sobrevive entre a troca de `marcas` sem precisar re-render da página inteira.
   const textDivsRef = useRef<HTMLElement[] | null>(null);
@@ -162,16 +173,15 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
     pintarMarcas();
   }, [marcas]);
 
-  // Canvas + extração de texto + camada de texto (deps: página/largura mudam → re-render completo).
+  // Canvas da página inteira (deps: página/largura/giro/camadas). Só redesenha quando o bitmap
+  // muda de tamanho: no teto de pixels o zoom só estica o que já existe, e a nitidez do trecho
+  // visível fica com o canvas de detalhe (refeito logo abaixo, a cada `versaoBase`).
   useEffect(() => {
     let cancelado = false;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let renderTask: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let textLayer: any;
     (async () => {
       try {
-        const pdfjs = await import("pdfjs-dist");
         const page = await pdf.getPage(pagina);
         const base = page.getViewport({ scale: 1, rotation: rotacao });
         const scale = largura / base.width;
@@ -183,26 +193,41 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
         if (giroDetalheRef.current !== rotacao && detalheRef.current) detalheRef.current.style.display = "none";
         const dpr = dprDaTela();
         const escala = escalaDoCanvas(viewport.width, viewport.height, dpr, maxPixelsPagina());
-        // Desenha fora da tela e só então troca: o desenho anterior (esticado) fica à vista
-        // enquanto o novo não termina, em vez de a página piscar em branco a cada zoom.
-        const fora = document.createElement("canvas");
-        fora.width = Math.floor(viewport.width * escala);
-        fora.height = Math.floor(viewport.height * escala);
-        const ctx = fora.getContext("2d");
-        if (!ctx) return;
-        renderTask = page.render({
-          canvasContext: ctx,
-          viewport,
-          transform: escala !== 1 ? [escala, 0, 0, escala, 0, 0] : undefined,
-          optionalContentConfigPromise: ocgConfig ? Promise.resolve(ocgConfig) : undefined,
-        });
-        await renderTask.promise;
-        if (cancelado) {
-          fora.width = 0;
-          fora.height = 0;
-          return;
+        const alvoW = Math.floor(viewport.width * escala);
+        const alvoH = Math.floor(viewport.height * escala);
+        const atual = desenhoRef.current;
+        const mesmoBitmap =
+          atual !== null &&
+          atual.pdf === pdf &&
+          atual.pagina === pagina &&
+          atual.rotacao === rotacao &&
+          atual.ocgVersao === ocgVersao &&
+          Math.abs(atual.w - alvoW) <= 1 &&
+          Math.abs(atual.h - alvoH) <= 1 &&
+          canvas.width > 0;
+        if (!mesmoBitmap) {
+          // Desenha fora da tela e só então troca: o desenho anterior (esticado) fica à vista
+          // enquanto o novo não termina, em vez de a página piscar em branco a cada zoom.
+          const fora = document.createElement("canvas");
+          fora.width = alvoW;
+          fora.height = alvoH;
+          const ctx = fora.getContext("2d");
+          if (!ctx) return;
+          renderTask = page.render({
+            canvasContext: ctx,
+            viewport,
+            transform: escala !== 1 ? [escala, 0, 0, escala, 0, 0] : undefined,
+            optionalContentConfigPromise: ocgConfig ? Promise.resolve(ocgConfig) : undefined,
+          });
+          await renderTask.promise;
+          if (cancelado) {
+            fora.width = 0;
+            fora.height = 0;
+            return;
+          }
+          transferir(fora, canvas);
+          desenhoRef.current = { pdf, pagina, rotacao, ocgVersao, w: alvoW, h: alvoH };
         }
-        transferir(fora, canvas);
         setComDetalhe(precisaDetalhe(escala, dpr));
         setVersaoBase((v) => v + 1);
         // `wPt`/`hPt` são as dimensões do viewport em escala 1 — ou seja, a página em PONTOS
@@ -214,8 +239,39 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
           wPt: base.width,
           hPt: base.height,
         });
+      } catch (e) {
+        // Cancelamento de render dispara exceção esperada ao trocar largura.
+        if (!cancelado) console.debug("[pdf-pagina] falha pág.", pagina, e);
+      }
+    })();
+    return () => {
+      cancelado = true;
+      try {
+        renderTask?.cancel?.();
+      } catch {
+        /* noop */
+      }
+    };
+    // ocgVersao (não ocgConfig): a config MUTA em memória a cada toggle, a referência do
+    // objeto não muda — só o contador força este efeito (que re-renderiza o canvas do zero,
+    // já que camada visível/oculta é decidida DENTRO do `page.render()`) a rodar de novo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pdf, pagina, largura, ocgVersao, rotacao]);
 
-        // Extração de texto: independente do canvas, mas reaproveita a mesma página já aberta.
+  // Extração de texto + camada de texto: UMA vez por página/giro. O texto não muda com o zoom
+  // (a posição de cada item vai normalizada, em escala 1); antes ele era pedido de novo ao worker
+  // e a camada refeita do zero a cada passo de zoom.
+  useEffect(() => {
+    let cancelado = false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let textLayer: any;
+    (async () => {
+      try {
+        const pdfjs = await import("pdfjs-dist");
+        const page = await pdf.getPage(pagina);
+        if (cancelado) return;
+        const base = page.getViewport({ scale: 1, rotation: rotacao });
+        const viewport = page.getViewport({ scale: larguraRef.current / base.width, rotation: rotacao });
         const textContent = await page.getTextContent();
         // `items` mistura TextItem (tem `.str`) e TextMarkedContent (não tem) — só o primeiro
         // grupo tem texto pesquisável, e é exatamente o subconjunto que o TextLayer usa pra
@@ -249,32 +305,42 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
 
         textDivsRef.current = textLayer.textDivs as HTMLElement[];
         textosRef.current = textLayer.textContentItemsStr as string[];
+        camadaTextoRef.current = { textLayer, page };
+        // O zoom pode ter mudado enquanto o texto carregava.
+        textLayer.update({ viewport: page.getViewport({ scale: larguraRef.current / base.width, rotation: rotacao }) });
         pintarMarcas();
       } catch (e) {
-        // Cancelamento de render/textLayer dispara exceção esperada ao trocar largura.
-        if (!cancelado) console.debug("[pdf-pagina] falha pág.", pagina, e);
+        // Cancelamento do textLayer dispara exceção esperada ao trocar de página.
+        if (!cancelado) console.debug("[pdf-pagina] falha no texto pág.", pagina, e);
       }
     })();
     return () => {
       cancelado = true;
       textDivsRef.current = null;
       textosRef.current = null;
-      try {
-        renderTask?.cancel?.();
-      } catch {
-        /* noop */
-      }
+      camadaTextoRef.current = null;
       try {
         textLayer?.cancel?.();
       } catch {
         /* noop */
       }
     };
-    // ocgVersao (não ocgConfig): a config MUTA em memória a cada toggle, a referência do
-    // objeto não muda — só o contador força este efeito (que re-renderiza o canvas do zero,
-    // já que camada visível/oculta é decidida DENTRO do `page.render()`) a rodar de novo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pdf, pagina, largura, ocgVersao, rotacao]);
+  }, [pdf, pagina, rotacao]);
+
+  // Zoom: a camada de texto só é reajustada (`TextLayer.update` remede cada trecho), com uma
+  // pausa curta — numa sequência de roda do mouse ela acerta uma vez só, no fim. Invisível, ela
+  // pode ficar um instante na escala anterior sem ninguém notar.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const camada = camadaTextoRef.current;
+      if (!camada) return;
+      const base = camada.page.getViewport({ scale: 1, rotation: rotacao });
+      camada.textLayer.update({ viewport: camada.page.getViewport({ scale: largura / base.width, rotation: rotacao }) });
+    }, 150);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [largura]);
 
   // Trecho visível em resolução cheia (só quando a página inteira ficou abaixo da densidade da
   // tela). Refeito depois de cada página inteira desenhada e, com uma pausa curta, ao rolar.
