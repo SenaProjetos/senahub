@@ -35,6 +35,7 @@ import { notificarMuitos } from "@/lib/notificar";
 import { logAudit } from "@/lib/audit";
 import { sanitizeSvg } from "@/lib/sanitize-svg";
 import { normalizar } from "@/lib/disciplinas-core";
+import { casarCatalogo, catalogoDeDisciplinas } from "@/modules/projetos/catalogo-disciplina";
 import { normalizarSinonimos, primeiraColisao } from "@/modules/uploads/nomenclatura/colisao-sinonimo";
 import { usaEstruturaCustom, disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { transicaoDisciplinaPermitida, mensagemTransicaoDisciplina } from "@/modules/projetos/status";
@@ -153,11 +154,13 @@ export const criarProjeto = defineAction(
           },
         },
       });
+      const catalogo = input.disciplinas.length > 0 ? await catalogoDeDisciplinas(tx) : [];
       for (const [i, d] of input.disciplinas.entries()) {
         const disc = await tx.disciplina.create({
           data: {
             projetoId: p.id,
             disciplinaTextoLegado: d.nome,
+            disciplinaId: casarCatalogo(d.nome, catalogo),
             prazo: parseData(d.prazo),
             valor: d.valor,
             ordem: i,
@@ -755,6 +758,7 @@ export const criarDisciplina = defineAction(
         data: {
           projetoId: input.projetoId,
           disciplinaTextoLegado: input.nome,
+          disciplinaId: casarCatalogo(input.nome, await catalogoDeDisciplinas(tx)),
           prazo: input.prazo ? new Date(input.prazo) : undefined,
           valor: input.valor,
           ordem: (maxOrdem._max.ordem ?? 0) + 1,
@@ -821,11 +825,19 @@ export const editarDisciplina = defineAction(
         projetoId: true,
         valor: true,
         prazo: true,
+        disciplinaTextoLegado: true,
+        disciplinaId: true,
         projeto: { select: { prazoPlanejado: true } },
         _count: { select: { etapas: true } },
       },
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
+
+    // Catálogo só é (re)ligado quando o nome muda ou a disciplina ainda não tem ligação: a FK posta
+    // à mão na F1.21 (ex.: "Gases" → Gás) tem nome que não casa, e editar o prazo não pode desfazê-la.
+    // Nome novo que não casa com nada mantém a ligação de antes, em vez de soltá-la.
+    const religarCatalogo = input.nome !== disciplina.disciplinaTextoLegado || disciplina.disciplinaId == null;
+    const catalogoId = religarCatalogo ? casarCatalogo(input.nome, await catalogoDeDisciplinas(prisma)) : null;
 
     // F4: com etapa, o prazo da disciplina é CONSOLIDADO (o maior entre as etapas) e não se
     // edita aqui. O formulário reenvia o prazo SEMPRE, então prazo igual ao atual é ignorado —
@@ -871,6 +883,7 @@ export const editarDisciplina = defineAction(
         where: { id: input.disciplinaId },
         data: {
           disciplinaTextoLegado: input.nome,
+          ...(catalogoId ? { disciplinaId: catalogoId } : {}),
           prazo: !escrevePrazo
             ? undefined
             : input.prazo === null
@@ -1045,9 +1058,15 @@ export const adicionarDisciplinasDoCatalogo = defineAction(
       // criarDisciplina, checada uma vez fora do loop (não muda entre as disciplinas criadas aqui).
       const semear =
         usaEstruturaCustom(projeto.tipo) && (await projetoUsaTemplate(tx, input.projetoId));
+      const catalogo = await catalogoDeDisciplinas(tx);
       for (const [i, nome] of novas.entries()) {
         const d = await tx.disciplina.create({
-          data: { projetoId: input.projetoId, disciplinaTextoLegado: nome, ordem: maxOrdem + i + 1 },
+          data: {
+            projetoId: input.projetoId,
+            disciplinaTextoLegado: nome,
+            disciplinaId: casarCatalogo(nome, catalogo),
+            ordem: maxOrdem + i + 1,
+          },
         });
         if (semear) await semearPastasTemplate(tx, d.id, projeto.tipo);
       }
