@@ -364,7 +364,8 @@ echo    8  - Perguntas guiadas para os problemas mais comuns.
 echo    9  - Faz um backup do banco na hora (sem risco, nao apaga nada).
 echo   10  - Atualiza o codigo, builda e reinicia (uso no dia de deploy).
 echo   11  - Roda os testes automatizados contra o sistema real.
-echo   12  - Ferramentas raras/avancadas (servico travado, reboot, etc).
+echo   12  - Ferramentas raras/avancadas (servico travado, reboot, abrir o
+echo         banco de dados no psql, etc).
 echo(
 echo   Duvidas ou problemas nao cobertos aqui: veja docs\DEPLOY.md
 echo   ou fale com quem administra o servidor.
@@ -498,6 +499,8 @@ echo   6. Listar / verificar backups (mesmo da opcao 9 do menu principal)
 echo   7. Resetar senha do admin (emergencia)
 echo   8. Ver log de auditoria do menu
 echo   9. Reiniciar o servidor Windows (reboot)
+echo  10. Abrir o banco de dados (psql) - somente leitura
+echo  11. Abrir o banco de dados (psql) - com escrita (cuidado)
 echo(
 echo   0. Voltar
 echo(
@@ -556,6 +559,16 @@ if "%subop%"=="8" (
 )
 if "%subop%"=="9" (
   powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao Reboot
+  pause
+  goto :menu_avancado
+)
+if "%subop%"=="10" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao AbrirBanco -Sub Leitura
+  pause
+  goto :menu_avancado
+)
+if "%subop%"=="11" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Acao AbrirBanco -Sub Escrita
   pause
   goto :menu_avancado
 )

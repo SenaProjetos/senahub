@@ -1388,6 +1388,76 @@ function Invoke-Reboot {
     Write-Host "Reinicio agendado. Para cancelar nos proximos 60s, rode: shutdown /a" -ForegroundColor Yellow
 }
 
+function Get-PsqlPath {
+    # Mesma ordem do scripts/restaurar-backup.ts: PG_BIN_PATH > pasta do PG_DUMP_PATH > padrao da v17.
+    $pastas = @()
+    $bin = Get-EnvValue -Key "PG_BIN_PATH"
+    if ($bin) { $pastas += $bin }
+    $pgDump = Get-EnvValue -Key "PG_DUMP_PATH"
+    if ($pgDump) { $pastas += (Split-Path $pgDump -Parent) }
+    $pastas += "C:\Program Files\PostgreSQL\17\bin"
+    foreach ($p in $pastas) {
+        $exe = Join-Path $p "psql.exe"
+        if (Test-Path $exe) { return $exe }
+    }
+    $cmd = Get-Command psql.exe -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    return $null
+}
+
+function Invoke-AbrirBanco {
+    # Console psql no banco do .env. Padrao somente leitura (default_transaction_read_only):
+    # o uso comum e consultar, e um UPDATE sem WHERE aqui nao passa pelo defineAction, nao
+    # entra no AuditLog do sistema e so volta restaurando backup.
+    param([string]$Modo)
+    $escrita = ($Modo -eq "Escrita")
+
+    $psqlPath = Get-PsqlPath
+    if (-not $psqlPath) {
+        Write-Host "[ERRO] psql.exe nao encontrado. Defina PG_BIN_PATH (pasta bin do PostgreSQL) no .env." -ForegroundColor Red
+        return
+    }
+    $dbUrl = Get-EnvValue -Key "DATABASE_URL"
+    if (-not $dbUrl -or $dbUrl -notmatch "postgresql://([^:]+):([^@]+)@([^:/]+):(\d+)/([\w-]+)") {
+        Write-Host "[ERRO] Nao foi possivel interpretar DATABASE_URL." -ForegroundColor Red
+        return
+    }
+    $dbUser = $Matches[1]; $dbPass = $Matches[2]; $dbHost = $Matches[3]; $dbPort = $Matches[4]; $dbName = $Matches[5]
+
+    Write-Host ""
+    Write-Host ("Banco: {0} em {1}:{2} (usuario {3})" -f $dbName, $dbHost, $dbPort, $dbUser) -ForegroundColor Cyan
+    if ($escrita) {
+        Write-Host "MODO COM ESCRITA: INSERT/UPDATE/DELETE valem na hora, NAO entram na auditoria" -ForegroundColor Red
+        Write-Host "do sistema e so voltam restaurando um backup. Faca um backup antes (opcao 9 do" -ForegroundColor Red
+        Write-Host "menu principal) e use BEGIN; ... ROLLBACK; para conferir antes do COMMIT;" -ForegroundColor Red
+        if (-not (Confirm-Typed -Palavra "ESCREVER")) {
+            Write-Host "Cancelado." -ForegroundColor Yellow
+            return
+        }
+    } else {
+        Write-Host "Modo somente leitura: o banco recusa INSERT/UPDATE/DELETE nesta sessao." -ForegroundColor Green
+    }
+    Write-Host ""
+    Write-Host "  Cole o SQL e termine com ;  depois Enter" -ForegroundColor DarkGray
+    Write-Host "  \dt  lista as tabelas      \d nome  descreve uma tabela" -ForegroundColor DarkGray
+    Write-Host "  \x   resultado na vertical  \q      sai e volta ao menu" -ForegroundColor DarkGray
+    Write-Host "  (o aviso de 'code page' do psql pode ser ignorado)" -ForegroundColor DarkGray
+    Write-Host ""
+
+    Write-Audit -AcaoNome "AbrirBanco" -Detalhe $(if ($escrita) { "ESCRITA" } else { "somente leitura" })
+    $env:PGPASSWORD = $dbPass
+    $env:PGCLIENTENCODING = "UTF8"
+    $env:PGAPPNAME = "senahub-menu-psql"
+    if (-not $escrita) { $env:PGOPTIONS = "-c default_transaction_read_only=on" }
+    try {
+        & $psqlPath -h $dbHost -p $dbPort -U $dbUser -d $dbName
+    } finally {
+        foreach ($v in @("PGPASSWORD", "PGCLIENTENCODING", "PGAPPNAME", "PGOPTIONS")) {
+            Remove-Item "Env:\$v" -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 # ======================== DISPATCH ========================
 
 switch ($Acao) {
@@ -1416,6 +1486,7 @@ switch ($Acao) {
     "ProcessosPortas"    { Invoke-ProcessosPortas }
     "CorrigirNext"       { Invoke-CorrigirNext }
     "Reboot"             { Invoke-Reboot }
+    "AbrirBanco"         { Invoke-AbrirBanco -Modo $Sub }
     "IniciarTodos"       { Invoke-IniciarTodos }
     "PararTodos"         { Invoke-PararTodos }
     "ReiniciarApp"       { Invoke-ReiniciarApp }
