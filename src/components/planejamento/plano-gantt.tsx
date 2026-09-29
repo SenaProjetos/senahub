@@ -67,6 +67,8 @@ type Destino = "fica" | "proxima" | "anterior" | "abaixo";
 export type PlanoGanttProps = {
   tarefas: EapTarefaDTO[];
   modo: ModoGantt;
+  /** Rótulo da versão da linha de base desenhada ("BL-01"); a legenda o cita. */
+  rotuloBase?: string;
   calendario: CalendarioGantt;
   verDatas: boolean;
   mostrarCusto: boolean;
@@ -147,6 +149,7 @@ export function PlanoGantt({
   focoNomeId = null,
   onFocoConsumido,
   acoes,
+  rotuloBase,
   className,
 }: PlanoGanttProps) {
   const [zoom, setZoom] = useState<ZoomGantt>(() => zoomInicial(tarefas));
@@ -865,7 +868,7 @@ export function PlanoGantt({
         </div>
       )}
 
-      {verDatas && linhas.length > 0 && <Legenda modo={modo} tarefas={tarefas} />}
+      {verDatas && linhas.length > 0 && <Legenda modo={modo} tarefas={tarefas} rotuloBase={rotuloBase} />}
     </div>
   );
 }
@@ -971,7 +974,7 @@ function CelulaEditavel({
   );
 }
 
-function Legenda({ modo, tarefas }: { modo: ModoGantt; tarefas: EapTarefaDTO[] }) {
+function Legenda({ modo, tarefas, rotuloBase }: { modo: ModoGantt; tarefas: EapTarefaDTO[]; rotuloBase?: string }) {
   const temCritico = tarefas.some((t) => t.critica);
   const temMarco = tarefas.some((t) => t.marco);
   const temResumo = tarefas.some((t) => tarefas.some((f) => f.parentId === t.id));
@@ -997,7 +1000,7 @@ function Legenda({ modo, tarefas }: { modo: ModoGantt; tarefas: EapTarefaDTO[] }
       )}
       {modo === "controle" && (
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-1 w-5 rounded-sm bg-muted-foreground" aria-hidden /> Linha de base
+          <span className="inline-block h-1 w-5 rounded-sm bg-muted-foreground" aria-hidden /> Linha de base{rotuloBase ? ` ${rotuloBase}` : ""}
         </span>
       )}
       <span className="flex items-center gap-1.5">

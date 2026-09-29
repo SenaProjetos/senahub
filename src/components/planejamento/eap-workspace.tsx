@@ -62,6 +62,7 @@ import { PlanoGantt, type EdicaoDeCampo, type ModoGantt } from "@/components/pla
 import { EapDialog } from "@/components/planejamento/eap-dialog";
 import { ExecucaoDialog } from "@/components/planejamento/execucao-dialog";
 import { SaudePainel } from "@/components/planejamento/saude-painel";
+import { rotuloBaseline, rotuloDaOpcao, tarefasComBaseline } from "@/modules/planejamento/baselines";
 
 const diasDesvio = (t: EapTarefaDTO) => {
   if (!t.fimBaseline) return 0;
@@ -135,6 +136,8 @@ export function EapWorkspace({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [modo, setModo] = useState<ModoGantt>("planejamento");
+  // Qual versão da linha de base o Gantt de Controle compara. `null` = a mais recente (a que sempre foi).
+  const [baselineEscolhida, setBaselineEscolhida] = useState<number | null>(null);
   const confirm = useConfirm();
   /** Linha recém-inserida: o nome dela abre em edição assim que chega na tabela. */
   const [novaLinhaId, setNovaLinhaId] = useState<string | null>(null);
@@ -154,6 +157,15 @@ export function EapWorkspace({
     setDialog({ open: true, tarefa });
   };
   const vazio = tarefas.length === 0;
+  const versoes = cronograma?.versoes ?? [];
+  const maisNova = versoes[0]?.numero ?? null;
+  // As tarefas com as datas de base da versão escolhida: alimenta o Gantt, as colunas de desvio e os cartões.
+  // Só a linha de base muda — o resto da tarefa (previsto, %, predecessoras) segue o de hoje.
+  const tarefasComBase = useMemo(
+    () => tarefasComBaseline(tarefas, baselineEscolhida, cronograma?.datasPorBaseline ?? {}),
+    [tarefas, baselineEscolhida, cronograma],
+  );
+  const rotuloBase = (baselineEscolhida ?? maisNova) != null ? rotuloBaseline((baselineEscolhida ?? maisNova) as number) : undefined;
 
   // Filtros e lookahead (Doc 03 §36/§37) — aplicados só à VISÃO (Gantt + tabela). O diálogo
   // continua vendo a EAP inteira: escolher predecessora não pode depender do que está
@@ -509,6 +521,7 @@ export function EapWorkspace({
           dataStatus={cronograma.dataStatus}
           inicioProjeto={cronograma.inicioProjeto}
           ultimaBaseline={cronograma.ultimaBaseline}
+          versoes={versoes}
           alocacoesTipadas={cronograma.alocacoesTipadas}
           linhasSemHora={
             tarefas.filter((t) => !t.ehResumo && t.tipoEap === "atv" && t.trabalhoHoras == null && !t.deTerceiro).length
@@ -521,8 +534,8 @@ export function EapWorkspace({
       )}
 
       {/* N-47: resumo comparativo baseline vs atual */}
-      {verDatas && temLinhaBase && tarefas.some((t) => t.inicioBaseline) && (() => {
-        const comBase = tarefas.filter((t) => t.fimBaseline);
+      {verDatas && temLinhaBase && tarefasComBase.some((t) => t.inicioBaseline) && (() => {
+        const comBase = tarefasComBase.filter((t) => t.fimBaseline);
         const atrasadas = comBase.filter((t) => diasDesvio(t) > 0);
         const adiantadas = comBase.filter((t) => diasDesvio(t) < 0);
         const noP = comBase.filter((t) => diasDesvio(t) === 0);
@@ -532,7 +545,7 @@ export function EapWorkspace({
         return (
           <div className="flex flex-wrap gap-4 rounded-sm border bg-muted/30 px-4 py-3 text-sm">
             <div>
-              <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Com baseline</span>
+              <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Com baseline{rotuloBase ? ` ${rotuloBase}` : ""}</span>
               <span className="font-bold tabular-nums">{comBase.length}</span> tarefas
             </div>
             <div>
@@ -589,6 +602,24 @@ export function EapWorkspace({
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-1">
+            {verDatas && modo === "controle" && versoes.length > 1 && (
+              // Reunião de 29/09/2026: escolher com qual versão da linha de base o plano de hoje é comparado.
+              <label className="mr-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                Comparar com
+                <select
+                  aria-label="Versão da linha de base usada na comparação"
+                  value={baselineEscolhida ?? maisNova ?? ""}
+                  onChange={(e) => setBaselineEscolhida(Number(e.target.value) === maisNova ? null : Number(e.target.value))}
+                  className="h-7 max-w-64 rounded-sm border bg-background px-2 text-xs text-foreground outline-none focus-visible:border-primary"
+                >
+                  {versoes.map((v, i) => (
+                    <option key={v.numero} value={v.numero}>
+                      {rotuloDaOpcao(v, i === 0)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {verDatas && (
               <div className="mr-2 flex overflow-hidden rounded-sm border" role="group" aria-label="Visão do cronograma">
                 {(
@@ -661,7 +692,8 @@ export function EapWorkspace({
           </div>
 
           <PlanoGantt
-            tarefas={tarefas}
+            tarefas={tarefasComBase}
+            rotuloBase={rotuloBase}
             modo={modo}
             calendario={calendario}
             verDatas={verDatas}

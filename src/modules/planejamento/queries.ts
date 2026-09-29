@@ -17,6 +17,7 @@ import { contextoDeArquivos, sugerirProgresso } from "@/modules/planejamento/pro
 import { minutosSessao } from "@/modules/ponto/format";
 import { custosDoProjeto } from "@/modules/planejamento/custo-service";
 import type { CustoLinha } from "@/modules/planejamento/custo";
+import type { DatasDaBaseline, VersaoBaseline } from "./baselines";
 
 type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 
@@ -733,21 +734,43 @@ export async function matrizRecursos(opcoes: { verCusto: boolean }) {
  * régua de apuração.
  */
 export async function cronogramaProjetoInfo(projetoId: string) {
-  const [cronograma, ultimaBaseline, alocacoesTipadas] = await Promise.all([
+  const [cronograma, versoesBaseline, alocacoesTipadas] = await Promise.all([
     prisma.cronogramaProjeto.findUnique({
       where: { projetoId },
       select: { aprovado: true, aprovadoEm: true, dataStatus: true, inicioProjeto: true },
     }),
-    prisma.eapBaseline.findFirst({
+    // Todas as versões, da mais nova para a mais antiga (reunião de 29/09/2026: lista e comparação de BL).
+    prisma.eapBaseline.findMany({
       where: { projetoId },
       orderBy: { numero: "desc" },
-      select: { numero: true, motivo: true, createdAt: true },
+      select: { numero: true, motivo: true, createdAt: true, autor: { select: { name: true } }, _count: { select: { linhas: true } } },
     }),
     // F5 (D17): quantas alocações DIGITADAS o projeto tem — aprovar sem hora estimada nas
     // linhas as tira da carga da equipe sem substituir por nada. A tela precisa avisar
     // ANTES de aprovar, não depois: `alocacoesSubstituidas` só existe no resultado.
     prisma.alocacao.count({ where: { projetoId } }),
   ]);
+  // A versão mais nova já está nas tarefas (cache `inicioBaseline`/`fimBaseline`); só as ANTERIORES precisam
+  // das datas, e só quando há mais de uma. `tarefaId` nulo = linha excluída depois: não há onde desenhar.
+  const anteriores = versoesBaseline.slice(1).map((b) => b.numero);
+  const linhasAnteriores = anteriores.length
+    ? await prisma.eapBaselineLinha.findMany({
+        where: { tarefaId: { not: null }, baseline: { projetoId, numero: { in: anteriores } } },
+        select: { tarefaId: true, inicio: true, fim: true, baseline: { select: { numero: true } } },
+      })
+    : [];
+  const datasPorBaseline: Record<number, DatasDaBaseline> = {};
+  for (const l of linhasAnteriores) {
+    (datasPorBaseline[l.baseline.numero] ??= {})[l.tarefaId!] = [iso(l.inicio), iso(l.fim)];
+  }
+  const versoes: VersaoBaseline[] = versoesBaseline.map((b) => ({
+    numero: b.numero,
+    motivo: b.motivo,
+    criadaEm: iso(b.createdAt),
+    autor: b.autor?.name ?? null,
+    linhas: b._count.linhas,
+  }));
+  const ultimaBaseline = versoesBaseline[0] ?? null;
   return {
     aprovado: cronograma?.aprovado ?? false,
     aprovadoEm: cronograma?.aprovadoEm ? iso(cronograma.aprovadoEm) : null,
@@ -756,6 +779,10 @@ export async function cronogramaProjetoInfo(projetoId: string) {
     ultimaBaseline: ultimaBaseline
       ? { numero: ultimaBaseline.numero, motivo: ultimaBaseline.motivo, criadaEm: iso(ultimaBaseline.createdAt) }
       : null,
+    /** Todas as versões da linha de base, da mais nova para a mais antiga. */
+    versoes,
+    /** Datas de cada versão ANTERIOR à atual: `numero → tarefaId → [início, término]`. */
+    datasPorBaseline,
     alocacoesTipadas,
   };
 }

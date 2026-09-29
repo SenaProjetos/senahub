@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ShieldAlert, ShieldCheck, ShieldQuestion, CalendarClock, Flag, RotateCcw } from "lucide-react";
+import { ShieldAlert, ShieldCheck, ShieldQuestion, CalendarClock, Flag, Plus } from "lucide-react";
 import {
   aprovarCronogramaAction,
   replanejarCronograma,
@@ -11,6 +11,8 @@ import {
   definirInicioProjeto,
 } from "@/modules/planejamento/actions";
 import { agruparPorRegra, contarPorSeveridade, type Achado } from "@/modules/planejamento/qualidade";
+import { motivoDaBaseline, rotuloBaseline, type VersaoBaseline } from "@/modules/planejamento/baselines";
+import { formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -45,7 +47,8 @@ const FAIXA_COR: Record<string, string> = {
 
 /**
  * Painel de governança do cronograma (F2/F3): nota de Saúde (sempre marcada provisória —
- * D42), achados do verificador, Data de Status e o par Aprovar/Replanejar.
+ * D42), achados do verificador, Data de Status, Aprovar e "Nova linha de base" (o antigo Replanejar) com a
+ * lista das versões (BL-00, BL-01…).
  *
  * Aprovar RECUSA com erro aberto: são exatamente os achados que a lista mostra em vermelho.
  */
@@ -58,6 +61,7 @@ export function SaudePainel({
   dataStatus,
   inicioProjeto,
   ultimaBaseline,
+  versoes,
   alocacoesTipadas,
   linhasSemHora,
   achados,
@@ -73,6 +77,8 @@ export function SaudePainel({
   dataStatus: string | null;
   inicioProjeto: string | null;
   ultimaBaseline: { numero: number; motivo: string | null; criadaEm: string } | null;
+  /** Todas as versões da linha de base, da mais nova para a mais antiga. */
+  versoes: VersaoBaseline[];
   /** F5 (D17): quantas alocações digitadas o projeto tem — somem da carga da equipe ao aprovar. */
   alocacoesTipadas: number;
   /** F5: atividades da casa sem NENHUMA hora estimada — aprovar assim some da carga sem substituir. */
@@ -132,19 +138,21 @@ export function SaudePainel({
 
   async function replanejar() {
     if (!motivoReplan.trim()) {
-      toast.error("Explique o motivo do replanejamento.");
+      toast.error("Explique o motivo da nova linha de base.");
       return;
     }
     const ok = await confirm({
-      title: "Replanejar cronograma?",
-      description: "Cria uma nova versão da linha de base. A anterior fica guardada no histórico.",
-      confirmLabel: "Replanejar",
+      title: "Criar uma nova linha de base?",
+      description:
+        "O cronograma de hoje vira a nova referência (a próxima BL). As anteriores continuam guardadas e podem ser " +
+        "comparadas no Gantt de Controle.",
+      confirmLabel: "Criar nova linha de base",
     });
     if (!ok) return;
     start(async () => {
       const r = await replanejarCronograma({ projetoId, motivo: motivoReplan });
       if (r.ok) {
-        toast.success(`Replanejado — BL-${String(r.data.baselineNumero).padStart(2, "0")}.`);
+        toast.success(`Nova linha de base — ${rotuloBaseline(r.data.baselineNumero)}.`);
         setMotivoReplan("");
         router.refresh();
       } else toast.error(r.error);
@@ -251,6 +259,28 @@ export function SaudePainel({
         </CollapsibleSection>
       )}
 
+      {versoes.length > 0 && (
+        <CollapsibleSection
+          titulo="Versões da linha de base"
+          descricao="Cada uma é uma foto do cronograma. Nenhuma é sobrescrita: escolha qual comparar no Gantt de Controle."
+          resumo={<span className="text-xs text-muted-foreground">{versoes.length === 1 ? "1 versão" : `${versoes.length} versões`}</span>}
+        >
+          <ul className="divide-y rounded-sm border text-sm">
+            {versoes.map((v, i) => (
+              <li key={v.numero} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-3 py-2">
+                <span className="font-mono text-xs font-semibold">{rotuloBaseline(v.numero)}</span>
+                <span className="min-w-0 flex-1">{motivoDaBaseline(v)}</span>
+                <span className="text-xs text-muted-foreground">
+                  {formatarData(v.criadaEm)}
+                  {v.autor ? ` · ${v.autor}` : ""} · {v.linhas} linha(s)
+                </span>
+                {i === 0 && <Badge variant="outline" className="text-info border-info/40">atual</Badge>}
+              </li>
+            ))}
+          </ul>
+        </CollapsibleSection>
+      )}
+
       {podeExecutado && (
         <div className="flex flex-wrap items-end gap-2 border-t pt-3">
           <div className="space-y-1">
@@ -271,16 +301,16 @@ export function SaudePainel({
           </div>
           {aprovado && podeAprovar && (
             <div className="flex-1 space-y-1">
-              <label className="block text-xs text-muted-foreground">Motivo do replanejamento</label>
+              <label className="block text-xs text-muted-foreground">Motivo da nova linha de base</label>
               <div className="flex gap-1.5">
                 <Input
-                  placeholder="Ex.: atraso na aprovação da arquitetura pelo cliente"
+                  placeholder="Ex.: atraso na aprovação da arquitetura pelo cliente, aditivo de contrato"
                   value={motivoReplan}
                   onChange={(e) => setMotivoReplan(e.target.value)}
                   className="h-8 flex-1 text-xs"
                 />
                 <Button size="sm" variant="outline" onClick={replanejar} disabled={pending}>
-                  <RotateCcw className="size-3.5" /> Replanejar
+                  <Plus className="size-3.5" /> Nova linha de base
                 </Button>
               </div>
             </div>
