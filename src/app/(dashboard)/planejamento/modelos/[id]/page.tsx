@@ -9,6 +9,7 @@ import { montarCalendario, paraDia } from "@/modules/planejamento/agenda";
 import { podeVerDatasDoPlanejamento } from "@/modules/planejamento/acesso";
 import { catalogosParaMapear, modeloParaRevisar } from "@/modules/planejamento/modelos/service";
 import { disciplinasDoModelo } from "@/modules/planejamento/modelos/por-disciplina";
+import { agrupamentosSemDisciplina } from "@/modules/planejamento/modelos/aplicar";
 import { formatarDataHora } from "@/lib/utils";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,7 @@ export default async function ModeloEapPage({ params }: { params: Promise<{ id: 
     podeEditar && estrutura && !modelo.disciplinaCatalogo
       ? disciplinasDoModelo(estrutura).flatMap((id) => (nomeDisciplina.has(id) ? [nomeDisciplina.get(id)!] : []))
       : [];
+  const semDisciplina = disciplinasParaExtrair.length > 0 && estrutura ? agrupamentosSemDisciplina(estrutura.linhas) : [];
 
   return (
     <div className="space-y-4">
@@ -69,7 +71,7 @@ export default async function ModeloEapPage({ params }: { params: Promise<{ id: 
         acoes={
           <>
             {disciplinasParaExtrair.length > 0 && (
-              <CriarModelosDisciplinaBotao modeloId={modelo.id} disciplinas={disciplinasParaExtrair} />
+              <CriarModelosDisciplinaBotao modeloId={modelo.id} disciplinas={disciplinasParaExtrair} semDisciplina={semDisciplina} />
             )}
             <Button variant="outline" size="sm" render={<Link href="/planejamento/modelos" />}>
               <ArrowLeft className="size-3.5" /> Modelos

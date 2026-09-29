@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aplicarModelo, emOrdemDeArvore, podar, type ContextoAplicacao } from "./aplicar";
+import { agrupamentosSemDisciplina, aplicarModelo, emOrdemDeArvore, podar, type ContextoAplicacao } from "./aplicar";
 import type { EstruturaModelo, LinhaModelo } from "./estrutura";
 
 const linha = (id: string, o: Partial<LinhaModelo> = {}): LinhaModelo => ({
@@ -202,5 +202,32 @@ describe("aplicarModelo — fases da disciplina (D38)", () => {
     const so = { ...modelo, percentuaisPorFase: {} };
     const r = aplicarModelo(so, ctx(["fase", "est", "a1", "m1"], { fasesDaDisciplina: new Map(), cadastrarFases: true }));
     expect(r.etapasParaCriar).toEqual([]);
+  });
+});
+
+describe("agrupamentosSemDisciplina", () => {
+  // BÁSICO > {GESTÃO > atv, GLP > {sub-agrupamento > atv}, ESTRUTURAL > atv} + EXECUTIVO > {Glp (mesmo nome, outra caixa), agrupamento vazio}
+  const linhas = [
+    linha("b", { tipoEap: "fas", nome: "BÁSICO", ordem: 0, duracaoDias: 0 }),
+    linha("g", { tipoEap: "res", parentId: "b", ordem: 0, nome: "GESTÃO", duracaoDias: 0 }),
+    linha("g1", { parentId: "g", nome: "Reunião" }),
+    linha("glp", { tipoEap: "res", parentId: "b", ordem: 1, nome: "GLP", duracaoDias: 0 }),
+    linha("sub", { tipoEap: "res", parentId: "glp", nome: "Detalhes", duracaoDias: 0 }),
+    linha("s1", { parentId: "sub", nome: "Isométrico" }),
+    linha("est", { tipoEap: "disc", parentId: "b", ordem: 2, nome: "ESTRUTURAL", disciplinaCatalogoId: "cat-est", duracaoDias: 0 }),
+    linha("e1", { parentId: "est", disciplinaCatalogoId: "cat-est" }),
+    linha("x", { tipoEap: "fas", nome: "EXECUTIVO", ordem: 1, duracaoDias: 0 }),
+    linha("glp2", { tipoEap: "res", parentId: "x", nome: "Glp", duracaoDias: 0 }),
+    linha("x1", { parentId: "glp2", nome: "Planta" }),
+    linha("vazio", { tipoEap: "res", parentId: "x", ordem: 1, nome: "Sem filhos", duracaoDias: 0 }),
+  ];
+
+  it("lista os de fora, sem repetir nome, em ordem de árvore", () => {
+    expect(agrupamentosSemDisciplina(linhas)).toEqual(["GESTÃO", "GLP"]);
+  });
+
+  it("some quando o agrupamento ganha disciplina", () => {
+    const comGas = linhas.map((l) => (l.id === "glp" || l.id === "glp2" ? { ...l, tipoEap: "disc" as const, disciplinaCatalogoId: "cat-gas" } : l));
+    expect(agrupamentosSemDisciplina(comGas)).toEqual(["GESTÃO", "Detalhes"]);
   });
 });

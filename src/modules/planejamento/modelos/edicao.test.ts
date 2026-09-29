@@ -133,6 +133,58 @@ describe("informações da linha", () => {
     const r = ok(mudarInformacoes(base(), "2", { etapaId: null, deTerceiro: true }));
     expect(r.linhas.find((x) => x.id === "2")).toMatchObject({ disciplinaCatalogoId: "d-arq", etapaId: null, deTerceiro: true });
   });
+
+  // O caso da reunião de 29/09: "GLP" veio do arquivo sem disciplina (agrupamento comum) e precisa virar Gás.
+  // 10 BÁSICO (fase)
+  //   11 GLP (agrupamento sem disciplina)
+  //     12 Planta
+  //     13 Estrutural (disciplina própria, dentro dele)
+  //       14 Forma
+  //     15 Liberado (marco)
+  const comGlp = (): LinhaModelo[] => [
+    l("10", null, 0, { tipoEap: "fas", duracaoDias: 0, etapaId: "f-bas" }),
+    l("11", "10", 0, { tipoEap: "res", duracaoDias: 0, etapaId: "f-bas" }),
+    l("12", "11", 0, { etapaId: "f-bas" }),
+    l("13", "11", 1, { tipoEap: "disc", duracaoDias: 0, disciplinaCatalogoId: "d-est", etapaId: "f-bas" }),
+    l("14", "13", 0, { disciplinaCatalogoId: "d-est", etapaId: "f-bas" }),
+    l("15", "11", 2, { tipoEap: "mrc", duracaoDias: 0, etapaId: "f-bas" }),
+  ];
+
+  it("disciplina num agrupamento desce para quem herdava e o agrupamento vira disciplina", () => {
+    const r = ok(mudarInformacoes(comGlp(), "11", { disciplinaCatalogoId: "d-gas" }));
+    const por = (id: string) => r.linhas.find((x) => x.id === id)!;
+    expect(por("11")).toMatchObject({ tipoEap: "disc", disciplinaCatalogoId: "d-gas" });
+    expect(por("12").disciplinaCatalogoId).toBe("d-gas");
+    expect(por("15").disciplinaCatalogoId).toBe("d-gas");
+    // Quem tinha disciplina própria lá dentro fica como estava — é outro galho.
+    expect(por("13").disciplinaCatalogoId).toBe("d-est");
+    expect(por("14").disciplinaCatalogoId).toBe("d-est");
+    // Acima do agrupamento nada muda.
+    expect(por("10")).toMatchObject({ tipoEap: "fas", disciplinaCatalogoId: null });
+  });
+
+  it("tirar a disciplina do agrupamento volta a agrupamento comum e limpa o que herdava", () => {
+    const comGas = ok(mudarInformacoes(comGlp(), "11", { disciplinaCatalogoId: "d-gas" })).linhas;
+    const r = ok(mudarInformacoes(comGas, "11", { disciplinaCatalogoId: null }));
+    const por = (id: string) => r.linhas.find((x) => x.id === id)!;
+    expect(por("11")).toMatchObject({ tipoEap: "res", disciplinaCatalogoId: null });
+    expect(por("12").disciplinaCatalogoId).toBeNull();
+    expect(por("14").disciplinaCatalogoId).toBe("d-est");
+  });
+
+  it("a fase de um agrupamento também desce; linha solta muda só ela", () => {
+    const r = ok(mudarInformacoes(comGlp(), "11", { etapaId: "f-exe" }));
+    expect(r.linhas.filter((x) => ["11", "12", "13", "14", "15"].includes(x.id)).every((x) => x.etapaId === "f-exe")).toBe(true);
+    expect(r.linhas.find((x) => x.id === "10")!.etapaId).toBe("f-bas");
+    const solta = ok(mudarInformacoes(comGlp(), "12", { disciplinaCatalogoId: "d-gas" }));
+    expect(solta.linhas.filter((x) => x.disciplinaCatalogoId === "d-gas").map((x) => x.id)).toEqual(["12"]);
+    expect(solta.linhas.find((x) => x.id === "12")!.tipoEap).toBe("atv");
+  });
+
+  it("fase continua fase mesmo ganhando disciplina", () => {
+    const r = ok(mudarInformacoes(comGlp(), "10", { disciplinaCatalogoId: "d-gas" }));
+    expect(r.linhas.find((x) => x.id === "10")!.tipoEap).toBe("fas");
+  });
 });
 
 describe("idParaLinhaNova", () => {

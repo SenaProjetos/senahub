@@ -19,6 +19,7 @@
  *    e sem como corrigir.
  */
 import type { Prisma } from "@/generated/prisma/client";
+import { normalizar } from "@/lib/disciplinas-core";
 import type { EstruturaModelo, LinhaModelo } from "./estrutura";
 
 export type ContextoAplicacao = {
@@ -119,6 +120,37 @@ export function podar(
   }
 
   return { manter: ordenadas.filter((l) => !fora.has(l.id)), podadas };
+}
+
+/**
+ * Os agrupamentos que não dizem de que disciplina são — nomes únicos, em ordem de árvore, só o de fora quando um
+ * está dentro do outro. Poda nenhuma os alcança (a poda é por disciplina), então entram em TODO projeto, e
+ * "Criar modelos de disciplina" não os enxerga. Às vezes é certo (Gestão, Compatibilização); às vezes é uma
+ * disciplina que a importação não reconheceu ("GLP" sem par com "Gás", reunião de 29/09/2026) — a tela lista
+ * para a pessoa decidir no editor do modelo.
+ */
+export function agrupamentosSemDisciplina(linhas: readonly LinhaModelo[]): string[] {
+  const comFilho = new Set(linhas.map((l) => l.parentId).filter((p): p is string => p != null));
+  const semDisciplina = new Set(
+    linhas.filter((l) => l.tipoEap === "res" && l.disciplinaCatalogoId == null && comFilho.has(l.id)).map((l) => l.id),
+  );
+  const pai = new Map(linhas.map((l) => [l.id, l.parentId]));
+  const dentroDeOutro = (id: string) => {
+    for (let p = pai.get(id) ?? null, passos = 0; p != null && passos < 50; p = pai.get(p) ?? null, passos++) {
+      if (semDisciplina.has(p)) return true;
+    }
+    return false;
+  };
+  const vistos = new Set<string>();
+  const nomes: string[] = [];
+  for (const l of emOrdemDeArvore(linhas)) {
+    if (!semDisciplina.has(l.id) || dentroDeOutro(l.id)) continue;
+    const chave = normalizar(l.nome);
+    if (vistos.has(chave)) continue;
+    vistos.add(chave);
+    nomes.push(l.nome);
+  }
+  return nomes;
 }
 
 /**

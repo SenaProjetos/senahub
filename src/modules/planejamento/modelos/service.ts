@@ -9,7 +9,7 @@ import { reservarIdsParaLinhas } from "../id-corporativo";
 import { herdarResponsaveisNoProjeto } from "../recursos-service";
 import { estruturaModeloSchema, lerEstrutura, type EstruturaModelo, type LinhaModelo } from "./estrutura";
 import { validarIntegridade } from "./edicao";
-import { aplicarModelo, podar } from "./aplicar";
+import { agrupamentosSemDisciplina, aplicarModelo, podar } from "./aplicar";
 import {
   aplicarRespostas,
   chaveDeNome,
@@ -201,6 +201,13 @@ export type PreviaDaAplicacao = {
   fasesACriar: { disciplina: string; fase: string; percentual: number }[];
   /** Disciplinas que ficam SEM fase: a linha delas perde a fase e o marco não marca fase Entregue. */
   disciplinasSemFase: string[];
+  /**
+   * Disciplinas do PROJETO que o modelo não traz — ficam sem linha na EAP. É o "ele não reconheceu as outras
+   * disciplinas" da reunião de 29/09: dizer ANTES de criar, para a pessoa corrigir o modelo ou gerar depois.
+   */
+  disciplinasSemLinha: string[];
+  /** Agrupamentos do modelo que não dizem de que disciplina são: entram em qualquer projeto (`agrupamentosSemDisciplina`). */
+  semDisciplina: string[];
   /** D13: o modelo é do mesmo Tipo de Empreendimento do projeto — a tela o destaca e o pré-seleciona. */
   sugerido: boolean;
   /** Impedimento: quando presente, aplicar é recusado com esta frase. */
@@ -218,7 +225,7 @@ function contarAplicacao(
 ) {
   const { manter } = podar(estrutura, ctx.disciplinaDoProjeto);
   const novaLinha = new Map(manter.map((l, i) => [l.id, { id: `previa-${l.id}`, idCorporativo: `PREVIA-${i}` }]));
-  return aplicarModelo(estrutura, {
+  const r = aplicarModelo(estrutura, {
     projetoId,
     disciplinaDoProjeto: ctx.disciplinaDoProjeto,
     fasesDaDisciplina: ctx.fasesDaDisciplina,
@@ -226,6 +233,14 @@ function contarAplicacao(
     ancora: new Date(),
     cadastrarFases: validarPercentuaisPorFase(estrutura).ok && Object.keys(estrutura.percentuaisPorFase).length > 0,
   });
+  const comLinha = new Set(r.linhas.map((l) => l.disciplinaId).filter(Boolean));
+  return {
+    ...r,
+    disciplinasSemLinha: ctx.disciplinas
+      .filter((d) => !comLinha.has(d.id))
+      .map((d) => (d.noCatalogo ? d.nome : `${d.nome} (sem ligação com o catálogo)`)),
+    semDisciplina: agrupamentosSemDisciplina(manter),
+  };
 }
 
 async function contextoDoProjeto(projetoId: string) {
@@ -235,7 +250,8 @@ async function contextoDoProjeto(projetoId: string) {
     prisma.projeto.findUnique({ where: { id: projetoId }, select: { id: true, nome: true, tipoEmpreendimentoId: true } }),
     prisma.disciplina.findMany({
       where: { projetoId },
-      select: { id: true, disciplinaId: true, disciplinaTextoLegado: true },
+      select: { id: true, disciplinaId: true, disciplinaTextoLegado: true, catalogo: { select: { nome: true } } },
+      orderBy: { ordem: "asc" },
     }),
     prisma.disciplinaEtapa.findMany({ where: { disciplina: { projetoId } }, select: { disciplinaId: true, etapaId: true } }),
     prisma.eapTarefa.count({ where: { projetoId } }),
@@ -257,7 +273,13 @@ async function contextoDoProjeto(projetoId: string) {
     fasesDaDisciplina.set(e.disciplinaId, s);
   }
 
-  return { projeto, disciplinaDoProjeto, fasesDaDisciplina, quantasLinhas, baseline, cronograma };
+  const nomesDasDisciplinas = disciplinas.map((d) => ({
+    id: d.id,
+    nome: d.catalogo?.nome ?? d.disciplinaTextoLegado ?? "Disciplina",
+    noCatalogo: d.disciplinaId != null,
+  }));
+
+  return { projeto, disciplinaDoProjeto, fasesDaDisciplina, quantasLinhas, baseline, cronograma, disciplinas: nomesDasDisciplinas };
 }
 
 /** Por que aplicar seria recusado — a mesma frase que a action lança, para a tela desabilitar o botão. */
@@ -327,6 +349,8 @@ export async function previaDaAplicacao(p: { projetoId: string; modeloId: string
       percentual: Number(e.percentual),
     })),
     disciplinasSemFase: r.disciplinasSemFase.map((id) => nomesDisciplinaProjeto.get(id) ?? "disciplina"),
+    disciplinasSemLinha: r.disciplinasSemLinha,
+    semDisciplina: r.semDisciplina,
     sugerido:
       ctx.projeto.tipoEmpreendimentoId != null && modelo.tipoEmpreendimentoId === ctx.projeto.tipoEmpreendimentoId,
     impedimento: impedimentoParaAplicar(ctx, r.linhas.length),
@@ -477,6 +501,8 @@ export async function previasDosModelos(projetoId: string): Promise<(PreviaDaApl
         podadas: [],
         fasesACriar: [],
         disciplinasSemFase: [],
+        disciplinasSemLinha: [],
+        semDisciplina: [],
         sugerido: ehSugerido(modelo.tipoEmpreendimentoId),
         impedimento: "Este modelo está em formato inválido. Importe o arquivo de novo.",
       };
@@ -503,6 +529,8 @@ export async function previasDosModelos(projetoId: string): Promise<(PreviaDaApl
         percentual: Number(e.percentual),
       })),
       disciplinasSemFase: conta.disciplinasSemFase.map((id) => nomesDisciplinaProjeto.get(id) ?? "disciplina"),
+      disciplinasSemLinha: conta.disciplinasSemLinha,
+      semDisciplina: conta.semDisciplina,
       sugerido: ehSugerido(modelo.tipoEmpreendimentoId),
       impedimento: impedimentoParaAplicar(ctx, conta.linhas.length),
     };

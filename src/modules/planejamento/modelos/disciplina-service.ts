@@ -9,7 +9,7 @@ import { diasUteisEntre } from "@/lib/calendario-trabalho";
 import { montarCalendario, paraDataUtc, paraDia } from "../agenda";
 import { reservarIdsParaLinhas } from "../id-corporativo";
 import { herdarResponsaveisNoProjeto } from "../recursos-service";
-import { aplicarModelo } from "./aplicar";
+import { agrupamentosSemDisciplina, aplicarModelo } from "./aplicar";
 import { validarIntegridade } from "./edicao";
 import { estruturaModeloSchema, lerEstrutura } from "./estrutura";
 import { validarPercentuaisPorFase } from "./mapeamento";
@@ -33,6 +33,8 @@ const hoje = () => {
 export async function criarModelosDeDisciplina(p: { modeloId: string; autorId: string }): Promise<{
   criados: { id: string; disciplina: string; linhas: number }[];
   jaExistiam: string[];
+  /** Agrupamentos sem disciplina: não viram modelo. A tela diz, para a pessoa corrigir no editor se algum for disciplina. */
+  semDisciplina: string[];
 }> {
   const modelo = await prisma.modeloEap.findUnique({
     where: { id: p.modeloId },
@@ -91,7 +93,7 @@ export async function criarModelosDeDisciplina(p: { modeloId: string; autorId: s
     });
     criados.push({ id: criado.id, disciplina, linhas: lido.data.linhas.length });
   }
-  return { criados, jaExistiam };
+  return { criados, jaExistiam, semDisciplina: agrupamentosSemDisciplina(estrutura.linhas) };
 }
 
 export type OpcaoDeDisciplina = {

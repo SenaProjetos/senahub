@@ -12,7 +12,16 @@ import { Button } from "@/components/ui/button";
  * Um modelo de disciplina para cada disciplina do catálogo que este modelo de projeto tem (o que "Gerar EAP das
  * disciplinas" aplica). O confirm vem ANTES da transição — confirm dentro dela trava o React 19.
  */
-export function CriarModelosDisciplinaBotao({ modeloId, disciplinas }: { modeloId: string; disciplinas: string[] }) {
+export function CriarModelosDisciplinaBotao({
+  modeloId,
+  disciplinas,
+  semDisciplina,
+}: {
+  modeloId: string;
+  disciplinas: string[];
+  /** Agrupamentos sem disciplina (`agrupamentosSemDisciplina`): não viram modelo — a confirmação diz antes. */
+  semDisciplina: string[];
+}) {
   const router = useRouter();
   const confirm = useConfirm();
   const [pending, start] = useTransition();
@@ -23,16 +32,24 @@ export function CriarModelosDisciplinaBotao({ modeloId, disciplinas }: { modeloI
       description:
         `Um para cada disciplina deste modelo: ${disciplinas.join(", ")}. Cada um leva as fases e as tarefas da ` +
         "disciplina; os vínculos com outras disciplinas ficam de fora, e cada fase começa depois da anterior. " +
-        "O que já existe com o mesmo nome não é duplicado.",
+        "O que já existe com o mesmo nome não é duplicado." +
+        (semDisciplina.length > 0
+          ? ` Não viram modelo, por não terem disciplina: ${semDisciplina.join(", ")}. Se algum é disciplina, ` +
+            "abra a linha dele, escolha a disciplina, salve o modelo e clique aqui de novo."
+          : ""),
       confirmLabel: "Criar",
     });
     if (!ok) return;
     start(async () => {
       const r = await criarModelosDeDisciplinaEap({ modeloId });
       if (!r.ok) return void toast.error(r.error);
-      const { criados, jaExistiam } = r.data;
+      const { criados, jaExistiam, semDisciplina: ficaramDeFora } = r.data;
+      const partes = [
+        jaExistiam.length > 0 ? `Já existiam: ${jaExistiam.join(", ")}.` : "Estão em Modelos de EAP → Modelos de disciplina.",
+        ficaramDeFora.length > 0 ? `Sem disciplina, não viraram modelo: ${ficaramDeFora.join(", ")}.` : "",
+      ];
       toast.success(criados.length > 0 ? `${criados.length} modelo(s) de disciplina criado(s).` : "Nenhum modelo novo.", {
-        description: jaExistiam.length > 0 ? `Já existiam: ${jaExistiam.join(", ")}.` : "Estão em Modelos de EAP → Modelos de disciplina.",
+        description: partes.filter(Boolean).join(" "),
       });
       router.push("/planejamento/modelos");
     });

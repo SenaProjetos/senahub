@@ -97,21 +97,46 @@ export function definirPredecessoras(
   return { ok: true, linhas: trocar(linhas, id, (l) => ({ ...l, predecessoras: novas })) };
 }
 
-/** Disciplina, fase e etapa de terceiro — a janela da linha. `undefined` = não mexe no campo. */
+/**
+ * Disciplina, fase e etapa de terceiro — a janela da linha. `undefined` = não mexe no campo.
+ *
+ * Num AGRUPAMENTO, disciplina e fase DESCEM, como na conferência da importação (`aplicarRespostas`): toda linha
+ * abaixo que herdava o valor antigo recebe o novo; a que tem valor próprio (um agrupamento de outra disciplina
+ * lá dentro) fica como está. E o agrupamento passa a ser "disciplina" (`disc`) quando ganha uma, e volta a
+ * agrupamento comum (`res`) quando perde — é o `disc` que "Criar modelos de disciplina" procura, e é pela
+ * disciplina que aplicar o modelo decide o que o projeto recebe. Sem isto, o "GLP" que a importação não casou
+ * com "Gás" só se corrigia reimportando o arquivo (reunião de 29/09/2026).
+ */
 export function mudarInformacoes(
   linhas: readonly LinhaModelo[],
   id: string,
   campos: { disciplinaCatalogoId?: string | null; etapaId?: string | null; deTerceiro?: boolean },
 ): Edicao {
-  if (!linhas.some((l) => l.id === id)) return { ok: false, motivo: NAO_ENCONTRADA };
+  const x = linhas.find((l) => l.id === id);
+  if (!x) return { ok: false, motivo: NAO_ENCONTRADA };
+  const disciplinaNova = campos.disciplinaCatalogoId === undefined ? x.disciplinaCatalogoId : campos.disciplinaCatalogoId;
+  const etapaNova = campos.etapaId === undefined ? x.etapaId : campos.etapaId;
+  const ehAgrupamento = temFilhos(linhas, id);
+  const abaixo = ehAgrupamento ? subarvore(linhas, id) : new Set<string>();
+  const tipoEap: LinhaModelo["tipoEap"] =
+    ehAgrupamento && (x.tipoEap === "res" || x.tipoEap === "disc") ? (disciplinaNova ? "disc" : "res") : x.tipoEap;
+
   return {
     ok: true,
-    linhas: trocar(linhas, id, (l) => ({
-      ...l,
-      disciplinaCatalogoId: campos.disciplinaCatalogoId === undefined ? l.disciplinaCatalogoId : campos.disciplinaCatalogoId,
-      etapaId: campos.etapaId === undefined ? l.etapaId : campos.etapaId,
-      deTerceiro: campos.deTerceiro ?? l.deTerceiro,
-    })),
+    linhas: linhas.map((l) => {
+      if (l.id === id) {
+        return { ...l, tipoEap, disciplinaCatalogoId: disciplinaNova, etapaId: etapaNova, deTerceiro: campos.deTerceiro ?? l.deTerceiro };
+      }
+      if (!abaixo.has(l.id)) return l;
+      const herdaDisciplina = l.disciplinaCatalogoId === x.disciplinaCatalogoId;
+      const herdaEtapa = l.etapaId === x.etapaId;
+      if (!herdaDisciplina && !herdaEtapa) return l;
+      return {
+        ...l,
+        disciplinaCatalogoId: herdaDisciplina ? disciplinaNova : l.disciplinaCatalogoId,
+        etapaId: herdaEtapa ? etapaNova : l.etapaId,
+      };
+    }),
   };
 }
 

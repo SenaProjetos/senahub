@@ -28,6 +28,10 @@ export type PreviaDeModelo = {
   fasesACriar: { disciplina: string; fase: string; percentual: number }[];
   /** Disciplinas que ficam sem fase — a linha delas perde a fase. */
   disciplinasSemFase: string[];
+  /** Disciplinas do projeto que o modelo não traz: ficam sem linha na EAP. */
+  disciplinasSemLinha: string[];
+  /** Agrupamentos do modelo sem disciplina: entram em qualquer projeto. */
+  semDisciplina: string[];
   /** D13: mesmo Tipo de Empreendimento do projeto — vem primeiro e já selecionado. */
   sugerido: boolean;
   impedimento: string | null;
@@ -132,6 +136,28 @@ export function AplicarModeloDialog({ projetoId, previas }: { projetoId: string;
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {previa.disciplinasSemLinha.length > 0 && (
+            <div className="rounded-sm border px-3 py-2 text-xs">
+              <p className="font-medium">Disciplinas do projeto que este modelo não traz (ficam sem linha):</p>
+              <p className="mt-1 text-muted-foreground">{previa.disciplinasSemLinha.join(", ")}.</p>
+              <p className="mt-1 text-muted-foreground">
+                Depois de criar, use &quot;Gerar EAP das disciplinas&quot; para elas — ou, se o modelo tem essa disciplina com
+                outro nome, defina a disciplina do agrupamento no editor do modelo.
+              </p>
+            </div>
+          )}
+
+          {previa.semDisciplina.length > 0 && (
+            <div className="rounded-sm border px-3 py-2 text-xs">
+              <p className="font-medium">Entram sem disciplina (o modelo não diz de qual são):</p>
+              <p className="mt-1 text-muted-foreground">{previa.semDisciplina.join(", ")}.</p>
+              <p className="mt-1 text-muted-foreground">
+                Etapas gerais (gestão, compatibilização) são assim mesmo. Se algum desses é disciplina, defina-a no editor do
+                modelo: aí ele só entra no projeto que tem a disciplina.
+              </p>
             </div>
           )}
 

@@ -408,6 +408,9 @@ function InformacoesDaLinha({
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
+            {ehResumo
+              ? "Num agrupamento, a disciplina e a fase valem para tudo o que está dentro dele (o que já tem outra disciplina fica como está). "
+              : ""}
             Sem disciplina, a linha não herda o responsável nem fecha o marco da fase no projeto. Disciplina que o projeto não
             tem fica de fora ao aplicar o modelo, com tudo o que estiver dentro dela.
           </p>
