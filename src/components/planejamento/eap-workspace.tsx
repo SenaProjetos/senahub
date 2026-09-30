@@ -57,6 +57,7 @@ import {
   itensDeLinhaEap,
 } from "@/modules/planejamento/acoes-eap";
 import { MOTIVO_PLANO_TRAVADO, planoTravado } from "@/modules/planejamento/trava-plano";
+import type { Larguras } from "@/modules/planejamento/gantt-larguras";
 import type { AcaoItemAcao } from "@/components/ui/acoes";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { PlanoGantt, type EdicaoDeCampo, type ModoGantt } from "@/components/planejamento/plano-gantt";
@@ -94,6 +95,7 @@ export function EapWorkspace({
   previasModelos = [],
   opcoesDisciplinas = [],
   impedimentoApagar = null,
+  largurasColunas,
 }: {
   projeto: { id: string; codigo: string; nome: string };
   tarefas: EapTarefaDTO[];
@@ -133,6 +135,8 @@ export function EapWorkspace({
   opcoesDisciplinas?: OpcaoDeDisciplina[];
   /** Por que "Apagar EAP" não pode (`null` = pode) — a mesma frase da action. */
   impedimentoApagar?: string | null;
+  /** Larguras de coluna do Gantt que o usuário ajustou (preferência dele). */
+  largurasColunas?: Larguras;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -714,6 +718,7 @@ export function EapWorkspace({
             onAbrir={podeGerir ? (t) => abrir(t) : undefined}
             onEditarCampo={podeGerir ? editarCampo : undefined}
             planoTravado={travado}
+            largurasIniciais={largurasColunas}
             onEditarPredecessoras={podeGerir && !travado ? editarPredecessoras : undefined}
             onErro={(mensagem) => toast.error(mensagem)}
             menuDe={(t, contexto) =>

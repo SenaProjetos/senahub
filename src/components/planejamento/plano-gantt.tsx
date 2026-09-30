@@ -20,6 +20,16 @@ import {
 } from "@/modules/planejamento/gantt-linhas";
 import { montarEscala, ZOOMS_GANTT, type CalendarioGantt, type EscalaGantt, type ZoomGantt } from "@/modules/planejamento/gantt-escala";
 import { caminhoDaSeta, type PosicaoBarra } from "@/modules/planejamento/gantt-setas";
+import {
+  CHAVE_PREF_LARGURAS_GANTT,
+  PASSO_TECLADO,
+  LARGURA_MAXIMA,
+  LARGURA_MINIMA,
+  comLargura,
+  larguraDaColuna,
+  type Larguras,
+} from "@/modules/planejamento/gantt-larguras";
+import { salvarPreferencia } from "@/modules/usuarios/preferencias/actions";
 import { criarCalendario, diasUteisEntre } from "@/lib/calendario-trabalho";
 import { dataCurta, diasEntre } from "@/lib/dias-iso";
 import { brl, cn } from "@/lib/utils";
@@ -89,6 +99,11 @@ export type PlanoGanttProps = {
    * Predecessoras e arrastar a linha somem por não receber `onEditarPredecessoras`/`onMover`.
    */
   planoTravado?: boolean;
+  /**
+   * Larguras de coluna que o usuário já ajustou (`UserPreference`, `gantt_larguras_colunas`), lidas no servidor. Sem
+   * elas as colunas abrem no tamanho padrão; arrastar a borda do cabeçalho grava a nova preferência.
+   */
+  largurasIniciais?: Larguras;
   /** A célula Predecessoras: o conjunto inteiro de uma vez. */
   onEditarPredecessoras?: (t: EapTarefaDTO, vinculos: Vinculo[]) => Promise<string | null>;
   /** Uma edição que o texto digitado não permite (o que o servidor nem chega a ver). */
@@ -147,6 +162,7 @@ export function PlanoGantt({
   onAbrir,
   onEditarCampo,
   planoTravado = false,
+  largurasIniciais,
   onEditarPredecessoras,
   onErro,
   menuDe,
@@ -159,6 +175,10 @@ export function PlanoGantt({
   className,
 }: PlanoGanttProps) {
   const [zoom, setZoom] = useState<ZoomGantt>(() => zoomInicial(tarefas));
+  const [larguras, setLarguras] = useState<Larguras>(largurasIniciais ?? {});
+  // Espelho do estado para gravar a preferência ao soltar a alça (o handler de soltar enxergaria o estado velho).
+  const larguraRef = useRef<Larguras>(largurasIniciais ?? {});
+  const redimensionando = useRef<{ id: string; x0: number; w0: number; padrao: number } | null>(null);
   const [recolhidos, setRecolhidos] = useState<ReadonlySet<string>>(new Set());
   // Com gráfico, a tabela abre compacta (como o Project abre só com as colunas básicas): a completa deixa o gráfico
   // com uma nesga de tela. Sem gráfico (sem datas) não há o que poupar.
@@ -617,7 +637,26 @@ export function PlanoGantt({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `envolver`/`gravado` releem o estado da edição a cada render
   }, [modo, verDatas, mostrarCusto, compacto, acoes, codigoPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, planoTravado, idPorCodigo, menuDe, onAcao, contextos, podeArrastar, grade]);
 
-  const larguraTabela = colunas.reduce((s, c) => s + c.w, 0);
+  // A largura padrão de cada coluna vem do `useMemo` acima; a escolhida pelo usuário a substitui aqui, para o arrasto
+  // da alça não refazer as células de todas as linhas (só a largura muda).
+  const colunasEfetivas = colunas.map((c) => ({ ...c, w: larguraDaColuna(c.id, c.w, larguras) }));
+  const larguraTabela = colunasEfetivas.reduce((s, c) => s + c.w, 0);
+  const temLarguraEscolhida = Object.keys(larguras).length > 0;
+
+  function aplicarLargura(id: string, px: number, padrao: number) {
+    const novas = comLargura(larguraRef.current, id, px, padrao);
+    larguraRef.current = novas;
+    setLarguras(novas);
+  }
+  function gravarLarguras() {
+    void salvarPreferencia({ chave: CHAVE_PREF_LARGURAS_GANTT, valor: larguraRef.current });
+  }
+  function restaurarLarguras() {
+    larguraRef.current = {};
+    setLarguras({});
+    gravarLarguras();
+  }
+  const padraoDe = (id: string) => colunas.find((c) => c.id === id)?.w ?? LARGURA_MINIMA;
 
   // Geometria das barras (só com datas): uma vez por linha visível, para as barras e para as setas.
   const geometria = useMemo(() => {
@@ -703,6 +742,11 @@ export function PlanoGantt({
         <Button size="sm" variant="outline" type="button" aria-pressed={compacto} onClick={() => setCompacto((c) => !c)} title="Esconde as colunas secundárias para dar mais espaço ao gráfico">
           {compacto ? "Tabela completa" : "Tabela compacta"}
         </Button>
+        {temLarguraEscolhida && (
+          <Button size="sm" variant="ghost" type="button" onClick={restaurarLarguras} title="Devolve todas as colunas à largura padrão">
+            Larguras padrão
+          </Button>
+        )}
         {filtroIds && <span className="text-xs text-muted-foreground">Filtro ativo: mostrando só {linhas.length} linha(s), sem os níveis.</span>}
       </div>
 
@@ -714,18 +758,58 @@ export function PlanoGantt({
             {/* ── Tabela ── */}
             <div className="sticky left-0 z-20 shrink-0 border-r bg-background" style={{ width: larguraTabela }} role="table" aria-label="Tarefas">
               <div className="sticky top-0 z-30 flex border-b bg-muted" style={{ height: HEAD_H }} role="row">
-                {colunas.map((c) => (
+                {colunasEfetivas.map((c) => (
                   <div
                     key={c.id}
                     role="columnheader"
                     className={cn(
-                      "flex shrink-0 items-center border-r px-2 font-mono text-[10px] uppercase leading-tight tracking-[0.08em] text-muted-foreground last:border-r-0",
+                      "relative flex shrink-0 items-center border-r px-2 font-mono text-[10px] uppercase leading-tight tracking-[0.08em] text-muted-foreground last:border-r-0",
                       c.alinhar === "right" && "justify-end text-right",
                       c.alinhar === "center" && "justify-center text-center",
                     )}
                     style={{ width: c.w }}
                   >
                     {c.rotulo}
+                    {/* Alça de largura (reunião de 29/09/2026): arrastar, ou setas no teclado; duplo clique volta ao padrão. */}
+                    <div
+                      role="separator"
+                      aria-orientation="vertical"
+                      aria-label={`Largura da coluna ${c.rotulo}`}
+                      aria-valuenow={c.w}
+                      aria-valuemin={LARGURA_MINIMA}
+                      aria-valuemax={LARGURA_MAXIMA}
+                      tabIndex={0}
+                      title="Arraste para mudar a largura · duplo clique volta ao padrão"
+                      className="absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize touch-none hover:bg-primary/50 focus-visible:bg-primary/60 focus-visible:outline-none active:bg-primary"
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.currentTarget.setPointerCapture(e.pointerId);
+                        redimensionando.current = { id: c.id, x0: e.clientX, w0: c.w, padrao: padraoDe(c.id) };
+                      }}
+                      onPointerMove={(e) => {
+                        const r = redimensionando.current;
+                        if (r) aplicarLargura(r.id, r.w0 + e.clientX - r.x0, r.padrao);
+                      }}
+                      onPointerUp={() => {
+                        if (redimensionando.current) gravarLarguras();
+                        redimensionando.current = null;
+                      }}
+                      onPointerCancel={() => {
+                        redimensionando.current = null;
+                      }}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        aplicarLargura(c.id, padraoDe(c.id), padraoDe(c.id));
+                        gravarLarguras();
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+                        e.preventDefault();
+                        aplicarLargura(c.id, c.w + (e.key === "ArrowRight" ? PASSO_TECLADO : -PASSO_TECLADO), padraoDe(c.id));
+                        gravarLarguras();
+                      }}
+                    />
                   </div>
                 ))}
               </div>
@@ -801,7 +885,7 @@ export function PlanoGantt({
                       />
                     }
                   >
-                    {colunas.map((c) => (
+                    {colunasEfetivas.map((c) => (
                       <div
                         key={c.id}
                         role="cell"

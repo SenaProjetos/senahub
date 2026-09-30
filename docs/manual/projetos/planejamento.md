@@ -259,6 +259,10 @@ linhas, numa área de rolagem só (a tabela fica presa à esquerda e o cabeçalh
 - **Tabela compacta / completa:** a tabela abre compacta (sem Disciplina, Recursos e Custo) para dar
   espaço ao gráfico; **Tabela completa** mostra todas as colunas, inclusive o **Custo** (só quem vê o
   financeiro). **✓** marca a linha concluída.
+- **Largura das colunas:** arraste a **borda direita do cabeçalho** de qualquer coluna para alargar ou
+  estreitar (mínimo 44 px, máximo 640 px). Com o teclado, foque a borda e use **←** e **→**. **Duplo clique**
+  na borda devolve aquela coluna ao tamanho padrão, e **Larguras padrão** (ao lado de Tabela compacta) devolve
+  todas. A escolha é **sua**: fica guardada na sua conta e vale em qualquer cronograma e no editor de modelo.
 
 ### Datas reais: Atualizar tarefa
 

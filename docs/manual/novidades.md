@@ -58,6 +58,7 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
   revisão fecha com uma nova linha de base.
 - **Nova linha de base** (o antigo *Replanejar*), com a **lista das versões** e o **Comparar com** no Gantt de
   Controle para ver o desvio contra a BL-00, a BL-01…
+- **Largura das colunas** do cronograma ajustável: arraste a borda do cabeçalho; a sua escolha fica guardada.
 - A linha de base aparece sempre em **cinza escuro**, fininha, e as linhas de agrupamento ficaram um pouco
   mais escuras.
 - No modelo de EAP, definir a **disciplina de um agrupamento** vale para tudo dentro dele; a tela avisa o que
