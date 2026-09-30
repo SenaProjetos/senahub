@@ -7,7 +7,7 @@ import { whereAudiencia } from "@/lib/audiencias";
 import { notificar, type NotificacaoInput } from "@/lib/notificar";
 import { enviarPush } from "@/lib/push";
 import { emitParaCanal, emitParaUsuario, usuarioOnline } from "@/lib/socket";
-import { getOrCreateDM } from "@/modules/chat/service";
+import { getOrCreateDM, origemDoCanal } from "@/modules/chat/service";
 import { randomBytes } from "node:crypto";
 import { removerArquivo, salvarArquivo, lerArquivo } from "@/lib/storage";
 import { extrairMencoes, mencionouTodos } from "@/modules/chat/mencoes";
@@ -204,6 +204,7 @@ export const enviarMensagem = defineAction(
       autor: { id: msg.autor.id, name: msg.autor.name, image: msg.autor.image },
       createdAt: msg.createdAt,
       reacoes: [] as ReturnType<typeof agregarReacoes>,
+      origem: await origemDoCanal(i.canalId),
       respostaA: msg.respostaA
         ? {
             id: msg.respostaA.id,
@@ -300,6 +301,7 @@ export const anexarUploadDoProjeto = defineAction(
       autor: { id: msg.autor.id, name: msg.autor.name, image: msg.autor.image },
       createdAt: msg.createdAt,
       reacoes: [] as ReturnType<typeof agregarReacoes>,
+      origem: await origemDoCanal(i.canalId),
       respostaA: null,
     };
     emitParaCanal(i.canalId, "mensagem", payload);
@@ -415,6 +417,7 @@ export const encaminharMensagem = defineAction(
       autor: { id: msg.autor.id, name: msg.autor.name, image: msg.autor.image },
       createdAt: msg.createdAt,
       reacoes: [] as ReturnType<typeof agregarReacoes>,
+      origem: await origemDoCanal(i.canalId),
       respostaA: null,
     };
     emitParaCanal(i.canalId, "mensagem", payload);

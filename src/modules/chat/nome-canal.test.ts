@@ -1,6 +1,30 @@
 import { describe, expect, it } from "vitest";
 
-import { nomeCanal } from "./nome-canal";
+import { nomeCanal, origemMensagem } from "./nome-canal";
+
+describe("origemMensagem", () => {
+  it("DM diz que é privada, sem nome", () => {
+    expect(origemMensagem("dm", null)).toBe("Mensagem privada");
+  });
+
+  it("grupo mostra o nome do grupo", () => {
+    expect(origemMensagem("grupo", "Coordenação")).toBe("Grupo Coordenação");
+  });
+
+  it("projeto e disciplina dizem o tipo antes do nome", () => {
+    expect(origemMensagem("projeto", "Residencial Alfa")).toBe("Projeto Residencial Alfa");
+    expect(origemMensagem("disciplina", "Elétrica")).toBe("Disciplina Elétrica");
+  });
+
+  it("geral e sócios são canais", () => {
+    expect(origemMensagem("geral", "Geral")).toBe("Canal Geral");
+    expect(origemMensagem("socios", "Sócios")).toBe("Canal Sócios");
+  });
+
+  it("anotações não repete o nome", () => {
+    expect(origemMensagem("anotacoes", "Minhas anotações")).toBe("Anotações");
+  });
+});
 
 describe("nomeCanal", () => {
   it("canal de projeto usa o nome atual do projeto, não a cópia gravada", () => {

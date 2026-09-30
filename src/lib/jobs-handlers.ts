@@ -8,6 +8,7 @@ import { enviarPush } from "@/lib/push";
 import { emitParaCanal, emitParaUsuario, usuarioOnline } from "@/lib/socket";
 import { textoParaPreview } from "@/modules/chat/formatacao";
 import type { MensagemAgendadaJob } from "@/modules/chat/agendamento";
+import { origemDoCanal } from "@/modules/chat/service";
 import { enviarEmail, smtpConfigurado } from "@/lib/mail";
 import { enviarEmailTemplate, resolverTemplate, markdownParaHtml } from "@/lib/email-templates";
 import { slugAlertaPonto, labelAlertaPonto } from "@/lib/email-templates-meta";
@@ -1807,6 +1808,7 @@ export async function processarMensagemAgendada(data: unknown): Promise<void> {
     createdAt: msg.createdAt,
     reacoes: [],
     respostaA: null,
+    origem: await origemDoCanal(canalId),
   });
 
   // Notifica membros offline (os online já recebem via socket). Silenciados recebem

@@ -1,6 +1,21 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { whereAudiencia } from "@/lib/audiencias";
+import { nomeCanal } from "@/modules/chat/nome-canal";
+
+/** Tipo + nome exibido do canal, levado no evento ao vivo `mensagem` — o toast diz de onde veio. */
+export async function origemDoCanal(canalId: string): Promise<{ tipo: string; nome: string } | null> {
+  const c = await prisma.canal.findUnique({
+    where: { id: canalId },
+    select: {
+      tipo: true,
+      nome: true,
+      projeto: { select: { nome: true } },
+      disciplina: { select: { disciplinaTextoLegado: true } },
+    },
+  });
+  return c ? { tipo: c.tipo, nome: nomeCanal(c) } : null;
+}
 
 /** Par (canal, usuário) de um vínculo de membro recém-criado — para join ao vivo no socket. */
 export type NovoMembroCanal = { canalId: string; userId: string };
