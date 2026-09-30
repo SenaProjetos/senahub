@@ -46,6 +46,9 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 - A coluna **Nº** virou **EDT**: o código da linha na EAP (**1, 1.1, 1.1.1…**), que se refaz sozinho ao
   mover linhas. As **predecessoras** agora citam esse código (`1.2TI+2d`).
+- **Plano travado depois de aprovar.** Estrutura, durações, dependências e restrições ficam travadas; %, datas
+  reais, Data de Status, pessoas e bloqueio seguem livres. Para mudar o plano, **Revisar planejamento** — a
+  revisão fecha com uma nova linha de base.
 - **Nova linha de base** (o antigo *Replanejar*), com a **lista das versões** e o **Comparar com** no Gantt de
   Controle para ver o desvio contra a BL-00, a BL-01…
 - A linha de base aparece sempre em **cinza escuro**, fininha, e as linhas de agrupamento ficaram um pouco

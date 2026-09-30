@@ -8,6 +8,7 @@ import { reagendarProjeto } from "./agenda";
 import { cargaDaEquipe } from "./recursos-queries";
 import { linhaAceitaAtribuicao, linhaAceitaHoras, regraDoRecursoExterno } from "./recursos";
 import { herdarResponsaveisNoProjeto, sincronizarCards, sincronizarPrincipal } from "./recursos-service";
+import { exigirPlanoEditavel } from "./trava-plano-service";
 
 /**
  * Recursos na linha da EAP (F5 — D17, D18, D22, D23, D41). Mesma permissão de quem monta
@@ -255,6 +256,8 @@ export const aplicarSugestaoRecurso = defineAction(
         select: { projetoId: true, restricaoTipo: true },
       });
       if (!linha) throw new ActionError("Linha do cronograma não encontrada.");
+      // Atrasar é pôr restrição: mexe no plano, que aprovado fica travado (`trava-plano.ts`). Trocar a pessoa, não.
+      await exigirPlanoEditavel(linha.projetoId);
       if (linha.restricaoTipo && linha.restricaoTipo !== "iniciar_nao_antes_de") {
         throw new ActionError("A linha ganhou outra restrição de data depois da sugestão. Revise antes de mexer.");
       }

@@ -4257,6 +4257,13 @@ model CronogramaProjeto {
   aprovadoPorId String?
   aprovadoPor   User?    @relation("CronogramaAprovador", fields: [aprovadoPorId], references: [id], onDelete: SetNull)
 
+  /// Aprovado, o PLANO fica travado (estrutura, durações, dependências, restrições — `trava-plano.ts`).
+  /// "Revisar planejamento" liga isto e destrava; a "Nova linha de base" desliga. `revisaoAlterada` diz se o
+  /// plano mudou durante a revisão: sem mudança, a revisão pode ser cancelada; com mudança, só a nova BL fecha.
+  emRevisao       Boolean   @default(false)
+  revisaoAbertaEm DateTime?
+  revisaoAlterada Boolean   @default(false)
+
   /// Âncora do cronograma: a "Data de Início do Projeto" do MS Project. Linha sem
   /// predecessora e sem restrição começa AQUI — sem essa âncora o motor não tem de onde
   /// partir e cairia em "hoje", fazendo o cronograma inteiro andar sozinho a cada dia que

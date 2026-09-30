@@ -84,6 +84,11 @@ export type PlanoGanttProps = {
    * reagenda o projeto, e a segunda trabalharia sobre datas velhas.
    */
   onEditarCampo?: (t: EapTarefaDTO, edicao: EdicaoDeCampo) => Promise<string | null>;
+  /**
+   * Cronograma aprovado fora de revisão (`trava-plano.ts`): a Duração deixa de ser editável na célula (nome e % seguem).
+   * Predecessoras e arrastar a linha somem por não receber `onEditarPredecessoras`/`onMover`.
+   */
+  planoTravado?: boolean;
   /** A célula Predecessoras: o conjunto inteiro de uma vez. */
   onEditarPredecessoras?: (t: EapTarefaDTO, vinculos: Vinculo[]) => Promise<string | null>;
   /** Uma edição que o texto digitado não permite (o que o servidor nem chega a ver). */
@@ -141,6 +146,7 @@ export function PlanoGantt({
   filtroIds,
   onAbrir,
   onEditarCampo,
+  planoTravado = false,
   onEditarPredecessoras,
   onErro,
   menuDe,
@@ -196,7 +202,7 @@ export function PlanoGantt({
   const ehEditavel = (l: Linha, campo: CampoEditavel): boolean => {
     if (campo === "nome") return podeEditar;
     if (l.temFilhos) return false;
-    if (campo === "duracao") return podeEditar;
+    if (campo === "duracao") return podeEditar && !planoTravado;
     if (campo === "progresso") return podeEditar && !l.t.marco;
     return podeEditarPred;
   };
@@ -609,7 +615,7 @@ export function PlanoGantt({
     if (acoesCol) cs.push(acoesCol);
     return compacto ? cs.filter((c) => !c.secundaria) : cs;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `envolver`/`gravado` releem o estado da edição a cada render
-  }, [modo, verDatas, mostrarCusto, compacto, acoes, codigoPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, idPorCodigo, menuDe, onAcao, contextos, podeArrastar, grade]);
+  }, [modo, verDatas, mostrarCusto, compacto, acoes, codigoPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, planoTravado, idPorCodigo, menuDe, onAcao, contextos, podeArrastar, grade]);
 
   const larguraTabela = colunas.reduce((s, c) => s + c.w, 0);
 

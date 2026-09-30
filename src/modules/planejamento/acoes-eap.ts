@@ -8,6 +8,7 @@ import {
   MOTIVO_SEM_IRMA_ACIMA,
   MOTIVO_ULTIMA_DO_NIVEL,
 } from "./arvore-eap";
+import { MOTIVO_PLANO_TRAVADO } from "./trava-plano";
 
 /**
  * Ações de uma linha do cronograma (EAP) — **puro**. O mesmo array alimenta o menu de contexto, o `...` e os
@@ -52,21 +53,28 @@ export function itensDeMover(l: Pick<LinhaParaAcoes, "temIrmaAcima" | "temIrmaAb
 
 export function itensDeLinhaEap(
   l: LinhaParaAcoes,
-  ctx: { podeGerir: boolean; podeExecutado: boolean; cronogramaAprovado: boolean },
+  ctx: {
+    podeGerir: boolean;
+    podeExecutado: boolean;
+    cronogramaAprovado: boolean;
+    /** Aprovado e fora de revisão (`trava-plano.ts`): estrutura desabilitada com o motivo; o resto segue. */
+    planoTravado?: boolean;
+  },
 ): AcaoItem[] {
-  const motivoRecuar = !l.temIrmaAcima ? MOTIVO_SEM_IRMA_ACIMA : l.irmaAcimaEMarco ? MOTIVO_IRMA_E_MARCO : undefined;
-  const motivoAvancar = l.nivel <= 1 ? MOTIVO_NIVEL_MAIS_ALTO : undefined;
+  const trava = ctx.planoTravado ? MOTIVO_PLANO_TRAVADO : undefined;
+  const motivoRecuar = trava ?? (!l.temIrmaAcima ? MOTIVO_SEM_IRMA_ACIMA : l.irmaAcimaEMarco ? MOTIVO_IRMA_E_MARCO : undefined);
+  const motivoAvancar = trava ?? (l.nivel <= 1 ? MOTIVO_NIVEL_MAIS_ALTO : undefined);
 
   const itens: (AcaoItem | null)[] = [
     ctx.podeGerir ? { tipo: "acao", id: ACAO_ABRIR, rotulo: "Informações da tarefa", icone: Pencil } : null,
-    ctx.podeGerir ? { tipo: "acao", id: ACAO_INSERIR_ACIMA, rotulo: "Inserir tarefa acima", icone: Plus } : null,
+    ctx.podeGerir ? { tipo: "acao", id: ACAO_INSERIR_ACIMA, rotulo: "Inserir tarefa acima", icone: Plus, desabilitado: trava } : null,
     ctx.podeGerir
       ? { tipo: "acao", id: ACAO_RECUAR, rotulo: "Recuar (tornar subtarefa)", icone: IndentIncrease, desabilitado: motivoRecuar }
       : null,
     ctx.podeGerir
       ? { tipo: "acao", id: ACAO_AVANCAR, rotulo: "Avançar (subir um nível)", icone: IndentDecrease, desabilitado: motivoAvancar }
       : null,
-    ...(ctx.podeGerir ? itensDeMover(l) : []),
+    ...(ctx.podeGerir ? itensDeMover(l).map((i) => (trava && i.tipo === "acao" ? { ...i, desabilitado: trava } : i)) : []),
     { tipo: "separador", id: "sep-execucao" },
     ctx.podeExecutado && !l.ehResumo
       ? { tipo: "acao", id: ACAO_ATUALIZAR, rotulo: "Atualizar tarefa (datas reais)", icone: CalendarCheck }
@@ -88,6 +96,7 @@ export function itensDeLinhaEap(
           rotulo: "Excluir tarefa",
           icone: Trash2,
           variant: "destructive",
+          desabilitado: trava,
           confirmar: {
             titulo: `Excluir "${l.nome}"?`,
             descricao:

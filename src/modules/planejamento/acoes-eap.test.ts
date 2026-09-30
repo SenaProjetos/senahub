@@ -20,6 +20,7 @@ import {
   MOTIVO_SEM_IRMA_ACIMA,
   MOTIVO_ULTIMA_DO_NIVEL,
 } from "./arvore-eap";
+import { MOTIVO_PLANO_TRAVADO } from "./trava-plano";
 
 const linha: LinhaParaAcoes = { nome: "Fôrmas", ehResumo: false, temIrmaAcima: true, irmaAcimaEMarco: false, temIrmaAbaixo: true, nivel: 2, subtarefas: 0 };
 const admin = { podeGerir: true, podeExecutado: true, cronogramaAprovado: true };
@@ -79,6 +80,18 @@ describe("itensDeLinhaEap", () => {
     expect(ids({ ...linha, ehResumo: true, subtarefas: 3 })).toEqual([
       ACAO_ABRIR, ACAO_INSERIR_ACIMA, ACAO_RECUAR, ACAO_AVANCAR, ACAO_MOVER_CIMA, ACAO_MOVER_BAIXO, ACAO_EXCLUIR,
     ]);
+  });
+
+  it("plano travado (aprovado, fora de revisão): a estrutura fica desabilitada com o motivo; abrir, atualizar e card seguem", () => {
+    const travado = { ...admin, planoTravado: true };
+    for (const id of [ACAO_INSERIR_ACIMA, ACAO_RECUAR, ACAO_AVANCAR, ACAO_MOVER_CIMA, ACAO_MOVER_BAIXO, ACAO_EXCLUIR]) {
+      expect(item(linha, id, travado)).toMatchObject({ desabilitado: MOTIVO_PLANO_TRAVADO });
+    }
+    for (const id of [ACAO_ABRIR, ACAO_ATUALIZAR, ACAO_GERAR_CARD]) {
+      expect(item(linha, id, travado)).not.toHaveProperty("desabilitado", expect.any(String));
+    }
+    // A trava vence o motivo do nível: o que se diz é o que destrava.
+    expect(item({ ...linha, nivel: 1 }, ACAO_AVANCAR, travado)).toMatchObject({ desabilitado: MOTIVO_PLANO_TRAVADO });
   });
 
   it("excluir é destrutivo e pede confirmação, dizendo quantas subtarefas vão junto", () => {

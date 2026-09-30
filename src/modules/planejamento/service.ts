@@ -288,7 +288,13 @@ export async function replanejar(
   if (!cronograma?.aprovado) {
     throw new Error("Aprove o cronograma antes de replanejar — não há linha de base para comparar.");
   }
-  return congelarBaseline(projetoId, autorId, { motivo, observacao: observacao ?? null });
+  const r = await congelarBaseline(projetoId, autorId, { motivo, observacao: observacao ?? null });
+  // A nova linha de base FECHA a revisão (`trava-plano.ts`): o plano volta a travar sobre o combinado novo.
+  await prisma.cronogramaProjeto.update({
+    where: { projetoId },
+    data: { emRevisao: false, revisaoAbertaEm: null, revisaoAlterada: false },
+  });
+  return r;
 }
 
 /** Grava a foto da Saúde do dia. Idempotente: rodar duas vezes no mesmo dia atualiza. */

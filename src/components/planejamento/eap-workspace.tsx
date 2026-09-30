@@ -56,6 +56,7 @@ import {
   ACAO_RECUAR,
   itensDeLinhaEap,
 } from "@/modules/planejamento/acoes-eap";
+import { MOTIVO_PLANO_TRAVADO, planoTravado } from "@/modules/planejamento/trava-plano";
 import type { AcaoItemAcao } from "@/components/ui/acoes";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { PlanoGantt, type EdicaoDeCampo, type ModoGantt } from "@/components/planejamento/plano-gantt";
@@ -157,6 +158,8 @@ export function EapWorkspace({
     setDialog({ open: true, tarefa });
   };
   const vazio = tarefas.length === 0;
+  // Aprovado e fora de revisão: o plano está travado (`trava-plano.ts`). O servidor recusa do mesmo jeito.
+  const travado = planoTravado(cronograma);
   const versoes = cronograma?.versoes ?? [];
   const maisNova = versoes[0]?.numero ?? null;
   // As tarefas com as datas de base da versão escolhida: alimenta o Gantt, as colunas de desvio e os cartões.
@@ -463,10 +466,15 @@ export function EapWorkspace({
           )}
           {podeGerir && (
             <>
-              <Button size="sm" onClick={() => abrir(null)}>
+              <Button
+                size="sm"
+                onClick={() => abrir(null)}
+                disabled={travado}
+                title={travado ? MOTIVO_PLANO_TRAVADO : undefined}
+              >
                 <Plus className="size-3.5" /> Nova tarefa
               </Button>
-              {disciplinas.length > 0 && (
+              {disciplinas.length > 0 && !travado && (
                 <GerarEapDisciplinasDialog
                   key={opcoesDisciplinas.map((o) => o.disciplinaId).join()}
                   projetoId={projeto.id}
@@ -517,6 +525,9 @@ export function EapWorkspace({
           podeAprovar={podeAprovar}
           podeExecutado={podeExecutado}
           aprovado={cronograma.aprovado}
+          emRevisao={cronograma.emRevisao}
+          revisaoAbertaEm={cronograma.revisaoAbertaEm}
+          revisaoAlterada={cronograma.revisaoAlterada}
           aprovadoEm={cronograma.aprovadoEm}
           dataStatus={cronograma.dataStatus}
           inicioProjeto={cronograma.inicioProjeto}
@@ -702,16 +713,17 @@ export function EapWorkspace({
             filtroIds={filtro === "todas" && lookahead === "todas" ? null : new Set(visiveis.map((t) => t.id))}
             onAbrir={podeGerir ? (t) => abrir(t) : undefined}
             onEditarCampo={podeGerir ? editarCampo : undefined}
-            onEditarPredecessoras={podeGerir ? editarPredecessoras : undefined}
+            planoTravado={travado}
+            onEditarPredecessoras={podeGerir && !travado ? editarPredecessoras : undefined}
             onErro={(mensagem) => toast.error(mensagem)}
             menuDe={(t, contexto) =>
               itensDeLinhaEap(
                 { nome: t.nome, ehResumo: t.ehResumo, ...contexto },
-                { podeGerir, podeExecutado, cronogramaAprovado: !!cronograma?.aprovado },
+                { podeGerir, podeExecutado, cronogramaAprovado: !!cronograma?.aprovado, planoTravado: travado },
               )
             }
             onAcao={(t, item) => void aoAcao(t, item)}
-            onMover={podeGerir ? mover : undefined}
+            onMover={podeGerir && !travado ? mover : undefined}
             focoNomeId={novaLinhaId}
             onFocoConsumido={() => setNovaLinhaId(null)}
             acoes={
@@ -751,6 +763,7 @@ export function EapWorkspace({
           disciplinas={disciplinas}
           tarefas={tarefas}
           pessoas={pessoas}
+          planoTravado={travado}
         />
       )}
     </div>
