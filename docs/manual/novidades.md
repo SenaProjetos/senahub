@@ -37,6 +37,8 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 - **← Arquivos** no visualizador volta **à mesma pasta e página** em que você estava, e andar entre pranchas
   não enche o histórico do navegador.
 - A **Base Arquitetônica**, as **ARTs** e a **Lixeira** abrem já abertas.
+- **Recebidos, Base Arquitetônica e Geral viraram tabela**, como a lista de documentos das disciplinas — com
+  enviar, nova versão, histórico de versões, excluir e compartilhar, agora também no botão direito e no **...**.
 
 **Projeto**
 

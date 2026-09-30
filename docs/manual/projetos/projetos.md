@@ -283,6 +283,12 @@ pastas no topo — clique numa pasta para entrar (a árvore da esquerda acompanh
 - **Todos os documentos:** as pastas das disciplinas e, depois delas, as **pastas do cliente**
   (**Compartilhado** e **Liberado para obra**, veja abaixo) e as áreas do projeto (Recebidos do cliente,
   Base Arquitetônica, Geral, ARTs). As áreas já abrem **abertas** na página delas.
+  **Recebidos do cliente**, **Base Arquitetônica** e **Geral** são **tabelas**: nome (com a versão e o histórico
+  de versões), tamanho, data e quem enviou, mais o botão de visualizar (PDF/DWG) e o **...** — o mesmo menu abre
+  com o botão direito. Arraste arquivos para a tabela para enviar. No menu: **Baixar**, **Enviar nova versão** e
+  **Excluir** (com confirmação, e a versão antiga se exclui sozinha, na linha dela); no **Geral**, também
+  **Editar nome, categoria e descrição** e **Exibir também em Recebidos do cliente**. Um documento do Geral
+  que aparece em Recebidos só se baixa ali — quem o gere é a pasta Geral.
 - **Disciplina:** as pastas das fases e, soltos, os documentos que ainda não têm fase.
 - **Fase:** as pastas dos formatos (PDF, DWG…).
 - **Formato:** as pranchas, cada uma **só com o arquivo daquele formato** — na pasta PDF, abrir,
