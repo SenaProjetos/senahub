@@ -38,6 +38,11 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
   não enche o histórico do navegador.
 - A **Base Arquitetônica**, as **ARTs** e a **Lixeira** abrem já abertas.
 
+**Projeto**
+
+- Aba **Resultados**: horas **previstas** no cronograma × **apontadas** no ponto, por disciplina e por tarefa, com
+  saldo e % consumido; filtros por disciplina e por pessoa. Quem vê o financeiro vê também o custo em R$.
+
 **Listas**
 
 - O **tamanho da página** (12, 24 ou 48) fica guardado **por lista**: 48 em Projetos não muda Tarefas.

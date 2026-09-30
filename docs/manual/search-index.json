@@ -319,6 +319,8 @@
       "descricao": "Cadastro e acompanhamento de projetos, disciplinas, responsáveis, revisões e ciclo de vida.",
       "resumo": "Liste e filtre projetos, crie/edite, gerencie disciplinas (com etapas por fase) e seus status, responsáveis, membros, revisões, duplicação e cancelamento/arquivamento.",
       "tags": [
+        "resultados",
+        "horas previstas x apontadas",
         "projetos",
         "visão geral",
         "personalizar painel",
