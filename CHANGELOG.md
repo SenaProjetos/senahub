@@ -10,6 +10,7 @@ Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commit
 * **agenda:** no celular abre na lista do dia (lote 3.4) ([f128c5e](https://github.com/SenaProjetos/senahub/commit/f128c5e923c85e70ab76389a47af4eee906e512c))
 * **apontamentos:** rabisco à mão livre sobre a prancha ([f182ce2](https://github.com/SenaProjetos/senahub/commit/f182ce210bb5c4a4cacf833946f075518014a12a))
 * **apontamentos:** rabisco com cor e espessura, medida ao vivo e várias medidas ([2b053e5](https://github.com/SenaProjetos/senahub/commit/2b053e5f61c3623150ef952c5d83432774b560ac))
+* **arquivos:** Base Arquitetônica, Recebidos e Geral no formato de tabela ([6299d5f](https://github.com/SenaProjetos/senahub/commit/6299d5fa02721901be0f35d29f93bfe03161caf5))
 * **arquivos,coordenacao:** quadros na altura da tela e modo foco (lote 6.1) ([1eb990a](https://github.com/SenaProjetos/senahub/commit/1eb990a38b3c069d7d7153345e3f05663b1ea35a))
 * **arquivos:** aba Arquivos navegada em pastas, como no Google Drive ([edb79c3](https://github.com/SenaProjetos/senahub/commit/edb79c35d0530c71690f9a8c4e8eca7f4f3825d9))
 * **arquivos:** barra única de busca, filtros, fases e colunas; aviso de Novidade vira balão (lote 4.1) ([84e8f4c](https://github.com/SenaProjetos/senahub/commit/84e8f4ce7500aeb1db4a362a91d522f2c8abe699))
@@ -57,6 +58,7 @@ Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commit
 * **planejamento:** etapa de terceiro marcada pelo recurso "Externo" (decisão [#1](https://github.com/SenaProjetos/senahub/issues/1)) ([d4bb5f1](https://github.com/SenaProjetos/senahub/commit/d4bb5f1526a03cc636af48c1ce7732a73791108c))
 * **planejamento:** governança do plano — aprovação, baseline versionada e apuração (F2) ([8534f30](https://github.com/SenaProjetos/senahub/commit/8534f30b5bb75f1f85cef9d2380e23aa0b22af1c))
 * **planejamento:** grava cada apuração do Valor Agregado e mostra o histórico (F8) ([bfa1b00](https://github.com/SenaProjetos/senahub/commit/bfa1b0039624d649c2bfa69e9e64e652e4998ddf))
+* **planejamento:** largura de coluna ajustável no Gantt, lembrada por usuário ([2db3301](https://github.com/SenaProjetos/senahub/commit/2db3301143728dd45817ce57d970bedc6e87e050))
 * **planejamento:** leitura do XML do MS Project e a forma do modelo de EAP (decisão [#5](https://github.com/SenaProjetos/senahub/issues/5)) ([a6866e9](https://github.com/SenaProjetos/senahub/commit/a6866e97bda10d34bec509c860fcdb34900e98eb))
 * **planejamento:** linha da EAP leva quem está nela para a tela (F5) ([c0a2851](https://github.com/SenaProjetos/senahub/commit/c0a28512d5c178047f699ceaf1ae2a651372e3b2))
 * **planejamento:** linha de base guarda o custo previsto (F7.1) ([c978b9a](https://github.com/SenaProjetos/senahub/commit/c978b9a86bec5096e64022678f5ea41bb102ce23))
@@ -70,6 +72,7 @@ Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commit
 * **planejamento:** o Nº vira o código da EAP (1, 1.1, 1.1.1) e as predecessoras citam o código ([c1fa2d5](https://github.com/SenaProjetos/senahub/commit/c1fa2d59f7905f2d15c878edcf7f9747016140d4))
 * **planejamento:** pagamento liberado ao PJ entra no custo real do Valor Agregado (decisão [#16](https://github.com/SenaProjetos/senahub/issues/16)) ([f71d131](https://github.com/SenaProjetos/senahub/commit/f71d131bc82394ff949cf37a0e9a4a41cea7c4e3)), closes [#1](https://github.com/SenaProjetos/senahub/issues/1)
 * **planejamento:** peças puras do Gantt no molde do MS Project (escala, grade, predecessoras, setas) ([50463a9](https://github.com/SenaProjetos/senahub/commit/50463a95eac1dd1ac71a45922cafe17fd0b9bae8))
+* **planejamento:** plano travado depois de aprovar, com "Revisar planejamento" ([012ece8](https://github.com/SenaProjetos/senahub/commit/012ece8c842e947c4471be0a11ed135571adb05e))
 * **planejamento:** quem só consulta vê a estrutura do planejamento, sem datas ([fa9109a](https://github.com/SenaProjetos/senahub/commit/fa9109ad3cbcd97314260087035e35ffa3cea679)), closes [#3](https://github.com/SenaProjetos/senahub/issues/3)
 * **planejamento:** regras de recursos na linha — carga, sobrecarga e sugestões (F5) ([71ea317](https://github.com/SenaProjetos/senahub/commit/71ea31747c9673cdf7627ccfb276fe6d8baecf38))
 * **planejamento:** schema da F0 — TEAP, classificadores, vínculos e baseline versionada ([defd382](https://github.com/SenaProjetos/senahub/commit/defd3825eb49a98d8235d07432985c56d9bb6424))
@@ -89,6 +92,7 @@ Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commit
 * **ponto:** tela Ponto no celular usa a lista de atividades do Início (lote 5.5) ([b115403](https://github.com/SenaProjetos/senahub/commit/b115403939862bc2d2581e1b02cb3ad9df868fc8))
 * **preferencias:** duas abas no celular, Perfil e aparência e Notificações (lote 3.6) ([c07c4e6](https://github.com/SenaProjetos/senahub/commit/c07c4e6b361bd4c2c77c3688418cc9a13d412895))
 * **projetos:** aba Extras sai; riscos e acessos na Visão Geral, composição no Financeiro ([1f822fd](https://github.com/SenaProjetos/senahub/commit/1f822fd250c5fdd3a344848500d9b90b8fe7040e))
+* **projetos:** aba Resultados — horas previstas × apontadas por disciplina e tarefa ([995d55a](https://github.com/SenaProjetos/senahub/commit/995d55ab6244f2bed556bd540548f236df9f0080))
 * **projetos:** botão "Aprovar fase" no card da disciplina ([05cfa31](https://github.com/SenaProjetos/senahub/commit/05cfa313f232ba5497c1f97da9adf4829323213c)), closes [#10](https://github.com/SenaProjetos/senahub/issues/10)
 * **projetos:** cabeçalho do projeto mais compacto e ações recolhidas no celular (lote 5.1) ([56fd7b4](https://github.com/SenaProjetos/senahub/commit/56fd7b411c920b98335636890d00fb5d319602bb))
 * **projetos:** etapas de disciplina e link público por fase (F4) ([0e79f8a](https://github.com/SenaProjetos/senahub/commit/0e79f8acd2d0d983f68c777c8df9dda8360d3190))
@@ -186,6 +190,7 @@ Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commit
 * **visualizador:** copiar texto pelo menu sem clipboard seguro; textos que citavam o botão Apontar ([bca3cf0](https://github.com/SenaProjetos/senahub/commit/bca3cf02699f08e808ee60063d641aab80252806))
 * **visualizador:** linha da medida armada some quando o esboço vira apontamento ([1252826](https://github.com/SenaProjetos/senahub/commit/1252826b612d6a2a525b3d7d5c49a815ac370ac6))
 * **visualizador:** lista de pranchas ancora na vigente ao abrir revisão anterior; Esc em janela não desarma a medida ([d830f0e](https://github.com/SenaProjetos/senahub/commit/d830f0e5e2ffb07d1e767a337eb63a721a7525b1))
+* três arestas da revisão das etapas 5-9 ([92e2f29](https://github.com/SenaProjetos/senahub/commit/92e2f29f18f87acb9ede452f415bcb41950b78b8))
 
 
 ### ⚡ Performance
