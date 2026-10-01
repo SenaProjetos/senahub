@@ -22,6 +22,15 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Nomenclatura: as telas antigas saíram
+
+- **Configurações → Disciplinas** e **Configurações → Lista Mestre** deixaram de existir: o endereço antigo (e favoritos) leva para **Disciplinas e nomenclatura**. No índice de Configurações há um cartão só.
+- Fases, tipos e formatos de folha estão nas abas da tela nova; o cadastro das disciplinas, na lente **Todas as versões**.
+- **Validade e sigla de um item só mudam dentro de uma versão** ("Tirar da vN", "Voltar", "Siglas nesta versão") — não há mais campo solto de "Vale a partir da / Até a".
+- As opções **exigir nomenclatura / exigir fase**, que ficavam na Lista Mestre, foram para a página **Versões**.
+
+---
+
 ## Nomenclatura: lente "Todas as versões" e Formatos de folha
 
 - Na **lista de versões** de Configurações → Disciplinas e nomenclatura, o primeiro item é **Todas as versões**: o cadastro inteiro, com **Existe em**, as **siglas de todas as versões** (clique para ver o histórico), quantos projetos usam e o interruptor **Arquivadas**.

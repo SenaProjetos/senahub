@@ -345,9 +345,7 @@ siglas em vigor, mas não edita.
 
 As versões, as sub-disciplinas de cada card (a etiqueta de documento dentro de uma
 disciplina, como Água Fria dentro de Hidrossanitário) e as siglas de cada versão são
-cadastradas em **Configurações → Disciplinas e nomenclatura** (e, até a aposentadoria
-das telas antigas, também **Configurações → Disciplinas** e **Configurações → Lista Mestre**)
-— sempre pela tela, sem precisar de ajuste no banco a cada
+cadastradas em **Configurações → Disciplinas e nomenclatura** — sempre pela tela, sem precisar de ajuste no banco a cada
 mudança de padrão da gestão.
 
 ### Taxa de ART no financeiro (aba ARTs)
