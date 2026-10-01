@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { SO_RESULTADO } from "@/modules/financeiro/natureza";
 import { calcularFechamento, type Aliquotas, type FechamentoEntrada } from "./calculo";
 import { getAliquotas } from "@/modules/financeiro/config/queries";
 import type { Prisma } from "@/generated/prisma/client";
@@ -13,11 +14,11 @@ async function consolidar(ano: number, mes: number): Promise<FechamentoEntrada> 
   const { ini, fim } = periodoMes(ano, mes);
   const [receitas, despesas, folha] = await Promise.all([
     prisma.lancamento.findMany({
-      where: { tipo: "receita", status: "confirmado", dataConfirmacao: { gte: ini, lte: fim } },
+      where: { tipo: "receita", status: "confirmado", dataConfirmacao: { gte: ini, lte: fim }, ...SO_RESULTADO },
       select: { valor: true, valorEfetivo: true },
     }),
     prisma.lancamento.findMany({
-      where: { tipo: "despesa", status: "confirmado", dataConfirmacao: { gte: ini, lte: fim } },
+      where: { tipo: "despesa", status: "confirmado", dataConfirmacao: { gte: ini, lte: fim }, ...SO_RESULTADO },
       select: { valor: true, valorEfetivo: true },
     }),
     prisma.pagamentoProjetista.aggregate({ where: { liberadoEm: { gte: ini, lte: fim } }, _sum: { valor: true } }),

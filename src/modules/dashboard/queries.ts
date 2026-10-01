@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { SO_RESULTADO } from "@/modules/financeiro/natureza";
 import type { Prisma, StatusDisciplina } from "@/generated/prisma/client";
 import { acessoGlobal, type Role, type EscopoDeDados } from "@/lib/roles";
 import { kpisHome } from "@/modules/qualidade/queries";
@@ -223,6 +224,7 @@ export async function gravarSnapshotDashboard() {
     where: {
       tipo: "receita",
       status: "confirmado",
+      ...SO_RESULTADO,
       dataConfirmacao: {
         gte: new Date(hoje.getFullYear(), hoje.getMonth(), 1),
         lte: new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59),
@@ -263,7 +265,7 @@ export async function serieReceita(meses = 6) {
 
   const [confirmados, previstos] = await Promise.all([
     prisma.lancamento.findMany({
-      where: { tipo: "receita", status: "confirmado", dataConfirmacao: { gte: inicio, lte: fim } },
+      where: { tipo: "receita", status: "confirmado", dataConfirmacao: { gte: inicio, lte: fim }, ...SO_RESULTADO },
       select: { valor: true, valorEfetivo: true, dataConfirmacao: true },
     }),
     // Previsto ORIGINAL: receita com vencimento no período, em QUALQUER estágio da cobrança — inclusive
@@ -278,6 +280,7 @@ export async function serieReceita(meses = 6) {
         // a somava — bug pequeno e antigo, que fica claro agora que os status estão escritos.
         status: { in: ["previsto", "previsao", "confirmado", "aguardando_aprovacao"] },
         vencimento: { gte: inicio, lte: fim },
+        ...SO_RESULTADO,
       },
       select: { valor: true, vencimento: true },
     }),

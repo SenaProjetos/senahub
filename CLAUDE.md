@@ -218,6 +218,12 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   in the payment paths: paying a linked bill just lowers cash and reserved together. A caixinha only changes on an
   OPEN despesa (`definirCaixinhaLancamento` / `ALTERAR_CAIXINHA`); a paid one is fixed with an `ajuste` movement.
   Archive only with reserved zero and no open linked bill. Initial 9 caixinhas come from the migration by `chave`.
+- **One filter for nature, in every money query** (F6C, spec §8): `SO_RESULTADO` and `SEM_TRANSFERENCIA`
+  (`modules/financeiro/natureza.ts`, plain objects — the file stays pure) are the only way to apply it.
+  DRE/KPIs/margin/profitability/budget/closing use `SO_RESULTADO`; DFC, aging and the gerencial balance use
+  `SEM_TRANSFERENCIA`. A new `prisma.lancamento.findMany|aggregate|groupBy` in those files without one of
+  them (or a `natureza-ok:` comment with the reason) fails `relatorios/natureza-nas-consultas.test.ts`.
+  The livro caixa tells a transfer by `categoria.natureza`, never by the category NAME.
 - **Recurring commitments are a REGISTRY, not bills** (`financeiro/recorrencia/`, F6A, ADR-0009): a
   `CompromissoRecorrente` makes the planner project each month with no linked `Lancamento` as a `programado`
   event (id `prog:<id>:<YYYY-MM>`, never adjustable — it is not a lançamento yet); the daily job (and the

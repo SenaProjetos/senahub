@@ -20,6 +20,8 @@
  * F6A: compromisso recorrente — mês sem lançamento é projetado, geração idempotente (duas execuções
  * simultâneas criam o mês uma vez), mês gerado deixa de ser projetado, e o vínculo manual tira o mês
  * da projeção com o valor do lançamento valendo.
+ * F6C (spec §8): pró-labore é despesa da DRE; distribuição de lucros sai do caixa e do DFC mas NÃO da
+ * DRE; transferência fica fora dos dois e fora do aging e do balanço.
  *
  * Uso: npm run smoke:planejador
  */
@@ -48,6 +50,8 @@ import { recebimentosADistribuir } from "../src/modules/financeiro/distribuicao/
 import { distribuirRecebimento, gravarRegra, pularRecebimento } from "../src/modules/financeiro/distribuicao/service";
 import { competenciaDe, idDoProgramado, rotuloDaCompetencia, vencimentoDa } from "../src/modules/financeiro/recorrencia/calculo";
 import { gerarLancamentosRecorrentes, vincularLancamento } from "../src/modules/financeiro/recorrencia/service";
+import { agingReport } from "../src/modules/financeiro/aging/queries";
+import { balancoGerencial, indicadores, relatorioDFC, relatorioDRE } from "../src/modules/financeiro/relatorios/queries";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -188,6 +192,7 @@ async function main() {
   await smokeCaixinhas(admin.id, catFornecedor.id, catReceita.id);
   await smokeDistribuicao(admin.id, catReceita.id);
   await smokeRecorrencia(admin.id, catFornecedor.id);
+  await smokeNatureza(admin.id);
 
   console.log("\n# Import do Meu Dinheiro — transferência nasce pareada e neutra");
   const categoriasAntes = new Set((await prisma.categoriaFinanceira.findMany({ select: { id: true } })).map((c) => c.id));
@@ -634,5 +639,72 @@ async function smokeRecorrencia(autorId: string, catDespesaId: string) {
   } finally {
     await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: t }, excluidoEm: { not: undefined } } });
     await prisma.compromissoRecorrente.deleteMany({ where: { descricao: { startsWith: t } } });
+  }
+}
+
+async function smokeNatureza(autorId: string) {
+  const t = `${tag}-f6c`;
+  const conta = await prisma.contaBancaria.create({ data: { nome: `${t} conta`, saldoInicial: 0 } });
+  const de = new Date(`${somarDias(hoje, -1)}T00:00:00.000Z`);
+  const ate = new Date(`${somarDias(hoje, 1)}T23:59:59.000Z`);
+  try {
+    console.log("\n# F6C — fora do resultado: DRE, DFC, aging e balanço (spec §8)");
+    const cat = async (chave: string, nome: string, tipo: "receita" | "despesa", natureza: "resultado" | "fora_do_resultado" | "transferencia", grupoDfc: string) =>
+      prisma.categoriaFinanceira.create({ data: { codigo: `${t}-${chave}`, nome: `${t} ${nome}`, tipo, natureza, grupoDfc }, select: { id: true, nome: true } });
+    const prolabore = await cat("pl", "Pró-labore", "despesa", "resultado", "operacional");
+    const distrib = await cat("dl", "Distribuição de lucros", "despesa", "fora_do_resultado", "financiamento");
+    const tSai = await cat("ts", "Transferência saída", "despesa", "transferencia", "operacional");
+    const tEnt = await cat("te", "Transferência entrada", "receita", "transferencia", "operacional");
+    const receita = await cat("rc", "Projetos", "receita", "resultado", "operacional");
+
+    const realizado = async (chave: string, categoriaId: string, tipo: "receita" | "despesa", valor: number) =>
+      prisma.lancamento.create({
+        data: { descricao: `${t} ${chave}`, tipo, valor, status: "confirmado", data: em(0), dataConfirmacao: em(0), categoriaId, autorId, contaId: conta.id },
+        select: { id: true },
+      });
+    await realizado("receita", receita.id, "receita", 10_000);
+    await realizado("prolabore", prolabore.id, "despesa", 6_000);
+    await realizado("distribuicao", distrib.id, "despesa", 20_000);
+    await realizado("transf-sai", tSai.id, "despesa", 5_000);
+    await realizado("transf-ent", tEnt.id, "receita", 5_000);
+
+    const dre = await relatorioDRE(de, ate);
+    const linhasDre = [...dre.receitas, ...dre.despesas].filter((l) => l.codigo.startsWith(t));
+    check("DRE tem a receita e o pró-labore", linhasDre.some((l) => l.nome.includes("Pró-labore")) && linhasDre.some((l) => l.nome.includes("Projetos")), linhasDre.map((l) => l.nome));
+    check("DRE NÃO tem a distribuição de lucros nem a transferência", !linhasDre.some((l) => /Distribui|Transfer/.test(l.nome)), linhasDre.map((l) => l.nome));
+
+    const dfc = await relatorioDFC(de, ate);
+    const linhasDfc = dfc.atividades.flatMap((a) => a.linhas.filter((l) => l.codigo.startsWith(t)).map((l) => `${a.grupo}:${l.nome}`));
+    check("DFC tem a distribuição em financiamento", linhasDfc.some((x) => x.startsWith("financiamento:") && x.includes("Distribui")), linhasDfc);
+    check("DFC NÃO tem as pernas de transferência", !linhasDfc.some((x) => x.includes("Transfer")), linhasDfc);
+
+    // Pendentes: uma despesa de transferência e uma de distribuição, para aging e balanço.
+    const pendente = async (chave: string, categoriaId: string, tipo: "receita" | "despesa", valor: number) =>
+      prisma.lancamento.create({
+        data: { descricao: `${t} ${chave}`, tipo, valor, status: "previsto", data: em(0), vencimento: em(2), categoriaId, autorId, contaId: conta.id },
+        select: { id: true },
+      });
+    const pTransf = await pendente("p-transf", tSai.id, "despesa", 3_000);
+    const pDistrib = await pendente("p-distrib", distrib.id, "despesa", 7_000);
+    // Aging soma por faixa: a transferência a pagar não pode entrar no total a vencer.
+    const agingAntes = await agingReport("despesa");
+    await prisma.lancamento.update({ where: { id: pTransf.id }, data: { valor: 50_000 } });
+    const agingDepois = await agingReport("despesa");
+    check("aging ignora a perna de transferência", agingAntes.totalAVencer === agingDepois.totalAVencer, { antes: agingAntes.totalAVencer, depois: agingDepois.totalAVencer });
+    await prisma.lancamento.update({ where: { id: pDistrib.id }, data: { valor: 9_000 } });
+    const agingComDistrib = await agingReport("despesa");
+    check("aging mantém a distribuição a pagar (é obrigação real)", agingComDistrib.totalAVencer - agingDepois.totalAVencer === 2_000, { delta: agingComDistrib.totalAVencer - agingDepois.totalAVencer });
+
+    const kpi = await indicadores(de, ate);
+    check("o KPI de recebido não conta a perna de transferência", kpi.recebido === 10_000, kpi.recebido);
+
+    const antes = await balancoGerencial();
+    await prisma.lancamento.update({ where: { id: pTransf.id }, data: { valor: 9_000 } });
+    const depois = await balancoGerencial();
+    check("o balanço não muda quando a perna de transferência muda", antes.aPagar === depois.aPagar, { antes: antes.aPagar, depois: depois.aPagar });
+  } finally {
+    await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: t }, excluidoEm: { not: undefined } } });
+    await prisma.categoriaFinanceira.deleteMany({ where: { codigo: { startsWith: t } } });
+    await prisma.contaBancaria.deleteMany({ where: { nome: { startsWith: t } } });
   }
 }

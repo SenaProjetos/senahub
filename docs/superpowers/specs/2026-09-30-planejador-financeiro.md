@@ -289,6 +289,21 @@ saída de caixa.
   (tirar transferências), `agingReport` e `kpisHome().receitaPrevista` (tirar pernas de transferência).
   `orcamentoPorCategoria`: decidir na F6C. Teste-guarda que acusa consulta nova sem o filtro. **[T]**
 
+### Como a F6C implementou (2026-10-01)
+
+- **Dois pedaços de `where`** em `natureza.ts` (puro): `SO_RESULTADO` e `SEM_TRANSFERENCIA`. Aplicados em
+  `relatorioDRE`, `linhasDREPeriodo`/comparativo, `serieMensalResultado`, `evolucaoMargemMensal`,
+  `totaisPorCategoria`/`despesasPorCategoria`, `evolucaoMensalCategorias`, `resultadoPorProjeto`,
+  `rentabilidadePorProjeto`, `orcamentoPorCategoria`, `indicadores`, `fechamento/queries.ts`,
+  `documentos/fontes.ts` e nos KPIs do dashboard (`SO_RESULTADO`); em `relatorioDFC`, `agingReport` e
+  `balancoGerencial` (`SEM_TRANSFERENCIA`).
+- **`orcamentoPorCategoria`: decidido** — `SO_RESULTADO`. O orçamento planeja resultado; distribuição de
+  lucros e transferência não são gasto a orçar.
+- **Teste-guarda** `relatorios/natureza-nas-consultas.test.ts`: toda consulta de dinheiro nesses arquivos
+  precisa de um dos filtros ou de um comentário `natureza-ok:` com o motivo.
+- **Livro caixa** passou a separar transferência pela NATUREZA (antes era pelo nome da categoria) e mostra
+  "Fora do resultado" como linha própria: entra em Entradas/Saídas, sai do Resultado.
+
 ## 9. Pró-labore recorrente × lançamento manual
 
 - Vínculo: um lançamento está **vinculado** a um mês programado quando tem `recorrenciaOrigemId` e

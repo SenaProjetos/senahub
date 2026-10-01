@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { SO_RESULTADO } from "@/modules/financeiro/natureza";
 import { nomeDisciplinaItem } from "@/modules/comercial/disciplinas";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { relatorioDRE } from "@/modules/financeiro/relatorios/queries";
@@ -253,7 +254,7 @@ export async function resolverFonte(
       const de = new Date(ano, mes - 1, 1);
       const ate = new Date(ano, mes, 0, 23, 59, 59);
       const lancs = await prisma.lancamento.findMany({
-        where: { status: "confirmado", dataConfirmacao: { gte: de, lte: ate } },
+        where: { status: "confirmado", dataConfirmacao: { gte: de, lte: ate }, ...SO_RESULTADO },
         orderBy: { dataConfirmacao: "asc" },
         include: { categoria: { select: { codigo: true, nome: true } } },
       });

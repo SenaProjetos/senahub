@@ -50,3 +50,17 @@ export function classificarMovimento(natureza: Natureza): ClassificacaoMovimento
 export function foraDoResultado(natureza: Natureza): boolean {
   return natureza !== "resultado";
 }
+
+/**
+ * Pedaços de `where` do Prisma — a forma ÚNICA de aplicar a natureza numa consulta de dinheiro.
+ * São objetos simples de propósito: `natureza.ts` é puro e não importa Prisma (o teste-guarda confere).
+ *
+ * `SO_RESULTADO`: DRE, KPIs de receita/despesa/resultado, margem, rentabilidade, orçamento, fechamento.
+ * `SEM_TRANSFERENCIA`: caixa, DFC, aging, balanço — a perna de transferência move conta, não é receita
+ * nem despesa, e somá-la dos dois lados infla os dois.
+ *
+ * Consulta nova que soma dinheiro usa um dos dois; `natureza-ok:` com o motivo é o escape documentado
+ * (`relatorios/natureza-nas-consultas.test.ts` acusa quem esquecer).
+ */
+export const SO_RESULTADO = { categoria: { natureza: "resultado" } } as const;
+export const SEM_TRANSFERENCIA = { categoria: { natureza: { not: "transferencia" } } } as const;

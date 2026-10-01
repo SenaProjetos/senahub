@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { SEM_TRANSFERENCIA } from "@/modules/financeiro/natureza";
 import { calcularAging, FAIXAS_AGING, FAIXA_LABEL, type FaixaAging } from "@/lib/aging";
 
 export type AgingFaixa = { faixa: FaixaAging; label: string; total: number; qtd: number };
@@ -17,7 +18,8 @@ export type AgingReport = {
  */
 export async function agingReport(tipo: "receita" | "despesa"): Promise<AgingReport> {
   const lancs = await prisma.lancamento.findMany({
-    where: { tipo, status: "previsto" },
+    // Perna de transferência não é cobrança nem pagamento a vencer: move conta própria.
+    where: { tipo, status: "previsto", ...SEM_TRANSFERENCIA },
     select: { id: true, descricao: true, valor: true, vencimento: true, data: true },
   });
 

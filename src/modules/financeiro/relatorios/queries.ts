@@ -4,6 +4,7 @@ import { subDays, differenceInCalendarDays } from "date-fns";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { fluxoCaixa } from "@/modules/financeiro/caixa/queries";
+import { SEM_TRANSFERENCIA, SO_RESULTADO } from "@/modules/financeiro/natureza";
 import { analisarDRE, type LinhaBaseDRE, type DREComparativo } from "./dre";
 import { calcularRentabilidade, rentabilidadePorCliente, type ProjetoEntrada } from "./dre-projeto";
 
@@ -20,7 +21,7 @@ export type AtividadeDFC = {
 /** DFC método direto: movimentos confirmados no período por atividade (grupoDfc da categoria). */
 export async function relatorioDFC(de: Date, ate: Date) {
   const lancs = await prisma.lancamento.findMany({
-    where: { status: "confirmado", dataConfirmacao: { gte: de, lte: ate } },
+    where: { status: "confirmado", dataConfirmacao: { gte: de, lte: ate }, ...SEM_TRANSFERENCIA },
     include: { categoria: { select: { codigo: true, nome: true, tipo: true, grupoDfc: true } } },
   });
   const mapa = new Map<GrupoDFC, Map<string, { codigo: string; nome: string; valor: number }>>();
@@ -61,8 +62,8 @@ export async function categoriasParaDfc() {
 export async function balancoGerencial() {
   const [{ saldoTotal }, aReceberAgg, aPagarAgg] = await Promise.all([
     fluxoCaixa(1),
-    prisma.lancamento.aggregate({ where: { tipo: "receita", status: "previsto" }, _sum: { valor: true } }),
-    prisma.lancamento.aggregate({ where: { tipo: "despesa", status: "previsto" }, _sum: { valor: true } }),
+    prisma.lancamento.aggregate({ where: { tipo: "receita", status: "previsto", ...SEM_TRANSFERENCIA }, _sum: { valor: true } }),
+    prisma.lancamento.aggregate({ where: { tipo: "despesa", status: "previsto", ...SEM_TRANSFERENCIA }, _sum: { valor: true } }),
   ]);
   const caixa = saldoTotal;
   const aReceber = Number(aReceberAgg._sum.valor ?? 0);
@@ -86,7 +87,7 @@ export type DRE = {
 /** DRE por competência: confirmados no período, agrupados por categoria. */
 export async function relatorioDRE(de: Date, ate: Date): Promise<DRE> {
   const lancamentos = await prisma.lancamento.findMany({
-    where: { status: "confirmado", dataConfirmacao: { gte: de, lte: ate } },
+    where: { status: "confirmado", dataConfirmacao: { gte: de, lte: ate }, ...SO_RESULTADO },
     include: { categoria: { select: { codigo: true, nome: true, tipo: true } } },
   });
 
@@ -153,7 +154,8 @@ export async function orcamentoPorCategoria(de: Date, ate: Date): Promise<Orcame
   const ano = de.getFullYear();
   const [lancamentos, itens] = await Promise.all([
     prisma.lancamento.findMany({
-      where: { data: { gte: de, lte: ate } },
+      // O orçamento planeja RESULTADO: distribuição de lucros e transferência não são gasto a orçar.
+      where: { data: { gte: de, lte: ate }, ...SO_RESULTADO },
       include: { categoria: { select: { id: true, codigo: true, nome: true, tipo: true } } },
     }),
     prisma.orcamentoItem.findMany({
@@ -227,6 +229,7 @@ export async function serieMensalResultado(ano: number): Promise<MesResultado[]>
     where: {
       status: "confirmado",
       dataConfirmacao: { gte: new Date(ano, 0, 1), lte: new Date(ano, 11, 31, 23, 59, 59) },
+      ...SO_RESULTADO,
     },
     select: { tipo: true, valor: true, valorEfetivo: true, dataConfirmacao: true },
   });
@@ -252,11 +255,11 @@ export async function indicadores(de: Date, ate: Date) {
   const [projetosAtivos, recebido, aReceber] = await Promise.all([
     prisma.projeto.count({ where: { situacao: "em_andamento" } }),
     prisma.lancamento.aggregate({
-      where: { tipo: "receita", status: "confirmado", dataConfirmacao: { gte: de, lte: ate } },
+      where: { tipo: "receita", status: "confirmado", dataConfirmacao: { gte: de, lte: ate }, ...SO_RESULTADO },
       _sum: { valor: true },
     }),
     prisma.lancamento.aggregate({
-      where: { tipo: "receita", status: "previsto" },
+      where: { tipo: "receita", status: "previsto", ...SO_RESULTADO },
       _sum: { valor: true },
     }),
   ]);
@@ -288,7 +291,7 @@ export async function totaisPorCategoria(
 ): Promise<{ fatias: FatiaCategoria[]; total: number }> {
   const [lancs, categorias] = await Promise.all([
     prisma.lancamento.findMany({
-      where: { tipo, status: "confirmado", dataConfirmacao: { gte: de, lte: ate } },
+      where: { tipo, status: "confirmado", dataConfirmacao: { gte: de, lte: ate }, ...SO_RESULTADO },
       include: { categoria: { select: { id: true, codigo: true, nome: true } } },
     }),
     prisma.categoriaFinanceira.findMany({ select: { id: true, codigo: true, nome: true, paiId: true } }),
@@ -340,7 +343,7 @@ export type MargemMensal = { mes: number; rotulo: string; receita: number; resul
 /** Série mensal (12 meses) de receita/resultado/margem% realizados — evolução da margem. */
 export async function evolucaoMargemMensal(ano: number): Promise<MargemMensal[]> {
   const lancs = await prisma.lancamento.findMany({
-    where: { status: "confirmado", dataConfirmacao: { gte: new Date(ano, 0, 1), lte: new Date(ano, 11, 31, 23, 59, 59) } },
+    where: { status: "confirmado", dataConfirmacao: { gte: new Date(ano, 0, 1), lte: new Date(ano, 11, 31, 23, 59, 59) }, ...SO_RESULTADO },
     select: { tipo: true, valor: true, valorEfetivo: true, dataConfirmacao: true },
   });
   const acc = Array.from({ length: 12 }, () => ({ receita: 0, despesa: 0 }));
@@ -376,7 +379,7 @@ export async function evolucaoMensalCategorias(
 ): Promise<EvolucaoCategorias> {
   const [lancs, categorias] = await Promise.all([
     prisma.lancamento.findMany({
-      where: { tipo, status: "confirmado", dataConfirmacao: { gte: new Date(ano, 0, 1), lte: new Date(ano, 11, 31, 23, 59, 59) } },
+      where: { tipo, status: "confirmado", dataConfirmacao: { gte: new Date(ano, 0, 1), lte: new Date(ano, 11, 31, 23, 59, 59) }, ...SO_RESULTADO },
       include: { categoria: { select: { codigo: true, nome: true } } },
     }),
     prisma.categoriaFinanceira.findMany({ select: { codigo: true, nome: true } }),
@@ -426,7 +429,7 @@ export type ResultadoProjeto = {
  */
 export async function resultadoPorProjeto(de: Date, ate: Date): Promise<ResultadoProjeto[]> {
   const lancs = await prisma.lancamento.findMany({
-    where: { status: "confirmado", dataConfirmacao: { gte: de, lte: ate }, projetoId: { not: null } },
+    where: { status: "confirmado", dataConfirmacao: { gte: de, lte: ate }, projetoId: { not: null }, ...SO_RESULTADO },
     include: { projeto: { select: { id: true, codigo: true, nome: true } } },
   });
   const mapa = new Map<string, ResultadoProjeto>();
@@ -451,7 +454,7 @@ export async function resultadoPorProjeto(de: Date, ate: Date): Promise<Resultad
  */
 export async function rentabilidadePorProjeto(de: Date, ate: Date, margemMinima = 0) {
   const lancs = await prisma.lancamento.findMany({
-    where: { status: "confirmado", dataConfirmacao: { gte: de, lte: ate } },
+    where: { status: "confirmado", dataConfirmacao: { gte: de, lte: ate }, ...SO_RESULTADO },
     include: { projeto: { select: { id: true, codigo: true, nome: true, cliente: { select: { nome: true } } } } },
   });
 
@@ -530,13 +533,15 @@ async function linhasDREPeriodo(de: Date, ate: Date, base: BaseDRE): Promise<Lin
   const where: Prisma.LancamentoWhereInput =
     base === "competencia"
       ? {
+          ...SO_RESULTADO,
           status: "confirmado",
           OR: [
             { dataCompetencia: { gte: de, lte: ate } },
             { dataCompetencia: null, data: { gte: de, lte: ate } },
           ],
         }
-      : { status: "confirmado", dataConfirmacao: { gte: de, lte: ate } };
+      : { ...SO_RESULTADO, status: "confirmado", dataConfirmacao: { gte: de, lte: ate } };
+  // natureza-ok: o `where` acima já leva SO_RESULTADO nos dois ramos (caixa e competência).
   const lancamentos = await prisma.lancamento.findMany({
     where,
     include: { categoria: { select: { codigo: true, nome: true, tipo: true, grupoDfc: true } } },

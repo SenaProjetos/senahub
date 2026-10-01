@@ -110,8 +110,13 @@ function meioDia(d: Date) {
 function normalize(s: string) {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 }
-function ehTransferencia(topo: string) {
-  return normalize(topo).includes("transferencia");
+/**
+ * ADR-0008: transferência é a NATUREZA da categoria, não o nome dela. O nome só decide em lançamento
+ * antigo cuja categoria ainda não foi classificada (natureza ausente no dado carregado).
+ */
+function ehTransferencia(l: { categoria?: { natureza?: string | null } | null }, topo: string) {
+  const n = l.categoria?.natureza;
+  return n ? n === "transferencia" : normalize(topo).includes("transferencia");
 }
 function parcela(desc: string): string | null {
   const m = desc.match(/(\d+)\s*\/\s*(\d+)/);
@@ -361,19 +366,31 @@ export function LancamentosView({
 
   // Resultados do período (Entradas/Saídas com transferências separadas)
   const resultados = useMemo(() => {
-    let receitas = 0, transfEnt = 0, despesas = 0, transfSai = 0;
+    let receitas = 0, transfEnt = 0, despesas = 0, transfSai = 0, foraEnt = 0, foraSai = 0;
     for (const l of lista) {
-      const transf = ehTransferencia(topoDe(l));
+      const transf = ehTransferencia(l, topoDe(l));
+      const fora = l.categoria?.natureza === "fora_do_resultado";
       const v = Math.abs(Number(l.valorEfetivo ?? l.valor));
       if (l.tipo === "receita") {
-        if (transf) transfEnt += v; else receitas += v;
+        if (transf) transfEnt += v;
+        else {
+          receitas += v;
+          if (fora) foraEnt += v;
+        }
       } else {
-        if (transf) transfSai += v; else despesas += v;
+        if (transf) transfSai += v;
+        else {
+          despesas += v;
+          if (fora) foraSai += v;
+        }
       }
     }
     const entradas = receitas + transfEnt;
     const saidas = despesas + transfSai;
-    return { receitas, transfEnt, despesas, transfSai, entradas, saidas, resultado: entradas - saidas };
+    // Resultado do período é econômico: o que está fora do resultado (distribuição de lucros) sai dele,
+    // mas continua em Entradas/Saídas, porque é dinheiro que se moveu (ADR-0008).
+    const resultado = receitas - foraEnt - (despesas - foraSai);
+    return { receitas, transfEnt, despesas, transfSai, entradas, saidas, resultado, foraEnt, foraSai };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lista]);
 
@@ -627,10 +644,18 @@ export function LancamentosView({
               <Linha rotulo="Saídas" valor={-resultados.saidas} bold cor="text-destructive" />
               <Linha rotulo="Despesas" valor={-resultados.despesas} sub />
               <Linha rotulo="Transferências" valor={-resultados.transfSai} sub />
+              {(resultados.foraEnt > 0 || resultados.foraSai > 0) && (
+                <Linha rotulo="Fora do resultado" valor={resultados.foraEnt - resultados.foraSai} sub />
+              )}
               <div className="flex justify-between border-t pt-1 font-semibold">
                 <span>Resultado</span>
                 <span className={`font-mono ${resultados.resultado < 0 ? "text-destructive" : "text-success"}`}>{brl(resultados.resultado)}</span>
               </div>
+              {(resultados.foraEnt > 0 || resultados.foraSai > 0) && (
+                <p className="text-xs text-muted-foreground">
+                  O resultado não conta o que está fora dele (distribuição de lucros): é dinheiro que se moveu, não despesa.
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -779,7 +804,7 @@ export function LancamentosView({
   function renderLinhaLanc(l: LivroCaixaItem, saldo?: number) {
     const sit = situacaoDe(l);
     const par = parcela(l.descricao) ?? parcelaPorId.get(l.id) ?? null;
-    const transf = ehTransferencia(topoDe(l));
+    const transf = ehTransferencia(l, topoDe(l));
     const s = signed(l);
     // Com a linha DENTRO de uma seleção de vários, o menu age sobre a seleção (regra 3 da ADR-0002).
     const menuItens = alvosSelecao.length > 1 && selecao.marcado(l.id)

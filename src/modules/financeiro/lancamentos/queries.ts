@@ -4,7 +4,8 @@ import type { Prisma } from "@/generated/prisma/client";
 
 const INCLUDE = {
   // Prioridade padrão (da categoria e da mãe): a efetiva do planejador, mostrada em Contas.
-  categoria: { select: { codigo: true, nome: true, prioridadePadrao: true, pai: { select: { prioridadePadrao: true } } } },
+  // `natureza` (ADR-0008): o livro caixa separa transferência e fora do resultado por ela, nunca pelo nome.
+  categoria: { select: { codigo: true, nome: true, natureza: true, prioridadePadrao: true, pai: { select: { prioridadePadrao: true } } } },
   centro: { select: { nome: true } },
   conta: { select: { nome: true } },
   transacao: { select: { id: true } },
