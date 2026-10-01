@@ -22,6 +22,8 @@
  * da projeção com o valor do lançamento valendo.
  * F6C (spec §8): pró-labore é despesa da DRE; distribuição de lucros sai do caixa e do DFC mas NÃO da
  * DRE; transferência fica fora dos dois e fora do aging e do balanço.
+ * F6B: distribuição de lucros dividida pelo percentual de cada sócio, em contas a pagar fora do
+ * resultado — e recusada quando os percentuais não fecham 100%.
  *
  * Uso: npm run smoke:planejador
  */
@@ -52,6 +54,7 @@ import { competenciaDe, idDoProgramado, rotuloDaCompetencia, vencimentoDa } from
 import { gerarLancamentosRecorrentes, vincularLancamento } from "../src/modules/financeiro/recorrencia/service";
 import { agingReport } from "../src/modules/financeiro/aging/queries";
 import { balancoGerencial, indicadores, relatorioDFC, relatorioDRE } from "../src/modules/financeiro/relatorios/queries";
+import { motivoDoRateio, percentualParaBp, ratearEntreSocios } from "../src/modules/financeiro/socios/calculo";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -193,6 +196,7 @@ async function main() {
   await smokeDistribuicao(admin.id, catReceita.id);
   await smokeRecorrencia(admin.id, catFornecedor.id);
   await smokeNatureza(admin.id);
+  await smokeDistribuicaoSocios(admin.id);
 
   console.log("\n# Import do Meu Dinheiro — transferência nasce pareada e neutra");
   const categoriasAntes = new Set((await prisma.categoriaFinanceira.findMany({ select: { id: true } })).map((c) => c.id));
@@ -706,5 +710,50 @@ async function smokeNatureza(autorId: string) {
     await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: t }, excluidoEm: { not: undefined } } });
     await prisma.categoriaFinanceira.deleteMany({ where: { codigo: { startsWith: t } } });
     await prisma.contaBancaria.deleteMany({ where: { nome: { startsWith: t } } });
+  }
+}
+
+async function smokeDistribuicaoSocios(autorId: string) {
+  const t = `${tag}-f6b`;
+  try {
+    console.log("\n# F6B — distribuição de lucros pelo percentual de cada sócio");
+    const cat = await prisma.categoriaFinanceira.findUnique({ where: { chave: "distribuicao_lucros" }, select: { id: true, natureza: true, grupoDfc: true, tipo: true } });
+    check("a categoria 3.01 existe, é despesa fora do resultado e DFC de financiamento", cat?.tipo === "despesa" && cat?.natureza === "fora_do_resultado" && cat?.grupoDfc === "financiamento", cat);
+    const adiant = await prisma.categoriaFinanceira.findUnique({ where: { chave: "adiantamento_lucros" }, select: { natureza: true } });
+    check("a categoria 3.02 (adiantamento) também é fora do resultado", adiant?.natureza === "fora_do_resultado", adiant);
+    if (!cat) return;
+
+    // Três sócios de teste: 50 / 30 / 20 (users novos, para não mexer no cadastro real).
+    const nomes = ["A", "B", "C"];
+    const pct = [50, 30, 20];
+    const socios: { id: string; nome: string; percentualBp: number }[] = [];
+    for (let i = 0; i < 3; i++) {
+      const u = await prisma.user.create({ data: { name: `${t} sócio ${nomes[i]}`, email: `${t}-${i}@dev.local`, role: "administrativo" }, select: { id: true, name: true } });
+      const s = await prisma.socio.create({ data: { userId: u.id, percentual: pct[i] }, select: { id: true } });
+      socios.push({ id: s.id, nome: u.name, percentualBp: percentualParaBp(pct[i]) });
+    }
+    check("os percentuais fecham 100%", motivoDoRateio(socios) === null);
+    const partes = ratearEntreSocios(paraCentavos(10_000.01), socios);
+    check("R$ 10.000,01 vira 5.000,00 / 3.000,00 / 2.000,01 (o resto no último)", partes.map((p) => p.valor).join("/") === [500_000, 300_000, 200_001].join("/"), partes.map((p) => p.valor));
+
+    for (const p of partes) {
+      await prisma.lancamento.create({
+        data: { descricao: `${t} ${p.nome}`, tipo: "despesa", valor: p.valor / 100, status: "previsto", data: em(0), vencimento: em(2), categoriaId: cat.id, socioId: p.socioId, autorId },
+      });
+    }
+    const criados = await prisma.lancamento.findMany({ where: { descricao: { startsWith: t } }, select: { socioId: true, valor: true } });
+    check("uma conta a pagar por sócio, com o sócio gravado", criados.length === 3 && criados.every((l) => l.socioId != null));
+    check("a soma fecha o total distribuído", criados.reduce((s, l) => s + paraCentavos(l.valor), 0) === paraCentavos(10_000.01));
+
+    const dre = await relatorioDRE(new Date(`${somarDias(hoje, -1)}T00:00:00.000Z`), new Date(`${somarDias(hoje, 3)}T23:59:59.000Z`));
+    check("a distribuição não entra na DRE nem quando é paga", ![...dre.despesas].some((l) => l.nome.includes("Distribuição de lucros")), dre.despesas.map((l) => l.nome));
+
+    // Percentual fora de 100% recusa a divisão (a action usa o mesmo motivo).
+    await prisma.socio.update({ where: { id: socios[2].id }, data: { percentual: 10 } });
+    check("com 90% a divisão é recusada, dizendo a soma", (motivoDoRateio([...socios.slice(0, 2), { ...socios[2], percentualBp: 1000 }]) ?? "").includes("somam 90%"));
+  } finally {
+    await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: t }, excluidoEm: { not: undefined } } });
+    await prisma.socio.deleteMany({ where: { user: { email: { startsWith: t } } } });
+    await prisma.user.deleteMany({ where: { email: { startsWith: t } } });
   }
 }

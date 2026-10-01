@@ -340,6 +340,18 @@ passar. **[T]** para as quatro linhas.
   mesma categoria, mesmo sócio, competência vigente e livre.
 - Fica para a F6B: distribuição e adiantamento por sócio (a coluna `Lancamento.socioId` já existe).
 
+### Como a F6B implementou (2026-10-01)
+
+- **Categorias por migração, achadas pela `chave`:** `distribuicao_socios` (pai, no próximo código de
+  nível 1 livre — o import do Meu Dinheiro costuma ocupar o "3"), `distribuicao_lucros` e
+  `adiantamento_lucros`, todas despesa, `fora_do_resultado` e DFC `financiamento`.
+- **Divisão por `Socio.percentual`** (`socios/calculo.ts`, puro): basis points, centavo que sobra no
+  último sócio, e recusa quando os ativos não fecham 100% (a tela de Sócios já mostra a soma).
+- **Cria uma conta a pagar PREVISTA por sócio**, com `Lancamento.socioId`, e segue o fluxo normal de
+  pagamento. Nada de `RetiradaSocio` aqui — ela continua congelada como histórico (F6D).
+- Entrada pela aba Sócios de Cadastros ("Distribuir lucros" e "Adiantar lucros"); o planejador continua
+  simulando a distribuição sem gravar nada.
+
 ## 10. Simulação × real
 
 - Todo evento de simulação (movimento incluído, distribuição, entrada, ajuste de data) é **virtual**: vive

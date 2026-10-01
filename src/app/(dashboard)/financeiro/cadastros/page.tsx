@@ -63,6 +63,7 @@ export default async function CadastrosFinanceirosPage() {
       compromissos={compromissos}
       caixinhas={caixinhas}
       mesAtual={inicioDoDiaUtc().toISOString().slice(0, 7)}
+      hojeDia={inicioDoDiaUtc().toISOString().slice(8, 10)}
     />
   );
 }

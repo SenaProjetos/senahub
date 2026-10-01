@@ -218,6 +218,12 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   in the payment paths: paying a linked bill just lowers cash and reserved together. A caixinha only changes on an
   OPEN despesa (`definirCaixinhaLancamento` / `ALTERAR_CAIXINHA`); a paid one is fixed with an `ajuste` movement.
   Archive only with reserved zero and no open linked bill. Initial 9 caixinhas come from the migration by `chave`.
+- **Partner withdrawals** (`financeiro/socios/`, F6B): "Distribuir lucros" splits a total by each active
+  partner's `Socio.percentual` (basis points, leftover cent on the last) and creates ONE previsto
+  `Lancamento` per partner with `socioId`, in category `distribuicao_lucros` / `adiantamento_lucros`
+  (created by migration, found by `chave`, `fora_do_resultado` + DFC `financiamento`). It refuses when the
+  active partners' percentages do not add to 100% — normalizing silently would hide a cadastro mistake.
+  Pró-labore is NOT this: it is a `resultado` expense (2.08) and lives in Compromissos recorrentes.
 - **One filter for nature, in every money query** (F6C, spec §8): `SO_RESULTADO` and `SEM_TRANSFERENCIA`
   (`modules/financeiro/natureza.ts`, plain objects — the file stays pure) are the only way to apply it.
   DRE/KPIs/margin/profitability/budget/closing use `SO_RESULTADO`; DFC, aging and the gerencial balance use

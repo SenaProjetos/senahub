@@ -55,6 +55,7 @@ export function CadastrosView({
   compromissos,
   caixinhas,
   mesAtual,
+  hojeDia,
   subnav,
 }: {
   categorias: Cat[];
@@ -68,6 +69,8 @@ export function CadastrosView({
   caixinhas: { id: string; nome: string }[];
   /** `YYYY-MM` de hoje, para a primeira competência do formulário. */
   mesAtual: string;
+  /** Dia de hoje (`DD`), para a data das retiradas. */
+  hojeDia: string;
   subnav?: React.ReactNode;
 }) {
   return (
@@ -98,7 +101,7 @@ export function CadastrosView({
               <FornecedoresSection fornecedores={fornecedores} />
             </TabsContent>
             <TabsContent value="socios">
-              <SociosSection socios={socios} usuarios={usuarios} />
+              <SociosSection socios={socios} usuarios={usuarios} hoje={`${mesAtual}-${hojeDia}`} />
             </TabsContent>
             <TabsContent value="recorrentes">
               <RecorrentesSection

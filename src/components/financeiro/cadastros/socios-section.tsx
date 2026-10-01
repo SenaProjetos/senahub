@@ -11,6 +11,8 @@ import {
   removerRetiradaSocio,
 } from "@/modules/financeiro/cadastros/actions";
 import { brl, formatarData } from "@/lib/utils";
+import { RetiradaDialog, type TipoRetirada } from "./retirada-dialog";
+import { percentualParaBp } from "@/modules/financeiro/socios/calculo";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,9 +33,10 @@ type Usuario = { id: string; name: string };
 
 const TIPO_RET: Record<string, string> = { pro_labore: "Pró-labore", distribuicao: "Distribuição", adiantamento: "Adiantamento" };
 
-export function SociosSection({ socios, usuarios }: { socios: Socio[]; usuarios: Usuario[] }) {
+export function SociosSection({ socios, usuarios, hoje }: { socios: Socio[]; usuarios: Usuario[]; hoje: string }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [retirada, setRetirada] = useState<TipoRetirada | null>(null);
   const [userId, setUserId] = useState("");
   const [percentual, setPercentual] = useState<number | null>(null);
 
@@ -73,9 +76,32 @@ export function SociosSection({ socios, usuarios }: { socios: Socio[]; usuarios:
           socios.map((s) => <SocioRow key={s.id} s={s} onRemover={remover} />)
         )}
       </ul>
-      <p className={`text-xs ${total > 100 ? "text-destructive" : "text-muted-foreground"}`}>
-        Participação total: {total.toFixed(2)}%
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className={`text-xs ${total !== 100 ? "text-destructive" : "text-muted-foreground"}`}>
+          Participação total: {total.toFixed(2)}%
+          {total !== 100 && socios.some((s) => s.ativo) ? " — a distribuição de lucros exige 100%." : ""}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" onClick={() => setRetirada("distribuicao")} disabled={!socios.some((s) => s.ativo)}>
+            Distribuir lucros
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setRetirada("adiantamento")} disabled={!socios.some((s) => s.ativo)}>
+            Adiantar lucros
+          </Button>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        As duas criam contas a pagar por sócio, fora do resultado. Pró-labore é outra coisa: é despesa, e se cadastra em
+        Compromissos recorrentes.
       </p>
+
+      <RetiradaDialog
+        aberto={retirada !== null}
+        tipo={retirada ?? "distribuicao"}
+        socios={socios.filter((s) => s.ativo).map((s) => ({ id: s.id, nome: s.nome, percentualBp: percentualParaBp(s.percentual) }))}
+        hoje={hoje}
+        onFechar={() => setRetirada(null)}
+      />
 
       <div className="flex flex-wrap items-end gap-2 rounded-sm border border-dashed p-3">
         <div className="flex-1 space-y-1.5">
