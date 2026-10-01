@@ -37,6 +37,7 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 - Nela dá para **editar o cadastro, subir/descer, arquivar e excluir** (só o que ninguém usa), inclusive **várias de uma vez**, e **renomear uma categoria** inteira.
 - **+ Disciplina** pergunta **a partir de qual versão** o item nasce, e já avisa se a sigla é de outro item naquela versão.
 - Nova aba **Formatos de folha** (A1, A3…), sem versão.
+- **Excluir** só fica disponível para o que nada usa: além de projetos, conta documentos, etapas e registros de outras áreas (propostas, normas, EAP). O número de projetos na coluna **Em uso** abre a lista deles.
 
 ---
 

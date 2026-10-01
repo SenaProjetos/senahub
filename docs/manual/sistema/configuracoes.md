@@ -154,18 +154,21 @@ fixo, sem olhar uma versão só. Cada linha mostra:
 - **Siglas (todas as versões)** — a oficial e os sinônimos, com a versão ao lado quando ela é
   diferente da do item ("ESG só v1"). Clicar nas siglas abre o **histórico**, só para leitura;
   mudar sigla é dentro de uma versão (o histórico tem o link **abrir a vN**);
-- **Em uso** — quantos projetos usam a disciplina (nas fases, quantas etapas).
+- **Em uso** — quantos projetos usam a disciplina (clique para ver a lista de projetos); nas fases,
+  quantas etapas de disciplina.
 
 O menu **⋯** (ou botão direito) da lente Todas tem **Editar cadastro**, **Abrir na vN**,
 **Subir/Descer** (a ordem dentro da categoria, só com a busca vazia), **Arquivar/Desarquivar** e
-**Excluir**. Excluir só vale para o que ninguém usa — em uso, o item fica esmaecido dizendo
-quantos projetos, documentos ou etapas usam; arquive. Disciplinas e sub-disciplinas têm caixa de
+**Excluir**. Excluir só vale para o que nada usa — em uso, o item fica esmaecido dizendo o que o
+prende (projetos, documentos, etapas ou registros de outras áreas, como propostas, normas e
+modelos ou tarefas da EAP); arquive. Disciplinas e sub-disciplinas têm caixa de
 seleção para **arquivar, desarquivar ou excluir várias de uma vez**. O lápis ao lado do nome de
 uma categoria **renomeia a categoria** em todas as disciplinas dela.
 
 **+ Disciplina** (ou **+ Fase**, **+ Tipo**) na lente Todas pergunta **a partir de qual versão**
 o item passa a existir (a mais nova já vem marcada) e mostra o conflito de sigla dessa versão
-antes de salvar.
+antes de salvar. Escolher uma versão **publicada** avisa que o item passa a valer também nos
+projetos que a seguem.
 
 A aba **Formatos de folha** (A1, A3…) está nas duas lentes e **não depende de versão**: não tem
 seletor de versão, só a lista e o formulário de um formato novo. As opções **exigir nomenclatura**
