@@ -50,6 +50,8 @@ export type EventoProjetado = {
   dia: DataIso | null;
   noCenario: boolean;
   foraDoHorizonte: boolean;
+  /** Tirado da simulação pelo usuário (continua visível, não mexe no saldo). */
+  excluido: boolean;
   aplicado: boolean;
   caixaAntes: Centavos | null;
   caixaDepois: Centavos | null;
@@ -138,16 +140,20 @@ export function projetar(e: EntradaMotor): Projecao {
   const porDia = new Map<DataIso, Item[]>();
   for (const ev of e.eventos) {
     if (porId.has(ev.id)) throw new Error(`Evento duplicado no planejador: ${ev.id}`);
-    const noCenario = eventoNoCenario(ev, e.eixos);
+    // Marcas da simulação: o que o usuário incluiu à mão entra em qualquer cenário; o que tirou fica
+    // de fora mesmo que o cenário o pegasse.
+    const noCenario = ev.simulacao?.forcado === true || eventoNoCenario(ev, e.eixos);
+    const excluido = ev.simulacao?.excluido === true;
     const vencido = ev.data < e.hoje;
     const foraDoHorizonte = ev.data > fim;
-    const aplicado = noCenario && !foraDoHorizonte;
+    const aplicado = noCenario && !excluido && !foraDoHorizonte;
     const dia = vencido ? e.hoje : ev.data;
     const p: EventoProjetado = {
       id: ev.id,
       dia: aplicado ? dia : null,
       noCenario,
       foraDoHorizonte,
+      excluido,
       aplicado,
       caixaAntes: null,
       caixaDepois: null,

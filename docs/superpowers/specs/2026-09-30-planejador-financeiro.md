@@ -158,6 +158,9 @@ S               -= v(e)
 Testes obrigatórios:
 - `S=100, R=40, compromisso 30 ligado`: depois do pagamento `R=10`, `S=70`, `L*=60` (livre inalterado). **[T]**
 - `S=100, R=120`: `L=0`, `Dsc=20` — a tela mostra "Reservas descobertas R$ 20". **[T]**
+- Com saldo negativo, `Dsc` também carrega o déficit (é o que mantém a identidade). Na tela, "Reservas
+  descobertas" mostra só `min(Dsc, R)`; o que passa disso é déficit e aparece como déficit
+  (F2, 2026-09-30: sem caixinhas e saldo de −R$ 700 mil, a tela dizia "Reservas descobertas R$ 700 mil").
 - Compromisso 30 ligado a caixinha com 20: `coberto=20`, `semCobertura=10`, `R_k=0`, `L*` cai 10. **[T]**
 
 ## 5. Pagamento × reprogramação (conservação)

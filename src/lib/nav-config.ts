@@ -312,6 +312,12 @@ export const NAV_GROUPS: NavGroup[] = [
         permissao: ["financeiro:ver", "financeiro:extrato"],
       },
       {
+        title: "Planejador de caixa",
+        href: "/financeiro/planejador",
+        icon: TrendingUp,
+        permissao: "financeiro:ver",
+      },
+      {
         title: "Produção",
         href: "/financeiro/folha-projetistas",
         icon: HandCoins,

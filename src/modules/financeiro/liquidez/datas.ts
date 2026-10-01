@@ -29,6 +29,13 @@ export function diasEntre(de: DataIso, ate: DataIso): number {
   return Math.round((paraUtc(ate) - paraUtc(de)) / MS_DIA);
 }
 
+const DIAS_DA_SEMANA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"] as const;
+
+/** Dia da semana abreviado ("seg"), calculado em UTC — o mesmo no servidor e no navegador. */
+export function diaDaSemana(d: DataIso): (typeof DIAS_DA_SEMANA)[number] {
+  return DIAS_DA_SEMANA[new Date(paraUtc(d)).getUTCDay()];
+}
+
 /** `dd/mm`, para avisos. */
 export function diaMes(d: DataIso): string {
   return `${d.slice(8, 10)}/${d.slice(5, 7)}`;

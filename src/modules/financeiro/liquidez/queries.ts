@@ -99,7 +99,7 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
       cliente: { select: { nome: true } },
       projeto: { select: { codigo: true } },
       categoria: {
-        select: { natureza: true, prioridadePadrao: true, pai: { select: { prioridadePadrao: true } } },
+        select: { nome: true, natureza: true, prioridadePadrao: true, pai: { select: { prioridadePadrao: true } } },
       },
     },
   });
@@ -149,6 +149,7 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
     descricao: l.descricao,
     favorecido: l.fornecedor?.nome ?? l.cliente?.nome ?? null,
     projeto: l.projeto?.codigo ?? null,
+    categoriaNome: l.categoria.nome,
     prioridade: l.prioridade,
     confianca: l.confianca,
     categoria: {

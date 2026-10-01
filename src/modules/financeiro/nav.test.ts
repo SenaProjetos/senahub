@@ -11,9 +11,9 @@ describe("navegação do Financeiro por gate", () => {
     expect(itensDaNavFinanceiro(nenhuma)).toEqual({ principais: [], resultados: [], mais: [] });
   });
 
-  it("só leitura (ver): as 5 telas de uso diário, orçamento e documentos — sem DRE, sem gestão", () => {
+  it("só leitura (ver): as 6 telas de uso diário, orçamento e documentos — sem DRE, sem gestão", () => {
     const n = itensDaNavFinanceiro({ ...nenhuma, ver: true });
-    expect(ids(n.principais)).toEqual(["visao", "fluxo", "pagar", "receber", "lancamentos"]);
+    expect(ids(n.principais)).toEqual(["visao", "planejador", "fluxo", "pagar", "receber", "lancamentos"]);
     expect(ids(n.resultados)).toEqual(["orcamento"]);
     expect(ids(n.mais)).toEqual(["documentos"]);
   });

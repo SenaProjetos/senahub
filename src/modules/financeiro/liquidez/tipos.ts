@@ -39,6 +39,8 @@ export type LancamentoEntrada = {
   descricao: string;
   favorecido?: string | null;
   projeto?: string | null;
+  /** Nome da categoria, para mostrar (a regra usa `categoria.natureza`). */
+  categoriaNome?: string | null;
   prioridade: Prioridade | null;
   confianca: Confianca | null;
   categoria: {
@@ -69,6 +71,7 @@ export type EventoCaixa = {
   descricao: string;
   favorecido: string | null;
   projeto: string | null;
+  categoriaNome: string | null;
   status: StatusPendente | null;
   /** Efetiva (só despesa). */
   prioridade: Prioridade | null;
@@ -78,4 +81,15 @@ export type EventoCaixa = {
   /** Motivo quando a data não pode ser reprogramada; `null` = programável. */
   naoProgramavel: string | null;
   transferencia: { id: string | null; contrapartes: Contraparte[] } | null;
+  /**
+   * Marcas da simulação (planejador). Nunca vêm do banco: só `aplicarSimulacao` as escreve.
+   * `forcado` = entra em qualquer cenário; `excluido` = fica fora da projeção, mas visível.
+   */
+  simulacao?: {
+    forcado?: boolean;
+    excluido?: boolean;
+    dataOriginal?: DataIso;
+    prioridadeOriginal?: Prioridade | null;
+    confiancaOriginal?: Confianca | null;
+  };
 };

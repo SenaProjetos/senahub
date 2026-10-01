@@ -25,6 +25,7 @@ export function evento(p: Obrigatorio & Partial<EventoCaixa>): EventoCaixa {
     descricao: p.id,
     favorecido: null,
     projeto: null,
+    categoriaNome: null,
     status: "previsto",
     prioridade: p.tipo === "despesa" ? "p3" : null,
     confianca: p.tipo === "receita" ? "provavel" : null,

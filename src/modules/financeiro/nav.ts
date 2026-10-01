@@ -31,6 +31,7 @@ export type ItemNavFinanceiro = {
 
 const PRINCIPAIS: readonly ItemNavFinanceiro[] = [
   { id: "visao", href: "/financeiro", rotulo: "Visão geral", gate: "ver", exato: true },
+  { id: "planejador", href: "/financeiro/planejador", rotulo: "Planejador de caixa", gate: "ver" },
   { id: "fluxo", href: "/financeiro/fluxo-caixa", rotulo: "Fluxo de caixa", gate: "ver" },
   { id: "pagar", href: "/financeiro/contas", rotulo: "A pagar", gate: "ver", query: { chave: "tab", valor: null } },
   { id: "receber", href: "/financeiro/contas?tab=receita", rotulo: "A receber", gate: "ver", query: { chave: "tab", valor: "receita" } },

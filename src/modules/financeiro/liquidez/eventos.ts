@@ -86,6 +86,7 @@ export function paraEventos(lancamentos: readonly LancamentoEntrada[], o: Opcoes
       descricao: l.descricao,
       favorecido: l.favorecido ?? null,
       projeto: l.projeto ?? null,
+      categoriaNome: l.categoriaNome ?? null,
       status: l.status,
       prioridade,
       confianca: confiancaEfetiva(l, o.hoje, o.diasParaIncerta),
