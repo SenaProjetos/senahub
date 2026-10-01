@@ -14,6 +14,9 @@
  * de verdade; o caminho feliz grava, audita e marca o cenário.
  * F4 (spec §4, plano I9): caixinha com uso CALCULADO (alocado − realizado ligado, só depois da criação),
  * o livre não cai duas vezes quando a caixinha paga, troca de caixinha atômica e arquivada recusada.
+ * F5: distribuição de recebimento — rateio exato (centavo no último), a parte livre não move nada,
+ * duas confirmações simultâneas reservam uma vez só, e fora da fila ficam reembolso, transferência,
+ * anterior à data inicial e o que ainda está em aberto.
  *
  * Uso: npm run smoke:planejador
  */
@@ -37,6 +40,9 @@ import type { Observado } from "../src/modules/financeiro/liquidez/tipos";
 import { aplicarAjustesAoFinanceiro, gravarPlano } from "../src/modules/financeiro/planejador/cenarios/service";
 import { carregarCaixinhas } from "../src/modules/financeiro/caixinhas/queries";
 import { criarLancamentoNoTx } from "../src/modules/financeiro/lancamentos/service";
+import { CHAVE_CONFIG_LIQUIDEZ } from "../src/modules/financeiro/config/liquidez";
+import { recebimentosADistribuir } from "../src/modules/financeiro/distribuicao/queries";
+import { distribuirRecebimento, gravarRegra, pularRecebimento } from "../src/modules/financeiro/distribuicao/service";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -175,6 +181,7 @@ async function main() {
 
   await smokeAplicar(admin.id, catFornecedor.id, catReceita.id);
   await smokeCaixinhas(admin.id, catFornecedor.id, catReceita.id);
+  await smokeDistribuicao(admin.id, catReceita.id);
 
   console.log("\n# Import do Meu Dinheiro — transferência nasce pareada e neutra");
   const categoriasAntes = new Set((await prisma.categoriaFinanceira.findMany({ select: { id: true } })).map((c) => c.id));
@@ -438,5 +445,110 @@ async function smokeCaixinhas(autorId: string, catDespesaId: string, catReceitaI
     await prisma.movimentoCaixinha.deleteMany({ where: { caixinha: { nome: { startsWith: t } } } });
     await prisma.caixinha.deleteMany({ where: { nome: { startsWith: t } } });
     await prisma.contaBancaria.deleteMany({ where: { nome: { startsWith: t } } });
+  }
+}
+
+async function smokeDistribuicao(autorId: string, catReceitaId: string) {
+  const t = `${tag}-f5`;
+  const configAntes = await prisma.configSistema.findUnique({ where: { chave: CHAVE_CONFIG_LIQUIDEZ } });
+  const catTransf = await prisma.categoriaFinanceira.create({ data: { codigo: `${t}-r`, nome: `${t} Transferência`, tipo: "receita", natureza: "transferencia" } });
+  const conta = await prisma.contaBancaria.create({ data: { nome: `${t} conta`, saldoInicial: 0 } });
+  try {
+    console.log("\n# F5 — regras de distribuição e recebimentos a distribuir");
+    const desde = somarDias(hoje, -5);
+    const cfg = { reservaMinima: 0, horizontePadraoDias: 30, diasParaIncerta: 30, ...((configAntes?.valor ?? {}) as object), distribuirDesde: desde };
+    await prisma.configSistema.upsert({ where: { chave: CHAVE_CONFIG_LIQUIDEZ }, create: { chave: CHAVE_CONFIG_LIQUIDEZ, valor: cfg }, update: { valor: cfg } });
+
+    const a = await prisma.caixinha.create({ data: { nome: `${t} A`, ordem: 998 } });
+    const b = await prisma.caixinha.create({ data: { nome: `${t} B`, ordem: 999 } });
+    const velha = await prisma.caixinha.create({ data: { nome: `${t} arquivada`, ordem: 997, ativo: false } });
+
+    const receita = async (chave: string, valor: number, extra: Partial<Prisma.LancamentoUncheckedCreateInput> = {}) =>
+      prisma.lancamento.create({
+        data: { descricao: `${t} ${chave}`, tipo: "receita", valor, status: "confirmado", data: em(0), dataConfirmacao: em(0), categoriaId: catReceitaId, autorId, contaId: conta.id, ...extra },
+        select: { id: true },
+      });
+    const r1 = await receita("r1", 100.01);
+    const r2 = await receita("r2-reembolso", 50, { tags: ["reembolso-art"] });
+    const r3 = await receita("r3-antes-da-data", 50, { dataConfirmacao: em(-30) });
+    const r4 = await receita("r4-em-aberto", 50, { status: "previsto", dataConfirmacao: null, vencimento: em(3) });
+    const r5 = await receita("r5-transferencia", 50, { categoriaId: catTransf.id });
+    const r6 = await receita("r6-pular", 70);
+    const r7 = await receita("r7-corrida", 200);
+
+    const fila = async () => (await recebimentosADistribuir(desde)).filter((x) => x.descricao.startsWith(t)).map((x) => x.id);
+    const entrou = await fila();
+    check("a fila tem só os elegíveis: r1, r6 e r7", [r1.id, r6.id, r7.id].every((id) => entrou.includes(id)) && entrou.length === 3, entrou.length);
+    check("reembolso de ART, anterior à data inicial, em aberto e transferência ficam de fora", [r2.id, r3.id, r4.id, r5.id].every((id) => !entrou.includes(id)));
+    check("sem data inicial, nada é oferecido", (await recebimentosADistribuir(null)).length === 0);
+
+    console.log("\n# F5 — regra: precisa fechar 100%");
+    let erroSoma = "";
+    try {
+      await gravarRegra({ nome: `${t} regra`, categoriasIds: [], itens: [{ caixinhaId: null, bp: 4000 }, { caixinhaId: a.id, bp: 3000 }, { caixinhaId: b.id, bp: 2500 }] });
+    } catch (e) {
+      erroSoma = e instanceof Error ? e.message : String(e);
+    }
+    check("95% é recusado com os 5% que faltam", erroSoma === "Faltam 5% para fechar 100%.", erroSoma);
+    let erroArq = "";
+    try {
+      await gravarRegra({ nome: `${t} regra`, categoriasIds: [], itens: [{ caixinhaId: null, bp: 5000 }, { caixinhaId: velha.id, bp: 5000 }] });
+    } catch (e) {
+      erroArq = e instanceof Error ? e.message : String(e);
+    }
+    check("caixinha arquivada na divisão é recusada", erroArq.includes("arquivada"), erroArq);
+    const itens = [{ caixinhaId: null, bp: 4000 }, { caixinhaId: a.id, bp: 3500 }, { caixinhaId: b.id, bp: 2500 }];
+    const regra = await gravarRegra({ nome: `${t} regra`, categoriasIds: [], itens });
+    const gravada = await prisma.regraDistribuicao.findUniqueOrThrow({ where: { id: regra.id }, include: { itens: { orderBy: { ordem: "asc" } } } });
+    check("regra gravada com os itens na ordem e soma 10000", gravada.itens.map((i) => i.bp).join(",") === "4000,3500,2500", gravada.itens);
+
+    console.log("\n# F5 — distribuir: rateio exato, a parte livre não move nada");
+    const cx = async (id: string) => (await carregarCaixinhas({ hoje, inativas: true })).find((c) => c.id === id)!;
+    const res = await distribuirRecebimento({ lancamentoId: r1.id, regraId: regra.id, itens, usuarioId: autorId });
+    check("duas alocações (a e b); a livre não gerou movimento", res.movimentos === 2, res);
+    check("R$ 100,01: livre 40,00 · A 35,00 · B recebe o resto 25,01", res.reservado === 6001, res);
+    check("A reservou 35,00 e B 25,01", (await cx(a.id)).situacao.reservado === 3500 && (await cx(b.id)).situacao.reservado === 2501);
+    const movs = await prisma.movimentoCaixinha.findMany({ where: { distribuicao: { lancamentoId: r1.id } } });
+    check("os movimentos apontam para a distribuição", movs.length === 2 && movs.every((m) => m.tipo === "alocacao" && m.distribuicaoId != null));
+    check("o recebimento saiu da fila", !(await fila()).includes(r1.id));
+    let erroDupla = "";
+    try {
+      await distribuirRecebimento({ lancamentoId: r1.id, regraId: regra.id, itens, usuarioId: autorId });
+    } catch (e) {
+      erroDupla = e instanceof Error ? e.message : String(e);
+    }
+    check("distribuir de novo é recusado", erroDupla.includes("já foi distribuído"), erroDupla);
+    check("e o reservado não dobrou", (await cx(a.id)).situacao.reservado === 3500);
+
+    console.log("\n# F5 — duas confirmações ao mesmo tempo reservam uma vez só");
+    const corrida = await Promise.allSettled([
+      distribuirRecebimento({ lancamentoId: r7.id, regraId: regra.id, itens, usuarioId: autorId }),
+      distribuirRecebimento({ lancamentoId: r7.id, regraId: regra.id, itens, usuarioId: autorId }),
+    ]);
+    check("exatamente uma passou", corrida.filter((x) => x.status === "fulfilled").length === 1, corrida.map((x) => x.status));
+    check("a caixinha A tem 35,00 + 70,00 (3500 de r1 + 7000 de r7), nunca o dobro", (await cx(a.id)).situacao.reservado === 3500 + 7000, (await cx(a.id)).situacao.reservado);
+
+    console.log("\n# F5 — pular e o que não é elegível");
+    await pularRecebimento({ lancamentoId: r6.id, usuarioId: autorId });
+    check("pulado sai da fila e não reserva nada", !(await fila()).includes(r6.id) && (await prisma.movimentoCaixinha.count({ where: { distribuicao: { lancamentoId: r6.id } } })) === 0);
+    for (const [nome, id] of [["reembolso", r2.id], ["anterior à data", r3.id], ["em aberto", r4.id], ["transferência", r5.id]] as const) {
+      let erro = "";
+      try {
+        await distribuirRecebimento({ lancamentoId: id, regraId: null, itens, usuarioId: autorId });
+      } catch (e) {
+        erro = e instanceof Error ? e.message : String(e);
+      }
+      check(`${nome} não pode ser distribuído`, erro.includes("não está na lista"), erro);
+    }
+    check("nada foi reservado pelos recusados", (await cx(a.id)).situacao.reservado === 3500 + 7000);
+  } finally {
+    await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: t }, excluidoEm: { not: undefined } } });
+    await prisma.movimentoCaixinha.deleteMany({ where: { caixinha: { nome: { startsWith: t } } } });
+    await prisma.regraDistribuicao.deleteMany({ where: { nome: { startsWith: t } } });
+    await prisma.caixinha.deleteMany({ where: { nome: { startsWith: t } } });
+    await prisma.categoriaFinanceira.deleteMany({ where: { codigo: { startsWith: t } } });
+    await prisma.contaBancaria.deleteMany({ where: { nome: { startsWith: t } } });
+    if (configAntes) await prisma.configSistema.update({ where: { chave: CHAVE_CONFIG_LIQUIDEZ }, data: { valor: configAntes.valor as Prisma.InputJsonValue } });
+    else await prisma.configSistema.deleteMany({ where: { chave: CHAVE_CONFIG_LIQUIDEZ } });
   }
 }

@@ -132,6 +132,14 @@ describe("validarAplicacao (spec §6–§7)", () => {
     expect(r.divergentes[0]).toContain("a caixinha mudou");
   });
 
+  it("ALOCAR nunca vai para o real: informativo, mesmo com o alvo existente (spec §4)", () => {
+    const r = validarAplicacao([{ tipo: "ALOCAR", eventoId: "cliente", destinos: [{ caixinhaId: "imp", valor: reais(60) }] }], mapa(cliente));
+    expect(r.plano).toEqual([]);
+    expect(r.aplicaveis).toBe(0);
+    expect(r.divergentes).toEqual([]);
+    expect(r.linhas[0]).toEqual({ tipo: "informativo", texto: "Construtora: a distribuição real acontece em Caixinhas, depois do recebimento. Fica só na simulação." });
+  });
+
   it("tirar da simulação e incluir à mão nunca vão para o real", () => {
     const r = validarAplicacao(
       [

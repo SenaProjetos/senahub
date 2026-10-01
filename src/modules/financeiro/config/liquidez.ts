@@ -15,14 +15,20 @@ export type ConfigLiquidez = {
   horizontePadraoDias: HorizontePadrao;
   /** Receita pendente vencida há mais que isto conta como incerta na projeção. */
   diasParaIncerta: number;
+  /**
+   * `YYYY-MM-DD`: só recebimentos de hoje para trás até esta data entram em "Recebimentos a
+   * distribuir" (F5). Nulo = nada é oferecido até alguém escolher, para a fila não abrir com todo o histórico.
+   */
+  distribuirDesde: string | null;
 };
 
-export const CONFIG_LIQUIDEZ_PADRAO: ConfigLiquidez = { reservaMinima: 0, horizontePadraoDias: 30, diasParaIncerta: 30 };
+export const CONFIG_LIQUIDEZ_PADRAO: ConfigLiquidez = { reservaMinima: 0, horizontePadraoDias: 30, diasParaIncerta: 30, distribuirDesde: null };
 
 export const configLiquidezSchema = z.object({
   reservaMinima: z.number().int().min(0).max(100_000_000_000),
   horizontePadraoDias: z.union([z.literal(30), z.literal(60), z.literal(90), z.literal(180)]),
   diasParaIncerta: z.number().int().min(1).max(365),
+  distribuirDesde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Informe a data inicial.").nullable().default(null),
 });
 
 /** Lê o JSON guardado campo a campo; o que faltar ou vier inválido volta ao padrão. */
@@ -37,5 +43,6 @@ export function normalizarConfigLiquidez(valor: unknown): ConfigLiquidez {
     reservaMinima: campo("reservaMinima"),
     horizontePadraoDias: campo("horizontePadraoDias"),
     diasParaIncerta: campo("diasParaIncerta"),
+    distribuirDesde: campo("distribuirDesde"),
   };
 }

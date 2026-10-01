@@ -8,6 +8,7 @@
 import { diaMes } from "@/modules/financeiro/liquidez/datas";
 import { formatarCentavos } from "@/modules/financeiro/liquidez/dinheiro";
 import type { AjusteSimulado } from "@/modules/financeiro/liquidez/ajustes";
+import type { AlocacaoSimulada } from "@/modules/financeiro/liquidez/motor";
 import type { Confianca, DataIso, EventoCaixa, Prioridade } from "@/modules/financeiro/liquidez/tipos";
 
 export type { AjusteSimulado, MovimentoSimulado } from "@/modules/financeiro/liquidez/ajustes";
@@ -90,6 +91,9 @@ export function aplicarSimulacao(eventos: readonly EventoCaixa[], ajustes: reado
         if (marcas.confiancaOriginal === undefined) marcas.confiancaOriginal = e.confianca;
         e.confianca = a.confianca;
         break;
+      case "ALOCAR":
+        // Não muda o evento: o motor lê as alocações à parte (`alocacoesSimuladas`).
+        break;
       case "ALTERAR_CAIXINHA":
         // Só saída ligada a caixinha: entrada e transferência não saem de caixinha nenhuma.
         if (e.tipo !== "despesa" || e.natureza === "transferencia") break;
@@ -107,6 +111,31 @@ export function aplicarSimulacao(eventos: readonly EventoCaixa[], ajustes: reado
     }
   }
   return lista;
+}
+
+/**
+ * Alocações simuladas para o motor: só de ENTRADA futura que ainda está entre os eventos (e que não
+ * é transferência nem movimento simulado). Uma entrada tirada da simulação não aloca nada — o motor
+ * já ignora o evento fora do cenário. A soma dos destinos nunca passa do valor da entrada.
+ */
+export function alocacoesSimuladas(eventos: readonly Pick<EventoCaixa, "id" | "tipo" | "natureza" | "valor" | "origem">[], ajustes: readonly AjusteSimulado[]): AlocacaoSimulada[] {
+  const porId = new Map(eventos.map((e) => [e.id, e]));
+  const r: AlocacaoSimulada[] = [];
+  for (const a of ajustes) {
+    if (a.tipo !== "ALOCAR") continue;
+    const e = porId.get(a.eventoId);
+    if (!e || e.tipo !== "receita" || e.natureza === "transferencia" || e.origem === "simulado") continue;
+    let resto = e.valor;
+    const destinos: AlocacaoSimulada["destinos"][number][] = [];
+    for (const d of a.destinos) {
+      const v = Math.min(d.valor, resto);
+      if (v <= 0) continue;
+      destinos.push({ caixinhaId: d.caixinhaId, valor: v });
+      resto -= v;
+    }
+    if (destinos.length) r.push({ eventoId: e.id, destinos });
+  }
+  return r;
 }
 
 /** Ajustes cujo alvo não está mais entre os eventos (pago, cancelado, fora do horizonte). */
@@ -166,6 +195,11 @@ export function descreverAjuste(a: AjusteSimulado, alvo: Pick<EventoCaixa, "desc
       return `${nome}: prioridade ${ROTULO_PRIORIDADE[a.prioridade]}`;
     case "ALTERAR_CONFIANCA":
       return `${nome}: confiança ${ROTULO_CONFIANCA[a.confianca]}`;
+    case "ALOCAR": {
+      const total = a.destinos.reduce((s, d) => s + d.valor, 0);
+      const n = a.destinos.length;
+      return `${nome}: ${formatarCentavos(total)} reservados em ${n} ${n === 1 ? "caixinha" : "caixinhas"}${a.regraNome ? ` (${a.regraNome})` : ""}`;
+    }
     case "ALTERAR_CAIXINHA":
       return a.caixinhaId ? `${nome}: paga pela caixinha ${a.caixinhaNome ?? "escolhida"}` : `${nome}: sem caixinha`;
     case "EXCLUIR":

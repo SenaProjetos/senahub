@@ -210,6 +210,7 @@ model User {
   lancamentosAutor              Lancamento[]                @relation("LancamentoAutor")
   cenariosFinanceiros           CenarioFinanceiro[]         @relation("CenarioFinanceiroAutor")
   movimentosCaixinha            MovimentoCaixinha[]         @relation("MovimentoCaixinhaAutor")
+  distribuicoesRecebimento      DistribuicaoRecebimento[]   @relation("DistribuicaoAutor")
   importacoesFinanceiras        ImportacaoFinanceira[]      @relation("ImportacaoFinanceiraAutor")
   canaisMembro                  CanalMembro[]
   canaisCriados                 Canal[]                     @relation("CanaisCriados")
@@ -1821,6 +1822,8 @@ model Lancamento {
   /// caixinha; realizado só por movimento de ajuste (I9).
   caixinhaId      String?
   caixinha        Caixinha? @relation(fields: [caixinhaId], references: [id], onDelete: SetNull)
+  /// Receita realizada que já foi distribuída (ou pulada) entre as caixinhas (F5).
+  distribuicao    DistribuicaoRecebimento?
 
   autorId String
   autor   User   @relation("LancamentoAutor", fields: [autorId], references: [id])
@@ -7449,8 +7452,9 @@ model Caixinha {
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
-  movimentos MovimentoCaixinha[]
+  movimentos  MovimentoCaixinha[]
   lancamentos Lancamento[]
+  itensDeRegra RegraDistribuicaoItem[]
 
   @@index([ativo, ordem])
   @@map("caixinha")
@@ -7468,13 +7472,78 @@ model MovimentoCaixinha {
   descricao       String?
   /// Liga as duas pernas de uma transferência entre caixinhas.
   transferenciaId String?
+  /// Distribuição de recebimento que gerou este movimento (F5); nulo nos movimentos manuais.
+  distribuicaoId  String?
+  distribuicao    DistribuicaoRecebimento? @relation(fields: [distribuicaoId], references: [id], onDelete: SetNull)
   autorId         String
   autor           User                  @relation("MovimentoCaixinhaAutor", fields: [autorId], references: [id])
   createdAt       DateTime              @default(now())
 
   @@index([caixinhaId, data])
   @@index([transferenciaId])
+  @@index([distribuicaoId])
   @@map("movimento_caixinha")
+}
+
+/// Como um recebimento foi tratado em "Recebimentos a distribuir" (F5).
+enum SituacaoDistribuicao {
+  distribuida
+  pulada
+}
+
+/// Regra que SUGERE como dividir um recebimento entre as caixinhas (mock "Regras de distribuição").
+/// Nada é separado antes de a pessoa confirmar. Os itens somam 100% (basis points: 10000).
+model RegraDistribuicao {
+  id            String   @id @default(cuid())
+  nome          String
+  ativa         Boolean  @default(true)
+  /// No máximo uma regra padrão — garantido pelo serviço, numa transação (índice parcial não cabe no Prisma).
+  padrao        Boolean  @default(false)
+  /// Categorias de RECEITA a que a regra se aplica; vazio = só serve se for a padrão.
+  categoriasIds String[] @default([])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  itens         RegraDistribuicaoItem[]
+  distribuicoes DistribuicaoRecebimento[]
+
+  @@index([ativa])
+  @@map("regra_distribuicao")
+}
+
+model RegraDistribuicaoItem {
+  id         String            @id @default(cuid())
+  regraId    String
+  regra      RegraDistribuicao @relation(fields: [regraId], references: [id], onDelete: Cascade)
+  /// Nulo = "Operacional (livre)": a parte fica no caixa, sem caixinha.
+  caixinhaId String?
+  caixinha   Caixinha?         @relation(fields: [caixinhaId], references: [id], onDelete: Restrict)
+  /// Parte em basis points (10000 = 100%).
+  bp         Int
+  ordem      Int
+
+  @@index([regraId, ordem])
+  @@map("regra_distribuicao_item")
+}
+
+/// Um recebimento realizado que passou por "Recebimentos a distribuir": distribuído (gera movimentos
+/// de caixinha) ou pulado. A linha é o que tira o recebimento da fila — único por lançamento.
+model DistribuicaoRecebimento {
+  id           String               @id @default(cuid())
+  /// `Cascade`: o lançamento só some de verdade na limpeza do seed-demo.
+  lancamentoId String               @unique
+  lancamento   Lancamento           @relation(fields: [lancamentoId], references: [id], onDelete: Cascade)
+  regraId      String?
+  regra        RegraDistribuicao?   @relation(fields: [regraId], references: [id], onDelete: SetNull)
+  situacao     SituacaoDistribuicao
+  data         DateTime             @db.Date
+  autorId      String
+  autor        User                 @relation("DistribuicaoAutor", fields: [autorId], references: [id])
+  createdAt    DateTime             @default(now())
+
+  movimentos MovimentoCaixinha[]
+
+  @@map("distribuicao_recebimento")
 }
 
 /// Situação de um cenário do planejador de caixa (spec 2026-09-30 §11).

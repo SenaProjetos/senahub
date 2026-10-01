@@ -49,6 +49,8 @@ describe("item atual", () => {
     // Cenários salvos fazem parte do Planejador (mock): o item fica marcado lá também.
     expect(itemAtual(por("planejador"), "/financeiro/cenarios", null)).toBe(true);
     expect(itemAtual(por("visao"), "/financeiro/cenarios", null)).toBe(false);
+    // Regras de distribuição são uma aba de Caixinhas.
+    expect(itemAtual(por("caixinhas"), "/financeiro/distribuicao", null)).toBe(true);
   });
 
   it("A pagar × A receber se distinguem pela aba da mesma rota", () => {

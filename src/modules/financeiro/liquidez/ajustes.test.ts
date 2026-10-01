@@ -23,6 +23,7 @@ describe("esquema do ajuste (spec §6)", () => {
       { tipo: "ALTERAR_CONFIANCA", eventoId: "b", confianca: "confirmada_cliente" },
       { tipo: "ALTERAR_CAIXINHA", eventoId: "a", caixinhaId: "cx1", caixinhaNome: "Impostos" },
       { tipo: "ALTERAR_CAIXINHA", eventoId: "a", caixinhaId: null },
+      { tipo: "ALOCAR", eventoId: "b", regraNome: "Cliente", destinos: [{ caixinhaId: "cx1", caixinhaNome: "Impostos", valor: 6000 }] },
       { tipo: "EXCLUIR", eventoId: "a" },
       { tipo: "FORCAR_INCLUSAO", eventoId: "a" },
       { tipo: "INCLUIR", id: "d1", movimento: { tipo: "despesa", natureza: "fora_do_resultado", valor: reais(20_000), data: dia(15), descricao: "Distribuição" } },
@@ -39,6 +40,7 @@ describe("esquema do ajuste (spec §6)", () => {
       { tipo: "ALTERAR_PRIORIDADE", eventoId: "a", prioridade: "p4", antes: foto },
       { tipo: "ALTERAR_CONFIANCA", eventoId: "b", confianca: "incerta" },
       { tipo: "ALTERAR_CAIXINHA", eventoId: "a", caixinhaId: "cx1", caixinhaNome: "Impostos", antes: foto },
+      { tipo: "ALOCAR", eventoId: "b", regraNome: "Cliente", destinos: [{ caixinhaId: "cx1", caixinhaNome: "Impostos", valor: 6000 }] },
       { tipo: "EXCLUIR", eventoId: "a", antes: foto },
       { tipo: "FORCAR_INCLUSAO", eventoId: "a" },
       { tipo: "INCLUIR", id: "d1", movimento: { tipo: "receita", natureza: "resultado", valor: reais(5_000), data: dia(3), descricao: "Entrada", categoriaId: "cat1", categoriaNome: "Projetos" } },
@@ -48,8 +50,9 @@ describe("esquema do ajuste (spec §6)", () => {
       expect(daLinha(JSON.parse(JSON.stringify(linha)))).toEqual(a);
     }
     expect(paraLinha(casos[0]).lancamentoId).toBe("a");
-    expect(paraLinha(casos[6]).lancamentoId).toBeNull();
-    expect(paraLinha(casos[4]).depois).toEqual({ efeito: "nenhum" });
+    expect(paraLinha(casos[7]).lancamentoId).toBeNull();
+    expect(paraLinha(casos[5]).depois).toEqual({ efeito: "nenhum" });
+    expect(paraLinha(casos[4]).depois).toEqual({ destinos: [{ caixinhaId: "cx1", caixinhaNome: "Impostos", valor: 6000 }], regraNome: "Cliente" });
     expect(paraLinha(casos[3]).depois).toEqual({ caixinhaId: "cx1", caixinhaNome: "Impostos" });
   });
 

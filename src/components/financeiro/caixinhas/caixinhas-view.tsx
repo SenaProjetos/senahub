@@ -15,7 +15,10 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LinhaComMenu } from "@/components/ui/linha-com-menu";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AbasCaixinhas } from "@/components/financeiro/caixinhas/abas";
 import { CaixinhaDialog } from "@/components/financeiro/caixinhas/caixinha-dialog";
+import { RecebimentosADistribuir } from "@/components/financeiro/caixinhas/recebimentos-a-distribuir";
+import type { RecebimentoDto, RegraDto } from "@/modules/financeiro/distribuicao/queries";
 import { MovimentoDialog, type TipoDoDialog } from "@/components/financeiro/caixinhas/movimento-dialog";
 import { brlC } from "@/components/financeiro/planejador/formato";
 import { Valor } from "@/components/financeiro/valor";
@@ -71,6 +74,9 @@ export function CaixinhasView({
   arquivadas,
   caixinhaDoExtrato,
   podeGerir,
+  recebimentos,
+  regras,
+  distribuirDesde,
   subnav,
 }: {
   caixinhas: CaixinhaDto[];
@@ -82,6 +88,10 @@ export function CaixinhasView({
   arquivadas: boolean;
   caixinhaDoExtrato: string | null;
   podeGerir: boolean;
+  /** Receitas realizadas esperando distribuição (vazio fora da aba de cartões). */
+  recebimentos: RecebimentoDto[];
+  regras: RegraDto[];
+  distribuirDesde: string | null;
   subnav?: React.ReactNode;
 }) {
   const router = useRouter();
@@ -157,14 +167,7 @@ export function CaixinhasView({
       />
       {subnav}
 
-      <div role="tablist" aria-label="Seções de caixinhas" className="flex gap-1">
-        <Button size="sm" role="tab" aria-selected={aba === "caixinhas"} variant={aba === "caixinhas" ? "default" : "outline"} render={<Link href="/financeiro/caixinhas" />}>
-          Caixinhas
-        </Button>
-        <Button size="sm" role="tab" aria-selected={aba === "extrato"} variant={aba === "extrato" ? "default" : "outline"} render={<Link href="/financeiro/caixinhas?aba=extrato" />}>
-          Extrato de movimentos
-        </Button>
-      </div>
+      <AbasCaixinhas ativa={aba} />
 
       {aba === "caixinhas" ? (
         <>
@@ -204,6 +207,8 @@ export function CaixinhasView({
             </div>
           </section>
 
+          <div className={cn("grid grid-cols-[minmax(0,1fr)] items-start gap-4", !arquivadas && "xl:grid-cols-[minmax(0,1fr)_23rem]")}>
+          <div className="min-w-0 space-y-4">
           {caixinhas.length === 0 ? (
             <section className="rounded-sm border bg-card">
               <EmptyState
@@ -243,6 +248,18 @@ export function CaixinhasView({
               {arquivadas ? "Ver as caixinhas ativas" : "Ver caixinhas arquivadas"}
             </Link>
           </p>
+          </div>
+          {!arquivadas && (
+            <RecebimentosADistribuir
+              recebimentos={recebimentos}
+              regras={regras}
+              nomesDeCaixinha={Object.fromEntries(ativas.map((c) => [c.id, c.nome]))}
+              distribuirDesde={distribuirDesde}
+              podeGerir={podeGerir}
+              hoje={hoje}
+            />
+          )}
+          </div>
         </>
       ) : (
         <Extrato movimentos={movimentos} caixinhas={caixinhas} caixinhaId={caixinhaDoExtrato} />

@@ -57,6 +57,17 @@ export const ajusteSchema = z.discriminatedUnion("tipo", [
     caixinhaId: z.string().min(1).nullable(),
     caixinhaNome: z.string().max(200).nullable().optional(),
   }),
+  /**
+   * Distribuição SIMULADA de uma entrada futura entre caixinhas (spec §4): reserva no planejador,
+   * não muda o caixa e nunca vai para o real — a distribuição real acontece em Caixinhas, depois de
+   * recebido. Os valores são centavos já rateados.
+   */
+  z.object({
+    tipo: z.literal("ALOCAR"),
+    ...alvo,
+    regraNome: z.string().max(80).nullable().optional(),
+    destinos: z.array(z.object({ caixinhaId: z.string().min(1), caixinhaNome: z.string().max(200).nullable().optional(), valor: z.number().int().positive() })).min(1).max(30),
+  }),
   z.object({ tipo: z.literal("EXCLUIR"), ...alvo }),
   z.object({ tipo: z.literal("FORCAR_INCLUSAO"), ...alvo }),
   z.object({ tipo: z.literal("INCLUIR"), id: z.string().min(1).max(64), movimento: movimentoSchema }),
@@ -172,7 +183,9 @@ export function paraLinha(a: AjusteSimulado): LinhaAjuste {
           ? { confianca: a.confianca }
           : a.tipo === "ALTERAR_CAIXINHA"
             ? { caixinhaId: a.caixinhaId, caixinhaNome: a.caixinhaNome ?? null }
-            : a.tipo === "EXCLUIR"
+            : a.tipo === "ALOCAR"
+              ? { destinos: a.destinos, regraNome: a.regraNome ?? null }
+              : a.tipo === "EXCLUIR"
               ? { efeito: "nenhum" }
               : {};
   return {

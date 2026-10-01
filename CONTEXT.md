@@ -186,6 +186,17 @@ Uma separação gerencial de parte do caixa atual para uma finalidade (salários
 conta bancária e não move dinheiro entre bancos.
 _Avoid_: reserva (sem qualificar), fundo, subconta
 
+**Regra de distribuição**:
+Uma sugestão de como dividir um recebimento entre as caixinhas, em percentuais que fecham 100%. A parte
+"Operacional (livre)" fica no caixa, sem caixinha. A regra só sugere: nada é separado antes de a pessoa
+confirmar.
+_Avoid_: rateio automático, divisão
+
+**Recebimento a distribuir**:
+Receita já recebida, desde a data inicial escolhida, que ainda não foi distribuída entre as caixinhas nem
+pulada. Transferência e reembolso de ART não entram.
+_Avoid_: sobra, lucro do mês
+
 **Reservado**:
 O que está nas caixinhas e ainda não foi usado. Um pagamento feito por uma caixinha diminui o
 reservado e o caixa atual juntos, e por isso não diminui o dinheiro livre.

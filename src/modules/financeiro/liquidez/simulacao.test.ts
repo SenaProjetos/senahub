@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { projetar } from "@/modules/financeiro/liquidez/motor";
+import { alocacoesSimuladas } from "@/modules/financeiro/liquidez/simulacao";
 import {
   ajustesSemAlvo,
   aplicarSimulacao,
@@ -116,6 +117,43 @@ describe("registrarAjuste", () => {
     expect(sim.find((e) => e.id === "cliente")!.caixinhaId).toBeNull();
     const novo: AjusteSimulado = { tipo: "ALTERAR_CAIXINHA", eventoId: "fornecedor", caixinhaId: null };
     expect(registrarAjuste([], novo, { data: dia(9), prioridade: "p3", confianca: null, caixinhaId: null })).toEqual([]);
+  });
+
+  it("ALOCAR 60 de uma entrada de 100 (spec §4): caixa +100, reservado +60, livre +40; as entradas do motor não mudam", () => {
+    const entrada = [evento({ id: "e", tipo: "receita", valor: reais(100), data: dia(5), confianca: "provavel" })];
+    const roda = (ajustes: AjusteSimulado[]) => {
+      const sim = aplicarSimulacao(entrada, ajustes, HOJE);
+      return projetar(entradaMotor({ caixaAtual: reais(100), reservaMinima: 0, eventos: sim, alocacoesSimuladas: alocacoesSimuladas(sim, ajustes) }));
+    };
+    const sem = roda([]);
+    const com = roda([{ tipo: "ALOCAR", eventoId: "e", regraNome: "Cliente", destinos: [{ caixinhaId: "imp", caixinhaNome: "Impostos", valor: reais(60) }] }]);
+    expect(com.fimDoHorizonte.caixa - sem.fimDoHorizonte.caixa).toBe(0);
+    expect(com.fimDoHorizonte.reservado - sem.fimDoHorizonte.reservado).toBe(reais(60));
+    expect(com.fimDoHorizonte.livreBruto - sem.fimDoHorizonte.livreBruto).toBe(-reais(60));
+    expect(sem.fimDoHorizonte.livreBruto).toBe(reais(200));
+    expect(com.fimDoHorizonte.livreBruto).toBe(reais(140));
+    expect(com.totais.entradas).toBe(sem.totais.entradas);
+    expect(com.totais.alocadoSimulado).toBe(reais(60));
+  });
+
+  it("alocacoesSimuladas ignora entrada que sumiu, saída, simulado e limita à soma da entrada", () => {
+    const eventos = [
+      evento({ id: "e", tipo: "receita", valor: reais(100), data: dia(5) }),
+      evento({ id: "s", tipo: "despesa", valor: reais(100), data: dia(5) }),
+      evento({ id: "sim", tipo: "receita", valor: reais(100), data: dia(5), origem: "simulado" }),
+    ];
+    const destinos = [{ caixinhaId: "a", valor: reais(70) }, { caixinhaId: "b", valor: reais(70) }];
+    const aj = (id: string): AjusteSimulado => ({ tipo: "ALOCAR", eventoId: id, destinos });
+    expect(alocacoesSimuladas(eventos, [aj("s"), aj("sim"), aj("sumiu")])).toEqual([]);
+    expect(alocacoesSimuladas(eventos, [aj("e")])).toEqual([{ eventoId: "e", destinos: [{ caixinhaId: "a", valor: reais(70) }, { caixinhaId: "b", valor: reais(30) }] }]);
+  });
+
+  it("ALOCAR não muda o evento e é descrito em uma frase", () => {
+    const entrada = [evento({ id: "e", tipo: "receita", valor: reais(100), data: dia(5) })];
+    const a: AjusteSimulado = { tipo: "ALOCAR", eventoId: "e", regraNome: "Cliente", destinos: [{ caixinhaId: "a", valor: reais(60) }] };
+    const sim = aplicarSimulacao(entrada, [a], HOJE);
+    expect(sim[0]).toMatchObject({ data: dia(5), valor: reais(100) });
+    expect(descreverAjuste(a, { descricao: "Construtora", data: dia(5), prioridade: null, confianca: "provavel" })).toBe("Construtora: R$ 60,00 reservados em 1 caixinha (Cliente)");
   });
 
   it("tirar e incluir à mão se anulam: vale o mais recente", () => {

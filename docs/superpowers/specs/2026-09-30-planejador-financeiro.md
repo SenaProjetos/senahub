@@ -177,6 +177,20 @@ Testes obrigatórios:
 - **O resto de um parcial herda a caixinha** (`camposDoPlanejador`).
 - Fica para a F5: regras de distribuição e "recebimentos a distribuir"; para a F6: o pró-labore ligado à caixinha.
 
+### Como a F5 implementou (2026-10-01)
+
+- **Regra = sugestão em basis points** (`RegraDistribuicao` + `RegraDistribuicaoItem`; `caixinhaId` nulo é a parte livre).
+  A soma tem de fechar exatamente 10000; o botão Salvar só liga quando fecha ("Faltam 5% para fechar 100%").
+  Nenhuma regra vem pronta: os percentuais do mock são exemplo, quem define é o dono. A primeira regra criada já nasce padrão.
+- **Distribuir um recebimento** grava uma `DistribuicaoRecebimento` (única por lançamento) e uma alocação por caixinha;
+  a parte livre não move nada e a distribuição nunca cria nem altera `Lancamento`. Pular também grava a linha (sai da fila).
+  O resto do centavo vai para o último destino (`ratear`, soma sempre igual ao valor efetivamente recebido).
+- **Fila:** receita realizada do resultado, sem a tag `reembolso-art`, recebida desde `distribuirDesde` (config
+  `financeiro.liquidez`, nulo = nada é oferecido, para a fila não abrir com todo o histórico).
+- **`ALOCAR`** simula a reserva de uma entrada futura pela regra escolhida (menu da entrada) e entra no motor por
+  `alocacoesSimuladas`; nunca é aplicado ("a distribuição real acontece em Caixinhas, depois do recebimento").
+  Teste do exemplo: entrada 100 com 60 alocados ⇒ caixa +100, reservado +60, livre bruto +40.
+
 ## 5. Pagamento × reprogramação (conservação)
 
 Propriedade: para os mesmos valores, o saldo no fim do horizonte não depende de quando o evento se

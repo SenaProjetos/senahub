@@ -38,7 +38,7 @@ const PRINCIPAIS: readonly ItemNavFinanceiro[] = [
   { id: "pagar", href: "/financeiro/contas", rotulo: "A pagar", gate: "ver", query: { chave: "tab", valor: null } },
   { id: "receber", href: "/financeiro/contas?tab=receita", rotulo: "A receber", gate: "ver", query: { chave: "tab", valor: "receita" } },
   { id: "lancamentos", href: "/financeiro/lancamentos", rotulo: "Lançamentos", gate: "ver" },
-  { id: "caixinhas", href: "/financeiro/caixinhas", rotulo: "Caixinhas", gate: "ver" },
+  { id: "caixinhas", href: "/financeiro/caixinhas", rotulo: "Caixinhas", gate: "ver", tambemEm: ["/financeiro/distribuicao"] },
 ];
 
 const RESULTADOS: readonly ItemNavFinanceiro[] = [

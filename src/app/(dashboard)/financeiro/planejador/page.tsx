@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getConfigLiquidez } from "@/modules/financeiro/config/queries";
 import { HORIZONTES_DIAS } from "@/modules/financeiro/config/liquidez";
 import { alvoDoAjuste } from "@/modules/financeiro/liquidez/simulacao";
+import { carregarRegras } from "@/modules/financeiro/distribuicao/queries";
 import { baseDoPlanejador, observadosAtuais } from "@/modules/financeiro/liquidez/queries";
 import { podeEditarCenario } from "@/modules/financeiro/planejador/cenarios/acoes";
 import { cenarioPorId } from "@/modules/financeiro/planejador/cenarios/queries";
@@ -33,7 +34,7 @@ export default async function PlanejadorPage({ searchParams }: { searchParams: P
   const pedido = Number(sp.horizonte);
   const horizonte = (HORIZONTES_DIAS as readonly number[]).includes(pedido) ? pedido : cenario?.premissas.horizonteDias;
 
-  const [base, podeGerir, podeSalvar, categorias] = await Promise.all([
+  const [base, podeGerir, podeSalvar, categorias, regras] = await Promise.all([
     baseDoPlanejador({ horizonteDias: horizonte }),
     can(user, "financeiro", "gerir"),
     can(user, "financeiro", "ver"),
@@ -42,6 +43,7 @@ export default async function PlanejadorPage({ searchParams }: { searchParams: P
       orderBy: { codigo: "asc" },
       select: { id: true, codigo: true, nome: true, tipo: true },
     }),
+    carregarRegras(),
   ]);
 
   // Alvos do cenário que não estão na projeção (pagos, excluídos, além do horizonte): a foto de agora
@@ -61,6 +63,7 @@ export default async function PlanejadorPage({ searchParams }: { searchParams: P
       cenarioEditavel={cenario ? podeEditarCenario({ autorId: cenario.autor.id }, { usuarioId: user.id, podeSalvar, podeGerir }) : false}
       observadosExtras={observadosExtras}
       categorias={categorias}
+      regras={regras}
       subnav={<NavFinanceiro />}
     />
   );

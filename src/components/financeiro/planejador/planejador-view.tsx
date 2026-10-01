@@ -24,6 +24,8 @@ import { SalvarCenarioDialog } from "@/components/financeiro/planejador/salvar-c
 import { SimularMovimento, type CategoriaOpcao } from "@/components/financeiro/planejador/simular-movimento";
 import { estadoDoAjuste } from "@/modules/financeiro/liquidez/ajustes";
 import type { CenarioDto } from "@/modules/financeiro/planejador/cenarios/queries";
+import { partesDeCaixinha, ratear } from "@/modules/financeiro/distribuicao/calculo";
+import type { RegraDto } from "@/modules/financeiro/distribuicao/queries";
 import { nomePadraoDoCenario } from "@/modules/financeiro/planejador/cenarios/resumo";
 import { HORIZONTES_DIAS, type ConfigLiquidez } from "@/modules/financeiro/config/liquidez";
 import { resumoDoAlerta } from "@/modules/financeiro/liquidez/alerta";
@@ -42,6 +44,7 @@ import type { BasePlanejador } from "@/modules/financeiro/liquidez/queries";
 import {
   ajustesSemAlvo,
   alvoDoAjuste,
+  alocacoesSimuladas,
   aplicarSimulacao,
   descreverAjuste,
   PREFIXO_SIMULADO,
@@ -61,7 +64,9 @@ import {
   ACAO_VOLTAR,
   itensDeEventoDoPlanejador,
   CAIXINHA_NENHUMA,
+  DISTRIBUIR_NENHUMA,
   PREFIXO_CAIXINHA,
+  PREFIXO_DISTRIBUIR,
   PREFIXO_CONFIANCA,
   PREFIXO_PRIORIDADE,
   ROTULOS_CONFIANCA,
@@ -101,6 +106,7 @@ export function PlanejadorView({
   cenarioEditavel,
   observadosExtras,
   categorias,
+  regras,
   subnav,
 }: {
   base: BasePlanejador;
@@ -113,6 +119,8 @@ export function PlanejadorView({
   /** Foto de agora dos alvos do cenário que não estão na projeção (pagos, excluídos, além do horizonte). */
   observadosExtras: Record<string, Observado | null>;
   categorias: CategoriaOpcao[];
+  /** Regras de distribuição (as ativas aparecem no menu das entradas). */
+  regras: RegraDto[];
   subnav?: React.ReactNode;
 }) {
   const router = useRouter();
@@ -169,8 +177,9 @@ export function PlanejadorView({
     return d.toISOString().slice(0, 10);
   }, [base.hoje, base.horizonteDias]);
 
+  // As alocações simuladas (ALOCAR) vão ao motor à parte dos eventos: reservam, não mexem no caixa.
   const entradaMotor = useCallback(
-    (eventos: readonly EventoCaixa[]) => ({
+    (eventos: readonly EventoCaixa[], dosAjustes: readonly AjusteSimulado[] = []) => ({
       hoje: base.hoje,
       horizonteDias: base.horizonteDias,
       caixaAtual: base.caixaAtual,
@@ -178,12 +187,13 @@ export function PlanejadorView({
       eventos,
       caixinhas: base.caixinhas,
       eixos,
+      alocacoesSimuladas: alocacoesSimuladas(eventos, dosAjustes),
     }),
     [base, eixos],
   );
 
   const eventos = useMemo(() => aplicarSimulacao(base.eventos, ajustes, base.hoje), [base.eventos, ajustes, base.hoje]);
-  const projecao = useMemo(() => projetar(entradaMotor(eventos)), [entradaMotor, eventos]);
+  const projecao = useMemo(() => projetar(entradaMotor(eventos, ajustes)), [entradaMotor, eventos, ajustes]);
   const antes = useMemo(() => (ajustes.length ? projetar(entradaMotor(base.eventos)) : null), [ajustes.length, entradaMotor, base.eventos]);
   const alerta = useMemo(() => resumoDoAlerta(projecao, eventos, base.reservaMinima), [projecao, eventos, base.reservaMinima]);
   const semAlvo = useMemo(() => ajustesSemAlvo(base.eventos, ajustes), [base.eventos, ajustes]);
@@ -230,6 +240,28 @@ export function PlanejadorView({
     [base.caixinhas, registrar],
   );
 
+  /** Divide a entrada pela regra e simula a reserva nas caixinhas ativas (a parte livre não reserva). */
+  const simularDistribuicao = useCallback(
+    (e: EventoCaixa, regraId: string) => {
+      if (regraId === DISTRIBUIR_NENHUMA) {
+        setAjustes((a) => a.filter((x) => !(x.tipo === "ALOCAR" && x.eventoId === e.id)));
+        return;
+      }
+      const regra = regras.find((r) => r.id === regraId);
+      if (!regra) return;
+      const ativas = new Map(base.caixinhas.map((c) => [c.id, c.nome]));
+      const partes = partesDeCaixinha(ratear(e.valor, regra.itens.map((i) => ({ caixinhaId: i.caixinhaId, bp: i.bp }))));
+      const destinos = partes.filter((p) => ativas.has(p.caixinhaId)).map((p) => ({ caixinhaId: p.caixinhaId, caixinhaNome: ativas.get(p.caixinhaId) ?? null, valor: p.valor }));
+      if (destinos.length === 0) {
+        toast.info(`A regra “${regra.nome}” não reserva nada em caixinha: deixa tudo livre.`);
+        return;
+      }
+      if (destinos.length < partes.length) toast.info("Algumas caixinhas da regra estão arquivadas e ficaram de fora da simulação.");
+      registrar({ tipo: "ALOCAR", eventoId: e.id, regraNome: regra.nome, destinos });
+    },
+    [base.caixinhas, regras, registrar],
+  );
+
   const aoSelecionar = useCallback(
     async (e: EventoCaixa, item: AcaoItemAcao) => {
       if (item.confirmar) {
@@ -242,13 +274,14 @@ export function PlanejadorView({
       if (item.id.startsWith(PREFIXO_PRIORIDADE)) return registrar({ tipo: "ALTERAR_PRIORIDADE", eventoId: e.id, prioridade: item.id.slice(PREFIXO_PRIORIDADE.length) as Prioridade });
       if (item.id.startsWith(PREFIXO_CONFIANCA)) return registrar({ tipo: "ALTERAR_CONFIANCA", eventoId: e.id, confianca: item.id.slice(PREFIXO_CONFIANCA.length) as Confianca });
       if (item.id.startsWith(PREFIXO_CAIXINHA)) return escolherCaixinha(e, item.id.slice(PREFIXO_CAIXINHA.length));
+      if (item.id.startsWith(PREFIXO_DISTRIBUIR)) return simularDistribuicao(e, item.id.slice(PREFIXO_DISTRIBUIR.length));
       if (item.id === ACAO_COPIAR_VALOR || item.id === ACAO_COPIAR_DESCRICAO) {
         const texto = item.id === ACAO_COPIAR_VALOR ? brlC(e.valor) : e.descricao;
         if (await copiarTexto(texto)) toast.success("Copiado.");
         else toast.error("Não foi possível copiar.");
       }
     },
-    [alternar, confirm, registrar, escolherCaixinha],
+    [alternar, confirm, registrar, escolherCaixinha, simularDistribuicao],
   );
 
   const grupos = useMemo(
@@ -259,10 +292,10 @@ export function PlanejadorView({
         projecao.serie,
         base.reservaMinima,
         (e) => eventoNoCenario(e, eixos),
-        (e, nc) => itensDeEventoDoPlanejador({ ...e, noCenario: nc }, base.caixinhas),
+        (e, nc) => itensDeEventoDoPlanejador({ ...e, noCenario: nc }, base.caixinhas, regras.filter((r) => r.ativa)),
         fim,
       ),
-    [eventos, projecao, base.reservaMinima, base.caixinhas, eixos, fim],
+    [eventos, projecao, base.reservaMinima, base.caixinhas, regras, eixos, fim],
   );
   const alemDoHorizonte = projecao.eventos.filter((p) => p.foraDoHorizonte).length;
 
@@ -551,7 +584,7 @@ export function PlanejadorView({
         previaDoMenorSaldo={(data: DataIso) => {
           if (!evSel) return null;
           const prox = registrarAjuste(ajustes, { tipo: "REPROGRAMAR_DATA", eventoId: evSel.id, data }, baseOriginalPorId.get(evSel.id));
-          return projetar(entradaMotor(aplicarSimulacao(base.eventos, prox, base.hoje))).menorSaldo.valor;
+          return projetar(entradaMotor(aplicarSimulacao(base.eventos, prox, base.hoje), prox)).menorSaldo.valor;
         }}
         focarData={selecionado?.focarData ?? false}
         onFechar={() => setSelecionado(null)}
@@ -582,7 +615,8 @@ export function PlanejadorView({
         categorias={categorias}
         previa={(m: MovimentoSimulado) => {
           const id = "previa";
-          const comMov = projetar(entradaMotor(aplicarSimulacao(base.eventos, [...ajustes, { tipo: "INCLUIR", id, movimento: m }], base.hoje)));
+          const comAjustes: AjusteSimulado[] = [...ajustes, { tipo: "INCLUIR", id, movimento: m }];
+          const comMov = projetar(entradaMotor(aplicarSimulacao(base.eventos, comAjustes, base.hoje), comAjustes));
           const dia = (p: typeof projecao, d: DataIso): Centavos => p.serie.find((s) => s.dia === d)?.saldo ?? p.hoje.caixa;
           return { saldoDiaAntes: dia(projecao, m.data), saldoDiaDepois: dia(comMov, m.data), menorSaldo: comMov.menorSaldo.valor, diaMenor: comMov.menorSaldo.dia };
         }}

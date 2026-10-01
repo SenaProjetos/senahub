@@ -106,6 +106,11 @@ export function validarAplicacao(
     const alvo = atual.get(a.eventoId);
     const rotulo = alvo?.descricao ?? a.rotulo ?? "Um lançamento da simulação";
 
+    if (a.tipo === "ALOCAR") {
+      // Entrada ainda não recebida não se aloca no real: a distribuição acontece em Caixinhas, depois do recebimento.
+      informar(`${rotulo}: a distribuição real acontece em Caixinhas, depois do recebimento. Fica só na simulação.`);
+      continue;
+    }
     if (a.tipo === "FORCAR_INCLUSAO") {
       informar(`${rotulo} incluído só na simulação: o lançamento não muda.`);
       continue;

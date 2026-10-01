@@ -80,6 +80,19 @@ describe("menu de um movimento do planejador (ADR-0002)", () => {
     expect(ids(itensDeEventoDoPlanejador(t, cxs))).not.toContain("sub-caixinha");
   });
 
+  it("entrada futura: submenu de distribuição com as regras e 'Sem distribuição'; saída, simulado e transferência não", () => {
+    const regras = [{ id: "r1", nome: "Recebimento de cliente" }, { id: "r2", nome: "Medição" }];
+    const entrada = { ...evento({ id: "c", tipo: "receita", valor: reais(10), data: dia(3) }), noCenario: true };
+    const sub = itensDeEventoDoPlanejador(entrada, [], regras).find((i) => i.id === "sub-distribuir") as { itens: { id: string; rotulo: string }[] };
+    expect(sub.itens.map((i) => i.id)).toEqual(["distribuir:r1", "distribuir:r2", "distribuir:nenhuma"]);
+    expect(ids(itensDeEventoDoPlanejador(entrada, [], []))).not.toContain("sub-distribuir");
+    expect(ids(itensDeEventoDoPlanejador(fornecedor, [], regras))).not.toContain("sub-distribuir");
+    const t = { ...evento({ id: "t", tipo: "receita", natureza: "transferencia", valor: reais(10), data: dia(3) }), noCenario: true };
+    expect(ids(itensDeEventoDoPlanejador(t, [], regras))).not.toContain("sub-distribuir");
+    const sim = { ...evento({ id: "sim:1", tipo: "receita", valor: reais(10), data: dia(3), origem: "simulado" }), noCenario: true };
+    expect(ids(itensDeEventoDoPlanejador(sim, [], regras))).not.toContain("sub-distribuir");
+  });
+
   it("transferência não muda prioridade nem confiança", () => {
     const t = { ...evento({ id: "t", tipo: "despesa", natureza: "transferencia", valor: reais(10), data: dia(3) }), noCenario: true };
     expect(ids(itensDeEventoDoPlanejador(t))).not.toContain("sub-prioridade");

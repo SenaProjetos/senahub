@@ -1,4 +1,4 @@
-import { CalendarClock, Copy, Eye, ExternalLink, Flag, Gauge, MinusCircle, PiggyBank, PlusCircle, Trash2, Undo2 } from "lucide-react";
+import { CalendarClock, Copy, Eye, ExternalLink, Flag, Gauge, MinusCircle, PiggyBank, PlusCircle, Split, Trash2, Undo2 } from "lucide-react";
 
 import { limparSeparadores, type AcaoItem } from "@/components/ui/acoes";
 import { podeSimularData } from "@/modules/financeiro/liquidez/simulacao";
@@ -22,6 +22,9 @@ export const ACAO_COPIAR_DESCRICAO = "copiar-descricao";
 export const PREFIXO_PRIORIDADE = "prioridade:";
 export const PREFIXO_CONFIANCA = "confianca:";
 export const PREFIXO_CAIXINHA = "caixinha:";
+export const PREFIXO_DISTRIBUIR = "distribuir:";
+/** Tira a distribuição simulada da entrada. */
+export const DISTRIBUIR_NENHUMA = "nenhuma";
 /** Tira a saída da caixinha. */
 export const CAIXINHA_NENHUMA = "nenhuma";
 
@@ -45,7 +48,12 @@ export type EventoParaAcoes = Pick<EventoCaixa, "id" | "origem" | "tipo" | "natu
   noCenario: boolean;
 };
 
-export function itensDeEventoDoPlanejador(e: EventoParaAcoes, caixinhas: readonly { id: string; nome: string }[] = []): AcaoItem[] {
+export function itensDeEventoDoPlanejador(
+  e: EventoParaAcoes,
+  caixinhas: readonly { id: string; nome: string }[] = [],
+  /** Regras de distribuição ATIVAS: o menu da entrada simula a divisão por uma delas. */
+  regras: readonly { id: string; nome: string }[] = [],
+): AcaoItem[] {
   const simulado = e.origem === "simulado";
   const transferencia = e.natureza === "transferencia";
   const excluido = e.simulacao?.excluido === true;
@@ -124,6 +132,20 @@ export function itensDeEventoDoPlanejador(e: EventoParaAcoes, caixinhas: readonl
               marcado: e.caixinhaId === c.id,
             })),
             { tipo: "acao" as const, id: `${PREFIXO_CAIXINHA}${CAIXINHA_NENHUMA}`, rotulo: "Nenhuma", marcado: e.caixinhaId == null },
+          ],
+        }
+      : null,
+    // Entrada futura: simula como o dinheiro seria dividido entre as caixinhas quando chegar. Só reserva
+    // na simulação (spec §4); a distribuição real é feita em Caixinhas, depois do recebimento.
+    !simulado && !transferencia && e.tipo === "receita" && regras.length > 0
+      ? {
+          tipo: "sub",
+          id: "sub-distribuir",
+          rotulo: "Simular distribuição",
+          icone: Split,
+          itens: [
+            ...regras.map((r) => ({ tipo: "acao" as const, id: `${PREFIXO_DISTRIBUIR}${r.id}`, rotulo: r.nome })),
+            { tipo: "acao" as const, id: `${PREFIXO_DISTRIBUIR}${DISTRIBUIR_NENHUMA}`, rotulo: "Sem distribuição" },
           ],
         }
       : null,

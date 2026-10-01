@@ -218,6 +218,14 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   in the payment paths: paying a linked bill just lowers cash and reserved together. A caixinha only changes on an
   OPEN despesa (`definirCaixinhaLancamento` / `ALTERAR_CAIXINHA`); a paid one is fixed with an `ajuste` movement.
   Archive only with reserved zero and no open linked bill. Initial 9 caixinhas come from the migration by `chave`.
+- **Distribution only reserves** (`financeiro/distribuicao/`, F5): a `RegraDistribuicao` SUGGESTS a split in basis points
+  (must close exactly 10000; `null` caixinha = "Operacional (livre)", which moves nothing). Confirming a realized receita
+  in "Recebimentos a distribuir" writes ONE `DistribuicaoRecebimento` (unique per lançamento — that row is what takes it
+  out of the queue and makes two simultaneous confirmations safe) plus one `alocacao` movement per caixinha, pro-rata
+  with the leftover cent on the last item (`calculo.ts`, pure). It never creates or edits a `Lancamento`. Eligibility is
+  one pure function (`elegivelParaDistribuir`): realized, nature `resultado`, no `reembolso-art` tag, received since
+  `financeiro.liquidez.distribuirDesde` (null = nothing offered). `ALOCAR` in the planner only simulates (motor
+  `alocacoesSimuladas`) and is never applied.
 - **Simulation never writes; "Aplicar ao financeiro" is all-or-nothing** (spec §7). One ajuste format for the
   screen, the browser draft and the saved scenario (`liquidez/ajustes.ts`, Zod). Each ajuste on a lançamento
   carries the `antes` snapshot of the observed fields (`Observado`, raw values — not the effective ones); the
