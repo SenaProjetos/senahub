@@ -17,7 +17,7 @@ import { removerArquivo } from "@/lib/storage";
 import { notificarMuitos } from "@/lib/notificar";
 import { getNiveisAprovacao, aprovadoresPorPapeis } from "@/modules/financeiro/aprovacao/queries";
 import { precisaAprovacao, papeisAprovadores } from "@/modules/financeiro/aprovacao/niveis";
-import { saldoRestante } from "@/modules/financeiro/lancamentos/parcial";
+import { camposDoPlanejador, saldoRestante } from "@/modules/financeiro/lancamentos/parcial";
 import { getConfigFinanceiro, getExclusaoCompleto } from "@/modules/financeiro/config/queries";
 import { obrigatorioFaltando } from "@/modules/financeiro/config/validacao";
 import { verificarSenha } from "@/modules/financeiro/config/senha";
@@ -63,6 +63,8 @@ async function snapshotLancamento(id: string) {
     select: {
       valor: true, valorEfetivo: true, status: true, descricao: true, vencimento: true,
       categoriaId: true, centroId: true, projetoId: true, fornecedorId: true, clienteId: true, observacao: true,
+      // Campos do planejador: sem eles a auditoria não vê a troca de prioridade/confiança.
+      prioridade: true, confianca: true, transferenciaId: true,
     },
   });
   if (!l) return null;
@@ -275,6 +277,7 @@ export const confirmarLancamento = defineAction(
             clienteId: lanc.clienteId,
             tags: lanc.tags,
             documentoFinanceiroId: lanc.documentoFinanceiroId,
+            ...camposDoPlanejador(lanc),
             observacao: [lanc.observacao, "Saldo restante de pagamento parcial"].filter(Boolean).join(" · "),
             recorrenciaGrupo: lanc.recorrenciaGrupo ?? lanc.id,
             autorId: ctx.user.id,

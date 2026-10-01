@@ -43,6 +43,7 @@ npm run smoke:previsao-recebimento  # contrato por entrega: previsão no caixa, 
 npm run smoke:duplicar-projeto      # duplicar projeto com EAP: estrutura, IDs novos, cronograma em rascunho, o que NÃO copia
 npm run smoke:modelo-disciplina     # modelos de EAP por disciplina: criar do modelo de projeto, "Gerar EAP das disciplinas", fases encadeadas
 npm run smoke:apagar-eap            # apagar a EAP inteira (rascunho): o que impede, o que vai junto, o que fica
+npm run smoke:planejador            # planejador de caixa: S0 = caixa da Visão geral, só pendente vira evento, transferência, parcial, leitura não grava
 npm run verify:motor-cronograma     # motor do cronograma contra os projetos reais do banco
 ```
 
@@ -189,6 +190,28 @@ billed per delivery, `ContratoParcelaEntrega`), not a receivable. Readers that f
 design; only `projecaoCaixa` includes it. A new receivable reader WITHOUT a status filter must exclude it
 (`status: { not: "previsao" }`). "Faturar" converts the same row to `previsto`; the sync
 (`juridico/contrato/previsao-service.ts`) only ever touches `previsao` rows.
+
+**Cash planner / liquidity engine** (`modules/financeiro/liquidez/`, in progress on `feat/planejador-financeiro`).
+Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins over the phase plan); vocabulary in
+`CONTEXT.md` → Financeiro; ADRs 0007–0009. Invariants that every phase keeps:
+- **Status ≠ confidence** (ADR-0007): `Lancamento.status = confirmado` means *realized* (cash/DRE);
+  `Lancamento.confianca` (`confirmada_cliente | provavel | estimada | incerta`) is a belief about a *pending*
+  receivable, read only by the engine. Never map one onto the other; UI says "Pago"/"Recebido" for realized and
+  "Confirmada pelo cliente" for the confidence level.
+- **The engine only receives pending events** (`previsto`, `aguardando_aprovacao`, `previsao`; later scheduled
+  recurrences and simulated items) and starts from S0 = `saldoBase()` — the same function `fluxoCaixa()` uses, so
+  the planner and the Visão geral never show two different balances. A realized row never becomes an event.
+- **Category nature** (`CategoriaFinanceira.natureza`: `resultado | fora_do_resultado | transferencia`, ADR-0008,
+  `modules/financeiro/natureza.ts`): `foraDoResultado` = not in the DRE but still cash; transfer legs (paired by
+  `Lancamento.transferenciaId`) move each day's balance but never enter totals; the Meu Dinheiro importer sets both
+  (`naturezaPeloNome`, `transferenciaIdDoHash`). Code finds system categories by `CategoriaFinanceira.chave`
+  (stable), never by the editable `codigo`.
+- **Caixinha math** (`caixinhas.ts`): a payment covered by a caixinha lowers reserved and cash together, so free
+  cash never drops twice; free cash is never negative — the shortfall is `descoberto`.
+- The pure files (everything but `queries.ts`) must not import Prisma/server-only/Next — a guard test scans them,
+  because the engine also runs in the browser for instant simulation. Money in integer cents, dates as
+  `YYYY-MM-DD` strings. The partial-payment remainder copies the planner fields via `camposDoPlanejador()`
+  (`lancamentos/parcial.ts`) — any new code path that splits or clones a `Lancamento` must do the same.
 
 **Projetista paid per phase** (F7.4, `PagamentoProjetista.etapaId`): "already paid" means
 `situacaoPagamento().jaLiberouTudo` (every phase released) — never "has any payment" (`_count.pagamentos > 0`),

@@ -9,3 +9,27 @@ export function saldoRestante(total: number, efetivo: number | null | undefined)
   const resto = Math.round((total - efetivo) * 100) / 100;
   return resto >= 0.01 ? resto : null;
 }
+
+/** Campos do planejador de caixa que o resto de um parcial herda do lançamento original. */
+export type CamposDoPlanejador = {
+  prioridade: "p1" | "p2" | "p3" | "p4" | null;
+  confianca: "confirmada_cliente" | "provavel" | "estimada" | "incerta" | null;
+  transferenciaId: string | null;
+};
+
+/**
+ * O resto de um pagamento parcial é o MESMO compromisso, só menor: sem estes campos ele perderia
+ * a prioridade, a confiança e o par de transferência, e o planejador o trataria como outra conta
+ * (spec 2026-09-30 §5e). Caixinha e sócio entram aqui quando as colunas existirem (F4, F6A).
+ */
+export function camposDoPlanejador(l: {
+  prioridade?: CamposDoPlanejador["prioridade"];
+  confianca?: CamposDoPlanejador["confianca"];
+  transferenciaId?: string | null;
+}): CamposDoPlanejador {
+  return {
+    prioridade: l.prioridade ?? null,
+    confianca: l.confianca ?? null,
+    transferenciaId: l.transferenciaId ?? null,
+  };
+}

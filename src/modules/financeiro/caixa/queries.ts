@@ -1,6 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { inicioDoDiaUtc } from "@/lib/data";
+import { saldoBase } from "@/modules/financeiro/liquidez/saldo-base";
+import { paraCentavos, paraReais } from "@/modules/financeiro/liquidez/dinheiro";
 
 const MS_DIA = 86_400_000;
 
@@ -91,26 +93,19 @@ export async function fluxoCaixa(limiteMovimentos = 50) {
     }),
   ]);
 
-  const saldoPorConta = new Map<string, number>();
-  for (const c of contas) saldoPorConta.set(c.id, Number(c.saldoInicial));
-  let semConta = 0;
-
-  for (const l of confirmados) {
-    const valor = Number(l.valorEfetivo ?? l.valor);
-    const delta = l.tipo === "receita" ? valor : -valor;
-    if (l.contaId && saldoPorConta.has(l.contaId)) {
-      saldoPorConta.set(l.contaId, saldoPorConta.get(l.contaId)! + delta);
-    } else {
-      semConta += delta;
-    }
-  }
+  // A conta do caixa atual mora em `saldoBase` (pura, testada) e é a MESMA que o planejador usa
+  // como ponto de partida — a Visão geral e o planejador nunca mostram dois caixas diferentes.
+  const base = saldoBase(
+    contas.map((c) => ({ id: c.id, saldoInicial: paraCentavos(c.saldoInicial) })),
+    confirmados.map((l) => ({ contaId: l.contaId, tipo: l.tipo, valor: paraCentavos(l.valorEfetivo ?? l.valor) })),
+  );
 
   const contasComSaldo = contas.map((c) => ({
     id: c.id,
     nome: c.nome,
-    saldo: saldoPorConta.get(c.id) ?? 0,
+    saldo: paraReais(base.porConta[c.id] ?? 0),
   }));
-  const saldoTotal = contasComSaldo.reduce((s, c) => s + c.saldo, 0) + semConta;
+  const saldoTotal = paraReais(base.total);
 
   const entradas = confirmados
     .filter((l) => l.tipo === "receita")

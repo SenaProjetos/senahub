@@ -2,6 +2,13 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { CamposObrigatorios } from "@/modules/financeiro/config/validacao";
 import { ALIQUOTAS_ZERO, type Aliquotas } from "@/modules/financeiro/fechamento/calculo";
+import { CHAVE_CONFIG_LIQUIDEZ, normalizarConfigLiquidez, type ConfigLiquidez } from "@/modules/financeiro/config/liquidez";
+
+/** Configuração do planejador de caixa (reserva mínima, horizonte padrão, dias para incerta). */
+export async function getConfigLiquidez(): Promise<ConfigLiquidez> {
+  const c = await prisma.configSistema.findUnique({ where: { chave: CHAVE_CONFIG_LIQUIDEZ } });
+  return normalizarConfigLiquidez(c?.valor);
+}
 
 export const CHAVE_CONFIG_FINANCEIRO = "financeiro.config";
 export const CHAVE_ALIQUOTAS = "financeiro.aliquotas";

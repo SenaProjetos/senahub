@@ -7,8 +7,11 @@ import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { validarCpfCnpj } from "@/lib/documento";
 import { chaveMatch } from "@/lib/import/valores";
 import {
+  CATEGORIA_TRANSFERENCIA,
   chaveCatPai,
   chaveCatFilha,
+  naturezaPeloNome,
+  transferenciaIdDoHash,
   type ResultadoNorm,
   type LinhaNorm,
 } from "@/modules/financeiro/importacao/processar";
@@ -96,7 +99,7 @@ async function construirResolver(tx: Tx) {
     if (!pai) {
       maxTop += 1;
       pai = await tx.categoriaFinanceira.create({
-        data: { codigo: String(maxTop), nome: catNome, tipo },
+        data: { codigo: String(maxTop), nome: catNome, tipo, natureza: naturezaPeloNome(catNome) },
         select: { id: true, codigo: true },
       });
       catByKey.set(paiKey, pai);
@@ -110,7 +113,8 @@ async function construirResolver(tx: Tx) {
       const n = (filhosPorPai.get(pai.id) ?? 0) + 1;
       filhosPorPai.set(pai.id, n);
       filha = await tx.categoriaFinanceira.create({
-        data: { codigo: `${pai.codigo}.${String(n).padStart(2, "0")}`, nome: subNome, tipo, paiId: pai.id },
+        // A filha herda a natureza do pai pelo nome (subcategoria de "Transferência" também é transferência).
+        data: { codigo: `${pai.codigo}.${String(n).padStart(2, "0")}`, nome: subNome, tipo, paiId: pai.id, natureza: naturezaPeloNome(catNome) },
         select: { id: true, codigo: true },
       });
       catByKey.set(filhaKey, filha);
@@ -242,6 +246,7 @@ export async function executarCommit(
           tags: l.tags,
           importLoteId: lote.id,
           importHash: l.hash,
+          transferenciaId: l.categoriaNome === CATEGORIA_TRANSFERENCIA ? transferenciaIdDoHash(l.hash) : null,
           autorId: args.autorId,
         });
       }

@@ -335,23 +335,34 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "freelancer", recurso: "biblioteca_tecnica", acao: "incluir" },
 ];
 
-/** Plano de contas inicial. Códigos usados na auto-categorização de pagamentos. */
-const PLANO_CONTAS: { codigo: string; nome: string; tipo: "receita" | "despesa"; pai?: string }[] = [
-  { codigo: "1", nome: "Receitas", tipo: "receita" },
-  { codigo: "1.01", nome: "Projetos particulares", tipo: "receita", pai: "1" },
-  { codigo: "1.02", nome: "Licitações", tipo: "receita", pai: "1" },
-  { codigo: "1.03", nome: "Outras receitas", tipo: "receita", pai: "1" },
-  { codigo: "2", nome: "Despesas", tipo: "despesa" },
-  { codigo: "2.01", nome: "Projetistas PJ", tipo: "despesa", pai: "2" },
-  { codigo: "2.02", nome: "Freelancers", tipo: "despesa", pai: "2" },
-  { codigo: "2.03", nome: "Folha CLT", tipo: "despesa", pai: "2" },
-  { codigo: "2.04", nome: "Estagiários", tipo: "despesa", pai: "2" },
-  { codigo: "2.05", nome: "Fornecedores externos", tipo: "despesa", pai: "2" },
-  { codigo: "2.06", nome: "Despesas administrativas", tipo: "despesa", pai: "2" },
-  { codigo: "2.07", nome: "Impostos", tipo: "despesa", pai: "2" },
-  { codigo: "2.08", nome: "Pró-labore / retiradas", tipo: "despesa", pai: "2" },
+/**
+ * Plano de contas inicial. Códigos usados na auto-categorização de pagamentos. `chave` é a
+ * identidade estável (o código é editável); `prioridadePadrao` é a decisão D3 do planejador de
+ * caixa. Banco já no ar recebe as duas pela migração 20260930120000 — aqui é só instalação nova.
+ */
+const PLANO_CONTAS: {
+  codigo: string;
+  chave: string;
+  nome: string;
+  tipo: "receita" | "despesa";
+  pai?: string;
+  prioridadePadrao?: "p1" | "p2" | "p3" | "p4";
+}[] = [
+  { codigo: "1", chave: "receita", nome: "Receitas", tipo: "receita" },
+  { codigo: "1.01", chave: "receita_projetos_particulares", nome: "Projetos particulares", tipo: "receita", pai: "1" },
+  { codigo: "1.02", chave: "receita_licitacoes", nome: "Licitações", tipo: "receita", pai: "1" },
+  { codigo: "1.03", chave: "receita_outras", nome: "Outras receitas", tipo: "receita", pai: "1" },
+  { codigo: "2", chave: "despesa", nome: "Despesas", tipo: "despesa" },
+  { codigo: "2.01", chave: "despesa_projetistas_pj", nome: "Projetistas PJ", tipo: "despesa", pai: "2", prioridadePadrao: "p2" },
+  { codigo: "2.02", chave: "despesa_freelancers", nome: "Freelancers", tipo: "despesa", pai: "2", prioridadePadrao: "p2" },
+  { codigo: "2.03", chave: "despesa_folha_clt", nome: "Folha CLT", tipo: "despesa", pai: "2", prioridadePadrao: "p1" },
+  { codigo: "2.04", chave: "despesa_estagiarios", nome: "Estagiários", tipo: "despesa", pai: "2", prioridadePadrao: "p2" },
+  { codigo: "2.05", chave: "despesa_fornecedores", nome: "Fornecedores externos", tipo: "despesa", pai: "2", prioridadePadrao: "p3" },
+  { codigo: "2.06", chave: "despesa_administrativas", nome: "Despesas administrativas", tipo: "despesa", pai: "2", prioridadePadrao: "p3" },
+  { codigo: "2.07", chave: "despesa_impostos", nome: "Impostos", tipo: "despesa", pai: "2", prioridadePadrao: "p1" },
+  { codigo: "2.08", chave: "despesa_pro_labore", nome: "Pró-labore / retiradas", tipo: "despesa", pai: "2", prioridadePadrao: "p2" },
   // 2.09 também é criada pela migração 20260914120000_art_taxa_financeiro.
-  { codigo: "2.09", nome: "Taxas de ART/RRT", tipo: "despesa", pai: "2" },
+  { codigo: "2.09", chave: "despesa_art_rrt", nome: "Taxas de ART/RRT", tipo: "despesa", pai: "2", prioridadePadrao: "p3" },
 ];
 
 const FORMAS_PAGAMENTO = ["PIX", "Transferência", "Boleto", "Dinheiro", "Cartão"];
@@ -631,10 +642,12 @@ async function main() {
       where: { codigo: c.codigo },
       create: {
         codigo: c.codigo,
+        chave: c.chave,
         nome: c.nome,
         tipo: c.tipo,
         ordem: i,
         paiId: c.pai ? idsPorCodigo.get(c.pai) : null,
+        prioridadePadrao: c.prioridadePadrao ?? null,
       },
       update: {},
     });

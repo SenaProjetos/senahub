@@ -1486,10 +1486,39 @@ enum TipoCategoria {
   despesa
 }
 
+/// Prioridade de uma saída pendente no planejador de caixa (P1 não pode atrasar … P4 adiável).
+enum PrioridadePagamento {
+  p1
+  p2
+  p3
+  p4
+}
+
+/// Confiança numa ENTRADA PENDENTE (ADR-0007). Não é status: `confirmada_cliente` não quer dizer
+/// recebida — realizado é `StatusLancamento.confirmado`. Só o motor do planejador lê.
+enum ConfiancaRecebimento {
+  confirmada_cliente
+  provavel
+  estimada
+  incerta
+}
+
+/// Onde o movimento conta (ADR-0008): `resultado` entra em tudo; `fora_do_resultado` (distribuição
+/// de lucros) entra no caixa e no DFC, não na DRE; `transferencia` (entre contas próprias) muda o
+/// saldo de cada conta, mas não entra em DRE, DFC, aging nem nos totais do planejador.
+enum NaturezaCategoria {
+  resultado
+  fora_do_resultado
+  transferencia
+}
+
 /// Plano de contas hierárquico (código ex.: "2.01").
 model CategoriaFinanceira {
   id       String                @id @default(cuid())
   codigo   String                @unique
+  /// Identidade estável para o código achar a categoria (o `codigo` é editável e o import do
+  /// Meu Dinheiro cria "3", "3.01"…). Só as categorias que o sistema usa têm chave.
+  chave    String?               @unique
   nome     String
   tipo     TipoCategoria
   paiId    String?
@@ -1499,6 +1528,9 @@ model CategoriaFinanceira {
   ativo    Boolean               @default(true)
   /// Atividade no DFC: "operacional" | "investimento" | "financiamento" (default operacional).
   grupoDfc String?
+  /// Prioridade que as despesas desta categoria (e das filhas sem a sua) herdam no planejador.
+  prioridadePadrao PrioridadePagamento?
+  natureza         NaturezaCategoria    @default(resultado)
 
   lancamentos Lancamento[]
   regras      RegraCategorizacao[]
@@ -1775,6 +1807,13 @@ model Lancamento {
   /// Vínculo com a folha de projetistas (Onda 2c).
   pagamentoProjetistaId String?                     @unique
 
+  /// Planejador de caixa (spec 2026-09-30). Prioridade só em despesa (nula = herda da categoria);
+  /// confiança só em receita pendente (nula = padrão do status). Nenhum dos dois muda o status.
+  prioridade      PrioridadePagamento?
+  confianca       ConfiancaRecebimento?
+  /// Par de pernas de uma transferência entre contas próprias (mesmo valor nas duas pernas).
+  transferenciaId String?
+
   autorId String
   autor   User   @relation("LancamentoAutor", fields: [autorId], references: [id])
 
@@ -1800,6 +1839,7 @@ model Lancamento {
   @@index([contratoId])
   @@index([importLoteId])
   @@index([importHash])
+  @@index([transferenciaId])
   @@map("lancamento")
 }
 

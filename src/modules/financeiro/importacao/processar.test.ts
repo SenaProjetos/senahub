@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { normalizarLinhas, contarDryRun, type Mapeamento, type Existentes } from "@/modules/financeiro/importacao/processar";
+import {
+  normalizarLinhas,
+  contarDryRun,
+  naturezaPeloNome,
+  transferenciaIdDoHash,
+  type Mapeamento,
+  type Existentes,
+} from "@/modules/financeiro/importacao/processar";
 
 // Subconjunto das colunas do export Meu Dinheiro (índices).
 const MAP: Mapeamento = {
@@ -122,5 +129,32 @@ describe("contarDryRun", () => {
     const { contagens } = contarDryRun(res, ex);
     expect(contagens.novosLancamentos).toBe(0);
     expect(contagens.duplicados).toBe(1);
+  });
+});
+
+describe("transferência importada para o planejador (ADR-0008)", () => {
+  it("categoria pelo nome: Transferência é transferência; o resto é resultado", () => {
+    expect(naturezaPeloNome("Transferência")).toBe("transferencia");
+    expect(naturezaPeloNome(" transferencias ")).toBe("transferencia");
+    expect(naturezaPeloNome("TRANSFERÊNCIAS")).toBe("transferencia");
+    expect(naturezaPeloNome("Transferência de clientes")).toBe("resultado");
+    expect(naturezaPeloNome("Aluguel")).toBe("resultado");
+  });
+
+  it("par pelo hash: as duas pernas compartilham a base; hash comum não é perna", () => {
+    expect(transferenciaIdDoHash("h:abc123:out")).toBe("h:abc123");
+    expect(transferenciaIdDoHash("md:334970240:in")).toBe("md:334970240");
+    expect(transferenciaIdDoHash("h:abc123")).toBeNull();
+    expect(transferenciaIdDoHash(":out")).toBeNull();
+  });
+
+  it("as duas pernas geradas por normalizarLinhas caem no mesmo par", () => {
+    const res = normalizarLinhas(
+      [row("Transferência", "Confirmado", "2026-01-02", "2026-01-02", "-15000", "-15000", "Adiantamento", "Transferência", "", "SANTANDER", "Conta Sócios", "Sem contato", "", "334970240")],
+      MAP,
+    );
+    const [a, b] = res.linhas;
+    expect(transferenciaIdDoHash(a.hash)).not.toBeNull();
+    expect(transferenciaIdDoHash(a.hash)).toBe(transferenciaIdDoHash(b.hash));
   });
 });

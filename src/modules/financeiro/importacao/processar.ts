@@ -51,7 +51,26 @@ export type ResultadoNorm = {
   saldosIniciais: SaldoInicial[];
 };
 
-const CATEGORIA_TRANSFERENCIA = "Transferência";
+export const CATEGORIA_TRANSFERENCIA = "Transferência";
+
+/**
+ * Natureza da categoria criada pelo import (ADR-0008): o nome "Transferência" (com ou sem acento,
+ * singular ou plural) é transferência entre contas; o resto entra como resultado. Mesma regra da
+ * migração 20260930120000, para importações novas não voltarem a somar transferência na DRE.
+ */
+export function naturezaPeloNome(nome: string): "resultado" | "transferencia" {
+  const n = nome.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+  return n === "transferencia" || n === "transferencias" ? "transferencia" : "resultado";
+}
+
+/**
+ * Par de uma transferência importada: as pernas gravam `<base>:out` e `<base>:in` no `importHash`
+ * e compartilham `<base>` como `transferenciaId`. `null` se o hash não for de perna.
+ */
+export function transferenciaIdDoHash(hash: string): string | null {
+  const m = /^(.+):(out|in)$/.exec(hash);
+  return m ? m[1] : null;
+}
 
 function celula(linha: string[], m: Mapeamento, campo: CampoSenaHub): string {
   const i = m[campo];

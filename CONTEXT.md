@@ -136,3 +136,133 @@ _Avoid_: admin (quando se quer dizer o bypass), acesso total
 O acesso de leitura que o sócio recebe além do próprio perfil de acesso, equivalente ao que o
 Coordenador lê. É leitura por definição.
 _Avoid_: acesso de sócio, perfil sócio
+
+## Financeiro
+
+Três perguntas diferentes não se misturam: se o dinheiro **já se moveu** (realizado ou pendente), o
+quanto se **acredita** que uma entrada pendente vai acontecer (confiança) e se o movimento **conta no
+resultado** da empresa (natureza). Nenhuma resposta implica as outras.
+
+### Lançamentos
+
+**Lançamento realizado**:
+Conta já paga ou recebida. É o único lançamento que compõe o caixa atual e a DRE. Na tela aparece
+como "Pago" ou "Recebido".
+_Avoid_: confirmado (na tela, colide com a confiança), baixado
+
+**Lançamento pendente**:
+Conta a pagar ou a receber que ainda não se realizou, inclusive a que aguarda aprovação e a previsão
+de recebimento do cronograma. É o que o planejador projeta.
+_Avoid_: previsto (quando se quer dizer todos os pendentes), em aberto
+
+**Confiança do recebimento**:
+O quanto se acredita que uma entrada pendente acontece na data: confirmada pelo cliente, provável,
+estimada ou incerta. Não diz nada sobre ter sido recebida; entrada realizada não tem confiança.
+_Avoid_: status, certeza, "confirmada" sem "pelo cliente"
+
+**Prioridade do pagamento**:
+A ordem de proteção de uma saída pendente: P1 não pode atrasar, P2 importante, P3 negociável, P4
+adiável. Só saída tem prioridade.
+_Avoid_: urgência, importância
+
+**Fora do resultado**:
+Movimento de caixa que não é receita nem despesa da empresa, como distribuição e adiantamento de
+lucros. Sai do caixa e entra no fluxo de caixa; não entra na DRE.
+_Avoid_: não operacional, extraordinário
+
+**Transferência entre contas**:
+Dinheiro que passa de uma conta da empresa para outra, inclusive aplicação e resgate. Não muda o
+caixa atual nem o resultado; muda só em que conta o dinheiro está.
+_Avoid_: entrada/saída (para as duas pernas), movimentação interna
+
+### Caixa e reservas
+
+**Caixa atual**:
+O dinheiro que está hoje nas contas da empresa: saldos de abertura mais tudo o que já foi realizado.
+_Avoid_: saldo (sem qualificar), disponível, saldo em caixa
+
+**Caixinha**:
+Uma separação gerencial de parte do caixa atual para uma finalidade (salários, impostos, 13º). Não é
+conta bancária e não move dinheiro entre bancos.
+_Avoid_: reserva (sem qualificar), fundo, subconta
+
+**Reservado**:
+O que está nas caixinhas e ainda não foi usado. Um pagamento feito por uma caixinha diminui o
+reservado e o caixa atual juntos, e por isso não diminui o dinheiro livre.
+_Avoid_: provisionado, bloqueado
+
+**Dinheiro livre**:
+O caixa atual menos o reservado, quando o caixa cobre as caixinhas. Nunca é negativo: a falta aparece
+como reserva descoberta.
+_Avoid_: disponível, sobra, saldo livre
+
+**Reserva descoberta**:
+Quanto o reservado passa do caixa atual. Existe para a falta aparecer com nome e valor, em vez de
+sumir num dinheiro livre zerado.
+_Avoid_: livre negativo, déficit (isso é saldo projetado abaixo de zero)
+
+**Reserva mínima**:
+O piso que o planejador compara com o saldo projetado das contas para alertar. Não é caixinha e
+nunca se soma à reserva de emergência, que é caixinha e continua dentro do caixa atual.
+_Avoid_: reserva de emergência, caixa mínimo
+
+**Comprometido**:
+As saídas pendentes dentro do horizonte. Divide-se em coberto, a parte que sai de caixinhas, e sem
+cobertura, a parte que ainda vai sair do dinheiro livre.
+_Avoid_: a pagar (quando se quer dizer só o horizonte), gasto
+
+**Déficit**:
+Saldo projetado das contas abaixo de zero em algum dia do horizonte.
+_Avoid_: rombo, negativo (sem data)
+
+**Dias de caixa**:
+Quantos dias o caixa atual paga as saídas no ritmo médio dos últimos 90 dias, contando só despesas
+que entram no resultado.
+_Avoid_: fôlego, runway
+
+### Planejamento
+
+**Horizonte**:
+O período à frente, a partir de hoje, que o planejador projeta. O planejador não olha para trás.
+_Avoid_: período (sem qualificar), janela
+
+**Ajuste**:
+Uma mudança simulada sobre o financeiro real: nova data, prioridade, confiança, caixinha ou valor de
+um lançamento, ou um movimento incluído ou tirado. Sozinho, não altera nada real.
+_Avoid_: alteração, simulação (para um item)
+
+**Cenário**:
+Um conjunto salvo de ajustes. Guarda a intenção, não o resultado: ao abrir, é recalculado sobre os
+dados de hoje.
+_Avoid_: simulação salva, plano, lote
+
+**Aplicar cenário**:
+Levar ao financeiro real os ajustes aplicáveis de um cenário, todos ou nenhum. Se o real mudou desde
+a simulação, nada é aplicado.
+_Avoid_: executar, efetivar
+
+**Lote de pagamentos**:
+A seleção de contas a pagar que cabem num saldo, paga de uma vez. Até 2026-09 se chamava
+"planejamento de pagamentos".
+_Avoid_: cenário, planejamento
+
+### Sócios
+
+**Pró-labore**:
+A remuneração mensal do sócio pelo trabalho. É despesa e entra no resultado.
+_Avoid_: retirada (ambíguo), salário do sócio
+
+**Distribuição de lucros**:
+Dinheiro do lucro entregue aos sócios. Sai do caixa e fica fora do resultado. O adiantamento de
+lucros é a mesma coisa antes de o lucro estar apurado.
+_Avoid_: retirada (ambíguo), dividendos
+
+**Compromisso recorrente**:
+O cadastro de uma saída que se repete, como o pró-labore de cada sócio. Os meses futuros aparecem no
+planejador como programados; o lançamento só nasce perto do vencimento.
+_Avoid_: recorrência (quando se quer dizer o cadastro), agendamento
+
+**Programado**:
+Um mês futuro de compromisso recorrente que ainda não virou lançamento. Conta na projeção e não
+aparece em contas a pagar.
+_Avoid_: previsto, agendado

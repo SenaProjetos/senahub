@@ -1,5 +1,28 @@
 import { describe, it, expect } from "vitest";
-import { saldoRestante } from "./parcial";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { camposDoPlanejador, saldoRestante } from "./parcial";
+
+describe("camposDoPlanejador — o resto do parcial é o mesmo compromisso (spec §5e)", () => {
+  it("copia prioridade, confiança e par de transferência", () => {
+    expect(camposDoPlanejador({ prioridade: "p2", confianca: "confirmada_cliente", transferenciaId: "t1" })).toEqual({
+      prioridade: "p2",
+      confianca: "confirmada_cliente",
+      transferenciaId: "t1",
+    });
+  });
+  it("ausentes viram null e nada além desses campos é copiado", () => {
+    const r = camposDoPlanejador({ ...({ valor: 10, status: "confirmado" } as object) });
+    expect(r).toEqual({ prioridade: null, confianca: null, transferenciaId: null });
+  });
+  it("os dois lugares que criam o resto do parcial usam o helper", () => {
+    const raiz = join(__dirname, "..");
+    for (const arq of ["lancamentos/actions.ts", "planejamento/actions.ts"]) {
+      const fonte = readFileSync(join(raiz, arq), "utf8");
+      expect(fonte.match(/\.\.\.camposDoPlanejador\(lanc\)/g)?.length ?? 0, arq).toBeGreaterThanOrEqual(1);
+    }
+  });
+});
 
 describe("saldoRestante", () => {
   it("retorna a diferença num pagamento parcial", () => {

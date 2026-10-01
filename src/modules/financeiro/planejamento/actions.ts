@@ -6,7 +6,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { contasEmAberto } from "@/modules/financeiro/planejamento/queries";
-import { saldoRestante } from "@/modules/financeiro/lancamentos/parcial";
+import { camposDoPlanejador, saldoRestante } from "@/modules/financeiro/lancamentos/parcial";
 
 const base = { modulo: "financeiro", recurso: "financeiro", permissao: "gerir" } as const;
 
@@ -251,6 +251,7 @@ export const executarPlano = defineAction(
               clienteId: lanc.clienteId,
               tags: lanc.tags,
               documentoFinanceiroId: lanc.documentoFinanceiroId,
+              ...camposDoPlanejador(lanc),
               observacao: [lanc.observacao, "Saldo restante de pagamento parcial (planejamento)"].filter(Boolean).join(" · "),
               recorrenciaGrupo: lanc.recorrenciaGrupo ?? lanc.id,
               autorId: user.id,

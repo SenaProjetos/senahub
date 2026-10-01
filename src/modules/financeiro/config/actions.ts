@@ -6,6 +6,30 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { CHAVE_CONFIG_FINANCEIRO, CHAVE_ALIQUOTAS, CHAVE_EXCLUSAO, getExclusaoCompleto } from "@/modules/financeiro/config/queries";
 import { hashSenha } from "@/modules/financeiro/config/senha";
+import { CHAVE_CONFIG_LIQUIDEZ, configLiquidezSchema } from "@/modules/financeiro/config/liquidez";
+
+/** Salva a configuração do planejador de caixa (valores em centavos). Requer financeiro:gerir. */
+export const salvarConfigLiquidez = defineAction(
+  {
+    modulo: "financeiro",
+    recurso: "financeiro",
+    permissao: "gerir",
+    acao: "salvar-config-liquidez",
+    entidade: "ConfigSistema",
+    schema: configLiquidezSchema,
+    capturarAntes: async () => (await prisma.configSistema.findUnique({ where: { chave: CHAVE_CONFIG_LIQUIDEZ } }))?.valor ?? null,
+  },
+  async (i) => {
+    await prisma.configSistema.upsert({
+      where: { chave: CHAVE_CONFIG_LIQUIDEZ },
+      create: { chave: CHAVE_CONFIG_LIQUIDEZ, valor: i },
+      update: { valor: i },
+    });
+    revalidatePath("/financeiro");
+    revalidatePath("/financeiro/configuracoes");
+    return { ok: true };
+  },
+);
 
 const schema = z.object({
   obrigatorios: z.object({
