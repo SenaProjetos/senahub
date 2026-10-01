@@ -73,17 +73,26 @@ export async function numerosDasVersoes(): Promise<number[]> {
  * Uso das subs (documentos que apontam para ela) e das fases (etapas de disciplina), por id — o que
  * trava "Excluir" na lente Todas. Em sequência, não em `Promise.all` (pode rodar numa transação).
  */
-export async function usoDoCatalogo(db: Db = prisma): Promise<{ subs: Record<string, number>; fases: Record<string, number> }> {
+export async function usoDoCatalogo(
+  db: Db = prisma,
+): Promise<{ subs: Record<string, number>; fases: Record<string, number>; documentos: Record<string, number> }> {
   const subs = await db.documentoDisciplina.groupBy({
     by: ["subdisciplinaId"],
     where: { subdisciplinaId: { not: null } },
     _count: { _all: true },
   });
   const fases = await db.disciplinaEtapa.groupBy({ by: ["etapaId"], _count: { _all: true } });
+  // Documentos por fase e por tipo: os dois campos apontam para a mesma tabela, então somam por id.
+  const porFase = await db.documentoDisciplina.groupBy({ by: ["faseId"], where: { faseId: { not: null } }, _count: { _all: true } });
+  const porTipo = await db.documentoDisciplina.groupBy({ by: ["tipoId"], where: { tipoId: { not: null } }, _count: { _all: true } });
+  const documentos: Record<string, number> = {};
+  for (const l of porFase) if (l.faseId) documentos[l.faseId] = (documentos[l.faseId] ?? 0) + l._count._all;
+  for (const l of porTipo) if (l.tipoId) documentos[l.tipoId] = (documentos[l.tipoId] ?? 0) + l._count._all;
   const mapa = (linhas: { id: string | null; n: number }[]) =>
     Object.fromEntries(linhas.filter((l): l is { id: string; n: number } => l.id !== null).map((l) => [l.id, l.n]));
   return {
     subs: mapa(subs.map((l) => ({ id: l.subdisciplinaId, n: l._count._all }))),
     fases: mapa(fases.map((l) => ({ id: l.etapaId, n: l._count._all }))),
+    documentos,
   };
 }

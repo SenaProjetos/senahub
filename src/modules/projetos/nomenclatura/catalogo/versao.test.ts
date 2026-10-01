@@ -281,9 +281,15 @@ describe("chaveConfirmacao", () => {
   it("muda quando muda quem perde a sigla oficial; vazia sem oficial em jogo", () => {
     const comSigla = (cardId: string, sigla: string) =>
       planejarTransferencia(catalogoDev(), 2, operacoesComId([{ tipo: "sub-nova", cardId, nome: "X", sigla }]), [1, 2]);
-    expect(chaveConfirmacao(comSigla("est", "EST"))).toBe("EST|Estrutural");
-    expect(chaveConfirmacao(comSigla("arq", "ARQ"))).toBe("ARQ|Arquitetura");
+    expect(chaveConfirmacao(comSigla("est", "EST"))).toBe("EST|Estrutural|v2");
+    expect(chaveConfirmacao(comSigla("arq", "ARQ"))).toBe("ARQ|Arquitetura|v2");
     expect(chaveConfirmacao(comSigla("hid", "ESG"))).toBe("");
+  });
+
+  it("a mesma sigla em outra versão é outra confirmação (lente Todas troca a versão no diálogo)", () => {
+    const naVersao = (v: number) =>
+      planejarTransferencia(catalogoDev(), v, operacoesComId([{ tipo: "sub-nova", cardId: "est", nome: "X", sigla: "EST" }]), [1, 2]);
+    expect(chaveConfirmacao(naVersao(2))).not.toBe(chaveConfirmacao(naVersao(1)));
   });
 });
 

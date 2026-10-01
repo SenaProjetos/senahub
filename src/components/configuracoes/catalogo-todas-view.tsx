@@ -63,7 +63,7 @@ type VersaoLista = { numero: number; nome: string; publicadaEm: Date | null; seq
 type Alvo = LinhaTodas["alvo"];
 
 /** Item da lista com o que as ações precisam (uso e nome do card-mãe). */
-type Entrada = { linha: LinhaTodas; uso: number; dono?: CardTodas };
+type Entrada = { linha: LinhaTodas; uso: number; docs: number; dono?: CardTodas };
 
 export function CatalogoTodasView({
   versoes,
@@ -72,6 +72,7 @@ export function CatalogoTodasView({
   cadastro,
   usoSubs,
   usoFases,
+  usoDocumentos,
   categorias,
   aba,
   podeGerir,
@@ -84,6 +85,8 @@ export function CatalogoTodasView({
   cadastro: Record<string, CadastroCard>;
   usoSubs: Record<string, number>;
   usoFases: Record<string, number>;
+  /** Documentos por fase/tipo (para travar o excluir; a FK solta o documento em silêncio). */
+  usoDocumentos: Record<string, number>;
   categorias: string[];
   aba: AbaTodas;
   podeGerir: boolean;
@@ -108,6 +111,14 @@ export function CatalogoTodasView({
 
   const usoDe = (l: LinhaTodas): number =>
     l.alvo.tipo === "disciplina" ? (cadastro[l.alvo.id]?.uso ?? 0) : l.alvo.tipo === "subdisciplina" ? (usoSubs[l.alvo.id] ?? 0) : (usoFases[l.alvo.id] ?? 0);
+
+  /** Documentos que apontam para o item (fase/tipo) ou para as subs do card; a sub já conta documentos em `usoDe`. */
+  const docsDe = (l: LinhaTodas): number => {
+    if (l.alvo.tipo === "subdisciplina") return 0;
+    if (l.alvo.tipo === "prancha") return usoDocumentos[l.alvo.id] ?? 0;
+    const c = todas.cards.find((x) => x.alvo.id === l.alvo.id);
+    return (c?.subs ?? []).reduce((n, s) => n + (usoSubs[s.alvo.id] ?? 0), 0);
+  };
 
   /** Quem o perfil pode mexer: card em `projetos:gerir`; sub, fase e tipo em `configuracoes:gerir`. */
   const podeNaLinha = (l: LinhaTodas) => (l.alvo.tipo === "disciplina" ? podeEditarCard : podeGerir);
@@ -137,12 +148,14 @@ export function CatalogoTodasView({
   const entradas = useMemo(() => {
     const m = new Map<string, Entrada>();
     for (const c of todas.cards) {
-      m.set(chaveAlvo(c.alvo), { linha: c, uso: cadastro[c.alvo.id]?.uso ?? 0 });
-      for (const s of c.subs) m.set(chaveAlvo(s.alvo), { linha: s, uso: usoSubs[s.alvo.id] ?? 0, dono: c });
+      m.set(chaveAlvo(c.alvo), { linha: c, uso: cadastro[c.alvo.id]?.uso ?? 0, docs: c.subs.reduce((n, s) => n + (usoSubs[s.alvo.id] ?? 0), 0) });
+      for (const s of c.subs) m.set(chaveAlvo(s.alvo), { linha: s, uso: usoSubs[s.alvo.id] ?? 0, docs: 0, dono: c });
     }
-    for (const l of [...todas.fases, ...todas.tipos]) m.set(chaveAlvo(l.alvo), { linha: l, uso: usoFases[l.alvo.id] ?? 0 });
+    for (const l of [...todas.fases, ...todas.tipos]) {
+      m.set(chaveAlvo(l.alvo), { linha: l, uso: usoFases[l.alvo.id] ?? 0, docs: usoDocumentos[l.alvo.id] ?? 0 });
+    }
     return m;
-  }, [todas, cadastro, usoSubs, usoFases]);
+  }, [todas, cadastro, usoSubs, usoFases, usoDocumentos]);
 
   const totalAtivas = todas.cards.filter((c) => c.ativo).length;
   const totalArquivadas = todas.cards.length - totalAtivas;
@@ -210,7 +223,7 @@ export function CatalogoTodasView({
     () => [...entradas.entries()].filter(([chave]) => selecao.marcado(chave)).map(([chave, e]) => ({ chave, ...e })),
     [entradas, selecao],
   );
-  const itensDoLote = itensDoLoteTodas(alvosSelecao.map((a) => ({ ativo: a.linha.ativo, uso: a.uso })));
+  const itensDoLote = itensDoLoteTodas(alvosSelecao.map((a) => ({ ativo: a.linha.ativo, uso: a.uso + a.docs })));
 
   async function executarLote(item: AcaoItemAcao) {
     const rotulo = (chave: string) => entradas.get(chave)?.linha.nome ?? chave;
@@ -233,7 +246,7 @@ export function CatalogoTodasView({
       });
     } else if (item.id === ACAO_LOTE_EXCLUIR) {
       // Subs antes dos cards: excluir o card leva as subs junto e a exclusão da sub falharia.
-      const livres = alvosSelecao.filter((a) => a.uso === 0).sort((a, b) => Number(a.linha.alvo.tipo === "disciplina") - Number(b.linha.alvo.tipo === "disciplina"));
+      const livres = alvosSelecao.filter((a) => a.uso + a.docs === 0).sort((a, b) => Number(a.linha.alvo.tipo === "disciplina") - Number(b.linha.alvo.tipo === "disciplina"));
       const emUso = alvosSelecao.length - livres.length;
       await lote.executar({
         ids: livres.map((a) => a.chave),
@@ -263,6 +276,7 @@ export function CatalogoTodasView({
       podeEditarCard,
       versaoAbrir: versaoParaAbrir(l, numeros),
       uso: usoDe(l),
+      usoDocumentos: docsDe(l),
       reordenar,
     });
   }

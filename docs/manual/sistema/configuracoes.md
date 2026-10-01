@@ -83,7 +83,7 @@ lugar.
 
 A tela é **Configurações → Disciplinas e nomenclatura**. Ela abre na versão mais nova; para
 trocar, use a **lista de versões** no topo (mais nova primeiro, com "rascunho" e "vigente"). As
-abas **Disciplinas**, **Fases** e **Tipos de documento** separam o catálogo, e a busca encontra
+abas **Disciplinas**, **Fases**, **Tipos de documento** e **Formatos de folha** separam o catálogo, e a busca encontra
 por nome, sigla ou sinônimo. Ela mostra a versão como na planilha da gestão: cada **CARD**
 (disciplina que abre card no projeto, com projetista, prazo e pagamento) com as suas **SUBs**
 (etiqueta do documento, lida do nome do arquivo), a sigla de cada um, e as fases e tipos. Ao
@@ -143,6 +143,33 @@ volta ("Voltar para a versão"), ou ganha sigla nova **a partir** daquela versã
 campo solto de "Vale a partir da / Até a". Sair e voltar **não mexem nas siglas** dele, e salvar o
 lápis para trocar ícone, nome ou categoria também não. A numeração por faixa (4000–4999) só
 aparece para disciplinas que valem em alguma versão numerada por faixa (a v1).
+
+## Lente "Todas as versões" e Formatos de folha
+
+No topo da tela, a **lista de versões** tem como primeiro item **Todas as versões**: o **cadastro
+inteiro**, com as disciplinas arquivadas (interruptor **Arquivadas**) e o que cada item tem de
+fixo, sem olhar uma versão só. Cada linha mostra:
+- **Existe em** — as versões em que o item vale ("v1 em diante", "só v1", "a partir da v2"); numa
+  sub, já descontado o que o card dela permite;
+- **Siglas (todas as versões)** — a oficial e os sinônimos, com a versão ao lado quando ela é
+  diferente da do item ("ESG só v1"). Clicar nas siglas abre o **histórico**, só para leitura;
+  mudar sigla é dentro de uma versão (o histórico tem o link **abrir a vN**);
+- **Em uso** — quantos projetos usam a disciplina (nas fases, quantas etapas).
+
+O menu **⋯** (ou botão direito) da lente Todas tem **Editar cadastro**, **Abrir na vN**,
+**Subir/Descer** (a ordem dentro da categoria, só com a busca vazia), **Arquivar/Desarquivar** e
+**Excluir**. Excluir só vale para o que ninguém usa — em uso, o item fica esmaecido dizendo
+quantos projetos, documentos ou etapas usam; arquive. Disciplinas e sub-disciplinas têm caixa de
+seleção para **arquivar, desarquivar ou excluir várias de uma vez**. O lápis ao lado do nome de
+uma categoria **renomeia a categoria** em todas as disciplinas dela.
+
+**+ Disciplina** (ou **+ Fase**, **+ Tipo**) na lente Todas pergunta **a partir de qual versão**
+o item passa a existir (a mais nova já vem marcada) e mostra o conflito de sigla dessa versão
+antes de salvar.
+
+A aba **Formatos de folha** (A1, A3…) está nas duas lentes e **não depende de versão**: não tem
+seletor de versão, só a lista e o formulário de um formato novo. As opções **exigir nomenclatura**
+e **exigir fase**, para todos os projetos, ficam na página **Versões**.
 
 ## Menu de ações e seleção em lote
 

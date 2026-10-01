@@ -114,6 +114,20 @@ describe("itensDaLinhaTodas (lente Todas as versões)", () => {
     expect(frase(faseAtiva, 2)).toMatchObject({ desabilitado: "Usada por 2 etapas de disciplina — arquive em vez de excluir." });
   });
 
+  it("documentos que apontam para o item (fase/tipo) ou para as subs do card travam o excluir", () => {
+    const ex = (l: L, ctx: Partial<typeof base> & { usoDocumentos?: number }) =>
+      itensDaLinhaTodas(l, { ...base, reordenar, ...ctx }).find((i) => i.id === "excluir");
+    expect(ex(faseAtiva, { usoDocumentos: 5 })).toMatchObject({ desabilitado: "Em uso em 5 documentos — arquive em vez de excluir." });
+    // Etapas de disciplina vêm primeiro quando a fase tem as duas coisas.
+    expect(ex(faseAtiva, { uso: 2, usoDocumentos: 5 })).toMatchObject({ desabilitado: "Usada por 2 etapas de disciplina — arquive em vez de excluir." });
+    expect(ex({ alvo: { tipo: "prancha", id: "t-det" }, ativo: true }, { usoDocumentos: 1 })).toMatchObject({
+      desabilitado: "Em uso em 1 documento — arquive em vez de excluir.",
+    });
+    // Card sem projeto, mas com documentos nas subs dele.
+    expect(ex(cardAtivo, { usoDocumentos: 3 })).toMatchObject({ desabilitado: "Em uso em 3 documentos — arquive em vez de excluir." });
+    expect(ex(cardAtivo, { uso: 4, usoDocumentos: 3 })).toMatchObject({ desabilitado: "Em uso em 4 projetos — arquive em vez de excluir." });
+  });
+
   it("sem uso, excluir segue habilitado", () => {
     const ex = itensDaLinhaTodas(cardAtivo, { ...base, reordenar }).find((i) => i.id === "excluir");
     expect(ex && "desabilitado" in ex ? ex.desabilitado : undefined).toBeUndefined();

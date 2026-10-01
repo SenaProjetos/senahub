@@ -14,7 +14,7 @@ import {
   type FaixaVersao,
 } from "@/modules/uploads/nomenclatura/siglas-versao";
 import { garantirSiglasSemColisao } from "@/modules/uploads/nomenclatura/siglas-guardas";
-import { fraseFaseEmUso } from "@/modules/projetos/nomenclatura/catalogo/todas";
+import { fraseFaseEmUso, fraseSubEmUso } from "@/modules/projetos/nomenclatura/catalogo/todas";
 
 const base = { modulo: "configuracoes", recurso: "configuracoes", permissao: "gerir" } as const;
 const categoria = z.enum(["folha", "tipo", "fase"]);
@@ -230,6 +230,12 @@ export const excluirCatalogoPrancha = defineAction(
     if (emUso > 0) {
       throw new ActionError(fraseFaseEmUso(emUso));
     }
+    // Documentos que usam a fase, o tipo ou o formato: a FK é `SetNull`, então excluir os soltaria em
+    // silêncio (sem fase/tipo/formato) — a recusa é a mesma frase do menu.
+    const documentos = await prisma.documentoDisciplina.count({
+      where: { OR: [{ faseId: i.id }, { tipoId: i.id }, { tamanhoPapelId: i.id }] },
+    });
+    if (documentos > 0) throw new ActionError(fraseSubEmUso(documentos));
     await prisma.pranchaCatalogo.delete({ where: { id: i.id } });
     rev();
     return { id: i.id };

@@ -573,13 +573,13 @@ export function planejarTransferencia(
 }
 
 /**
- * Identifica o que o "Entendi" confirma: as siglas oficiais que saem de outros itens. Se a lista
+ * Identifica o que o "Entendi" confirma: as siglas oficiais que saem de outros itens, NA VERSÃO. Se a lista
  * muda (a pessoa trocou a sigla digitada), a confirmação dada antes não vale para a nova.
  */
 export function chaveConfirmacao(plano: PlanoTransferencia): string {
   return plano.conflitos
     .filter((c) => c.papel === "oficial")
-    .map((c) => `${c.sigla}|${c.dono}`)
+    .map((c) => `${c.sigla}|${c.dono}|v${c.versao}`)
     .join(";");
 }
 

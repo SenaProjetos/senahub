@@ -86,15 +86,23 @@ export type ContextoLinhaTodas = {
   versaoAbrir: number;
   /** Card: projetos; sub: documentos; fase: etapas de disciplina; tipo: 0. */
   uso: number;
+  /**
+   * Documentos que apontam para o item: os da fase/tipo, ou os das subs do card. Sem isto o servidor
+   * os soltaria em silêncio (a FK é `SetNull`) — por isso trava o excluir como o resto do uso.
+   */
+  usoDocumentos?: number;
   /** Só card. `pode` = sem busca e sem "só selecionados" (a ordem é da categoria inteira). */
   reordenar?: { pode: boolean; temCima: boolean; temBaixo: boolean };
 };
 
-function motivoExcluir(alvo: AlvoCatalogo, uso: number): string | undefined {
-  if (uso <= 0) return undefined;
-  if (alvo.tipo === "disciplina") return fraseCardEmUso(uso);
-  if (alvo.tipo === "subdisciplina") return fraseSubEmUso(uso);
-  return fraseFaseEmUso(uso);
+function motivoExcluir(alvo: AlvoCatalogo, uso: number, documentos: number): string | undefined {
+  if (uso > 0) {
+    if (alvo.tipo === "disciplina") return fraseCardEmUso(uso);
+    if (alvo.tipo === "subdisciplina") return fraseSubEmUso(uso);
+    return fraseFaseEmUso(uso);
+  }
+  // Sub já conta documentos em `uso`; card, fase e tipo caem aqui quando só os documentos usam.
+  return documentos > 0 && alvo.tipo !== "subdisciplina" ? fraseSubEmUso(documentos) : undefined;
 }
 
 /**
@@ -141,7 +149,7 @@ export function itensDaLinhaTodas(linha: { alvo: AlvoCatalogo; ativo: boolean },
       rotulo: "Excluir",
       icone: Trash2,
       variant: "destructive",
-      desabilitado: motivoExcluir(linha.alvo, ctx.uso),
+      desabilitado: motivoExcluir(linha.alvo, ctx.uso, ctx.usoDocumentos ?? 0),
     },
   );
   return itens;

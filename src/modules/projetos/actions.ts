@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
-import { fraseCardEmUso } from "@/modules/projetos/nomenclatura/catalogo/todas";
+import { fraseCardEmUso, fraseSubEmUso } from "@/modules/projetos/nomenclatura/catalogo/todas";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
@@ -1330,6 +1330,9 @@ export const excluirDisciplinaCatalogo = defineAction(
     // Mesma contagem (projetos distintos, nome sem caixa/acento) e mesma frase do menu da lista.
     const uso = await usoDaDisciplina(c.nome);
     if (uso > 0) throw new ActionError(fraseCardEmUso(uso));
+    // As subs saem junto (cascata) e os documentos delas ficariam sem sub em silêncio (`SetNull`).
+    const documentos = await prisma.documentoDisciplina.count({ where: { subdisciplina: { disciplinaCatalogoId: i.id } } });
+    if (documentos > 0) throw new ActionError(fraseSubEmUso(documentos));
     await prisma.disciplinaCatalogo.delete({ where: { id: i.id } });
     revCatalogo();
     return { id: i.id };
