@@ -4,20 +4,13 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Trash2, ChevronDown, Wallet, Users } from "lucide-react";
-import {
-  criarSocio,
-  removerSocio,
-  criarRetiradaSocio,
-  removerRetiradaSocio,
-} from "@/modules/financeiro/cadastros/actions";
+import { criarSocio, removerSocio, removerRetiradaSocio } from "@/modules/financeiro/cadastros/actions";
 import { brl, formatarData } from "@/lib/utils";
 import { RetiradaDialog, type TipoRetirada } from "./retirada-dialog";
 import { percentualParaBp } from "@/modules/financeiro/socios/calculo";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { InputPercentual } from "@/components/ui/input-percentual";
-import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -131,34 +124,17 @@ export function SociosSection({ socios, usuarios, hoje }: { socios: Socio[]; usu
   );
 }
 
+/**
+ * A lista de retiradas é só HISTÓRICO (F6D): o registro antigo não virava lançamento, então não
+ * entrava no caixa nem na DRE. Retirada nova sai pelos botões de lucros (conta a pagar por sócio) ou
+ * por Compromissos recorrentes, no caso do pró-labore. Remover segue aqui para corrigir o histórico.
+ */
 function SocioRow({ s, onRemover }: { s: Socio; onRemover: (id: string) => void }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [aberto, setAberto] = useState(false);
-  const [form, setForm] = useState({ data: "", valor: null as number | null, tipo: "pro_labore", observacao: "" });
   const totalRet = s.retiradas.reduce((a, r) => a + r.valor, 0);
 
-  function addRetirada() {
-    if (!form.data || form.valor === null) {
-      toast.error("Informe data e valor.");
-      return;
-    }
-    const valor = form.valor;
-    start(async () => {
-      const r = await criarRetiradaSocio({
-        socioId: s.id,
-        data: form.data,
-        valor,
-        tipo: form.tipo as "pro_labore" | "distribuicao" | "adiantamento",
-        observacao: form.observacao,
-      });
-      if (r.ok) {
-        toast.success("Retirada registrada.");
-        setForm({ data: "", valor: null, tipo: "pro_labore", observacao: "" });
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
   function rmRetirada(id: string) {
     start(async () => {
       const r = await removerRetiradaSocio({ id });
@@ -192,7 +168,12 @@ function SocioRow({ s, onRemover }: { s: Socio; onRemover: (id: string) => void 
 
       {aberto && (
         <div className="mt-2 space-y-2 border-t pt-2">
-          {s.retiradas.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            Histórico de retiradas anteriores aos lançamentos — estes registros não entram no caixa nem na DRE.
+          </p>
+          {s.retiradas.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhuma retirada no histórico.</p>
+          ) : (
             <ul className="divide-y text-xs">
               {s.retiradas.map((r) => (
                 <li key={r.id} className="flex items-center justify-between gap-2 py-1">
@@ -202,7 +183,12 @@ function SocioRow({ s, onRemover }: { s: Socio; onRemover: (id: string) => void 
                   </span>
                   <span className="flex items-center gap-2">
                     <span className="font-mono">{brl(r.valor)}</span>
-                    <button onClick={() => rmRetirada(r.id)} aria-label="Remover retirada" className="text-muted-foreground hover:text-destructive">
+                    <button
+                      onClick={() => rmRetirada(r.id)}
+                      disabled={pending}
+                      aria-label="Remover retirada do histórico"
+                      className="text-muted-foreground hover:text-destructive disabled:opacity-50"
+                    >
                       <Trash2 className="size-3" />
                     </button>
                   </span>
@@ -210,22 +196,6 @@ function SocioRow({ s, onRemover }: { s: Socio; onRemover: (id: string) => void 
               ))}
             </ul>
           )}
-          <div className="flex flex-wrap items-end gap-2">
-            <Input type="date" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} className="w-36" />
-            <InputMoeda semPrefixo placeholder="Valor (R$)" value={form.valor} onChange={(v) => setForm({ ...form, valor: v })} className="w-32" />
-            <Select value={form.tipo} onValueChange={(v) => setForm({ ...form, tipo: v ?? "pro_labore" })}>
-              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pro_labore">Pró-labore</SelectItem>
-                <SelectItem value="distribuicao">Distribuição</SelectItem>
-                <SelectItem value="adiantamento">Adiantamento</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input placeholder="Obs." value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} className="w-32 flex-1" />
-            <Button size="sm" variant="outline" onClick={addRetirada} disabled={pending}>
-              <Plus className="size-3.5" /> Retirada
-            </Button>
-          </div>
         </div>
       )}
     </li>

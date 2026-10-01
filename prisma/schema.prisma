@@ -6320,6 +6320,13 @@ model FolhaPagamento {
   fechadaEm     DateTime?
   /// Lançamento de despesa (2.03) criado ao fechar.
   lancamentoId  String?     @unique
+  /// `true` quando o fechamento QUITOU uma conta a pagar que já existia (o previsto que a
+  /// recorrência gerou, ou um lançamento feito à mão) em vez de criar uma nova. Reabrir devolve ela
+  /// ao previsto; apagar levaria embora a conta a pagar de outra pessoa (F6D do planejador).
+  lancamentoReaproveitado Boolean @default(false)
+  /// Valor que a conta a pagar reaproveitada tinha antes do fechamento, para reabrir restaurar a
+  /// previsão exata (o fechamento grava o valor real).
+  lancamentoValorPrevisto Decimal? @db.Decimal(14, 2)
   /// PDF original do contador, guardado para auditoria/reprocesso (plano
   /// 2026-09-13-folha-clt-import-assinatura.md). Caminho relativo a STORAGE_BASE_PATH, mesmo
   /// padrão de NotaFiscalPJ.arquivoPath — NÃO é o modelo `Upload` (Upload exige `disciplinaId`,

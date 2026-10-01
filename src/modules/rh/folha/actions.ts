@@ -13,6 +13,7 @@ import { calcularEncargos } from "@/lib/encargos";
 import { faixasPorTipo, deducaoDependente } from "@/modules/rh/encargos/queries";
 import { dependentesPorUsuario } from "@/modules/rh/funcionarios/queries";
 import { TIPOS_FOLHA, rotuloFolha } from "@/modules/rh/folha/tipo-folha";
+import { fecharFolhaNoBanco, reabrirFolhaNoBanco } from "@/modules/rh/folha/fechamento-service";
 
 const base = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
 const PATH = "/rh/folha";
@@ -164,87 +165,38 @@ export const removerHolerite = defineAction(
 );
 
 /**
- * Fecha a folha: total líquido vira Lançamento de despesa CONFIRMADO
- * na categoria 2.03 (Folha CLT) → entra no caixa e na DRE.
+ * Fecha a folha: total líquido vira Lançamento de despesa CONFIRMADO na categoria 2.03 (Folha CLT)
+ * → entra no caixa e na DRE.
+ *
+ * F6D: se a competência já tem uma conta a pagar PREVISTA de folha (a que o compromisso recorrente
+ * gerou, ou uma lançada à mão), o fechamento QUITA ela com o valor real em vez de criar outra —
+ * senão o mês ficaria com as duas e a projeção de caixa descontaria a folha duas vezes.
  */
 export const fecharFolha = defineAction(
   { ...base, acao: "fechar-folha", entidade: "FolhaPagamento", schema: idSchema },
   async (i, { user }) => {
-    const folha = await prisma.folhaPagamento.findUnique({
-      where: { id: i.id },
-      include: { holerites: { include: { itens: true } } },
-    });
-    if (!folha) throw new ActionError("Folha não encontrada.");
-    if (folha.status === "fechada") throw new ActionError("Folha já fechada.");
-    if (folha.holerites.length === 0) throw new ActionError("Adicione holerites antes de fechar.");
-
-    let liquido = 0;
-    for (const h of folha.holerites) {
-      for (const it of h.itens) {
-        liquido += it.tipo === "provento" ? Number(it.valor) : -Number(it.valor);
-      }
-    }
-    if (liquido <= 0) throw new ActionError("Total líquido deve ser positivo.");
-
-    const categoria = await prisma.categoriaFinanceira.findUnique({ where: { codigo: "2.03" } });
-    if (!categoria) throw new ActionError("Categoria 2.03 (Folha CLT) ausente no plano de contas.");
-
-    const agora = new Date();
-    await prisma.$transaction(async (tx) => {
-      const lanc = await tx.lancamento.create({
-        data: {
-          tipo: "despesa",
-          descricao: `Folha CLT ${rotuloFolha(folha)}`,
-          valor: liquido,
-          status: "confirmado",
-          data: agora,
-          dataConfirmacao: agora,
-          categoriaId: categoria.id,
-          autorId: user.id,
-        },
-      });
-      await tx.folhaPagamento.update({
-        where: { id: folha.id },
-        data: { status: "fechada", fechadaEm: agora, lancamentoId: lanc.id },
-      });
-    });
+    const r = await fecharFolhaNoBanco(i.id, user.id);
     revalidatePath(PATH);
     revalidatePath(`${PATH}/${i.id}`);
     revalidatePath("/financeiro/lancamentos");
-    return { id: i.id, liquido };
+    revalidatePath("/financeiro/planejador");
+    return { id: i.id, liquido: r.liquido, quitou: r.quitou, aviso: r.aviso };
   },
 );
 
-/** Reabre a folha: exclui o lançamento financeiro vinculado. */
+/**
+ * Reabre a folha: desfaz o que o fechamento fez com o lançamento. Criado pelo fechamento, é
+ * excluído; conta a pagar que já existia e foi quitada volta ao previsto com o valor que tinha —
+ * apagar levaria embora a conta a pagar de outra pessoa (F6D).
+ */
 export const reabrirFolha = defineAction(
   { ...base, acao: "reabrir-folha", entidade: "FolhaPagamento", schema: idSchema },
   async (i) => {
-    const folha = await prisma.folhaPagamento.findUnique({ where: { id: i.id } });
-    if (!folha) throw new ActionError("Folha não encontrada.");
-    if (folha.status !== "fechada") throw new ActionError("Folha não está fechada.");
-
-    const assinaturasRevogadas = await prisma.$transaction(async (tx) => {
-      await tx.folhaPagamento.update({
-        where: { id: i.id },
-        data: { status: "aberta", fechadaEm: null, lancamentoId: null },
-      });
-      if (folha.lancamentoId) {
-        await tx.lancamento.delete({ where: { id: folha.lancamentoId } }).catch(() => {});
-      }
-      // Reabrir libera `salvarHolerite`/`removerHolerite` de novo (recusam com folha fechada) —
-      // quem já tinha assinado assinou um conjunto de itens que pode não ser mais o que fica
-      // gravado. Sem isto, o PDF mostraria "assinado" sobre itens potencialmente diferentes dos
-      // que a pessoa leu (mesma garantia que o recibo de produção dá com o hash do texto — aqui
-      // o holerite não tem texto fixo, então a garantia é esta).
-      const r = await tx.holerite.updateMany({
-        where: { folhaId: i.id, assinadoEm: { not: null } },
-        data: { assinadoEm: null, assinanteId: null },
-      });
-      return r.count;
-    });
+    const { assinaturasRevogadas } = await reabrirFolhaNoBanco(i.id);
     revalidatePath(PATH);
     revalidatePath(`${PATH}/${i.id}`);
     revalidatePath("/financeiro/lancamentos");
+    revalidatePath("/financeiro/planejador");
     return { id: i.id, assinaturasRevogadas };
   },
 );

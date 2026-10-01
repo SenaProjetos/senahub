@@ -101,7 +101,14 @@ export function FolhaDetalheView({
     start(async () => {
       const r = await fecharFolha({ id: folha.id });
       if (r.ok) {
-        toast.success(`Folha fechada — ${brl(r.data.liquido)} lançado na DRE.`);
+        // O aviso diz se a conta a pagar prevista da competência foi quitada (em vez de nascer uma
+        // segunda despesa) e o que ficou em aberto — fica na tela até alguém fechar.
+        toast.success(
+          r.data.quitou
+            ? `Folha fechada — ${brl(r.data.liquido)} na DRE, quitando a conta a pagar prevista.`
+            : `Folha fechada — ${brl(r.data.liquido)} lançado na DRE.`,
+          r.data.aviso ? { description: r.data.aviso, duration: 12_000 } : undefined,
+        );
         setPreview(false);
         router.refresh();
       } else toast.error(r.error);

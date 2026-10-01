@@ -43,7 +43,7 @@ npm run smoke:previsao-recebimento  # contrato por entrega: previsão no caixa, 
 npm run smoke:duplicar-projeto      # duplicar projeto com EAP: estrutura, IDs novos, cronograma em rascunho, o que NÃO copia
 npm run smoke:modelo-disciplina     # modelos de EAP por disciplina: criar do modelo de projeto, "Gerar EAP das disciplinas", fases encadeadas
 npm run smoke:apagar-eap            # apagar a EAP inteira (rascunho): o que impede, o que vai junto, o que fica
-npm run smoke:planejador            # planejador de caixa: S0 = caixa da Visão geral, só pendente vira evento, transferência, parcial, leitura não grava; aplicar cenário tudo-ou-nada (obsoleto, regra no 3º, corrida)
+npm run smoke:planejador            # planejador de caixa: S0 = caixa da Visão geral, só pendente vira evento, transferência, parcial, leitura não grava; aplicar cenário tudo-ou-nada (obsoleto, regra no 3º, corrida); caixinhas, distribuição, recorrência, fora do resultado, lucros de sócio e folha quitando o previsto
 npm run verify:motor-cronograma     # motor do cronograma contra os projetos reais do banco
 ```
 
@@ -255,6 +255,17 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   (`count ≠ 1` rolls back). Several ajustes on one lançamento become ONE write. Creating goes through
   `criarLancamentoNoTx` (`lancamentos/service.ts`, same rules as `criarLancamento`) — never a bare
   `lancamento.create`. MVP applies only date, priority, confidence and new movements with a category.
+- **Closing the CLT payroll SETTLES the month's forecast** (`rh/folha/fechamento-service.ts` + pure
+  `quitacao.ts`, F6D): `fecharFolha` reuses the competência's `previsto` folha bill (the one the recurrence
+  generated, or a manual one) with the real net value instead of creating a second expense — otherwise the
+  month carried both and the projection lost the payroll twice. Which one is a pure decision: only `previsto`
+  is eligible (settling an `aguardando_aprovacao` would pay around the approval), the recurrence link wins,
+  a lone candidate is taken, and two unlinked candidates settle NOTHING (the closing creates its own and the
+  result's `aviso` names what stayed open). Only the `mensal` folha settles — the 13º has its own folha in the
+  same month. Reopening undoes it by `lancamentoReaproveitado`: a bill that already existed goes back to
+  `previsto` with `lancamentoValorPrevisto`; only a bill the closing created is deleted. `RetiradaSocio` is
+  frozen as history — it never became a `Lancamento`, so `criarRetiradaSocio` refuses and points to the
+  recurrence (pró-labore) or to Distribuir/Adiantar lucros.
 
 **Projetista paid per phase** (F7.4, `PagamentoProjetista.etapaId`): "already paid" means
 `situacaoPagamento().jaLiberouTudo` (every phase released) — never "has any payment" (`_count.pagamentos > 0`),

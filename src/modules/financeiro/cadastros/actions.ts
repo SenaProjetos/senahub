@@ -178,6 +178,16 @@ export const removerSocio = defineAction(
 );
 
 // ── Retiradas de sócio (A5) ───────────────────────────────────
+/**
+ * CONGELADA como histórico (F6D do planejador financeiro). `RetiradaSocio` era um registro paralelo:
+ * não virava `Lancamento`, então não entrava no caixa, na projeção nem na DRE. Hoje toda retirada é
+ * dinheiro de verdade: pró-labore é compromisso recorrente (Cadastros → Recorrentes) e lucros saem
+ * pelos botões Distribuir/Adiantar, que criam conta a pagar por sócio.
+ *
+ * A ação fica no lugar, recusando: o formulário saiu da tela, mas uma aba aberta de antes ainda
+ * poderia chamá-la — e o certo é dizer onde se faz agora, não gravar no registro congelado.
+ * Remover continua liberado: o histórico é corrigível.
+ */
 export const criarRetiradaSocio = defineAction(
   {
     ...base,
@@ -191,18 +201,11 @@ export const criarRetiradaSocio = defineAction(
       observacao: z.string().optional().or(z.literal("")),
     }),
   },
-  async (i) => {
-    await prisma.retiradaSocio.create({
-      data: {
-        socioId: i.socioId,
-        data: new Date(i.data + "T00:00:00Z"),
-        valor: i.valor,
-        tipo: i.tipo,
-        observacao: i.observacao || null,
-      },
-    });
-    rev();
-    return { ok: true };
+  async () => {
+    throw new ActionError(
+      "Esta lista virou só histórico. Pró-labore se cadastra em Compromissos recorrentes e os lucros saem por " +
+        "“Distribuir lucros” ou “Adiantar lucros” — os três criam conta a pagar e entram no caixa.",
+    );
   },
 );
 

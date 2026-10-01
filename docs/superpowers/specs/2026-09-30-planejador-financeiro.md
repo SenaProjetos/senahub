@@ -413,6 +413,27 @@ A F6 (Opus) fecha em quatro commits independentes, cada um com testes verdes e r
   divisão por `Socio.percentual`.
 - **F6D** folha: `fecharFolha` quita o pendente da competência; `RetiradaSocio` congelada como histórico.
 
+### F6D como ficou (2026-10-01)
+
+- **Quem quita e quem não.** Só a folha `mensal` quita (a de 13º é outra despesa, com folha própria no
+  mesmo mês) e só candidato `previsto`: quitar um `aguardando_aprovacao` pagaria por cima da aprovação, então
+  ele fica em aberto e entra no aviso. Entre os candidatos, o lançamento da recorrência DAQUELA competência
+  ganha; sem vínculo, um candidato sozinho é quitado; **dois sem vínculo não são adivinhados** — o fechamento
+  cria o lançamento dele e o `aviso` diz o que ficou em aberto, para uma pessoa resolver.
+- **Decisão pura** em `rh/folha/quitacao.ts` (`escolherPendenteDaFolha`, `avisoDaQuitacao`,
+  `desfazerQuitacao`); o I/O em `rh/folha/fechamento-service.ts`, chamado pela action e pelo smoke (as
+  actions exigem sessão). A gravação é `updateMany` condicionado a `status: "previsto"`: se alguém pagou ou
+  cancelou a conta entre ler e gravar, nada é sobrescrito e o fechamento cria o lançamento dele.
+- **Reabrir** desfaz pelo que ficou gravado na folha (`lancamentoReaproveitado`,
+  `lancamentoValorPrevisto`): conta a pagar que já existia volta ao `previsto` com o valor de antes; só o
+  lançamento que o fechamento criou é apagado. Apagar sempre levaria embora a conta a pagar de outra pessoa.
+- **Categoria pela chave** (`despesa_folha_clt`, com `codigo: "2.03"` só como reserva): `codigo` é editável
+  em Cadastros (C1).
+- **`RetiradaSocio` congelada:** o formulário saiu da aba Sócios (a lista virou histórico rotulado, com
+  remoção para corrigir) e `criarRetiradaSocio` recusa dizendo onde se faz agora — pró-labore em Compromissos
+  recorrentes, lucros em Distribuir/Adiantar. A ação fica no lugar porque uma aba aberta de antes ainda
+  poderia chamá-la.
+
 ## 15. Testes por arquivo (`src/modules/financeiro/liquidez/`)
 
 | Arquivo | Cobre |

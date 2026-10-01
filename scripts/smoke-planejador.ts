@@ -24,6 +24,9 @@
  * DRE; transferência fica fora dos dois e fora do aging e do balanço.
  * F6B: distribuição de lucros dividida pelo percentual de cada sócio, em contas a pagar fora do
  * resultado — e recusada quando os percentuais não fecham 100%.
+ * F6D: fechar a folha CLT QUITA a conta a pagar prevista da competência (não cria uma segunda
+ * despesa), reabrir devolve ela ao previsto com o valor de antes, e a folha de 13º não toca na
+ * mensal.
  *
  * Uso: npm run smoke:planejador
  */
@@ -55,6 +58,8 @@ import { gerarLancamentosRecorrentes, vincularLancamento } from "../src/modules/
 import { agingReport } from "../src/modules/financeiro/aging/queries";
 import { balancoGerencial, indicadores, relatorioDFC, relatorioDRE } from "../src/modules/financeiro/relatorios/queries";
 import { motivoDoRateio, percentualParaBp, ratearEntreSocios } from "../src/modules/financeiro/socios/calculo";
+import { fecharFolhaNoBanco, reabrirFolhaNoBanco } from "../src/modules/rh/folha/fechamento-service";
+
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -197,6 +202,7 @@ async function main() {
   await smokeRecorrencia(admin.id, catFornecedor.id);
   await smokeNatureza(admin.id);
   await smokeDistribuicaoSocios(admin.id);
+  await smokeFolhaQuitaPrevisto(admin.id);
 
   console.log("\n# Import do Meu Dinheiro — transferência nasce pareada e neutra");
   const categoriasAntes = new Set((await prisma.categoriaFinanceira.findMany({ select: { id: true } })).map((c) => c.id));
@@ -753,6 +759,93 @@ async function smokeDistribuicaoSocios(autorId: string) {
     check("com 90% a divisão é recusada, dizendo a soma", (motivoDoRateio([...socios.slice(0, 2), { ...socios[2], percentualBp: 1000 }]) ?? "").includes("somam 90%"));
   } finally {
     await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: t }, excluidoEm: { not: undefined } } });
+    await prisma.socio.deleteMany({ where: { user: { email: { startsWith: t } } } });
+    await prisma.user.deleteMany({ where: { email: { startsWith: t } } });
+  }
+}
+
+async function smokeFolhaQuitaPrevisto(autorId: string) {
+  const t = `${tag}-f6d`;
+  // Competência própria (ano 2040) para não colidir com folha real do banco de dev.
+  const ano = 2040;
+  const mes = 7;
+  const competencia = `${ano}-07`;
+  const vencimento = new Date(`${ano}-07-05T00:00:00.000Z`);
+  const cat = await prisma.categoriaFinanceira.findUnique({ where: { chave: "despesa_folha_clt" }, select: { id: true } });
+  const pessoa = await prisma.user.create({ data: { name: `${t} CLT`, email: `${t}@dev.local`, role: "clt" }, select: { id: true } });
+  // O fechamento reescreve a descrição, então a tag sozinha não acha o lançamento quitado.
+  const doTeste = { OR: [{ descricao: { startsWith: t } }, { descricao: `Folha CLT 07/${ano}` }, { descricao: `Folha CLT 13º salário 07/${ano}` }] };
+  try {
+    console.log("\n# F6D — fechar a folha quita o previsto da competência (spec §10)");
+    if (!cat) return check("a categoria da folha CLT existe pela chave", false);
+
+    const folhaDe = async (tipo: "mensal" | "decimo_terceiro", liquido: number) => {
+      const f = await prisma.folhaPagamento.create({ data: { ano, mes, tipo }, select: { id: true } });
+      const h = await prisma.holerite.create({ data: { folhaId: f.id, userId: pessoa.id }, select: { id: true } });
+      await prisma.holeriteItem.create({ data: { holeriteId: h.id, descricao: `${t} salário`, tipo: "provento", valor: liquido } });
+      return f.id;
+    };
+    const previsto = async (extra: Record<string, unknown> = {}) =>
+      prisma.lancamento.create({
+        data: {
+          descricao: `${t} folha prevista`,
+          tipo: "despesa",
+          valor: 40_000,
+          status: "previsto",
+          data: vencimento,
+          vencimento,
+          categoriaId: cat.id,
+          autorId,
+          ...extra,
+        },
+        select: { id: true },
+      });
+
+    // 1. Previsto da recorrência + fechamento com valor diferente: um lançamento só, valor real.
+    const rec = await prisma.compromissoRecorrente.create({
+      data: { descricao: `${t} folha`, valor: 40_000, diaVencimento: 5, competenciaInicio: competencia, categoriaId: cat.id },
+      select: { id: true },
+    });
+    const pRec = await previsto({ recorrenciaOrigemId: rec.id, recorrenciaCompetencia: competencia });
+    const folhaId = await folhaDe("mensal", 41_500);
+    const r = await fecharFolhaNoBanco(folhaId, autorId);
+    check("o fechamento quitou o previsto em vez de criar outra despesa", r.quitou && r.lancamentoId === pRec.id, r);
+    const depois = await prisma.lancamento.findMany({ where: { ...doTeste, excluidoEm: null }, select: { id: true, status: true, valor: true } });
+    check("a competência tem UM lançamento de folha, confirmado, com o valor real", depois.length === 1 && depois[0].status === "confirmado" && paraCentavos(depois[0].valor) === paraCentavos(41_500), depois);
+    check("o aviso conta a diferença entre previsto e real", (r.aviso ?? "").includes("R$ 1.500,00"), r.aviso);
+
+    // 2. Reabrir devolve o previsto com o valor de antes (nunca apaga conta a pagar de outra pessoa).
+    await reabrirFolhaNoBanco(folhaId);
+    const revertido = await prisma.lancamento.findUnique({ where: { id: pRec.id }, select: { status: true, valor: true, dataConfirmacao: true } });
+    check("reabrir volta a conta ao previsto, com o valor previsto e sem data de pagamento", revertido?.status === "previsto" && paraCentavos(revertido.valor) === paraCentavos(40_000) && revertido.dataConfirmacao === null, revertido);
+
+    // 3. Dois previstos sem vínculo: nenhum é quitado às cegas, e o aviso diz o que ficou em aberto.
+    await prisma.compromissoRecorrente.update({ where: { id: rec.id }, data: { ativo: false } });
+    await prisma.lancamento.update({ where: { id: pRec.id }, data: { recorrenciaOrigemId: null, recorrenciaCompetencia: null } });
+    const pExtra = await previsto();
+    const r2 = await fecharFolhaNoBanco(folhaId, autorId);
+    check("com dois previstos sem vínculo, o fechamento não adivinha qual quitar", !r2.quitou && r2.lancamentoId !== pRec.id && r2.lancamentoId !== pExtra.id, r2);
+    check("o aviso diz que ficaram contas em aberto", (r2.aviso ?? "").includes("2 contas a pagar em aberto"), r2.aviso);
+    await reabrirFolhaNoBanco(folhaId);
+    const sobraram = await prisma.lancamento.findMany({ where: { ...doTeste, excluidoEm: null }, select: { id: true } });
+    check("reabrir apagou só o lançamento que o fechamento criou", (await prisma.lancamento.findUnique({ where: { id: r2.lancamentoId } })) === null && sobraram.length === 2, sobraram);
+
+    // 4. A folha de 13º é outra despesa: não toca no previsto da mensal.
+    await prisma.lancamento.delete({ where: { id: pExtra.id } });
+    const folha13 = await folhaDe("decimo_terceiro", 20_000);
+    const r13 = await fecharFolhaNoBanco(folha13, autorId);
+    check("o 13º não quita o previsto da folha mensal", !r13.quitou && r13.aviso === null, r13);
+    check("o previsto da mensal segue em aberto depois do 13º", (await prisma.lancamento.findUnique({ where: { id: pRec.id }, select: { status: true } }))?.status === "previsto");
+
+  } finally {
+    const folhas = await prisma.folhaPagamento.findMany({ where: { ano, mes }, select: { id: true } });
+    for (const f of folhas) {
+      await prisma.holeriteItem.deleteMany({ where: { holerite: { folhaId: f.id } } });
+      await prisma.holerite.deleteMany({ where: { folhaId: f.id } });
+    }
+    await prisma.folhaPagamento.deleteMany({ where: { ano, mes } });
+    await prisma.lancamento.deleteMany({ where: { ...doTeste, excluidoEm: { not: undefined } } });
+    await prisma.compromissoRecorrente.deleteMany({ where: { descricao: { startsWith: t } } });
     await prisma.socio.deleteMany({ where: { user: { email: { startsWith: t } } } });
     await prisma.user.deleteMany({ where: { email: { startsWith: t } } });
   }
