@@ -156,6 +156,32 @@ O botão **Salvar** do lápis só fica ativo depois que algum campo muda.
   (a lista mostra "siglas por versão"); salvar o lápis para trocar ícone, nome ou categoria
   não mexe nas siglas.
 
+## Lente "Todas as versões" e Formatos de folha
+
+No topo da tela, a **lista de versões** tem como primeiro item **Todas as versões**: o **cadastro
+inteiro**, com as disciplinas arquivadas (interruptor **Arquivadas**) e o que cada item tem de
+fixo, sem olhar uma versão só. Cada linha mostra:
+- **Existe em** — as versões em que o item vale ("v1 em diante", "só v1", "a partir da v2"); numa
+  sub, já descontado o que o card dela permite;
+- **Siglas (todas as versões)** — a oficial e os sinônimos, com a versão ao lado quando ela é
+  diferente da do item ("ESG só v1"). Clicar nas siglas abre o **histórico**, só para leitura;
+  mudar sigla é dentro de uma versão (o histórico tem o link **abrir a vN**);
+- **Em uso** — quantos projetos usam a disciplina (nas fases, quantas etapas).
+
+O menu **⋯** (ou botão direito) da lente Todas tem **Editar cadastro**, **Abrir na vN**,
+**Subir/Descer** (a ordem dentro da categoria, só com a busca vazia), **Arquivar/Desarquivar** e
+**Excluir**. Excluir só vale para o que ninguém usa — em uso, o item fica esmaecido dizendo
+quantos projetos, documentos ou etapas usam; arquive. Disciplinas e sub-disciplinas têm caixa de
+seleção para **arquivar, desarquivar ou excluir várias de uma vez**. O lápis ao lado do nome de
+uma categoria **renomeia a categoria** em todas as disciplinas dela.
+
+**+ Disciplina** (ou **+ Fase**, **+ Tipo**) na lente Todas pergunta **a partir de qual versão**
+o item passa a existir (a mais nova já vem marcada) e mostra o conflito de sigla dessa versão
+antes de salvar.
+
+A aba **Formatos de folha** (A1, A3…) está nas duas lentes e **não depende de versão**: não tem
+seletor de versão, só a lista e o formulário de um formato novo.
+
 ## Menu de ações e seleção em lote
 
 Em **Usuários** e no **Catálogo de disciplinas**, o botão direito numa linha (ou o botão **⋯**)

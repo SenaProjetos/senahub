@@ -22,6 +22,15 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Nomenclatura: lente "Todas as versões" e Formatos de folha
+
+- Na **lista de versões** de Configurações → Disciplinas e nomenclatura, o primeiro item é **Todas as versões**: o cadastro inteiro, com **Existe em**, as **siglas de todas as versões** (clique para ver o histórico), quantos projetos usam e o interruptor **Arquivadas**.
+- Nela dá para **editar o cadastro, subir/descer, arquivar e excluir** (só o que ninguém usa), inclusive **várias de uma vez**, e **renomear uma categoria** inteira.
+- **+ Disciplina** pergunta **a partir de qual versão** o item nasce, e já avisa se a sigla é de outro item naquela versão.
+- Nova aba **Formatos de folha** (A1, A3…), sem versão.
+
+---
+
 ## Nomenclatura: uma tela só, com lista de versões
 
 - **Configurações → Disciplinas e nomenclatura** é a tela do catálogo. Abre na versão mais nova; troque pela **lista de versões** no topo (as versões vão se acumular com os anos, então não são mais botões lado a lado).
