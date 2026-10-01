@@ -22,6 +22,16 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Nomenclatura: uma tela só, com lista de versões
+
+- **Configurações → Disciplinas e nomenclatura** é a tela do catálogo. Abre na versão mais nova; troque pela **lista de versões** no topo (as versões vão se acumular com os anos, então não são mais botões lado a lado).
+- **Abas** Disciplinas, Fases e Tipos de documento, disciplinas **agrupadas por categoria** e **busca** por nome, sigla ou sinônimo.
+- **⋯ ou botão direito** em cada linha: Siglas nesta versão, Adicionar sub-disciplina, Editar cadastro e Tirar da versão.
+- **Editar cadastro** (lápis): nome, categoria, ícone e numeração, sem nada de versão. A **Pasta dos arquivos** só muda enquanto nenhum projeto usa a disciplina; depois fica travada, com o motivo.
+- Criar e publicar versões agora fica no botão **Versões** do topo.
+
+---
+
 ## Nomenclatura: sinônimos à vista e sigla que muda de dono
 
 - No **Catálogo da versão**, os **sinônimos** aparecem na linha (borda tracejada), não só ao passar o mouse.

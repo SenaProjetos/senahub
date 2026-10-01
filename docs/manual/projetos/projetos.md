@@ -321,7 +321,7 @@ alguém validá-la na aba Arquivos.
 ### Padrão de nomenclatura do projeto (botão Nomenclatura, aba Arquivos)
 
 O padrão de nomenclatura é **versionado**: o escritório publica versões em
-**Configurações → Nomenclatura** (v1, v2…), e cada projeto segue uma delas. Uma versão
+**Configurações → Disciplinas e nomenclatura** (v1, v2…), e cada projeto segue uma delas. Uma versão
 publicada é **fixa** — corrigi-la significa publicar uma versão nova, nunca editar a que já
 está em uso. Um projeto **novo** recebe automaticamente a versão vigente na data em que é
 criado; publicar uma versão nova **não muda** projeto nenhum que já existe.
@@ -345,8 +345,9 @@ siglas em vigor, mas não edita.
 
 As versões, as sub-disciplinas de cada card (a etiqueta de documento dentro de uma
 disciplina, como Água Fria dentro de Hidrossanitário) e as siglas de cada versão são
-cadastradas em **Configurações → Nomenclatura**, **Configurações → Disciplinas** e
-**Configurações → Lista Mestre** — sempre pela tela, sem precisar de ajuste no banco a cada
+cadastradas em **Configurações → Disciplinas e nomenclatura** (e, até a aposentadoria
+das telas antigas, também **Configurações → Disciplinas** e **Configurações → Lista Mestre**)
+— sempre pela tela, sem precisar de ajuste no banco a cada
 mudança de padrão da gestão.
 
 ### Taxa de ART no financeiro (aba ARTs)

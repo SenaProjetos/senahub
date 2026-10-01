@@ -3,7 +3,7 @@ titulo: Configurações (administração)
 descricao: Central de administração — usuários, permissões, parâmetros de folha, projetos, licitações, funil, avisos e dados da empresa, além do status das integrações.
 resumo: Hub administrativo com cadastros e parâmetros do sistema (usuários, permissões, encargos, documentos/inputs padrão, feriados, licitações, funil) e o status das integrações on-premise (SMTP/push).
 tags: [configurações, administração, usuários, permissões, encargos, feriados, licitações, funil, avisos, agendamento, integrações, empresa, timbrado]
-palavras-chave: [configurações, administração, usuários, permissões, matriz, encargos, inss, irrf, feriados, modalidades, habilitação, funil, aviso geral, agendar aviso, aviso agendado, comunicado programado, smtp, push, dados da empresa, razão social, cnpj, logo, logo da empresa, timbrado, cabeçalho do pdf, sinônimo de sigla, transferir sigla]
+palavras-chave: [disciplinas e nomenclatura, pasta dos arquivos, configurações, administração, usuários, permissões, matriz, encargos, inss, irrf, feriados, modalidades, habilitação, funil, aviso geral, agendar aviso, aviso agendado, comunicado programado, smtp, push, dados da empresa, razão social, cnpj, logo, logo da empresa, timbrado, cabeçalho do pdf, sinônimo de sigla, transferir sigla]
 sinonimos: [admin, ajustes do sistema, parâmetros, settings]
 ---
 
@@ -35,12 +35,13 @@ lugar.
   Hidrossanitário) e **siglas por versão** do padrão de nomenclatura.
 - **Lista Mestre** — siglas de fase, tipo e tamanho de papel usadas nos nomes de arquivo,
   também com siglas por versão.
-- **Nomenclatura** — versões do padrão de nome de arquivo. Uma versão publicada é
-  **imutável**; corrigi-la é publicar uma versão nova. Um projeto novo recebe a versão
-  vigente na data em que é criado; publicar não muda projeto já existente. Publicar avisa
-  (sem bloquear) quando uma sigla já significou outra coisa numa versão anterior. Cada versão
-  tem o seu **Catálogo** (botão "Catálogo da vN"): a tabela do padrão daquela versão — ver
-  [Montar uma versão do padrão](#montar-uma-versão-do-padrão-de-nomenclatura).
+- **Disciplinas e nomenclatura** — o catálogo do padrão de nome de arquivo, versão por versão
+  (disciplinas, sub-disciplinas, fases, tipos e siglas): ver
+  [Montar uma versão do padrão](#montar-uma-versão-do-padrão-de-nomenclatura). Pelo botão
+  **Versões** do topo se criam e se publicam as versões. Uma versão publicada é **imutável**;
+  corrigi-la é publicar uma versão nova. Um projeto novo recebe a versão vigente na data em que
+  é criado; publicar não muda projeto já existente. Publicar avisa (sem bloquear) quando uma
+  sigla já significou outra coisa numa versão anterior.
 - **Documentos padrão** — modelo do Estúdio usado por padrão em cada fonte.
 - **Inputs padrão** — perguntas padrão por disciplina no link do cliente.
 - **Feriados** — calendário (ponto, escala, banco de horas).
@@ -84,8 +85,10 @@ lugar.
 
 ## Montar uma versão do padrão de nomenclatura
 
-O jeito mais simples é pelo **Catálogo da versão** (Configurações → Nomenclatura → escolha a
-versão → **Catálogo da vN**). Ele mostra a versão como na planilha da gestão: cada **CARD**
+A tela é **Configurações → Disciplinas e nomenclatura**. Ela abre na versão mais nova; para
+trocar, use a **lista de versões** no topo (mais nova primeiro, com "rascunho" e "vigente"). As
+abas **Disciplinas**, **Fases** e **Tipos de documento** separam o catálogo, e a busca encontra
+por nome, sigla ou sinônimo. Ela mostra a versão como na planilha da gestão: cada **CARD**
 (disciplina que abre card no projeto, com projetista, prazo e pagamento) com as suas **SUBs**
 (etiqueta do documento, lida do nome do arquivo), a sigla de cada um, e as fases e tipos. Ao
 lado de cada linha aparece o que mudou em relação à versão anterior ("novo na v2", "sigla nova
@@ -124,6 +127,17 @@ dar outra.
 
 **Voltar para a versão** (na lista "Saem") mostra as siglas que o item tinha; só as marcadas
 voltam com ele.
+
+Cada linha tem o botão **⋯** (ou o botão direito do mouse, com as mesmas ações): **Siglas nesta
+versão**, **Adicionar sub-disciplina** (nos cards), **Editar cadastro** e **Tirar da versão**.
+**Editar cadastro** (o lápis) mexe só no que vale para todas as versões — nada de sigla ou de
+versão:
+- **disciplina:** nome (os projetos que já usam o nome seguem junto), categoria, ícone,
+  numeração por faixa (quando a versão numera por faixa) e a **Pasta dos arquivos**, que é o
+  nome da pasta e o prefixo dos arquivos no servidor. A pasta só pode mudar enquanto **nenhum
+  projeto usa** a disciplina; depois disso o campo fica travado e diz quantos projetos usam,
+  porque mudar separaria os arquivos em duas pastas;
+- **sub-disciplina, fase e tipo:** só o nome.
 
 **Pelas telas de catálogo** (Disciplinas e Lista Mestre) também dá:
 - cada disciplina, sub-disciplina e item da Lista Mestre tem **"Vale a partir da / Até a"**;
