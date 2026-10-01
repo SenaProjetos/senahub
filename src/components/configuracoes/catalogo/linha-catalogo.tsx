@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LinhaComMenu } from "@/components/ui/linha-com-menu";
 import { cn } from "@/lib/utils";
-import { ACAO_ADICIONAR_SUB } from "@/modules/projetos/nomenclatura/catalogo/acoes";
+import { ACAO_ADICIONAR_SUB, acaoUnica } from "@/modules/projetos/nomenclatura/catalogo/acoes";
 import type { AlvoCatalogo, LinhaCatalogo } from "@/modules/projetos/nomenclatura/catalogo/versao";
 import { SiglaOficial, SiglaSinonimo } from "./sigla-chips";
 
@@ -51,9 +51,12 @@ export function LinhaCatalogoItem({
 }) {
   const estrutura = ESTRUTURA[linha.alvo.tipo];
   const adicionarSub = menuItens.find((i): i is AcaoItemAcao => i.tipo === "acao" && i.id === ACAO_ADICIONAR_SUB);
+  // Linha com uma ação só não tem menu (ADR-0002, regra 4): vira um botão visível.
+  const unica = acaoUnica(menuItens);
+  const Icone = unica?.icone;
   return (
     <LinhaComMenu
-      itens={menuItens}
+      itens={unica ? [] : menuItens}
       onSelect={onSelect}
       render={
         <div
@@ -89,7 +92,21 @@ export function LinhaCatalogoItem({
             <Plus className="size-4" />
           </Button>
         )}
-        <BotaoAcoes itens={menuItens} onSelect={onSelect} rotulo={`Ações de ${linha.nome}`} className="size-8" />
+        {unica ? (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="size-8"
+            aria-label={`${unica.rotulo.replace("…", "")} — ${linha.nome}`}
+            title={unica.rotulo.replace("…", "")}
+            disabled={pending || !!unica.desabilitado}
+            onClick={() => onSelect(unica)}
+          >
+            {Icone && <Icone className="size-4" />}
+          </Button>
+        ) : (
+          <BotaoAcoes itens={menuItens} onSelect={onSelect} rotulo={`Ações de ${linha.nome}`} className="size-8" />
+        )}
       </span>
     </LinhaComMenu>
   );

@@ -3,7 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { ActionError } from "@/lib/with-action";
 import { espelharSiglasDasColunas } from "@/modules/uploads/nomenclatura/siglas-service";
 import { valeNaVersao, type FaixaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
-import type { AlvoCatalogo, OperacaoComId, SiglaVolta } from "./versao";
+import { fraseTirarCardEmUso, type AlvoCatalogo, type OperacaoComId, type SiglaVolta } from "./versao";
 
 /**
  * Grava as operações "de tabela" (`versao.ts`) no banco, dentro da transação de quem chama, com a
@@ -73,7 +73,7 @@ async function siglasAoVoltar(tx: Tx, alvo: AlvoCatalogo, escolhidas: readonly S
 async function excluirItem(tx: Tx, alvo: AlvoCatalogo, nome: string) {
   if (alvo.tipo === "disciplina") {
     const uso = await tx.disciplina.count({ where: { disciplinaTextoLegado: nome } });
-    if (uso > 0) throw new ActionError(`“${nome}” já está em ${uso} projeto(s) — arquive pela tela de Disciplinas em vez de tirar da versão em que foi criado.`);
+    if (uso > 0) throw new ActionError(fraseTirarCardEmUso(nome, uso));
     await tx.disciplinaCatalogo.delete({ where: { id: alvo.id } });
   } else if (alvo.tipo === "subdisciplina") {
     const uso = await tx.documentoDisciplina.count({ where: { subdisciplinaId: alvo.id } });

@@ -12,7 +12,18 @@ const TODAS = "__todas__";
  * de botões encheria o topo. "Todas as versões" abre o cadastro inteiro — até a F3 da spec, é a tela
  * de Disciplinas de hoje.
  */
-export function SeletorVersao({ opcoes, atual, aba }: { opcoes: OpcaoVersao[]; atual: number; aba: string }) {
+export function SeletorVersao({
+  opcoes,
+  atual,
+  aba,
+  mostrarTodas,
+}: {
+  opcoes: OpcaoVersao[];
+  atual: number;
+  aba: string;
+  /** Quem não administra o catálogo de disciplinas não tem para onde ir em "Todas as versões". */
+  mostrarTodas: boolean;
+}) {
   const router = useRouter();
   const sufixo = aba === "disciplinas" ? "" : `?aba=${aba}`;
   return (
@@ -30,13 +41,15 @@ export function SeletorVersao({ opcoes, atual, aba }: { opcoes: OpcaoVersao[]; a
         <SelectTrigger className="w-[380px] max-w-full" aria-labelledby="rotulo-versao">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="max-h-80">
+          {mostrarTodas && (
           <SelectItem value={TODAS}>
             <span className="flex flex-col">
               <span className="font-semibold">Todas as versões</span>
               <span className="text-xs text-muted-foreground">O cadastro: nome, ícone, categoria, ordem, arquivar</span>
             </span>
           </SelectItem>
+          )}
           {opcoes.map((o) => (
             <SelectItem key={o.numero} value={String(o.numero)}>
               <span className="flex items-center gap-2">

@@ -17,6 +17,7 @@ import {
   ACAO_TIRAR,
   itensDaLinhaCatalogo,
 } from "@/modules/projetos/nomenclatura/catalogo/acoes";
+import { fraseTirarCardEmUso } from "@/modules/projetos/nomenclatura/catalogo/versao";
 import { agruparCards, filtrarCatalogo, filtrarLinhas, opcoesDeVersao } from "@/modules/projetos/nomenclatura/catalogo/apresentacao";
 import type {
   AlvoCatalogo,
@@ -78,6 +79,16 @@ const ABAS: { valor: AbaCatalogo; rotulo: string }[] = [
 
 const ACAO_IMPORTAR = "importar";
 
+/** "Versões" leva à página de versões (`configuracoes:gerir`); quem não administra vê só o nome, sem link quebrado. */
+function LinkVersoes({ podeGerir }: { podeGerir: boolean }) {
+  if (!podeGerir) return <span className="font-medium">Versões</span>;
+  return (
+    <Link href="/configuracoes/nomenclatura/versoes" className="text-primary hover:underline">
+      Versões
+    </Link>
+  );
+}
+
 export function CatalogoVersaoView({
   versao,
   versoes,
@@ -88,6 +99,7 @@ export function CatalogoVersaoView({
   aba,
   podeGerir,
   podeEditarCard,
+  podeVerCadastro,
 }: {
   versao: VersaoResumo & { projetosFixados: number };
   versoes: VersaoLista[];
@@ -99,6 +111,7 @@ export function CatalogoVersaoView({
   aba: AbaCatalogo;
   podeGerir: boolean;
   podeEditarCard: boolean;
+  podeVerCadastro: boolean;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -151,8 +164,13 @@ export function CatalogoVersaoView({
     });
   }
 
-  const menuDe = (linha: LinhaCatalogo): AcaoItem[] =>
-    itensDaLinhaCatalogo(linha, { podeGerir, podeEditarCard, versao: v });
+  const menuDe = (linha: LinhaCatalogo): AcaoItem[] => {
+    // Card criado nesta versão que já tem projeto: "tirar" seria excluir, e o servidor recusa — o menu
+    // já mostra o item inerte, com a mesma frase (ADR-0002, regra 5).
+    const c = linha.alvo.tipo === "disciplina" ? cadastro[linha.alvo.id] : undefined;
+    const motivoTirar = c && c.versaoDesde >= v && c.uso > 0 ? fraseTirarCardEmUso(linha.nome, c.uso) : null;
+    return itensDaLinhaCatalogo(linha, { podeGerir, podeEditarCard, versao: v, motivoTirar });
+  };
 
   function aoSelecionar(linha: LinhaCatalogo, acao: AcaoItemAcao) {
     if (acao.id === ACAO_SIGLAS) setDialogo({ tipo: "siglas", rotulo: linha.nome, alvo: linha.alvo });
@@ -229,7 +247,7 @@ export function CatalogoVersaoView({
         }
       />
 
-      <SeletorVersao opcoes={opcoes} atual={v} aba={aba} />
+      <SeletorVersao opcoes={opcoes} atual={v} aba={aba} mostrarTodas={podeVerCadastro} />
 
       <nav aria-label="Seções do catálogo" className="flex flex-wrap gap-1 border-b">
         {ABAS.map((a) => (
@@ -253,17 +271,13 @@ export function CatalogoVersaoView({
             A <strong>v{v} — {versao.nome}</strong> está publicada
             {versao.projetosFixados > 0 ? ` e ${versao.projetosFixados} projeto(s) seguem ela` : ""}: o que mudar aqui vale
             para esses projetos também. Uma mudança que não deve afetá-los vai numa versão nova, criada em{" "}
-            <Link href="/configuracoes/nomenclatura/versoes" className="text-primary hover:underline">
-              Versões
-            </Link>
+            <LinkVersoes podeGerir={podeGerir} />
             .
           </>
         ) : (
           <>
             A <strong>v{v} — {versao.nome}</strong> é rascunho: nada daqui vale para projeto nenhum até ela ser publicada em{" "}
-            <Link href="/configuracoes/nomenclatura/versoes" className="text-primary hover:underline">
-              Versões
-            </Link>
+            <LinkVersoes podeGerir={podeGerir} />
             .
           </>
         )}

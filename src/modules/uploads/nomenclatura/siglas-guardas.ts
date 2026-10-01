@@ -100,6 +100,6 @@ export async function garantirFaixaVersao(faixa: FaixaVersao): Promise<void> {
   if (numeros.length === 0) return;
   const achadas = await prisma.nomenclaturaVersao.count({ where: { numero: { in: numeros } } });
   if (achadas < numeros.length) {
-    throw new ActionError("Essa versão do padrão não existe — crie-a em Configurações → Nomenclatura antes.");
+    throw new ActionError("Essa versão do padrão não existe — crie-a em Configurações → Disciplinas e nomenclatura → Versões antes.");
   }
 }

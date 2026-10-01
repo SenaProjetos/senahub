@@ -13,7 +13,7 @@ import { contarForaDoPadraoComModelo } from "./versoes-queries";
 const base = { modulo: "configuracoes", recurso: "configuracoes", permissao: "gerir" } as const;
 
 function rev() {
-  revalidatePath("/configuracoes/nomenclatura");
+  revalidatePath("/configuracoes/nomenclatura", "layout");
 }
 
 export const criarRascunhoVersao = defineAction(

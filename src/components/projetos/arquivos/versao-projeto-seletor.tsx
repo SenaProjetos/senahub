@@ -100,7 +100,7 @@ export function VersaoProjetoSeletor({
       </div>
       {versoes.length === 0 && (
         <p className="flex items-center gap-1.5 text-xs text-amber-600">
-          <TriangleAlert className="size-3.5" /> Nenhuma versão publicada ainda — cadastre em Configurações → Nomenclatura.
+          <TriangleAlert className="size-3.5" /> Nenhuma versão publicada ainda — cadastre em Configurações → Disciplinas e nomenclatura → Versões.
         </p>
       )}
       {(mostrarPersonalizado || personalizado) && (

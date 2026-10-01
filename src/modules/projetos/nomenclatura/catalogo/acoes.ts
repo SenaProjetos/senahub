@@ -1,6 +1,6 @@
 import { CircleMinus, Pencil, Plus, Tags } from "lucide-react";
 
-import type { AcaoItem } from "@/components/ui/acoes";
+import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
 import type { AlvoCatalogo } from "./versao";
 
 /**
@@ -20,7 +20,18 @@ export type ContextoLinhaCatalogo = {
   /** `projetos:gerir` — cadastro do card (nome, categoria, ícone, pasta). Sub/fase/tipo seguem `podeGerir`. */
   podeEditarCard: boolean;
   versao: number;
+  /**
+   * Por que "Tirar da vN" está impedido pelo ESTADO do item (ex.: card criado nesta versão que já tem
+   * projeto). A mesma frase do `ActionError` do servidor (regra 5 da ADR-0002).
+   */
+  motivoTirar?: string | null;
 };
+
+/** A única ação de uma lista (separadores não contam); `null` se houver zero ou várias (ADR-0002, regra 4). */
+export function acaoUnica(itens: readonly AcaoItem[]): AcaoItemAcao | null {
+  const acoes = itens.filter((i): i is AcaoItemAcao => i.tipo === "acao");
+  return acoes.length === 1 && itens.every((i) => i.tipo === "acao" || i.tipo === "separador") ? acoes[0] : null;
+}
 
 export function itensDaLinhaCatalogo(linha: { alvo: AlvoCatalogo }, ctx: ContextoLinhaCatalogo): AcaoItem[] {
   const ehCard = linha.alvo.tipo === "disciplina";
@@ -35,7 +46,16 @@ export function itensDaLinhaCatalogo(linha: { alvo: AlvoCatalogo }, ctx: Context
   // "Tirar" tem confirmação própria na tela (o texto fala da versão e do que continua valendo nas
   // anteriores): é ela que cumpre a regra 4 da ADR-0002, por isso não leva `confirmar` aqui.
   const tirar: AcaoItem[] = ctx.podeGerir
-    ? [{ tipo: "acao", id: ACAO_TIRAR, rotulo: `Tirar da v${ctx.versao}`, icone: CircleMinus, variant: "destructive" }]
+    ? [
+        {
+          tipo: "acao",
+          id: ACAO_TIRAR,
+          rotulo: `Tirar da v${ctx.versao}`,
+          icone: CircleMinus,
+          variant: "destructive",
+          ...(ctx.motivoTirar ? { desabilitado: ctx.motivoTirar } : {}),
+        },
+      ]
     : [];
   return [...grupo, ...(grupo.length > 0 && tirar.length > 0 ? [{ tipo: "separador", id: "sep-tirar" } as const] : []), ...tirar];
 }

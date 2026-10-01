@@ -18,7 +18,7 @@ export default async function CatalogoVersaoPage({
   params: Promise<{ lente: string }>;
   searchParams: Promise<{ aba?: string }>;
 }) {
-  const { podeGerir, podeEditarCard } = await exigirAcessoNomenclatura();
+  const { podeGerir, podeEditarCard, podeVerCadastro } = await exigirAcessoNomenclatura();
   const { lente } = await params;
   const { aba } = await searchParams;
   // Só a lente de uma versão (número). A lente "Todas as versões" entra na F3 da spec 2026-09-30.
@@ -57,6 +57,7 @@ export default async function CatalogoVersaoPage({
       aba={ABAS.includes(aba as AbaCatalogo) ? (aba as AbaCatalogo) : "disciplinas"}
       podeGerir={podeGerir}
       podeEditarCard={podeEditarCard}
+      podeVerCadastro={podeVerCadastro}
     />
   );
 }

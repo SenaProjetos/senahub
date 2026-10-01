@@ -5,6 +5,7 @@ import {
   chaveConfirmacao,
   colisoes,
   conferirVoltas,
+  fraseTirarCardEmUso,
   linhasDoItemNaVersao,
   mensagemConflito,
   operacoesComId,
@@ -372,5 +373,13 @@ describe("opsDasSiglas", () => {
     expect(opsDasSiglas(D("hid"), hid(), { oficial: null, sinonimos: ["HDR", "ESG"] })).toEqual([
       { tipo: "encerrar-sigla", alvo: D("hid"), linhaId: "hid-s0", sigla: "HID" },
     ]);
+  });
+});
+
+describe("fraseTirarCardEmUso", () => {
+  it("a mesma frase da tela e do servidor", () => {
+    expect(fraseTirarCardEmUso("Hidrossanitário", 3)).toBe(
+      "“Hidrossanitário” já está em 3 projeto(s) — arquive pela tela de Disciplinas em vez de tirar da versão em que foi criado.",
+    );
   });
 });

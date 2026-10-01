@@ -470,6 +470,14 @@ export function versoesAPartirDe(versao: number, numeros: readonly number[]): nu
   return seguintes.length > 0 ? [...new Set(seguintes)].sort((a, b) => a - b) : [versao];
 }
 
+/**
+ * Por que um card criado na própria versão não pode ser "tirado" dela quando algum projeto já o usa
+ * (tirar = excluir). A MESMA frase na tela (item desabilitado) e no servidor (`ActionError`).
+ */
+export function fraseTirarCardEmUso(nome: string, uso: number): string {
+  return `“${nome}” já está em ${uso} projeto(s) — arquive pela tela de Disciplinas em vez de tirar da versão em que foi criado.`;
+}
+
 // ─── Operações da tela e transferência de sigla ──────────────────────────────
 
 /** Operação como a tela (e a action) a descrevem — sem os ids internos da simulação. */

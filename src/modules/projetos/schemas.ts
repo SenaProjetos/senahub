@@ -157,11 +157,11 @@ export const criarDisciplinaCatalogoSchema = z.object({
   /** Sigla p/ nomenclatura; normalizada (uppercase, só A-Z0-9) na action. */
   codigo: z.string().trim().max(6, "Código de até 6 caracteres.").optional(),
   /** Número-base p/ a nomenclatura (ex.: 4000 → folhas 4001…). Vazio = sem bloco. */
-  numeracao: z.number().int().min(0).max(999999).nullable().optional(),
+  numeracao: z.number().int("Use um número inteiro.").min(0, "Use um número a partir de 0.").max(999999, "Use um número até 999999.").nullable().optional(),
   /** Fim da faixa (inclusive) — sem isto o motor não reconhece disciplina pela numeração do
    *  arquivo (faixas não são blocos uniformes, ver comentário no schema.prisma). Vazio = sem
    *  faixa definida, mesmo com `numeracao` preenchido. */
-  numeracaoFim: z.number().int().min(0).max(999999).nullable().optional(),
+  numeracaoFim: z.number().int("Use um número inteiro.").min(0, "Use um número a partir de 0.").max(999999, "Use um número até 999999.").nullable().optional(),
   categoria: z.string().trim().max(40).optional(),
   /** Chave da galeria lucide. */
   icone: z.string().trim().max(60).optional(),

@@ -8,6 +8,15 @@
  * servidor. Só muda enquanto nenhum projeto usa a disciplina; depois separaria os arquivos em duas
  * pastas (spec 2026-09-30, E6). `null` = pode mudar.
  */
+export function normalizarPasta(texto: string): string {
+  return texto
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 6);
+}
+
 export function motivoCodigoTravado(uso: number): string | null {
   if (uso <= 0) return null;
   return `Em uso em ${uso} ${uso === 1 ? "projeto" : "projetos"}: mudar agora separaria os arquivos em duas pastas.`;

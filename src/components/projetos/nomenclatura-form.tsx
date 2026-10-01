@@ -68,7 +68,7 @@ export function NomenclaturaForm({
   inicial: { exigir: boolean; exigirFase: boolean; padrao: string; definido?: boolean };
   global?: { exigir: boolean; exigirFase: boolean; padrao: string };
   /** false = só exigir/exigirFase; usado na tela global desde que o modelo do nome virou
-   *  versionado (Configurações → Nomenclatura) — editar aqui não muda nada mais (F2/F3). */
+   *  versionado (Configurações → Disciplinas e nomenclatura) — editar aqui não muda nada mais (F2/F3). */
   mostrarPadrao?: boolean;
 }) {
   const router = useRouter();
@@ -222,7 +222,7 @@ export function NomenclaturaForm({
       {!mostrarPadrao ? (
         <p className="text-xs text-muted-foreground">
           O modelo do nome agora é definido em{" "}
-          <Link href="/configuracoes/nomenclatura/versoes" className="text-primary hover:underline">Configurações → Nomenclatura → Versões</Link>{" "}
+          <Link href="/configuracoes/nomenclatura/versoes" className="text-primary hover:underline">Configurações → Disciplinas e nomenclatura → Versões</Link>{" "}
           (versionado). Aqui só exigir/exigir fase.
         </p>
       ) : modoAvancado ? (

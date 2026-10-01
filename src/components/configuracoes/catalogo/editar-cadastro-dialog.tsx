@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { motivoCodigoTravado } from "@/modules/projetos/cadastro-disciplina";
+import { motivoCodigoTravado, normalizarPasta } from "@/modules/projetos/cadastro-disciplina";
 import { valeNaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
 import { SeletorIcone } from "./seletor-icone";
 
@@ -136,9 +136,15 @@ export function EditarCardDialog({
           <div className="space-y-1.5">
             <Label htmlFor="cadastro-pasta">Pasta dos arquivos</Label>
             {travado ? (
-              <div className="flex h-9 items-center gap-2 rounded-md border bg-muted/40 px-2.5 text-sm" id="cadastro-pasta">
-                <Lock className="size-3.5 text-muted-foreground" aria-hidden />
-                <span className="font-mono font-semibold">{card.codigo ?? "—"}</span>
+              <div className="relative">
+                <Lock className="pointer-events-none absolute inset-y-0 left-2.5 my-auto size-3.5 text-muted-foreground" aria-hidden />
+                <Input
+                  id="cadastro-pasta"
+                  value={card.codigo ?? "—"}
+                  readOnly
+                  aria-describedby="cadastro-pasta-ajuda"
+                  className="bg-muted/40 pl-8 font-mono font-semibold"
+                />
               </div>
             ) : (
               <Input
@@ -146,11 +152,13 @@ export function EditarCardDialog({
                 value={codigo}
                 maxLength={6}
                 placeholder="ELE"
+                aria-describedby="cadastro-pasta-ajuda"
                 className="font-mono uppercase"
-                onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+                // Só letras sem acento e números: é o que o servidor grava (o resto seria apagado em silêncio).
+                onChange={(e) => setCodigo(normalizarPasta(e.target.value))}
               />
             )}
-            <p className="text-[11px] text-muted-foreground">
+            <p id="cadastro-pasta-ajuda" className="text-[11px] text-muted-foreground">
               Nome da pasta e prefixo dos arquivos no servidor — não é a sigla do nome do arquivo.{" "}
               {travado ? (
                 <>
@@ -158,7 +166,7 @@ export function EditarCardDialog({
                   disciplina.
                 </>
               ) : (
-                "Pode mudar porque nenhum projeto usa esta disciplina ainda."
+                "Pode mudar porque nenhum projeto usa esta disciplina ainda. Só letras sem acento e números; em branco, os arquivos ficam numa pasta com o nome da disciplina."
               )}
             </p>
           </div>
@@ -177,6 +185,7 @@ export function EditarCardDialog({
                     id="cadastro-num-ini"
                     type="number"
                     min={0}
+                    step={1}
                     value={numeracao}
                     placeholder="4000"
                     className="font-mono tabular-nums"
@@ -191,6 +200,7 @@ export function EditarCardDialog({
                     id="cadastro-num-fim"
                     type="number"
                     min={0}
+                    step={1}
                     value={numeracaoFim}
                     placeholder="4999"
                     className="font-mono tabular-nums"
@@ -252,7 +262,7 @@ export function EditarNomeDialog({
             maxLength={80}
             onChange={(e) => setNome(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && limpo && limpo !== inicial) onSalvar(limpo);
+              if (e.key === "Enter" && !pending && limpo && limpo !== inicial) onSalvar(limpo);
             }}
           />
         </div>

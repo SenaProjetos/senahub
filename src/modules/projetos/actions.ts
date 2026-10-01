@@ -1365,6 +1365,13 @@ export const editarCadastroDisciplina = defineAction(
       if (motivo) throw new ActionError(motivo);
     }
     await garantirUnicosCatalogo(dados.nome, dados.codigo, [], i.id);
+    // Mesmo critério de `card-novo` (sem caixa): "ELÉTRICA" ao lado de "Elétrica" contaria como a mesma
+    // disciplina no uso, no mapa de ícones e na cascata do nome.
+    const homonima = await prisma.disciplinaCatalogo.findFirst({
+      where: { nome: { equals: dados.nome, mode: "insensitive" }, id: { not: i.id } },
+      select: { id: true },
+    });
+    if (homonima) throw new ActionError("Já existe uma disciplina com esse nome.");
     await garantirFaixaLivre(dados.numeracao, dados.numeracaoFim, i.id);
     await prisma.$transaction(async (tx) => {
       // Campos explícitos: `sinonimos` fica como está (é da lente de uma versão).
