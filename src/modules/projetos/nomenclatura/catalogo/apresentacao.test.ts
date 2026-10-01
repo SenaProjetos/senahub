@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agruparCards, filtrarCatalogo, opcoesDeVersao } from "./apresentacao";
+import { agruparCards, filtrarCatalogo, filtrarLinhas, opcoesDeVersao } from "./apresentacao";
 import type { CardNaVersao, LinhaCatalogo } from "./versao";
 
 function linha(id: string, nome: string, sigla: string | null, sinonimos: string[] = []): LinhaCatalogo {
@@ -60,6 +60,22 @@ describe("filtrarCatalogo", () => {
 
   it("nada encontrado: lista vazia", () => {
     expect(filtrarCatalogo(cards, "zzz")).toEqual([]);
+  });
+});
+
+describe("filtrarLinhas (fases e tipos)", () => {
+  const fases = [linha("pl", "Estudo Preliminar", "PL"), linha("ex", "Projeto Executivo", "EX", ["PE", "EXE"])];
+
+  it("busca vazia devolve a própria lista", () => {
+    expect(filtrarLinhas(fases, "")).toBe(fases);
+  });
+
+  it("casa por nome, sigla e sinônimo", () => {
+    expect(filtrarLinhas(fases, "preliminar").map((l) => l.alvo.id)).toEqual(["pl"]);
+    expect(filtrarLinhas(fases, "pe").map((l) => l.alvo.id)).toEqual(["ex"]);
+    expect(filtrarLinhas(fases, "pl").map((l) => l.alvo.id)).toEqual(["pl"]);
+    expect(filtrarLinhas(fases, "exe").map((l) => l.alvo.id)).toEqual(["ex"]);
+    expect(filtrarLinhas(fases, "zzz")).toEqual([]);
   });
 });
 

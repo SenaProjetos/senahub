@@ -222,7 +222,7 @@ export function NomenclaturaForm({
       {!mostrarPadrao ? (
         <p className="text-xs text-muted-foreground">
           O modelo do nome agora é definido em{" "}
-          <Link href="/configuracoes/nomenclatura" className="text-primary hover:underline">Configurações → Nomenclatura</Link>{" "}
+          <Link href="/configuracoes/nomenclatura/versoes" className="text-primary hover:underline">Configurações → Nomenclatura → Versões</Link>{" "}
           (versionado). Aqui só exigir/exigir fase.
         </p>
       ) : modoAvancado ? (

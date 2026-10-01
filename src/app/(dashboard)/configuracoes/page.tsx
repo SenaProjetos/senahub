@@ -98,8 +98,8 @@ const GRUPOS: Grupo[] = [
       {
         href: "/configuracoes/nomenclatura",
         icon: CalendarClock,
-        titulo: "Nomenclatura",
-        descricao: "Versões do padrão de nome de arquivo — publicada é imutável, projeto novo recebe a vigente.",
+        titulo: "Disciplinas e nomenclatura",
+        descricao: "Catálogo do padrão de nome de arquivo, versão por versão: disciplinas, sub-disciplinas, fases, tipos e siglas.",
       },
       {
         href: "/configuracoes/extensoes",

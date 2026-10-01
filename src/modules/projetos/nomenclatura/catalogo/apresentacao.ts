@@ -43,6 +43,12 @@ export function filtrarCatalogo(cards: CardNaVersao[], busca: string): CardNaVer
   return saida;
 }
 
+/** Mesma busca, para as listas planas (fases e tipos). Busca vazia devolve a própria lista. */
+export function filtrarLinhas(linhas: LinhaCatalogo[], busca: string): LinhaCatalogo[] {
+  const q = normalizar(busca);
+  return q ? linhas.filter((l) => casa(l, q)) : linhas;
+}
+
 export type OpcaoVersao = { numero: number; nome: string; rascunho: boolean; vigente: boolean };
 
 /** Versões para o seletor: mais nova primeiro; vigente = a publicada de maior número. */

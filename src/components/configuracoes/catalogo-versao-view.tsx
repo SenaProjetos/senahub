@@ -4,60 +4,117 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CircleMinus, FileUp, Plus, Shapes, Tags, Undo2 } from "lucide-react";
+import { FileUp, Layers, Plus, Search, Shapes, Undo2 } from "lucide-react";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { alterarCatalogoNaVersao } from "@/modules/projetos/nomenclatura/catalogo/actions";
+import { editarCadastroDisciplina } from "@/modules/projetos/actions";
+import { editarNomeSubdisciplina } from "@/modules/projetos/subdisciplinas/actions";
+import { editarNomeItemListaMestre } from "@/modules/projetos/pranchas/catalogo-actions";
+import {
+  ACAO_ADICIONAR_SUB,
+  ACAO_EDITAR,
+  ACAO_SIGLAS,
+  ACAO_TIRAR,
+  itensDaLinhaCatalogo,
+} from "@/modules/projetos/nomenclatura/catalogo/acoes";
+import { agruparCards, filtrarCatalogo, filtrarLinhas, opcoesDeVersao } from "@/modules/projetos/nomenclatura/catalogo/apresentacao";
 import type {
   AlvoCatalogo,
   CatalogoNaVersao,
   CatalogoSnap,
   LinhaCatalogo,
   OperacaoTela,
+  SaiNaVersao,
 } from "@/modules/projetos/nomenclatura/catalogo/versao";
+import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
+import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { ImportarCatalogoDialog } from "@/components/configuracoes/importar-catalogo-dialog";
 import { AdicionarItemDialog } from "@/components/configuracoes/catalogo/adicionar-item-dialog";
+import { EditarCardDialog, EditarNomeDialog, type PayloadCadastroCard } from "@/components/configuracoes/catalogo/editar-cadastro-dialog";
+import { LinhaCatalogoItem } from "@/components/configuracoes/catalogo/linha-catalogo";
+import { SeletorVersao } from "@/components/configuracoes/catalogo/seletor-versao";
 import { SiglasNaVersaoDialog } from "@/components/configuracoes/catalogo/siglas-na-versao-dialog";
-import { VoltarVersaoDialog } from "@/components/configuracoes/catalogo/voltar-versao-dialog";
 import { SiglaOficial, SiglaSinonimo } from "@/components/configuracoes/catalogo/sigla-chips";
+import { VoltarVersaoDialog } from "@/components/configuracoes/catalogo/voltar-versao-dialog";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CollapsibleSection } from "@/components/ui/collapsible";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-type VersaoResumo = { numero: number; nome: string; publicada: boolean };
+export type AbaCatalogo = "disciplinas" | "fases" | "tipos";
 
-/** Diálogo aberto: adicionar (card, sub, fase, tipo), siglas de um item, ou voltar um item que saiu. */
+/** O que o lápis do card precisa e a tabela da versão não traz. */
+export type CadastroCard = {
+  codigo: string | null;
+  categoria: string | null;
+  icone: string | null;
+  iconeSvg: string | null;
+  numeracao: number | null;
+  numeracaoFim: number | null;
+  uso: number;
+  versaoDesde: number;
+  versaoAte: number | null;
+};
+
+type VersaoResumo = { numero: number; nome: string; publicada: boolean };
+type VersaoLista = { numero: number; nome: string; publicadaEm: Date | null; sequenciaPor: string };
+
+/** Diálogo aberto: adicionar, siglas de um item, voltar um item que saiu, ou o lápis do cadastro. */
 type Dialogo =
   | { tipo: "adicionar"; titulo: string; siglaObrigatoria: boolean; montar: (nome: string, sigla: string | null) => OperacaoTela }
   | { tipo: "siglas"; rotulo: string; alvo: AlvoCatalogo }
-  | { tipo: "voltar"; nome: string; alvo: AlvoCatalogo };
+  | { tipo: "voltar"; nome: string; alvo: AlvoCatalogo }
+  | { tipo: "editar"; nome: string; alvo: AlvoCatalogo };
 
-const ESTRUTURA: Record<AlvoCatalogo["tipo"], string> = { disciplina: "CARD", subdisciplina: "SUB", prancha: "" };
+const ABAS: { valor: AbaCatalogo; rotulo: string }[] = [
+  { valor: "disciplinas", rotulo: "Disciplinas" },
+  { valor: "fases", rotulo: "Fases" },
+  { valor: "tipos", rotulo: "Tipos de documento" },
+];
+
+const ACAO_IMPORTAR = "importar";
 
 export function CatalogoVersaoView({
   versao,
   versoes,
   catalogo,
   snap,
+  cadastro,
+  categorias,
+  aba,
+  podeGerir,
+  podeEditarCard,
 }: {
   versao: VersaoResumo & { projetosFixados: number };
-  versoes: VersaoResumo[];
+  versoes: VersaoLista[];
   catalogo: CatalogoNaVersao;
   /** Catálogo inteiro, para a prévia de conflito de sigla no navegador (o servidor recalcula). */
   snap: CatalogoSnap;
+  cadastro: Record<string, CadastroCard>;
+  categorias: string[];
+  aba: AbaCatalogo;
+  podeGerir: boolean;
+  podeEditarCard: boolean;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [pending, start] = useTransition();
   const [dialogo, setDialogo] = useState<Dialogo | null>(null);
   const [importando, setImportando] = useState(false);
+  const [busca, setBusca] = useState("");
   const v = versao.numero;
-  // Memorizado: entra nas dependências da prévia de conflito dos diálogos.
+  // Memorizados: entram nas dependências da prévia de conflito dos diálogos.
   const numeros = useMemo(() => versoes.map((x) => x.numero), [versoes]);
+  const opcoes = useMemo(() => opcoesDeVersao(versoes), [versoes]);
   const totalSubs = catalogo.cards.reduce((n, c) => n + c.subs.length, 0);
+
+  const grupos = useMemo(() => agruparCards(filtrarCatalogo(catalogo.cards, busca)), [catalogo.cards, busca]);
+  const fases = useMemo(() => filtrarLinhas(catalogo.fases, busca), [catalogo.fases, busca]);
+  const tipos = useMemo(() => filtrarLinhas(catalogo.tipos, busca), [catalogo.tipos, busca]);
 
   function executar(operacoes: OperacaoTela[], transferencias: string[], sucesso: string) {
     start(async () => {
@@ -82,62 +139,113 @@ export function CatalogoVersaoView({
     executar([{ tipo: "sai", alvo: linha.alvo }], [], `“${linha.nome}” saiu da v${v}.`);
   }
 
-  const acoesLinha = {
-    pending,
-    versao: v,
-    onSiglas: (l: LinhaCatalogo) => setDialogo({ tipo: "siglas", rotulo: l.nome, alvo: l.alvo }),
-    onTirar: (l: LinhaCatalogo) => void tirar(l),
-  };
+  /** Lápis: grava só o cadastro (nada de versão) e recarrega a lista. */
+  function gravarCadastro(chamada: () => Promise<{ ok: true; data: unknown } | { ok: false; error: string }>) {
+    start(async () => {
+      const r = await chamada();
+      if (r.ok) {
+        toast.success("Cadastro atualizado.");
+        setDialogo(null);
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  const menuDe = (linha: LinhaCatalogo): AcaoItem[] =>
+    itensDaLinhaCatalogo(linha, { podeGerir, podeEditarCard, versao: v });
+
+  function aoSelecionar(linha: LinhaCatalogo, acao: AcaoItemAcao) {
+    if (acao.id === ACAO_SIGLAS) setDialogo({ tipo: "siglas", rotulo: linha.nome, alvo: linha.alvo });
+    else if (acao.id === ACAO_ADICIONAR_SUB) {
+      setDialogo({
+        tipo: "adicionar",
+        titulo: `Nova sub-disciplina em ${linha.nome} (v${v})`,
+        siglaObrigatoria: false,
+        montar: (nome, sigla) => ({ tipo: "sub-nova", cardId: linha.alvo.id, nome, sigla }),
+      });
+    } else if (acao.id === ACAO_EDITAR) setDialogo({ tipo: "editar", nome: linha.nome, alvo: linha.alvo });
+    else if (acao.id === ACAO_TIRAR) void tirar(linha);
+  }
+
+  function renderLinha(linha: LinhaCatalogo) {
+    return (
+      <LinhaCatalogoItem
+        linha={linha}
+        versao={v}
+        menuItens={menuDe(linha)}
+        onSelect={(acao) => aoSelecionar(linha, acao)}
+        pending={pending}
+      />
+    );
+  }
+
+  // O "+ …" do cabeçalho segue a aba.
+  const novo =
+    aba === "fases"
+      ? { rotulo: "Fase", titulo: `Nova fase na v${v}`, montar: (nome: string, sigla: string | null): OperacaoTela => ({ tipo: "item-novo", categoria: "fase", nome, sigla: sigla ?? "" }), sigla: true }
+      : aba === "tipos"
+        ? { rotulo: "Tipo", titulo: `Novo tipo na v${v}`, montar: (nome: string, sigla: string | null): OperacaoTela => ({ tipo: "item-novo", categoria: "tipo", nome, sigla: sigla ?? "" }), sigla: true }
+        : { rotulo: "Disciplina", titulo: `Nova disciplina (card) na v${v}`, montar: (nome: string, sigla: string | null): OperacaoTela => ({ tipo: "card-novo", nome, sigla }), sigla: false };
+  const acoesCabecalho: AcaoItem[] = podeGerir ? [{ tipo: "acao", id: ACAO_IMPORTAR, rotulo: "Importar planilha", icone: FileUp }] : [];
+
+  const saem = catalogo.saem.filter((l) =>
+    aba === "disciplinas" ? l.alvo.tipo !== "prancha" : l.alvo.tipo === "prancha" && l.tipoRotulo === (aba === "fases" ? "Fase" : "Tipo"),
+  );
+
+  const dialogoCard = dialogo?.tipo === "editar" && dialogo.alvo.tipo === "disciplina" ? cadastro[dialogo.alvo.id] : undefined;
 
   return (
     <div className="space-y-5">
       <CabecalhoPagina
-        titulo={`Catálogo da v${v}`}
-        descricao="Disciplinas, sub-disciplinas, fases e tipos desta versão do padrão, como na planilha."
+        titulo="Disciplinas e nomenclatura"
+        descricao="Catálogo do padrão de nome de arquivo, versão por versão."
         trilha={[
           { href: "/", label: "Início" },
           { href: "/configuracoes", label: "Configurações" },
-          { href: "/configuracoes/nomenclatura", label: "Nomenclatura" },
         ]}
         acoes={
-          <>
-            <Button size="sm" onClick={() => setImportando(true)} disabled={pending}>
-              <FileUp className="size-4" /> Importar planilha
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={pending}
-              onClick={() =>
-                setDialogo({
-                  tipo: "adicionar",
-                  titulo: `Nova disciplina (card) na v${v}`,
-                  siglaObrigatoria: false,
-                  montar: (nome, sigla) => ({ tipo: "card-novo", nome, sigla }),
-                })
-              }
-            >
-              <Plus className="size-4" /> Disciplina
-            </Button>
-          </>
+          podeGerir ? (
+            <>
+              <Button
+                size="sm"
+                disabled={pending}
+                onClick={() =>
+                  setDialogo({ tipo: "adicionar", titulo: novo.titulo, siglaObrigatoria: novo.sigla, montar: novo.montar })
+                }
+              >
+                <Plus className="size-4" /> {novo.rotulo}
+              </Button>
+              <Button size="sm" variant="outline" render={<Link href="/configuracoes/nomenclatura/versoes" />}>
+                <Layers className="size-4" /> Versões
+              </Button>
+              <BotaoAcoes
+                itens={acoesCabecalho}
+                onSelect={(a) => a.id === ACAO_IMPORTAR && setImportando(true)}
+                rotulo="Mais ações: importar planilha"
+                className="size-8"
+              />
+            </>
+          ) : undefined
         }
       />
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 text-xs text-muted-foreground">Versão:</span>
-        {versoes.map((x) => (
-          <Button
-            key={x.numero}
-            size="xs"
-            variant={x.numero === v ? "secondary" : "outline"}
-            aria-current={x.numero === v ? "page" : undefined}
-            render={<Link href={`/configuracoes/nomenclatura/${x.numero}`} />}
+      <SeletorVersao opcoes={opcoes} atual={v} aba={aba} />
+
+      <nav aria-label="Seções do catálogo" className="flex flex-wrap gap-1 border-b">
+        {ABAS.map((a) => (
+          <Link
+            key={a.valor}
+            href={`/configuracoes/nomenclatura/${v}?aba=${a.valor}`}
+            aria-current={a.valor === aba ? "page" : undefined}
+            className={cn(
+              "-mb-px border-b-2 px-3.5 py-2.5 text-sm",
+              a.valor === aba ? "border-primary font-semibold" : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
           >
-            v{x.numero}
-            {!x.publicada && <span className="text-muted-foreground"> (rascunho)</span>}
-          </Button>
+            {a.rotulo}
+          </Link>
         ))}
-      </div>
+      </nav>
 
       <p className="rounded-sm border bg-muted/40 p-3 text-sm">
         {versao.publicada ? (
@@ -145,127 +253,118 @@ export function CatalogoVersaoView({
             A <strong>v{v} — {versao.nome}</strong> está publicada
             {versao.projetosFixados > 0 ? ` e ${versao.projetosFixados} projeto(s) seguem ela` : ""}: o que mudar aqui vale
             para esses projetos também. Uma mudança que não deve afetá-los vai numa versão nova, criada em{" "}
-            <Link href="/configuracoes/nomenclatura" className="text-primary hover:underline">
-              Nomenclatura
+            <Link href="/configuracoes/nomenclatura/versoes" className="text-primary hover:underline">
+              Versões
             </Link>
             .
           </>
         ) : (
           <>
             A <strong>v{v} — {versao.nome}</strong> é rascunho: nada daqui vale para projeto nenhum até ela ser publicada em{" "}
-            <Link href="/configuracoes/nomenclatura" className="text-primary hover:underline">
-              Nomenclatura
+            <Link href="/configuracoes/nomenclatura/versoes" className="text-primary hover:underline">
+              Versões
             </Link>
             .
           </>
         )}
       </p>
 
-      <p className="text-sm text-muted-foreground">
-        {catalogo.cards.length} disciplina(s) · {totalSubs} sub-disciplina(s) · {catalogo.fases.length} fase(s) ·{" "}
-        {catalogo.tipos.length} tipo(s)
-        {v > 1 &&
-          ` — em relação à v${v - 1}: ${catalogo.resumo.entram} entram, ${catalogo.resumo.saem} saem, ${catalogo.resumo.siglasNovas} sigla(s) nova(s).`}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          {catalogo.cards.length} disciplina(s) · {totalSubs} sub-disciplina(s) · {catalogo.fases.length} fase(s) ·{" "}
+          {catalogo.tipos.length} tipo(s)
+          {v > 1 &&
+            ` — em relação à v${v - 1}: ${catalogo.resumo.entram} entram, ${catalogo.resumo.saem} saem, ${catalogo.resumo.siglasNovas} sigla(s) nova(s).`}
+        </p>
+        <div className="relative w-full sm:w-72">
+          <Search className="pointer-events-none absolute inset-y-0 left-0 my-auto ml-2.5 size-4 text-muted-foreground" />
+          <Input
+            type="search"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar nome ou sigla"
+            aria-label="Buscar por nome ou sigla"
+            className="pl-8"
+          />
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Disciplinas</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            CARD abre disciplina no projeto (projetista, prazo, pagamento). SUB é só etiqueta do documento, lida do nome do
-            arquivo, dentro do card.
-          </p>
-          <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-            <SiglaOficial sigla="HID" /> oficial, vai no nome
-            <span className="ml-2" />
-            <SiglaSinonimo sigla="HDR" /> sinônimo, só reconhecido
-          </p>
-        </CardHeader>
-        <CardContent>
-          {catalogo.cards.length === 0 ? (
-            <EmptyState icon={Shapes} title={`Nenhuma disciplina na v${v}`} description="Importe a planilha ou adicione uma disciplina." />
-          ) : (
-            <ul className="divide-y">
-              {catalogo.cards.map((c) => (
-                <li key={c.alvo.id} className="py-1">
-                  <LinhaItem
-                    linha={c}
-                    {...acoesLinha}
-                    onAdicionarSub={() =>
-                      setDialogo({
-                        tipo: "adicionar",
-                        titulo: `Nova sub-disciplina em ${c.nome} (v${v})`,
-                        siglaObrigatoria: false,
-                        montar: (nome, sigla) => ({ tipo: "sub-nova", cardId: c.alvo.id, nome, sigla }),
-                      })
-                    }
-                  />
-                  {c.subs.length > 0 && (
-                    <ul className="ml-3 border-l pl-3 sm:ml-5">
-                      {c.subs.map((s) => (
-                        <li key={s.alvo.id}>
-                          <LinhaItem linha={s} {...acoesLinha} />
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        {(["fase", "tipo"] as const).map((categoria) => {
-          const lista = categoria === "fase" ? catalogo.fases : catalogo.tipos;
-          return (
-            <Card key={categoria}>
-              <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-base">{categoria === "fase" ? "Fases" : "Tipos de documento"}</CardTitle>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={pending}
-                  onClick={() =>
-                    setDialogo({
-                      tipo: "adicionar",
-                      titulo: `Nov${categoria === "fase" ? "a fase" : "o tipo"} na v${v}`,
-                      siglaObrigatoria: true,
-                      montar: (nome, sigla) => ({ tipo: "item-novo", categoria, nome, sigla: sigla ?? "" }),
-                    })
-                  }
-                >
-                  <Plus className="size-4" /> Adicionar
-                </Button>
-              </CardHeader>
-              <CardContent>
-                {lista.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhum item nesta versão.</p>
-                ) : (
-                  <ul className="divide-y">
-                    {lista.map((l) => (
-                      <li key={l.alvo.id}>
-                        <LinhaItem linha={l} {...acoesLinha} />
+      {aba === "disciplinas" ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Disciplinas</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              CARD abre disciplina no projeto (projetista, prazo, pagamento). SUB é só etiqueta do documento, lida do nome do
+              arquivo, dentro do card.
+            </p>
+            <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+              <SiglaOficial sigla="HID" /> oficial, vai no nome
+              <span className="ml-2" />
+              <SiglaSinonimo sigla="HDR" /> sinônimo, só reconhecido
+            </p>
+          </CardHeader>
+          <CardContent>
+            {grupos.length === 0 ? (
+              <EmptyState
+                icon={Shapes}
+                title={busca ? "Nada encontrado" : `Nenhuma disciplina na v${v}`}
+                description={busca ? "Ajuste a busca." : "Importe a planilha ou adicione uma disciplina."}
+              />
+            ) : (
+              grupos.map((g) => (
+                <section key={g.categoria} aria-label={g.categoria}>
+                  <h3 className="pb-1 pt-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{g.categoria}</h3>
+                  <ul className="divide-y border-t">
+                    {g.cards.map((c) => (
+                      <li key={c.alvo.id}>
+                        {renderLinha(c)}
+                        {c.subs.length > 0 && (
+                          <ul className="ml-3 divide-y border-l pl-3 sm:ml-5">
+                            {c.subs.map((s) => (
+                              <li key={s.alvo.id}>{renderLinha(s)}</li>
+                            ))}
+                          </ul>
+                        )}
                       </li>
                     ))}
                   </ul>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                </section>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">{aba === "fases" ? "Fases" : "Tipos de documento"}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(aba === "fases" ? fases : tipos).length === 0 ? (
+              <EmptyState
+                icon={Shapes}
+                title={busca ? "Nada encontrado" : `Nenhum${aba === "fases" ? "a fase" : " tipo"} nesta versão`}
+                description={busca ? "Ajuste a busca." : "Adicione pelo botão do topo."}
+              />
+            ) : (
+              <ul className="divide-y">
+                {(aba === "fases" ? fases : tipos).map((l) => (
+                  <li key={l.alvo.id}>{renderLinha(l)}</li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-      {catalogo.saem.length > 0 && (
+      {saem.length > 0 && (
         <CollapsibleSection
           titulo={`Saem na v${v}`}
           descricao={`Existiam na v${v - 1} e não existem nesta. Continuam valendo nas versões anteriores.`}
-          resumo={<Badge variant="outline">{catalogo.saem.length}</Badge>}
+          resumo={<Badge variant="outline">{saem.length}</Badge>}
           defaultOpen
         >
           <ul className="divide-y">
-            {catalogo.saem.map((l) => (
+            {saem.map((l: SaiNaVersao) => (
               <li key={l.alvo.id} className="flex flex-wrap items-center gap-2 py-1.5 text-sm">
                 <span className="min-w-0 flex-1 break-words">
                   {l.nome} <span className="text-xs text-muted-foreground">· {l.tipoRotulo}</span>
@@ -276,9 +375,11 @@ export function CatalogoVersaoView({
                     <SiglaSinonimo key={s} sigla={s} />
                   ))}
                 </span>
-                <Button size="sm" variant="ghost" disabled={pending} onClick={() => setDialogo({ tipo: "voltar", nome: l.nome, alvo: l.alvo })}>
-                  <Undo2 className="size-3.5" /> Voltar para a v{v}
-                </Button>
+                {podeGerir && (
+                  <Button size="sm" variant="ghost" disabled={pending} onClick={() => setDialogo({ tipo: "voltar", nome: l.nome, alvo: l.alvo })}>
+                    <Undo2 className="size-3.5" /> Voltar para a v{v}
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
@@ -322,87 +423,32 @@ export function CatalogoVersaoView({
           onSalvar={(op, transferencias) => executar([op], transferencias, `“${dialogo.nome}” voltou para a v${v}.`)}
         />
       )}
+      {dialogo?.tipo === "editar" && dialogoCard && (
+        <EditarCardDialog
+          card={{ id: dialogo.alvo.id, nome: dialogo.nome, ...dialogoCard }}
+          categorias={categorias}
+          versoes={versoes}
+          pending={pending}
+          onFechar={() => setDialogo(null)}
+          onSalvar={(p: PayloadCadastroCard) => gravarCadastro(() => editarCadastroDisciplina(p))}
+        />
+      )}
+      {dialogo?.tipo === "editar" && dialogo.alvo.tipo !== "disciplina" && (
+        <EditarNomeDialog
+          titulo={`Editar cadastro — ${dialogo.nome}`}
+          nome={dialogo.nome}
+          pending={pending}
+          onFechar={() => setDialogo(null)}
+          onSalvar={(nome) =>
+            gravarCadastro(() =>
+              dialogo.alvo.tipo === "subdisciplina"
+                ? editarNomeSubdisciplina({ id: dialogo.alvo.id, nome })
+                : editarNomeItemListaMestre({ id: dialogo.alvo.id, nome }),
+            )
+          }
+        />
+      )}
       <ImportarCatalogoDialog aberto={importando} versao={v} onFechar={() => setImportando(false)} />
-    </div>
-  );
-}
-
-function SituacaoBadge({ linha, versao }: { linha: LinhaCatalogo; versao: number }) {
-  if (linha.situacao === "entra") return <Badge variant="secondary" className="text-[10px]">novo na v{versao}</Badge>;
-  if (linha.situacao === "sigla-nova") {
-    return (
-      <Badge variant="secondary" className="text-[10px]">
-        sigla nova{linha.siglaAnterior ? ` (era ${linha.siglaAnterior})` : ""}
-      </Badge>
-    );
-  }
-  return null;
-}
-
-function LinhaItem({
-  linha,
-  versao,
-  pending,
-  onSiglas,
-  onTirar,
-  onAdicionarSub,
-}: {
-  linha: LinhaCatalogo;
-  versao: number;
-  pending: boolean;
-  onSiglas: (l: LinhaCatalogo) => void;
-  onTirar: (l: LinhaCatalogo) => void;
-  onAdicionarSub?: () => void;
-}) {
-  const estrutura = ESTRUTURA[linha.alvo.tipo];
-  return (
-    <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5 text-sm", linha.alvo.tipo === "disciplina" && "font-medium")}>
-      <span className="min-w-0 flex-1 break-words">{linha.nome}</span>
-      {estrutura && <span className="w-9 text-[10px] font-semibold tracking-wide text-muted-foreground">{estrutura}</span>}
-      <span className="flex flex-wrap items-center gap-1.5">
-        {linha.sigla ? <SiglaOficial sigla={linha.sigla} /> : <span className="text-xs font-normal text-muted-foreground">sem sigla</span>}
-        {linha.sinonimos.map((s) => (
-          <SiglaSinonimo key={s} sigla={s} />
-        ))}
-      </span>
-      <SituacaoBadge linha={linha} versao={versao} />
-      <span className="flex items-center">
-        {onAdicionarSub && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="size-8"
-            aria-label={`Adicionar sub-disciplina em ${linha.nome}`}
-            title="Adicionar sub-disciplina"
-            disabled={pending}
-            onClick={onAdicionarSub}
-          >
-            <Plus className="size-4" />
-          </Button>
-        )}
-        <Button
-          size="icon"
-          variant="ghost"
-          className="size-8"
-          aria-label={`Siglas de ${linha.nome} na v${versao}`}
-          title="Siglas nesta versão"
-          disabled={pending}
-          onClick={() => onSiglas(linha)}
-        >
-          <Tags className="size-4" />
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="size-8"
-          aria-label={`Tirar ${linha.nome} da v${versao}`}
-          title={`Tirar da v${versao}`}
-          disabled={pending}
-          onClick={() => onTirar(linha)}
-        >
-          <CircleMinus className="size-4" />
-        </Button>
-      </span>
     </div>
   );
 }
