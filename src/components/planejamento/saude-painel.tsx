@@ -3,9 +3,11 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ShieldAlert, ShieldCheck, ShieldQuestion, CalendarClock, Flag, Plus } from "lucide-react";
+import { ShieldAlert, ShieldCheck, ShieldQuestion, CalendarClock, Flag, Plus, Lock, LockOpen, X } from "lucide-react";
 import {
+  abrirRevisaoPlanejamento,
   aprovarCronogramaAction,
+  cancelarRevisaoPlanejamento,
   replanejarCronograma,
   definirDataStatus,
   definirInicioProjeto,
@@ -57,6 +59,9 @@ export function SaudePainel({
   podeAprovar,
   podeExecutado,
   aprovado,
+  emRevisao,
+  revisaoAbertaEm,
+  revisaoAlterada,
   aprovadoEm,
   dataStatus,
   inicioProjeto,
@@ -73,6 +78,11 @@ export function SaudePainel({
   podeAprovar: boolean;
   podeExecutado: boolean;
   aprovado: boolean;
+  /** "Revisar planejamento" aberto: o plano aprovado está destravado até a nova linha de base (`trava-plano.ts`). */
+  emRevisao: boolean;
+  revisaoAbertaEm: string | null;
+  /** O plano mudou nesta revisão — não dá mais para cancelar, só fechar com a nova linha de base. */
+  revisaoAlterada: boolean;
   aprovadoEm: string | null;
   dataStatus: string | null;
   inicioProjeto: string | null;
@@ -144,8 +154,8 @@ export function SaudePainel({
     const ok = await confirm({
       title: "Criar uma nova linha de base?",
       description:
-        "O cronograma de hoje vira a nova referência (a próxima BL). As anteriores continuam guardadas e podem ser " +
-        "comparadas no Gantt de Controle.",
+        "O cronograma de hoje vira a nova referência (a próxima BL) e o plano volta a travar. As anteriores " +
+        "continuam guardadas e podem ser comparadas no Gantt de Controle.",
       confirmLabel: "Criar nova linha de base",
     });
     if (!ok) return;
@@ -154,6 +164,35 @@ export function SaudePainel({
       if (r.ok) {
         toast.success(`Nova linha de base — ${rotuloBaseline(r.data.baselineNumero)}.`);
         setMotivoReplan("");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  async function abrirRevisao() {
+    const ok = await confirm({
+      title: "Revisar o planejamento?",
+      description:
+        "A estrutura, as durações, as dependências e as restrições ficam liberadas para edição. A revisão fecha com " +
+        "uma nova linha de base, com o motivo da mudança — as versões anteriores continuam guardadas. Se nada for " +
+        "mudado, dá para cancelar a revisão.",
+      confirmLabel: "Revisar planejamento",
+    });
+    if (!ok) return;
+    start(async () => {
+      const r = await abrirRevisaoPlanejamento({ projetoId });
+      if (r.ok) {
+        toast.success("Planejamento em revisão — o plano está liberado para edição.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  function cancelarRevisao() {
+    start(async () => {
+      const r = await cancelarRevisaoPlanejamento({ projetoId });
+      if (r.ok) {
+        toast.success("Revisão cancelada — o plano voltou a travar.");
         router.refresh();
       } else toast.error(r.error);
     });
@@ -207,10 +246,30 @@ export function SaudePainel({
         </div>
 
         {aprovado ? (
-          <Badge variant="outline" className="text-info border-info/40">
-            <Flag className="mr-1 size-3" /> aprovado{aprovadoEm ? ` em ${aprovadoEm}` : ""}
-            {ultimaBaseline && ` · BL-${String(ultimaBaseline.numero).padStart(2, "0")}`}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge variant="outline" className="text-info border-info/40">
+              <Flag className="mr-1 size-3" /> aprovado{aprovadoEm ? ` em ${aprovadoEm}` : ""}
+              {ultimaBaseline && ` · BL-${String(ultimaBaseline.numero).padStart(2, "0")}`}
+            </Badge>
+            {emRevisao ? (
+              <Badge variant="outline" className="text-warning border-warning/40">
+                <LockOpen className="mr-1 size-3" /> em revisão
+              </Badge>
+            ) : (
+              <Badge
+                variant="outline"
+                className="text-muted-foreground"
+                title="Estrutura, durações, dependências e restrições travadas. %, datas reais, Data de Status, pessoas e bloqueio seguem livres."
+              >
+                <Lock className="mr-1 size-3" /> plano travado
+              </Badge>
+            )}
+            {podeAprovar && !emRevisao && (
+              <Button size="sm" variant="outline" onClick={() => void abrirRevisao()} disabled={pending}>
+                <LockOpen className="size-3.5" /> Revisar planejamento
+              </Button>
+            )}
+          </div>
         ) : podeAprovar && !inicioProjeto ? (
           <div className="flex items-center gap-1.5" title="A âncora do cronograma — linha sem predecessora começa aqui, como a Data de Início do Projeto no MS Project">
             <Input
@@ -231,6 +290,22 @@ export function SaudePainel({
           <Badge variant="outline" className="text-muted-foreground">rascunho</Badge>
         )}
       </div>
+
+      {aprovado && emRevisao && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-sm border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
+          <span className="min-w-0 flex-1">
+            <strong>Planejamento em revisão</strong>
+            {revisaoAbertaEm ? ` desde ${formatarData(revisaoAbertaEm)}` : ""}: estrutura, durações, dependências e
+            restrições estão liberadas. A revisão fecha com a <strong>nova linha de base</strong>, com o motivo
+            {revisaoAlterada ? " — o plano já mudou, então ela não pode mais ser cancelada." : "."}
+          </span>
+          {podeAprovar && !revisaoAlterada && (
+            <Button size="sm" variant="ghost" onClick={cancelarRevisao} disabled={pending}>
+              <X className="size-3.5" /> Cancelar revisão
+            </Button>
+          )}
+        </div>
+      )}
 
       {achados.length > 0 && (
         <CollapsibleSection
@@ -281,25 +356,27 @@ export function SaudePainel({
         </CollapsibleSection>
       )}
 
-      {podeExecutado && (
+      {(podeExecutado || (aprovado && emRevisao && podeAprovar)) && (
         <div className="flex flex-wrap items-end gap-2 border-t pt-3">
-          <div className="space-y-1">
-            <label className="block text-xs text-muted-foreground">Data de Status</label>
-            <div className="flex gap-1.5">
-              <Input
-                type="date"
-                value={novaDataStatus}
-                max={new Date().toLocaleDateString("en-CA")}
-                onChange={(e) => setNovaDataStatus(e.target.value)}
-                className="h-8 w-36 text-xs"
-                title="Até quando o andamento está informado. O trabalho não feito vai para depois dela."
-              />
-              <Button size="sm" variant="outline" onClick={salvarDataStatus} disabled={pending}>
-                <CalendarClock className="size-3.5" /> Apurar
-              </Button>
+          {podeExecutado && (
+            <div className="space-y-1">
+              <label className="block text-xs text-muted-foreground">Data de Status</label>
+              <div className="flex gap-1.5">
+                <Input
+                  type="date"
+                  value={novaDataStatus}
+                  max={new Date().toLocaleDateString("en-CA")}
+                  onChange={(e) => setNovaDataStatus(e.target.value)}
+                  className="h-8 w-36 text-xs"
+                  title="Até quando o andamento está informado. O trabalho não feito vai para depois dela."
+                />
+                <Button size="sm" variant="outline" onClick={salvarDataStatus} disabled={pending}>
+                  <CalendarClock className="size-3.5" /> Apurar
+                </Button>
+              </div>
             </div>
-          </div>
-          {aprovado && podeAprovar && (
+          )}
+          {aprovado && emRevisao && podeAprovar && (
             <div className="flex-1 space-y-1">
               <label className="block text-xs text-muted-foreground">Motivo da nova linha de base</label>
               <div className="flex gap-1.5">

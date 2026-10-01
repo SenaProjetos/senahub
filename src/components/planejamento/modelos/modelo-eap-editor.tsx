@@ -7,6 +7,7 @@ import { Plus, RotateCcw, Save } from "lucide-react";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import type { CalendarioGantt } from "@/modules/planejamento/gantt-escala";
 import type { Vinculo } from "@/modules/planejamento/gantt-linhas";
+import type { Larguras } from "@/modules/planejamento/gantt-larguras";
 import type { LinhaModelo } from "@/modules/planejamento/modelos/estrutura";
 import {
   ACAO_ABRIR,
@@ -75,6 +76,7 @@ export function ModeloEapEditor({
   fases,
   podeEditar,
   verDatas,
+  largurasColunas,
 }: {
   modeloId: string;
   /** `updatedAt` do modelo quando a página abriu. */
@@ -87,6 +89,8 @@ export function ModeloEapEditor({
   podeEditar: boolean;
   /** Decisão #3: quem não vê datas do planejamento vê só a estrutura (sem gráfico, sem início/término). */
   verDatas: boolean;
+  /** Larguras de coluna do Gantt que o usuário ajustou (a mesma preferência do cronograma do projeto). */
+  largurasColunas?: Larguras;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -258,6 +262,7 @@ export function ModeloEapEditor({
         filtroIds={null}
         onAbrir={podeEditar ? (t) => setAbertaId(t.id) : undefined}
         onEditarCampo={podeEditar ? editarCampo : undefined}
+        largurasIniciais={largurasColunas}
         onEditarPredecessoras={podeEditar ? editarPredecessoras : undefined}
         onErro={(mensagem) => toast.error(mensagem)}
         menuDe={(t, contexto) => itensDeLinhaModelo({ nome: t.nome, ehResumo: t.ehResumo, ...contexto }, { podeEditar, totalLinhas: linhas.length })}

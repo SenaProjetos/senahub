@@ -51,9 +51,10 @@ combinado original guardado para comparar.
 | --- | --- | --- |
 | **1. Rascunho** | Você monta a EAP: tarefas, durações, dependências, responsáveis. Nada vale ainda, e nenhum card é criado. | Editor da linha |
 | **2. Início do projeto** | Define a data que ancora o cronograma. | **Definir início do projeto** |
-| **3. Aprovar** | Congela a **linha de base BL-00**, cria os cards de quem está escalado. | **Aprovar cronograma** |
-| **4. Acompanhar** | Informa datas reais, a Data de Status, e confere a saúde. | **Atualizar tarefa**, **Apurar** |
-| **5. Nova linha de base** | Nova versão da linha de base (BL-01, BL-02…), com motivo; a anterior fica guardada. | **Nova linha de base** |
+| **3. Aprovar** | Congela a **linha de base BL-00**, cria os cards de quem está escalado e **trava o plano**. | **Aprovar cronograma** |
+| **4. Acompanhar** | Informa %, datas reais, a Data de Status, e confere a saúde. | **Atualizar tarefa**, **Apurar** |
+| **5. Revisar** | Destrava o plano para mudar estrutura, durações ou dependências. | **Revisar planejamento** |
+| **6. Nova linha de base** | Fecha a revisão: nova versão da linha de base (BL-01, BL-02…), com motivo; a anterior fica guardada. | **Nova linha de base** |
 
 ## Como o cronograma calcula as datas
 
@@ -258,6 +259,10 @@ linhas, numa área de rolagem só (a tabela fica presa à esquerda e o cabeçalh
 - **Tabela compacta / completa:** a tabela abre compacta (sem Disciplina, Recursos e Custo) para dar
   espaço ao gráfico; **Tabela completa** mostra todas as colunas, inclusive o **Custo** (só quem vê o
   financeiro). **✓** marca a linha concluída.
+- **Largura das colunas:** arraste a **borda direita do cabeçalho** de qualquer coluna para alargar ou
+  estreitar (mínimo 44 px, máximo 640 px). Com o teclado, foque a borda e use **←** e **→**. **Duplo clique**
+  na borda devolve aquela coluna ao tamanho padrão, e **Larguras padrão** (ao lado de Tabela compacta) devolve
+  todas. A escolha é **sua**: fica guardada na sua conta e vale em qualquer cronograma e no editor de modelo.
 
 ### Datas reais: Atualizar tarefa
 
@@ -328,13 +333,32 @@ termina antes da Data de Status, então ela não serve de régua. O filtro **Atr
 mesma régua. "Sem horas previstas" e "agrupamento com gente atribuída" não pesam
 na nota.
 
+### Plano travado e Revisar planejamento
+
+Depois de **aprovado**, o **plano fica travado** (etiqueta **plano travado** no painel de saúde). O que o combinado
+com o cliente depende não muda sem deixar rastro:
+
+| Travado (é plano) | Livre (é acompanhamento) |
+| --- | --- |
+| Inserir, excluir, mover, recuar e avançar linhas · **Nova tarefa** · **Gerar EAP das disciplinas** | **Nome** da linha |
+| **Duração** e **marco** | **% concluído** e **datas reais** (**Atualizar tarefa**) |
+| **Disciplina** e **fase** da linha | **Data de Status** (**Apurar**) |
+| **Predecessoras** e **restrição de data** | **Pessoas** e **horas** da linha, **bloqueio** |
+
+O que está travado aparece **desabilitado com o motivo** — no menu da linha, no **...** e na janela da tarefa.
+
+Para mudar o plano, clique em **Revisar planejamento** (exige `cronograma:aprovar`). A etiqueta vira **em
+revisão**, uma faixa amarela avisa e tudo volta a ser editável. A revisão **fecha com a Nova linha de base**,
+com o motivo. Se você abriu a revisão e **não mudou nada**, dá para **Cancelar revisão**; depois da primeira
+mudança, só a nova linha de base fecha — é assim que toda mudança do combinado fica registrada.
+
 ### Nova linha de base
 
 A linha de base aprovada **nunca é sobrescrita**. Quando o combinado muda — atraso do cliente, aditivo de
-contrato, uma disciplina que entrou no meio do caminho — use **Nova linha de base** (o antigo *Replanejar*):
-informe o **motivo** (obrigatório) e confirme. O cronograma de hoje vira a nova referência (**BL-01**, depois
-BL-02…) e as anteriores **ficam guardadas**. É o que responde, no fim do projeto, "por que o prazo andou?".
-Exige `cronograma:aprovar`.
+contrato, uma disciplina que entrou no meio do caminho — abra a revisão (**Revisar planejamento**), faça as
+mudanças e use **Nova linha de base** (o antigo *Replanejar*): informe o **motivo** (obrigatório) e confirme. O
+cronograma de hoje vira a nova referência (**BL-01**, depois BL-02…), as anteriores **ficam guardadas** e o
+plano volta a travar. É o que responde, no fim do projeto, "por que o prazo andou?". Exige `cronograma:aprovar`.
 
 - **Versões da linha de base** (no painel de saúde): cada versão com o **motivo**, a **data**, o **autor** e
   quantas linhas guardou; a mais nova aparece como **atual**.
@@ -378,7 +402,7 @@ Exige `cronograma:aprovar`.
 | Ver as **datas**: Gantt, prazos, linha de base, Cronograma geral, Saúde, Valor Agregado, exportar Excel e PDF | `planejamento:gerir`, `cronograma:ver`, `cronograma:executado` ou `cronograma:aprovar` |
 | Montar e editar a EAP (tarefas, dependências, restrição, bloqueio, recursos, reagendar, aplicar ao projeto) | `planejamento:gerir` |
 | Definir a Data de Status (**Apurar**) e **Atualizar tarefa** (datas reais) | `cronograma:executado` |
-| **Aprovar** o cronograma e criar **Nova linha de base** | `cronograma:aprovar` |
+| **Aprovar** o cronograma, **Revisar planejamento** e criar **Nova linha de base** | `cronograma:aprovar` |
 | Ver a coluna **Custo** e o valor em R$ do Valor Agregado | acesso ao financeiro (`financeiro:ver` ou sócio) |
 | Aprovar a **fase** a partir do marco concluído | `aprovacoes:disciplina` |
 
@@ -398,6 +422,8 @@ confira lá o que vale no seu escritório.
 - **A duração e as dependências mandam nas datas**; salvar recalcula o projeto inteiro.
 - **Aprovar exige zero erro** do verificador e **a nova linha de base exige motivo**.
 - **A linha de base nunca é sobrescrita.** Cada versão guarda autor, data e motivo.
+- **Aprovado, o plano trava.** Estrutura, durações, dependências e restrições só mudam em **Revisar
+  planejamento**, que fecha com uma nova linha de base.
 - **O % de cada atividade é informado** pela coordenação; o sistema só sugere.
 - **Bloqueio não pausa o prazo.** Férias **não movem** datas.
 - **O realizado move a previsão, nunca o combinado.** Datas reais e a Data de Status empurram as
@@ -430,8 +456,13 @@ ninguém mexer no cronograma.
 **Por que não consigo aprovar?** Há **erros** do verificador (abra **Achados do verificador**), ou
 falta **definir o início do projeto**. Corrija e tente de novo.
 
-**Aprovei e preciso mudar uma data. E agora?** Use **Nova linha de base** com o motivo. A linha de base
-anterior fica guardada, e o Gantt de Controle deixa comparar com qualquer versão.
+**Aprovei e preciso mudar uma data. E agora?** Se é o **realizado** (a tarefa começou ou terminou em outro
+dia), use **Atualizar tarefa** — não precisa destravar nada. Se é o **plano** (duração, dependência, tarefa
+nova), clique em **Revisar planejamento**, faça a mudança e feche com **Nova linha de base** e o motivo. A linha
+de base anterior fica guardada, e o Gantt de Controle deixa comparar com qualquer versão.
+
+**Por que a duração não abre para editar?** O cronograma está aprovado e o plano está travado. Veja **Plano
+travado e Revisar planejamento**, acima.
 
 **O que é a Data de Status?** O dia em que você declara o estado do cronograma. Sem ela, o sistema
 não separa "atrasado" de "ainda não apurado".

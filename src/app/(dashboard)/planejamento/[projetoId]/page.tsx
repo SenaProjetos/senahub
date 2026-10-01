@@ -20,6 +20,8 @@ import { opcoesParaGerarDisciplinas } from "@/modules/planejamento/modelos/disci
 import { impedimentoParaApagarEapDoProjeto } from "@/modules/planejamento/apagar-eap-service";
 import { paraDia } from "@/modules/planejamento/agenda";
 import { inicioDoDiaUtc } from "@/lib/data";
+import { CHAVE_PREF_LARGURAS_GANTT, lerLarguras } from "@/modules/planejamento/gantt-larguras";
+import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
 
 export const metadata: Metadata = { title: "Planejamento do projeto" };
 
@@ -47,6 +49,7 @@ export default async function PlanejamentoProjetoPage({
     qualidade,
     pessoas,
     valorAgregado,
+    preferencias,
   ] = await Promise.all([
     eapDoProjeto(projetoId, { verCusto, verDatas }),
     can(user, "planejamento", "gerir"),
@@ -60,6 +63,7 @@ export default async function PlanejamentoProjetoPage({
     // F8: horas para quem coordena; R$ só para quem vê o financeiro (taxa de remuneração). Depende da Data
     // de Status, então também some para quem não vê datas.
     verDatas ? valorAgregadoDoProjeto(projetoId, { verCusto }) : Promise.resolve(null),
+    getPreferencias(user.id),
   ]);
 
   // Decisão #5: o seletor de modelo só aparece com a EAP vazia e para quem monta — e a prévia (quantas
@@ -89,6 +93,7 @@ export default async function PlanejamentoProjetoPage({
         previasModelos={previasModelos}
         opcoesDisciplinas={opcoesDisciplinas}
         impedimentoApagar={impedimentoApagar}
+        largurasColunas={lerLarguras(preferencias[CHAVE_PREF_LARGURAS_GANTT])}
       />
       {valorAgregado && <ValorAgregadoPainel dados={valorAgregado} />}
       <PlanoVsReal dados={planoReal} />

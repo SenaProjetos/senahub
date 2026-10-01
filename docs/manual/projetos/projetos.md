@@ -149,6 +149,18 @@ O card de prazos avisa quando o planejado estoura o contrato.
 - A tabela **Disciplinas do projeto** é um resumo. Clique em uma disciplina ou em
   **Abrir disciplinas** para acompanhar e trabalhar nos detalhes.
 
+A aba **Resultados** compara as **horas previstas** no cronograma com as **horas apontadas** no ponto, por
+disciplina: previsto, apontado, **saldo** (negativo = passou do previsto) e **% consumido**. Clique numa
+disciplina para abrir as **tarefas** dela, pelo código da EAP; as horas do ponto que não escolheram uma tarefa do
+cronograma aparecem como **Sem tarefa do cronograma**. Filtre por **disciplina** e por **pessoa** (o filtro de
+pessoa recorta os dois lados: o que foi previsto para ela e o que ela apontou).
+
+- O **previsto** são as horas das pessoas nas **atividades** do cronograma (horas postas num agrupamento não
+  contam). Vaga por perfil entra no total, sem pessoa.
+- O **custo em R$** (horas × custo/hora de cada pessoa, cadastrado em **Recursos**) só aparece para quem vê o
+  financeiro. Hora sem custo/hora conhecido **não vira zero**: aparece à parte ("+ 6 h sem custo").
+- A aba aparece para quem vê o cronograma com datas (as mesmas permissões do Planejamento).
+
 A aba **Disciplinas** concentra o trabalho operacional: status, responsáveis, arquivos,
 validações, revisões, tarefas e diário, um card por disciplina.
 
@@ -271,6 +283,12 @@ pastas no topo — clique numa pasta para entrar (a árvore da esquerda acompanh
 - **Todos os documentos:** as pastas das disciplinas e, depois delas, as **pastas do cliente**
   (**Compartilhado** e **Liberado para obra**, veja abaixo) e as áreas do projeto (Recebidos do cliente,
   Base Arquitetônica, Geral, ARTs). As áreas já abrem **abertas** na página delas.
+  **Recebidos do cliente**, **Base Arquitetônica** e **Geral** são **tabelas**: nome (com a versão e o histórico
+  de versões), tamanho, data e quem enviou, mais o botão de visualizar (PDF/DWG) e o **...** — o mesmo menu abre
+  com o botão direito. Arraste arquivos para a tabela para enviar. No menu: **Baixar**, **Enviar nova versão** e
+  **Excluir** (com confirmação, e a versão antiga se exclui sozinha, na linha dela); no **Geral**, também
+  **Editar nome, categoria e descrição** e **Exibir também em Recebidos do cliente**. Um documento do Geral
+  que aparece em Recebidos só se baixa ali — quem o gere é a pasta Geral.
 - **Disciplina:** as pastas das fases e, soltos, os documentos que ainda não têm fase.
 - **Fase:** as pastas dos formatos (PDF, DWG…).
 - **Formato:** as pranchas, cada uma **só com o arquivo daquele formato** — na pasta PDF, abrir,
@@ -635,6 +653,8 @@ numa página sem escala abre a calibração.
 | Aprovar uma fase (libera o pagamento dela) | `aprovacoes:disciplina` |
 | Alterar status / registrar revisão | Responsável da disciplina **ou** gestor |
 | Ver downloads e visualizações no histórico do documento | `arquivos:ver_acessos` |
+| Ver a aba **Resultados** (previsto × apontado) | `planejamento:gerir`, `cronograma:ver`, `cronograma:executado` ou `cronograma:aprovar` |
+| Ver o custo em R$ na aba Resultados | acesso ao financeiro (`financeiro:ver` ou sócio) |
 
 ## Erros possíveis e soluções
 

@@ -11,6 +11,8 @@ import { catalogosParaMapear, modeloParaRevisar } from "@/modules/planejamento/m
 import { disciplinasDoModelo } from "@/modules/planejamento/modelos/por-disciplina";
 import { agrupamentosSemDisciplina } from "@/modules/planejamento/modelos/aplicar";
 import { formatarDataHora } from "@/lib/utils";
+import { CHAVE_PREF_LARGURAS_GANTT, lerLarguras } from "@/modules/planejamento/gantt-larguras";
+import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,10 +30,11 @@ export const metadata: Metadata = { title: "Modelo de EAP" };
 export default async function ModeloEapPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requirePermission("planejamento", "ver");
   const { id } = await params;
-  const [modelo, podeEditar, verDatas] = await Promise.all([
+  const [modelo, podeEditar, verDatas, preferencias] = await Promise.all([
     modeloParaRevisar(id),
     can(user, "planejamento", "gerir"),
     podeVerDatasDoPlanejamento(user),
+    getPreferencias(user.id),
   ]);
   if (!modelo) notFound();
 
@@ -101,6 +104,7 @@ export default async function ModeloEapPage({ params }: { params: Promise<{ id: 
             fases={catalogos.fases.map((f) => ({ id: f.id, nome: f.nome, sigla: f.sigla ?? null }))}
             podeEditar={podeEditar}
             verDatas={verDatas}
+            largurasColunas={lerLarguras(preferencias[CHAVE_PREF_LARGURAS_GANTT])}
           />
 
           {modelo.nomes.length > 0 && !modelo.disciplinaCatalogo && (

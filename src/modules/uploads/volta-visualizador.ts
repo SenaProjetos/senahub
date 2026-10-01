@@ -17,8 +17,9 @@ const ORIGEM_FALSA = "http://volta.invalid";
  * O endereço de volta, normalizado (`/caminho?busca`), ou `null` se não serve. Serve: caminho exatamente
  * `/projetos/{projetoId}/arquivos` ou `/arquivos` (o diretório geral), sem sair do site.
  */
-export function voltaValida(volta: string | null | undefined, projetoId: string): string | null {
-  if (!volta || volta.length > TETO) return null;
+export function voltaValida(volta: string | string[] | null | undefined, projetoId: string): string | null {
+  // `?volta=a&volta=b` chega como lista: não é um endereço, é lixo — e `.startsWith` quebraria a página.
+  if (typeof volta !== "string" || !volta || volta.length > TETO) return null;
   // `//host` e `/\host` viram outro site em alguns navegadores; endereço de volta nunca precisa disso.
   if (!volta.startsWith("/") || volta.startsWith("//") || volta.includes("\\")) return null;
   let url: URL;

@@ -18,6 +18,7 @@ import {
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import { rotuloHoras } from "@/modules/planejamento/progresso-sugerido";
 import { EapAtribuicoes } from "@/components/planejamento/eap-atribuicoes";
+import { MOTIVO_PLANO_TRAVADO } from "@/modules/planejamento/trava-plano";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,6 +67,7 @@ export function EapDialog({
   disciplinas,
   tarefas,
   pessoas,
+  planoTravado = false,
 }: {
   tarefa: EapTarefaDTO | null;
   open: boolean;
@@ -74,6 +76,11 @@ export function EapDialog({
   disciplinas: { id: string; nome: string; etapas: { etapaId: string; sigla: string; nome: string }[] }[];
   tarefas: EapTarefaDTO[];
   pessoas: { id: string; name: string; image: string | null }[];
+  /**
+   * Cronograma aprovado fora de revisão (`trava-plano.ts`): marco, duração, disciplina, fase, predecessoras, restrição
+   * e excluir ficam desabilitados. Nome, %, pessoas e bloqueio seguem — são acompanhamento, não plano.
+   */
+  planoTravado?: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -273,6 +280,7 @@ export function EapDialog({
   // O editor só alterna atividade ↔ marco; disciplina, pacote e agrupamento mantêm o tipo.
   const podeSerMarco =
     !linhaAtual || ((linhaAtual.tipoEap === "atv" || linhaAtual.tipoEap === "mrc") && !ehAgrupamento);
+  const trava = planoTravado && !!linhaAtual;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -302,6 +310,15 @@ export function EapDialog({
               {linhaAtual.reprogramada && " · reprogramada para depois da Data de Status"}
             </p>
           )}
+          {trava && (
+            <p className="flex gap-1.5 rounded-sm border border-info/40 bg-info/10 px-2.5 py-1.5 text-xs text-foreground">
+              <Lock className="mt-0.5 size-3.5 shrink-0 text-info" />
+              <span>
+                Cronograma aprovado: duração, marco, disciplina, fase, dependências e restrição estão travados. Nome, %,
+                pessoas e bloqueio seguem livres. Para mudar o plano, use &ldquo;Revisar planejamento&rdquo; no painel de saúde.
+              </span>
+            </p>
+          )}
 
           <div className="space-y-1.5">
             <Label>Nome</Label>
@@ -313,6 +330,7 @@ export function EapDialog({
               <Checkbox
                 id="marco"
                 checked={form.marco}
+                disabled={trava}
                 onCheckedChange={(v) => setForm((f) => ({ ...f, marco: v === true }))}
               />
               <Label htmlFor="marco" className="cursor-pointer font-normal">
@@ -335,6 +353,7 @@ export function EapDialog({
                     id="eap-duracao"
                     inputMode="decimal"
                     value={form.duracao}
+                    disabled={trava}
                     onChange={(e) => setForm((f) => ({ ...f, duracao: e.target.value.replace(/[^0-9.,]/g, "") }))}
                   />
                 </div>
@@ -383,7 +402,7 @@ export function EapDialog({
                   })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger disabled={trava}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -444,7 +463,7 @@ export function EapDialog({
             <div className="space-y-1.5">
               <Label>Fase (opcional)</Label>
               <Select value={form.etapaId} onValueChange={(v) => setForm((f) => ({ ...f, etapaId: v ?? NONE }))}>
-                <SelectTrigger>
+                <SelectTrigger disabled={trava}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -498,9 +517,9 @@ export function EapDialog({
                     <div key={t.id} className="flex flex-wrap items-center gap-1.5">
                       <button
                         type="button"
-                        disabled={pending}
+                        disabled={pending || trava}
                         onClick={() => toggleDep(t.id)}
-                        className={`rounded-sm border px-2 py-1 text-xs transition-colors ${
+                        className={`rounded-sm border px-2 py-1 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                           sel
                             ? "border-warning bg-warning/15 text-warning"
                             : "border-border text-muted-foreground hover:border-warning/50"
@@ -514,7 +533,7 @@ export function EapDialog({
                             value={vinculo.tipo}
                             onValueChange={(v) => v && mudarVinculo(t.id, "tipo", v)}
                           >
-                            <SelectTrigger className="h-6 w-[7.5rem] text-[11px]">
+                            <SelectTrigger className="h-6 w-[7.5rem] text-[11px]" disabled={trava}>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -528,6 +547,7 @@ export function EapDialog({
                           <Input
                             type="number"
                             value={vinculo.lagDias}
+                            disabled={trava}
                             onChange={(e) => mudarVinculo(t.id, "lagDias", e.target.value)}
                             className="h-6 w-16 text-[11px]"
                             title="Lag em dias úteis (negativo = antecipação)"
@@ -582,7 +602,7 @@ export function EapDialog({
                   value={restricaoTipo || NONE}
                   onValueChange={(v) => setRestricaoTipo(v === NONE ? "" : (v ?? ""))}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger disabled={trava}>
                     <SelectValue placeholder="Sem restrição" />
                   </SelectTrigger>
                   <SelectContent>
@@ -598,10 +618,10 @@ export function EapDialog({
                   type="date"
                   value={restricaoData}
                   onChange={(e) => setRestricaoData(e.target.value)}
-                  disabled={!restricaoTipo}
+                  disabled={!restricaoTipo || trava}
                 />
               </div>
-              <Button size="sm" variant="outline" className="mt-2" onClick={salvarRestricao} disabled={pending}>
+              <Button size="sm" variant="outline" className="mt-2" onClick={salvarRestricao} disabled={pending || trava}>
                 {restricaoTipo ? (
                   <>
                     <Pin className="size-3.5" /> Fixar restrição
@@ -664,7 +684,13 @@ export function EapDialog({
 
         <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
           {linhaAtual ? (
-            <Button variant="ghost" size="sm" onClick={excluir} disabled={pending}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={excluir}
+              disabled={pending || trava}
+              title={trava ? MOTIVO_PLANO_TRAVADO : undefined}
+            >
               <Trash2 className="size-3.5" /> Excluir
             </Button>
           ) : (

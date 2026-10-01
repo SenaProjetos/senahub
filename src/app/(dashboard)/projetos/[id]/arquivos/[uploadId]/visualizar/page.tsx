@@ -20,7 +20,7 @@ export default async function VisualizarPage({
   searchParams,
 }: {
   params: Promise<{ id: string; uploadId: string }>;
-  searchParams: Promise<{ pagina?: string; pin?: string; volta?: string }>;
+  searchParams: Promise<{ pagina?: string; pin?: string; volta?: string | string[] }>;
 }) {
   const user = await requirePermission("projetos", "ver");
   const { id, uploadId } = await params;

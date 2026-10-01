@@ -5,6 +5,7 @@ import { ArrowLeft, MessageSquare } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
+import { podeVerDatasDoPlanejamento } from "@/modules/planejamento/acesso";
 import { obterProjetoMinimo, abasComConteudo } from "@/modules/projetos/queries";
 import type { AbaConfigItem } from "@/modules/projetos/abas";
 import { listarClientes } from "@/modules/clientes/queries";
@@ -43,6 +44,7 @@ export default async function ProjetoLayout({
     podeServicos,
     podeArts,
     podeDiario,
+    podeResultados,
     canalChat,
     modelosDoc,
     conteudoPorAba,
@@ -60,6 +62,8 @@ export default async function ProjetoLayout({
     can(user, "projetos", "servicos"),
     can(user, "projetos", "arts"),
     can(user, "projetos", "diario"),
+    // Resultados (previsto × apontado): quem vê o cronograma com datas — a mesma regra da página.
+    podeVerDatasDoPlanejamento(user),
     canalDoProjeto(id),
     modelosPorFonte("projeto"),
     abasComConteudo(id),
@@ -172,6 +176,7 @@ export default async function ProjetoLayout({
               "/disciplinas",
               "/inputs",
               ...(podeVerFinanceiro ? ["/financeiro"] : []),
+              ...(podeResultados ? ["/resultados"] : []),
               ...(podeServicos ? ["/servicos"] : []),
               "/arquivos",
               ...(podeArts ? ["/arts"] : []),

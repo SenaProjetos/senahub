@@ -13,17 +13,14 @@ import {
   Download,
   Eye,
   Upload as UploadIcon,
-  Plus,
   Pencil,
   Trash2,
-  Share2,
   CheckCircle2,
   Clock,
   AlertTriangle,
   Loader2,
   XCircle,
   RotateCcw,
-  History,
   ShieldCheck,
   FileText,
 } from "lucide-react";
@@ -41,27 +38,17 @@ import type { LixeiraItem } from "@/modules/uploads/queries";
 import type { ArtListItem } from "@/modules/projetos/art/queries";
 import { LABEL_SITUACAO_ART, rotuloArt } from "@/modules/projetos/art/service";
 import { DIAS_LIXEIRA } from "@/modules/uploads/lixeira";
-import {
-  criarDocumento,
-  editarDocumento,
-  adicionarVersaoDocumento,
-  excluirDocumento,
-  excluirVersaoDocumento,
-  alternarExibicaoRecebidos,
-} from "@/modules/documentos-cliente/actions";
-import type { DocumentoItem, DocumentoVersaoItem } from "@/modules/documentos-cliente/queries";
-import type { MetaDocumento } from "@/modules/documentos-cliente/schemas";
+import type { DocumentoItem } from "@/modules/documentos-cliente/queries";
 import { entregaveisAtuais } from "@/modules/uploads/validacao";
 import { IconeArquivo } from "@/components/projetos/icone-arquivo";
+import { TabelaAreaDocumentos } from "@/components/projetos/arquivos/tabela-area-documentos";
 import { PastaTreeView, SeletorPasta } from "@/components/projetos/pasta-tree-view";
 import type { PastaFlat } from "@/modules/projetos/pastas/arvore";
 // Estrutura de pastas (subpastas por extensão + rótulos de pacote) — fonte única
 // compartilhada com a geração de .zip, para o zip espelhar a árvore desta tela.
 import { SUBPASTAS, PACOTES, PACOTE_LABEL, extDe, subpastaDe } from "@/modules/uploads/estrutura";
 import { AcoesValidacaoArquivo } from "@/components/projetos/acoes-validacao-arquivo";
-import { PreviewPdfButton } from "@/components/pdf/preview-pdf-button";
 import { VisualizarDwgButton } from "@/components/dwg/visualizar-dwg-button";
-import { refDocumentoDwg } from "@/modules/dwg/desenho-ref";
 import { LinkPublicoArquivosButton, type FasesLink, type LinkData } from "@/components/projetos/link-publico-arquivos-dialog";
 import { LinkSelecaoArquivosButton } from "@/components/projetos/link-selecao-arquivos-button";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -71,7 +58,6 @@ import {
   limiteDoPacote,
   limiteLabelDoPacote,
 } from "@/modules/uploads/limites";
-import { precisaChunk, enviarEmChunks } from "@/lib/upload-grande";
 import { useDropzone } from "@/lib/use-dropzone";
 import { detectarNovasRevisoes, mensagemNovasRevisoes, type ArquivoExistente } from "@/modules/uploads/revisao-nova";
 import { gruposRevisaoAgrupada } from "@/modules/uploads/revisao-agrupada";
@@ -93,10 +79,11 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 // (fonte única, também usada pelas rotas de .zip). "Recebidos do cliente" virou
 // repositório Documento (ver RecebidosPasta).
 
-const CATEGORIAS_GERAL = ["contrato", "planta", "memorial", "foto", "administrativo", "outro"] as const;
-
 // `extDe` reexportado para compatibilidade com quem importava daqui.
 export { extDe };
+import { VersaoToggle } from "@/components/projetos/arquivos/versao-toggle";
+// Reexportado: o card de disciplina importa daqui.
+export { VersaoToggle };
 
 /** Separa nome em base + extensão (com o ponto, no case original). `.env`/sem ponto → sem extensão. */
 function separarExt(nome: string): { base: string; ext: string } {
@@ -180,6 +167,16 @@ function ZipButton({ ids, nome, title }: { ids: string[]; nome: string; title: s
 }
 
 /** Nó de pasta genérico e colapsável. */
+/** Título de uma área de documentos (Base, Recebidos, Geral) na tela antiga, que as empilha entre as pastas. */
+function SecaoAreaDocumentos({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-2 p-2">
+      <h3 className="text-sm font-semibold">{titulo}</h3>
+      {children}
+    </section>
+  );
+}
+
 function Pasta({
   nome,
   contagem,
@@ -223,38 +220,6 @@ function Pasta({
       </div>
       {aberto && children}
     </div>
-  );
-}
-
-/**
- * Botão que expande/colapsa as versões anteriores de um arquivo (acordeão). Só
- * aparece quando há histórico (>0 versões antigas). Compartilhado por disciplina,
- * Geral e Recebidos.
- */
-export function VersaoToggle({
-  n,
-  aberto,
-  onClick,
-  nome,
-}: {
-  n: number;
-  aberto: boolean;
-  onClick: () => void;
-  nome: string;
-}) {
-  return (
-    <button
-      type="button"
-      className="flex shrink-0 items-center gap-0.5 rounded-sm px-1 text-xs text-muted-foreground hover:text-foreground"
-      aria-expanded={aberto}
-      aria-label={`${n} versão(ões) anterior(es) de ${nome}`}
-      title={aberto ? "Ocultar versões anteriores" : `Ver ${n} versão(ões) anterior(es)`}
-      onClick={onClick}
-    >
-      <History className="size-3.5" />
-      <span className="font-mono">{n}</span>
-      <ChevronRight className={cn("size-3 transition-transform", aberto && "rotate-90")} />
-    </button>
   );
 }
 
@@ -865,13 +830,16 @@ export function ArquivosExplorer({
         <Card>
           <CardContent className="p-2">
             <div className="divide-y">
-              <PastaBaseArquitetonica
-                projetoId={projeto.id}
-                clienteId={clienteId}
-                arquivos={baseArquitetonica}
-                podeGerir={podeGerirBaseArquitetonica}
-                podeExcluir={podeExcluirDocumento}
-              />
+              <SecaoAreaDocumentos titulo="Base Arquitetônica">
+                <TabelaAreaDocumentos
+                  area="base"
+                  projetoId={projeto.id}
+                  clienteId={clienteId}
+                  documentos={baseArquitetonica}
+                  podeGerir={podeGerirBaseArquitetonica}
+                  podeExcluir={podeExcluirDocumento}
+                />
+              </SecaoAreaDocumentos>
             </div>
             {vazioResto ? (
               <EmptyState
@@ -882,22 +850,28 @@ export function ArquivosExplorer({
             ) : (
               <div className="divide-y">
                 {temRecebidos && (
-                  <RecebidosPasta
-                    projetoId={projeto.id}
-                    clienteId={clienteId}
-                    recebidos={recebidos}
-                    podeGerir={podeGerirRecebidos}
-                    podeExcluir={podeExcluirDocumento}
-                  />
+                  <SecaoAreaDocumentos titulo="Recebidos do cliente">
+                    <TabelaAreaDocumentos
+                      area="recebidos"
+                      projetoId={projeto.id}
+                      clienteId={clienteId}
+                      documentos={recebidos}
+                      podeGerir={podeGerirRecebidos}
+                      podeExcluir={podeExcluirDocumento}
+                    />
+                  </SecaoAreaDocumentos>
                 )}
                 {temGeral && (
-                  <PastaGeral
-                    projetoId={projeto.id}
-                    clienteId={clienteId}
-                    geral={geral}
-                    podeGerir={podeGerirGeral}
-                    podeExcluir={podeExcluirDocumento}
-                  />
+                  <SecaoAreaDocumentos titulo="Geral">
+                    <TabelaAreaDocumentos
+                      area="geral"
+                      projetoId={projeto.id}
+                      clienteId={clienteId}
+                      documentos={geral}
+                      podeGerir={podeGerirGeral}
+                      podeExcluir={podeExcluirDocumento}
+                    />
+                  </SecaoAreaDocumentos>
                 )}
 
                 {disciplinas.map((d) => {
@@ -1035,918 +1009,6 @@ export function ArquivosExplorer({
 }
 
 // ── Pasta "Recebidos do cliente": Documentos ancorados no projeto + herdados da proposta ──
-
-async function subirDocumento(
-  file: File,
-  projetoId: string,
-  clienteId: string | null,
-  origem?: "recebido_cliente" | "interno",
-): Promise<MetaDocumento> {
-  const fd = new FormData();
-  fd.append("projetoId", projetoId);
-  if (clienteId) fd.append("clienteId", clienteId);
-  if (origem) fd.append("origem", origem);
-  // Arquivos grandes vão em pedaços (Cloudflare corta em ~100 MB); os pequenos, direto.
-  if (precisaChunk(file)) {
-    const meta = await enviarEmChunks(file);
-    fd.append("sessaoId", meta.sessaoId);
-    fd.append("nome", file.name);
-    fd.append("total", String(meta.total));
-    fd.append("tamanho", String(meta.tamanho));
-    fd.append("mime", file.type || "");
-  } else {
-    fd.append("file", file);
-  }
-  const res = await fetch("/api/documentos", { method: "POST", body: fd });
-  const meta = await res.json();
-  if (!res.ok) throw new Error(meta.error ?? "Falha no upload.");
-  return meta as MetaDocumento;
-}
-
-/**
- * Linha de uma versão ANTIGA de um Documento (Geral/Recebidos), no acordeão de versões.
- * Recuada e apagada; só baixar/pré-visualizar (+ excluir versão avulsa p/ admin).
- */
-function LinhaVersaoDocumento({
-  v,
-  nome,
-  podeExcluir,
-  pending,
-  onExcluir,
-}: {
-  v: DocumentoVersaoItem;
-  nome: string;
-  podeExcluir: boolean;
-  pending: boolean;
-  onExcluir: () => void;
-}) {
-  return (
-    <div
-      className="flex items-center gap-2 rounded-sm py-1 pr-2 text-sm text-muted-foreground hover:bg-muted/40"
-      style={{ paddingLeft: "3rem" }}
-    >
-      <IconeArquivo nome={v.nomeArquivo} />
-      <span className="min-w-0 flex-1 truncate" title={v.nomeArquivo}>
-        {nome}
-        <span className="ml-1 font-mono text-xs">v{v.numero}</span>
-      </span>
-      <span className="hidden shrink-0 text-xs md:inline" title={`Enviada em ${formatarData(v.criadoEm)}`}>
-        {formatarData(v.criadoEm)}
-      </span>
-      <span className="shrink-0 font-mono text-xs">{fmtBytes(v.tamanho)}</span>
-      <PreviewPdfButton visivel={extDe(v.nomeArquivo) === "pdf"} url={v.downloadUrl} titulo={`${nome} ${rotuloRevisao(v.numero)}`} />
-      <VisualizarDwgButton desenhoId={refDocumentoDwg(v.id)} nomeArquivo={v.nomeArquivo} titulo={`${nome} ${rotuloRevisao(v.numero)}`} statusInicial={v.conversaoDwg} />
-      <a
-        href={v.downloadUrl}
-        className="shrink-0 text-primary hover:text-primary/80"
-        aria-label={`Baixar ${nome} ${rotuloRevisao(v.numero)}`}
-      >
-        <Download className="size-3.5" />
-      </a>
-      {podeExcluir && (
-        <button
-          type="button"
-          className="shrink-0 hover:text-destructive disabled:opacity-50"
-          aria-label={`Excluir versão ${v.numero} de ${nome}`}
-          title="Excluir esta versão"
-          disabled={pending}
-          onClick={onExcluir}
-        >
-          <Trash2 className="size-3.5" />
-        </button>
-      )}
-    </div>
-  );
-}
-
-export function RecebidosPasta({
-  projetoId,
-  clienteId,
-  recebidos,
-  podeGerir,
-  podeExcluir,
-}: {
-  projetoId: string;
-  clienteId: string | null;
-  recebidos: DocumentoItem[];
-  podeGerir: boolean;
-  podeExcluir: boolean;
-}) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [busy, setBusy] = useState(false);
-  const fileNovo = useRef<HTMLInputElement>(null);
-  const fileVersao = useRef<HTMLInputElement>(null);
-  const [alvoVersao, setAlvoVersao] = useState<string | null>(null);
-  const [versoesAbertas, setVersoesAbertas] = useState<Set<string>>(new Set());
-  const alternarVersoes = (id: string) =>
-    setVersoesAbertas((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
-
-  function excluirVersao(versaoId: string) {
-    start(async () => {
-      const r = await excluirVersaoDocumento({ versaoId });
-      if (r.ok) {
-        toast.success("Versão excluída.");
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
-
-  async function enviarNovos(files: File[]) {
-    if (files.length === 0) return;
-    setBusy(true);
-    try {
-      let ok = 0;
-      for (const file of files) {
-        try {
-          const meta = await subirDocumento(file, projetoId, clienteId);
-          const r = await criarDocumento({ projetoId, nome: file.name, origem: "recebido_cliente", meta });
-          if (r.ok) ok += 1;
-          else toast.error(`${file.name}: ${r.error}`);
-        } catch (e) {
-          toast.error(`${file.name}: ${(e as Error).message}`);
-        }
-      }
-      if (ok > 0) toast.success(`${ok} documento(s) recebido(s).`);
-      router.refresh();
-    } finally {
-      setBusy(false);
-      if (fileNovo.current) fileNovo.current.value = "";
-    }
-  }
-
-  async function enviarVersao(documentoId: string, file: File) {
-    setBusy(true);
-    try {
-      const meta = await subirDocumento(file, projetoId, clienteId);
-      const r = await adicionarVersaoDocumento({ documentoId, meta });
-      if (r.ok) {
-        toast.success(`Versão ${r.data.numero} adicionada.`);
-        router.refresh();
-      } else toast.error(r.error);
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(false);
-      setAlvoVersao(null);
-    }
-  }
-
-  function excluir(id: string) {
-    start(async () => {
-      const r = await excluirDocumento({ id });
-      if (r.ok) router.refresh();
-      else toast.error(r.error);
-    });
-  }
-
-  // Arrastar-e-soltar aqui também (antes só o Uploader de disciplina tinha).
-  const { arrastando, dropProps } = useDropzone(enviarNovos, !podeGerir || busy);
-
-  return (
-    <div
-      className={cn("rounded-sm transition-colors", arrastando && "bg-primary/5 ring-1 ring-primary")}
-      {...(podeGerir ? dropProps : {})}
-    >
-      <input
-        ref={fileVersao}
-        type="file"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f && alvoVersao) enviarVersao(alvoVersao, f);
-          e.target.value = "";
-        }}
-      />
-      <Pasta
-        nome="Recebidos do cliente"
-        contagem={recebidos.length}
-        nivel={0}
-        abertoInicial
-        acao={
-          podeGerir ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 gap-1 px-2 text-xs"
-              disabled={busy}
-              onClick={() => fileNovo.current?.click()}
-            >
-              <UploadIcon className="size-3.5" /> {busy ? "Enviando…" : "Enviar"}
-            </Button>
-          ) : undefined
-        }
-      >
-        <input
-          ref={fileNovo}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={(e) => enviarNovos(Array.from(e.target.files ?? []))}
-        />
-        {recebidos.length === 0 ? (
-          <p className="py-1.5 pl-10 text-xs text-muted-foreground">
-            Material enviado pelo cliente (proposta/projeto). Nada recebido ainda.
-          </p>
-        ) : (
-          recebidos.map((d) => {
-            const anteriores = d.versoes.slice(1);
-            const aberto = versoesAbertas.has(d.id);
-            return (
-              <Fragment key={d.id}>
-                <div
-                  className="flex items-center gap-2 rounded-sm py-1 pr-2 text-sm hover:bg-muted/40"
-                  style={{ paddingLeft: "1.75rem" }}
-                >
-                  <IconeArquivo nome={d.atual?.nomeArquivo ?? d.nome} />
-                  <span className="min-w-0 flex-1 truncate" title={d.nome}>
-                    {d.nome}
-                    {d.totalVersoes > 1 && <span className="ml-1 font-mono text-xs text-muted-foreground">v{d.atual?.numero}</span>}
-                  </span>
-                  {d.origem === "interno" ? (
-                    <Badge variant="secondary" className="shrink-0 gap-1" title="Compartilhado da pasta Geral (gerido lá)">
-                      <Share2 className="size-3" /> do Geral
-                    </Badge>
-                  ) : (
-                    d.canal !== "interno" && (
-                      <Badge variant="outline" className="shrink-0 capitalize">{d.canal}</Badge>
-                    )
-                  )}
-                  {anteriores.length > 0 && (
-                    <VersaoToggle
-                      n={anteriores.length}
-                      aberto={aberto}
-                      onClick={() => alternarVersoes(d.id)}
-                      nome={d.nome}
-                    />
-                  )}
-                  <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                    {d.atual ? fmtBytes(d.atual.tamanho) : "—"}
-                  </span>
-                  {d.atual && (
-                    <PreviewPdfButton visivel={extDe(d.atual.nomeArquivo) === "pdf"} url={d.atual.downloadUrl} titulo={d.nome} />
-                  )}
-                  {d.atual && (
-                    <VisualizarDwgButton desenhoId={refDocumentoDwg(d.atual.id)} nomeArquivo={d.atual.nomeArquivo} titulo={d.nome} statusInicial={d.atual.conversaoDwg} />
-                  )}
-                  {d.atual && (
-                    <a href={d.atual.downloadUrl} className="shrink-0 text-primary hover:text-primary/80" aria-label={`Baixar ${d.nome}`}>
-                      <Download className="size-3.5" />
-                    </a>
-                  )}
-                  {/* Docs compartilhados do Geral (origem=interno) são geridos na pasta Geral, não aqui. */}
-                  {podeGerir && d.origem !== "interno" && (
-                    <button
-                      type="button"
-                      className="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
-                      aria-label="Nova versão"
-                      title="Enviar nova versão"
-                      disabled={busy}
-                      onClick={() => {
-                        setAlvoVersao(d.id);
-                        fileVersao.current?.click();
-                      }}
-                    >
-                      <UploadIcon className="size-3.5" />
-                    </button>
-                  )}
-                  {podeExcluir && d.origem !== "interno" && (
-                    <button
-                      type="button"
-                      className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-50"
-                      aria-label="Excluir"
-                      disabled={pending}
-                      onClick={() => excluir(d.id)}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </button>
-                  )}
-                </div>
-                {aberto &&
-                  anteriores.map((v) => (
-                    <LinhaVersaoDocumento
-                      key={v.id}
-                      v={v}
-                      nome={d.nome}
-                      podeExcluir={podeExcluir && d.origem !== "interno"}
-                      pending={pending}
-                      onExcluir={() => excluirVersao(v.id)}
-                    />
-                  ))}
-              </Fragment>
-            );
-          })
-        )}
-      </Pasta>
-    </div>
-  );
-}
-
-// ── Pasta "Base Arquitetônica": Documento(origem=base_arquitetonica), referência fixa
-// do projeto (ex.: base do arquiteto) — visível a todas as disciplinas, sem gate extra
-// de capability, mesmo espírito de "Recebidos do cliente" mas em pasta própria. Sempre
-// renderizada pelo caller (mesmo sem nenhum arquivo ainda) — não entra na conta de "vazio".
-
-export function PastaBaseArquitetonica({
-  projetoId,
-  clienteId,
-  arquivos,
-  podeGerir,
-  podeExcluir,
-  abertoInicial = false,
-}: {
-  projetoId: string;
-  clienteId: string | null;
-  arquivos: DocumentoItem[];
-  podeGerir: boolean;
-  podeExcluir: boolean;
-  /** A tela de Documentos abre a área sozinha na página dela; a tela antiga a deixa fechada entre as outras pastas. */
-  abertoInicial?: boolean;
-}) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [busy, setBusy] = useState(false);
-  const fileNovo = useRef<HTMLInputElement>(null);
-  const fileVersao = useRef<HTMLInputElement>(null);
-  const [alvoVersao, setAlvoVersao] = useState<string | null>(null);
-  const [versoesAbertas, setVersoesAbertas] = useState<Set<string>>(new Set());
-  const alternarVersoes = (id: string) =>
-    setVersoesAbertas((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
-
-  function excluirVersao(versaoId: string) {
-    start(async () => {
-      const r = await excluirVersaoDocumento({ versaoId });
-      if (r.ok) {
-        toast.success("Versão excluída.");
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
-
-  async function enviarNovos(files: File[]) {
-    if (files.length === 0) return;
-    setBusy(true);
-    try {
-      let ok = 0;
-      for (const file of files) {
-        try {
-          const meta = await subirDocumento(file, projetoId, clienteId);
-          const r = await criarDocumento({ projetoId, nome: file.name, origem: "base_arquitetonica", meta });
-          if (r.ok) ok += 1;
-          else toast.error(`${file.name}: ${r.error}`);
-        } catch (e) {
-          toast.error(`${file.name}: ${(e as Error).message}`);
-        }
-      }
-      if (ok > 0) toast.success(`${ok} arquivo(s) enviado(s).`);
-      router.refresh();
-    } finally {
-      setBusy(false);
-      if (fileNovo.current) fileNovo.current.value = "";
-    }
-  }
-
-  async function enviarVersao(documentoId: string, file: File) {
-    setBusy(true);
-    try {
-      const meta = await subirDocumento(file, projetoId, clienteId);
-      const r = await adicionarVersaoDocumento({ documentoId, meta });
-      if (r.ok) {
-        toast.success(`Versão ${r.data.numero} adicionada.`);
-        router.refresh();
-      } else toast.error(r.error);
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(false);
-      setAlvoVersao(null);
-    }
-  }
-
-  function excluir(id: string) {
-    start(async () => {
-      const r = await excluirDocumento({ id });
-      if (r.ok) router.refresh();
-      else toast.error(r.error);
-    });
-  }
-
-  // Arrastar-e-soltar aqui também (antes só o Uploader de disciplina tinha).
-  const { arrastando, dropProps } = useDropzone(enviarNovos, !podeGerir || busy);
-
-  return (
-    <div
-      className={cn("rounded-sm transition-colors", arrastando && "bg-primary/5 ring-1 ring-primary")}
-      {...(podeGerir ? dropProps : {})}
-    >
-      <input
-        ref={fileVersao}
-        type="file"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f && alvoVersao) enviarVersao(alvoVersao, f);
-          e.target.value = "";
-        }}
-      />
-      <Pasta
-        nome="Base Arquitetônica"
-        contagem={arquivos.length}
-        nivel={0}
-        abertoInicial={abertoInicial}
-        acao={
-          podeGerir ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 gap-1 px-2 text-xs"
-              disabled={busy}
-              onClick={() => fileNovo.current?.click()}
-            >
-              <UploadIcon className="size-3.5" /> {busy ? "Enviando…" : "Enviar"}
-            </Button>
-          ) : undefined
-        }
-      >
-        <input
-          ref={fileNovo}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={(e) => enviarNovos(Array.from(e.target.files ?? []))}
-        />
-        {arquivos.length === 0 ? (
-          <p className="py-1.5 pl-10 text-xs text-muted-foreground">
-            Referência arquitetônica do projeto (ex.: base do arquiteto), visível a todas as disciplinas. Nada enviado ainda.
-          </p>
-        ) : (
-          arquivos.map((d) => {
-            const anteriores = d.versoes.slice(1);
-            const aberto = versoesAbertas.has(d.id);
-            return (
-              <Fragment key={d.id}>
-                <div
-                  className="flex items-center gap-2 rounded-sm py-1 pr-2 text-sm hover:bg-muted/40"
-                  style={{ paddingLeft: "1.75rem" }}
-                >
-                  <IconeArquivo nome={d.atual?.nomeArquivo ?? d.nome} />
-                  <span className="min-w-0 flex-1 truncate" title={d.nome}>
-                    {d.nome}
-                    {d.totalVersoes > 1 && <span className="ml-1 font-mono text-xs text-muted-foreground">v{d.atual?.numero}</span>}
-                  </span>
-                  {anteriores.length > 0 && (
-                    <VersaoToggle
-                      n={anteriores.length}
-                      aberto={aberto}
-                      onClick={() => alternarVersoes(d.id)}
-                      nome={d.nome}
-                    />
-                  )}
-                  <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                    {d.atual ? fmtBytes(d.atual.tamanho) : "—"}
-                  </span>
-                  {d.atual && (
-                    <PreviewPdfButton visivel={extDe(d.atual.nomeArquivo) === "pdf"} url={d.atual.downloadUrl} titulo={d.nome} />
-                  )}
-                  {d.atual && (
-                    <VisualizarDwgButton desenhoId={refDocumentoDwg(d.atual.id)} nomeArquivo={d.atual.nomeArquivo} titulo={d.nome} statusInicial={d.atual.conversaoDwg} />
-                  )}
-                  {d.atual && (
-                    <a href={d.atual.downloadUrl} className="shrink-0 text-primary hover:text-primary/80" aria-label={`Baixar ${d.nome}`}>
-                      <Download className="size-3.5" />
-                    </a>
-                  )}
-                  {podeGerir && (
-                    <button
-                      type="button"
-                      className="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
-                      aria-label="Nova versão"
-                      title="Enviar nova versão"
-                      disabled={busy}
-                      onClick={() => {
-                        setAlvoVersao(d.id);
-                        fileVersao.current?.click();
-                      }}
-                    >
-                      <UploadIcon className="size-3.5" />
-                    </button>
-                  )}
-                  {podeExcluir && (
-                    <button
-                      type="button"
-                      className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-50"
-                      aria-label="Excluir"
-                      disabled={pending}
-                      onClick={() => excluir(d.id)}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </button>
-                  )}
-                </div>
-                {aberto &&
-                  anteriores.map((v) => (
-                    <LinhaVersaoDocumento
-                      key={v.id}
-                      v={v}
-                      nome={d.nome}
-                      podeExcluir={podeExcluir}
-                      pending={pending}
-                      onExcluir={() => excluirVersao(v.id)}
-                    />
-                  ))}
-              </Fragment>
-            );
-          })
-        )}
-      </Pasta>
-    </div>
-  );
-}
-
-// ── Pasta "Geral": Documento(origem=interno), gated por `arquivos_gerais` (Fase 5a) ──
-
-export function PastaGeral({
-  projetoId,
-  clienteId,
-  geral,
-  podeGerir,
-  podeExcluir,
-}: {
-  projetoId: string;
-  clienteId: string | null;
-  geral: DocumentoItem[];
-  podeGerir: boolean;
-  podeExcluir: boolean;
-}) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [novo, setNovo] = useState(false);
-  const [editar, setEditar] = useState<DocumentoItem | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [form, setForm] = useState({ nome: "", categoria: "outro", descricao: "" });
-  /** Arquivo vindo do arrastar-e-soltar (o input só carrega o que foi escolhido no clique). */
-  const [arquivoSolto, setArquivoSolto] = useState<File | null>(null);
-  const fileNovo = useRef<HTMLInputElement>(null);
-  const fileVersao = useRef<HTMLInputElement>(null);
-  const [alvoVersao, setAlvoVersao] = useState<string | null>(null);
-  const [versoesAbertas, setVersoesAbertas] = useState<Set<string>>(new Set());
-  const alternarVersoes = (id: string) =>
-    setVersoesAbertas((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
-
-  function abrirNovo() {
-    setArquivoSolto(null);
-    setForm({ nome: "", categoria: "outro", descricao: "" });
-    setNovo(true);
-  }
-  function abrirEditar(a: DocumentoItem) {
-    setForm({ nome: a.nome, categoria: a.categoria ?? "outro", descricao: a.descricao ?? "" });
-    setEditar(a);
-  }
-
-  async function salvarNovo() {
-    // `arquivoSolto` vem do arrastar-e-soltar; o input segue valendo para quem clica.
-    const file = arquivoSolto ?? fileNovo.current?.files?.[0];
-    if (!form.nome.trim() || !file) {
-      toast.error("Informe o nome e selecione um arquivo.");
-      return;
-    }
-    setBusy(true);
-    try {
-      const meta = await subirDocumento(file, projetoId, clienteId, "interno");
-      const r = await criarDocumento({ projetoId, nome: form.nome, categoria: form.categoria, descricao: form.descricao, origem: "interno", meta });
-      if (r.ok) {
-        toast.success("Arquivo enviado.");
-        setNovo(false);
-        router.refresh();
-      } else toast.error(r.error);
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function salvarEdicao() {
-    if (!editar || !form.nome.trim()) return;
-    start(async () => {
-      const r = await editarDocumento({ id: editar.id, nome: form.nome, categoria: form.categoria, descricao: form.descricao });
-      if (r.ok) {
-        toast.success("Arquivo atualizado.");
-        setEditar(null);
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
-
-  async function enviarVersao(documentoId: string, file: File) {
-    setBusy(true);
-    try {
-      const meta = await subirDocumento(file, projetoId, clienteId, "interno");
-      const r = await adicionarVersaoDocumento({ documentoId, meta });
-      if (r.ok) {
-        toast.success(`Versão ${r.data.numero} adicionada.`);
-        router.refresh();
-      } else toast.error(r.error);
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(false);
-      setAlvoVersao(null);
-    }
-  }
-
-  function excluir(id: string) {
-    start(async () => {
-      const r = await excluirDocumento({ id });
-      if (r.ok) router.refresh();
-      else toast.error(r.error);
-    });
-  }
-
-  function excluirVersao(versaoId: string) {
-    start(async () => {
-      const r = await excluirVersaoDocumento({ versaoId });
-      if (r.ok) {
-        toast.success("Versão excluída.");
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
-
-  function alternarRecebidos(a: DocumentoItem) {
-    start(async () => {
-      const r = await alternarExibicaoRecebidos({ id: a.id, exibir: !a.exibirEmRecebidos });
-      if (r.ok) {
-        toast.success(r.data.exibir ? "Compartilhado em Recebidos do cliente." : "Removido de Recebidos do cliente.");
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
-
-  // Arrastar-e-soltar aqui ABRE o formulário com o arquivo já escolhido — diferente de
-  // Recebidos/Base Arquitetônica, que enviam direto: aqui nome/categoria/descrição são
-  // obrigatórios, e enviar em silêncio criaria documento sem classificação.
-  const { arrastando, dropProps } = useDropzone((files) => {
-    const f = files[0];
-    if (!f) return;
-    setArquivoSolto(f);
-    setForm({ nome: f.name, categoria: "outro", descricao: "" });
-    setNovo(true);
-  }, !podeGerir || busy);
-
-  return (
-    <div
-      className={cn("rounded-sm transition-colors", arrastando && "bg-primary/5 ring-1 ring-primary")}
-      {...(podeGerir ? dropProps : {})}
-    >
-      <input
-        ref={fileVersao}
-        type="file"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f && alvoVersao) enviarVersao(alvoVersao, f);
-          e.target.value = "";
-        }}
-      />
-      <Pasta
-        nome="Geral"
-        contagem={geral.length}
-        nivel={0}
-        abertoInicial
-        acao={
-          podeGerir ? (
-            <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" onClick={abrirNovo}>
-              <Plus className="size-3.5" /> Novo
-            </Button>
-          ) : undefined
-        }
-      >
-        {geral.length === 0 ? (
-          <p className="py-1.5 pl-10 text-xs text-muted-foreground">Sem arquivos gerais.</p>
-        ) : (
-          geral.map((a) => {
-            const anteriores = a.versoes.slice(1);
-            const aberto = versoesAbertas.has(a.id);
-            return (
-              <Fragment key={a.id}>
-                <div
-                  className="flex items-center gap-2 rounded-sm py-1 pr-2 text-sm hover:bg-muted/40"
-                  style={{ paddingLeft: "1.75rem" }}
-                >
-                  <IconeArquivo nome={a.atual?.nomeArquivo ?? a.nome} />
-                  <span className="min-w-0 flex-1 truncate" title={a.nome}>
-                    {a.nome}
-                    {a.atual && a.atual.numero > 1 && (
-                      <span className="ml-1 font-mono text-xs text-muted-foreground">v{a.atual.numero}</span>
-                    )}
-                  </span>
-                  {a.categoria && (
-                    <Badge variant="outline" className="shrink-0 capitalize">
-                      {a.categoria}
-                    </Badge>
-                  )}
-                  {anteriores.length > 0 && (
-                    <VersaoToggle
-                      n={anteriores.length}
-                      aberto={aberto}
-                      onClick={() => alternarVersoes(a.id)}
-                      nome={a.nome}
-                    />
-                  )}
-                  <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                    {a.atual ? fmtBytes(a.atual.tamanho) : "—"}
-                  </span>
-                  {a.atual && (
-                    <PreviewPdfButton visivel={extDe(a.atual.nomeArquivo) === "pdf"} url={a.atual.downloadUrl} titulo={a.nome} />
-                  )}
-                  {a.atual && (
-                    <VisualizarDwgButton desenhoId={refDocumentoDwg(a.atual.id)} nomeArquivo={a.atual.nomeArquivo} titulo={a.nome} statusInicial={a.atual.conversaoDwg} />
-                  )}
-                  {a.atual && (
-                    <a
-                      href={a.atual.downloadUrl}
-                      className="shrink-0 text-primary hover:text-primary/80"
-                      aria-label={`Baixar ${a.nome}`}
-                    >
-                      <Download className="size-3.5" />
-                    </a>
-                  )}
-                  {a.exibirEmRecebidos && (
-                    <Badge variant="secondary" className="shrink-0 gap-1">
-                      <Share2 className="size-3" /> em Recebidos
-                    </Badge>
-                  )}
-                  {podeGerir && (
-                    <>
-                      <button
-                        type="button"
-                        className={cn(
-                          "shrink-0 disabled:opacity-50",
-                          a.exibirEmRecebidos ? "text-primary hover:text-primary/80" : "text-muted-foreground hover:text-foreground",
-                        )}
-                        aria-label={a.exibirEmRecebidos ? "Parar de exibir em Recebidos do cliente" : "Exibir também em Recebidos do cliente"}
-                        title={a.exibirEmRecebidos ? "Parar de exibir em Recebidos do cliente" : "Exibir também em Recebidos do cliente (sem duplicar o arquivo)"}
-                        disabled={pending}
-                        onClick={() => alternarRecebidos(a)}
-                      >
-                        <Share2 className="size-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        className="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-50"
-                        aria-label="Nova versão"
-                        title="Enviar nova versão"
-                        disabled={busy}
-                        onClick={() => {
-                          setAlvoVersao(a.id);
-                          fileVersao.current?.click();
-                        }}
-                      >
-                        <UploadIcon className="size-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        className="shrink-0 text-muted-foreground hover:text-foreground"
-                        aria-label="Editar"
-                        onClick={() => abrirEditar(a)}
-                      >
-                        <Pencil className="size-3.5" />
-                      </button>
-                    </>
-                  )}
-                  {podeExcluir && (
-                    <button
-                      type="button"
-                      className="shrink-0 text-muted-foreground hover:text-destructive disabled:opacity-50"
-                      aria-label="Excluir"
-                      disabled={pending}
-                      onClick={() => excluir(a.id)}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </button>
-                  )}
-                </div>
-                {aberto &&
-                  anteriores.map((v) => (
-                    <LinhaVersaoDocumento
-                      key={v.id}
-                      v={v}
-                      nome={a.nome}
-                      podeExcluir={podeExcluir}
-                      pending={pending}
-                      onExcluir={() => excluirVersao(v.id)}
-                    />
-                  ))}
-              </Fragment>
-            );
-          })
-        )}
-      </Pasta>
-
-      {/* Novo arquivo geral */}
-      <Dialog open={novo} onOpenChange={(o) => !o && setNovo(false)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Novo arquivo geral</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label>Nome</Label>
-              <Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Contrato assinado" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Categoria</Label>
-              <Select value={form.categoria} onValueChange={(v) => setForm({ ...form, categoria: v ?? "outro" })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CATEGORIAS_GERAL.map((c) => (
-                    <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Descrição (opcional)</Label>
-              <Input value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Arquivo</Label>
-              {arquivoSolto ? (
-                // Arquivo veio arrastado: o input de arquivo não pode ser preenchido por
-                // código, então mostramos o nome e deixamos trocar.
-                <div className="flex items-center gap-2 rounded-sm border px-2.5 py-1.5 text-sm">
-                  <IconeArquivo nome={arquivoSolto.name} />
-                  <span className="min-w-0 flex-1 truncate" title={arquivoSolto.name}>
-                    {arquivoSolto.name}
-                  </span>
-                  <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setArquivoSolto(null)}>
-                    Trocar
-                  </Button>
-                </div>
-              ) : (
-                <Input ref={fileNovo} type="file" />
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNovo(false)}>Cancelar</Button>
-            <Button onClick={salvarNovo} disabled={busy}>{busy ? "Enviando…" : "Enviar"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Editar metadados */}
-      <Dialog open={!!editar} onOpenChange={(o) => !o && setEditar(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Editar arquivo</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label>Nome</Label>
-              <Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Categoria</Label>
-              <Select value={form.categoria} onValueChange={(v) => setForm({ ...form, categoria: v ?? "outro" })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CATEGORIAS_GERAL.map((c) => (
-                    <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Descrição (opcional)</Label>
-              <Input value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditar(null)}>Cancelar</Button>
-            <Button onClick={salvarEdicao} disabled={pending}>{pending ? "Salvando…" : "Salvar"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
 
 // ── Pasta "ARTs": read-only. O cadastro (criar/versionar/anexar) fica na aba ARTs. ──
 

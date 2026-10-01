@@ -737,7 +737,15 @@ export async function cronogramaProjetoInfo(projetoId: string) {
   const [cronograma, versoesBaseline, alocacoesTipadas] = await Promise.all([
     prisma.cronogramaProjeto.findUnique({
       where: { projetoId },
-      select: { aprovado: true, aprovadoEm: true, dataStatus: true, inicioProjeto: true },
+      select: {
+        aprovado: true,
+        aprovadoEm: true,
+        dataStatus: true,
+        inicioProjeto: true,
+        emRevisao: true,
+        revisaoAbertaEm: true,
+        revisaoAlterada: true,
+      },
     }),
     // Todas as versões, da mais nova para a mais antiga (reunião de 29/09/2026: lista e comparação de BL).
     prisma.eapBaseline.findMany({
@@ -776,6 +784,11 @@ export async function cronogramaProjetoInfo(projetoId: string) {
     aprovadoEm: cronograma?.aprovadoEm ? iso(cronograma.aprovadoEm) : null,
     dataStatus: cronograma?.dataStatus ? iso(cronograma.dataStatus) : null,
     inicioProjeto: cronograma?.inicioProjeto ? iso(cronograma.inicioProjeto) : null,
+    /** "Revisar planejamento" aberto (`trava-plano.ts`): o plano aprovado está destravado até a nova BL. */
+    emRevisao: cronograma?.emRevisao ?? false,
+    revisaoAbertaEm: cronograma?.revisaoAbertaEm ? iso(cronograma.revisaoAbertaEm) : null,
+    /** O plano mudou nesta revisão: ela só fecha com a nova linha de base (não dá mais para cancelar). */
+    revisaoAlterada: cronograma?.revisaoAlterada ?? false,
     ultimaBaseline: ultimaBaseline
       ? { numero: ultimaBaseline.numero, motivo: ultimaBaseline.motivo, criadaEm: iso(ultimaBaseline.createdAt) }
       : null,
