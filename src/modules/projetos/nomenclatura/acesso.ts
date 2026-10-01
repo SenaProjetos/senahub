@@ -14,8 +14,6 @@ export async function exigirAcessoNomenclatura(): Promise<{
   podeGerir: boolean;
   /** `projetos:gerir` — cadastro do card (lápis). */
   podeEditarCard: boolean;
-  /** Abre o cadastro inteiro (`/configuracoes/disciplinas`, a lente "Todas as versões" até a F3). */
-  podeVerCadastro: boolean;
 }> {
   const user = await requireUser();
   const [gerir, disciplinas, projetos] = await Promise.all([
@@ -26,5 +24,5 @@ export async function exigirAcessoNomenclatura(): Promise<{
   // Piso de leitura do sócio, como em `requirePermission`: abre como o supervisor, sem ganhar escrita.
   const piso = user.ehSocio && (await canRole("supervisor", "configuracoes", "disciplinas"));
   if (!gerir && !disciplinas && !piso) redirect("/sem-permissao");
-  return { user, podeGerir: gerir, podeEditarCard: projetos, podeVerCadastro: disciplinas || piso };
+  return { user, podeGerir: gerir, podeEditarCard: projetos };
 }

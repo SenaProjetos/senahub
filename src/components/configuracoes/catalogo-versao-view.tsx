@@ -33,6 +33,7 @@ import { ImportarCatalogoDialog } from "@/components/configuracoes/importar-cata
 import { AdicionarItemDialog } from "@/components/configuracoes/catalogo/adicionar-item-dialog";
 import { EditarCardDialog, EditarNomeDialog, type PayloadCadastroCard } from "@/components/configuracoes/catalogo/editar-cadastro-dialog";
 import { LinhaCatalogoItem } from "@/components/configuracoes/catalogo/linha-catalogo";
+import { AbasCatalogo } from "@/components/configuracoes/catalogo/abas-catalogo";
 import { SeletorVersao } from "@/components/configuracoes/catalogo/seletor-versao";
 import { SiglasNaVersaoDialog } from "@/components/configuracoes/catalogo/siglas-na-versao-dialog";
 import { SiglaOficial, SiglaSinonimo } from "@/components/configuracoes/catalogo/sigla-chips";
@@ -44,7 +45,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CollapsibleSection } from "@/components/ui/collapsible";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 
 export type AbaCatalogo = "disciplinas" | "fases" | "tipos";
 
@@ -72,12 +72,6 @@ type Dialogo =
   | { tipo: "voltar"; nome: string; alvo: AlvoCatalogo }
   | { tipo: "editar"; nome: string; alvo: AlvoCatalogo; iconeSvg?: string | null };
 
-const ABAS: { valor: AbaCatalogo; rotulo: string }[] = [
-  { valor: "disciplinas", rotulo: "Disciplinas" },
-  { valor: "fases", rotulo: "Fases" },
-  { valor: "tipos", rotulo: "Tipos de documento" },
-];
-
 const ACAO_IMPORTAR = "importar";
 
 /** "Versões" leva à página de versões (`configuracoes:gerir`); quem não administra vê só o nome, sem link quebrado. */
@@ -100,7 +94,6 @@ export function CatalogoVersaoView({
   aba,
   podeGerir,
   podeEditarCard,
-  podeVerCadastro,
 }: {
   versao: VersaoResumo & { projetosFixados: number };
   versoes: VersaoLista[];
@@ -112,7 +105,6 @@ export function CatalogoVersaoView({
   aba: AbaCatalogo;
   podeGerir: boolean;
   podeEditarCard: boolean;
-  podeVerCadastro: boolean;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -267,23 +259,9 @@ export function CatalogoVersaoView({
         }
       />
 
-      <SeletorVersao opcoes={opcoes} atual={v} aba={aba} mostrarTodas={podeVerCadastro} />
+      <SeletorVersao opcoes={opcoes} atual={v} aba={aba} />
 
-      <nav aria-label="Seções do catálogo" className="flex flex-wrap gap-1 border-b">
-        {ABAS.map((a) => (
-          <Link
-            key={a.valor}
-            href={`/configuracoes/nomenclatura/${v}?aba=${a.valor}`}
-            aria-current={a.valor === aba ? "page" : undefined}
-            className={cn(
-              "-mb-px border-b-2 px-3.5 py-2.5 text-sm",
-              a.valor === aba ? "border-primary font-semibold" : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {a.rotulo}
-          </Link>
-        ))}
-      </nav>
+      <AbasCatalogo lente={v} aba={aba} podeGerir={podeGerir} />
 
       <p className="rounded-sm border bg-muted/40 p-3 text-sm">
         {versao.publicada ? (

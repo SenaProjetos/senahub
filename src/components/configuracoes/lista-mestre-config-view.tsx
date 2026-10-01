@@ -73,8 +73,11 @@ export function ListaMestreConfigView({
   catalogos,
   projetoId,
   versoes = [],
+  categorias = ["fase", "tipo", "folha"],
 }: {
   catalogos: PranchaCatalogoRow[];
+  /** Quais seções mostrar (a aba "Formatos de folha" mostra só a folha). Padrão: as três. */
+  categorias?: Categoria[];
   /** Quando informado, as siglas criadas ficam restritas a este projeto. */
   projetoId?: string;
   /** Ausente/vazio (tela por projeto) = sem filtro de versão nem "Siglas por versão". */
@@ -100,8 +103,8 @@ export function ListaMestreConfigView({
           </Select>
         </div>
       )}
-      <div className="grid gap-4 lg:grid-cols-3">
-        {SECOES.map((s) => (
+      <div className={categorias.length === 1 ? "max-w-xl" : "grid gap-4 lg:grid-cols-3"}>
+        {SECOES.filter((s) => categorias.includes(s.categoria)).map((s) => (
           <SecaoCatalogo
             key={s.categoria}
             categoria={s.categoria}
