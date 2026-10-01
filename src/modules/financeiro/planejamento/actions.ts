@@ -22,14 +22,14 @@ function data(s?: string | null): Date | undefined {
 
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 
-/** Cria o cenário e carrega automaticamente as contas em aberto do período/filtros como linhas. */
+/** Cria o lote e carrega automaticamente as contas em aberto do período/filtros como linhas. */
 export const criarPlano = defineAction(
   {
     ...base,
     acao: "criar-plano-pagamento",
     entidade: "PlanejamentoPagamento",
     schema: z.object({
-      nome: z.string().min(1, "Informe o nome do cenário."),
+      nome: z.string().min(1, "Informe o nome do lote."),
       saldoDisponivel: z.number().min(0),
       periodoIni: opt(z.string()),
       periodoFim: opt(z.string()),
@@ -172,7 +172,7 @@ export const removerLinha = defineAction(
   },
 );
 
-/** Muda o status do cenário (rascunho/análise/aprovado/cancelado). Execução é ação à parte. */
+/** Muda o status do lote (rascunho/análise/aprovado/cancelado). Execução é ação à parte. */
 export const mudarStatusPlano = defineAction(
   {
     ...base,
@@ -270,7 +270,7 @@ export const executarPlano = defineAction(
   },
 );
 
-/** Exclui o cenário (as linhas caem em cascata; lançamentos não são afetados). */
+/** Exclui o lote (as linhas caem em cascata; lançamentos não são afetados). */
 export const excluirPlano = defineAction(
   { ...base, acao: "excluir-plano-pagamento", entidade: "PlanejamentoPagamento", schema: z.object({ id: z.string().min(1) }) },
   async (i) => {

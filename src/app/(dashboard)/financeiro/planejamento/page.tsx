@@ -4,7 +4,7 @@ import { listarPlanos, opcoesPlanejamento } from "@/modules/financeiro/planejame
 import { PlanejamentoListaView } from "@/components/financeiro/planejamento/planejamento-lista-view";
 
 import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
-export const metadata: Metadata = { title: "Planejamento de pagamentos" };
+export const metadata: Metadata = { title: "Pagamentos em lote" };
 
 export default async function PlanejamentoPage() {
   await requirePermission("financeiro", "gerir");

@@ -1,79 +1,109 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { inicioDoDiaUtc } from "@/lib/data";
 import { saldoBase } from "@/modules/financeiro/liquidez/saldo-base";
 import { paraCentavos, paraReais } from "@/modules/financeiro/liquidez/dinheiro";
+import { SEM_TRANSFERENCIA } from "@/modules/financeiro/natureza";
+import { agruparLinhas, serieDiaria, totaisDoFluxo, type Agrupamento, type LinhaDiaria, type MovimentoRealizado, type TotaisDoFluxo } from "@/modules/financeiro/caixa/diario";
+import { isoDeDataDoBanco, somarDias } from "@/modules/financeiro/liquidez/datas";
+import { baseDoPlanejador } from "@/modules/financeiro/liquidez/queries";
+import { projetar } from "@/modules/financeiro/liquidez/motor";
+import type { Eixos } from "@/modules/financeiro/liquidez/cenario";
+import type { Centavos, DataIso } from "@/modules/financeiro/liquidez/tipos";
 
-const MS_DIA = 86_400_000;
+/** Cenário do lado PREVISTO do fluxo diário. O realizado não tem cenário: já aconteceu. */
+export type CenarioFluxo = "provavel" | "conservador";
 
-export type SemanaProjecao = {
-  inicio: string;
-  fim: string;
-  entradas: number;
-  /** F7.2: parte de `entradas` que é previsão do cronograma (contrato por entrega, ainda não faturada). */
-  previsaoCronograma: number;
-  /**
-   * Parte de `previsaoCronograma` que já passou da data (marco passou, ou a assinatura) e não foi
-   * faturada. Vai para a 1ª semana: é dinheiro ainda esperado — e, ao contrário da conta a receber
-   * vencida, não aparece em aging nenhum. Tirá-la da projeção a faria sumir de todas as telas.
-   */
-  previsaoAtrasada: number;
-  saidas: number;
-  saldo: number;
+export const EIXOS_DO_FLUXO: Record<CenarioFluxo, Eixos> = {
+  provavel: { entradas: "provaveis", compromissos: "todos" },
+  conservador: { entradas: "confirmadas", compromissos: "todos" },
+};
+
+/** Janelas de passado oferecidas na tela (dias antes de hoje). */
+export const JANELAS_PASSADO = [15, 30, 60] as const;
+
+export type FluxoDiario = {
+  hoje: DataIso;
+  de: DataIso;
+  ate: DataIso;
+  caixaAtual: Centavos;
+  reservaMinima: Centavos;
+  cenario: CenarioFluxo;
+  agrupamento: Agrupamento;
+  diasAtras: number;
+  /** Série já agrupada, pronta para a tabela. */
+  linhas: LinhaDiaria[];
+  /** Série diária crua, para o gráfico. */
+  diaria: LinhaDiaria[];
+  totais: TotaisDoFluxo;
 };
 
 /**
- * Projeção de caixa: a partir do saldo atual, projeta o saldo semana a semana
- * usando os lançamentos PREVISTOS (a receber/pagar) por vencimento. Detecta gap (saldo < 0).
+ * Fluxo de caixa dia a dia (F7, plano I14): antes de hoje o REALIZADO pela data de realização,
+ * de hoje em diante o PREVISTO do cenário escolhido — o mesmo motor do planejador e da Visão geral.
+ * As pernas de transferência ficam fora das entradas e saídas (ADR-0008): elas trocam dinheiro de
+ * conta, não entram nem saem da empresa.
  */
-export async function projecaoCaixa(saldoInicial: number, semanas = 8): Promise<SemanaProjecao[]> {
-  // `vencimento` é `@db.Date` (meia-noite UTC). Com a meia-noite LOCAL (03:00Z) como corte, o que
-  // vence HOJE ficava de fora e cada semana começava um dia errado — a regra de `lib/data.ts`.
-  const hoje = inicioDoDiaUtc();
-  const fim = new Date(hoje.getTime() + semanas * 7 * MS_DIA);
-  const previstos = await prisma.lancamento.findMany({
-    where: {
-      // F7.2 (D25): a previsão de recebimento do cronograma entra AQUI, e só aqui — é projeção, não
-      // conta a receber. Aging, inadimplência e "a receber" leem `previsto` e não a veem. A previsão
-      // vencida também entra (vai para a 1ª semana); a conta a receber vencida segue de fora.
-      OR: [
-        { status: "previsto", vencimento: { gte: hoje, lte: fim } },
-        { status: "previsao", tipo: "receita", vencimento: { lte: fim } },
-      ],
-    },
-    select: { tipo: true, valor: true, vencimento: true, status: true },
+export async function fluxoDiario(o: { diasAtras?: number; horizonteDias?: number; cenario?: CenarioFluxo; agrupamento?: Agrupamento } = {}): Promise<FluxoDiario> {
+  const diasAtras = (JANELAS_PASSADO as readonly number[]).includes(o.diasAtras ?? 0) ? (o.diasAtras as number) : JANELAS_PASSADO[0];
+  const cenario: CenarioFluxo = o.cenario === "conservador" ? "conservador" : "provavel";
+  const agrupamento: Agrupamento = o.agrupamento === "semana" || o.agrupamento === "mes" ? o.agrupamento : "dia";
+
+  const base = await baseDoPlanejador({ horizonteDias: o.horizonteDias });
+  const projecao = projetar({
+    hoje: base.hoje,
+    horizonteDias: base.horizonteDias,
+    caixaAtual: base.caixaAtual,
+    reservaMinima: base.reservaMinima,
+    eventos: base.eventos,
+    caixinhas: base.caixinhas,
+    eixos: EIXOS_DO_FLUXO[cenario],
   });
 
-  const buckets: SemanaProjecao[] = Array.from({ length: semanas }, (_, i) => {
-    const ini = new Date(hoje.getTime() + i * 7 * MS_DIA);
-    return {
-      inicio: ini.toISOString().slice(0, 10),
-      fim: new Date(ini.getTime() + 6 * MS_DIA).toISOString().slice(0, 10),
-      entradas: 0,
-      previsaoCronograma: 0,
-      previsaoAtrasada: 0,
-      saidas: 0,
-      saldo: 0,
-    };
+  const de = somarDias(base.hoje, -diasAtras);
+  const ate = projecao.fim;
+  const realizadas = await prisma.lancamento.findMany({
+    where: {
+      status: "confirmado",
+      excluidoEm: null,
+      dataConfirmacao: { gte: new Date(`${de}T00:00:00.000Z`), lte: new Date(`${base.hoje}T23:59:59.999Z`) },
+      ...SEM_TRANSFERENCIA,
+    },
+    select: { tipo: true, valor: true, valorEfetivo: true, dataConfirmacao: true, descricao: true },
   });
-  for (const l of previstos) {
-    if (!l.vencimento) continue;
-    const dias = Math.round((l.vencimento.getTime() - hoje.getTime()) / MS_DIA);
-    const atrasada = l.status === "previsao" && dias < 0;
-    const idx = atrasada ? 0 : Math.floor(dias / 7);
-    if (idx < 0 || idx >= semanas) continue;
-    if (l.tipo === "receita") {
-      buckets[idx].entradas += Number(l.valor);
-      if (l.status === "previsao") buckets[idx].previsaoCronograma += Number(l.valor);
-      if (atrasada) buckets[idx].previsaoAtrasada += Number(l.valor);
-    } else buckets[idx].saidas += Number(l.valor);
+  const realizados: MovimentoRealizado[] = realizadas.flatMap((l) =>
+    l.dataConfirmacao
+      ? [{ data: isoDeDataDoBanco(l.dataConfirmacao), tipo: l.tipo, valor: paraCentavos(l.valorEfetivo ?? l.valor), descricao: l.descricao }]
+      : [],
+  );
+
+  // Maior movimento PREVISTO de cada dia, pelo que o cenário realmente aplicou.
+  const porId = new Map(base.eventos.map((e) => [e.id, e]));
+  const maiorPrevisto = new Map<DataIso, string>();
+  const maiorValor = new Map<DataIso, Centavos>();
+  for (const p of projecao.eventos) {
+    if (!p.aplicado || p.dia == null) continue;
+    const ev = porId.get(p.id);
+    if (!ev || ev.natureza === "transferencia") continue;
+    if ((maiorValor.get(p.dia) ?? -1) < ev.valor) {
+      maiorValor.set(p.dia, ev.valor);
+      maiorPrevisto.set(p.dia, ev.descricao);
+    }
   }
-  let saldo = saldoInicial;
-  for (const b of buckets) {
-    saldo += b.entradas - b.saidas;
-    b.saldo = saldo;
-  }
-  return buckets;
+
+  const diaria = serieDiaria({ hoje: base.hoje, de, ate, caixaAtual: base.caixaAtual, realizados, serie: projecao.serie, maiorPrevisto });
+  return {
+    hoje: base.hoje,
+    de,
+    ate,
+    caixaAtual: base.caixaAtual,
+    reservaMinima: base.reservaMinima,
+    cenario,
+    agrupamento,
+    diasAtras,
+    linhas: agruparLinhas(diaria, agrupamento),
+    diaria,
+    totais: totaisDoFluxo(diaria),
+  };
 }
 
 /**

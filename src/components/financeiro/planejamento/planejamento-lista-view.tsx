@@ -29,11 +29,11 @@ export function PlanejamentoListaView({ planos, opcoes, subnav }: { planos: Plan
   return (
     <div className="space-y-5">
       <CabecalhoPagina
-        titulo="Planejamento de pagamentos"
-        descricao="Simule o uso do caixa disponível antes de pagar."
+        titulo="Pagamentos em lote"
+        descricao="Escolha quais contas a pagar cabem no caixa de agora e pague em lote."
         acoes={
           <>
-          <Button onClick={() => setOpen(true)}><Plus className="size-4" /> Novo cenário</Button>
+          <Button onClick={() => setOpen(true)}><Plus className="size-4" /> Novo lote</Button>
           </>
         }
       />
@@ -42,7 +42,7 @@ export function PlanejamentoListaView({ planos, opcoes, subnav }: { planos: Plan
       {planos.length === 0 ? (
         <Card>
           <CardContent>
-            <EmptyState icon={ClipboardList} title="Nenhum cenário ainda." description="Crie um para começar a planejar." />
+            <EmptyState icon={ClipboardList} title="Nenhum lote ainda." description="Crie um para escolher o que pagar agora." />
           </CardContent>
         </Card>
       ) : (
@@ -87,7 +87,7 @@ function ExcluirBtn({ id }: { id: string }) {
   async function excluir() {
     if (
       !(await confirm({
-        title: "Excluir cenário?",
+        title: "Excluir lote?",
         description: "As linhas do plano serão removidas (os lançamentos não são afetados).",
         variant: "destructive",
         confirmLabel: "Excluir",
@@ -97,7 +97,7 @@ function ExcluirBtn({ id }: { id: string }) {
     start(async () => {
       const r = await excluirPlano({ id });
       if (r.ok) {
-        toast.success("Cenário excluído.");
+        toast.success("Lote excluído.");
         router.refresh();
       } else toast.error(r.error);
     });
@@ -138,7 +138,7 @@ function NovoCenarioDialog({ open, onClose, opcoes }: { open: boolean; onClose: 
         observacoes: obs,
       });
       if (r.ok) {
-        toast.success(`Cenário criado com ${r.data.linhas} conta(s).`);
+        toast.success(`Lote criado com ${r.data.linhas} conta(s).`);
         onClose();
         router.push(`/financeiro/planejamento/${r.data.id}`);
       } else toast.error(r.error);
@@ -149,13 +149,13 @@ function NovoCenarioDialog({ open, onClose, opcoes }: { open: boolean; onClose: 
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Novo cenário de planejamento</DialogTitle>
+          <DialogTitle>Novo lote de pagamentos</DialogTitle>
           <DialogDescription>O sistema carrega as contas a pagar em aberto do período e filtros.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5 col-span-2">
-              <Label>Nome do cenário</Label>
+              <Label>Nome do lote</Label>
               <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Operacional junho" />
             </div>
             <div className="space-y-1.5">
@@ -208,7 +208,7 @@ function NovoCenarioDialog({ open, onClose, opcoes }: { open: boolean; onClose: 
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={salvar} disabled={pending}>{pending ? "Criando…" : "Criar cenário"}</Button>
+          <Button onClick={salvar} disabled={pending}>{pending ? "Criando…" : "Criar lote"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

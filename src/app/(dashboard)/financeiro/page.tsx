@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Settings2, Receipt, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload, SlidersHorizontal, CalendarClock, TrendingUp, CalendarCheck, Wallet, Info, Paperclip, BookOpenText } from "lucide-react";
+import { Settings2, Receipt, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload, SlidersHorizontal, CalendarClock, TrendingUp, CalendarCheck, Paperclip, BookOpenText } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { tipoEfetivo } from "@/lib/roles";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
@@ -13,13 +13,13 @@ import { PJ_ROLES } from "@/lib/roles";
 import { agingReport } from "@/modules/financeiro/aging/queries";
 import { totalAguardando } from "@/modules/financeiro/aprovacao/queries";
 import { relatorioDRE, serieMensalResultado, despesasPorCategoria } from "@/modules/financeiro/relatorios/queries";
-import { fluxoCaixa, projecaoCaixa } from "@/modules/financeiro/caixa/queries";
+import { fluxoCaixa } from "@/modules/financeiro/caixa/queries";
+import { torreDeControle } from "@/modules/financeiro/liquidez/queries";
 import { totalTransacoesPendentes } from "@/modules/financeiro/conciliacao/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { AgingWidget } from "@/components/financeiro/aging-widget";
 import { ResultadoMensalChart } from "@/components/financeiro/resultado-mensal-chart";
 import { CategoriaDonutChart } from "@/components/financeiro/categoria-donut-chart";
-import { FluxoProjecaoChart } from "@/components/financeiro/fluxo-projecao-chart";
 import { PeriodoSelector, type Periodo } from "@/components/financeiro/periodo-selector";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
+import { TorreLiquidez } from "@/components/financeiro/liquidez/torre-liquidez";
 import { Valor } from "@/components/financeiro/valor";
 import { brl, formatarData } from "@/lib/utils";
 
@@ -109,7 +110,9 @@ export default async function FinanceiroPage({
       despesasPorCategoria(inicioMes, fimMes),
       fluxoCaixa(),
     ]);
-    const projecao = await projecaoCaixa(caixa.saldoTotal);
+    // Torre de controle: o MESMO motor do planejador (F7). A Visão geral não tem mais conta
+    // própria de projeção — duas contas para o mesmo caixa era o risco nº 1 do plano.
+    const torre = await torreDeControle();
     const vencidoTotal = receber.totalVencido + pagar.totalVencido;
     // Qtd de contas vencidas (todas as faixas de aging exceto "a_vencer"), receber + pagar.
     const qtdVencidas = [receber, pagar].reduce(
@@ -124,7 +127,7 @@ export default async function FinanceiroPage({
     const atalhos = podeGerir
       ? [
           ...ATALHOS,
-          { href: "/financeiro/planejamento", icon: CalendarClock, titulo: "Planejamento de pagamentos", desc: "Mesa de planejamento do caixa" },
+          { href: "/financeiro/planejamento", icon: CalendarClock, titulo: "Pagamentos em lote", desc: "Escolher quais contas a pagar cabem no caixa" },
           { href: "/financeiro/fechamento", icon: CalendarCheck, titulo: "Fechamento mensal", desc: "Consolidação e retenções do mês" },
           { href: "/financeiro/importar", icon: Upload, titulo: "Importar dados", desc: "Migrar planilha do Meu Dinheiro" },
           { href: "/financeiro/configuracoes", icon: SlidersHorizontal, titulo: "Configurações", desc: "Campos obrigatórios e regras" },
@@ -134,9 +137,12 @@ export default async function FinanceiroPage({
       <div className="space-y-6">
         <CabecalhoPagina
           titulo="Financeiro"
-          descricao={`Visão geral · ${mesRotulo}`}
+          descricao="Como está o caixa hoje e para onde ele vai no horizonte do planejador."
           acoes={
             <>
+              <Button size="sm" render={<Link href="/financeiro/planejador" />}>
+                Abrir planejador
+              </Button>
               {botaoGuia}
               <PeriodoSelector periodo={periodo} />
             </>
@@ -158,6 +164,9 @@ export default async function FinanceiroPage({
           </Link>
         )}
 
+        <TorreLiquidez torre={torre} contas={caixa.contas} />
+
+        <h2 className="pt-2 text-[15px] font-bold">Resultado de {mesRotulo}</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
           <KpiCard variante="indicador" label="Receita do período" valor={<Valor valor={dreMes.totalReceitas} />} detalhe={mesRotulo} />
           <KpiCard variante="indicador" label="Despesa do período" valor={<Valor valor={-dreMes.totalDespesas} />} detalhe={mesRotulo} />
@@ -206,42 +215,6 @@ export default async function FinanceiroPage({
                 <dd><Valor valor={dreMes.resultado} /></dd>
               </div>
             </dl>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-1.5 text-base">
-              Projeção de caixa
-              <span
-                tabIndex={0}
-                className="text-muted-foreground"
-                title="Projeção = saldo atual + a receber previsto − a pagar previsto, acumulado semana a semana pelo vencimento das contas (próximas 8 semanas)."
-              >
-                <Info className="size-3.5" aria-hidden />
-                <span className="sr-only">Como a projeção é calculada</span>
-              </span>
-            </CardTitle>
-            <CardDescription>Saldos por conta e projeção das próximas semanas.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-6 lg:grid-cols-[260px_1fr]">
-            <ul className="space-y-1 text-sm">
-              {caixa.contas.length === 0 ? (
-                <li><EmptyState icon={Wallet} title="Nenhuma conta cadastrada." /></li>
-              ) : (
-                caixa.contas.map((c) => (
-                  <li key={c.id} className="flex items-center justify-between gap-2">
-                    <span className="truncate">{c.nome}</span>
-                    <Valor valor={c.saldo} sentido="neutro" className="text-xs" />
-                  </li>
-                ))
-              )}
-              <li className="flex items-center justify-between gap-2 border-t pt-1 font-semibold">
-                <span>Total</span>
-                <Valor valor={caixa.saldoTotal} sentido="neutro" className="text-xs" />
-              </li>
-            </ul>
-            <FluxoProjecaoChart dados={projecao} saldoInicial={caixa.saldoTotal} />
           </CardContent>
         </Card>
 

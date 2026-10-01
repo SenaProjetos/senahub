@@ -36,7 +36,8 @@ import {
 } from "../src/modules/juridico/contrato/previsao-service";
 import { gerarRecebiveisDoContrato } from "../src/modules/juridico/contrato/recebiveis";
 import { agingReport } from "../src/modules/financeiro/aging/queries";
-import { projecaoCaixa } from "../src/modules/financeiro/caixa/queries";
+import { baseDoPlanejador } from "../src/modules/financeiro/liquidez/queries";
+import { projetar } from "../src/modules/financeiro/liquidez/motor";
 import { resumoFinanceiroCliente } from "../src/modules/clientes/queries";
 import { inicioDoDiaUtc } from "../src/lib/data";
 import { registrarExecucaoNaLinha } from "../src/modules/planejamento/execucao-service";
@@ -135,19 +136,39 @@ async function main() {
     check("aging não vê a previsão", !JSON.stringify(aging).includes(prev[0].id));
     const resumo = await resumoFinanceiroCliente(cliente.id);
     check("resumo do cliente não soma previsão (nada cobrado)", resumo.total === 0, resumo);
-    const projecao = await projecaoCaixa(0, 8);
-    const noCaixa = projecao.reduce((s, p) => s + p.previsaoCronograma, 0);
-    check("projeção de caixa inclui a previsão, com subtotal próprio", noCaixa >= 3000 && projecao.reduce((s, p) => s + p.entradas, 0) >= 3000, noCaixa);
+    // F7: a previsão do cronograma é lida pelo MOTOR do planejador (a projeção semanal antiga saiu).
+    // Ela nasce Estimada, então entra no cenário "estimadas" e fica FORA do Provável (I2): o saldo
+    // projetado do dia a dia não conta parcela que ninguém faturou.
+    const basePlan = await baseDoPlanejador({ horizonteDias: 60 });
+    const evento = basePlan.eventos.find((e) => e.id === prev[0].id);
+    check("a previsão é evento do motor, Estimada", evento?.status === "previsao" && evento?.confianca === "estimada", evento && { status: evento.status, confianca: evento.confianca });
+    const comum = { hoje: basePlan.hoje, horizonteDias: basePlan.horizonteDias, caixaAtual: basePlan.caixaAtual, reservaMinima: basePlan.reservaMinima, eventos: basePlan.eventos, caixinhas: basePlan.caixinhas };
+    const estimadas = projetar({ ...comum, eixos: { entradas: "estimadas", compromissos: "todos" } });
+    const provaveis = projetar({ ...comum, eixos: { entradas: "provaveis", compromissos: "todos" } });
+    const no = (p: typeof estimadas) => p.eventos.find((e) => e.id === prev[0].id);
+    check("no cenário Estimadas a previsão entra na projeção", no(estimadas)?.aplicado === true, no(estimadas));
+    check("no Provável a previsão fica fora (I2)", no(provaveis)?.aplicado === false && no(provaveis)?.noCenario === false, no(provaveis));
 
     // Assinado há 10 dias e não faturado: a previsão passou da data — vai para a 1ª semana, atrasada.
     const dezDiasAtras = paraDia(new Date(inicioDoDiaUtc().getTime() - 10 * 86_400_000));
     await prisma.documentoJuridico.update({ where: { id: contrato.id }, data: { assinadoEm: d(dezDiasAtras) } });
     await sincronizarPrevisoesDoProjeto(projeto.id, admin.id);
-    const atrasada = await projecaoCaixa(0, 8);
+    const baseAtrasada = await baseDoPlanejador({ horizonteDias: 60 });
+    const vencida = baseAtrasada.eventos.find((e) => e.id === prev[0].id);
+    const projAtrasada = projetar({
+      hoje: baseAtrasada.hoje,
+      horizonteDias: baseAtrasada.horizonteDias,
+      caixaAtual: baseAtrasada.caixaAtual,
+      reservaMinima: baseAtrasada.reservaMinima,
+      eventos: baseAtrasada.eventos,
+      caixinhas: baseAtrasada.caixinhas,
+      eixos: { entradas: "estimadas", compromissos: "todos" },
+    });
+    const aplicada = projAtrasada.eventos.find((e) => e.id === prev[0].id);
     check(
-      "previsão vencida e não faturada fica na 1ª semana, marcada como atrasada",
-      atrasada[0].previsaoAtrasada >= 3000 && atrasada[0].previsaoCronograma >= 3000,
-      { semana0: atrasada[0] },
+      "previsão vencida e não faturada entra marcada como vencida, aplicada HOJE",
+      vencida?.vencido === true && aplicada?.dia === baseAtrasada.hoje,
+      { vencido: vencida?.vencido, dia: aplicada?.dia, hoje: baseAtrasada.hoje },
     );
 
     // Cronograma aprovado: as de marco nascem na data do motor.

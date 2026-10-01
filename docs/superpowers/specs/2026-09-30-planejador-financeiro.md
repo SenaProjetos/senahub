@@ -434,6 +434,30 @@ A F6 (Opus) fecha em quatro commits independentes, cada um com testes verdes e r
   recorrentes, lucros em Distribuir/Adiantar. A ação fica no lugar porque uma aba aberta de antes ainda
   poderia chamá-la.
 
+## 14-A. F7 como ficou (2026-10-01)
+
+- **Uma projeção só.** `projecaoCaixa` (semanal) e `FluxoProjecaoChart` foram APAGADOS: a Visão geral
+  (`liquidez/torre.ts` + `torreDeControle()`) e o fluxo diário (`caixa/diario.ts` + `fluxoDiario()`) rodam
+  `projetar()`. O risco nº 1 do plano (dois números de caixa em telas diferentes) deixa de existir por
+  construção, não por disciplina.
+- **Visão geral:** posição de hoje (caixa = reservado + livre, com a reserva mínima marcada), cinco
+  indicadores, gráfico Provável × Conservador, "Precisa de atenção", caixinhas e próximos 7 dias; a DRE, o
+  aging e os atalhos seguem abaixo. A previsão do cronograma fica FORA das duas linhas (I2) e aparece como
+  alerta com "Incluir na simulação".
+- **Fluxo diário (I14):** antes de hoje o realizado por `dataConfirmacao`, de hoje em diante o previsto do
+  cenário escolhido; agrupamento por dia, semana (começando na segunda) ou mês; janela de passado de 15, 30 ou
+  60 dias. O acumulado do passado é reconstruído DE TRÁS PARA A FRENTE a partir do caixa de hoje, então as
+  duas metades encostam exatamente em `saldoBase()`. Perna de transferência não é entrada nem saída.
+  Filtro por conta NÃO entra aqui: projeção por conta está na lista de "depois".
+- **Números de destaque sem centavos** (como o mock): `brlCInteiro`. Tabela e dica do gráfico mantêm os
+  centavos — uma tabela que esconde centavo não fecha com o extrato.
+- **Pagamentos em lote (D2/I13):** a mesa antiga virou "Pagamentos em lote" e cada "cenário" dela virou
+  "lote", só nos rótulos; rota `/financeiro/planejamento` e identificadores ficam. O planejador ganhou o
+  atalho para ela (só com `financeiro:gerir`).
+- **Smoke da previsão migrado:** `smoke:previsao-recebimento` não lê mais a projeção semanal — confere que a
+  previsão é evento Estimada do motor, entra no cenário "estimadas", fica fora do Provável e, vencida, é
+  aplicada hoje.
+
 ## 15. Testes por arquivo (`src/modules/financeiro/liquidez/`)
 
 | Arquivo | Cobre |

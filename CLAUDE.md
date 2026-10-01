@@ -255,6 +255,14 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   (`count ≠ 1` rolls back). Several ajustes on one lançamento become ONE write. Creating goes through
   `criarLancamentoNoTx` (`lancamentos/service.ts`, same rules as `criarLancamento`) — never a bare
   `lancamento.create`. MVP applies only date, priority, confidence and new movements with a category.
+- **ONE projection in the system** (F7): the Visão geral (`liquidez/torre.ts` + `torreDeControle()`) and the
+  daily cash flow (`caixa/diario.ts` + `fluxoDiario()`) both run `projetar()` — the weekly `projecaoCaixa`
+  and `FluxoProjecaoChart` were DELETED, so no screen can show a second cash number. The Visão geral runs the
+  engine twice (Provável = `provaveis`, Conservador = `confirmadas`) and the cronograma forecast
+  (`status: "previsao"`, Estimada) is deliberately OUT of both lines: it shows up as its own alert with
+  "Incluir na simulação" (I2). In the daily flow, before today is realized (by `dataConfirmacao`) and from
+  today on is the chosen scenario; the past accumulated balance is rebuilt BACKWARD from today's cash
+  (`caixaAtual − what was realized after that day`), so both halves meet exactly at `saldoBase()`.
 - **Closing the CLT payroll SETTLES the month's forecast** (`rh/folha/fechamento-service.ts` + pure
   `quitacao.ts`, F6D): `fecharFolha` reuses the competência's `previsto` folha bill (the one the recurrence
   generated, or a manual one) with the real net value instead of creating a second expense — otherwise the

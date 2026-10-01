@@ -240,7 +240,7 @@ export function PlanejamentoMesaView({ plano, disponiveis }: { plano: PlanoDetal
         <Card>
           <CardContent className="grid gap-3 py-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Nome do cenário</Label>
+              <Label className="text-xs">Nome do lote</Label>
               <Input value={nome} onChange={(e) => setNome(e.target.value)} disabled={readOnly} />
             </div>
             <div className="space-y-1.5">

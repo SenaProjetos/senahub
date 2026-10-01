@@ -53,7 +53,7 @@ const MAIS: readonly ItemNavFinanceiro[] = [
   { id: "aprovacoes", href: "/financeiro/aprovacoes", rotulo: "Aprovações", gate: "aprovar" },
   { id: "conciliacao", href: "/financeiro/conciliacao", rotulo: "Conciliação", gate: "conciliar" },
   { id: "importar", href: "/financeiro/importar", rotulo: "Importar extrato", gate: "conciliar" },
-  { id: "planejamento", href: "/financeiro/planejamento", rotulo: "Planejamento de pagamentos", gate: "gerir" },
+  { id: "planejamento", href: "/financeiro/planejamento", rotulo: "Pagamentos em lote", gate: "gerir" },
   { id: "fechamento", href: "/financeiro/fechamento", rotulo: "Fechamento mensal", gate: "fechar" },
   { id: "documentos", href: "/financeiro/documentos", rotulo: "Documentos", gate: "ver" },
   { id: "cadastros", href: "/financeiro/cadastros", rotulo: "Cadastros", gate: "gerir" },

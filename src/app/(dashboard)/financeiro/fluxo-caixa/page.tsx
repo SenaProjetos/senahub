@@ -1,165 +1,185 @@
-import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
+import Link from "next/link";
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { requirePermission } from "@/lib/session";
-import { fluxoCaixa, projecaoCaixa } from "@/modules/financeiro/caixa/queries";
-import { FluxoProjecaoChart } from "@/components/financeiro/fluxo-projecao-chart";
-import { Wallet, ArrowLeftRight } from "lucide-react";
+import { fluxoDiario, JANELAS_PASSADO, type CenarioFluxo } from "@/modules/financeiro/caixa/queries";
+import type { Agrupamento } from "@/modules/financeiro/caixa/diario";
+import { FluxoDiarioChart } from "@/components/financeiro/caixa/fluxo-diario-chart";
 import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
-import { KpiCard } from "@/components/ui/kpi-card";
-import { Valor } from "@/components/financeiro/valor";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/empty-state";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { brl, formatarData, formatarDiaMes } from "@/lib/utils";
+import { brlC, brlCSinal } from "@/components/financeiro/planejador/formato";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { diaMes } from "@/modules/financeiro/liquidez/datas";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Fluxo de caixa" };
 
-export default async function FluxoCaixaPage() {
-  await requirePermission("financeiro", "ver");
-  const { contas, saldoTotal, entradas, saidas, movimentos } = await fluxoCaixa();
-  const projecao = await projecaoCaixa(saldoTotal, 8);
-  const temGap = projecao.some((p) => p.saldo < 0);
-  const previsaoCronograma = projecao.reduce((s, p) => s + p.previsaoCronograma, 0);
-  const previsaoAtrasada = projecao.reduce((s, p) => s + p.previsaoAtrasada, 0);
+const AGRUPAMENTOS: { valor: Agrupamento; rotulo: string }[] = [
+  { valor: "dia", rotulo: "Dia" },
+  { valor: "semana", rotulo: "Semana" },
+  { valor: "mes", rotulo: "Mês" },
+];
+const CENARIOS: { valor: CenarioFluxo; rotulo: string }[] = [
+  { valor: "provavel", rotulo: "Provável" },
+  { valor: "conservador", rotulo: "Conservador" },
+];
 
-  const dataCurta = (iso: string) =>
-    formatarDiaMes(iso);
+/** Grupo de links que troca UM parâmetro da URL, com o atual marcado (`aria-current`). */
+function Segmentos<T extends string>({
+  rotulo,
+  opcoes,
+  atual,
+  href,
+}: {
+  rotulo: string;
+  opcoes: readonly { valor: T; rotulo: string }[];
+  atual: T;
+  href: (v: T) => string;
+}) {
+  return (
+    <div role="group" aria-label={rotulo} className="inline-flex overflow-hidden rounded-sm border">
+      {opcoes.map((o) => (
+        <Link
+          key={o.valor}
+          href={href(o.valor)}
+          aria-current={o.valor === atual ? "true" : undefined}
+          className={cn(
+            "px-2.5 py-1.5 text-[13px] font-medium transition-colors",
+            o.valor === atual ? "bg-primary text-primary-foreground" : "hover:bg-muted",
+          )}
+        >
+          {o.rotulo}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+export default async function FluxoCaixaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ agrupar?: string; cenario?: string; dias?: string }>;
+}) {
+  await requirePermission("financeiro", "ver");
+  const sp = await searchParams;
+  const fluxo = await fluxoDiario({
+    agrupamento: sp.agrupar as Agrupamento | undefined,
+    cenario: sp.cenario as CenarioFluxo | undefined,
+    diasAtras: Number(sp.dias) || undefined,
+  });
+
+  const url = (troca: Record<string, string>) => {
+    const p = new URLSearchParams({ agrupar: fluxo.agrupamento, cenario: fluxo.cenario, dias: String(fluxo.diasAtras), ...troca });
+    return `/financeiro/fluxo-caixa?${p.toString()}`;
+  };
+  const periodo = (de: string | null, ate: string | null) => (de && ate ? `${diaMes(de)} a ${diaMes(ate)}` : "sem movimento no período");
+  const { realizado, previsto } = fluxo.totais;
 
   return (
-    <div className="space-y-6">
-      <CabecalhoPagina titulo="Fluxo de caixa" descricao="Saldos e movimentos confirmados." />
+    <div className="space-y-5">
+      <CabecalhoPagina titulo="Fluxo de caixa" descricao="O que entrou e saiu, e o que está previsto, dia a dia." />
       <NavFinanceiro />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <KpiCard variante="indicador" label="Caixa atual" valor={<Valor valor={saldoTotal} sentido="neutro" />} detalhe="saldo das contas ativas" />
-        <KpiCard variante="indicador" label="Entradas realizadas" valor={<Valor valor={entradas} />} detalhe="desde sempre, só o que já foi recebido" />
-        <KpiCard variante="indicador" label="Saídas realizadas" valor={<Valor valor={-saidas} />} detalhe="desde sempre, só o que já foi pago" />
+      <div className="flex flex-wrap items-center gap-2">
+        <Segmentos rotulo="Agrupar por" opcoes={AGRUPAMENTOS} atual={fluxo.agrupamento} href={(v) => url({ agrupar: v })} />
+        <Segmentos
+          rotulo="Dias antes de hoje"
+          opcoes={JANELAS_PASSADO.map((d) => ({ valor: String(d), rotulo: `${d} dias atrás` }))}
+          atual={String(fluxo.diasAtras)}
+          href={(v) => url({ dias: v })}
+        />
+        <Segmentos rotulo="Previsto pelo cenário" opcoes={CENARIOS} atual={fluxo.cenario} href={(v) => url({ cenario: v })} />
+        <span className="text-[12.5px] text-muted-foreground">
+          {diaMes(fluxo.de)} a {diaMes(fluxo.ate)} · caixa de hoje {brlC(fluxo.caixaAtual)}
+        </span>
       </div>
 
+      <section aria-label="Totais do período" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          { rotulo: `Entradas realizadas (${periodo(realizado.de, realizado.ate)})`, valor: realizado.entradas, sinal: 1 },
+          { rotulo: `Saídas realizadas (${periodo(realizado.de, realizado.ate)})`, valor: realizado.saidas, sinal: -1 },
+          { rotulo: `Entradas previstas (${periodo(previsto.de, previsto.ate)})`, valor: previsto.entradas, sinal: 1 },
+          { rotulo: `Saídas previstas (${periodo(previsto.de, previsto.ate)})`, valor: previsto.saidas, sinal: -1 },
+        ].map((k) => (
+          <Card key={k.rotulo}>
+            <CardContent className="space-y-1 pt-5">
+              <p className="font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase">{k.rotulo}</p>
+              <p className={cn("font-mono text-xl font-bold", k.sinal > 0 ? "text-success" : "text-destructive")}>
+                {brlCSinal(k.sinal * k.valor)}
+              </p>
+            </CardContent>
+          </Card>
+        ))}
+      </section>
+
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Saldo por conta</CardTitle>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Saldo acumulado</CardTitle>
         </CardHeader>
         <CardContent>
-          {contas.length === 0 ? (
-            <EmptyState icon={Wallet} title="Nenhuma conta bancária cadastrada." />
-          ) : (
-            <ul className="divide-y text-sm">
-              {contas.map((c) => (
-                <li key={c.id} className="flex items-center justify-between py-2">
-                  <span>{c.nome}</span>
-                  <Valor valor={c.saldo} sentido="neutro" />
-                </li>
-              ))}
-            </ul>
-          )}
+          <FluxoDiarioChart serie={fluxo.diaria} reservaMinima={fluxo.reservaMinima} hoje={fluxo.hoje} />
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Projeção de caixa — 8 semanas</CardTitle>
-          <CardDescription>
-            Saldo projetado a partir do saldo atual e dos lançamentos previstos (por vencimento).
-            {previsaoCronograma > 0 && (
-              <span className="ml-1">
-                Inclui {brl(previsaoCronograma)} de previsão do cronograma — parcelas de contrato por entrega ainda não
-                faturadas, na data do marco.
-                {previsaoAtrasada > 0 && (
-                  <span className="ml-1 text-warning">
-                    {brl(previsaoAtrasada)} já passou da data sem ser faturado (contado na 1ª semana).
-                  </span>
-                )}
-              </span>
-            )}
-            {temGap && <span className="ml-1 text-destructive">Atenção: saldo fica negativo.</span>}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <FluxoProjecaoChart dados={projecao} saldoInicial={saldoTotal} />
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Semana</TableHead>
-                <TableHead className="text-right">Entradas</TableHead>
-                <TableHead className="text-right">Saídas</TableHead>
-                <TableHead className="text-right">Saldo projetado</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {projecao.map((p) => (
-                <TableRow key={p.inicio} className={p.saldo < 0 ? "bg-destructive/5" : ""}>
-                  <TableCell className="font-mono text-xs">
-                    {dataCurta(p.inicio)} – {dataCurta(p.fim)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-xs text-success">
-                    {p.entradas ? `+${brl(p.entradas)}` : "—"}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-xs text-warning">
-                    {p.saidas ? `-${brl(p.saidas)}` : "—"}
-                  </TableCell>
-                  <TableCell
-                    className={`text-right font-mono text-xs font-semibold ${p.saldo < 0 ? "text-destructive" : ""}`}
-                  >
-                    {brl(p.saldo)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Movimentos recentes</CardTitle>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">
+            {fluxo.agrupamento === "dia" ? "Dia a dia" : fluxo.agrupamento === "semana" ? "Semana a semana" : "Mês a mês"}
+          </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Descrição</TableHead>
-                <TableHead>Conta</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {movimentos.length === 0 ? (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={4}>
-                    <EmptyState icon={ArrowLeftRight} title="Sem movimentos confirmados." />
-                  </TableCell>
+                  <TableHead>{fluxo.agrupamento === "dia" ? "Data" : "Período"}</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead className="text-right">Entradas</TableHead>
+                  <TableHead className="text-right">Saídas</TableHead>
+                  <TableHead className="text-right">Saldo do período</TableHead>
+                  <TableHead className="text-right">Saldo acumulado</TableHead>
+                  <TableHead>Maior movimento</TableHead>
                 </TableRow>
-              ) : (
-                movimentos.map((m) => (
-                  <TableRow key={m.id}>
-                    <TableCell className="font-mono text-xs">
-                      {m.dataConfirmacao ? formatarData(m.dataConfirmacao) : "—"}
-                    </TableCell>
-                    <TableCell>
-                      {m.descricao}
-                      <span className="block text-xs text-muted-foreground">{m.categoria.nome}</span>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{m.conta?.nome ?? "—"}</TableCell>
-                    <TableCell
-                      className={`text-right font-mono ${m.tipo === "receita" ? "text-success" : "text-foreground"}`}
-                    >
-                      {m.tipo === "receita" ? "+" : "-"}
-                      {brl(Number(m.valorEfetivo ?? m.valor))}
+              </TableHeader>
+              <TableBody>
+                {/* Linha sem movimento não vai para a tabela: o gráfico já mostra o dia parado, e a
+                    lista fica legível (o mock oferecia a opção; aqui é o padrão). */}
+                {fluxo.linhas
+                  .filter((l) => l.entradas > 0 || l.saidas > 0)
+                  .map((l) => (
+                    <TableRow key={l.dia} className={l.acumulado < fluxo.reservaMinima ? "bg-destructive/5" : undefined}>
+                      <TableCell className="font-mono text-xs whitespace-nowrap">{l.rotulo}</TableCell>
+                      <TableCell>
+                        <span
+                          className={cn(
+                            "rounded-sm border px-1.5 py-0.5 text-[11px]",
+                            l.tipo === "previsto" ? "border-border text-muted-foreground" : "border-success/40 text-success",
+                          )}
+                        >
+                          {l.tipo === "previsto" ? "Previsto" : "Realizado"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs text-success">{l.entradas ? brlCSinal(l.entradas) : "—"}</TableCell>
+                      <TableCell className="text-right font-mono text-xs text-destructive">{l.saidas ? brlCSinal(-l.saidas) : "—"}</TableCell>
+                      <TableCell className={cn("text-right font-mono text-xs", l.saldoDia < 0 ? "text-destructive" : "text-success")}>
+                        {brlCSinal(l.saldoDia)}
+                      </TableCell>
+                      <TableCell className={cn("text-right font-mono text-xs font-semibold", l.acumulado < 0 && "text-destructive")}>
+                        {brlC(l.acumulado)}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{l.maior ?? "—"}</TableCell>
+                    </TableRow>
+                  ))}
+                {fluxo.linhas.every((l) => l.entradas === 0 && l.saidas === 0) && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="py-6 text-center text-sm text-muted-foreground">
+                      Nenhum movimento realizado nem previsto neste período.
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

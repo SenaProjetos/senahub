@@ -2,15 +2,27 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { inicioDoDiaUtc } from "@/lib/data";
 import { getConfigLiquidez } from "@/modules/financeiro/config/queries";
-import { reservadosParaOMotor } from "@/modules/financeiro/caixinhas/queries";
+import { carregarCaixinhas, reservadosParaOMotor } from "@/modules/financeiro/caixinhas/queries";
+import { recebimentosADistribuir } from "@/modules/financeiro/distribuicao/queries";
 import { avisosDeRecorrencia, eventosProgramados, type AvisoRecorrencia } from "@/modules/financeiro/recorrencia/calculo";
 import { competenciasVinculadas, compromissosAtivos, lancamentosDaRecorrencia } from "@/modules/financeiro/recorrencia/queries";
 import { diasEntre, isoDeDataDoBanco, somarDias } from "@/modules/financeiro/liquidez/datas";
 import { paraCentavos } from "@/modules/financeiro/liquidez/dinheiro";
 import { dataDoEvento, paraEventos, prioridadeEfetiva, STATUS_PENDENTES } from "@/modules/financeiro/liquidez/eventos";
 import type { AlvoAtual } from "@/modules/financeiro/liquidez/aplicacao";
-import { JANELA_DIAS_DE_CAIXA } from "@/modules/financeiro/liquidez/indicadores";
-import { normalizarHorizonte } from "@/modules/financeiro/liquidez/motor";
+import { diasDeCaixa, JANELA_DIAS_DE_CAIXA, type DiasDeCaixa } from "@/modules/financeiro/liquidez/indicadores";
+import { normalizarHorizonte, projetar, type Projecao } from "@/modules/financeiro/liquidez/motor";
+import {
+  alertasDaTorre,
+  graficoDaTorre,
+  indicadoresDaTorre,
+  proximosDias,
+  type AlertaTorre,
+  type CaixinhaDaTorre,
+  type GraficoDaTorre,
+  type IndicadorTorre,
+  type LinhaProxima,
+} from "@/modules/financeiro/liquidez/torre";
 import { anomaliasDoSaldo, saldoBase, type AnomaliasDoSaldo } from "@/modules/financeiro/liquidez/saldo-base";
 import type { Centavos, Contraparte, DataIso, EventoCaixa, LancamentoEntrada, Observado } from "@/modules/financeiro/liquidez/tipos";
 
@@ -185,6 +197,78 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
     avisosRecorrencia: avisos,
     caixinhas: await reservadosParaOMotor(hoje),
     historico: { saidasNaJanela, diasDeHistorico: maisAntigo ? diasEntre(maisAntigo, hoje) : 0 },
+  };
+}
+
+/** Tudo o que a torre de controle da Visão geral mostra (F7). */
+export type TorreDeControle = {
+  hoje: DataIso;
+  horizonteDias: number;
+  caixaAtual: Centavos;
+  reservaMinima: Centavos;
+  /** Reservado e livre de HOJE (o livre nunca é negativo; a falta vira `descoberto`). */
+  posicao: { reservado: Centavos; livre: Centavos; descoberto: Centavos };
+  indicadores: IndicadorTorre[];
+  grafico: GraficoDaTorre;
+  alertas: AlertaTorre[];
+  proximos: LinhaProxima[];
+  caixinhas: CaixinhaDaTorre[];
+  anomalias: AnomaliasDoSaldo;
+  diasDeCaixa: DiasDeCaixa;
+};
+
+/**
+ * Torre de controle: o MESMO motor do planejador, rodado em dois cenários — Provável (o do dia a
+ * dia) e Conservador (só entrada confirmada pelo cliente) —, mais as caixinhas, a fila de
+ * distribuição e os indicadores. A Visão geral deixou de ter conta própria de projeção: duas contas
+ * diferentes para o mesmo caixa era o risco nº 1 do plano.
+ */
+export async function torreDeControle(opcoes: { horizonteDias?: number; agora?: Date } = {}): Promise<TorreDeControle> {
+  const base = await baseDoPlanejador(opcoes);
+  const comum = {
+    hoje: base.hoje,
+    horizonteDias: base.horizonteDias,
+    caixaAtual: base.caixaAtual,
+    reservaMinima: base.reservaMinima,
+    eventos: base.eventos,
+    caixinhas: base.caixinhas,
+  };
+  const provavel: Projecao = projetar({ ...comum, eixos: { entradas: "provaveis", compromissos: "todos" } });
+  const conservador: Projecao = projetar({ ...comum, eixos: { entradas: "confirmadas", compromissos: "todos" } });
+
+  const { distribuirDesde } = await getConfigLiquidez();
+  const fila = await recebimentosADistribuir(distribuirDesde);
+  const detalhadas = await carregarCaixinhas({ hoje: base.hoje });
+  const caixinhas: CaixinhaDaTorre[] = detalhadas.map((c) => ({
+    id: c.id,
+    nome: c.nome,
+    reservado: c.situacao.reservado,
+    necessidade: c.situacao.necessidade,
+    percentual: c.situacao.percentual,
+    falta: c.situacao.falta,
+  }));
+  const dias = diasDeCaixa({ caixaAtual: base.caixaAtual, ...base.historico });
+
+  return {
+    hoje: base.hoje,
+    horizonteDias: base.horizonteDias,
+    caixaAtual: base.caixaAtual,
+    reservaMinima: base.reservaMinima,
+    posicao: { reservado: provavel.hoje.reservado, livre: provavel.hoje.livre, descoberto: provavel.hoje.descoberto },
+    indicadores: indicadoresDaTorre({ provavel, conservador, reservaMinima: base.reservaMinima, diasDeCaixa: dias }),
+    grafico: graficoDaTorre(provavel, conservador, base.reservaMinima),
+    alertas: alertasDaTorre({
+      hoje: base.hoje,
+      provavel,
+      eventos: base.eventos,
+      caixinhas,
+      aDistribuir: { qtd: fila.length, valor: fila.reduce((s, r) => s + r.valor, 0) },
+      avisosRecorrencia: base.avisosRecorrencia.map((a) => a.texto),
+    }),
+    proximos: proximosDias(provavel, base.eventos, 7),
+    caixinhas,
+    anomalias: base.anomalias,
+    diasDeCaixa: dias,
   };
 }
 

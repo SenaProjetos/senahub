@@ -1,11 +1,13 @@
 /** Formatação do planejador (centavos → texto). Sem React; usado pelos componentes da tela. */
-import { brl, brlComSinal } from "@/lib/utils";
+import { brl, brlComSinal, brlInteiro } from "@/lib/utils";
 import { diaDaSemana, diaMes } from "@/modules/financeiro/liquidez/datas";
 import type { DataIso } from "@/modules/financeiro/liquidez/tipos";
 
 export const reais = (c: number) => c / 100;
 export const brlC = (c: number) => brl(c / 100).replace(/ /g, " ");
 export const brlCSinal = (c: number) => brlComSinal(c / 100);
+/** Número de destaque, sem centavos (como o mock aprovado): "R$ 87.500". */
+export const brlCInteiro = (c: number) => brlInteiro(c / 100);
 
 /** "05/10, seg". */
 export function rotuloDia(d: DataIso): string {

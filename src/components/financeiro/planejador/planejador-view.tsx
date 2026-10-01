@@ -353,6 +353,12 @@ export function PlanejadorView({
             <Button size="sm" variant="outline" render={<Link href="/financeiro/cenarios" />}>
               <FolderOpen className="size-4" aria-hidden /> Cenários salvos
             </Button>
+            {/* D2: a mesa antiga é a tela de EXECUTAR o pagamento; o planejador é a de decidir. */}
+            {podeGerir && (
+              <Button size="sm" variant="outline" render={<Link href="/financeiro/planejamento" />}>
+                Pagamentos em lote
+              </Button>
+            )}
             <Button size="sm" onClick={() => setNovoAberto(true)}>
               <Plus className="size-4" aria-hidden /> Simular movimento
             </Button>
