@@ -5,9 +5,9 @@ import type { CardNaVersao, LinhaCatalogo } from "./versao";
 
 export const SEM_CATEGORIA = "Outras";
 
-/** Cards por categoria (ordem alfabética, "Outras" por último); a ordem dentro de cada grupo é a de entrada. */
-export function agruparCards(cards: readonly CardNaVersao[]): { categoria: string; cards: CardNaVersao[] }[] {
-  const mapa = new Map<string, CardNaVersao[]>();
+/** Cards (de qualquer lente) por categoria (ordem alfabética, "Outras" por último); a ordem dentro de cada grupo é a de entrada. */
+export function agruparCards<T extends { categoria: string | null }>(cards: readonly T[]): { categoria: string; cards: T[] }[] {
+  const mapa = new Map<string, T[]>();
   for (const c of cards) {
     const chave = c.categoria || SEM_CATEGORIA;
     (mapa.get(chave) ?? mapa.set(chave, []).get(chave)!).push(c);
