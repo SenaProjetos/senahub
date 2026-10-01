@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import type { LancamentoItem, OpcoesLancamento } from "@/modules/financeiro/lancamentos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { baixarEmLote, definirConfiancaLancamento, definirPrioridadeLancamento } from "@/modules/financeiro/lancamentos/actions";
+import { baixarEmLote, definirCaixinhaLancamento, definirConfiancaLancamento, definirPrioridadeLancamento } from "@/modules/financeiro/lancamentos/actions";
 import { LancamentoForm } from "./lancamento-form";
 import { ConfirmarDialog } from "./confirmar-dialog";
 import { LancamentoDetalheDialog } from "./lancamento-detalhe-dialog";
@@ -31,6 +31,8 @@ import {
   ACAO_LOTE_MARCAR_CONFIRMADA,
   ACAO_MARCAR_CONFIRMADA,
   ACAO_QUITAR,
+  CAIXINHA_NENHUMA_CONTA,
+  PREFIXO_CAIXINHA_CONTA,
   PREFIXO_PRIORIDADE_CONTA,
   PRIORIDADE_HERDADA,
   itensDeConta,
@@ -339,7 +341,14 @@ export function ContasPagarReceberView({
   }
 
   function aoSelecionarNaLinha(l: LancamentoItem, item: AcaoItemAcao) {
-    if (item.id.startsWith(PREFIXO_PRIORIDADE_CONTA)) {
+    if (item.id.startsWith(PREFIXO_CAIXINHA_CONTA)) {
+      const v = item.id.slice(PREFIXO_CAIXINHA_CONTA.length);
+      const nome = opcoes.caixinhas.find((c) => c.id === v)?.nome;
+      gravarPlanejador(
+        definirCaixinhaLancamento({ id: l.id, caixinhaId: v === CAIXINHA_NENHUMA_CONTA ? null : v }),
+        v === CAIXINHA_NENHUMA_CONTA ? "Conta fora de caixinhas." : `Será paga pela caixinha ${nome ?? ""}.`.replace(" .", "."),
+      );
+    } else if (item.id.startsWith(PREFIXO_PRIORIDADE_CONTA)) {
       const v = item.id.slice(PREFIXO_PRIORIDADE_CONTA.length);
       gravarPlanejador(
         definirPrioridadeLancamento({ id: l.id, prioridade: v === PRIORIDADE_HERDADA ? null : (v as Prioridade) }),
@@ -663,7 +672,7 @@ export function ContasPagarReceberView({
     // Com a linha DENTRO de uma seleção de vários, o menu age sobre a seleção (regra 3 da ADR-0002).
     const menuItens = alvosSelecao.length > 1 && selecao.marcado(l.id)
       ? itensDoLote
-      : itensDeConta({ status: l.status, anexos: l.anexos.length, prioridade: l.prioridade, confianca: l.confianca }, { tipo: tab, podeGerir });
+      : itensDeConta({ status: l.status, anexos: l.anexos.length, prioridade: l.prioridade, confianca: l.confianca, caixinhaId: l.caixinhaId }, { tipo: tab, podeGerir, caixinhas: opcoes.caixinhas });
     // Efetivas, como o planejador as lê: despesa herda da categoria (ou da mãe, ou P3); receita
     // em aberto sem marca é Provável (D1).
     const prioridade = l.tipo === "despesa" ? (l.prioridade ?? l.categoria?.prioridadePadrao ?? l.categoria?.pai?.prioridadePadrao ?? "p3") : null;

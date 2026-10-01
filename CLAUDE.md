@@ -212,6 +212,12 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   because the engine also runs in the browser for instant simulation. Money in integer cents, dates as
   `YYYY-MM-DD` strings. The partial-payment remainder copies the planner fields via `camposDoPlanejador()`
   (`lancamentos/parcial.ts`) — any new code path that splits or clones a `Lancamento` must do the same.
+- **Caixinha = calculated, never stored** (`financeiro/caixinhas/`, F4): reserved = `max(0, alocado − usado)`, where
+  alocado is the SUM of signed `MovimentoCaixinha.valor` (transfer = two legs, sum zero) and usado is the realized
+  despesas with `Lancamento.caixinhaId` since the caixinha's creation day and up to today (`calculo.ts`, pure). No hook
+  in the payment paths: paying a linked bill just lowers cash and reserved together. A caixinha only changes on an
+  OPEN despesa (`definirCaixinhaLancamento` / `ALTERAR_CAIXINHA`); a paid one is fixed with an `ajuste` movement.
+  Archive only with reserved zero and no open linked bill. Initial 9 caixinhas come from the migration by `chave`.
 - **Simulation never writes; "Aplicar ao financeiro" is all-or-nothing** (spec §7). One ajuste format for the
   screen, the browser draft and the saved scenario (`liquidez/ajustes.ts`, Zod). Each ajuste on a lançamento
   carries the `antes` snapshot of the observed fields (`Observado`, raw values — not the effective ones); the

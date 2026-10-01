@@ -83,6 +83,7 @@ export function LancamentoForm({
   const [ocorrencias, setOcorrencias] = useState("1");
   const [prioridade, setPrioridade] = useState<string>(PADRAO);
   const [confianca, setConfianca] = useState<string>(PADRAO);
+  const [caixinhaId, setCaixinhaId] = useState<string>(NONE);
 
   // Sincroniza o formulário quando abre para um novo alvo (edição carrega valores; criação reseta).
   const alvoKey = open ? (editar?.id ?? "novo") : "fechado";
@@ -106,6 +107,7 @@ export function LancamentoForm({
       setOcorrencias("1");
       setPrioridade(editar.prioridade ?? PADRAO);
       setConfianca(editar.confianca ?? PADRAO);
+      setCaixinhaId(editar.caixinhaId ?? NONE);
     } else if (open) {
       reset();
       setTipo(tipoInicial);
@@ -129,6 +131,7 @@ export function LancamentoForm({
     setOcorrencias("1");
     setPrioridade(PADRAO);
     setConfianca(PADRAO);
+    setCaixinhaId(NONE);
   }
 
   // Só o que ainda vai acontecer tem prioridade/confiança: realizado e cancelado não mexem nelas.
@@ -137,6 +140,7 @@ export function LancamentoForm({
     ? {
         prioridade: tipo === "despesa" && prioridade !== PADRAO ? (prioridade as PrioridadeForm) : null,
         confianca: tipo === "receita" && confianca !== PADRAO ? (confianca as ConfiancaForm) : null,
+        caixinhaId: tipo === "despesa" && caixinhaId !== NONE ? caixinhaId : null,
       }
     : {};
 
@@ -407,6 +411,26 @@ export function LancamentoForm({
                   <p className="text-xs text-muted-foreground">Confirmada pelo cliente não quer dizer recebida: o recebimento é a baixa.</p>
                 </>
               )}
+            </div>
+          )}
+
+          {mostraPlanejador && tipo === "despesa" && opcoes.caixinhas.length > 0 && (
+            <div className="space-y-1.5">
+              <Label htmlFor="lf-caixinha">Paga pela caixinha</Label>
+              <Select value={caixinhaId} onValueChange={(v) => setCaixinhaId(v ?? NONE)}>
+                <SelectTrigger id="lf-caixinha">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>Nenhuma</SelectItem>
+                  {opcoes.caixinhas.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Ao pagar, o valor sai do reservado da caixinha, não do dinheiro livre.</p>
             </div>
           )}
 

@@ -35,6 +35,17 @@ describe("itensDeConta", () => {
     expect(filhos.find((f) => f.marcado)?.id).toBe("prioridade:herdar");
   });
 
+  it("despesa: submenu de caixinha só com caixinhas e para quem gere; marca a atual", () => {
+    const cxs = [{ id: "a", nome: "Impostos" }, { id: "b", nome: "Salários" }];
+    const itens = itensDeConta({ status: "previsto", anexos: 0, caixinhaId: "a" }, { tipo: "despesa", podeGerir: true, caixinhas: cxs });
+    const sub = itens.find((i) => i.id === "sub-caixinha") as { itens: { id: string; marcado?: boolean }[] };
+    expect(sub.itens.map((i) => i.id)).toEqual(["caixinha:a", "caixinha:b", "caixinha:nenhuma"]);
+    expect(sub.itens.filter((i) => i.marcado).map((i) => i.id)).toEqual(["caixinha:a"]);
+    expect(ids(itensDeConta({ status: "previsto", anexos: 0 }, { tipo: "despesa", podeGerir: true }))).not.toContain("sub-caixinha");
+    expect(ids(itensDeConta({ status: "previsto", anexos: 0 }, { tipo: "despesa", podeGerir: false, caixinhas: cxs }))).not.toContain("sub-caixinha");
+    expect(ids(itensDeConta({ status: "previsto", anexos: 0 }, { tipo: "receita", podeGerir: true, caixinhas: cxs }))).not.toContain("sub-caixinha");
+  });
+
   // D1: a receber nasce Provável; marcar como confirmada pelo cliente não recebe nada.
   it("receita: marcar como confirmada pelo cliente, ou desmarcar se já está", () => {
     expect(ids(itensDeConta({ status: "previsto", anexos: 0, confianca: null }, { tipo: "receita", podeGerir: true }))).toContain(ACAO_MARCAR_CONFIRMADA);

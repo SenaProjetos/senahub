@@ -16,6 +16,8 @@ import { diaMes } from "@/modules/financeiro/liquidez/datas";
 import type { EventoProjetado } from "@/modules/financeiro/liquidez/motor";
 import type { Confianca, DataIso, EventoCaixa, Prioridade } from "@/modules/financeiro/liquidez/tipos";
 
+const SEM_CAIXINHA = "__sem_caixinha";
+
 const SITUACAO: Record<string, string> = {
   previsto: "Em aberto",
   aguardando_aprovacao: "Aguardando aprovação",
@@ -41,6 +43,8 @@ export function PainelEvento({
   onAlternar,
   onPrioridade,
   onConfianca,
+  caixinhas,
+  onCaixinha,
 }: {
   evento: EventoCaixa | null;
   projetado: EventoProjetado | null;
@@ -55,6 +59,9 @@ export function PainelEvento({
   onAlternar: () => void;
   onPrioridade: (p: Prioridade) => void;
   onConfianca: (c: Confianca) => void;
+  /** Caixinhas ativas; vazio esconde o campo. `null` = tirar da caixinha. */
+  caixinhas: readonly { id: string; nome: string }[];
+  onCaixinha: (id: string | null) => void;
 }) {
   const [data, setData] = useState<DataIso>("");
   useEffect(() => {
@@ -116,6 +123,25 @@ export function PainelEvento({
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              )}
+              {e.origem !== "simulado" && e.natureza !== "transferencia" && e.tipo === "despesa" && caixinhas.length > 0 && (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="pe-caixinha">Paga pela caixinha nesta simulação</Label>
+                  <Select value={e.caixinhaId ?? SEM_CAIXINHA} onValueChange={(v) => onCaixinha(!v || v === SEM_CAIXINHA ? null : v)}>
+                    <SelectTrigger id="pe-caixinha" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={SEM_CAIXINHA}>Nenhuma</SelectItem>
+                      {caixinhas.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">O que a caixinha cobre sai do reservado, não do dinheiro livre.</p>
                 </div>
               )}
               {e.origem !== "simulado" && e.natureza !== "transferencia" && e.tipo === "receita" && e.confianca && (

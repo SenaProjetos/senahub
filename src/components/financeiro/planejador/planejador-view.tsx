@@ -60,6 +60,8 @@ import {
   ACAO_TIRAR,
   ACAO_VOLTAR,
   itensDeEventoDoPlanejador,
+  CAIXINHA_NENHUMA,
+  PREFIXO_CAIXINHA,
   PREFIXO_CONFIANCA,
   PREFIXO_PRIORIDADE,
   ROTULOS_CONFIANCA,
@@ -220,6 +222,14 @@ export function PlanejadorView({
     [eixos, registrar],
   );
 
+  const escolherCaixinha = useCallback(
+    (e: EventoCaixa, id: string) => {
+      const c = id === CAIXINHA_NENHUMA ? null : base.caixinhas.find((x) => x.id === id);
+      registrar({ tipo: "ALTERAR_CAIXINHA", eventoId: e.id, caixinhaId: c?.id ?? null, caixinhaNome: c?.nome ?? null });
+    },
+    [base.caixinhas, registrar],
+  );
+
   const aoSelecionar = useCallback(
     async (e: EventoCaixa, item: AcaoItemAcao) => {
       if (item.confirmar) {
@@ -231,13 +241,14 @@ export function PlanejadorView({
       if (item.id === ACAO_TIRAR || item.id === ACAO_VOLTAR || item.id === ACAO_INCLUIR || item.id === ACAO_REMOVER_SIMULADO) return alternar(e);
       if (item.id.startsWith(PREFIXO_PRIORIDADE)) return registrar({ tipo: "ALTERAR_PRIORIDADE", eventoId: e.id, prioridade: item.id.slice(PREFIXO_PRIORIDADE.length) as Prioridade });
       if (item.id.startsWith(PREFIXO_CONFIANCA)) return registrar({ tipo: "ALTERAR_CONFIANCA", eventoId: e.id, confianca: item.id.slice(PREFIXO_CONFIANCA.length) as Confianca });
+      if (item.id.startsWith(PREFIXO_CAIXINHA)) return escolherCaixinha(e, item.id.slice(PREFIXO_CAIXINHA.length));
       if (item.id === ACAO_COPIAR_VALOR || item.id === ACAO_COPIAR_DESCRICAO) {
         const texto = item.id === ACAO_COPIAR_VALOR ? brlC(e.valor) : e.descricao;
         if (await copiarTexto(texto)) toast.success("Copiado.");
         else toast.error("Não foi possível copiar.");
       }
     },
-    [alternar, confirm, registrar],
+    [alternar, confirm, registrar, escolherCaixinha],
   );
 
   const grupos = useMemo(
@@ -248,10 +259,10 @@ export function PlanejadorView({
         projecao.serie,
         base.reservaMinima,
         (e) => eventoNoCenario(e, eixos),
-        (e, nc) => itensDeEventoDoPlanejador({ ...e, noCenario: nc }),
+        (e, nc) => itensDeEventoDoPlanejador({ ...e, noCenario: nc }, base.caixinhas),
         fim,
       ),
-    [eventos, projecao, base.reservaMinima, eixos, fim],
+    [eventos, projecao, base.reservaMinima, base.caixinhas, eixos, fim],
   );
   const alemDoHorizonte = projecao.eventos.filter((p) => p.foraDoHorizonte).length;
 
@@ -559,6 +570,8 @@ export function PlanejadorView({
         }}
         onPrioridade={(p) => evSel && registrar({ tipo: "ALTERAR_PRIORIDADE", eventoId: evSel.id, prioridade: p })}
         onConfianca={(c) => evSel && registrar({ tipo: "ALTERAR_CONFIANCA", eventoId: evSel.id, confianca: c })}
+        caixinhas={base.caixinhas}
+        onCaixinha={(id) => evSel && escolherCaixinha(evSel, id ?? CAIXINHA_NENHUMA)}
       />
 
       <SimularMovimento

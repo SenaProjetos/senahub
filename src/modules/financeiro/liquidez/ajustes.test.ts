@@ -13,7 +13,7 @@ import { aplicarSimulacao } from "@/modules/financeiro/liquidez/simulacao";
 import { dia, evento, HOJE, reais } from "@/modules/financeiro/liquidez/fixtures";
 import type { Observado } from "@/modules/financeiro/liquidez/tipos";
 
-const foto: Observado = { status: "previsto", excluido: false, data: dia(9), valor: reais(15_000), prioridade: null, confianca: null };
+const foto: Observado = { status: "previsto", excluido: false, data: dia(9), valor: reais(15_000), prioridade: null, confianca: null, caixinhaId: null };
 
 describe("esquema do ajuste (spec §6)", () => {
   it("aceita cada tipo e recusa o que não é ajuste", () => {
@@ -21,6 +21,8 @@ describe("esquema do ajuste (spec §6)", () => {
       { tipo: "REPROGRAMAR_DATA", eventoId: "a", data: dia(19), antes: foto, rotulo: "Fornecedor" },
       { tipo: "ALTERAR_PRIORIDADE", eventoId: "a", prioridade: "p4" },
       { tipo: "ALTERAR_CONFIANCA", eventoId: "b", confianca: "confirmada_cliente" },
+      { tipo: "ALTERAR_CAIXINHA", eventoId: "a", caixinhaId: "cx1", caixinhaNome: "Impostos" },
+      { tipo: "ALTERAR_CAIXINHA", eventoId: "a", caixinhaId: null },
       { tipo: "EXCLUIR", eventoId: "a" },
       { tipo: "FORCAR_INCLUSAO", eventoId: "a" },
       { tipo: "INCLUIR", id: "d1", movimento: { tipo: "despesa", natureza: "fora_do_resultado", valor: reais(20_000), data: dia(15), descricao: "Distribuição" } },
@@ -36,6 +38,7 @@ describe("esquema do ajuste (spec §6)", () => {
       { tipo: "REPROGRAMAR_DATA", eventoId: "a", data: dia(19), antes: foto, rotulo: "Fornecedor" },
       { tipo: "ALTERAR_PRIORIDADE", eventoId: "a", prioridade: "p4", antes: foto },
       { tipo: "ALTERAR_CONFIANCA", eventoId: "b", confianca: "incerta" },
+      { tipo: "ALTERAR_CAIXINHA", eventoId: "a", caixinhaId: "cx1", caixinhaNome: "Impostos", antes: foto },
       { tipo: "EXCLUIR", eventoId: "a", antes: foto },
       { tipo: "FORCAR_INCLUSAO", eventoId: "a" },
       { tipo: "INCLUIR", id: "d1", movimento: { tipo: "receita", natureza: "resultado", valor: reais(5_000), data: dia(3), descricao: "Entrada", categoriaId: "cat1", categoriaNome: "Projetos" } },
@@ -45,8 +48,9 @@ describe("esquema do ajuste (spec §6)", () => {
       expect(daLinha(JSON.parse(JSON.stringify(linha)))).toEqual(a);
     }
     expect(paraLinha(casos[0]).lancamentoId).toBe("a");
-    expect(paraLinha(casos[5]).lancamentoId).toBeNull();
-    expect(paraLinha(casos[3]).depois).toEqual({ efeito: "nenhum" });
+    expect(paraLinha(casos[6]).lancamentoId).toBeNull();
+    expect(paraLinha(casos[4]).depois).toEqual({ efeito: "nenhum" });
+    expect(paraLinha(casos[3]).depois).toEqual({ caixinhaId: "cx1", caixinhaNome: "Impostos" });
   });
 
   it("linha que não valida vira null em vez de quebrar a tela", () => {
@@ -59,6 +63,20 @@ describe("diferenças observadas e estado do ajuste (spec §11)", () => {
   it("nada mudou: válido", () => {
     const a: AjusteSimulado = { tipo: "REPROGRAMAR_DATA", eventoId: "a", data: dia(19), antes: foto };
     expect(estadoDoAjuste(a, { ...foto })).toEqual({ estado: "valido", motivo: null });
+  });
+
+  it("cenário salvo antes da F4 (foto sem caixinha) lê como sem caixinha e continua válido", () => {
+    const { caixinhaId: _c, ...antiga } = foto;
+    void _c;
+    const a = { tipo: "REPROGRAMAR_DATA" as const, eventoId: "a", data: dia(19), antes: antiga };
+    const lido = ajusteSchema.parse(a);
+    expect(lido.tipo === "REPROGRAMAR_DATA" && lido.antes?.caixinhaId).toBeNull();
+    expect(estadoDoAjuste(lido, { ...foto }).estado).toBe("valido");
+  });
+
+  it("caixinha trocada no real: obsoleto", () => {
+    const a: AjusteSimulado = { tipo: "REPROGRAMAR_DATA", eventoId: "a", data: dia(19), antes: foto };
+    expect(estadoDoAjuste(a, { ...foto, caixinhaId: "cx1" })).toEqual({ estado: "obsoleto", motivo: "a caixinha mudou" });
   });
 
   it("vencimento mudou: obsoleto, com o motivo em texto", () => {
@@ -103,7 +121,7 @@ describe("diferenças observadas e estado do ajuste (spec §11)", () => {
 describe("efeito de cada tipo na projeção e simulação × real (spec §10)", () => {
   it("o evento leva a foto do lançamento com os valores GRAVADOS, não os efetivos", () => {
     const o = observadoDe({ status: "previsto", vencimento: null, data: dia(4), valor: reais(10), prioridade: null, confianca: null });
-    expect(o).toEqual({ status: "previsto", excluido: false, data: dia(4), valor: reais(10), prioridade: null, confianca: null });
+    expect(o).toEqual({ status: "previsto", excluido: false, data: dia(4), valor: reais(10), prioridade: null, confianca: null, caixinhaId: null });
   });
 
   it("FORCAR_INCLUSAO e EXCLUIR só marcam a simulação; o evento real não muda", () => {

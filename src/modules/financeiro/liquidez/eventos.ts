@@ -68,7 +68,7 @@ export function motivoNaoProgramavel(
 
 /** Foto dos campos observados (spec §6), com os valores gravados — não os efetivos. */
 export function observadoDe(
-  l: Pick<LancamentoEntrada, "status" | "excluido" | "vencimento" | "data" | "valor" | "prioridade" | "confianca">,
+  l: Pick<LancamentoEntrada, "status" | "excluido" | "vencimento" | "data" | "valor" | "prioridade" | "confianca" | "caixinhaId">,
 ): Observado {
   return {
     status: l.status,
@@ -77,6 +77,7 @@ export function observadoDe(
     valor: l.valor,
     prioridade: l.prioridade,
     confianca: l.confianca,
+    caixinhaId: l.caixinhaId ?? null,
   };
 }
 

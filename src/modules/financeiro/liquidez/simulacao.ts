@@ -90,6 +90,12 @@ export function aplicarSimulacao(eventos: readonly EventoCaixa[], ajustes: reado
         if (marcas.confiancaOriginal === undefined) marcas.confiancaOriginal = e.confianca;
         e.confianca = a.confianca;
         break;
+      case "ALTERAR_CAIXINHA":
+        // Só saída ligada a caixinha: entrada e transferência não saem de caixinha nenhuma.
+        if (e.tipo !== "despesa" || e.natureza === "transferencia") break;
+        if (marcas.caixinhaOriginal === undefined) marcas.caixinhaOriginal = e.caixinhaId;
+        e.caixinhaId = a.caixinhaId;
+        break;
       case "EXCLUIR":
         marcas.excluido = true;
         marcas.forcado = false;
@@ -119,7 +125,7 @@ export function ajustesSemAlvo(eventos: readonly Pick<EventoCaixa, "id">[], ajus
 export function registrarAjuste(
   ajustes: readonly AjusteSimulado[],
   novo: AjusteSimulado,
-  original?: Pick<EventoCaixa, "data" | "prioridade" | "confianca">,
+  original?: Pick<EventoCaixa, "data" | "prioridade" | "confianca" | "caixinhaId">,
 ): AjusteSimulado[] {
   const mesmo = (a: AjusteSimulado) =>
     a.tipo === novo.tipo && alvoDoAjuste(a) === alvoDoAjuste(novo) && (novo.tipo !== "INCLUIR" || (a as { id: string }).id === novo.id);
@@ -132,7 +138,8 @@ export function registrarAjuste(
     original &&
     ((novo.tipo === "REPROGRAMAR_DATA" && novo.data === original.data) ||
       (novo.tipo === "ALTERAR_PRIORIDADE" && novo.prioridade === original.prioridade) ||
-      (novo.tipo === "ALTERAR_CONFIANCA" && novo.confianca === original.confianca));
+      (novo.tipo === "ALTERAR_CONFIANCA" && novo.confianca === original.confianca) ||
+      (novo.tipo === "ALTERAR_CAIXINHA" && novo.caixinhaId === (original.caixinhaId ?? null)));
   return volta ? resto : [...resto, novo];
 }
 
@@ -159,6 +166,8 @@ export function descreverAjuste(a: AjusteSimulado, alvo: Pick<EventoCaixa, "desc
       return `${nome}: prioridade ${ROTULO_PRIORIDADE[a.prioridade]}`;
     case "ALTERAR_CONFIANCA":
       return `${nome}: confiança ${ROTULO_CONFIANCA[a.confianca]}`;
+    case "ALTERAR_CAIXINHA":
+      return a.caixinhaId ? `${nome}: paga pela caixinha ${a.caixinhaNome ?? "escolhida"}` : `${nome}: sem caixinha`;
     case "EXCLUIR":
       return `${nome}: tirado da simulação`;
     case "FORCAR_INCLUSAO":

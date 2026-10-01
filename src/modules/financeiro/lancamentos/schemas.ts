@@ -29,6 +29,8 @@ export const criarLancamentoSchema = z.object({
   prioridade: prioridadeSchema.nullable().optional(),
   /// Só receita. Ausente/nulo = padrão do status (D1: provável).
   confianca: confiancaSchema.nullable().optional(),
+  /// Só despesa em aberto: a caixinha que paga a saída (F4).
+  caixinhaId: z.string().min(1).nullable().optional(),
 });
 
 export const editarLancamentoSchema = z.object({
@@ -47,11 +49,14 @@ export const editarLancamentoSchema = z.object({
   /// Ausente = não mexe; nulo = volta a herdar.
   prioridade: prioridadeSchema.nullable().optional(),
   confianca: confiancaSchema.nullable().optional(),
+  /// Ausente = não mexe; nulo = tira da caixinha.
+  caixinhaId: z.string().min(1).nullable().optional(),
 });
 
 /** Menu de contexto e lote de Contas: só a prioridade ou só a confiança. */
 export const prioridadeLancamentoSchema = z.object({ id: z.string().min(1), prioridade: prioridadeSchema.nullable() });
 export const confiancaLancamentoSchema = z.object({ id: z.string().min(1), confianca: confiancaSchema.nullable() });
+export const caixinhaLancamentoSchema = z.object({ id: z.string().min(1), caixinhaId: z.string().min(1).nullable() });
 
 export const confirmarLancamentoSchema = z.object({
   id: z.string().min(1),

@@ -13,7 +13,7 @@ describe("navegação do Financeiro por gate", () => {
 
   it("só leitura (ver): as 6 telas de uso diário, orçamento e documentos — sem DRE, sem gestão", () => {
     const n = itensDaNavFinanceiro({ ...nenhuma, ver: true });
-    expect(ids(n.principais)).toEqual(["visao", "planejador", "fluxo", "pagar", "receber", "lancamentos"]);
+    expect(ids(n.principais)).toEqual(["visao", "planejador", "fluxo", "pagar", "receber", "lancamentos", "caixinhas"]);
     expect(ids(n.resultados)).toEqual(["orcamento"]);
     expect(ids(n.mais)).toEqual(["documentos"]);
   });

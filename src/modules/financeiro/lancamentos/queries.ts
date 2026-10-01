@@ -63,7 +63,7 @@ export async function dadosContas() {
 
 /** Opções para os selects do formulário de lançamento. */
 export async function opcoesLancamento() {
-  const [categorias, centros, contas, formas, projetos, fornecedores, clientes] = await Promise.all([
+  const [categorias, centros, contas, formas, projetos, fornecedores, clientes, caixinhas] = await Promise.all([
     prisma.categoriaFinanceira.findMany({ where: { ativo: true }, orderBy: { codigo: "asc" }, select: { id: true, codigo: true, nome: true, tipo: true } }),
     prisma.centroCusto.findMany({ where: { ativo: true }, orderBy: { ordem: "asc" }, select: { id: true, nome: true } }),
     prisma.contaBancaria.findMany({ where: { ativo: true }, orderBy: { ordem: "asc" }, select: { id: true, nome: true } }),
@@ -71,8 +71,9 @@ export async function opcoesLancamento() {
     prisma.projeto.findMany({ orderBy: [{ ano: "desc" }, { sequencial: "desc" }], select: { id: true, codigo: true, nome: true } }),
     prisma.fornecedor.findMany({ where: { ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
     prisma.cliente.findMany({ where: { ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
+    prisma.caixinha.findMany({ where: { ativo: true }, orderBy: [{ ordem: "asc" }, { nome: "asc" }], select: { id: true, nome: true } }),
   ]);
-  return { categorias, centros, contas, formas, projetos, fornecedores, clientes };
+  return { categorias, centros, contas, formas, projetos, fornecedores, clientes, caixinhas };
 }
 
 /**

@@ -1,4 +1,4 @@
-import { BadgeCheck, Check, Copy, Flag, Paperclip, Pencil, Undo2 } from "lucide-react";
+import { BadgeCheck, Check, Copy, Flag, Paperclip, Pencil, PiggyBank, Undo2 } from "lucide-react";
 
 import type { AcaoItem } from "@/components/ui/acoes";
 import type { Confianca, Prioridade } from "@/modules/financeiro/liquidez/tipos";
@@ -20,6 +20,9 @@ export const ACAO_MARCAR_CONFIRMADA = "marcar-confirmada-cliente";
 export const ACAO_DESMARCAR_CONFIRMADA = "desmarcar-confirmada-cliente";
 export const ACAO_LOTE_MARCAR_CONFIRMADA = "lote-marcar-confirmada-cliente";
 export const PREFIXO_PRIORIDADE_CONTA = "prioridade:";
+export const PREFIXO_CAIXINHA_CONTA = "caixinha:";
+/** Tira a conta da caixinha. */
+export const CAIXINHA_NENHUMA_CONTA = "nenhuma";
 /** Volta a herdar a prioridade da categoria (gravada = nula). */
 export const PRIORIDADE_HERDADA = "herdar";
 
@@ -40,6 +43,8 @@ export type ContaParaAcoes = {
   prioridade?: Prioridade | null;
   /** Gravada (nula = padrão do status). Só receita. */
   confianca?: Confianca | null;
+  /** Caixinha que paga a saída. Só despesa. */
+  caixinhaId?: string | null;
 };
 
 export type ContextoAcoesConta = {
@@ -47,6 +52,8 @@ export type ContextoAcoesConta = {
   tipo: "despesa" | "receita";
   /** Editar e ver anexos são de quem gere o financeiro; quem só vê não os recebe. */
   podeGerir: boolean;
+  /** Caixinhas ativas; vazio esconde o submenu "Pagar pela caixinha". */
+  caixinhas?: readonly { id: string; nome: string }[];
 };
 
 const verbo = (tipo: "despesa" | "receita") => (tipo === "despesa" ? "Pagar" : "Receber");
@@ -89,6 +96,23 @@ export function itensDeConta(c: ContaParaAcoes, ctx: ContextoAcoesConta): AcaoIt
               rotulo: "A da categoria",
               marcado: c.prioridade == null,
             },
+          ],
+        }
+      : null,
+    ctx.podeGerir && ctx.tipo === "despesa" && (ctx.caixinhas?.length ?? 0) > 0
+      ? {
+          tipo: "sub",
+          id: "sub-caixinha",
+          rotulo: "Pagar pela caixinha",
+          icone: PiggyBank,
+          itens: [
+            ...(ctx.caixinhas ?? []).map((x) => ({
+              tipo: "acao" as const,
+              id: `${PREFIXO_CAIXINHA_CONTA}${x.id}`,
+              rotulo: x.nome,
+              marcado: c.caixinhaId === x.id,
+            })),
+            { tipo: "acao" as const, id: `${PREFIXO_CAIXINHA_CONTA}${CAIXINHA_NENHUMA_CONTA}`, rotulo: "Nenhuma", marcado: c.caixinhaId == null },
           ],
         }
       : null,

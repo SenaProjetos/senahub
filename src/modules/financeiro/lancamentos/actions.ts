@@ -11,6 +11,7 @@ import {
   idLancamentoSchema,
   prioridadeLancamentoSchema,
   confiancaLancamentoSchema,
+  caixinhaLancamentoSchema,
 } from "@/modules/financeiro/lancamentos/schemas";
 import { z } from "zod";
 import { removerArquivo } from "@/lib/storage";
@@ -61,7 +62,7 @@ async function snapshotLancamento(id: string) {
       valor: true, valorEfetivo: true, status: true, descricao: true, vencimento: true,
       categoriaId: true, centroId: true, projetoId: true, fornecedorId: true, clienteId: true, observacao: true,
       // Campos do planejador: sem eles a auditoria não vê a troca de prioridade/confiança.
-      prioridade: true, confianca: true, transferenciaId: true,
+      prioridade: true, confianca: true, transferenciaId: true, caixinhaId: true,
     },
   });
   if (!l) return null;
@@ -143,14 +144,16 @@ export const editarLancamento = defineAction(
   { ...base, acao: "editar-lancamento", entidade: "Lancamento", schema: editarLancamentoSchema, capturarAntes: (i) => snapshotLancamento(i.id) },
   async (i) => {
     await barrarSePrevisao(i.id);
-    const atual = await prisma.lancamento.findUnique({ where: { id: i.id }, select: { tipo: true } });
+    const atual = await prisma.lancamento.findUnique({ where: { id: i.id }, select: { tipo: true, status: true } });
     if (!atual) throw new ActionError("Lançamento não encontrado.");
+    if (i.caixinhaId !== undefined) await validarCaixinhaDoLancamento(atual, i.caixinhaId);
     await prisma.lancamento.update({
       where: { id: i.id },
       data: {
         // Planejador: ausente = não mexe; prioridade só em despesa, confiança só em receita.
         ...(i.prioridade !== undefined ? { prioridade: atual.tipo === "despesa" ? i.prioridade : null } : {}),
         ...(i.confianca !== undefined ? { confianca: atual.tipo === "receita" ? i.confianca : null } : {}),
+        ...(i.caixinhaId !== undefined ? { caixinhaId: i.caixinhaId } : {}),
         descricao: i.descricao,
         valor: i.valor,
         data: data(i.data),
@@ -180,6 +183,41 @@ async function alvoPendente(id: string) {
   if (l.status === "cancelado") throw new ActionError("Lançamento cancelado.");
   return l;
 }
+
+/**
+ * Caixinha só troca em saída em ABERTO (I9): depois da baixa o uso já foi contado, e mexer na
+ * caixinha de um pago reescreveria o reservado do passado — para isso há o movimento de ajuste.
+ */
+async function validarCaixinhaDoLancamento(l: { tipo: string; status: string }, caixinhaId: string | null) {
+  if (caixinhaId === null) {
+    if (l.status === "confirmado") throw new ActionError("Já foi pago: para corrigir o reservado, use um ajuste na caixinha.");
+    return;
+  }
+  if (l.tipo !== "despesa") throw new ActionError("Só conta a pagar sai de caixinha.");
+  if (l.status === "confirmado") throw new ActionError("Já foi pago: para corrigir o reservado, use um ajuste na caixinha.");
+  if (l.status === "cancelado") throw new ActionError("Lançamento cancelado.");
+  const c = await prisma.caixinha.findUnique({ where: { id: caixinhaId }, select: { ativo: true } });
+  if (!c?.ativo) throw new ActionError("A caixinha escolhida não existe ou está inativa.");
+}
+
+export const definirCaixinhaLancamento = defineAction(
+  {
+    ...base,
+    acao: "definir-caixinha-lancamento",
+    entidade: "Lancamento",
+    schema: caixinhaLancamentoSchema,
+    capturarAntes: (i) => snapshotLancamento(i.id),
+  },
+  async (i) => {
+    const l = await prisma.lancamento.findUnique({ where: { id: i.id }, select: { tipo: true, status: true, excluidoEm: true } });
+    if (!l || l.excluidoEm) throw new ActionError("Lançamento não encontrado.");
+    await validarCaixinhaDoLancamento(l, i.caixinhaId);
+    await prisma.lancamento.update({ where: { id: i.id }, data: { caixinhaId: i.caixinhaId } });
+    rev();
+    revalidatePath("/financeiro/caixinhas");
+    return { id: i.id };
+  },
+);
 
 export const definirPrioridadeLancamento = defineAction(
   {

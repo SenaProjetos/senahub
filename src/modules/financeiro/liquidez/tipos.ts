@@ -71,6 +71,8 @@ export type Observado = {
   valor: Centavos;
   prioridade: Prioridade | null;
   confianca: Confianca | null;
+  /** Caixinha que paga a saída (só despesa). */
+  caixinhaId: string | null;
 };
 
 /** Um movimento pendente, pronto para o motor. */
@@ -109,5 +111,6 @@ export type EventoCaixa = {
     dataOriginal?: DataIso;
     prioridadeOriginal?: Prioridade | null;
     confiancaOriginal?: Confianca | null;
+    caixinhaOriginal?: string | null;
   };
 };

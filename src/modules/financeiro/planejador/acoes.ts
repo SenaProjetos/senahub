@@ -1,4 +1,4 @@
-import { CalendarClock, Copy, Eye, ExternalLink, Flag, Gauge, MinusCircle, PlusCircle, Trash2, Undo2 } from "lucide-react";
+import { CalendarClock, Copy, Eye, ExternalLink, Flag, Gauge, MinusCircle, PiggyBank, PlusCircle, Trash2, Undo2 } from "lucide-react";
 
 import { limparSeparadores, type AcaoItem } from "@/components/ui/acoes";
 import { podeSimularData } from "@/modules/financeiro/liquidez/simulacao";
@@ -21,6 +21,9 @@ export const ACAO_COPIAR_VALOR = "copiar-valor";
 export const ACAO_COPIAR_DESCRICAO = "copiar-descricao";
 export const PREFIXO_PRIORIDADE = "prioridade:";
 export const PREFIXO_CONFIANCA = "confianca:";
+export const PREFIXO_CAIXINHA = "caixinha:";
+/** Tira a saída da caixinha. */
+export const CAIXINHA_NENHUMA = "nenhuma";
 
 export const ROTULOS_PRIORIDADE: Record<Prioridade, string> = {
   p1: "P1 · não pode atrasar",
@@ -37,12 +40,12 @@ export const ROTULOS_CONFIANCA: Record<Confianca, string> = {
 };
 
 /** O que o descritor precisa do evento e do seu estado na projeção. */
-export type EventoParaAcoes = Pick<EventoCaixa, "id" | "origem" | "tipo" | "natureza" | "status" | "naoProgramavel" | "prioridade" | "confianca" | "simulacao"> & {
+export type EventoParaAcoes = Pick<EventoCaixa, "id" | "origem" | "tipo" | "natureza" | "status" | "naoProgramavel" | "prioridade" | "confianca" | "caixinhaId" | "simulacao"> & {
   /** O evento entra no cenário atual (antes das marcas da simulação). */
   noCenario: boolean;
 };
 
-export function itensDeEventoDoPlanejador(e: EventoParaAcoes): AcaoItem[] {
+export function itensDeEventoDoPlanejador(e: EventoParaAcoes, caixinhas: readonly { id: string; nome: string }[] = []): AcaoItem[] {
   const simulado = e.origem === "simulado";
   const transferencia = e.natureza === "transferencia";
   const excluido = e.simulacao?.excluido === true;
@@ -103,6 +106,25 @@ export function itensDeEventoDoPlanejador(e: EventoParaAcoes): AcaoItem[] {
             rotulo: ROTULOS_CONFIANCA[c],
             marcado: e.confianca === c,
           })),
+        }
+      : null,
+    // Quem paga a saída: o que a caixinha cobre sai do reservado, não do livre. Sem caixinhas
+    // cadastradas não há o que escolher, e o item não aparece.
+    !simulado && !transferencia && e.tipo === "despesa" && caixinhas.length > 0
+      ? {
+          tipo: "sub",
+          id: "sub-caixinha",
+          rotulo: "Pagar pela caixinha",
+          icone: PiggyBank,
+          itens: [
+            ...caixinhas.map((c) => ({
+              tipo: "acao" as const,
+              id: `${PREFIXO_CAIXINHA}${c.id}`,
+              rotulo: c.nome,
+              marcado: e.caixinhaId === c.id,
+            })),
+            { tipo: "acao" as const, id: `${PREFIXO_CAIXINHA}${CAIXINHA_NENHUMA}`, rotulo: "Nenhuma", marcado: e.caixinhaId == null },
+          ],
         }
       : null,
     { tipo: "separador", id: "sep-navegar" },

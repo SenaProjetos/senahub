@@ -27,8 +27,24 @@ function idsDeLancamento(ajustes: readonly AjusteSimulado[]): string[] {
   return ajustes.flatMap((a) => (a.tipo === "INCLUIR" ? [] : [a.eventoId]));
 }
 
-/** Categoria de cada movimento a incluir: existe, está ativa e é do mesmo tipo (entrada/saída). */
+/**
+ * Referências que o ajuste aponta e que podem ter mudado desde a simulação: a categoria de cada
+ * movimento a incluir (existe, ativa, do mesmo tipo) e a caixinha de cada `ALTERAR_CAIXINHA` (existe e
+ * está ativa). Devolve frases de recusa — vão junto com as divergências, antes de gravar.
+ */
 async function conferirCategorias(ajustes: readonly AjusteSimulado[]): Promise<string[]> {
+  return [...(await conferirCaixinhas(ajustes)), ...(await conferirCategoriasDosMovimentos(ajustes))];
+}
+
+async function conferirCaixinhas(ajustes: readonly AjusteSimulado[]): Promise<string[]> {
+  const alvos = ajustes.filter((a): a is Extract<AjusteSimulado, { tipo: "ALTERAR_CAIXINHA" }> => a.tipo === "ALTERAR_CAIXINHA" && a.caixinhaId != null);
+  if (alvos.length === 0) return [];
+  const cxs = await prisma.caixinha.findMany({ where: { id: { in: alvos.map((a) => a.caixinhaId!) } }, select: { id: true, ativo: true } });
+  const ativas = new Set(cxs.filter((c) => c.ativo).map((c) => c.id));
+  return alvos.filter((a) => !ativas.has(a.caixinhaId!)).map((a) => `${a.rotulo ?? "Um lançamento"}: a caixinha ${a.caixinhaNome ?? "escolhida"} não existe mais ou foi arquivada.`);
+}
+
+async function conferirCategoriasDosMovimentos(ajustes: readonly AjusteSimulado[]): Promise<string[]> {
   const incluir = ajustes.filter((a): a is Extract<AjusteSimulado, { tipo: "INCLUIR" }> => a.tipo === "INCLUIR" && !!a.movimento.categoriaId);
   if (incluir.length === 0) return [];
   const cats = await prisma.categoriaFinanceira.findMany({
@@ -122,12 +138,14 @@ export async function gravarPlano(
               valor: (c.valor / 100).toFixed(2),
               prioridade: c.prioridade,
               confianca: c.confianca,
+              caixinhaId: c.caixinhaId ?? null,
               OR: [{ vencimento: d }, { vencimento: null, data: d }],
             },
             data: {
               ...(dados.vencimento ? { vencimento: iso(dados.vencimento) } : {}),
               ...(dados.prioridade ? { prioridade: dados.prioridade } : {}),
               ...(dados.confianca ? { confianca: dados.confianca } : {}),
+              ...(dados.caixinhaId !== undefined ? { caixinhaId: dados.caixinhaId } : {}),
             },
           });
           if (r.count === 1) auditoria.push({ id, antes: c, depois: dados });
@@ -155,6 +173,7 @@ export async function gravarPlano(
               ocorrencias: 1,
               prioridade: null,
               confianca: null,
+              caixinhaId: null,
             },
             p.usuarioId,
           );

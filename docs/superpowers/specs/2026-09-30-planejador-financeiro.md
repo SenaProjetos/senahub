@@ -163,6 +163,20 @@ Testes obrigatórios:
   (F2, 2026-09-30: sem caixinhas e saldo de −R$ 700 mil, a tela dizia "Reservas descobertas R$ 700 mil").
 - Compromisso 30 ligado a caixinha com 20: `coberto=20`, `semCobertura=10`, `R_k=0`, `L*` cai 10. **[T]**
 
+### Como a F4 implementou (2026-10-01)
+
+- **Tabelas:** `Caixinha` (`chave @unique`, regra `meta_fixa | compromissos_ligados`, meta, horizonte, ordem, ativo),
+  `MovimentoCaixinha` (valor COM SINAL: soma = alocado; `Restrict` — caixinha com extrato só se arquiva) e
+  `Lancamento.caixinhaId` (`SET NULL`). As 9 caixinhas iniciais nascem na migração, por `chave`.
+- **Nada guardado do que se calcula:** reservado, usado e necessidade saem da leitura (`carregarCaixinhas`); o motor
+  recebe `{ id, reservado }` por caixinha ativa. O `Dsc` desta spec continua sendo só o do motor.
+- **Transferência** = duas pernas (−x na origem, +x no destino, mesmo `transferenciaId`), validadas contra o reservado
+  da origem. Reservar nunca é recusado por falta de caixa: a tela mostra a "reserva descoberta" que resultaria.
+- **`ALTERAR_CAIXINHA`** entra no cenário e no aplicar (agora `Observado.caixinhaId` participa da foto "antes";
+  cenário salvo antes da F4 lê como "sem caixinha"). A caixinha-alvo é conferida (existe, ativa) antes da transação.
+- **O resto de um parcial herda a caixinha** (`camposDoPlanejador`).
+- Fica para a F5: regras de distribuição e "recebimentos a distribuir"; para a F6: o pró-labore ligado à caixinha.
+
 ## 5. Pagamento × reprogramação (conservação)
 
 Propriedade: para os mesmos valores, o saldo no fim do horizonte não depende de quando o evento se

@@ -4,16 +4,17 @@ import { join } from "node:path";
 import { camposDoPlanejador, saldoRestante } from "./parcial";
 
 describe("camposDoPlanejador — o resto do parcial é o mesmo compromisso (spec §5e)", () => {
-  it("copia prioridade, confiança e par de transferência", () => {
-    expect(camposDoPlanejador({ prioridade: "p2", confianca: "confirmada_cliente", transferenciaId: "t1" })).toEqual({
+  it("copia prioridade, confiança, par de transferência e caixinha", () => {
+    expect(camposDoPlanejador({ prioridade: "p2", confianca: "confirmada_cliente", transferenciaId: "t1", caixinhaId: "cx" })).toEqual({
       prioridade: "p2",
       confianca: "confirmada_cliente",
       transferenciaId: "t1",
+      caixinhaId: "cx",
     });
   });
   it("ausentes viram null e nada além desses campos é copiado", () => {
     const r = camposDoPlanejador({ ...({ valor: 10, status: "confirmado" } as object) });
-    expect(r).toEqual({ prioridade: null, confianca: null, transferenciaId: null });
+    expect(r).toEqual({ prioridade: null, confianca: null, transferenciaId: null, caixinhaId: null });
   });
   it("os dois lugares que criam o resto do parcial usam o helper", () => {
     const raiz = join(__dirname, "..");

@@ -99,6 +99,25 @@ describe("registrarAjuste", () => {
     const a = registrarAjuste([{ tipo: "REPROGRAMAR_DATA", eventoId: "fornecedor", data: dia(19) }], { tipo: "REPROGRAMAR_DATA", eventoId: "fornecedor", data: dia(9) }, fornecedor);
     expect(a).toEqual([]);
   });
+  it("ALTERAR_CAIXINHA liga a saída a uma caixinha: o que ela cobre sai do reservado, não do livre", () => {
+    const caixinhas = [{ id: "cx", reservado: reais(10_000) }];
+    const livreFim = (ajustes: AjusteSimulado[]) =>
+      projetar(entradaMotor({ caixaAtual: reais(87_500), reservaMinima: 0, caixinhas, eventos: aplicarSimulacao(base, ajustes, HOJE) })).fimDoHorizonte.livre;
+    const sem = livreFim([]);
+    const com = livreFim([{ tipo: "ALTERAR_CAIXINHA", eventoId: "fornecedor", caixinhaId: "cx", caixinhaNome: "Impostos" }]);
+    // 15.000 de saída, 10.000 cobertos pela caixinha: o livre cai só os 5.000 sem cobertura.
+    expect(com - sem).toBe(reais(10_000));
+    const sim = aplicarSimulacao(base, [{ tipo: "ALTERAR_CAIXINHA", eventoId: "fornecedor", caixinhaId: "cx" }], HOJE);
+    expect(sim.find((e) => e.id === "fornecedor")!.simulacao?.caixinhaOriginal).toBeNull();
+  });
+
+  it("ALTERAR_CAIXINHA em entrada é ignorado; voltar à caixinha original remove o ajuste", () => {
+    const sim = aplicarSimulacao(base, [{ tipo: "ALTERAR_CAIXINHA", eventoId: "cliente", caixinhaId: "cx" }], HOJE);
+    expect(sim.find((e) => e.id === "cliente")!.caixinhaId).toBeNull();
+    const novo: AjusteSimulado = { tipo: "ALTERAR_CAIXINHA", eventoId: "fornecedor", caixinhaId: null };
+    expect(registrarAjuste([], novo, { data: dia(9), prioridade: "p3", confianca: null, caixinhaId: null })).toEqual([]);
+  });
+
   it("tirar e incluir à mão se anulam: vale o mais recente", () => {
     const a = registrarAjuste([{ tipo: "EXCLUIR", eventoId: "cliente" }], { tipo: "FORCAR_INCLUSAO", eventoId: "cliente" });
     expect(a).toEqual([{ tipo: "FORCAR_INCLUSAO", eventoId: "cliente" }]);

@@ -79,6 +79,9 @@ async function limpar() {
   await prisma.folhaPagamento.deleteMany({});
   // Cenários do planejador: o autor é usuário demo (FK Restrict); os ajustes caem por cascade.
   await prisma.cenarioFinanceiro.deleteMany({});
+  // Movimentos de caixinha: o autor é usuário demo (FK Restrict). As caixinhas em si são da migração
+  // (chave estável) e ficam; o lançamento solta a caixinha por SET NULL.
+  await prisma.movimentoCaixinha.deleteMany({});
   await prisma.lancamento.deleteMany({});
   await prisma.projetoMembro.deleteMany({});
   await prisma.projeto.deleteMany({});

@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { inicioDoDiaUtc } from "@/lib/data";
 import { getConfigLiquidez } from "@/modules/financeiro/config/queries";
+import { reservadosParaOMotor } from "@/modules/financeiro/caixinhas/queries";
 import { diasEntre, isoDeDataDoBanco, somarDias } from "@/modules/financeiro/liquidez/datas";
 import { paraCentavos } from "@/modules/financeiro/liquidez/dinheiro";
 import { dataDoEvento, paraEventos, prioridadeEfetiva, STATUS_PENDENTES } from "@/modules/financeiro/liquidez/eventos";
@@ -21,8 +22,8 @@ export type BasePlanejador = {
   caixaAtual: Centavos;
   anomalias: AnomaliasDoSaldo;
   eventos: EventoCaixa[];
-  /** Reservado de hoje por caixinha. Vazio até a F4 (caixinhas). */
-  caixinhas: { id: string; reservado: Centavos }[];
+  /** Reservado de hoje por caixinha ativa (alocado − usado, nunca negativo). */
+  caixinhas: { id: string; nome: string; reservado: Centavos }[];
   historico: { saidasNaJanela: Centavos; diasDeHistorico: number };
 };
 
@@ -95,6 +96,7 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
       descricao: true,
       prioridade: true,
       confianca: true,
+      caixinhaId: true,
       transferenciaId: true,
       fornecedor: { select: { nome: true } },
       cliente: { select: { nome: true } },
@@ -142,6 +144,7 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
     categoriaNome: l.categoria.nome,
     prioridade: l.prioridade,
     confianca: l.confianca,
+    caixinhaId: l.caixinhaId,
     categoria: {
       natureza: l.categoria.natureza,
       prioridadePadrao: l.categoria.prioridadePadrao,
@@ -162,7 +165,7 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
     caixaAtual: base.total,
     anomalias,
     eventos: paraEventos(entradas, { hoje, diasParaIncerta: config.diasParaIncerta }),
-    caixinhas: [],
+    caixinhas: await reservadosParaOMotor(hoje),
     historico: { saidasNaJanela, diasDeHistorico: maisAntigo ? diasEntre(maisAntigo, hoje) : 0 },
   };
 }
@@ -204,6 +207,7 @@ export async function alvosAtuais(ids: readonly string[]): Promise<Map<string, A
       descricao: true,
       prioridade: true,
       confianca: true,
+      caixinhaId: true,
       categoria: { select: { natureza: true, prioridadePadrao: true, pai: { select: { prioridadePadrao: true } } } },
     },
   });
@@ -231,6 +235,7 @@ export async function alvosAtuais(ids: readonly string[]): Promise<Map<string, A
       valor: paraCentavos(l.valor),
       prioridade: l.prioridade,
       confianca: l.confianca,
+      caixinhaId: l.caixinhaId,
     });
   }
   return mapa;
@@ -243,7 +248,7 @@ export async function observadosAtuais(ids: readonly string[]): Promise<Record<s
   for (const id of new Set(ids)) {
     const a = mapa.get(id);
     r[id] = a
-      ? { status: a.status, excluido: a.excluido, data: a.data, valor: a.valor, prioridade: a.prioridade, confianca: a.confianca }
+      ? { status: a.status, excluido: a.excluido, data: a.data, valor: a.valor, prioridade: a.prioridade, confianca: a.confianca, caixinhaId: a.caixinhaId }
       : null;
   }
   return r;

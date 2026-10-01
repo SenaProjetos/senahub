@@ -68,6 +68,17 @@ export async function criarLancamentoNoTx(db: Db, i: CriarLancamentoInput, autor
       ? ("confirmado" as const)
       : ("previsto" as const);
 
+  // Caixinha paga SAÍDA EM ABERTO: receita não sai de caixinha, e o realizado já é uso — o que
+  // consome o reservado de verdade é a baixa de uma despesa ligada, nunca um lançamento nascido pago.
+  let caixinhaId: string | null = null;
+  if (i.caixinhaId) {
+    if (i.tipo !== "despesa") throw new ActionError("Só conta a pagar sai de caixinha.");
+    if (i.confirmado) throw new ActionError("Para pagar por uma caixinha, lance a conta em aberto e dê baixa nela.");
+    const c = await db.caixinha.findUnique({ where: { id: i.caixinhaId }, select: { ativo: true } });
+    if (!c?.ativo) throw new ActionError("A caixinha escolhida não existe ou está inativa.");
+    caixinhaId = i.caixinhaId;
+  }
+
   const grupo = i.ocorrencias > 1 ? randomUUID() : null;
   const comum = {
     tipo: i.tipo,
@@ -87,6 +98,7 @@ export async function criarLancamentoNoTx(db: Db, i: CriarLancamentoInput, autor
     // Planejador: prioridade só em despesa, confiança só em receita (nula = herda/padrão).
     prioridade: i.tipo === "despesa" ? (i.prioridade ?? null) : null,
     confianca: i.tipo === "receita" ? (i.confianca ?? null) : null,
+    caixinhaId,
   };
 
   const confirmaAgora = status === "confirmado";

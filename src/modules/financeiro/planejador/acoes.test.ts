@@ -61,6 +61,25 @@ describe("menu de um movimento do planejador (ADR-0002)", () => {
     expect(ids(itensDeEventoDoPlanejador(p))).not.toContain("abrir");
   });
 
+  it("despesa em aberto: submenu de caixinha com a atual marcada e 'Nenhuma'", () => {
+    const cxs = [{ id: "a", nome: "Impostos" }, { id: "b", nome: "Salários" }];
+    const sub = itensDeEventoDoPlanejador({ ...fornecedor, caixinhaId: "b" }, cxs).find((i) => i.id === "sub-caixinha") as { itens: { id: string; marcado?: boolean }[] };
+    expect(sub.itens.map((i) => i.id)).toEqual(["caixinha:a", "caixinha:b", "caixinha:nenhuma"]);
+    expect(sub.itens.filter((i) => i.marcado).map((i) => i.id)).toEqual(["caixinha:b"]);
+    expect(itensDeEventoDoPlanejador({ ...fornecedor, caixinhaId: null }, cxs).find((i) => i.id === "sub-caixinha")).toBeDefined();
+  });
+
+  it("sem caixinhas cadastradas, em entrada, simulado ou transferência: sem submenu de caixinha", () => {
+    const cxs = [{ id: "a", nome: "Impostos" }];
+    expect(ids(itensDeEventoDoPlanejador(fornecedor, []))).not.toContain("sub-caixinha");
+    const entrada = { ...evento({ id: "c", tipo: "receita", valor: reais(10), data: dia(3) }), noCenario: true };
+    expect(ids(itensDeEventoDoPlanejador(entrada, cxs))).not.toContain("sub-caixinha");
+    const sim = { ...evento({ id: "sim:1", tipo: "despesa", valor: reais(10), data: dia(3), origem: "simulado" }), noCenario: true };
+    expect(ids(itensDeEventoDoPlanejador(sim, cxs))).not.toContain("sub-caixinha");
+    const t = { ...evento({ id: "t", tipo: "despesa", natureza: "transferencia", valor: reais(10), data: dia(3) }), noCenario: true };
+    expect(ids(itensDeEventoDoPlanejador(t, cxs))).not.toContain("sub-caixinha");
+  });
+
   it("transferência não muda prioridade nem confiança", () => {
     const t = { ...evento({ id: "t", tipo: "despesa", natureza: "transferencia", valor: reais(10), data: dia(3) }), noCenario: true };
     expect(ids(itensDeEventoDoPlanejador(t))).not.toContain("sub-prioridade");

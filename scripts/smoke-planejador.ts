@@ -12,6 +12,8 @@
  * F3 (spec §7): aplicar ao financeiro é tudo ou nada — ajuste obsoleto barra tudo; falha de regra no
  * 3º item (campo obrigatório) e corrida entre validar e gravar desfazem os dois primeiros no banco
  * de verdade; o caminho feliz grava, audita e marca o cenário.
+ * F4 (spec §4, plano I9): caixinha com uso CALCULADO (alocado − realizado ligado, só depois da criação),
+ * o livre não cai duas vezes quando a caixinha paga, troca de caixinha atômica e arquivada recusada.
  *
  * Uso: npm run smoke:planejador
  */
@@ -33,6 +35,8 @@ import { validarAplicacao } from "../src/modules/financeiro/liquidez/aplicacao";
 import type { AjusteSimulado } from "../src/modules/financeiro/liquidez/ajustes";
 import type { Observado } from "../src/modules/financeiro/liquidez/tipos";
 import { aplicarAjustesAoFinanceiro, gravarPlano } from "../src/modules/financeiro/planejador/cenarios/service";
+import { carregarCaixinhas } from "../src/modules/financeiro/caixinhas/queries";
+import { criarLancamentoNoTx } from "../src/modules/financeiro/lancamentos/service";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -170,6 +174,7 @@ async function main() {
   }
 
   await smokeAplicar(admin.id, catFornecedor.id, catReceita.id);
+  await smokeCaixinhas(admin.id, catFornecedor.id, catReceita.id);
 
   console.log("\n# Import do Meu Dinheiro — transferência nasce pareada e neutra");
   const categoriasAntes = new Set((await prisma.categoriaFinanceira.findMany({ select: { id: true } })).map((c) => c.id));
@@ -218,7 +223,7 @@ async function smokeAplicar(autorId: string, catDespesaId: string, catReceitaId:
   const configAntes = await prisma.configSistema.findUnique({ where: { chave: CHAVE_CONFIG_FINANCEIRO } });
   const foto = async (id: string): Promise<Observado> => {
     const a = (await alvosAtuais([id])).get(id)!;
-    return { status: a.status, excluido: a.excluido, data: a.data, valor: a.valor, prioridade: a.prioridade, confianca: a.confianca };
+    return { status: a.status, excluido: a.excluido, data: a.data, valor: a.valor, prioridade: a.prioridade, confianca: a.confianca, caixinhaId: a.caixinhaId };
   };
   const estado = async () =>
     JSON.stringify(
@@ -341,4 +346,97 @@ async function smokeAplicar(autorId: string, catDespesaId: string, catReceitaId:
 async function restaurarConfig(antes: { valor: Prisma.JsonValue } | null) {
   if (antes) await prisma.configSistema.update({ where: { chave: CHAVE_CONFIG_FINANCEIRO }, data: { valor: antes.valor as Prisma.InputJsonValue } });
   else await prisma.configSistema.deleteMany({ where: { chave: CHAVE_CONFIG_FINANCEIRO } });
+}
+
+async function smokeCaixinhas(autorId: string, catDespesaId: string, catReceitaId: string) {
+  const t = `${tag}-f4`;
+  const conta = await prisma.contaBancaria.create({ data: { nome: `${t} conta`, saldoInicial: 0 } });
+  try {
+    console.log("\n# F4 — caixinha: alocado, uso calculado e livre que não cai duas vezes");
+    const cx = await prisma.caixinha.create({ data: { nome: `${t} cx`, regra: "compromissos_ligados", horizonteDias: 30, ordem: 999 } });
+    await prisma.movimentoCaixinha.create({ data: { caixinhaId: cx.id, tipo: "alocacao", valor: 1000, data: em(0), autorId } });
+    const despesa = async (chave: string, valor: number, venc: number, extra: Partial<Prisma.LancamentoUncheckedCreateInput> = {}) =>
+      prisma.lancamento.create({
+        data: { descricao: `${t} ${chave}`, tipo: "despesa", valor, status: "previsto", data: em(0), vencimento: em(venc), categoriaId: catDespesaId, autorId, contaId: conta.id, ...extra },
+        select: { id: true },
+      });
+    const a = await despesa("a", 400, 3, { caixinhaId: cx.id });
+
+    const achar = async () => (await carregarCaixinhas({ hoje, inativas: true })).find((c) => c.id === cx.id)!;
+    let c1 = await achar();
+    check("reservado = alocado (nada usado ainda)", c1.situacao.reservado === paraCentavos(1000), c1.situacao);
+    check("necessidade = a conta ligada no horizonte; completa", c1.situacao.necessidade === paraCentavos(400) && c1.situacao.estado === "completa", c1.situacao);
+    check("próximo uso é a conta ligada", c1.situacao.proximoUso?.id === a.id && c1.abertas === 1);
+
+    const base1 = await baseDoPlanejador({ horizonteDias: 30 });
+    const noMotor = base1.caixinhas.find((c) => c.id === cx.id);
+    check("o motor recebe o reservado real da caixinha", noMotor?.reservado === paraCentavos(1000), noMotor);
+    const meus = base1.eventos.filter((e) => e.id === a.id);
+    check("a conta ligada é evento com a caixinha", meus.length === 1 && meus[0].caixinhaId === cx.id, meus);
+    const p = projetar({ hoje: base1.hoje, horizonteDias: 30, caixaAtual: base1.caixaAtual, reservaMinima: 0, eventos: meus, caixinhas: base1.caixinhas, eixos: { entradas: "todas", compromissos: "todos" } });
+    check("400 cobertos pela caixinha, nada sem cobertura", p.totais.cobertos === paraCentavos(400) && p.totais.semCobertura === 0, p.totais);
+
+    // Uso anterior à criação da caixinha não conta (I9).
+    const velho = await despesa("velho", 250, -10, { caixinhaId: cx.id, status: "confirmado", dataConfirmacao: em(-10) });
+    c1 = await achar();
+    check("realizado ANTES da criação não consome o reservado", c1.situacao.reservado === paraCentavos(1000) && velho.id != null, c1.situacao);
+
+    // Baixa da conta ligada: o caixa e o reservado caem juntos; o livre não cai duas vezes.
+    const totalReservado = (x: typeof base1) => x.caixinhas.reduce((s, y) => s + y.reservado, 0);
+    // Base de partida DEPOIS do realizado antigo (que também entrou no caixa), para medir só a baixa.
+    const baseAntes = await baseDoPlanejador({ horizonteDias: 30 });
+    const livre1 = baseAntes.caixaAtual - totalReservado(baseAntes);
+    await prisma.lancamento.update({ where: { id: a.id }, data: { status: "confirmado", dataConfirmacao: em(0) } });
+    const base2 = await baseDoPlanejador({ horizonteDias: 30 });
+    c1 = await achar();
+    check("a baixa consumiu 400 do reservado", c1.situacao.reservado === paraCentavos(600) && c1.situacao.usado === paraCentavos(400), c1.situacao);
+    check("o caixa caiu 400", baseAntes.caixaAtual - base2.caixaAtual === paraCentavos(400), { antes: baseAntes.caixaAtual, depois: base2.caixaAtual });
+    check("o livre NÃO caiu duas vezes: caixa − reservado ficou igual", base2.caixaAtual - totalReservado(base2) === livre1, { livre1, livre2: base2.caixaAtual - totalReservado(base2) });
+
+    console.log("\n# F4 — caixinha só em despesa em aberto, ativa; troca atômica");
+    let erroReceita = "";
+    try {
+      await criarLancamentoNoTx(
+        prisma,
+        { tipo: "receita", descricao: `${t} receita`, valor: 10, data: hoje, vencimento: hoje, dataCompetencia: "", categoriaId: catReceitaId, centroId: "", contaId: "", formaId: "", projetoId: "", fornecedorId: "", clienteId: "", observacao: "", confirmado: false, ocorrencias: 1, caixinhaId: cx.id },
+        autorId,
+      );
+    } catch (e) {
+      erroReceita = e instanceof Error ? e.message : String(e);
+    }
+    check("receita não sai de caixinha", erroReceita === "Só conta a pagar sai de caixinha.", erroReceita);
+    check("a recusa não criou o lançamento", (await prisma.lancamento.count({ where: { descricao: `${t} receita`, excluidoEm: { not: undefined } } })) === 0);
+
+    const b = await despesa("b", 100, 4);
+    const c = await despesa("c", 50, 5);
+    const foto = async (id: string) => {
+      const x = (await alvosAtuais([id])).get(id)!;
+      return { status: x.status, excluido: x.excluido, data: x.data, valor: x.valor, prioridade: x.prioridade, confianca: x.confianca, caixinhaId: x.caixinhaId };
+    };
+    const lista: AjusteSimulado[] = [
+      { tipo: "ALTERAR_CAIXINHA", eventoId: b.id, caixinhaId: cx.id, caixinhaNome: "cx", antes: await foto(b.id), rotulo: "b" },
+      { tipo: "ALTERAR_CAIXINHA", eventoId: c.id, caixinhaId: cx.id, caixinhaNome: "cx", antes: await foto(c.id), rotulo: "c" },
+    ];
+    await prisma.caixinha.update({ where: { id: cx.id }, data: { ativo: false } });
+    let erroArq = "";
+    try {
+      await aplicarAjustesAoFinanceiro({ ajustes: lista, usuarioId: autorId, ip: "smoke" });
+    } catch (e) {
+      erroArq = e instanceof Error ? e.message : String(e);
+    }
+    check("caixinha arquivada barra a aplicação inteira", erroArq.includes("não existe mais ou foi arquivada"), erroArq);
+    const ligadas = async () => prisma.lancamento.count({ where: { id: { in: [b.id, c.id] }, caixinhaId: cx.id } });
+    check("nenhuma conta foi ligada", (await ligadas()) === 0);
+
+    await prisma.caixinha.update({ where: { id: cx.id }, data: { ativo: true } });
+    const r = await aplicarAjustesAoFinanceiro({ ajustes: lista, usuarioId: autorId, ip: "smoke" });
+    check("com a caixinha ativa, as duas contas passam a sair dela", r.aplicadas === 2 && (await ligadas()) === 2, r);
+    c1 = await achar();
+    check("a necessidade passou a incluir as duas contas (100 + 50)", c1.situacao.necessidade === paraCentavos(150) && c1.abertas === 2, c1.situacao);
+  } finally {
+    await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: t }, excluidoEm: { not: undefined } } });
+    await prisma.movimentoCaixinha.deleteMany({ where: { caixinha: { nome: { startsWith: t } } } });
+    await prisma.caixinha.deleteMany({ where: { nome: { startsWith: t } } });
+    await prisma.contaBancaria.deleteMany({ where: { nome: { startsWith: t } } });
+  }
 }

@@ -27,6 +27,7 @@ function alvo(p: Partial<AlvoAtual> & Pick<AlvoAtual, "id">): AlvoAtual {
     valor: reais(15_000),
     prioridade: null,
     confianca: null,
+    caixinhaId: null,
     ...p,
   };
 }
@@ -37,6 +38,7 @@ const foto = (a: AlvoAtual): Observado => ({
   valor: a.valor,
   prioridade: a.prioridade,
   confianca: a.confianca,
+  caixinhaId: a.caixinhaId,
 });
 const mapa = (...as: AlvoAtual[]) => new Map(as.map((a) => [a.id, a]));
 
@@ -102,6 +104,32 @@ describe("validarAplicacao (spec §6–§7)", () => {
       expect(r.plano).toEqual([]);
       expect(r.linhas[0]).toEqual({ tipo: "informativo", texto: `${a.descricao}: ${motivo} A nova data fica só na simulação.` });
     }
+  });
+
+  it("ALTERAR_CAIXINHA vai para o real: despesa em aberto, uma escrita com a nova caixinha", () => {
+    const r = validarAplicacao(
+      [{ tipo: "ALTERAR_CAIXINHA", eventoId: "fornecedor", caixinhaId: "cx1", caixinhaNome: "Impostos", antes: foto(fornecedor) }],
+      mapa(fornecedor),
+    );
+    expect(r.plano).toHaveLength(1);
+    expect(r.plano[0]).toMatchObject({ tipo: "atualizar", dados: { caixinhaId: "cx1" }, condicao: foto(fornecedor) });
+    expect(r.linhas[0].texto).toBe("Pagar Topografia pela caixinha Impostos.");
+  });
+
+  it("tirar da caixinha grava null; já estar na caixinha não grava nada; receita não tem caixinha", () => {
+    const naCaixinha = alvo({ id: "x", descricao: "X", caixinhaId: "cx1" });
+    const tira = validarAplicacao([{ tipo: "ALTERAR_CAIXINHA", eventoId: "x", caixinhaId: null, antes: foto(naCaixinha) }], mapa(naCaixinha));
+    expect(tira.plano[0]).toMatchObject({ dados: { caixinhaId: null } });
+    const igual = validarAplicacao([{ tipo: "ALTERAR_CAIXINHA", eventoId: "x", caixinhaId: "cx1", caixinhaNome: "Impostos" }], mapa(naCaixinha));
+    expect(igual.plano).toEqual([]);
+    const receita = validarAplicacao([{ tipo: "ALTERAR_CAIXINHA", eventoId: "cliente", caixinhaId: "cx1" }], mapa(cliente));
+    expect(receita.plano).toEqual([]);
+    expect(receita.linhas[0].texto).toBe("Construtora: só conta a pagar sai de caixinha.");
+  });
+
+  it("caixinha trocada por outra pessoa depois da simulação barra a aplicação", () => {
+    const r = validarAplicacao([{ ...reprogramar }], mapa({ ...fornecedor, caixinhaId: "cx9" }));
+    expect(r.divergentes[0]).toContain("a caixinha mudou");
   });
 
   it("tirar da simulação e incluir à mão nunca vão para o real", () => {

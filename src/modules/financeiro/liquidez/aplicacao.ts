@@ -27,7 +27,8 @@ export type AlvoAtual = Observado & {
   prioridadeEfetiva: Prioridade | null;
 };
 
-export type DadosAtualizacao = { vencimento?: DataIso; prioridade?: Prioridade; confianca?: Confianca };
+/** `caixinhaId: null` = tirar da caixinha; ausente = não mexe. */
+export type DadosAtualizacao = { vencimento?: DataIso; prioridade?: Prioridade; confianca?: Confianca; caixinhaId?: string | null };
 export type MovimentoParaCriar = MovimentoSimulado & { categoriaId: string };
 
 export type ItemPlano =
@@ -159,6 +160,20 @@ export function validarAplicacao(
       }
       dados.prioridade = a.prioridade;
       linhas.push({ tipo: "aplica", texto: `Mudar a prioridade de ${rotulo} para ${ROTULO_PRIORIDADE[a.prioridade]}.` });
+    } else if (a.tipo === "ALTERAR_CAIXINHA") {
+      if (alvo.tipo !== "despesa" || alvo.natureza === "transferencia") {
+        informar(`${rotulo}: só conta a pagar sai de caixinha.`);
+        continue;
+      }
+      if ((alvo.caixinhaId ?? null) === a.caixinhaId) {
+        informar(`${rotulo} já está ${a.caixinhaId ? `na caixinha ${a.caixinhaNome ?? "escolhida"}` : "sem caixinha"}.`);
+        continue;
+      }
+      dados.caixinhaId = a.caixinhaId;
+      linhas.push({
+        tipo: "aplica",
+        texto: a.caixinhaId ? `Pagar ${rotulo} pela caixinha ${a.caixinhaNome ?? "escolhida"}.` : `Tirar ${rotulo} da caixinha.`,
+      });
     } else {
       if (alvo.tipo !== "receita" || alvo.natureza === "transferencia") {
         informar(`${rotulo}: só conta a receber tem confiança.`);
@@ -190,6 +205,7 @@ export function validarAplicacao(
           valor: alvo.valor,
           prioridade: alvo.prioridade,
           confianca: alvo.confianca,
+          caixinhaId: alvo.caixinhaId,
         },
         dados,
       };

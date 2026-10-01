@@ -22,6 +22,8 @@ export const observadoSchema = z.object({
   valor: z.number().int(),
   prioridade: prioridade.nullable(),
   confianca: confianca.nullable(),
+  /** Ausente nos cenários salvos antes da F4: lê como "sem caixinha". */
+  caixinhaId: z.string().nullable().default(null),
 });
 
 /** Campos comuns aos ajustes que miram um lançamento. */
@@ -48,6 +50,13 @@ export const ajusteSchema = z.discriminatedUnion("tipo", [
   z.object({ tipo: z.literal("REPROGRAMAR_DATA"), ...alvo, data }),
   z.object({ tipo: z.literal("ALTERAR_PRIORIDADE"), ...alvo, prioridade }),
   z.object({ tipo: z.literal("ALTERAR_CONFIANCA"), ...alvo, confianca }),
+  /** `caixinhaId: null` = tirar da caixinha. `caixinhaNome` é só para descrever o ajuste. */
+  z.object({
+    tipo: z.literal("ALTERAR_CAIXINHA"),
+    ...alvo,
+    caixinhaId: z.string().min(1).nullable(),
+    caixinhaNome: z.string().max(200).nullable().optional(),
+  }),
   z.object({ tipo: z.literal("EXCLUIR"), ...alvo }),
   z.object({ tipo: z.literal("FORCAR_INCLUSAO"), ...alvo }),
   z.object({ tipo: z.literal("INCLUIR"), id: z.string().min(1).max(64), movimento: movimentoSchema }),
@@ -110,6 +119,7 @@ export function diferencasObservadas(antes: Observado, atual: Observado): string
     d.push(`a prioridade mudou de ${prioridadeTexto(antes.prioridade)} para ${prioridadeTexto(atual.prioridade)}`);
   if (atual.confianca !== antes.confianca)
     d.push(`a confiança mudou de ${confiancaTexto(antes.confianca)} para ${confiancaTexto(atual.confianca)}`);
+  if ((atual.caixinhaId ?? null) !== (antes.caixinhaId ?? null)) d.push("a caixinha mudou");
   return d;
 }
 
@@ -160,9 +170,11 @@ export function paraLinha(a: AjusteSimulado): LinhaAjuste {
         ? { prioridade: a.prioridade }
         : a.tipo === "ALTERAR_CONFIANCA"
           ? { confianca: a.confianca }
-          : a.tipo === "EXCLUIR"
-            ? { efeito: "nenhum" }
-            : {};
+          : a.tipo === "ALTERAR_CAIXINHA"
+            ? { caixinhaId: a.caixinhaId, caixinhaNome: a.caixinhaNome ?? null }
+            : a.tipo === "EXCLUIR"
+              ? { efeito: "nenhum" }
+              : {};
   return {
     tipo: a.tipo,
     lancamentoId: a.eventoId,

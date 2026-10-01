@@ -209,6 +209,7 @@ model User {
   socio                         Socio?
   lancamentosAutor              Lancamento[]                @relation("LancamentoAutor")
   cenariosFinanceiros           CenarioFinanceiro[]         @relation("CenarioFinanceiroAutor")
+  movimentosCaixinha            MovimentoCaixinha[]         @relation("MovimentoCaixinhaAutor")
   importacoesFinanceiras        ImportacaoFinanceira[]      @relation("ImportacaoFinanceiraAutor")
   canaisMembro                  CanalMembro[]
   canaisCriados                 Canal[]                     @relation("CanaisCriados")
@@ -1815,6 +1816,11 @@ model Lancamento {
   confianca       ConfiancaRecebimento?
   /// Par de pernas de uma transferência entre contas próprias (mesmo valor nas duas pernas).
   transferenciaId String?
+  /// Caixinha que paga esta saída (spec §4): o uso é CALCULADO dos realizados com este campo, não
+  /// gravado. `SetNull`: apagar a caixinha nunca apaga o lançamento. Só despesa em aberto troca de
+  /// caixinha; realizado só por movimento de ajuste (I9).
+  caixinhaId      String?
+  caixinha        Caixinha? @relation(fields: [caixinhaId], references: [id], onDelete: SetNull)
 
   autorId String
   autor   User   @relation("LancamentoAutor", fields: [autorId], references: [id])
@@ -1842,6 +1848,7 @@ model Lancamento {
   @@index([importLoteId])
   @@index([importHash])
   @@index([transferenciaId])
+  @@index([caixinhaId])
   @@map("lancamento")
 }
 
@@ -7404,6 +7411,72 @@ enum StatusPlanejamento {
 
 /// Cenário de planejamento de pagamentos: simula o uso do caixa disponível sobre
 /// as contas em aberto, com ordem de prioridade e saldo acumulado recalculado no cliente.
+/// Como a necessidade de uma caixinha é calculada (spec §4): `meta_fixa` usa `Caixinha.meta` (sem meta
+/// = "sem meta definida"); `compromissos_ligados` soma as saídas em aberto ligadas à caixinha dentro do
+/// horizonte da própria caixinha.
+enum RegraNecessidade {
+  meta_fixa
+  compromissos_ligados
+}
+
+/// Movimento manual de uma caixinha. O `valor` é com SINAL e a soma dos movimentos é o alocado:
+/// `alocacao` > 0, `liberacao` < 0, `transferencia` (duas pernas, mesmo `transferenciaId`) e `ajuste`
+/// com o sinal que corrige. Nenhum movimento mexe em saldo bancário (separação gerencial).
+enum TipoMovimentoCaixinha {
+  alocacao
+  liberacao
+  transferencia
+  ajuste
+}
+
+/// Separação gerencial de parte do caixa atual para uma finalidade (CONTEXT.md). Não é conta bancária.
+/// O reservado é calculado: alocado (soma dos movimentos) − usado (despesas realizadas ligadas, desde
+/// a criação da caixinha), nunca menor que zero.
+model Caixinha {
+  id            String           @id @default(cuid())
+  /// Estável, para a migração e o código acharem as caixinhas iniciais (como `CategoriaFinanceira.chave`).
+  chave         String?          @unique
+  nome          String
+  descricao     String?
+  regra         RegraNecessidade @default(compromissos_ligados)
+  /// Meta fixa em reais; nula = sem meta.
+  meta          Decimal?         @db.Decimal(14, 2)
+  /// Janela dos compromissos ligados que contam como necessidade.
+  horizonteDias Int              @default(30)
+  ordem         Int              @default(0)
+  /// Só se inativa com reservado zero; some das telas, mantém o extrato.
+  ativo         Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  movimentos MovimentoCaixinha[]
+  lancamentos Lancamento[]
+
+  @@index([ativo, ordem])
+  @@map("caixinha")
+}
+
+model MovimentoCaixinha {
+  id              String                @id @default(cuid())
+  caixinhaId      String
+  /// `Restrict`: caixinha com extrato não se apaga, só se inativa.
+  caixinha        Caixinha              @relation(fields: [caixinhaId], references: [id], onDelete: Restrict)
+  tipo            TipoMovimentoCaixinha
+  /// Com sinal (ver o enum).
+  valor           Decimal               @db.Decimal(14, 2)
+  data            DateTime              @db.Date
+  descricao       String?
+  /// Liga as duas pernas de uma transferência entre caixinhas.
+  transferenciaId String?
+  autorId         String
+  autor           User                  @relation("MovimentoCaixinhaAutor", fields: [autorId], references: [id])
+  createdAt       DateTime              @default(now())
+
+  @@index([caixinhaId, data])
+  @@index([transferenciaId])
+  @@map("movimento_caixinha")
+}
+
 /// Situação de um cenário do planejador de caixa (spec 2026-09-30 §11).
 enum SituacaoCenario {
   rascunho
