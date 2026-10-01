@@ -19,6 +19,7 @@ import {
   chaveAlvo,
   colisoes,
   idCardNovo,
+  linhaDoItem,
   siglasDoItemNaVersao,
   simular,
   versoesAPartirDe,
@@ -392,7 +393,7 @@ export function planejarImportacao(
     }
     const causa = daPlanilha[0].linhaId.slice("nova:".length).split("#")[0];
     for (const outro of col.donos.filter((d) => !d.linhaId.startsWith("nova:"))) {
-      const linhaOutro = itemLinha(depois, outro.alvo, outro.linhaId);
+      const linhaOutro = linhaDoItem(depois, outro.alvo, outro.linhaId);
       const id = `encerrar:${outro.chave}:${outro.linhaId}`;
       add({
         id,
@@ -415,14 +416,6 @@ export function planejarImportacao(
   }
 
   return { versao, itens, correspondencias, semMudanca, avisos, erros: [...new Set(erros)] };
-}
-
-function itemLinha(snap: CatalogoSnap, alvo: AlvoCatalogo, linhaId: string) {
-  const lista =
-    alvo.tipo === "disciplina" ? snap.cards : alvo.tipo === "subdisciplina" ? snap.subs : snap.itens;
-  return (lista as { id: string; siglas: { id: string; oficial: boolean }[] }[])
-    .find((i) => i.id === alvo.id)
-    ?.siglas.find((l) => l.id === linhaId);
 }
 
 /**

@@ -437,3 +437,195 @@ export function versoesAPartirDe(versao: number, numeros: readonly number[]): nu
   const seguintes = numeros.filter((n) => n >= versao);
   return seguintes.length > 0 ? [...new Set(seguintes)].sort((a, b) => a - b) : [versao];
 }
+
+// ─── Operações da tela e transferência de sigla ──────────────────────────────
+
+/** Operação como a tela (e a action) a descrevem — sem os ids internos da simulação. */
+export type OperacaoTela =
+  | { tipo: "card-novo"; nome: string; sigla: string | null }
+  | { tipo: "sub-nova"; cardId: string; nome: string; sigla: string | null }
+  | { tipo: "item-novo"; categoria: "fase" | "tipo"; nome: string; sigla: string }
+  | { tipo: "sigla-nova"; alvo: AlvoCatalogo; sigla: string }
+  | { tipo: "sinonimo-novo"; alvo: AlvoCatalogo; sigla: string }
+  | { tipo: "encerrar-sigla"; alvo: AlvoCatalogo; linhaId: string; sigla: string }
+  | { tipo: "sai"; alvo: AlvoCatalogo }
+  | { tipo: "entra"; alvo: AlvoCatalogo; siglas?: SiglaVolta[] };
+
+/** Ids estáveis (`op0`, `op1`…) para simular e gravar: a tela e o servidor geram os mesmos. */
+export function operacoesComId(ops: readonly OperacaoTela[]): OperacaoComId[] {
+  return ops.map((o, i): OperacaoComId => {
+    const id = `op${i}`;
+    if (o.tipo === "card-novo") return { id, tipo: "card-novo", chave: id, nome: o.nome, sigla: o.sigla, categoria: null };
+    if (o.tipo === "sub-nova") return { id, tipo: "sub-nova", card: { id: o.cardId }, nome: o.nome, sigla: o.sigla };
+    return { id, ...o };
+  });
+}
+
+/** A linha de sigla `linhaId` do item. */
+export function linhaDoItem(snap: CatalogoSnap, alvo: AlvoCatalogo, linhaId: string): SiglaSnap | undefined {
+  return itemDe(snap, alvo)?.siglas.find((l) => l.id === linhaId);
+}
+
+export type ConflitoSigla = {
+  sigla: string;
+  versao: number;
+  /** Rótulo do outro dono: "Hidrossanitário" ou "Esgoto (sub de Hidrossanitário)". */
+  dono: string;
+  papel: "oficial" | "sinônimo";
+};
+
+export type PlanoTransferencia = {
+  /** Conflitos na versão editada que a transferência resolve (tirando a sigla do outro dono). */
+  conflitos: ConflitoSigla[];
+  /** O que tira a sigla dos outros donos a partir da versão — grava ANTES das operações da tela. */
+  encerrar: OperacaoComId[];
+  /** Conflito que a transferência não resolve (sigla repetida na leva, ou dono só numa versão posterior). */
+  recusa: string | null;
+};
+
+/** Chaves (`chaveAlvo`) dos itens que a leva mexe ou cria — os "novos donos" de uma sigla. */
+function alvosDaLeva(ops: readonly OperacaoComId[]): Set<string> {
+  const chaves = new Set<string>();
+  for (const op of ops) {
+    if (op.tipo === "card-novo") chaves.add(chaveAlvo({ tipo: "disciplina", id: idCardNovo(op.chave) }));
+    else if (op.tipo === "sub-nova") chaves.add(chaveAlvo({ tipo: "subdisciplina", id: `novo-sub:${op.id}` }));
+    else if (op.tipo === "item-novo") chaves.add(chaveAlvo({ tipo: "prancha", id: `novo-item:${op.id}` }));
+    else if (op.tipo !== "sai") chaves.add(chaveAlvo(op.alvo));
+  }
+  return chaves;
+}
+
+/**
+ * O que salvar `ops` na versão causa nas siglas dos OUTROS itens: quem perde a sigla se a tela
+ * confirmar "Tirar de lá e usar aqui" (a regra da importação, "a planilha manda"), ou por que não
+ * dá. Roda na tela (prévia, antes de salvar) e no servidor (que recalcula contra o banco).
+ */
+export function planejarTransferencia(
+  snap: CatalogoSnap,
+  versao: number,
+  ops: readonly OperacaoComId[],
+  versoesExistentes: readonly number[],
+): PlanoTransferencia {
+  const daLeva = alvosDaLeva(ops);
+  const depois = simular(snap, versao, ops);
+  const conflitos: ConflitoSigla[] = [];
+  const encerrar: OperacaoComId[] = [];
+  for (const col of colisoes(depois, [versao])) {
+    const novos = col.donos.filter((d) => daLeva.has(d.chave));
+    if (novos.length === 0) continue; // conflito antigo, que esta edição não toca
+    if (novos.length > 1) {
+      return {
+        conflitos: [],
+        encerrar: [],
+        recusa: `A sigla ${col.sigla} apareceria duas vezes: ${novos.map((d) => `“${d.rotulo}”`).join(" e ")}.`,
+      };
+    }
+    for (const outro of col.donos.filter((d) => !daLeva.has(d.chave))) {
+      const linha = linhaDoItem(depois, outro.alvo, outro.linhaId);
+      conflitos.push({ sigla: col.sigla, versao, dono: outro.rotulo, papel: linha?.oficial ? "oficial" : "sinônimo" });
+      encerrar.push({
+        id: `encerrar:${outro.chave}:${outro.linhaId}`,
+        tipo: "encerrar-sigla",
+        alvo: outro.alvo,
+        linhaId: outro.linhaId,
+        sigla: col.sigla,
+      });
+    }
+  }
+  const final = simular(snap, versao, [...encerrar, ...ops]);
+  const sobra = colisoes(final, versoesAPartirDe(versao, versoesExistentes)).find((c) => c.donos.some((d) => daLeva.has(d.chave)));
+  if (sobra) {
+    const outros = sobra.donos.filter((d) => !daLeva.has(d.chave)).map((d) => `“${d.rotulo}”`);
+    return {
+      conflitos,
+      encerrar,
+      recusa: `Na v${sobra.versao}, a sigla ${sobra.sigla} já é de ${outros.join(" e ") || "outro item"}. Troque a sigla de lá nessa versão antes.`,
+    };
+  }
+  return { conflitos, encerrar, recusa: null };
+}
+
+/** Frase do conflito — a mesma na tela e no servidor. */
+export function mensagemConflito(c: ConflitoSigla): string {
+  return `${c.sigla} é ${c.papel === "oficial" ? "a sigla oficial" : "sinônimo"} de “${c.dono}” na v${c.versao}.`;
+}
+
+/** O que o servidor grava: as transferências antes das operações da tela — ou o motivo de não gravar. */
+export function resolverLeva(
+  plano: PlanoTransferencia,
+  ops: readonly OperacaoComId[],
+  transferir: boolean,
+): { ok: true; ops: OperacaoComId[] } | { ok: false; erro: string } {
+  for (const op of ops) {
+    if (op.tipo === "entra" && (op.siglas ?? []).filter((s) => s.oficial).length > 1) {
+      return { ok: false, erro: "Só uma sigla oficial pode voltar com o item." };
+    }
+  }
+  if (plano.recusa) return { ok: false, erro: plano.recusa };
+  if (plano.conflitos.length > 0 && !transferir) {
+    return {
+      ok: false,
+      erro: `${mensagemConflito(plano.conflitos[0])} A tela pode estar desatualizada: recarregue e confirme a transferência.`,
+    };
+  }
+  return { ok: true, ops: [...plano.encerrar, ...ops] };
+}
+
+/**
+ * O que "Voltar para a vN" oferece: as siglas que o item tinha na última versão em que existiu antes
+ * da vN (ou na primeira depois, se ele só começa mais tarde), com o papel de cada uma.
+ */
+export function siglasParaVoltar(snap: CatalogoSnap, alvo: AlvoCatalogo, versao: number): SiglaVolta[] {
+  const item = itemDe(snap, alvo);
+  if (!item) return [];
+  const referencia = item.versaoAte !== null && item.versaoAte < versao ? item.versaoAte : Math.max(item.versaoDesde, versao);
+  const { oficial, sinonimos } = siglasNaVersao(item.siglas, referencia);
+  return [...(oficial ? [{ sigla: oficial, oficial: true }] : []), ...sinonimos.map((sigla) => ({ sigla, oficial: false }))];
+}
+
+/** As linhas de sigla que valem no item na versão, com o id (para encerrar) — base do diálogo de siglas. */
+export function linhasDoItemNaVersao(
+  snap: CatalogoSnap,
+  alvo: AlvoCatalogo,
+  versao: number,
+): { oficial: SiglaSnap | null; sinonimos: SiglaSnap[] } {
+  const item = itemDe(snap, alvo);
+  if (!item || !existe(snap, alvo, versao, false)) return { oficial: null, sinonimos: [] };
+  const validas = item.siglas.filter((l) => valeNaVersao(l, versao));
+  const oficial = validas.filter((l) => l.oficial).sort((a, b) => b.versaoDesde - a.versaoDesde)[0] ?? null;
+  const vistas = new Set(oficial ? [oficial.sigla] : []);
+  const sinonimos: SiglaSnap[] = [];
+  for (const l of validas) {
+    if (l.oficial || vistas.has(l.sigla)) continue;
+    vistas.add(l.sigla);
+    sinonimos.push(l);
+  }
+  return { oficial, sinonimos };
+}
+
+/**
+ * Operações que levam as siglas do item na versão de `antes` para `depois` (diálogo "Siglas nesta
+ * versão"). Siglas já normalizadas. Oficial `null` = o item fica sem sigla na versão.
+ */
+export function opsDasSiglas(
+  alvo: AlvoCatalogo,
+  antes: { oficial: SiglaSnap | null; sinonimos: readonly SiglaSnap[] },
+  depois: { oficial: string | null; sinonimos: readonly string[] },
+): OperacaoTela[] {
+  const ops: OperacaoTela[] = [];
+  for (const l of antes.sinonimos) {
+    // Sinônimo promovido a oficial sai pela própria `sigla-nova`.
+    if (!depois.sinonimos.includes(l.sigla) && l.sigla !== depois.oficial) {
+      ops.push({ tipo: "encerrar-sigla", alvo, linhaId: l.id, sigla: l.sigla });
+    }
+  }
+  if ((antes.oficial?.sigla ?? null) !== depois.oficial) {
+    if (depois.oficial) ops.push({ tipo: "sigla-nova", alvo, sigla: depois.oficial });
+    else if (antes.oficial) ops.push({ tipo: "encerrar-sigla", alvo, linhaId: antes.oficial.id, sigla: antes.oficial.sigla });
+  }
+  const jaSao = new Set(antes.sinonimos.map((l) => l.sigla));
+  for (const sigla of depois.sinonimos) {
+    if (!jaSao.has(sigla) && sigla !== depois.oficial) ops.push({ tipo: "sinonimo-novo", alvo, sigla });
+  }
+  return ops;
+}
