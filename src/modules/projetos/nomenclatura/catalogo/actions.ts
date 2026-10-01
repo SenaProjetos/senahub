@@ -6,7 +6,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { normalizarSigla } from "./planilha";
 import { operacoesEscolhidas, planejarImportacao } from "./importacao";
-import { colisoes, simular, versoesAPartirDe, type OperacaoComId } from "./versao";
+import { operacoesComId, planejarTransferencia, resolverLeva, type OperacaoComId } from "./versao";
 import { carregarCatalogoSnap, numerosDasVersoes } from "./queries";
 import { executarOperacoes } from "./service";
 
@@ -94,50 +94,47 @@ const siglaSchema = z
 const alvoSchema = z.object({ tipo: z.enum(["disciplina", "subdisciplina", "prancha"]), id: z.string().min(1) });
 const nomeSchema = z.string().trim().min(1, "Informe o nome.").max(120);
 
+const siglaVoltaSchema = z.object({ sigla: siglaSchema, oficial: z.boolean() });
+
 const operacaoSchema = z.discriminatedUnion("tipo", [
   z.object({ tipo: z.literal("card-novo"), nome: nomeSchema, sigla: siglaSchema.nullable() }),
   z.object({ tipo: z.literal("sub-nova"), cardId: z.string().min(1), nome: nomeSchema, sigla: siglaSchema.nullable() }),
   z.object({ tipo: z.literal("item-novo"), categoria: z.enum(["fase", "tipo"]), nome: nomeSchema, sigla: siglaSchema }),
   z.object({ tipo: z.literal("sigla-nova"), alvo: alvoSchema, sigla: siglaSchema }),
+  z.object({ tipo: z.literal("sinonimo-novo"), alvo: alvoSchema, sigla: siglaSchema }),
+  // A sigla aqui só identifica a linha para a auditoria — pode ser legada (fora do formato atual).
+  z.object({ tipo: z.literal("encerrar-sigla"), alvo: alvoSchema, linhaId: z.string().min(1), sigla: z.string().trim().min(1).max(20) }),
   z.object({ tipo: z.literal("sai"), alvo: alvoSchema }),
-  z.object({ tipo: z.literal("entra"), alvo: alvoSchema }),
+  z.object({ tipo: z.literal("entra"), alvo: alvoSchema, siglas: z.array(siglaVoltaSchema).max(20).optional() }),
 ]);
 
 /**
- * Uma edição avulsa na tabela da versão (adicionar, trocar sigla, tirar, voltar). Diferente da
- * importação, aqui a sigla NÃO é tomada de outro item: se ela já tem dono na versão, a action
- * recusa e diz quem é — quem edita decide o que fazer com o outro.
+ * Edições avulsas na tabela da versão (adicionar, siglas e sinônimos, tirar, voltar), numa
+ * transação. Se uma sigla já tem dono na versão, sem `transferir` a action recusa dizendo quem é
+ * e como (oficial ou sinônimo); com `transferir`, tira a sigla do outro dono a partir da versão —
+ * a regra da importação ("a planilha manda"). A tela mostra o conflito antes de salvar; aqui o
+ * plano é recalculado contra o banco de agora (a tela pode estar velha).
  */
 export const alterarCatalogoNaVersao = defineAction(
   {
     ...base,
     acao: "alterar-catalogo-versao",
     entidade: "NomenclaturaVersao",
-    schema: z.object({ versao: z.number().int().min(1), operacao: operacaoSchema }),
+    schema: z.object({
+      versao: z.number().int().min(1),
+      operacoes: z.array(operacaoSchema).min(1).max(50),
+      transferir: z.boolean().default(false),
+    }),
   },
   async (i) => {
     await garantirVersao(i.versao);
-    const o = i.operacao;
-    const op: OperacaoComId =
-      o.tipo === "card-novo"
-        ? { id: "op", tipo: "card-novo", chave: "op", nome: o.nome, sigla: o.sigla, categoria: null }
-        : o.tipo === "sub-nova"
-          ? { id: "op", tipo: "sub-nova", card: { id: o.cardId }, nome: o.nome, sigla: o.sigla }
-          : { id: "op", ...o };
-
+    const ops = operacoesComId(i.operacoes);
     const [snap, versoes] = await Promise.all([carregarCatalogoSnap(), numerosDasVersoes()]);
-    const depois = simular(snap, i.versao, [op]);
-    const conflito = colisoes(depois, versoesAPartirDe(i.versao, versoes)).find((c) =>
-      c.donos.some((d) => d.linhaId.startsWith("nova:")),
-    );
-    if (conflito) {
-      const outros = conflito.donos.filter((d) => !d.linhaId.startsWith("nova:")).map((d) => `“${d.rotulo}”`);
-      throw new ActionError(
-        `A sigla ${conflito.sigla} já é de ${outros.join(" e ") || "outro item"} na v${conflito.versao}. Troque a sigla de lá (ou tire o item da versão) antes.`,
-      );
-    }
-    await prisma.$transaction((tx) => executarOperacoes(tx, i.versao, [op]), OPCOES_TX);
+    const plano = planejarTransferencia(snap, i.versao, ops, versoes);
+    const leva = resolverLeva(plano, ops, i.transferir);
+    if (!leva.ok) throw new ActionError(leva.erro);
+    await prisma.$transaction((tx) => executarOperacoes(tx, i.versao, leva.ops), OPCOES_TX);
     rev(i.versao);
-    return { ok: true };
+    return { ok: true, transferidas: plano.conflitos.length };
   },
 );
