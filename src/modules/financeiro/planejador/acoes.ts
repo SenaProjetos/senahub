@@ -55,6 +55,8 @@ export function itensDeEventoDoPlanejador(
   regras: readonly { id: string; nome: string }[] = [],
 ): AcaoItem[] {
   const simulado = e.origem === "simulado";
+  // Mês programado ainda não é lançamento: nada que grave no lançamento aparece para ele.
+  const ehLancamento = e.origem === "lancamento";
   const transferencia = e.natureza === "transferencia";
   const excluido = e.simulacao?.excluido === true;
   const forcado = e.simulacao?.forcado === true;
@@ -88,7 +90,7 @@ export function itensDeEventoDoPlanejador(
         }
       : null,
     { tipo: "separador", id: "sep-mudar" },
-    !simulado && !transferencia && e.tipo === "despesa"
+    ehLancamento && !transferencia && e.tipo === "despesa"
       ? {
           tipo: "sub",
           id: "sub-prioridade",
@@ -102,7 +104,7 @@ export function itensDeEventoDoPlanejador(
           })),
         }
       : null,
-    !simulado && !transferencia && e.tipo === "receita"
+    ehLancamento && !transferencia && e.tipo === "receita"
       ? {
           tipo: "sub",
           id: "sub-confianca",
@@ -118,7 +120,7 @@ export function itensDeEventoDoPlanejador(
       : null,
     // Quem paga a saída: o que a caixinha cobre sai do reservado, não do livre. Sem caixinhas
     // cadastradas não há o que escolher, e o item não aparece.
-    !simulado && !transferencia && e.tipo === "despesa" && caixinhas.length > 0
+    ehLancamento && !transferencia && e.tipo === "despesa" && caixinhas.length > 0
       ? {
           tipo: "sub",
           id: "sub-caixinha",
@@ -137,7 +139,7 @@ export function itensDeEventoDoPlanejador(
       : null,
     // Entrada futura: simula como o dinheiro seria dividido entre as caixinhas quando chegar. Só reserva
     // na simulação (spec §4); a distribuição real é feita em Caixinhas, depois do recebimento.
-    !simulado && !transferencia && e.tipo === "receita" && regras.length > 0
+    ehLancamento && !transferencia && e.tipo === "receita" && regras.length > 0
       ? {
           tipo: "sub",
           id: "sub-distribuir",

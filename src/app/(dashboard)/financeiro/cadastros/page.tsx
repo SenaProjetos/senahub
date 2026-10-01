@@ -9,6 +9,9 @@ import {
   listarSocios,
   usuariosParaSocio,
 } from "@/modules/financeiro/cadastros/queries";
+import { carregarCompromissos } from "@/modules/financeiro/recorrencia/queries";
+import { prisma } from "@/lib/prisma";
+import { inicioDoDiaUtc } from "@/lib/data";
 import { CadastrosView } from "@/components/financeiro/cadastros/cadastros-view";
 
 import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
@@ -17,7 +20,7 @@ export const metadata: Metadata = { title: "Cadastros financeiros" };
 export default async function CadastrosFinanceirosPage() {
   await requirePermission("financeiro", "gerir");
 
-  const [categorias, centros, contas, formas, fornecedores, socios, usuarios] = await Promise.all([
+  const [categorias, centros, contas, formas, fornecedores, socios, usuarios, compromissos, caixinhas] = await Promise.all([
     listarCategorias(),
     listarCentros(),
     listarContasBancarias(),
@@ -25,6 +28,8 @@ export default async function CadastrosFinanceirosPage() {
     listarFornecedores(),
     listarSocios(),
     usuariosParaSocio(),
+    carregarCompromissos(),
+    prisma.caixinha.findMany({ where: { ativo: true }, orderBy: [{ ordem: "asc" }, { nome: "asc" }], select: { id: true, nome: true } }),
   ]);
 
   return (
@@ -55,6 +60,9 @@ export default async function CadastrosFinanceirosPage() {
         })),
       }))}
       usuarios={usuarios}
+      compromissos={compromissos}
+      caixinhas={caixinhas}
+      mesAtual={inicioDoDiaUtc().toISOString().slice(0, 7)}
     />
   );
 }

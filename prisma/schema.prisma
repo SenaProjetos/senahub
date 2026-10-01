@@ -1535,9 +1535,10 @@ model CategoriaFinanceira {
   prioridadePadrao PrioridadePagamento?
   natureza         NaturezaCategoria    @default(resultado)
 
-  lancamentos Lancamento[]
-  regras      RegraCategorizacao[]
-  orcamentos  OrcamentoItem[]
+  lancamentos  Lancamento[]
+  regras       RegraCategorizacao[]
+  orcamentos   OrcamentoItem[]
+  compromissos CompromissoRecorrente[]
 
   @@index([tipo, ativo])
   @@map("categoria_financeira")
@@ -1686,7 +1687,9 @@ model Socio {
   ativo      Boolean  @default(true)
   createdAt  DateTime @default(now())
 
-  retiradas RetiradaSocio[]
+  retiradas    RetiradaSocio[]
+  lancamentos  Lancamento[]
+  compromissos CompromissoRecorrente[]
 
   @@map("socio")
 }
@@ -1822,6 +1825,16 @@ model Lancamento {
   /// caixinha; realizado só por movimento de ajuste (I9).
   caixinhaId      String?
   caixinha        Caixinha? @relation(fields: [caixinhaId], references: [id], onDelete: SetNull)
+  /// Sócio a quem a retirada pertence (pró-labore, distribuição, adiantamento). `SetNull`: tirar
+  /// alguém do quadro de sócios não apaga o que a empresa pagou.
+  socioId         String?
+  socio           Socio?    @relation(fields: [socioId], references: [id], onDelete: SetNull)
+  /// Mês programado de um compromisso recorrente que este lançamento cobre (§9). O par
+  /// (origem, competência) é único: um mês vinculado nunca é projetado nem gerado de novo.
+  recorrenciaOrigemId    String?
+  recorrenciaOrigem      CompromissoRecorrente? @relation(fields: [recorrenciaOrigemId], references: [id], onDelete: SetNull)
+  /// Competência `YYYY-MM` do mês coberto. Não confundir com `dataCompetencia` (regime de competência).
+  recorrenciaCompetencia String?
   /// Receita realizada que já foi distribuída (ou pulada) entre as caixinhas (F5).
   distribuicao    DistribuicaoRecebimento?
 
@@ -1852,6 +1865,8 @@ model Lancamento {
   @@index([importHash])
   @@index([transferenciaId])
   @@index([caixinhaId])
+  @@index([socioId])
+  @@unique([recorrenciaOrigemId, recorrenciaCompetencia])
   @@map("lancamento")
 }
 
@@ -7414,6 +7429,45 @@ enum StatusPlanejamento {
 
 /// Cenário de planejamento de pagamentos: simula o uso do caixa disponível sobre
 /// as contas em aberto, com ordem de prioridade e saldo acumulado recalculado no cliente.
+/// Periodicidade de um compromisso recorrente. Mensal é o que o escritório tem (pró-labore, aluguel,
+/// licenças); outras entram quando houver pedido — o enum existe para não precisar de migração então.
+enum PeriodicidadeRecorrencia {
+  mensal
+}
+
+/// Compromisso que se repete todo mês (ADR-0009, spec §9): é o CADASTRO, não um contas a pagar. O
+/// planejador projeta as competências ainda não geradas; perto do vencimento o sistema gera o
+/// `Lancamento`, que daí segue o fluxo normal (conta a pagar → pagamento → conciliação).
+model CompromissoRecorrente {
+  id                String                   @id @default(cuid())
+  descricao         String
+  valor             Decimal                  @db.Decimal(14, 2)
+  /// Dia do vencimento (1–31). Mês mais curto cai no último dia.
+  diaVencimento     Int
+  periodicidade     PeriodicidadeRecorrencia @default(mensal)
+  /// Primeira competência `YYYY-MM`; `competenciaFim` nula = sem data de término.
+  competenciaInicio String
+  competenciaFim    String?
+  categoriaId       String
+  categoria         CategoriaFinanceira      @relation(fields: [categoriaId], references: [id])
+  /// Pró-labore de um sócio: é o que liga o compromisso ao lançamento manual na hora de vincular.
+  socioId           String?
+  socio             Socio?                   @relation(fields: [socioId], references: [id], onDelete: SetNull)
+  caixinhaId        String?
+  caixinha          Caixinha?                @relation(fields: [caixinhaId], references: [id], onDelete: SetNull)
+  prioridade        PrioridadePagamento?
+  /// Dias antes do vencimento em que o lançamento é gerado.
+  antecedenciaDias  Int                      @default(5)
+  ativo             Boolean                  @default(true)
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  lancamentos Lancamento[]
+
+  @@index([ativo])
+  @@map("compromisso_recorrente")
+}
+
 /// Como a necessidade de uma caixinha é calculada (spec §4): `meta_fixa` usa `Caixinha.meta` (sem meta
 /// = "sem meta definida"); `compromissos_ligados` soma as saídas em aberto ligadas à caixinha dentro do
 /// horizonte da própria caixinha.
@@ -7452,9 +7506,10 @@ model Caixinha {
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
-  movimentos  MovimentoCaixinha[]
-  lancamentos Lancamento[]
+  movimentos   MovimentoCaixinha[]
+  lancamentos  Lancamento[]
   itensDeRegra RegraDistribuicaoItem[]
+  compromissos CompromissoRecorrente[]
 
   @@index([ativo, ordem])
   @@map("caixinha")

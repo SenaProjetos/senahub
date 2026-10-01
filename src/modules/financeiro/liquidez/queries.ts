@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { inicioDoDiaUtc } from "@/lib/data";
 import { getConfigLiquidez } from "@/modules/financeiro/config/queries";
 import { reservadosParaOMotor } from "@/modules/financeiro/caixinhas/queries";
+import { avisosDeRecorrencia, eventosProgramados, type AvisoRecorrencia } from "@/modules/financeiro/recorrencia/calculo";
+import { competenciasVinculadas, compromissosAtivos, lancamentosDaRecorrencia } from "@/modules/financeiro/recorrencia/queries";
 import { diasEntre, isoDeDataDoBanco, somarDias } from "@/modules/financeiro/liquidez/datas";
 import { paraCentavos } from "@/modules/financeiro/liquidez/dinheiro";
 import { dataDoEvento, paraEventos, prioridadeEfetiva, STATUS_PENDENTES } from "@/modules/financeiro/liquidez/eventos";
@@ -25,6 +27,8 @@ export type BasePlanejador = {
   /** Reservado de hoje por caixinha ativa (alocado − usado, nunca negativo). */
   caixinhas: { id: string; nome: string; reservado: Centavos }[];
   historico: { saidasNaJanela: Centavos; diasDeHistorico: number };
+  /** Diferença de valor e possível pagamento em dobro nos compromissos recorrentes (§9). */
+  avisosRecorrencia: AvisoRecorrencia[];
 };
 
 /**
@@ -157,6 +161,19 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
         : null,
   }));
 
+  // Compromissos recorrentes (§9): cada competência SEM lançamento vinculado vira um evento
+  // "Programado". Com vínculo, o lançamento é que vale — e ele já está entre os pendentes.
+  const compromissos = await compromissosAtivos();
+  const vinculadas = compromissos.length ? await competenciasVinculadas() : new Set<string>();
+  const programados = eventosProgramados(compromissos, { hoje, fim, vinculadas });
+  const avisos = compromissos.length
+    ? avisosDeRecorrencia(
+        compromissos,
+        await lancamentosDaRecorrencia([...new Set(compromissos.map((c) => c.categoriaId))], hojeData, fimData),
+        { hoje, fim },
+      )
+    : [];
+
   return {
     hoje,
     horizonteDias,
@@ -164,7 +181,8 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
     diasParaIncerta: config.diasParaIncerta,
     caixaAtual: base.total,
     anomalias,
-    eventos: paraEventos(entradas, { hoje, diasParaIncerta: config.diasParaIncerta }),
+    eventos: [...paraEventos(entradas, { hoje, diasParaIncerta: config.diasParaIncerta }), ...programados],
+    avisosRecorrencia: avisos,
     caixinhas: await reservadosParaOMotor(hoje),
     historico: { saidasNaJanela, diasDeHistorico: maisAntigo ? diasEntre(maisAntigo, hoje) : 0 },
   };

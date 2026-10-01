@@ -62,7 +62,8 @@ async function snapshotLancamento(id: string) {
       valor: true, valorEfetivo: true, status: true, descricao: true, vencimento: true,
       categoriaId: true, centroId: true, projetoId: true, fornecedorId: true, clienteId: true, observacao: true,
       // Campos do planejador: sem eles a auditoria não vê a troca de prioridade/confiança.
-      prioridade: true, confianca: true, transferenciaId: true, caixinhaId: true,
+      prioridade: true, confianca: true, transferenciaId: true, caixinhaId: true, socioId: true,
+      recorrenciaOrigemId: true, recorrenciaCompetencia: true,
     },
   });
   if (!l) return null;

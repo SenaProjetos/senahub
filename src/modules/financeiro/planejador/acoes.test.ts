@@ -93,6 +93,16 @@ describe("menu de um movimento do planejador (ADR-0002)", () => {
     expect(ids(itensDeEventoDoPlanejador(sim, [], regras))).not.toContain("sub-distribuir");
   });
 
+  it("mês programado: sem prioridade, caixinha ou abrir — ainda não é lançamento", () => {
+    const prog = { ...evento({ id: "prog:c1:2026-10", tipo: "despesa", valor: reais(6_000), data: dia(5), origem: "programado", naoProgramavel: "Ainda não é um lançamento: ele nasce perto do vencimento." }), noCenario: true };
+    const itens = ids(itensDeEventoDoPlanejador(prog, [{ id: "cx", nome: "Pró-labore" }]));
+    expect(itens).not.toContain("sub-prioridade");
+    expect(itens).not.toContain("sub-caixinha");
+    expect(itens).not.toContain("abrir");
+    expect(itens).toContain(ACAO_TIRAR);
+    expect(itensDeEventoDoPlanejador(prog).find((i) => i.id === ACAO_SIMULAR_DATA)).toMatchObject({ desabilitado: "Ainda não é um lançamento: ele nasce perto do vencimento." });
+  });
+
   it("transferência não muda prioridade nem confiança", () => {
     const t = { ...evento({ id: "t", tipo: "despesa", natureza: "transferencia", valor: reais(10), data: dia(3) }), noCenario: true };
     expect(ids(itensDeEventoDoPlanejador(t))).not.toContain("sub-prioridade");

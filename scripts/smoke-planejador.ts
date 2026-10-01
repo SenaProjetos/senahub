@@ -17,6 +17,9 @@
  * F5: distribuição de recebimento — rateio exato (centavo no último), a parte livre não move nada,
  * duas confirmações simultâneas reservam uma vez só, e fora da fila ficam reembolso, transferência,
  * anterior à data inicial e o que ainda está em aberto.
+ * F6A: compromisso recorrente — mês sem lançamento é projetado, geração idempotente (duas execuções
+ * simultâneas criam o mês uma vez), mês gerado deixa de ser projetado, e o vínculo manual tira o mês
+ * da projeção com o valor do lançamento valendo.
  *
  * Uso: npm run smoke:planejador
  */
@@ -43,6 +46,8 @@ import { criarLancamentoNoTx } from "../src/modules/financeiro/lancamentos/servi
 import { CHAVE_CONFIG_LIQUIDEZ } from "../src/modules/financeiro/config/liquidez";
 import { recebimentosADistribuir } from "../src/modules/financeiro/distribuicao/queries";
 import { distribuirRecebimento, gravarRegra, pularRecebimento } from "../src/modules/financeiro/distribuicao/service";
+import { competenciaDe, idDoProgramado, rotuloDaCompetencia, vencimentoDa } from "../src/modules/financeiro/recorrencia/calculo";
+import { gerarLancamentosRecorrentes, vincularLancamento } from "../src/modules/financeiro/recorrencia/service";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -182,6 +187,7 @@ async function main() {
   await smokeAplicar(admin.id, catFornecedor.id, catReceita.id);
   await smokeCaixinhas(admin.id, catFornecedor.id, catReceita.id);
   await smokeDistribuicao(admin.id, catReceita.id);
+  await smokeRecorrencia(admin.id, catFornecedor.id);
 
   console.log("\n# Import do Meu Dinheiro — transferência nasce pareada e neutra");
   const categoriasAntes = new Set((await prisma.categoriaFinanceira.findMany({ select: { id: true } })).map((c) => c.id));
@@ -550,5 +556,83 @@ async function smokeDistribuicao(autorId: string, catReceitaId: string) {
     await prisma.contaBancaria.deleteMany({ where: { nome: { startsWith: t } } });
     if (configAntes) await prisma.configSistema.update({ where: { chave: CHAVE_CONFIG_LIQUIDEZ }, data: { valor: configAntes.valor as Prisma.InputJsonValue } });
     else await prisma.configSistema.deleteMany({ where: { chave: CHAVE_CONFIG_LIQUIDEZ } });
+  }
+}
+
+async function smokeRecorrencia(autorId: string, catDespesaId: string) {
+  const t = `${tag}-f6a`;
+  const compAtual = competenciaDe(hoje);
+  try {
+    console.log("\n# F6A — compromisso recorrente: projeção, geração idempotente e vínculo");
+    const c = await prisma.compromissoRecorrente.create({
+      data: {
+        descricao: `${t} pró-labore`,
+        valor: 6000,
+        // Vence hoje: o mês corrente está dentro da antecedência, então o gerador pega.
+        diaVencimento: Number(hoje.slice(8, 10)),
+        competenciaInicio: compAtual,
+        categoriaId: catDespesaId,
+        antecedenciaDias: 5,
+      },
+      select: { id: true, diaVencimento: true },
+    });
+    const idProg = idDoProgramado(c.id, compAtual);
+    const base1 = await baseDoPlanejador({ horizonteDias: 30 });
+    const prog = base1.eventos.find((e) => e.id === idProg);
+    check("mês sem lançamento é projetado como Programado", prog?.origem === "programado" && prog.valor === paraCentavos(6000), prog?.origem);
+    check("o vencimento é o dia do compromisso na competência", prog?.data === vencimentoDa(compAtual, c.diaVencimento), prog?.data);
+    check("o mês programado não é lançamento: data com dono e sem status", prog?.naoProgramavel != null && prog?.status === null);
+    check("a descrição diz a competência", prog?.descricao === `${t} pró-labore · ${rotuloDaCompetencia(compAtual)}`, prog?.descricao);
+
+    console.log("\n# F6A — geração: duas execuções ao mesmo tempo criam o mês uma vez só");
+    const [r1, r2] = await Promise.all([gerarLancamentosRecorrentes({ autorId }), gerarLancamentosRecorrentes({ autorId })]);
+    const gerados = await prisma.lancamento.findMany({ where: { recorrenciaOrigemId: c.id }, select: { id: true, status: true, valor: true, recorrenciaCompetencia: true, vencimento: true } });
+    check("exatamente um lançamento para a competência", gerados.length === 1 && gerados[0].recorrenciaCompetencia === compAtual, gerados.length);
+    check("as duas execuções somam 1 criação", r1.criados + r2.criados === 1, { r1: r1.criados, r2: r2.criados });
+    check("nasce previsto, com o valor e o vencimento do compromisso", gerados[0].status === "previsto" && paraCentavos(gerados[0].valor) === paraCentavos(6000));
+    const base2 = await baseDoPlanejador({ horizonteDias: 30 });
+    check("gerado: o mês deixa de ser projetado e o lançamento é que conta", !base2.eventos.some((e) => e.id === idProg) && base2.eventos.some((e) => e.id === gerados[0].id));
+    check("rodar de novo não cria nada", (await gerarLancamentosRecorrentes({ autorId })).criados === 0);
+
+    console.log("\n# F6A — vínculo manual (§9): sem vínculo os dois contam e o aviso avisa");
+    const prox = await prisma.compromissoRecorrente.create({
+      data: { descricao: `${t} aluguel`, valor: 2000, diaVencimento: 28, competenciaInicio: compAtual, categoriaId: catDespesaId, antecedenciaDias: 0 },
+      select: { id: true },
+    });
+    const manual = await prisma.lancamento.create({
+      data: {
+        descricao: `${t} aluguel pago à mão`,
+        tipo: "despesa",
+        valor: 1500,
+        status: "previsto",
+        data: em(0),
+        vencimento: new Date(`${vencimentoDa(compAtual, 28)}T00:00:00.000Z`),
+        categoriaId: catDespesaId,
+        autorId,
+      },
+      select: { id: true },
+    });
+    const base3 = await baseDoPlanejador({ horizonteDias: 60 });
+    const meus3 = base3.avisosRecorrencia.filter((a) => a.compromissoId === prox.id);
+    check("avisa possível pagamento em dobro", meus3.some((a) => a.tipo === "dobro" && a.lancamentoId === manual.id), meus3.map((a) => a.tipo));
+    check("sem vínculo, o mês continua projetado (os dois contam, lado seguro)", base3.eventos.some((e) => e.id === idDoProgramado(prox.id, compAtual)));
+
+    await vincularLancamento({ lancamentoId: manual.id, compromissoId: prox.id, competencia: compAtual });
+    const base4 = await baseDoPlanejador({ horizonteDias: 60 });
+    check("vinculado: o mês sai da projeção", !base4.eventos.some((e) => e.id === idDoProgramado(prox.id, compAtual)));
+    const aviso = base4.avisosRecorrencia.find((a) => a.lancamentoId === manual.id);
+    check("vale o valor do lançamento e a diferença vira aviso", aviso?.tipo === "abaixo" && aviso.diferenca === paraCentavos(500), aviso);
+
+    let erroDupla = "";
+    try {
+      await vincularLancamento({ lancamentoId: manual.id, compromissoId: prox.id, competencia: compAtual });
+    } catch (e) {
+      erroDupla = e instanceof Error ? e.message : String(e);
+    }
+    check("vincular de novo é recusado", erroDupla.includes("já está vinculado"), erroDupla);
+    check("e o mês vinculado nunca é gerado", (await gerarLancamentosRecorrentes({ autorId })).criados === 0);
+  } finally {
+    await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: t }, excluidoEm: { not: undefined } } });
+    await prisma.compromissoRecorrente.deleteMany({ where: { descricao: { startsWith: t } } });
   }
 }

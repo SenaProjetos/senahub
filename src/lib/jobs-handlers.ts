@@ -628,6 +628,17 @@ export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: n
 }
 
 /** Diário: grava a foto dos KPIs do dashboard (série histórica). */
+/**
+ * Gera os lançamentos dos compromissos recorrentes que estão perto do vencimento (ADR-0009, D6).
+ * Idempotente: o par `(recorrenciaOrigemId, recorrenciaCompetencia)` é único, então rodar de novo —
+ * ou junto com o botão "Gerar agora" — não duplica nenhum mês.
+ */
+export async function gerarRecorrentesDiario(): Promise<number> {
+  const { gerarLancamentosRecorrentes } = await import("@/modules/financeiro/recorrencia/service");
+  const r = await gerarLancamentosRecorrentes({ autorId: "" });
+  return r.criados;
+}
+
 export async function snapshotDashboardDiario() {
   await gravarSnapshotDashboard();
 }

@@ -308,6 +308,23 @@ saída de caixa.
 Sem vínculo o motor conta os dois de propósito: superestima a saída (lado seguro) e o aviso não deixa
 passar. **[T]** para as quatro linhas.
 
+### Como a F6A implementou (2026-10-01)
+
+- **Tabelas:** `CompromissoRecorrente` (descrição, valor, dia, competência inicial/final, categoria, sócio,
+  caixinha, prioridade, antecedência, ativo) e, em `Lancamento`, `socioId`, `recorrenciaOrigemId` e
+  `recorrenciaCompetencia` com `@@unique` no par — é dele que vem a idempotência, não de um lock.
+- **Projeção:** `eventosProgramados` olha do 1º do mês corrente até o fim do horizonte, no teto de `⌈H/28⌉+1`
+  competências. Mês vencido do mês corrente sem lançamento vai para Vencidos; mais atrás que isso é
+  trabalho do gerador (que recua até 12 competências).
+- **Mês programado não é lançamento:** no menu do planejador não aparecem prioridade, confiança, caixinha,
+  distribuição nem "abrir"; "simular outra data" fica desabilitado com o motivo. Tirar/incluir na simulação
+  continua valendo (é só simulação).
+- **Geração** pelo job diário (06:00) e pelo botão "Gerar agora", com a mesma função. O lançamento nasce
+  `previsto` e NÃO passa pela alçada: o valor foi aprovado ao cadastrar o compromisso.
+- **Vínculo manual** por ação explícita, inclusive a partir do aviso de dobro no planejador. Candidato =
+  mesma categoria, mesmo sócio, competência vigente e livre.
+- Fica para a F6B: distribuição e adiantamento por sócio (a coluna `Lancamento.socioId` já existe).
+
 ## 10. Simulação × real
 
 - Todo evento de simulação (movimento incluído, distribuição, entrada, ajuste de data) é **virtual**: vive

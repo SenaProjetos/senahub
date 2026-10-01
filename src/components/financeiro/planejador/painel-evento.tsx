@@ -108,7 +108,7 @@ export function PainelEvento({
                 <dd>{e.origem === "simulado" ? "Só na simulação" : e.status ? SITUACAO[e.status] : "—"}</dd>
               </dl>
 
-              {e.origem !== "simulado" && e.natureza !== "transferencia" && e.tipo === "despesa" && e.prioridade && (
+              {e.origem === "lancamento" && e.natureza !== "transferencia" && e.tipo === "despesa" && e.prioridade && (
                 <div className="grid gap-1.5">
                   <Label htmlFor="pe-prioridade">Prioridade nesta simulação</Label>
                   <Select value={e.prioridade} onValueChange={(v) => v && onPrioridade(v as Prioridade)}>
@@ -125,7 +125,7 @@ export function PainelEvento({
                   </Select>
                 </div>
               )}
-              {e.origem !== "simulado" && e.natureza !== "transferencia" && e.tipo === "despesa" && caixinhas.length > 0 && (
+              {e.origem === "lancamento" && e.natureza !== "transferencia" && e.tipo === "despesa" && caixinhas.length > 0 && (
                 <div className="grid gap-1.5">
                   <Label htmlFor="pe-caixinha">Paga pela caixinha nesta simulação</Label>
                   <Select value={e.caixinhaId ?? SEM_CAIXINHA} onValueChange={(v) => onCaixinha(!v || v === SEM_CAIXINHA ? null : v)}>
@@ -144,7 +144,7 @@ export function PainelEvento({
                   <p className="text-xs text-muted-foreground">O que a caixinha cobre sai do reservado, não do dinheiro livre.</p>
                 </div>
               )}
-              {e.origem !== "simulado" && e.natureza !== "transferencia" && e.tipo === "receita" && e.confianca && (
+              {e.origem === "lancamento" && e.natureza !== "transferencia" && e.tipo === "receita" && e.confianca && (
                 <div className="grid gap-1.5">
                   <Label htmlFor="pe-confianca">Confiança nesta simulação</Label>
                   <Select value={e.confianca} onValueChange={(v) => v && onConfianca(v as Confianca)}>

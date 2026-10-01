@@ -218,6 +218,15 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   in the payment paths: paying a linked bill just lowers cash and reserved together. A caixinha only changes on an
   OPEN despesa (`definirCaixinhaLancamento` / `ALTERAR_CAIXINHA`); a paid one is fixed with an `ajuste` movement.
   Archive only with reserved zero and no open linked bill. Initial 9 caixinhas come from the migration by `chave`.
+- **Recurring commitments are a REGISTRY, not bills** (`financeiro/recorrencia/`, F6A, ADR-0009): a
+  `CompromissoRecorrente` makes the planner project each month with no linked `Lancamento` as a `programado`
+  event (id `prog:<id>:<YYYY-MM>`, never adjustable — it is not a lançamento yet); the daily job (and the
+  "Gerar agora" button) creates the real `Lancamento` once the due date is within `antecedenciaDias`.
+  Idempotency is the DB's: `@@unique([recorrenciaOrigemId, recorrenciaCompetencia])` — a month with a linked
+  lançamento (even cancelled) is never projected nor generated again, and P2002 is the expected outcome of a
+  race, not an error. A linked lançamento's VALUE wins; the difference becomes a warning, never a correction.
+  Without a link both count on purpose (safe side) and the planner warns "possível … em dobro". The partial
+  remainder inherits sócio but NOT the link (`camposDoPlanejador`), or the unique key would break.
 - **Distribution only reserves** (`financeiro/distribuicao/`, F5): a `RegraDistribuicao` SUGGESTS a split in basis points
   (must close exactly 10000; `null` caixinha = "Operacional (livre)", which moves nothing). Confirming a realized receita
   in "Recebimentos a distribuir" writes ONE `DistribuicaoRecebimento` (unique per lançamento — that row is what takes it

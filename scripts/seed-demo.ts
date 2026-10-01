@@ -82,6 +82,8 @@ async function limpar() {
   // Movimentos de caixinha: o autor é usuário demo (FK Restrict). As caixinhas em si são da migração
   // (chave estável) e ficam; o lançamento solta a caixinha por SET NULL.
   await prisma.movimentoCaixinha.deleteMany({});
+  // Compromissos recorrentes: a FK do lançamento é SET NULL, então some junto com os lançamentos demo.
+  await prisma.compromissoRecorrente.deleteMany({});
   await prisma.lancamento.deleteMany({});
   await prisma.projetoMembro.deleteMany({});
   await prisma.projeto.deleteMany({});

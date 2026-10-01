@@ -7,6 +7,8 @@ import { PlanoContasSection } from "./plano-contas-section";
 import { ContasSection } from "./contas-section";
 import { FornecedoresSection } from "./fornecedores-section";
 import { SociosSection } from "./socios-section";
+import { RecorrentesSection } from "./recorrentes-section";
+import type { CompromissoDto } from "@/modules/financeiro/recorrencia/queries";
 import { NomeSimplesSection } from "./nome-simples-section";
 import {
   criarCentro,
@@ -50,6 +52,9 @@ export function CadastrosView({
   fornecedores,
   socios,
   usuarios,
+  compromissos,
+  caixinhas,
+  mesAtual,
   subnav,
 }: {
   categorias: Cat[];
@@ -59,11 +64,15 @@ export function CadastrosView({
   fornecedores: Fornecedor[];
   socios: SocioRow[];
   usuarios: { id: string; name: string }[];
+  compromissos: CompromissoDto[];
+  caixinhas: { id: string; nome: string }[];
+  /** `YYYY-MM` de hoje, para a primeira competência do formulário. */
+  mesAtual: string;
   subnav?: React.ReactNode;
 }) {
   return (
     <div className="space-y-4">
-      <CabecalhoPagina titulo="Cadastros financeiros" descricao="Plano de contas, contas bancárias, fornecedores, sócios e auxiliares." />
+      <CabecalhoPagina titulo="Cadastros financeiros" descricao="Plano de contas, contas bancárias, fornecedores, sócios, recorrentes e auxiliares." />
       {subnav}
 
       <Tabs defaultValue="plano">
@@ -72,6 +81,7 @@ export function CadastrosView({
           <TabsTrigger value="contas">Contas bancárias</TabsTrigger>
           <TabsTrigger value="fornecedores">Fornecedores</TabsTrigger>
           <TabsTrigger value="socios">Sócios</TabsTrigger>
+          <TabsTrigger value="recorrentes">Compromissos recorrentes</TabsTrigger>
           <TabsTrigger value="centros">Centros de custo</TabsTrigger>
           <TabsTrigger value="formas">Formas de pagamento</TabsTrigger>
         </TabsList>
@@ -89,6 +99,15 @@ export function CadastrosView({
             </TabsContent>
             <TabsContent value="socios">
               <SociosSection socios={socios} usuarios={usuarios} />
+            </TabsContent>
+            <TabsContent value="recorrentes">
+              <RecorrentesSection
+                compromissos={compromissos}
+                categorias={categorias.filter((c) => c.tipo === "despesa").map((c) => ({ id: c.id, codigo: c.codigo, nome: c.nome }))}
+                socios={socios.filter((s) => s.ativo).map((s) => ({ id: s.id, nome: s.nome }))}
+                caixinhas={caixinhas}
+                mesAtual={mesAtual}
+              />
             </TabsContent>
             <TabsContent value="centros">
               <NomeSimplesSection

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { AlertTriangle, FolderOpen, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
@@ -27,6 +27,7 @@ import type { CenarioDto } from "@/modules/financeiro/planejador/cenarios/querie
 import { partesDeCaixinha, ratear } from "@/modules/financeiro/distribuicao/calculo";
 import type { RegraDto } from "@/modules/financeiro/distribuicao/queries";
 import { nomePadraoDoCenario } from "@/modules/financeiro/planejador/cenarios/resumo";
+import { vincularLancamentoARecorrencia } from "@/modules/financeiro/recorrencia/actions";
 import { HORIZONTES_DIAS, type ConfigLiquidez } from "@/modules/financeiro/config/liquidez";
 import { resumoDoAlerta } from "@/modules/financeiro/liquidez/alerta";
 import {
@@ -125,6 +126,7 @@ export function PlanejadorView({
 }) {
   const router = useRouter();
   const confirm = useConfirm();
+  const [vinculando, iniciarVinculo] = useTransition();
   const [eixos, setEixos] = useState<Eixos>(cenario?.premissas.eixos ?? RASCUNHO_VAZIO.eixos);
   const [ajustes, setAjustes] = useState<AjusteSimulado[]>(cenario?.ajustes ?? []);
   // O que está salvo no cenário aberto — para dizer "alterações não salvas".
@@ -317,6 +319,16 @@ export function PlanejadorView({
   const premissas = { eixos, horizonteDias: base.horizonteDias };
   const hrefHorizonte = (h: number) => `?horizonte=${h}${cenario ? `&cenario=${encodeURIComponent(cenario.id)}` : ""}`;
 
+  /** Liga o lançamento manual ao mês programado: daí em diante vale o valor do lançamento (§9). */
+  function vincular(lancamentoId: string, compromissoId: string, competencia: string) {
+    iniciarVinculo(async () => {
+      const r = await vincularLancamentoARecorrencia({ lancamentoId, compromissoId, competencia });
+      if (!r.ok) return void toast.error(r.error);
+      toast.success("Vinculado: o mês deixa de ser projetado, e vale o valor do lançamento.");
+      router.refresh();
+    });
+  }
+
   async function descartar() {
     const ok = await confirm({ title: "Descartar a simulação?", description: `${ajustes.length} ${ajustes.length === 1 ? "ajuste sai" : "ajustes saem"} desta aba. O financeiro não muda.`, confirmLabel: "Descartar", variant: "destructive" });
     if (ok) setAjustes([]);
@@ -450,7 +462,7 @@ export function PlanejadorView({
         </div>
       </section>
 
-      {(anomalias.length > 0 || projecao.avisos.length > 0 || base.reservaMinima === 0) && (
+      {(anomalias.length > 0 || projecao.avisos.length > 0 || base.avisosRecorrencia.length > 0 || base.reservaMinima === 0) && (
         <section aria-label="Avisos sobre os dados" className="flex flex-col gap-1 rounded-sm border border-warning/40 bg-warning/5 px-3 py-2 text-[13px]">
           {base.reservaMinima === 0 && <p>Reserva mínima não definida: o planejador só avisa quando o caixa fica negativo.</p>}
           {anomalias.map((a) => (
@@ -458,6 +470,17 @@ export function PlanejadorView({
           ))}
           {projecao.avisos.map((a) => (
             <p key={`${a.eventoId}:${a.mensagem}`}>{a.mensagem}</p>
+          ))}
+          {/* Recorrência (§9): diferença de valor no mês vinculado e possível pagamento em dobro. */}
+          {base.avisosRecorrencia.map((a) => (
+            <p key={`${a.tipo}:${a.lancamentoId}:${a.competencia}`} className="flex flex-wrap items-center gap-x-2">
+              <span>{a.texto}</span>
+              {a.tipo === "dobro" && podeGerir && (
+                <Button size="sm" variant="outline" className="h-6" disabled={vinculando} onClick={() => vincular(a.lancamentoId, a.compromissoId, a.competencia)}>
+                  Vincular à recorrência
+                </Button>
+              )}
+            </p>
           ))}
         </section>
       )}

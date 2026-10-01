@@ -38,6 +38,7 @@ import {
   alertaPropostasExpiradas,
   snapshotQualidadeMensal,
   snapshotLicitacaoMensal,
+  gerarRecorrentesDiario,
   snapshotDashboardDiario,
   lembretePontoNaoBatido,
   resumoSemanal,
@@ -245,6 +246,15 @@ export async function startJobs(): Promise<PgBoss> {
       handler: async () => {
         const n = await alertaRateioAberto();
         if (n > 0) console.log(`[rateio] mês anterior aberto: ${n} sessão(ões) a ratear.`);
+      },
+    },
+    {
+      // Antes dos alertas das 08h: o lançamento do mês já existe quando o financeiro abre a tela.
+      fila: "gerar-recorrentes",
+      cron: "0 6 * * *", // diário 06:00
+      handler: async () => {
+        const n = await gerarRecorrentesDiario();
+        if (n > 0) console.log(`[recorrentes] ${n} lançamento(s) gerado(s).`);
       },
     },
     {
