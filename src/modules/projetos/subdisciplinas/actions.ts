@@ -5,6 +5,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { subdisciplinasDoCard } from "./queries";
+import { fraseSubEmUso } from "@/modules/projetos/nomenclatura/catalogo/todas";
 import { garantirFaixaVersao } from "@/modules/uploads/nomenclatura/siglas-guardas";
 import type { FaixaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
 
@@ -121,8 +122,30 @@ export const excluirSubdisciplina = defineAction(
   },
   async (i) => {
     const uso = await prisma.documentoDisciplina.count({ where: { subdisciplinaId: i.id } });
-    if (uso > 0) throw new ActionError(`Em uso em ${uso} documento(s) — desative em vez de excluir.`);
+    if (uso > 0) throw new ActionError(fraseSubEmUso(uso));
     await prisma.subdisciplinaCatalogo.delete({ where: { id: i.id } });
+    rev();
+    return { id: i.id };
+  },
+);
+
+/**
+ * Arquivar/desarquivar uma sub pela lente Todas (E8): mexe só em `ativo` — nome, validade e siglas
+ * ficam como estão (a faixa muda na lente da versão, A2).
+ */
+export const definirAtivoSubdisciplina = defineAction(
+  {
+    ...base,
+    acao: "definir-ativo-subdisciplina",
+    entidade: "SubdisciplinaCatalogo",
+    entidadeId: (_d, i) => i.id,
+    schema: z.object({ id: z.string().min(1), ativo: z.boolean() }),
+    capturarAntes: (i) => prisma.subdisciplinaCatalogo.findUnique({ where: { id: i.id } }),
+  },
+  async (i) => {
+    const existe = await prisma.subdisciplinaCatalogo.findUnique({ where: { id: i.id }, select: { id: true } });
+    if (!existe) throw new ActionError("Sub-disciplina não encontrada.");
+    await prisma.subdisciplinaCatalogo.update({ where: { id: i.id }, data: { ativo: i.ativo } });
     rev();
     return { id: i.id };
   },

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
+import { fraseCardEmUso } from "@/modules/projetos/nomenclatura/catalogo/todas";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
@@ -1436,10 +1437,9 @@ export const excluirDisciplinaCatalogo = defineAction(
   async (i) => {
     const c = await prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } });
     if (!c) throw new ActionError("Disciplina não encontrada.");
-    const uso = await prisma.disciplina.count({ where: { disciplinaTextoLegado: c.nome } });
-    if (uso > 0) {
-      throw new ActionError(`Em uso em ${uso} projeto(s) — arquive em vez de excluir.`);
-    }
+    // Mesma contagem (projetos distintos, nome sem caixa/acento) e mesma frase do menu da lista.
+    const uso = await usoDaDisciplina(c.nome);
+    if (uso > 0) throw new ActionError(fraseCardEmUso(uso));
     await prisma.disciplinaCatalogo.delete({ where: { id: i.id } });
     revCatalogo();
     return { id: i.id };

@@ -14,6 +14,7 @@ import {
   type FaixaVersao,
 } from "@/modules/uploads/nomenclatura/siglas-versao";
 import { garantirFaixaVersao, garantirSiglasSemColisao } from "@/modules/uploads/nomenclatura/siglas-guardas";
+import { fraseFaseEmUso } from "@/modules/projetos/nomenclatura/catalogo/todas";
 
 const base = { modulo: "configuracoes", recurso: "configuracoes", permissao: "gerir" } as const;
 const categoria = z.enum(["folha", "tipo", "fase"]);
@@ -204,6 +205,30 @@ export const editarNomeItemListaMestre = defineAction(
   },
 );
 
+/**
+ * Arquivar/desarquivar fase ou tipo global pela lente Todas (E8): só `ativo`. Sigla, sinônimos e
+ * validade não passam por aqui — `editarCatalogoPrancha` regravaria o espelho das colunas.
+ */
+export const definirAtivoItemListaMestre = defineAction(
+  {
+    ...base,
+    acao: "definir-ativo-item-lista-mestre",
+    entidade: "PranchaCatalogo",
+    entidadeId: (_d, i) => i.id,
+    schema: z.object({ id: z.string().min(1), ativo: z.boolean() }),
+    capturarAntes: (i) => prisma.pranchaCatalogo.findUnique({ where: { id: i.id } }),
+  },
+  async (i) => {
+    const existe = await prisma.pranchaCatalogo.findUnique({ where: { id: i.id }, select: { categoria: true, projetoId: true } });
+    if (!existe || existe.projetoId !== null || (existe.categoria !== "fase" && existe.categoria !== "tipo")) {
+      throw new ActionError("Item da Lista Mestre não encontrado.");
+    }
+    await prisma.pranchaCatalogo.update({ where: { id: i.id }, data: { ativo: i.ativo } });
+    rev();
+    return { id: i.id };
+  },
+);
+
 export const excluirCatalogoPrancha = defineAction(
   { ...base, acao: "excluir-catalogo-prancha", entidade: "PranchaCatalogo", schema: z.object({ id: z.string().min(1) }) },
   async (i) => {
@@ -212,9 +237,7 @@ export const excluirCatalogoPrancha = defineAction(
     // pessoa veria só "algo deu errado" em vez do motivo e da saída (desativar).
     const emUso = await prisma.disciplinaEtapa.count({ where: { etapaId: i.id } });
     if (emUso > 0) {
-      throw new ActionError(
-        `Esta fase é usada por ${emUso} etapa(s) de disciplina e não pode ser excluída. Desative-a para ela sumir dos cadastros novos.`,
-      );
+      throw new ActionError(fraseFaseEmUso(emUso));
     }
     await prisma.pranchaCatalogo.delete({ where: { id: i.id } });
     rev();
