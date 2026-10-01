@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import type { LancamentoItem, OpcoesLancamento } from "@/modules/financeiro/lancamentos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { baixarEmLote } from "@/modules/financeiro/lancamentos/actions";
+import { baixarEmLote, definirConfiancaLancamento, definirPrioridadeLancamento } from "@/modules/financeiro/lancamentos/actions";
 import { LancamentoForm } from "./lancamento-form";
 import { ConfirmarDialog } from "./confirmar-dialog";
 import { LancamentoDetalheDialog } from "./lancamento-detalhe-dialog";
@@ -19,12 +19,20 @@ import { BotaoSelecionados } from "@/components/ui/botao-selecionados";
 import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
 import { LinhaComMenu } from "@/components/ui/linha-com-menu";
 import { useSelecao } from "@/components/ui/use-selecao";
+import { useLote } from "@/components/ui/use-lote";
+import { SeloConfianca, SeloPrioridade } from "@/components/financeiro/selos";
+import type { Prioridade } from "@/modules/financeiro/liquidez/tipos";
 import { copiarTexto } from "@/lib/clipboard";
 import {
   ACAO_ANEXOS,
   ACAO_COPIAR_DESCRICAO,
+  ACAO_DESMARCAR_CONFIRMADA,
   ACAO_EDITAR,
+  ACAO_LOTE_MARCAR_CONFIRMADA,
+  ACAO_MARCAR_CONFIRMADA,
   ACAO_QUITAR,
+  PREFIXO_PRIORIDADE_CONTA,
+  PRIORIDADE_HERDADA,
   itensDeConta,
   itensDeLoteContas,
 } from "@/modules/financeiro/lancamentos/acoes-conta";
@@ -125,6 +133,7 @@ export function ContasPagarReceberView({
 
   // Seleção compartilhada (ADR-0002, regra 3): o menu de contexto age sobre ela.
   const selecao = useSelecao();
+  const lote = useLote();
   const [formOpen, setFormOpen] = useState(false);
   const [editar, setEditar] = useState<LancamentoItem | null>(null);
   const [detalhe, setDetalhe] = useState<LancamentoItem | null>(null);
@@ -298,10 +307,49 @@ export function ContasPagarReceberView({
 
   /** Contas marcadas que ainda estão na lista (a fila encolhe quando algo é quitado). */
   const alvosSelecao = useMemo(() => itens.filter((i) => selecao.marcado(i.id)), [itens, selecao]);
-  const itensDoLote = itensDeLoteContas(tab);
+  const itensDoLote = itensDeLoteContas(tab, podeGerir);
+
+  /** Planejador (D1/D3): prioridade e confiança mudam o que o planejador espera, não o status. */
+  function gravarPlanejador(p: Promise<{ ok: boolean; error?: string }>, ok: string) {
+    start(async () => {
+      const r = await p;
+      if (r.ok) {
+        toast.success(ok);
+        router.refresh();
+      } else toast.error(r.error ?? "Não foi possível.");
+    });
+  }
+
+  function aoSelecionarLote(item: AcaoItemAcao) {
+    if (item.id === ACAO_LOTE_MARCAR_CONFIRMADA) {
+      void lote.executar({
+        ids: alvosSelecao.map((a) => a.id),
+        acao: (id) => definirConfiancaLancamento({ id, confianca: "confirmada_cliente" }),
+        substantivo: ["conta", "contas"],
+        verbo: ["marcada", "marcadas"],
+        rotulo: (id) => alvosSelecao.find((a) => a.id === id)?.descricao ?? id,
+        confirmar: {
+          titulo: (n) => `Marcar ${n} ${n === 1 ? "conta" : "contas"} como confirmada pelo cliente?`,
+          descricao: "Nada é recebido: só diz ao planejador que o cliente confirmou o pagamento.",
+          rotuloConfirmar: "Marcar",
+        },
+        aoConcluir: () => limparSel(),
+      });
+    } else setLoteOpen(true);
+  }
 
   function aoSelecionarNaLinha(l: LancamentoItem, item: AcaoItemAcao) {
-    if (item.id === ACAO_QUITAR) confirmarRapido(l);
+    if (item.id.startsWith(PREFIXO_PRIORIDADE_CONTA)) {
+      const v = item.id.slice(PREFIXO_PRIORIDADE_CONTA.length);
+      gravarPlanejador(
+        definirPrioridadeLancamento({ id: l.id, prioridade: v === PRIORIDADE_HERDADA ? null : (v as Prioridade) }),
+        v === PRIORIDADE_HERDADA ? "Prioridade volta a ser a da categoria." : `Prioridade ${v.toUpperCase()}.`,
+      );
+    } else if (item.id === ACAO_MARCAR_CONFIRMADA) {
+      gravarPlanejador(definirConfiancaLancamento({ id: l.id, confianca: "confirmada_cliente" }), "Marcada como confirmada pelo cliente.");
+    } else if (item.id === ACAO_DESMARCAR_CONFIRMADA) {
+      gravarPlanejador(definirConfiancaLancamento({ id: l.id, confianca: null }), "Confirmação do cliente desmarcada.");
+    } else if (item.id === ACAO_QUITAR) confirmarRapido(l);
     else if (item.id === ACAO_EDITAR) setEditar(l);
     else if (item.id === ACAO_ANEXOS) setDetalhe(l);
     else if (item.id === ACAO_COPIAR_DESCRICAO) {
@@ -577,10 +625,12 @@ export function ContasPagarReceberView({
       <BarraSelecao
         total={alvosSelecao.length}
         itens={itensDoLote}
-        onSelect={() => setLoteOpen(true)}
+        onSelect={aoSelecionarLote}
         onLimpar={selecao.limpar}
         substantivo={["lançamento", "lançamentos"]}
+        progresso={lote.progresso}
       />
+      {lote.portal}
       <LoteDialog
         open={loteOpen}
         onClose={() => setLoteOpen(false)}
@@ -613,12 +663,16 @@ export function ContasPagarReceberView({
     // Com a linha DENTRO de uma seleção de vários, o menu age sobre a seleção (regra 3 da ADR-0002).
     const menuItens = alvosSelecao.length > 1 && selecao.marcado(l.id)
       ? itensDoLote
-      : itensDeConta({ status: l.status, anexos: l.anexos.length }, { tipo: tab, podeGerir });
+      : itensDeConta({ status: l.status, anexos: l.anexos.length, prioridade: l.prioridade, confianca: l.confianca }, { tipo: tab, podeGerir });
+    // Efetivas, como o planejador as lê: despesa herda da categoria (ou da mãe, ou P3); receita
+    // em aberto sem marca é Provável (D1).
+    const prioridade = l.tipo === "despesa" ? (l.prioridade ?? l.categoria?.prioridadePadrao ?? l.categoria?.pai?.prioridadePadrao ?? "p3") : null;
+    const confianca = l.tipo === "receita" ? (l.confianca ?? "provavel") : null;
     return (
       <LinhaComMenu
         key={l.id}
         itens={menuItens}
-        onSelect={(item) => (item.id.startsWith("lote-") ? setLoteOpen(true) : aoSelecionarNaLinha(l, item))}
+        onSelect={(item) => (item.id.startsWith("lote-") ? aoSelecionarLote(item) : aoSelecionarNaLinha(l, item))}
         aoAbrir={(aberto) => { if (aberto) selecao.aoAbrirMenu(l.id); }}
         render={<div className="grid grid-cols-[28px_96px_1fr_140px_120px_140px] items-center gap-2 border-b px-3 py-2 text-sm last:border-0 hover:bg-muted/20 data-[popup-open]:bg-muted/30" />}
       >
@@ -632,6 +686,8 @@ export function ContasPagarReceberView({
         <span className="min-w-0">
           <span className="block truncate font-medium">{l.descricao}</span>
           <span className="block truncate text-xs text-muted-foreground">
+            {prioridade && <SeloPrioridade prioridade={prioridade} className="mr-1.5 h-5 px-1.5" />}
+            {confianca && <SeloConfianca confianca={confianca} className="mr-1.5" />}
             {topoDe(l)}
             {par && <Badge variant="outline" className="ml-1 px-1 py-0 text-[10px]">{par}</Badge>}
             {l.projeto && ` · ${formatarCodigo(l.projeto.codigo)} ${l.projeto.nome}`}
@@ -647,7 +703,7 @@ export function ContasPagarReceberView({
           </Button>
           <BotaoAcoes
             itens={menuItens}
-            onSelect={(item) => (item.id.startsWith("lote-") ? setLoteOpen(true) : aoSelecionarNaLinha(l, item))}
+            onSelect={(item) => (item.id.startsWith("lote-") ? aoSelecionarLote(item) : aoSelecionarNaLinha(l, item))}
             rotulo={`Ações de ${l.descricao}`}
           />
         </span>

@@ -1,8 +1,6 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { addMonths } from "date-fns";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { casarCobrancaManualComPrevisao } from "@/modules/juridico/contrato/previsao-service";
 import { prisma } from "@/lib/prisma";
@@ -11,17 +9,15 @@ import {
   editarLancamentoSchema,
   confirmarLancamentoSchema,
   idLancamentoSchema,
+  prioridadeLancamentoSchema,
+  confiancaLancamentoSchema,
 } from "@/modules/financeiro/lancamentos/schemas";
 import { z } from "zod";
 import { removerArquivo } from "@/lib/storage";
-import { notificarMuitos } from "@/lib/notificar";
-import { getNiveisAprovacao, aprovadoresPorPapeis } from "@/modules/financeiro/aprovacao/queries";
-import { precisaAprovacao, papeisAprovadores } from "@/modules/financeiro/aprovacao/niveis";
+import { criarLancamentoNoTx, notificarAprovacaoPendente } from "@/modules/financeiro/lancamentos/service";
 import { camposDoPlanejador, saldoRestante } from "@/modules/financeiro/lancamentos/parcial";
-import { getConfigFinanceiro, getExclusaoCompleto } from "@/modules/financeiro/config/queries";
-import { obrigatorioFaltando } from "@/modules/financeiro/config/validacao";
+import { getExclusaoCompleto } from "@/modules/financeiro/config/queries";
 import { verificarSenha } from "@/modules/financeiro/config/senha";
-import { brl } from "@/lib/utils";
 
 const base = { modulo: "financeiro", recurso: "financeiro", permissao: "gerir" } as const;
 
@@ -31,6 +27,7 @@ function rev() {
   revalidatePath("/financeiro/contas-a-pagar");
   revalidatePath("/financeiro/contas-a-receber");
   revalidatePath("/financeiro/relatorios");
+  revalidatePath("/financeiro/planejador");
 }
 
 function data(s?: string): Date | undefined {
@@ -79,109 +76,46 @@ async function snapshotLancamento(id: string) {
 export const criarLancamento = defineAction(
   { ...base, acao: "criar-lancamento", entidade: "Lancamento", schema: criarLancamentoSchema },
   async (i, { user }) => {
-    const dataBase = data(i.data);
-    if (!dataBase) throw new ActionError("Data inválida.");
-    const vencBase = data(i.vencimento || undefined);
-    const compBase = data(i.dataCompetencia || undefined);
-
-    // Campos obrigatórios configuráveis (Configurações do módulo financeiro).
-    const cfg = await getConfigFinanceiro();
-    const faltando = obrigatorioFaltando(cfg.obrigatorios, {
-      tipo: i.tipo,
-      centroId: i.centroId || undefined,
-      formaId: i.formaId || undefined,
-      projetoId: i.projetoId || undefined,
-      fornecedorId: i.fornecedorId || undefined,
-      clienteId: i.clienteId || undefined,
-      observacao: i.observacao || undefined,
-    });
-    if (faltando) throw new ActionError(`Campo obrigatório: ${faltando}.`);
-
-    // Alçada por faixa: despesa em faixa que exige aprovação trava em aguardando_aprovacao.
-    const niveis = await getNiveisAprovacao();
-    const precisaAprovar = precisaAprovacao(i.tipo, i.valor, niveis);
-    const statusInicial = precisaAprovar
-      ? ("aguardando_aprovacao" as const)
-      : i.confirmado
-        ? ("confirmado" as const)
-        : ("previsto" as const);
-
-    const grupo = i.ocorrencias > 1 ? randomUUID() : null;
-    const comum = {
-      tipo: i.tipo,
-      descricao: i.descricao,
-      valor: i.valor,
-      categoriaId: i.categoriaId,
-      centroId: i.centroId || null,
-      contaId: i.contaId || null,
-      formaId: i.formaId || null,
-      projetoId: i.projetoId || null,
-      fornecedorId: i.fornecedorId || null,
-      clienteId: i.clienteId || null,
-      observacao: i.observacao || null,
-      recorrenciaGrupo: grupo,
-      autorId: user.id,
-      status: statusInicial,
-    };
-
-    const confirmaAgora = statusInicial === "confirmado";
-    const registros = Array.from({ length: i.ocorrencias }, (_, n) => ({
-      ...comum,
-      data: addMonths(dataBase, n),
-      vencimento: vencBase ? addMonths(vencBase, n) : null,
-      dataConfirmacao: confirmaAgora ? addMonths(dataBase, n) : null,
-      dataCompetencia: compBase ? addMonths(compBase, n) : null,
-    }));
+    // Validação (obrigatórios, alçada) e gravação no serviço: o "aplicar cenário" do planejador
+    // passa pelas mesmas regras, dentro da transação dele.
+    const criado = await criarLancamentoNoTx(prisma, i, user.id);
 
     // Decisão #12: receita de projeto lançada à mão pode ser a cobrança de uma parcela que o cronograma
-    // ainda mostra como PREVISÃO — as duas linhas somariam no caixa. Cria uma a uma quando é lançamento
-    // único, para ter o id e tentar o casamento; recorrência não é parcela de entrega.
+    // ainda mostra como PREVISÃO — as duas linhas somariam no caixa. Só lançamento único (com id);
+    // recorrência não é parcela de entrega.
     let casamento: {
       casou: boolean;
       parcela: string | null;
       aviso: string | null;
       previsaoRemovidaId: string | null;
     } | null = null;
-    if (registros.length === 1) {
-      const criado = await prisma.lancamento.create({ data: registros[0], select: { id: true, vencimento: true, data: true } });
-      if (i.tipo === "receita" && i.projetoId && statusInicial !== "aguardando_aprovacao") {
-        const quando = (criado.vencimento ?? criado.data).toISOString().slice(0, 10);
-        try {
-          casamento = await casarCobrancaManualComPrevisao({
-            lancamentoId: criado.id,
-            projetoId: i.projetoId,
-            valor: i.valor,
-            vencimento: quando,
-            autorId: user.id,
-          });
-        } catch (e) {
-          // O lançamento JÁ existe: falhar aqui faria a tela mostrar erro e a pessoa lançar de novo,
-          // duplicando a receita. O casamento é um extra — sem ele, sobra a previsão, que está à vista.
-          casamento = {
-            casou: false,
-            parcela: null,
-            aviso: `O lançamento foi criado, mas não foi possível casá-lo com a previsão do cronograma${
-              e instanceof Error && e.message.length < 160 ? `: ${e.message}` : "."
-            } Confira a previsão na tela do contrato.`,
-            previsaoRemovidaId: null,
-          };
-        }
+    if (criado.id && criado.vencimentoOuData && i.tipo === "receita" && i.projetoId && criado.status !== "aguardando_aprovacao") {
+      try {
+        casamento = await casarCobrancaManualComPrevisao({
+          lancamentoId: criado.id,
+          projetoId: i.projetoId,
+          valor: i.valor,
+          vencimento: criado.vencimentoOuData,
+          autorId: user.id,
+        });
+      } catch (e) {
+        // O lançamento JÁ existe: falhar aqui faria a tela mostrar erro e a pessoa lançar de novo,
+        // duplicando a receita. O casamento é um extra — sem ele, sobra a previsão, que está à vista.
+        casamento = {
+          casou: false,
+          parcela: null,
+          aviso: `O lançamento foi criado, mas não foi possível casá-lo com a previsão do cronograma${
+            e instanceof Error && e.message.length < 160 ? `: ${e.message}` : "."
+          } Confira a previsão na tela do contrato.`,
+          previsaoRemovidaId: null,
+        };
       }
-    } else {
-      await prisma.lancamento.createMany({ data: registros });
     }
-    if (precisaAprovar) {
-      const ids = await aprovadoresPorPapeis(papeisAprovadores(i.valor, niveis));
-      await notificarMuitos(ids.filter((id) => id !== user.id), {
-        titulo: "Despesa aguardando aprovação",
-        corpo: `${i.descricao} — ${brl(i.valor)}`,
-        href: "/financeiro/aprovacoes",
-      });
-    }
+    if (criado.precisaAprovar) await notificarAprovacaoPendente(i.descricao, i.valor, user.id);
     rev();
     return {
-      ocorrencias: registros.length,
-      aguardandoAprovacao: precisaAprovar,
+      ocorrencias: criado.ocorrencias,
+      aguardandoAprovacao: criado.precisaAprovar,
       /** Decisão #12: a parcela cuja previsão esta cobrança assumiu (`null` = nenhuma). */
       previsaoCasada: casamento?.casou ? casamento.parcela : null,
       /** Por que não casou, quando havia previsão no projeto e vale avisar. */
@@ -209,9 +143,14 @@ export const editarLancamento = defineAction(
   { ...base, acao: "editar-lancamento", entidade: "Lancamento", schema: editarLancamentoSchema, capturarAntes: (i) => snapshotLancamento(i.id) },
   async (i) => {
     await barrarSePrevisao(i.id);
+    const atual = await prisma.lancamento.findUnique({ where: { id: i.id }, select: { tipo: true } });
+    if (!atual) throw new ActionError("Lançamento não encontrado.");
     await prisma.lancamento.update({
       where: { id: i.id },
       data: {
+        // Planejador: ausente = não mexe; prioridade só em despesa, confiança só em receita.
+        ...(i.prioridade !== undefined ? { prioridade: atual.tipo === "despesa" ? i.prioridade : null } : {}),
+        ...(i.confianca !== undefined ? { confianca: atual.tipo === "receita" ? i.confianca : null } : {}),
         descricao: i.descricao,
         valor: i.valor,
         data: data(i.data),
@@ -225,6 +164,53 @@ export const editarLancamento = defineAction(
         observacao: i.observacao || null,
       },
     });
+    rev();
+    return { id: i.id };
+  },
+);
+
+/**
+ * Planejador de caixa: prioridade/confiança mexem só no que ainda vai acontecer. Realizado e
+ * cancelado não têm o que planejar (ADR-0007: confiança nunca vira status, e vice-versa).
+ */
+async function alvoPendente(id: string) {
+  const l = await prisma.lancamento.findUnique({ where: { id }, select: { tipo: true, status: true, excluidoEm: true } });
+  if (!l || l.excluidoEm) throw new ActionError("Lançamento não encontrado.");
+  if (l.status === "confirmado") throw new ActionError("Já foi pago ou recebido: prioridade e confiança valem só para o que está em aberto.");
+  if (l.status === "cancelado") throw new ActionError("Lançamento cancelado.");
+  return l;
+}
+
+export const definirPrioridadeLancamento = defineAction(
+  {
+    ...base,
+    acao: "definir-prioridade-lancamento",
+    entidade: "Lancamento",
+    schema: prioridadeLancamentoSchema,
+    capturarAntes: (i) => snapshotLancamento(i.id),
+  },
+  async (i) => {
+    const l = await alvoPendente(i.id);
+    if (l.tipo !== "despesa") throw new ActionError("Só conta a pagar tem prioridade.");
+    await prisma.lancamento.update({ where: { id: i.id }, data: { prioridade: i.prioridade } });
+    rev();
+    return { id: i.id };
+  },
+);
+
+/** "Marcar como confirmada pelo cliente" (D1) e a volta ao padrão. Não recebe nada: só a confiança muda. */
+export const definirConfiancaLancamento = defineAction(
+  {
+    ...base,
+    acao: "definir-confianca-lancamento",
+    entidade: "Lancamento",
+    schema: confiancaLancamentoSchema,
+    capturarAntes: (i) => snapshotLancamento(i.id),
+  },
+  async (i) => {
+    const l = await alvoPendente(i.id);
+    if (l.tipo !== "receita") throw new ActionError("Só conta a receber tem confiança.");
+    await prisma.lancamento.update({ where: { id: i.id }, data: { confianca: i.confianca } });
     rev();
     return { id: i.id };
   },

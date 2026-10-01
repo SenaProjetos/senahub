@@ -9,6 +9,9 @@
  * 3. Ler a base e projetar não grava nada; o resto de um parcial herda os campos do planejador.
  * Extra: transferência importada do Meu Dinheiro nasce com natureza `transferencia` e as duas
  * pernas pareadas por `transferenciaId` (a migração só corrigiu o que já existia).
+ * F3 (spec §7): aplicar ao financeiro é tudo ou nada — ajuste obsoleto barra tudo; falha de regra no
+ * 3º item (campo obrigatório) e corrida entre validar e gravar desfazem os dois primeiros no banco
+ * de verdade; o caminho feliz grava, audita e marca o cenário.
  *
  * Uso: npm run smoke:planejador
  */
@@ -24,6 +27,12 @@ import { camposDoPlanejador } from "../src/modules/financeiro/lancamentos/parcia
 import type { Prisma } from "../src/generated/prisma/client";
 import { normalizarLinhas } from "../src/modules/financeiro/importacao/processar";
 import { executarCommit, executarDesfazer } from "../src/modules/financeiro/importacao/commit-core";
+import { alvosAtuais } from "../src/modules/financeiro/liquidez/queries";
+import { CHAVE_CONFIG_FINANCEIRO } from "../src/modules/financeiro/config/queries";
+import { validarAplicacao } from "../src/modules/financeiro/liquidez/aplicacao";
+import type { AjusteSimulado } from "../src/modules/financeiro/liquidez/ajustes";
+import type { Observado } from "../src/modules/financeiro/liquidez/tipos";
+import { aplicarAjustesAoFinanceiro, gravarPlano } from "../src/modules/financeiro/planejador/cenarios/service";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -160,6 +169,8 @@ async function main() {
     await prisma.contaBancaria.deleteMany({ where: { nome: { startsWith: tag } } });
   }
 
+  await smokeAplicar(admin.id, catFornecedor.id, catReceita.id);
+
   console.log("\n# Import do Meu Dinheiro — transferência nasce pareada e neutra");
   const categoriasAntes = new Set((await prisma.categoriaFinanceira.findMany({ select: { id: true } })).map((c) => c.id));
   const idUnico = String(Date.now()).slice(-9);
@@ -199,3 +210,135 @@ async function main() {
 }
 
 main().finally(() => prisma.$disconnect());
+
+
+async function smokeAplicar(autorId: string, catDespesaId: string, catReceitaId: string) {
+  const t = `${tag}-f3`;
+  const ids: Record<string, string> = {};
+  const configAntes = await prisma.configSistema.findUnique({ where: { chave: CHAVE_CONFIG_FINANCEIRO } });
+  const foto = async (id: string): Promise<Observado> => {
+    const a = (await alvosAtuais([id])).get(id)!;
+    return { status: a.status, excluido: a.excluido, data: a.data, valor: a.valor, prioridade: a.prioridade, confianca: a.confianca };
+  };
+  const estado = async () =>
+    JSON.stringify(
+      await prisma.lancamento.findMany({
+        where: { id: { in: Object.values(ids) } },
+        orderBy: { id: "asc" },
+        select: { id: true, status: true, vencimento: true, prioridade: true, confianca: true },
+      }),
+    );
+  const criadosPeloPlanejador = () => prisma.lancamento.count({ where: { descricao: `${t} distribuição`, excluidoEm: { not: undefined } } });
+
+  try {
+    const criar = async (chave: string, tipo: "receita" | "despesa", valor: number, venc: number) => {
+      const l = await prisma.lancamento.create({
+        data: { descricao: `${t} ${chave}`, tipo, valor, status: "previsto", data: em(0), vencimento: em(venc), categoriaId: tipo === "despesa" ? catDespesaId : catReceitaId, autorId },
+        select: { id: true },
+      });
+      ids[chave] = l.id;
+    };
+    await criar("a", "despesa", 100, 2);
+    await criar("b", "receita", 200, 5);
+    await criar("c", "despesa", 50, 3);
+
+    const ajustes = async (): Promise<AjusteSimulado[]> => [
+      { tipo: "REPROGRAMAR_DATA", eventoId: ids.a, data: somarDias(hoje, 10), antes: await foto(ids.a), rotulo: "a" },
+      { tipo: "ALTERAR_CONFIANCA", eventoId: ids.b, confianca: "confirmada_cliente", antes: await foto(ids.b), rotulo: "b" },
+      { tipo: "ALTERAR_PRIORIDADE", eventoId: ids.c, prioridade: "p4", antes: await foto(ids.c), rotulo: "c" },
+    ];
+
+    console.log("\n# F3 — ajuste obsoleto barra a aplicação inteira");
+    const lista = await ajustes();
+    await prisma.lancamento.update({ where: { id: ids.c }, data: { vencimento: em(4) } }); // o real mudou depois da simulação
+    const antes1 = await estado();
+    let erro1 = "";
+    try {
+      await aplicarAjustesAoFinanceiro({ ajustes: lista, usuarioId: autorId });
+    } catch (e) {
+      erro1 = e instanceof Error ? e.message : String(e);
+    }
+    check("recusado com o motivo do item obsoleto", erro1.includes("c: o vencimento mudou"), erro1);
+    check("nenhum dos três foi gravado", (await estado()) === antes1);
+
+    console.log("\n# F3 — falha de regra no 3º item desfaz os dois primeiros (banco real)");
+    const lista2: AjusteSimulado[] = [
+      ...(await ajustes()).slice(0, 2),
+      { tipo: "INCLUIR", id: "x", movimento: { tipo: "despesa", natureza: "fora_do_resultado", valor: 1000, data: somarDias(hoje, 6), descricao: `${t} distribuição`, categoriaId: catDespesaId } },
+    ];
+    // Observação obrigatória: o INCLUIR (3º) passa na validação e cai na regra DENTRO da transação.
+    const cfg = (configAntes?.valor ?? {}) as Record<string, unknown>;
+    await prisma.configSistema.upsert({
+      where: { chave: CHAVE_CONFIG_FINANCEIRO },
+      update: { valor: { ...cfg, obrigatorios: { ...((cfg.obrigatorios as object) ?? {}), observacao: true } } },
+      create: { chave: CHAVE_CONFIG_FINANCEIRO, valor: { obrigatorios: { observacao: true } } },
+    });
+    const antes2 = await estado();
+    let erro2 = "";
+    try {
+      await aplicarAjustesAoFinanceiro({ ajustes: lista2, usuarioId: autorId });
+    } catch (e) {
+      erro2 = e instanceof Error ? e.message : String(e);
+    }
+    check("a regra de obrigatório recusou", erro2.startsWith("Campo obrigatório"), erro2);
+    check("os dois primeiros foram desfeitos", (await estado()) === antes2);
+    check("nada foi criado", (await criadosPeloPlanejador()) === 0);
+    await restaurarConfig(configAntes);
+
+    console.log("\n# F3 — corrida: o alvo foi pago entre validar e gravar");
+    const lista3 = await ajustes();
+    const v = validarAplicacao(lista3, await alvosAtuais(Object.values(ids)));
+    check("validação passou com os três", v.divergentes.length === 0 && v.plano.length === 3, v.divergentes);
+    await prisma.lancamento.update({ where: { id: ids.c }, data: { status: "confirmado", dataConfirmacao: em(0) } });
+    const antes3 = await estado();
+    let erro3 = "";
+    try {
+      await gravarPlano(v.plano, { ajustes: lista3, indices: v.indices, cenarioId: null, usuarioId: autorId });
+    } catch (e) {
+      erro3 = e instanceof Error ? e.message : String(e);
+    }
+    check("a escrita do 3º não achou o lançamento como estava", erro3.includes("mudou enquanto o cenário era aplicado"), erro3);
+    check("a e b voltaram (rollback)", (await estado()) === antes3);
+    await prisma.lancamento.update({ where: { id: ids.c }, data: { status: "previsto", dataConfirmacao: null } });
+
+    console.log("\n# F3 — caminho feliz com cenário salvo");
+    const lista4: AjusteSimulado[] = [
+      ...(await ajustes()),
+      { tipo: "EXCLUIR", eventoId: ids.a, antes: await foto(ids.a) },
+      { tipo: "INCLUIR", id: "y", movimento: { tipo: "despesa", natureza: "fora_do_resultado", valor: 1000, data: somarDias(hoje, 6), descricao: `${t} distribuição`, categoriaId: catDespesaId } },
+    ];
+    const cenario = await prisma.cenarioFinanceiro.create({
+      data: { nome: `${t} cenário`, premissas: { eixos: { entradas: "provaveis", compromissos: "todos" }, horizonteDias: 30 }, criadoPorId: autorId },
+    });
+    const r = await aplicarAjustesAoFinanceiro({ ajustes: lista4, cenarioId: cenario.id, usuarioId: autorId, ip: "smoke" });
+    check("4 alterações aplicadas (EXCLUIR fica só na simulação)", r.aplicadas === 4 && r.indices.join(",") === "0,1,2,4", r);
+    const [a, b, c] = await Promise.all(["a", "b", "c"].map((k) => prisma.lancamento.findUniqueOrThrow({ where: { id: ids[k] } })));
+    check("a: vencimento mudou", a.vencimento?.toISOString().slice(0, 10) === somarDias(hoje, 10));
+    check("b: confirmada pelo cliente e ainda em aberto (status ≠ confiança)", b.confianca === "confirmada_cliente" && b.status === "previsto");
+    check("c: prioridade P4", c.prioridade === "p4");
+    check("distribuição criada pelo serviço de criarLancamento", (await criadosPeloPlanejador()) === 1);
+    const linhas = await prisma.ajusteCenario.findMany({ where: { cenarioId: cenario.id }, orderBy: { ordem: "asc" } });
+    check(
+      "cenário guardou os 5 ajustes; 4 marcados como aplicados",
+      linhas.length === 5 && linhas.filter((l) => l.aplicadoEm).length === 4 && linhas[3].aplicadoEm === null,
+      linhas.map((l) => [l.tipo, !!l.aplicadoEm]),
+    );
+    const cen = await prisma.cenarioFinanceiro.findUniqueOrThrow({ where: { id: cenario.id } });
+    check("cenário marcado como aplicado", cen.situacao === "aplicado" && cen.aplicadoEm != null);
+    const audit = await prisma.auditLog.count({ where: { entidadeId: ids.a, acao: "aplicar-cenario-lancamento" } });
+    check("histórico do lançamento registra a mudança", audit === 1, audit);
+
+    // Excluir o cenário não mexe no que foi aplicado; o FK do ajuste solta o lançamento apagado.
+    await prisma.cenarioFinanceiro.delete({ where: { id: cenario.id } });
+    check("excluir o cenário não desfaz o aplicado", (await prisma.lancamento.findUniqueOrThrow({ where: { id: ids.c } })).prioridade === "p4");
+  } finally {
+    await restaurarConfig(configAntes);
+    await prisma.cenarioFinanceiro.deleteMany({ where: { nome: { startsWith: t } } });
+    await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: t }, excluidoEm: { not: undefined } } });
+  }
+}
+
+async function restaurarConfig(antes: { valor: Prisma.JsonValue } | null) {
+  if (antes) await prisma.configSistema.update({ where: { chave: CHAVE_CONFIG_FINANCEIRO }, data: { valor: antes.valor as Prisma.InputJsonValue } });
+  else await prisma.configSistema.deleteMany({ where: { chave: CHAVE_CONFIG_FINANCEIRO } });
+}

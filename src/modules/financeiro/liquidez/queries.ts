@@ -4,11 +4,12 @@ import { inicioDoDiaUtc } from "@/lib/data";
 import { getConfigLiquidez } from "@/modules/financeiro/config/queries";
 import { diasEntre, isoDeDataDoBanco, somarDias } from "@/modules/financeiro/liquidez/datas";
 import { paraCentavos } from "@/modules/financeiro/liquidez/dinheiro";
-import { paraEventos, STATUS_PENDENTES } from "@/modules/financeiro/liquidez/eventos";
+import { dataDoEvento, paraEventos, prioridadeEfetiva, STATUS_PENDENTES } from "@/modules/financeiro/liquidez/eventos";
+import type { AlvoAtual } from "@/modules/financeiro/liquidez/aplicacao";
 import { JANELA_DIAS_DE_CAIXA } from "@/modules/financeiro/liquidez/indicadores";
 import { normalizarHorizonte } from "@/modules/financeiro/liquidez/motor";
 import { anomaliasDoSaldo, saldoBase, type AnomaliasDoSaldo } from "@/modules/financeiro/liquidez/saldo-base";
-import type { Centavos, Contraparte, DataIso, EventoCaixa, LancamentoEntrada } from "@/modules/financeiro/liquidez/tipos";
+import type { Centavos, Contraparte, DataIso, EventoCaixa, LancamentoEntrada, Observado } from "@/modules/financeiro/liquidez/tipos";
 
 /** Tudo o que o planejador precisa do banco, já serializável (centavos, datas em string). */
 export type BasePlanejador = {
@@ -104,18 +105,7 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
     },
   });
 
-  const ids = pendentes.map((l) => l.id);
-  const arts = ids.length
-    ? await prisma.art.findMany({
-        where: { OR: [{ lancamentoId: { in: ids } }, { reembolsoLancamentoId: { in: ids } }] },
-        select: { lancamentoId: true, reembolsoLancamentoId: true },
-      })
-    : [];
-  const idsArt = new Set<string>();
-  for (const a of arts) {
-    if (a.lancamentoId) idsArt.add(a.lancamentoId);
-    if (a.reembolsoLancamentoId) idsArt.add(a.reembolsoLancamentoId);
-  }
+  const idsArt = await idsDeTaxaArt(pendentes.map((l) => l.id));
 
   const idsTransf = [
     ...new Set(
@@ -175,4 +165,86 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
     caixinhas: [],
     historico: { saidasNaJanela, diasDeHistorico: maisAntigo ? diasEntre(maisAntigo, hoje) : 0 },
   };
+}
+
+/** Ids de lançamento que são taxa (ou reembolso) de ART: a data deles é regravada pelo sync da ART. */
+async function idsDeTaxaArt(ids: readonly string[]): Promise<Set<string>> {
+  const r = new Set<string>();
+  if (ids.length === 0) return r;
+  const arts = await prisma.art.findMany({
+    where: { OR: [{ lancamentoId: { in: [...ids] } }, { reembolsoLancamentoId: { in: [...ids] } }] },
+    select: { lancamentoId: true, reembolsoLancamentoId: true },
+  });
+  for (const a of arts) {
+    if (a.lancamentoId) r.add(a.lancamentoId);
+    if (a.reembolsoLancamentoId) r.add(a.reembolsoLancamentoId);
+  }
+  return r;
+}
+
+/**
+ * Estado de AGORA dos lançamentos alvo de ajustes (spec §7, passo 1) — inclusive excluídos e
+ * realizados: a busca só por id escapa do filtro de soft delete de propósito, para dizer "foi
+ * excluído" em vez de "não existe". Id ausente do mapa = não existe mais.
+ */
+export async function alvosAtuais(ids: readonly string[]): Promise<Map<string, AlvoAtual>> {
+  const unicos = [...new Set(ids)];
+  const mapa = new Map<string, AlvoAtual>();
+  if (unicos.length === 0) return mapa;
+  const ls = await prisma.lancamento.findMany({
+    where: { id: { in: unicos } },
+    select: {
+      id: true,
+      tipo: true,
+      status: true,
+      excluidoEm: true,
+      valor: true,
+      data: true,
+      vencimento: true,
+      descricao: true,
+      prioridade: true,
+      confianca: true,
+      categoria: { select: { natureza: true, prioridadePadrao: true, pai: { select: { prioridadePadrao: true } } } },
+    },
+  });
+  const art = await idsDeTaxaArt(ls.map((l) => l.id));
+  for (const l of ls) {
+    const data = dataDoEvento({ vencimento: l.vencimento ? isoDeDataDoBanco(l.vencimento) : null, data: isoDeDataDoBanco(l.data) });
+    mapa.set(l.id, {
+      id: l.id,
+      tipo: l.tipo,
+      natureza: l.categoria.natureza,
+      descricao: l.descricao,
+      ehTaxaArt: art.has(l.id),
+      prioridadeEfetiva: prioridadeEfetiva({
+        tipo: l.tipo,
+        prioridade: l.prioridade,
+        categoria: {
+          natureza: l.categoria.natureza,
+          prioridadePadrao: l.categoria.prioridadePadrao,
+          prioridadePadraoPai: l.categoria.pai?.prioridadePadrao ?? null,
+        },
+      }),
+      status: l.status,
+      excluido: l.excluidoEm != null,
+      data,
+      valor: paraCentavos(l.valor),
+      prioridade: l.prioridade,
+      confianca: l.confianca,
+    });
+  }
+  return mapa;
+}
+
+/** Só a foto observada (para a tela marcar ajuste obsoleto/inexistente de alvo fora da projeção). */
+export async function observadosAtuais(ids: readonly string[]): Promise<Record<string, Observado | null>> {
+  const mapa = await alvosAtuais(ids);
+  const r: Record<string, Observado | null> = {};
+  for (const id of new Set(ids)) {
+    const a = mapa.get(id);
+    r[id] = a
+      ? { status: a.status, excluido: a.excluido, data: a.data, valor: a.valor, prioridade: a.prioridade, confianca: a.confianca }
+      : null;
+  }
+  return r;
 }

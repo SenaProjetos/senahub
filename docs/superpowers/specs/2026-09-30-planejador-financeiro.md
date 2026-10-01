@@ -225,6 +225,24 @@ aplicadoEm?, aplicadoPorId? }`, validado por união discriminada Zod.
   falso que registra escritas e descarta tudo quando o orquestrador lança (garante que ele não engole o
   erro nem continua) **[T]**, e no `smoke:planejador` com banco real (garante o rollback).
 
+### Como a F3 implementou (2026-10-01)
+
+- **Escopo do aplicar (plano I7):** vão para o real `REPROGRAMAR_DATA` (grava `vencimento`),
+  `ALTERAR_PRIORIDADE`, `ALTERAR_CONFIANCA` e `INCLUIR` com categoria. `ALTERAR_VALOR` não existe ainda
+  (nem na simulação); `ALTERAR_CAIXINHA` chega com as caixinhas (F4) e `ALOCAR` com a distribuição (F5).
+  `EXCLUIR` só tem o efeito `"nenhum"` — "cancelar ao aplicar" fica para quando houver pedido.
+- **Um formato só** (`liquidez/ajustes.ts`): o ajuste de lançamento leva `antes` (campos observados, valores
+  GRAVADOS) e `rotulo` (descrição ao simular). Na tabela `ajuste_cenario`: `tipo` (texto, validado pela
+  união Zod), `alvo`, `antes`, `depois`, `lancamentoId` (FK `SET NULL`).
+- **Vários ajustes no mesmo lançamento = uma escrita** (senão a segunda acharia a data já mudada pela
+  primeira e desfaria tudo). Rascunho de antes da F3 sem `antes`: a condição é o estado lido na validação.
+- **Com cenário aberto**, aplicar troca os ajustes pendentes do cenário pela lista da tela e marca
+  `aplicadoEm` nos que foram, na mesma transação. Ajuste aplicado sai da simulação ao reabrir (contaria
+  duas vezes) e vira histórico.
+- **Categoria do `INCLUIR`** é conferida antes da transação (existe, ativa, do mesmo tipo).
+- Prova no banco: `smoke:planejador` (obsoleto barra tudo; obrigatório no 3º desfaz os dois primeiros;
+  corrida "pago entre validar e gravar" desfaz; caminho feliz audita por lançamento e marca o cenário).
+
 ## 8. Fora do resultado
 
 Definição: `foraDoResultado` = **não participa do resultado econômico (DRE)**; continua sendo entrada ou

@@ -27,11 +27,13 @@ export type ItemNavFinanceiro = {
   exato?: boolean;
   /** Query que distingue itens da mesma rota (A pagar × A receber). */
   query?: { chave: string; valor: string | null };
+  /** Outras rotas que pertencem a este item (os Cenários salvos são parte do Planejador). */
+  tambemEm?: readonly string[];
 };
 
 const PRINCIPAIS: readonly ItemNavFinanceiro[] = [
   { id: "visao", href: "/financeiro", rotulo: "Visão geral", gate: "ver", exato: true },
-  { id: "planejador", href: "/financeiro/planejador", rotulo: "Planejador de caixa", gate: "ver" },
+  { id: "planejador", href: "/financeiro/planejador", rotulo: "Planejador de caixa", gate: "ver", tambemEm: ["/financeiro/cenarios"] },
   { id: "fluxo", href: "/financeiro/fluxo-caixa", rotulo: "Fluxo de caixa", gate: "ver" },
   { id: "pagar", href: "/financeiro/contas", rotulo: "A pagar", gate: "ver", query: { chave: "tab", valor: null } },
   { id: "receber", href: "/financeiro/contas?tab=receita", rotulo: "A receber", gate: "ver", query: { chave: "tab", valor: "receita" } },
@@ -76,5 +78,7 @@ export function itemAtual(item: ItemNavFinanceiro, pathname: string, tab: string
     if (pathname !== base) return false;
     return (tab ?? null) === item.query.valor || (item.query.valor === null && tab !== "receita");
   }
-  return item.exato ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
+  const casa = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  if (item.tambemEm?.some(casa)) return true;
+  return item.exato ? pathname === item.href : casa(item.href);
 }

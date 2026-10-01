@@ -43,7 +43,7 @@ npm run smoke:previsao-recebimento  # contrato por entrega: previsão no caixa, 
 npm run smoke:duplicar-projeto      # duplicar projeto com EAP: estrutura, IDs novos, cronograma em rascunho, o que NÃO copia
 npm run smoke:modelo-disciplina     # modelos de EAP por disciplina: criar do modelo de projeto, "Gerar EAP das disciplinas", fases encadeadas
 npm run smoke:apagar-eap            # apagar a EAP inteira (rascunho): o que impede, o que vai junto, o que fica
-npm run smoke:planejador            # planejador de caixa: S0 = caixa da Visão geral, só pendente vira evento, transferência, parcial, leitura não grava
+npm run smoke:planejador            # planejador de caixa: S0 = caixa da Visão geral, só pendente vira evento, transferência, parcial, leitura não grava; aplicar cenário tudo-ou-nada (obsoleto, regra no 3º, corrida)
 npm run verify:motor-cronograma     # motor do cronograma contra os projetos reais do banco
 ```
 
@@ -212,6 +212,14 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   because the engine also runs in the browser for instant simulation. Money in integer cents, dates as
   `YYYY-MM-DD` strings. The partial-payment remainder copies the planner fields via `camposDoPlanejador()`
   (`lancamentos/parcial.ts`) — any new code path that splits or clones a `Lancamento` must do the same.
+- **Simulation never writes; "Aplicar ao financeiro" is all-or-nothing** (spec §7). One ajuste format for the
+  screen, the browser draft and the saved scenario (`liquidez/ajustes.ts`, Zod). Each ajuste on a lançamento
+  carries the `antes` snapshot of the observed fields (`Observado`, raw values — not the effective ones); the
+  pure `validarAplicacao` (`liquidez/aplicacao.ts`) lists EVERY divergent ajuste and the service
+  (`planejador/cenarios/service.ts`) writes inside one transaction with `updateMany` conditioned on `antes`
+  (`count ≠ 1` rolls back). Several ajustes on one lançamento become ONE write. Creating goes through
+  `criarLancamentoNoTx` (`lancamentos/service.ts`, same rules as `criarLancamento`) — never a bare
+  `lancamento.create`. MVP applies only date, priority, confidence and new movements with a category.
 
 **Projetista paid per phase** (F7.4, `PagamentoProjetista.etapaId`): "already paid" means
 `situacaoPagamento().jaLiberouTudo` (every phase released) — never "has any payment" (`_count.pagamentos > 0`),

@@ -208,6 +208,7 @@ model User {
   recibosAssinados              ReciboProjetista[]          @relation("ReciboProjetistaAssinante")
   socio                         Socio?
   lancamentosAutor              Lancamento[]                @relation("LancamentoAutor")
+  cenariosFinanceiros           CenarioFinanceiro[]         @relation("CenarioFinanceiroAutor")
   importacoesFinanceiras        ImportacaoFinanceira[]      @relation("ImportacaoFinanceiraAutor")
   canaisMembro                  CanalMembro[]
   canaisCriados                 Canal[]                     @relation("CanaisCriados")
@@ -1800,6 +1801,7 @@ model Lancamento {
   anexos                LancamentoAnexo[]
   statusHistorico       LancamentoStatusHistorico[]
   planejamentoLinhas    PlanejamentoLinha[]
+  ajustesCenario        AjusteCenario[]
   /// Aprovação por alçada (Fase 4): quem aprovou, quando, e motivo se rejeitado.
   aprovadoPorId         String?
   aprovadoEm            DateTime?
@@ -7402,6 +7404,62 @@ enum StatusPlanejamento {
 
 /// Cenário de planejamento de pagamentos: simula o uso do caixa disponível sobre
 /// as contas em aberto, com ordem de prioridade e saldo acumulado recalculado no cliente.
+/// Situação de um cenário do planejador de caixa (spec 2026-09-30 §11).
+enum SituacaoCenario {
+  rascunho
+  aplicado
+  arquivado
+}
+
+/// Cenário salvo do planejador de caixa (spec §11): guarda SÓ a intenção — premissas e ajustes. Séries,
+/// saldos e indicadores são recalculados sobre os dados de hoje toda vez que o cenário abre.
+/// Não confundir com `PlanejamentoPagamento` ("Pagamentos em lote", D2).
+model CenarioFinanceiro {
+  id            String          @id @default(cuid())
+  nome          String
+  descricao     String?
+  /// `{ eixos: { entradas, compromissos }, horizonteDias }` — validado por Zod (`premissasSchema`).
+  premissas     Json
+  situacao      SituacaoCenario @default(rascunho)
+  criadoPorId   String
+  criadoPor     User            @relation("CenarioFinanceiroAutor", fields: [criadoPorId], references: [id])
+  /// Última aplicação ao financeiro (scalars sem relação, como no `PlanejamentoPagamento`).
+  aplicadoEm    DateTime?
+  aplicadoPorId String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  ajustes AjusteCenario[]
+
+  @@index([situacao, updatedAt])
+  @@map("cenario_financeiro")
+}
+
+/// Um ajuste de um cenário (spec §6). `tipo` + `alvo` + `antes` + `depois` validados pela união
+/// discriminada de `liquidez/ajustes.ts` (`paraLinha`/`daLinha`). `lancamentoId` é o alvo, com
+/// `SetNull` (I8): lançamento apagado deixa o ajuste mostrando "não existe mais", nunca quebra.
+model AjusteCenario {
+  id            String            @id @default(cuid())
+  cenarioId     String
+  cenario       CenarioFinanceiro @relation(fields: [cenarioId], references: [id], onDelete: Cascade)
+  ordem         Int
+  tipo          String
+  lancamentoId  String?
+  lancamento    Lancamento?       @relation(fields: [lancamentoId], references: [id], onDelete: SetNull)
+  alvo          Json
+  /// Foto dos campos observados quando o ajuste foi simulado; nula em `INCLUIR`.
+  antes         Json?
+  depois        Json
+  criadoPorId   String
+  criadoEm      DateTime          @default(now())
+  aplicadoEm    DateTime?
+  aplicadoPorId String?
+
+  @@index([cenarioId, ordem])
+  @@index([lancamentoId])
+  @@map("ajuste_cenario")
+}
+
 model PlanejamentoPagamento {
   id              String             @id @default(cuid())
   nome            String

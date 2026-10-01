@@ -77,6 +77,8 @@ async function limpar() {
   await prisma.disciplinaResponsavel.deleteMany({});
   await prisma.disciplina.deleteMany({});
   await prisma.folhaPagamento.deleteMany({});
+  // Cenários do planejador: o autor é usuário demo (FK Restrict); os ajustes caem por cascade.
+  await prisma.cenarioFinanceiro.deleteMany({});
   await prisma.lancamento.deleteMany({});
   await prisma.projetoMembro.deleteMany({});
   await prisma.projeto.deleteMany({});

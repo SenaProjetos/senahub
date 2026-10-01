@@ -10,6 +10,7 @@ import type {
   DataIso,
   EventoCaixa,
   LancamentoEntrada,
+  Observado,
   Prioridade,
   StatusLancamento,
   StatusPendente,
@@ -65,6 +66,20 @@ export function motivoNaoProgramavel(
   return null;
 }
 
+/** Foto dos campos observados (spec §6), com os valores gravados — não os efetivos. */
+export function observadoDe(
+  l: Pick<LancamentoEntrada, "status" | "excluido" | "vencimento" | "data" | "valor" | "prioridade" | "confianca">,
+): Observado {
+  return {
+    status: l.status,
+    excluido: l.excluido === true,
+    data: dataDoEvento(l),
+    valor: l.valor,
+    prioridade: l.prioridade,
+    confianca: l.confianca,
+  };
+}
+
 export type OpcoesEventos = { hoje: DataIso; diasParaIncerta: number };
 
 /** Converte a lista da consulta em eventos. Descarta tudo que não é pendente vivo. */
@@ -96,6 +111,7 @@ export function paraEventos(lancamentos: readonly LancamentoEntrada[], o: Opcoes
         l.categoria.natureza === "transferencia"
           ? { id: l.transferencia?.id ?? null, contrapartes: [...(l.transferencia?.contrapartes ?? [])] }
           : null,
+      observado: observadoDe(l),
     });
   }
   return eventos;

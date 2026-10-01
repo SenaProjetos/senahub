@@ -2,29 +2,15 @@
  * Ajustes de simulação do planejador (spec §6 e §10). Puro: recebe os eventos reais e devolve
  * OUTRA lista com as marcas da simulação — nada aqui grava, e a entrada nunca é mutada.
  *
- * Os tipos são um subconjunto de `AjusteCenario` (a persistência e o "aplicar ao financeiro" chegam
- * com os cenários salvos). O motor lê as marcas por `EventoCaixa.simulacao`.
+ * O formato dos ajustes (e a validação) é um só, em `ajustes.ts`: simulação, rascunho e cenário
+ * salvo usam o mesmo. O motor lê as marcas por `EventoCaixa.simulacao`.
  */
 import { diaMes } from "@/modules/financeiro/liquidez/datas";
 import { formatarCentavos } from "@/modules/financeiro/liquidez/dinheiro";
-import type { Centavos, Confianca, DataIso, EventoCaixa, Natureza, Prioridade, TipoMovimento } from "@/modules/financeiro/liquidez/tipos";
+import type { AjusteSimulado } from "@/modules/financeiro/liquidez/ajustes";
+import type { Confianca, DataIso, EventoCaixa, Prioridade } from "@/modules/financeiro/liquidez/tipos";
 
-/** Movimento que só existe na simulação (entrada, saída ou distribuição de lucros). */
-export type MovimentoSimulado = {
-  tipo: TipoMovimento;
-  natureza: Natureza;
-  valor: Centavos;
-  data: DataIso;
-  descricao: string;
-};
-
-export type AjusteSimulado =
-  | { tipo: "REPROGRAMAR_DATA"; eventoId: string; data: DataIso }
-  | { tipo: "ALTERAR_PRIORIDADE"; eventoId: string; prioridade: Prioridade }
-  | { tipo: "ALTERAR_CONFIANCA"; eventoId: string; confianca: Confianca }
-  | { tipo: "EXCLUIR"; eventoId: string }
-  | { tipo: "FORCAR_INCLUSAO"; eventoId: string }
-  | { tipo: "INCLUIR"; id: string; movimento: MovimentoSimulado };
+export type { AjusteSimulado, MovimentoSimulado } from "@/modules/financeiro/liquidez/ajustes";
 
 /** Prefixo do id dos eventos criados pela simulação — nunca colide com um id do banco. */
 export const PREFIXO_SIMULADO = "sim:";
@@ -70,7 +56,7 @@ export function aplicarSimulacao(eventos: readonly EventoCaixa[], ajustes: reado
         descricao: m.descricao,
         favorecido: null,
         projeto: null,
-        categoriaNome: null,
+        categoriaNome: m.categoriaNome ?? null,
         status: null,
         prioridade: m.tipo === "despesa" && m.natureza === "resultado" ? "p3" : null,
         confianca: null,

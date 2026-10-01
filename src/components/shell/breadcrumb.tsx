@@ -30,6 +30,8 @@ const HREF_TO_TITLE: Record<string, string> = (() => {
  */
 const ROTULO_POR_ROTA: Record<string, string> = {
   "/configuracoes/permissoes": "Piso de sócio",
+  // Segmento sem acento (URL): a trilha escreveria "Cenarios".
+  "/financeiro/cenarios": "Cenários salvos",
 };
 
 function capitalize(segment: string): string {

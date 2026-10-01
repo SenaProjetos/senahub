@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { brlC } from "@/components/financeiro/planejador/formato";
 import type { MovimentoSimulado } from "@/modules/financeiro/liquidez/simulacao";
@@ -19,13 +20,24 @@ const TIPOS: { id: Tipo; rotulo: string; descricao: string }[] = [
   { id: "saida", rotulo: "Saída", descricao: "Saída simulada" },
 ];
 
-export function movimentoDoFormulario(tipo: Tipo, valorReais: number, data: DataIso, descricao: string): MovimentoSimulado {
+export type CategoriaOpcao = { id: string; codigo: string; nome: string; tipo: "receita" | "despesa" };
+
+const SEM_CATEGORIA = "__sem";
+
+export function movimentoDoFormulario(
+  tipo: Tipo,
+  valorReais: number,
+  data: DataIso,
+  descricao: string,
+  categoria?: Pick<CategoriaOpcao, "id" | "nome"> | null,
+): MovimentoSimulado {
   return {
     tipo: tipo === "entrada" ? "receita" : "despesa",
     natureza: tipo === "distribuicao" ? "fora_do_resultado" : "resultado",
     valor: Math.round(valorReais * 100),
     data,
     descricao: descricao.trim() || TIPOS.find((t) => t.id === tipo)!.descricao,
+    ...(categoria ? { categoriaId: categoria.id, categoriaNome: categoria.nome } : {}),
   };
 }
 
@@ -38,6 +50,7 @@ export function SimularMovimento({
   hoje,
   fim,
   reservaMinima,
+  categorias,
   previa,
   onFechar,
   onIncluir,
@@ -46,6 +59,8 @@ export function SimularMovimento({
   hoje: DataIso;
   fim: DataIso;
   reservaMinima: number;
+  /** Categorias ativas: só são exigidas para aplicar ao financeiro. */
+  categorias: CategoriaOpcao[];
   /** Projeção com o movimento: saldo do dia antes/depois e o menor saldo resultante. */
   previa: (m: MovimentoSimulado) => { saldoDiaAntes: number; saldoDiaDepois: number; menorSaldo: number; diaMenor: DataIso };
   onFechar: () => void;
@@ -55,6 +70,7 @@ export function SimularMovimento({
   const [valor, setValor] = useState<number | null>(null);
   const [data, setData] = useState<DataIso>(hoje);
   const [descricao, setDescricao] = useState("");
+  const [categoriaId, setCategoriaId] = useState(SEM_CATEGORIA);
 
   useEffect(() => {
     if (aberto) {
@@ -62,11 +78,16 @@ export function SimularMovimento({
       setValor(null);
       setData(hoje);
       setDescricao("");
+      setCategoriaId(SEM_CATEGORIA);
     }
   }, [aberto, hoje]);
 
+  const tipoLanc = tipo === "entrada" ? "receita" : "despesa";
+  const opcoesCategoria = categorias.filter((c) => c.tipo === tipoLanc);
+  const categoria = opcoesCategoria.find((c) => c.id === categoriaId) ?? null;
+
   const valido = valor !== null && valor > 0 && data >= hoje && data <= fim;
-  const mov = valido ? movimentoDoFormulario(tipo, valor!, data, descricao) : null;
+  const mov = valido ? movimentoDoFormulario(tipo, valor!, data, descricao, categoria) : null;
   const p = mov ? previa(mov) : null;
   const situacao = !p
     ? null
@@ -98,6 +119,23 @@ export function SimularMovimento({
           <div className="grid gap-1.5">
             <Label htmlFor="sm-valor">Valor</Label>
             <InputMoeda id="sm-valor" value={valor} onChange={setValor} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="sm-categoria">Categoria</Label>
+            <Select value={categoria ? categoria.id : SEM_CATEGORIA} onValueChange={(v) => setCategoriaId(v ?? SEM_CATEGORIA)}>
+              <SelectTrigger id="sm-categoria" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SEM_CATEGORIA}>Sem categoria (só simular)</SelectItem>
+                {opcoesCategoria.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.codigo} · {c.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Para aplicar ao financeiro, o lançamento precisa de categoria.</p>
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="sm-data">Data</Label>

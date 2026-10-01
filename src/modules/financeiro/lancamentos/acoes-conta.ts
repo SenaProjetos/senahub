@@ -1,6 +1,7 @@
-import { Check, Copy, Paperclip, Pencil } from "lucide-react";
+import { BadgeCheck, Check, Copy, Flag, Paperclip, Pencil, Undo2 } from "lucide-react";
 
 import type { AcaoItem } from "@/components/ui/acoes";
+import type { Confianca, Prioridade } from "@/modules/financeiro/liquidez/tipos";
 
 /**
  * Ações de uma conta a pagar/receber — **puro**. Mesmo array para o menu de contexto, o `...` e a
@@ -14,6 +15,20 @@ export const ACAO_EDITAR = "editar";
 export const ACAO_ANEXOS = "anexos";
 export const ACAO_COPIAR_DESCRICAO = "copiar-descricao";
 export const ACAO_LOTE_QUITAR = "lote-quitar";
+/** Planejador de caixa (D1): a confiança muda, o status não — nada é recebido. */
+export const ACAO_MARCAR_CONFIRMADA = "marcar-confirmada-cliente";
+export const ACAO_DESMARCAR_CONFIRMADA = "desmarcar-confirmada-cliente";
+export const ACAO_LOTE_MARCAR_CONFIRMADA = "lote-marcar-confirmada-cliente";
+export const PREFIXO_PRIORIDADE_CONTA = "prioridade:";
+/** Volta a herdar a prioridade da categoria (gravada = nula). */
+export const PRIORIDADE_HERDADA = "herdar";
+
+const ROTULO_PRIORIDADE: Record<Prioridade, string> = {
+  p1: "P1 · não pode atrasar",
+  p2: "P2 · importante",
+  p3: "P3 · pode negociar",
+  p4: "P4 · adiável",
+};
 
 /** Mesmo texto do aviso que a tela já dava ao clicar em pagar uma despesa ainda não aprovada. */
 export const MOTIVO_AGUARDANDO_APROVACAO = "Despesa aguardando aprovação.";
@@ -21,6 +36,10 @@ export const MOTIVO_AGUARDANDO_APROVACAO = "Despesa aguardando aprovação.";
 export type ContaParaAcoes = {
   status: string;
   anexos: number;
+  /** Gravada (nula = herda da categoria). Só despesa. */
+  prioridade?: Prioridade | null;
+  /** Gravada (nula = padrão do status). Só receita. */
+  confianca?: Confianca | null;
 };
 
 export type ContextoAcoesConta = {
@@ -51,6 +70,33 @@ export function itensDeConta(c: ContaParaAcoes, ctx: ContextoAcoesConta): AcaoIt
           icone: Paperclip,
         }
       : null,
+    ctx.podeGerir && ctx.tipo === "despesa"
+      ? {
+          tipo: "sub",
+          id: "sub-prioridade",
+          rotulo: "Prioridade",
+          icone: Flag,
+          itens: [
+            ...(Object.keys(ROTULO_PRIORIDADE) as Prioridade[]).map((p) => ({
+              tipo: "acao" as const,
+              id: `${PREFIXO_PRIORIDADE_CONTA}${p}`,
+              rotulo: ROTULO_PRIORIDADE[p],
+              marcado: c.prioridade === p,
+            })),
+            {
+              tipo: "acao" as const,
+              id: `${PREFIXO_PRIORIDADE_CONTA}${PRIORIDADE_HERDADA}`,
+              rotulo: "A da categoria",
+              marcado: c.prioridade == null,
+            },
+          ],
+        }
+      : null,
+    ctx.podeGerir && ctx.tipo === "receita"
+      ? c.confianca === "confirmada_cliente"
+        ? { tipo: "acao", id: ACAO_DESMARCAR_CONFIRMADA, rotulo: "Desmarcar confirmação do cliente", icone: Undo2 }
+        : { tipo: "acao", id: ACAO_MARCAR_CONFIRMADA, rotulo: "Marcar como confirmada pelo cliente", icone: BadgeCheck }
+      : null,
     { tipo: "acao", id: ACAO_COPIAR_DESCRICAO, rotulo: "Copiar descrição", icone: Copy },
   ];
   return itens.filter((i): i is AcaoItem => i !== null);
@@ -60,6 +106,12 @@ export function itensDeConta(c: ContaParaAcoes, ctx: ContextoAcoesConta): AcaoIt
  * Lote: pagar/receber o que estiver selecionado. Abre o diálogo de conta/forma/data que já existia e
  * roda a ação atômica do servidor — por isso não passa pelo motor item a item.
  */
-export function itensDeLoteContas(tipo: "despesa" | "receita"): AcaoItem[] {
-  return [{ tipo: "acao", id: ACAO_LOTE_QUITAR, rotulo: verbo(tipo), icone: Check }];
+export function itensDeLoteContas(tipo: "despesa" | "receita", podeGerir = false): AcaoItem[] {
+  return [
+    { tipo: "acao", id: ACAO_LOTE_QUITAR, rotulo: verbo(tipo), icone: Check },
+    // D1: conta a receber nasce Provável; marcar em massa é o que deixa o Conservador útil.
+    ...(tipo === "receita" && podeGerir
+      ? [{ tipo: "acao" as const, id: ACAO_LOTE_MARCAR_CONFIRMADA, rotulo: "Marcar como confirmada pelo cliente", icone: BadgeCheck }]
+      : []),
+  ];
 }

@@ -27,6 +27,22 @@ import {
 } from "@/components/ui/dialog";
 
 const NONE = "__none";
+/** Planejador: "padrão" grava nulo — despesa herda da categoria, receita fica Provável (D1). */
+const PADRAO = "__padrao";
+const PRIORIDADES = [
+  ["p1", "P1 · não pode atrasar"],
+  ["p2", "P2 · importante"],
+  ["p3", "P3 · pode negociar"],
+  ["p4", "P4 · adiável"],
+] as const;
+const CONFIANCAS = [
+  ["confirmada_cliente", "Confirmada pelo cliente"],
+  ["provavel", "Provável"],
+  ["estimada", "Estimada"],
+  ["incerta", "Incerta"],
+] as const;
+type PrioridadeForm = (typeof PRIORIDADES)[number][0];
+type ConfiancaForm = (typeof CONFIANCAS)[number][0];
 
 function inputDate(d: string | Date | null | undefined): string {
   if (!d) return "";
@@ -65,6 +81,8 @@ export function LancamentoForm({
   const [observacao, setObservacao] = useState("");
   const [confirmado, setConfirmado] = useState(false);
   const [ocorrencias, setOcorrencias] = useState("1");
+  const [prioridade, setPrioridade] = useState<string>(PADRAO);
+  const [confianca, setConfianca] = useState<string>(PADRAO);
 
   // Sincroniza o formulário quando abre para um novo alvo (edição carrega valores; criação reseta).
   const alvoKey = open ? (editar?.id ?? "novo") : "fechado";
@@ -86,6 +104,8 @@ export function LancamentoForm({
       setObservacao(editar.observacao ?? "");
       setConfirmado(false);
       setOcorrencias("1");
+      setPrioridade(editar.prioridade ?? PADRAO);
+      setConfianca(editar.confianca ?? PADRAO);
     } else if (open) {
       reset();
       setTipo(tipoInicial);
@@ -107,7 +127,18 @@ export function LancamentoForm({
     setObservacao("");
     setConfirmado(false);
     setOcorrencias("1");
+    setPrioridade(PADRAO);
+    setConfianca(PADRAO);
   }
+
+  // Só o que ainda vai acontecer tem prioridade/confiança: realizado e cancelado não mexem nelas.
+  const mostraPlanejador = !confirmado && (!editar || (editar.status !== "confirmado" && editar.status !== "cancelado"));
+  const planejador = mostraPlanejador
+    ? {
+        prioridade: tipo === "despesa" && prioridade !== PADRAO ? (prioridade as PrioridadeForm) : null,
+        confianca: tipo === "receita" && confianca !== PADRAO ? (confianca as ConfiancaForm) : null,
+      }
+    : {};
 
   function salvar() {
     if (!descricao || valor === null || !categoriaId) {
@@ -129,6 +160,7 @@ export function LancamentoForm({
           fornecedorId: fornecedorId === NONE ? "" : fornecedorId,
           clienteId: clienteId === NONE ? "" : clienteId,
           observacao,
+          ...planejador,
         });
         if (r.ok) {
           toast.success("Lançamento atualizado.");
@@ -154,6 +186,7 @@ export function LancamentoForm({
         contaId: "",
         formaId: "",
         ocorrencias: Number(ocorrencias) || 1,
+        ...planejador,
       });
       if (r.ok) {
         toast.success(r.data.ocorrencias > 1 ? `${r.data.ocorrencias} lançamentos criados.` : "Lançamento criado.");
@@ -335,6 +368,47 @@ export function LancamentoForm({
               </div>
             )}
           </div>
+
+          {mostraPlanejador && (
+            <div className="space-y-1.5">
+              {tipo === "despesa" ? (
+                <>
+                  <Label htmlFor="lf-prioridade">Prioridade no planejador</Label>
+                  <Select value={prioridade} onValueChange={(v) => setPrioridade(v ?? PADRAO)}>
+                    <SelectTrigger id="lf-prioridade">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={PADRAO}>A da categoria</SelectItem>
+                      {PRIORIDADES.map(([v, r]) => (
+                        <SelectItem key={v} value={v}>
+                          {r}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              ) : (
+                <>
+                  <Label htmlFor="lf-confianca">Confiança no recebimento</Label>
+                  <Select value={confianca} onValueChange={(v) => setConfianca(v ?? PADRAO)}>
+                    <SelectTrigger id="lf-confianca">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={PADRAO}>Padrão (provável)</SelectItem>
+                      {CONFIANCAS.map(([v, r]) => (
+                        <SelectItem key={v} value={v}>
+                          {r}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Confirmada pelo cliente não quer dizer recebida: o recebimento é a baixa.</p>
+                </>
+              )}
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label>Observação</Label>

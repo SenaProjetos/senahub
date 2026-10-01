@@ -25,7 +25,13 @@ function Linha({ rotulo, valor, forte, recuo, sentido = "neutro", className }: {
   );
 }
 
-export type ItemAjuste = { chave: string; texto: string; onDesfazer: () => void };
+export type ItemAjuste = {
+  chave: string;
+  texto: string;
+  onDesfazer: () => void;
+  /** Cenário salvo aberto depois que o real mudou (spec §11): continua simulado, mas não aplica. */
+  aviso?: string | null;
+};
 
 export function PainelImpacto({
   projecao,
@@ -34,6 +40,9 @@ export function PainelImpacto({
   ajustes,
   semAlvo,
   onDescartar,
+  onSalvar,
+  onAplicar,
+  nota = "A simulação fica guardada nesta aba do navegador e não muda o financeiro.",
   className,
 }: {
   projecao: Projecao;
@@ -42,6 +51,11 @@ export function PainelImpacto({
   ajustes: ItemAjuste[];
   semAlvo: number;
   onDescartar: () => void;
+  /** Ausente = quem vê não pode salvar (sócio que só lê). */
+  onSalvar?: () => void;
+  /** Ausente = sem `financeiro:gerir`. */
+  onAplicar?: () => void;
+  nota?: string;
   className?: string;
 }) {
   const h = projecao.hoje;
@@ -117,7 +131,10 @@ export function PainelImpacto({
             <p className="text-[13px] font-semibold">Ajustes nesta simulação ({ajustes.length})</p>
             {ajustes.map((a) => (
               <div key={a.chave} className="flex items-center justify-between gap-2 text-[13px]">
-                <span className="min-w-0">{a.texto}</span>
+                <span className="min-w-0">
+                  {a.texto}
+                  {a.aviso && <span className="block text-xs text-warning">Mudou no financeiro: {a.aviso}.</span>}
+                </span>
                 <Button size="sm" variant="ghost" onClick={a.onDesfazer} aria-label={`Desfazer: ${a.texto}`}>
                   Desfazer
                 </Button>
@@ -131,8 +148,18 @@ export function PainelImpacto({
           </div>
           <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2">
             <Button size="sm" variant="outline" onClick={onDescartar}>
-              Descartar simulação
+              Descartar
             </Button>
+            {onSalvar && (
+              <Button size="sm" variant="outline" onClick={onSalvar}>
+                Salvar cenário
+              </Button>
+            )}
+            {onAplicar && (
+              <Button size="sm" className="ml-auto" onClick={onAplicar}>
+                Aplicar ao financeiro
+              </Button>
+            )}
           </div>
         </div>
       )}
@@ -141,7 +168,7 @@ export function PainelImpacto({
           Mude a data de um pagamento, tire uma entrada ou simule uma distribuição de lucros: o antes e depois aparece aqui.
         </p>
       )}
-      <p className="text-xs text-muted-foreground">A simulação fica guardada nesta aba do navegador e não muda o financeiro.</p>
+      <p className="text-xs text-muted-foreground">{nota}</p>
     </aside>
   );
 }

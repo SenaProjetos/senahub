@@ -57,6 +57,22 @@ export type LancamentoEntrada = {
 
 export type OrigemEvento = "lancamento" | "programado" | "simulado";
 
+/**
+ * Foto dos campos OBSERVADOS de um lançamento (spec §6): o que o "aplicar ao financeiro" confere
+ * para saber se o real mudou desde a simulação. Valores GRAVADOS (prioridade e confiança podem ser
+ * nulas = herdadas), não os efetivos. `updatedAt` fica de fora de propósito: anexar um comprovante
+ * não invalida um cenário.
+ */
+export type Observado = {
+  status: StatusLancamento;
+  excluido: boolean;
+  /** `vencimento ?? data`. */
+  data: DataIso;
+  valor: Centavos;
+  prioridade: Prioridade | null;
+  confianca: Confianca | null;
+};
+
 /** Um movimento pendente, pronto para o motor. */
 export type EventoCaixa = {
   id: string;
@@ -81,6 +97,8 @@ export type EventoCaixa = {
   /** Motivo quando a data não pode ser reprogramada; `null` = programável. */
   naoProgramavel: string | null;
   transferencia: { id: string | null; contrapartes: Contraparte[] } | null;
+  /** Só em evento de lançamento: a foto que o ajuste guarda como "antes". */
+  observado?: Observado;
   /**
    * Marcas da simulação (planejador). Nunca vêm do banco: só `aplicarSimulacao` as escreve.
    * `forcado` = entra em qualquer cenário; `excluido` = fica fora da projeção, mas visível.

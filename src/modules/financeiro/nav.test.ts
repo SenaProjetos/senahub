@@ -46,6 +46,9 @@ describe("item atual", () => {
     expect(itemAtual(por("visao"), "/financeiro/fluxo-caixa", null)).toBe(false);
     expect(itemAtual(por("fluxo"), "/financeiro/fluxo-caixa", null)).toBe(true);
     expect(itemAtual(por("lancamentos"), "/financeiro/lancamentos/x", null)).toBe(true);
+    // Cenários salvos fazem parte do Planejador (mock): o item fica marcado lá também.
+    expect(itemAtual(por("planejador"), "/financeiro/cenarios", null)).toBe(true);
+    expect(itemAtual(por("visao"), "/financeiro/cenarios", null)).toBe(false);
   });
 
   it("A pagar × A receber se distinguem pela aba da mesma rota", () => {

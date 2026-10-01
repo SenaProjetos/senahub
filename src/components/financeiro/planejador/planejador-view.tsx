@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Pencil, Plus } from "lucide-react";
+import { AlertTriangle, FolderOpen, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { Button } from "@/components/ui/button";
@@ -17,8 +18,13 @@ import { brlC, rotuloDia } from "@/components/financeiro/planejador/formato";
 import { LinhaDoTempo } from "@/components/financeiro/planejador/linha-do-tempo";
 import { PainelEvento } from "@/components/financeiro/planejador/painel-evento";
 import { PainelImpacto, type ItemAjuste } from "@/components/financeiro/planejador/painel-impacto";
+import { AplicarDialog } from "@/components/financeiro/planejador/aplicar-dialog";
 import { ReservaMinimaDialog } from "@/components/financeiro/planejador/reserva-minima-dialog";
-import { SimularMovimento } from "@/components/financeiro/planejador/simular-movimento";
+import { SalvarCenarioDialog } from "@/components/financeiro/planejador/salvar-cenario-dialog";
+import { SimularMovimento, type CategoriaOpcao } from "@/components/financeiro/planejador/simular-movimento";
+import { estadoDoAjuste } from "@/modules/financeiro/liquidez/ajustes";
+import type { CenarioDto } from "@/modules/financeiro/planejador/cenarios/queries";
+import { nomePadraoDoCenario } from "@/modules/financeiro/planejador/cenarios/resumo";
 import { HORIZONTES_DIAS, type ConfigLiquidez } from "@/modules/financeiro/config/liquidez";
 import { resumoDoAlerta } from "@/modules/financeiro/liquidez/alerta";
 import {
@@ -43,7 +49,7 @@ import {
   type AjusteSimulado,
   type MovimentoSimulado,
 } from "@/modules/financeiro/liquidez/simulacao";
-import type { Confianca, DataIso, EventoCaixa, Prioridade } from "@/modules/financeiro/liquidez/tipos";
+import type { Confianca, DataIso, EventoCaixa, Observado, Prioridade } from "@/modules/financeiro/liquidez/tipos";
 import {
   ACAO_COPIAR_DESCRICAO,
   ACAO_COPIAR_VALOR,
@@ -80,49 +86,80 @@ function novoIdAjuste(): string {
 
 /**
  * Planejador de caixa (mockup aprovado + spec 2026-09-30). Mesa de simulação: o servidor entrega a
- * base (caixa atual e pendentes) e TODO o resto roda aqui, no navegador, com o motor puro. Os
- * ajustes ficam na sessão do navegador; nada é gravado no financeiro.
+ * base (caixa atual e pendentes) e TODO o resto roda aqui, no navegador, com o motor puro. Sem
+ * cenário aberto, os ajustes ficam na sessão do navegador; com cenário (`?cenario=`), começam dele e
+ * só voltam ao banco em "Salvar". O financeiro só muda em "Aplicar ao financeiro" (F3, `gerir`).
  */
 export function PlanejadorView({
   base,
   config,
   podeGerir,
+  podeSalvar,
+  cenario,
+  cenarioEditavel,
+  observadosExtras,
+  categorias,
   subnav,
 }: {
   base: BasePlanejador;
   config: ConfigLiquidez;
   podeGerir: boolean;
+  /** `financeiro:ver` — o sócio que só lê simula, mas não salva (I11). */
+  podeSalvar: boolean;
+  cenario: CenarioDto | null;
+  cenarioEditavel: boolean;
+  /** Foto de agora dos alvos do cenário que não estão na projeção (pagos, excluídos, além do horizonte). */
+  observadosExtras: Record<string, Observado | null>;
+  categorias: CategoriaOpcao[];
   subnav?: React.ReactNode;
 }) {
+  const router = useRouter();
   const confirm = useConfirm();
-  const [eixos, setEixos] = useState<Eixos>(RASCUNHO_VAZIO.eixos);
-  const [ajustes, setAjustes] = useState<AjusteSimulado[]>([]);
+  const [eixos, setEixos] = useState<Eixos>(cenario?.premissas.eixos ?? RASCUNHO_VAZIO.eixos);
+  const [ajustes, setAjustes] = useState<AjusteSimulado[]>(cenario?.ajustes ?? []);
+  // O que está salvo no cenário aberto — para dizer "alterações não salvas".
+  const [salvo, setSalvo] = useState<string | null>(() =>
+    cenario ? escreverRascunho({ eixos: cenario.premissas.eixos, ajustes: cenario.ajustes }) : null,
+  );
+  const [salvarAberto, setSalvarAberto] = useState(false);
+  const [aplicarAberto, setAplicarAberto] = useState(false);
   const [selecionado, setSelecionado] = useState<{ id: string; focarData: boolean } | null>(null);
   const [novoAberto, setNovoAberto] = useState(false);
   const [reservaAberta, setReservaAberta] = useState(false);
   const carregou = useRef(false);
 
-  // Rascunho: lido depois da hidratação (sessionStorage não existe no servidor) e salvo a cada mudança.
+  // Rascunho (sem cenário aberto): lido depois da hidratação (sessionStorage não existe no servidor)
+  // e salvo a cada mudança. Rascunho de antes da F3 não tem a foto "antes": ela vem da base agora.
   useEffect(() => {
+    if (cenario) return;
     try {
       const r = lerRascunho(window.sessionStorage.getItem(CHAVE_RASCUNHO));
       if (r) {
+        const porId = new Map(base.eventos.map((e) => [e.id, e]));
         setEixos(r.eixos);
-        setAjustes(r.ajustes);
+        setAjustes(
+          r.ajustes.map((a) => {
+            if (a.tipo === "INCLUIR" || a.antes) return a;
+            const e = porId.get(a.eventoId);
+            return e?.observado ? { ...a, antes: e.observado, rotulo: a.rotulo ?? e.descricao } : a;
+          }),
+        );
       }
     } catch {
       // Sem acesso ao armazenamento (aba privada, bloqueio): a simulação só não sobrevive ao recarregar.
     }
     carregou.current = true;
+    // Só na montagem: a base que chega depois (outro horizonte) não reescreve o rascunho.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
-    if (!carregou.current) return;
+    if (cenario || !carregou.current) return;
     try {
       window.sessionStorage.setItem(CHAVE_RASCUNHO, escreverRascunho({ eixos, ajustes }));
     } catch {
       /* idem */
     }
-  }, [eixos, ajustes]);
+  }, [cenario, eixos, ajustes]);
 
   const fim = useMemo(() => {
     const d = new Date(`${base.hoje}T00:00:00Z`);
@@ -156,7 +193,11 @@ export function PlanejadorView({
     (novo: AjusteSimulado) => {
       const alvo = alvoDoAjuste(novo);
       const original = alvo ? baseOriginalPorId.get(alvo) : undefined;
-      setAjustes((atual) => registrarAjuste(atual, novo, original));
+      // A foto "antes" (spec §6) é a do lançamento como estava ao simular: é com ela que o
+      // "aplicar" descobre que o real mudou. O rótulo diz qual era, se ele sumir.
+      const comFoto: AjusteSimulado =
+        novo.tipo !== "INCLUIR" && original?.observado ? { ...novo, antes: original.observado, rotulo: original.descricao } : novo;
+      setAjustes((atual) => registrarAjuste(atual, comFoto, original));
     },
     [baseOriginalPorId],
   );
@@ -217,12 +258,20 @@ export function PlanejadorView({
   const itensAjuste: ItemAjuste[] = ajustes.map((a, i) => {
     const alvo = alvoDoAjuste(a);
     const original = alvo ? baseOriginalPorId.get(alvo) : undefined;
+    const atual: Observado | null | undefined = alvo ? (original?.observado ?? observadosExtras[alvo]) : undefined;
+    const estado = atual === undefined ? null : estadoDoAjuste(a, atual);
+    const guardado =
+      a.tipo !== "INCLUIR" && a.rotulo ? { descricao: a.rotulo, data: a.antes?.data ?? "", prioridade: null, confianca: null } : undefined;
     return {
       chave: `${i}:${a.tipo}:${alvo ?? (a.tipo === "INCLUIR" ? a.id : "")}`,
-      texto: descreverAjuste(a, original),
+      texto: descreverAjuste(a, original ?? guardado),
+      aviso: estado && estado.estado !== "valido" ? estado.motivo : null,
       onDesfazer: () => setAjustes((atual) => atual.filter((x) => x !== a)),
     };
   });
+  const alterado = salvo !== null && escreverRascunho({ eixos, ajustes }) !== salvo;
+  const premissas = { eixos, horizonteDias: base.horizonteDias };
+  const hrefHorizonte = (h: number) => `?horizonte=${h}${cenario ? `&cenario=${encodeURIComponent(cenario.id)}` : ""}`;
 
   async function descartar() {
     const ok = await confirm({ title: "Descartar a simulação?", description: `${ajustes.length} ${ajustes.length === 1 ? "ajuste sai" : "ajustes saem"} desta aba. O financeiro não muda.`, confirmLabel: "Descartar", variant: "destructive" });
@@ -244,12 +293,43 @@ export function PlanejadorView({
         titulo="Planejador de caixa"
         descricao="Teste decisões antes de executar. A simulação não muda o financeiro."
         acoes={
-          <Button size="sm" onClick={() => setNovoAberto(true)}>
-            <Plus className="size-4" aria-hidden /> Simular movimento
-          </Button>
+          <>
+            <Button size="sm" variant="outline" render={<Link href="/financeiro/cenarios" />}>
+              <FolderOpen className="size-4" aria-hidden /> Cenários salvos
+            </Button>
+            <Button size="sm" onClick={() => setNovoAberto(true)}>
+              <Plus className="size-4" aria-hidden /> Simular movimento
+            </Button>
+          </>
         }
       />
       {subnav}
+
+      {cenario && (
+        <section
+          aria-label="Cenário aberto"
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-sm border border-l-[3px] border-l-primary bg-card px-3 py-2 text-[13.5px]"
+        >
+          <span>
+            Cenário <b>{cenario.nome}</b>
+          </span>
+          {cenario.situacao === "arquivado" && <span className="rounded-sm border px-1.5 text-xs">Arquivado</span>}
+          {alterado && <span className="font-medium text-warning">Alterações não salvas</span>}
+          {cenario.nAplicados > 0 && cenario.aplicadoEm && (
+            <span className="text-muted-foreground">
+              {cenario.nAplicados} {cenario.nAplicados === 1 ? "ajuste já aplicado" : "ajustes já aplicados"} em {diaMes(cenario.aplicadoEm.slice(0, 10))}
+            </span>
+          )}
+          {cenario.nInvalidos > 0 && (
+            <span className="text-warning">
+              {cenario.nInvalidos} {cenario.nInvalidos === 1 ? "ajuste ficou de fora" : "ajustes ficaram de fora"} (formato antigo)
+            </span>
+          )}
+          <Button size="sm" variant="ghost" className="ml-auto" render={<Link href="/financeiro/planejador" />}>
+            Fechar cenário
+          </Button>
+        </section>
+      )}
 
       <section aria-label="Premissas da simulação" className="flex flex-wrap items-end gap-x-8 gap-y-4 rounded-sm border bg-card px-4 py-3 shadow-[var(--card-shadow)]">
         <div>
@@ -279,7 +359,7 @@ export function PlanejadorView({
                 key={h}
                 size="sm"
                 variant={base.horizonteDias === h ? "default" : "outline"}
-                render={<Link href={`?horizonte=${h}`} scroll={false} aria-current={base.horizonteDias === h ? "true" : undefined} />}
+                render={<Link href={hrefHorizonte(h)} scroll={false} aria-current={base.horizonteDias === h ? "true" : undefined} />}
               >
                 {h} dias
               </Button>
@@ -440,6 +520,13 @@ export function PlanejadorView({
           ajustes={itensAjuste}
           semAlvo={semAlvo.length}
           onDescartar={() => void descartar()}
+          onSalvar={podeSalvar ? () => setSalvarAberto(true) : undefined}
+          onAplicar={podeGerir ? () => setAplicarAberto(true) : undefined}
+          nota={
+            cenario
+              ? "As mudanças valem nesta tela até você salvar o cenário. O financeiro só muda ao aplicar."
+              : "A simulação fica guardada nesta aba do navegador e não muda o financeiro até você aplicar."
+          }
         />
       </div>
 
@@ -479,6 +566,7 @@ export function PlanejadorView({
         hoje={base.hoje}
         fim={fim}
         reservaMinima={base.reservaMinima}
+        categorias={categorias}
         previa={(m: MovimentoSimulado) => {
           const id = "previa";
           const comMov = projetar(entradaMotor(aplicarSimulacao(base.eventos, [...ajustes, { tipo: "INCLUIR", id, movimento: m }], base.hoje)));
@@ -495,6 +583,56 @@ export function PlanejadorView({
       />
 
       {podeGerir && <ReservaMinimaDialog aberto={reservaAberta} config={config} onFechar={() => setReservaAberta(false)} />}
+
+      {podeSalvar && (
+        <SalvarCenarioDialog
+          aberto={salvarAberto}
+          onFechar={() => setSalvarAberto(false)}
+          cenario={
+            cenario
+              ? { id: cenario.id, nome: cenario.nome, descricao: cenario.descricao, editavel: cenarioEditavel && cenario.situacao !== "arquivado" }
+              : null
+          }
+          nomeSugerido={nomePadraoDoCenario(base.hoje, ajustes.length)}
+          premissas={premissas}
+          ajustes={ajustes}
+          onSalvo={(r) => {
+            setSalvarAberto(false);
+            if (r.novo || r.id !== cenario?.id) {
+              // O rascunho virou cenário: a aba deixa de carregar o mesmo rascunho de novo.
+              if (!cenario) {
+                try {
+                  window.sessionStorage.removeItem(CHAVE_RASCUNHO);
+                } catch {
+                  /* sem armazenamento: nada a limpar */
+                }
+              }
+              router.push(`/financeiro/planejador?cenario=${encodeURIComponent(r.id)}&horizonte=${base.horizonteDias}`);
+            } else {
+              setSalvo(escreverRascunho({ eixos, ajustes }));
+              router.refresh();
+            }
+          }}
+        />
+      )}
+
+      {podeGerir && (
+        <AplicarDialog
+          aberto={aplicarAberto}
+          onFechar={() => setAplicarAberto(false)}
+          ajustes={ajustes}
+          cenarioId={cenario?.id ?? null}
+          onAtualizarAjustes={setAjustes}
+          onAplicado={(indices) => {
+            const ficam = ajustes.filter((_, i) => !indices.includes(i));
+            setAjustes(ficam);
+            // Com cenário, o servidor já gravou os que ficaram (na mesma transação).
+            if (cenario) setSalvo(escreverRascunho({ eixos, ajustes: ficam }));
+            setAplicarAberto(false);
+            router.refresh();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 
 const INCLUDE = {
-  categoria: { select: { codigo: true, nome: true } },
+  // Prioridade padrão (da categoria e da mãe): a efetiva do planejador, mostrada em Contas.
+  categoria: { select: { codigo: true, nome: true, prioridadePadrao: true, pai: { select: { prioridadePadrao: true } } } },
   centro: { select: { nome: true } },
   conta: { select: { nome: true } },
   transacao: { select: { id: true } },
