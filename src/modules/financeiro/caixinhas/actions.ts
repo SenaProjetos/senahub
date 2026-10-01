@@ -1,13 +1,12 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { inicioDoDiaUtc } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
 import { ActionError, defineAction } from "@/lib/with-action";
-import { linhasDoMovimento, motivoDeRecusa } from "@/modules/financeiro/caixinhas/calculo";
 import { carregarCaixinhas } from "@/modules/financeiro/caixinhas/queries";
 import { caixinhaSchema, idCaixinhaSchema, movimentoSchema } from "@/modules/financeiro/caixinhas/schemas";
+import { movimentarNoBanco } from "@/modules/financeiro/caixinhas/service";
 import { isoDeDataDoBanco } from "@/modules/financeiro/liquidez/datas";
 
 /**
@@ -66,43 +65,16 @@ export const salvarCaixinha = defineAction(
   },
 );
 
-/** Reservar, liberar, transferir ou ajustar. Valida contra a situação de HOJE e grava todas as pernas juntas. */
+/** Reservar, liberar, transferir ou ajustar. Núcleo em `service.ts` (o smoke usa o mesmo). */
 export const movimentarCaixinha = defineAction(
   { ...base, acao: "movimentar-caixinha", schema: movimentoSchema, entidadeId: (_d, i) => i.caixinhaId },
   async (i, { user }) => {
-    const origem = await exigir(i.caixinhaId);
-    if (!origem.ativo) throw new ActionError("Caixinha inativa: restaure antes de movimentar.");
-    if (i.tipo === "transferencia") {
-      if (i.destinoId === i.caixinhaId) throw new ActionError("Escolha outra caixinha de destino.");
-      const d = await exigir(i.destinoId);
-      if (!d.ativo) throw new ActionError("A caixinha de destino está inativa.");
-    }
-
-    const todas = await carregarCaixinhas({ hoje: hoje() });
-    const atual = todas.find((c) => c.id === i.caixinhaId)?.situacao;
-    if (!atual) throw new ActionError("Caixinha não encontrada.");
-    const recusa = motivoDeRecusa({ tipo: i.tipo, valor: i.valor }, { alocado: atual.alocado, reservado: atual.reservado });
-    if (recusa) throw new ActionError(recusa);
-
-    const linhas = linhasDoMovimento({ tipo: i.tipo, valor: i.valor }, i.caixinhaId, i.tipo === "transferencia" ? i.destinoId : undefined);
-    const transferenciaId = i.tipo === "transferencia" ? randomUUID() : null;
-    await prisma.$transaction(async (tx) => {
-      for (const l of linhas) {
-        await tx.movimentoCaixinha.create({
-          data: {
-            caixinhaId: l.caixinhaId,
-            tipo: l.tipo,
-            valor: l.valor / 100,
-            data: new Date(`${i.data}T00:00:00.000Z`),
-            descricao: i.descricao || null,
-            transferenciaId,
-            autorId: user.id,
-          },
-        });
-      }
-    });
+    const r = await movimentarNoBanco(
+      { tipo: i.tipo, valor: i.valor, caixinhaId: i.caixinhaId, destinoId: i.tipo === "transferencia" ? i.destinoId : undefined, data: i.data, descricao: i.descricao },
+      user.id,
+    );
     rev();
-    return { pernas: linhas.length };
+    return r;
   },
 );
 
@@ -111,8 +83,9 @@ export const arquivarCaixinha = defineAction(
   { ...base, acao: "arquivar-caixinha", schema: idCaixinhaSchema, entidadeId: (_d, i) => i.id },
   async (i) => {
     await exigir(i.id);
-    const c = (await carregarCaixinhas({ hoje: hoje() })).find((x) => x.id === i.id);
-    if (c && c.situacao.reservado > 0) throw new ActionError("Libere ou transfira o que está reservado antes de arquivar.");
+    const c = (await carregarCaixinhas({ hoje: hoje(), inativas: true })).find((x) => x.id === i.id);
+    if (!c) throw new ActionError("Caixinha não encontrada.");
+    if (c.situacao.reservado > 0) throw new ActionError("Libere ou transfira o que está reservado antes de arquivar.");
     const abertas = await prisma.lancamento.count({
       where: { caixinhaId: i.id, tipo: "despesa", status: { in: ["previsto", "aguardando_aprovacao", "previsao"] }, excluidoEm: null },
     });

@@ -49,6 +49,7 @@ import type { AjusteSimulado } from "../src/modules/financeiro/liquidez/ajustes"
 import type { Observado } from "../src/modules/financeiro/liquidez/tipos";
 import { aplicarAjustesAoFinanceiro, gravarPlano } from "../src/modules/financeiro/planejador/cenarios/service";
 import { carregarCaixinhas } from "../src/modules/financeiro/caixinhas/queries";
+import { movimentarNoBanco } from "../src/modules/financeiro/caixinhas/service";
 import { criarLancamentoNoTx } from "../src/modules/financeiro/lancamentos/service";
 import { CHAVE_CONFIG_LIQUIDEZ } from "../src/modules/financeiro/config/liquidez";
 import { recebimentosADistribuir } from "../src/modules/financeiro/distribuicao/queries";
@@ -420,6 +421,20 @@ async function smokeCaixinhas(autorId: string, catDespesaId: string, catReceitaI
     check("a baixa consumiu 400 do reservado", c1.situacao.reservado === paraCentavos(600) && c1.situacao.usado === paraCentavos(400), c1.situacao);
     check("o caixa caiu 400", baseAntes.caixaAtual - base2.caixaAtual === paraCentavos(400), { antes: baseAntes.caixaAtual, depois: base2.caixaAtual });
     check("o livre NÃO caiu duas vezes: caixa − reservado ficou igual", base2.caixaAtual - totalReservado(base2) === livre1, { livre1, livre2: base2.caixaAtual - totalReservado(base2) });
+
+    // Revisão da F4 (2026-10-01): duas liberações simultâneas do reservado passavam as duas, porque
+    // a validação lê a situação antes da transação — o alocado ficava negativo e o `max(0, …)` do
+    // reservado escondia. O lock da linha da caixinha serializa; a segunda é recusada.
+    const antesCorrida = (await achar()).situacao.reservado;
+    const corrida = await Promise.allSettled([
+      movimentarNoBanco({ tipo: "liberacao", valor: antesCorrida, caixinhaId: cx.id, data: hoje }, autorId),
+      movimentarNoBanco({ tipo: "liberacao", valor: antesCorrida, caixinhaId: cx.id, data: hoje }, autorId),
+    ]);
+    const okCorrida = corrida.filter((x) => x.status === "fulfilled").length;
+    const depoisCorrida = await achar();
+    check("duas liberações simultâneas: só uma passa", okCorrida === 1, corrida.map((x) => (x.status === "rejected" ? String((x.reason as Error)?.message ?? x.reason) : "ok")));
+    check("e o alocado não fica negativo", depoisCorrida.situacao.alocado >= 0 && depoisCorrida.situacao.reservado === 0, depoisCorrida.situacao);
+    await prisma.movimentoCaixinha.create({ data: { caixinhaId: cx.id, tipo: "alocacao", valor: 600, data: em(0), autorId } });
 
     console.log("\n# F4 — caixinha só em despesa em aberto, ativa; troca atômica");
     let erroReceita = "";
