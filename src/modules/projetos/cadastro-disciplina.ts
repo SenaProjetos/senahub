@@ -17,6 +17,30 @@ export function normalizarPasta(texto: string): string {
     .slice(0, 6);
 }
 
+export type CamposCadastro = {
+  nome: string;
+  categoria: string | null;
+  codigo: string | null;
+  icone: string | null;
+  iconeSvg: string | null;
+  numeracao: number | null;
+  numeracaoFim: number | null;
+};
+
+/** O lápis mudou algo em relação ao cadastro? Espaços nas pontas e vazio ≡ nulo não contam. */
+export function cadastroMudou(original: CamposCadastro, atual: CamposCadastro): boolean {
+  const t = (v: string | null) => (v ?? "").trim();
+  return (
+    t(original.nome) !== t(atual.nome) ||
+    t(original.categoria) !== t(atual.categoria) ||
+    t(original.codigo) !== t(atual.codigo) ||
+    t(original.icone) !== t(atual.icone) ||
+    (original.iconeSvg ?? "") !== (atual.iconeSvg ?? "") ||
+    original.numeracao !== atual.numeracao ||
+    original.numeracaoFim !== atual.numeracaoFim
+  );
+}
+
 export function motivoCodigoTravado(uso: number): string | null {
   if (uso <= 0) return null;
   return `Em uso em ${uso} ${uso === 1 ? "projeto" : "projetos"}: mudar agora separaria os arquivos em duas pastas.`;

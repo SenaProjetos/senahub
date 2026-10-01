@@ -2,7 +2,6 @@
 
 import { Upload } from "lucide-react";
 import { toast } from "sonner";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { iconeDisciplina } from "@/lib/disciplinas";
 import { CHAVES_GALERIA, GALERIA_ICONES } from "@/lib/disciplinas-galeria";
@@ -59,8 +58,8 @@ export function SeletorIcone({
   }
 
   return (
-    <div className="space-y-1.5">
-      <Label>Ícone</Label>
+    <fieldset className="space-y-1.5">
+      <legend className="text-sm font-medium leading-none">Ícone</legend>
       <Tabs defaultValue="galeria">
         <TabsList>
           <TabsTrigger value="galeria">Galeria</TabsTrigger>
@@ -119,6 +118,6 @@ export function SeletorIcone({
       {!icone && !iconeSvg && (
         <p className="text-xs text-muted-foreground">Sem ícone escolhido → o sistema deriva um ícone pelo nome.</p>
       )}
-    </div>
+    </fieldset>
   );
 }

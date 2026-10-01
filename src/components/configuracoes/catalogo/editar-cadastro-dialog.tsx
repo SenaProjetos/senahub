@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { motivoCodigoTravado, normalizarPasta } from "@/modules/projetos/cadastro-disciplina";
+import { cadastroMudou, motivoCodigoTravado, normalizarPasta } from "@/modules/projetos/cadastro-disciplina";
 import { valeNaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
 import { SeletorIcone } from "./seletor-icone";
 
@@ -69,8 +69,22 @@ export function EditarCardDialog({
     numeracao.trim() !== "" ||
     numeracaoFim.trim() !== "";
 
+  const num = (t: string) => (t.trim() === "" ? null : Number(t));
+  // Travada, a pasta não conta como edição (o campo nem se mexe).
+  const mudou = cadastroMudou(
+    card,
+    {
+      nome,
+      categoria,
+      codigo: travado ? card.codigo : codigo,
+      icone: icone.icone,
+      iconeSvg: icone.iconeSvg,
+      numeracao: num(numeracao),
+      numeracaoFim: num(numeracaoFim),
+    },
+  );
+
   function salvar() {
-    const num = (t: string) => (t.trim() === "" ? null : Number(t));
     onSalvar({
       id: card.id,
       nome: nome.trim(),
@@ -172,10 +186,10 @@ export function EditarCardDialog({
           </div>
 
           {usaFaixa && (
-            <div className="space-y-1.5">
-              <Label>
+            <fieldset className="space-y-1.5">
+              <legend className="text-sm font-medium leading-none">
                 Numeração por faixa <span className="font-normal text-muted-foreground">(só nas versões que numeram por faixa)</span>
-              </Label>
+              </legend>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label htmlFor="cadastro-num-ini" className="text-xs text-muted-foreground">
@@ -212,7 +226,7 @@ export function EditarCardDialog({
                 Bloco na nomenclatura (ex.: 4000–4999 → folhas 4001, 4002…). Sem o fim da faixa, o envio não reconhece a disciplina só
                 pelo número do arquivo.
               </p>
-            </div>
+            </fieldset>
           )}
 
           <SeletorIcone nome={nome} icone={icone.icone} iconeSvg={icone.iconeSvg} onChange={setIcone} />
@@ -221,7 +235,7 @@ export function EditarCardDialog({
           <Button variant="outline" onClick={onFechar} disabled={pending}>
             Cancelar
           </Button>
-          <Button onClick={salvar} disabled={pending || nome.trim().length < 2}>
+          <Button onClick={salvar} disabled={pending || !mudou || nome.trim().length < 2}>
             {pending ? "Salvando…" : "Salvar"}
           </Button>
         </DialogFooter>

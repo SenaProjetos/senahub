@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { motivoCodigoTravado, normalizarPasta } from "./cadastro-disciplina";
+import { cadastroMudou, motivoCodigoTravado, normalizarPasta } from "./cadastro-disciplina";
 import { editarCadastroDisciplinaSchema } from "./schemas";
 
 describe("motivoCodigoTravado", () => {
@@ -38,5 +38,20 @@ describe("editarCadastroDisciplinaSchema", () => {
   it("aceita faixa válida e vazia", () => {
     expect(editarCadastroDisciplinaSchema.safeParse({ ...base, numeracao: 4000, numeracaoFim: 4999 }).success).toBe(true);
     expect(editarCadastroDisciplinaSchema.safeParse({ ...base, numeracao: null }).success).toBe(true);
+  });
+});
+
+describe("cadastroMudou", () => {
+  const original = { nome: "Elétrica", categoria: "ELÉTRICA", codigo: "ELE", icone: null, iconeSvg: null, numeracao: 4000, numeracaoFim: 4999 };
+
+  it("igual ao original (espaços e vazio = nulo não contam): sem mudança", () => {
+    expect(cadastroMudou(original, { ...original, nome: " Elétrica ", categoria: "ELÉTRICA " })).toBe(false);
+    expect(cadastroMudou({ ...original, categoria: null, codigo: null }, { ...original, categoria: "", codigo: "" })).toBe(false);
+  });
+
+  it("qualquer campo diferente: mudou", () => {
+    for (const mudanca of [{ nome: "Elétrica 2" }, { categoria: "CIVIL" }, { codigo: "ELX" }, { icone: "zap" }, { iconeSvg: "<svg/>" }, { numeracao: 5000 }, { numeracaoFim: null }]) {
+      expect(cadastroMudou(original, { ...original, ...mudanca })).toBe(true);
+    }
   });
 });

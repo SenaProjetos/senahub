@@ -1334,6 +1334,18 @@ export const editarDisciplinaCatalogo = defineAction(
   },
 );
 
+/**
+ * SVG de ícone de UMA disciplina, lido só quando o lápis abre: a lista da tela não carrega o SVG de
+ * todos os cards (até 20 KB cada) a cada visita.
+ */
+export const iconeSvgDaDisciplina = defineAction(
+  { ...catalogoBase, acao: "ler-icone-svg-disciplina", audit: false, schema: idDisciplinaCatalogoSchema },
+  async (i) => {
+    const d = await prisma.disciplinaCatalogo.findUnique({ where: { id: i.id }, select: { iconeSvg: true } });
+    return { iconeSvg: d?.iconeSvg ?? null };
+  },
+);
+
 /** Nº de projetos distintos que usam a disciplina (nome casado sem acento/caixa, como em `catalogoDisciplinasAdmin`). */
 async function usoDaDisciplina(nome: string): Promise<number> {
   const alvo = normalizar(nome);

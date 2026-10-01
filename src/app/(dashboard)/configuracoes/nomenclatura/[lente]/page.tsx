@@ -36,7 +36,7 @@ export default async function CatalogoVersaoPage({
         codigo: c.codigo,
         categoria: c.categoria,
         icone: c.icone,
-        iconeSvg: c.iconeSvg,
+        temIconeSvg: !!c.iconeSvg,
         numeracao: c.numeracao,
         numeracaoFim: c.numeracaoFim,
         uso: c.uso,

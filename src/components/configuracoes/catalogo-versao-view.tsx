@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { FileUp, Layers, Plus, Search, Shapes, Undo2 } from "lucide-react";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { alterarCatalogoNaVersao } from "@/modules/projetos/nomenclatura/catalogo/actions";
-import { editarCadastroDisciplina } from "@/modules/projetos/actions";
+import { editarCadastroDisciplina, iconeSvgDaDisciplina } from "@/modules/projetos/actions";
 import { editarNomeSubdisciplina } from "@/modules/projetos/subdisciplinas/actions";
 import { editarNomeItemListaMestre } from "@/modules/projetos/pranchas/catalogo-actions";
 import {
@@ -53,7 +53,8 @@ export type CadastroCard = {
   codigo: string | null;
   categoria: string | null;
   icone: string | null;
-  iconeSvg: string | null;
+  /** O SVG em si só é lido quando o lápis abre (`iconeSvgDaDisciplina`): a lista não o carrega. */
+  temIconeSvg: boolean;
   numeracao: number | null;
   numeracaoFim: number | null;
   uso: number;
@@ -69,7 +70,7 @@ type Dialogo =
   | { tipo: "adicionar"; titulo: string; siglaObrigatoria: boolean; montar: (nome: string, sigla: string | null) => OperacaoTela }
   | { tipo: "siglas"; rotulo: string; alvo: AlvoCatalogo }
   | { tipo: "voltar"; nome: string; alvo: AlvoCatalogo }
-  | { tipo: "editar"; nome: string; alvo: AlvoCatalogo };
+  | { tipo: "editar"; nome: string; alvo: AlvoCatalogo; iconeSvg?: string | null };
 
 const ABAS: { valor: AbaCatalogo; rotulo: string }[] = [
   { valor: "disciplinas", rotulo: "Disciplinas" },
@@ -181,7 +182,19 @@ export function CatalogoVersaoView({
         siglaObrigatoria: false,
         montar: (nome, sigla) => ({ tipo: "sub-nova", cardId: linha.alvo.id, nome, sigla }),
       });
-    } else if (acao.id === ACAO_EDITAR) setDialogo({ tipo: "editar", nome: linha.nome, alvo: linha.alvo });
+    } else if (acao.id === ACAO_EDITAR) {
+      const c = linha.alvo.tipo === "disciplina" ? cadastro[linha.alvo.id] : undefined;
+      if (!c?.temIconeSvg) {
+        setDialogo({ tipo: "editar", nome: linha.nome, alvo: linha.alvo, iconeSvg: null });
+        return;
+      }
+      // O SVG do ícone vem só agora, não com a página inteira.
+      start(async () => {
+        const r = await iconeSvgDaDisciplina({ id: linha.alvo.id });
+        if (r.ok) setDialogo({ tipo: "editar", nome: linha.nome, alvo: linha.alvo, iconeSvg: r.data.iconeSvg });
+        else toast.error(r.error);
+      });
+    }
     else if (acao.id === ACAO_TIRAR) void tirar(linha);
   }
 
@@ -439,7 +452,7 @@ export function CatalogoVersaoView({
       )}
       {dialogo?.tipo === "editar" && dialogoCard && (
         <EditarCardDialog
-          card={{ id: dialogo.alvo.id, nome: dialogo.nome, ...dialogoCard }}
+          card={{ id: dialogo.alvo.id, nome: dialogo.nome, ...dialogoCard, iconeSvg: dialogo.iconeSvg ?? null }}
           categorias={categorias}
           versoes={versoes}
           pending={pending}
