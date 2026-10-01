@@ -4,6 +4,7 @@ import {
   catalogosDaVersao,
   decidirSiglasAoSalvar,
   intersecaoFaixas,
+  linhasParaChecarColisao,
   rotuloFaixa,
   siglasDasColunas,
   siglasEfetivas,
@@ -121,7 +122,7 @@ describe("decidirSiglasAoSalvar", () => {
     ).toBe("manter");
   });
 
-  it("item espelho: mudar sigla ou validade regrava; não mudar nada mantém", () => {
+  it("item espelho: mudar sigla regrava; mudar só a validade mantém as linhas (E3)", () => {
     const log = [linha("LOG", true)];
     const colunas = { oficial: "LOG", sinonimos: [] };
     const base = { linhas: log, colunasAntes: colunas, faixaAntes: sempre };
@@ -130,8 +131,55 @@ describe("decidirSiglasAoSalvar", () => {
       "espelhar",
     );
     expect(decidirSiglasAoSalvar({ ...base, colunasDepois: colunas, faixaDepois: { versaoDesde: 1, versaoAte: 1 } })).toBe(
-      "espelhar",
+      "manter",
     );
+  });
+
+  it("o incidente de 2026-09-30: Até a v1 e depois Sem fim deixam as siglas como estavam", () => {
+    const hid = [linha("HID", true), linha("HDR", false), linha("ESG", false)];
+    const colunas = { oficial: "HID", sinonimos: ["HDR", "ESG"] };
+    const ate1 = decidirSiglasAoSalvar({
+      linhas: hid,
+      colunasAntes: colunas,
+      faixaAntes: sempre,
+      colunasDepois: colunas,
+      faixaDepois: { versaoDesde: 1, versaoAte: 1 },
+    });
+    expect(ate1).toBe("manter");
+    const semFim = decidirSiglasAoSalvar({
+      linhas: hid,
+      colunasAntes: colunas,
+      faixaAntes: { versaoDesde: 1, versaoAte: 1 },
+      colunasDepois: colunas,
+      faixaDepois: sempre,
+    });
+    expect(semFim).toBe("manter");
+  });
+});
+
+describe("linhasParaChecarColisao", () => {
+  const sempre = { versaoDesde: 1, versaoAte: null };
+  const hid = [linha("HID", true), linha("ESG", false, 1, 1)];
+  const colunas = { oficial: "HID", sinonimos: ["ESG"] };
+
+  it("espelhar: confere o espelho novo, na faixa nova", () => {
+    expect(
+      linhasParaChecarColisao({ decisao: "espelhar", linhas: hid, colunasDepois: { oficial: "HDS", sinonimos: [] }, faixaAntes: sempre, faixaDepois: sempre }),
+    ).toEqual([linha("HDS", true)]);
+  });
+
+  it("manter com a validade ampliada: confere as linhas atuais (podem passar a valer onde outro item já usa)", () => {
+    expect(
+      linhasParaChecarColisao({ decisao: "manter", linhas: hid, colunasDepois: colunas, faixaAntes: { versaoDesde: 1, versaoAte: 1 }, faixaDepois: sempre }),
+    ).toEqual(hid);
+  });
+
+  it("manter sem mudar a validade: nada a conferir", () => {
+    expect(linhasParaChecarColisao({ decisao: "manter", linhas: hid, colunasDepois: colunas, faixaAntes: sempre, faixaDepois: sempre })).toEqual([]);
+  });
+
+  it("bloquear: nada a conferir (o salvar é recusado antes)", () => {
+    expect(linhasParaChecarColisao({ decisao: "bloquear", linhas: hid, colunasDepois: colunas, faixaAntes: sempre, faixaDepois: { versaoDesde: 2, versaoAte: null } })).toEqual([]);
   });
 });
 

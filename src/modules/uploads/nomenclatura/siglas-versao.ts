@@ -70,13 +70,14 @@ export function siglasSaoEspelho(linhas: readonly SiglaLinha[], colunas: Colunas
 /**
  * O que fazer com as siglas do item quando o formulário dele (card ou item da Lista Mestre) é
  * salvo — pelo lápis, pelo olho de ativar/desativar, por qualquer caminho:
- * - `espelhar`: as linhas ainda eram o espelho das colunas e algo mudou (sigla, sinônimo ou a
- *   faixa do item) → regravar as linhas a partir das colunas novas;
- * - `manter`: nada a regravar (espelho sem mudança, ou item com siglas por versão cujas colunas
- *   não mudaram — é o caso de só trocar o ícone ou desativar);
+ * - `manter`: sigla e sinônimos não mudaram. Mudar SÓ a validade do item também cai aqui (E3 da spec
+ *   2026-09-30): a faixa efetiva (sigla ∩ item) já recorta as linhas; regravá-las na faixa do item
+ *   tirava as siglas junto e "Até a v1 → Sem fim" não as trazia de volta (incidente do Hidrossanitário);
+ * - `espelhar`: as linhas ainda eram o espelho das colunas e a sigla ou um sinônimo mudou →
+ *   regravar as linhas a partir das colunas novas;
  * - `bloquear`: o item tem siglas por versão e o formulário tentou mudar sigla/sinônimo pelas
- *   colunas — regravar apagaria as decisões por versão (o bug que isto corrige: salvar o lápis
- *   recriava o `ESG` "da v1 em diante" por cima do ESG encerrado na v1).
+ *   colunas — regravar apagaria as decisões por versão (salvar o lápis recriava o `ESG` "da v1 em
+ *   diante" por cima do ESG encerrado na v1).
  */
 export function decidirSiglasAoSalvar(entrada: {
   linhas: readonly SiglaLinha[];
@@ -85,15 +86,31 @@ export function decidirSiglasAoSalvar(entrada: {
   colunasDepois: ColunasSigla;
   faixaDepois: FaixaVersao;
 }): "espelhar" | "manter" | "bloquear" {
-  const { linhas, colunasAntes, faixaAntes, colunasDepois, faixaDepois } = entrada;
-  if (siglasSaoEspelho(linhas, colunasAntes, faixaAntes)) {
-    return siglasSaoEspelho(linhas, colunasDepois, faixaDepois) ? "manter" : "espelhar";
-  }
+  const { linhas, colunasAntes, faixaAntes, colunasDepois } = entrada;
   const colunasMudaram = !mesmasLinhas(
     siglasDasColunas(colunasAntes.oficial, colunasAntes.sinonimos),
     siglasDasColunas(colunasDepois.oficial, colunasDepois.sinonimos),
   );
-  return colunasMudaram ? "bloquear" : "manter";
+  if (!colunasMudaram) return "manter";
+  return siglasSaoEspelho(linhas, colunasAntes, faixaAntes) ? "espelhar" : "bloquear";
+}
+
+/**
+ * Que linhas conferir contra colisão ao salvar o formulário, já na faixa nova do item: o espelho
+ * novo (`espelhar`); as linhas atuais quando só a validade mudou — ampliar a faixa pode pôr uma
+ * sigla numa versão em que outro item já a usa —; nada nos outros casos.
+ */
+export function linhasParaChecarColisao(entrada: {
+  decisao: "espelhar" | "manter" | "bloquear";
+  linhas: readonly SiglaLinha[];
+  colunasDepois: ColunasSigla;
+  faixaAntes: FaixaVersao;
+  faixaDepois: FaixaVersao;
+}): readonly SiglaLinha[] {
+  const { decisao, linhas, colunasDepois, faixaAntes, faixaDepois } = entrada;
+  if (decisao === "espelhar") return siglasDasColunas(colunasDepois.oficial, colunasDepois.sinonimos, faixaDepois);
+  const faixaMudou = faixaAntes.versaoDesde !== faixaDepois.versaoDesde || faixaAntes.versaoAte !== faixaDepois.versaoAte;
+  return decisao === "manter" && faixaMudou ? linhas : [];
 }
 
 /** Parte comum de duas faixas; null quando não têm versão em comum. */

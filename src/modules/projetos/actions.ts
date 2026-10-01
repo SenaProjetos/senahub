@@ -49,7 +49,7 @@ import { chaveLayoutPainelProjeto } from "@/modules/projetos/painel-layout";
 import { deveDeslocarPrazoDoProjeto } from "@/modules/projetos/prazo-reabertura";
 import { faixaConflitante } from "@/modules/projetos/faixa-numeracao";
 import { espelharSiglasDasColunas } from "@/modules/uploads/nomenclatura/siglas-service";
-import { decidirSiglasAoSalvar, siglasDasColunas, type FaixaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
+import { decidirSiglasAoSalvar, linhasParaChecarColisao, siglasDasColunas, type FaixaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
 import { garantirFaixaVersao, garantirSiglasSemColisao } from "@/modules/uploads/nomenclatura/siglas-guardas";
 import { versaoVigenteHoje } from "@/modules/projetos/nomenclatura/versoes-queries";
 
@@ -1264,9 +1264,17 @@ export const editarDisciplinaCatalogo = defineAction(
       );
     }
     await garantirUnicosCatalogo(dados.nome, dados.codigo, dados.sinonimos, i.id);
-    if (siglas === "espelhar") {
-      await garantirSiglasSemColisao({ tipo: "disciplina", id: i.id, faixa }, { tipo: "disciplina" }, siglasDasColunas(dados.codigo, dados.sinonimos, faixa));
-    }
+    await garantirSiglasSemColisao(
+      { tipo: "disciplina", id: i.id, faixa },
+      { tipo: "disciplina" },
+      linhasParaChecarColisao({
+        decisao: siglas,
+        linhas: existe.siglas,
+        colunasDepois: { oficial: dados.codigo, sinonimos: dados.sinonimos },
+        faixaAntes,
+        faixaDepois: faixa,
+      }),
+    );
     await garantirFaixaLivre(dados.numeracao, dados.numeracaoFim, i.id);
 
     // `Disciplina.disciplinaTextoLegado` (linha de projeto) casa com o catálogo por TEXTO.
