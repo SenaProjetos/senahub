@@ -15,8 +15,6 @@ const base = { modulo: "configuracoes", recurso: "configuracoes", permissao: "ge
 function rev(versao: number) {
   revalidatePath(`/configuracoes/nomenclatura/${versao}`);
   revalidatePath("/configuracoes/nomenclatura", "layout");
-  revalidatePath("/configuracoes/disciplinas");
-  revalidatePath("/configuracoes/lista-mestre");
 }
 
 async function garantirVersao(versao: number) {

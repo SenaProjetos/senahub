@@ -473,7 +473,7 @@ function CapaGrupo({
 }
 
 /**
- * Ícone do subcanal de disciplina — resolvido pelo CATÁLOGO (/configuracoes/disciplinas) via
+ * Ícone do subcanal de disciplina — resolvido pelo CATÁLOGO (Configurações → Disciplinas e nomenclatura) via
  * `DisciplinaIcone`: SVG custom → ícone da galeria → derivado do nome. Mesma fonte que projetos,
  * então editar o ícone na tela de configurações reflete aqui sem tocar em código.
  * Sem cor por disciplina de propósito: a cor de disciplina é do STATUS, e aqui não há status.

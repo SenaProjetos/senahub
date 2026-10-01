@@ -27,7 +27,6 @@ const faixaSchema = {
 };
 
 function rev() {
-  revalidatePath("/configuracoes/lista-mestre");
   revalidatePath("/configuracoes/nomenclatura", "layout");
 }
 

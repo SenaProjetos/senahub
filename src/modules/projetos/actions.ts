@@ -1091,7 +1091,6 @@ export const adicionarDisciplinasDoCatalogo = defineAction(
 const catalogoBase = { modulo: "projetos", recurso: "projetos", permissao: "gerir" } as const;
 
 function revCatalogo() {
-  revalidatePath("/configuracoes/disciplinas");
   revalidatePath("/configuracoes/nomenclatura", "layout");
   revalidatePath("/projetos");
 }

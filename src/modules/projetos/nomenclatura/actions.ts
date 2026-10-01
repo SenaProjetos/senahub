@@ -48,7 +48,7 @@ export const salvarNomenclaturaGlobal = defineAction(
     } else {
       await prisma.nomenclaturaConfig.create({ data: { projetoId: null, exigir: i.exigir, exigirFase: i.exigirFase, padrao } });
     }
-    revalidatePath("/configuracoes/lista-mestre");
+    revalidatePath("/configuracoes/nomenclatura", "layout");
     return { ok: true };
   },
 );

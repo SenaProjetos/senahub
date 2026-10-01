@@ -12,7 +12,6 @@ import type { FaixaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
 const base = { modulo: "configuracoes", recurso: "configuracoes", permissao: "gerir" } as const;
 
 function rev() {
-  revalidatePath("/configuracoes/disciplinas");
   revalidatePath("/configuracoes/nomenclatura", "layout");
 }
 

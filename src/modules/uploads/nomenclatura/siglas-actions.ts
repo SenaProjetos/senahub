@@ -19,8 +19,6 @@ const alvoSchema = z.object({
 type Alvo = z.infer<typeof alvoSchema>;
 
 function rev() {
-  revalidatePath("/configuracoes/disciplinas");
-  revalidatePath("/configuracoes/lista-mestre");
   revalidatePath("/configuracoes/nomenclatura", "layout");
 }
 
