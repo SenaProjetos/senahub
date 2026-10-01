@@ -27,6 +27,7 @@ const faixaSchema = {
 
 function rev() {
   revalidatePath("/configuracoes/lista-mestre");
+  revalidatePath("/configuracoes/nomenclatura", "layout");
 }
 
 /**
@@ -177,6 +178,27 @@ export const editarCatalogoPrancha = defineAction(
         );
       }
     });
+    rev();
+    return { id: i.id };
+  },
+);
+
+/** Lápis do catálogo (spec 2026-09-30, E9): só o nome da fase/tipo global — sigla e validade são da lente de uma versão. */
+export const editarNomeItemListaMestre = defineAction(
+  {
+    ...base,
+    acao: "editar-nome-item-lista-mestre",
+    entidade: "PranchaCatalogo",
+    entidadeId: (_d, i) => i.id,
+    schema: z.object({ id: z.string().min(1), nome: z.string().trim().min(1).max(80) }),
+    capturarAntes: (i) => prisma.pranchaCatalogo.findUnique({ where: { id: i.id } }),
+  },
+  async (i) => {
+    const existe = await prisma.pranchaCatalogo.findUnique({ where: { id: i.id }, select: { categoria: true, projetoId: true } });
+    if (!existe || existe.projetoId !== null || (existe.categoria !== "fase" && existe.categoria !== "tipo")) {
+      throw new ActionError("Item da Lista Mestre não encontrado.");
+    }
+    await prisma.pranchaCatalogo.update({ where: { id: i.id }, data: { nome: i.nome } });
     rev();
     return { id: i.id };
   },

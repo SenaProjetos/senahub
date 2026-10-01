@@ -180,6 +180,14 @@ export const editarDisciplinaCatalogoSchema = criarDisciplinaCatalogoSchema.exte
   id: z.string().min(1),
 });
 
+/**
+ * Lápis do catálogo (spec 2026-09-30, E9): só o que não depende de versão. Sem sinônimos nem faixa —
+ * esses são da lente de uma versão.
+ */
+export const editarCadastroDisciplinaSchema = criarDisciplinaCatalogoSchema
+  .omit({ sinonimos: true, versaoDesde: true, versaoAte: true })
+  .extend({ id: z.string().min(1) });
+
 export const idDisciplinaCatalogoSchema = z.object({ id: z.string().min(1) });
 
 /** Reordena trocando a `ordem` com um vizinho específico (setas ↑↓ na UI). */

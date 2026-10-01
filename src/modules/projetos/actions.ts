@@ -26,6 +26,7 @@ import {
   adicionarDoCatalogoSchema,
   criarDisciplinaCatalogoSchema,
   editarDisciplinaCatalogoSchema,
+  editarCadastroDisciplinaSchema,
   idDisciplinaCatalogoSchema,
   moverDisciplinaCatalogoSchema,
   renomearCategoriaDisciplinasSchema,
@@ -48,6 +49,7 @@ import { escopoProjeto } from "@/modules/projetos/queries";
 import { chaveLayoutPainelProjeto } from "@/modules/projetos/painel-layout";
 import { deveDeslocarPrazoDoProjeto } from "@/modules/projetos/prazo-reabertura";
 import { faixaConflitante } from "@/modules/projetos/faixa-numeracao";
+import { motivoCodigoTravado } from "@/modules/projetos/cadastro-disciplina";
 import { espelharSiglasDasColunas } from "@/modules/uploads/nomenclatura/siglas-service";
 import {
   decidirSiglasAoSalvar,
@@ -1089,6 +1091,7 @@ const catalogoBase = { modulo: "projetos", recurso: "projetos", permissao: "geri
 
 function revCatalogo() {
   revalidatePath("/configuracoes/disciplinas");
+  revalidatePath("/configuracoes/nomenclatura", "layout");
   revalidatePath("/projetos");
 }
 
@@ -1202,6 +1205,37 @@ async function garantirFaixaLivre(
   }
 }
 
+/**
+ * `Disciplina.disciplinaTextoLegado` (linha de projeto) casa com o catálogo por TEXTO.
+ * A F1.19c criou `disciplinaId`, mas ele é NULLABLE e ainda há disciplina sem FK (as grafias
+ * que a F1.21 resolve à mão), então o texto continua sendo o elo real — e é ele que a tela
+ * exibe. Renomear no catálogo sem cascatear orfana toda disciplina em uso: perde a sigla (que compõe
+ * a pasta e o prefixo do arquivo no storage) e perde o bloco-base — a próxima folha da Lista
+ * Mestre reiniciaria em 1 em vez de `bloco+1`, sem erro visível. Por isso o rename anda junto,
+ * na mesma transação. Quando a F1.21 zerar as FKs nulas, este cascateamento pode sair.
+ */
+async function cascatearNomeDisciplina(tx: Prisma.TransactionClient, de: string, para: string) {
+  const candidatas = await tx.disciplina.findMany({
+    where: { disciplinaTextoLegado: de },
+    select: { id: true, projetoId: true },
+  });
+  if (candidatas.length === 0) return;
+  // Projeto que já tenha o nome de destino ficaria com duas disciplinas iguais — exigiria
+  // mover uploads/tarefas. Esse caso é deixado como está, não fundido automaticamente.
+  const jaTemDestino = new Set(
+    (
+      await tx.disciplina.findMany({
+        where: { disciplinaTextoLegado: para, projetoId: { in: candidatas.map((c) => c.projetoId) } },
+        select: { projetoId: true },
+      })
+    ).map((d) => d.projetoId),
+  );
+  const ids = candidatas.filter((c) => !jaTemDestino.has(c.projetoId)).map((c) => c.id);
+  if (ids.length > 0) {
+    await tx.disciplina.updateMany({ where: { id: { in: ids } }, data: { disciplinaTextoLegado: para } });
+  }
+}
+
 export const criarDisciplinaCatalogo = defineAction(
   {
     ...catalogoBase,
@@ -1283,13 +1317,6 @@ export const editarDisciplinaCatalogo = defineAction(
     );
     await garantirFaixaLivre(dados.numeracao, dados.numeracaoFim, i.id);
 
-    // `Disciplina.disciplinaTextoLegado` (linha de projeto) casa com o catálogo por TEXTO.
-    // A F1.19c criou `disciplinaId`, mas ele é NULLABLE e ainda há disciplina sem FK (as grafias
-    // que a F1.21 resolve à mão), então o texto continua sendo o elo real — e é ele que a tela
-    // exibe. Renomear aqui sem cascatear orfana toda disciplina em uso: perde a sigla (que compõe
-    // a pasta e o prefixo do arquivo no storage) e perde o bloco-base — a próxima folha da Lista
-    // Mestre reiniciaria em 1 em vez de `bloco+1`, sem erro visível. Por isso o rename anda junto,
-    // na mesma transação. Quando a F1.21 zerar as FKs nulas, este cascateamento pode sair.
     const nomeMudou = dados.nome !== existe.nome;
     await prisma.$transaction(async (tx) => {
       await tx.disciplinaCatalogo.update({ where: { id: i.id }, data: { ...dados, ...faixa } });
@@ -1300,26 +1327,60 @@ export const editarDisciplinaCatalogo = defineAction(
           faixaDoEspelho(faixaAntes, faixa),
         );
       }
-      if (!nomeMudou) return;
-      const candidatas = await tx.disciplina.findMany({
-        where: { disciplinaTextoLegado: existe.nome },
-        select: { id: true, projetoId: true },
+      if (nomeMudou) await cascatearNomeDisciplina(tx, existe.nome, dados.nome);
+    });
+    revCatalogo();
+    return { id: i.id };
+  },
+);
+
+/** Nº de projetos distintos que usam a disciplina (nome casado sem acento/caixa, como em `catalogoDisciplinasAdmin`). */
+async function usoDaDisciplina(nome: string): Promise<number> {
+  const alvo = normalizar(nome);
+  const linhas = await prisma.disciplina.findMany({ select: { disciplinaTextoLegado: true, projetoId: true } });
+  return new Set(linhas.filter((l) => normalizar(l.disciplinaTextoLegado) === alvo).map((l) => l.projetoId)).size;
+}
+
+/**
+ * Lápis do catálogo (spec 2026-09-30, E9): só o que não depende de versão — nome, categoria, ícone,
+ * pasta dos arquivos (`codigo`) e numeração. Nunca mexe em sinônimos, faixa de versão nem nas linhas
+ * de sigla. A pasta só muda enquanto nenhum projeto usa a disciplina (E6).
+ */
+export const editarCadastroDisciplina = defineAction(
+  {
+    ...catalogoBase,
+    acao: "editar-cadastro-disciplina",
+    entidade: "DisciplinaCatalogo",
+    schema: editarCadastroDisciplinaSchema,
+    entidadeId: (_d, i) => i.id,
+    capturarAntes: (i) => prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } }),
+  },
+  async (i) => {
+    const existe = await prisma.disciplinaCatalogo.findUnique({ where: { id: i.id }, select: { nome: true, codigo: true } });
+    if (!existe) throw new ActionError("Disciplina não encontrada.");
+    const dados = normalizarCatalogo(i);
+    dados.categoria = await canonizarCategoria(dados.categoria);
+    if (dados.codigo !== existe.codigo) {
+      const motivo = motivoCodigoTravado(await usoDaDisciplina(existe.nome));
+      if (motivo) throw new ActionError(motivo);
+    }
+    await garantirUnicosCatalogo(dados.nome, dados.codigo, [], i.id);
+    await garantirFaixaLivre(dados.numeracao, dados.numeracaoFim, i.id);
+    await prisma.$transaction(async (tx) => {
+      // Campos explícitos: `sinonimos` fica como está (é da lente de uma versão).
+      await tx.disciplinaCatalogo.update({
+        where: { id: i.id },
+        data: {
+          nome: dados.nome,
+          categoria: dados.categoria,
+          icone: dados.icone,
+          iconeSvg: dados.iconeSvg,
+          codigo: dados.codigo,
+          numeracao: dados.numeracao,
+          numeracaoFim: dados.numeracaoFim,
+        },
       });
-      if (candidatas.length === 0) return;
-      // Projeto que já tenha o nome de destino ficaria com duas disciplinas iguais — exigiria
-      // mover uploads/tarefas. Esse caso é deixado como está, não fundido automaticamente.
-      const jaTemDestino = new Set(
-        (
-          await tx.disciplina.findMany({
-            where: { disciplinaTextoLegado: dados.nome, projetoId: { in: candidatas.map((c) => c.projetoId) } },
-            select: { projetoId: true },
-          })
-        ).map((d) => d.projetoId),
-      );
-      const ids = candidatas.filter((c) => !jaTemDestino.has(c.projetoId)).map((c) => c.id);
-      if (ids.length > 0) {
-        await tx.disciplina.updateMany({ where: { id: { in: ids } }, data: { disciplinaTextoLegado: dados.nome } });
-      }
+      if (dados.nome !== existe.nome) await cascatearNomeDisciplina(tx, existe.nome, dados.nome);
     });
     revCatalogo();
     return { id: i.id };

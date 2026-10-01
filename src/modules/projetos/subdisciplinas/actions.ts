@@ -12,6 +12,7 @@ const base = { modulo: "configuracoes", recurso: "configuracoes", permissao: "ge
 
 function rev() {
   revalidatePath("/configuracoes/disciplinas");
+  revalidatePath("/configuracoes/nomenclatura", "layout");
 }
 
 /** Validade da sub por versão do padrão (D11). Na edição, ausente = mantém a gravada (o olho de
@@ -80,6 +81,30 @@ export const editarSubdisciplina = defineAction(
     });
     if (conflito) throw new ActionError(`"${i.nome}" já existe neste card.`);
     await prisma.subdisciplinaCatalogo.update({ where: { id: i.id }, data: { nome: i.nome, ativo: i.ativo, ...faixa } });
+    rev();
+    return { id: i.id };
+  },
+);
+
+/** Lápis do catálogo (spec 2026-09-30, E9): só o nome da sub — validade e siglas são da lente de uma versão. */
+export const editarNomeSubdisciplina = defineAction(
+  {
+    ...base,
+    acao: "editar-nome-subdisciplina",
+    entidade: "SubdisciplinaCatalogo",
+    entidadeId: (_d, i) => i.id,
+    schema: z.object({ id: z.string().min(1), nome: z.string().trim().min(1).max(80) }),
+    capturarAntes: (i) => prisma.subdisciplinaCatalogo.findUnique({ where: { id: i.id } }),
+  },
+  async (i) => {
+    const existe = await prisma.subdisciplinaCatalogo.findUnique({ where: { id: i.id }, select: { disciplinaCatalogoId: true } });
+    if (!existe) throw new ActionError("Sub-disciplina não encontrada.");
+    const conflito = await prisma.subdisciplinaCatalogo.findFirst({
+      where: { disciplinaCatalogoId: existe.disciplinaCatalogoId, nome: i.nome, id: { not: i.id } },
+      select: { id: true },
+    });
+    if (conflito) throw new ActionError(`"${i.nome}" já existe neste card.`);
+    await prisma.subdisciplinaCatalogo.update({ where: { id: i.id }, data: { nome: i.nome } });
     rev();
     return { id: i.id };
   },
