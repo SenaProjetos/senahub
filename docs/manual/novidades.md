@@ -22,6 +22,15 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Nomenclatura: sinônimos à vista e sigla que muda de dono
+
+- No **Catálogo da versão**, os **sinônimos** aparecem na linha (borda tracejada), não só ao passar o mouse.
+- **Siglas nesta versão** (ícone de etiqueta) troca a sigla oficial e põe ou tira sinônimos, valendo desta versão em diante.
+- Sigla que já é de outro item: o diálogo diz de quem e se é oficial ou sinônimo, e **Tirar de … e adicionar** resolve ali mesmo — as versões anteriores não mudam.
+- Mudar a validade de uma disciplina ("Até a vN") **não apaga mais as siglas dela**: se ela voltar, as siglas voltam junto. **Voltar para a versão** mostra quais siglas voltam.
+
+---
+
 ## Reunião de 29/09: arquivos para o cliente, status do documento e cronograma
 
 **Arquivos**

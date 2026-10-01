@@ -3,7 +3,7 @@ titulo: Configurações (administração)
 descricao: Central de administração — usuários, permissões, parâmetros de folha, projetos, licitações, funil, avisos e dados da empresa, além do status das integrações.
 resumo: Hub administrativo com cadastros e parâmetros do sistema (usuários, permissões, encargos, documentos/inputs padrão, feriados, licitações, funil) e o status das integrações on-premise (SMTP/push).
 tags: [configurações, administração, usuários, permissões, encargos, feriados, licitações, funil, avisos, agendamento, integrações, empresa, timbrado]
-palavras-chave: [configurações, administração, usuários, permissões, matriz, encargos, inss, irrf, feriados, modalidades, habilitação, funil, aviso geral, agendar aviso, aviso agendado, comunicado programado, smtp, push, dados da empresa, razão social, cnpj, logo, logo da empresa, timbrado, cabeçalho do pdf]
+palavras-chave: [configurações, administração, usuários, permissões, matriz, encargos, inss, irrf, feriados, modalidades, habilitação, funil, aviso geral, agendar aviso, aviso agendado, comunicado programado, smtp, push, dados da empresa, razão social, cnpj, logo, logo da empresa, timbrado, cabeçalho do pdf, sinônimo de sigla, transferir sigla]
 sinonimos: [admin, ajustes do sistema, parâmetros, settings]
 ---
 
@@ -112,14 +112,24 @@ muda nada. Se a versão já está **publicada**, a mudança vale também para os
 seguem — para não afetá-los, crie uma versão nova.
 
 **Ajustes avulsos**, no mesmo catálogo: **+ Disciplina**, **+** numa linha de card (nova
-sub-disciplina), **Trocar sigla** (a nova vale desta versão em diante; a antiga fica nas
-anteriores) e **Tirar da versão**. Numa edição avulsa a sigla nunca é tomada de outro item: se
-ela já tem dono na versão, o sistema diz quem é.
+sub-disciplina), **Siglas nesta versão** (ícone de etiqueta: a sigla oficial e os sinônimos do
+item nesta versão; o que mudar vale desta versão em diante e as anteriores ficam como estão) e
+**Tirar da versão**. Na lista, a sigla oficial tem borda cheia e os **sinônimos**, borda tracejada.
+
+Se a sigla que você digitou já tem dono na versão, o diálogo mostra **de quem** e se ela é a
+**oficial** ou um **sinônimo** dele, antes de salvar. **Tirar de … e adicionar** (ou **salvar**)
+passa a sigla para cá a partir desta versão; nas anteriores ela continua com o dono antigo. Quando
+ela é a sigla oficial do outro item, marque **Entendi**: ele fica sem sigla nesta versão até você
+dar outra.
+
+**Voltar para a versão** (na lista "Saem") mostra as siglas que o item tinha; só as marcadas
+voltam com ele.
 
 **Pelas telas de catálogo** (Disciplinas e Lista Mestre) também dá:
 - cada disciplina, sub-disciplina e item da Lista Mestre tem **"Vale a partir da / Até a"**;
   cadastro novo já abre na **versão mais nova** — confira antes de salvar, porque "a partir da
-  v1" faz o item valer também nos projetos antigos;
+  v1" faz o item valer também nos projetos antigos; mudar só essa validade **não mexe nas
+  siglas** — se o item sair ("Até a v1") e voltar ("Sem fim"), as siglas voltam como eram;
 - disciplina que só existe em versões numeradas por sub não mostra a **faixa de numeração**
   (4000–4999): ela só vale nas versões numeradas por faixa (a v1);
 - **Siglas por versão** (ícone de camadas na linha da disciplina, de etiqueta na Lista Mestre):
