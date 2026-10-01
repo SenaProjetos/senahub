@@ -285,17 +285,26 @@ para a v2 em nenhum desses três.
 - `sinonimo-novo { alvo, sigla }`: linha `oficial: false` a partir da vN.
 - `encerrar-sigla` passa a ser aceita pela action avulsa (hoje só a importação gera).
 - `sai` / `entra` param de chamar `comFaixa`/`mudarFaixa` com espelho: mudam só a faixa do item.
-- `entra { alvo, reabrir: string[] }`: para cada sigla marcada, abre linha a partir da vN com o
-  mesmo papel (oficial/sinônimo) da última versão em que o item existia.
-- `planejarTransferencia(snap, versao, ops)`: devolve os `encerrar-sigla` dos donos que colidem
-  **na vN** com as operações, ou a colisão que sobra (versão posterior), que vira recusa.
+- `entra { alvo, siglas?: { sigla, oficial }[] }` (F1): as siglas escolhidas valem na vN — as que
+  valem e não foram escolhidas são encerradas; as que faltam abrem a partir da vN.
+  `siglasParaVoltar` oferece as da última versão em que o item existia; `conferirVoltas` (servidor)
+  recusa sigla que o item não tinha, papel trocado, repetida ou mais de uma oficial.
+- `planejarTransferencia(snap, versao, ops, versoes)`: devolve os `encerrar-sigla` dos donos que
+  colidem **na vN**, ou a colisão que sobra (versão posterior), que vira recusa. "Conflito desta
+  edição" = colisão com **dono novo** (`colisoesNovas`, compara antes × depois): pega a sigla da sub
+  que volta a valer com o card e ignora colisão antiga sem mudança. A importação usa a mesma regra.
 - `catalogoTodasVersoes(snap)`: cada item com faixa efetiva e histórico de siglas efetivo (lente
-  Todas).
+  Todas) — fica para a F3.
+- Formulário antigo (até a F4): `siglasSaoEspelho` compara pela faixa efetiva; mudar só a validade
+  não corta linha e ampliar regrava o espelho na união das faixas (`faixaDoEspelho`), reabrindo
+  linhas que o espelho antigo cortou; ampliar continua checando colisão (`linhasParaChecarColisao`).
 
 ### 5.3 Actions
 
-- `alterarCatalogoNaVersao` passa a receber `operacoes: Operacao[]` (até 50) e `transferir: boolean`.
-  A mensagem de recusa diz "oficial" ou "sinônimo" e a versão.
+- `alterarCatalogoNaVersao` (F1) recebe `operacoes: Operacao[]` (até 50) e `transferencias:
+  string[]` — os ids de `plano.encerrar` que a tela mostrou e a pessoa confirmou. O servidor
+  recalcula o plano e recusa ("recarregue e confirme a transferência") se aparecer dono que não está
+  na lista; os ids entram na auditoria. A mensagem de recusa diz "oficial" ou "sinônimo" e a versão.
 - Cadastro sem versão, ações novas e estreitas: `editarCadastroDisciplina { id, nome, categoria,
   icone, codigo, numeracao, numeracaoFim }` (leva o cascateamento de nome de
   `editarDisciplinaCatalogo`; `codigo` diferente do atual só passa com `uso = 0`, E6),
