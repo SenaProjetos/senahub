@@ -454,6 +454,7 @@ export function operacoesEscolhidas(itens: readonly ItemPlano[], desmarcados: Re
     "card-novo": 3,
     "item-novo": 3,
     "sigla-nova": 4,
+    "sinonimo-novo": 4,
     "sub-nova": 5,
   };
   return itensEscolhidos(itens, desmarcados)

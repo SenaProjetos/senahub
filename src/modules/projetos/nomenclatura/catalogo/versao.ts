@@ -14,9 +14,7 @@
 
 import {
   intersecaoFaixas,
-  siglasDasColunas,
   siglasNaVersao,
-  siglasSaoEspelho,
   valeNaVersao,
   type FaixaVersao,
   type SiglaLinha,
@@ -190,16 +188,31 @@ export function catalogoNaVersao(snap: CatalogoSnap, versao: number): CatalogoNa
 /** Card a que uma sub nova pertence: um existente, ou um card novo da mesma leva (pela chave). */
 export type RefCard = { id: string } | { chave: string };
 
+/** Uma sigla que volta com o item ("Voltar para a vN"), com o papel que ela tinha. */
+export type SiglaVolta = { sigla: string; oficial: boolean };
+
 export type OperacaoCatalogo =
   | { tipo: "card-novo"; chave: string; nome: string; sigla: string | null; categoria: string | null }
   | { tipo: "sub-nova"; card: RefCard; nome: string; sigla: string | null }
   | { tipo: "item-novo"; categoria: "fase" | "tipo"; nome: string; sigla: string }
-  /** Sigla oficial nova a partir da versão; a oficial anterior deixa de valer nela. */
+  /**
+   * Sigla oficial nova a partir da versão; a oficial anterior deixa de valer nela — e um sinônimo do
+   * próprio item com a mesma sigla também (foi promovido).
+   */
   | { tipo: "sigla-nova"; alvo: AlvoCatalogo; sigla: string }
-  /** O item deixa de existir a partir da versão (criado nela mesma = excluído). */
+  /** Sinônimo novo a partir da versão: reconhecido no envio, nunca escrito no nome. */
+  | { tipo: "sinonimo-novo"; alvo: AlvoCatalogo; sigla: string }
+  /**
+   * O item deixa de existir a partir da versão (criado nela mesma = excluído). As linhas de sigla NÃO
+   * mudam (E3 da spec 2026-09-30): todo leitor recorta pela faixa efetiva (sigla ∩ item ∩ card).
+   */
   | { tipo: "sai"; alvo: AlvoCatalogo }
-  /** O item volta a existir a partir da versão. */
-  | { tipo: "entra"; alvo: AlvoCatalogo }
+  /**
+   * O item volta a existir a partir da versão. Com `siglas`, elas passam a ser exatamente as que valem
+   * nele na versão: as que já valem e não estão na lista são encerradas; as que faltam abrem a partir
+   * da versão. Sem `siglas` (importação), as linhas não mudam.
+   */
+  | { tipo: "entra"; alvo: AlvoCatalogo; siglas?: SiglaVolta[] }
   /** Uma linha de sigla deixa de valer a partir da versão (a sigla passou para outro item). */
   | { tipo: "encerrar-sigla"; alvo: AlvoCatalogo; linhaId: string; sigla: string };
 
@@ -216,22 +229,18 @@ function encerrarLinhaNaVersao(linhas: SiglaSnap[], linhaId: string, versao: num
   });
 }
 
-function colunasDe(item: CardSnap | ItemListaSnap) {
-  return "codigo" in item ? { oficial: item.codigo, sinonimos: item.sinonimos } : { oficial: item.sigla, sinonimos: item.sinonimos };
-}
-
-/**
- * Nova faixa do item. Se as siglas eram só o espelho das colunas (item que nunca passou por
- * "Siglas por versão"), elas acompanham a faixa — a mesma regra do formulário do catálogo.
- */
-function comFaixa<T extends CardSnap | SubSnap | ItemListaSnap>(item: T, faixa: FaixaVersao, prefixoId: string): T {
-  if ("cardId" in item) return { ...item, ...faixa };
-  const colunas = colunasDe(item);
-  const espelho = siglasSaoEspelho(item.siglas, colunas, item);
-  const siglas = espelho
-    ? siglasDasColunas(colunas.oficial, colunas.sinonimos, faixa).map((l, i) => ({ ...l, id: `${prefixoId}#${i}` }))
-    : item.siglas;
-  return { ...item, ...faixa, siglas };
+/** Linhas do item depois de "Voltar" com as siglas escolhidas — a mesma regra que `service.ts` grava. */
+function siglasAoVoltar(linhas: SiglaSnap[], escolhidas: readonly SiglaVolta[], versao: number, prefixoId: string): SiglaSnap[] {
+  const querem = new Set(escolhidas.map((e) => e.sigla));
+  let saida = linhas;
+  for (const l of linhas) {
+    if (valeNaVersao(l, versao) && !querem.has(l.sigla)) saida = encerrarLinhaNaVersao(saida, l.id, versao);
+  }
+  const valem = new Set(saida.filter((l) => valeNaVersao(l, versao)).map((l) => l.sigla));
+  const novas = escolhidas
+    .filter((e) => !valem.has(e.sigla))
+    .map((e, i): SiglaSnap => ({ id: `${prefixoId}#${i}`, sigla: e.sigla, oficial: e.oficial, versaoDesde: versao, versaoAte: null }));
+  return [...saida, ...novas];
 }
 
 function trocarItem(snap: CatalogoSnap, alvo: AlvoCatalogo, f: (item: never) => unknown | null): CatalogoSnap {
@@ -248,8 +257,8 @@ function trocarItem(snap: CatalogoSnap, alvo: AlvoCatalogo, f: (item: never) => 
 
 /**
  * Aplica as operações numa cópia do catálogo, para a versão dada — mesma regra que o serviço grava.
- * Linhas de sigla criadas aqui recebem id `nova:<id da operação>` (regravadas junto com a faixa do
- * item: `nova:<id>#<n>`); itens novos, `novo-*:<id>`.
+ * Linhas de sigla criadas aqui recebem id `nova:<id da operação>` (as que voltam com o item:
+ * `nova:<id>#<n>`); itens novos, `novo-*:<id>`.
  */
 export function simular(snap: CatalogoSnap, versao: number, ops: readonly OperacaoComId[]): CatalogoSnap {
   let s: CatalogoSnap = { cards: [...snap.cards], subs: [...snap.subs], itens: [...snap.itens] };
@@ -310,11 +319,20 @@ export function simular(snap: CatalogoSnap, versao: number, ops: readonly Operac
       case "sigla-nova": {
         s = trocarItem(s, op.alvo, (item: CardSnap | SubSnap | ItemListaSnap) => {
           let siglas = item.siglas;
-          for (const l of item.siglas.filter((l) => l.oficial && valeNaVersao(l, versao))) {
+          // A oficial de hoje sai; um sinônimo do próprio item com a mesma sigla também (foi promovido).
+          for (const l of item.siglas.filter((l) => (l.oficial || l.sigla === op.sigla) && valeNaVersao(l, versao))) {
             siglas = encerrarLinhaNaVersao(siglas, l.id, versao);
           }
           return { ...item, siglas: [...siglas, linhaNova(op, op.sigla)] };
         });
+        break;
+      }
+      case "sinonimo-novo": {
+        s = trocarItem(s, op.alvo, (item: CardSnap | SubSnap | ItemListaSnap) =>
+          item.siglas.some((l) => l.sigla === op.sigla && valeNaVersao(l, versao))
+            ? item
+            : { ...item, siglas: [...item.siglas, { ...linhaNova(op, op.sigla), oficial: false }] },
+        );
         break;
       }
       case "encerrar-sigla": {
@@ -326,7 +344,7 @@ export function simular(snap: CatalogoSnap, versao: number, ops: readonly Operac
       }
       case "sai": {
         s = trocarItem(s, op.alvo, (item: CardSnap | SubSnap | ItemListaSnap) =>
-          item.versaoDesde >= versao ? null : comFaixa(item, { versaoDesde: item.versaoDesde, versaoAte: versao - 1 }, `nova:${op.id}`),
+          item.versaoDesde >= versao ? null : { ...item, versaoAte: versao - 1 },
         );
         // Card criado na própria versão é excluído — e as subs dele vão junto (cascade no banco).
         if (op.alvo.tipo === "disciplina" && !cardDe(s, op.alvo.id)) {
@@ -340,7 +358,8 @@ export function simular(snap: CatalogoSnap, versao: number, ops: readonly Operac
             versaoDesde: Math.min(item.versaoDesde, versao),
             versaoAte: item.versaoAte !== null && item.versaoAte < versao ? null : item.versaoAte,
           };
-          return { ...comFaixa(item, faixa, `nova:${op.id}`), ativo: true };
+          const siglas = op.siglas ? siglasAoVoltar(item.siglas, op.siglas, versao, `nova:${op.id}`) : item.siglas;
+          return { ...item, ...faixa, ativo: true, siglas };
         });
         break;
       }
