@@ -110,6 +110,9 @@ export async function executarOperacoes(tx: Tx, versao: number, ops: readonly Op
       }
       case "sai": {
         const item = await itemBase(tx, op.alvo);
+        if (!valeNaVersao(item, versao)) {
+          throw new ActionError(`“${item.nome}” já não está na v${versao}. A tela pode estar desatualizada: recarregue.`);
+        }
         if (item.versaoDesde >= versao) await excluirItem(tx, op.alvo, item.nome);
         else await mudarFaixa(tx, op.alvo, { versaoDesde: item.versaoDesde, versaoAte: versao - 1 });
         break;

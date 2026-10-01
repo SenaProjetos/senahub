@@ -344,7 +344,8 @@ export function simular(snap: CatalogoSnap, versao: number, ops: readonly Operac
       }
       case "sai": {
         s = trocarItem(s, op.alvo, (item: CardSnap | SubSnap | ItemListaSnap) =>
-          item.versaoDesde >= versao ? null : { ...item, versaoAte: versao - 1 },
+          // Item que já não está na versão (tela velha): nada a tirar — sem estender nem excluir.
+          !valeNaVersao(item, versao) ? item : item.versaoDesde >= versao ? null : { ...item, versaoAte: versao - 1 },
         );
         // Card criado na própria versão é excluído — e as subs dele vão junto (cascade no banco).
         if (op.alvo.tipo === "disciplina" && !cardDe(s, op.alvo.id)) {
@@ -563,30 +564,64 @@ export function planejarTransferencia(
   return { conflitos, encerrar, recusa: null };
 }
 
+/**
+ * Identifica o que o "Entendi" confirma: as siglas oficiais que saem de outros itens. Se a lista
+ * muda (a pessoa trocou a sigla digitada), a confirmação dada antes não vale para a nova.
+ */
+export function chaveConfirmacao(plano: PlanoTransferencia): string {
+  return plano.conflitos
+    .filter((c) => c.papel === "oficial")
+    .map((c) => `${c.sigla}|${c.dono}`)
+    .join(";");
+}
+
 /** Frase do conflito — a mesma na tela e no servidor. */
 export function mensagemConflito(c: ConflitoSigla): string {
   return `${c.sigla} é ${c.papel === "oficial" ? "a sigla oficial" : "sinônimo"} de “${c.dono}” na v${c.versao}.`;
 }
 
-/** O que o servidor grava: as transferências antes das operações da tela — ou o motivo de não gravar. */
+/**
+ * O que o servidor grava: as transferências antes das operações da tela — ou o motivo de não gravar.
+ * `confirmadas` são os ids das transferências (`plano.encerrar[].id`) que a tela mostrou e a pessoa
+ * confirmou. Toda transferência do plano recalculado precisa estar entre elas: se outro dono apareceu
+ * depois que a tela abriu, recusa em vez de tirar a sigla dele sem ninguém ver.
+ */
 export function resolverLeva(
   plano: PlanoTransferencia,
   ops: readonly OperacaoComId[],
-  transferir: boolean,
+  confirmadas: readonly string[],
 ): { ok: true; ops: OperacaoComId[] } | { ok: false; erro: string } {
-  for (const op of ops) {
-    if (op.tipo === "entra" && (op.siglas ?? []).filter((s) => s.oficial).length > 1) {
-      return { ok: false, erro: "Só uma sigla oficial pode voltar com o item." };
-    }
-  }
   if (plano.recusa) return { ok: false, erro: plano.recusa };
-  if (plano.conflitos.length > 0 && !transferir) {
+  const falta = plano.encerrar.findIndex((o) => !confirmadas.includes(o.id));
+  if (falta >= 0) {
     return {
       ok: false,
-      erro: `${mensagemConflito(plano.conflitos[0])} A tela pode estar desatualizada: recarregue e confirme a transferência.`,
+      erro: `${mensagemConflito(plano.conflitos[falta])} A tela pode estar desatualizada: recarregue e confirme a transferência.`,
     };
   }
   return { ok: true, ops: [...plano.encerrar, ...ops] };
+}
+
+/**
+ * Confere as siglas que voltam com cada item ("Voltar para a vN") contra o que ele tinha de fato
+ * (`siglasParaVoltar`): só siglas dele, com o mesmo papel, sem repetir, uma oficial no máximo. Siglas
+ * legadas fora do formato atual passam — elas já eram do item.
+ */
+export function conferirVoltas(snap: CatalogoSnap, versao: number, ops: readonly OperacaoComId[]): string | null {
+  for (const op of ops) {
+    if (op.tipo !== "entra" || !op.siglas) continue;
+    if (op.siglas.filter((s) => s.oficial).length > 1) return "Só uma sigla oficial pode voltar com o item.";
+    const vistas = new Set<string>();
+    const oferta = siglasParaVoltar(snap, op.alvo, versao);
+    for (const s of op.siglas) {
+      if (vistas.has(s.sigla)) return `A sigla ${s.sigla} aparece duas vezes.`;
+      vistas.add(s.sigla);
+      if (!oferta.some((o) => o.sigla === s.sigla && o.oficial === s.oficial)) {
+        return `${s.sigla} não era sigla de “${rotuloItem(snap, op.alvo)}”. A tela pode estar desatualizada: recarregue.`;
+      }
+    }
+  }
+  return null;
 }
 
 /**

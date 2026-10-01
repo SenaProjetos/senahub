@@ -6,7 +6,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { normalizarSigla } from "./planilha";
 import { operacoesEscolhidas, planejarImportacao } from "./importacao";
-import { operacoesComId, planejarTransferencia, resolverLeva, type OperacaoComId } from "./versao";
+import { conferirVoltas, operacoesComId, planejarTransferencia, resolverLeva, type OperacaoComId } from "./versao";
 import { carregarCatalogoSnap, numerosDasVersoes } from "./queries";
 import { executarOperacoes } from "./service";
 
@@ -94,7 +94,8 @@ const siglaSchema = z
 const alvoSchema = z.object({ tipo: z.enum(["disciplina", "subdisciplina", "prancha"]), id: z.string().min(1) });
 const nomeSchema = z.string().trim().min(1, "Informe o nome.").max(120);
 
-const siglaVoltaSchema = z.object({ sigla: siglaSchema, oficial: z.boolean() });
+// Sigla que já era do item (pode ser legada, fora do formato atual) — `conferirVoltas` confere contra o histórico.
+const siglaVoltaSchema = z.object({ sigla: z.string().trim().min(1).max(20), oficial: z.boolean() });
 
 const operacaoSchema = z.discriminatedUnion("tipo", [
   z.object({ tipo: z.literal("card-novo"), nome: nomeSchema, sigla: siglaSchema.nullable() }),
@@ -110,10 +111,11 @@ const operacaoSchema = z.discriminatedUnion("tipo", [
 
 /**
  * Edições avulsas na tabela da versão (adicionar, siglas e sinônimos, tirar, voltar), numa
- * transação. Se uma sigla já tem dono na versão, sem `transferir` a action recusa dizendo quem é
- * e como (oficial ou sinônimo); com `transferir`, tira a sigla do outro dono a partir da versão —
- * a regra da importação ("a planilha manda"). A tela mostra o conflito antes de salvar; aqui o
- * plano é recalculado contra o banco de agora (a tela pode estar velha).
+ * transação. Se uma sigla já tem dono na versão, a action só a tira do outro dono (a partir da
+ * versão — a regra da importação, "a planilha manda") quando a transferência veio confirmada em
+ * `transferencias` (ids de `plano.encerrar`, que a tela mostrou); senão recusa dizendo quem é e como.
+ * O plano é recalculado contra o banco de agora (a tela pode estar velha). Os ids confirmados entram
+ * na auditoria junto com a entrada — dá para saber depois de quem a sigla saiu.
  */
 export const alterarCatalogoNaVersao = defineAction(
   {
@@ -123,15 +125,17 @@ export const alterarCatalogoNaVersao = defineAction(
     schema: z.object({
       versao: z.number().int().min(1),
       operacoes: z.array(operacaoSchema).min(1).max(50),
-      transferir: z.boolean().default(false),
+      transferencias: z.array(z.string().min(1).max(300)).max(50).default([]),
     }),
   },
   async (i) => {
     await garantirVersao(i.versao);
     const ops = operacoesComId(i.operacoes);
     const [snap, versoes] = await Promise.all([carregarCatalogoSnap(), numerosDasVersoes()]);
+    const erroVolta = conferirVoltas(snap, i.versao, ops);
+    if (erroVolta) throw new ActionError(erroVolta);
     const plano = planejarTransferencia(snap, i.versao, ops, versoes);
-    const leva = resolverLeva(plano, ops, i.transferir);
+    const leva = resolverLeva(plano, ops, i.transferencias);
     if (!leva.ok) throw new ActionError(leva.erro);
     await prisma.$transaction((tx) => executarOperacoes(tx, i.versao, leva.ops), OPCOES_TX);
     rev(i.versao);

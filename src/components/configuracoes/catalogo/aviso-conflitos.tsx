@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { TriangleAlert } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  chaveConfirmacao,
   mensagemConflito,
   operacoesComId,
   planejarTransferencia,
@@ -28,6 +29,21 @@ export function usePlanoTransferencia(
 /** Pede "Entendi" antes de salvar: a transferência deixa outro item sem sigla oficial na versão. */
 export function exigeConfirmacao(plano: PlanoTransferencia): boolean {
   return plano.conflitos.some((c) => c.papel === "oficial");
+}
+
+/**
+ * Estado do "Entendi": vale só para os donos que ele citava quando foi marcado. Trocar a sigla
+ * digitada (outro dono perde a oficial) desmarca sozinho.
+ */
+export function useConfirmacao(plano: PlanoTransferencia): { confirmado: boolean; onConfirmar: (v: boolean) => void } {
+  const chave = chaveConfirmacao(plano);
+  const [confirmadoPara, setConfirmadoPara] = useState<string | null>(null);
+  return { confirmado: chave !== "" && confirmadoPara === chave, onConfirmar: (v) => setConfirmadoPara(v ? chave : null) };
+}
+
+/** Ids das transferências que a tela mostrou — o servidor só tira a sigla de quem está aqui. */
+export function idsTransferencias(plano: PlanoTransferencia): string[] {
+  return plano.encerrar.map((o) => o.id);
 }
 
 /** Rótulo do botão de salvar: "Tirar de Hidrossanitário e adicionar" quando há transferência. */

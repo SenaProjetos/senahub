@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { catalogoDev } from "@/test/catalogo-nomenclatura-snap";
 import {
   catalogoNaVersao,
+  chaveConfirmacao,
   colisoes,
+  conferirVoltas,
   linhasDoItemNaVersao,
   mensagemConflito,
   operacoesComId,
@@ -244,31 +246,78 @@ describe("planejarTransferencia — donos novos (revisão final)", () => {
 describe("resolverLeva", () => {
   const ops = operacoesComId([{ tipo: "sub-nova", cardId: "hid", nome: "Esgoto", sigla: "ESG" }]);
   const plano = () => planejarTransferencia(catalogoDev(), 2, ops, [1, 2]);
+  const confirmadas = () => plano().encerrar.map((o) => o.id);
 
-  it("conflito sem transferir (tela velha): recusa e pede para recarregar", () => {
-    expect(resolverLeva(plano(), ops, false)).toEqual({
+  it("conflito sem transferência confirmada: recusa e pede para recarregar", () => {
+    expect(resolverLeva(plano(), ops, [])).toEqual({
       ok: false,
       erro: "ESG é sinônimo de “Hidrossanitário” na v2. A tela pode estar desatualizada: recarregue e confirme a transferência.",
     });
   });
 
-  it("com transferir: tira do outro dono antes de gravar", () => {
-    const r = resolverLeva(plano(), ops, true);
+  it("com a transferência confirmada: tira do outro dono antes de gravar", () => {
+    const r = resolverLeva(plano(), ops, confirmadas());
     expect(r.ok && r.ops.map((o) => o.tipo)).toEqual(["encerrar-sigla", "sub-nova"]);
   });
 
-  it("recusa do plano passa adiante", () => {
-    expect(resolverLeva({ conflitos: [], encerrar: [], recusa: "Não dá." }, ops, true)).toEqual({ ok: false, erro: "Não dá." });
+  it("tela velha: outro dono apareceu depois da confirmação → recusa, não tira dele sem ninguém ver", () => {
+    const snapAgora = catalogoDev();
+    snapAgora.cards.find((c) => c.id === "dre")!.siglas.push({ id: "dre-esg", sigla: "ESG", oficial: false, versaoDesde: 1, versaoAte: null });
+    const planoAgora = planejarTransferencia(snapAgora, 2, ops, [1, 2]);
+    expect(planoAgora.conflitos).toHaveLength(2);
+    expect(resolverLeva(planoAgora, ops, confirmadas())).toEqual({
+      ok: false,
+      erro: "ESG é sinônimo de “Drenagem” na v2. A tela pode estar desatualizada: recarregue e confirme a transferência.",
+    });
   });
 
-  it("mais de uma oficial voltando com o item: recusa", () => {
-    const volta = operacoesComId([
-      { tipo: "entra", alvo: D("hid"), siglas: [{ sigla: "HID", oficial: true }, { sigla: "HDR", oficial: true }] },
-    ]);
-    expect(resolverLeva({ conflitos: [], encerrar: [], recusa: null }, volta, false)).toEqual({
-      ok: false,
-      erro: "Só uma sigla oficial pode voltar com o item.",
-    });
+  it("recusa do plano passa adiante", () => {
+    expect(resolverLeva({ conflitos: [], encerrar: [], recusa: "Não dá." }, ops, [])).toEqual({ ok: false, erro: "Não dá." });
+  });
+});
+
+describe("chaveConfirmacao", () => {
+  it("muda quando muda quem perde a sigla oficial; vazia sem oficial em jogo", () => {
+    const comSigla = (cardId: string, sigla: string) =>
+      planejarTransferencia(catalogoDev(), 2, operacoesComId([{ tipo: "sub-nova", cardId, nome: "X", sigla }]), [1, 2]);
+    expect(chaveConfirmacao(comSigla("est", "EST"))).toBe("EST|Estrutural");
+    expect(chaveConfirmacao(comSigla("arq", "ARQ"))).toBe("ARQ|Arquitetura");
+    expect(chaveConfirmacao(comSigla("hid", "ESG"))).toBe("");
+  });
+});
+
+describe("conferirVoltas", () => {
+  const fora = () => simular(catalogoDev(), 2, operacoesComId([{ tipo: "sai", alvo: D("hid") }]));
+
+  it("siglas que o item tinha, uma oficial: ok", () => {
+    const ops = operacoesComId([{ tipo: "entra", alvo: D("hid"), siglas: [{ sigla: "HID", oficial: true }, { sigla: "ESG", oficial: false }] }]);
+    expect(conferirVoltas(fora(), 2, ops)).toBeNull();
+  });
+
+  it("mais de uma oficial: recusa", () => {
+    const ops = operacoesComId([{ tipo: "entra", alvo: D("hid"), siglas: [{ sigla: "HID", oficial: true }, { sigla: "HDR", oficial: true }] }]);
+    expect(conferirVoltas(fora(), 2, ops)).toBe("Só uma sigla oficial pode voltar com o item.");
+  });
+
+  it("sigla repetida: recusa", () => {
+    const ops = operacoesComId([{ tipo: "entra", alvo: D("hid"), siglas: [{ sigla: "HDR", oficial: false }, { sigla: "HDR", oficial: false }] }]);
+    expect(conferirVoltas(fora(), 2, ops)).toBe("A sigla HDR aparece duas vezes.");
+  });
+
+  it("sigla que o item não tinha (ou com outro papel): recusa", () => {
+    const outra = operacoesComId([{ tipo: "entra", alvo: D("hid"), siglas: [{ sigla: "XYZ", oficial: false }] }]);
+    expect(conferirVoltas(fora(), 2, outra)).toBe("XYZ não era sigla de “Hidrossanitário”. A tela pode estar desatualizada: recarregue.");
+    const papel = operacoesComId([{ tipo: "entra", alvo: D("hid"), siglas: [{ sigla: "HDR", oficial: true }] }]);
+    expect(conferirVoltas(fora(), 2, papel)).toBe("HDR não era sigla de “Hidrossanitário”. A tela pode estar desatualizada: recarregue.");
+  });
+});
+
+describe("sai num item que já não está na versão (tela velha)", () => {
+  it("não mexe no item (não estende a validade nem exclui)", () => {
+    const snap = catalogoDev();
+    snap.cards.find((c) => c.id === "log")!.versaoAte = 1;
+    const s = simular(snap, 3, operacoesComId([{ tipo: "sai", alvo: D("log") }]));
+    expect(s.cards.find((c) => c.id === "log")).toMatchObject({ versaoDesde: 1, versaoAte: 1 });
   });
 });
 

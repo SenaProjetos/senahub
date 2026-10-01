@@ -13,6 +13,7 @@ import { prisma } from "../src/lib/prisma";
 import { carregarCatalogoSnap, numerosDasVersoes } from "../src/modules/projetos/nomenclatura/catalogo/queries";
 import { executarOperacoes } from "../src/modules/projetos/nomenclatura/catalogo/service";
 import {
+  conferirVoltas,
   operacoesComId,
   planejarTransferencia,
   resolverLeva,
@@ -67,8 +68,10 @@ async function cardComSiglas(
 async function gravar(tx: Tx, versao: number, versoes: number[], tela: OperacaoTela[]) {
   const snap = await carregarCatalogoSnap(tx);
   const ops = operacoesComId(tela);
+  const erroVolta = conferirVoltas(snap, versao, ops);
+  if (erroVolta) throw new Error(erroVolta);
   const plano = planejarTransferencia(snap, versao, ops, versoes);
-  const leva = resolverLeva(plano, ops, true);
+  const leva = resolverLeva(plano, ops, plano.encerrar.map((o) => o.id));
   if (!leva.ok) throw new Error(leva.erro);
   const previsto = simular(snap, versao, leva.ops);
   await executarOperacoes(tx, versao, leva.ops);

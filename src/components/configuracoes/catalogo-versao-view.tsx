@@ -59,9 +59,9 @@ export function CatalogoVersaoView({
   const numeros = useMemo(() => versoes.map((x) => x.numero), [versoes]);
   const totalSubs = catalogo.cards.reduce((n, c) => n + c.subs.length, 0);
 
-  function executar(operacoes: OperacaoTela[], transferir: boolean, sucesso: string) {
+  function executar(operacoes: OperacaoTela[], transferencias: string[], sucesso: string) {
     start(async () => {
-      const r = await alterarCatalogoNaVersao({ versao: v, operacoes, transferir });
+      const r = await alterarCatalogoNaVersao({ versao: v, operacoes, transferencias });
       if (r.ok) {
         toast.success(r.data.transferidas > 0 ? `${sucesso} A sigla saiu do outro item a partir da v${v}.` : sucesso);
         setDialogo(null);
@@ -79,7 +79,7 @@ export function CatalogoVersaoView({
       confirmLabel: "Tirar da versão",
     });
     if (!ok) return;
-    executar([{ tipo: "sai", alvo: linha.alvo }], false, `“${linha.nome}” saiu da v${v}.`);
+    executar([{ tipo: "sai", alvo: linha.alvo }], [], `“${linha.nome}” saiu da v${v}.`);
   }
 
   const acoesLinha = {
@@ -295,7 +295,7 @@ export function CatalogoVersaoView({
           versoes={numeros}
           pending={pending}
           onFechar={() => setDialogo(null)}
-          onSalvar={(op, transferir) => executar([op], transferir, `Adicionado à v${v}.`)}
+          onSalvar={(op, transferencias) => executar([op], transferencias, `Adicionado à v${v}.`)}
         />
       )}
       {dialogo?.tipo === "siglas" && (
@@ -307,7 +307,7 @@ export function CatalogoVersaoView({
           rotulo={dialogo.rotulo}
           pending={pending}
           onFechar={() => setDialogo(null)}
-          onSalvar={(ops, transferir) => executar(ops, transferir, `Siglas de “${dialogo.rotulo}” na v${v} salvas.`)}
+          onSalvar={(ops, transferencias) => executar(ops, transferencias, `Siglas de “${dialogo.rotulo}” na v${v} salvas.`)}
         />
       )}
       {dialogo?.tipo === "voltar" && (
@@ -319,7 +319,7 @@ export function CatalogoVersaoView({
           nome={dialogo.nome}
           pending={pending}
           onFechar={() => setDialogo(null)}
-          onSalvar={(op, transferir) => executar([op], transferir, `“${dialogo.nome}” voltou para a v${v}.`)}
+          onSalvar={(op, transferencias) => executar([op], transferencias, `“${dialogo.nome}” voltou para a v${v}.`)}
         />
       )}
       <ImportarCatalogoDialog aberto={importando} versao={v} onFechar={() => setImportando(false)} />

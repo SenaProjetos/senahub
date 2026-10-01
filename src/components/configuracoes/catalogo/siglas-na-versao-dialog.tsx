@@ -14,7 +14,7 @@ import {
   type CatalogoSnap,
   type OperacaoTela,
 } from "@/modules/projetos/nomenclatura/catalogo/versao";
-import { AvisoConflitos, exigeConfirmacao, rotuloSalvar, usePlanoTransferencia } from "./aviso-conflitos";
+import { AvisoConflitos, exigeConfirmacao, idsTransferencias, rotuloSalvar, useConfirmacao, usePlanoTransferencia } from "./aviso-conflitos";
 
 /** Sigla oficial e sinônimos do item NESTA versão (spec §4.4). Salvar manda tudo numa transação. */
 export function SiglasNaVersaoDialog({
@@ -34,22 +34,26 @@ export function SiglasNaVersaoDialog({
   rotulo: string;
   pending: boolean;
   onFechar: () => void;
-  onSalvar: (operacoes: OperacaoTela[], transferir: boolean) => void;
+  onSalvar: (operacoes: OperacaoTela[], transferencias: string[]) => void;
 }) {
   const antes = useMemo(() => linhasDoItemNaVersao(snap, alvo, versao), [snap, alvo, versao]);
   const [oficial, setOficial] = useState(antes.oficial?.sigla ?? "");
   const [sinonimos, setSinonimos] = useState<string[]>(() => antes.sinonimos.map((l) => l.sigla));
   const [novo, setNovo] = useState("");
-  const [confirmado, setConfirmado] = useState(false);
 
-  const oficialNorm = oficial.trim() === "" ? null : normalizarSigla(oficial);
-  const oficialInvalida = oficial.trim() !== "" && oficialNorm === null;
+  // A oficial que o item já tem passa como está, mesmo legada (fora do formato atual de 2 a 6
+  // letras/números) — senão nenhuma outra mudança no item poderia ser salva.
+  const oficialDigitada = oficial.trim();
+  const oficialNorm =
+    oficialDigitada === "" ? null : oficialDigitada === antes.oficial?.sigla ? antes.oficial.sigla : normalizarSigla(oficialDigitada);
+  const oficialInvalida = oficialDigitada !== "" && oficialNorm === null;
   const novoNorm = normalizarSigla(novo);
   const ops = useMemo(
     () => (oficialInvalida ? [] : opsDasSiglas(alvo, antes, { oficial: oficialNorm, sinonimos })),
     [alvo, antes, oficialNorm, oficialInvalida, sinonimos],
   );
   const plano = usePlanoTransferencia(snap, versao, versoes, ops);
+  const { confirmado, onConfirmar } = useConfirmacao(plano);
   const podeSalvar = ops.length > 0 && !plano.recusa && (!exigeConfirmacao(plano) || confirmado);
 
   function adicionar() {
@@ -121,13 +125,13 @@ export function SiglasNaVersaoDialog({
           <p className="rounded-sm bg-muted/60 p-3 text-sm">
             O que mudar aqui vale a partir da v{versao}; as versões anteriores ficam como estão.
           </p>
-          <AvisoConflitos plano={plano} versao={versao} confirmado={confirmado} onConfirmar={setConfirmado} />
+          <AvisoConflitos plano={plano} versao={versao} confirmado={confirmado} onConfirmar={onConfirmar} />
         </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={onFechar} disabled={pending}>
             Cancelar
           </Button>
-          <Button disabled={pending || !podeSalvar} onClick={() => onSalvar(ops, plano.conflitos.length > 0)}>
+          <Button disabled={pending || !podeSalvar} onClick={() => onSalvar(ops, idsTransferencias(plano))}>
             {pending ? "Salvando…" : rotuloSalvar(plano, "salvar", "Salvar")}
           </Button>
         </DialogFooter>

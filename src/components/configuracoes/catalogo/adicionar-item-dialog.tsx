@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { normalizarSigla } from "@/modules/projetos/nomenclatura/catalogo/planilha";
 import type { CatalogoSnap, OperacaoTela } from "@/modules/projetos/nomenclatura/catalogo/versao";
-import { AvisoConflitos, exigeConfirmacao, rotuloSalvar, usePlanoTransferencia } from "./aviso-conflitos";
+import { AvisoConflitos, exigeConfirmacao, idsTransferencias, rotuloSalvar, useConfirmacao, usePlanoTransferencia } from "./aviso-conflitos";
 
 /** Adicionar card, sub, fase ou tipo na versão — com o conflito de sigla mostrado antes de salvar. */
 export function AdicionarItemDialog({
@@ -29,17 +29,17 @@ export function AdicionarItemDialog({
   versoes: readonly number[];
   pending: boolean;
   onFechar: () => void;
-  onSalvar: (operacao: OperacaoTela, transferir: boolean) => void;
+  onSalvar: (operacao: OperacaoTela, transferencias: string[]) => void;
 }) {
   const [nome, setNome] = useState("");
   const [sigla, setSigla] = useState("");
-  const [confirmado, setConfirmado] = useState(false);
   const siglaNorm = sigla.trim() === "" ? null : normalizarSigla(sigla);
   const siglaInvalida = sigla.trim() !== "" && siglaNorm === null;
   const nomeLimpo = nome.trim();
   const pronto = nomeLimpo !== "" && !siglaInvalida && (!siglaObrigatoria || siglaNorm !== null);
   const ops = useMemo(() => (pronto ? [montar(nomeLimpo, siglaNorm)] : []), [pronto, montar, nomeLimpo, siglaNorm]);
   const plano = usePlanoTransferencia(snap, versao, versoes, ops);
+  const { confirmado, onConfirmar } = useConfirmacao(plano);
   const podeSalvar = pronto && !plano.recusa && (!exigeConfirmacao(plano) || confirmado);
 
   return (
@@ -68,13 +68,13 @@ export function AdicionarItemDialog({
             </div>
           </div>
           {siglaInvalida && <p className="text-xs text-destructive">Sigla de 2 a 6 letras ou números.</p>}
-          <AvisoConflitos plano={plano} versao={versao} confirmado={confirmado} onConfirmar={setConfirmado} />
+          <AvisoConflitos plano={plano} versao={versao} confirmado={confirmado} onConfirmar={onConfirmar} />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onFechar} disabled={pending}>
             Cancelar
           </Button>
-          <Button disabled={pending || !podeSalvar} onClick={() => onSalvar(ops[0], plano.conflitos.length > 0)}>
+          <Button disabled={pending || !podeSalvar} onClick={() => onSalvar(ops[0], idsTransferencias(plano))}>
             {pending ? "Salvando…" : rotuloSalvar(plano, "adicionar", "Adicionar")}
           </Button>
         </DialogFooter>

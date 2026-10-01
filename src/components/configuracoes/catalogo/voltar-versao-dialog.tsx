@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { siglasParaVoltar, type AlvoCatalogo, type CatalogoSnap, type OperacaoTela } from "@/modules/projetos/nomenclatura/catalogo/versao";
-import { AvisoConflitos, exigeConfirmacao, rotuloSalvar, usePlanoTransferencia } from "./aviso-conflitos";
+import { AvisoConflitos, exigeConfirmacao, idsTransferencias, rotuloSalvar, useConfirmacao, usePlanoTransferencia } from "./aviso-conflitos";
 import { SiglaOficial, SiglaSinonimo } from "./sigla-chips";
 
 /** "Voltar para a vN": o item volta com as siglas marcadas (E4 da spec). */
@@ -26,16 +26,16 @@ export function VoltarVersaoDialog({
   nome: string;
   pending: boolean;
   onFechar: () => void;
-  onSalvar: (operacao: OperacaoTela, transferir: boolean) => void;
+  onSalvar: (operacao: OperacaoTela, transferencias: string[]) => void;
 }) {
   const oferta = useMemo(() => siglasParaVoltar(snap, alvo, versao), [snap, alvo, versao]);
   const [marcadas, setMarcadas] = useState(() => new Set(oferta.map((s) => s.sigla)));
-  const [confirmado, setConfirmado] = useState(false);
   const ops = useMemo<OperacaoTela[]>(
     () => [{ tipo: "entra", alvo, siglas: oferta.filter((s) => marcadas.has(s.sigla)) }],
     [alvo, oferta, marcadas],
   );
   const plano = usePlanoTransferencia(snap, versao, versoes, ops);
+  const { confirmado, onConfirmar } = useConfirmacao(plano);
   const podeSalvar = !plano.recusa && (!exigeConfirmacao(plano) || confirmado);
 
   function alternar(sigla: string, marcada: boolean) {
@@ -73,13 +73,13 @@ export function VoltarVersaoDialog({
               ))}
             </fieldset>
           )}
-          <AvisoConflitos plano={plano} versao={versao} confirmado={confirmado} onConfirmar={setConfirmado} />
+          <AvisoConflitos plano={plano} versao={versao} confirmado={confirmado} onConfirmar={onConfirmar} />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onFechar} disabled={pending}>
             Cancelar
           </Button>
-          <Button disabled={pending || !podeSalvar} onClick={() => onSalvar(ops[0], plano.conflitos.length > 0)}>
+          <Button disabled={pending || !podeSalvar} onClick={() => onSalvar(ops[0], idsTransferencias(plano))}>
             {pending ? "Salvando…" : rotuloSalvar(plano, "voltar", `Voltar para a v${versao}`)}
           </Button>
         </DialogFooter>
