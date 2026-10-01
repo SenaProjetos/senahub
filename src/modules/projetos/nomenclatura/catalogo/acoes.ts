@@ -1,6 +1,19 @@
-import { CircleMinus, Pencil, Plus, Tags } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronDown, ChevronUp, CircleMinus, ExternalLink, Pencil, Plus, Tags, Trash2 } from "lucide-react";
 
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
+import {
+  ACAO_ARQUIVAR,
+  ACAO_DESARQUIVAR,
+  ACAO_DESCER,
+  ACAO_EXCLUIR,
+  ACAO_SUBIR,
+  MOTIVO_LIMPAR_BUSCA,
+  MOTIVO_PRIMEIRA,
+  MOTIVO_ULTIMA,
+  itensDeLoteDisciplinas,
+  type DisciplinaParaAcoes,
+} from "@/modules/projetos/acoes-catalogo-disciplina";
+import { fraseCardEmUso, fraseFaseEmUso, fraseSubEmUso } from "./todas";
 import type { AlvoCatalogo } from "./versao";
 
 /**
@@ -58,4 +71,90 @@ export function itensDaLinhaCatalogo(linha: { alvo: AlvoCatalogo }, ctx: Context
       ]
     : [];
   return [...grupo, ...(grupo.length > 0 && tirar.length > 0 ? [{ tipo: "separador", id: "sep-tirar" } as const] : []), ...tirar];
+}
+
+// ─── Lente "Todas as versões" (E8): o cadastro, sem nada que mude a faixa de uma versão ───────
+
+export const ACAO_ABRIR_NA_VERSAO = "abrir-na-versao";
+
+export type ContextoLinhaTodas = {
+  /** `configuracoes:gerir` — sub, fase e tipo. */
+  podeGerir: boolean;
+  /** `projetos:gerir` — o card (`catalogoBase`). */
+  podeEditarCard: boolean;
+  /** Versão para "Abrir na vN" (`versaoParaAbrir`). */
+  versaoAbrir: number;
+  /** Card: projetos; sub: documentos; fase: etapas de disciplina; tipo: 0. */
+  uso: number;
+  /** Só card. `pode` = sem busca e sem "só selecionados" (a ordem é da categoria inteira). */
+  reordenar?: { pode: boolean; temCima: boolean; temBaixo: boolean };
+};
+
+function motivoExcluir(alvo: AlvoCatalogo, uso: number): string | undefined {
+  if (uso <= 0) return undefined;
+  if (alvo.tipo === "disciplina") return fraseCardEmUso(uso);
+  if (alvo.tipo === "subdisciplina") return fraseSubEmUso(uso);
+  return fraseFaseEmUso(uso);
+}
+
+/**
+ * Menu de uma linha da lente Todas. Sem a permissão do tipo da linha, sobra só "Abrir na vN" (ler não
+ * exige escrita) e a linha vira botão (`acaoUnica`). Nunca "Siglas nesta versão" nem "Tirar da vN":
+ * quem muda a faixa é a lente da versão (A2). "Excluir" sem `confirmar`: a tela confirma, e avisa
+ * do que está em uso, como a tela Disciplinas fazia.
+ */
+export function itensDaLinhaTodas(linha: { alvo: AlvoCatalogo; ativo: boolean }, ctx: ContextoLinhaTodas): AcaoItem[] {
+  const ehCard = linha.alvo.tipo === "disciplina";
+  const podeEditar = ehCard ? ctx.podeEditarCard : ctx.podeGerir;
+  const abrir: AcaoItem = { tipo: "acao", id: ACAO_ABRIR_NA_VERSAO, rotulo: `Abrir na v${ctx.versaoAbrir}`, icone: ExternalLink };
+  if (!podeEditar) return [abrir];
+
+  const itens: AcaoItem[] = [{ tipo: "acao", id: ACAO_EDITAR, rotulo: "Editar cadastro…", icone: Pencil }, abrir];
+  if (ehCard && ctx.reordenar) {
+    const r = ctx.reordenar;
+    itens.push(
+      { tipo: "separador", id: "sep-ordem" },
+      {
+        tipo: "acao",
+        id: ACAO_SUBIR,
+        rotulo: "Subir",
+        icone: ChevronUp,
+        desabilitado: !r.pode ? MOTIVO_LIMPAR_BUSCA : !r.temCima ? MOTIVO_PRIMEIRA : undefined,
+      },
+      {
+        tipo: "acao",
+        id: ACAO_DESCER,
+        rotulo: "Descer",
+        icone: ChevronDown,
+        desabilitado: !r.pode ? MOTIVO_LIMPAR_BUSCA : !r.temBaixo ? MOTIVO_ULTIMA : undefined,
+      },
+    );
+  }
+  itens.push(
+    { tipo: "separador", id: "sep-estado" },
+    linha.ativo
+      ? { tipo: "acao", id: ACAO_ARQUIVAR, rotulo: "Arquivar", icone: Archive }
+      : { tipo: "acao", id: ACAO_DESARQUIVAR, rotulo: "Desarquivar", icone: ArchiveRestore },
+    {
+      tipo: "acao",
+      id: ACAO_EXCLUIR,
+      rotulo: "Excluir",
+      icone: Trash2,
+      variant: "destructive",
+      desabilitado: motivoExcluir(linha.alvo, ctx.uso),
+    },
+  );
+  return itens;
+}
+
+/** Lote da lente Todas: as mesmas regras de Disciplinas, com a confirmação falando de "itens" (cards e subs misturam). */
+export function itensDoLoteTodas(selecionadas: readonly DisciplinaParaAcoes[]): AcaoItem[] {
+  return itensDeLoteDisciplinas(selecionadas).map((i) =>
+    i.tipo === "acao" && i.confirmar
+      ? {
+          ...i,
+          confirmar: { ...i.confirmar, titulo: "Excluir os itens selecionados?", descricao: "Eles saem do catálogo em definitivo. Não pode ser desfeito." },
+        }
+      : i,
+  );
 }
