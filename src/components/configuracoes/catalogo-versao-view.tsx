@@ -1,34 +1,39 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CircleMinus, FileUp, Plus, Tags, Undo2 } from "lucide-react";
+import { CircleMinus, FileUp, Plus, Shapes, Tags, Undo2 } from "lucide-react";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { alterarCatalogoNaVersao } from "@/modules/projetos/nomenclatura/catalogo/actions";
-import type { AlvoCatalogo, CatalogoNaVersao, LinhaCatalogo, SaiNaVersao } from "@/modules/projetos/nomenclatura/catalogo/versao";
+import type {
+  AlvoCatalogo,
+  CatalogoNaVersao,
+  CatalogoSnap,
+  LinhaCatalogo,
+  OperacaoTela,
+} from "@/modules/projetos/nomenclatura/catalogo/versao";
 import { ImportarCatalogoDialog } from "@/components/configuracoes/importar-catalogo-dialog";
+import { AdicionarItemDialog } from "@/components/configuracoes/catalogo/adicionar-item-dialog";
+import { SiglasNaVersaoDialog } from "@/components/configuracoes/catalogo/siglas-na-versao-dialog";
+import { VoltarVersaoDialog } from "@/components/configuracoes/catalogo/voltar-versao-dialog";
+import { SiglaOficial, SiglaSinonimo } from "@/components/configuracoes/catalogo/sigla-chips";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CollapsibleSection } from "@/components/ui/collapsible";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { Shapes } from "lucide-react";
 
 type VersaoResumo = { numero: number; nome: string; publicada: boolean };
 
-type Operacao = Parameters<typeof alterarCatalogoNaVersao>[0]["operacao"];
-
-/** Diálogo aberto: adicionar (card, sub, fase, tipo) ou trocar a sigla de um item. */
+/** Diálogo aberto: adicionar (card, sub, fase, tipo), siglas de um item, ou voltar um item que saiu. */
 type Dialogo =
-  | { tipo: "adicionar"; titulo: string; siglaObrigatoria: boolean; montar: (nome: string, sigla: string | null) => Operacao }
-  | { tipo: "sigla"; rotulo: string; atual: string | null; alvo: AlvoCatalogo };
+  | { tipo: "adicionar"; titulo: string; siglaObrigatoria: boolean; montar: (nome: string, sigla: string | null) => OperacaoTela }
+  | { tipo: "siglas"; rotulo: string; alvo: AlvoCatalogo }
+  | { tipo: "voltar"; nome: string; alvo: AlvoCatalogo };
 
 const ESTRUTURA: Record<AlvoCatalogo["tipo"], string> = { disciplina: "CARD", subdisciplina: "SUB", prancha: "" };
 
@@ -36,10 +41,13 @@ export function CatalogoVersaoView({
   versao,
   versoes,
   catalogo,
+  snap,
 }: {
   versao: VersaoResumo & { projetosFixados: number };
   versoes: VersaoResumo[];
   catalogo: CatalogoNaVersao;
+  /** Catálogo inteiro, para a prévia de conflito de sigla no navegador (o servidor recalcula). */
+  snap: CatalogoSnap;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -47,14 +55,16 @@ export function CatalogoVersaoView({
   const [dialogo, setDialogo] = useState<Dialogo | null>(null);
   const [importando, setImportando] = useState(false);
   const v = versao.numero;
+  // Memorizado: entra nas dependências da prévia de conflito dos diálogos.
+  const numeros = useMemo(() => versoes.map((x) => x.numero), [versoes]);
   const totalSubs = catalogo.cards.reduce((n, c) => n + c.subs.length, 0);
 
-  function executar(operacao: Operacao, sucesso: string, depois?: () => void) {
+  function executar(operacoes: OperacaoTela[], transferir: boolean, sucesso: string) {
     start(async () => {
-      const r = await alterarCatalogoNaVersao({ versao: v, operacao });
+      const r = await alterarCatalogoNaVersao({ versao: v, operacoes, transferir });
       if (r.ok) {
-        toast.success(sucesso);
-        depois?.();
+        toast.success(r.data.transferidas > 0 ? `${sucesso} A sigla saiu do outro item a partir da v${v}.` : sucesso);
+        setDialogo(null);
         router.refresh();
       } else toast.error(r.error);
     });
@@ -69,17 +79,13 @@ export function CatalogoVersaoView({
       confirmLabel: "Tirar da versão",
     });
     if (!ok) return;
-    executar({ tipo: "sai", alvo: linha.alvo }, `“${linha.nome}” saiu da v${v}.`);
-  }
-
-  function voltar(linha: SaiNaVersao) {
-    executar({ tipo: "entra", alvo: linha.alvo }, `“${linha.nome}” voltou para a v${v}.`);
+    executar([{ tipo: "sai", alvo: linha.alvo }], false, `“${linha.nome}” saiu da v${v}.`);
   }
 
   const acoesLinha = {
     pending,
     versao: v,
-    onSigla: (l: LinhaCatalogo) => setDialogo({ tipo: "sigla", rotulo: l.nome, atual: l.sigla, alvo: l.alvo }),
+    onSiglas: (l: LinhaCatalogo) => setDialogo({ tipo: "siglas", rotulo: l.nome, alvo: l.alvo }),
     onTirar: (l: LinhaCatalogo) => void tirar(l),
   };
 
@@ -168,6 +174,11 @@ export function CatalogoVersaoView({
           <p className="text-xs text-muted-foreground">
             CARD abre disciplina no projeto (projetista, prazo, pagamento). SUB é só etiqueta do documento, lida do nome do
             arquivo, dentro do card.
+          </p>
+          <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+            <SiglaOficial sigla="HID" /> oficial, vai no nome
+            <span className="ml-2" />
+            <SiglaSinonimo sigla="HDR" /> sinônimo, só reconhecido
           </p>
         </CardHeader>
         <CardContent>
@@ -259,8 +270,13 @@ export function CatalogoVersaoView({
                 <span className="min-w-0 flex-1 break-words">
                   {l.nome} <span className="text-xs text-muted-foreground">· {l.tipoRotulo}</span>
                 </span>
-                {l.sigla && <Badge variant="outline" className="font-mono">{l.sigla}</Badge>}
-                <Button size="sm" variant="ghost" disabled={pending} onClick={() => voltar(l)}>
+                <span className="flex flex-wrap gap-1.5">
+                  {l.sigla && <SiglaOficial sigla={l.sigla} />}
+                  {l.sinonimos.map((s) => (
+                    <SiglaSinonimo key={s} sigla={s} />
+                  ))}
+                </span>
+                <Button size="sm" variant="ghost" disabled={pending} onClick={() => setDialogo({ tipo: "voltar", nome: l.nome, alvo: l.alvo })}>
                   <Undo2 className="size-3.5" /> Voltar para a v{v}
                 </Button>
               </li>
@@ -270,24 +286,40 @@ export function CatalogoVersaoView({
       )}
 
       {dialogo?.tipo === "adicionar" && (
-        <AdicionarDialog
+        <AdicionarItemDialog
           titulo={dialogo.titulo}
           siglaObrigatoria={dialogo.siglaObrigatoria}
+          montar={dialogo.montar}
+          snap={snap}
+          versao={v}
+          versoes={numeros}
           pending={pending}
           onFechar={() => setDialogo(null)}
-          onSalvar={(nome, sigla) => executar(dialogo.montar(nome, sigla), `“${nome}” adicionado à v${v}.`, () => setDialogo(null))}
+          onSalvar={(op, transferir) => executar([op], transferir, `Adicionado à v${v}.`)}
         />
       )}
-      {dialogo?.tipo === "sigla" && (
-        <SiglaDialog
-          rotulo={dialogo.rotulo}
-          atual={dialogo.atual}
+      {dialogo?.tipo === "siglas" && (
+        <SiglasNaVersaoDialog
+          snap={snap}
           versao={v}
+          versoes={numeros}
+          alvo={dialogo.alvo}
+          rotulo={dialogo.rotulo}
           pending={pending}
           onFechar={() => setDialogo(null)}
-          onSalvar={(sigla) =>
-            executar({ tipo: "sigla-nova", alvo: dialogo.alvo, sigla }, `Sigla de “${dialogo.rotulo}” na v${v}: ${sigla}.`, () => setDialogo(null))
-          }
+          onSalvar={(ops, transferir) => executar(ops, transferir, `Siglas de “${dialogo.rotulo}” na v${v} salvas.`)}
+        />
+      )}
+      {dialogo?.tipo === "voltar" && (
+        <VoltarVersaoDialog
+          snap={snap}
+          versao={v}
+          versoes={numeros}
+          alvo={dialogo.alvo}
+          nome={dialogo.nome}
+          pending={pending}
+          onFechar={() => setDialogo(null)}
+          onSalvar={(op, transferir) => executar([op], transferir, `“${dialogo.nome}” voltou para a v${v}.`)}
         />
       )}
       <ImportarCatalogoDialog aberto={importando} versao={v} onFechar={() => setImportando(false)} />
@@ -311,14 +343,14 @@ function LinhaItem({
   linha,
   versao,
   pending,
-  onSigla,
+  onSiglas,
   onTirar,
   onAdicionarSub,
 }: {
   linha: LinhaCatalogo;
   versao: number;
   pending: boolean;
-  onSigla: (l: LinhaCatalogo) => void;
+  onSiglas: (l: LinhaCatalogo) => void;
   onTirar: (l: LinhaCatalogo) => void;
   onAdicionarSub?: () => void;
 }) {
@@ -326,115 +358,51 @@ function LinhaItem({
   return (
     <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5 text-sm", linha.alvo.tipo === "disciplina" && "font-medium")}>
       <span className="min-w-0 flex-1 break-words">{linha.nome}</span>
-      {estrutura && (
-        <span className="w-9 text-[10px] font-semibold tracking-wide text-muted-foreground">{estrutura}</span>
-      )}
-      {linha.sigla ? (
-        <Badge variant="outline" className="font-mono" title={linha.sinonimos.length ? `Também reconhece: ${linha.sinonimos.join(", ")}` : undefined}>
-          {linha.sigla}
-        </Badge>
-      ) : (
-        <span className="text-xs font-normal text-muted-foreground">sem sigla</span>
-      )}
+      {estrutura && <span className="w-9 text-[10px] font-semibold tracking-wide text-muted-foreground">{estrutura}</span>}
+      <span className="flex flex-wrap items-center gap-1.5">
+        {linha.sigla ? <SiglaOficial sigla={linha.sigla} /> : <span className="text-xs font-normal text-muted-foreground">sem sigla</span>}
+        {linha.sinonimos.map((s) => (
+          <SiglaSinonimo key={s} sigla={s} />
+        ))}
+      </span>
       <SituacaoBadge linha={linha} versao={versao} />
       <span className="flex items-center">
         {onAdicionarSub && (
-          <Button size="icon" variant="ghost" className="size-8" aria-label={`Adicionar sub-disciplina em ${linha.nome}`} title="Adicionar sub-disciplina" disabled={pending} onClick={onAdicionarSub}>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="size-8"
+            aria-label={`Adicionar sub-disciplina em ${linha.nome}`}
+            title="Adicionar sub-disciplina"
+            disabled={pending}
+            onClick={onAdicionarSub}
+          >
             <Plus className="size-4" />
           </Button>
         )}
-        <Button size="icon" variant="ghost" className="size-8" aria-label={`Trocar a sigla de ${linha.nome}`} title="Trocar sigla nesta versão" disabled={pending} onClick={() => onSigla(linha)}>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="size-8"
+          aria-label={`Siglas de ${linha.nome} na v${versao}`}
+          title="Siglas nesta versão"
+          disabled={pending}
+          onClick={() => onSiglas(linha)}
+        >
           <Tags className="size-4" />
         </Button>
-        <Button size="icon" variant="ghost" className="size-8" aria-label={`Tirar ${linha.nome} da v${versao}`} title={`Tirar da v${versao}`} disabled={pending} onClick={() => onTirar(linha)}>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="size-8"
+          aria-label={`Tirar ${linha.nome} da v${versao}`}
+          title={`Tirar da v${versao}`}
+          disabled={pending}
+          onClick={() => onTirar(linha)}
+        >
           <CircleMinus className="size-4" />
         </Button>
       </span>
     </div>
-  );
-}
-
-function AdicionarDialog({
-  titulo,
-  siglaObrigatoria,
-  pending,
-  onFechar,
-  onSalvar,
-}: {
-  titulo: string;
-  siglaObrigatoria: boolean;
-  pending: boolean;
-  onFechar: () => void;
-  onSalvar: (nome: string, sigla: string | null) => void;
-}) {
-  const [nome, setNome] = useState("");
-  const [sigla, setSigla] = useState("");
-  const pronto = nome.trim() !== "" && (!siglaObrigatoria || sigla.trim() !== "");
-  return (
-    <Dialog open onOpenChange={(o) => !o && onFechar()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{titulo}</DialogTitle>
-          <DialogDescription>Vale a partir desta versão. A sigla é a que vai no nome dos arquivos.</DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-48 flex-1 space-y-1.5">
-            <Label>Nome</Label>
-            <Input value={nome} autoFocus onChange={(e) => setNome(e.target.value)} />
-          </div>
-          <div className="w-28 space-y-1.5">
-            <Label>Sigla{siglaObrigatoria ? "" : " (opcional)"}</Label>
-            <Input value={sigla} maxLength={6} className="font-mono uppercase" onChange={(e) => setSigla(e.target.value.toUpperCase())} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onFechar} disabled={pending}>Cancelar</Button>
-          <Button disabled={pending || !pronto} onClick={() => onSalvar(nome.trim(), sigla.trim() || null)}>
-            {pending ? "Salvando…" : "Adicionar"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function SiglaDialog({
-  rotulo,
-  atual,
-  versao,
-  pending,
-  onFechar,
-  onSalvar,
-}: {
-  rotulo: string;
-  atual: string | null;
-  versao: number;
-  pending: boolean;
-  onFechar: () => void;
-  onSalvar: (sigla: string) => void;
-}) {
-  const [sigla, setSigla] = useState("");
-  return (
-    <Dialog open onOpenChange={(o) => !o && onFechar()}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Sigla de “{rotulo}” na v{versao}</DialogTitle>
-          <DialogDescription>
-            {atual ? `Hoje é ${atual}. ` : "Hoje não tem sigla. "}
-            A nova vale a partir da v{versao}{atual ? `; ${atual} continua nas versões anteriores` : ""}.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-1.5">
-          <Label>Sigla nova</Label>
-          <Input value={sigla} autoFocus maxLength={6} className="font-mono uppercase" onChange={(e) => setSigla(e.target.value.toUpperCase())} />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onFechar} disabled={pending}>Cancelar</Button>
-          <Button disabled={pending || !sigla.trim() || sigla.trim() === atual} onClick={() => onSalvar(sigla.trim())}>
-            {pending ? "Salvando…" : "Trocar"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

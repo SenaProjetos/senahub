@@ -25,6 +25,7 @@ export default async function CatalogoVersaoPage({ params }: { params: Promise<{
       versao={{ numero: versao.numero, nome: versao.nome, publicada: !!versao.publicadaEm, projetosFixados: versao.projetosFixados }}
       versoes={versoes.map((v) => ({ numero: v.numero, nome: v.nome, publicada: !!v.publicadaEm }))}
       catalogo={catalogoNaVersao(snap, n)}
+      snap={snap}
     />
   );
 }
