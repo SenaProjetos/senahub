@@ -173,12 +173,14 @@ export function OrcamentoView({
   serieMensal,
   categorias,
   podeGerir,
+  subnav,
 }: {
   ano: number;
   orcamento: Orcamento;
   serieMensal: MesResultado[];
   categorias: Categoria[];
   podeGerir: boolean;
+  subnav?: React.ReactNode;
 }) {
   const router = useRouter();
   const t = orcamento.totais;
@@ -215,6 +217,7 @@ export function OrcamentoView({
           </>
         }
       />
+      {subnav}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((k) => (

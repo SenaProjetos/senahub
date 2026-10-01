@@ -4,6 +4,7 @@ import { getConfigFinanceiro, getAliquotas, getConfigExclusao } from "@/modules/
 import { getNiveisAprovacao } from "@/modules/financeiro/aprovacao/queries";
 import { ConfiguracoesView } from "@/components/financeiro/config/configuracoes-view";
 
+import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 export const metadata: Metadata = { title: "Configurações financeiras" };
 
 export default async function ConfiguracoesPage() {
@@ -14,5 +15,5 @@ export default async function ConfiguracoesPage() {
     getNiveisAprovacao(),
     getConfigExclusao(),
   ]);
-  return <ConfiguracoesView config={config} aliquotas={aliquotas} niveis={niveis} exclusao={exclusao} />;
+  return <ConfiguracoesView subnav={<NavFinanceiro />} config={config} aliquotas={aliquotas} niveis={niveis} exclusao={exclusao} />;
 }

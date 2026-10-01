@@ -27,6 +27,18 @@ export function brl(v: number): string {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 }
 
+/**
+ * Moeda BRL com o sinal sempre escrito: `+R$ 1.234,00`, `−R$ 1.234,00` (menos tipográfico) e
+ * `R$ 0,00`. O sinal é a informação; a cor só reforça (valor negativo só em vermelho falha para
+ * quem não distingue as cores). Sem espaço entre o sinal e o símbolo, como no mock do Financeiro.
+ */
+export function brlComSinal(v: number): string {
+  const abs = brl(Math.abs(v)).replace(/ /g, " ")
+  if (v > 0) return `+${abs}`
+  if (v < 0) return `−${abs}`
+  return abs
+}
+
 /** Moeda BRL sem centavos: R$ 81.000 (p/ KPIs/dashboards). */
 export function brlInteiro(v: number): string {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })

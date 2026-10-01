@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  Plus, Check, Search, Download, Printer, FileSpreadsheet, ChevronLeft, ChevronRight, X, Wallet,
+  Plus, Check, Search, Download, Printer, FileSpreadsheet, X, Wallet,
 } from "lucide-react";
 import type { LancamentoItem, OpcoesLancamento } from "@/modules/financeiro/lancamentos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -43,6 +43,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { brl, formatarData } from "@/lib/utils";
 import { MESES_CURTOS } from "@/lib/data";
+import { SeletorPeriodo, type OpcaoPeriodo } from "@/components/financeiro/seletor-periodo";
 
 function dt(d: string | Date | null) {
   return d ? formatarData(d) : "—";
@@ -72,6 +73,16 @@ function parcela(desc: string): string | null {
 
 type Situacao = "pendente" | "agendado" | "aguardando";
 type Modo = "todos" | "mes" | "30" | "60" | "90" | "vencidas" | "custom";
+
+const OPCOES_PERIODO: readonly OpcaoPeriodo<Modo>[] = [
+  { valor: "todos", rotulo: "Todos os pendentes" },
+  { valor: "mes", rotulo: "Por mês", passoMeses: 1 },
+  { valor: "vencidas", rotulo: "Vencidas" },
+  { valor: "30", rotulo: "Próximos 30 dias" },
+  { valor: "60", rotulo: "Próximos 60 dias" },
+  { valor: "90", rotulo: "Próximos 90 dias" },
+  { valor: "custom", rotulo: "Período personalizado" },
+];
 
 const NONE = "__none";
 
@@ -413,9 +424,12 @@ export function ContasPagarReceberView({
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
         {/* coluna esquerda */}
         <div className="space-y-4">
-          <PeriodoCard
-            modo={modo} setModo={setModo} mesRef={mesRef} setMesRef={setMesRef}
-            de={de} setDe={setDe} ate={ate} setAte={setAte}
+          <SeletorPeriodo
+            opcoes={OPCOES_PERIODO}
+            modo={modo} onModo={setModo}
+            referencia={mesRef} onReferencia={setMesRef}
+            rotuloDaReferencia={(_, r) => `${MESES_CURTOS[r.getMonth()]} ${r.getFullYear()}`}
+            de={de} onDe={setDe} ate={ate} onAte={setAte}
           />
 
           <Card>
@@ -640,56 +654,6 @@ export function ContasPagarReceberView({
       </LinhaComMenu>
     );
   }
-}
-
-function PeriodoCard({
-  modo, setModo, mesRef, setMesRef, de, setDe, ate, setAte,
-}: {
-  modo: Modo; setModo: (m: Modo) => void; mesRef: Date; setMesRef: (d: Date) => void;
-  de: string; setDe: (s: string) => void; ate: string; setAte: (s: string) => void;
-}) {
-  function mudaMes(delta: number) {
-    const d = new Date(mesRef);
-    d.setMonth(d.getMonth() + delta);
-    setMesRef(meioDia(d));
-  }
-  return (
-    <Card>
-      <CardContent className="space-y-2 py-4">
-        {modo === "mes" ? (
-          <div className="flex items-center justify-between">
-            <Button variant="ghost" size="icon" onClick={() => mudaMes(-1)}><ChevronLeft className="size-4" /></Button>
-            <span className="text-sm font-medium">{MESES_CURTOS[mesRef.getMonth()]} {mesRef.getFullYear()}</span>
-            <Button variant="ghost" size="icon" onClick={() => mudaMes(1)}><ChevronRight className="size-4" /></Button>
-          </div>
-        ) : null}
-        <Select value={modo} onValueChange={(v) => setModo((v ?? "todos") as Modo)}>
-          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos os pendentes</SelectItem>
-            <SelectItem value="mes">Por mês</SelectItem>
-            <SelectItem value="vencidas">Vencidas</SelectItem>
-            <SelectItem value="30">Próximos 30 dias</SelectItem>
-            <SelectItem value="60">Próximos 60 dias</SelectItem>
-            <SelectItem value="90">Próximos 90 dias</SelectItem>
-            <SelectItem value="custom">Período personalizado</SelectItem>
-          </SelectContent>
-        </Select>
-        {modo === "custom" && (
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label className="text-xs">De</Label>
-              <Input type="date" value={de} onChange={(e) => setDe(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Até</Label>
-              <Input type="date" value={ate} onChange={(e) => setAte(e.target.value)} />
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
 }
 
 function DimSelect({

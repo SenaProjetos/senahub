@@ -4,6 +4,7 @@ import { can } from "@/lib/permissions";
 import { lancamentosAguardando, limiteAprovacao } from "@/modules/financeiro/aprovacao/queries";
 import { AprovacoesView } from "@/components/financeiro/aprovacoes-view";
 
+import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 export const metadata: Metadata = { title: "Aprovações financeiras" };
 
 export default async function AprovacoesPage() {
@@ -13,5 +14,5 @@ export default async function AprovacoesPage() {
     limiteAprovacao(),
     can(user, "financeiro", "gerir"),
   ]);
-  return <AprovacoesView itens={itens} limite={limite} podeGerir={podeGerir} />;
+  return <AprovacoesView subnav={<NavFinanceiro />} itens={itens} limite={limite} podeGerir={podeGerir} />;
 }

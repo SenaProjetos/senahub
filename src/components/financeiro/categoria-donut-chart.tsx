@@ -3,7 +3,8 @@ import type { FatiaCategoria } from "@/modules/financeiro/relatorios/queries";
 import { EmptyState } from "@/components/ui/empty-state";
 import { brl } from "@/lib/utils";
 
-const CORES = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7", "#94a3b8"];
+// Tokens do tema (claro e escuro); o que passa de 5 fatias cai em tons neutros.
+const CORES = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)", "var(--muted-foreground)", "var(--border)"];
 
 /** Rosca de distribuição (SVG, sem dependência). Ex.: despesas por categoria. */
 export function CategoriaDonutChart({ dados, total }: { dados: FatiaCategoria[]; total: number }) {
@@ -11,13 +12,17 @@ export function CategoriaDonutChart({ dados, total }: { dados: FatiaCategoria[];
     return <EmptyState icon={Receipt} title="Sem despesas confirmadas no período." />;
   }
 
+  const resumo = dados
+    .slice(0, 5)
+    .map((f) => `${f.nome} ${((f.valor / total) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}%`)
+    .join(", ");
   const r = 15.915; // circunferência = 100 (facilita dasharray em %)
   const C = 2 * Math.PI * r;
   let acumulado = 0;
 
   return (
     <div className="flex flex-col items-center gap-4 sm:flex-row">
-      <svg viewBox="0 0 40 40" className="size-32 shrink-0 -rotate-90">
+      <svg viewBox="0 0 40 40" className="size-32 shrink-0 -rotate-90" role="img" aria-label={`Distribuição por categoria, total ${brl(total)}: ${resumo}. A lista ao lado traz todos os valores.`}>
         <circle cx="20" cy="20" r={r} fill="none" className="stroke-muted" strokeWidth={5} />
         {dados.map((f, i) => {
           const frac = f.valor / total;
@@ -42,7 +47,7 @@ export function CategoriaDonutChart({ dados, total }: { dados: FatiaCategoria[];
       <ul className="w-full space-y-1 text-sm">
         {dados.map((f, i) => (
           <li key={f.nome} className="flex items-center gap-2">
-            <span className="size-2.5 shrink-0 rounded-full" style={{ background: CORES[i % CORES.length] }} />
+            <span aria-hidden className="size-2.5 shrink-0 rounded-full" style={{ background: CORES[i % CORES.length] }} />
             <span className="flex-1 truncate">{f.nome}</span>
             <span className="font-mono text-xs text-muted-foreground">
               {((f.valor / total) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}%

@@ -9,6 +9,7 @@ import {
 import { agruparPorCoordenador } from "@/modules/financeiro/relatorios/dre-projeto";
 import { RentabilidadeView } from "@/components/financeiro/relatorios/rentabilidade-view";
 
+import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 export const metadata: Metadata = { title: "Rentabilidade por projeto" };
 
 function periodoPadrao(sp: { de?: string; ate?: string }) {
@@ -35,7 +36,7 @@ export default async function RentabilidadePage({
   const coordMap = await coordenadoresPorProjeto(dados.projetos.map((p) => p.projetoId));
   const porCoordenador = agruparPorCoordenador(dados.projetos, coordMap);
   return (
-    <RentabilidadeView
+    <RentabilidadeView subnav={<NavFinanceiro />}
       dados={dados}
       evolucao={evolucao}
       ano={ate.getFullYear()}

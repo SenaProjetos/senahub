@@ -24,7 +24,7 @@ import { brl, formatarData } from "@/lib/utils";
 
 const NONE = "__none";
 
-export function PlanejamentoListaView({ planos, opcoes }: { planos: PlanoResumo[]; opcoes: OpcoesPlanejamento }) {
+export function PlanejamentoListaView({ planos, opcoes, subnav }: { planos: PlanoResumo[]; opcoes: OpcoesPlanejamento; subnav?: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="space-y-5">
@@ -37,6 +37,7 @@ export function PlanejamentoListaView({ planos, opcoes }: { planos: PlanoResumo[
           </>
         }
       />
+      {subnav}
 
       {planos.length === 0 ? (
         <Card>

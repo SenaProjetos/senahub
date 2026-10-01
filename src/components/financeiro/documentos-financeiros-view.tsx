@@ -58,10 +58,12 @@ export function DocumentosFinanceirosView({
   docs,
   opcoes,
   podeGerir,
+  subnav,
 }: {
   docs: Doc[];
   opcoes: Opcoes;
   podeGerir: boolean;
+  subnav?: React.ReactNode;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -187,6 +189,7 @@ export function DocumentosFinanceirosView({
           </>
         }
       />
+      {subnav}
 
       <Card>
         <CardContent className="p-0">

@@ -3,7 +3,7 @@
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileSpreadsheet, ArrowUp, ArrowDown, BarChart3, Receipt, ArrowLeftRight } from "lucide-react";
+import { FileSpreadsheet, BarChart3, Receipt, ArrowLeftRight } from "lucide-react";
 import type { DREComparativo, LinhaDREAnalise } from "@/modules/financeiro/relatorios/dre";
 import type { FatiaCategoria, ResultadoProjeto, EvolucaoCategorias } from "@/modules/financeiro/relatorios/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -14,6 +14,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { KpiCard } from "@/components/ui/kpi-card";
+import { Valor } from "@/components/financeiro/valor";
 import { brl } from "@/lib/utils";
 
 function pct(v: number | null) {
@@ -30,6 +32,7 @@ export function RelatoriosView({
   porProjeto,
   evolucao,
   base,
+  subnav,
 }: {
   dre: DREComparativo;
   indicadores: { projetosAtivos: number; recebido: number; aReceber: number };
@@ -38,6 +41,7 @@ export function RelatoriosView({
   porProjeto: ResultadoProjeto[];
   evolucao: EvolucaoCategorias;
   base: "caixa" | "competencia";
+  subnav?: React.ReactNode;
 }) {
   const router = useRouter();
   const [de, setDe] = useState(dre.de);
@@ -89,12 +93,13 @@ export function RelatoriosView({
           </>
         }
       />
+      {subnav}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard titulo="Resultado" valor={dre.resultado} cor variacao={ahResultado} />
-        <KpiCard titulo="EBITDA (gerencial)" valor={dre.ebitda} cor />
-        <KpiCard titulo="Recebido" valor={indicadores.recebido} />
-        <KpiCard titulo="A receber" valor={indicadores.aReceber} tom="warning" />
+        <KpiCard variante="indicador" label="Resultado" valor={<Valor valor={dre.resultado} />} detalhe={textoVariacao(ahResultado)} />
+        <KpiCard variante="indicador" label="EBITDA (gerencial)" valor={<Valor valor={dre.ebitda} />} />
+        <KpiCard variante="indicador" label="Recebido" valor={<Valor valor={indicadores.recebido} sentido="neutro" />} />
+        <KpiCard variante="indicador" label="A receber" valor={<Valor valor={indicadores.aReceber} sentido="neutro" />} />
       </div>
 
       <Card>
@@ -235,34 +240,11 @@ function ahResultadoColuna(dre: DREComparativo): number | null {
   return ((dre.resultado - dre.anterior.resultado) / Math.abs(dre.anterior.resultado)) * 100;
 }
 
-function KpiCard({
-  titulo,
-  valor,
-  cor = false,
-  tom,
-  variacao,
-}: {
-  titulo: string;
-  valor: number;
-  cor?: boolean;
-  tom?: "warning";
-  variacao?: number | null;
-}) {
-  const corValor = tom === "warning" ? "text-warning" : cor ? (valor < 0 ? "text-destructive" : "text-success") : "";
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">{titulo}</CardDescription>
-        <CardTitle className={`text-2xl ${corValor}`}>{brl(valor)}</CardTitle>
-        {variacao != null && (
-          <span className={`flex items-center gap-0.5 text-xs ${variacao >= 0 ? "text-success" : "text-destructive"}`}>
-            {variacao >= 0 ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
-            {pct(variacao)} vs. período anterior
-          </span>
-        )}
-      </CardHeader>
-    </Card>
-  );
+/** Variação sobre o período anterior, escrita com sinal (a seta de antes dependia da cor). */
+function textoVariacao(v: number | null | undefined): string | undefined {
+  if (v == null) return undefined;
+  const abs = Math.abs(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+  return `${v >= 0 ? "+" : "−"}${abs}% vs. período anterior`;
 }
 
 function Cabecalho() {

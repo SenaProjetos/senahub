@@ -3,11 +3,12 @@ import { requirePermission } from "@/lib/session";
 import { listarFechamentos } from "@/modules/financeiro/fechamento/queries";
 import { FechamentoView } from "@/components/financeiro/fechamento/fechamento-view";
 
+import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 export const metadata: Metadata = { title: "Fechamento mensal" };
 
 export default async function FechamentoPage() {
   await requirePermission("financeiro", "fechar");
   const fechamentos = await listarFechamentos();
   const hoje = new Date();
-  return <FechamentoView fechamentos={fechamentos} anoAtual={hoje.getFullYear()} mesAtual={hoje.getMonth() + 1} />;
+  return <FechamentoView subnav={<NavFinanceiro />} fechamentos={fechamentos} anoAtual={hoje.getFullYear()} mesAtual={hoje.getMonth() + 1} />;
 }

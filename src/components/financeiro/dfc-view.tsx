@@ -31,11 +31,13 @@ export function DfcView({
   dfc,
   categorias,
   podeGerir,
+  subnav,
 }: {
   ano: number;
   dfc: { atividades: AtividadeDFC[]; variacao: number };
   categorias: Categoria[];
   podeGerir: boolean;
+  subnav?: React.ReactNode;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -74,6 +76,7 @@ export function DfcView({
           </>
         }
       />
+      {subnav}
 
       <div className="grid gap-4 lg:grid-cols-3">
         {dfc.atividades.map((a) => (

@@ -3,10 +3,11 @@ import { requirePermission } from "@/lib/session";
 import { listarImportacoes } from "@/modules/financeiro/importacao/queries";
 import { ImportadorView } from "@/components/financeiro/importacao/importador-view";
 
+import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 export const metadata: Metadata = { title: "Importar dados financeiros" };
 
 export default async function ImportarFinanceiroPage() {
   await requirePermission("financeiro", "conciliar");
   const importacoes = await listarImportacoes();
-  return <ImportadorView importacoes={importacoes} />;
+  return <ImportadorView subnav={<NavFinanceiro />} importacoes={importacoes} />;
 }

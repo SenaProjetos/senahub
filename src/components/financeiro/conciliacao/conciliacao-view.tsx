@@ -27,10 +27,12 @@ export function ConciliacaoView({
   transacoes,
   contas,
   categorias,
+  subnav,
 }: {
   transacoes: TransacaoPendente[];
   contas: { id: string; nome: string }[];
   categorias: { id: string; codigo: string; nome: string; tipo: string }[];
+  subnav?: React.ReactNode;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -66,6 +68,7 @@ export function ConciliacaoView({
   return (
     <div className="space-y-4">
       <CabecalhoPagina titulo="Conciliação bancária" descricao="Importe o extrato OFX; o sistema concilia automaticamente os valores que batem." />
+      {subnav}
 
       <Card>
         <CardHeader className="pb-3">

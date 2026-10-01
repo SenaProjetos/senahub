@@ -14,6 +14,8 @@ import { Input } from "@/components/ui/input";
 import { InputPercentual } from "@/components/ui/input-percentual";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { KpiCard } from "@/components/ui/kpi-card";
+import { Valor } from "@/components/financeiro/valor";
 import { brl } from "@/lib/utils";
 
 function pct(v: number | null) {
@@ -26,12 +28,14 @@ export function RentabilidadeView({
   ano,
   porCoordenador,
   custoDisciplina,
+  subnav,
 }: {
   dados: RentabilidadeRelatorio;
   evolucao: MargemMensal[];
   ano: number;
   porCoordenador: CoordenadorRentab[];
   custoDisciplina: CustoDisciplina[];
+  subnav?: React.ReactNode;
 }) {
   const router = useRouter();
   const [de, setDe] = useState(dados.de);
@@ -97,12 +101,13 @@ export function RentabilidadeView({
           </>
         }
       />
+      {subnav}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi titulo="Receita" valor={brl(t.receita)} />
-        <Kpi titulo="Custos diretos" valor={brl(t.diretos)} />
-        <Kpi titulo="Indiretos (rateados)" valor={brl(t.indireto)} />
-        <Kpi titulo="Lucro líquido" valor={brl(t.lucroLiquido)} cor={t.lucroLiquido < 0 ? "text-destructive" : "text-success"} sub={`Margem ${pct(t.margemLiquida)}`} />
+        <KpiCard variante="indicador" label="Receita" valor={<Valor valor={t.receita} />} />
+        <KpiCard variante="indicador" label="Custos diretos" valor={<Valor valor={-t.diretos} />} />
+        <KpiCard variante="indicador" label="Indiretos (rateados)" valor={<Valor valor={-t.indireto} />} />
+        <KpiCard variante="indicador" label="Lucro líquido" valor={<Valor valor={t.lucroLiquido} />} detalhe={`Margem ${pct(t.margemLiquida)}`} />
       </div>
 
       {dados.alertas.length > 0 && (
@@ -294,17 +299,5 @@ export function RentabilidadeView({
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-function Kpi({ titulo, valor, cor, sub }: { titulo: string; valor: string; cor?: string; sub?: string }) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">{titulo}</CardDescription>
-        <CardTitle className={`text-2xl ${cor ?? ""}`}>{valor}</CardTitle>
-        {sub && <span className="text-xs text-muted-foreground">{sub}</span>}
-      </CardHeader>
-    </Card>
   );
 }

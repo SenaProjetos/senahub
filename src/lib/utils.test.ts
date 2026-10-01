@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { brl, brlInteiro, formatarData, formatarDataHora, formatarMesCurto, formatarDiaMes, rotuloRevisao } from "@/lib/utils";
+import { brl, brlComSinal, brlInteiro, formatarData, formatarDataHora, formatarMesCurto, formatarDiaMes, rotuloRevisao } from "@/lib/utils";
 
 // normaliza espaço estreito/insecável que o Intl usa em pt-BR
 const norm = (s: string) => s.replace(/ | /g, " ");
@@ -9,6 +9,17 @@ describe("brl", () => {
     expect(norm(brl(81000))).toBe("R$ 81.000,00");
     expect(norm(brl(1234.5))).toBe("R$ 1.234,50");
     expect(norm(brl(0))).toBe("R$ 0,00");
+  });
+});
+
+describe("brlComSinal", () => {
+  it("escreve o sinal: + para entrada, − (tipográfico) para saída, nada para zero", () => {
+    expect(norm(brlComSinal(18000))).toBe("+R$ 18.000,00");
+    expect(norm(brlComSinal(-24000))).toBe("−R$ 24.000,00");
+    expect(norm(brlComSinal(0))).toBe("R$ 0,00");
+  });
+  it("menos zero não ganha sinal", () => {
+    expect(norm(brlComSinal(-0))).toBe("R$ 0,00");
   });
 });
 

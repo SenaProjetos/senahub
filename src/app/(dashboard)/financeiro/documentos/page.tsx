@@ -7,6 +7,7 @@ import {
 } from "@/modules/financeiro/documentos/queries";
 import { DocumentosFinanceirosView } from "@/components/financeiro/documentos-financeiros-view";
 
+import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 export const metadata: Metadata = { title: "Documentos financeiros" };
 
 export default async function DocumentosFinanceirosPage() {
@@ -16,5 +17,5 @@ export default async function DocumentosFinanceirosPage() {
     opcoesDocumentoFinanceiro(),
     can(user, "financeiro", "gerir"),
   ]);
-  return <DocumentosFinanceirosView docs={docs} opcoes={opcoes} podeGerir={podeGerir} />;
+  return <DocumentosFinanceirosView subnav={<NavFinanceiro />} docs={docs} opcoes={opcoes} podeGerir={podeGerir} />;
 }

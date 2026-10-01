@@ -11,6 +11,7 @@ import {
 } from "@/modules/financeiro/cadastros/queries";
 import { CadastrosView } from "@/components/financeiro/cadastros/cadastros-view";
 
+import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 export const metadata: Metadata = { title: "Cadastros financeiros" };
 
 export default async function CadastrosFinanceirosPage() {
@@ -27,7 +28,7 @@ export default async function CadastrosFinanceirosPage() {
   ]);
 
   return (
-    <CadastrosView
+    <CadastrosView subnav={<NavFinanceiro />}
       categorias={categorias}
       centros={centros}
       contas={contas.map((c) => ({ ...c, saldoInicial: Number(c.saldoInicial) }))}

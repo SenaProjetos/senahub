@@ -26,9 +26,23 @@ export function KpiCard({
   valor: React.ReactNode;
   detalhe?: string;
   icone?: LucideIcon;
-  variante?: "padrao" | "compacta";
+  variante?: "padrao" | "compacta" | "indicador";
   className?: string;
 }) {
+  // Indicador do Financeiro (mock "Padrões"): rótulo em frase comum (13 px, contraste AA — o
+  // 10 px/caixa-alta/espaçado da variante "padrao" reprova), valor mono tabular e o subtexto diz de
+  // onde vem o número. Substitui as 4 cópias locais de KpiCard/Kpi do Financeiro.
+  if (variante === "indicador") {
+    return (
+      <div className={cn("flex min-w-0 flex-col gap-1 rounded-sm border bg-card px-4 py-3 shadow-[var(--card-shadow)]", className)}>
+        <p className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+          {Icone && <Icone className="size-3.5" aria-hidden />} {label}
+        </p>
+        <p className="font-mono text-2xl font-semibold tabular-nums tracking-tight">{valor}</p>
+        {detalhe && <p className="text-[12.5px] text-muted-foreground">{detalhe}</p>}
+      </div>
+    );
+  }
   if (variante === "compacta") {
     return (
       <div className={cn("rounded-sm border bg-card p-2", className)}>

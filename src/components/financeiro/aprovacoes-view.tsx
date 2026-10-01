@@ -30,10 +30,12 @@ export function AprovacoesView({
   itens,
   limite,
   podeGerir,
+  subnav,
 }: {
   itens: Item[];
   limite: number;
   podeGerir: boolean;
+  subnav?: React.ReactNode;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -72,6 +74,7 @@ export function AprovacoesView({
   return (
     <div className="space-y-5">
       <CabecalhoPagina titulo="Aprovações financeiras" descricao="Despesas acima da alçada aguardando liberação." />
+      {subnav}
 
       {podeGerir && (
         <Card>

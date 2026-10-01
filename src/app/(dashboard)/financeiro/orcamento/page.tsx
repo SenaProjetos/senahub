@@ -8,6 +8,7 @@ import {
 } from "@/modules/financeiro/relatorios/queries";
 import { OrcamentoView } from "@/components/financeiro/orcamento-view";
 
+import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 export const metadata: Metadata = { title: "Orçamento anual" };
 
 export default async function OrcamentoPage({
@@ -25,7 +26,7 @@ export default async function OrcamentoPage({
     can(user, "financeiro", "gerir"),
   ]);
   return (
-    <OrcamentoView
+    <OrcamentoView subnav={<NavFinanceiro />}
       ano={ano}
       orcamento={orcamento}
       serieMensal={serieMensal}

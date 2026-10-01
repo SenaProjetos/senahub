@@ -1,10 +1,12 @@
 import type { SemanaProjecao } from "@/modules/financeiro/caixa/queries";
 import { formatarDiaMes } from "@/lib/utils";
 
+/** Valor curto com o sinal escrito: o vermelho do gráfico só reforça o "−". */
 function brlCurto(v: number) {
+  const sinal = v > 0 ? "+" : v < 0 ? "−" : "";
   const a = Math.abs(v);
-  if (a >= 1000) return `${(v / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}k`;
-  return v.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
+  const n = a >= 1000 ? `${(a / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}k` : a.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
+  return `${sinal}${n}`;
 }
 function dataCurta(iso: string) {
   return formatarDiaMes(iso + "T00:00:00");
@@ -52,7 +54,13 @@ export function FluxoProjecaoChart({
         </span>
       </div>
       <div className="relative h-40 w-full">
-        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-full w-full overflow-visible">
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          preserveAspectRatio="none"
+          className="h-full w-full overflow-visible"
+          role="img"
+          aria-label={`Saldo projetado por semana: agora ${brlCurto(saldoInicial)}, ao fim ${brlCurto(final)}, menor saldo ${brlCurto(piorSaldo)}${temGap ? ", ficando negativo" : ""}.`}
+        >
           {/* área sob a linha */}
           <path d={area} className="fill-primary/10" />
           {/* linha do zero (se houver negativo) */}

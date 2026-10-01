@@ -22,10 +22,12 @@ export function FechamentoView({
   fechamentos,
   anoAtual,
   mesAtual,
+  subnav,
 }: {
   fechamentos: FechamentoItem[];
   anoAtual: number;
   mesAtual: number;
+  subnav?: React.ReactNode;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -47,6 +49,7 @@ export function FechamentoView({
   return (
     <div className="space-y-5">
       <CabecalhoPagina titulo="Fechamento mensal" descricao="Consolida receita/despesa e a produção (projetistas PJ) do mês, com retenções automáticas." />
+      {subnav}
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 py-4">

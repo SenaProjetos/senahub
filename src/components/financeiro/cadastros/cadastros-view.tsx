@@ -50,6 +50,7 @@ export function CadastrosView({
   fornecedores,
   socios,
   usuarios,
+  subnav,
 }: {
   categorias: Cat[];
   centros: { id: string; nome: string }[];
@@ -58,10 +59,12 @@ export function CadastrosView({
   fornecedores: Fornecedor[];
   socios: SocioRow[];
   usuarios: { id: string; name: string }[];
+  subnav?: React.ReactNode;
 }) {
   return (
     <div className="space-y-4">
       <CabecalhoPagina titulo="Cadastros financeiros" descricao="Plano de contas, contas bancárias, fornecedores, sócios e auxiliares." />
+      {subnav}
 
       <Tabs defaultValue="plano">
         <TabsList className="flex-wrap">

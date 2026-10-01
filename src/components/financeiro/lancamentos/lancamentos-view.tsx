@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Plus, Search, Download, Printer,
-  FileSpreadsheet, ChevronLeft, ChevronRight, X, ArrowLeftRight, Receipt,
+  FileSpreadsheet, X, ArrowLeftRight, Receipt,
 } from "lucide-react";
 import {
   cancelarLancamento, excluirLancamento, baixarEmLote,
@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { SeletorPeriodo, type OpcaoPeriodo } from "@/components/financeiro/seletor-periodo";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -58,6 +59,23 @@ type Conta = { id: string; nome: string; saldoInicial: number };
 type Situacao = "pendente" | "agendado" | "confirmado" | "conciliado" | "aguardando" | "cancelado";
 type Modo = "todos" | "mes" | "semestre" | "ano" | "custom";
 
+const OPCOES_PERIODO: readonly OpcaoPeriodo<Modo>[] = [
+  { valor: "todos", rotulo: "Todo o período" },
+  { valor: "mes", rotulo: "Por mês", passoMeses: 1 },
+  { valor: "semestre", rotulo: "Por semestre", passoMeses: 6 },
+  { valor: "ano", rotulo: "Por ano", passoMeses: 12 },
+  { valor: "custom", rotulo: "Período personalizado" },
+];
+
+function rotuloDoPeriodo(modo: Modo, ref: Date): string {
+  const y = ref.getFullYear();
+  const m = ref.getMonth();
+  if (modo === "mes") return `${MESES[m]} ${y}`;
+  if (modo === "semestre") return m < 6 ? `jan - jun ${y}` : `jul - dez ${y}`;
+  if (modo === "ano") return `${y}`;
+  return "";
+}
+
 const NONE = "__none";
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
@@ -77,7 +95,7 @@ const SIT_META: Record<Situacao, { label: string; cor: string }> = {
   agendado: { label: "Agendados", cor: "bg-warning" },
   confirmado: { label: "Confirmados", cor: "bg-success" },
   conciliado: { label: "Conciliados", cor: "bg-info" },
-  aguardando: { label: "Aguardando aprovação", cor: "bg-violet-500" },
+  aguardando: { label: "Aguardando aprovação", cor: "bg-primary" },
   cancelado: { label: "Cancelados", cor: "bg-muted-foreground" },
 };
 
@@ -567,7 +585,13 @@ export function LancamentosView({
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
         {/* coluna esquerda */}
         <div className="space-y-4">
-          <PeriodoCard modo={modo} setModo={setModo} refData={ref} setRef={setRef} de={de} setDe={setDe} ate={ate} setAte={setAte} />
+          <SeletorPeriodo
+            opcoes={OPCOES_PERIODO}
+            modo={modo} onModo={setModo}
+            referencia={ref} onReferencia={setRef}
+            rotuloDaReferencia={rotuloDoPeriodo}
+            de={de} onDe={setDe} ate={ate} onAte={setAte}
+          />
 
           <Card>
             <CardContent className="py-4">
@@ -816,59 +840,6 @@ function Linha({ rotulo, valor, sub, bold, cor }: { rotulo: string; valor: numbe
       <span>{rotulo}</span>
       <span className={`font-mono ${bold && cor ? cor : ""}`}>{brl(valor)}</span>
     </div>
-  );
-}
-
-function PeriodoCard({
-  modo, setModo, refData, setRef, de, setDe, ate, setAte,
-}: {
-  modo: Modo; setModo: (m: Modo) => void; refData: Date; setRef: (d: Date) => void;
-  de: string; setDe: (s: string) => void; ate: string; setAte: (s: string) => void;
-}) {
-  function desloca(meses: number) {
-    const d = new Date(refData);
-    d.setMonth(d.getMonth() + meses);
-    setRef(meioDia(d));
-  }
-  const passo = modo === "ano" ? 12 : modo === "semestre" ? 6 : 1;
-  const rotulo = (() => {
-    const y = refData.getFullYear();
-    const m = refData.getMonth();
-    if (modo === "mes") return `${MESES[m]} ${y}`;
-    if (modo === "semestre") return m < 6 ? `jan - jun ${y}` : `jul - dez ${y}`;
-    if (modo === "ano") return `${y}`;
-    return "";
-  })();
-  const temNav = modo === "mes" || modo === "semestre" || modo === "ano";
-
-  return (
-    <Card>
-      <CardContent className="space-y-2 py-4">
-        {temNav && (
-          <div className="flex items-center justify-between">
-            <Button variant="ghost" size="icon" onClick={() => desloca(-passo)}><ChevronLeft className="size-4" /></Button>
-            <span className="text-sm font-medium">{rotulo}</span>
-            <Button variant="ghost" size="icon" onClick={() => desloca(passo)}><ChevronRight className="size-4" /></Button>
-          </div>
-        )}
-        <Select value={modo} onValueChange={(v) => setModo((v ?? "todos") as Modo)}>
-          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todo o período</SelectItem>
-            <SelectItem value="mes">Por mês</SelectItem>
-            <SelectItem value="semestre">Por semestre</SelectItem>
-            <SelectItem value="ano">Por ano</SelectItem>
-            <SelectItem value="custom">Período personalizado</SelectItem>
-          </SelectContent>
-        </Select>
-        {modo === "custom" && (
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1"><Label className="text-xs">De</Label><Input type="date" value={de} onChange={(e) => setDe(e.target.value)} /></div>
-            <div className="space-y-1"><Label className="text-xs">Até</Label><Input type="date" value={ate} onChange={(e) => setAte(e.target.value)} /></div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
   );
 }
 

@@ -61,7 +61,7 @@ type DryRun = {
 
 const SEM_COLUNA = "__nenhuma__";
 
-export function ImportadorView({ importacoes }: { importacoes: ImportacaoItem[] }) {
+export function ImportadorView({ importacoes, subnav }: { importacoes: ImportacaoItem[]; subnav?: React.ReactNode }) {
   const router = useRouter();
   const confirm = useConfirm();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -163,6 +163,7 @@ export function ImportadorView({ importacoes }: { importacoes: ImportacaoItem[] 
   return (
     <div className="space-y-5">
       <CabecalhoPagina titulo="Importar dados financeiros" descricao="Migre uma planilha do Meu Dinheiro (ou outro ERP). Os cadastros referenciados são criados automaticamente." />
+      {subnav}
 
       <Passos step={step} />
 

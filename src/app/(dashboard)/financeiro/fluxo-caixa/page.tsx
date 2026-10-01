@@ -4,6 +4,9 @@ import { requirePermission } from "@/lib/session";
 import { fluxoCaixa, projecaoCaixa } from "@/modules/financeiro/caixa/queries";
 import { FluxoProjecaoChart } from "@/components/financeiro/fluxo-projecao-chart";
 import { Wallet, ArrowLeftRight } from "lucide-react";
+import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
+import { KpiCard } from "@/components/ui/kpi-card";
+import { Valor } from "@/components/financeiro/valor";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -32,26 +35,12 @@ export default async function FluxoCaixaPage() {
   return (
     <div className="space-y-6">
       <CabecalhoPagina titulo="Fluxo de caixa" descricao="Saldos e movimentos confirmados." />
+      <NavFinanceiro />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">Saldo total</CardDescription>
-            <CardTitle className={`text-2xl ${saldoTotal < 0 ? "text-destructive" : ""}`}>{brl(saldoTotal)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">Entradas</CardDescription>
-            <CardTitle className="text-2xl text-success">{brl(entradas)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">Saídas</CardDescription>
-            <CardTitle className="text-2xl text-warning">{brl(saidas)}</CardTitle>
-          </CardHeader>
-        </Card>
+        <KpiCard variante="indicador" label="Caixa atual" valor={<Valor valor={saldoTotal} sentido="neutro" />} detalhe="saldo das contas ativas" />
+        <KpiCard variante="indicador" label="Entradas realizadas" valor={<Valor valor={entradas} />} detalhe="desde sempre, só o que já foi recebido" />
+        <KpiCard variante="indicador" label="Saídas realizadas" valor={<Valor valor={-saidas} />} detalhe="desde sempre, só o que já foi pago" />
       </div>
 
       <Card>
@@ -66,7 +55,7 @@ export default async function FluxoCaixaPage() {
               {contas.map((c) => (
                 <li key={c.id} className="flex items-center justify-between py-2">
                   <span>{c.nome}</span>
-                  <span className={`font-mono ${c.saldo < 0 ? "text-destructive" : ""}`}>{brl(c.saldo)}</span>
+                  <Valor valor={c.saldo} sentido="neutro" />
                 </li>
               ))}
             </ul>

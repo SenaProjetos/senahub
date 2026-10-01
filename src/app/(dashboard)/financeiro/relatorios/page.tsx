@@ -9,6 +9,7 @@ import {
 } from "@/modules/financeiro/relatorios/queries";
 import { RelatoriosView } from "@/components/financeiro/relatorios/relatorios-view";
 
+import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 export const metadata: Metadata = { title: "Relatórios" };
 
 function periodoPadrao(sp: { de?: string; ate?: string }) {
@@ -37,7 +38,7 @@ export default async function RelatoriosPage({
     evolucaoMensalCategorias("despesa", ano),
   ]);
   return (
-    <RelatoriosView
+    <RelatoriosView subnav={<NavFinanceiro />}
       dre={dre}
       indicadores={ind}
       despesasCat={despesasCat}

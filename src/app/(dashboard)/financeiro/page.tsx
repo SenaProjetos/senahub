@@ -26,6 +26,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
+import { KpiCard } from "@/components/ui/kpi-card";
+import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
+import { Valor } from "@/components/financeiro/valor";
 import { brl, formatarData } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Financeiro" };
@@ -139,9 +142,10 @@ export default async function FinanceiroPage({
             </>
           }
         />
+        <NavFinanceiro />
 
         {vencidoTotal > 0 && (
-          <Link href="/financeiro/contas">
+          <Link href="/financeiro/contas" className="block">
             <div className="flex items-center gap-3 rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm transition-colors hover:bg-destructive/10">
               <AlertTriangle className="size-5 shrink-0 text-destructive" />
               <span className="flex-1">
@@ -154,11 +158,11 @@ export default async function FinanceiroPage({
           </Link>
         )}
 
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-          <KpiCard titulo="Receita do período" valor={dreMes.totalReceitas} tom="success" />
-          <KpiCard titulo="Despesa do período" valor={dreMes.totalDespesas} tom="destructive" />
-          <KpiCard titulo="Resultado do período" valor={dreMes.resultado} colorido />
-          <KpiCard titulo="Saldo em caixa" valor={caixa.saldoTotal} colorido />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+          <KpiCard variante="indicador" label="Receita do período" valor={<Valor valor={dreMes.totalReceitas} />} detalhe={mesRotulo} />
+          <KpiCard variante="indicador" label="Despesa do período" valor={<Valor valor={-dreMes.totalDespesas} />} detalhe={mesRotulo} />
+          <KpiCard variante="indicador" label="Resultado do período" valor={<Valor valor={dreMes.resultado} />} detalhe="receita menos despesa realizadas" />
+          <KpiCard variante="indicador" label="Caixa atual" valor={<Valor valor={caixa.saldoTotal} sentido="neutro" />} detalhe="saldo das contas ativas" />
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
@@ -191,17 +195,15 @@ export default async function FinanceiroPage({
             <dl className="divide-y text-sm">
               <div className="flex items-center justify-between py-2">
                 <dt className="text-muted-foreground">Receitas</dt>
-                <dd className="font-mono text-success">{brl(dreMes.totalReceitas)}</dd>
+                <dd><Valor valor={dreMes.totalReceitas} /></dd>
               </div>
               <div className="flex items-center justify-between py-2">
                 <dt className="text-muted-foreground">(−) Despesas</dt>
-                <dd className="font-mono text-destructive">{brl(dreMes.totalDespesas)}</dd>
+                <dd><Valor valor={-dreMes.totalDespesas} /></dd>
               </div>
               <div className="flex items-center justify-between py-2 font-semibold">
                 <dt>(=) Resultado</dt>
-                <dd className={`font-mono ${dreMes.resultado < 0 ? "text-destructive" : "text-success"}`}>
-                  {brl(dreMes.resultado)}
-                </dd>
+                <dd><Valor valor={dreMes.resultado} /></dd>
               </div>
             </dl>
           </CardContent>
@@ -230,13 +232,13 @@ export default async function FinanceiroPage({
                 caixa.contas.map((c) => (
                   <li key={c.id} className="flex items-center justify-between gap-2">
                     <span className="truncate">{c.nome}</span>
-                    <span className={`font-mono text-xs ${c.saldo < 0 ? "text-destructive" : ""}`}>{brl(c.saldo)}</span>
+                    <Valor valor={c.saldo} sentido="neutro" className="text-xs" />
                   </li>
                 ))
               )}
               <li className="flex items-center justify-between gap-2 border-t pt-1 font-semibold">
                 <span>Total</span>
-                <span className={`font-mono text-xs ${caixa.saldoTotal < 0 ? "text-destructive" : ""}`}>{brl(caixa.saldoTotal)}</span>
+                <Valor valor={caixa.saldoTotal} sentido="neutro" className="text-xs" />
               </li>
             </ul>
             <FluxoProjecaoChart dados={projecao} saldoInicial={caixa.saldoTotal} />
@@ -387,28 +389,5 @@ export default async function FinanceiroPage({
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-function KpiCard({
-  titulo,
-  valor,
-  tom,
-  colorido = false,
-}: {
-  titulo: string;
-  valor: number;
-  tom?: "success" | "destructive" | "warning";
-  colorido?: boolean;
-}) {
-  const TONS = { success: "text-success", destructive: "text-destructive", warning: "text-warning" } as const;
-  const cor = tom ? TONS[tom] : colorido ? (valor < 0 ? "text-destructive" : "text-success") : "";
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">{titulo}</CardDescription>
-        <CardTitle className={`text-2xl ${cor}`}>{brl(valor)}</CardTitle>
-      </CardHeader>
-    </Card>
   );
 }

@@ -32,11 +32,13 @@ export function ConfiguracoesView({
   aliquotas,
   niveis,
   exclusao,
+  subnav,
 }: {
   config: ConfigFinanceiro;
   aliquotas: Aliquotas;
   niveis: FaixaAlcada[];
   exclusao: { exigir: boolean };
+  subnav?: React.ReactNode;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -58,6 +60,7 @@ export function ConfiguracoesView({
   return (
     <div className="max-w-2xl space-y-6">
       <CabecalhoPagina titulo="Configurações financeiras" descricao="Regras do módulo financeiro." />
+      {subnav}
 
       <Card>
         <CardHeader>
