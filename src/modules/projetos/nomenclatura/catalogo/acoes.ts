@@ -6,6 +6,9 @@ import {
   ACAO_DESARQUIVAR,
   ACAO_DESCER,
   ACAO_EXCLUIR,
+  ACAO_LOTE_ARQUIVAR,
+  ACAO_LOTE_DESARQUIVAR,
+  ACAO_LOTE_EXCLUIR,
   ACAO_SUBIR,
   MOTIVO_LIMPAR_BUSCA,
   MOTIVO_PRIMEIRA,
@@ -13,7 +16,7 @@ import {
   itensDeLoteDisciplinas,
   type DisciplinaParaAcoes,
 } from "@/modules/projetos/acoes-catalogo-disciplina";
-import { fraseCardEmUso, fraseFaseEmUso, fraseSubEmUso } from "./todas";
+import { motivoExclusao } from "./todas";
 import type { AlvoCatalogo } from "./versao";
 
 /**
@@ -91,19 +94,11 @@ export type ContextoLinhaTodas = {
    * os soltaria em silêncio (a FK é `SetNull`) — por isso trava o excluir como o resto do uso.
    */
   usoDocumentos?: number;
+  /** Registros de outras áreas presos ao item (propostas, normas, modelos e tarefas da EAP). */
+  usoVinculos?: number;
   /** Só card. `pode` = sem busca e sem "só selecionados" (a ordem é da categoria inteira). */
   reordenar?: { pode: boolean; temCima: boolean; temBaixo: boolean };
 };
-
-function motivoExcluir(alvo: AlvoCatalogo, uso: number, documentos: number): string | undefined {
-  if (uso > 0) {
-    if (alvo.tipo === "disciplina") return fraseCardEmUso(uso);
-    if (alvo.tipo === "subdisciplina") return fraseSubEmUso(uso);
-    return fraseFaseEmUso(uso);
-  }
-  // Sub já conta documentos em `uso`; card, fase e tipo caem aqui quando só os documentos usam.
-  return documentos > 0 && alvo.tipo !== "subdisciplina" ? fraseSubEmUso(documentos) : undefined;
-}
 
 /**
  * Menu de uma linha da lente Todas. Sem a permissão do tipo da linha, sobra só "Abrir na vN" (ler não
@@ -149,20 +144,28 @@ export function itensDaLinhaTodas(linha: { alvo: AlvoCatalogo; ativo: boolean },
       rotulo: "Excluir",
       icone: Trash2,
       variant: "destructive",
-      desabilitado: motivoExcluir(linha.alvo, ctx.uso, ctx.usoDocumentos ?? 0),
+      desabilitado: motivoExclusao(linha.alvo.tipo, { uso: ctx.uso, documentos: ctx.usoDocumentos, vinculos: ctx.usoVinculos }) ?? undefined,
     },
   );
   return itens;
 }
 
-/** Lote da lente Todas: as mesmas regras de Disciplinas, com a confirmação falando de "itens" (cards e subs misturam). */
+/** Motivos do lote da lente Todas: a seleção mistura cards e subs, então fala de "itens". */
+const MOTIVOS_LOTE_TODAS: Record<string, string> = {
+  [ACAO_EDITAR]: "Só funciona com um item por vez.",
+  [ACAO_LOTE_ARQUIVAR]: "Todos os selecionados já estão arquivados.",
+  [ACAO_LOTE_DESARQUIVAR]: "Todos os selecionados já estão ativos.",
+  [ACAO_LOTE_EXCLUIR]: "Todos os selecionados estão em uso — arquive em vez de excluir.",
+};
+
+/** Lote da lente Todas: as mesmas regras de Disciplinas, com os textos falando de "itens". `uso` = tudo que trava excluir. */
 export function itensDoLoteTodas(selecionadas: readonly DisciplinaParaAcoes[]): AcaoItem[] {
-  return itensDeLoteDisciplinas(selecionadas).map((i) =>
-    i.tipo === "acao" && i.confirmar
-      ? {
-          ...i,
-          confirmar: { ...i.confirmar, titulo: "Excluir os itens selecionados?", descricao: "Eles saem do catálogo em definitivo. Não pode ser desfeito." },
-        }
-      : i,
-  );
+  return itensDeLoteDisciplinas(selecionadas).map((i) => {
+    if (i.tipo !== "acao") return i;
+    const desabilitado = i.desabilitado ? MOTIVOS_LOTE_TODAS[i.id] ?? i.desabilitado : undefined;
+    const confirmar = i.confirmar
+      ? { ...i.confirmar, titulo: "Excluir os itens selecionados?", descricao: "Eles saem do catálogo em definitivo. Não pode ser desfeito." }
+      : undefined;
+    return { ...i, desabilitado, ...(confirmar ? { confirmar } : {}) };
+  });
 }

@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
-import { fraseCardEmUso, fraseSubEmUso } from "@/modules/projetos/nomenclatura/catalogo/todas";
+import { motivoExclusao } from "@/modules/projetos/nomenclatura/catalogo/todas";
+import { projetosDoCard, usoParaExcluir } from "@/modules/projetos/nomenclatura/catalogo/queries";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
@@ -27,6 +28,7 @@ import {
   adicionarDoCatalogoSchema,
   editarCadastroDisciplinaSchema,
   idDisciplinaCatalogoSchema,
+  arquivarDisciplinaCatalogoSchema,
   moverDisciplinaCatalogoSchema,
   renomearCategoriaDisciplinasSchema,
   salvarLayoutPainelProjetoSchema,
@@ -1075,7 +1077,7 @@ export const adicionarDisciplinasDoCatalogo = defineAction(
   },
 );
 
-// ─── Item 15: catálogo de disciplinas (Configurações → Disciplinas) ────────────
+// ─── Item 15: catálogo de disciplinas (Configurações → Disciplinas e nomenclatura) ────────────
 
 const catalogoBase = { modulo: "projetos", recurso: "projetos", permissao: "gerir" } as const;
 
@@ -1237,13 +1239,6 @@ export const iconeSvgDaDisciplina = defineAction(
   },
 );
 
-/** Nº de projetos distintos que usam a disciplina (nome casado sem acento/caixa, como em `catalogoDisciplinasAdmin`). */
-async function usoDaDisciplina(nome: string): Promise<number> {
-  const alvo = normalizar(nome);
-  const linhas = await prisma.disciplina.findMany({ select: { disciplinaTextoLegado: true, projetoId: true } });
-  return new Set(linhas.filter((l) => normalizar(l.disciplinaTextoLegado) === alvo).map((l) => l.projetoId)).size;
-}
-
 /**
  * Lápis do catálogo (spec 2026-09-30, E9): só o que não depende de versão — nome, categoria, ícone,
  * pasta dos arquivos (`codigo`) e numeração. Nunca mexe em sinônimos, faixa de versão nem nas linhas
@@ -1264,7 +1259,7 @@ export const editarCadastroDisciplina = defineAction(
     const dados = normalizarCatalogo(i);
     dados.categoria = await canonizarCategoria(dados.categoria);
     if (dados.codigo !== existe.codigo) {
-      const motivo = motivoCodigoTravado(await usoDaDisciplina(existe.nome));
+      const motivo = motivoCodigoTravado(await projetosDoCard(prisma, { id: i.id, nome: existe.nome }));
       if (motivo) throw new ActionError(motivo);
     }
     await garantirUnicosCatalogo(dados.nome, dados.codigo, [], i.id);
@@ -1297,21 +1292,26 @@ export const editarCadastroDisciplina = defineAction(
   },
 );
 
-/** Arquiva/desarquiva (alterna `ativo`): some do seletor sem apagar; projetos mantêm o nome. */
+/**
+ * Arquiva/desarquiva: some do seletor sem apagar; projetos mantêm o nome. Com `ativo`, grava o estado
+ * pedido — "Arquivar" numa tela velha não desarquiva o que alguém já arquivou. Sem `ativo`, alterna.
+ */
 export const arquivarDisciplinaCatalogo = defineAction(
   {
     ...catalogoBase,
     acao: "arquivar-disciplina-catalogo",
     entidade: "DisciplinaCatalogo",
-    schema: idDisciplinaCatalogoSchema,
+    schema: arquivarDisciplinaCatalogoSchema,
     entidadeId: (_d, i) => i.id,
+    capturarAntes: (i) => prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } }),
   },
   async (i) => {
     const c = await prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } });
     if (!c) throw new ActionError("Disciplina não encontrada.");
-    await prisma.disciplinaCatalogo.update({ where: { id: i.id }, data: { ativo: !c.ativo } });
+    const ativo = i.ativo ?? !c.ativo;
+    if (ativo !== c.ativo) await prisma.disciplinaCatalogo.update({ where: { id: i.id }, data: { ativo } });
     revCatalogo();
-    return { id: i.id, ativo: !c.ativo };
+    return { id: i.id, ativo };
   },
 );
 
@@ -1327,12 +1327,10 @@ export const excluirDisciplinaCatalogo = defineAction(
   async (i) => {
     const c = await prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } });
     if (!c) throw new ActionError("Disciplina não encontrada.");
-    // Mesma contagem (projetos distintos, nome sem caixa/acento) e mesma frase do menu da lista.
-    const uso = await usoDaDisciplina(c.nome);
-    if (uso > 0) throw new ActionError(fraseCardEmUso(uso));
-    // As subs saem junto (cascata) e os documentos delas ficariam sem sub em silêncio (`SetNull`).
-    const documentos = await prisma.documentoDisciplina.count({ where: { subdisciplina: { disciplinaCatalogoId: i.id } } });
-    if (documentos > 0) throw new ActionError(fraseSubEmUso(documentos));
+    // A mesma regra e a mesma frase do menu: projetos, documentos das subs (que saem junto, em
+    // cascata) e registros de outras áreas presos ao card (propostas, normas, EAP…).
+    const motivo = motivoExclusao("disciplina", await usoParaExcluir(prisma, { tipo: "disciplina", id: i.id }, c.nome));
+    if (motivo) throw new ActionError(motivo);
     await prisma.disciplinaCatalogo.delete({ where: { id: i.id } });
     revCatalogo();
     return { id: i.id };

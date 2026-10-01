@@ -76,7 +76,7 @@ export async function carregarListaMestre(
     return {
       ok: false,
       status: 400,
-      erro: `A disciplina ${nomeDisciplina} não tem sigla geral no padrão de nomenclatura do projeto (Configurações → Disciplinas) — sem ela não dá para nomear a Lista Mestre.`,
+      erro: `A disciplina ${nomeDisciplina} não tem sigla geral no padrão de nomenclatura do projeto (Configurações → Disciplinas e nomenclatura) — sem ela não dá para nomear a Lista Mestre.`,
     };
   }
 

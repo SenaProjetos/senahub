@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ import { LinhaComMenu } from "@/components/ui/linha-com-menu";
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
 import { cn } from "@/lib/utils";
 import { acaoUnica } from "@/modules/projetos/nomenclatura/catalogo/acoes";
-import type { LinhaTodas } from "@/modules/projetos/nomenclatura/catalogo/todas";
+import { rotuloSiglas, type LinhaTodas } from "@/modules/projetos/nomenclatura/catalogo/todas";
 import { SiglaOficial, SiglaSinonimo } from "./sigla-chips";
 
 /** Colunas do mockup: caixa · nome · CARD/SUB · existe em · siglas · em uso · ações (a partir de md). */
@@ -25,6 +26,7 @@ export function LinhaTodasItem({
   linha,
   donoNome,
   usoRotulo,
+  usoHref,
   selecionavel,
   marcado,
   onAlternar,
@@ -39,6 +41,8 @@ export function LinhaTodasItem({
   donoNome?: string;
   /** "18 proj.", "3 etapas"… ou null (mostra "—"). */
   usoRotulo: string | null;
+  /** Leva à lista do que usa o item (ex.: projetos com a disciplina). */
+  usoHref?: string;
   selecionavel: boolean;
   marcado: boolean;
   onAlternar: () => void;
@@ -84,7 +88,7 @@ export function LinhaTodasItem({
       <button
         type="button"
         onClick={onVerSiglas}
-        aria-label={`Siglas de ${rotuloLinha} em todas as versões`}
+        aria-label={rotuloSiglas(rotuloLinha, linha.siglas)}
         title="Ver o histórico de siglas"
         className="flex min-w-0 flex-wrap items-center gap-1.5 rounded-sm text-left hover:bg-muted/60 focus-visible:outline-2 focus-visible:outline-ring"
       >
@@ -99,7 +103,13 @@ export function LinhaTodasItem({
           ))
         )}
       </button>
-      <span className="text-muted-foreground">{usoRotulo ?? "—"}</span>
+      {usoRotulo && usoHref ? (
+        <Link href={usoHref} className="text-muted-foreground hover:text-foreground hover:underline" title={`Ver os projetos com ${linha.nome}`}>
+          {usoRotulo}
+        </Link>
+      ) : (
+        <span className="text-muted-foreground">{usoRotulo ?? "—"}</span>
+      )}
       <span className="ml-auto flex items-center justify-end md:ml-0">
         {unica ? (
           <Button

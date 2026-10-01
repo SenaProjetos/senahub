@@ -10,7 +10,7 @@
 import { normalizar } from "@/lib/disciplinas-core";
 import { intersecaoFaixas, valeNaVersao, type FaixaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
 import { SEM_CATEGORIA } from "./apresentacao";
-import type { AlvoCatalogo, CardSnap, CatalogoSnap, SiglaSnap } from "./versao";
+import type { AlvoCatalogo, CardSnap, CatalogoSnap, SiglaSnap, TipoAlvo } from "./versao";
 
 export type SiglaNaFaixa = {
   sigla: string;
@@ -167,4 +167,41 @@ export function fraseSubEmUso(documentos: number): string {
 
 export function fraseFaseEmUso(etapas: number): string {
   return `Usada por ${etapas} ${etapas === 1 ? "etapa" : "etapas"} de disciplina — arquive em vez de excluir.`;
+}
+
+/** Registros de outras áreas presos ao item (propostas, normas, modelos de EAP, tarefas da EAP…). */
+export function fraseVinculos(n: number): string {
+  return n === 1
+    ? "Ligado a 1 registro de outra área (proposta, norma, modelo de EAP…) — arquive em vez de excluir."
+    : `Ligado a ${n} registros de outras áreas (propostas, normas, modelos de EAP…) — arquive em vez de excluir.`;
+}
+
+/**
+ * O que um item do catálogo ainda prende. `uso` é o uso próprio do tipo (card: projetos; sub:
+ * documentos; fase: etapas de disciplina; tipo: 0); `documentos`, os documentos que apontam para a
+ * fase/tipo ou para as subs do card; `vinculos`, o resto (propostas, normas, EAP…).
+ */
+export type UsoItem = { uso: number; documentos?: number; vinculos?: number };
+
+/**
+ * Por que o item não pode ser excluído — a MESMA frase no menu (item inerte) e no servidor (recusa).
+ * Excluir soltaria essas referências em silêncio (FK `SetNull`) ou falharia com erro genérico
+ * (`Restrict`); arquivar tira o item dos cadastros novos sem mexer em nada. `null` = pode excluir.
+ */
+export function motivoExclusao(tipo: TipoAlvo, u: UsoItem): string | null {
+  if (u.uso > 0) {
+    if (tipo === "disciplina") return fraseCardEmUso(u.uso);
+    if (tipo === "subdisciplina") return fraseSubEmUso(u.uso);
+    return fraseFaseEmUso(u.uso);
+  }
+  if ((u.documentos ?? 0) > 0) return fraseSubEmUso(u.documentos ?? 0);
+  if ((u.vinculos ?? 0) > 0) return fraseVinculos(u.vinculos ?? 0);
+  return null;
+}
+
+/** O que o leitor de tela ouve no botão das siglas: elas mesmas, com papel e versão, e o que o botão faz. */
+export function rotuloSiglas(nome: string, siglas: readonly SiglaNaFaixa[]): string {
+  if (siglas.length === 0) return `${nome}: sem sigla. Ver histórico de siglas.`;
+  const lista = siglas.map((s) => `${s.sigla}${s.oficial ? "" : " (sinônimo)"}${s.rotulo ? `, ${s.rotulo}` : ""}`).join("; ");
+  return `Siglas de ${nome}: ${lista}. Ver histórico.`;
 }

@@ -6,5 +6,6 @@ import { numerosDasVersoes } from "@/modules/projetos/nomenclatura/catalogo/quer
 export default async function NomenclaturaRaizPage() {
   await exigirAcessoNomenclatura();
   const numeros = await numerosDasVersoes();
-  redirect(`/configuracoes/nomenclatura/${numeros.length > 0 ? Math.max(...numeros) : 1}`);
+  // Sem versão cadastrada não há lente de versão para abrir: vai para o cadastro ("Todas").
+  redirect(`/configuracoes/nomenclatura/${numeros.length > 0 ? Math.max(...numeros) : "todas"}`);
 }

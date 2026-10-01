@@ -5,6 +5,7 @@ import { TriangleAlert } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   chaveConfirmacao,
+  consequenciaConflito,
   mensagemConflito,
   operacoesComId,
   planejarTransferencia,
@@ -74,7 +75,6 @@ export function AvisoConflitos({
     );
   }
   if (plano.conflitos.length === 0) return null;
-  const anteriores = versao - 1 === 1 ? "Na v1" : `Até a v${versao - 1}`;
   const semSigla = [...new Set(plano.conflitos.filter((c) => c.papel === "oficial").map((c) => c.dono))];
   return (
     <div role="status" className="space-y-3 rounded-sm border border-warning/40 bg-warning/10 p-3 text-sm">
@@ -83,9 +83,7 @@ export function AvisoConflitos({
           <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" />
           <p>
             <strong className="block font-semibold">{mensagemConflito(c)}</strong>
-            {c.papel === "oficial"
-              ? `Se passar para cá, “${c.dono}” fica sem sigla na v${versao}: os arquivos dele deixam de ser reconhecidos pela sigla até você dar uma nova. ${anteriores} nada muda.`
-              : `Para usar aqui, a sigla sai de “${c.dono}” a partir da v${versao}. ${anteriores} ela continua sendo de “${c.dono}” — projetos dessas versões não mudam.`}
+            {consequenciaConflito(c)}
           </p>
         </div>
       ))}

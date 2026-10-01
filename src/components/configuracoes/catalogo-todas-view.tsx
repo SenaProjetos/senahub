@@ -62,8 +62,8 @@ const TODAS_CATEGORIAS = "__todas__";
 type VersaoLista = { numero: number; nome: string; publicadaEm: Date | null; sequenciaPor: string };
 type Alvo = LinhaTodas["alvo"];
 
-/** Item da lista com o que as ações precisam (uso e nome do card-mãe). */
-type Entrada = { linha: LinhaTodas; uso: number; docs: number; dono?: CardTodas };
+/** Item da lista com tudo que trava excluir (`bloqueio` = uso + documentos + vínculos). */
+type Entrada = { linha: LinhaTodas; bloqueio: number; dono?: CardTodas };
 
 export function CatalogoTodasView({
   versoes,
@@ -73,6 +73,7 @@ export function CatalogoTodasView({
   usoSubs,
   usoFases,
   usoDocumentos,
+  usoVinculos,
   categorias,
   aba,
   podeGerir,
@@ -87,6 +88,8 @@ export function CatalogoTodasView({
   usoFases: Record<string, number>;
   /** Documentos por fase/tipo (para travar o excluir; a FK solta o documento em silêncio). */
   usoDocumentos: Record<string, number>;
+  /** Registros de outras áreas presos a cards e fases (propostas, normas, EAP…). */
+  usoVinculos: Record<string, number>;
   categorias: string[];
   aba: AbaTodas;
   podeGerir: boolean;
@@ -147,18 +150,24 @@ export function CatalogoTodasView({
 
   const entradas = useMemo(() => {
     const m = new Map<string, Entrada>();
+    const bloqueio = (l: LinhaTodas) => usoDe(l) + docsDe(l) + (usoVinculos[l.alvo.id] ?? 0);
     for (const c of todas.cards) {
-      m.set(chaveAlvo(c.alvo), { linha: c, uso: cadastro[c.alvo.id]?.uso ?? 0, docs: c.subs.reduce((n, s) => n + (usoSubs[s.alvo.id] ?? 0), 0) });
-      for (const s of c.subs) m.set(chaveAlvo(s.alvo), { linha: s, uso: usoSubs[s.alvo.id] ?? 0, docs: 0, dono: c });
+      m.set(chaveAlvo(c.alvo), { linha: c, bloqueio: bloqueio(c) });
+      for (const s of c.subs) m.set(chaveAlvo(s.alvo), { linha: s, bloqueio: bloqueio(s), dono: c });
     }
-    for (const l of [...todas.fases, ...todas.tipos]) {
-      m.set(chaveAlvo(l.alvo), { linha: l, uso: usoFases[l.alvo.id] ?? 0, docs: usoDocumentos[l.alvo.id] ?? 0 });
-    }
+    for (const l of [...todas.fases, ...todas.tipos]) m.set(chaveAlvo(l.alvo), { linha: l, bloqueio: bloqueio(l) });
     return m;
-  }, [todas, cadastro, usoSubs, usoFases, usoDocumentos]);
+    // `usoDe`/`docsDe` leem as mesmas props listadas aqui.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todas, cadastro, usoSubs, usoFases, usoDocumentos, usoVinculos]);
 
   const totalAtivas = todas.cards.filter((c) => c.ativo).length;
-  const totalArquivadas = todas.cards.length - totalAtivas;
+  const cardsArquivados = todas.cards.length - totalAtivas;
+  // O interruptor revela o que está arquivado NA ABA: cards e subs em Disciplinas; fases ou tipos nas outras.
+  const totalArquivadas =
+    aba === "disciplinas"
+      ? cardsArquivados + todas.cards.reduce((n, c) => n + c.subs.filter((s) => !s.ativo).length, 0)
+      : (aba === "fases" ? todas.fases : todas.tipos).filter((l) => !l.ativo).length;
 
   const hrefAbrir = (l: LinhaTodas) => {
     const n = versaoParaAbrir(l, numeros);
@@ -180,7 +189,7 @@ export function CatalogoTodasView({
     start(async () => {
       const r =
         l.alvo.tipo === "disciplina"
-          ? await arquivarDisciplinaCatalogo({ id: l.alvo.id })
+          ? await arquivarDisciplinaCatalogo({ id: l.alvo.id, ativo: !l.ativo })
           : l.alvo.tipo === "subdisciplina"
             ? await definirAtivoSubdisciplina({ id: l.alvo.id, ativo: !l.ativo })
             : await definirAtivoItemListaMestre({ id: l.alvo.id, ativo: !l.ativo });
@@ -223,20 +232,20 @@ export function CatalogoTodasView({
     () => [...entradas.entries()].filter(([chave]) => selecao.marcado(chave)).map(([chave, e]) => ({ chave, ...e })),
     [entradas, selecao],
   );
-  const itensDoLote = itensDoLoteTodas(alvosSelecao.map((a) => ({ ativo: a.linha.ativo, uso: a.uso + a.docs })));
+  const itensDoLote = itensDoLoteTodas(alvosSelecao.map((a) => ({ ativo: a.linha.ativo, uso: a.bloqueio })));
 
   async function executarLote(item: AcaoItemAcao) {
     const rotulo = (chave: string) => entradas.get(chave)?.linha.nome ?? chave;
     const porChave = (chave: string) => entradas.get(chave)!.linha;
     if (item.id === ACAO_LOTE_ARQUIVAR || item.id === ACAO_LOTE_DESARQUIVAR) {
       const arquivando = item.id === ACAO_LOTE_ARQUIVAR;
-      // Os de card alternam; só entram os que estão no estado de partida certo.
+      // Só entram os que estão no estado de partida certo; cada um grava o estado pedido (tela velha não inverte).
       await lote.executar({
         ids: alvosSelecao.filter((a) => a.linha.ativo === arquivando).map((a) => a.chave),
         acao: async (chave) => {
           const l = porChave(chave);
           return l.alvo.tipo === "disciplina"
-            ? arquivarDisciplinaCatalogo({ id: l.alvo.id })
+            ? arquivarDisciplinaCatalogo({ id: l.alvo.id, ativo: !arquivando })
             : definirAtivoSubdisciplina({ id: l.alvo.id, ativo: !arquivando });
         },
         substantivo: ["item", "itens"],
@@ -246,7 +255,7 @@ export function CatalogoTodasView({
       });
     } else if (item.id === ACAO_LOTE_EXCLUIR) {
       // Subs antes dos cards: excluir o card leva as subs junto e a exclusão da sub falharia.
-      const livres = alvosSelecao.filter((a) => a.uso + a.docs === 0).sort((a, b) => Number(a.linha.alvo.tipo === "disciplina") - Number(b.linha.alvo.tipo === "disciplina"));
+      const livres = alvosSelecao.filter((a) => a.bloqueio === 0).sort((a, b) => Number(a.linha.alvo.tipo === "disciplina") - Number(b.linha.alvo.tipo === "disciplina"));
       const emUso = alvosSelecao.length - livres.length;
       await lote.executar({
         ids: livres.map((a) => a.chave),
@@ -277,6 +286,7 @@ export function CatalogoTodasView({
       versaoAbrir: versaoParaAbrir(l, numeros),
       uso: usoDe(l),
       usoDocumentos: docsDe(l),
+      usoVinculos: usoVinculos[l.alvo.id] ?? 0,
       reordenar,
     });
   }
@@ -408,7 +418,7 @@ export function CatalogoTodasView({
               <EmptyState
                 icon={Shapes}
                 title={filtrando || arquivadas ? "Nada encontrado" : aba === "disciplinas" ? "Nenhuma disciplina no cadastro" : aba === "fases" ? "Nenhuma fase" : "Nenhum tipo"}
-                description={filtrando ? "Ajuste a busca ou os filtros." : "Adicione o primeiro item pelo botão no topo."}
+                description={filtrando ? "Ajuste a busca ou os filtros." : podeGerir ? "Adicione o primeiro item pelo botão no topo." : "Nada cadastrado ainda."}
               />
             </div>
           ) : aba === "disciplinas" ? (
@@ -458,6 +468,7 @@ export function CatalogoTodasView({
                         <LinhaTodasItem
                           linha={c}
                           usoRotulo={usoDe(c) > 0 ? `${usoDe(c)} proj.` : null}
+                          usoHref={usoDe(c) > 0 ? `/projetos?disciplina=${encodeURIComponent(c.nome)}` : undefined}
                           selecionavel={podeNaLinha(c)}
                           marcado={selecao.marcado(chaveAlvo(c.alvo))}
                           onAlternar={() => selecao.alternar(chaveAlvo(c.alvo))}
@@ -495,7 +506,7 @@ export function CatalogoTodasView({
                 <LinhaTodasItem
                   key={l.alvo.id}
                   linha={l}
-                  usoRotulo={aba === "fases" && usoDe(l) > 0 ? `${usoDe(l)} etapas` : null}
+                  usoRotulo={aba === "fases" && usoDe(l) > 0 ? `${usoDe(l)} ${usoDe(l) === 1 ? "etapa" : "etapas"}` : null}
                   selecionavel={false}
                   marcado={false}
                   onAlternar={() => {}}
@@ -514,8 +525,9 @@ export function CatalogoTodasView({
       <p className="text-xs text-muted-foreground">
         {aba === "disciplinas" ? (
           <>
-            {totalAtivas} disciplina(s) ativa(s) · {totalArquivadas} arquivada(s){!arquivadas && totalArquivadas > 0 ? " (ocultas)" : ""}. Selecione várias para
-            arquivar ou excluir de uma vez.
+            {totalAtivas} {totalAtivas === 1 ? "disciplina ativa" : "disciplinas ativas"} · {cardsArquivados}{" "}
+            {cardsArquivados === 1 ? "arquivada" : "arquivadas"}
+            {!arquivadas && cardsArquivados > 0 ? " (ocultas)" : ""}.{podeEditarCard || podeGerir ? " Selecione várias para arquivar ou excluir de uma vez." : ""}
           </>
         ) : (
           "Arquivar tira o item dos cadastros novos; excluir só vale para o que ninguém usa."
@@ -526,7 +538,10 @@ export function CatalogoTodasView({
         <BarraSelecao
           total={alvosSelecao.length}
           itens={itensDoLote}
-          onSelect={(item) => void executarLote(item)}
+          onSelect={(item) => {
+            lapis.cancelar();
+            void executarLote(item);
+          }}
           onLimpar={selecao.limpar}
           substantivo={["item", "itens"]}
           genero="m"

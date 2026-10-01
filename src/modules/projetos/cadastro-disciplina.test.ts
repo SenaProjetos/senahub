@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cadastroMudou, motivoCodigoTravado, normalizarPasta } from "./cadastro-disciplina";
+import { cadastroMudou, motivoCodigoTravado, normalizarPasta, projetosPorCard } from "./cadastro-disciplina";
 import { editarCadastroDisciplinaSchema } from "./schemas";
 
 describe("motivoCodigoTravado", () => {
@@ -53,5 +53,29 @@ describe("cadastroMudou", () => {
     for (const mudanca of [{ nome: "Elétrica 2" }, { categoria: "CIVIL" }, { codigo: "ELX" }, { icone: "zap" }, { iconeSvg: "<svg/>" }, { numeracao: 5000 }, { numeracaoFim: null }]) {
       expect(cadastroMudou(original, { ...original, ...mudanca })).toBe(true);
     }
+  });
+});
+
+describe("projetosPorCard", () => {
+  const cards = [
+    { id: "ele", nome: "Elétrica" },
+    { id: "hid", nome: "Hidrossanitário" },
+  ];
+
+  it("conta projetos distintos pelo nome (sem caixa/acento) e pela FK, sem repetir", () => {
+    const uso = projetosPorCard(cards, [
+      { disciplinaTextoLegado: "Elétrica", projetoId: "p1", disciplinaId: null },
+      { disciplinaTextoLegado: "ELETRICA", projetoId: "p1", disciplinaId: "ele" },
+      { disciplinaTextoLegado: "Elétrica predial", projetoId: "p2", disciplinaId: "ele" },
+      { disciplinaTextoLegado: "elétrica", projetoId: "p3", disciplinaId: null },
+    ]);
+    expect(uso.get("ele")).toBe(3);
+    expect(uso.get("hid")).toBe(0);
+  });
+
+  it("FK de outro card não conta, mesmo com o nome igual a este", () => {
+    const uso = projetosPorCard(cards, [{ disciplinaTextoLegado: "Hidrossanitário", projetoId: "p1", disciplinaId: "ele" }]);
+    expect(uso.get("hid")).toBe(1);
+    expect(uso.get("ele")).toBe(1);
   });
 });

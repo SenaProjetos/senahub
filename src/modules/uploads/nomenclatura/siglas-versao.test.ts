@@ -6,14 +6,11 @@ import {
   faixaDoEspelho,
   intersecaoFaixas,
   linhasParaChecarColisao,
-  rotuloFaixa,
   siglasDasColunas,
   siglasEfetivas,
   siglasNaVersao,
   siglasSaoEspelho,
   valeNaVersao,
-  versaoAteSugerida,
-  versaoMaisNova,
   type DisciplinaComSiglas,
   type PranchaComSiglas,
   type SiglaLinha,
@@ -240,31 +237,6 @@ describe("faixas efetivas", () => {
       { versaoDesde: 1, versaoAte: 3 },
     );
     expect(efetivas).toEqual([linha("AGF", true, 2, 3)]);
-  });
-});
-
-describe("versão padrão das telas", () => {
-  const versoes = [{ numero: 1 }, { numero: 2 }];
-
-  it("'a partir da' abre na versão mais nova (rascunho incluso)", () => {
-    expect(versaoMaisNova(versoes)).toBe(2);
-    expect(versaoMaisNova([])).toBeNull();
-  });
-
-  it("'vale até' sugere a anterior à mais nova, sem ficar antes do início da linha", () => {
-    expect(versaoAteSugerida(versoes, 1)).toBe(1);
-    expect(versaoAteSugerida(versoes, 2)).toBe(2);
-    expect(versaoAteSugerida([{ numero: 1 }], 1)).toBe(1);
-  });
-});
-
-describe("rotuloFaixa", () => {
-  it("só rotula o que não vale sempre", () => {
-    expect(rotuloFaixa({ versaoDesde: 1, versaoAte: null })).toBeNull();
-    expect(rotuloFaixa({ versaoDesde: 2, versaoAte: null })).toBe("a partir da v2");
-    expect(rotuloFaixa({ versaoDesde: 1, versaoAte: 1 })).toBe("só na v1");
-    expect(rotuloFaixa({ versaoDesde: 1, versaoAte: 2 })).toBe("até a v2");
-    expect(rotuloFaixa({ versaoDesde: 2, versaoAte: 3 })).toBe("da v2 à v3");
   });
 });
 

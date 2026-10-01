@@ -583,6 +583,20 @@ export function chaveConfirmacao(plano: PlanoTransferencia): string {
     .join(";");
 }
 
+/**
+ * O que acontece se a pessoa transferir a sigla: o outro dono perde a sigla nesta versão em diante; as
+ * versões anteriores não mudam. Na v1 não há anterior para citar.
+ */
+export function consequenciaConflito(c: ConflitoSigla): string {
+  const anteriores = c.versao <= 1 ? null : c.versao - 1 === 1 ? "Na v1" : `Até a v${c.versao - 1}`;
+  if (c.papel === "oficial") {
+    const base = `Se passar para cá, “${c.dono}” fica sem sigla na v${c.versao}: os arquivos dele deixam de ser reconhecidos pela sigla até você dar uma nova.`;
+    return anteriores ? `${base} ${anteriores} nada muda.` : base;
+  }
+  const base = `Para usar aqui, a sigla sai de “${c.dono}” a partir da v${c.versao}.`;
+  return anteriores ? `${base} ${anteriores} ela continua sendo de “${c.dono}” — projetos dessas versões não mudam.` : base;
+}
+
 /** Frase do conflito — a mesma na tela e no servidor. */
 export function mensagemConflito(c: ConflitoSigla): string {
   return `${c.sigla} é ${c.papel === "oficial" ? "a sigla oficial" : "sinônimo"} de “${c.dono}” na v${c.versao}.`;

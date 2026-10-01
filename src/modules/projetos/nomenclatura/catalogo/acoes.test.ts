@@ -128,6 +128,11 @@ describe("itensDaLinhaTodas (lente Todas as versões)", () => {
     expect(ex(cardAtivo, { uso: 4, usoDocumentos: 3 })).toMatchObject({ desabilitado: "Em uso em 4 projetos — arquive em vez de excluir." });
   });
 
+  it("vínculos de outras áreas (propostas, normas, EAP) também travam o excluir", () => {
+    const ex = itensDaLinhaTodas(cardAtivo, { ...base, reordenar, usoVinculos: 2 }).find((i) => i.id === "excluir");
+    expect(ex).toMatchObject({ desabilitado: "Ligado a 2 registros de outras áreas (propostas, normas, modelos de EAP…) — arquive em vez de excluir." });
+  });
+
   it("sem uso, excluir segue habilitado", () => {
     const ex = itensDaLinhaTodas(cardAtivo, { ...base, reordenar }).find((i) => i.id === "excluir");
     expect(ex && "desabilitado" in ex ? ex.desabilitado : undefined).toBeUndefined();
@@ -176,9 +181,18 @@ describe("itensDoLoteTodas", () => {
   it("arquivar/desarquivar/excluir e editar inerte; exclusão em uso inerte com motivo", () => {
     const itens = itensDoLoteTodas([{ ativo: true, uso: 2 }, { ativo: true, uso: 0 }]);
     expect(ids(itens)).toEqual([ACAO_EDITAR, "sep-estado", "lote-arquivar", "lote-desarquivar", "lote-excluir"]);
-    expect(itens.find((i) => i.id === ACAO_EDITAR)).toMatchObject({ desabilitado: "Só funciona com uma disciplina por vez." });
+    expect(itens.find((i) => i.id === ACAO_EDITAR)).toMatchObject({ desabilitado: "Só funciona com um item por vez." });
     const todasEmUso = itensDoLoteTodas([{ ativo: true, uso: 1 }, { ativo: true, uso: 3 }]);
     expect(todasEmUso.find((i) => i.id === "lote-excluir")).toMatchObject({ desabilitado: expect.stringContaining("em uso") });
+  });
+
+  it("motivos do lote falam de itens, não de disciplinas", () => {
+    expect(itensDoLoteTodas([{ ativo: true, uso: 0 }]).find((i) => i.id === ACAO_EDITAR)).toMatchObject({ desabilitado: "Só funciona com um item por vez." });
+    expect(itensDoLoteTodas([{ ativo: false, uso: 0 }]).find((i) => i.id === "lote-arquivar")).toMatchObject({ desabilitado: "Todos os selecionados já estão arquivados." });
+    expect(itensDoLoteTodas([{ ativo: true, uso: 0 }]).find((i) => i.id === "lote-desarquivar")).toMatchObject({ desabilitado: "Todos os selecionados já estão ativos." });
+    expect(itensDoLoteTodas([{ ativo: true, uso: 2 }]).find((i) => i.id === "lote-excluir")).toMatchObject({
+      desabilitado: "Todos os selecionados estão em uso — arquive em vez de excluir.",
+    });
   });
 
   it("confirmação do lote fala de itens (a seleção mistura cards e subs)", () => {

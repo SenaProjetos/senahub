@@ -162,34 +162,6 @@ export function siglasEfetivas<L extends SiglaLinha>(linhas: readonly L[], ...fa
 }
 
 /**
- * A versão mais nova cadastrada (rascunho incluso): o "a partir da" padrão das telas de catálogo,
- * porque cadastro novo quase sempre é a preparação da próxima versão. Abrir na v1 fazia a sigla
- * nova valer também nos projetos antigos quando alguém esquecia de trocar.
- */
-export function versaoMaisNova(versoes: readonly { numero: number }[]): number | null {
-  return versoes.length === 0 ? null : Math.max(...versoes.map((v) => v.numero));
-}
-
-/**
- * "Vale até" sugerido ao encerrar uma sigla: a versão anterior à mais nova (ela deixa de valer a
- * partir da mais nova), sem ficar antes do início da própria linha.
- */
-export function versaoAteSugerida(versoes: readonly { numero: number }[], versaoDesde: number): number {
-  const nova = versaoMaisNova(versoes) ?? versaoDesde;
-  return Math.max(versaoDesde, nova - 1);
-}
-
-/** Rótulo curto da validade de um item para as listas; null quando vale sempre (o caso comum). */
-export function rotuloFaixa(faixa: FaixaVersao): string | null {
-  const { versaoDesde: de, versaoAte: ate } = faixa;
-  if (de <= 1 && ate === null) return null;
-  if (ate === null) return `a partir da v${de}`;
-  if (de === ate) return `só na v${de}`;
-  if (de <= 1) return `até a v${ate}`;
-  return `da v${de} à v${ate}`;
-}
-
-/**
  * Sigla oficial e sinônimos de um item numa versão. Mais de uma oficial valendo na mesma
  * versão é cadastro inconsistente (a action barra); aqui vence a de `versaoDesde` mais recente,
  * que é a última decisão tomada — as outras não viram sinônimo, para não inventar leitura.

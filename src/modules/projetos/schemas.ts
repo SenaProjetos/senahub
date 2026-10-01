@@ -151,7 +151,7 @@ export const adicionarDoCatalogoSchema = z.object({
   nomes: z.array(z.string().min(1)).min(1),
 });
 
-/** Item 15: CRUD do catálogo de disciplinas (Configurações → Disciplinas). */
+/** Item 15: cadastro do catálogo de disciplinas (Configurações → Disciplinas e nomenclatura). */
 export const criarDisciplinaCatalogoSchema = z.object({
   nome: z.string().trim().min(2, "Informe o nome da disciplina."),
   /** Sigla p/ nomenclatura; normalizada (uppercase, só A-Z0-9) na action. */
@@ -176,10 +176,6 @@ export const criarDisciplinaCatalogoSchema = z.object({
   versaoAte: z.number().int().min(1).nullable().optional(),
 });
 
-export const editarDisciplinaCatalogoSchema = criarDisciplinaCatalogoSchema.extend({
-  id: z.string().min(1),
-});
-
 /**
  * Lápis do catálogo (spec 2026-09-30, E9): só o que não depende de versão. Sem sinônimos nem faixa —
  * esses são da lente de uma versão.
@@ -189,6 +185,8 @@ export const editarCadastroDisciplinaSchema = criarDisciplinaCatalogoSchema
   .extend({ id: z.string().min(1) });
 
 export const idDisciplinaCatalogoSchema = z.object({ id: z.string().min(1) });
+/** `ativo` presente = estado pedido (a tela pode estar velha); ausente = alterna. */
+export const arquivarDisciplinaCatalogoSchema = idDisciplinaCatalogoSchema.extend({ ativo: z.boolean().optional() });
 
 /** Reordena trocando a `ordem` com um vizinho específico (setas ↑↓ na UI). */
 export const moverDisciplinaCatalogoSchema = z.object({

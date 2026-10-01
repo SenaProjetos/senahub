@@ -14,7 +14,8 @@ import {
   type FaixaVersao,
 } from "@/modules/uploads/nomenclatura/siglas-versao";
 import { garantirSiglasSemColisao } from "@/modules/uploads/nomenclatura/siglas-guardas";
-import { fraseFaseEmUso, fraseSubEmUso } from "@/modules/projetos/nomenclatura/catalogo/todas";
+import { motivoExclusao } from "@/modules/projetos/nomenclatura/catalogo/todas";
+import { usoParaExcluir } from "@/modules/projetos/nomenclatura/catalogo/queries";
 
 const base = { modulo: "configuracoes", recurso: "configuracoes", permissao: "gerir" } as const;
 const categoria = z.enum(["folha", "tipo", "fase"]);
@@ -126,6 +127,10 @@ export const editarCatalogoPrancha = defineAction(
       },
     });
     if (!existe) throw new ActionError("Sigla não encontrada.");
+    // Fase e tipo globais são do catálogo por versão (E3): sigla e sinônimos mudam na lente da versão.
+    if (existe.projetoId === null && existe.categoria !== "folha") {
+      throw new ActionError("Fase e tipo do catálogo mudam numa versão, em Disciplinas e nomenclatura.");
+    }
     const sigla = i.sigla.toUpperCase();
     const sinonimos = normalizarSinonimos(sigla, i.sinonimos ?? []);
     // A faixa de uma versão não muda por aqui (A2): quem a muda é a lente da versão.
@@ -223,19 +228,11 @@ export const definirAtivoItemListaMestre = defineAction(
 export const excluirCatalogoPrancha = defineAction(
   { ...base, acao: "excluir-catalogo-prancha", entidade: "PranchaCatalogo", schema: z.object({ id: z.string().min(1) }) },
   async (i) => {
-    // Fase em uso por etapa de disciplina (F4) não é excluída: a FK é RESTRICT, porque a fase
-    // é a identidade da etapa. Sem esta checagem o Postgres recusaria do mesmo jeito, mas a
-    // pessoa veria só "algo deu errado" em vez do motivo e da saída (desativar).
-    const emUso = await prisma.disciplinaEtapa.count({ where: { etapaId: i.id } });
-    if (emUso > 0) {
-      throw new ActionError(fraseFaseEmUso(emUso));
-    }
-    // Documentos que usam a fase, o tipo ou o formato: a FK é `SetNull`, então excluir os soltaria em
-    // silêncio (sem fase/tipo/formato) — a recusa é a mesma frase do menu.
-    const documentos = await prisma.documentoDisciplina.count({
-      where: { OR: [{ faseId: i.id }, { tipoId: i.id }, { tamanhoPapelId: i.id }] },
-    });
-    if (documentos > 0) throw new ActionError(fraseSubEmUso(documentos));
+    // A mesma regra e a mesma frase do menu: etapas de disciplina (FK `Restrict` — a fase é a
+    // identidade da etapa), documentos que usam a fase, o tipo ou o formato, e tarefas da EAP (FK
+    // `SetNull` — excluir as soltaria em silêncio).
+    const motivo = motivoExclusao("prancha", await usoParaExcluir(prisma, { tipo: "prancha", id: i.id }, ""));
+    if (motivo) throw new ActionError(motivo);
     await prisma.pranchaCatalogo.delete({ where: { id: i.id } });
     rev();
     return { id: i.id };

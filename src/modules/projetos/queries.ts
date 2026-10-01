@@ -11,6 +11,7 @@ import {
 } from "@/modules/financeiro/custo/lancamento-custo";
 import { calcularRateioDetalhado } from "@/modules/rh/rateio/queries";
 import { normalizar } from "@/lib/disciplinas-core";
+import { projetosPorCard } from "@/modules/projetos/cadastro-disciplina";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { prontidaoAprovacao, type Prontidao } from "@/modules/projetos/prontidao";
 import { separarRateioPorVinculo } from "@/modules/projetos/rateio-composicao";
@@ -389,18 +390,13 @@ export async function catalogoDisciplinasAdmin() {
       orderBy: [{ ordem: "asc" }, { nome: "asc" }],
       include: { siglas: { select: { sigla: true, oficial: true, versaoDesde: true, versaoAte: true } } },
     }),
-    prisma.disciplina.findMany({ select: { disciplinaTextoLegado: true, projetoId: true } }),
+    prisma.disciplina.findMany({ select: { disciplinaTextoLegado: true, projetoId: true, disciplinaId: true } }),
   ]);
-  const usoPorNome = new Map<string, Set<string>>();
-  for (const d of disciplinas) {
-    const k = normalizar(d.disciplinaTextoLegado);
-    let set = usoPorNome.get(k);
-    if (!set) usoPorNome.set(k, (set = new Set()));
-    set.add(d.projetoId);
-  }
+  // Projetos distintos por card: pelo nome (sem caixa/acento) ou pela FK — a mesma conta do servidor.
+  const usoPorCard = projetosPorCard(itens, disciplinas);
   return itens.map(({ siglas, ...c }) => ({
     ...c,
-    uso: usoPorNome.get(normalizar(c.nome))?.size ?? 0,
+    uso: usoPorCard.get(c.id) ?? 0,
     // Siglas definidas por versão: o formulário trava código/sinônimos (ver `decidirSiglasAoSalvar`).
     siglasPorVersao: !siglasSaoEspelho(siglas, { oficial: c.codigo, sinonimos: c.sinonimos }, c),
   }));

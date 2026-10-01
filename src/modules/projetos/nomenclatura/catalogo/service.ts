@@ -4,6 +4,8 @@ import { ActionError } from "@/lib/with-action";
 import { espelharSiglasDasColunas } from "@/modules/uploads/nomenclatura/siglas-service";
 import { valeNaVersao, type FaixaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
 import { fraseTirarCardEmUso, type AlvoCatalogo, type OperacaoComId, type SiglaVolta } from "./versao";
+import { motivoExclusao } from "./todas";
+import { usoParaExcluir } from "./queries";
 
 /**
  * Grava as operações "de tabela" (`versao.ts`) no banco, dentro da transação de quem chama, com a
@@ -69,21 +71,18 @@ async function siglasAoVoltar(tx: Tx, alvo: AlvoCatalogo, escolhidas: readonly S
   }
 }
 
-/** Item criado na própria versão que "sai" dela: é excluído — se nada o usa ainda. */
+/**
+ * Item criado na própria versão que "sai" dela: é excluído — se nada o usa ainda. Mesma regra da
+ * exclusão na lente Todas (`motivoExclusao`); só a frase de card com projeto é a do "tirar".
+ */
 async function excluirItem(tx: Tx, alvo: AlvoCatalogo, nome: string) {
-  if (alvo.tipo === "disciplina") {
-    const uso = await tx.disciplina.count({ where: { disciplinaTextoLegado: nome } });
-    if (uso > 0) throw new ActionError(fraseTirarCardEmUso(nome, uso));
-    await tx.disciplinaCatalogo.delete({ where: { id: alvo.id } });
-  } else if (alvo.tipo === "subdisciplina") {
-    const uso = await tx.documentoDisciplina.count({ where: { subdisciplinaId: alvo.id } });
-    if (uso > 0) throw new ActionError(`“${nome}” já marca ${uso} documento(s) — arquive-a pela lente “Todas as versões” em vez de tirar da versão em que foi criada.`);
-    await tx.subdisciplinaCatalogo.delete({ where: { id: alvo.id } });
-  } else {
-    const uso = await tx.disciplinaEtapa.count({ where: { etapaId: alvo.id } });
-    if (uso > 0) throw new ActionError(`“${nome}” é usada por ${uso} etapa(s) de disciplina — arquive-a pela lente “Todas as versões”.`);
-    await tx.pranchaCatalogo.delete({ where: { id: alvo.id } });
-  }
+  const uso = await usoParaExcluir(tx, alvo, nome);
+  if (alvo.tipo === "disciplina" && uso.uso > 0) throw new ActionError(fraseTirarCardEmUso(nome, uso.uso));
+  const motivo = motivoExclusao(alvo.tipo, uso);
+  if (motivo) throw new ActionError(motivo);
+  if (alvo.tipo === "disciplina") await tx.disciplinaCatalogo.delete({ where: { id: alvo.id } });
+  else if (alvo.tipo === "subdisciplina") await tx.subdisciplinaCatalogo.delete({ where: { id: alvo.id } });
+  else await tx.pranchaCatalogo.delete({ where: { id: alvo.id } });
 }
 
 async function itemBase(tx: Tx, alvo: AlvoCatalogo) {

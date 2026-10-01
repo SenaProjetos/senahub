@@ -11,6 +11,7 @@ import {
 } from "@/modules/projetos/pranchas/catalogo-actions";
 import type { PranchaCatalogoRow } from "@/modules/projetos/pranchas/queries";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -105,6 +106,7 @@ function SecaoCatalogo({
   projetoId?: string;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, start] = useTransition();
   const [sigla, setSigla] = useState("");
   const [nome, setNome] = useState("");
@@ -150,9 +152,17 @@ function SecaoCatalogo({
     });
   }
 
-  function excluir(id: string) {
+  async function excluir(row: PranchaCatalogoRow) {
+    // Confirma ANTES do `start` (dentro dele o React 19 suspende e o diálogo nunca aparece).
+    const ok = await confirm({
+      title: `Excluir “${row.sigla} — ${row.nome}”?`,
+      description: "A sigla sai do catálogo em definitivo. Esta ação não pode ser desfeita.",
+      confirmLabel: "Excluir",
+      variant: "destructive",
+    });
+    if (!ok) return;
     start(async () => {
-      const r = await excluirCatalogoPrancha({ id });
+      const r = await excluirCatalogoPrancha({ id: row.id });
       if (r.ok) router.refresh();
       else toast.error(r.error);
     });
@@ -195,17 +205,17 @@ function SecaoCatalogo({
                   size="icon"
                   variant="ghost"
                   className="size-7"
-                  aria-label={row.ativo ? "Desativar" : "Ativar"}
-                  title={row.ativo ? "Desativar" : "Ativar"}
+                  aria-label={row.ativo ? `Arquivar ${row.nome}` : `Desarquivar ${row.nome}`}
+                  title={row.ativo ? "Arquivar" : "Desarquivar"}
                   disabled={pending}
                   onClick={() => alternarAtivo(row)}
                 >
                   {row.ativo ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5 text-muted-foreground" />}
                 </Button>
-                <Button size="icon" variant="ghost" className="size-7" aria-label="Editar" onClick={() => setEditar(row)}>
+                <Button size="icon" variant="ghost" className="size-7" aria-label={`Editar ${row.nome}`} onClick={() => setEditar(row)}>
                   <Pencil className="size-3.5" />
                 </Button>
-                <Button size="icon" variant="ghost" className="size-7" aria-label="Excluir" disabled={pending} onClick={() => excluir(row.id)}>
+                <Button size="icon" variant="ghost" className="size-7" aria-label={`Excluir ${row.nome}`} disabled={pending} onClick={() => void excluir(row)}>
                   <Trash2 className="size-3.5" />
                 </Button>
               </li>

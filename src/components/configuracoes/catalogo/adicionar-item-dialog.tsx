@@ -98,6 +98,12 @@ export function AdicionarItemDialog({
               <p className="text-xs text-muted-foreground">
                 O item passa a existir nesta versão e nas seguintes; as anteriores não mudam.
               </p>
+              {opcoesVersao.some((o) => o.numero === escolhida && !o.rascunho) && (
+                <p role="status" className="rounded-sm border border-warning/40 bg-warning/10 p-2 text-xs">
+                  A v{escolhida} já está publicada: o item passa a valer também nos projetos que seguem essa versão. Para não
+                  afetá-los, escolha uma versão em rascunho.
+                </p>
+              )}
             </div>
           )}
           <AvisoConflitos plano={plano} versao={v} confirmado={confirmado} onConfirmar={onConfirmar} />

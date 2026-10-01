@@ -5,6 +5,7 @@ import {
   chaveConfirmacao,
   colisoes,
   conferirVoltas,
+  consequenciaConflito,
   fraseTirarCardEmUso,
   linhasDoItemNaVersao,
   mensagemConflito,
@@ -387,5 +388,26 @@ describe("fraseTirarCardEmUso", () => {
     expect(fraseTirarCardEmUso("Hidrossanitário", 3)).toBe(
       "“Hidrossanitário” já está em 3 projeto(s) — arquive pela lente “Todas as versões” em vez de tirar da versão em que foi criado.",
     );
+  });
+});
+
+describe("consequenciaConflito", () => {
+  const oficial = { sigla: "HID", versao: 2, dono: "Hidrossanitário", papel: "oficial" as const };
+  const sinonimo = { ...oficial, sigla: "ESG", papel: "sinônimo" as const };
+
+  it("fala das versões anteriores quando existem", () => {
+    expect(consequenciaConflito(oficial)).toBe(
+      "Se passar para cá, “Hidrossanitário” fica sem sigla na v2: os arquivos dele deixam de ser reconhecidos pela sigla até você dar uma nova. Na v1 nada muda.",
+    );
+    expect(consequenciaConflito({ ...sinonimo, versao: 3 })).toBe(
+      "Para usar aqui, a sigla sai de “Hidrossanitário” a partir da v3. Até a v2 ela continua sendo de “Hidrossanitário” — projetos dessas versões não mudam.",
+    );
+  });
+
+  it("na v1 não há versão anterior para citar (nada de \"v0\")", () => {
+    expect(consequenciaConflito({ ...oficial, versao: 1 })).toBe(
+      "Se passar para cá, “Hidrossanitário” fica sem sigla na v1: os arquivos dele deixam de ser reconhecidos pela sigla até você dar uma nova.",
+    );
+    expect(consequenciaConflito({ ...sinonimo, versao: 1 })).toBe("Para usar aqui, a sigla sai de “Hidrossanitário” a partir da v1.");
   });
 });

@@ -7,7 +7,10 @@ import {
   fraseCardEmUso,
   fraseFaseEmUso,
   fraseSubEmUso,
+  fraseVinculos,
+  motivoExclusao,
   rotuloExisteEm,
+  rotuloSiglas,
   versaoParaAbrir,
 } from "./todas";
 
@@ -212,5 +215,38 @@ describe("frases de em uso (iguais às do servidor)", () => {
     expect(fraseSubEmUso(1)).toBe("Em uso em 1 documento — arquive em vez de excluir.");
     expect(fraseFaseEmUso(2)).toBe("Usada por 2 etapas de disciplina — arquive em vez de excluir.");
     expect(fraseFaseEmUso(1)).toBe("Usada por 1 etapa de disciplina — arquive em vez de excluir.");
+  });
+});
+
+describe("motivoExclusao (a mesma regra no menu e no servidor)", () => {
+  it("o uso próprio vem primeiro, depois documentos, depois outros vínculos", () => {
+    expect(motivoExclusao("disciplina", { uso: 2, documentos: 5, vinculos: 1 })).toBe(fraseCardEmUso(2));
+    expect(motivoExclusao("disciplina", { uso: 0, documentos: 5, vinculos: 1 })).toBe(fraseSubEmUso(5));
+    expect(motivoExclusao("disciplina", { uso: 0, documentos: 0, vinculos: 1 })).toBe(fraseVinculos(1));
+    expect(motivoExclusao("subdisciplina", { uso: 3 })).toBe(fraseSubEmUso(3));
+    expect(motivoExclusao("prancha", { uso: 2, documentos: 4 })).toBe(fraseFaseEmUso(2));
+    expect(motivoExclusao("prancha", { uso: 0, documentos: 4 })).toBe(fraseSubEmUso(4));
+    expect(motivoExclusao("prancha", { uso: 0, vinculos: 7 })).toBe(fraseVinculos(7));
+  });
+
+  it("nada usa: pode excluir", () => {
+    expect(motivoExclusao("disciplina", { uso: 0 })).toBeNull();
+    expect(motivoExclusao("prancha", { uso: 0, documentos: 0, vinculos: 0 })).toBeNull();
+  });
+
+  it("frase de vínculos no singular e no plural", () => {
+    expect(fraseVinculos(1)).toBe("Ligado a 1 registro de outra área (proposta, norma, modelo de EAP…) — arquive em vez de excluir.");
+    expect(fraseVinculos(3)).toBe("Ligado a 3 registros de outras áreas (propostas, normas, modelos de EAP…) — arquive em vez de excluir.");
+  });
+});
+
+describe("rotuloSiglas (o que o leitor de tela ouve no botão das siglas)", () => {
+  it("lê as siglas com papel e versão, e diz o que o botão faz", () => {
+    const hid = catalogoTodasVersoes(snapBase(), [1, 2]).cards.find((c) => c.alvo.id === "hid")!;
+    expect(rotuloSiglas("Hidrossanitário", hid.siglas)).toBe("Siglas de Hidrossanitário: HID; ESG (sinônimo), só v1; HDR (sinônimo). Ver histórico.");
+  });
+
+  it("sem sigla", () => {
+    expect(rotuloSiglas("Água fria", [])).toBe("Água fria: sem sigla. Ver histórico de siglas.");
   });
 });

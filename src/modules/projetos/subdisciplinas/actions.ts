@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { fraseSubEmUso } from "@/modules/projetos/nomenclatura/catalogo/todas";
+import { motivoExclusao } from "@/modules/projetos/nomenclatura/catalogo/todas";
+import { usoParaExcluir } from "@/modules/projetos/nomenclatura/catalogo/queries";
 
 const base = { modulo: "configuracoes", recurso: "configuracoes", permissao: "gerir" } as const;
 
@@ -46,8 +47,8 @@ export const excluirSubdisciplina = defineAction(
     schema: z.object({ id: z.string().min(1) }),
   },
   async (i) => {
-    const uso = await prisma.documentoDisciplina.count({ where: { subdisciplinaId: i.id } });
-    if (uso > 0) throw new ActionError(fraseSubEmUso(uso));
+    const motivo = motivoExclusao("subdisciplina", await usoParaExcluir(prisma, { tipo: "subdisciplina", id: i.id }, ""));
+    if (motivo) throw new ActionError(motivo);
     await prisma.subdisciplinaCatalogo.delete({ where: { id: i.id } });
     rev();
     return { id: i.id };

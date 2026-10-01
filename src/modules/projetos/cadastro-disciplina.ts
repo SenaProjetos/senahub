@@ -1,3 +1,5 @@
+import { normalizar } from "@/lib/disciplinas-core";
+
 /**
  * Regras do cadastro de uma disciplina do catálogo que não dependem de versão — **puras**, usadas
  * pela tela (para travar o campo) e pela action (para recusar), sempre com a mesma frase (ADR-0002).
@@ -44,4 +46,34 @@ export function cadastroMudou(original: CamposCadastro, atual: CamposCadastro): 
 export function motivoCodigoTravado(uso: number): string | null {
   if (uso <= 0) return null;
   return `Em uso em ${uso} ${uso === 1 ? "projeto" : "projetos"}: mudar agora separaria os arquivos em duas pastas.`;
+}
+
+export type LinhaUsoDisciplina = { disciplinaTextoLegado: string; projetoId: string; disciplinaId: string | null };
+
+/**
+ * Projetos distintos que usam cada card. O elo real ainda é o TEXTO (`disciplinaTextoLegado`, casado
+ * sem caixa/acento), mas a FK `disciplinaId` também conta: excluir o card a zeraria (`SetNull`) e a
+ * pasta dos arquivos já depende dele. Conservador de propósito — na dúvida, conta.
+ */
+export function projetosPorCard(
+  cards: readonly { id: string; nome: string }[],
+  linhas: readonly LinhaUsoDisciplina[],
+): Map<string, number> {
+  const porNome = new Map<string, Set<string>>();
+  const porFk = new Map<string, Set<string>>();
+  const juntar = (m: Map<string, Set<string>>, k: string, projeto: string) => {
+    let set = m.get(k);
+    if (!set) m.set(k, (set = new Set()));
+    set.add(projeto);
+  };
+  for (const l of linhas) {
+    juntar(porNome, normalizar(l.disciplinaTextoLegado), l.projetoId);
+    if (l.disciplinaId) juntar(porFk, l.disciplinaId, l.projetoId);
+  }
+  const saida = new Map<string, number>();
+  for (const c of cards) {
+    const projetos = new Set([...(porNome.get(normalizar(c.nome)) ?? []), ...(porFk.get(c.id) ?? [])]);
+    saida.set(c.id, projetos.size);
+  }
+  return saida;
 }

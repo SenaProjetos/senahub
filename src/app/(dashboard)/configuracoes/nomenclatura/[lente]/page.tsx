@@ -73,6 +73,7 @@ export default async function CatalogoVersaoPage({
         usoSubs={uso.subs}
         usoFases={uso.fases}
         usoDocumentos={uso.documentos}
+        usoVinculos={uso.vinculos}
         categorias={listaCategorias}
         aba={aba as AbaTodas}
         podeGerir={podeGerir}
