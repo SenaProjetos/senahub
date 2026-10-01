@@ -49,7 +49,13 @@ import { chaveLayoutPainelProjeto } from "@/modules/projetos/painel-layout";
 import { deveDeslocarPrazoDoProjeto } from "@/modules/projetos/prazo-reabertura";
 import { faixaConflitante } from "@/modules/projetos/faixa-numeracao";
 import { espelharSiglasDasColunas } from "@/modules/uploads/nomenclatura/siglas-service";
-import { decidirSiglasAoSalvar, linhasParaChecarColisao, siglasDasColunas, type FaixaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
+import {
+  decidirSiglasAoSalvar,
+  faixaDoEspelho,
+  linhasParaChecarColisao,
+  siglasDasColunas,
+  type FaixaVersao,
+} from "@/modules/uploads/nomenclatura/siglas-versao";
 import { garantirFaixaVersao, garantirSiglasSemColisao } from "@/modules/uploads/nomenclatura/siglas-guardas";
 import { versaoVigenteHoje } from "@/modules/projetos/nomenclatura/versoes-queries";
 
@@ -1288,7 +1294,11 @@ export const editarDisciplinaCatalogo = defineAction(
     await prisma.$transaction(async (tx) => {
       await tx.disciplinaCatalogo.update({ where: { id: i.id }, data: { ...dados, ...faixa } });
       if (siglas === "espelhar") {
-        await espelharSiglasDasColunas(tx, { tipo: "disciplina", id: i.id, codigo: dados.codigo, sinonimos: dados.sinonimos }, faixa);
+        await espelharSiglasDasColunas(
+          tx,
+          { tipo: "disciplina", id: i.id, codigo: dados.codigo, sinonimos: dados.sinonimos },
+          faixaDoEspelho(faixaAntes, faixa),
+        );
       }
       if (!nomeMudou) return;
       const candidatas = await tx.disciplina.findMany({

@@ -3,6 +3,7 @@ import { CATALOGO_SENA } from "@/test/catalogo-nomenclatura";
 import {
   catalogosDaVersao,
   decidirSiglasAoSalvar,
+  faixaDoEspelho,
   intersecaoFaixas,
   linhasParaChecarColisao,
   rotuloFaixa,
@@ -146,14 +147,45 @@ describe("decidirSiglasAoSalvar", () => {
       faixaDepois: { versaoDesde: 1, versaoAte: 1 },
     });
     expect(ate1).toBe("manter");
-    const semFim = decidirSiglasAoSalvar({
+    const v1 = { versaoDesde: 1, versaoAte: 1 };
+    const semFim = decidirSiglasAoSalvar({ linhas: hid, colunasAntes: colunas, faixaAntes: v1, colunasDepois: colunas, faixaDepois: sempre });
+    // Ampliar um item espelho regrava o espelho na faixa ampliada — dá as mesmas linhas de antes.
+    expect(semFim).toBe("espelhar");
+    expect(faixaDoEspelho(v1, sempre)).toEqual(sempre);
+    expect(siglasDasColunas(colunas.oficial, colunas.sinonimos, faixaDoEspelho(v1, sempre))).toEqual(hid);
+  });
+
+  it("dado legado: linhas cortadas pelo espelho antigo junto com o item voltam ao ampliar pelo formulário", () => {
+    const v1 = { versaoDesde: 1, versaoAte: 1 };
+    const cortadas = [linha("HID", true, 1, 1), linha("HDR", false, 1, 1)];
+    const colunas = { oficial: "HID", sinonimos: ["HDR"] };
+    expect(decidirSiglasAoSalvar({ linhas: cortadas, colunasAntes: colunas, faixaAntes: v1, colunasDepois: colunas, faixaDepois: sempre })).toBe(
+      "espelhar",
+    );
+  });
+
+  it("edição combinada (tira sinônimo e estreita a validade): o espelho não corta as linhas", () => {
+    const hid = [linha("HID", true), linha("HDR", false), linha("ESG", false)];
+    const decisao = decidirSiglasAoSalvar({
       linhas: hid,
-      colunasAntes: colunas,
-      faixaAntes: { versaoDesde: 1, versaoAte: 1 },
-      colunasDepois: colunas,
-      faixaDepois: sempre,
+      colunasAntes: { oficial: "HID", sinonimos: ["HDR", "ESG"] },
+      faixaAntes: sempre,
+      colunasDepois: { oficial: "HID", sinonimos: ["HDR"] },
+      faixaDepois: { versaoDesde: 1, versaoAte: 1 },
     });
-    expect(semFim).toBe("manter");
+    expect(decisao).toBe("espelhar");
+    expect(faixaDoEspelho(sempre, { versaoDesde: 1, versaoAte: 1 })).toEqual(sempre);
+  });
+});
+
+describe("siglasSaoEspelho pela faixa efetiva", () => {
+  it("item que saiu (linhas em aberto, item até a v1) continua espelho — o formulário não trava a sigla", () => {
+    expect(siglasSaoEspelho([linha("LOG", true)], { oficial: "LOG", sinonimos: [] }, { versaoDesde: 1, versaoAte: 1 })).toBe(true);
+  });
+
+  it("item com sigla encerrada por versão continua 'por versão'", () => {
+    const hid = [linha("HID", true), linha("ESG", false, 1, 1)];
+    expect(siglasSaoEspelho(hid, { oficial: "HID", sinonimos: ["ESG"] }, { versaoDesde: 1, versaoAte: null })).toBe(false);
   });
 });
 

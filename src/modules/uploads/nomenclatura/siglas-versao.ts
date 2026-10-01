@@ -64,17 +64,38 @@ function mesmasLinhas(a: readonly SiglaLinha[], b: readonly SiglaLinha[]): boole
  * a tabela de siglas passa a ser a única fonte.
  */
 export function siglasSaoEspelho(linhas: readonly SiglaLinha[], colunas: ColunasSigla, faixa: FaixaVersao): boolean {
-  return mesmasLinhas(linhas, siglasDasColunas(colunas.oficial, colunas.sinonimos, faixa));
+  // Pela faixa EFETIVA (linha ∩ item): desde a E3 da spec 2026-09-30 as linhas não acompanham a
+  // validade do item, então um item que saiu ("até a v1") com as linhas em aberto segue espelho.
+  return mesmasLinhas(siglasEfetivas(linhas, faixa), siglasDasColunas(colunas.oficial, colunas.sinonimos, faixa));
+}
+
+/** A faixa nova cobre alguma versão que a antiga não cobria? */
+function ampliou(antes: FaixaVersao, depois: FaixaVersao): boolean {
+  if (depois.versaoDesde < antes.versaoDesde) return true;
+  return antes.versaoAte !== null && (depois.versaoAte === null || depois.versaoAte > antes.versaoAte);
+}
+
+/**
+ * Faixa em que o formulário regrava o espelho: a união da validade de antes e de depois. Estreitar o
+ * item nunca corta as linhas (a faixa efetiva já as recorta); ampliar reabre as que o espelho antigo
+ * cortou junto com o item.
+ */
+export function faixaDoEspelho(antes: FaixaVersao, depois: FaixaVersao): FaixaVersao {
+  return {
+    versaoDesde: Math.min(antes.versaoDesde, depois.versaoDesde),
+    versaoAte: antes.versaoAte === null || depois.versaoAte === null ? null : Math.max(antes.versaoAte, depois.versaoAte),
+  };
 }
 
 /**
  * O que fazer com as siglas do item quando o formulário dele (card ou item da Lista Mestre) é
  * salvo — pelo lápis, pelo olho de ativar/desativar, por qualquer caminho:
- * - `manter`: sigla e sinônimos não mudaram. Mudar SÓ a validade do item também cai aqui (E3 da spec
- *   2026-09-30): a faixa efetiva (sigla ∩ item) já recorta as linhas; regravá-las na faixa do item
- *   tirava as siglas junto e "Até a v1 → Sem fim" não as trazia de volta (incidente do Hidrossanitário);
- * - `espelhar`: as linhas ainda eram o espelho das colunas e a sigla ou um sinônimo mudou →
- *   regravar as linhas a partir das colunas novas;
+ * - `manter`: sigla e sinônimos não mudaram e a validade não ampliou. Estreitar o item cai aqui (E3
+ *   da spec 2026-09-30): a faixa efetiva (sigla ∩ item) já recorta as linhas; regravá-las na faixa do
+ *   item tirava as siglas junto (incidente do Hidrossanitário);
+ * - `espelhar`: as linhas ainda eram o espelho das colunas e a sigla ou um sinônimo mudou — ou a
+ *   validade ampliou (reabre linhas que o espelho antigo cortou junto com o item) → regravar as
+ *   linhas a partir das colunas, na faixa de `faixaDoEspelho` (nunca mais estreita que antes);
  * - `bloquear`: o item tem siglas por versão e o formulário tentou mudar sigla/sinônimo pelas
  *   colunas — regravar apagaria as decisões por versão (salvar o lápis recriava o `ESG` "da v1 em
  *   diante" por cima do ESG encerrado na v1).
@@ -86,13 +107,14 @@ export function decidirSiglasAoSalvar(entrada: {
   colunasDepois: ColunasSigla;
   faixaDepois: FaixaVersao;
 }): "espelhar" | "manter" | "bloquear" {
-  const { linhas, colunasAntes, faixaAntes, colunasDepois } = entrada;
+  const { linhas, colunasAntes, faixaAntes, colunasDepois, faixaDepois } = entrada;
   const colunasMudaram = !mesmasLinhas(
     siglasDasColunas(colunasAntes.oficial, colunasAntes.sinonimos),
     siglasDasColunas(colunasDepois.oficial, colunasDepois.sinonimos),
   );
-  if (!colunasMudaram) return "manter";
-  return siglasSaoEspelho(linhas, colunasAntes, faixaAntes) ? "espelhar" : "bloquear";
+  const espelho = siglasSaoEspelho(linhas, colunasAntes, faixaAntes);
+  if (colunasMudaram) return espelho ? "espelhar" : "bloquear";
+  return espelho && ampliou(faixaAntes, faixaDepois) ? "espelhar" : "manter";
 }
 
 /**

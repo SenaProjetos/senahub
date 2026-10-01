@@ -6,7 +6,13 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { normalizarSinonimos, primeiraColisao } from "@/modules/uploads/nomenclatura/colisao-sinonimo";
 import { espelharSiglasDasColunas } from "@/modules/uploads/nomenclatura/siglas-service";
-import { decidirSiglasAoSalvar, linhasParaChecarColisao, siglasDasColunas, type FaixaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
+import {
+  decidirSiglasAoSalvar,
+  faixaDoEspelho,
+  linhasParaChecarColisao,
+  siglasDasColunas,
+  type FaixaVersao,
+} from "@/modules/uploads/nomenclatura/siglas-versao";
 import { garantirFaixaVersao, garantirSiglasSemColisao } from "@/modules/uploads/nomenclatura/siglas-guardas";
 
 const base = { modulo: "configuracoes", recurso: "configuracoes", permissao: "gerir" } as const;
@@ -164,7 +170,11 @@ export const editarCatalogoPrancha = defineAction(
         data: { sigla, nome: i.nome, ativo: i.ativo, sinonimos, ...faixa },
       });
       if (siglas === "espelhar") {
-        await espelharSiglasDasColunas(tx, { tipo: "prancha", id: i.id, categoria: existe.categoria, sigla, sinonimos }, faixa);
+        await espelharSiglasDasColunas(
+          tx,
+          { tipo: "prancha", id: i.id, categoria: existe.categoria, sigla, sinonimos },
+          faixaDoEspelho(faixaAntes, faixa),
+        );
       }
     });
     rev();
