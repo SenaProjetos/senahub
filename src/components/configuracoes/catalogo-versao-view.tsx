@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -173,7 +173,12 @@ export function CatalogoVersaoView({
     return itensDaLinhaCatalogo(linha, { podeGerir, podeEditarCard, versao: v, motivoTirar });
   };
 
+  const pedidoAtual = useRef(0);
+
   function aoSelecionar(linha: LinhaCatalogo, acao: AcaoItemAcao) {
+    // Toda escolha invalida a leitura de ícone ainda em curso: o menu segue clicável enquanto ela não
+    // volta, e a resposta atrasada não pode trocar o diálogo aberto depois.
+    const pedido = ++pedidoAtual.current;
     if (acao.id === ACAO_SIGLAS) setDialogo({ tipo: "siglas", rotulo: linha.nome, alvo: linha.alvo });
     else if (acao.id === ACAO_ADICIONAR_SUB) {
       setDialogo({
@@ -191,7 +196,9 @@ export function CatalogoVersaoView({
       // O SVG do ícone vem só agora, não com a página inteira.
       start(async () => {
         const r = await iconeSvgDaDisciplina({ id: linha.alvo.id });
-        if (r.ok) setDialogo({ tipo: "editar", nome: linha.nome, alvo: linha.alvo, iconeSvg: r.data.iconeSvg });
+        if (pedido !== pedidoAtual.current) return;
+        // Diálogo aberto por outro caminho no meio tempo (cabeçalho, "Voltar"): fica o que está na tela.
+        if (r.ok) setDialogo((atual) => atual ?? { tipo: "editar", nome: linha.nome, alvo: linha.alvo, iconeSvg: r.data.iconeSvg });
         else toast.error(r.error);
       });
     }

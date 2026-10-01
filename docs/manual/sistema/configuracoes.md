@@ -130,6 +130,7 @@ voltam com ele.
 
 Cada linha tem o botão **⋯** (ou o botão direito do mouse, com as mesmas ações): **Siglas nesta
 versão**, **Adicionar sub-disciplina** (nos cards), **Editar cadastro** e **Tirar da versão**.
+Quem só pode editar o cadastro (sem gerir a configuração) vê o lápis direto na linha, sem o ⋯.
 **Editar cadastro** (o lápis) mexe só no que vale para todas as versões — nada de sigla ou de
 versão:
 - **disciplina:** nome (os projetos que já usam o nome seguem junto), categoria, ícone,
@@ -138,6 +139,8 @@ versão:
   projeto usa** a disciplina; depois disso o campo fica travado e diz quantos projetos usam,
   porque mudar separaria os arquivos em duas pastas;
 - **sub-disciplina, fase e tipo:** só o nome.
+
+O botão **Salvar** do lápis só fica ativo depois que algum campo muda.
 
 **Pelas telas de catálogo** (Disciplinas e Lista Mestre) também dá:
 - cada disciplina, sub-disciplina e item da Lista Mestre tem **"Vale a partir da / Até a"**;
