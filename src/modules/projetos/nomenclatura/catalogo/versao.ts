@@ -388,12 +388,11 @@ function rotuloItem(snap: CatalogoSnap, alvo: AlvoCatalogo): string {
 }
 
 /**
- * A mesma sigla com mais de um dono numa versão, em cada "lugar" do nome: card e sub disputam o
- * lugar da disciplina; fase e tipo, cada um o seu. Conta item arquivado (mesma regra da checagem do
- * diálogo de siglas) e usa a validade efetiva (sigla ∩ item ∩ card).
+ * Todos os donos de cada sigla na versão, por "lugar" do nome (chave `<lugar>|<SIGLA>`): card e sub
+ * disputam o lugar da disciplina; fase e tipo, cada um o seu. Conta item arquivado (mesma regra da
+ * checagem do diálogo de siglas) e usa a validade efetiva (sigla ∩ item ∩ card).
  */
-export function colisoes(snap: CatalogoSnap, versoes: readonly number[]): Colisao[] {
-  const saida: Colisao[] = [];
+function donosNaVersao(snap: CatalogoSnap, versao: number): Map<string, { sigla: string; donos: Colisao["donos"] }> {
   const lugares: { nome: string; alvos: AlvoCatalogo[] }[] = [
     {
       nome: "disciplina",
@@ -405,28 +404,60 @@ export function colisoes(snap: CatalogoSnap, versoes: readonly number[]): Colisa
     { nome: "fase", alvos: snap.itens.filter((i) => i.categoria === "fase").map((i) => ({ tipo: "prancha" as const, id: i.id })) },
     { nome: "tipo", alvos: snap.itens.filter((i) => i.categoria === "tipo").map((i) => ({ tipo: "prancha" as const, id: i.id })) },
   ];
-  for (const versao of versoes) {
-    for (const lugar of lugares) {
-      const porSigla = new Map<string, Colisao["donos"]>();
-      for (const alvo of lugar.alvos) {
-        const item = itemDe(snap, alvo);
-        if (!item) continue;
-        const faixas = faixasDoItem(snap, alvo);
-        for (const l of item.siglas) {
-          let faixa: FaixaVersao | null = l;
-          for (const f of faixas) faixa = faixa && intersecaoFaixas(faixa, f);
-          if (!faixa || !valeNaVersao(faixa, versao)) continue;
-          const sigla = l.sigla.trim().toUpperCase();
-          const donos = porSigla.get(sigla) ?? [];
-          if (!donos.some((d) => d.chave === chaveAlvo(alvo))) {
-            donos.push({ chave: chaveAlvo(alvo), alvo, rotulo: rotuloItem(snap, alvo), linhaId: l.id });
-          }
-          porSigla.set(sigla, donos);
+  const saida = new Map<string, { sigla: string; donos: Colisao["donos"] }>();
+  for (const lugar of lugares) {
+    for (const alvo of lugar.alvos) {
+      const item = itemDe(snap, alvo);
+      if (!item) continue;
+      const faixas = faixasDoItem(snap, alvo);
+      for (const l of item.siglas) {
+        let faixa: FaixaVersao | null = l;
+        for (const f of faixas) faixa = faixa && intersecaoFaixas(faixa, f);
+        if (!faixa || !valeNaVersao(faixa, versao)) continue;
+        const sigla = l.sigla.trim().toUpperCase();
+        const chave = `${lugar.nome}|${sigla}`;
+        const entrada = saida.get(chave) ?? { sigla, donos: [] };
+        if (!entrada.donos.some((d) => d.chave === chaveAlvo(alvo))) {
+          entrada.donos.push({ chave: chaveAlvo(alvo), alvo, rotulo: rotuloItem(snap, alvo), linhaId: l.id });
         }
+        saida.set(chave, entrada);
       }
-      for (const [sigla, donos] of porSigla) {
-        if (donos.length > 1) saida.push({ versao, sigla, donos });
-      }
+    }
+  }
+  return saida;
+}
+
+/**
+ * Colisões que existem em `depois` e foram criadas pela mudança: em cada uma, `novos` são os donos
+ * que não tinham a sigla em `antes` naquela versão (item criado, sigla nova, item que voltou e
+ * reexpôs as siglas dele ou das subs) e `antigos`, os que já tinham. Colisão antiga, sem dono novo,
+ * fica de fora — ela não é desta edição.
+ */
+export function colisoesNovas(
+  antes: CatalogoSnap,
+  depois: CatalogoSnap,
+  versoes: readonly number[],
+): { colisao: Colisao; novos: Colisao["donos"]; antigos: Colisao["donos"] }[] {
+  const saida: { colisao: Colisao; novos: Colisao["donos"]; antigos: Colisao["donos"] }[] = [];
+  for (const versao of versoes) {
+    const eram = donosNaVersao(antes, versao);
+    for (const [chave, { sigla, donos }] of donosNaVersao(depois, versao)) {
+      if (donos.length < 2) continue;
+      const tinham = new Set((eram.get(chave)?.donos ?? []).map((d) => d.chave));
+      const novos = donos.filter((d) => !tinham.has(d.chave));
+      if (novos.length === 0) continue;
+      saida.push({ colisao: { versao, sigla, donos }, novos, antigos: donos.filter((d) => tinham.has(d.chave)) });
+    }
+  }
+  return saida;
+}
+
+/** A mesma sigla com mais de um dono numa versão, no mesmo "lugar" do nome (ver `donosNaVersao`). */
+export function colisoes(snap: CatalogoSnap, versoes: readonly number[]): Colisao[] {
+  const saida: Colisao[] = [];
+  for (const versao of versoes) {
+    for (const { sigla, donos } of donosNaVersao(snap, versao).values()) {
+      if (donos.length > 1) saida.push({ versao, sigla, donos });
     }
   }
   return saida;
@@ -483,22 +514,12 @@ export type PlanoTransferencia = {
   recusa: string | null;
 };
 
-/** Chaves (`chaveAlvo`) dos itens que a leva mexe ou cria — os "novos donos" de uma sigla. */
-function alvosDaLeva(ops: readonly OperacaoComId[]): Set<string> {
-  const chaves = new Set<string>();
-  for (const op of ops) {
-    if (op.tipo === "card-novo") chaves.add(chaveAlvo({ tipo: "disciplina", id: idCardNovo(op.chave) }));
-    else if (op.tipo === "sub-nova") chaves.add(chaveAlvo({ tipo: "subdisciplina", id: `novo-sub:${op.id}` }));
-    else if (op.tipo === "item-novo") chaves.add(chaveAlvo({ tipo: "prancha", id: `novo-item:${op.id}` }));
-    else if (op.tipo !== "sai") chaves.add(chaveAlvo(op.alvo));
-  }
-  return chaves;
-}
-
 /**
  * O que salvar `ops` na versão causa nas siglas dos OUTROS itens: quem perde a sigla se a tela
  * confirmar "Tirar de lá e usar aqui" (a regra da importação, "a planilha manda"), ou por que não
  * dá. Roda na tela (prévia, antes de salvar) e no servidor (que recalcula contra o banco).
+ * "Conflito desta edição" = colisão com um dono novo (`colisoesNovas`): pega também a sigla de uma
+ * sub que volta a valer com o card, e ignora colisão que já existia antes, sem mudança.
  */
 export function planejarTransferencia(
   snap: CatalogoSnap,
@@ -506,40 +527,37 @@ export function planejarTransferencia(
   ops: readonly OperacaoComId[],
   versoesExistentes: readonly number[],
 ): PlanoTransferencia {
-  const daLeva = alvosDaLeva(ops);
   const depois = simular(snap, versao, ops);
   const conflitos: ConflitoSigla[] = [];
   const encerrar: OperacaoComId[] = [];
-  for (const col of colisoes(depois, [versao])) {
-    const novos = col.donos.filter((d) => daLeva.has(d.chave));
-    if (novos.length === 0) continue; // conflito antigo, que esta edição não toca
+  for (const { colisao, novos, antigos } of colisoesNovas(snap, depois, [versao])) {
     if (novos.length > 1) {
       return {
         conflitos: [],
         encerrar: [],
-        recusa: `A sigla ${col.sigla} apareceria duas vezes: ${novos.map((d) => `“${d.rotulo}”`).join(" e ")}.`,
+        recusa: `A sigla ${colisao.sigla} apareceria duas vezes: ${novos.map((d) => `“${d.rotulo}”`).join(" e ")}.`,
       };
     }
-    for (const outro of col.donos.filter((d) => !daLeva.has(d.chave))) {
+    for (const outro of antigos) {
       const linha = linhaDoItem(depois, outro.alvo, outro.linhaId);
-      conflitos.push({ sigla: col.sigla, versao, dono: outro.rotulo, papel: linha?.oficial ? "oficial" : "sinônimo" });
+      conflitos.push({ sigla: colisao.sigla, versao, dono: outro.rotulo, papel: linha?.oficial ? "oficial" : "sinônimo" });
       encerrar.push({
         id: `encerrar:${outro.chave}:${outro.linhaId}`,
         tipo: "encerrar-sigla",
         alvo: outro.alvo,
         linhaId: outro.linhaId,
-        sigla: col.sigla,
+        sigla: colisao.sigla,
       });
     }
   }
   const final = simular(snap, versao, [...encerrar, ...ops]);
-  const sobra = colisoes(final, versoesAPartirDe(versao, versoesExistentes)).find((c) => c.donos.some((d) => daLeva.has(d.chave)));
+  const [sobra] = colisoesNovas(snap, final, versoesAPartirDe(versao, versoesExistentes));
   if (sobra) {
-    const outros = sobra.donos.filter((d) => !daLeva.has(d.chave)).map((d) => `“${d.rotulo}”`);
+    const outros = sobra.antigos.map((d) => `“${d.rotulo}”`);
     return {
       conflitos,
       encerrar,
-      recusa: `Na v${sobra.versao}, a sigla ${sobra.sigla} já é de ${outros.join(" e ") || "outro item"}. Troque a sigla de lá nessa versão antes.`,
+      recusa: `Na v${sobra.colisao.versao}, a sigla ${sobra.colisao.sigla} já é de ${outros.join(" e ") || "outro item"}. Troque a sigla de lá nessa versão antes.`,
     };
   }
   return { conflitos, encerrar, recusa: null };

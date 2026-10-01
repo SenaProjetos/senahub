@@ -136,4 +136,22 @@ describe("desmarcar", () => {
     const p = planejarImportacao(catalogoDev(), 2, dupla, { versoesExistentes: [1, 2] });
     expect(p.erros.some((e) => e.includes("XYZ aparece duas vezes"))).toBe(true);
   });
+
+  it("card que volta pela planilha com uma sigla que hoje é de outro: a planilha manda (revisão final)", () => {
+    // Acústica saiu na v2 com a linha ACU em aberto (E3); Arquitetura ganhou ACU como sinônimo na v2.
+    const snap = catalogoDev();
+    snap.cards.find((c) => c.id === "acu")!.versaoAte = 1;
+    snap.cards.find((c) => c.id === "arq")!.siglas.push({ id: "arq-acu", sigla: "ACU", oficial: false, versaoDesde: 2, versaoAte: null });
+    const folha = lerPlanilhaCatalogo([
+      ["ACÚSTICA", "ACU", "CARD"],
+      ["ARQUITETURA", "ARQ", "CARD"],
+    ]);
+    const p = planejarImportacao(snap, 3, folha, { versoesExistentes: [1, 2, 3] });
+    expect(p.erros).toEqual([]);
+    const consequencia = p.itens.find((i) => i.grupo === "consequencias");
+    expect(consequencia?.operacao).toMatchObject({ tipo: "encerrar-sigla", alvo: { tipo: "disciplina", id: "arq" }, sigla: "ACU" });
+    expect(consequencia?.dependeDe).toHaveLength(1);
+    const depois = simular(snap, 3, operacoesEscolhidas(p.itens, new Set()));
+    expect(colisoes(depois, [3])).toEqual([]);
+  });
 });

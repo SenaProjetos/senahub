@@ -17,7 +17,7 @@ import { normalizar } from "@/lib/disciplinas-core";
 import type { LinhaPlanilha, PlanilhaCatalogo } from "./planilha";
 import {
   chaveAlvo,
-  colisoes,
+  colisoesNovas,
   idCardNovo,
   linhaDoItem,
   siglasDoItemNaVersao,
@@ -384,15 +384,30 @@ export function planejarImportacao(
   // ── 5. Conflitos de sigla: a planilha manda na versão ──
   const escolhidas = operacoesEscolhidas(itens, desmarcados);
   const depois = simular(snap, versao, escolhidas);
-  for (const col of colisoes(depois, [versao])) {
-    const daPlanilha = col.donos.filter((d) => d.linhaId.startsWith("nova:"));
-    if (daPlanilha.length === 0) continue; // conflito antigo, que a importação não criou
+  // "Da planilha" = dono novo da sigla na versão (`colisoesNovas`): sigla nova, item criado, ou item
+  // que volta com as linhas de sempre (desde a E3, "entra" não regrava as siglas com id `nova:`).
+  const opPorChave = new Map<string, string>();
+  for (const op of escolhidas) {
+    if (op.tipo === "card-novo") opPorChave.set(chaveAlvo({ tipo: "disciplina", id: idCardNovo(op.chave) }), op.id);
+    else if (op.tipo === "sub-nova") opPorChave.set(chaveAlvo({ tipo: "subdisciplina", id: `novo-sub:${op.id}` }), op.id);
+    else if (op.tipo === "item-novo") opPorChave.set(chaveAlvo({ tipo: "prancha", id: `novo-item:${op.id}` }), op.id);
+    else if (op.tipo === "entra" || !opPorChave.has(chaveAlvo(op.alvo))) opPorChave.set(chaveAlvo(op.alvo), op.id);
+  }
+  /** A operação que pôs o dono na versão — de que a consequência depende (desmarcar uma derruba a outra). */
+  const causaDe = (dono: { chave: string; alvo: AlvoCatalogo; linhaId: string }): string | undefined => {
+    if (dono.linhaId.startsWith("nova:")) return dono.linhaId.slice("nova:".length).split("#")[0];
+    const direta = opPorChave.get(dono.chave);
+    if (direta || dono.alvo.tipo !== "subdisciplina") return direta;
+    const sub = depois.subs.find((s) => s.id === dono.alvo.id); // sub que voltou a valer com o card
+    return sub ? opPorChave.get(chaveAlvo({ tipo: "disciplina", id: sub.cardId })) : undefined;
+  };
+  for (const { colisao: col, novos: daPlanilha, antigos } of colisoesNovas(snap, depois, [versao])) {
     if (daPlanilha.length > 1) {
       erros.push(`A sigla ${col.sigla} aparece duas vezes na planilha: ${daPlanilha.map((d) => `“${d.rotulo}”`).join(" e ")}.`);
       continue;
     }
-    const causa = daPlanilha[0].linhaId.slice("nova:".length).split("#")[0];
-    for (const outro of col.donos.filter((d) => !d.linhaId.startsWith("nova:"))) {
+    const causa = causaDe(daPlanilha[0]);
+    for (const outro of antigos) {
       const linhaOutro = linhaDoItem(depois, outro.alvo, outro.linhaId);
       const id = `encerrar:${outro.chave}:${outro.linhaId}`;
       add({
@@ -401,7 +416,7 @@ export function planejarImportacao(
         descricao: `${col.sigla} deixa de ser ${linhaOutro?.oficial ? "a sigla" : "sinônimo"} de “${outro.rotulo}” a partir da v${versao}`,
         detalhe: linhaOutro?.oficial ? `“${outro.rotulo}” fica sem sigla oficial na v${versao} — defina outra depois, se precisar.` : undefined,
         opcional: false,
-        dependeDe: [causa],
+        dependeDe: causa ? [causa] : [],
         operacao: { id, tipo: "encerrar-sigla", alvo: outro.alvo, linhaId: outro.linhaId, sigla: col.sigla },
       });
     }
@@ -410,8 +425,7 @@ export function planejarImportacao(
   // ── 6. Conferência final: nada pode sobrar com dois donos, nesta versão ou nas seguintes ──
   const final = simular(snap, versao, operacoesEscolhidas(itens, desmarcados));
   const versoes = versoesAPartirDe(versao, opcoes.versoesExistentes ?? [versao]);
-  for (const col of colisoes(final, versoes)) {
-    if (!col.donos.some((d) => d.linhaId.startsWith("nova:"))) continue;
+  for (const { colisao: col } of colisoesNovas(snap, final, versoes)) {
     erros.push(`Na v${col.versao}, a sigla ${col.sigla} ficaria com dois donos: ${col.donos.map((d) => `“${d.rotulo}”`).join(" e ")}.`);
   }
 

@@ -213,6 +213,34 @@ describe("planejarTransferencia", () => {
   });
 });
 
+describe("planejarTransferencia — donos novos (revisão final)", () => {
+  it("card que volta reexpõe a sigla de uma sub dele: o conflito da sub aparece", () => {
+    const snap = catalogoDev();
+    snap.cards.find((c) => c.id === "acu")!.versaoAte = 1;
+    snap.subs.push({
+      id: "s-iso",
+      cardId: "acu",
+      nome: "Isolamento",
+      ativo: true,
+      ordem: 0,
+      versaoDesde: 1,
+      versaoAte: null,
+      siglas: [{ id: "s-iso-s0", sigla: "ISO", oficial: true, versaoDesde: 1, versaoAte: null }],
+    });
+    snap.cards.find((c) => c.id === "arq")!.siglas.push({ id: "arq-iso", sigla: "ISO", oficial: false, versaoDesde: 2, versaoAte: null });
+    const ops = operacoesComId([{ tipo: "entra", alvo: D("acu"), siglas: [{ sigla: "ACU", oficial: true }] }]);
+    const p = planejarTransferencia(snap, 2, ops, [1, 2]);
+    expect(p.conflitos).toEqual([{ sigla: "ISO", versao: 2, dono: "Arquitetura", papel: "sinônimo" }]);
+  });
+
+  it("colisão que já existia, sem mudança, não força transferência", () => {
+    const snap = catalogoDev();
+    snap.cards.find((c) => c.id === "gas")!.siglas.push({ id: "gas-ele", sigla: "ELE", oficial: false, versaoDesde: 1, versaoAte: null });
+    const ops = operacoesComId([{ tipo: "sinonimo-novo", alvo: D("ele"), sigla: "ELT" }]);
+    expect(planejarTransferencia(snap, 2, ops, [1, 2])).toEqual({ conflitos: [], encerrar: [], recusa: null });
+  });
+});
+
 describe("resolverLeva", () => {
   const ops = operacoesComId([{ tipo: "sub-nova", cardId: "hid", nome: "Esgoto", sigla: "ESG" }]);
   const plano = () => planejarTransferencia(catalogoDev(), 2, ops, [1, 2]);
