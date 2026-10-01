@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { ActionError, defineAction } from "@/lib/with-action";
 import { descricaoDaRetirada, motivoDoRateio, percentualParaBp, ratearEntreSocios, type SocioParaRateio } from "@/modules/financeiro/socios/calculo";
+import { adiantarLucrosSchema, distribuirLucrosSchema } from "@/modules/financeiro/socios/schemas";
 
 /**
  * Retiradas de sócio que viram dinheiro de verdade (F6B): distribuição de lucros dividida pelo
@@ -14,22 +14,6 @@ import { descricaoDaRetirada, motivoDoRateio, percentualParaBp, ratearEntreSocio
  * Os valores por sócio são visíveis a quem vê o Financeiro (D5), como o pró-labore já era.
  */
 const base = { modulo: "financeiro", recurso: "financeiro", permissao: "gerir", entidade: "Lancamento" } as const;
-
-const dataIso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Informe a data.");
-
-export const distribuirLucrosSchema = z.object({
-  /** Em reais. */
-  valor: z.number().positive("O valor precisa ser maior que zero.").max(100_000_000),
-  data: dataIso,
-  observacao: z.string().trim().max(200).optional(),
-});
-
-export const adiantarLucrosSchema = z.object({
-  socioId: z.string().min(1, "Escolha o sócio."),
-  valor: z.number().positive("O valor precisa ser maior que zero.").max(100_000_000),
-  data: dataIso,
-  observacao: z.string().trim().max(200).optional(),
-});
 
 function rev() {
   revalidatePath("/financeiro/cadastros");
