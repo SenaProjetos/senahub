@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { exigirAcessoNomenclatura } from "@/modules/projetos/nomenclatura/acesso";
 import { listarVersoesAdmin } from "@/modules/projetos/nomenclatura/versoes-queries";
-import { carregarCatalogoSnap } from "@/modules/projetos/nomenclatura/catalogo/queries";
+import { carregarCatalogoSnap, usoDoCatalogo } from "@/modules/projetos/nomenclatura/catalogo/queries";
 import { catalogoNaVersao } from "@/modules/projetos/nomenclatura/catalogo/versao";
+import { catalogoTodasVersoes } from "@/modules/projetos/nomenclatura/catalogo/todas";
 import { catalogosPranchaConfig } from "@/modules/projetos/pranchas/queries";
 import { catalogoDisciplinasAdmin } from "@/modules/projetos/queries";
 import { CatalogoVersaoView, type CadastroCard, type AbaCatalogo } from "@/components/configuracoes/catalogo-versao-view";
+import { CatalogoTodasView, type AbaTodas } from "@/components/configuracoes/catalogo-todas-view";
 import { CatalogoFolhasView } from "@/components/configuracoes/catalogo-folhas-view";
 import type { AbaNomenclatura } from "@/components/configuracoes/catalogo/abas-catalogo";
 
@@ -58,8 +60,26 @@ export default async function CatalogoVersaoPage({
     ]),
   );
 
-  // A lente "Todas as versões" chega na tarefa seguinte do plano; até lá, só a lente de uma versão.
-  if (ehTodas || !versao) notFound();
+  const listaCategorias = [...new Set(cadastroCards.map((c) => c.categoria).filter((c): c is string => !!c))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+  if (ehTodas) {
+    const uso = await usoDoCatalogo();
+    return (
+      <CatalogoTodasView
+        versoes={versoes.map((v) => ({ numero: v.numero, nome: v.nome, publicadaEm: v.publicadaEm, sequenciaPor: v.sequenciaPor }))}
+        snap={snap}
+        todas={catalogoTodasVersoes(snap, versoes.map((v) => v.numero))}
+        cadastro={cadastro}
+        usoSubs={uso.subs}
+        usoFases={uso.fases}
+        categorias={listaCategorias}
+        aba={aba as AbaTodas}
+        podeGerir={podeGerir}
+        podeEditarCard={podeEditarCard}
+      />
+    );
+  }
+  if (!versao) notFound();
 
   return (
     <CatalogoVersaoView
@@ -68,7 +88,7 @@ export default async function CatalogoVersaoPage({
       catalogo={catalogoNaVersao(snap, n)}
       snap={snap}
       cadastro={cadastro}
-      categorias={[...new Set(cadastroCards.map((c) => c.categoria).filter((c): c is string => !!c))].sort((a, b) => a.localeCompare(b, "pt-BR"))}
+      categorias={listaCategorias}
       aba={aba as AbaCatalogo}
       podeGerir={podeGerir}
       podeEditarCard={podeEditarCard}

@@ -1,15 +1,12 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { FileUp, Layers, Plus, Search, Shapes, Undo2 } from "lucide-react";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { alterarCatalogoNaVersao } from "@/modules/projetos/nomenclatura/catalogo/actions";
-import { editarCadastroDisciplina, iconeSvgDaDisciplina } from "@/modules/projetos/actions";
-import { editarNomeSubdisciplina } from "@/modules/projetos/subdisciplinas/actions";
-import { editarNomeItemListaMestre } from "@/modules/projetos/pranchas/catalogo-actions";
 import {
   ACAO_ADICIONAR_SUB,
   ACAO_EDITAR,
@@ -31,7 +28,7 @@ import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
 import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { ImportarCatalogoDialog } from "@/components/configuracoes/importar-catalogo-dialog";
 import { AdicionarItemDialog } from "@/components/configuracoes/catalogo/adicionar-item-dialog";
-import { EditarCardDialog, EditarNomeDialog, type PayloadCadastroCard } from "@/components/configuracoes/catalogo/editar-cadastro-dialog";
+import { useLapis, type CadastroCard } from "@/components/configuracoes/catalogo/use-lapis";
 import { LinhaCatalogoItem } from "@/components/configuracoes/catalogo/linha-catalogo";
 import { AbasCatalogo } from "@/components/configuracoes/catalogo/abas-catalogo";
 import { SeletorVersao } from "@/components/configuracoes/catalogo/seletor-versao";
@@ -48,29 +45,16 @@ import { Input } from "@/components/ui/input";
 
 export type AbaCatalogo = "disciplinas" | "fases" | "tipos";
 
-/** O que o lápis do card precisa e a tabela da versão não traz. */
-export type CadastroCard = {
-  codigo: string | null;
-  categoria: string | null;
-  icone: string | null;
-  /** O SVG em si só é lido quando o lápis abre (`iconeSvgDaDisciplina`): a lista não o carrega. */
-  temIconeSvg: boolean;
-  numeracao: number | null;
-  numeracaoFim: number | null;
-  uso: number;
-  versaoDesde: number;
-  versaoAte: number | null;
-};
+export type { CadastroCard };
 
 type VersaoResumo = { numero: number; nome: string; publicada: boolean };
 type VersaoLista = { numero: number; nome: string; publicadaEm: Date | null; sequenciaPor: string };
 
-/** Diálogo aberto: adicionar, siglas de um item, voltar um item que saiu, ou o lápis do cadastro. */
+/** Diálogo aberto: adicionar, siglas de um item ou voltar um item que saiu (o lápis é do `useLapis`). */
 type Dialogo =
   | { tipo: "adicionar"; titulo: string; siglaObrigatoria: boolean; montar: (nome: string, sigla: string | null) => OperacaoTela }
   | { tipo: "siglas"; rotulo: string; alvo: AlvoCatalogo }
-  | { tipo: "voltar"; nome: string; alvo: AlvoCatalogo }
-  | { tipo: "editar"; nome: string; alvo: AlvoCatalogo; iconeSvg?: string | null };
+  | { tipo: "voltar"; nome: string; alvo: AlvoCatalogo };
 
 const ACAO_IMPORTAR = "importar";
 
@@ -111,6 +95,7 @@ export function CatalogoVersaoView({
   const [pending, start] = useTransition();
   const [dialogo, setDialogo] = useState<Dialogo | null>(null);
   const [importando, setImportando] = useState(false);
+  const lapis = useLapis({ cadastro, categorias, versoes, outroDialogoAberto: dialogo !== null || importando });
   const [busca, setBusca] = useState("");
   const v = versao.numero;
   // Memorizados: entram nas dependências da prévia de conflito dos diálogos.
@@ -145,18 +130,6 @@ export function CatalogoVersaoView({
     executar([{ tipo: "sai", alvo: linha.alvo }], [], `“${linha.nome}” saiu da v${v}.`);
   }
 
-  /** Lápis: grava só o cadastro (nada de versão) e recarrega a lista. */
-  function gravarCadastro(chamada: () => Promise<{ ok: true; data: unknown } | { ok: false; error: string }>) {
-    start(async () => {
-      const r = await chamada();
-      if (r.ok) {
-        toast.success("Cadastro atualizado.");
-        setDialogo(null);
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
-
   const menuDe = (linha: LinhaCatalogo): AcaoItem[] => {
     // Card criado nesta versão que já tem projeto: "tirar" seria excluir, e o servidor recusa — o menu
     // já mostra o item inerte, com a mesma frase (ADR-0002, regra 5).
@@ -165,12 +138,8 @@ export function CatalogoVersaoView({
     return itensDaLinhaCatalogo(linha, { podeGerir, podeEditarCard, versao: v, motivoTirar });
   };
 
-  const pedidoAtual = useRef(0);
-
   function aoSelecionar(linha: LinhaCatalogo, acao: AcaoItemAcao) {
-    // Toda escolha invalida a leitura de ícone ainda em curso: o menu segue clicável enquanto ela não
-    // volta, e a resposta atrasada não pode trocar o diálogo aberto depois.
-    const pedido = ++pedidoAtual.current;
+    lapis.cancelar();
     if (acao.id === ACAO_SIGLAS) setDialogo({ tipo: "siglas", rotulo: linha.nome, alvo: linha.alvo });
     else if (acao.id === ACAO_ADICIONAR_SUB) {
       setDialogo({
@@ -179,21 +148,7 @@ export function CatalogoVersaoView({
         siglaObrigatoria: false,
         montar: (nome, sigla) => ({ tipo: "sub-nova", cardId: linha.alvo.id, nome, sigla }),
       });
-    } else if (acao.id === ACAO_EDITAR) {
-      const c = linha.alvo.tipo === "disciplina" ? cadastro[linha.alvo.id] : undefined;
-      if (!c?.temIconeSvg) {
-        setDialogo({ tipo: "editar", nome: linha.nome, alvo: linha.alvo, iconeSvg: null });
-        return;
-      }
-      // O SVG do ícone vem só agora, não com a página inteira.
-      start(async () => {
-        const r = await iconeSvgDaDisciplina({ id: linha.alvo.id });
-        if (pedido !== pedidoAtual.current) return;
-        // Diálogo aberto por outro caminho no meio tempo (cabeçalho, "Voltar"): fica o que está na tela.
-        if (r.ok) setDialogo((atual) => atual ?? { tipo: "editar", nome: linha.nome, alvo: linha.alvo, iconeSvg: r.data.iconeSvg });
-        else toast.error(r.error);
-      });
-    }
+    } else if (acao.id === ACAO_EDITAR) lapis.abrir(linha.alvo, linha.nome);
     else if (acao.id === ACAO_TIRAR) void tirar(linha);
   }
 
@@ -204,7 +159,7 @@ export function CatalogoVersaoView({
         versao={v}
         menuItens={menuDe(linha)}
         onSelect={(acao) => aoSelecionar(linha, acao)}
-        pending={pending}
+        pending={pending || lapis.ocupado}
       />
     );
   }
@@ -221,8 +176,6 @@ export function CatalogoVersaoView({
   const saem = catalogo.saem.filter((l) =>
     aba === "disciplinas" ? l.alvo.tipo !== "prancha" : l.alvo.tipo === "prancha" && l.tipoRotulo === (aba === "fases" ? "Fase" : "Tipo"),
   );
-
-  const dialogoCard = dialogo?.tipo === "editar" && dialogo.alvo.tipo === "disciplina" ? cadastro[dialogo.alvo.id] : undefined;
 
   return (
     <div className="space-y-5">
@@ -435,31 +388,7 @@ export function CatalogoVersaoView({
           onSalvar={(op, transferencias) => executar([op], transferencias, `“${dialogo.nome}” voltou para a v${v}.`)}
         />
       )}
-      {dialogo?.tipo === "editar" && dialogoCard && (
-        <EditarCardDialog
-          card={{ id: dialogo.alvo.id, nome: dialogo.nome, ...dialogoCard, iconeSvg: dialogo.iconeSvg ?? null }}
-          categorias={categorias}
-          versoes={versoes}
-          pending={pending}
-          onFechar={() => setDialogo(null)}
-          onSalvar={(p: PayloadCadastroCard) => gravarCadastro(() => editarCadastroDisciplina(p))}
-        />
-      )}
-      {dialogo?.tipo === "editar" && dialogo.alvo.tipo !== "disciplina" && (
-        <EditarNomeDialog
-          titulo={`Editar cadastro — ${dialogo.nome}`}
-          nome={dialogo.nome}
-          pending={pending}
-          onFechar={() => setDialogo(null)}
-          onSalvar={(nome) =>
-            gravarCadastro(() =>
-              dialogo.alvo.tipo === "subdisciplina"
-                ? editarNomeSubdisciplina({ id: dialogo.alvo.id, nome })
-                : editarNomeItemListaMestre({ id: dialogo.alvo.id, nome }),
-            )
-          }
-        />
-      )}
+      {lapis.dialogo}
       <ImportarCatalogoDialog aberto={importando} versao={v} onFechar={() => setImportando(false)} />
     </div>
   );
