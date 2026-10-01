@@ -2,6 +2,45 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.23.0](https://github.com/SenaProjetos/senahub/compare/v1.22.0...v1.23.0) (2026-10-01)
+
+
+### ✨ Funcionalidades
+
+* **nomenclatura:** aba Formatos de folha, seletor com Todas as versões e versão escolhida ao adicionar ([c8dc0ef](https://github.com/SenaProjetos/senahub/commit/c8dc0ef03ebe06f90df17a27d9239ce1e2d52024))
+* **nomenclatura:** ação do catálogo em lote, com transferência de sigla confirmada ([9dc2a09](https://github.com/SenaProjetos/senahub/commit/9dc2a0914dc57216c62a407fde1ab59308f58761))
+* **nomenclatura:** actions do lápis (cadastro sem versão; pasta só sem uso) ([a2d741c](https://github.com/SenaProjetos/senahub/commit/a2d741c8fab164c8aa89b00efe63ef3aa07150ab))
+* **nomenclatura:** arquivar sub/fase/tipo sem mexer em sigla e frases de em uso compartilhadas ([2339edb](https://github.com/SenaProjetos/senahub/commit/2339edbb659cb7d2ce46b12746ae915227ab2c24))
+* **nomenclatura:** catálogo da versão mostra sinônimos, edita siglas e transfere sigla com aviso ([6ce5d6b](https://github.com/SenaProjetos/senahub/commit/6ce5d6b41e7e125ac4f5b8e3d5511e79c53bf649))
+* **nomenclatura:** gravação do catálogo segue a simulação (sinônimo, voltar com siglas) + smoke ([cbc3b76](https://github.com/SenaProjetos/senahub/commit/cbc3b76bbf8d0191911e87c562488af0bb9daaf5))
+* **nomenclatura:** lente Todas as versões (cadastro, histórico de siglas, ordem, arquivar, excluir, lote) ([d6ffdfe](https://github.com/SenaProjetos/senahub/commit/d6ffdfef9cef8d0c22537f367627e60f45475ecb))
+* **nomenclatura:** menu da lente Todas (abrir na versão, ordem, arquivar, excluir) ([ef9f861](https://github.com/SenaProjetos/senahub/commit/ef9f861b894ee465f301bc17ddc4242f7618e5fb))
+* **nomenclatura:** regras puras da lente Todas (faixa efetiva, siglas por faixa, filtro) ([42836ea](https://github.com/SenaProjetos/senahub/commit/42836ea9452cb8733cf9b871cce21c629c88afeb))
+* **nomenclatura:** regras puras da lente vN (menu, agrupamento, busca, seletor) + plano da F2 ([b3e9671](https://github.com/SenaProjetos/senahub/commit/b3e9671214656affc21b6f4f3e623df921fd45e8))
+* **nomenclatura:** sair e voltar da versão não mexem nas siglas; sinônimo por versão ([c3dd1c7](https://github.com/SenaProjetos/senahub/commit/c3dd1c78af2482bd6301cee2a6041555ba8734ed))
+* **nomenclatura:** tela única na lente vN (rota [lente], versões em /versoes, abas, seletor em lista, menu, lápis) ([950b5c4](https://github.com/SenaProjetos/senahub/commit/950b5c416b5c7b186c6bbd13a6b9eae6aeb72229))
+* **nomenclatura:** telas Disciplinas e Lista Mestre redirecionam para a tela única ([1b6174e](https://github.com/SenaProjetos/senahub/commit/1b6174e49c59e37983ae0ccb6d4122eaa7f912d4))
+* **nomenclatura:** transferência de sigla e operações da tela de siglas ([a88a01d](https://github.com/SenaProjetos/senahub/commit/a88a01d6cfd81bad0d9e666522d6381112042ab2))
+
+
+### 🐛 Correções
+
+* **nomenclatura:** conflito de sigla detectado pelo dono novo (card que volta, subs dele, importação) ([927c053](https://github.com/SenaProjetos/senahub/commit/927c053320be390651e901f57cf8cc185c3e8c2a))
+* **nomenclatura:** excluir só o que nada prende, arquivar com estado pedido e pontos menores da F3–F5 ([8d58ed9](https://github.com/SenaProjetos/senahub/commit/8d58ed9f4dd6b6f9eb4404bd2d632fc8dc501ed9))
+* **nomenclatura:** formulário antigo reabre siglas cortadas e nunca corta ao estreitar ([47c4eca](https://github.com/SenaProjetos/senahub/commit/47c4eca697781f2f98ccf33fb2af7d89e2ad8f0b))
+* **nomenclatura:** lápis carrega SVG sob demanda, agrupa campos e só salva com mudança ([2718836](https://github.com/SenaProjetos/senahub/commit/2718836736f9d7e570be52fb3f6f1fadee3dbf20))
+* **nomenclatura:** mudar só a validade da disciplina não apaga mais as siglas dela ([942f74b](https://github.com/SenaProjetos/senahub/commit/942f74bee047df481beff7b80e4db8e3263642ff))
+* **nomenclatura:** resposta atrasada do ícone não troca o diálogo aberto depois ([29d3736](https://github.com/SenaProjetos/senahub/commit/29d3736245593fb3032b5eec1feb01f1920da067))
+* **nomenclatura:** revisão da F2 (links sem permissão, ação única sem menu, homônimo, pasta normalizada, tirar inerte) ([b55e48e](https://github.com/SenaProjetos/senahub/commit/b55e48eb2abf67f78b7f1bd3087ef02a73dcbd75))
+* **nomenclatura:** revisão da F3–F5 (Entendi por versão, excluir travado por documentos, manual da lente Todas) ([fb786d4](https://github.com/SenaProjetos/senahub/commit/fb786d43e584eda45458b4f9c9fd1c1e7dbe053c))
+* **nomenclatura:** texto das regras globais não aponta mais para a própria página ([e522d90](https://github.com/SenaProjetos/senahub/commit/e522d900579894802a806e485beeddabaf1ff356))
+* **nomenclatura:** transferência só do que a tela mostrou; Voltar confere as siglas; Entendi por dono ([4bc390d](https://github.com/SenaProjetos/senahub/commit/4bc390d16883c385ec0474e2c6ed85f933214a58))
+
+
+### ♻️ Refatorações
+
+* **nomenclatura:** remove telas e actions antigas do catálogo; faixa só muda na versão ([8f1eef3](https://github.com/SenaProjetos/senahub/commit/8f1eef3f24912d0af95ae076437e2fe6c739e0b0))
+
 ## [1.22.0](https://github.com/SenaProjetos/senahub/compare/v1.21.0...v1.22.0) (2026-09-29)
 
 
