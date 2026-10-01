@@ -13,19 +13,12 @@ import {
   siglasDasColunas,
   type FaixaVersao,
 } from "@/modules/uploads/nomenclatura/siglas-versao";
-import { garantirFaixaVersao, garantirSiglasSemColisao } from "@/modules/uploads/nomenclatura/siglas-guardas";
+import { garantirSiglasSemColisao } from "@/modules/uploads/nomenclatura/siglas-guardas";
 import { fraseFaseEmUso } from "@/modules/projetos/nomenclatura/catalogo/todas";
 
 const base = { modulo: "configuracoes", recurso: "configuracoes", permissao: "gerir" } as const;
 const categoria = z.enum(["folha", "tipo", "fase"]);
 const sinonimosSchema = z.array(z.string().trim().max(10)).max(10).optional();
-/** Validade do item por versão do padrão (D11). Ausente = na criação, da v1 em diante; na edição,
- *  mantém o gravado (o olho de ativar/desativar não manda). `versaoAte` null = sem fim. */
-const faixaSchema = {
-  versaoDesde: z.number().int().min(1).optional(),
-  versaoAte: z.number().int().min(1).nullable().optional(),
-};
-
 function rev() {
   revalidatePath("/configuracoes/nomenclatura", "layout");
 }
@@ -63,16 +56,18 @@ export const criarCatalogoPrancha = defineAction(
       nome: z.string().min(1).max(80),
       projetoId: z.string().optional(),
       sinonimos: sinonimosSchema,
-      ...faixaSchema,
     }),
   },
   async (i) => {
+    // Fase e tipo globais nascem numa versão (spec 2026-09-30, E7/A2): a faixa só se define lá.
+    if (!i.projetoId && i.categoria !== "folha") {
+      throw new ActionError("Fase e tipo do catálogo se criam numa versão, em Disciplinas e nomenclatura.");
+    }
     const sigla = i.sigla.toUpperCase();
     const projetoId = i.projetoId ?? null;
     const sinonimos = normalizarSinonimos(sigla, i.sinonimos ?? []);
-    // Sigla própria de projeto não tem validade por versão: o projeto segue uma versão só.
-    const faixa: FaixaVersao = projetoId ? { versaoDesde: 1, versaoAte: null } : { versaoDesde: i.versaoDesde ?? 1, versaoAte: i.versaoAte ?? null };
-    await garantirFaixaVersao(faixa);
+    // Sigla de folha e sigla própria de projeto não têm validade por versão.
+    const faixa: FaixaVersao = { versaoDesde: 1, versaoAte: null };
     await garantirSemColisaoPrancha(i.categoria, projetoId, { sigla, sinonimos }, null);
     await garantirSiglasSemColisao(
       { tipo: "prancha", id: null, faixa },
@@ -114,7 +109,6 @@ export const editarCatalogoPrancha = defineAction(
       nome: z.string().min(1).max(80),
       ativo: z.boolean(),
       sinonimos: sinonimosSchema,
-      ...faixaSchema,
     }),
   },
   async (i) => {
@@ -134,11 +128,9 @@ export const editarCatalogoPrancha = defineAction(
     if (!existe) throw new ActionError("Sigla não encontrada.");
     const sigla = i.sigla.toUpperCase();
     const sinonimos = normalizarSinonimos(sigla, i.sinonimos ?? []);
+    // A faixa de uma versão não muda por aqui (A2): quem a muda é a lente da versão.
     const faixaAntes: FaixaVersao = { versaoDesde: existe.versaoDesde, versaoAte: existe.versaoAte };
-    const faixa: FaixaVersao = existe.projetoId
-      ? faixaAntes
-      : { versaoDesde: i.versaoDesde ?? existe.versaoDesde, versaoAte: i.versaoAte === undefined ? existe.versaoAte : i.versaoAte };
-    await garantirFaixaVersao(faixa);
+    const faixa = faixaAntes;
     // Item com siglas por versão (PL → PRE na v2): o formulário e o olho de ativar/desativar só
     // regravam as siglas se elas ainda forem o espelho das colunas — ver `decidirSiglasAoSalvar`.
     const siglas = decidirSiglasAoSalvar({
@@ -150,7 +142,7 @@ export const editarCatalogoPrancha = defineAction(
     });
     if (siglas === "bloquear") {
       throw new ActionError(
-        `As siglas de “${existe.nome}” já são definidas por versão. Para mudar a sigla ou os sinônimos, use “Siglas por versão” na linha dele.`,
+        `As siglas de “${existe.nome}” já são definidas por versão. Para mudar a sigla ou os sinônimos, abra a versão em Disciplinas e nomenclatura.`,
       );
     }
     await garantirSemColisaoPrancha(existe.categoria, existe.projetoId, { sigla, sinonimos }, i.id);

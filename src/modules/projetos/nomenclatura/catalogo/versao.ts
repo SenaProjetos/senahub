@@ -475,7 +475,7 @@ export function versoesAPartirDe(versao: number, numeros: readonly number[]): nu
  * (tirar = excluir). A MESMA frase na tela (item desabilitado) e no servidor (`ActionError`).
  */
 export function fraseTirarCardEmUso(nome: string, uso: number): string {
-  return `“${nome}” já está em ${uso} projeto(s) — arquive pela tela de Disciplinas em vez de tirar da versão em que foi criado.`;
+  return `“${nome}” já está em ${uso} projeto(s) — arquive pela lente “Todas as versões” em vez de tirar da versão em que foi criado.`;
 }
 
 // ─── Operações da tela e transferência de sigla ──────────────────────────────

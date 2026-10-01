@@ -89,7 +89,7 @@ export async function carregarListaMestre(
     return {
       ok: false,
       status: 400,
-      erro: "Cadastre o tipo Lista Mestre (sigla LMS ou sinônimo LME) em Configurações → Lista Mestre.",
+      erro: "Cadastre o tipo Lista Mestre (sigla LMS ou sinônimo LME) em Configurações → Disciplinas e nomenclatura (aba Tipos de documento).",
     };
   }
 

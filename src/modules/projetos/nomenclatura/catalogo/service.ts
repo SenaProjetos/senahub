@@ -77,11 +77,11 @@ async function excluirItem(tx: Tx, alvo: AlvoCatalogo, nome: string) {
     await tx.disciplinaCatalogo.delete({ where: { id: alvo.id } });
   } else if (alvo.tipo === "subdisciplina") {
     const uso = await tx.documentoDisciplina.count({ where: { subdisciplinaId: alvo.id } });
-    if (uso > 0) throw new ActionError(`“${nome}” já marca ${uso} documento(s) — desative-a em vez de tirar da versão em que foi criada.`);
+    if (uso > 0) throw new ActionError(`“${nome}” já marca ${uso} documento(s) — arquive-a pela lente “Todas as versões” em vez de tirar da versão em que foi criada.`);
     await tx.subdisciplinaCatalogo.delete({ where: { id: alvo.id } });
   } else {
     const uso = await tx.disciplinaEtapa.count({ where: { etapaId: alvo.id } });
-    if (uso > 0) throw new ActionError(`“${nome}” é usada por ${uso} etapa(s) de disciplina — desative-a na Lista Mestre.`);
+    if (uso > 0) throw new ActionError(`“${nome}” é usada por ${uso} etapa(s) de disciplina — arquive-a pela lente “Todas as versões”.`);
     await tx.pranchaCatalogo.delete({ where: { id: alvo.id } });
   }
 }

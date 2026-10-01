@@ -64,7 +64,7 @@ describe("itensDaLinhaCatalogo", () => {
 
 describe("tirar de um card em uso, criado nesta versão (spec §4.6)", () => {
   it("o item aparece desabilitado com o motivo", () => {
-    const motivo = "“Hidrossanitário” já está em 3 projeto(s) — arquive pela tela de Disciplinas em vez de tirar da versão em que foi criado.";
+    const motivo = "“Hidrossanitário” já está em 3 projeto(s) — arquive pela lente “Todas as versões” em vez de tirar da versão em que foi criado.";
     const tirar = itensDaLinhaCatalogo(card, { ...tudo, motivoTirar: motivo }).find((i) => i.id === ACAO_TIRAR);
     expect(tirar).toMatchObject({ desabilitado: motivo });
   });

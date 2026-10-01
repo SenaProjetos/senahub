@@ -379,7 +379,7 @@ describe("opsDasSiglas", () => {
 describe("fraseTirarCardEmUso", () => {
   it("a mesma frase da tela e do servidor", () => {
     expect(fraseTirarCardEmUso("Hidrossanitário", 3)).toBe(
-      "“Hidrossanitário” já está em 3 projeto(s) — arquive pela tela de Disciplinas em vez de tirar da versão em que foi criado.",
+      "“Hidrossanitário” já está em 3 projeto(s) — arquive pela lente “Todas as versões” em vez de tirar da versão em que foi criado.",
     );
   });
 });

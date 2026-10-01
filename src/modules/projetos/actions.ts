@@ -25,8 +25,6 @@ import {
   excluirDisciplinaSchema,
   cancelarProjetoSchema,
   adicionarDoCatalogoSchema,
-  criarDisciplinaCatalogoSchema,
-  editarDisciplinaCatalogoSchema,
   editarCadastroDisciplinaSchema,
   idDisciplinaCatalogoSchema,
   moverDisciplinaCatalogoSchema,
@@ -51,15 +49,6 @@ import { chaveLayoutPainelProjeto } from "@/modules/projetos/painel-layout";
 import { deveDeslocarPrazoDoProjeto } from "@/modules/projetos/prazo-reabertura";
 import { faixaConflitante } from "@/modules/projetos/faixa-numeracao";
 import { motivoCodigoTravado } from "@/modules/projetos/cadastro-disciplina";
-import { espelharSiglasDasColunas } from "@/modules/uploads/nomenclatura/siglas-service";
-import {
-  decidirSiglasAoSalvar,
-  faixaDoEspelho,
-  linhasParaChecarColisao,
-  siglasDasColunas,
-  type FaixaVersao,
-} from "@/modules/uploads/nomenclatura/siglas-versao";
-import { garantirFaixaVersao, garantirSiglasSemColisao } from "@/modules/uploads/nomenclatura/siglas-guardas";
 import { versaoVigenteHoje } from "@/modules/projetos/nomenclatura/versoes-queries";
 
 
@@ -1235,104 +1224,6 @@ async function cascatearNomeDisciplina(tx: Prisma.TransactionClient, de: string,
     await tx.disciplina.updateMany({ where: { id: { in: ids } }, data: { disciplinaTextoLegado: para } });
   }
 }
-
-export const criarDisciplinaCatalogo = defineAction(
-  {
-    ...catalogoBase,
-    acao: "criar-disciplina-catalogo",
-    entidade: "DisciplinaCatalogo",
-    schema: criarDisciplinaCatalogoSchema,
-    entidadeId: (d) => (d as { id: string }).id,
-  },
-  async (i) => {
-    const dados = normalizarCatalogo(i);
-    dados.categoria = await canonizarCategoria(dados.categoria);
-    const faixa: FaixaVersao = { versaoDesde: i.versaoDesde ?? 1, versaoAte: i.versaoAte ?? null };
-    await garantirFaixaVersao(faixa);
-    await garantirUnicosCatalogo(dados.nome, dados.codigo, dados.sinonimos, null);
-    await garantirSiglasSemColisao({ tipo: "disciplina", id: null, faixa }, { tipo: "disciplina" }, siglasDasColunas(dados.codigo, dados.sinonimos, faixa));
-    await garantirFaixaLivre(dados.numeracao, dados.numeracaoFim, null);
-    const max = await prisma.disciplinaCatalogo.aggregate({ _max: { ordem: true } });
-    const criada = await prisma.$transaction(async (tx) => {
-      const c = await tx.disciplinaCatalogo.create({
-        data: { ...dados, ...faixa, ordem: (max._max.ordem ?? 0) + 1 },
-      });
-      await espelharSiglasDasColunas(tx, { tipo: "disciplina", id: c.id, codigo: dados.codigo, sinonimos: dados.sinonimos }, faixa);
-      return c;
-    });
-    revCatalogo();
-    return { id: criada.id };
-  },
-);
-
-export const editarDisciplinaCatalogo = defineAction(
-  {
-    ...catalogoBase,
-    acao: "editar-disciplina-catalogo",
-    entidade: "DisciplinaCatalogo",
-    schema: editarDisciplinaCatalogoSchema,
-    entidadeId: (_d, i) => i.id,
-    capturarAntes: (i) => prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } }),
-  },
-  async (i) => {
-    const existe = await prisma.disciplinaCatalogo.findUnique({
-      where: { id: i.id },
-      include: { siglas: { select: { sigla: true, oficial: true, versaoDesde: true, versaoAte: true } } },
-    });
-    if (!existe) throw new ActionError("Disciplina não encontrada.");
-    const dados = normalizarCatalogo(i);
-    dados.categoria = await canonizarCategoria(dados.categoria);
-    const faixaAntes: FaixaVersao = { versaoDesde: existe.versaoDesde, versaoAte: existe.versaoAte };
-    const faixa: FaixaVersao = {
-      versaoDesde: i.versaoDesde ?? existe.versaoDesde,
-      versaoAte: i.versaoAte === undefined ? existe.versaoAte : i.versaoAte,
-    };
-    await garantirFaixaVersao(faixa);
-    // Card com siglas por versão: o formulário só regrava as siglas se elas ainda forem o espelho
-    // das colunas. Sem isto, salvar o lápis (até só para trocar o ícone) recriava as siglas das
-    // colunas "da v1 em diante" por cima do que foi decidido por versão.
-    const siglas = decidirSiglasAoSalvar({
-      linhas: existe.siglas,
-      colunasAntes: { oficial: existe.codigo, sinonimos: existe.sinonimos },
-      faixaAntes,
-      colunasDepois: { oficial: dados.codigo, sinonimos: dados.sinonimos },
-      faixaDepois: faixa,
-    });
-    if (siglas === "bloquear") {
-      throw new ActionError(
-        `As siglas de “${existe.nome}” já são definidas por versão. Para mudar a sigla ou os sinônimos, use “Sub-disciplinas e siglas por versão” na linha dela.`,
-      );
-    }
-    await garantirUnicosCatalogo(dados.nome, dados.codigo, dados.sinonimos, i.id);
-    await garantirSiglasSemColisao(
-      { tipo: "disciplina", id: i.id, faixa },
-      { tipo: "disciplina" },
-      linhasParaChecarColisao({
-        decisao: siglas,
-        linhas: existe.siglas,
-        colunasDepois: { oficial: dados.codigo, sinonimos: dados.sinonimos },
-        faixaAntes,
-        faixaDepois: faixa,
-      }),
-    );
-    await garantirFaixaLivre(dados.numeracao, dados.numeracaoFim, i.id);
-
-    const nomeMudou = dados.nome !== existe.nome;
-    await prisma.$transaction(async (tx) => {
-      await tx.disciplinaCatalogo.update({ where: { id: i.id }, data: { ...dados, ...faixa } });
-      if (siglas === "espelhar") {
-        await espelharSiglasDasColunas(
-          tx,
-          { tipo: "disciplina", id: i.id, codigo: dados.codigo, sinonimos: dados.sinonimos },
-          faixaDoEspelho(faixaAntes, faixa),
-        );
-      }
-      if (nomeMudou) await cascatearNomeDisciplina(tx, existe.nome, dados.nome);
-    });
-    revCatalogo();
-    return { id: i.id };
-  },
-);
 
 /**
  * SVG de ícone de UMA disciplina, lido só quando o lápis abre: a lista da tela não carrega o SVG de
