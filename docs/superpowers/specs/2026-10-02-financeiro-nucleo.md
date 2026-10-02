@@ -203,3 +203,23 @@ Migração `20261002120000_lancamento_restante_de` (aditiva). Nada a rodar à m�
   só pegam `previsto`.
 - Verificação: `niveis.test.ts`, `acoes.test.ts`, `smoke:financeiro-core` (parcelamento pelo total, soma do
   grupo com edição, própria despesa, admin, migração do limite numa transação desfeita).
+
+## N4 — conciliação confiável (Opus) — concluída
+
+- **Regra pura** (`conciliacao/casamento.ts`): `casamentoAutomatico` (um só `previsto`, centavos, mesma
+  conta ou sem conta, ±5 dias-calendário, sem perna de transferência, empate = nenhum) e
+  `sugestoesDaTransacao` (mesma regra, previsto e pago, janela de 45 dias, mais próximo primeiro).
+- **OFX numa transação** (`importarOfxNoBanco`): extrato, transações e casamentos entram juntos ou nada.
+  Cada casamento passa pela máquina de situações (em aprovação, cancelado, previsão e excluído recusam) e
+  pelo `pagamentoPagoNoFinanceiro`. Datas do OFX em meia-noite UTC.
+- **Conferência do saldo:** `parseSaldoOfx` lê o `LEDGERBAL`; `saldoDoSistema` (saldo inicial + realizados
+  da conta até a data) — a tela avisa a diferença.
+- **Desconciliar devolve ao estado anterior:** `TransacaoBancaria.estadoAnterior` (migração
+  `20261002180000_conciliacao_estado_anterior`) guarda a foto do lançamento (situação, data de pagamento,
+  conta, pagamento de produção). `planoDesconciliar`: pago pela conciliação → em aberto de novo (e o
+  pagamento de produção volta a pendente); criado da transação → excluído; já pago antes → continua pago;
+  sem foto, mexido depois ou receita distribuída → só desliga, com aviso.
+- **Conta:** lançamento pago por outra conta não concilia com o extrato desta.
+- Verificação: `casamento.test.ts`, `ofx.test.ts`, `smoke:financeiro-core` (9 checagens novas), smokes
+  onda2, planejador, sync-pagamento, pagamento-fase.
+- Fica: conciliação 1:N / N:1 (uma transação para várias contas) — lacuna C, fora do núcleo.

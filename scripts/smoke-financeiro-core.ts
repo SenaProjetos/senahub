@@ -14,6 +14,8 @@
  *       recusado, corrida de dois estornos.
  *   N2. Recorrência confirmada só no 1º mês (A10), 31/01 + 1 mês = 28/02 (A9), dia 1º dentro do mês.
  *   N3. Alçada única: total do parcelamento, quem lançou não aprova (só admin), limite antigo → faixas.
+ *   N4. OFX: mesma conta, empate e transferência fora, saldo conferido, FITID sem duplicar; desconciliar
+ *       devolve ao estado de antes (pago pela conciliação volta, criado sai, já pago fica).
  *   A8. Desfazer importação: barrado com linha trabalhada, exclusão lógica no lote intocado, dedup
  *       que enxerga a linha excluída à mão mas não a do lote desfeito.
  *
@@ -38,6 +40,7 @@ import { criarLancamentoNoTx } from "../src/modules/financeiro/lancamentos/servi
 import { utcFimDoDia, utcInicioDoDia } from "../src/lib/data";
 import { lancamentosAguardando, valorParaAlcada } from "../src/modules/financeiro/aprovacao/queries";
 import { MOTIVO_PROPRIA_DESPESA } from "../src/modules/financeiro/aprovacao/niveis";
+import { conciliarNoBanco, criarDaTransacaoNoBanco, desconciliarNoBanco, importarOfxNoBanco } from "../src/modules/financeiro/conciliacao/service";
 import { hashesExistentes } from "../src/modules/financeiro/importacao/queries";
 import { normalizarLinhas } from "../src/modules/financeiro/importacao/processar";
 
@@ -91,6 +94,7 @@ async function main() {
     await desfazerImportacao(admin.id);
     await datasEOcorrencias(admin.id);
     await alcadaUnica(admin.id);
+    await conciliacaoConfiavel(admin.id);
   } finally {
     const pags = (await prisma.pagamentoProjetista.findMany({ where: { disciplinaId: disciplina.id }, select: { id: true } })).map((p) => p.id);
     await prisma.lancamento.deleteMany({ where: { OR: [{ projetoId: projeto.id }, { pagamentoProjetistaId: { in: pags } }, { descricao: { startsWith: tag } }] } });
@@ -445,6 +449,74 @@ async function alcadaUnica(autorId: string) {
     else await prisma.configSistema.deleteMany({ where: { chave: CHAVE } });
     await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: tag }, excluidoEm: { not: undefined } } });
     await prisma.user.delete({ where: { id: supervisor.id } });
+  }
+}
+
+async function conciliacaoConfiavel(autorId: string) {
+  console.log("\n# N4 — conciliação confiável");
+  const catD = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "despesa", natureza: "resultado" }, select: { id: true } });
+  if (!catD) return check("categoria de despesa existe", false);
+  const conta = await prisma.contaBancaria.create({ data: { nome: `${tag} itau`, tipo: "corrente", saldoInicial: 1000 } });
+  const outra = await prisma.contaBancaria.create({ data: { nome: `${tag} nubank`, tipo: "corrente", saldoInicial: 0 } });
+  const desp = (descricao: string, valor: number, p: Record<string, unknown> = {}) =>
+    prisma.lancamento.create({
+      data: { tipo: "despesa", descricao: `${tag} ${descricao}`, valor, status: "previsto", data: dia("2044-03-10"), vencimento: dia("2044-03-10"), categoriaId: catD.id, autorId, ...p },
+      select: { id: true },
+    });
+  const st = (id: string) => prisma.lancamento.findUniqueOrThrow({ where: { id }, select: { status: true, contaId: true, dataConfirmacao: true, excluidoEm: true } });
+  try {
+    const semConta = await desp("sem conta", 450.5);
+    const daOutra = await desp("da outra conta", 777, { contaId: outra.id });
+    await desp("empate A", 333);
+    await desp("empate B", 333, { vencimento: dia("2044-03-11") });
+    const transf = await desp("perna", 222, { transferenciaId: `${tag}-tr` });
+    const r = await importarOfxNoBanco({
+      contaId: conta.id,
+      nomeArquivo: `${tag}.ofx`,
+      transacoes: [
+        { fitid: `${tag}-1`, data: dia("2044-03-12"), valor: -450.5, descricao: "a" },
+        { fitid: `${tag}-2`, data: dia("2044-03-10"), valor: -777, descricao: "b" },
+        { fitid: `${tag}-3`, data: dia("2044-03-10"), valor: -333, descricao: "c" },
+        { fitid: `${tag}-4`, data: dia("2044-03-10"), valor: -222, descricao: "d" },
+      ],
+      saldoExtrato: { saldo: 1000 - 450.5, data: dia("2044-03-31") },
+      autorId,
+    });
+    const a = await st(semConta.id);
+    check("A4: sem conta casa e ganha a conta do extrato", a.status === "confirmado" && a.contaId === conta.id, a);
+    check("A4: outra conta nunca casa", (await st(daOutra.id)).status === "previsto");
+    check("A4: empate e perna de transferência ficam para a pessoa", r.conciliadas === 1 && (await st(transf.id)).status === "previsto", r);
+    check("saldo do extrato confere com o sistema (inicial − o conciliado)", r.saldo?.diferenca === 0, r.saldo);
+    const r2 = await importarOfxNoBanco({ contaId: conta.id, nomeArquivo: `${tag}.ofx`, transacoes: [{ fitid: `${tag}-1`, data: dia("2044-03-12"), valor: -450.5, descricao: "a" }], saldoExtrato: null, autorId });
+    check("reimportar o mesmo FITID não duplica", r2.importadas === 0 && r2.duplicadas === 1, r2);
+
+    // Desconciliar devolve ao estado de antes.
+    const ta = await prisma.transacaoBancaria.findFirstOrThrow({ where: { fitid: `${tag}-1` }, select: { id: true } });
+    const d1 = await desconciliarNoBanco(ta.id, autorId);
+    const a2 = await st(semConta.id);
+    check("desconciliar: o que a conciliação pagou volta a em aberto, sem conta", d1.efeito === "restaurado" && a2.status === "previsto" && a2.contaId === null && a2.dataConfirmacao === null, { d1, a2 });
+
+    // Conciliar manual com a de outra conta recusa; criar da transação e desconciliar exclui.
+    const tb = await prisma.transacaoBancaria.findFirstOrThrow({ where: { fitid: `${tag}-2` }, select: { id: true } });
+    const pago = await desp("pago na outra", 777, { contaId: outra.id, status: "confirmado", dataConfirmacao: dia("2044-03-10") });
+    check("pago por outra conta não concilia com este extrato", (await erroDe(conciliarNoBanco(tb.id, pago.id, autorId)))?.includes("outra conta") === true);
+    await criarDaTransacaoNoBanco(tb.id, catD.id, autorId);
+    const criado = await prisma.transacaoBancaria.findUniqueOrThrow({ where: { id: tb.id }, select: { lancamentoId: true } });
+    const d2 = await desconciliarNoBanco(tb.id, autorId);
+    check("desconciliar o que nasceu da transação tira o lançamento", d2.efeito === "excluido" && (await st(criado.lancamentoId!)).excluidoEm !== null, d2);
+
+    // Já pago antes da conciliação continua pago.
+    const jaPago = await desp("já pago", 333, { contaId: conta.id, status: "confirmado", dataConfirmacao: dia("2044-03-10") });
+    const tc = await prisma.transacaoBancaria.findFirstOrThrow({ where: { fitid: `${tag}-3` }, select: { id: true } });
+    await conciliarNoBanco(tc.id, jaPago.id, autorId);
+    const d3 = await desconciliarNoBanco(tc.id, autorId);
+    check("desconciliar o que já estava pago antes: continua pago", d3.efeito === "desligada" && (await st(jaPago.id)).status === "confirmado", d3);
+  } finally {
+    const contas = [conta.id, outra.id];
+    await prisma.transacaoBancaria.deleteMany({ where: { contaId: { in: contas } } });
+    await prisma.extratoBancario.deleteMany({ where: { contaId: { in: contas } } });
+    await prisma.lancamento.deleteMany({ where: { OR: [{ descricao: { startsWith: tag } }, { contaId: { in: contas } }], excluidoEm: { not: undefined } } });
+    await prisma.contaBancaria.deleteMany({ where: { id: { in: contas } } });
   }
 }
 

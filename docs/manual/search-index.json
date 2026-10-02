@@ -1497,7 +1497,11 @@
         "ignorar transação",
         "criar lançamento da transação",
         "conciliar com",
-        "desfazer importação"
+        "desfazer importação",
+        "conferir saldo",
+        "saldo do banco",
+        "desconciliar",
+        "empate"
       ],
       "sinonimos": [
         "conciliação bancária",

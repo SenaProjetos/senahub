@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseOfx } from "@/lib/ofx";
+import { parseOfx, parseSaldoOfx } from "@/lib/ofx";
 
 const OFX = `OFXHEADER:100
 <OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><BANKTRANLIST>
@@ -39,9 +39,9 @@ describe("parser OFX", () => {
 
   it("parseia a data ignorando hora/timezone do DTPOSTED", () => {
     const t = parseOfx(OFX);
-    expect(t[0].data.getFullYear()).toBe(2026);
-    expect(t[0].data.getMonth()).toBe(0); // janeiro
-    expect(t[0].data.getDate()).toBe(15);
+    expect(t[0].data.getUTCFullYear()).toBe(2026);
+    expect(t[0].data.getUTCMonth()).toBe(0); // janeiro
+    expect(t[0].data.getUTCDate()).toBe(15);
   });
 
   it("captura o FITID (chave de deduplicação)", () => {
@@ -51,5 +51,20 @@ describe("parser OFX", () => {
 
   it("retorna vazio para conteúdo sem transações", () => {
     expect(parseOfx("sem nada aqui")).toEqual([]);
+  });
+});
+
+describe("datas e saldo do OFX (N4)", () => {
+  it("data vira o dia-calendário em meia-noite UTC, em qualquer fuso", () => {
+    expect(parseOfx(OFX)[0].data.toISOString()).toBe("2026-01-15T00:00:00.000Z");
+  });
+  it("lê o saldo informado pelo banco (LEDGERBAL)", () => {
+    const comSaldo = OFX.replace("</BANKTRANLIST>", "</BANKTRANLIST><LEDGERBAL><BALAMT>10500.25<DTASOF>20260131120000[-3:BRT]</LEDGERBAL>");
+    const s = parseSaldoOfx(comSaldo);
+    expect(s?.saldo).toBe(10500.25);
+    expect(s?.data.toISOString()).toBe("2026-01-31T00:00:00.000Z");
+  });
+  it("sem LEDGERBAL: null", () => {
+    expect(parseSaldoOfx(OFX)).toBeNull();
   });
 });

@@ -1,5 +1,9 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { candidatosDeConciliacao } from "@/modules/financeiro/conciliacao/service";
+import { sugestoesDaTransacao } from "@/modules/financeiro/conciliacao/casamento";
+import { paraCentavos } from "@/modules/financeiro/liquidez/dinheiro";
+import { isoDeDataDoBanco } from "@/modules/financeiro/liquidez/datas";
 
 /** Quantidade de transações bancárias ainda não conciliadas (badge do dashboard). */
 export async function totalTransacoesPendentes(): Promise<number> {
@@ -14,14 +18,10 @@ export async function transacoesPendentes(contaId?: string) {
     include: { conta: { select: { nome: true } } },
   });
 
-  // G1c/D31: inclui os CONFIRMADOS ainda sem transação, não só os previstos. É o que
-  // permite reconciliar um pagamento já pago (produção é sempre confirmado) depois de
-  // desfazer uma conciliação errada. Sem isso, a transação solta só teria a opção "criar
-  // lançamento" — e criar um lançamento novo para uma despesa que já existe duplica o caixa.
-  const candidatos = await prisma.lancamento.findMany({
-    where: { status: { in: ["previsto", "confirmado"] }, transacao: null, excluidoEm: null },
-    select: { id: true, tipo: true, valor: true, descricao: true, data: true, vencimento: true, status: true },
-  });
+  // G1c/D31: inclui os CONFIRMADOS ainda sem transação, não só os previstos — é o que permite
+  // reconciliar um pagamento já pago depois de desfazer uma conciliação errada. N4: mesma conta (ou sem
+  // conta), centavos e janela de data, mais perto primeiro (`sugestoesDaTransacao`).
+  const candidatos = await candidatosDeConciliacao(prisma);
 
   const regras = await prisma.regraCategorizacao.findMany({
     where: { ativo: true },
@@ -29,13 +29,11 @@ export async function transacoesPendentes(contaId?: string) {
   });
 
   return transacoes.map((t) => {
-    const valorAbs = Math.abs(Number(t.valor));
     const ehReceita = Number(t.valor) > 0;
-    const sugestoes = candidatos
-      .filter((l) => (ehReceita ? l.tipo === "receita" : l.tipo === "despesa") && Number(l.valor) === valorAbs)
-      .map((l) => ({ id: l.id, descricao: l.descricao, valor: Number(l.valor), status: l.status as string }))
-      // Previsto primeiro: é o caso normal. Confirmado é a exceção (reconciliar).
-      .sort((a, b) => (a.status === b.status ? 0 : a.status === "previsto" ? -1 : 1));
+    const sugestoes = sugestoesDaTransacao(
+      { valorCentavos: paraCentavos(t.valor), contaId: t.contaId, dia: isoDeDataDoBanco(t.data) },
+      candidatos,
+    ).map((l) => ({ id: l.id, descricao: l.descricao, valor: l.valor, status: l.status as string }));
     const desc = t.descricao.toLowerCase();
     const regra = regras.find((r) => desc.includes(r.termo.toLowerCase()));
     return {

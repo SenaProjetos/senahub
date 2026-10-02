@@ -28,7 +28,33 @@ migrar dados externos (planilhas) para o financeiro.
 4. O painel financeiro mostra um **badge** com a quantidade de transações ainda
    pendentes.
 
-> O importador OFX faz **deduplicação** e tenta **casar automaticamente** quando possível.
+> O importador OFX faz **deduplicação** (a mesma transação nunca entra duas vezes) e **casa
+> automaticamente** só quando não há dúvida:
+> - o lançamento em aberto tem **o mesmo valor, ao centavo**, vence até **5 dias** antes ou depois da data
+>   do banco e é da **mesma conta** do extrato (ou ainda não tem conta — aí ganha a do extrato);
+> - existe **um só** candidato: se dois servem, nenhum é escolhido e a transação fica para você;
+> - transferência entre contas e despesa **aguardando aprovação** nunca casam sozinhas.
+>
+> O extrato entra **inteiro ou não entra**: se algo falhar no meio, nada fica gravado pela metade.
+
+### Conferência do saldo
+
+Quando o arquivo traz o **saldo informado pelo banco** (a maioria traz), o sistema compara com o saldo
+da conta no sistema na mesma data. Se bater, avisa que confere; se não, mostra a diferença — sinal de que
+falta lançar ou conciliar alguma movimentação daquela conta.
+
+### Sugestões
+
+Na lista, as sugestões de cada transação são lançamentos de mesmo valor e tipo, da mesma conta (ou sem
+conta), até 45 dias antes ou depois, os mais próximos da data primeiro. Um lançamento já pago por **outra**
+conta não aparece nem pode ser conciliado com este extrato.
+
+### Desfazer uma conciliação
+
+Desfazer (na Produção, pela correção do pagamento) devolve o lançamento ao que era **antes** da conciliação:
+o que ela pagou volta a ficar em aberto, o que foi criado a partir da transação sai, e o que já estava pago
+continua pago. Conciliações antigas, lançamentos mexidos depois e receitas já distribuídas entre caixinhas
+só têm a transação desligada, com aviso.
 
 ### Menu da transação
 

@@ -24,7 +24,8 @@ function parseDataOfx(s?: string): Date | null {
   const m = s.match(/^(\d{4})(\d{2})(\d{2})/);
   if (!m) return null;
   const [, y, mo, d] = m;
-  const date = new Date(Number(y), Number(mo) - 1, Number(d));
+  // Dia-calendário em meia-noite UTC, como o banco guarda `@db.Date` — igual em qualquer fuso (A9).
+  const date = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d)));
   return isNaN(date.getTime()) ? null : date;
 }
 
@@ -48,4 +49,18 @@ export function parseOfx(conteudo: string): TransacaoOfx[] {
     out.push({ fitid, data, valor, descricao, tipo });
   }
   return out;
+}
+
+/**
+ * Saldo que o banco informa no fim do extrato (`<LEDGERBAL>`: `BALAMT` na data `DTASOF`). Serve para
+ * conferir o saldo do sistema na mesma data (N4). `null` quando o arquivo não traz.
+ */
+export function parseSaldoOfx(conteudo: string): { saldo: number; data: Date } | null {
+  const bloco = conteudo.match(/<LEDGERBAL>[\s\S]*?(<\/LEDGERBAL>|$)/i)?.[0];
+  if (!bloco) return null;
+  const data = parseDataOfx(campo(bloco, "DTASOF"));
+  const bruto = campo(bloco, "BALAMT");
+  if (!data || !bruto) return null;
+  const saldo = Number(bruto.replace(",", "."));
+  return Number.isFinite(saldo) ? { saldo, data } : null;
 }

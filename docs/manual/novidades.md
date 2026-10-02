@@ -68,6 +68,9 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 - **Alçada de despesas:** vale o total do parcelamento, editar o valor de uma despesa a manda de volta para
   aprovação, e quem lançou não aprova a própria despesa (só o admin). O antigo "limite de alçada" virou faixas
   em Configurações do financeiro.
+- **Conciliação bancária mais segura:** o extrato só casa sozinho na mesma conta, sem empate e sem
+  transferência; entra inteiro ou não entra; o saldo do banco é conferido com o do sistema; e desfazer uma
+  conciliação devolve o lançamento ao que era antes.
 - **Conciliação** com menu de contexto na transação.
 - Os relatórios de resultado ganharam **abas** (DRE, Rentabilidade, DFC, Balanço, Orçamento).
 - "Planejamento de pagamentos" agora se chama **Pagamentos em lote**.

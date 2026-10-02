@@ -302,6 +302,14 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   go through it; producers (folha, projetista, ART, serviço, recorrência, documento, lucros) are exempt by
   origin and write directly. `motivoParaNaoAprovar`: admin decides anything, nobody else approves their own
   expense; the same sentence is the action's error and the Aprovações menu's disabled reason (`bloqueio`).
+- **Bank reconciliation** (N4, `financeiro/conciliacao/casamento.ts` pure + `service.ts`): OFX import is ONE
+  transaction (`importarOfxNoBanco`); auto-match only with exactly one `previsto` candidate, same value in
+  cents, same account (or none — it takes the statement's), within 5 calendar days, never a transfer leg,
+  never a tie. Every link goes through `exigirOperacao(…, "conciliar")` and stores `TransacaoBancaria.
+  estadoAnterior` (photo of the lançamento before); `desconciliarNoBanco` restores it via `planoDesconciliar`
+  (paid by the reconciliation → back to open, created from the transaction → excluded, already paid → stays;
+  no photo / changed since / distributed → only unlinks). `parseSaldoOfx` (LEDGERBAL) is compared with
+  `saldoDoSistema`. OFX dates are UTC midnight.
 - **Dates in the Financeiro are São Paulo calendar days** (N2, `lib/data.ts`): "today" to WRITE into a date column
   is `hojeParaBanco()` (UTC midnight of the SP day) and to compare is `diaDeSaoPaulo()` — a bare `new Date()` is
   tomorrow after 21h BRT. Period limits on date columns (`@db.Date`: `data`, `dataConfirmacao`, `dataCompetencia`)

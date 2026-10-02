@@ -116,16 +116,21 @@ export function CorrigirPagamentoDialog({
   }, [pagamento]);
 
   /**
-   * Só quando a conciliação está ERRADA (transação de outra despesa). Não mexe no status do
-   * lançamento: o pagamento continua pago. A transação volta para a fila de Conciliação, e
-   * lá dá para religá-la ao lançamento certo — inclusive a um já confirmado (G1c).
+   * Só quando a conciliação está ERRADA (transação de outra despesa). O lançamento volta ao que era
+   * antes da conciliação (N4): pago pela Produção continua pago; pago PELA conciliação volta a ficar em
+   * aberto. A transação volta para a fila de Conciliação, onde dá para religá-la ao lançamento certo.
    */
   function desfazerConciliacao() {
     if (!conciliada) return;
     start(async () => {
       const r = await desconciliarTransacao({ transacaoId: conciliada.id });
       if (r.ok) {
-        toast.success("Conciliação desfeita — a transação voltou para a fila de Conciliação.");
+        toast.success(
+          r.data.efeito === "restaurado"
+            ? "Conciliação desfeita — o pagamento voltou a ficar em aberto e a transação, para a fila."
+            : "Conciliação desfeita — a transação voltou para a fila de Conciliação.",
+        );
+        if (r.data.aviso) toast.warning(r.data.aviso);
         onClose();
         router.refresh();
       } else toast.error(r.error);

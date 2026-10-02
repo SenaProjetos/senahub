@@ -1973,6 +1973,9 @@ model TransacaoBancaria {
   conciliado   Boolean         @default(false)
   /// Lançamento ao qual esta transação foi conciliada.
   lancamentoId String?         @unique
+  /// Foto do lançamento antes de esta conciliação mexer nele (N4): desconciliar devolve exatamente a
+  /// isto (`conciliacao/casamento.ts` → `EstadoAntesDaConciliacao`). Nula em conciliação antiga.
+  estadoAnterior Json?
   lancamento   Lancamento?     @relation(fields: [lancamentoId], references: [id])
 
   createdAt DateTime @default(now())

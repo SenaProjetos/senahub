@@ -68,6 +68,16 @@ export function ConciliacaoView({
       toast.success(
         `${data.importadas} importada(s), ${data.conciliadas} auto-conciliada(s), ${data.duplicadas} duplicada(s).`,
       );
+      // N4: o banco informa o saldo no fim do extrato; diferente do sistema = falta lançar ou conciliar algo.
+      const s = data.saldo as { dia: string; extrato: number; sistema: number; diferenca: number } | null;
+      if (s && s.diferenca !== 0) {
+        toast.warning(
+          `Saldo em ${formatarData(`${s.dia}T00:00:00`)}: banco ${brl(s.extrato)}, sistema ${brl(s.sistema)} (diferença de ${brl(s.diferenca)}). Falta lançar ou conciliar alguma movimentação desta conta.`,
+          { duration: 15000 },
+        );
+      } else if (s) {
+        toast.success(`Saldo confere com o banco em ${formatarData(`${s.dia}T00:00:00`)}: ${brl(s.extrato)}.`);
+      }
       router.refresh();
     } finally {
       setImportando(false);
