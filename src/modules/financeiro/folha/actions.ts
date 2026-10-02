@@ -1,5 +1,6 @@
 "use server";
 
+import { hojeParaBanco } from "@/lib/data";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
@@ -292,7 +293,7 @@ export const editarPagamentoProjetista = defineAction(
           projetoId: pag.disciplina.projetoId,
           projetoCodigo: pag.disciplina.projeto.codigo,
           autorId: user.id,
-          quando: new Date(),
+          quando: hojeParaBanco(),
         });
         await tx.pagamentoProjetista.update({ where: { id: pag.id }, data: { lancamentoId } });
       }

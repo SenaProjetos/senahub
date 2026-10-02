@@ -13,7 +13,7 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
-import { inicioDoDiaUtc } from "@/lib/data";
+import { diaDeSaoPaulo } from "@/lib/data";
 import { paraCentavos, paraReais } from "@/modules/financeiro/liquidez/dinheiro";
 import { isoDeDataDoBanco } from "@/modules/financeiro/liquidez/datas";
 import { avancarCompetencia, enesimoDiaUtil, vencimentoDoCompromisso } from "@/modules/financeiro/recorrencia/calculo";
@@ -143,7 +143,7 @@ export async function fecharFolhaNoBanco(folhaId: string, autorId: string): Prom
 
   const categoria = await categoriaDaFolha();
   const competencia = competenciaDaFolha(folha);
-  const hoje = isoDeDataDoBanco(inicioDoDiaUtc());
+  const hoje = diaDeSaoPaulo();
   const descricao = `Folha CLT ${rotuloFolha(folha)}`;
   const mensal = folhaUsaContaDaCompetencia(folha.tipo);
 

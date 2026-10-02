@@ -1,4 +1,5 @@
 import "server-only";
+import { hojeParaBanco } from "@/lib/data";
 import type { Prisma } from "@/generated/prisma/client";
 import { ActionError } from "@/lib/action-error";
 import { criarDespesaProjetistaPrevista } from "@/modules/financeiro/custo/lancamento-custo";
@@ -157,7 +158,7 @@ export async function liberarPagamentosDaFase(
       projetoId: disciplina.projeto.id,
       projetoCodigo: disciplina.projeto.codigo,
       autorId,
-      quando: agora,
+      quando: hojeParaBanco(agora),
     });
     await tx.pagamentoProjetista.update({ where: { id: pag.id }, data: { lancamentoId } });
     pagaveis.push(resp);
@@ -245,7 +246,7 @@ export async function liberarPagamentosProjetista(
         projetoId: disciplina.projeto.id,
         projetoCodigo: disciplina.projeto.codigo,
         autorId,
-        quando: agora,
+        quando: hojeParaBanco(agora),
       });
       await tx.pagamentoProjetista.update({ where: { id: pag.id }, data: { lancamentoId } });
     }
@@ -421,7 +422,7 @@ export async function sincronizarPagamentosDisciplina(
         projetoId: disciplina.projeto.id,
         projetoCodigo: disciplina.projeto.codigo,
         autorId,
-        quando: agora,
+        quando: hojeParaBanco(agora),
       });
       await tx.pagamentoProjetista.update({ where: { id: pagamentoId }, data: { lancamentoId } });
     }
@@ -464,7 +465,7 @@ export async function sincronizarPagamentosDisciplina(
       projetoId: disciplina.projeto.id,
       projetoCodigo: disciplina.projeto.codigo,
       autorId,
-      quando: agora,
+      quando: hojeParaBanco(agora),
     });
     await tx.pagamentoProjetista.update({ where: { id: pag.id }, data: { lancamentoId } });
   }

@@ -1872,6 +1872,13 @@ model Lancamento {
   @@index([caixinhaId])
   @@index([socioId])
   @@index([restanteDeId])
+  @@index([dataConfirmacao])
+  @@index([dataCompetencia])
+  @@index([categoriaId])
+  @@index([contaId])
+  @@index([clienteId])
+  @@index([fornecedorId])
+  @@index([centroId])
   @@unique([recorrenciaOrigemId, recorrenciaCompetencia])
   @@map("lancamento")
 }

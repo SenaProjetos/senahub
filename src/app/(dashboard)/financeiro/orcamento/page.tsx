@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { utcInicioDoDia, utcFimDoDia } from "@/lib/data";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import {
@@ -21,7 +22,7 @@ export default async function OrcamentoPage({
   const sp = await searchParams;
   const ano = Number(sp.ano) || new Date().getFullYear();
   const [orcamento, serieMensal, categorias, podeGerir] = await Promise.all([
-    orcamentoPorCategoria(new Date(ano, 0, 1), new Date(ano, 11, 31, 23, 59, 59)),
+    orcamentoPorCategoria(utcInicioDoDia(ano, 0), utcFimDoDia(ano, 11, 31)),
     serieMensalResultado(ano),
     categoriasFinanceiras(),
     can(user, "financeiro", "gerir"),

@@ -1,5 +1,6 @@
 "use server";
 
+import { hojeParaBanco } from "@/lib/data";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
@@ -214,7 +215,7 @@ export const executarPlano = defineAction(
 
     const ops: Prisma.PrismaPromise<unknown>[] = [];
     let pagos = 0;
-    const agora = new Date();
+    const agora = hojeParaBanco();
     for (const ln of plano.linhas) {
       const lanc = ln.lancamento;
       if (lanc.status !== "previsto") continue;

@@ -3,7 +3,7 @@
  * Compartilhadas pelas actions de pagamento individual e de lote.
  */
 
-import { diferencaEmDias, inicioDoDiaLocal, inicioDoDiaUtc } from "@/lib/data";
+import { diferencaEmDias, hojeParaBanco, inicioDoDiaLocal } from "@/lib/data";
 import { brl } from "@/lib/utils";
 import { DIAS_PENDENTE_PARADO, type FiltroStatus, type FiltrosFolha } from "./status";
 
@@ -91,7 +91,7 @@ export function separarPagaveis<T extends { valor: Valor }>(pagamentos: T[]) {
  * lançamento (`@db.Date`) saía datado de amanhã.
  */
 export function quandoDoPagamento(data: string | undefined, agora: Date = new Date()): Date {
-  return data ? new Date(data) : inicioDoDiaUtc(agora);
+  return data ? new Date(data) : hojeParaBanco(agora);
 }
 
 /**

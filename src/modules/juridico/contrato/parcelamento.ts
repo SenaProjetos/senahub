@@ -1,3 +1,4 @@
+import { somarMesesUtc } from "@/lib/data";
 import { dividirEmParcelas } from "@/modules/projetos/receita/parcelas";
 
 /**
@@ -23,20 +24,8 @@ export type Parcela = {
   vencimento: Date;
 };
 
-/**
- * Soma meses em UTC, limitando ao último dia do mês (31/01 + 1 mês = 28/02).
- *
- * NÃO usa `addMonths` do date-fns, e isso foi medido: ele opera em hora LOCAL, enquanto
- * `primeiroVencimento` é `@db.Date` e chega como meia-noite UTC. Em fuso negativo (Recife, UTC-3)
- * `2026-01-31T00:00Z` é 30/01 21:00 local; somar um mês dá 28/02 21:00 local, que volta como
- * **01/03** UTC — a parcela pula de mês. Mesma classe de bug que `formatarData` e
- * `propostaExpirada` já tratam no repo.
- */
-function somarMesesUtc(base: Date, meses: number): Date {
-  const alvo = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + meses, 1));
-  const ultimoDia = new Date(Date.UTC(alvo.getUTCFullYear(), alvo.getUTCMonth() + 1, 0)).getUTCDate();
-  return new Date(Date.UTC(alvo.getUTCFullYear(), alvo.getUTCMonth(), Math.min(base.getUTCDate(), ultimoDia)));
-}
+// Soma de meses em UTC (31/01 + 1 mês = 28/02): `somarMesesUtc` em `@/lib/data` — o `addMonths` do
+// date-fns opera em hora local e a parcela pula de mês em fuso negativo.
 
 export class ErroParcelamento extends Error {}
 

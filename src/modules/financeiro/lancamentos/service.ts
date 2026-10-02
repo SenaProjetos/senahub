@@ -1,5 +1,5 @@
 import "server-only";
-import { addMonths } from "date-fns";
+import { somarMesesUtc } from "@/lib/data";
 import { randomUUID } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
 import { ActionError } from "@/lib/action-error";
@@ -101,14 +101,19 @@ export async function criarLancamentoNoTx(db: Db, i: CriarLancamentoInput, autor
     caixinhaId,
   };
 
-  const confirmaAgora = status === "confirmado";
-  const registros = Array.from({ length: i.ocorrencias }, (_, n) => ({
-    ...comum,
-    data: addMonths(dataBase, n),
-    vencimento: vencBase ? addMonths(vencBase, n) : null,
-    dataConfirmacao: confirmaAgora ? addMonths(dataBase, n) : null,
-    dataCompetencia: compBase ? addMonths(compBase, n) : null,
-  }));
+  // A10: lançar "confirmado" com recorrência confirma só o 1º mês; os seguintes são futuros e nascem em
+  // aberto — antes entravam no caixa de hoje e na DRE futura como já pagos.
+  const registros = Array.from({ length: i.ocorrencias }, (_, n) => {
+    const realizado = status === "confirmado" && n === 0;
+    return {
+      ...comum,
+      status: status === "confirmado" && !realizado ? ("previsto" as const) : status,
+      data: somarMesesUtc(dataBase, n),
+      vencimento: vencBase ? somarMesesUtc(vencBase, n) : null,
+      dataConfirmacao: realizado ? dataBase : null,
+      dataCompetencia: compBase ? somarMesesUtc(compBase, n) : null,
+    };
+  });
 
   if (registros.length === 1) {
     const criado = await db.lancamento.create({

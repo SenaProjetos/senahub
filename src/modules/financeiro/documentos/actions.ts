@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { addMonths } from "date-fns";
+import { somarMesesUtc } from "@/lib/data";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
@@ -114,7 +114,7 @@ export const gerarParcelasDoDocumento = defineAction(
 
     const registros = Array.from({ length: i.parcelas }, (_, n) => {
       const valorCent = base + (n === i.parcelas - 1 ? resto : 0);
-      const venc = addMonths(venc0, n);
+      const venc = somarMesesUtc(venc0, n);
       return {
         tipo: i.tipoLancamento,
         descricao: i.parcelas > 1 ? `${rotulo} (${n + 1}/${i.parcelas})` : rotulo,

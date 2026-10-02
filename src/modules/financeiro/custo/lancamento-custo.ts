@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { hojeParaBanco } from "@/lib/data";
 import { ActionError } from "@/lib/action-error";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { brl } from "@/lib/utils";
@@ -255,14 +256,14 @@ export async function sincronizarDespesaServico(
           valor: s.valor!,
           fornecedorId: s.fornecedorId,
           status: plano.status,
-          dataConfirmacao: plano.confirmarAgora ? new Date() : null,
+          dataConfirmacao: plano.confirmarAgora ? hojeParaBanco() : null,
         },
       });
       if (r.count !== 1) throw new ActionError(MOTIVO_SERVICO_PAGO);
       return atual!.id;
     }
     case "criar": {
-      const quando = new Date();
+      const quando = hojeParaBanco();
       const categoriaId = await categoriaIdPorCodigo(tx, CATEGORIA_TERCEIRIZADO);
       const lanc = await tx.lancamento.create({
         data: {
@@ -383,7 +384,7 @@ export async function sincronizarLancamentosArt(
   const deve = lancamentosDaTaxaArt({ situacao: art.situacao, custeio: art.custeio, valor });
   const rotulo = rotuloArt(art);
   const codigo = formatarCodigo(art.projetoCodigo);
-  const quando = art.emitidaEm ?? new Date();
+  const quando = art.emitidaEm ?? hojeParaBanco();
   const comum = { valor: valor ?? 0, quando, projetoId: art.projetoId, autorId: art.autorId };
 
   const lancamentoId = await sincronizarSlotArt(tx, {

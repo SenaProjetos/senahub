@@ -1,4 +1,5 @@
 import "server-only";
+import { utcInicioDoDia, utcFimDoDia } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
 import { SO_RESULTADO } from "@/modules/financeiro/natureza";
 import { calcularFechamento, type Aliquotas, type FechamentoEntrada } from "./calculo";
@@ -6,12 +7,19 @@ import { getAliquotas } from "@/modules/financeiro/config/queries";
 import type { Prisma } from "@/generated/prisma/client";
 
 function periodoMes(ano: number, mes: number) {
-  return { ini: new Date(ano, mes - 1, 1), fim: new Date(ano, mes, 0, 23, 59, 59, 999) };
+  return {
+    // Colunas de data (`dataConfirmacao`): fronteiras em UTC (A9).
+    ini: utcInicioDoDia(ano, mes - 1),
+    fim: utcFimDoDia(ano, mes, 0),
+    // `liberadoEm` é instante: fronteiras locais.
+    iniLocal: new Date(ano, mes - 1, 1),
+    fimLocal: new Date(ano, mes, 0, 23, 59, 59, 999),
+  };
 }
 
 /** Consolida receita/despesa confirmadas e folha bruta de projetistas do mês. */
 async function consolidar(ano: number, mes: number): Promise<FechamentoEntrada> {
-  const { ini, fim } = periodoMes(ano, mes);
+  const { ini, fim, iniLocal, fimLocal } = periodoMes(ano, mes);
   const [receitas, despesas, folha] = await Promise.all([
     prisma.lancamento.findMany({
       where: { tipo: "receita", status: "confirmado", dataConfirmacao: { gte: ini, lte: fim }, ...SO_RESULTADO },
@@ -21,7 +29,7 @@ async function consolidar(ano: number, mes: number): Promise<FechamentoEntrada> 
       where: { tipo: "despesa", status: "confirmado", dataConfirmacao: { gte: ini, lte: fim }, ...SO_RESULTADO },
       select: { valor: true, valorEfetivo: true },
     }),
-    prisma.pagamentoProjetista.aggregate({ where: { liberadoEm: { gte: ini, lte: fim } }, _sum: { valor: true } }),
+    prisma.pagamentoProjetista.aggregate({ where: { liberadoEm: { gte: iniLocal, lte: fimLocal } }, _sum: { valor: true } }),
   ]);
   const soma = (arr: { valor: Prisma.Decimal; valorEfetivo: Prisma.Decimal | null }[]) =>
     arr.reduce((s, l) => s + Number(l.valorEfetivo ?? l.valor), 0);

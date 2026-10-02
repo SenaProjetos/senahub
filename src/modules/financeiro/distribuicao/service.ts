@@ -2,7 +2,7 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { ActionError } from "@/lib/action-error";
 import { prisma } from "@/lib/prisma";
-import { inicioDoDiaUtc } from "@/lib/data";
+import { hojeParaBanco } from "@/lib/data";
 import { getConfigLiquidez } from "@/modules/financeiro/config/queries";
 import { elegivelParaDistribuir, motivoDaDivisao, partesDeCaixinha, ratear, type ItemDeRegra } from "@/modules/financeiro/distribuicao/calculo";
 import { isoDeDataDoBanco } from "@/modules/financeiro/liquidez/datas";
@@ -101,7 +101,7 @@ export async function distribuirRecebimento(p: {
   const l = await lerElegivel(prisma, p.lancamentoId);
   const partes = ratear(l.valor, p.itens);
   const reservar = partesDeCaixinha(partes);
-  const hoje = new Date(`${isoDeDataDoBanco(inicioDoDiaUtc())}T00:00:00.000Z`);
+  const hoje = hojeParaBanco();
 
   try {
     return await prisma.$transaction(async (tx) => {
@@ -136,7 +136,7 @@ export async function pularRecebimento(p: { lancamentoId: string; usuarioId: str
   await lerElegivel(prisma, p.lancamentoId);
   try {
     await prisma.distribuicaoRecebimento.create({
-      data: { lancamentoId: p.lancamentoId, situacao: "pulada", data: new Date(`${isoDeDataDoBanco(inicioDoDiaUtc())}T00:00:00.000Z`), autorId: p.usuarioId },
+      data: { lancamentoId: p.lancamentoId, situacao: "pulada", data: hojeParaBanco(), autorId: p.usuarioId },
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {

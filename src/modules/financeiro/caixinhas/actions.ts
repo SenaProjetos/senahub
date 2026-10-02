@@ -1,13 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { inicioDoDiaUtc } from "@/lib/data";
+import { diaDeSaoPaulo } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
 import { ActionError, defineAction } from "@/lib/with-action";
 import { carregarCaixinhas } from "@/modules/financeiro/caixinhas/queries";
 import { caixinhaSchema, idCaixinhaSchema, movimentoSchema } from "@/modules/financeiro/caixinhas/schemas";
 import { movimentarNoBanco } from "@/modules/financeiro/caixinhas/service";
-import { isoDeDataDoBanco } from "@/modules/financeiro/liquidez/datas";
 
 /**
  * Caixinhas (spec §4, plano I9). Ver é de quem vê o Financeiro; mexer exige `financeiro:gerir`.
@@ -21,7 +20,7 @@ function rev() {
   revalidatePath("/financeiro");
 }
 
-const hoje = () => isoDeDataDoBanco(inicioDoDiaUtc());
+const hoje = () => diaDeSaoPaulo();
 
 async function exigir(id: string) {
   const c = await prisma.caixinha.findUnique({ where: { id }, select: { id: true, nome: true, ativo: true } });

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { utcInicioDoDia } from "@/lib/data";
 import { requirePermission } from "@/lib/session";
 import {
   rentabilidadePorProjeto,
@@ -15,8 +16,8 @@ export const metadata: Metadata = { title: "Rentabilidade por projeto" };
 
 function periodoPadrao(sp: { de?: string; ate?: string }) {
   const hoje = new Date();
-  const de = sp.de ? new Date(sp.de) : new Date(hoje.getFullYear(), 0, 1);
-  const ate = sp.ate ? new Date(sp.ate) : new Date(hoje.getFullYear(), 11, 31);
+  const de = sp.de ? new Date(sp.de) : utcInicioDoDia(hoje.getFullYear(), 0);
+  const ate = sp.ate ? new Date(sp.ate) : utcInicioDoDia(hoje.getFullYear(), 11, 31);
   return { de, ate };
 }
 
@@ -31,7 +32,7 @@ export default async function RentabilidadePage({
   const margem = sp.margem ? Number(sp.margem) : 0;
   const [dados, evolucao, custoDisciplina] = await Promise.all([
     rentabilidadePorProjeto(de, ate, Number.isFinite(margem) ? margem : 0),
-    evolucaoMargemMensal(ate.getFullYear()),
+    evolucaoMargemMensal(ate.getUTCFullYear()),
     custoPorDisciplina(de, ate),
   ]);
   const coordMap = await coordenadoresPorProjeto(dados.projetos.map((p) => p.projetoId));
@@ -40,7 +41,7 @@ export default async function RentabilidadePage({
     <RentabilidadeView subnav={<><NavFinanceiro /><NavResultados /></>}
       dados={dados}
       evolucao={evolucao}
-      ano={ate.getFullYear()}
+      ano={ate.getUTCFullYear()}
       porCoordenador={porCoordenador}
       custoDisciplina={custoDisciplina}
     />

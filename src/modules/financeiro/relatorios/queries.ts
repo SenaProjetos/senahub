@@ -1,11 +1,12 @@
 import "server-only";
+import { utcInicioDoDia, utcFimDoDia } from "@/lib/data";
 import { formatarMesCurto } from "@/lib/utils";
 import { subDays, differenceInCalendarDays } from "date-fns";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { fluxoCaixa } from "@/modules/financeiro/caixa/queries";
 import { SEM_TRANSFERENCIA, SO_RESULTADO } from "@/modules/financeiro/natureza";
-import { somaPaga } from "@/modules/financeiro/valor-pago";
+import { somaPaga, somarReais, valorPagoReais } from "@/modules/financeiro/valor-pago";
 import { analisarDRE, type LinhaBaseDRE, type DREComparativo } from "./dre";
 import { calcularRentabilidade, rentabilidadePorCliente, type ProjetoEntrada } from "./dre-projeto";
 
@@ -33,8 +34,8 @@ export async function relatorioDFC(de: Date, ate: Date) {
       : "operacional";
     const bucket = mapa.get(g)!;
     const cur = bucket.get(l.categoria.codigo) ?? { codigo: l.categoria.codigo, nome: l.categoria.nome, valor: 0 };
-    const v = Number(l.valorEfetivo ?? l.valor);
-    cur.valor += l.tipo === "receita" ? v : -v;
+    const v = valorPagoReais(l);
+    cur.valor = somarReais(cur.valor, l.tipo === "receita" ? v : -v);
     bucket.set(l.categoria.codigo, cur);
   }
   const atividades: AtividadeDFC[] = GRUPOS_DFC.map((grupo) => {
@@ -101,7 +102,7 @@ export async function relatorioDRE(de: Date, ate: Date): Promise<DRE> {
       tipo: l.categoria.tipo,
       valor: 0,
     };
-    cur.valor += Number(l.valorEfetivo ?? l.valor);
+    cur.valor = somarReais(cur.valor, valorPagoReais(l));
     mapa.set(k, cur);
   }
 
@@ -152,7 +153,7 @@ export type Orcamento = {
  * realizado = confirmados (valorEfetivo). Inclui categorias só orçadas (sem lançamento).
  */
 export async function orcamentoPorCategoria(de: Date, ate: Date): Promise<Orcamento> {
-  const ano = de.getFullYear();
+  const ano = de.getUTCFullYear();
   const [lancamentos, itens] = await Promise.all([
     prisma.lancamento.findMany({
       // O orçamento planeja RESULTADO: distribuição de lucros e transferência não são gasto a orçar.
@@ -179,8 +180,8 @@ export async function orcamentoPorCategoria(de: Date, ate: Date): Promise<Orcame
   for (const l of lancamentos) {
     const c = l.categoria;
     const cur = mapa.get(c.id) ?? novaLinha(c);
-    if (l.status === "confirmado") cur.realizado += Number(l.valorEfetivo ?? l.valor);
-    else if (l.status === "previsto") cur.previsto += Number(l.valor);
+    if (l.status === "confirmado") cur.realizado = somarReais(cur.realizado, valorPagoReais(l));
+    else if (l.status === "previsto") cur.previsto = somarReais(cur.previsto, Number(l.valor));
     mapa.set(c.id, cur);
   }
   for (const it of itens) {
@@ -229,7 +230,7 @@ export async function serieMensalResultado(ano: number): Promise<MesResultado[]>
   const lancs = await prisma.lancamento.findMany({
     where: {
       status: "confirmado",
-      dataConfirmacao: { gte: new Date(ano, 0, 1), lte: new Date(ano, 11, 31, 23, 59, 59) },
+      dataConfirmacao: { gte: utcInicioDoDia(ano, 0), lte: utcFimDoDia(ano, 11, 31) },
       ...SO_RESULTADO,
     },
     select: { tipo: true, valor: true, valorEfetivo: true, dataConfirmacao: true },
@@ -242,10 +243,10 @@ export async function serieMensalResultado(ano: number): Promise<MesResultado[]>
     resultado: 0,
   }));
   for (const l of lancs) {
-    const m = l.dataConfirmacao!.getMonth();
-    const v = Number(l.valorEfetivo ?? l.valor);
-    if (l.tipo === "receita") meses[m].receita += v;
-    else meses[m].despesa += v;
+    const m = l.dataConfirmacao!.getUTCMonth();
+    const v = valorPagoReais(l);
+    if (l.tipo === "receita") meses[m].receita = somarReais(meses[m].receita, v);
+    else meses[m].despesa = somarReais(meses[m].despesa, v);
   }
   for (const m of meses) m.resultado = m.receita - m.despesa;
   return meses;
@@ -322,9 +323,9 @@ export async function totaisPorCategoria(
       nivel === "subcategoria"
         ? (nivel2.get(l.categoria.id)?.nome ?? l.categoria.nome)
         : (nomePorCodigo.get(l.categoria.codigo.split(".")[0]) ?? l.categoria.nome);
-    const v = Number(l.valorEfetivo ?? l.valor);
+    const v = valorPagoReais(l);
     mapa.set(nome, (mapa.get(nome) ?? 0) + v);
-    total += v;
+    total = somarReais(total, v);
   }
 
   const ordenado = [...mapa.entries()].sort((a, b) => b[1] - a[1]);
@@ -345,15 +346,15 @@ export type MargemMensal = { mes: number; rotulo: string; receita: number; resul
 /** Série mensal (12 meses) de receita/resultado/margem% realizados — evolução da margem. */
 export async function evolucaoMargemMensal(ano: number): Promise<MargemMensal[]> {
   const lancs = await prisma.lancamento.findMany({
-    where: { status: "confirmado", dataConfirmacao: { gte: new Date(ano, 0, 1), lte: new Date(ano, 11, 31, 23, 59, 59) }, ...SO_RESULTADO },
+    where: { status: "confirmado", dataConfirmacao: { gte: utcInicioDoDia(ano, 0), lte: utcFimDoDia(ano, 11, 31) }, ...SO_RESULTADO },
     select: { tipo: true, valor: true, valorEfetivo: true, dataConfirmacao: true },
   });
   const acc = Array.from({ length: 12 }, () => ({ receita: 0, despesa: 0 }));
   for (const l of lancs) {
     if (!l.dataConfirmacao) continue;
-    const v = Number(l.valorEfetivo ?? l.valor);
-    if (l.tipo === "receita") acc[l.dataConfirmacao.getMonth()].receita += v;
-    else acc[l.dataConfirmacao.getMonth()].despesa += v;
+    const v = valorPagoReais(l);
+    if (l.tipo === "receita") acc[l.dataConfirmacao.getUTCMonth()].receita = somarReais(acc[l.dataConfirmacao.getUTCMonth()].receita, v);
+    else acc[l.dataConfirmacao.getUTCMonth()].despesa = somarReais(acc[l.dataConfirmacao.getUTCMonth()].despesa, v);
   }
   return acc.map((m, i) => {
     const resultado = m.receita - m.despesa;
@@ -381,7 +382,7 @@ export async function evolucaoMensalCategorias(
 ): Promise<EvolucaoCategorias> {
   const [lancs, categorias] = await Promise.all([
     prisma.lancamento.findMany({
-      where: { tipo, status: "confirmado", dataConfirmacao: { gte: new Date(ano, 0, 1), lte: new Date(ano, 11, 31, 23, 59, 59) }, ...SO_RESULTADO },
+      where: { tipo, status: "confirmado", dataConfirmacao: { gte: utcInicioDoDia(ano, 0), lte: utcFimDoDia(ano, 11, 31) }, ...SO_RESULTADO },
       include: { categoria: { select: { codigo: true, nome: true } } },
     }),
     prisma.categoriaFinanceira.findMany({ select: { codigo: true, nome: true } }),
@@ -394,7 +395,7 @@ export async function evolucaoMensalCategorias(
     const topo = l.categoria.codigo.split(".")[0];
     const nome = nomePorCodigo.get(topo) ?? l.categoria.nome;
     const arr = mapa.get(nome) ?? new Array<number>(12).fill(0);
-    arr[l.dataConfirmacao.getMonth()] += Number(l.valorEfetivo ?? l.valor);
+    arr[l.dataConfirmacao.getUTCMonth()] = somarReais(arr[l.dataConfirmacao.getUTCMonth()], valorPagoReais(l));
     mapa.set(nome, arr);
   }
 
@@ -440,9 +441,9 @@ export async function resultadoPorProjeto(de: Date, ate: Date): Promise<Resultad
     const cur =
       mapa.get(l.projeto.id) ??
       { projetoId: l.projeto.id, codigo: l.projeto.codigo, nome: l.projeto.nome, receita: 0, despesa: 0, resultado: 0 };
-    const v = Number(l.valorEfetivo ?? l.valor);
-    if (l.tipo === "receita") cur.receita += v;
-    else cur.despesa += v;
+    const v = valorPagoReais(l);
+    if (l.tipo === "receita") cur.receita = somarReais(cur.receita, v);
+    else cur.despesa = somarReais(cur.despesa, v);
     cur.resultado = cur.receita - cur.despesa;
     mapa.set(l.projeto.id, cur);
   }
@@ -463,9 +464,9 @@ export async function rentabilidadePorProjeto(de: Date, ate: Date, margemMinima 
   const mapa = new Map<string, ProjetoEntrada>();
   let totalIndireto = 0;
   for (const l of lancs) {
-    const v = Number(l.valorEfetivo ?? l.valor);
+    const v = valorPagoReais(l);
     if (!l.projeto) {
-      if (l.tipo === "despesa") totalIndireto += v; // overhead a ratear
+      if (l.tipo === "despesa") totalIndireto = somarReais(totalIndireto, v); // overhead a ratear
       continue;
     }
     const cur =
@@ -478,8 +479,8 @@ export async function rentabilidadePorProjeto(de: Date, ate: Date, margemMinima 
         receita: 0,
         diretos: 0,
       };
-    if (l.tipo === "receita") cur.receita += v;
-    else cur.diretos += v;
+    if (l.tipo === "receita") cur.receita = somarReais(cur.receita, v);
+    else cur.diretos = somarReais(cur.diretos, v);
     mapa.set(l.projeto.id, cur);
   }
 
@@ -508,7 +509,7 @@ export async function custoPorDisciplina(de: Date, ate: Date): Promise<CustoDisc
     const cur =
       mapa.get(d.id) ??
       { disciplinaId: d.id, nome: d.disciplinaTextoLegado, projeto: `${d.projeto.codigo} ${d.projeto.nome}`, orcado: Number(d.valor ?? 0), pago: 0, saldo: 0 };
-    cur.pago += Number(p.valor);
+    cur.pago = somarReais(cur.pago, Number(p.valor));
     mapa.set(d.id, cur);
   }
   for (const c of mapa.values()) c.saldo = Math.round((c.orcado - c.pago) * 100) / 100;
@@ -552,7 +553,7 @@ async function linhasDREPeriodo(de: Date, ate: Date, base: BaseDRE): Promise<Lin
   for (const l of lancamentos) {
     const c = l.categoria;
     const cur = mapa.get(c.codigo) ?? { codigo: c.codigo, nome: c.nome, tipo: c.tipo, grupoDfc: c.grupoDfc, valor: 0 };
-    cur.valor += Number(l.valorEfetivo ?? l.valor);
+    cur.valor = somarReais(cur.valor, valorPagoReais(l));
     mapa.set(c.codigo, cur);
   }
   return [...mapa.values()];

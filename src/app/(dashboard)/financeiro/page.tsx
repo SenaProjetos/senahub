@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { utcInicioDoDia, utcFimDoDia } from "@/lib/data";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Banknote, Paperclip, BookOpenText } from "lucide-react";
@@ -37,23 +38,23 @@ function intervaloPeriodo(periodo: Periodo, hoje = new Date()) {
   const ano = hoje.getFullYear();
   if (periodo === "ano") {
     return {
-      de: new Date(ano, 0, 1),
-      ate: new Date(ano, 11, 31, 23, 59, 59),
+      de: utcInicioDoDia(ano, 0),
+      ate: utcFimDoDia(ano, 11, 31),
       rotulo: String(ano),
     };
   }
   if (periodo === "trimestre") {
     const triIni = Math.floor(hoje.getMonth() / 3) * 3;
     return {
-      de: new Date(ano, triIni, 1),
-      ate: new Date(ano, triIni + 3, 0, 23, 59, 59),
+      de: utcInicioDoDia(ano, triIni),
+      ate: utcFimDoDia(ano, triIni + 3, 0),
       rotulo: `${Math.floor(triIni / 3) + 1}º tri · ${ano}`,
     };
   }
   // mês corrente (default)
   return {
-    de: new Date(ano, hoje.getMonth(), 1),
-    ate: new Date(ano, hoje.getMonth() + 1, 0, 23, 59, 59),
+    de: utcInicioDoDia(ano, hoje.getMonth()),
+    ate: utcFimDoDia(ano, hoje.getMonth() + 1, 0),
     rotulo: hoje.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }),
   };
 }

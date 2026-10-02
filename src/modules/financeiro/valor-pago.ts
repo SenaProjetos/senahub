@@ -20,3 +20,16 @@ export function valorPagoCentavos(l: LinhaPaga): number {
 export function somaPaga(linhas: readonly LinhaPaga[]): number {
   return paraReais(linhas.reduce((s, l) => s + valorPagoCentavos(l), 0));
 }
+
+/**
+ * Valor pago de UM lançamento em reais, exato em 2 casas (passa por centavos). Para acumuladores de
+ * relatório: cada parcela entra sem ruído de ponto flutuante e `acc = arredondar(acc + v)` não deriva.
+ */
+export function valorPagoReais(l: LinhaPaga): number {
+  return paraReais(valorPagoCentavos(l));
+}
+
+/** Soma de dois valores em reais sem deriva de ponto flutuante (via centavos). */
+export function somarReais(a: number, b: number): number {
+  return paraReais(paraCentavos(a) + paraCentavos(b));
+}

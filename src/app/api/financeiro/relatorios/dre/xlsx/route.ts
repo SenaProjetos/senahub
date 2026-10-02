@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { utcInicioDoDia } from "@/lib/data";
 import { createRequire } from "node:module";
 import { requirePermission } from "@/lib/session";
 import { relatorioDRE } from "@/modules/financeiro/relatorios/queries";
@@ -13,10 +14,10 @@ export async function GET(req: Request) {
   const hoje = new Date();
   const de = url.searchParams.get("de")
     ? new Date(url.searchParams.get("de")!)
-    : new Date(hoje.getFullYear(), 0, 1);
+    : utcInicioDoDia(hoje.getFullYear(), 0);
   const ate = url.searchParams.get("ate")
     ? new Date(url.searchParams.get("ate")!)
-    : new Date(hoje.getFullYear(), 11, 31);
+    : utcInicioDoDia(hoje.getFullYear(), 11, 31);
 
   const dre = await relatorioDRE(de, ate);
 

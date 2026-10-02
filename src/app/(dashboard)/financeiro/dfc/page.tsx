@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { utcInicioDoDia, utcFimDoDia } from "@/lib/data";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { relatorioDFC, categoriasParaDfc } from "@/modules/financeiro/relatorios/queries";
@@ -13,7 +14,7 @@ export default async function DfcPage({ searchParams }: { searchParams: Promise<
   const sp = await searchParams;
   const ano = Number(sp.ano) || new Date().getFullYear();
   const [dfc, categorias, podeGerir] = await Promise.all([
-    relatorioDFC(new Date(ano, 0, 1), new Date(ano, 11, 31, 23, 59, 59)),
+    relatorioDFC(utcInicioDoDia(ano, 0), utcFimDoDia(ano, 11, 31)),
     categoriasParaDfc(),
     can(user, "financeiro", "gerir"),
   ]);

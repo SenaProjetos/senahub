@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { utcInicioDoDia } from "@/lib/data";
 import { requirePermission } from "@/lib/session";
 import {
   relatorioDREComparativo,
@@ -15,8 +16,8 @@ export const metadata: Metadata = { title: "Relatórios" };
 
 function periodoPadrao(sp: { de?: string; ate?: string }) {
   const hoje = new Date();
-  const de = sp.de ? new Date(sp.de) : new Date(hoje.getFullYear(), 0, 1);
-  const ate = sp.ate ? new Date(sp.ate) : new Date(hoje.getFullYear(), 11, 31);
+  const de = sp.de ? new Date(sp.de) : utcInicioDoDia(hoje.getFullYear(), 0);
+  const ate = sp.ate ? new Date(sp.ate) : utcInicioDoDia(hoje.getFullYear(), 11, 31);
   return { de, ate };
 }
 
@@ -29,7 +30,7 @@ export default async function RelatoriosPage({
   const sp = await searchParams;
   const { de, ate } = periodoPadrao(sp);
   const base = sp.base === "competencia" ? "competencia" : "caixa";
-  const ano = ate.getFullYear();
+  const ano = ate.getUTCFullYear();
   const [dre, ind, despesasCat, receitasCat, porProjeto, evolucao] = await Promise.all([
     relatorioDREComparativo(de, ate, base),
     indicadores(de, ate),

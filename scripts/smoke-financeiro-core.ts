@@ -12,6 +12,7 @@
  *   N1. Máquina de situações: estorno (simples, parcial com o resto, distribuída, conciliado não),
  *       reabertura (rejeitado volta à aprovação), caminhos impossíveis recusados, excluído por id
  *       recusado, corrida de dois estornos.
+ *   N2. Recorrência confirmada só no 1º mês (A10), 31/01 + 1 mês = 28/02 (A9), dia 1º dentro do mês.
  *   A8. Desfazer importação: barrado com linha trabalhada, exclusão lógica no lote intocado, dedup
  *       que enxerga a linha excluída à mão mas não a do lote desfeito.
  *
@@ -31,6 +32,8 @@ import { liberarPagamentosProjetista, sincronizarPagamentosDisciplina } from "..
 import { indicadores } from "../src/modules/financeiro/relatorios/queries";
 import { estornarNoBanco, exigirOperacao, reabrirNoBanco } from "../src/modules/financeiro/lancamentos/situacao-service";
 import { executarCommit, executarDesfazer } from "../src/modules/financeiro/importacao/commit-core";
+import { criarLancamentoNoTx } from "../src/modules/financeiro/lancamentos/service";
+import { utcFimDoDia, utcInicioDoDia } from "../src/lib/data";
 import { hashesExistentes } from "../src/modules/financeiro/importacao/queries";
 import { normalizarLinhas } from "../src/modules/financeiro/importacao/processar";
 
@@ -82,6 +85,7 @@ async function main() {
     await recebidoPeloPago(admin.id);
     await maquinaDeSituacoes(admin.id);
     await desfazerImportacao(admin.id);
+    await datasEOcorrencias(admin.id);
   } finally {
     const pags = (await prisma.pagamentoProjetista.findMany({ where: { disciplinaId: disciplina.id }, select: { id: true } })).map((p) => p.id);
     await prisma.lancamento.deleteMany({ where: { OR: [{ projetoId: projeto.id }, { pagamentoProjetistaId: { in: pags } }, { descricao: { startsWith: tag } }] } });
@@ -356,6 +360,29 @@ async function desfazerImportacao(autorId: string) {
     await prisma.contaBancaria.deleteMany({ where: { nome: { startsWith: tag } } });
     const novas = (await prisma.categoriaFinanceira.findMany({ select: { id: true } })).map((c) => c.id).filter((id) => !categoriasAntes.has(id));
     if (novas.length) await prisma.categoriaFinanceira.deleteMany({ where: { id: { in: novas }, lancamentos: { none: {} } } });
+  }
+}
+
+async function datasEOcorrencias(autorId: string) {
+  console.log("\n# N2 — datas e recorrência");
+  const cat = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "receita", natureza: "resultado" }, select: { id: true } });
+  if (!cat) return check("categoria de receita existe", false);
+  const base = { tipo: "receita" as const, descricao: `${tag} rec`, valor: 100, data: "2042-01-31", categoriaId: cat.id, ocorrencias: 3 };
+  try {
+    // A10: confirmado + recorrência confirma só o 1º mês; A9: 31/01 + 1 mês = 28/02 (não 01/03).
+    await criarLancamentoNoTx(prisma, { ...base, confirmado: true }, autorId);
+    const l = await prisma.lancamento.findMany({ where: { descricao: `${tag} rec` }, orderBy: { data: "asc" }, select: { status: true, data: true, dataConfirmacao: true } });
+    check("A10: só o 1º mês nasce confirmado, os seguintes em aberto", l.map((x) => x.status).join() === "confirmado,previsto,previsto", l.map((x) => x.status));
+    check("A10: os meses futuros não têm data de pagamento", l[1].dataConfirmacao === null && l[2].dataConfirmacao === null && l[0].dataConfirmacao !== null);
+    check("A9: 31/01 + 1 e 2 meses = 28/02 e 31/03 (sem pular para 01/03)", l.slice(1).map((x) => x.data.toISOString().slice(0, 10)).join() === "2042-02-28,2042-03-31", l.map((x) => x.data.toISOString().slice(0, 10)));
+
+    // A9: o lançamento do dia 1 conta no mês dele e não no anterior (fronteira UTC).
+    await prisma.lancamento.create({ data: { tipo: "receita", descricao: `${tag} dia1`, valor: 777, status: "confirmado", data: dia("2042-09-01"), dataConfirmacao: dia("2042-09-01"), categoriaId: cat.id, autorId } });
+    const ago = await indicadores(utcInicioDoDia(2042, 7), utcFimDoDia(2042, 8, 0));
+    const set = await indicadores(utcInicioDoDia(2042, 8), utcFimDoDia(2042, 9, 0));
+    check("A9: recebido do dia 1º cai em setembro, não em agosto", ago.recebido === 0 && set.recebido === 777, { ago: ago.recebido, set: set.recebido });
+  } finally {
+    await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: tag }, excluidoEm: { not: undefined } } });
   }
 }
 

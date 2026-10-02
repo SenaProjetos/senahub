@@ -293,6 +293,13 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   status-changing path must go through this — never a bare `lancamento.update({ status })`. Undoing an
   import is a soft delete refused once any row was conciliated, distributed or edited; dedup
   (`hashesExistentes`) sees rows excluded by hand but not rows of an undone lote.
+- **Dates in the Financeiro are São Paulo calendar days** (N2, `lib/data.ts`): "today" to WRITE into a date column
+  is `hojeParaBanco()` (UTC midnight of the SP day) and to compare is `diaDeSaoPaulo()` — a bare `new Date()` is
+  tomorrow after 21h BRT. Period limits on date columns (`@db.Date`: `data`, `dataConfirmacao`, `dataCompetencia`)
+  are `utcInicioDoDia`/`utcFimDoDia` — `new Date(ano, mes, 1)` is 03:00Z and dropped the 1st of the month; read a
+  DB date's month with `getUTCMonth()`. Add months to a date with `somarMesesUtc` (date-fns `addMonths` is local
+  time: 31/01 + 1 month became 01/03). Aging gets `hojeParaBanco()`. A `confirmado` lançamento with recurrence
+  confirms ONLY the first month. Report accumulators use `somarReais`/`valorPagoReais` (cents, no float drift).
 - **Paid value, never nominal** (`modules/financeiro/valor-pago.ts`): any sum of REALIZED rows uses
   `somaPaga()` (row by row, `valorEfetivo ?? valor`, cents) — `_sum.valor` counts what was expected, and
   `_sum.valorEfetivo ?? _sum.valor` drops every row without `valorEfetivo` as soon as one has it.

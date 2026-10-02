@@ -4,6 +4,11 @@ import {
   inicioDoDia,
   inicioDoDiaLocal,
   inicioDoDiaUtc,
+  diaDeSaoPaulo,
+  hojeParaBanco,
+  somarMesesUtc,
+  utcFimDoDia,
+  utcInicioDoDia,
   diferencaEmDias,
   prazoVencido,
   diasVencidos,
@@ -131,5 +136,47 @@ describe("diferencaEmDias", () => {
 
   it("null sem uma das pontas", () => {
     expect(diferencaEmDias(null, prazoDia("2026-09-02"))).toBeNull();
+  });
+});
+
+describe("hojeParaBanco / diaDeSaoPaulo (A9)", () => {
+  it("22h de 02/09 em São Paulo ainda é 02/09 (new Date() cru gravaria 03/09)", () => {
+    const instante = new Date("2026-09-03T01:00:00.000Z"); // 22:00 BRT de 02/09
+    expect(diaDeSaoPaulo(instante)).toBe("2026-09-02");
+    expect(hojeParaBanco(instante).toISOString()).toBe("2026-09-02T00:00:00.000Z");
+  });
+  it("virada: 00:30 BRT já é o dia novo", () => {
+    expect(diaDeSaoPaulo(new Date("2026-09-03T03:30:00.000Z"))).toBe("2026-09-03");
+  });
+  it("manhã comum não muda", () => {
+    expect(hojeParaBanco(new Date("2026-09-02T13:00:00.000Z")).toISOString()).toBe("2026-09-02T00:00:00.000Z");
+  });
+});
+
+describe("somarMesesUtc (A9)", () => {
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  it("31/01 + 1 mês = 28/02 (date-fns em hora local pularia para 01/03)", () => {
+    expect(iso(somarMesesUtc(new Date("2026-01-31T00:00:00.000Z"), 1))).toBe("2026-02-28");
+    expect(iso(somarMesesUtc(new Date("2026-01-29T00:00:00.000Z"), 1))).toBe("2026-02-28");
+  });
+  it("vira o ano e respeita bissexto", () => {
+    expect(iso(somarMesesUtc(new Date("2026-11-30T00:00:00.000Z"), 3))).toBe("2027-02-28");
+    expect(iso(somarMesesUtc(new Date("2028-01-31T00:00:00.000Z"), 1))).toBe("2028-02-29");
+  });
+  it("zero e dia comum não mudam", () => {
+    expect(iso(somarMesesUtc(new Date("2026-05-10T00:00:00.000Z"), 0))).toBe("2026-05-10");
+    expect(iso(somarMesesUtc(new Date("2026-05-10T00:00:00.000Z"), 2))).toBe("2026-07-10");
+  });
+});
+
+describe("fronteiras de período em UTC (A9)", () => {
+  it("o dia 1 gravado (00:00Z) está DENTRO do mês, e o dia 1 do mês seguinte, fora", () => {
+    const ini = utcInicioDoDia(2026, 8);
+    const fim = utcFimDoDia(2026, 9, 0);
+    const dia1 = new Date("2026-09-01T00:00:00.000Z");
+    const proximoDia1 = new Date("2026-10-01T00:00:00.000Z");
+    expect(dia1 >= ini && dia1 <= fim).toBe(true);
+    expect(proximoDia1 <= fim).toBe(false);
+    expect(fim.toISOString()).toBe("2026-09-30T23:59:59.999Z");
   });
 });

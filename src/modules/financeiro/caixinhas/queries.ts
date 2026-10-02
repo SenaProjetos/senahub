@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { inicioDoDiaUtc } from "@/lib/data";
+import { diaDeSaoPaulo } from "@/lib/data";
 import { situacaoDaCaixinha, usado, type RegraNecessidade, type SaidaPendente, type SaidaRealizada, type SituacaoCaixinha } from "@/modules/financeiro/caixinhas/calculo";
 import { isoDeDataDoBanco, somarDias } from "@/modules/financeiro/liquidez/datas";
 import { paraCentavos } from "@/modules/financeiro/liquidez/dinheiro";
@@ -66,7 +66,7 @@ export async function carregarCaixinhas(o: { hoje: DataIso; inativas?: boolean }
   }
 
   return caixinhas.map((c) => {
-    const criadaEm = isoDeDataDoBanco(inicioDoDiaUtc(c.createdAt));
+    const criadaEm = diaDeSaoPaulo(c.createdAt);
     const a = alocadoPor.get(c.id) ?? 0;
     const u = usado(usoPor.get(c.id) ?? [], criadaEm, o.hoje);
     const dele = abertasPor.get(c.id) ?? [];

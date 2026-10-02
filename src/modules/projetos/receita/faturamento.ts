@@ -1,4 +1,5 @@
 import "server-only";
+import { hojeParaBanco } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { TAG_PARCELA_CONTRATO, TAG_ENTREGA_PREFIXO, contratosDeCobranca } from "./queries";
@@ -41,7 +42,7 @@ export async function faturarEntregaDaDisciplina(p: {
   const categoria = await prisma.categoriaFinanceira.findUnique({ where: { codigo: codigoCat } });
   if (!categoria) throw new ActionError(`Categoria ${codigoCat} ausente no plano de contas.`);
 
-  const agora = new Date();
+  const agora = hojeParaBanco();
   await prisma.lancamento.create({
     data: {
       tipo: "receita",

@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { SO_RESULTADO } from "@/modules/financeiro/natureza";
 import { somaPaga } from "@/modules/financeiro/valor-pago";
+import { utcFimDoDia, utcInicioDoDia } from "@/lib/data";
 import type { Prisma, StatusDisciplina } from "@/generated/prisma/client";
 import { acessoGlobal, type Role, type EscopoDeDados } from "@/lib/roles";
 import { kpisHome } from "@/modules/qualidade/queries";
@@ -228,8 +229,8 @@ export async function gravarSnapshotDashboard() {
       status: "confirmado",
       ...SO_RESULTADO,
       dataConfirmacao: {
-        gte: new Date(hoje.getFullYear(), hoje.getMonth(), 1),
-        lte: new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59),
+        gte: utcInicioDoDia(hoje.getFullYear(), hoje.getMonth()),
+        lte: utcFimDoDia(hoje.getFullYear(), hoje.getMonth() + 1, 0),
       },
     },
     select: { valor: true, valorEfetivo: true },

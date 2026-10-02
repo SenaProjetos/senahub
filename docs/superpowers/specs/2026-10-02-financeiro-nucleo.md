@@ -161,3 +161,23 @@ Financeiro.
 ### Deploy do N1
 
 Migração `20261002120000_lancamento_restante_de` (aditiva). Nada a rodar à mão.
+
+## N2 — datas e dinheiro (Sonnet) — concluída
+
+- **A9 · "hoje" em São Paulo** (`lib/data.ts`): `diaDeSaoPaulo()` e `hojeParaBanco()` (meia-noite UTC do dia
+  de SP). Usados na baixa (livro caixa, lote, lote de pagamentos), folha de projetistas, faturamento por
+  entrega, serviço terceirizado, ART, despesa de projetista, caixinhas, distribuição, fechamento da folha
+  e no aging (vencido só depois do dia). Antes, depois das 21h (BRT) tudo gravava o dia seguinte.
+- **A9 · limites de período em UTC:** `utcInicioDoDia`/`utcFimDoDia` na Visão geral, DFC, orçamento,
+  relatórios, rentabilidade, DRE xlsx, fechamento mensal e snapshot do painel. O dia 1º deixou de cair
+  no mês anterior; o mês de uma data do banco é lido com `getUTCMonth`. O livro caixa (navegador) lê data
+  do banco por `inicioDoDia`.
+- **A9 · soma de meses:** `somarMesesUtc` (31/01 + 1 = 28/02) na recorrência do lançamento, parcelas de
+  documento e parcelas do projeto; a do contrato passou a importar a mesma.
+- **A10:** lançamento "confirmado" com recorrência confirma só o 1º mês; os seguintes nascem em aberto.
+- **Centavos:** `valorPagoReais`/`somarReais` nos acumuladores dos relatórios.
+- **Índices** (migração `20261002140000_lancamento_indices_relatorio`, só índices): `dataConfirmacao`,
+  `dataCompetencia`, `categoriaId`, `contaId`, `clienteId`, `fornecedorId`, `centroId`.
+- Verificação: `data.test.ts` (instantes fixos, cobre 22h BRT), `valor-pago.test.ts`, `smoke:financeiro-core`
+  (A10, 31/01, dia 1º), smokes planejador, previsão, onda2, onda3efg, sync-pagamento.
+- Fica: o resto dos `new Date()` que não gravam data-calendário (carimbos de hora) está certo como está.

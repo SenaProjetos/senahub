@@ -57,6 +57,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { brl, formatarData } from "@/lib/utils";
+import { inicioDoDia } from "@/lib/data";
 
 type Conta = { id: string; nome: string; saldoInicial: number };
 type Situacao = "pendente" | "agendado" | "confirmado" | "conciliado" | "aguardando" | "cancelado";
@@ -128,7 +129,9 @@ function parcela(desc: string): string | null {
 function venceEm(d: string | Date | null): "vencido" | "hoje" | "futuro" | null {
   if (!d) return null;
   const hoje = meioDia(new Date());
-  const v = meioDia(new Date(d));
+  // Data do banco chega como meia-noite UTC: `inicioDoDia` devolve o MESMO dia-calendário (A9).
+  const v = inicioDoDia(d);
+  if (!v) return null;
   if (v < hoje) return "vencido";
   if (v.getTime() === hoje.getTime()) return "hoje";
   return "futuro";
@@ -256,7 +259,7 @@ export function LancamentosView({
         return [new Date(y, s, 1), new Date(y, s + 6, 0)];
       }
       case "ano": return [new Date(y, 0, 1), new Date(y, 11, 31)];
-      case "custom": return [de ? meioDia(new Date(de)) : null, ate ? meioDia(new Date(ate)) : null];
+      case "custom": return [inicioDoDia(de), inicioDoDia(ate)];
     }
   }, [modo, ref, de, ate]);
 
@@ -267,7 +270,7 @@ export function LancamentosView({
     return venceEm(l.vencimento ?? l.data) === "futuro" ? "agendado" : "pendente";
   }
   function ledgerDate(l: LivroCaixaItem): Date {
-    return meioDia(new Date(l.data));
+    return inicioDoDia(l.data) ?? meioDia(new Date(l.data));
   }
   function signed(l: LivroCaixaItem): number {
     const v = Number(l.valorEfetivo ?? l.valor);

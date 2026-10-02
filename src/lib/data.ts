@@ -106,3 +106,45 @@ export function diasVencidos(
 
 /** Abreviação minúscula dos meses, índice 0 = janeiro (rótulos `set/2026`). */
 export const MESES_CURTOS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"] as const
+
+const DIA_SP = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" })
+
+/** Dia-calendário de São Paulo de um instante, `YYYY-MM-DD` — igual em qualquer fuso do servidor. */
+export function diaDeSaoPaulo(agora: Date = new Date()): string {
+  return DIA_SP.format(agora)
+}
+
+/**
+ * "Hoje" para GRAVAR numa coluna de data (`@db.Date`): meia-noite UTC do dia de São Paulo.
+ *
+ * `new Date()` cru grava o dia seguinte depois das 21h (BRT): o Prisma serializa a coluna de data
+ * pela data UTC do instante. Baixa, lote, folha, projetistas e faturamento usavam isso (A9).
+ */
+export function hojeParaBanco(agora: Date = new Date()): Date {
+  return new Date(`${diaDeSaoPaulo(agora)}T00:00:00.000Z`)
+}
+
+/**
+ * Fronteiras de período para colunas de data (`@db.Date`): meia-noite UTC do dia / fim do dia em UTC.
+ * `new Date(ano, mes, 1)` é meia-noite LOCAL (03:00Z em São Paulo) — ficava depois do dia 1 gravado
+ * (00:00Z) e o lançamento do primeiro dia caía fora do mês, enquanto o fim `23:59:59` local invadia
+ * o dia 1 do mês seguinte (A9). `mesIdx` é 0–11 e aceita transbordo (`mesIdx + 1, 0` = último dia).
+ */
+export function utcInicioDoDia(ano: number, mesIdx: number, dia = 1): Date {
+  return new Date(Date.UTC(ano, mesIdx, dia))
+}
+export function utcFimDoDia(ano: number, mesIdx: number, dia: number): Date {
+  return new Date(Date.UTC(ano, mesIdx, dia, 23, 59, 59, 999))
+}
+
+/**
+ * Soma meses a uma data-calendário (meia-noite UTC, como vem do banco), limitando ao último dia do
+ * mês (31/01 + 1 mês = 28/02). NÃO use `addMonths` do date-fns nelas: ele opera em hora LOCAL, e
+ * `2026-01-31T00:00Z` é 30/01 21:00 em São Paulo — somar um mês dá 28/02 21:00, que volta como 01/03
+ * UTC e a parcela pula de mês (A9; medido primeiro em `juridico/contrato/parcelamento.ts`).
+ */
+export function somarMesesUtc(base: Date, meses: number): Date {
+  const alvo = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + meses, 1))
+  const ultimoDia = new Date(Date.UTC(alvo.getUTCFullYear(), alvo.getUTCMonth() + 1, 0)).getUTCDate()
+  return new Date(Date.UTC(alvo.getUTCFullYear(), alvo.getUTCMonth(), Math.min(base.getUTCDate(), ultimoDia)))
+}

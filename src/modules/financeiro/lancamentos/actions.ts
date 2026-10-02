@@ -1,5 +1,6 @@
 "use server";
 
+import { hojeParaBanco } from "@/lib/data";
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { casarCobrancaManualComPrevisao } from "@/modules/juridico/contrato/previsao-service";
@@ -234,7 +235,7 @@ export const definirConfiancaLancamento = defineAction(
 export const confirmarLancamento = defineAction(
   { ...base, acao: "confirmar-lancamento", entidade: "Lancamento", schema: confirmarLancamentoSchema, capturarAntes: (i) => snapshotLancamento(i.id) },
   async (i, ctx) => {
-    const quando = data(i.dataConfirmacao || undefined) ?? new Date();
+    const quando = data(i.dataConfirmacao || undefined) ?? hojeParaBanco();
     const restante = await prisma.$transaction(async (tx) => {
       await exigirOperacao(tx, i.id, "baixar");
       const lanc = await tx.lancamento.findUniqueOrThrow({ where: { id: i.id } });
@@ -307,7 +308,7 @@ export const baixarEmLote = defineAction(
     }),
   },
   async (i, ctx) => {
-    const quando = data(i.dataConfirmacao || undefined) ?? new Date();
+    const quando = data(i.dataConfirmacao || undefined) ?? hojeParaBanco();
     const alvos = await prisma.lancamento.findMany({
       where: { id: { in: i.ids }, status: "previsto" },
       select: { id: true, contaId: true, formaId: true, pagamentoProjetistaId: true },

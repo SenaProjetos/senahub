@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { hojeParaBanco } from "@/lib/data";
 import { SEM_TRANSFERENCIA } from "@/modules/financeiro/natureza";
 import { calcularAging, FAIXAS_AGING, FAIXA_LABEL, type FaixaAging } from "@/lib/aging";
 
@@ -23,7 +24,8 @@ export async function agingReport(tipo: "receita" | "despesa"): Promise<AgingRep
     select: { id: true, descricao: true, valor: true, vencimento: true, data: true },
   });
 
-  const hoje = new Date();
+  // Dia de São Paulo: às 21h o `new Date()` já é o dia seguinte em UTC e marcava vencido no próprio dia (A9).
+  const hoje = hojeParaBanco();
   const acc = new Map<FaixaAging, { total: number; qtd: number }>();
   for (const f of FAIXAS_AGING) acc.set(f, { total: 0, qtd: 0 });
 

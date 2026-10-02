@@ -1,5 +1,5 @@
 import "server-only";
-import { addMonths } from "date-fns";
+import { somarMesesUtc } from "@/lib/data";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
@@ -86,7 +86,7 @@ export async function gerarParcelasDoProjeto(p: {
     }
     await excluirParcelasAbertas(tx, atuais.abertas);
     const registros = dividirEmParcelas(falta / 100, n).map((valor, k) => {
-      const venc = addMonths(base, k * p.intervaloMeses);
+      const venc = somarMesesUtc(base, k * p.intervaloMeses);
       return {
         tipo: "receita" as const,
         descricao: `Parcela ${k + 1}/${n} — contrato (${projeto.codigo})`,

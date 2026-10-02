@@ -12,10 +12,9 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
-import { inicioDoDiaUtc } from "@/lib/data";
+import { diaDeSaoPaulo } from "@/lib/data";
 import { linhasDoMovimento, motivoDeRecusa, type PedidoMovimento } from "@/modules/financeiro/caixinhas/calculo";
 import { carregarCaixinhas } from "@/modules/financeiro/caixinhas/queries";
-import { isoDeDataDoBanco } from "@/modules/financeiro/liquidez/datas";
 import { paraCentavos } from "@/modules/financeiro/liquidez/dinheiro";
 
 export type PedidoNoBanco = PedidoMovimento & {
@@ -41,7 +40,7 @@ export async function movimentarNoBanco(p: PedidoNoBanco, autorId: string): Prom
     await exigirAtiva(p.destinoId, "destino");
   }
 
-  const hoje = isoDeDataDoBanco(inicioDoDiaUtc());
+  const hoje = diaDeSaoPaulo();
   const atual = (await carregarCaixinhas({ hoje })).find((c) => c.id === p.caixinhaId)?.situacao;
   if (!atual) throw new ActionError("Caixinha não encontrada.");
   const recusa = motivoDeRecusa({ tipo: p.tipo, valor: p.valor } as PedidoMovimento, { alocado: atual.alocado, reservado: atual.reservado });

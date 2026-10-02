@@ -21,3 +21,18 @@ describe("valor pago", () => {
     expect(somaPaga([])).toBe(0);
   });
 });
+
+import { somarReais, valorPagoReais } from "@/modules/financeiro/valor-pago";
+
+describe("valorPagoReais / somarReais", () => {
+  it("valor pago exato em 2 casas", () => {
+    expect(valorPagoReais({ valor: "1000.10", valorEfetivo: "0.30" })).toBe(0.3);
+    expect(valorPagoReais({ valor: 19.9, valorEfetivo: null })).toBe(19.9);
+  });
+  it("somar não deriva: 0,1 + 0,2 = 0,3 e 1000 × 0,01 fecha", () => {
+    expect(somarReais(0.1, 0.2)).toBe(0.3);
+    let acc = 0;
+    for (let i = 0; i < 1000; i++) acc = somarReais(acc, 0.01);
+    expect(acc).toBe(10);
+  });
+});
