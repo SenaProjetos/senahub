@@ -26,7 +26,7 @@ Apoiar a gestão com demonstrativos e indicadores construídos a partir dos lan�
 
 ## Como acessar
 
-- Pelos cartões de atalho do painel **Financeiro**, ou pelo grupo **Resultados** da barra do Financeiro.
+- Pelo grupo **Resultados** da barra do Financeiro (logo abaixo do título de qualquer tela do Financeiro), ou por **Abrir DRE** na Visão geral.
 - Dentro de qualquer um deles, a faixa de **abas** (DRE e indicadores · Rentabilidade · DFC · Balanço ·
   Orçamento) leva aos vizinhos. Quem não tem acesso a um relatório não vê a aba dele.
 
