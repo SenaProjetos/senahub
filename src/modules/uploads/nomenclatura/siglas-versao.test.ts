@@ -3,15 +3,14 @@ import { CATALOGO_SENA } from "@/test/catalogo-nomenclatura";
 import {
   catalogosDaVersao,
   decidirSiglasAoSalvar,
+  faixaDoEspelho,
   intersecaoFaixas,
-  rotuloFaixa,
+  linhasParaChecarColisao,
   siglasDasColunas,
   siglasEfetivas,
   siglasNaVersao,
   siglasSaoEspelho,
   valeNaVersao,
-  versaoAteSugerida,
-  versaoMaisNova,
   type DisciplinaComSiglas,
   type PranchaComSiglas,
   type SiglaLinha,
@@ -121,7 +120,7 @@ describe("decidirSiglasAoSalvar", () => {
     ).toBe("manter");
   });
 
-  it("item espelho: mudar sigla ou validade regrava; não mudar nada mantém", () => {
+  it("item espelho: mudar sigla regrava; mudar só a validade mantém as linhas (E3)", () => {
     const log = [linha("LOG", true)];
     const colunas = { oficial: "LOG", sinonimos: [] };
     const base = { linhas: log, colunasAntes: colunas, faixaAntes: sempre };
@@ -130,8 +129,86 @@ describe("decidirSiglasAoSalvar", () => {
       "espelhar",
     );
     expect(decidirSiglasAoSalvar({ ...base, colunasDepois: colunas, faixaDepois: { versaoDesde: 1, versaoAte: 1 } })).toBe(
+      "manter",
+    );
+  });
+
+  it("o incidente de 2026-09-30: Até a v1 e depois Sem fim deixam as siglas como estavam", () => {
+    const hid = [linha("HID", true), linha("HDR", false), linha("ESG", false)];
+    const colunas = { oficial: "HID", sinonimos: ["HDR", "ESG"] };
+    const ate1 = decidirSiglasAoSalvar({
+      linhas: hid,
+      colunasAntes: colunas,
+      faixaAntes: sempre,
+      colunasDepois: colunas,
+      faixaDepois: { versaoDesde: 1, versaoAte: 1 },
+    });
+    expect(ate1).toBe("manter");
+    const v1 = { versaoDesde: 1, versaoAte: 1 };
+    const semFim = decidirSiglasAoSalvar({ linhas: hid, colunasAntes: colunas, faixaAntes: v1, colunasDepois: colunas, faixaDepois: sempre });
+    // Ampliar um item espelho regrava o espelho na faixa ampliada — dá as mesmas linhas de antes.
+    expect(semFim).toBe("espelhar");
+    expect(faixaDoEspelho(v1, sempre)).toEqual(sempre);
+    expect(siglasDasColunas(colunas.oficial, colunas.sinonimos, faixaDoEspelho(v1, sempre))).toEqual(hid);
+  });
+
+  it("dado legado: linhas cortadas pelo espelho antigo junto com o item voltam ao ampliar pelo formulário", () => {
+    const v1 = { versaoDesde: 1, versaoAte: 1 };
+    const cortadas = [linha("HID", true, 1, 1), linha("HDR", false, 1, 1)];
+    const colunas = { oficial: "HID", sinonimos: ["HDR"] };
+    expect(decidirSiglasAoSalvar({ linhas: cortadas, colunasAntes: colunas, faixaAntes: v1, colunasDepois: colunas, faixaDepois: sempre })).toBe(
       "espelhar",
     );
+  });
+
+  it("edição combinada (tira sinônimo e estreita a validade): o espelho não corta as linhas", () => {
+    const hid = [linha("HID", true), linha("HDR", false), linha("ESG", false)];
+    const decisao = decidirSiglasAoSalvar({
+      linhas: hid,
+      colunasAntes: { oficial: "HID", sinonimos: ["HDR", "ESG"] },
+      faixaAntes: sempre,
+      colunasDepois: { oficial: "HID", sinonimos: ["HDR"] },
+      faixaDepois: { versaoDesde: 1, versaoAte: 1 },
+    });
+    expect(decisao).toBe("espelhar");
+    expect(faixaDoEspelho(sempre, { versaoDesde: 1, versaoAte: 1 })).toEqual(sempre);
+  });
+});
+
+describe("siglasSaoEspelho pela faixa efetiva", () => {
+  it("item que saiu (linhas em aberto, item até a v1) continua espelho — o formulário não trava a sigla", () => {
+    expect(siglasSaoEspelho([linha("LOG", true)], { oficial: "LOG", sinonimos: [] }, { versaoDesde: 1, versaoAte: 1 })).toBe(true);
+  });
+
+  it("item com sigla encerrada por versão continua 'por versão'", () => {
+    const hid = [linha("HID", true), linha("ESG", false, 1, 1)];
+    expect(siglasSaoEspelho(hid, { oficial: "HID", sinonimos: ["ESG"] }, { versaoDesde: 1, versaoAte: null })).toBe(false);
+  });
+});
+
+describe("linhasParaChecarColisao", () => {
+  const sempre = { versaoDesde: 1, versaoAte: null };
+  const hid = [linha("HID", true), linha("ESG", false, 1, 1)];
+  const colunas = { oficial: "HID", sinonimos: ["ESG"] };
+
+  it("espelhar: confere o espelho novo, na faixa nova", () => {
+    expect(
+      linhasParaChecarColisao({ decisao: "espelhar", linhas: hid, colunasDepois: { oficial: "HDS", sinonimos: [] }, faixaAntes: sempre, faixaDepois: sempre }),
+    ).toEqual([linha("HDS", true)]);
+  });
+
+  it("manter com a validade ampliada: confere as linhas atuais (podem passar a valer onde outro item já usa)", () => {
+    expect(
+      linhasParaChecarColisao({ decisao: "manter", linhas: hid, colunasDepois: colunas, faixaAntes: { versaoDesde: 1, versaoAte: 1 }, faixaDepois: sempre }),
+    ).toEqual(hid);
+  });
+
+  it("manter sem mudar a validade: nada a conferir", () => {
+    expect(linhasParaChecarColisao({ decisao: "manter", linhas: hid, colunasDepois: colunas, faixaAntes: sempre, faixaDepois: sempre })).toEqual([]);
+  });
+
+  it("bloquear: nada a conferir (o salvar é recusado antes)", () => {
+    expect(linhasParaChecarColisao({ decisao: "bloquear", linhas: hid, colunasDepois: colunas, faixaAntes: sempre, faixaDepois: { versaoDesde: 2, versaoAte: null } })).toEqual([]);
   });
 });
 
@@ -160,31 +237,6 @@ describe("faixas efetivas", () => {
       { versaoDesde: 1, versaoAte: 3 },
     );
     expect(efetivas).toEqual([linha("AGF", true, 2, 3)]);
-  });
-});
-
-describe("versão padrão das telas", () => {
-  const versoes = [{ numero: 1 }, { numero: 2 }];
-
-  it("'a partir da' abre na versão mais nova (rascunho incluso)", () => {
-    expect(versaoMaisNova(versoes)).toBe(2);
-    expect(versaoMaisNova([])).toBeNull();
-  });
-
-  it("'vale até' sugere a anterior à mais nova, sem ficar antes do início da linha", () => {
-    expect(versaoAteSugerida(versoes, 1)).toBe(1);
-    expect(versaoAteSugerida(versoes, 2)).toBe(2);
-    expect(versaoAteSugerida([{ numero: 1 }], 1)).toBe(1);
-  });
-});
-
-describe("rotuloFaixa", () => {
-  it("só rotula o que não vale sempre", () => {
-    expect(rotuloFaixa({ versaoDesde: 1, versaoAte: null })).toBeNull();
-    expect(rotuloFaixa({ versaoDesde: 2, versaoAte: null })).toBe("a partir da v2");
-    expect(rotuloFaixa({ versaoDesde: 1, versaoAte: 1 })).toBe("só na v1");
-    expect(rotuloFaixa({ versaoDesde: 1, versaoAte: 2 })).toBe("até a v2");
-    expect(rotuloFaixa({ versaoDesde: 2, versaoAte: 3 })).toBe("da v2 à v3");
   });
 });
 

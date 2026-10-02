@@ -64,19 +64,41 @@ function mesmasLinhas(a: readonly SiglaLinha[], b: readonly SiglaLinha[]): boole
  * a tabela de siglas passa a ser a única fonte.
  */
 export function siglasSaoEspelho(linhas: readonly SiglaLinha[], colunas: ColunasSigla, faixa: FaixaVersao): boolean {
-  return mesmasLinhas(linhas, siglasDasColunas(colunas.oficial, colunas.sinonimos, faixa));
+  // Pela faixa EFETIVA (linha ∩ item): desde a E3 da spec 2026-09-30 as linhas não acompanham a
+  // validade do item, então um item que saiu ("até a v1") com as linhas em aberto segue espelho.
+  return mesmasLinhas(siglasEfetivas(linhas, faixa), siglasDasColunas(colunas.oficial, colunas.sinonimos, faixa));
+}
+
+/** A faixa nova cobre alguma versão que a antiga não cobria? */
+function ampliou(antes: FaixaVersao, depois: FaixaVersao): boolean {
+  if (depois.versaoDesde < antes.versaoDesde) return true;
+  return antes.versaoAte !== null && (depois.versaoAte === null || depois.versaoAte > antes.versaoAte);
+}
+
+/**
+ * Faixa em que o formulário regrava o espelho: a união da validade de antes e de depois. Estreitar o
+ * item nunca corta as linhas (a faixa efetiva já as recorta); ampliar reabre as que o espelho antigo
+ * cortou junto com o item.
+ */
+export function faixaDoEspelho(antes: FaixaVersao, depois: FaixaVersao): FaixaVersao {
+  return {
+    versaoDesde: Math.min(antes.versaoDesde, depois.versaoDesde),
+    versaoAte: antes.versaoAte === null || depois.versaoAte === null ? null : Math.max(antes.versaoAte, depois.versaoAte),
+  };
 }
 
 /**
  * O que fazer com as siglas do item quando o formulário dele (card ou item da Lista Mestre) é
  * salvo — pelo lápis, pelo olho de ativar/desativar, por qualquer caminho:
- * - `espelhar`: as linhas ainda eram o espelho das colunas e algo mudou (sigla, sinônimo ou a
- *   faixa do item) → regravar as linhas a partir das colunas novas;
- * - `manter`: nada a regravar (espelho sem mudança, ou item com siglas por versão cujas colunas
- *   não mudaram — é o caso de só trocar o ícone ou desativar);
+ * - `manter`: sigla e sinônimos não mudaram e a validade não ampliou. Estreitar o item cai aqui (E3
+ *   da spec 2026-09-30): a faixa efetiva (sigla ∩ item) já recorta as linhas; regravá-las na faixa do
+ *   item tirava as siglas junto (incidente do Hidrossanitário);
+ * - `espelhar`: as linhas ainda eram o espelho das colunas e a sigla ou um sinônimo mudou — ou a
+ *   validade ampliou (reabre linhas que o espelho antigo cortou junto com o item) → regravar as
+ *   linhas a partir das colunas, na faixa de `faixaDoEspelho` (nunca mais estreita que antes);
  * - `bloquear`: o item tem siglas por versão e o formulário tentou mudar sigla/sinônimo pelas
- *   colunas — regravar apagaria as decisões por versão (o bug que isto corrige: salvar o lápis
- *   recriava o `ESG` "da v1 em diante" por cima do ESG encerrado na v1).
+ *   colunas — regravar apagaria as decisões por versão (salvar o lápis recriava o `ESG` "da v1 em
+ *   diante" por cima do ESG encerrado na v1).
  */
 export function decidirSiglasAoSalvar(entrada: {
   linhas: readonly SiglaLinha[];
@@ -86,14 +108,31 @@ export function decidirSiglasAoSalvar(entrada: {
   faixaDepois: FaixaVersao;
 }): "espelhar" | "manter" | "bloquear" {
   const { linhas, colunasAntes, faixaAntes, colunasDepois, faixaDepois } = entrada;
-  if (siglasSaoEspelho(linhas, colunasAntes, faixaAntes)) {
-    return siglasSaoEspelho(linhas, colunasDepois, faixaDepois) ? "manter" : "espelhar";
-  }
   const colunasMudaram = !mesmasLinhas(
     siglasDasColunas(colunasAntes.oficial, colunasAntes.sinonimos),
     siglasDasColunas(colunasDepois.oficial, colunasDepois.sinonimos),
   );
-  return colunasMudaram ? "bloquear" : "manter";
+  const espelho = siglasSaoEspelho(linhas, colunasAntes, faixaAntes);
+  if (colunasMudaram) return espelho ? "espelhar" : "bloquear";
+  return espelho && ampliou(faixaAntes, faixaDepois) ? "espelhar" : "manter";
+}
+
+/**
+ * Que linhas conferir contra colisão ao salvar o formulário, já na faixa nova do item: o espelho
+ * novo (`espelhar`); as linhas atuais quando só a validade mudou — ampliar a faixa pode pôr uma
+ * sigla numa versão em que outro item já a usa —; nada nos outros casos.
+ */
+export function linhasParaChecarColisao(entrada: {
+  decisao: "espelhar" | "manter" | "bloquear";
+  linhas: readonly SiglaLinha[];
+  colunasDepois: ColunasSigla;
+  faixaAntes: FaixaVersao;
+  faixaDepois: FaixaVersao;
+}): readonly SiglaLinha[] {
+  const { decisao, linhas, colunasDepois, faixaAntes, faixaDepois } = entrada;
+  if (decisao === "espelhar") return siglasDasColunas(colunasDepois.oficial, colunasDepois.sinonimos, faixaDepois);
+  const faixaMudou = faixaAntes.versaoDesde !== faixaDepois.versaoDesde || faixaAntes.versaoAte !== faixaDepois.versaoAte;
+  return decisao === "manter" && faixaMudou ? linhas : [];
 }
 
 /** Parte comum de duas faixas; null quando não têm versão em comum. */
@@ -120,34 +159,6 @@ export function siglasEfetivas<L extends SiglaLinha>(linhas: readonly L[], ...fa
     if (faixa) saida.push({ ...linha, versaoDesde: faixa.versaoDesde, versaoAte: faixa.versaoAte });
   }
   return saida;
-}
-
-/**
- * A versão mais nova cadastrada (rascunho incluso): o "a partir da" padrão das telas de catálogo,
- * porque cadastro novo quase sempre é a preparação da próxima versão. Abrir na v1 fazia a sigla
- * nova valer também nos projetos antigos quando alguém esquecia de trocar.
- */
-export function versaoMaisNova(versoes: readonly { numero: number }[]): number | null {
-  return versoes.length === 0 ? null : Math.max(...versoes.map((v) => v.numero));
-}
-
-/**
- * "Vale até" sugerido ao encerrar uma sigla: a versão anterior à mais nova (ela deixa de valer a
- * partir da mais nova), sem ficar antes do início da própria linha.
- */
-export function versaoAteSugerida(versoes: readonly { numero: number }[], versaoDesde: number): number {
-  const nova = versaoMaisNova(versoes) ?? versaoDesde;
-  return Math.max(versaoDesde, nova - 1);
-}
-
-/** Rótulo curto da validade de um item para as listas; null quando vale sempre (o caso comum). */
-export function rotuloFaixa(faixa: FaixaVersao): string | null {
-  const { versaoDesde: de, versaoAte: ate } = faixa;
-  if (de <= 1 && ate === null) return null;
-  if (ate === null) return `a partir da v${de}`;
-  if (de === ate) return `só na v${de}`;
-  if (de <= 1) return `até a v${ate}`;
-  return `da v${de} à v${ate}`;
 }
 
 /**

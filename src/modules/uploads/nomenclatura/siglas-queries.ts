@@ -3,27 +3,6 @@ import { prisma } from "@/lib/prisma";
 import type { LinhaSigla } from "./publicacao";
 import { intersecaoFaixas, type FaixaVersao } from "./siglas-versao";
 
-export type AlvoSigla =
-  | { tipo: "disciplina"; id: string }
-  | { tipo: "subdisciplina"; id: string }
-  | { tipo: "prancha"; id: string };
-
-function whereDoAlvo(alvo: AlvoSigla) {
-  if (alvo.tipo === "disciplina") return { disciplinaCatalogoId: alvo.id };
-  if (alvo.tipo === "subdisciplina") return { subdisciplinaId: alvo.id };
-  return { pranchaCatalogoId: alvo.id };
-}
-
-/** Siglas de UM item (card, sub ou item da Lista Mestre), mais recente primeiro dentro de cada faixa. */
-export async function siglasDoAlvo(alvo: AlvoSigla) {
-  return prisma.siglaNomenclatura.findMany({
-    where: whereDoAlvo(alvo),
-    orderBy: [{ versaoDesde: "asc" }, { oficial: "desc" }],
-  });
-}
-
-export type SiglaDoAlvo = Awaited<ReturnType<typeof siglasDoAlvo>>[number];
-
 /**
  * Todas as siglas do sistema, com o rótulo legível do alvo — para a trava de publicação (D5,
  * `publicacao.ts`) e para qualquer tela que precise mostrar "esta sigla pertence a quem". A faixa

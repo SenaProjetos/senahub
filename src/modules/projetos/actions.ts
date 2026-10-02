@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
+import { motivoExclusao } from "@/modules/projetos/nomenclatura/catalogo/todas";
+import { projetosDoCard, usoParaExcluir } from "@/modules/projetos/nomenclatura/catalogo/queries";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
@@ -24,9 +26,9 @@ import {
   excluirDisciplinaSchema,
   cancelarProjetoSchema,
   adicionarDoCatalogoSchema,
-  criarDisciplinaCatalogoSchema,
-  editarDisciplinaCatalogoSchema,
+  editarCadastroDisciplinaSchema,
   idDisciplinaCatalogoSchema,
+  arquivarDisciplinaCatalogoSchema,
   moverDisciplinaCatalogoSchema,
   renomearCategoriaDisciplinasSchema,
   salvarLayoutPainelProjetoSchema,
@@ -48,9 +50,7 @@ import { escopoProjeto } from "@/modules/projetos/queries";
 import { chaveLayoutPainelProjeto } from "@/modules/projetos/painel-layout";
 import { deveDeslocarPrazoDoProjeto } from "@/modules/projetos/prazo-reabertura";
 import { faixaConflitante } from "@/modules/projetos/faixa-numeracao";
-import { espelharSiglasDasColunas } from "@/modules/uploads/nomenclatura/siglas-service";
-import { decidirSiglasAoSalvar, siglasDasColunas, type FaixaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
-import { garantirFaixaVersao, garantirSiglasSemColisao } from "@/modules/uploads/nomenclatura/siglas-guardas";
+import { motivoCodigoTravado } from "@/modules/projetos/cadastro-disciplina";
 import { versaoVigenteHoje } from "@/modules/projetos/nomenclatura/versoes-queries";
 
 
@@ -1077,12 +1077,12 @@ export const adicionarDisciplinasDoCatalogo = defineAction(
   },
 );
 
-// ─── Item 15: catálogo de disciplinas (Configurações → Disciplinas) ────────────
+// ─── Item 15: catálogo de disciplinas (Configurações → Disciplinas e nomenclatura) ────────────
 
 const catalogoBase = { modulo: "projetos", recurso: "projetos", permissao: "gerir" } as const;
 
 function revCatalogo() {
-  revalidatePath("/configuracoes/disciplinas");
+  revalidatePath("/configuracoes/nomenclatura", "layout");
   revalidatePath("/projetos");
 }
 
@@ -1196,133 +1196,122 @@ async function garantirFaixaLivre(
   }
 }
 
-export const criarDisciplinaCatalogo = defineAction(
-  {
-    ...catalogoBase,
-    acao: "criar-disciplina-catalogo",
-    entidade: "DisciplinaCatalogo",
-    schema: criarDisciplinaCatalogoSchema,
-    entidadeId: (d) => (d as { id: string }).id,
-  },
+/**
+ * `Disciplina.disciplinaTextoLegado` (linha de projeto) casa com o catálogo por TEXTO.
+ * A F1.19c criou `disciplinaId`, mas ele é NULLABLE e ainda há disciplina sem FK (as grafias
+ * que a F1.21 resolve à mão), então o texto continua sendo o elo real — e é ele que a tela
+ * exibe. Renomear no catálogo sem cascatear orfana toda disciplina em uso: perde a sigla (que compõe
+ * a pasta e o prefixo do arquivo no storage) e perde o bloco-base — a próxima folha da Lista
+ * Mestre reiniciaria em 1 em vez de `bloco+1`, sem erro visível. Por isso o rename anda junto,
+ * na mesma transação. Quando a F1.21 zerar as FKs nulas, este cascateamento pode sair.
+ */
+async function cascatearNomeDisciplina(tx: Prisma.TransactionClient, de: string, para: string) {
+  const candidatas = await tx.disciplina.findMany({
+    where: { disciplinaTextoLegado: de },
+    select: { id: true, projetoId: true },
+  });
+  if (candidatas.length === 0) return;
+  // Projeto que já tenha o nome de destino ficaria com duas disciplinas iguais — exigiria
+  // mover uploads/tarefas. Esse caso é deixado como está, não fundido automaticamente.
+  const jaTemDestino = new Set(
+    (
+      await tx.disciplina.findMany({
+        where: { disciplinaTextoLegado: para, projetoId: { in: candidatas.map((c) => c.projetoId) } },
+        select: { projetoId: true },
+      })
+    ).map((d) => d.projetoId),
+  );
+  const ids = candidatas.filter((c) => !jaTemDestino.has(c.projetoId)).map((c) => c.id);
+  if (ids.length > 0) {
+    await tx.disciplina.updateMany({ where: { id: { in: ids } }, data: { disciplinaTextoLegado: para } });
+  }
+}
+
+/**
+ * SVG de ícone de UMA disciplina, lido só quando o lápis abre: a lista da tela não carrega o SVG de
+ * todos os cards (até 20 KB cada) a cada visita.
+ */
+export const iconeSvgDaDisciplina = defineAction(
+  { ...catalogoBase, acao: "ler-icone-svg-disciplina", audit: false, schema: idDisciplinaCatalogoSchema },
   async (i) => {
-    const dados = normalizarCatalogo(i);
-    dados.categoria = await canonizarCategoria(dados.categoria);
-    const faixa: FaixaVersao = { versaoDesde: i.versaoDesde ?? 1, versaoAte: i.versaoAte ?? null };
-    await garantirFaixaVersao(faixa);
-    await garantirUnicosCatalogo(dados.nome, dados.codigo, dados.sinonimos, null);
-    await garantirSiglasSemColisao({ tipo: "disciplina", id: null, faixa }, { tipo: "disciplina" }, siglasDasColunas(dados.codigo, dados.sinonimos, faixa));
-    await garantirFaixaLivre(dados.numeracao, dados.numeracaoFim, null);
-    const max = await prisma.disciplinaCatalogo.aggregate({ _max: { ordem: true } });
-    const criada = await prisma.$transaction(async (tx) => {
-      const c = await tx.disciplinaCatalogo.create({
-        data: { ...dados, ...faixa, ordem: (max._max.ordem ?? 0) + 1 },
-      });
-      await espelharSiglasDasColunas(tx, { tipo: "disciplina", id: c.id, codigo: dados.codigo, sinonimos: dados.sinonimos }, faixa);
-      return c;
-    });
-    revCatalogo();
-    return { id: criada.id };
+    const d = await prisma.disciplinaCatalogo.findUnique({ where: { id: i.id }, select: { iconeSvg: true } });
+    return { iconeSvg: d?.iconeSvg ?? null };
   },
 );
 
-export const editarDisciplinaCatalogo = defineAction(
+/**
+ * Lápis do catálogo (spec 2026-09-30, E9): só o que não depende de versão — nome, categoria, ícone,
+ * pasta dos arquivos (`codigo`) e numeração. Nunca mexe em sinônimos, faixa de versão nem nas linhas
+ * de sigla. A pasta só muda enquanto nenhum projeto usa a disciplina (E6).
+ */
+export const editarCadastroDisciplina = defineAction(
   {
     ...catalogoBase,
-    acao: "editar-disciplina-catalogo",
+    acao: "editar-cadastro-disciplina",
     entidade: "DisciplinaCatalogo",
-    schema: editarDisciplinaCatalogoSchema,
+    schema: editarCadastroDisciplinaSchema,
     entidadeId: (_d, i) => i.id,
     capturarAntes: (i) => prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } }),
   },
   async (i) => {
-    const existe = await prisma.disciplinaCatalogo.findUnique({
-      where: { id: i.id },
-      include: { siglas: { select: { sigla: true, oficial: true, versaoDesde: true, versaoAte: true } } },
-    });
+    const existe = await prisma.disciplinaCatalogo.findUnique({ where: { id: i.id }, select: { nome: true, codigo: true } });
     if (!existe) throw new ActionError("Disciplina não encontrada.");
     const dados = normalizarCatalogo(i);
     dados.categoria = await canonizarCategoria(dados.categoria);
-    const faixaAntes: FaixaVersao = { versaoDesde: existe.versaoDesde, versaoAte: existe.versaoAte };
-    const faixa: FaixaVersao = {
-      versaoDesde: i.versaoDesde ?? existe.versaoDesde,
-      versaoAte: i.versaoAte === undefined ? existe.versaoAte : i.versaoAte,
-    };
-    await garantirFaixaVersao(faixa);
-    // Card com siglas por versão: o formulário só regrava as siglas se elas ainda forem o espelho
-    // das colunas. Sem isto, salvar o lápis (até só para trocar o ícone) recriava as siglas das
-    // colunas "da v1 em diante" por cima do que foi decidido por versão.
-    const siglas = decidirSiglasAoSalvar({
-      linhas: existe.siglas,
-      colunasAntes: { oficial: existe.codigo, sinonimos: existe.sinonimos },
-      faixaAntes,
-      colunasDepois: { oficial: dados.codigo, sinonimos: dados.sinonimos },
-      faixaDepois: faixa,
+    if (dados.codigo !== existe.codigo) {
+      const motivo = motivoCodigoTravado(await projetosDoCard(prisma, { id: i.id, nome: existe.nome }));
+      if (motivo) throw new ActionError(motivo);
+    }
+    await garantirUnicosCatalogo(dados.nome, dados.codigo, [], i.id);
+    // Mesmo critério de `card-novo` (sem caixa): "ELÉTRICA" ao lado de "Elétrica" contaria como a mesma
+    // disciplina no uso, no mapa de ícones e na cascata do nome.
+    const homonima = await prisma.disciplinaCatalogo.findFirst({
+      where: { nome: { equals: dados.nome, mode: "insensitive" }, id: { not: i.id } },
+      select: { id: true },
     });
-    if (siglas === "bloquear") {
-      throw new ActionError(
-        `As siglas de “${existe.nome}” já são definidas por versão. Para mudar a sigla ou os sinônimos, use “Sub-disciplinas e siglas por versão” na linha dela.`,
-      );
-    }
-    await garantirUnicosCatalogo(dados.nome, dados.codigo, dados.sinonimos, i.id);
-    if (siglas === "espelhar") {
-      await garantirSiglasSemColisao({ tipo: "disciplina", id: i.id, faixa }, { tipo: "disciplina" }, siglasDasColunas(dados.codigo, dados.sinonimos, faixa));
-    }
+    if (homonima) throw new ActionError("Já existe uma disciplina com esse nome.");
     await garantirFaixaLivre(dados.numeracao, dados.numeracaoFim, i.id);
-
-    // `Disciplina.disciplinaTextoLegado` (linha de projeto) casa com o catálogo por TEXTO.
-    // A F1.19c criou `disciplinaId`, mas ele é NULLABLE e ainda há disciplina sem FK (as grafias
-    // que a F1.21 resolve à mão), então o texto continua sendo o elo real — e é ele que a tela
-    // exibe. Renomear aqui sem cascatear orfana toda disciplina em uso: perde a sigla (que compõe
-    // a pasta e o prefixo do arquivo no storage) e perde o bloco-base — a próxima folha da Lista
-    // Mestre reiniciaria em 1 em vez de `bloco+1`, sem erro visível. Por isso o rename anda junto,
-    // na mesma transação. Quando a F1.21 zerar as FKs nulas, este cascateamento pode sair.
-    const nomeMudou = dados.nome !== existe.nome;
     await prisma.$transaction(async (tx) => {
-      await tx.disciplinaCatalogo.update({ where: { id: i.id }, data: { ...dados, ...faixa } });
-      if (siglas === "espelhar") {
-        await espelharSiglasDasColunas(tx, { tipo: "disciplina", id: i.id, codigo: dados.codigo, sinonimos: dados.sinonimos }, faixa);
-      }
-      if (!nomeMudou) return;
-      const candidatas = await tx.disciplina.findMany({
-        where: { disciplinaTextoLegado: existe.nome },
-        select: { id: true, projetoId: true },
+      // Campos explícitos: `sinonimos` fica como está (é da lente de uma versão).
+      await tx.disciplinaCatalogo.update({
+        where: { id: i.id },
+        data: {
+          nome: dados.nome,
+          categoria: dados.categoria,
+          icone: dados.icone,
+          iconeSvg: dados.iconeSvg,
+          codigo: dados.codigo,
+          numeracao: dados.numeracao,
+          numeracaoFim: dados.numeracaoFim,
+        },
       });
-      if (candidatas.length === 0) return;
-      // Projeto que já tenha o nome de destino ficaria com duas disciplinas iguais — exigiria
-      // mover uploads/tarefas. Esse caso é deixado como está, não fundido automaticamente.
-      const jaTemDestino = new Set(
-        (
-          await tx.disciplina.findMany({
-            where: { disciplinaTextoLegado: dados.nome, projetoId: { in: candidatas.map((c) => c.projetoId) } },
-            select: { projetoId: true },
-          })
-        ).map((d) => d.projetoId),
-      );
-      const ids = candidatas.filter((c) => !jaTemDestino.has(c.projetoId)).map((c) => c.id);
-      if (ids.length > 0) {
-        await tx.disciplina.updateMany({ where: { id: { in: ids } }, data: { disciplinaTextoLegado: dados.nome } });
-      }
+      if (dados.nome !== existe.nome) await cascatearNomeDisciplina(tx, existe.nome, dados.nome);
     });
     revCatalogo();
     return { id: i.id };
   },
 );
 
-/** Arquiva/desarquiva (alterna `ativo`): some do seletor sem apagar; projetos mantêm o nome. */
+/**
+ * Arquiva/desarquiva: some do seletor sem apagar; projetos mantêm o nome. Com `ativo`, grava o estado
+ * pedido — "Arquivar" numa tela velha não desarquiva o que alguém já arquivou. Sem `ativo`, alterna.
+ */
 export const arquivarDisciplinaCatalogo = defineAction(
   {
     ...catalogoBase,
     acao: "arquivar-disciplina-catalogo",
     entidade: "DisciplinaCatalogo",
-    schema: idDisciplinaCatalogoSchema,
+    schema: arquivarDisciplinaCatalogoSchema,
     entidadeId: (_d, i) => i.id,
+    capturarAntes: (i) => prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } }),
   },
   async (i) => {
     const c = await prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } });
     if (!c) throw new ActionError("Disciplina não encontrada.");
-    await prisma.disciplinaCatalogo.update({ where: { id: i.id }, data: { ativo: !c.ativo } });
+    const ativo = i.ativo ?? !c.ativo;
+    if (ativo !== c.ativo) await prisma.disciplinaCatalogo.update({ where: { id: i.id }, data: { ativo } });
     revCatalogo();
-    return { id: i.id, ativo: !c.ativo };
+    return { id: i.id, ativo };
   },
 );
 
@@ -1338,10 +1327,10 @@ export const excluirDisciplinaCatalogo = defineAction(
   async (i) => {
     const c = await prisma.disciplinaCatalogo.findUnique({ where: { id: i.id } });
     if (!c) throw new ActionError("Disciplina não encontrada.");
-    const uso = await prisma.disciplina.count({ where: { disciplinaTextoLegado: c.nome } });
-    if (uso > 0) {
-      throw new ActionError(`Em uso em ${uso} projeto(s) — arquive em vez de excluir.`);
-    }
+    // A mesma regra e a mesma frase do menu: projetos, documentos das subs (que saem junto, em
+    // cascata) e registros de outras áreas presos ao card (propostas, normas, EAP…).
+    const motivo = motivoExclusao("disciplina", await usoParaExcluir(prisma, { tipo: "disciplina", id: i.id }, c.nome));
+    if (motivo) throw new ActionError(motivo);
     await prisma.disciplinaCatalogo.delete({ where: { id: i.id } });
     revCatalogo();
     return { id: i.id };

@@ -4,17 +4,6 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Eye, EyeOff, Tags } from "lucide-react";
-import { SiglasVersaoDialog, type VersaoOpcao } from "@/components/configuracoes/siglas-versao-dialog";
-import { rotuloFaixa, valeNaVersao, versaoMaisNova } from "@/modules/uploads/nomenclatura/siglas-versao";
-import {
-  ValidadeVersaoCampos,
-  faixaDoForm,
-  faixaParaForm,
-  mostrarValidade,
-  rotuloVersaoOpcao,
-  type FaixaForm,
-} from "@/components/configuracoes/validade-versao-campos";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   criarCatalogoPrancha,
   editarCatalogoPrancha,
@@ -22,6 +11,7 @@ import {
 } from "@/modules/projetos/pranchas/catalogo-actions";
 import type { PranchaCatalogoRow } from "@/modules/projetos/pranchas/queries";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -67,55 +57,35 @@ const SECOES: {
   },
 ];
 
-const TODAS = "__todas__";
-
+/**
+ * Siglas de fase, tipo e formato de folha. Fase e tipo **globais** são do catálogo por versão (tela
+ * "Disciplinas e nomenclatura"); aqui ficam o formato de folha (sem versão) e as siglas próprias de
+ * um projeto (`projetoId`).
+ */
 export function ListaMestreConfigView({
   catalogos,
   projetoId,
-  versoes = [],
+  categorias = ["fase", "tipo", "folha"],
 }: {
   catalogos: PranchaCatalogoRow[];
+  /** Quais seções mostrar (a aba "Formatos de folha" mostra só a folha). Padrão: as três. */
+  categorias?: Categoria[];
   /** Quando informado, as siglas criadas ficam restritas a este projeto. */
   projetoId?: string;
-  /** Ausente/vazio (tela por projeto) = sem filtro de versão nem "Siglas por versão". */
-  versoes?: VersaoOpcao[];
 }) {
-  const [filtroVersao, setFiltroVersao] = useState<string>(TODAS);
-  const versaoVigente = versoes.filter((v) => v.publicadaEm).at(-1)?.numero ?? null;
-
   return (
-    <div className="space-y-3">
-      {versoes.length > 0 && (
-        <div className="flex justify-end">
-          <Select value={filtroVersao} onValueChange={(v) => setFiltroVersao(v ?? TODAS)}>
-            <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TODAS}>Todas as versões</SelectItem>
-              {versoes.map((v) => (
-                <SelectItem key={v.id} value={String(v.numero)}>
-                  Válido na v{v.numero}{v.numero === versaoVigente ? " (vigente)" : v.publicadaEm ? "" : " (rascunho)"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-      <div className="grid gap-4 lg:grid-cols-3">
-        {SECOES.map((s) => (
-          <SecaoCatalogo
-            key={s.categoria}
-            categoria={s.categoria}
-            titulo={s.titulo}
-            descricao={s.descricao}
-            exemplo={s.exemplo}
-            projetoId={projetoId}
-            versoes={versoes}
-            rows={catalogos.filter(
-              (c) => c.categoria === s.categoria && (filtroVersao === TODAS || valeNaVersao(c, Number(filtroVersao))),
-            )}
-          />
-        ))}
-      </div>
+    <div className={categorias.length === 1 ? "max-w-xl" : "grid gap-4 lg:grid-cols-3"}>
+      {SECOES.filter((s) => categorias.includes(s.categoria)).map((s) => (
+        <SecaoCatalogo
+          key={s.categoria}
+          categoria={s.categoria}
+          titulo={s.titulo}
+          descricao={s.descricao}
+          exemplo={s.exemplo}
+          projetoId={projetoId}
+          rows={catalogos.filter((c) => c.categoria === s.categoria)}
+        />
+      ))}
     </div>
   );
 }
@@ -127,7 +97,6 @@ function SecaoCatalogo({
   exemplo,
   rows,
   projetoId,
-  versoes,
 }: {
   categoria: Categoria;
   titulo: string;
@@ -135,19 +104,14 @@ function SecaoCatalogo({
   exemplo: { sigla: string; nome: string; sinonimos: string };
   rows: PranchaCatalogoRow[];
   projetoId?: string;
-  versoes: VersaoOpcao[];
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, start] = useTransition();
   const [sigla, setSigla] = useState("");
   const [nome, setNome] = useState("");
   const [sinonimos, setSinonimos] = useState("");
-  // "A partir da" do item novo: abre na versão mais nova, como as siglas. Só na tela global — a
-  // sigla própria de um projeto não tem validade por versão.
-  const [desde, setDesde] = useState(() => String(versaoMaisNova(versoes) ?? 1));
-  const ordenadas = [...versoes].sort((a, b) => a.numero - b.numero);
   const [editar, setEditar] = useState<PranchaCatalogoRow | null>(null);
-  const [siglasDe, setSiglasDe] = useState<PranchaCatalogoRow | null>(null);
 
   function adicionar() {
     if (!sigla.trim() || !nome.trim()) {
@@ -161,7 +125,6 @@ function SecaoCatalogo({
         nome,
         projetoId,
         sinonimos: sinonimosDoTexto(sinonimos),
-        ...(projetoId ? {} : { versaoDesde: Number(desde) || 1 }),
       });
       if (r.ok) {
         toast.success("Sigla adicionada.");
@@ -189,9 +152,17 @@ function SecaoCatalogo({
     });
   }
 
-  function excluir(id: string) {
+  async function excluir(row: PranchaCatalogoRow) {
+    // Confirma ANTES do `start` (dentro dele o React 19 suspende e o diálogo nunca aparece).
+    const ok = await confirm({
+      title: `Excluir “${row.sigla} — ${row.nome}”?`,
+      description: "A sigla sai do catálogo em definitivo. Esta ação não pode ser desfeita.",
+      confirmLabel: "Excluir",
+      variant: "destructive",
+    });
+    if (!ok) return;
     start(async () => {
-      const r = await excluirCatalogoPrancha({ id });
+      const r = await excluirCatalogoPrancha({ id: row.id });
       if (r.ok) router.refresh();
       else toast.error(r.error);
     });
@@ -213,11 +184,10 @@ function SecaoCatalogo({
                 <Badge variant="outline" className="shrink-0 font-mono">{row.sigla}</Badge>
                 <span className={`min-w-0 flex-1 truncate ${row.ativo ? "" : "text-muted-foreground line-through"}`}>
                   {row.nome}
-                  {rotuloFaixa(row) && <span className="ml-1.5 text-xs text-muted-foreground">· {rotuloFaixa(row)}</span>}
                   {row.siglasPorVersao && (
                     <span
                       className="ml-1.5 text-xs text-muted-foreground"
-                      title="Este item tem siglas diferentes por versão — veja em “Siglas por versão”."
+                      title="Este item tem siglas diferentes por versão — veja em Disciplinas e nomenclatura."
                     >
                       · siglas por versão
                     </span>
@@ -235,22 +205,17 @@ function SecaoCatalogo({
                   size="icon"
                   variant="ghost"
                   className="size-7"
-                  aria-label={row.ativo ? "Desativar" : "Ativar"}
-                  title={row.ativo ? "Desativar" : "Ativar"}
+                  aria-label={row.ativo ? `Arquivar ${row.nome}` : `Desarquivar ${row.nome}`}
+                  title={row.ativo ? "Arquivar" : "Desarquivar"}
                   disabled={pending}
                   onClick={() => alternarAtivo(row)}
                 >
                   {row.ativo ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5 text-muted-foreground" />}
                 </Button>
-                {versoes.length > 0 && (
-                  <Button size="icon" variant="ghost" className="size-7" aria-label={`Siglas de ${row.nome} por versão`} title="Siglas por versão" onClick={() => setSiglasDe(row)}>
-                    <Tags className="size-3.5" />
-                  </Button>
-                )}
-                <Button size="icon" variant="ghost" className="size-7" aria-label="Editar" onClick={() => setEditar(row)}>
+                <Button size="icon" variant="ghost" className="size-7" aria-label={`Editar ${row.nome}`} onClick={() => setEditar(row)}>
                   <Pencil className="size-3.5" />
                 </Button>
-                <Button size="icon" variant="ghost" className="size-7" aria-label="Excluir" disabled={pending} onClick={() => excluir(row.id)}>
+                <Button size="icon" variant="ghost" className="size-7" aria-label={`Excluir ${row.nome}`} disabled={pending} onClick={() => void excluir(row)}>
                   <Trash2 className="size-3.5" />
                 </Button>
               </li>
@@ -275,19 +240,6 @@ function SecaoCatalogo({
               <Plus className="size-4" />
             </Button>
           </div>
-          {!projetoId && ordenadas.length > 1 && (
-            <div className="space-y-1">
-              <Label className="text-xs">Vale a partir da</Label>
-              <Select value={desde} onValueChange={(v) => setDesde(v ?? "1")}>
-                <SelectTrigger className="w-full text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {ordenadas.map((v) => (
-                    <SelectItem key={v.id} value={String(v.numero)}>{rotuloVersaoOpcao(v)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
           <div className="space-y-1">
             <Label className="text-xs">Sinônimos desta sigla (opcional)</Label>
             <Input value={sinonimos} onChange={(e) => setSinonimos(e.target.value)} placeholder={exemplo.sinonimos || undefined} />
@@ -295,34 +247,17 @@ function SecaoCatalogo({
         </div>
       </CardContent>
 
-      <EditarDialog row={editar} versoes={projetoId ? [] : versoes} onClose={() => setEditar(null)} />
-      <SiglasVersaoDialog
-        aberto={siglasDe !== null}
-        onFechar={() => setSiglasDe(null)}
-        alvo={siglasDe ? { tipo: "prancha", id: siglasDe.id } : null}
-        rotuloAlvo={siglasDe?.nome ?? ""}
-        versoes={versoes}
-      />
+      <EditarDialog row={editar} onClose={() => setEditar(null)} />
     </Card>
   );
 }
 
-function EditarDialog({
-  row,
-  versoes,
-  onClose,
-}: {
-  row: PranchaCatalogoRow | null;
-  /** Vazio = sigla própria de projeto (sem validade por versão). */
-  versoes: VersaoOpcao[];
-  onClose: () => void;
-}) {
+function EditarDialog({ row, onClose }: { row: PranchaCatalogoRow | null; onClose: () => void }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [sigla, setSigla] = useState("");
   const [nome, setNome] = useState("");
   const [sinonimos, setSinonimos] = useState("");
-  const [faixa, setFaixa] = useState<FaixaForm>({ desde: "1", ate: "" });
   const [lastId, setLastId] = useState<string | null>(null);
 
   // Sincroniza o form quando abre em outra linha (sem useEffect).
@@ -331,7 +266,6 @@ function EditarDialog({
     setSigla(row.sigla);
     setNome(row.nome);
     setSinonimos(row.sinonimos.join(", "));
-    setFaixa(faixaParaForm(row));
   }
   const travado = row?.siglasPorVersao ?? false;
 
@@ -348,7 +282,6 @@ function EditarDialog({
         nome,
         ativo: row.ativo,
         sinonimos: sinonimosDoTexto(sinonimos),
-        ...(versoes.length > 0 ? faixaDoForm(faixa) : {}),
       });
       if (r.ok) {
         toast.success("Sigla atualizada.");
@@ -380,13 +313,10 @@ function EditarDialog({
             <Input value={sinonimos} disabled={travado} onChange={(e) => setSinonimos(e.target.value)} placeholder="PE, EXE" />
             <p className="text-[11px] text-muted-foreground">
               {travado
-                ? "As siglas deste item já são definidas por versão. Para mudar sigla ou sinônimos, use “Siglas por versão” (ícone de etiqueta na linha) — aqui eles ficam como estão."
+                ? "As siglas deste item são definidas por versão. Para mudar sigla ou sinônimos, abra a versão em Disciplinas e nomenclatura — aqui eles ficam como estão."
                 : "Siglas alternativas que o motor de nomenclatura reconhece como esta, separadas por vírgula."}
             </p>
           </div>
-          {versoes.length > 0 && mostrarValidade(versoes, faixa) && (
-            <ValidadeVersaoCampos versoes={versoes} valor={faixa} onChange={setFaixa} />
-          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>

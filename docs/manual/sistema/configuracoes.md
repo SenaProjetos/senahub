@@ -3,7 +3,7 @@ titulo: Configurações (administração)
 descricao: Central de administração — usuários, permissões, parâmetros de folha, projetos, licitações, funil, avisos e dados da empresa, além do status das integrações.
 resumo: Hub administrativo com cadastros e parâmetros do sistema (usuários, permissões, encargos, documentos/inputs padrão, feriados, licitações, funil) e o status das integrações on-premise (SMTP/push).
 tags: [configurações, administração, usuários, permissões, encargos, feriados, licitações, funil, avisos, agendamento, integrações, empresa, timbrado]
-palavras-chave: [configurações, administração, usuários, permissões, matriz, encargos, inss, irrf, feriados, modalidades, habilitação, funil, aviso geral, agendar aviso, aviso agendado, comunicado programado, smtp, push, dados da empresa, razão social, cnpj, logo, logo da empresa, timbrado, cabeçalho do pdf]
+palavras-chave: [disciplinas e nomenclatura, pasta dos arquivos, configurações, administração, usuários, permissões, matriz, encargos, inss, irrf, feriados, modalidades, habilitação, funil, aviso geral, agendar aviso, aviso agendado, comunicado programado, smtp, push, dados da empresa, razão social, cnpj, logo, logo da empresa, timbrado, cabeçalho do pdf, sinônimo de sigla, transferir sigla]
 sinonimos: [admin, ajustes do sistema, parâmetros, settings]
 ---
 
@@ -30,17 +30,14 @@ lugar.
 - **Encargos da folha** — faixas de **INSS** e **IRRF** usadas no holerite.
 
 ### Projetos & Operação
-- **Disciplinas** — catálogo de disciplinas (sigla, ícone, categoria); cada disciplina pode
-  ter **sub-disciplinas** (etiqueta de documento dentro dela, como Água Fria dentro de
-  Hidrossanitário) e **siglas por versão** do padrão de nomenclatura.
-- **Lista Mestre** — siglas de fase, tipo e tamanho de papel usadas nos nomes de arquivo,
-  também com siglas por versão.
-- **Nomenclatura** — versões do padrão de nome de arquivo. Uma versão publicada é
-  **imutável**; corrigi-la é publicar uma versão nova. Um projeto novo recebe a versão
-  vigente na data em que é criado; publicar não muda projeto já existente. Publicar avisa
-  (sem bloquear) quando uma sigla já significou outra coisa numa versão anterior. Cada versão
-  tem o seu **Catálogo** (botão "Catálogo da vN"): a tabela do padrão daquela versão — ver
-  [Montar uma versão do padrão](#montar-uma-versão-do-padrão-de-nomenclatura).
+- **Disciplinas e nomenclatura** — a tela única do catálogo: disciplinas (com sub-disciplinas,
+  ícone e categoria), fases, tipos, formatos de folha e o padrão de nome de arquivo, versão por
+  versão: ver
+  [Montar uma versão do padrão](#montar-uma-versão-do-padrão-de-nomenclatura). Pelo botão
+  **Versões** do topo se criam e se publicam as versões. Uma versão publicada é **imutável**;
+  corrigi-la é publicar uma versão nova. Um projeto novo recebe a versão vigente na data em que
+  é criado; publicar não muda projeto já existente. Publicar avisa (sem bloquear) quando uma
+  sigla já significou outra coisa numa versão anterior.
 - **Documentos padrão** — modelo do Estúdio usado por padrão em cada fonte.
 - **Inputs padrão** — perguntas padrão por disciplina no link do cliente.
 - **Feriados** — calendário (ponto, escala, banco de horas).
@@ -84,8 +81,10 @@ lugar.
 
 ## Montar uma versão do padrão de nomenclatura
 
-O jeito mais simples é pelo **Catálogo da versão** (Configurações → Nomenclatura → escolha a
-versão → **Catálogo da vN**). Ele mostra a versão como na planilha da gestão: cada **CARD**
+A tela é **Configurações → Disciplinas e nomenclatura**. Ela abre na versão mais nova; para
+trocar, use a **lista de versões** no topo (mais nova primeiro, com "rascunho" e "vigente"). As
+abas **Disciplinas**, **Fases**, **Tipos de documento** e **Formatos de folha** separam o catálogo, e a busca encontra
+por nome, sigla ou sinônimo. Ela mostra a versão como na planilha da gestão: cada **CARD**
 (disciplina que abre card no projeto, com projetista, prazo e pagamento) com as suas **SUBs**
 (etiqueta do documento, lida do nome do arquivo), a sigla de cada um, e as fases e tipos. Ao
 lado de cada linha aparece o que mudou em relação à versão anterior ("novo na v2", "sigla nova
@@ -112,34 +111,80 @@ muda nada. Se a versão já está **publicada**, a mudança vale também para os
 seguem — para não afetá-los, crie uma versão nova.
 
 **Ajustes avulsos**, no mesmo catálogo: **+ Disciplina**, **+** numa linha de card (nova
-sub-disciplina), **Trocar sigla** (a nova vale desta versão em diante; a antiga fica nas
-anteriores) e **Tirar da versão**. Numa edição avulsa a sigla nunca é tomada de outro item: se
-ela já tem dono na versão, o sistema diz quem é.
+sub-disciplina), **Siglas nesta versão** (ícone de etiqueta: a sigla oficial e os sinônimos do
+item nesta versão; o que mudar vale desta versão em diante e as anteriores ficam como estão) e
+**Tirar da versão**. Na lista, a sigla oficial tem borda cheia e os **sinônimos**, borda tracejada.
 
-**Pelas telas de catálogo** (Disciplinas e Lista Mestre) também dá:
-- cada disciplina, sub-disciplina e item da Lista Mestre tem **"Vale a partir da / Até a"**;
-  cadastro novo já abre na **versão mais nova** — confira antes de salvar, porque "a partir da
-  v1" faz o item valer também nos projetos antigos;
-- disciplina que só existe em versões numeradas por sub não mostra a **faixa de numeração**
-  (4000–4999): ela só vale nas versões numeradas por faixa (a v1);
-- **Siglas por versão** (ícone de camadas na linha da disciplina, de etiqueta na Lista Mestre):
-  trocar a sigla é cadastrar a nova a partir da versão nova; para só **encerrar** uma sigla,
-  clique no X e escolha até qual versão ela vale;
-- depois que um item ganha siglas por versão, **sigla e sinônimos ficam travados** no lápis
-  (a lista mostra "siglas por versão"); salvar o lápis para trocar ícone, nome ou categoria
-  não mexe nas siglas.
+Se a sigla que você digitou já tem dono na versão, o diálogo mostra **de quem** e se ela é a
+**oficial** ou um **sinônimo** dele, antes de salvar. **Tirar de … e adicionar** (ou **salvar**)
+passa a sigla para cá a partir desta versão; nas anteriores ela continua com o dono antigo. Quando
+ela é a sigla oficial do outro item, marque **Entendi**: ele fica sem sigla nesta versão até você
+dar outra.
+
+**Voltar para a versão** (na lista "Saem") mostra as siglas que o item tinha; só as marcadas
+voltam com ele.
+
+Cada linha tem o botão **⋯** (ou o botão direito do mouse, com as mesmas ações): **Siglas nesta
+versão**, **Adicionar sub-disciplina** (nos cards), **Editar cadastro** e **Tirar da versão**.
+Quem só pode editar o cadastro (sem gerir a configuração) vê o lápis direto na linha, sem o ⋯.
+**Editar cadastro** (o lápis) mexe só no que vale para todas as versões — nada de sigla ou de
+versão:
+- **disciplina:** nome (os projetos que já usam o nome seguem junto), categoria, ícone,
+  numeração por faixa (quando a versão numera por faixa) e a **Pasta dos arquivos**, que é o
+  nome da pasta e o prefixo dos arquivos no servidor. A pasta só pode mudar enquanto **nenhum
+  projeto usa** a disciplina; depois disso o campo fica travado e diz quantos projetos usam,
+  porque mudar separaria os arquivos em duas pastas;
+- **sub-disciplina, fase e tipo:** só o nome.
+
+O botão **Salvar** do lápis só fica ativo depois que algum campo muda.
+
+**Mudanças de validade e de sigla** só acontecem dentro de uma versão: o item entra, sai ou
+volta ("Voltar para a versão"), ou ganha sigla nova **a partir** daquela versão — nunca por um
+campo solto de "Vale a partir da / Até a". Sair e voltar **não mexem nas siglas** dele, e salvar o
+lápis para trocar ícone, nome ou categoria também não. A numeração por faixa (4000–4999) só
+aparece para disciplinas que valem em alguma versão numerada por faixa (a v1).
+
+## Lente "Todas as versões" e Formatos de folha
+
+No topo da tela, a **lista de versões** tem como primeiro item **Todas as versões**: o **cadastro
+inteiro**, com as disciplinas arquivadas (interruptor **Arquivadas**) e o que cada item tem de
+fixo, sem olhar uma versão só. Cada linha mostra:
+- **Existe em** — as versões em que o item vale ("v1 em diante", "só v1", "a partir da v2"); numa
+  sub, já descontado o que o card dela permite;
+- **Siglas (todas as versões)** — a oficial e os sinônimos, com a versão ao lado quando ela é
+  diferente da do item ("ESG só v1"). Clicar nas siglas abre o **histórico**, só para leitura;
+  mudar sigla é dentro de uma versão (o histórico tem o link **abrir a vN**);
+- **Em uso** — quantos projetos usam a disciplina (clique para ver a lista de projetos); nas fases,
+  quantas etapas de disciplina.
+
+O menu **⋯** (ou botão direito) da lente Todas tem **Editar cadastro**, **Abrir na vN**,
+**Subir/Descer** (a ordem dentro da categoria, só com a busca vazia), **Arquivar/Desarquivar** e
+**Excluir**. Excluir só vale para o que nada usa — em uso, o item fica esmaecido dizendo o que o
+prende (projetos, documentos, etapas ou registros de outras áreas, como propostas, normas e
+modelos ou tarefas da EAP); arquive. Disciplinas e sub-disciplinas têm caixa de
+seleção para **arquivar, desarquivar ou excluir várias de uma vez**. O lápis ao lado do nome de
+uma categoria **renomeia a categoria** em todas as disciplinas dela.
+
+**+ Disciplina** (ou **+ Fase**, **+ Tipo**) na lente Todas pergunta **a partir de qual versão**
+o item passa a existir (a mais nova já vem marcada) e mostra o conflito de sigla dessa versão
+antes de salvar. Escolher uma versão **publicada** avisa que o item passa a valer também nos
+projetos que a seguem.
+
+A aba **Formatos de folha** (A1, A3…) está nas duas lentes e **não depende de versão**: não tem
+seletor de versão, só a lista e o formulário de um formato novo. As opções **exigir nomenclatura**
+e **exigir fase**, para todos os projetos, ficam na página **Versões**.
 
 ## Menu de ações e seleção em lote
 
-Em **Usuários** e no **Catálogo de disciplinas**, o botão direito numa linha (ou o botão **⋯**)
+Em **Usuários** e em **Disciplinas e nomenclatura**, o botão direito numa linha (ou o botão **⋯**)
 abre as ações dela, e a caixa de seleção permite agir em várias de uma vez:
 
 - **Usuários:** desativar, reativar e excluir (só contas desativadas e sem histórico). **Editar** e
   **Reiniciar senha** ficam esmaecidos com mais de um selecionado, porque mostram uma senha
   temporária e só valem para uma pessoa por vez.
-- **Catálogo de disciplinas:** arquivar, desarquivar e excluir. Na exclusão em lote, as disciplinas
-  que ainda estão em uso em projetos ficam de fora — a confirmação diz quantas —; arquive-as.
-  **Mover para cima/baixo** só funciona com a busca vazia.
+- **Disciplinas e nomenclatura** (lente **Todas as versões**): arquivar, desarquivar e excluir
+  disciplinas e sub-disciplinas. Na exclusão em lote, o que ainda está em uso fica de fora — a
+  confirmação diz quantos —; arquive. **Subir/Descer** só funciona com a busca vazia.
 
 ## Permissões
 

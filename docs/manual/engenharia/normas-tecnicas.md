@@ -52,7 +52,7 @@ Para trocar o PDF de uma norma, exclua e inclua de novo.
 
 - **Editar e excluir:** quem incluiu a norma, ou quem tem a permissão de gerir a biblioteca
   técnica (supervisor; o admin sempre pode).
-- As disciplinas são as do catálogo em **Configurações → Disciplinas**. Pasta sem norma não
+- As disciplinas são as do catálogo em **Configurações → Disciplinas e nomenclatura** (lente Todas as versões). Pasta sem norma não
   aparece.
 - Toda inclusão, edição e exclusão fica registrada na auditoria.
 

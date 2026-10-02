@@ -300,7 +300,7 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     acoes: [
       { acao: "gerir", label: "Gerir configurações", abre: "Configurações" },
       // F4: eram `requireRole` fixos, fora da matriz.
-      { acao: "disciplinas", label: "Administrar o catálogo de disciplinas", abre: "Configurações → Disciplinas" },
+      { acao: "disciplinas", label: "Administrar o catálogo de disciplinas", abre: "Configurações → Disciplinas e nomenclatura" },
       { acao: "licitacoes", label: "Administrar modalidades e critérios de licitação", abre: "Configurações → Licitações" },
     ],
   },

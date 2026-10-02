@@ -6,21 +6,22 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { normalizarSinonimos, primeiraColisao } from "@/modules/uploads/nomenclatura/colisao-sinonimo";
 import { espelharSiglasDasColunas } from "@/modules/uploads/nomenclatura/siglas-service";
-import { decidirSiglasAoSalvar, siglasDasColunas, type FaixaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
-import { garantirFaixaVersao, garantirSiglasSemColisao } from "@/modules/uploads/nomenclatura/siglas-guardas";
+import {
+  decidirSiglasAoSalvar,
+  faixaDoEspelho,
+  linhasParaChecarColisao,
+  siglasDasColunas,
+  type FaixaVersao,
+} from "@/modules/uploads/nomenclatura/siglas-versao";
+import { garantirSiglasSemColisao } from "@/modules/uploads/nomenclatura/siglas-guardas";
+import { motivoExclusao } from "@/modules/projetos/nomenclatura/catalogo/todas";
+import { usoParaExcluir } from "@/modules/projetos/nomenclatura/catalogo/queries";
 
 const base = { modulo: "configuracoes", recurso: "configuracoes", permissao: "gerir" } as const;
 const categoria = z.enum(["folha", "tipo", "fase"]);
 const sinonimosSchema = z.array(z.string().trim().max(10)).max(10).optional();
-/** Validade do item por versão do padrão (D11). Ausente = na criação, da v1 em diante; na edição,
- *  mantém o gravado (o olho de ativar/desativar não manda). `versaoAte` null = sem fim. */
-const faixaSchema = {
-  versaoDesde: z.number().int().min(1).optional(),
-  versaoAte: z.number().int().min(1).nullable().optional(),
-};
-
 function rev() {
-  revalidatePath("/configuracoes/lista-mestre");
+  revalidatePath("/configuracoes/nomenclatura", "layout");
 }
 
 /**
@@ -56,16 +57,18 @@ export const criarCatalogoPrancha = defineAction(
       nome: z.string().min(1).max(80),
       projetoId: z.string().optional(),
       sinonimos: sinonimosSchema,
-      ...faixaSchema,
     }),
   },
   async (i) => {
+    // Fase e tipo globais nascem numa versão (spec 2026-09-30, E7/A2): a faixa só se define lá.
+    if (!i.projetoId && i.categoria !== "folha") {
+      throw new ActionError("Fase e tipo do catálogo se criam numa versão, em Disciplinas e nomenclatura.");
+    }
     const sigla = i.sigla.toUpperCase();
     const projetoId = i.projetoId ?? null;
     const sinonimos = normalizarSinonimos(sigla, i.sinonimos ?? []);
-    // Sigla própria de projeto não tem validade por versão: o projeto segue uma versão só.
-    const faixa: FaixaVersao = projetoId ? { versaoDesde: 1, versaoAte: null } : { versaoDesde: i.versaoDesde ?? 1, versaoAte: i.versaoAte ?? null };
-    await garantirFaixaVersao(faixa);
+    // Sigla de folha e sigla própria de projeto não têm validade por versão.
+    const faixa: FaixaVersao = { versaoDesde: 1, versaoAte: null };
     await garantirSemColisaoPrancha(i.categoria, projetoId, { sigla, sinonimos }, null);
     await garantirSiglasSemColisao(
       { tipo: "prancha", id: null, faixa },
@@ -107,7 +110,6 @@ export const editarCatalogoPrancha = defineAction(
       nome: z.string().min(1).max(80),
       ativo: z.boolean(),
       sinonimos: sinonimosSchema,
-      ...faixaSchema,
     }),
   },
   async (i) => {
@@ -125,13 +127,15 @@ export const editarCatalogoPrancha = defineAction(
       },
     });
     if (!existe) throw new ActionError("Sigla não encontrada.");
+    // Fase e tipo globais são do catálogo por versão (E3): sigla e sinônimos mudam na lente da versão.
+    if (existe.projetoId === null && existe.categoria !== "folha") {
+      throw new ActionError("Fase e tipo do catálogo mudam numa versão, em Disciplinas e nomenclatura.");
+    }
     const sigla = i.sigla.toUpperCase();
     const sinonimos = normalizarSinonimos(sigla, i.sinonimos ?? []);
+    // A faixa de uma versão não muda por aqui (A2): quem a muda é a lente da versão.
     const faixaAntes: FaixaVersao = { versaoDesde: existe.versaoDesde, versaoAte: existe.versaoAte };
-    const faixa: FaixaVersao = existe.projetoId
-      ? faixaAntes
-      : { versaoDesde: i.versaoDesde ?? existe.versaoDesde, versaoAte: i.versaoAte === undefined ? existe.versaoAte : i.versaoAte };
-    await garantirFaixaVersao(faixa);
+    const faixa = faixaAntes;
     // Item com siglas por versão (PL → PRE na v2): o formulário e o olho de ativar/desativar só
     // regravam as siglas se elas ainda forem o espelho das colunas — ver `decidirSiglasAoSalvar`.
     const siglas = decidirSiglasAoSalvar({
@@ -143,26 +147,79 @@ export const editarCatalogoPrancha = defineAction(
     });
     if (siglas === "bloquear") {
       throw new ActionError(
-        `As siglas de “${existe.nome}” já são definidas por versão. Para mudar a sigla ou os sinônimos, use “Siglas por versão” na linha dele.`,
+        `As siglas de “${existe.nome}” já são definidas por versão. Para mudar a sigla ou os sinônimos, abra a versão em Disciplinas e nomenclatura.`,
       );
     }
     await garantirSemColisaoPrancha(existe.categoria, existe.projetoId, { sigla, sinonimos }, i.id);
-    if (siglas === "espelhar") {
-      await garantirSiglasSemColisao(
-        { tipo: "prancha", id: i.id, faixa },
-        { tipo: "prancha", categoria: existe.categoria, projetoId: existe.projetoId },
-        siglasDasColunas(sigla, sinonimos, faixa),
-      );
-    }
+    await garantirSiglasSemColisao(
+      { tipo: "prancha", id: i.id, faixa },
+      { tipo: "prancha", categoria: existe.categoria, projetoId: existe.projetoId },
+      linhasParaChecarColisao({
+        decisao: siglas,
+        linhas: existe.siglas,
+        colunasDepois: { oficial: sigla, sinonimos },
+        faixaAntes,
+        faixaDepois: faixa,
+      }),
+    );
     await prisma.$transaction(async (tx) => {
       await tx.pranchaCatalogo.update({
         where: { id: i.id },
         data: { sigla, nome: i.nome, ativo: i.ativo, sinonimos, ...faixa },
       });
       if (siglas === "espelhar") {
-        await espelharSiglasDasColunas(tx, { tipo: "prancha", id: i.id, categoria: existe.categoria, sigla, sinonimos }, faixa);
+        await espelharSiglasDasColunas(
+          tx,
+          { tipo: "prancha", id: i.id, categoria: existe.categoria, sigla, sinonimos },
+          faixaDoEspelho(faixaAntes, faixa),
+        );
       }
     });
+    rev();
+    return { id: i.id };
+  },
+);
+
+/** Lápis do catálogo (spec 2026-09-30, E9): só o nome da fase/tipo global — sigla e validade são da lente de uma versão. */
+export const editarNomeItemListaMestre = defineAction(
+  {
+    ...base,
+    acao: "editar-nome-item-lista-mestre",
+    entidade: "PranchaCatalogo",
+    entidadeId: (_d, i) => i.id,
+    schema: z.object({ id: z.string().min(1), nome: z.string().trim().min(1).max(80) }),
+    capturarAntes: (i) => prisma.pranchaCatalogo.findUnique({ where: { id: i.id } }),
+  },
+  async (i) => {
+    const existe = await prisma.pranchaCatalogo.findUnique({ where: { id: i.id }, select: { categoria: true, projetoId: true } });
+    if (!existe || existe.projetoId !== null || (existe.categoria !== "fase" && existe.categoria !== "tipo")) {
+      throw new ActionError("Item da Lista Mestre não encontrado.");
+    }
+    await prisma.pranchaCatalogo.update({ where: { id: i.id }, data: { nome: i.nome } });
+    rev();
+    return { id: i.id };
+  },
+);
+
+/**
+ * Arquivar/desarquivar fase ou tipo global pela lente Todas (E8): só `ativo`. Sigla, sinônimos e
+ * validade não passam por aqui — `editarCatalogoPrancha` regravaria o espelho das colunas.
+ */
+export const definirAtivoItemListaMestre = defineAction(
+  {
+    ...base,
+    acao: "definir-ativo-item-lista-mestre",
+    entidade: "PranchaCatalogo",
+    entidadeId: (_d, i) => i.id,
+    schema: z.object({ id: z.string().min(1), ativo: z.boolean() }),
+    capturarAntes: (i) => prisma.pranchaCatalogo.findUnique({ where: { id: i.id } }),
+  },
+  async (i) => {
+    const existe = await prisma.pranchaCatalogo.findUnique({ where: { id: i.id }, select: { categoria: true, projetoId: true } });
+    if (!existe || existe.projetoId !== null || (existe.categoria !== "fase" && existe.categoria !== "tipo")) {
+      throw new ActionError("Item da Lista Mestre não encontrado.");
+    }
+    await prisma.pranchaCatalogo.update({ where: { id: i.id }, data: { ativo: i.ativo } });
     rev();
     return { id: i.id };
   },
@@ -171,15 +228,11 @@ export const editarCatalogoPrancha = defineAction(
 export const excluirCatalogoPrancha = defineAction(
   { ...base, acao: "excluir-catalogo-prancha", entidade: "PranchaCatalogo", schema: z.object({ id: z.string().min(1) }) },
   async (i) => {
-    // Fase em uso por etapa de disciplina (F4) não é excluída: a FK é RESTRICT, porque a fase
-    // é a identidade da etapa. Sem esta checagem o Postgres recusaria do mesmo jeito, mas a
-    // pessoa veria só "algo deu errado" em vez do motivo e da saída (desativar).
-    const emUso = await prisma.disciplinaEtapa.count({ where: { etapaId: i.id } });
-    if (emUso > 0) {
-      throw new ActionError(
-        `Esta fase é usada por ${emUso} etapa(s) de disciplina e não pode ser excluída. Desative-a para ela sumir dos cadastros novos.`,
-      );
-    }
+    // A mesma regra e a mesma frase do menu: etapas de disciplina (FK `Restrict` — a fase é a
+    // identidade da etapa), documentos que usam a fase, o tipo ou o formato, e tarefas da EAP (FK
+    // `SetNull` — excluir as soltaria em silêncio).
+    const motivo = motivoExclusao("prancha", await usoParaExcluir(prisma, { tipo: "prancha", id: i.id }, ""));
+    if (motivo) throw new ActionError(motivo);
     await prisma.pranchaCatalogo.delete({ where: { id: i.id } });
     rev();
     return { id: i.id };

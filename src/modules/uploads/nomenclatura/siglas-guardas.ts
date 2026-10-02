@@ -88,18 +88,3 @@ export async function garantirSiglasSemColisao(
   }
 }
 
-/**
- * Faixa de versões válida: fim não anterior ao início, e toda versão citada já cadastrada (a v1
- * sempre existe — nasce na migration). Versão futura precisa existir como rascunho antes.
- */
-export async function garantirFaixaVersao(faixa: FaixaVersao): Promise<void> {
-  if (faixa.versaoAte !== null && faixa.versaoAte < faixa.versaoDesde) {
-    throw new ActionError("A versão final não pode ser anterior à inicial.");
-  }
-  const numeros = [...new Set([faixa.versaoDesde, faixa.versaoAte].filter((n): n is number => n !== null && n > 1))];
-  if (numeros.length === 0) return;
-  const achadas = await prisma.nomenclaturaVersao.count({ where: { numero: { in: numeros } } });
-  if (achadas < numeros.length) {
-    throw new ActionError("Essa versão do padrão não existe — crie-a em Configurações → Nomenclatura antes.");
-  }
-}

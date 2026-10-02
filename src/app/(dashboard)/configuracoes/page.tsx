@@ -18,10 +18,8 @@ import {
   Bell,
   Funnel,
   Shapes,
-  LayoutList,
   Building2,
   FileQuestion,
-  CalendarClock,
 } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -84,22 +82,10 @@ const GRUPOS: Grupo[] = [
     descricao: "Modelos e parâmetros do dia a dia de projetos e licitações.",
     itens: [
       {
-        href: "/configuracoes/disciplinas",
-        icon: Shapes,
-        titulo: "Disciplinas",
-        descricao: "Catálogo de disciplinas (sigla, ícone, categoria) usado em projetos e propostas.",
-      },
-      {
-        href: "/configuracoes/lista-mestre",
-        icon: LayoutList,
-        titulo: "Lista Mestre",
-        descricao: "Siglas de folha, tipo e fase que compõem o código das folhas técnicas.",
-      },
-      {
         href: "/configuracoes/nomenclatura",
-        icon: CalendarClock,
-        titulo: "Nomenclatura",
-        descricao: "Versões do padrão de nome de arquivo — publicada é imutável, projeto novo recebe a vigente.",
+        icon: Shapes,
+        titulo: "Disciplinas e nomenclatura",
+        descricao: "Catálogo do padrão de nome de arquivo, versão por versão: disciplinas, sub-disciplinas, fases, tipos e siglas.",
       },
       {
         href: "/configuracoes/extensoes",

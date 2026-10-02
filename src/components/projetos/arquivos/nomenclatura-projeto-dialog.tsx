@@ -60,7 +60,7 @@ export function NomenclaturaProjetoButton({
           <DialogTitle>Nomenclatura do projeto</DialogTitle>
           <DialogDescription>
             Como o nome dos arquivos é reconhecido no envio, e as siglas válidas só neste projeto (somam-se às
-            globais de Configurações → Lista Mestre).
+            globais de Configurações → Disciplinas e nomenclatura).
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="space-y-6">

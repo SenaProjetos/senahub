@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { X, ArrowUp, ArrowDown, Sparkles, Code } from "lucide-react";
@@ -68,7 +67,7 @@ export function NomenclaturaForm({
   inicial: { exigir: boolean; exigirFase: boolean; padrao: string; definido?: boolean };
   global?: { exigir: boolean; exigirFase: boolean; padrao: string };
   /** false = só exigir/exigirFase; usado na tela global desde que o modelo do nome virou
-   *  versionado (Configurações → Nomenclatura) — editar aqui não muda nada mais (F2/F3). */
+   *  versionado (Configurações → Disciplinas e nomenclatura) — editar aqui não muda nada mais (F2/F3). */
   mostrarPadrao?: boolean;
 }) {
   const router = useRouter();
@@ -221,9 +220,7 @@ export function NomenclaturaForm({
 
       {!mostrarPadrao ? (
         <p className="text-xs text-muted-foreground">
-          O modelo do nome agora é definido em{" "}
-          <Link href="/configuracoes/nomenclatura" className="text-primary hover:underline">Configurações → Nomenclatura</Link>{" "}
-          (versionado). Aqui só exigir/exigir fase.
+          O modelo do nome é definido em cada versão, acima. Aqui só exigir/exigir fase.
         </p>
       ) : modoAvancado ? (
         <div className="space-y-1">

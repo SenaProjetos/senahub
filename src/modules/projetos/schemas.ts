@@ -151,17 +151,17 @@ export const adicionarDoCatalogoSchema = z.object({
   nomes: z.array(z.string().min(1)).min(1),
 });
 
-/** Item 15: CRUD do catálogo de disciplinas (Configurações → Disciplinas). */
+/** Item 15: cadastro do catálogo de disciplinas (Configurações → Disciplinas e nomenclatura). */
 export const criarDisciplinaCatalogoSchema = z.object({
   nome: z.string().trim().min(2, "Informe o nome da disciplina."),
   /** Sigla p/ nomenclatura; normalizada (uppercase, só A-Z0-9) na action. */
   codigo: z.string().trim().max(6, "Código de até 6 caracteres.").optional(),
   /** Número-base p/ a nomenclatura (ex.: 4000 → folhas 4001…). Vazio = sem bloco. */
-  numeracao: z.number().int().min(0).max(999999).nullable().optional(),
+  numeracao: z.number().int("Use um número inteiro.").min(0, "Use um número a partir de 0.").max(999999, "Use um número até 999999.").nullable().optional(),
   /** Fim da faixa (inclusive) — sem isto o motor não reconhece disciplina pela numeração do
    *  arquivo (faixas não são blocos uniformes, ver comentário no schema.prisma). Vazio = sem
    *  faixa definida, mesmo com `numeracao` preenchido. */
-  numeracaoFim: z.number().int().min(0).max(999999).nullable().optional(),
+  numeracaoFim: z.number().int("Use um número inteiro.").min(0, "Use um número a partir de 0.").max(999999, "Use um número até 999999.").nullable().optional(),
   categoria: z.string().trim().max(40).optional(),
   /** Chave da galeria lucide. */
   icone: z.string().trim().max(60).optional(),
@@ -176,11 +176,17 @@ export const criarDisciplinaCatalogoSchema = z.object({
   versaoAte: z.number().int().min(1).nullable().optional(),
 });
 
-export const editarDisciplinaCatalogoSchema = criarDisciplinaCatalogoSchema.extend({
-  id: z.string().min(1),
-});
+/**
+ * Lápis do catálogo (spec 2026-09-30, E9): só o que não depende de versão. Sem sinônimos nem faixa —
+ * esses são da lente de uma versão.
+ */
+export const editarCadastroDisciplinaSchema = criarDisciplinaCatalogoSchema
+  .omit({ sinonimos: true, versaoDesde: true, versaoAte: true })
+  .extend({ id: z.string().min(1) });
 
 export const idDisciplinaCatalogoSchema = z.object({ id: z.string().min(1) });
+/** `ativo` presente = estado pedido (a tela pode estar velha); ausente = alterna. */
+export const arquivarDisciplinaCatalogoSchema = idDisciplinaCatalogoSchema.extend({ ativo: z.boolean().optional() });
 
 /** Reordena trocando a `ordem` com um vizinho específico (setas ↑↓ na UI). */
 export const moverDisciplinaCatalogoSchema = z.object({

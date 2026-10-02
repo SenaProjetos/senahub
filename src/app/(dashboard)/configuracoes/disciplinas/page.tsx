@@ -1,13 +1,6 @@
-import type { Metadata } from "next";
-import { requirePermission } from "@/lib/session";
-import { catalogoDisciplinasAdmin } from "@/modules/projetos/queries";
-import { listarVersoesAdmin } from "@/modules/projetos/nomenclatura/versoes-queries";
-import { DisciplinasCatalogoView } from "@/components/configuracoes/disciplinas-catalogo-view";
+import { permanentRedirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Disciplinas" };
-
-export default async function DisciplinasConfigPage() {
-  await requirePermission("configuracoes", "disciplinas");
-  const [itens, versoes] = await Promise.all([catalogoDisciplinasAdmin(), listarVersoesAdmin()]);
-  return <DisciplinasCatalogoView itens={itens} versoes={versoes} />;
+/** O catálogo de disciplinas virou a lente "Todas as versões" da tela única (spec 2026-09-30, §6). */
+export default function DisciplinasConfigPage() {
+  permanentRedirect("/configuracoes/nomenclatura/todas");
 }

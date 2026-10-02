@@ -2,8 +2,10 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { ActionError } from "@/lib/with-action";
 import { espelharSiglasDasColunas } from "@/modules/uploads/nomenclatura/siglas-service";
-import { siglasSaoEspelho, valeNaVersao, type FaixaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
-import type { AlvoCatalogo, OperacaoComId } from "./versao";
+import { valeNaVersao, type FaixaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
+import { fraseTirarCardEmUso, type AlvoCatalogo, type OperacaoComId, type SiglaVolta } from "./versao";
+import { motivoExclusao } from "./todas";
+import { usoParaExcluir } from "./queries";
 
 /**
  * Grava as operações "de tabela" (`versao.ts`) no banco, dentro da transação de quem chama, com a
@@ -40,51 +42,47 @@ async function categoriaDaSigla(tx: Tx, alvo: AlvoCatalogo) {
   return p.categoria;
 }
 
-async function criarOficial(tx: Tx, alvo: AlvoCatalogo, sigla: string, versao: number) {
+async function criarLinha(tx: Tx, alvo: AlvoCatalogo, sigla: string, oficial: boolean, versao: number) {
   await tx.siglaNomenclatura.create({
-    data: { sigla, categoria: await categoriaDaSigla(tx, alvo), oficial: true, versaoDesde: versao, ...ondeSiglas(alvo) },
+    data: { sigla, categoria: await categoriaDaSigla(tx, alvo), oficial, versaoDesde: versao, ...ondeSiglas(alvo) },
   });
 }
 
-/** Troca a faixa do item; se as siglas eram o espelho das colunas, elas acompanham (regra do formulário). */
+/** Troca a faixa do item. As linhas de sigla NÃO mudam (E3): a faixa efetiva as recorta. */
 async function mudarFaixa(tx: Tx, alvo: AlvoCatalogo, faixa: FaixaVersao, ativo?: boolean) {
-  const dados = { ...faixa, ...(ativo === undefined ? {} : { ativo }) };
-  if (alvo.tipo === "subdisciplina") {
-    await tx.subdisciplinaCatalogo.update({ where: { id: alvo.id }, data: dados });
-    return;
+  const data = { ...faixa, ...(ativo === undefined ? {} : { ativo }) };
+  if (alvo.tipo === "subdisciplina") await tx.subdisciplinaCatalogo.update({ where: { id: alvo.id }, data });
+  else if (alvo.tipo === "disciplina") await tx.disciplinaCatalogo.update({ where: { id: alvo.id }, data });
+  else await tx.pranchaCatalogo.update({ where: { id: alvo.id }, data });
+}
+
+/** "Voltar" com as siglas escolhidas — a mesma regra de `siglasAoVoltar` em `versao.ts`. */
+async function siglasAoVoltar(tx: Tx, alvo: AlvoCatalogo, escolhidas: readonly SiglaVolta[], versao: number) {
+  const querem = new Set(escolhidas.map((e) => e.sigla));
+  const linhas = await tx.siglaNomenclatura.findMany({ where: ondeSiglas(alvo), ...LINHAS });
+  const valem = new Set<string>();
+  for (const l of linhas) {
+    if (!valeNaVersao(l, versao)) continue;
+    if (querem.has(l.sigla)) valem.add(l.sigla);
+    else await encerrarLinha(tx, l, versao);
   }
-  if (alvo.tipo === "disciplina") {
-    const c = await tx.disciplinaCatalogo.findUnique({ where: { id: alvo.id }, include: { siglas: LINHAS } });
-    if (!c) throw new ActionError("Disciplina não encontrada.");
-    const espelho = siglasSaoEspelho(c.siglas, { oficial: c.codigo, sinonimos: c.sinonimos }, c);
-    await tx.disciplinaCatalogo.update({ where: { id: c.id }, data: dados });
-    if (espelho) await espelharSiglasDasColunas(tx, { tipo: "disciplina", id: c.id, codigo: c.codigo, sinonimos: c.sinonimos }, faixa);
-    return;
-  }
-  const p = await tx.pranchaCatalogo.findUnique({ where: { id: alvo.id }, include: { siglas: LINHAS } });
-  if (!p) throw new ActionError("Item da Lista Mestre não encontrado.");
-  const espelho = siglasSaoEspelho(p.siglas, { oficial: p.sigla, sinonimos: p.sinonimos }, p);
-  await tx.pranchaCatalogo.update({ where: { id: p.id }, data: dados });
-  if (espelho) {
-    await espelharSiglasDasColunas(tx, { tipo: "prancha", id: p.id, categoria: p.categoria, sigla: p.sigla, sinonimos: p.sinonimos }, faixa);
+  for (const e of escolhidas) {
+    if (!valem.has(e.sigla)) await criarLinha(tx, alvo, e.sigla, e.oficial, versao);
   }
 }
 
-/** Item criado na própria versão que "sai" dela: é excluído — se nada o usa ainda. */
+/**
+ * Item criado na própria versão que "sai" dela: é excluído — se nada o usa ainda. Mesma regra da
+ * exclusão na lente Todas (`motivoExclusao`); só a frase de card com projeto é a do "tirar".
+ */
 async function excluirItem(tx: Tx, alvo: AlvoCatalogo, nome: string) {
-  if (alvo.tipo === "disciplina") {
-    const uso = await tx.disciplina.count({ where: { disciplinaTextoLegado: nome } });
-    if (uso > 0) throw new ActionError(`“${nome}” já está em ${uso} projeto(s) — arquive pela tela de Disciplinas em vez de tirar da versão em que foi criado.`);
-    await tx.disciplinaCatalogo.delete({ where: { id: alvo.id } });
-  } else if (alvo.tipo === "subdisciplina") {
-    const uso = await tx.documentoDisciplina.count({ where: { subdisciplinaId: alvo.id } });
-    if (uso > 0) throw new ActionError(`“${nome}” já marca ${uso} documento(s) — desative-a em vez de tirar da versão em que foi criada.`);
-    await tx.subdisciplinaCatalogo.delete({ where: { id: alvo.id } });
-  } else {
-    const uso = await tx.disciplinaEtapa.count({ where: { etapaId: alvo.id } });
-    if (uso > 0) throw new ActionError(`“${nome}” é usada por ${uso} etapa(s) de disciplina — desative-a na Lista Mestre.`);
-    await tx.pranchaCatalogo.delete({ where: { id: alvo.id } });
-  }
+  const uso = await usoParaExcluir(tx, alvo, nome);
+  if (alvo.tipo === "disciplina" && uso.uso > 0) throw new ActionError(fraseTirarCardEmUso(nome, uso.uso));
+  const motivo = motivoExclusao(alvo.tipo, uso);
+  if (motivo) throw new ActionError(motivo);
+  if (alvo.tipo === "disciplina") await tx.disciplinaCatalogo.delete({ where: { id: alvo.id } });
+  else if (alvo.tipo === "subdisciplina") await tx.subdisciplinaCatalogo.delete({ where: { id: alvo.id } });
+  else await tx.pranchaCatalogo.delete({ where: { id: alvo.id } });
 }
 
 async function itemBase(tx: Tx, alvo: AlvoCatalogo) {
@@ -111,6 +109,9 @@ export async function executarOperacoes(tx: Tx, versao: number, ops: readonly Op
       }
       case "sai": {
         const item = await itemBase(tx, op.alvo);
+        if (!valeNaVersao(item, versao)) {
+          throw new ActionError(`“${item.nome}” já não está na v${versao}. A tela pode estar desatualizada: recarregue.`);
+        }
         if (item.versaoDesde >= versao) await excluirItem(tx, op.alvo, item.nome);
         else await mudarFaixa(tx, op.alvo, { versaoDesde: item.versaoDesde, versaoAte: versao - 1 });
         break;
@@ -126,6 +127,7 @@ export async function executarOperacoes(tx: Tx, versao: number, ops: readonly Op
           },
           true,
         );
+        if (op.siglas) await siglasAoVoltar(tx, op.alvo, op.siglas, versao);
         break;
       }
       case "card-novo": {
@@ -144,7 +146,7 @@ export async function executarOperacoes(tx: Tx, versao: number, ops: readonly Op
           },
         });
         cardsNovos.set(op.chave, c.id);
-        if (op.sigla) await criarOficial(tx, { tipo: "disciplina", id: c.id }, op.sigla, versao);
+        if (op.sigla) await criarLinha(tx, { tipo: "disciplina", id: c.id }, op.sigla, true, versao);
         break;
       }
       case "sub-nova": {
@@ -156,7 +158,7 @@ export async function executarOperacoes(tx: Tx, versao: number, ops: readonly Op
         const sub = await tx.subdisciplinaCatalogo.create({
           data: { disciplinaCatalogoId: cardId, nome: op.nome, versaoDesde: versao, ordem: (max._max.ordem ?? -1) + 1 },
         });
-        if (op.sigla) await criarOficial(tx, { tipo: "subdisciplina", id: sub.id }, op.sigla, versao);
+        if (op.sigla) await criarLinha(tx, { tipo: "subdisciplina", id: sub.id }, op.sigla, true, versao);
         break;
       }
       case "item-novo": {
@@ -168,9 +170,19 @@ export async function executarOperacoes(tx: Tx, versao: number, ops: readonly Op
         break;
       }
       case "sigla-nova": {
-        const linhas = await tx.siglaNomenclatura.findMany({ where: { ...ondeSiglas(op.alvo), oficial: true }, ...LINHAS });
+        // A oficial de hoje sai; um sinônimo do próprio item com a mesma sigla também (foi promovido).
+        const linhas = await tx.siglaNomenclatura.findMany({
+          where: { ...ondeSiglas(op.alvo), OR: [{ oficial: true }, { sigla: op.sigla }] },
+          ...LINHAS,
+        });
         for (const l of linhas) await encerrarLinha(tx, l, versao);
-        await criarOficial(tx, op.alvo, op.sigla, versao);
+        await criarLinha(tx, op.alvo, op.sigla, true, versao);
+        break;
+      }
+      case "sinonimo-novo": {
+        await itemBase(tx, op.alvo);
+        const mesmas = await tx.siglaNomenclatura.findMany({ where: { ...ondeSiglas(op.alvo), sigla: op.sigla }, ...LINHAS });
+        if (!mesmas.some((l) => valeNaVersao(l, versao))) await criarLinha(tx, op.alvo, op.sigla, false, versao);
         break;
       }
     }

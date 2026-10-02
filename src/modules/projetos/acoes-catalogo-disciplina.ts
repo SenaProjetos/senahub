@@ -1,4 +1,4 @@
-import { Archive, ArchiveRestore, ChevronDown, ChevronUp, Pencil, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Pencil, Trash2 } from "lucide-react";
 
 import type { AcaoItem } from "@/components/ui/acoes";
 
@@ -31,28 +31,6 @@ export type DisciplinaParaAcoes = { ativo: boolean; uso: number };
 /** Disciplinas que a exclusão em lote pode remover: as que nenhum projeto usa. */
 export function excluiveis<T extends DisciplinaParaAcoes>(lista: readonly T[]): T[] {
   return lista.filter((d) => d.uso === 0);
-}
-
-export function itensDeDisciplinaCatalogo(
-  d: DisciplinaParaAcoes,
-  ctx: { podeReordenar: boolean; temCima: boolean; temBaixo: boolean },
-): AcaoItem[] {
-  // Reordenar só vale sem busca (a ordem é da categoria inteira, não do recorte). Fora disso o
-  // item aparece inerte, com o motivo — regra 5 da ADR-0002.
-  const motivoSubir = !ctx.podeReordenar ? MOTIVO_LIMPAR_BUSCA : !ctx.temCima ? MOTIVO_PRIMEIRA : undefined;
-  const motivoDescer = !ctx.podeReordenar ? MOTIVO_LIMPAR_BUSCA : !ctx.temBaixo ? MOTIVO_ULTIMA : undefined;
-  return [
-    { tipo: "acao", id: ACAO_EDITAR, rotulo: "Editar", icone: Pencil },
-    { tipo: "acao", id: ACAO_SUBIR, rotulo: "Mover para cima", icone: ChevronUp, desabilitado: motivoSubir },
-    { tipo: "acao", id: ACAO_DESCER, rotulo: "Mover para baixo", icone: ChevronDown, desabilitado: motivoDescer },
-    { tipo: "separador", id: "sep-estado" },
-    d.ativo
-      ? { tipo: "acao", id: ACAO_ARQUIVAR, rotulo: "Arquivar", icone: Archive }
-      : { tipo: "acao", id: ACAO_DESARQUIVAR, rotulo: "Desarquivar", icone: ArchiveRestore },
-    // Excluir tem confirmação própria na tela (avisa quando está em uso e oferece arquivar): é ela
-    // que cumpre a regra 4, por isso não leva `confirmar` aqui.
-    { tipo: "acao", id: ACAO_EXCLUIR, rotulo: "Excluir", icone: Trash2, variant: "destructive" },
-  ];
 }
 
 /**

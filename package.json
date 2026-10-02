@@ -1,6 +1,6 @@
 {
   "name": "senahub",
-  "version": "1.22.0",
+  "version": "1.23.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/SenaProjetos/senahub.git"
@@ -77,6 +77,7 @@
     "release:dry": "commit-and-tag-version --dry-run",
     "postinstall": "node scripts/sincronizar-pdf-worker.mjs && prisma generate",
     "smoke:acessos": "tsx --tsconfig tsconfig.server.json scripts/smoke-acessos.ts",
+    "smoke:catalogo-nomenclatura": "tsx --tsconfig tsconfig.server.json scripts/smoke-catalogo-nomenclatura.ts",
     "seed:acessos-demo": "tsx --tsconfig tsconfig.server.json scripts/seed-acessos-demo.ts"
   },
   "dependencies": {

@@ -64,6 +64,44 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Nomenclatura: as telas antigas saíram
+
+- **Configurações → Disciplinas** e **Configurações → Lista Mestre** deixaram de existir: o endereço antigo (e favoritos) leva para **Disciplinas e nomenclatura**. No índice de Configurações há um cartão só.
+- Fases, tipos e formatos de folha estão nas abas da tela nova; o cadastro das disciplinas, na lente **Todas as versões**.
+- **Validade e sigla de um item só mudam dentro de uma versão** ("Tirar da vN", "Voltar", "Siglas nesta versão") — não há mais campo solto de "Vale a partir da / Até a".
+- As opções **exigir nomenclatura / exigir fase**, que ficavam na Lista Mestre, foram para a página **Versões**.
+
+---
+
+## Nomenclatura: lente "Todas as versões" e Formatos de folha
+
+- Na **lista de versões** de Configurações → Disciplinas e nomenclatura, o primeiro item é **Todas as versões**: o cadastro inteiro, com **Existe em**, as **siglas de todas as versões** (clique para ver o histórico), quantos projetos usam e o interruptor **Arquivadas**.
+- Nela dá para **editar o cadastro, subir/descer, arquivar e excluir** (só o que ninguém usa), inclusive **várias de uma vez**, e **renomear uma categoria** inteira.
+- **+ Disciplina** pergunta **a partir de qual versão** o item nasce, e já avisa se a sigla é de outro item naquela versão.
+- Nova aba **Formatos de folha** (A1, A3…), sem versão.
+- **Excluir** só fica disponível para o que nada usa: além de projetos, conta documentos, etapas e registros de outras áreas (propostas, normas, EAP). O número de projetos na coluna **Em uso** abre a lista deles.
+
+---
+
+## Nomenclatura: uma tela só, com lista de versões
+
+- **Configurações → Disciplinas e nomenclatura** é a tela do catálogo. Abre na versão mais nova; troque pela **lista de versões** no topo (as versões vão se acumular com os anos, então não são mais botões lado a lado).
+- **Abas** Disciplinas, Fases e Tipos de documento, disciplinas **agrupadas por categoria** e **busca** por nome, sigla ou sinônimo.
+- **⋯ ou botão direito** em cada linha: Siglas nesta versão, Adicionar sub-disciplina, Editar cadastro e Tirar da versão.
+- **Editar cadastro** (lápis): nome, categoria, ícone e numeração, sem nada de versão. A **Pasta dos arquivos** só muda enquanto nenhum projeto usa a disciplina; depois fica travada, com o motivo.
+- Criar e publicar versões agora fica no botão **Versões** do topo.
+
+---
+
+## Nomenclatura: sinônimos à vista e sigla que muda de dono
+
+- No **Catálogo da versão**, os **sinônimos** aparecem na linha (borda tracejada), não só ao passar o mouse.
+- **Siglas nesta versão** (ícone de etiqueta) troca a sigla oficial e põe ou tira sinônimos, valendo desta versão em diante.
+- Sigla que já é de outro item: o diálogo diz de quem e se é oficial ou sinônimo, e **Tirar de … e adicionar** resolve ali mesmo — as versões anteriores não mudam.
+- Mudar a validade de uma disciplina ("Até a vN") **não apaga mais as siglas dela**: se ela voltar, as siglas voltam junto. **Voltar para a versão** mostra quais siglas voltam.
+
+---
+
 ## Reunião de 29/09: arquivos para o cliente, status do documento e cronograma
 
 **Arquivos**
