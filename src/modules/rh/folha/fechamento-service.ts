@@ -10,6 +10,7 @@ import "server-only";
  * pura (`quitacao.ts`); aqui ficam o I/O, o vencimento pelo calendário de feriados e o vínculo com o
  * compromisso recorrente da folha — sem ele, o gerador diário criaria o mês de novo.
  */
+import { acharCategoriaDoSistema, mensagemCategoriaAusente } from "@/modules/financeiro/categorias-sistema";
 import { Prisma } from "@/generated/prisma/client";
 import { exigirPeriodoAberto } from "@/modules/financeiro/fechamento/trava-service";
 import { prisma } from "@/lib/prisma";
@@ -98,11 +99,9 @@ export async function contasDaCompetencia(categoriaId: string, competencia: stri
 
 /** Categoria da folha CLT pela CHAVE — `codigo` é editável em Cadastros. */
 async function categoriaDaFolha() {
-  const c =
-    (await prisma.categoriaFinanceira.findUnique({ where: { chave: "despesa_folha_clt" }, select: { id: true } })) ??
-    (await prisma.categoriaFinanceira.findUnique({ where: { codigo: "2.03" }, select: { id: true } }));
-  if (!c) throw new ActionError("Categoria 2.03 (Folha CLT) ausente no plano de contas.");
-  return c;
+  const id = await acharCategoriaDoSistema(prisma, "2.03");
+  if (!id) throw new ActionError(mensagemCategoriaAusente("2.03"));
+  return { id };
 }
 
 /**

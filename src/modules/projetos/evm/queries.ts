@@ -1,4 +1,5 @@
 import "server-only";
+import { SO_RESULTADO } from "@/modules/financeiro/natureza";
 import { prisma } from "@/lib/prisma";
 import { somaPaga } from "@/modules/financeiro/valor-pago";
 import { differenceInCalendarDays } from "date-fns";
@@ -27,7 +28,7 @@ export async function evmProjeto(projetoId: string) {
       select: { inicioPrevisto: true, fimPrevisto: true, progresso: true },
     }),
     prisma.lancamento.findMany({
-      where: { projetoId, tipo: "despesa", status: "confirmado" },
+      where: { projetoId, tipo: "despesa", status: "confirmado", ...SO_RESULTADO },
       select: { valor: true, valorEfetivo: true },
     }),
   ]);

@@ -1,5 +1,6 @@
 "use server";
 
+import { acharCategoriaDoSistema, mensagemCategoriaAusente } from "@/modules/financeiro/categorias-sistema";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
@@ -128,8 +129,11 @@ export const registrarMedicao = defineAction(
       throw new ActionError(
         "Licitação sem projeto vinculado — importe a licitação ganha antes de registrar medições.",
       );
-    const categoria = await prisma.categoriaFinanceira.findUnique({ where: { codigo: "1.02" } });
-    if (!categoria) throw new ActionError("Categoria 1.02 ausente no plano de contas.");
+    // N6: o recebível leva o cliente do projeto (sem ele some do resumo do cliente e da cobrança).
+    const projeto = await prisma.projeto.findUnique({ where: { id: lic.projetoId }, select: { clienteId: true } });
+    const categoriaId = await acharCategoriaDoSistema(prisma, "1.02");
+    if (!categoriaId) throw new ActionError(mensagemCategoriaAusente("1.02"));
+    const categoria = { id: categoriaId };
 
     const numero = (lic.medicoes[0]?.numero ?? 0) + 1;
     const medicao = await prisma.$transaction(async (tx) => {
@@ -143,6 +147,7 @@ export const registrarMedicao = defineAction(
           vencimento: new Date(i.data),
           categoriaId: categoria.id,
           projetoId: lic.projetoId,
+          clienteId: projeto?.clienteId ?? null,
           autorId: user.id,
         },
       });

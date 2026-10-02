@@ -1,4 +1,5 @@
 import "server-only";
+import { acharCategoriaDoSistema, mensagemCategoriaAusente } from "@/modules/financeiro/categorias-sistema";
 import { hojeParaBanco } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
@@ -21,7 +22,7 @@ export async function faturarEntregaDaDisciplina(p: {
 }): Promise<{ disciplinaId: string; projetoId: string }> {
   const disciplina = await prisma.disciplina.findUnique({
     where: { id: p.disciplinaId },
-    select: { disciplinaTextoLegado: true, projeto: { select: { id: true, tipo: true, codigo: true } } },
+    select: { disciplinaTextoLegado: true, projeto: { select: { id: true, tipo: true, codigo: true, clienteId: true } } },
   });
   if (!disciplina) throw new ActionError("Disciplina não encontrada.");
 
@@ -39,8 +40,9 @@ export async function faturarEntregaDaDisciplina(p: {
   if (jaFaturada) throw new ActionError("Esta disciplina já foi faturada.");
 
   const codigoCat = codigoCategoriaReceita(disciplina.projeto.tipo);
-  const categoria = await prisma.categoriaFinanceira.findUnique({ where: { codigo: codigoCat } });
-  if (!categoria) throw new ActionError(`Categoria ${codigoCat} ausente no plano de contas.`);
+  const categoriaId = await acharCategoriaDoSistema(prisma, codigoCat);
+  if (!categoriaId) throw new ActionError(mensagemCategoriaAusente(codigoCat));
+  const categoria = { id: categoriaId };
 
   const agora = hojeParaBanco();
   await prisma.lancamento.create({
@@ -53,6 +55,8 @@ export async function faturarEntregaDaDisciplina(p: {
       vencimento: agora,
       categoriaId: categoria.id,
       projetoId: disciplina.projeto.id,
+      // N6: sem o cliente o recebível some do resumo do cliente e da cobrança.
+      clienteId: disciplina.projeto.clienteId,
       tags: [TAG_PARCELA_CONTRATO, tagEntrega],
       autorId: p.autorId,
     },

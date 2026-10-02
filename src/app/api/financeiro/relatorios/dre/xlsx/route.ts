@@ -9,7 +9,8 @@ const require = createRequire(import.meta.url);
 const ExcelJS = require("exceljs") as typeof import("exceljs");
 
 export async function GET(req: Request) {
-  await requirePermission("financeiro", "ver");
+  // Mesmo gate da tela de Relatórios (N6): resultado é `resultados`, não `ver`.
+  await requirePermission("financeiro", "resultados");
   const url = new URL(req.url);
   const hoje = new Date();
   const de = url.searchParams.get("de")

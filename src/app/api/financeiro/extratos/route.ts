@@ -12,7 +12,8 @@ export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   const user = session.user;
-  if (!(await can(user, "financeiro", "gerir"))) {
+  // Mesmo gate da tela de Conciliação (N6): antes a rota pedia `gerir` e a tela `conciliar`.
+  if (!(await can(user, "financeiro", "conciliar"))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 

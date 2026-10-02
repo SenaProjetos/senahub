@@ -58,8 +58,19 @@ export const gerarFechamento = defineAction(
   },
 );
 
+/** Foto do fechamento (N6): quem fecha ou reabre um mês muda o que o contador recebeu. */
+const fotoDoFechamento = async (i: { id: string }) => {
+  const f = await prisma.fechamentoMensal.findUnique({
+    where: { id: i.id },
+    select: { ano: true, mes: true, status: true, receitaConfirmada: true, despesaConfirmada: true, folhaBruta: true, fechadoEm: true },
+  });
+  return f
+    ? { ...f, receitaConfirmada: Number(f.receitaConfirmada), despesaConfirmada: Number(f.despesaConfirmada), folhaBruta: Number(f.folhaBruta) }
+    : null;
+};
+
 export const fecharMes = defineAction(
-  { ...base, acao: "fechar-mes", entidade: "FechamentoMensal", schema: z.object({ id: z.string().min(1) }) },
+  { ...base, acao: "fechar-mes", entidade: "FechamentoMensal", schema: z.object({ id: z.string().min(1) }), capturarAntes: fotoDoFechamento },
   async (i) => {
     const f = await prisma.fechamentoMensal.findUnique({ where: { id: i.id }, select: { status: true, ano: true, mes: true } });
     if (!f) throw new ActionError("Fechamento não encontrado.");
@@ -91,7 +102,7 @@ export const fecharMes = defineAction(
 );
 
 export const reabrirFechamento = defineAction(
-  { ...base, acao: "reabrir-fechamento", entidade: "FechamentoMensal", schema: z.object({ id: z.string().min(1) }) },
+  { ...base, acao: "reabrir-fechamento", entidade: "FechamentoMensal", schema: z.object({ id: z.string().min(1) }), capturarAntes: fotoDoFechamento },
   async (i) => {
     // N5: reabrir destrava os lançamentos do mês; o saldo congelado sai (vale o do próximo fechamento).
     await prisma.fechamentoMensal.update({ where: { id: i.id }, data: { status: "aberto", fechadoEm: null, saldosContas: Prisma.DbNull } });

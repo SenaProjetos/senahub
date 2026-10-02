@@ -5,7 +5,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { CHAVE_CONFIG_FINANCEIRO, CHAVE_ALIQUOTAS, CHAVE_EXCLUSAO, getExclusaoCompleto } from "@/modules/financeiro/config/queries";
-import { hashSenha } from "@/modules/financeiro/config/senha";
+import { hashSenha, verificarSenha } from "@/modules/financeiro/config/senha";
 import { CHAVE_CONFIG_LIQUIDEZ, configLiquidezSchema } from "@/modules/financeiro/config/liquidez";
 
 /** Salva a configuração do planejador de caixa (valores em centavos). Requer financeiro:gerir. */
@@ -96,12 +96,23 @@ export const salvarSenhaExclusao = defineAction(
     permissao: "gerir",
     acao: "salvar-senha-exclusao",
     entidade: "ConfigSistema",
-    schema: z.object({ exigir: z.boolean(), senha: z.string().optional().or(z.literal("")) }),
+    schema: z.object({
+      exigir: z.boolean(),
+      senha: z.string().optional().or(z.literal("")),
+      /** Obrigatória para mexer na senha ou desligar a exigência quando já existe uma (N6). */
+      senhaAtual: z.string().optional().or(z.literal("")),
+    }),
     // Não auditar: o input contém a senha em texto puro.
     audit: false,
   },
   async (i) => {
     const atual = await getExclusaoCompleto();
+    // N6: quem já tem senha só a troca (ou desliga a exigência) sabendo a atual — senão qualquer
+    // pessoa com `gerir` trocava a senha e excluía lançamento a seu gosto.
+    const mexe = (i.senha && i.senha.length > 0) || i.exigir !== atual.exigir;
+    if (atual.hash && mexe && !verificarSenha(i.senhaAtual ?? "", atual.hash)) {
+      throw new ActionError("Informe a senha de exclusão atual para alterá-la.");
+    }
     const hash = i.senha && i.senha.length > 0 ? hashSenha(i.senha) : atual.hash;
     if (i.exigir && !hash) throw new ActionError("Defina uma senha de exclusão.");
     await prisma.configSistema.upsert({

@@ -1,4 +1,5 @@
 import "server-only";
+import { acharCategoriaDoSistema, mensagemCategoriaAusente } from "@/modules/financeiro/categorias-sistema";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { logAudit } from "@/lib/audit";
@@ -44,6 +45,16 @@ export async function sincronizarPrevisoesDepois(
     return await sincronizarPrevisoes(alvo, autorId);
   } catch (e) {
     console.error("[previsao-recebimento] falha ao sincronizar", alvo, e);
+    // N6: a falha deixa rastro na auditoria — antes só ia para o console do servidor.
+    await logAudit({
+      userId: autorId,
+      modulo: "financeiro",
+      acao: "sincronizar-previsao-recebimento",
+      resultado: "falha",
+      entidade: "projetoId" in alvo ? "Projeto" : "DocumentoJuridico",
+      entidadeId: "projetoId" in alvo ? alvo.projetoId : alvo.contratoId,
+      detalhe: { erro: e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300) },
+    });
     return null;
   }
 }
@@ -144,9 +155,7 @@ async function sincronizarPrevisoes(
     if (plan.criar.length === 0 && plan.atualizar.length === 0 && plan.remover.length === 0) continue;
 
     if (plan.criar.length > 0 && categoriaId === undefined) {
-      categoriaId =
-        (await prisma.categoriaFinanceira.findFirst({ where: { codigo: CODIGO_CATEGORIA_RECEITA }, select: { id: true } }))
-          ?.id ?? null;
+      categoriaId = await acharCategoriaDoSistema(prisma, CODIGO_CATEGORIA_RECEITA);
     }
     if (plan.criar.length > 0 && !categoriaId) {
       throw new ActionError(
@@ -264,10 +273,9 @@ export async function faturarParcela(p: {
       if (u.count === 0) throw new ActionError("A parcela mudou enquanto a tela estava aberta — atualize e tente de novo.");
       return lancamento.id;
     }
-    const categoria = await tx.categoriaFinanceira.findFirst({ where: { codigo: CODIGO_CATEGORIA_RECEITA }, select: { id: true } });
-    if (!categoria) {
-      throw new ActionError(`Plano de contas sem a categoria de receita ${CODIGO_CATEGORIA_RECEITA} — rode o seed.`);
-    }
+    const categoriaDaReceita = await acharCategoriaDoSistema(tx, CODIGO_CATEGORIA_RECEITA);
+    if (!categoriaDaReceita) throw new ActionError(mensagemCategoriaAusente(CODIGO_CATEGORIA_RECEITA));
+    const categoria = { id: categoriaDaReceita };
     const novo = await tx.lancamento.create({
       data: {
         tipo: "receita",

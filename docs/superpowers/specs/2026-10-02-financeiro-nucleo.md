@@ -243,3 +243,27 @@ Migração `20261002120000_lancamento_restante_de` (aditiva). Nada a rodar à m�
   onda3efg, previsão, sync-pagamento.
 - Fica: produtores de fora do Financeiro (projetista, ART, serviço, recorrência) gravam com a data de hoje,
   que é mês aberto; não passam pela trava.
+
+## N6 — categorias e consistência (Sonnet) — concluída
+
+- **Categorias pela chave:** `categorias-sistema.ts` (`CHAVE_POR_CODIGO`, `acharCategoriaDoSistema`): custo/ART/
+  serviço/projetista, fechamento da folha, faturamento por entrega, parcelas do projeto, recebíveis de contrato,
+  previsão do cronograma e medição de licitação deixaram de achar a categoria pelo `codigo` editável. A frase de
+  falta é uma só (`mensagemCategoriaAusente`).
+- **Plano de contas** (`categorias-regras.ts`): lançamento só aceita categoria do mesmo tipo (criar e editar,
+  inclusive o "incluir" do planejador); tipo de categoria em uso ou do sistema não muda; pai não pode ser ela
+  mesma, descendente nem de outro tipo. O banco de dev não tinha divergência.
+- **Cliente nos recebíveis:** faturamento por entrega e medição de licitação gravam o `clienteId` do projeto
+  (parcelas do projeto já gravam desde o N0; contratos já gravavam).
+- **Natureza fora do módulo:** alerta de inadimplência e resumo semanal (`jobs-handlers`), margem do projeto,
+  custo real do EVM e receita prevista (`qualidade`) com `SEM_TRANSFERENCIA`/`SO_RESULTADO`; o teste-guarda
+  `natureza-nas-consultas` passou a cobrir esses arquivos.
+- **Permissões alinhadas:** rotas de OFX e de importação pedem `conciliar` (como as telas); exportações da DRE
+  e da rentabilidade pedem `resultados`.
+- **Auditoria com o "antes":** aprovar/rejeitar, níveis de alçada, conciliar, fechar/reabrir mês, editar
+  categoria, editar conta (saldo inicial) e orçamento. Falha da sincronização da previsão do cronograma agora
+  deixa registro na auditoria.
+- **Senha de exclusão:** trocar a senha ou desligar a exigência pede a senha atual.
+- **`seed:demo`:** barreira por nome do banco (`_remake|_dev|_test|_vscode`) e `NODE_ENV`.
+- Verificação: `categorias-sistema.test.ts`, `categorias-regras.test.ts`, guarda de natureza ampliado,
+  `smoke:financeiro-core` (3 checagens novas) e smokes planejador, onda2, onda3efg, previsão, sync-pagamento.

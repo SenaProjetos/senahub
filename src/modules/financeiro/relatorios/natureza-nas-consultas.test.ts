@@ -18,6 +18,11 @@ const ARQUIVOS = [
   "modules/financeiro/aging/queries.ts",
   "modules/dashboard/queries.ts",
   "modules/documentos/fontes.ts",
+  // N6: leitores de fora do módulo que somam dinheiro ou cobram.
+  "lib/jobs-handlers.ts",
+  "modules/projetos/queries.ts",
+  "modules/projetos/evm/queries.ts",
+  "modules/qualidade/queries.ts",
 ];
 const CONSULTA = /prisma\.lancamento\.(findMany|aggregate|groupBy)/g;
 const MARCAS = ["SO_RESULTADO", "SEM_TRANSFERENCIA", "natureza-ok:"];

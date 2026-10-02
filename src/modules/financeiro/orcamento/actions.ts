@@ -18,6 +18,10 @@ export const salvarOrcamentoItem = defineAction(
       categoriaId: z.string().min(1),
       valorPlanejado: z.number().min(0),
     }),
+    capturarAntes: async (i) => {
+      const o = await prisma.orcamentoItem.findUnique({ where: { ano_categoriaId: { ano: i.ano, categoriaId: i.categoriaId } }, select: { valorPlanejado: true } });
+      return { valorPlanejado: o ? Number(o.valorPlanejado) : 0 };
+    },
   },
   async (i) => {
     if (i.valorPlanejado <= 0) {

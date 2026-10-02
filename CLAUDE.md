@@ -319,6 +319,17 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   folha closing (competência). OFX still imports a closed month's transactions but never auto-matches them.
   `fecharMes` re-consolidates at the moment of closing and freezes `FechamentoMensal.saldosContas` (each
   active account's balance on the last day); reopening needs `financeiro:fechar` and clears it.
+- **System categories by `chave`, never by `codigo`** (N6, `financeiro/categorias-sistema.ts`): producers pass
+  the code they always used and `acharCategoriaDoSistema(db, codigo)` maps it to the stable `chave` (code is the
+  fallback) — folha, projetista, ART, serviço, parcelas, faturamento, medição and contract receivables all use it.
+  Plano de contas rules (`categorias-regras.ts`, pure): a lançamento only takes a category of its own tipo
+  (DRE groups by the category's tipo, DFC by the lançamento's), the tipo of a category in use or of a system
+  one never changes, and a parent can't be itself, a descendant, or of another tipo. Receivables created by
+  faturamento por entrega / medição de licitação carry the project's `clienteId`. Money readers outside the
+  module (jobs, margem, EVM, qualidade) use `SO_RESULTADO`/`SEM_TRANSFERENCIA` and are covered by the
+  `natureza-nas-consultas` guard. Changing the delete password needs the current one; `seed:demo` refuses a
+  database whose name doesn't end in `_remake|_dev|_test|_vscode`; the OFX/import/DRE/rentabilidade routes use
+  the same gate as their screens (`conciliar`, `resultados`).
 - **Dates in the Financeiro are São Paulo calendar days** (N2, `lib/data.ts`): "today" to WRITE into a date column
   is `hojeParaBanco()` (UTC midnight of the SP day) and to compare is `diaDeSaoPaulo()` — a bare `new Date()` is
   tomorrow after 21h BRT. Period limits on date columns (`@db.Date`: `data`, `dataConfirmacao`, `dataCompetencia`)

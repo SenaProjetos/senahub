@@ -23,8 +23,9 @@ export async function getExclusaoCompleto(): Promise<{ exigir: boolean; hash: st
 }
 
 /** Se a exclusão de lançamentos exige senha (para a UI). */
-export async function getConfigExclusao(): Promise<{ exigir: boolean }> {
-  return { exigir: (await getExclusaoCompleto()).exigir };
+export async function getConfigExclusao(): Promise<{ exigir: boolean; temSenha: boolean }> {
+  const c = await getExclusaoCompleto();
+  return { exigir: c.exigir, temSenha: c.hash != null };
 }
 
 /** Alíquotas (%) de retenção/desconto do fechamento mensal. Default = zeros. */

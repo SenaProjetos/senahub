@@ -25,6 +25,7 @@ import { exigirOperacao, estornarNoBanco, MOTIVO_MUDOU, reabrirNoBanco } from "@
 import { paraCentavos } from "@/modules/financeiro/liquidez/dinheiro";
 import { datasDoLancamento, exigirPeriodoAberto } from "@/modules/financeiro/fechamento/trava-service";
 import { edicaoMexeNoFechado } from "@/modules/financeiro/fechamento/trava";
+import { motivoCategoriaIncompativel } from "@/modules/financeiro/categorias-regras";
 import { getExclusaoCompleto } from "@/modules/financeiro/config/queries";
 import { verificarSenha } from "@/modules/financeiro/config/senha";
 
@@ -125,6 +126,11 @@ export const editarLancamento = defineAction(
     // Máquina de situações (N1): excluído, cancelado e previsão do cronograma não se editam aqui.
     const { lancamento: atual, estado } = await exigirOperacao(prisma, i.id, "editar");
     const valorMudou = paraCentavos(i.valor) !== paraCentavos(atual.valor);
+    // N6: a categoria nova tem que ser do tipo do lançamento.
+    const catNova = await prisma.categoriaFinanceira.findUnique({ where: { id: i.categoriaId }, select: { tipo: true } });
+    if (!catNova) throw new ActionError("Categoria não encontrada.");
+    const incompativel = motivoCategoriaIncompativel(atual.tipo, catNova.tipo);
+    if (incompativel) throw new ActionError(incompativel);
     if (estado.conciliado && valorMudou) {
       throw new ActionError("Conciliado com o extrato: o valor não muda por aqui — desconcilie a transação antes.");
     }

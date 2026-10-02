@@ -1,4 +1,5 @@
 import "server-only";
+import { acharCategoriaDoSistema, mensagemCategoriaAusente } from "@/modules/financeiro/categorias-sistema";
 import { somarMesesUtc } from "@/lib/data";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -69,8 +70,9 @@ export async function gerarParcelasDoProjeto(p: {
   if (aviso?.nivel === "recusa") throw new ActionError(aviso.texto);
 
   const codigoCat = codigoCategoriaReceita(projeto.tipo);
-  const categoria = await prisma.categoriaFinanceira.findUnique({ where: { codigo: codigoCat } });
-  if (!categoria) throw new ActionError(`Categoria ${codigoCat} ausente no plano de contas.`);
+  const categoriaId = await acharCategoriaDoSistema(prisma, codigoCat);
+  if (!categoriaId) throw new ActionError(mensagemCategoriaAusente(codigoCat));
+  const categoria = { id: categoriaId };
 
   const base = new Date(p.dataPrimeira);
   if (Number.isNaN(base.getTime())) throw new ActionError("Data inválida.");

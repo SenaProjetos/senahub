@@ -139,7 +139,30 @@ async function criarUsuario(name: string, email: string, role: string, clienteId
   return user;
 }
 
+/**
+ * Barreira (N6): este script APAGA todos os lançamentos, folha, projetos e clientes antes de recriar.
+ * Roda só se o nome do banco parecer de dev (mesma regra do seed-crm-volume) e fora de
+ * NODE_ENV=production — banco desconhecido é perigoso por padrão.
+ */
+function garantirAmbienteDev(): void {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL ausente — abortando por segurança.");
+  let dbNome: string;
+  try {
+    dbNome = new URL(url).pathname.replace(/^\//, "");
+  } catch {
+    throw new Error("DATABASE_URL malformada — abortando por segurança.");
+  }
+  if (!/(_remake|_dev|_test|_vscode)$/i.test(dbNome) || process.env.NODE_ENV === "production") {
+    throw new Error(
+      `RECUSADO: o banco "${dbNome}" não parece de DEV (esperava nome terminando em _remake, _dev, _test ou _vscode) ` +
+        `ou NODE_ENV=production. O seed:demo apaga os dados de negócio — nunca rode contra produção.`,
+    );
+  }
+}
+
 async function main() {
+  garantirAmbienteDev();
   const admin = await prisma.user.findFirst({ where: { role: "admin" } });
   if (!admin) throw new Error("Admin não encontrado — rode o seed base antes (npm run db:seed).");
 

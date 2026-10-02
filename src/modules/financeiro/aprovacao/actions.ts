@@ -26,6 +26,7 @@ export const salvarNiveisAprovacao = defineAction(
     acao: "salvar-niveis-aprovacao",
     entidade: "ConfigSistema",
     schema: z.object({ niveis: z.array(aliquotaNivel).min(1).max(10) }),
+    capturarAntes: async () => (await prisma.configSistema.findUnique({ where: { chave: CHAVE_NIVEIS_APROVACAO } }))?.valor ?? null,
   },
   async (i) => {
     await prisma.configSistema.upsert({
@@ -38,6 +39,16 @@ export const salvarNiveisAprovacao = defineAction(
   },
 );
 
+
+/** Foto do lançamento para a auditoria ver o antes (N6): situação, valor, datas e quem decidiu. */
+async function fotoDoLancamento(id: string) {
+  const l = await prisma.lancamento.findUnique({
+    where: { id },
+    select: { status: true, valor: true, valorEfetivo: true, dataConfirmacao: true, contaId: true, aprovadoPorId: true, motivoRejeicao: true },
+  });
+  return l ? { ...l, valor: Number(l.valor), valorEfetivo: l.valorEfetivo != null ? Number(l.valorEfetivo) : null } : null;
+}
+
 const aprovarBase = {
   modulo: "financeiro",
   recurso: "financeiro",
@@ -47,7 +58,7 @@ const aprovarBase = {
 
 /** Aprova a despesa: libera para previsto (entra no fluxo normal). Requer financeiro:aprovar. */
 export const aprovarLancamento = defineAction(
-  { ...aprovarBase, acao: "aprovar-lancamento", schema: z.object({ id: z.string().min(1) }) },
+  { ...aprovarBase, acao: "aprovar-lancamento", schema: z.object({ id: z.string().min(1) }), capturarAntes: (i) => fotoDoLancamento(i.id) },
   async (i, ctx) => {
     await exigirOperacao(prisma, i.id, "aprovar");
     const l = await prisma.lancamento.findUniqueOrThrow({
@@ -82,7 +93,12 @@ export const aprovarLancamento = defineAction(
 
 /** Rejeita a despesa: cancela com motivo. Requer financeiro:aprovar. */
 export const rejeitarLancamento = defineAction(
-  { ...aprovarBase, acao: "rejeitar-lancamento", schema: z.object({ id: z.string().min(1), motivo: z.string().min(1, "Informe o motivo.") }) },
+  {
+    ...aprovarBase,
+    acao: "rejeitar-lancamento",
+    schema: z.object({ id: z.string().min(1), motivo: z.string().min(1, "Informe o motivo.") }),
+    capturarAntes: (i) => fotoDoLancamento(i.id),
+  },
   async (i, ctx) => {
     await exigirOperacao(prisma, i.id, "rejeitar");
     const l = await prisma.lancamento.findUniqueOrThrow({ where: { id: i.id }, select: { status: true, autorId: true, descricao: true } });

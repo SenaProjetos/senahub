@@ -10,7 +10,8 @@ import { autoMapear } from "@/lib/import/mapeamento";
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  if (!(await can(session.user, "financeiro", "gerir"))) {
+  // Mesmo gate da tela e das actions de importação (N6).
+  if (!(await can(session.user, "financeiro", "conciliar"))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 

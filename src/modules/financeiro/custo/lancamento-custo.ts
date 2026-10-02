@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { acharCategoriaDoSistema, mensagemCategoriaAusente } from "@/modules/financeiro/categorias-sistema";
 import { hojeParaBanco } from "@/lib/data";
 import { ActionError } from "@/lib/action-error";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -38,9 +39,9 @@ export const CATEGORIA_REEMBOLSO_ART = "1.03";
 export const TAG_REEMBOLSO_ART = "reembolso-art";
 
 async function categoriaIdPorCodigo(tx: Prisma.TransactionClient, codigo: string): Promise<string> {
-  const c = await tx.categoriaFinanceira.findUnique({ where: { codigo }, select: { id: true } });
-  if (!c) throw new ActionError(`Categoria ${codigo} ausente no plano de contas. Rode npm run db:seed.`);
-  return c.id;
+  const id = await acharCategoriaDoSistema(tx, codigo);
+  if (!id) throw new ActionError(mensagemCategoriaAusente(codigo));
+  return id;
 }
 
 /**
@@ -135,8 +136,7 @@ export async function confirmarDespesaProjetista(
   }
 
   const codigo = CATEGORIA_POR_TIPO[pag.tipoProfissional] ?? CATEGORIA_POR_TIPO.projetista_pj;
-  const categoria = await tx.categoriaFinanceira.findUnique({ where: { codigo } });
-  if (!categoria) throw new ActionError(`Categoria ${codigo} ausente no plano de contas.`);
+  const categoriaId = await categoriaIdPorCodigo(tx, codigo);
   const lanc = await tx.lancamento.create({
     data: {
       tipo: "despesa",
@@ -145,7 +145,7 @@ export async function confirmarDespesaProjetista(
       status: "confirmado",
       data: opts.quando,
       dataConfirmacao: opts.quando,
-      categoriaId: categoria.id,
+      categoriaId,
       contaId: opts.contaId,
       formaId: opts.formaId,
       projetoId: pag.projetoId,

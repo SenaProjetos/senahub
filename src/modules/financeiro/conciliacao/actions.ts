@@ -28,7 +28,17 @@ const ignorarSchema = z.object({ transacaoId: z.string().min(1) });
  * pago sem transação (G1c). Regras na máquina de situações e em `conciliacao/service.ts` (N4).
  */
 export const conciliarComLancamento = defineAction(
-  { ...base, acao: "conciliar-transacao", entidade: "TransacaoBancaria", schema: conciliarSchema },
+  {
+    ...base,
+    acao: "conciliar-transacao",
+    entidade: "TransacaoBancaria",
+    schema: conciliarSchema,
+    // N6: o antes é o lançamento que vai ser pago pelo extrato.
+    capturarAntes: async (i) => {
+      const l = await prisma.lancamento.findUnique({ where: { id: i.lancamentoId }, select: { status: true, dataConfirmacao: true, contaId: true, valor: true } });
+      return l ? { ...l, valor: Number(l.valor) } : null;
+    },
+  },
   async (i, ctx) => {
     await conciliarNoBanco(i.transacaoId, i.lancamentoId, ctx.user.id);
     rev();

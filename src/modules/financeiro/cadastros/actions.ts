@@ -5,6 +5,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { validarCpfCnpj } from "@/lib/documento";
+import { motivoCategoriaInvalida } from "@/modules/financeiro/categorias-regras";
 import { ensureCanalSocios, type SincroniaCanal } from "@/modules/chat/service";
 import { notificarNovosMembros, emitParaUsuario } from "@/lib/socket";
 import {
@@ -29,9 +30,17 @@ const base = { modulo: "financeiro", recurso: "financeiro", permissao: "gerir" }
 const rev = () => revalidatePath(PATH);
 
 // ── Categorias (plano de contas) ──────────────────────────────
+/** Árvore inteira, para a regra pura achar ciclo e pai de outro tipo (N6). */
+async function arvoreDoPlano() {
+  const todas = await prisma.categoriaFinanceira.findMany({ select: { id: true, paiId: true, tipo: true } });
+  return new Map(todas.map((c) => [c.id, c]));
+}
+
 export const criarCategoria = defineAction(
   { ...base, acao: "criar-categoria", entidade: "CategoriaFinanceira", schema: categoriaSchema },
   async (i) => {
+    const motivo = motivoCategoriaInvalida({ tipo: i.tipo, paiId: i.paiId || null, porId: await arvoreDoPlano() });
+    if (motivo) throw new ActionError(motivo);
     const c = await prisma.categoriaFinanceira.create({
       data: { codigo: i.codigo, nome: i.nome, tipo: i.tipo, paiId: i.paiId || null },
     });
@@ -40,8 +49,30 @@ export const criarCategoria = defineAction(
   },
 );
 export const editarCategoria = defineAction(
-  { ...base, acao: "editar-categoria", entidade: "CategoriaFinanceira", schema: categoriaEditSchema },
+  {
+    ...base,
+    acao: "editar-categoria",
+    entidade: "CategoriaFinanceira",
+    schema: categoriaEditSchema,
+    capturarAntes: (i) => prisma.categoriaFinanceira.findUnique({ where: { id: i.id }, select: { codigo: true, nome: true, tipo: true, paiId: true, chave: true } }),
+  },
   async (i) => {
+    const atual = await prisma.categoriaFinanceira.findUnique({
+      where: { id: i.id },
+      select: { tipo: true, chave: true, _count: { select: { lancamentos: true } } },
+    });
+    if (!atual) throw new ActionError("Categoria não encontrada.");
+    // Tipo de categoria em uso não muda; pai não pode ser ela mesma, descendente nem de outro tipo (N6).
+    const motivo = motivoCategoriaInvalida({
+      id: i.id,
+      tipo: i.tipo,
+      tipoAtual: atual.tipo,
+      paiId: i.paiId || null,
+      porId: await arvoreDoPlano(),
+      lancamentos: atual._count.lancamentos,
+      doSistema: atual.chave != null,
+    });
+    if (motivo) throw new ActionError(motivo);
     await prisma.categoriaFinanceira.update({
       where: { id: i.id },
       data: { codigo: i.codigo, nome: i.nome, tipo: i.tipo, paiId: i.paiId || null },
@@ -80,7 +111,17 @@ export const criarConta = defineAction(
   },
 );
 export const editarConta = defineAction(
-  { ...base, acao: "editar-conta", entidade: "ContaBancaria", schema: contaBancariaEditSchema },
+  {
+    ...base,
+    acao: "editar-conta",
+    entidade: "ContaBancaria",
+    schema: contaBancariaEditSchema,
+    // N6: o saldo inicial mexe no caixa de todos os meses.
+    capturarAntes: async (i) => {
+      const c = await prisma.contaBancaria.findUnique({ where: { id: i.id }, select: { nome: true, tipo: true, saldoInicial: true, padrao: true, ativo: true } });
+      return c ? { ...c, saldoInicial: Number(c.saldoInicial) } : null;
+    },
+  },
   async (i) => {
     const { id, ...rest } = i;
     if (rest.padrao) await prisma.contaBancaria.updateMany({ data: { padrao: false } });

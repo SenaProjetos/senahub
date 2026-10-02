@@ -75,6 +75,10 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
   podem ser criados, alterados (valor, categoria, datas), pagos, estornados, cancelados, importados nem
   excluídos até reabrir. Conta vencida do mês fechado continua pagável num mês aberto. O fechamento guarda o
   saldo de cada conta no último dia, para conferir com o extrato.
+- **Plano de contas mais firme:** lançamento só aceita categoria do mesmo tipo (receita × despesa), o tipo de
+  uma categoria em uso não muda e a árvore não aceita pai em círculo. Renumerar o código de uma categoria que o
+  sistema usa (Folha CLT, ART, receitas) não quebra mais os lançamentos automáticos.
+- **Senha de exclusão** só se troca sabendo a atual.
 - **Conciliação** com menu de contexto na transação.
 - Os relatórios de resultado ganharam **abas** (DRE, Rentabilidade, DFC, Balanço, Orçamento).
 - "Planejamento de pagamentos" agora se chama **Pagamentos em lote**.

@@ -10,6 +10,7 @@ import { aprovadoresPorPapeis, getNiveisAprovacao } from "@/modules/financeiro/a
 import { papeisAprovadores, precisaAprovacao, valorDaAlcada } from "@/modules/financeiro/aprovacao/niveis";
 import { getConfigFinanceiro } from "@/modules/financeiro/config/queries";
 import { obrigatorioFaltando } from "@/modules/financeiro/config/validacao";
+import { motivoCategoriaIncompativel } from "@/modules/financeiro/categorias-regras";
 import type { CriarLancamentoInput } from "@/modules/financeiro/lancamentos/schemas";
 import { exigirPeriodoAberto } from "@/modules/financeiro/fechamento/trava-service";
 
@@ -59,6 +60,12 @@ export async function criarLancamentoNoTx(db: Db, i: CriarLancamentoInput, autor
     observacao: i.observacao || undefined,
   });
   if (faltando) throw new ActionError(`Campo obrigatório: ${faltando}.`);
+
+  // N6: a categoria tem que ser do mesmo tipo (a DRE agrupa pela categoria e o DFC pelo lançamento).
+  const cat = await db.categoriaFinanceira.findUnique({ where: { id: i.categoriaId }, select: { tipo: true, ativo: true } });
+  if (!cat) throw new ActionError("Categoria não encontrada.");
+  const incompativel = motivoCategoriaIncompativel(i.tipo, cat.tipo);
+  if (incompativel) throw new ActionError(incompativel);
 
   // Alçada por faixa: despesa em faixa que exige aprovação trava em aguardando_aprovacao. Vale o
   // TOTAL das ocorrências (N3): 60 × R$ 900 não passa como "R$ 900".

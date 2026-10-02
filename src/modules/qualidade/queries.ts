@@ -1,4 +1,5 @@
 import "server-only";
+import { SEM_TRANSFERENCIA } from "@/modules/financeiro/natureza";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { diasVencidos, diferencaEmDias, prazoVencido } from "@/lib/data";
@@ -132,7 +133,7 @@ export async function kpisHome(escopo: Prisma.ProjetoWhereInput = {}) {
     prisma.lancamento.aggregate({
       // Inclui a previsão do cronograma (contrato por entrega): é dinheiro esperado, e faturar só troca o
       // status da mesma linha — nunca soma duas vezes (decisão #13).
-      where: { tipo: "receita", status: { in: ["previsto", "previsao"] } },
+      where: { tipo: "receita", status: { in: ["previsto", "previsao"] }, ...SEM_TRANSFERENCIA },
       _sum: { valor: true },
     }),
     prisma.disciplina.count({

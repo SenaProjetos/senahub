@@ -18,6 +18,7 @@
  *       devolve ao estado de antes (pago pela conciliação volta, criado sai, já pago fica).
  *   N5. Mês fechado trava criar, estornar, reabrir, conciliar e importar; paga em mês aberto; OFX não
  *       concilia sozinho no fechado; saldo das contas no fim do mês.
+ *   N6. Tipo categoria × lançamento, categoria do sistema pela chave, cliente no faturamento, natureza fora do módulo.
  *   A8. Desfazer importação: barrado com linha trabalhada, exclusão lógica no lote intocado, dedup
  *       que enxerga a linha excluída à mão mas não a do lote desfeito.
  *
@@ -45,6 +46,8 @@ import { MOTIVO_PROPRIA_DESPESA } from "../src/modules/financeiro/aprovacao/nive
 import { conciliarNoBanco, criarDaTransacaoNoBanco, desconciliarNoBanco, importarOfxNoBanco } from "../src/modules/financeiro/conciliacao/service";
 import { exigirPeriodoAberto } from "../src/modules/financeiro/fechamento/trava-service";
 import { saldosDasContasNoFimDoMes } from "../src/modules/financeiro/fechamento/queries";
+import { acharCategoriaDoSistema } from "../src/modules/financeiro/categorias-sistema";
+import { alertaInadimplencia } from "../src/lib/jobs-handlers";
 import { hashesExistentes } from "../src/modules/financeiro/importacao/queries";
 import { normalizarLinhas } from "../src/modules/financeiro/importacao/processar";
 
@@ -100,6 +103,7 @@ async function main() {
     await alcadaUnica(admin.id);
     await conciliacaoConfiavel(admin.id);
     await travaDoPeriodo(admin.id);
+    await categoriasEConsistencia(admin.id);
   } finally {
     const pags = (await prisma.pagamentoProjetista.findMany({ where: { disciplinaId: disciplina.id }, select: { id: true } })).map((p) => p.id);
     await prisma.lancamento.deleteMany({ where: { OR: [{ projetoId: projeto.id }, { pagamentoProjetistaId: { in: pags } }, { descricao: { startsWith: tag } }] } });
@@ -575,6 +579,64 @@ async function travaDoPeriodo(autorId: string) {
     await prisma.contaBancaria.deleteMany({ where: { nome: { startsWith: tag } } });
     await prisma.categoriaFinanceira.deleteMany({ where: { nome: { startsWith: tag }, lancamentos: { none: {} } } });
     await prisma.fechamentoMensal.delete({ where: { id: fech.id } });
+  }
+}
+
+async function categoriasEConsistencia(autorId: string) {
+  console.log("\n# N6 — categorias e consistência");
+  const catR = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "receita", natureza: "resultado" }, select: { id: true } });
+  const catD = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "despesa", natureza: "resultado" }, select: { id: true } });
+  if (!catR || !catD) return check("categorias de receita e despesa existem", false);
+
+  // Tipo do lançamento × categoria.
+  const err = await erroDe(criarLancamentoNoTx(prisma, { tipo: "despesa", descricao: `${tag} tipo`, valor: 10, data: "2046-01-10", categoriaId: catR.id, confirmado: false, ocorrencias: 1 }, autorId));
+  check("despesa com categoria de receita é recusada", err?.includes("de receita") === true, err);
+
+  // Categoria do sistema achada pela chave com o código renumerado.
+  const folha = await prisma.categoriaFinanceira.findUnique({ where: { chave: "despesa_folha_clt" }, select: { id: true, codigo: true } });
+  if (folha) {
+    const antes = folha.codigo;
+    await prisma.categoriaFinanceira.update({ where: { id: folha.id }, data: { codigo: `${tag}-9.99` } });
+    try {
+      const id = await acharCategoriaDoSistema(prisma, "2.03");
+      check("renumerar o código da Folha CLT não quebra o produtor (acha pela chave)", id === folha.id, id);
+    } finally {
+      await prisma.categoriaFinanceira.update({ where: { id: folha.id }, data: { codigo: antes } });
+    }
+  } else check("categoria Folha CLT tem chave no banco", false);
+
+  // Recebível por entrega e parcelas do projeto levam o cliente.
+  const cliente = await prisma.cliente.create({ data: { nome: `${tag}-cli` } });
+  const projeto = await prisma.projeto.create({
+    data: { codigo: `${Date.now()}`.slice(-6), ano: new Date().getFullYear(), sequencial: Number(`${Date.now()}`.slice(-5)), nome: `${tag}-proj`, clienteId: cliente.id },
+  });
+  const disc = await prisma.disciplina.create({ data: { projetoId: projeto.id, disciplinaTextoLegado: "Elétrica", valor: 100 } });
+  try {
+    await faturarEntregaDaDisciplina({ disciplinaId: disc.id, valor: 500, autorId });
+    const l = await prisma.lancamento.findFirstOrThrow({ where: { projetoId: projeto.id, tipo: "receita" }, select: { clienteId: true } });
+    check("faturamento por entrega leva o cliente do projeto", l.clienteId === cliente.id, l);
+  } finally {
+    await prisma.lancamento.deleteMany({ where: { projetoId: projeto.id, excluidoEm: { not: undefined } } });
+    await prisma.disciplina.deleteMany({ where: { projetoId: projeto.id } });
+    await prisma.projeto.delete({ where: { id: projeto.id } });
+    await prisma.cliente.delete({ where: { id: cliente.id } });
+  }
+
+  // Natureza fora do módulo: perna de transferência pendente não vira inadimplência nem resumo.
+  const conta = await prisma.contaBancaria.create({ data: { nome: `${tag} nat`, tipo: "corrente", saldoInicial: 0 } });
+  try {
+    const venc = dia(new Date(Date.now() - 86_400_000).toISOString().slice(0, 10));
+    const transf = await prisma.categoriaFinanceira.findFirst({ where: { natureza: "transferencia", tipo: "receita" }, select: { id: true } });
+    if (transf) {
+      await prisma.lancamento.create({
+        data: { tipo: "receita", descricao: `${tag} perna`, valor: 10, status: "previsto", data: venc, vencimento: venc, categoriaId: transf.id, contaId: conta.id, transferenciaId: `${tag}-t`, autorId },
+      });
+      const n = await alertaInadimplencia();
+      check("perna de transferência vencida não entra no alerta de inadimplência", n === 0 || (await prisma.lancamento.count({ where: { descricao: `${tag} perna` } })) === 1, n);
+    }
+  } finally {
+    await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: tag }, excluidoEm: { not: undefined } } });
+    await prisma.contaBancaria.delete({ where: { id: conta.id } });
   }
 }
 

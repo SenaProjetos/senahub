@@ -1,4 +1,5 @@
 import "server-only";
+import { SEM_TRANSFERENCIA } from "@/modules/financeiro/natureza";
 import { addDays, differenceInCalendarDays, subMonths, getISOWeek } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { notificar, notificarMuitos } from "@/lib/notificar";
@@ -187,7 +188,7 @@ export async function alertasPrazoDisciplina(): Promise<number> {
 export async function alertaInadimplencia(): Promise<number> {
   const ontem = diaAlvo(-1);
   const vencidos = await prisma.lancamento.findMany({
-    where: { tipo: "receita", status: "previsto", vencimento: ontem },
+    where: { tipo: "receita", status: "previsto", vencimento: ontem, ...SEM_TRANSFERENCIA },
     include: { cliente: { select: { nome: true, email: true } } },
   });
   if (vencidos.length === 0) return 0;
@@ -1139,11 +1140,11 @@ export async function resumoSemanal(): Promise<void> {
   const seteDias = addDays(new Date(), 7);
   const [aReceber, aPagar, entregas] = await Promise.all([
     prisma.lancamento.findMany({
-      where: { tipo: "receita", status: "previsto", vencimento: { lte: seteDias } },
+      where: { tipo: "receita", status: "previsto", vencimento: { lte: seteDias }, ...SEM_TRANSFERENCIA },
       select: { valor: true },
     }),
     prisma.lancamento.findMany({
-      where: { tipo: "despesa", status: "previsto", vencimento: { lte: seteDias } },
+      where: { tipo: "despesa", status: "previsto", vencimento: { lte: seteDias }, ...SEM_TRANSFERENCIA },
       select: { valor: true },
     }),
     prisma.disciplina.count({

@@ -1,4 +1,5 @@
 import { ActionError } from "@/lib/action-error";
+import { acharCategoriaDoSistema, mensagemCategoriaAusente } from "@/modules/financeiro/categorias-sistema";
 import { descricaoParcela, gerarParcelas } from "./parcelamento";
 
 /**
@@ -13,7 +14,7 @@ import { descricaoParcela, gerarParcelas } from "./parcelamento";
 /** Só o pedaço do Prisma usado aqui — o `tx` real satisfaz este formato. */
 export type RecebiveisTx = {
   categoriaFinanceira: {
-    findFirst(args: { where: { codigo: string } }): Promise<{ id: string } | null>;
+    findFirst(args: { where: { chave: string } | { codigo: string }; select: { id: true } }): Promise<{ id: string } | null>;
   };
   lancamento: {
     count(args: { where: { contratoId: string; status: { not: "previsao" } } }): Promise<number>;
@@ -56,14 +57,13 @@ export async function gerarRecebiveisDoContrato(
   const jaExistem = await tx.lancamento.count({ where: { contratoId: e.contratoId, status: { not: "previsao" } } });
   if (jaExistem > 0) return { criadas: 0 };
 
-  const categoria = await tx.categoriaFinanceira.findFirst({ where: { codigo: CODIGO_CATEGORIA_RECEITA } });
-  if (!categoria) {
+  const categoriaId = await acharCategoriaDoSistema(tx, CODIGO_CATEGORIA_RECEITA);
+  if (!categoriaId) {
     // Mensagem de negócio: quem assinou o contrato precisa saber que o plano de contas não está
-    // semeado, não receber um erro de FK.
-    throw new ActionError(
-      `Plano de contas sem a categoria de receita ${CODIGO_CATEGORIA_RECEITA} — rode o seed antes de gerar o faturamento.`,
-    );
+    // completo, não receber um erro de FK.
+    throw new ActionError(mensagemCategoriaAusente(CODIGO_CATEGORIA_RECEITA));
   }
+  const categoria = { id: categoriaId };
 
   const parcelas = gerarParcelas(e.valor, e.parcelas, e.primeiroVencimento);
   for (const p of parcelas) {

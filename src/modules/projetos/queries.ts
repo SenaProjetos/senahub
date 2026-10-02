@@ -1,4 +1,5 @@
 import "server-only";
+import { SO_RESULTADO } from "@/modules/financeiro/natureza";
 import { prisma } from "@/lib/prisma";
 import { siglasSaoEspelho } from "@/modules/uploads/nomenclatura/siglas-versao";
 import type { Prisma } from "@/generated/prisma/client";
@@ -491,7 +492,7 @@ export async function papeisUsados(): Promise<string[]> {
 export async function margemProjeto(projetoId: string) {
   const [lancs, rateios] = await Promise.all([
     prisma.lancamento.findMany({
-      where: { projetoId, status: { not: "cancelado" } },
+      where: { projetoId, status: { not: "cancelado" }, ...SO_RESULTADO },
       select: {
         tipo: true,
         status: true,

@@ -37,7 +37,7 @@ export function ConfiguracoesView({
   config: ConfigFinanceiro;
   aliquotas: Aliquotas;
   niveis: FaixaAlcada[];
-  exclusao: { exigir: boolean };
+  exclusao: { exigir: boolean; temSenha: boolean };
   subnav?: React.ReactNode;
 }) {
   const router = useRouter();
@@ -96,18 +96,20 @@ export function ConfiguracoesView({
   );
 }
 
-function SenhaExclusaoCard({ inicial }: { inicial: { exigir: boolean } }) {
+function SenhaExclusaoCard({ inicial }: { inicial: { exigir: boolean; temSenha: boolean } }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [exigir, setExigir] = useState(inicial.exigir);
   const [senha, setSenha] = useState("");
+  const [senhaAtual, setSenhaAtual] = useState("");
 
   function salvar() {
     start(async () => {
-      const r = await salvarSenhaExclusao({ exigir, senha: senha || "" });
+      const r = await salvarSenhaExclusao({ exigir, senha: senha || "", senhaAtual: senhaAtual || "" });
       if (r.ok) {
         toast.success("Configuração de exclusão salva.");
         setSenha("");
+        setSenhaAtual("");
         router.refresh();
       } else toast.error(r.error);
     });
@@ -124,6 +126,12 @@ function SenhaExclusaoCard({ inicial }: { inicial: { exigir: boolean } }) {
           <input type="checkbox" checked={exigir} onChange={(e) => setExigir(e.target.checked)} className="size-4" />
           Exigir senha ao excluir lançamentos
         </label>
+        {inicial.temSenha && (
+          <div className="space-y-1.5">
+            <Label className="text-xs">Senha atual (para trocar a senha ou desligar a exigência)</Label>
+            <Input type="password" value={senhaAtual} onChange={(e) => setSenhaAtual(e.target.value)} className="w-60" autoComplete="off" />
+          </div>
+        )}
         <div className="space-y-1.5">
           <Label className="text-xs">{inicial.exigir ? "Trocar senha (deixe vazio para manter)" : "Definir senha"}</Label>
           <Input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} className="w-60" autoComplete="new-password" />

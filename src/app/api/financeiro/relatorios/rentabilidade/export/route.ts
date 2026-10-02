@@ -63,7 +63,8 @@ function adicionarLinhaSegura(ws: import("exceljs").Worksheet, linha: Linha) {
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  if (!(await can(session.user, "financeiro", "ver"))) {
+  // Mesmo gate da tela de Rentabilidade (N6): `resultados`, não `ver`.
+  if (!(await can(session.user, "financeiro", "resultados"))) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 
