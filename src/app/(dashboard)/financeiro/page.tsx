@@ -1,21 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Settings2, Receipt, BarChart3, Banknote, LineChart, ArrowLeftRight, Target, Activity, Scale, FileText, Upload, SlidersHorizontal, CalendarClock, TrendingUp, CalendarCheck, Paperclip, BookOpenText } from "lucide-react";
+import { Banknote, Paperclip, BookOpenText } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { tipoEfetivo } from "@/lib/roles";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
-import { ShieldCheck, AlertTriangle } from "lucide-react";
 import { meuExtrato } from "@/modules/financeiro/queries";
 import { recibosDoProjetista } from "@/modules/financeiro/recibo/queries";
 import { MeusRecibos } from "@/components/financeiro/recibo/meus-recibos";
 import { PJ_ROLES } from "@/lib/roles";
 import { agingReport } from "@/modules/financeiro/aging/queries";
-import { totalAguardando } from "@/modules/financeiro/aprovacao/queries";
 import { relatorioDRE, serieMensalResultado, despesasPorCategoria } from "@/modules/financeiro/relatorios/queries";
 import { fluxoCaixa } from "@/modules/financeiro/caixa/queries";
+import { distribuidoAosSocios } from "@/modules/financeiro/socios/queries";
 import { torreDeControle } from "@/modules/financeiro/liquidez/queries";
-import { totalTransacoesPendentes } from "@/modules/financeiro/conciliacao/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { AgingWidget } from "@/components/financeiro/aging-widget";
 import { ResultadoMensalChart } from "@/components/financeiro/resultado-mensal-chart";
@@ -26,7 +24,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
-import { KpiCard } from "@/components/ui/kpi-card";
 import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 import { TorreLiquidez } from "@/components/financeiro/liquidez/torre-liquidez";
 import { Valor } from "@/components/financeiro/valor";
@@ -34,20 +31,6 @@ import { brl, formatarData } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Financeiro" };
 
-const ATALHOS = [
-  { href: "/financeiro/lancamentos", icon: Receipt, titulo: "Lançamentos", desc: "Receitas e despesas" },
-  { href: "/financeiro/contas", icon: ArrowLeftRight, titulo: "Contas a pagar e receber", desc: "Pendentes, filtros e exportação" },
-  { href: "/financeiro/folha-projetistas", icon: Banknote, titulo: "Produção", desc: "Pagamento de projetistas PJ por entrega" },
-  { href: "/financeiro/fluxo-caixa", icon: LineChart, titulo: "Fluxo de caixa", desc: "Saldos e movimentos" },
-  { href: "/financeiro/conciliacao", icon: ArrowLeftRight, titulo: "Conciliação", desc: "Importar OFX e conciliar" },
-  { href: "/financeiro/relatorios", icon: BarChart3, titulo: "Relatórios", desc: "DRE e indicadores" },
-  { href: "/financeiro/rentabilidade", icon: TrendingUp, titulo: "Rentabilidade", desc: "DRE e margem por projeto" },
-  { href: "/financeiro/dfc", icon: Activity, titulo: "DFC", desc: "Fluxo de caixa por atividade" },
-  { href: "/financeiro/balanco", icon: Scale, titulo: "Balanço gerencial", desc: "Ativo, passivo e PL (base caixa)" },
-  { href: "/financeiro/orcamento", icon: Target, titulo: "Orçamento anual", desc: "Planejado × realizado por categoria" },
-  { href: "/financeiro/documentos", icon: FileText, titulo: "Documentos", desc: "NF, contratos e parcelamento" },
-  { href: "/financeiro/cadastros", icon: Settings2, titulo: "Cadastros", desc: "Plano de contas, contas, fornecedores" },
-];
 
 /** Intervalo [de, ate] e rótulo do período selecionado no dashboard. Default = mês corrente. */
 function intervaloPeriodo(periodo: Periodo, hoje = new Date()) {
@@ -99,40 +82,19 @@ export default async function FinanceiroPage({
       sp.periodo === "trimestre" || sp.periodo === "ano" ? sp.periodo : "mes";
     const hoje = new Date();
     const { de: inicioMes, ate: fimMes, rotulo: mesRotulo } = intervaloPeriodo(periodo, hoje);
-    const [receber, pagar, aguardando, conciliacaoPendente, podeGerir, dreMes, serie, despesas, caixa] = await Promise.all([
+    const [receber, pagar, dreMes, serie, despesas, caixa, distribuido] = await Promise.all([
       agingReport("receita"),
       agingReport("despesa"),
-      totalAguardando(),
-      totalTransacoesPendentes(),
-      can(user, "financeiro", "gerir"),
       relatorioDRE(inicioMes, fimMes),
       serieMensalResultado(hoje.getFullYear()),
       despesasPorCategoria(inicioMes, fimMes),
       fluxoCaixa(),
+      distribuidoAosSocios(inicioMes, fimMes),
     ]);
     // Torre de controle: o MESMO motor do planejador (F7). A Visão geral não tem mais conta
     // própria de projeção — duas contas para o mesmo caixa era o risco nº 1 do plano.
     const torre = await torreDeControle();
-    const vencidoTotal = receber.totalVencido + pagar.totalVencido;
-    // Qtd de contas vencidas (todas as faixas de aging exceto "a_vencer"), receber + pagar.
-    const qtdVencidas = [receber, pagar].reduce(
-      (s, r) => s + r.porFaixa.filter((f) => f.faixa !== "a_vencer").reduce((a, f) => a + f.qtd, 0),
-      0,
-    );
-    // Contagens por href dos atalhos (badge só quando > 0).
-    const contagensAtalho: Record<string, number> = {
-      "/financeiro/contas": qtdVencidas,
-      "/financeiro/conciliacao": conciliacaoPendente,
-    };
-    const atalhos = podeGerir
-      ? [
-          ...ATALHOS,
-          { href: "/financeiro/planejamento", icon: CalendarClock, titulo: "Pagamentos em lote", desc: "Escolher quais contas a pagar cabem no caixa" },
-          { href: "/financeiro/fechamento", icon: CalendarCheck, titulo: "Fechamento mensal", desc: "Consolidação e retenções do mês" },
-          { href: "/financeiro/importar", icon: Upload, titulo: "Importar dados", desc: "Migrar planilha do Meu Dinheiro" },
-          { href: "/financeiro/configuracoes", icon: SlidersHorizontal, titulo: "Configurações", desc: "Campos obrigatórios e regras" },
-        ]
-      : ATALHOS;
+    const margem = dreMes.totalReceitas > 0 ? Math.round((dreMes.resultado / dreMes.totalReceitas) * 100) : null;
     return (
       <div className="space-y-6">
         <CabecalhoPagina
@@ -144,35 +106,52 @@ export default async function FinanceiroPage({
                 Abrir planejador
               </Button>
               {botaoGuia}
-              <PeriodoSelector periodo={periodo} />
             </>
           }
         />
         <NavFinanceiro />
 
-        {vencidoTotal > 0 && (
-          <Link href="/financeiro/contas" className="block">
-            <div className="flex items-center gap-3 rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm transition-colors hover:bg-destructive/10">
-              <AlertTriangle className="size-5 shrink-0 text-destructive" />
-              <span className="flex-1">
-                <span className="font-semibold text-destructive">{brl(vencidoTotal)}</span> em contas vencidas
-                {pagar.totalVencido > 0 && ` · ${brl(pagar.totalVencido)} a pagar`}
-                {receber.totalVencido > 0 && ` · ${brl(receber.totalVencido)} a receber`}.
-              </span>
-              <span className="text-xs text-muted-foreground">Ver contas →</span>
-            </div>
-          </Link>
-        )}
-
         <TorreLiquidez torre={torre} contas={caixa.contas} />
 
-        <h2 className="pt-2 text-[15px] font-bold">Resultado de {mesRotulo}</h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
-          <KpiCard variante="indicador" label="Receita do período" valor={<Valor valor={dreMes.totalReceitas} />} detalhe={mesRotulo} />
-          <KpiCard variante="indicador" label="Despesa do período" valor={<Valor valor={-dreMes.totalDespesas} />} detalhe={mesRotulo} />
-          <KpiCard variante="indicador" label="Resultado do período" valor={<Valor valor={dreMes.resultado} />} detalhe="receita menos despesa realizadas" />
-          <KpiCard variante="indicador" label="Caixa atual" valor={<Valor valor={caixa.saldoTotal} sentido="neutro" />} detalhe="saldo das contas ativas" />
-        </div>
+        {/* Daqui para baixo é o RESULTADO (o que já aconteceu), e só isto obedece ao período — por isso
+            o seletor mora aqui, e não no cabeçalho, onde parecia mudar o caixa lá de cima. */}
+        <section aria-labelledby="resultado-t" className="space-y-4 border-t pt-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 id="resultado-t" className="text-[15px] font-bold">
+              Resultado de {mesRotulo}
+            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <PeriodoSelector periodo={periodo} />
+              <Button variant="outline" size="sm" render={<Link href="/financeiro/relatorios" />}>
+                Abrir DRE
+              </Button>
+            </div>
+          </div>
+
+          <Card>
+            <CardContent className="grid gap-x-6 gap-y-4 pt-5 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <p className="text-[13px] text-muted-foreground">Receitas</p>
+                <Valor valor={dreMes.totalReceitas} className="text-xl font-semibold" />
+              </div>
+              <div>
+                <p className="text-[13px] text-muted-foreground">Despesas</p>
+                <Valor valor={-dreMes.totalDespesas} className="text-xl font-semibold" />
+              </div>
+              <div>
+                <p className="text-[13px] text-muted-foreground">Resultado</p>
+                <Valor valor={dreMes.resultado} className="text-xl font-semibold" />
+                <p className="text-[12px] text-muted-foreground">
+                  {margem == null ? "sem receita no período" : `${margem}% da receita`}
+                </p>
+              </div>
+              <div>
+                <p className="text-[13px] text-muted-foreground">Distribuído aos sócios</p>
+                <Valor valor={-distribuido} sentido="neutro" className="text-xl font-semibold" />
+                <p className="text-[12px] text-muted-foreground">fora do resultado, só no caixa</p>
+              </div>
+            </CardContent>
+          </Card>
 
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
@@ -195,63 +174,11 @@ export default async function FinanceiroPage({
           </Card>
         </div>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">DRE do período</CardTitle>
-            <CardDescription>Lançamentos confirmados · {mesRotulo}.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <dl className="divide-y text-sm">
-              <div className="flex items-center justify-between py-2">
-                <dt className="text-muted-foreground">Receitas</dt>
-                <dd><Valor valor={dreMes.totalReceitas} /></dd>
-              </div>
-              <div className="flex items-center justify-between py-2">
-                <dt className="text-muted-foreground">(−) Despesas</dt>
-                <dd><Valor valor={-dreMes.totalDespesas} /></dd>
-              </div>
-              <div className="flex items-center justify-between py-2 font-semibold">
-                <dt>(=) Resultado</dt>
-                <dd><Valor valor={dreMes.resultado} /></dd>
-              </div>
-            </dl>
-          </CardContent>
-        </Card>
+        </section>
 
         <section id="aging" className="scroll-mt-24">
           <AgingWidget receber={receber} pagar={pagar} />
         </section>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Link href="/financeiro/aprovacoes">
-            <Card className={`h-full transition-colors hover:border-primary/50 ${aguardando > 0 ? "border-warning/50" : ""}`}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <ShieldCheck className="size-5 text-primary" />
-                  {aguardando > 0 && <Badge variant="outline" className="border-warning/40 text-warning">{aguardando}</Badge>}
-                </div>
-                <CardTitle className="text-base">Aprovações</CardTitle>
-                <CardDescription>Despesas aguardando alçada</CardDescription>
-              </CardHeader>
-            </Card>
-          </Link>
-          {atalhos.map((a) => {
-            const count = contagensAtalho[a.href] ?? 0;
-            return (
-              <Link key={a.href} href={a.href}>
-                <Card className={`h-full transition-colors hover:border-primary/50 ${count > 0 ? "border-warning/50" : ""}`}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <a.icon className="size-5 text-primary" />
-                      {count > 0 && <Badge variant="outline" className="border-warning/40 text-warning">{count}</Badge>}
-                    </div>
-                    <CardTitle className="text-base">{a.titulo}</CardTitle>
-                    <CardDescription>{a.desc}</CardDescription>
-                  </CardHeader>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
       </div>
     );
   }

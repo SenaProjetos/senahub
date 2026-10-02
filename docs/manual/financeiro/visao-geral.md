@@ -71,12 +71,23 @@ para resolver.
 - **Próximos 7 dias:** o que o cenário Provável vai pagar e receber, com a prioridade (P1 a P4) ou a
   confiança de cada item. Vencidos aparecem primeiro.
 
-### Abaixo da torre
+### Resultado do período
 
-O **resultado do período** (receita, despesa e resultado, com o seletor de mês, trimestre ou ano), os
-gráficos de resultado mensal e despesas por subcategoria, a DRE do período, o **aging** e os cartões de
-atalho para as demais telas. Quem tem `financeiro:gerir` vê ainda **Pagamentos em lote**, **Fechamento
-mensal**, **Importar** e **Configurações**.
+Abaixo da torre fica o que **já aconteceu**, e só esta parte obedece ao **seletor de período** (mês,
+trimestre ou ano), que mora ao lado do título "Resultado de …":
+
+- **Receitas, Despesas e Resultado** (com a margem sobre a receita) e **Distribuído aos sócios** — este
+  último sai do caixa mas fica fora do resultado. **Abrir DRE** leva ao relatório completo.
+- Gráfico do **resultado mensal** do ano e **despesas por subcategoria**.
+- **Aging** das contas a receber e a pagar (este é de hoje, não depende do período).
+
+### Onde estão as outras telas
+
+Na **barra do Financeiro**, logo abaixo do título: Planejador, Fluxo de caixa, A pagar, A receber,
+Lançamentos, Caixinhas, **Resultados** (DRE, Rentabilidade, DFC, Balanço, Orçamento) e **Mais**
+(Produção, Aprovações, Conciliação, Importar, Pagamentos em lote, Fechamento, Documentos, Cadastros e
+Configurações). Cada pessoa vê só as telas que pode abrir; o número ao lado de "Mais" conta o que está
+esperando (ex.: despesas a aprovar).
 
 ## B) Meu extrato (prestadores e clientes)
 

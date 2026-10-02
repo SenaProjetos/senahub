@@ -13,15 +13,16 @@ import { totalTransacoesPendentes } from "@/modules/financeiro/conciliacao/queri
  */
 export async function NavFinanceiro() {
   const user = await requireUser();
-  const [ver, resultados, aprovar, conciliar, gerir, fechar] = await Promise.all([
+  const [ver, resultados, aprovar, conciliar, gerir, fechar, folhaPj] = await Promise.all([
     podeVerFinanceiro(user),
     can(user, "financeiro", "resultados"),
     can(user, "financeiro", "aprovar"),
     can(user, "financeiro", "conciliar"),
     can(user, "financeiro", "gerir"),
     can(user, "financeiro", "fechar"),
+    can(user, "financeiro", "folha_pj"),
   ]);
-  const nav = itensDaNavFinanceiro({ ver, resultados, aprovar, conciliar, gerir, fechar });
+  const nav = itensDaNavFinanceiro({ ver, resultados, aprovar, conciliar, gerir, fechar, folhaPj });
   if (nav.principais.length + nav.resultados.length + nav.mais.length === 0) return null;
 
   const [aguardando, pendentesConciliacao] = await Promise.all([

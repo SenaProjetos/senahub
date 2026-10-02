@@ -3,7 +3,7 @@ import { readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { itemAtual, itensDaNavFinanceiro, type FlagsNavFinanceiro } from "@/modules/financeiro/nav";
 
-const nenhuma: FlagsNavFinanceiro = { ver: false, resultados: false, aprovar: false, conciliar: false, gerir: false, fechar: false };
+const nenhuma: FlagsNavFinanceiro = { ver: false, resultados: false, aprovar: false, conciliar: false, gerir: false, fechar: false, folhaPj: false };
 const ids = (xs: { id: string }[]) => xs.map((x) => x.id);
 
 describe("navegação do Financeiro por gate", () => {
@@ -24,11 +24,13 @@ describe("navegação do Financeiro por gate", () => {
     expect(ids(itensDaNavFinanceiro({ ...nenhuma, conciliar: true }).mais)).toEqual(["conciliacao", "importar"]);
     expect(ids(itensDaNavFinanceiro({ ...nenhuma, fechar: true }).mais)).toEqual(["fechamento"]);
     expect(ids(itensDaNavFinanceiro({ ...nenhuma, gerir: true }).mais)).toEqual(["planejamento", "cadastros", "configuracoes"]);
+    // A Produção tem gate próprio (`folha_pj`): quem paga projetista não precisa gerir o resto.
+    expect(ids(itensDaNavFinanceiro({ ...nenhuma, folhaPj: true }).mais)).toEqual(["producao"]);
   });
 
   it("todo href aponta para uma página que existe", () => {
     const raiz = join(__dirname, "..", "..", "app", "(dashboard)");
-    const tudo = itensDaNavFinanceiro({ ver: true, resultados: true, aprovar: true, conciliar: true, gerir: true, fechar: true });
+    const tudo = itensDaNavFinanceiro({ ver: true, resultados: true, aprovar: true, conciliar: true, gerir: true, fechar: true, folhaPj: true });
     for (const i of [...tudo.principais, ...tudo.resultados, ...tudo.mais]) {
       const pasta = join(raiz, i.href.split("?")[0].replace(/^\//, ""));
       expect(existsSync(join(pasta, "page.tsx")), `${i.href} sem page.tsx`).toBe(true);
@@ -38,7 +40,7 @@ describe("navegação do Financeiro por gate", () => {
 });
 
 describe("item atual", () => {
-  const n = itensDaNavFinanceiro({ ver: true, resultados: true, aprovar: true, conciliar: true, gerir: true, fechar: true });
+  const n = itensDaNavFinanceiro({ ver: true, resultados: true, aprovar: true, conciliar: true, gerir: true, fechar: true, folhaPj: true });
   const por = (id: string) => [...n.principais, ...n.resultados, ...n.mais].find((i) => i.id === id)!;
 
   it("Visão geral só na raiz exata; as demais por prefixo", () => {

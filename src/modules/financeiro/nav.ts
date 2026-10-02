@@ -14,6 +14,8 @@ export type FlagsNavFinanceiro = {
   conciliar: boolean;
   gerir: boolean;
   fechar: boolean;
+  /** `financeiro:folha_pj` — a Produção (pagamento de projetistas por entrega). */
+  folhaPj: boolean;
 };
 
 export type Gate = keyof FlagsNavFinanceiro;
@@ -50,6 +52,7 @@ const RESULTADOS: readonly ItemNavFinanceiro[] = [
 ];
 
 const MAIS: readonly ItemNavFinanceiro[] = [
+  { id: "producao", href: "/financeiro/folha-projetistas", rotulo: "Produção (projetistas)", gate: "folhaPj" },
   { id: "aprovacoes", href: "/financeiro/aprovacoes", rotulo: "Aprovações", gate: "aprovar" },
   { id: "conciliacao", href: "/financeiro/conciliacao", rotulo: "Conciliação", gate: "conciliar" },
   { id: "importar", href: "/financeiro/importar", rotulo: "Importar extrato", gate: "conciliar" },

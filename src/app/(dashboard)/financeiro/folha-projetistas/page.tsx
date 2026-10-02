@@ -14,6 +14,7 @@ import { opcoesLancamento } from "@/modules/financeiro/lancamentos/queries";
 import { temFiltroAlemDoStatus } from "@/modules/financeiro/folha/service";
 import { listarRecibos, opcoesFiltroRecibos } from "@/modules/financeiro/recibo/queries";
 import { FolhaView } from "@/components/financeiro/folha/folha-view";
+import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 import { FolhaAgrupadaView } from "@/components/financeiro/folha/folha-agrupada-view";
 import { FolhaResumoFiltros } from "@/components/financeiro/folha/folha-linhas-compartilhadas";
 import { ModoFolhaToggle } from "@/components/financeiro/folha/modo-folha-toggle";
@@ -180,6 +181,7 @@ export default async function FolhaProjetistasPage({
   return (
     <div className="space-y-5">
       <CabecalhoPagina titulo="Produção" descricao="Pagamentos de projetistas PJ/freelancer liberados por entregas validadas." />
+      <NavFinanceiro />
 
       {semValor > 0 && (
         <div role="alert" className="flex items-start gap-2 rounded-sm border border-warning/40 bg-warning/10 p-3 text-sm">

@@ -15,7 +15,7 @@ import { ResultadosTabs } from "@/components/financeiro/resultados-tabs";
 export async function NavResultados() {
   const user = await requireUser();
   const [ver, resultados] = await Promise.all([podeVerFinanceiro(user), can(user, "financeiro", "resultados")]);
-  const nav = itensDaNavFinanceiro({ ver, resultados, aprovar: false, conciliar: false, gerir: false, fechar: false });
+  const nav = itensDaNavFinanceiro({ ver, resultados, aprovar: false, conciliar: false, gerir: false, fechar: false, folhaPj: false });
   if (nav.resultados.length < 2) return null;
   return <ResultadosTabs itens={nav.resultados.map((i) => ({ id: i.id, href: i.href, rotulo: i.rotulo }))} />;
 }

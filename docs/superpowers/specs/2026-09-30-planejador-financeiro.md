@@ -499,6 +499,28 @@ A F6 (Opus) fecha em quatro commits independentes, cada um com testes verdes e r
 - Verificação final: suíte completa, lint, tsc (app e server), build, `smoke:planejador`,
   `smoke:previsao-recebimento`, `smoke:onda2`, `smoke:onda3efg`, e as páginas novas abertas no `/ajuda`.
 
+## 14-D. Revisão de UX da Visão geral (2026-10-02)
+
+Pedido do dono: "os botões estão todos lá embaixo". Medido no Chrome (1366, menu aberto): a página tinha
+4.067 px e a grade de 17 atalhos começava em 3.368 px. Depois: 2.451 px.
+
+- **Grade de atalhos saiu** — o mock aprovado não tem, e repetia a barra do Financeiro. A única tela que só
+  existia nos atalhos, **Produção**, entrou no "Mais" com gate próprio (`folhaPj` → `financeiro:folha_pj`),
+  e a página da Produção ganhou a barra.
+- **Banner vermelho de vencidos saiu** — "Precisa de atenção" já diz o mesmo, com o atalho certo.
+- **Seletor de período desceu** para junto de "Resultado de …": ele só muda o resultado, e no cabeçalho
+  parecia mudar o caixa. O cabeçalho ficou com duas ações (Abrir planejador, Guia de uso).
+- **Resultado em um card** (Receitas, Despesas, Resultado com margem, Distribuído aos sócios) no lugar de
+  quatro KPIs + o card DRE, que repetiam os mesmos três números (e um deles era o caixa de novo).
+- **Defeitos corrigidos:** botões dos cards caíam numa barra larga sob o título (`CardAction` em vez de
+  `flex-row` num cabeçalho em grid); a contagem de avisos parecia um campo de texto (virou selo); o valor
+  em "Próximos 7 dias" era cortado fora da tela (tabela virou lista com o valor fixo à direita); "R$" e o
+  número quebravam em linhas diferentes no saldo por conta; rótulos em caixa-alta espaçada quebravam em
+  duas linhas (frase normal agora); "=" e "+" soltos no celular (somem abaixo de `sm`).
+- **Menos ruído:** "Precisa de atenção" mostra 4 avisos e guarda o resto em "Mais N avisos" (`<details>`,
+  sem JavaScript); caixinhas sem reserva nem compromisso viram uma linha de contagem; barra de progresso
+  só quando há o que cobrir; sem reserva mínima, aparece "Definir no planejador".
+
 ## 15. Testes por arquivo (`src/modules/financeiro/liquidez/`)
 
 | Arquivo | Cobre |
