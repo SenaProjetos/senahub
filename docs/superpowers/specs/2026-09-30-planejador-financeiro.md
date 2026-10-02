@@ -480,7 +480,11 @@ A F6 (Opus) fecha em quatro commits independentes, cada um com testes verdes e r
     mesma confirmação.
 - **Já estavam feitos pela F1** (conferido, nada a mudar): gráficos com texto alternativo, cores por token,
   `aria-label` nos chevrons do período. Os hex que sobraram estão só no CSS de impressão.
-- **Fica para depois:** menus de contexto em Documentos e Cadastros (listas sem ação em lote pedida).
+- **Documentos e Cadastros (fechado depois, 2026-10-01):** Documentos ganhou menu de contexto e `...`
+  (`documentos/acoes.ts`: baixar, gerar parcelas, excluir) — excluir apagava o arquivo guardado SEM
+  confirmação; agora confirma e diz quantos lançamentos perdem o vínculo. Em Cadastros as listas de contas,
+  fornecedores, plano de contas e nomes simples só têm editar (uma ação: sem menu, pela ADR); o que faltava
+  era confirmação em Sócios — remover um sócio apagava em cascata o histórico de retiradas com um clique.
 
 ## 14-C. F9 como ficou (2026-10-01)
 

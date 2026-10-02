@@ -9,6 +9,7 @@ import { brl, formatarData } from "@/lib/utils";
 import { RetiradaDialog, type TipoRetirada } from "./retirada-dialog";
 import { percentualParaBp } from "@/modules/financeiro/socios/calculo";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { InputPercentual } from "@/components/ui/input-percentual";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,7 @@ const TIPO_RET: Record<string, string> = { pro_labore: "Pró-labore", distribuic
 
 export function SociosSection({ socios, usuarios, hoje }: { socios: Socio[]; usuarios: Usuario[]; hoje: string }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, start] = useTransition();
   const [retirada, setRetirada] = useState<TipoRetirada | null>(null);
   const [userId, setUserId] = useState("");
@@ -52,11 +54,25 @@ export function SociosSection({ socios, usuarios, hoje }: { socios: Socio[]; usu
     });
   }
 
-  function remover(id: string) {
+  async function remover(s: Socio) {
+    // Confirmação SEMPRE antes da transição. Remover apaga o sócio de vez: o histórico de retiradas
+    // vai junto e ele sai do canal dos sócios; lançamentos e compromissos dele só perdem o vínculo.
+    // Quem saiu da sociedade e deve ficar no histórico se marca como inativo, não se remove.
+    const ok = await confirm({
+      title: `Remover ${s.nome} dos sócios?`,
+      description:
+        `${s.retiradas.length > 0 ? `As ${s.retiradas.length} retiradas do histórico são apagadas junto. ` : ""}` +
+        "Ele sai do canal dos sócios; lançamentos e compromissos recorrentes dele ficam, só sem o vínculo.",
+      confirmLabel: "Remover",
+      variant: "destructive",
+    });
+    if (!ok) return;
     start(async () => {
-      const r = await removerSocio({ id });
-      if (r.ok) router.refresh();
-      else toast.error(r.error);
+      const r = await removerSocio({ id: s.id });
+      if (r.ok) {
+        toast.success("Sócio removido.");
+        router.refresh();
+      } else toast.error(r.error);
     });
   }
 
@@ -66,7 +82,7 @@ export function SociosSection({ socios, usuarios, hoje }: { socios: Socio[]; usu
         {socios.length === 0 ? (
           <li><EmptyState icon={Users} title="Nenhum sócio." /></li>
         ) : (
-          socios.map((s) => <SocioRow key={s.id} s={s} onRemover={remover} />)
+          socios.map((s) => <SocioRow key={s.id} s={s} onRemover={() => void remover(s)} />)
         )}
       </ul>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -129,13 +145,21 @@ export function SociosSection({ socios, usuarios, hoje }: { socios: Socio[]; usu
  * entrava no caixa nem na DRE. Retirada nova sai pelos botões de lucros (conta a pagar por sócio) ou
  * por Compromissos recorrentes, no caso do pró-labore. Remover segue aqui para corrigir o histórico.
  */
-function SocioRow({ s, onRemover }: { s: Socio; onRemover: (id: string) => void }) {
+function SocioRow({ s, onRemover }: { s: Socio; onRemover: () => void }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, start] = useTransition();
   const [aberto, setAberto] = useState(false);
   const totalRet = s.retiradas.reduce((a, r) => a + r.valor, 0);
 
-  function rmRetirada(id: string) {
+  async function rmRetirada(id: string) {
+    const ok = await confirm({
+      title: "Apagar esta retirada do histórico?",
+      description: "É só o registro antigo: não mexe em caixa nem em lançamento.",
+      confirmLabel: "Apagar",
+      variant: "destructive",
+    });
+    if (!ok) return;
     start(async () => {
       const r = await removerRetiradaSocio({ id });
       if (r.ok) router.refresh();
@@ -160,7 +184,7 @@ function SocioRow({ s, onRemover }: { s: Socio; onRemover: (id: string) => void 
         </button>
         <div className="flex items-center gap-3">
           <span className="font-mono text-sm">{s.percentual.toFixed(2)}%</span>
-          <Button size="icon" variant="ghost" onClick={() => onRemover(s.id)} aria-label="Remover">
+          <Button size="icon" variant="ghost" onClick={onRemover} aria-label={`Remover ${s.nome} dos sócios`}>
             <Trash2 className="size-4" />
           </Button>
         </div>
@@ -184,7 +208,7 @@ function SocioRow({ s, onRemover }: { s: Socio; onRemover: (id: string) => void 
                   <span className="flex items-center gap-2">
                     <span className="font-mono">{brl(r.valor)}</span>
                     <button
-                      onClick={() => rmRetirada(r.id)}
+                      onClick={() => void rmRetirada(r.id)}
                       disabled={pending}
                       aria-label="Remover retirada do histórico"
                       className="text-muted-foreground hover:text-destructive disabled:opacity-50"

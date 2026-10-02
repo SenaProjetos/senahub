@@ -4,13 +4,18 @@ import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2, Download, ListPlus, FileText } from "lucide-react";
+import { Plus, FileText } from "lucide-react";
 import {
   criarDocumentoFinanceiro,
   excluirDocumentoFinanceiro,
   gerarParcelasDoDocumento,
 } from "@/modules/financeiro/documentos/actions";
 import { Button } from "@/components/ui/button";
+import type { AcaoItemAcao } from "@/components/ui/acoes";
+import { BotaoAcoes } from "@/components/ui/acoes-menu";
+import { LinhaComMenu } from "@/components/ui/linha-com-menu";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { ACAO_EXCLUIR, ACAO_GERAR_PARCELAS, itensDeDocumento } from "@/modules/financeiro/documentos/acoes";
 import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
@@ -66,6 +71,7 @@ export function DocumentosFinanceirosView({
   subnav?: React.ReactNode;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, start] = useTransition();
   const [novo, setNovo] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -167,9 +173,64 @@ export function DocumentosFinanceirosView({
   function excluir(id: string) {
     start(async () => {
       const r = await excluirDocumentoFinanceiro({ id });
-      if (r.ok) router.refresh();
-      else toast.error(r.error);
+      if (r.ok) {
+        toast.success("Documento excluído.");
+        router.refresh();
+      } else toast.error(r.error);
     });
+  }
+
+  // ADR-0002: o mesmo array no menu de contexto e no `...`. Excluir apaga o arquivo guardado, então
+  // confirma ANTES da transição (React 19 suspenderia o diálogo dentro dela).
+  async function aoSelecionar(d: Doc, item: AcaoItemAcao) {
+    if (
+      item.confirmar &&
+      !(await confirm({
+        title: item.confirmar.titulo,
+        description: item.confirmar.descricao,
+        confirmLabel: item.confirmar.rotuloConfirmar,
+        variant: item.variant === "destructive" ? "destructive" : "default",
+      }))
+    )
+      return;
+    if (item.id === ACAO_GERAR_PARCELAS) abrirParcelas(d);
+    else if (item.id === ACAO_EXCLUIR) excluir(d.id);
+  }
+
+  // Função de render, não componente aninhado: um componente definido aqui remontaria a cada render
+  // e fecharia o menu aberto.
+  function linha(d: Doc) {
+    const acoes = itensDeDocumento({ id: d.id, temArquivo: d.temArquivo, lancamentos: d.lancamentos }, { podeGerir });
+    return (
+      <LinhaComMenu
+        key={d.id}
+        itens={acoes}
+        onSelect={(item) => aoSelecionar(d, item)}
+        render={<tr className="hover:bg-muted/40 data-[popup-open]:bg-muted/30" />}
+      >
+        <td className="px-4 py-2">
+          <Badge variant="outline">{TIPO_LABEL[d.tipo] ?? d.tipo}</Badge>
+          {d.numero && <span className="ml-2 font-mono text-xs">{d.numero}</span>}
+          {d.temArquivo && <FileText className="ml-1 inline size-3 text-muted-foreground" aria-label="Tem arquivo" />}
+        </td>
+        <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
+          {d.dataEmissao ? formatarData(d.dataEmissao + "T00:00:00") : "—"}
+        </td>
+        <td className="px-4 py-2 text-muted-foreground">{d.fornecedor ?? d.cliente ?? "—"}</td>
+        <td className="px-4 py-2 text-right font-mono text-xs">{d.valorDocumento != null ? brl(d.valorDocumento) : "—"}</td>
+        <td className="px-4 py-2 text-right font-mono text-xs">{d.lancamentos > 0 ? `${d.lancamentos} · ${brl(d.totalVinculado)}` : "—"}</td>
+        <td className="px-4 py-2 text-right">
+          {acoes.length > 0 && (
+            <BotaoAcoes
+              itens={acoes}
+              onSelect={(item) => aoSelecionar(d, item)}
+              rotulo={`Ações do documento ${d.numero ?? TIPO_LABEL[d.tipo] ?? ""}`.trim()}
+              className="size-8"
+            />
+          )}
+        </td>
+      </LinhaComMenu>
+    );
   }
 
   const catsFiltradas = opcoes.categorias.filter((c) => c.tipo === pf.tipoLancamento);
@@ -208,40 +269,7 @@ export function DocumentosFinanceirosView({
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {docs.map((d) => (
-                  <tr key={d.id} className="hover:bg-muted/40">
-                    <td className="px-4 py-2">
-                      <Badge variant="outline">{TIPO_LABEL[d.tipo] ?? d.tipo}</Badge>
-                      {d.numero && <span className="ml-2 font-mono text-xs">{d.numero}</span>}
-                      {d.temArquivo && <FileText className="ml-1 inline size-3 text-muted-foreground" />}
-                    </td>
-                    <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
-                      {d.dataEmissao ? formatarData(d.dataEmissao + "T00:00:00") : "—"}
-                    </td>
-                    <td className="px-4 py-2 text-muted-foreground">{d.fornecedor ?? d.cliente ?? "—"}</td>
-                    <td className="px-4 py-2 text-right font-mono text-xs">{d.valorDocumento != null ? brl(d.valorDocumento) : "—"}</td>
-                    <td className="px-4 py-2 text-right font-mono text-xs">
-                      {d.lancamentos > 0 ? `${d.lancamentos} · ${brl(d.totalVinculado)}` : "—"}
-                    </td>
-                    <td className="px-4 py-2 text-right">
-                      {d.temArquivo && (
-                        <Button size="icon" variant="ghost" aria-label="Baixar" render={<a href={`/api/financeiro/documentos/${d.id}/download`} />}>
-                          <Download className="size-3.5" />
-                        </Button>
-                      )}
-                      {podeGerir && (
-                        <>
-                          <Button size="icon" variant="ghost" aria-label="Gerar parcelas" onClick={() => abrirParcelas(d)}>
-                            <ListPlus className="size-3.5" />
-                          </Button>
-                          <Button size="icon" variant="ghost" aria-label="Excluir" disabled={pending} onClick={() => excluir(d.id)}>
-                            <Trash2 className="size-3.5" />
-                          </Button>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {docs.map((d) => linha(d))}
               </tbody>
             </table>
           )}
