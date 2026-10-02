@@ -5,6 +5,7 @@ import { subDays, differenceInCalendarDays } from "date-fns";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { fluxoCaixa } from "@/modules/financeiro/caixa/queries";
+import { totalDaCarteira } from "@/modules/financeiro/investimentos/queries";
 import { SEM_TRANSFERENCIA, SO_RESULTADO } from "@/modules/financeiro/natureza";
 import { somaPaga, somarReais, valorPagoReais } from "@/modules/financeiro/valor-pago";
 import { analisarDRE, type LinhaBaseDRE, type DREComparativo } from "./dre";
@@ -62,17 +63,19 @@ export async function categoriasParaDfc() {
  * a pagar = passivo; PL = ativo − passivo. NÃO é Balanço contábil formal (sem partidas dobradas).
  */
 export async function balancoGerencial() {
-  const [{ saldoTotal }, aReceberAgg, aPagarAgg] = await Promise.all([
+  const [{ saldoTotal }, aReceberAgg, aPagarAgg, investimentos] = await Promise.all([
     fluxoCaixa(1),
     prisma.lancamento.aggregate({ where: { tipo: "receita", status: "previsto", ...SEM_TRANSFERENCIA }, _sum: { valor: true } }),
     prisma.lancamento.aggregate({ where: { tipo: "despesa", status: "previsto", ...SEM_TRANSFERENCIA }, _sum: { valor: true } }),
+    // M4: o valor atual da carteira (saldo das contas dos ativos) entra no ativo, separado do caixa.
+    totalDaCarteira(),
   ]);
   const caixa = saldoTotal;
   const aReceber = Number(aReceberAgg._sum.valor ?? 0);
   const aPagar = Number(aPagarAgg._sum.valor ?? 0);
-  const ativo = caixa + aReceber;
+  const ativo = caixa + investimentos + aReceber;
   const passivo = aPagar;
-  return { caixa, aReceber, aPagar, ativo, passivo, pl: ativo - passivo };
+  return { caixa, investimentos, aReceber, aPagar, ativo, passivo, pl: ativo - passivo };
 }
 
 export type LinhaDRE = { codigo: string; nome: string; tipo: string; valor: number };

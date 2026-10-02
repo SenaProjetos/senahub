@@ -88,3 +88,12 @@ Data: 2026-10-02 · Branch: `feat/financeiro-nucleo` · Mock aprovado: canvas "F
 - **Decisão pendente do dono:** ligar os e-mails de antes e no dia, e quantos dias antes (padrão 3).
 - **Verificação:** `regras.test.ts` e `smoke:financeiro-core` (13 checagens novas: padrão, repetição, antes/no dia, sem e-mail,
   transferência, falha libera a reserva, vencimento novo, D-1/D-3 agrupados, categoria, desligado).
+
+## M4 — investimentos (Opus) — concluída
+
+Contrato próprio em `2026-10-02-financeiro-investimentos.md`. Migração `20261002320000_investimentos` (`Investimento`,
+enums de tipo e liquidez, categorias `receita_rendimento_aplicacao` e `despesa_ir_aplicacao` por chave). Telas
+`/financeiro/investimentos` e `/financeiro/investimentos/[id]` com menus de contexto; Balanço com a linha Investimentos;
+vencimento no planejador. Verificação: `calculo.test.ts` (números do mock: 80.000 + 3.920 − 784 = 83.136, 200 dias → 20%),
+`acoes.test.ts` e `smoke:financeiro-core` (22 checagens novas: caixa, DRE, carteira, IR, planejador, Balanço, resgates,
+arquivar/excluir, isento, opções de lançamento).

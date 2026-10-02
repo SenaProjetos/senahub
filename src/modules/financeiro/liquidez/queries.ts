@@ -24,6 +24,8 @@ import {
   type LinhaProxima,
 } from "@/modules/financeiro/liquidez/torre";
 import { agregarFaturas, type FaturaDoEvento } from "@/modules/financeiro/cartoes/eventos";
+import { idsContasDeInvestimento } from "@/modules/financeiro/investimentos/service";
+import { vencimentosDeInvestimento } from "@/modules/financeiro/investimentos/queries";
 import { anomaliasDoSaldo, saldoBase, type AnomaliasDoSaldo } from "@/modules/financeiro/liquidez/saldo-base";
 import type { Centavos, Contraparte, DataIso, EventoCaixa, LancamentoEntrada, Observado } from "@/modules/financeiro/liquidez/tipos";
 
@@ -72,7 +74,9 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
     },
   });
 
-  const ativas = contas.filter((c) => c.ativo);
+  // M4: a conta de cada investimento fica fora do caixa (S0) — o dinheiro está aplicado.
+  const contasFora = new Set(await idsContasDeInvestimento());
+  const ativas = contas.filter((c) => c.ativo && !contasFora.has(c.id));
   const realizadosCent = realizados.map((l) => ({
     contaId: l.contaId,
     tipo: l.tipo,
@@ -83,8 +87,9 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
   const base = saldoBase(
     ativas.map((c) => ({ id: c.id, saldoInicial: paraCentavos(c.saldoInicial), saldoInicialEm: c.saldoInicialEm ? isoDeDataDoBanco(c.saldoInicialEm) : null })),
     realizadosCent,
+    contasFora,
   );
-  const anomalias = anomaliasDoSaldo(hoje, new Set(ativas.map((c) => c.id)), realizadosCent);
+  const anomalias = anomaliasDoSaldo(hoje, new Set(ativas.map((c) => c.id)), realizadosCent, contasFora);
 
   let saidasNaJanela = 0;
   let maisAntigo: DataIso | null = null;
@@ -92,6 +97,7 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
   for (const l of realizadosCent) {
     if (!l.dataConfirmacao) continue;
     if (maisAntigo == null || l.dataConfirmacao < maisAntigo) maisAntigo = l.dataConfirmacao;
+    if (l.contaId && contasFora.has(l.contaId)) continue;
     if (l.tipo === "despesa" && l.natureza === "resultado" && l.dataConfirmacao > inicioJanelaIso && l.dataConfirmacao <= hoje) {
       saidasNaJanela += l.valor;
     }
@@ -226,6 +232,7 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
     eventos: [
       ...agregarFaturas(paraEventos(entradas, { hoje, diasParaIncerta: config.diasParaIncerta }), faturaPorLancamento),
       ...programados,
+      ...(await vencimentosDeInvestimento(hoje, fim)),
     ],
     avisosRecorrencia: avisos,
     caixinhas: await reservadosParaOMotor(hoje),

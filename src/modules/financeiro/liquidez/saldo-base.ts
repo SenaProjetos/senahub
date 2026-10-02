@@ -33,15 +33,21 @@ export function entraNoSaldoDaConta(saldoInicialEm: DataIso | null | undefined, 
 
 export type SaldoBase = { porConta: Record<string, Centavos>; semConta: Centavos; total: Centavos };
 
-export function saldoBase(contasAtivas: readonly ContaAtiva[], realizados: readonly Realizado[]): SaldoBase {
+/**
+ * `contasFora` (M4): contas que NÃO são caixa — a conta de cada investimento. O realizado nelas é ignorado de todo (nem
+ * conta, nem cai no "sem conta"): o dinheiro está aplicado, não disponível.
+ */
+export function saldoBase(contasAtivas: readonly ContaAtiva[], realizados: readonly Realizado[], contasFora: ReadonlySet<string> = new Set()): SaldoBase {
   const porConta: Record<string, Centavos> = {};
   const desde = new Map<string, DataIso | null | undefined>();
   for (const c of contasAtivas) {
+    if (contasFora.has(c.id)) continue;
     porConta[c.id] = c.saldoInicial;
     desde.set(c.id, c.saldoInicialEm);
   }
   let semConta = 0;
   for (const l of realizados) {
+    if (l.contaId != null && contasFora.has(l.contaId)) continue;
     const delta = l.tipo === "receita" ? l.valor : -l.valor;
     if (l.contaId != null && Object.prototype.hasOwnProperty.call(porConta, l.contaId)) {
       if (entraNoSaldoDaConta(desde.get(l.contaId), l.dataConfirmacao)) porConta[l.contaId] += delta;
@@ -72,10 +78,12 @@ export function anomaliasDoSaldo(
   hoje: DataIso,
   idsContasAtivas: ReadonlySet<string>,
   realizados: readonly RealizadoDatado[],
+  contasFora: ReadonlySet<string> = new Set(),
 ): AnomaliasDoSaldo {
   const zero = (): Anomalia => ({ quantidade: 0, valor: 0 });
   const r: AnomaliasDoSaldo = { dataFutura: zero(), contaInativa: zero(), semConta: zero() };
   for (const l of realizados) {
+    if (l.contaId != null && contasFora.has(l.contaId)) continue;
     if (l.dataConfirmacao != null && l.dataConfirmacao > hoje) {
       r.dataFutura.quantidade += 1;
       r.dataFutura.valor += l.valor;

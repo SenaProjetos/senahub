@@ -15,7 +15,7 @@ describe("navegação do Financeiro por gate (mock de 2026-10-02)", () => {
   it("só leitura (ver): 3 diretos, fluxo, extrato e cartões, planejamento e documentos — sem DRE, sem gestão", () => {
     const n = itensDaNavFinanceiro({ ...nenhuma, ver: true });
     expect(ids(n.principais)).toEqual(["visao", "lancamentos", "contas"]);
-    expect(ids(n.movimentacoes)).toEqual(["fluxo", "extrato", "cartoes"]);
+    expect(ids(n.movimentacoes)).toEqual(["fluxo", "extrato", "cartoes", "investimentos"]);
     expect(ids(n.planejamento)).toEqual(["planejador", "cenarios", "caixinhas", "distribuicao", "orcamento"]);
     expect(n.resultados).toEqual([]);
     expect(ids(n.mais)).toEqual(["documentos"]);

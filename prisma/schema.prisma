@@ -1601,6 +1601,9 @@ model ContaBancaria {
   transacoes    TransacaoBancaria[]
   planejamentos PlanejamentoPagamento[]
   cartoes       CartaoCredito[]
+  /// M4: a conta que É o ativo (saldo = valor atual).
+  investimento  Investimento?       @relation("ContaDoInvestimento")
+  investimentosDeOrigem Investimento[] @relation("OrigemDoInvestimento")
 
   @@map("conta_bancaria")
 }
@@ -2083,6 +2086,54 @@ model AvisoFinanceiroEnviado {
 
   @@unique([lancamentoId, tipo, destino, vencimento])
   @@map("aviso_financeiro_enviado")
+}
+
+enum TipoInvestimento {
+  cdb
+  lci
+  lca
+  tesouro
+  fundo
+  poupanca
+  debenture
+  outro
+}
+
+enum LiquidezInvestimento {
+  diaria
+  d1
+  vencimento
+  outra
+}
+
+/// Ativo da carteira de investimentos (M4). É dono de UMA conta bancária (tipo `investimento`) cujo saldo É o valor
+/// atual do ativo: aporte e resgate são transferências (M8) entre essa conta e uma conta corrente; rendimento é receita
+/// e IR/IOF é despesa realizados nela. A conta de um ativo fica FORA do caixa (Visão geral, planejador, fluxo diário).
+/// Os movimentos não têm tabela: são lidos do livro caixa da conta do ativo.
+model Investimento {
+  id            String               @id @default(cuid())
+  nome          String
+  tipo          TipoInvestimento     @default(cdb)
+  instituicao   String?
+  /// Texto livre: "105% do CDI", "IPCA + 6%", "Selic + 0,05%".
+  indexador     String?
+  liquidez      LiquidezInvestimento @default(vencimento)
+  vencimento    DateTime?            @db.Date
+  /// LCI, LCA, poupança: sem IR sobre o rendimento (a sugestão de IR é zero).
+  isentoIR      Boolean              @default(false)
+  contaId       String               @unique
+  conta         ContaBancaria        @relation("ContaDoInvestimento", fields: [contaId], references: [id], onDelete: Restrict)
+  /// Conta corrente de onde o dinheiro costuma sair (e para onde volta no resgate).
+  contaOrigemId String?
+  contaOrigem   ContaBancaria?       @relation("OrigemDoInvestimento", fields: [contaOrigemId], references: [id], onDelete: SetNull)
+  observacao    String?
+  /// Resgatado por inteiro (valor atual zero). Sai da carteira, fica no histórico.
+  arquivado     Boolean              @default(false)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@index([arquivado])
+  @@map("investimento")
 }
 
 /// Regra de preenchimento (M2): QUANDO todas as `condicoes` batem → ENTÃO preenche categoria, centro, contato,

@@ -1624,6 +1624,41 @@
       ]
     },
     {
+      "titulo": "Financeiro — Investimentos",
+      "path": "financeiro/investimentos.md",
+      "descricao": "Carteira de investimentos da empresa por ativo — aporte, resgate, rendimento e IR — com o valor atual fora do caixa e dentro do Balanço.",
+      "resumo": "Cada ativo (CDB, LCI, Tesouro, fundo) tem uma conta própria que não entra no caixa. Aporte e resgate são transferências; o rendimento entra na DRE como receita e o IR como despesa. O valor atual é atualizado à mão, pelo valor bruto que o banco mostra.",
+      "tags": [
+        "financeiro",
+        "investimentos",
+        "aplicação",
+        "CDB",
+        "LCI",
+        "Tesouro",
+        "rendimento",
+        "IR",
+        "balanço"
+      ],
+      "palavrasChave": [
+        "investimento",
+        "aplicação financeira",
+        "aporte",
+        "resgate",
+        "rendimento",
+        "imposto de renda",
+        "tabela regressiva",
+        "valor atual",
+        "carteira",
+        "vencimento da aplicação"
+      ],
+      "sinonimos": [
+        "aplicações",
+        "carteira de investimentos",
+        "renda fixa",
+        "aplicação no banco"
+      ]
+    },
+    {
       "titulo": "Conciliação bancária (OFX) e Importação",
       "path": "financeiro/conciliacao-ofx.md",
       "descricao": "Importar extrato OFX, conciliar transações com lançamentos e migrar planilhas para o financeiro.",

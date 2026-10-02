@@ -70,6 +70,18 @@ import { corrigirPagamentoNoBanco } from "../src/modules/financeiro/lancamentos/
 import { fluxoCaixa } from "../src/modules/financeiro/caixa/queries";
 import { avisarContasAPagar, enviarCobrancasAoCliente } from "../src/modules/financeiro/avisos/service";
 import { CHAVE_CONFIG_AVISOS } from "../src/modules/financeiro/avisos/regras";
+import {
+  aportarNoBanco,
+  arquivarNoBanco,
+  criarInvestimentoNoBanco,
+  excluirInvestimentoNoBanco,
+  excluirMovimentoNoBanco,
+  posicaoNoBanco,
+  registrarRendimentoNoBanco,
+  resgatarNoBanco,
+} from "../src/modules/financeiro/investimentos/service";
+import { totalDaCarteira } from "../src/modules/financeiro/investimentos/queries";
+import { balancoGerencial, relatorioDRE } from "../src/modules/financeiro/relatorios/queries";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -130,6 +142,7 @@ async function main() {
     await cartoesDeCredito(admin.id);
     await transferenciasEPagamentos(admin.id);
     await avisosDoFinanceiro(admin.id);
+    await investimentos(admin.id);
   } finally {
     const pags = (await prisma.pagamentoProjetista.findMany({ where: { disciplinaId: disciplina.id }, select: { id: true } })).map((p) => p.id);
     await prisma.lancamento.deleteMany({ where: { OR: [{ projetoId: projeto.id }, { pagamentoProjetistaId: { in: pags } }, { descricao: { startsWith: tag } }] } });
@@ -1159,6 +1172,103 @@ async function avisosDoFinanceiro(autorId: string) {
     await prisma.avisoFinanceiroEnviado.deleteMany({ where: { enviadoEm: { gte: inicioDoTeste } } });
     await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: tag }, excluidoEm: { not: undefined } } });
     await prisma.cliente.deleteMany({ where: { id: { in: [comEmail.id, semEmail.id] } } });
+  }
+}
+
+async function investimentos(autorId: string) {
+  console.log("\n# M4 — investimentos (carteira detalhada)");
+  const hoje = new Date().toISOString().slice(0, 10);
+  const diasAtras = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+  const corrente = await prisma.contaBancaria.create({ data: { nome: `${tag} corrente inv`, tipo: "corrente", saldoInicial: 100_000 } });
+  const ids: string[] = [];
+  const caixa = async () => (await fluxoCaixa(1)).saldoTotal;
+  const caixaDoPlanejador = async () => (await baseDoPlanejador({ horizonteDias: 365 })).caixaAtual;
+  const dre = async () => {
+    const d = await relatorioDRE(dia(diasAtras(400)), dia(hoje));
+    return { receitas: d.totalReceitas, despesas: d.totalDespesas };
+  };
+  try {
+    const caixa0 = await caixa();
+    const planejador0 = await caixaDoPlanejador();
+    const dre0 = await dre();
+    const carteira0 = await totalDaCarteira();
+
+    // Aporte inicial de 80.000 há 200 dias: sai do caixa, não entra na DRE.
+    const cdb = await criarInvestimentoNoBanco(
+      { nome: `${tag} CDB`, tipo: "cdb", liquidez: "vencimento", vencimento: diasAtras(-60), isentoIR: false, aporte: { valor: 80_000, data: diasAtras(200), contaId: corrente.id } },
+      autorId,
+    );
+    ids.push(cdb.id);
+    const conta = await prisma.contaBancaria.findUniqueOrThrow({ where: { id: cdb.contaId }, select: { tipo: true } });
+    check("o ativo ganha uma conta própria do tipo investimento", conta.tipo === "investimento");
+    check("aporte: o caixa cai 80.000 (Visão geral e planejador iguais)", Math.round((caixa0 - (await caixa())) * 100) === 8_000_000 && planejador0 - (await caixaDoPlanejador()) === 8_000_000, { caixa0, agora: await caixa() });
+    check("aporte não entra na DRE", JSON.stringify(await dre()) === JSON.stringify(dre0), { dre0, agora: await dre() });
+    check("a carteira passa a valer 80.000", Math.round(((await totalDaCarteira()) - carteira0) * 100) === 8_000_000);
+
+    // Rendimento pelo bruto do banco: 83.920 → rendimento 3.920 e IR sugerido 20% = 784 (os números do mock).
+    const r = await registrarRendimentoNoBanco({ investimentoId: cdb.id, brutoInformado: 83_920, data: diasAtras(0) }, autorId);
+    check("rendimento = bruto informado − bruto do sistema; IR pela tabela regressiva (20%)", r.rendimento === 3_920_00 && r.ir === 784_00, r);
+    const p1 = await posicaoNoBanco(prisma, cdb.contaId);
+    check("valor atual 83.136 = 80.000 + 3.920 − 784", p1.valorAtual === 83_136_00, p1);
+    check("rendimento e IR NÃO mexem no caixa (o dinheiro está aplicado)", Math.round((caixa0 - (await caixa())) * 100) === 8_000_000);
+    const d1 = await dre();
+    check("rendimento entra na DRE como receita e o IR como despesa", Math.round((d1.receitas - dre0.receitas) * 100) === 3_920_00 && Math.round((d1.despesas - dre0.despesas) * 100) === 784_00, { dre0, d1 });
+    const menor = await erroDe(registrarRendimentoNoBanco({ investimentoId: cdb.id, brutoInformado: 80_000, data: hoje }, autorId));
+    check("bruto menor que o do sistema é recusado", menor?.includes("menor") === true, menor);
+
+    // Planejador: vencimento dentro do horizonte vira entrada prevista.
+    const base = await baseDoPlanejador({ horizonteDias: 180 });
+    const ev = base.eventos.find((e) => e.id === `inv:${cdb.id}`);
+    check("vencimento da aplicação entra no planejador como entrada prevista, data travada", ev?.valor === 83_136_00 && ev.tipo === "receita" && ev.naoProgramavel != null, ev);
+
+    // Balanço: linha própria, fora do caixa.
+    const b = await balancoGerencial();
+    check("Balanço: investimentos separados do caixa e somados ao ativo", Math.round((b.ativo - b.caixa - b.investimentos - b.aReceber) * 100) === 0 && b.investimentos >= 83_136, b);
+
+    // Não arquiva com valor; não exclui com movimento.
+    check("não arquiva com valor aplicado", (await erroDe(arquivarNoBanco(cdb.id, true)))?.includes("resgate tudo") === true);
+    check("não exclui com movimento", (await erroDe(excluirInvestimentoNoBanco(cdb.id)))?.includes("Tem movimentos") === true);
+
+    // Resgate parcial: só transferência.
+    await resgatarNoBanco({ investimentoId: cdb.id, contaId: corrente.id, valorRecebido: 10_000, data: hoje, total: false }, autorId);
+    check("resgate parcial devolve 10.000 ao caixa e baixa o ativo", Math.round((caixa0 - (await caixa())) * 100) === 7_000_000 && (await posicaoNoBanco(prisma, cdb.contaId)).valorAtual === 73_136_00);
+    check("resgate parcial maior que o valor atual é recusado", (await erroDe(resgatarNoBanco({ investimentoId: cdb.id, contaId: corrente.id, valorRecebido: 999_999, data: hoje, total: false }, autorId)))?.includes("maior") === true);
+
+    // Resgate total recebendo menos (IR real maior): a diferença vira imposto, o ativo zera e arquiva.
+    const rt = await resgatarNoBanco({ investimentoId: cdb.id, contaId: corrente.id, valorRecebido: 73_000, data: hoje, total: true }, autorId);
+    const pFim = await posicaoNoBanco(prisma, cdb.contaId);
+    check("resgate total: a diferença (136) vira IR e o ativo zera", rt.ajuste?.tipo === "imposto" && rt.ajuste.valor === 136_00 && pFim.valorAtual === 0, { rt, pFim });
+    check("resgate total arquiva o ativo", (await prisma.investimento.findUniqueOrThrow({ where: { id: cdb.id }, select: { arquivado: true } })).arquivado);
+    // −80.000 do aporte + 10.000 + 73.000 dos resgates = +3.000 = rendimento 3.920 − IR 784 − 136 de IR acertado.
+    check("no fim o caixa ganhou exatamente o rendimento líquido (+3.000)", Math.round(((await caixa()) - caixa0) * 100) === 300_000, (await caixa()) - caixa0);
+
+    // Excluir o resgate total devolve o ativo à carteira.
+    const legResgate = await prisma.lancamento.findFirstOrThrow({ where: { contaId: cdb.contaId, transferenciaId: { not: null }, tipo: "despesa", valor: 73_000 }, select: { id: true } });
+    await excluirMovimentoNoBanco({ investimentoId: cdb.id, lancamentoId: legResgate.id }, autorId);
+    check("excluir o resgate total traz o ativo de volta à carteira", !(await prisma.investimento.findUniqueOrThrow({ where: { id: cdb.id }, select: { arquivado: true } })).arquivado);
+
+    // LCI isenta: IR sugerido zero. Ativo sem movimento se exclui (e leva a conta).
+    const lci = await criarInvestimentoNoBanco({ nome: `${tag} LCI`, tipo: "lci", liquidez: "vencimento", isentoIR: true, aporte: { valor: 1_000, data: diasAtras(30), contaId: corrente.id } }, autorId);
+    ids.push(lci.id);
+    const rl = await registrarRendimentoNoBanco({ investimentoId: lci.id, brutoInformado: 1_010, data: hoje }, autorId);
+    check("ativo isento (LCI): IR zero", rl.ir === 0 && rl.rendimento === 10_00, rl);
+    const antesDoAporte = await caixa();
+    await aportarNoBanco({ investimentoId: lci.id, contaId: corrente.id, valor: 500, data: hoje }, autorId);
+    check("aporte adicional: o aplicado sobe e o caixa cai o mesmo valor", (await posicaoNoBanco(prisma, lci.contaId)).aplicado === 1_500_00 && Math.round((antesDoAporte - (await caixa())) * 100) === 500_00);
+    const vazio = await criarInvestimentoNoBanco({ nome: `${tag} vazio`, tipo: "fundo", liquidez: "diaria", isentoIR: false }, autorId);
+    await excluirInvestimentoNoBanco(vazio.id);
+    check("ativo sem movimento se exclui junto com a conta dele", (await prisma.contaBancaria.count({ where: { id: vazio.contaId } })) === 0);
+
+    // A conta do ativo não aparece nas opções dos formulários de lançamento.
+    const { opcoesLancamento } = await import("../src/modules/financeiro/lancamentos/queries");
+    check("a conta do ativo não é oferecida nos lançamentos comuns", !(await opcoesLancamento()).contas.some((c) => c.id === cdb.contaId));
+  } finally {
+    const invs = await prisma.investimento.findMany({ where: { nome: { startsWith: tag } }, select: { id: true, contaId: true } });
+    const contas = [...invs.map((i) => i.contaId), corrente.id];
+    await prisma.lancamento.deleteMany({ where: { contaId: { in: contas }, excluidoEm: { not: undefined } } });
+    await prisma.investimento.deleteMany({ where: { id: { in: invs.map((i) => i.id) } } });
+    await prisma.contaBancaria.deleteMany({ where: { id: { in: contas } } });
+    void ids;
   }
 }
 

@@ -24,7 +24,7 @@ export default async function BalancoPage() {
 
   return (
     <div className="space-y-5">
-      <CabecalhoPagina titulo="Balanço gerencial" descricao="Posição simplificada base caixa: caixa + a receber = ativo; a pagar = passivo; PL = ativo − passivo." />
+      <CabecalhoPagina titulo="Balanço gerencial" descricao="Posição simplificada: caixa + investimentos + a receber = ativo; a pagar = passivo; PL = ativo − passivo." />
       <NavFinanceiro />
       <NavResultados />
 
@@ -37,6 +37,7 @@ export default async function BalancoPage() {
           <CardContent>
             <ul className="divide-y text-sm">
               {linha("Caixa e bancos", b.caixa)}
+              {linha("Investimentos", b.investimentos)}
               {linha("Contas a receber", b.aReceber)}
             </ul>
           </CardContent>
@@ -65,7 +66,7 @@ export default async function BalancoPage() {
 
       <p className="rounded-sm border border-dashed p-3 text-xs text-muted-foreground">
         Visão gerencial (base caixa), não um Balanço contábil formal — o sistema não usa partidas
-        dobradas nem registra imobilizado/empréstimos. Ativo = saldo das contas + recebíveis previstos;
+        dobradas nem registra imobilizado/empréstimos. Ativo = saldo das contas + valor atual dos investimentos + recebíveis previstos;
         passivo = pagamentos previstos.
       </p>
     </div>

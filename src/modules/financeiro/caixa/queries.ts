@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { saldoBase } from "@/modules/financeiro/liquidez/saldo-base";
+import { idsContasDeInvestimento } from "@/modules/financeiro/investimentos/service";
 import { paraCentavos, paraReais } from "@/modules/financeiro/liquidez/dinheiro";
 import { SEM_TRANSFERENCIA } from "@/modules/financeiro/natureza";
 import { agruparLinhas, serieDiaria, totaisDoFluxo, type Agrupamento, type LinhaDiaria, type MovimentoRealizado, type TotaisDoFluxo } from "@/modules/financeiro/caixa/diario";
@@ -61,10 +62,13 @@ export async function fluxoDiario(o: { diasAtras?: number; horizonteDias?: numbe
 
   const de = somarDias(base.hoje, -diasAtras);
   const ate = projecao.fim;
+  const contasDeAtivo = await idsContasDeInvestimento();
   const realizadas = await prisma.lancamento.findMany({
     where: {
       status: "confirmado",
       excluidoEm: null,
+      // M4: rendimento e IR na conta de um investimento não são caixa (`contaId: null` continua entrando).
+      ...(contasDeAtivo.length ? { OR: [{ contaId: null }, { contaId: { notIn: contasDeAtivo } }] } : {}),
       dataConfirmacao: { gte: new Date(`${de}T00:00:00.000Z`), lte: new Date(`${base.hoje}T23:59:59.999Z`) },
       ...SEM_TRANSFERENCIA,
     },
@@ -111,7 +115,7 @@ export async function fluxoDiario(o: { diasAtras?: number; horizonteDias?: numbe
  * movimentos confirmados recentes. Considera valorEfetivo quando houver.
  */
 export async function fluxoCaixa(limiteMovimentos = 50) {
-  const [contas, confirmados] = await Promise.all([
+  const [todasAtivas, confirmados, fora] = await Promise.all([
     prisma.contaBancaria.findMany({ where: { ativo: true }, orderBy: { ordem: "asc" } }),
     prisma.lancamento.findMany({
       where: { status: "confirmado" },
@@ -121,7 +125,11 @@ export async function fluxoCaixa(limiteMovimentos = 50) {
         conta: { select: { id: true, nome: true } },
       },
     }),
+    idsContasDeInvestimento(),
   ]);
+  // M4: a conta de um investimento não é caixa — o dinheiro está aplicado.
+  const contasFora = new Set(fora);
+  const contas = todasAtivas.filter((c) => !contasFora.has(c.id));
 
   // A conta do caixa atual mora em `saldoBase` (pura, testada) e é a MESMA que o planejador usa
   // como ponto de partida — a Visão geral e o planejador nunca mostram dois caixas diferentes.
@@ -133,6 +141,7 @@ export async function fluxoCaixa(limiteMovimentos = 50) {
       valor: paraCentavos(l.valorEfetivo ?? l.valor),
       dataConfirmacao: l.dataConfirmacao ? isoDeDataDoBanco(l.dataConfirmacao) : null,
     })),
+    contasFora,
   );
 
   const contasComSaldo = contas.map((c) => ({
@@ -142,10 +151,11 @@ export async function fluxoCaixa(limiteMovimentos = 50) {
   }));
   const saldoTotal = paraReais(base.total);
 
-  const entradas = confirmados
+  const doCaixa = confirmados.filter((l) => !(l.contaId && contasFora.has(l.contaId)));
+  const entradas = doCaixa
     .filter((l) => l.tipo === "receita")
     .reduce((s, l) => s + Number(l.valorEfetivo ?? l.valor), 0);
-  const saidas = confirmados
+  const saidas = doCaixa
     .filter((l) => l.tipo === "despesa")
     .reduce((s, l) => s + Number(l.valorEfetivo ?? l.valor), 0);
 

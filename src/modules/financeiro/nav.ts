@@ -47,6 +47,7 @@ const MOVIMENTACOES: readonly ItemNavFinanceiro[] = [
   { id: "extrato", href: "/financeiro/extrato", rotulo: "Extrato por conta", desc: "Saldo corrido e conciliação", gate: "ver", novo: true },
   { id: "conciliacao", href: "/financeiro/conciliacao", rotulo: "Conciliação", desc: "Extrato do banco × lançamentos", gate: "conciliar" },
   { id: "cartoes", href: "/financeiro/cartoes", rotulo: "Cartões de crédito", desc: "Faturas e cartão pessoal do sócio", gate: "ver", novo: true },
+  { id: "investimentos", href: "/financeiro/investimentos", rotulo: "Investimentos", desc: "Carteira por ativo, fora do caixa", gate: "ver", novo: true },
   { id: "planejamento", href: "/financeiro/planejamento", rotulo: "Pagamentos em lote", desc: "Quais contas cabem no saldo", gate: "gerir" },
 ];
 

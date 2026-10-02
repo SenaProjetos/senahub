@@ -69,7 +69,8 @@ export async function opcoesLancamento() {
   const [categorias, centros, contas, formas, projetos, fornecedores, clientes, caixinhas] = await Promise.all([
     prisma.categoriaFinanceira.findMany({ where: { ativo: true }, orderBy: { codigo: "asc" }, select: { id: true, codigo: true, nome: true, tipo: true } }),
     prisma.centroCusto.findMany({ where: { ativo: true }, orderBy: { ordem: "asc" }, select: { id: true, nome: true } }),
-    prisma.contaBancaria.findMany({ where: { ativo: true }, orderBy: { ordem: "asc" }, select: { id: true, nome: true } }),
+    // M4: a conta de um investimento só se mexe pela tela de Investimentos (aporte, resgate, rendimento).
+    prisma.contaBancaria.findMany({ where: { ativo: true, investimento: null }, orderBy: { ordem: "asc" }, select: { id: true, nome: true } }),
     prisma.formaPagamento.findMany({ where: { ativo: true }, orderBy: { ordem: "asc" }, select: { id: true, nome: true } }),
     prisma.projeto.findMany({ orderBy: [{ ano: "desc" }, { sequencial: "desc" }], select: { id: true, codigo: true, nome: true } }),
     prisma.fornecedor.findMany({ where: { ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),

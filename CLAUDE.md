@@ -391,6 +391,20 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   re-arms the notice. Card purchases collapse to one bill per `faturaId`; transfer legs, `previsao` and
   `aguardando_aprovacao` never notify. Pure rules in `regras.ts`; `service.ts` takes the sender/notifier as parameters so the
   smoke runs the same code without SMTP. New notification category `conta_a_pagar` (opt-out in Preferências).
+- **Investments** (M4, `financeiro/investimentos/`, spec `docs/superpowers/specs/2026-10-02-financeiro-investimentos.md`):
+  each `Investimento` OWNS one `ContaBancaria` (tipo `investimento`, `Investimento.contaId` unique) whose balance IS the
+  current value. Aporte/resgate are M8 transfers between it and a checking account (`criarTransferenciaNoTx`); yield is a
+  realized receita (chave `receita_rendimento_aplicacao`) and IR/IOF a realized despesa (chave `despesa_ir_aplicacao`) IN
+  that account — so they hit the DRE but never cash. Movements have NO table: `calculo.ts` reads them from the account's
+  lançamentos (transfer leg in = aporte, out = resgate, plain receita = rendimento, plain despesa = imposto). **An account
+  linked to an Investimento is NOT cash**: `saldoBase(…, contasFora)` skips it entirely (not even "sem conta"), and
+  `fluxoCaixa`, `baseDoPlanejador`, the realized side of `fluxoDiario` and `opcoesLancamento` exclude it via
+  `idsContasDeInvestimento()` — a new cash reader must too. The rule is the LINK, not the account tipo (old tipo-investimento
+  accounts without an ativo keep their behavior). Balanço gets an "Investimentos" line (`totalDaCarteira`); an ativo with
+  liquidez "vencimento" inside the horizon becomes a planner event `inv:<id>` (origem `investimento`, date not adjustable).
+  Registrar rendimento takes the BANK's gross value; IR suggestion = regressive rate (from first aporte) on all yield minus
+  IR already booked. Resgate total: the amount received wins, the difference becomes rendimento or imposto, the ativo zeroes
+  and is archived.
 - **Dates in the Financeiro are São Paulo calendar days** (N2, `lib/data.ts`): "today" to WRITE into a date column
   is `hojeParaBanco()` (UTC midnight of the SP day) and to compare is `diaDeSaoPaulo()` — a bare `new Date()` is
   tomorrow after 21h BRT. Period limits on date columns (`@db.Date`: `data`, `dataConfirmacao`, `dataCompetencia`)

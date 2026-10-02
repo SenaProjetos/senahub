@@ -67,10 +67,15 @@ async function contasDaTransferencia(tx: Tx, origemId: string, destinoId: string
 
 /** Cria o par: despesa na origem + receita no destino, mesmo valor, mesmo `transferenciaId`. */
 export async function criarTransferenciaNoBanco(i: NovaTransferencia, autorId: string): Promise<{ transferenciaId: string; pernas: [string, string] }> {
+  return prisma.$transaction((tx) => criarTransferenciaNoTx(tx, i, autorId));
+}
+
+/** O mesmo, dentro de uma transação de quem chama (aporte e resgate de investimento, M4). */
+export async function criarTransferenciaNoTx(tx: Tx, i: NovaTransferencia, autorId: string): Promise<{ transferenciaId: string; pernas: [string, string] }> {
   const centavos = Math.round(i.valor * 100);
   const m = motivoParaNaoCriar({ origemId: i.origemId, destinoId: i.destinoId, valorCentavos: centavos });
   if (m) throw new ActionError(m);
-  return prisma.$transaction(async (tx) => {
+  {
     const { origem, destino } = await contasDaTransferencia(tx, i.origemId, i.destinoId);
     // N5: o movimento cai no mês da data escolhida.
     await exigirPeriodoAberto(tx, [dia(i.data)]);
@@ -97,7 +102,7 @@ export async function criarTransferenciaNoBanco(i: NovaTransferencia, autorId: s
       select: { id: true },
     });
     return { transferenciaId, pernas: [saida.id, entrada.id] };
-  });
+  }
 }
 
 /** Lê as pernas vivas do par, com o que a regra pura e a trava de período precisam. */
