@@ -330,6 +330,14 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   `natureza-nas-consultas` guard. Changing the delete password needs the current one; `seed:demo` refuses a
   database whose name doesn't end in `_remake|_dev|_test|_vscode`; the OFX/import/DRE/rentabilidade routes use
   the same gate as their screens (`conciliar`, `resultados`).
+- **Financeiro navigation** (M0, `financeiro/nav.ts`, mock approved 2026-10-02): 3 direct links (Visão geral,
+  Lançamentos, Contas) + 4 menus (Movimentações, Planejamento, Resultados, Mais), each item gated by the SAME
+  permission as its page and covered by a test that every href has a `page.tsx` — a screen's link enters the menu
+  only when the page exists. "Contas" has two tabs by `?situacao=pagas`; the Orçamento tab of the Resultados strip
+  comes from Planejamento. **Extrato por conta** (`financeiro/extrato/`, pure `calculo.ts`): one account's realized
+  lançamentos by payment date, in cents, saldo inicial + entradas − saídas = saldo final; transfer legs count,
+  lançamento WITHOUT conta belongs to no account (the livro caixa has its own "Sem conta" checkbox — it used to
+  enter every account selection). `ExtratoBancario.saldoBanco/saldoBancoEm` (OFX `LEDGERBAL`) feed the bank-balance check.
 - **Dates in the Financeiro are São Paulo calendar days** (N2, `lib/data.ts`): "today" to WRITE into a date column
   is `hojeParaBanco()` (UTC midnight of the SP day) and to compare is `diaDeSaoPaulo()` — a bare `new Date()` is
   tomorrow after 21h BRT. Period limits on date columns (`@db.Date`: `data`, `dataConfirmacao`, `dataCompetencia`)

@@ -66,7 +66,7 @@ extrato de novo não a traz de volta.
 ## Importação de planilha
 
 ### Como acessar
-- Menu → **Financeiro** → **Importar dados** (`/financeiro/importar`). Exige
+- Menu → **Financeiro** → **Mais** → **Importar planilha** (`/financeiro/importar`). Exige
   `financeiro:gerir`.
 
 ### Para que serve

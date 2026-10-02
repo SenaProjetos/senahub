@@ -20,6 +20,7 @@
  *       concilia sozinho no fechado; saldo das contas no fim do mês.
  *   N6. Tipo categoria × lançamento, categoria do sistema pela chave, cliente no faturamento, natureza fora do módulo.
  *   N7. Taxa de ART: despesa + reembolso, categoria pela chave, baixada não muda, cancelar não desfaz o pago.
+ *   M0. Extrato por conta (saldo anterior, entradas/saídas pelo valor pago, sem conta fora) e Pagas e recebidas.
  *   A8. Desfazer importação: barrado com linha trabalhada, exclusão lógica no lote intocado, dedup
  *       que enxerga a linha excluída à mão mas não a do lote desfeito.
  *
@@ -50,6 +51,8 @@ import { exigirPeriodoAberto } from "../src/modules/financeiro/fechamento/trava-
 import { saldosDasContasNoFimDoMes } from "../src/modules/financeiro/fechamento/queries";
 import { acharCategoriaDoSistema } from "../src/modules/financeiro/categorias-sistema";
 import { alertaInadimplencia } from "../src/lib/jobs-handlers";
+import { extratoDaConta } from "../src/modules/financeiro/extrato/queries";
+import { dadosPagas } from "../src/modules/financeiro/lancamentos/queries";
 import { hashesExistentes } from "../src/modules/financeiro/importacao/queries";
 import { normalizarLinhas } from "../src/modules/financeiro/importacao/processar";
 
@@ -107,6 +110,7 @@ async function main() {
     await travaDoPeriodo(admin.id);
     await categoriasEConsistencia(admin.id);
     await taxaDeArt(admin.id);
+    await extratoEPagas(admin.id);
   } finally {
     const pags = (await prisma.pagamentoProjetista.findMany({ where: { disciplinaId: disciplina.id }, select: { id: true } })).map((p) => p.id);
     await prisma.lancamento.deleteMany({ where: { OR: [{ projetoId: projeto.id }, { pagamentoProjetistaId: { in: pags } }, { descricao: { startsWith: tag } }] } });
@@ -684,6 +688,41 @@ async function taxaDeArt(autorId: string) {
     await prisma.lancamento.deleteMany({ where: { projetoId: projeto.id, excluidoEm: { not: undefined } } });
     await prisma.projeto.delete({ where: { id: projeto.id } });
     await prisma.cliente.delete({ where: { id: cliente.id } });
+  }
+}
+
+async function extratoEPagas(autorId: string) {
+  console.log("\n# M0 — Extrato por conta e Pagas e recebidas");
+  const cat = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "despesa", natureza: "resultado" }, select: { id: true } });
+  const catR = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "receita", natureza: "resultado" }, select: { id: true } });
+  if (!cat || !catR) return check("categorias existem", false);
+  const conta = await prisma.contaBancaria.create({ data: { nome: `${tag} extrato`, tipo: "corrente", saldoInicial: 1000 } });
+  const novo = (p: Record<string, unknown>) =>
+    prisma.lancamento.create({
+      data: { tipo: "despesa", descricao: `${tag} ext`, valor: 100, status: "confirmado", data: dia("2048-05-10"), dataConfirmacao: dia("2048-05-10"), categoriaId: cat.id, autorId, ...p },
+      select: { id: true },
+    });
+  try {
+    await novo({ tipo: "receita", categoriaId: catR.id, valor: 500, contaId: conta.id, dataConfirmacao: dia("2048-04-20"), data: dia("2048-04-20") });
+    await novo({ tipo: "receita", categoriaId: catR.id, valor: 3000, contaId: conta.id, dataConfirmacao: dia("2048-05-02"), data: dia("2048-05-02") });
+    await novo({ valor: 400, valorEfetivo: 380, contaId: conta.id, dataConfirmacao: dia("2048-05-06") });
+    await novo({ valor: 70, contaId: null });
+    await novo({ valor: 999, contaId: conta.id, dataConfirmacao: dia("2048-06-03"), data: dia("2048-06-03") });
+    const d = await extratoDaConta(conta.id, "2048-05");
+    const e = d.extrato;
+    check("saldo anterior = inicial + o realizado antes do mês (1.000 + 500)", e.saldoAnteriorCentavos === 150_000, e.saldoAnteriorCentavos);
+    check("entradas 3.000 e saídas 380 (o pago, não o previsto)", e.entradasCentavos === 300_000 && e.saidasCentavos === 38_000, e);
+    check("saldo final = anterior + entradas − saídas (1.500 + 3.000 − 380)", e.saldoFinalCentavos === 412_000, e.saldoFinalCentavos);
+    check("lançamento sem conta fica fora do extrato e é contado à parte", e.linhas.length === 2 && d.semConta === 1, { n: e.linhas.length, semConta: d.semConta });
+    check("movimento de junho não entra no extrato de maio", !e.linhas.some((l) => l.efeitoCentavos === -99_900));
+
+    const pagas = await dadosPagas("2048-05");
+    const nossas = pagas.filter((l) => l.descricao === `${tag} ext`);
+    check("Pagas e recebidas do mês: pela data do pagamento (3 de maio + sem conta; junho e abril fora)", nossas.length === 3, nossas.length);
+    check("o valor pago parcial vem em valorEfetivo", nossas.some((l) => l.valorEfetivo === 380), nossas.map((l) => l.valorEfetivo));
+  } finally {
+    await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: tag }, excluidoEm: { not: undefined } } });
+    await prisma.contaBancaria.delete({ where: { id: conta.id } });
   }
 }
 

@@ -162,7 +162,7 @@ export function ImportadorView({ importacoes, subnav }: { importacoes: Importaca
 
   return (
     <div className="space-y-5">
-      <CabecalhoPagina titulo="Importar dados financeiros" descricao="Migre uma planilha do Meu Dinheiro (ou outro ERP). Os cadastros referenciados são criados automaticamente." />
+      <CabecalhoPagina titulo="Importar planilha" descricao="Migre uma planilha do Meu Dinheiro (ou outro ERP). Os cadastros referenciados são criados automaticamente." />
       {subnav}
 
       <Passos step={step} />

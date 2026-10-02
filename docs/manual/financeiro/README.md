@@ -36,7 +36,8 @@ O que você vê no financeiro depende de **3 níveis**:
 | [Sócios, pró-labore e compromissos recorrentes](socios-e-recorrentes.md) | `/financeiro/cadastros` | ✅ documentado |
 | [Pagamentos em lote](pagamentos-em-lote.md) | `/financeiro/planejamento` | ✅ documentado |
 | [Lançamentos](lancamentos.md) | `/financeiro/lancamentos` | ✅ documentado |
-| [Contas a pagar e receber + Aging](contas-e-aging.md) | `/financeiro/contas` | ✅ documentado |
+| [Contas (em aberto e pagas) + Aging](contas-e-aging.md) | `/financeiro/contas` | ✅ documentado |
+| [Extrato por conta](extrato-por-conta.md) | `/financeiro/extrato` | ✅ documentado |
 | [Conciliação bancária (OFX) e Importação](conciliacao-ofx.md) | `/financeiro/conciliacao` · `/importar` | ✅ documentado |
 | [Aprovações (alçadas)](aprovacoes.md) | `/financeiro/aprovacoes` | ✅ documentado |
 | [Relatórios gerenciais](relatorios.md) | `/financeiro/relatorios` e afins | ✅ documentado |

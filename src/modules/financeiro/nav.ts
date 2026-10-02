@@ -24,47 +24,60 @@ export type ItemNavFinanceiro = {
   id: string;
   href: string;
   rotulo: string;
+  /** Uma linha sob o rótulo, nos menus que abrem. */
+  desc?: string;
   gate: Gate;
   /** Só a rota exata marca este item como atual (a raiz do Financeiro). */
   exato?: boolean;
-  /** Query que distingue itens da mesma rota (A pagar × A receber). */
-  query?: { chave: string; valor: string | null };
-  /** Outras rotas que pertencem a este item (os Cenários salvos são parte do Planejador). */
+  /** Outras rotas que pertencem a este item. */
   tambemEm?: readonly string[];
+  /** Tela nova: ganha o selo "novo" no menu. */
+  novo?: boolean;
 };
 
+// Mock aprovado em 2026-10-02 (canvas "Financeiro — menu e novas telas"): 3 links diretos e 4 menus.
 const PRINCIPAIS: readonly ItemNavFinanceiro[] = [
   { id: "visao", href: "/financeiro", rotulo: "Visão geral", gate: "ver", exato: true },
-  { id: "planejador", href: "/financeiro/planejador", rotulo: "Planejador de caixa", gate: "ver", tambemEm: ["/financeiro/cenarios"] },
-  { id: "fluxo", href: "/financeiro/fluxo-caixa", rotulo: "Fluxo de caixa", gate: "ver" },
-  { id: "pagar", href: "/financeiro/contas", rotulo: "A pagar", gate: "ver", query: { chave: "tab", valor: null } },
-  { id: "receber", href: "/financeiro/contas?tab=receita", rotulo: "A receber", gate: "ver", query: { chave: "tab", valor: "receita" } },
   { id: "lancamentos", href: "/financeiro/lancamentos", rotulo: "Lançamentos", gate: "ver" },
-  { id: "caixinhas", href: "/financeiro/caixinhas", rotulo: "Caixinhas", gate: "ver", tambemEm: ["/financeiro/distribuicao"] },
+  { id: "contas", href: "/financeiro/contas", rotulo: "Contas", gate: "ver", tambemEm: ["/financeiro/contas-a-pagar", "/financeiro/contas-a-receber"] },
+];
+
+const MOVIMENTACOES: readonly ItemNavFinanceiro[] = [
+  { id: "fluxo", href: "/financeiro/fluxo-caixa", rotulo: "Fluxo de caixa", desc: "Dia a dia, realizado e previsto", gate: "ver" },
+  { id: "extrato", href: "/financeiro/extrato", rotulo: "Extrato por conta", desc: "Saldo corrido e conciliação", gate: "ver", novo: true },
+  { id: "conciliacao", href: "/financeiro/conciliacao", rotulo: "Conciliação", desc: "Extrato do banco × lançamentos", gate: "conciliar" },
+  { id: "planejamento", href: "/financeiro/planejamento", rotulo: "Pagamentos em lote", desc: "Quais contas cabem no saldo", gate: "gerir" },
+];
+
+const PLANEJAMENTO: readonly ItemNavFinanceiro[] = [
+  { id: "planejador", href: "/financeiro/planejador", rotulo: "Planejador de caixa", desc: "Simular antes de decidir", gate: "ver" },
+  { id: "cenarios", href: "/financeiro/cenarios", rotulo: "Cenários salvos", desc: "Simulações guardadas", gate: "ver" },
+  { id: "caixinhas", href: "/financeiro/caixinhas", rotulo: "Caixinhas", desc: "Reservas para o que já tem destino", gate: "ver" },
+  { id: "distribuicao", href: "/financeiro/distribuicao", rotulo: "Regras de distribuição", desc: "Como dividir cada recebimento", gate: "ver" },
+  { id: "orcamento", href: "/financeiro/orcamento", rotulo: "Orçamento anual", desc: "Planejado × realizado", gate: "ver" },
 ];
 
 const RESULTADOS: readonly ItemNavFinanceiro[] = [
-  { id: "dre", href: "/financeiro/relatorios", rotulo: "DRE e indicadores", gate: "resultados" },
-  { id: "rentabilidade", href: "/financeiro/rentabilidade", rotulo: "Rentabilidade por projeto", gate: "resultados" },
-  { id: "dfc", href: "/financeiro/dfc", rotulo: "DFC", gate: "resultados" },
-  { id: "balanco", href: "/financeiro/balanco", rotulo: "Balanço gerencial", gate: "resultados" },
-  { id: "orcamento", href: "/financeiro/orcamento", rotulo: "Orçamento anual", gate: "ver" },
+  { id: "dre", href: "/financeiro/relatorios", rotulo: "DRE e indicadores", desc: "Caixa ou competência", gate: "resultados" },
+  { id: "dfc", href: "/financeiro/dfc", rotulo: "DFC", desc: "Por atividade", gate: "resultados" },
+  { id: "balanco", href: "/financeiro/balanco", rotulo: "Balanço gerencial", desc: "Caixa, a receber, a pagar", gate: "resultados" },
+  { id: "rentabilidade", href: "/financeiro/rentabilidade", rotulo: "Rentabilidade por projeto", desc: "Receita, custo e margem", gate: "resultados" },
 ];
 
 const MAIS: readonly ItemNavFinanceiro[] = [
-  { id: "producao", href: "/financeiro/folha-projetistas", rotulo: "Produção (projetistas)", gate: "folhaPj" },
-  { id: "aprovacoes", href: "/financeiro/aprovacoes", rotulo: "Aprovações", gate: "aprovar" },
-  { id: "conciliacao", href: "/financeiro/conciliacao", rotulo: "Conciliação", gate: "conciliar" },
-  { id: "importar", href: "/financeiro/importar", rotulo: "Importar extrato", gate: "conciliar" },
-  { id: "planejamento", href: "/financeiro/planejamento", rotulo: "Pagamentos em lote", gate: "gerir" },
-  { id: "fechamento", href: "/financeiro/fechamento", rotulo: "Fechamento mensal", gate: "fechar" },
-  { id: "documentos", href: "/financeiro/documentos", rotulo: "Documentos", gate: "ver" },
-  { id: "cadastros", href: "/financeiro/cadastros", rotulo: "Cadastros", gate: "gerir" },
-  { id: "configuracoes", href: "/financeiro/configuracoes", rotulo: "Configurações", gate: "gerir" },
+  { id: "producao", href: "/financeiro/folha-projetistas", rotulo: "Produção", desc: "Pagamento de projetistas", gate: "folhaPj" },
+  { id: "aprovacoes", href: "/financeiro/aprovacoes", rotulo: "Aprovações", desc: "Despesas na alçada", gate: "aprovar" },
+  { id: "documentos", href: "/financeiro/documentos", rotulo: "Documentos", desc: "NF, contratos, medições", gate: "ver" },
+  { id: "importar", href: "/financeiro/importar", rotulo: "Importar planilha", desc: "Meu Dinheiro e outras", gate: "conciliar" },
+  { id: "fechamento", href: "/financeiro/fechamento", rotulo: "Fechamento mensal", desc: "Trava o mês fechado", gate: "fechar" },
+  { id: "cadastros", href: "/financeiro/cadastros", rotulo: "Cadastros", desc: "Plano de contas, contas, centros", gate: "gerir" },
+  { id: "configuracoes", href: "/financeiro/configuracoes", rotulo: "Configurações", desc: "Alçadas, campos obrigatórios", gate: "gerir" },
 ];
 
 export type NavFinanceiro = {
   principais: ItemNavFinanceiro[];
+  movimentacoes: ItemNavFinanceiro[];
+  planejamento: ItemNavFinanceiro[];
   resultados: ItemNavFinanceiro[];
   mais: ItemNavFinanceiro[];
 };
@@ -72,16 +85,22 @@ export type NavFinanceiro = {
 /** Itens que o usuário alcança. Grupo vazio some (quem só tem `ver` não vê "Mais" vazio). */
 export function itensDaNavFinanceiro(f: FlagsNavFinanceiro): NavFinanceiro {
   const passa = (i: ItemNavFinanceiro) => f[i.gate];
-  return { principais: PRINCIPAIS.filter(passa), resultados: RESULTADOS.filter(passa), mais: MAIS.filter(passa) };
+  return {
+    principais: PRINCIPAIS.filter(passa),
+    movimentacoes: MOVIMENTACOES.filter(passa),
+    planejamento: PLANEJAMENTO.filter(passa),
+    resultados: RESULTADOS.filter(passa),
+    mais: MAIS.filter(passa),
+  };
 }
 
-/** O item é o da página atual? `tab` só importa nos itens que a distinguem por query. */
-export function itemAtual(item: ItemNavFinanceiro, pathname: string, tab: string | null): boolean {
-  if (item.query) {
-    const base = item.href.split("?")[0];
-    if (pathname !== base) return false;
-    return (tab ?? null) === item.query.valor || (item.query.valor === null && tab !== "receita");
-  }
+/** Todos os itens de todos os grupos. */
+export function todosOsItens(n: NavFinanceiro): ItemNavFinanceiro[] {
+  return [...n.principais, ...n.movimentacoes, ...n.planejamento, ...n.resultados, ...n.mais];
+}
+
+/** O item é o da página atual? */
+export function itemAtual(item: ItemNavFinanceiro, pathname: string): boolean {
   const casa = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   if (item.tambemEm?.some(casa)) return true;
   return item.exato ? pathname === item.href : casa(item.href);

@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import { requireUser } from "@/lib/session";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { FinanceiroNav } from "@/components/financeiro/financeiro-nav";
-import { itensDaNavFinanceiro } from "@/modules/financeiro/nav";
+import { itensDaNavFinanceiro, todosOsItens } from "@/modules/financeiro/nav";
+import { totalContasVencidas } from "@/modules/financeiro/lancamentos/queries";
 import { totalAguardando } from "@/modules/financeiro/aprovacao/queries";
 import { totalTransacoesPendentes } from "@/modules/financeiro/conciliacao/queries";
 
@@ -23,16 +24,17 @@ export async function NavFinanceiro() {
     can(user, "financeiro", "folha_pj"),
   ]);
   const nav = itensDaNavFinanceiro({ ver, resultados, aprovar, conciliar, gerir, fechar, folhaPj });
-  if (nav.principais.length + nav.resultados.length + nav.mais.length === 0) return null;
+  if (todosOsItens(nav).length === 0) return null;
 
-  const [aguardando, pendentesConciliacao] = await Promise.all([
+  const [aguardando, pendentesConciliacao, vencidas] = await Promise.all([
     aprovar ? totalAguardando() : 0,
     conciliar ? totalTransacoesPendentes() : 0,
+    ver ? totalContasVencidas() : 0,
   ]);
   // `useSearchParams` no cliente exige Suspense para a página continuar renderizável no servidor.
   return (
     <Suspense fallback={null}>
-      <FinanceiroNav nav={nav} contagens={{ aprovacoes: aguardando, conciliacao: pendentesConciliacao }} />
+      <FinanceiroNav nav={nav} contagens={{ aprovacoes: aguardando, conciliacao: pendentesConciliacao, contas: vencidas }} />
     </Suspense>
   );
 }

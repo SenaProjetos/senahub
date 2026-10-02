@@ -236,7 +236,14 @@ export async function importarOfxNoBanco(p: {
         ),
       );
       const novas = p.transacoes.filter((t) => !existentes.has(t.fitid));
-      const extrato = await tx.extratoBancario.create({ data: { contaId: p.contaId, nomeArquivo: p.nomeArquivo } });
+      const extrato = await tx.extratoBancario.create({
+        data: {
+          contaId: p.contaId,
+          nomeArquivo: p.nomeArquivo,
+          // M0: o Extrato por conta confere o saldo do sistema com o que o banco informou.
+          ...(p.saldoExtrato ? { saldoBanco: p.saldoExtrato.saldo, saldoBancoEm: p.saldoExtrato.data } : {}),
+        },
+      });
       let candidatos = novas.length > 0 ? await candidatosDeConciliacao(tx) : [];
       // N5: transação de mês fechado entra no extrato, mas não é conciliada sozinha.
       const fechados = await mesesFechados(tx);

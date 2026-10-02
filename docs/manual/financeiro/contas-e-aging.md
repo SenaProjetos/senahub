@@ -16,10 +16,23 @@ Acompanhar o que há **a pagar** e **a receber** (lançamentos previstos) e medi
 
 ## Como acessar
 
-- Menu → **Financeiro** → **Contas a pagar e receber** (`/financeiro/contas`). Exige
-  `financeiro:ver`.
-- A tela abre em abas **Despesa** (a pagar) e **Receita** (a receber); o link aceita
+- Menu → **Financeiro** → **Contas** (`/financeiro/contas`). Exige `financeiro:ver`.
+- A tela tem duas abas: **Em aberto** (o que vence) e **Pagas e recebidas** (o que já saiu ou entrou).
+  Dentro de "Em aberto", as abas **Despesa** (a pagar) e **Receita** (a receber); o link aceita
   `?tab=receita`/`?tab=despesa`.
+
+## Aba "Pagas e recebidas"
+
+- Mostra os lançamentos já realizados do mês, pela **data do pagamento**, com o valor previsto e o valor
+  pago (parcial, com desconto ou a mais), a conta e se está **conciliado** com o extrato do banco.
+- Filtros: **Pagas / Recebidas / Todas**, mês (◀ ▶), busca por descrição ou projeto e **Conciliadas / Sem
+  conciliar**. Os totais acompanham o filtro: pago no mês, recebido no mês, quantas faltam conciliar e
+  quanto foi pago a mais ou a menos que o previsto.
+- Botão direito (ou **⋯**) em cada linha: **Detalhes**, **Ver no extrato da conta**, **Copiar descrição** e,
+  para quem gere o financeiro, **Estornar pagamento** (desabilitado, com o motivo, quando já está conciliado
+  ou quando é pagamento de produção — esse se estorna na tela de Produção).
+- Transferência entre contas próprias não aparece aqui (não é conta paga nem recebida); ela está no
+  [Extrato por conta](extrato-por-conta.md).
 
 ## O que a tela mostra
 

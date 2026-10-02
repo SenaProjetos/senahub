@@ -1,6 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
+import { hojeParaBanco, utcFimDoDia, utcInicioDoDia } from "@/lib/data";
+import { SEM_TRANSFERENCIA } from "@/modules/financeiro/natureza";
 
 const INCLUDE = {
   // Prioridade padrão (da categoria e da mãe): a efetiva do planejador, mostrada em Contas.
@@ -106,3 +108,34 @@ export type OpcoesLancamento = Awaited<ReturnType<typeof opcoesLancamento>>;
 export type LancamentoItem = Awaited<ReturnType<typeof listarLancamentos>>[number];
 export type LivroCaixaDados = Awaited<ReturnType<typeof dadosLivroCaixa>>;
 export type LivroCaixaItem = LivroCaixaDados["itens"][number];
+
+/** Contas em aberto já vencidas (selo de "Contas" na barra do Financeiro). Perna de transferência não é cobrança. */
+export async function totalContasVencidas(): Promise<number> {
+  return prisma.lancamento.count({
+    where: { status: "previsto", vencimento: { lt: hojeParaBanco() }, ...SEM_TRANSFERENCIA },
+  });
+}
+
+/**
+ * Pagas e recebidas de um mês (aba de Contas): lançamentos realizados, pela DATA DO PAGAMENTO. Transferência
+ * entre contas próprias fica de fora (não é conta paga nem recebida — aparece no Extrato por conta).
+ */
+export async function dadosPagas(mes: string) {
+  const [ano, m] = mes.split("-").map(Number);
+  const rows = await prisma.lancamento.findMany({
+    where: {
+      status: "confirmado",
+      dataConfirmacao: { gte: utcInicioDoDia(ano, m - 1), lte: utcFimDoDia(ano, m, 0) },
+      ...SEM_TRANSFERENCIA,
+    },
+    orderBy: [{ dataConfirmacao: "desc" }, { createdAt: "desc" }],
+    include: INCLUDE,
+  });
+  return rows.map((l) => ({ ...serializar(l), conciliado: l.transacao != null }));
+}
+export type PagaItem = Awaited<ReturnType<typeof dadosPagas>>[number];
+
+/** Quantas contas estão em aberto (aba "Em aberto"). */
+export async function totalContasEmAberto(): Promise<number> {
+  return prisma.lancamento.count({ where: { status: { in: ["previsto", "aguardando_aprovacao"] } } });
+}

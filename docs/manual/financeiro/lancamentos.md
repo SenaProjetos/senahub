@@ -37,6 +37,12 @@ Campos:
 > forma, projeto, contato (fornecedor/cliente) e/ou observação — veja Configurações do
 > financeiro. Se faltar um campo exigido, o sistema avisa qual é.
 
+## Filtros do livro caixa
+
+- **Conta:** marque as contas que quer ver. Lançamento **sem conta** tem a própria caixa "Sem conta" e não entra
+  mais quando você escolhe só uma conta.
+- **Tag:** filtra pelas etiquetas dos lançamentos (a lista mostra só as que existem).
+
 ## Estados do lançamento
 
 | Estado | Significado |

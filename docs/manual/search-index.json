@@ -1460,13 +1460,45 @@
         "confiança",
         "confirmada pelo cliente",
         "marcar como confirmada",
-        "pagar pela caixinha"
+        "pagar pela caixinha",
+        "pagas e recebidas",
+        "pago no mês",
+        "recebido no mês"
       ],
       "sinonimos": [
         "pendências financeiras",
         "AR",
         "AP",
         "cobranças"
+      ]
+    },
+    {
+      "titulo": "Financeiro — Extrato por conta",
+      "path": "financeiro/extrato-por-conta.md",
+      "descricao": "Saldo corrido de uma conta bancária no mês, com o que já foi conciliado e a conferência com o saldo do banco.",
+      "resumo": "Escolha uma conta e um mês e veja saldo inicial, entradas, saídas e saldo final, linha a linha com saldo corrido e a conciliação à vista; o saldo informado no OFX é conferido com o do sistema.",
+      "tags": [
+        "financeiro",
+        "extrato",
+        "conta bancária",
+        "saldo",
+        "conciliação",
+        "ofx"
+      ],
+      "palavrasChave": [
+        "extrato por conta",
+        "saldo corrido",
+        "saldo inicial",
+        "saldo final",
+        "conciliado",
+        "falta conciliar",
+        "saldo do banco",
+        "lançamento sem conta"
+      ],
+      "sinonimos": [
+        "extrato bancário",
+        "razão da conta",
+        "movimento da conta"
       ]
     },
     {
@@ -1501,7 +1533,8 @@
         "conferir saldo",
         "saldo do banco",
         "desconciliar",
-        "empate"
+        "empate",
+        "importar planilha"
       ],
       "sinonimos": [
         "conciliação bancária",

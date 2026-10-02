@@ -81,6 +81,8 @@ function rotuloDoPeriodo(modo: Modo, ref: Date): string {
 }
 
 const NONE = "__none";
+/** "Sem conta" na seleção de contas: lançamento sem conta não é de "qualquer conta" (M0). */
+const SEM_CONTA = "__sem_conta";
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
 type ColKey = "data" | "descricao" | "categoria" | "valor" | "saldo";
@@ -169,7 +171,8 @@ export function LancamentosView({
   const [ate, setAte] = useState("");
   const [busca, setBusca] = useState("");
   const [situacoes, setSituacoes] = useState<Set<Situacao>>(new Set());
-  const [contasSel, setContasSel] = useState<Set<string>>(() => new Set(contas.map((c) => c.id)));
+  const [contasSel, setContasSel] = useState<Set<string>>(() => new Set([...contas.map((c) => c.id), SEM_CONTA]));
+  const [tag, setTag] = useState(NONE);
   const [categoriaId, setCategoriaId] = useState(NONE);
   const [centroId, setCentroId] = useState(NONE);
   const [formaId, setFormaId] = useState(NONE);
@@ -298,6 +301,7 @@ export function LancamentosView({
     const v = Math.abs(Number(l.valorEfetivo ?? l.valor));
     if (valorMin !== null && v < valorMin) return false;
     if (valorMax !== null && v > valorMax) return false;
+    if (tag !== NONE && !l.tags.includes(tag)) return false;
     if (busca.trim()) {
       const q = normalize(busca);
       const alvo = normalize(`${l.descricao} ${l.fornecedor?.nome ?? ""} ${l.cliente?.nome ?? ""} ${l.documentoFinanceiro?.numero ?? ""}`);
@@ -306,9 +310,9 @@ export function LancamentosView({
     return true;
   }
   function naContaSel(l: LivroCaixaItem): boolean {
-    if (contasSel.size === contas.length) return true; // todas
-    if (!l.contaId) return true; // sem conta entra em qualquer seleção
-    return contasSel.has(l.contaId);
+    // Sem conta só aparece com "todas" ou com a própria caixa marcada: antes entrava em QUALQUER seleção
+    // de conta, e o extrato de uma conta mostrava movimento que não era dela.
+    return contasSel.has(l.contaId ?? SEM_CONTA);
   }
 
   // lista final (período + filtros + conta), ordenada por data
@@ -317,7 +321,7 @@ export function LancamentosView({
       .filter((l) => noPeriodo(l) && passaFiltros(l) && naContaSel(l))
       .sort((a, b) => ledgerDate(a).getTime() - ledgerDate(b).getTime());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itens, modo, ref, de, ate, busca, situacoes, categoriaId, centroId, formaId, projetoId, valorMin, valorMax, contasSel]);
+  }, [itens, modo, ref, de, ate, busca, situacoes, categoriaId, centroId, formaId, projetoId, valorMin, valorMax, contasSel, tag]);
 
   // "Selecionados (N)": ignora período e filtros e mostra só os marcados (a seleção atravessa os
   // filtros). Os totais e o saldo do topo continuam sobre `lista`, que é o que os filtros pedem.
@@ -616,13 +620,18 @@ export function LancamentosView({
   function temFiltro() {
     return modo !== "todos" || !!busca || situacoes.size > 0 || categoriaId !== NONE ||
       centroId !== NONE || formaId !== NONE || projetoId !== NONE || valorMin !== null || valorMax !== null ||
-      contasSel.size !== contas.length;
+      contasSel.size !== contas.length + 1 || tag !== NONE;
   }
   function limparFiltros() {
     setModo("todos"); setBusca(""); setSituacoes(new Set()); setCategoriaId(NONE);
     setCentroId(NONE); setFormaId(NONE); setProjetoId(NONE); setValorMin(null); setValorMax(null);
-    setContasSel(new Set(contas.map((c) => c.id)));
+    setContasSel(new Set([...contas.map((c) => c.id), SEM_CONTA]));
+    setTag(NONE);
   }
+
+  // tags em uso, para o filtro (ordenadas, sem repetir)
+  const tagsEmUso = useMemo(() => [...new Set(itens.flatMap((l) => l.tags))].sort((a, b) => a.localeCompare(b, "pt-BR")), [itens]);
+  const semContaN = useMemo(() => itens.filter((l) => !l.contaId && l.status !== "cancelado").length, [itens]);
 
   // categorias top-level p/ filtro
   const categoriasTopo = useMemo(
@@ -670,6 +679,15 @@ export function LancamentosView({
                     <span className={`text-right font-mono text-xs ${c.projetado < 0 ? "text-destructive" : ""}`}>{brl(c.projetado)}</span>
                   </li>
                 ))}
+                {semContaN > 0 && (
+                  <li className="grid grid-cols-[1fr_auto] items-center gap-2 text-muted-foreground">
+                    <label className="flex items-center gap-1.5 truncate">
+                      <input type="checkbox" checked={contasSel.has(SEM_CONTA)} onChange={() => toggleConta(SEM_CONTA)} className="size-3.5" />
+                      <span className="truncate">Sem conta</span>
+                    </label>
+                    <span className="text-right text-xs">{semContaN} lançamento{semContaN > 1 ? "s" : ""}</span>
+                  </li>
+                )}
                 <li className="grid grid-cols-[1fr_auto_auto] gap-2 border-t pt-1 font-semibold">
                   <span>Total</span>
                   <span className={`text-right font-mono text-xs ${totalPainel.confirmado < 0 ? "text-destructive" : ""}`}>{brl(totalPainel.confirmado)}</span>
@@ -750,6 +768,7 @@ export function LancamentosView({
             <DimSelect label="Categoria" value={categoriaId} onChange={setCategoriaId} options={categoriasTopo} />
             <DimSelect label="Centro" value={centroId} onChange={setCentroId} options={opcoes.centros} />
             <DimSelect label="Forma" value={formaId} onChange={setFormaId} options={opcoes.formas} />
+            {tagsEmUso.length > 0 && <DimSelect label="Tag" value={tag} onChange={setTag} options={tagsEmUso.map((t) => ({ id: t, nome: t }))} />}
             <DimSelect label="Projeto" value={projetoId} onChange={setProjetoId} options={opcoes.projetos.map((p) => ({ id: p.id, nome: `${formatarCodigo(p.codigo)} ${p.nome}` }))} />
             <InputMoeda semPrefixo value={valorMin} onChange={setValorMin} placeholder="Valor mín" className="h-8 w-24" />
             <InputMoeda semPrefixo value={valorMax} onChange={setValorMax} placeholder="Valor máx" className="h-8 w-24" />

@@ -79,6 +79,13 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
   uma categoria em uso não muda e a árvore não aceita pai em círculo. Renumerar o código de uma categoria que o
   sistema usa (Folha CLT, ART, receitas) não quebra mais os lançamentos automáticos.
 - **Senha de exclusão** só se troca sabendo a atual.
+- **Menu do Financeiro novo:** três links diretos (Visão geral, Lançamentos, Contas) e quatro menus que abrem —
+  Movimentações, Planejamento, Resultados e Mais. "Contas a pagar" e "A receber" viraram a tela **Contas**, e
+  "Importar extrato" passou a se chamar **Importar planilha**.
+- **Contas → Pagas e recebidas:** o que já saiu ou entrou no mês, com a conciliação à vista, e **Extrato por conta**
+  (Movimentações): saldo corrido de cada conta, conferido com o saldo do banco quando o OFX o informa.
+- No livro caixa, escolher uma conta não traz mais os lançamentos **sem conta** (eles têm a própria caixa), e há
+  **filtro por tag**.
 - **Conciliação** com menu de contexto na transação.
 - Os relatórios de resultado ganharam **abas** (DRE, Rentabilidade, DFC, Balanço, Orçamento).
 - "Planejamento de pagamentos" agora se chama **Pagamentos em lote**.

@@ -1952,6 +1952,10 @@ model ExtratoBancario {
   conta       ContaBancaria       @relation(fields: [contaId], references: [id])
   nomeArquivo String?
   importadoEm DateTime            @default(now())
+  /// Saldo que o banco informa no fim do extrato (`LEDGERBAL`) e o dia dele — o Extrato por conta confere
+  /// com o saldo do sistema na mesma data. Nulo quando o OFX não traz saldo.
+  saldoBanco   Decimal?           @db.Decimal(14, 2)
+  saldoBancoEm DateTime?          @db.Date
   transacoes  TransacaoBancaria[]
 
   @@index([contaId])

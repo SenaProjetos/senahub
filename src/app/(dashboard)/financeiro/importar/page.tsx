@@ -4,7 +4,7 @@ import { listarImportacoes } from "@/modules/financeiro/importacao/queries";
 import { ImportadorView } from "@/components/financeiro/importacao/importador-view";
 
 import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
-export const metadata: Metadata = { title: "Importar dados financeiros" };
+export const metadata: Metadata = { title: "Importar planilha" };
 
 export default async function ImportarFinanceiroPage() {
   await requirePermission("financeiro", "conciliar");

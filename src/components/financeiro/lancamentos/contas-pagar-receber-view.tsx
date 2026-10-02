@@ -459,8 +459,8 @@ export function ContasPagarReceberView({
   return (
     <div className="space-y-4">
       <CabecalhoPagina
-        titulo="Contas a pagar e receber"
-        descricao="O que está em aberto, por vencimento, com prioridade e confiança."
+        titulo="Contas"
+        descricao="O que vence e o que já foi pago ou recebido."
         acoes={
           <Button size="sm" onClick={() => setFormOpen(true)}>
             <Plus className="size-4" /> Nova conta
