@@ -510,7 +510,7 @@ A F6 (Opus) fecha em quatro commits independentes, cada um com testes verdes e r
 | `caixinhas.test.ts` | §4: fórmulas, 100/40/30, 100/120, compromisso maior que a caixinha, entrada futura não reserva, `ALOCAR` 60 de 100 (`S +100`, `R +60`, `L* +40`), `S = R + L − Dsc` |
 | `ajustes.test.ts` | §6, §10, §11: esquema por tipo, efeito de cada tipo na projeção, `FORCAR_INCLUSAO`/`ALOCAR` só simulam, `estadoDoAjuste` |
 | `aplicacao.test.ts` | §6, §7: `validarAplicacao` com 3 ajustes e 1 obsoleto ⇒ nada; `ALOCAR` não aplicável; campos observados; `programavel()`; `ALTERAR_VALOR` reavalia a alçada; orquestrador com `tx` falso lança no 3º ajuste e não segue |
-| `recorrencia.test.ts` | §9, §12: expansão limitada ao horizonte, as quatro linhas de pró-labore × manual, mês vencido sem lançamento |
+| `recorrencia/calculo.test.ts` (fora de `liquidez/`) | §9, §12: expansão limitada ao horizonte, as quatro linhas de pró-labore × manual, mês vencido sem lançamento |
 | `indicadores.test.ts` | §13: dias de caixa nos quatro casos, impacto %, "quanto preciso receber" acumulado, nada de `NaN`/`Infinity` |
 
 Fora da pasta: `modules/financeiro/natureza.test.ts` (§8), teste-guarda das consultas de resultado (F6C),
