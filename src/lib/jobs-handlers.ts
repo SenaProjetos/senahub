@@ -1,5 +1,6 @@
 import "server-only";
 import { SEM_TRANSFERENCIA } from "@/modules/financeiro/natureza";
+import { avisarContasAPagar, enviarCobrancasAoCliente, reservarAvisoInterno } from "@/modules/financeiro/avisos/service";
 import { addDays, differenceInCalendarDays, subMonths, getISOWeek } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { notificar, notificarMuitos } from "@/lib/notificar";
@@ -189,35 +190,53 @@ export async function alertaInadimplencia(): Promise<number> {
   const ontem = diaAlvo(-1);
   const vencidos = await prisma.lancamento.findMany({
     where: { tipo: "receita", status: "previsto", vencimento: ontem, ...SEM_TRANSFERENCIA },
-    include: { cliente: { select: { nome: true, email: true } } },
+    include: { cliente: { select: { nome: true } } },
   });
   if (vencidos.length === 0) return 0;
   // O corpo leva valor e cliente do recebível: só quem vê o financeiro (destino do href).
   const ids = await gestoresComPermissao(["admin", "supervisor", "administrativo"], "financeiro", "ver");
-  const comEmail = smtpConfigurado();
+  let avisados = 0;
   for (const l of vencidos) {
+    // M9: uma vez só por recebível e vencimento — o job que roda de novo (retentativa, duas instâncias) não repete o sino.
+    if (!(await reservarAvisoInterno(prisma, l.id, l.vencimento!.toISOString().slice(0, 10)))) continue;
     await notificarMuitos(
       ids,
       {
         titulo: "Recebimento vencido (D+1)",
         corpo: `${l.descricao}${l.cliente ? ` — ${l.cliente.nome}` : ""} · R$ ${Number(l.valor).toLocaleString("pt-BR")}`,
-        href: "/financeiro/contas-a-receber",
+        href: "/financeiro/contas?tab=receita",
         tag: `inad-${l.id}`,
       },
       { categoria: "inadimplencia" },
     );
-    if (comEmail && l.cliente?.email) {
-      const valor = Number(l.valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-      const venc = l.vencimento ? formatarData(l.vencimento) : "—";
-      await enviarEmailTemplate(l.cliente.email, "lembrete-pagamento", {
-        nomeCliente: l.cliente.nome,
-        descricao: l.descricao,
-        valor,
-        vencimento: venc,
-      });
-    }
+    avisados += 1;
   }
-  return vencidos.length;
+  // O e-mail ao cliente saiu daqui: é `alertaCobrancaCliente`, que cobre antes, no dia e depois com a mesma garantia.
+  return avisados;
+}
+
+/**
+ * M9: e-mail de cobrança ao cliente — antes, no dia e depois do vencimento, conforme Configurações do
+ * financeiro (padrão: só o D+1 que o sistema sempre mandou). Sem SMTP não há o que enviar.
+ */
+export async function alertaCobrancaCliente(): Promise<number> {
+  if (!smtpConfigurado()) return 0;
+  const r = await enviarCobrancasAoCliente({ enviar: (para, slug, vars) => enviarEmailTemplate(para, slug, vars) });
+  if (r.enviadas + r.duplicadas + r.falhas > 0) {
+    console.log(`[avisos] cobrança ao cliente enviadas=${r.enviadas} já-enviadas=${r.duplicadas} sem-email=${r.semEmail} falhas=${r.falhas}`);
+  }
+  return r.enviadas;
+}
+
+/** M9: sino de contas a pagar vencendo (D-3 e D-1) para quem lançou a conta. */
+export async function alertaContasAPagar(): Promise<number> {
+  const r = await avisarContasAPagar({
+    notificar: (userId, n, categoria) => notificar(userId, n, { categoria }),
+  });
+  if (r.notificacoes + r.falhas > 0) {
+    console.log(`[avisos] contas a pagar contas=${r.contas} notificações=${r.notificacoes} já-avisadas=${r.duplicadas} sem-destino=${r.semDestino} falhas=${r.falhas}`);
+  }
+  return r.notificacoes;
 }
 
 /**

@@ -68,6 +68,8 @@ import {
 } from "../src/modules/financeiro/transferencias/service";
 import { corrigirPagamentoNoBanco } from "../src/modules/financeiro/lancamentos/corrigir-pagamento";
 import { fluxoCaixa } from "../src/modules/financeiro/caixa/queries";
+import { avisarContasAPagar, enviarCobrancasAoCliente } from "../src/modules/financeiro/avisos/service";
+import { CHAVE_CONFIG_AVISOS } from "../src/modules/financeiro/avisos/regras";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -127,6 +129,7 @@ async function main() {
     await regrasDePreenchimento(admin.id);
     await cartoesDeCredito(admin.id);
     await transferenciasEPagamentos(admin.id);
+    await avisosDoFinanceiro(admin.id);
   } finally {
     const pags = (await prisma.pagamentoProjetista.findMany({ where: { disciplinaId: disciplina.id }, select: { id: true } })).map((p) => p.id);
     await prisma.lancamento.deleteMany({ where: { OR: [{ projetoId: projeto.id }, { pagamentoProjetistaId: { in: pags } }, { descricao: { startsWith: tag } }] } });
@@ -1044,6 +1047,119 @@ async function transferenciasEPagamentos(autorId: string) {
 async function saldoDoSistemaDaConta(contaId: string, ateDia: string): Promise<number> {
   const { saldoDoSistema } = await import("../src/modules/financeiro/conciliacao/service");
   return saldoDoSistema(prisma, contaId, ateDia);
+}
+
+async function avisosDoFinanceiro(autorId: string) {
+  console.log("\n# M9 — avisos: cobrança ao cliente e contas a pagar vencendo");
+  const catD = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "despesa", natureza: "resultado" }, select: { id: true } });
+  const catR = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "receita", natureza: "resultado" }, select: { id: true } });
+  const catT = await prisma.categoriaFinanceira.findFirst({ where: { natureza: "transferencia", tipo: "receita" }, select: { id: true } });
+  if (!catD || !catR) return check("categorias existem", false);
+  const hoje = new Date().toISOString().slice(0, 10);
+  const somar = (n: number) => new Date(Date.parse(`${hoje}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+  const inicioDoTeste = new Date();
+  const comEmail = await prisma.cliente.create({ data: { nome: `${tag}-cli-email`, email: `${tag}@teste.local` } });
+  const semEmail = await prisma.cliente.create({ data: { nome: `${tag}-cli-sem` } });
+  const configAntes = await prisma.configSistema.findUnique({ where: { chave: CHAVE_CONFIG_AVISOS } });
+  const receber = (suf: string, venc: string, p: Record<string, unknown> = {}) =>
+    prisma.lancamento.create({
+      data: { tipo: "receita", descricao: `${tag} ${suf}`, valor: 500, status: "previsto", data: dia(venc), vencimento: dia(venc), categoriaId: catR.id, clienteId: comEmail.id, autorId, ...p },
+      select: { id: true },
+    });
+  const pagar = (suf: string, venc: string, p: Record<string, unknown> = {}) =>
+    prisma.lancamento.create({
+      data: { tipo: "despesa", descricao: `${tag} ${suf}`, valor: 100, status: "previsto", data: dia(venc), vencimento: dia(venc), categoriaId: catD.id, autorId, ...p },
+      select: { id: true },
+    });
+  const enviados: { para: string; slug: string; situacao: string; descricao: string }[] = [];
+  const enviar = async (para: string, slug: string, v: Record<string, string>) => {
+    enviados.push({ para, slug, situacao: v.situacao, descricao: v.descricao });
+    return true;
+  };
+  const meus = () => enviados.filter((e) => e.para === `${tag}@teste.local`);
+  try {
+    await prisma.configSistema.deleteMany({ where: { chave: CHAVE_CONFIG_AVISOS } });
+
+    // --- cobrança ao cliente: padrão = só o D+1 de sempre
+    await receber("venceu ontem", somar(-1));
+    await receber("vence hoje", somar(0));
+    await receber("vence em 3", somar(3));
+    const r1 = await enviarCobrancasAoCliente({ hoje, enviar });
+    check("padrão: só o aviso de DEPOIS do vencimento sai (antes e no dia vêm desligados)", meus().length === 1 && meus()[0].slug === "lembrete-pagamento", meus());
+    const r2 = await enviarCobrancasAoCliente({ hoje, enviar });
+    check("rodar de novo no mesmo dia NÃO repete o e-mail", meus().length === 1 && r2.duplicadas === 1 && r2.enviadas === 0, { r1, r2, n: meus().length });
+
+    // --- liga antes e no dia
+    await prisma.configSistema.upsert({
+      where: { chave: CHAVE_CONFIG_AVISOS },
+      create: { chave: CHAVE_CONFIG_AVISOS, valor: { cobrancaAntes: true, diasAntes: 3, cobrancaNoDia: true, cobrancaApos: true, contasAPagar: true } },
+      update: { valor: { cobrancaAntes: true, diasAntes: 3, cobrancaNoDia: true, cobrancaApos: true, contasAPagar: true } },
+    });
+    await enviarCobrancasAoCliente({ hoje, enviar });
+    const frases = meus().map((e) => e.situacao).sort();
+    check("ligados: sai o de 3 dias antes e o do dia, cada um uma vez", meus().length === 3 && frases.includes("vence em 3 dias") && frases.includes("vence hoje"), frases);
+    check("antes e no dia usam o modelo de lembrete de vencimento", meus().filter((e) => e.slug === "lembrete-vencimento").length === 2);
+
+    // --- o que não é cobrança não gera e-mail
+    await receber("sem e-mail", somar(0), { clienteId: semEmail.id });
+    if (catT) {
+      await prisma.lancamento.create({
+        data: { tipo: "receita", descricao: `${tag} perna`, valor: 10, status: "previsto", data: dia(somar(0)), vencimento: dia(somar(0)), categoriaId: catT.id, clienteId: comEmail.id, transferenciaId: `${tag}-tr`, autorId },
+      });
+    }
+    const antes = enviados.length;
+    const r3 = await enviarCobrancasAoCliente({ hoje, enviar });
+    check("cliente sem e-mail é contado à parte e nada sai", r3.semEmail >= 1 && enviados.length === antes, r3);
+    check("perna de transferência nunca vira cobrança", !enviados.some((e) => e.descricao.endsWith(" perna")), enviados.map((e) => e.descricao));
+
+    // --- envio que falha devolve a reserva: a próxima rodada tenta de novo
+    const falho = await receber("vai falhar", somar(3));
+    let tentativas = 0;
+    const r4 = await enviarCobrancasAoCliente({ hoje, enviar: async () => { tentativas += 1; return false; } });
+    const r5 = await enviarCobrancasAoCliente({ hoje, enviar: async (p2, sl, v) => { tentativas += 1; return enviar(p2, sl, v); } });
+    check("e-mail que não saiu libera a reserva e sai na rodada seguinte", r4.falhas >= 1 && r5.enviadas >= 1 && tentativas >= 2, { r4, r5 });
+    void falho;
+
+    // --- mudar o vencimento faz o aviso valer de novo
+    const mover = await receber("vai mudar de data", somar(3));
+    await enviarCobrancasAoCliente({ hoje, enviar });
+    const totalAntes = meus().length;
+    await prisma.lancamento.update({ where: { id: mover.id }, data: { vencimento: dia(somar(0)) } });
+    await enviarCobrancasAoCliente({ hoje, enviar });
+    check("vencimento novo = aviso novo (a chave leva a data)", meus().length > totalAntes);
+
+    // --- contas a pagar vencendo
+    await pagar("pagar d1 a", somar(1));
+    await pagar("pagar d1 b", somar(1));
+    await pagar("pagar d3", somar(3));
+    await pagar("pagar d2 (não avisa)", somar(2));
+    await pagar("em aprovação (não avisa)", somar(1), { status: "aguardando_aprovacao" });
+    const chamadas: { userId: string; corpo: string; categoria: string }[] = [];
+    const notificar = async (userId: string, n: { titulo: string; corpo: string; href: string }, categoria: string) => {
+      chamadas.push({ userId, corpo: n.corpo, categoria });
+    };
+    const a1 = await avisarContasAPagar({ hoje, notificar });
+    const minhas = chamadas.filter((c) => c.corpo.includes("3 dias") || c.corpo.includes("amanhã"));
+    check("conta a pagar: uma notificação por pessoa, juntando D-1 e D-3", a1.notificacoes >= 1 && new Set(chamadas.map((c) => c.userId)).size === chamadas.length, { a1, n: chamadas.length });
+    check("o texto soma o que vence amanhã e em 3 dias (as 2 de D-1 e 1 de D-3 deste teste)", minhas.some((c) => c.corpo.includes("amanhã") && c.corpo.includes("em 3 dias")), chamadas.map((c) => c.corpo));
+    check("a notificação vai na categoria conta_a_pagar (respeita o opt-out)", chamadas.every((c) => c.categoria === "conta_a_pagar"));
+    const antesDeNovo = chamadas.length;
+    const a2 = await avisarContasAPagar({ hoje, notificar });
+    check("rodar de novo no mesmo dia NÃO avisa de novo", chamadas.length === antesDeNovo && a2.notificacoes === 0, a2);
+
+    // --- desligado: nada
+    await prisma.configSistema.update({ where: { chave: CHAVE_CONFIG_AVISOS }, data: { valor: { cobrancaAntes: false, diasAntes: 3, cobrancaNoDia: false, cobrancaApos: false, contasAPagar: false } } });
+    const total = enviados.length;
+    await enviarCobrancasAoCliente({ hoje: somar(10), enviar });
+    check("tudo desligado: nenhum aviso sai", enviados.length === total && (await avisarContasAPagar({ hoje, notificar })).contas === 0);
+  } finally {
+    if (configAntes) await prisma.configSistema.upsert({ where: { chave: CHAVE_CONFIG_AVISOS }, create: { chave: CHAVE_CONFIG_AVISOS, valor: configAntes.valor as never }, update: { valor: configAntes.valor as never } });
+    else await prisma.configSistema.deleteMany({ where: { chave: CHAVE_CONFIG_AVISOS } });
+    // O teste varre o banco inteiro: o que ele reservou para lançamentos de verdade do dev não pode ficar valendo.
+    await prisma.avisoFinanceiroEnviado.deleteMany({ where: { enviadoEm: { gte: inicioDoTeste } } });
+    await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: tag }, excluidoEm: { not: undefined } } });
+    await prisma.cliente.deleteMany({ where: { id: { in: [comEmail.id, semEmail.id] } } });
+  }
 }
 
 main().catch((e) => {

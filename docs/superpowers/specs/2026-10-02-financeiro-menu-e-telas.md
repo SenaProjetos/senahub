@@ -74,3 +74,17 @@ Data: 2026-10-02 · Branch: `feat/financeiro-nucleo` · Mock aprovado: canvas "F
 - **Verificação:** `calculo.test.ts`, `acoes.test.ts` (transferência), `transicoes.test.ts`, `saldo-base.test.ts` e
   `smoke:financeiro-core` (25 checagens novas: saldo com e sem data, par de pernas, perna solta recusada, editar, estornar,
   baixar, conciliada, excluir, agendada, corrigir conta/forma/data, conciliado, futura, perna de transferência).
+
+## M9 — avisos (Sonnet) — concluída
+
+- **Cobrança ao cliente** (e-mail): antes (1–15 dias, padrão 3), no dia e no dia seguinte, ligados em Configurações → Avisos de vencimento.
+  Padrão preserva o que existia (só o D+1); antes e no dia vêm DESLIGADOS por serem e-mail para fora. Novo modelo de e-mail
+  `lembrete-vencimento`; o D+1 segue em `lembrete-pagamento`.
+- **Contas a pagar vencendo** (sino): D-3 e D-1, uma notificação por pessoa e por dia, para quem lançou a conta (ou quem gere,
+  se o autor não vê o financeiro); fatura de cartão conta como UMA conta; categoria de preferência `conta_a_pagar`.
+- **Sem duplicar**: migração `20261002300000_avisos_financeiros` (`AvisoFinanceiroEnviado`, chave única com o vencimento).
+  A reserva vem antes do envio e é devolvida se o e-mail não saiu. O sino interno D+1 dos gestores também reserva.
+- **Resumo semanal**: já excluía transferência (`SEM_TRANSFERENCIA`); conferido, sem mudança.
+- **Decisão pendente do dono:** ligar os e-mails de antes e no dia, e quantos dias antes (padrão 3).
+- **Verificação:** `regras.test.ts` e `smoke:financeiro-core` (13 checagens novas: padrão, repetição, antes/no dia, sem e-mail,
+  transferência, falha libera a reserva, vencimento novo, D-1/D-3 agrupados, categoria, desligado).

@@ -381,6 +381,16 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   and payment date change WITHOUT estornar. A conciliated one only takes a new forma (account and date are the bank's); a
   closed month freezes account and date (not forma); a future date is refused; production payments correct on the Produção
   screen and transfer legs through the transfer.
+- **Financeiro notices** (M9, `financeiro/avisos/`): customer collection e-mails (before / on the day / D+1) and the "contas a
+  pagar vencendo" bell (D-3 and D-1, one notification per person per day, to whoever launched the bill — or to
+  `financeiro:gerir` when the author can't see the financeiro). Switched in Configurações → Avisos de vencimento
+  (`ConfigSistema` `financeiro.avisos`): before/on-the-day e-mails ship OFF because they go OUTSIDE the company; D+1 is
+  on (it always was). **Once only**: the key `AvisoFinanceiroEnviado(lancamentoId, tipo, destino, vencimento)` is RESERVED
+  before sending (`reservarAviso`; P2002 = another run already has it, not an error) and released when the send fails —
+  the mailer returns `false` instead of throwing, so check the boolean. The due date is in the key: moving the vencimento
+  re-arms the notice. Card purchases collapse to one bill per `faturaId`; transfer legs, `previsao` and
+  `aguardando_aprovacao` never notify. Pure rules in `regras.ts`; `service.ts` takes the sender/notifier as parameters so the
+  smoke runs the same code without SMTP. New notification category `conta_a_pagar` (opt-out in Preferências).
 - **Dates in the Financeiro are São Paulo calendar days** (N2, `lib/data.ts`): "today" to WRITE into a date column
   is `hojeParaBanco()` (UTC midnight of the SP day) and to compare is `diaDeSaoPaulo()` — a bare `new Date()` is
   tomorrow after 21h BRT. Period limits on date columns (`@db.Date`: `data`, `dataConfirmacao`, `dataCompetencia`)
@@ -495,7 +505,7 @@ versão em linguagem de usuário continua em `docs/manual/novidades.md` → `/aj
 
 **Cross-module pages (not their own module folder):** `/recursos` = resource-allocation matrix built from `modules/planejamento/queries.ts` (`matrizRecursos`, `cargaSemanalPorRecurso`) + `modules/rh/habilidades/queries.ts`, gated `recursos:ver`/`recursos:gerir`.
 
-**Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`, `coordenacao`, `aprovacao_arquivo`, `aprovacao_disciplina`, `input_cliente`.
+**Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`, `coordenacao`, `aprovacao_arquivo`, `aprovacao_disciplina`, `input_cliente`, `conta_a_pagar`.
 
 ## Gotchas
 

@@ -123,6 +123,27 @@ Caso já tenha efetuado o pagamento, desconsidere este aviso.
 Em caso de dúvidas, entre em contato com nossa equipe.`,
   },
   {
+    slug: "lembrete-vencimento",
+    grupo: "Financeiro & Comercial",
+    label: "Lembrete de vencimento (antes e no dia)",
+    descricao: "Enviado ao cliente alguns dias antes do vencimento e no dia (desligado até ser ativado em Configurações do financeiro).",
+    variaveis: [
+      { nome: "nomeCliente", descricao: "Nome do cliente", exemplo: "Construtora Alfa" },
+      { nome: "descricao", descricao: "Descrição do lançamento", exemplo: "Parcela 2/3 — Projeto Estrutural" },
+      { nome: "valor", descricao: "Valor formatado (R$)", exemplo: "R$ 3.500,00" },
+      { nome: "vencimento", descricao: "Data de vencimento", exemplo: "05/07/2026" },
+      { nome: "situacao", descricao: "Quando vence", exemplo: "vence em 3 dias" },
+    ],
+    assuntoPadrao: "Lembrete: {{descricao}} {{situacao}}",
+    corpoPadrao: `Olá, {{nomeCliente}}.
+
+Este é um lembrete: o pagamento referente a **{{descricao}}**, no valor de **{{valor}}**, {{situacao}} ({{vencimento}}).
+
+Caso já tenha efetuado o pagamento, desconsidere este aviso.
+
+Em caso de dúvidas, entre em contato com nossa equipe.`,
+  },
+  {
     slug: "proposta-cliente",
     grupo: "Financeiro & Comercial",
     label: "Proposta comercial",

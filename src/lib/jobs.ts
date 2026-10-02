@@ -25,6 +25,8 @@ import {
 import {
   alertasPrazoDisciplina,
   alertaInadimplencia,
+  alertaCobrancaCliente,
+  alertaContasAPagar,
   alertaCertidoes,
   alertaLicitacoes,
   alertaEventosLicitacao,
@@ -204,7 +206,7 @@ export async function startJobs(): Promise<PgBoss> {
       fila: "alertas-diarios",
       cron: "0 8 * * *", // 08:00 — prazos de disciplina, inadimplência, certidões, licitações
       handler: async () => {
-        const [a, b, c, d, e, f, g, h, i, j, k, l] = await Promise.all([
+        const [a, b, c, d, e, f, g, h, i, j, k, l, m, n] = await Promise.all([
           alertasPrazoDisciplina(),
           alertaInadimplencia(),
           alertaCertidoes(),
@@ -220,8 +222,11 @@ export async function startJobs(): Promise<PgBoss> {
           // horário e a mesma audiência dos outros alertas, e uma cron a mais custaria uma
           // fila do pg-boss para rodar a 1 segundo de distância das outras onze.
           alertaPropostasExpiradas(),
+          // M9 — cobrança ao cliente e contas a pagar vencendo, no mesmo tick (o financeiro avisa uma vez só).
+          alertaCobrancaCliente(),
+          alertaContasAPagar(),
         ]);
-        console.log(`[alertas] prazos=${a} inad=${b} certidões=${c} licitações=${d} eventos=${e} habilitação=${f} contratos=${g} aditivos=${h} reajustes=${i} pncp=${j} cotações=${k} propostas=${l}`);
+        console.log(`[alertas] prazos=${a} inad=${b} certidões=${c} licitações=${d} eventos=${e} habilitação=${f} contratos=${g} aditivos=${h} reajustes=${i} pncp=${j} cotações=${k} propostas=${l} cobranças=${m} contas-a-pagar=${n}`);
       },
     },
     {

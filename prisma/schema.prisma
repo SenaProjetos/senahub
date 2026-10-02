@@ -1854,6 +1854,7 @@ model Lancamento {
   cartao          CartaoCredito? @relation(fields: [cartaoId], references: [id], onDelete: SetNull)
   faturaId        String?
   fatura          FaturaCartao?  @relation(fields: [faturaId], references: [id], onDelete: SetNull)
+  avisosEnviados  AvisoFinanceiroEnviado[]
   /// Resto de um pagamento parcial: aponta para o lançamento pago em parte (N1). Estornar o pago tira
   /// junto o resto ainda em aberto; resto já pago impede o estorno. `SetNull`: o resto sobrevive.
   restanteDeId    String?
@@ -2065,6 +2066,23 @@ model FaturaCartao {
   @@unique([cartaoId, competencia])
   @@index([vencimento])
   @@map("fatura_cartao")
+}
+
+/// Aviso do Financeiro já enviado (M9): a chave (lançamento, tipo, destino, vencimento) é reservada ANTES de
+/// enviar, então job repetido ou duas instâncias nunca mandam o mesmo aviso duas vezes. O vencimento entra na
+/// chave: se a data mudar, o aviso vale de novo para a data nova. `destino` = "cliente", "gestores" ou o id de
+/// um usuário. Apagar o lançamento apaga o registro.
+model AvisoFinanceiroEnviado {
+  id           String     @id @default(cuid())
+  lancamentoId String
+  lancamento   Lancamento @relation(fields: [lancamentoId], references: [id], onDelete: Cascade)
+  tipo         String
+  destino      String
+  vencimento   DateTime   @db.Date
+  enviadoEm    DateTime   @default(now())
+
+  @@unique([lancamentoId, tipo, destino, vencimento])
+  @@map("aviso_financeiro_enviado")
 }
 
 /// Regra de preenchimento (M2): QUANDO todas as `condicoes` batem → ENTÃO preenche categoria, centro, contato,

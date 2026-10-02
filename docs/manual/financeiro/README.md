@@ -42,6 +42,7 @@ O que você vê no financeiro depende de **3 níveis**:
 | [Regras de preenchimento](regras-de-preenchimento.md) | `/financeiro/regras` | ✅ documentado |
 | [Cartões de crédito e cartão pessoal](cartoes-de-credito.md) | `/financeiro/cartoes` | ✅ documentado |
 | [Transferência entre contas, saldo inicial e corrigir pagamento](transferencias-e-correcoes.md) | `/financeiro/lancamentos` · `/extrato` · `/cadastros` | ✅ documentado |
+| [Avisos do Financeiro](avisos.md) | `/financeiro/configuracoes` | ✅ documentado |
 | [Aprovações (alçadas)](aprovacoes.md) | `/financeiro/aprovacoes` | ✅ documentado |
 | [Relatórios gerenciais](relatorios.md) | `/financeiro/relatorios` e afins | ✅ documentado |
 | [Estúdio de Documentos](estudio-documentos.md) | `/documentos` | ✅ documentado |

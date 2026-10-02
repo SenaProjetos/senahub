@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
 import { salvarConfigFinanceiro, salvarAliquotas, salvarSenhaExclusao } from "@/modules/financeiro/config/actions";
 import { salvarNiveisAprovacao } from "@/modules/financeiro/aprovacao/actions";
+import { salvarConfigAvisos } from "@/modules/financeiro/avisos/actions";
+import type { ConfigAvisos } from "@/modules/financeiro/avisos/regras";
 import type { ConfigFinanceiro } from "@/modules/financeiro/config/queries";
 import type { CamposObrigatorios } from "@/modules/financeiro/config/validacao";
 import type { Aliquotas } from "@/modules/financeiro/fechamento/calculo";
@@ -32,10 +34,12 @@ export function ConfiguracoesView({
   aliquotas,
   niveis,
   exclusao,
+  avisos,
   subnav,
 }: {
   config: ConfigFinanceiro;
   aliquotas: Aliquotas;
+  avisos: ConfigAvisos;
   niveis: FaixaAlcada[];
   exclusao: { exigir: boolean; temSenha: boolean };
   subnav?: React.ReactNode;
@@ -89,10 +93,79 @@ export function ConfiguracoesView({
         <Button onClick={salvar} disabled={pending}>{pending ? "Salvando…" : "Salvar configurações"}</Button>
       </div>
 
+      <AvisosCard inicial={avisos} />
       <AliquotasCard inicial={aliquotas} />
       <NiveisAlcadaCard inicial={niveis} />
       <SenhaExclusaoCard inicial={exclusao} />
     </div>
+  );
+}
+
+/**
+ * Avisos do financeiro (M9): o que o sistema avisa sozinho. Cobrança ao CLIENTE é e-mail para fora da empresa:
+ * antes e no dia vêm desligados até alguém ligar aqui; o D+1 é o que o sistema sempre mandou.
+ */
+function AvisosCard({ inicial }: { inicial: ConfigAvisos }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [cfg, setCfg] = useState<ConfigAvisos>(inicial);
+
+  function salvar() {
+    start(async () => {
+      const r = await salvarConfigAvisos(cfg);
+      if (r.ok) {
+        toast.success("Avisos de vencimento salvos.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  const Linha = ({ id, ligado, onChange, titulo, desc }: { id: string; ligado: boolean; onChange: (v: boolean) => void; titulo: string; desc: string }) => (
+    <label htmlFor={id} className="flex cursor-pointer items-start gap-3 rounded-sm px-2 py-2 hover:bg-muted/40">
+      <input id={id} type="checkbox" checked={ligado} onChange={(e) => onChange(e.target.checked)} className="mt-0.5 size-4" />
+      <span>
+        <span className="block text-sm font-medium">{titulo}</span>
+        <span className="block text-xs text-muted-foreground">{desc}</span>
+      </span>
+    </label>
+  );
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Avisos de vencimento</CardTitle>
+        <CardDescription>
+          O que o sistema avisa sozinho, todo dia às 8h. Cada aviso sai uma vez só por conta e vencimento — se a data mudar, ele vale de novo.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-1">
+        <p className="px-2 pt-1 text-xs font-semibold text-muted-foreground">E-mail de cobrança ao cliente (só para quem tem e-mail cadastrado)</p>
+        {Linha({ id: "av-antes", ligado: cfg.cobrancaAntes, onChange: (v) => setCfg({ ...cfg, cobrancaAntes: v }), titulo: "Antes do vencimento", desc: "Lembra o cliente alguns dias antes. Desligado até você ligar." })}
+        {cfg.cobrancaAntes && (
+          <div className="flex items-center gap-2 pl-9 text-sm">
+            <Label htmlFor="av-dias" className="text-xs">Quantos dias antes</Label>
+            <Input
+              id="av-dias"
+              type="number"
+              min={1}
+              max={15}
+              value={cfg.diasAntes}
+              onChange={(e) => setCfg({ ...cfg, diasAntes: Math.max(1, Math.min(15, Number(e.target.value) || 1)) })}
+              className="h-8 w-20"
+            />
+          </div>
+        )}
+        {Linha({ id: "av-dia", ligado: cfg.cobrancaNoDia, onChange: (v) => setCfg({ ...cfg, cobrancaNoDia: v }), titulo: "No dia do vencimento", desc: "Desligado até você ligar." })}
+        {Linha({ id: "av-apos", ligado: cfg.cobrancaApos, onChange: (v) => setCfg({ ...cfg, cobrancaApos: v }), titulo: "No dia seguinte ao vencimento", desc: "Avisa que o pagamento ainda não foi registrado. É o aviso que o sistema já mandava." })}
+        <p className="px-2 pt-3 text-xs font-semibold text-muted-foreground">Sino para a equipe</p>
+        {Linha({ id: "av-pagar", ligado: cfg.contasAPagar, onChange: (v) => setCfg({ ...cfg, contasAPagar: v }), titulo: "Contas a pagar vencendo", desc: "Avisa quem lançou a conta 3 dias e 1 dia antes do vencimento, numa notificação só por dia. Quem não vê o financeiro não recebe: o aviso vai para quem gere." })}
+        <div className="flex justify-end pt-2">
+          <Button onClick={salvar} disabled={pending}>
+            {pending ? "Salvando…" : "Salvar avisos"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

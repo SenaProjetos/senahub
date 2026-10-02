@@ -1593,6 +1593,37 @@
       ]
     },
     {
+      "titulo": "Financeiro — Avisos do Financeiro",
+      "path": "financeiro/avisos.md",
+      "descricao": "O que o sistema avisa sozinho — e-mail de cobrança ao cliente antes, no dia e depois do vencimento, e o sino de contas a pagar vencendo — e como ligar, desligar e evitar aviso repetido.",
+      "resumo": "Todo dia às 8h o sistema avisa o cliente (e-mail) e a equipe (sino) sobre vencimentos. Cada aviso sai uma vez só por conta e vencimento. Os e-mails de antes e no dia vêm desligados até você ligar em Configurações do financeiro.",
+      "tags": [
+        "financeiro",
+        "avisos",
+        "cobrança",
+        "vencimento",
+        "e-mail",
+        "notificação",
+        "contas a pagar"
+      ],
+      "palavrasChave": [
+        "aviso de vencimento",
+        "cobrança ao cliente",
+        "lembrete de pagamento",
+        "contas a pagar vencendo",
+        "aviso repetido",
+        "desligar aviso",
+        "e-mail de cobrança",
+        "inadimplência"
+      ],
+      "sinonimos": [
+        "lembrete de vencimento",
+        "cobrança automática",
+        "alerta de conta a pagar",
+        "notificação de vencimento"
+      ]
+    },
+    {
       "titulo": "Conciliação bancária (OFX) e Importação",
       "path": "financeiro/conciliacao-ofx.md",
       "descricao": "Importar extrato OFX, conciliar transações com lançamentos e migrar planilhas para o financeiro.",

@@ -57,6 +57,7 @@ export function PreferenciasView({
   notifProposta: notifPropostaInicial,
   notifPagamento: notifPagamentoInicial,
   notifDespesa: notifDespesaInicial,
+  notifContaAPagar: notifContaAPagarInicial,
   notifCustos: notifCustosInicial,
   notifFaturamento: notifFaturamentoInicial,
   notifAcessos: notifAcessosInicial,
@@ -82,6 +83,7 @@ export function PreferenciasView({
   notifProposta: boolean;
   notifPagamento: boolean;
   notifDespesa: boolean;
+  notifContaAPagar: boolean;
   notifCustos: boolean;
   notifFaturamento: boolean;
   notifAcessos: boolean;
@@ -108,6 +110,7 @@ export function PreferenciasView({
   const [notifProposta, setNotifProposta] = useState(notifPropostaInicial);
   const [notifPagamento, setNotifPagamento] = useState(notifPagamentoInicial);
   const [notifDespesa, setNotifDespesa] = useState(notifDespesaInicial);
+  const [notifContaAPagar, setNotifContaAPagar] = useState(notifContaAPagarInicial);
   const [notifCustos, setNotifCustos] = useState(notifCustosInicial);
   const [notifFaturamento, setNotifFaturamento] = useState(notifFaturamentoInicial);
   const [notifAcessos, setNotifAcessos] = useState(notifAcessosInicial);
@@ -251,6 +254,13 @@ export function PreferenciasView({
       descricao: "Quando uma despesa que você lançou é aprovada ou rejeitada.",
       valor: notifDespesa,
       set: setNotifDespesa,
+    },
+    {
+      chave: "notif_conta_a_pagar",
+      titulo: "Contas a pagar vencendo",
+      descricao: "Aviso 3 dias e 1 dia antes do vencimento das contas que você lançou (uma notificação por dia).",
+      valor: notifContaAPagar,
+      set: setNotifContaAPagar,
     },
     {
       chave: "notif_custos",
