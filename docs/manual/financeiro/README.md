@@ -1,6 +1,6 @@
 ---
 titulo: Financeiro
-descricao: Mapa do módulo financeiro — painel, lançamentos, contas, conciliação, aprovações, relatórios e o Estúdio de Documentos.
+descricao: Mapa do módulo financeiro — torre de controle, planejador de caixa, caixinhas, lançamentos, contas, conciliação, aprovações, relatórios e o Estúdio de Documentos.
 resumo: Índice do financeiro e seu modelo de acesso (visão completa, gestão e extrato pessoal), com link para cada funcionalidade.
 tags: [financeiro, índice, lançamentos, contas, conciliação, aprovações, relatórios, dre, caixa, aging]
 palavras-chave: [financeiro, índice, lançamento, conta a pagar, conta a receber, conciliação, ofx, aprovação, dre, fluxo de caixa, extrato, contrato por entrega, previsão de recebimento]
@@ -29,7 +29,12 @@ O que você vê no financeiro depende de **3 níveis**:
 
 | Funcionalidade | Rota | Estado |
 | --- | --- | --- |
-| [Visão geral e Meu extrato](visao-geral.md) | `/financeiro` | ✅ documentado |
+| [Visão geral (torre de controle) e Meu extrato](visao-geral.md) | `/financeiro` | ✅ documentado |
+| [Planejador de caixa e cenários](planejador.md) | `/financeiro/planejador` · `/cenarios` | ✅ documentado |
+| [Fluxo de caixa dia a dia](fluxo-de-caixa.md) | `/financeiro/fluxo-caixa` | ✅ documentado |
+| [Caixinhas e distribuição de recebimentos](caixinhas.md) | `/financeiro/caixinhas` · `/distribuicao` | ✅ documentado |
+| [Sócios, pró-labore e compromissos recorrentes](socios-e-recorrentes.md) | `/financeiro/cadastros` | ✅ documentado |
+| [Pagamentos em lote](pagamentos-em-lote.md) | `/financeiro/planejamento` | ✅ documentado |
 | [Lançamentos](lancamentos.md) | `/financeiro/lancamentos` | ✅ documentado |
 | [Contas a pagar e receber + Aging](contas-e-aging.md) | `/financeiro/contas` | ✅ documentado |
 | [Conciliação bancária (OFX) e Importação](conciliacao-ofx.md) | `/financeiro/conciliacao` · `/importar` | ✅ documentado |
@@ -40,7 +45,7 @@ O que você vê no financeiro depende de **3 níveis**:
 | [Contrato por entrega e previsão de recebimento](contrato-por-entrega.md) | `/juridico` · `/financeiro/fluxo-caixa` | ✅ documentado |
 
 ### Ainda a documentar (rodada futura)
-Planejamento de pagamentos (`/financeiro/planejamento`), Fechamento mensal
+Fechamento mensal
 (`/financeiro/fechamento`), Cadastros (`/financeiro/cadastros`), Configurações
 (`/financeiro/configuracoes`) e os documentos financeiros (`/financeiro/documentos`).
 

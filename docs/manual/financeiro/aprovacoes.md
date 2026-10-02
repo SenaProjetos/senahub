@@ -35,6 +35,15 @@ seguir, conforme as faixas de alçada configuradas.
 3. Um aprovador apto **aprova** (ou **rejeita**) a despesa.
 4. Aprovada, a despesa segue o curso normal.
 
+### Na tela
+
+- Em cada despesa, o botão direito (ou o **⋯**) oferece **Aprovar**, **Rejeitar…** e **Ver no livro
+  caixa**. Se o valor passa da sua alçada, as duas decisões aparecem desabilitadas com o motivo
+  ("Você não tem alçada para aprovar este valor.") — a mesma frase que o sistema daria ao tentar.
+- **Rejeitar** abre uma janela pedindo o **motivo**, que vai para quem lançou.
+- Marque várias despesas e use **Aprovar selecionadas** na barra de baixo. Rejeitar é sempre uma por vez,
+  porque cada uma precisa do seu motivo.
+
 ## Permissões
 
 - A **lista** segue o acesso financeiro; a **aprovação** é limitada aos **papéis

@@ -1130,8 +1130,8 @@
     {
       "titulo": "Financeiro — Visão geral e Meu extrato",
       "path": "financeiro/visao-geral.md",
-      "descricao": "Painel gerencial do financeiro (KPIs, DRE, projeção de caixa, aging) e o extrato pessoal de pagamentos.",
-      "resumo": "O /financeiro mostra um painel completo para quem tem visão financeira (período, KPIs, gráficos, aging, atalhos) ou o \"Meu extrato\" para prestadores e clientes.",
+      "descricao": "Torre de controle do caixa (posição de hoje, saldo projetado, o que precisa de atenção) e o extrato pessoal de pagamentos.",
+      "resumo": "O /financeiro mostra, para quem tem visão financeira, quanto há no caixa hoje, quanto está reservado e para onde o saldo vai no horizonte; para prestadores e clientes, mostra o \"Meu extrato\".",
       "tags": [
         "financeiro",
         "painel",
@@ -1142,7 +1142,11 @@
         "extrato",
         "kpi",
         "previsão de recebimento",
-        "pagamento por fase"
+        "pagamento por fase",
+        "torre de controle",
+        "saldo projetado",
+        "caixinhas",
+        "reserva mínima"
       ],
       "palavrasChave": [
         "financeiro",
@@ -1155,12 +1159,216 @@
         "meu extrato",
         "pagamentos",
         "previsão do cronograma",
-        "contrato por entrega"
+        "contrato por entrega",
+        "caixa atual",
+        "reservado",
+        "dinheiro livre",
+        "saldo projetado",
+        "provável",
+        "conservador",
+        "menor saldo",
+        "dias de caixa",
+        "déficit",
+        "precisa de atenção"
       ],
       "sinonimos": [
         "dashboard financeiro",
         "painel financeiro",
-        "extrato"
+        "extrato",
+        "torre de controle"
+      ]
+    },
+    {
+      "titulo": "Financeiro — Planejador de caixa e cenários",
+      "path": "financeiro/planejador.md",
+      "descricao": "Simular decisões de pagamento e recebimento antes de tomá-las e ver o efeito no caixa dia a dia; salvar cenários e aplicá-los ao financeiro.",
+      "resumo": "O Planejador projeta o caixa a partir de hoje com o que está em aberto, deixa simular nova data, prioridade, confiança, caixinha e movimentos novos, e só grava no financeiro quando alguém aplica um cenário.",
+      "tags": [
+        "financeiro",
+        "planejador",
+        "cenário",
+        "simulação",
+        "liquidez",
+        "projeção de caixa",
+        "reserva mínima",
+        "horizonte",
+        "prioridade",
+        "confiança"
+      ],
+      "palavrasChave": [
+        "planejador de caixa",
+        "simular",
+        "cenário",
+        "aplicar cenário",
+        "nova data",
+        "prioridade",
+        "P1",
+        "P2",
+        "P3",
+        "P4",
+        "confiança",
+        "confirmada pelo cliente",
+        "provável",
+        "estimada",
+        "incerta",
+        "conservador",
+        "horizonte",
+        "reserva mínima",
+        "menor saldo",
+        "déficit",
+        "simular movimento"
+      ],
+      "sinonimos": [
+        "simulador de caixa",
+        "fluxo projetado",
+        "gestão de liquidez",
+        "tesouraria"
+      ]
+    },
+    {
+      "titulo": "Financeiro — Fluxo de caixa dia a dia",
+      "path": "financeiro/fluxo-de-caixa.md",
+      "descricao": "O que entrou e saiu nos últimos dias e o que está previsto para os próximos, com o saldo acumulado.",
+      "resumo": "Antes de hoje, o fluxo mostra o realizado pela data de pagamento ou recebimento; de hoje em diante, o previsto do cenário escolhido. Agrupa por dia, semana ou mês, e o saldo acumulado encontra o caixa de hoje nos dois lados.",
+      "tags": [
+        "financeiro",
+        "fluxo de caixa",
+        "saldo acumulado",
+        "realizado",
+        "previsto",
+        "diário",
+        "semanal",
+        "mensal"
+      ],
+      "palavrasChave": [
+        "fluxo de caixa",
+        "dia a dia",
+        "semana",
+        "mês",
+        "entradas",
+        "saídas",
+        "saldo do dia",
+        "saldo acumulado",
+        "realizado",
+        "previsto",
+        "provável",
+        "conservador",
+        "maior movimento"
+      ],
+      "sinonimos": [
+        "fluxo diário",
+        "extrato projetado",
+        "movimentação"
+      ]
+    },
+    {
+      "titulo": "Financeiro — Caixinhas e distribuição de recebimentos",
+      "path": "financeiro/caixinhas.md",
+      "descricao": "Separar parte do caixa para salários, impostos, 13º e outras finalidades, e dividir cada recebimento entre essas caixinhas por regra.",
+      "resumo": "Caixinha é uma separação gerencial do caixa (não move dinheiro entre bancos). O reservado é calculado; pagar uma conta pela caixinha baixa caixa e reservado juntos. Regras de distribuição sugerem como dividir cada recebimento.",
+      "tags": [
+        "financeiro",
+        "caixinhas",
+        "reserva",
+        "reservado",
+        "dinheiro livre",
+        "distribuição",
+        "regras de distribuição",
+        "recebimentos a distribuir"
+      ],
+      "palavrasChave": [
+        "caixinha",
+        "reservar valor",
+        "liberar valor",
+        "transferir entre caixinhas",
+        "ajustar alocado",
+        "extrato de movimentos",
+        "reservado",
+        "livre",
+        "reserva descoberta",
+        "regra de distribuição",
+        "operacional livre",
+        "recebimentos a distribuir",
+        "data inicial",
+        "pagar pela caixinha"
+      ],
+      "sinonimos": [
+        "reservas",
+        "provisões",
+        "envelopes",
+        "fundos"
+      ]
+    },
+    {
+      "titulo": "Financeiro — Sócios, pró-labore e compromissos recorrentes",
+      "path": "financeiro/socios-e-recorrentes.md",
+      "descricao": "Cadastrar saídas que se repetem (pró-labore, aluguel, folha), distribuir e adiantar lucros aos sócios e entender como a folha CLT quita o previsto do mês.",
+      "resumo": "Compromisso recorrente é o cadastro de uma saída mensal; o planejador projeta os meses futuros e o sistema gera a conta a pagar perto do vencimento. Distribuição e adiantamento de lucros viram contas a pagar por sócio, fora da DRE. Fechar a folha quita a conta prevista da competência.",
+      "tags": [
+        "financeiro",
+        "sócios",
+        "pró-labore",
+        "compromissos recorrentes",
+        "recorrência",
+        "distribuição de lucros",
+        "adiantamento de lucros",
+        "folha clt",
+        "retiradas"
+      ],
+      "palavrasChave": [
+        "compromisso recorrente",
+        "pró-labore",
+        "programado",
+        "gerar o que já venceu",
+        "vincular à recorrência",
+        "em dobro",
+        "distribuir lucros",
+        "adiantar lucros",
+        "percentual do sócio",
+        "fora do resultado",
+        "fechar folha",
+        "quitar previsto",
+        "reabrir folha",
+        "retiradas antigas"
+      ],
+      "sinonimos": [
+        "despesas fixas",
+        "contas recorrentes",
+        "retiradas dos sócios",
+        "lucros"
+      ]
+    },
+    {
+      "titulo": "Financeiro — Pagamentos em lote",
+      "path": "financeiro/pagamentos-em-lote.md",
+      "descricao": "Escolher quais contas a pagar cabem no saldo de agora, aprovar o lote e pagá-las de uma vez.",
+      "resumo": "Um lote reúne contas a pagar em aberto, na ordem de pagamento, contra um saldo disponível; passa por rascunho, análise e aprovação e, executado, paga as contas marcadas pelo valor planejado.",
+      "tags": [
+        "financeiro",
+        "pagamentos em lote",
+        "lote",
+        "contas a pagar",
+        "executar pagamento",
+        "saldo disponível"
+      ],
+      "palavrasChave": [
+        "pagamentos em lote",
+        "lote",
+        "novo lote",
+        "saldo disponível",
+        "total planejado",
+        "saldo remanescente",
+        "cobertura",
+        "enviar para análise",
+        "aprovar",
+        "executar",
+        "cancelar lote",
+        "adicionar contas"
+      ],
+      "sinonimos": [
+        "planejamento de pagamentos",
+        "mesa de pagamentos",
+        "borderô"
       ]
     },
     {
@@ -1197,7 +1405,9 @@
         "menu de contexto",
         "seleção em lote",
         "ações em lote",
-        "baixar em lote"
+        "baixar em lote",
+        "pago",
+        "recebido"
       ],
       "sinonimos": [
         "movimentações",
@@ -1235,7 +1445,13 @@
         "seleção em lote",
         "quitar em lote",
         "previsão do cronograma",
-        "parcela faturada"
+        "parcela faturada",
+        "prioridade",
+        "P1",
+        "confiança",
+        "confirmada pelo cliente",
+        "marcar como confirmada",
+        "pagar pela caixinha"
       ],
       "sinonimos": [
         "pendências financeiras",
@@ -1268,7 +1484,10 @@
         "importar",
         "migrar",
         "planilha",
-        "meu dinheiro"
+        "meu dinheiro",
+        "ignorar transação",
+        "criar lançamento da transação",
+        "conciliar com"
       ],
       "sinonimos": [
         "conciliação bancária",
@@ -1297,7 +1516,10 @@
         "rejeitar",
         "faixa de valor",
         "limite",
-        "aprovador"
+        "aprovador",
+        "aprovar em lote",
+        "aprovar selecionadas",
+        "motivo da rejeição"
       ],
       "sinonimos": [
         "workflow de aprovação",
@@ -1329,7 +1551,11 @@
         "margem",
         "orçamento",
         "planejado",
-        "realizado"
+        "realizado",
+        "abas dos resultados",
+        "fora do resultado",
+        "distribuição de lucros",
+        "transferência entre contas"
       ],
       "sinonimos": [
         "demonstrativos",
@@ -1444,7 +1670,10 @@
         "na assinatura",
         "trazer da proposta",
         "parcelas a faturar",
-        "marco concluído"
+        "marco concluído",
+        "planejador",
+        "incluir na simulação",
+        "estimada"
       ],
       "sinonimos": [
         "medição por entrega",

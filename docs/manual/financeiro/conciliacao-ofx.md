@@ -30,6 +30,13 @@ migrar dados externos (planilhas) para o financeiro.
 
 > O importador OFX faz **deduplicação** e tenta **casar automaticamente** quando possível.
 
+### Menu da transação
+
+Em cada transação pendente, o botão direito (ou o **⋯**) oferece **Conciliar com** a sugestão (uma lista,
+quando há várias), **Criar lançamento desta transação** (escolha a categoria antes) e **Ignorar
+transação**. Ignorar pede confirmação — a transação sai dos pendentes sem gerar lançamento, e importar o
+extrato de novo não a traz de volta.
+
 ## Importação de planilha
 
 ### Como acessar

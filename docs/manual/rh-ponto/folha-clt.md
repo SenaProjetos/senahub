@@ -101,6 +101,11 @@ a folha já fechou antes disso.
   já tinha assinado precisa assinar de novo quando a folha for fechada outra vez, porque os
   valores podem mudar na correção. O sistema avisa quantas assinaturas seriam perdidas antes
   de confirmar a reabertura.
+- **Fechar a folha mensal quita a conta prevista do mês** no Financeiro: se o compromisso recorrente da
+  folha já gerou a conta a pagar da competência, o fechamento usa essa mesma conta, com o valor real, em
+  vez de criar uma segunda despesa. A mensagem do fechamento diz se quitou e a diferença entre previsto e
+  real. Reabrir devolve a conta ao previsto. Detalhes em
+  [Sócios, pró-labore e compromissos recorrentes](../financeiro/socios-e-recorrentes.md#folha-clt-quita-o-previsto-do-mês).
 - O **PDF do holerite** pode ser baixado tanto pelo colaborador quanto pelo RH, assinado ou
   não. Ele sai com o **timbrado da empresa** (logo, razão social, CNPJ e endereço) no topo,
   configurado em [Configurações → Empresa](../sistema/configuracoes.md#sistema).

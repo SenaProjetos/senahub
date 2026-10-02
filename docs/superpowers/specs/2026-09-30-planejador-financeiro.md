@@ -482,6 +482,19 @@ A F6 (Opus) fecha em quatro commits independentes, cada um com testes verdes e r
   `aria-label` nos chevrons do período. Os hex que sobraram estão só no CSS de impressão.
 - **Fica para depois:** menus de contexto em Documentos e Cadastros (listas sem ação em lote pedida).
 
+## 14-C. F9 como ficou (2026-10-01)
+
+- **Manual** (`docs/manual/financeiro/`): Visão geral reescrita como torre de controle; páginas novas
+  `planejador.md`, `fluxo-de-caixa.md`, `caixinhas.md`, `socios-e-recorrentes.md` e
+  `pagamentos-em-lote.md`; Contas e aging, Aprovações, Conciliação, Lançamentos, Relatórios, Contrato por
+  entrega e Folha CLT ganharam o que mudou. `search-index.json` atualizado à mão (não tem gerador): as
+  entradas existentes só GANHARAM palavras, nenhuma foi perdida.
+- **Novidades** com a entrada do planejador; **guia de uso** do Financeiro sem a "semana da projeção".
+- **Glossário** (`CONTEXT.md`): Previsão do cronograma, Quitar o previsto e Retirada de sócio (histórico).
+- Mensagens da mesa e das actions de lote falam "lote", não "plano".
+- Verificação final: suíte completa, lint, tsc (app e server), build, `smoke:planejador`,
+  `smoke:previsao-recebimento`, `smoke:onda2`, `smoke:onda3efg`, e as páginas novas abertas no `/ajuda`.
+
 ## 15. Testes por arquivo (`src/modules/financeiro/liquidez/`)
 
 | Arquivo | Cobre |

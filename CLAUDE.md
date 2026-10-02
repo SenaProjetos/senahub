@@ -187,7 +187,8 @@ in `lib/prisma.ts`. To see deleted rows, pass `excluidoEm` explicitly in the `wh
 
 **`Lancamento.status = previsao`** (F7.2) is a receivable FORECAST from the cronograma (client contract
 billed per delivery, `ContratoParcelaEntrega`), not a receivable. Readers that filter `previsto` ignore it by
-design; only `projecaoCaixa` includes it. A new receivable reader WITHOUT a status filter must exclude it
+design; only the planner engine (`baseDoPlanejador` → `projetar`) reads it, as an Estimada event outside the
+Provável line. A new receivable reader WITHOUT a status filter must exclude it
 (`status: { not: "previsao" }`). "Faturar" converts the same row to `previsto`; the sync
 (`juridico/contrato/previsao-service.ts`) only ever touches `previsao` rows.
 

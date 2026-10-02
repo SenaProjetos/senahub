@@ -78,7 +78,9 @@ Casos em que a parcela fica **sem previsão**, sempre com o motivo na tela:
 
 Esta é a regra que protege o financeiro de cobrar quem nunca foi faturado. A previsão do cronograma:
 
-- **entra** na **projeção de caixa** (com o subtotal "Inclui R$ X de previsão do cronograma"), no
+- **entra** no [Planejador de caixa](planejador.md) como entrada **Estimada** — fora do cenário
+  Provável até alguém incluir; na [Visão geral](visao-geral.md) ela aparece em "Precisa de atenção", com
+  o atalho **Incluir na simulação**, e não nas duas linhas do saldo projetado. Entra também no
   **resultado previsto do projeto** (a aba Financeiro do projeto mostra "+ R$ X previsto", destacando a
   parte "de previsão do cronograma") e no indicador **Receita prevista** do painel inicial;
 - **não entra** em **Contas a receber**, no **aging**, no **alerta de inadimplência**, no **resumo do
@@ -88,9 +90,8 @@ Esta é a regra que protege o financeiro de cobrar quem nunca foi faturado. A pr
   contrato".
 
 **Previsão atrasada.** Se a data da previsão já passou e a parcela não foi faturada (marco atrasado, ou
-assinatura antiga), ela **continua na projeção, na primeira semana**, e a tela avisa quanto "já
-passou da data sem ser faturado". Sem isso ela sumiria de todas as telas — a previsão não aparece no
-aging.
+assinatura antiga), ela **continua no planejador, marcada como vencida e aplicada hoje**. Sem isso ela
+sumiria de todas as telas — a previsão não aparece no aging.
 
 ## Faturar a parcela
 

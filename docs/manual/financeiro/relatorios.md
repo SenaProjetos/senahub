@@ -20,13 +20,15 @@ Apoiar a gestão com demonstrativos e indicadores construídos a partir dos lan�
 | **Relatórios / DRE** | `/financeiro/relatorios` | DRE e indicadores do período |
 | **Rentabilidade** | `/financeiro/rentabilidade` | DRE e **margem por projeto** |
 | **DFC** | `/financeiro/dfc` | Fluxo de caixa por **atividade** |
-| **Fluxo de caixa** | `/financeiro/fluxo-caixa` | Saldos e movimentos |
+| **Fluxo de caixa** | `/financeiro/fluxo-caixa` | Realizado e previsto dia a dia — ver [Fluxo de caixa](fluxo-de-caixa.md) |
 | **Balanço gerencial** | `/financeiro/balanco` | Ativo, passivo e PL (**base caixa**) |
 | **Orçamento anual** | `/financeiro/orcamento` | Planejado × realizado por categoria |
 
 ## Como acessar
 
-- Pelos cartões de atalho do painel **Financeiro**. Exigem `financeiro:ver`.
+- Pelos cartões de atalho do painel **Financeiro**, ou pelo grupo **Resultados** da barra do Financeiro.
+- Dentro de qualquer um deles, a faixa de **abas** (DRE e indicadores · Rentabilidade · DFC · Balanço ·
+  Orçamento) leva aos vizinhos. Quem não tem acesso a um relatório não vê a aba dele.
 
 ## Conceitos
 
@@ -36,6 +38,11 @@ Apoiar a gestão com demonstrativos e indicadores construídos a partir dos lan�
 - **Base caixa:** considera o que efetivamente entrou/saiu (confirmado), não o
   provisionado.
 - **Rentabilidade por projeto:** receita − custos atribuídos ao projeto → margem.
+- **Fora do resultado:** distribuição e adiantamento de lucros **saem do caixa** (aparecem no DFC, como
+  financiamento) mas **não são despesa** — não entram na DRE, na margem, no orçamento nem no fechamento.
+  O pró-labore, ao contrário, **é** despesa.
+- **Transferência entre contas** da empresa não entra em nenhum relatório de resultado nem no DFC: ela só
+  muda em que conta o dinheiro está.
 
 ## Permissões
 

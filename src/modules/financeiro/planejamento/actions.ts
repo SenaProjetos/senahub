@@ -122,8 +122,8 @@ export const salvarLinhas = defineAction(
   },
   async (i) => {
     const plano = await prisma.planejamentoPagamento.findUnique({ where: { id: i.id }, select: { status: true } });
-    if (!plano) throw new ActionError("Plano não encontrado.");
-    if (plano.status === "executado") throw new ActionError("Plano executado não pode ser alterado.");
+    if (!plano) throw new ActionError("Lote não encontrado.");
+    if (plano.status === "executado") throw new ActionError("Lote executado não pode ser alterado.");
     await prisma.$transaction(
       i.linhas.map((l) =>
         prisma.planejamentoLinha.update({
@@ -182,8 +182,8 @@ export const mudarStatusPlano = defineAction(
   },
   async (i, { user }) => {
     const plano = await prisma.planejamentoPagamento.findUnique({ where: { id: i.id }, select: { status: true } });
-    if (!plano) throw new ActionError("Plano não encontrado.");
-    if (plano.status === "executado") throw new ActionError("Plano já executado.");
+    if (!plano) throw new ActionError("Lote não encontrado.");
+    if (plano.status === "executado") throw new ActionError("Lote já executado.");
     await prisma.planejamentoPagamento.update({
       where: { id: i.id },
       data: {
@@ -208,8 +208,8 @@ export const executarPlano = defineAction(
       where: { id: i.id },
       include: { linhas: { where: { selecionada: true }, include: { lancamento: true } } },
     });
-    if (!plano) throw new ActionError("Plano não encontrado.");
-    if (plano.status !== "aprovado") throw new ActionError("Só planos aprovados podem ser executados.");
+    if (!plano) throw new ActionError("Lote não encontrado.");
+    if (plano.status !== "aprovado") throw new ActionError("Só lotes aprovados podem ser executados.");
 
     const ops: Prisma.PrismaPromise<unknown>[] = [];
     let pagos = 0;

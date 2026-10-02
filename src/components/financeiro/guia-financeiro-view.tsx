@@ -59,8 +59,8 @@ const VOCABULARIO: readonly TermoGuia[] = [
   {
     termo: "Previsão do cronograma",
     definicao:
-      "O recebimento esperado de uma parcela de contrato cobrado por entrega, na data do marco do cronograma. Aparece só na projeção de caixa: não é conta a receber e não entra no aging nem na inadimplência até a parcela ser faturada no contrato.",
-    exemplo: "“40% na entrega do básico” aparece como previsão na semana do marco; ao faturar, vira um previsto de verdade.",
+      "O recebimento esperado de uma parcela de contrato cobrado por entrega, na data do marco do cronograma. Entra no planejador como Estimada — fora do cenário Provável até alguém incluir — e não é conta a receber: não entra no aging nem na inadimplência até a parcela ser faturada no contrato.",
+    exemplo: "“40% na entrega do básico” aparece como previsão no dia do marco; ao faturar, vira um previsto de verdade.",
   },
   {
     termo: "Confirmado",
@@ -277,7 +277,7 @@ export function GuiaFinanceiroView() {
         <p>
           Um lançamento novo nasce <strong>previsto</strong>: a conta a pagar ou a receber que existe
           no papel mas ainda não andou. Além do valor, o que mais importa é o{" "}
-          <strong>vencimento</strong> — é ele que coloca o valor na semana certa da projeção e que
+          <strong>vencimento</strong> — é ele que coloca o valor no dia certo da projeção e que
           define a faixa de atraso se a data passar.
         </p>
         <Acao

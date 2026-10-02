@@ -41,8 +41,8 @@ Campos:
 
 | Estado | Significado |
 | --- | --- |
-| **Previsto** | Lançado, ainda não realizado (entra no aging e na projeção) |
-| **Confirmado** | Realizado/baixado (entra no resultado, DRE e saldo) |
+| **Previsto** (em aberto) | Lançado, ainda não realizado (entra no aging e na projeção) |
+| **Pago / Recebido** | Realizado (entra no caixa, no resultado e na DRE). No filtro do livro caixa aparece como "Pagos e recebidos" e, no painel por conta, como "Realizado" |
 
 - **Confirmar** um lançamento previsto pede: conta, forma, **data de confirmação** e,
   opcionalmente, o **valor efetivo** (se diferiu do previsto).

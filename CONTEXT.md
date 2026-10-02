@@ -252,6 +252,11 @@ Levar ao financeiro real os ajustes aplicáveis de um cenário, todos ou nenhum.
 a simulação, nada é aplicado.
 _Avoid_: executar, efetivar
 
+**Previsão do cronograma**:
+Parcela de contrato cobrado por entrega que ainda não foi faturada, na data do marco. Nasce estimada,
+fica fora do cenário provável e não é conta a receber até alguém faturar.
+_Avoid_: conta a receber, a receber (para ela)
+
 **Lote de pagamentos**:
 A seleção de contas a pagar que cabem num saldo, paga de uma vez. Até 2026-09 se chamava
 "planejamento de pagamentos".
@@ -272,6 +277,16 @@ _Avoid_: retirada (ambíguo), dividendos
 O cadastro de uma saída que se repete, como o pró-labore de cada sócio. Os meses futuros aparecem no
 planejador como programados; o lançamento só nasce perto do vencimento.
 _Avoid_: recorrência (quando se quer dizer o cadastro), agendamento
+
+**Quitar o previsto**:
+Usar a conta a pagar que já estava prevista para a competência, com o valor real, em vez de lançar uma
+segunda. É o que o fechamento da folha mensal faz com a conta da folha.
+_Avoid_: substituir, baixar (quando se quer dizer reaproveitar a conta)
+
+**Retirada de sócio (histórico)**:
+O registro antigo de retiradas, anterior aos lançamentos, que nunca entrou no caixa nem na DRE. Só se
+consulta; retirada nova é pró-labore, distribuição ou adiantamento.
+_Avoid_: retirada (para o que se faz hoje)
 
 **Programado**:
 Um mês futuro de compromisso recorrente que ainda não virou lançamento. Conta na projeção e não

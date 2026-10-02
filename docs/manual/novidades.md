@@ -22,6 +22,48 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Financeiro: planejador de caixa, caixinhas e a nova Visão geral
+
+**Ver o caixa de hoje e o de amanhã**
+
+- **Visão geral virou torre de controle.** Logo no topo: quanto há no caixa hoje, quanto já está
+  reservado nas caixinhas e quanto está livre; o saldo projetado em dois cenários (Provável e
+  Conservador) com a reserva mínima marcada; e a lista **Precisa de atenção**, só com o que pede decisão.
+  [Saiba mais](financeiro/visao-geral.md)
+- **Planejador de caixa.** Simule nova data, prioridade, confiança ou caixinha de uma conta, inclua um
+  movimento que ainda não existe e veja o efeito no caixa dia a dia — sem mudar nada. Salve como
+  cenário e, quando decidir, aplique ao financeiro: tudo ou nada.
+  [Saiba mais](financeiro/planejador.md)
+- **Fluxo de caixa dia a dia.** O que entrou e saiu nos últimos dias e o que está previsto, por dia,
+  semana ou mês. [Saiba mais](financeiro/fluxo-de-caixa.md)
+
+**Separar o dinheiro que já tem destino**
+
+- **Caixinhas** para salários, pró-labore, impostos, encargos, férias, 13º e reservas. Pagar uma conta
+  pela caixinha baixa o caixa e o reservado juntos. [Saiba mais](financeiro/caixinhas.md)
+- **Regras de distribuição** dividem cada recebimento entre as caixinhas; a fila **Recebimentos a
+  distribuir** mostra o que ainda não foi dividido.
+
+**Contas que se repetem e os sócios**
+
+- **Compromissos recorrentes** (pró-labore, aluguel, folha): os meses futuros já aparecem no
+  planejador, e a conta a pagar nasce sozinha perto do vencimento.
+  [Saiba mais](financeiro/socios-e-recorrentes.md)
+- **Distribuir e adiantar lucros** cria uma conta a pagar por sócio, pelo percentual de cada um — e não
+  entra na DRE.
+- **Fechar a folha CLT** passa a quitar a conta prevista do mês, em vez de lançar a folha duas vezes.
+
+**Nas telas de sempre**
+
+- Contas a pagar e a receber ganham **prioridade** (P1 a P4), **confiança** do recebimento e **Marcar
+  como confirmada pelo cliente**, também em lote.
+- **Aprovações** com menu de contexto, aprovação em lote e motivo da rejeição numa janela própria.
+- **Conciliação** com menu de contexto na transação.
+- Os relatórios de resultado ganharam **abas** (DRE, Rentabilidade, DFC, Balanço, Orçamento).
+- "Planejamento de pagamentos" agora se chama **Pagamentos em lote**.
+
+---
+
 ## Reunião de 29/09: arquivos para o cliente, status do documento e cronograma
 
 **Arquivos**

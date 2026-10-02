@@ -162,7 +162,7 @@ export function PlanejamentoMesaView({ plano, disponiveis }: { plano: PlanoDetal
         linhas: linhas.map((l, i) => ({ id: l.id, ordem: i, valorPlanejado: l.valorPlanejado, selecionada: l.selecionada })),
       });
       if (b.ok) {
-        toast.success("Plano salvo.");
+        toast.success("Lote salvo.");
         router.refresh();
       } else toast.error(b.error);
     });
@@ -180,7 +180,7 @@ export function PlanejamentoMesaView({ plano, disponiveis }: { plano: PlanoDetal
   async function executar() {
     if (
       !(await confirm({
-        title: "Executar plano?",
+        title: "Executar o lote?",
         description: "As linhas selecionadas serão pagas pelo valor planejado; saldos restantes ficam em aberto.",
         variant: "default",
         confirmLabel: "Executar",
@@ -190,7 +190,7 @@ export function PlanejamentoMesaView({ plano, disponiveis }: { plano: PlanoDetal
     start(async () => {
       const r = await executarPlano({ id: plano.id });
       if (r.ok) {
-        toast.success(`Plano executado: ${r.data.pagos} pagamento(s).`);
+        toast.success(`Lote executado: ${r.data.pagos} pagamento(s).`);
         router.refresh();
       } else toast.error(r.error);
     });

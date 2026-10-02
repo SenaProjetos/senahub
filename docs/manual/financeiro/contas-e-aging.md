@@ -32,6 +32,20 @@ Acompanhar o que há **a pagar** e **a receber** (lançamentos previstos) e medi
   [contrato cobrado por entrega](contrato-por-entrega.md) **não aparece aqui** (nem no aging): ela só
   vira conta a receber quando a parcela é **faturada** no contrato.
 
+## Prioridade, confiança e caixinha
+
+Três informações a mais em cada conta em aberto, usadas pelo [Planejador de caixa](planejador.md):
+
+- **Prioridade** (só contas a pagar): P1 não pode atrasar · P2 importante · P3 negociável · P4
+  adiável. Sem prioridade escolhida, vale a da categoria (ex.: Folha CLT e Impostos são P1).
+- **Confiança** (só contas a receber): Confirmada pelo cliente · Provável · Estimada · Incerta. Conta a
+  receber faturada nasce **Provável**; quando o cliente confirma, use **Marcar como confirmada pelo
+  cliente** no menu da conta — ou selecione várias e marque todas pela barra de baixo.
+- **Caixinha** (só contas a pagar em aberto): **Pagar pela caixinha** liga a conta a uma
+  [caixinha](caixinhas.md); ao pagar, o reservado cai junto com o caixa.
+
+Confiança não é situação: uma conta "confirmada pelo cliente" continua **em aberto** até ser recebida.
+
 ## Aging (faixas de atraso)
 
 O aging considera os lançamentos **previstos** de cada tipo, usando o **vencimento** (ou
@@ -47,7 +61,8 @@ O painel financeiro exibe o aging consolidado e um **alerta** quando há valor v
 ## Menu de ações e seleção em lote
 
 Em cada conta, o botão direito (ou o botão **⋯**) oferece quitar (**Receber** ou **Pagar**),
-**editar**, abrir os **anexos** e **copiar a descrição**. Marque várias contas para **quitar todas de
+**editar**, mudar a **prioridade** ou a **confiança**, **pagar pela caixinha**, abrir os **anexos** e
+**copiar a descrição**. Marque várias contas para **quitar todas de
 uma vez** pela barra da parte de baixo da tela; se alguma falhar, o resultado diz qual e por quê.
 
 ## Permissões
