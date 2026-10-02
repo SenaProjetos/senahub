@@ -12,6 +12,8 @@ import { baixarEmLote, definirCaixinhaLancamento, definirConfiancaLancamento, de
 import { LancamentoForm } from "./lancamento-form";
 import { ConfirmarDialog } from "./confirmar-dialog";
 import { LancamentoDetalheDialog } from "./lancamento-detalhe-dialog";
+import { CriarRegraDialog, type LancamentoParaRegra } from "@/components/financeiro/regras/criar-regra-dialog";
+import { ACAO_CRIAR_REGRA } from "@/modules/financeiro/regras/acoes";
 import type { AcaoItemAcao } from "@/components/ui/acoes";
 import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { BarraSelecao } from "@/components/ui/barra-selecao";
@@ -143,6 +145,7 @@ export function ContasPagarReceberView({
   const [formOpen, setFormOpen] = useState(false);
   const [editar, setEditar] = useState<LancamentoItem | null>(null);
   const [detalhe, setDetalhe] = useState<LancamentoItem | null>(null);
+  const [regraDe, setRegraDe] = useState<LancamentoParaRegra | null>(null);
   const [confirmar, setConfirmar] = useState<LancamentoItem | null>(null);
   const [loteOpen, setLoteOpen] = useState(false);
 
@@ -365,6 +368,7 @@ export function ContasPagarReceberView({
     } else if (item.id === ACAO_QUITAR) confirmarRapido(l);
     else if (item.id === ACAO_EDITAR) setEditar(l);
     else if (item.id === ACAO_ANEXOS) setDetalhe(l);
+    else if (item.id === ACAO_CRIAR_REGRA) setRegraDe({ id: l.id, descricao: l.descricao, categoria: l.categoria ? `${l.categoria.codigo} ${l.categoria.nome}` : null, temCentroOuProjeto: l.centro != null || l.projeto != null });
     else if (item.id === ACAO_COPIAR_DESCRICAO) {
       void copiarTexto(l.descricao).then((ok) =>
         ok ? toast.success("Descrição copiada.") : toast.error("Não foi possível copiar a descrição."),
@@ -638,6 +642,7 @@ export function ContasPagarReceberView({
         onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditar(null); } }}
       />
       <LancamentoDetalheDialog lancamento={detalhe} podeGerir={podeGerir} onClose={() => setDetalhe(null)} />
+      <CriarRegraDialog lancamento={regraDe} onClose={() => setRegraDe(null)} />
       <ConfirmarDialog lancamento={confirmar} onClose={() => setConfirmar(null)} contas={opcoes.contas} formas={opcoes.formas} />
       <BarraSelecao
         total={alvosSelecao.length}
@@ -680,7 +685,7 @@ export function ContasPagarReceberView({
     // Com a linha DENTRO de uma seleção de vários, o menu age sobre a seleção (regra 3 da ADR-0002).
     const menuItens = alvosSelecao.length > 1 && selecao.marcado(l.id)
       ? itensDoLote
-      : itensDeConta({ status: l.status, anexos: l.anexos.length, prioridade: l.prioridade, confianca: l.confianca, caixinhaId: l.caixinhaId }, { tipo: tab, podeGerir, caixinhas: opcoes.caixinhas });
+      : itensDeConta({ status: l.status, anexos: l.anexos.length, prioridade: l.prioridade, confianca: l.confianca, caixinhaId: l.caixinhaId, temCategoria: l.categoria != null }, { tipo: tab, podeGerir, caixinhas: opcoes.caixinhas });
     // Efetivas, como o planejador as lê: despesa herda da categoria (ou da mãe, ou P3); receita
     // em aberto sem marca é Provável (D1).
     const prioridade = l.tipo === "despesa" ? (l.prioridade ?? l.categoria?.prioridadePadrao ?? l.categoria?.pai?.prioridadePadrao ?? "p3") : null;

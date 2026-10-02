@@ -55,6 +55,7 @@ import { extratoDaConta } from "../src/modules/financeiro/extrato/queries";
 import { dadosPagas } from "../src/modules/financeiro/lancamentos/queries";
 import { hashesExistentes } from "../src/modules/financeiro/importacao/queries";
 import { normalizarLinhas } from "../src/modules/financeiro/importacao/processar";
+import { casamentosDoHistorico, sugerirParaEntrada } from "../src/modules/financeiro/regras/service";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -111,6 +112,7 @@ async function main() {
     await categoriasEConsistencia(admin.id);
     await taxaDeArt(admin.id);
     await extratoEPagas(admin.id);
+    await regrasDePreenchimento(admin.id);
   } finally {
     const pags = (await prisma.pagamentoProjetista.findMany({ where: { disciplinaId: disciplina.id }, select: { id: true } })).map((p) => p.id);
     await prisma.lancamento.deleteMany({ where: { OR: [{ projetoId: projeto.id }, { pagamentoProjetistaId: { in: pags } }, { descricao: { startsWith: tag } }] } });
@@ -723,6 +725,85 @@ async function extratoEPagas(autorId: string) {
   } finally {
     await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: tag }, excluidoEm: { not: undefined } } });
     await prisma.contaBancaria.delete({ where: { id: conta.id } });
+  }
+}
+
+async function regrasDePreenchimento(autorId: string) {
+  console.log("\n# M2 — regras de preenchimento");
+  const catD = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "despesa", natureza: "resultado" }, orderBy: { codigo: "asc" }, select: { id: true } });
+  const catOutra = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "despesa", natureza: "resultado", id: { not: catD?.id } }, select: { id: true } });
+  if (!catD || !catOutra) return check("categorias de despesa existem", false);
+  const conta = await prisma.contaBancaria.create({ data: { nome: `${tag} regras`, tipo: "corrente", saldoInicial: 0 } });
+  const centro = await prisma.centroCusto.create({ data: { nome: `${tag} centro` } });
+  const forn = await prisma.fornecedor.create({ data: { tipo: "PJ", nome: `${tag} fornecedor` } });
+  const termo = `${tag}-crea`;
+  const regraIds: string[] = [];
+  const lotes: string[] = [];
+  const categoriasAntes = new Set((await prisma.categoriaFinanceira.findMany({ select: { id: true } })).map((c) => c.id));
+  try {
+    // ordem negativa: as duas vão antes de qualquer regra que exista no banco de dev.
+    const a = await prisma.regraCategorizacao.create({
+      data: { termo, ordem: -1000, condicoes: [{ campo: "descricao", op: "contem", valor: termo }, { campo: "tipo", op: "igual", valor: "despesa" }], categoriaId: catD.id, centroId: centro.id, fornecedorId: forn.id, tags: ["art"] },
+    });
+    const b = await prisma.regraCategorizacao.create({
+      data: { termo, ordem: -999, condicoes: [{ campo: "descricao", op: "contem", valor: termo }], categoriaId: catOutra.id },
+    });
+    regraIds.push(a.id, b.id);
+    const entrada = { descricao: `${termo} boleto 123`, tipo: "despesa" as const, valor: 120, contaId: conta.id };
+
+    const s1 = await sugerirParaEntrada(prisma, entrada);
+    check("a primeira regra da lista que casa vale (a segunda não completa)", s1?.regraId === a.id && s1.preenche.categoriaId === catD.id, s1);
+    const s2 = await sugerirParaEntrada(prisma, entrada, { categoriaId: "ja-escolhida", centroId: "ja-escolhido" });
+    check("nunca sobrescreve o que a pessoa escolheu", s2?.preenche.categoriaId === undefined && s2?.preenche.centroId === undefined && s2?.preenche.fornecedorId === forn.id, s2);
+    check("receita não recebe o fornecedor da regra", (await sugerirParaEntrada(prisma, { ...entrada, tipo: "receita" }))?.regraId === b.id);
+    await prisma.regraCategorizacao.update({ where: { id: a.id }, data: { ativo: false } });
+    check("regra pausada é ignorada: vale a seguinte", (await sugerirParaEntrada(prisma, entrada))?.regraId === b.id);
+    await prisma.regraCategorizacao.update({ where: { id: a.id }, data: { ativo: true } });
+
+    // Prévia: lançamentos dos últimos 12 meses que as condições casariam.
+    const recente = new Date();
+    await prisma.lancamento.create({ data: { tipo: "despesa", descricao: `${termo} histórico`, valor: 50, status: "previsto", data: recente, vencimento: recente, categoriaId: catD.id, autorId } });
+    const prev = await casamentosDoHistorico([{ campo: "descricao", op: "contem", valor: termo }]);
+    check("a prévia conta o histórico que a regra casaria", prev.total === 1 && prev.amostra[0]?.descricao === `${termo} histórico`, prev);
+
+    // Conciliação: criar o lançamento da transação aplica o resto da regra e conta o uso.
+    const r = await importarOfxNoBanco({
+      contaId: conta.id,
+      nomeArquivo: `${tag}-regras.ofx`,
+      transacoes: [{ fitid: `${tag}-rg1`, data: dia("2043-03-10"), valor: -120, descricao: `${termo} boleto 123` }],
+      saldoExtrato: null,
+      autorId,
+    });
+    check("OFX importado sem casamento automático", r.importadas === 1 && r.conciliadas === 0, r);
+    const t = await prisma.transacaoBancaria.findFirstOrThrow({ where: { fitid: `${tag}-rg1` }, select: { id: true } });
+    await criarDaTransacaoNoBanco(t.id, catD.id, autorId);
+    const tr = await prisma.transacaoBancaria.findUniqueOrThrow({ where: { id: t.id }, select: { lancamentoId: true } });
+    const l = await prisma.lancamento.findUniqueOrThrow({ where: { id: tr.lancamentoId! }, select: { centroId: true, fornecedorId: true, tags: true, categoriaId: true } });
+    check("conciliação: o lançamento criado ganha centro, contato e tags da regra", l.centroId === centro.id && l.fornecedorId === forn.id && l.tags.includes("art") && l.categoriaId === catD.id, l);
+    check("o uso da regra é contado", (await prisma.regraCategorizacao.findUniqueOrThrow({ where: { id: a.id }, select: { usos: true } })).usos === 1);
+
+    // Importação de planilha: completa o que veio vazio e respeita a categoria da planilha.
+    const linha = ["Despesa", "Pendente", "2043-04-02", "", "-90", "", `${termo} planilha`, `${tag} catplan`, "", `${tag} contaplan`, "", "", "", `${Date.now()}rg`];
+    const mapa = { tipo: 0, status: 1, data: 2, dataConfirmacao: 3, valor: 4, valorEfetivo: 5, descricao: 6, categoria: 7, subcategoria: 8, conta: 9, contaTransferencia: 10, contato: 11, documento: 12, idUnico: 13 };
+    const res = normalizarLinhas([linha], mapa);
+    const { loteId } = await executarCommit(prisma, { nomeArquivo: `${tag}-regras.csv`, mapeamento: {}, res, autorId });
+    lotes.push(loteId);
+    const li = await prisma.lancamento.findFirstOrThrow({ where: { importLoteId: loteId }, select: { centroId: true, fornecedorId: true, tags: true, categoria: { select: { nome: true } } } });
+    check("importação: centro, contato e tags vêm da regra; a categoria fica a da planilha", li.centroId === centro.id && li.fornecedorId === forn.id && li.tags.includes("art") && li.categoria.nome === `${tag} catplan`, li);
+  } finally {
+    for (const id of lotes) {
+      await prisma.lancamento.deleteMany({ where: { importLoteId: id, excluidoEm: { not: undefined } } });
+      await prisma.importacaoFinanceira.delete({ where: { id } });
+    }
+    await prisma.regraCategorizacao.deleteMany({ where: { id: { in: regraIds } } });
+    await prisma.transacaoBancaria.deleteMany({ where: { contaId: conta.id } });
+    await prisma.extratoBancario.deleteMany({ where: { contaId: conta.id } });
+    await prisma.lancamento.deleteMany({ where: { OR: [{ descricao: { startsWith: tag } }, { descricao: { startsWith: termo } }, { contaId: conta.id }], excluidoEm: { not: undefined } } });
+    await prisma.contaBancaria.deleteMany({ where: { OR: [{ id: conta.id }, { nome: { startsWith: tag } }] } });
+    await prisma.centroCusto.delete({ where: { id: centro.id } });
+    await prisma.fornecedor.delete({ where: { id: forn.id } });
+    const novas = (await prisma.categoriaFinanceira.findMany({ select: { id: true } })).map((c) => c.id).filter((id) => !categoriasAntes.has(id));
+    if (novas.length) await prisma.categoriaFinanceira.deleteMany({ where: { id: { in: novas }, lancamentos: { none: {} } } });
   }
 }
 

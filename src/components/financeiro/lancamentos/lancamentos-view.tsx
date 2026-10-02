@@ -15,6 +15,8 @@ import { formatarCodigo } from "@/modules/projetos/numbering";
 import { LancamentoForm } from "./lancamento-form";
 import { ConfirmarDialog } from "./confirmar-dialog";
 import { LancamentoDetalheDialog } from "./lancamento-detalhe-dialog";
+import { CriarRegraDialog, type LancamentoParaRegra } from "@/components/financeiro/regras/criar-regra-dialog";
+import { ACAO_CRIAR_REGRA } from "@/modules/financeiro/regras/acoes";
 import { Button } from "@/components/ui/button";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { Input } from "@/components/ui/input";
@@ -219,6 +221,7 @@ export function LancamentosView({
   const [formOpen, setFormOpen] = useState(defaultFormOpen);
   const [editar, setEditar] = useState<LivroCaixaItem | null>(null);
   const [confirmar, setConfirmar] = useState<LivroCaixaItem | null>(null);
+  const [regraDe, setRegraDe] = useState<LancamentoParaRegra | null>(null);
   const [detalhe, setDetalhe] = useState<LivroCaixaItem | null>(() =>
     defaultDetalheId ? (itens.find((l) => l.id === defaultDetalheId) ?? null) : null,
   );
@@ -519,6 +522,7 @@ export function LancamentosView({
       if (!ok) return;
     }
     if (item.id === ACAO_DETALHES) setDetalhe(l);
+    else if (item.id === ACAO_CRIAR_REGRA) setRegraDe({ id: l.id, descricao: l.descricao, categoria: l.categoria ? `${l.categoria.codigo} ${l.categoria.nome}` : null, temCentroOuProjeto: l.centro != null || l.projeto != null });
     else if (item.id === ACAO_EDITAR) setEditar(l);
     else if (item.id === ACAO_CONFIRMAR) setConfirmar(l);
     else if (item.id === ACAO_CANCELAR) cancelar(l.id);
@@ -833,6 +837,7 @@ export function LancamentosView({
       />
       <ConfirmarDialog lancamento={confirmar} onClose={() => setConfirmar(null)} contas={opcoes.contas} formas={opcoes.formas} />
       <LancamentoDetalheDialog lancamento={detalhe} podeGerir onClose={() => setDetalhe(null)} />
+      <CriarRegraDialog lancamento={regraDe} onClose={() => setRegraDe(null)} />
       <BarraSelecao
         total={alvosSelecao.length}
         itens={itensDoLote}
@@ -872,7 +877,7 @@ export function LancamentosView({
     // Com a linha DENTRO de uma seleção de vários, o menu age sobre a seleção (regra 3 da ADR-0002).
     const menuItens = alvosSelecao.length > 1 && selecao.marcado(l.id)
       ? itensDoLote
-      : itensDeLancamento({ status: l.status, anexos: l.anexos.length, conciliado: l.conciliado });
+      : itensDeLancamento({ status: l.status, anexos: l.anexos.length, conciliado: l.conciliado, temCategoria: l.categoria != null });
     return (
       <LinhaComMenu
         key={l.id}

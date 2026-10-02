@@ -69,6 +69,7 @@ const MAIS: readonly ItemNavFinanceiro[] = [
   { id: "aprovacoes", href: "/financeiro/aprovacoes", rotulo: "Aprovações", desc: "Despesas na alçada", gate: "aprovar" },
   { id: "documentos", href: "/financeiro/documentos", rotulo: "Documentos", desc: "NF, contratos, medições", gate: "ver" },
   { id: "importar", href: "/financeiro/importar", rotulo: "Importar planilha", desc: "Meu Dinheiro e outras", gate: "conciliar" },
+  { id: "regras", href: "/financeiro/regras", rotulo: "Regras de preenchimento", desc: "Categoria e outros campos automáticos", gate: "gerir", novo: true },
   { id: "fechamento", href: "/financeiro/fechamento", rotulo: "Fechamento mensal", desc: "Trava o mês fechado", gate: "fechar" },
   { id: "cadastros", href: "/financeiro/cadastros", rotulo: "Cadastros", desc: "Plano de contas, contas, centros", gate: "gerir" },
   { id: "configuracoes", href: "/financeiro/configuracoes", rotulo: "Configurações", desc: "Alçadas, campos obrigatórios", gate: "gerir" },

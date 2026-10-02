@@ -18,6 +18,8 @@ import {
 } from "@/modules/financeiro/importacao/processar";
 import { motivoParaNaoDesfazer } from "@/modules/financeiro/importacao/desfazer";
 import { datasDoLancamento, exigirPeriodoAberto } from "@/modules/financeiro/fechamento/trava-service";
+import { carregarRegrasAtivas } from "@/modules/financeiro/regras/service";
+import { sugerirPreenchimento } from "@/modules/financeiro/regras/motor";
 
 type Tx = Prisma.TransactionClient;
 type Cat = { id: string; codigo: string };
@@ -235,6 +237,9 @@ export async function executarCommit(
         await r.resolverConta(s.contaNome, s.valor);
       }
 
+      // M2: regras de preenchimento completam o que a planilha deixou vazio (nunca trocam o que veio nela).
+      const regras = await carregarRegrasAtivas(tx);
+      const usosDasRegras = new Map<string, number>();
       const dados: Prisma.LancamentoCreateManyInput[] = [];
       for (const l of aImportar as LinhaNorm[]) {
         const categoriaId = await r.resolverCategoria(l.tipo, l.categoriaNome, l.subcategoriaNome);
@@ -242,6 +247,22 @@ export async function executarCommit(
         const formaId = l.formaNome ? await r.resolverForma(l.formaNome) : null;
         const centroId = l.centroNome ? await r.resolverCentro(l.centroNome) : null;
         const contato = l.contatoNome || l.contatoDoc ? await r.resolverContato(l.tipo, l.contatoNome, l.contatoDoc) : {};
+        const ehTransferencia = l.categoriaNome === CATEGORIA_TRANSFERENCIA;
+        const sug = ehTransferencia
+          ? null
+          : sugerirPreenchimento(
+              regras,
+              { descricao: l.descricao, tipo: l.tipo, valor: l.valor, contaId },
+              {
+                categoriaId,
+                centroId,
+                formaId,
+                fornecedorId: contato.fornecedorId,
+                clienteId: contato.clienteId,
+                tags: l.tags,
+              },
+            );
+        if (sug) usosDasRegras.set(sug.regraId, (usosDasRegras.get(sug.regraId) ?? 0) + 1);
         dados.push({
           tipo: l.tipo,
           descricao: l.descricao,
@@ -253,12 +274,13 @@ export async function executarCommit(
           dataConfirmacao: l.dataConfirmacao,
           categoriaId,
           contaId,
-          formaId,
-          centroId,
-          fornecedorId: contato.fornecedorId ?? null,
-          clienteId: contato.clienteId ?? null,
+          formaId: formaId ?? sug?.preenche.formaId ?? null,
+          centroId: centroId ?? sug?.preenche.centroId ?? null,
+          projetoId: sug?.preenche.projetoId ?? null,
+          fornecedorId: contato.fornecedorId ?? sug?.preenche.fornecedorId ?? null,
+          clienteId: contato.clienteId ?? sug?.preenche.clienteId ?? null,
           observacao: l.observacao || null,
-          tags: l.tags,
+          tags: sug?.preenche.tags ? [...l.tags, ...sug.preenche.tags] : l.tags,
           importLoteId: lote.id,
           importHash: l.hash,
           transferenciaId: l.categoriaNome === CATEGORIA_TRANSFERENCIA ? transferenciaIdDoHash(l.hash) : null,
@@ -268,6 +290,10 @@ export async function executarCommit(
 
       for (let k = 0; k < dados.length; k += 1000) {
         await tx.lancamento.createMany({ data: dados.slice(k, k + 1000) });
+      }
+
+      for (const [regraId, n] of usosDasRegras) {
+        await tx.regraCategorizacao.update({ where: { id: regraId }, data: { usos: { increment: n }, ultimoUsoEm: new Date() } });
       }
 
       const contagens: ContagensCommit = {

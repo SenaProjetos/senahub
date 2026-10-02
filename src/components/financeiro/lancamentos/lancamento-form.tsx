@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { criarLancamento, editarLancamento } from "@/modules/financeiro/lancamentos/actions";
+import { sugerirPreenchimentoAoLancar } from "@/modules/financeiro/regras/actions";
 import type { OpcoesLancamento, LancamentoItem } from "@/modules/financeiro/lancamentos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
@@ -84,6 +85,8 @@ export function LancamentoForm({
   const [prioridade, setPrioridade] = useState<string>(PADRAO);
   const [confianca, setConfianca] = useState<string>(PADRAO);
   const [caixinhaId, setCaixinhaId] = useState<string>(NONE);
+  // M2: a forma de pagamento que uma regra sugeriu (o formulário não tem o campo, mas a criação o aceita).
+  const [formaSugerida, setFormaSugerida] = useState("");
 
   // Sincroniza o formulário quando abre para um novo alvo (edição carrega valores; criação reseta).
   const alvoKey = open ? (editar?.id ?? "novo") : "fechado";
@@ -132,6 +135,7 @@ export function LancamentoForm({
     setPrioridade(PADRAO);
     setConfianca(PADRAO);
     setCaixinhaId(NONE);
+    setFormaSugerida("");
   }
 
   // Só o que ainda vai acontecer tem prioridade/confiança: realizado e cancelado não mexem nelas.
@@ -143,6 +147,38 @@ export function LancamentoForm({
         caixinhaId: tipo === "despesa" && caixinhaId !== NONE ? caixinhaId : null,
       }
     : {};
+
+  /**
+   * M2: ao sair da descrição de um lançamento NOVO, a primeira regra que casa preenche o que ainda está
+   * vazio (nunca troca o que a pessoa escolheu) e o formulário avisa o que foi preenchido.
+   */
+  async function sugerirPelaDescricao() {
+    if (modoEdicao || descricao.trim().length < 2) return;
+    const r = await sugerirPreenchimentoAoLancar({
+      descricao,
+      tipo,
+      valor: valor ?? 0,
+      categoriaId,
+      centroId: centroId === NONE ? "" : centroId,
+      projetoId: projetoId === NONE ? "" : projetoId,
+      fornecedorId: fornecedorId === NONE ? "" : fornecedorId,
+      clienteId: clienteId === NONE ? "" : clienteId,
+      formaId: formaSugerida,
+      tags: [],
+    });
+    if (!r.ok || !r.data.sugestao) return;
+    const { preenche, rotulo } = r.data.sugestao;
+    // A categoria só vale se for do tipo escolhido (regra de entrada serve a receita e vice-versa).
+    const categoriaOk = preenche.categoriaId && categoriasFiltradas.some((c) => c.id === preenche.categoriaId);
+    let preencheu = false;
+    if (categoriaOk && preenche.categoriaId) { setCategoriaId(preenche.categoriaId); preencheu = true; }
+    if (preenche.centroId) { setCentroId(preenche.centroId); preencheu = true; }
+    if (preenche.projetoId) { setProjetoId(preenche.projetoId); preencheu = true; }
+    if (preenche.fornecedorId) { setFornecedorId(preenche.fornecedorId); preencheu = true; }
+    if (preenche.clienteId) { setClienteId(preenche.clienteId); preencheu = true; }
+    if (preenche.formaId) { setFormaSugerida(preenche.formaId); preencheu = true; }
+    if (preencheu) toast.info(`Uma regra preencheu ${rotulo}. Você pode trocar.`);
+  }
 
   function salvar() {
     if (!descricao || valor === null || !categoriaId) {
@@ -188,7 +224,7 @@ export function LancamentoForm({
         observacao,
         confirmado,
         contaId: "",
-        formaId: "",
+        formaId: formaSugerida,
         ocorrencias: Number(ocorrencias) || 1,
         ...planejador,
       });
@@ -249,7 +285,7 @@ export function LancamentoForm({
 
           <div className="space-y-1.5">
             <Label>Descrição</Label>
-            <Input value={descricao} onChange={(e) => setDescricao(e.target.value)} />
+            <Input value={descricao} onChange={(e) => setDescricao(e.target.value)} onBlur={() => void sugerirPelaDescricao()} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

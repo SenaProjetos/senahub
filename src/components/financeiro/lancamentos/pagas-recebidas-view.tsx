@@ -17,6 +17,8 @@ import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { AcaoItemAcao } from "@/components/ui/acoes";
 import { LancamentoDetalheDialog } from "./lancamento-detalhe-dialog";
+import { CriarRegraDialog, type LancamentoParaRegra } from "@/components/financeiro/regras/criar-regra-dialog";
+import { ACAO_CRIAR_REGRA } from "@/modules/financeiro/regras/acoes";
 import { estornarLancamento } from "@/modules/financeiro/lancamentos/actions";
 import {
   ACAO_COPIAR_DESCRICAO_PAGA,
@@ -71,6 +73,7 @@ export function PagasRecebidasView({
   const [conc, setConc] = useState<Conciliacao>("todas");
   const [busca, setBusca] = useState("");
   const [detalhe, setDetalhe] = useState<PagaItem | null>(null);
+  const [regraDe, setRegraDe] = useState<LancamentoParaRegra | null>(null);
 
   const lista = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -121,6 +124,7 @@ export function PagasRecebidasView({
       if (!ok) return;
     }
     if (item.id === ACAO_DETALHES_PAGA) setDetalhe(l);
+    else if (item.id === ACAO_CRIAR_REGRA) setRegraDe({ id: l.id, descricao: l.descricao, categoria: l.categoria ? `${l.categoria.codigo} ${l.categoria.nome}` : null, temCentroOuProjeto: l.centro != null || l.projeto != null });
     else if (item.id === ACAO_VER_NO_EXTRATO && l.contaId) {
       router.push(`/financeiro/extrato?conta=${l.contaId}&mes=${mes}`);
     } else if (item.id === ACAO_COPIAR_DESCRICAO_PAGA) {
@@ -143,7 +147,7 @@ export function PagasRecebidasView({
   // Função de render (não componente aninhado): senão a linha remonta e fecha o menu aberto (ADR-0002).
   function linha(l: PagaItem) {
     const menu = itensDePaga(
-      { anexos: l.anexos.length, conciliado: l.conciliado, deProducao: l.pagamentoProjetistaId != null, temConta: l.contaId != null },
+      { anexos: l.anexos.length, conciliado: l.conciliado, deProducao: l.pagamentoProjetistaId != null, temConta: l.contaId != null, temCategoria: l.categoria != null },
       { podeGerir },
     );
     const parcial = l.valorEfetivo != null && Math.round(l.valorEfetivo * 100) !== Math.round(l.valor * 100);
@@ -253,6 +257,7 @@ export function PagasRecebidasView({
       </Card>
       <DicaMenuContexto />
       <LancamentoDetalheDialog lancamento={detalhe} podeGerir={podeGerir} onClose={() => setDetalhe(null)} />
+      <CriarRegraDialog lancamento={regraDe} onClose={() => setRegraDe(null)} />
     </div>
   );
 }

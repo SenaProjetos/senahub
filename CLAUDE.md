@@ -338,6 +338,18 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   lançamentos by payment date, in cents, saldo inicial + entradas − saídas = saldo final; transfer legs count,
   lançamento WITHOUT conta belongs to no account (the livro caixa has its own "Sem conta" checkbox — it used to
   enter every account selection). `ExtratoBancario.saldoBanco/saldoBancoEm` (OFX `LEDGERBAL`) feed the bank-balance check.
+- **Fill-in rules** (M2, `financeiro/regras/`, mock "Regras" approved 2026-10-02): a `RegraCategorizacao` is WHEN all
+  `condicoes` (JSON: descrição contém/igual/começa, tipo, valor, conta) match → THEN fill categoria, centro, forma,
+  projeto, contato and tags. Pure `motor.ts` decides: the FIRST active rule by `ordem` that matches wins (later ones
+  never complete what is left), it NEVER overwrites a field the person already chose (tags only add), contact is one
+  only (despesa → fornecedor, receita → cliente). `service.ts` loads the list/preview (`casamentosDoHistorico`, last
+  12 months, read-only) and `registrarUso`; every place that applies rules goes through `sugerirParaEntrada` or
+  `carregarRegrasAtivas` + `sugerirPreenchimento`: OFX conciliation (`transacoesPendentes` suggests the category;
+  `criarDaTransacaoNoBanco` fills the rest), spreadsheet import (`commit-core.ts`: only empty fields, transfer rows
+  excluded, the spreadsheet's category is never replaced) and the manual form (on blur of the description). A new rule
+  only counts from now on — nothing retroactive. `termo` stays on the row for compatibility; the migration turned old
+  term→category rules into one `descricao contém` condition each. Menu item "Criar regra a partir deste lançamento"
+  is `itemCriarRegra` (livro caixa, Contas, Pagas).
 - **Dates in the Financeiro are São Paulo calendar days** (N2, `lib/data.ts`): "today" to WRITE into a date column
   is `hojeParaBanco()` (UTC midnight of the SP day) and to compare is `diaDeSaoPaulo()` — a bare `new Date()` is
   tomorrow after 21h BRT. Period limits on date columns (`@db.Date`: `data`, `dataConfirmacao`, `dataCompetencia`)

@@ -89,6 +89,7 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 - **Conciliação** com menu de contexto na transação.
 - Os relatórios de resultado ganharam **abas** (DRE, Rentabilidade, DFC, Balanço, Orçamento).
 - "Planejamento de pagamentos" agora se chama **Pagamentos em lote**.
+- **Regras de preenchimento** (Mais → Regras de preenchimento): "quando a descrição contiver CREA, preencher a categoria ART". Preenchem categoria, centro, contato, forma, projeto e tags na conciliação do extrato, na importação de planilha e ao lançar; a primeira regra da lista que casa vale e nenhuma sobrescreve o que você já escolheu. No menu de um lançamento, **Criar regra a partir deste lançamento**.
 
 ---
 

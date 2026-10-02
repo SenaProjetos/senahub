@@ -37,3 +37,23 @@ Data: 2026-10-02 · Branch: `feat/financeiro-nucleo` · Mock aprovado: canvas "F
 - Verificação: `nav.test.ts`, `acoes-paga.test.ts`, `extrato/*.test.ts`, `smoke:financeiro-core` (7 checagens novas) e
   as telas no Chrome em produção (1366 com menu aberto e 390 sem rolagem lateral). Achado: `sr-only` em `<th>` sem
   `relative` escapa do `overflow-x-auto` (ver memória sr-only-escapa-rolagem).
+
+## M2 — regras de preenchimento (Sonnet) — concluída
+
+- **Modelo** (migração `20261002240000_regras_de_preenchimento`): `RegraCategorizacao` ganha `condicoes` (JSON),
+  `ordem`, `categoriaId` opcional e os campos `centroId`, `formaId`, `projetoId`, `fornecedorId`, `clienteId`, `tags`,
+  além de `usos`/`ultimoUsoEm`/`ativo`. As regras antigas viram uma condição "descrição contém <termo>" na ordem em que
+  existiam; `termo` segue gravado.
+- **Motor puro** `regras/motor.ts` (12 testes): `regraCasa` (condição vazia nunca casa), `primeiraQueCasa`,
+  `sugerirPreenchimento` (nunca sobrescreve; contato único por tipo), `sugerirTermo` (ignora PAG/BOLETO/PIX e números).
+- **Onde vale:** conciliação do OFX (sugestão + criar lançamento), importação de planilha (só campos vazios) e
+  formulário de lançamento novo (ao sair da descrição). Forma e tags só se aplicam onde o formulário/importação as aceita:
+  o formulário manual aplica forma, mas não tags.
+- **Tela** `/financeiro/regras` (Mais → Regras de preenchimento, gate `gerir` para editar; `ver` lê): lista numerada com
+  menu de contexto e `...` (`itensDeRegraDePreenchimento`: Editar, Ver os lançamentos, Duplicar (nasce pausada), Subir
+  na ordem, Pausar/Ativar, Excluir), editor Quando/Então com prévia "Casaria com N lançamentos dos últimos 12 meses" e
+  diálogo "Criar regra a partir deste lançamento" nos menus do livro caixa, de Contas e de Pagas.
+- **Desvio do mock:** reordenar é por **Subir na ordem** no menu, não por arrastar (o texto da tela explica). Arrastar
+  entra quando houver biblioteca de arrastar no Financeiro; não bloqueia o uso.
+- **Verificação:** `motor.test.ts`, `acoes.test.ts`, `nav.test.ts`, `smoke:financeiro-core` (9 checagens novas: primeira
+  que casa, nunca sobrescreve, pausada, prévia, conciliação, importação, uso contado).

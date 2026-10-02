@@ -28,7 +28,7 @@ describe("navegação do Financeiro por gate (mock de 2026-10-02)", () => {
     expect(ids(itensDaNavFinanceiro({ ...nenhuma, conciliar: true }).mais)).toEqual(["importar"]);
     expect(ids(itensDaNavFinanceiro({ ...nenhuma, fechar: true }).mais)).toEqual(["fechamento"]);
     expect(ids(itensDaNavFinanceiro({ ...nenhuma, gerir: true }).movimentacoes)).toEqual(["planejamento"]);
-    expect(ids(itensDaNavFinanceiro({ ...nenhuma, gerir: true }).mais)).toEqual(["cadastros", "configuracoes"]);
+    expect(ids(itensDaNavFinanceiro({ ...nenhuma, gerir: true }).mais)).toEqual(["regras", "cadastros", "configuracoes"]);
     // A Produção tem gate próprio (`folha_pj`): quem paga projetista não precisa gerir o resto.
     expect(ids(itensDaNavFinanceiro({ ...nenhuma, folhaPj: true }).mais)).toEqual(["producao"]);
   });

@@ -1502,6 +1502,36 @@
       ]
     },
     {
+      "titulo": "Financeiro — Regras de preenchimento",
+      "path": "financeiro/regras-de-preenchimento.md",
+      "descricao": "Regras que preenchem categoria, centro de custo, contato, forma de pagamento, projeto e tags a partir da descrição, do valor ou da conta do lançamento.",
+      "resumo": "Cadastre \"quando a descrição contiver CREA, preencher a categoria ART\" uma vez e o sistema aplica na conciliação do extrato, na importação de planilha e ao lançar. A primeira regra da lista que casa vale, e nenhuma regra sobrescreve o que você já escolheu.",
+      "tags": [
+        "financeiro",
+        "regras",
+        "preenchimento",
+        "categoria",
+        "conciliação",
+        "importação",
+        "automação"
+      ],
+      "palavrasChave": [
+        "regras de preenchimento",
+        "regra de categorização",
+        "preencher categoria",
+        "preencher sozinho",
+        "criar regra a partir do lançamento",
+        "ordem das regras",
+        "regra pausada"
+      ],
+      "sinonimos": [
+        "categorização automática",
+        "regra automática",
+        "autopreenchimento",
+        "preenchimento automático"
+      ]
+    },
+    {
       "titulo": "Conciliação bancária (OFX) e Importação",
       "path": "financeiro/conciliacao-ofx.md",
       "descricao": "Importar extrato OFX, conciliar transações com lançamentos e migrar planilhas para o financeiro.",

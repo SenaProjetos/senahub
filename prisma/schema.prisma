@@ -978,6 +978,7 @@ model Cliente {
   @@index([segmentoId])
   @@index([fundidoEmId])
   @@index([excluidoEm])
+  regrasPreenchimento RegraCategorizacao[]
   @@map("cliente")
 }
 
@@ -1323,6 +1324,7 @@ model Projeto {
   @@index([situacao])
   @@index([negociacaoId])
   @@index([tipoEmpreendimentoId])
+  regrasPreenchimento RegraCategorizacao[]
   @@map("projeto")
 }
 
@@ -1567,6 +1569,7 @@ model CentroCusto {
   lancamentos   Lancamento[]
   planejamentos PlanejamentoPagamento[]
 
+  regrasPreenchimento RegraCategorizacao[]
   @@map("centro_custo")
 }
 
@@ -1605,6 +1608,7 @@ model FormaPagamento {
 
   lancamentos Lancamento[]
 
+  regrasPreenchimento RegraCategorizacao[]
   @@map("forma_pagamento")
 }
 
@@ -1629,6 +1633,7 @@ model Fornecedor {
   sancoes         SancaoConcorrente[]
 
   @@index([ativo])
+  regrasPreenchimento RegraCategorizacao[]
   @@map("fornecedor")
 }
 
@@ -1990,13 +1995,36 @@ model TransacaoBancaria {
 }
 
 /// Regra de auto-categorização: descrição que casa → categoria sugerida.
+/// Regra de preenchimento (M2): QUANDO todas as `condicoes` batem → ENTÃO preenche categoria, centro, contato,
+/// forma, projeto e tags. A primeira regra ativa da `ordem` que casa vale, e nunca sobrescreve o que a pessoa
+/// já escolheu (`financeiro/regras/motor.ts`). `termo` é o texto da regra simples antiga ("descrição contém"):
+/// a migração o copiou para `condicoes`; segue gravado só por compatibilidade.
 model RegraCategorizacao {
   id          String              @id @default(cuid())
   termo       String
-  categoriaId String
-  categoria   CategoriaFinanceira @relation(fields: [categoriaId], references: [id])
+  condicoes   Json                @default("[]")
+  ordem       Int                 @default(0)
+  categoriaId String?
+  categoria   CategoriaFinanceira? @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  centroId    String?
+  centro      CentroCusto?        @relation(fields: [centroId], references: [id], onDelete: SetNull)
+  formaId     String?
+  forma       FormaPagamento?     @relation(fields: [formaId], references: [id], onDelete: SetNull)
+  projetoId   String?
+  projeto     Projeto?            @relation(fields: [projetoId], references: [id], onDelete: SetNull)
+  fornecedorId String?
+  fornecedor  Fornecedor?         @relation(fields: [fornecedorId], references: [id], onDelete: SetNull)
+  clienteId   String?
+  cliente     Cliente?            @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  tags        String[]            @default([])
+  /// Quantas vezes a regra preencheu algo (conciliação, importação ou sugestão ao lançar).
+  usos        Int                 @default(0)
+  ultimoUsoEm DateTime?
   ativo       Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
+  @@index([ordem])
   @@map("regra_categorizacao")
 }
 

@@ -20,6 +20,7 @@ import {
   type CandidatoConciliacao,
   type EstadoAntesDaConciliacao,
 } from "@/modules/financeiro/conciliacao/casamento";
+import { registrarUso, sugerirParaEntrada } from "@/modules/financeiro/regras/service";
 
 type Tx = Prisma.TransactionClient;
 type Db = Tx | typeof prisma;
@@ -120,9 +121,19 @@ export async function criarDaTransacaoNoBanco(transacaoId: string, categoriaId: 
     if (!t) throw new ActionError("Transação não encontrada.");
     if (t.conciliado) throw new ActionError("Transação já conciliada.");
     await exigirPeriodoAberto(tx, [t.data]);
+    const tipo = Number(t.valor) > 0 ? "receita" : "despesa";
+    // M2: a regra que casa completa o que a pessoa não escolheu (centro, forma, projeto, contato, tags).
+    const sug = await sugerirParaEntrada(tx, { descricao: t.descricao, tipo, valor: Math.abs(Number(t.valor)), contaId: t.contaId }, { categoriaId });
+    const extra = sug?.preenche ?? {};
     const lanc = await tx.lancamento.create({
       data: {
-        tipo: Number(t.valor) > 0 ? "receita" : "despesa",
+        tipo,
+        centroId: extra.centroId,
+        formaId: extra.formaId,
+        projetoId: extra.projetoId,
+        fornecedorId: extra.fornecedorId,
+        clienteId: extra.clienteId,
+        tags: extra.tags,
         descricao: t.descricao,
         valor: Math.abs(Number(t.valor)),
         status: "confirmado",
@@ -140,6 +151,7 @@ export async function criarDaTransacaoNoBanco(transacaoId: string, categoriaId: 
       data: { conciliado: true, lancamentoId: lanc.id, estadoAnterior: antes },
     });
     if (r.count !== 1) throw new ActionError("Transação já conciliada.");
+    if (sug) await registrarUso(tx, sug.regraId);
   });
 }
 

@@ -39,6 +39,7 @@ O que você vê no financeiro depende de **3 níveis**:
 | [Contas (em aberto e pagas) + Aging](contas-e-aging.md) | `/financeiro/contas` | ✅ documentado |
 | [Extrato por conta](extrato-por-conta.md) | `/financeiro/extrato` | ✅ documentado |
 | [Conciliação bancária (OFX) e Importação](conciliacao-ofx.md) | `/financeiro/conciliacao` · `/importar` | ✅ documentado |
+| [Regras de preenchimento](regras-de-preenchimento.md) | `/financeiro/regras` | ✅ documentado |
 | [Aprovações (alçadas)](aprovacoes.md) | `/financeiro/aprovacoes` | ✅ documentado |
 | [Relatórios gerenciais](relatorios.md) | `/financeiro/relatorios` e afins | ✅ documentado |
 | [Estúdio de Documentos](estudio-documentos.md) | `/documentos` | ✅ documentado |

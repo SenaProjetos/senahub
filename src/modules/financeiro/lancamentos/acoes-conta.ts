@@ -3,6 +3,7 @@ import { BadgeCheck, Check, Copy, Flag, Paperclip, Pencil, PiggyBank, Undo2 } fr
 import type { AcaoItem } from "@/components/ui/acoes";
 import type { Confianca, Prioridade } from "@/modules/financeiro/liquidez/tipos";
 import { MOTIVO_EM_APROVACAO } from "@/modules/financeiro/lancamentos/transicoes";
+import { itemCriarRegra } from "@/modules/financeiro/regras/acoes";
 
 /**
  * Ações de uma conta a pagar/receber — **puro**. Mesmo array para o menu de contexto, o `...` e a
@@ -46,6 +47,8 @@ export type ContaParaAcoes = {
   confianca?: Confianca | null;
   /** Caixinha que paga a saída. Só despesa. */
   caixinhaId?: string | null;
+  /** Informado = o menu oferece "Criar regra a partir deste lançamento" (a quem gere). */
+  temCategoria?: boolean;
 };
 
 export type ContextoAcoesConta = {
@@ -123,6 +126,7 @@ export function itensDeConta(c: ContaParaAcoes, ctx: ContextoAcoesConta): AcaoIt
         : { tipo: "acao", id: ACAO_MARCAR_CONFIRMADA, rotulo: "Marcar como confirmada pelo cliente", icone: BadgeCheck }
       : null,
     { tipo: "acao", id: ACAO_COPIAR_DESCRICAO, rotulo: "Copiar descrição", icone: Copy },
+    ctx.podeGerir && c.temCategoria !== undefined ? itemCriarRegra(c.temCategoria) : null,
   ];
   return itens.filter((i): i is AcaoItem => i !== null);
 }
