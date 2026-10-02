@@ -167,7 +167,7 @@ export function LancamentoForm({
           ...planejador,
         });
         if (r.ok) {
-          toast.success("Lançamento atualizado.");
+          toast.success(r.data.aguardandoAprovacao ? "Lançamento atualizado: o novo valor foi para aprovação." : "Lançamento atualizado.");
           onOpenChange(false);
           router.refresh();
         } else toast.error(r.error);

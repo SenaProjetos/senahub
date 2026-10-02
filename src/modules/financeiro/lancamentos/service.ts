@@ -7,7 +7,7 @@ import { notificarMuitos } from "@/lib/notificar";
 import { prisma } from "@/lib/prisma";
 import { brl } from "@/lib/utils";
 import { aprovadoresPorPapeis, getNiveisAprovacao } from "@/modules/financeiro/aprovacao/queries";
-import { papeisAprovadores, precisaAprovacao } from "@/modules/financeiro/aprovacao/niveis";
+import { papeisAprovadores, precisaAprovacao, valorDaAlcada } from "@/modules/financeiro/aprovacao/niveis";
 import { getConfigFinanceiro } from "@/modules/financeiro/config/queries";
 import { obrigatorioFaltando } from "@/modules/financeiro/config/validacao";
 import type { CriarLancamentoInput } from "@/modules/financeiro/lancamentos/schemas";
@@ -59,9 +59,10 @@ export async function criarLancamentoNoTx(db: Db, i: CriarLancamentoInput, autor
   });
   if (faltando) throw new ActionError(`Campo obrigatório: ${faltando}.`);
 
-  // Alçada por faixa: despesa em faixa que exige aprovação trava em aguardando_aprovacao.
+  // Alçada por faixa: despesa em faixa que exige aprovação trava em aguardando_aprovacao. Vale o
+  // TOTAL das ocorrências (N3): 60 × R$ 900 não passa como "R$ 900".
   const niveis = await getNiveisAprovacao();
-  const precisaAprovar = precisaAprovacao(i.tipo, i.valor, niveis);
+  const precisaAprovar = precisaAprovacao(i.tipo, valorDaAlcada(i.valor, i.ocorrencias), niveis);
   const status = precisaAprovar
     ? ("aguardando_aprovacao" as const)
     : i.confirmado

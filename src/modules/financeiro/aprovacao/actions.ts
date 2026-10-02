@@ -5,8 +5,8 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificar } from "@/lib/notificar";
-import { CHAVE_LIMITE_APROVACAO, CHAVE_NIVEIS_APROVACAO, getNiveisAprovacao } from "@/modules/financeiro/aprovacao/queries";
-import { papeisAprovadores } from "@/modules/financeiro/aprovacao/niveis";
+import { CHAVE_NIVEIS_APROVACAO, getNiveisAprovacao, valorParaAlcada } from "@/modules/financeiro/aprovacao/queries";
+import { motivoParaNaoAprovar } from "@/modules/financeiro/aprovacao/niveis";
 import { exigirOperacao } from "@/modules/financeiro/lancamentos/situacao-service";
 
 function rev() {
@@ -14,27 +14,6 @@ function rev() {
   revalidatePath("/financeiro/lancamentos");
   revalidatePath("/financeiro");
 }
-
-/** Define o limite de alçada (R$). Requer financeiro:gerir. */
-export const salvarLimiteAprovacao = defineAction(
-  {
-    modulo: "financeiro",
-    recurso: "financeiro",
-    permissao: "gerir",
-    acao: "salvar-limite-aprovacao",
-    entidade: "ConfigSistema",
-    schema: z.object({ limite: z.number().min(0) }),
-  },
-  async (i) => {
-    await prisma.configSistema.upsert({
-      where: { chave: CHAVE_LIMITE_APROVACAO },
-      create: { chave: CHAVE_LIMITE_APROVACAO, valor: i.limite },
-      update: { valor: i.limite },
-    });
-    rev();
-    return { limite: i.limite };
-  },
-);
 
 const aliquotaNivel = z.object({ ate: z.number().min(0).nullable(), papeis: z.array(z.string()).max(8) });
 
@@ -71,12 +50,18 @@ export const aprovarLancamento = defineAction(
   { ...aprovarBase, acao: "aprovar-lancamento", schema: z.object({ id: z.string().min(1) }) },
   async (i, ctx) => {
     await exigirOperacao(prisma, i.id, "aprovar");
-    const l = await prisma.lancamento.findUniqueOrThrow({ where: { id: i.id }, select: { status: true, autorId: true, descricao: true, valor: true } });
-    // Alçada por faixa: o papel do aprovador deve cobrir o valor (admin tem bypass).
-    const papeis = papeisAprovadores(Number(l.valor), await getNiveisAprovacao());
-    if (ctx.user.role !== "admin" && !papeis.includes(ctx.user.role)) {
-      throw new ActionError("Você não tem alçada para aprovar este valor.");
-    }
+    const l = await prisma.lancamento.findUniqueOrThrow({
+      where: { id: i.id },
+      select: { id: true, status: true, autorId: true, descricao: true, valor: true, recorrenciaGrupo: true },
+    });
+    // Alçada única (N3): total do parcelamento × papel; quem lançou não aprova (só o admin).
+    const motivo = motivoParaNaoAprovar({
+      valorAlcada: await valorParaAlcada(prisma, l),
+      faixas: await getNiveisAprovacao(),
+      aprovador: ctx.user,
+      autorId: l.autorId,
+    });
+    if (motivo) throw new ActionError(motivo);
     await prisma.lancamento.update({
       where: { id: i.id },
       data: {

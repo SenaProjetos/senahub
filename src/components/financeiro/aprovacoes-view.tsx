@@ -1,23 +1,23 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ShieldCheck } from "lucide-react";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
-import { aprovarLancamento, rejeitarLancamento, salvarLimiteAprovacao } from "@/modules/financeiro/aprovacao/actions";
+import { aprovarLancamento, rejeitarLancamento } from "@/modules/financeiro/aprovacao/actions";
 import { ACAO_APROVAR, ACAO_REJEITAR, itensDeAprovacao } from "@/modules/financeiro/aprovacao/acoes";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import type { AcaoItemAcao } from "@/components/ui/acoes";
 import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { BarraSelecao } from "@/components/ui/barra-selecao";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
-import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { LinhaComMenu } from "@/components/ui/linha-com-menu";
 import { useLote } from "@/components/ui/use-lote";
@@ -34,8 +34,8 @@ type Item = {
   autor: string;
   vencimento: string | null;
   criadoEm: string;
-  /** Regra do servidor: o papel de quem está na tela não cobre este valor. */
-  semAlcada: boolean;
+  /** Regra do servidor: por que quem está na tela não pode decidir (`null` = pode). */
+  bloqueio: string | null;
 };
 
 /**
@@ -46,20 +46,17 @@ type Item = {
  */
 export function AprovacoesView({
   itens,
-  limite,
   podeGerir,
   podeAprovar,
   subnav,
 }: {
   itens: Item[];
-  limite: number;
   podeGerir: boolean;
   podeAprovar: boolean;
   subnav?: React.ReactNode;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [novoLimite, setNovoLimite] = useState<number | null>(limite || null);
   const [recusa, setRecusa] = useState<{ item: Item; motivo: string } | null>(null);
   const selecao = useSelecao();
   const lote = useLote();
@@ -67,16 +64,6 @@ export function AprovacoesView({
   const ids = useMemo(() => itens.map((i) => i.id), [itens]);
   const porId = useMemo(() => new Map(itens.map((i) => [i.id, i])), [itens]);
   const estado = selecao.estadoDaPagina(ids);
-
-  function salvarLimite() {
-    start(async () => {
-      const r = await salvarLimiteAprovacao({ limite: novoLimite ?? 0 });
-      if (r.ok) {
-        toast.success("Limite de alçada salvo.");
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
 
   function aprovar(id: string) {
     start(async () => {
@@ -111,7 +98,7 @@ export function AprovacoesView({
   /** Lote: só aprovar. Rejeitar exige um motivo por despesa — em lote viraria um motivo falso. */
   function aprovarSelecionadas(alvos: readonly string[]) {
     void lote.executar({
-      ids: alvos.filter((id) => porId.get(id)?.semAlcada === false),
+      ids: alvos.filter((id) => porId.get(id)?.bloqueio === null),
       acao: (id) => aprovarLancamento({ id }),
       substantivo: ["despesa", "despesas"],
       verbo: ["aprovada", "aprovadas"],
@@ -130,7 +117,7 @@ export function AprovacoesView({
   // Função de render (não componente aninhado): um componente definido aqui dentro remontaria a
   // cada render e fecharia o menu aberto (ADR-0002).
   function linha(l: Item) {
-    const acoes = itensDeAprovacao({ id: l.id, semAlcada: l.semAlcada }, { podeAprovar });
+    const acoes = itensDeAprovacao({ id: l.id, bloqueio: l.bloqueio }, { podeAprovar });
     return (
       <LinhaComMenu
         key={l.id}
@@ -170,24 +157,13 @@ export function AprovacoesView({
       {subnav}
 
       {podeGerir && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Limite de alçada</CardTitle>
-            <CardDescription>Despesas com valor ≥ este limite exigem aprovação. Use 0 para desativar.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Limite (R$)</Label>
-                <InputMoeda value={novoLimite} onChange={setNovoLimite} className="w-44" />
-              </div>
-              <Button size="sm" variant="outline" onClick={salvarLimite} disabled={pending}>
-                Salvar
-              </Button>
-              <span className="pb-2 text-xs text-muted-foreground">Atual: {limite > 0 ? brl(limite) : "desativado"}</span>
-            </div>
-          </CardContent>
-        </Card>
+        <p className="text-sm text-muted-foreground">
+          As faixas de valor e quem aprova cada uma ficam em{" "}
+          <Link href="/financeiro/configuracoes" className="font-medium text-foreground underline underline-offset-2">
+            Configurações do financeiro
+          </Link>
+          . Vale o total do parcelamento, e quem lançou não aprova a própria despesa (só o admin).
+        </p>
       )}
 
       <Card>

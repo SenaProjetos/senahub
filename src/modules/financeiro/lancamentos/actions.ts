@@ -17,6 +17,8 @@ import {
 import { z } from "zod";
 import { removerArquivo } from "@/lib/storage";
 import { criarLancamentoNoTx, notificarAprovacaoPendente } from "@/modules/financeiro/lancamentos/service";
+import { getNiveisAprovacao, valorParaAlcada } from "@/modules/financeiro/aprovacao/queries";
+import { situacaoAposMudarValor } from "@/modules/financeiro/aprovacao/niveis";
 import { camposDoPlanejador, saldoRestante } from "@/modules/financeiro/lancamentos/parcial";
 import { pagamentoPagoNoFinanceiro } from "@/modules/financeiro/custo/lancamento-custo";
 import { exigirOperacao, estornarNoBanco, MOTIVO_MUDOU, reabrirNoBanco } from "@/modules/financeiro/lancamentos/situacao-service";
@@ -117,13 +119,24 @@ export const criarLancamento = defineAction(
 
 export const editarLancamento = defineAction(
   { ...base, acao: "editar-lancamento", entidade: "Lancamento", schema: editarLancamentoSchema, capturarAntes: (i) => snapshotLancamento(i.id) },
-  async (i) => {
+  async (i, ctx) => {
     // Máquina de situações (N1): excluído, cancelado e previsão do cronograma não se editam aqui.
     const { lancamento: atual, estado } = await exigirOperacao(prisma, i.id, "editar");
-    if (estado.conciliado && paraCentavos(i.valor) !== paraCentavos(atual.valor)) {
+    const valorMudou = paraCentavos(i.valor) !== paraCentavos(atual.valor);
+    if (estado.conciliado && valorMudou) {
       throw new ActionError("Conciliado com o extrato: o valor não muda por aqui — desconcilie a transação antes.");
     }
     if (i.caixinhaId !== undefined) await validarCaixinhaDoLancamento(atual, i.caixinhaId);
+    // Alçada única (N3): despesa em aberto cujo VALOR mudou é reavaliada pelo total do parcelamento —
+    // já aprovada volta para a aprovação (aprovaram outro valor); abaixo da faixa, é liberada.
+    const novaSituacao = valorMudou
+      ? situacaoAposMudarValor({
+          tipo: atual.tipo,
+          status: estado.status,
+          valorAlcada: await valorParaAlcada(prisma, atual, i.valor),
+          faixas: await getNiveisAprovacao(),
+        })
+      : null;
     await prisma.lancamento.update({
       where: { id: i.id },
       data: {
@@ -142,10 +155,21 @@ export const editarLancamento = defineAction(
         fornecedorId: i.fornecedorId || null,
         clienteId: i.clienteId || null,
         observacao: i.observacao || null,
+        ...(novaSituacao === "aguardando_aprovacao"
+          ? { status: novaSituacao, aprovadoPorId: null, aprovadoEm: null, motivoRejeicao: null }
+          : novaSituacao
+            ? { status: novaSituacao }
+            : {}),
+        ...(novaSituacao && novaSituacao !== estado.status
+          ? { statusHistorico: { create: { de: estado.status, para: novaSituacao, autorId: ctx.user.id } } }
+          : {}),
       },
     });
+    const foiParaAprovacao = novaSituacao === "aguardando_aprovacao";
+    if (foiParaAprovacao) await notificarAprovacaoPendente(i.descricao, i.valor, ctx.user.id);
     rev();
-    return { id: i.id };
+    revalidatePath("/financeiro/aprovacoes");
+    return { id: i.id, aguardandoAprovacao: foiParaAprovacao };
   },
 );
 

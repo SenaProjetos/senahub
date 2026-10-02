@@ -1,16 +1,17 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { papeisAprovadores } from "@/modules/financeiro/aprovacao/niveis";
+import { motivoParaNaoAprovar } from "@/modules/financeiro/aprovacao/niveis";
+import type { Prisma } from "@/generated/prisma/client";
 import { wherePermissao } from "@/lib/audiencias";
 import type { Role } from "@/lib/roles";
 import type { FaixaAlcada } from "@/modules/financeiro/aprovacao/niveis";
 
-export const CHAVE_LIMITE_APROVACAO = "financeiro.limiteAprovacao";
 export const CHAVE_NIVEIS_APROVACAO = "financeiro.niveisAprovacao";
 
 /**
- * Níveis de alçada (faixas de valor → papéis aprovadores). Se não configurado,
- * deriva do limite único legado (até o limite = automático; acima = só admin).
+ * Níveis de alçada (faixas de valor → papéis aprovadores). Sem configuração, nada exige aprovação.
+ * O "limite único" antigo (≥ limite exige) saiu no N3: a migração `20261002160000_alcada_unica`
+ * transformou o limite salvo em faixas.
  *
  * O default deixou de incluir `supervisor` em 2026-09-02 (decisão do dono). Ele nomeava
  * admin+supervisor como aprovadores, mas o coordenador nunca conseguiu aprovar: o gate de
@@ -24,10 +25,7 @@ export const CHAVE_NIVEIS_APROVACAO = "financeiro.niveisAprovacao";
  * esta mudança não tem efeito: lá, tirar o coordenador é edição na tela, não deploy.
  */
 export async function getNiveisAprovacao(): Promise<FaixaAlcada[]> {
-  const [c, limite] = await Promise.all([
-    prisma.configSistema.findUnique({ where: { chave: CHAVE_NIVEIS_APROVACAO } }),
-    limiteAprovacao(),
-  ]);
+  const c = await prisma.configSistema.findUnique({ where: { chave: CHAVE_NIVEIS_APROVACAO } });
   if (c && Array.isArray(c.valor)) {
     return (c.valor as unknown[]).map((f) => {
       const o = (f ?? {}) as Record<string, unknown>;
@@ -37,8 +35,27 @@ export async function getNiveisAprovacao(): Promise<FaixaAlcada[]> {
       };
     });
   }
-  if (limite > 0) return [{ ate: limite, papeis: [] }, { ate: null, papeis: ["admin"] }];
   return [{ ate: null, papeis: [] }];
+}
+
+type Db = Prisma.TransactionClient | typeof prisma;
+
+/**
+ * Valor que a alçada avalia para um lançamento (N3): o TOTAL das ocorrências do mesmo parcelamento
+ * (`recorrenciaGrupo`), não a parcela. `valorNovo` substitui o desta linha (edição em andamento).
+ */
+export async function valorParaAlcada(
+  db: Db,
+  l: { id: string; valor: Prisma.Decimal | number; recorrenciaGrupo: string | null },
+  valorNovo?: number,
+): Promise<number> {
+  const desta = Math.round((valorNovo ?? Number(l.valor)) * 100);
+  if (!l.recorrenciaGrupo) return desta / 100;
+  const outras = await db.lancamento.findMany({
+    where: { recorrenciaGrupo: l.recorrenciaGrupo, id: { not: l.id }, tipo: "despesa", status: { not: "cancelado" } },
+    select: { valor: true },
+  });
+  return (desta + outras.reduce((s, o) => s + Math.round(Number(o.valor) * 100), 0)) / 100;
 }
 
 /**
@@ -56,18 +73,12 @@ export async function aprovadoresPorPapeis(papeis: string[]): Promise<string[]> 
   return us.map((u) => u.id);
 }
 
-/** Limite de alçada (R$) acima do qual despesas exigem aprovação. 0 = desligado. */
-export async function limiteAprovacao(): Promise<number> {
-  const c = await prisma.configSistema.findUnique({ where: { chave: CHAVE_LIMITE_APROVACAO } });
-  return typeof c?.valor === "number" ? c.valor : Number(c?.valor ?? 0);
-}
-
 /**
- * Despesas aguardando aprovação, com nomes resolvidos. `semAlcada` é a MESMA regra que
- * `aprovarLancamento` aplica (faixa por valor × papel, com bypass do admin): a tela desabilita o
- * item com o motivo em vez de deixar clicar e tomar erro.
+ * Despesas aguardando aprovação, com nomes resolvidos. `bloqueio` é a MESMA regra que
+ * `aprovarLancamento` aplica (`motivoParaNaoAprovar`: autoaprovação, faixa pelo total do
+ * parcelamento × papel, admin decide tudo): a tela desabilita o item com o motivo.
  */
-export async function lancamentosAguardando(quem?: { role: string }) {
+export async function lancamentosAguardando(quem?: { id: string; role: string }) {
   const ls = await prisma.lancamento.findMany({
     where: { status: "aguardando_aprovacao" },
     orderBy: { createdAt: "desc" },
@@ -78,12 +89,26 @@ export async function lancamentosAguardando(quem?: { role: string }) {
       autor: { select: { name: true } },
     },
   });
+  // Alçada pelo total do parcelamento (N3): soma dos grupos de uma vez.
+  const grupos = [...new Set(ls.map((l) => l.recorrenciaGrupo).filter((g): g is string => g != null))];
+  const somas = grupos.length
+    ? await prisma.lancamento.groupBy({
+        by: ["recorrenciaGrupo"],
+        where: { recorrenciaGrupo: { in: grupos }, tipo: "despesa", status: { not: "cancelado" } },
+        _sum: { valor: true },
+      })
+    : [];
+  const totalDoGrupo = new Map(somas.map((g) => [g.recorrenciaGrupo, Number(g._sum.valor ?? 0)]));
   const faixas = quem ? await getNiveisAprovacao() : null;
-  const temAlcada = (valor: number) => {
-    if (!quem || !faixas) return true;
-    if (quem.role === "admin") return true;
-    return papeisAprovadores(valor, faixas).includes(quem.role);
-  };
+  const bloqueio = (l: (typeof ls)[number]) =>
+    quem && faixas
+      ? motivoParaNaoAprovar({
+          valorAlcada: l.recorrenciaGrupo ? (totalDoGrupo.get(l.recorrenciaGrupo) ?? Number(l.valor)) : Number(l.valor),
+          faixas,
+          aprovador: quem,
+          autorId: l.autorId,
+        })
+      : null;
   return ls.map((l) => ({
     id: l.id,
     descricao: l.descricao,
@@ -94,7 +119,8 @@ export async function lancamentosAguardando(quem?: { role: string }) {
     autor: l.autor.name,
     vencimento: l.vencimento ? l.vencimento.toISOString().slice(0, 10) : null,
     criadoEm: l.createdAt.toISOString(),
-    semAlcada: !temAlcada(Number(l.valor)),
+    /** A frase com que `aprovarLancamento` recusaria ESTE usuário (`null` = pode decidir). */
+    bloqueio: bloqueio(l),
   }));
 }
 

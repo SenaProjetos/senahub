@@ -7,28 +7,27 @@ import { limparSeparadores, type AcaoItem } from "@/components/ui/acoes";
  * contexto da linha, o `...` e a barra de seleção. Quem não tem `financeiro:aprovar` não vê ação de
  * decisão (só o atalho para o lançamento).
  *
- * O ÚNICO motivo de desabilitar é a alçada por faixa, com a mesma frase que `aprovarLancamento`
- * devolve — a regra vive no servidor (`papeisAprovadores`) e a tela só repete o que ela diria.
- * Nada aqui inventa regra nova: se amanhã o escritório decidir que ninguém aprova a própria
- * despesa, isso nasce na action primeiro.
+ * O motivo de desabilitar vem pronto do servidor (`bloqueio`, de `motivoParaNaoAprovar`: alçada
+ * pelo total do parcelamento e "quem lançou não aprova"), com a mesma frase que `aprovarLancamento`
+ * devolve. Nada aqui inventa regra.
  */
 
 export const ACAO_APROVAR = "aprovar";
 export const ACAO_REJEITAR = "rejeitar";
 export const ACAO_ABRIR = "abrir";
 
-export const MOTIVO_SEM_ALCADA = "Você não tem alçada para aprovar este valor.";
+export { MOTIVO_PROPRIA_DESPESA, MOTIVO_SEM_ALCADA } from "@/modules/financeiro/aprovacao/niveis";
 
 export type DespesaParaAprovar = {
   id: string;
-  /** `true` quando o papel de quem está na tela não cobre o valor (regra do servidor). */
-  semAlcada: boolean;
+  /** Por que quem está na tela não pode decidir (regra do servidor); `null` = pode. */
+  bloqueio: string | null;
 };
 
 export type ContextoAprovacao = { podeAprovar: boolean };
 
 export function itensDeAprovacao(d: DespesaParaAprovar, ctx: ContextoAprovacao): AcaoItem[] {
-  const motivo = d.semAlcada ? MOTIVO_SEM_ALCADA : undefined;
+  const motivo = d.bloqueio ?? undefined;
   const itens: (AcaoItem | null)[] = [
     ctx.podeAprovar ? { tipo: "acao", id: ACAO_APROVAR, rotulo: "Aprovar", icone: Check, desabilitado: motivo } : null,
     ctx.podeAprovar

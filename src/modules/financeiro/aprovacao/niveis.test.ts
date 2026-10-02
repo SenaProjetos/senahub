@@ -38,3 +38,34 @@ describe("papeisAprovadores", () => {
     expect(papeisAprovadores(3000, faixas)).toEqual([]);
   });
 });
+
+import { MOTIVO_PROPRIA_DESPESA, MOTIVO_SEM_ALCADA, motivoParaNaoAprovar, situacaoAposMudarValor, valorDaAlcada } from "./niveis";
+
+describe("alçada única (N3)", () => {
+  const faixas = [
+    { ate: 1000, papeis: [] },
+    { ate: 10000, papeis: ["supervisor", "administrativo"] },
+    { ate: null, papeis: ["admin"] },
+  ];
+  it("total do parcelamento: 60 × 900 é avaliado como 54.000", () => {
+    expect(valorDaAlcada(900, 60)).toBe(54000);
+    expect(valorDaAlcada(0.1, 3)).toBe(0.3);
+    expect(valorDaAlcada(500)).toBe(500);
+  });
+  it("faixa inclui o teto: R$ 1.000 é automático, R$ 1.000,01 não", () => {
+    expect(situacaoAposMudarValor({ tipo: "despesa", status: "previsto", valorAlcada: 1000, faixas })).toBeNull();
+    expect(situacaoAposMudarValor({ tipo: "despesa", status: "previsto", valorAlcada: 1000.01, faixas })).toBe("aguardando_aprovacao");
+  });
+  it("valor que cai abaixo da faixa libera; receita e pago não mudam", () => {
+    expect(situacaoAposMudarValor({ tipo: "despesa", status: "aguardando_aprovacao", valorAlcada: 500, faixas })).toBe("previsto");
+    expect(situacaoAposMudarValor({ tipo: "receita", status: "previsto", valorAlcada: 99999, faixas })).toBeNull();
+    expect(situacaoAposMudarValor({ tipo: "despesa", status: "confirmado", valorAlcada: 99999, faixas })).toBeNull();
+  });
+  it("autoaprovação só do admin; papel fora da faixa não aprova", () => {
+    const base = { valorAlcada: 5000, faixas, autorId: "u1" };
+    expect(motivoParaNaoAprovar({ ...base, aprovador: { id: "u1", role: "supervisor" } })).toBe(MOTIVO_PROPRIA_DESPESA);
+    expect(motivoParaNaoAprovar({ ...base, aprovador: { id: "u1", role: "admin" } })).toBeNull();
+    expect(motivoParaNaoAprovar({ ...base, aprovador: { id: "u2", role: "supervisor" } })).toBeNull();
+    expect(motivoParaNaoAprovar({ ...base, valorAlcada: 20000, aprovador: { id: "u2", role: "supervisor" } })).toBe(MOTIVO_SEM_ALCADA);
+  });
+});

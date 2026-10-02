@@ -65,6 +65,9 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
   baixa parcial e a distribuição entre caixinhas) e **reabrir** um cancelado, direto no livro caixa.
 - **Desfazer uma importação** de planilha não apaga mais o que já foi trabalhado: lote com lançamento
   conciliado, distribuído ou alterado é recusado.
+- **Alçada de despesas:** vale o total do parcelamento, editar o valor de uma despesa a manda de volta para
+  aprovação, e quem lançou não aprova a própria despesa (só o admin). O antigo "limite de alçada" virou faixas
+  em Configurações do financeiro.
 - **Conciliação** com menu de contexto na transação.
 - Os relatórios de resultado ganharam **abas** (DRE, Rentabilidade, DFC, Balanço, Orçamento).
 - "Planejamento de pagamentos" agora se chama **Pagamentos em lote**.

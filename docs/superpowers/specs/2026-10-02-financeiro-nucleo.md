@@ -181,3 +181,25 @@ Migração `20261002120000_lancamento_restante_de` (aditiva). Nada a rodar à m�
 - Verificação: `data.test.ts` (instantes fixos, cobre 22h BRT), `valor-pago.test.ts`, `smoke:financeiro-core`
   (A10, 31/01, dia 1º), smokes planejador, previsão, onda2, onda3efg, sync-pagamento.
 - Fica: o resto dos `new Date()` que não gravam data-calendário (carimbos de hora) está certo como está.
+
+## N3 — alçada única (Opus) — concluída
+
+- **Uma regra** (`financeiro/aprovacao/niveis.ts`): as faixas de Configurações, com o teto incluído. O
+  "limite de alçada" antigo (≥ limite exige aprovação; só valia sem faixas salvas) virou faixas pela
+  migração `20261002160000_alcada_unica` (até limite − R$ 0,01 automático, acima só admin) e saiu do código
+  e da tela de Aprovações (que agora aponta para Configurações). O limite de contrato do jurídico
+  (`lib/aprovacao.ts`) é outra regra, de outro módulo, e ficou.
+- **Isenta por origem** (decisão 1): só `criarLancamentoNoTx` (lançamento manual e "incluir" do
+  planejador) e a edição de valor passam pela alçada; folha, projetistas, ART, serviços, recorrência,
+  parcelas de documento e distribuição de lucros gravam direto, como já faziam.
+- **Total do parcelamento:** `valorDaAlcada(valor, ocorrências)` na criação; `valorParaAlcada` soma o
+  `recorrenciaGrupo` (sem cancelados) ao aprovar, ao montar a fila e ao editar.
+- **Reavaliar ao mudar o valor:** `editarLancamento` + `situacaoAposMudarValor` — despesa em aberto acima
+  da faixa volta (ou fica) em aprovação, limpando quem aprovou; abaixo, a que esperava é liberada;
+  histórico e aviso aos aprovadores.
+- **Autoaprovação só do admin** (decisão 2): `motivoParaNaoAprovar`, usada pela action e pela fila
+  (`bloqueio`, desabilita Aprovar/Rejeitar com a mesma frase).
+- **Em aprovação não se paga nem se concilia:** já garantido pela máquina de situações (N1); OFX e lote
+  só pegam `previsto`.
+- Verificação: `niveis.test.ts`, `acoes.test.ts`, `smoke:financeiro-core` (parcelamento pelo total, soma do
+  grupo com edição, própria despesa, admin, migração do limite numa transação desfeita).

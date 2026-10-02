@@ -13,6 +13,7 @@
  *       reabertura (rejeitado volta à aprovação), caminhos impossíveis recusados, excluído por id
  *       recusado, corrida de dois estornos.
  *   N2. Recorrência confirmada só no 1º mês (A10), 31/01 + 1 mês = 28/02 (A9), dia 1º dentro do mês.
+ *   N3. Alçada única: total do parcelamento, quem lançou não aprova (só admin), limite antigo → faixas.
  *   A8. Desfazer importação: barrado com linha trabalhada, exclusão lógica no lote intocado, dedup
  *       que enxerga a linha excluída à mão mas não a do lote desfeito.
  *
@@ -20,6 +21,7 @@
  * em `smoke:planejador`. Uso: npm run smoke:financeiro-core
  */
 import "dotenv/config";
+import { readFileSync } from "node:fs";
 import { prisma } from "../src/lib/prisma";
 import { gerarParcelasDoProjeto, limparParcelasDoProjeto } from "../src/modules/projetos/receita/parcelas-service";
 import { faturarEntregaDaDisciplina } from "../src/modules/projetos/receita/faturamento";
@@ -34,6 +36,8 @@ import { estornarNoBanco, exigirOperacao, reabrirNoBanco } from "../src/modules/
 import { executarCommit, executarDesfazer } from "../src/modules/financeiro/importacao/commit-core";
 import { criarLancamentoNoTx } from "../src/modules/financeiro/lancamentos/service";
 import { utcFimDoDia, utcInicioDoDia } from "../src/lib/data";
+import { lancamentosAguardando, valorParaAlcada } from "../src/modules/financeiro/aprovacao/queries";
+import { MOTIVO_PROPRIA_DESPESA } from "../src/modules/financeiro/aprovacao/niveis";
 import { hashesExistentes } from "../src/modules/financeiro/importacao/queries";
 import { normalizarLinhas } from "../src/modules/financeiro/importacao/processar";
 
@@ -86,6 +90,7 @@ async function main() {
     await maquinaDeSituacoes(admin.id);
     await desfazerImportacao(admin.id);
     await datasEOcorrencias(admin.id);
+    await alcadaUnica(admin.id);
   } finally {
     const pags = (await prisma.pagamentoProjetista.findMany({ where: { disciplinaId: disciplina.id }, select: { id: true } })).map((p) => p.id);
     await prisma.lancamento.deleteMany({ where: { OR: [{ projetoId: projeto.id }, { pagamentoProjetistaId: { in: pags } }, { descricao: { startsWith: tag } }] } });
@@ -383,6 +388,63 @@ async function datasEOcorrencias(autorId: string) {
     check("A9: recebido do dia 1º cai em setembro, não em agosto", ago.recebido === 0 && set.recebido === 777, { ago: ago.recebido, set: set.recebido });
   } finally {
     await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: tag }, excluidoEm: { not: undefined } } });
+  }
+}
+
+async function alcadaUnica(autorId: string) {
+  console.log("\n# N3 — alçada única");
+  const CHAVE = "financeiro.niveisAprovacao";
+  const salvo = await prisma.configSistema.findUnique({ where: { chave: CHAVE } });
+  const catD = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "despesa", natureza: "resultado" }, select: { id: true } });
+  if (!catD) return check("categoria de despesa existe", false);
+  const supervisor = await prisma.user.create({ data: { name: `${tag}-sup`, email: `${tag}-sup@teste.local`, role: "supervisor", emailVerified: false } });
+  const faixas = [{ ate: 1000, papeis: [] }, { ate: null, papeis: ["admin", "supervisor"] }];
+  try {
+    await prisma.configSistema.upsert({ where: { chave: CHAVE }, create: { chave: CHAVE, valor: faixas }, update: { valor: faixas } });
+    const base = { tipo: "despesa" as const, valor: 500, data: "2043-01-10", categoriaId: catD.id, confirmado: false };
+
+    const uma = await criarLancamentoNoTx(prisma, { ...base, descricao: `${tag} uma`, ocorrencias: 1 }, supervisor.id);
+    check("R$ 500 sozinho: dentro da faixa automática", uma.status === "previsto", uma.status);
+    const tres = await criarLancamentoNoTx(prisma, { ...base, descricao: `${tag} tres`, ocorrencias: 3 }, supervisor.id);
+    check("3 × R$ 500 = R$ 1.500: o parcelamento vai para aprovação pelo total", tres.status === "aguardando_aprovacao", tres.status);
+
+    const linha = await prisma.lancamento.findFirstOrThrow({ where: { descricao: `${tag} tres` }, select: { id: true, valor: true, recorrenciaGrupo: true } });
+    check("valor da alçada = total do grupo", (await valorParaAlcada(prisma, linha)) === 1500);
+    check("valor da alçada com a edição em andamento (uma parcela vira 200)", (await valorParaAlcada(prisma, linha, 200)) === 1200);
+
+    const vistoPeloAutor = (await lancamentosAguardando(supervisor)).filter((l) => l.descricao === `${tag} tres`);
+    check("quem lançou vê as próprias desabilitadas com a frase do servidor", vistoPeloAutor.length === 3 && vistoPeloAutor.every((l) => l.bloqueio === MOTIVO_PROPRIA_DESPESA), vistoPeloAutor.map((l) => l.bloqueio));
+    const vistoPeloAdmin = (await lancamentosAguardando({ id: autorId, role: "admin" })).filter((l) => l.descricao === `${tag} tres`);
+    check("o admin decide", vistoPeloAdmin.every((l) => l.bloqueio === null));
+
+    // Migração: o limite antigo vira faixas equivalentes (>= limite exige aprovação), e a chave sai.
+    const sql = readFileSync("prisma/migrations/20261002160000_alcada_unica/migration.sql", "utf8");
+    class Desfaz extends Error {}
+    let gerado: unknown = null;
+    let sobrou = -1;
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.configSistema.deleteMany({ where: { chave: CHAVE } });
+        await tx.configSistema.create({ data: { chave: "financeiro.limiteAprovacao", valor: 1000 } });
+        await tx.$executeRawUnsafe(sql);
+        gerado = (await tx.configSistema.findUnique({ where: { chave: CHAVE } }))?.valor ?? null;
+        sobrou = await tx.configSistema.count({ where: { chave: "financeiro.limiteAprovacao" } });
+        throw new Desfaz();
+      });
+    } catch (e) {
+      if (!(e instanceof Desfaz)) throw e;
+    }
+    const f = gerado as { ate: number | null; papeis: string[] }[] | null;
+    check(
+      "migração: limite R$ 1.000 vira faixa automática até R$ 999,99 e o resto só admin",
+      !!f && f.length === 2 && Number(f[0].ate) === 999.99 && f[0].papeis.length === 0 && f[1].ate === null && f[1].papeis.join() === "admin" && sobrou === 0,
+      { f, sobrou },
+    );
+  } finally {
+    if (salvo) await prisma.configSistema.update({ where: { chave: CHAVE }, data: { valor: salvo.valor as never } });
+    else await prisma.configSistema.deleteMany({ where: { chave: CHAVE } });
+    await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: tag }, excluidoEm: { not: undefined } } });
+    await prisma.user.delete({ where: { id: supervisor.id } });
   }
 }
 

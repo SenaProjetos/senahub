@@ -28,3 +28,55 @@ export function precisaAprovacao(tipo: "receita" | "despesa", valor: number, fai
 export function papeisAprovadores(valor: number, faixas: FaixaAlcada[]): string[] {
   return faixaPara(valor, faixas)?.papeis ?? [];
 }
+
+/*
+ * ── Alçada única (N3 do núcleo do Financeiro, decisões do dono de 2026-10-02) ──────────────────────
+ *
+ * - Isenta por origem: folha CLT, projetistas, ART, serviços, recorrência, parcelas de documento e
+ *   distribuição de lucros já foram aprovados onde nasceram e gravam a despesa direto, sem passar
+ *   por aqui. Passa pela alçada o lançamento manual (`criarLancamentoNoTx`) e qualquer despesa cujo
+ *   VALOR mude pela edição no Financeiro.
+ * - O valor que conta é o TOTAL do parcelamento: 60 × R$ 900 com faixa automática até R$ 1.000 passava
+ *   inteiro sem ninguém olhar.
+ * - Só o admin aprova a própria despesa (o escritório não trava); os demais aprovadores, não.
+ * - A faixa inclui o teto: faixa "até R$ 1.000" cobre exatamente R$ 1.000. O antigo "limite de
+ *   alçada" (≥ limite exige aprovação) saiu — duas regras com fronteiras diferentes.
+ */
+
+export const MOTIVO_SEM_ALCADA = "Você não tem alçada para aprovar este valor.";
+export const MOTIVO_PROPRIA_DESPESA = "Quem lançou a despesa não a aprova: peça a outro aprovador.";
+
+/** Valor que a alçada avalia: o total das ocorrências (centavos, sem erro de ponto flutuante). */
+export function valorDaAlcada(valor: number, ocorrencias = 1): number {
+  return (Math.round(valor * 100) * Math.max(1, ocorrencias)) / 100;
+}
+
+/** Por que este aprovador não pode decidir esta despesa; `null` = pode. Admin decide tudo. */
+export function motivoParaNaoAprovar(p: {
+  valorAlcada: number;
+  faixas: FaixaAlcada[];
+  aprovador: { id: string; role: string };
+  autorId: string;
+}): string | null {
+  if (p.aprovador.role === "admin") return null;
+  if (p.aprovador.id === p.autorId) return MOTIVO_PROPRIA_DESPESA;
+  if (!papeisAprovadores(p.valorAlcada, p.faixas).includes(p.aprovador.role)) return MOTIVO_SEM_ALCADA;
+  return null;
+}
+
+/**
+ * Situação de uma despesa em aberto depois que o VALOR mudou pela edição; `null` = não muda. Acima da
+ * alçada volta (ou fica) em aprovação, mesmo já aprovada antes — aprovaram outro valor. Abaixo, uma
+ * que esperava aprovação é liberada.
+ */
+export function situacaoAposMudarValor(p: {
+  tipo: string;
+  status: string;
+  valorAlcada: number;
+  faixas: FaixaAlcada[];
+}): "aguardando_aprovacao" | "previsto" | null {
+  if (p.tipo !== "despesa") return null;
+  if (p.status !== "previsto" && p.status !== "aguardando_aprovacao") return null;
+  if (precisaAprovacao("despesa", p.valorAlcada, p.faixas)) return "aguardando_aprovacao";
+  return p.status === "aguardando_aprovacao" ? "previsto" : null;
+}

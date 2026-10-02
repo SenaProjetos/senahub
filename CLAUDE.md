@@ -81,7 +81,8 @@ src/
                          #   nav-config.ts: NAV_GROUPS with per-item roles[] + mobile flags
                          #   encargos.ts: INSS/IRRF progressive payroll calculator (pure, tested)
                          #   ofx.ts: OFX bank statement parser with dedup+auto-match (tested)
-                         #   aprovacao.ts: devePassarPorAprovacao(tipo, valor, limite) for finance workflows
+                         #   aprovacao.ts: devePassarPorAprovacao(tipo, valor, limite) — juridico contract limit only;
+                         #     the Financeiro's expense alçada is modules/financeiro/aprovacao/niveis.ts (faixas)
                          #   link-publico.ts: linkVigente({ativo, expiraEm}) — single rule for every
                          #     token link (arquivos + inputs); revoke = ativo:false, expiry = expiraEm
                          #   backup.ts (pg_dump -Fc) + backup-storage.ts (additive robocopy mirror of
@@ -293,6 +294,14 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   status-changing path must go through this — never a bare `lancamento.update({ status })`. Undoing an
   import is a soft delete refused once any row was conciliated, distributed or edited; dedup
   (`hashesExistentes`) sees rows excluded by hand but not rows of an undone lote.
+- **One alçada for expenses** (N3, `financeiro/aprovacao/niveis.ts`, pure): the faixas from Configurações
+  (`ate` inclusive) are the only rule — the old single "limite" was migrated into faixas and removed. It
+  judges the TOTAL of the installments (`valorDaAlcada` on create, `valorParaAlcada` = sum of the
+  `recorrenciaGrupo` when approving or editing). Only `criarLancamentoNoTx` (manual + planner) and
+  `editarLancamento` (value changed on an open expense → `situacaoAposMudarValor`, already-approved goes back)
+  go through it; producers (folha, projetista, ART, serviço, recorrência, documento, lucros) are exempt by
+  origin and write directly. `motivoParaNaoAprovar`: admin decides anything, nobody else approves their own
+  expense; the same sentence is the action's error and the Aprovações menu's disabled reason (`bloqueio`).
 - **Dates in the Financeiro are São Paulo calendar days** (N2, `lib/data.ts`): "today" to WRITE into a date column
   is `hojeParaBanco()` (UTC midnight of the SP day) and to compare is `diaDeSaoPaulo()` — a bare `new Date()` is
   tomorrow after 21h BRT. Period limits on date columns (`@db.Date`: `data`, `dataConfirmacao`, `dataCompetencia`)

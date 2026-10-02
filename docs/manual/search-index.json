@@ -1525,11 +1525,13 @@
         "aprovar",
         "rejeitar",
         "faixa de valor",
-        "limite",
         "aprovador",
         "aprovar em lote",
         "aprovar selecionadas",
-        "motivo da rejeição"
+        "motivo da rejeição",
+        "parcelamento",
+        "própria despesa",
+        "autoaprovação"
       ],
       "sinonimos": [
         "workflow de aprovação",
