@@ -16,6 +16,7 @@ import { LancamentoForm } from "./lancamento-form";
 import { ConfirmarDialog } from "./confirmar-dialog";
 import { LancamentoDetalheDialog } from "./lancamento-detalhe-dialog";
 import { Button } from "@/components/ui/button";
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
@@ -93,7 +94,7 @@ const COLS_LS = "livrocaixa-larguras";
 const SIT_META: Record<Situacao, { label: string; cor: string }> = {
   pendente: { label: "Pendentes", cor: "bg-destructive" },
   agendado: { label: "Agendados", cor: "bg-warning" },
-  confirmado: { label: "Confirmados", cor: "bg-success" },
+  confirmado: { label: "Pagos e recebidos", cor: "bg-success" },
   conciliado: { label: "Conciliados", cor: "bg-info" },
   aguardando: { label: "Aguardando aprovação", cor: "bg-primary" },
   cancelado: { label: "Cancelados", cor: "bg-muted-foreground" },
@@ -140,6 +141,7 @@ export function LancamentosView({
   defaultProjetoId,
   defaultFormOpen = false,
   defaultDetalheId,
+  subnav,
 }: {
   itens: LivroCaixaItem[];
   contas: Conta[];
@@ -150,6 +152,8 @@ export function LancamentosView({
   defaultFormOpen?: boolean;
   /** `?lancamento=<id>` — abre o detalhe desse lançamento (link vindo da tela Produção). */
   defaultDetalheId?: string;
+  /** Subnavegação do Financeiro, renderizada logo APÓS o cabeçalho. */
+  subnav?: React.ReactNode;
 }) {
   const router = useRouter();
   const [, start] = useTransition();
@@ -334,7 +338,7 @@ export function LancamentosView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itens, contas, contasSel, inicio]);
 
-  // painel por conta: Confirmado e Projetado (saldo ao fim do período)
+  // painel por conta: Realizado (já pago/recebido) e Projetado (saldo ao fim do período)
   const painelContas = useMemo(() => {
     const conf = new Map<string, number>();
     const proj = new Map<string, number>();
@@ -594,10 +598,16 @@ export function LancamentosView({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-2xl font-extrabold tracking-tight">Lançamentos de caixa</h2>
-        <Button onClick={() => setFormOpen(true)}><Plus className="size-4" /> Novo lançamento</Button>
-      </div>
+      <CabecalhoPagina
+        titulo="Lançamentos de caixa"
+        descricao="Livro caixa: tudo o que entrou e saiu, lançamento por lançamento."
+        acoes={
+          <Button size="sm" onClick={() => setFormOpen(true)}>
+            <Plus className="size-4" /> Novo lançamento
+          </Button>
+        }
+      />
+      {subnav}
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
         {/* coluna esquerda */}
@@ -613,7 +623,7 @@ export function LancamentosView({
           <Card>
             <CardContent className="py-4">
               <div className="mb-2 grid grid-cols-[1fr_auto_auto] gap-2 text-xs font-medium text-muted-foreground">
-                <span>Contas</span><span className="text-right">Confirmado</span><span className="text-right">Projetado</span>
+                <span>Contas</span><span className="text-right">Realizado</span><span className="text-right">Projetado</span>
               </div>
               <ul className="space-y-1 text-sm">
                 {painelContas.map((c) => (

@@ -39,6 +39,7 @@ import {
   itensDeLoteContas,
 } from "@/modules/financeiro/lancamentos/acoes-conta";
 import { Button } from "@/components/ui/button";
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
@@ -102,6 +103,7 @@ export function ContasPagarReceberView({
   tabInicial = "despesa",
   podeGerir = false,
   topoReceita,
+  subnav,
 }: {
   itens: LancamentoItem[];
   opcoes: OpcoesLancamento;
@@ -109,6 +111,8 @@ export function ContasPagarReceberView({
   podeGerir?: boolean;
   /** Bloco exibido acima da lista, só na aba "A receber" (ex.: parcelas de contrato a faturar). */
   topoReceita?: React.ReactNode;
+  /** Subnavegação do Financeiro, renderizada logo APÓS o cabeçalho. */
+  subnav?: React.ReactNode;
 }) {
   const router = useRouter();
   const [, start] = useTransition();
@@ -454,12 +458,16 @@ export function ContasPagarReceberView({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-2xl font-extrabold tracking-tight">Contas a pagar e receber</h2>
-        <Button onClick={() => setFormOpen(true)}>
-          <Plus className="size-4" /> Nova conta
-        </Button>
-      </div>
+      <CabecalhoPagina
+        titulo="Contas a pagar e receber"
+        descricao="O que está em aberto, por vencimento, com prioridade e confiança."
+        acoes={
+          <Button size="sm" onClick={() => setFormOpen(true)}>
+            <Plus className="size-4" /> Nova conta
+          </Button>
+        }
+      />
+      {subnav}
 
       {/* abas */}
       <div className="flex gap-1 border-b">

@@ -458,6 +458,30 @@ A F6 (Opus) fecha em quatro commits independentes, cada um com testes verdes e r
   previsão é evento Estimada do motor, entra no cenário "estimadas", fica fora do Provável e, vencida, é
   aplicada hoje.
 
+## 14-B. F8 como ficou (2026-10-01)
+
+- **Cabeçalho novo e subnavegação** em Contas a pagar e receber, Lançamentos e na mesa de um lote
+  (Pagamentos em lote): o título antigo saiu, `CabecalhoPagina` é o primeiro elemento e a `NavFinanceiro`
+  vem logo depois. Na mesa, ficam à vista só a ação que avança o lote e Salvar; adicionar contas, voltar a
+  rascunho, reabrir e cancelar foram para o `...` (cancelar com confirmação).
+- **Linguagem do ADR-0007 no livro caixa:** "Confirmados" virou "Pagos e recebidos" e a coluna do painel
+  por conta virou "Realizado". Contas a pagar e receber já dizia "Pago."/"Recebido.".
+- **Abas dos Resultados** (`NavResultados` + `ResultadosTabs`): DRE · Rentabilidade · DFC · Balanço ·
+  Orçamento como faixa de abas dentro das cinco telas, com `aria-current`. A lista vem do servidor com o
+  mesmo gate da subnavegação (I11): quem não tem `financeiro:resultados` não vê aba que daria 403.
+- **Menus de contexto que faltavam** (ADR-0002, descritores puros testados):
+  - Aprovações (`aprovacao/acoes.ts`): aprovar, rejeitar e abrir no livro caixa; aprovar em lote. O único
+    motivo de desabilitar é a alçada por faixa, com a MESMA frase de `aprovarLancamento`
+    (`lancamentosAguardando(user)` calcula `semAlcada` pela regra do servidor). Nenhuma regra nova foi
+    inventada na tela. Rejeitar abre diálogo com o motivo (o `window.prompt` saiu — o lote não saberia
+    preenchê-lo); por isso o lote só aprova.
+  - Conciliação (`conciliacao/acoes.ts`): conciliar com a sugestão (submenu quando há várias), criar
+    lançamento (desabilitado sem categoria) e ignorar com confirmação — o botão "Ignorar" à vista passa pela
+    mesma confirmação.
+- **Já estavam feitos pela F1** (conferido, nada a mudar): gráficos com texto alternativo, cores por token,
+  `aria-label` nos chevrons do período. Os hex que sobraram estão só no CSS de impressão.
+- **Fica para depois:** menus de contexto em Documentos e Cadastros (listas sem ação em lote pedida).
+
 ## 15. Testes por arquivo (`src/modules/financeiro/liquidez/`)
 
 | Arquivo | Cobre |

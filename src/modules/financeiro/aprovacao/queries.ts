@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { papeisAprovadores } from "@/modules/financeiro/aprovacao/niveis";
 import { wherePermissao } from "@/lib/audiencias";
 import type { Role } from "@/lib/roles";
 import type { FaixaAlcada } from "@/modules/financeiro/aprovacao/niveis";
@@ -61,8 +62,12 @@ export async function limiteAprovacao(): Promise<number> {
   return typeof c?.valor === "number" ? c.valor : Number(c?.valor ?? 0);
 }
 
-/** Despesas aguardando aprovação, com nomes resolvidos. */
-export async function lancamentosAguardando() {
+/**
+ * Despesas aguardando aprovação, com nomes resolvidos. `semAlcada` é a MESMA regra que
+ * `aprovarLancamento` aplica (faixa por valor × papel, com bypass do admin): a tela desabilita o
+ * item com o motivo em vez de deixar clicar e tomar erro.
+ */
+export async function lancamentosAguardando(quem?: { role: string }) {
   const ls = await prisma.lancamento.findMany({
     where: { status: "aguardando_aprovacao" },
     orderBy: { createdAt: "desc" },
@@ -73,6 +78,12 @@ export async function lancamentosAguardando() {
       autor: { select: { name: true } },
     },
   });
+  const faixas = quem ? await getNiveisAprovacao() : null;
+  const temAlcada = (valor: number) => {
+    if (!quem || !faixas) return true;
+    if (quem.role === "admin") return true;
+    return papeisAprovadores(valor, faixas).includes(quem.role);
+  };
   return ls.map((l) => ({
     id: l.id,
     descricao: l.descricao,
@@ -83,6 +94,7 @@ export async function lancamentosAguardando() {
     autor: l.autor.name,
     vencimento: l.vencimento ? l.vencimento.toISOString().slice(0, 10) : null,
     criadoEm: l.createdAt.toISOString(),
+    semAlcada: !temAlcada(Number(l.valor)),
   }));
 }
 

@@ -5,6 +5,7 @@ import { balancoGerencial } from "@/modules/financeiro/relatorios/queries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { brlInteiro } from "@/lib/utils";
 import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
+import { NavResultados } from "@/components/financeiro/nav-resultados";
 
 export const metadata: Metadata = { title: "Balanço" };
 
@@ -25,6 +26,7 @@ export default async function BalancoPage() {
     <div className="space-y-5">
       <CabecalhoPagina titulo="Balanço gerencial" descricao="Posição simplificada base caixa: caixa + a receber = ativo; a pagar = passivo; PL = ativo − passivo." />
       <NavFinanceiro />
+      <NavResultados />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card>

@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useTransition, type CSSProperties, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
 import {
   DndContext,
@@ -19,7 +18,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import {
-  ArrowLeft, GripVertical, Plus, Save, Trash2, Check, Send, ShieldCheck, Play, Ban, X, ChevronDown, ChevronRight, Wallet,
+  GripVertical, Plus, Save, Trash2, Check, Send, ShieldCheck, Play, Ban, X, ChevronDown, ChevronRight, Wallet,
 } from "lucide-react";
 import {
   salvarLinhas, atualizarPlano, adicionarLinhas, removerLinha, mudarStatusPlano, executarPlano,
@@ -29,6 +28,9 @@ import type { PlanoDetalhe, PlanoLinhaDetalhe, LancamentoPlano } from "@/modules
 import { STATUS_META, type StatusPlano } from "./status";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
+import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
+import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
@@ -196,43 +198,92 @@ export function PlanejamentoMesaView({ plano, disponiveis }: { plano: PlanoDetal
 
   const meta = STATUS_META[plano.status as StatusPlano];
 
+  /** O que não cabe nas duas ações à vista. Ids, não callbacks (ADR-0002). */
+  const acoesDoLote: AcaoItem[] = ([
+    !readOnly
+      ? {
+          tipo: "acao",
+          id: "adicionar",
+          rotulo: "Adicionar contas…",
+          icone: Plus,
+          desabilitado: disponiveis.length === 0 ? "Nenhuma conta em aberto fora deste lote." : undefined,
+        }
+      : null,
+    plano.status === "analise" ? { tipo: "acao", id: "rascunho", rotulo: "Voltar a rascunho" } : null,
+    plano.status === "aprovado" ? { tipo: "acao", id: "reabrir", rotulo: "Reabrir para análise" } : null,
+    !readOnly ? { tipo: "separador", id: "sep" } : null,
+    !readOnly
+      ? {
+          tipo: "acao",
+          id: "cancelar",
+          rotulo: "Cancelar o lote",
+          icone: Ban,
+          variant: "destructive",
+          confirmar: { titulo: "Cancelar este lote?", descricao: "As contas voltam a ficar livres para outro lote.", rotuloConfirmar: "Cancelar o lote" },
+        }
+      : null,
+  ] as (AcaoItem | null)[]).filter((i): i is AcaoItem => i !== null);
+
+  async function aoEscolherAcao(item: AcaoItemAcao) {
+    // Confirmação SEMPRE antes da transição (React 19 suspenderia o diálogo dentro dela).
+    if (
+      item.confirmar &&
+      !(await confirm({
+        title: item.confirmar.titulo,
+        description: item.confirmar.descricao,
+        confirmLabel: item.confirmar.rotuloConfirmar,
+        variant: item.variant === "destructive" ? "destructive" : "default",
+      }))
+    )
+      return;
+    if (item.id === "adicionar") setAddOpen(true);
+    else if (item.id === "rascunho") mudarStatus("rascunho");
+    else if (item.id === "reabrir") mudarStatus("analise");
+    else if (item.id === "cancelar") mudarStatus("cancelado");
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" render={<Link href="/financeiro/planejamento" aria-label="Voltar" />}>
-            <ArrowLeft className="size-4" />
-          </Button>
-          <div>
-            <h2 className="text-xl font-extrabold tracking-tight">{plano.nome}</h2>
-            <p className="text-xs text-muted-foreground">Responsável: {plano.responsavel}</p>
-          </div>
-          <Badge variant="outline" className={meta.classe}>{meta.label}</Badge>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {!readOnly && (
-            <>
-              <Button variant="outline" size="sm" onClick={() => setAddOpen(true)} disabled={disponiveis.length === 0}>
-                <Plus className="size-4" /> Adicionar contas
+      {/*
+        Cabeçalho da página (não mais o título solto): duas ações à vista — a de avançar o lote e
+        Salvar — e o resto no `...`, como manda o padrão de cabeçalho.
+      */}
+      <CabecalhoPagina
+        trilha={[{ label: "Pagamentos em lote", href: "/financeiro/planejamento" }, { label: plano.nome }]}
+        titulo={plano.nome}
+        descricao={`${meta.label} · responsável ${plano.responsavel}`}
+        acoes={
+          <>
+            {plano.status === "rascunho" && (
+              <Button variant="outline" size="sm" onClick={() => mudarStatus("analise")}>
+                <Send className="size-4" aria-hidden /> Enviar p/ análise
               </Button>
-              <Button size="sm" onClick={salvar} disabled={pending}><Save className="size-4" /> Salvar</Button>
-            </>
-          )}
-          {plano.status === "rascunho" && <Button variant="outline" size="sm" onClick={() => mudarStatus("analise")}><Send className="size-4" /> Enviar p/ análise</Button>}
-          {plano.status === "analise" && (
-            <>
-              <Button variant="outline" size="sm" onClick={() => mudarStatus("rascunho")}>Voltar a rascunho</Button>
-              <Button size="sm" onClick={() => mudarStatus("aprovado")}><ShieldCheck className="size-4" /> Aprovar</Button>
-            </>
-          )}
-          {plano.status === "aprovado" && (
-            <>
-              <Button variant="outline" size="sm" onClick={() => mudarStatus("analise")}>Reabrir</Button>
-              <Button size="sm" onClick={executar} disabled={pending}><Play className="size-4" /> Executar</Button>
-            </>
-          )}
-          {!readOnly && <Button variant="ghost" size="sm" onClick={() => mudarStatus("cancelado")}><Ban className="size-4" /> Cancelar</Button>}
-        </div>
+            )}
+            {plano.status === "analise" && (
+              <Button size="sm" onClick={() => mudarStatus("aprovado")}>
+                <ShieldCheck className="size-4" aria-hidden /> Aprovar
+              </Button>
+            )}
+            {plano.status === "aprovado" && (
+              <Button size="sm" onClick={executar} disabled={pending}>
+                <Play className="size-4" aria-hidden /> Executar
+              </Button>
+            )}
+            {!readOnly && (
+              <Button size="sm" variant="outline" onClick={salvar} disabled={pending}>
+                <Save className="size-4" aria-hidden /> Salvar
+              </Button>
+            )}
+            {acoesDoLote.length > 0 && (
+              <BotaoAcoes itens={acoesDoLote} onSelect={aoEscolherAcao} rotulo={`Mais ações do lote ${plano.nome}`} />
+            )}
+          </>
+        }
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="outline" className={meta.classe}>
+          {meta.label}
+        </Badge>
       </div>
 
       {/* Configuração + indicadores */}

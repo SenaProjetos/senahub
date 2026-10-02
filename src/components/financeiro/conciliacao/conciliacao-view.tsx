@@ -11,6 +11,16 @@ import {
   ignorarTransacao,
 } from "@/modules/financeiro/conciliacao/actions";
 import type { TransacaoPendente } from "@/modules/financeiro/conciliacao/queries";
+import {
+  ACAO_CRIAR,
+  ACAO_IGNORAR,
+  itensDeTransacao,
+  lancamentoDeConciliar,
+} from "@/modules/financeiro/conciliacao/acoes";
+import type { AcaoItemAcao } from "@/components/ui/acoes";
+import { BotaoAcoes } from "@/components/ui/acoes-menu";
+import { LinhaComMenu } from "@/components/ui/linha-com-menu";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -128,9 +138,31 @@ function TransacaoRow({
   categorias: { id: string; codigo: string; nome: string; tipo: string }[];
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, start] = useTransition();
   const [catId, setCatId] = useState(t.categoriaSugerida?.id ?? "");
   const cats = categorias.filter((c) => (t.ehReceita ? c.tipo === "receita" : c.tipo === "despesa"));
+  // Mesmo array no menu de contexto e no `...` (ADR-0002); `temCategoria` é estado da tela, então
+  // entra como dado do descritor.
+  const acoes = itensDeTransacao({ sugestoes: t.sugestoes, temCategoria: catId !== "" }, { podeConciliar: true });
+
+  async function aoSelecionar(item: AcaoItemAcao) {
+    // Confirmação SEMPRE antes da transição (React 19 suspenderia o diálogo dentro dela).
+    if (
+      item.confirmar &&
+      !(await confirm({
+        title: item.confirmar.titulo,
+        description: item.confirmar.descricao,
+        confirmLabel: item.confirmar.rotuloConfirmar,
+        variant: item.variant === "destructive" ? "destructive" : "default",
+      }))
+    )
+      return;
+    const alvo = lancamentoDeConciliar(item.id);
+    if (alvo) conciliar(alvo);
+    else if (item.id === ACAO_CRIAR) criar();
+    else if (item.id === ACAO_IGNORAR) ignorar();
+  }
 
   function conciliar(lancamentoId: string) {
     start(async () => {
@@ -163,7 +195,11 @@ function TransacaoRow({
   }
 
   return (
-    <div className="space-y-2 rounded-sm border p-3">
+    <LinhaComMenu
+      itens={acoes}
+      onSelect={aoSelecionar}
+      render={<div className="space-y-2 rounded-sm border p-3 data-[popup-open]:bg-muted/30" />}
+    >
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{t.descricao}</p>
@@ -171,10 +207,13 @@ function TransacaoRow({
             {formatarData(t.data)} · {t.conta}
           </p>
         </div>
-        <span className={`font-mono text-sm ${t.ehReceita ? "text-success" : "text-foreground"}`}>
-          {t.ehReceita ? "+" : ""}
-          {brl(t.valor)}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`font-mono text-sm ${t.ehReceita ? "text-success" : "text-foreground"}`}>
+            {t.ehReceita ? "+" : ""}
+            {brl(t.valor)}
+          </span>
+          <BotaoAcoes itens={acoes} onSelect={aoSelecionar} rotulo={`Ações da transação ${t.descricao}`} className="size-8" />
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -214,10 +253,19 @@ function TransacaoRow({
             <Plus className="size-3.5" /> Criar
           </Button>
         </div>
-        <Button size="sm" variant="ghost" disabled={pending} onClick={ignorar}>
+        {/* O botão à vista passa pela MESMA confirmação do menu: ignorar não tem volta pelo extrato. */}
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={pending}
+          onClick={() => {
+            const item = acoes.find((i): i is AcaoItemAcao => i.tipo === "acao" && i.id === ACAO_IGNORAR);
+            if (item) void aoSelecionar(item);
+          }}
+        >
           <X className="size-3.5" /> Ignorar
         </Button>
       </div>
-    </div>
+    </LinhaComMenu>
   );
 }

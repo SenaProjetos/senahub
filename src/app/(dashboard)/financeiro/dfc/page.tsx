@@ -5,6 +5,7 @@ import { relatorioDFC, categoriasParaDfc } from "@/modules/financeiro/relatorios
 import { DfcView } from "@/components/financeiro/dfc-view";
 
 import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
+import { NavResultados } from "@/components/financeiro/nav-resultados";
 export const metadata: Metadata = { title: "DFC" };
 
 export default async function DfcPage({ searchParams }: { searchParams: Promise<{ ano?: string }> }) {
@@ -16,5 +17,5 @@ export default async function DfcPage({ searchParams }: { searchParams: Promise<
     categoriasParaDfc(),
     can(user, "financeiro", "gerir"),
   ]);
-  return <DfcView subnav={<NavFinanceiro />} ano={ano} dfc={dfc} categorias={categorias} podeGerir={podeGerir} />;
+  return <DfcView subnav={<><NavFinanceiro /><NavResultados /></>} ano={ano} dfc={dfc} categorias={categorias} podeGerir={podeGerir} />;
 }

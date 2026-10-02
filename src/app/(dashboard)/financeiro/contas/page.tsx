@@ -4,6 +4,7 @@ import { can } from "@/lib/permissions";
 import { dadosContas, opcoesLancamento } from "@/modules/financeiro/lancamentos/queries";
 import { ContasPagarReceberView } from "@/components/financeiro/lancamentos/contas-pagar-receber-view";
 import { ParcelasAFaturarCard } from "@/components/financeiro/lancamentos/parcelas-a-faturar-card";
+import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 import { parcelasAFaturar } from "@/modules/juridico/contrato/parcelas-a-faturar-queries";
 
 export const metadata: Metadata = { title: "Contas a pagar e receber" };
@@ -30,6 +31,7 @@ export default async function ContasPage({
       tabInicial={tabInicial}
       podeGerir={podeGerir}
       topoReceita={aFaturar.length > 0 ? <ParcelasAFaturarCard parcelas={aFaturar} /> : undefined}
+      subnav={<NavFinanceiro />}
     />
   );
 }

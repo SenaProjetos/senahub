@@ -4,6 +4,7 @@ import { dadosLivroCaixa, opcoesLancamento } from "@/modules/financeiro/lancamen
 import { getConfigExclusao } from "@/modules/financeiro/config/queries";
 import { modelosPorFonte } from "@/modules/documentos/queries";
 import { LancamentosView } from "@/components/financeiro/lancamentos/lancamentos-view";
+import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 
 export const metadata: Metadata = { title: "Lançamentos de caixa" };
 
@@ -30,6 +31,7 @@ export default async function LancamentosPage({
       defaultProjetoId={projetoId}
       defaultFormOpen={novo === "1"}
       defaultDetalheId={lancamento}
+      subnav={<NavFinanceiro />}
     />
   );
 }
