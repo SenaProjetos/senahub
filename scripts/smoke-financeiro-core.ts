@@ -56,6 +56,9 @@ import { dadosPagas } from "../src/modules/financeiro/lancamentos/queries";
 import { hashesExistentes } from "../src/modules/financeiro/importacao/queries";
 import { normalizarLinhas } from "../src/modules/financeiro/importacao/processar";
 import { casamentosDoHistorico, sugerirParaEntrada } from "../src/modules/financeiro/regras/service";
+import { editarCompraNoBanco, lancarCompraNoBanco, pagarCompraNoBanco, pagarFaturaNoBanco } from "../src/modules/financeiro/cartoes/service";
+import { agregarFaturas } from "../src/modules/financeiro/cartoes/eventos";
+import { baseDoPlanejador } from "../src/modules/financeiro/liquidez/queries";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -113,6 +116,7 @@ async function main() {
     await taxaDeArt(admin.id);
     await extratoEPagas(admin.id);
     await regrasDePreenchimento(admin.id);
+    await cartoesDeCredito(admin.id);
   } finally {
     const pags = (await prisma.pagamentoProjetista.findMany({ where: { disciplinaId: disciplina.id }, select: { id: true } })).map((p) => p.id);
     await prisma.lancamento.deleteMany({ where: { OR: [{ projetoId: projeto.id }, { pagamentoProjetistaId: { in: pags } }, { descricao: { startsWith: tag } }] } });
@@ -804,6 +808,114 @@ async function regrasDePreenchimento(autorId: string) {
     await prisma.fornecedor.delete({ where: { id: forn.id } });
     const novas = (await prisma.categoriaFinanceira.findMany({ select: { id: true } })).map((c) => c.id).filter((id) => !categoriasAntes.has(id));
     if (novas.length) await prisma.categoriaFinanceira.deleteMany({ where: { id: { in: novas }, lancamentos: { none: {} } } });
+  }
+}
+
+async function cartoesDeCredito(autorId: string) {
+  console.log("\n# M3 — cartões de crédito e cartão pessoal");
+  const cat = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "despesa", natureza: "resultado" }, select: { id: true } });
+  const catReceita = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "receita" }, select: { id: true } });
+  if (!cat || !catReceita) return check("categorias existem", false);
+  const conta = await prisma.contaBancaria.create({ data: { nome: `${tag} cartao`, tipo: "corrente", saldoInicial: 0 } });
+  const cartao = await prisma.cartaoCredito.create({
+    data: { nome: `${tag} Visa`, tipo: "empresa", diaFechamento: 25, diaVencimento: 5, contaPadraoId: conta.id },
+  });
+  // Datas RELATIVAS: a fatura de 70 dias atrás já fechou em qualquer dia do mês; a de hoje está aberta.
+  const hoje = new Date().toISOString().slice(0, 10);
+  const diasAtras = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+  const compraVelha = diasAtras(70);
+  try {
+    const c1 = await lancarCompraNoBanco(
+      { cartaoId: cartao.id, descricao: `${tag} licença`, valor: 300, dataCompra: compraVelha, categoriaId: cat.id, parcelas: 3 },
+      autorId,
+    );
+    check("compra parcelada vira 3 despesas, uma por fatura", c1.lancamentoIds.length === 3 && c1.faturas.length === 3, c1);
+    const parcelas = await prisma.lancamento.findMany({
+      where: { id: { in: c1.lancamentoIds } },
+      orderBy: { data: "asc" },
+      select: { descricao: true, valor: true, data: true, vencimento: true, contaId: true, status: true, dataCompetencia: true, faturaId: true },
+    });
+    const dias = parcelas.map((p) => p.data.toISOString().slice(0, 10));
+    check("a despesa de cada parcela é da data dela, um mês depois da outra", dias[0] === compraVelha && dias.length === 3 && new Set(dias).size === 3, dias);
+    check("a competência acompanha a data da parcela", parcelas.every((p) => p.dataCompetencia?.toISOString().slice(0, 10) === p.data.toISOString().slice(0, 10)));
+    check("a compra nasce em aberto e SEM conta: o caixa só sai no pagamento", parcelas.every((p) => p.status === "previsto" && p.contaId === null));
+    check("cada parcela vence no dia 5 (o vencimento da fatura dela)", parcelas.every((p) => p.vencimento?.getUTCDate() === 5), parcelas.map((p) => p.vencimento?.toISOString().slice(0, 10)));
+    check("descrição numerada (1/3)", parcelas[0].descricao.endsWith("(1/3)"), parcelas[0].descricao);
+    check("cada parcela numa fatura diferente", new Set(parcelas.map((p) => p.faturaId)).size === 3);
+
+    // Compra de hoje: cai na fatura do ciclo em curso, que ainda está aberta.
+    const cHoje = await lancarCompraNoBanco({ cartaoId: cartao.id, descricao: `${tag} combustível`, valor: 80, dataCompra: hoje, categoriaId: cat.id, parcelas: 1 }, autorId);
+    const faturaDeHoje = (await prisma.lancamento.findUniqueOrThrow({ where: { id: cHoje.lancamentoIds[0] }, select: { faturaId: true } })).faturaId!;
+    const cedo = await erroDe(pagarFaturaNoBanco({ faturaId: faturaDeHoje, contaId: conta.id, data: hoje }, autorId));
+    check("fatura do ciclo em curso ainda está aberta: não se paga", cedo?.includes("ainda está aberta") === true, cedo);
+
+    const faturaVelha = parcelas[0].faturaId!;
+    const antes = await prisma.lancamento.count({ where: { faturaId: faturaVelha, status: "previsto" } });
+    const lancamentosAntes = await prisma.lancamento.count({ where: { cartaoId: cartao.id } });
+    const r = await pagarFaturaNoBanco({ faturaId: faturaVelha, contaId: conta.id, data: hoje }, autorId);
+    check("pagar a fatura realiza só as compras dela", r.comprasPagas === antes && antes === 1, { r, antes });
+    check("pagar NÃO cria lançamento nenhum (a compra já é a despesa)", (await prisma.lancamento.count({ where: { cartaoId: cartao.id } })) === lancamentosAntes);
+    const paga = await prisma.lancamento.findFirstOrThrow({ where: { faturaId: faturaVelha }, select: { status: true, contaId: true, dataConfirmacao: true, valor: true } });
+    check("a compra paga ganha a conta e a data do pagamento", paga.status === "confirmado" && paga.contaId === conta.id && paga.dataConfirmacao?.toISOString().slice(0, 10) === hoje, paga);
+    check("o total pago é a soma das compras da fatura", r.totalCentavos === Math.round(Number(paga.valor) * 100), r);
+
+    const denovo = await erroDe(pagarFaturaNoBanco({ faturaId: faturaVelha, contaId: conta.id, data: hoje }, autorId));
+    check("fatura já paga não se paga de novo", denovo?.includes("já foi paga") === true, denovo);
+
+    // Estornar reabre a fatura sem nenhum estado gravado.
+    const idPago = (await prisma.lancamento.findFirstOrThrow({ where: { faturaId: faturaVelha }, select: { id: true } })).id;
+    await estornarNoBanco(idPago, autorId);
+    check("estornar a compra devolve a fatura ao estado de a pagar", (await prisma.lancamento.count({ where: { faturaId: faturaVelha, status: "previsto" } })) === 1);
+    const depoisDoEstorno = await pagarFaturaNoBanco({ faturaId: faturaVelha, contaId: conta.id, data: hoje }, autorId);
+    check("e ela volta a poder ser paga", depoisDoEstorno.comprasPagas === 1);
+
+    // Editar: mudar a data muda de fatura; compra paga não se edita.
+    const segunda = await prisma.lancamento.findFirstOrThrow({ where: { descricao: { contains: "(2/3)" }, cartaoId: cartao.id }, select: { id: true, faturaId: true } });
+    const ed = await editarCompraNoBanco({ lancamentoId: segunda.id, descricao: `${tag} licença (2/3)`, valor: 100, dataCompra: hoje, categoriaId: cat.id }, autorId);
+    check("mudar a data da compra a leva para a fatura do novo ciclo", ed.faturaId !== segunda.faturaId, ed);
+    const recusa = await erroDe(editarCompraNoBanco({ lancamentoId: idPago, descricao: "x", valor: 1, dataCompra: compraVelha, categoriaId: cat.id }, autorId));
+    check("compra já paga não se edita", recusa !== null, recusa);
+    const errada = await erroDe(lancarCompraNoBanco({ cartaoId: cartao.id, descricao: `${tag} erro`, valor: 10, dataCompra: compraVelha, categoriaId: catReceita.id, parcelas: 1 }, autorId));
+    check("compra com categoria de receita é recusada", errada !== null, errada);
+
+    // Cartão pessoal: reembolso individual. O sócio é criado aqui (o banco de dev pode não ter nenhum).
+    {
+      const dono = await prisma.user.create({ data: { name: `${tag}-socio`, email: `${tag}-socio@teste.local`, role: "admin", emailVerified: false } });
+      const socio = await prisma.socio.create({ data: { userId: dono.id, percentual: 100 } });
+      const pessoal = await prisma.cartaoCredito.create({ data: { nome: `${tag} pessoal`, tipo: "pessoal", socioId: socio.id, diaFechamento: 25, diaVencimento: 10 } });
+      try {
+        const p1 = await lancarCompraNoBanco({ cartaoId: pessoal.id, descricao: `${tag} almoço`, valor: 50, dataCompra: compraVelha, categoriaId: cat.id, parcelas: 1 }, autorId);
+        const p2 = await lancarCompraNoBanco({ cartaoId: pessoal.id, descricao: `${tag} táxi`, valor: 30, dataCompra: compraVelha, categoriaId: cat.id, parcelas: 1 }, autorId);
+        const f = (await prisma.lancamento.findUniqueOrThrow({ where: { id: p1.lancamentoIds[0] }, select: { faturaId: true } })).faturaId!;
+        const noPlanejador = (await baseDoPlanejador({ horizonteDias: 365 })).eventos.find((e) => e.id === `fatura:${f}`);
+        check(
+          "as duas despesas do sócio viram UM reembolso no planejador, com o nome dele",
+          noPlanejador?.valor === 80_00 && noPlanejador.descricao.startsWith(`Reembolso a ${tag}-socio`),
+          { id: noPlanejador?.id, valor: noPlanejador?.valor, desc: noPlanejador?.descricao },
+        );
+        await pagarCompraNoBanco(p1.lancamentoIds[0], conta.id, hoje, autorId);
+        check("reembolsar uma despesa só deixa o resto da fatura em aberto", (await prisma.lancamento.count({ where: { faturaId: f, status: "previsto" } })) === 1);
+        await pagarCompraNoBanco(p2.lancamentoIds[0], conta.id, hoje, autorId);
+        check("com a última reembolsada, nada fica em aberto (a fatura se lê como paga)", (await prisma.lancamento.count({ where: { faturaId: f, status: "previsto" } })) === 0);
+      } finally {
+        await prisma.lancamento.deleteMany({ where: { cartaoId: pessoal.id } });
+        await prisma.faturaCartao.deleteMany({ where: { cartaoId: pessoal.id } });
+        await prisma.cartaoCredito.delete({ where: { id: pessoal.id } });
+        await prisma.socio.delete({ where: { id: socio.id } });
+        await prisma.user.delete({ where: { id: dono.id } });
+      }
+    }
+
+    // Planejador: as compras em aberto da mesma fatura viram um evento só, não ajustável.
+    const base = await baseDoPlanejador({ horizonteDias: 180 });
+    const daFatura = base.eventos.filter((e) => e.origem === "fatura");
+    check("no planejador a fatura é UM evento, com a data travada no vencimento", daFatura.length >= 1 && daFatura.every((e) => e.naoProgramavel !== null), daFatura.map((e) => [e.id, e.valor]));
+    check("sem compras de cartão a agregação não mexe em nada", agregarFaturas(base.eventos, new Map()).length === base.eventos.length);
+  } finally {
+    await prisma.lancamento.deleteMany({ where: { cartaoId: cartao.id } });
+    await prisma.faturaCartao.deleteMany({ where: { cartaoId: cartao.id } });
+    await prisma.cartaoCredito.delete({ where: { id: cartao.id } });
+    await prisma.contaBancaria.delete({ where: { id: conta.id } });
   }
 }
 

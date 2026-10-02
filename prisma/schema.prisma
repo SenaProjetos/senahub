@@ -1596,6 +1596,7 @@ model ContaBancaria {
   extratos      ExtratoBancario[]
   transacoes    TransacaoBancaria[]
   planejamentos PlanejamentoPagamento[]
+  cartoes       CartaoCredito[]
 
   @@map("conta_bancaria")
 }
@@ -1695,6 +1696,7 @@ model Socio {
   retiradas    RetiradaSocio[]
   lancamentos  Lancamento[]
   compromissos CompromissoRecorrente[]
+  cartoes      CartaoCredito[]
 
   @@map("socio")
 }
@@ -1842,6 +1844,12 @@ model Lancamento {
   recorrenciaCompetencia String?
   /// Receita realizada que já foi distribuída (ou pulada) entre as caixinhas (F5).
   distribuicao    DistribuicaoRecebimento?
+  /// Compra paga no cartão de crédito (M3): a despesa é do dia da compra e o caixa só sai quando a
+  /// fatura é paga. `SetNull`: apagar o cartão nunca apaga a despesa que já aconteceu.
+  cartaoId        String?
+  cartao          CartaoCredito? @relation(fields: [cartaoId], references: [id], onDelete: SetNull)
+  faturaId        String?
+  fatura          FaturaCartao?  @relation(fields: [faturaId], references: [id], onDelete: SetNull)
   /// Resto de um pagamento parcial: aponta para o lançamento pago em parte (N1). Estornar o pago tira
   /// junto o resto ainda em aberto; resto já pago impede o estorno. `SetNull`: o resto sobrevive.
   restanteDeId    String?
@@ -1884,6 +1892,8 @@ model Lancamento {
   @@index([clienteId])
   @@index([fornecedorId])
   @@index([centroId])
+  @@index([faturaId])
+  @@index([cartaoId])
   @@unique([recorrenciaOrigemId, recorrenciaCompetencia])
   @@map("lancamento")
 }
@@ -1995,6 +2005,64 @@ model TransacaoBancaria {
 }
 
 /// Regra de auto-categorização: descrição que casa → categoria sugerida.
+enum TipoCartao {
+  empresa
+  pessoal
+}
+
+/// Cartão de crédito (M3). A compra é despesa no dia da compra e o caixa só sai no pagamento da
+/// fatura. `pessoal` = cartão do sócio: a fatura dele é o reembolso que a empresa deve (D2).
+/// Cartão NÃO é conta bancária (D3): não entra no saldo de caixa nem no extrato por conta.
+model CartaoCredito {
+  id             String         @id @default(cuid())
+  nome           String
+  ultimosDigitos String?
+  tipo           TipoCartao     @default(empresa)
+  /// Obrigatório quando `tipo = pessoal`. Restrict: sócio com cartão não é apagado por engano.
+  socioId        String?
+  socio          Socio?         @relation(fields: [socioId], references: [id], onDelete: Restrict)
+  /// Informativo (barra de limite usado); o sistema não calcula juros nem rotativo.
+  limite         Decimal?       @db.Decimal(14, 2)
+  /// 1–28: a compra entra na fatura cujo ciclo termina neste dia.
+  diaFechamento  Int            @default(25)
+  /// 1–28, no mês seguinte ao fechamento.
+  diaVencimento  Int            @default(5)
+  contaPadraoId  String?
+  contaPadrao    ContaBancaria? @relation(fields: [contaPadraoId], references: [id], onDelete: SetNull)
+  ativo          Boolean        @default(true)
+  ordem          Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  faturas     FaturaCartao[]
+  lancamentos Lancamento[]
+
+  @@index([ativo])
+  @@map("cartao_credito")
+}
+
+/// Ciclo de um cartão. A fatura NÃO guarda situação: "aberta", "fechada" e "paga" são leitura das
+/// compras dela contra a data de hoje (puro, `situacaoDaFatura`). Sem estado gravado não há job de
+/// fechamento nem fatura "paga" com compra em aberto — estornar uma compra reabre a fatura sozinho.
+model FaturaCartao {
+  id          String        @id @default(cuid())
+  cartaoId    String
+  cartao      CartaoCredito @relation(fields: [cartaoId], references: [id], onDelete: Cascade)
+  /// Mês em que o ciclo FECHA (`YYYY-MM`).
+  competencia String
+  inicioCiclo DateTime      @db.Date
+  fimCiclo    DateTime      @db.Date
+  vencimento  DateTime      @db.Date
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  lancamentos Lancamento[]
+
+  @@unique([cartaoId, competencia])
+  @@index([vencimento])
+  @@map("fatura_cartao")
+}
+
 /// Regra de preenchimento (M2): QUANDO todas as `condicoes` batem → ENTÃO preenche categoria, centro, contato,
 /// forma, projeto e tags. A primeira regra ativa da `ordem` que casa vale, e nunca sobrescreve o que a pessoa
 /// já escolheu (`financeiro/regras/motor.ts`). `termo` é o texto da regra simples antiga ("descrição contém"):

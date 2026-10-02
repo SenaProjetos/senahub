@@ -23,6 +23,7 @@ import {
   type IndicadorTorre,
   type LinhaProxima,
 } from "@/modules/financeiro/liquidez/torre";
+import { agregarFaturas, type FaturaDoEvento } from "@/modules/financeiro/cartoes/eventos";
 import { anomaliasDoSaldo, saldoBase, type AnomaliasDoSaldo } from "@/modules/financeiro/liquidez/saldo-base";
 import type { Centavos, Contraparte, DataIso, EventoCaixa, LancamentoEntrada, Observado } from "@/modules/financeiro/liquidez/tipos";
 
@@ -114,6 +115,7 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
       confianca: true,
       caixinhaId: true,
       transferenciaId: true,
+      faturaId: true,
       fornecedor: { select: { nome: true } },
       cliente: { select: { nome: true } },
       projeto: { select: { codigo: true } },
@@ -124,6 +126,33 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
   });
 
   const idsArt = await idsDeTaxaArt(pendentes.map((l) => l.id));
+
+  // M3: compras do mesmo cartão viram UM evento no vencimento da fatura (spec §6). O total projetado
+  // é o mesmo; o que muda é a agenda não mostrar seis saídas soltas no mesmo dia.
+  const idsFatura = [...new Set(pendentes.map((l) => l.faturaId).filter((x): x is string => !!x))];
+  const faturas = idsFatura.length
+    ? await prisma.faturaCartao.findMany({
+        where: { id: { in: idsFatura } },
+        select: {
+          id: true,
+          competencia: true,
+          cartao: { select: { nome: true, tipo: true, socio: { select: { user: { select: { name: true } } } } } },
+        },
+      })
+    : [];
+  const faturaPorId = new Map(faturas.map((f) => [f.id, f]));
+  const faturaPorLancamento = new Map<string, FaturaDoEvento>();
+  for (const l of pendentes) {
+    const f = l.faturaId ? faturaPorId.get(l.faturaId) : null;
+    if (!f) continue;
+    faturaPorLancamento.set(l.id, {
+      faturaId: f.id,
+      competencia: f.competencia,
+      cartaoNome: f.cartao.nome,
+      tipoCartao: f.cartao.tipo,
+      socioNome: f.cartao.socio?.user.name ?? null,
+    });
+  }
 
   const idsTransf = [
     ...new Set(
@@ -194,7 +223,10 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
     diasParaIncerta: config.diasParaIncerta,
     caixaAtual: base.total,
     anomalias,
-    eventos: [...paraEventos(entradas, { hoje, diasParaIncerta: config.diasParaIncerta }), ...programados],
+    eventos: [
+      ...agregarFaturas(paraEventos(entradas, { hoje, diasParaIncerta: config.diasParaIncerta }), faturaPorLancamento),
+      ...programados,
+    ],
     avisosRecorrencia: avisos,
     caixinhas: await reservadosParaOMotor(hoje),
     historico: { saidasNaJanela, diasDeHistorico: maisAntigo ? diasEntre(maisAntigo, hoje) : 0 },

@@ -1532,6 +1532,36 @@
       ]
     },
     {
+      "titulo": "Financeiro — Cartões de crédito e cartão pessoal",
+      "path": "financeiro/cartoes-de-credito.md",
+      "descricao": "Compras no cartão viram despesa no dia da compra, e o caixa só sai quando a fatura é paga. O cartão pessoal do sócio gera o reembolso que a empresa deve.",
+      "resumo": "Cadastre o cartão com o dia de fechamento e o de vencimento, lance as compras (à vista ou parceladas) e pague a fatura inteira na conta escolhida; no cartão pessoal do sócio a fatura é o reembolso, que pode ser pago de uma vez ou despesa por despesa.",
+      "tags": [
+        "financeiro",
+        "cartão de crédito",
+        "fatura",
+        "reembolso",
+        "sócio",
+        "parcelamento"
+      ],
+      "palavrasChave": [
+        "cartão de crédito",
+        "fatura",
+        "pagar fatura",
+        "cartão pessoal",
+        "reembolso ao sócio",
+        "compra parcelada",
+        "fechamento do cartão",
+        "vencimento da fatura"
+      ],
+      "sinonimos": [
+        "cartão corporativo",
+        "fatura do cartão",
+        "reembolso de despesa",
+        "cartão da empresa"
+      ]
+    },
+    {
       "titulo": "Conciliação bancária (OFX) e Importação",
       "path": "financeiro/conciliacao-ofx.md",
       "descricao": "Importar extrato OFX, conciliar transações com lançamentos e migrar planilhas para o financeiro.",

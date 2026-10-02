@@ -55,7 +55,8 @@ export type LancamentoEntrada = {
   transferencia?: { id: string | null; contrapartes: Contraparte[] } | null;
 };
 
-export type OrigemEvento = "lancamento" | "programado" | "simulado";
+/** `fatura` = compras de um cartão juntas num evento só, no vencimento (M3). */
+export type OrigemEvento = "lancamento" | "programado" | "fatura" | "simulado";
 
 /**
  * Foto dos campos OBSERVADOS de um lançamento (spec §6): o que o "aplicar ao financeiro" confere

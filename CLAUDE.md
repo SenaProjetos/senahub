@@ -350,6 +350,20 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   only counts from now on — nothing retroactive. `termo` stays on the row for compatibility; the migration turned old
   term→category rules into one `descricao contém` condition each. Menu item "Criar regra a partir deste lançamento"
   is `itemCriarRegra` (livro caixa, Contas, Pagas).
+- **Credit cards** (M3, `financeiro/cartoes/`, spec `docs/superpowers/specs/2026-10-02-financeiro-cartoes.md`):
+  a purchase is an expense ON THE PURCHASE DAY and cash only leaves when the invoice is paid — paying creates
+  NO lançamento, it just realizes that cycle's purchases (a second lançamento would count the expense twice).
+  A `CartaoCredito` has `diaFechamento`/`diaVencimento` (1–28, so they exist in February) and `tipo`
+  `empresa | pessoal`; a personal card belongs to a `Socio` and its invoice IS the reimbursement the company
+  owes him (owner decision 2026-10-02). `FaturaCartao` stores **no status at all**: aberta/fechada/paga are
+  read from its purchases against today (`ciclo.ts` pure `situacaoDaFatura`, paga = none open), so estornar a
+  purchase reopens the invoice by itself and no baixa path needs a hook. A purchase is a plain `Lancamento`
+  (`cartaoId` + `faturaId`, `data` = `dataCompetencia` = purchase day, `vencimento` = the invoice's, no
+  `contaId` until paid), exempt from the alçada by origin like the other producers; an instalment buy is one
+  lançamento per cycle (`parcelasDaCompra`, leftover cent on the last). In the planner, purchases of the same
+  invoice are merged into ONE `fatura:<id>` event at the due date (`cartoes/eventos.ts`, pure) — the projected
+  total is unchanged, and that event's date is not adjustable (it belongs to the card). Cards are NOT bank
+  accounts: they never appear in Cadastros → Contas, in `saldoBase` or in the Extrato por conta.
 - **Dates in the Financeiro are São Paulo calendar days** (N2, `lib/data.ts`): "today" to WRITE into a date column
   is `hojeParaBanco()` (UTC midnight of the SP day) and to compare is `diaDeSaoPaulo()` — a bare `new Date()` is
   tomorrow after 21h BRT. Period limits on date columns (`@db.Date`: `data`, `dataConfirmacao`, `dataCompetencia`)
