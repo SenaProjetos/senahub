@@ -19,6 +19,7 @@
  *   N5. Mês fechado trava criar, estornar, reabrir, conciliar e importar; paga em mês aberto; OFX não
  *       concilia sozinho no fechado; saldo das contas no fim do mês.
  *   N6. Tipo categoria × lançamento, categoria do sistema pela chave, cliente no faturamento, natureza fora do módulo.
+ *   N7. Taxa de ART: despesa + reembolso, categoria pela chave, baixada não muda, cancelar não desfaz o pago.
  *   A8. Desfazer importação: barrado com linha trabalhada, exclusão lógica no lote intocado, dedup
  *       que enxerga a linha excluída à mão mas não a do lote desfeito.
  *
@@ -34,6 +35,7 @@ import {
   confirmarDespesaProjetista,
   criarDespesaProjetistaPrevista,
   pagamentoPagoNoFinanceiro,
+  sincronizarLancamentosArt,
 } from "../src/modules/financeiro/custo/lancamento-custo";
 import { liberarPagamentosProjetista, sincronizarPagamentosDisciplina } from "../src/modules/uploads/pagamento";
 import { indicadores } from "../src/modules/financeiro/relatorios/queries";
@@ -104,6 +106,7 @@ async function main() {
     await conciliacaoConfiavel(admin.id);
     await travaDoPeriodo(admin.id);
     await categoriasEConsistencia(admin.id);
+    await taxaDeArt(admin.id);
   } finally {
     const pags = (await prisma.pagamentoProjetista.findMany({ where: { disciplinaId: disciplina.id }, select: { id: true } })).map((p) => p.id);
     await prisma.lancamento.deleteMany({ where: { OR: [{ projetoId: projeto.id }, { pagamentoProjetistaId: { in: pags } }, { descricao: { startsWith: tag } }] } });
@@ -637,6 +640,50 @@ async function categoriasEConsistencia(autorId: string) {
   } finally {
     await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: tag }, excluidoEm: { not: undefined } } });
     await prisma.contaBancaria.delete({ where: { id: conta.id } });
+  }
+}
+
+async function taxaDeArt(autorId: string) {
+  console.log("\n# N7 — ART: taxa e reembolso pelo Financeiro");
+  const cliente = await prisma.cliente.create({ data: { nome: `${tag}-art-cli` } });
+  const projeto = await prisma.projeto.create({
+    data: { codigo: `${Date.now()}`.slice(-6), ano: new Date().getFullYear(), sequencial: Number(`${Date.now()}`.slice(-5)), nome: `${tag}-art`, clienteId: cliente.id },
+  });
+  const entrada = (p: Partial<Parameters<typeof sincronizarLancamentosArt>[1]>) => ({
+    tipo: "ART",
+    numero: `${tag}-1`,
+    situacao: "emitida",
+    custeio: "reembolso",
+    valor: 120 as number | null,
+    emitidaEm: dia("2047-02-10"),
+    lancamentoId: null as string | null,
+    reembolsoLancamentoId: null as string | null,
+    disciplinaNome: "Estrutural",
+    projetoId: projeto.id,
+    projetoCodigo: projeto.codigo,
+    clienteId: cliente.id,
+    autorId,
+    ...p,
+  });
+  try {
+    const r1 = await prisma.$transaction((tx) => sincronizarLancamentosArt(tx, entrada({})));
+    const desp = await prisma.lancamento.findUniqueOrThrow({ where: { id: r1.lancamentoId! }, select: { status: true, tipo: true, categoria: { select: { chave: true } } } });
+    const reemb = await prisma.lancamento.findUniqueOrThrow({ where: { id: r1.reembolsoLancamentoId! }, select: { status: true, tipo: true, clienteId: true, tags: true } });
+    check("ART com reembolso gera a despesa da taxa e a receita do reembolso, em aberto", desp.status === "previsto" && desp.tipo === "despesa" && reemb.tipo === "receita" && reemb.status === "previsto", { desp, reemb });
+    check("a taxa usa a categoria de ART pela chave; o reembolso leva o cliente e a tag", desp.categoria.chave === "despesa_art_rrt" && reemb.clienteId === cliente.id && reemb.tags.includes("reembolso-art"), { desp, reemb });
+
+    // Baixa no Financeiro: o valor da ART não muda mais (o dinheiro se moveu).
+    await prisma.lancamento.update({ where: { id: r1.lancamentoId! }, data: { status: "confirmado", dataConfirmacao: dia("2047-02-11") } });
+    const mudaValor = await erroDe(prisma.$transaction((tx) => sincronizarLancamentosArt(tx, entrada({ valor: 150, lancamentoId: r1.lancamentoId, reembolsoLancamentoId: r1.reembolsoLancamentoId }))));
+    check("taxa já baixada: mudar o valor da ART é recusado", mudaValor?.includes("já foi baixado") === true, mudaValor);
+    const cancela = await prisma.$transaction((tx) => sincronizarLancamentosArt(tx, entrada({ situacao: "cancelada", lancamentoId: r1.lancamentoId, reembolsoLancamentoId: r1.reembolsoLancamentoId })));
+    const aposCancelar = await prisma.lancamento.findUniqueOrThrow({ where: { id: r1.lancamentoId! }, select: { status: true } });
+    const reembAposCancelar = await prisma.lancamento.findUniqueOrThrow({ where: { id: r1.reembolsoLancamentoId! }, select: { status: true } });
+    check("cancelar a ART não desfaz a taxa já paga, e cancela o reembolso em aberto", aposCancelar.status === "confirmado" && reembAposCancelar.status === "cancelado" && cancela.lancamentoId === r1.lancamentoId, { aposCancelar, reembAposCancelar });
+  } finally {
+    await prisma.lancamento.deleteMany({ where: { projetoId: projeto.id, excluidoEm: { not: undefined } } });
+    await prisma.projeto.delete({ where: { id: projeto.id } });
+    await prisma.cliente.delete({ where: { id: cliente.id } });
   }
 }
 

@@ -267,3 +267,16 @@ Migração `20261002120000_lancamento_restante_de` (aditiva). Nada a rodar à m�
 - **`seed:demo`:** barreira por nome do banco (`_remake|_dev|_test|_vscode`) e `NODE_ENV`.
 - Verificação: `categorias-sistema.test.ts`, `categorias-regras.test.ts`, guarda de natureza ampliado,
   `smoke:financeiro-core` (3 checagens novas) e smokes planejador, onda2, onda3efg, previsão, sync-pagamento.
+
+## N7 — smoke do núcleo (Sonnet) — concluída
+
+`npm run smoke:financeiro-core` reúne as provas do banco de N0–N7 (hoje ~65 checagens): parcelas do projeto,
+projetista pago no Financeiro e aprovação simultânea, recebido pelo valor pago, máquina de situações (estorno,
+reabertura, parcial, distribuída, conciliado, corrida), desfazer importação, datas e recorrência, alçada única
+(com a migração do limite), conciliação (OFX, saldo, desconciliar), trava do mês fechado, categorias/cliente/
+natureza e a taxa de ART. Junto dele: `smoke:planejador` (folha M+1, F3–F6) e `scripts/verify-custo-projeto.ts`
+(serviço terceirizado pago).
+
+Fora do smoke por exigir sessão (ficam nas actions, com as regras puras testadas): baixa total/parcial e em lote
+(o núcleo é `exigirOperacao` + `updateMany` condicionado, coberto pelo estorno e pelas corridas) e execução do lote
+de pagamentos (`pagamentoPagoNoFinanceiro`, coberto pela baixa do projetista).
