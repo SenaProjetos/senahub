@@ -17,6 +17,7 @@ import {
   type LinhaNorm,
 } from "@/modules/financeiro/importacao/processar";
 import { motivoParaNaoDesfazer } from "@/modules/financeiro/importacao/desfazer";
+import { datasDoLancamento, exigirPeriodoAberto } from "@/modules/financeiro/fechamento/trava-service";
 
 type Tx = Prisma.TransactionClient;
 type Cat = { id: string; codigo: string };
@@ -32,10 +33,20 @@ export type ContagensCommit = {
 };
 
 /** Hashes de lançamentos já importados (dedup global por importHash). */
+/**
+ * Hashes já importados (dedup global por `importHash`). Conta também os EXCLUÍDOS (A8): quem excluiu
+ * uma linha importada não quer que a próxima importação a traga de volta. Só não conta os de lote
+ * desfeito — desfazer e importar de novo é justamente para recriar. Regra única: a prévia
+ * (`importacao/queries.ts`) chama esta.
+ */
 export async function hashesExistentes(db: PrismaClient, hashes: string[]): Promise<Set<string>> {
   if (hashes.length === 0) return new Set();
   const found = await db.lancamento.findMany({
-    where: { importHash: { in: hashes } },
+    where: {
+      importHash: { in: hashes },
+      excluidoEm: { not: undefined },
+      NOT: { importLote: { is: { desfeitoEm: { not: null } } } },
+    },
     select: { importHash: true },
   });
   return new Set(found.map((f) => f.importHash!).filter(Boolean));
@@ -203,6 +214,8 @@ export async function executarCommit(
   if (aImportar.length === 0) {
     throw new Error("Nada a importar (linhas com erro ou já importadas).");
   }
+  // N5: nenhuma linha entra em mês fechado.
+  await exigirPeriodoAberto(db, aImportar.flatMap((l) => [l.data, l.dataConfirmacao]));
 
   return db.$transaction(
     async (tx) => {
@@ -298,6 +311,12 @@ export async function executarDesfazer(db: PrismaClient, loteId: string): Promis
       alterados: Number(uso?.alterados ?? 0),
     });
     if (motivo) throw new ActionError(motivo);
+    // N5: desfazer tira lançamentos dos meses deles — nenhum pode ser de mês fechado.
+    const datas = await tx.lancamento.findMany({
+      where: { importLoteId: loteId, excluidoEm: null },
+      select: { data: true, dataCompetencia: true, dataConfirmacao: true, status: true },
+    });
+    await exigirPeriodoAberto(tx, datas.flatMap(datasDoLancamento));
     const r = await tx.lancamento.updateMany({ where: { importLoteId: loteId, excluidoEm: null }, data: { excluidoEm: new Date() } });
     await tx.importacaoFinanceira.update({ where: { id: loteId }, data: { desfeitoEm: new Date() } });
     return { removidos: r.count };

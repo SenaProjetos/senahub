@@ -43,10 +43,10 @@ O que você vê no financeiro depende de **3 níveis**:
 | [Estúdio de Documentos](estudio-documentos.md) | `/documentos` | ✅ documentado |
 | [Produção (pagamento de projetistas)](producao.md) | `/financeiro/folha-projetistas` | ✅ documentado |
 | [Contrato por entrega e previsão de recebimento](contrato-por-entrega.md) | `/juridico` · `/financeiro/fluxo-caixa` | ✅ documentado |
+| [Fechamento mensal](fechamento-mensal.md) | `/financeiro/fechamento` | ✅ documentado |
 
 ### Ainda a documentar (rodada futura)
-Fechamento mensal
-(`/financeiro/fechamento`), Cadastros (`/financeiro/cadastros`), Configurações
+Cadastros (`/financeiro/cadastros`), Configurações
 (`/financeiro/configuracoes`) e os documentos financeiros (`/financeiro/documentos`).
 
 [← Índice do manual](../README.md)

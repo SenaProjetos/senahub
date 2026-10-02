@@ -120,6 +120,7 @@ function FechamentoCard({ f }: { f: FechamentoItem }) {
       <table>${linha("Receita confirmada", f.receitaConfirmada)}${linha("Despesa confirmada", f.despesaConfirmada)}${linha("Resultado bruto", f.resultadoBruto, true)}</table>
       <h2>Produção (projetistas PJ)</h2>
       <table>${linha("Valor bruto", f.folhaBruta)}${linha("Retenção ISS", f.retencaoIss)}${linha("Retenção INSS", f.retencaoInss)}${linha("Retenção IR", f.retencaoIr)}${linha("Descontos", f.descontos)}${linha("Valor líquido", f.folhaLiquida, true)}</table>
+      ${f.saldosContas?.length ? `<h2>Saldo das contas no último dia</h2><table>${f.saldosContas.map((c) => linha(c.nome, c.saldo)).join("")}</table>` : ""}
       </body></html>`);
     win.document.close();
     win.focus();
@@ -169,6 +170,19 @@ function FechamentoCard({ f }: { f: FechamentoItem }) {
           <Linha r="Descontos" v={f.descontos} />
           <Linha r="Valor líquido" v={f.folhaLiquida} bold />
         </div>
+        {f.saldosContas && f.saldosContas.length > 0 && (
+          <div className="space-y-1 text-sm sm:col-span-2">
+            <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Saldo das contas no último dia — confira com o extrato</p>
+            {f.saldosContas.map((c) => (
+              <Linha key={c.contaId} r={c.nome} v={c.saldo} cor={c.saldo < 0 ? "text-destructive" : undefined} />
+            ))}
+          </div>
+        )}
+        {fechado && (
+          <p className="text-xs text-muted-foreground sm:col-span-2">
+            Mês fechado: os lançamentos dele não podem ser criados, alterados, pagos, estornados nem excluídos até reabrir.
+          </p>
+        )}
       </CardContent>
     </Card>
   );

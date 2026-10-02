@@ -310,6 +310,15 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   (paid by the reconciliation → back to open, created from the transaction → excluded, already paid → stays;
   no photo / changed since / distributed → only unlinks). `parseSaldoOfx` (LEDGERBAL) is compared with
   `saldoDoSistema`. OFX dates are UTC midnight.
+- **A closed month is frozen** (N5, `financeiro/fechamento/trava.ts` pure + `trava-service.ts`): every write
+  path calls `exigirPeriodoAberto(db, datas)` — create (all occurrences), edit of locked fields
+  (`edicaoMexeNoFechado`: value, category, dates, account, centro, projeto; description/vencimento/contact/
+  planner stay free), cancel, reopen, exclude (competência + payment date via `datasDoLancamento`), baixa/lote/
+  lote de pagamentos and conciliation (only the NEW payment date — an overdue bill from a closed month is paid
+  in an open month), estorno (the payment date that leaves), import and undo-import (row dates), and the CLT
+  folha closing (competência). OFX still imports a closed month's transactions but never auto-matches them.
+  `fecharMes` re-consolidates at the moment of closing and freezes `FechamentoMensal.saldosContas` (each
+  active account's balance on the last day); reopening needs `financeiro:fechar` and clears it.
 - **Dates in the Financeiro are São Paulo calendar days** (N2, `lib/data.ts`): "today" to WRITE into a date column
   is `hojeParaBanco()` (UTC midnight of the SP day) and to compare is `diaDeSaoPaulo()` — a bare `new Date()` is
   tomorrow after 21h BRT. Period limits on date columns (`@db.Date`: `data`, `dataConfirmacao`, `dataCompetencia`)

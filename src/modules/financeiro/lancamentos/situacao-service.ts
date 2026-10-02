@@ -11,6 +11,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { paraCentavos } from "@/modules/financeiro/liquidez/dinheiro";
+import { datasDoLancamento, exigirPeriodoAberto } from "@/modules/financeiro/fechamento/trava-service";
 import {
   estadoDoLancamento,
   motivoParaNao,
@@ -40,6 +41,9 @@ export async function lerParaOperacao(db: Db, id: string) {
       motivoRejeicao: true,
       pagamentoProjetistaId: true,
       recorrenciaGrupo: true,
+      data: true,
+      dataCompetencia: true,
+      dataConfirmacao: true,
       transacao: { select: { id: true, valor: true } },
       distribuicao: { select: { id: true } },
     },
@@ -74,6 +78,8 @@ export type ResultadoEstorno = {
 export async function estornarNoBanco(id: string, autorId: string): Promise<ResultadoEstorno> {
   return prisma.$transaction(async (tx) => {
     const { lancamento: l, estado } = await exigirOperacao(tx, id, "estornar");
+    // N5: estornar tira o pagamento do mês em que ele caiu.
+    await exigirPeriodoAberto(tx, [l.dataConfirmacao]);
 
     const parcial = l.valorEfetivo != null && paraCentavos(l.valorEfetivo) < paraCentavos(l.valor);
     let restantesExcluidos = 0;
@@ -145,7 +151,8 @@ async function desfazerDistribuicao(tx: Prisma.TransactionClient, lancamentoId: 
 /** Reabre um cancelado: volta a em aberto (ou à fila de aprovação, se tinha sido rejeitado). */
 export async function reabrirNoBanco(id: string, autorId: string): Promise<{ status: string }> {
   return prisma.$transaction(async (tx) => {
-    const { estado } = await exigirOperacao(tx, id, "reabrir");
+    const { lancamento: l, estado } = await exigirOperacao(tx, id, "reabrir");
+    await exigirPeriodoAberto(tx, datasDoLancamento(l));
     const para = situacaoDepois("reabrir", estado);
     const r = await tx.lancamento.updateMany({
       where: { id, status: "cancelado", excluidoEm: null },

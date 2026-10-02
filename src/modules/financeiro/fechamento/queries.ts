@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { SO_RESULTADO } from "@/modules/financeiro/natureza";
 import { calcularFechamento, type Aliquotas, type FechamentoEntrada } from "./calculo";
 import { getAliquotas } from "@/modules/financeiro/config/queries";
+import { saldoDoSistema } from "@/modules/financeiro/conciliacao/service";
 import type { Prisma } from "@/generated/prisma/client";
 
 function periodoMes(ano: number, mes: number) {
@@ -38,6 +39,20 @@ async function consolidar(ano: number, mes: number): Promise<FechamentoEntrada> 
     despesaConfirmada: soma(despesas),
     folhaBruta: Number(folha._sum.valor ?? 0),
   };
+}
+
+export type SaldoDaConta = { contaId: string; nome: string; saldo: number };
+
+/**
+ * Saldo de cada conta ativa no último dia do mês, pelo sistema (N5): é o que se confere com o extrato
+ * do banco ao fechar. Mesmo cálculo da conferência do OFX (`saldoDoSistema`).
+ */
+export async function saldosDasContasNoFimDoMes(ano: number, mes: number): Promise<SaldoDaConta[]> {
+  const contas = await prisma.contaBancaria.findMany({ where: { ativo: true }, select: { id: true, nome: true }, orderBy: { nome: "asc" } });
+  const fim = utcFimDoDia(ano, mes, 0).toISOString().slice(0, 10);
+  const out: SaldoDaConta[] = [];
+  for (const c of contas) out.push({ contaId: c.id, nome: c.nome, saldo: await saldoDoSistema(prisma, c.id, fim) });
+  return out;
 }
 
 /** Prévia (não persiste): o que seria o fechamento do mês com as alíquotas atuais. */
@@ -78,6 +93,7 @@ function serial(f: FechRaw) {
     descontos,
     folhaLiquida: folhaBruta - retencoesTotal - descontos,
     aliquotas: (f.aliquotas as Aliquotas | null) ?? null,
+    saldosContas: (f.saldosContas as SaldoDaConta[] | null) ?? null,
     observacoes: f.observacoes,
     responsavel: f.responsavel.name,
     fechadoEm: f.fechadoEm ? f.fechadoEm.toISOString() : null,

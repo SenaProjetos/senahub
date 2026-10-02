@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { hashesExistentes as hashesDoCommit } from "@/modules/financeiro/importacao/commit-core";
 import { chaveMatch } from "@/lib/import/valores";
 import { chaveCatPai, chaveCatFilha, type Existentes } from "@/modules/financeiro/importacao/processar";
 
@@ -70,22 +71,9 @@ export async function carregarExistentes(): Promise<Existentes> {
   };
 }
 
-/**
- * Hashes de lançamentos já importados (dedup global por importHash). Conta também os EXCLUÍDOS
- * (A8): quem excluiu uma linha importada não quer que a próxima importação a traga de volta. Só não
- * conta os de lote desfeito — desfazer e importar de novo é justamente para recriar.
- */
+/** Hashes já importados — mesma regra do commit (`commit-core.ts`), para a prévia não divergir. */
 export async function hashesExistentes(hashes: string[]): Promise<Set<string>> {
-  if (hashes.length === 0) return new Set();
-  const found = await prisma.lancamento.findMany({
-    where: {
-      importHash: { in: hashes },
-      excluidoEm: { not: undefined },
-      NOT: { importLote: { is: { desfeitoEm: { not: null } } } },
-    },
-    select: { importHash: true },
-  });
-  return new Set(found.map((f) => f.importHash!).filter(Boolean));
+  return hashesDoCommit(prisma, hashes);
 }
 
 /** Histórico de importações (lotes não desfeitos primeiro), para a tela. */

@@ -223,3 +223,23 @@ Migração `20261002120000_lancamento_restante_de` (aditiva). Nada a rodar à m�
 - Verificação: `casamento.test.ts`, `ofx.test.ts`, `smoke:financeiro-core` (9 checagens novas), smokes
   onda2, planejador, sync-pagamento, pagamento-fase.
 - Fica: conciliação 1:N / N:1 (uma transação para várias contas) — lacuna C, fora do núcleo.
+
+## N5 — trava do período fechado (Opus) — concluída
+
+- **Regra pura** (`fechamento/trava.ts`): `motivoPeriodoFechado(datas, mesesFechados)` (frase com o mês:
+  "Março/2026 está fechado: reabra o mês em Fechamento mensal antes de mexer nos lançamentos dele."),
+  `mesDe` (UTC), `edicaoMexeNoFechado` (campos travados: valor, categoria, data, competência, conta,
+  centro, projeto).
+- **Onde trava** (`trava-service.ts` → `exigirPeriodoAberto`): criar (todas as ocorrências, inclusive o
+  "incluir" do planejador), editar campo travado (datas de antes e de depois), cancelar, reabrir, excluir,
+  baixar, baixar em lote, executar lote de pagamentos, conciliar, criar da transação, desconciliar que
+  devolve/exclui, estornar, importar planilha, desfazer importação e fechar a folha CLT da competência.
+  Pagar conta vencida de mês fechado num mês aberto continua livre (só a data do pagamento conta).
+  O OFX importa a transação de mês fechado e não a concilia sozinha.
+- **Fechar o mês** reconsolida na hora (a prévia podia estar velha) e congela
+  `FechamentoMensal.saldosContas` (migração `20261002200000_fechamento_saldos_contas`): saldo de cada conta
+  ativa no último dia, mostrado e impresso para conferir com o extrato. Reabrir (`financeiro:fechar`) limpa.
+- Verificação: `trava.test.ts`, `smoke:financeiro-core` (9 checagens novas), smokes planejador, onda2,
+  onda3efg, previsão, sync-pagamento.
+- Fica: produtores de fora do Financeiro (projetista, ART, serviço, recorrência) gravam com a data de hoje,
+  que é mês aberto; não passam pela trava.

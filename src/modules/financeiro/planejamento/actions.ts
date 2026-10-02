@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { contasEmAberto } from "@/modules/financeiro/planejamento/queries";
 import { camposDoPlanejador, saldoRestante } from "@/modules/financeiro/lancamentos/parcial";
 import { pagamentoPagoNoFinanceiro } from "@/modules/financeiro/custo/lancamento-custo";
+import { exigirPeriodoAberto } from "@/modules/financeiro/fechamento/trava-service";
 
 const base = { modulo: "financeiro", recurso: "financeiro", permissao: "gerir" } as const;
 
@@ -216,6 +217,7 @@ export const executarPlano = defineAction(
     const ops: Prisma.PrismaPromise<unknown>[] = [];
     let pagos = 0;
     const agora = hojeParaBanco();
+    await exigirPeriodoAberto(prisma, [agora]);
     for (const ln of plano.linhas) {
       const lanc = ln.lancamento;
       if (lanc.status !== "previsto") continue;

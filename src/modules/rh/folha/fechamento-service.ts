@@ -11,6 +11,7 @@ import "server-only";
  * compromisso recorrente da folha — sem ele, o gerador diário criaria o mês de novo.
  */
 import { Prisma } from "@/generated/prisma/client";
+import { exigirPeriodoAberto } from "@/modules/financeiro/fechamento/trava-service";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { diaDeSaoPaulo } from "@/lib/data";
@@ -162,6 +163,9 @@ export async function fecharFolhaNoBanco(folhaId: string, autorId: string): Prom
   // único no banco, e é ele que impede o gerador diário de criar a folha de novo.
   const vinculo = compromisso?.livre ? { recorrenciaOrigemId: compromisso.id, recorrenciaCompetencia: competencia } : {};
   const agora = new Date();
+
+  // N5: com o mês fechado no Financeiro, a folha não grava valor na competência dele.
+  if (!decisao.jaPaga) await exigirPeriodoAberto(prisma, [inicioDoMes(competencia)]);
 
   const gravado = await prisma.$transaction(async (tx) => {
     if (decisao.jaPaga) {

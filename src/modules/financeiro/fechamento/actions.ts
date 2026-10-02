@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { consolidarMes } from "@/modules/financeiro/fechamento/queries";
+import { Prisma } from "@/generated/prisma/client";
+import { consolidarMes, saldosDasContasNoFimDoMes } from "@/modules/financeiro/fechamento/queries";
 import { getAliquotas } from "@/modules/financeiro/config/queries";
 import { calcularFechamento } from "@/modules/financeiro/fechamento/calculo";
 
@@ -60,10 +61,30 @@ export const gerarFechamento = defineAction(
 export const fecharMes = defineAction(
   { ...base, acao: "fechar-mes", entidade: "FechamentoMensal", schema: z.object({ id: z.string().min(1) }) },
   async (i) => {
-    const f = await prisma.fechamentoMensal.findUnique({ where: { id: i.id }, select: { status: true } });
+    const f = await prisma.fechamentoMensal.findUnique({ where: { id: i.id }, select: { status: true, ano: true, mes: true } });
     if (!f) throw new ActionError("Fechamento não encontrado.");
     if (f.status === "fechado") throw new ActionError("Mês já fechado.");
-    await prisma.fechamentoMensal.update({ where: { id: i.id }, data: { status: "fechado", fechadoEm: new Date() } });
+    // N5: o que fica congelado é o mês como está AGORA — a prévia gerada antes pode ter ficado velha —
+    // e o saldo de cada conta no último dia, para conferir com o extrato do banco.
+    const [entrada, aliquotas, saldosContas] = await Promise.all([consolidarMes(f.ano, f.mes), getAliquotas(), saldosDasContasNoFimDoMes(f.ano, f.mes)]);
+    const calc = calcularFechamento(entrada, aliquotas);
+    const r = await prisma.fechamentoMensal.updateMany({
+      where: { id: i.id, status: "aberto" },
+      data: {
+        status: "fechado",
+        fechadoEm: new Date(),
+        receitaConfirmada: entrada.receitaConfirmada,
+        despesaConfirmada: entrada.despesaConfirmada,
+        folhaBruta: entrada.folhaBruta,
+        retencaoIss: calc.retencaoIss,
+        retencaoInss: calc.retencaoInss,
+        retencaoIr: calc.retencaoIr,
+        descontos: calc.descontos,
+        aliquotas,
+        saldosContas,
+      },
+    });
+    if (r.count !== 1) throw new ActionError("Mês já fechado.");
     rev();
     return { id: i.id };
   },
@@ -72,7 +93,8 @@ export const fecharMes = defineAction(
 export const reabrirFechamento = defineAction(
   { ...base, acao: "reabrir-fechamento", entidade: "FechamentoMensal", schema: z.object({ id: z.string().min(1) }) },
   async (i) => {
-    await prisma.fechamentoMensal.update({ where: { id: i.id }, data: { status: "aberto", fechadoEm: null } });
+    // N5: reabrir destrava os lançamentos do mês; o saldo congelado sai (vale o do próximo fechamento).
+    await prisma.fechamentoMensal.update({ where: { id: i.id }, data: { status: "aberto", fechadoEm: null, saldosContas: Prisma.DbNull } });
     rev();
     return { id: i.id };
   },

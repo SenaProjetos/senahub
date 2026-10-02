@@ -23,6 +23,8 @@ import { camposDoPlanejador, saldoRestante } from "@/modules/financeiro/lancamen
 import { pagamentoPagoNoFinanceiro } from "@/modules/financeiro/custo/lancamento-custo";
 import { exigirOperacao, estornarNoBanco, MOTIVO_MUDOU, reabrirNoBanco } from "@/modules/financeiro/lancamentos/situacao-service";
 import { paraCentavos } from "@/modules/financeiro/liquidez/dinheiro";
+import { datasDoLancamento, exigirPeriodoAberto } from "@/modules/financeiro/fechamento/trava-service";
+import { edicaoMexeNoFechado } from "@/modules/financeiro/fechamento/trava";
 import { getExclusaoCompleto } from "@/modules/financeiro/config/queries";
 import { verificarSenha } from "@/modules/financeiro/config/senha";
 
@@ -127,6 +129,29 @@ export const editarLancamento = defineAction(
       throw new ActionError("Conciliado com o extrato: o valor não muda por aqui — desconcilie a transação antes.");
     }
     if (i.caixinhaId !== undefined) await validarCaixinhaDoLancamento(atual, i.caixinhaId);
+    // N5: mês fechado congela valor, categoria, datas, centro e projeto — descrição, vencimento,
+    // observação, contato e campos do planejador continuam editáveis.
+    const travados = await prisma.lancamento.findUniqueOrThrow({
+      where: { id: i.id },
+      select: { categoriaId: true, centroId: true, projetoId: true, contaId: true },
+    });
+    const novaData = data(i.data);
+    const novaComp = data(i.dataCompetencia || undefined) ?? null;
+    if (
+      edicaoMexeNoFechado(
+        { ...travados, valor: paraCentavos(atual.valor), data: atual.data, dataCompetencia: atual.dataCompetencia },
+        {
+          valor: paraCentavos(i.valor),
+          categoriaId: i.categoriaId,
+          data: novaData,
+          dataCompetencia: novaComp,
+          centroId: i.centroId || null,
+          projetoId: i.projetoId || null,
+        },
+      )
+    ) {
+      await exigirPeriodoAberto(prisma, [...datasDoLancamento(atual), novaComp ?? novaData]);
+    }
     // Alçada única (N3): despesa em aberto cujo VALOR mudou é reavaliada pelo total do parcelamento —
     // já aprovada volta para a aprovação (aprovaram outro valor); abaixo da faixa, é liberada.
     const novaSituacao = valorMudou
@@ -262,6 +287,8 @@ export const confirmarLancamento = defineAction(
     const quando = data(i.dataConfirmacao || undefined) ?? hojeParaBanco();
     const restante = await prisma.$transaction(async (tx) => {
       await exigirOperacao(tx, i.id, "baixar");
+      // N5: o pagamento não cai em mês fechado (a conta vencida de mês fechado se paga em mês aberto).
+      await exigirPeriodoAberto(tx, [quando]);
       const lanc = await tx.lancamento.findUniqueOrThrow({ where: { id: i.id } });
       // Valor pago: usa o efetivo informado; se < total, o saldo vira um novo lançamento previsto.
       const restante = saldoRestante(Number(lanc.valor), i.valorEfetivo);
@@ -339,6 +366,7 @@ export const baixarEmLote = defineAction(
     });
     if (alvos.length === 0) throw new ActionError("Nenhum lançamento elegível (previsto) selecionado.");
 
+    await exigirPeriodoAberto(prisma, [quando]);
     // Um a um e condicionado ao previsto: o que mudou desde a leitura fica de fora, não é pago por cima.
     const confirmados = await prisma.$transaction(async (tx) => {
       let n = 0;
@@ -406,7 +434,8 @@ export const cancelarLancamento = defineAction(
   async (i, ctx) => {
     // Máquina de situações (N1): produção e ART pela origem (G1b/D31), pago só depois de estornado,
     // conciliado nunca — a transação do banco ficaria "conciliada" com nada (A2).
-    const { estado } = await exigirOperacao(prisma, i.id, "cancelar");
+    const { lancamento: l, estado } = await exigirOperacao(prisma, i.id, "cancelar");
+    await exigirPeriodoAberto(prisma, datasDoLancamento(l));
     await prisma.$transaction(async (tx) => {
       const r = await tx.lancamento.updateMany({ where: { id: i.id, status: estado.status, excluidoEm: null }, data: { status: "cancelado" } });
       if (r.count !== 1) throw new ActionError(MOTIVO_MUDOU);
@@ -459,7 +488,8 @@ export const excluirLancamento = defineAction(
     }
     // Máquina de situações (N1): produção, ART, previsão, conciliado e receita distribuída não saem
     // por aqui; excluído de novo é recusado (A12).
-    const { estado } = await exigirOperacao(prisma, i.id, "excluir");
+    const { lancamento: l, estado } = await exigirOperacao(prisma, i.id, "excluir");
+    await exigirPeriodoAberto(prisma, datasDoLancamento(l));
     // Soft delete: marca excluidoEm; some das listagens/relatórios (filtro global no prisma).
     await prisma.$transaction(async (tx) => {
       const r = await tx.lancamento.updateMany({ where: { id: i.id, excluidoEm: null }, data: { excluidoEm: new Date() } });

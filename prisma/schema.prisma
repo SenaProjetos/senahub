@@ -7769,6 +7769,9 @@ model FechamentoMensal {
   descontos         Decimal          @default(0) @db.Decimal(14, 2)
   /// Snapshot das alíquotas (%) aplicadas no momento da geração.
   aliquotas         Json?
+  /// Saldo de cada conta no último dia do mês, congelado ao FECHAR (N5): `[{ contaId, nome, saldo }]`
+  /// para conferir com o extrato do banco. Nulo enquanto aberto.
+  saldosContas      Json?
   observacoes       String?
   responsavelId     String
   responsavel       User             @relation(fields: [responsavelId], references: [id])

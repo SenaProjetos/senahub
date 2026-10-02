@@ -71,6 +71,10 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 - **Conciliação bancária mais segura:** o extrato só casa sozinho na mesma conta, sem empate e sem
   transferência; entra inteiro ou não entra; o saldo do banco é conferido com o do sistema; e desfazer uma
   conciliação devolve o lançamento ao que era antes.
+- **Mês fechado trava de verdade:** depois de fechar o mês em Fechamento mensal, os lançamentos dele não
+  podem ser criados, alterados (valor, categoria, datas), pagos, estornados, cancelados, importados nem
+  excluídos até reabrir. Conta vencida do mês fechado continua pagável num mês aberto. O fechamento guarda o
+  saldo de cada conta no último dia, para conferir com o extrato.
 - **Conciliação** com menu de contexto na transação.
 - Os relatórios de resultado ganharam **abas** (DRE, Rentabilidade, DFC, Balanço, Orçamento).
 - "Planejamento de pagamentos" agora se chama **Pagamentos em lote**.

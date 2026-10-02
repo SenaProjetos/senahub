@@ -10,6 +10,8 @@ import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { pagamentoPagoNoFinanceiro } from "@/modules/financeiro/custo/lancamento-custo";
 import { exigirOperacao } from "@/modules/financeiro/lancamentos/situacao-service";
+import { exigirPeriodoAberto, mesesFechados } from "@/modules/financeiro/fechamento/trava-service";
+import { mesDe } from "@/modules/financeiro/fechamento/trava";
 import { paraCentavos, paraReais } from "@/modules/financeiro/liquidez/dinheiro";
 import { isoDeDataDoBanco } from "@/modules/financeiro/liquidez/datas";
 import {
@@ -77,6 +79,8 @@ async function fotoAntes(tx: Tx, lancamentoId: string): Promise<EstadoAntesDaCon
  */
 async function ligar(tx: Tx, t: { id: string; data: Date; contaId: string }, lancamentoId: string, autorId: string) {
   const { lancamento: l, estado } = await exigirOperacao(tx, lancamentoId, "conciliar");
+  // N5: o pagamento entra no mês da transação.
+  await exigirPeriodoAberto(tx, [t.data]);
   if (l.status === "confirmado") {
     // Pago antes (G1c): o extrato só confirma. Outra conta seria trocar de onde o dinheiro saiu.
     const conta = await tx.lancamento.findUniqueOrThrow({ where: { id: lancamentoId }, select: { contaId: true } });
@@ -115,6 +119,7 @@ export async function criarDaTransacaoNoBanco(transacaoId: string, categoriaId: 
     const t = await tx.transacaoBancaria.findUnique({ where: { id: transacaoId } });
     if (!t) throw new ActionError("Transação não encontrada.");
     if (t.conciliado) throw new ActionError("Transação já conciliada.");
+    await exigirPeriodoAberto(tx, [t.data]);
     const lanc = await tx.lancamento.create({
       data: {
         tipo: Number(t.valor) > 0 ? "receita" : "despesa",
@@ -161,6 +166,8 @@ export async function desconciliarNoBanco(transacaoId: string, autorId: string):
       diaDaTransacao: dia(t.data)!,
     });
     if (plano.tipo === "so_desligar") return { lancamentoId: l.id, aviso: plano.aviso, efeito: "desligada" };
+    // Devolver/excluir mexe no caixa do mês da transação (N5).
+    await exigirPeriodoAberto(tx, [t.data]);
     if (plano.tipo === "excluir") {
       await tx.lancamento.update({ where: { id: l.id }, data: { excluidoEm: new Date() } });
       await tx.lancamentoStatusHistorico.create({ data: { lancamentoId: l.id, de: l.status, para: "excluido", autorId } });
@@ -231,12 +238,14 @@ export async function importarOfxNoBanco(p: {
       const novas = p.transacoes.filter((t) => !existentes.has(t.fitid));
       const extrato = await tx.extratoBancario.create({ data: { contaId: p.contaId, nomeArquivo: p.nomeArquivo } });
       let candidatos = novas.length > 0 ? await candidatosDeConciliacao(tx) : [];
+      // N5: transação de mês fechado entra no extrato, mas não é conciliada sozinha.
+      const fechados = await mesesFechados(tx);
       let conciliadas = 0;
       for (const n of novas) {
         const trans = await tx.transacaoBancaria.create({
           data: { extratoId: extrato.id, contaId: p.contaId, fitid: n.fitid, data: n.data, valor: n.valor, descricao: n.descricao },
         });
-        const alvo = casamentoAutomatico({ valorCentavos: paraCentavos(n.valor), contaId: p.contaId, dia: dia(n.data)! }, candidatos);
+        const alvo = fechados.has(mesDe(n.data) ?? "") ? null : casamentoAutomatico({ valorCentavos: paraCentavos(n.valor), contaId: p.contaId, dia: dia(n.data)! }, candidatos);
         if (!alvo) continue;
         await ligar(tx, { id: trans.id, data: n.data, contaId: p.contaId }, alvo, p.autorId);
         candidatos = candidatos.filter((c) => c.id !== alvo);

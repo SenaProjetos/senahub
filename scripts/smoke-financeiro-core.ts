@@ -16,6 +16,8 @@
  *   N3. Alçada única: total do parcelamento, quem lançou não aprova (só admin), limite antigo → faixas.
  *   N4. OFX: mesma conta, empate e transferência fora, saldo conferido, FITID sem duplicar; desconciliar
  *       devolve ao estado de antes (pago pela conciliação volta, criado sai, já pago fica).
+ *   N5. Mês fechado trava criar, estornar, reabrir, conciliar e importar; paga em mês aberto; OFX não
+ *       concilia sozinho no fechado; saldo das contas no fim do mês.
  *   A8. Desfazer importação: barrado com linha trabalhada, exclusão lógica no lote intocado, dedup
  *       que enxerga a linha excluída à mão mas não a do lote desfeito.
  *
@@ -41,6 +43,8 @@ import { utcFimDoDia, utcInicioDoDia } from "../src/lib/data";
 import { lancamentosAguardando, valorParaAlcada } from "../src/modules/financeiro/aprovacao/queries";
 import { MOTIVO_PROPRIA_DESPESA } from "../src/modules/financeiro/aprovacao/niveis";
 import { conciliarNoBanco, criarDaTransacaoNoBanco, desconciliarNoBanco, importarOfxNoBanco } from "../src/modules/financeiro/conciliacao/service";
+import { exigirPeriodoAberto } from "../src/modules/financeiro/fechamento/trava-service";
+import { saldosDasContasNoFimDoMes } from "../src/modules/financeiro/fechamento/queries";
 import { hashesExistentes } from "../src/modules/financeiro/importacao/queries";
 import { normalizarLinhas } from "../src/modules/financeiro/importacao/processar";
 
@@ -95,6 +99,7 @@ async function main() {
     await datasEOcorrencias(admin.id);
     await alcadaUnica(admin.id);
     await conciliacaoConfiavel(admin.id);
+    await travaDoPeriodo(admin.id);
   } finally {
     const pags = (await prisma.pagamentoProjetista.findMany({ where: { disciplinaId: disciplina.id }, select: { id: true } })).map((p) => p.id);
     await prisma.lancamento.deleteMany({ where: { OR: [{ projetoId: projeto.id }, { pagamentoProjetistaId: { in: pags } }, { descricao: { startsWith: tag } }] } });
@@ -517,6 +522,59 @@ async function conciliacaoConfiavel(autorId: string) {
     await prisma.extratoBancario.deleteMany({ where: { contaId: { in: contas } } });
     await prisma.lancamento.deleteMany({ where: { OR: [{ descricao: { startsWith: tag } }, { contaId: { in: contas } }], excluidoEm: { not: undefined } } });
     await prisma.contaBancaria.deleteMany({ where: { id: { in: contas } } });
+  }
+}
+
+async function travaDoPeriodo(autorId: string) {
+  console.log("\n# N5 — trava do período fechado");
+  const catD = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "despesa", natureza: "resultado" }, select: { id: true } });
+  if (!catD) return check("categoria de despesa existe", false);
+  const fech = await prisma.fechamentoMensal.create({ data: { ano: 2045, mes: 3, status: "fechado", fechadoEm: new Date(), responsavelId: autorId } });
+  const conta = await prisma.contaBancaria.create({ data: { nome: `${tag} trava`, tipo: "corrente", saldoInicial: 100 } });
+  const desp = (p: Record<string, unknown>) =>
+    prisma.lancamento.create({
+      data: { tipo: "despesa", descricao: `${tag} trava`, valor: 50, status: "previsto", data: dia("2045-03-10"), vencimento: dia("2045-03-10"), categoriaId: catD.id, autorId, ...p },
+      select: { id: true },
+    });
+  try {
+    const criar = await erroDe(criarLancamentoNoTx(prisma, { tipo: "despesa", descricao: `${tag} trava`, valor: 10, data: "2045-03-15", categoriaId: catD.id, confirmado: false, ocorrencias: 1 }, autorId));
+    check("criar em mês fechado é recusado, com o mês na frase", criar?.startsWith("Março/2045 está fechado") === true, criar);
+    const recorrente = await erroDe(criarLancamentoNoTx(prisma, { tipo: "despesa", descricao: `${tag} trava`, valor: 10, data: "2045-01-15", categoriaId: catD.id, confirmado: false, ocorrencias: 4 }, autorId));
+    check("recorrência que atravessa o mês fechado é recusada", recorrente?.includes("Março/2045") === true, recorrente);
+
+    const pagoNoFechado = await desp({ status: "confirmado", dataConfirmacao: dia("2045-03-12"), contaId: conta.id });
+    check("estornar pagamento de mês fechado é recusado", (await erroDe(estornarNoBanco(pagoNoFechado.id, autorId)))?.includes("fechado") === true);
+    const cancelada = await desp({ status: "cancelado" });
+    check("reabrir lançamento de mês fechado é recusado", (await erroDe(reabrirNoBanco(cancelada.id, autorId)))?.includes("fechado") === true);
+    const vencidaDoFechado = await desp({});
+    check("conta vencida do mês fechado se paga em mês aberto (só a data do pagamento conta)", (await erroDe(exigirPeriodoAberto(prisma, [dia("2045-04-02")]))) === null);
+    void vencidaDoFechado;
+
+    const ofx = await importarOfxNoBanco({
+      contaId: conta.id,
+      nomeArquivo: `${tag}-trava.ofx`,
+      transacoes: [{ fitid: `${tag}-trava-1`, data: dia("2045-03-10"), valor: -50, descricao: "x" }],
+      saldoExtrato: null,
+      autorId,
+    });
+    check("OFX: transação de mês fechado entra, mas não é conciliada sozinha", ofx.importadas === 1 && ofx.conciliadas === 0, ofx);
+    const t = await prisma.transacaoBancaria.findFirstOrThrow({ where: { fitid: `${tag}-trava-1` }, select: { id: true } });
+    check("conciliar à mão no mês fechado é recusado", (await erroDe(conciliarNoBanco(t.id, vencidaDoFechado.id, autorId)))?.includes("fechado") === true);
+
+    const linha = ["Despesa", "Pendente", "2045-03-02", "", "-80", "", `${tag} imp trava`, `${tag} cat`, "", `${tag} trava`, "", "", "", `${Date.now()}t`];
+    const mapa = { tipo: 0, status: 1, data: 2, dataConfirmacao: 3, valor: 4, valorEfetivo: 5, descricao: 6, categoria: 7, subcategoria: 8, conta: 9, contaTransferencia: 10, contato: 11, documento: 12, idUnico: 13 };
+    const imp = await erroDe(executarCommit(prisma, { nomeArquivo: `${tag}-trava.csv`, mapeamento: {}, res: normalizarLinhas([linha], mapa), autorId }));
+    check("importar linha de mês fechado é recusado", imp?.includes("fechado") === true, imp);
+
+    const saldos = await saldosDasContasNoFimDoMes(2045, 3);
+    check("saldo da conta no último dia do mês: inicial − o pago no mês", saldos.find((s) => s.contaId === conta.id)?.saldo === 50, saldos.find((s) => s.contaId === conta.id));
+  } finally {
+    await prisma.transacaoBancaria.deleteMany({ where: { contaId: conta.id } });
+    await prisma.extratoBancario.deleteMany({ where: { contaId: conta.id } });
+    await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: tag }, excluidoEm: { not: undefined } } });
+    await prisma.contaBancaria.deleteMany({ where: { nome: { startsWith: tag } } });
+    await prisma.categoriaFinanceira.deleteMany({ where: { nome: { startsWith: tag }, lancamentos: { none: {} } } });
+    await prisma.fechamentoMensal.delete({ where: { id: fech.id } });
   }
 }
 

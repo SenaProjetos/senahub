@@ -11,6 +11,7 @@ import { papeisAprovadores, precisaAprovacao, valorDaAlcada } from "@/modules/fi
 import { getConfigFinanceiro } from "@/modules/financeiro/config/queries";
 import { obrigatorioFaltando } from "@/modules/financeiro/config/validacao";
 import type { CriarLancamentoInput } from "@/modules/financeiro/lancamentos/schemas";
+import { exigirPeriodoAberto } from "@/modules/financeiro/fechamento/trava-service";
 
 /**
  * Criação de lançamento compartilhada (spec do planejador §7): a action `criarLancamento` e o
@@ -115,6 +116,9 @@ export async function criarLancamentoNoTx(db: Db, i: CriarLancamentoInput, autor
       dataCompetencia: compBase ? somarMesesUtc(compBase, n) : null,
     };
   });
+
+  // N5: nenhuma ocorrência nasce (nem é paga) em mês fechado.
+  await exigirPeriodoAberto(db, registros.flatMap((r) => [r.dataCompetencia ?? r.data, r.dataConfirmacao]));
 
   if (registros.length === 1) {
     const criado = await db.lancamento.create({

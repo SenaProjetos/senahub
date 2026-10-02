@@ -1510,6 +1510,35 @@
       ]
     },
     {
+      "titulo": "Financeiro — Fechamento mensal",
+      "path": "financeiro/fechamento-mensal.md",
+      "descricao": "Consolidar o mês, fechar e travar os lançamentos dele, e conferir o saldo de cada conta com o extrato.",
+      "resumo": "O fechamento consolida receita, despesa e produção do mês; fechar congela os números e o saldo das contas no último dia e trava os lançamentos do mês até alguém reabrir.",
+      "tags": [
+        "financeiro",
+        "fechamento",
+        "mês fechado",
+        "trava",
+        "saldo das contas",
+        "contador"
+      ],
+      "palavrasChave": [
+        "fechamento mensal",
+        "fechar mês",
+        "reabrir mês",
+        "mês fechado",
+        "trava",
+        "saldo no fim do mês",
+        "conferir extrato",
+        "retenções"
+      ],
+      "sinonimos": [
+        "fechar o mês",
+        "encerramento mensal",
+        "competência fechada"
+      ]
+    },
+    {
       "titulo": "Aprovações de despesas (alçadas)",
       "path": "financeiro/aprovacoes.md",
       "descricao": "Fila de despesas que exigem aprovação por faixa de valor, com papéis aprovadores.",
