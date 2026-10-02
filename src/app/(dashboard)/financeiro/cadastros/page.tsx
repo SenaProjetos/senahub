@@ -36,7 +36,7 @@ export default async function CadastrosFinanceirosPage() {
     <CadastrosView subnav={<NavFinanceiro />}
       categorias={categorias}
       centros={centros}
-      contas={contas.map((c) => ({ ...c, saldoInicial: Number(c.saldoInicial) }))}
+      contas={contas.map((c) => ({ ...c, saldoInicial: Number(c.saldoInicial), saldoInicialEm: c.saldoInicialEm ? c.saldoInicialEm.toISOString().slice(0, 10) : null }))}
       formas={formas}
       fornecedores={fornecedores.map((f) => ({
         ...f,

@@ -126,8 +126,13 @@ export async function fluxoCaixa(limiteMovimentos = 50) {
   // A conta do caixa atual mora em `saldoBase` (pura, testada) e é a MESMA que o planejador usa
   // como ponto de partida — a Visão geral e o planejador nunca mostram dois caixas diferentes.
   const base = saldoBase(
-    contas.map((c) => ({ id: c.id, saldoInicial: paraCentavos(c.saldoInicial) })),
-    confirmados.map((l) => ({ contaId: l.contaId, tipo: l.tipo, valor: paraCentavos(l.valorEfetivo ?? l.valor) })),
+    contas.map((c) => ({ id: c.id, saldoInicial: paraCentavos(c.saldoInicial), saldoInicialEm: c.saldoInicialEm ? isoDeDataDoBanco(c.saldoInicialEm) : null })),
+    confirmados.map((l) => ({
+      contaId: l.contaId,
+      tipo: l.tipo,
+      valor: paraCentavos(l.valorEfetivo ?? l.valor),
+      dataConfirmacao: l.dataConfirmacao ? isoDeDataDoBanco(l.dataConfirmacao) : null,
+    })),
   );
 
   const contasComSaldo = contas.map((c) => ({

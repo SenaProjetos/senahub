@@ -57,3 +57,20 @@ Data: 2026-10-02 · Branch: `feat/financeiro-nucleo` · Mock aprovado: canvas "F
   entra quando houver biblioteca de arrastar no Financeiro; não bloqueia o uso.
 - **Verificação:** `motor.test.ts`, `acoes.test.ts`, `nav.test.ts`, `smoke:financeiro-core` (9 checagens novas: primeira
   que casa, nunca sobrescreve, pausada, prévia, conciliação, importação, uso contado).
+
+## M8 — transferência pela tela, data do saldo inicial, corrigir pagamento (Sonnet) — concluída
+
+- **Transferência** (`financeiro/transferencias/`): par de lançamentos (`transferenciaId`) nas categorias de natureza
+  transferência; dialog "Transferir entre contas" no livro caixa e no extrato; menu de contexto da perna oferece as ações
+  do par (`itensDaTransferencia`). Estado puro em `calculo.ts` (`motivoParaNaoMexer`), gravação atômica das duas pernas em
+  `service.ts`. A máquina de situações ganhou `origem = "transferencia"`: perna solta recusa baixar, estornar, cancelar,
+  excluir, editar e corrigir (conciliar continua valendo).
+- **Data do saldo inicial** (migração `20261002280000_saldo_inicial_data`, coluna `saldoInicialEm`, nula por padrão =
+  comportamento de sempre): campo "Saldo vale em" em Cadastros → Contas; honrado por `saldoBase`, `saldoDoSistema` e Extrato.
+- **Corrigir pagamento** (`lancamentos/corrigir-pagamento.ts`): conta, forma e data de um pago, sem estornar; menu do livro
+  caixa, de Pagas e do Extrato; regras de conciliado, mês fechado, data futura e produção.
+- **Fica de fora:** corrigir o VALOR de um pago (segue pelo estorno + nova baixa, ou pelo formulário de edição quando permitido) e
+  transferência entre moedas.
+- **Verificação:** `calculo.test.ts`, `acoes.test.ts` (transferência), `transicoes.test.ts`, `saldo-base.test.ts` e
+  `smoke:financeiro-core` (25 checagens novas: saldo com e sem data, par de pernas, perna solta recusada, editar, estornar,
+  baixar, conciliada, excluir, agendada, corrigir conta/forma/data, conciliado, futura, perna de transferência).

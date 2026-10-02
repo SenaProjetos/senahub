@@ -11,21 +11,40 @@
  */
 import type { Centavos, DataIso, TipoMovimento } from "@/modules/financeiro/liquidez/tipos";
 
-export type ContaAtiva = { id: string; saldoInicial: Centavos };
+/** `saldoInicialEm`: dia em que o saldo inicial vale (M8). Nulo = todo o realizado da conta entra. */
+export type ContaAtiva = { id: string; saldoInicial: Centavos; saldoInicialEm?: DataIso | null };
 
-/** Lançamento realizado (`status = confirmado`, não excluído); `valor` = `valorEfetivo ?? valor`. */
-export type Realizado = { contaId: string | null; tipo: TipoMovimento; valor: Centavos };
+/**
+ * Lançamento realizado (`status = confirmado`, não excluído); `valor` = `valorEfetivo ?? valor`.
+ * `dataConfirmacao` só é necessária para a conta que tem data de saldo inicial.
+ */
+export type Realizado = { contaId: string | null; tipo: TipoMovimento; valor: Centavos; dataConfirmacao?: DataIso | null };
+
+/**
+ * O realizado entra no saldo da conta? O saldo inicial vale no COMEÇO de `saldoInicialEm`: o que foi pago
+ * antes disso já está dentro dele (contar de novo seria somar duas vezes). Sem data, entra tudo — como sempre foi.
+ */
+export function entraNoSaldoDaConta(saldoInicialEm: DataIso | null | undefined, dataConfirmacao: DataIso | null | undefined): boolean {
+  if (!saldoInicialEm) return true;
+  // Realizado sem data de realização não tem como estar "antes": fica dentro (o dado é que está incompleto).
+  if (!dataConfirmacao) return true;
+  return dataConfirmacao >= saldoInicialEm;
+}
 
 export type SaldoBase = { porConta: Record<string, Centavos>; semConta: Centavos; total: Centavos };
 
 export function saldoBase(contasAtivas: readonly ContaAtiva[], realizados: readonly Realizado[]): SaldoBase {
   const porConta: Record<string, Centavos> = {};
-  for (const c of contasAtivas) porConta[c.id] = c.saldoInicial;
+  const desde = new Map<string, DataIso | null | undefined>();
+  for (const c of contasAtivas) {
+    porConta[c.id] = c.saldoInicial;
+    desde.set(c.id, c.saldoInicialEm);
+  }
   let semConta = 0;
   for (const l of realizados) {
     const delta = l.tipo === "receita" ? l.valor : -l.valor;
     if (l.contaId != null && Object.prototype.hasOwnProperty.call(porConta, l.contaId)) {
-      porConta[l.contaId] += delta;
+      if (entraNoSaldoDaConta(desde.get(l.contaId), l.dataConfirmacao)) porConta[l.contaId] += delta;
     } else {
       semConta += delta;
     }

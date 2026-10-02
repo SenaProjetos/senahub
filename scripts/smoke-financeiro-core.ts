@@ -59,6 +59,15 @@ import { casamentosDoHistorico, sugerirParaEntrada } from "../src/modules/financ
 import { editarCompraNoBanco, lancarCompraNoBanco, pagarCompraNoBanco, pagarFaturaNoBanco } from "../src/modules/financeiro/cartoes/service";
 import { agregarFaturas } from "../src/modules/financeiro/cartoes/eventos";
 import { baseDoPlanejador } from "../src/modules/financeiro/liquidez/queries";
+import {
+  baixarTransferenciaNoBanco,
+  criarTransferenciaNoBanco,
+  editarTransferenciaNoBanco,
+  estornarTransferenciaNoBanco,
+  excluirTransferenciaNoBanco,
+} from "../src/modules/financeiro/transferencias/service";
+import { corrigirPagamentoNoBanco } from "../src/modules/financeiro/lancamentos/corrigir-pagamento";
+import { fluxoCaixa } from "../src/modules/financeiro/caixa/queries";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -117,6 +126,7 @@ async function main() {
     await extratoEPagas(admin.id);
     await regrasDePreenchimento(admin.id);
     await cartoesDeCredito(admin.id);
+    await transferenciasEPagamentos(admin.id);
   } finally {
     const pags = (await prisma.pagamentoProjetista.findMany({ where: { disciplinaId: disciplina.id }, select: { id: true } })).map((p) => p.id);
     await prisma.lancamento.deleteMany({ where: { OR: [{ projetoId: projeto.id }, { pagamentoProjetistaId: { in: pags } }, { descricao: { startsWith: tag } }] } });
@@ -917,6 +927,123 @@ async function cartoesDeCredito(autorId: string) {
     await prisma.cartaoCredito.delete({ where: { id: cartao.id } });
     await prisma.contaBancaria.delete({ where: { id: conta.id } });
   }
+}
+
+async function transferenciasEPagamentos(autorId: string) {
+  console.log("\n# M8 — transferência entre contas, data do saldo inicial e corrigir pagamento");
+  const catD = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "despesa", natureza: "resultado" }, select: { id: true } });
+  if (!catD) return check("categoria de despesa existe", false);
+  const hoje = new Date().toISOString().slice(0, 10);
+  const diasAtras = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+  const A = await prisma.contaBancaria.create({ data: { nome: `${tag} conta A`, tipo: "corrente", saldoInicial: 1000 } });
+  const B = await prisma.contaBancaria.create({ data: { nome: `${tag} conta B`, tipo: "corrente", saldoInicial: 0 } });
+  const C = await prisma.contaBancaria.create({ data: { nome: `${tag} conta C`, tipo: "corrente", saldoInicial: 0 } });
+  const forma = await prisma.formaPagamento.create({ data: { nome: `${tag} forma` } });
+  const saldo = async (id: string) => saldoDoSistemaDaConta(id, hoje);
+  try {
+    // --- data do saldo inicial
+    await prisma.lancamento.create({
+      data: { tipo: "despesa", descricao: `${tag} antes do saldo`, valor: 300, status: "confirmado", data: dia(diasAtras(40)), dataConfirmacao: dia(diasAtras(40)), categoriaId: catD.id, contaId: A.id, autorId },
+    });
+    check("sem data de saldo inicial, todo o realizado entra (como sempre foi)", (await saldo(A.id)) === 700);
+    await prisma.contaBancaria.update({ where: { id: A.id }, data: { saldoInicialEm: dia(diasAtras(10)) } });
+    check("com data, o realizado anterior já está no saldo inicial e não conta de novo", (await saldo(A.id)) === 1000, await saldo(A.id));
+    const fluxo = await fluxoCaixa();
+    check("a Visão geral (fluxoCaixa) aplica a mesma data", fluxo.contas.find((c) => c.id === A.id)?.saldo === 1000, fluxo.contas.find((c) => c.id === A.id));
+
+    // --- transferência: cria já realizada
+    const t = await criarTransferenciaNoBanco({ origemId: A.id, destinoId: B.id, valor: 250, data: hoje, realizada: true }, autorId);
+    const pernas = await prisma.lancamento.findMany({ where: { transferenciaId: t.transferenciaId }, select: { id: true, tipo: true, contaId: true, status: true, categoria: { select: { natureza: true } } } });
+    check("a transferência são duas pernas: despesa na origem e receita no destino", pernas.length === 2 && pernas.some((p) => p.tipo === "despesa" && p.contaId === A.id) && pernas.some((p) => p.tipo === "receita" && p.contaId === B.id), pernas);
+    check("as duas pernas são de natureza transferência (nunca entram no resultado)", pernas.every((p) => p.categoria.natureza === "transferencia"));
+    check("o saldo das duas contas se move", (await saldo(A.id)) === 750 && (await saldo(B.id)) === 250, { a: await saldo(A.id), b: await saldo(B.id) });
+
+    // --- uma perna sozinha não se mexe
+    const perna = pernas.find((p) => p.tipo === "despesa")!;
+    const sozinha = await erroDe(estornarNoBanco(perna.id, autorId));
+    check("estornar UMA perna é recusado (a transferência anda inteira)", sozinha?.includes("perna de transferência") === true, sozinha);
+    const semConta = await erroDe(criarTransferenciaNoBanco({ origemId: A.id, destinoId: A.id, valor: 10, data: hoje, realizada: true }, autorId));
+    check("mesma conta nos dois lados é recusada", semConta?.includes("duas contas diferentes") === true, semConta);
+
+    // --- editar mexe nas duas
+    await editarTransferenciaNoBanco({ transferenciaId: t.transferenciaId, origemId: A.id, destinoId: C.id, valor: 100, data: hoje, descricao: `${tag} reforço` });
+    check("editar troca conta, valor e descrição das DUAS pernas", (await saldo(A.id)) === 900 && (await saldo(B.id)) === 0 && (await saldo(C.id)) === 100, { a: await saldo(A.id), b: await saldo(B.id), c: await saldo(C.id) });
+    const descs = await prisma.lancamento.findMany({ where: { transferenciaId: t.transferenciaId }, select: { descricao: true } });
+    check("as duas pernas levam a mesma descrição", descs.every((d) => d.descricao === `${tag} reforço`), descs);
+
+    // --- estornar e dar baixa
+    await estornarTransferenciaNoBanco(t.transferenciaId, autorId);
+    check("estornar a transferência devolve o saldo das duas contas", (await saldo(A.id)) === 1000 && (await saldo(C.id)) === 0);
+    const baixaDeNovo = await erroDe(estornarTransferenciaNoBanco(t.transferenciaId, autorId));
+    check("estornar o que já está em aberto é recusado", baixaDeNovo?.includes("já aconteceu") === true, baixaDeNovo);
+    await baixarTransferenciaNoBanco(t.transferenciaId, hoje, autorId);
+    check("dar baixa move o saldo das duas contas de novo", (await saldo(A.id)) === 900 && (await saldo(C.id)) === 100);
+
+    // --- conciliada com o extrato: não muda
+    const legSaida = await prisma.lancamento.findFirstOrThrow({ where: { transferenciaId: t.transferenciaId, tipo: "despesa" }, select: { id: true } });
+    const extratoA = await prisma.extratoBancario.create({ data: { contaId: A.id, nomeArquivo: `${tag}.ofx` }, select: { id: true } });
+    const tb = await prisma.transacaoBancaria.create({
+      data: { extratoId: extratoA.id, contaId: A.id, fitid: `${tag}-m8`, data: dia(hoje), valor: -100, descricao: `${tag} extrato`, conciliado: true, lancamentoId: legSaida.id },
+    });
+    const bloqueada = await erroDe(excluirTransferenciaNoBanco(t.transferenciaId, autorId));
+    check("transferência conciliada com o extrato não se exclui", bloqueada?.includes("Conciliado") === true, bloqueada);
+    await prisma.transacaoBancaria.delete({ where: { id: tb.id } });
+
+    // --- excluir leva as duas
+    await excluirTransferenciaNoBanco(t.transferenciaId, autorId);
+    check("excluir tira as duas pernas e devolve o saldo", (await saldo(A.id)) === 1000 && (await saldo(C.id)) === 0 && (await prisma.lancamento.count({ where: { transferenciaId: t.transferenciaId } })) === 0);
+
+    // --- agendada: nasce em aberto, não mexe no saldo até a baixa
+    const ag = await criarTransferenciaNoBanco({ origemId: A.id, destinoId: B.id, valor: 40, data: hoje, realizada: false }, autorId);
+    check("transferência agendada não mexe no saldo", (await saldo(A.id)) === 1000 && (await saldo(B.id)) === 0);
+    await baixarTransferenciaNoBanco(ag.transferenciaId, hoje, autorId);
+    check("a baixa realiza as duas pernas", (await saldo(A.id)) === 960 && (await saldo(B.id)) === 40);
+
+    // --- corrigir pagamento
+    const pago = await prisma.lancamento.create({
+      data: { tipo: "despesa", descricao: `${tag} a corrigir`, valor: 60, status: "confirmado", data: dia(diasAtras(2)), dataConfirmacao: dia(diasAtras(2)), categoriaId: catD.id, contaId: B.id, autorId },
+      select: { id: true },
+    });
+    const antes = await saldo(B.id);
+    const r = await corrigirPagamentoNoBanco({ id: pago.id, contaId: C.id, formaId: forma.id, dataConfirmacao: diasAtras(1) });
+    check("corrigir troca conta, forma e data de uma vez", r.mudou.length === 3, r);
+    check("o saldo acompanha: sai de uma conta e cai na outra", (await saldo(B.id)) === antes + 60 && (await saldo(C.id)) === -60, { b: await saldo(B.id), c: await saldo(C.id) });
+    const igual = await erroDe(corrigirPagamentoNoBanco({ id: pago.id, contaId: C.id, formaId: forma.id, dataConfirmacao: diasAtras(1) }));
+    check("corrigir sem mudar nada é recusado", igual?.includes("Nada mudou") === true, igual);
+    const futura = await erroDe(corrigirPagamentoNoBanco({ id: pago.id, contaId: C.id, formaId: forma.id, dataConfirmacao: new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10) }));
+    check("data depois de hoje é recusada", futura?.includes("depois de hoje") === true, futura);
+    const aberto = await prisma.lancamento.create({
+      data: { tipo: "despesa", descricao: `${tag} em aberto`, valor: 5, status: "previsto", data: dia(hoje), vencimento: dia(hoje), categoriaId: catD.id, autorId },
+      select: { id: true },
+    });
+    const emAberto = await erroDe(corrigirPagamentoNoBanco({ id: aberto.id, contaId: A.id, formaId: null, dataConfirmacao: hoje }));
+    check("só se corrige o que já foi pago", emAberto?.includes("já foi pago") === true, emAberto);
+    const extratoC = await prisma.extratoBancario.create({ data: { contaId: C.id, nomeArquivo: `${tag}-c.ofx` }, select: { id: true } });
+    const tbPago = await prisma.transacaoBancaria.create({ data: { extratoId: extratoC.id, contaId: C.id, fitid: `${tag}-m8b`, data: dia(diasAtras(1)), valor: -60, descricao: `${tag} extrato 2`, conciliado: true, lancamentoId: pago.id } });
+    const conc = await erroDe(corrigirPagamentoNoBanco({ id: pago.id, contaId: A.id, formaId: forma.id, dataConfirmacao: diasAtras(1) }));
+    check("conciliado: a conta e a data não mudam por aqui", conc?.includes("desconcilie") === true, conc);
+    const soForma = await corrigirPagamentoNoBanco({ id: pago.id, contaId: C.id, formaId: null, dataConfirmacao: diasAtras(1) });
+    check("conciliado: a forma de pagamento pode mudar", soForma.mudou.length === 1 && soForma.mudou[0] === "forma", soForma);
+    await prisma.transacaoBancaria.delete({ where: { id: tbPago.id } });
+
+    // --- perna de transferência não se corrige sozinha
+    const t2 = await criarTransferenciaNoBanco({ origemId: A.id, destinoId: B.id, valor: 1, data: hoje, realizada: true }, autorId);
+    const leg = await prisma.lancamento.findFirstOrThrow({ where: { transferenciaId: t2.transferenciaId, tipo: "despesa" }, select: { id: true } });
+    const legErro = await erroDe(corrigirPagamentoNoBanco({ id: leg.id, contaId: C.id, formaId: null, dataConfirmacao: hoje }));
+    check("a perna de uma transferência não se corrige sozinha", legErro?.includes("perna de transferência") === true, legErro);
+  } finally {
+    await prisma.transacaoBancaria.deleteMany({ where: { contaId: { in: [A.id, B.id, C.id] } } });
+    await prisma.extratoBancario.deleteMany({ where: { contaId: { in: [A.id, B.id, C.id] } } });
+    await prisma.lancamento.deleteMany({ where: { OR: [{ descricao: { startsWith: tag } }, { contaId: { in: [A.id, B.id, C.id] } }], excluidoEm: { not: undefined } } });
+    await prisma.contaBancaria.deleteMany({ where: { id: { in: [A.id, B.id, C.id] } } });
+    await prisma.formaPagamento.delete({ where: { id: forma.id } });
+  }
+}
+
+/** Saldo da conta em reais até o dia, pela mesma conta da conciliação e do fechamento. */
+async function saldoDoSistemaDaConta(contaId: string, ateDia: string): Promise<number> {
+  const { saldoDoSistema } = await import("../src/modules/financeiro/conciliacao/service");
+  return saldoDoSistema(prisma, contaId, ateDia);
 }
 
 main().catch((e) => {

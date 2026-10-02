@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Info, Printer, TriangleAlert, Wallet } from "lucide-react";
+import { ArrowLeftRight, ChevronLeft, ChevronRight, Info, Printer, TriangleAlert, Wallet } from "lucide-react";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,10 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { AcaoItemAcao } from "@/components/ui/acoes";
 import { estornarLancamento } from "@/modules/financeiro/lancamentos/actions";
+import { ACAO_CORRIGIR_PAGAMENTO } from "@/modules/financeiro/lancamentos/acoes-corrigir";
+import { CorrigirPagoDialog, type PagoParaCorrigir } from "@/components/financeiro/lancamentos/corrigir-pago-dialog";
+import { useTransferencias } from "@/components/financeiro/transferencias/use-transferencias";
+import { ehAcaoDeTransferencia } from "@/modules/financeiro/transferencias/acoes";
 import { itensDeLinhaDoExtrato, ACAO_COPIAR_LINHA, ACAO_ESTORNAR_LINHA } from "@/modules/financeiro/extrato/acoes";
 import { passaConciliacao, type FiltroConciliacao } from "@/modules/financeiro/extrato/calculo";
 import type { DadosDoExtrato, MovimentoDoExtrato } from "@/modules/financeiro/extrato/queries";
@@ -45,12 +49,14 @@ const dia = (iso: string) => formatarData(`${iso}T00:00:00`);
 export function ExtratoView({
   dados,
   contas,
+  formas,
   podeGerir,
   podeConciliar,
   subnav,
 }: {
   dados: DadosDoExtrato;
   contas: { id: string; nome: string }[];
+  formas: { id: string; nome: string }[];
   podeGerir: boolean;
   podeConciliar: boolean;
   subnav?: React.ReactNode;
@@ -59,7 +65,9 @@ export function ExtratoView({
   const confirm = useConfirm();
   const [, start] = useTransition();
   const [filtro, setFiltro] = useState<FiltroConciliacao>("tudo");
+  const [corrigir, setCorrigir] = useState<PagoParaCorrigir | null>(null);
   const { extrato, conta, mes, conferencia, semConta } = dados;
+  const transferencias = useTransferencias(contas, conta.id);
 
   const linhas = useMemo(() => extrato.linhas.filter((l) => passaConciliacao(l.conciliado, filtro)), [extrato.linhas, filtro]);
   const conciliadas = extrato.linhas.filter((l) => l.conciliado).length;
@@ -79,7 +87,11 @@ export function ExtratoView({
       });
       if (!ok) return;
     }
-    if (item.id === ACAO_COPIAR_LINHA) {
+    if (ehAcaoDeTransferencia(item.id)) {
+      transferencias.tratar(item, l.transferenciaId);
+    } else if (item.id === ACAO_CORRIGIR_PAGAMENTO) {
+      setCorrigir({ id: l.id, descricao: l.descricao, valor: l.valorCentavos / 100, contaId: l.contaId, formaId: l.formaId, dataConfirmacao: l.dia, conciliado: l.conciliado });
+    } else if (item.id === ACAO_COPIAR_LINHA) {
       if (await copiarTexto(l.descricao)) toast.success("Descrição copiada.");
       else toast.error("Não foi possível copiar a descrição.");
     } else if (item.id === ACAO_ESTORNAR_LINHA) {
@@ -97,7 +109,7 @@ export function ExtratoView({
 
   // Função de render (não componente aninhado): senão a linha remonta e fecha o menu aberto (ADR-0002).
   function linha(l: MovimentoDoExtrato & { efeitoCentavos: number; saldoCentavos: number }) {
-    const menu = itensDeLinhaDoExtrato({ id: l.id, conciliado: l.conciliado, deProducao: l.deProducao }, { podeGerir, podeConciliar });
+    const menu = itensDeLinhaDoExtrato({ id: l.id, conciliado: l.conciliado, deProducao: l.deProducao, deTransferencia: l.transferenciaId != null }, { podeGerir, podeConciliar });
     return (
       <LinhaComMenu
         key={l.id}
@@ -135,9 +147,16 @@ export function ExtratoView({
         titulo="Extrato por conta"
         descricao="Saldo corrido, o que já foi conciliado e o que falta."
         acoes={
-          <Button size="sm" variant="outline" onClick={() => window.print()}>
-            <Printer className="size-4" /> Imprimir
-          </Button>
+          <>
+            {podeGerir && (
+              <Button size="sm" onClick={transferencias.nova}>
+                <ArrowLeftRight className="size-4" aria-hidden /> Transferir entre contas
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={() => window.print()}>
+              <Printer className="size-4" /> Imprimir
+            </Button>
+          </>
         }
       />
       {subnav}
@@ -264,6 +283,9 @@ export function ExtratoView({
           </Button>
         )}
       </div>
+
+      {transferencias.dialogo}
+      <CorrigirPagoDialog pago={corrigir} contas={contas} formas={formas} onClose={(salvou) => { setCorrigir(null); if (salvou) router.refresh(); }} />
     </div>
   );
 }

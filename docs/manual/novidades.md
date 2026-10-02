@@ -96,6 +96,7 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 ## Nomenclatura: as telas antigas saíram
 
 - **Cartões de crédito** (Movimentações → Cartões de crédito): a compra entra na DRE no dia em que foi feita e o caixa só sai quando a fatura é paga; compra parcelada gera uma parcela por fatura. O **cartão pessoal do sócio** acumula os reembolsos numa fatura com vencimento, que pode ser paga de uma vez ou despesa por despesa. No planejador, cada fatura é uma saída só, no vencimento.
+- **Transferir entre contas** (Lançamentos e Extrato por conta): move dinheiro de uma conta para outra sem entrar no resultado; as duas pernas andam juntas — editar, dar baixa, estornar e excluir valem para o par. Cada conta ganhou a **data do saldo inicial** (Cadastros → Contas) e todo lançamento pago ganhou **Corrigir pagamento…**, para trocar conta, forma ou data sem estornar.
 - **Configurações → Disciplinas** e **Configurações → Lista Mestre** deixaram de existir: o endereço antigo (e favoritos) leva para **Disciplinas e nomenclatura**. No índice de Configurações há um cartão só.
 - Fases, tipos e formatos de folha estão nas abas da tela nova; o cadastro das disciplinas, na lente **Todas as versões**.
 - **Validade e sigla de um item só mudam dentro de uma versão** ("Tirar da vN", "Voltar", "Siglas nesta versão") — não há mais campo solto de "Vale a partir da / Até a".

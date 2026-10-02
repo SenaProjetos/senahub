@@ -1562,6 +1562,37 @@
       ]
     },
     {
+      "titulo": "Financeiro — Transferência entre contas, saldo inicial e corrigir pagamento",
+      "path": "financeiro/transferencias-e-correcoes.md",
+      "descricao": "Como mover dinheiro entre as contas da empresa sem mexer no resultado, a data a partir da qual o saldo inicial vale e como corrigir conta, forma ou data de um pagamento já feito.",
+      "resumo": "A transferência é um par de lançamentos que sempre anda junto (criar, editar, dar baixa, estornar, excluir). A conta pode ter uma data de saldo inicial. E um lançamento já pago pode ter conta, forma e data corrigidas sem estornar.",
+      "tags": [
+        "financeiro",
+        "transferência",
+        "saldo inicial",
+        "conta bancária",
+        "corrigir pagamento",
+        "estorno"
+      ],
+      "palavrasChave": [
+        "transferir entre contas",
+        "transferência",
+        "perna da transferência",
+        "data do saldo inicial",
+        "saldo vale em",
+        "corrigir pagamento",
+        "trocar conta do pagamento",
+        "trocar data do pagamento",
+        "forma de pagamento"
+      ],
+      "sinonimos": [
+        "mover dinheiro entre contas",
+        "transferência interna",
+        "ajustar pagamento",
+        "mudar conta do lançamento"
+      ]
+    },
+    {
       "titulo": "Conciliação bancária (OFX) e Importação",
       "path": "financeiro/conciliacao-ofx.md",
       "descricao": "Importar extrato OFX, conciliar transações com lançamentos e migrar planilhas para o financeiro.",

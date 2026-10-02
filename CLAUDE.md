@@ -364,6 +364,23 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   invoice are merged into ONE `fatura:<id>` event at the due date (`cartoes/eventos.ts`, pure) — the projected
   total is unchanged, and that event's date is not adjustable (it belongs to the card). Cards are NOT bank
   accounts: they never appear in Cadastros → Contas, in `saldoBase` or in the Extrato por conta.
+- **Transfers between own accounts** (M8, `financeiro/transferencias/`): a transfer is TWO `Lancamento` legs sharing a
+  `transferenciaId` — a despesa on the origin account and a receita on the destination — in the categories whose
+  `natureza = transferencia` (`categoriaDeTransferencia` finds them, creating "Transferência" if the plan has none), so it
+  moves both balances and never enters DRE/DFC/margin. Create/edit/baixar/estornar/excluir ALWAYS touch both legs in one
+  transaction (`service.ts`, rules in pure `calculo.ts`: legs must agree on status, none conciliated for edit/excluir/estornar).
+  The state machine knows it: a leg whose partner exists has `origem = "transferencia"` and every per-leg operation except
+  `conciliar` answers `MOTIVO_TRANSFERENCIA` — never write a bare `lancamento.update` on one leg. Menus show
+  `itensDaTransferencia` (ids prefixed `transferencia-`) for any leg with a `transferenciaId`.
+- **Date of the opening balance** (M8, `ContaBancaria.saldoInicialEm`): the saldo inicial is the balance at the START of that
+  day, so only the realized from that day on counts in the account (`entraNoSaldoDaConta` in `saldo-base.ts`); null = every
+  realized row counts, as it always did. Every balance reader honours it: `saldoBase` (Visão geral + planner),
+  `saldoDoSistema` (conciliation check + closing's frozen `saldosContas`) and the Extrato por conta — a new reader of an
+  account balance must too, or the account double-counts what the opening balance already holds.
+- **Correcting a paid lançamento** (M8, `lancamentos/corrigir-pagamento.ts`, operation `corrigir_pagamento`): account, forma
+  and payment date change WITHOUT estornar. A conciliated one only takes a new forma (account and date are the bank's); a
+  closed month freezes account and date (not forma); a future date is refused; production payments correct on the Produção
+  screen and transfer legs through the transfer.
 - **Dates in the Financeiro are São Paulo calendar days** (N2, `lib/data.ts`): "today" to WRITE into a date column
   is `hojeParaBanco()` (UTC midnight of the SP day) and to compare is `diaDeSaoPaulo()` — a bare `new Date()` is
   tomorrow after 21h BRT. Period limits on date columns (`@db.Date`: `data`, `dataConfirmacao`, `dataCompetencia`)

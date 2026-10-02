@@ -28,6 +28,7 @@ já foi conferido com o extrato do banco.
   **Conciliada** com o extrato do banco ou **Falta conciliar**. O valor é o **pago** (parcial, com desconto ou a mais),
   não o previsto.
 - **Transferências entre contas próprias** aparecem (movem o saldo da conta) e são marcadas; não entram no resultado.
+  O botão **Transferir entre contas** do cabeçalho cria uma; o menu da linha edita, estorna ou exclui a transferência inteira. Se a conta tem **data de saldo inicial**, o saldo parte dela (veja [Transferência, saldo inicial e corrigir pagamento](transferencias-e-correcoes.md)).
 - **Conferência com o banco:** quando o último OFX importado do mês trouxe o saldo do banco, a tela compara com
   o saldo do sistema na mesma data — "confere" ou a diferença, que indica movimento a lançar ou conciliar.
 

@@ -358,7 +358,7 @@ export function RegrasPreenchimentoView({
               <Campo id="r-contato" rotulo="Contato" valor={rascunho.contato} onChange={(v) => setRascunho((r) => ({ ...r, contato: v }))} itens={contatos} />
               <Campo id="r-forma" rotulo="Forma de pagamento" valor={rascunho.formaId} onChange={(v) => setRascunho((r) => ({ ...r, formaId: v }))} itens={Object.fromEntries(opcoes.formas.map((c) => [c.id, c.nome]))} />
               <Campo id="r-proj" rotulo="Projeto" valor={rascunho.projetoId} onChange={(v) => setRascunho((r) => ({ ...r, projetoId: v }))} itens={Object.fromEntries(opcoes.projetos.map((c) => [c.id, c.nome]))} />
-              <div className="grid gap-1.5">
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5">
                 <Label htmlFor="r-tags">Tags</Label>
                 <Input id="r-tags" value={rascunho.tags} placeholder="Separe por vírgula" onChange={(e) => setRascunho((r) => ({ ...r, tags: e.target.value }))} />
               </div>
@@ -484,7 +484,7 @@ export function RegrasPreenchimentoView({
 /** Seletor de um campo opcional do "Então preencher": "Não preencher" desliga o campo. */
 function Campo({ id, rotulo, valor, onChange, itens }: { id: string; rotulo: string; valor: string; onChange: (v: string) => void; itens: Record<string, string> }) {
   return (
-    <div className="grid gap-1.5">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5">
       <Label htmlFor={id}>{rotulo}</Label>
       <Select value={valor || NENHUM} onValueChange={(v) => onChange(!v || v === NENHUM ? "" : v)} items={{ [NENHUM]: "Não preencher", ...itens }}>
         <SelectTrigger id={id} size="sm" className="w-full">

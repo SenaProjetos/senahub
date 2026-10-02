@@ -210,9 +210,16 @@ export async function desconciliarNoBanco(transacaoId: string, autorId: string):
  * a data. Transferência conta (move o saldo da conta); `natureza-ok: saldo de conta inclui tudo`.
  */
 export async function saldoDoSistema(db: Db, contaId: string, ateDia: string): Promise<number> {
-  const conta = await db.contaBancaria.findUniqueOrThrow({ where: { id: contaId }, select: { saldoInicial: true } });
+  const conta = await db.contaBancaria.findUniqueOrThrow({ where: { id: contaId }, select: { saldoInicial: true, saldoInicialEm: true } });
+  // M8: com data de saldo inicial, o realizado anterior a ela já está dentro do saldo inicial.
+  const desde = conta.saldoInicialEm ?? undefined;
   const ls = await db.lancamento.findMany({
-    where: { contaId, status: "confirmado", excluidoEm: null, dataConfirmacao: { lte: new Date(`${ateDia}T00:00:00.000Z`) } },
+    where: {
+      contaId,
+      status: "confirmado",
+      excluidoEm: null,
+      dataConfirmacao: { lte: new Date(`${ateDia}T00:00:00.000Z`), ...(desde ? { gte: desde } : {}) },
+    },
     select: { tipo: true, valor: true, valorEfetivo: true },
   });
   const c = ls.reduce((s, l) => s + (l.tipo === "receita" ? 1 : -1) * paraCentavos(l.valorEfetivo ?? l.valor), paraCentavos(conta.saldoInicial));

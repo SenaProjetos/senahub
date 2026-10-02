@@ -25,11 +25,13 @@ export default async function ContasPage({
 
   if (situacao === "pagas") {
     const mes = mesParam && MES_VALIDO.test(mesParam) ? mesParam : diaDeSaoPaulo().slice(0, 7);
-    const [itens, abertas] = await Promise.all([dadosPagas(mes), totalContasEmAberto()]);
+    const [itens, abertas, opcoesPagas] = await Promise.all([dadosPagas(mes), totalContasEmAberto(), opcoesLancamento()]);
     return (
       <PagasRecebidasView
         itens={itens}
         mes={mes}
+        contas={opcoesPagas.contas}
+        formas={opcoesPagas.formas}
         podeGerir={podeGerir}
         subnav={
           <>

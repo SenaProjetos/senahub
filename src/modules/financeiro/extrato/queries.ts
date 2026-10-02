@@ -12,7 +12,12 @@ export type MovimentoDoExtrato = MovimentoDaConta & {
   projeto: string | null;
   conciliado: boolean;
   deTransferencia: boolean;
+  /** Par da transferência (M8): as ações de transferência agem nas duas pernas. */
+  transferenciaId: string | null;
   deProducao: boolean;
+  /** Para "Corrigir pagamento…". */
+  formaId: string | null;
+  contaId: string | null;
   anexos: number;
 };
 
@@ -29,10 +34,11 @@ export async function extratoDaConta(contaId: string, mes: string) {
   const [ano, m] = mes.split("-").map(Number);
   const de = isoDeDataDoBanco(utcInicioDoDia(ano, m - 1));
   const ate = isoDeDataDoBanco(utcFimDoDia(ano, m, 0));
-  const conta = await prisma.contaBancaria.findUniqueOrThrow({ where: { id: contaId }, select: { id: true, nome: true, saldoInicial: true } });
+  const conta = await prisma.contaBancaria.findUniqueOrThrow({ where: { id: contaId }, select: { id: true, nome: true, saldoInicial: true, saldoInicialEm: true } });
 
   const ls = await prisma.lancamento.findMany({
-    where: { contaId, status: "confirmado", dataConfirmacao: { lte: utcFimDoDia(ano, m, 0) } },
+    // M8: com data de saldo inicial, o que veio antes dela já está no saldo inicial.
+    where: { contaId, status: "confirmado", dataConfirmacao: { lte: utcFimDoDia(ano, m, 0), ...(conta.saldoInicialEm ? { gte: conta.saldoInicialEm } : {}) } },
     // natureza-ok: o saldo de uma conta inclui toda perna de transferência — o dinheiro mexeu na conta.
     select: {
       id: true,
@@ -43,6 +49,8 @@ export async function extratoDaConta(contaId: string, mes: string) {
       dataConfirmacao: true,
       createdAt: true,
       transferenciaId: true,
+      formaId: true,
+      contaId: true,
       pagamentoProjetistaId: true,
       categoria: { select: { codigo: true, nome: true } },
       projeto: { select: { codigo: true, nome: true } },
@@ -61,6 +69,9 @@ export async function extratoDaConta(contaId: string, mes: string) {
     projeto: l.projeto ? `${l.projeto.codigo} · ${l.projeto.nome}` : null,
     conciliado: l.transacao != null,
     deTransferencia: l.transferenciaId != null,
+    transferenciaId: l.transferenciaId,
+    formaId: l.formaId,
+    contaId: l.contaId,
     deProducao: l.pagamentoProjetistaId != null,
     anexos: l._count.anexos,
   }));

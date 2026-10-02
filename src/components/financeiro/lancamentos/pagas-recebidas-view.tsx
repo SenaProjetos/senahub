@@ -19,6 +19,10 @@ import type { AcaoItemAcao } from "@/components/ui/acoes";
 import { LancamentoDetalheDialog } from "./lancamento-detalhe-dialog";
 import { CriarRegraDialog, type LancamentoParaRegra } from "@/components/financeiro/regras/criar-regra-dialog";
 import { ACAO_CRIAR_REGRA } from "@/modules/financeiro/regras/acoes";
+import { CorrigirPagoDialog, type PagoParaCorrigir } from "@/components/financeiro/lancamentos/corrigir-pago-dialog";
+import { useTransferencias } from "@/components/financeiro/transferencias/use-transferencias";
+import { ACAO_CORRIGIR_PAGAMENTO } from "@/modules/financeiro/lancamentos/acoes-corrigir";
+import { ehAcaoDeTransferencia } from "@/modules/financeiro/transferencias/acoes";
 import { estornarLancamento } from "@/modules/financeiro/lancamentos/actions";
 import {
   ACAO_COPIAR_DESCRICAO_PAGA,
@@ -58,11 +62,15 @@ const valorPago = (l: PagaItem) => l.valorEfetivo ?? l.valor;
 export function PagasRecebidasView({
   itens,
   mes,
+  contas,
+  formas,
   podeGerir,
   subnav,
 }: {
   itens: PagaItem[];
   mes: string;
+  contas: { id: string; nome: string }[];
+  formas: { id: string; nome: string }[];
   podeGerir: boolean;
   subnav?: React.ReactNode;
 }) {
@@ -74,6 +82,8 @@ export function PagasRecebidasView({
   const [busca, setBusca] = useState("");
   const [detalhe, setDetalhe] = useState<PagaItem | null>(null);
   const [regraDe, setRegraDe] = useState<LancamentoParaRegra | null>(null);
+  const [corrigir, setCorrigir] = useState<PagoParaCorrigir | null>(null);
+  const transferencias = useTransferencias(contas);
 
   const lista = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -124,6 +134,8 @@ export function PagasRecebidasView({
       if (!ok) return;
     }
     if (item.id === ACAO_DETALHES_PAGA) setDetalhe(l);
+    else if (ehAcaoDeTransferencia(item.id)) transferencias.tratar(item, l.transferenciaId);
+    else if (item.id === ACAO_CORRIGIR_PAGAMENTO) setCorrigir({ id: l.id, descricao: l.descricao, valor: l.valorEfetivo ?? l.valor, contaId: l.contaId, formaId: l.formaId, dataConfirmacao: String(l.dataConfirmacao ?? l.data).slice(0, 10), conciliado: l.conciliado });
     else if (item.id === ACAO_CRIAR_REGRA) setRegraDe({ id: l.id, descricao: l.descricao, categoria: l.categoria ? `${l.categoria.codigo} ${l.categoria.nome}` : null, temCentroOuProjeto: l.centro != null || l.projeto != null });
     else if (item.id === ACAO_VER_NO_EXTRATO && l.contaId) {
       router.push(`/financeiro/extrato?conta=${l.contaId}&mes=${mes}`);
@@ -147,7 +159,7 @@ export function PagasRecebidasView({
   // Função de render (não componente aninhado): senão a linha remonta e fecha o menu aberto (ADR-0002).
   function linha(l: PagaItem) {
     const menu = itensDePaga(
-      { anexos: l.anexos.length, conciliado: l.conciliado, deProducao: l.pagamentoProjetistaId != null, temConta: l.contaId != null, temCategoria: l.categoria != null },
+      { anexos: l.anexos.length, conciliado: l.conciliado, deProducao: l.pagamentoProjetistaId != null, temConta: l.contaId != null, temCategoria: l.categoria != null, deTransferencia: l.transferenciaId != null },
       { podeGerir },
     );
     const parcial = l.valorEfetivo != null && Math.round(l.valorEfetivo * 100) !== Math.round(l.valor * 100);
@@ -258,6 +270,8 @@ export function PagasRecebidasView({
       <DicaMenuContexto />
       <LancamentoDetalheDialog lancamento={detalhe} podeGerir={podeGerir} onClose={() => setDetalhe(null)} />
       <CriarRegraDialog lancamento={regraDe} onClose={() => setRegraDe(null)} />
+      {transferencias.dialogo}
+      <CorrigirPagoDialog pago={corrigir} contas={contas} formas={formas} onClose={(salvou) => { setCorrigir(null); if (salvou) router.refresh(); }} />
     </div>
   );
 }

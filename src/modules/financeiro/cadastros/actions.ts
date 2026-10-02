@@ -101,11 +101,13 @@ export const editarCentro = defineAction(
 );
 
 // ── Contas bancárias ──────────────────────────────────────────
+const diaOuNulo = (d: string | undefined) => (d ? new Date(`${d}T00:00:00.000Z`) : null);
+
 export const criarConta = defineAction(
   { ...base, acao: "criar-conta", entidade: "ContaBancaria", schema: contaBancariaSchema },
   async (i) => {
     if (i.padrao) await prisma.contaBancaria.updateMany({ data: { padrao: false } });
-    const c = await prisma.contaBancaria.create({ data: i });
+    const c = await prisma.contaBancaria.create({ data: { ...i, saldoInicialEm: diaOuNulo(i.saldoInicialEm) } });
     rev();
     return { id: c.id };
   },
@@ -118,14 +120,14 @@ export const editarConta = defineAction(
     schema: contaBancariaEditSchema,
     // N6: o saldo inicial mexe no caixa de todos os meses.
     capturarAntes: async (i) => {
-      const c = await prisma.contaBancaria.findUnique({ where: { id: i.id }, select: { nome: true, tipo: true, saldoInicial: true, padrao: true, ativo: true } });
+      const c = await prisma.contaBancaria.findUnique({ where: { id: i.id }, select: { nome: true, tipo: true, saldoInicial: true, saldoInicialEm: true, padrao: true, ativo: true } });
       return c ? { ...c, saldoInicial: Number(c.saldoInicial) } : null;
     },
   },
   async (i) => {
     const { id, ...rest } = i;
     if (rest.padrao) await prisma.contaBancaria.updateMany({ data: { padrao: false } });
-    await prisma.contaBancaria.update({ where: { id }, data: rest });
+    await prisma.contaBancaria.update({ where: { id }, data: { ...rest, saldoInicialEm: diaOuNulo(rest.saldoInicialEm) } });
     rev();
     return { id };
   },

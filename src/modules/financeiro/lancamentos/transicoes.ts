@@ -12,6 +12,7 @@
  *   previsto ── cancelar ──▶ cancelado ── reabrir ──▶ previsto (ou aguardando, se foi rejeitado)
  *   aguardando ── aprovar ──▶ previsto · aguardando ── rejeitar/cancelar ──▶ cancelado
  *   previsao (cronograma) só muda pela sincronização do contrato — nunca por aqui.
+ *   perna de transferência entre contas: só muda pela transferência inteira (as duas pernas juntas).
  */
 
 export type Situacao = "previsto" | "aguardando_aprovacao" | "confirmado" | "cancelado" | "previsao";
@@ -25,10 +26,12 @@ export type Operacao =
   | "excluir"
   | "editar"
   | "aprovar"
-  | "rejeitar";
+  | "rejeitar"
+  /** M8: trocar conta, forma ou data de um lançamento JÁ pago, sem estornar. */
+  | "corrigir_pagamento";
 
 /** Quem controla o lançamento além do Financeiro (a porta certa para mexer nele). */
-export type Origem = "manual" | "projetista" | "art" | "previsao";
+export type Origem = "manual" | "projetista" | "art" | "previsao" | "transferencia";
 
 export type EstadoDoLancamento = {
   status: Situacao;
@@ -56,11 +59,17 @@ export const MOTIVO_CONCILIADO = "Conciliado com o extrato: desconcilie a transa
 export const MOTIVO_PROJETISTA = "Este lançamento é de um pagamento de produção — corrija ou estorne pela tela de Produção.";
 export const MOTIVO_ART = "Este lançamento é da taxa de uma ART — altere pela aba ARTs do projeto.";
 export const MOTIVO_NAO_AGUARDA = "Lançamento não está aguardando aprovação.";
+export const MOTIVO_TRANSFERENCIA =
+  "Este lançamento é uma perna de transferência entre contas — edite, estorne ou exclua a transferência (ela mexe nas duas pernas juntas).";
+export const MOTIVO_SO_PAGO_CORRIGE = "Só se corrige o pagamento do que já foi pago ou recebido.";
 
 /** Por que a operação não pode acontecer; `null` = pode. */
 export function motivoParaNao(op: Operacao, e: EstadoDoLancamento): string | null {
   if (e.excluido) return MOTIVO_EXCLUIDO;
   if (e.status === "previsao") return MOTIVO_PREVISAO_CRONOGRAMA;
+  // M8: a perna de uma transferência só anda junto com a outra. Conciliar a perna com o extrato do
+  // banco continua valendo (cada conta tem o seu extrato); aprovação/rejeição não se aplica a ela.
+  if (e.origem === "transferencia" && op !== "conciliar" && op !== "aprovar" && op !== "rejeitar") return MOTIVO_TRANSFERENCIA;
 
   switch (op) {
     case "baixar":
@@ -112,6 +121,12 @@ export function motivoParaNao(op: Operacao, e: EstadoDoLancamento): string | nul
     case "aprovar":
     case "rejeitar":
       return e.status === "aguardando_aprovacao" ? null : MOTIVO_NAO_AGUARDA;
+
+    case "corrigir_pagamento":
+      if (e.status !== "confirmado") return MOTIVO_SO_PAGO_CORRIGE;
+      // Pagamento de produção é corrigido pela tela de Produção (ela leva o pagamento do projetista junto).
+      if (e.origem === "projetista") return MOTIVO_PROJETISTA;
+      return null;
   }
 }
 
@@ -132,6 +147,7 @@ export function situacaoDepois(op: Operacao, e: EstadoDoLancamento): Situacao {
       return e.rejeitado ? "aguardando_aprovacao" : "previsto";
     case "excluir":
     case "editar":
+    case "corrigir_pagamento":
       return e.status;
   }
 }
@@ -145,6 +161,8 @@ export function estadoDoLancamento(l: {
   pagamentoProjetistaId: string | null;
   ehDeArt: boolean;
   motivoRejeicao: string | null;
+  /** M8: a outra perna da transferência existe (viva). Sem ela a perna fica solta e se trata como manual. */
+  parDeTransferencia?: boolean;
 }): EstadoDoLancamento {
   const status = l.status as Situacao;
   return {
@@ -152,7 +170,16 @@ export function estadoDoLancamento(l: {
     excluido: l.excluidoEm != null,
     conciliado: l.transacao != null,
     distribuido: l.distribuicao != null,
-    origem: status === "previsao" ? "previsao" : l.pagamentoProjetistaId ? "projetista" : l.ehDeArt ? "art" : "manual",
+    origem:
+      status === "previsao"
+        ? "previsao"
+        : l.pagamentoProjetistaId
+          ? "projetista"
+          : l.ehDeArt
+            ? "art"
+            : l.parDeTransferencia
+              ? "transferencia"
+              : "manual",
     rejeitado: l.motivoRejeicao != null,
   };
 }

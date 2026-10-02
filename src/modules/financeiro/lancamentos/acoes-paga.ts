@@ -3,6 +3,8 @@ import { Copy, ExternalLink, Paperclip, Undo2 } from "lucide-react";
 import type { AcaoItem } from "@/components/ui/acoes";
 import { MOTIVO_CONCILIADO, MOTIVO_PROJETISTA } from "@/modules/financeiro/lancamentos/transicoes";
 import { itemCriarRegra } from "@/modules/financeiro/regras/acoes";
+import { itensDaTransferencia } from "@/modules/financeiro/transferencias/acoes";
+import { itemCorrigirPagamento } from "@/modules/financeiro/lancamentos/acoes-corrigir";
 
 /**
  * Ações de uma conta JÁ PAGA ou recebida (aba "Pagas e recebidas") — **puro**. Mesmo array para o menu
@@ -24,6 +26,8 @@ export type PagaParaAcoes = {
   temConta: boolean;
   /** Informado = o menu oferece "Criar regra a partir deste lançamento" (a quem gere). */
   temCategoria?: boolean;
+  /** Perna de transferência entre contas (M8): estornar/excluir são da transferência inteira. */
+  deTransferencia?: boolean;
 };
 
 export type ContextoAcoesPaga = {
@@ -32,11 +36,20 @@ export type ContextoAcoesPaga = {
 };
 
 export function itensDePaga(p: PagaParaAcoes, ctx: ContextoAcoesPaga): AcaoItem[] {
+  if (p.deTransferencia) {
+    return [
+      { tipo: "acao", id: ACAO_DETALHES_PAGA, rotulo: p.anexos > 0 ? `Detalhes (${p.anexos})` : "Detalhes", icone: Paperclip },
+      p.temConta ? { tipo: "acao", id: ACAO_VER_NO_EXTRATO, rotulo: "Ver no extrato da conta", icone: ExternalLink } : null,
+      { tipo: "acao", id: ACAO_COPIAR_DESCRICAO_PAGA, rotulo: "Copiar descrição", icone: Copy },
+      ...(ctx.podeGerir ? [{ tipo: "separador" as const, id: "sep-transferencia-paga" }, ...itensDaTransferencia({ realizada: true, conciliada: p.conciliado }, ctx)] : []),
+    ].filter((i): i is AcaoItem => i !== null);
+  }
   const itens: (AcaoItem | null)[] = [
     { tipo: "acao", id: ACAO_DETALHES_PAGA, rotulo: p.anexos > 0 ? `Detalhes (${p.anexos})` : "Detalhes", icone: Paperclip },
     p.temConta ? { tipo: "acao", id: ACAO_VER_NO_EXTRATO, rotulo: "Ver no extrato da conta", icone: ExternalLink } : null,
     { tipo: "acao", id: ACAO_COPIAR_DESCRICAO_PAGA, rotulo: "Copiar descrição", icone: Copy },
     ctx.podeGerir && p.temCategoria !== undefined ? itemCriarRegra(p.temCategoria) : null,
+    ctx.podeGerir ? itemCorrigirPagamento({ deProducao: p.deProducao }) : null,
     ctx.podeGerir ? { tipo: "separador", id: "sep-estorno" } : null,
     ctx.podeGerir
       ? {

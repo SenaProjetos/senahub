@@ -41,6 +41,7 @@ export async function lerParaOperacao(db: Db, id: string) {
       motivoRejeicao: true,
       pagamentoProjetistaId: true,
       recorrenciaGrupo: true,
+      transferenciaId: true,
       data: true,
       dataCompetencia: true,
       dataConfirmacao: true,
@@ -50,7 +51,11 @@ export async function lerParaOperacao(db: Db, id: string) {
   });
   if (!l) throw new ActionError("Lançamento não encontrado.");
   const art = await db.art.count({ where: { OR: [{ lancamentoId: id }, { reembolsoLancamentoId: id }] } });
-  const estado = estadoDoLancamento({ ...l, ehDeArt: art > 0 });
+  // M8: perna de transferência só se trata como par quando a outra perna existe.
+  const par = l.transferenciaId
+    ? await db.lancamento.count({ where: { transferenciaId: l.transferenciaId, id: { not: id }, excluidoEm: null } })
+    : 0;
+  const estado = estadoDoLancamento({ ...l, ehDeArt: art > 0, parDeTransferencia: par > 0 });
   return { lancamento: l, estado };
 }
 

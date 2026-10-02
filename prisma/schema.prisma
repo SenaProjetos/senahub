@@ -1588,6 +1588,10 @@ model ContaBancaria {
   agencia      String?
   numero       String?
   saldoInicial Decimal           @default(0) @db.Decimal(14, 2)
+  /// Dia em que `saldoInicial` vale (M8): o saldo no COMEÇO desse dia. Só o realizado a partir dele entra
+  /// no saldo da conta; o anterior já está dentro do saldo inicial. Nulo = comportamento antigo (todo o
+  /// realizado da conta entra, de qualquer data).
+  saldoInicialEm DateTime?       @db.Date
   padrao       Boolean           @default(false)
   ativo        Boolean           @default(true)
   ordem        Int               @default(0)

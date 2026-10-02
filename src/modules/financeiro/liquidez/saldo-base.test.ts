@@ -75,3 +75,34 @@ describe("anomaliasDoSaldo — avisos, nunca correção (A1–A3)", () => {
     });
   });
 });
+
+describe("data do saldo inicial (M8)", () => {
+  const conta = { id: "A", saldoInicial: reais(1000), saldoInicialEm: "2026-10-01" };
+  it("o realizado anterior à data já está dentro do saldo inicial: não conta de novo", () => {
+    const r = saldoBase([conta], [
+      { contaId: "A", tipo: "despesa", valor: reais(300), dataConfirmacao: "2026-09-20" },
+      { contaId: "A", tipo: "receita", valor: reais(50), dataConfirmacao: "2026-10-01" },
+      { contaId: "A", tipo: "despesa", valor: reais(10), dataConfirmacao: "2026-10-05" },
+    ]);
+    expect(r.porConta.A).toBe(reais(1040));
+  });
+  it("o saldo vale no COMEÇO do dia: o movimento daquele dia entra", () => {
+    const r = saldoBase([conta], [{ contaId: "A", tipo: "receita", valor: reais(1), dataConfirmacao: "2026-10-01" }]);
+    expect(r.porConta.A).toBe(reais(1001));
+  });
+  it("sem data o comportamento é o de sempre: entra tudo, de qualquer dia", () => {
+    const r = saldoBase([{ id: "A", saldoInicial: reais(1000) }], [{ contaId: "A", tipo: "despesa", valor: reais(300), dataConfirmacao: "2020-01-01" }]);
+    expect(r.porConta.A).toBe(reais(700));
+  });
+  it("realizado sem data de realização fica dentro (o dado é que está incompleto)", () => {
+    expect(saldoBase([conta], [{ contaId: "A", tipo: "despesa", valor: reais(100), dataConfirmacao: null }]).porConta.A).toBe(reais(900));
+  });
+  it("o corte vale só para a conta que tem data; o sem-conta segue entrando", () => {
+    const r = saldoBase([conta, { id: "B", saldoInicial: 0 }], [
+      { contaId: "B", tipo: "receita", valor: reais(10), dataConfirmacao: "2020-01-01" },
+      { contaId: null, tipo: "receita", valor: reais(5), dataConfirmacao: "2020-01-01" },
+    ]);
+    expect(r.porConta.B).toBe(reais(10));
+    expect(r.semConta).toBe(reais(5));
+  });
+});

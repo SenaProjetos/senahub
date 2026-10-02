@@ -26,6 +26,7 @@ type Conta = {
   agencia: string | null;
   numero: string | null;
   saldoInicial: number;
+  saldoInicialEm: string | null;
   padrao: boolean;
 };
 type Servico = { id: string; descricao: string; valorReferencia: number | null };

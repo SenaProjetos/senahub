@@ -34,7 +34,7 @@ const hojeIso = () => new Date().toISOString().slice(0, 10);
 
 function Campo({ id, rotulo, valor, onChange, itens, placeholder = "Não preencher" }: { id: string; rotulo: string; valor: string; onChange: (v: string) => void; itens: { id: string; nome: string }[]; placeholder?: string }) {
   return (
-    <div className="grid gap-1.5">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5">
       <Label htmlFor={id}>{rotulo}</Label>
       <Select value={valor || NENHUM} onValueChange={(v) => onChange(!v || v === NENHUM ? "" : v)} items={Object.fromEntries([[NENHUM, placeholder], ...itens.map((i) => [i.id, i.nome])])}>
         <SelectTrigger id={id} size="sm" className="w-full">
@@ -108,18 +108,18 @@ export function CartaoDialog({ cartao, aberto, onClose, opcoes }: { cartao: Cart
           <DialogTitle>{cartao ? "Editar cartão" : "Novo cartão"}</DialogTitle>
         </DialogHeader>
         <DialogBody className="grid gap-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="grid gap-1.5">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5">
               <Label htmlFor="c-nome">Nome</Label>
               <Input id="c-nome" value={nome} maxLength={60} placeholder="Ex.: Visa Empresarial" onChange={(e) => setNome(e.target.value)} />
             </div>
-            <div className="grid gap-1.5">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5">
               <Label htmlFor="c-dig">Últimos 4 dígitos</Label>
               <Input id="c-dig" value={digitos} inputMode="numeric" maxLength={4} placeholder="4821" onChange={(e) => setDigitos(e.target.value.replace(/\D/g, ""))} />
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="grid gap-1.5">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5">
               <Label htmlFor="c-tipo">De quem é</Label>
               <Select value={tipo} onValueChange={(v) => v && setTipo(v as "empresa" | "pessoal")} items={{ empresa: "Da empresa", pessoal: "Pessoal (de um sócio)" }}>
                 <SelectTrigger id="c-tipo" size="sm" className="w-full">
@@ -134,14 +134,14 @@ export function CartaoDialog({ cartao, aberto, onClose, opcoes }: { cartao: Cart
             {tipo === "pessoal" ? (
               <Campo id="c-socio" rotulo="Sócio" valor={socioId} onChange={setSocioId} itens={opcoes.socios} placeholder="Escolha o sócio" />
             ) : (
-              <div className="grid gap-1.5">
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5">
                 <Label htmlFor="c-lim">Limite (opcional)</Label>
                 <InputMoeda id="c-lim" value={limite} onChange={setLimite} />
               </div>
             )}
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="grid gap-1.5">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5">
               <Label htmlFor="c-fech">Fecha no dia</Label>
               <Select value={fechamento} onValueChange={(v) => v && setFechamento(v)} items={Object.fromEntries(dias.map((d) => [d, d]))}>
                 <SelectTrigger id="c-fech" size="sm" className="w-full">
@@ -156,7 +156,7 @@ export function CartaoDialog({ cartao, aberto, onClose, opcoes }: { cartao: Cart
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-1.5">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5">
               <Label htmlFor="c-venc">Vence no dia (mês seguinte)</Label>
               <Select value={vencimento} onValueChange={(v) => v && setVencimento(v)} items={Object.fromEntries(dias.map((d) => [d, d]))}>
                 <SelectTrigger id="c-venc" size="sm" className="w-full">
@@ -261,28 +261,28 @@ export function CompraDialog({
           <DialogTitle>{compra ? "Editar compra" : `Lançar compra — ${cartao?.nome ?? ""}`}</DialogTitle>
         </DialogHeader>
         <DialogBody className="grid gap-4">
-          <div className="grid gap-1.5">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5">
             <Label htmlFor="co-desc">Descrição</Label>
             <Input id="co-desc" value={descricao} maxLength={120} onChange={(e) => setDescricao(e.target.value)} />
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="grid gap-1.5">
+          <div className="grid gap-3 sm:grid-cols-[repeat(3,minmax(0,1fr))]">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5">
               <Label htmlFor="co-valor">Valor total</Label>
               <InputMoeda id="co-valor" value={valor} onChange={setValor} />
             </div>
-            <div className="grid gap-1.5">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5">
               <Label htmlFor="co-data">Data da compra</Label>
               <Input id="co-data" type="date" value={data} onChange={(e) => setData(e.target.value)} />
             </div>
             {!compra && (
-              <div className="grid gap-1.5">
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5">
                 <Label htmlFor="co-parc">Parcelas</Label>
                 <Input id="co-parc" inputMode="numeric" value={parcelas} onChange={(e) => setParcelas(e.target.value.replace(/\D/g, "").slice(0, 2))} />
               </div>
             )}
           </div>
           <Campo id="co-cat" rotulo="Categoria" valor={categoriaId} onChange={setCategoriaId} itens={despesas.map((c) => ({ id: c.id, nome: `${c.codigo} ${c.nome}` }))} placeholder="Escolha a categoria" />
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-[repeat(3,minmax(0,1fr))]">
             <Campo id="co-centro" rotulo="Centro de custo" valor={centroId} onChange={setCentroId} itens={opcoes.centros} />
             <Campo id="co-proj" rotulo="Projeto" valor={projetoId} onChange={setProjetoId} itens={opcoes.projetos.map((p) => ({ id: p.id, nome: `${p.codigo} · ${p.nome}` }))} />
             <Campo id="co-forn" rotulo="Fornecedor" valor={fornecedorId} onChange={setFornecedorId} itens={opcoes.fornecedores} />
@@ -344,13 +344,13 @@ export function PagamentoDialog({ alvo, onClose, opcoes, contaPadraoId }: { alvo
           <DialogTitle>{alvo?.tipo === "compra" ? "Reembolsar só esta" : pessoal ? "Reembolsar" : "Pagar fatura"}</DialogTitle>
         </DialogHeader>
         <DialogBody className="grid gap-4">
-          <div className="grid gap-1.5">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5">
             <Label>{alvo?.tipo === "compra" ? "Despesa" : "Fatura"}</Label>
             <div className="rounded-md border px-3 py-2 text-sm">{alvo?.rotulo}</div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <Campo id="pg-conta" rotulo="Pagar com a conta" valor={contaId} onChange={setContaId} itens={opcoes.contas} placeholder="Escolha a conta" />
-            <div className="grid gap-1.5">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5">
               <Label htmlFor="pg-data">Data do pagamento</Label>
               <Input id="pg-data" type="date" value={data} onChange={(e) => setData(e.target.value)} />
             </div>

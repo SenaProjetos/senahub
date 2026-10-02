@@ -20,6 +20,8 @@ export const contaBancariaSchema = z.object({
   agencia: z.string().optional(),
   numero: z.string().optional(),
   saldoInicial: z.number().default(0),
+  /** Dia em que o saldo inicial vale (M8); vazio = todo o realizado da conta entra no saldo. */
+  saldoInicialEm: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida.").optional().or(z.literal("")),
   padrao: z.boolean().default(false),
 });
 export const contaBancariaEditSchema = contaBancariaSchema.extend({ id });

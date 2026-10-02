@@ -35,6 +35,8 @@ type Conta = {
   agencia: string | null;
   numero: string | null;
   saldoInicial: number;
+  /** `YYYY-MM-DD`: o saldo inicial vale no começo deste dia. Nulo = todo o realizado entra. */
+  saldoInicialEm: string | null;
   padrao: boolean;
 };
 
@@ -79,6 +81,7 @@ export function ContasSection({ contas }: { contas: Conta[] }) {
                 <p className="text-xs text-muted-foreground">
                   {TIPO_LABEL[c.tipo]}
                   {c.banco ? ` · ${c.banco}` : ""} · saldo inicial {brl(c.saldoInicial)}
+                  {c.saldoInicialEm ? ` em ${c.saldoInicialEm.split("-").reverse().join("/")}` : ""}
                 </p>
               </div>
               <Button
@@ -121,6 +124,7 @@ function ContaDialog({
       agencia: "",
       numero: "",
       saldoInicial: 0,
+      saldoInicialEm: null,
       padrao: false,
     },
   );
@@ -137,6 +141,7 @@ function ContaDialog({
         agencia: "",
         numero: "",
         saldoInicial: 0,
+        saldoInicialEm: null,
         padrao: false,
       },
     );
@@ -151,6 +156,7 @@ function ContaDialog({
         agencia: form.agencia || undefined,
         numero: form.numero || undefined,
         saldoInicial: form.saldoInicial,
+        saldoInicialEm: form.saldoInicialEm ?? "",
         padrao: form.padrao,
       };
       const r = conta?.id
@@ -218,6 +224,19 @@ function ContaDialog({
                 onChange={(v) => setForm({ ...form, saldoInicial: v ?? 0 })}
               />
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="conta-saldo-em">Saldo vale em</Label>
+              <Input
+                id="conta-saldo-em"
+                type="date"
+                value={form.saldoInicialEm ?? ""}
+                onChange={(e) => setForm({ ...form, saldoInicialEm: e.target.value || null })}
+              />
+            </div>
+            <p className="col-span-2 text-xs text-muted-foreground">
+              O saldo vale no começo desse dia: só o que foi pago ou recebido a partir dele entra no saldo da conta; o anterior já está dentro do saldo inicial.
+              Sem data, todo o realizado da conta entra, de qualquer dia.
+            </p>
             <label className="flex items-center gap-2 pb-2 text-sm">
               <input
                 type="checkbox"

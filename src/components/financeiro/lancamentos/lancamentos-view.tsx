@@ -17,6 +17,10 @@ import { ConfirmarDialog } from "./confirmar-dialog";
 import { LancamentoDetalheDialog } from "./lancamento-detalhe-dialog";
 import { CriarRegraDialog, type LancamentoParaRegra } from "@/components/financeiro/regras/criar-regra-dialog";
 import { ACAO_CRIAR_REGRA } from "@/modules/financeiro/regras/acoes";
+import { CorrigirPagoDialog, type PagoParaCorrigir } from "@/components/financeiro/lancamentos/corrigir-pago-dialog";
+import { useTransferencias } from "@/components/financeiro/transferencias/use-transferencias";
+import { ACAO_CORRIGIR_PAGAMENTO } from "@/modules/financeiro/lancamentos/acoes-corrigir";
+import { ehAcaoDeTransferencia } from "@/modules/financeiro/transferencias/acoes";
 import { Button } from "@/components/ui/button";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { Input } from "@/components/ui/input";
@@ -222,6 +226,8 @@ export function LancamentosView({
   const [editar, setEditar] = useState<LivroCaixaItem | null>(null);
   const [confirmar, setConfirmar] = useState<LivroCaixaItem | null>(null);
   const [regraDe, setRegraDe] = useState<LancamentoParaRegra | null>(null);
+  const [corrigir, setCorrigir] = useState<PagoParaCorrigir | null>(null);
+  const transferencias = useTransferencias(opcoes.contas);
   const [detalhe, setDetalhe] = useState<LivroCaixaItem | null>(() =>
     defaultDetalheId ? (itens.find((l) => l.id === defaultDetalheId) ?? null) : null,
   );
@@ -522,6 +528,8 @@ export function LancamentosView({
       if (!ok) return;
     }
     if (item.id === ACAO_DETALHES) setDetalhe(l);
+    else if (ehAcaoDeTransferencia(item.id)) transferencias.tratar(item, l.transferenciaId);
+    else if (item.id === ACAO_CORRIGIR_PAGAMENTO) setCorrigir({ id: l.id, descricao: l.descricao, valor: l.valorEfetivo ?? l.valor, contaId: l.contaId, formaId: l.formaId, dataConfirmacao: String(l.dataConfirmacao ?? l.data).slice(0, 10), conciliado: l.conciliado });
     else if (item.id === ACAO_CRIAR_REGRA) setRegraDe({ id: l.id, descricao: l.descricao, categoria: l.categoria ? `${l.categoria.codigo} ${l.categoria.nome}` : null, temCentroOuProjeto: l.centro != null || l.projeto != null });
     else if (item.id === ACAO_EDITAR) setEditar(l);
     else if (item.id === ACAO_CONFIRMAR) setConfirmar(l);
@@ -649,9 +657,14 @@ export function LancamentosView({
         titulo="Lançamentos de caixa"
         descricao="Livro caixa: tudo o que entrou e saiu, lançamento por lançamento."
         acoes={
-          <Button size="sm" onClick={() => setFormOpen(true)}>
-            <Plus className="size-4" /> Novo lançamento
-          </Button>
+          <>
+            <Button size="sm" variant="outline" onClick={transferencias.nova}>
+              <ArrowLeftRight className="size-4" aria-hidden /> Transferir entre contas
+            </Button>
+            <Button size="sm" onClick={() => setFormOpen(true)}>
+              <Plus className="size-4" /> Novo lançamento
+            </Button>
+          </>
         }
       />
       {subnav}
@@ -838,6 +851,8 @@ export function LancamentosView({
       <ConfirmarDialog lancamento={confirmar} onClose={() => setConfirmar(null)} contas={opcoes.contas} formas={opcoes.formas} />
       <LancamentoDetalheDialog lancamento={detalhe} podeGerir onClose={() => setDetalhe(null)} />
       <CriarRegraDialog lancamento={regraDe} onClose={() => setRegraDe(null)} />
+      {transferencias.dialogo}
+      <CorrigirPagoDialog pago={corrigir} contas={opcoes.contas} formas={opcoes.formas} onClose={(salvou) => { setCorrigir(null); if (salvou) router.refresh(); }} />
       <BarraSelecao
         total={alvosSelecao.length}
         itens={itensDoLote}
@@ -877,7 +892,7 @@ export function LancamentosView({
     // Com a linha DENTRO de uma seleção de vários, o menu age sobre a seleção (regra 3 da ADR-0002).
     const menuItens = alvosSelecao.length > 1 && selecao.marcado(l.id)
       ? itensDoLote
-      : itensDeLancamento({ status: l.status, anexos: l.anexos.length, conciliado: l.conciliado, temCategoria: l.categoria != null });
+      : itensDeLancamento({ status: l.status, anexos: l.anexos.length, conciliado: l.conciliado, temCategoria: l.categoria != null, deTransferencia: l.transferenciaId != null });
     return (
       <LinhaComMenu
         key={l.id}

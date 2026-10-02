@@ -13,7 +13,9 @@ import {
   MOTIVO_PREVISAO_CRONOGRAMA,
   MOTIVO_PROJETISTA,
   MOTIVO_SO_CANCELADO_REABRE,
+  MOTIVO_SO_PAGO_CORRIGE,
   MOTIVO_SO_PAGO_ESTORNA,
+  MOTIVO_TRANSFERENCIA,
   type EstadoDoLancamento,
   type Operacao,
 } from "@/modules/financeiro/lancamentos/transicoes";
@@ -22,7 +24,7 @@ function e(p: Partial<EstadoDoLancamento> = {}): EstadoDoLancamento {
   return { status: "previsto", excluido: false, conciliado: false, distribuido: false, origem: "manual", rejeitado: false, ...p };
 }
 
-const TODAS: Operacao[] = ["baixar", "conciliar", "estornar", "cancelar", "reabrir", "excluir", "editar", "aprovar", "rejeitar"];
+const TODAS: Operacao[] = ["baixar", "conciliar", "estornar", "cancelar", "reabrir", "excluir", "editar", "aprovar", "rejeitar", "corrigir_pagamento"];
 
 describe("motivoParaNao — barreiras gerais", () => {
   it("A12: lançamento excluído recusa tudo", () => {
@@ -116,5 +118,36 @@ describe("estadoDoLancamento", () => {
       rejeitado: true,
       excluido: true,
     });
+  });
+});
+
+describe("perna de transferência entre contas (M8)", () => {
+  const perna = (p: Partial<EstadoDoLancamento> = {}) => e({ origem: "transferencia", ...p });
+  it("só anda junto com a outra: baixar, estornar, cancelar, excluir, editar e corrigir mandam para a transferência", () => {
+    for (const op of ["baixar", "estornar", "cancelar", "excluir", "editar", "corrigir_pagamento"] as Operacao[]) {
+      expect(motivoParaNao(op, perna({ status: "confirmado" }))).toBe(MOTIVO_TRANSFERENCIA);
+    }
+  });
+  it("a perna ainda se concilia com o extrato do banco da conta dela", () => {
+    expect(motivoParaNao("conciliar", perna())).toBeNull();
+  });
+  it("estadoDoLancamento: com a outra perna viva é transferência; sem ela, é manual", () => {
+    const base = { status: "previsto", excluidoEm: null, transacao: null, distribuicao: null, pagamentoProjetistaId: null, ehDeArt: false, motivoRejeicao: null };
+    expect(estadoDoLancamento({ ...base, parDeTransferencia: true }).origem).toBe("transferencia");
+    expect(estadoDoLancamento({ ...base, parDeTransferencia: false }).origem).toBe("manual");
+  });
+});
+
+describe("corrigir o pagamento (M8)", () => {
+  it("só o que já foi pago ou recebido", () => {
+    expect(motivoParaNao("corrigir_pagamento", e({ status: "previsto" }))).toBe(MOTIVO_SO_PAGO_CORRIGE);
+    expect(motivoParaNao("corrigir_pagamento", e({ status: "confirmado" }))).toBeNull();
+  });
+  it("conciliado pode (a trava de conta e data é do serviço); produção corrige pela tela de Produção", () => {
+    expect(motivoParaNao("corrigir_pagamento", e({ status: "confirmado", conciliado: true }))).toBeNull();
+    expect(motivoParaNao("corrigir_pagamento", e({ status: "confirmado", origem: "projetista" }))).toBe(MOTIVO_PROJETISTA);
+  });
+  it("a situação não muda", () => {
+    expect(situacaoDepois("corrigir_pagamento", e({ status: "confirmado" }))).toBe("confirmado");
   });
 });

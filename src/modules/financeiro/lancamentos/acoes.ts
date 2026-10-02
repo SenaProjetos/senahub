@@ -3,6 +3,8 @@ import { Ban, Check, Copy, Paperclip, Pencil, RotateCcw, Trash2, Undo2 } from "l
 import type { AcaoItem } from "@/components/ui/acoes";
 import { MOTIVO_CONCILIADO, MOTIVO_PAGO_ESTORNE } from "@/modules/financeiro/lancamentos/transicoes";
 import { itemCriarRegra } from "@/modules/financeiro/regras/acoes";
+import { itensDaTransferencia } from "@/modules/financeiro/transferencias/acoes";
+import { itemCorrigirPagamento } from "@/modules/financeiro/lancamentos/acoes-corrigir";
 
 /**
  * Ações de um lançamento (livro-caixa) — **puro**, sem React e sem I/O. O mesmo array alimenta o
@@ -34,9 +36,19 @@ export type LancamentoParaAcoes = {
   conciliado?: boolean;
   /** Informado = o menu oferece "Criar regra a partir deste lançamento" (sem categoria, desabilitado). */
   temCategoria?: boolean;
+  /** Perna de transferência entre contas (M8): o menu é o da transferência inteira. */
+  deTransferencia?: boolean;
 };
 
 export function itensDeLancamento(l: LancamentoParaAcoes): AcaoItem[] {
+  if (l.deTransferencia) {
+    return [
+      { tipo: "acao", id: ACAO_DETALHES, rotulo: l.anexos > 0 ? `Detalhes (${l.anexos})` : "Detalhes", icone: Paperclip },
+      { tipo: "acao", id: ACAO_COPIAR_DESCRICAO, rotulo: "Copiar descrição", icone: Copy },
+      { tipo: "separador", id: "sep-transferencia-lanc" },
+      ...itensDaTransferencia({ realizada: l.status === "confirmado", conciliada: l.conciliado === true }, { podeGerir: true }),
+    ];
+  }
   const cancelado = l.status === "cancelado";
   const pago = l.status === "confirmado";
   const conciliado = l.conciliado === true;
@@ -52,6 +64,7 @@ export function itensDeLancamento(l: LancamentoParaAcoes): AcaoItem[] {
     // Reposição do "Copiar" que o menu nativo dava no texto da linha (ADR-0002, regra 1).
     { tipo: "acao", id: ACAO_COPIAR_DESCRICAO, rotulo: "Copiar descrição", icone: Copy },
     l.temCategoria === undefined ? null : itemCriarRegra(l.temCategoria),
+    pago ? itemCorrigirPagamento() : null,
     cancelado ? null : { tipo: "separador", id: "sep-estado" },
     pago
       ? {

@@ -28,6 +28,8 @@ import { edicaoMexeNoFechado } from "@/modules/financeiro/fechamento/trava";
 import { motivoCategoriaIncompativel } from "@/modules/financeiro/categorias-regras";
 import { getExclusaoCompleto } from "@/modules/financeiro/config/queries";
 import { verificarSenha } from "@/modules/financeiro/config/senha";
+import { corrigirPagamentoNoBanco } from "@/modules/financeiro/lancamentos/corrigir-pagamento";
+import { corrigirPagamentoSchema } from "@/modules/financeiro/transferencias/schemas";
 
 const base = { modulo: "financeiro", recurso: "financeiro", permissao: "gerir" } as const;
 
@@ -504,5 +506,19 @@ export const excluirLancamento = defineAction(
     });
     rev();
     return { id: i.id };
+  },
+);
+
+/**
+ * Corrigir conta, forma ou data de um lançamento JÁ pago, sem estornar (M8). Valor, categoria e projeto
+ * continuam no formulário de edição. Regras em `corrigir-pagamento.ts`.
+ */
+export const corrigirPagamento = defineAction(
+  { ...base, acao: "corrigir-pagamento", entidade: "Lancamento", schema: corrigirPagamentoSchema, capturarAntes: (i) => snapshotLancamento(i.id) },
+  async (i) => {
+    const r = await corrigirPagamentoNoBanco({ id: i.id, contaId: i.contaId, formaId: i.formaId || null, dataConfirmacao: i.dataConfirmacao });
+    rev();
+    revalidatePath("/financeiro/extrato");
+    return { id: i.id, mudou: r.mudou };
   },
 );

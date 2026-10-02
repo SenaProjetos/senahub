@@ -59,7 +59,7 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
   const fimData = new Date(`${fim}T00:00:00.000Z`);
   const inicioJanela = new Date(`${somarDias(hoje, -JANELA_DIAS_DE_CAIXA)}T00:00:00.000Z`);
 
-  const contas = await prisma.contaBancaria.findMany({ select: { id: true, ativo: true, saldoInicial: true } });
+  const contas = await prisma.contaBancaria.findMany({ select: { id: true, ativo: true, saldoInicial: true, saldoInicialEm: true } });
   const realizados = await prisma.lancamento.findMany({
     where: { status: "confirmado", excluidoEm: null },
     select: {
@@ -81,7 +81,7 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
     natureza: l.categoria.natureza,
   }));
   const base = saldoBase(
-    ativas.map((c) => ({ id: c.id, saldoInicial: paraCentavos(c.saldoInicial) })),
+    ativas.map((c) => ({ id: c.id, saldoInicial: paraCentavos(c.saldoInicial), saldoInicialEm: c.saldoInicialEm ? isoDeDataDoBanco(c.saldoInicialEm) : null })),
     realizadosCent,
   );
   const anomalias = anomaliasDoSaldo(hoje, new Set(ativas.map((c) => c.id)), realizadosCent);

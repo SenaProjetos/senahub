@@ -4,6 +4,7 @@ import type { AcaoItem } from "@/components/ui/acoes";
 import type { Confianca, Prioridade } from "@/modules/financeiro/liquidez/tipos";
 import { MOTIVO_EM_APROVACAO } from "@/modules/financeiro/lancamentos/transicoes";
 import { itemCriarRegra } from "@/modules/financeiro/regras/acoes";
+import { itensDaTransferencia } from "@/modules/financeiro/transferencias/acoes";
 
 /**
  * Ações de uma conta a pagar/receber — **puro**. Mesmo array para o menu de contexto, o `...` e a
@@ -49,6 +50,9 @@ export type ContaParaAcoes = {
   caixinhaId?: string | null;
   /** Informado = o menu oferece "Criar regra a partir deste lançamento" (a quem gere). */
   temCategoria?: boolean;
+  /** Perna de transferência entre contas (M8): o menu é o da transferência inteira. */
+  deTransferencia?: boolean;
+  conciliado?: boolean;
 };
 
 export type ContextoAcoesConta = {
@@ -63,6 +67,13 @@ export type ContextoAcoesConta = {
 const verbo = (tipo: "despesa" | "receita") => (tipo === "despesa" ? "Pagar" : "Receber");
 
 export function itensDeConta(c: ContaParaAcoes, ctx: ContextoAcoesConta): AcaoItem[] {
+  if (c.deTransferencia) {
+    return [
+      ...itensDaTransferencia({ realizada: false, conciliada: c.conciliado === true }, { podeGerir: ctx.podeGerir }),
+      { tipo: "separador" as const, id: "sep-transferencia-conta" },
+      { tipo: "acao" as const, id: ACAO_COPIAR_DESCRICAO, rotulo: "Copiar descrição", icone: Copy },
+    ].filter((i, k, a) => !(i.tipo === "separador" && (k === 0 || a.length === 1)));
+  }
   const itens: (AcaoItem | null)[] = [
     {
       tipo: "acao",
