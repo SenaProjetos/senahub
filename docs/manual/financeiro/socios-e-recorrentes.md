@@ -1,9 +1,9 @@
 ---
 titulo: Financeiro — Sócios, pró-labore e compromissos recorrentes
-descricao: Cadastrar saídas que se repetem (pró-labore, aluguel, folha), distribuir e adiantar lucros aos sócios e entender como a folha CLT quita o previsto do mês.
-resumo: Compromisso recorrente é o cadastro de uma saída mensal; o planejador projeta os meses futuros e o sistema gera a conta a pagar perto do vencimento. Distribuição e adiantamento de lucros viram contas a pagar por sócio, fora da DRE. Fechar a folha quita a conta prevista da competência.
+descricao: Cadastrar saídas que se repetem (pró-labore, aluguel, folha), distribuir e adiantar lucros aos sócios e entender como o fechamento da folha CLT define o valor da conta do mês.
+resumo: Compromisso recorrente é o cadastro de uma saída mensal; o planejador projeta os meses futuros e o sistema gera a conta a pagar perto do vencimento. Distribuição e adiantamento de lucros viram contas a pagar por sócio, fora da DRE. Fechar a folha define o valor real da conta da competência, que vence no mês seguinte; pagar é outro passo.
 tags: [financeiro, sócios, pró-labore, compromissos recorrentes, recorrência, distribuição de lucros, adiantamento de lucros, folha clt, retiradas]
-palavras-chave: [compromisso recorrente, pró-labore, programado, gerar o que já venceu, vincular à recorrência, em dobro, distribuir lucros, adiantar lucros, percentual do sócio, fora do resultado, fechar folha, quitar previsto, reabrir folha, retiradas antigas]
+palavras-chave: [compromisso recorrente, pró-labore, programado, gerar o que já venceu, vincular à recorrência, em dobro, distribuir lucros, adiantar lucros, percentual do sócio, fora do resultado, fechar folha, valor real da folha, quinto dia útil, dia útil, mês seguinte, adiantamento de salário, reabrir folha, retiradas antigas]
 sinonimos: [despesas fixas, contas recorrentes, retiradas dos sócios, lucros]
 ---
 
@@ -22,9 +22,17 @@ lançar nada duas vezes.
 
 ### O que é
 
-O **cadastro** de uma saída mensal: descrição, valor por mês, dia do vencimento (mês mais curto cai no
-último dia), primeira e, se houver, última competência, categoria, prioridade, caixinha que paga e, para
-pró-labore, o **sócio**.
+O **cadastro** de uma saída mensal: descrição, valor por mês, quando vence, primeira e, se houver, última
+competência, categoria, prioridade, caixinha que paga e, para pró-labore, o **sócio**.
+
+### Quando vence
+
+- **Conta o dia como**: **Dia do mês** (ex.: dia 10; mês mais curto cai no último dia) ou **Dia útil do
+  mês** (ex.: 5º dia útil, contando sábados, domingos e os feriados cadastrados no RH).
+- **Vence**: **No mês da competência** ou **No mês seguinte**. A folha de setembro, por exemplo, é da
+  competência de setembro e vence no 5º dia útil de outubro.
+- **É adiantamento de salário**: marque no compromisso do adiantamento (ex.: dia 20, no próprio mês). É
+  outra conta da mesma competência da folha, e fechar a folha nunca mexe nela.
 
 ### Como funciona
 
@@ -69,19 +77,28 @@ A lista de retiradas dentro de cada sócio virou **histórico**: aqueles registr
 pagar, então não entram no caixa nem na DRE. Retirada nova sai pelos botões acima ou pelo compromisso
 recorrente. Ainda dá para remover um registro antigo errado.
 
-## Folha CLT quita o previsto do mês
+## Folha CLT: fechar define o valor, pagar é outro passo
 
-Quando o compromisso recorrente da folha já gerou a conta a pagar do mês, **fechar a folha** em
-**RH → Folha** **quita essa conta** com o valor real, em vez de criar uma segunda despesa:
+Configure a folha como compromisso recorrente: **Dia útil do mês**, dia **5**, **Vence no mês seguinte**.
+Se houver adiantamento, cadastre outro compromisso marcado como **adiantamento de salário**.
 
-- A mensagem do fechamento diz que quitou e, se o valor real for diferente do previsto, a diferença.
-- Só a folha **mensal** quita. A do **13º** é outra despesa, com folha própria no mesmo mês.
-- Conta **aguardando aprovação** não é quitada (seria pagar por cima da aprovação) — ela fica em aberto e
+**Fechar a folha** em **RH → Folha** grava o **valor real** (o líquido dos holerites) na conta a pagar da
+competência. A conta **continua em aberto** até ser paga no Financeiro (baixa ou conciliação):
+
+- Se a recorrência já gerou a conta do mês, o fechamento usa essa mesma conta, com o valor real, em vez
+  de criar uma segunda despesa. A mensagem diz de quanto para quanto o valor mudou.
+- Se ainda não há conta, o fechamento cria uma, ligada à recorrência (o sistema não gera o mês de novo),
+  vencendo no dia da recorrência ou, sem recorrência, no 5º dia útil do mês seguinte.
+- Se a conta do mês **já foi paga**, nada novo nasce: a mensagem mostra a diferença a acertar, se houver.
+- O **adiantamento de salário** nunca é usado: o holerite já o desconta do líquido.
+- Só a folha **mensal** usa a conta da competência. A do **13º** é outra despesa, com folha própria no
+  mesmo mês.
+- Conta **aguardando aprovação** não recebe o valor (passaria por cima da aprovação): fica em aberto e
   entra no aviso.
-- Se houver **duas** contas previstas sem vínculo no mês, o sistema **não escolhe** uma: cria a despesa
-  da folha e avisa quais ficaram em aberto, para alguém conferir se não é a mesma folha duas vezes.
-- **Reabrir a folha** devolve a conta ao previsto, com o valor de antes. Só a despesa que o fechamento
-  criou é apagada.
+- Se houver **duas** contas sem vínculo no mês, o sistema **não escolhe**: cria a conta da folha e avisa
+  quais ficaram em aberto, para alguém conferir se não é a mesma folha duas vezes.
+- **Reabrir a folha** não apaga nem muda a conta (o fechamento seguinte grava o valor certo). Com a
+  conta **já paga**, reabrir é recusado: estorne o pagamento no Financeiro antes.
 
 ## Erros possíveis e soluções
 
@@ -90,6 +107,8 @@ Quando o compromisso recorrente da folha já gerou a conta a pagar do mês, **fe
 | "Os percentuais dos sócios ativos somam X%…" | A soma não é 100% | Ajuste os percentuais em Cadastros → Sócios |
 | "Esta lista virou só histórico…" | Tentativa de criar retirada no registro antigo | Use Distribuir/Adiantar lucros ou o compromisso recorrente |
 | Aviso "possível … em dobro" no planejador | Lançamento manual do mesmo mês sem vínculo | **Vincular à recorrência** |
+| "Dia útil vai do 1º ao 23º." | Dia útil maior que os que um mês tem | Use um dia útil de 1 a 23 |
+| "A folha já foi paga no Financeiro: estorne o pagamento antes de reabrir." | Reabrir folha com a conta paga | Estorne o pagamento da conta no Financeiro e reabra |
 
 ## Funcionalidades relacionadas
 

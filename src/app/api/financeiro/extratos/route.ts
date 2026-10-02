@@ -6,6 +6,7 @@ import { can } from "@/lib/permissions";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { parseOfx } from "@/lib/ofx";
 import { IMPORT_TAMANHO_MAX } from "@/lib/import/planilha";
+import { pagamentoPagoNoFinanceiro } from "@/modules/financeiro/custo/lancamento-custo";
 
 export async function POST(req: Request) {
   const session = await getSession();
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
   // Candidatos a auto-conciliação: lançamentos previstos ainda sem transação.
   const previstos = await prisma.lancamento.findMany({
     where: { status: "previsto", transacao: null },
-    select: { id: true, tipo: true, valor: true, data: true, vencimento: true },
+    select: { id: true, tipo: true, valor: true, data: true, vencimento: true, pagamentoProjetistaId: true },
   });
 
   let conciliadas = 0;
@@ -91,6 +92,9 @@ export async function POST(req: Request) {
           where: { id: trans.id },
           data: { conciliado: true, lancamentoId: alvo.id },
         }),
+        ...(alvo.pagamentoProjetistaId
+          ? [prisma.pagamentoProjetista.updateMany(pagamentoPagoNoFinanceiro(alvo.pagamentoProjetistaId, t.data))]
+          : []),
       ]);
       // remove do pool para não reusar
       previstos.splice(previstos.indexOf(alvo), 1);

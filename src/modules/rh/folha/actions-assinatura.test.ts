@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   folhaUpdate: vi.fn(),
   lancamentoDelete: vi.fn(),
   lancamentoUpdateMany: vi.fn(),
+  lancamentoFindFirst: vi.fn(),
 }));
 
 const tx = {
@@ -37,6 +38,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     holerite: { findUnique: mocks.holeriteFindUnique, updateMany: mocks.holeriteUpdateMany },
     folhaPagamento: { findUnique: mocks.folhaFindUnique, update: mocks.folhaUpdate },
+    lancamento: { findFirst: mocks.lancamentoFindFirst },
     $transaction: (fn: (t: typeof tx) => unknown) => fn(tx),
   },
 }));
@@ -150,33 +152,23 @@ describe("reabrirFolha — limpa assinatura", () => {
     expect(r.ok && r.data.assinaturasRevogadas).toBe(0);
   });
 
-  it("apaga o lançamento que o fechamento criou", async () => {
-    mocks.folhaFindUnique.mockResolvedValue({ id: "f1", status: "fechada", lancamentoId: "l1", lancamentoReaproveitado: false, lancamentoValorPrevisto: null });
-    mocks.lancamentoDelete.mockResolvedValue({});
-    mocks.holeriteUpdateMany.mockResolvedValue({ count: 0 });
+  it("conta a pagar da folha já paga: reabrir é recusado (estorne antes)", async () => {
+    mocks.folhaFindUnique.mockResolvedValue({ id: "f1", status: "fechada", lancamentoId: "l1" });
+    mocks.lancamentoFindFirst.mockResolvedValue({ status: "confirmado" });
 
-    expect((await reabrirFolha({ id: "f1" })).ok).toBe(true);
-    expect(mocks.lancamentoDelete).toHaveBeenCalledWith({ where: { id: "l1" } });
-    expect(mocks.lancamentoUpdateMany).not.toHaveBeenCalled();
+    const r = await reabrirFolha({ id: "f1" });
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.error).toMatch(/estorne o pagamento/);
+    expect(mocks.folhaUpdate).not.toHaveBeenCalled();
   });
 
-  it("devolve ao previsto, com o valor de antes, a conta a pagar que o fechamento quitou (F6D)", async () => {
-    mocks.folhaFindUnique.mockResolvedValue({
-      id: "f1",
-      status: "fechada",
-      lancamentoId: "l1",
-      lancamentoReaproveitado: true,
-      lancamentoValorPrevisto: 40_000,
-    });
-    mocks.lancamentoUpdateMany.mockResolvedValue({ count: 1 });
+  it("conta em aberto: reabrir não apaga nem reverte o lançamento (o próximo fechamento o atualiza)", async () => {
+    mocks.folhaFindUnique.mockResolvedValue({ id: "f1", status: "fechada", lancamentoId: "l1" });
+    mocks.lancamentoFindFirst.mockResolvedValue({ status: "previsto" });
     mocks.holeriteUpdateMany.mockResolvedValue({ count: 0 });
 
     expect((await reabrirFolha({ id: "f1" })).ok).toBe(true);
-    // Apagar levaria embora a conta a pagar que já existia antes da folha fechar.
     expect(mocks.lancamentoDelete).not.toHaveBeenCalled();
-    expect(mocks.lancamentoUpdateMany).toHaveBeenCalledWith({
-      where: { id: "l1", excluidoEm: null },
-      data: { status: "previsto", dataConfirmacao: null, valor: 40_000 },
-    });
+    expect(mocks.lancamentoUpdateMany).not.toHaveBeenCalled();
   });
 });

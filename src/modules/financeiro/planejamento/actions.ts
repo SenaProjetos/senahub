@@ -7,6 +7,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { contasEmAberto } from "@/modules/financeiro/planejamento/queries";
 import { camposDoPlanejador, saldoRestante } from "@/modules/financeiro/lancamentos/parcial";
+import { pagamentoPagoNoFinanceiro } from "@/modules/financeiro/custo/lancamento-custo";
 
 const base = { modulo: "financeiro", recurso: "financeiro", permissao: "gerir" } as const;
 
@@ -231,6 +232,9 @@ export const executarPlano = defineAction(
           },
         }),
       );
+      if (lanc.pagamentoProjetistaId) {
+        ops.push(prisma.pagamentoProjetista.updateMany(pagamentoPagoNoFinanceiro(lanc.pagamentoProjetistaId, agora)));
+      }
       const restante = saldoRestante(Number(lanc.valor), valorPago);
       if (restante != null) {
         ops.push(

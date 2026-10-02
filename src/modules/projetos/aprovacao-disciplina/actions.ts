@@ -180,8 +180,10 @@ export const confirmarAprovacaoDisciplina = defineAction(
       if (bloqueio) throw new ActionError(bloqueio);
     }
     const { pagaveis, salariados } = await prisma.$transaction(async (tx) => {
-      await tx.disciplina.update({
-        where: { id: disciplina.id },
+      // Condicionado: duas confirmações ao mesmo tempo liberavam o pagamento em dobro (A5). A 2ª
+      // espera o lock da linha, relê "aprovado" e não acha nada para atualizar.
+      const r = await tx.disciplina.updateMany({
+        where: { id: disciplina.id, status: { not: "aprovado" } },
         data: {
           status: "aprovado",
           entregueEm: agora,
@@ -190,6 +192,7 @@ export const confirmarAprovacaoDisciplina = defineAction(
           ...(!jaTemPagamento && input.valor != null ? { valor: input.valor } : {}),
         },
       });
+      if (r.count !== 1) throw new ActionError("Esta disciplina já foi aprovada.");
       // Reaprovação pós-revisão já tem pagamento liberado — não gera de novo.
       if (jaTemPagamento) return { pagaveis: [], salariados: [] };
       return liberarPagamentosProjetista(

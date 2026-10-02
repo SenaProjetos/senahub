@@ -17,6 +17,7 @@ import { z } from "zod";
 import { removerArquivo } from "@/lib/storage";
 import { criarLancamentoNoTx, notificarAprovacaoPendente } from "@/modules/financeiro/lancamentos/service";
 import { camposDoPlanejador, saldoRestante } from "@/modules/financeiro/lancamentos/parcial";
+import { pagamentoPagoNoFinanceiro } from "@/modules/financeiro/custo/lancamento-custo";
 import { getExclusaoCompleto } from "@/modules/financeiro/config/queries";
 import { verificarSenha } from "@/modules/financeiro/config/senha";
 
@@ -311,7 +312,12 @@ export const confirmarLancamento = defineAction(
       );
     }
 
-    await prisma.$transaction(ops);
+    await prisma.$transaction([
+      ...ops,
+      ...(lanc.pagamentoProjetistaId
+        ? [prisma.pagamentoProjetista.updateMany(pagamentoPagoNoFinanceiro(lanc.pagamentoProjetistaId, quando))]
+        : []),
+    ]);
     rev();
     return { id: i.id, restante };
   },
@@ -334,12 +340,15 @@ export const baixarEmLote = defineAction(
     const quando = data(i.dataConfirmacao || undefined) ?? new Date();
     const alvos = await prisma.lancamento.findMany({
       where: { id: { in: i.ids }, status: "previsto" },
-      select: { id: true, contaId: true, formaId: true },
+      select: { id: true, contaId: true, formaId: true, pagamentoProjetistaId: true },
     });
     if (alvos.length === 0) throw new ActionError("Nenhum lançamento elegível (previsto) selecionado.");
 
-    await prisma.$transaction(
-      alvos.map((l) =>
+    const projetistas = alvos.flatMap((l) =>
+      l.pagamentoProjetistaId ? [prisma.pagamentoProjetista.updateMany(pagamentoPagoNoFinanceiro(l.pagamentoProjetistaId, quando))] : [],
+    );
+    await prisma.$transaction([
+      ...alvos.map((l) =>
         prisma.lancamento.update({
           where: { id: l.id },
           data: {
@@ -351,7 +360,8 @@ export const baixarEmLote = defineAction(
           },
         }),
       ),
-    );
+      ...projetistas,
+    ]);
     rev();
     return { confirmados: alvos.length, ignorados: i.ids.length - alvos.length };
   },

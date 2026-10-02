@@ -5,7 +5,7 @@ import { getConfigLiquidez } from "@/modules/financeiro/config/queries";
 import { carregarCaixinhas, reservadosParaOMotor } from "@/modules/financeiro/caixinhas/queries";
 import { recebimentosADistribuir } from "@/modules/financeiro/distribuicao/queries";
 import { avisosDeRecorrencia, eventosProgramados, type AvisoRecorrencia } from "@/modules/financeiro/recorrencia/calculo";
-import { competenciasVinculadas, compromissosAtivos, lancamentosDaRecorrencia } from "@/modules/financeiro/recorrencia/queries";
+import { anosDoHorizonte, calendarioFinanceiro, competenciasVinculadas, compromissosAtivos, lancamentosDaRecorrencia } from "@/modules/financeiro/recorrencia/queries";
 import { diasEntre, isoDeDataDoBanco, somarDias } from "@/modules/financeiro/liquidez/datas";
 import { paraCentavos } from "@/modules/financeiro/liquidez/dinheiro";
 import { dataDoEvento, paraEventos, prioridadeEfetiva, STATUS_PENDENTES } from "@/modules/financeiro/liquidez/eventos";
@@ -177,12 +177,13 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
   // "Programado". Com vínculo, o lançamento é que vale — e ele já está entre os pendentes.
   const compromissos = await compromissosAtivos();
   const vinculadas = compromissos.length ? await competenciasVinculadas() : new Set<string>();
-  const programados = eventosProgramados(compromissos, { hoje, fim, vinculadas });
-  const avisos = compromissos.length
+  const calendario = compromissos.length ? await calendarioFinanceiro(anosDoHorizonte(hoje, fim)) : null;
+  const programados = calendario ? eventosProgramados(compromissos, { hoje, fim, vinculadas, calendario }) : [];
+  const avisos = calendario
     ? avisosDeRecorrencia(
         compromissos,
         await lancamentosDaRecorrencia([...new Set(compromissos.map((c) => c.categoriaId))], hojeData, fimData),
-        { hoje, fim },
+        { hoje, fim, calendario },
       )
     : [];
 

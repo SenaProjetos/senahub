@@ -32,7 +32,7 @@ import {
   gerarAgora,
   salvarCompromisso,
 } from "@/modules/financeiro/recorrencia/actions";
-import { rotuloDaCompetencia } from "@/modules/financeiro/recorrencia/calculo";
+import { descreverVencimento, rotuloDaCompetencia } from "@/modules/financeiro/recorrencia/calculo";
 import type { CompromissoDto } from "@/modules/financeiro/recorrencia/queries";
 
 const NENHUM = "__nenhum";
@@ -49,6 +49,9 @@ type Rascunho = {
   descricao: string;
   valor: number | null;
   diaVencimento: string;
+  regraVencimento: "dia_fixo" | "dia_util";
+  mesesAteVencimento: string;
+  adiantamento: boolean;
   competenciaInicio: string;
   competenciaFim: string;
   categoriaId: string;
@@ -63,6 +66,9 @@ const vazio = (mesAtual: string): Rascunho => ({
   descricao: "",
   valor: null,
   diaVencimento: "5",
+  regraVencimento: "dia_fixo",
+  mesesAteVencimento: "0",
+  adiantamento: false,
   competenciaInicio: mesAtual,
   competenciaFim: "",
   categoriaId: "",
@@ -77,6 +83,9 @@ const daDto = (c: CompromissoDto): Rascunho => ({
   descricao: c.descricao,
   valor: c.valor / 100,
   diaVencimento: String(c.diaVencimento),
+  regraVencimento: c.regraVencimento,
+  mesesAteVencimento: String(c.mesesAteVencimento),
+  adiantamento: c.adiantamento,
   competenciaInicio: c.competenciaInicio,
   competenciaFim: c.competenciaFim ?? "",
   categoriaId: c.categoriaId,
@@ -151,6 +160,9 @@ export function RecorrentesSection({
         descricao: rascunho.descricao,
         valor: rascunho.valor ?? 0,
         diaVencimento: Number(rascunho.diaVencimento) || 1,
+        regraVencimento: rascunho.regraVencimento,
+        mesesAteVencimento: Number(rascunho.mesesAteVencimento) || 0,
+        adiantamento: rascunho.adiantamento,
         competenciaInicio: rascunho.competenciaInicio,
         competenciaFim: rascunho.competenciaFim || null,
         categoriaId: rascunho.categoriaId,
@@ -216,11 +228,70 @@ export function RecorrentesSection({
                   <InputMoeda id="cr-valor" value={rascunho.valor} onChange={(v) => set({ valor: v })} />
                 </div>
                 <div className="grid gap-1.5">
-                  <Label htmlFor="cr-dia">Dia do vencimento</Label>
-                  <Input id="cr-dia" type="number" min={1} max={31} value={rascunho.diaVencimento} onChange={(e) => set({ diaVencimento: e.target.value })} />
-                  <p className="text-xs text-muted-foreground">Mês mais curto cai no último dia.</p>
+                  <Label htmlFor="cr-dia">{rascunho.regraVencimento === "dia_util" ? "Dia útil do vencimento" : "Dia do vencimento"}</Label>
+                  <Input
+                    id="cr-dia"
+                    type="number"
+                    min={1}
+                    max={rascunho.regraVencimento === "dia_util" ? 23 : 31}
+                    value={rascunho.diaVencimento}
+                    onChange={(e) => set({ diaVencimento: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {rascunho.regraVencimento === "dia_util" ? "Conta os feriados cadastrados no RH." : "Mês mais curto cai no último dia."}
+                  </p>
                 </div>
               </div>
+              {/* Folha CLT: competência de setembro, paga no 5º dia útil de outubro. */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="cr-regra">Conta o dia como</Label>
+                  <Select
+                    value={rascunho.regraVencimento}
+                    onValueChange={(v) => set({ regraVencimento: v === "dia_util" ? "dia_util" : "dia_fixo" })}
+                    items={{ dia_fixo: "Dia do mês", dia_util: "Dia útil do mês" }}
+                  >
+                    <SelectTrigger id="cr-regra" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="dia_fixo">Dia do mês</SelectItem>
+                      <SelectItem value="dia_util">Dia útil do mês</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="cr-mes">Vence</Label>
+                  <Select
+                    value={rascunho.mesesAteVencimento}
+                    onValueChange={(v) => set({ mesesAteVencimento: v ?? "0" })}
+                    items={{ "0": "No mês da competência", "1": "No mês seguinte" }}
+                  >
+                    <SelectTrigger id="cr-mes" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">No mês da competência</SelectItem>
+                      <SelectItem value="1">No mês seguinte</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">A folha de um mês é paga no mês seguinte.</p>
+                </div>
+              </div>
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={rascunho.adiantamento}
+                  onChange={(e) => set({ adiantamento: e.target.checked })}
+                />
+                <span>
+                  É adiantamento de salário
+                  <span className="block text-xs text-muted-foreground">
+                    Paga antes da folha, na mesma competência. Fechar a folha nunca mexe nesta conta: o holerite já a desconta.
+                  </span>
+                </span>
+              </label>
               <div className="grid gap-1.5">
                 <Label htmlFor="cr-cat">Categoria</Label>
                 <Select value={rascunho.categoriaId} onValueChange={(v) => set({ categoriaId: v ?? "" })} items={Object.fromEntries(categorias.map((c) => [c.id, `${c.codigo} ${c.nome}`]))}>
@@ -332,7 +403,8 @@ export function RecorrentesSection({
               {!c.ativo && <span className="rounded-sm border px-1.5 text-xs">Inativo</span>}
             </span>
             <span className="block truncate text-xs text-muted-foreground">
-              Dia {c.diaVencimento} · {c.categoriaNome}
+              {descreverVencimento(c)}
+              {c.adiantamento ? " · adiantamento de salário" : ""} · {c.categoriaNome}
               {c.socioNome ? ` · ${c.socioNome}` : ""}
               {c.caixinhaNome ? ` · caixinha ${c.caixinhaNome}` : ""} · desde {rotuloDaCompetencia(c.competenciaInicio)}
               {c.competenciaFim ? ` até ${rotuloDaCompetencia(c.competenciaFim)}` : ""} · gera {c.antecedenciaDias} dia(s) antes ·{" "}

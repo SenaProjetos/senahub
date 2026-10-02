@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { dividirEmParcelas } from "@/modules/projetos/receita/parcelas";
+import { dividirEmParcelas, ehParcelaGerada, saldoAParcelar } from "@/modules/projetos/receita/parcelas";
 
 describe("dividirEmParcelas", () => {
   it("divide igualmente quando exato", () => {
@@ -25,5 +25,30 @@ describe("dividirEmParcelas", () => {
 
   it("n inválido devolve vazio", () => {
     expect(dividirEmParcelas(100, 0)).toEqual([]);
+  });
+});
+
+describe("ehParcelaGerada (A6)", () => {
+  it("parcela gerada e o resto do parcial dela: sim", () => {
+    expect(ehParcelaGerada(["contrato"])).toBe(true);
+    expect(ehParcelaGerada(["contrato", "outra"])).toBe(true);
+  });
+  it("faturamento por entrega leva 'contrato' mas NÃO é parcela gerada", () => {
+    expect(ehParcelaGerada(["contrato", "entrega:disc-1"])).toBe(false);
+  });
+  it("sem a tag: não", () => {
+    expect(ehParcelaGerada([])).toBe(false);
+    expect(ehParcelaGerada(["reembolso-art"])).toBe(false);
+  });
+});
+
+describe("saldoAParcelar (A6)", () => {
+  it("desconta o que já foi recebido", () => {
+    expect(saldoAParcelar(1_000_000, 0)).toBe(1_000_000);
+    expect(saldoAParcelar(1_000_000, 300_000)).toBe(700_000);
+  });
+  it("recebido igual ou acima do total: nada a parcelar", () => {
+    expect(saldoAParcelar(1_000_000, 1_000_000)).toBeNull();
+    expect(saldoAParcelar(1_000_000, 1_200_000)).toBeNull();
   });
 });

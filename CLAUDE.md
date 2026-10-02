@@ -43,6 +43,7 @@ npm run smoke:previsao-recebimento  # contrato por entrega: previsão no caixa, 
 npm run smoke:duplicar-projeto      # duplicar projeto com EAP: estrutura, IDs novos, cronograma em rascunho, o que NÃO copia
 npm run smoke:modelo-disciplina     # modelos de EAP por disciplina: criar do modelo de projeto, "Gerar EAP das disciplinas", fases encadeadas
 npm run smoke:apagar-eap            # apagar a EAP inteira (rascunho): o que impede, o que vai junto, o que fica
+npm run smoke:financeiro-core       # núcleo do financeiro (N0): parcelas do projeto sem apagar recebível, projetista pago no Financeiro, aprovação simultânea, recebido pelo valor pago
 npm run smoke:planejador            # planejador de caixa: S0 = caixa da Visão geral, só pendente vira evento, transferência, parcial, leitura não grava; aplicar cenário tudo-ou-nada (obsoleto, regra no 3º, corrida); caixinhas, distribuição, recorrência, fora do resultado, lucros de sócio e folha quitando o previsto
 npm run smoke:catalogo-nomenclatura # catálogo da versão: sigla que muda de dono (sinônimo/oficial), sair sem mexer em sigla, voltar escolhendo
 npm run verify:motor-cronograma     # motor do cronograma contra os projetos reais do banco
@@ -265,17 +266,32 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   "Incluir na simulação" (I2). In the daily flow, before today is realized (by `dataConfirmacao`) and from
   today on is the chosen scenario; the past accumulated balance is rebuilt BACKWARD from today's cash
   (`caixaAtual − what was realized after that day`), so both halves meet exactly at `saldoBase()`.
-- **Closing the CLT payroll SETTLES the month's forecast** (`rh/folha/fechamento-service.ts` + pure
-  `quitacao.ts`, F6D): `fecharFolha` reuses the competência's `previsto` folha bill (the one the recurrence
-  generated, or a manual one) with the real net value instead of creating a second expense — otherwise the
-  month carried both and the projection lost the payroll twice. Which one is a pure decision: only `previsto`
-  is eligible (settling an `aguardando_aprovacao` would pay around the approval), the recurrence link wins,
-  a lone candidate is taken, and two unlinked candidates settle NOTHING (the closing creates its own and the
-  result's `aviso` names what stayed open). Only the `mensal` folha settles — the 13º has its own folha in the
-  same month. Reopening undoes it by `lancamentoReaproveitado`: a bill that already existed goes back to
-  `previsto` with `lancamentoValorPrevisto`; only a bill the closing created is deleted. `RetiradaSocio` is
-  frozen as history — it never became a `Lancamento`, so `criarRetiradaSocio` refuses and points to the
-  recurrence (pró-labore) or to Distribuir/Adiantar lucros.
+- **Closing the CLT payroll DEFINES the value; paying is another step** (`rh/folha/fechamento-service.ts` +
+  pure `quitacao.ts`, N0 of `feat/financeiro-nucleo`, owner decision 2026-10-02). The folha of month M is
+  competência M and is paid in M+1 by the 5th working day: `CompromissoRecorrente` has `regraVencimento`
+  (`dia_fixo | dia_util`, N-th working day via `lib/calendario-trabalho.ts` + RH holidays) and
+  `mesesAteVencimento` (0/1/2), so `recorrenciaCompetencia` is the competência, NOT the due month
+  (`competenciaDoVencimento` inverts it). `fecharFolha` writes the real net value into the competência's
+  bill and leaves it `previsto` (baixa/conciliação pays it): the recurrence-linked one wins, a lone unlinked
+  one is taken, two unlinked → none (it creates its own, linked to the recurrence so the job never generates
+  the month again, and the `aviso` names what stayed open); `aguardando_aprovacao` is never touched; a bill
+  of a compromisso flagged `adiantamento` (salary advance, same competência) is NEVER used; a linked bill
+  already `confirmado` → `ja_paga`, nothing new is created. Only the `mensal` folha uses the competência's
+  bill — the 13º has its own folha in the same month. Reopening never deletes nor reverts the bill, and is
+  refused once it is paid (estorno first). `RetiradaSocio` is frozen as history — it never became a
+  `Lancamento`, so `criarRetiradaSocio` refuses and points to the recurrence (pró-labore) or to
+  Distribuir/Adiantar lucros.
+- **Paid value, never nominal** (`modules/financeiro/valor-pago.ts`): any sum of REALIZED rows uses
+  `somaPaga()` (row by row, `valorEfetivo ?? valor`, cents) — `_sum.valor` counts what was expected, and
+  `_sum.valorEfetivo ?? _sum.valor` drops every row without `valorEfetivo` as soon as one has it.
+- **Producers never rewrite a paid expense** (N0): the serviço terceirizado sync (`planoDaDespesaServico`)
+  and the projetista sync refuse once the `Lancamento` is `confirmado`; any baixa in the Financeiro of a
+  projetista expense marks the `PagamentoProjetista` paid via `pagamentoPagoNoFinanceiro()` (livro caixa,
+  lote, conciliação, OFX, lote de pagamentos — a new confirm path must do the same); approving a discipline
+  is a conditional `updateMany(status ≠ aprovado)` so two simultaneous approvals release payment once.
+  "Gerar parcelas" of a project (`projetos/receita/parcelas-service.ts`) only replaces GENERATED open
+  parcels (`ehParcelaGerada`: tag `contrato` without `entrega:`), soft-deletes them and splits what is still
+  owed (total − received).
 
 **Projetista paid per phase** (F7.4, `PagamentoProjetista.etapaId`): "already paid" means
 `situacaoPagamento().jaLiberouTudo` (every phase released) — never "has any payment" (`_count.pagamentos > 0`),

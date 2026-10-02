@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { somaPaga } from "@/modules/financeiro/valor-pago";
 import { differenceInCalendarDays } from "date-fns";
 
 /**
@@ -25,9 +26,9 @@ export async function evmProjeto(projetoId: string) {
       where: { projetoId, filhas: { none: {} } },
       select: { inicioPrevisto: true, fimPrevisto: true, progresso: true },
     }),
-    prisma.lancamento.aggregate({
+    prisma.lancamento.findMany({
       where: { projetoId, tipo: "despesa", status: "confirmado" },
-      _sum: { valorEfetivo: true, valor: true },
+      select: { valor: true, valorEfetivo: true },
     }),
   ]);
 
@@ -66,9 +67,9 @@ export async function evmProjeto(projetoId: string) {
 
   const pv = bac * (pvSum / totalPeso);
   const ev = bac * (evSum / totalPeso);
-  const ac = Number(
-    (despesas._sum.valorEfetivo ?? despesas._sum.valor) ?? 0,
-  );
+  // Linha a linha: `_sum.valorEfetivo ?? _sum.valor` ignorava toda despesa sem valor pago
+  // assim que UMA tinha (A11).
+  const ac = somaPaga(despesas);
 
   const spi = pv > 0 ? ev / pv : null;
   const cpi = ac > 0 ? ev / ac : null;

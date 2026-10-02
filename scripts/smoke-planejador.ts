@@ -24,9 +24,9 @@
  * DRE; transferência fica fora dos dois e fora do aging e do balanço.
  * F6B: distribuição de lucros dividida pelo percentual de cada sócio, em contas a pagar fora do
  * resultado — e recusada quando os percentuais não fecham 100%.
- * F6D: fechar a folha CLT QUITA a conta a pagar prevista da competência (não cria uma segunda
- * despesa), reabrir devolve ela ao previsto com o valor de antes, e a folha de 13º não toca na
- * mensal.
+ * N0 (núcleo do Financeiro): fechar a folha CLT define o valor da conta da competência e NÃO paga;
+ * a folha de M vence no 5º dia útil de M+1 (com feriado), o adiantamento de salário fica à parte, folha
+ * já paga não ganha outra conta, reabrir não apaga nada e é recusado depois de pago, e o 13º é outro.
  *
  * Uso: npm run smoke:planejador
  */
@@ -780,88 +780,93 @@ async function smokeDistribuicaoSocios(autorId: string) {
 }
 
 async function smokeFolhaQuitaPrevisto(autorId: string) {
-  const t = `${tag}-f6d`;
-  // Competência própria (ano 2040) para não colidir com folha real do banco de dev.
+  const t = `${tag}-n0folha`;
+  // Ano 2040 para não colidir com folha real do banco de dev. Folha de JULHO, paga em AGOSTO.
   const ano = 2040;
-  const mes = 7;
-  const competencia = `${ano}-07`;
-  const vencimento = new Date(`${ano}-07-05T00:00:00.000Z`);
   const cat = await prisma.categoriaFinanceira.findUnique({ where: { chave: "despesa_folha_clt" }, select: { id: true } });
   const pessoa = await prisma.user.create({ data: { name: `${t} CLT`, email: `${t}@dev.local`, role: "clt" }, select: { id: true } });
-  // O fechamento reescreve a descrição, então a tag sozinha não acha o lançamento quitado.
-  const doTeste = { OR: [{ descricao: { startsWith: t } }, { descricao: `Folha CLT 07/${ano}` }, { descricao: `Folha CLT 13º salário 07/${ano}` }] };
+  // O fechamento reescreve a descrição ("Folha CLT 07/2040"), então a tag sozinha não acha a conta.
+  const doTeste = { OR: [{ descricao: { startsWith: t } }, { descricao: { startsWith: "Folha CLT " }, dataCompetencia: { gte: new Date(`${ano}-01-01T00:00:00.000Z`), lt: new Date(`${ano + 1}-01-01T00:00:00.000Z`) } }] };
+  const dia = (d: string) => new Date(`${d}T00:00:00.000Z`);
   try {
-    console.log("\n# F6D — fechar a folha quita o previsto da competência (spec §10)");
+    console.log("\n# N0 — folha CLT: fechar define o valor, paga no mês seguinte, adiantamento à parte");
     if (!cat) return check("a categoria da folha CLT existe pela chave", false);
 
-    const folhaDe = async (tipo: "mensal" | "decimo_terceiro", liquido: number) => {
+    const folhaDe = async (mes: number, tipo: "mensal" | "decimo_terceiro", liquido: number) => {
       const f = await prisma.folhaPagamento.create({ data: { ano, mes, tipo }, select: { id: true } });
       const h = await prisma.holerite.create({ data: { folhaId: f.id, userId: pessoa.id }, select: { id: true } });
       await prisma.holeriteItem.create({ data: { holeriteId: h.id, descricao: `${t} salário`, tipo: "provento", valor: liquido } });
       return f.id;
     };
-    const previsto = async (extra: Record<string, unknown> = {}) =>
+    const conta = async (venc: string, valor: number, extra: Record<string, unknown> = {}) =>
       prisma.lancamento.create({
-        data: {
-          descricao: `${t} folha prevista`,
-          tipo: "despesa",
-          valor: 40_000,
-          status: "previsto",
-          data: vencimento,
-          vencimento,
-          categoriaId: cat.id,
-          autorId,
-          ...extra,
-        },
+        data: { descricao: `${t} conta`, tipo: "despesa", valor, status: "previsto", data: dia(venc), vencimento: dia(venc), categoriaId: cat.id, autorId, ...extra },
         select: { id: true },
       });
 
-    // 1. Previsto da recorrência + fechamento com valor diferente: um lançamento só, valor real.
+    // Folha: 5º dia útil do mês seguinte. Adiantamento: dia 20 do próprio mês, mesma competência.
     const rec = await prisma.compromissoRecorrente.create({
-      data: { descricao: `${t} folha`, valor: 40_000, diaVencimento: 5, competenciaInicio: competencia, categoriaId: cat.id },
+      data: { descricao: `${t} folha`, valor: 40_000, diaVencimento: 5, regraVencimento: "dia_util", mesesAteVencimento: 1, competenciaInicio: `${ano}-07`, categoriaId: cat.id },
       select: { id: true },
     });
-    const pRec = await previsto({ recorrenciaOrigemId: rec.id, recorrenciaCompetencia: competencia });
-    const folhaId = await folhaDe("mensal", 41_500);
-    const r = await fecharFolhaNoBanco(folhaId, autorId);
-    check("o fechamento quitou o previsto em vez de criar outra despesa", r.quitou && r.lancamentoId === pRec.id, r);
-    const depois = await prisma.lancamento.findMany({ where: { ...doTeste, excluidoEm: null }, select: { id: true, status: true, valor: true } });
-    check("a competência tem UM lançamento de folha, confirmado, com o valor real", depois.length === 1 && depois[0].status === "confirmado" && paraCentavos(depois[0].valor) === paraCentavos(41_500), depois);
-    check("o aviso conta a diferença entre previsto e real", (r.aviso ?? "").includes("R$ 1.500,00"), r.aviso);
+    const adiant = await prisma.compromissoRecorrente.create({
+      data: { descricao: `${t} adiantamento`, valor: 16_000, diaVencimento: 20, competenciaInicio: `${ano}-07`, adiantamento: true, categoriaId: cat.id },
+      select: { id: true },
+    });
 
-    // 2. Reabrir devolve o previsto com o valor de antes (nunca apaga conta a pagar de outra pessoa).
-    await reabrirFolhaNoBanco(folhaId);
-    const revertido = await prisma.lancamento.findUnique({ where: { id: pRec.id }, select: { status: true, valor: true, dataConfirmacao: true } });
-    check("reabrir volta a conta ao previsto, com o valor previsto e sem data de pagamento", revertido?.status === "previsto" && paraCentavos(revertido.valor) === paraCentavos(40_000) && revertido.dataConfirmacao === null, revertido);
+    // 1. Julho: a conta da recorrência (vence 07/08) recebe o líquido real e CONTINUA em aberto.
+    const saldo = await conta(`${ano}-08-07`, 40_000, { recorrenciaOrigemId: rec.id, recorrenciaCompetencia: `${ano}-07` });
+    const cAdiant = await conta(`${ano}-07-20`, 16_000, { recorrenciaOrigemId: adiant.id, recorrenciaCompetencia: `${ano}-07` });
+    const folhaJul = await folhaDe(7, "mensal", 25_500);
+    const r1 = await fecharFolhaNoBanco(folhaJul, autorId);
+    check("A1: a folha de julho atualiza a conta de julho que vence em AGOSTO", r1.acao === "atualizou" && r1.lancamentoId === saldo.id, r1);
+    const s1 = await prisma.lancamento.findUnique({ where: { id: saldo.id }, select: { status: true, valor: true, dataCompetencia: true } });
+    check("fechar não é pagar: a conta continua em aberto, com o líquido real", s1?.status === "previsto" && paraCentavos(s1.valor) === paraCentavos(25_500), s1);
+    check("competência pura: a conta é de julho, mesmo vencendo em agosto", s1?.dataCompetencia?.toISOString().slice(0, 10) === `${ano}-07-01`, s1?.dataCompetencia);
+    const a1 = await prisma.lancamento.findUnique({ where: { id: cAdiant.id }, select: { valor: true, status: true } });
+    check("o adiantamento de salário não é tocado", a1?.status === "previsto" && paraCentavos(a1.valor) === paraCentavos(16_000), a1);
+    check("o aviso diz de quanto para quanto", (r1.aviso ?? "").includes("passou de R$ 40.000,00 para R$ 25.500,00"), r1.aviso);
 
-    // 3. Dois previstos sem vínculo: nenhum é quitado às cegas, e o aviso diz o que ficou em aberto.
-    await prisma.compromissoRecorrente.update({ where: { id: rec.id }, data: { ativo: false } });
-    await prisma.lancamento.update({ where: { id: pRec.id }, data: { recorrenciaOrigemId: null, recorrenciaCompetencia: null } });
-    const pExtra = await previsto();
-    const r2 = await fecharFolhaNoBanco(folhaId, autorId);
-    check("com dois previstos sem vínculo, o fechamento não adivinha qual quitar", !r2.quitou && r2.lancamentoId !== pRec.id && r2.lancamentoId !== pExtra.id, r2);
-    check("o aviso diz que ficaram contas em aberto", (r2.aviso ?? "").includes("2 contas a pagar em aberto"), r2.aviso);
-    await reabrirFolhaNoBanco(folhaId);
-    const sobraram = await prisma.lancamento.findMany({ where: { ...doTeste, excluidoEm: null }, select: { id: true } });
-    check("reabrir apagou só o lançamento que o fechamento criou", (await prisma.lancamento.findUnique({ where: { id: r2.lancamentoId } })) === null && sobraram.length === 2, sobraram);
+    // 2. Reabrir com a conta em aberto: nada é apagado nem revertido.
+    await reabrirFolhaNoBanco(folhaJul);
+    const s2 = await prisma.lancamento.findUnique({ where: { id: saldo.id }, select: { status: true, valor: true, excluidoEm: true } });
+    check("reabrir não apaga nem reverte a conta da competência", s2?.excluidoEm === null && paraCentavos(s2.valor) === paraCentavos(25_500), s2);
 
-    // 4. A folha de 13º é outra despesa: não toca no previsto da mensal.
-    await prisma.lancamento.delete({ where: { id: pExtra.id } });
-    const folha13 = await folhaDe("decimo_terceiro", 20_000);
-    const r13 = await fecharFolhaNoBanco(folha13, autorId);
-    check("o 13º não quita o previsto da folha mensal", !r13.quitou && r13.aviso === null, r13);
-    check("o previsto da mensal segue em aberto depois do 13º", (await prisma.lancamento.findUnique({ where: { id: pRec.id }, select: { status: true } }))?.status === "previsto");
+    // 3. Pagaram antes de fechar de novo: não nasce outra conta; reabrir depois de pago é recusado.
+    await prisma.lancamento.update({ where: { id: saldo.id }, data: { status: "confirmado", dataConfirmacao: dia(`${ano}-08-07`) } });
+    const r3 = await fecharFolhaNoBanco(folhaJul, autorId);
+    const contasJul = await prisma.lancamento.count({ where: { ...doTeste, excluidoEm: null, recorrenciaOrigemId: rec.id } });
+    check("folha já paga: nada nasce e o fechamento aponta a conta paga", r3.acao === "ja_paga" && r3.lancamentoId === saldo.id && contasJul === 1, { r3, contasJul });
+    let recusou = "";
+    try {
+      await reabrirFolhaNoBanco(folhaJul);
+    } catch (e) {
+      recusou = (e as Error).message;
+    }
+    check("reabrir folha já paga é recusado", recusou.includes("estorne o pagamento"), recusou);
 
+    // 4. Agosto, com a recorrência e sem conta ainda: nasce a conta, LIGADA à recorrência, vencendo no
+    //    5º dia útil de setembro (7/9 é feriado: 3, 4, 5, 6, 10 → 10/09).
+    const folhaAgo = await folhaDe(8, "mensal", 30_000);
+    const r4 = await fecharFolhaNoBanco(folhaAgo, autorId);
+    const c4 = await prisma.lancamento.findUnique({ where: { id: r4.lancamentoId }, select: { status: true, recorrenciaOrigemId: true, recorrenciaCompetencia: true } });
+    check("sem conta: nasce a conta da competência, em aberto", r4.acao === "criou" && c4?.status === "previsto", { r4, c4 });
+    check("vence no 5º dia útil do mês seguinte, contando o feriado de 7/9", r4.vencimento === `${ano}-09-10`, r4.vencimento);
+    check("nasce ligada à recorrência (o gerador não cria o mês de novo)", c4?.recorrenciaOrigemId === rec.id && c4.recorrenciaCompetencia === `${ano}-08`, c4);
+
+    // 5. 13º: outra despesa, não mexe na conta da mensal.
+    const folha13 = await folhaDe(8, "decimo_terceiro", 20_000);
+    const r5 = await fecharFolhaNoBanco(folha13, autorId);
+    check("o 13º cria a conta dele e não toca na da mensal", r5.acao === "criou" && r5.lancamentoId !== r4.lancamentoId, r5);
   } finally {
-    const folhas = await prisma.folhaPagamento.findMany({ where: { ano, mes }, select: { id: true } });
+    const folhas = await prisma.folhaPagamento.findMany({ where: { ano }, select: { id: true } });
     for (const f of folhas) {
       await prisma.holeriteItem.deleteMany({ where: { holerite: { folhaId: f.id } } });
       await prisma.holerite.deleteMany({ where: { folhaId: f.id } });
     }
-    await prisma.folhaPagamento.deleteMany({ where: { ano, mes } });
+    await prisma.folhaPagamento.deleteMany({ where: { ano } });
     await prisma.lancamento.deleteMany({ where: { ...doTeste, excluidoEm: { not: undefined } } });
     await prisma.compromissoRecorrente.deleteMany({ where: { descricao: { startsWith: t } } });
-    await prisma.socio.deleteMany({ where: { user: { email: { startsWith: t } } } });
     await prisma.user.deleteMany({ where: { email: { startsWith: t } } });
   }
 }

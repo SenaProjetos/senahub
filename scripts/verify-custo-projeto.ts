@@ -66,6 +66,20 @@ async function main() {
       const sl1 = await tx.lancamento.findUnique({ where: { id: sLanc1! } });
       check("serviço contratado: despesa PREVISTA", sl1?.status === "previsto" && Number(sl1?.valor) === 500);
 
+      const sLanc3 = await sincronizarDespesaServico(tx, {
+        servicoLancamentoId: sLanc1, valor: 500, status: "cancelado", fornecedorId: null,
+        descricao: "Sondagem", projetoId: projeto.id, projetoCodigo: projeto.codigo, autorId: autor.id,
+      });
+      const sl3 = await tx.lancamento.findUnique({ where: { id: sLanc1! } });
+      check("serviço cancelado em aberto: lançamento CANCELADO, retorno null", sLanc3 === null && sl3?.status === "cancelado");
+
+      const sLanc4 = await sincronizarDespesaServico(tx, {
+        servicoLancamentoId: sLanc1, valor: 500, status: "contratado", fornecedorId: null,
+        descricao: "Sondagem", projetoId: projeto.id, projetoCodigo: projeto.codigo, autorId: autor.id,
+      });
+      const sl4 = await tx.lancamento.findUnique({ where: { id: sLanc1! } });
+      check("serviço recontratado: o MESMO lançamento volta a previsto", sLanc4 === sLanc1 && sl4?.status === "previsto");
+
       const sLanc2 = await sincronizarDespesaServico(tx, {
         servicoLancamentoId: sLanc1, valor: 500, status: "concluido", fornecedorId: null,
         descricao: "Sondagem", projetoId: projeto.id, projetoCodigo: projeto.codigo, autorId: autor.id,
@@ -73,19 +87,34 @@ async function main() {
       const sl2 = await tx.lancamento.findUnique({ where: { id: sLanc2! } });
       check("serviço concluído: MESMO lançamento vira CONFIRMADO", sLanc2 === sLanc1 && sl2?.status === "confirmado");
 
-      const sLanc3 = await sincronizarDespesaServico(tx, {
-        servicoLancamentoId: sLanc1, valor: 500, status: "cancelado", fornecedorId: null,
-        descricao: "Sondagem", projetoId: projeto.id, projetoCodigo: projeto.codigo, autorId: autor.id,
+      // A7: pago não muda pela edição do serviço.
+      await sincronizarDespesaServico(tx, {
+        servicoLancamentoId: sLanc1, valor: 500, status: "concluido", fornecedorId: null,
+        descricao: "Sondagem profunda", projetoId: projeto.id, projetoCodigo: projeto.codigo, autorId: autor.id,
       });
-      const sl3 = await tx.lancamento.findUnique({ where: { id: sLanc1! } });
-      check("serviço cancelado: lançamento CANCELADO, retorno null", sLanc3 === null && sl3?.status === "cancelado");
+      const sl5 = await tx.lancamento.findUnique({ where: { id: sLanc1! } });
+      check(
+        "serviço pago editado: só a descrição muda, a data de pagamento fica",
+        sl5?.descricao.includes("Sondagem profunda") === true && sl5?.dataConfirmacao?.getTime() === sl2?.dataConfirmacao?.getTime(),
+      );
+      let recusou = "";
+      try {
+        await sincronizarDespesaServico(tx, {
+          servicoLancamentoId: sLanc1, valor: 500, status: "cancelado", fornecedorId: null,
+          descricao: "Sondagem", projetoId: projeto.id, projetoCodigo: projeto.codigo, autorId: autor.id,
+        });
+      } catch (e) {
+        recusou = (e as Error).message;
+      }
+      const sl6 = await tx.lancamento.findUnique({ where: { id: sLanc1! } });
+      check("serviço pago cancelado: recusado e o lançamento continua pago", recusou.includes("estorne") && sl6?.status === "confirmado");
       void servico;
 
       // ── Margem deve enxergar as despesas (confirmada projetista 1000) ──
       const desp = await tx.lancamento.aggregate({
         where: { projetoId: projeto.id, tipo: "despesa", status: "confirmado" }, _sum: { valor: true },
       });
-      check("margem: despesa confirmada do projeto = 1000", Number(desp._sum.valor) === 1000);
+      check("margem: despesa confirmada do projeto = 1000 (projetista) + 500 (serviço)", Number(desp._sum.valor) === 1500);
 
       throw new Rollback();
     });

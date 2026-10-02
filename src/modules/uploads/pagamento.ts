@@ -7,6 +7,7 @@ import { ehPagavel, ratearPagamentoProjetista } from "@/modules/uploads/rateio";
 import {
   planejarSincronizacao,
   bloqueioSincronizacao,
+  MOTIVO_PAGAMENTO_EFETIVADO,
   planoVazio,
   type PagamentoAtual,
 } from "@/modules/uploads/sincronizacao-pagamento";
@@ -376,6 +377,12 @@ export async function sincronizarPagamentosDisciplina(
 
   const bloqueio = bloqueioSincronizacao(atuais);
   if (bloqueio) throw new ActionError(bloqueio);
+  // A5: pago no Financeiro antes de a folha saber (baixa no livro caixa de dado antigo) também
+  // é pagamento efetivado — reescrever o valor mudaria o que já saiu do caixa.
+  const lancIds = existentes.flatMap((p) => (p.lancamentoId ? [p.lancamentoId] : []));
+  if (lancIds.length > 0 && (await tx.lancamento.count({ where: { id: { in: lancIds }, status: "confirmado", excluidoEm: null } })) > 0) {
+    throw new ActionError(MOTIVO_PAGAMENTO_EFETIVADO);
+  }
 
   const valorTotal = disciplina.valor ? Number(disciplina.valor) : 0;
   const { pagaveis } = ratearPagamentoProjetista(disciplina.responsaveis, valorTotal);
@@ -401,7 +408,7 @@ export async function sincronizarPagamentosDisciplina(
     // R$ 0,00, que nunca ganharam lançamento (a criação exige valor > 0).
     if (pag.lancamentoId) {
       await tx.lancamento.updateMany({
-        where: { id: pag.lancamentoId, status: { not: "cancelado" } },
+        where: { id: pag.lancamentoId, status: { notIn: ["cancelado", "confirmado"] } },
         data: { valor },
       });
     } else if (resp) {
@@ -429,7 +436,7 @@ export async function sincronizarPagamentosDisciplina(
     if (pag.folhaId) lotesTocados.add(pag.folhaId);
     if (pag.lancamentoId) {
       await tx.lancamento.updateMany({
-        where: { id: pag.lancamentoId, status: { not: "cancelado" } },
+        where: { id: pag.lancamentoId, status: { notIn: ["cancelado", "confirmado"] } },
         data: { status: "cancelado" },
       });
     }

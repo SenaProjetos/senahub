@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { sincronizarDespesaServico } from "@/modules/financeiro/custo/lancamento-custo";
+import { MOTIVO_SERVICO_PAGO, sincronizarDespesaServico } from "@/modules/financeiro/custo/lancamento-custo";
 
 const base = { modulo: "projetos", recurso: "projetos", permissao: "gerir" } as const;
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
@@ -114,8 +114,11 @@ export const excluirServico = defineAction(
     if (!s) throw new ActionError("Serviço não encontrado.");
 
     await prisma.$transaction(async (tx) => {
-      // Cancela o lançamento vinculado (preserva histórico) antes de remover o serviço.
+      // Cancela o lançamento vinculado (preserva histórico) antes de remover o serviço — nunca o já
+      // pago: o dinheiro se moveu, e o serviço sem a despesa sumiria da margem do projeto (A7).
       if (s.lancamentoId) {
+        const pago = await tx.lancamento.count({ where: { id: s.lancamentoId, status: "confirmado", excluidoEm: null } });
+        if (pago > 0) throw new ActionError(MOTIVO_SERVICO_PAGO);
         await tx.lancamento.updateMany({
           where: { id: s.lancamentoId, status: { not: "cancelado" } },
           data: { status: "cancelado" },

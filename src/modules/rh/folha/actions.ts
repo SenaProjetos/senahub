@@ -165,12 +165,10 @@ export const removerHolerite = defineAction(
 );
 
 /**
- * Fecha a folha: total líquido vira Lançamento de despesa CONFIRMADO na categoria 2.03 (Folha CLT)
- * → entra no caixa e na DRE.
- *
- * F6D: se a competência já tem uma conta a pagar PREVISTA de folha (a que o compromisso recorrente
- * gerou, ou uma lançada à mão), o fechamento QUITA ela com o valor real em vez de criar outra —
- * senão o mês ficaria com as duas e a projeção de caixa descontaria a folha duas vezes.
+ * Fecha a folha: o líquido real vai para a conta a pagar da competência (Folha CLT), que continua EM
+ * ABERTO até o pagamento — fechar não é pagar (decisão do dono, 2026-10-02). A conta é a que a
+ * recorrência da folha gerou (ou a lançada à mão), atualizada; sem nenhuma, nasce uma, vencendo no 5º
+ * dia útil do mês seguinte. Regras em `quitacao.ts` e `fechamento-service.ts`.
  */
 export const fecharFolha = defineAction(
   { ...base, acao: "fechar-folha", entidade: "FolhaPagamento", schema: idSchema },
@@ -180,14 +178,13 @@ export const fecharFolha = defineAction(
     revalidatePath(`${PATH}/${i.id}`);
     revalidatePath("/financeiro/lancamentos");
     revalidatePath("/financeiro/planejador");
-    return { id: i.id, liquido: r.liquido, quitou: r.quitou, aviso: r.aviso };
+    return { id: i.id, liquido: r.liquido, acao: r.acao, vencimento: r.vencimento, aviso: r.aviso };
   },
 );
 
 /**
- * Reabre a folha: desfaz o que o fechamento fez com o lançamento. Criado pelo fechamento, é
- * excluído; conta a pagar que já existia e foi quitada volta ao previsto com o valor que tinha —
- * apagar levaria embora a conta a pagar de outra pessoa (F6D).
+ * Reabre a folha para corrigir holerites. A conta a pagar fica como está (o próximo fechamento a
+ * atualiza); se ela já foi paga, reabrir é recusado — estorne o pagamento antes.
  */
 export const reabrirFolha = defineAction(
   { ...base, acao: "reabrir-folha", entidade: "FolhaPagamento", schema: idSchema },

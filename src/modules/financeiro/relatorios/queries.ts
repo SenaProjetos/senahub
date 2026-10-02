@@ -5,6 +5,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { fluxoCaixa } from "@/modules/financeiro/caixa/queries";
 import { SEM_TRANSFERENCIA, SO_RESULTADO } from "@/modules/financeiro/natureza";
+import { somaPaga } from "@/modules/financeiro/valor-pago";
 import { analisarDRE, type LinhaBaseDRE, type DREComparativo } from "./dre";
 import { calcularRentabilidade, rentabilidadePorCliente, type ProjetoEntrada } from "./dre-projeto";
 
@@ -254,9 +255,10 @@ export async function serieMensalResultado(ano: number): Promise<MesResultado[]>
 export async function indicadores(de: Date, ate: Date) {
   const [projetosAtivos, recebido, aReceber] = await Promise.all([
     prisma.projeto.count({ where: { situacao: "em_andamento" } }),
-    prisma.lancamento.aggregate({
+    // Recebido = o que entrou (`valorEfetivo` do parcial/desconto vence o nominal), somado linha a linha.
+    prisma.lancamento.findMany({
       where: { tipo: "receita", status: "confirmado", dataConfirmacao: { gte: de, lte: ate }, ...SO_RESULTADO },
-      _sum: { valor: true },
+      select: { valor: true, valorEfetivo: true },
     }),
     prisma.lancamento.aggregate({
       where: { tipo: "receita", status: "previsto", ...SO_RESULTADO },
@@ -265,7 +267,7 @@ export async function indicadores(de: Date, ate: Date) {
   ]);
   return {
     projetosAtivos,
-    recebido: Number(recebido._sum.valor ?? 0),
+    recebido: somaPaga(recebido),
     aReceber: Number(aReceber._sum.valor ?? 0),
   };
 }

@@ -23,7 +23,7 @@ import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-bu
 import { HoleriteLembreteButton } from "@/components/rh/holerite-lembrete-button";
 import { ImportarFolhaDialog } from "@/components/rh/folha/importar-folha-dialog";
 import { calcularEncargos, type Faixa } from "@/lib/encargos";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
 import { rotuloFolha, type TipoFolha } from "@/modules/rh/folha/tipo-folha";
 import {
   Select,
@@ -103,10 +103,12 @@ export function FolhaDetalheView({
       if (r.ok) {
         // O aviso diz se a conta a pagar prevista da competência foi quitada (em vez de nascer uma
         // segunda despesa) e o que ficou em aberto — fica na tela até alguém fechar.
+        // Fechar não é pagar: a conta a pagar fica em aberto até a baixa (ou a conciliação do extrato).
+        const venc = formatarData(`${r.data.vencimento}T00:00:00`);
         toast.success(
-          r.data.quitou
-            ? `Folha fechada — ${brl(r.data.liquido)} na DRE, quitando a conta a pagar prevista.`
-            : `Folha fechada — ${brl(r.data.liquido)} lançado na DRE.`,
+          r.data.acao === "ja_paga"
+            ? `Folha fechada — ${brl(r.data.liquido)}. A conta a pagar desta competência já estava paga.`
+            : `Folha fechada — ${brl(r.data.liquido)} na conta a pagar que vence em ${venc}.`,
           r.data.aviso ? { description: r.data.aviso, duration: 12_000 } : undefined,
         );
         setPreview(false);

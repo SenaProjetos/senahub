@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { SO_RESULTADO } from "@/modules/financeiro/natureza";
+import { somaPaga } from "@/modules/financeiro/valor-pago";
 import type { Prisma, StatusDisciplina } from "@/generated/prisma/client";
 import { acessoGlobal, type Role, type EscopoDeDados } from "@/lib/roles";
 import { kpisHome } from "@/modules/qualidade/queries";
@@ -220,7 +221,8 @@ export async function gravarSnapshotDashboard() {
   const hoje = new Date();
   const dia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
   const k = await kpisHome();
-  const recebido = await prisma.lancamento.aggregate({
+  // Recebido = o que entrou (`valorEfetivo` vence o nominal), somado linha a linha.
+  const recebido = await prisma.lancamento.findMany({
     where: {
       tipo: "receita",
       status: "confirmado",
@@ -230,13 +232,13 @@ export async function gravarSnapshotDashboard() {
         lte: new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59),
       },
     },
-    _sum: { valor: true },
+    select: { valor: true, valorEfetivo: true },
   });
   const dados = {
     projetosAtivos: k.projetosAtivos,
     receitaPrevista: k.receitaPrevista,
     entregasPendentes: k.entregasPendentes,
-    recebidoNoMes: Number(recebido._sum.valor ?? 0),
+    recebidoNoMes: somaPaga(recebido),
   };
   return prisma.dashboardSnapshot.upsert({
     where: { dia },

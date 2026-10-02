@@ -1,105 +1,119 @@
 /**
- * Quitação da folha CLT contra o que já estava previsto (F6D do planejador financeiro).
+ * A folha CLT fechada × a conta a pagar dela no Financeiro (N0 do núcleo do Financeiro). Puro, sem I/O —
+ * a mesma decisão vale no teste e no servidor.
  *
- * O compromisso recorrente de folha (F6A) projeta a folha de cada mês e, perto do vencimento, gera
- * uma conta a pagar PREVISTA. Fechar a folha criava um lançamento NOVO, então o mês ficava com dois:
- * o previsto que ninguém baixou e o confirmado do fechamento — caixa descontado duas vezes na
- * projeção. Aqui o fechamento QUITA o previsto da competência: mesmo lançamento, valor real, status
- * confirmado. Puro, sem I/O — a mesma decisão vale no teste e no servidor.
+ * Regras (decisões do dono, 2026-10-02):
+ * - **Fechar não é pagar.** Fechar a folha da competência M grava o LÍQUIDO REAL na conta a pagar dela,
+ *   que continua EM ABERTO até o pagamento (5º dia útil de M+1), registrado na baixa ou na conciliação.
+ * - **Competência ≠ mês do vencimento.** A folha de setembro vence em outubro; o vínculo da recorrência
+ *   é `recorrenciaCompetencia = M`. Sem vínculo, a conta a pagar de outubro (dias 1–15) é a candidata.
+ * - **Adiantamento de salário é outra conta da mesma competência**, paga antes; o holerite já o
+ *   desconta do líquido. A folha nunca o toca.
+ * - **Folha já paga** (a conta da competência já está paga quando o RH fecha): não nasce outra; o
+ *   fechamento aponta a diferença, para quem paga resolver.
  *
- * Só a folha `mensal` quita: a de 13º é outra despesa, com folha própria no mesmo mês (ano, mes,
- * tipo), e tomar o previsto da mensal esconderia uma das duas.
+ * Só a folha `mensal` mexe nessa conta: a de 13º é outra despesa, com folha própria no mesmo mês.
  */
 import type { Centavos } from "@/modules/financeiro/liquidez/tipos";
 import { formatarCentavos } from "@/modules/financeiro/liquidez/dinheiro";
 import type { TipoFolha } from "@/modules/rh/folha/tipo-folha";
 
-export type StatusPendente = "previsto" | "aguardando_aprovacao";
+export type SituacaoDaConta = "previsto" | "aguardando_aprovacao" | "confirmado";
 
-/** Conta a pagar em aberto na categoria da folha CLT, candidata a ser quitada. */
-export type PendenteDaFolha = {
+/** Conta a pagar de folha CLT candidata a receber o valor da folha fechada. */
+export type ContaDaFolha = {
   id: string;
   valor: Centavos;
-  status: StatusPendente;
-  /** `vencimento ?? data` (I4), em `YYYY-MM-DD`. */
+  status: SituacaoDaConta;
+  /** `vencimento ?? data`, em `YYYY-MM-DD`. */
   vencimento: string;
-  /** Competência que a recorrência gravou, quando o lançamento veio dela. */
+  /** Competência que a recorrência gravou, quando o lançamento veio dela (ou foi vinculado). */
   recorrenciaCompetencia: string | null;
+  /** O compromisso de origem é um adiantamento de salário: a folha nunca o usa. */
+  adiantamento: boolean;
 };
 
-export type Quitacao = {
-  /** `null` = nada a quitar (ou mais de um candidato sem vínculo: não se adivinha qual). */
-  escolhido: PendenteDaFolha | null;
-  /** Candidatos que FICAM em aberto — viram aviso, nunca desaparecem em silêncio. */
-  outros: PendenteDaFolha[];
+export type DecisaoDaFolha = {
+  /** Conta em aberto que recebe o valor real. `null` = nenhuma (nasce uma, ou já está paga). */
+  escolhida: ContaDaFolha | null;
+  /** A conta da competência JÁ PAGA: nada nasce, e a diferença vira aviso. */
+  jaPaga: ContaDaFolha | null;
+  /** Candidatas que ficam como estão — viram aviso, nunca somem em silêncio. */
+  outras: ContaDaFolha[];
 };
 
 export function competenciaDaFolha(f: { ano: number; mes: number }): string {
   return `${f.ano}-${String(f.mes).padStart(2, "0")}`;
 }
 
-export function folhaQuitaPrevisto(tipo: TipoFolha): boolean {
+export function folhaUsaContaDaCompetencia(tipo: TipoFolha): boolean {
   return tipo === "mensal";
 }
 
 /**
- * Qual conta a pagar em aberto o fechamento quita.
+ * Qual conta recebe o valor da folha da competência `comp`.
  *
- * 1. Só `previsto` é candidato: quitar um `aguardando_aprovacao` pagaria sem a aprovação que o
- *    fluxo exige. Ele fica em aberto e entra no aviso.
- * 2. Lançamento gerado pela recorrência para esta competência — é o vínculo explícito, vence
- *    qualquer outro candidato (se houver mais de um, o de vencimento mais antigo; empate pelo id,
- *    para a escolha não depender da ordem que o banco devolveu).
- * 3. Sem vínculo: um único candidato do mês é quitado.
- * 4. Mais de um candidato sem vínculo: nenhum é quitado — o fechamento cria o lançamento dele e
- *    todos entram no aviso, para uma pessoa decidir. Adivinhar baixaria a conta errada.
+ * 1. Adiantamento nunca entra.
+ * 2. Conta VINCULADA à competência e já paga → `jaPaga` (nada nasce; diferença vira aviso).
+ * 3. Só conta `previsto` recebe o valor: `aguardando_aprovacao` passaria por cima da aprovação.
+ * 4. A vinculada à competência ganha; se houver mais de uma, a de vencimento mais antigo (empate pelo
+ *    id — a escolha não depende da ordem que o banco devolveu).
+ * 5. Sem vínculo, uma candidata sozinha é usada; duas sem vínculo, nenhuma — não se adivinha.
  */
-export function escolherPendenteDaFolha(
-  pendentes: readonly PendenteDaFolha[],
-  competencia: string,
-): Quitacao {
-  const ordenado = [...pendentes].sort((a, b) => a.vencimento.localeCompare(b.vencimento) || a.id.localeCompare(b.id));
-  const candidatos = ordenado.filter((p) => p.status === "previsto");
-  const daRecorrencia = candidatos.filter((p) => p.recorrenciaCompetencia === competencia);
-  const escolhido = daRecorrencia[0] ?? (daRecorrencia.length === 0 && candidatos.length === 1 ? candidatos[0] : null);
-  return { escolhido, outros: ordenado.filter((p) => p.id !== escolhido?.id) };
+export function decidirContaDaFolha(contas: readonly ContaDaFolha[], comp: string): DecisaoDaFolha {
+  const ordenadas = contas
+    .filter((c) => !c.adiantamento)
+    .sort((a, b) => a.vencimento.localeCompare(b.vencimento) || a.id.localeCompare(b.id));
+  const vinculadas = ordenadas.filter((c) => c.recorrenciaCompetencia === comp);
+
+  const jaPaga = vinculadas.find((c) => c.status === "confirmado") ?? null;
+  if (jaPaga) return { escolhida: null, jaPaga, outras: ordenadas.filter((c) => c.id !== jaPaga.id && c.status !== "confirmado") };
+
+  const abertas = ordenadas.filter((c) => c.status === "previsto");
+  const abertasVinculadas = abertas.filter((c) => c.recorrenciaCompetencia === comp);
+  const escolhida = abertasVinculadas[0] ?? (abertasVinculadas.length === 0 && abertas.length === 1 ? abertas[0] : null);
+  return { escolhida, jaPaga: null, outras: ordenadas.filter((c) => c.id !== escolhida?.id && c.status !== "confirmado") };
 }
 
 /**
- * Frase para quem fechou a folha: diz que o previsto foi quitado, a diferença do valor e o que
- * ficou em aberto. `null` quando não havia nada previsto (caminho normal do primeiro fechamento).
+ * Frase para quem fechou a folha: o que aconteceu com a conta a pagar, a diferença entre o previsto e o
+ * real, e o que ficou em aberto. `null` quando nasceu a conta e não sobrou nada a dizer.
  */
-export function avisoDaQuitacao(q: Quitacao, liquido: Centavos): string | null {
+export function avisoDoFechamento(d: DecisaoDaFolha, liquido: Centavos): string | null {
   const partes: string[] = [];
-  if (q.escolhido) {
-    const d = liquido - q.escolhido.valor;
+  if (d.jaPaga) {
+    const dif = liquido - d.jaPaga.valor;
     partes.push(
-      d === 0
-        ? "A conta a pagar prevista da competência foi quitada com o valor real."
-        : `A conta a pagar prevista da competência foi quitada: ${formatarCentavos(q.escolhido.valor)} previsto, ${formatarCentavos(liquido)} real (diferença de ${formatarCentavos(d)}).`,
+      dif === 0
+        ? `A folha desta competência já tinha sido paga (${formatarCentavos(d.jaPaga.valor)}), com o mesmo valor.`
+        : `A folha desta competência já tinha sido paga (${formatarCentavos(d.jaPaga.valor)}); o líquido real é ${formatarCentavos(liquido)} — diferença de ${formatarCentavos(dif)} a acertar no Financeiro.`,
+    );
+  } else if (d.escolhida) {
+    const dif = liquido - d.escolhida.valor;
+    partes.push(
+      dif === 0
+        ? "A conta a pagar da competência já tinha o valor real."
+        : `A conta a pagar da competência passou de ${formatarCentavos(d.escolhida.valor)} para ${formatarCentavos(liquido)} (diferença de ${formatarCentavos(dif)}).`,
     );
   }
-  if (q.outros.length > 0) {
+  if (d.outras.length > 0) {
     partes.push(
-      q.outros.length === 1
-        ? "Ainda há outra conta a pagar em aberto nesta competência: confira se não é a mesma folha lançada duas vezes."
-        : `Ainda há ${q.outros.length} contas a pagar em aberto nesta competência: confira se não são a mesma folha lançada mais de uma vez.`,
+      d.outras.length === 1
+        ? "Ainda há outra conta a pagar de folha em aberto nesta competência: confira se não é a mesma folha lançada duas vezes."
+        : `Ainda há ${d.outras.length} contas a pagar de folha em aberto nesta competência: confira se não são a mesma folha lançada mais de uma vez.`,
     );
   }
   return partes.length === 0 ? null : partes.join(" ");
 }
 
 /**
- * O que reabrir a folha faz com o lançamento do fechamento. Reaproveitado = o lançamento existia
- * ANTES (previsto da recorrência ou lançado à mão), então reabrir volta ele ao previsto com o valor
- * que tinha; apagar levaria embora a conta a pagar de outra pessoa. Criado pelo fechamento, apaga.
+ * Pode reabrir a folha? Reabrir não mexe na conta a pagar (ela continua sendo a da competência, com o
+ * último valor), MAS se ela já foi paga, reabrir para editar os holerites descasaria a folha do que saiu
+ * do caixa. Devolve a frase da recusa, ou `null`.
  */
-export function desfazerQuitacao(f: {
-  lancamentoId: string | null;
-  lancamentoReaproveitado: boolean;
-  lancamentoValorPrevisto: Centavos | null;
-}): { acao: "nada" } | { acao: "apagar"; id: string } | { acao: "reverter"; id: string; valor: Centavos | null } {
-  if (!f.lancamentoId) return { acao: "nada" };
-  if (!f.lancamentoReaproveitado) return { acao: "apagar", id: f.lancamentoId };
-  return { acao: "reverter", id: f.lancamentoId, valor: f.lancamentoValorPrevisto };
+export function motivoParaNaoReabrir(conta: { status: string } | null): string | null {
+  if (conta?.status === "confirmado") {
+    return "A folha já foi paga no Financeiro: estorne o pagamento antes de reabrir.";
+  }
+  return null;
 }

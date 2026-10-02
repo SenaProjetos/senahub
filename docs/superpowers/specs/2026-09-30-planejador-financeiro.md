@@ -415,6 +415,13 @@ A F6 (Opus) fecha em quatro commits independentes, cada um com testes verdes e r
 
 ### F6D como ficou (2026-10-01)
 
+> **Superado pelo N0 (2026-10-02, `feat/financeiro-nucleo`).** A folha do mês M vence em M+1 (5º dia útil)
+> e a F6D procurava a conta pelo mês do vencimento: a folha de setembro não achava a conta de setembro e
+> criava outra (contagem em dobro). Decisão do dono: **fechar define o valor; pagar é outro passo** — a
+> conta fica `previsto`, reabrir nunca apaga nem reverte e é recusado depois de pago, o adiantamento de
+> salário fica à parte. Regra atual no CLAUDE.md e em `docs/superpowers/specs/2026-10-02-financeiro-nucleo.md`.
+> O texto abaixo é o registro do que a F6D fez.
+
 - **Quem quita e quem não.** Só a folha `mensal` quita (a de 13º é outra despesa, com folha própria no
   mesmo mês) e só candidato `previsto`: quitar um `aguardando_aprovacao` pagaria por cima da aprovação, então
   ele fica em aberto e entra no aviso. Entre os candidatos, o lançamento da recorrência DAQUELA competência

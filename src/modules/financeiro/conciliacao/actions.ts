@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
+import { pagamentoPagoNoFinanceiro } from "@/modules/financeiro/custo/lancamento-custo";
 
 // Recorte fino da F4 (2026-09-02): era `permissao: "gerir"`, o mesmo interruptor de lançar
 // boleto. Semeado para quem tinha `gerir`, então ninguém perdeu nada — passa a poder ser
@@ -51,13 +52,10 @@ export const conciliarComLancamento = defineAction(
         where: { id: t.id },
         data: { conciliado: true, lancamentoId: alvo.id },
       });
-      // Produção: `pagoEm` acompanha a data do extrato — senão a folha diria uma data e o
-      // caixa outra (mesma regra da G1a, onde o extrato manda).
+      // Produção: o pagamento fica pago e `pagoEm` acompanha a data do extrato — senão a folha
+      // diria uma data e o caixa outra (G1a), ou pagaria de novo o que o banco já pagou (A5).
       if (alvo.pagamentoProjetistaId) {
-        await tx.pagamentoProjetista.updateMany({
-          where: { id: alvo.pagamentoProjetistaId, status: "pago" },
-          data: { pagoEm: t.data },
-        });
+        await tx.pagamentoProjetista.updateMany(pagamentoPagoNoFinanceiro(alvo.pagamentoProjetistaId, t.data));
       }
     });
     rev();

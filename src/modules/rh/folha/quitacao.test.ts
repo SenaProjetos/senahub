@@ -1,128 +1,132 @@
 import { describe, expect, it } from "vitest";
 import {
-  avisoDaQuitacao,
+  avisoDoFechamento,
   competenciaDaFolha,
-  desfazerQuitacao,
-  escolherPendenteDaFolha,
-  folhaQuitaPrevisto,
-  type PendenteDaFolha,
+  decidirContaDaFolha,
+  folhaUsaContaDaCompetencia,
+  motivoParaNaoReabrir,
+  type ContaDaFolha,
 } from "@/modules/rh/folha/quitacao";
 import { reais } from "@/modules/financeiro/liquidez/fixtures";
 
-function pendente(p: Partial<PendenteDaFolha> & { id: string }): PendenteDaFolha {
+/** Folha de OUTUBRO (competência 2026-10), paga até o 5º dia útil de novembro. */
+const COMP = "2026-10";
+
+function conta(p: Partial<ContaDaFolha> & { id: string }): ContaDaFolha {
   return {
     valor: reais(40_000),
     status: "previsto",
-    vencimento: "2026-10-05",
+    vencimento: "2026-11-06",
     recorrenciaCompetencia: null,
+    adiantamento: false,
     ...p,
   };
 }
 
-describe("competência da folha", () => {
+describe("competência e tipo da folha", () => {
   it("ano e mês viram YYYY-MM", () => {
     expect(competenciaDaFolha({ ano: 2026, mes: 1 })).toBe("2026-01");
     expect(competenciaDaFolha({ ano: 2026, mes: 10 })).toBe("2026-10");
   });
-  it("só a folha mensal quita o previsto (13º tem folha própria no mesmo mês)", () => {
-    expect(folhaQuitaPrevisto("mensal")).toBe(true);
-    expect(folhaQuitaPrevisto("decimo_terceiro")).toBe(false);
+  it("só a folha mensal usa a conta da competência (13º tem folha própria no mesmo mês)", () => {
+    expect(folhaUsaContaDaCompetencia("mensal")).toBe(true);
+    expect(folhaUsaContaDaCompetencia("decimo_terceiro")).toBe(false);
   });
 });
 
-describe("escolherPendenteDaFolha", () => {
-  it("sem nada em aberto, não quita nada", () => {
-    expect(escolherPendenteDaFolha([], "2026-10")).toEqual({ escolhido: null, outros: [] });
+describe("decidirContaDaFolha", () => {
+  it("sem conta nenhuma, nada é escolhido (nasce uma)", () => {
+    expect(decidirContaDaFolha([], COMP)).toEqual({ escolhida: null, jaPaga: null, outras: [] });
   });
 
-  it("o lançamento da recorrência da competência ganha de qualquer outro", () => {
-    const q = escolherPendenteDaFolha(
-      [
-        pendente({ id: "manual", vencimento: "2026-10-01" }),
-        pendente({ id: "rec", vencimento: "2026-10-05", recorrenciaCompetencia: "2026-10" }),
-      ],
-      "2026-10",
-    );
-    expect(q.escolhido?.id).toBe("rec");
-    expect(q.outros.map((o) => o.id)).toEqual(["manual"]);
+  it("A1: a conta da recorrência de OUTUBRO, que vence em NOVEMBRO, é a da folha de outubro", () => {
+    const d = decidirContaDaFolha([conta({ id: "rec", recorrenciaCompetencia: "2026-10", vencimento: "2026-11-06" })], COMP);
+    expect(d.escolhida?.id).toBe("rec");
   });
 
-  it("recorrência de OUTRA competência não conta como vínculo", () => {
-    const q = escolherPendenteDaFolha([pendente({ id: "set", recorrenciaCompetencia: "2026-09" })], "2026-10");
-    // Entrou na lista de candidatos do mês, mas sem vínculo e sozinho — ainda é quitado.
-    expect(q.escolhido?.id).toBe("set");
+  it("adiantamento de salário da mesma competência nunca é usado (o holerite já o desconta)", () => {
+    const adiant = conta({ id: "adiant", recorrenciaCompetencia: COMP, vencimento: "2026-10-20", adiantamento: true });
+    const saldo = conta({ id: "saldo", recorrenciaCompetencia: COMP, vencimento: "2026-11-06" });
+    const d = decidirContaDaFolha([adiant, saldo], COMP);
+    expect(d.escolhida?.id).toBe("saldo");
+    expect(d.outras.map((o) => o.id)).toEqual([]);
+    // Só o adiantamento: nasce a conta do saldo, e o adiantamento não vira aviso.
+    expect(decidirContaDaFolha([adiant], COMP)).toEqual({ escolhida: null, jaPaga: null, outras: [] });
   });
 
-  it("um único pendente sem vínculo é quitado; dois, nenhum", () => {
-    expect(escolherPendenteDaFolha([pendente({ id: "a" })], "2026-10").escolhido?.id).toBe("a");
-    const dois = escolherPendenteDaFolha([pendente({ id: "a" }), pendente({ id: "b" })], "2026-10");
-    expect(dois.escolhido).toBeNull();
-    expect(dois.outros.map((o) => o.id)).toEqual(["a", "b"]);
+  it("conta da competência JÁ PAGA: nada nasce e ela vira `jaPaga`", () => {
+    const paga = conta({ id: "paga", recorrenciaCompetencia: COMP, status: "confirmado" });
+    const d = decidirContaDaFolha([paga], COMP);
+    expect(d.jaPaga?.id).toBe("paga");
+    expect(d.escolhida).toBeNull();
   });
 
-  it("aguardando aprovação nunca é quitado (quitar pagaria sem a aprovação)", () => {
-    const q = escolherPendenteDaFolha(
-      [pendente({ id: "aprov", status: "aguardando_aprovacao" }), pendente({ id: "prev" })],
-      "2026-10",
-    );
-    expect(q.escolhido?.id).toBe("prev");
-    expect(q.outros.map((o) => o.id)).toEqual(["aprov"]);
-
-    const so = escolherPendenteDaFolha([pendente({ id: "aprov", status: "aguardando_aprovacao" })], "2026-10");
-    expect(so.escolhido).toBeNull();
-    expect(so.outros.map((o) => o.id)).toEqual(["aprov"]);
+  it("paga SEM vínculo não conta como a folha (pode ser outra despesa da categoria)", () => {
+    const d = decidirContaDaFolha([conta({ id: "solta", status: "confirmado" })], COMP);
+    expect(d).toEqual({ escolhida: null, jaPaga: null, outras: [] });
   });
 
-  it("escolha não depende da ordem que o banco devolveu", () => {
-    const a = pendente({ id: "a", vencimento: "2026-10-10", recorrenciaCompetencia: "2026-10" });
-    const b = pendente({ id: "b", vencimento: "2026-10-05", recorrenciaCompetencia: "2026-10" });
-    expect(escolherPendenteDaFolha([a, b], "2026-10").escolhido?.id).toBe("b");
-    expect(escolherPendenteDaFolha([b, a], "2026-10").escolhido?.id).toBe("b");
+  it("a vinculada ganha da manual; a manual vira aviso", () => {
+    const d = decidirContaDaFolha([conta({ id: "manual", vencimento: "2026-11-03" }), conta({ id: "rec", recorrenciaCompetencia: COMP })], COMP);
+    expect(d.escolhida?.id).toBe("rec");
+    expect(d.outras.map((o) => o.id)).toEqual(["manual"]);
+  });
+
+  it("vínculo de OUTRA competência não conta como vínculo", () => {
+    const d = decidirContaDaFolha([conta({ id: "set", recorrenciaCompetencia: "2026-09" })], COMP);
+    // Entrou na janela sem ser desta competência: sozinha, ainda é a candidata.
+    expect(d.escolhida?.id).toBe("set");
+  });
+
+  it("uma sem vínculo é usada; duas sem vínculo, nenhuma (não se adivinha)", () => {
+    expect(decidirContaDaFolha([conta({ id: "a" })], COMP).escolhida?.id).toBe("a");
+    const duas = decidirContaDaFolha([conta({ id: "a" }), conta({ id: "b" })], COMP);
+    expect(duas.escolhida).toBeNull();
+    expect(duas.outras.map((o) => o.id)).toEqual(["a", "b"]);
+  });
+
+  it("aguardando aprovação nunca recebe o valor (passaria por cima da aprovação)", () => {
+    const d = decidirContaDaFolha([conta({ id: "aprov", status: "aguardando_aprovacao" }), conta({ id: "prev" })], COMP);
+    expect(d.escolhida?.id).toBe("prev");
+    expect(d.outras.map((o) => o.id)).toEqual(["aprov"]);
+  });
+
+  it("a escolha não depende da ordem que o banco devolveu", () => {
+    const a = conta({ id: "a", vencimento: "2026-11-09", recorrenciaCompetencia: COMP });
+    const b = conta({ id: "b", vencimento: "2026-11-06", recorrenciaCompetencia: COMP });
+    expect(decidirContaDaFolha([a, b], COMP).escolhida?.id).toBe("b");
+    expect(decidirContaDaFolha([b, a], COMP).escolhida?.id).toBe("b");
   });
 });
 
-describe("avisoDaQuitacao", () => {
-  it("sem nada em aberto, sem aviso", () => {
-    expect(avisoDaQuitacao({ escolhido: null, outros: [] }, reais(40_000))).toBeNull();
+describe("avisoDoFechamento", () => {
+  it("nasceu a conta e nada a dizer", () => {
+    expect(avisoDoFechamento({ escolhida: null, jaPaga: null, outras: [] }, reais(40_000))).toBeNull();
   });
 
-  it("valor igual ao previsto: só diz que quitou", () => {
-    const q = escolherPendenteDaFolha([pendente({ id: "a", valor: reais(40_000) })], "2026-10");
-    expect(avisoDaQuitacao(q, reais(40_000))).toBe("A conta a pagar prevista da competência foi quitada com o valor real.");
+  it("conta atualizada: diz de quanto para quanto", () => {
+    const d = decidirContaDaFolha([conta({ id: "a", recorrenciaCompetencia: COMP })], COMP);
+    expect(avisoDoFechamento(d, reais(40_000))).toBe("A conta a pagar da competência já tinha o valor real.");
+    expect(avisoDoFechamento(d, reais(41_500))).toContain("passou de R$ 40.000,00 para R$ 41.500,00 (diferença de R$ 1.500,00)");
   });
 
-  it("diferença de valor aparece com sinal", () => {
-    const q = escolherPendenteDaFolha([pendente({ id: "a", valor: reais(40_000) })], "2026-10");
-    expect(avisoDaQuitacao(q, reais(41_500))).toContain("diferença de R$ 1.500,00");
-    expect(avisoDaQuitacao(q, reais(38_000))).toContain("diferença de −R$ 2.000,00");
+  it("já paga: aponta a diferença a acertar", () => {
+    const d = decidirContaDaFolha([conta({ id: "p", recorrenciaCompetencia: COMP, status: "confirmado" })], COMP);
+    expect(avisoDoFechamento(d, reais(38_000))).toContain("diferença de −R$ 2.000,00 a acertar");
+    expect(avisoDoFechamento(d, reais(40_000))).toContain("com o mesmo valor");
   });
 
-  it("o que fica em aberto é dito, no singular e no plural", () => {
-    const um = escolherPendenteDaFolha([pendente({ id: "a" }), pendente({ id: "b" })], "2026-10");
-    expect(avisoDaQuitacao(um, reais(40_000))).toContain("2 contas a pagar em aberto");
-    const comVinculo = escolherPendenteDaFolha(
-      [pendente({ id: "rec", recorrenciaCompetencia: "2026-10" }), pendente({ id: "b" })],
-      "2026-10",
-    );
-    expect(avisoDaQuitacao(comVinculo, reais(40_000))).toContain("outra conta a pagar em aberto");
+  it("o que ficou em aberto é dito, no singular e no plural", () => {
+    expect(avisoDoFechamento(decidirContaDaFolha([conta({ id: "a" }), conta({ id: "b" })], COMP), reais(1))).toContain("2 contas a pagar de folha em aberto");
+    const comVinculo = decidirContaDaFolha([conta({ id: "rec", recorrenciaCompetencia: COMP }), conta({ id: "b" })], COMP);
+    expect(avisoDoFechamento(comVinculo, reais(40_000))).toContain("outra conta a pagar de folha em aberto");
   });
 });
 
-describe("desfazerQuitacao (reabrir a folha)", () => {
-  it("folha sem lançamento, nada a fazer", () => {
-    expect(desfazerQuitacao({ lancamentoId: null, lancamentoReaproveitado: false, lancamentoValorPrevisto: null })).toEqual({ acao: "nada" });
-  });
-  it("lançamento criado pelo fechamento é apagado", () => {
-    expect(desfazerQuitacao({ lancamentoId: "l1", lancamentoReaproveitado: false, lancamentoValorPrevisto: null })).toEqual({
-      acao: "apagar",
-      id: "l1",
-    });
-  });
-  it("previsto reaproveitado volta ao previsto com o valor que tinha", () => {
-    expect(desfazerQuitacao({ lancamentoId: "l1", lancamentoReaproveitado: true, lancamentoValorPrevisto: reais(39_000) })).toEqual({
-      acao: "reverter",
-      id: "l1",
-      valor: reais(39_000),
-    });
+describe("motivoParaNaoReabrir", () => {
+  it("conta já paga impede reabrir; em aberto ou sem conta, não", () => {
+    expect(motivoParaNaoReabrir({ status: "confirmado" })).toContain("estorne o pagamento");
+    expect(motivoParaNaoReabrir({ status: "previsto" })).toBeNull();
+    expect(motivoParaNaoReabrir(null)).toBeNull();
   });
 });

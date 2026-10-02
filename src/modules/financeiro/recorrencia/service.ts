@@ -5,7 +5,7 @@ import { inicioDoDiaUtc } from "@/lib/data";
 import { prisma } from "@/lib/prisma";
 import { isoDeDataDoBanco } from "@/modules/financeiro/liquidez/datas";
 import { competenciasAGerar, idDoProgramado, rotuloDaCompetencia } from "@/modules/financeiro/recorrencia/calculo";
-import { competenciasVinculadas, compromissosAtivos } from "@/modules/financeiro/recorrencia/queries";
+import { anosDoHorizonte, calendarioFinanceiro, competenciasVinculadas, compromissosAtivos } from "@/modules/financeiro/recorrencia/queries";
 
 /**
  * Geração dos lançamentos de compromissos recorrentes (ADR-0009, D6). Idempotente por construção: o
@@ -26,12 +26,13 @@ export async function gerarLancamentosRecorrentes(o: { autorId: string; agora?: 
   // obrigatório e a auditoria precisa de alguém de verdade.
   const autorId = o.autorId || (await prisma.user.findFirst({ where: { role: "admin", ativo: true }, select: { id: true } }))?.id;
   if (!autorId) throw new ActionError("Nenhum usuário disponível para registrar os lançamentos.");
+  const calendario = await calendarioFinanceiro(anosDoHorizonte(hoje, hoje));
 
   const porCompromisso: ResultadoGeracao["porCompromisso"] = [];
   let criados = 0;
   for (const c of compromissos) {
     const feitas: string[] = [];
-    for (const { competencia, vencimento } of competenciasAGerar(c, { hoje, vinculadas })) {
+    for (const { competencia, vencimento } of competenciasAGerar(c, { hoje, vinculadas, calendario })) {
       try {
         await prisma.lancamento.create({
           data: {
@@ -41,6 +42,9 @@ export async function gerarLancamentosRecorrentes(o: { autorId: string; agora?: 
             status: "previsto",
             data: new Date(`${vencimento}T00:00:00.000Z`),
             vencimento: new Date(`${vencimento}T00:00:00.000Z`),
+            // A DRE por competência é competência pura (decisão do dono): o mês a que a despesa
+            // pertence, não o do vencimento — a folha de setembro paga em outubro é de setembro.
+            dataCompetencia: new Date(`${competencia}-01T00:00:00.000Z`),
             categoriaId: c.categoriaId,
             prioridade: c.prioridade,
             caixinhaId: c.caixinhaId,

@@ -1,5 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { criarCalendario, type Calendario } from "@/lib/calendario-trabalho";
+import { feriadosParaCalculo } from "@/modules/rh/feriados/queries";
 import { isoDeDataDoBanco } from "@/modules/financeiro/liquidez/datas";
 import { paraCentavos } from "@/modules/financeiro/liquidez/dinheiro";
 import { idDoProgramado, type CompromissoRecorrenteEntrada, type LancamentoDaCompetencia } from "@/modules/financeiro/recorrencia/calculo";
@@ -9,6 +11,9 @@ const SELECT = {
   descricao: true,
   valor: true,
   diaVencimento: true,
+  regraVencimento: true,
+  mesesAteVencimento: true,
+  adiantamento: true,
   competenciaInicio: true,
   competenciaFim: true,
   antecedenciaDias: true,
@@ -27,6 +32,9 @@ type Linha = {
   descricao: string;
   valor: unknown;
   diaVencimento: number;
+  regraVencimento: "dia_fixo" | "dia_util";
+  mesesAteVencimento: number;
+  adiantamento: boolean;
   competenciaInicio: string;
   competenciaFim: string | null;
   antecedenciaDias: number;
@@ -46,6 +54,9 @@ function paraEntrada(c: Linha): CompromissoRecorrenteEntrada {
     descricao: c.descricao,
     valor: paraCentavos(c.valor as number),
     diaVencimento: c.diaVencimento,
+    regraVencimento: c.regraVencimento,
+    mesesAteVencimento: c.mesesAteVencimento,
+    adiantamento: c.adiantamento,
     competenciaInicio: c.competenciaInicio,
     competenciaFim: c.competenciaFim,
     antecedenciaDias: c.antecedenciaDias,
@@ -58,6 +69,28 @@ function paraEntrada(c: Linha): CompromissoRecorrenteEntrada {
     natureza: c.categoria.natureza,
     socioNome: c.socio?.user.name ?? null,
   };
+}
+
+/**
+ * Calendário de dias úteis para os vencimentos ("5º dia útil"): feriados do RH dos anos pedidos, com
+ * os nacionais calculados quando o ano não foi cadastrado (`feriadosParaCalculo`). Sem isso, um
+ * feriado no começo do mês adiantaria o vencimento da folha em um dia.
+ */
+export async function calendarioFinanceiro(anos: readonly number[]): Promise<Calendario> {
+  const feriados: string[] = [];
+  for (const ano of [...new Set(anos)]) {
+    for (const f of await feriadosParaCalculo(ano)) feriados.push(f.data);
+  }
+  return criarCalendario({ feriados });
+}
+
+/** Anos que um horizonte toca, com folga de um ano para trás (competências antigas a gerar). */
+export function anosDoHorizonte(hoje: string, fim: string): number[] {
+  const a = Number(hoje.slice(0, 4));
+  const b = Number(fim.slice(0, 4));
+  const r: number[] = [];
+  for (let x = a - 1; x <= b + 1; x++) r.push(x);
+  return r;
 }
 
 /** Compromissos ativos, no formato puro do motor (`eventosProgramados`, `competenciasAGerar`). */

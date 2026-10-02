@@ -7442,6 +7442,13 @@ enum PeriodicidadeRecorrencia {
   mensal
 }
 
+/// Como o dia do vencimento é contado: dia do mês (`diaVencimento` = 1–31) ou N-ésimo dia útil do mês
+/// (`diaVencimento` = N, pelo calendário de feriados do RH) — a folha CLT vence no 5º dia útil.
+enum RegraVencimentoRecorrencia {
+  dia_fixo
+  dia_util
+}
+
 /// Compromisso que se repete todo mês (ADR-0009, spec §9): é o CADASTRO, não um contas a pagar. O
 /// planejador projeta as competências ainda não geradas; perto do vencimento o sistema gera o
 /// `Lancamento`, que daí segue o fluxo normal (conta a pagar → pagamento → conciliação).
@@ -7449,8 +7456,16 @@ model CompromissoRecorrente {
   id                String                   @id @default(cuid())
   descricao         String
   valor             Decimal                  @db.Decimal(14, 2)
-  /// Dia do vencimento (1–31). Mês mais curto cai no último dia.
+  /// Dia do vencimento (1–31). Mês mais curto cai no último dia. Com `regraVencimento = dia_util`, é o
+  /// N-ésimo dia útil do mês.
   diaVencimento     Int
+  regraVencimento   RegraVencimentoRecorrencia @default(dia_fixo)
+  /// Quantos meses depois da competência o compromisso vence. 0 = no próprio mês (aluguel, pró-labore);
+  /// 1 = no mês seguinte (folha CLT: a folha de setembro é paga até o 5º dia útil de outubro).
+  mesesAteVencimento Int @default(0)
+  /// Adiantamento de salário: conta a pagar da MESMA competência da folha, paga antes dela. Fechar a
+  /// folha nunca usa a conta deste compromisso: o holerite já desconta o adiantamento do líquido.
+  adiantamento      Boolean @default(false)
   periodicidade     PeriodicidadeRecorrencia @default(mensal)
   /// Primeira competência `YYYY-MM`; `competenciaFim` nula = sem data de término.
   competenciaInicio String

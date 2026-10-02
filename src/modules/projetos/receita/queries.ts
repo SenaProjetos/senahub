@@ -3,11 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { avisoCobrancaContrato, type ContratoDeCobranca } from "./cobranca-contrato";
 import { valorSugeridoPorDisciplina } from "./valor-entrega";
 
-/** Tag que identifica os lançamentos de receita gerados como parcelas de contrato. */
-export const TAG_PARCELA_CONTRATO = "contrato";
-
-/** Prefixo de tag que vincula um recebível a uma disciplina faturada por entrega. */
-export const TAG_ENTREGA_PREFIXO = "entrega:";
+// Moram em `parcelas.ts` (puro, testado); reexportadas para quem já importa daqui.
+import { TAG_ENTREGA_PREFIXO, TAG_PARCELA_CONTRATO } from "./parcelas";
+export { TAG_PARCELA_CONTRATO, TAG_ENTREGA_PREFIXO } from "./parcelas";
 
 /** Contratos de cliente do projeto (o de equipe é pago pela folha, não por Lançamento). */
 export async function contratosDeCobranca(projetoId: string): Promise<ContratoDeCobranca[]> {

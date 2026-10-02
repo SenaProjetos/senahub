@@ -294,7 +294,11 @@ function GerarParcelasDialog({
         intervaloMeses: Number(intervalo),
       });
       if (res.ok) {
-        toast.success(`${res.data.parcelas} parcela(s) gerada(s) como recebíveis.`);
+        toast.success(
+          res.data.recebido > 0
+            ? `${res.data.parcelas} parcela(s) gerada(s) com o que falta receber (já entrou ${brl(res.data.recebido)}).`
+            : `${res.data.parcelas} parcela(s) gerada(s) como recebíveis.`,
+        );
         onClose();
         router.refresh();
       } else toast.error(res.error);
@@ -307,8 +311,8 @@ function GerarParcelasDialog({
         <DialogHeader>
           <DialogTitle>Gerar parcelas do contrato</DialogTitle>
           <DialogDescription>
-            Cria receitas previstas (recebíveis) somando o valor total. Substitui as parcelas previstas
-            existentes; recebidas são preservadas.
+            Cria receitas previstas (recebíveis) com o que falta receber do valor total. Substitui as
+            parcelas geradas ainda em aberto; recebidas e entregas faturadas ficam.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">

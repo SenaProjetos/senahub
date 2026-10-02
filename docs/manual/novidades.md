@@ -51,7 +51,10 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
   [Saiba mais](financeiro/socios-e-recorrentes.md)
 - **Distribuir e adiantar lucros** cria uma conta a pagar por sócio, pelo percentual de cada um — e não
   entra na DRE.
-- **Fechar a folha CLT** passa a quitar a conta prevista do mês, em vez de lançar a folha duas vezes.
+- **Compromissos recorrentes** vencem também por **dia útil** e **no mês seguinte** (a folha de um mês
+  vence no 5º dia útil do outro), e o **adiantamento de salário** tem o seu próprio compromisso.
+- **Fechar a folha CLT** grava o valor real na conta a pagar do mês, em vez de lançar a folha duas vezes.
+  Pagar continua sendo no Financeiro.
 
 **Nas telas de sempre**
 

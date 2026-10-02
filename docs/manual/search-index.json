@@ -1302,8 +1302,8 @@
     {
       "titulo": "Financeiro — Sócios, pró-labore e compromissos recorrentes",
       "path": "financeiro/socios-e-recorrentes.md",
-      "descricao": "Cadastrar saídas que se repetem (pró-labore, aluguel, folha), distribuir e adiantar lucros aos sócios e entender como a folha CLT quita o previsto do mês.",
-      "resumo": "Compromisso recorrente é o cadastro de uma saída mensal; o planejador projeta os meses futuros e o sistema gera a conta a pagar perto do vencimento. Distribuição e adiantamento de lucros viram contas a pagar por sócio, fora da DRE. Fechar a folha quita a conta prevista da competência.",
+      "descricao": "Cadastrar saídas que se repetem (pró-labore, aluguel, folha), distribuir e adiantar lucros aos sócios e entender como o fechamento da folha CLT define o valor da conta do mês.",
+      "resumo": "Compromisso recorrente é o cadastro de uma saída mensal; o planejador projeta os meses futuros e o sistema gera a conta a pagar perto do vencimento. Distribuição e adiantamento de lucros viram contas a pagar por sócio, fora da DRE. Fechar a folha define o valor real da conta da competência, que vence no mês seguinte; pagar é outro passo.",
       "tags": [
         "financeiro",
         "sócios",
@@ -1327,7 +1327,11 @@
         "percentual do sócio",
         "fora do resultado",
         "fechar folha",
-        "quitar previsto",
+        "valor real da folha",
+        "quinto dia útil",
+        "dia útil",
+        "mês seguinte",
+        "adiantamento de salário",
         "reabrir folha",
         "retiradas antigas"
       ],

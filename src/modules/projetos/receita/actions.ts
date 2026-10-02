@@ -2,14 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { addMonths } from "date-fns";
-import { defineAction, ActionError } from "@/lib/with-action";
+import { defineAction } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { TAG_PARCELA_CONTRATO, contratosDeCobranca } from "@/modules/projetos/receita/queries";
-import { avisoCobrancaContrato } from "@/modules/projetos/receita/cobranca-contrato";
-import { codigoCategoriaReceita } from "@/modules/projetos/receita/categoria";
 import { faturarEntregaDaDisciplina } from "@/modules/projetos/receita/faturamento";
-import { dividirEmParcelas } from "@/modules/projetos/receita/parcelas";
+import { gerarParcelasDoProjeto, limparParcelasDoProjeto } from "@/modules/projetos/receita/parcelas-service";
 
 function rev(projetoId: string) {
   revalidatePath(`/projetos/${projetoId}`);
@@ -91,9 +87,10 @@ export const salvarComposicaoPreco = defineAction(
 );
 
 /**
- * Gera N parcelas de recebível (receita PREVISTA) somando `valorTotal`, vencendo a
- * partir de `dataPrimeira` a cada `intervaloMeses`. Substitui as parcelas previstas
- * existentes (as já recebidas/confirmadas são preservadas). Reusa Lancamento.
+ * Gera N parcelas de recebível (receita PREVISTA) para o que falta receber de `valorTotal` (o total
+ * do contrato menos o que já entrou pelas parcelas geradas), vencendo a partir de `dataPrimeira` a
+ * cada `intervaloMeses`. Substitui só as parcelas GERADAS em aberto: recebidas e faturamento por
+ * entrega ficam (A6). Reusa Lancamento.
  */
 export const gerarParcelas = defineAction(
   {
@@ -112,55 +109,9 @@ export const gerarParcelas = defineAction(
     entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
   },
   async (i, { user }) => {
-    const projeto = await prisma.projeto.findUnique({
-      where: { id: i.projetoId },
-      select: { tipo: true, codigo: true },
-    });
-    if (!projeto) throw new ActionError("Projeto não encontrado.");
-
-    const aviso = avisoCobrancaContrato(await contratosDeCobranca(i.projetoId));
-    if (aviso?.nivel === "recusa") throw new ActionError(aviso.texto);
-
-    const codigoCat = codigoCategoriaReceita(projeto.tipo);
-    const categoria = await prisma.categoriaFinanceira.findUnique({ where: { codigo: codigoCat } });
-    if (!categoria) throw new ActionError(`Categoria ${codigoCat} ausente no plano de contas.`);
-
-    const base = new Date(i.dataPrimeira);
-    if (Number.isNaN(base.getTime())) throw new ActionError("Data inválida.");
-
-    const n = i.numeroParcelas;
-    const valores = dividirEmParcelas(i.valorTotal, n);
-
-    await prisma.$transaction(async (tx) => {
-      // Remove as parcelas previstas anteriores (preserva confirmadas).
-      await tx.lancamento.deleteMany({
-        where: {
-          projetoId: i.projetoId,
-          tipo: "receita",
-          status: "previsto",
-          tags: { has: TAG_PARCELA_CONTRATO },
-        },
-      });
-      const registros = valores.map((valor, k) => {
-        const venc = addMonths(base, k * i.intervaloMeses);
-        return {
-          tipo: "receita" as const,
-          descricao: `Parcela ${k + 1}/${n} — contrato (${projeto.codigo})`,
-          valor,
-          status: "previsto" as const,
-          data: venc,
-          vencimento: venc,
-          categoriaId: categoria.id,
-          projetoId: i.projetoId,
-          tags: [TAG_PARCELA_CONTRATO],
-          autorId: user.id,
-        };
-      });
-      await tx.lancamento.createMany({ data: registros });
-    });
-
+    const r = await gerarParcelasDoProjeto({ ...i, autorId: user.id });
     rev(i.projetoId);
-    return { projetoId: i.projetoId, parcelas: n };
+    return { projetoId: i.projetoId, parcelas: r.parcelas, recebido: r.recebido };
   },
 );
 
@@ -189,7 +140,10 @@ export const faturarEntrega = defineAction(
   },
 );
 
-/** Remove as parcelas previstas (recebíveis ainda não confirmados) do projeto. */
+/**
+ * Remove as parcelas GERADAS ainda em aberto do projeto (exclusão lógica). Faturamento por
+ * entrega e recebidas ficam (A6).
+ */
 export const limparParcelas = defineAction(
   {
     modulo: "financeiro",
@@ -201,14 +155,7 @@ export const limparParcelas = defineAction(
     entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
   },
   async (i) => {
-    const { count } = await prisma.lancamento.deleteMany({
-      where: {
-        projetoId: i.projetoId,
-        tipo: "receita",
-        status: "previsto",
-        tags: { has: TAG_PARCELA_CONTRATO },
-      },
-    });
+    const count = await limparParcelasDoProjeto(i.projetoId);
     rev(i.projetoId);
     return { projetoId: i.projetoId, removidas: count };
   },

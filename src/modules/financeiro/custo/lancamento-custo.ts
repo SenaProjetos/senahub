@@ -82,6 +82,20 @@ export async function criarDespesaProjetistaPrevista(
 }
 
 /**
+ * A5: a baixa feita no Financeiro (livro caixa, baixa em lote, conciliação, OFX, lote de pagamentos)
+ * marca o pagamento do projetista como pago, com a data da baixa. Antes ele seguia "pendente": a folha
+ * de projetistas o pagava de novo e a sincronização da disciplina reescrevia o lançamento já pago.
+ * Já pago só acompanha a data (o extrato manda, regra da G1a); cancelado não volta.
+ * Devolve os argumentos de `pagamentoProjetista.updateMany` (serve à transação em lista e à interativa).
+ */
+export function pagamentoPagoNoFinanceiro(pagamentoProjetistaId: string, quando: Date) {
+  return {
+    where: { id: pagamentoProjetistaId, status: { in: ["pendente" as const, "pago" as const] } },
+    data: { status: "pago" as const, pagoEm: quando },
+  };
+}
+
+/**
  * Confirma a despesa de um pagamento de projetista: confirma o lançamento previsto
  * existente (criado na validação) ou, em dado legado sem previsto, cria já confirmado.
  * Devolve o lancamentoId. Compartilhado por pagarProjetista (individual) e pagarFolha (lote).
@@ -104,6 +118,8 @@ export async function confirmarDespesaProjetista(
     ? await tx.lancamento.findUnique({ where: { id: pag.lancamentoId } })
     : await tx.lancamento.findUnique({ where: { pagamentoProjetistaId: pag.id } });
 
+  // Já baixado no Financeiro: nada a fazer — confirmar de novo moveria a data do pagamento (A5).
+  if (previsto?.status === "confirmado") return previsto.id;
   if (previsto && previsto.status !== "cancelado") {
     await tx.lancamento.update({
       where: { id: previsto.id },
@@ -146,10 +162,52 @@ export function statusLancamentoServico(status: string): "previsto" | "confirmad
   return null; // cancelado
 }
 
+/** Frase única: o serviço pago não volta atrás por aqui (o dinheiro já se moveu). */
+export const MOTIVO_SERVICO_PAGO =
+  "O serviço já foi pago no Financeiro: estorne o pagamento lá antes de mudar a situação ou excluir o serviço.";
+
+/** O que fazer com a despesa de um serviço. Puro: decide; quem grava é `sincronizarDespesaServico`. */
+export type PlanoDespesaServico =
+  | { tipo: "nada" }
+  | { tipo: "cancelar" }
+  | { tipo: "criar"; status: "previsto" | "confirmado" }
+  /** Inclui reabrir uma cancelada (o vínculo do serviço continua o mesmo lançamento). */
+  | { tipo: "atualizar"; status: "previsto" | "confirmado"; confirmarAgora: boolean }
+  /** Já paga: só descrição e fornecedor acompanham o serviço; valor, situação e datas ficam. */
+  | { tipo: "so_texto" }
+  | { tipo: "recusar"; motivo: string };
+
+/**
+ * A7: a despesa paga de um serviço nunca é reescrita, desconfirmada nem cancelada pela edição do
+ * serviço — antes, cada edição trocava a data de pagamento, voltar para "contratado" desfazia o
+ * pago e cancelar/excluir cancelava até lançamento conciliado.
+ */
+export function planoDaDespesaServico(
+  atual: { status: string; valorCentavos: number } | null,
+  alvo: "previsto" | "confirmado" | null,
+  valorCentavos: number | null,
+): PlanoDespesaServico {
+  const deveTer = alvo != null && valorCentavos != null && valorCentavos > 0;
+  if (atual?.status === "confirmado") {
+    if (!deveTer || alvo !== "confirmado") return { tipo: "recusar", motivo: MOTIVO_SERVICO_PAGO };
+    if (valorCentavos !== atual.valorCentavos) {
+      return {
+        tipo: "recusar",
+        motivo: `O serviço já foi pago no Financeiro por ${brl(atual.valorCentavos / 100)}: o valor do serviço precisa continuar igual ao pago.`,
+      };
+    }
+    return { tipo: "so_texto" };
+  }
+  if (!deveTer) return atual && atual.status !== "cancelado" ? { tipo: "cancelar" } : { tipo: "nada" };
+  if (atual) return { tipo: "atualizar", status: alvo, confirmarAgora: alvo === "confirmado" };
+  return { tipo: "criar", status: alvo };
+}
+
 /**
  * Sincroniza o lançamento de um serviço terceirizado com seu status/valor (idempotente):
  * contratado → despesa prevista · concluído → confirmada · cancelado/sem valor → cancela o existente.
- * Devolve o lancamentoId atual (ou null se não deve existir).
+ * Despesa já paga não muda (ver `planoDaDespesaServico`). Devolve o lancamentoId atual (ou null se
+ * não deve existir).
  */
 export async function sincronizarDespesaServico(
   tx: Prisma.TransactionClient,
@@ -164,55 +222,66 @@ export async function sincronizarDespesaServico(
     autorId: string;
   },
 ): Promise<string | null> {
-  const alvo = statusLancamentoServico(s.status);
-  const temValor = s.valor != null && Number(s.valor) > 0;
-  const deveTer = alvo != null && temValor;
+  const atual = s.servicoLancamentoId
+    ? await tx.lancamento.findFirst({
+        where: { id: s.servicoLancamentoId, excluidoEm: null },
+        select: { id: true, status: true, valor: true },
+      })
+    : null;
+  const plano = planoDaDespesaServico(
+    atual ? { status: atual.status, valorCentavos: Math.round(Number(atual.valor) * 100) } : null,
+    statusLancamentoServico(s.status),
+    s.valor == null ? null : Math.round(Number(s.valor) * 100),
+  );
+  const descricao = `Serviço terceirizado — ${s.descricao} (${formatarCodigo(s.projetoCodigo)})`;
 
-  // Não deve haver lançamento (cancelado ou sem valor) → cancela o existente.
-  if (!deveTer) {
-    if (s.servicoLancamentoId) {
-      await tx.lancamento.updateMany({
-        where: { id: s.servicoLancamentoId, status: { not: "cancelado" } },
-        data: { status: "cancelado" },
+  switch (plano.tipo) {
+    case "recusar":
+      throw new ActionError(plano.motivo);
+    case "nada":
+      return null;
+    case "cancelar":
+      await tx.lancamento.updateMany({ where: { id: atual!.id, status: { notIn: ["cancelado", "confirmado"] } }, data: { status: "cancelado" } });
+      return null;
+    case "so_texto":
+      await tx.lancamento.update({ where: { id: atual!.id }, data: { descricao, fornecedorId: s.fornecedorId } });
+      return atual!.id;
+    case "atualizar": {
+      // Condicionado ao que foi lido: pago entre a leitura e a escrita não é desfeito.
+      const r = await tx.lancamento.updateMany({
+        where: { id: atual!.id, status: { not: "confirmado" } },
+        data: {
+          descricao,
+          valor: s.valor!,
+          fornecedorId: s.fornecedorId,
+          status: plano.status,
+          dataConfirmacao: plano.confirmarAgora ? new Date() : null,
+        },
       });
+      if (r.count !== 1) throw new ActionError(MOTIVO_SERVICO_PAGO);
+      return atual!.id;
     }
-    return null;
+    case "criar": {
+      const quando = new Date();
+      const categoriaId = await categoriaIdPorCodigo(tx, CATEGORIA_TERCEIRIZADO);
+      const lanc = await tx.lancamento.create({
+        data: {
+          tipo: "despesa",
+          descricao,
+          valor: s.valor!,
+          fornecedorId: s.fornecedorId,
+          status: plano.status,
+          data: quando,
+          vencimento: plano.status === "previsto" ? quando : null,
+          dataConfirmacao: plano.status === "confirmado" ? quando : null,
+          categoriaId,
+          projetoId: s.projetoId,
+          autorId: s.autorId,
+        },
+      });
+      return lanc.id;
+    }
   }
-
-  const quando = new Date();
-  const comuns = {
-    descricao: `Serviço terceirizado — ${s.descricao} (${formatarCodigo(s.projetoCodigo)})`,
-    valor: s.valor!,
-    fornecedorId: s.fornecedorId,
-  };
-
-  if (s.servicoLancamentoId) {
-    await tx.lancamento.update({
-      where: { id: s.servicoLancamentoId },
-      data: {
-        ...comuns,
-        status: alvo,
-        dataConfirmacao: alvo === "confirmado" ? quando : null,
-      },
-    });
-    return s.servicoLancamentoId;
-  }
-
-  const categoriaId = await categoriaIdPorCodigo(tx, CATEGORIA_TERCEIRIZADO);
-  const lanc = await tx.lancamento.create({
-    data: {
-      tipo: "despesa",
-      ...comuns,
-      status: alvo,
-      data: quando,
-      vencimento: alvo === "previsto" ? quando : null,
-      dataConfirmacao: alvo === "confirmado" ? quando : null,
-      categoriaId,
-      projetoId: s.projetoId,
-      autorId: s.autorId,
-    },
-  });
-  return lanc.id;
 }
 
 type SlotArt = {

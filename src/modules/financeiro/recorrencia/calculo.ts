@@ -6,6 +6,7 @@
  * normal. Mês vinculado nunca é projetado nem gerado — é o par `(origem, competência)` do banco.
  */
 
+import { proximoDiaUtil, somarDiasUteis, type Calendario } from "@/lib/calendario-trabalho";
 import { formatarCentavos } from "@/modules/financeiro/liquidez/dinheiro";
 import type { Centavos, DataIso, EventoCaixa, Prioridade } from "@/modules/financeiro/liquidez/tipos";
 
@@ -60,11 +61,61 @@ export function vencimentoDa(c: Competencia, diaVencimento: number): DataIso {
   return `${c}-${String(dia).padStart(2, "0")}`;
 }
 
-export type CompromissoRecorrenteEntrada = {
+/** Avança `n` meses na competência (0 = a própria). */
+export function avancarCompetencia(c: Competencia, n: number): Competencia {
+  let r = c;
+  for (let i = 0; i < Math.max(0, n); i++) r = proximaCompetencia(r);
+  return r;
+}
+
+export type RegraVencimento = "dia_fixo" | "dia_util";
+
+/** O que decide a data de vencimento de um mês do compromisso. */
+export type Vencimento = { diaVencimento: number; regraVencimento: RegraVencimento; mesesAteVencimento: number };
+
+/**
+ * N-ésimo dia útil do mês (`n` ≥ 1), pelo calendário de feriados. Se o mês não tiver `n` dias úteis
+ * (n alto demais), devolve o último dia útil do mês — vencer no mês seguinte enganaria a competência.
+ */
+export function enesimoDiaUtil(mes: Competencia, n: number, cal: Calendario): DataIso {
+  const primeiro = proximoDiaUtil(`${mes}-01`, cal);
+  let dia = primeiro;
+  for (let i = 1; i < Math.max(1, Math.trunc(n)); i++) {
+    const seguinte = somarDiasUteis(dia, 1, cal);
+    if (seguinte.slice(0, 7) !== mes) break;
+    dia = seguinte;
+  }
+  return dia;
+}
+
+/**
+ * Vencimento do compromisso numa competência. A competência é o mês a que a despesa PERTENCE; o
+ * vencimento pode cair meses depois (`mesesAteVencimento`): a folha de setembro vence no 5º dia útil
+ * de outubro. Dia útil usa o calendário de feriados do RH, montado por quem chama.
+ */
+export function vencimentoDoCompromisso(v: Vencimento, comp: Competencia, cal: Calendario): DataIso {
+  const mes = avancarCompetencia(comp, v.mesesAteVencimento);
+  return v.regraVencimento === "dia_util" ? enesimoDiaUtil(mes, v.diaVencimento, cal) : vencimentoDa(mes, v.diaVencimento);
+}
+
+/** Competência a que pertence um vencimento: o inverso de `mesesAteVencimento`. */
+export function competenciaDoVencimento(v: Pick<Vencimento, "mesesAteVencimento">, vencimento: DataIso): Competencia {
+  return recuarCompetencia(competenciaDe(vencimento), v.mesesAteVencimento);
+}
+
+/** "5º dia útil do mês seguinte", "dia 10" — como a tela descreve a regra. */
+export function descreverVencimento(v: Vencimento): string {
+  const dia = v.regraVencimento === "dia_util" ? `${v.diaVencimento}º dia útil` : `dia ${v.diaVencimento}`;
+  const mes = v.mesesAteVencimento === 0 ? "" : v.mesesAteVencimento === 1 ? " do mês seguinte" : ` de ${v.mesesAteVencimento} meses depois`;
+  return `${dia}${mes}`;
+}
+
+export type CompromissoRecorrenteEntrada = Vencimento & {
   id: string;
   descricao: string;
   valor: Centavos;
-  diaVencimento: number;
+  /** Adiantamento de salário: a folha nunca quita este compromisso. */
+  adiantamento: boolean;
   competenciaInicio: Competencia;
   competenciaFim: Competencia | null;
   antecedenciaDias: number;
@@ -104,14 +155,16 @@ function dentroDaVigencia(c: CompromissoRecorrenteEntrada, comp: Competencia): b
  * Competências de um compromisso cujo vencimento cai em `[inicio, fim]`, no máximo `⌈H/28⌉+1`
  * (spec §12). Começa no mês de `inicio` porque um vencimento vencido do mês corrente ainda conta.
  */
-export function competenciasNoPeriodo(c: CompromissoRecorrenteEntrada, inicio: DataIso, fim: DataIso): Competencia[] {
+export function competenciasNoPeriodo(c: CompromissoRecorrenteEntrada, inicio: DataIso, fim: DataIso, cal: Calendario): Competencia[] {
   if (!c.ativo || fim < inicio) return [];
   const teto = Math.ceil(Math.max(1, Math.round((Date.parse(`${fim}T00:00:00Z`) - Date.parse(`${inicio}T00:00:00Z`)) / 86_400_000) + 1) / 28) + 1;
   const r: Competencia[] = [];
-  let comp = competenciaDe(inicio);
-  for (let i = 0; i < teto + 1 && comp <= competenciaDe(fim); i++, comp = proximaCompetencia(comp)) {
+  // Quem vence meses depois da competência: a competência cujo vencimento cai em `inicio` é anterior.
+  let comp = competenciaDoVencimento(c, inicio);
+  const ultima = competenciaDoVencimento(c, fim);
+  for (let i = 0; i < teto + 1 && comp <= ultima; i++, comp = proximaCompetencia(comp)) {
     if (!dentroDaVigencia(c, comp)) continue;
-    const v = vencimentoDa(comp, c.diaVencimento);
+    const v = vencimentoDoCompromisso(c, comp, cal);
     if (v >= inicio && v <= fim) r.push(comp);
     if (r.length >= teto) break;
   }
@@ -125,7 +178,7 @@ export function competenciasNoPeriodo(c: CompromissoRecorrenteEntrada, inicio: D
  */
 export function eventosProgramados(
   compromissos: readonly CompromissoRecorrenteEntrada[],
-  o: { hoje: DataIso; fim: DataIso; vinculadas: ReadonlySet<string> },
+  o: { hoje: DataIso; fim: DataIso; vinculadas: ReadonlySet<string>; calendario: Calendario },
 ): EventoCaixa[] {
   const eventos: EventoCaixa[] = [];
   // Começa no 1º do mês corrente, não em hoje: mês já vencido sem lançamento (o gerador não rodou)
@@ -133,9 +186,9 @@ export function eventosProgramados(
   const inicio = `${competenciaDe(o.hoje)}-01`;
   for (const c of compromissos) {
     if (!(c.valor > 0)) continue;
-    for (const comp of competenciasNoPeriodo(c, inicio, o.fim)) {
+    for (const comp of competenciasNoPeriodo(c, inicio, o.fim, o.calendario)) {
       if (o.vinculadas.has(idDoProgramado(c.id, comp))) continue;
-      const data = vencimentoDa(comp, c.diaVencimento);
+      const data = vencimentoDoCompromisso(c, comp, o.calendario);
       eventos.push({
         id: idDoProgramado(c.id, comp),
         origem: "programado",
@@ -168,7 +221,7 @@ export function eventosProgramados(
  */
 export function competenciasAGerar(
   c: CompromissoRecorrenteEntrada,
-  o: { hoje: DataIso; vinculadas: ReadonlySet<string>; mesesParaTras?: number },
+  o: { hoje: DataIso; vinculadas: ReadonlySet<string>; mesesParaTras?: number; calendario: Calendario },
 ): { competencia: Competencia; vencimento: DataIso }[] {
   if (!c.ativo || !(c.valor > 0)) return [];
   const d = new Date(`${o.hoje}T00:00:00.000Z`);
@@ -179,7 +232,7 @@ export function competenciasAGerar(
   const ate = competenciaDe(limite);
   for (let i = 0; comp <= ate && i < 400; i++, comp = proximaCompetencia(comp)) {
     if (!dentroDaVigencia(c, comp)) continue;
-    const v = vencimentoDa(comp, c.diaVencimento);
+    const v = vencimentoDoCompromisso(c, comp, o.calendario);
     if (v > limite) continue;
     if (o.vinculadas.has(idDoProgramado(c.id, comp))) continue;
     r.push({ competencia: comp, vencimento: v });
@@ -241,10 +294,17 @@ export function candidatosDeVinculo(
   vinculadas: ReadonlySet<string>,
 ): { compromisso: CompromissoRecorrenteEntrada; competencia: Competencia }[] {
   if (l.recorrenciaOrigemId) return [];
-  const comp = competenciaDe(l.data);
-  return compromissos
-    .filter((c) => c.ativo && c.categoriaId === l.categoriaId && (c.socioId ?? null) === (l.socioId ?? null) && dentroDaVigencia(c, comp) && !vinculadas.has(idDoProgramado(c.id, comp)))
-    .map((c) => ({ compromisso: c, competencia: comp }));
+  return compromissos.flatMap((c) => {
+    // Competência do lançamento pelos olhos DESTE compromisso: a folha paga em outubro é de setembro.
+    const comp = competenciaDoVencimento(c, l.data);
+    const ok =
+      c.ativo &&
+      c.categoriaId === l.categoriaId &&
+      (c.socioId ?? null) === (l.socioId ?? null) &&
+      dentroDaVigencia(c, comp) &&
+      !vinculadas.has(idDoProgramado(c.id, comp));
+    return ok ? [{ compromisso: c, competencia: comp }] : [];
+  });
 }
 
 /**
@@ -255,7 +315,7 @@ export function candidatosDeVinculo(
 export function avisosDeRecorrencia(
   compromissos: readonly CompromissoRecorrenteEntrada[],
   lancamentos: readonly LancamentoDaCompetencia[],
-  o: { hoje: DataIso; fim: DataIso },
+  o: { hoje: DataIso; fim: DataIso; calendario: Calendario },
 ): AvisoRecorrencia[] {
   const vinculadas = new Set(lancamentos.flatMap((l) => (l.recorrenciaOrigemId && l.recorrenciaCompetencia ? [idDoProgramado(l.recorrenciaOrigemId, l.recorrenciaCompetencia)] : [])));
   const avisos: AvisoRecorrencia[] = [];
@@ -271,7 +331,7 @@ export function avisosDeRecorrencia(
     }
     // Sem vínculo: só avisa se o mês continua projetado (os dois estão contando).
     for (const { compromisso, competencia } of candidatosDeVinculo(compromissos, l, vinculadas)) {
-      const v = vencimentoDa(competencia, compromisso.diaVencimento);
+      const v = vencimentoDoCompromisso(compromisso, competencia, o.calendario);
       if (v < o.hoje || v > o.fim) continue;
       avisos.push({
         tipo: "dobro",

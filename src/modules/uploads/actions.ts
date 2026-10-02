@@ -167,11 +167,14 @@ export const validarEntrega = defineAction(
     if (bloqueio) throw new ActionError(bloqueio);
 
     const { pagaveis, salariados } = await prisma.$transaction(async (tx) => {
-      await tx.disciplina.update({
-        where: { id: disciplina.id },
+      // Condicionado: duas validações ao mesmo tempo liberavam o pagamento em dobro (A5). A 2ª
+      // espera o lock da linha, relê "aprovado" e não acha nada para atualizar.
+      const r = await tx.disciplina.updateMany({
+        where: { id: disciplina.id, status: { not: "aprovado" } },
         // P-12: entregueEm marca a data da validação formal (separado do status manual).
         data: { status: "aprovado", entregueEm: agora },
       });
+      if (r.count !== 1) throw new ActionError("Esta entrega já foi validada.");
       return liberarPagamentosProjetista(tx, { disciplina, autorId: user.id, agora });
     });
 

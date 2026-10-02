@@ -278,10 +278,15 @@ O cadastro de uma saída que se repete, como o pró-labore de cada sócio. Os me
 planejador como programados; o lançamento só nasce perto do vencimento.
 _Avoid_: recorrência (quando se quer dizer o cadastro), agendamento
 
-**Quitar o previsto**:
-Usar a conta a pagar que já estava prevista para a competência, com o valor real, em vez de lançar uma
-segunda. É o que o fechamento da folha mensal faz com a conta da folha.
-_Avoid_: substituir, baixar (quando se quer dizer reaproveitar a conta)
+**Conta da competência (folha)**:
+A conta a pagar da folha de um mês, que vence no mês seguinte (até o 5º dia útil). Fechar a folha grava
+nela o valor real; ela continua em aberto até ser paga no Financeiro.
+_Avoid_: quitar o previsto (fechar a folha não paga nada), baixar
+
+**Adiantamento de salário**:
+Parte do salário paga antes da folha, na mesma competência, numa conta própria. O fechamento da folha
+nunca usa essa conta: o holerite já desconta o adiantamento do líquido.
+_Avoid_: vale, adiantamento (sozinho: confunde com adiantamento de lucros)
 
 **Retirada de sócio (histórico)**:
 O registro antigo de retiradas, anterior aos lançamentos, que nunca entrou no caixa nem na DRE. Só se

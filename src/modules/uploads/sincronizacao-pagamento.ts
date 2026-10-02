@@ -36,9 +36,12 @@ export const PLANO_VAZIO: PlanoSincronizacao = { atualizar: [], cancelar: [], cr
  * sincronizar. Cobre tanto mudar o valor quanto remover um responsável já pago — nos
  * dois casos o dinheiro já saiu e a linha virou história.
  */
+export const MOTIVO_PAGAMENTO_EFETIVADO =
+  "Esta disciplina já tem pagamento efetivado — o valor e os responsáveis não podem mais ser alterados por aqui.";
+
 export function bloqueioSincronizacao(atuais: PagamentoAtual[]): string | null {
   if (!atuais.some((p) => p.status === "pago")) return null;
-  return "Esta disciplina já tem pagamento efetivado — o valor e os responsáveis não podem mais ser alterados por aqui.";
+  return MOTIVO_PAGAMENTO_EFETIVADO;
 }
 
 /**
