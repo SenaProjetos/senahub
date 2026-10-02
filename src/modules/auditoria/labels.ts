@@ -74,6 +74,8 @@ export const ACAO_LABEL: Record<string, string> = {
   "excluir-lancamento": "Excluiu lançamento",
   "cancelar-lancamento": "Cancelou lançamento",
   "confirmar-lancamento": "Confirmou lançamento",
+  "estornar-lancamento": "Estornou lançamento",
+  "reabrir-lancamento": "Reabriu lançamento",
   "aprovar-lancamento": "Aprovou lançamento",
   "rejeitar-lancamento": "Rejeitou lançamento",
   "baixar-lancamentos-lote": "Deu baixa em lançamentos (lote)",

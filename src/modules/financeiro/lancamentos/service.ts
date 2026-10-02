@@ -111,7 +111,11 @@ export async function criarLancamentoNoTx(db: Db, i: CriarLancamentoInput, autor
   }));
 
   if (registros.length === 1) {
-    const criado = await db.lancamento.create({ data: registros[0], select: { id: true, vencimento: true, data: true } });
+    const criado = await db.lancamento.create({
+      // Histórico desde o nascimento (N1): a linha do tempo da situação começa aqui.
+      data: { ...registros[0], statusHistorico: { create: { de: null, para: status, autorId } } },
+      select: { id: true, vencimento: true, data: true },
+    });
     return {
       ocorrencias: 1,
       id: criado.id,

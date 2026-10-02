@@ -5,6 +5,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { pagamentoPagoNoFinanceiro } from "@/modules/financeiro/custo/lancamento-custo";
+import { exigirOperacao } from "@/modules/financeiro/lancamentos/situacao-service";
 
 // Recorte fino da F4 (2026-09-02): era `permissao: "gerir"`, o mesmo interruptor de lançar
 // boleto. Semeado para quem tinha `gerir`, então ninguém perdeu nada — passa a poder ser
@@ -26,12 +27,14 @@ const ignorarSchema = z.object({ transacaoId: z.string().min(1) });
 /** Concilia a transação com um lançamento previsto existente → confirma-o. */
 export const conciliarComLancamento = defineAction(
   { ...base, acao: "conciliar-transacao", entidade: "TransacaoBancaria", schema: conciliarSchema },
-  async (i) => {
+  async (i, ctx) => {
     const t = await prisma.transacaoBancaria.findUnique({ where: { id: i.transacaoId } });
     if (!t) throw new ActionError("Transação não encontrada.");
     if (t.conciliado) throw new ActionError("Transação já conciliada.");
 
     await prisma.$transaction(async (tx) => {
+      // Máquina de situações (N1): cancelado, em aprovação, previsão e excluído não se conciliam (A2).
+      const { estado } = await exigirOperacao(tx, i.lancamentoId, "conciliar");
       // G1c: o alvo agora pode ser um lançamento JÁ confirmado (reconciliar um pagamento de
       // produção depois de desfazer uma conciliação errada). O que continua proibido é
       // roubar o vínculo de outra transação, ou ressuscitar cancelado/excluído.
@@ -48,6 +51,9 @@ export const conciliarComLancamento = defineAction(
         where: { id: alvo.id },
         data: { status: "confirmado", dataConfirmacao: t.data, contaId: t.contaId },
       });
+      if (estado.status !== "confirmado") {
+        await tx.lancamentoStatusHistorico.create({ data: { lancamentoId: alvo.id, de: estado.status, para: "confirmado", autorId: ctx.user.id } });
+      }
       await tx.transacaoBancaria.update({
         where: { id: t.id },
         data: { conciliado: true, lancamentoId: alvo.id },
@@ -86,6 +92,7 @@ export const criarLancamentoDaTransacao = defineAction(
           categoriaId: i.categoriaId,
           contaId: t.contaId,
           autorId: user.id,
+          statusHistorico: { create: { de: null, para: "confirmado", autorId: user.id } },
         },
       });
       await tx.transacaoBancaria.update({

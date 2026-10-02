@@ -95,3 +95,69 @@ Migração `20261002100000_recorrencia_dia_util` (aditiva: enum + 3 colunas com 
 ajustar o compromisso recorrente da folha para **Dia útil 5, vence no mês seguinte** e cadastrar o do
 adiantamento, se houver. Os compromissos recorrentes (F6A) ainda não estão em produção, então não há conta
 gerada pela regra antiga para corrigir.
+
+## N1 — máquina de situações única (Opus) — concluída
+
+### Regra (`financeiro/lancamentos/transicoes.ts`, pura)
+
+`motivoParaNao(operação, estado)` e `situacaoDepois(operação, estado)` para baixar, conciliar, estornar,
+cancelar, reabrir, excluir, editar, aprovar e rejeitar. O estado (`estadoDoLancamento`) vem das colunas:
+situação, excluído, conciliado (tem transação), distribuído (tem distribuição), origem (produção, ART,
+previsão do cronograma, manual) e rejeitado (tem motivo de rejeição).
+
+| Operação | Pode | Não pode (frase) |
+| --- | --- | --- |
+| baixar | previsto | em aprovação, pago, cancelado ("reabra antes") |
+| conciliar | previsto, pago (G1c) | já conciliado, em aprovação, cancelado |
+| estornar | pago | conciliado ("desconcilie antes"), produção (tela de Produção) |
+| cancelar | previsto, em aprovação | pago ("estorne antes"), conciliado, produção, ART |
+| reabrir | cancelado | produção, ART |
+| excluir | o resto | conciliado, receita distribuída, produção, ART |
+| editar | o resto | cancelado; conciliado não muda o valor |
+
+Excluído e previsão do cronograma recusam tudo. Reabrir rejeitado volta à aprovação, limpo.
+
+### Onde se aplica
+
+Confirmar, baixar em lote, cancelar, excluir, editar, estornar e reabrir (livro caixa), conciliar com
+lançamento (conciliação), aprovar e rejeitar (Aprovações). Toda escrita é `updateMany` condicionada à
+situação lida e grava `LancamentoStatusHistorico` — também na criação, na conciliação, no OFX automático
+e no lançamento criado da transação.
+
+### Estorno (`estornarNoBanco`)
+
+- Volta a `previsto`, sem `dataConfirmacao` nem `valorEfetivo`.
+- Baixa parcial: o resto em aberto sai junto (exclusão lógica). O resto é achado por
+  `Lancamento.restanteDeId` (migração `20261002120000_lancamento_restante_de`, gravado pela baixa e pelo
+  lote de pagamentos) ou, para restos antigos, por `recorrenciaGrupo = id` + a marca da observação. Resto
+  pago recusa; parcial antigo sem resto achado estorna e avisa para conferir.
+- Receita distribuída: apaga os movimentos de alocação e a distribuição, com lock das caixinhas; recusa
+  se o alocado de alguma ficaria negativo.
+
+### A8 · Desfazer importação
+
+Exclusão lógica do lote, recusada (`motivoParaNaoDesfazer`) se algum lançamento foi conciliado,
+distribuído ou alterado depois da importação (`updatedAt` mais de 5 s depois de `createdAt`). Dedup conta
+os excluídos à mão e ignora os de lote desfeito.
+
+### Tela
+
+Livro caixa: **Estornar** (pago, com confirmação) e **Reabrir** (cancelado) no menu de contexto e no ⋯;
+cancelar pago e estornar/cancelar/excluir conciliado aparecem desabilitados com a frase do servidor.
+
+### Fica para as fases seguintes
+
+- Desconciliar devolvendo ao estado anterior, OFX por conta e sem empate automático: N4.
+- Alçada ao mudar valor e por total do parcelamento: N3.
+- Produtores (ART, serviço, folha, projetista) gravando histórico na criação: N6/N7.
+
+### Verificação do N1
+
+`transicoes.test.ts`, `acoes.test.ts`, `desfazer.test.ts`; `smoke:financeiro-core` (19 checagens novas,
+com corrida de dois estornos); smokes planejador, sync-pagamento, pagamento-fase, previsão, onda1/2/4/5 e
+onda3efg verdes. `smoke:onda3` falha em "#geral inclui CLT" (chat, permissão `chat:geral`), fora do
+Financeiro.
+
+### Deploy do N1
+
+Migração `20261002120000_lancamento_restante_de` (aditiva). Nada a rodar à mão.

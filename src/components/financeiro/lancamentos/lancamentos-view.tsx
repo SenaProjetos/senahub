@@ -8,7 +8,7 @@ import {
   FileSpreadsheet, X, ArrowLeftRight, Receipt,
 } from "lucide-react";
 import {
-  cancelarLancamento, excluirLancamento, baixarEmLote,
+  cancelarLancamento, excluirLancamento, baixarEmLote, estornarLancamento, reabrirLancamento,
 } from "@/modules/financeiro/lancamentos/actions";
 import type { LivroCaixaItem, OpcoesLancamento } from "@/modules/financeiro/lancamentos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -45,10 +45,12 @@ import {
   ACAO_COPIAR_DESCRICAO,
   ACAO_DETALHES,
   ACAO_EDITAR,
+  ACAO_ESTORNAR,
   ACAO_EXCLUIR,
   ACAO_LOTE_BAIXAR,
   ACAO_LOTE_CANCELAR,
   ACAO_LOTE_EXCLUIR,
+  ACAO_REABRIR,
   itensDeLancamento,
   itensDeLoteLancamentos,
 } from "@/modules/financeiro/lancamentos/acoes";
@@ -513,6 +515,8 @@ export function LancamentosView({
     else if (item.id === ACAO_EDITAR) setEditar(l);
     else if (item.id === ACAO_CONFIRMAR) setConfirmar(l);
     else if (item.id === ACAO_CANCELAR) cancelar(l.id);
+    else if (item.id === ACAO_ESTORNAR) estornar(l.id);
+    else if (item.id === ACAO_REABRIR) reabrir(l.id);
     else if (item.id === ACAO_EXCLUIR) excluir(l.id);
     else if (item.id === ACAO_COPIAR_DESCRICAO) {
       if (await copiarTexto(l.descricao)) toast.success("Descrição copiada.");
@@ -524,6 +528,33 @@ export function LancamentosView({
     start(async () => {
       const r = await cancelarLancamento({ id });
       if (r.ok) { toast.success("Cancelado."); router.refresh(); } else toast.error(r.error);
+    });
+  }
+  function estornar(id: string) {
+    start(async () => {
+      const r = await estornarLancamento({ id });
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
+      const extras = [
+        r.data.restantesExcluidos > 0 ? "o saldo restante em aberto saiu junto" : null,
+        r.data.distribuicaoDesfeita ? "a distribuição entre caixinhas foi desfeita" : null,
+      ].filter(Boolean);
+      toast.success(extras.length > 0 ? `Estornado: ${extras.join(" e ")}.` : "Estornado: voltou a ficar em aberto.");
+      if (r.data.aviso) toast.warning(r.data.aviso);
+      router.refresh();
+    });
+  }
+  function reabrir(id: string) {
+    start(async () => {
+      const r = await reabrirLancamento({ id });
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
+      toast.success(r.data.status === "aguardando_aprovacao" ? "Reaberto: voltou para a aprovação." : "Reaberto: voltou a ficar em aberto.");
+      router.refresh();
     });
   }
   function excluir(id: string) {
@@ -819,7 +850,7 @@ export function LancamentosView({
     // Com a linha DENTRO de uma seleção de vários, o menu age sobre a seleção (regra 3 da ADR-0002).
     const menuItens = alvosSelecao.length > 1 && selecao.marcado(l.id)
       ? itensDoLote
-      : itensDeLancamento({ status: l.status, anexos: l.anexos.length });
+      : itensDeLancamento({ status: l.status, anexos: l.anexos.length, conciliado: l.conciliado });
     return (
       <LinhaComMenu
         key={l.id}

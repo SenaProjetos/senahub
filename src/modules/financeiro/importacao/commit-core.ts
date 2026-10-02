@@ -4,6 +4,7 @@
  * lançamentos numa única transação atômica.
  */
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
+import { ActionError } from "@/lib/action-error";
 import { validarCpfCnpj } from "@/lib/documento";
 import { chaveMatch } from "@/lib/import/valores";
 import {
@@ -15,6 +16,7 @@ import {
   type ResultadoNorm,
   type LinhaNorm,
 } from "@/modules/financeiro/importacao/processar";
+import { motivoParaNaoDesfazer } from "@/modules/financeiro/importacao/desfazer";
 
 type Tx = Prisma.TransactionClient;
 type Cat = { id: string; codigo: string };
@@ -271,11 +273,33 @@ export async function executarCommit(
   );
 }
 
-/** Desfaz um lote: remove os lançamentos e marca o lote como desfeito. */
+/**
+ * Desfaz um lote (A8): exclusão LÓGICA dos lançamentos e o lote marcado como desfeito — só para o
+ * lote intocado (`motivoParaNaoDesfazer`). Antes apagava de vez, inclusive o já conciliado,
+ * distribuído ou editado. "Alterado" = `updatedAt` mais de 5 s depois da criação (a importação
+ * grava os dois no mesmo instante).
+ */
 export async function executarDesfazer(db: PrismaClient, loteId: string): Promise<{ removidos: number }> {
   return db.$transaction(async (tx) => {
-    const del = await tx.lancamento.deleteMany({ where: { importLoteId: loteId } });
+    // Lock do lote: dois "desfazer" ao mesmo tempo não contam nem marcam duas vezes.
+    await tx.$queryRaw`SELECT id FROM importacao_financeira WHERE id = ${loteId} FOR UPDATE`;
+    const [uso] = await tx.$queryRaw<{ conciliados: bigint; distribuidos: bigint; alterados: bigint }[]>`
+      SELECT
+        count(t.id) AS conciliados,
+        count(d.id) AS distribuidos,
+        count(*) FILTER (WHERE l."updatedAt" > l."createdAt" + interval '5 seconds') AS alterados
+      FROM lancamento l
+      LEFT JOIN transacao_bancaria t ON t."lancamentoId" = l.id
+      LEFT JOIN distribuicao_recebimento d ON d."lancamentoId" = l.id
+      WHERE l."importLoteId" = ${loteId} AND l."excluidoEm" IS NULL`;
+    const motivo = motivoParaNaoDesfazer({
+      conciliados: Number(uso?.conciliados ?? 0),
+      distribuidos: Number(uso?.distribuidos ?? 0),
+      alterados: Number(uso?.alterados ?? 0),
+    });
+    if (motivo) throw new ActionError(motivo);
+    const r = await tx.lancamento.updateMany({ where: { importLoteId: loteId, excluidoEm: null }, data: { excluidoEm: new Date() } });
     await tx.importacaoFinanceira.update({ where: { id: loteId }, data: { desfeitoEm: new Date() } });
-    return { removidos: del.count };
+    return { removidos: r.count };
   });
 }

@@ -61,6 +61,10 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 - Contas a pagar e a receber ganham **prioridade** (P1 a P4), **confiança** do recebimento e **Marcar
   como confirmada pelo cliente**, também em lote.
 - **Aprovações** com menu de contexto, aprovação em lote e motivo da rejeição numa janela própria.
+- **Estornar** um lançamento pago por engano (volta a ficar em aberto, levando junto o saldo de uma
+  baixa parcial e a distribuição entre caixinhas) e **reabrir** um cancelado, direto no livro caixa.
+- **Desfazer uma importação** de planilha não apaga mais o que já foi trabalhado: lote com lançamento
+  conciliado, distribuído ou alterado é recusado.
 - **Conciliação** com menu de contexto na transação.
 - Os relatórios de resultado ganharam **abas** (DRE, Rentabilidade, DFC, Balanço, Orçamento).
 - "Planejamento de pagamentos" agora se chama **Pagamentos em lote**.

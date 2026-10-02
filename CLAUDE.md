@@ -43,7 +43,7 @@ npm run smoke:previsao-recebimento  # contrato por entrega: previsão no caixa, 
 npm run smoke:duplicar-projeto      # duplicar projeto com EAP: estrutura, IDs novos, cronograma em rascunho, o que NÃO copia
 npm run smoke:modelo-disciplina     # modelos de EAP por disciplina: criar do modelo de projeto, "Gerar EAP das disciplinas", fases encadeadas
 npm run smoke:apagar-eap            # apagar a EAP inteira (rascunho): o que impede, o que vai junto, o que fica
-npm run smoke:financeiro-core       # núcleo do financeiro (N0): parcelas do projeto sem apagar recebível, projetista pago no Financeiro, aprovação simultânea, recebido pelo valor pago
+npm run smoke:financeiro-core       # núcleo do financeiro: N0 (parcelas do projeto, projetista pago no Financeiro, recebido pelo pago) e N1 (estorno, reabrir, caminhos impossíveis, desfazer importação)
 npm run smoke:planejador            # planejador de caixa: S0 = caixa da Visão geral, só pendente vira evento, transferência, parcial, leitura não grava; aplicar cenário tudo-ou-nada (obsoleto, regra no 3º, corrida); caixinhas, distribuição, recorrência, fora do resultado, lucros de sócio e folha quitando o previsto
 npm run smoke:catalogo-nomenclatura # catálogo da versão: sigla que muda de dono (sinônimo/oficial), sair sem mexer em sigla, voltar escolhendo
 npm run verify:motor-cronograma     # motor do cronograma contra os projetos reais do banco
@@ -281,6 +281,18 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   refused once it is paid (estorno first). `RetiradaSocio` is frozen as history — it never became a
   `Lancamento`, so `criarRetiradaSocio` refuses and points to the recurrence (pró-labore) or to
   Distribuir/Adiantar lucros.
+- **One state machine for every `Lancamento`** (N1, `financeiro/lancamentos/transicoes.ts`, pure): every
+  action that changes a lançamento's situation asks `motivoParaNao(op, estado)` before writing, reading the
+  state with `exigirOperacao()` (`situacao-service.ts`, uses `findUnique` so an excluded row comes back and
+  is refused — A12). The same sentence is the server's `ActionError` and the menu's disabled reason.
+  Paid never cancels (estorno first), conciliado never estornos/cancels/excludes, cancelado never pays,
+  `aguardando_aprovacao` never pays nor conciliates. Writes are `updateMany` conditioned on the status read
+  (count ≠ 1 → `MOTIVO_MUDOU`) plus a `LancamentoStatusHistorico` row. Estorno (`estornarNoBanco`) takes
+  the open partial remainder with it (`Lancamento.restanteDeId`, set by every path that creates a
+  remainder) and undoes the caixinha distribution; reabrir sends a rejected expense back to approval. A new
+  status-changing path must go through this — never a bare `lancamento.update({ status })`. Undoing an
+  import is a soft delete refused once any row was conciliated, distributed or edited; dedup
+  (`hashesExistentes`) sees rows excluded by hand but not rows of an undone lote.
 - **Paid value, never nominal** (`modules/financeiro/valor-pago.ts`): any sum of REALIZED rows uses
   `somaPaga()` (row by row, `valorEfetivo ?? valor`, cents) — `_sum.valor` counts what was expected, and
   `_sum.valorEfetivo ?? _sum.valor` drops every row without `valorEfetivo` as soon as one has it.

@@ -86,7 +86,12 @@ export async function POST(req: Request) {
       await prisma.$transaction([
         prisma.lancamento.update({
           where: { id: alvo.id },
-          data: { status: "confirmado", dataConfirmacao: t.data, contaId },
+          data: {
+            status: "confirmado",
+            dataConfirmacao: t.data,
+            contaId,
+            statusHistorico: { create: { de: "previsto", para: "confirmado", autorId: user.id } },
+          },
         }),
         prisma.transacaoBancaria.update({
           where: { id: trans.id },

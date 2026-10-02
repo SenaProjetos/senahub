@@ -3,7 +3,7 @@ titulo: Lançamentos (receitas e despesas)
 descricao: Cadastro de receitas e despesas, com previsto/confirmado, recorrência, campos obrigatórios e exclusão reversível.
 resumo: Registre receitas e despesas (previstas ou já confirmadas), com categoria, conta, forma, projeto, fornecedor/cliente; confirme o realizado, use recorrência mensal e exclua com segurança (soft delete).
 tags: [lançamentos, receita, despesa, previsto, confirmado, recorrência, categoria, conta, forma de pagamento, soft delete]
-palavras-chave: [lançamento, receita, despesa, previsto, confirmado, realizado, recorrência, vencimento, competência, categoria, fornecedor, cliente]
+palavras-chave: [lançamento, receita, despesa, previsto, confirmado, realizado, recorrência, vencimento, competência, categoria, fornecedor, cliente, estornar, estorno, reabrir, desfazer pagamento, histórico]
 sinonimos: [movimentações, entradas e saídas, transações]
 ---
 
@@ -42,7 +42,11 @@ Campos:
 | Estado | Significado |
 | --- | --- |
 | **Previsto** (em aberto) | Lançado, ainda não realizado (entra no aging e na projeção) |
+| **Aguardando aprovação** | Despesa acima da alçada: não se paga nem se concilia até ser aprovada |
 | **Pago / Recebido** | Realizado (entra no caixa, no resultado e na DRE). No filtro do livro caixa aparece como "Pagos e recebidos" e, no painel por conta, como "Realizado" |
+| **Cancelado** | Fora do caixa e das contas; pode ser reaberto |
+
+Cada mudança de estado fica no **histórico** do lançamento (em **Detalhes**), com quem fez e quando.
 
 - **Confirmar** um lançamento previsto pede: conta, forma, **data de confirmação** e,
   opcionalmente, o **valor efetivo** (se diferiu do previsto).
@@ -53,11 +57,26 @@ Campos:
 - **Excluir:** é **reversível** — o lançamento é marcado como excluído (soft delete) e
   some das listas, mas permanece registrado internamente.
 
+## Estornar e reabrir
+
+- **Estornar** (lançamento pago ou recebido): ele volta a ficar **em aberto**, sem data nem valor
+  pagos. Use quando a baixa foi feita por engano.
+  - **Baixa parcial:** o saldo restante que ainda estava em aberto sai junto e o lançamento volta ao
+    valor cheio. Se o saldo restante já foi pago, estorne ele primeiro.
+  - **Receita distribuída entre as caixinhas:** a distribuição é desfeita junto. Se uma caixinha já
+    liberou ou transferiu o que recebeu, reserve de volta antes.
+  - **Conciliado com o extrato** não se estorna: desconcilie a transação antes.
+  - **Pagamento de produção** (projetista) se estorna pela tela de [Produção](producao.md).
+- **Reabrir** (lançamento cancelado): volta a ficar em aberto. Despesa **rejeitada** na aprovação
+  volta para a **fila de aprovação**.
+- Lançamento **pago não se cancela**: estorne antes. Conciliado também não se exclui.
+
 ## Menu de ações e seleção em lote
 
 Clique com o **botão direito** num lançamento (ou use o botão **⋯**) para **abrir os detalhes**,
-**editar**, **confirmar** (quando está previsto), **copiar a descrição**, **cancelar** ou
-**excluir**. O que o estado do lançamento não permite aparece esmaecido, com o motivo.
+**editar**, **confirmar** (quando está previsto), **estornar** (quando está pago), **reabrir** (quando
+está cancelado), **copiar a descrição**, **cancelar** ou **excluir**. O que o estado do lançamento não
+permite aparece esmaecido, com o motivo.
 
 Marque vários lançamentos e a barra da parte de baixo da tela oferece **baixar**, **cancelar** e
 **excluir** todos de uma vez, com a contagem na confirmação. A seleção continua valendo ao mudar
@@ -74,7 +93,7 @@ seguir. Veja [Aprovações](aprovacoes.md).
 | Ação | Permissão |
 | --- | --- |
 | Ver lançamentos | `financeiro:ver` |
-| Criar / editar / confirmar / excluir | `financeiro:gerir` |
+| Criar / editar / confirmar / estornar / reabrir / excluir | `financeiro:gerir` |
 
 ## Erros possíveis e soluções
 
@@ -84,6 +103,11 @@ seguir. Veja [Aprovações](aprovacoes.md).
 | "Selecione a categoria." | Categoria vazia | Escolher categoria |
 | Avisa que falta um campo (ex.: "Centro de custo") | Campo obrigatório pela configuração | Preencher o campo exigido |
 | Despesa fica "aguardando aprovação" | Valor acima da alçada | Aguardar aprovador |
+| "Já foi pago ou recebido: estorne antes." | Cancelar um lançamento pago | Estornar e depois cancelar |
+| "Conciliado com o extrato: desconcilie a transação antes." | Estornar, cancelar ou excluir um conciliado | Desconciliar em Conciliação |
+| "Lançamento cancelado: reabra antes." | Baixar, conciliar ou editar um cancelado | Reabrir |
+| "O saldo restante desta baixa parcial já foi pago: estorne ele antes." | Estornar a primeira parte de uma baixa parcial | Estornar o saldo restante primeiro |
+| "As caixinhas já liberaram ou transferiram parte do que esta receita reservou…" | Estornar receita distribuída | Reservar de volta nas caixinhas |
 
 ## Funcionalidades relacionadas
 

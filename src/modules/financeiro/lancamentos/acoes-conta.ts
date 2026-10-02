@@ -2,6 +2,7 @@ import { BadgeCheck, Check, Copy, Flag, Paperclip, Pencil, PiggyBank, Undo2 } fr
 
 import type { AcaoItem } from "@/components/ui/acoes";
 import type { Confianca, Prioridade } from "@/modules/financeiro/liquidez/tipos";
+import { MOTIVO_EM_APROVACAO } from "@/modules/financeiro/lancamentos/transicoes";
 
 /**
  * Ações de uma conta a pagar/receber — **puro**. Mesmo array para o menu de contexto, o `...` e a
@@ -33,8 +34,8 @@ const ROTULO_PRIORIDADE: Record<Prioridade, string> = {
   p4: "P4 · adiável",
 };
 
-/** Mesmo texto do aviso que a tela já dava ao clicar em pagar uma despesa ainda não aprovada. */
-export const MOTIVO_AGUARDANDO_APROVACAO = "Despesa aguardando aprovação.";
+/** A mesma frase com que o servidor recusa a baixa (máquina de situações, `transicoes.ts`). */
+export const MOTIVO_AGUARDANDO_APROVACAO = MOTIVO_EM_APROVACAO;
 
 export type ContaParaAcoes = {
   status: string;

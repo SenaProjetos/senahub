@@ -1,19 +1,24 @@
-import { Ban, Check, Copy, Paperclip, Pencil, Trash2 } from "lucide-react";
+import { Ban, Check, Copy, Paperclip, Pencil, RotateCcw, Trash2, Undo2 } from "lucide-react";
 
 import type { AcaoItem } from "@/components/ui/acoes";
+import { MOTIVO_CONCILIADO, MOTIVO_PAGO_ESTORNE } from "@/modules/financeiro/lancamentos/transicoes";
 
 /**
  * Ações de um lançamento (livro-caixa) — **puro**, sem React e sem I/O. O mesmo array alimenta o
  * menu de contexto da linha, o `...` e a barra de seleção (ADR-0002, regra 2).
  *
- * As regras de estado são as que o `...` já tinha: editar/cancelar/excluir só em lançamento que não
- * está cancelado, confirmar só no previsto. Os gates de servidor continuam nas actions.
+ * As regras de estado seguem a máquina de situações (`transicoes.ts`, N1): confirmar só no previsto,
+ * estornar só no pago, reabrir só no cancelado; pago não se cancela (estorna antes) e conciliado não
+ * se estorna nem se exclui — desabilitados com a mesma frase do servidor. O que só o servidor sabe
+ * (produção, ART) ele recusa com a frase dele.
  */
 
 export const ACAO_DETALHES = "detalhes";
 export const ACAO_EDITAR = "editar";
 export const ACAO_CONFIRMAR = "confirmar";
 export const ACAO_CANCELAR = "cancelar";
+export const ACAO_ESTORNAR = "estornar";
+export const ACAO_REABRIR = "reabrir";
 export const ACAO_EXCLUIR = "excluir";
 export const ACAO_COPIAR_DESCRICAO = "copiar-descricao";
 export const ACAO_LOTE_BAIXAR = "lote-baixar";
@@ -24,10 +29,14 @@ export const ACAO_LOTE_EXCLUIR = "lote-excluir";
 export type LancamentoParaAcoes = {
   status: string;
   anexos: number;
+  /** Tem transação do banco conciliada. */
+  conciliado?: boolean;
 };
 
 export function itensDeLancamento(l: LancamentoParaAcoes): AcaoItem[] {
   const cancelado = l.status === "cancelado";
+  const pago = l.status === "confirmado";
+  const conciliado = l.conciliado === true;
   const itens: (AcaoItem | null)[] = [
     {
       tipo: "acao",
@@ -40,7 +49,31 @@ export function itensDeLancamento(l: LancamentoParaAcoes): AcaoItem[] {
     // Reposição do "Copiar" que o menu nativo dava no texto da linha (ADR-0002, regra 1).
     { tipo: "acao", id: ACAO_COPIAR_DESCRICAO, rotulo: "Copiar descrição", icone: Copy },
     cancelado ? null : { tipo: "separador", id: "sep-estado" },
-    cancelado ? null : { tipo: "acao", id: ACAO_CANCELAR, rotulo: "Cancelar lançamento", icone: Ban },
+    pago
+      ? {
+          tipo: "acao",
+          id: ACAO_ESTORNAR,
+          rotulo: "Estornar",
+          icone: Undo2,
+          desabilitado: conciliado ? MOTIVO_CONCILIADO : undefined,
+          confirmar: {
+            titulo: "Estornar este lançamento?",
+            descricao:
+              "Ele volta a ficar em aberto, sem data nem valor pagos. O saldo restante de uma baixa parcial e a distribuição entre caixinhas saem junto.",
+            rotuloConfirmar: "Estornar",
+          },
+        }
+      : null,
+    cancelado ? { tipo: "acao", id: ACAO_REABRIR, rotulo: "Reabrir", icone: RotateCcw } : null,
+    cancelado
+      ? null
+      : {
+          tipo: "acao",
+          id: ACAO_CANCELAR,
+          rotulo: "Cancelar lançamento",
+          icone: Ban,
+          desabilitado: pago ? (conciliado ? MOTIVO_CONCILIADO : MOTIVO_PAGO_ESTORNE) : undefined,
+        },
     cancelado
       ? null
       : {
@@ -49,6 +82,7 @@ export function itensDeLancamento(l: LancamentoParaAcoes): AcaoItem[] {
           rotulo: "Excluir",
           icone: Trash2,
           variant: "destructive",
+          desabilitado: conciliado ? MOTIVO_CONCILIADO : undefined,
           // Antes excluía direto, sem perguntar: regra 4 da ADR-0002 exige confirmação.
           confirmar: {
             titulo: "Excluir este lançamento?",

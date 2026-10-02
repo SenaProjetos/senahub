@@ -258,6 +258,8 @@ export const executarPlano = defineAction(
               ...camposDoPlanejador(lanc),
               observacao: [lanc.observacao, "Saldo restante de pagamento parcial (planejamento)"].filter(Boolean).join(" · "),
               recorrenciaGrupo: lanc.recorrenciaGrupo ?? lanc.id,
+              // N1: o estorno do pago acha o resto por aqui e o tira junto.
+              restanteDeId: lanc.id,
               autorId: user.id,
             },
           }),

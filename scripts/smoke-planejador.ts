@@ -229,6 +229,8 @@ async function main() {
   } finally {
     if (loteId) {
       await executarDesfazer(prisma, loteId);
+      // Desfazer é exclusão lógica (A8): a limpeza do smoke apaga de vez.
+      await prisma.lancamento.deleteMany({ where: { importLoteId: loteId, excluidoEm: { not: undefined } } });
       await prisma.importacaoFinanceira.delete({ where: { id: loteId } });
     }
     await prisma.contaBancaria.deleteMany({ where: { nome: { startsWith: tag } } });

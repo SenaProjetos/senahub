@@ -1837,6 +1837,11 @@ model Lancamento {
   recorrenciaCompetencia String?
   /// Receita realizada que já foi distribuída (ou pulada) entre as caixinhas (F5).
   distribuicao    DistribuicaoRecebimento?
+  /// Resto de um pagamento parcial: aponta para o lançamento pago em parte (N1). Estornar o pago tira
+  /// junto o resto ainda em aberto; resto já pago impede o estorno. `SetNull`: o resto sobrevive.
+  restanteDeId    String?
+  restanteDe      Lancamento?  @relation("RestanteDoParcial", fields: [restanteDeId], references: [id], onDelete: SetNull)
+  restantes       Lancamento[] @relation("RestanteDoParcial")
 
   autorId String
   autor   User   @relation("LancamentoAutor", fields: [autorId], references: [id])
@@ -1866,6 +1871,7 @@ model Lancamento {
   @@index([transferenciaId])
   @@index([caixinhaId])
   @@index([socioId])
+  @@index([restanteDeId])
   @@unique([recorrenciaOrigemId, recorrenciaCompetencia])
   @@map("lancamento")
 }

@@ -7,15 +7,18 @@ import {
   ACAO_COPIAR_DESCRICAO,
   ACAO_DETALHES,
   ACAO_EDITAR,
+  ACAO_ESTORNAR,
   ACAO_EXCLUIR,
   ACAO_LOTE_BAIXAR,
   ACAO_LOTE_CANCELAR,
   ACAO_LOTE_EXCLUIR,
+  ACAO_REABRIR,
   MOTIVO_NENHUM_PREVISTO,
   MOTIVO_SO_CANCELADOS,
   itensDeLancamento,
   itensDeLoteLancamentos,
 } from "./acoes";
+import { MOTIVO_CONCILIADO, MOTIVO_PAGO_ESTORNE } from "./transicoes";
 
 const ids = (itens: readonly AcaoItem[]) => itens.map((i) => i.id);
 const achar = (itens: readonly AcaoItem[], id: string) => itens.find((i) => i.id === id);
@@ -37,8 +40,22 @@ describe("itensDeLancamento", () => {
     expect(achar(itensDeLancamento({ status: "confirmado", anexos: 0 }), ACAO_CONFIRMAR)).toBeUndefined();
   });
 
-  it("cancelado: só detalhes e copiar — não edita, cancela nem exclui", () => {
-    expect(ids(itensDeLancamento({ status: "cancelado", anexos: 0 }))).toEqual([ACAO_DETALHES, ACAO_COPIAR_DESCRICAO]);
+  it("cancelado: detalhes, copiar e reabrir — não edita, cancela nem exclui", () => {
+    expect(ids(itensDeLancamento({ status: "cancelado", anexos: 0 }))).toEqual([ACAO_DETALHES, ACAO_COPIAR_DESCRICAO, ACAO_REABRIR]);
+  });
+
+  it("N1: pago estorna (com confirmação) e não cancela — a frase é a do servidor", () => {
+    const itens = itensDeLancamento({ status: "confirmado", anexos: 0 });
+    expect(achar(itens, ACAO_ESTORNAR)).toMatchObject({ desabilitado: undefined, confirmar: { rotuloConfirmar: "Estornar" } });
+    expect(achar(itens, ACAO_CANCELAR)).toMatchObject({ desabilitado: MOTIVO_PAGO_ESTORNE });
+    expect(achar(itensDeLancamento({ status: "previsto", anexos: 0 }), ACAO_ESTORNAR)).toBeUndefined();
+  });
+
+  it("N1: conciliado não estorna, não cancela nem exclui", () => {
+    const itens = itensDeLancamento({ status: "confirmado", anexos: 0, conciliado: true });
+    for (const id of [ACAO_ESTORNAR, ACAO_CANCELAR, ACAO_EXCLUIR]) {
+      expect(achar(itens, id)).toMatchObject({ desabilitado: MOTIVO_CONCILIADO });
+    }
   });
 
   it("mostra a contagem de anexos no rótulo de detalhes", () => {

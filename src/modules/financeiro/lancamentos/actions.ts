@@ -18,6 +18,8 @@ import { removerArquivo } from "@/lib/storage";
 import { criarLancamentoNoTx, notificarAprovacaoPendente } from "@/modules/financeiro/lancamentos/service";
 import { camposDoPlanejador, saldoRestante } from "@/modules/financeiro/lancamentos/parcial";
 import { pagamentoPagoNoFinanceiro } from "@/modules/financeiro/custo/lancamento-custo";
+import { exigirOperacao, estornarNoBanco, MOTIVO_MUDOU, reabrirNoBanco } from "@/modules/financeiro/lancamentos/situacao-service";
+import { paraCentavos } from "@/modules/financeiro/liquidez/dinheiro";
 import { getExclusaoCompleto } from "@/modules/financeiro/config/queries";
 import { verificarSenha } from "@/modules/financeiro/config/senha";
 
@@ -36,23 +38,6 @@ function data(s?: string): Date | undefined {
   if (!s) return undefined;
   const d = new Date(s);
   return isNaN(d.getTime()) ? undefined : d;
-}
-
-/**
- * Lançamento gerado pela taxa de uma ART: cancelar ou excluir por aqui deixaria a ART apontando
- * para um lançamento morto, e a próxima edição da ART o recriaria. A porta certa é a aba ARTs
- * do projeto (mudar custeio/situação ou excluir a ART). Baixar segue liberado.
- */
-async function barrarSeLancamentoDeArt(id: string) {
-  const art = await prisma.art.findFirst({
-    where: { OR: [{ lancamentoId: id }, { reembolsoLancamentoId: id }] },
-    select: { tipo: true, numero: true },
-  });
-  if (art) {
-    throw new ActionError(
-      `Este lançamento é da taxa da ${art.tipo} ${art.numero} — altere pela aba ARTs do projeto.`,
-    );
-  }
 }
 
 /** Snapshot JSON-safe do lançamento p/ auditoria valor-anterior × novo. */
@@ -129,25 +114,14 @@ export const criarLancamento = defineAction(
   },
 );
 
-/**
- * F7.2: a previsão do cronograma (`previsao`) é da sincronização do contrato por entrega — editar,
- * receber, cancelar ou excluir por aqui seria desfeito na próxima mudança do marco, ou receberia
- * dinheiro de uma parcela que ninguém faturou. A porta é faturar a parcela no contrato.
- */
-const MOTIVO_PREVISAO =
-  "É uma previsão do cronograma (contrato por entrega): ela anda com o marco e vira cobrança quando a parcela é faturada no contrato.";
-
-async function barrarSePrevisao(id: string) {
-  const l = await prisma.lancamento.findUnique({ where: { id }, select: { status: true } });
-  if (l?.status === "previsao") throw new ActionError(MOTIVO_PREVISAO);
-}
-
 export const editarLancamento = defineAction(
   { ...base, acao: "editar-lancamento", entidade: "Lancamento", schema: editarLancamentoSchema, capturarAntes: (i) => snapshotLancamento(i.id) },
   async (i) => {
-    await barrarSePrevisao(i.id);
-    const atual = await prisma.lancamento.findUnique({ where: { id: i.id }, select: { tipo: true, status: true } });
-    if (!atual) throw new ActionError("Lançamento não encontrado.");
+    // Máquina de situações (N1): excluído, cancelado e previsão do cronograma não se editam aqui.
+    const { lancamento: atual, estado } = await exigirOperacao(prisma, i.id, "editar");
+    if (estado.conciliado && paraCentavos(i.valor) !== paraCentavos(atual.valor)) {
+      throw new ActionError("Conciliado com o extrato: o valor não muda por aqui — desconcilie a transação antes.");
+    }
     if (i.caixinhaId !== undefined) await validarCaixinhaDoLancamento(atual, i.caixinhaId);
     await prisma.lancamento.update({
       where: { id: i.id },
@@ -260,33 +234,29 @@ export const definirConfiancaLancamento = defineAction(
 export const confirmarLancamento = defineAction(
   { ...base, acao: "confirmar-lancamento", entidade: "Lancamento", schema: confirmarLancamentoSchema, capturarAntes: (i) => snapshotLancamento(i.id) },
   async (i, ctx) => {
-    const lanc = await prisma.lancamento.findUnique({ where: { id: i.id } });
-    if (!lanc) throw new ActionError("Lançamento não encontrado.");
-    if (lanc.status === "confirmado") throw new ActionError("Já confirmado.");
-    if (lanc.status === "aguardando_aprovacao") throw new ActionError("Despesa aguardando aprovação.");
-    if (lanc.status === "previsao") throw new ActionError(MOTIVO_PREVISAO);
-
-    // Valor pago: usa o efetivo informado; se < total, o saldo vira um novo lançamento previsto.
-    const restante = saldoRestante(Number(lanc.valor), i.valorEfetivo);
     const quando = data(i.dataConfirmacao || undefined) ?? new Date();
+    const restante = await prisma.$transaction(async (tx) => {
+      await exigirOperacao(tx, i.id, "baixar");
+      const lanc = await tx.lancamento.findUniqueOrThrow({ where: { id: i.id } });
+      // Valor pago: usa o efetivo informado; se < total, o saldo vira um novo lançamento previsto.
+      const restante = saldoRestante(Number(lanc.valor), i.valorEfetivo);
 
-    const ops = [
-      prisma.lancamento.update({
-        where: { id: i.id },
+      // Condicionado à situação lida: duas baixas ao mesmo tempo não pagam duas vezes.
+      const r = await tx.lancamento.updateMany({
+        where: { id: i.id, status: "previsto", excluidoEm: null },
         data: {
-          status: "confirmado" as const,
+          status: "confirmado",
           dataConfirmacao: quando,
           contaId: i.contaId || lanc.contaId,
           formaId: i.formaId || lanc.formaId,
           valorEfetivo: i.valorEfetivo ?? null,
-          statusHistorico: { create: { de: lanc.status, para: "confirmado", autorId: ctx.user.id } },
         },
-      }),
-    ];
+      });
+      if (r.count !== 1) throw new ActionError(MOTIVO_MUDOU);
+      await tx.lancamentoStatusHistorico.create({ data: { lancamentoId: i.id, de: lanc.status, para: "confirmado", autorId: ctx.user.id } });
 
-    if (restante != null) {
-      ops.push(
-        prisma.lancamento.create({
+      if (restante != null) {
+        await tx.lancamento.create({
           data: {
             tipo: lanc.tipo,
             descricao: lanc.descricao,
@@ -306,18 +276,18 @@ export const confirmarLancamento = defineAction(
             ...camposDoPlanejador(lanc),
             observacao: [lanc.observacao, "Saldo restante de pagamento parcial"].filter(Boolean).join(" · "),
             recorrenciaGrupo: lanc.recorrenciaGrupo ?? lanc.id,
+            // N1: o estorno do pago acha o resto por aqui e o tira junto.
+            restanteDeId: lanc.id,
             autorId: ctx.user.id,
+            statusHistorico: { create: { de: null, para: "previsto", autorId: ctx.user.id } },
           },
-        }) as (typeof ops)[number],
-      );
-    }
-
-    await prisma.$transaction([
-      ...ops,
-      ...(lanc.pagamentoProjetistaId
-        ? [prisma.pagamentoProjetista.updateMany(pagamentoPagoNoFinanceiro(lanc.pagamentoProjetistaId, quando))]
-        : []),
-    ]);
+        });
+      }
+      if (lanc.pagamentoProjetistaId) {
+        await tx.pagamentoProjetista.updateMany(pagamentoPagoNoFinanceiro(lanc.pagamentoProjetistaId, quando));
+      }
+      return restante;
+    });
     rev();
     return { id: i.id, restante };
   },
@@ -344,26 +314,23 @@ export const baixarEmLote = defineAction(
     });
     if (alvos.length === 0) throw new ActionError("Nenhum lançamento elegível (previsto) selecionado.");
 
-    const projetistas = alvos.flatMap((l) =>
-      l.pagamentoProjetistaId ? [prisma.pagamentoProjetista.updateMany(pagamentoPagoNoFinanceiro(l.pagamentoProjetistaId, quando))] : [],
-    );
-    await prisma.$transaction([
-      ...alvos.map((l) =>
-        prisma.lancamento.update({
-          where: { id: l.id },
-          data: {
-            status: "confirmado",
-            dataConfirmacao: quando,
-            contaId: i.contaId || l.contaId,
-            formaId: i.formaId || l.formaId,
-            statusHistorico: { create: { de: "previsto", para: "confirmado", autorId: ctx.user.id } },
-          },
-        }),
-      ),
-      ...projetistas,
-    ]);
+    // Um a um e condicionado ao previsto: o que mudou desde a leitura fica de fora, não é pago por cima.
+    const confirmados = await prisma.$transaction(async (tx) => {
+      let n = 0;
+      for (const l of alvos) {
+        const r = await tx.lancamento.updateMany({
+          where: { id: l.id, status: "previsto", excluidoEm: null },
+          data: { status: "confirmado", dataConfirmacao: quando, contaId: i.contaId || l.contaId, formaId: i.formaId || l.formaId },
+        });
+        if (r.count !== 1) continue;
+        n++;
+        await tx.lancamentoStatusHistorico.create({ data: { lancamentoId: l.id, de: "previsto", para: "confirmado", autorId: ctx.user.id } });
+        if (l.pagamentoProjetistaId) await tx.pagamentoProjetista.updateMany(pagamentoPagoNoFinanceiro(l.pagamentoProjetistaId, quando));
+      }
+      return n;
+    });
     rev();
-    return { confirmados: alvos.length, ignorados: i.ids.length - alvos.length };
+    return { confirmados, ignorados: i.ids.length - confirmados };
   },
 );
 
@@ -412,30 +379,42 @@ export const removerAnexoLancamento = defineAction(
 export const cancelarLancamento = defineAction(
   { ...base, acao: "cancelar-lancamento", entidade: "Lancamento", schema: idLancamentoSchema, capturarAntes: (i) => snapshotLancamento(i.id) },
   async (i, ctx) => {
-    const atual = await prisma.lancamento.findUnique({
-      where: { id: i.id },
-      select: { status: true, pagamentoProjetistaId: true },
-    });
-    // G1b/D31: mesma guarda que `excluirLancamento` já tinha. Cancelar por aqui o lançamento
-    // de um pagamento de produção deixava o pagamento `pago` apontando para lançamento
-    // cancelado — estado que a própria correção (F11) depois recusa. A Produção tem as duas
-    // portas certas: corrigir (F11) e estornar (G1b).
-    if (atual?.pagamentoProjetistaId) {
-      throw new ActionError(
-        "Este lançamento é de um pagamento de produção — corrija ou estorne pela tela de Produção.",
-      );
-    }
-    await barrarSeLancamentoDeArt(i.id);
-    if (atual?.status === "previsao") throw new ActionError(MOTIVO_PREVISAO);
-    await prisma.lancamento.update({
-      where: { id: i.id },
-      data: {
-        status: "cancelado",
-        statusHistorico: { create: { de: atual?.status ?? null, para: "cancelado", autorId: ctx.user.id } },
-      },
+    // Máquina de situações (N1): produção e ART pela origem (G1b/D31), pago só depois de estornado,
+    // conciliado nunca — a transação do banco ficaria "conciliada" com nada (A2).
+    const { estado } = await exigirOperacao(prisma, i.id, "cancelar");
+    await prisma.$transaction(async (tx) => {
+      const r = await tx.lancamento.updateMany({ where: { id: i.id, status: estado.status, excluidoEm: null }, data: { status: "cancelado" } });
+      if (r.count !== 1) throw new ActionError(MOTIVO_MUDOU);
+      await tx.lancamentoStatusHistorico.create({ data: { lancamentoId: i.id, de: estado.status, para: "cancelado", autorId: ctx.user.id } });
     });
     rev();
     return { id: i.id };
+  },
+);
+
+/**
+ * Estorna um pagamento ou recebimento (N1): volta a em aberto. Baixa parcial leva junto o saldo
+ * restante ainda em aberto; receita distribuída tem a distribuição entre caixinhas desfeita.
+ * Conciliado não estorna (desconcilie antes) e produção estorna pela tela de Produção.
+ */
+export const estornarLancamento = defineAction(
+  { ...base, acao: "estornar-lancamento", entidade: "Lancamento", schema: idLancamentoSchema, capturarAntes: (i) => snapshotLancamento(i.id) },
+  async (i, ctx) => {
+    const r = await estornarNoBanco(i.id, ctx.user.id);
+    rev();
+    revalidatePath("/financeiro/caixinhas");
+    return { id: i.id, ...r };
+  },
+);
+
+/** Reabre um cancelado (N1): volta a em aberto, ou à fila de aprovação se tinha sido rejeitado. */
+export const reabrirLancamento = defineAction(
+  { ...base, acao: "reabrir-lancamento", entidade: "Lancamento", schema: idLancamentoSchema, capturarAntes: (i) => snapshotLancamento(i.id) },
+  async (i, ctx) => {
+    const r = await reabrirNoBanco(i.id, ctx.user.id);
+    rev();
+    revalidatePath("/financeiro/aprovacoes");
+    return { id: i.id, ...r };
   },
 );
 
@@ -448,20 +427,20 @@ export const excluirLancamento = defineAction(
     capturarAntes: (i) => snapshotLancamento(i.id),
     redact: ["senha"],
   },
-  async (i) => {
+  async (i, ctx) => {
     const exclusao = await getExclusaoCompleto();
     if (exclusao.exigir && !verificarSenha(i.senha ?? "", exclusao.hash)) {
       throw new ActionError("Senha de exclusão incorreta.");
     }
-    const lanc = await prisma.lancamento.findUnique({ where: { id: i.id } });
-    if (!lanc) throw new ActionError("Lançamento não encontrado.");
-    if (lanc.pagamentoProjetistaId) {
-      throw new ActionError("Lançamento de folha não pode ser excluído aqui.");
-    }
-    if (lanc.status === "previsao") throw new ActionError(MOTIVO_PREVISAO);
-    await barrarSeLancamentoDeArt(i.id);
+    // Máquina de situações (N1): produção, ART, previsão, conciliado e receita distribuída não saem
+    // por aqui; excluído de novo é recusado (A12).
+    const { estado } = await exigirOperacao(prisma, i.id, "excluir");
     // Soft delete: marca excluidoEm; some das listagens/relatórios (filtro global no prisma).
-    await prisma.lancamento.update({ where: { id: i.id }, data: { excluidoEm: new Date() } });
+    await prisma.$transaction(async (tx) => {
+      const r = await tx.lancamento.updateMany({ where: { id: i.id, excluidoEm: null }, data: { excluidoEm: new Date() } });
+      if (r.count !== 1) throw new ActionError(MOTIVO_MUDOU);
+      await tx.lancamentoStatusHistorico.create({ data: { lancamentoId: i.id, de: estado.status, para: "excluido", autorId: ctx.user.id } });
+    });
     rev();
     return { id: i.id };
   },

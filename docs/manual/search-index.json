@@ -1411,7 +1411,12 @@
         "ações em lote",
         "baixar em lote",
         "pago",
-        "recebido"
+        "recebido",
+        "estornar",
+        "estorno",
+        "reabrir",
+        "desfazer pagamento",
+        "histórico"
       ],
       "sinonimos": [
         "movimentações",
@@ -1491,7 +1496,8 @@
         "meu dinheiro",
         "ignorar transação",
         "criar lançamento da transação",
-        "conciliar com"
+        "conciliar com",
+        "desfazer importação"
       ],
       "sinonimos": [
         "conciliação bancária",

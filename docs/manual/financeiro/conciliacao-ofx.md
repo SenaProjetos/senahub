@@ -47,6 +47,17 @@ extrato de novo não a traz de volta.
 - Migrar dados de planilha (ex.: do "Meu Dinheiro") para o financeiro, com mapeamento de
   colunas e validação antes de gravar.
 
+### Desfazer uma importação
+- **Desfazer** tira do financeiro todos os lançamentos do lote (ficam guardados como excluídos).
+- Só vale para o lote **ainda não trabalhado**: se algum lançamento dele já foi conciliado,
+  distribuído entre as caixinhas ou alterado (baixa, edição) depois da importação, o sistema recusa e
+  diz quantos — exclua um a um, em Lançamentos, os que precisam sair.
+- Um lançamento importado que você **excluiu à mão** não volta numa nova importação da mesma planilha.
+  Os de um lote **desfeito** voltam, se você importar de novo.
+
+### Conciliar
+- Despesa **aguardando aprovação** ou lançamento **cancelado** não se concilia: aprove ou reabra antes.
+
 ## Permissões
 
 | Ação | Permissão |
@@ -60,6 +71,7 @@ extrato de novo não a traz de volta.
 | --- | --- | --- |
 | Acesso negado à conciliação | Falta `financeiro:gerir` | Solicitar permissão |
 | Transação não casa automaticamente | Sem correspondência clara | Conciliar manualmente ou criar o lançamento |
+| "Esta importação já foi trabalhada (…)" | Lote com lançamentos conciliados, distribuídos ou alterados | Excluir um a um os que precisam sair |
 
 ## Funcionalidades relacionadas
 

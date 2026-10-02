@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { notificar } from "@/lib/notificar";
 import { CHAVE_LIMITE_APROVACAO, CHAVE_NIVEIS_APROVACAO, getNiveisAprovacao } from "@/modules/financeiro/aprovacao/queries";
 import { papeisAprovadores } from "@/modules/financeiro/aprovacao/niveis";
+import { exigirOperacao } from "@/modules/financeiro/lancamentos/situacao-service";
 
 function rev() {
   revalidatePath("/financeiro/aprovacoes");
@@ -69,9 +70,8 @@ const aprovarBase = {
 export const aprovarLancamento = defineAction(
   { ...aprovarBase, acao: "aprovar-lancamento", schema: z.object({ id: z.string().min(1) }) },
   async (i, ctx) => {
-    const l = await prisma.lancamento.findUnique({ where: { id: i.id }, select: { status: true, autorId: true, descricao: true, valor: true } });
-    if (!l) throw new ActionError("Lançamento não encontrado.");
-    if (l.status !== "aguardando_aprovacao") throw new ActionError("Lançamento não está aguardando aprovação.");
+    await exigirOperacao(prisma, i.id, "aprovar");
+    const l = await prisma.lancamento.findUniqueOrThrow({ where: { id: i.id }, select: { status: true, autorId: true, descricao: true, valor: true } });
     // Alçada por faixa: o papel do aprovador deve cobrir o valor (admin tem bypass).
     const papeis = papeisAprovadores(Number(l.valor), await getNiveisAprovacao());
     if (ctx.user.role !== "admin" && !papeis.includes(ctx.user.role)) {
@@ -99,9 +99,8 @@ export const aprovarLancamento = defineAction(
 export const rejeitarLancamento = defineAction(
   { ...aprovarBase, acao: "rejeitar-lancamento", schema: z.object({ id: z.string().min(1), motivo: z.string().min(1, "Informe o motivo.") }) },
   async (i, ctx) => {
-    const l = await prisma.lancamento.findUnique({ where: { id: i.id }, select: { status: true, autorId: true, descricao: true } });
-    if (!l) throw new ActionError("Lançamento não encontrado.");
-    if (l.status !== "aguardando_aprovacao") throw new ActionError("Lançamento não está aguardando aprovação.");
+    await exigirOperacao(prisma, i.id, "rejeitar");
+    const l = await prisma.lancamento.findUniqueOrThrow({ where: { id: i.id }, select: { status: true, autorId: true, descricao: true } });
     await prisma.lancamento.update({
       where: { id: i.id },
       data: {

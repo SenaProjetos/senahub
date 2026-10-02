@@ -9,6 +9,11 @@
  *       projetistas não confirma de novo (nem move a data); a sincronização da disciplina recusa
  *       quando o lançamento já foi pago; duas aprovações simultâneas da disciplina: só uma passa.
  *   A11. "Recebido" dos indicadores soma o valor PAGO (parcial), linha a linha.
+ *   N1. Máquina de situações: estorno (simples, parcial com o resto, distribuída, conciliado não),
+ *       reabertura (rejeitado volta à aprovação), caminhos impossíveis recusados, excluído por id
+ *       recusado, corrida de dois estornos.
+ *   A8. Desfazer importação: barrado com linha trabalhada, exclusão lógica no lote intocado, dedup
+ *       que enxerga a linha excluída à mão mas não a do lote desfeito.
  *
  * O serviço terceirizado (A7) tem a prova em `scripts/verify-custo-projeto.ts` e a folha CLT (A1)
  * em `smoke:planejador`. Uso: npm run smoke:financeiro-core
@@ -24,6 +29,10 @@ import {
 } from "../src/modules/financeiro/custo/lancamento-custo";
 import { liberarPagamentosProjetista, sincronizarPagamentosDisciplina } from "../src/modules/uploads/pagamento";
 import { indicadores } from "../src/modules/financeiro/relatorios/queries";
+import { estornarNoBanco, exigirOperacao, reabrirNoBanco } from "../src/modules/financeiro/lancamentos/situacao-service";
+import { executarCommit, executarDesfazer } from "../src/modules/financeiro/importacao/commit-core";
+import { hashesExistentes } from "../src/modules/financeiro/importacao/queries";
+import { normalizarLinhas } from "../src/modules/financeiro/importacao/processar";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -71,6 +80,8 @@ async function main() {
     await parcelasDoProjeto(admin.id, projeto.id, disciplina.id, cliente.id);
     await projetistaPagoNoFinanceiro(admin.id, disciplina.id);
     await recebidoPeloPago(admin.id);
+    await maquinaDeSituacoes(admin.id);
+    await desfazerImportacao(admin.id);
   } finally {
     const pags = (await prisma.pagamentoProjetista.findMany({ where: { disciplinaId: disciplina.id }, select: { id: true } })).map((p) => p.id);
     await prisma.lancamento.deleteMany({ where: { OR: [{ projetoId: projeto.id }, { pagamentoProjetistaId: { in: pags } }, { descricao: { startsWith: tag } }] } });
@@ -208,6 +219,144 @@ async function recebidoPeloPago(autorId: string) {
   await prisma.lancamento.create({ data: { ...base, descricao: `${tag} cheio`, valor: 250 } });
   const r = await indicadores(de, ate);
   check("recebido = 400 (pago do parcial) + 250 — não 1.250 nem só 400", r.recebido === 650, r.recebido);
+}
+
+async function maquinaDeSituacoes(autorId: string) {
+  console.log("\n# N1 — máquina de situações, estorno e reabertura");
+  const cat = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "receita", natureza: "resultado" }, select: { id: true } });
+  const catD = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "despesa", natureza: "resultado" }, select: { id: true } });
+  if (!cat || !catD) return check("categorias de receita e despesa existem", false);
+  const conta = await prisma.contaBancaria.create({ data: { nome: `${tag} conta`, tipo: "corrente", saldoInicial: 0 } });
+  const novo = (p: Record<string, unknown>) =>
+    prisma.lancamento.create({
+      data: { tipo: "receita", descricao: `${tag} n1`, valor: 1000, status: "previsto", data: dia("2042-01-10"), categoriaId: cat.id, autorId, ...p },
+      select: { id: true },
+    });
+  const situacao = (id: string) =>
+    prisma.lancamento.findUniqueOrThrow({ where: { id }, select: { status: true, dataConfirmacao: true, valorEfetivo: true, excluidoEm: true, motivoRejeicao: true } });
+
+  try {
+    // Estorno simples: volta a em aberto e grava o histórico.
+    const a = await novo({ status: "confirmado", dataConfirmacao: dia("2042-01-10") });
+    await estornarNoBanco(a.id, autorId);
+    const sa = await situacao(a.id);
+    const hist = await prisma.lancamentoStatusHistorico.findFirst({ where: { lancamentoId: a.id }, orderBy: { createdAt: "desc" } });
+    check("estorno: pago volta a em aberto, sem data de pagamento, com histórico", sa.status === "previsto" && sa.dataConfirmacao === null && hist?.para === "previsto", { sa, hist });
+    check("estornar de novo é recusado (só pago estorna)", (await erroDe(estornarNoBanco(a.id, autorId)))?.includes("Só se estorna") === true);
+
+    // A2: pago não se cancela; cancelado não se paga; excluído não faz nada (A12).
+    const b = await novo({ status: "confirmado", dataConfirmacao: dia("2042-01-10") });
+    check("pago não se cancela (estorne antes)", (await erroDe(exigirOperacao(prisma, b.id, "cancelar")))?.includes("estorne antes") === true);
+    const c = await novo({ status: "cancelado" });
+    check("cancelado não se baixa", (await erroDe(exigirOperacao(prisma, c.id, "baixar")))?.includes("reabra antes") === true);
+    const x = await novo({ excluidoEm: new Date() });
+    check("A12: excluído é recusado por id", (await erroDe(exigirOperacao(prisma, x.id, "baixar"))) === "Lançamento excluído.");
+
+    // Conciliado não estorna nem exclui.
+    const extrato = await prisma.extratoBancario.create({ data: { contaId: conta.id, nomeArquivo: `${tag}.ofx` } });
+    const d = await novo({ status: "confirmado", dataConfirmacao: dia("2042-01-10"), contaId: conta.id });
+    await prisma.transacaoBancaria.create({
+      data: { extratoId: extrato.id, contaId: conta.id, fitid: `${tag}-1`, data: dia("2042-01-10"), valor: 1000, descricao: "x", conciliado: true, lancamentoId: d.id },
+    });
+    check("conciliado não estorna", (await erroDe(estornarNoBanco(d.id, autorId)))?.includes("desconcilie") === true);
+    check("conciliado não se exclui", (await erroDe(exigirOperacao(prisma, d.id, "excluir")))?.includes("desconcilie") === true);
+    const desp = await novo({ tipo: "despesa", categoriaId: catD.id, status: "aguardando_aprovacao" });
+    check("A2: despesa em aprovação não se concilia", (await erroDe(exigirOperacao(prisma, desp.id, "conciliar")))?.includes("aguardando aprovação") === true);
+
+    // Baixa parcial: o estorno tira junto o resto em aberto; resto pago impede.
+    const p = await novo({ status: "confirmado", dataConfirmacao: dia("2042-01-10"), valorEfetivo: 400 });
+    const resto = await novo({ valor: 600, restanteDeId: p.id });
+    const r1 = await estornarNoBanco(p.id, autorId);
+    const sp = await situacao(p.id);
+    const sr = await situacao(resto.id);
+    check("parcial: estorno devolve o valor cheio e tira o resto em aberto", r1.restantesExcluidos === 1 && sp.valorEfetivo === null && sr.excluidoEm !== null, { r1, sp, sr });
+    const p2 = await novo({ status: "confirmado", dataConfirmacao: dia("2042-01-10"), valorEfetivo: 400 });
+    await novo({ valor: 600, restanteDeId: p2.id, status: "confirmado", dataConfirmacao: dia("2042-02-10") });
+    check("parcial com o resto já pago: estorno recusado", (await erroDe(estornarNoBanco(p2.id, autorId)))?.includes("saldo restante") === true);
+
+    // Receita distribuída: estorno desfaz a distribuição; caixinha que já liberou recusa.
+    const caixinha = await prisma.caixinha.create({ data: { nome: `${tag} caixinha` } });
+    const distribuir = async () => {
+      const l = await novo({ status: "confirmado", dataConfirmacao: dia("2042-01-10") });
+      const dist = await prisma.distribuicaoRecebimento.create({ data: { lancamentoId: l.id, situacao: "distribuida", data: dia("2042-01-10"), autorId } });
+      await prisma.movimentoCaixinha.create({ data: { caixinhaId: caixinha.id, tipo: "alocacao", valor: 300, data: dia("2042-01-10"), distribuicaoId: dist.id, autorId } });
+      return l.id;
+    };
+    const dist1 = await distribuir();
+    const r2 = await estornarNoBanco(dist1, autorId);
+    const sobrou = await prisma.movimentoCaixinha.count({ where: { caixinhaId: caixinha.id } });
+    check("distribuída: estorno desfaz a distribuição e os movimentos", r2.distribuicaoDesfeita && sobrou === 0 && (await prisma.distribuicaoRecebimento.count({ where: { lancamentoId: dist1 } })) === 0, { r2, sobrou });
+    const dist2 = await distribuir();
+    await prisma.movimentoCaixinha.create({ data: { caixinhaId: caixinha.id, tipo: "liberacao", valor: -300, data: dia("2042-01-11"), autorId } });
+    check("distribuída com o reservado já liberado: estorno recusado", (await erroDe(estornarNoBanco(dist2, autorId)))?.includes("reserve de volta") === true);
+
+    // Reabrir: cancelado volta a em aberto; rejeitado volta para a aprovação.
+    const can = await novo({ status: "cancelado" });
+    const re1 = await reabrirNoBanco(can.id, autorId);
+    const rej = await novo({ tipo: "despesa", categoriaId: catD.id, status: "cancelado", motivoRejeicao: "caro" });
+    const re2 = await reabrirNoBanco(rej.id, autorId);
+    const srej = await situacao(rej.id);
+    check("reabrir: cancelado volta a em aberto", re1.status === "previsto");
+    check("reabrir: rejeitado volta para a aprovação, sem o motivo antigo", re2.status === "aguardando_aprovacao" && srej.motivoRejeicao === null, { re2, srej });
+
+    // Duas baixas/estornos ao mesmo tempo: só um passa.
+    const corrida = await novo({ status: "confirmado", dataConfirmacao: dia("2042-01-10") });
+    const rs = await Promise.allSettled([estornarNoBanco(corrida.id, autorId), estornarNoBanco(corrida.id, autorId)]);
+    check("dois estornos simultâneos: um passa, o outro é recusado", rs.filter((r) => r.status === "fulfilled").length === 1, rs.map((r) => r.status));
+  } finally {
+    const ids = (await prisma.lancamento.findMany({ where: { descricao: { startsWith: tag }, excluidoEm: { not: undefined } }, select: { id: true } })).map((l) => l.id);
+    await prisma.transacaoBancaria.deleteMany({ where: { contaId: conta.id } });
+    await prisma.extratoBancario.deleteMany({ where: { contaId: conta.id } });
+    await prisma.movimentoCaixinha.deleteMany({ where: { caixinha: { nome: { startsWith: tag } } } });
+    await prisma.distribuicaoRecebimento.deleteMany({ where: { lancamentoId: { in: ids } } });
+    await prisma.lancamento.updateMany({ where: { id: { in: ids } }, data: { restanteDeId: null } });
+    await prisma.lancamento.deleteMany({ where: { id: { in: ids } } });
+    await prisma.caixinha.deleteMany({ where: { nome: { startsWith: tag } } });
+    await prisma.contaBancaria.delete({ where: { id: conta.id } });
+  }
+}
+
+async function desfazerImportacao(autorId: string) {
+  console.log("\n# A8 — desfazer importação");
+  const categoriasAntes = new Set((await prisma.categoriaFinanceira.findMany({ select: { id: true } })).map((c) => c.id));
+  const linha = (n: number) => [
+    "Despesa", "Pendente", "2042-03-02", "", `-${80 + n}`, "", `${tag} imp${n}`, `${tag} cat`, "", `${tag} conta imp`, "", "", "", `${Date.now()}${n}`,
+  ];
+  const mapa = { tipo: 0, status: 1, data: 2, dataConfirmacao: 3, valor: 4, valorEfetivo: 5, descricao: 6, categoria: 7, subcategoria: 8, conta: 9, contaTransferencia: 10, contato: 11, documento: 12, idUnico: 13 };
+  const lotes: string[] = [];
+  try {
+    const res = normalizarLinhas([linha(1), linha(2)], mapa);
+    const { loteId } = await executarCommit(prisma, { nomeArquivo: `${tag}.csv`, mapeamento: {}, res, autorId });
+    lotes.push(loteId);
+    const linhas = await prisma.lancamento.findMany({ where: { importLoteId: loteId }, select: { id: true, importHash: true } });
+
+    // Uma linha mexida depois da importação barra o desfazer.
+    await prisma.lancamento.update({ where: { id: linhas[0].id }, data: { createdAt: new Date(Date.now() - 60_000) } });
+    const recusa = await erroDe(executarDesfazer(prisma, loteId));
+    check("lote com linha alterada depois da importação não se desfaz", recusa?.includes("1 alterado depois da importação") === true, recusa);
+
+    // Excluída à mão: a próxima importação não a traz de volta.
+    await prisma.lancamento.update({ where: { id: linhas[0].id }, data: { excluidoEm: new Date() } });
+    const ja = await hashesExistentes(linhas.map((l) => l.importHash!));
+    check("dedup enxerga a linha excluída à mão (não reimporta)", ja.size === 2, ja.size);
+
+    // Lote intocado: desfaz por exclusão lógica, e reimportar volta a criar.
+    const res2 = normalizarLinhas([linha(3)], mapa);
+    const lote2 = await executarCommit(prisma, { nomeArquivo: `${tag}-2.csv`, mapeamento: {}, res: res2, autorId });
+    lotes.push(lote2.loteId);
+    const out = await executarDesfazer(prisma, lote2.loteId);
+    const l2 = await prisma.lancamento.findMany({ where: { importLoteId: lote2.loteId, excluidoEm: { not: undefined } }, select: { excluidoEm: true, importHash: true } });
+    check("lote intocado: desfazer é exclusão lógica", out.removidos === 1 && l2.length === 1 && l2[0].excluidoEm !== null, { out, l2 });
+    check("linha de lote desfeito não conta no dedup (reimportar recria)", (await hashesExistentes(l2.map((l) => l.importHash!))).size === 0);
+  } finally {
+    for (const id of lotes) {
+      await prisma.lancamento.deleteMany({ where: { importLoteId: id, excluidoEm: { not: undefined } } });
+      await prisma.importacaoFinanceira.delete({ where: { id } });
+    }
+    await prisma.contaBancaria.deleteMany({ where: { nome: { startsWith: tag } } });
+    const novas = (await prisma.categoriaFinanceira.findMany({ select: { id: true } })).map((c) => c.id).filter((id) => !categoriasAntes.has(id));
+    if (novas.length) await prisma.categoriaFinanceira.deleteMany({ where: { id: { in: novas }, lancamentos: { none: {} } } });
+  }
 }
 
 main().catch((e) => {
