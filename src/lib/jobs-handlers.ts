@@ -223,7 +223,7 @@ export async function alertaCobrancaCliente(): Promise<number> {
   if (!smtpConfigurado()) return 0;
   const r = await enviarCobrancasAoCliente({ enviar: (para, slug, vars) => enviarEmailTemplate(para, slug, vars) });
   if (r.enviadas + r.duplicadas + r.falhas > 0) {
-    console.log(`[avisos] cobrança ao cliente enviadas=${r.enviadas} já-enviadas=${r.duplicadas} sem-email=${r.semEmail} falhas=${r.falhas}`);
+    console.log(`[avisos] cobrança ao cliente enviadas=${r.enviadas} já-enviadas=${r.duplicadas} sem-email=${r.semEmail} licitação=${r.licitacao} falhas=${r.falhas}`);
   }
   return r.enviadas;
 }

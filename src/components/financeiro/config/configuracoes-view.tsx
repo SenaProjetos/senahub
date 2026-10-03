@@ -182,6 +182,7 @@ function AvisosCard({ inicial }: { inicial: ConfigAvisos }) {
         )}
         {Linha({ id: "av-dia", ligado: cfg.cobrancaNoDia, onChange: (v) => setCfg({ ...cfg, cobrancaNoDia: v }), titulo: "No dia do vencimento", desc: "Desligado até você ligar." })}
         {Linha({ id: "av-apos", ligado: cfg.cobrancaApos, onChange: (v) => setCfg({ ...cfg, cobrancaApos: v }), titulo: "No dia seguinte ao vencimento", desc: "Avisa que o pagamento ainda não foi registrado. É o aviso que o sistema já mandava." })}
+        {Linha({ id: "av-licitacao", ligado: cfg.cobrarLicitacao, onChange: (v) => setCfg({ ...cfg, cobrarLicitacao: v }), titulo: "Cobrar também projetos de licitação", desc: "Desligado: contas de projeto de licitação (ou da categoria Licitações) não recebem nenhum desses e-mails — órgão público paga pelo rito do contrato." })}
         <p className="px-2 pt-3 text-xs font-semibold text-muted-foreground">Sino para a equipe</p>
         {Linha({ id: "av-pagar", ligado: cfg.contasAPagar, onChange: (v) => setCfg({ ...cfg, contasAPagar: v }), titulo: "Contas a pagar vencendo", desc: "Avisa quem lançou a conta 3 dias e 1 dia antes do vencimento, numa notificação só por dia. Quem não vê o financeiro não recebe: o aviso vai para quem gere." })}
         <div className="flex justify-end pt-2">

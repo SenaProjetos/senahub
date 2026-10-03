@@ -27,6 +27,11 @@ export type ConfigAvisos = {
   cobrancaApos: boolean;
   /** Sino para quem lançou a conta a pagar: D-3 e D-1. */
   contasAPagar: boolean;
+  /**
+   * Cobrar também os recebíveis de LICITAÇÃO (decisão do dono, 2026-10-03: desligado). Órgão público paga pelo rito
+   * do contrato; e-mail de cobrança ali não ajuda e pode pegar mal. Vale para os três momentos.
+   */
+  cobrarLicitacao: boolean;
 };
 
 export const CONFIG_AVISOS_PADRAO: ConfigAvisos = {
@@ -35,6 +40,7 @@ export const CONFIG_AVISOS_PADRAO: ConfigAvisos = {
   cobrancaNoDia: false,
   cobrancaApos: true,
   contasAPagar: true,
+  cobrarLicitacao: false,
 };
 
 export const configAvisosSchema = z.object({
@@ -43,6 +49,7 @@ export const configAvisosSchema = z.object({
   cobrancaNoDia: z.boolean(),
   cobrancaApos: z.boolean(),
   contasAPagar: z.boolean(),
+  cobrarLicitacao: z.boolean(),
 });
 
 /** Lê o JSON guardado campo a campo; o que faltar ou vier inválido volta ao padrão. */
@@ -59,7 +66,19 @@ export function normalizarConfigAvisos(valor: unknown): ConfigAvisos {
     cobrancaNoDia: campo("cobrancaNoDia"),
     cobrancaApos: campo("cobrancaApos"),
     contasAPagar: campo("contasAPagar"),
+    cobrarLicitacao: campo("cobrarLicitacao"),
   };
+}
+
+/** Chave da categoria de receita de licitações (a categoria e as filhas dela). */
+export const CHAVE_RECEITA_LICITACOES = "receita_licitacoes";
+
+/**
+ * O recebível é de licitação? Pelo projeto (tipo `licitacao`) ou pela categoria (Licitações ou uma filha dela) —
+ * cobre a medição de licitação e o lançamento feito à mão na categoria certa sem projeto.
+ */
+export function ehRecebivelDeLicitacao(r: { projetoTipo: string | null | undefined; chavesDaCategoria: readonly (string | null | undefined)[] }): boolean {
+  return r.projetoTipo === "licitacao" || r.chavesDaCategoria.includes(CHAVE_RECEITA_LICITACOES);
 }
 
 export type TipoDeAviso = "cobranca_antes" | "cobranca_no_dia" | "cobranca_apos" | "pagar_d3" | "pagar_d1" | "inadimplencia_interna";

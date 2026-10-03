@@ -30,6 +30,10 @@ faturamento. Transferência entre contas, previsão do cronograma e recebível s
 | **No dia do vencimento** | No dia | **Desligado** |
 | **No dia seguinte** | Um dia depois, avisando que o pagamento ainda não foi registrado | **Ligado** (é o que o sistema já mandava) |
 
+**Licitação fica de fora.** Conta a receber de projeto de licitação, ou lançada na categoria **Licitações** (ou numa
+filha dela), não recebe nenhum desses e-mails: órgão público paga pelo rito do contrato. Para cobrar também essas
+contas, ligue **Cobrar também projetos de licitação** em Avisos de vencimento.
+
 > Os dois e-mails novos vêm desligados de propósito: são mensagens **para fora da empresa**. Ligue quando quiser
 > começar a mandá-los. O texto pode ser ajustado em **Configurações → E-mails** (modelos "Lembrete de vencimento" e
 > "Lembrete de pagamento").

@@ -390,7 +390,9 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   before sending (`reservarAviso`; P2002 = another run already has it, not an error) and released when the send fails —
   the mailer returns `false` instead of throwing, so check the boolean. The due date is in the key: moving the vencimento
   re-arms the notice. Card purchases collapse to one bill per `faturaId`; transfer legs, `previsao` and
-  `aguardando_aprovacao` never notify. Pure rules in `regras.ts`; `service.ts` takes the sender/notifier as parameters so the
+  `aguardando_aprovacao` never notify. **Licitação is not collected** (owner decision 2026-10-03): a receivable of a
+  `Projeto.tipo = licitacao` or in the `receita_licitacoes` category (or a child) is skipped in all three moments unless
+  `financeiro.avisos.cobrarLicitacao` is on (`ehRecebivelDeLicitacao`, counted as `licitacao` in the job log). Pure rules in `regras.ts`; `service.ts` takes the sender/notifier as parameters so the
   smoke runs the same code without SMTP. New notification category `conta_a_pagar` (opt-out in Preferências).
 - **Investments** (M4, `financeiro/investimentos/`, spec `docs/superpowers/specs/2026-10-02-financeiro-investimentos.md`):
   each `Investimento` OWNS one `ContaBancaria` (tipo `investimento`, `Investimento.contaId` unique) whose balance IS the
@@ -427,8 +429,11 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   KPIs (`indicadores-gerenciais.ts`, pure): inadimplência = vencido >30 dias ÷ FATURADO (receitas issued in 12 months,
   `confirmado|previsto`, by `data`, title value — not only what was received); prazo médio counts only rows that had a
   `vencimento` (a bill paid on creation would add 0 days); ponto de equilíbrio and receita por projeto are PER MONTH
-  (period ÷ months). Ponto de equilíbrio = despesa média do mês is still a simplification (the mock's number implies a
-  contribution margin; the plano de contas has no fixed/variable split) — awaiting the owner. Each evolution row's menu:
+  (period ÷ months). Ponto de equilíbrio = contribution margin (owner decision 2026-10-03): fixed ÷ (1 − variable ÷
+  revenue), `null` when variable ≥ revenue; each despesa category is `CategoriaFinanceira.tipoCusto` (`fixo | variavel`,
+  null = inherits from the parent, nothing in the chain = fixo — `tipoCustoEfetivo`), edited inline in Cadastros → Plano
+  de contas; the migration marks the system categories by `chave` (root "despesa" fixo; projetistas, freelancers,
+  fornecedores, ART, impostos, descontos concedidos variável). Each evolution row's menu:
   Ver DRE do mês, Ver lançamentos do mês (`/financeiro/lancamentos?mes=AAAA-MM`), Comparar, Exportar — links carry `base`.
   `relatorioPorDimensao` groups confirmed lançamentos by `categoria | centro | contato | projeto | tag` (tag can land in
   several rows; centro/projeto honour the rateio). Deep links into the livro caixa (`itensDaLinhaDeDimensao`) exist only

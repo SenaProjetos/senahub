@@ -134,7 +134,12 @@ export function IndicadoresView({
         <KpiCard variante="indicador" label="Inadimplência (12 meses)" valor={pct(ind.inadimplencia12Meses)} detalhe="vencido há mais de 30 dias ÷ faturado" />
         <KpiCard variante="indicador" label="Prazo médio de recebimento" valor={dias(ind.prazoMedioRecebimento)} detalhe="da emissão ao recebimento" />
         <KpiCard variante="indicador" label="Prazo médio de pagamento" valor={dias(ind.prazoMedioPagamento)} detalhe="do lançamento ao pagamento" />
-        <KpiCard variante="indicador" label="Ponto de equilíbrio" valor={brl(ind.pontoDeEquilibrio)} detalhe="de receita por mês cobre as despesas" />
+        <KpiCard
+          variante="indicador"
+          label="Ponto de equilíbrio"
+          valor={ind.pontoDeEquilibrio == null ? "—" : brl(ind.pontoDeEquilibrio)}
+          detalhe={ind.pontoDeEquilibrio == null ? "os custos variáveis passam da receita" : "de receita por mês cobre as despesas"}
+        />
         <KpiCard
           variante="indicador"
           label="Receita por projeto ativo"

@@ -17,7 +17,7 @@ import {
   editarForma,
 } from "@/modules/financeiro/cadastros/actions";
 
-type Cat = { id: string; codigo: string; nome: string; tipo: "receita" | "despesa"; paiId: string | null };
+type Cat = { id: string; codigo: string; nome: string; tipo: "receita" | "despesa"; paiId: string | null; tipoCusto: "fixo" | "variavel" | null };
 type Conta = {
   id: string;
   nome: string;
@@ -80,7 +80,8 @@ export function CadastrosView({
       {subnav}
 
       <Tabs defaultValue="plano">
-        <TabsList className="flex-wrap">
+        {/* `h-auto`: a lista tem altura fixa (h-8) e, quebrada em várias linhas no celular, cobria o conteúdo de baixo. */}
+        <TabsList className="flex-wrap group-data-horizontal/tabs:h-auto">
           <TabsTrigger value="plano">Plano de contas</TabsTrigger>
           <TabsTrigger value="contas">Contas bancárias</TabsTrigger>
           <TabsTrigger value="fornecedores">Fornecedores</TabsTrigger>

@@ -1519,6 +1519,13 @@ enum NaturezaCategoria {
 }
 
 /// Plano de contas hierárquico (código ex.: "2.01").
+/// Comportamento de uma despesa diante do faturamento (ponto de equilíbrio): fixo existe com ou sem projeto
+/// (folha, aluguel); variável sobe e desce com o que se fatura (projetistas, ART, impostos sobre a nota).
+enum TipoCusto {
+  fixo
+  variavel
+}
+
 model CategoriaFinanceira {
   id       String                @id @default(cuid())
   codigo   String                @unique
@@ -1537,6 +1544,9 @@ model CategoriaFinanceira {
   /// Prioridade que as despesas desta categoria (e das filhas sem a sua) herdam no planejador.
   prioridadePadrao PrioridadePagamento?
   natureza         NaturezaCategoria    @default(resultado)
+  /// Custo fixo ou variável (só despesa): a base do ponto de equilíbrio em Indicadores. Nulo = herda da mãe;
+  /// sem nada na cadeia vale fixo (`tipoCustoEfetivo`). A migração marca as categorias do sistema pela `chave`.
+  tipoCusto        TipoCusto?
 
   lancamentos  Lancamento[]
   regras       RegraCategorizacao[]

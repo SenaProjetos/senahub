@@ -1,11 +1,17 @@
 /**
  * Indicadores gerenciais (M6). Puro, sem I/O — as fórmulas isoladas de `queries.ts` para serem testadas sem banco.
  *
- * `pontoDeEquilibrio` é uma aproximação deliberada: o plano de contas não separa custo fixo de variável (como o
- * EBITDA gerencial em `dre.ts` já documenta para grupoDfc), então o ponto de equilíbrio aqui é "a receita que, se
- * fosse exatamente essa no mês, deixaria o resultado em zero" — ou seja, as despesas do próprio mês. Não é uma
- * margem de contribuição de verdade; a tela explica isso.
+ * Ponto de equilíbrio por MARGEM DE CONTRIBUIÇÃO (decisão do dono, 2026-10-03): cada categoria de despesa é custo
+ * fixo ou variável (`CategoriaFinanceira.tipoCusto`, herdado da mãe; sem nada na cadeia vale fixo).
  */
+
+export type TipoCusto = "fixo" | "variavel";
+
+/** Custo efetivo de uma categoria: o próprio, senão o do ancestral mais próximo que tiver; sem nenhum, fixo. */
+export function tipoCustoEfetivo(cadeia: readonly (TipoCusto | null | undefined)[]): TipoCusto {
+  for (const t of cadeia) if (t) return t;
+  return "fixo";
+}
 
 export function margemLiquida(receita: number, resultado: number): number | null {
   if (!(receita > 0)) return null;
@@ -18,9 +24,16 @@ export function variacaoPontosPercentuais(atual: number | null, anterior: number
   return Math.round((atual - anterior) * 10) / 10;
 }
 
-/** A receita do mês que cobriria exatamente as despesas do mês (ver limitação no topo do arquivo). */
-export function pontoDeEquilibrio(despesasDoMes: number): number {
-  return Math.round(despesasDoMes * 100) / 100;
+/**
+ * Receita por mês que paga os custos: fixos ÷ (1 − variáveis ÷ receita). Os variáveis entram como fração da receita
+ * (a margem de contribuição); sem receita no período não há essa fração, então só os fixos contam. `null` quando os
+ * variáveis comem toda a receita — não existe faturamento que cubra os fixos.
+ */
+export function pontoDeEquilibrio(p: { fixos: number; variaveis: number; receita: number }): number | null {
+  if (!(p.receita > 0)) return Math.round(p.fixos * 100) / 100;
+  const margem = 1 - p.variaveis / p.receita;
+  if (!(margem > 0)) return null;
+  return Math.round((p.fixos / margem) * 100) / 100;
 }
 
 /** Vencido há mais de 30 dias ÷ faturado nos últimos 12 meses. `null` sem faturamento no período. */

@@ -20,7 +20,9 @@ import {
   pontoDeEquilibrio,
   prazoMedioDias,
   receitaPorProjetoAtivo,
+  tipoCustoEfetivo,
   variacaoPontosPercentuais,
+  type TipoCusto,
 } from "@/modules/financeiro/relatorios/indicadores-gerenciais";
 import { analisarDRE, type LinhaBaseDRE, type DREComparativo } from "./dre";
 import { calcularRentabilidade, rentabilidadePorCliente, type ProjetoEntrada } from "./dre-projeto";
@@ -633,8 +635,8 @@ export type IndicadoresGerenciais = {
   inadimplencia12Meses: number | null;
   prazoMedioRecebimento: number | null;
   prazoMedioPagamento: number | null;
-  /** Por MÊS (média do período, se ele tiver mais de um mês). */
-  pontoDeEquilibrio: number;
+  /** Receita por MÊS que paga os custos (margem de contribuição); `null` = os variáveis comem toda a receita. */
+  pontoDeEquilibrio: number | null;
   /** Por MÊS e por projeto em andamento. */
   receitaPorProjetoAtivo: number | null;
   projetosAtivos: number;
@@ -654,7 +656,7 @@ export async function indicadoresGerenciais(de: Date, ate: Date, base: BaseDRE):
   const hoje = hojeParaBanco();
   const ha12Meses = somarMesesUtc(hoje, -12);
 
-  const [atuais, anteriores, liquidez, agingReceita, faturado12m, recebimentos, pagamentos, projetosAtivos] = await Promise.all([
+  const [atuais, anteriores, liquidez, agingReceita, faturado12m, recebimentos, pagamentos, projetosAtivos, custoPorCodigo] = await Promise.all([
     linhasDREPeriodo(de, ate, base),
     linhasDREPeriodo(deAnt, ateAnt, base),
     baseDoPlanejador({ horizonteDias: 30 }),
@@ -676,6 +678,7 @@ export async function indicadoresGerenciais(de: Date, ate: Date, base: BaseDRE):
       select: { data: true, dataConfirmacao: true },
     }),
     prisma.projeto.count({ where: { situacao: "em_andamento" } }),
+    tipoCustoPorCodigo(),
   ]);
 
   const totAtual = { receita: somaLinhas(atuais, "receita"), despesa: somaLinhas(atuais, "despesa") };
@@ -707,7 +710,11 @@ export async function indicadoresGerenciais(de: Date, ate: Date, base: BaseDRE):
     inadimplencia12Meses: percentualInadimplencia(vencidoMais30, Number(faturado12m._sum.valor ?? 0)),
     prazoMedioRecebimento: prazoMedioDias(diasEntreDatas(recebimentos)),
     prazoMedioPagamento: prazoMedioDias(diasEntreDatas(pagamentos)),
-    pontoDeEquilibrio: Math.round(pontoDeEquilibrio(totAtual.despesa / meses) * 100) / 100,
+    pontoDeEquilibrio: pontoDeEquilibrio({
+      fixos: somaDespesaPorCusto(atuais, custoPorCodigo, "fixo") / meses,
+      variaveis: somaDespesaPorCusto(atuais, custoPorCodigo, "variavel") / meses,
+      receita: totAtual.receita / meses,
+    }),
     receitaPorProjetoAtivo: receitaPorProjetoAtivo(totAtual.receita / meses, projetosAtivos),
     projetosAtivos,
   };
@@ -715,6 +722,27 @@ export async function indicadoresGerenciais(de: Date, ate: Date, base: BaseDRE):
 
 function somaLinhas(ls: LinhaBaseDRE[], tipo: "receita" | "despesa"): number {
   return ls.filter((l) => l.tipo === tipo).reduce((s, l) => s + l.valor, 0);
+}
+
+function somaDespesaPorCusto(ls: LinhaBaseDRE[], custo: Map<string, TipoCusto>, tipo: TipoCusto): number {
+  return ls.filter((l) => l.tipo === "despesa" && (custo.get(l.codigo) ?? "fixo") === tipo).reduce((s, l) => s + l.valor, 0);
+}
+
+/** Custo efetivo (fixo/variável) de cada categoria de despesa, pelo código — a linha da DRE é agrupada por código. */
+async function tipoCustoPorCodigo(): Promise<Map<string, TipoCusto>> {
+  const cats = await prisma.categoriaFinanceira.findMany({ where: { tipo: "despesa" }, select: { id: true, codigo: true, paiId: true, tipoCusto: true } });
+  const porId = new Map(cats.map((c) => [c.id, c]));
+  const r = new Map<string, TipoCusto>();
+  for (const c of cats) {
+    const cadeia: (TipoCusto | null)[] = [];
+    const vistos = new Set<string>();
+    for (let atual: typeof c | undefined = c; atual && !vistos.has(atual.id); atual = atual.paiId ? porId.get(atual.paiId) : undefined) {
+      vistos.add(atual.id);
+      cadeia.push(atual.tipoCusto);
+    }
+    r.set(c.codigo, tipoCustoEfetivo(cadeia));
+  }
+  return r;
 }
 
 export type MesEvolucao = MesResultado & { margem: number | null; de: string; ate: string };

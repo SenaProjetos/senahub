@@ -22,6 +22,7 @@ import {
   cobrancaDeHoje,
   corpoDoAvisoDePagar,
   DESTINO_CLIENTE,
+  ehRecebivelDeLicitacao,
   frasesDoVencimento,
   normalizarConfigAvisos,
   pagarDeHoje,
@@ -66,7 +67,7 @@ const dataBr = (d: string) => d.split("-").reverse().join("/");
 /** `false` = o e-mail não saiu (o transporte devolve `false` em vez de lançar): a reserva é devolvida. */
 export type EnviarEmail = (para: string, slug: string, variaveis: Record<string, string>) => Promise<boolean>;
 
-export type ResultadoDaCobranca = { avaliadas: number; enviadas: number; duplicadas: number; semEmail: number; falhas: number };
+export type ResultadoDaCobranca = { avaliadas: number; enviadas: number; duplicadas: number; semEmail: number; falhas: number; licitacao: number };
 
 /**
  * E-mail de cobrança ao cliente: antes, no dia e depois do vencimento, conforme a configuração. Só
@@ -75,7 +76,7 @@ export type ResultadoDaCobranca = { avaliadas: number; enviadas: number; duplica
 export async function enviarCobrancasAoCliente(o: { hoje?: string; enviar: EnviarEmail }): Promise<ResultadoDaCobranca> {
   const hoje = o.hoje ?? diaDeSaoPaulo();
   const cfg = await getConfigAvisos();
-  const r: ResultadoDaCobranca = { avaliadas: 0, enviadas: 0, duplicadas: 0, semEmail: 0, falhas: 0 };
+  const r: ResultadoDaCobranca = { avaliadas: 0, enviadas: 0, duplicadas: 0, semEmail: 0, falhas: 0, licitacao: 0 };
 
   // Os dias-alvo vêm da configuração: só busca no banco o que algum aviso ligado pode querer.
   const alvos = new Set<string>();
@@ -86,7 +87,15 @@ export async function enviarCobrancasAoCliente(o: { hoje?: string; enviar: Envia
 
   const recebiveis = await prisma.lancamento.findMany({
     where: { tipo: "receita", status: "previsto", vencimento: { in: [...alvos].map(dia) }, ...SEM_TRANSFERENCIA },
-    select: { id: true, descricao: true, valor: true, vencimento: true, cliente: { select: { nome: true, email: true } } },
+    select: {
+      id: true,
+      descricao: true,
+      valor: true,
+      vencimento: true,
+      cliente: { select: { nome: true, email: true } },
+      projeto: { select: { tipo: true } },
+      categoria: { select: { chave: true, pai: { select: { chave: true, pai: { select: { chave: true } } } } } },
+    },
   });
 
   for (const l of recebiveis) {
@@ -94,6 +103,12 @@ export async function enviarCobrancasAoCliente(o: { hoje?: string; enviar: Envia
     const tipo = cobrancaDeHoje(hoje, venc, cfg);
     if (!tipo) continue;
     r.avaliadas += 1;
+    // Licitação fica de fora, salvo se a configuração mandar cobrar (decisão do dono, 2026-10-03).
+    const chaves = [l.categoria.chave, l.categoria.pai?.chave, l.categoria.pai?.pai?.chave];
+    if (!cfg.cobrarLicitacao && ehRecebivelDeLicitacao({ projetoTipo: l.projeto?.tipo, chavesDaCategoria: chaves })) {
+      r.licitacao += 1;
+      continue;
+    }
     if (!l.cliente?.email) {
       r.semEmail += 1;
       continue;

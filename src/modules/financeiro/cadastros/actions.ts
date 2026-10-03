@@ -10,6 +10,7 @@ import { ensureCanalSocios, type SincroniaCanal } from "@/modules/chat/service";
 import { notificarNovosMembros, emitParaUsuario } from "@/lib/socket";
 import {
   categoriaSchema,
+  tipoCustoCategoriaSchema,
   categoriaEditSchema,
   centroSchema,
   centroEditSchema,
@@ -78,6 +79,26 @@ export const editarCategoria = defineAction(
       data: { codigo: i.codigo, nome: i.nome, tipo: i.tipo, paiId: i.paiId || null },
     });
     rev();
+    return { id: i.id };
+  },
+);
+
+/** Marca a despesa como custo fixo ou variável (ponto de equilíbrio em Indicadores); `null` volta a herdar da mãe. */
+export const definirTipoCustoCategoria = defineAction(
+  {
+    ...base,
+    acao: "definir-tipo-custo-categoria",
+    entidade: "CategoriaFinanceira",
+    schema: tipoCustoCategoriaSchema,
+    capturarAntes: (i) => prisma.categoriaFinanceira.findUnique({ where: { id: i.id }, select: { codigo: true, nome: true, tipoCusto: true } }),
+  },
+  async (i) => {
+    const c = await prisma.categoriaFinanceira.findUnique({ where: { id: i.id }, select: { tipo: true } });
+    if (!c) throw new ActionError("Categoria não encontrada.");
+    if (c.tipo !== "despesa") throw new ActionError("Custo fixo ou variável só vale para categoria de despesa.");
+    await prisma.categoriaFinanceira.update({ where: { id: i.id }, data: { tipoCusto: i.tipoCusto } });
+    rev();
+    revalidatePath("/financeiro/indicadores");
     return { id: i.id };
   },
 );

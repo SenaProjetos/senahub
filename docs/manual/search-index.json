@@ -1626,7 +1626,9 @@
         "aviso repetido",
         "desligar aviso",
         "e-mail de cobrança",
-        "inadimplência"
+        "inadimplência",
+        "licitação sem cobrança",
+        "cobrar licitação"
       ],
       "sinonimos": [
         "lembrete de vencimento",
@@ -1817,7 +1819,10 @@
         "competência em aberto",
         "trimestre",
         "12 meses",
-        "faturado"
+        "faturado",
+        "margem de contribuição",
+        "custo fixo",
+        "custo variável"
       ],
       "sinonimos": [
         "demonstrativos",

@@ -5,6 +5,7 @@ import {
   cobrancaDeHoje,
   corpoDoAvisoDePagar,
   diasAteVencer,
+  ehRecebivelDeLicitacao,
   frasesDoVencimento,
   normalizarConfigAvisos,
   pagarDeHoje,
@@ -74,6 +75,18 @@ describe("contas a pagar vencendo", () => {
     expect(corpoDoAvisoDePagar({ d1: { quantidade: 2, valor: 120_000 }, d3: { quantidade: 1, valor: 80_000 } })).toContain("2 vencem amanhã");
     expect(corpoDoAvisoDePagar({ d1: { quantidade: 2, valor: 120_000 }, d3: { quantidade: 1, valor: 80_000 } })).toContain("1 vence em 3 dias");
     expect(corpoDoAvisoDePagar({ d1: { quantidade: 0, valor: 0 }, d3: { quantidade: 4, valor: 1 } })).toBe("4 vencem em 3 dias (R$ 0,01)");
+  });
+});
+
+describe("licitação (decisão do dono, 2026-10-03)", () => {
+  it("padrão: licitação não é cobrada", () => {
+    expect(CONFIG_AVISOS_PADRAO.cobrarLicitacao).toBe(false);
+  });
+  it("é licitação pelo projeto ou pela categoria (ou uma mãe dela)", () => {
+    expect(ehRecebivelDeLicitacao({ projetoTipo: "licitacao", chavesDaCategoria: ["receita_projetos_particulares"] })).toBe(true);
+    expect(ehRecebivelDeLicitacao({ projetoTipo: null, chavesDaCategoria: [null, "receita_licitacoes", "receita"] })).toBe(true);
+    expect(ehRecebivelDeLicitacao({ projetoTipo: "particular", chavesDaCategoria: ["receita_projetos_particulares", "receita"] })).toBe(false);
+    expect(ehRecebivelDeLicitacao({ projetoTipo: undefined, chavesDaCategoria: [] })).toBe(false);
   });
 });
 

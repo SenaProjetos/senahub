@@ -107,6 +107,11 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
   meses); cartões e tabela mostram sempre o mesmo número para o mesmo mês. Inadimplência agora divide pelo
   **faturado** (não só pelo recebido) e o prazo médio conta só contas que tiveram vencimento. No menu de cada mês,
   **Ver lançamentos do mês**.
+- **Ponto de equilíbrio** passou a separar **custo fixo** de **custo variável**: em Cadastros → Plano de contas, cada
+  despesa diz se é fixa ou variável (as do sistema já vêm marcadas), e o indicador calcula quanto faturar por mês para
+  pagar os custos.
+- **Licitação não recebe e-mail de cobrança.** Conta de projeto de licitação fica de fora dos lembretes ao cliente;
+  dá para ligar em Configurações → Avisos de vencimento.
 - **Extrato por conta** ganhou **Exportar** (Excel). Em **Pagas e recebidas**, pagamento de produção tem
   **Abrir na Produção**.
 - **Rateio, duplicar e comprovante na baixa:** ratear um lançamento entre centros de custo e projetos (vale no

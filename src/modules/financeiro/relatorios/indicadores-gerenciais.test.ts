@@ -5,6 +5,7 @@ import {
   pontoDeEquilibrio,
   prazoMedioDias,
   receitaPorProjetoAtivo,
+  tipoCustoEfetivo,
   variacaoPontosPercentuais,
 } from "@/modules/financeiro/relatorios/indicadores-gerenciais";
 
@@ -27,9 +28,29 @@ describe("variação em pontos percentuais", () => {
   });
 });
 
-describe("ponto de equilíbrio", () => {
-  it("é a despesa do mês (aproximação documentada)", () => {
-    expect(pontoDeEquilibrio(56_400)).toBe(56_400);
+describe("ponto de equilíbrio (margem de contribuição)", () => {
+  it("fixos ÷ (1 − variáveis ÷ receita)", () => {
+    // Receita 87.000; variáveis 16.250 (18,68%); fixos 45.000 → 45.000 ÷ 0,8132… = 55.335,69.
+    expect(pontoDeEquilibrio({ fixos: 45_000, variaveis: 16_250, receita: 87_000 })).toBe(55_335.69);
+  });
+  it("só custo fixo: o ponto é o próprio custo", () => {
+    expect(pontoDeEquilibrio({ fixos: 40_000, variaveis: 0, receita: 87_000 })).toBe(40_000);
+  });
+  it("sem receita no período não há margem: contam só os fixos", () => {
+    expect(pontoDeEquilibrio({ fixos: 30_000, variaveis: 5_000, receita: 0 })).toBe(30_000);
+  });
+  it("variáveis comendo toda a receita: nenhum faturamento cobre — null", () => {
+    expect(pontoDeEquilibrio({ fixos: 10_000, variaveis: 50_000, receita: 50_000 })).toBeNull();
+    expect(pontoDeEquilibrio({ fixos: 10_000, variaveis: 60_000, receita: 50_000 })).toBeNull();
+  });
+});
+
+describe("tipo de custo efetivo", () => {
+  it("o próprio vence; senão o ancestral mais próximo; sem nada, fixo", () => {
+    expect(tipoCustoEfetivo(["variavel", "fixo"])).toBe("variavel");
+    expect(tipoCustoEfetivo([null, undefined, "variavel", "fixo"])).toBe("variavel");
+    expect(tipoCustoEfetivo([null, null])).toBe("fixo");
+    expect(tipoCustoEfetivo([])).toBe("fixo");
   });
 });
 

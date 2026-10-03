@@ -9,6 +9,8 @@ export const categoriaSchema = z.object({
   paiId: z.string().optional(),
 });
 export const categoriaEditSchema = categoriaSchema.extend({ id });
+/** Custo fixo ou variável de uma despesa (ponto de equilíbrio); `null` = herda da categoria mãe. */
+export const tipoCustoCategoriaSchema = z.object({ id, tipoCusto: z.enum(["fixo", "variavel"]).nullable() });
 
 export const centroSchema = z.object({ nome: z.string().min(1) });
 export const centroEditSchema = centroSchema.extend({ id });

@@ -56,8 +56,11 @@ Apoiar a gestão com demonstrativos e indicadores construídos a partir dos lan�
   O pró-labore, ao contrário, **é** despesa.
 - **Transferência entre contas** da empresa não entra em nenhum relatório de resultado nem no DFC: ela só
   muda em que conta o dinheiro está.
-- **Ponto de equilíbrio** (em Indicadores) é uma aproximação: hoje é a despesa média por mês do período,
-  porque o plano de contas não separa custo fixo de custo variável.
+- **Ponto de equilíbrio** (em Indicadores): quanto faturar por mês para pagar os custos. Usa a **margem de
+  contribuição**: custos fixos ÷ (1 − custos variáveis ÷ receita). Cada categoria de despesa é **custo fixo** (existe
+  com ou sem projeto: folha, aluguel, administrativas) ou **variável** (acompanha o faturamento: projetistas,
+  freelancers, fornecedores, ART, impostos). Ajuste em **Cadastros → Plano de contas**; uma categoria em "Herda" segue a
+  mãe, e sem nada na cadeia conta como fixa. Se os custos variáveis passam da receita, o cartão mostra "—".
 - **Inadimplência (12 meses)**: o que está vencido há mais de 30 dias dividido por tudo o que foi **faturado**
   (emitido a receber) nos últimos 12 meses, recebido ou não.
 - **Prazo médio de recebimento/pagamento** (em Indicadores) é a média simples em dias (da emissão ao

@@ -82,7 +82,7 @@ import {
 } from "../src/modules/financeiro/investimentos/service";
 import { totalDaCarteira } from "../src/modules/financeiro/investimentos/queries";
 import { baixarNoBanco } from "../src/modules/financeiro/lancamentos/baixa-service";
-import { balancoGerencial, relatorioDRE, relatorioDREComparativo, relatorioPorDimensao } from "../src/modules/financeiro/relatorios/queries";
+import { balancoGerencial, indicadoresGerenciais, relatorioDRE, relatorioDREComparativo, relatorioPorDimensao } from "../src/modules/financeiro/relatorios/queries";
 import { CHAVE_CONFIG_FINANCEIRO } from "../src/modules/financeiro/config/queries";
 import { salvarRateioNoBanco } from "../src/modules/financeiro/lancamentos/rateio-service";
 import { exigirComprovanteSeObrigatorio } from "../src/modules/financeiro/lancamentos/comprovante-service";
@@ -1072,7 +1072,9 @@ async function saldoDoSistemaDaConta(contaId: string, ateDia: string): Promise<n
 async function avisosDoFinanceiro(autorId: string) {
   console.log("\n# M9 — avisos: cobrança ao cliente e contas a pagar vencendo");
   const catD = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "despesa", natureza: "resultado" }, select: { id: true } });
-  const catR = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "receita", natureza: "resultado" }, select: { id: true } });
+  // Projetos particulares: "Licitações" não é cobrada por padrão e falsearia as checagens abaixo.
+  const catR = await prisma.categoriaFinanceira.findFirst({ where: { chave: "receita_projetos_particulares" }, select: { id: true } });
+  const catLic = await prisma.categoriaFinanceira.findFirst({ where: { chave: "receita_licitacoes" }, select: { id: true } });
   const catT = await prisma.categoriaFinanceira.findFirst({ where: { natureza: "transferencia", tipo: "receita" }, select: { id: true } });
   if (!catD || !catR) return check("categorias existem", false);
   const hoje = diaDeSaoPaulo();
@@ -1130,6 +1132,20 @@ async function avisosDoFinanceiro(autorId: string) {
     const antes = enviados.length;
     const r3 = await enviarCobrancasAoCliente({ hoje, enviar });
     check("cliente sem e-mail é contado à parte e nada sai", r3.semEmail >= 1 && enviados.length === antes, r3);
+
+    // --- licitação: não se cobra (decisão do dono, 2026-10-03), salvo se ligar
+    if (catLic) {
+      await receber("licitacao vence hoje", somar(0), { categoriaId: catLic.id });
+      const antesLic = meus().length;
+      const rl = await enviarCobrancasAoCliente({ hoje, enviar });
+      check("licitação não recebe cobrança por padrão (contada à parte)", meus().length === antesLic && rl.licitacao >= 1, rl);
+      await prisma.configSistema.update({
+        where: { chave: CHAVE_CONFIG_AVISOS },
+        data: { valor: { cobrancaAntes: true, diasAntes: 3, cobrancaNoDia: true, cobrancaApos: true, contasAPagar: true, cobrarLicitacao: true } },
+      });
+      await enviarCobrancasAoCliente({ hoje, enviar });
+      check("com 'cobrar licitação' ligado, ela recebe", meus().some((e) => e.descricao.includes("licitacao vence hoje")));
+    } else check("categoria Licitações existe", false);
     check("perna de transferência nunca vira cobrança", !enviados.some((e) => e.descricao.endsWith(" perna")), enviados.map((e) => e.descricao));
 
     // --- envio que falha devolve a reserva: a próxima rodada tenta de novo
@@ -1470,6 +1486,22 @@ async function revisaoDasFasesM(autorId: string) {
     const caixa = await relatorioDREComparativo(dia("2046-07-01"), dia("2046-07-31"), "caixa");
     check("competência inclui a receita em aberto do mês", Math.round(competencia.totalReceitas * 100) === 77700, competencia.totalReceitas);
     check("caixa não inclui o que não foi recebido", Math.round(caixa.totalReceitas * 100) === 0, caixa.totalReceitas);
+
+    // Ponto de equilíbrio por margem de contribuição (decisão do dono, 2026-10-03): fixos ÷ (1 − variáveis ÷ receita).
+    const catRec = await prisma.categoriaFinanceira.findFirst({ where: { chave: "receita_projetos_particulares" }, select: { id: true } });
+    const catFixa = await prisma.categoriaFinanceira.findFirst({ where: { chave: "despesa_administrativas" }, select: { id: true } });
+    const catVar = await prisma.categoriaFinanceira.findFirst({ where: { chave: "despesa_projetistas_pj" }, select: { id: true } });
+    if (catRec && catFixa && catVar) {
+      const pago = (tipo: "receita" | "despesa", valor: number, categoriaId: string, suf: string) =>
+        prisma.lancamento.create({
+          data: { tipo, descricao: `${tag} rv pe ${suf}`, valor, status: "confirmado", data: dia("2047-03-10"), dataConfirmacao: dia("2047-03-10"), categoriaId, autorId },
+        });
+      await pago("receita", 1000, catRec.id, "receita");
+      await pago("despesa", 300, catFixa.id, "fixa");
+      await pago("despesa", 200, catVar.id, "variavel");
+      const ind = await indicadoresGerenciais(dia("2047-03-01"), dia("2047-03-31"), "caixa");
+      check("ponto de equilíbrio = 300 ÷ (1 − 200 ÷ 1.000) = 375", ind.pontoDeEquilibrio === 375, ind.pontoDeEquilibrio);
+    } else check("categorias de fixo/variável existem", false);
   } finally {
     const contas = (await prisma.contaBancaria.findMany({ where: { nome: { startsWith: `${tag} revisao` } }, select: { id: true } })).map((c) => c.id);
     await prisma.lancamento.deleteMany({ where: { OR: [{ descricao: { contains: `${tag} rv` } }, { contaId: { in: contas } }], excluidoEm: { not: undefined } } });
