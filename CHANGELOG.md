@@ -2,11 +2,36 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
-## [1.23.0](https://github.com/SenaProjetos/senahub/compare/v1.22.0...v1.23.0) (2026-10-01)
+## [1.23.0](https://github.com/SenaProjetos/senahub/compare/v1.22.0...v1.23.0) (2026-10-03)
 
 
 ### ✨ Funcionalidades
 
+* **financeiro:** base visual do Financeiro (F1) ([4595b51](https://github.com/SenaProjetos/senahub/commit/4595b51a834868f9213ab243f1b22e9a9a0bae5c))
+* **financeiro:** cabeçalhos, abas de resultados e menus que faltavam (F8) ([b04e486](https://github.com/SenaProjetos/senahub/commit/b04e486559fa9b199cd8e1c4e84342d08881792d))
+* **financeiro:** caixinhas (F4) ([562cce5](https://github.com/SenaProjetos/senahub/commit/562cce5f1334963ef87e6f7aeec922f422ca7912))
+* **financeiro:** cenários salvos e aplicar ao financeiro (F3) ([e3fed38](https://github.com/SenaProjetos/senahub/commit/e3fed387ccbdd170e3cd7ff95bbbe0919d1cd3cf))
+* **financeiro:** compromissos recorrentes (F6A) ([9b5840b](https://github.com/SenaProjetos/senahub/commit/9b5840bebd50f65e53cb6aff37a998f20cb2a989))
+* **financeiro:** distribuição e adiantamento de lucros (F6B) ([d9be449](https://github.com/SenaProjetos/senahub/commit/d9be449c620bd0bcde375d4f5d6292e448e2cf98))
+* **financeiro:** fora do resultado em todas as consultas de dinheiro (F6C) ([fae8c85](https://github.com/SenaProjetos/senahub/commit/fae8c859b5db0b9010cc1253fc5cd90e431ca6f5))
+* **financeiro:** M0 — menu novo, Pagas e recebidas e Extrato por conta ([8047623](https://github.com/SenaProjetos/senahub/commit/8047623b61702d25db896038d241c6c0049300ec))
+* **financeiro:** M10 — rateio entre centros/projetos, comprovante na baixa e duplicar ([3ac11c4](https://github.com/SenaProjetos/senahub/commit/3ac11c4d5a61cb6b87d97892978a61ef54fd7062))
+* **financeiro:** M2 — regras de preenchimento ([c9cadb5](https://github.com/SenaProjetos/senahub/commit/c9cadb57c13d77697bca0bbde5765b08ac0c28c7))
+* **financeiro:** M3 — cartões de crédito e cartão pessoal do sócio ([8edcc9e](https://github.com/SenaProjetos/senahub/commit/8edcc9e783642d7872818b56232e7fc6234fef27))
+* **financeiro:** M4 — investimentos (carteira detalhada) ([95fbf5f](https://github.com/SenaProjetos/senahub/commit/95fbf5f9b7695f557326171a30f14c05c2c4b1a9))
+* **financeiro:** M6 — indicadores, relatório por dimensão, orçamento por centro ([f95dbb3](https://github.com/SenaProjetos/senahub/commit/f95dbb3be5f8bd86b3f2184f357062e01ac58d89))
+* **financeiro:** M7 — baixa com juros, multa e desconto; documento e chave da NF ([d5da2fb](https://github.com/SenaProjetos/senahub/commit/d5da2fb18657688c6d79db849543d416b424464a))
+* **financeiro:** M8 — transferência pela tela, data do saldo inicial e corrigir pagamento ([42b5e37](https://github.com/SenaProjetos/senahub/commit/42b5e371806c0106281d7ddf7cc315e7029aca46))
+* **financeiro:** M9 — avisos de vencimento sem duplicar ([c9ce95a](https://github.com/SenaProjetos/senahub/commit/c9ce95a8fac98cf19ae8f2ce3f478f966230bc57))
+* **financeiro:** menu em Documentos e confirmação ao remover sócio ([d39c38e](https://github.com/SenaProjetos/senahub/commit/d39c38e974b8f3afc4204089ea1f63c4e10a2d65))
+* **financeiro:** motor de liquidez do planejador de caixa (F0) ([a9d557d](https://github.com/SenaProjetos/senahub/commit/a9d557d24054c5a848e1e9728f2dd6bc5431fbf7))
+* **financeiro:** núcleo N1 — máquina de situações, estorno e reabertura ([cd5ece2](https://github.com/SenaProjetos/senahub/commit/cd5ece26bb2fd67c479331384c674a5a163b1d60))
+* **financeiro:** núcleo N3 — alçada única ([89a1c90](https://github.com/SenaProjetos/senahub/commit/89a1c90df0636e949ef280154655817e3f5a9e1d))
+* **financeiro:** núcleo N4 — conciliação confiável ([0dc6d79](https://github.com/SenaProjetos/senahub/commit/0dc6d79fb4e13277234c2463b40d0af7cb23a7a1))
+* **financeiro:** núcleo N5 — mês fechado trava os lançamentos ([f6859bf](https://github.com/SenaProjetos/senahub/commit/f6859bf03fa242624b54b8bbcde6318a23183cb5))
+* **financeiro:** regras de distribuição e recebimentos a distribuir (F5) ([17f75ef](https://github.com/SenaProjetos/senahub/commit/17f75ef432faf6b29e363f6bf2c775cb38d73dd4))
+* **financeiro:** tela do Planejador de caixa (F2) ([1215aba](https://github.com/SenaProjetos/senahub/commit/1215abaf89525e65dd5fb994255e6b9fdf19fb0b))
+* **financeiro:** Visão geral torre de controle e fluxo diário no motor (F7) ([409410d](https://github.com/SenaProjetos/senahub/commit/409410df6082e7500b613414a757d0eefc7b3381))
 * **nomenclatura:** aba Formatos de folha, seletor com Todas as versões e versão escolhida ao adicionar ([c8dc0ef](https://github.com/SenaProjetos/senahub/commit/c8dc0ef03ebe06f90df17a27d9239ce1e2d52024))
 * **nomenclatura:** ação do catálogo em lote, com transferência de sigla confirmada ([9dc2a09](https://github.com/SenaProjetos/senahub/commit/9dc2a0914dc57216c62a407fde1ab59308f58761))
 * **nomenclatura:** actions do lápis (cadastro sem versão; pasta só sem uso) ([a2d741c](https://github.com/SenaProjetos/senahub/commit/a2d741c8fab164c8aa89b00efe63ef3aa07150ab))
@@ -21,10 +46,18 @@ Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commit
 * **nomenclatura:** tela única na lente vN (rota [lente], versões em /versoes, abas, seletor em lista, menu, lápis) ([950b5c4](https://github.com/SenaProjetos/senahub/commit/950b5c416b5c7b186c6bbd13a6b9eae6aeb72229))
 * **nomenclatura:** telas Disciplinas e Lista Mestre redirecionam para a tela única ([1b6174e](https://github.com/SenaProjetos/senahub/commit/1b6174e49c59e37983ae0ccb6d4122eaa7f912d4))
 * **nomenclatura:** transferência de sigla e operações da tela de siglas ([a88a01d](https://github.com/SenaProjetos/senahub/commit/a88a01d6cfd81bad0d9e666522d6381112042ab2))
+* **rh:** fechar a folha quita a conta a pagar prevista da competência (F6D) ([450c747](https://github.com/SenaProjetos/senahub/commit/450c7475fd62a1569f01ddea2d897c704fa938c9))
 
 
 ### 🐛 Correções
 
+* **financeiro:** "use server" dos lucros de sócio só exporta função ([8adaabd](https://github.com/SenaProjetos/senahub/commit/8adaabddba0306038203dac6ed4db4a34eaef240))
+* **financeiro:** movimento de caixinha não pode ficar negativo numa corrida ([caf3db1](https://github.com/SenaProjetos/senahub/commit/caf3db1d657570cf2f2556841194ccd100ebc20a))
+* **financeiro:** núcleo N0 — folha no mês seguinte, parcelas, serviço e projetista pagos ([7adb1a4](https://github.com/SenaProjetos/senahub/commit/7adb1a4a9e70c57cc8a4dbab182867220510c784))
+* **financeiro:** núcleo N2 — datas em São Paulo, recorrência confirmada e índices ([79458d3](https://github.com/SenaProjetos/senahub/commit/79458d33eb6cdc95d5534797a464062a984a0500))
+* **financeiro:** núcleo N6 — categorias por chave e consistência ([74a985e](https://github.com/SenaProjetos/senahub/commit/74a985e88f3c3ed85f5ffcddcd105881f5ac4070))
+* **financeiro:** revisão das fases N2–M10 antes do deploy ([63ff194](https://github.com/SenaProjetos/senahub/commit/63ff1946248d04776e08878bf7f9dfd643e9a7a1))
+* **financeiro:** Visão geral mais curta e sem atalhos no fim da página ([4465d17](https://github.com/SenaProjetos/senahub/commit/4465d17df7e35c41205d14a7b7ad6143c1d7e4c1))
 * **nomenclatura:** conflito de sigla detectado pelo dono novo (card que volta, subs dele, importação) ([927c053](https://github.com/SenaProjetos/senahub/commit/927c053320be390651e901f57cf8cc185c3e8c2a))
 * **nomenclatura:** excluir só o que nada prende, arquivar com estado pedido e pontos menores da F3–F5 ([8d58ed9](https://github.com/SenaProjetos/senahub/commit/8d58ed9f4dd6b6f9eb4404bd2d632fc8dc501ed9))
 * **nomenclatura:** formulário antigo reabre siglas cortadas e nunca corta ao estreitar ([47c4eca](https://github.com/SenaProjetos/senahub/commit/47c4eca697781f2f98ccf33fb2af7d89e2ad8f0b))
