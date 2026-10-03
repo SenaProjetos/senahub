@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { diaDeSaoPaulo } from "@/lib/data";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { criarLancamento, editarLancamento } from "@/modules/financeiro/lancamentos/actions";
 import { sugerirPreenchimentoAoLancar } from "@/modules/financeiro/regras/actions";
+import { chaveNfeValida, MOTIVO_CHAVE_INVALIDA } from "@/modules/financeiro/lancamentos/baixa";
 import type { OpcoesLancamento, LancamentoItem } from "@/modules/financeiro/lancamentos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
@@ -65,7 +67,7 @@ export function LancamentoForm({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const hoje = new Date().toISOString().slice(0, 10);
+  const hoje = diaDeSaoPaulo();
   const modoEdicao = !!editar;
 
   const [tipo, setTipo] = useState<"receita" | "despesa">(tipoInicial);
@@ -80,6 +82,9 @@ export function LancamentoForm({
   const [fornecedorId, setFornecedorId] = useState(NONE);
   const [clienteId, setClienteId] = useState(NONE);
   const [observacao, setObservacao] = useState("");
+  // M7: número do documento e chave da NF.
+  const [numeroDocumento, setNumeroDocumento] = useState("");
+  const [chaveNfe, setChaveNfe] = useState("");
   const [confirmado, setConfirmado] = useState(false);
   const [ocorrencias, setOcorrencias] = useState("1");
   const [prioridade, setPrioridade] = useState<string>(PADRAO);
@@ -106,6 +111,8 @@ export function LancamentoForm({
       setFornecedorId(editar.fornecedorId ?? NONE);
       setClienteId(editar.clienteId ?? NONE);
       setObservacao(editar.observacao ?? "");
+      setNumeroDocumento(editar.numeroDocumento ?? "");
+      setChaveNfe(editar.chaveNfe ?? "");
       setConfirmado(false);
       setOcorrencias("1");
       setPrioridade(editar.prioridade ?? PADRAO);
@@ -130,6 +137,8 @@ export function LancamentoForm({
     setFornecedorId(NONE);
     setClienteId(NONE);
     setObservacao("");
+    setNumeroDocumento("");
+    setChaveNfe("");
     setConfirmado(false);
     setOcorrencias("1");
     setPrioridade(PADRAO);
@@ -200,6 +209,8 @@ export function LancamentoForm({
           fornecedorId: fornecedorId === NONE ? "" : fornecedorId,
           clienteId: clienteId === NONE ? "" : clienteId,
           observacao,
+          numeroDocumento,
+          chaveNfe,
           ...planejador,
         });
         if (r.ok) {
@@ -222,6 +233,8 @@ export function LancamentoForm({
         fornecedorId: fornecedorId === NONE ? "" : fornecedorId,
         clienteId: clienteId === NONE ? "" : clienteId,
         observacao,
+        numeroDocumento,
+        chaveNfe,
         confirmado,
         contaId: "",
         formaId: formaSugerida,
@@ -473,6 +486,20 @@ export function LancamentoForm({
           <div className="space-y-1.5">
             <Label>Observação</Label>
             <Input value={observacao} onChange={(e) => setObservacao(e.target.value)} />
+          </div>
+
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+            <div className="space-y-1.5">
+              <Label htmlFor="lc-numdoc">Nº do documento</Label>
+              <Input id="lc-numdoc" value={numeroDocumento} maxLength={60} placeholder="Boleto, NF, recibo" onChange={(e) => setNumeroDocumento(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="lc-chave">Chave da NF (opcional)</Label>
+              <Input id="lc-chave" value={chaveNfe} inputMode="numeric" placeholder="44 dígitos" onChange={(e) => setChaveNfe(e.target.value)} />
+              {chaveNfe && !chaveNfeValida(chaveNfe) && (
+                <p className="text-xs text-destructive">{MOTIVO_CHAVE_INVALIDA}</p>
+              )}
+            </div>
           </div>
 
           {!modoEdicao && (

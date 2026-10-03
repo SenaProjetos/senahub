@@ -57,7 +57,7 @@ import {
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { brl, formatarData } from "@/lib/utils";
-import { MESES_CURTOS } from "@/lib/data";
+import { MESES_CURTOS, diaDeSaoPaulo } from "@/lib/data";
 import { SeletorPeriodo, type OpcaoPeriodo } from "@/components/financeiro/seletor-periodo";
 
 function dt(d: string | Date | null) {
@@ -765,7 +765,7 @@ function LoteDialog({
   tipo: "despesa" | "receita"; onDone: () => void;
 }) {
   const [pending, start] = useTransition();
-  const hoje = new Date().toISOString().slice(0, 10);
+  const hoje = diaDeSaoPaulo();
   const [contaId, setContaId] = useState(NONE);
   const [formaId, setFormaId] = useState(NONE);
   const [dataConf, setDataConf] = useState(hoje);

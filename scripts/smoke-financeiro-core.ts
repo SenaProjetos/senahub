@@ -43,7 +43,7 @@ import { indicadores } from "../src/modules/financeiro/relatorios/queries";
 import { estornarNoBanco, exigirOperacao, reabrirNoBanco } from "../src/modules/financeiro/lancamentos/situacao-service";
 import { executarCommit, executarDesfazer } from "../src/modules/financeiro/importacao/commit-core";
 import { criarLancamentoNoTx } from "../src/modules/financeiro/lancamentos/service";
-import { utcFimDoDia, utcInicioDoDia } from "../src/lib/data";
+import { diaDeSaoPaulo, utcFimDoDia, utcInicioDoDia } from "../src/lib/data";
 import { lancamentosAguardando, valorParaAlcada } from "../src/modules/financeiro/aprovacao/queries";
 import { MOTIVO_PROPRIA_DESPESA } from "../src/modules/financeiro/aprovacao/niveis";
 import { conciliarNoBanco, criarDaTransacaoNoBanco, desconciliarNoBanco, importarOfxNoBanco } from "../src/modules/financeiro/conciliacao/service";
@@ -81,6 +81,7 @@ import {
   resgatarNoBanco,
 } from "../src/modules/financeiro/investimentos/service";
 import { totalDaCarteira } from "../src/modules/financeiro/investimentos/queries";
+import { baixarNoBanco } from "../src/modules/financeiro/lancamentos/baixa-service";
 import { balancoGerencial, relatorioDRE } from "../src/modules/financeiro/relatorios/queries";
 
 let falhas = 0;
@@ -143,6 +144,7 @@ async function main() {
     await transferenciasEPagamentos(admin.id);
     await avisosDoFinanceiro(admin.id);
     await investimentos(admin.id);
+    await baixaCompleta(admin.id);
   } finally {
     const pags = (await prisma.pagamentoProjetista.findMany({ where: { disciplinaId: disciplina.id }, select: { id: true } })).map((p) => p.id);
     await prisma.lancamento.deleteMany({ where: { OR: [{ projetoId: projeto.id }, { pagamentoProjetistaId: { in: pags } }, { descricao: { startsWith: tag } }] } });
@@ -847,8 +849,8 @@ async function cartoesDeCredito(autorId: string) {
     data: { nome: `${tag} Visa`, tipo: "empresa", diaFechamento: 25, diaVencimento: 5, contaPadraoId: conta.id },
   });
   // Datas RELATIVAS: a fatura de 70 dias atrás já fechou em qualquer dia do mês; a de hoje está aberta.
-  const hoje = new Date().toISOString().slice(0, 10);
-  const diasAtras = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+  const hoje = diaDeSaoPaulo();
+  const diasAtras = (n: number) => new Date(Date.parse(`${diaDeSaoPaulo()}T00:00:00Z`) - n * 86400000).toISOString().slice(0, 10);
   const compraVelha = diasAtras(70);
   try {
     const c1 = await lancarCompraNoBanco(
@@ -949,8 +951,8 @@ async function transferenciasEPagamentos(autorId: string) {
   console.log("\n# M8 — transferência entre contas, data do saldo inicial e corrigir pagamento");
   const catD = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "despesa", natureza: "resultado" }, select: { id: true } });
   if (!catD) return check("categoria de despesa existe", false);
-  const hoje = new Date().toISOString().slice(0, 10);
-  const diasAtras = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+  const hoje = diaDeSaoPaulo();
+  const diasAtras = (n: number) => new Date(Date.parse(`${diaDeSaoPaulo()}T00:00:00Z`) - n * 86400000).toISOString().slice(0, 10);
   const A = await prisma.contaBancaria.create({ data: { nome: `${tag} conta A`, tipo: "corrente", saldoInicial: 1000 } });
   const B = await prisma.contaBancaria.create({ data: { nome: `${tag} conta B`, tipo: "corrente", saldoInicial: 0 } });
   const C = await prisma.contaBancaria.create({ data: { nome: `${tag} conta C`, tipo: "corrente", saldoInicial: 0 } });
@@ -1068,7 +1070,7 @@ async function avisosDoFinanceiro(autorId: string) {
   const catR = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "receita", natureza: "resultado" }, select: { id: true } });
   const catT = await prisma.categoriaFinanceira.findFirst({ where: { natureza: "transferencia", tipo: "receita" }, select: { id: true } });
   if (!catD || !catR) return check("categorias existem", false);
-  const hoje = new Date().toISOString().slice(0, 10);
+  const hoje = diaDeSaoPaulo();
   const somar = (n: number) => new Date(Date.parse(`${hoje}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
   const inicioDoTeste = new Date();
   const comEmail = await prisma.cliente.create({ data: { nome: `${tag}-cli-email`, email: `${tag}@teste.local` } });
@@ -1177,8 +1179,8 @@ async function avisosDoFinanceiro(autorId: string) {
 
 async function investimentos(autorId: string) {
   console.log("\n# M4 — investimentos (carteira detalhada)");
-  const hoje = new Date().toISOString().slice(0, 10);
-  const diasAtras = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+  const hoje = diaDeSaoPaulo();
+  const diasAtras = (n: number) => new Date(Date.parse(`${diaDeSaoPaulo()}T00:00:00Z`) - n * 86400000).toISOString().slice(0, 10);
   const corrente = await prisma.contaBancaria.create({ data: { nome: `${tag} corrente inv`, tipo: "corrente", saldoInicial: 100_000 } });
   const ids: string[] = [];
   const caixa = async () => (await fluxoCaixa(1)).saldoTotal;
@@ -1269,6 +1271,77 @@ async function investimentos(autorId: string) {
     await prisma.investimento.deleteMany({ where: { id: { in: invs.map((i) => i.id) } } });
     await prisma.contaBancaria.deleteMany({ where: { id: { in: contas } } });
     void ids;
+  }
+}
+
+async function baixaCompleta(autorId: string) {
+  console.log("\n# M7 — baixa completa: juros, multa e desconto");
+  const catD = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "despesa", natureza: "resultado", chave: { not: null } }, select: { id: true } });
+  const catR = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "receita", natureza: "resultado", chave: { not: null } }, select: { id: true } });
+  if (!catD || !catR) return check("categorias existem", false);
+  const hoje = diaDeSaoPaulo();
+  const conta = await prisma.contaBancaria.create({ data: { nome: `${tag} baixa`, tipo: "corrente", saldoInicial: 0 } });
+  const saldo = async () => {
+    const { saldoDoSistema } = await import("../src/modules/financeiro/conciliacao/service");
+    return saldoDoSistema(prisma, conta.id, hoje);
+  };
+  const titulo = (tipo: "receita" | "despesa", valor: number, suf: string) =>
+    prisma.lancamento.create({
+      data: { tipo, descricao: `${tag} ${suf}`, valor, status: "previsto", data: dia(hoje), vencimento: dia(hoje), categoriaId: tipo === "despesa" ? catD.id : catR.id, autorId },
+      select: { id: true },
+    });
+  const categoriasDosAcessorios = async (id: string) =>
+    (await prisma.lancamento.findMany({ where: { acessorioDeId: id, excluidoEm: null }, select: { tipo: true, valor: true, categoria: { select: { chave: true } } } })).map((a) => [a.tipo, Number(a.valor), a.categoria.chave]);
+  try {
+    // Pagamento com juros e multa: o título sai inteiro na categoria dele, o acréscimo vai para "juros e multas pagos".
+    const t1 = await titulo("despesa", 1000, "boleto atrasado");
+    const r1 = await baixarNoBanco({ id: t1.id, contaId: conta.id, data: dia(hoje), juros: 12.5, multa: 20 }, autorId);
+    check("juros + multa: o caixa sai 1.032,50", r1.caixa === 1032.5 && (await saldo()) === -1032.5, { r1, saldo: await saldo() });
+    const p1 = await prisma.lancamento.findUniqueOrThrow({ where: { id: t1.id }, select: { status: true, valorEfetivo: true } });
+    check("o título fica com o valor dele (sem efetivo), pago", p1.status === "confirmado" && p1.valorEfetivo === null, p1);
+    check("o acréscimo é UMA despesa em juros e multas pagos", JSON.stringify(await categoriasDosAcessorios(t1.id)) === JSON.stringify([["despesa", 32.5, "despesa_juros_multas_pagos"]]), await categoriasDosAcessorios(t1.id));
+
+    // Quitar com desconto.
+    const t2 = await titulo("despesa", 1000, "com desconto");
+    const r2 = await baixarNoBanco({ id: t2.id, contaId: conta.id, data: dia(hoje), desconto: 50 }, autorId);
+    check("quitar com desconto: o caixa sai 950 e nada fica em aberto", r2.caixa === 950 && r2.restante === null && (await prisma.lancamento.count({ where: { restanteDeId: t2.id } })) === 0, r2);
+    check("o desconto é receita em descontos obtidos", JSON.stringify(await categoriasDosAcessorios(t2.id)) === JSON.stringify([["receita", 50, "receita_descontos_obtidos"]]));
+
+    // Recebimento: sinais invertidos.
+    const t3 = await titulo("receita", 2000, "recebimento");
+    await baixarNoBanco({ id: t3.id, contaId: conta.id, data: dia(hoje), juros: 10, desconto: 100 }, autorId);
+    check("recebimento: juros recebidos é receita, desconto concedido é despesa", JSON.stringify((await categoriasDosAcessorios(t3.id)).sort()) === JSON.stringify([["despesa", 100, "despesa_descontos_concedidos"], ["receita", 10, "receita_juros_multas_recebidos"]]), await categoriasDosAcessorios(t3.id));
+
+    // Desconto em parcial é recusado; principal acima do título também.
+    const t4 = await titulo("despesa", 500, "parcial");
+    check("desconto num pagamento parcial é recusado", (await erroDe(baixarNoBanco({ id: t4.id, contaId: conta.id, data: dia(hoje), principal: 200, desconto: 10 }, autorId)))?.includes("Desconto só quitando") === true);
+    check("valor quitado acima do título é recusado (o excedente é juros)", (await erroDe(baixarNoBanco({ id: t4.id, contaId: conta.id, data: dia(hoje), principal: 600 }, autorId)))?.includes("juros ou multa") === true);
+    const r4 = await baixarNoBanco({ id: t4.id, contaId: conta.id, data: dia(hoje), principal: 200, juros: 5 }, autorId);
+    check("parcial com juros: 300 ficam em aberto e o caixa sai 205", r4.restante === 300 && r4.caixa === 205, r4);
+
+    // Acessório não se mexe sozinho; estornar o principal o leva junto.
+    const acessorio = await prisma.lancamento.findFirstOrThrow({ where: { acessorioDeId: t1.id }, select: { id: true } });
+    check("o acessório sozinho não se estorna", (await erroDe(estornarNoBanco(acessorio.id, autorId)))?.includes("principal") === true);
+    const antes = await saldo();
+    await estornarNoBanco(t1.id, autorId);
+    check("estornar o principal tira os juros junto e devolve 1.032,50 ao caixa", (await saldo()) - antes === 1032.5 && (await prisma.lancamento.count({ where: { acessorioDeId: t1.id, excluidoEm: null } })) === 0);
+
+    // Corrigir o pagamento leva o acessório para a nova conta.
+    const outra = await prisma.contaBancaria.create({ data: { nome: `${tag} baixa 2`, tipo: "corrente", saldoInicial: 0 } });
+    const { corrigirPagamentoNoBanco } = await import("../src/modules/financeiro/lancamentos/corrigir-pagamento");
+    await corrigirPagamentoNoBanco({ id: t2.id, contaId: outra.id, formaId: null, dataConfirmacao: hoje });
+    const acT2 = await prisma.lancamento.findFirstOrThrow({ where: { acessorioDeId: t2.id }, select: { contaId: true } });
+    check("corrigir a conta do pagamento leva o desconto junto", acT2.contaId === outra.id);
+    await prisma.lancamento.deleteMany({ where: { contaId: outra.id, excluidoEm: { not: undefined } } });
+    await prisma.contaBancaria.delete({ where: { id: outra.id } });
+
+    // Legado: valorEfetivo maior que o título vira juros pela action (aqui pelo serviço com juros explícito).
+    const { chaveNfeValida } = await import("../src/modules/financeiro/lancamentos/baixa");
+    check("chave da NF com DV certo passa e errado não", chaveNfeValida("35200714200166000187550010000000046550010007") && !chaveNfeValida("35200714200166000187550010000000046550010008"));
+  } finally {
+    const ids = (await prisma.lancamento.findMany({ where: { descricao: { startsWith: tag }, excluidoEm: { not: undefined } }, select: { id: true } })).map((l) => l.id);
+    await prisma.lancamento.deleteMany({ where: { OR: [{ acessorioDeId: { in: ids } }, { contaId: conta.id }, { descricao: { contains: tag } }], excluidoEm: { not: undefined } } });
+    await prisma.contaBancaria.deleteMany({ where: { id: conta.id } });
   }
 }
 

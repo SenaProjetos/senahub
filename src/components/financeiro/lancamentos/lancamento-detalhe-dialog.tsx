@@ -92,6 +92,24 @@ export function LancamentoDetalheDialog({
           <DialogTitle className="truncate">{l.descricao}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {/* M7: documento da baixa e chave da NF */}
+          {(l.numeroDocumento || l.chaveNfe || l.acessorioDeId) && (
+            <dl className="grid gap-1 rounded-sm border bg-muted/30 px-3 py-2 text-xs">
+              {l.numeroDocumento && (
+                <div className="flex justify-between gap-2">
+                  <dt className="text-muted-foreground">Nº do documento</dt>
+                  <dd>{l.numeroDocumento}</dd>
+                </div>
+              )}
+              {l.chaveNfe && (
+                <div className="grid gap-0.5">
+                  <dt className="text-muted-foreground">Chave da NF</dt>
+                  <dd className="break-all font-mono">{l.chaveNfe.replace(/(\d{4})/g, "$1 ").trim()}</dd>
+                </div>
+              )}
+              {l.acessorioDeId && <div className="text-muted-foreground">Juros, multa ou desconto de uma baixa: anda junto com o lançamento principal.</div>}
+            </dl>
+          )}
           {/* Etiquetas */}
           <div className="space-y-1.5">
             <Label className="text-xs">Etiquetas (separe por vírgula)</Label>

@@ -63,6 +63,11 @@ export async function corrigirPagamentoNoBanco(i: CorrecaoDePagamento): Promise<
       data: { contaId: i.contaId, formaId: i.formaId, dataConfirmacao: new Date(`${i.dataConfirmacao}T00:00:00.000Z`) },
     });
     if (r.count !== 1) throw new ActionError(MOTIVO_MUDOU);
+    // M7: juros/multa/desconto da baixa saíram da mesma conta, no mesmo dia, pela mesma forma.
+    await tx.lancamento.updateMany({
+      where: { acessorioDeId: i.id, excluidoEm: null },
+      data: { contaId: i.contaId, formaId: i.formaId, dataConfirmacao: new Date(`${i.dataConfirmacao}T00:00:00.000Z`) },
+    });
     return { mudou };
   });
 }

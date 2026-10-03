@@ -6,6 +6,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { fluxoCaixa } from "@/modules/financeiro/caixa/queries";
 import { totalDaCarteira } from "@/modules/financeiro/investimentos/queries";
+import { idsContasDeInvestimento } from "@/modules/financeiro/investimentos/service";
 import { SEM_TRANSFERENCIA, SO_RESULTADO } from "@/modules/financeiro/natureza";
 import { somaPaga, somarReais, valorPagoReais } from "@/modules/financeiro/valor-pago";
 import { analisarDRE, type LinhaBaseDRE, type DREComparativo } from "./dre";
@@ -257,11 +258,19 @@ export async function serieMensalResultado(ano: number): Promise<MesResultado[]>
 
 /** Indicadores rápidos do período. */
 export async function indicadores(de: Date, ate: Date) {
+  // M4: rendimento lançado na conta de um investimento é receita (DRE), mas não ENTROU no caixa — fica fora do "Recebido".
+  const contasDeAtivo = await idsContasDeInvestimento();
   const [projetosAtivos, recebido, aReceber] = await Promise.all([
     prisma.projeto.count({ where: { situacao: "em_andamento" } }),
     // Recebido = o que entrou (`valorEfetivo` do parcial/desconto vence o nominal), somado linha a linha.
     prisma.lancamento.findMany({
-      where: { tipo: "receita", status: "confirmado", dataConfirmacao: { gte: de, lte: ate }, ...SO_RESULTADO },
+      where: {
+        tipo: "receita",
+        status: "confirmado",
+        dataConfirmacao: { gte: de, lte: ate },
+        ...SO_RESULTADO,
+        ...(contasDeAtivo.length ? { OR: [{ contaId: null }, { contaId: { notIn: contasDeAtivo } }] } : {}),
+      },
       select: { valor: true, valorEfetivo: true },
     }),
     prisma.lancamento.aggregate({

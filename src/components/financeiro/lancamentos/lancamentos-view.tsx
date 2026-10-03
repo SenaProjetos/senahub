@@ -63,7 +63,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { brl, formatarData } from "@/lib/utils";
-import { inicioDoDia } from "@/lib/data";
+import { inicioDoDia, diaDeSaoPaulo } from "@/lib/data";
 
 type Conta = { id: string; nome: string; saldoInicial: number };
 type Situacao = "pendente" | "agendado" | "confirmado" | "conciliado" | "aguardando" | "cancelado";
@@ -892,7 +892,7 @@ export function LancamentosView({
     // Com a linha DENTRO de uma seleção de vários, o menu age sobre a seleção (regra 3 da ADR-0002).
     const menuItens = alvosSelecao.length > 1 && selecao.marcado(l.id)
       ? itensDoLote
-      : itensDeLancamento({ status: l.status, anexos: l.anexos.length, conciliado: l.conciliado, temCategoria: l.categoria != null, deTransferencia: l.transferenciaId != null });
+      : itensDeLancamento({ status: l.status, anexos: l.anexos.length, conciliado: l.conciliado, temCategoria: l.categoria != null, deTransferencia: l.transferenciaId != null, deAcessorio: l.acessorioDeId != null });
     return (
       <LinhaComMenu
         key={l.id}
@@ -970,7 +970,7 @@ function LoteDialog({
   contas: { id: string; nome: string }[]; formas: { id: string; nome: string }[]; onDone: () => void;
 }) {
   const [pending, start] = useTransition();
-  const hoje = new Date().toISOString().slice(0, 10);
+  const hoje = diaDeSaoPaulo();
   const [contaId, setContaId] = useState(NONE);
   const [formaId, setFormaId] = useState(NONE);
   const [dataConf, setDataConf] = useState(hoje);

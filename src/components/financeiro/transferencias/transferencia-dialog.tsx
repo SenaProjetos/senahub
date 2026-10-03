@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { diaDeSaoPaulo } from "@/lib/data";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -15,7 +16,7 @@ import { motivoParaNaoCriar } from "@/modules/financeiro/transferencias/calculo"
 
 type Conta = { id: string; nome: string };
 
-const hojeIso = () => new Date().toISOString().slice(0, 10);
+const hojeIso = () => diaDeSaoPaulo();
 
 /**
  * Transferir entre contas (M8): cria ou edita o PAR de lançamentos (despesa na origem + receita no destino).

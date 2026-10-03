@@ -12,6 +12,7 @@ import { getConfigFinanceiro } from "@/modules/financeiro/config/queries";
 import { obrigatorioFaltando } from "@/modules/financeiro/config/validacao";
 import { motivoCategoriaIncompativel } from "@/modules/financeiro/categorias-regras";
 import type { CriarLancamentoInput } from "@/modules/financeiro/lancamentos/schemas";
+import { normalizarChaveNfe } from "@/modules/financeiro/lancamentos/baixa";
 import { exigirPeriodoAberto } from "@/modules/financeiro/fechamento/trava-service";
 
 /**
@@ -101,6 +102,8 @@ export async function criarLancamentoNoTx(db: Db, i: CriarLancamentoInput, autor
     fornecedorId: i.fornecedorId || null,
     clienteId: i.clienteId || null,
     observacao: i.observacao || null,
+    numeroDocumento: i.numeroDocumento || null,
+    chaveNfe: i.chaveNfe ? normalizarChaveNfe(i.chaveNfe) : null,
     recorrenciaGrupo: grupo,
     autorId,
     status,

@@ -19,9 +19,8 @@ import { removerArquivo } from "@/lib/storage";
 import { criarLancamentoNoTx, notificarAprovacaoPendente } from "@/modules/financeiro/lancamentos/service";
 import { getNiveisAprovacao, valorParaAlcada } from "@/modules/financeiro/aprovacao/queries";
 import { situacaoAposMudarValor } from "@/modules/financeiro/aprovacao/niveis";
-import { camposDoPlanejador, saldoRestante } from "@/modules/financeiro/lancamentos/parcial";
 import { pagamentoPagoNoFinanceiro } from "@/modules/financeiro/custo/lancamento-custo";
-import { exigirOperacao, estornarNoBanco, MOTIVO_MUDOU, reabrirNoBanco } from "@/modules/financeiro/lancamentos/situacao-service";
+import { exigirOperacao, estornarNoBanco, excluirAcessoriosNoTx, MOTIVO_MUDOU, reabrirNoBanco } from "@/modules/financeiro/lancamentos/situacao-service";
 import { paraCentavos } from "@/modules/financeiro/liquidez/dinheiro";
 import { datasDoLancamento, exigirPeriodoAberto } from "@/modules/financeiro/fechamento/trava-service";
 import { edicaoMexeNoFechado } from "@/modules/financeiro/fechamento/trava";
@@ -29,6 +28,8 @@ import { motivoCategoriaIncompativel } from "@/modules/financeiro/categorias-reg
 import { getExclusaoCompleto } from "@/modules/financeiro/config/queries";
 import { verificarSenha } from "@/modules/financeiro/config/senha";
 import { corrigirPagamentoNoBanco } from "@/modules/financeiro/lancamentos/corrigir-pagamento";
+import { baixarNoBanco } from "@/modules/financeiro/lancamentos/baixa-service";
+import { normalizarChaveNfe } from "@/modules/financeiro/lancamentos/baixa";
 import { corrigirPagamentoSchema } from "@/modules/financeiro/transferencias/schemas";
 
 const base = { modulo: "financeiro", recurso: "financeiro", permissao: "gerir" } as const;
@@ -188,6 +189,9 @@ export const editarLancamento = defineAction(
         fornecedorId: i.fornecedorId || null,
         clienteId: i.clienteId || null,
         observacao: i.observacao || null,
+        // Ausente = não mexe (quem edita por outro caminho não apaga o documento).
+        ...(i.numeroDocumento !== undefined ? { numeroDocumento: i.numeroDocumento || null } : {}),
+        ...(i.chaveNfe !== undefined ? { chaveNfe: i.chaveNfe ? normalizarChaveNfe(i.chaveNfe) : null } : {}),
         ...(novaSituacao === "aguardando_aprovacao"
           ? { status: novaSituacao, aprovadoPorId: null, aprovadoEm: null, motivoRejeicao: null }
           : novaSituacao
@@ -293,63 +297,21 @@ export const confirmarLancamento = defineAction(
   { ...base, acao: "confirmar-lancamento", entidade: "Lancamento", schema: confirmarLancamentoSchema, capturarAntes: (i) => snapshotLancamento(i.id) },
   async (i, ctx) => {
     const quando = data(i.dataConfirmacao || undefined) ?? hojeParaBanco();
-    const restante = await prisma.$transaction(async (tx) => {
-      await exigirOperacao(tx, i.id, "baixar");
-      // N5: o pagamento não cai em mês fechado (a conta vencida de mês fechado se paga em mês aberto).
-      await exigirPeriodoAberto(tx, [quando]);
-      const lanc = await tx.lancamento.findUniqueOrThrow({ where: { id: i.id } });
-      // Valor pago: usa o efetivo informado; se < total, o saldo vira um novo lançamento previsto.
-      const restante = saldoRestante(Number(lanc.valor), i.valorEfetivo);
-
-      // Condicionado à situação lida: duas baixas ao mesmo tempo não pagam duas vezes.
-      const r = await tx.lancamento.updateMany({
-        where: { id: i.id, status: "previsto", excluidoEm: null },
-        data: {
-          status: "confirmado",
-          dataConfirmacao: quando,
-          contaId: i.contaId || lanc.contaId,
-          formaId: i.formaId || lanc.formaId,
-          valorEfetivo: i.valorEfetivo ?? null,
-        },
-      });
-      if (r.count !== 1) throw new ActionError(MOTIVO_MUDOU);
-      await tx.lancamentoStatusHistorico.create({ data: { lancamentoId: i.id, de: lanc.status, para: "confirmado", autorId: ctx.user.id } });
-
-      if (restante != null) {
-        await tx.lancamento.create({
-          data: {
-            tipo: lanc.tipo,
-            descricao: lanc.descricao,
-            valor: restante,
-            status: "previsto" as const,
-            data: lanc.data,
-            vencimento: lanc.vencimento,
-            categoriaId: lanc.categoriaId,
-            centroId: lanc.centroId,
-            contaId: lanc.contaId,
-            formaId: lanc.formaId,
-            projetoId: lanc.projetoId,
-            fornecedorId: lanc.fornecedorId,
-            clienteId: lanc.clienteId,
-            tags: lanc.tags,
-            documentoFinanceiroId: lanc.documentoFinanceiroId,
-            ...camposDoPlanejador(lanc),
-            observacao: [lanc.observacao, "Saldo restante de pagamento parcial"].filter(Boolean).join(" · "),
-            recorrenciaGrupo: lanc.recorrenciaGrupo ?? lanc.id,
-            // N1: o estorno do pago acha o resto por aqui e o tira junto.
-            restanteDeId: lanc.id,
-            autorId: ctx.user.id,
-            statusHistorico: { create: { de: null, para: "previsto", autorId: ctx.user.id } },
-          },
-        });
-      }
-      if (lanc.pagamentoProjetistaId) {
-        await tx.pagamentoProjetista.updateMany(pagamentoPagoNoFinanceiro(lanc.pagamentoProjetistaId, quando));
-      }
-      return restante;
-    });
+    // Legado: `valorEfetivo` sozinho. Menor que o título = principal (parcial); maior = o excedente é juros (M7).
+    let principal = i.principal ?? null;
+    let juros = i.juros ?? 0;
+    if (principal == null && i.valorEfetivo != null) {
+      const titulo = await prisma.lancamento.findUnique({ where: { id: i.id }, select: { valor: true } });
+      const valor = titulo ? Number(titulo.valor) : i.valorEfetivo;
+      if (i.valorEfetivo > valor) juros += Math.round((i.valorEfetivo - valor) * 100) / 100;
+      else principal = i.valorEfetivo;
+    }
+    const r = await baixarNoBanco(
+      { id: i.id, contaId: i.contaId, formaId: i.formaId, data: quando, principal, juros, multa: i.multa, desconto: i.desconto },
+      ctx.user.id,
+    );
     rev();
-    return { id: i.id, restante };
+    return { id: i.id, restante: r.restante, acessorios: r.acessorios, caixa: r.caixa };
   },
 );
 
@@ -503,6 +465,8 @@ export const excluirLancamento = defineAction(
       const r = await tx.lancamento.updateMany({ where: { id: i.id, excluidoEm: null }, data: { excluidoEm: new Date() } });
       if (r.count !== 1) throw new ActionError(MOTIVO_MUDOU);
       await tx.lancamentoStatusHistorico.create({ data: { lancamentoId: i.id, de: estado.status, para: "excluido", autorId: ctx.user.id } });
+      // M7: juros/multa/desconto da baixa saem junto — sem o principal eles seriam caixa e DRE soltos.
+      await excluirAcessoriosNoTx(tx, i.id, ctx.user.id);
     });
     rev();
     return { id: i.id };

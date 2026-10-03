@@ -1416,7 +1416,13 @@
         "estorno",
         "reabrir",
         "desfazer pagamento",
-        "histórico"
+        "histórico",
+        "juros",
+        "multa",
+        "desconto",
+        "quitar com desconto",
+        "chave da NF",
+        "número do documento"
       ],
       "sinonimos": [
         "movimentações",

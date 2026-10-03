@@ -1,7 +1,7 @@
 import { Ban, Check, Copy, Paperclip, Pencil, RotateCcw, Trash2, Undo2 } from "lucide-react";
 
 import type { AcaoItem } from "@/components/ui/acoes";
-import { MOTIVO_CONCILIADO, MOTIVO_PAGO_ESTORNE } from "@/modules/financeiro/lancamentos/transicoes";
+import { MOTIVO_ACESSORIO, MOTIVO_CONCILIADO, MOTIVO_PAGO_ESTORNE } from "@/modules/financeiro/lancamentos/transicoes";
 import { itemCriarRegra } from "@/modules/financeiro/regras/acoes";
 import { itensDaTransferencia } from "@/modules/financeiro/transferencias/acoes";
 import { itemCorrigirPagamento } from "@/modules/financeiro/lancamentos/acoes-corrigir";
@@ -38,9 +38,18 @@ export type LancamentoParaAcoes = {
   temCategoria?: boolean;
   /** Perna de transferência entre contas (M8): o menu é o da transferência inteira. */
   deTransferencia?: boolean;
+  /** Juros/multa/desconto de uma baixa (M7): só anda com o principal. */
+  deAcessorio?: boolean;
 };
 
 export function itensDeLancamento(l: LancamentoParaAcoes): AcaoItem[] {
+  if (l.deAcessorio) {
+    return [
+      { tipo: "acao", id: ACAO_DETALHES, rotulo: l.anexos > 0 ? `Detalhes (${l.anexos})` : "Detalhes", icone: Paperclip },
+      { tipo: "acao", id: ACAO_COPIAR_DESCRICAO, rotulo: "Copiar descrição", icone: Copy },
+      { tipo: "acao", id: ACAO_ESTORNAR, rotulo: "Estornar", icone: Undo2, desabilitado: MOTIVO_ACESSORIO },
+    ];
+  }
   if (l.deTransferencia) {
     return [
       { tipo: "acao", id: ACAO_DETALHES, rotulo: l.anexos > 0 ? `Detalhes (${l.anexos})` : "Detalhes", icone: Paperclip },

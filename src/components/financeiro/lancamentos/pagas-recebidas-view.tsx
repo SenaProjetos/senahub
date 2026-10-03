@@ -159,7 +159,7 @@ export function PagasRecebidasView({
   // Função de render (não componente aninhado): senão a linha remonta e fecha o menu aberto (ADR-0002).
   function linha(l: PagaItem) {
     const menu = itensDePaga(
-      { anexos: l.anexos.length, conciliado: l.conciliado, deProducao: l.pagamentoProjetistaId != null, temConta: l.contaId != null, temCategoria: l.categoria != null, deTransferencia: l.transferenciaId != null },
+      { anexos: l.anexos.length, conciliado: l.conciliado, deProducao: l.pagamentoProjetistaId != null, temConta: l.contaId != null, temCategoria: l.categoria != null, deTransferencia: l.transferenciaId != null, deAcessorio: l.acessorioDeId != null },
       { podeGerir },
     );
     const parcial = l.valorEfetivo != null && Math.round(l.valorEfetivo * 100) !== Math.round(l.valor * 100);

@@ -1,4 +1,5 @@
 import "server-only";
+import { idsContasDeInvestimento } from "@/modules/financeiro/investimentos/service";
 import { prisma } from "@/lib/prisma";
 import { SO_RESULTADO } from "@/modules/financeiro/natureza";
 import { somaPaga } from "@/modules/financeiro/valor-pago";
@@ -222,12 +223,15 @@ export async function gravarSnapshotDashboard() {
   const hoje = new Date();
   const dia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
   const k = await kpisHome();
-  // Recebido = o que entrou (`valorEfetivo` vence o nominal), somado linha a linha.
+  // Recebido = o que entrou (`valorEfetivo` vence o nominal), somado linha a linha. Rendimento lançado na conta de um
+  // investimento (M4) é receita, mas não entrou no caixa: fica de fora.
+  const contasDeAtivo = await idsContasDeInvestimento();
   const recebido = await prisma.lancamento.findMany({
     where: {
       tipo: "receita",
       status: "confirmado",
       ...SO_RESULTADO,
+      ...(contasDeAtivo.length ? { OR: [{ contaId: null }, { contaId: { notIn: contasDeAtivo } }] } : {}),
       dataConfirmacao: {
         gte: utcInicioDoDia(hoje.getFullYear(), hoje.getMonth()),
         lte: utcFimDoDia(hoje.getFullYear(), hoje.getMonth() + 1, 0),

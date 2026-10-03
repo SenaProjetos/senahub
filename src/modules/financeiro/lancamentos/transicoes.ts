@@ -31,7 +31,7 @@ export type Operacao =
   | "corrigir_pagamento";
 
 /** Quem controla o lançamento além do Financeiro (a porta certa para mexer nele). */
-export type Origem = "manual" | "projetista" | "art" | "previsao" | "transferencia";
+export type Origem = "manual" | "projetista" | "art" | "previsao" | "transferencia" | "acessorio";
 
 export type EstadoDoLancamento = {
   status: Situacao;
@@ -61,6 +61,8 @@ export const MOTIVO_ART = "Este lançamento é da taxa de uma ART — altere pel
 export const MOTIVO_NAO_AGUARDA = "Lançamento não está aguardando aprovação.";
 export const MOTIVO_TRANSFERENCIA =
   "Este lançamento é uma perna de transferência entre contas — edite, estorne ou exclua a transferência (ela mexe nas duas pernas juntas).";
+export const MOTIVO_ACESSORIO =
+  "São os juros, a multa ou o desconto de uma baixa — estorne, exclua ou corrija o pagamento do lançamento principal (eles vão junto).";
 export const MOTIVO_SO_PAGO_CORRIGE = "Só se corrige o pagamento do que já foi pago ou recebido.";
 
 /** Por que a operação não pode acontecer; `null` = pode. */
@@ -70,6 +72,8 @@ export function motivoParaNao(op: Operacao, e: EstadoDoLancamento): string | nul
   // M8: a perna de uma transferência só anda junto com a outra. Conciliar a perna com o extrato do
   // banco continua valendo (cada conta tem o seu extrato); aprovação/rejeição não se aplica a ela.
   if (e.origem === "transferencia" && op !== "conciliar" && op !== "aprovar" && op !== "rejeitar") return MOTIVO_TRANSFERENCIA;
+  // M7: juros/multa/desconto de uma baixa só andam junto com o principal.
+  if (e.origem === "acessorio") return MOTIVO_ACESSORIO;
 
   switch (op) {
     case "baixar":
@@ -163,6 +167,8 @@ export function estadoDoLancamento(l: {
   motivoRejeicao: string | null;
   /** M8: a outra perna da transferência existe (viva). Sem ela a perna fica solta e se trata como manual. */
   parDeTransferencia?: boolean;
+  /** M7: é juros/multa/desconto de outra baixa. */
+  acessorioDeId?: string | null;
 }): EstadoDoLancamento {
   const status = l.status as Situacao;
   return {
@@ -177,7 +183,9 @@ export function estadoDoLancamento(l: {
           ? "projetista"
           : l.ehDeArt
             ? "art"
-            : l.parDeTransferencia
+            : l.acessorioDeId
+              ? "acessorio"
+              : l.parDeTransferencia
               ? "transferencia"
               : "manual",
     rejeitado: l.motivoRejeicao != null,

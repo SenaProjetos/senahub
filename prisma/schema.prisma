@@ -1851,6 +1851,16 @@ model Lancamento {
   recorrenciaCompetencia String?
   /// Receita realizada que já foi distribuída (ou pulada) entre as caixinhas (F5).
   distribuicao    DistribuicaoRecebimento?
+  /// Baixa completa (M7): juros/multa e desconto da baixa são lançamentos realizados PRÓPRIOS, na mesma conta e
+  /// data, ligados ao principal por aqui. Estornar, excluir ou corrigir o pagamento do principal leva os acessórios
+  /// junto; o acessório sozinho não se mexe. SEM relação Prisma de propósito: uma segunda auto-relação no Lancamento
+  /// custava ~0,7 GB ao `tsc` (que já beirava o limite de 4 GB) e nenhuma consulta precisa navegar por ela — só o
+  /// escalar é lido. O lançamento nunca é apagado de vez (exclusão lógica), então o id não fica órfão.
+  acessorioDeId   String?
+  /// Número do documento (boleto, NF, recibo) — texto livre (M7).
+  numeroDocumento String?
+  /// Chave de acesso da NF-e/NFS-e: 44 dígitos, conferidos pelo DV (`chaveNfeValida`).
+  chaveNfe        String?
   /// Compra paga no cartão de crédito (M3): a despesa é do dia da compra e o caixa só sai quando a
   /// fatura é paga. `SetNull`: apagar o cartão nunca apaga a despesa que já aconteceu.
   cartaoId        String?
@@ -1901,6 +1911,8 @@ model Lancamento {
   @@index([fornecedorId])
   @@index([centroId])
   @@index([faturaId])
+  @@index([acessorioDeId])
+  @@index([chaveNfe])
   @@index([cartaoId])
   @@unique([recorrenciaOrigemId, recorrenciaCompetencia])
   @@map("lancamento")

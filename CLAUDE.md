@@ -405,6 +405,17 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   Registrar rendimento takes the BANK's gross value; IR suggestion = regressive rate (from first aporte) on all yield minus
   IR already booked. Resgate total: the amount received wins, the difference becomes rendimento or imposto, the ativo zeroes
   and is archived.
+- **Full baixa** (M7, `lancamentos/baixa.ts` pure + `baixa-service.ts`): a baixa takes `principal` (≤ the title; less =
+  partial, remainder via `restanteDeId`), `juros`, `multa` and `desconto` SEPARATELY — `valorEfetivo` no longer means
+  interest (the action maps a legacy `valorEfetivo > valor` to juros). Each extra becomes its OWN realized lançamento in the
+  same account/date with `acessorioDeId` = the principal, in a system category by chave (`despesa_juros_multas_pagos`,
+  `receita_descontos_obtidos`, `receita_juros_multas_recebidos`, `despesa_descontos_concedidos`), so cash = principal ±
+  extras and every report reads it with no change. Discount only when settling the whole title. The state machine gives
+  an accessory `origem = "acessorio"` (every op refused with `MOTIVO_ACESSORIO`); estornar/excluir the principal soft-deletes
+  them (`excluirAcessoriosNoTx`) and corrigir pagamento moves them. `acessorioDeId` has NO Prisma relation on purpose: a
+  second self-relation on `Lancamento` cost ~0.7 GB of `tsc` heap (`tsc -p tsconfig.server.json` is already above 4 GB —
+  run it with `NODE_OPTIONS=--max-old-space-size=8192`). `Lancamento.numeroDocumento` / `chaveNfe` (44 digits, mod-11 DV
+  in `chaveNfeValida`). Retentions on the NF (ISS, IRRF, INSS…) wait for the accountant (owner decision 5).
 - **Dates in the Financeiro are São Paulo calendar days** (N2, `lib/data.ts`): "today" to WRITE into a date column
   is `hojeParaBanco()` (UTC midnight of the SP day) and to compare is `diaDeSaoPaulo()` — a bare `new Date()` is
   tomorrow after 21h BRT. Period limits on date columns (`@db.Date`: `data`, `dataConfirmacao`, `dataCompetencia`)

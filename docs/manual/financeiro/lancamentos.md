@@ -28,6 +28,8 @@ Campos:
 - **Vencimento** e **data de competência** (opcionais).
 - **Categoria** (obrigatória), **centro de custo**, **conta**, **forma de pagamento**.
 - **Projeto**, **fornecedor** (despesa) ou **cliente** (receita), **observação**.
+- **Nº do documento** (boleto, NF, recibo) e **chave da NF** (44 dígitos — o sistema confere o dígito verificador
+  e avisa se a chave foi digitada errada).
 - **Confirmado:** marque para já lançar como **realizado** (senão entra como
   **previsto**).
 - **Recorrência mensal:** nº de ocorrências (1 = sem recorrência; até 60), que gera
@@ -54,8 +56,15 @@ Campos:
 
 Cada mudança de estado fica no **histórico** do lançamento (em **Detalhes**), com quem fez e quando.
 
-- **Confirmar** um lançamento previsto pede: conta, forma, **data de confirmação** e,
-  opcionalmente, o **valor efetivo** (se diferiu do previsto).
+- **Confirmar** (dar baixa) num lançamento previsto pede: conta, forma, **data** e o **valor do título quitado**
+  (deixe o total para quitar tudo; menos que o total é **pagamento parcial** e o resto fica em aberto).
+- **Juros, multa e desconto** (seção dobrável da baixa) ficam **separados do título**: cada um vira um lançamento
+  próprio, na mesma conta e data, ligado ao principal. Na **despesa**, juros e multa vão para *Juros e multas pagos*
+  (despesa) e o desconto para *Descontos obtidos* (receita); no **recebimento**, juros e multa vão para *Juros e multas
+  recebidos* (receita) e o desconto para *Descontos concedidos* (despesa). A tela mostra antes de confirmar quanto
+  sai (ou entra) na conta. **Quitar com desconto** só vale quitando o título inteiro.
+- Os juros/multa/desconto de uma baixa **andam junto com o principal**: estornar, excluir ou corrigir o pagamento
+  do principal leva eles; sozinhos não se mexem.
 
 ## Editar e excluir
 

@@ -1,7 +1,7 @@
 import { Copy, ExternalLink, Paperclip, Undo2 } from "lucide-react";
 
 import type { AcaoItem } from "@/components/ui/acoes";
-import { MOTIVO_CONCILIADO, MOTIVO_PROJETISTA } from "@/modules/financeiro/lancamentos/transicoes";
+import { MOTIVO_ACESSORIO, MOTIVO_CONCILIADO, MOTIVO_PROJETISTA } from "@/modules/financeiro/lancamentos/transicoes";
 import { itemCriarRegra } from "@/modules/financeiro/regras/acoes";
 import { itensDaTransferencia } from "@/modules/financeiro/transferencias/acoes";
 import { itemCorrigirPagamento } from "@/modules/financeiro/lancamentos/acoes-corrigir";
@@ -28,6 +28,8 @@ export type PagaParaAcoes = {
   temCategoria?: boolean;
   /** Perna de transferência entre contas (M8): estornar/excluir são da transferência inteira. */
   deTransferencia?: boolean;
+  /** Juros/multa/desconto de uma baixa (M7): estorno e correção são do principal. */
+  deAcessorio?: boolean;
 };
 
 export type ContextoAcoesPaga = {
@@ -36,6 +38,13 @@ export type ContextoAcoesPaga = {
 };
 
 export function itensDePaga(p: PagaParaAcoes, ctx: ContextoAcoesPaga): AcaoItem[] {
+  if (p.deAcessorio) {
+    return [
+      { tipo: "acao", id: ACAO_DETALHES_PAGA, rotulo: p.anexos > 0 ? `Detalhes (${p.anexos})` : "Detalhes", icone: Paperclip },
+      { tipo: "acao", id: ACAO_COPIAR_DESCRICAO_PAGA, rotulo: "Copiar descrição", icone: Copy },
+      ...(ctx.podeGerir ? [{ tipo: "acao" as const, id: ACAO_ESTORNAR_PAGA, rotulo: "Estornar pagamento", icone: Undo2, desabilitado: MOTIVO_ACESSORIO }] : []),
+    ];
+  }
   if (p.deTransferencia) {
     return [
       { tipo: "acao", id: ACAO_DETALHES_PAGA, rotulo: p.anexos > 0 ? `Detalhes (${p.anexos})` : "Detalhes", icone: Paperclip },

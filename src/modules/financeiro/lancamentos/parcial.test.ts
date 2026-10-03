@@ -26,7 +26,8 @@ describe("camposDoPlanejador — o resto do parcial é o mesmo compromisso (spec
 
   it("os dois lugares que criam o resto do parcial usam o helper", () => {
     const raiz = join(__dirname, "..");
-    for (const arq of ["lancamentos/actions.ts", "planejamento/actions.ts"]) {
+    // M7: a baixa de um lançamento mora em `lancamentos/baixa-service.ts` (antes estava na action).
+    for (const arq of ["lancamentos/baixa-service.ts", "planejamento/actions.ts"]) {
       const fonte = readFileSync(join(raiz, arq), "utf8");
       expect(fonte.match(/\.\.\.camposDoPlanejador\(lanc\)/g)?.length ?? 0, arq).toBeGreaterThanOrEqual(1);
     }

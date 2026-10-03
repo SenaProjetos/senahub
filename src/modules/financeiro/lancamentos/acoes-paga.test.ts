@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AcaoItem } from "@/components/ui/acoes";
 import { ACAO_DETALHES_PAGA, ACAO_ESTORNAR_PAGA, ACAO_VER_NO_EXTRATO, itensDePaga } from "./acoes-paga";
-import { MOTIVO_CONCILIADO, MOTIVO_PROJETISTA } from "./transicoes";
+import { MOTIVO_ACESSORIO, MOTIVO_CONCILIADO, MOTIVO_PROJETISTA } from "./transicoes";
 import { ACAO_CORRIGIR_PAGAMENTO } from "./acoes-corrigir";
 import { ACAO_TRANSFERENCIA_EDITAR, ACAO_TRANSFERENCIA_ESTORNAR, ACAO_TRANSFERENCIA_EXCLUIR } from "@/modules/financeiro/transferencias/acoes";
 
@@ -45,5 +45,10 @@ describe("itensDePaga", () => {
     for (const id of [ACAO_TRANSFERENCIA_EDITAR, ACAO_TRANSFERENCIA_ESTORNAR, ACAO_TRANSFERENCIA_EXCLUIR]) {
       expect(achar(itens, id)).toMatchObject({ desabilitado: MOTIVO_CONCILIADO });
     }
+  });
+  it("juros/multa/desconto de uma baixa: só detalhes e copiar; estornar desabilitado com a frase do servidor", () => {
+    const itens = itensDePaga({ ...base, deAcessorio: true }, { podeGerir: true });
+    expect(ids(itens)).toEqual([ACAO_DETALHES_PAGA, "copiar-descricao", ACAO_ESTORNAR_PAGA]);
+    expect(achar(itens, ACAO_ESTORNAR_PAGA)).toMatchObject({ desabilitado: MOTIVO_ACESSORIO });
   });
 });

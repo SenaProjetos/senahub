@@ -97,3 +97,19 @@ enums de tipo e liquidez, categorias `receita_rendimento_aplicacao` e `despesa_i
 vencimento no planejador. Verificação: `calculo.test.ts` (números do mock: 80.000 + 3.920 − 784 = 83.136, 200 dias → 20%),
 `acoes.test.ts` e `smoke:financeiro-core` (22 checagens novas: caixa, DRE, carteira, IR, planejador, Balanço, resgates,
 arquivar/excluir, isento, opções de lançamento).
+
+## M7 — baixa completa (Opus) — concluída, sem retenções
+
+- Escopo seguido (proposta ao dono em 2026-10-02, padrão aceito no "continue"): juros, multa e desconto separados na baixa e
+  nº do documento + chave da NF no lançamento. **Retenções na NF ficam para quando o contador responder** (decisão 5).
+- Contabilização: categorias próprias (juros pagos = despesa; desconto obtido = receita; juros recebidos = receita;
+  desconto concedido = despesa), criadas por chave na migração `20261002340000_baixa_completa`. Se o contador preferir
+  abater do próprio título, muda só o `planejarBaixa` (puro).
+- O caso B2 da auditoria (`valorEfetivo` com três papéis) acaba: parcial = `principal`, acréscimo = juros/multa, desconto
+  = desconto. Legado `valorEfetivo > valor` vira juros.
+- Achados no caminho: "Recebido" (KPI de Resultados e foto diária do painel) contava rendimento lançado na conta de um
+  investimento (M4) como dinheiro que entrou — agora fica de fora; o smoke usava o "hoje" em UTC (depois das 21h em São
+  Paulo era amanhã) — agora usa `diaDeSaoPaulo()`.
+- Fora: conciliação do OFX casando uma baixa com juros/desconto (o banco mostra o líquido, o título tem o valor cheio):
+  segue manual.
+- Verificação: `baixa.test.ts` (11), descritores, `parcial.test.ts` (guarda atualizada) e `smoke:financeiro-core` (+14).

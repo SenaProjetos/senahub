@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { chaveNfeValida, MOTIVO_CHAVE_INVALIDA } from "@/modules/financeiro/lancamentos/baixa";
 
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 
@@ -31,6 +32,14 @@ export const criarLancamentoSchema = z.object({
   confianca: confiancaSchema.nullable().optional(),
   /// Só despesa em aberto: a caixinha que paga a saída (F4).
   caixinhaId: z.string().min(1).nullable().optional(),
+  /// M7: número do documento (boleto, NF, recibo) e chave de acesso da NF (44 dígitos, conferidos pelo DV).
+  numeroDocumento: z.string().trim().max(60).optional().or(z.literal("")),
+  chaveNfe: z
+    .string()
+    .trim()
+    .optional()
+    .or(z.literal(""))
+    .refine((v) => !v || chaveNfeValida(v), MOTIVO_CHAVE_INVALIDA),
 });
 
 export const editarLancamentoSchema = z.object({
@@ -51,6 +60,14 @@ export const editarLancamentoSchema = z.object({
   confianca: confiancaSchema.nullable().optional(),
   /// Ausente = não mexe; nulo = tira da caixinha.
   caixinhaId: z.string().min(1).nullable().optional(),
+  /// M7: número do documento (boleto, NF, recibo) e chave de acesso da NF (44 dígitos, conferidos pelo DV).
+  numeroDocumento: z.string().trim().max(60).optional().or(z.literal("")),
+  chaveNfe: z
+    .string()
+    .trim()
+    .optional()
+    .or(z.literal(""))
+    .refine((v) => !v || chaveNfeValida(v), MOTIVO_CHAVE_INVALIDA),
 });
 
 /** Menu de contexto e lote de Contas: só a prioridade ou só a confiança. */
@@ -63,7 +80,16 @@ export const confirmarLancamentoSchema = z.object({
   contaId: opt(z.string()),
   formaId: opt(z.string()),
   dataConfirmacao: opt(z.string()),
+  /**
+   * Legado: valor pago numa linha só. Menor que o título = parcial (vira `principal`); MAIOR = o excedente vira juros
+   * (M7) — antes ia para a categoria da própria conta.
+   */
   valorEfetivo: z.number().positive().optional(),
+  /** M7: quanto do título é quitado (ausente = inteiro), mais juros, multa e desconto, em reais. */
+  principal: z.number().positive().optional(),
+  juros: z.number().min(0).optional(),
+  multa: z.number().min(0).optional(),
+  desconto: z.number().min(0).optional(),
 });
 
 export const idLancamentoSchema = z.object({ id: z.string().min(1) });

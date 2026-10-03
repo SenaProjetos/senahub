@@ -42,6 +42,7 @@ export async function lerParaOperacao(db: Db, id: string) {
       pagamentoProjetistaId: true,
       recorrenciaGrupo: true,
       transferenciaId: true,
+      acessorioDeId: true,
       data: true,
       dataCompetencia: true,
       dataConfirmacao: true,
@@ -113,6 +114,8 @@ export async function estornarNoBanco(id: string, autorId: string): Promise<Resu
     }
 
     const distribuicaoDesfeita = estado.distribuido ? await desfazerDistribuicao(tx, id) : false;
+    // M7: juros/multa/desconto da baixa deixam de existir com ela.
+    await excluirAcessoriosNoTx(tx, id, autorId);
 
     const r = await tx.lancamento.updateMany({
       where: { id, status: "confirmado", excluidoEm: null },
@@ -170,3 +173,15 @@ export async function reabrirNoBanco(id: string, autorId: string): Promise<{ sta
   });
 }
 
+/**
+ * Tira os acessórios (juros/multa/desconto) de um lançamento: estorno e exclusão do principal os levam junto.
+ * Exclusão lógica + histórico, como qualquer lançamento.
+ */
+export async function excluirAcessoriosNoTx(tx: Prisma.TransactionClient, principalId: string, autorId: string): Promise<number> {
+  const acessorios = await tx.lancamento.findMany({ where: { acessorioDeId: principalId, excluidoEm: null }, select: { id: true, status: true } });
+  for (const a of acessorios) {
+    await tx.lancamento.update({ where: { id: a.id }, data: { excluidoEm: new Date() } });
+    await tx.lancamentoStatusHistorico.create({ data: { lancamentoId: a.id, de: a.status, para: "excluido", autorId } });
+  }
+  return acessorios.length;
+}

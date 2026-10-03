@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { diaDeSaoPaulo } from "@/lib/data";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -30,7 +31,7 @@ export type OpcoesCartoes = {
 };
 
 const NENHUM = "__nenhum";
-const hojeIso = () => new Date().toISOString().slice(0, 10);
+const hojeIso = () => diaDeSaoPaulo();
 
 function Campo({ id, rotulo, valor, onChange, itens, placeholder = "Não preencher" }: { id: string; rotulo: string; valor: string; onChange: (v: string) => void; itens: { id: string; nome: string }[]; placeholder?: string }) {
   return (

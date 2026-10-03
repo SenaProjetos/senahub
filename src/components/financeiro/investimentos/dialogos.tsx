@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { diaDeSaoPaulo } from "@/lib/data";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -22,7 +23,7 @@ import type { AtivoDto } from "@/modules/financeiro/investimentos/queries";
 
 type Conta = { id: string; nome: string };
 const NENHUMA = "__nenhuma";
-const hoje = () => new Date().toISOString().slice(0, 10);
+const hoje = () => diaDeSaoPaulo();
 const campo = "grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5";
 const duas = "grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]";
 
