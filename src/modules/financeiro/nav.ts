@@ -60,10 +60,12 @@ const PLANEJAMENTO: readonly ItemNavFinanceiro[] = [
 ];
 
 const RESULTADOS: readonly ItemNavFinanceiro[] = [
-  { id: "dre", href: "/financeiro/relatorios", rotulo: "DRE e indicadores", desc: "Caixa ou competência", gate: "resultados" },
+  { id: "dre", href: "/financeiro/relatorios", rotulo: "DRE", desc: "Caixa ou competência", gate: "resultados" },
+  { id: "indicadores", href: "/financeiro/indicadores", rotulo: "Indicadores", desc: "Margem, prazos, inadimplência e mais", gate: "resultados", novo: true },
   { id: "dfc", href: "/financeiro/dfc", rotulo: "DFC", desc: "Por atividade", gate: "resultados" },
   { id: "balanco", href: "/financeiro/balanco", rotulo: "Balanço gerencial", desc: "Caixa, a receber, a pagar", gate: "resultados" },
   { id: "rentabilidade", href: "/financeiro/rentabilidade", rotulo: "Rentabilidade por projeto", desc: "Receita, custo e margem", gate: "resultados" },
+  { id: "relatorio-dimensao", href: "/financeiro/relatorio-dimensao", rotulo: "Relatório por dimensão", desc: "Categoria, centro, contato, projeto ou tag × período", gate: "resultados", novo: true },
 ];
 
 const MAIS: readonly ItemNavFinanceiro[] = [
@@ -75,6 +77,7 @@ const MAIS: readonly ItemNavFinanceiro[] = [
   { id: "fechamento", href: "/financeiro/fechamento", rotulo: "Fechamento mensal", desc: "Trava o mês fechado", gate: "fechar" },
   { id: "cadastros", href: "/financeiro/cadastros", rotulo: "Cadastros", desc: "Plano de contas, contas, centros", gate: "gerir" },
   { id: "configuracoes", href: "/financeiro/configuracoes", rotulo: "Configurações", desc: "Alçadas, campos obrigatórios", gate: "gerir" },
+  { id: "clientes", href: "/clientes", rotulo: "Clientes", desc: "Cadastro de clientes (módulo Clientes)", gate: "ver" },
 ];
 
 export type NavFinanceiro = {

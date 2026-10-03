@@ -591,3 +591,245 @@ export async function relatorioDREComparativo(de: Date, ate: Date, base: BaseDRE
     ateAnt: iso(ateAnt),
   });
 }
+
+// ───────────────────────── M6: Indicadores, relatório por dimensão, orçamento por centro ─────────────────────────
+
+import { baseDoPlanejador } from "@/modules/financeiro/liquidez/queries";
+import { diasDeCaixa, type DiasDeCaixa } from "@/modules/financeiro/liquidez/indicadores";
+import { agingReport } from "@/modules/financeiro/aging/queries";
+import { somarMesesUtc } from "@/lib/data";
+import {
+  margemLiquida,
+  percentualInadimplencia,
+  pontoDeEquilibrio,
+  prazoMedioDias,
+  receitaPorProjetoAtivo,
+  variacaoPontosPercentuais,
+} from "@/modules/financeiro/relatorios/indicadores-gerenciais";
+
+export type IndicadoresGerenciais = {
+  margemLiquida: number | null;
+  margemLiquidaAnterior: number | null;
+  margemDeltaPontos: number | null;
+  resultadoOperacional: number;
+  diasDeCaixa: DiasDeCaixa;
+  inadimplencia12Meses: number | null;
+  prazoMedioRecebimento: number | null;
+  prazoMedioPagamento: number | null;
+  pontoDeEquilibrio: number;
+  receitaPorProjetoAtivo: number | null;
+  projetosAtivos: number;
+};
+
+/**
+ * Os 8 indicadores da tela "Indicadores" (M6, mock aprovado). `de`/`ate` é o mês (ou período) em avaliação; o
+ * anterior é o mesmo número de dias imediatamente antes (mesma regra do DRE comparativo).
+ */
+export async function indicadoresGerenciais(de: Date, ate: Date): Promise<IndicadoresGerenciais> {
+  const dias = differenceInCalendarDays(ate, de) + 1;
+  const ateAnt = subDays(de, 1);
+  const deAnt = subDays(ateAnt, dias - 1);
+  const ha12Meses = somarMesesUtc(ate, -12);
+
+  const [atuais, anteriores, base, agingReceita, faturado12m, recebimentos, pagamentos, projetosAtivos] = await Promise.all([
+    linhasDREPeriodo(de, ate, "competencia"),
+    linhasDREPeriodo(deAnt, ateAnt, "competencia"),
+    baseDoPlanejador({ horizonteDias: 30 }),
+    agingReport("receita"),
+    prisma.lancamento.aggregate({
+      where: { tipo: "receita", status: "confirmado", dataConfirmacao: { gte: ha12Meses, lte: ate }, ...SO_RESULTADO },
+      _sum: { valor: true },
+    }),
+    // Prazo médio de recebimento: da data do lançamento (emissão) ao recebimento, receitas confirmadas no período.
+    prisma.lancamento.findMany({
+      where: { tipo: "receita", status: "confirmado", dataConfirmacao: { gte: de, lte: ate }, ...SO_RESULTADO },
+      select: { data: true, dataConfirmacao: true },
+    }),
+    prisma.lancamento.findMany({
+      where: { tipo: "despesa", status: "confirmado", dataConfirmacao: { gte: de, lte: ate }, ...SO_RESULTADO },
+      select: { data: true, dataConfirmacao: true },
+    }),
+    prisma.projeto.count({ where: { situacao: "em_andamento" } }),
+  ]);
+
+  const totAtual = { receita: somaLinhas(atuais, "receita"), despesa: somaLinhas(atuais, "despesa") };
+  const totAnterior = { receita: somaLinhas(anteriores, "receita"), despesa: somaLinhas(anteriores, "despesa") };
+  const resultadoAtual = totAtual.receita - totAtual.despesa;
+  const resultadoAnterior = totAnterior.receita - totAnterior.despesa;
+  const margemAtual = margemLiquida(totAtual.receita, resultadoAtual);
+  const margemAnterior = margemLiquida(totAnterior.receita, resultadoAnterior);
+
+  // Inadimplência: vencido há mais de 30 dias (todas as faixas de aging exceto "a vencer" e "1-30").
+  const vencidoMais30 = agingReceita.porFaixa
+    .filter((f) => f.faixa !== "a_vencer" && f.faixa !== "d1_30")
+    .reduce((s, f) => s + f.total, 0);
+
+  const diasEntreDatas = (ls: { data: Date; dataConfirmacao: Date | null }[]) =>
+    ls.flatMap((l) => (l.dataConfirmacao ? [{ dias: differenceInCalendarDays(l.dataConfirmacao, l.data) }] : []));
+
+  return {
+    margemLiquida: margemAtual,
+    margemLiquidaAnterior: margemAnterior,
+    margemDeltaPontos: variacaoPontosPercentuais(margemAtual, margemAnterior),
+    resultadoOperacional: Math.round(resultadoAtual * 100) / 100,
+    diasDeCaixa: diasDeCaixa({ caixaAtual: base.caixaAtual, ...base.historico }),
+    inadimplencia12Meses: percentualInadimplencia(vencidoMais30, Number(faturado12m._sum.valor ?? 0)),
+    prazoMedioRecebimento: prazoMedioDias(diasEntreDatas(recebimentos)),
+    prazoMedioPagamento: prazoMedioDias(diasEntreDatas(pagamentos)),
+    pontoDeEquilibrio: pontoDeEquilibrio(totAtual.despesa),
+    receitaPorProjetoAtivo: receitaPorProjetoAtivo(totAtual.receita, projetosAtivos),
+    projetosAtivos,
+  };
+}
+
+function somaLinhas(ls: LinhaBaseDRE[], tipo: "receita" | "despesa"): number {
+  return ls.filter((l) => l.tipo === tipo).reduce((s, l) => s + l.valor, 0);
+}
+
+export type MesEvolucao = MesResultado & { margem: number | null; de: string; ate: string };
+
+/**
+ * Receita × despesa dos últimos `n` meses terminando em `ateMes` (janela ROLANTE, diferente de
+ * `serieMensalResultado` que é o ano-calendário inteiro) — "Evolução mês a mês" do mock de Indicadores.
+ */
+export async function evolucaoReceitaDespesaMeses(ateMes: Date, n = 6): Promise<MesEvolucao[]> {
+  const inicio = somarMesesUtc(utcInicioDoDia(ateMes.getUTCFullYear(), ateMes.getUTCMonth()), -(n - 1));
+  const fim = utcFimDoDia(ateMes.getUTCFullYear(), ateMes.getUTCMonth() + 1, 0);
+  const lancs = await prisma.lancamento.findMany({
+    where: { status: "confirmado", dataConfirmacao: { gte: inicio, lte: fim }, ...SO_RESULTADO },
+    select: { tipo: true, valor: true, valorEfetivo: true, dataConfirmacao: true },
+  });
+  const meses: MesEvolucao[] = Array.from({ length: n }, (_, i) => {
+    const d = somarMesesUtc(inicio, i);
+    const fimDoMes = utcFimDoDia(d.getUTCFullYear(), d.getUTCMonth() + 1, 0);
+    return {
+      mes: d.getUTCMonth(),
+      rotulo: formatarMesCurto(d),
+      receita: 0,
+      despesa: 0,
+      resultado: 0,
+      margem: null,
+      de: d.toISOString().slice(0, 10),
+      ate: fimDoMes.toISOString().slice(0, 10),
+    };
+  });
+  const indicePorChave = new Map(meses.map((m, i) => [`${somarMesesUtc(inicio, i).getUTCFullYear()}-${m.mes}`, i]));
+  for (const l of lancs) {
+    if (!l.dataConfirmacao) continue;
+    const chave = `${l.dataConfirmacao.getUTCFullYear()}-${l.dataConfirmacao.getUTCMonth()}`;
+    const i = indicePorChave.get(chave);
+    if (i == null) continue;
+    const v = valorPagoReais(l);
+    if (l.tipo === "receita") meses[i].receita = somarReais(meses[i].receita, v);
+    else meses[i].despesa = somarReais(meses[i].despesa, v);
+  }
+  for (const m of meses) {
+    m.resultado = Math.round((m.receita - m.despesa) * 100) / 100;
+    m.margem = margemLiquida(m.receita, m.resultado);
+  }
+  return meses;
+}
+
+export type DimensaoRelatorio = "categoria" | "centro" | "contato" | "projeto" | "tag";
+export type LinhaDimensao = { chave: string; nome: string; receita: number; despesa: number; resultado: number; qtd: number };
+export type RelatorioPorDimensao = { dimensao: DimensaoRelatorio; de: string; ate: string; linhas: LinhaDimensao[]; semDimensao: number };
+
+/**
+ * Confirmados do período agrupados pela dimensão escolhida. `tag` é especial: um lançamento com 2 tags entra
+ * nas duas linhas (a soma das linhas pode passar do total) — a tela avisa isso. As demais dimensões são 1:1.
+ */
+export async function relatorioPorDimensao(dimensao: DimensaoRelatorio, de: Date, ate: Date): Promise<RelatorioPorDimensao> {
+  const lancs = await prisma.lancamento.findMany({
+    where: { status: "confirmado", dataConfirmacao: { gte: de, lte: ate }, ...SO_RESULTADO },
+    select: {
+      tipo: true,
+      valor: true,
+      valorEfetivo: true,
+      tags: true,
+      categoria: { select: { id: true, codigo: true, nome: true } },
+      centro: { select: { id: true, nome: true } },
+      projeto: { select: { id: true, codigo: true, nome: true } },
+      fornecedor: { select: { id: true, nome: true } },
+      cliente: { select: { id: true, nome: true } },
+    },
+  });
+
+  const mapa = new Map<string, LinhaDimensao>();
+  let semDimensao = 0;
+  const linha = (chave: string, nome: string) => {
+    const cur = mapa.get(chave) ?? { chave, nome, receita: 0, despesa: 0, resultado: 0, qtd: 0 };
+    mapa.set(chave, cur);
+    return cur;
+  };
+  const somar = (cur: LinhaDimensao, l: (typeof lancs)[number]) => {
+    const v = valorPagoReais(l);
+    if (l.tipo === "receita") cur.receita = somarReais(cur.receita, v);
+    else cur.despesa = somarReais(cur.despesa, v);
+    cur.qtd += 1;
+  };
+
+  for (const l of lancs) {
+    if (dimensao === "tag") {
+      if (l.tags.length === 0) {
+        semDimensao += 1;
+        continue;
+      }
+      for (const t of l.tags) somar(linha(t, t), l);
+      continue;
+    }
+    if (dimensao === "categoria") {
+      somar(linha(l.categoria.id, `${l.categoria.codigo} ${l.categoria.nome}`), l);
+      continue;
+    }
+    if (dimensao === "centro") {
+      if (!l.centro) {
+        semDimensao += 1;
+        continue;
+      }
+      somar(linha(l.centro.id, l.centro.nome), l);
+      continue;
+    }
+    if (dimensao === "projeto") {
+      if (!l.projeto) {
+        semDimensao += 1;
+        continue;
+      }
+      somar(linha(l.projeto.id, `${l.projeto.codigo} ${l.projeto.nome}`), l);
+      continue;
+    }
+    // contato: fornecedor (despesa) ou cliente (receita) — o que existir.
+    const contato = l.fornecedor ?? l.cliente;
+    if (!contato) {
+      semDimensao += 1;
+      continue;
+    }
+    somar(linha(contato.id, contato.nome), l);
+  }
+
+  for (const l of mapa.values()) l.resultado = Math.round((l.receita - l.despesa) * 100) / 100;
+  const linhas = [...mapa.values()].sort((a, b) => b.receita + b.despesa - (a.receita + a.despesa));
+  return { dimensao, de: de.toISOString().slice(0, 10), ate: ate.toISOString().slice(0, 10), linhas, semDimensao };
+}
+
+export type LinhaOrcamentoCentro = { centroId: string | null; nome: string; previsto: number; realizado: number };
+
+/**
+ * Previsto × realizado por CENTRO DE CUSTO (despesas do resultado). Só leitura — ao contrário do orçamento por
+ * categoria, não há valor PLANEJADO guardado por centro (seria uma 2ª tabela/migração para uma necessidade
+ * marcada como baixa prioridade na auditoria); esta tela compara o que já está previsto/realizado.
+ */
+export async function orcamentoPorCentro(de: Date, ate: Date): Promise<LinhaOrcamentoCentro[]> {
+  const lancs = await prisma.lancamento.findMany({
+    where: { tipo: "despesa", data: { gte: de, lte: ate }, ...SO_RESULTADO },
+    select: { valor: true, valorEfetivo: true, status: true, centro: { select: { id: true, nome: true } } },
+  });
+  const mapa = new Map<string, LinhaOrcamentoCentro>();
+  for (const l of lancs) {
+    const chave = l.centro?.id ?? "__sem";
+    const cur = mapa.get(chave) ?? { centroId: l.centro?.id ?? null, nome: l.centro?.nome ?? "Sem centro de custo", previsto: 0, realizado: 0 };
+    if (l.status === "confirmado") cur.realizado = somarReais(cur.realizado, valorPagoReais(l));
+    else if (l.status === "previsto") cur.previsto = somarReais(cur.previsto, Number(l.valor));
+    mapa.set(chave, cur);
+  }
+  return [...mapa.values()].sort((a, b) => b.realizado + b.previsto - (a.realizado + a.previsto));
+}

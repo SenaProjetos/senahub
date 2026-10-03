@@ -5,12 +5,13 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Target } from "lucide-react";
-import type { Orcamento, LinhaOrcamento, MesResultado } from "@/modules/financeiro/relatorios/queries";
+import type { Orcamento, LinhaOrcamento, LinhaOrcamentoCentro, MesResultado } from "@/modules/financeiro/relatorios/queries";
 import { salvarOrcamentoItem } from "@/modules/financeiro/orcamento/actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ResultadoMensalChart } from "@/components/financeiro/resultado-mensal-chart";
 import {
   Select,
@@ -167,9 +168,48 @@ function Secao({
   );
 }
 
+function SecaoCentro({ linhas }: { linhas: LinhaOrcamentoCentro[] }) {
+  if (linhas.length === 0) return <EmptyState icon={Target} title="Sem despesa no período." />;
+  const totalPrevisto = linhas.reduce((s, l) => s + l.previsto, 0);
+  const totalRealizado = linhas.reduce((s, l) => s + l.realizado, 0);
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="border-b text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+          <tr>
+            <th className="py-2 pr-3">Centro de custo</th>
+            <th className="py-2 pr-3 text-right">Previsto</th>
+            <th className="py-2 pr-3 text-right">Realizado</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {linhas.map((l) => (
+            <tr key={l.centroId ?? "sem-centro"} className="hover:bg-muted/40">
+              <td className="py-2 pr-3">{l.nome}</td>
+              <td className="py-2 pr-3 text-right font-mono text-xs text-muted-foreground">{brlInteiro(l.previsto)}</td>
+              <td className="py-2 pr-3 text-right font-mono text-xs">{brlInteiro(l.realizado)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="border-t font-bold">
+            <td className="py-2 pr-3">Total</td>
+            <td className="py-2 pr-3 text-right font-mono text-xs">{brlInteiro(totalPrevisto)}</td>
+            <td className="py-2 pr-3 text-right font-mono text-xs">{brlInteiro(totalRealizado)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Só despesas, sem valor planejado por centro — o planejado continua por categoria.
+      </p>
+    </div>
+  );
+}
+
 export function OrcamentoView({
   ano,
   orcamento,
+  porCentro,
   serieMensal,
   categorias,
   podeGerir,
@@ -177,6 +217,7 @@ export function OrcamentoView({
 }: {
   ano: number;
   orcamento: Orcamento;
+  porCentro: LinhaOrcamentoCentro[];
   serieMensal: MesResultado[];
   categorias: Categoria[];
   podeGerir: boolean;
@@ -251,7 +292,18 @@ export function OrcamentoView({
           <CardTitle className="text-base">Despesas</CardTitle>
         </CardHeader>
         <CardContent>
-          <Secao ano={ano} titulo="Despesas" tipo="despesa" linhas={orcamento.despesas} categorias={categorias} podeGerir={podeGerir} />
+          <Tabs defaultValue="categoria">
+            <TabsList>
+              <TabsTrigger value="categoria">Por categoria</TabsTrigger>
+              <TabsTrigger value="centro">Por centro de custo</TabsTrigger>
+            </TabsList>
+            <TabsContent value="categoria">
+              <Secao ano={ano} titulo="Despesas" tipo="despesa" linhas={orcamento.despesas} categorias={categorias} podeGerir={podeGerir} />
+            </TabsContent>
+            <TabsContent value="centro">
+              <SecaoCentro linhas={porCentro} />
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 

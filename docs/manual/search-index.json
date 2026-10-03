@@ -1771,8 +1771,8 @@
     {
       "titulo": "Relatórios gerenciais do financeiro",
       "path": "financeiro/relatorios.md",
-      "descricao": "DRE, DFC, fluxo de caixa, balanço gerencial, rentabilidade por projeto e orçamento anual.",
-      "resumo": "Conjunto de relatórios gerenciais — DRE, DFC por atividade, fluxo de caixa, balanço (base caixa), rentabilidade por projeto e orçamento planejado × realizado.",
+      "descricao": "DRE, indicadores, DFC, fluxo de caixa, balanço gerencial, rentabilidade por projeto, orçamento anual e relatório por dimensão.",
+      "resumo": "Conjunto de relatórios gerenciais — DRE, indicadores (margem, prazos, inadimplência), DFC por atividade, fluxo de caixa, balanço (base caixa), rentabilidade por projeto, orçamento planejado × realizado e relatório por dimensão (categoria, centro, contato, projeto ou tag).",
       "tags": [
         "relatórios",
         "dre",
@@ -1780,7 +1780,9 @@
         "fluxo de caixa",
         "balanço",
         "rentabilidade",
-        "orçamento"
+        "orçamento",
+        "indicadores",
+        "dimensão"
       ],
       "palavrasChave": [
         "relatório",
@@ -1796,7 +1798,15 @@
         "abas dos resultados",
         "fora do resultado",
         "distribuição de lucros",
-        "transferência entre contas"
+        "transferência entre contas",
+        "indicadores",
+        "margem líquida",
+        "dias de caixa",
+        "inadimplência",
+        "prazo médio",
+        "ponto de equilíbrio",
+        "relatório por dimensão",
+        "centro de custo"
       ],
       "sinonimos": [
         "demonstrativos",

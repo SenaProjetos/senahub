@@ -18,11 +18,11 @@ describe("navegação do Financeiro por gate (mock de 2026-10-02)", () => {
     expect(ids(n.movimentacoes)).toEqual(["fluxo", "extrato", "cartoes", "investimentos"]);
     expect(ids(n.planejamento)).toEqual(["planejador", "cenarios", "caixinhas", "distribuicao", "orcamento"]);
     expect(n.resultados).toEqual([]);
-    expect(ids(n.mais)).toEqual(["documentos"]);
+    expect(ids(n.mais)).toEqual(["documentos", "clientes"]);
   });
 
   it("cada permissão abre só o que a página de destino deixa entrar", () => {
-    expect(ids(itensDaNavFinanceiro({ ...nenhuma, resultados: true }).resultados)).toEqual(["dre", "dfc", "balanco", "rentabilidade"]);
+    expect(ids(itensDaNavFinanceiro({ ...nenhuma, resultados: true }).resultados)).toEqual(["dre", "indicadores", "dfc", "balanco", "rentabilidade", "relatorio-dimensao"]);
     expect(ids(itensDaNavFinanceiro({ ...nenhuma, aprovar: true }).mais)).toEqual(["aprovacoes"]);
     expect(ids(itensDaNavFinanceiro({ ...nenhuma, conciliar: true }).movimentacoes)).toEqual(["conciliacao"]);
     expect(ids(itensDaNavFinanceiro({ ...nenhuma, conciliar: true }).mais)).toEqual(["importar"]);

@@ -152,6 +152,7 @@ export function LancamentosView({
   exigeSenhaExclusao = false,
   modelosDoc = [],
   defaultProjetoId,
+  defaultCentroId,
   defaultFormOpen = false,
   defaultDetalheId,
   subnav,
@@ -162,6 +163,7 @@ export function LancamentosView({
   exigeSenhaExclusao?: boolean;
   modelosDoc?: { id: string; nome: string }[];
   defaultProjetoId?: string;
+  defaultCentroId?: string;
   defaultFormOpen?: boolean;
   /** `?lancamento=<id>` — abre o detalhe desse lançamento (link vindo da tela Produção). */
   defaultDetalheId?: string;
@@ -180,7 +182,7 @@ export function LancamentosView({
   const [contasSel, setContasSel] = useState<Set<string>>(() => new Set([...contas.map((c) => c.id), SEM_CONTA]));
   const [tag, setTag] = useState(NONE);
   const [categoriaId, setCategoriaId] = useState(NONE);
-  const [centroId, setCentroId] = useState(NONE);
+  const [centroId, setCentroId] = useState(defaultCentroId ?? NONE);
   const [formaId, setFormaId] = useState(NONE);
   const [projetoId, setProjetoId] = useState(defaultProjetoId ?? NONE);
   const [valorMin, setValorMin] = useState<number | null>(null);

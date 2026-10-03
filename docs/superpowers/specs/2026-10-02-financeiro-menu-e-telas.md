@@ -113,3 +113,38 @@ arquivar/excluir, isento, opções de lançamento).
 - Fora: conciliação do OFX casando uma baixa com juros/desconto (o banco mostra o líquido, o título tem o valor cheio):
   segue manual.
 - Verificação: `baixa.test.ts` (11), descritores, `parcial.test.ts` (guarda atualizada) e `smoke:financeiro-core` (+14).
+
+## M6 — indicadores, relatório por dimensão, orçamento por centro, atalho Clientes (Sonnet) — concluída
+
+- **Escolha de fase:** M5 (integração contábil) depende do formato do sistema do contador, ainda sem resposta; a ordem do
+  plano previa "senão M6" — seguida sem nova confirmação do dono (trabalho faseado em andamento).
+- **Indicadores** (`/financeiro/indicadores`, `financeiro/relatorios/indicadores-gerenciais.ts` puro + `queries.ts`):
+  8 cartões (margem líquida, resultado operacional, dias de caixa, inadimplência 12 meses, prazo médio de recebimento e
+  de pagamento, ponto de equilíbrio, receita por projeto ativo) montados a partir de peças já existentes — `linhasDREPeriodo`
+  (mês atual + anterior, para o delta de margem), `baseDoPlanejador`/`diasDeCaixa`, `agingReport("receita")`. Ponto de
+  equilíbrio e prazo médio são simplificações documentadas (ponto de equilíbrio = despesa do mês, sem separar custo fixo
+  de variável; prazo médio é média simples em dias, não ponderada pelo valor). Tabela de evolução dos últimos 6 meses
+  (`evolucaoReceitaDespesaMeses`, janela ROLANTE via `somarMesesUtc` — diferente da `serieMensalResultado(ano)` por ano
+  civil já existente) com gráfico de barras e menu de contexto por mês: **Ver DRE do mês**, **Comparar com** (mostra a
+  diferença na própria tela, sem navegar) e **Exportar** (reaproveita a rota de export do DRE).
+- **Relatório por dimensão** (`/financeiro/relatorio-dimensao`, `relatorioPorDimensao` em `queries.ts`): agrupa
+  lançamentos confirmados do período por categoria, centro de custo, contato (fornecedor/cliente), projeto ou tag; tag é
+  o único caso em que um lançamento pode entrar em mais de uma linha (soma pode passar do total — aviso na tela). Export
+  Excel própria (`/api/financeiro/relatorios/dimensao/xlsx`). Menu de contexto por linha (`itensDaLinhaDeDimensao`) só
+  liga de verdade para centro e projeto: o filtro de categoria do livro caixa combina com o CÓDIGO de nível 1, não com
+  um id de categoria qualquer, e não existe filtro por contato — um link que parecesse funcionar e desse resultado errado
+  seria pior que não ter o link, então o item fica desabilitado com `MOTIVO_SEM_FILTRO_NO_LIVRO_CAIXA` (mesma frase no
+  menu e no `…`).
+- **Orçamento por centro de custo** (`orcamentoPorCentro` em `queries.ts`, aba nova em `orcamento-view.tsx`): leitura
+  previsto × realizado por centro, só despesas. Decisão de escopo: `OrcamentoItem` não tem `centroId` — criar a coluna
+  para uma funcionalidade que a auditoria original marcou "baixa prioridade" não valeu a migração; o planejado continua
+  só por categoria, e a aba de centro é read-only.
+- **Atalho de Clientes**: item novo no menu Mais do Financeiro (`/clientes`, gate `ver`).
+- **Achado no caminho:** a trilha (breadcrumb) de `/financeiro/relatorio-dimensao` saía "Relatorio dimensao" (sem acento,
+  derivado cru do segmento da URL) — igual ao caso já resolvido para `/financeiro/cenarios`/`distribuicao`; entrada nova
+  em `ROTULO_POR_ROTA` (`components/shell/breadcrumb.tsx`).
+- **Sem smoke novo:** M6 é só leitura (nenhuma mutação de dinheiro) — coberto por `indicadores-gerenciais.test.ts` (11
+  testes, números do mock) e `acoes.test.ts` (4 testes), sem o mesmo risco das fases que escrevem lançamento.
+- **Verificação:** tsc (app e server), `npm run lint` sem `--quiet`, suíte completa (5677, com `nav.test.ts` atualizado
+  para os 2 itens novos de Resultados e o atalho de Clientes em Mais), `smoke:financeiro-core`, build de produção, Chrome
+  em 1366 (menu aberto) e 390 nas 3 telas (Indicadores, Relatório por dimensão, Orçamento com a aba nova).

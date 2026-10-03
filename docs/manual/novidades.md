@@ -90,6 +90,17 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 - Os relatórios de resultado ganharam **abas** (DRE, Rentabilidade, DFC, Balanço, Orçamento).
 - "Planejamento de pagamentos" agora se chama **Pagamentos em lote**.
 - **Regras de preenchimento** (Mais → Regras de preenchimento): "quando a descrição contiver CREA, preencher a categoria ART". Preenchem categoria, centro, contato, forma, projeto e tags na conciliação do extrato, na importação de planilha e ao lançar; a primeira regra da lista que casa vale e nenhuma sobrescreve o que você já escolheu. No menu de um lançamento, **Criar regra a partir deste lançamento**.
+- **Indicadores** (Resultados → Indicadores): margem líquida, resultado operacional, dias de caixa,
+  inadimplência dos últimos 12 meses, prazo médio de recebimento e de pagamento, ponto de equilíbrio e
+  receita por projeto ativo, mais o gráfico de receita × despesa dos últimos 6 meses. No menu de cada
+  mês da tabela: **Ver DRE do mês**, **Comparar com** outro mês (mostra a diferença sem sair da tela) e
+  **Exportar**.
+- **Relatório por dimensão** (Resultados → Relatório por dimensão): receita, despesa e resultado do
+  período, agrupados do jeito que você escolher — categoria, centro de custo, contato, projeto ou tag —
+  com exportação em Excel.
+- **Orçamento anual → Por centro de custo**: nova aba nas Despesas do orçamento mostra previsto ×
+  realizado agrupado por centro de custo (o valor planejado continua por categoria).
+- Atalho para **Clientes** no menu Mais do Financeiro.
 
 ---
 

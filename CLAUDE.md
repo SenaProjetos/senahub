@@ -416,6 +416,25 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   second self-relation on `Lancamento` cost ~0.7 GB of `tsc` heap (`tsc -p tsconfig.server.json` is already above 4 GB —
   run it with `NODE_OPTIONS=--max-old-space-size=8192`). `Lancamento.numeroDocumento` / `chaveNfe` (44 digits, mod-11 DV
   in `chaveNfeValida`). Retentions on the NF (ISS, IRRF, INSS…) wait for the accountant (owner decision 5).
+- **Indicadores and relatório por dimensão** (M6, `financeiro/relatorios/`): 8 KPIs
+  (`indicadores-gerenciais.ts`, pure) assembled by `indicadoresGerenciais()` from existing building
+  blocks — `linhasDREPeriodo` (current + prior period for margin delta), `baseDoPlanejador` + `diasDeCaixa`
+  for dias de caixa, `agingReport("receita")` for inadimplência (sum of every bucket past `d1_30`). Ponto
+  de equilíbrio is a documented simplification (= despesas do mês — the chart of accounts has no
+  fixed/variable split, same class of approximation as the DRE's gerencial EBITDA); prazo médio
+  (recebimento/pagamento) is a simple unweighted average in days, not value-weighted. `evolucaoReceitaDespesaMeses(ateMes, n=6)`
+  is a ROLLING window (via `somarMesesUtc`, crosses year boundaries) distinct from the calendar-year
+  `serieMensalResultado(ano)` — don't conflate them. `relatorioPorDimensao(dimensao, de, ate)` groups
+  confirmed lançamentos by `categoria | centro | contato | projeto | tag`; `tag` is the one case a
+  lançamento can land in more than one row (multi-tag), so the UI must say the sum can exceed the period
+  total. Context-menu deep links into the livro caixa (`itensDaLinhaDeDimensao`) are wired ONLY for
+  `centro`/`projeto`, because `lancamentos-view.tsx`'s `categoriaId` filter actually matches a top-level
+  category CODE, not an arbitrary id, and there is no contato filter at all — faking those links would be
+  a lie dressed as a feature; the disabled reason is `MOTIVO_SEM_FILTRO_NO_LIVRO_CAIXA`, same sentence in
+  the menu and the `…`. `orcamentoPorCentro(de, ate)` is deliberately READ-ONLY (previsto × realizado by
+  centro, despesas only, `SO_RESULTADO`): `OrcamentoItem` has no `centroId` column, and adding one for a
+  feature the original audit marked low-priority wasn't worth a migration — the planned value stays by
+  category, shown as a second tab in Orçamento anual.
 - **Dates in the Financeiro are São Paulo calendar days** (N2, `lib/data.ts`): "today" to WRITE into a date column
   is `hojeParaBanco()` (UTC midnight of the SP day) and to compare is `diaDeSaoPaulo()` — a bare `new Date()` is
   tomorrow after 21h BRT. Period limits on date columns (`@db.Date`: `data`, `dataConfirmacao`, `dataCompetencia`)
