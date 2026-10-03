@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { obrigatorioFaltando, type CamposObrigatorios } from "./validacao";
+import { obrigatorioFaltando, faltaComprovante, type CamposObrigatorios } from "./validacao";
 
 const nada: CamposObrigatorios = { centro: false, forma: false, projeto: false, contato: false, observacao: false };
 
@@ -31,5 +31,18 @@ describe("obrigatorioFaltando", () => {
         observacao: "obs",
       }),
     ).toBeNull();
+  });
+});
+
+describe("faltaComprovante (M10)", () => {
+  it("não exige quando a config está desligada, mesmo sem anexo", () => {
+    expect(faltaComprovante(false, 0)).toBe(false);
+  });
+  it("exige quando ligada e sem anexo", () => {
+    expect(faltaComprovante(true, 0)).toBe(true);
+  });
+  it("passa quando ligada e já tem anexo", () => {
+    expect(faltaComprovante(true, 1)).toBe(false);
+    expect(faltaComprovante(true, 3)).toBe(false);
   });
 });

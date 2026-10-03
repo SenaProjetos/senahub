@@ -1422,7 +1422,10 @@
         "desconto",
         "quitar com desconto",
         "chave da NF",
-        "número do documento"
+        "número do documento",
+        "rateio",
+        "duplicar lançamento",
+        "comprovante na baixa"
       ],
       "sinonimos": [
         "movimentações",

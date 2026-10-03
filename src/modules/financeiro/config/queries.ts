@@ -39,10 +39,15 @@ export async function getAliquotas(): Promise<Aliquotas> {
 
 export type ConfigFinanceiro = {
   obrigatorios: CamposObrigatorios;
+  /** M10: exige ao menos um anexo no lançamento antes de confirmar(ar)/baixar — vale pra baixa manual
+   * (uma ou em lote) e pagamentos em lote; produtores (folha, projetista, ART, cartão…) são isentos por
+   * origem, como a alçada (N3). */
+  comprovanteObrigatorioNaBaixa: boolean;
 };
 
 const PADRAO: ConfigFinanceiro = {
   obrigatorios: { centro: false, forma: false, projeto: false, contato: false, observacao: false },
+  comprovanteObrigatorioNaBaixa: false,
 };
 
 /** Config do módulo financeiro (chave/valor em ConfigSistema). Defaults preservam o comportamento atual. */
@@ -59,5 +64,6 @@ export async function getConfigFinanceiro(): Promise<ConfigFinanceiro> {
       contato: !!o.contato,
       observacao: !!o.observacao,
     },
+    comprovanteObrigatorioNaBaixa: !!v.comprovanteObrigatorioNaBaixa,
   };
 }

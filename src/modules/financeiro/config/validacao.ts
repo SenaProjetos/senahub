@@ -29,3 +29,10 @@ export function obrigatorioFaltando(o: CamposObrigatorios, d: DadosLancamento): 
   if (o.observacao && !d.observacao?.trim()) return "Observação";
   return null;
 }
+
+export const MOTIVO_COMPROVANTE_OBRIGATORIO = "Anexe o comprovante antes de dar baixa (exigido em Configurações).";
+
+/** M10: se a config exige comprovante na baixa e o lançamento não tem nenhum anexo, recusa. */
+export function faltaComprovante(exigir: boolean, qtdAnexos: number): boolean {
+  return exigir && qtdAnexos === 0;
+}

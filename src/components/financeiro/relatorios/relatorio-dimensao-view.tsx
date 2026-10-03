@@ -98,6 +98,12 @@ export function RelatorioDimensaoView({
           Um lançamento com mais de uma tag entra na linha de cada tag: a soma das linhas pode passar do total do período.
         </p>
       )}
+      {(relatorio.dimensao === "centro" || relatorio.dimensao === "projeto") && (
+        <p className="text-xs text-muted-foreground">
+          Lançamento rateado entra dividido pelas linhas do rateio (menu de contexto → Ratear) — &ldquo;Lançamentos&rdquo;
+          conta a parte, não o lançamento inteiro. O centro/projeto do cadastro continua valendo no resto do sistema.
+        </p>
+      )}
 
       {relatorio.linhas.length === 0 ? (
         <EmptyState icon={LayoutGrid} title="Nada no período." description="Mude o período ou a dimensão acima." />

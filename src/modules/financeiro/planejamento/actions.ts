@@ -10,6 +10,7 @@ import { contasEmAberto } from "@/modules/financeiro/planejamento/queries";
 import { camposDoPlanejador, saldoRestante } from "@/modules/financeiro/lancamentos/parcial";
 import { pagamentoPagoNoFinanceiro } from "@/modules/financeiro/custo/lancamento-custo";
 import { exigirPeriodoAberto } from "@/modules/financeiro/fechamento/trava-service";
+import { exigirComprovanteSeObrigatorio } from "@/modules/financeiro/lancamentos/comprovante-service";
 
 const base = { modulo: "financeiro", recurso: "financeiro", permissao: "gerir" } as const;
 
@@ -218,6 +219,11 @@ export const executarPlano = defineAction(
     let pagos = 0;
     const agora = hojeParaBanco();
     await exigirPeriodoAberto(prisma, [agora]);
+    // M10: comprovante obrigatório, se a config exigir.
+    await exigirComprovanteSeObrigatorio(
+      prisma,
+      plano.linhas.filter((ln) => ln.lancamento.status === "previsto").map((ln) => ln.lancamento.id),
+    );
     for (const ln of plano.linhas) {
       const lanc = ln.lancamento;
       if (lanc.status !== "previsto") continue;

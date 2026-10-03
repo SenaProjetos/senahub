@@ -13,6 +13,7 @@ import {
   prioridadeLancamentoSchema,
   confiancaLancamentoSchema,
   caixinhaLancamentoSchema,
+  salvarRateioSchema,
 } from "@/modules/financeiro/lancamentos/schemas";
 import { z } from "zod";
 import { removerArquivo } from "@/lib/storage";
@@ -29,6 +30,8 @@ import { getExclusaoCompleto } from "@/modules/financeiro/config/queries";
 import { verificarSenha } from "@/modules/financeiro/config/senha";
 import { corrigirPagamentoNoBanco } from "@/modules/financeiro/lancamentos/corrigir-pagamento";
 import { baixarNoBanco } from "@/modules/financeiro/lancamentos/baixa-service";
+import { exigirComprovanteSeObrigatorio } from "@/modules/financeiro/lancamentos/comprovante-service";
+import { salvarRateioNoBanco } from "@/modules/financeiro/lancamentos/rateio-service";
 import { normalizarChaveNfe } from "@/modules/financeiro/lancamentos/baixa";
 import { corrigirPagamentoSchema } from "@/modules/financeiro/transferencias/schemas";
 
@@ -337,6 +340,8 @@ export const baixarEmLote = defineAction(
     if (alvos.length === 0) throw new ActionError("Nenhum lançamento elegível (previsto) selecionado.");
 
     await exigirPeriodoAberto(prisma, [quando]);
+    // M10: comprovante obrigatório, se a config exigir.
+    await exigirComprovanteSeObrigatorio(prisma, alvos.map((a) => a.id));
     // Um a um e condicionado ao previsto: o que mudou desde a leitura fica de fora, não é pago por cima.
     const confirmados = await prisma.$transaction(async (tx) => {
       let n = 0;
@@ -395,6 +400,17 @@ export const removerAnexoLancamento = defineAction(
     await prisma.lancamentoAnexo.delete({ where: { id: i.id } });
     await removerArquivo(a.caminho);
     rev();
+    return { id: i.id };
+  },
+);
+
+// ── Rateio entre centros/projetos (M10) ────────────────────────
+export const salvarRateioLancamento = defineAction(
+  { ...base, acao: "salvar-rateio-lancamento", entidade: "Lancamento", schema: salvarRateioSchema },
+  async (i) => {
+    await salvarRateioNoBanco(i.id, i.itens);
+    rev();
+    revalidatePath("/financeiro/relatorio-dimensao");
     return { id: i.id };
   },
 );

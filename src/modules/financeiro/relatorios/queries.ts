@@ -9,6 +9,8 @@ import { totalDaCarteira } from "@/modules/financeiro/investimentos/queries";
 import { idsContasDeInvestimento } from "@/modules/financeiro/investimentos/service";
 import { SEM_TRANSFERENCIA, SO_RESULTADO } from "@/modules/financeiro/natureza";
 import { somaPaga, somarReais, valorPagoReais } from "@/modules/financeiro/valor-pago";
+import { paraCentavos, paraReais } from "@/modules/financeiro/liquidez/dinheiro";
+import { ratearValor } from "@/modules/financeiro/lancamentos/rateio";
 import { analisarDRE, type LinhaBaseDRE, type DREComparativo } from "./dre";
 import { calcularRentabilidade, rentabilidadePorCliente, type ProjetoEntrada } from "./dre-projeto";
 
@@ -751,6 +753,17 @@ export async function relatorioPorDimensao(dimensao: DimensaoRelatorio, de: Date
       projeto: { select: { id: true, codigo: true, nome: true } },
       fornecedor: { select: { id: true, nome: true } },
       cliente: { select: { id: true, nome: true } },
+      // M10: presente = o Relatório por dimensão usa as linhas do rateio no lugar do centro/projeto
+      // único; o centro/projeto acima continua sendo o "principal" em todo o resto do sistema.
+      rateios: {
+        select: {
+          centroId: true,
+          projetoId: true,
+          percentualBp: true,
+          centro: { select: { nome: true } },
+          projeto: { select: { codigo: true, nome: true } },
+        },
+      },
     },
   });
 
@@ -761,12 +774,37 @@ export async function relatorioPorDimensao(dimensao: DimensaoRelatorio, de: Date
     mapa.set(chave, cur);
     return cur;
   };
-  const somar = (cur: LinhaDimensao, l: (typeof lancs)[number]) => {
-    const v = valorPagoReais(l);
-    if (l.tipo === "receita") cur.receita = somarReais(cur.receita, v);
+  const somarValor = (cur: LinhaDimensao, tipo: "receita" | "despesa", v: number) => {
+    if (tipo === "receita") cur.receita = somarReais(cur.receita, v);
     else cur.despesa = somarReais(cur.despesa, v);
     cur.qtd += 1;
   };
+  const somar = (cur: LinhaDimensao, l: (typeof lancs)[number]) => somarValor(cur, l.tipo, valorPagoReais(l));
+
+  /**
+   * Centro/projeto RATEADOS (M10): divide o valor pago pelas linhas do rateio, pro-rata em centavos.
+   * Uma linha do rateio sem o id desta dimensão cai no centro/projeto PRINCIPAL do lançamento — nunca
+   * se perde valor, e o "principal" segue sendo o que vale fora deste relatório.
+   */
+  function somarRateado(l: (typeof lancs)[number], campo: "centro" | "projeto") {
+    const partes = ratearValor(paraCentavos(valorPagoReais(l)), l.rateios);
+    l.rateios.forEach((r, idx) => {
+      const id = campo === "centro" ? (r.centroId ?? l.centro?.id ?? null) : (r.projetoId ?? l.projeto?.id ?? null);
+      if (!id) {
+        semDimensao += 1;
+        return;
+      }
+      const nome =
+        campo === "centro"
+          ? (r.centro?.nome ?? l.centro?.nome ?? "")
+          : r.projeto
+            ? `${r.projeto.codigo} ${r.projeto.nome}`
+            : l.projeto
+              ? `${l.projeto.codigo} ${l.projeto.nome}`
+              : "";
+      somarValor(linha(id, nome), l.tipo, paraReais(partes[idx]));
+    });
+  }
 
   for (const l of lancs) {
     if (dimensao === "tag") {
@@ -782,6 +820,10 @@ export async function relatorioPorDimensao(dimensao: DimensaoRelatorio, de: Date
       continue;
     }
     if (dimensao === "centro") {
+      if (l.rateios.length > 0) {
+        somarRateado(l, "centro");
+        continue;
+      }
       if (!l.centro) {
         semDimensao += 1;
         continue;
@@ -790,6 +832,10 @@ export async function relatorioPorDimensao(dimensao: DimensaoRelatorio, de: Date
       continue;
     }
     if (dimensao === "projeto") {
+      if (l.rateios.length > 0) {
+        somarRateado(l, "projeto");
+        continue;
+      }
       if (!l.projeto) {
         semDimensao += 1;
         continue;

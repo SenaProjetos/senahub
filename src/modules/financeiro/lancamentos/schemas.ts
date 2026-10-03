@@ -94,4 +94,16 @@ export const confirmarLancamentoSchema = z.object({
 
 export const idLancamentoSchema = z.object({ id: z.string().min(1) });
 
+/** M10: rateio entre centros/projetos. Lista vazia remove o rateio (volta ao centro/projeto único). */
+export const salvarRateioSchema = z.object({
+  id: z.string().min(1),
+  itens: z.array(
+    z.object({
+      centroId: z.string().min(1).nullable(),
+      projetoId: z.string().min(1).nullable(),
+      percentualBp: z.number().int(),
+    }),
+  ),
+});
+
 export type CriarLancamentoInput = z.infer<typeof criarLancamentoSchema>;

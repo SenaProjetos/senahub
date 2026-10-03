@@ -435,6 +435,14 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   centro, despesas only, `SO_RESULTADO`): `OrcamentoItem` has no `centroId` column, and adding one for a
   feature the original audit marked low-priority wasn't worth a migration — the planned value stays by
   category, shown as a second tab in Orçamento anual.
+- **Rateio e comprovante na baixa** (M10, `financeiro/lancamentos/rateio.ts` + `rateio-service.ts`, `comprovante-service.ts`):
+  `RateioLancamento` (basis points, soma exata 10000, ≥2 linhas, cada linha com centro OU projeto) é SÓ leitura do
+  `relatorioPorDimensao` centro/projeto — `Lancamento.centroId/projetoId` continua o principal em todo o resto. Rateado
+  divide o valor pago em centavos com `ratearValor` (sobra na última linha); `qtd` passa a contar PARTES. Salvar substitui
+  tudo (delete+create numa transação); lista vazia remove. `exigirComprovanteSeObrigatorio(db, ids)` é chamado em
+  `baixarNoTx` (baixa única), `baixarEmLote` e `executarPlano`; produtores e a conciliação OFX ficam de fora por origem.
+  Config em `ConfigFinanceiro.comprovanteObrigatorioNaBaixa` (sibling de `obrigatorios`, não dentro: aplica na baixa, não na
+  criação). "Duplicar lançamento" é só prefill do `LancamentoForm` (`duplicarDe`) — reusa `criarLancamento`, sem caminho server novo.
 - **Dates in the Financeiro are São Paulo calendar days** (N2, `lib/data.ts`): "today" to WRITE into a date column
   is `hojeParaBanco()` (UTC midnight of the SP day) and to compare is `diaDeSaoPaulo()` — a bare `new Date()` is
   tomorrow after 21h BRT. Period limits on date columns (`@db.Date`: `data`, `dataConfirmacao`, `dataCompetencia`)

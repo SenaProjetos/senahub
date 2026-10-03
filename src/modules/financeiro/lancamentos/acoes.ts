@@ -1,4 +1,4 @@
-import { Ban, Check, Copy, Paperclip, Pencil, RotateCcw, Trash2, Undo2 } from "lucide-react";
+import { Ban, Check, Copy, CopyPlus, Paperclip, Pencil, RotateCcw, SplitSquareHorizontal, Trash2, Undo2 } from "lucide-react";
 
 import type { AcaoItem } from "@/components/ui/acoes";
 import { MOTIVO_ACESSORIO, MOTIVO_CONCILIADO, MOTIVO_PAGO_ESTORNE } from "@/modules/financeiro/lancamentos/transicoes";
@@ -24,6 +24,8 @@ export const ACAO_ESTORNAR = "estornar";
 export const ACAO_REABRIR = "reabrir";
 export const ACAO_EXCLUIR = "excluir";
 export const ACAO_COPIAR_DESCRICAO = "copiar-descricao";
+export const ACAO_DUPLICAR = "duplicar";
+export const ACAO_RATEAR = "ratear";
 export const ACAO_LOTE_BAIXAR = "lote-baixar";
 export const ACAO_LOTE_CANCELAR = "lote-cancelar";
 export const ACAO_LOTE_EXCLUIR = "lote-excluir";
@@ -40,6 +42,8 @@ export type LancamentoParaAcoes = {
   deTransferencia?: boolean;
   /** Juros/multa/desconto de uma baixa (M7): só anda com o principal. */
   deAcessorio?: boolean;
+  /** Já tem rateio entre centros/projetos (M10) — muda o rótulo do menu para "Editar rateio". */
+  temRateio?: boolean;
 };
 
 export function itensDeLancamento(l: LancamentoParaAcoes): AcaoItem[] {
@@ -72,6 +76,8 @@ export function itensDeLancamento(l: LancamentoParaAcoes): AcaoItem[] {
     l.status === "previsto" ? { tipo: "acao", id: ACAO_CONFIRMAR, rotulo: "Confirmar", icone: Check } : null,
     // Reposição do "Copiar" que o menu nativo dava no texto da linha (ADR-0002, regra 1).
     { tipo: "acao", id: ACAO_COPIAR_DESCRICAO, rotulo: "Copiar descrição", icone: Copy },
+    { tipo: "acao", id: ACAO_DUPLICAR, rotulo: "Duplicar lançamento", icone: CopyPlus },
+    { tipo: "acao", id: ACAO_RATEAR, rotulo: l.temRateio ? "Editar rateio" : "Ratear entre centros/projetos", icone: SplitSquareHorizontal },
     l.temCategoria === undefined ? null : itemCriarRegra(l.temCategoria),
     pago ? itemCorrigirPagamento() : null,
     cancelado ? null : { tipo: "separador", id: "sep-estado" },

@@ -14,6 +14,7 @@ import { paraCentavos } from "@/modules/financeiro/liquidez/dinheiro";
 import { camposDoPlanejador } from "@/modules/financeiro/lancamentos/parcial";
 import { exigirOperacao, MOTIVO_MUDOU } from "@/modules/financeiro/lancamentos/situacao-service";
 import { planejarBaixa, type PlanoDaBaixa } from "@/modules/financeiro/lancamentos/baixa";
+import { exigirComprovanteSeObrigatorio } from "@/modules/financeiro/lancamentos/comprovante-service";
 
 type Tx = Prisma.TransactionClient;
 
@@ -43,6 +44,8 @@ export async function baixarNoTx(tx: Tx, i: PedidoDeBaixa, autorId: string): Pro
   await exigirOperacao(tx, i.id, "baixar");
   // N5: o pagamento não cai em mês fechado (a conta vencida de mês fechado se paga em mês aberto).
   await exigirPeriodoAberto(tx, [i.data]);
+  // M10: comprovante obrigatório, se a config exigir (baixa manual — produtores são isentos por origem).
+  await exigirComprovanteSeObrigatorio(tx, [i.id]);
   const lanc = await tx.lancamento.findUniqueOrThrow({ where: { id: i.id } });
 
   const plano = planejarBaixa({

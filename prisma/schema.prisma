@@ -1270,6 +1270,7 @@ model Projeto {
   linkInput               LinkPublicoInput?
   linkArquivos            LinkPublicoArquivos[]
   lancamentos             Lancamento[]
+  rateiosLancamento       RateioLancamento[]
   canais                  Canal[]
   proposta                Proposta?
   tarefas                 Tarefa[]
@@ -1568,6 +1569,7 @@ model CentroCusto {
 
   lancamentos   Lancamento[]
   planejamentos PlanejamentoPagamento[]
+  rateios       RateioLancamento[]
 
   regrasPreenchimento RegraCategorizacao[]
   @@map("centro_custo")
@@ -1818,6 +1820,10 @@ model Lancamento {
   documentoFinanceiroId String?
   documentoFinanceiro   DocumentoFinanceiro?        @relation(fields: [documentoFinanceiroId], references: [id], onDelete: SetNull)
   anexos                LancamentoAnexo[]
+  /// Rateio entre centros/projetos (M10): SÓ afeta o Relatório por dimensão — o `centroId`/`projetoId`
+  /// acima continua sendo o "principal" para todo o resto (livro caixa, aging, filtros, EVM). Presente
+  /// = substitui a linha única pelas linhas do rateio nesse relatório; ausente = comportamento de sempre.
+  rateios               RateioLancamento[]
   statusHistorico       LancamentoStatusHistorico[]
   planejamentoLinhas    PlanejamentoLinha[]
   ajustesCenario        AjusteCenario[]
@@ -7607,6 +7613,26 @@ model LancamentoAnexo {
 
   @@index([lancamentoId])
   @@map("lancamento_anexo")
+}
+
+/// Rateio de um lançamento entre centros de custo e/ou projetos (M10) — só consumido pelo Relatório
+/// por dimensão (`relatorioPorDimensao`). `percentualBp` em basis points (10000 = 100%), soma validada
+/// em `rateio.ts` (puro). Cada linha precisa de centro OU projeto (ou os dois); salvar substitui tudo
+/// (delete+create numa transação, nunca update parcial).
+model RateioLancamento {
+  id            String      @id @default(cuid())
+  lancamentoId  String
+  lancamento    Lancamento  @relation(fields: [lancamentoId], references: [id], onDelete: Cascade)
+  centroId      String?
+  centro        CentroCusto? @relation(fields: [centroId], references: [id], onDelete: SetNull)
+  projetoId     String?
+  projeto       Projeto?     @relation(fields: [projetoId], references: [id], onDelete: SetNull)
+  percentualBp  Int
+
+  @@index([lancamentoId])
+  @@index([centroId])
+  @@index([projetoId])
+  @@map("lancamento_rateio")
 }
 
 /// Trilha de mudanças de status de um lançamento (A6).

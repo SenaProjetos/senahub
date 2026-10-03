@@ -50,16 +50,19 @@ import {
   ACAO_CONFIRMAR,
   ACAO_COPIAR_DESCRICAO,
   ACAO_DETALHES,
+  ACAO_DUPLICAR,
   ACAO_EDITAR,
   ACAO_ESTORNAR,
   ACAO_EXCLUIR,
   ACAO_LOTE_BAIXAR,
   ACAO_LOTE_CANCELAR,
   ACAO_LOTE_EXCLUIR,
+  ACAO_RATEAR,
   ACAO_REABRIR,
   itensDeLancamento,
   itensDeLoteLancamentos,
 } from "@/modules/financeiro/lancamentos/acoes";
+import { RateioDialog } from "@/components/financeiro/lancamentos/rateio-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { brl, formatarData } from "@/lib/utils";
@@ -226,6 +229,8 @@ export function LancamentosView({
   const confirm = useConfirm();
   const [formOpen, setFormOpen] = useState(defaultFormOpen);
   const [editar, setEditar] = useState<LivroCaixaItem | null>(null);
+  const [duplicar, setDuplicar] = useState<LivroCaixaItem | null>(null);
+  const [ratearDe, setRatearDe] = useState<LivroCaixaItem | null>(null);
   const [confirmar, setConfirmar] = useState<LivroCaixaItem | null>(null);
   const [regraDe, setRegraDe] = useState<LancamentoParaRegra | null>(null);
   const [corrigir, setCorrigir] = useState<PagoParaCorrigir | null>(null);
@@ -534,6 +539,8 @@ export function LancamentosView({
     else if (item.id === ACAO_CORRIGIR_PAGAMENTO) setCorrigir({ id: l.id, descricao: l.descricao, valor: l.valorEfetivo ?? l.valor, contaId: l.contaId, formaId: l.formaId, dataConfirmacao: String(l.dataConfirmacao ?? l.data).slice(0, 10), conciliado: l.conciliado });
     else if (item.id === ACAO_CRIAR_REGRA) setRegraDe({ id: l.id, descricao: l.descricao, categoria: l.categoria ? `${l.categoria.codigo} ${l.categoria.nome}` : null, temCentroOuProjeto: l.centro != null || l.projeto != null });
     else if (item.id === ACAO_EDITAR) setEditar(l);
+    else if (item.id === ACAO_DUPLICAR) setDuplicar(l);
+    else if (item.id === ACAO_RATEAR) setRatearDe(l);
     else if (item.id === ACAO_CONFIRMAR) setConfirmar(l);
     else if (item.id === ACAO_CANCELAR) cancelar(l.id);
     else if (item.id === ACAO_ESTORNAR) estornar(l.id);
@@ -845,11 +852,13 @@ export function LancamentosView({
       </div>
 
       <LancamentoForm
-        open={formOpen || !!editar}
+        open={formOpen || !!editar || !!duplicar}
         editar={editar}
+        duplicarDe={duplicar}
         opcoes={opcoes}
-        onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditar(null); } }}
+        onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditar(null); setDuplicar(null); } }}
       />
+      <RateioDialog lancamento={ratearDe} opcoes={opcoes} onClose={() => setRatearDe(null)} />
       <ConfirmarDialog lancamento={confirmar} onClose={() => setConfirmar(null)} contas={opcoes.contas} formas={opcoes.formas} />
       <LancamentoDetalheDialog lancamento={detalhe} podeGerir onClose={() => setDetalhe(null)} />
       <CriarRegraDialog lancamento={regraDe} onClose={() => setRegraDe(null)} />
@@ -894,7 +903,7 @@ export function LancamentosView({
     // Com a linha DENTRO de uma seleção de vários, o menu age sobre a seleção (regra 3 da ADR-0002).
     const menuItens = alvosSelecao.length > 1 && selecao.marcado(l.id)
       ? itensDoLote
-      : itensDeLancamento({ status: l.status, anexos: l.anexos.length, conciliado: l.conciliado, temCategoria: l.categoria != null, deTransferencia: l.transferenciaId != null, deAcessorio: l.acessorioDeId != null });
+      : itensDeLancamento({ status: l.status, anexos: l.anexos.length, conciliado: l.conciliado, temCategoria: l.categoria != null, deTransferencia: l.transferenciaId != null, deAcessorio: l.acessorioDeId != null, temRateio: l.rateios.length > 0 });
     return (
       <LinhaComMenu
         key={l.id}

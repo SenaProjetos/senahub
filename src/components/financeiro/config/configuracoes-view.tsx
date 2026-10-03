@@ -47,13 +47,14 @@ export function ConfiguracoesView({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [obrig, setObrig] = useState<CamposObrigatorios>(config.obrigatorios);
+  const [comprovante, setComprovante] = useState(config.comprovanteObrigatorioNaBaixa);
 
   function toggle(k: keyof CamposObrigatorios) {
     setObrig((p) => ({ ...p, [k]: !p[k] }));
   }
   function salvar() {
     start(async () => {
-      const r = await salvarConfigFinanceiro({ obrigatorios: obrig });
+      const r = await salvarConfigFinanceiro({ obrigatorios: obrig, comprovanteObrigatorioNaBaixa: comprovante });
       if (r.ok) {
         toast.success("Configurações salvas.");
         router.refresh();
@@ -86,6 +87,30 @@ export function ConfiguracoesView({
               </span>
             </label>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Comprovante na baixa</CardTitle>
+          <CardDescription>Exige ao menos um anexo antes de confirmar/baixar um lançamento lançado à mão.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <label className="flex cursor-pointer items-start gap-3 rounded-sm px-2 py-2 hover:bg-muted/40">
+            <input
+              type="checkbox"
+              checked={comprovante}
+              onChange={(e) => setComprovante(e.target.checked)}
+              className="mt-0.5 size-4"
+            />
+            <span>
+              <span className="block text-sm font-medium">Exigir comprovante para dar baixa</span>
+              <span className="block text-xs text-muted-foreground">
+                Vale pra baixa manual (uma ou em lote) e Pagamentos em lote. Folha, projetistas, ART, recorrência e
+                compras no cartão não precisam — já são aprovados na origem.
+              </span>
+            </span>
+          </label>
         </CardContent>
       </Card>
 

@@ -6,12 +6,14 @@ import {
   ACAO_CONFIRMAR,
   ACAO_COPIAR_DESCRICAO,
   ACAO_DETALHES,
+  ACAO_DUPLICAR,
   ACAO_EDITAR,
   ACAO_ESTORNAR,
   ACAO_EXCLUIR,
   ACAO_LOTE_BAIXAR,
   ACAO_LOTE_CANCELAR,
   ACAO_LOTE_EXCLUIR,
+  ACAO_RATEAR,
   ACAO_REABRIR,
   MOTIVO_NENHUM_PREVISTO,
   MOTIVO_SO_CANCELADOS,
@@ -24,12 +26,14 @@ const ids = (itens: readonly AcaoItem[]) => itens.map((i) => i.id);
 const achar = (itens: readonly AcaoItem[], id: string) => itens.find((i) => i.id === id);
 
 describe("itensDeLancamento", () => {
-  it("previsto: detalhes, editar, confirmar, copiar, cancelar e excluir", () => {
+  it("previsto: detalhes, editar, confirmar, copiar, duplicar, ratear, cancelar e excluir", () => {
     expect(ids(itensDeLancamento({ status: "previsto", anexos: 0 }))).toEqual([
       ACAO_DETALHES,
       ACAO_EDITAR,
       ACAO_CONFIRMAR,
       ACAO_COPIAR_DESCRICAO,
+      ACAO_DUPLICAR,
+      ACAO_RATEAR,
       "sep-estado",
       ACAO_CANCELAR,
       ACAO_EXCLUIR,
@@ -40,8 +44,19 @@ describe("itensDeLancamento", () => {
     expect(achar(itensDeLancamento({ status: "confirmado", anexos: 0 }), ACAO_CONFIRMAR)).toBeUndefined();
   });
 
-  it("cancelado: detalhes, copiar e reabrir — não edita, cancela nem exclui", () => {
-    expect(ids(itensDeLancamento({ status: "cancelado", anexos: 0 }))).toEqual([ACAO_DETALHES, ACAO_COPIAR_DESCRICAO, ACAO_REABRIR]);
+  it("cancelado: detalhes, copiar, duplicar, ratear e reabrir — não edita, cancela nem exclui", () => {
+    expect(ids(itensDeLancamento({ status: "cancelado", anexos: 0 }))).toEqual([
+      ACAO_DETALHES,
+      ACAO_COPIAR_DESCRICAO,
+      ACAO_DUPLICAR,
+      ACAO_RATEAR,
+      ACAO_REABRIR,
+    ]);
+  });
+
+  it("rótulo do rateio muda quando já tem rateio (M10)", () => {
+    expect(achar(itensDeLancamento({ status: "previsto", anexos: 0 }), ACAO_RATEAR)).toMatchObject({ rotulo: "Ratear entre centros/projetos" });
+    expect(achar(itensDeLancamento({ status: "previsto", anexos: 0, temRateio: true }), ACAO_RATEAR)).toMatchObject({ rotulo: "Editar rateio" });
   });
 
   it("N1: pago estorna (com confirmação) e não cancela — a frase é a do servidor", () => {

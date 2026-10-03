@@ -17,6 +17,8 @@ const INCLUDE = {
   documentoFinanceiro: { select: { id: true, tipo: true, numero: true } },
   anexos: { orderBy: { createdAt: "desc" }, select: { id: true, nome: true, mime: true, tamanho: true, createdAt: true } },
   statusHistorico: { orderBy: { createdAt: "desc" }, select: { de: true, para: true, createdAt: true } },
+  // M10: rateio entre centros/projetos — só para o menu saber se já tem rateio e pré-preencher o diálogo.
+  rateios: { select: { centroId: true, projetoId: true, percentualBp: true } },
 } satisfies Prisma.LancamentoInclude;
 
 type LancRaw = Prisma.LancamentoGetPayload<{ include: typeof INCLUDE }>;

@@ -33,6 +33,7 @@ Apoiar a gestão com demonstrativos e indicadores construídos a partir dos lan�
   Orçamento · Relatório por dimensão) leva aos vizinhos. Quem não tem acesso a um relatório não vê a aba dele.
 - Em **Indicadores**, cada linha da tabela de evolução mensal tem menu de contexto: **Ver DRE do mês**,
   **Comparar com** outro mês da lista (mostra a diferença na própria tela, sem navegar) e **Exportar o mês**.
+- Em **Relatório por dimensão**, centro e projeto consideram o **rateio** do lançamento (quando houver): cada parte entra na linha do seu centro/projeto.
 - Em **Relatório por dimensão**, cada linha tem menu de contexto para ver os lançamentos daquele grupo no
   livro caixa — disponível hoje para **centro de custo** e **projeto** (o livro caixa ainda não filtra por
   categoria, contato ou tag isoladamente); a tag soma por lançamento com mais de uma tag, então a soma das

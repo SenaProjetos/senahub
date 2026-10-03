@@ -90,8 +90,17 @@ Cada mudança de estado fica no **histórico** do lançamento (em **Detalhes**),
 
 Clique com o **botão direito** num lançamento (ou use o botão **⋯**) para **abrir os detalhes**,
 **editar**, **confirmar** (quando está previsto), **estornar** (quando está pago), **reabrir** (quando
-está cancelado), **copiar a descrição**, **cancelar** ou **excluir**. O que o estado do lançamento não
-permite aparece esmaecido, com o motivo.
+está cancelado), **copiar a descrição**, **duplicar** (abre o formulário de um lançamento novo com os mesmos dados — data de hoje,
+sem vencimento nem nº do documento), **ratear entre centros e projetos**, **cancelar** ou **excluir**. O que o estado do
+lançamento não permite aparece esmaecido, com o motivo.
+
+**Rateio:** divide um lançamento entre centros de custo e/ou projetos por percentual (a soma tem que fechar 100%).
+Muda só o **Relatório por dimensão** (centro e projeto); o centro e o projeto do cadastro continuam valendo no livro
+caixa, nas contas a pagar e no resto do sistema.
+
+**Comprovante na baixa:** se **Configurações → Comprovante na baixa** estiver ligado, não dá para confirmar um
+lançamento lançado à mão (uma baixa, em lote ou em Pagamentos em lote) sem anexar pelo menos um comprovante.
+Folha, projetistas, ART, recorrências e compras no cartão não entram nessa regra.
 
 Marque vários lançamentos e a barra da parte de baixo da tela oferece **baixar**, **cancelar** e
 **excluir** todos de uma vez, com a contagem na confirmação. A seleção continua valendo ao mudar

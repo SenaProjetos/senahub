@@ -148,3 +148,15 @@ arquivar/excluir, isento, opções de lançamento).
 - **Verificação:** tsc (app e server), `npm run lint` sem `--quiet`, suíte completa (5677, com `nav.test.ts` atualizado
   para os 2 itens novos de Resultados e o atalho de Clientes em Mais), `smoke:financeiro-core`, build de produção, Chrome
   em 1366 (menu aberto) e 390 nas 3 telas (Indicadores, Relatório por dimensão, Orçamento com a aba nova).
+
+## M10 — rateio, comprovante obrigatório na baixa, duplicar lançamento (Sonnet) — concluída
+
+- **Rateio** (migração `20261002360000_financeiro_m10_rateio`, tabela `lancamento_rateio`): divide um lançamento entre centros
+  e/ou projetos por percentual. Só o Relatório por dimensão (centro e projeto) usa; o centro/projeto do cadastro continua o
+  principal no livro caixa, aging e EVM. Escopo deliberado: não replicou o rateio para DRE/aging para não tocar dezenas de leitores.
+- **Comprovante obrigatório na baixa** (Configurações → Comprovante na baixa, `ConfigFinanceiro.comprovanteObrigatorioNaBaixa`):
+  vale para baixa única, em lote e Pagamentos em lote; produtores e conciliação OFX isentos por origem (mesma regra da alçada, N3).
+- **Duplicar lançamento**: menu de contexto abre o formulário de criação pré-preenchido (sem caminho server novo).
+- **Verificação:** `rateio.test.ts` (9), `validacao.test.ts` (+3), `acoes.test.ts` (+1 + ordem atualizada), `smoke:financeiro-core`
+  (bloco M10: soma, pro-rata, remoção, comprovante desligado/ligado, baixa recusada sem anexo), Chrome 1366 (menu com as duas
+  ações, diálogo de rateio, duplicar pré-preenchido, Configurações) e 390 sem rolagem lateral.

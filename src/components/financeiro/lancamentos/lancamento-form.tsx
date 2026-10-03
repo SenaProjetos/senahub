@@ -58,12 +58,15 @@ export function LancamentoForm({
   opcoes,
   tipoInicial = "despesa",
   editar = null,
+  duplicarDe = null,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   opcoes: OpcoesLancamento;
   tipoInicial?: "receita" | "despesa";
   editar?: LancamentoItem | null;
+  /** M10: pré-preenche como um lançamento NOVO (nunca edita o original) — data, nº documento e chave NF ficam em branco. */
+  duplicarDe?: LancamentoItem | null;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -94,7 +97,7 @@ export function LancamentoForm({
   const [formaSugerida, setFormaSugerida] = useState("");
 
   // Sincroniza o formulário quando abre para um novo alvo (edição carrega valores; criação reseta).
-  const alvoKey = open ? (editar?.id ?? "novo") : "fechado";
+  const alvoKey = open ? (editar?.id ?? (duplicarDe ? `dup:${duplicarDe.id}` : "novo")) : "fechado";
   const [prevKey, setPrevKey] = useState(alvoKey);
   if (prevKey !== alvoKey) {
     setPrevKey(alvoKey);
@@ -118,6 +121,28 @@ export function LancamentoForm({
       setPrioridade(editar.prioridade ?? PADRAO);
       setConfianca(editar.confianca ?? PADRAO);
       setCaixinhaId(editar.caixinhaId ?? NONE);
+    } else if (duplicarDe) {
+      // Mesma categoria/dimensões/valor do original; data vira hoje e nº documento/chave NF ficam em
+      // branco (identificam UM documento — duplicar não deveria carregar a NF do original).
+      setTipo(duplicarDe.tipo);
+      setDescricao(duplicarDe.descricao);
+      setValor(Number(duplicarDe.valor));
+      setDataMov(hoje);
+      setVencimento("");
+      setDataCompetencia("");
+      setCategoriaId(duplicarDe.categoriaId);
+      setCentroId(duplicarDe.centroId ?? NONE);
+      setProjetoId(duplicarDe.projetoId ?? NONE);
+      setFornecedorId(duplicarDe.fornecedorId ?? NONE);
+      setClienteId(duplicarDe.clienteId ?? NONE);
+      setObservacao(duplicarDe.observacao ?? "");
+      setNumeroDocumento("");
+      setChaveNfe("");
+      setConfirmado(false);
+      setOcorrencias("1");
+      setPrioridade(duplicarDe.prioridade ?? PADRAO);
+      setConfianca(duplicarDe.confianca ?? PADRAO);
+      setCaixinhaId(duplicarDe.caixinhaId ?? NONE);
     } else if (open) {
       reset();
       setTipo(tipoInicial);
@@ -261,7 +286,7 @@ export function LancamentoForm({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{modoEdicao ? "Editar lançamento" : "Novo lançamento"}</DialogTitle>
+          <DialogTitle>{modoEdicao ? "Editar lançamento" : duplicarDe ? "Duplicar lançamento" : "Novo lançamento"}</DialogTitle>
           <DialogDescription>
             {modoEdicao
               ? "Altere os dados do lançamento."

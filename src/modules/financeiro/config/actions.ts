@@ -39,6 +39,7 @@ const schema = z.object({
     contato: z.boolean(),
     observacao: z.boolean(),
   }),
+  comprovanteObrigatorioNaBaixa: z.boolean(),
 });
 
 /** Salva a configuração do módulo financeiro. Requer financeiro:gerir. */

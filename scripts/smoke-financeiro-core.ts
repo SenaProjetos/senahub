@@ -82,7 +82,10 @@ import {
 } from "../src/modules/financeiro/investimentos/service";
 import { totalDaCarteira } from "../src/modules/financeiro/investimentos/queries";
 import { baixarNoBanco } from "../src/modules/financeiro/lancamentos/baixa-service";
-import { balancoGerencial, relatorioDRE } from "../src/modules/financeiro/relatorios/queries";
+import { balancoGerencial, relatorioDRE, relatorioPorDimensao } from "../src/modules/financeiro/relatorios/queries";
+import { CHAVE_CONFIG_FINANCEIRO } from "../src/modules/financeiro/config/queries";
+import { salvarRateioNoBanco } from "../src/modules/financeiro/lancamentos/rateio-service";
+import { exigirComprovanteSeObrigatorio } from "../src/modules/financeiro/lancamentos/comprovante-service";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -145,6 +148,7 @@ async function main() {
     await avisosDoFinanceiro(admin.id);
     await investimentos(admin.id);
     await baixaCompleta(admin.id);
+    await rateioEComprovante(admin.id);
   } finally {
     const pags = (await prisma.pagamentoProjetista.findMany({ where: { disciplinaId: disciplina.id }, select: { id: true } })).map((p) => p.id);
     await prisma.lancamento.deleteMany({ where: { OR: [{ projetoId: projeto.id }, { pagamentoProjetistaId: { in: pags } }, { descricao: { startsWith: tag } }] } });
@@ -1342,6 +1346,64 @@ async function baixaCompleta(autorId: string) {
     const ids = (await prisma.lancamento.findMany({ where: { descricao: { startsWith: tag }, excluidoEm: { not: undefined } }, select: { id: true } })).map((l) => l.id);
     await prisma.lancamento.deleteMany({ where: { OR: [{ acessorioDeId: { in: ids } }, { contaId: conta.id }, { descricao: { contains: tag } }], excluidoEm: { not: undefined } } });
     await prisma.contaBancaria.deleteMany({ where: { id: conta.id } });
+  }
+}
+
+async function rateioEComprovante(autorId: string) {
+  console.log("\n# M10 — rateio entre centros/projetos e comprovante obrigatório na baixa");
+  const catD = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "despesa", natureza: "resultado" }, select: { id: true } });
+  if (!catD) return check("categoria de despesa existe", false);
+  const c1 = await prisma.centroCusto.create({ data: { nome: `${tag}-c1` } });
+  const c2 = await prisma.centroCusto.create({ data: { nome: `${tag}-c2` } });
+  const hoje = diaDeSaoPaulo();
+  const lanc = (valor: number, suf: string) =>
+    prisma.lancamento.create({
+      data: { tipo: "despesa", descricao: `${tag} ${suf}`, valor, status: "confirmado", dataConfirmacao: dia(hoje), data: dia(hoje), categoriaId: catD.id, centroId: c1.id, autorId },
+      select: { id: true },
+    });
+  try {
+    // Rateio: recusa < 2 linhas, sem alvo, soma errada; aceita soma exata e divide pro-rata.
+    const r1 = await lanc(100, "rateio 100");
+    check("rateio recusa 1 linha só", (await erroDe(salvarRateioNoBanco(r1.id, [{ centroId: c1.id, projetoId: null, percentualBp: 10000 }])))?.includes("2 linhas") === true);
+    check(
+      "rateio recusa soma diferente de 100%",
+      (await erroDe(salvarRateioNoBanco(r1.id, [{ centroId: c1.id, projetoId: null, percentualBp: 4000 }, { centroId: c2.id, projetoId: null, percentualBp: 4000 }])))?.includes("100%") === true,
+    );
+    await salvarRateioNoBanco(r1.id, [{ centroId: c1.id, projetoId: null, percentualBp: 3334 }, { centroId: c2.id, projetoId: null, percentualBp: 6666 }]);
+    const rel = await relatorioPorDimensao("centro", dia(hoje), dia(hoje));
+    const linC1 = rel.linhas.find((l) => l.nome === c1.nome);
+    const linC2 = rel.linhas.find((l) => l.nome === c2.nome);
+    check("rateio divide pro-rata e a soma bate com o original (33,34 + 66,66 = 100)", linC1?.despesa === 33.34 && linC2?.despesa === 66.66, { linC1, linC2 });
+    await salvarRateioNoBanco(r1.id, []);
+    check("rateio vazio remove (volta ao centro único)", (await prisma.rateioLancamento.count({ where: { lancamentoId: r1.id } })) === 0);
+
+    // Comprovante obrigatório: desligado por padrão, não bloqueia nada.
+    const r2 = await lanc(50, "sem anexo, config desligada").then((l) => prisma.lancamento.update({ where: { id: l.id }, data: { status: "previsto" } }));
+    check("comprovante desligado (padrão) não bloqueia", (await erroDe(exigirComprovanteSeObrigatorio(prisma, [r2.id]))) === null);
+
+    // Liga a config, confere que bloqueia sem anexo e libera com anexo.
+    await prisma.configSistema.upsert({
+      where: { chave: CHAVE_CONFIG_FINANCEIRO },
+      create: { chave: CHAVE_CONFIG_FINANCEIRO, valor: { obrigatorios: {}, comprovanteObrigatorioNaBaixa: true } },
+      update: { valor: { obrigatorios: {}, comprovanteObrigatorioNaBaixa: true } },
+    });
+    check("ligada: bloqueia baixa sem comprovante", (await erroDe(exigirComprovanteSeObrigatorio(prisma, [r2.id])))?.includes("comprovante") === true);
+    await prisma.lancamentoAnexo.create({ data: { lancamentoId: r2.id, caminho: "x/y.pdf", nome: "y.pdf", mime: "application/pdf", tamanho: 10, autorId } });
+    check("ligada: libera com um anexo", (await erroDe(exigirComprovanteSeObrigatorio(prisma, [r2.id]))) === null);
+
+    const r3 = await prisma.lancamento.create({
+      data: { tipo: "despesa", descricao: `${tag} previsto sem anexo`, valor: 10, status: "previsto", data: dia(hoje), vencimento: dia(hoje), categoriaId: catD.id, autorId },
+      select: { id: true },
+    });
+    check("a baixa de verdade recusa sem comprovante", (await erroDe(baixarNoBanco({ id: r3.id, data: dia(hoje) }, autorId)))?.includes("comprovante") === true);
+  } finally {
+    await prisma.configSistema.upsert({
+      where: { chave: CHAVE_CONFIG_FINANCEIRO },
+      create: { chave: CHAVE_CONFIG_FINANCEIRO, valor: { obrigatorios: {}, comprovanteObrigatorioNaBaixa: false } },
+      update: { valor: { obrigatorios: {}, comprovanteObrigatorioNaBaixa: false } },
+    });
+    await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: tag } } });
+    await prisma.centroCusto.deleteMany({ where: { id: { in: [c1.id, c2.id] } } });
   }
 }
 
