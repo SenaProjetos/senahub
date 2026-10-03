@@ -375,8 +375,9 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
 - **Date of the opening balance** (M8, `ContaBancaria.saldoInicialEm`): the saldo inicial is the balance at the START of that
   day, so only the realized from that day on counts in the account (`entraNoSaldoDaConta` in `saldo-base.ts`); null = every
   realized row counts, as it always did. Every balance reader honours it: `saldoBase` (Visão geral + planner),
-  `saldoDoSistema` (conciliation check + closing's frozen `saldosContas`) and the Extrato por conta — a new reader of an
-  account balance must too, or the account double-counts what the opening balance already holds.
+  `saldoDoSistema` (conciliation check + closing's frozen `saldosContas`), the Extrato por conta and the livro caixa's
+  account panel / running balance (client, `noSaldo` in `lancamentos-view.tsx`, fixed in the 2026-10-03 review) — a new
+  reader of an account balance must too, or the account double-counts what the opening balance already holds.
 - **Correcting a paid lançamento** (M8, `lancamentos/corrigir-pagamento.ts`, operation `corrigir_pagamento`): account, forma
   and payment date change WITHOUT estornar. A conciliated one only takes a new forma (account and date are the bank's); a
   closed month freezes account and date (not forma); a future date is refused; production payments correct on the Produção
@@ -416,33 +417,36 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   second self-relation on `Lancamento` cost ~0.7 GB of `tsc` heap (`tsc -p tsconfig.server.json` is already above 4 GB —
   run it with `NODE_OPTIONS=--max-old-space-size=8192`). `Lancamento.numeroDocumento` / `chaveNfe` (44 digits, mod-11 DV
   in `chaveNfeValida`). Retentions on the NF (ISS, IRRF, INSS…) wait for the accountant (owner decision 5).
-- **Indicadores and relatório por dimensão** (M6, `financeiro/relatorios/`): 8 KPIs
-  (`indicadores-gerenciais.ts`, pure) assembled by `indicadoresGerenciais()` from existing building
-  blocks — `linhasDREPeriodo` (current + prior period for margin delta), `baseDoPlanejador` + `diasDeCaixa`
-  for dias de caixa, `agingReport("receita")` for inadimplência (sum of every bucket past `d1_30`). Ponto
-  de equilíbrio is a documented simplification (= despesas do mês — the chart of accounts has no
-  fixed/variable split, same class of approximation as the DRE's gerencial EBITDA); prazo médio
-  (recebimento/pagamento) is a simple unweighted average in days, not value-weighted. `evolucaoReceitaDespesaMeses(ateMes, n=6)`
-  is a ROLLING window (via `somarMesesUtc`, crosses year boundaries) distinct from the calendar-year
-  `serieMensalResultado(ano)` — don't conflate them. `relatorioPorDimensao(dimensao, de, ate)` groups
-  confirmed lançamentos by `categoria | centro | contato | projeto | tag`; `tag` is the one case a
-  lançamento can land in more than one row (multi-tag), so the UI must say the sum can exceed the period
-  total. Context-menu deep links into the livro caixa (`itensDaLinhaDeDimensao`) are wired ONLY for
-  `centro`/`projeto`, because `lancamentos-view.tsx`'s `categoriaId` filter actually matches a top-level
-  category CODE, not an arbitrary id, and there is no contato filter at all — faking those links would be
-  a lie dressed as a feature; the disabled reason is `MOTIVO_SEM_FILTRO_NO_LIVRO_CAIXA`, same sentence in
-  the menu and the `…`. `orcamentoPorCentro(de, ate)` is deliberately READ-ONLY (previsto × realizado by
-  centro, despesas only, `SO_RESULTADO`): `OrcamentoItem` has no `centroId` column, and adding one for a
-  feature the original audit marked low-priority wasn't worth a migration — the planned value stays by
-  category, shown as a second tab in Orçamento anual.
-- **Rateio e comprovante na baixa** (M10, `financeiro/lancamentos/rateio.ts` + `rateio-service.ts`, `comprovante-service.ts`):
-  `RateioLancamento` (basis points, soma exata 10000, ≥2 linhas, cada linha com centro OU projeto) é SÓ leitura do
-  `relatorioPorDimensao` centro/projeto — `Lancamento.centroId/projetoId` continua o principal em todo o resto. Rateado
-  divide o valor pago em centavos com `ratearValor` (sobra na última linha); `qtd` passa a contar PARTES. Salvar substitui
-  tudo (delete+create numa transação); lista vazia remove. `exigirComprovanteSeObrigatorio(db, ids)` é chamado em
-  `baixarNoTx` (baixa única), `baixarEmLote` e `executarPlano`; produtores e a conciliação OFX ficam de fora por origem.
-  Config em `ConfigFinanceiro.comprovanteObrigatorioNaBaixa` (sibling de `obrigatorios`, não dentro: aplica na baixa, não na
-  criação). "Duplicar lançamento" é só prefill do `LancamentoForm` (`duplicarDe`) — reusa `criarLancamento`, sem caminho server novo.
+- **DRE base, Indicadores and relatório por dimensão** (M6 + review 2026-10-03, `financeiro/relatorios/`): `whereDRE(de, ate,
+  base)` is the ONE rule for what enters a DRE period — DRE comparativo, `relatorioDRE` (Excel export, takes `base`) and
+  Indicadores. **Caixa** = realized by `dataConfirmacao`; **Competência = pago E em aberto** (`confirmado|previsto|
+  aguardando_aprovacao`) by `dataCompetencia ?? data`, open rows by title value (owner decision 4, 2026-10-02 — it sat
+  unimplemented until this review). Indicadores (mock "Indicadores") has the Caixa|Competência switch and the period
+  switch (mês anterior · mês atual · Trimestre · 12 meses, `?periodo=&base=`); cards and the 6-month evolution table use
+  the SAME base, so a month never shows two numbers; the previous period is the same number of CALENDAR months before.
+  KPIs (`indicadores-gerenciais.ts`, pure): inadimplência = vencido >30 dias ÷ FATURADO (receitas issued in 12 months,
+  `confirmado|previsto`, by `data`, title value — not only what was received); prazo médio counts only rows that had a
+  `vencimento` (a bill paid on creation would add 0 days); ponto de equilíbrio and receita por projeto are PER MONTH
+  (period ÷ months). Ponto de equilíbrio = despesa média do mês is still a simplification (the mock's number implies a
+  contribution margin; the plano de contas has no fixed/variable split) — awaiting the owner. Each evolution row's menu:
+  Ver DRE do mês, Ver lançamentos do mês (`/financeiro/lancamentos?mes=AAAA-MM`), Comparar, Exportar — links carry `base`.
+  `relatorioPorDimensao` groups confirmed lançamentos by `categoria | centro | contato | projeto | tag` (tag can land in
+  several rows; centro/projeto honour the rateio). Deep links into the livro caixa (`itensDaLinhaDeDimensao`) exist only
+  for `centro`/`projeto` — the livro caixa's category filter matches a top-level CODE and there is no contato filter, so
+  the other items are disabled with `MOTIVO_SEM_FILTRO_NO_LIVRO_CAIXA`. `orcamentoPorCentro` is READ-ONLY (previsto ×
+  realizado; `OrcamentoItem` has no `centroId`).
+- **Rateio e comprovante na baixa** (M10 + review, `financeiro/lancamentos/rateio.ts` + `rateio-service.ts`, `comprovante-service.ts`):
+  `RateioLancamento` (basis points, sum exactly 10000, ≥2 rows, each with centro OR projeto) is read ONLY by
+  `relatorioPorDimensao` centro/projeto — `Lancamento.centroId/projetoId` stays the principal everywhere else. A rateado row
+  is split in cents by `ratearValor` (leftover on the last); `qtd` counts PARTS. `salvarRateioNoBanco` replaces everything in
+  one transaction, empty list removes, and it follows the same locks as editing centro/projeto: closed month (N5), transfer
+  leg, accessory, cancelled and `previsao` are refused. **Clones carry it:** the partial remainder (`gravarRestante`, the lote
+  de pagamentos remainder) and the juros/multa/desconto accessories copy the rateio (`copiarRateioNoTx` / nested create) — a
+  new path that clones a Lancamento must too. `exigirComprovanteSeObrigatorio(db, ids)` runs in `baixarNoTx`, `baixarEmLote`
+  and `executarPlano` (lines with value > 0); producers and OFX reconciliation are exempt by origin. The confirm dialog
+  uploads the comprovante BEFORE calling the baixa (otherwise the gate refuses its own attachment). Config:
+  `ConfigFinanceiro.comprovanteObrigatorioNaBaixa` (sibling of `obrigatorios`: it applies at baixa, not at creation).
+  "Duplicar lançamento" is only a `LancamentoForm` prefill (`duplicarDe`) on top of `criarLancamento`.
 - **Dates in the Financeiro are São Paulo calendar days** (N2, `lib/data.ts`): "today" to WRITE into a date column
   is `hojeParaBanco()` (UTC midnight of the SP day) and to compare is `diaDeSaoPaulo()` — a bare `new Date()` is
   tomorrow after 21h BRT. Period limits on date columns (`@db.Date`: `data`, `dataConfirmacao`, `dataCompetencia`)

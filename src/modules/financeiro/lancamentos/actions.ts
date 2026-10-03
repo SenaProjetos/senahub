@@ -31,7 +31,7 @@ import { verificarSenha } from "@/modules/financeiro/config/senha";
 import { corrigirPagamentoNoBanco } from "@/modules/financeiro/lancamentos/corrigir-pagamento";
 import { baixarNoBanco } from "@/modules/financeiro/lancamentos/baixa-service";
 import { exigirComprovanteSeObrigatorio } from "@/modules/financeiro/lancamentos/comprovante-service";
-import { salvarRateioNoBanco } from "@/modules/financeiro/lancamentos/rateio-service";
+import { lerRateio, salvarRateioNoBanco } from "@/modules/financeiro/lancamentos/rateio-service";
 import { normalizarChaveNfe } from "@/modules/financeiro/lancamentos/baixa";
 import { corrigirPagamentoSchema } from "@/modules/financeiro/transferencias/schemas";
 
@@ -406,7 +406,13 @@ export const removerAnexoLancamento = defineAction(
 
 // ── Rateio entre centros/projetos (M10) ────────────────────────
 export const salvarRateioLancamento = defineAction(
-  { ...base, acao: "salvar-rateio-lancamento", entidade: "Lancamento", schema: salvarRateioSchema },
+  {
+    ...base,
+    acao: "salvar-rateio-lancamento",
+    entidade: "Lancamento",
+    schema: salvarRateioSchema,
+    capturarAntes: async (i) => ({ rateio: await lerRateio(i.id) }),
+  },
   async (i) => {
     await salvarRateioNoBanco(i.id, i.itens);
     rev();

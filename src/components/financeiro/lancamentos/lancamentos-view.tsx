@@ -67,8 +67,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { brl, formatarData } from "@/lib/utils";
 import { inicioDoDia, diaDeSaoPaulo } from "@/lib/data";
+import { entraNoSaldoDaConta } from "@/modules/financeiro/liquidez/saldo-base";
 
-type Conta = { id: string; nome: string; saldoInicial: number };
+type Conta = { id: string; nome: string; saldoInicial: number; saldoInicialEm: string | null };
 type Situacao = "pendente" | "agendado" | "confirmado" | "conciliado" | "aguardando" | "cancelado";
 type Modo = "todos" | "mes" | "semestre" | "ano" | "custom";
 
@@ -158,6 +159,7 @@ export function LancamentosView({
   defaultCentroId,
   defaultFormOpen = false,
   defaultDetalheId,
+  defaultMes,
   subnav,
 }: {
   itens: LivroCaixaItem[];
@@ -170,14 +172,17 @@ export function LancamentosView({
   defaultFormOpen?: boolean;
   /** `?lancamento=<id>` — abre o detalhe desse lançamento (link vindo da tela Produção). */
   defaultDetalheId?: string;
+  /** `?mes=AAAA-MM` — abre já no mês (link "Ver lançamentos do mês" de Indicadores). */
+  defaultMes?: string;
   /** Subnavegação do Financeiro, renderizada logo APÓS o cabeçalho. */
   subnav?: React.ReactNode;
 }) {
   const router = useRouter();
   const [, start] = useTransition();
 
-  const [modo, setModo] = useState<Modo>("todos");
-  const [ref, setRef] = useState(() => meioDia(new Date()));
+  const mesInicial = defaultMes && /^\d{4}-\d{2}$/.test(defaultMes) ? defaultMes.split("-").map(Number) : null;
+  const [modo, setModo] = useState<Modo>(mesInicial ? "mes" : "todos");
+  const [ref, setRef] = useState(() => (mesInicial ? meioDia(new Date(mesInicial[0], mesInicial[1] - 1, 15)) : meioDia(new Date())));
   const [de, setDe] = useState("");
   const [ate, setAte] = useState("");
   const [busca, setBusca] = useState("");
@@ -295,6 +300,15 @@ export function LancamentosView({
     const v = Number(l.valorEfetivo ?? l.valor);
     return l.tipo === "receita" ? v : -v;
   }
+  // M8: pago antes da data do saldo inicial da conta já está DENTRO do saldo inicial — somar de novo duplica.
+  const saldoInicialEmPorConta = useMemo(() => new Map(contas.map((c) => [c.id, c.saldoInicialEm])), [contas]);
+  function noSaldo(l: LivroCaixaItem): number {
+    if (l.status === "confirmado" && l.contaId) {
+      const pago = l.dataConfirmacao ? String(l.dataConfirmacao).slice(0, 10) : null;
+      if (!entraNoSaldoDaConta(saldoInicialEmPorConta.get(l.contaId), pago)) return 0;
+    }
+    return signed(l);
+  }
   function noPeriodo(l: LivroCaixaItem): boolean {
     const d = ledgerDate(l);
     if (inicio && d < inicio) return false;
@@ -356,12 +370,12 @@ export function LancamentosView({
       for (const l of itens) {
         if (l.status === "cancelado") continue;
         if (!naContaSel(l)) continue;
-        if (ledgerDate(l) < inicio) s += signed(l);
+        if (ledgerDate(l) < inicio) s += noSaldo(l);
       }
     }
     return s;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itens, contas, contasSel, inicio]);
+  }, [itens, contas, contasSel, inicio, saldoInicialEmPorConta]);
 
   // painel por conta: Realizado (já pago/recebido) e Projetado (saldo ao fim do período)
   const painelContas = useMemo(() => {
@@ -375,12 +389,13 @@ export function LancamentosView({
       if (!l.contaId || !conf.has(l.contaId)) continue;
       if (l.status === "cancelado") continue;
       if (fim && ledgerDate(l) > fim) continue;
-      const s = signed(l);
+      const s = noSaldo(l);
       proj.set(l.contaId, (proj.get(l.contaId) ?? 0) + s);
       if (l.status === "confirmado") conf.set(l.contaId, (conf.get(l.contaId) ?? 0) + s);
     }
     return contas.map((c) => ({ ...c, confirmado: conf.get(c.id) ?? 0, projetado: proj.get(c.id) ?? 0 }));
-  }, [itens, contas, fim]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itens, contas, fim, saldoInicialEmPorConta]);
 
   const totalPainel = painelContas.reduce(
     (acc, c) => {
@@ -887,7 +902,7 @@ export function LancamentosView({
     if (selecao.soSelecionados) return exibidas.map((l) => renderLinhaLanc(l));
     let saldo = saldoAnterior;
     return lista.map((l) => {
-      saldo += signed(l);
+      saldo += noSaldo(l);
       return renderLinhaLanc(l, saldo);
     });
   }

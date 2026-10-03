@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AcaoItem } from "@/components/ui/acoes";
-import { ACAO_DETALHES_PAGA, ACAO_ESTORNAR_PAGA, ACAO_VER_NO_EXTRATO, itensDePaga } from "./acoes-paga";
+import { ACAO_ABRIR_PRODUCAO, ACAO_DETALHES_PAGA, ACAO_ESTORNAR_PAGA, ACAO_VER_NO_EXTRATO, itensDePaga } from "./acoes-paga";
 import { MOTIVO_ACESSORIO, MOTIVO_CONCILIADO, MOTIVO_PROJETISTA } from "./transicoes";
 import { ACAO_CORRIGIR_PAGAMENTO } from "./acoes-corrigir";
 import { ACAO_TRANSFERENCIA_EDITAR, ACAO_TRANSFERENCIA_ESTORNAR, ACAO_TRANSFERENCIA_EXCLUIR } from "@/modules/financeiro/transferencias/acoes";
@@ -28,6 +28,11 @@ describe("itensDePaga", () => {
   });
   it("pagamento de produção: corrigir fica desabilitado com a frase da Produção", () => {
     expect(achar(itensDePaga({ ...base, deProducao: true }, { podeGerir: true }), ACAO_CORRIGIR_PAGAMENTO)).toMatchObject({ desabilitado: MOTIVO_PROJETISTA });
+  });
+  it("pagamento de produção leva à Produção — só para quem a abre", () => {
+    expect(achar(itensDePaga({ ...base, deProducao: true }, { podeGerir: true, podeVerProducao: true }), ACAO_ABRIR_PRODUCAO)).toMatchObject({ tipo: "link", href: "/financeiro/folha-projetistas" });
+    expect(achar(itensDePaga({ ...base, deProducao: true }, { podeGerir: true, podeVerProducao: false }), ACAO_ABRIR_PRODUCAO)).toBeUndefined();
+    expect(achar(itensDePaga(base, { podeGerir: true, podeVerProducao: true }), ACAO_ABRIR_PRODUCAO)).toBeUndefined();
   });
   it("quem só vê não recebe o corrigir pagamento", () => {
     expect(achar(itensDePaga(base, { podeGerir: false }), ACAO_CORRIGIR_PAGAMENTO)).toBeUndefined();

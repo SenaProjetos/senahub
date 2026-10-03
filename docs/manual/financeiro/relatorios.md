@@ -31,8 +31,11 @@ Apoiar a gestão com demonstrativos e indicadores construídos a partir dos lan�
 - Pelo grupo **Resultados** da barra do Financeiro (logo abaixo do título de qualquer tela do Financeiro), ou por **Abrir DRE** na Visão geral.
 - Dentro de qualquer um deles, a faixa de **abas** (DRE · Indicadores · Rentabilidade · DFC · Balanço ·
   Orçamento · Relatório por dimensão) leva aos vizinhos. Quem não tem acesso a um relatório não vê a aba dele.
-- Em **Indicadores**, cada linha da tabela de evolução mensal tem menu de contexto: **Ver DRE do mês**,
-  **Comparar com** outro mês da lista (mostra a diferença na própria tela, sem navegar) e **Exportar o mês**.
+- Em **Indicadores**, escolha o regime (**Caixa** ou **Competência**) e o período (mês anterior, mês atual,
+  **Trimestre** ou **12 meses**); a margem é comparada com o período anterior de mesmo tamanho. Cartões e tabela
+  usam o mesmo regime, então o mesmo mês nunca mostra dois números. Cada linha da tabela de evolução tem menu de
+  contexto: **Ver DRE do mês**, **Ver lançamentos do mês**, **Comparar com** o mês escolhido (a diferença aparece
+  na própria tela) e **Exportar o mês** (Excel no mesmo regime).
 - Em **Relatório por dimensão**, centro e projeto consideram o **rateio** do lançamento (quando houver): cada parte entra na linha do seu centro/projeto.
 - Em **Relatório por dimensão**, cada linha tem menu de contexto para ver os lançamentos daquele grupo no
   livro caixa — disponível hoje para **centro de custo** e **projeto** (o livro caixa ainda não filtra por
@@ -41,8 +44,9 @@ Apoiar a gestão com demonstrativos e indicadores construídos a partir dos lan�
 
 ## Conceitos
 
-- **DRE** (Demonstração do Resultado): receitas − despesas = resultado, por período, com
-  base nos lançamentos **confirmados**.
+- **DRE** (Demonstração do Resultado): receitas − despesas = resultado, por período. Em **caixa**, só o que foi
+  pago ou recebido, pela data do pagamento. Em **competência**, o pago **e o que está em aberto**, no mês a que
+  pertence (data de competência; sem ela, a data do lançamento).
 - **DFC** (Demonstração do Fluxo de Caixa): movimentos de caixa por atividade.
 - **Base caixa:** considera o que efetivamente entrou/saiu (confirmado), não o
   provisionado.
@@ -52,10 +56,12 @@ Apoiar a gestão com demonstrativos e indicadores construídos a partir dos lan�
   O pró-labore, ao contrário, **é** despesa.
 - **Transferência entre contas** da empresa não entra em nenhum relatório de resultado nem no DFC: ela só
   muda em que conta o dinheiro está.
-- **Ponto de equilíbrio** (em Indicadores) é uma aproximação: hoje é igual à despesa do mês, porque o
-  plano de contas não separa custo fixo de custo variável.
+- **Ponto de equilíbrio** (em Indicadores) é uma aproximação: hoje é a despesa média por mês do período,
+  porque o plano de contas não separa custo fixo de custo variável.
+- **Inadimplência (12 meses)**: o que está vencido há mais de 30 dias dividido por tudo o que foi **faturado**
+  (emitido a receber) nos últimos 12 meses, recebido ou não.
 - **Prazo médio de recebimento/pagamento** (em Indicadores) é a média simples em dias (da emissão ao
-  recebimento, do lançamento ao pagamento) — não é ponderada pelo valor de cada lançamento.
+  recebimento, do lançamento ao pagamento), só das contas que tiveram vencimento — não é ponderada pelo valor.
 
 ## Permissões
 
@@ -67,8 +73,8 @@ Apoiar a gestão com demonstrativos e indicadores construídos a partir dos lan�
 
 ## FAQ
 
-**DRE e DFC usam previsto ou confirmado?** O resultado/DRE usa **confirmado** (realizado);
-o aging/projeção usam **previsto**.
+**DRE e DFC usam previsto ou confirmado?** A DRE em **caixa** e o DFC usam só o **confirmado** (realizado); a DRE
+em **competência** soma confirmado e em aberto. O aging e a projeção usam o **previsto**.
 
 **O balanço é contábil?** É **gerencial**, em **base caixa** — não substitui a
 contabilidade oficial.

@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Download, FileSpreadsheet, ListFilter } from "lucide-react";
+import { ArrowLeftRight, Download, FileSpreadsheet, List, ListFilter } from "lucide-react";
 
 import { limparSeparadores, type AcaoItem } from "@/components/ui/acoes";
 import type { DimensaoRelatorio } from "@/modules/financeiro/relatorios/queries";
@@ -10,16 +10,20 @@ import type { DimensaoRelatorio } from "@/modules/financeiro/relatorios/queries"
  */
 
 export const ACAO_VER_DRE_DO_MES = "ver-dre-do-mes";
+export const ACAO_VER_LANCAMENTOS_DO_MES = "ver-lancamentos-do-mes";
 export const ACAO_COMPARAR_MES = "comparar-mes";
 export const ACAO_EXPORTAR_MES = "exportar-mes";
 
-export type MesParaAcoes = { rotulo: string; de: string; ate: string; ehAtual: boolean };
+/** `rotulo` é o do mês SELECIONADO na tela (o "comparar com" de cada linha aponta para ele). */
+export type MesParaAcoes = { rotulo: string; de: string; ate: string; ehAtual: boolean; base: "caixa" | "competencia" };
 
 export function itensDoMesDeEvolucao(m: MesParaAcoes): AcaoItem[] {
+  const periodo = `de=${m.de}&ate=${m.ate}&base=${m.base}`;
   const itens: (AcaoItem | null)[] = [
-    { tipo: "link", id: ACAO_VER_DRE_DO_MES, rotulo: "Ver DRE do mês", icone: FileSpreadsheet, href: `/financeiro/relatorios?de=${m.de}&ate=${m.ate}` },
+    { tipo: "link", id: ACAO_VER_DRE_DO_MES, rotulo: "Ver DRE do mês", icone: FileSpreadsheet, href: `/financeiro/relatorios?${periodo}` },
+    { tipo: "link", id: ACAO_VER_LANCAMENTOS_DO_MES, rotulo: "Ver lançamentos do mês", icone: List, href: `/financeiro/lancamentos?mes=${m.de.slice(0, 7)}` },
     m.ehAtual ? null : { tipo: "acao", id: ACAO_COMPARAR_MES, rotulo: `Comparar com ${m.rotulo}`, icone: ArrowLeftRight },
-    { tipo: "link", id: ACAO_EXPORTAR_MES, rotulo: "Exportar o mês", icone: Download, href: `/api/financeiro/relatorios/dre/xlsx?de=${m.de}&ate=${m.ate}` },
+    { tipo: "link", id: ACAO_EXPORTAR_MES, rotulo: "Exportar o mês", icone: Download, href: `/api/financeiro/relatorios/dre/xlsx?${periodo}` },
   ];
   return limparSeparadores(itens.filter((i): i is AcaoItem => i !== null));
 }

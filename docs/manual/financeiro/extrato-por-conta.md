@@ -21,7 +21,8 @@ já foi conferido com o extrato do banco.
 
 ## O que a tela mostra
 
-- **Conta** e **mês** (◀ ▶). O filtro **Mostrar** limita a Tudo, Conciliado ou Falta conciliar.
+- **Conta** e **mês** (◀ ▶). O filtro **Mostrar** limita a Tudo, Conciliado ou Falta conciliar. **Exportar** baixa o
+  extrato do mês em Excel (saldo anterior, cada linha com o saldo corrido e o total); **Imprimir** fica no cabeçalho.
 - **Saldo inicial do mês, Entradas, Saídas e Saldo no fim do mês** — e a conta fecha:
   saldo inicial + entradas − saídas = saldo final.
 - A lista, pela **data do pagamento**, com **Entrada**, **Saída** e **Saldo** corrido, e se cada linha está

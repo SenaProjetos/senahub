@@ -10,15 +10,22 @@ import {
 
 describe("ações do mês (evolução)", () => {
   it("o mês selecionado não tem 'comparar' consigo mesmo", () => {
-    const atual = itensDoMesDeEvolucao({ rotulo: "Outubro", de: "2026-10-01", ate: "2026-10-31", ehAtual: true });
+    const atual = itensDoMesDeEvolucao({ rotulo: "Outubro", de: "2026-10-01", ate: "2026-10-31", ehAtual: true, base: "caixa" });
     expect(atual.some((i) => i.id === ACAO_COMPARAR_MES)).toBe(false);
-    const outro = itensDoMesDeEvolucao({ rotulo: "Setembro", de: "2026-09-01", ate: "2026-09-30", ehAtual: false });
+    const outro = itensDoMesDeEvolucao({ rotulo: "Setembro", de: "2026-09-01", ate: "2026-09-30", ehAtual: false, base: "caixa" });
     expect(outro.some((i) => i.id === ACAO_COMPARAR_MES)).toBe(true);
   });
   it("ver DRE e exportar levam a data certa", () => {
-    const itens = itensDoMesDeEvolucao({ rotulo: "Outubro", de: "2026-10-01", ate: "2026-10-31", ehAtual: true });
+    const itens = itensDoMesDeEvolucao({ rotulo: "Outubro", de: "2026-10-01", ate: "2026-10-31", ehAtual: true, base: "caixa" });
     const dre = itens.find((i) => i.tipo === "link" && i.id === "ver-dre-do-mes") as AcaoItemLink;
-    expect(dre.href).toBe("/financeiro/relatorios?de=2026-10-01&ate=2026-10-31");
+    expect(dre.href).toBe("/financeiro/relatorios?de=2026-10-01&ate=2026-10-31&base=caixa");
+  });
+  it("leva a base escolhida para a DRE e a exportação, e abre os lançamentos do mês", () => {
+    const itens = itensDoMesDeEvolucao({ rotulo: "Outubro", de: "2026-09-01", ate: "2026-09-30", ehAtual: false, base: "competencia" });
+    const href = (id: string) => (itens.find((i) => i.id === id) as AcaoItemLink).href;
+    expect(href("ver-dre-do-mes")).toContain("base=competencia");
+    expect(href("exportar-mes")).toContain("base=competencia");
+    expect(href("ver-lancamentos-do-mes")).toBe("/financeiro/lancamentos?mes=2026-09");
   });
 });
 

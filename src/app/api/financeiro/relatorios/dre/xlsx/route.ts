@@ -20,7 +20,9 @@ export async function GET(req: Request) {
     ? new Date(url.searchParams.get("ate")!)
     : utcInicioDoDia(hoje.getFullYear(), 11, 31);
 
-  const dre = await relatorioDRE(de, ate);
+  // Mesma base da tela que pediu (Indicadores/Relatórios): competência = pago e em aberto (decisão 4).
+  const base = url.searchParams.get("base") === "competencia" ? "competencia" : "caixa";
+  const dre = await relatorioDRE(de, ate, base);
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("DRE");
@@ -50,7 +52,7 @@ export async function GET(req: Request) {
   return new NextResponse(buffer as ArrayBuffer, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="DRE_${dre.de}_${dre.ate}.xlsx"`,
+      "Content-Disposition": `attachment; filename="DRE_${base}_${dre.de}_${dre.ate}.xlsx"`,
     },
   });
 }

@@ -98,12 +98,19 @@ export async function dadosLivroCaixa() {
     prisma.contaBancaria.findMany({
       where: { ativo: true },
       orderBy: { ordem: "asc" },
-      select: { id: true, nome: true, saldoInicial: true },
+      select: { id: true, nome: true, saldoInicial: true, saldoInicialEm: true },
     }),
   ]);
   return {
     itens: rows.map((l) => ({ ...serializar(l), conciliado: l.transacao != null })),
-    contas: contas.map((c) => ({ id: c.id, nome: c.nome, saldoInicial: Number(c.saldoInicial) })),
+    // M8: o saldo inicial vale no começo de `saldoInicialEm` — o painel de contas do livro caixa não soma de novo o
+    // que foi pago antes (mesma regra de `saldoBase`, `saldoDoSistema` e do Extrato).
+    contas: contas.map((c) => ({
+      id: c.id,
+      nome: c.nome,
+      saldoInicial: Number(c.saldoInicial),
+      saldoInicialEm: c.saldoInicialEm ? c.saldoInicialEm.toISOString().slice(0, 10) : null,
+    })),
   };
 }
 

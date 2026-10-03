@@ -1,4 +1,4 @@
-import { Copy, ExternalLink, Paperclip, Undo2 } from "lucide-react";
+import { Briefcase, Copy, ExternalLink, Paperclip, Undo2 } from "lucide-react";
 
 import type { AcaoItem } from "@/components/ui/acoes";
 import { MOTIVO_ACESSORIO, MOTIVO_CONCILIADO, MOTIVO_PROJETISTA } from "@/modules/financeiro/lancamentos/transicoes";
@@ -16,6 +16,7 @@ export const ACAO_DETALHES_PAGA = "detalhes";
 export const ACAO_VER_NO_EXTRATO = "ver-no-extrato";
 export const ACAO_ESTORNAR_PAGA = "estornar";
 export const ACAO_COPIAR_DESCRICAO_PAGA = "copiar-descricao";
+export const ACAO_ABRIR_PRODUCAO = "abrir-producao";
 
 export type PagaParaAcoes = {
   anexos: number;
@@ -35,6 +36,8 @@ export type PagaParaAcoes = {
 export type ContextoAcoesPaga = {
   /** Estornar é de quem gere o financeiro. */
   podeGerir: boolean;
+  /** `financeiro:folha_pj`: só quem abre a Produção ganha o atalho para ela. */
+  podeVerProducao?: boolean;
 };
 
 export function itensDePaga(p: PagaParaAcoes, ctx: ContextoAcoesPaga): AcaoItem[] {
@@ -74,6 +77,10 @@ export function itensDePaga(p: PagaParaAcoes, ctx: ContextoAcoesPaga): AcaoItem[
             rotuloConfirmar: "Estornar",
           },
         }
+      : null,
+    // Pagamento de produção se corrige/estorna pela Produção: o atalho leva até lá (mock "Pagas e recebidas").
+    p.deProducao && ctx.podeVerProducao
+      ? { tipo: "link", id: ACAO_ABRIR_PRODUCAO, rotulo: "Abrir na Produção", icone: Briefcase, href: "/financeiro/folha-projetistas" }
       : null,
   ];
   return itens.filter((i): i is AcaoItem => i !== null);

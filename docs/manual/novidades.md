@@ -101,6 +101,18 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 - **Orçamento anual → Por centro de custo**: nova aba nas Despesas do orçamento mostra previsto ×
   realizado agrupado por centro de custo (o valor planejado continua por categoria).
 - Atalho para **Clientes** no menu Mais do Financeiro.
+- **DRE por competência** passou a somar o que está **em aberto** junto com o pago, no mês a que pertence (a DRE
+  por caixa continua só com o pago). A exportação em Excel segue o regime escolhido.
+- **Indicadores** ganharam a escolha **Caixa | Competência** e o período (mês anterior, mês atual, trimestre, 12
+  meses); cartões e tabela mostram sempre o mesmo número para o mesmo mês. Inadimplência agora divide pelo
+  **faturado** (não só pelo recebido) e o prazo médio conta só contas que tiveram vencimento. No menu de cada mês,
+  **Ver lançamentos do mês**.
+- **Extrato por conta** ganhou **Exportar** (Excel). Em **Pagas e recebidas**, pagamento de produção tem
+  **Abrir na Produção**.
+- **Rateio, duplicar e comprovante na baixa:** ratear um lançamento entre centros de custo e projetos (vale no
+  Relatório por dimensão; o saldo de um pagamento parcial e os juros continuam rateados), duplicar um lançamento,
+  e — se ligado em Configurações — exigir comprovante para dar baixa. O comprovante escolhido no próprio diálogo de
+  baixa já conta.
 
 ---
 

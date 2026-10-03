@@ -95,6 +95,28 @@ export function ConfirmarDialog({
     if (!lancamento) return;
     const lancId = lancamento.id;
     start(async () => {
+      // O comprovante vai ANTES da baixa: com "Exigir comprovante" ligado (M10), o servidor recusa a baixa
+      // de um lançamento sem anexo. Se o envio falha, a baixa não é tentada.
+      if (comprovante) {
+        try {
+          const fd = new FormData();
+          fd.set("file", comprovante);
+          const up = await fetch("/api/financeiro/lancamentos/anexo", { method: "POST", body: fd });
+          const meta = await up.json();
+          if (!up.ok) {
+            toast.error(meta.error ?? "Comprovante não anexado.");
+            return;
+          }
+          const a = await adicionarAnexoLancamento({ lancamentoId: lancId, meta });
+          if (!a.ok) {
+            toast.error(a.error);
+            return;
+          }
+        } catch {
+          toast.error("Falha ao anexar comprovante.");
+          return;
+        }
+      }
       const r = await confirmarLancamento({
         id: lancId,
         contaId: contaId === NONE ? "" : contaId,
@@ -106,21 +128,10 @@ export function ConfirmarDialog({
         desconto: desconto ?? undefined,
       });
       if (!r.ok) {
-        toast.error(r.error);
+        toast.error(comprovante ? `${r.error} O comprovante ficou anexado.` : r.error);
+        setComprovante(null);
+        router.refresh();
         return;
-      }
-      // Anexa o comprovante, se houver.
-      if (comprovante) {
-        try {
-          const fd = new FormData();
-          fd.set("file", comprovante);
-          const up = await fetch("/api/financeiro/lancamentos/anexo", { method: "POST", body: fd });
-          const meta = await up.json();
-          if (up.ok) await adicionarAnexoLancamento({ lancamentoId: lancId, meta });
-          else toast.error(meta.error ?? "Comprovante não anexado.");
-        } catch {
-          toast.error("Falha ao anexar comprovante.");
-        }
       }
       if (r.data.restante != null) {
         toast.success(`Confirmado. Saldo de ${brl(r.data.restante)} ficou em aberto.`);

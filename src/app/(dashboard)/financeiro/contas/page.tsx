@@ -33,6 +33,7 @@ export default async function ContasPage({
         contas={opcoesPagas.contas}
         formas={opcoesPagas.formas}
         podeGerir={podeGerir}
+        podeVerProducao={await can(user, "financeiro", "folha_pj")}
         subnav={
           <>
             <NavFinanceiro />

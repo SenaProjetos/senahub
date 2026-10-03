@@ -210,7 +210,12 @@ export const executarPlano = defineAction(
   async (i, { user }) => {
     const plano = await prisma.planejamentoPagamento.findUnique({
       where: { id: i.id },
-      include: { linhas: { where: { selecionada: true }, include: { lancamento: true } } },
+      include: {
+        linhas: {
+          where: { selecionada: true },
+          include: { lancamento: { include: { rateios: { select: { centroId: true, projetoId: true, percentualBp: true } } } } },
+        },
+      },
     });
     if (!plano) throw new ActionError("Lote não encontrado.");
     if (plano.status !== "aprovado") throw new ActionError("Só lotes aprovados podem ser executados.");
@@ -222,7 +227,7 @@ export const executarPlano = defineAction(
     // M10: comprovante obrigatório, se a config exigir.
     await exigirComprovanteSeObrigatorio(
       prisma,
-      plano.linhas.filter((ln) => ln.lancamento.status === "previsto").map((ln) => ln.lancamento.id),
+      plano.linhas.filter((ln) => ln.lancamento.status === "previsto" && Number(ln.valorPlanejado) > 0).map((ln) => ln.lancamento.id),
     );
     for (const ln of plano.linhas) {
       const lanc = ln.lancamento;
@@ -264,7 +269,11 @@ export const executarPlano = defineAction(
               clienteId: lanc.clienteId,
               tags: lanc.tags,
               documentoFinanceiroId: lanc.documentoFinanceiroId,
+              numeroDocumento: lanc.numeroDocumento,
+              chaveNfe: lanc.chaveNfe,
               ...camposDoPlanejador(lanc),
+              // M10: o saldo continua rateado como o título de onde saiu.
+              ...(lanc.rateios.length > 0 ? { rateios: { create: lanc.rateios } } : {}),
               observacao: [lanc.observacao, "Saldo restante de pagamento parcial (planejamento)"].filter(Boolean).join(" · "),
               recorrenciaGrupo: lanc.recorrenciaGrupo ?? lanc.id,
               // N1: o estorno do pago acha o resto por aqui e o tira junto.

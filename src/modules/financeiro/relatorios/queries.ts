@@ -1,5 +1,5 @@
 import "server-only";
-import { utcInicioDoDia, utcFimDoDia } from "@/lib/data";
+import { hojeParaBanco, somarMesesUtc, utcInicioDoDia, utcFimDoDia } from "@/lib/data";
 import { formatarMesCurto } from "@/lib/utils";
 import { subDays, differenceInCalendarDays } from "date-fns";
 import type { Prisma } from "@/generated/prisma/client";
@@ -11,6 +11,17 @@ import { SEM_TRANSFERENCIA, SO_RESULTADO } from "@/modules/financeiro/natureza";
 import { somaPaga, somarReais, valorPagoReais } from "@/modules/financeiro/valor-pago";
 import { paraCentavos, paraReais } from "@/modules/financeiro/liquidez/dinheiro";
 import { ratearValor } from "@/modules/financeiro/lancamentos/rateio";
+import { baseDoPlanejador } from "@/modules/financeiro/liquidez/queries";
+import { diasDeCaixa, JANELA_DIAS_DE_CAIXA, type DiasDeCaixa } from "@/modules/financeiro/liquidez/indicadores";
+import { agingReport } from "@/modules/financeiro/aging/queries";
+import {
+  margemLiquida,
+  percentualInadimplencia,
+  pontoDeEquilibrio,
+  prazoMedioDias,
+  receitaPorProjetoAtivo,
+  variacaoPontosPercentuais,
+} from "@/modules/financeiro/relatorios/indicadores-gerenciais";
 import { analisarDRE, type LinhaBaseDRE, type DREComparativo } from "./dre";
 import { calcularRentabilidade, rentabilidadePorCliente, type ProjetoEntrada } from "./dre-projeto";
 
@@ -93,9 +104,10 @@ export type DRE = {
 };
 
 /** DRE por competência: confirmados no período, agrupados por categoria. */
-export async function relatorioDRE(de: Date, ate: Date): Promise<DRE> {
+export async function relatorioDRE(de: Date, ate: Date, base: BaseDRE = "caixa"): Promise<DRE> {
+  // natureza-ok: `whereDRE` leva SO_RESULTADO nas duas bases.
   const lancamentos = await prisma.lancamento.findMany({
-    where: { status: "confirmado", dataConfirmacao: { gte: de, lte: ate }, ...SO_RESULTADO },
+    where: whereDRE(de, ate, base),
     include: { categoria: { select: { codigo: true, nome: true, tipo: true } } },
   });
 
@@ -546,21 +558,34 @@ export async function coordenadoresPorProjeto(ids: string[]): Promise<Record<str
 export type BaseDRE = "caixa" | "competencia";
 
 /** Linhas do DRE (confirmados, agrupados por categoria) de um período — base do comparativo. */
+/**
+ * O que entra na DRE de um período — regra ÚNICA da DRE, da exportação e dos Indicadores.
+ * Caixa: só o pago, pela data do pagamento. Competência = competência PURA (decisão 4 do dono, 2026-10-02):
+ * o pago E o que está em aberto (previsto, aguardando aprovação), no mês a que pertence (`dataCompetencia`,
+ * senão `data`). Pago entra pelo valor pago, aberto pelo valor do título. Previsão do cronograma e cancelado nunca.
+ */
+function whereDRE(de: Date, ate: Date, base: BaseDRE): Prisma.LancamentoWhereInput {
+  return base === "competencia"
+    ? {
+        ...SO_RESULTADO,
+        status: { in: ["confirmado", "previsto", "aguardando_aprovacao"] },
+        OR: [
+          { dataCompetencia: { gte: de, lte: ate } },
+          { dataCompetencia: null, data: { gte: de, lte: ate } },
+        ],
+      }
+    : { ...SO_RESULTADO, status: "confirmado", dataConfirmacao: { gte: de, lte: ate } };
+}
+
+/** Dia que põe um lançamento num mês da DRE, na base escolhida (mesma regra de `whereDRE`). */
+function diaDaDRE(l: { dataConfirmacao: Date | null; dataCompetencia: Date | null; data: Date }, base: BaseDRE): Date | null {
+  return base === "competencia" ? (l.dataCompetencia ?? l.data) : l.dataConfirmacao;
+}
+
 async function linhasDREPeriodo(de: Date, ate: Date, base: BaseDRE): Promise<LinhaBaseDRE[]> {
-  const where: Prisma.LancamentoWhereInput =
-    base === "competencia"
-      ? {
-          ...SO_RESULTADO,
-          status: "confirmado",
-          OR: [
-            { dataCompetencia: { gte: de, lte: ate } },
-            { dataCompetencia: null, data: { gte: de, lte: ate } },
-          ],
-        }
-      : { ...SO_RESULTADO, status: "confirmado", dataConfirmacao: { gte: de, lte: ate } };
-  // natureza-ok: o `where` acima já leva SO_RESULTADO nos dois ramos (caixa e competência).
+  // natureza-ok: `whereDRE` leva SO_RESULTADO nos dois ramos (caixa e competência).
   const lancamentos = await prisma.lancamento.findMany({
-    where,
+    where: whereDRE(de, ate, base),
     include: { categoria: { select: { codigo: true, nome: true, tipo: true, grupoDfc: true } } },
   });
   const mapa = new Map<string, LinhaBaseDRE>();
@@ -596,59 +621,58 @@ export async function relatorioDREComparativo(de: Date, ate: Date, base: BaseDRE
 
 // ───────────────────────── M6: Indicadores, relatório por dimensão, orçamento por centro ─────────────────────────
 
-import { baseDoPlanejador } from "@/modules/financeiro/liquidez/queries";
-import { diasDeCaixa, type DiasDeCaixa } from "@/modules/financeiro/liquidez/indicadores";
-import { agingReport } from "@/modules/financeiro/aging/queries";
-import { somarMesesUtc } from "@/lib/data";
-import {
-  margemLiquida,
-  percentualInadimplencia,
-  pontoDeEquilibrio,
-  prazoMedioDias,
-  receitaPorProjetoAtivo,
-  variacaoPontosPercentuais,
-} from "@/modules/financeiro/relatorios/indicadores-gerenciais";
-
 export type IndicadoresGerenciais = {
   margemLiquida: number | null;
   margemLiquidaAnterior: number | null;
   margemDeltaPontos: number | null;
   resultadoOperacional: number;
   diasDeCaixa: DiasDeCaixa;
+  /** Para o detalhe "R$ X ÷ saída média de R$ Y/dia" (reais). */
+  caixaAtual: number;
+  saidaMediaDia: number | null;
   inadimplencia12Meses: number | null;
   prazoMedioRecebimento: number | null;
   prazoMedioPagamento: number | null;
+  /** Por MÊS (média do período, se ele tiver mais de um mês). */
   pontoDeEquilibrio: number;
+  /** Por MÊS e por projeto em andamento. */
   receitaPorProjetoAtivo: number | null;
   projetosAtivos: number;
 };
 
 /**
- * Os 8 indicadores da tela "Indicadores" (M6, mock aprovado). `de`/`ate` é o mês (ou período) em avaliação; o
- * anterior é o mesmo número de dias imediatamente antes (mesma regra do DRE comparativo).
+ * Os 8 indicadores da tela "Indicadores" (M6, mock aprovado). `de`/`ate` é o período em avaliação; o anterior
+ * é o mesmo número de dias imediatamente antes (mesma regra do DRE comparativo). Margem, resultado, ponto de
+ * equilíbrio e receita por projeto seguem a `base` da tela (caixa ou competência) pela regra única `whereDRE`;
+ * dias de caixa, inadimplência e prazos médios não dependem dela.
  */
-export async function indicadoresGerenciais(de: Date, ate: Date): Promise<IndicadoresGerenciais> {
-  const dias = differenceInCalendarDays(ate, de) + 1;
-  const ateAnt = subDays(de, 1);
-  const deAnt = subDays(ateAnt, dias - 1);
-  const ha12Meses = somarMesesUtc(ate, -12);
+export async function indicadoresGerenciais(de: Date, ate: Date, base: BaseDRE): Promise<IndicadoresGerenciais> {
+  // Períodos da tela são meses inteiros: o anterior são os MESES de calendário logo antes (outubro × setembro inteiro).
+  const meses = Math.max(1, (ate.getUTCFullYear() - de.getUTCFullYear()) * 12 + ate.getUTCMonth() - de.getUTCMonth() + 1);
+  const deAnt = somarMesesUtc(de, -meses);
+  const ateAnt = utcFimDoDia(de.getUTCFullYear(), de.getUTCMonth(), 0);
+  const hoje = hojeParaBanco();
+  const ha12Meses = somarMesesUtc(hoje, -12);
 
-  const [atuais, anteriores, base, agingReceita, faturado12m, recebimentos, pagamentos, projetosAtivos] = await Promise.all([
-    linhasDREPeriodo(de, ate, "competencia"),
-    linhasDREPeriodo(deAnt, ateAnt, "competencia"),
+  const [atuais, anteriores, liquidez, agingReceita, faturado12m, recebimentos, pagamentos, projetosAtivos] = await Promise.all([
+    linhasDREPeriodo(de, ate, base),
+    linhasDREPeriodo(deAnt, ateAnt, base),
     baseDoPlanejador({ horizonteDias: 30 }),
     agingReport("receita"),
+    // Faturado = o que foi EMITIDO a receber nos 12 meses (recebido ou não), pelo valor do título: é a base da
+    // inadimplência ("vencido há mais de 30 dias ÷ faturado"). Só o recebido inflaria o percentual.
     prisma.lancamento.aggregate({
-      where: { tipo: "receita", status: "confirmado", dataConfirmacao: { gte: ha12Meses, lte: ate }, ...SO_RESULTADO },
+      where: { tipo: "receita", status: { in: ["confirmado", "previsto"] }, data: { gte: ha12Meses, lte: hoje }, ...SO_RESULTADO },
       _sum: { valor: true },
     }),
-    // Prazo médio de recebimento: da data do lançamento (emissão) ao recebimento, receitas confirmadas no período.
+    // Prazo médio: só o que foi conta a receber/pagar de verdade (teve vencimento). O lançado já pago no dia
+    // (sem vencimento) daria 0 dias e puxaria a média para baixo.
     prisma.lancamento.findMany({
-      where: { tipo: "receita", status: "confirmado", dataConfirmacao: { gte: de, lte: ate }, ...SO_RESULTADO },
+      where: { tipo: "receita", status: "confirmado", vencimento: { not: null }, dataConfirmacao: { gte: de, lte: ate }, ...SO_RESULTADO },
       select: { data: true, dataConfirmacao: true },
     }),
     prisma.lancamento.findMany({
-      where: { tipo: "despesa", status: "confirmado", dataConfirmacao: { gte: de, lte: ate }, ...SO_RESULTADO },
+      where: { tipo: "despesa", status: "confirmado", vencimento: { not: null }, dataConfirmacao: { gte: de, lte: ate }, ...SO_RESULTADO },
       select: { data: true, dataConfirmacao: true },
     }),
     prisma.projeto.count({ where: { situacao: "em_andamento" } }),
@@ -667,19 +691,24 @@ export async function indicadoresGerenciais(de: Date, ate: Date): Promise<Indica
     .reduce((s, f) => s + f.total, 0);
 
   const diasEntreDatas = (ls: { data: Date; dataConfirmacao: Date | null }[]) =>
-    ls.flatMap((l) => (l.dataConfirmacao ? [{ dias: differenceInCalendarDays(l.dataConfirmacao, l.data) }] : []));
+    ls.flatMap((l) => (l.dataConfirmacao ? [{ dias: Math.max(0, differenceInCalendarDays(l.dataConfirmacao, l.data)) }] : []));
+
+  const { caixaAtual, historico } = liquidez;
+  const saidaMediaDia = historico.saidasNaJanela > 0 ? historico.saidasNaJanela / JANELA_DIAS_DE_CAIXA / 100 : null;
 
   return {
     margemLiquida: margemAtual,
     margemLiquidaAnterior: margemAnterior,
     margemDeltaPontos: variacaoPontosPercentuais(margemAtual, margemAnterior),
     resultadoOperacional: Math.round(resultadoAtual * 100) / 100,
-    diasDeCaixa: diasDeCaixa({ caixaAtual: base.caixaAtual, ...base.historico }),
+    diasDeCaixa: diasDeCaixa({ caixaAtual, ...historico }),
+    caixaAtual: caixaAtual / 100,
+    saidaMediaDia: saidaMediaDia == null ? null : Math.round(saidaMediaDia * 100) / 100,
     inadimplencia12Meses: percentualInadimplencia(vencidoMais30, Number(faturado12m._sum.valor ?? 0)),
     prazoMedioRecebimento: prazoMedioDias(diasEntreDatas(recebimentos)),
     prazoMedioPagamento: prazoMedioDias(diasEntreDatas(pagamentos)),
-    pontoDeEquilibrio: pontoDeEquilibrio(totAtual.despesa),
-    receitaPorProjetoAtivo: receitaPorProjetoAtivo(totAtual.receita, projetosAtivos),
+    pontoDeEquilibrio: Math.round(pontoDeEquilibrio(totAtual.despesa / meses) * 100) / 100,
+    receitaPorProjetoAtivo: receitaPorProjetoAtivo(totAtual.receita / meses, projetosAtivos),
     projetosAtivos,
   };
 }
@@ -693,13 +722,15 @@ export type MesEvolucao = MesResultado & { margem: number | null; de: string; at
 /**
  * Receita × despesa dos últimos `n` meses terminando em `ateMes` (janela ROLANTE, diferente de
  * `serieMensalResultado` que é o ano-calendário inteiro) — "Evolução mês a mês" do mock de Indicadores.
+ * Mesma base e mesma regra (`whereDRE`) dos cartões: o mês da tabela e o cartão nunca mostram dois números.
  */
-export async function evolucaoReceitaDespesaMeses(ateMes: Date, n = 6): Promise<MesEvolucao[]> {
+export async function evolucaoReceitaDespesaMeses(ateMes: Date, n: number, base: BaseDRE): Promise<MesEvolucao[]> {
   const inicio = somarMesesUtc(utcInicioDoDia(ateMes.getUTCFullYear(), ateMes.getUTCMonth()), -(n - 1));
   const fim = utcFimDoDia(ateMes.getUTCFullYear(), ateMes.getUTCMonth() + 1, 0);
+  // natureza-ok: `whereDRE` leva SO_RESULTADO nas duas bases.
   const lancs = await prisma.lancamento.findMany({
-    where: { status: "confirmado", dataConfirmacao: { gte: inicio, lte: fim }, ...SO_RESULTADO },
-    select: { tipo: true, valor: true, valorEfetivo: true, dataConfirmacao: true },
+    where: whereDRE(inicio, fim, base),
+    select: { tipo: true, valor: true, valorEfetivo: true, dataConfirmacao: true, dataCompetencia: true, data: true },
   });
   const meses: MesEvolucao[] = Array.from({ length: n }, (_, i) => {
     const d = somarMesesUtc(inicio, i);
@@ -717,9 +748,9 @@ export async function evolucaoReceitaDespesaMeses(ateMes: Date, n = 6): Promise<
   });
   const indicePorChave = new Map(meses.map((m, i) => [`${somarMesesUtc(inicio, i).getUTCFullYear()}-${m.mes}`, i]));
   for (const l of lancs) {
-    if (!l.dataConfirmacao) continue;
-    const chave = `${l.dataConfirmacao.getUTCFullYear()}-${l.dataConfirmacao.getUTCMonth()}`;
-    const i = indicePorChave.get(chave);
+    const dia = diaDaDRE(l, base);
+    if (!dia) continue;
+    const i = indicePorChave.get(`${dia.getUTCFullYear()}-${dia.getUTCMonth()}`);
     if (i == null) continue;
     const v = valorPagoReais(l);
     if (l.tipo === "receita") meses[i].receita = somarReais(meses[i].receita, v);

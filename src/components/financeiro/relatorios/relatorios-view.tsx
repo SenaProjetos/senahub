@@ -85,7 +85,7 @@ export function RelatoriosView({
             <Button onClick={aplicar}>Aplicar</Button>
             <Button
               variant="outline"
-              render={<a href={`/api/financeiro/relatorios/dre/xlsx?de=${de}&ate=${ate}`} />}
+              render={<a href={`/api/financeiro/relatorios/dre/xlsx?de=${de}&ate=${ate}&base=${regime}`} />}
             >
               <FileSpreadsheet className="size-4" /> Excel
             </Button>
@@ -106,7 +106,7 @@ export function RelatoriosView({
         <CardHeader>
           <CardTitle className="text-base">Demonstração de Resultado (DRE)</CardTitle>
           <CardDescription>
-            Regime: <span className="font-medium">{base === "competencia" ? "competência" : "caixa"}</span> · {dre.de} a {dre.ate} ·
+            Regime: <span className="font-medium">{base === "competencia" ? "competência (pago e em aberto, no mês a que pertence)" : "caixa (só o pago, pela data do pagamento)"}</span> · {dre.de} a {dre.ate} ·
             comparado com {dre.anterior.de} a {dre.anterior.ate}. AV = % sobre receita; AH = variação vs. período anterior.
           </CardDescription>
         </CardHeader>

@@ -160,3 +160,37 @@ arquivar/excluir, isento, opções de lançamento).
 - **Verificação:** `rateio.test.ts` (9), `validacao.test.ts` (+3), `acoes.test.ts` (+1 + ordem atualizada), `smoke:financeiro-core`
   (bloco M10: soma, pro-rata, remoção, comprovante desligado/ligado, baixa recusada sem anexo), Chrome 1366 (menu com as duas
   ações, diálogo de rateio, duplicar pré-preenchido, Configurações) e 390 sem rolagem lateral.
+
+## Revisão das fases feitas em Sonnet (Opus, 2026-10-03) — antes do deploy
+
+Leitura de N2, N6, N7, M0, M2, M6, M8, M9 e M10 contra a spec, as decisões do dono e os mocks. **M1 = N5**
+(`f6859bf0`): a trava do mês fechado entrou no núcleo, por isso não há commit "M1".
+
+Corrigido:
+- **Comprovante na baixa (M10):** o diálogo de baixa enviava o anexo DEPOIS de confirmar — com a opção ligada,
+  a própria baixa era recusada. Agora anexa antes; se o envio falha, a baixa nem é tentada.
+- **Saldo inicial com data (M8):** o painel de contas e o saldo corrido do livro caixa somavam o pago antes de
+  `saldoInicialEm` (saldo dobrado). Agora seguem `entraNoSaldoDaConta`, como Visão geral, Extrato e conciliação.
+- **Decisão 4 (DRE competência pura) nunca implementada (N2/N6):** `whereDRE` passa a somar pago e em aberto
+  (`confirmado|previsto|aguardando_aprovacao`) por competência; DRE, Excel da DRE e Indicadores usam a mesma regra.
+- **Indicadores fora do mock (M6):** chave Caixa|Competência, período (mês anterior · atual · trimestre · 12 meses),
+  "Comparado com …", detalhe dos dias de caixa, "Ver lançamentos do mês" (livro caixa abre por `?mes=`), links e
+  Excel com a base; cartões e tabela na mesma base; comparação por meses de calendário. Inadimplência ÷ faturado
+  (emitido, não só recebido); prazo médio só de quem teve vencimento; ponto de equilíbrio e receita por projeto
+  por mês. Imports do bloco no topo do arquivo.
+- **Rateio (M10):** segue as travas de editar centro/projeto (mês fechado, transferência, acessório, cancelado,
+  previsão), "antes" na auditoria, e passa para o saldo do parcial (baixa e lote) e para os juros/desconto.
+- **Mocks M0:** Extrato ganhou Exportar (Excel, `/api/financeiro/extrato/xlsx`); Pagas ganhou "Abrir na Produção"
+  (só para quem tem `financeiro:folha_pj`).
+- **Smoke:** o bloco M10 guardava e sobrescrevia a config de campos obrigatórios do banco de dev (agora restaura);
+  a limpeza do bloco M7 deixava conta órfã se um passo falhasse; bloco novo "Revisão das fases M" (7 checagens).
+
+Fica para o dono: **ponto de equilíbrio** — o número do mock implica margem de contribuição (custo fixo × variável),
+que o plano de contas não separa; hoje é a despesa média do mês. Menores sem mudança: telas de Indicadores e Relatório
+por dimensão leem o "mês atual" pelo dia de São Paulo; Fechamento consolida em ponto flutuante (fase Opus, sem impacto
+visto).
+
+Verificação: tsc (app e server), lint, suíte (5692), `smoke:financeiro-core` (duas rodadas seguidas, sem sobra),
+`smoke:planejador`, `smoke:previsao-recebimento`, `smoke:onda2`, `smoke:onda3efg`, `smoke:sync-pagamento`, build de
+produção, Chrome 1366 e 390 (Indicadores nos dois regimes, livro caixa por mês, Extrato, DRE competência) e download
+dos três Excel.

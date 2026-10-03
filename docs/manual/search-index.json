@@ -1472,7 +1472,8 @@
         "pagar pela caixinha",
         "pagas e recebidas",
         "pago no mês",
-        "recebido no mês"
+        "recebido no mês",
+        "abrir na produção"
       ],
       "sinonimos": [
         "pendências financeiras",
@@ -1502,7 +1503,9 @@
         "conciliado",
         "falta conciliar",
         "saldo do banco",
-        "lançamento sem conta"
+        "lançamento sem conta",
+        "exportar extrato",
+        "excel do extrato"
       ],
       "sinonimos": [
         "extrato bancário",
@@ -1809,7 +1812,12 @@
         "prazo médio",
         "ponto de equilíbrio",
         "relatório por dimensão",
-        "centro de custo"
+        "centro de custo",
+        "regime de competência",
+        "competência em aberto",
+        "trimestre",
+        "12 meses",
+        "faturado"
       ],
       "sinonimos": [
         "demonstrativos",

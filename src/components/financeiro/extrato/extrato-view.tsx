@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeftRight, ChevronLeft, ChevronRight, Info, Printer, TriangleAlert, Wallet } from "lucide-react";
+import { ArrowLeftRight, ChevronLeft, ChevronRight, Download, Info, Printer, TriangleAlert, Wallet } from "lucide-react";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -193,6 +193,9 @@ export function ExtratoView({
             ))}
           </div>
         </div>
+        <Button size="sm" variant="outline" render={<a href={`/api/financeiro/extrato/xlsx?conta=${conta.id}&mes=${mes}`} />}>
+          <Download className="size-4" aria-hidden /> Exportar
+        </Button>
       </div>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Resumo da conta">

@@ -15,6 +15,7 @@ import { camposDoPlanejador } from "@/modules/financeiro/lancamentos/parcial";
 import { exigirOperacao, MOTIVO_MUDOU } from "@/modules/financeiro/lancamentos/situacao-service";
 import { planejarBaixa, type PlanoDaBaixa } from "@/modules/financeiro/lancamentos/baixa";
 import { exigirComprovanteSeObrigatorio } from "@/modules/financeiro/lancamentos/comprovante-service";
+import { copiarRateioNoTx } from "@/modules/financeiro/lancamentos/rateio-service";
 
 type Tx = Prisma.TransactionClient;
 
@@ -81,7 +82,7 @@ export async function baixarNoTx(tx: Tx, i: PedidoDeBaixa, autorId: string): Pro
   await gravarRestante(tx, lanc, plano, autorId);
 
   for (const a of plano.acessorios) {
-    await tx.lancamento.create({
+    const acessorio = await tx.lancamento.create({
       data: {
         tipo: a.tipo,
         descricao: `${a.rotulo} — ${lanc.descricao}`,
@@ -102,7 +103,9 @@ export async function baixarNoTx(tx: Tx, i: PedidoDeBaixa, autorId: string): Pro
         autorId,
         statusHistorico: { create: { de: null, para: "confirmado", autorId } },
       },
+      select: { id: true },
     });
+    await copiarRateioNoTx(tx, lanc.id, acessorio.id);
   }
 
   if (lanc.pagamentoProjetistaId) {
@@ -116,7 +119,7 @@ type Lanc = Awaited<ReturnType<Tx["lancamento"]["findUniqueOrThrow"]>>;
 /** Pagamento parcial: o que falta vira um novo lançamento em aberto, ligado ao pago (o estorno o leva junto, N1). */
 async function gravarRestante(tx: Tx, lanc: Lanc, plano: PlanoDaBaixa, autorId: string) {
   if (plano.restante == null) return;
-  await tx.lancamento.create({
+  const resto = await tx.lancamento.create({
     data: {
       tipo: lanc.tipo,
       descricao: lanc.descricao,
@@ -142,7 +145,9 @@ async function gravarRestante(tx: Tx, lanc: Lanc, plano: PlanoDaBaixa, autorId: 
       autorId,
       statusHistorico: { create: { de: null, para: "previsto", autorId } },
     },
+    select: { id: true },
   });
+  await copiarRateioNoTx(tx, lanc.id, resto.id);
 }
 
 export async function baixarNoBanco(i: PedidoDeBaixa, autorId: string): Promise<BaixaFeita> {

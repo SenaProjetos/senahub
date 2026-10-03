@@ -65,6 +65,7 @@ export function PagasRecebidasView({
   contas,
   formas,
   podeGerir,
+  podeVerProducao = false,
   subnav,
 }: {
   itens: PagaItem[];
@@ -72,6 +73,7 @@ export function PagasRecebidasView({
   contas: { id: string; nome: string }[];
   formas: { id: string; nome: string }[];
   podeGerir: boolean;
+  podeVerProducao?: boolean;
   subnav?: React.ReactNode;
 }) {
   const router = useRouter();
@@ -160,7 +162,7 @@ export function PagasRecebidasView({
   function linha(l: PagaItem) {
     const menu = itensDePaga(
       { anexos: l.anexos.length, conciliado: l.conciliado, deProducao: l.pagamentoProjetistaId != null, temConta: l.contaId != null, temCategoria: l.categoria != null, deTransferencia: l.transferenciaId != null, deAcessorio: l.acessorioDeId != null },
-      { podeGerir },
+      { podeGerir, podeVerProducao },
     );
     const parcial = l.valorEfetivo != null && Math.round(l.valorEfetivo * 100) !== Math.round(l.valor * 100);
     return (

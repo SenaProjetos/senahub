@@ -2,6 +2,7 @@
 
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import type { AcaoItemAcao } from "@/components/ui/acoes";
 import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { Button } from "@/components/ui/button";
@@ -17,9 +18,11 @@ import { brl } from "@/lib/utils";
 function pct(v: number | null): string {
   return v == null ? "—" : `${v.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 }
+/** Variação em pontos percentuais com seta e sinal escritos (a cor não é a única pista). */
 function pctSinal(v: number | null): string {
   if (v == null) return "—";
-  return `${v >= 0 ? "+" : ""}${v.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} p.p.`;
+  const n = Math.abs(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+  return v > 0 ? `▲ +${n} p.p.` : v < 0 ? `▼ −${n} p.p.` : `${n} p.p.`;
 }
 function dias(v: number | null): string {
   return v == null ? "—" : `${v} ${v === 1 ? "dia" : "dias"}`;
@@ -29,10 +32,33 @@ function textoDiasDeCaixa(d: DiasDeCaixa): string {
   if (d.tipo === "indisponivel") return "—";
   return `${d.dias}${d.maisDe365 ? "+" : ""} dias`;
 }
-function subDiasDeCaixa(d: DiasDeCaixa): string | undefined {
+function subDiasDeCaixa(d: DiasDeCaixa, caixa: number, saidaMediaDia: number | null): string | undefined {
   if (d.tipo === "zero") return "sem caixa disponível";
   if (d.tipo === "indisponivel") return d.motivo;
-  return undefined;
+  return saidaMediaDia == null ? undefined : `${brl(caixa)} ÷ saída média de ${brl(saidaMediaDia)}/dia`;
+}
+
+export type PeriodoIndicadores = "anterior" | "mes" | "trimestre" | "12m";
+const ORDEM_PERIODOS: PeriodoIndicadores[] = ["anterior", "mes", "trimestre", "12m"];
+
+/** Grupo de botões que troca um parâmetro da URL (o servidor recalcula). `aria-current` marca o ativo. */
+function Alternador<T extends string>({ itens, ativo, href, rotulo }: { itens: { valor: T; rotulo: string }[]; ativo: T; href: (v: T) => string; rotulo: string }) {
+  return (
+    <div role="group" aria-label={rotulo} className="inline-flex flex-wrap rounded-md border p-0.5">
+      {itens.map((i) => (
+        <Button
+          key={i.valor}
+          size="sm"
+          variant={i.valor === ativo ? "secondary" : "ghost"}
+          className="h-7"
+          aria-current={i.valor === ativo ? "true" : undefined}
+          render={<Link href={href(i.valor)} scroll={false} />}
+        >
+          {i.rotulo}
+        </Button>
+      ))}
+    </div>
+  );
 }
 
 /**
@@ -43,15 +69,23 @@ function subDiasDeCaixa(d: DiasDeCaixa): string | undefined {
 export function IndicadoresView({
   ind,
   evolucao,
-  mesRotulo,
+  periodo,
+  base,
+  rotulos,
+  comparadoCom,
   subnav,
 }: {
   ind: IndicadoresGerenciais;
   evolucao: MesEvolucao[];
-  /** Rótulo do mês em avaliação (o último da série de evolução). */
-  mesRotulo: string;
+  periodo: PeriodoIndicadores;
+  base: "caixa" | "competencia";
+  /** Nome de cada opção de período (o mês anterior e o atual pelo nome, como no mock). */
+  rotulos: Record<PeriodoIndicadores, string>;
+  /** "setembro", "o trimestre anterior"… — com o que a margem é comparada. */
+  comparadoCom: string;
   subnav?: React.ReactNode;
 }) {
+  const href = (p: PeriodoIndicadores, b: "caixa" | "competencia") => `/financeiro/indicadores?periodo=${p}&base=${b}`;
   const [comparado, setComparado] = useState<number | null>(null);
   const mesAtualIdx = evolucao.length - 1;
 
@@ -71,22 +105,36 @@ export function IndicadoresView({
 
   return (
     <div className="space-y-5">
-      <CabecalhoPagina titulo="Indicadores" descricao={`Margem, prazos, inadimplência e mais — ${mesRotulo}.`} />
+      <CabecalhoPagina titulo="Indicadores" descricao="Como o escritório está indo: margem, prazos e quanto o caixa aguenta." />
       {subnav}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Alternador
+          rotulo="Regime"
+          ativo={base}
+          href={(b) => href(periodo, b)}
+          itens={[
+            { valor: "caixa", rotulo: "Caixa" },
+            { valor: "competencia", rotulo: "Competência" },
+          ]}
+        />
+        <Alternador rotulo="Período" ativo={periodo} href={(p) => href(p, base)} itens={ORDEM_PERIODOS.map((p) => ({ valor: p, rotulo: rotulos[p] }))} />
+        <span className="text-sm text-muted-foreground">Comparado com {comparadoCom}</span>
+      </div>
 
       <section aria-label="Indicadores do mês" className="grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-3">
         <KpiCard
           variante="indicador"
           label="Margem líquida"
           valor={pct(ind.margemLiquida)}
-          detalhe={ind.margemDeltaPontos != null ? `${pctSinal(ind.margemDeltaPontos)} sobre o período anterior` : undefined}
+          detalhe={ind.margemDeltaPontos != null ? `${pctSinal(ind.margemDeltaPontos)} sobre ${comparadoCom}` : undefined}
         />
         <KpiCard variante="indicador" label="Resultado operacional" valor={brl(ind.resultadoOperacional)} detalhe="receitas − despesas, fora distribuição de lucros" />
-        <KpiCard variante="indicador" label="Dias de caixa" valor={textoDiasDeCaixa(ind.diasDeCaixa)} detalhe={subDiasDeCaixa(ind.diasDeCaixa)} />
+        <KpiCard variante="indicador" label="Dias de caixa" valor={textoDiasDeCaixa(ind.diasDeCaixa)} detalhe={subDiasDeCaixa(ind.diasDeCaixa, ind.caixaAtual, ind.saidaMediaDia)} />
         <KpiCard variante="indicador" label="Inadimplência (12 meses)" valor={pct(ind.inadimplencia12Meses)} detalhe="vencido há mais de 30 dias ÷ faturado" />
         <KpiCard variante="indicador" label="Prazo médio de recebimento" valor={dias(ind.prazoMedioRecebimento)} detalhe="da emissão ao recebimento" />
         <KpiCard variante="indicador" label="Prazo médio de pagamento" valor={dias(ind.prazoMedioPagamento)} detalhe="do lançamento ao pagamento" />
-        <KpiCard variante="indicador" label="Ponto de equilíbrio" valor={brl(ind.pontoDeEquilibrio)} detalhe="despesas do mês (sem separar custo fixo e variável)" />
+        <KpiCard variante="indicador" label="Ponto de equilíbrio" valor={brl(ind.pontoDeEquilibrio)} detalhe="de receita por mês cobre as despesas" />
         <KpiCard
           variante="indicador"
           label="Receita por projeto ativo"
@@ -160,7 +208,7 @@ export function IndicadoresView({
               </thead>
               <tbody>
                 {evolucao.map((m, i) => {
-                  const itens = itensDoMesDeEvolucao({ rotulo: evolucao[mesAtualIdx].rotulo, de: m.de, ate: m.ate, ehAtual: i === mesAtualIdx });
+                  const itens = itensDoMesDeEvolucao({ rotulo: evolucao[mesAtualIdx].rotulo, de: m.de, ate: m.ate, ehAtual: i === mesAtualIdx, base });
                   const destaque = i === mesAtualIdx || i === comparado;
                   return (
                     <LinhaComMenu

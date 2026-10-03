@@ -30,7 +30,8 @@ Acompanhar o que há **a pagar** e **a receber** (lançamentos previstos) e medi
   quanto foi pago a mais ou a menos que o previsto.
 - Botão direito (ou **⋯**) em cada linha: **Detalhes**, **Ver no extrato da conta**, **Copiar descrição** e,
   para quem gere o financeiro, **Estornar pagamento** (desabilitado, com o motivo, quando já está conciliado
-  ou quando é pagamento de produção — esse se estorna na tela de Produção).
+  ou quando é pagamento de produção — esse se estorna na tela de Produção; o item **Abrir na Produção** leva
+  até lá, para quem tem acesso a ela).
 - Transferência entre contas próprias não aparece aqui (não é conta paga nem recebida); ela está no
   [Extrato por conta](extrato-por-conta.md).
 
