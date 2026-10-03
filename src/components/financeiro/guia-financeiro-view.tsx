@@ -23,9 +23,10 @@ import { Button } from "@/components/ui/button";
  * Guia de uso do setor Financeiro (`/guias/financeiro`). F2 do plano
  * `docs/superpowers/plans/2026-09-09-guias-de-uso-in-app.md`.
  *
- * Conferido contra o código, não contra o manual (ADR-001): `lib/{aging,ofx,aprovacao}.ts`,
- * `modules/financeiro/{caixa,aging,relatorios,fechamento}/queries.ts`, `fechamento/calculo.ts` e o
- * enum `StatusLancamento`. Divergências na §12 do plano.
+ * Conferido contra o código, não contra o manual (ADR-001). Revisto em 2026-10-03 contra o núcleo N0–N7 e as fases
+ * M0–M10: alçada por faixas (`aprovacao/niveis.ts`), máquina de situações (`lancamentos/transicoes.ts`), baixa completa
+ * (`lancamentos/baixa.ts`), conciliação (`conciliacao/casamento.ts`), trava do mês (`fechamento/trava.ts`) e a regra
+ * única da DRE (`whereDRE` em `relatorios/queries.ts`).
  */
 
 const MARCOS: readonly MarcoGuia[] = [
@@ -39,7 +40,7 @@ const MARCOS: readonly MarcoGuia[] = [
 const INDICE: readonly ItemIndice[] = [
   { href: "#prever", label: "Prever" },
   { href: "#aprovar", label: "Aprovar a despesa" },
-  { href: "#realizar", label: "Realizar" },
+  { href: "#realizar", label: "Pagar e receber" },
   { href: "#conciliar", label: "Conciliar com o banco" },
   { href: "#fechar", label: "Fechar o mês" },
 ];
@@ -51,9 +52,9 @@ const VOCABULARIO: readonly TermoGuia[] = [
       "Uma linha de dinheiro: receita ou despesa. É a unidade de tudo no Financeiro — relatório, aging, fluxo e fechamento são todos recortes diferentes do mesmo conjunto de lançamentos.",
   },
   {
-    termo: "Previsto",
+    termo: "Previsto (em aberto)",
     definicao:
-      "O lançamento existe mas o dinheiro não andou: é a conta a pagar ou a receber em aberto. Não entra no caixa nem no resultado — só na projeção e no aging.",
+      "O lançamento existe mas o dinheiro não andou: é a conta a pagar ou a receber em aberto. Não entra no caixa; aparece na projeção, no aging e na DRE por competência.",
     exemplo: "A nota que você vai receber dia 30 é um previsto até cair na conta.",
   },
   {
@@ -63,9 +64,9 @@ const VOCABULARIO: readonly TermoGuia[] = [
     exemplo: "“40% na entrega do básico” aparece como previsão no dia do marco; ao faturar, vira um previsto de verdade.",
   },
   {
-    termo: "Confirmado",
+    termo: "Pago / Recebido",
     definicao:
-      "O dinheiro andou de verdade. É o único estado que entra no caixa e no resultado do mês. Confirmar é o ato central do Financeiro — antes disso, nenhum número de resultado enxerga o lançamento.",
+      "O dinheiro andou de verdade (no sistema, o status “confirmado”). É o único estado que entra no caixa, na DRE por caixa e no DFC.",
   },
   {
     termo: "Vencimento",
@@ -73,21 +74,31 @@ const VOCABULARIO: readonly TermoGuia[] = [
       "A data em que o previsto deveria ser pago ou recebido. É o que organiza a projeção de caixa e o aging — não o que organiza o resultado.",
   },
   {
-    termo: "Data de confirmação",
+    termo: "Data de competência",
     definicao:
-      "O dia em que o dinheiro efetivamente entrou ou saiu. É por esta data que o resultado, o fluxo e os gráficos mensais agrupam os valores.",
+      "O mês a que o valor pertence. Sem ela, vale a data do lançamento. É por ela que a DRE por competência e os Indicadores em competência agrupam.",
+  },
+  {
+    termo: "Data do pagamento",
+    definicao:
+      "O dia em que o dinheiro efetivamente entrou ou saiu. É por ela que o caixa, o fluxo, o DFC e a DRE por caixa agrupam.",
   },
   {
     termo: "Regime de caixa × competência",
     definicao:
-      "Caixa é organizar pelo dia em que o dinheiro andou; competência, pelo mês a que o valor se refere. Um serviço prestado em março e pago em maio é março na competência e maio no caixa.",
-    exemplo: "No SenaHub praticamente tudo é lido em regime de caixa — veja as armadilhas antes de assumir o contrário.",
+      "Caixa organiza pelo dia em que o dinheiro andou e só conta o que foi pago. Competência organiza pelo mês a que o valor pertence e conta o pago e o que está em aberto.",
+    exemplo: "Serviço de março pago em maio: na competência é março (mesmo antes de pago); no caixa é maio.",
   },
   {
-    termo: "Valor efetivo",
+    termo: "Baixa",
     definicao:
-      "Quanto realmente foi pago ou recebido, quando difere do combinado. Preenchido, é ele que vale nos relatórios; vazio, vale o valor original.",
-    exemplo: "Cobrança de R$ 10.000 recebida com R$ 200 de desconto: valor 10.000, efetivo 9.800.",
+      "Registrar que uma conta foi paga ou recebida: conta, data, quanto do título foi quitado e, separados, juros, multa e desconto. Quitar menos que o título deixa o saldo como uma nova conta em aberto; juros, multa e desconto viram lançamentos próprios, nas categorias deles.",
+    exemplo: "Boleto de R$ 1.000 pago com R$ 32,50 de juros e multa: o título fica pago e sai da conta R$ 1.032,50.",
+  },
+  {
+    termo: "Estorno",
+    definicao:
+      "Desfazer um pagamento registrado por engano: o lançamento volta a ficar em aberto, levando junto os juros/desconto e o saldo de uma baixa parcial. Conta, forma ou data errada não precisa de estorno — use Corrigir pagamento.",
   },
   {
     termo: "Aging",
@@ -97,12 +108,22 @@ const VOCABULARIO: readonly TermoGuia[] = [
   {
     termo: "Alçada",
     definicao:
-      "O limite de valor acima do qual uma despesa precisa ser aprovada antes de seguir. Vale só para despesa — receita nunca trava.",
+      "Faixas de valor configuradas no Financeiro dizem quem precisa aprovar uma despesa antes que ela possa ser paga. Vale só para despesa lançada à mão (e para a que muda de valor); produções do sistema, como folha, projetistas, ART e recorrências, já vêm aprovadas na origem.",
+  },
+  {
+    termo: "Transferência entre contas",
+    definicao:
+      "Dinheiro que só muda de conta dentro da empresa. São duas pernas que andam sempre juntas — sai de uma, entra na outra — e não entram no resultado.",
+  },
+  {
+    termo: "Regra de preenchimento",
+    definicao:
+      "“Quando a descrição contiver X, preencher a categoria Y”. Vale na conciliação, na importação de planilha e ao lançar à mão, e nunca troca o que você já escolheu.",
   },
   {
     termo: "Conciliação",
     definicao:
-      "Casar o extrato do banco com os lançamentos do sistema, importando um arquivo OFX. Cada transação do banco tem um identificador próprio, então reimportar o mesmo extrato não duplica nada.",
+      "Casar o extrato do banco (arquivo OFX) com os lançamentos do sistema. Cada transação do banco tem um identificador próprio, então reimportar o mesmo extrato não duplica nada.",
   },
   {
     termo: "DRE",
@@ -117,32 +138,30 @@ const VOCABULARIO: readonly TermoGuia[] = [
   {
     termo: "Fechamento do mês",
     definicao:
-      "Consolidar o mês: trava o resultado e calcula as retenções e descontos sobre a folha dos projetistas, usando as alíquotas configuradas.",
+      "Consolidar e travar o mês: depois de fechado, nada com data naquele mês é criado, alterado, pago, estornado ou excluído até alguém com permissão reabrir. Também calcula as retenções sobre a folha dos projetistas.",
   },
 ];
 
 const ARMADILHAS: readonly ArmadilhaGuia[] = [
   {
-    titulo: "O seletor “Competência” muda menos do que parece",
+    titulo: "Caixa e competência dão números diferentes — e os dois estão certos",
     texto: (
       <>
-        Em <strong>Relatórios</strong> existe um seletor <strong>Caixa / Competência</strong>. Ele
-        muda <strong>apenas o DRE comparativo</strong> daquela tela. Todo o resto — o painel do
-        Financeiro, o fluxo de caixa, o DFC, o balanço, o gráfico de resultado mensal e a
-        rentabilidade — lê sempre a <strong>data de confirmação</strong>, ou seja, regime de caixa.
-        Preencher <strong>Data de competência</strong> no lançamento organiza um único quadro atrás
-        de um único seletor; não reorganiza o Financeiro.
+        Em <strong>Relatórios</strong> e em <strong>Indicadores</strong> há a escolha{" "}
+        <strong>Caixa / Competência</strong>. Caixa conta só o que foi <strong>pago</strong>, pela data
+        do pagamento. Competência conta o pago <strong>e o que está em aberto</strong>, no mês a que
+        pertence. O painel do Financeiro, o fluxo de caixa, o DFC, o balanço e a rentabilidade seguem
+        sempre caixa.
       </>
     ),
   },
   {
-    titulo: "Limite de alçada zero não trava nada",
+    titulo: "A alçada olha o total, e quem lança não aprova",
     texto: (
       <>
-        A leitura intuitiva é ao contrário: limite <strong>zero</strong> não significa “tudo precisa
-        de aprovação”, significa <strong>a trava está desligada</strong>. E a comparação inclui o
-        próprio limite — uma despesa exatamente no valor do limite <strong>trava</strong>. Se você
-        quer aprovar tudo acima de mil, o limite é mil e uma despesa de mil já vai para a fila.
+        Uma compra parcelada é julgada pelo <strong>total</strong>, não pela parcela: 60 parcelas de R$ 900
+        caem na faixa de R$ 54.000. Mudar o valor de uma despesa já aprovada a <strong>manda de volta</strong>{" "}
+        para a fila. E ninguém aprova a própria despesa — só o administrador, para o escritório não travar.
       </>
     ),
   },
@@ -150,10 +169,31 @@ const ARMADILHAS: readonly ArmadilhaGuia[] = [
     titulo: "Previsto não é dinheiro",
     texto: (
       <>
-        Um lançamento <strong>previsto</strong> aparece na projeção de caixa e no aging, mas{" "}
-        <strong>não existe</strong> para o resultado do mês, o DRE, o DFC ou o balanço — todos leem
-        só <strong>confirmado</strong>. Um mês cheio de contas lançadas e nenhuma confirmada mostra
-        resultado zero, e está certo.
+        Um lançamento <strong>previsto</strong> aparece na projeção, no aging e na DRE por competência,
+        mas <strong>não existe</strong> para o caixa, a DRE por caixa, o DFC ou o balanço. Um mês cheio
+        de contas lançadas e nenhuma paga mostra caixa parado, e está certo.
+      </>
+    ),
+  },
+  {
+    titulo: "Pago não se cancela: estorne antes",
+    texto: (
+      <>
+        O que já foi pago ou recebido não pode ser cancelado nem excluído direto: primeiro{" "}
+        <strong>Estornar</strong>, que o devolve a em aberto. Se ele está <strong>conciliado</strong> com o
+        extrato do banco, nem o estorno passa — desconcilie a transação antes. Pagamento de projetista se
+        estorna pela tela de <strong>Produção</strong>.
+      </>
+    ),
+  },
+  {
+    titulo: "Mês fechado não muda",
+    texto: (
+      <>
+        Depois de <strong>Fechar mês</strong>, o sistema recusa criar, mudar valor, categoria, datas ou
+        conta, pagar, estornar e excluir lançamentos com data naquele mês. Uma conta vencida do mês
+        fechado continua podendo ser paga — num mês aberto. Para corrigir algo lá, alguém com permissão
+        precisa <strong>Reabrir</strong>.
       </>
     ),
   },
@@ -162,21 +202,8 @@ const ARMADILHAS: readonly ArmadilhaGuia[] = [
     texto: (
       <>
         O aging monta as faixas a partir dos lançamentos <strong>previstos</strong>, pelo{" "}
-        <strong>vencimento</strong> (ou pela data do lançamento, se não houver vencimento).
-        Confirmar uma conta a tira do aging na hora — o atraso não fica registrado ali como
-        histórico. Se você precisa saber que aquele cliente pagou com 60 dias de atraso, o aging de
-        hoje não vai contar essa história.
-      </>
-    ),
-  },
-  {
-    titulo: "O fechamento são duas contas independentes",
-    texto: (
-      <>
-        Na mesma tela convivem duas coisas que não se somam: o <strong>resultado do mês</strong>{" "}
-        (receita menos despesa confirmadas) e as <strong>retenções e descontos</strong>, que
-        incidem <strong>só sobre a folha bruta dos projetistas</strong> — não sobre a receita, não
-        sobre o resultado. Ler as alíquotas como se fossem imposto sobre o faturamento é erro comum.
+        <strong>vencimento</strong> (ou pela data do lançamento, se não houver vencimento). Pagar uma conta
+        a tira do aging na hora — o atraso não fica registrado ali como histórico.
       </>
     ),
   },
@@ -184,10 +211,8 @@ const ARMADILHAS: readonly ArmadilhaGuia[] = [
     titulo: "Excluir um lançamento não o apaga",
     texto: (
       <>
-        Um lançamento excluído some das listas e dos relatórios, mas continua registrado — a
-        exclusão é reversível e fica no histórico. Isso é proposital, e é o motivo de “sumiu” e “foi
-        apagado” não serem a mesma coisa aqui. Se um valor desapareceu sem explicação, ele
-        provavelmente foi excluído, não perdido.
+        Um lançamento excluído some das listas e dos relatórios, mas continua registrado no histórico e
+        na auditoria. Se um valor desapareceu sem explicação, ele provavelmente foi excluído, não perdido.
       </>
     ),
   },
@@ -195,19 +220,34 @@ const ARMADILHAS: readonly ArmadilhaGuia[] = [
 
 const DUVIDAS: readonly DuvidaGuia[] = [
   {
-    pergunta: "Lancei a conta mas o resultado do mês não mudou. Por quê?",
+    pergunta: "Lancei a conta mas o caixa e o resultado do mês não mudaram. Por quê?",
     resposta:
-      "Porque ela ainda está prevista. Só lançamento confirmado entra no resultado, no DRE e no DFC. Previsto aparece na projeção de caixa e no aging.",
+      "Porque ela ainda está em aberto. O caixa, a DRE por caixa e o DFC só contam o que foi pago. Na DRE por competência ela já aparece, no mês a que pertence.",
   },
   {
-    pergunta: "Qual data eu preencho: vencimento, competência ou confirmação?",
+    pergunta: "Qual data eu preencho: vencimento, competência ou pagamento?",
     resposta:
-      "Vencimento é quando deveria acontecer, e organiza projeção e aging. A data de confirmação é preenchida quando você confirma, e é por ela que quase todo relatório agrupa. Competência é opcional e hoje só muda o DRE comparativo.",
+      "Vencimento é quando deveria acontecer, e organiza projeção e aging. Competência é o mês a que o valor pertence (sem ela vale a data do lançamento). A data do pagamento é preenchida na baixa, e é por ela que o caixa agrupa.",
   },
   {
     pergunta: "Minha despesa ficou aguardando aprovação. O que houve?",
     resposta:
-      "Ela atingiu ou passou o limite de alçada configurado. Fica travada até alguém com permissão aprovar — não é erro, é a regra de valor da empresa.",
+      "O total dela caiu numa faixa de alçada que exige aprovação, ou o valor mudou depois de aprovada. Fica travada até alguém com permissão aprovar — e não pode ser você, se foi você quem lançou.",
+  },
+  {
+    pergunta: "Recebi menos do que o combinado. O que faço?",
+    resposta:
+      "Na baixa, se o cliente vai pagar o resto depois, informe só o valor quitado: o saldo vira uma nova conta em aberto. Se foi um desconto para quitar, use o campo Desconto: o título fica quitado e o desconto entra na DRE na linha dele.",
+  },
+  {
+    pergunta: "Registrei o pagamento na conta ou na data errada.",
+    resposta:
+      "Use Corrigir pagamento no menu do lançamento: troca conta, forma e data sem estornar. Se o pagamento nem aconteceu, use Estornar.",
+  },
+  {
+    pergunta: "O sistema não me deixa dar baixa: pede comprovante.",
+    resposta:
+      "A exigência de comprovante está ligada em Configurações. Anexe o arquivo no próprio diálogo de baixa (ou em Detalhes) e confirme de novo.",
   },
   {
     pergunta: "Importei o mesmo extrato duas vezes. Dupliquei tudo?",
@@ -215,9 +255,9 @@ const DUVIDAS: readonly DuvidaGuia[] = [
       "Não. Cada transação do OFX tem um identificador próprio do banco, e a importação usa isso para reconhecer o que já entrou.",
   },
   {
-    pergunta: "Recebi menos do que o combinado. Mudo o valor?",
+    pergunta: "Por que a conciliação não casou sozinha uma transação óbvia?",
     resposta:
-      "Não mude o valor original — preencha o valor efetivo. Assim o combinado e o recebido ficam ambos registrados, e os relatórios usam o efetivo.",
+      "Ela só casa sozinha quando há exatamente uma conta em aberto com o mesmo valor, na mesma conta, até 5 dias de diferença. Empate, valor diferente (juros, desconto) ou transferência ficam para você casar à mão.",
   },
   {
     pergunta: "Qual a diferença entre DRE e DFC?",
@@ -236,22 +276,22 @@ export function GuiaFinanceiroView() {
     <GuiaShell
       voltar={{ href: "/financeiro", label: "Voltar ao Financeiro" }}
       titulo="Do previsto ao mês fechado"
-      descricao="Todo dinheiro percorre o mesmo caminho aqui: é previsto, passa pela alçada quando é despesa grande, é confirmado quando anda de verdade, é conciliado com o extrato do banco e entra no fechamento do mês."
+      descricao="Todo dinheiro percorre o mesmo caminho aqui: é previsto, passa pela alçada quando é despesa que exige aprovação, é pago ou recebido quando anda de verdade, é conciliado com o extrato do banco e entra no fechamento do mês."
       acoes={
         <>
           <Button size="sm" render={<Link href="/financeiro/lancamentos" />}>
             <Receipt className="size-4" aria-hidden="true" /> Abrir Lançamentos
           </Button>
           <Button variant="outline" size="sm" render={<Link href="/financeiro/contas" />}>
-            <ArrowLeftRight className="size-4" aria-hidden="true" /> Contas a pagar e receber
+            <ArrowLeftRight className="size-4" aria-hidden="true" /> Contas
           </Button>
         </>
       }
       regra={{
         texto: (
           <>
-            <strong>Previsto não é dinheiro; confirmado é.</strong> Quase todo número de resultado
-            neste módulo lê só o que foi confirmado, e agrupa pela data em que o dinheiro andou.
+            <strong>Previsto não é dinheiro; pago é.</strong> O caixa só anda com o que foi pago ou recebido,
+            pela data do pagamento. Competência é outra pergunta: a que mês aquele valor pertence.
           </>
         ),
       }}
@@ -262,7 +302,7 @@ export function GuiaFinanceiroView() {
       duvidas={DUVIDAS}
       cta={{
         titulo: "Comece pelas contas em aberto",
-        descricao: "É onde o previsto vira trabalho: o que vence, o que atrasou e o que falta confirmar.",
+        descricao: "É onde o previsto vira trabalho: o que vence, o que atrasou e o que falta pagar ou receber.",
         href: "/financeiro/contas",
         label: "Abrir Contas",
       }}
@@ -272,33 +312,33 @@ export function GuiaFinanceiroView() {
         numero="01"
         icone={Receipt}
         titulo="Lance o que ainda vai acontecer"
-        resumo="Todo compromisso entra como previsto — é o que alimenta a projeção de caixa e o aging."
+        resumo="Todo compromisso entra em aberto — é o que alimenta a projeção de caixa, o planejador e o aging."
       >
         <p>
-          Um lançamento novo nasce <strong>previsto</strong>: a conta a pagar ou a receber que existe
-          no papel mas ainda não andou. Além do valor, o que mais importa é o{" "}
-          <strong>vencimento</strong> — é ele que coloca o valor no dia certo da projeção e que
-          define a faixa de atraso se a data passar.
+          Um lançamento novo nasce <strong>em aberto</strong>: a conta a pagar ou a receber que existe no
+          papel mas ainda não andou. Além do valor, o que mais importa é o <strong>vencimento</strong> — é
+          ele que coloca o valor no dia certo da projeção e que define a faixa de atraso se a data passar.
         </p>
         <Acao
           tela="Lançamentos"
           clique={<NomeBotao>Novo lançamento</NomeBotao>}
-          resultado="Cria a linha como prevista; ela passa a aparecer em Contas, na projeção de caixa e — se vencer — no aging."
+          resultado="Cria a linha em aberto; ela passa a aparecer em Contas, na projeção de caixa e — se vencer — no aging."
         />
         <div className="grid gap-3 md:grid-cols-3">
           <div className="rounded-lg border p-3">
             <CircleDollarSign className="mb-2 size-4 text-primary" aria-hidden="true" />
             <p className="font-semibold">Categoria</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              A linha do plano de contas. É por ela que o DRE agrupa — categoria errada é relatório
-              errado.
+              A linha do plano de contas, do mesmo tipo do lançamento (receita ou despesa). É por ela que a
+              DRE agrupa — categoria errada é relatório errado.
             </p>
           </div>
           <div className="rounded-lg border p-3">
             <BarChart3 className="mb-2 size-4 text-primary" aria-hidden="true" />
             <p className="font-semibold">Centro de custo</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Onde o dinheiro foi consumido dentro da empresa, independente da categoria.
+              Onde o dinheiro foi consumido dentro da empresa. Uma despesa compartilhada pode ser rateada
+              entre vários centros e projetos (menu do lançamento → Ratear).
             </p>
           </div>
           <div className="rounded-lg border p-3">
@@ -310,12 +350,14 @@ export function GuiaFinanceiroView() {
           </div>
         </div>
         <Dica>
-          Amarre ao <strong>projeto</strong> sempre que fizer sentido. A rentabilidade por projeto é
-          construída inteiramente a partir dessa ligação — lançamento solto vira custo que ninguém
-          consegue atribuir.
+          Conta que se repete (aluguel, pró-labore, folha) vira <strong>compromisso recorrente</strong>: o
+          sistema gera cada mês sozinho. Descrição que sempre vai para a mesma categoria vira{" "}
+          <strong>regra de preenchimento</strong> — ou use <strong>Duplicar lançamento</strong> no menu
+          para partir de um parecido.
         </Dica>
         <div className="flex flex-wrap gap-2">
           <Atalho href="/financeiro/lancamentos">Lançamentos</Atalho>
+          <Atalho href="/financeiro/regras">Regras de preenchimento</Atalho>
           <Atalho href="/financeiro/cadastros">Plano de contas e cadastros</Atalho>
           <Atalho href="/ajuda/financeiro/lancamentos">Referência: Lançamentos</Atalho>
         </div>
@@ -325,22 +367,23 @@ export function GuiaFinanceiroView() {
         id="aprovar"
         numero="02"
         icone={ShieldCheck}
-        titulo="Despesa grande passa pela alçada"
+        titulo="Despesa acima da faixa passa pela alçada"
         resumo="É o único ponto do caminho em que o lançamento trava sozinho, esperando decisão de outra pessoa."
       >
         <p>
-          Quando uma <strong>despesa</strong> atinge o limite configurado, ela não segue direto: fica{" "}
-          <strong>aguardando aprovação</strong> até alguém com permissão liberar. Receita nunca
-          passa por isso, em nenhum valor.
+          Quando o <strong>total</strong> de uma despesa lançada à mão cai numa faixa de alçada que exige
+          aprovação, ela fica <strong>aguardando aprovação</strong> e não pode ser paga até alguém com
+          permissão liberar. Receita nunca passa por isso, em nenhum valor.
         </p>
         <Acao
           tela="Aprovações do Financeiro"
           clique={<NomeBotao>Aprovar</NomeBotao>}
-          resultado="Libera a despesa para seguir o fluxo normal e poder ser confirmada."
+          resultado="Libera a despesa para seguir o fluxo normal e poder ser paga."
         />
         <Dica>
-          O limite fica nas configurações do Financeiro. <strong>Zero desliga a trava</strong> — não é
-          “aprovar tudo”. E o valor exatamente igual ao limite já trava.
+          As faixas ficam em <strong>Configurações do Financeiro</strong>: cada faixa diz até que valor vai
+          e quem aprova; faixa sem ninguém marcado aprova sozinha. Quem lançou a despesa não a aprova — só o
+          administrador.
         </Dica>
         <div className="flex flex-wrap gap-2">
           <Atalho href="/financeiro/aprovacoes">Fila de aprovações</Atalho>
@@ -352,27 +395,32 @@ export function GuiaFinanceiroView() {
         id="realizar"
         numero="03"
         icone={CircleDollarSign}
-        titulo="Confirme quando o dinheiro andar"
-        resumo="É o ato que faz o lançamento existir para o resultado do mês."
+        titulo="Dê baixa quando o dinheiro andar"
+        resumo="É o ato que faz o lançamento existir para o caixa."
       >
         <p>
-          Confirmar não é marcar uma caixinha de controle: é o que move o lançamento de “vai
-          acontecer” para “aconteceu”. A partir daí ele entra no <strong>caixa</strong>, no{" "}
-          <strong>DRE</strong>, no DFC e nos gráficos mensais — todos agrupando pela{" "}
-          <strong>data de confirmação</strong>.
+          Dar baixa não é marcar uma caixinha de controle: é o que move o lançamento de “vai acontecer” para
+          “aconteceu”. A partir daí ele entra no <strong>caixa</strong>, no DFC e na DRE por caixa — todos
+          agrupando pela <strong>data do pagamento</strong>.
         </p>
         <Acao
-          tela="Contas a pagar e receber"
-          clique={<NomeBotao>Confirmar</NomeBotao>}
-          resultado="Grava a data em que o dinheiro andou, tira a conta do aging e passa a contar no resultado do mês."
+          tela="Contas"
+          clique={
+            <>
+              <NomeBotao>Pagar</NomeBotao> ou <NomeBotao>Receber</NomeBotao>
+            </>
+          }
+          resultado="Grava a conta e o dia em que o dinheiro andou, tira a conta do aging e passa a contar no caixa."
         />
         <Dica>
-          Recebeu ou pagou valor diferente do combinado? Preencha o <strong>valor efetivo</strong> em
-          vez de corrigir o valor original — assim fica registrado o que foi acordado e o que de fato
-          aconteceu, e os relatórios usam o efetivo.
+          Pagou ou recebeu valor diferente? No diálogo da baixa, informe <strong>juros</strong>,{" "}
+          <strong>multa</strong> e <strong>desconto</strong> separados, ou quite só parte (o resto fica em
+          aberto). Errou a conta ou a data? <strong>Corrigir pagamento</strong>. O pagamento não aconteceu?{" "}
+          <strong>Estornar</strong>.
         </Dica>
         <div className="flex flex-wrap gap-2">
-          <Atalho href="/financeiro/contas">Contas a pagar e receber</Atalho>
+          <Atalho href="/financeiro/contas">Contas</Atalho>
+          <Atalho href="/financeiro/contas?situacao=pagas">Pagas e recebidas</Atalho>
           <Atalho href="/ajuda/financeiro/contas-e-aging">Referência: Contas e aging</Atalho>
         </div>
       </Etapa>
@@ -385,21 +433,24 @@ export function GuiaFinanceiroView() {
         resumo="A conciliação é o que garante que o que está no sistema é o que aconteceu na conta."
       >
         <p>
-          Você baixa o extrato do banco em <strong>OFX</strong> e importa. O sistema lê as transações
-          e tenta casar cada uma com um lançamento existente; o que não casa fica na fila para você
-          resolver — ou virar lançamento novo.
+          Você baixa o extrato do banco em <strong>OFX</strong> e importa. O sistema casa sozinho só o que
+          não tem dúvida — uma única conta em aberto, mesmo valor, mesma conta, até 5 dias — e deixa o resto
+          numa fila para você casar à mão ou virar lançamento novo. Quando o extrato traz o saldo do banco, a
+          tela compara com o saldo do sistema.
         </p>
         <Acao
           tela="Conciliação"
-          clique={<NomeBotao>Importar OFX</NomeBotao>}
+          clique={<NomeBotao>Importar extrato (.ofx)</NomeBotao>}
           resultado="Lê as transações do extrato, casa o que reconhece e deixa o restante numa fila de pendentes."
         />
         <Dica>
-          Reimportar o mesmo arquivo é seguro: cada transação carrega um identificador do próprio
-          banco, e a importação usa isso para não duplicar.
+          Reimportar o mesmo arquivo é seguro: cada transação carrega um identificador do próprio banco.
+          Desconciliar devolve o lançamento ao que era antes. O <strong>Extrato por conta</strong> mostra, mês a
+          mês, o que já foi conciliado e o que falta.
         </Dica>
         <div className="flex flex-wrap gap-2">
           <Atalho href="/financeiro/conciliacao">Conciliação</Atalho>
+          <Atalho href="/financeiro/extrato">Extrato por conta</Atalho>
           <Atalho href="/ajuda/financeiro/conciliacao-ofx">Referência: Conciliação OFX</Atalho>
         </div>
       </Etapa>
@@ -409,40 +460,42 @@ export function GuiaFinanceiroView() {
         numero="05"
         icone={CalendarCheck}
         titulo="Feche o mês e leia os números"
-        resumo="O fechamento consolida o resultado e calcula as retenções da folha de projetistas."
+        resumo="O fechamento consolida o mês, guarda o saldo de cada conta e trava o período."
         ultima
       >
         <p>
-          Fechar o mês consolida receita e despesa <strong>confirmadas</strong> e aplica as alíquotas
-          configuradas sobre a <strong>folha bruta dos projetistas</strong>, chegando à folha
-          líquida. São duas contas que dividem a tela mas não se misturam.
+          <strong>Gerar / atualizar fechamento</strong> consolida o que foi pago e recebido no mês e calcula as
+          retenções sobre a <strong>folha bruta dos projetistas</strong>. <strong>Fechar mês</strong> guarda o
+          saldo de cada conta no último dia e <strong>trava</strong> o período: daí em diante nada com data
+          naquele mês muda até alguém com permissão reabrir.
         </p>
         <Acao
           tela="Fechamento"
-          clique={<NomeBotao>Gerar fechamento</NomeBotao>}
-          resultado="Consolida o mês com as alíquotas vigentes. Um mês já fechado não é regerado por cima."
+          clique={<NomeBotao>Fechar mês</NomeBotao>}
+          resultado="Trava o mês e congela o saldo de cada conta no último dia, para conferir com o extrato do banco."
         />
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-lg border p-3">
             <BarChart3 className="mb-2 size-4 text-primary" aria-hidden="true" />
-            <p className="font-semibold">DRE e DFC</p>
+            <p className="font-semibold">DRE, DFC e Indicadores</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              O mesmo dinheiro por dois recortes: por categoria (onde sobrou ou faltou) e por
-              atividade (de onde veio, para onde foi).
+              O mesmo dinheiro por recortes diferentes: por categoria, por atividade, e em margem, prazos,
+              inadimplência e dias de caixa — em caixa ou em competência.
             </p>
           </div>
           <div className="rounded-lg border p-3">
             <Banknote className="mb-2 size-4 text-primary" aria-hidden="true" />
             <p className="font-semibold">Rentabilidade</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Margem por projeto. Só funciona na medida em que os lançamentos foram amarrados a
-              projetos lá no passo 01.
+              Margem por projeto. Só funciona na medida em que os lançamentos foram amarrados a projetos lá no
+              passo 01.
             </p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Atalho href="/financeiro/fechamento">Fechamento</Atalho>
           <Atalho href="/financeiro/relatorios">Relatórios</Atalho>
+          <Atalho href="/financeiro/indicadores">Indicadores</Atalho>
           <Atalho href="/financeiro/rentabilidade">Rentabilidade</Atalho>
           <Atalho href="/ajuda/financeiro/relatorios">Referência: Relatórios</Atalho>
         </div>

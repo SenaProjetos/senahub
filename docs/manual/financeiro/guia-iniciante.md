@@ -3,7 +3,7 @@ titulo: Guia do Financeiro para iniciantes
 descricao: Onde encontrar o guia de formação do Financeiro — vocabulário, caminho natural e armadilhas.
 resumo: O guia do Financeiro vive dentro do sistema, em Guias de uso. Esta página é só o ponteiro para ele.
 tags: [financeiro, guia iniciante, lançamento, aging, conciliação, dre, dfc, fechamento, alçada]
-palavras-chave: [previsto, confirmado, vencimento, data de confirmação, competência, regime de caixa, aging, alçada, aprovação de despesa, ofx, conciliação, dre, dfc, rentabilidade, fechamento do mês, valor efetivo]
+palavras-chave: [previsto, pago, recebido, vencimento, data do pagamento, competência, regime de caixa, aging, alçada, faixas de alçada, aprovação de despesa, baixa, juros, desconto, estorno, corrigir pagamento, transferência entre contas, regra de preenchimento, ofx, conciliação, dre, dfc, indicadores, rentabilidade, fechamento do mês, trava do mês]
 sinonimos: [contas a pagar, contas a receber, tesouraria, financeiro para leigos]
 ---
 
@@ -25,4 +25,4 @@ Os Guias de uso são visíveis a colaboradores internos — inclusive quem só e
 Para permissões, regras de negócio, detalhe de cada campo e mensagens de erro, veja o manual de
 referência do setor: [Visão geral](visao-geral.md), [Lançamentos](lancamentos.md),
 [Contas e aging](contas-e-aging.md), [Aprovações](aprovacoes.md),
-[Conciliação OFX](conciliacao-ofx.md) e [Relatórios](relatorios.md).
+[Conciliação OFX](conciliacao-ofx.md), [Fechamento mensal](fechamento-mensal.md) e [Relatórios](relatorios.md).

@@ -1976,7 +1976,15 @@
         "dfc",
         "rentabilidade",
         "fechamento do mês",
-        "valor efetivo"
+        "pago",
+        "baixa",
+        "estorno",
+        "corrigir pagamento",
+        "faixas de alçada",
+        "transferência entre contas",
+        "regra de preenchimento",
+        "indicadores",
+        "trava do mês"
       ],
       "sinonimos": [
         "contas a pagar",
