@@ -29,6 +29,7 @@ Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commit
 * **financeiro:** núcleo N3 — alçada única ([89a1c90](https://github.com/SenaProjetos/senahub/commit/89a1c90df0636e949ef280154655817e3f5a9e1d))
 * **financeiro:** núcleo N4 — conciliação confiável ([0dc6d79](https://github.com/SenaProjetos/senahub/commit/0dc6d79fb4e13277234c2463b40d0af7cb23a7a1))
 * **financeiro:** núcleo N5 — mês fechado trava os lançamentos ([f6859bf](https://github.com/SenaProjetos/senahub/commit/f6859bf03fa242624b54b8bbcde6318a23183cb5))
+* **financeiro:** ponto de equilíbrio por custo fixo/variável e licitação sem cobrança ([4324dea](https://github.com/SenaProjetos/senahub/commit/4324dea8ddd87503b92a7b038a44da910ff3a9ff))
 * **financeiro:** regras de distribuição e recebimentos a distribuir (F5) ([17f75ef](https://github.com/SenaProjetos/senahub/commit/17f75ef432faf6b29e363f6bf2c775cb38d73dd4))
 * **financeiro:** tela do Planejador de caixa (F2) ([1215aba](https://github.com/SenaProjetos/senahub/commit/1215abaf89525e65dd5fb994255e6b9fdf19fb0b))
 * **financeiro:** Visão geral torre de controle e fluxo diário no motor (F7) ([409410d](https://github.com/SenaProjetos/senahub/commit/409410df6082e7500b613414a757d0eefc7b3381))
