@@ -8,6 +8,7 @@ import { enfileirarConversao, enfileirarConversaoDocumento } from "@/modules/coo
 import { realinharModelo } from "@/modules/coordenacao/deslocamento";
 import { lerGeorrefUpload, gravarGeorrefUpload } from "@/modules/coordenacao/georreferenciamento";
 import { parseModeloId } from "@/modules/coordenacao/modelo-ref";
+import { ORIGEM_MODELO_FEDERADO } from "@/modules/documentos-cliente/origens";
 import { rotuloItemApontamento } from "@/modules/coordenacao/helpers";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { getSession, type SessionUser } from "@/lib/session";
@@ -27,6 +28,9 @@ import {
   lerGeorrefSchema,
   gravarGeorrefSchema,
 } from "@/modules/coordenacao/schemas";
+
+/** Spec §7/§8: as versões do modelo federado só nascem da geração — nada de versão manual nem reconversão. */
+const MOTIVO_FEDERADO_SO_PELA_GERACAO = "O modelo federado só muda pela geração na Compatibilização.";
 
 const MOTIVO_LABEL: Record<string, string> = {
   nao_ifc: "O arquivo não é um modelo IFC.",
@@ -56,9 +60,10 @@ export const converterModelo = defineAction(
     if (ref.tipo === "documento") {
       const versao = await prisma.documentoVersao.findUnique({
         where: { id: ref.id },
-        select: { documento: { select: { projetoId: true, proposta: { select: { projetoId: true } } } } },
+        select: { documento: { select: { projetoId: true, origem: true, proposta: { select: { projetoId: true } } } } },
       });
       if (!versao) throw new ActionError("Arquivo não encontrado.");
+      if (versao.documento.origem === ORIGEM_MODELO_FEDERADO) throw new ActionError(MOTIVO_FEDERADO_SO_PELA_GERACAO);
       projetoId = versao.documento.projetoId ?? versao.documento.proposta?.projetoId ?? null;
       r = await enfileirarConversaoDocumento(ref.id, { forcar: true });
     } else {
@@ -104,10 +109,11 @@ export const realinharModeloIfc = defineAction(
         where: { id: ref.id },
         select: {
           nomeArquivo: true,
-          documento: { select: { projetoId: true, proposta: { select: { projetoId: true } } } },
+          documento: { select: { projetoId: true, origem: true, proposta: { select: { projetoId: true } } } },
         },
       });
       if (!versao) throw new ActionError("Arquivo não encontrado.");
+      if (versao.documento.origem === ORIGEM_MODELO_FEDERADO) throw new ActionError(MOTIVO_FEDERADO_SO_PELA_GERACAO);
       if (!/\.ifc$/i.test(versao.nomeArquivo)) throw new ActionError("O arquivo não é um modelo IFC.");
       const projetoId = versao.documento.projetoId ?? versao.documento.proposta?.projetoId ?? null;
       if (!projetoId) throw new ActionError("Documento recebido sem projeto vinculado.");
