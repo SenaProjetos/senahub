@@ -513,7 +513,7 @@ export function TabelaDocumentos({
               <span className="sr-only">Disciplina</span>
               <span aria-hidden>Disc.</span>
             </SortableHead>
-            {colunas.has("numero") && <TableHead>Nº</TableHead>}
+            {colunas.has("numero") && <SortableHead field="numero">Nº</SortableHead>}
             {colunas.has("fase") && <TableHead>Fase</TableHead>}
             {colunas.has("sub") && <TableHead>Sub</TableHead>}
             {colunas.has("tipo") && <TableHead>Tipo</TableHead>}

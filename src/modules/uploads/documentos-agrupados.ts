@@ -40,7 +40,7 @@ import { mapaCanonico, canonizar } from "@/modules/projetos/pranchas/queries";
  *   - a FK de `Disciplina` para o catálogo é `disciplinaId`, não `catalogoId`.
  */
 
-export const CAMPOS_ORDENACAO_DOC = ["nome", "disciplina", "revisao", "data", "tamanho"] as const;
+export const CAMPOS_ORDENACAO_DOC = ["nome", "disciplina", "numero", "revisao", "data", "tamanho"] as const;
 export type CampoOrdenacaoDoc = (typeof CAMPOS_ORDENACAO_DOC)[number];
 
 /** Aceita só o que está na whitelist — o valor vem da URL. */
@@ -58,6 +58,12 @@ const COLUNA_ORDENACAO: Record<CampoOrdenacaoDoc, string> = {
   // própria `d` (dependência funcional da PK). Coluna de tabela juntada precisa ser agregada —
   // e como o join é para-um, `min` devolve exatamente o valor da linha.
   disciplina: `min(lower(coalesce(cat.nome, disc.nome, '')))`,
+  // Mesma precedência da coluna Nº da tela: gravado no documento > lido do nome
+  // (`parsePranchaFilename`, 4º campo) > sem número (vai para o fim com `nulls last`).
+  // `[0-9]`/`[.]` em vez de `\d`/`\.`: o escape com barra não chegava inteiro ao regex do Postgres.
+  numero: `coalesce(d."numeroPrancha", (regexp_match(
+    regexp_replace(d."nomeArquivo", '[.][^.]+$', ''),
+    '^([A-Za-z0-9]+)-([A-Za-z0-9]+)-([A-Za-z]+)-([0-9]{1,6})-(?!RV?[0-9]+$)([A-Za-z0-9]+)(?:-RV?([0-9]+))?$'))[4]::int)`,
   revisao: `max(r.numero)`,
   data: `max(u."createdAt")`,
   tamanho: `sum(u.tamanho)`,
