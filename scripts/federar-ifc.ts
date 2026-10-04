@@ -5,6 +5,8 @@
  *
  * Uso: npx tsx --tsconfig tsconfig.server.json scripts/federar-ifc.ts <manifestoBase64>
  * stdout: {"ok":true,"tamanho":N,"sha256":"…","avisos":[…]} | {"ok":false,"erro":"…"}
+ * `erro` é sempre uma frase para o usuário: a de um ErroMostravel, ou a genérica — o detalhe técnico (ENOSPC, EBUSY,
+ * caminho absoluto do servidor…) vai para o stderr, que o orquestrador registra no log.
  */
 import "dotenv/config";
 import { createHash } from "node:crypto";
@@ -15,7 +17,8 @@ import { once } from "node:events";
 import { resolverCaminho } from "../src/lib/storage";
 import { analisarFonte, type AnaliseIfc, type FonteIfc } from "../src/modules/coordenacao/federado/analise";
 import { avisoGuidsRepetidos, escreverFederado } from "../src/modules/coordenacao/federado/montagem";
-import { conflitoEntreAnalises } from "../src/modules/coordenacao/federado/regras";
+import { MOTIVO_FALHA_NO_DISCO, conflitoEntreAnalises } from "../src/modules/coordenacao/federado/regras";
+import { ErroMostravel } from "../src/modules/coordenacao/federado/step";
 import type { ManifestoFederar } from "../src/modules/coordenacao/federado/federacao";
 
 function emitir(obj: Record<string, unknown>) {
@@ -38,7 +41,7 @@ async function main() {
   const conflito = conflitoEntreAnalises(
     analises.map((a, i) => ({ rotulo: manifesto.entradas[i].rotulo, schema: a.schema, unidade: a.unidade, projetos: a.projetos })),
   );
-  if (conflito) throw new Error(conflito);
+  if (conflito) throw new ErroMostravel(conflito);
 
   // 2ª leitura: escrita em .parcial; só vira o arquivo final depois de fechar inteiro.
   const saidaAbs = resolverCaminho(manifesto.saida);
@@ -105,7 +108,12 @@ async function main() {
 main().then(
   () => process.exit(0),
   (e) => {
-    emitir({ ok: false, erro: e instanceof Error ? e.message : String(e) });
+    if (e instanceof ErroMostravel) {
+      emitir({ ok: false, erro: e.message });
+    } else {
+      console.error("[federar-ifc] erro inesperado:", e);
+      emitir({ ok: false, erro: MOTIVO_FALHA_NO_DISCO });
+    }
     process.exit(1);
   },
 );

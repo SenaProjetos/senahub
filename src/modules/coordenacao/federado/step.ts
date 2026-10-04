@@ -8,6 +8,13 @@
 
 export type Instancia = { id: number; tipo: string; args: string };
 
+/**
+ * Erro cuja mensagem é uma frase pt-BR escrita para o usuário. O processo de junção (scripts/federar-ifc.ts)
+ * repassa só a mensagem destes; qualquer outro erro (do Node, do disco, inesperado) vira uma frase genérica e o
+ * detalhe técnico fica no log do servidor.
+ */
+export class ErroMostravel extends Error {}
+
 /** Lê instruções completas de um texto que chega em pedaços (o arquivo pode ter vários GB). */
 export class LeitorStep {
   private buffer = "";
@@ -76,7 +83,7 @@ export class LeitorStep {
 
   finalizar(): string[] {
     if (this.aspas || this.comentario) {
-      throw new Error("IFC truncado: o arquivo termina no meio de um texto ou comentário.");
+      throw new ErroMostravel("IFC truncado: o arquivo termina no meio de um texto ou comentário.");
     }
     const resto = this.buffer.trim();
     this.buffer = "";

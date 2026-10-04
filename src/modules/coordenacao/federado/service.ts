@@ -8,6 +8,7 @@ import { ActionError } from "@/lib/action-error";
 import { existeArquivo, removerArquivo } from "@/lib/storage";
 import { notificar } from "@/lib/notificar";
 import { rotuloRevisao } from "@/lib/utils";
+import { dataHoraDeSaoPaulo } from "@/lib/data";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { modelosCoordenacao } from "@/modules/coordenacao/queries";
 import { parseModeloId } from "@/modules/coordenacao/modelo-ref";
@@ -123,12 +124,11 @@ export async function criarGeracao(a: { projetoId: string; modeloIds: string[]; 
   }
 }
 
-async function avisarAutor(autorId: string, projetoId: string, titulo: string, corpo: string) {
-  await notificar(
-    autorId,
-    { titulo, corpo, href: `/projetos/${projetoId}/arquivos?pasta=desenvolvimento&area=federado` },
-    { categoria: "coordenacao" },
-  );
+/** Sucesso abre a pasta do federado; falha abre a Compatibilização (na 1ª geração a pasta ainda não existe). */
+async function avisarAutor(autorId: string, projetoId: string, titulo: string, corpo: string, deu: "certo" | "errado") {
+  const href =
+    deu === "certo" ? `/projetos/${projetoId}/arquivos?pasta=desenvolvimento&area=federado` : `/projetos/${projetoId}/coordenacao`;
+  await notificar(autorId, { titulo, corpo, href }, { categoria: "coordenacao" });
 }
 
 function contarConcluidas(db: Pick<Prisma.TransactionClient, "geracaoModeloFederado">, projetoId: string): Promise<number> {
@@ -158,7 +158,7 @@ export async function processarGeracao(geracaoId: string, deps: { rodar?: SpawnF
       data: { status: "erro", erro, concluidoEm: new Date() },
     });
     if (r.count === 1 && notificarAutor) {
-      await avisarAutor(g.autorId, g.projetoId, "Não foi possível gerar o modelo federado", erro);
+      await avisarAutor(g.autorId, g.projetoId, "Não foi possível gerar o modelo federado", erro, "errado");
     }
   };
 
@@ -180,7 +180,7 @@ export async function processarGeracao(geracaoId: string, deps: { rodar?: SpawnF
       cabecalho: {
         nomeArquivo,
         autor: g.autor.name ?? "SenaHub",
-        quando: new Date().toISOString().slice(0, 19),
+        quando: dataHoraDeSaoPaulo(), // hora local de São Paulo (o FILE_NAME não leva fuso)
         composicao: composicao.map((c) => ({ nome: c.nome, grupo: c.grupo, revisao: c.revisao })),
       },
     },
@@ -236,7 +236,7 @@ export async function processarGeracao(geracaoId: string, deps: { rodar?: SpawnF
     return falhar("Falha ao registrar o modelo federado. Tente gerar de novo.");
   }
   if (notificarAutor) {
-    await avisarAutor(g.autorId, g.projetoId, `Modelo federado ${rotuloRevisao(numero)} pronto`, `${composicao.length} modelos em ${nomeArquivo}.`);
+    await avisarAutor(g.autorId, g.projetoId, `Modelo federado ${rotuloRevisao(numero)} pronto`, `${composicao.length} modelos em ${nomeArquivo}.`, "certo");
   }
 }
 

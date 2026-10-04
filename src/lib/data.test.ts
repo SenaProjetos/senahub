@@ -5,6 +5,7 @@ import {
   inicioDoDiaLocal,
   inicioDoDiaUtc,
   diaDeSaoPaulo,
+  dataHoraDeSaoPaulo,
   hojeParaBanco,
   somarMesesUtc,
   utcFimDoDia,
@@ -150,6 +151,18 @@ describe("hojeParaBanco / diaDeSaoPaulo (A9)", () => {
   });
   it("manhã comum não muda", () => {
     expect(hojeParaBanco(new Date("2026-09-02T13:00:00.000Z")).toISOString()).toBe("2026-09-02T00:00:00.000Z");
+  });
+});
+
+describe("dataHoraDeSaoPaulo", () => {
+  it("hora de São Paulo, sem fuso, no formato do FILE_NAME do IFC", () => {
+    expect(dataHoraDeSaoPaulo(new Date("2026-10-04T13:05:09.000Z"))).toBe("2026-10-04T10:05:09");
+  });
+  it("23h30 em São Paulo ainda é o dia anterior ao UTC", () => {
+    expect(dataHoraDeSaoPaulo(new Date("2026-10-05T02:30:00.000Z"))).toBe("2026-10-04T23:30:00");
+  });
+  it("meia-noite sai 00, não 24", () => {
+    expect(dataHoraDeSaoPaulo(new Date("2026-10-04T03:00:00.000Z"))).toBe("2026-10-04T00:00:00");
   });
 });
 

@@ -114,6 +114,23 @@ export function diaDeSaoPaulo(agora: Date = new Date()): string {
   return DIA_SP.format(agora)
 }
 
+const DATA_HORA_SP = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Sao_Paulo",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+})
+
+/** Data e hora de São Paulo de um instante, `YYYY-MM-DDTHH:MM:SS` sem fuso — igual em qualquer fuso do servidor. */
+export function dataHoraDeSaoPaulo(agora: Date = new Date()): string {
+  const p = Object.fromEntries(DATA_HORA_SP.formatToParts(agora).map((x) => [x.type, x.value]))
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}`
+}
+
 /**
  * "Hoje" para GRAVAR numa coluna de data (`@db.Date`): meia-noite UTC do dia de São Paulo.
  *

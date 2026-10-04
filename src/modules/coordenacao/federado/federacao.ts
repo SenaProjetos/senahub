@@ -3,7 +3,8 @@ import "server-only";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import type { CabecalhoFederado } from "./montagem";
-import { lerSaidaDoFilho, type SaidaFederar } from "./regras";
+import { MOTIVO_NAO_INICIOU, MOTIVO_SEM_RESPOSTA, lerSaidaDoFilho, type SaidaFederar } from "./regras";
+import { ErroMostravel } from "./step";
 
 /** Manifesto do child `scripts/federar-ifc.ts` (caminhos relativos a STORAGE_BASE_PATH). */
 export type ManifestoFederar = {
@@ -29,7 +30,7 @@ export const spawnFederarReal: SpawnFederar = (manifesto) =>
     let stderr = "";
     const timer = setTimeout(() => {
       proc.kill();
-      reject(new Error(`A geração do modelo federado passou de ${TIMEOUT_MS / 60000} min e foi interrompida.`));
+      reject(new ErroMostravel(`A geração do modelo federado passou de ${TIMEOUT_MS / 60000} min e foi interrompida.`));
     }, TIMEOUT_MS);
     proc.stdout.on("data", (d) => (stdout += d.toString()));
     proc.stderr.on("data", (d) => (stderr += d.toString()));
@@ -43,14 +44,23 @@ export const spawnFederarReal: SpawnFederar = (manifesto) =>
     });
   });
 
-/** Roda o child e devolve a linha de resultado. Nunca lança: erro de spawn/timeout vira `{ ok: false, erro }`. */
+/**
+ * Roda o child e devolve a linha de resultado. Nunca lança: erro de spawn/timeout vira `{ ok: false, erro }`.
+ * `erro` vai para a tela e para o sino, então só leva frase nossa; stderr e erro do Node ficam no log do servidor.
+ */
 export async function federar(manifesto: ManifestoFederar, rodar: SpawnFederar = spawnFederarReal): Promise<SaidaFederar> {
   try {
     const r = await rodar(manifesto);
     const saida = lerSaidaDoFilho(r.stdout);
-    if (saida) return saida;
-    return { ok: false, erro: `O processo de junção terminou sem resposta (código ${r.code}). ${r.stderr.slice(-300)}`.trim() };
+    if (saida?.ok) return saida;
+    const stderr = r.stderr.trim();
+    if (stderr) console.error(`[federado] stderr do processo de junção (código ${r.code}):
+${stderr.slice(-4000)}`);
+    if (saida) return saida; // a frase do child já é para o usuário
+    return { ok: false, erro: MOTIVO_SEM_RESPOSTA };
   } catch (e) {
-    return { ok: false, erro: e instanceof Error ? e.message : String(e) };
+    if (e instanceof ErroMostravel) return { ok: false, erro: e.message };
+    console.error("[federado] não foi possível rodar o processo de junção:", e);
+    return { ok: false, erro: MOTIVO_NAO_INICIOU };
   }
 }

@@ -13,6 +13,10 @@ export const MOTIVO_NAO_CONVERTIDO = "Este modelo ainda não foi convertido. Agu
 export const MOTIVO_ARQUIVO_SUMIU = "O arquivo IFC deste modelo não está mais no servidor.";
 export const MOTIVO_CABECALHO = "Não foi possível ler o cabeçalho deste IFC.";
 export const MOTIVO_POUCOS = "Marque pelo menos dois modelos.";
+/** Frases genéricas da junção: o detalhe técnico (erro do Node, stderr) fica só no log do servidor. */
+export const MOTIVO_FALHA_NO_DISCO = "Falha ao ler os modelos ou gravar o arquivo federado no servidor. Tente de novo ou fale com o suporte.";
+export const MOTIVO_SEM_RESPOSTA = "O processo de junção terminou sem resposta. Tente de novo.";
+export const MOTIVO_NAO_INICIOU = "Não foi possível iniciar a junção dos modelos no servidor. Tente de novo ou fale com o suporte.";
 
 export type FamiliaSchema = "IFC2X3" | "IFC4" | "IFC4X3";
 

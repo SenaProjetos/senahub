@@ -158,7 +158,8 @@ export async function startJobs(): Promise<PgBoss> {
   });
 
   // ── Coordenação BIM: IFC federado (ON-DEMAND) ──
-  // Concorrência-1 padrão do pg-boss: uma junção por vez (lê GBs de disco; não pode competir com a conversão).
+  // Concorrência-1 padrão do pg-boss: uma junção por vez (lê GBs de disco). É outra fila, então pode rodar ao
+  // mesmo tempo que UMA conversão IFC — cada uma no seu child process.
   await boss.createQueue(FILA_FEDERAR_IFC);
   await boss.work(FILA_FEDERAR_IFC, async ([job]) => {
     const { geracaoId } = job.data as { geracaoId: string };
