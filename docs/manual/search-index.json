@@ -2933,6 +2933,42 @@
         "trilha de auditoria",
         "histórico de ações"
       ]
+    },
+    {
+      "titulo": "Compatibilização (modelo federado)",
+      "path": "projetos/compatibilizacao.md",
+      "descricao": "Como juntar os modelos IFC das disciplinas num único arquivo federado, onde ele fica guardado e quem pode vê-lo.",
+      "resumo": "Na aba Compatibilização do projeto, o painel Disciplinas exporta o IFC federado — um só arquivo IFC com os modelos escolhidos, na mesma unidade e no mesmo schema. Cada geração vira uma revisão (R00, R01…) na pasta Modelo federado, dentro do Desenvolvimento, na aba Arquivos.",
+      "tags": [
+        "compatibilização",
+        "modelo federado",
+        "ifc",
+        "bim",
+        "revit",
+        "exportar",
+        "revisão",
+        "coordenação"
+      ],
+      "palavrasChave": [
+        "compatibilização",
+        "ifc federado",
+        "modelo federado",
+        "exportar ifc",
+        "juntar modelos",
+        "ifc único",
+        "revit",
+        "navisworks",
+        "maquete",
+        "unidade",
+        "schema",
+        "revisão R00"
+      ],
+      "sinonimos": [
+        "maquete federada",
+        "federação de modelos",
+        "coordenação bim",
+        "juntar ifcs"
+      ]
     }
   ]
 }

@@ -23,6 +23,7 @@ Documentação de projetos e do trabalho operacional.
 | [Modelos de EAP (importar do MS Project)](modelos-de-eap.md) | `/planejamento/modelos` | ✅ documentado |
 | [Etapas da disciplina e pagamento por fase](etapas-e-pagamento-por-fase.md) | `/projetos/{projeto}` | ✅ documentado |
 | [Recursos](recursos.md) | `/recursos` | ✅ documentado |
+| [Compatibilização (modelo federado)](compatibilizacao.md) | `/projetos/{projeto}/coordenacao` | ✅ documentado |
 
 > Abas do detalhe do projeto (Serviços, Arquivos, Financeiro do projeto, Inputs)
 > serão documentadas em páginas próprias numa próxima rodada.

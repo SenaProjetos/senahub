@@ -47,6 +47,8 @@ npm run smoke:financeiro-core       # núcleo do financeiro: N0 (parcelas do pro
 npm run smoke:planejador            # planejador de caixa: S0 = caixa da Visão geral, só pendente vira evento, transferência, parcial, leitura não grava; aplicar cenário tudo-ou-nada (obsoleto, regra no 3º, corrida); caixinhas, distribuição, recorrência, fora do resultado, lucros de sócio e folha quitando o previsto
 npm run smoke:catalogo-nomenclatura # catálogo da versão: sigla que muda de dono (sinônimo/oficial), sair sem mexer em sigla, voltar escolhendo
 npm run verify:motor-cronograma     # motor do cronograma contra os projetos reais do banco
+npm run smoke:ifc-federado         # IFC federado: child de verdade, R00/R01/R02 nunca repetida, trava de geração viva, arquivo sumido, unidade recusada, geração travada liberada, regra de leitura
+npm run verify:ifc-federado -- <projetoId>   # junta os IFCs vigentes de um projeto real (sem gravar) e confere IfcProduct do federado = soma dos modelos
 ```
 
 - **Dev helper (Windows):** `dev.bat` (raiz) → *Central do Desenvolvedor* (`dev/gerenciar-dev.bat` + `.ps1`),
@@ -521,6 +523,7 @@ Spec + 42 decisions: `docs/superpowers/specs/2026-09-23-planejamento-motor-crono
 - **Viewer (`viewer/engine.ts`)** — CLIENT-ONLY adapter confining ALL three.js/`@thatopen/fragments` API (churn containment); React talks only to it. Behind `next/dynamic({ssr:false})` (`viewer-3d.tsx`) so the 3D stack stays out of the initial bundle. Worker at `public/fragments-worker.mjs` is a **copy** of the lib's worker — recopy on package upgrade (like pdf.worker). `.frag` served by streaming route `/api/coordenacao/frag/[uploadId]` (ETag per conversion).
 - **Apontamentos (3D issues)** — mirror `Pendencia`: `ApontamentoCoordenacao` (denormalized, no FK) anchored to IfcGuids + camera (persisted in **IFC space**, Z-up), numbered per-project, workflow aberta|resolvida|fechada|descartada, spawn one Tarefa with a TarefaItem each (`enviarApontamentosCoordenacao`). Snapshot PNG via multipart route (`/api/coordenacao/snapshot`). Deep-link `?apontamento=N` restores camera+selection. Notifications use categoria `coordenacao`.
 - **BCF 2.1 export (`bcf/writer.ts`)** — pure, tested XML writer (like `lib/dxf.ts`): `bcf.version` + `{TopicGuid}/markup.bcf` + `viewpoint.bcfv` (+ `snapshot.png`), zipped via `archiver` in `bcf/exportar.ts`, served by `/api/coordenacao/bcf`. Camera vectors (direction/up) derived in the writer from position+target (viewer never rolls). `viewer/coords.ts` = pure three↔IFC axis conversion (Y-up↔Z-up), tested. Export-only in v1 (`bcfGuid` stored on each apontamento for future round-trip import).
+- **IFC federado** (`coordenacao/federado/`): junção no texto STEP em child process (`scripts/federar-ifc.ts`, job `gerar-ifc-federado`), vira `Documento` origem `modelo_federado` na pasta Modelo federado do Desenvolvimento; filtros por origem só via `documentos-cliente/origens.ts`. A revisão é 1 + gerações concluídas do projeto (nunca reaproveitada, mesmo excluindo versões); leitura = `coordenacao:ver` + enxergar o projeto, escrita só pelas ações do próprio federado.
 
 **Comercial / CRM (`modules/comercial/`)** — reforma F0-F7 **concluída** em 2026-09-02 (ver
 `docs/crm/06-progresso.md`, entrada mais recente). `docs/crm/` é o registro histórico da decisão:

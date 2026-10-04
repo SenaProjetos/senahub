@@ -22,6 +22,19 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Compatibilização: exportar o modelo federado (IFC)
+
+- **Um IFC só com os modelos das disciplinas.** Na aba **Compatibilização**, o painel **Disciplinas**
+  ganhou o botão **Exportar IFC federado**: marque os modelos que quer juntar e o sistema gera um único
+  arquivo IFC, em segundo plano, avisando no sino quando terminar. Os modelos precisam estar no mesmo
+  schema e na mesma unidade; o que não combina fica desabilitado, com o motivo escrito.
+  [Saiba mais](projetos/compatibilizacao.md)
+- **Fica guardado na aba Arquivos.** Cada geração vira uma revisão (R00, R01…) na pasta **Modelo
+  federado**, dentro de **Desenvolvimento**, com a lista do que entrou em cada uma. A numeração nunca
+  se repete, mesmo se você excluir uma revisão.
+
+---
+
 ## Reler os avisos gerais
 
 - **Avisos no menu lateral.** Os comunicados da empresa que abrem em tela cheia agora ficam
