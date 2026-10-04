@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { empresasParaExport } from "@/modules/comercial/exportacao";
+import { filtroSituacaoDaUrl } from "@/modules/clientes/queries";
 import { arquivoCsv, headersDownloadCsv } from "@/lib/export/csv";
 import type { StatusComercialCliente } from "@/generated/prisma/client";
 
@@ -24,21 +25,18 @@ export async function GET(req: Request) {
 
   const sp = new URL(req.url).searchParams;
   const tipo = sp.get("tipo");
-  const situacao = sp.get("situacao");
   const clientes = await empresasParaExport({
     q: sp.get("q") || undefined,
     tipo: tipo === "PF" || tipo === "PJ" ? tipo : undefined,
     uf: sp.get("uf") || undefined,
     cidade: sp.get("cidade") || undefined,
     categoria: sp.get("categoria") || undefined,
-    situacao: situacao === "ativo" || situacao === "inativo" ? situacao : undefined,
+    // Mesma regra de `/clientes/page.tsx` (sem `situacao` = só ativos): o export nunca diverge
+    // do que a pessoa está olhando — o ponto inteiro do F4.6 é "respeita o filtro ativo".
+    ...filtroSituacaoDaUrl(sp.get("situacao")).opts,
     segmentoId: sp.get("segmentoId") || undefined,
     status: (sp.get("status") as StatusComercialCliente | null) || undefined,
     listaSalesNavigator: sp.get("listaSN") === "1" ? true : undefined,
-    // Mesma regra de `/clientes/page.tsx`: sem `situacao` na URL, a TELA mostra ativos e
-    // inativos — sem isto o export divergiria do que a pessoa está olhando (o ponto inteiro
-    // do F4.6 é "respeita o filtro ativo", nunca menos linhas que a tela por um default diferente).
-    incluirInativos: true,
     sort: sp.get("sort") || undefined,
     dir: sp.get("dir") === "desc" ? "desc" : "asc",
   });

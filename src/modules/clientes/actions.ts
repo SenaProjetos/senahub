@@ -16,7 +16,14 @@ import {
   consultarCnpjSchema,
   mesclarClientesSchema,
 } from "@/modules/clientes/schemas";
-import { contatosDoCliente, clientesParaDedupe, listarClientesPorIds } from "@/modules/clientes/queries";
+import {
+  contatosDoCliente,
+  clientesParaDedupe,
+  listarClientesPorIds,
+  vinculosDosClientes,
+  comBloqueioExclusao,
+} from "@/modules/clientes/queries";
+import { motivoParaNaoExcluir } from "@/modules/clientes/exclusao";
 import { candidatosDuplicata } from "@/modules/comercial/dedupe";
 import { soDigitos } from "@/lib/documento";
 import { mesclarClientes, capturarClientesDaFusao } from "@/modules/clientes/fusao";
@@ -40,7 +47,7 @@ export const carregarClientesPorIds = defineAction(
     schema: clientesPorIdsSchema,
     audit: false,
   },
-  async (input) => ({ items: await listarClientesPorIds(input.ids) }),
+  async (input) => ({ items: await comBloqueioExclusao(await listarClientesPorIds(input.ids)) }),
 );
 
 function normalizar<
@@ -167,6 +174,41 @@ export const desativarCliente = defineAction(
   },
   async (input) => {
     await prisma.cliente.update({ where: { id: input.id }, data: { ativo: false } });
+    revalidatePath(REVALIDATE);
+    return { id: input.id };
+  },
+);
+
+/**
+ * Exclui (soft delete, ADR-11) um cliente SEM nenhum dado — cadastro feito por engano ou
+ * duplicado vazio. Com qualquer vínculo recusa com o mesmo motivo do menu (`exclusao.ts`).
+ *
+ * O documento é liberado (`null`): o índice único parcial não sabe de soft delete, e sem isto
+ * ninguém conseguiria recadastrar o mesmo CPF/CNPJ. O valor antigo fica no `AuditLog`
+ * (`capturarAntes`). O `updateMany` condicionado a `excluidoEm: null` torna dois cliques
+ * simultâneos inofensivos.
+ */
+export const excluirCliente = defineAction(
+  {
+    modulo: "clientes",
+    acao: "excluir-cliente",
+    recurso: "clientes",
+    permissao: "gerir",
+    entidade: "Cliente",
+    schema: clienteIdSchema,
+    entidadeId: (_d, i) => i.id,
+    capturarAntes: async (input) => prisma.cliente.findUnique({ where: { id: input.id } }),
+  },
+  async (input) => {
+    const vinculos = (await vinculosDosClientes([input.id])).get(input.id);
+    if (!vinculos) throw new ActionError("Cliente não encontrado ou já excluído.");
+    const motivo = motivoParaNaoExcluir(vinculos);
+    if (motivo) throw new ActionError(motivo);
+    const r = await prisma.cliente.updateMany({
+      where: { id: input.id, excluidoEm: null },
+      data: { excluidoEm: new Date(), ativo: false, documento: null },
+    });
+    if (r.count !== 1) throw new ActionError("Cliente não encontrado ou já excluído.");
     revalidatePath(REVALIDATE);
     return { id: input.id };
   },

@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
-import { listarClientesPaginado, listarFiltrosClientes } from "@/modules/clientes/queries";
+import {
+  comBloqueioExclusao,
+  filtroSituacaoDaUrl,
+  listarClientesPaginado,
+  listarFiltrosClientes,
+} from "@/modules/clientes/queries";
 import { ClientesView } from "@/components/clientes/clientes-view";
 import { parseListParams, pageCount } from "@/lib/list-params";
 import { porPaginaDaLista } from "@/modules/usuarios/preferencias/por-pagina";
@@ -43,8 +48,7 @@ export default async function ClientesPage({
   });
 
   const tipo = sp.tipo === "PF" || sp.tipo === "PJ" ? sp.tipo : undefined;
-  const situacao =
-    sp.situacao === "ativo" || sp.situacao === "inativo" ? sp.situacao : undefined;
+  const situacao = filtroSituacaoDaUrl(sp.situacao);
   const uf = sp.uf || undefined;
   const categoria = sp.categoria || undefined;
   const segmentoId = sp.segmentoId || undefined;
@@ -60,12 +64,10 @@ export default async function ClientesPage({
       tipo,
       uf,
       categoria,
-      situacao,
+      ...situacao.opts,
       segmentoId,
       status,
       listaSalesNavigator,
-      // sem filtro de situação, mostra ativos e inativos (comportamento anterior)
-      incluirInativos: true,
       sort,
       dir,
       skip,
@@ -74,10 +76,11 @@ export default async function ClientesPage({
     listarFiltrosClientes(),
     can(user, "clientes", "gerir"),
   ]);
+  const linhas = await comBloqueioExclusao(items);
 
   return (
     <ClientesView
-      clientes={items}
+      clientes={linhas}
       podeGerir={podeGerir}
       busca={q}
       total={total}
@@ -88,7 +91,7 @@ export default async function ClientesPage({
       categorias={filtros.categorias}
       segmentos={filtros.segmentos}
       tipo={tipo ?? ""}
-      situacao={situacao ?? ""}
+      situacao={situacao.valor}
       uf={uf ?? ""}
       categoria={categoria ?? ""}
       segmentoId={segmentoId ?? ""}

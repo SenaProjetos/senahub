@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import type { StatusComercialCliente } from "@/generated/prisma/enums";
 import type { Dir } from "@/lib/list-params";
+import { motivoParaNaoExcluir, type VinculosCliente } from "@/modules/clientes/exclusao";
 
 /** Campos ordenáveis na listagem de clientes (whitelist). */
 const SORT_FIELDS = ["nome", "cidade", "createdAt"] as const;
@@ -29,6 +30,23 @@ export type ListarClientesOpts = {
   skip?: number;
   take?: number;
 };
+
+/** Valor do filtro "Situação" na URL da lista de Clientes. Sem parâmetro = só ativos. */
+export type SituacaoFiltroCliente = "ativo" | "inativo" | "todas";
+
+/**
+ * Regra ÚNICA do filtro de situação — a tela (`/clientes`) e o export CSV leem a URL por aqui, para
+ * o arquivo nunca trazer linhas que a tela não mostra. Sem `situacao` na URL a lista esconde os
+ * inativos; "todas" volta a mostrar os dois.
+ */
+export function filtroSituacaoDaUrl(v: string | null | undefined): {
+  valor: SituacaoFiltroCliente;
+  opts: Pick<ListarClientesOpts, "situacao" | "incluirInativos">;
+} {
+  if (v === "inativo") return { valor: "inativo", opts: { situacao: "inativo" } };
+  if (v === "todas") return { valor: "todas", opts: { incluirInativos: true } };
+  return { valor: "ativo", opts: { situacao: "ativo" } };
+}
 
 function buildWhere(opts?: ListarClientesOpts): Prisma.ClienteWhereInput {
   const where: Prisma.ClienteWhereInput = {};
@@ -103,6 +121,82 @@ export async function listarClientesPorIds(ids: readonly string[]) {
     where: { id: { in: [...ids] } },
     orderBy: { nome: "asc" },
     include: { _count: { select: { contatos: { where: { excluidoEm: null } } } } },
+  });
+}
+
+/**
+ * Vínculos de cada cliente — base da regra de exclusão (`exclusao.ts`). Contagem ANINHADA não passa
+ * pela extensão de soft delete, então quem tem `excluidoEm` filtra explícito: contato, lançamento,
+ * prospecção ou negociação excluídos não impedem. `DocumentoFinanceiro.clienteId` não tem relação
+ * no schema, por isso vem num `groupBy` à parte. Cliente já excluído não volta no mapa.
+ */
+export async function vinculosDosClientes(ids: readonly string[]): Promise<Map<string, VinculosCliente>> {
+  if (ids.length === 0) return new Map();
+  const [rows, docsFin] = await Promise.all([
+    prisma.cliente.findMany({
+      where: { id: { in: [...ids] } },
+      select: {
+        id: true,
+        usuarioId: true,
+        fundidoEmId: true,
+        _count: {
+          select: {
+            contatos: { where: { excluidoEm: null } },
+            projetos: true,
+            lancamentos: { where: { excluidoEm: null } },
+            leads: { where: { excluidoEm: null } },
+            negociacoes: { where: { excluidoEm: null } },
+            propostas: true,
+            documentos: true,
+            docsJuridicos: true,
+            orcamentosCusto: true,
+            usuarios: true,
+            regrasPreenchimento: true,
+            absorvidos: true,
+            atividadesComerciais: { where: { tipo: { not: "SISTEMA" } } },
+          },
+        },
+      },
+    }),
+    prisma.documentoFinanceiro.groupBy({
+      by: ["clienteId"],
+      where: { clienteId: { in: [...ids] } },
+      _count: { _all: true },
+    }),
+  ]);
+  const finPorCliente = new Map(docsFin.map((d) => [d.clienteId, d._count._all]));
+  return new Map(
+    rows.map((r) => [
+      r.id,
+      {
+        contatos: r._count.contatos,
+        projetos: r._count.projetos,
+        lancamentos: r._count.lancamentos,
+        documentosFinanceiros: finPorCliente.get(r.id) ?? 0,
+        prospeccoes: r._count.leads,
+        negociacoes: r._count.negociacoes,
+        propostas: r._count.propostas,
+        documentos: r._count.documentos,
+        documentosJuridicos: r._count.docsJuridicos,
+        orcamentosCusto: r._count.orcamentosCusto,
+        // `usuarioId` é o login antigo do portal; `usuarios` é o vínculo atual (role cliente).
+        usuariosPortal: r._count.usuarios + (r.usuarioId ? 1 : 0),
+        regrasPreenchimento: r._count.regrasPreenchimento,
+        interacoes: r._count.atividadesComerciais,
+        fusao: !!r.fundidoEmId || r._count.absorvidos > 0,
+      },
+    ]),
+  );
+}
+
+/** Linhas da lista com o motivo de não poder excluir (`null` = pode) — alimenta o menu. */
+export async function comBloqueioExclusao<T extends { id: string }>(
+  items: T[],
+): Promise<(T & { bloqueioExclusao: string | null })[]> {
+  const vinculos = await vinculosDosClientes(items.map((c) => c.id));
+  return items.map((c) => {
+    const v = vinculos.get(c.id);
+    return { ...c, bloqueioExclusao: v ? motivoParaNaoExcluir(v) : "Cliente não encontrado ou já excluído." };
   });
 }
 
@@ -244,5 +338,7 @@ export async function historicoCliente(clienteId: string): Promise<EventoHistori
 }
 
 export type ClienteListItem = Awaited<ReturnType<typeof listarClientes>>[number];
+/** Linha da tela de Clientes: o item da lista + o motivo de não poder excluir. */
+export type ClienteLinha = ClienteListItem & { bloqueioExclusao: string | null };
 export type ClienteDetalhe = NonNullable<Awaited<ReturnType<typeof obterCliente>>>;
 export type ContatoItem = ClienteDetalhe["contatos"][number];

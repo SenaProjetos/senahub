@@ -9,9 +9,10 @@ import { Search, UserPlus, Download } from "lucide-react";
 import {
   carregarClientesPorIds,
   desativarCliente,
+  excluirCliente,
   reativarCliente,
 } from "@/modules/clientes/actions";
-import type { ClienteListItem } from "@/modules/clientes/queries";
+import type { ClienteLinha, SituacaoFiltroCliente } from "@/modules/clientes/queries";
 import type { CriarClienteInput } from "@/modules/clientes/schemas";
 import { STATUS_COMERCIAL_LABEL, opcoesDe } from "@/modules/comercial/labels";
 import { ClienteForm } from "@/components/clientes/cliente-form";
@@ -39,6 +40,7 @@ import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { BarraSelecao } from "@/components/ui/barra-selecao";
 import { BotaoSelecionados } from "@/components/ui/botao-selecionados";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
 import { LinhaComMenu } from "@/components/ui/linha-com-menu";
 import { useLote } from "@/components/ui/use-lote";
@@ -52,7 +54,9 @@ import {
   ACAO_COPIAR_EMAIL,
   ACAO_COPIAR_NOME,
   ACAO_EDITAR,
+  ACAO_EXCLUIR,
   ACAO_LOTE_DESATIVAR,
+  ACAO_LOTE_EXCLUIR,
   ACAO_LOTE_REATIVAR,
   itensDeCliente,
   itensDeLoteClientes,
@@ -87,7 +91,7 @@ export function ClientesView({
   status,
   listaSN,
 }: {
-  clientes: ClienteListItem[];
+  clientes: ClienteLinha[];
   podeGerir: boolean;
   busca: string;
   total: number;
@@ -98,7 +102,7 @@ export function ClientesView({
   categorias: string[];
   segmentos: { id: string; nome: string }[];
   tipo: string;
-  situacao: string;
+  situacao: SituacaoFiltroCliente;
   uf: string;
   categoria: string;
   segmentoId: string;
@@ -120,7 +124,7 @@ export function ClientesView({
   const lote = useLote();
   // "Selecionados (N)": a seleção pode ter empresas de outras páginas e filtros, então a visão
   // busca por id no servidor e ignora os demais filtros.
-  const visao = useVisaoSelecionados<ClienteListItem>(selecao, (ids) =>
+  const visao = useVisaoSelecionados<ClienteLinha>(selecao, (ids) =>
     carregarClientesPorIds({ ids }).then((r) => (r.ok ? { ok: true as const, data: r.data.items } : r)),
   );
   const linhas = selecao.soSelecionados ? (visao.linhas ?? []) : clientes;
@@ -128,6 +132,7 @@ export function ClientesView({
   const [form, setForm] = useState<FormCliente | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [, startTransition] = useTransition();
+  const confirm = useConfirm();
 
   function buscar() {
     setParams({ q: q || null });
@@ -138,7 +143,7 @@ export function ClientesView({
     setFormOpen(true);
   }
 
-  function editar(c: ClienteListItem) {
+  function editar(c: ClienteLinha) {
     setForm({
       id: c.id,
       tipo: c.tipo,
@@ -165,7 +170,7 @@ export function ClientesView({
     setFormOpen(true);
   }
 
-  function alternarAtivo(c: ClienteListItem) {
+  function alternarAtivo(c: ClienteLinha) {
     startTransition(async () => {
       const res = c.ativo
         ? await desativarCliente({ id: c.id })
@@ -175,9 +180,46 @@ export function ClientesView({
     });
   }
 
+  async function excluir(c: ClienteLinha, item: AcaoItemAcao) {
+    // O confirm vem ANTES do start(): dentro de uma async transition o React 19 suspende o
+    // render e o diálogo nunca chega à tela (guarda em `confirm-dialog.test.ts`).
+    if (item.confirmar) {
+      const ok = await confirm({
+        title: item.confirmar.titulo,
+        description: item.confirmar.descricao,
+        confirmLabel: item.confirmar.rotuloConfirmar,
+        variant: "destructive",
+      });
+      if (!ok) return;
+    }
+    startTransition(async () => {
+      const res = await excluirCliente({ id: c.id });
+      if (res.ok) {
+        toast.success("Cliente excluído.");
+        if (selecao.marcado(c.id)) selecao.alternar(c.id);
+      } else toast.error(res.error);
+    });
+  }
+
   const itensDoLote = itensDeLoteClientes({ podeGerir });
 
   async function executarLote(item: AcaoItemAcao) {
+    if (item.id === ACAO_LOTE_EXCLUIR) {
+      await lote.executar({
+        ids: selecao.lista,
+        acao: (id) => excluirCliente({ id }),
+        substantivo: ["cliente", "clientes"],
+        verbo: ["excluído", "excluídos"],
+        rotulo: nomeDe,
+        confirmar: {
+          titulo: (n) => `Excluir ${n} ${n === 1 ? "cliente" : "clientes"}?`,
+          descricao: "Só sai quem não tem nenhum dado; os demais aparecem no relatório com o motivo.",
+          rotuloConfirmar: "Excluir",
+        },
+        aoConcluir: selecao.limpar,
+      });
+      return;
+    }
     const desativar = item.id === ACAO_LOTE_DESATIVAR;
     if (!desativar && item.id !== ACAO_LOTE_REATIVAR) return;
     await lote.executar({
@@ -193,13 +235,14 @@ export function ClientesView({
     });
   }
 
-  function aoSelecionarNaLinha(c: ClienteListItem, item: AcaoItemAcao) {
+  function aoSelecionarNaLinha(c: ClienteLinha, item: AcaoItemAcao) {
     if (item.id.startsWith("lote-")) {
       void executarLote(item);
       return;
     }
     if (item.id === ACAO_EDITAR) editar(c);
     else if (item.id === ACAO_ALTERNAR_ATIVO) alternarAtivo(c);
+    else if (item.id === ACAO_EXCLUIR) void excluir(c, item);
     else {
       const texto =
         item.id === ACAO_COPIAR_NOME ? c.nome : item.id === ACAO_COPIAR_DOCUMENTO ? c.documento : item.id === ACAO_COPIAR_EMAIL ? c.email : null;
@@ -244,7 +287,9 @@ export function ClientesView({
           </Button>
         </div>
 
-        <FiltrosGaveta ativos={[tipo, situacao, uf, categoria, segmentoId, status, listaSN].filter(Boolean).length}>
+        <FiltrosGaveta
+          ativos={[tipo, situacao !== "ativo", uf, categoria, segmentoId, status, listaSN].filter(Boolean).length}
+        >
         <Select
           value={tipo || TODOS}
           onValueChange={(v) => setParams({ tipo: v === TODOS ? null : v })}
@@ -260,16 +305,17 @@ export function ClientesView({
         </Select>
 
         <Select
-          value={situacao || TODOS}
-          onValueChange={(v) => setParams({ situacao: v === TODOS ? null : v })}
+          value={situacao}
+          // "ativo" é o padrão (sem parâmetro na URL): inativos só aparecem quando pedidos.
+          onValueChange={(v) => setParams({ situacao: !v || v === "ativo" ? null : v })}
         >
           <SelectTrigger className="h-9 w-[10rem]" aria-label="Filtrar por situação">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={TODOS}>Situação: todas</SelectItem>
-            <SelectItem value="ativo">Ativo</SelectItem>
-            <SelectItem value="inativo">Inativo</SelectItem>
+            <SelectItem value="ativo">Situação: ativos</SelectItem>
+            <SelectItem value="inativo">Só inativos</SelectItem>
+            <SelectItem value="todas">Ativos e inativos</SelectItem>
           </SelectContent>
         </Select>
 
