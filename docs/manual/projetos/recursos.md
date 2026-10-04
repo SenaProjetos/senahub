@@ -3,7 +3,7 @@ titulo: Recursos (alocação da equipe)
 descricao: Matriz de alocação de pessoas em projetos, com carga real e planejada por semana, sobrecarga e habilidades.
 resumo: Veja quem está alocado em quais projetos, a carga de trabalho por semana (a real, do ponto, e a planejada, das horas do cronograma), as semanas acima da capacidade com sugestões de correção e as habilidades de cada pessoa.
 tags: [recursos, alocação, carga, carga planejada, sobrecarga, equipe, habilidades, capacidade, heatmap]
-palavras-chave: [recursos, alocação, carga semanal, carga real, carga planejada, capacidade, superalocado, sobrecarga, rebalancear, heatmap, equipe, habilidade, competência, alocação calculada, demanda sem pessoa, perfil]
+palavras-chave: [recursos, alocação, férias, ausência, aviso de impacto, folga, carga semanal, carga real, carga planejada, capacidade, superalocado, sobrecarga, rebalancear, heatmap, equipe, habilidade, competência, alocação calculada, demanda sem pessoa, perfil]
 sinonimos: [alocação de equipe, capacity, planejamento de recursos, histograma de recursos, superalocação]
 ---
 
@@ -32,7 +32,7 @@ define o período de análise (padrão: de hoje a 90 dias).
 | Visão | O que mostra |
 | --- | --- |
 | **Matriz** | Linhas = pessoas, colunas = projetos, com a alocação de cada uma |
-| **Heatmap** | A ocupação por período (o pior dia de cada coluna), pintada conforme a intensidade em relação à capacidade. Escolha o **período** acima da tabela: **1 semana** (um dia por coluna), **4 semanas**, **12 semanas** (uma semana por coluna, a partir da semana de hoje) ou **Meses** (o padrão). Soma a alocação **digitada** com as **horas dos cronogramas aprovados** (estas, só nas próximas 12 semanas; depois disso, apenas a digitada). Passe o mouse na célula para ver as duas parcelas |
+| **Heatmap** | A ocupação por período (o pior dia de cada coluna), pintada conforme a intensidade em relação à capacidade. Escolha o **período** acima da tabela: **1 semana** (um dia por coluna), **4 semanas**, **12 semanas** (uma semana por coluna, a partir da semana de hoje) ou **Meses** (o padrão). Soma a alocação **digitada** com as **horas dos cronogramas aprovados** (estas, só nas próximas 12 semanas; depois disso, apenas a digitada). Passe o mouse na célula para ver as duas parcelas. O ícone de **calendário riscado** marca a coluna em que a pessoa tem **férias ou abono** aprovados (feriado não conta: é de todo mundo); em **vermelho**, há alocação num desses dias |
 | **Carga real** | Nas últimas 12 semanas, `horas registradas / horas disponíveis` por semana, usando escala, fator de capacidade, feriados, férias e abonos aprovados |
 | **Carga planejada** | As **horas previstas nas linhas dos cronogramas aprovados**, por pessoa e semana, contra a capacidade — veja abaixo |
 
@@ -61,8 +61,26 @@ dela), não com 50%.
 
 A barra de cada pessoa mostra o total alocado contra a capacidade (100%), e o quanto está alocado **hoje**.
 Pessoa **acima da capacidade** fica destacada com **Rebalancear**; **superalocado na janela** avisa
-quando algum mês da janela passa da capacidade (nesses dois casos, considera só a alocação
-**digitada**).
+quando algum dia da janela passa da capacidade (nesses dois casos, considera só a alocação
+**digitada**). Férias e abono zeram a capacidade dos dias deles, então alocação nesses dias conta como
+excesso; **feriado não conta** — zera o dia de todo mundo, e o % já é da capacidade útil.
+
+O **Rebalancear** mostra, além das alocações da pessoa, até **5 pessoas com folga na janela de
+análise inteira** (o pior dia de cada uma, somando a alocação digitada e as horas dos cronogramas
+aprovados), com as habilidades delas e os dias de ausência no período. É só sugestão: nada muda sem
+você abrir e ajustar a alocação.
+
+## Aviso de férias ou ausência que afeta alocação
+
+Quando o RH **aprova** férias ou um abono — ou lança férias direto, ou uma nova data de férias entra em
+vigor — e a pessoa está **alocada** em algum projeto nesse período, quem pode gerir Recursos recebe um
+aviso no sino com os projetos e o quanto de cada um (o % digitado ou as horas do cronograma). O link do
+aviso abre o **Heatmap** já com a **janela** da ausência.
+
+- Só vale o pedaço **de hoje em diante**: férias lançadas no passado, para acertar o ponto, não avisam.
+- Abono aparece como **"ausência"**, sem o motivo.
+- **Nada é alterado automaticamente**: a alocação continua como estava até alguém revisá-la.
+- Para deixar de receber: **Preferências → Notificações → Ausência que afeta alocação**.
 
 ## Carga planejada
 
@@ -129,5 +147,6 @@ horas estimadas, ele **some da carga** — estime as horas na EAP.
 
 **A pessoa aparece livre no Heatmap de meses mais distantes e sobrecarregada na Carga planejada.** As
 horas dos cronogramas aprovados entram no heatmap só nas **próximas 12 semanas**; nos meses seguintes ele
-mostra apenas a alocação **digitada**. Já o aviso "superalocado na janela" e o **Rebalancear** olham só a
-alocação digitada — a carga dos projetos aprovados está na **Carga planejada**.
+mostra apenas a alocação **digitada**. Já o aviso "superalocado na janela" olha só a alocação
+digitada — a carga dos projetos aprovados está na **Carga planejada**. A lista de quem tem folga, no
+**Rebalancear**, soma as duas.

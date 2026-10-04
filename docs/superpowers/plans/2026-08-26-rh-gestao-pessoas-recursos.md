@@ -1,6 +1,6 @@
 # Gestão de Pessoas e Recursos — integração das capacidades existentes
 
-**Data:** 2026-08-26 · **Status:** em execução — base da F0 e faixas da F1 entregues em 2026-08-27; demais itens seguem planejados · **Branch alvo:** `dev`
+**Data:** 2026-08-26 · **Status:** em execução — F0 e F1 entregues (base em 2026-08-27; F1.3–F1.5 em 2026-10-04, ver §5 F1); F2–F6 aguardam as decisões do §9 · **Branch alvo:** `dev`
 
 ## 1. Contexto e inventário verificado
 
@@ -124,6 +124,11 @@ Seeds:
 5. Ao aprovar férias/abono futuro, gerar uma notificação de impacto para coordenação apenas se houver alocação conflitante; incluir link filtrado à janela de recursos e opções de revisão. Não alterar alocação automaticamente.
 
 **Aceite verificável:** uma pessoa pode sair de um projeto e voltar em data posterior sem perder as faixas anteriores; férias em novembro reduzem a capacidade de novembro, não a de outubro; a sugestão nunca persiste mudança sem confirmação.
+
+**Entregue (2026-10-04, branch `feat/rh-capacidade-f1`):**
+- F1.3: o heatmap já tinha 1 sem/4 sem/12 sem/meses (decisão #4 do cronograma, 2026-09-25) — ganhou a marca de férias/abono por coluna (`ausenciaNosDias`), vermelha quando há alocação nesses dias. Feriado deixou de contar como superalocação (hoje e na janela): `ausenciasPessoais` separa o que é ausência PESSOAL; `indisponibilidades` passou a levar `tipo`.
+- F1.4: o "Rebalancear" lista até 5 pessoas com folga na janela de análise inteira (`folgaNaJanela`: pior dia, digitada + cronograma aprovado, dias de ausência fora do pico), com habilidades. O filtro por habilidade com nível fica para a F2.
+- F1.5: `avisarImpactoDaAusencia` (`planejamento/impacto-ausencia-service.ts`, regra pura em `impacto-ausencia.ts`) roda nas 5 entradas que põem uma ausência em vigor (`validarAbono`, `validarFerias`, `lancarFeriasColaborador` e as duas que aplicam nova data de férias). Só o trecho de hoje em diante; mesma divisão digitada × cronograma de `cargaDaEquipe` (D17); destinatários = `recursos:gerir` menos a própria pessoa; categoria `impacto_ausencia`; link `/recursos?de=&ate=` abre o heatmap na janela. Melhor esforço: erro vai para o log, a aprovação segue. Smoke só-leitura: `npm run smoke:impacto-ausencia`.
 
 ### F2 — Matriz de competências e cobertura de demanda
 

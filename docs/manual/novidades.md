@@ -22,6 +22,16 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Recursos: férias e abonos entram no planejamento
+
+- Quando o RH aprova férias ou um abono de alguém que está alocado em projeto no período, quem gere **Recursos** recebe um aviso com os projetos afetados e um link que abre o mapa já naquela janela. Nada é mudado sozinho.
+- No **Heatmap**, um calendário riscado marca as semanas/meses com férias ou abono — em vermelho quando há alocação nesses dias.
+- O **Rebalancear** agora sugere até 5 pessoas com folga na janela de análise.
+- Feriado deixou de aparecer como "superalocado": ele zera o dia de todo mundo, não é excesso de ninguém.
+- O aviso pode ser desligado em **Preferências → Notificações**.
+
+---
+
 ## Campos de CPF, telefone e CEP formatam sozinhos
 
 - **Pontuação automática.** Ao digitar CPF, CNPJ, telefone, CEP ou chave da nota fiscal, o sistema põe a

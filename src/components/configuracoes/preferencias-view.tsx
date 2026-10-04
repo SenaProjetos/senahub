@@ -63,6 +63,7 @@ export function PreferenciasView({
   notifCustos: notifCustosInicial,
   notifFaturamento: notifFaturamentoInicial,
   notifAcessos: notifAcessosInicial,
+  notifImpactoAusencia: notifImpactoAusenciaInicial,
   pontoEmailModo: pontoEmailModoInicial,
   mostrarAlertasPonto,
 }: {
@@ -89,6 +90,7 @@ export function PreferenciasView({
   notifCustos: boolean;
   notifFaturamento: boolean;
   notifAcessos: boolean;
+  notifImpactoAusencia: boolean;
   pontoEmailModo: PontoEmailModo;
   /** Alertas de jornada por horário são só p/ CLT/estagiário — controla a seção de e-mail. */
   mostrarAlertasPonto: boolean;
@@ -116,6 +118,7 @@ export function PreferenciasView({
   const [notifCustos, setNotifCustos] = useState(notifCustosInicial);
   const [notifFaturamento, setNotifFaturamento] = useState(notifFaturamentoInicial);
   const [notifAcessos, setNotifAcessos] = useState(notifAcessosInicial);
+  const [notifImpactoAusencia, setNotifImpactoAusencia] = useState(notifImpactoAusenciaInicial);
   const [pontoEmailModo, setPontoEmailModo] = useState<PontoEmailModo>(pontoEmailModoInicial);
   const [, start] = useTransition();
 
@@ -284,6 +287,13 @@ export function PreferenciasView({
       descricao: "Licença perto do vencimento ou credencial sem revisão há muito tempo.",
       valor: notifAcessos,
       set: setNotifAcessos,
+    },
+    {
+      chave: "notif_impacto_ausencia",
+      titulo: "Ausência que afeta alocação",
+      descricao: "Férias ou ausência aprovada num período em que a pessoa está alocada em projeto.",
+      valor: notifImpactoAusencia,
+      set: setNotifImpactoAusencia,
     },
   ];
 

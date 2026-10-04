@@ -63,6 +63,7 @@ export async function carregarPreferenciasDaConta(userId: string) {
     notifCustos: prefs.notif_custos !== false,
     notifFaturamento: prefs.notif_faturamento !== false,
     notifAcessos: prefs.notif_acessos !== false,
+    notifImpactoAusencia: prefs.notif_impacto_ausencia !== false,
     // Default = resumo diário (1 e-mail/dia). Sino+Push cobrem tempo real sempre;
     // "todos" é opt-in pra quem quer e-mail a cada horário atingido.
     pontoEmailModo: (modoValido ? prefs.ponto_email_modo : "resumo_diario") as "todos" | "resumo_diario" | "nenhum",

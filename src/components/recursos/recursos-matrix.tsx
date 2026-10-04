@@ -4,22 +4,33 @@ import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, AlertTriangle, Trash2, UserPlus, Users, LayoutGrid, CalendarRange, Scale } from "lucide-react";
+import { Plus, AlertTriangle, Trash2, UserPlus, Users, LayoutGrid, CalendarRange, Scale, CalendarOff } from "lucide-react";
 import { salvarRecurso, salvarAlocacao, removerAlocacao } from "@/modules/planejamento/actions";
 import type { CargaDaEquipe } from "@/modules/planejamento/recursos-queries";
 import { CargaPlanejadaView } from "@/components/recursos/carga-planejada-view";
 import { criarHabilidade, alternarHabilidadeUsuario } from "@/modules/rh/habilidades/actions";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { percentualAlocadoNoDia, superalocadoNaJanela as temSuperalocacaoNaJanela } from "@/modules/planejamento/disponibilidade";
 import {
+  chaveSemanaIso,
+  percentualAlocadoNoDia,
+  superalocadoNaJanela as temSuperalocacaoNaJanela,
+} from "@/modules/planejamento/disponibilidade";
+import {
+  ausenciaNosDias,
+  ausenciasPessoais,
   colunasPorPeriodo,
+  diasDaJanela,
+  folgaNaJanela,
   percentualCalculadoPorSemana,
   PERIODOS_HEATMAP,
   picoDoMes,
   type ColunaHeatmap,
+  type FolgaNaJanela,
+  type Indisponibilidade,
   type PeriodoHeatmap,
 } from "@/modules/planejamento/heatmap-recursos";
+import { dataCurta } from "@/lib/dias-iso";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AvatarUsuario } from "@/components/ui/avatar-usuario";
@@ -74,7 +85,7 @@ type Linha = {
   capacidadeEfetivaPct: number;
   ausente: boolean;
   motivoAusencia: string | null;
-  indisponibilidades: { inicio: string; fim: string; motivo: string }[];
+  indisponibilidades: Indisponibilidade[];
   cor: string;
   custoHora: number | null;
   totalAlocado: number;
@@ -95,7 +106,17 @@ type Habilidade = { id: string; nome: string };
 // alocações. Sem período definido => conta como vigente em todos os meses
 // da janela (alocação "permanente"). Soma a carga CALCULADA das horas das
 // linhas dos cronogramas aprovados (L9) nas semanas que a carga planejada cobre.
-type HeatCell = { chave: string; pct: number; digitada: number; calculada: number };
+type HeatCell = {
+  chave: string;
+  pct: number;
+  digitada: number;
+  calculada: number;
+  /** Dias da coluna em férias/abono e os motivos — a capacidade dessa coluna encolhe. */
+  diasAusente: number;
+  motivosAusencia: string[];
+  /** Há alocação num dia de ausência: o projeto conta com quem não estará lá. */
+  conflitoAusencia: boolean;
+};
 
 function ymKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -177,9 +198,23 @@ function montarHeatmap(
 ) {
   const colunas = periodo === "meses" ? colunasMensais(linhas) : colunasPorPeriodo(periodo, hojeLocalIso());
   const matriz = linhas.map((l) => {
+    const pessoais = ausenciasPessoais(l.indisponibilidades);
+    const calculada = calculadaDe(l.userId);
     const cells: HeatCell[] = colunas.map((c) => {
-      const pico = picoDoMes(c.dias, (dia) => percentualAlocadoNoDia(dia, vigentes(l)), calculadaDe(l.userId));
-      return { chave: c.chave, pct: pico.total, digitada: pico.digitada, calculada: pico.calculada };
+      const pico = picoDoMes(c.dias, (dia) => percentualAlocadoNoDia(dia, vigentes(l)), calculada);
+      const ausencia = ausenciaNosDias(c.dias, pessoais);
+      const conflitoAusencia = ausencia.dias.some(
+        (dia) => percentualAlocadoNoDia(dia, vigentes(l)) + (calculada.get(chaveSemanaIso(dia)) ?? 0) > 0,
+      );
+      return {
+        chave: c.chave,
+        pct: pico.total,
+        digitada: pico.digitada,
+        calculada: pico.calculada,
+        diasAusente: ausencia.dias.length,
+        motivosAusencia: ausencia.motivos,
+        conflitoAusencia,
+      };
     });
     return { linha: l, cells };
   });
@@ -189,7 +224,8 @@ function montarHeatmap(
 
 /** N-31: Verifica superalocação durante uma janela: qualquer mês com carga > capacidade. */
 function superalocadoNaJanela(l: Linha, inicio: string, fim: string): boolean {
-  return temSuperalocacaoNaJanela(inicio, fim, l.capacidadePct, vigentes(l), l.indisponibilidades);
+  // Feriado não conta: zera o dia de todo mundo e o % já é da capacidade útil (ver `ausenciasPessoais`).
+  return temSuperalocacaoNaJanela(inicio, fim, l.capacidadePct, vigentes(l), ausenciasPessoais(l.indisponibilidades));
 }
 
 /**
@@ -224,6 +260,7 @@ export function RecursosMatrix({
   habilidadesPorUser,
   cargaSemanal,
   cargaPlanejada,
+  janelaInicial,
 }: {
   linhas: Linha[];
   projetos: Projeto[];
@@ -237,6 +274,8 @@ export function RecursosMatrix({
   habilidadesPorUser: Record<string, Habilidade[]>;
   cargaSemanal: CargaSemanal;
   cargaPlanejada: CargaDaEquipe;
+  /** Janela vinda do link do aviso de ausência (`?de=&ate=`); sem ela, hoje + 90 dias. */
+  janelaInicial?: { de: string; ate: string } | null;
 }) {
   const router = useRouter();
   const [habDlg, setHabDlg] = useState<{ userId: string; nome: string } | null>(null);
@@ -255,15 +294,15 @@ export function RecursosMatrix({
   // Filtro por projeto, habilidade, alternância de visão e rebalanceamento.
   const [filtroProjeto, setFiltroProjeto] = useState(TODOS);
   const [filtroHabilidade, setFiltroHabilidade] = useState(TODOS);
-  const [vista, setVista] = useState<"matriz" | "heatmap" | "carga" | "planejada">("matriz");
+  const [vista, setVista] = useState<"matriz" | "heatmap" | "carga" | "planejada">(janelaInicial ? "heatmap" : "matriz");
   const [periodoHeat, setPeriodoHeat] = useState<PeriodoHeatmap>("meses");
   const [rebalDlg, setRebalDlg] = useState<Linha | null>(null);
 
   // N-31: Janela de análise para superalocação futura (padrão: hoje + 90 dias).
   const hojeIso = new Date().toISOString().slice(0, 10);
   const daqui90 = new Date(Date.now() + 90 * 86_400_000).toISOString().slice(0, 10);
-  const [janelaIni, setJanelaIni] = useState(hojeIso);
-  const [janelaFim, setJanelaFim] = useState(daqui90);
+  const [janelaIni, setJanelaIni] = useState(janelaInicial?.de ?? hojeIso);
+  const [janelaFim, setJanelaFim] = useState(janelaInicial?.ate ?? daqui90);
 
   // N-32: catálogo de habilidades únicas dos recursos exibidos.
   const habilidadesUnicas = useMemo(() => {
@@ -309,6 +348,24 @@ export function RecursosMatrix({
     () => montarHeatmap(linhasFiltradas, (userId) => calculadaPorUser.get(userId) ?? new Map(), periodoHeat),
     [linhasFiltradas, calculadaPorUser, periodoHeat],
   );
+
+  // Quem tem folga NA JANELA escolhida (F1.4): o reforço precisa caber no período, não só hoje.
+  const folgaPorUser = useMemo(() => {
+    const dias = diasDaJanela(janelaIni, janelaFim);
+    return new Map(
+      linhas.map((l) => {
+        const pessoais = ausenciasPessoais(l.indisponibilidades);
+        const folga = folgaNaJanela(
+          dias,
+          l.capacidadePct,
+          (dia) => percentualAlocadoNoDia(dia, vigentes(l)),
+          calculadaPorUser.get(l.userId) ?? new Map(),
+          (dia) => pessoais.some((a) => a.inicio <= dia && a.fim >= dia),
+        );
+        return [l.userId, folga] as const;
+      }),
+    );
+  }, [linhas, janelaIni, janelaFim, calculadaPorUser]);
 
   const totalSuper = linhasFiltradas.filter((l) => l.superalocado).length;
   const projetosAprovados = useMemo(
@@ -726,6 +783,19 @@ export function RecursosMatrix({
 
       <RebalancearDialog
         linha={rebalDlg}
+        janela={{ inicio: janelaIni, fim: janelaFim }}
+        candidatos={
+          rebalDlg
+            ? linhas
+                .filter((l) => l.userId !== rebalDlg.userId)
+                .flatMap((l) => {
+                  const folga = folgaPorUser.get(l.userId);
+                  return folga && folga.folga > 0 ? [{ linha: l, folga, habilidades: habilidadesPorUser[l.userId] ?? [] }] : [];
+                })
+                .sort((a, b) => b.folga.folga - a.folga.folga || a.linha.nome.localeCompare(b.linha.nome))
+                .slice(0, 5)
+            : []
+        }
         onOpenChange={(o) => !o && setRebalDlg(null)}
         onAbrirAlocacao={
           podeGerir
@@ -831,14 +901,26 @@ function HeatmapView({
                       style={{ background: heatColor(c.pct, l.capacidadePct) }}
                       title={`${l.nome} · ${colunas.find((x) => x.chave === c.chave)?.titulo ?? c.chave} — ${c.pct}% alocado (${ratio}% da capacidade)${
                         c.calculada > 0 ? ` · digitada ${c.digitada}% + cronograma ${c.calculada}%` : ""
+                      }${
+                        c.diasAusente > 0
+                          ? ` · ${c.motivosAusencia.join(", ")} em ${c.diasAusente} dia(s)${c.conflitoAusencia ? " com alocação — revisar" : ""}`
+                          : ""
                       }`}
                     >
-                      <span
-                        className={`font-mono text-[10px] ${
-                          c.pct > l.capacidadePct ? "font-bold text-white" : "text-foreground/70"
-                        }`}
-                      >
-                        {c.pct > 0 ? `${c.pct}%` : ""}
+                      <span className="inline-flex items-center gap-0.5">
+                        <span
+                          className={`font-mono text-[10px] ${
+                            c.pct > l.capacidadePct ? "font-bold text-white" : "text-foreground/70"
+                          }`}
+                        >
+                          {c.pct > 0 ? `${c.pct}%` : ""}
+                        </span>
+                        {c.diasAusente > 0 && (
+                          <CalendarOff
+                            aria-label={`${c.motivosAusencia.join(", ")} em ${c.diasAusente} dia(s)`}
+                            className={`size-3 shrink-0 ${c.conflitoAusencia ? "text-destructive" : "text-muted-foreground"}`}
+                          />
+                        )}
                       </span>
                     </td>
                   );
@@ -856,6 +938,9 @@ function HeatmapView({
         <Legenda cor="hsl(48 90% 70%)" texto="~cheio (≤100%)" />
         <Legenda cor="hsl(28 90% 64%)" texto="estourando (≤125%)" />
         <Legenda cor="hsl(0 75% 60%)" texto="superalocado (>125%)" />
+        <span className="inline-flex items-center gap-1.5">
+          <CalendarOff className="size-3 text-destructive" /> férias/abono com alocação no período
+        </span>
         <span className="italic">
           Alocação digitada + horas dos cronogramas aprovados (estas, só nas próximas 12 semanas; depois
           disso, apenas a digitada). Cada célula é o pior dia do período. O detalhe por semana está em “Carga planejada”.
@@ -967,12 +1052,18 @@ function Legenda({ cor, texto }: { cor: string; texto: string }) {
 }
 
 // ── Sugestão de rebalanceamento (informativo) ───────────────────────
+type Candidato = { linha: Linha; folga: FolgaNaJanela; habilidades: Habilidade[] };
+
 function RebalancearDialog({
   linha,
+  janela,
+  candidatos,
   onOpenChange,
   onAbrirAlocacao,
 }: {
   linha: Linha | null;
+  janela: { inicio: string; fim: string };
+  candidatos: Candidato[];
   onOpenChange: (o: boolean) => void;
   onAbrirAlocacao?: (l: Linha, a: Alocacao) => void;
 }) {
@@ -1047,6 +1138,33 @@ function RebalancearDialog({
                 );
               })}
             </ul>
+          </div>
+
+          <div>
+            <p className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+              Com folga de {dataCurta(janela.inicio)} a {dataCurta(janela.fim)}
+            </p>
+            {candidatos.length === 0 ? (
+              <p className="rounded-sm border px-3 py-2 text-muted-foreground">
+                Ninguém tem folga na janela inteira. Mude a janela de análise para ver outro período.
+              </p>
+            ) : (
+              <ul className="divide-y rounded-sm border">
+                {candidatos.map((c) => (
+                  <li key={c.linha.userId} className="flex items-center justify-between gap-2 px-3 py-2">
+                    <div className="min-w-0">
+                      <div className="truncate">{c.linha.nome}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        pico {c.folga.pico}%
+                        {c.folga.diasAusente > 0 && ` · ausente ${c.folga.diasAusente} dia(s) no período`}
+                        {c.habilidades.length > 0 && ` · ${c.habilidades.map((h) => h.nome).join(", ")}`}
+                      </div>
+                    </div>
+                    <span className="shrink-0 font-mono text-sm">folga {c.folga.folga}%</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           <p className="text-[11px] text-muted-foreground">

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  ausenciaNosDias,
+  ausenciasPessoais,
+  diasDaJanela,
+  folgaNaJanela,
   colunasPorPeriodo,
   percentualCalculadoPorSemana,
   percentualDaCapacidade,
@@ -131,5 +135,61 @@ describe("colunasPorPeriodo (decisão #4)", () => {
     const digitada = (dia: string) => (dia === "2026-09-23" ? 70 : 20);
     const calculada = new Map([["2026-W39", 10]]);
     expect(picoDoMes(semana.dias, digitada, calculada)).toEqual({ total: 80, digitada: 70, calculada: 10 });
+  });
+});
+
+describe("ausências pessoais no mapa", () => {
+  const lista = [
+    { inicio: "2026-11-02", fim: "2026-11-06", tipo: "ferias" as const, motivo: "férias" },
+    { inicio: "2026-11-15", fim: "2026-11-15", tipo: "feriado" as const, motivo: "feriado (Proclamação)" },
+    { inicio: "2026-11-20", fim: "2026-11-20", tipo: "abono" as const, motivo: "abono" },
+  ];
+
+  it("feriado não é ausência pessoal", () => {
+    expect(ausenciasPessoais(lista).map((i) => i.tipo)).toEqual(["ferias", "abono"]);
+  });
+
+  it("conta só os dias da coluna cobertos por ausência", () => {
+    const r = ausenciaNosDias(["2026-10-31", "2026-11-01", "2026-11-02", "2026-11-03"], ausenciasPessoais(lista));
+    expect(r).toEqual({ dias: ["2026-11-02", "2026-11-03"], motivos: ["férias"] });
+  });
+
+  it("férias de novembro não marcam outubro", () => {
+    expect(ausenciaNosDias(diasDaJanela("2026-10-01", "2026-10-31"), ausenciasPessoais(lista)).dias).toEqual([]);
+  });
+});
+
+describe("diasDaJanela", () => {
+  it("inclui as duas pontas", () => {
+    expect(diasDaJanela("2026-12-30", "2027-01-02")).toEqual(["2026-12-30", "2026-12-31", "2027-01-01", "2027-01-02"]);
+  });
+  it("período invertido ou longo demais fica vazio", () => {
+    expect(diasDaJanela("2026-12-02", "2026-12-01")).toEqual([]);
+    expect(diasDaJanela("2026-01-01", "2026-03-01", 30)).toEqual([]);
+  });
+});
+
+describe("folgaNaJanela", () => {
+  const dias = diasDaJanela("2026-11-02", "2026-11-08");
+  const semCronograma = new Map<string, number>();
+
+  it("folga é a do pior dia", () => {
+    const r = folgaNaJanela(dias, 100, (d) => (d >= "2026-11-05" ? 70 : 30), semCronograma, () => false);
+    expect(r).toEqual({ pico: 70, folga: 30, diasAusente: 0 });
+  });
+
+  it("soma a carga do cronograma da semana", () => {
+    const r = folgaNaJanela(dias, 100, () => 30, new Map([["2026-W45", 50]]), () => false);
+    expect(r.pico).toBe(80);
+    expect(r.folga).toBe(20);
+  });
+
+  it("dia de ausência não entra no pico, mas é contado", () => {
+    const r = folgaNaJanela(dias, 100, (d) => (d === "2026-11-02" ? 90 : 10), semCronograma, (d) => d === "2026-11-02");
+    expect(r).toEqual({ pico: 10, folga: 90, diasAusente: 1 });
+  });
+
+  it("ausente na janela toda não tem folga", () => {
+    expect(folgaNaJanela(dias, 100, () => 0, semCronograma, () => true)).toEqual({ pico: 0, folga: 0, diasAusente: 7 });
   });
 });

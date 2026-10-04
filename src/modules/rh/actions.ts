@@ -11,6 +11,7 @@ import { whereAudiencia } from "@/lib/audiencias";
 import { formatarData } from "@/lib/utils";
 import { validarInicioFeriasClt } from "@/lib/ferias-clt";
 import { listarFeriados } from "@/modules/rh/feriados/queries";
+import { avisarImpactoDaAusencia } from "@/modules/planejamento/impacto-ausencia-service";
 
 /**
  * `roles` é obrigatório aqui: sem `roles` E sem `recurso`, `defineAction` pula o gate inteiro
@@ -123,6 +124,15 @@ export const validarAbono = defineAction(
           : "Sua ausência foi aprovada e será descontada do banco de horas.",
       href: "/rh",
     });
+    if (i.aprovar) {
+      await avisarImpactoDaAusencia({
+        userId: abono.userId,
+        inicio: abono.dataInicio,
+        fim: abono.dataFim,
+        tipo: "ausencia",
+        registroId: abono.id,
+      });
+    }
     revalidatePath("/rh/admin");
     return { id: i.id };
   },
@@ -142,6 +152,9 @@ export const validarFerias = defineAction(
       corpo: "Sua solicitação de férias foi avaliada.",
       href: "/rh",
     });
+    if (i.aprovar) {
+      await avisarImpactoDaAusencia({ userId: f.userId, inicio: f.inicio, fim: f.fim, tipo: "ferias", registroId: f.id });
+    }
     revalidatePath("/rh/admin");
     return { id: i.id };
   },
@@ -215,6 +228,7 @@ export const lancarFeriasColaborador = defineAction(
       corpo: `O RH registrou suas férias de ${formatarData(f.inicio)} a ${formatarData(f.fim)}.`,
       href: "/rh",
     });
+    await avisarImpactoDaAusencia({ userId: alvo.id, inicio: f.inicio, fim: f.fim, tipo: "ferias", registroId: f.id });
     revalidatePath("/rh");
     revalidatePath("/rh/admin");
     return { id: f.id };
@@ -308,6 +322,13 @@ export const proporAlteracaoFerias = defineAction(
       await prisma.ferias.update({
         where: { id: f.id },
         data: { inicio: new Date(i.inicio), fim: new Date(i.fim) },
+      });
+      await avisarImpactoDaAusencia({
+        userId: f.userId,
+        inicio: new Date(i.inicio),
+        fim: new Date(i.fim),
+        tipo: "ferias",
+        registroId: f.id,
       });
       revalidatePath("/rh");
       revalidatePath("/rh/admin");
@@ -407,6 +428,8 @@ export const responderAlteracaoFerias = defineAction(
         href: "/rh",
       });
     }
+    // Nova data em vigor: a coordenação revê a alocação do novo período, não a do antigo.
+    await avisarImpactoDaAusencia({ userId: f.userId, inicio: f.altInicio, fim: f.altFim, tipo: "ferias", registroId: f.id });
     revalidatePath("/rh");
     revalidatePath("/rh/admin");
     return { id: f.id, aplicado: true };

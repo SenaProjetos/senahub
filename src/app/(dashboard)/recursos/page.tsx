@@ -8,8 +8,13 @@ import { RecursosMatrix } from "@/components/recursos/recursos-matrix";
 
 export const metadata: Metadata = { title: "Recursos" };
 
-export default async function RecursosPage() {
+const DIA = /^\d{4}-\d{2}-\d{2}$/;
+
+export default async function RecursosPage({ searchParams }: { searchParams: Promise<{ de?: string; ate?: string }> }) {
   const user = await requirePermission("recursos", "ver");
+  // `?de=&ate=` chega pelo aviso de ausência que afeta alocação: abre o mapa já nessa janela.
+  const { de, ate } = await searchParams;
+  const janelaInicial = de && ate && DIA.test(de) && DIA.test(ate) && de <= ate ? { de, ate } : null;
   // Custo/hora é dado do financeiro (decisão do time, 2026-09-25): vê quem vê o financeiro, edita quem o gere.
   const verCusto = await podeVerFinanceiro(user);
   const editarCusto = verCusto && (await can(user, "financeiro", "gerir"));
@@ -39,6 +44,7 @@ export default async function RecursosPage() {
       habilidadesPorUser={habilidadesPorUser}
       cargaSemanal={cargaSemanal}
       cargaPlanejada={cargaPlanejada}
+      janelaInicial={janelaInicial}
     />
   );
 }
