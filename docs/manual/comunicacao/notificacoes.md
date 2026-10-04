@@ -3,7 +3,7 @@ titulo: Notificações
 descricao: Central de avisos (sino), notificações push e opt-out por categoria.
 resumo: O sino no topo concentra os avisos do sistema; avisos idênticos em sequência aparecem agrupados num item com contagem, e é possível receber push no navegador e desativar categorias específicas nas preferências.
 tags: [notificações, sino, push, avisos, alertas, categorias, preferências, agrupamento]
-palavras-chave: [notificação, sino, push, aviso, alerta, lembrete, categoria, opt-out, prazo, inadimplência, agrupamento, avisos repetidos, notificações duplicadas, contagem]
+palavras-chave: [notificação, sino, push, aviso, alerta, lembrete, categoria, opt-out, prazo, inadimplência, agrupamento, avisos repetidos, notificações duplicadas, contagem, aviso geral, reler aviso, avisos recebidos, comunicado]
 sinonimos: [avisos, alertas, central de notificações, avisos repetidos]
 ---
 
@@ -54,6 +54,21 @@ recente.
 - O contador vermelho do sino continua contando **avisos**, não grupos: um item `5×` não lido
   soma 5 no contador.
 - Avisos do mesmo tipo separados por mais de 15 minutos ficam em itens diferentes.
+
+## Avisos gerais recebidos
+
+Comunicados da empresa (o **Aviso geral**, que abre em tela cheia) ficam guardados em
+**Avisos** no menu lateral (`/avisos`) — para reler depois que o modal fechou.
+
+- A lista mostra do **mais novo ao mais antigo**, com quem enviou e quando chegou.
+  Avisos que você ainda não confirmou aparecem destacados, com o selo **Não confirmado**.
+- Clicar num aviso abre o comunicado **inteiro**, igual ao modal: **formatação** e **imagem**
+  (clique na imagem para ver em tamanho original). Se ainda não confirmou, dá para clicar em
+  **Li e entendi** ali mesmo.
+- No **sino**, a notificação de um aviso geral leva direto a ele em Avisos.
+- Em **Notificações** (`/notificacoes`), o botão **Avisos recebidos** também leva para lá.
+- Quem tem permissão de **enviar avisos** vê na mesma tela as abas **Agendados** e
+  **Enviados** (ver [Configurações](../sistema/configuracoes.md)).
 
 ## Regras de negócio
 

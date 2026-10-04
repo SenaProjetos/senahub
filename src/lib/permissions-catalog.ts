@@ -326,7 +326,7 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
   {
     recurso: "avisos",
     label: "Avisos gerais",
-    acoes: [{ acao: "enviar", label: "Enviar avisos e ver confirmações de leitura", abre: "Configurações → Avisos" }],
+    acoes: [{ acao: "enviar", label: "Enviar avisos e ver confirmações de leitura", abre: "Avisos (abas Agendados e Enviados)" }],
   },
   {
     // Participar do chat. Era regra de negócio em código (`CHAT_ROLES`, que excluía cliente,

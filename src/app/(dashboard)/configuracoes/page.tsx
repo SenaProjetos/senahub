@@ -8,7 +8,6 @@ import {
   FileText,
   Percent,
   CalendarDays,
-  Megaphone,
   ClipboardList,
   Gavel,
   SlidersHorizontal,
@@ -139,19 +138,13 @@ const GRUPOS: Grupo[] = [
   },
   {
     titulo: "Sistema",
-    descricao: "Comunicação e ajustes que afetam todo o sistema.",
+    descricao: "Ajustes que afetam todo o sistema.",
     itens: [
       {
         href: "/configuracoes/empresa",
         icon: Building2,
         titulo: "Empresa",
         descricao: "Razão social, CNPJ, endereço e logo do timbrado dos PDFs (ex.: holerite).",
-      },
-      {
-        href: "/configuracoes/avisos",
-        icon: Megaphone,
-        titulo: "Avisos gerais",
-        descricao: "Comunicados com confirmação de leitura, direcionados por categoria ou nome.",
       },
       {
         href: "/configuracoes/emails",

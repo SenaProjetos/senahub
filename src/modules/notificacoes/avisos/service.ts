@@ -124,7 +124,8 @@ export async function dispatcharAviso(
   await notificarMuitos(destinatarios, {
     titulo: aviso.titulo,
     corpo: aviso.corpo ? markdownParaTexto(aviso.corpo) || undefined : undefined,
-    href: "/",
+    // Abre o comunicado inteiro (formatação e imagem) em Avisos recebidos.
+    href: `/avisos?aviso=${aviso.id}`,
     tag: `aviso-${aviso.id}`,
   });
 

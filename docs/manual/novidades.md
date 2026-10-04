@@ -22,6 +22,16 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Reler os avisos gerais
+
+- **Avisos no menu lateral.** Os comunicados da empresa que abrem em tela cheia agora ficam
+  guardados em **Avisos**: clique em um para reler com a formatação e a imagem, mesmo depois
+  de ter confirmado. A notificação do sino leva direto ao aviso.
+- **Enviar avisos mudou de lugar.** Saiu de Configurações e está na mesma tela **Avisos**, nas
+  abas **Agendados** e **Enviados** — para quem já tinha permissão de enviar.
+
+---
+
 ## Financeiro: planejador de caixa, caixinhas e a nova Visão geral
 
 **Ver o caixa de hoje e o de amanhã**

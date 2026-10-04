@@ -20,7 +20,7 @@ Documentação de configuração e administração.
 | [Histórico de versões](../novidades.md) | `/versoes` | ✅ documentado |
 
 > Sub-telas de Configurações (Usuários, Permissões, Encargos, Feriados, Inputs padrão,
-> Modalidades/Parâmetros/Habilitação de licitação, Etapas do funil, Aviso geral) estão
+> Modalidades/Parâmetros/Habilitação de licitação, Etapas do funil) estão
 > resumidas em [configuracoes.md](configuracoes.md); páginas próprias virão numa rodada
 > futura.
 

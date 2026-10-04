@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, BellOff, CheckCheck, Check, Mail, X } from "lucide-react";
+import { BellOff, CheckCheck, Check, Mail, Megaphone, X } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -12,6 +13,7 @@ import {
 } from "@/modules/notificacoes/actions";
 import type { FiltroNotificacao } from "@/modules/notificacoes/queries";
 import { Button } from "@/components/ui/button";
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
@@ -76,21 +78,23 @@ export function NotificacoesView({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="flex items-center gap-2 text-2xl font-extrabold tracking-tight">
-            Notificações <Bell className="size-5 text-muted-foreground" />
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            {total} notificação(ões){naoLidas > 0 ? ` · ${naoLidas} não lida(s)` : ""}.
-          </p>
-        </div>
-        {naoLidas > 0 && (
-          <Button variant="outline" size="sm" onClick={lerTodas}>
-            <CheckCheck className="size-4" /> Ler todas
-          </Button>
-        )}
-      </div>
+      <CabecalhoPagina
+        titulo="Notificações"
+        descricao={`${total} notificação(ões)${naoLidas > 0 ? ` · ${naoLidas} não lida(s)` : ""}.`}
+        acoes={
+          <>
+            {/* O sino guarda só o texto do aviso geral; o comunicado inteiro se relê em /avisos. */}
+            <Button variant="outline" size="sm" render={<Link href="/avisos" />}>
+              <Megaphone className="size-4" /> Avisos recebidos
+            </Button>
+            {naoLidas > 0 && (
+              <Button variant="outline" size="sm" onClick={lerTodas}>
+                <CheckCheck className="size-4" /> Ler todas
+              </Button>
+            )}
+          </>
+        }
+      />
 
       <div className="flex flex-wrap gap-1">
         {FILTROS.map((f) => (

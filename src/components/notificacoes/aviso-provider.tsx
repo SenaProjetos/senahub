@@ -10,13 +10,12 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { CorpoAviso } from "@/components/notificacoes/corpo-aviso";
+import { ConteudoAviso } from "@/components/notificacoes/conteudo-aviso";
 import { cn } from "@/lib/utils";
 
 type Pendente = {
@@ -111,29 +110,7 @@ export function AvisoProvider() {
           </DialogTitle>
         </DialogHeader>
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
-          {atual.corpo ? (
-            /* `render={<div />}`: o corpo formatado tem <p>/<ul> dentro, e o <p> padrão da
-               Description não pode aninhar bloco. Mantém o aria-describedby do diálogo. */
-            <DialogDescription render={<div />}>
-              <CorpoAviso corpo={atual.corpo} />
-            </DialogDescription>
-          ) : null}
-          {atual.temImagem ? (
-            /* Abre em aba nova no tamanho cheio — infográfico raramente cabe legível no modal. */
-            <a
-              href={`/api/avisos/${atual.avisoId}/imagem`}
-              target="_blank"
-              rel="noreferrer"
-              title="Abrir a imagem em tamanho original"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={`/api/avisos/${atual.avisoId}/imagem`}
-                alt="Imagem do aviso"
-                className="w-full rounded-md object-contain"
-              />
-            </a>
-          ) : null}
+          <ConteudoAviso avisoId={atual.avisoId} corpo={atual.corpo} temImagem={atual.temImagem} />
           {fila.length > 1 ? (
             <p className="text-xs text-muted-foreground">
               +{fila.length - 1} outro(s) aviso(s) aguardando.

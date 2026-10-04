@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { statusAviso } from "./agendamento";
 import { alvoLabel } from "./alvo-label";
+import { avisoRecebidoDe, type AvisoRecebido } from "./recebidos";
 
 export type AvisoPendente = {
   avisoId: string;
@@ -39,6 +40,49 @@ export async function avisosPendentes(userId: string): Promise<AvisoPendente[]> 
     exigeConfirmacao: r.aviso.exigeConfirmacao,
     criadoEm: r.criadoEm,
   }));
+}
+
+const INCLUDE_RECEBIDO = {
+  aviso: {
+    select: {
+      titulo: true,
+      corpo: true,
+      imagemPath: true,
+      exigeConfirmacao: true,
+      enviadoEm: true,
+      criadoPor: { select: { name: true } },
+    },
+  },
+} as const;
+
+/**
+ * Avisos que o usuário recebeu, do mais novo ao mais antigo (`/avisos`, aba Recebidos).
+ * Só leitura: não marca `entregueEm` — isso é do modal (`avisosPendentes`).
+ */
+export async function meusAvisos(
+  userId: string,
+  { skip, take }: { skip: number; take: number },
+): Promise<{ itens: AvisoRecebido[]; total: number }> {
+  const [rows, total] = await Promise.all([
+    prisma.avisoDestinatario.findMany({
+      where: { userId },
+      include: INCLUDE_RECEBIDO,
+      orderBy: [{ criadoEm: "desc" }, { id: "desc" }],
+      skip,
+      take,
+    }),
+    prisma.avisoDestinatario.count({ where: { userId } }),
+  ]);
+  return { itens: rows.map(avisoRecebidoDe), total };
+}
+
+/** Um aviso recebido pelo usuário (`/avisos?aviso=<id>`, link da notificação); null se não é dele. */
+export async function meuAviso(userId: string, avisoId: string): Promise<AvisoRecebido | null> {
+  const row = await prisma.avisoDestinatario.findUnique({
+    where: { avisoId_userId: { avisoId, userId } },
+    include: INCLUDE_RECEBIDO,
+  });
+  return row ? avisoRecebidoDe(row) : null;
 }
 
 /**

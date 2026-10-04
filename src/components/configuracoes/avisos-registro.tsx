@@ -53,7 +53,7 @@ export function AvisosRegistro({ avisos }: { avisos: AvisoRegistro[] }) {
               <TableRow
                 key={a.id}
                 className="cursor-pointer"
-                onClick={() => router.push(`/configuracoes/avisos/${a.id}`)}
+                onClick={() => router.push(`/avisos/${a.id}`)}
               >
                 <TableCell>
                   <span className="font-medium">{a.titulo}</span>

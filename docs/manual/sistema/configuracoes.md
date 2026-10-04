@@ -3,7 +3,7 @@ titulo: Configurações (administração)
 descricao: Central de administração — usuários, permissões, parâmetros de folha, projetos, licitações, funil, avisos e dados da empresa, além do status das integrações.
 resumo: Hub administrativo com cadastros e parâmetros do sistema (usuários, permissões, encargos, documentos/inputs padrão, feriados, licitações, funil) e o status das integrações on-premise (SMTP/push).
 tags: [configurações, administração, usuários, permissões, encargos, feriados, licitações, funil, avisos, agendamento, integrações, empresa, timbrado]
-palavras-chave: [disciplinas e nomenclatura, pasta dos arquivos, configurações, administração, usuários, permissões, matriz, encargos, inss, irrf, feriados, modalidades, habilitação, funil, aviso geral, agendar aviso, aviso agendado, comunicado programado, smtp, push, dados da empresa, razão social, cnpj, logo, logo da empresa, timbrado, cabeçalho do pdf, sinônimo de sigla, transferir sigla]
+palavras-chave: [disciplinas e nomenclatura, pasta dos arquivos, configurações, administração, usuários, permissões, matriz, encargos, inss, irrf, feriados, modalidades, habilitação, funil, aviso geral, agendar aviso, reler aviso, aviso agendado, comunicado programado, smtp, push, dados da empresa, razão social, cnpj, logo, logo da empresa, timbrado, cabeçalho do pdf, sinônimo de sigla, transferir sigla]
 sinonimos: [admin, ajustes do sistema, parâmetros, settings]
 ---
 
@@ -57,9 +57,10 @@ lugar.
   - A mudança vale para os PDFs baixados **a partir de agora** — inclusive de holerites e
     recibos antigos, porque o timbrado é montado na hora do download. O texto assinado do
     recibo **não muda**: o timbrado fica fora dele.
-- **Aviso geral** — enviar um comunicado (**modal em tela cheia + sino/push** e, se quiser,
-  **e-mail**) para todos, por categoria de perfil ou por nome. Pode **exigir confirmação de
-  leitura** e levar uma **imagem**.
+- **Aviso geral** — **saiu de Configurações**: fica em **Avisos** no menu lateral (`/avisos`),
+  e quem tinha permissão de enviar continua tendo (endereços antigos redirecionam). Ali se envia
+  um comunicado (**modal em tela cheia + sino/push** e, se quiser, **e-mail**) para todos, por
+  categoria de perfil ou por nome. Pode **exigir confirmação de leitura** e levar uma **imagem**.
   - **Formatação da mensagem** — a barra acima do campo escreve **negrito**, *itálico*,
     **títulos** (dois tamanhos) e **listas**; dá para digitar a marcação direto
     (`**negrito**`, `_itálico_`, `# título`, `- lista`). A formatação aparece no modal, no
@@ -73,6 +74,8 @@ lugar.
     Os destinatários são apurados **no momento do envio** — quem entrar na equipe até lá
     também recebe.
   - A aba **Enviados** mostra o registro com **quantos confirmaram** a leitura.
+  - A aba **Recebidos** é a mesma de todo mundo: os avisos que **você** recebeu, para reler
+    (ver [Notificações](../comunicacao/notificacoes.md#avisos-gerais-recebidos)).
 
 ### Integrações (somente leitura)
 - **E-mail (SMTP)** e **Web Push (VAPID)** mostram se estão **configurados**. O sistema é

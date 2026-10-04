@@ -36,6 +36,7 @@ import {
   Coins,
   HandCoins,
   KeyRound,
+  Megaphone,
   type LucideIcon,
   ListTree,
 } from "lucide-react";
@@ -450,6 +451,13 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Suporte",
         href: "/suporte",
         icon: LifeBuoy,
+      },
+      // Sem gate: todo perfil (cliente incluído) relê os avisos que recebeu; quem tem
+      // `avisos:enviar` vê, na mesma tela, as abas de envio (antes em Configurações).
+      {
+        title: "Avisos",
+        href: "/avisos",
+        icon: Megaphone,
       },
     ],
   },
