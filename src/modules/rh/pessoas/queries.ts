@@ -26,7 +26,7 @@ export async function listarPessoas(podeFolha: boolean) {
     where: { role: { not: "cliente" } },
     orderBy: [{ ativo: "desc" }, { name: "asc" }],
     select: {
-      id: true, name: true, nomeCompleto: true, email: true, role: true, ativo: true,
+      id: true, name: true, nomeCompleto: true, email: true, role: true, ativo: true, image: true,
       clienteId: true, pjId: true, cpf: true, rg: true, dataNascimento: true, dataAdmissao: true,
       enderecoCep: true, enderecoLogradouro: true, enderecoNumero: true, enderecoBairro: true,
       enderecoCidade: true, enderecoUf: true, telefone: true,
@@ -58,6 +58,7 @@ export async function listarPessoas(podeFolha: boolean) {
       id: u.id,
       name: u.name,
       email: u.email,
+      image: u.image,
       role: u.role,
       ativo: u.ativo,
       clienteId: u.clienteId,
