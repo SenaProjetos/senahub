@@ -238,7 +238,7 @@ export function RecorrentesSection({
                     onChange={(e) => set({ diaVencimento: e.target.value })}
                   />
                   <p className="text-xs text-muted-foreground">
-                    {rascunho.regraVencimento === "dia_util" ? "Conta os feriados cadastrados no RH." : "Mês mais curto cai no último dia."}
+                    {rascunho.regraVencimento === "dia_util" ? "Conta os feriados cadastrados no RH. Na categoria Folha CLT o sábado conta como dia útil (prazo do salário)." : "Mês mais curto cai no último dia."}
                   </p>
                 </div>
               </div>

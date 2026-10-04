@@ -848,12 +848,12 @@ async function smokeFolhaQuitaPrevisto(autorId: string) {
     check("reabrir folha já paga é recusado", recusou.includes("estorne o pagamento"), recusou);
 
     // 4. Agosto, com a recorrência e sem conta ainda: nasce a conta, LIGADA à recorrência, vencendo no
-    //    5º dia útil de setembro (7/9 é feriado: 3, 4, 5, 6, 10 → 10/09).
+    //    5º dia útil de setembro: salário conta o sábado (1/9 é sábado: 1, 3, 4, 5, 6 → 06/09; o feriado de 7/9 já não entra).
     const folhaAgo = await folhaDe(8, "mensal", 30_000);
     const r4 = await fecharFolhaNoBanco(folhaAgo, autorId);
     const c4 = await prisma.lancamento.findUnique({ where: { id: r4.lancamentoId }, select: { status: true, recorrenciaOrigemId: true, recorrenciaCompetencia: true } });
     check("sem conta: nasce a conta da competência, em aberto", r4.acao === "criou" && c4?.status === "previsto", { r4, c4 });
-    check("vence no 5º dia útil do mês seguinte, contando o feriado de 7/9", r4.vencimento === `${ano}-09-10`, r4.vencimento);
+    check("vence no 5º dia útil do mês seguinte, com o sábado contando (salário)", r4.vencimento === `${ano}-09-06`, r4.vencimento);
     check("nasce ligada à recorrência (o gerador não cria o mês de novo)", c4?.recorrenciaOrigemId === rec.id && c4.recorrenciaCompetencia === `${ano}-08`, c4);
 
     // 5. 13º: outra despesa, não mexe na conta da mensal.

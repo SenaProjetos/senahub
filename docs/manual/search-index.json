@@ -1333,7 +1333,9 @@
         "mês seguinte",
         "adiantamento de salário",
         "reabrir folha",
-        "retiradas antigas"
+        "retiradas antigas",
+        "sábado dia útil",
+        "prazo do salário"
       ],
       "sinonimos": [
         "despesas fixas",

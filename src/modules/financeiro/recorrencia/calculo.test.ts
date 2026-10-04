@@ -10,6 +10,8 @@ import {
   daProgramado,
   descreverVencimento,
   enesimoDiaUtil,
+  calendarioDeSalario,
+  ehCategoriaDeSalario,
   eventosProgramados,
   idDoProgramado,
   MOTIVO_PROGRAMADO,
@@ -231,7 +233,7 @@ describe("vencimento por dia útil e no mês seguinte (N0: folha CLT)", () => {
   // Novembro/2026: dia 1º é domingo e 2/11 (Finados) é feriado.
   const COM_FINADOS = criarCalendario({ feriados: ["2026-11-02"] });
   const folha = (p: Partial<CompromissoRecorrenteEntrada> = {}) =>
-    pro({ id: "folha", descricao: "Folha CLT", socioId: null, categoriaId: "cat-folha", diaVencimento: 5, regraVencimento: "dia_util", mesesAteVencimento: 1, ...p });
+    pro({ id: "folha", descricao: "Folha CLT", socioId: null, categoriaId: "cat-folha", diaVencimento: 5, regraVencimento: "dia_util", mesesAteVencimento: 1, salario: true, ...p });
 
   it("5º dia útil pula fim de semana e feriado", () => {
     expect(enesimoDiaUtil("2026-11", 5, CAL)).toBe("2026-11-06");
@@ -239,13 +241,22 @@ describe("vencimento por dia útil e no mês seguinte (N0: folha CLT)", () => {
     expect(enesimoDiaUtil("2026-10", 1, CAL)).toBe("2026-10-01");
   });
 
+  it("salário conta o sábado como dia útil (domingo e feriado não)", () => {
+    // 03 ter, 04 qua, 05 qui, 06 sex, 07 SÁB = 5º dia útil do salário; para conta comum é a segunda 09.
+    expect(enesimoDiaUtil("2026-11", 5, calendarioDeSalario(COM_FINADOS))).toBe("2026-11-07");
+    expect(vencimentoDoCompromisso(folha({ salario: false }), "2026-10", COM_FINADOS)).toBe("2026-11-09");
+    expect(ehCategoriaDeSalario(["despesa_folha_clt", "despesa"])).toBe(true);
+    expect(ehCategoriaDeSalario([null, "despesa_folha_clt"])).toBe(true);
+    expect(ehCategoriaDeSalario(["despesa_administrativas", "despesa"])).toBe(false);
+  });
+
   it("N maior que os dias úteis do mês fica no último dia útil, nunca no mês seguinte", () => {
     expect(enesimoDiaUtil("2026-02", 30, CAL)).toBe("2026-02-27");
   });
 
   it("a folha de outubro vence no 5º dia útil de novembro", () => {
-    expect(vencimentoDoCompromisso(folha(), "2026-10", COM_FINADOS)).toBe("2026-11-09");
-    expect(competenciaDoVencimento(folha(), "2026-11-09")).toBe("2026-10");
+    expect(vencimentoDoCompromisso(folha(), "2026-10", COM_FINADOS)).toBe("2026-11-07");
+    expect(competenciaDoVencimento(folha(), "2026-11-07")).toBe("2026-10");
     expect(descreverVencimento(folha())).toBe("5º dia útil do mês seguinte");
     expect(descreverVencimento(pro())).toBe("dia 5");
   });
@@ -254,20 +265,20 @@ describe("vencimento por dia útil e no mês seguinte (N0: folha CLT)", () => {
     expect(competenciasNoPeriodo(folha(), "2026-11-01", "2026-11-30", COM_FINADOS)).toEqual(["2026-10"]);
     const [e] = eventosProgramados([folha()], { calendario: COM_FINADOS, hoje: "2026-11-01", fim: "2026-11-30", vinculadas: new Set() });
     expect(e.id).toBe(idDoProgramado("folha", "2026-10"));
-    expect(e.data).toBe("2026-11-09");
+    expect(e.data).toBe("2026-11-07");
     expect(e.descricao).toContain("out/2026");
   });
 
   it("gera a folha de outubro alguns dias antes do 5º dia útil de novembro", () => {
     const o = { calendario: COM_FINADOS, vinculadas: new Set<string>(), mesesParaTras: 0 };
-    expect(competenciasAGerar(folha({ antecedenciaDias: 5 }), { ...o, hoje: "2026-11-03" })).toEqual([]);
-    expect(competenciasAGerar(folha({ antecedenciaDias: 5 }), { ...o, hoje: "2026-11-04", mesesParaTras: 1 })).toEqual([
-      { competencia: "2026-10", vencimento: "2026-11-09" },
+    expect(competenciasAGerar(folha({ antecedenciaDias: 5 }), { ...o, hoje: "2026-11-01" })).toEqual([]);
+    expect(competenciasAGerar(folha({ antecedenciaDias: 5 }), { ...o, hoje: "2026-11-02", mesesParaTras: 1 })).toEqual([
+      { competencia: "2026-10", vencimento: "2026-11-07" },
     ]);
   });
 
   it("lançamento manual pago em novembro é candidato à folha de OUTUBRO", () => {
-    const l = { data: "2026-11-09", categoriaId: "cat-folha", socioId: null, recorrenciaOrigemId: null };
+    const l = { data: "2026-11-07", categoriaId: "cat-folha", socioId: null, recorrenciaOrigemId: null };
     expect(candidatosDeVinculo([folha()], l, new Set()).map((x) => x.competencia)).toEqual(["2026-10"]);
   });
 

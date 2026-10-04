@@ -4,7 +4,7 @@ import { criarCalendario, type Calendario } from "@/lib/calendario-trabalho";
 import { feriadosParaCalculo } from "@/modules/rh/feriados/queries";
 import { isoDeDataDoBanco } from "@/modules/financeiro/liquidez/datas";
 import { paraCentavos } from "@/modules/financeiro/liquidez/dinheiro";
-import { idDoProgramado, type CompromissoRecorrenteEntrada, type LancamentoDaCompetencia } from "@/modules/financeiro/recorrencia/calculo";
+import { ehCategoriaDeSalario, idDoProgramado, type CompromissoRecorrenteEntrada, type LancamentoDaCompetencia } from "@/modules/financeiro/recorrencia/calculo";
 
 const SELECT = {
   id: true,
@@ -22,7 +22,7 @@ const SELECT = {
   caixinhaId: true,
   socioId: true,
   categoriaId: true,
-  categoria: { select: { nome: true, natureza: true } },
+  categoria: { select: { nome: true, natureza: true, chave: true, pai: { select: { chave: true } } } },
   socio: { select: { user: { select: { name: true } } } },
   caixinha: { select: { nome: true } },
 } as const;
@@ -43,7 +43,7 @@ type Linha = {
   caixinhaId: string | null;
   socioId: string | null;
   categoriaId: string;
-  categoria: { nome: string; natureza: "resultado" | "fora_do_resultado" | "transferencia" };
+  categoria: { nome: string; natureza: "resultado" | "fora_do_resultado" | "transferencia"; chave: string | null; pai: { chave: string | null } | null };
   socio: { user: { name: string } } | null;
   caixinha: { nome: string } | null;
 };
@@ -56,6 +56,7 @@ function paraEntrada(c: Linha): CompromissoRecorrenteEntrada {
     diaVencimento: c.diaVencimento,
     regraVencimento: c.regraVencimento,
     mesesAteVencimento: c.mesesAteVencimento,
+    salario: ehCategoriaDeSalario([c.categoria.chave, c.categoria.pai?.chave]),
     adiantamento: c.adiantamento,
     competenciaInicio: c.competenciaInicio,
     competenciaFim: c.competenciaFim,

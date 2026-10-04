@@ -110,6 +110,8 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 - **Ponto de equilíbrio** passou a separar **custo fixo** de **custo variável**: em Cadastros → Plano de contas, cada
   despesa diz se é fixa ou variável (as do sistema já vêm marcadas), e o indicador calcula quanto faturar por mês para
   pagar os custos.
+- **Prazo do salário conta o sábado.** Na folha CLT, o 5º dia útil do mês seguinte passa a contar o sábado como
+  dia útil (domingo e feriado não). Outras contas em "dia útil" continuam de segunda a sexta.
 - **Licitação não recebe e-mail de cobrança.** Conta de projeto de licitação fica de fora dos lembretes ao cliente;
   dá para ligar em Configurações → Avisos de vencimento.
 - **Extrato por conta** ganhou **Exportar** (Excel). Em **Pagas e recebidas**, pagamento de produção tem

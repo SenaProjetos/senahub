@@ -18,7 +18,7 @@ import { ActionError } from "@/lib/action-error";
 import { diaDeSaoPaulo } from "@/lib/data";
 import { paraCentavos, paraReais } from "@/modules/financeiro/liquidez/dinheiro";
 import { isoDeDataDoBanco } from "@/modules/financeiro/liquidez/datas";
-import { avancarCompetencia, enesimoDiaUtil, vencimentoDoCompromisso } from "@/modules/financeiro/recorrencia/calculo";
+import { avancarCompetencia, calendarioDeSalario, enesimoDiaUtil, vencimentoDoCompromisso } from "@/modules/financeiro/recorrencia/calculo";
 import { anosDoHorizonte, calendarioFinanceiro } from "@/modules/financeiro/recorrencia/queries";
 import { rotuloFolha } from "@/modules/rh/folha/tipo-folha";
 import {
@@ -155,8 +155,9 @@ export async function fecharFolhaNoBanco(folhaId: string, autorId: string): Prom
   if (mensal) {
     const cal = await calendarioFinanceiro(anosDoHorizonte(hoje, `${avancarCompetencia(competencia, 1)}-28`));
     vencimento = compromisso
-      ? vencimentoDoCompromisso(compromisso, competencia, cal)
-      : enesimoDiaUtil(avancarCompetencia(competencia, 1), DIA_UTIL_PADRAO, cal);
+      ? vencimentoDoCompromisso({ ...compromisso, salario: true }, competencia, cal)
+      : // Prazo do salário: o sábado conta como dia útil (CLT art. 459 §1º).
+        enesimoDiaUtil(avancarCompetencia(competencia, 1), DIA_UTIL_PADRAO, calendarioDeSalario(cal));
   }
   // Vínculo com a recorrência só quando o mês do compromisso está livre: o par (origem, competência) é
   // único no banco, e é ele que impede o gerador diário de criar a folha de novo.

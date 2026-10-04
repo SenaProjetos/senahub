@@ -71,7 +71,29 @@ export function avancarCompetencia(c: Competencia, n: number): Competencia {
 export type RegraVencimento = "dia_fixo" | "dia_util";
 
 /** O que decide a data de vencimento de um mês do compromisso. */
-export type Vencimento = { diaVencimento: number; regraVencimento: RegraVencimento; mesesAteVencimento: number };
+export type Vencimento = {
+  diaVencimento: number;
+  regraVencimento: RegraVencimento;
+  mesesAteVencimento: number;
+  /** Salário (categoria Folha CLT): no "N-ésimo dia útil" o sábado conta, domingo e feriado não. */
+  salario?: boolean;
+};
+
+/** Chave da categoria de salário (Folha CLT): o vencimento em dia útil dela conta o sábado. */
+export const CHAVE_CATEGORIA_SALARIO = "despesa_folha_clt";
+
+/** A categoria (ou uma das mães) é a Folha CLT? */
+export function ehCategoriaDeSalario(chaves: readonly (string | null | undefined)[]): boolean {
+  return chaves.includes(CHAVE_CATEGORIA_SALARIO);
+}
+
+/**
+ * Calendário do prazo de salário (CLT art. 459 §1º, decisão do dono 2026-10-03): o sábado conta como dia útil
+ * no "5º dia útil"; domingo e feriado continuam fora. Ex.: novembro/2026 com Finados (02/11) → 07/11 (sábado).
+ */
+export function calendarioDeSalario(cal: Calendario): Calendario {
+  return { diasSemana: new Set([...cal.diasSemana, 6]), feriados: cal.feriados };
+}
 
 /**
  * N-ésimo dia útil do mês (`n` ≥ 1), pelo calendário de feriados. Se o mês não tiver `n` dias úteis
@@ -95,7 +117,8 @@ export function enesimoDiaUtil(mes: Competencia, n: number, cal: Calendario): Da
  */
 export function vencimentoDoCompromisso(v: Vencimento, comp: Competencia, cal: Calendario): DataIso {
   const mes = avancarCompetencia(comp, v.mesesAteVencimento);
-  return v.regraVencimento === "dia_util" ? enesimoDiaUtil(mes, v.diaVencimento, cal) : vencimentoDa(mes, v.diaVencimento);
+  if (v.regraVencimento !== "dia_util") return vencimentoDa(mes, v.diaVencimento);
+  return enesimoDiaUtil(mes, v.diaVencimento, v.salario ? calendarioDeSalario(cal) : cal);
 }
 
 /** Competência a que pertence um vencimento: o inverso de `mesesAteVencimento`. */

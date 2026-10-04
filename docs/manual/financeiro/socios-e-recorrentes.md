@@ -3,7 +3,7 @@ titulo: Financeiro — Sócios, pró-labore e compromissos recorrentes
 descricao: Cadastrar saídas que se repetem (pró-labore, aluguel, folha), distribuir e adiantar lucros aos sócios e entender como o fechamento da folha CLT define o valor da conta do mês.
 resumo: Compromisso recorrente é o cadastro de uma saída mensal; o planejador projeta os meses futuros e o sistema gera a conta a pagar perto do vencimento. Distribuição e adiantamento de lucros viram contas a pagar por sócio, fora da DRE. Fechar a folha define o valor real da conta da competência, que vence no mês seguinte; pagar é outro passo.
 tags: [financeiro, sócios, pró-labore, compromissos recorrentes, recorrência, distribuição de lucros, adiantamento de lucros, folha clt, retiradas]
-palavras-chave: [compromisso recorrente, pró-labore, programado, gerar o que já venceu, vincular à recorrência, em dobro, distribuir lucros, adiantar lucros, percentual do sócio, fora do resultado, fechar folha, valor real da folha, quinto dia útil, dia útil, mês seguinte, adiantamento de salário, reabrir folha, retiradas antigas]
+palavras-chave: [compromisso recorrente, pró-labore, programado, gerar o que já venceu, vincular à recorrência, em dobro, distribuir lucros, adiantar lucros, percentual do sócio, fora do resultado, fechar folha, valor real da folha, quinto dia útil, dia útil, sábado dia útil, prazo do salário, mês seguinte, adiantamento de salário, reabrir folha, retiradas antigas]
 sinonimos: [despesas fixas, contas recorrentes, retiradas dos sócios, lucros]
 ---
 
@@ -28,7 +28,10 @@ competência, categoria, prioridade, caixinha que paga e, para pró-labore, o **
 ### Quando vence
 
 - **Conta o dia como**: **Dia do mês** (ex.: dia 10; mês mais curto cai no último dia) ou **Dia útil do
-  mês** (ex.: 5º dia útil, contando sábados, domingos e os feriados cadastrados no RH).
+  mês** (ex.: 5º dia útil). Dia útil é de segunda a sexta, sem os feriados cadastrados no RH. **Na categoria Folha
+  CLT o sábado também conta**, como manda o prazo do salário: com Finados numa segunda-feira, o 5º dia útil de
+  novembro/2026 é o sábado 07/11 (para uma conta comum seria a segunda 09/11). O banco não processa no sábado: pague
+  até a sexta.
 - **Vence**: **No mês da competência** ou **No mês seguinte**. A folha de setembro, por exemplo, é da
   competência de setembro e vence no 5º dia útil de outubro.
 - **É adiantamento de salário**: marque no compromisso do adiantamento (ex.: dia 20, no próprio mês). É

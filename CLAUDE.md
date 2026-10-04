@@ -270,7 +270,9 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
 - **Closing the CLT payroll DEFINES the value; paying is another step** (`rh/folha/fechamento-service.ts` +
   pure `quitacao.ts`, N0 of `feat/financeiro-nucleo`, owner decision 2026-10-02). The folha of month M is
   competência M and is paid in M+1 by the 5th working day: `CompromissoRecorrente` has `regraVencimento`
-  (`dia_fixo | dia_util`, N-th working day via `lib/calendario-trabalho.ts` + RH holidays) and
+  (`dia_fixo | dia_util`, N-th working day via `lib/calendario-trabalho.ts` + RH holidays; for SALARY — category
+  `despesa_folha_clt`, `Vencimento.salario`, and the folha closing default — Saturday counts as a working day, CLT art.
+  459 §1º, via `calendarioDeSalario`; owner decision 2026-10-03) and
   `mesesAteVencimento` (0/1/2), so `recorrenciaCompetencia` is the competência, NOT the due month
   (`competenciaDoVencimento` inverts it). `fecharFolha` writes the real net value into the competência's
   bill and leaves it `previsto` (baixa/conciliação pays it): the recurrence-linked one wins, a lone unlinked
