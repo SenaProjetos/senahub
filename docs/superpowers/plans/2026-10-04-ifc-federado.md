@@ -54,6 +54,32 @@ web-ifc (só no smoke), base-ui (shadcn `base-nova`).
 
 ---
 
+## Modelo por tarefa
+
+Execução por subagentes: o implementador de cada tarefa roda no modelo da coluna **Implementa** (`Agent` com
+`model`), o revisor da tarefa no da coluna **Revisa**. A revisão final da branch inteira é **Opus**. Opus = o
+modelo desta sessão; trocar de modelo no meio NÃO é preciso, porque cada subagente recebe o seu.
+
+| Tarefa | Implementa | Revisa | Por quê |
+|---|---|---|---|
+| 1. Leitor STEP puro | Opus | Opus | leitor STEP: fronteira de pedaço, string com `''`/`;`/`#`, comentário — erro aqui corrompe o arquivo em silêncio |
+| 2. Fixture de IFC e analisador | Opus | Opus | resolução da unidade pelo `UnitsInContext` (moeda e unidade derivada na atribuição, pés com `IfcSIUnit` solto) |
+| 3. Montagem do arquivo federado | Opus | Opus | renumeração, projeto absorvido e contextos: o coração da junção |
+| 4. Regras de elegibilidade | Sonnet | Sonnet | regras puras com código e testes prontos no plano |
+| 5. Child process e orquestrador do spawn | Sonnet | Opus | segue o padrão do `deslocar-ifc.ts`; o revisor olha backpressure do stream e limpeza do `.parcial` |
+| 6. Schema e migração | Sonnet | Sonnet | schema + SQL prontos; atenção ao drift do banco de dev (migrate deploy, nunca migrate dev) |
+| 7. Origens de documento (filtros únicos + gate de leitura) | Sonnet | Opus | troca mecânica de filtros, mas é gate de ACESSO — revisor forte confere vazamento |
+| 8. Serviço, job e actions | Opus | Opus | concorrência (índice parcial, travada), transação, job, actions e notificação juntos |
+| 9. Download em streaming | Haiku | Sonnet | troca pontual de Buffer por stream numa rota, código pronto |
+| 10. Compatibilização — diálogo e bloco da última geração | Sonnet | Sonnet | UI com código pronto; conferir 390×844 e tela cheia do visualizador |
+| 11. Aba Arquivos — pasta "Modelo federado" no Desenvolvimento | Sonnet | Opus | UI em 6 arquivos da aba Arquivos (shell, árvore, trilha): fácil quebrar navegação existente |
+| 12. Smoke, verificação com IFC real e documentação | Sonnet | Opus | smoke e verificação com IFC real; revisor lê o resultado do IFC real e decide se está pronto |
+
+Se executar direto nesta sessão (sem subagentes), a coluna Implementa vira o modelo a ativar com `/model`
+antes de cada tarefa — PARE e peça a troca quando a próxima tarefa pedir modelo diferente do atual.
+
+---
+
 ## Mapa de arquivos
 
 **Criar**
@@ -94,6 +120,8 @@ web-ifc (só no smoke), base-ui (shadcn `base-nova`).
 ---
 
 ### Task 1: Leitor STEP puro
+
+**Modelo:** implementa **Opus**, revisa **Opus** — leitor STEP: fronteira de pedaço, string com `''`/`;`/`#`, comentário — erro aqui corrompe o arquivo em silêncio.
 
 **Files:**
 - Create: `src/modules/coordenacao/federado/step.ts`
@@ -454,6 +482,8 @@ git show --stat HEAD
 
 ### Task 2: Fixture de IFC e analisador
 
+**Modelo:** implementa **Opus**, revisa **Opus** — resolução da unidade pelo `UnitsInContext` (moeda e unidade derivada na atribuição, pés com `IfcSIUnit` solto).
+
 **Files:**
 - Create: `src/modules/coordenacao/federado/fixture-ifc.ts`
 - Create: `src/modules/coordenacao/federado/analise.ts`
@@ -756,6 +786,8 @@ git show --stat HEAD
 
 ### Task 3: Montagem do arquivo federado
 
+**Modelo:** implementa **Opus**, revisa **Opus** — renumeração, projeto absorvido e contextos: o coração da junção.
+
 **Files:**
 - Create: `src/modules/coordenacao/federado/montagem.ts`
 - Test: `src/modules/coordenacao/federado/montagem.test.ts`
@@ -1020,6 +1052,8 @@ git show --stat HEAD
 ---
 
 ### Task 4: Regras de elegibilidade
+
+**Modelo:** implementa **Sonnet**, revisa **Sonnet** — regras puras com código e testes prontos no plano.
 
 **Files:**
 - Create: `src/modules/coordenacao/federado/regras.ts`
@@ -1296,6 +1330,8 @@ git show --stat HEAD
 
 ### Task 5: Child process e orquestrador do spawn
 
+**Modelo:** implementa **Sonnet**, revisa **Opus** — segue o padrão do `deslocar-ifc.ts`; o revisor olha backpressure do stream e limpeza do `.parcial`.
+
 **Files:**
 - Create: `scripts/federar-ifc.ts`
 - Create: `src/modules/coordenacao/federado/federacao.ts`
@@ -1513,6 +1549,8 @@ git show --stat HEAD
 
 ### Task 6: Schema e migração
 
+**Modelo:** implementa **Sonnet**, revisa **Sonnet** — schema + SQL prontos; atenção ao drift do banco de dev (migrate deploy, nunca migrate dev).
+
 **Files:**
 - Modify: `prisma/schema.prisma`
 - Create: `prisma/migrations/20261004120000_ifc_federado/migration.sql`
@@ -1619,6 +1657,8 @@ git show --stat HEAD
 ---
 
 ### Task 7: Origens de documento (filtros únicos + gate de leitura)
+
+**Modelo:** implementa **Sonnet**, revisa **Opus** — troca mecânica de filtros, mas é gate de ACESSO — revisor forte confere vazamento.
 
 **Files:**
 - Create: `src/modules/documentos-cliente/origens.ts`
@@ -1751,6 +1791,8 @@ git show --stat HEAD
 ---
 
 ### Task 8: Serviço, job e actions
+
+**Modelo:** implementa **Opus**, revisa **Opus** — concorrência (índice parcial, travada), transação, job, actions e notificação juntos.
 
 **Files:**
 - Create: `src/modules/coordenacao/federado/inspecao.ts`
@@ -2204,6 +2246,8 @@ git show --stat HEAD
 
 ### Task 9: Download em streaming
 
+**Modelo:** implementa **Haiku**, revisa **Sonnet** — troca pontual de Buffer por stream numa rota, código pronto.
+
 **Files:**
 - Modify: `src/app/api/documentos/[id]/download/route.ts`
 
@@ -2260,6 +2304,8 @@ git show --stat HEAD
 ---
 
 ### Task 10: Compatibilização — diálogo e bloco da última geração
+
+**Modelo:** implementa **Sonnet**, revisa **Sonnet** — UI com código pronto; conferir 390×844 e tela cheia do visualizador.
 
 **Files:**
 - Create: `src/components/coordenacao/exportar-federado-dialog.tsx`
@@ -2543,6 +2589,8 @@ git show --stat HEAD
 ---
 
 ### Task 11: Aba Arquivos — pasta "Modelo federado" no Desenvolvimento
+
+**Modelo:** implementa **Sonnet**, revisa **Opus** — UI em 6 arquivos da aba Arquivos (shell, árvore, trilha): fácil quebrar navegação existente.
 
 **Files:**
 - Create: `src/modules/coordenacao/federado/acoes.ts` + `acoes.test.ts`
@@ -2866,6 +2914,8 @@ git show --stat HEAD
 ---
 
 ### Task 12: Smoke, verificação com IFC real e documentação
+
+**Modelo:** implementa **Sonnet**, revisa **Opus** — smoke e verificação com IFC real; revisor lê o resultado do IFC real e decide se está pronto.
 
 **Files:**
 - Create: `scripts/smoke-ifc-federado.ts`, `scripts/verificar-ifc-federado.ts`
