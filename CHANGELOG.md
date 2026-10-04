@@ -2,6 +2,13 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.23.1](https://github.com/SenaProjetos/senahub/compare/v1.23.0...v1.23.1) (2026-10-04)
+
+
+### 🐛 Correções
+
+* **financeiro:** prazo do salário conta o sábado como dia útil ([14703bc](https://github.com/SenaProjetos/senahub/commit/14703bc0627ab830c9ea05de467493297bddf146))
+
 ## [1.23.0](https://github.com/SenaProjetos/senahub/compare/v1.22.0...v1.23.0) (2026-10-03)
 
 
