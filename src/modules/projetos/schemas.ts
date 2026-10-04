@@ -145,6 +145,8 @@ export const cancelarProjetoSchema = z.object({
   motivo: z.string().optional(),
 });
 
+export const concluirProjetoSchema = z.object({ projetoId: z.string().min(1) });
+
 /** P-09: adicionar disciplinas do catálogo a um projeto existente. */
 export const adicionarDoCatalogoSchema = z.object({
   projetoId: z.string().min(1),

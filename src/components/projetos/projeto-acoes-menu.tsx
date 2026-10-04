@@ -2,7 +2,17 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { MoreHorizontal, Archive, XCircle, RefreshCw, Copy, FileText, MessageSquare, Pencil } from "lucide-react";
+import {
+  MoreHorizontal,
+  Archive,
+  XCircle,
+  RefreshCw,
+  Copy,
+  FileText,
+  MessageSquare,
+  Pencil,
+  CheckCircle2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +36,8 @@ import { Label } from "@/components/ui/label";
 import { cancelarOuArquivarProjeto } from "@/modules/projetos/actions";
 import { DuplicarProjetoButton } from "@/components/projetos/duplicar-projeto-button";
 import { EditarProjetoDialog, type ProjetoEditavel } from "@/components/projetos/editar-projeto-dialog";
+import { useConcluirProjeto } from "@/components/projetos/concluir-projeto";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 /**
  * O ⋯ do cabeçalho do projeto. No computador: Duplicar, Gerar documento e o ciclo de vida
@@ -37,6 +49,7 @@ export function ProjetoAcoesMenu({
   situacao,
   podeGerir,
   modelosDoc,
+  motivoNaoConcluir,
   celular = false,
   canalChatId,
   editar,
@@ -45,6 +58,8 @@ export function ProjetoAcoesMenu({
   situacao: string;
   podeGerir: boolean;
   modelosDoc: { id: string; nome: string }[];
+  /** `null` = pode concluir (todas as disciplinas aprovadas); senão, o motivo do item desabilitado. */
+  motivoNaoConcluir: string | null;
   celular?: boolean;
   canalChatId?: string | null;
   editar?: {
@@ -62,6 +77,18 @@ export function ProjetoAcoesMenu({
   const [pending, startTransition] = useTransition();
 
   const ativo = situacao === "em_andamento";
+  const confirm = useConfirm();
+  const { concluir, pending: concluindo } = useConcluirProjeto(projetoId);
+
+  const handleConcluir = async () => {
+    // confirm SEMPRE antes da transição (await dentro de startTransition trava no React 19).
+    const ok = await confirm({
+      title: "Concluir projeto?",
+      description: "Todas as disciplinas estão aprovadas. O projeto sai da lista de ativos; dá para reativá-lo depois pelo mesmo menu.",
+      confirmLabel: "Concluir projeto",
+    });
+    if (ok) concluir();
+  };
 
   const handleConfirm = () => {
     if (!dialog) return;
@@ -149,6 +176,19 @@ export function ProjetoAcoesMenu({
           {podeGerir && <DropdownMenuSeparator />}
           {!podeGerir ? null : ativo ? (
             <>
+              <DropdownMenuItem
+                onClick={handleConcluir}
+                className="gap-2"
+                disabled={motivoNaoConcluir !== null || concluindo}
+              >
+                <CheckCircle2 className="size-4" />
+                <span className="flex flex-col">
+                  Concluir projeto
+                  {motivoNaoConcluir && (
+                    <span className="text-xs text-muted-foreground">{motivoNaoConcluir}</span>
+                  )}
+                </span>
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setDialog("arquivar")} className="gap-2">
                 <Archive className="size-4" /> Arquivar
               </DropdownMenuItem>

@@ -12,13 +12,18 @@ import { listarClientes } from "@/modules/clientes/queries";
 import { canalDoProjeto } from "@/modules/chat/queries";
 import { modelosPorFonte } from "@/modules/documentos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { SITUACAO_PROJETO_LABEL, TIPO_PROJETO_LABEL } from "@/modules/projetos/status";
+import {
+  SITUACAO_PROJETO_LABEL,
+  TIPO_PROJETO_LABEL,
+  motivoParaNaoConcluirProjeto,
+} from "@/modules/projetos/status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ProjetoTabNav } from "@/components/projetos/projeto-tab-nav";
 import { RotuloDaBarra } from "@/components/shell/rotulo-da-barra";
 import { ProjetoAcoesMenu } from "@/components/projetos/projeto-acoes-menu";
 import { EditarProjetoDialog } from "@/components/projetos/editar-projeto-dialog";
+import { FaixaConcluirProjeto } from "@/components/projetos/concluir-projeto";
 import { inicioDoDia, inicioDoDiaLocal } from "@/lib/data";
 
 export const metadata: Metadata = { title: "Projeto" };
@@ -86,6 +91,12 @@ export default async function ProjetoLayout({
     if (!venc) return 0;
     return Math.max(0, Math.floor((inicioDoDiaLocal().getTime() - venc.getTime()) / 86_400_000));
   })();
+
+  // Concluir só com todas as disciplinas aprovadas: a mesma frase desabilita o item do ⋯.
+  const motivoNaoConcluir = motivoParaNaoConcluirProjeto(
+    projeto.situacao,
+    projeto.disciplinas.map((d) => d.status),
+  );
 
   const projetoEditavel = {
     id: projeto.id,
@@ -161,7 +172,13 @@ export default async function ProjetoLayout({
             tiposEmpreendimento={tiposEmpreendimento}
           />
         )}
-        <ProjetoAcoesMenu projetoId={id} situacao={projeto.situacao} podeGerir={podeGerir} modelosDoc={modelosDoc} />
+        <ProjetoAcoesMenu
+          projetoId={id}
+          situacao={projeto.situacao}
+          podeGerir={podeGerir}
+          modelosDoc={modelosDoc}
+          motivoNaoConcluir={motivoNaoConcluir}
+        />
       </div>
 
       {/* Navegação por abas */}
@@ -195,6 +212,7 @@ export default async function ProjetoLayout({
             situacao={projeto.situacao}
             podeGerir={podeGerir}
             modelosDoc={modelosDoc}
+            motivoNaoConcluir={motivoNaoConcluir}
             canalChatId={canalChat?.id ?? null}
             editar={
               podeGerir
@@ -210,7 +228,12 @@ export default async function ProjetoLayout({
       </div>
 
       {/* Conteúdo da aba ativa: 12 px abaixo das abas e 16 px nas laterais, como no modelo */}
-      <div className="pt-3 lg:-mx-2">{children}</div>
+      <div className="pt-3 lg:-mx-2">
+        {podeGerir && motivoNaoConcluir === null && (
+          <FaixaConcluirProjeto projetoId={id} totalDisciplinas={projeto.disciplinas.length} />
+        )}
+        {children}
+      </div>
     </div>
   );
 }

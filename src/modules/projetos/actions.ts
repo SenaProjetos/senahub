@@ -25,6 +25,7 @@ import {
   editarDisciplinaSchema,
   excluirDisciplinaSchema,
   cancelarProjetoSchema,
+  concluirProjetoSchema,
   adicionarDoCatalogoSchema,
   editarCadastroDisciplinaSchema,
   idDisciplinaCatalogoSchema,
@@ -40,7 +41,11 @@ import { normalizar } from "@/lib/disciplinas-core";
 import { casarCatalogo, catalogoDeDisciplinas } from "@/modules/projetos/catalogo-disciplina";
 import { normalizarSinonimos, primeiraColisao } from "@/modules/uploads/nomenclatura/colisao-sinonimo";
 import { usaEstruturaCustom, disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
-import { transicaoDisciplinaPermitida, mensagemTransicaoDisciplina } from "@/modules/projetos/status";
+import {
+  transicaoDisciplinaPermitida,
+  mensagemTransicaoDisciplina,
+  motivoParaNaoConcluirProjeto,
+} from "@/modules/projetos/status";
 import { etapaQueDefineOPrazo } from "@/modules/projetos/etapas";
 import { sincronizarPrazoDisciplina } from "@/modules/projetos/etapas-service";
 import { semearPastasTemplate, projetoUsaTemplate } from "@/modules/projetos/pastas/seed";
@@ -1017,6 +1022,65 @@ export const cancelarOuArquivarProjeto = defineAction(
           corpo: input.motivo ?? `O projeto foi ${verbo}.`,
           href: `/projetos/${input.projetoId}`,
           tag: `proj-${verbo}-${input.projetoId}`,
+        },
+      );
+    }
+
+    revalidatePath(`/projetos/${input.projetoId}`);
+    revalidatePath("/projetos");
+  },
+);
+
+/**
+ * Conclui o projeto — só com todas as disciplinas aprovadas (`motivoParaNaoConcluirProjeto`).
+ * A faixa do projeto sugere isto quando a última disciplina é aprovada. A escrita repete a
+ * regra no `where` (em andamento + todas aprovadas), então dois cliques ou uma disciplina
+ * que mudou no meio do caminho não gravam nada.
+ */
+export const concluirProjeto = defineAction(
+  {
+    modulo: "projetos",
+    acao: "concluir-projeto",
+    recurso: "projetos",
+    permissao: "gerir",
+    entidade: "Projeto",
+    schema: concluirProjetoSchema,
+    entidadeId: (_d, i) => (i as { projetoId: string }).projetoId,
+  },
+  async (input) => {
+    const projeto = await prisma.projeto.findUnique({
+      where: { id: input.projetoId },
+      select: {
+        situacao: true,
+        disciplinas: { select: { status: true } },
+        membros: { select: { userId: true } },
+      },
+    });
+    if (!projeto) throw new ActionError("Projeto não encontrado.");
+    const motivo = motivoParaNaoConcluirProjeto(
+      projeto.situacao,
+      projeto.disciplinas.map((d) => d.status),
+    );
+    if (motivo) throw new ActionError(motivo);
+
+    const { count } = await prisma.projeto.updateMany({
+      where: {
+        id: input.projetoId,
+        situacao: "em_andamento",
+        disciplinas: { some: {}, every: { status: "aprovado" } },
+      },
+      data: { situacao: "concluido" },
+    });
+    if (count !== 1) throw new ActionError("O projeto mudou enquanto você o concluía. Recarregue a página.");
+
+    if (projeto.membros.length > 0) {
+      await notificarMuitos(
+        projeto.membros.map((m) => m.userId),
+        {
+          titulo: "Projeto concluído",
+          corpo: "Todas as disciplinas foram aprovadas e o projeto foi concluído.",
+          href: `/projetos/${input.projetoId}`,
+          tag: `proj-concluido-${input.projetoId}`,
         },
       );
     }

@@ -144,6 +144,21 @@ export function rotuloEtapaDisciplina(
   return STATUS_LABEL.entregue;
 }
 
+/**
+ * Por que o projeto ainda não pode ser concluído — `null` quando pode. Concluir exige o
+ * projeto em andamento e TODAS as disciplinas aprovadas (`aprovado` é o fim da máquina).
+ * A mesma frase é o `ActionError` de `concluirProjeto` e o motivo do item desabilitado no ⋯;
+ * `null` também é o que faz a faixa "Marcar como concluído" aparecer.
+ */
+export function motivoParaNaoConcluirProjeto(situacao: string, statuses: StatusDisciplina[]): string | null {
+  if (situacao !== "em_andamento") return "O projeto não está em andamento.";
+  if (statuses.length === 0) return "O projeto não tem disciplinas.";
+  const faltam = statuses.filter((s) => s !== "aprovado").length;
+  if (faltam === 1) return "Ainda há 1 disciplina não aprovada.";
+  if (faltam > 1) return `Ainda há ${faltam} disciplinas não aprovadas.`;
+  return null;
+}
+
 /** Mensagem padrão para transição de status inválida. */
 export function mensagemTransicaoDisciplina(de: StatusDisciplina, para: StatusDisciplina): string {
   return `Transição de "${STATUS_LABEL[de]}" para "${STATUS_LABEL[para]}" não é permitida.`;

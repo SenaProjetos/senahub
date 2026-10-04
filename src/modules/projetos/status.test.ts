@@ -9,6 +9,7 @@ import {
   etapaDisciplina,
   rotuloEtapaDisciplina,
   ETAPAS_DISCIPLINA,
+  motivoParaNaoConcluirProjeto,
 } from "./status";
 import type { StatusDisciplina } from "@/generated/prisma/client";
 
@@ -153,5 +154,29 @@ describe("rotuloEtapaDisciplina", () => {
 
   it("solicitação em aberto só muda o rótulo em 'entregue' (mesma regra de rotuloStatusDisciplina)", () => {
     expect(rotuloEtapaDisciplina(2, "em_revisao", new Date())).toBe("Em revisão");
+  });
+});
+
+describe("motivoParaNaoConcluirProjeto", () => {
+  it("projeto em andamento com todas as disciplinas aprovadas pode ser concluído", () => {
+    expect(motivoParaNaoConcluirProjeto("em_andamento", ["aprovado", "aprovado"])).toBeNull();
+  });
+
+  it("recusa enquanto houver disciplina não aprovada e diz quantas faltam", () => {
+    expect(motivoParaNaoConcluirProjeto("em_andamento", ["aprovado", "entregue", "em_revisao"])).toBe(
+      "Ainda há 2 disciplinas não aprovadas.",
+    );
+    expect(motivoParaNaoConcluirProjeto("em_andamento", ["aprovado", "aguardando"])).toBe(
+      "Ainda há 1 disciplina não aprovada.",
+    );
+  });
+
+  it("recusa projeto sem disciplinas", () => {
+    expect(motivoParaNaoConcluirProjeto("em_andamento", [])).toBe("O projeto não tem disciplinas.");
+  });
+
+  it("recusa projeto que não está em andamento", () => {
+    expect(motivoParaNaoConcluirProjeto("concluido", ["aprovado"])).toBe("O projeto não está em andamento.");
+    expect(motivoParaNaoConcluirProjeto("arquivado", ["aprovado"])).toBe("O projeto não está em andamento.");
   });
 });

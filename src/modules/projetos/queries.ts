@@ -636,6 +636,8 @@ export async function obterProjetoMinimo(viewer: Viewer, id: string) {
       tipoEmpreendimentoId: true,
       abasConfig: true,
       cliente: { select: { id: true, nome: true } },
+      // Sugestão de concluir o projeto quando todas as disciplinas estão aprovadas.
+      disciplinas: { select: { status: true } },
     },
   });
 }
