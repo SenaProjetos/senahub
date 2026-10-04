@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { parseDesenhoId, refDocumentoDwg } from "@/modules/dwg/desenho-ref";
+import { ORIGENS_FORA_DOS_MODELOS } from "@/modules/documentos-cliente/origens";
 
 /** Rótulo do "grupo" onde os DWGs recebidos do cliente aparecem no painel. */
 export const GRUPO_DWG_RECEBIDOS = "Recebido do cliente";
@@ -59,7 +60,7 @@ export async function desenhosConvertidos(projetoId: string): Promise<DesenhoCon
   const proposta = await prisma.proposta.findUnique({ where: { projetoId }, select: { id: true } });
   const ancoras = [{ projetoId }, ...(proposta ? [{ propostaId: proposta.id }] : [])];
   const docs = await prisma.documento.findMany({
-    where: { origem: { not: "interno" }, OR: ancoras },
+    where: { origem: { notIn: [...ORIGENS_FORA_DOS_MODELOS] }, OR: ancoras },
     select: {
       versoes: {
         orderBy: { numero: "desc" },

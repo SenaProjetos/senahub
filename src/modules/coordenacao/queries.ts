@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { refDocumento } from "@/modules/coordenacao/modelo-ref";
 import type { SessionUser } from "@/lib/session";
 import { escopoProjeto } from "@/modules/projetos/queries";
+import { ORIGENS_FORA_DOS_MODELOS } from "@/modules/documentos-cliente/origens";
 
 /** Rótulo do "grupo" onde os IFCs recebidos do cliente aparecem no painel. */
 export const GRUPO_RECEBIDOS = "Recebido do cliente";
@@ -94,7 +95,7 @@ export async function modelosCoordenacao(projetoId: string): Promise<ModeloCoord
 }
 
 /**
- * IFCs recebidos do cliente (Documento origem != interno) do projeto/proposta, com a
+ * IFCs recebidos do cliente (Documento com origem fora de `ORIGENS_FORA_DOS_MODELOS`) do projeto/proposta, com a
  * versão mais recente e o estado da conversão para Fragments. Cada um vira um
  * ModeloCoordenacao com chave `d:<versaoId>` e sem disciplina.
  */
@@ -102,7 +103,7 @@ async function recebidosIfc(projetoId: string): Promise<ModeloCoordenacao[]> {
   const proposta = await prisma.proposta.findUnique({ where: { projetoId }, select: { id: true } });
   const ancoras = [{ projetoId }, ...(proposta ? [{ propostaId: proposta.id }] : [])];
   const docs = await prisma.documento.findMany({
-    where: { origem: { not: "interno" }, OR: ancoras },
+    where: { origem: { notIn: [...ORIGENS_FORA_DOS_MODELOS] }, OR: ancoras },
     select: {
       versoes: {
         orderBy: { numero: "desc" },

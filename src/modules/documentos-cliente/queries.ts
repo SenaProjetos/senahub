@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
+import { ORIGEM_MODELO_FEDERADO, ORIGENS_FORA_DE_RECEBIDOS } from "./origens";
 
 const incluir = {
   versoes: {
@@ -93,7 +94,7 @@ export type GrupoDocumentos = {
  */
 export async function documentosDoCliente(clienteId: string): Promise<GrupoDocumentos[]> {
   const docs = await prisma.documento.findMany({
-    where: { clienteId },
+    where: { clienteId, origem: { notIn: [ORIGEM_MODELO_FEDERADO] } },
     orderBy: { createdAt: "desc" },
     include: {
       ...incluir,
@@ -167,7 +168,7 @@ export async function recebidosDoProjeto(
     where: {
       OR: [
         // Recebidos "de verdade": material externo (não interno/base) ancorado no projeto/proposta.
-        { origem: { notIn: ["interno", "base_arquitetonica"] }, OR: ancoras },
+        { origem: { notIn: [...ORIGENS_FORA_DE_RECEBIDOS] }, OR: ancoras },
         // Docs do "Geral" (interno) marcados p/ também aparecer em Recebidos (não duplica arquivo).
         ...(opts?.incluirCompartilhadosDoGeral
           ? [{ origem: "interno" as const, exibirEmRecebidos: true, projetoId }]

@@ -14,6 +14,7 @@ import {
 
 export { MAX_ARQUIVOS_ZIP };
 import type { SessionUser } from "@/lib/session";
+import { ORIGENS_FORA_DE_RECEBIDOS } from "@/modules/documentos-cliente/origens";
 
 /**
  * Leitura da árvore do diretório geral (`/arquivos`).
@@ -74,7 +75,7 @@ async function contagensDeArea(projetoIds: string[], visiveis: AreasVisiveis): P
     prisma.documento.groupBy({
       by: ["projetoId", "propostaId"],
       where: {
-        origem: { notIn: ["interno", "base_arquitetonica"] },
+        origem: { notIn: [...ORIGENS_FORA_DE_RECEBIDOS] },
         OR: [{ projetoId: { in: projetoIds } }, { propostaId: { in: propostas.map((p) => p.id) } }],
       },
       _count: { _all: true },

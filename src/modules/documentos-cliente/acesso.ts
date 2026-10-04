@@ -4,6 +4,8 @@ import { can, podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
 import { acessoGlobal, INTERNAL_ROLES, type Role } from "@/lib/roles";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import type { SessionUser } from "@/lib/session";
+import { veModelosDoProjeto } from "@/modules/coordenacao/acesso";
+import { ORIGEM_MODELO_FEDERADO } from "./origens";
 
 export type AncoraDocumento = { propostaId?: string | null; projetoId?: string | null; clienteId?: string | null };
 
@@ -42,6 +44,12 @@ export async function podeLerDocumento(
   origem?: string | null,
   exibirEmRecebidos = false,
 ): Promise<boolean> {
+  // Modelo federado (spec 2026-10-04, D6): a regra é a da Compatibilização — `coordenacao:ver` e enxergar o
+  // projeto —, não a muralha por disciplina: quem vê a maquete já vê todos os IFCs juntos.
+  if (origem === ORIGEM_MODELO_FEDERADO) {
+    const projetoId = await projetoEfetivo(ancora);
+    return !!projetoId && (await can(user, "coordenacao", "ver")) && (await veModelosDoProjeto(user, projetoId));
+  }
   if (origem === "interno") {
     // Material interno da equipe: cliente externo NUNCA lê, nem com a flag de Recebidos.
     if (!INTERNAL_ROLES.includes(user.role as Role)) return false;
@@ -70,6 +78,9 @@ export async function podeGerirDocumento(
   ancora: AncoraDocumento,
   origem?: string | null,
 ): Promise<boolean> {
+  // O federado só nasce da geração e só sai pelas ações dele (coordenação): nenhuma ação genérica de
+  // documento (nova versão, editar, excluir) mexe nele — senão a composição gravada mentiria.
+  if (origem === ORIGEM_MODELO_FEDERADO) return false;
   if (origem === "interno") {
     const projetoId = await projetoEfetivo(ancora);
     return !!projetoId && (await veProjeto(user, projetoId)) && (await can(user, "arquivos_gerais", "gerir"));
