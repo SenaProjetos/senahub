@@ -3,7 +3,12 @@
  * Regras do IFC federado (spec 2026-10-04 §4) — PURO. A mesma função decide o que o diálogo desabilita, o que
  * a action recusa e o que o job confere; a frase é a mesma nos três lugares.
  */
-import { TAMANHO_MAX_IFC } from "@/modules/coordenacao/conversao-estado";
+/**
+ * Soma máxima das entradas: 2 GB, o mesmo `TAMANHO_MAX_IFC` do conversor (um teste garante que não divergem).
+ * Não é importado de `conversao-estado.ts` de propósito: aquele arquivo importa `node:path`, e este roda no
+ * navegador (diálogo de exportar) — o webpack do `dev:server` recusa o módulo e a tela da Compatibilização quebra.
+ */
+export const LIMITE_ENTRADA_FEDERADO = 2 * 1024 * 1024 * 1024;
 
 export const FILA_FEDERAR_IFC = "gerar-ifc-federado";
 export const GRUPO_FEDERADO = "Modelo federado";
@@ -96,8 +101,8 @@ export function avaliarSelecao(candidatos: CandidatoFederado[], marcados: readon
   const totalBytes = candidatos.filter((c) => validos.includes(c.modeloId)).reduce((s, c) => s + c.tamanho, 0);
   let motivoGerar: string | null = null;
   if (validos.length < 2) motivoGerar = MOTIVO_POUCOS;
-  else if (totalBytes > TAMANHO_MAX_IFC) {
-    motivoGerar = `Os modelos marcados somam ${gb(totalBytes)}; o limite é ${gb(TAMANHO_MAX_IFC).replace(",0", "")}. Desmarque algum modelo.`;
+  else if (totalBytes > LIMITE_ENTRADA_FEDERADO) {
+    motivoGerar = `Os modelos marcados somam ${gb(totalBytes)}; o limite é ${gb(LIMITE_ENTRADA_FEDERADO).replace(",0", "")}. Desmarque algum modelo.`;
   }
   return { motivos, validos, podeGerar: motivoGerar === null, motivoGerar, totalBytes };
 }

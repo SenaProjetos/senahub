@@ -1,9 +1,54 @@
 // src/modules/coordenacao/federado/regras.test.ts
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { TAMANHO_MAX_IFC } from "@/modules/coordenacao/conversao-estado";
 import {
+  LIMITE_ENTRADA_FEDERADO,
   MOTIVO_ARQUIVO_SUMIU, MOTIVO_CABECALHO, MOTIVO_NAO_CONVERTIDO, MOTIVO_POUCOS,
   avaliarSelecao, conflitoEntreAnalises, familiaDoSchema, lerSaidaDoFilho, rotuloUnidade, type CandidatoFederado,
 } from "./regras";
+
+const SRC = path.resolve(__dirname, "../../..");
+
+/** Arquivo .ts/.tsx de um import local (`@/…` ou relativo); null para pacote externo. */
+function resolver(de: string, alvo: string): string | null {
+  const base = alvo.startsWith("@/") ? path.join(SRC, alvo.slice(2)) : alvo.startsWith(".") ? path.resolve(path.dirname(de), alvo) : null;
+  if (!base) return null;
+  for (const c of [`${base}.ts`, `${base}.tsx`, path.join(base, "index.ts")]) if (existsSync(c)) return c;
+  return null;
+}
+
+/** Imports `node:*` (ou fs/path/child_process crus) alcançáveis a partir do arquivo, com o caminho até eles. */
+function modulosDeNodeAlcancaveis(inicio: string): string[] {
+  const vistos = new Set<string>();
+  const achados: string[] = [];
+  const visitar = (arq: string, trilha: string[]) => {
+    if (vistos.has(arq)) return;
+    vistos.add(arq);
+    const src = readFileSync(arq, "utf8");
+    for (const m of src.matchAll(/^\s*import\s+(?!type\b)[^;]*?from\s+["']([^"']+)["']/gm)) {
+      const alvo = m[1];
+      if (/^node:|^(fs|path|child_process|crypto|os)$/.test(alvo)) achados.push([...trilha, path.relative(SRC, arq), alvo].join(" → "));
+      const prox = resolver(arq, alvo);
+      if (prox) visitar(prox, [...trilha, path.relative(SRC, arq)]);
+    }
+  };
+  visitar(inicio, []);
+  return achados;
+}
+
+describe("limite e fronteira do navegador", () => {
+  it("o limite da junção é o mesmo do conversor", () => {
+    expect(LIMITE_ENTRADA_FEDERADO).toBe(TAMANHO_MAX_IFC);
+  });
+
+  // O diálogo de exportar e a pasta da aba Arquivos rodam no navegador: um `node:` alcançável por eles quebra a
+  // tela no webpack do dev:server (aconteceu: regras.ts importava conversao-estado.ts, que importa node:path).
+  it.each(["regras.ts", "acoes.ts"])("%s não alcança nenhum módulo do Node", (arq) => {
+    expect(modulosDeNodeAlcancaveis(path.join(__dirname, arq))).toEqual([]);
+  });
+});
 
 const GB = 1024 ** 3;
 const c = (modeloId: string, o: Partial<CandidatoFederado> = {}): CandidatoFederado => ({
