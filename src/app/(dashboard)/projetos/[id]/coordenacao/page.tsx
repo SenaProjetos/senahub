@@ -17,8 +17,10 @@ import {
   contarPorDisciplina,
   semanasCriadosEncerrados,
 } from "@/modules/coordenacao/dashboard";
+import { ultimaGeracao } from "@/modules/coordenacao/federado/service";
 import { opcoesTarefa } from "@/modules/tarefas/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import { rotuloRevisao } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConversaoStatusView } from "@/components/coordenacao/conversao-status-view";
 import { CoordenacaoView } from "@/components/coordenacao/coordenacao-view";
@@ -39,7 +41,7 @@ export default async function CoordenacaoPage({
   const projeto = await projetoVisivel(user, id);
   if (!projeto) notFound();
 
-  const [modelos, podeGerir, atuaEmDisciplinaAlheia, apontamentos, minhasDisciplinas, resumoDashboard, vistas] = await Promise.all([
+  const [modelos, podeGerir, atuaEmDisciplinaAlheia, apontamentos, minhasDisciplinas, resumoDashboard, vistas, ultima] = await Promise.all([
     modelosCoordenacao(id),
     can(user, "coordenacao", "gerir"),
     podeAtuarEmDisciplinaAlheia(user),
@@ -50,6 +52,7 @@ export default async function CoordenacaoPage({
     }),
     dashboardApontamentos(id),
     vistasDoProjeto(id),
+    ultimaGeracao(id),
   ]);
 
   if (modelos.length === 0) {
@@ -80,6 +83,18 @@ export default async function CoordenacaoPage({
         }
       : null,
   }));
+  const geracao = ultima
+    ? {
+        status: ultima.status,
+        erro: ultima.erro,
+        avisos: (ultima.avisos ?? []) as string[],
+        criadoEm: ultima.criadoEm.toISOString(),
+        autor: ultima.autor.name,
+        versao: ultima.documentoVersao
+          ? { id: ultima.documentoVersao.id, revisao: rotuloRevisao(ultima.documentoVersao.numero), nomeArquivo: ultima.documentoVersao.nomeArquivo }
+          : null,
+      }
+    : null;
   const temConvertido = rows.some((r) => r.conversao?.status === "concluido");
 
   // Janela de confirmação da tarefa (só quem gerencia coordenação envia apontamentos).
@@ -112,6 +127,7 @@ export default async function CoordenacaoPage({
           colunasTarefa={colunasTarefa}
           opcoesTarefa={opcoes}
           apontamentoInicialNumero={sp.apontamento ? Number(sp.apontamento) : null}
+          ultimaGeracao={geracao}
         />
       ) : (
         <EmptyState

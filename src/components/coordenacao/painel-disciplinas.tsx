@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Lightbulb, ChevronDown } from "lucide-react";
+import { Boxes, Loader2, Lightbulb, ChevronDown } from "lucide-react";
 import type { ModeloRow } from "@/components/coordenacao/conversao-status-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ExportarFederadoDialog } from "@/components/coordenacao/exportar-federado-dialog";
+import { ModeloFederadoBloco, type GeracaoResumo } from "@/components/coordenacao/modelo-federado-bloco";
 import { Switch } from "@/components/ui/switch";
 import { cn, rotuloRevisao } from "@/lib/utils";
 
@@ -21,6 +23,9 @@ export function PainelDisciplinas({
   foco,
   onToggle,
   onFocar,
+  projetoId,
+  podeGerir,
+  ultimaGeracao,
 }: {
   modelos: ModeloRow[];
   carregados: Set<string>;
@@ -28,9 +33,16 @@ export function PainelDisciplinas({
   foco: string | null;
   onToggle: (uploadId: string, ligar: boolean) => void;
   onFocar: (uploadId: string) => void;
+  projetoId: string;
+  podeGerir: boolean;
+  ultimaGeracao: GeracaoResumo | null;
 }) {
   const [aberto, setAberto] = useState(true);
+  const [exportarAberto, setExportarAberto] = useState(false);
+  // Foto dos modelos ligados no instante do clique: o diálogo abre com eles marcados.
+  const [ligadosNoClique, setLigadosNoClique] = useState<string[]>([]);
   return (
+    <>
     <Card>
       <CardHeader className="pb-3">
         <button
@@ -92,7 +104,36 @@ export function PainelDisciplinas({
             </div>
           );
         })}
+        <div className="space-y-2 border-t border-border pt-3">
+          <ModeloFederadoBloco geracao={ultimaGeracao} />
+          {podeGerir && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                setLigadosNoClique([...carregados]);
+                setExportarAberto(true);
+              }}
+            >
+              <Boxes className="size-4" aria-hidden /> Exportar IFC federado
+            </Button>
+          )}
+        </div>
       </CardContent>
     </Card>
+    {podeGerir && exportarAberto && (
+      <ExportarFederadoDialog
+        projetoId={projetoId}
+        ligados={ligadosNoClique}
+        onFechar={() => setExportarAberto(false)}
+        desabilitado={
+          ultimaGeracao && (ultimaGeracao.status === "fila" || ultimaGeracao.status === "processando")
+            ? "Já há uma geração do modelo federado em andamento neste projeto."
+            : null
+        }
+      />
+    )}
+    </>
   );
 }

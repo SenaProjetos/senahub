@@ -35,6 +35,7 @@ import { DiffPainel } from "@/components/coordenacao/diff-painel";
 import { GeorrefDialog } from "@/components/coordenacao/georref-dialog";
 import { MarkupEditor } from "@/components/coordenacao/markup-editor";
 import { MedicaoToolbar } from "@/components/coordenacao/medicao-toolbar";
+import type { GeracaoResumo } from "@/components/coordenacao/modelo-federado-bloco";
 import { PainelDisciplinas } from "@/components/coordenacao/painel-disciplinas";
 import { PainelPropriedades } from "@/components/coordenacao/painel-propriedades";
 import { RealinharIfcDialog } from "@/components/coordenacao/realinhar-ifc-dialog";
@@ -74,6 +75,7 @@ export function CoordenacaoView({
   colunasTarefa,
   opcoesTarefa,
   apontamentoInicialNumero,
+  ultimaGeracao,
 }: {
   modelos: ModeloRow[];
   apontamentosIniciais: ApontamentoView[];
@@ -89,6 +91,7 @@ export function CoordenacaoView({
   colunasTarefa: { id: string; nome: string }[];
   opcoesTarefa: OpcoesUI | null;
   apontamentoInicialNumero: number | null;
+  ultimaGeracao: GeracaoResumo | null;
 }) {
   const router = useRouter();
   const engineRef = useRef<ViewerEngine | null>(null);
@@ -740,6 +743,9 @@ export function CoordenacaoView({
                 foco={foco}
                 onToggle={onToggle}
                 onFocar={focar}
+                projetoId={projetoId}
+                podeGerir={podeGerir}
+                ultimaGeracao={ultimaGeracao}
               />
             )}
             {painelAtivo === "elementos" && (
