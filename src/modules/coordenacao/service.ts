@@ -14,7 +14,7 @@ import {
  * handlers/pg-boss para o bundle da rota de upload. Null em `npm run dev` (sem
  * server.ts): a conversão fica em `fila` sem worker até subir o dev:server/prod.
  */
-function bossVivo(): PgBoss | null {
+export function bossVivo(): PgBoss | null {
   return (globalThis as unknown as { __senahubBoss?: PgBoss | null }).__senahubBoss ?? null;
 }
 

@@ -4,12 +4,14 @@ import { executarBackupStorage } from "@/lib/backup-storage";
 import { notificarAdmins } from "@/lib/notifications";
 import { limparChunksOrfaos } from "@/lib/upload-chunks";
 import { FILA_CONVERTER_IFC } from "@/modules/coordenacao/conversao-estado";
+import { FILA_FEDERAR_IFC } from "@/modules/coordenacao/federado/regras";
 import { FILA_CONVERTER_DWG } from "@/modules/dwg/conversao-estado";
 import { FILA_TAMANHO_PAPEL_PDF, processarLeituraTamanhoPapel } from "@/modules/uploads/tamanho-papel-pdf";
 import { FILA_MENSAGEM_AGENDADA } from "@/modules/chat/agendamento";
 import { FILA_IMPORTAR_CUSTOS } from "@/modules/custos/composicoes/service";
 import {
   processarConversaoIfc,
+  processarGeracaoFederado,
   processarConversaoDwg,
   limparFragsOrfaos,
   limparDxfOrfaos,
@@ -153,6 +155,14 @@ export async function startJobs(): Promise<PgBoss> {
   await boss.work(FILA_CONVERTER_IFC, async ([job]) => {
     const { conversaoId } = job.data as { conversaoId: string };
     await processarConversaoIfc(conversaoId);
+  });
+
+  // ── Coordenação BIM: IFC federado (ON-DEMAND) ──
+  // Concorrência-1 padrão do pg-boss: uma junção por vez (lê GBs de disco; não pode competir com a conversão).
+  await boss.createQueue(FILA_FEDERAR_IFC);
+  await boss.work(FILA_FEDERAR_IFC, async ([job]) => {
+    const { geracaoId } = job.data as { geracaoId: string };
+    await processarGeracaoFederado(geracaoId);
   });
 
   // ── Visualizador DWG: conversão DWG → DXF (ON-DEMAND, não agendada) ──────

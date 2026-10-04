@@ -48,6 +48,7 @@ import { resolverEscala } from "@/modules/ponto/service";
 import { avaliarAlertasDoDia } from "@/modules/ponto/alertas";
 import { diaLocalDate, diaLocal, horaLocal, minutosDoDia } from "@/modules/ponto/engine";
 import { executarConversao } from "@/modules/coordenacao/conversao";
+import { processarGeracao } from "@/modules/coordenacao/federado/service";
 import { executarConversaoDwg } from "@/modules/dwg/conversao";
 import { removerArquivo } from "@/lib/storage";
 import { limitePurga } from "@/modules/uploads/lixeira";
@@ -1493,6 +1494,11 @@ export async function processarConversaoIfc(conversaoId: string): Promise<void> 
     );
   }
   if (!ok) throw new Error(`Conversão ${conversaoId} falhou: ${ctx.erro ?? "erro desconhecido"}`);
+}
+
+/** IFC federado (spec 2026-10-04): o trabalho pesado roda em child process; aqui só orquestra. */
+export async function processarGeracaoFederado(geracaoId: string): Promise<void> {
+  await processarGeracao(geracaoId);
 }
 
 // ── Visualizador DWG ───────────────────────────────────────────
