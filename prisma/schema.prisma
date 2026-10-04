@@ -311,6 +311,8 @@ model User {
 
   nomenclaturaVersoesPublicadas NomenclaturaVersao[]
 
+  geracoesModeloFederado GeracaoModeloFederado[] @relation("GeracaoFederadoAutor")
+
   @@index([role])
   @@index([tipo, setor])
   @@index([contratacao])
@@ -1326,6 +1328,7 @@ model Projeto {
   @@index([negociacaoId])
   @@index([tipoEmpreendimentoId])
   regrasPreenchimento RegraCategorizacao[]
+  geracoesModeloFederado GeracaoModeloFederado[]
   @@map("projeto")
 }
 
@@ -3416,6 +3419,9 @@ enum OrigemDocumento {
   /// disciplinas como "Recebidos do cliente", mas em pasta própria — ver
   /// `baseArquitetonicaDoProjeto` em modules/documentos-cliente/queries.ts.
   base_arquitetonica
+  /// IFC único gerado na Compatibilização (spec 2026-10-04). Só nasce do job `gerar-ifc-federado`; cada
+  /// geração é uma versão. Pasta própria no Desenvolvimento, fora de Recebidos — ver documentos-cliente/origens.ts.
+  modelo_federado
 }
 
 enum CanalDocumento {
@@ -3473,6 +3479,8 @@ model DocumentoVersao {
   /// Visualizador DWG: quando esta versão é um DWG (recebido do cliente), guarda o
   /// estado da conversão para DXF — mesma tabela dos DWGs de disciplina.
   conversaoDesenho ConversaoDesenho?
+  /// IFC federado: a geração que produziu esta versão (origem `modelo_federado`).
+  geracaoFederado  GeracaoModeloFederado?
 
   @@unique([documentoId, numero])
   @@index([documentoId])
@@ -7399,6 +7407,30 @@ model ConversaoModelo {
 
   @@index([status])
   @@map("conversao_modelo")
+}
+
+/// Uma geração do IFC federado (spec 2026-10-04 §7). A composição é congelada na solicitação: diz, para
+/// sempre, quais versões entraram em cada revisão. Uma viva por projeto (índice único parcial na migração).
+model GeracaoModeloFederado {
+  id                String           @id @default(cuid())
+  projetoId         String
+  projeto           Projeto          @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  /// fila | processando | concluido | erro
+  status            String           @default("fila")
+  /// [{ modeloId, tipo, refId, caminho, nome, grupo, revisao, tamanho }]
+  composicao        Json
+  erro              String?
+  avisos            Json?
+  documentoVersaoId String?          @unique
+  documentoVersao   DocumentoVersao? @relation(fields: [documentoVersaoId], references: [id], onDelete: SetNull)
+  autorId           String
+  autor             User             @relation("GeracaoFederadoAutor", fields: [autorId], references: [id])
+  criadoEm          DateTime         @default(now())
+  iniciadoEm        DateTime?
+  concluidoEm       DateTime?
+
+  @@index([projetoId, criadoEm])
+  @@map("geracao_modelo_federado")
 }
 
 /// Visualizador DWG: estado da conversão DWG → DXF (via ODA File Converter,
