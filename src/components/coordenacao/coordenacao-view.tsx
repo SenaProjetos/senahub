@@ -242,7 +242,11 @@ export function CoordenacaoView({
       // Modelo novo entrando com um destaque ativo → aplica o ghost nele também.
       if (foco) void engine.destacarModelo(foco);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Falha ao carregar o modelo.");
+      // O motivo vem da rota (sem sessão, fora do projeto, não convertido…); o título diz QUAL modelo.
+      const nome = modelos.find((m) => m.uploadId === uploadId)?.nomeArquivo;
+      toast.error(nome ? `Não foi possível abrir ${nome}` : "Não foi possível abrir o modelo", {
+        description: err instanceof Error ? err.message : undefined,
+      });
     } finally {
       setCarregando((s) => {
         const n = new Set(s);
@@ -250,7 +254,7 @@ export function CoordenacaoView({
         return n;
       });
     }
-  }, [carregados, foco]);
+  }, [carregados, foco, modelos]);
 
   const aplicarCorte = useCallback((config: CorteConfig) => {
     setCorte(config);
