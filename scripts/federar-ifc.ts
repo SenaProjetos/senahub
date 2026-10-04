@@ -46,35 +46,55 @@ async function main() {
   await fs.mkdir(path.dirname(saidaAbs), { recursive: true });
   const hash = createHash("sha256");
   const out = createWriteStream(parcial);
-  // Sem ouvinte, um erro assíncrono do stream (disco cheio…) derrubaria o processo sem a linha JSON.
-  // Os `once(out, …)` abaixo também rejeitam no 'error', então a falha chega ao catch.
-  out.on("error", () => {});
+  // Guarda o primeiro erro do stream: um erro que chega ENTRE duas esperas (abertura do arquivo, disco cheio…)
+  // seria engolido e o `drain`/`finish` seguinte nunca resolveria (job preso até o timeout de 30 min).
+  let erroSaida: Error | null = null;
+  out.on("error", (e) => {
+    erroSaida ??= e;
+  });
+  const conferirSaida = () => {
+    if (erroSaida) throw erroSaida;
+  };
   let tamanho = 0;
   try {
+    await once(out, "ready"); // rejeita se a abertura de <saida>.parcial falhar
     let lote = "";
     const descarregar = async () => {
       const buf = Buffer.from(lote, "latin1");
       lote = "";
       hash.update(buf);
       tamanho += buf.length;
+      conferirSaida();
       if (!out.write(buf)) await once(out, "drain");
+      conferirSaida();
     };
     for await (const pedaco of escreverFederado(fontes, analises, manifesto.cabecalho)) {
       lote += pedaco;
       if (lote.length >= 1 << 20) await descarregar();
     }
     if (lote) await descarregar();
+    conferirSaida();
     out.end();
     await once(out, "finish");
+    conferirSaida();
     await fs.rename(parcial, saidaAbs);
   } catch (e) {
-    // No Windows o rm falha (EBUSY) enquanto o handle está aberto: espera o stream fechar antes.
-    if (!out.closed) {
-      const fechado = once(out, "close").catch(() => {});
-      out.destroy();
-      await fechado;
+    // A limpeza nunca esconde o erro de verdade: qualquer falha dela é ignorada e `e` sai intacto.
+    // No Windows o rm falha (EBUSY) enquanto o handle está aberto, então espera o stream fechar antes.
+    try {
+      if (!out.closed) {
+        const fechado = once(out, "close").catch(() => {});
+        out.destroy();
+        await fechado;
+      }
+    } catch {
+      // ignorado de propósito
     }
-    await fs.rm(parcial, { force: true });
+    try {
+      await fs.rm(parcial, { force: true });
+    } catch {
+      // ignorado de propósito
+    }
     throw e;
   }
 
