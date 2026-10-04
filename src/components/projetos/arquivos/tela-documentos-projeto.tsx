@@ -48,6 +48,7 @@ import type { LinkData } from "@/components/projetos/link-publico-arquivos-dialo
 import { listarArtsDoProjeto } from "@/modules/projetos/art/queries";
 import { DocumentosShell, type MolduraDiretorio } from "@/components/projetos/arquivos/documentos-shell";
 import { areaValida, type AreaDisponivel } from "@/modules/uploads/areas-projeto";
+import { versoesDoModeloFederado } from "@/modules/coordenacao/federado/service";
 import { listarListasDocumentos, podeGerirListasDocumentos } from "@/modules/uploads/listas-queries";
 
 /** Linha do banco → formato que o gerenciador de links entende (datas em ISO). */
@@ -181,6 +182,9 @@ export async function TelaDocumentosProjeto({
     podeGerirListasDocumentos(user, id),
   ]);
   const podeExcluirArquivo = ehAdmin || podeExcluirCap;
+  // Modelo federado (spec 2026-10-04 D6): quem vê a Compatibilização vê a pasta, sem a muralha por disciplina.
+  const modeloFederado = podeCoordenacao ? await versoesDoModeloFederado(id) : [];
+  const podeGerirFederado = podeCoordenacao && (await can(user, "coordenacao", "gerir"));
   // Só o que o resto do bloco precisa antes da árvore de navegação existir: o total de cada
   // disciplina passou a vir DELA (ver `disciplinasArvore`, mais abaixo).
   const disciplinasDoProjeto = arvore.disciplinas.map((d) => ({
@@ -376,6 +380,7 @@ export async function TelaDocumentosProjeto({
     { id: "geral", total: geral.length, visivel: podeVerGeral },
     { id: "arts", total: arts.length, visivel: arts.length > 0 },
     { id: "lixeira", total: lixeira.length, visivel: ehAdmin },
+    { id: "federado", total: modeloFederado.length, visivel: modeloFederado.length > 0 },
   ];
 
   return (
@@ -399,6 +404,8 @@ export async function TelaDocumentosProjeto({
         podeGerirRecebidos,
         podeGerirGeral,
         podeExcluirDocumento,
+        modeloFederado,
+        podeGerirFederado,
       }}
       nomenclatura={{
         projeto: nomenclaturaProjeto,

@@ -2,10 +2,12 @@
 
 import { ArtsPasta, LixeiraPasta } from "@/components/projetos/arquivos-explorer";
 import { TabelaAreaDocumentos } from "@/components/projetos/arquivos/tabela-area-documentos";
+import { TabelaModeloFederado } from "@/components/projetos/arquivos/tabela-modelo-federado";
 import type { AreaProjeto } from "@/modules/uploads/areas-projeto";
 import type { DocumentoItem } from "@/modules/documentos-cliente/queries";
 import type { LixeiraItem } from "@/modules/uploads/queries";
 import type { ArtListItem } from "@/modules/projetos/art/queries";
+import type { VersaoFederada } from "@/modules/coordenacao/federado/service";
 
 /**
  * Conteúdo da área do projeto selecionada no painel esquerdo.
@@ -29,6 +31,8 @@ export type DadosAreas = {
   podeGerirRecebidos: boolean;
   podeGerirGeral: boolean;
   podeExcluirDocumento: boolean;
+  modeloFederado: VersaoFederada[];
+  podeGerirFederado: boolean;
 };
 
 export function ConteudoAreaProjeto({ area, dados }: { area: AreaProjeto; dados: DadosAreas }) {
@@ -70,5 +74,7 @@ export function ConteudoAreaProjeto({ area, dados }: { area: AreaProjeto; dados:
       return <ArtsPasta projetoId={dados.projetoId} arts={dados.arts} abertoInicial />;
     case "lixeira":
       return <LixeiraPasta itens={dados.lixeira} abertoInicial />;
+    case "federado":
+      return <TabelaModeloFederado versoes={dados.modeloFederado} podeGerir={dados.podeGerirFederado} />;
   }
 }

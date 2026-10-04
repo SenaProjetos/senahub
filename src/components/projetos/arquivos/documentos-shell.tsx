@@ -2,7 +2,7 @@ import { ArvoreDocumentos, type DisciplinaArvore, type SelecaoArvore } from "@/c
 import type { ArvoreDaDisciplina } from "@/modules/uploads/arvore-navegacao";
 import { PainelNavegacaoDocumentos } from "@/components/projetos/arquivos/painel-navegacao-documentos";
 import { PainelAreasProjeto } from "@/components/projetos/arquivos/painel-areas-projeto";
-import { rotuloArea, type AreaDisponivel, type AreaProjeto } from "@/modules/uploads/areas-projeto";
+import { AREAS_NA_RAIZ, rotuloArea, type AreaDisponivel, type AreaProjeto } from "@/modules/uploads/areas-projeto";
 import { ConteudoAreaProjeto, type DadosAreas } from "@/components/projetos/arquivos/conteudo-area-projeto";
 import { LinkPublicoArquivosButton } from "@/components/projetos/link-publico-arquivos-dialog";
 import { NomenclaturaProjetoButton } from "@/components/projetos/arquivos/nomenclatura-projeto-dialog";
@@ -21,6 +21,8 @@ import { QuadroAlturaTela } from "@/components/ui/quadro-altura-tela";
 import { ModoFocoBotao } from "@/components/ui/modo-foco-botao";
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
 import {
+  PASTA_DESENVOLVIMENTO,
+  pastaDoModeloFederado,
   pastasDaRaiz,
   pastasDoNivel,
   raizDaNavegacao,
@@ -181,23 +183,35 @@ export function DocumentosShell({
   // A trilha começa na pasta-mãe: "Todos os documentos › Desenvolvimento › Estrutural".
   const raiz = raizDaNavegacao({ situacao, pasta, disciplinaId: selecao.disciplinaId });
   const segmentoRaiz = segmentoDaRaiz(raiz);
-  const trilha = areaSelecionada
-    ? [{ chave: `area:${areaSelecionada}`, rotulo: rotuloArea(areaSelecionada), titulo: null, destino: { disciplinaId: null, fase: null, ext: null, area: areaSelecionada } }]
-    : listaSelecionadaId === null
-      ? [...(segmentoRaiz ? [segmentoRaiz] : []), ...trilhaDaPasta(selecao, disciplinas, arvore)]
-      : [];
+  // A pasta "Modelo federado" mora dentro do Desenvolvimento, no nível das disciplinas (spec 2026-10-04 D4).
+  const federado = areas.find((a) => a.id === "federado" && a.visivel) ?? null;
+  const trilha =
+    areaSelecionada === "federado"
+      ? [
+          segmentoDaRaiz(PASTA_DESENVOLVIMENTO)!,
+          { chave: "area:federado", rotulo: rotuloArea("federado"), titulo: null, destino: pastaDoModeloFederado(0).destino },
+        ]
+      : areaSelecionada
+        ? [{ chave: `area:${areaSelecionada}`, rotulo: rotuloArea(areaSelecionada), titulo: null, destino: { disciplinaId: null, fase: null, ext: null, area: areaSelecionada } }]
+        : listaSelecionadaId === null
+          ? [...(segmentoRaiz ? [segmentoRaiz] : []), ...trilhaDaPasta(selecao, disciplinas, arvore)]
+          : [];
   const areasComoPasta = areas
-    .filter((a) => a.visivel && a.id !== "lixeira")
+    .filter((a) => a.visivel && a.id !== "lixeira" && AREAS_NA_RAIZ.includes(a.id))
     .map((a) => ({ id: a.id, rotulo: rotuloArea(a.id), total: a.total }));
   const pastas =
     nivel === null || paginacao.page !== 1
       ? []
       : raiz === "geral" && nivel === "raiz"
         ? pastasDaRaiz({ totalDesenvolvimento: totalDocumentos, situacoes, areas: areasComoPasta })
-        : pastasDoNivel(selecao, disciplinas, arvore).map((p) =>
-            // O .zip da pasta (`/api/uploads/pasta/zip`) leva a revisão VIGENTE; aqui vale a marcada.
-            situacao ? { ...p, zip: null } : p,
-          );
+        : [
+            ...pastasDoNivel(selecao, disciplinas, arvore).map((p) =>
+              // O .zip da pasta (`/api/uploads/pasta/zip`) leva a revisão VIGENTE; aqui vale a marcada.
+              situacao ? { ...p, zip: null } : p,
+            ),
+            // No fim, depois das disciplinas: só na raiz do Desenvolvimento.
+            ...(raiz === PASTA_DESENVOLVIMENTO && nivel === "raiz" && federado ? [pastaDoModeloFederado(federado.total)] : []),
+          ];
 
   return (
     <div className="space-y-4">
@@ -251,6 +265,7 @@ export function DocumentosShell({
             listaSelecionadaId={listaSelecionadaId}
             podeGerirListas={podeGerirListas}
             areaAtiva={areaSelecionada !== null}
+            modeloFederado={federado ? { total: federado.total, ativo: areaSelecionada === "federado" } : null}
             // No diretório, as pastas do projeto aparecem DENTRO do nó dele na árvore de anos.
             pastas={
               moldura
@@ -265,6 +280,7 @@ export function DocumentosShell({
                         raiz={raiz}
                         situacoes={situacoes}
                         areaAtiva={areaSelecionada !== null}
+                        modeloFederado={federado ? { total: federado.total, ativo: areaSelecionada === "federado" } : null}
                       />
                       <PainelAreasProjeto aninhada areas={areas} selecionada={areaSelecionada} />
                     </>,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, Folder, FolderOpen, HardHat, PencilRuler, Search, Send } from "lucide-react";
+import { Boxes, ChevronRight, Folder, FolderOpen, HardHat, PencilRuler, Search, Send } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { StatusDisciplina } from "@/generated/prisma/client";
 import { normalizar } from "@/lib/disciplinas-core";
@@ -62,6 +62,7 @@ export function ArvoreDocumentos({
   situacoes,
   areaAtiva = false,
   aninhada = false,
+  modeloFederado = null,
 }: {
   disciplinas: DisciplinaArvore[];
   arvore: ArvoreDaDisciplina[];
@@ -79,6 +80,8 @@ export function ArvoreDocumentos({
    * documentos" — o próprio nó do projeto é a raiz, e a busca de lá é por projeto.
    */
   aninhada?: boolean;
+  /** Pasta "Modelo federado" dentro do Desenvolvimento; `null` = sem permissão ou sem geração. */
+  modeloFederado?: { total: number; ativo: boolean } | null;
 }) {
   const [busca, setBusca] = useState("");
   // Abre sozinho o caminho da seleção (voltar no navegador, link com filtro, recarregar).
@@ -344,6 +347,26 @@ export function ArvoreDocumentos({
                 </li>
               );
             })}
+
+            {r.id === PASTA_DESENVOLVIMENTO && modeloFederado && !termo && (
+              <li role="treeitem" aria-selected={modeloFederado.ativo}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setParams({ area: "federado", pasta: PASTA_DESENVOLVIMENTO, disciplinaId: null, fase: null, ext: null, listaId: null, situacao: null })
+                  }
+                  title="IFC único com as disciplinas, gerado na Compatibilização"
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-md py-1.5 pr-2 pl-[1.375rem] text-left text-xs transition-colors",
+                    modeloFederado.ativo ? "bg-accent text-foreground" : "text-foreground hover:bg-accent/60",
+                  )}
+                >
+                  <Boxes className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                  <span className="min-w-0 flex-1 truncate">Modelo federado</span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">{modeloFederado.total}</span>
+                </button>
+              </li>
+            )}
 
             {termo && filtradas.length === 0 && (
               <li className="px-2 py-3 text-center text-xs text-muted-foreground">

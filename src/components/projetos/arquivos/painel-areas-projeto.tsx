@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
-import { FileCheck2, FolderOpen, Inbox, Ruler, Trash2 } from "lucide-react";
+import { Boxes, FileCheck2, FolderOpen, Inbox, Ruler, Trash2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { AREA_ROTULO, type AreaDisponivel, type AreaProjeto } from "@/modules/uploads/areas-projeto";
+import { AREAS_NA_RAIZ, AREA_ROTULO, type AreaDisponivel, type AreaProjeto } from "@/modules/uploads/areas-projeto";
 import { useSetParams } from "@/lib/use-set-param";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +40,7 @@ export const ICONE_AREA: Record<AreaProjeto, LucideIcon> = {
   geral: FolderOpen,
   arts: FileCheck2,
   lixeira: Trash2,
+  federado: Boxes,
 };
 
 export function PainelAreasProjeto({
@@ -53,7 +54,8 @@ export function PainelAreasProjeto({
   aninhada?: boolean;
 }) {
   const setParams = useSetParams();
-  const visiveis = areas.filter((a) => a.visivel);
+  // O federado mora dentro do Desenvolvimento (árvore e lista), não em "Áreas do projeto".
+  const visiveis = areas.filter((a) => a.visivel && AREAS_NA_RAIZ.includes(a.id));
   const temAreas = visiveis.length > 0;
 
   // Com o navegador ocioso, não disputa banda com a carga da página. Safari não tem

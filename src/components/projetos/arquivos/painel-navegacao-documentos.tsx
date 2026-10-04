@@ -20,6 +20,7 @@ export function PainelNavegacaoDocumentos({
   listaSelecionadaId,
   podeGerirListas,
   areaAtiva = false,
+  modeloFederado = null,
   pastas,
 }: {
   projetoId: string;
@@ -33,6 +34,7 @@ export function PainelNavegacaoDocumentos({
   listaSelecionadaId: string | null;
   podeGerirListas: boolean;
   areaAtiva?: boolean;
+  modeloFederado?: { total: number; ativo: boolean } | null;
   /** Árvore pronta para a aba Pastas (o diretório geral a monta dentro da árvore de anos). */
   pastas?: React.ReactNode;
 }) {
@@ -53,6 +55,7 @@ export function PainelNavegacaoDocumentos({
             raiz={raiz}
             situacoes={situacoes}
             areaAtiva={areaAtiva}
+            modeloFederado={modeloFederado}
           />
         )}
       </TabsContent>

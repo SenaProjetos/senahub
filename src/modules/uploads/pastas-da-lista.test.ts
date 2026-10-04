@@ -6,6 +6,7 @@ import {
   hrefDaPasta,
   hrefZipDaPasta,
   nivelDaPasta,
+  pastaDoModeloFederado,
   pastasDaRaiz,
   pastasDoNivel,
   raizDaNavegacao,
@@ -272,5 +273,13 @@ describe("pastas-mãe da raiz (reunião de 29/09/2026)", () => {
     const dentro = "situacao=compartilhado";
     expect(hrefDaPasta("/a", dentro, { disciplinaId: "d-est", fase: null, ext: null, area: null })).toBe("/a?situacao=compartilhado&disciplinaId=d-est");
     expect(hrefDaPasta("/a", "pasta=desenvolvimento&disciplinaId=d", { disciplinaId: null, fase: null, ext: null, area: null, situacao: null, pasta: null })).toBe("/a");
+  });
+});
+
+describe("pastaDoModeloFederado", () => {
+  it("pasta do modelo federado: área dentro do Desenvolvimento, sem .zip", () => {
+    const p = pastaDoModeloFederado(3);
+    expect(p).toMatchObject({ tipo: "area", rotulo: "Modelo federado", total: 3, zip: null });
+    expect(p.destino).toMatchObject({ area: "federado", pasta: "desenvolvimento", disciplinaId: null, situacao: null });
   });
 });

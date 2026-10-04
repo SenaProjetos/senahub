@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { arvoreNavegacaoDocumentos } from "@/modules/uploads/documentos-agrupados";
-import { AREAS_PROJETO, type AreaProjeto } from "@/modules/uploads/areas-projeto";
+import { AREAS_NA_RAIZ, type AreaProjeto } from "@/modules/uploads/areas-projeto";
 import {
   MAX_ARQUIVOS_ZIP,
   montarArvoreGlobal,
@@ -139,11 +139,13 @@ async function contagensDeArea(projetoIds: string[], visiveis: AreasVisiveis): P
     geral: porProjeto(geral),
     arts: porProjeto(arts),
     lixeira: lixeiraPorProjeto,
+    // O federado mora dentro do Desenvolvimento do projeto, não na lista de áreas da árvore global.
+    federado: new Map(),
   };
 
   const saida: ContagemAreaProjeto[] = [];
   for (const projetoId of projetoIds) {
-    for (const area of AREAS_PROJETO) {
+    for (const area of AREAS_NA_RAIZ) {
       // Área sem permissão não entra na árvore — item invisível é melhor que item morto, mesma
       // regra do painel de áreas da aba do projeto.
       if (area === "geral" && !visiveis.geral) continue;

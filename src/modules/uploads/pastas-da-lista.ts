@@ -188,6 +188,25 @@ export function pastasDaRaiz(opts: {
 }
 
 /**
+ * A pasta "Modelo federado" (spec 2026-10-04 D4): no Desenvolvimento, no nível das disciplinas, mas é uma ÁREA
+ * (Documento, não DocumentoDisciplina) — o destino abre a área mantendo a pasta-mãe na URL, para a trilha e a
+ * árvore continuarem dentro do Desenvolvimento. Sem .zip: é um arquivo só.
+ */
+export function pastaDoModeloFederado(total: number): PastaNaLista {
+  return {
+    tipo: "area",
+    chave: "area:federado",
+    rotulo: "Modelo federado",
+    titulo: "IFC único com as disciplinas, gerado na Compatibilização",
+    status: null,
+    disciplinaNome: null,
+    total,
+    destino: { disciplinaId: null, fase: null, ext: null, area: "federado", situacao: null, pasta: PASTA_DESENVOLVIMENTO },
+    zip: null,
+  };
+}
+
+/**
  * Em que nível da árvore a seleção está — ou `null` quando ela não é um nó (fase escolhida pelo
  * seletor sem disciplina, formato pelo filtro sem fase, "Sem fase", que deixou de ser pasta).
  * Aí a lista é filtro, não pasta: mostra tudo que casa, sem subpastas.
