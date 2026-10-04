@@ -23,7 +23,7 @@ dono escolheu o arquivo único.
 |---|---|
 | D1 | O resultado é **um único IFC** (um `IfcProject`), não um pacote. |
 | D2 | A pessoa **escolhe os modelos** num diálogo com lista de marcar, que já abre com os modelos **ligados no visualizador**. Modelos que não podem entrar aparecem desabilitados **com o motivo**. IFCs recebidos do cliente também podem entrar. |
-| D3 | O arquivo vira `Documento` do projeto com origem nova **`modelo_federado`** (mesmo caminho da Base Arquitetônica). Cada geração é **uma versão nova do mesmo documento** (R01, R02…). |
+| D3 | O arquivo vira `Documento` do projeto com origem nova **`modelo_federado`** (mesmo caminho da Base Arquitetônica). Cada geração é **uma versão nova do mesmo documento** (R00, R01… — `rotuloRevisao`, como o resto do sistema). |
 | D4 | Na aba Arquivos ele aparece numa pasta **"Modelo federado" dentro do Desenvolvimento, no mesmo nível das pastas das disciplinas** — e não em "Geral", que nem todos veem. |
 | D5 | **Não** se cria disciplina falsa nem se torna `disciplinaId` opcional em `Upload`/`DocumentoDisciplina` (a `Disciplina` tem 16 relações: prazo, valor, pagamento, EAP, cards, saúde; o `Upload` é lido em quase toda consulta da aba Arquivos). |
 | D6 | **Visibilidade = a da Compatibilização**: vê a pasta e baixa quem tem `coordenacao:ver` e enxerga o projeto (`veModelosDoProjeto`, `modules/coordenacao/acesso.ts`), **independente da muralha por disciplina** — essa pessoa já vê todos os IFCs juntos no visualizador, então nada vaza. Gerar e excluir: `coordenacao:gerir`. |
@@ -111,15 +111,17 @@ dentro (não são referências); `\X2\…\X0\`; comentário `/* … */`; `$` e `
   parcial.
 - Memória constante: linha a linha, sem carregar o arquivo inteiro. Só o conjunto de GlobalIds fica em
   memória (≈ 80 MB para 1 milhão de elementos).
-- Limite: soma dos tamanhos de entrada ≤ `2 × TAMANHO_MAX_IFC` (4 GB) — acima disso a action recusa
-  com "Os modelos marcados somam X GB; o limite é 4 GB. Desmarque algum modelo."
+- Limite: soma dos tamanhos de entrada ≤ `TAMANHO_MAX_IFC` (2 GB) — acima disso a action recusa
+  com "Os modelos marcados somam X GB; o limite é 2 GB. Desmarque algum modelo." Dois motivos para não
+  passar disso: `DocumentoVersao.tamanho` é `Int` (máx. 2,1 GB) e o `converter-ifc.ts` (usado na
+  verificação) recusa IFC acima de 2 GB.
 - Contrato do child igual ao `deslocar-ifc.ts`: caminhos relativos a `STORAGE_BASE_PATH`, uma linha
   JSON em stdout (`{"ok":true,"tamanho":N,"sha256":"…","avisos":[…]}` ou `{"ok":false,"erro":"…"}`),
   exit 0/1. Timeout no orquestrador: 30 min.
 
 ## 6. Fluxo
 
-1. Compatibilização → **"Exportar IFC federado"** (nas ações da tela, ao lado de "Exportar BCF") abre o
+1. Compatibilização → painel **Disciplinas** do visualizador → **"Exportar IFC federado"** abre o
    diálogo da lista de marcar (D2). Cada linha: nome, disciplina ou "Recebido do cliente", versão,
    schema, unidade, tamanho; bloqueados desabilitados com o motivo; total em GB no rodapé.
 2. **"Gerar"** → `gerarModeloFederado` (`defineAction`, `coordenacao:gerir`, Zod: `projetoId` +
@@ -132,15 +134,21 @@ dentro (não são referências); `\X2\…\X0\`; comentário `/* … */`; `$` e `
    e numa transação cria o `Documento` (`origem = modelo_federado`, `projetoId`, `clienteId` do
    projeto, nome "Modelo federado") **ou** reaproveita o existente, cria a `DocumentoVersao`
    (`numero` = último + 1) e marca a geração `concluido` com `documentoVersaoId` e `avisos`. Nome do
-   arquivo: `<Projeto.codigo>-FEDERADO-R<nn>.ifc`. Caminho no storage ao lado dos demais documentos do
+   arquivo: `<código formatado do projeto>-FEDERADO-<rotuloRevisao(numero)>.ifc` — a numeração de revisão
+do sistema (`rotuloRevisao`: versão 1 = R00, versão 2 = R01). Caminho no storage ao lado dos demais documentos do
    projeto, via `resolverCaminho`.
 4. **Sino** para quem pediu, categoria `coordenacao`: "Modelo federado R03 pronto" (link para a pasta)
    ou "Não foi possível gerar o modelo federado: <motivo>".
 5. A Compatibilização mostra a **última geração**: status, versão, data, autor, avisos (GlobalId
    repetido) e "Baixar". Enquanto `fila|processando`, o botão de gerar fica desabilitado com o motivo.
 
-O job só roda sob `dev:server`/produção (como a conversão de IFC); em `npm run dev` a geração fica em
-`fila`, e a tela diz isso.
+O job só roda sob `dev:server`/produção (como a conversão de IFC). Sem worker (`npm run dev`) a action
+recusa antes de gravar: "A geração roda em segundo plano e o servidor de tarefas não está ativo." Uma
+geração em `fila|processando` há mais de 45 min é tida como interrompida (servidor reiniciou): a próxima
+solicitação a marca `erro` com "Interrompida — o servidor reiniciou durante a geração." antes de criar a
+nova, senão o projeto ficaria travado para sempre. A trava "uma por projeto" é um índice único parcial
+(`projetoId` onde `status in ('fila','processando')`), não só a checagem — dois cliques ao mesmo tempo
+não criam duas.
 
 ## 7. Dados (1 migração, aditiva)
 
@@ -186,7 +194,7 @@ plano substitui os literais por constantes únicas num arquivo puro (ex.:
   confere: um só `IfcProject`; as duas paredes com os GlobalIds originais; contagem de entidades =
   soma − (n−1) projetos; `RepresentationContexts` com os contextos de ambos. Depois roda o
   `converter-ifc.ts` sobre a saída (prova que a geometria é legível). Cobre também: recusa de schema
-  e de unidade diferentes, geração simultânea recusada, versão R02 na segunda geração, exclusão de
+  e de unidade diferentes, geração simultânea recusada, versão R01 na segunda geração, exclusão de
   versão, federado ausente de Recebidos e da lista da Compatibilização.
 - **Verificação com IFC real** `npm run verify:ifc-federado <projetoId>`: junta os modelos vigentes
   de um projeto do banco de dev, converte para `.frag` e compara a contagem de elementos com a soma
