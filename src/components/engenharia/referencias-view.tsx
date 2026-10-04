@@ -17,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
+import { VisualizarDocumentoDialog } from "@/components/certidoes/visualizar-documento-dialog";
 import { formatarData } from "@/lib/utils";
 
 /** Corpo da rota de upload: metadata em caso de sucesso, `error` em caso de falha. */
@@ -70,6 +71,7 @@ export function ReferenciasView({
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<FormState>(FORM_VAZIO);
+  const [visualizando, setVisualizando] = useState<{ url: string; titulo: string } | null>(null);
 
   const termo = q.trim().toLowerCase();
   const filtradas = useMemo(() => {
@@ -253,8 +255,9 @@ export function ReferenciasView({
                                 <Button
                                   size="icon"
                                   variant="ghost"
-                                  aria-label={`Abrir ${r.titulo}`}
-                                  render={<a href={`${r.downloadUrl}?disposition=inline`} target="_blank" rel="noreferrer" />}
+                                  aria-label={`Visualizar ${r.titulo}`}
+                                  title="Visualizar"
+                                  onClick={() => setVisualizando({ url: `${r.downloadUrl}?disposition=inline`, titulo: r.titulo })}
                                 >
                                   <Eye className="size-3.5" />
                                 </Button>
@@ -307,6 +310,13 @@ export function ReferenciasView({
       </Card>
 
       {/* Incluir/editar referência */}
+      {/* PDF abre no visualizador do SenaHub, não numa aba do navegador; fora do sistema = Baixar. */}
+      <VisualizarDocumentoDialog
+        url={visualizando?.url ?? null}
+        titulo={visualizando?.titulo ?? ""}
+        onClose={() => setVisualizando(null)}
+      />
+
       <Dialog open={dialogAberto} onOpenChange={(o) => !o && setDialogAberto(false)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>

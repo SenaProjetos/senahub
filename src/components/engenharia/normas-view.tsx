@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
+import { VisualizarDocumentoDialog } from "@/components/certidoes/visualizar-documento-dialog";
 import { useSetParams } from "@/lib/use-set-param";
 import { cn, formatarData } from "@/lib/utils";
 
@@ -73,6 +74,7 @@ export function NormasView({
   const [pending, start] = useTransition();
   const [q, setQ] = useState("");
   const [dialogo, setDialogo] = useState<{ modo: "nova" } | { modo: "editar"; norma: NormaItem } | null>(null);
+  const [visualizando, setVisualizando] = useState<NormaItem | null>(null);
 
   // A pasta vive na URL (`?pasta=`): voltar no navegador volta de pasta, e o link pode ser mandado.
   const pasta = useSearchParams().get("pasta");
@@ -213,6 +215,7 @@ export function NormasView({
                             norma={n}
                             podeMexer={podeGerir || n.autorId === usuarioId}
                             pending={pending}
+                            onVisualizar={() => setVisualizando(n)}
                             onEditar={() => setDialogo({ modo: "editar", norma: n })}
                             onExcluir={() => excluir(n.id, n.numero)}
                           />
@@ -248,6 +251,7 @@ export function NormasView({
                                 norma={n}
                                 podeMexer={podeGerir || n.autorId === usuarioId}
                                 pending={pending}
+                                onVisualizar={() => setVisualizando(n)}
                                 onEditar={() => setDialogo({ modo: "editar", norma: n })}
                                 onExcluir={() => excluir(n.id, n.numero)}
                               />
@@ -263,6 +267,14 @@ export function NormasView({
           </Card>
         </main>
       </div>
+
+      {/* Abre no visualizador do SenaHub, não numa aba do navegador: quem quiser o PDF fora
+          do sistema usa Baixar. `inline` registra a abertura como visualização. */}
+      <VisualizarDocumentoDialog
+        url={visualizando ? `${visualizando.downloadUrl}?disposition=inline` : null}
+        titulo={visualizando ? `${visualizando.numero} — ${visualizando.titulo}` : ""}
+        onClose={() => setVisualizando(null)}
+      />
 
       {dialogo && (
         <NormaDialog
@@ -285,12 +297,14 @@ function AcoesNorma({
   norma: n,
   podeMexer,
   pending,
+  onVisualizar,
   onEditar,
   onExcluir,
 }: {
   norma: NormaItem;
   podeMexer: boolean;
   pending: boolean;
+  onVisualizar: () => void;
   onEditar: () => void;
   onExcluir: () => void;
 }) {
@@ -299,8 +313,9 @@ function AcoesNorma({
       <Button
         size="icon"
         variant="ghost"
-        aria-label={`Abrir ${n.numero}`}
-        render={<a href={`${n.downloadUrl}?disposition=inline`} target="_blank" rel="noreferrer" />}
+        aria-label={`Visualizar ${n.numero}`}
+        title="Visualizar"
+        onClick={onVisualizar}
       >
         <Eye className="size-3.5" />
       </Button>

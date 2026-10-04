@@ -3,7 +3,6 @@
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
 import { Plus, Search, Download, Eye, Trash2, FileText, Library } from "lucide-react";
 import { criarPadrao, excluirPadrao } from "@/modules/engenharia/actions";
@@ -19,6 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
+import { VisualizarDocumentoDialog } from "@/components/certidoes/visualizar-documento-dialog";
 import { formatarData } from "@/lib/utils";
 
 const SEM_DISCIPLINA = "__geral";
@@ -61,6 +61,7 @@ export function PadroesView({
   const [pending, start] = useTransition();
   const [q, setQ] = useState("");
   const [novo, setNovo] = useState(false);
+  const [visualizando, setVisualizando] = useState<{ url: string; titulo: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({ titulo: "", tipo: "prancha", disciplinaId: SEM_DISCIPLINA, descricao: "" });
@@ -207,8 +208,9 @@ export function PadroesView({
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                aria-label={`Abrir ${i.titulo}`}
-                                render={<Link href={`${i.downloadUrl}?disposition=inline`} target="_blank" />}
+                                aria-label={`Visualizar ${i.titulo}`}
+                                title="Visualizar"
+                                onClick={() => setVisualizando({ url: `${i.downloadUrl}?disposition=inline`, titulo: i.titulo })}
                               >
                                 <Eye className="size-3.5" />
                               </Button>
@@ -245,6 +247,13 @@ export function PadroesView({
       )}
 
       {/* Incluir padrão */}
+      {/* PDF abre no visualizador do SenaHub, não numa aba do navegador; fora do sistema = Baixar. */}
+      <VisualizarDocumentoDialog
+        url={visualizando?.url ?? null}
+        titulo={visualizando?.titulo ?? ""}
+        onClose={() => setVisualizando(null)}
+      />
+
       <Dialog open={novo} onOpenChange={(o) => !o && setNovo(false)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
