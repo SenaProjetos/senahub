@@ -240,7 +240,9 @@ export async function processarGeracao(geracaoId: string, deps: { rodar?: SpawnF
   }
 }
 
+/** Lê a última geração; antes, libera a que ficou travada (senão o painel mostraria "Gerando…" para sempre). */
 export async function ultimaGeracao(projetoId: string) {
+  await liberarTravadas(projetoId);
   return prisma.geracaoModeloFederado.findFirst({
     where: { projetoId },
     orderBy: { criadoEm: "desc" },

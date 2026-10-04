@@ -10,8 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-function mb(bytes: number) {
-  return `${(bytes / 1024 / 1024).toFixed(0)} MB`;
+function tamanhoLegivel(bytes: number) {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1).replace(".", ",")} GB`;
+  if (bytes < 1024 ** 2) return "<1 MB";
+  return `${Math.round(bytes / 1024 ** 2)} MB`;
 }
 
 /**
@@ -39,12 +41,16 @@ export function ExportarFederadoDialog({
 
   useEffect(() => {
     let vivo = true;
-    void listarCandidatosFederado({ projetoId }).then((r) => {
-      if (!vivo) return;
-      if (!r.ok) return setErro(r.error);
-      setCandidatos(r.data);
-      setMarcados(r.data.filter((c) => ligados.includes(c.modeloId)).map((c) => c.modeloId));
-    });
+    listarCandidatosFederado({ projetoId })
+      .then((r) => {
+        if (!vivo) return;
+        if (!r.ok) return setErro(r.error);
+        setCandidatos(r.data);
+        setMarcados(r.data.filter((c) => ligados.includes(c.modeloId)).map((c) => c.modeloId));
+      })
+      .catch(() => {
+        if (vivo) setErro("Não foi possível ler os modelos. Feche e abra de novo.");
+      });
     return () => {
       vivo = false;
     };
@@ -77,7 +83,7 @@ export function ExportarFederadoDialog({
         <DialogBody className="space-y-2">
           <p className="text-sm text-muted-foreground">
             Junta os modelos marcados num só IFC, guardado em Arquivos → Desenvolvimento → Modelo federado.
-            O primeiro marcado define o schema e a unidade.
+            O primeiro marcado da lista define o schema e a unidade.
           </p>
           {erro && <p className="text-sm text-destructive">{erro}</p>}
           {!candidatos && !erro && (
@@ -92,7 +98,7 @@ export function ExportarFederadoDialog({
                   <li key={c.modeloId} className="flex items-start gap-2 rounded-md border border-border p-2">
                     <Checkbox
                       checked={marcados.includes(c.modeloId)}
-                      disabled={intrinseco}
+                      disabled={intrinseco || (!!motivo && !marcados.includes(c.modeloId))}
                       onCheckedChange={(v: boolean) => alternar(c.modeloId, v)}
                       aria-label={`Incluir ${c.nome}`}
                       className="mt-0.5"
@@ -100,7 +106,7 @@ export function ExportarFederadoDialog({
                     <div className="min-w-0 flex-1 text-xs">
                       <p className="truncate text-sm font-medium" title={c.nome}>{c.grupo}</p>
                       <p className="truncate font-mono text-muted-foreground" title={c.nome}>
-                        {c.nome} · {c.revisao} · {c.schema ?? "?"} · {c.unidade === undefined ? "unidade a conferir" : rotuloUnidade(c.unidade)} · {mb(c.tamanho)}
+                        {c.nome} · {c.revisao} · {c.schema ?? "?"} · {c.unidade === undefined ? "unidade a conferir" : rotuloUnidade(c.unidade)} · {tamanhoLegivel(c.tamanho)}
                       </p>
                       {motivo && <p className="text-destructive">{motivo}</p>}
                     </div>
@@ -111,7 +117,7 @@ export function ExportarFederadoDialog({
           )}
         </DialogBody>
         <DialogFooter className="flex-wrap items-center gap-2">
-          {avaliacao && <span className="mr-auto text-xs text-muted-foreground">{avaliacao.validos.length} modelos · {mb(avaliacao.totalBytes)}</span>}
+          {avaliacao && <span className="mr-auto text-xs text-muted-foreground">{avaliacao.validos.length} {avaliacao.validos.length === 1 ? "modelo" : "modelos"} · {tamanhoLegivel(avaliacao.totalBytes)}</span>}
           {motivoBotao && <span className="w-full text-xs text-muted-foreground sm:w-auto">{motivoBotao}</span>}
           <Button onClick={gerar} disabled={pending || !avaliacao || motivoBotao !== null}>
             {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Boxes className="size-4" aria-hidden />} Gerar
