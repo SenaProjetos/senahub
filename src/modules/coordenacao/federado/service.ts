@@ -131,6 +131,10 @@ async function avisarAutor(autorId: string, projetoId: string, titulo: string, c
   );
 }
 
+function contarConcluidas(db: Pick<Prisma.TransactionClient, "geracaoModeloFederado">, projetoId: string): Promise<number> {
+  return db.geracaoModeloFederado.count({ where: { projetoId, status: "concluido" } });
+}
+
 /** A linha deixou de estar `processando` (foi liberada como travada): o resultado desta execução é descartado. */
 class GeracaoLiberada extends Error {}
 
@@ -162,11 +166,10 @@ export async function processarGeracao(geracaoId: string, deps: { rodar?: SpawnF
     if (!(await existeArquivo(item.caminho))) return falhar(`O arquivo de ${item.nome} (${item.grupo}) não está mais no servidor.`);
   }
 
-  const doc = await prisma.documento.findFirst({
-    where: { projetoId: g.projetoId, origem: ORIGEM_MODELO_FEDERADO },
-    select: { id: true, versoes: { orderBy: { numero: "desc" }, take: 1, select: { numero: true } } },
-  });
-  const numero = (doc?.versoes[0]?.numero ?? 0) + 1;
+  // Revisão nunca é reaproveitada (spec §7: a composição diz PARA SEMPRE o que entrou em cada R): conta as gerações
+  // concluídas do projeto, não as versões que sobraram — excluir a R01 (ou o federado inteiro) não devolve o número.
+  const concluidasAntes = await contarConcluidas(prisma, g.projetoId);
+  const numero = concluidasAntes + 1;
   const nomeArquivo = `${formatarCodigo(g.projeto.codigo)}-FEDERADO-${rotuloRevisao(numero)}.ifc`;
   const saida = `documentos/${g.projeto.clienteId}/${randomBytes(12).toString("hex")}.ifc`;
 
@@ -183,7 +186,12 @@ export async function processarGeracao(geracaoId: string, deps: { rodar?: SpawnF
     },
     deps.rodar,
   );
-  if (!r.ok) return falhar(r.erro);
+  if (!r.ok) {
+    // O child só apaga o parcial nos próprios caminhos de erro; timeout (kill) ou queda por memória deixam GBs no disco.
+    await removerArquivo(`${saida}.parcial`);
+    await removerArquivo(saida);
+    return falhar(r.erro);
+  }
   if (r.tamanho > TAMANHO_MAX_INT) {
     await removerArquivo(saida);
     return falhar("O modelo federado passou de 2 GB. Desmarque algum modelo e gere de novo.");
@@ -191,6 +199,10 @@ export async function processarGeracao(geracaoId: string, deps: { rodar?: SpawnF
 
   try {
     await prisma.$transaction(async (tx) => {
+      // Não pode mudar (uma geração viva por projeto); se mudou, falha em vez de gravar um R repetido.
+      if ((await contarConcluidas(tx, g.projetoId)) !== concluidasAntes) throw new Error("Contagem de gerações concluídas mudou.");
+      // Lido aqui dentro: o federado pode ter sido excluído enquanto o child rodava.
+      const doc = await tx.documento.findFirst({ where: { projetoId: g.projetoId, origem: ORIGEM_MODELO_FEDERADO }, select: { id: true } });
       const documentoId =
         doc?.id ??
         (

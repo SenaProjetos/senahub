@@ -63,7 +63,8 @@ export const gerarModeloFederado = defineAction(
         where: { id: geracaoId, status: "fila" },
         data: { status: "erro", erro: "Não foi possível enviar a geração para a fila de tarefas.", concluidoEm: new Date() },
       });
-      throw e;
+      console.error(`[federado] falha ao enfileirar a geração ${geracaoId}:`, e);
+      throw new ActionError("Não foi possível enviar a geração para a fila de tarefas. Tente de novo.");
     }
     revalidar(i.projetoId);
     return { geracaoId };
