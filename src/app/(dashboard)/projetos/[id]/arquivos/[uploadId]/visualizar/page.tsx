@@ -12,6 +12,7 @@ import { extensao } from "@/modules/uploads/destino";
 import { contextoTarefasDasPendencias, opcoesTarefa } from "@/modules/tarefas/queries";
 import { PdfViewer } from "@/components/projetos/pdf-viewer";
 import { PARAM_VOLTA, voltaPadrao, voltaValida } from "@/modules/uploads/volta-visualizador";
+import { ordenarPorFormato } from "@/modules/uploads/ordem-formato";
 
 export const metadata: Metadata = { title: "Visualizar prancha" };
 
@@ -107,7 +108,7 @@ export default async function VisualizarPage({
       : Promise.resolve(null),
   ]);
   const revisionFiles = revisaoAtual?.uploads.length
-    ? revisaoAtual.uploads.map((arquivo) => ({
+    ? ordenarPorFormato(revisaoAtual.uploads, (a) => a.nomeArquivo).map((arquivo) => ({
         id: arquivo.id,
         name: arquivo.nomeArquivo,
         ext: extensao(arquivo.nomeArquivo),

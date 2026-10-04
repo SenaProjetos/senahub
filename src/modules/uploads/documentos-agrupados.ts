@@ -17,6 +17,7 @@ import {
 } from "@/modules/uploads/arvore-navegacao";
 import type { Pacote } from "@/modules/uploads/estrutura";
 import { arquivoNoFormato } from "@/modules/uploads/pastas-da-lista";
+import { ordenarPorFormato } from "@/modules/uploads/ordem-formato";
 import { CAMPO_DA_SITUACAO, arquivosDaRevisaoMarcada, type Situacao } from "@/modules/uploads/revisao-marcada";
 import { mapaCanonico, canonizar } from "@/modules/projetos/pranchas/queries";
 
@@ -585,7 +586,7 @@ export async function listarDocumentosAgrupados(opts: {
       podeAlterarStatus:
         opts.podeAlterarStatus &&
         (veTodas || d.disciplina.responsaveis.some((r) => r.userId === userId)),
-      arquivos: daAtual.map((u) => ({
+      arquivos: ordenarPorFormato(daAtual, (u) => u.nomeArquivo).map((u) => ({
         id: u.id,
         nome: u.nomeArquivo,
         ext: extensaoDe(u.nomeArquivo),

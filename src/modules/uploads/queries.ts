@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { diasRestantesLixeira, DIAS_LIXEIRA } from "./lixeira";
 import { agruparPorDocumento } from "./exclusao-escopo";
 import type { PranchaNavegavel } from "./pranchas-navegacao";
+import { ordenarPorFormato } from "./ordem-formato";
 
 export async function listarUploadsDisciplina(disciplinaId: string) {
   const uploads = await prisma.upload.findMany({
@@ -722,7 +723,7 @@ export async function historicoRevisoesDocumento(uploadId: string): Promise<Hist
     atual: r.numero === maiorNumero,
     pendenciasCriadas: r._count.pendenciasOrigem,
     pendenciasResolvidas: r._count.pendenciasResolucao,
-    arquivos: r.uploads.map((u) => ({
+    arquivos: ordenarPorFormato(r.uploads, (u) => u.nomeArquivo).map((u) => ({
       id: u.id,
       nome: u.nomeArquivo,
       ext: extensaoDe(u.nomeArquivo),
