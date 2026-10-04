@@ -1,7 +1,10 @@
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
+import { Readable } from "node:stream";
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { lerArquivo } from "@/lib/storage";
+import { resolverCaminho } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { podeLerDocumento } from "@/modules/documentos-cliente/acesso";
 
@@ -28,9 +31,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 
-  let conteudo: Buffer;
+  // Streaming (spec do IFC federado, §8): o arquivo pode ter GBs — ler num Buffer derrubaria a memória.
+  let caminhoAbs: string;
+  let tamanho: number;
   try {
-    conteudo = await lerArquivo(versao.caminho);
+    caminhoAbs = resolverCaminho(versao.caminho);
+    tamanho = (await stat(caminhoAbs)).size;
   } catch {
     return NextResponse.json({ error: "Arquivo indisponível no disco." }, { status: 410 });
   }
@@ -45,9 +51,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     ip: await getClientIp(),
   });
 
-  return new NextResponse(new Uint8Array(conteudo), {
+  const stream = Readable.toWeb(createReadStream(caminhoAbs)) as ReadableStream;
+  return new NextResponse(stream, {
     headers: {
       "Content-Type": versao.mime || "application/octet-stream",
+      "Content-Length": String(tamanho),
       "Content-Disposition": `attachment; filename="${encodeURIComponent(versao.nomeArquivo)}"`,
     },
   });
