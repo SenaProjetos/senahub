@@ -92,6 +92,8 @@ export type ParamsTelaDocumentos = {
   area?: string;
   /** Pasta do cliente (`compartilhado` | `liberado_obra`): a mesma navegação, só com o que foi marcado. */
   situacao?: string;
+  /** Raiz do Desenvolvimento (`desenvolvimento`): a pasta-mãe onde a equipe trabalha. */
+  pasta?: string;
   q?: string;
   ext?: string;
   autor?: string;
@@ -324,8 +326,8 @@ export async function TelaDocumentosProjeto({
     // Árvore do painel esquerdo: fases e formatos de TODAS as disciplinas visíveis (não do
     // recorte da página) — é navegação, tem de continuar mostrando para onde ir.
     arvoreNavegacaoDocumentos({ projetoIds: [id], userId: user.id, veTodas, somenteRevisaoAtual: true, situacao }),
-    // O número das pastas do cliente na raiz — dentro delas não se mostra de novo.
-    situacao ? Promise.resolve(null) : contagemPorSituacao({ projetoIds: [id], userId: user.id, veTodas }),
+    // O número das pastas do cliente: na raiz da lista e, sempre, no painel lateral.
+    contagemPorSituacao({ projetoIds: [id], userId: user.id, veTodas }),
   ]);
   // FONTE ÚNICA da contagem de documentos: `DocumentoDisciplina`, via árvore de navegação.
   //
@@ -356,9 +358,7 @@ export async function TelaDocumentosProjeto({
     }))
     // Dentro da pasta do cliente só as disciplinas que têm algo lá — a raiz não convida a enviar.
     .filter((d) => situacao === null || d.total > 0);
-  const situacoes = porSituacao
-    ? SITUACOES.map((s) => ({ id: s, rotulo: ROTULO_SITUACAO[s], total: porSituacao[s] }))
-    : [];
+  const situacoes = SITUACOES.map((s) => ({ id: s, rotulo: ROTULO_SITUACAO[s], total: porSituacao[s] }));
   const totalDocumentos = disciplinasArvore.reduce((soma, d) => soma + d.total, 0);
   // Colunas visíveis: preferência do USUÁRIO (vale em qualquer projeto), resolvida no
   // servidor para a tabela já nascer com o recorte certo — sem piscar mostrando tudo.
@@ -386,6 +386,7 @@ export async function TelaDocumentosProjeto({
       areas={areas}
       areaSelecionada={areaSelecionada}
       situacao={situacao}
+      pasta={sp?.pasta ?? null}
       situacoes={situacoes}
       dadosAreas={{
         projetoId: id,

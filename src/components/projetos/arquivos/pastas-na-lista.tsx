@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronRight, Download, Folder, FolderOpen, HardHat, Send } from "lucide-react";
+import { ChevronRight, Download, Folder, FolderOpen, HardHat, PencilRuler, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -59,6 +59,7 @@ function IconeDaColuna({ pasta }: { pasta: PastaNaLista }) {
     const Icone = pasta.destino.situacao === "liberado_obra" ? HardHat : Send;
     return <Icone className="size-4 shrink-0 text-info" aria-hidden />;
   }
+  if (pasta.tipo === "desenvolvimento") return <PencilRuler className="size-4 shrink-0 text-muted-foreground" aria-hidden />;
   const area = pasta.tipo === "area" ? areaValida(pasta.destino.area) : null;
   if (area) {
     const Icone = ICONE_AREA[area];
@@ -255,7 +256,7 @@ export function TrilhaPastas({
               {rotuloRaiz}
             </span>
           ) : (
-            <Link href={nav.hrefDe({ disciplinaId: null, fase: null, ext: null, area: null, situacao: null })} scroll={false} className={classeLink}>
+            <Link href={nav.hrefDe({ disciplinaId: null, fase: null, ext: null, area: null, situacao: null, pasta: null })} scroll={false} className={classeLink}>
               {rotuloRaiz}
             </Link>
           )}

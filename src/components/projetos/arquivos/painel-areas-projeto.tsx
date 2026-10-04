@@ -84,10 +84,10 @@ export function PainelAreasProjeto({
             <li key={a.id}>
               <button
                 type="button"
-                // Escolher uma área limpa a disciplina e a lista: são navegações concorrentes,
-                // e manter as três na URL mostraria um recorte que a tela não representa.
+                // Escolher uma área limpa a disciplina, a lista e a pasta-mãe: são navegações
+                // concorrentes, e manter tudo na URL mostraria um recorte que a tela não representa.
                 onClick={() =>
-                  setParams({ area: ativa ? null : a.id, disciplinaId: null, listaId: null })
+                  setParams({ area: ativa ? null : a.id, disciplinaId: null, listaId: null, situacao: null, pasta: null })
                 }
                 onPointerEnter={preCarregarConteudoArea}
                 onFocus={preCarregarConteudoArea}

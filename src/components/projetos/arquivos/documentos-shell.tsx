@@ -20,7 +20,15 @@ import { Pagination } from "@/components/ui/pagination";
 import { QuadroAlturaTela } from "@/components/ui/quadro-altura-tela";
 import { ModoFocoBotao } from "@/components/ui/modo-foco-botao";
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
-import { pastasDoNivel, trilhaDaPasta, type NivelPasta, type SituacaoDaPasta } from "@/modules/uploads/pastas-da-lista";
+import {
+  pastasDaRaiz,
+  pastasDoNivel,
+  raizDaNavegacao,
+  segmentoDaRaiz,
+  trilhaDaPasta,
+  type NivelPasta,
+  type SituacaoDaPasta,
+} from "@/modules/uploads/pastas-da-lista";
 import { ROTULO_SITUACAO, type Situacao } from "@/modules/uploads/revisao-marcada";
 import { TrilhaPastas } from "@/components/projetos/arquivos/pastas-na-lista";
 
@@ -94,6 +102,7 @@ export function DocumentosShell({
   areas,
   areaSelecionada,
   situacao,
+  pasta,
   situacoes,
   dadosAreas,
   linkPublico,
@@ -146,7 +155,9 @@ export function DocumentosShell({
   areaSelecionada: AreaProjeto | null;
   /** Pasta do cliente aberta (`?situacao=`), ou `null`. */
   situacao: Situacao | null;
-  /** As pastas do cliente na raiz, com o número de documentos (vazio dentro delas). */
+  /** `?pasta=` da URL — `desenvolvimento` abre a raiz do Desenvolvimento. */
+  pasta: string | null;
+  /** As pastas do cliente, com o número de documentos: na raiz geral da lista e no painel lateral. */
   situacoes: SituacaoDaPasta[];
   dadosAreas: DadosAreas;
   /** `null` quando o usuário não pode gerir o link público — o botão nem aparece. */
@@ -164,35 +175,29 @@ export function DocumentosShell({
 }) {
   // Pastas no topo da lista, como no Google Drive: só na navegação por pastas (com busca ou
   // filtro o resultado é de pesquisa, e a contagem da pasta, que ignora o filtro, mentiria) e só
-  // na página 1 — da 2 em diante a lista já passou das pastas. Na raiz, depois das disciplinas,
-  // entram as áreas do projeto; a Lixeira fica só no painel (não é pasta de trabalho).
-  // Dentro de uma pasta do cliente a trilha começa nela: "Todos os documentos › Compartilhado › Estrutural".
-  const inicioSituacao = situacao
-    ? [
-        {
-          chave: `situacao:${situacao}`,
-          rotulo: ROTULO_SITUACAO[situacao],
-          titulo: "O que o cliente vê no link",
-          destino: { disciplinaId: null, fase: null, ext: null, area: null, situacao },
-        },
-      ]
-    : [];
+  // na página 1 — da 2 em diante a lista já passou das pastas. A raiz geral mostra as pastas-mãe
+  // (Desenvolvimento, Compartilhado, Liberado para obra) e as áreas do projeto; a Lixeira fica só
+  // no painel (não é pasta de trabalho). Dentro de uma pasta-mãe, as disciplinas.
+  // A trilha começa na pasta-mãe: "Todos os documentos › Desenvolvimento › Estrutural".
+  const raiz = raizDaNavegacao({ situacao, pasta, disciplinaId: selecao.disciplinaId });
+  const segmentoRaiz = segmentoDaRaiz(raiz);
   const trilha = areaSelecionada
     ? [{ chave: `area:${areaSelecionada}`, rotulo: rotuloArea(areaSelecionada), titulo: null, destino: { disciplinaId: null, fase: null, ext: null, area: areaSelecionada } }]
     : listaSelecionadaId === null
-      ? [...inicioSituacao, ...trilhaDaPasta(selecao, disciplinas, arvore)]
+      ? [...(segmentoRaiz ? [segmentoRaiz] : []), ...trilhaDaPasta(selecao, disciplinas, arvore)]
       : [];
-  // Dentro da pasta do cliente não há áreas (Recebidos, Base…) nem as próprias pastas do cliente.
-  const areasComoPasta = situacao
-    ? []
-    : areas.filter((a) => a.visivel && a.id !== "lixeira").map((a) => ({ id: a.id, rotulo: rotuloArea(a.id), total: a.total }));
+  const areasComoPasta = areas
+    .filter((a) => a.visivel && a.id !== "lixeira")
+    .map((a) => ({ id: a.id, rotulo: rotuloArea(a.id), total: a.total }));
   const pastas =
-    nivel !== null && paginacao.page === 1
-      ? pastasDoNivel(selecao, disciplinas, arvore, areasComoPasta, situacoes).map((p) =>
-          // O .zip da pasta (`/api/uploads/pasta/zip`) leva a revisão VIGENTE; aqui vale a marcada.
-          situacao ? { ...p, zip: null } : p,
-        )
-      : [];
+    nivel === null || paginacao.page !== 1
+      ? []
+      : raiz === "geral" && nivel === "raiz"
+        ? pastasDaRaiz({ totalDesenvolvimento: totalDocumentos, situacoes, areas: areasComoPasta })
+        : pastasDoNivel(selecao, disciplinas, arvore).map((p) =>
+            // O .zip da pasta (`/api/uploads/pasta/zip`) leva a revisão VIGENTE; aqui vale a marcada.
+            situacao ? { ...p, zip: null } : p,
+          );
 
   return (
     <div className="space-y-4">
@@ -240,6 +245,8 @@ export function DocumentosShell({
             arvore={arvore}
             totalGeral={totalDocumentos}
             selecao={selecao}
+            raiz={raiz}
+            situacoes={situacoes}
             listas={listas}
             listaSelecionadaId={listaSelecionadaId}
             podeGerirListas={podeGerirListas}
@@ -255,6 +262,8 @@ export function DocumentosShell({
                         arvore={arvore}
                         totalGeral={totalDocumentos}
                         selecao={selecao}
+                        raiz={raiz}
+                        situacoes={situacoes}
                         areaAtiva={areaSelecionada !== null}
                       />
                       <PainelAreasProjeto aninhada areas={areas} selecionada={areaSelecionada} />

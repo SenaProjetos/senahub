@@ -6,7 +6,10 @@ import {
   hrefDaPasta,
   hrefZipDaPasta,
   nivelDaPasta,
+  pastasDaRaiz,
   pastasDoNivel,
+  raizDaNavegacao,
+  segmentoDaRaiz,
   trilhaDaPasta,
   type ArquivoParaZipPasta,
   type DisciplinaDaPasta,
@@ -54,24 +57,20 @@ describe("nivelDaPasta", () => {
 });
 
 describe("pastasDoNivel", () => {
-  it("na raiz: todas as disciplinas, inclusive a vazia, e depois as áreas", () => {
-    const pastas = pastasDoNivel(RAIZ, DISCIPLINAS, ARVORE, AREAS);
+  it("na raiz da pasta-mãe: todas as disciplinas, inclusive a vazia, e nada mais", () => {
+    const pastas = pastasDoNivel(RAIZ, DISCIPLINAS, ARVORE);
     expect(pastas.map((p) => [p.tipo, p.rotulo, p.total])).toEqual([
       ["disciplina", "Estrutural", 3],
       ["disciplina", "Hidrossanitário", 0],
-      ["area", "Recebidos do cliente", 2],
-      ["area", "Geral", 0],
     ]);
     expect(pastas[0].status).toBe("em_andamento");
     expect(pastas[0].zip).toEqual({ disciplinaId: "d-est", fase: null, ext: null });
-    // Disciplina vazia não oferece .zip; área nunca oferece (tem tela própria).
+    // Disciplina vazia não oferece .zip.
     expect(pastas[1].zip).toBeNull();
-    expect(pastas[2].zip).toBeNull();
-    expect(pastas[2].destino).toEqual({ disciplinaId: null, fase: null, ext: null, area: "recebidos" });
   });
 
   it("na disciplina: só as fases — o sem fase fica solto na lista, não vira pasta", () => {
-    const pastas = pastasDoNivel({ disciplinaId: "d-est", fase: null, ext: null }, DISCIPLINAS, ARVORE, AREAS);
+    const pastas = pastasDoNivel({ disciplinaId: "d-est", fase: null, ext: null }, DISCIPLINAS, ARVORE);
     expect(pastas.map((p) => [p.tipo, p.rotulo, p.total])).toEqual([["fase", "EX", 2]]);
     expect(pastas[0].titulo).toBe("Projeto Executivo");
     expect(pastas[0].disciplinaNome).toBe("Estrutural");
@@ -95,7 +94,7 @@ describe("pastasDoNivel", () => {
   });
 
   it("recorte que não é nó da árvore não lista pasta", () => {
-    expect(pastasDoNivel({ disciplinaId: null, fase: "f-ex", ext: null }, DISCIPLINAS, ARVORE, AREAS)).toEqual([]);
+    expect(pastasDoNivel({ disciplinaId: null, fase: "f-ex", ext: null }, DISCIPLINAS, ARVORE)).toEqual([]);
     expect(pastasDoNivel({ disciplinaId: "d-est", fase: null, ext: "pdf" }, DISCIPLINAS, ARVORE)).toEqual([]);
     expect(pastasDoNivel({ disciplinaId: "d-est", fase: "f-lo", ext: null }, DISCIPLINAS, ARVORE)).toEqual([]);
     expect(pastasDoNivel({ disciplinaId: "d-outra", fase: null, ext: null }, DISCIPLINAS, ARVORE)).toEqual([]);
@@ -215,24 +214,63 @@ describe("entradasZipDaPasta", () => {
   });
 });
 
-describe("pastas do cliente (reunião de 29/09/2026)", () => {
-  it("entram na raiz depois das disciplinas e antes das áreas, sem .zip e levando a situação na URL", () => {
-    const raiz = pastasDoNivel(
-      { disciplinaId: null, fase: null, ext: null },
-      [{ id: "d-est", nome: "Estrutural", status: "em_andamento", total: 2 }],
-      [],
-      [{ id: "base", rotulo: "Base Arquitetônica", total: 1 }],
-      [{ id: "compartilhado", rotulo: "Compartilhado", total: 3 }],
-    );
-    expect(raiz.map((p) => p.tipo)).toEqual(["disciplina", "situacao", "area"]);
-    const pasta = raiz[1];
-    expect(pasta).toMatchObject({ rotulo: "Compartilhado", total: 3, zip: null });
-    expect(hrefDaPasta("/projetos/p1/arquivos", "sort=nome", pasta.destino)).toBe("/projetos/p1/arquivos?sort=nome&situacao=compartilhado");
+describe("pastas-mãe da raiz (reunião de 29/09/2026)", () => {
+  it("raiz geral: Desenvolvimento, as pastas do cliente e as áreas — nenhuma com .zip", () => {
+    const raiz = pastasDaRaiz({
+      totalDesenvolvimento: 23,
+      situacoes: [
+        { id: "compartilhado", rotulo: "Compartilhado", total: 3 },
+        { id: "liberado_obra", rotulo: "Liberado para obra", total: 0 },
+      ],
+      areas: AREAS,
+    });
+    expect(raiz.map((p) => [p.tipo, p.rotulo, p.total])).toEqual([
+      ["desenvolvimento", "Desenvolvimento", 23],
+      ["situacao", "Compartilhado", 3],
+      ["situacao", "Liberado para obra", 0],
+      ["area", "Recebidos do cliente", 2],
+      ["area", "Geral", 0],
+    ]);
+    expect(raiz.every((p) => p.zip === null)).toBe(true);
+    const url = (i: number) => hrefDaPasta("/p", "sort=nome", raiz[i].destino);
+    expect(url(0)).toBe("/p?sort=nome&pasta=desenvolvimento");
+    expect(url(1)).toBe("/p?sort=nome&situacao=compartilhado");
+    expect(url(3)).toBe("/p?sort=nome&area=recebidos");
   });
 
-  it("entrar numa disciplina não perde a situação; voltar à raiz com situacao null tira", () => {
+  it("trocar de pasta-mãe tira a marca da outra", () => {
+    const [dev, compartilhado] = pastasDaRaiz({
+      totalDesenvolvimento: 1,
+      situacoes: [{ id: "compartilhado", rotulo: "Compartilhado", total: 1 }],
+      areas: [],
+    });
+    expect(hrefDaPasta("/p", "situacao=compartilhado&disciplinaId=d", dev.destino)).toBe("/p?pasta=desenvolvimento");
+    expect(hrefDaPasta("/p", "pasta=desenvolvimento&disciplinaId=d", compartilhado.destino)).toBe("/p?situacao=compartilhado");
+  });
+
+  it("raizDaNavegacao: a pasta do cliente vence; disciplina sem situação é Desenvolvimento", () => {
+    expect(raizDaNavegacao({ situacao: null, pasta: null, disciplinaId: null })).toBe("geral");
+    expect(raizDaNavegacao({ situacao: null, pasta: "desenvolvimento", disciplinaId: null })).toBe("desenvolvimento");
+    // Link antigo (`?disciplinaId=`) e o "Enviar arquivos" do card caem dentro do Desenvolvimento.
+    expect(raizDaNavegacao({ situacao: null, pasta: null, disciplinaId: "d" })).toBe("desenvolvimento");
+    expect(raizDaNavegacao({ situacao: "compartilhado", pasta: "desenvolvimento", disciplinaId: "d" })).toBe("compartilhado");
+    // Valor desconhecido na URL não é pasta.
+    expect(raizDaNavegacao({ situacao: "xyz", pasta: "xyz", disciplinaId: "" })).toBe("geral");
+  });
+
+  it("a trilha começa na pasta-mãe e volta para a raiz dela", () => {
+    expect(segmentoDaRaiz("geral")).toBeNull();
+    const dev = segmentoDaRaiz("desenvolvimento");
+    expect(dev?.rotulo).toBe("Desenvolvimento");
+    expect(hrefDaPasta("/a", "disciplinaId=d&fase=f", dev!.destino)).toBe("/a?pasta=desenvolvimento");
+    const lib = segmentoDaRaiz("liberado_obra");
+    expect(lib?.rotulo).toBe("Liberado para obra");
+    expect(hrefDaPasta("/a", "situacao=liberado_obra&disciplinaId=d", lib!.destino)).toBe("/a?situacao=liberado_obra");
+  });
+
+  it("entrar numa disciplina não perde a pasta-mãe; voltar à raiz geral tira", () => {
     const dentro = "situacao=compartilhado";
     expect(hrefDaPasta("/a", dentro, { disciplinaId: "d-est", fase: null, ext: null, area: null })).toBe("/a?situacao=compartilhado&disciplinaId=d-est");
-    expect(hrefDaPasta("/a", dentro, { disciplinaId: null, fase: null, ext: null, area: null, situacao: null })).toBe("/a");
+    expect(hrefDaPasta("/a", "pasta=desenvolvimento&disciplinaId=d", { disciplinaId: null, fase: null, ext: null, area: null, situacao: null, pasta: null })).toBe("/a");
   });
 });

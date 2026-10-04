@@ -1,12 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, Folder, FolderOpen, Search } from "lucide-react";
+import { ChevronRight, Folder, FolderOpen, HardHat, PencilRuler, Search, Send } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { StatusDisciplina } from "@/generated/prisma/client";
 import { normalizar } from "@/lib/disciplinas-core";
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { STATUS_LABEL, STATUS_TEXT } from "@/modules/projetos/status";
 import { FASE_SEM, type ArvoreDaDisciplina, type NoFase } from "@/modules/uploads/arvore-navegacao";
+import {
+  PASTA_DESENVOLVIMENTO,
+  TITULO_DESENVOLVIMENTO,
+  TITULO_SITUACAO,
+  destinoDaRaiz,
+  rotuloDaRaiz,
+  type RaizNavegacao,
+  type SituacaoDaPasta,
+} from "@/modules/uploads/pastas-da-lista";
 import { useSetParams } from "@/lib/use-set-param";
 import { cn } from "@/lib/utils";
 
@@ -23,8 +33,20 @@ export type SelecaoArvore = {
   ext: string | null;
 };
 
+/** Ícone de cada pasta-mãe — o mesmo da lista da direita. */
+export const ICONE_RAIZ: Record<Exclude<RaizNavegacao, "geral">, LucideIcon> = {
+  desenvolvimento: PencilRuler,
+  compartilhado: Send,
+  liberado_obra: HardHat,
+};
+
 /**
- * Painel esquerdo — árvore de documentos: disciplina → fase → extensão.
+ * Painel esquerdo — árvore de documentos: pasta-mãe → disciplina → fase → extensão.
+ *
+ * As pastas-mãe (Desenvolvimento, Compartilhado, Liberado para obra — reunião de 29/09/2026)
+ * espelham a raiz da lista. Os dados da árvore vêm do recorte aberto (a página filtra pela pasta
+ * do cliente da URL), então só a pasta-mãe aberta tem disciplinas por dentro; as outras são folhas
+ * que levam à raiz delas. Na raiz geral os dados são os do Desenvolvimento.
  *
  * As "pastas" são os filtros que a tela já tinha (`disciplinaId`, `fase`, `ext`), não pastas do
  * banco: clicar num nó é filtrar a lista da direita, e a seleção vive na URL (mesmo padrão do
@@ -36,13 +58,20 @@ export function ArvoreDocumentos({
   arvore,
   totalGeral,
   selecao,
+  raiz,
+  situacoes,
   areaAtiva = false,
   aninhada = false,
 }: {
   disciplinas: DisciplinaArvore[];
   arvore: ArvoreDaDisciplina[];
+  /** Documentos do recorte aberto (o mesmo das disciplinas). */
   totalGeral: number;
   selecao: SelecaoArvore;
+  /** Pasta-mãe em que a seleção está (`raizDaNavegacao`). */
+  raiz: RaizNavegacao;
+  /** Pastas do cliente, com a contagem sempre (vem de `contagemPorSituacao`). */
+  situacoes: SituacaoDaPasta[];
   /** Área do projeto aberta: "Todos os documentos" não está em exibição, então não destaca. */
   areaAtiva?: boolean;
   /**
@@ -53,9 +82,11 @@ export function ArvoreDocumentos({
 }) {
   const [busca, setBusca] = useState("");
   // Abre sozinho o caminho da seleção (voltar no navegador, link com filtro, recarregar).
-  const caminho = [selecao.disciplinaId, selecao.disciplinaId && selecao.fase ? `${selecao.disciplinaId}/${selecao.fase}` : null].filter(
-    (c): c is string => !!c,
-  );
+  const caminho = [
+    raiz === "geral" ? null : `raiz:${raiz}`,
+    selecao.disciplinaId,
+    selecao.disciplinaId && selecao.fase ? `${selecao.disciplinaId}/${selecao.fase}` : null,
+  ].filter((c): c is string => !!c);
   const [abertas, setAbertas] = useState<Set<string>>(() => new Set(caminho));
   // E de novo quando a seleção muda por fora da árvore — entrar numa pasta pela lista da direita
   // deixaria o nó marcado dentro de um ramo recolhido. Só ABRE: o que a pessoa fechou à mão
@@ -93,6 +124,20 @@ export function ArvoreDocumentos({
     setParams({ disciplinaId, fase: fase.chave, ext: null, listaId: null, area: null });
   }
 
+  function abrirRaiz(r: Exclude<RaizNavegacao, "geral">) {
+    setAbertas((atual) => new Set(atual).add(`raiz:${r}`));
+    const d = destinoDaRaiz(r);
+    setParams({ disciplinaId: null, fase: null, ext: null, listaId: null, area: null, situacao: d.situacao ?? null, pasta: d.pasta ?? null });
+  }
+
+  // Dona dos dados da árvore: a pasta do cliente aberta, ou o Desenvolvimento (inclusive na raiz geral).
+  const raizDosDados: Exclude<RaizNavegacao, "geral"> = raiz === "geral" ? PASTA_DESENVOLVIMENTO : raiz;
+  const raizes: { id: Exclude<RaizNavegacao, "geral">; total: number | null }[] = [
+    // Fora do Desenvolvimento a árvore não tem o número dele (só o do recorte aberto): sem número.
+    { id: PASTA_DESENVOLVIMENTO, total: raizDosDados === PASTA_DESENVOLVIMENTO ? totalGeral : null },
+    ...situacoes.map((s) => ({ id: s.id as Exclude<RaizNavegacao, "geral">, total: s.total })),
+  ];
+
   return (
     <div>
       {!aninhada && (
@@ -120,155 +165,202 @@ export function ArvoreDocumentos({
         <li role="none">
           <button
             type="button"
-            onClick={() => setParams({ disciplinaId: null, fase: null, ext: null, listaId: null, area: null, situacao: null })}
+            onClick={() =>
+              setParams({ disciplinaId: null, fase: null, ext: null, listaId: null, area: null, situacao: null, pasta: null })
+            }
             className={cn(
               "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-xs font-semibold transition-colors",
-              selecao.disciplinaId === null && !areaAtiva ? "bg-accent text-foreground" : "text-foreground hover:bg-accent/60",
+              raiz === "geral" && selecao.fase === null && selecao.ext === null && !areaAtiva
+                ? "bg-accent text-foreground"
+                : "text-foreground hover:bg-accent/60",
             )}
           >
             <span>Todos os documentos</span>
-            <span className="font-normal tabular-nums text-muted-foreground">{totalGeral}</span>
+            {raizDosDados === PASTA_DESENVOLVIMENTO && (
+              <span className="font-normal tabular-nums text-muted-foreground">{totalGeral}</span>
+            )}
           </button>
         </li>
         )}
 
-        {filtradas.map((d) => {
-          const fases = fasesPorDisciplina.get(d.id) ?? [];
-          const aberta = abertas.has(d.id);
-          const selecionada = selecao.disciplinaId === d.id;
+        {raizes.map((r) => {
+          const Icone = ICONE_RAIZ[r.id];
+          const temDados = r.id === raizDosDados;
+          const aberta = temDados && (abertas.has(`raiz:${r.id}`) || termo !== "");
+          const selecionada = raiz === r.id && selecao.disciplinaId === null && !areaAtiva;
+          const rotulo = rotuloDaRaiz(r.id);
           return (
-            <li
-              key={d.id}
-              role="treeitem"
-              aria-expanded={fases.length > 0 ? aberta : undefined}
-              aria-selected={selecionada && !selecao.fase}
-            >
-              <div
-                className={cn(
-                  "flex items-center gap-0.5 rounded-md pr-2 transition-colors",
-                  selecionada && !selecao.fase ? "bg-accent" : "hover:bg-accent/60",
-                )}
-              >
+            <li key={r.id} role="treeitem" aria-expanded={temDados ? aberta : undefined} aria-selected={selecionada}>
+              <div className={cn("flex items-center gap-0.5 rounded-md pr-2 transition-colors", selecionada ? "bg-accent" : "hover:bg-accent/60")}>
                 <button
                   type="button"
-                  onClick={() => alternar(d.id)}
+                  onClick={() => alternar(`raiz:${r.id}`)}
                   className="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground disabled:opacity-0"
-                  disabled={fases.length === 0}
-                  aria-label={aberta ? `Recolher ${d.nome}` : `Expandir ${d.nome}`}
+                  disabled={!temDados}
+                  aria-label={aberta ? `Recolher ${rotulo}` : `Expandir ${rotulo}`}
                   title={aberta ? "Recolher" : "Expandir"}
                 >
                   <ChevronRight className={cn("size-3.5 transition-transform", aberta && "rotate-90")} aria-hidden />
                 </button>
                 <button
                   type="button"
-                  onClick={() => abrirDisciplina(d.id)}
-                  title={STATUS_LABEL[d.status]}
+                  onClick={() => abrirRaiz(r.id)}
+                  title={r.id === PASTA_DESENVOLVIMENTO ? TITULO_DESENVOLVIMENTO : TITULO_SITUACAO}
                   className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left text-xs"
                 >
-                  <DisciplinaIcone nome={d.nome} className={cn("size-3.5 shrink-0", STATUS_TEXT[d.status])} />
-                  <span className="min-w-0 flex-1 truncate">{d.nome}</span>
-                  <span className="shrink-0 tabular-nums text-muted-foreground">{d.total}</span>
+                  <Icone
+                    className={cn("size-3.5 shrink-0", r.id === PASTA_DESENVOLVIMENTO ? "text-muted-foreground" : "text-info")}
+                    aria-hidden
+                  />
+                  <span className="min-w-0 flex-1 truncate">{rotulo}</span>
+                  {r.total !== null && <span className="shrink-0 tabular-nums text-muted-foreground">{r.total}</span>}
                 </button>
               </div>
 
-              {aberta && fases.length > 0 && (
+              {aberta && (
                 <ul className="mt-0.5 space-y-0.5 border-l border-border pl-2 ml-3" role="group">
-                  {fases.map((fase) => {
-                    const chaveFase = `${d.id}/${fase.chave}`;
-                    const faseAberta = abertas.has(chaveFase);
-                    const faseSelecionada = selecionada && selecao.fase === fase.chave;
-                    return (
-                      <li
-                        key={fase.chave}
-                        role="treeitem"
-                        aria-expanded={faseAberta}
-                        aria-selected={faseSelecionada && !selecao.ext}
-                      >
-                        <div
-                          className={cn(
-                            "flex items-center gap-0.5 rounded-md pr-2 transition-colors",
-                            faseSelecionada && !selecao.ext ? "bg-accent" : "hover:bg-accent/60",
-                          )}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => alternar(chaveFase)}
-                            className="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground"
-                            aria-label={faseAberta ? `Recolher ${fase.rotulo}` : `Expandir ${fase.rotulo}`}
-                            title={faseAberta ? "Recolher" : "Expandir"}
-                          >
-                            <ChevronRight className={cn("size-3.5 transition-transform", faseAberta && "rotate-90")} aria-hidden />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => abrirFase(d.id, fase)}
-                            title={fase.titulo}
-                            className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left text-xs"
-                          >
-                            {faseAberta ? (
-                              <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                            ) : (
-                              <Folder className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                            )}
-                            <span className="min-w-0 flex-1 truncate">{fase.rotulo}</span>
-                            <span className="shrink-0 tabular-nums text-muted-foreground">{fase.total}</span>
-                          </button>
-                        </div>
+            {filtradas.map((d) => {
+              const fases = fasesPorDisciplina.get(d.id) ?? [];
+              const aberta = abertas.has(d.id);
+              const selecionada = selecao.disciplinaId === d.id;
+              return (
+                <li
+                  key={d.id}
+                  role="treeitem"
+                  aria-expanded={fases.length > 0 ? aberta : undefined}
+                  aria-selected={selecionada && !selecao.fase}
+                >
+                  <div
+                    className={cn(
+                      "flex items-center gap-0.5 rounded-md pr-2 transition-colors",
+                      selecionada && !selecao.fase ? "bg-accent" : "hover:bg-accent/60",
+                    )}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => alternar(d.id)}
+                      className="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground disabled:opacity-0"
+                      disabled={fases.length === 0}
+                      aria-label={aberta ? `Recolher ${d.nome}` : `Expandir ${d.nome}`}
+                      title={aberta ? "Recolher" : "Expandir"}
+                    >
+                      <ChevronRight className={cn("size-3.5 transition-transform", aberta && "rotate-90")} aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => abrirDisciplina(d.id)}
+                      title={STATUS_LABEL[d.status]}
+                      className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left text-xs"
+                    >
+                      <DisciplinaIcone nome={d.nome} className={cn("size-3.5 shrink-0", STATUS_TEXT[d.status])} />
+                      <span className="min-w-0 flex-1 truncate">{d.nome}</span>
+                      <span className="shrink-0 tabular-nums text-muted-foreground">{d.total}</span>
+                    </button>
+                  </div>
 
-                        {faseAberta && (
-                          <ul className="mt-0.5 space-y-0.5 border-l border-border pl-2 ml-3" role="group">
-                            {fase.extensoes.map((extensao) => (
-                              <li
-                                key={extensao.chave}
-                                role="treeitem"
-                                aria-selected={faseSelecionada && selecao.ext === extensao.chave}
+                  {aberta && fases.length > 0 && (
+                    <ul className="mt-0.5 space-y-0.5 border-l border-border pl-2 ml-3" role="group">
+                      {fases.map((fase) => {
+                        const chaveFase = `${d.id}/${fase.chave}`;
+                        const faseAberta = abertas.has(chaveFase);
+                        const faseSelecionada = selecionada && selecao.fase === fase.chave;
+                        return (
+                          <li
+                            key={fase.chave}
+                            role="treeitem"
+                            aria-expanded={faseAberta}
+                            aria-selected={faseSelecionada && !selecao.ext}
+                          >
+                            <div
+                              className={cn(
+                                "flex items-center gap-0.5 rounded-md pr-2 transition-colors",
+                                faseSelecionada && !selecao.ext ? "bg-accent" : "hover:bg-accent/60",
+                              )}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => alternar(chaveFase)}
+                                className="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+                                aria-label={faseAberta ? `Recolher ${fase.rotulo}` : `Expandir ${fase.rotulo}`}
+                                title={faseAberta ? "Recolher" : "Expandir"}
                               >
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setParams({
-                                      disciplinaId: d.id,
-                                      fase: fase.chave,
-                                      ext: extensao.chave,
-                                      listaId: null,
-                                      area: null,
-                                    })
-                                  }
-                                  className={cn(
-                                    "flex w-full items-center gap-2 rounded-md py-1.5 pr-2 pl-[1.375rem] text-left text-xs transition-colors",
-                                    faseSelecionada && selecao.ext === extensao.chave
-                                      ? "bg-accent text-foreground"
-                                      : "text-foreground hover:bg-accent/60",
-                                  )}
-                                >
+                                <ChevronRight className={cn("size-3.5 transition-transform", faseAberta && "rotate-90")} aria-hidden />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => abrirFase(d.id, fase)}
+                                title={fase.titulo}
+                                className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left text-xs"
+                              >
+                                {faseAberta ? (
+                                  <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                                ) : (
                                   <Folder className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                                  <span className="min-w-0 flex-1 truncate font-mono text-[11px] uppercase">{extensao.rotulo}</span>
-                                  <span className="shrink-0 tabular-nums text-muted-foreground">{extensao.total}</span>
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </li>
-                    );
-                  })}
+                                )}
+                                <span className="min-w-0 flex-1 truncate">{fase.rotulo}</span>
+                                <span className="shrink-0 tabular-nums text-muted-foreground">{fase.total}</span>
+                              </button>
+                            </div>
+
+                            {faseAberta && (
+                              <ul className="mt-0.5 space-y-0.5 border-l border-border pl-2 ml-3" role="group">
+                                {fase.extensoes.map((extensao) => (
+                                  <li
+                                    key={extensao.chave}
+                                    role="treeitem"
+                                    aria-selected={faseSelecionada && selecao.ext === extensao.chave}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setParams({
+                                          disciplinaId: d.id,
+                                          fase: fase.chave,
+                                          ext: extensao.chave,
+                                          listaId: null,
+                                          area: null,
+                                        })
+                                      }
+                                      className={cn(
+                                        "flex w-full items-center gap-2 rounded-md py-1.5 pr-2 pl-[1.375rem] text-left text-xs transition-colors",
+                                        faseSelecionada && selecao.ext === extensao.chave
+                                          ? "bg-accent text-foreground"
+                                          : "text-foreground hover:bg-accent/60",
+                                      )}
+                                    >
+                                      <Folder className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                                      <span className="min-w-0 flex-1 truncate font-mono text-[11px] uppercase">{extensao.rotulo}</span>
+                                      <span className="shrink-0 tabular-nums text-muted-foreground">{extensao.total}</span>
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
+
+            {termo && filtradas.length === 0 && (
+              <li className="px-2 py-3 text-center text-xs text-muted-foreground">
+                Nenhuma disciplina encontrada para &quot;{busca.trim()}&quot;.
+              </li>
+            )}
+
+            {disciplinas.length === 0 && !termo && (
+              <li className="px-2 py-3 text-center text-xs text-muted-foreground">
+                Nenhuma disciplina visível para o seu perfil neste projeto.
+              </li>
+            )}
                 </ul>
               )}
             </li>
           );
         })}
-
-        {termo && filtradas.length === 0 && (
-          <li className="px-2 py-3 text-center text-xs text-muted-foreground">
-            Nenhuma disciplina encontrada para &quot;{busca.trim()}&quot;.
-          </li>
-        )}
-
-        {disciplinas.length === 0 && !termo && (
-          <li className="px-2 py-3 text-center text-xs text-muted-foreground">
-            Nenhuma disciplina visível para o seu perfil neste projeto.
-          </li>
-        )}
       </ul>
     </div>
   );

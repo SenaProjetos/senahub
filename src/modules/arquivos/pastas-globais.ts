@@ -10,7 +10,7 @@ export type AnoDoDiretorio = { ano: number; total: number; projetos: ProjetoDoAn
 
 /** Sair para um ano ou projeto zera a posição DENTRO do projeto — a pasta aberta era de outro. */
 export function destinoGlobal(ano: string | null, projetoId: string | null): DestinoPasta {
-  return { ano, projetoId, disciplinaId: null, fase: null, ext: null, area: null, situacao: null };
+  return { ano, projetoId, disciplinaId: null, fase: null, ext: null, area: null, situacao: null, pasta: null };
 }
 
 /** Endereço de um ano ou projeto no diretório (sem nada do que estava aberto antes). */
