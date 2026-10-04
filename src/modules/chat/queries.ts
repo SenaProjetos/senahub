@@ -434,7 +434,7 @@ export async function mensagensFixadas(canalId: string) {
 export async function membrosCanal(canalId: string) {
   const m = await prisma.canalMembro.findMany({
     where: { canalId },
-    include: { user: { select: { id: true, name: true, role: true, chatStatus: true } } },
+    include: { user: { select: { id: true, name: true, role: true, chatStatus: true, image: true } } },
     orderBy: { user: { name: "asc" } },
   });
   return m.map((x) => x.user);

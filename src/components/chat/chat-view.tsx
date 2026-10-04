@@ -632,7 +632,7 @@ export function ChatView({
   const [painelFixadasAberto, setPainelFixadasAberto] = useState(false);
   // Membros do canal aberto (para a lista lateral contextual online/offline).
   const [membrosCanalAtual, setMembrosCanalAtual] = useState<
-    { id: string; name: string; role: string; chatStatus: string | null }[]
+    { id: string; name: string; role: string; chatStatus: string | null; image?: string | null }[]
   >([]);
   // C4-3: histórico paginado por cursor
   const [temMais, setTemMais] = useState(false);
@@ -1637,6 +1637,17 @@ export function ChatView({
 
   // Menções já digitadas no texto atual (para a confirmação acima do campo).
   const mencoesTexto = useMemo(() => extrairMencoes(texto), [texto]);
+
+  // Quem cada @token marca de fato (mesma regra do servidor: primeiro nome) — a barra
+  // "Marcando:" mostra a foto de cada um, inclusive quando dois membros têm o mesmo nome.
+  const membrosPorToken = useMemo(() => {
+    const m = new Map<string, typeof membrosCanalAtual>();
+    for (const u of membrosCanalAtual) {
+      const t = u.name.split(" ")[0].toLowerCase();
+      m.set(t, [...(m.get(t) ?? []), u]);
+    }
+    return m;
+  }, [membrosCanalAtual]);
 
   /** Envolve a seleção (ou o cursor) do campo com um marcador de formatação. */
   function envolverSelecao(marcador: string) {
@@ -2989,21 +3000,36 @@ export function ChatView({
               {mencoesTexto.length > 0 && (
                 <div className="mb-1.5 flex flex-wrap items-center gap-1 text-[11px]">
                   <span className="text-muted-foreground">Marcando:</span>
-                  {mencoesTexto.map((mn) => {
-                    const ok = mencaoValidas.has(tokenMencao(mn));
-                    return (
+                  {mencoesTexto.flatMap((mn) => {
+                    const token = tokenMencao(mn);
+                    const pessoas = membrosPorToken.get(token) ?? [];
+                    // @todos/@all e nomes sem membro mantêm o chip com "@".
+                    if (pessoas.length === 0) {
+                      const ok = mencaoValidas.has(token);
+                      return [
+                        <span
+                          key={mn}
+                          className={cn(
+                            "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 font-medium",
+                            ok ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
+                          )}
+                          title={ok ? "Notificará todos os membros do canal" : "Ninguém com esse nome no canal"}
+                        >
+                          <AtSign className="size-2.5" />
+                          {mn.replace(/^@/, "")}
+                        </span>,
+                      ];
+                    }
+                    return pessoas.map((u) => (
                       <span
-                        key={mn}
-                        className={cn(
-                          "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 font-medium",
-                          ok ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
-                        )}
-                        title={ok ? "Notificará esta pessoa" : "Ninguém com esse nome no canal"}
+                        key={`${mn}:${u.id}`}
+                        className="inline-flex items-center gap-1 rounded-full bg-primary/15 py-0.5 pl-0.5 pr-2 font-medium text-primary"
+                        title={`Notificará ${u.name}`}
                       >
-                        <AtSign className="size-2.5" />
-                        {mn.replace(/^@/, "")}
+                        <AvatarUsuario nome={u.name} image={u.image} size="sm" className="size-5" fallbackClassName="text-[9px]" />
+                        {u.name}
                       </span>
-                    );
+                    ));
                   })}
                 </div>
               )}
