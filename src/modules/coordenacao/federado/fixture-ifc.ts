@@ -8,7 +8,8 @@ export function ifcDeTeste(o: { semente?: string; schema?: string; unidade?: "MI
   const schema = o.schema ?? "IFC4";
   const unidade = o.unidade ?? "MILLI";
   const dx = (o.dx ?? 0).toFixed(1);
-  const guid = (n: number) => `${semente}${n}`.padEnd(22, "A").slice(0, 22);
+  // GlobalId de verdade começa com 0–3 (o analisador só aceita esses).
+  const guid = (n: number) => `0${semente}${n}`.padEnd(22, "A").slice(0, 22);
 
   const unidades =
     unidade === "FOOT"

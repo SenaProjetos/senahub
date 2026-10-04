@@ -13,7 +13,12 @@ export type AnaliseIfc = {
   /** Quantos IfcProject o arquivo tem (o válido é 1). */
   projetos: number;
   contextosRaiz: number[];
-  unidade: string | null;
+  /**
+   * Unidade de comprimento do projeto (`"MILLI METRE"`, `"FOOT"`…). `null` = o projeto não declara (sem
+   * UnitsInContext ou sem LENGTHUNIT na atribuição); `undefined` = não deu para ler (a atribuição cita uma unidade
+   * que nunca chegou no arquivo).
+   */
+  unidade: string | null | undefined;
   maiorId: number;
   guids: string[];
 };
@@ -33,7 +38,8 @@ const TIPOS_DE_UNIDADE = new Set([
   "IFCMONETARYUNIT",
   "IFCCONTEXTDEPENDENTUNIT",
 ]);
-const RE_GUID = /^'([0-9A-Za-z_$]{22})'/;
+/** GlobalId comprimido do IFC: 22 caracteres e o 1º só 0–3 (128 bits) — um nome de 22 letras não conta. */
+const RE_GUID = /^'([0-3][0-9A-Za-z_$]{21})'/;
 
 function enumDe(attr: string | undefined): string | null {
   const m = /^\.([A-Z0-9_]+)\.$/i.exec((attr ?? "").trim());
@@ -109,7 +115,7 @@ export class AnalisadorIfc {
       projetoId: this.projeto?.id ?? null,
       projetos: this.projetos,
       contextosRaiz: contextos,
-      unidade: this.unidadeDoProjeto() ?? null,
+      unidade: this.unidadeDoProjeto(),
       maiorId: this.maiorId,
       guids: this.guids,
     };

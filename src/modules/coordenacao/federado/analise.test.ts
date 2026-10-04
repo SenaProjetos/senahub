@@ -15,7 +15,7 @@ describe("analisarFonte", () => {
     expect(a.maiorId).toBe(40);
     // GlobalIds de tudo que é IfcRoot, menos o do projeto (o projeto secundário some na junção).
     expect(a.guids).toHaveLength(8);
-    expect(a.guids).not.toContain("A1".padEnd(22, "A"));
+    expect(a.guids).not.toContain("0A1".padEnd(22, "A"));
   });
 
   it("metro sem prefixo", async () => {
@@ -28,6 +28,27 @@ describe("analisarFonte", () => {
 
   it("schema declarado no cabeçalho, como veio", async () => {
     expect((await analisarFonte(fonteDeTexto(ifcDeTeste({ schema: "IFC2X3" })))).schema).toBe("IFC2X3");
+  });
+
+  it("projeto sem UnitsInContext: unidade null (não declarada)", async () => {
+    const texto = ifcDeTeste().replace("(#11),#7);", "(#11),$);");
+    expect((await analisarFonte(fonteDeTexto(texto))).unidade).toBeNull();
+  });
+
+  it("atribuição cita unidade que nunca aparece: unidade undefined (não lida)", async () => {
+    const texto = ifcDeTeste().replace("IFCUNITASSIGNMENT((#13,#2,#3))", "IFCUNITASSIGNMENT((#13,#98,#2,#3))");
+    expect((await analisarFonte(fonteDeTexto(texto))).unidade).toBeUndefined();
+  });
+
+  it("nome de parâmetro com 22 caracteres não é GlobalId (1º caractere só 0–3)", async () => {
+    const texto = ifcDeTeste().replace(
+      "ENDSEC;\nEND-ISO",
+      "#41=IFCPROPERTYSINGLEVALUE('NomeDeParametro22Chars',$,IFCLABEL('x'),$);\nENDSEC;\nEND-ISO",
+    );
+    const a = await analisarFonte(fonteDeTexto(texto));
+    expect(a.maiorId).toBe(41);
+    expect(a.guids).not.toContain("NomeDeParametro22Chars");
+    expect(a.guids).toHaveLength(8);
   });
 });
 
