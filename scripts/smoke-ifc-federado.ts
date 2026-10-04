@@ -144,33 +144,68 @@ async function main() {
     const revisoes = (await versoesDoModeloFederado(projeto.id)).map((v) => v.revisao);
     check("depois de excluir a R01 a próxima é R02, nunca R01 de novo", revisoes.join(",") === "R02,R00", revisoes);
 
-    // ── geração travada é liberada (processando conta do início; fila, da criação) ──
-    const presa = await criarGeracao(pedido);
+    // ── processo filho que falha: nada fica no disco, erro com a mensagem, sem versão nova ──
+    const antesDaFalha = (await versoesDoModeloFederado(projeto.id)).length;
+    const gFalha = await criarGeracao(pedido);
+    let saidaFalha = "";
+    await processarGeracao(gFalha.geracaoId, {
+      notificarAutor: false,
+      rodar: async (m) => {
+        saidaFalha = m.saida;
+        for (const rel of [m.saida, `${m.saida}.parcial`]) {
+          fs.mkdirSync(path.dirname(resolverCaminho(rel)), { recursive: true });
+          fs.writeFileSync(resolverCaminho(rel), "lixo");
+        }
+        return { code: 1, stdout: '{"ok":false,"erro":"falha simulada"}\n', stderr: "" };
+      },
+    });
+    const gFalhaDb = await prisma.geracaoModeloFederado.findUniqueOrThrow({ where: { id: gFalha.geracaoId } });
+    check("filho que falha: saída e .parcial apagados", saidaFalha !== "" && !fs.existsSync(resolverCaminho(saidaFalha)) && !fs.existsSync(resolverCaminho(`${saidaFalha}.parcial`)), saidaFalha);
+    check("filho que falha: geração em erro com a mensagem, sem versão nova", gFalhaDb.status === "erro" && /falha simulada/.test(gFalhaDb.erro ?? "") && (await versoesDoModeloFederado(projeto.id)).length === antesDaFalha, gFalhaDb.erro);
+
+    // ── geração travada: `processando` conta do INÍCIO (iniciadoEm), `fila` da criação ──
+    const agora = () => new Date();
     const faz46 = new Date(Date.now() - MS_46_MIN);
-    await prisma.geracaoModeloFederado.update({ where: { id: presa.geracaoId }, data: { status: "processando", iniciadoEm: faz46, criadoEm: faz46 } });
+    const presa = await criarGeracao(pedido);
+    await prisma.geracaoModeloFederado.update({ where: { id: presa.geracaoId }, data: { status: "processando", criadoEm: agora(), iniciadoEm: faz46 } });
     const nova = await erroDe(() => criarGeracao(pedido));
     const presaDb = await prisma.geracaoModeloFederado.findUniqueOrThrow({ where: { id: presa.geracaoId } });
-    check("processando há 46 min é liberada e a nova entra", nova === null && presaDb.status === "erro", { nova, status: presaDb.status });
+    check("processando iniciada há 46 min (criada agora) é liberada e a nova entra", nova === null && presaDb.status === "erro", { nova, status: presaDb.status });
     const viva = await prisma.geracaoModeloFederado.findFirstOrThrow({ where: { projetoId: projeto.id, status: "fila" }, select: { id: true } });
     await prisma.geracaoModeloFederado.update({ where: { id: viva.id }, data: { criadoEm: faz46 } });
     await ultimaGeracao(projeto.id);
     const vivaDb = await prisma.geracaoModeloFederado.findUniqueOrThrow({ where: { id: viva.id } });
-    check("fila há 46 min é liberada só de abrir o painel", vivaDb.status === "erro", { status: vivaDb.status });
-    const recente = await criarGeracao(pedido);
-    await prisma.geracaoModeloFederado.update({ where: { id: recente.geracaoId }, data: { status: "processando", iniciadoEm: new Date() } });
+    check("fila criada há 46 min é liberada só de abrir o painel", vivaDb.status === "erro", { status: vivaDb.status });
+    const esperou = await criarGeracao(pedido);
+    await prisma.geracaoModeloFederado.update({ where: { id: esperou.geracaoId }, data: { status: "processando", criadoEm: faz46, iniciadoEm: agora() } });
     await ultimaGeracao(projeto.id);
-    check("processando recente não é tocada", (await prisma.geracaoModeloFederado.findUniqueOrThrow({ where: { id: recente.geracaoId } })).status === "processando");
+    const esperouDb = await prisma.geracaoModeloFederado.findUniqueOrThrow({ where: { id: esperou.geracaoId } });
+    check("esperou 46 min na fila e acabou de começar: não é tocada", esperouDb.status === "processando", { status: esperouDb.status });
+    await prisma.geracaoModeloFederado.update({ where: { id: esperou.geracaoId }, data: { status: "erro", erro: "encerrada pelo smoke", concluidoEm: agora() } });
   } finally {
-    const docs = await prisma.documento.findMany({ where: { projetoId: projeto.id }, select: { versoes: { select: { caminho: true } } } });
-    await prisma.geracaoModeloFederado.deleteMany({ where: { projetoId: projeto.id } });
-    await prisma.documento.deleteMany({ where: { projetoId: projeto.id } });
-    for (const d of docs) for (const v of d.versoes) fs.rmSync(resolverCaminho(v.caminho), { force: true });
-    await prisma.conversaoModelo.deleteMany({ where: { upload: { disciplina: { projetoId: projeto.id } } } });
-    await prisma.upload.deleteMany({ where: { disciplina: { projetoId: projeto.id } } });
-    await prisma.disciplina.deleteMany({ where: { projetoId: projeto.id } });
-    await prisma.projeto.delete({ where: { id: projeto.id } });
-    await prisma.cliente.delete({ where: { id: cliente.id } });
-    fs.rmSync(resolverCaminho(dir), { recursive: true, force: true });
+    // Cada passo isolado: um que falha não pula os outros. Arquivos primeiro (não dependem do banco).
+    const passo = async (nome: string, fn: () => Promise<unknown> | unknown) => {
+      try {
+        await fn();
+      } catch (e) {
+        console.log(`  (limpeza: ${nome} falhou: ${e instanceof Error ? e.message : e})`);
+      }
+    };
+    let caminhos: string[] = [];
+    await passo("ler versões", async () => {
+      const docs = await prisma.documento.findMany({ where: { projetoId: projeto.id }, select: { versoes: { select: { caminho: true } } } });
+      caminhos = docs.flatMap((d) => d.versoes.map((v) => v.caminho));
+    });
+    for (const c of caminhos) await passo(`arquivo ${c}`, () => fs.rmSync(resolverCaminho(c), { force: true }));
+    await passo("pasta tmp", () => fs.rmSync(resolverCaminho(dir), { recursive: true, force: true }));
+    await passo("pasta documentos do cliente", () => fs.rmSync(resolverCaminho(`documentos/${cliente.id}`), { recursive: true, force: true }));
+    await passo("gerações", () => prisma.geracaoModeloFederado.deleteMany({ where: { projetoId: projeto.id } }));
+    await passo("documentos", () => prisma.documento.deleteMany({ where: { projetoId: projeto.id } }));
+    await passo("conversões", () => prisma.conversaoModelo.deleteMany({ where: { upload: { disciplina: { projetoId: projeto.id } } } }));
+    await passo("uploads", () => prisma.upload.deleteMany({ where: { disciplina: { projetoId: projeto.id } } }));
+    await passo("disciplinas", () => prisma.disciplina.deleteMany({ where: { projetoId: projeto.id } }));
+    await passo("projeto", () => prisma.projeto.delete({ where: { id: projeto.id } }));
+    await passo("cliente", () => prisma.cliente.delete({ where: { id: cliente.id } }));
   }
 
   console.log(falhas === 0 ? "\nSmoke OK" : `\n${falhas} falha(s)`);

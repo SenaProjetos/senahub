@@ -50,7 +50,7 @@ documento (R00, R01, R02…), com o nome `CÓDIGO-FEDERADO-R00.ifc`.
 
 ## Quem vê e quem gera
 
-- **Ver e baixar:** quem tem acesso à Compatibilização (**Ver maquete federada** no perfil de
+- **Ver e baixar:** quem tem acesso à Compatibilização (**Ver maquete federada e apontamentos** no perfil de
   acesso) e participa do projeto. Não depende da disciplina: quem vê a maquete já vê todos os IFCs.
 - **Gerar e excluir:** quem gerencia a Compatibilização.
 - O federado **não pode ser editado nem substituído** pelas ações comuns de documento — ele só
