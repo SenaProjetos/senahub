@@ -6,7 +6,7 @@ import { TAMANHO_MAX_IFC } from "@/modules/coordenacao/conversao-estado";
 import {
   LIMITE_ENTRADA_FEDERADO,
   MOTIVO_ARQUIVO_SUMIU, MOTIVO_CABECALHO, MOTIVO_NAO_CONVERTIDO, MOTIVO_POUCOS,
-  avaliarSelecao, conflitoEntreAnalises, familiaDoSchema, lerSaidaDoFilho, rotuloUnidade, type CandidatoFederado,
+  avaliarSelecao, conflitoEntreAnalises, familiaDoSchema, lerSaidaDoFilho, rotuloUnidade, tamanhoLegivel, type CandidatoFederado,
 } from "./regras";
 
 const SRC = path.resolve(__dirname, "../../..");
@@ -37,6 +37,14 @@ function modulosDeNodeAlcancaveis(inicio: string): string[] {
   visitar(inicio, []);
   return achados;
 }
+
+describe("tamanhoLegivel", () => {
+  it("<1 MB, MB inteiro e GB com vírgula", () => {
+    expect(tamanhoLegivel(3295)).toBe("<1 MB");
+    expect(tamanhoLegivel(93.4 * 1024 ** 2)).toBe("93 MB");
+    expect(tamanhoLegivel(1.5 * 1024 ** 3)).toBe("1,5 GB");
+  });
+});
 
 describe("limite e fronteira do navegador", () => {
   it("o limite da junção é o mesmo do conversor", () => {

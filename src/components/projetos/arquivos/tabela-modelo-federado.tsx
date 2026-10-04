@@ -14,10 +14,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatarData } from "@/lib/utils";
-
-function mb(n: number) {
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
+import { tamanhoLegivel } from "@/modules/coordenacao/federado/regras";
 
 /** Versões do IFC federado (spec 2026-10-04 §8): cada linha diz o que entrou nela. */
 export function TabelaModeloFederado({ versoes, podeGerir }: { versoes: VersaoFederada[]; podeGerir: boolean }) {
@@ -87,7 +84,7 @@ export function TabelaModeloFederado({ versoes, podeGerir }: { versoes: VersaoFe
             >
               <TableCell className="max-w-[24rem]">
                 <p className="truncate font-medium" title={v.nomeArquivo}>{v.nomeArquivo}</p>
-                <p className="text-xs text-muted-foreground">{v.revisao}{i === 0 ? " · vigente" : ""} · {mb(v.tamanho)}</p>
+                <p className="text-xs text-muted-foreground">{v.revisao}{i === 0 ? " · vigente" : ""} · {tamanhoLegivel(v.tamanho)}</p>
                 {v.avisos.map((a) => <p key={a} className="text-xs text-muted-foreground">{a}</p>)}
               </TableCell>
               <TableCell className="text-xs">

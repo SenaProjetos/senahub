@@ -5,16 +5,10 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Boxes, Loader2 } from "lucide-react";
 import { gerarModeloFederado, listarCandidatosFederado } from "@/modules/coordenacao/federado/actions";
-import { avaliarSelecao, motivoIntrinseco, rotuloUnidade, type CandidatoFederado } from "@/modules/coordenacao/federado/regras";
+import { avaliarSelecao, motivoIntrinseco, rotuloUnidade, tamanhoLegivel, type CandidatoFederado } from "@/modules/coordenacao/federado/regras";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-
-function tamanhoLegivel(bytes: number) {
-  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1).replace(".", ",")} GB`;
-  if (bytes < 1024 ** 2) return "<1 MB";
-  return `${Math.round(bytes / 1024 ** 2)} MB`;
-}
 
 /**
  * "Exportar IFC federado" (spec 2026-10-04 §6): lista de marcar que já abre com os modelos ligados no

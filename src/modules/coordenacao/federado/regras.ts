@@ -81,6 +81,13 @@ function gb(bytes: number): string {
   return `${(bytes / 1024 ** 3).toFixed(1).replace(".", ",")} GB`;
 }
 
+/** Tamanho de arquivo para a tela: GB com uma casa (vírgula) a partir de 1 GiB, MB inteiro abaixo, "<1 MB" no resto. */
+export function tamanhoLegivel(bytes: number): string {
+  if (bytes >= 1024 ** 3) return gb(bytes);
+  if (bytes < 1024 ** 2) return "<1 MB";
+  return `${Math.round(bytes / 1024 ** 2)} MB`;
+}
+
 export function avaliarSelecao(candidatos: CandidatoFederado[], marcados: readonly string[]): AvaliacaoSelecao {
   const marcado = new Set(marcados);
   const referencia = candidatos.find((c) => marcado.has(c.modeloId) && motivoIntrinseco(c) === null) ?? null;
