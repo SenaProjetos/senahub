@@ -274,7 +274,18 @@ export function TabelaGlobalArquivos({
             ))}
           </ul>
 
-          <div className="hidden overflow-hidden rounded-md border border-border bg-card md:block">
+          {/* `overflow-clip`, não `hidden`: a barra `sticky` do cabeçalho precisa escapar desta caixa. */}
+          <div className="hidden overflow-clip rounded-md border border-border bg-card md:block">
+            <BarraSelecao
+              variante="cabecalho"
+              total={selecao.total}
+              itens={itensDoLote}
+              onSelect={(item) => void executarLote(item.id)}
+              onLimpar={selecao.limpar}
+              substantivo={["documento", "documentos"]}
+              todasMarcadas={todosMarcados}
+              onAlternarTodas={() => selecao.alternarPagina(idsVisiveis)}
+            />
             <Table>
               <TableHeader>
                 <TableRow>
@@ -408,12 +419,15 @@ export function TabelaGlobalArquivos({
         />
       )}
 
+      {/* Celular (ou sem tabela na tela): a barra fica embaixo, ao alcance do polegar. No computador,
+          com a tabela, ela cobre o cabeçalho, junto do "marcar todos". */}
       <BarraSelecao
         total={selecao.total}
         itens={itensDoLote}
         onSelect={(item) => void executarLote(item.id)}
         onLimpar={selecao.limpar}
         substantivo={["documento", "documentos"]}
+        className={linhasVisiveis.length > 0 ? "md:hidden" : undefined}
       />
 
       {acoes.portal}

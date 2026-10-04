@@ -38,11 +38,34 @@ export function LinkSelecaoArquivosButton({
   uploadIds: string[];
   className?: string;
 }) {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <>
+      <Button size="sm" variant="outline" className={className} onClick={() => setAberto(true)}>
+        <Share2 className="size-3.5" /> Link público
+      </Button>
+      <LinkSelecaoArquivosDialog projetoId={projetoId} uploadIds={uploadIds} aberto={aberto} onAbertoChange={setAberto} />
+    </>
+  );
+}
+
+/** O diálogo sozinho, para quem abre por outro caminho (a barra e o menu de contexto da seleção). */
+export function LinkSelecaoArquivosDialog({
+  projetoId,
+  uploadIds,
+  aberto,
+  onAbertoChange,
+}: {
+  projetoId: string;
+  uploadIds: string[];
+  aberto: boolean;
+  onAbertoChange: (aberto: boolean) => void;
+}) {
   const router = useRouter();
   const [pendente, start] = useTransition();
-  const [aberto, setAberto] = useState(false);
   const [nome, setNome] = useState("");
   const [url, setUrl] = useState<string | null>(null);
+  const setAberto = onAbertoChange;
 
   const n = uploadIds.length;
 
@@ -64,77 +87,71 @@ export function LinkSelecaoArquivosButton({
   }
 
   return (
-    <>
-      <Button size="sm" variant="outline" className={className} onClick={() => setAberto(true)} disabled={pendente}>
-        <Share2 className="size-3.5" /> Link público
-      </Button>
+    <Dialog
+      open={aberto}
+      onOpenChange={(v) => {
+        setAberto(v);
+        if (!v) {
+          setNome("");
+          setUrl(null);
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Link público destes arquivos</DialogTitle>
+          <DialogDescription>
+            Acesso externo, sem login, só para ver e baixar. O link mostra exatamente {n}{" "}
+            {n === 1 ? "arquivo marcado" : "arquivos marcados"} — inclusive revisão antiga ou backup do modelo,
+            se foi o que se marcou. Arquivo na lixeira não entra.
+          </DialogDescription>
+        </DialogHeader>
 
-      <Dialog
-        open={aberto}
-        onOpenChange={(v) => {
-          setAberto(v);
-          if (!v) {
-            setNome("");
-            setUrl(null);
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Link público destes arquivos</DialogTitle>
-            <DialogDescription>
-              Acesso externo, sem login, só para ver e baixar. O link mostra exatamente {n}{" "}
-              {n === 1 ? "arquivo marcado" : "arquivos marcados"} — inclusive revisão antiga ou backup do modelo,
-              se foi o que se marcou. Arquivo na lixeira não entra.
-            </DialogDescription>
-          </DialogHeader>
+        {url ? (
+          <div className="space-y-2">
+            <p className="rounded-sm bg-muted px-3 py-2 font-mono text-xs break-all">{url}</p>
+            <p className="text-xs text-muted-foreground">
+              Para renomear, dar validade ou revogar este link, use &ldquo;Link público&rdquo; no topo da tela.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Label htmlFor="nome-link-selecao">Nome do link (opcional)</Label>
+            <Input
+              id="nome-link-selecao"
+              placeholder="Prefeitura, cliente final, consultor…"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+            />
+          </div>
+        )}
 
+        <DialogFooter>
           {url ? (
-            <div className="space-y-2">
-              <p className="rounded-sm bg-muted px-3 py-2 font-mono text-xs break-all">{url}</p>
-              <p className="text-xs text-muted-foreground">
-                Para renomear, dar validade ou revogar este link, use &ldquo;Link público&rdquo; no topo da tela.
-              </p>
-            </div>
+            <>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(url);
+                  toast.success("Link copiado.");
+                }}
+              >
+                Copiar link
+              </Button>
+              <Button onClick={() => setAberto(false)}>Fechar</Button>
+            </>
           ) : (
-            <div className="space-y-2">
-              <Label htmlFor="nome-link-selecao">Nome do link (opcional)</Label>
-              <Input
-                id="nome-link-selecao"
-                placeholder="Prefeitura, cliente final, consultor…"
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-              />
-            </div>
+            <>
+              <Button variant="ghost" onClick={() => setAberto(false)} disabled={pendente}>
+                Cancelar
+              </Button>
+              <Button onClick={criar} disabled={pendente}>
+                {pendente ? "Criando…" : "Criar link"}
+              </Button>
+            </>
           )}
-
-          <DialogFooter>
-            {url ? (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={async () => {
-                    await navigator.clipboard.writeText(url);
-                    toast.success("Link copiado.");
-                  }}
-                >
-                  Copiar link
-                </Button>
-                <Button onClick={() => setAberto(false)}>Fechar</Button>
-              </>
-            ) : (
-              <>
-                <Button variant="ghost" onClick={() => setAberto(false)} disabled={pendente}>
-                  Cancelar
-                </Button>
-                <Button onClick={criar} disabled={pendente}>
-                  {pendente ? "Criando…" : "Criar link"}
-                </Button>
-              </>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

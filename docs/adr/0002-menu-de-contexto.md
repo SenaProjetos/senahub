@@ -73,6 +73,12 @@ viewer BIM (`CameraControls` gira a câmera com ele) e o viewer DWG.
   portal (janela aberta pelo card, menu ⋯ aberto) chegava ao gatilho pela árvore do React e abria o
   menu do card (ou da página) por cima da janela. O `ContextMenuTrigger` agora ignora o evento cujo
   alvo não está DENTRO dele no DOM (`preventBaseUIHandler`): ali vale o menu do navegador.
+- **Emenda (2026-10-04) — seleção na aba Arquivos:** botão direito numa linha marcada, com duas ou mais
+  marcadas, abre SÓ as ações da seleção (baixar .zip, validar, listas, link público, excluir), pedido do
+  dono. Exceção à parte "desabilitado com o motivo, nunca escondido" da regra 3: os nove itens de um
+  documento só, cada um com o mesmo motivo embaixo, enterravam as ações da seleção. Paridade: eles
+  continuam no `...` da linha, que age sempre na linha. Descritor puro:
+  `uploads/acoes-selecao-documentos.ts` (o mesmo array da barra da seleção).
 
 Planos de execução: [onda 1](../superpowers/specs/2026-09-15-menu-contexto.md) (entregue) ·
 [onda 2](../superpowers/specs/2026-09-20-menu-contexto-onda2.md) (decidida, não implementada).

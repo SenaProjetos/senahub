@@ -14,7 +14,8 @@ import { SortableHead } from "@/components/ui/sortable-head";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
-import { BarraSelecaoDocumentos } from "@/components/projetos/arquivos/barra-selecao-documentos";
+import { useAcoesSelecaoDocumentos } from "@/components/projetos/arquivos/barra-selecao-documentos";
+import { BarraSelecao } from "@/components/ui/barra-selecao";
 import type { ListaPainel } from "@/components/projetos/arquivos/painel-listas";
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { BadgeExtensao } from "@/components/projetos/arquivos/badge-extensao";
@@ -132,6 +133,8 @@ function CartaoDocumento({
   onMarcar,
   podeCoordenacao,
   acoes,
+  acoesMenu,
+  onMenuAberto,
   detalhesAberto,
   onDetalhesChange,
   onStatusAtualizado,
@@ -147,6 +150,9 @@ function CartaoDocumento({
   podeCoordenacao: boolean;
   /** `null` quando a linha não tem arquivo: sem `...` e sem menu de contexto. */
   acoes: AcoesDaLinha | null;
+  /** O menu de contexto: o da linha, ou o da seleção quando o cartão está numa seleção múltipla. */
+  acoesMenu: AcoesDaLinha | null;
+  onMenuAberto: () => void;
   detalhesAberto: boolean;
   onDetalhesChange: (aberto: boolean) => void;
   onStatusAtualizado: (statusId: string | null) => void;
@@ -258,7 +264,7 @@ function CartaoDocumento({
     </>
   );
 
-  if (!acoes) {
+  if (!acoes || !acoesMenu) {
     return (
       <li className={classe} data-marcada={marcada}>
         {conteudo}
@@ -268,10 +274,10 @@ function CartaoDocumento({
 
   // No celular é o toque longo que abre este menu — o cartão é a superfície dele.
   return (
-    <ContextMenu>
+    <ContextMenu onOpenChange={(aberto) => aberto && onMenuAberto()}>
       <ContextMenuTrigger render={<li className={classe} data-marcada={marcada} />}>{conteudo}</ContextMenuTrigger>
       <ContextMenuContent>
-        <AcoesMenuItens itens={acoes.itens} onSelect={acoes.aoSelecionar} />
+        <AcoesMenuItens itens={acoesMenu.itens} onSelect={acoesMenu.aoSelecionar} />
       </ContextMenuContent>
     </ContextMenu>
   );
@@ -398,8 +404,8 @@ export function TabelaDocumentos({
   }
 
   // Um hook por tabela: os diálogos ficam no `portal`, montados uma vez. Cada linha liga o
-  // próprio documento aos itens — o botão direito age SÓ na linha clicada e não mexe na seleção
-  // (agir sobre as selecionadas é comportamento de explorador, previsto para a onda 3).
+  // próprio documento aos itens. O `...` age sempre na linha; o botão direito segue o explorador
+  // de arquivos (ADR-0002, regra 3) — ver `acoesDoMenu`.
   const acoes = useAcoesDocumento({ projetoId, podeValidar, podeExcluir, podeSolicitarExclusao });
   // Painel de detalhes aberto pelo menu: ele vive na linha (é o gatilho do título), então quem
   // controla é a tabela — o `portal` do hook não o alcança.
@@ -407,6 +413,37 @@ export function TabelaDocumentos({
   const navPastas = useNavegacaoPastas();
   // Documento mais as opcionais visíveis: o nome da pasta vai do Nº até antes das ações.
   const colunasDoNome = 1 + COLUNAS_OPCIONAIS.filter((c) => colunas.has(c)).length;
+
+  const selecaoAcoes = useAcoesSelecaoDocumentos({
+    projetoId,
+    selecionados,
+    documentoIds: documentosSelecionados.map((documento) => documento.id),
+    totalDocumentosSelecionados: documentosSelecionados.length,
+    totalValidaveis: validaveis,
+    podeValidar,
+    podeExcluir,
+    podeGerirListas,
+    podeGerirLink,
+    listas,
+    listaSelecionadaId,
+    onLimpar: () => setSelecao(new Set()),
+  });
+
+  /**
+   * Menu de contexto de uma linha MARCADA numa seleção de duas ou mais: age na seleção (baixar o
+   * .zip das marcadas, não a linha sob o cursor). Fora disso, o menu da própria linha — que segue
+   * inteiro no `...` dela.
+   */
+  function acoesDoMenu(linha: LinhaDoc, daLinha: AcoesDaLinha | null): AcoesDaLinha | null {
+    if (!daLinha) return null;
+    if (documentosSelecionados.length < 2 || !selecao.has(linha.id)) return daLinha;
+    return { itens: selecaoAcoes.itensComContagem, aoSelecionar: selecaoAcoes.aoSelecionar };
+  }
+
+  /** Botão direito numa linha fora da seleção: ela passa a ser a seleção, como no explorador. */
+  function aoAbrirMenu(linha: LinhaDoc) {
+    if (selecao.size > 0 && !selecao.has(linha.id)) setSelecao(new Set([linha.id]));
+  }
 
   function acoesDa(linha: LinhaDoc): AcoesDaLinha | null {
     const documento = linhaParaMenu(linha);
@@ -461,6 +498,7 @@ export function TabelaDocumentos({
         <EmptyState icon={temFiltroAtivo ? SearchX : FileX2} title={vazio.title} description={vazio.description} />
         {/* Excluir a última linha cai aqui: o diálogo em curso não pode sumir no meio. */}
         {acoes.portal}
+        {selecaoAcoes.portal}
       </div>
     );
   }
@@ -485,6 +523,8 @@ export function TabelaDocumentos({
             onMarcar={() => alternar(l.id)}
             podeCoordenacao={podeCoordenacao}
             acoes={acoesDa(l)}
+            acoesMenu={acoesDoMenu(l, acoesDa(l))}
+            onMenuAberto={() => aoAbrirMenu(l)}
             detalhesAberto={detalhesDe === l.id}
             onDetalhesChange={(v) => setDetalhesDe(v ? l.id : null)}
             onStatusAtualizado={(id) => aplicarStatus(l.id, id)}
@@ -495,7 +535,21 @@ export function TabelaDocumentos({
         ))}
       </ul>
 
-      <div className="hidden overflow-hidden rounded-md border border-border bg-card md:block">
+      {/* `overflow-clip`, não `hidden`: a barra `sticky` do cabeçalho precisa escapar desta caixa. */}
+      <div className="hidden overflow-clip rounded-md border border-border bg-card md:block">
+      <BarraSelecao
+        variante="cabecalho"
+        total={documentosSelecionados.length}
+        comTeto={false}
+        rotulo={selecaoAcoes.rotulo}
+        substantivo={["documento", "documentos"]}
+        itens={selecaoAcoes.itens}
+        onSelect={selecaoAcoes.aoSelecionar}
+        pendente={selecaoAcoes.pendente}
+        onLimpar={() => setSelecao(new Set())}
+        todasMarcadas={todasMarcadas}
+        onAlternarTodas={alternarTodas}
+      />
       <Table>
         <TableHeader>
           <TableRow>
@@ -535,6 +589,7 @@ export function TabelaDocumentos({
           {ordenadas.map((l) => {
             const validacao = estadoValidacao(l.arquivos);
             const acoesLinha = acoesDa(l);
+            const menuLinha = acoesDoMenu(l, acoesLinha);
             const estadoLinha = selecao.has(l.id) ? "selected" : undefined;
             const celulas = (
             <>
@@ -679,7 +734,7 @@ export function TabelaDocumentos({
             );
 
             // Linha sem arquivo não tem o que o menu repor: fica com o menu nativo (ADR-0002).
-            if (!acoesLinha) {
+            if (!acoesLinha || !menuLinha) {
               return (
                 <TableRow key={l.id} data-state={estadoLinha}>
                   {celulas}
@@ -688,14 +743,14 @@ export function TabelaDocumentos({
             }
 
             return (
-              <ContextMenu key={l.id}>
+              <ContextMenu key={l.id} onOpenChange={(aberto) => aberto && aoAbrirMenu(l)}>
                 <ContextMenuTrigger
                   render={<TableRow data-state={estadoLinha} className="data-[popup-open]:bg-muted/50" />}
                 >
                   {celulas}
                 </ContextMenuTrigger>
                 <ContextMenuContent>
-                  <AcoesMenuItens itens={acoesLinha.itens} onSelect={acoesLinha.aoSelecionar} />
+                  <AcoesMenuItens itens={menuLinha.itens} onSelect={menuLinha.aoSelecionar} />
                 </ContextMenuContent>
               </ContextMenu>
             );
@@ -704,22 +759,21 @@ export function TabelaDocumentos({
       </Table>
       </div>
 
-      <BarraSelecaoDocumentos
-        projetoId={projetoId}
-        selecionados={selecionados}
-        documentoIds={documentosSelecionados.map((documento) => documento.id)}
-        totalDocumentosSelecionados={documentosSelecionados.length}
-        totalValidaveis={validaveis}
-        podeValidar={podeValidar}
-        podeExcluir={podeExcluir}
-        podeGerirListas={podeGerirListas}
-        podeGerirLink={podeGerirLink}
-        listas={listas}
-        listaSelecionadaId={listaSelecionadaId}
+      {/* Celular: a lista de cartões não tem cabeçalho — a barra fica embaixo, ao alcance do polegar. */}
+      <BarraSelecao
+        total={documentosSelecionados.length}
+        comTeto={false}
+        rotulo={selecaoAcoes.rotulo}
+        substantivo={["documento", "documentos"]}
+        itens={selecaoAcoes.itens}
+        onSelect={selecaoAcoes.aoSelecionar}
+        pendente={selecaoAcoes.pendente}
         onLimpar={() => setSelecao(new Set())}
+        className="md:hidden"
       />
 
       {acoes.portal}
+      {selecaoAcoes.portal}
     </div>
   );
 }
