@@ -26,6 +26,7 @@ import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
+import { SeletorMultiplo } from "@/components/ui/seletor-multiplo";
 import {
   Select,
   SelectContent,
@@ -1090,23 +1091,26 @@ function HabilidadesDialog({
         <DialogHeader>
           <DialogTitle>Habilidades · {alvo.nome}</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-wrap gap-1.5">
-          {catalogo.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma habilidade. Crie abaixo.</p>}
-          {catalogo.map((h) => {
-            const on = atribuidas.includes(h.id);
-            return (
-              <button
-                key={h.id}
-                type="button"
-                disabled={pending}
-                onClick={() => onToggle(h.id)}
-                className={`rounded-sm border px-2 py-1 text-xs ${on ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:border-primary/50"}`}
-              >
-                {h.nome}
-              </button>
-            );
-          })}
-        </div>
+        {catalogo.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhuma habilidade. Crie abaixo.</p>
+        ) : (
+          <SeletorMultiplo
+            opcoes={catalogo.map((h) => ({ id: h.id, rotulo: h.nome }))}
+            selecionados={atribuidas}
+            // Cada marcação é gravada na hora (toggle no servidor): repete para o que mudou.
+            onChange={(ids) => {
+              for (const id of catalogo.map((h) => h.id)) {
+                if (ids.includes(id) !== atribuidas.includes(id)) onToggle(id);
+              }
+            }}
+            placeholder="Buscar habilidade…"
+            rotuloBusca="Buscar habilidade"
+            vazio="Nenhuma habilidade encontrada."
+            rotuloContagem={(n) => (n === 1 ? "1 habilidade" : `${n} habilidades`)}
+            alturaLista="max-h-56"
+            disabled={pending}
+          />
+        )}
         <div className="flex items-center gap-2">
           <Input
             placeholder="Nova habilidade…"

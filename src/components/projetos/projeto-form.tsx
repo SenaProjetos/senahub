@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Trash2, Layers } from "lucide-react";
@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
+import { SeletorMultiplo } from "@/components/ui/seletor-multiplo";
+import { opcoesDePessoas } from "@/components/ui/opcoes-pessoas";
 import {
   Select,
   SelectContent,
@@ -46,6 +48,7 @@ export function ProjetoForm({
   tiposEmpreendimento?: { id: string; nome: string }[];
 }) {
   const router = useRouter();
+  const opcoesInternos = useMemo(() => opcoesDePessoas(internos), [internos]);
   const [pending, start] = useTransition();
   const [tipo, setTipo] = useState<"particular" | "licitacao" | "aprovacao" | "laudo">("particular");
   const [nome, setNome] = useState("");
@@ -65,21 +68,6 @@ export function ProjetoForm({
 
   function setDisc(i: number, patch: Partial<DiscDraft>) {
     setDisciplinas((ds) => ds.map((d, idx) => (idx === i ? { ...d, ...patch } : d)));
-  }
-
-  function toggleResp(i: number, userId: string) {
-    setDisciplinas((ds) =>
-      ds.map((d, idx) => {
-        if (idx !== i) return d;
-        const has = d.responsaveisIds.includes(userId);
-        return {
-          ...d,
-          responsaveisIds: has
-            ? d.responsaveisIds.filter((x) => x !== userId)
-            : [...d.responsaveisIds, userId],
-        };
-      }),
-    );
   }
 
   function salvar() {
@@ -284,25 +272,16 @@ export function ProjetoForm({
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Responsáveis</Label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {internos.map((u) => {
-                      const sel = d.responsaveisIds.includes(u.id);
-                      return (
-                        <button
-                          type="button"
-                          key={u.id}
-                          onClick={() => toggleResp(i, u.id)}
-                          className={`rounded-sm border px-2 py-1 text-xs transition-colors ${
-                            sel
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-border text-muted-foreground hover:border-primary/50"
-                          }`}
-                        >
-                          {u.name}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <SeletorMultiplo
+                    opcoes={opcoesInternos}
+                    selecionados={d.responsaveisIds}
+                    onChange={(ids) => setDisc(i, { responsaveisIds: ids })}
+                    placeholder="Buscar pessoa…"
+                    rotuloBusca={`Buscar responsável de ${d.nome || "disciplina"}`}
+                    vazio="Nenhuma pessoa encontrada."
+                    rotuloContagem={(n) => (n === 1 ? "1 responsável" : `${n} responsáveis`)}
+                    alturaLista="max-h-36"
+                  />
                 </div>
               </div>
             ))}

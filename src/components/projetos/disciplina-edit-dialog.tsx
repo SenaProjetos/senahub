@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
+import { SeletorMultiplo } from "@/components/ui/seletor-multiplo";
+import { opcoesDePessoas } from "@/components/ui/opcoes-pessoas";
 import {
   Dialog,
   DialogContent,
@@ -23,7 +25,7 @@ interface EditProps {
   prazo: string | null;
   valor: number | null;
   responsaveisIds: string[];
-  internos: { id: string; name: string }[];
+  internos: { id: string; name: string; role?: string }[];
   exigePacoteA?: boolean;
   exigePacoteB?: boolean;
   /** Aprovação/laudo: usa a árvore de pastas própria, sem pacote A/B — esconde os checkboxes. */
@@ -80,11 +82,6 @@ export function DisciplinaEditDialog({
     });
   };
 
-  const toggleResp = (id: string) =>
-    setRespIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       {!controle && (
@@ -135,22 +132,16 @@ export function DisciplinaEditDialog({
           {internos.length > 0 && (
             <div className="space-y-1.5">
               <Label>Responsáveis</Label>
-              <div className="flex flex-wrap gap-1.5">
-                {internos.map((u) => (
-                  <button
-                    key={u.id}
-                    type="button"
-                    onClick={() => toggleResp(u.id)}
-                    className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
-                      respIds.includes(u.id)
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-muted-foreground/30 text-muted-foreground hover:border-primary/50"
-                    }`}
-                  >
-                    {u.name.split(" ")[0]}
-                  </button>
-                ))}
-              </div>
+              <SeletorMultiplo
+                opcoes={opcoesDePessoas(internos)}
+                selecionados={respIds}
+                onChange={setRespIds}
+                placeholder="Buscar pessoa…"
+                rotuloBusca="Buscar responsável"
+                vazio="Nenhuma pessoa encontrada."
+                rotuloContagem={(n) => (n === 1 ? "1 responsável" : `${n} responsáveis`)}
+                alturaLista="max-h-44"
+              />
             </div>
           )}
           {!usaEstruturaPastas && (

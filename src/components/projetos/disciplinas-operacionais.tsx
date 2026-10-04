@@ -228,7 +228,7 @@ export async function DisciplinasOperacionais({
     <PaginaDisciplinas
       projetoId={projeto.id}
       podeGerir={podeGerir}
-      internos={internos.map((interno) => ({ id: interno.id, name: interno.name }))}
+      internos={internos.map((interno) => ({ id: interno.id, name: interno.name, role: interno.role }))}
       prazoContrato={projeto.prazoPlanejado?.toISOString() ?? null}
       catalogo={catalogo}
       filtro={filtroStatus}

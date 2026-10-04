@@ -47,7 +47,7 @@ export function PaginaDisciplinas({
 }: {
   projetoId: string;
   podeGerir: boolean;
-  internos: { id: string; name: string }[];
+  internos: { id: string; name: string; role?: string }[];
   prazoContrato: string | null;
   catalogo: Catalogo;
   filtro: StatusDisciplina | null;

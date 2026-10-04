@@ -70,6 +70,7 @@ import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -77,6 +78,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { SeletorMultiplo } from "@/components/ui/seletor-multiplo";
+import { opcoesDePessoas } from "@/components/ui/opcoes-pessoas";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TarefaDialog, type TarefaUI, type OpcoesUI } from "@/components/tarefas/tarefa-dialog";
 import { PRIORIDADE_LABEL, PRIORIDADE_CLASS, ehPrioridade } from "@/modules/tarefas/prioridade";
@@ -1624,10 +1627,6 @@ function ResponsaveisDialog({
   const [sel, setSel] = useState<string[]>(disciplina.responsaveis.map((r) => r.userId));
   const [pending, start] = useTransition();
 
-  function toggle(id: string) {
-    setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
-  }
-
   function salvar() {
     start(async () => {
       const res = await definirResponsaveis({ disciplinaId: disciplina.id, responsaveisIds: sel });
@@ -1654,27 +1653,23 @@ function ResponsaveisDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{disciplina.nome} — responsáveis</DialogTitle>
-          <DialogDescription>Permite múltiplos responsáveis.</DialogDescription>
+          <DialogDescription>Marque uma ou mais pessoas. Busque pelo nome ou pelo perfil.</DialogDescription>
         </DialogHeader>
-        <div className="flex flex-wrap gap-1.5">
-          {internos.map((u) => {
-            const s = sel.includes(u.id);
-            return (
-              <button
-                type="button"
-                key={u.id}
-                onClick={() => toggle(u.id)}
-                className={`rounded-sm border px-2 py-1 text-xs transition-colors ${
-                  s
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border text-muted-foreground hover:border-primary/50"
-                }`}
-              >
-                {u.name}
-              </button>
-            );
-          })}
-        </div>
+        <DialogBody>
+          <SeletorMultiplo
+            opcoes={opcoesDePessoas(internos)}
+            selecionados={sel}
+            onChange={setSel}
+            placeholder="Buscar pessoa…"
+            rotuloBusca="Buscar responsável"
+            vazio="Nenhuma pessoa encontrada."
+            rotuloContagem={(n) => (n === 1 ? "1 responsável" : `${n} responsáveis`)}
+            // Altura fixa: a janela não pula enquanto a busca encolhe a lista.
+            alturaLista="h-72"
+            disabled={pending}
+            autoFocus
+          />
+        </DialogBody>
         <DialogFooter>
           <Button onClick={salvar} disabled={pending}>
             {pending ? "Salvando…" : "Salvar"}
