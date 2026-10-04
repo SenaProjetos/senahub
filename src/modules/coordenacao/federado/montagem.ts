@@ -5,7 +5,7 @@
  * raiz dos outros. O resto é copiado como veio — geometria e posições byte a byte.
  */
 import type { AnaliseIfc, FonteIfc } from "./analise";
-import { LeitorStep, atributos, idDaInstrucao, lerInstancia, palavraDaInstrucao, referencias, textoStep, trocarReferencias } from "./step";
+import { ErroMostravel, LeitorStep, atributos, idDaInstrucao, lerInstancia, palavraDaInstrucao, referencias, textoStep, trocarReferencias } from "./step";
 
 export type PlanoJuncao = { offsets: number[]; projetoMestre: number; contextosExtras: number[] };
 
@@ -19,7 +19,7 @@ export type CabecalhoFederado = {
 
 export function planejarJuncao(analises: AnaliseIfc[]): PlanoJuncao {
   const mestre = analises[0];
-  if (!mestre || mestre.projetoId === null) throw new Error("O primeiro modelo não tem IfcProject.");
+  if (!mestre || mestre.projetoId === null) throw new ErroMostravel("O primeiro modelo não tem IfcProject.");
   const offsets: number[] = [];
   let soma = 0;
   for (const a of analises) {
@@ -105,22 +105,30 @@ export async function* escreverFederado(
   yield "ENDSEC;\nEND-ISO-10303-21;\n";
 }
 
+/** Marca no mapa de donos: o GlobalId já foi contado como repetido. */
+const JA_CONTADO = -1;
+
 export function avisoGuidsRepetidos(analises: AnaliseIfc[], rotulos: string[]): string | null {
-  const donos = new Map<string, Set<number>>();
+  // Um número por GlobalId (o primeiro modelo que o tem), não um Set por GlobalId: são milhões num modelo grande.
+  const dono = new Map<string, number>();
+  const envolvidos = new Set<number>();
+  let total = 0;
   analises.forEach((a, i) => {
-    for (const g of new Set(a.guids)) {
-      const s = donos.get(g) ?? new Set<number>();
-      s.add(i);
-      donos.set(g, s);
+    for (const g of a.guids) {
+      const primeiro = dono.get(g);
+      if (primeiro === undefined) {
+        dono.set(g, i);
+        continue;
+      }
+      if (primeiro === i) continue; // repetido dentro do mesmo modelo: não é entre modelos
+      if (primeiro !== JA_CONTADO) {
+        total++;
+        envolvidos.add(primeiro);
+        dono.set(g, JA_CONTADO);
+      }
+      envolvidos.add(i);
     }
   });
-  let total = 0;
-  const envolvidos = new Set<number>();
-  for (const s of donos.values()) {
-    if (s.size < 2) continue;
-    total++;
-    for (const i of s) envolvidos.add(i);
-  }
   if (total === 0) return null;
   const nomes = [...envolvidos].sort((x, y) => x - y).map((i) => rotulos[i]);
   const lista = nomes.length === 2 ? nomes.join(" e ") : `${nomes.slice(0, -1).join(", ")} e ${nomes.at(-1)}`;

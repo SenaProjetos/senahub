@@ -41,6 +41,25 @@ const TIPOS_DE_UNIDADE = new Set([
 /** GlobalId comprimido do IFC: 22 caracteres e o 1º só 0–3 (128 bits) — um nome de 22 letras não conta. */
 const RE_GUID = /^'([0-3][0-9A-Za-z_$]{21})'/;
 
+/**
+ * Cópia que não aponta para o pedaço lido. `slice`/captura de regex no V8 devolvem uma SlicedString que segura a
+ * string-mãe inteira — aqui, o pedaço de ~1 MB do leitor. Quase todo pedaço tem um GlobalId e os `guids` vivem
+ * pelas duas leituras, então guardar a captura crua prendia o IFC inteiro na memória do child (300 MB de entrada →
+ * ~310 MB de heap; com a cópia, ~31 MB). `[...s].join("")` monta uma string sequencial nova; `(" " + s).slice(1)`
+ * ainda deixava uma SlicedString por GUID (~52 MB na mesma medição).
+ */
+function copiaPropria(s: string): string {
+  return [...s].join("");
+}
+
+function copiaOuNulo(s: string | undefined): string | null {
+  return s === undefined ? null : copiaPropria(s);
+}
+
+function instanciaPropria(inst: Instancia): Instancia {
+  return { id: inst.id, tipo: copiaPropria(inst.tipo), args: copiaPropria(inst.args) };
+}
+
 function enumDe(attr: string | undefined): string | null {
   const m = /^\.([A-Z0-9_]+)\.$/i.exec((attr ?? "").trim());
   return m ? m[1].toUpperCase() : null;
@@ -64,8 +83,8 @@ export class AnalisadorIfc {
     const id = idDaInstrucao(instr);
     if (id === null) {
       const palavra = palavraDaInstrucao(instr);
-      if (palavra === "FILE_SCHEMA") this.schema = /\(\s*\(\s*'([^']+)'/.exec(instr)?.[1] ?? null;
-      else if (palavra === "FILE_DESCRIPTION") this.viewDefinition = /'(ViewDefinition\s*\[[^']*\])'/i.exec(instr)?.[1] ?? null;
+      if (palavra === "FILE_SCHEMA") this.schema = copiaOuNulo(/\(\s*\(\s*'([^']+)'/.exec(instr)?.[1]);
+      else if (palavra === "FILE_DESCRIPTION") this.viewDefinition = copiaOuNulo(/'(ViewDefinition\s*\[[^']*\])'/i.exec(instr)?.[1]);
       return;
     }
     if (id > this.maiorId) this.maiorId = id;
@@ -73,12 +92,12 @@ export class AnalisadorIfc {
     if (!inst) return;
     if (inst.tipo === "IFCPROJECT") {
       this.projetos++;
-      if (!this.projeto) this.projeto = inst;
+      if (!this.projeto) this.projeto = instanciaPropria(inst);
       return;
     }
-    if (TIPOS_DE_UNIDADE.has(inst.tipo)) this.unidades.set(inst.id, inst);
+    if (TIPOS_DE_UNIDADE.has(inst.tipo)) this.unidades.set(inst.id, instanciaPropria(inst));
     const guid = RE_GUID.exec(inst.args);
-    if (guid) this.guids.push(guid[1]);
+    if (guid) this.guids.push(copiaPropria(guid[1]));
   }
 
   /** Rótulo da unidade de comprimento do projeto, `undefined` enquanto faltar peça para saber. */

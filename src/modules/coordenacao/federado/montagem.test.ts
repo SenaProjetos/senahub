@@ -85,4 +85,12 @@ describe("avisoGuidsRepetidos", () => {
       "8 elementos com GlobalId repetido entre Estrutural e Recebido do cliente. Visualizadores podem mostrar só um deles.",
     );
   });
+
+  it("repetido dentro do mesmo modelo não conta; o mesmo GlobalId em três modelos conta uma vez", () => {
+    const an = (guids: string[]) => ({ schema: "IFC4", viewDefinition: null, projetoId: 1, projetos: 1, contextosRaiz: [], unidade: null, maiorId: 1, guids });
+    expect(avisoGuidsRepetidos([an(["g1", "g1"]), an(["g2"])], ["A", "B"])).toBeNull();
+    expect(avisoGuidsRepetidos([an(["g1", "g2"]), an(["g3", "g1", "g1"]), an(["g1"]), an(["g2"])], ["A", "B", "C", "D"])).toBe(
+      "2 elementos com GlobalId repetido entre A, B, C e D. Visualizadores podem mostrar só um deles.",
+    );
+  });
 });
