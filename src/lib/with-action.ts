@@ -4,7 +4,7 @@ import { getSession, type SessionUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { logAudit, getClientIp } from "@/lib/audit";
 import type { Role } from "@/lib/roles";
-import { ActionError, resultadoDoErro } from "@/lib/action-error";
+import { ActionError, fieldErrorsDoErro, resultadoDoErro } from "@/lib/action-error";
 
 export type ActionResult<T> =
   | { ok: true; data: T }
@@ -131,7 +131,8 @@ export function defineAction<S, T>(
       await maybeAudit(config, { user, ip }, resultado, err);
       const message =
         err instanceof ActionError ? err.message : "Erro ao processar a solicitação.";
-      return { ok: false, error: message };
+      const fieldErrors = fieldErrorsDoErro(err);
+      return fieldErrors ? { ok: false, error: message, fieldErrors } : { ok: false, error: message };
     }
   };
 }
