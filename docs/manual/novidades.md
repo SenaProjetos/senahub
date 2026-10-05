@@ -22,6 +22,21 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Campos de CPF, telefone e CEP formatam sozinhos
+
+- **Pontuação automática.** Ao digitar CPF, CNPJ, telefone, CEP, e-mail, RG, agência, conta, chave PIX ou
+  chave da nota fiscal, o sistema põe os pontos, traços e parênteses enquanto você digita. Pode colar o
+  número de qualquer jeito — com ou sem pontuação, com espaços ou com o +55 na frente do telefone — que
+  ele se arruma.
+- **Aviso logo abaixo do campo.** Se o número não confere — CPF com dígito errado, telefone sem DDD, CEP
+  incompleto — a mensagem aparece embaixo do campo assim que você sai dele, e o cadastro só é salvo
+  depois de corrigido.
+- **Cadastros antigos não travam.** Um cadastro antigo com um dado errado continua abrindo e salvando
+  normalmente; o aviso só aparece se você mudar aquele campo.
+  [Saiba mais](quick-start.md#campos-de-cpf-telefone-cep-e-outros-documentos)
+
+---
+
 ## Compatibilização: exportar o modelo federado (IFC)
 
 - **Um IFC só com os modelos das disciplinas.** Na aba **Compatibilização**, o painel **Disciplinas**

@@ -117,7 +117,11 @@
         "caminho crítico",
         "folga",
         "EAP",
-        "parcela a faturar"
+        "parcela a faturar",
+        "máscara",
+        "CPF",
+        "telefone",
+        "CEP"
       ],
       "sinonimos": [
         "release notes",
@@ -156,7 +160,14 @@
         "fixar atalho",
         "seções do menu",
         "menu da conta",
-        "tema escuro"
+        "tema escuro",
+        "CPF",
+        "CNPJ",
+        "telefone",
+        "CEP",
+        "máscara",
+        "campo inválido",
+        "dígito verificador"
       ],
       "sinonimos": [
         "getting started",

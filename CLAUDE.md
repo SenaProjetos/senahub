@@ -99,6 +99,8 @@ src/
                          #   encryption.ts: AES-256-GCM reversible encryption for the Acessos credential
                          #     vault (pure, tested). Key from ACESSOS_ENCRYPTION_KEY, server-side only,
                          #     fails closed. Payload carries `keyVersion` so rotation stays possible.
+                         #   campos/: catalog of formatted fields (mask, normalization, validation, message),
+                         #     pure, one file per type + zod.ts (campo.<tipo>()) + exigir.ts — see ADR-0010
   generated/prisma/      # Prisma client output (import from here, NOT @prisma/client)
 server.ts                # Next + Socket.io + pg-boss in ONE process
 prisma/schema.prisma     # + prisma.config.ts (Prisma 7: datasource URL lives in the config, not the schema)
@@ -148,6 +150,28 @@ them. Comercial pages render `NavComercial` right AFTER their header (the layout
 **Modules (34 total):** agenda, arquivos, auditoria, auth, busca, chat, clientes, comercial, configuracoes, coordenacao, dashboard, documentos, documentos-cliente, dwg, engenharia, ferramentas, financeiro, inputs, juridico, legal, licitacoes, notificacoes, patrimonio, permissoes, planejamento, ponto, portal, projetos, qualidade, rh, suporte, tarefas, uploads, usuarios. `coordenacao` = BIM/compatibilização (see below). The `portal` module is the read-only external client view scoped to `User.clienteId`; `inputs` handles public client intake forms (token-gated). `patrimonio` covers both Patrimônio (assets, `/patrimonio`) and the TI submodule (machines, `/patrimonio/ti`, gated `patrimonio:ti`). `legal` (Termos de Uso, see below) is a separate concern from `juridico` — don't confuse them. Note: the `juridico` *module folder* is `actions.ts`-only, but the `/juridico` **route is a full feature** (DocumentoJuridico + versões/aceites, Certidao, ModeloContrato) whose reads live inline in `page.tsx` + `components/juridico/`, not in a `modules/juridico/queries.ts`. The 5 modules beyond the original 29: `arquivos` (file-access/scoping helpers, re-exports `escopoProjeto`; backs the `/arquivos` diretório + aprovações), `dwg` (DWG→DXF pipeline mirroring coordenação's IFC one — own `ConversaoDesenho` model + web viewer, triggered from the same `/api/uploads` route), `documentos-cliente` (client-facing document repository — distinct from the `documentos` Estúdio), `engenharia` (Padrões & Normas técnicas, gated `biblioteca_tecnica`; distinct from `ferramentas`), `configuracoes` (thin — email-template config under `emails/`).
 
 **List views:** Use `parseListParams(searchParams)` (`lib/list-params.ts`) to get `{page, skip, take, sort, dir, q}` ready for Prisma `skip/take/orderBy`. On the client, `useSetParams` updates URL search params and automatically resets `page` when any other filter changes.
+
+**Formatted fields and forms** ([ADR-0010](docs/adr/0010-campos-com-formato.md), spec
+`docs/superpowers/specs/2026-10-04-campos-formatados-design.md`): CPF, CNPJ, CPF/CNPJ, phone, CEP, e-mail, RG, agência,
+conta, PIX key and NF-e key use `InputFormatado tipo="…"` (`components/ui/input-formatado.tsx`) on screen and
+`campo.<tipo>()` (`lib/campos/zod.ts`) in the schema — never a raw `<Input>` or a bare `z.string()`. The catalog
+(`lib/campos/`) is the single source of mask, normalization, validation and message, so the screen never accepts what
+the action refuses. The DB stores the **standard format** (`000.000.000-00`, `(00) 00000-0000`); exceptions: PIX (BACEN
+format, validated in the handler by `validarChavePix` because it depends on `pixTipo`), the NF-e key (44 digits) and
+`Cliente.documento` (digits only — CRM ADR-03 uniqueness; the screen masks it). Duplicate lookups match
+`variantesDoValor` while legacy rows remain; importers and producers pass a valid value through
+`CAMPOS.<tipo>.normalizar` (an invalid one is a preview warning, saved as it came). Create schemas are strict; **every
+update path** uses `{ legado: true }` + `exigirCamposValidos(input, antes, mapa)` in the handler: an invalid value already
+stored passes, a new invalid one is refused on the field (`ActionError(msg, campos)` → `fieldErrors`; with
+`useFieldErrors` pass `id` + `erro={fe.erros.x}` and drop the parent's `FieldError`).
+That includes the collaborator's bank-account proposal of type "editar" and the client briefing (an invalid cadastro
+value is not pre-filled; autosave keeps saving the rest and names the field). The company PIX (`configuracoes/empresa`,
+no type field) is free text, accepted if valid for any PIX type, refused only when invalid AND changed. Login e-mail
+(better-auth) is out. A new type (PIS, CNH, boleto…) is born in the catalog with its first field, with a test.
+`lib/campos/guarda-campos.test.ts` fails on a raw field; the only escape is `campo-ok: <reason>` on the line or in a
+comment-only line above. Limits: it misses keys inside a one-line `z.object({ … })` and inputs bound only by `id=` — a
+net, not a proof. Forms that only collect and save use `FormData`; forms where a field reacts to another use state; an
+existing form switches mode only when the screen is already being changed for another reason.
 
 **Context menu, `...` and bulk actions** ([ADR-0002](docs/adr/0002-menu-de-contexto.md)): every list/card that gets a
 right-click (long-press on touch) menu follows one pattern. A **pure descriptor** `itensDe<Entidade>()` in the module

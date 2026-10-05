@@ -77,8 +77,8 @@ function violacoes(): Record<string, number> {
 }
 
 /**
- * Arquivos que ainda não migraram (Tarefas 9–13 do plano 2026-10-05). Só ENCOLHE: corrigir um
- * arquivo exige tirá-lo daqui, e arquivo novo com campo cru reprova na hora. Vazia na Tarefa 14.
+ * Vazia de propósito: exceção só por `campo-ok: <motivo>` na linha do campo ou num comentário
+ * sozinho logo acima (ADR-0010).
  */
 const PENDENTES: Record<string, number> = {};
 
