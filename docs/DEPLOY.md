@@ -354,19 +354,37 @@ Nunca `migrate dev`/`seed:demo` em produção. `migrate deploy` só aplica o que
 Rodar **depois** que a versão que traz `src/lib/campos/` (ADR-0010) estiver no ar — nunca antes:
 o script grava no formato que só essa versão sabe ler e editar.
 
-    npx tsx --tsconfig tsconfig.server.json scripts/normalizar-campos.ts            # simula, gera logs/campos-invalidos-AAAA-MM-DD.csv
+    npx tsx --tsconfig tsconfig.server.json scripts/normalizar-campos.ts            # simula
+    # backup do banco AGORA (menu, opção 9 — seção 8), logo antes de gravar
     npx tsx --tsconfig tsconfig.server.json scripts/normalizar-campos.ts --gravar   # grava
 
-Ler o CSV antes de gravar. Valores inválidos ficam como estão (os cadastros abrem e salvam; a correção é pela tela).
-"Possível duplicata" = dois cadastros com o mesmo CNPJ depois de formatar — resolver pela tela (fusão de clientes, PJ).
-"revisar: pode juntar duas informações" = RG, agência ou conta com espaço ou "/" entre partes (ex.: `1234567 SSP/PE`,
-`013 12345-6`): o script não reescreve, porque formatar grudaria o número no órgão emissor ou na operação. Corrigir pela
-tela, separando o que não é o número.
-O documento do cliente, o CPF do aceite externo e os dados da empresa (Configurações → Empresa) só aparecem
-no relatório: o script nunca os reescreve. Rodar de novo não muda nada.
+Cada rodada gera dois arquivos em `logs/` (sufixo `-simulacao` ou `-gravado`):
 
-> **O CSV tem dado pessoal** (CPF, telefone, e-mail): `logs/campos-invalidos-*.csv` não sai do servidor
-> e deve ser **apagado depois de lido**.
+- `campos-invalidos-AAAA-MM-DD-*.csv` — o que **ficou como está** e por quê;
+- `campos-alterados-AAAA-MM-DD-*.csv` — cada reescrita, `de` → `para` (na simulação, o que *seria*
+  reescrito). O `-gravado` é escrito linha a linha durante a gravação e nunca é sobrescrito por outra
+  rodada no mesmo dia: é o que permite desfazer uma linha. Célula que começa com `=`, `+`, `-` ou `@`
+  ganha um `'` na frente (para o Excel não ler como fórmula) — tirar o `'` ao usar o valor.
+
+**Ler os dois CSVs da simulação antes de gravar.** Os motivos no `campos-invalidos`:
+
+- mensagem de campo inválido (ex.: "CPF inválido…") — fica como está; os cadastros abrem e salvam, a
+  correção é pela tela;
+- "Possível duplicata depois de normalizar" — dois cadastros com o mesmo CNPJ depois de formatar;
+  nenhum muda; resolver pela tela (fusão de clientes, PJ);
+- "revisar: contém informação além do número" — o valor é válido, mas traz algo que a formatação
+  cortaria ou grudaria (`(81) 99999-9999 Maria`, `1234567 SSP/PE`, `013-12345-6`, `50000-000 Recife`).
+  O script só reescreve valor "limpo" (o número com pontuação de máscara). Corrigir pela tela,
+  separando o que não é o número;
+- "Chave PIX sem tipo." — conta de colaborador com chave e sem tipo de chave.
+
+O documento do cliente, o CPF do aceite externo e os dados da empresa (Configurações → Empresa) só
+aparecem no relatório: o script nunca os reescreve. Os registros reescritos ganham `updatedAt` novo
+(aparecem como "alterados agora" em listas ordenadas por atualização). Rodar de novo não muda nada.
+
+> **Os dois CSVs têm dado pessoal** (CPF, telefone, e-mail): `logs/campos-*.csv` não sai do servidor
+> e deve ser **apagado depois de usado** (guarde o `campos-alterados-*-gravado.csv` só enquanto
+> puder precisar desfazer algo).
 
 ---
 

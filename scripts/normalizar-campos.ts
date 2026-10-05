@@ -8,26 +8,33 @@
  *   npx tsx --tsconfig tsconfig.server.json scripts/normalizar-campos.ts --gravar   (grava)
  *
  * Válido → formato padrão, com updateMany condicionado ao valor lido (não pisa em edição feita no
- * meio). Inválido → fica como está e vai para logs/campos-invalidos-AAAA-MM-DD.csv. RG, agência ou
- * conta com espaço ou "/" entre partes (órgão emissor, operação) também não é reescrito: vai para o
- * relatório como "revisar: pode juntar duas informações". Colisão numa
- * coluna única → nenhum dos dois muda, vai para o relatório. Nunca apaga. Rodar de novo não muda nada.
+ * meio). Só reescreve valor "limpo" (`podeReescrever`: só o número com pontuação de máscara); o
+ * válido que traz algo além do número ("(81) 99999-9999 Maria", "1234567 SSP/PE") fica como está e
+ * vai para o relatório como "revisar: contém informação além do número". Inválido → fica como está
+ * e vai para o relatório. Colisão numa coluna única → nenhum dos dois muda, vai para o relatório.
+ * Nunca apaga. Rodar de novo não muda nada.
+ *
+ * Arquivos em logs/ (sufixo -simulacao ou -gravado):
+ * - campos-invalidos-AAAA-MM-DD-*.csv: o que ficou como está e por quê (modelo;id;coluna;valor;motivo).
+ * - campos-alterados-AAAA-MM-DD-*.csv: cada reescrita (modelo;id;coluna;de;para). Na simulação, o que
+ *   SERIA reescrito; no -gravado, o que foi, escrito linha a linha na hora da gravação e sem apagar o
+ *   de uma rodada anterior do mesmo dia — é o que permite desfazer.
  *
  * Só relatório (nunca reescreve): `AceiteExternoDocumento.cpf` (prova do aceite), `Cliente.documento`
  * (gravado só com dígitos, ADR-03 do CRM) e os dados da empresa em `ConfigSistema` `empresa.dados`
  * (corrigidos pela tela Configurações → Empresa).
  *
- * O CSV traz dado pessoal (CPF, telefone): apagar depois de ler.
+ * Os dois CSVs trazem dado pessoal (CPF, telefone): apagar depois de usar.
  */
 import "dotenv/config";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { prisma } from "../src/lib/prisma";
 import { CAMPOS, mensagemDe, type TipoCampo } from "../src/lib/campos";
 import { campoPix } from "../src/lib/campos/chave-pix";
 import { TIPOS_PIX, validarChavePix, type TipoPix } from "../src/modules/rh/contas/pix";
 import { CHAVE_DADOS_EMPRESA, dadosEmpresa, type DadosEmpresa } from "../src/modules/configuracoes/empresa/queries";
-import { ALVOS, MOTIVO_JUNTAR, SO_RELATORIO, podeJuntarInformacoes, type Alvo } from "./normalizar-campos-alvos";
+import { ALVOS, MOTIVO_NAO_LIMPO, SO_RELATORIO, podeReescrever, type Alvo } from "./normalizar-campos-alvos";
 
 const gravar = process.argv.includes("--gravar");
 type Linha = { modelo: string; id: string; coluna: string; valor: string; motivo: string };
@@ -36,6 +43,19 @@ const relatorio: Linha[] = [];
 const resumo: Record<string, number> = {};
 /** Gravação que não aplicou porque o valor mudou entre a leitura e a escrita. */
 let mudaramNoMeio = 0;
+
+const sufixo = gravar ? "gravado" : "simulacao";
+const dia = new Date().toISOString().slice(0, 10);
+const pasta = path.resolve("logs");
+const csvInvalidos = path.join(pasta, `campos-invalidos-${dia}-${sufixo}.csv`);
+const csvAlterados = path.join(pasta, `campos-alterados-${dia}-${sufixo}.csv`);
+let totalAlterados = 0;
+
+/** Célula de CSV para o Excel: aspas escapadas e `'` na frente de = + - @ (injeção de fórmula). */
+const celula = (s: string) => `"${(/^[=+\-@]/.test(s) ? `'${s}` : s).replace(/"/g, '""')}"`;
+const linhaCsv = (cs: string[]) => cs.map(celula).join(";");
+/** BOM: o Excel em pt-BR abre o CSV com ";" e acentos certos. */
+const BOM = String.fromCharCode(0xfeff);
 
 // Acesso dinâmico ao delegate do Prisma por nome de model (script único; os nomes vêm de ALVOS,
 // conferidos contra o schema.prisma por src/lib/campos/alvos-normalizacao.test.ts).
@@ -80,8 +100,8 @@ async function processar(alvo: Alvo, soRelatorio: boolean) {
       }
       const para = tipo.normalizar(valor);
       if (para === valor || soRelatorio) continue;
-      if (podeJuntarInformacoes(alvo.colunas[coluna], valor)) {
-        relatorio.push({ modelo: alvo.modelo, id: String(l.id), coluna, valor, motivo: MOTIVO_JUNTAR });
+      if (!podeReescrever(alvo.colunas[coluna], valor, l.pixTipo as string | null | undefined)) {
+        relatorio.push({ modelo: alvo.modelo, id: String(l.id), coluna, valor, motivo: MOTIVO_NAO_LIMPO });
         continue;
       }
       planos.push({ id: String(l.id), coluna, de: valor, para });
@@ -124,10 +144,16 @@ async function processar(alvo: Alvo, soRelatorio: boolean) {
         data: { [p.coluna]: p.para },
       });
       alterados += r.count;
-      if (r.count === 0) mudaramNoMeio++;
+      if (r.count === 0) {
+        mudaramNoMeio++;
+        continue;
+      }
     } else {
       alterados++;
     }
+    // Linha a linha, logo depois de gravar: se o script cair no meio, o de/para do que já foi está salvo.
+    appendFileSync(csvAlterados, "\r\n" + linhaCsv([alvo.modelo, p.id, p.coluna, p.de, p.para]), "utf8");
+    totalAlterados++;
   }
   if (!soRelatorio) resumo[alvo.modelo] = (resumo[alvo.modelo] ?? 0) + alterados;
 }
@@ -156,28 +182,26 @@ async function relatarEmpresa() {
 }
 
 async function main() {
+  mkdirSync(pasta, { recursive: true });
+  // O -gravado do mesmo dia não é sobrescrito: uma segunda rodada apagaria o de/para da primeira.
+  if (!gravar || !existsSync(csvAlterados)) writeFileSync(csvAlterados, BOM + "modelo;id;coluna;de;para", "utf8");
+
   for (const a of ALVOS) await processar(a, false);
   for (const a of SO_RELATORIO) await processar(a, true);
   await relatarEmpresa();
 
-  const dia = new Date().toISOString().slice(0, 10);
-  const pasta = path.resolve("logs");
-  mkdirSync(pasta, { recursive: true });
-  const csv = path.join(pasta, `campos-invalidos-${dia}.csv`);
-  const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
   writeFileSync(
-    csv,
-    // BOM: o Excel em pt-BR abre o CSV com ";" e acentos certos.
-    "﻿" +
-      ["modelo;id;coluna;valor;motivo", ...relatorio.map((r) => [r.modelo, r.id, r.coluna, r.valor, r.motivo].map(esc).join(";"))].join("\r\n"),
+    csvInvalidos,
+    BOM + ["modelo;id;coluna;valor;motivo", ...relatorio.map((r) => linhaCsv([r.modelo, r.id, r.coluna, r.valor, r.motivo]))].join("\r\n"),
     "utf8",
   );
 
   console.log(gravar ? "GRAVADO" : "SIMULAÇÃO (nada gravado; use --gravar)");
   console.table(resumo);
   if (mudaramNoMeio > 0) console.log(`${mudaramNoMeio} valor(es) mudaram durante a execução e não foram gravados; rode de novo.`);
-  console.log(`${relatorio.length} valor(es) no relatório: ${csv}`);
-  console.log("O relatório tem dado pessoal (CPF, telefone): apague o arquivo depois de ler.");
+  console.log(`${relatorio.length} valor(es) ficaram como estão: ${csvInvalidos}`);
+  console.log(`${totalAlterados} valor(es) ${gravar ? "reescritos" : "seriam reescritos"} (de/para): ${csvAlterados}`);
+  console.log("Os dois arquivos têm dado pessoal (CPF, telefone): apague depois de usar.");
 
   if (gravar) {
     // Sem sessão aqui (roda no terminal do servidor): AuditLog direto, sem `logAudit` (que lê
