@@ -130,8 +130,10 @@ const proporContaSchema = z.object({
   /** Obrigatório para editar/remover (validado no handler, não dá pra tipar no union do zod aqui). */
   contaId: opt(z.string()),
   banco: opt(z.string()),
-  agencia: campo.agencia(),
-  conta: campo.conta(),
+  // Legado: a proposta de EDIÇÃO traz os valores gravados; quem decide se valida é o handler
+  // (`exigirCamposValidos` só no que mudou; na criação, tudo).
+  agencia: campo.agencia({ legado: true }),
+  conta: campo.conta({ legado: true }),
   tipoConta: z.enum(TIPOS_CONTA).optional().or(z.literal("")),
   titular: opt(z.string()),
   pixTipo: z.enum(TIPOS_PIX).optional().or(z.literal("")),
@@ -144,14 +146,18 @@ export const proporContaBancaria = defineAction(
   async (i, ctx) => {
     const propostoEm = new Date().toISOString();
 
+    let antes: { agencia: string | null; conta: string | null } | null = null;
     if (i.tipo === "remover" || i.tipo === "editar") {
       if (!i.contaId) throw new ActionError("Selecione a conta.");
       const conta = await prisma.contaBancariaColaborador.findUnique({
         where: { id: i.contaId },
-        select: { userId: true },
+        select: { userId: true, agencia: true, conta: true },
       });
       if (!conta || conta.userId !== ctx.user.id) throw new ActionError("Conta não encontrada.");
+      antes = { agencia: conta.agencia, conta: conta.conta };
     }
+    // Criar é estrito (antes = null); editar só recusa o inválido que mudou.
+    if (i.tipo !== "remover") exigirCamposValidos(i, antes, { agencia: "agencia", conta: "conta" });
 
     if (i.tipo === "remover") {
       await gravarContaPendente(ctx.user.id, { tipo: "remover", contaId: i.contaId!, propostoEm });
