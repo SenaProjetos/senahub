@@ -58,6 +58,7 @@ export default function SolicitarCadastroPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>E-mail</Label>
+                {/* campo-ok: e-mail de login (better-auth) */}
                 <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
               </div>
               <div className="space-y-1.5">

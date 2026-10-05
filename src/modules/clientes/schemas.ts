@@ -78,8 +78,8 @@ export const mesclarClientesSchema = z.object({
 export const buscarCandidatosDuplicataSchema = z.object({
   nome: z.string().optional(),
   tipo: z.enum(["PF", "PJ"]).optional(),
-  documento: z.string().optional(),
-  email: z.string().optional(),
+  documento: z.string().optional(), // campo-ok: busca de duplicata a cada tecla, aceita valor parcial
+  email: z.string().optional(), // campo-ok: busca de duplicata a cada tecla, aceita valor parcial
 });
 
 /** Consulta cadastral pública para preencher um formulário de cliente PJ. */

@@ -574,6 +574,7 @@ export function UsuariosView({
               )}
               <div className="space-y-1.5">
                 <Label htmlFor="u-email">E-mail</Label>
+                {/* campo-ok: e-mail de login (better-auth) */}
                 <Input
                   id="u-email"
                   type="email"

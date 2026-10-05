@@ -3,7 +3,7 @@ import { ROLES } from "@/lib/roles";
 
 export const criarUsuarioSchema = z.object({
   name: z.string().min(2, "Informe o nome."),
-  email: z.string().email("E-mail inválido."),
+  email: z.string().email("E-mail inválido."), // campo-ok: e-mail de login (better-auth)
   role: z.enum(ROLES),
   clienteId: z.string().optional().or(z.literal("")),
   // Fase 2 — cadastro inicial opcional, preenchido no mesmo ato (evita "pessoa pela metade").

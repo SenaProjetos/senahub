@@ -14,7 +14,7 @@ import {
 
 const publicSchema = z.object({
   nome: z.string().min(1, "Informe o nome."),
-  email: z.string().email("E-mail inválido."),
+  email: z.string().email("E-mail inválido."), // campo-ok: e-mail de login (better-auth)
   telefone: z.string().optional(),
   vinculo: z.enum(VALORES_VINCULO_PRETENDIDO).default("externo"),
   mensagem: z.string().optional(),

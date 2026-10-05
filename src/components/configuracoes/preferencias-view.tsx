@@ -487,6 +487,7 @@ function MeuPerfilCard({ perfil }: { perfil: Perfil }) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="perfil-email">E-mail</Label>
+            {/* campo-ok: e-mail de login (better-auth) */}
             <Input id="perfil-email" value={perfil.email} disabled readOnly />
           </div>
         </div>

@@ -132,7 +132,7 @@ const proporContaSchema = z.object({
   tipoConta: z.enum(TIPOS_CONTA).optional().or(z.literal("")),
   titular: opt(z.string()),
   pixTipo: z.enum(TIPOS_PIX).optional().or(z.literal("")),
-  pixChave: opt(z.string()),
+  pixChave: opt(z.string()), // campo-ok: validada no handler por validarChavePix (depende de pixTipo)
 });
 
 /** Sem `roles`: qualquer colaborador autenticado propõe — mesmo padrão de `proporAlteracaoCadastro`. */

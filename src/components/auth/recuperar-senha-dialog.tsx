@@ -52,6 +52,7 @@ export function RecuperarSenhaDialog() {
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="reset-email">E-mail</Label>
+            {/* campo-ok: e-mail de login (better-auth) */}
             <Input id="reset-email" name="email" type="email" required autoFocus />
           </div>
           <Button type="submit" className="w-full" disabled={pending}>

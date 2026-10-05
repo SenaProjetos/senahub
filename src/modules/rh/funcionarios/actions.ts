@@ -35,7 +35,7 @@ const cadastrarFuncionarioSchema = z.object({
   name: z.string().min(2, "Informe o nome."),
   /** Nome como consta em documentos formais (holerite/contrato/NF). Vazio = usa `name`. */
   nomeCompleto: opt(z.string()),
-  email: z.string().email("E-mail de acesso inválido."),
+  email: z.string().email("E-mail de acesso inválido."), // campo-ok: e-mail de login (better-auth)
   role: z.enum(CADASTRO_ROLES),
   /// Setor (Onda C) — opcional: sem escolha, cai no default de `derivarEixos` (§6.1 do plano).
   setor: z.enum(SETOR_VALUES).optional(),
