@@ -6,11 +6,12 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { criarLancamento, editarLancamento } from "@/modules/financeiro/lancamentos/actions";
 import { sugerirPreenchimentoAoLancar } from "@/modules/financeiro/regras/actions";
-import { chaveNfeValida, MOTIVO_CHAVE_INVALIDA } from "@/modules/financeiro/lancamentos/baixa";
 import type { OpcoesLancamento, LancamentoItem } from "@/modules/financeiro/lancamentos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputFormatado } from "@/components/ui/input-formatado";
+import { useFieldErrors } from "@/lib/use-field-errors";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import {
@@ -88,6 +89,7 @@ export function LancamentoForm({
   // M7: número do documento e chave da NF.
   const [numeroDocumento, setNumeroDocumento] = useState("");
   const [chaveNfe, setChaveNfe] = useState("");
+  const fe = useFieldErrors({ chaveNfe: "lc-chave" });
   const [confirmado, setConfirmado] = useState(false);
   const [ocorrencias, setOcorrencias] = useState("1");
   const [prioridade, setPrioridade] = useState<string>(PADRAO);
@@ -101,6 +103,7 @@ export function LancamentoForm({
   const [prevKey, setPrevKey] = useState(alvoKey);
   if (prevKey !== alvoKey) {
     setPrevKey(alvoKey);
+    fe.limpar();
     if (editar) {
       setTipo(editar.tipo);
       setDescricao(editar.descricao);
@@ -242,7 +245,7 @@ export function LancamentoForm({
           toast.success(r.data.aguardandoAprovacao ? "Lançamento atualizado: o novo valor foi para aprovação." : "Lançamento atualizado.");
           onOpenChange(false);
           router.refresh();
-        } else toast.error(r.error);
+        } else if (!fe.registrar(r)) toast.error(r.error);
         return;
       }
       const r = await criarLancamento({
@@ -278,7 +281,7 @@ export function LancamentoForm({
         reset();
         onOpenChange(false);
         router.refresh();
-      } else toast.error(r.error);
+      } else if (!fe.registrar(r)) toast.error(r.error);
     });
   }
 
@@ -520,10 +523,16 @@ export function LancamentoForm({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="lc-chave">Chave da NF (opcional)</Label>
-              <Input id="lc-chave" value={chaveNfe} inputMode="numeric" placeholder="44 dígitos" onChange={(e) => setChaveNfe(e.target.value)} />
-              {chaveNfe && !chaveNfeValida(chaveNfe) && (
-                <p className="text-xs text-destructive">{MOTIVO_CHAVE_INVALIDA}</p>
-              )}
+              <InputFormatado
+                id="lc-chave"
+                tipo="chaveNfe"
+                value={chaveNfe}
+                erro={fe.erros.chaveNfe}
+                onChange={(v) => {
+                  fe.limpar("chaveNfe");
+                  setChaveNfe(v);
+                }}
+              />
             </div>
           </div>
 

@@ -15,6 +15,8 @@ import { brl } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputFormatado } from "@/components/ui/input-formatado";
+import { useFieldErrors } from "@/lib/use-field-errors";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -106,6 +108,7 @@ function FornecedorDialog({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const fe = useFieldErrors({ documento: "forn-documento", email: "forn-email", telefone: "forn-telefone" });
   const vazio = {
     tipo: "PJ" as const,
     nome: "",
@@ -132,6 +135,7 @@ function FornecedorDialog({
   const [lastKey, setLastKey] = useState(key);
   if (lastKey !== key) {
     setLastKey(key);
+    fe.limpar();
     setForm(
       fornecedor
         ? {
@@ -156,7 +160,7 @@ function FornecedorDialog({
         toast.success("Fornecedor salvo.");
         onOpenChange(false);
         router.refresh();
-      } else toast.error(r.error);
+      } else if (!fe.registrar(r)) toast.error(r.error);
     });
   }
 
@@ -187,8 +191,17 @@ function FornecedorDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Documento</Label>
-              <Input value={form.documento} onChange={(e) => setForm({ ...form, documento: e.target.value })} />
+              <Label htmlFor="forn-documento">Documento</Label>
+              <InputFormatado
+                id="forn-documento"
+                tipo="cpfCnpj"
+                value={form.documento}
+                erro={fe.erros.documento}
+                onChange={(v) => {
+                  fe.limpar("documento");
+                  setForm({ ...form, documento: v });
+                }}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Serviço</Label>
@@ -201,12 +214,30 @@ function FornecedorDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>E-mail</Label>
-              <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              <Label htmlFor="forn-email">E-mail</Label>
+              <InputFormatado
+                id="forn-email"
+                tipo="email"
+                value={form.email}
+                erro={fe.erros.email}
+                onChange={(v) => {
+                  fe.limpar("email");
+                  setForm({ ...form, email: v });
+                }}
+              />
             </div>
             <div className="space-y-1.5">
-              <Label>Telefone</Label>
-              <Input value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} />
+              <Label htmlFor="forn-telefone">Telefone</Label>
+              <InputFormatado
+                id="forn-telefone"
+                tipo="telefone"
+                value={form.telefone}
+                erro={fe.erros.telefone}
+                onChange={(v) => {
+                  fe.limpar("telefone");
+                  setForm({ ...form, telefone: v });
+                }}
+              />
             </div>
           </div>
         </div>

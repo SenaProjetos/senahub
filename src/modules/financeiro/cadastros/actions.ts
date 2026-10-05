@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { validarCpfCnpj } from "@/lib/documento";
+import { exigirCamposValidos } from "@/lib/campos/exigir";
 import { motivoCategoriaInvalida } from "@/modules/financeiro/categorias-regras";
 import { ensureCanalSocios, type SincroniaCanal } from "@/modules/chat/service";
 import { notificarNovosMembros, emitParaUsuario } from "@/lib/socket";
@@ -146,6 +146,9 @@ export const editarConta = defineAction(
     },
   },
   async (i) => {
+    // Antes de qualquer escrita: só a agência que MUDOU é validada; a inválida já gravada segue salvando (D4).
+    const antes = await prisma.contaBancaria.findUnique({ where: { id: i.id }, select: { agencia: true } });
+    exigirCamposValidos(i, antes, { agencia: "agencia" });
     const { id, ...rest } = i;
     if (rest.padrao) await prisma.contaBancaria.updateMany({ data: { padrao: false } });
     await prisma.contaBancaria.update({ where: { id }, data: { ...rest, saldoInicialEm: diaOuNulo(rest.saldoInicialEm) } });
@@ -176,7 +179,6 @@ export const editarForma = defineAction(
 export const criarFornecedor = defineAction(
   { ...base, acao: "criar-fornecedor", entidade: "Fornecedor", schema: fornecedorSchema },
   async (i) => {
-    if (i.documento && !validarCpfCnpj(i.documento)) throw new ActionError("CPF/CNPJ inválido.");
     const c = await prisma.fornecedor.create({ data: { ...i, email: i.email || null } });
     rev();
     return { id: c.id };
@@ -185,8 +187,13 @@ export const criarFornecedor = defineAction(
 export const editarFornecedor = defineAction(
   { ...base, acao: "editar-fornecedor", entidade: "Fornecedor", schema: fornecedorEditSchema },
   async (i) => {
+    // Antes de qualquer escrita: só o valor que MUDOU é validado; o inválido já gravado segue salvando (D4).
+    const antes = await prisma.fornecedor.findUnique({
+      where: { id: i.id },
+      select: { documento: true, email: true, telefone: true },
+    });
+    exigirCamposValidos(i, antes, { documento: "cpfCnpj", email: "email", telefone: "telefone" });
     const { id, ...rest } = i;
-    if (rest.documento && !validarCpfCnpj(rest.documento)) throw new ActionError("CPF/CNPJ inválido.");
     await prisma.fornecedor.update({ where: { id }, data: { ...rest, email: rest.email || null } });
     rev();
     return { id };

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { chaveNfeValida, MOTIVO_CHAVE_INVALIDA } from "@/modules/financeiro/lancamentos/baixa";
+import { campo } from "@/lib/campos/zod";
 
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 
@@ -34,12 +34,7 @@ export const criarLancamentoSchema = z.object({
   caixinhaId: z.string().min(1).nullable().optional(),
   /// M7: número do documento (boleto, NF, recibo) e chave de acesso da NF (44 dígitos, conferidos pelo DV).
   numeroDocumento: z.string().trim().max(60).optional().or(z.literal("")),
-  chaveNfe: z
-    .string()
-    .trim()
-    .optional()
-    .or(z.literal(""))
-    .refine((v) => !v || chaveNfeValida(v), MOTIVO_CHAVE_INVALIDA),
+  chaveNfe: campo.chaveNfe(),
 });
 
 export const editarLancamentoSchema = z.object({
@@ -62,12 +57,7 @@ export const editarLancamentoSchema = z.object({
   caixinhaId: z.string().min(1).nullable().optional(),
   /// M7: número do documento (boleto, NF, recibo) e chave de acesso da NF (44 dígitos, conferidos pelo DV).
   numeroDocumento: z.string().trim().max(60).optional().or(z.literal("")),
-  chaveNfe: z
-    .string()
-    .trim()
-    .optional()
-    .or(z.literal(""))
-    .refine((v) => !v || chaveNfeValida(v), MOTIVO_CHAVE_INVALIDA),
+  chaveNfe: campo.chaveNfe(),
 });
 
 /** Menu de contexto e lote de Contas: só a prioridade ou só a confiança. */

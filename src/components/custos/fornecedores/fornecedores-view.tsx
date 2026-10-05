@@ -20,6 +20,8 @@ import { brl, formatarData } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputFormatado } from "@/components/ui/input-formatado";
+import { useFieldErrors } from "@/lib/use-field-errors";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -131,6 +133,7 @@ function FornecedorDialog({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const fe = useFieldErrors({ documento: "cforn-documento", email: "cforn-email", telefone: "cforn-telefone" });
   const vazio = {
     tipo: "PJ" as const,
     nome: "",
@@ -165,6 +168,7 @@ function FornecedorDialog({
   const [lastKey, setLastKey] = useState(key);
   if (lastKey !== key) {
     setLastKey(key);
+    fe.limpar();
     setForm(formDe(fornecedor));
   }
 
@@ -210,7 +214,7 @@ function FornecedorDialog({
         toast.success("Fornecedor salvo.");
         onOpenChange(false);
         router.refresh();
-      } else toast.error(r.error);
+      } else if (!fe.registrar(r)) toast.error(r.error);
     });
   }
 
@@ -241,8 +245,17 @@ function FornecedorDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>{form.tipo === "PJ" ? "CNPJ" : "CPF"}</Label>
-              <Input value={form.documento} onChange={(e) => setForm({ ...form, documento: e.target.value })} />
+              <Label htmlFor="cforn-documento">{form.tipo === "PJ" ? "CNPJ" : "CPF"}</Label>
+              <InputFormatado
+                id="cforn-documento"
+                tipo="cpfCnpj"
+                value={form.documento}
+                erro={fe.erros.documento}
+                onChange={(v) => {
+                  fe.limpar("documento");
+                  setForm({ ...form, documento: v });
+                }}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Observações</Label>
@@ -251,12 +264,30 @@ function FornecedorDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>E-mail</Label>
-              <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              <Label htmlFor="cforn-email">E-mail</Label>
+              <InputFormatado
+                id="cforn-email"
+                tipo="email"
+                value={form.email}
+                erro={fe.erros.email}
+                onChange={(v) => {
+                  fe.limpar("email");
+                  setForm({ ...form, email: v });
+                }}
+              />
             </div>
             <div className="space-y-1.5">
-              <Label>Telefone</Label>
-              <Input value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} />
+              <Label htmlFor="cforn-telefone">Telefone</Label>
+              <InputFormatado
+                id="cforn-telefone"
+                tipo="telefone"
+                value={form.telefone}
+                erro={fe.erros.telefone}
+                onChange={(v) => {
+                  fe.limpar("telefone");
+                  setForm({ ...form, telefone: v });
+                }}
+              />
             </div>
           </div>
 
@@ -335,6 +366,7 @@ function FornRow({ f, onAlternar, onEditar }: { f: Fornecedor; onAlternar: () =>
   const [repCargo, setRepCargo] = useState("");
   const [repTelefone, setRepTelefone] = useState("");
   const [historico, setHistorico] = useState<HistoricoPrecoItem[] | null>(null);
+  const fe = useFieldErrors({ telefone: `rep-telefone-${f.id}` });
 
   useEffect(() => {
     if (aberto && historico === null) {
@@ -362,7 +394,7 @@ function FornRow({ f, onAlternar, onEditar }: { f: Fornecedor; onAlternar: () =>
         setRepCargo("");
         setRepTelefone("");
         router.refresh();
-      } else toast.error(r.error);
+      } else if (!fe.registrar(r)) toast.error(r.error);
     });
   }
   function rmRepresentante(id: string) {
@@ -427,10 +459,23 @@ function FornRow({ f, onAlternar, onEditar }: { f: Fornecedor; onAlternar: () =>
                 ))}
               </ul>
             )}
-            <div className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-wrap items-start gap-2">
               <Input placeholder="Nome" value={repNome} onChange={(e) => setRepNome(e.target.value)} className="min-w-32 flex-1" />
               <Input placeholder="Cargo" value={repCargo} onChange={(e) => setRepCargo(e.target.value)} className="w-32" />
-              <Input placeholder="Telefone" value={repTelefone} onChange={(e) => setRepTelefone(e.target.value)} className="w-32" />
+              {/* Linha estreita: a mensagem de erro fica dentro da largura do campo (className no wrapper). */}
+              <div className="w-32 space-y-1">
+                <InputFormatado
+                  id={`rep-telefone-${f.id}`}
+                  tipo="telefone"
+                  placeholder="Telefone"
+                  value={repTelefone}
+                  erro={fe.erros.telefone}
+                  onChange={(v) => {
+                    fe.limpar("telefone");
+                    setRepTelefone(v);
+                  }}
+                />
+              </div>
               <Button size="sm" variant="outline" onClick={addRepresentante} disabled={pending}>
                 <Plus className="size-3.5" /> Representante
               </Button>

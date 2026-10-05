@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { defineAction, ActionError } from "@/lib/with-action";
+import { defineAction } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { validarCpfCnpj } from "@/lib/documento";
+import { exigirCamposValidos } from "@/lib/campos/exigir";
 import {
   fornecedorSchema,
   fornecedorEditSchema,
@@ -19,7 +19,6 @@ const rev = () => revalidatePath(PATH);
 export const criarFornecedor = defineAction(
   { ...base, acao: "criar-fornecedor", entidade: "CustoFornecedor", schema: fornecedorSchema },
   async (i) => {
-    if (i.documento && !validarCpfCnpj(i.documento)) throw new ActionError("CPF/CNPJ inválido.");
     const c = await prisma.custoFornecedor.create({ data: { ...i, email: i.email || null } });
     rev();
     return { id: c.id };
@@ -29,8 +28,13 @@ export const criarFornecedor = defineAction(
 export const editarFornecedor = defineAction(
   { ...base, acao: "editar-fornecedor", entidade: "CustoFornecedor", schema: fornecedorEditSchema },
   async (i) => {
+    // Antes de qualquer escrita: só o valor que MUDOU é validado; o inválido já gravado segue salvando (D4).
+    const antes = await prisma.custoFornecedor.findUnique({
+      where: { id: i.id },
+      select: { documento: true, email: true, telefone: true },
+    });
+    exigirCamposValidos(i, antes, { documento: "cpfCnpj", email: "email", telefone: "telefone" });
     const { id, ...rest } = i;
-    if (rest.documento && !validarCpfCnpj(rest.documento)) throw new ActionError("CPF/CNPJ inválido.");
     await prisma.custoFornecedor.update({ where: { id }, data: { ...rest, email: rest.email || null } });
     rev();
     return { id };
