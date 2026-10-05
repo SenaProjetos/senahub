@@ -3,6 +3,8 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
+import { campo } from "@/lib/campos/zod";
+import { exigirCamposValidos } from "@/lib/campos/exigir";
 import { prisma } from "@/lib/prisma";
 import { notificar, notificarMuitos } from "@/lib/notificar";
 import { HR_ADMIN_ROLES } from "@/lib/roles";
@@ -63,9 +65,10 @@ export const editarContaBancaria = defineAction(
   async (i) => {
     const atual = await prisma.contaBancariaColaborador.findUnique({
       where: { id: i.id },
-      select: { userId: true },
+      select: { userId: true, agencia: true, conta: true },
     });
     if (!atual) throw new ActionError("Conta não encontrada.");
+    exigirCamposValidos(i, atual, { agencia: "agencia", conta: "conta" });
     const dados = normalizarConta({
       banco: i.banco, agencia: i.agencia, conta: i.conta,
       tipoConta: opcional(i.tipoConta), titular: i.titular,
@@ -127,8 +130,8 @@ const proporContaSchema = z.object({
   /** Obrigatório para editar/remover (validado no handler, não dá pra tipar no union do zod aqui). */
   contaId: opt(z.string()),
   banco: opt(z.string()),
-  agencia: opt(z.string()),
-  conta: opt(z.string()),
+  agencia: campo.agencia(),
+  conta: campo.conta(),
   tipoConta: z.enum(TIPOS_CONTA).optional().or(z.literal("")),
   titular: opt(z.string()),
   pixTipo: z.enum(TIPOS_PIX).optional().or(z.literal("")),

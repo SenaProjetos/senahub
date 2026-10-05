@@ -97,8 +97,6 @@ const PENDENTES: Record<string, number> = {
   "components/financeiro/lancamentos/lancamento-form.tsx": 1,
   "components/juridico/assinatura-publica-form.tsx": 1,
   "components/juridico/juridico-view.tsx": 1,
-  "components/rh/contas-bancarias-editor.tsx": 3,
-  "components/rh/proposta-conta-dialog.tsx": 3,
   "modules/auth/cadastro/actions.ts": 1,
   "modules/clientes/schemas.ts": 9,
   "modules/comercial/schemas.ts": 7,
@@ -107,9 +105,6 @@ const PENDENTES: Record<string, number> = {
   "modules/financeiro/cadastros/schemas.ts": 4,
   "modules/financeiro/lancamentos/schemas.ts": 2,
   "modules/juridico/actions.ts": 1,
-  "modules/rh/contas/actions.ts": 2,
-  "modules/rh/funcionarios/actions.ts": 15,
-  "modules/rh/pessoas-juridicas/actions.ts": 3,
   "modules/usuarios/preferencias/actions.ts": 1,
   "modules/usuarios/schemas.ts": 2,
 };

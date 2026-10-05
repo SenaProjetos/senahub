@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { proporContaBancaria } from "@/modules/rh/contas/actions";
 import { TIPOS_CONTA } from "@/modules/rh/contas/schemas";
-import { TIPOS_PIX, TIPO_PIX_LABELS } from "@/modules/rh/contas/pix";
+import { TIPOS_PIX, TIPO_PIX_LABELS, type TipoPix } from "@/modules/rh/contas/pix";
 import type { ContaColaborador } from "@/modules/rh/contas/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputFormatado } from "@/components/ui/input-formatado";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -87,11 +88,11 @@ export function PropostaContaDialog({
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Agência</Label>
-              <Input value={f.agencia} onChange={(e) => setF({ ...f, agencia: e.target.value })} />
+              <InputFormatado tipo="agencia" value={f.agencia} onChange={(v) => setF({ ...f, agencia: v })} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Conta</Label>
-              <Input value={f.conta} onChange={(e) => setF({ ...f, conta: e.target.value })} />
+              <InputFormatado tipo="conta" value={f.conta} onChange={(v) => setF({ ...f, conta: v })} />
             </div>
           </div>
           <div className="space-y-1.5">
@@ -101,14 +102,14 @@ export function PropostaContaDialog({
           <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Tipo da chave PIX</Label>
-              <select className={selectCls} value={f.pixTipo} onChange={(e) => setF({ ...f, pixTipo: e.target.value })}>
+              <select className={selectCls} value={f.pixTipo} onChange={(e) => setF({ ...f, pixTipo: e.target.value, pixChave: "" })}>
                 <option value="">— sem PIX —</option>
                 {TIPOS_PIX.map((t) => <option key={t} value={t}>{TIPO_PIX_LABELS[t]}</option>)}
               </select>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Chave PIX</Label>
-              <Input value={f.pixChave} disabled={!f.pixTipo} onChange={(e) => setF({ ...f, pixChave: e.target.value })} />
+              <InputFormatado tipo="chavePix" tipoPix={f.pixTipo as TipoPix | ""} value={f.pixChave} disabled={!f.pixTipo} onChange={(v) => setF({ ...f, pixChave: v })} />
             </div>
           </div>
           {erro && <p className="rounded-sm bg-destructive/10 px-3 py-2 text-sm text-destructive">{erro}</p>}

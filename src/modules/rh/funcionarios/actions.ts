@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
+import { campo } from "@/lib/campos/zod";
+import { exigirCamposValidos } from "@/lib/campos/exigir";
 import { prisma } from "@/lib/prisma";
 import { HR_ADMIN_ROLES } from "@/lib/roles";
 import { removerArquivo } from "@/lib/storage";
@@ -40,28 +42,28 @@ const cadastrarFuncionarioSchema = z.object({
   /// Setor (Onda C) — opcional: sem escolha, cai no default de `derivarEixos` (§6.1 do plano).
   setor: z.enum(SETOR_VALUES).optional(),
   // Dados pessoais
-  cpf: opt(z.string()),
-  rg: opt(z.string()),
+  cpf: campo.cpf(),
+  rg: campo.rg(),
   dataNascimento: opt(z.string()),
   sexo: opt(z.string()),
   estadoCivil: opt(z.string()),
   nacionalidade: opt(z.string()),
   // Endereço / contato
-  enderecoCep: opt(z.string()),
+  enderecoCep: campo.cep(),
   enderecoLogradouro: opt(z.string()),
   enderecoNumero: opt(z.string()),
   enderecoComplemento: opt(z.string()),
   enderecoBairro: opt(z.string()),
   enderecoCidade: opt(z.string()),
   enderecoUf: opt(z.string()),
-  telefone: opt(z.string()),
-  telefoneEmergencia: opt(z.string()),
+  telefone: campo.telefone(),
+  telefoneEmergencia: campo.telefone(),
   contatoEmergenciaNome: opt(z.string()),
-  emailPessoal: opt(z.string()),
+  emailPessoal: campo.email(),
   // Dados bancários
   banco: opt(z.string()),
-  agencia: opt(z.string()),
-  conta: opt(z.string()),
+  agencia: campo.agencia(),
+  conta: campo.conta(),
   tipoContaBancaria: opt(z.string()),
   // Profissional
   // Cargo/departamento vêm do CATÁLOGO (2.1). O texto livre saiu do contrato da action:
@@ -216,23 +218,23 @@ const editarCadastroSchema = z.object({
   // formais). Antes os dois eram confundidos: o campo "Nome completo" gravava em `name`, e
   // salvar o cadastro sobrescrevia silenciosamente o nome de exibição da pessoa.
   nomeCompleto: opt(z.string()),
-  cpf: opt(z.string()),
-  rg: opt(z.string()),
+  cpf: campo.cpf({ legado: true }),
+  rg: campo.rg({ legado: true }),
   dataNascimento: opt(z.string()),
   sexo: opt(z.string()),
   estadoCivil: opt(z.string()),
   nacionalidade: opt(z.string()),
-  enderecoCep: opt(z.string()),
+  enderecoCep: campo.cep({ legado: true }),
   enderecoLogradouro: opt(z.string()),
   enderecoNumero: opt(z.string()),
   enderecoComplemento: opt(z.string()),
   enderecoBairro: opt(z.string()),
   enderecoCidade: opt(z.string()),
   enderecoUf: opt(z.string()),
-  telefone: opt(z.string()),
-  telefoneEmergencia: opt(z.string()),
+  telefone: campo.telefone({ legado: true }),
+  telefoneEmergencia: campo.telefone({ legado: true }),
   contatoEmergenciaNome: opt(z.string()),
-  emailPessoal: opt(z.string()),
+  emailPessoal: campo.email({ legado: true }),
   conselho: opt(z.string()),
   registroProfissional: opt(z.string()),
   registroUf: opt(z.string()),
@@ -251,6 +253,13 @@ const editarCadastroSchema = z.object({
 export const editarCadastroFuncionario = defineAction(
   { ...base, acao: "editar-cadastro-funcionario", entidade: "User", schema: editarCadastroSchema },
   async (i) => {
+    const antes = await prisma.user.findUnique({
+      where: { id: i.id },
+      select: { cpf: true, rg: true, enderecoCep: true, telefone: true, telefoneEmergencia: true, emailPessoal: true },
+    });
+    exigirCamposValidos(i, antes, {
+      cpf: "cpf", rg: "rg", enderecoCep: "cep", telefone: "telefone", telefoneEmergencia: "telefone", emailPessoal: "email",
+    });
     const u = await prisma.user.findUnique({ where: { id: i.id }, select: { role: true } });
     if (!u) throw new ActionError("Colaborador não encontrado.");
     await prisma.user.update({
@@ -296,15 +305,16 @@ const docMeta = z.object({
   hashSha256: z.string().min(1),
 });
 
-const dependenteCampos = {
+const dependenteBase = {
   nome: z.string().min(1, "Informe o nome."),
-  cpf: opt(z.string()),
   nascimento: opt(z.string()),
   parentesco: opt(z.string()),
   // Default false no schema é só para linha NOVA no banco — aqui o form decide sempre
   // explicitamente (checkbox), então o campo é obrigatório no payload, não opcional.
   dependenteIrrf: z.boolean(),
 };
+const dependenteCampos = { ...dependenteBase, cpf: campo.cpf() };
+const dependenteCamposEdicao = { ...dependenteBase, cpf: campo.cpf({ legado: true }) };
 
 export const adicionarDependente = defineAction(
   {
@@ -334,10 +344,12 @@ export const editarDependente = defineAction(
     ...base,
     acao: "editar-dependente",
     entidade: "Dependente",
-    schema: z.object({ id: z.string().min(1), ...dependenteCampos }),
+    schema: z.object({ id: z.string().min(1), ...dependenteCamposEdicao }),
     capturarAntes: async (i) => prisma.dependente.findUnique({ where: { id: i.id } }),
   },
   async (i) => {
+    const antes = await prisma.dependente.findUnique({ where: { id: i.id }, select: { cpf: true } });
+    exigirCamposValidos(i, antes, { cpf: "cpf" });
     await prisma.dependente.update({
       where: { id: i.id },
       data: {

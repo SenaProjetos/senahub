@@ -14,6 +14,7 @@ import {
 import type { PessoaJuridicaItem } from "@/modules/rh/pessoas-juridicas/queries";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { InputFormatado } from "@/components/ui/input-formatado";
+import { useFieldErrors } from "@/lib/use-field-errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +38,7 @@ export function PessoasJuridicasView({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [dlg, setDlg] = useState<Form | null>(null);
+  const fe = useFieldErrors({ cnpj: "pj-cnpj", email: "pj-email", telefone: "pj-telefone" });
 
   const semVinculo = projetistas.filter((p) => !p.pjId);
 
@@ -50,7 +52,7 @@ export function PessoasJuridicasView({
         toast.success("PJ salva.");
         setDlg(null);
         router.refresh();
-      } else toast.error(res.error);
+      } else if (!fe.registrar(res)) toast.error(res.error);
     });
   }
 
@@ -77,7 +79,7 @@ export function PessoasJuridicasView({
         descricao="CNPJs que agrupam vários perfis de projetista (PJ/freelancer)."
         acoes={
           <>
-          <Button size="sm" onClick={() => setDlg({ ...VAZIO })}>
+          <Button size="sm" onClick={() => { fe.limpar(); setDlg({ ...VAZIO }); }}>
             <Plus className="size-4" /> Nova PJ
           </Button>
           </>
@@ -108,7 +110,7 @@ export function PessoasJuridicasView({
                   )}
                 </div>
                 <div className="flex shrink-0 gap-1">
-                  <Button size="icon" variant="ghost" aria-label="Editar" onClick={() => setDlg({ id: pj.id, cnpj: pj.cnpj, razaoSocial: pj.razaoSocial, nomeFantasia: pj.nomeFantasia ?? "", email: pj.email ?? "", telefone: pj.telefone ?? "" })}>
+                  <Button size="icon" variant="ghost" aria-label="Editar" onClick={() => { fe.limpar(); setDlg({ id: pj.id, cnpj: pj.cnpj, razaoSocial: pj.razaoSocial, nomeFantasia: pj.nomeFantasia ?? "", email: pj.email ?? "", telefone: pj.telefone ?? "" }); }}>
                     <Pencil className="size-3.5" />
                   </Button>
                   <Button size="icon" variant="ghost" aria-label="Ativar/inativar" onClick={() => toggle(pj)} disabled={pending}>
@@ -167,12 +169,12 @@ export function PessoasJuridicasView({
           {dlg && (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <Campo label="CNPJ *"><InputFormatado tipo="cnpj" value={dlg.cnpj} onChange={(v) => setDlg({ ...dlg, cnpj: v })} /></Campo>
-                <Campo label="Telefone"><InputFormatado tipo="telefone" value={dlg.telefone} onChange={(v) => setDlg({ ...dlg, telefone: v })} /></Campo>
+                <Campo label="CNPJ *"><InputFormatado id="pj-cnpj" tipo="cnpj" value={dlg.cnpj} erro={fe.erros.cnpj} onChange={(v) => { fe.limpar("cnpj"); setDlg({ ...dlg, cnpj: v }); }} /></Campo>
+                <Campo label="Telefone"><InputFormatado id="pj-telefone" tipo="telefone" value={dlg.telefone} erro={fe.erros.telefone} onChange={(v) => { fe.limpar("telefone"); setDlg({ ...dlg, telefone: v }); }} /></Campo>
               </div>
               <Campo label="Razão social *"><Input value={dlg.razaoSocial} onChange={(e) => setDlg({ ...dlg, razaoSocial: e.target.value })} /></Campo>
               <Campo label="Nome fantasia"><Input value={dlg.nomeFantasia} onChange={(e) => setDlg({ ...dlg, nomeFantasia: e.target.value })} /></Campo>
-              <Campo label="E-mail"><InputFormatado tipo="email" value={dlg.email} onChange={(v) => setDlg({ ...dlg, email: v })} /></Campo>
+              <Campo label="E-mail"><InputFormatado id="pj-email" tipo="email" value={dlg.email} erro={fe.erros.email} onChange={(v) => { fe.limpar("email"); setDlg({ ...dlg, email: v }); }} /></Campo>
             </div>
           )}
           <DialogFooter>

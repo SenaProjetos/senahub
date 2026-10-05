@@ -8,11 +8,12 @@ import {
   adicionarContaBancaria, editarContaBancaria, removerContaBancaria, definirPrincipal,
 } from "@/modules/rh/contas/actions";
 import { TIPOS_CONTA } from "@/modules/rh/contas/schemas";
-import { TIPOS_PIX, TIPO_PIX_LABELS } from "@/modules/rh/contas/pix";
+import { TIPOS_PIX, TIPO_PIX_LABELS, type TipoPix } from "@/modules/rh/contas/pix";
 import type { ContaColaborador } from "@/modules/rh/contas/queries";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputFormatado } from "@/components/ui/input-formatado";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -213,11 +214,11 @@ export function ContasBancariasEditor({
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="cb-ag">Agência</Label>
-                  <Input id="cb-ag" value={form.agencia} onChange={(e) => setForm({ ...form, agencia: e.target.value })} />
+                  <InputFormatado id="cb-ag" tipo="agencia" value={form.agencia} onChange={(v) => setForm({ ...form, agencia: v })} />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="cb-conta">Conta</Label>
-                  <Input id="cb-conta" value={form.conta} onChange={(e) => setForm({ ...form, conta: e.target.value })} />
+                  <InputFormatado id="cb-conta" tipo="conta" value={form.conta} onChange={(v) => setForm({ ...form, conta: v })} />
                 </div>
               </div>
               <div className="space-y-1.5">
@@ -227,19 +228,21 @@ export function ContasBancariasEditor({
               <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
                 <div className="space-y-1.5">
                   <Label htmlFor="cb-pixtipo">Tipo da chave PIX</Label>
-                  <select id="cb-pixtipo" className={selectCls} value={form.pixTipo} onChange={(e) => setForm({ ...form, pixTipo: e.target.value })}>
+                  <select id="cb-pixtipo" className={selectCls} value={form.pixTipo} onChange={(e) => setForm({ ...form, pixTipo: e.target.value, pixChave: "" })}>
                     <option value="">— sem PIX —</option>
                     {TIPOS_PIX.map((t) => <option key={t} value={t}>{TIPO_PIX_LABELS[t]}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="cb-pixchave">Chave PIX</Label>
-                  <Input
+                  <InputFormatado
                     id="cb-pixchave"
+                    tipo="chavePix"
+                    tipoPix={form.pixTipo as TipoPix | ""}
                     value={form.pixChave}
                     disabled={!form.pixTipo}
-                    placeholder={form.pixTipo ? "" : "Escolha o tipo primeiro"}
-                    onChange={(e) => setForm({ ...form, pixChave: e.target.value })}
+                    placeholder={form.pixTipo ? undefined : "Escolha o tipo primeiro"}
+                    onChange={(v) => setForm({ ...form, pixChave: v })}
                   />
                 </div>
               </div>
