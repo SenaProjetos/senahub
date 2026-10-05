@@ -8,10 +8,10 @@
  *   npx tsx --tsconfig tsconfig.server.json scripts/normalizar-campos.ts --gravar   (grava)
  *
  * Válido → formato padrão, com updateMany condicionado ao valor lido (não pisa em edição feita no
- * meio). Só reescreve valor "limpo" (`podeReescrever`: só o número com pontuação de máscara); o
- * válido que traz algo além do número ("(81) 99999-9999 Maria", "1234567 SSP/PE") fica como está e
- * vai para o relatório como "revisar: contém informação além do número". Inválido → fica como está
- * e vai para o relatório. Colisão numa coluna única → nenhum dos dois muda, vai para o relatório.
+ * meio). Valor que não é "limpo" (`TipoCampo.limpo` do catálogo, via `podeReescrever`: traz algo
+ * além do número, como "(81) 99999-9999 Maria" ou "1234567 SSP/PE") fica como está e vai para o
+ * relatório como "revisar: contém informação além do número". Inválido → fica como está e vai
+ * para o relatório. Colisão numa coluna única → nenhum dos dois muda, vai para o relatório.
  * Nunca apaga. Rodar de novo não muda nada.
  *
  * Arquivos em logs/ (sufixo -simulacao ou -gravado):
@@ -94,16 +94,18 @@ async function processar(alvo: Alvo, soRelatorio: boolean) {
         relatorio.push({ modelo: alvo.modelo, id: String(l.id), coluna, valor, motivo: "Chave PIX sem tipo." });
         continue;
       }
+      // Antes da validade: o valor não limpo é inválido para o catálogo, mas o motivo útil para quem
+      // revisa é "tem informação a mais", não "telefone inválido".
+      if (!podeReescrever(alvo.colunas[coluna], valor, l.pixTipo as string | null | undefined)) {
+        relatorio.push({ modelo: alvo.modelo, id: String(l.id), coluna, valor, motivo: MOTIVO_NAO_LIMPO });
+        continue;
+      }
       if (!tipo.validar(valor)) {
         relatorio.push({ modelo: alvo.modelo, id: String(l.id), coluna, valor, motivo: mensagemDe(tipo, valor) });
         continue;
       }
       const para = tipo.normalizar(valor);
       if (para === valor || soRelatorio) continue;
-      if (!podeReescrever(alvo.colunas[coluna], valor, l.pixTipo as string | null | undefined)) {
-        relatorio.push({ modelo: alvo.modelo, id: String(l.id), coluna, valor, motivo: MOTIVO_NAO_LIMPO });
-        continue;
-      }
       planos.push({ id: String(l.id), coluna, de: valor, para });
     }
   }

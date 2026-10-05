@@ -23,6 +23,7 @@ const TEXTO_LIVRE: TipoCampo = {
   mascarar: (t) => t,
   normalizar: (t) => t.trim(),
   validar: () => true,
+  limpo: () => true,
   essencia: (t) => t.trim(),
   significativo: () => true,
   mensagem: "",
@@ -42,10 +43,22 @@ export function mensagemDe(campo: TipoCampo, texto: string): string {
 const alfanum = (s: string) => s.toLowerCase().replace(/[^0-9a-z@]/g, "");
 
 /**
- * Texto do campo ao abrir: o válido aparece mascarado; o legado inválido aparece mascarado só se
- * a máscara não apagar nada do que estava gravado (senão a pessoa veria um campo vazio ou cortado).
+ * "O mesmo valor" (legado × novo, spec D4): mesmo texto aparado, ou mesma essência não vazia (o
+ * legado `12345678900` exibido como `123.456.789-00` pela máscara conta como não mexido).
+ */
+export function mesmoValor(campo: TipoCampo, a: string, b: string): boolean {
+  if (a.trim() === b.trim()) return true;
+  const e = campo.essencia(a);
+  return e !== "" && e === campo.essencia(b);
+}
+
+/**
+ * Texto do campo ao abrir: o válido aparece mascarado; o legado que não é limpo ("3333-4444
+ * ramal 12") aparece exatamente como está; o limpo inválido aparece mascarado só se a máscara não
+ * apagar nada do que estava gravado (senão a pessoa veria um campo vazio ou cortado).
  */
 export function exibicaoInicial(campo: TipoCampo, valor: string): string {
+  if (!campo.limpo(valor)) return valor;
   const m = campo.mascarar(valor);
   if (campo.validar(valor)) return m;
   return alfanum(m) === alfanum(valor) ? m : valor;

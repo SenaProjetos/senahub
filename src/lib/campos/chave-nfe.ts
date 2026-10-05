@@ -1,5 +1,5 @@
 import { soDigitos } from "@/lib/documento";
-import { ehDigito, type TipoCampo } from "./tipo";
+import { ehDigito, limpoPor, SO_NUMERO_E_MASCARA, type TipoCampo } from "./tipo";
 
 /**
  * Chave de acesso da NF-e/NFS-e/CT-e: 44 dígitos, o último é o dígito verificador (módulo 11,
@@ -20,10 +20,15 @@ export function chaveNfeValida(texto: string): boolean {
   return dv === Number(c[43]);
 }
 
+const mascararChave = (t: string) => soDigitos(t).slice(0, 44).replace(/(\d{4})(?=\d)/g, "$1 ");
+const limpo = limpoPor((v) => SO_NUMERO_E_MASCARA.test(v), mascararChave);
+const valida = (t: string) => limpo(t) && chaveNfeValida(t);
+
 export const chaveNfe: TipoCampo = {
-  mascarar: (t) => soDigitos(t).slice(0, 44).replace(/(\d{4})(?=\d)/g, "$1 "),
-  normalizar: (t) => (chaveNfeValida(t) ? soDigitos(t) : t.trim()),
-  validar: (t) => t.trim() === "" || chaveNfeValida(t),
+  mascarar: mascararChave,
+  normalizar: (t) => (valida(t) ? soDigitos(t) : t.trim()),
+  validar: (t) => t.trim() === "" || valida(t),
+  limpo,
   essencia: soDigitos,
   significativo: ehDigito,
   mensagem: "Chave da NF inválida: são 44 dígitos e o último confere os outros. Confira na nota.",

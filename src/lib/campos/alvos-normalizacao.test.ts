@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { CAMPOS } from ".";
+import { CAMPOS, exibicaoInicial } from ".";
+import { campoPix } from "./chave-pix";
+import { campo } from "./zod";
 import { ALVOS, SO_RELATORIO, podeReescrever } from "../../../scripts/normalizar-campos-alvos";
 
 const schema = readFileSync(path.resolve(__dirname, "../../../prisma/schema.prisma"), "utf8");
@@ -51,6 +53,33 @@ describe("toda coluna @unique de um alvo está em `unicas`", () => {
   }
 });
 
+/** Valores que trazem algo além do número: o script não reescreve e o catálogo os trata como inválidos não mexidos. */
+const REVISAR = [
+    ["telefone", "(81) 99999-9999 Maria"],
+    ["telefone", "(55) 3333-4444 ramal 12"],
+    ["telefone", "5533334444 12"],
+    ["telefone", "3333-4444 12"],
+    ["telefone", "81 99999-9999 / 81 3333-4444"],
+    ["cep", "50000-000 Recife"],
+    ["cpf", "123.456.789-09 (pai)"],
+    ["cpfCnpj", "CNPJ 11.444.777/0001-61"],
+    ["rg", "MG-12.345.678"],
+    ["rg", "1234567 SSP/PE"],
+    ["rg", "1.234.567 SSP/PE"],
+    ["rg", "1234567 (SSP)"],
+    ["rg", "1234567-SSP"],
+    ["rg", "1234567 ÓRGÃO"],
+    ["rg", "MG-12.345.678 SSP"],
+    ["rg", "1234567/SSP"],
+    ["agencia", "Ag.1234"],
+    ["agencia", "1234 5"],
+    ["conta", "013-12345-6"],
+    ["conta", "013 12345-6"],
+    ["conta", "CC12345-6"],
+    ["conta", "12345-6(CC)"],
+    ["conta", "X12345"],
+] as const;
+
 describe("podeReescrever: só valor limpo é reescrito", () => {
   const NFE = "3520 0714 2001 6600 0187 5500 1000 0000 0465 5001 0007";
 
@@ -80,37 +109,21 @@ describe("podeReescrever: só valor limpo é reescrito", () => {
     expect(podeReescrever(tipo, valor)).toBe(true);
   });
 
-  it.each([
-    ["telefone", "(81) 99999-9999 Maria"],
-    ["telefone", "(55) 3333-4444 ramal 12"],
-    ["telefone", "5533334444 12"],
-    ["telefone", "81 99999-9999 / 81 3333-4444"],
-    ["cep", "50000-000 Recife"],
-    ["cpf", "123.456.789-09 (pai)"],
-    ["cpfCnpj", "CNPJ 11.444.777/0001-61"],
-    ["rg", "MG-12.345.678"],
-    ["rg", "1234567 SSP/PE"],
-    ["rg", "1234567 (SSP)"],
-    ["rg", "1234567-SSP"],
-    ["rg", "1234567 ÓRGÃO"],
-    ["rg", "MG-12.345.678 SSP"],
-    ["rg", "1234567/SSP"],
-    ["agencia", "Ag.1234"],
-    ["agencia", "1234 5"],
-    ["conta", "013-12345-6"],
-    ["conta", "013 12345-6"],
-    ["conta", "CC12345-6"],
-    ["conta", "12345-6(CC)"],
-    ["conta", "X12345"],
-  ] as const)("%s %j → revisar", (tipo, valor) => {
+  it.each(REVISAR)("%s %j → revisar", (tipo, valor) => {
     expect(podeReescrever(tipo, valor)).toBe(false);
   });
 
-  it("os casos de RG e conta seguros são válidos para o catálogo (sem a regra, seriam grudados)", () => {
+  it("valor não limpo é inválido para o catálogo e normalizar o devolve só aparado (Ruling 14)", () => {
+    // Antes, o catálogo só olhava os dígitos: "1234567 SSP/PE" era válido e virava "1234567SSPPE".
     for (const [tipo, valor] of [["rg", "1234567 SSP/PE"], ["rg", "MG-12.345.678 SSP"], ["conta", "013 12345-6"], ["conta", "013-12345-6"]] as const) {
-      expect(CAMPOS[tipo].validar(valor), `${tipo} ${valor}`).toBe(true);
-      expect(CAMPOS[tipo].normalizar(valor), `${tipo} ${valor}`).not.toBe(valor.trim());
+      expect(CAMPOS[tipo].validar(valor), `${tipo} ${valor}`).toBe(false);
+      expect(CAMPOS[tipo].normalizar(valor), `${tipo} ${valor}`).toBe(valor.trim());
     }
+  });
+
+  it("número + ramal sem DDI não é limpo (seria outro número)", () => {
+    expect(podeReescrever("telefone", "3333-4444 12")).toBe(false);
+    expect(podeReescrever("telefone", " 3333-4444 ")).toBe(true);
   });
 
   it("chave PIX segue o tipo da linha", () => {
@@ -121,5 +134,24 @@ describe("podeReescrever: só valor limpo é reescrito", () => {
     expect(podeReescrever("pix", "5581999998888", "telefone")).toBe(false);
     expect(podeReescrever("pix", "Fulano@Exemplo.com", "email")).toBe(true);
     expect(podeReescrever("pix", "123E4567-E89B-12D3-A456-426614174000", "aleatoria")).toBe(true);
+  });
+});
+
+describe("valor não limpo é \"inválido não mexido\" no catálogo (Ruling 14)", () => {
+  it.each(REVISAR)("%s %j: legado passa sem mudar, estrito recusa, abre como está", (tipo, valor) => {
+    expect(campo[tipo]({ legado: true }).parse(valor)).toBe(valor.trim());
+    expect(campo[tipo]().safeParse(valor).success).toBe(false);
+    expect(CAMPOS[tipo].validar(valor)).toBe(false);
+    expect(CAMPOS[tipo].limpo(valor)).toBe(false);
+    expect(exibicaoInicial(CAMPOS[tipo], valor)).toBe(valor);
+  });
+
+  it("chave PIX não limpa: inválida, gravação devolve só aparado, abre como está", () => {
+    for (const [tipo, valor] of [["cpf", "529.982.247-25 (pai)"], ["telefone", "(55) 3333-4444 ramal 12"], ["telefone", "5581999998888"]] as const) {
+      const c = campoPix(tipo);
+      expect(c.validar(valor), valor).toBe(false);
+      expect(c.normalizar(valor), valor).toBe(valor.trim());
+      expect(exibicaoInicial(c, valor), valor).toBe(valor);
+    }
   });
 });

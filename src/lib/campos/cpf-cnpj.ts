@@ -1,5 +1,5 @@
 import { soDigitos, validarCNPJ, validarCPF, validarCpfCnpj } from "@/lib/documento";
-import { ehDigito, type TipoCampo } from "./tipo";
+import { ehDigito, limpoPor, SO_NUMERO_E_MASCARA, type TipoCampo, vazio } from "./tipo";
 
 export function mascararCpf(texto: string): string {
   const d = soDigitos(texto).slice(0, 11);
@@ -18,12 +18,15 @@ export function mascararCnpj(texto: string): string {
   return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
 }
 
-const vazio = (t: string) => t.trim() === "";
+const soNumero = (v: string) => SO_NUMERO_E_MASCARA.test(v);
+const limpoCpf = limpoPor(soNumero, mascararCpf);
+const cpfOk = (t: string) => limpoCpf(t) && validarCPF(t);
 
 export const cpf: TipoCampo = {
   mascarar: mascararCpf,
-  normalizar: (t) => (!vazio(t) && validarCPF(t) ? mascararCpf(t) : t.trim()),
-  validar: (t) => vazio(t) || validarCPF(t),
+  normalizar: (t) => (!vazio(t) && cpfOk(t) ? mascararCpf(t) : t.trim()),
+  validar: (t) => vazio(t) || cpfOk(t),
+  limpo: limpoCpf,
   essencia: soDigitos,
   significativo: ehDigito,
   mensagem: "CPF inválido. Confira os 11 dígitos.",
@@ -31,10 +34,14 @@ export const cpf: TipoCampo = {
   placeholder: "000.000.000-00",
 };
 
+const limpoCnpj = limpoPor(soNumero, mascararCnpj);
+const cnpjOk = (t: string) => limpoCnpj(t) && validarCNPJ(t);
+
 export const cnpj: TipoCampo = {
   mascarar: mascararCnpj,
-  normalizar: (t) => (!vazio(t) && validarCNPJ(t) ? mascararCnpj(t) : t.trim()),
-  validar: (t) => vazio(t) || validarCNPJ(t),
+  normalizar: (t) => (!vazio(t) && cnpjOk(t) ? mascararCnpj(t) : t.trim()),
+  validar: (t) => vazio(t) || cnpjOk(t),
+  limpo: limpoCnpj,
   essencia: soDigitos,
   significativo: ehDigito,
   mensagem: "CNPJ inválido. Confira os 14 dígitos.",
@@ -44,10 +51,14 @@ export const cnpj: TipoCampo = {
 
 const mascararCpfCnpj = (t: string) => (soDigitos(t).length <= 11 ? mascararCpf(t) : mascararCnpj(t));
 
+const limpoCpfCnpj = limpoPor(soNumero, mascararCpfCnpj);
+const cpfCnpjOk = (t: string) => limpoCpfCnpj(t) && validarCpfCnpj(t);
+
 export const cpfCnpj: TipoCampo = {
   mascarar: mascararCpfCnpj,
-  normalizar: (t) => (!vazio(t) && validarCpfCnpj(t) ? mascararCpfCnpj(t) : t.trim()),
-  validar: (t) => vazio(t) || validarCpfCnpj(t),
+  normalizar: (t) => (!vazio(t) && cpfCnpjOk(t) ? mascararCpfCnpj(t) : t.trim()),
+  validar: (t) => vazio(t) || cpfCnpjOk(t),
+  limpo: limpoCpfCnpj,
   essencia: soDigitos,
   significativo: ehDigito,
   mensagem: "CPF ou CNPJ inválido. Confira os dígitos.",

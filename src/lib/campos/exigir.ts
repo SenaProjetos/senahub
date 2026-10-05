@@ -1,5 +1,5 @@
 import { ActionError } from "@/lib/action-error";
-import { CAMPOS, mensagemDe, type NomeCampo } from "./index";
+import { CAMPOS, mensagemDe, mesmoValor, type NomeCampo } from "./index";
 
 /**
  * Regra de edição (spec D4): o inválido que já estava gravado passa; o inválido novo é recusado
@@ -22,11 +22,7 @@ export function exigirCamposValidos(
     const tipo = CAMPOS[nome];
     if (tipo.validar(v)) continue;
     const gravado = antes?.[chave];
-    if (typeof gravado === "string") {
-      if (gravado.trim() === v.trim()) continue;
-      const e = tipo.essencia(v);
-      if (e !== "" && e === tipo.essencia(gravado)) continue;
-    }
+    if (typeof gravado === "string" && mesmoValor(tipo, v, gravado)) continue;
     campos[chave] = mensagemDe(tipo, v);
   }
   const primeira = Object.values(campos)[0];

@@ -1,4 +1,4 @@
-import { TIPO_PIX_LABELS, validarChavePix, type TipoPix } from "@/modules/rh/contas/pix";
+import { TIPO_PIX_LABELS, validarChavePix, type ResultadoPix, type TipoPix } from "@/modules/rh/contas/pix";
 import { cnpj, cpf } from "./cpf-cnpj";
 import { email } from "./email";
 import { telefone } from "./telefone";
@@ -11,9 +11,13 @@ const BASE: Record<Exclude<TipoPix, "aleatoria">, TipoCampo> = { cpf, cnpj, emai
  * CPF/CNPJ, +55DDD… no telefone, minúscula no e-mail e na aleatória. A máscara é só de exibição.
  */
 export function campoPix(tipo: TipoPix): TipoCampo {
-  const r = (t: string) => validarChavePix(tipo, t);
   const aleatoria = tipo === "aleatoria";
   const base = aleatoria ? null : BASE[tipo];
+  // CPF, CNPJ e telefone: a forma do tipo base. E-mail e aleatória: a gravação só apara e põe em
+  // minúscula, então nada se perde.
+  const limpo = base ? base.limpo : () => true;
+  const r = (t: string): ResultadoPix =>
+    limpo(t) ? validarChavePix(tipo, t) : { ok: false, erro: `Informe só a chave PIX (${TIPO_PIX_LABELS[tipo]}), sem outro texto.` };
   return {
     mascarar: aleatoria ? (t) => t.toLowerCase().replace(/[^0-9a-f-]/g, "").slice(0, 36) : base!.mascarar,
     normalizar: (t) => {
@@ -21,6 +25,7 @@ export function campoPix(tipo: TipoPix): TipoCampo {
       return x.ok ? x.chave : t.trim();
     },
     validar: (t) => t.trim() === "" || r(t).ok,
+    limpo,
     motivo: (t) => {
       const x = r(t);
       return x.ok ? "" : x.erro;

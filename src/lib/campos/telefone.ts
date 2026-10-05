@@ -1,5 +1,5 @@
 import { soDigitos } from "@/lib/documento";
-import { ehDigito, type TipoCampo } from "./tipo";
+import { ehDigito, limpoPor, type TipoCampo } from "./tipo";
 
 /**
  * Dígitos nacionais: descarta o código do país (+55) quando o número vem colado com ele. Sem
@@ -21,10 +21,19 @@ function mascararTelefone(valor: string): string {
 }
 
 /**
+ * Forma de telefone, o texto inteiro: +55 opcional (só com o "+"), DDD opcional com ou sem
+ * parênteses, 9 opcional, 4 dígitos, separador opcional, 4 dígitos. Ramal, nome, segundo número ou
+ * "55" sem "+" ficam fora — os dígitos sozinhos dariam outro número.
+ */
+const FORMA = /^(\+\s*55\s*)?(\(?\d{2}\)?\s*)?9?\s*\d{4}[\s.-]?\d{4}$/;
+const limpo = limpoPor((v) => FORMA.test(v), mascararTelefone);
+
+/**
  * DDD (11–99) + 8 dígitos (fixo, começa em 2–5) ou + 9 dígitos (celular, começa em 9). Não
  * confirma que o número existe — só que tem cara de telefone.
  */
 function telefoneValido(valor: string): boolean {
+  if (!limpo(valor)) return false;
   const d = digitosNacionais(valor);
   if (d.length !== 10 && d.length !== 11) return false;
   if (!/^[1-9][1-9]/.test(d)) return false;
@@ -36,6 +45,7 @@ export const telefone: TipoCampo = {
   mascarar: mascararTelefone,
   normalizar: (t) => (t.trim() !== "" && telefoneValido(t) ? mascararTelefone(t) : t.trim()),
   validar: (t) => t.trim() === "" || telefoneValido(t),
+  limpo,
   essencia: digitosNacionais,
   significativo: ehDigito,
   mensagem: "Telefone inválido. Informe o DDD e o número, ex.: (81) 99999-9999.",
