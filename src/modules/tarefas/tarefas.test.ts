@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tarefaBloqueada, escopoTarefa, whereQuadroTarefas } from "./queries";
+import { tarefaBloqueada, escopoTarefa, whereQuadroTarefas, concluidaRecenteOuAberta } from "./queries";
 import type { TarefaItemBoard } from "./queries";
 
 type Dep = TarefaItemBoard["dependeDe"][number];
@@ -60,6 +60,7 @@ describe("whereQuadroTarefas", () => {
       AND: [
         { arquivada: false, status: { ativo: true } },
         { OR: [{ responsaveis: { some: { userId: "u1" } } }, { criadorId: "u1" }] },
+        concluidaRecenteOuAberta(new Date(2026, 7, 25)),
         {
           OR: [
             { titulo: { contains: "compatibilização", mode: "insensitive" } },
@@ -79,9 +80,31 @@ describe("whereQuadroTarefas", () => {
       AND: [
         { arquivada: false, status: { ativo: true } },
         {},
+        concluidaRecenteOuAberta(new Date(2026, 7, 25)),
         // Fronteira em meia-noite UTC: `Tarefa.prazo` é `@db.Date`; com meia-noite
         // local a tarefa que vence hoje entraria em "atrasadas".
         { prazo: { lt: new Date(Date.UTC(2026, 7, 25)) }, status: { concluido: false } },
+      ],
+    });
+  });
+});
+
+describe("whereQuadroTarefas — todas as concluídas", () => {
+  it("o filtro desliga a janela de 7 dias", () => {
+    expect(whereQuadroTarefas({ id: "u1", gereTodasTarefas: true }, { todasConcluidas: true }, new Date(2026, 7, 25))).toEqual({
+      AND: [{ arquivada: false, status: { ativo: true } }, {}, {}],
+    });
+  });
+});
+
+describe("concluidaRecenteOuAberta", () => {
+  it("mantém aberta e concluída nos últimos 7 dias; sem concluidaEm, vale a última alteração", () => {
+    const limite = new Date(2026, 7, 18);
+    expect(concluidaRecenteOuAberta(new Date(2026, 7, 25))).toEqual({
+      OR: [
+        { status: { concluido: false } },
+        { concluidaEm: { gte: limite } },
+        { concluidaEm: null, updatedAt: { gte: limite } },
       ],
     });
   });

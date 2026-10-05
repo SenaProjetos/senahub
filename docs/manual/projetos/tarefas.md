@@ -35,6 +35,10 @@ em colunas de status, com responsáveis, prazo, prioridade, checklists e depend�
   (código), responsáveis, **checklist** de itens, **dependências** e **comentários**.
 - Use os filtros para encontrar tarefas por texto, projeto, disciplina, responsável,
   prazo ou prioridade. O quadro mostra os resultados por página.
+- Na coluna de **concluído**, o cartão não mostra mais a prioridade nem o prazo em vermelho
+  — a tarefa já foi entregue. A tarefa concluída fica no quadro por **7 dias** e depois sai
+  dele sozinha (não é arquivada). Para vê-la de novo, use o filtro **Concluídas → Todas as
+  concluídas**; a busca geral (Ctrl+K) já abre o quadro com esse filtro ligado.
 
 ## Recursos do cartão
 

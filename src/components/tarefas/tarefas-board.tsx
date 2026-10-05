@@ -123,6 +123,7 @@ export function TarefasBoard({
   const responsavel = searchParams.get("responsavel");
   const periodo = searchParams.get("periodo");
   const prioridade = searchParams.get("prioridade");
+  const todasConcluidas = searchParams.get("concluidas") === "todas";
   const vista = searchParams.get("vista") === "lista" ? "lista" : "quadro";
 
   // Input de busca controlado localmente; só escreve na URL no Enter/blur.
@@ -140,14 +141,14 @@ export function TarefasBoard({
     };
   }, [opcoes.disciplinas, opcoes.internos, opcoes.projetos, projeto]);
 
-  const temFiltro = Boolean(q || projeto || disciplina || responsavel || periodo || prioridade);
+  const temFiltro = Boolean(q || projeto || disciplina || responsavel || periodo || prioridade || todasConcluidas);
 
   function aplicarBusca() {
     setParams({ q: busca.trim() || null });
   }
 
   function limparFiltros() {
-    setParams({ q: null, projeto: null, disciplina: null, responsavel: null, periodo: null, prioridade: null });
+    setParams({ q: null, projeto: null, disciplina: null, responsavel: null, periodo: null, prioridade: null, concluidas: null });
   }
 
   // Um hook por lista: os diálogos e o confirm são montados uma vez; cada card/linha só recebe
@@ -238,7 +239,7 @@ export function TarefasBoard({
           className="h-8 w-full sm:w-64"
         />
 
-        <FiltrosGaveta ativos={[projeto, disciplina, responsavel, periodo, prioridade].filter(Boolean).length}>
+        <FiltrosGaveta ativos={[projeto, disciplina, responsavel, periodo, prioridade, todasConcluidas].filter(Boolean).length}>
         <Select
           value={projeto ?? TODOS}
           onValueChange={(v) => setParams({ projeto: v && v !== TODOS ? v : null, disciplina: null })}
@@ -324,6 +325,20 @@ export function TarefasBoard({
           </SelectContent>
         </Select>
 
+        {/* Concluída há mais de 7 dias sai do quadro (não é arquivada): é aqui que se volta a ela. */}
+        <Select
+          value={todasConcluidas ? "todas" : TODOS}
+          onValueChange={(v) => setParams({ concluidas: v === "todas" ? "todas" : null })}
+        >
+          <SelectTrigger className="h-8 w-48">
+            <SelectValue placeholder="Concluídas" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={TODOS}>Concluídas: últimos 7 dias</SelectItem>
+            <SelectItem value="todas">Todas as concluídas</SelectItem>
+          </SelectContent>
+        </Select>
+
         {temFiltro && (
           <Button variant="ghost" size="sm" className="h-8" onClick={limparFiltros}>
             Limpar filtros
@@ -374,6 +389,7 @@ export function TarefasBoard({
                 gereTodas={gereTodasTarefas}
                 acoes={acoes}
                 temFiltro={temFiltro}
+                todasConcluidas={todasConcluidas}
                 onNovaTarefa={(statusId) => setDialog({ nova: true, statusId })}
                 onLimparFiltros={limparFiltros}
               />
@@ -421,7 +437,7 @@ function ListaView({
   // Achata as colunas em linhas, preservando nome/cor do status de cada tarefa.
   const linhas = useMemo(() => {
     const flat = colunas.flatMap((c) =>
-      c.tarefas.map((t) => ({ t, statusNome: c.nome, statusCor: c.cor })),
+      c.tarefas.map((t) => ({ t, statusNome: c.nome, statusCor: c.cor, concluida: c.concluido })),
     );
     // Ordena por prazo (sem prazo vai para o fim em ambas as direções).
     flat.sort((a, b) => {
@@ -469,8 +485,8 @@ function ListaView({
               </TableCell>
             </TableRow>
           ) : (
-            linhas.map(({ t, statusNome, statusCor }) => {
-              const atrasada = prazoVencido(t.prazo);
+            linhas.map(({ t, statusNome, statusCor, concluida }) => {
+              const atrasada = !concluida && prazoVencido(t.prazo);
               const itens = acoes.itens(t);
               return (
                 <ContextMenu key={t.id}>
@@ -555,6 +571,7 @@ function ColunaView({
   gereTodas,
   acoes,
   temFiltro,
+  todasConcluidas,
   onNovaTarefa,
   onLimparFiltros,
 }: {
@@ -565,6 +582,8 @@ function ColunaView({
   gereTodas: boolean;
   acoes: AcoesTarefa;
   temFiltro: boolean;
+  /** Filtro "Todas as concluídas" ligado: a coluna de concluído não está limitada a 7 dias. */
+  todasConcluidas: boolean;
   onNovaTarefa: (statusId: string) => void;
   onLimparFiltros: () => void;
 }) {
@@ -599,6 +618,14 @@ function ColunaView({
           <div className="mb-2 flex items-center gap-2">
             <span className="size-2.5 rounded-full" style={{ background: col.cor ?? "#576980" }} />
             <span className="text-sm font-semibold">{col.nome}</span>
+            {col.concluido && !todasConcluidas && (
+              <span
+                className="text-[10px] text-muted-foreground"
+                title="Tarefas concluídas há mais de 7 dias saem do quadro. Para vê-las, filtre por “Todas as concluídas”."
+              >
+                últimos 7 dias
+              </span>
+            )}
             <Badge variant="outline" className="ml-auto">
               {col.tarefas.length}
             </Badge>
@@ -617,6 +644,7 @@ function ColunaView({
                 podeMover={podeMoverTarefa(t, meId, gereTodas)}
                 acoes={acoes}
                 primeiro={i === 0}
+                concluida={col.concluido}
                 onMenuAberto={setMenuDeCardAberto}
               />
             ))}
@@ -639,6 +667,7 @@ function DraggableTarefa({
   podeMover,
   acoes,
   primeiro,
+  concluida,
   onMenuAberto,
 }: {
   t: TarefaUI;
@@ -647,6 +676,8 @@ function DraggableTarefa({
   acoes: AcoesTarefa;
   /** Primeiro card da coluna: alvo do coachmark do menu de contexto. */
   primeiro?: boolean;
+  /** Card numa coluna de conclusão. */
+  concluida?: boolean;
   /** Avisa a coluna: com o menu do card aberto, o da coluna não pode abrir junto. */
   onMenuAberto?: (aberto: boolean) => void;
 }) {
@@ -675,6 +706,7 @@ function DraggableTarefa({
             podeMover={podeMover}
             acoes={{ itens, aoSelecionar }}
             primeiro={primeiro}
+            concluida={concluida}
           />
         </ContextMenuTrigger>
         <ContextMenuContent>
@@ -693,6 +725,7 @@ function CardTarefa({
   overlay,
   acoes,
   primeiro,
+  concluida,
 }: {
   t: TarefaUI;
   onAbrir?: (t: TarefaUI) => void;
@@ -702,9 +735,11 @@ function CardTarefa({
   /** Ausente no fantasma do arrasto (`DragOverlay`), que não tem menu nem `...`. */
   acoes?: { itens: AcaoItem[]; aoSelecionar: (item: AcaoItemAcao) => void };
   primeiro?: boolean;
+  /** Concluída: prioridade e atraso não cobram mais nada, então não aparecem. */
+  concluida?: boolean;
 }) {
   const feitos = t.itens.filter((i) => i.concluido).length;
-  const atrasada = prazoVencido(t.prazo);
+  const atrasada = !concluida && prazoVencido(t.prazo);
   return (
     <div
       data-tour={primeiro ? "menu-contexto" : undefined}
@@ -736,7 +771,7 @@ function CardTarefa({
             <span className="truncate">{t.titulo}</span>
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            {ehPrioridade(t.prioridade) && (
+            {!concluida && ehPrioridade(t.prioridade) && (
               <Badge variant="outline" className={`h-4 px-1 text-[9px] leading-none ${PRIORIDADE_CLASS[t.prioridade]}`}>
                 {PRIORIDADE_LABEL[t.prioridade]}
               </Badge>

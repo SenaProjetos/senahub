@@ -130,7 +130,7 @@ export function CommandPalette() {
               </Grupo>
               <Grupo titulo="Tarefas" icon={ListChecks}>
                 {res.tarefas.map((t) => (
-                  <Item key={t.id} onClick={() => ir(`/tarefas`)}>
+                  <Item key={t.id} onClick={() => ir(`/tarefas?concluidas=todas&q=${encodeURIComponent(t.titulo)}`)}>
                     <span className="truncate">{t.titulo}</span>
                   </Item>
                 ))}

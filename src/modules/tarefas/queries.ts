@@ -73,7 +73,32 @@ export type FiltrosQuadroTarefas = {
   responsavelId?: string;
   prioridade?: string;
   periodo?: "atrasadas" | "semana" | "mes";
+  /** Desliga a janela de `DIAS_CONCLUIDA_NO_QUADRO` dias (filtro "Todas as concluídas"). */
+  todasConcluidas?: boolean;
 };
+
+/** Dias que uma tarefa concluída continua no quadro antes de sair dele. */
+export const DIAS_CONCLUIDA_NO_QUADRO = 7;
+
+/**
+ * Concluída há mais de `DIAS_CONCLUIDA_NO_QUADRO` dias sai do quadro (pedido do dono, 2026-10-04).
+ * É filtro de LEITURA, não `arquivada = true`: arquivar de verdade tiraria a tarefa da
+ * produtividade (`rh/produtividade`), da ficha do projeto e da busca. Sem `concluidaEm`
+ * (concluída antes do Item 7), vale a última alteração.
+ *
+ * Escrito em positivo de propósito: um `NOT { … OR [concluidaEm < x] }` vira NULL no SQL quando
+ * `concluidaEm` é nulo e esconderia também a concluída recente.
+ */
+export function concluidaRecenteOuAberta(referencia = new Date()): Prisma.TarefaWhereInput {
+  const limite = new Date(referencia.getTime() - DIAS_CONCLUIDA_NO_QUADRO * 24 * 60 * 60 * 1000);
+  return {
+    OR: [
+      { status: { concluido: false } },
+      { concluidaEm: { gte: limite } },
+      { concluidaEm: null, updatedAt: { gte: limite } },
+    ],
+  };
+}
 
 /** Filtros do quadro aplicados no banco, inclusive busca e prazo. */
 export function whereQuadroTarefas(
@@ -81,7 +106,11 @@ export function whereQuadroTarefas(
   filtros: FiltrosQuadroTarefas,
   referencia = new Date(),
 ): Prisma.TarefaWhereInput {
-  const and: Prisma.TarefaWhereInput[] = [{ arquivada: false, status: { ativo: true } }, escopoTarefa(viewer)];
+  const and: Prisma.TarefaWhereInput[] = [
+    { arquivada: false, status: { ativo: true } },
+    escopoTarefa(viewer),
+    filtros.todasConcluidas ? {} : concluidaRecenteOuAberta(referencia),
+  ];
   if (filtros.q) {
     and.push({
       OR: [

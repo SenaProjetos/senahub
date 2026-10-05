@@ -22,6 +22,7 @@ type SP = {
   responsavel?: string;
   periodo?: string;
   prioridade?: string;
+  concluidas?: string;
   page?: string;
   pageSize?: string;
 };
@@ -43,6 +44,7 @@ export default async function TarefasPage({ searchParams }: { searchParams: Prom
     responsavelId: sp.responsavel,
     prioridade: sp.prioridade,
     periodo,
+    todasConcluidas: sp.concluidas === "todas",
   };
   const [quadro, opcoes] = await Promise.all([
     quadroTarefas(user, filtros, { skip, take }),
