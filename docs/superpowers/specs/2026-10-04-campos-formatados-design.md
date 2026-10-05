@@ -227,3 +227,10 @@ Fecha com lint + test + build (Verificar tudo).
 - Inscrição estadual/municipal, placa, CREA/CAU, URL, datas digitadas à mão.
 - Migrar formulários entre `FormData` e estado (D6).
 - Validar que o número/documento existe de fato (Receita, operadora, banco).
+
+## 10. Ajustes do plano (2026-10-05)
+
+- `chaveNfe` grava **44 dígitos corridos** (formato da SEFAZ e regra atual de `normalizarChaveNfe`); os grupos de 4 são só a máscara de exibição.
+- `chavePix` grava no formato do BACEN (regra atual de `rh/contas/pix.ts`); a validação no servidor continua no handler por `validarChavePix`, porque depende do campo `pixTipo` do mesmo objeto. O schema leva `campo-ok`.
+- O contrato `TipoCampo` não tem `maxLength`: a máscara já corta, e o `maxLength` nativo cortaria o texto colado.
+- O script de normalização entra no runbook (`docs/DEPLOY.md` §9), não no menu do servidor: é de uma vez só.
