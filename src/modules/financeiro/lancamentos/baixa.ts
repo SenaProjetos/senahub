@@ -14,6 +14,9 @@
  * na sua linha, sem mexer em nenhum leitor de relatório.
  */
 
+import { chaveNfe } from "@/lib/campos/chave-nfe";
+import { soDigitos } from "@/lib/documento";
+
 export type TipoDoLancamento = "receita" | "despesa";
 
 /** Chaves das categorias do sistema (criadas pela migração `baixa_completa`). */
@@ -92,26 +95,7 @@ export function planejarBaixa(e: EntradaDaBaixa): PlanoDaBaixa | { erro: string 
   };
 }
 
-/**
- * Chave de acesso da NF-e/NFS-e/CT-e: 44 dígitos, o último é o dígito verificador (módulo 11, pesos 2 a 9 da
- * direita para a esquerda; resto 0 ou 1 → DV 0). Aceita a chave com espaços ou pontos e devolve só os dígitos.
- */
-export function normalizarChaveNfe(texto: string): string {
-  return texto.replace(/\D/g, "");
-}
-
-export function chaveNfeValida(texto: string): boolean {
-  const c = normalizarChaveNfe(texto);
-  if (!/^\d{44}$/.test(c)) return false;
-  let soma = 0;
-  let peso = 2;
-  for (let i = 42; i >= 0; i--) {
-    soma += Number(c[i]) * peso;
-    peso = peso === 9 ? 2 : peso + 1;
-  }
-  const resto = soma % 11;
-  const dv = resto < 2 ? 0 : 11 - resto;
-  return dv === Number(c[43]);
-}
-
-export const MOTIVO_CHAVE_INVALIDA = "Chave da NF inválida: são 44 dígitos e o último confere os outros. Confira na nota.";
+/** Chave de acesso da NF: regra no catálogo de campos (`lib/campos/chave-nfe.ts`). */
+export { chaveNfeValida } from "@/lib/campos/chave-nfe";
+export const normalizarChaveNfe = (texto: string): string => soDigitos(texto);
+export const MOTIVO_CHAVE_INVALIDA = chaveNfe.mensagem;
