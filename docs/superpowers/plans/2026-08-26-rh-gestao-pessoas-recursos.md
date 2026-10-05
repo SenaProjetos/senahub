@@ -249,7 +249,7 @@ marcou a decisão final, vale o voto dele (marcado *voto*).
 | Pergunta | Decisão |
 |---|---|
 | Ordem | **F4 primeiro** |
-| F2 — catálogo | Enxuto: só softwares e disciplinas. Nota do dono: "COSCIPE" (a confirmar: COSCIP-PE como item do catálogo) |
+| F2 — catálogo | Enxuto: só softwares e disciplinas. mais o **COSCIP-PE** (código de segurança contra incêndio de Pernambuco), confirmado pelo dono |
 | F2 — quem mantém | Engenharia propõe, RH publica |
 | F2 — níveis | Escala de 5 (1 conhece · 2 executa com supervisão · 3 executa sozinho · 4 revisa · 5 referência) |
 | F2 — validação | A pessoa declara, o coordenador valida |
