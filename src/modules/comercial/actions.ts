@@ -3,6 +3,7 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
+import { CAMPOS } from "@/lib/campos";
 import { prisma } from "@/lib/prisma";
 import { exigirCamposValidos } from "@/lib/campos/exigir";
 import { smtpConfigurado } from "@/lib/mail";
@@ -329,8 +330,8 @@ export const converterLead = defineAction(
       data: {
         tipo: "PJ",
         nome: lead.nome,
-        email: lead.email,
-        telefone: lead.telefone,
+        email: lead.email == null ? null : CAMPOS.email.normalizar(lead.email),
+        telefone: lead.telefone == null ? null : CAMPOS.telefone.normalizar(lead.telefone),
         observacoes: lead.observacoes,
       },
     });

@@ -328,6 +328,7 @@ async function main() {
     linkedinUrl: "",
     observacao: "",
     erros: [],
+    avisos: [],
     ...overrides,
   });
 

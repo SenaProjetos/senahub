@@ -3,6 +3,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/with-action";
+import { CAMPOS } from "@/lib/campos";
 import { notificar, notificarMuitos } from "@/lib/notificar";
 import { whereAudiencia } from "@/lib/audiencias";
 import { proximoCodigoProjeto } from "@/modules/projetos/numbering";
@@ -260,8 +261,8 @@ async function garantirClienteENegociacaoDoLead(
       data: {
         tipo: "PJ",
         nome: lead.nome,
-        email: lead.email,
-        telefone: lead.telefone,
+        email: lead.email == null ? null : CAMPOS.email.normalizar(lead.email),
+        telefone: lead.telefone == null ? null : CAMPOS.telefone.normalizar(lead.telefone),
         observacoes: lead.observacoes,
       },
     });

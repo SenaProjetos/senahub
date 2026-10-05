@@ -58,7 +58,18 @@ export const validarImportacaoCrm = defineAction(
         motivo: r.motivo ?? (r.linha.erros.length > 0 ? r.linha.erros.join(" ") : ""),
       }));
 
-    return { contagens, amostra, problemas };
+    // Avisos de formato (telefone/documento fora do padrão): a linha ENTRA como veio — só informa.
+    const avisos = resolvidas
+      .filter((r) => (r.status === "criar" || r.status === "vincular") && r.linha.avisos.length > 0)
+      .slice(0, 100)
+      .map((r) => ({
+        idx: r.linha.idx,
+        empresa: r.linha.empresaNome,
+        contato: r.linha.nomeContato,
+        aviso: r.linha.avisos.join(" "),
+      }));
+
+    return { contagens, amostra, problemas, avisos };
   },
 );
 

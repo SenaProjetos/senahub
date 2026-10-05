@@ -43,6 +43,34 @@ describe("normalizarLinhasCrm", () => {
     expect(l.documento).toBe("12345678000190");
   });
 
+  it("telefone e e-mail saem no formato padrão; documento da empresa segue só dígitos (Cliente.documento)", () => {
+    const [l] = normalizarLinhasCrm(
+      [["Acme", "Fulano", " Fulano@Acme.com ", "81999998888", "11.222.333/0001-81"]],
+      { empresa: 0, nomeContato: 1, emailContato: 2, telefone: 3, documento: 4 },
+    );
+    expect(l.telefone).toBe("(81) 99999-8888");
+    expect(l.emailContato).toBe("fulano@acme.com");
+    expect(l.documento).toBe("11222333000181");
+    expect(l.avisos).toEqual([]);
+  });
+
+  it("telefone e documento inválidos viram aviso, ficam como vieram e não bloqueiam a linha", () => {
+    const [l] = normalizarLinhasCrm(
+      [["Acme", "Fulano", "", "123", "123.456"]],
+      { empresa: 0, nomeContato: 1, emailContato: 2, telefone: 3, documento: 4 },
+    );
+    expect(l.avisos).toContain("Telefone inválido. Informe o DDD e o número, ex.: (81) 99999-9999.");
+    expect(l.avisos).toHaveLength(2);
+    expect(l.erros).toEqual([]);
+    expect(l.telefone).toBe("123");
+    expect(l.documento).toBe("123456");
+  });
+
+  it("e-mail inválido continua erro (não vira só aviso)", () => {
+    const [l] = normalizarLinhasCrm([["Acme", "Fulano", "x@"]], M);
+    expect(l.erros).toContain("E-mail inválido.");
+  });
+
   it("idx é 1-based e segue a ordem do array", () => {
     const linhas = normalizarLinhasCrm([["A", "X"], ["B", "Y"]], { empresa: 0, nomeContato: 1 });
     expect(linhas.map((l) => l.idx)).toEqual([1, 2]);
@@ -68,6 +96,7 @@ function linha(idx: number, overrides: Partial<LinhaCrmNorm> = {}): LinhaCrmNorm
     linkedinUrl: "",
     observacao: "",
     erros: [],
+    avisos: [],
     ...overrides,
   };
 }

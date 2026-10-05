@@ -6,6 +6,7 @@
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { ActionError } from "@/lib/action-error";
 import { validarCpfCnpj } from "@/lib/documento";
+import { chaveDocumento, documentoParaGravar } from "@/modules/financeiro/importacao/documento";
 import { chaveMatch } from "@/lib/import/valores";
 import {
   CATEGORIA_TRANSFERENCIA,
@@ -89,7 +90,7 @@ async function construirResolver(tx: Tx) {
   const fornDoc = new Map<string, string>();
   const fornNome = new Map<string, string>();
   for (const f of await tx.fornecedor.findMany({ select: { id: true, nome: true, documento: true } })) {
-    if (f.documento) fornDoc.set(f.documento.replace(/\D/g, ""), f.id);
+    if (f.documento) fornDoc.set(chaveDocumento(f.documento), f.id);
     fornNome.set(chaveMatch(f.nome), f.id);
   }
   const cliDoc = new Map<string, string>();
@@ -102,7 +103,7 @@ async function construirResolver(tx: Tx) {
     where: { excluidoEm: { not: undefined } },
     select: { id: true, nome: true, documento: true },
   })) {
-    if (c.documento) cliDoc.set(c.documento.replace(/\D/g, ""), c.id);
+    if (c.documento) cliDoc.set(chaveDocumento(c.documento), c.id);
     cliNome.set(chaveMatch(c.nome), c.id);
   }
 
@@ -180,24 +181,31 @@ async function construirResolver(tx: Tx) {
     doc: string,
   ): Promise<{ fornecedorId?: string; clienteId?: string }> {
     const docValido = doc && validarCpfCnpj(doc) ? doc : "";
-    const tipoPessoa = docValido.length === 11 ? "PF" : "PJ";
+    const chaveDoc = chaveDocumento(docValido);
+    const tipoPessoa = chaveDoc.length === 11 ? "PF" : "PJ";
     const isForn = tipo === "despesa";
     const mapDoc = isForn ? fornDoc : cliDoc;
     const mapNome = isForn ? fornNome : cliNome;
     const kNome = chaveMatch(nome);
 
-    let id = (docValido && mapDoc.get(docValido)) || (kNome && mapNome.get(kNome)) || "";
+    let id = (chaveDoc && mapDoc.get(chaveDoc)) || (kNome && mapNome.get(kNome)) || "";
     if (!id) {
       if (isForn) {
-        const f = await tx.fornecedor.create({ data: { tipo: tipoPessoa, nome, documento: docValido || null }, select: { id: true } });
+        const f = await tx.fornecedor.create({
+          data: { tipo: tipoPessoa, nome, documento: documentoParaGravar("fornecedor", docValido) },
+          select: { id: true },
+        });
         id = f.id;
         cont.fornecedores++;
       } else {
-        const c = await tx.cliente.create({ data: { tipo: tipoPessoa, nome, documento: docValido || null }, select: { id: true } });
+        const c = await tx.cliente.create({
+          data: { tipo: tipoPessoa, nome, documento: documentoParaGravar("cliente", docValido) },
+          select: { id: true },
+        });
         id = c.id;
         cont.clientes++;
       }
-      if (docValido) mapDoc.set(docValido, id);
+      if (chaveDoc) mapDoc.set(chaveDoc, id);
       if (kNome) mapNome.set(kNome, id);
     }
     return isForn ? { fornecedorId: id } : { clienteId: id };
