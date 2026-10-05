@@ -10,6 +10,8 @@ import type { DadosEmpresa } from "@/modules/configuracoes/empresa/queries";
 import { camposTermoPendentes } from "@/modules/legal/marcadores-empresa";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputFormatado } from "@/components/ui/input-formatado";
+import { useFieldErrors } from "@/lib/use-field-errors";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -21,6 +23,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 export function EmpresaView({ dados }: { dados: DadosEmpresa | null }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const fe = useFieldErrors({
+    cnpj: "cnpj",
+    telefone: "empresa-telefone",
+    email: "empresa-email",
+    agencia: "empresa-agencia",
+    conta: "empresa-conta",
+    pix: "empresa-pix",
+  });
   const [razaoSocial, setRazaoSocial] = useState(dados?.razaoSocial ?? "");
   const [cnpj, setCnpj] = useState(dados?.cnpj ?? "");
   const [endereco, setEndereco] = useState(dados?.endereco ?? "");
@@ -107,7 +117,7 @@ export function EmpresaView({ dados }: { dados: DadosEmpresa | null }) {
       if (r.ok) {
         toast.success("Dados da empresa salvos.");
         router.refresh();
-      } else toast.error(r.error);
+      } else if (!fe.registrar(r)) toast.error(r.error);
     });
   }
 
@@ -134,11 +144,15 @@ export function EmpresaView({ dados }: { dados: DadosEmpresa | null }) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cnpj">CNPJ</Label>
-            <Input
+            <InputFormatado
               id="cnpj"
+              tipo="cnpj"
               value={cnpj}
-              onChange={(e) => setCnpj(e.target.value)}
-              placeholder="00.000.000/0001-00"
+              erro={fe.erros.cnpj}
+              onChange={(v) => {
+                fe.limpar("cnpj");
+                setCnpj(v);
+              }}
               className="w-56"
             />
           </div>
@@ -218,23 +232,29 @@ export function EmpresaView({ dados }: { dados: DadosEmpresa | null }) {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="empresa-telefone">Telefone</Label>
-              <Input
+              <InputFormatado
                 id="empresa-telefone"
+                tipo="telefone"
                 value={telefone}
-                onChange={(e) => setTelefone(e.target.value)}
-                placeholder="(00) 00000-0000"
-                maxLength={40}
+                erro={fe.erros.telefone}
+                onChange={(v) => {
+                  fe.limpar("telefone");
+                  setTelefone(v);
+                }}
               />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="empresa-email">E-mail</Label>
-              <Input
+              <InputFormatado
                 id="empresa-email"
-                type="email"
+                tipo="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                erro={fe.erros.email}
+                onChange={(v) => {
+                  fe.limpar("email");
+                  setEmail(v);
+                }}
                 placeholder="contato@empresa.com.br"
-                maxLength={160}
               />
             </div>
           </div>
@@ -252,32 +272,43 @@ export function EmpresaView({ dados }: { dados: DadosEmpresa | null }) {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="empresa-agencia">Agência</Label>
-              <Input
+              <InputFormatado
                 id="empresa-agencia"
+                tipo="agencia"
                 value={agencia}
-                onChange={(e) => setAgencia(e.target.value)}
-                placeholder="0000"
-                maxLength={20}
+                erro={fe.erros.agencia}
+                onChange={(v) => {
+                  fe.limpar("agencia");
+                  setAgencia(v);
+                }}
               />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="empresa-conta">Conta</Label>
-              <Input
+              <InputFormatado
                 id="empresa-conta"
+                tipo="conta"
                 value={conta}
-                onChange={(e) => setConta(e.target.value)}
-                placeholder="00000-0"
-                maxLength={30}
+                erro={fe.erros.conta}
+                onChange={(v) => {
+                  fe.limpar("conta");
+                  setConta(v);
+                }}
               />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="empresa-pix">Chave PIX</Label>
-              <Input
+              {/* Sem `tipoPix`: a empresa não escolhe o tipo, o texto fica como digitado (vai impresso na proposta). */}
+              <InputFormatado
                 id="empresa-pix"
+                tipo="chavePix"
                 value={pix}
-                onChange={(e) => setPix(e.target.value)}
+                erro={fe.erros.pix}
+                onChange={(v) => {
+                  fe.limpar("pix");
+                  setPix(v);
+                }}
                 placeholder="CNPJ, e-mail ou chave aleatória"
-                maxLength={160}
               />
             </div>
           </div>

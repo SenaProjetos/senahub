@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ROLES } from "@/lib/roles";
+import { campo } from "@/lib/campos/zod";
 
 export const criarUsuarioSchema = z.object({
   name: z.string().min(2, "Informe o nome."),
@@ -8,8 +9,8 @@ export const criarUsuarioSchema = z.object({
   clienteId: z.string().optional().or(z.literal("")),
   // Fase 2 — cadastro inicial opcional, preenchido no mesmo ato (evita "pessoa pela metade").
   nomeCompleto: z.string().max(120).optional().or(z.literal("")),
-  cpf: z.string().max(14).optional().or(z.literal("")),
-  telefone: z.string().max(20).optional().or(z.literal("")),
+  cpf: campo.cpf(),
+  telefone: campo.telefone(),
   /** Id do cargo no catálogo (2.1) — o texto livre saiu; o rótulo em `User.cargo` é cache. */
   cargoId: z.string().optional().or(z.literal("")),
   dataAdmissao: z.string().optional().or(z.literal("")),

@@ -22,7 +22,14 @@ export function BriefingPublico({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ respostas }),
       });
-      return res.ok ? { ok: true as const } : { ok: false as const, error: "Não foi possível salvar." };
+      if (res.ok) return { ok: true as const };
+      // 400 de formato traz a mensagem e o campo (`campos`); qualquer outra recusa segue genérica.
+      const j = res.status === 400 ? await res.json().catch(() => null) : null;
+      return {
+        ok: false as const,
+        error: typeof j?.error === "string" ? j.error : "Não foi possível salvar.",
+        campos: (j?.campos ?? undefined) as Record<string, string> | undefined,
+      };
     } catch {
       return { ok: false as const, error: "Falha de conexão." };
     }

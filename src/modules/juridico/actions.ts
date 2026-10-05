@@ -18,6 +18,7 @@ import { decidirPrazoDoProjeto, devePassarParaAssinado, ehDocumentoContratual } 
 import { gerarRecebiveisDoContrato } from "@/modules/juridico/contrato/recebiveis";
 import { faturarParcela, sincronizarPrevisoesDepois } from "@/modules/juridico/contrato/previsao-service";
 import { registrarAlteracaoContratual, type MotivoContratual } from "@/modules/rh/contratual/service";
+import { campo } from "@/lib/campos/zod";
 
 const base = { modulo: "juridico", recurso: "juridico", permissao: "gerir" } as const;
 
@@ -515,7 +516,7 @@ export const criarLinkAssinatura = defineAction(
     schema: z.object({
       versaoId: z.string().min(1),
       nome: z.string().min(3, "Informe o nome do signatário."),
-      email: opt(z.string()),
+      email: campo.email(),
       diasValidade: z.number().int().positive().max(365).optional(),
     }),
   },

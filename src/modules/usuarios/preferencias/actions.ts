@@ -5,6 +5,8 @@ import { z } from "zod";
 import { defineAction } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
+import { campo } from "@/lib/campos/zod";
+import { exigirCamposValidos } from "@/lib/campos/exigir";
 
 /** Atualiza o próprio perfil (nome + telefone). E-mail/login e dados de RH não são editáveis aqui. */
 export const atualizarMeuPerfil = defineAction(
@@ -14,10 +16,13 @@ export const atualizarMeuPerfil = defineAction(
     entidade: "User",
     schema: z.object({
       name: z.string().min(1, "Informe o nome.").max(120),
-      telefone: z.string().max(40).optional().or(z.literal("")),
+      telefone: campo.telefone({ legado: true }),
     }),
   },
   async (i, ctx) => {
+    // Antes de qualquer escrita: só o telefone que MUDOU é validado; o inválido já gravado segue salvando (D4).
+    const antes = await prisma.user.findUnique({ where: { id: ctx.user.id }, select: { telefone: true } });
+    exigirCamposValidos(i, antes, { telefone: "telefone" });
     await prisma.user.update({
       where: { id: ctx.user.id },
       data: { name: i.name, telefone: i.telefone || null },

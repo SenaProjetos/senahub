@@ -5,24 +5,32 @@ import { z } from "zod";
 import { defineAction } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { removerArquivo } from "@/lib/storage";
+import { campo } from "@/lib/campos/zod";
+import { exigirCamposValidos } from "@/lib/campos/exigir";
+import { TIPOS_PIX, validarChavePix } from "@/modules/rh/contas/pix";
 import { CHAVE_DADOS_EMPRESA, dadosEmpresa, type DadosEmpresa } from "./queries";
 
 const base = { modulo: "configuracoes", recurso: "configuracoes", permissao: "gerir" } as const;
 
+/** A chave PIX da empresa não tem campo de tipo: vale se for válida como qualquer um dos tipos. */
+const pixValido = (v: string | undefined) => !v || TIPOS_PIX.some((t) => validarChavePix(t, v).ok);
+
+// Dados já gravados que a tela reabre: o inválido antigo passa sem mexer (D4), o novo é recusado
+// em `exigirCamposValidos` com a mensagem no campo.
 const salvarSchema = z.object({
   razaoSocial: z.string().min(1, "Informe a razão social."),
-  cnpj: z.string().trim().optional(),
+  cnpj: campo.cnpj({ legado: true }),
   endereco: z.string().trim().optional(),
   logoPath: z.string().trim().optional(),
   encarregadoDados: z.string().trim().max(200).optional(),
   foro: z.string().trim().max(120).optional(),
   // ADR-0006: contato, dados bancarios e assinatura usados pela proposta composta.
-  telefone: z.string().trim().max(40).optional(),
-  email: z.string().trim().max(160).optional(),
+  telefone: campo.telefone({ legado: true }),
+  email: campo.email({ legado: true }),
   banco: z.string().trim().max(80).optional(),
-  agencia: z.string().trim().max(20).optional(),
-  conta: z.string().trim().max(30).optional(),
-  pix: z.string().trim().max(160).optional(),
+  agencia: campo.agencia({ legado: true }),
+  conta: campo.conta({ legado: true }),
+  pix: z.string().trim().max(160).optional().refine(pixValido, "Chave PIX inválida. Use CPF, CNPJ, e-mail, telefone ou chave aleatória."), // campo-ok: PIX da empresa sem tipo, validado por qualquer tipo
   responsavelNome: z.string().trim().max(120).optional(),
   responsavelCargo: z.string().trim().max(120).optional(),
   responsavelRegistro: z.string().trim().max(60).optional(),
@@ -37,6 +45,10 @@ export const salvarDadosEmpresa = defineAction(
   { ...base, acao: "salvar-dados-empresa", entidade: "ConfigSistema", schema: salvarSchema },
   async (i) => {
     const anterior = await dadosEmpresa();
+    // Antes de qualquer escrita: só o valor que MUDOU é validado; o inválido já gravado segue salvando.
+    exigirCamposValidos(i, anterior, {
+      cnpj: "cnpj", telefone: "telefone", email: "email", agencia: "agencia", conta: "conta",
+    });
     const valor: DadosEmpresa = {
       razaoSocial: i.razaoSocial,
       cnpj: i.cnpj || null,

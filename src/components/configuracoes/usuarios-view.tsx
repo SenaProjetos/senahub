@@ -29,6 +29,8 @@ import type { UsuarioListItem } from "@/modules/usuarios/queries";
 import { SolicitacoesCadastro, type PedidoCadastro } from "@/components/configuracoes/solicitacoes-cadastro";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputFormatado } from "@/components/ui/input-formatado";
+import { useFieldErrors } from "@/lib/use-field-errors";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -181,6 +183,7 @@ export function UsuariosView({
   // Seleção compartilhada (ADR-0002, regra 3): o menu de contexto age sobre ela.
   const selecao = useSelecao();
   const lote = useLote();
+  const fe = useFieldErrors({ cpf: "u-cpf", telefone: "u-tel" });
 
   // Item 6a: aprovar um pedido de acesso abre a criação já preenchida (nome/e-mail),
   // em vez de redigitar. O admin revisa e define o vínculo antes de criar.
@@ -303,9 +306,10 @@ export function UsuariosView({
             const ob = await criarOnboarding({ userId: res.data.id, templateId: form.onboardingTemplateId });
             if (!ob.ok) toast.error(`Usuário criado, mas o onboarding falhou: ${ob.error}`);
           }
+          fe.limpar();
           setForm(null);
           setCredencial({ email: res.data.email, senha: res.data.senhaTemporaria });
-        } else toast.error(res.error);
+        } else if (!fe.registrar(res)) toast.error(res.error);
       }
     });
   }
@@ -537,7 +541,14 @@ export function UsuariosView({
       {lote.portal}
 
       {/* Dialog criar/editar */}
-      <Dialog open={!!form} onOpenChange={(o) => !o && setForm(null)}>
+      <Dialog
+        open={!!form}
+        onOpenChange={(o) => {
+          if (o) return;
+          fe.limpar();
+          setForm(null);
+        }}
+      >
         {/* `lg` e não `md`: é o formulário mais longo da tela e sobra largura no desktop —
             campo mais largo = menos rolagem. No celular a largura é a mesma dos outros. */}
         <DialogContent className="sm:max-w-lg">
@@ -686,11 +697,29 @@ export function UsuariosView({
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className="space-y-1.5">
                         <Label htmlFor="u-cpf">CPF</Label>
-                        <Input id="u-cpf" value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} />
+                        <InputFormatado
+                          id="u-cpf"
+                          tipo="cpf"
+                          value={form.cpf}
+                          erro={fe.erros.cpf}
+                          onChange={(v) => {
+                            fe.limpar("cpf");
+                            setForm({ ...form, cpf: v });
+                          }}
+                        />
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor="u-tel">Telefone</Label>
-                        <Input id="u-tel" value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} />
+                        <InputFormatado
+                          id="u-tel"
+                          tipo="telefone"
+                          value={form.telefone}
+                          erro={fe.erros.telefone}
+                          onChange={(v) => {
+                            fe.limpar("telefone");
+                            setForm({ ...form, telefone: v });
+                          }}
+                        />
                       </div>
                     </div>
                     <div className="space-y-1.5">

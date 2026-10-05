@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { solicitarCadastro } from "@/modules/auth/cadastro/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputFormatado } from "@/components/ui/input-formatado";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -78,8 +79,13 @@ export default function SolicitarCadastroPage() {
                 <p className="text-xs text-muted-foreground">Como você pretende usar o sistema. O administrador confirma o vínculo ao aprovar.</p>
               </div>
               <div className="space-y-1.5">
-                <Label>Telefone (opcional)</Label>
-                <Input value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} />
+                <Label htmlFor="sc-telefone">Telefone (opcional)</Label>
+                <InputFormatado
+                  id="sc-telefone"
+                  tipo="telefone"
+                  value={form.telefone}
+                  onChange={(v) => setForm({ ...form, telefone: v })}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label>Mensagem (opcional)</Label>

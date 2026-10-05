@@ -37,7 +37,7 @@ describe("salvarDadosEmpresa", () => {
   it("cria o registro (primeira vez, sem nada salvo antes)", async () => {
     const r = await salvarDadosEmpresa({
       razaoSocial: "Sena Estruturas",
-      cnpj: "00.000.000/0001-00",
+      cnpj: "11.222.333/0001-81",
       endereco: "Rua X",
       logoPath: "empresa/logo-1.png",
     });
@@ -46,10 +46,10 @@ describe("salvarDadosEmpresa", () => {
       where: { chave: "empresa.dados" },
       create: {
         chave: "empresa.dados",
-        valor: { razaoSocial: "Sena Estruturas", cnpj: "00.000.000/0001-00", endereco: "Rua X", logoPath: "empresa/logo-1.png", encarregadoDados: null, foro: null, telefone: null, email: null, banco: null, agencia: null, conta: null, pix: null, responsavelNome: null, responsavelCargo: null, responsavelRegistro: null },
+        valor: { razaoSocial: "Sena Estruturas", cnpj: "11.222.333/0001-81", endereco: "Rua X", logoPath: "empresa/logo-1.png", encarregadoDados: null, foro: null, telefone: null, email: null, banco: null, agencia: null, conta: null, pix: null, responsavelNome: null, responsavelCargo: null, responsavelRegistro: null },
       },
       update: {
-        valor: { razaoSocial: "Sena Estruturas", cnpj: "00.000.000/0001-00", endereco: "Rua X", logoPath: "empresa/logo-1.png", encarregadoDados: null, foro: null, telefone: null, email: null, banco: null, agencia: null, conta: null, pix: null, responsavelNome: null, responsavelCargo: null, responsavelRegistro: null },
+        valor: { razaoSocial: "Sena Estruturas", cnpj: "11.222.333/0001-81", endereco: "Rua X", logoPath: "empresa/logo-1.png", encarregadoDados: null, foro: null, telefone: null, email: null, banco: null, agencia: null, conta: null, pix: null, responsavelNome: null, responsavelCargo: null, responsavelRegistro: null },
       },
     });
     expect(mocks.removerArquivo).not.toHaveBeenCalled();
@@ -102,6 +102,34 @@ describe("salvarDadosEmpresa", () => {
           valor: expect.objectContaining({ encarregadoDados: "Fulana — dpo@sena.com", foro: "Goiânia/GO" }),
         }),
       }),
+    );
+  });
+
+  it("recusa CNPJ, telefone e chave PIX inválidos, com a mensagem no campo e sem gravar nada", async () => {
+    const r = await salvarDadosEmpresa({ razaoSocial: "Sena Estruturas", cnpj: "123", telefone: "12", pix: "xx" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.fieldErrors?.pix?.[0]).toMatch(/Chave PIX inválida/);
+      expect(r.fieldErrors?.cnpj ?? r.fieldErrors?.telefone ?? r.error).toBeTruthy();
+    }
+    const r2 = await salvarDadosEmpresa({ razaoSocial: "Sena Estruturas", cnpj: "123" });
+    expect(r2.ok).toBe(false);
+    if (!r2.ok) expect(r2.fieldErrors?.cnpj?.[0]).toMatch(/CNPJ inválido/);
+    expect(mocks.upsert).not.toHaveBeenCalled();
+  });
+
+  it("CNPJ inválido que já estava gravado salva sem mexer; trocar por outro inválido recusa", async () => {
+    mocks.findUnique.mockResolvedValue({ valor: { razaoSocial: "Sena Estruturas", cnpj: "123" } });
+    expect((await salvarDadosEmpresa({ razaoSocial: "Sena Estruturas", cnpj: "123" })).ok).toBe(true);
+    const r = await salvarDadosEmpresa({ razaoSocial: "Sena Estruturas", cnpj: "1234" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/CNPJ inválido/);
+  });
+
+  it("chave PIX da empresa vale como qualquer tipo e é gravada como digitada", async () => {
+    await salvarDadosEmpresa({ razaoSocial: "Sena Estruturas", pix: " contato@sena.com " });
+    expect(mocks.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ create: expect.objectContaining({ valor: expect.objectContaining({ pix: "contato@sena.com" }) }) }),
     );
   });
 

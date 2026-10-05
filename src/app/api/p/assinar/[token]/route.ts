@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { lerArquivo } from "@/lib/storage";
 import { linkVigente } from "@/lib/link-publico";
 import { getClientIp } from "@/lib/audit";
+import { CAMPOS } from "@/lib/campos";
 import { logAudit } from "@/lib/audit";
 import { comRetentativaDeConflito, registrarEventoAssinatura } from "@/modules/juridico/assinatura/service";
 import { devePassarParaAssinado } from "@/modules/juridico/contrato/estado";
@@ -24,10 +25,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
     return NextResponse.json({ error: "Requisição inválida." }, { status: 400 });
   }
   const nome = typeof corpo.nome === "string" ? corpo.nome.trim() : "";
-  const cpf = typeof corpo.cpf === "string" ? corpo.cpf.trim() : "";
+  const cpfBruto = typeof corpo.cpf === "string" ? corpo.cpf.trim() : "";
   if (nome.length < 3) {
     return NextResponse.json({ error: "Informe seu nome completo." }, { status: 400 });
   }
+  // Opcional: vazio passa. Preenchido, só aceita CPF válido — vira prova do aceite, então não grava lixo.
+  if (!CAMPOS.cpf.validar(cpfBruto)) {
+    return NextResponse.json({ error: CAMPOS.cpf.mensagem }, { status: 400 });
+  }
+  const cpf = CAMPOS.cpf.normalizar(cpfBruto);
 
   const link = await prisma.linkPublicoAssinatura.findUnique({
     where: { token },

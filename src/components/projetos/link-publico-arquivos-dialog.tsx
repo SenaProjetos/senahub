@@ -16,6 +16,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { InputFormatado } from "@/components/ui/input-formatado";
+import { useFieldErrors } from "@/lib/use-field-errors";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -470,6 +472,7 @@ function CartaoLink({
   const [pendente, start] = useTransition();
   const [editando, setEditando] = useState(false);
   const [emailDest, setEmailDest] = useState(clienteEmail ?? "");
+  const fe = useFieldErrors({ email: `link-email-${link.id}` });
 
   const [nome, setNome] = useState(link.nome ?? "");
   const [ativo, setAtivo] = useState(link.ativo);
@@ -551,7 +554,7 @@ function CartaoLink({
             ? "E-mail enviado com o link e o convite para se cadastrar."
             : "E-mail enviado ao cliente.",
         );
-      } else toast.error(r.error);
+      } else if (!fe.registrar(r)) toast.error(r.error);
     });
   }
 
@@ -605,14 +608,20 @@ function CartaoLink({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Input
-          type="email"
-          placeholder="cliente@exemplo.com"
-          value={emailDest}
-          onChange={(e) => setEmailDest(e.target.value)}
-          aria-label="E-mail do destinatário"
-          className="min-w-40 flex-1"
-        />
+        <div className="min-w-40 flex-1">
+          <InputFormatado
+            id={`link-email-${link.id}`}
+            tipo="email"
+            placeholder="cliente@exemplo.com"
+            value={emailDest}
+            erro={fe.erros.email}
+            onChange={(v) => {
+              fe.limpar("email");
+              setEmailDest(v);
+            }}
+            aria-label="E-mail do destinatário"
+          />
+        </div>
         <Button onClick={enviarEmail} disabled={pendente || !link.ativo || expirado} size="sm">
           <Mail className="size-4" /> Enviar
         </Button>

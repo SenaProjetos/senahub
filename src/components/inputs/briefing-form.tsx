@@ -4,13 +4,17 @@ import { useCallback, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { InputFormatado } from "@/components/ui/input-formatado";
+import { CAMPOS } from "@/lib/campos";
 import {
   type SecaoBriefing,
   type CampoBriefing,
   progressoObrigatorios,
 } from "@/modules/inputs/briefing-schema";
 
-type SaveStatus = "idle" | "saving" | "saved" | "error";
+type SaveStatus = "idle" | "saving" | "saved" | "error" | "corrigir";
+
+type ResultadoSalvar = { ok: boolean; error?: string; campos?: Record<string, string> };
 
 /**
  * Briefing de Start multi-etapas (Mód 3). Reusável: a persistência é injetada via `onSalvar`
@@ -26,21 +30,43 @@ export function BriefingForm({
   respostasIniciais: Record<string, unknown>;
   secoes: SecaoBriefing[];
   canEdit?: boolean;
-  onSalvar: (respostas: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>;
+  onSalvar: (respostas: Record<string, unknown>) => Promise<ResultadoSalvar>;
 }) {
   const [respostas, setRespostas] = useState<Record<string, unknown>>(respostasIniciais);
   const [secaoAtiva, setSecaoAtiva] = useState(secoes[0]?.id ?? "");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [errosServidor, setErrosServidor] = useState<Record<string, string>>({});
+  const [mensagemErro, setMensagemErro] = useState<string>();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // E-mail/telefone ainda incompleto: o servidor recusaria o envio todo, então não envia (nem perde o
+  // que foi digitado). Vale o que mudou em relação ao que a tela abriu — o inválido antigo segue salvando.
+  const invalidos = useCallback(
+    (dados: Record<string, unknown>) =>
+      secoes
+        .flatMap((s) => s.campos)
+        .filter((c) => {
+          const v = dados[c.chave];
+          return c.formato && typeof v === "string" && v.trim() !== "" && !CAMPOS[c.formato].validar(v) && v !== respostasIniciais[c.chave];
+        })
+        .map((c) => c.chave),
+    [secoes, respostasIniciais],
+  );
 
   const salvar = useCallback(
     async (dados: Record<string, unknown>) => {
+      if (invalidos(dados).length > 0) {
+        setSaveStatus("corrigir");
+        return;
+      }
       setSaveStatus("saving");
       const r = await onSalvar(dados);
+      setErrosServidor(r.ok ? {} : (r.campos ?? {}));
+      setMensagemErro(r.ok ? undefined : r.error);
       setSaveStatus(r.ok ? "saved" : "error");
       setTimeout(() => setSaveStatus("idle"), r.ok ? 2000 : 3000);
     },
-    [onSalvar],
+    [onSalvar, invalidos],
   );
 
   const alterar = useCallback(
@@ -73,7 +99,10 @@ export function BriefingForm({
             </span>
           )}
           {saveStatus === "saved" && <span className="text-success">Salvo automaticamente</span>}
-          {saveStatus === "error" && <span className="text-destructive">Erro ao salvar</span>}
+          {saveStatus === "error" && <span className="text-destructive">{mensagemErro ?? "Erro ao salvar"}</span>}
+          {saveStatus === "corrigir" && (
+            <span className="text-destructive">Corrija o campo com formato inválido para salvar</span>
+          )}
         </span>
       </div>
 
@@ -106,7 +135,11 @@ export function BriefingForm({
               campo={campo}
               valor={respostas[campo.chave]}
               canEdit={canEdit}
-              onChange={alterar}
+              erro={errosServidor[campo.chave]}
+              onChange={(chave, v, delay) => {
+                setErrosServidor((e) => (e[chave] ? { ...e, [chave]: "" } : e));
+                alterar(chave, v, delay);
+              }}
             />
           ))}
         </div>
@@ -146,11 +179,13 @@ function CampoView({
   campo,
   valor,
   canEdit,
+  erro,
   onChange,
 }: {
   campo: CampoBriefing;
   valor: unknown;
   canEdit: boolean;
+  erro?: string;
   onChange: (chave: string, valor: unknown, delay?: number) => void;
 }) {
   const disabled = !canEdit;
@@ -162,7 +197,19 @@ function CampoView({
       </label>
       {campo.hint && <p className="text-xs text-muted-foreground">{campo.hint}</p>}
 
-      {campo.tipo === "text" && (
+      {campo.tipo === "text" && campo.formato && (
+        <InputFormatado
+          id={campo.chave}
+          tipo={campo.formato}
+          value={(valor as string) ?? ""}
+          placeholder={campo.placeholder}
+          disabled={disabled}
+          erro={erro}
+          onChange={(v) => onChange(campo.chave, v)}
+        />
+      )}
+
+      {campo.tipo === "text" && !campo.formato && (
         <input
           id={campo.chave}
           type="text"

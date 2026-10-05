@@ -80,19 +80,7 @@ function violacoes(): Record<string, number> {
  * Arquivos que ainda não migraram (Tarefas 9–13 do plano 2026-10-05). Só ENCOLHE: corrigir um
  * arquivo exige tirá-lo daqui, e arquivo novo com campo cru reprova na hora. Vazia na Tarefa 14.
  */
-const PENDENTES: Record<string, number> = {
-  "app/solicitar-cadastro/page.tsx": 1,
-  "components/configuracoes/empresa-view.tsx": 6,
-  "components/configuracoes/preferencias-view.tsx": 1,
-  "components/configuracoes/usuarios-view.tsx": 2,
-  "components/juridico/assinatura-publica-form.tsx": 1,
-  "components/juridico/juridico-view.tsx": 1,
-  "modules/auth/cadastro/actions.ts": 1,
-  "modules/configuracoes/empresa/actions.ts": 6,
-  "modules/juridico/actions.ts": 1,
-  "modules/usuarios/preferencias/actions.ts": 1,
-  "modules/usuarios/schemas.ts": 2,
-};
+const PENDENTES: Record<string, number> = {};
 
 describe("campos com formato usam o catálogo", () => {
   it("detector de <Input> acha campo do catálogo e ignora o resto", () => {

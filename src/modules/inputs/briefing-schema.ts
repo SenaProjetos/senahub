@@ -6,6 +6,8 @@
  * 7 seções: Dados Gerais e Declaração sempre aparecem; as demais são filtradas pelas
  * disciplinas ativas do projeto (ver `filtrarSecoes`).
  */
+import type { NomeCampo } from "@/lib/campos";
+
 export type CampoTipo = "text" | "textarea" | "select" | "radio" | "checkbox" | "checkbox-single";
 
 export interface CampoBriefing {
@@ -18,6 +20,8 @@ export interface CampoBriefing {
   hint?: string;
   /** Pré-popula a partir do cadastro do cliente. */
   importarDoCadastro?: "email" | "nome" | "telefone" | "endereco";
+  /** Campo do catálogo `lib/campos/` (só `tipo: "text"`): máscara na tela e validação ao gravar. */
+  formato?: NomeCampo;
 }
 
 export interface SecaoBriefing {
@@ -33,10 +37,10 @@ export const BRIEFING_SCHEMA: SecaoBriefing[] = [
     titulo: "Dados Gerais",
     descricao: "Informações gerais sobre o responsável e o empreendimento.",
     campos: [
-      { chave: "emailContato", label: "E-mail", tipo: "text", obrigatorio: true, importarDoCadastro: "email", placeholder: "email@exemplo.com" },
+      { chave: "emailContato", label: "E-mail", tipo: "text", obrigatorio: true, importarDoCadastro: "email", formato: "email", placeholder: "email@exemplo.com" },
       { chave: "nomeCompleto", label: "Nome completo", tipo: "text", obrigatorio: true, importarDoCadastro: "nome" },
       { chave: "enderecoObra", label: "Endereço da obra", tipo: "text", obrigatorio: true, importarDoCadastro: "endereco", placeholder: "Rua, número, bairro, cidade – UF" },
-      { chave: "telefoneContato", label: "Telefone para contato", tipo: "text", obrigatorio: true, importarDoCadastro: "telefone", placeholder: "(99) 99999-9999" },
+      { chave: "telefoneContato", label: "Telefone para contato", tipo: "text", obrigatorio: true, importarDoCadastro: "telefone", formato: "telefone", placeholder: "(99) 99999-9999" },
       {
         chave: "tipoImovel",
         label: "Tipo do imóvel",
