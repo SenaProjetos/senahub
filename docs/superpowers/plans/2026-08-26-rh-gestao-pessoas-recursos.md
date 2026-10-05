@@ -1,6 +1,6 @@
 # Gestão de Pessoas e Recursos — integração das capacidades existentes
 
-**Data:** 2026-08-26 · **Status:** em execução — F0 e F1 entregues (base em 2026-08-27; F1.3–F1.5 em 2026-10-04, ver §5 F1); F2–F6 aguardam as decisões do §9 · **Branch alvo:** `dev`
+**Data:** 2026-08-26 · **Status:** em execução — F0 e F1 entregues (base em 2026-08-27; F1.3–F1.5 em 2026-10-04, ver §5 F1); decisões do dono em §9.1 (2026-10-05); próxima: F4, plano em §9.2 · **Branch alvo:** `dev`
 
 ## 1. Contexto e inventário verificado
 
@@ -240,3 +240,71 @@ O corte recomendado para a primeira execução é **F0 + F1**. Ele melhora imedi
 - Não integrar biometria, geolocalização adicional, vigilância de tela, capturas de atividade ou monitoramento invasivo.
 - Não usar IA para decidir promoção, desligamento, remuneração ou para inferir estado emocional.
 - Definir antes da F2 o catálogo oficial de competências e níveis; antes da F3 a política de confidencialidade de 1:1; antes da F4 os donos e SLAs de cada checklist; antes da F6 o limiar mínimo e a política de leitura de clima.
+
+### 9.1 Decisões do dono (2026-10-05)
+
+Registradas na página de decisões (artifact `VWJTbUqMxQrNyfsRSrXNDj`, doc `final/decisoes`). Onde o dono votou mas não
+marcou a decisão final, vale o voto dele (marcado *voto*).
+
+| Pergunta | Decisão |
+|---|---|
+| Ordem | **F4 primeiro** |
+| F2 — catálogo | Enxuto: só softwares e disciplinas. Nota do dono: "COSCIPE" (a confirmar: COSCIP-PE como item do catálogo) |
+| F2 — quem mantém | Engenharia propõe, RH publica |
+| F2 — níveis | Escala de 5 (1 conhece · 2 executa com supervisão · 3 executa sozinho · 4 revisa · 5 referência) |
+| F2 — validação | A pessoa declara, o coordenador valida |
+| F2 — validade | **Nenhuma competência vence** (o campo `validade` da F2 sai do escopo) |
+| F3 — leitura do 1:1 | Visibilidade por registro; padrão líder + RH; o líder marca o que a pessoa vê |
+| F3 — o que a pessoa vê | *voto*: seus objetivos sempre; anotações do 1:1 só as compartilhadas |
+| F3 — cadência | *voto*: mensal por padrão, o líder pode mudar |
+| F3 — quem pode ser líder | **Qualquer pessoa interna** |
+| F3 — feedbacks antigos | Na linha do tempo como histórico, sem converter |
+| F4 — itens | Lista-modelo montada pelo sistema; o RH ajusta |
+| F4 — dono e prazo | Partir dos exemplos (TI D-1/D0, líder D+5, TI último dia, coordenador D-5) |
+| F4 — variação | Uma lista para CLT/estágio e outra para PJ |
+| F4 — atraso | Cobra o dono do item e o RH |
+| F5 — documentos | ASO, CREA/CAU, NR-10, NR-35 e certificações |
+| F5 — faixas | 60, 30 e 7 dias antes |
+| F5 — bloqueio | Só alerta |
+| F6 — mínimo do clima | **3 respostas** |
+| F6 — acesso ao painel | **RH, sócios e coordenação** |
+| F6 — sinais | Os cinco |
+| F6 — recorrência | 3 semanas seguidas |
+
+### 9.2 Plano da F4 (entrada e saída)
+
+**Dados (uma migration, sem perda):**
+- `OnboardingProcesso` vira o ciclo: sai o `@unique(userId)`; entram `tipo` (`entrada | saida`), `status`
+  (`em_andamento | concluido | cancelado`), `iniciadoEm`, `concluidoEm` e `vinculoId` opcional (o vínculo que o
+  ciclo acompanha). Índice `[userId, tipo, status]` e um índice único PARCIAL em SQL (`userId, tipo` onde
+  `status = 'em_andamento'`): no máximo um ciclo aberto por tipo. Backfill: os processos existentes viram
+  `entrada`, `concluido` quando todos os itens estão concluídos, senão `em_andamento`.
+- `OnboardingTemplate` ganha `tipo` e `publico` (`clt_estagio | pj | todos`). `OnboardingTemplateItem` e
+  `OnboardingItem` ganham `responsavel` (`rh | ti | lider | coordenador | pessoa`) e `prazoDias` (relativo à
+  âncora: início do vínculo na entrada, último dia na saída). O item copia o prazo como data (`prazoEm`) ao
+  abrir o ciclo, e guarda `concluidoPorId` e `evidencia` (texto curto, opcional).
+- `lider` enquanto a F3 não existe: o item fica com o RH (a tela diz "líder — com o RH até haver liderança").
+
+**Listas-modelo (seed create-only por nome, o RH edita depois):** Entrada CLT/estágio, Entrada PJ, Saída
+CLT/estágio, Saída PJ — com os itens e prazos dos exemplos aprovados (criar e-mail TI D-1, entregar notebook TI
+D0, apresentar projetos líder D+5; transferir disciplinas coordenador D-5, recolher máquina TI último dia,
+encerrar acessos TI último dia, documentos RH).
+
+**Fluxo:**
+- Entrada: o cadastro da pessoa já oferece abrir o onboarding; passa a sugerir a lista pela contratação do
+  vínculo, e o RH confirma.
+- Saída: depois de `desligarColaborador`, a ficha oferece **Abrir checklist de saída** com a lista sugerida pela
+  contratação; nada abre sozinho. Cancelar o desligamento oferece cancelar o ciclo de saída aberto.
+- O item "devolver equipamentos" mostra os `Ativo` e `MaquinaTI` sob responsabilidade da pessoa, por referência
+  — nunca transfere nem dá baixa.
+- Recontratação: o ciclo antigo fica no histórico e um novo pode ser aberto.
+
+**Telas:** aba **Entrada e saída** na ficha (ciclo aberto + histórico), a fila de `/rh/admin` passa a listar
+ciclos abertos dos dois tipos, e um painel **Pendências por responsável** (o que é do RH, da TI, de cada pessoa).
+
+**Lembrete:** job diário idempotente de itens vencidos, categoria nova `lifecycle_rh`, para o dono do item e o
+RH (decisão "dono + RH"), uma vez por item por dia.
+
+**Testes:** regras puras de prazo relativo, escolha da lista pela contratação, ciclo único aberto por tipo,
+recontratação e backfill; smoke contra o banco do worktree.
+
