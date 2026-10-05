@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { adicionarDependente, editarDependente } from "@/modules/rh/funcionarios/actions";
-import { maskCpf } from "@/lib/utils";
+import { InputFormatado } from "@/components/ui/input-formatado";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -89,7 +89,7 @@ export function DependenteDialog({
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">CPF</Label>
-              <Input value={f.cpf} onChange={(e) => setF({ ...f, cpf: maskCpf(e.target.value) })} />
+              <InputFormatado tipo="cpf" value={f.cpf} onChange={(v) => setF({ ...f, cpf: v })} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Nascimento</Label>

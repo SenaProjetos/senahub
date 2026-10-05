@@ -13,7 +13,7 @@ import {
 } from "@/modules/rh/pessoas-juridicas/actions";
 import type { PessoaJuridicaItem } from "@/modules/rh/pessoas-juridicas/queries";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
-import { maskCnpj } from "@/lib/utils";
+import { InputFormatado } from "@/components/ui/input-formatado";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -167,12 +167,12 @@ export function PessoasJuridicasView({
           {dlg && (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <Campo label="CNPJ *"><Input value={dlg.cnpj} onChange={(e) => setDlg({ ...dlg, cnpj: maskCnpj(e.target.value) })} placeholder="00.000.000/0000-00" /></Campo>
-                <Campo label="Telefone"><Input value={dlg.telefone} onChange={(e) => setDlg({ ...dlg, telefone: e.target.value })} /></Campo>
+                <Campo label="CNPJ *"><InputFormatado tipo="cnpj" value={dlg.cnpj} onChange={(v) => setDlg({ ...dlg, cnpj: v })} /></Campo>
+                <Campo label="Telefone"><InputFormatado tipo="telefone" value={dlg.telefone} onChange={(v) => setDlg({ ...dlg, telefone: v })} /></Campo>
               </div>
               <Campo label="Razão social *"><Input value={dlg.razaoSocial} onChange={(e) => setDlg({ ...dlg, razaoSocial: e.target.value })} /></Campo>
               <Campo label="Nome fantasia"><Input value={dlg.nomeFantasia} onChange={(e) => setDlg({ ...dlg, nomeFantasia: e.target.value })} /></Campo>
-              <Campo label="E-mail"><Input type="email" value={dlg.email} onChange={(e) => setDlg({ ...dlg, email: e.target.value })} /></Campo>
+              <Campo label="E-mail"><InputFormatado tipo="email" value={dlg.email} onChange={(v) => setDlg({ ...dlg, email: v })} /></Campo>
             </div>
           )}
           <DialogFooter>
