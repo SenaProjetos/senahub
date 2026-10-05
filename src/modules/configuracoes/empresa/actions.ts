@@ -31,7 +31,7 @@ const salvarSchema = z.object({
   banco: z.string().trim().max(80).optional(),
   agencia: campo.agencia({ legado: true }),
   conta: campo.conta({ legado: true }),
-  pix: z.string().trim().max(160).optional(), // campo-ok: PIX da empresa sem tipo; a regra (válido por qualquer tipo, só se mudou) fica no handler
+  pix: z.string().trim().max(160, "Chave PIX longa demais (até 160 caracteres).").optional(), // campo-ok: PIX da empresa sem tipo; a regra (válido por qualquer tipo, só se mudou) fica no handler
   responsavelNome: z.string().trim().max(120).optional(),
   responsavelCargo: z.string().trim().max(120).optional(),
   responsavelRegistro: z.string().trim().max(60).optional(),

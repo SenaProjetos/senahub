@@ -15,8 +15,8 @@ const camposConta = (legado: boolean) => ({
   tipoConta: z.enum(TIPOS_CONTA).optional().or(z.literal("")),
   titular: texto(120),
   pixTipo: z.enum(TIPOS_PIX).optional().or(z.literal("")),
-  // Validada de verdade em `normalizarConta` → `validarChavePix`, que conhece o tipo.
-  pixChave: texto(140), // campo-ok: validada em normalizarConta (validarChavePix), que conhece o tipo
+  // Validada de verdade em `normalizarConta` → `campoPix(tipo)`, que conhece o tipo (e o gravado, D4).
+  pixChave: texto(140), // campo-ok: validada em normalizarConta (campoPix), que conhece o tipo
 });
 
 export const criarContaSchema = z.object({ userId: z.string().min(1), ...camposConta(false) });

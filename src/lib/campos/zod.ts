@@ -16,6 +16,8 @@ function montar(tipo: TipoCampo, o: OpcoesCampo) {
     // Obrigatório ausente cai aqui (não no superRefine): sem isto a frase seria a do Zod, em inglês.
     .string(obrigatorio ? { error: mensagemObrigatorio } : undefined)
     .trim()
+    // Teto generoso (nenhum campo do catálogo chega perto): barra colagem acidental sem frase em inglês.
+    .max(200, "Texto longo demais para este campo.")
     .superRefine((v, ctx) => {
       if (v === "") {
         if (obrigatorio) ctx.addIssue({ code: "custom", message: mensagemObrigatorio });

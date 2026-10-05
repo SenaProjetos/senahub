@@ -51,3 +51,11 @@ describe("tipos inferidos", () => {
     expect(o.parse({ b: "01310100" })).toEqual({ b: "01310-100" });
   });
 });
+
+describe("teto de tamanho", () => {
+  it("texto longo demais é recusado em português, mesmo no legado", () => {
+    const longo = "1".repeat(201);
+    expect(campo.cpf().safeParse(longo).error?.issues[0]?.message).toBe("Texto longo demais para este campo.");
+    expect(campo.rg({ legado: true }).safeParse(longo).error?.issues[0]?.message).toBe("Texto longo demais para este campo.");
+  });
+});

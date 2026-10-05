@@ -7,8 +7,10 @@
  *  2. manter `User.contaBancariaPrincipalId` apontando só para conta DAQUELA pessoa.
  */
 import { ActionError } from "@/lib/action-error";
+import { mensagemDe, mesmoValor } from "@/lib/campos";
+import { campoPix } from "@/lib/campos/chave-pix";
 import type { Prisma } from "@/generated/prisma/client";
-import { validarChavePix, type TipoPix } from "./pix";
+import type { TipoPix } from "./pix";
 
 type Db = Prisma.TransactionClient;
 
@@ -35,11 +37,17 @@ export type ContaNormalizada = {
 
 const vazio = (v: string | null | undefined) => (v ?? "").trim() || null;
 
+/** Chave PIX como está gravada na conta que se edita (spec D4). */
+export type PixGravado = { pixTipo: TipoPix | null; pixChave: string | null };
+
 /**
  * Valida e normaliza. Uma conta precisa ter **ou** dados bancários **ou** PIX — cadastro
  * totalmente vazio não é conta, é ruído na lista.
+ *
+ * `gravado` (edição): a chave inválida que já estava gravada, com o mesmo tipo, passa e fica
+ * exatamente como estava (D4); a inválida nova é recusada com a frase no campo `pixChave`.
  */
-export function normalizarConta(e: EntradaConta): ContaNormalizada {
+export function normalizarConta(e: EntradaConta, gravado?: PixGravado | null): ContaNormalizada {
   const banco = vazio(e.banco);
   const agencia = vazio(e.agencia);
   const conta = vazio(e.conta);
@@ -53,9 +61,15 @@ export function normalizarConta(e: EntradaConta): ContaNormalizada {
 
   let pixChave: string | null = null;
   if (tipo && chaveBruta) {
-    const r = validarChavePix(tipo, chaveBruta);
-    if (!r.ok) throw new ActionError(r.erro);
-    pixChave = r.chave;
+    const c = campoPix(tipo);
+    if (c.validar(chaveBruta)) {
+      pixChave = c.normalizar(chaveBruta);
+    } else if (gravado?.pixChave && gravado.pixTipo === tipo && mesmoValor(c, chaveBruta, gravado.pixChave)) {
+      pixChave = gravado.pixChave;
+    } else {
+      const msg = mensagemDe(c, chaveBruta);
+      throw new ActionError(msg, { pixChave: msg });
+    }
   }
 
   if (!banco && !agencia && !conta && !pixChave) {
