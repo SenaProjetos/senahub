@@ -22,13 +22,16 @@ espalhadas (`lib/documento.ts`, `comercial/contato-validacao.ts`, `rh/contas/pix
    duplicidade comparam a essência (dígitos), e enquanto houver legado a busca por igualdade procura as
    variantes do valor. Exceções:
    - **chave PIX** no formato do BACEN (regra de `rh/contas/pix.ts`); depende do tipo da chave, então é
-     validada no handler por `validarChavePix` e o schema leva `campo-ok`;
+     validada no handler (`normalizarConta` → `campoPix`) e o schema leva `campo-ok`;
    - **chave NF-e** em 44 dígitos corridos; os grupos de 4 são só a máscara de exibição;
    - **documento do cliente** (`Cliente.documento`) continua só com dígitos: a unicidade do ADR-03 do CRM
      depende disso, e a tela mascara na exibição. Fornecedor, custo de fornecedor, parceiro e PJ do RH usam
      o formato padrão.
 3. **Edição só valida o que mudou** (D4), em todo caminho de atualização: o inválido já gravado passa; o
-   inválido novo é recusado com a mensagem no campo (`ActionError(mensagem, campos)` → `fieldErrors`). Vale
+   inválido novo é recusado com a mensagem no campo (`ActionError(mensagem, campos)` → `fieldErrors`).
+   Válido é `limpo && regra` (o `limpo` de cada tipo mora no catálogo): o legado com algo além do número
+   ("3333-4444 ramal 12", "1.234.567 SSP/PE") é tratado como "inválido não mexido" — abre e salva como
+   está e nunca é normalizado (nem pela tela, nem pelo script). Vale
    também para a proposta de conta bancária do colaborador do tipo "editar" (a conta atual é o "antes") e
    para o briefing do cliente: valor do cadastro que já estava inválido não é pré-preenchido, e o
    salvamento automático continua gravando o resto, nomeando o campo inválido.
@@ -40,7 +43,8 @@ espalhadas (`lib/documento.ts`, `comercial/contato-validacao.ts`, `rh/contas/pix
 6. **Formulário que só coleta e salva usa `FormData`; formulário com campo que reage a outro usa estado**
    (D6). Formulário existente muda de modo só quando a tela já está sendo mexida por outro motivo.
 7. **E-mail de login fica de fora**: é do better-auth e não muda de tratamento (cadastro e edição de
-   usuário, wizard de contratação, login, recuperação de senha, solicitação de cadastro).
+   usuário, wizard de contratação, login, recuperação de senha, solicitação de cadastro); esses campos
+   levam `campo-ok` para o guarda.
 
 ## Alternativas consideradas
 

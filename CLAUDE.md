@@ -157,17 +157,19 @@ conta, PIX key and NF-e key use `InputFormatado tipo="…"` (`components/ui/inpu
 `campo.<tipo>()` (`lib/campos/zod.ts`) in the schema — never a raw `<Input>` or a bare `z.string()`. The catalog
 (`lib/campos/`) is the single source of mask, normalization, validation and message, so the screen never accepts what
 the action refuses. The DB stores the **standard format** (`000.000.000-00`, `(00) 00000-0000`); exceptions: PIX (BACEN
-format, validated in the handler by `validarChavePix` because it depends on `pixTipo`), the NF-e key (44 digits) and
+format, validated in the handler via `campoPix` in `normalizarConta` because it depends on `pixTipo`), the NF-e key (44 digits) and
 `Cliente.documento` (digits only — CRM ADR-03 uniqueness; the screen masks it). Duplicate lookups match
 `variantesDoValor` while legacy rows remain; importers and producers pass a valid value through
 `CAMPOS.<tipo>.normalizar` (an invalid one is a preview warning, saved as it came). Create schemas are strict; **every
 update path** uses `{ legado: true }` + `exigirCamposValidos(input, antes, mapa)` in the handler: an invalid value already
 stored passes, a new invalid one is refused on the field (`ActionError(msg, campos)` → `fieldErrors`; with
-`useFieldErrors` pass `id` + `erro={fe.erros.x}` and drop the parent's `FieldError`).
+`useFieldErrors` pass `id` + `erro={fe.erros.x}` and drop the parent's `FieldError`). Valid = `limpo && rule`: a legacy value
+with anything beyond the number ("3333-4444 ramal 12", "1.234.567 SSP/PE") is "invalid untouched" — shown raw, saved
+as is, never normalized.
 That includes the collaborator's bank-account proposal of type "editar" and the client briefing (an invalid cadastro
 value is not pre-filled; autosave keeps saving the rest and names the field). The company PIX (`configuracoes/empresa`,
 no type field) is free text, accepted if valid for any PIX type, refused only when invalid AND changed. Login e-mail
-(better-auth) is out. A new type (PIS, CNH, boleto…) is born in the catalog with its first field, with a test.
+(better-auth) is out; its fields carry `campo-ok`. A new type (PIS, CNH, boleto…) is born in the catalog with its first field, with a test.
 `lib/campos/guarda-campos.test.ts` fails on a raw field; the only escape is `campo-ok: <reason>` on the line or in a
 comment-only line above. Limits: it misses keys inside a one-line `z.object({ … })` and inputs bound only by `id=` — a
 net, not a proof. Forms that only collect and save use `FormData`; forms where a field reacts to another use state; an

@@ -165,17 +165,18 @@ não muda de tratamento aqui).
   |---|---|
   | `User` | `cpf`, `rg`, `enderecoCep`, `telefone`, `telefoneEmergencia`, `emailPessoal` |
   | `ContaBancariaColaborador` | `agencia`, `conta`, `pixChave` (pelo tipo da chave) |
-  | `Cliente` | `documento` (cpfCnpj), `email`, `telefone`, `cep` |
+  | `Cliente` | `documento` (cpfCnpj — só dígitos, só relatório, ver §10), `email`, `telefone`, `cep` |
   | `ContatoCliente` | `email`, `telefone` |
   | `ContaBancaria` | `agencia` |
   | `Fornecedor`, `CustoFornecedor`, `Parceiro` | `documento` (cpfCnpj), `email`, `telefone` |
   | `CustoFornecedorRepresentante` | `email`, `telefone` |
   | `PessoaJuridica` | `cnpj` (único), `email`, `telefone` |
-  | `Lead`, `SolicitacaoCadastro` | `email`, `telefone` |
+  | `Lead` | `email`, `telefone` |
+  | `SolicitacaoCadastro` | `telefone` (o `email` é o de login — fora, item 7 do ADR-0010) |
   | `LinkPublicoAssinatura` | `email` |
   | `AceiteExternoDocumento`, `Dependente` | `cpf` |
   | `Lancamento` | `chaveNfe` |
-  | `ConfigSistema` `empresa.dados` (JSON) | `cnpj`, `telefone`, `cep`, `email` |
+  | `ConfigSistema` `empresa.dados` (JSON) | `cnpj`, `telefone`, `email`, `agencia`, `conta`, `pix` — **só relatório** (corrige-se pela tela Configurações → Empresa) |
 
 - **Válido:** vira o formato padrão, com `updateMany` condicionado ao valor lido (não pisa em
   edição feita no meio).
@@ -231,10 +232,11 @@ Fecha com lint + test + build (Verificar tudo).
 ## 10. Ajustes do plano (2026-10-05)
 
 - `chaveNfe` grava **44 dígitos corridos** (formato da SEFAZ e regra atual de `normalizarChaveNfe`); os grupos de 4 são só a máscara de exibição.
-- `chavePix` grava no formato do BACEN (regra atual de `rh/contas/pix.ts`); a validação no servidor continua no handler por `validarChavePix`, porque depende do campo `pixTipo` do mesmo objeto. O schema leva `campo-ok`.
+- `chavePix` grava no formato do BACEN (regra atual de `rh/contas/pix.ts`); a validação no servidor continua no handler (`normalizarConta` → `campoPix`, que soma o `limpo` ao `validarChavePix`), porque depende do campo `pixTipo` do mesmo objeto; na edição, a chave inválida já gravada com o mesmo tipo passa (D4). O schema leva `campo-ok`.
 - O contrato `TipoCampo` não tem `maxLength`: a máscara já corta, e o `maxLength` nativo cortaria o texto colado.
 - O script de normalização entra no runbook (`docs/DEPLOY.md` §9), não no menu do servidor: é de uma vez só.
 - `Cliente.documento` continua gravado **só com dígitos** (regra que já existia; a unicidade do ADR-03 do CRM depende dela) e a tela mascara na exibição — exceção ao D3, como PIX e NF-e. Fornecedor, `CustoFornecedor`, `Parceiro` e `PessoaJuridica` gravam o formato padrão. O script de normalização não reescreve o documento do cliente, só relata o inválido.
 - PIX da empresa (Configurações → Empresa, campo `pix`) não tem tipo: na tela é `InputFormatado tipo="chavePix"` sem `tipoPix` (texto livre); o handler aceita a chave válida para algum tipo de PIX e recusa só a inválida que **mudou** (D4). Grava como digitada.
 - D4 vale em **todo caminho de atualização**: inclui a proposta de conta bancária do colaborador do tipo "editar" (a conta atual é o "antes") e o briefing do cliente (valor do cadastro já inválido não é pré-preenchido; o salvamento automático grava o resto e nomeia o campo inválido).
+- **Só valor limpo é válido (Ruling 14, revisão final de 2026-10-05).** A regra mora no catálogo: cada `TipoCampo` tem `limpo(texto)` (só o valor com a pontuação da máscara, ou a própria saída da máscara) e `validar = vazio || (limpo && regra)`. Antes, telefone/CPF/CNPJ/CEP/chave NF-e só olhavam os dígitos e RG/agência/conta tiravam os separadores, então "(55) 3333-4444 ramal 12" virava outro número e "1.234.567 SSP/PE" virava "1234567SSPPE" a cada salvar. Agora esse legado é "inválido não mexido": passa no D4 sem mudar, `normalizar` devolve o texto aparado, `exibicaoInicial` mostra cru, o campo não acusa erro ao sair enquanto continuar o mesmo, e o script de normalização o relata como "revisar" (o `podeReescrever` delega a `limpo`).
 - O guarda também pega `z` com a cadeia na linha de baixo, qualquer helper `opt…(` e a chave `pix`. Pontos cegos conhecidos: chave dentro de `z.object({ … })` escrito numa linha só e campo ligado só por `id=`.

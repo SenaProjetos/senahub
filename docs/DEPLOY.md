@@ -351,8 +351,10 @@ Nunca `migrate dev`/`seed:demo` em produção. `migrate deploy` só aplica o que
 
 ### 9.1 Release com campos formatados (uma vez por ambiente)
 
-Rodar **depois** que a versão que traz `src/lib/campos/` (ADR-0010) estiver no ar — nunca antes:
-o script grava no formato que só essa versão sabe ler e editar.
+Rodar **depois** que a versão que traz `src/lib/campos/` (ADR-0010) **com a revisão final de
+2026-10-05** (`TipoCampo.limpo`, commit "só valor limpo é válido") estiver no ar — nunca antes: o script
+grava no formato que só essa versão sabe ler e editar, e uma versão anterior a essa revisão ainda
+reescreveria, a cada edição pela tela, o legado com algo além do número que o script deixa para revisar.
 
     npx tsx --tsconfig tsconfig.server.json scripts/normalizar-campos.ts            # simula
     # backup do banco AGORA (menu, opção 9 — seção 8), logo antes de gravar
@@ -372,9 +374,10 @@ Cada rodada gera dois arquivos em `logs/` (sufixo `-simulacao` ou `-gravado`):
   correção é pela tela;
 - "Possível duplicata depois de normalizar" — dois cadastros com o mesmo CNPJ depois de formatar;
   nenhum muda; resolver pela tela (fusão de clientes, PJ);
-- "revisar: contém informação além do número" — o valor é válido, mas traz algo que a formatação
-  cortaria ou grudaria (`(81) 99999-9999 Maria`, `1234567 SSP/PE`, `013-12345-6`, `50000-000 Recife`).
-  O script só reescreve valor "limpo" (o número com pontuação de máscara). Corrigir pela tela,
+- "revisar: contém informação além do número" — o valor traz algo que a formatação cortaria ou
+  grudaria (`(81) 99999-9999 Maria`, `1234567 SSP/PE`, `013-12345-6`, `3333-4444 12`). O script só
+  reescreve valor "limpo" (a regra `limpo` do catálogo); a tela trata esses valores como "inválido não
+  mexido" (abrem e salvam como estão). Corrigir pela tela,
   separando o que não é o número;
 - "Chave PIX sem tipo." — conta de colaborador com chave e sem tipo de chave.
 

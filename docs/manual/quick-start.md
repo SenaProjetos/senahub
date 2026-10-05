@@ -160,12 +160,13 @@ digite `25`; para 7,5%, digite `7,5`. O símbolo **%** já aparece no campo.
 
 ### Campos de CPF, telefone, CEP e outros documentos
 
-CPF, CNPJ, telefone, CEP, e-mail, RG, agência, conta, chave PIX e chave da nota fiscal **formatam
-sozinhos**: os pontos, traços e parênteses aparecem enquanto você digita, e o número colado de qualquer
-jeito (com ou sem pontuação, com +55 no telefone) se arruma. Se o número não confere — CPF com dígito
-errado, telefone sem DDD — o aviso aparece logo abaixo do campo quando você sai dele, e o cadastro só é
-salvo depois de corrigido. Um cadastro antigo com o dado errado continua abrindo e salvando normalmente: o
-aviso só aparece se você mudar aquele campo.
+CPF, CNPJ, telefone, CEP e chave da nota fiscal **formatam sozinhos**: a pontuação aparece enquanto
+você digita, e o número colado de qualquer jeito (com ou sem pontuação, com +55 no telefone) se arruma.
+Nos outros campos — e-mail, RG, agência, conta e chave PIX — o sistema confere o formato. Se o dado não
+confere — CPF com dígito errado, telefone sem DDD — o aviso aparece logo abaixo do campo quando você sai
+dele, e o cadastro só é salvo depois de corrigido. Cadastros antigos com dado fora do padrão (um telefone
+com "ramal 12" junto, por exemplo) continuam abrindo e salvando como estão: o aviso só aparece se você
+mudar aquele campo.
 
 ---
 
