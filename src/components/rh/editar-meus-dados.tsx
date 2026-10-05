@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Pencil, Clock } from "lucide-react";
 import { proporAlteracaoCadastro } from "@/modules/rh/cadastro/actions";
-import { CAMPOS_AUTOEDITAVEIS, LABEL_CAMPO, type CampoAutoeditavel } from "@/modules/rh/cadastro/whitelist";
+import { CAMPOS_AUTOEDITAVEIS, FORMATO_CAMPO, LABEL_CAMPO, formatoDoCampo, type CampoAutoeditavel } from "@/modules/rh/cadastro/whitelist";
+import { useFieldErrors } from "@/lib/use-field-errors";
 import { formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputFormatado } from "@/components/ui/input-formatado";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -20,6 +22,12 @@ type Pendente = { alteracoes: Record<string, string>; propostoEm: string } | nul
 // mais um diff campo-a-campo — `CAMPOS_AUTOEDITAVEIS` não tem mais nenhum campo desse grupo.
 const GRUPOS = ["Contato", "Emergência", "Endereço"] as const;
 
+/** Chave da proposta → id do controle, para o erro do servidor aparecer sob o campo. */
+const IDS_FORMATADOS = Object.fromEntries(Object.keys(FORMATO_CAMPO).map((k) => [k, `f-${k}`])) as Record<
+  keyof typeof FORMATO_CAMPO,
+  string
+>;
+
 export function EditarMeusDados({ atual, pendente }: { atual: Valores; pendente: Pendente }) {
   const router = useRouter();
   const [aberto, setAberto] = useState(false);
@@ -30,9 +38,11 @@ export function EditarMeusDados({ atual, pendente }: { atual: Valores; pendente:
     return o;
   }, [atual]);
   const [form, setForm] = useState<Record<string, string>>(inicial);
+  const fe = useFieldErrors(IDS_FORMATADOS);
 
   function abrir() {
     setForm(inicial);
+    fe.limpar();
     setAberto(true);
   }
 
@@ -52,7 +62,7 @@ export function EditarMeusDados({ atual, pendente }: { atual: Valores; pendente:
         toast.success("Enviado para validação do RH.");
         setAberto(false);
         router.refresh();
-      } else toast.error(res.error);
+      } else if (!fe.registrar(res)) toast.error(res.error);
     });
   }
 
@@ -100,11 +110,24 @@ export function EditarMeusDados({ atual, pendente }: { atual: Valores; pendente:
                   {CAMPOS_AUTOEDITAVEIS.filter((c) => c.grupo === grupo).map((c) => (
                     <div key={c.campo} className="space-y-1.5">
                       <Label htmlFor={`f-${c.campo}`} className="text-xs">{c.label}</Label>
-                      <Input
-                        id={`f-${c.campo}`}
-                        value={form[c.campo] ?? ""}
-                        onChange={(e) => setForm({ ...form, [c.campo]: e.target.value })}
-                      />
+                      {formatoDoCampo(c.campo) ? (
+                        <InputFormatado
+                          id={`f-${c.campo}`}
+                          tipo={formatoDoCampo(c.campo)!}
+                          value={form[c.campo] ?? ""}
+                          onChange={(v) => {
+                            fe.limpar(c.campo as keyof typeof FORMATO_CAMPO);
+                            setForm((f) => ({ ...f, [c.campo]: v }));
+                          }}
+                          erro={fe.erros[c.campo as keyof typeof FORMATO_CAMPO]}
+                        />
+                      ) : (
+                        <Input
+                          id={`f-${c.campo}`}
+                          value={form[c.campo] ?? ""}
+                          onChange={(e) => setForm((f) => ({ ...f, [c.campo]: e.target.value }))}
+                        />
+                      )}
                     </div>
                   ))}
                 </div>

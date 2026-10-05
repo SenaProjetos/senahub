@@ -3,6 +3,8 @@
  * Fora daqui (salário, cargo, role, CPF, RG, nome, nomeCompleto, admissão) NÃO é auto-editável.
  * Pura e client-safe: usada pela UI (labels) e pelas actions (whitelist server-side).
  */
+import type { NomeCampo } from "@/lib/campos";
+
 export const CAMPOS_AUTOEDITAVEIS = [
   { campo: "telefone", label: "Telefone", grupo: "Contato", sensivel: false },
   { campo: "emailPessoal", label: "E-mail pessoal", grupo: "Contato", sensivel: false },
@@ -31,6 +33,21 @@ export const CAMPOS_AUTOEDITAVEIS_SET: ReadonlySet<string> = new Set(
 export const LABEL_CAMPO: Record<string, string> = Object.fromEntries(
   CAMPOS_AUTOEDITAVEIS.map((c) => [c.campo, c.label]),
 );
+
+/**
+ * Campos com formato conhecido (catálogo `lib/campos/`, ADR-0010): a tela usa `InputFormatado` e
+ * as actions validam e normalizam com a mesma regra (`prepararAlteracoes`).
+ */
+export const FORMATO_CAMPO = {
+  telefone: "telefone",
+  emailPessoal: "email",
+  telefoneEmergencia: "telefone",
+  enderecoCep: "cep",
+} as const satisfies Partial<Record<CampoAutoeditavel, NomeCampo>>;
+
+export function formatoDoCampo(campo: string): NomeCampo | undefined {
+  return (FORMATO_CAMPO as Record<string, NomeCampo>)[campo];
+}
 
 export const CAMPO_SENSIVEL: ReadonlySet<string> = new Set(
   CAMPOS_AUTOEDITAVEIS.filter((c) => c.sensivel).map((c) => c.campo),
