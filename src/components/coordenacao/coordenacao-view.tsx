@@ -6,7 +6,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { MapPin, Send, Move3d, FileUp, Globe2 } from "lucide-react";
+import { MapPin, Send, Move3d, FileUp, Globe2, MoreHorizontal } from "lucide-react";
+import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
+import { AcoesMenuItens } from "@/components/ui/acoes-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { useTelaLarga } from "@/lib/use-tela-larga";
 import type {
   ViewerEngine,
   SelecaoInfo,
@@ -48,7 +53,7 @@ import { TarefaDialog, type OpcoesUI } from "@/components/tarefas/tarefa-dialog"
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { rotuloRevisao } from "@/lib/utils";
+import { cn, rotuloRevisao } from "@/lib/utils";
 
 // Todo o stack 3D (three + @thatopen/fragments) fica atrás deste dynamic import:
 // só baixa ao abrir a aba Coordenação, e nunca roda no servidor.
@@ -207,9 +212,17 @@ export function CoordenacaoView({
     engineRef.current = engine;
   }, []);
 
+  const telaLarga = useTelaLarga();
+  const telaLargaRef = useRef(telaLarga);
+  useEffect(() => {
+    telaLargaRef.current = telaLarga;
+  }, [telaLarga]);
+
   const onSelecionarViewer = useCallback((info: SelecaoInfo | null) => {
     setSelecao(info);
     setTemSelecao(engineRef.current?.temSelecao ?? false);
+    // No celular o painel é uma gaveta que cobre o modelo: abrir sozinha a cada toque atrapalharia.
+    if (!telaLargaRef.current) return;
     // Selecionar um elemento mostra Propriedades — mas só quando o dock está vazio ou já
     // nas Propriedades. Nunca rouba um painel aberto de propósito: Apontamentos, Clash e
     // Diff dependem de selecionar elementos e seriam fechados no meio da ação.
@@ -655,45 +668,179 @@ export function CoordenacaoView({
     status: a.status,
   }));
 
+  // Ações do modelo no ⋯ (mock aprovado em 2026-10-04): a barra mostra só Novo apontamento (e Enviar
+  // quando há o que enviar); o resto entra aqui — o mesmo array no ⋯ do computador e no do celular.
+  const ocupado = pending ? "Aguarde a ação em andamento terminar." : undefined;
+  const acoesModelo: AcaoItem[] = podeGerir
+    ? [
+        { tipo: "acao", id: "realinhar", rotulo: "Realinhar IFC", icone: Move3d, desabilitado: realinharAberto ? "O realinhamento já está aberto." : ocupado },
+        { tipo: "acao", id: "importar-bcf", rotulo: "Importar BCF", icone: FileUp, desabilitado: ocupado },
+        { tipo: "acao", id: "georreferenciar", rotulo: "Georreferenciar", icone: Globe2, desabilitado: ocupado },
+      ]
+    : [];
+  function aoAcaoModelo(item: AcaoItemAcao) {
+    if (item.id === "realinhar") setRealinharAberto(true);
+    else if (item.id === "importar-bcf") setBcfImportAberto(true);
+    else if (item.id === "georreferenciar") setGeorrefAberto(true);
+  }
+
+  // Conteúdo do painel aberto: no computador num card ao lado do modelo, no celular numa gaveta.
+  const conteudoPainel = (
+    <>
+      {painelAtivo === "disciplinas" && (
+        <PainelDisciplinas
+          modelos={modelos}
+          carregados={carregados}
+          carregando={carregando}
+          foco={foco}
+          onToggle={onToggle}
+          onFocar={focar}
+          projetoId={projetoId}
+          podeGerir={podeGerir}
+          ultimaGeracao={ultimaGeracao}
+        />
+      )}
+      {painelAtivo === "elementos" && (
+        <ArvoreModelo engine={engineRef.current} modelos={modelosCarregadosInfo} />
+      )}
+      {painelAtivo === "clash" && (
+        <ClashPainel
+          engine={engineRef.current}
+          modelos={modelosClash}
+          projetoId={projetoId}
+          projetoCodigo={projetoCodigo}
+          projetoNome={projetoNome}
+        />
+      )}
+      {painelAtivo === "diff" && <DiffPainel engine={engineRef.current} modelos={modelosDiff} />}
+      {painelAtivo === "apontamentos" && (
+        <ApontamentosLista
+          apontamentos={apontamentos}
+          selecionadoId={apontamentoSelecionadoId}
+          currentUserId={currentUserId}
+          ehAdmin={ehAdmin}
+          podeGerir={podeGerir}
+          minhasDisciplinas={minhasDisciplinasSet}
+          pending={pending}
+          selecaoExport={selecaoExport}
+          exportando={exportando}
+          onToggleExport={toggleExport}
+          onSelecionarTodos={selecionarTodosExport}
+          onExportar={exportarBcf}
+          onSelecionar={(a) => void abrirApontamento(a)}
+          onEditar={setEditando}
+          onExcluir={excluir}
+          onResolver={(id) => mudarStatus(id, resolverApontamentoCoordenacao, "resolvida", "Marcado como resolvido.")}
+          onReabrir={(id) => mudarStatus(id, reabrirApontamentoCoordenacao, "aberta", "Reaberto.")}
+          onFechar={(id) => mudarStatus(id, fecharApontamentoCoordenacao, "fechada", "Apontamento fechado.")}
+          onDescartar={(id) => mudarStatus(id, descartarApontamentoCoordenacao, "descartada", "Apontamento descartado.")}
+        />
+      )}
+      {painelAtivo === "propriedades" &&
+        (selecao ? (
+          <PainelPropriedades selecao={selecao} />
+        ) : (
+          <Card>
+            <CardContent className="py-4 text-xs text-muted-foreground">
+              Selecione um elemento no modelo para ver as propriedades.
+            </CardContent>
+          </Card>
+        ))}
+      {painelAtivo === "vistas" && (
+        <VistasPanel
+          engine={engineRef.current}
+          vistas={vistas}
+          carregados={carregados}
+          onToggleModelo={onToggle}
+          onAplicarCorte={aplicarCorte}
+          currentUserId={currentUserId}
+          podeAdministrarVistas={perfilGlobal}
+          onSalvarAtual={salvarVistaAtual}
+          onVistaRenomeada={(id, nome) =>
+            setVistas((atuais) =>
+              atuais.map((vista) => (vista.id === id ? { ...vista, nome } : vista)),
+            )
+          }
+        />
+      )}
+    </>
+  );
+
   return (
     <>
     <div ref={quadroViewer.ref} style={quadroViewer.style} className="relative h-[70svh] min-h-[560px] overflow-hidden rounded-lg border bg-muted/20">
-        <ModoFocoBotao className="absolute right-3 top-3 z-20 bg-background/90" />
-        <ViewerToolbar
-          temSelecao={temSelecao}
-          corte={corte}
-          onEnquadrar={() => void engineRef.current?.enquadrar()}
-          onCorte={aplicarCorte}
-          onIsolar={() => void engineRef.current?.isolarSelecao()}
-          onOcultar={() => void engineRef.current?.ocultarSelecao()}
-          onMostrarTudo={() => void engineRef.current?.mostrarTudo()}
-          onLimparSelecao={() => void engineRef.current?.limparSelecao()}
-          painelAtivo={painelAtivo}
-          onTogglePainel={alternarPainel}
-          painelDesabilitado={painelDesabilitado}
-          apontamentosAbertos={listaEnviaveis.length}
-          medicaoAberta={medicaoAberta}
-          onToggleMedicao={() => setMedicaoAberta((v) => !v)}
-        />
-        {podeGerir && (
-          <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
-            <Button size="sm" variant="secondary" disabled={realinharAberto || pending} onClick={() => setRealinharAberto(true)} className="gap-1">
-              <Move3d className="size-4" /> Realinhar
-            </Button>
-            <Button size="sm" variant="secondary" disabled={pending} onClick={() => setBcfImportAberto(true)} className="gap-1">
-              <FileUp className="size-4" /> Importar BCF
-            </Button>
-            <Button size="sm" variant="secondary" disabled={pending} onClick={() => setGeorrefAberto(true)} className="gap-1">
-              <Globe2 className="size-4" /> Georreferenciar
-            </Button>
-            <Button size="sm" variant="secondary" disabled={!temSelecao || pending} onClick={abrirNovoApontamento} className="gap-1">
-              <MapPin className="size-4" /> Novo apontamento
-            </Button>
-            <Button size="sm" disabled={listaEnviaveis.length === 0 || pending} onClick={enviar} className="gap-1">
-              <Send className="size-4" /> Enviar {listaEnviaveis.length > 0 && `(${listaEnviaveis.length})`}
-            </Button>
+        {/* Uma barra só (mock aprovado em 2026-10-04): ferramentas à esquerda, ações à direita; se não
+            couber, a direita desce para a linha de baixo — nada fica por cima de nada. O dock dos painéis
+            vem logo abaixo, na mesma coluna, então acompanha a altura da barra. */}
+        <div className="pointer-events-none absolute inset-3 z-10 flex flex-col gap-2">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="pointer-events-auto">
+            <ViewerToolbar
+              temSelecao={temSelecao}
+              corte={corte}
+              onEnquadrar={() => void engineRef.current?.enquadrar()}
+              onCorte={aplicarCorte}
+              onIsolar={() => void engineRef.current?.isolarSelecao()}
+              onOcultar={() => void engineRef.current?.ocultarSelecao()}
+              onMostrarTudo={() => void engineRef.current?.mostrarTudo()}
+              onLimparSelecao={() => void engineRef.current?.limparSelecao()}
+              painelAtivo={painelAtivo}
+              onTogglePainel={alternarPainel}
+              painelDesabilitado={painelDesabilitado}
+              apontamentosAbertos={listaEnviaveis.length}
+              medicaoAberta={medicaoAberta}
+              onToggleMedicao={() => setMedicaoAberta((v) => !v)}
+              acoesModelo={acoesModelo}
+              onAcaoModelo={aoAcaoModelo}
+            />
+            </div>
+            <div
+              className={cn(
+                "pointer-events-auto ml-auto items-center gap-1 rounded-lg border bg-background/90 p-1 shadow-sm backdrop-blur",
+                podeGerir ? "flex" : "hidden sm:flex",
+              )}
+            >
+              {podeGerir && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={!temSelecao || pending}
+                  onClick={abrirNovoApontamento}
+                  aria-label="Novo apontamento"
+                  title={temSelecao ? "Novo apontamento no elemento selecionado" : "Selecione um elemento no modelo para apontar"}
+                  className="gap-1"
+                >
+                  <MapPin className="size-4" /> <span className="hidden sm:inline">Novo apontamento</span>
+                </Button>
+              )}
+              {podeGerir && listaEnviaveis.length > 0 && (
+                <Button size="sm" disabled={pending} onClick={enviar} aria-label={`Enviar ${listaEnviaveis.length} apontamento(s) para uma tarefa`} className="gap-1">
+                  <Send className="size-4" /> <span className="hidden sm:inline">Enviar</span> ({listaEnviaveis.length})
+                </Button>
+              )}
+              {acoesModelo.length > 0 && (
+                <span className="hidden sm:contents">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={<Button size="icon" variant="secondary" aria-label="Mais ações do visualizador" />}
+                    >
+                      <MoreHorizontal className="size-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-auto min-w-52">
+                      <AcoesMenuItens itens={acoesModelo} onSelect={aoAcaoModelo} />
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </span>
+              )}
+              <ModoFocoBotao className="hidden sm:inline-flex" />
+            </div>
           </div>
-        )}
+          {painelAtivo && telaLarga && (
+            <div className="pointer-events-auto min-h-0 w-80 self-end overflow-y-auto">{conteudoPainel}</div>
+          )}
+        </div>
+        {/* No celular o ⋯ da barra liga o modo foco por evento: este é quem escuta. */}
+        <ModoFocoBotao semBotao />
         <Viewer3D onReady={onEngineReadyEfeito} onSelecionar={onSelecionarViewer} />
         <ApontamentoPins
           engine={engineRef.current}
@@ -708,7 +855,7 @@ export function CoordenacaoView({
         {carregados.size === 0 && carregando.size === 0 && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <p className="rounded-md bg-background/80 px-4 py-2 text-sm text-muted-foreground backdrop-blur">
-              Abra &ldquo;Disciplinas&rdquo; no menu (canto superior esquerdo) para ligar uma e carregar a maquete.
+              Abra &ldquo;Disciplinas&rdquo; (ícone de camadas, no topo) para ligar um modelo e carregar a maquete.
             </p>
           </div>
         )}
@@ -731,88 +878,13 @@ export function CoordenacaoView({
         )}
         <MedicaoToolbar engine={engineRef.current} aberto={medicaoAberta} />
 
-        {/* Dock de painéis: um por vez, aberto pelos ícones-aba do ViewerToolbar — vive
-            dentro da janela do viewer (overlay), não numa coluna lateral fixa. */}
-        {painelAtivo && (
-          <div className="absolute right-3 top-16 z-10 max-h-[calc(100%-5rem)] w-80 overflow-y-auto">
-            {painelAtivo === "disciplinas" && (
-              <PainelDisciplinas
-                modelos={modelos}
-                carregados={carregados}
-                carregando={carregando}
-                foco={foco}
-                onToggle={onToggle}
-                onFocar={focar}
-                projetoId={projetoId}
-                podeGerir={podeGerir}
-                ultimaGeracao={ultimaGeracao}
-              />
-            )}
-            {painelAtivo === "elementos" && (
-              <ArvoreModelo engine={engineRef.current} modelos={modelosCarregadosInfo} />
-            )}
-            {painelAtivo === "clash" && (
-              <ClashPainel
-                engine={engineRef.current}
-                modelos={modelosClash}
-                projetoId={projetoId}
-                projetoCodigo={projetoCodigo}
-                projetoNome={projetoNome}
-              />
-            )}
-            {painelAtivo === "diff" && <DiffPainel engine={engineRef.current} modelos={modelosDiff} />}
-            {painelAtivo === "apontamentos" && (
-              <ApontamentosLista
-                apontamentos={apontamentos}
-                selecionadoId={apontamentoSelecionadoId}
-                currentUserId={currentUserId}
-                ehAdmin={ehAdmin}
-                podeGerir={podeGerir}
-                minhasDisciplinas={minhasDisciplinasSet}
-                pending={pending}
-                selecaoExport={selecaoExport}
-                exportando={exportando}
-                onToggleExport={toggleExport}
-                onSelecionarTodos={selecionarTodosExport}
-                onExportar={exportarBcf}
-                onSelecionar={(a) => void abrirApontamento(a)}
-                onEditar={setEditando}
-                onExcluir={excluir}
-                onResolver={(id) => mudarStatus(id, resolverApontamentoCoordenacao, "resolvida", "Marcado como resolvido.")}
-                onReabrir={(id) => mudarStatus(id, reabrirApontamentoCoordenacao, "aberta", "Reaberto.")}
-                onFechar={(id) => mudarStatus(id, fecharApontamentoCoordenacao, "fechada", "Apontamento fechado.")}
-                onDescartar={(id) => mudarStatus(id, descartarApontamentoCoordenacao, "descartada", "Apontamento descartado.")}
-              />
-            )}
-            {painelAtivo === "propriedades" &&
-              (selecao ? (
-                <PainelPropriedades selecao={selecao} />
-              ) : (
-                <Card>
-                  <CardContent className="py-4 text-xs text-muted-foreground">
-                    Selecione um elemento no modelo para ver as propriedades.
-                  </CardContent>
-                </Card>
-              ))}
-            {painelAtivo === "vistas" && (
-              <VistasPanel
-                engine={engineRef.current}
-                vistas={vistas}
-                carregados={carregados}
-                onToggleModelo={onToggle}
-                onAplicarCorte={aplicarCorte}
-                currentUserId={currentUserId}
-                podeAdministrarVistas={perfilGlobal}
-                onSalvarAtual={salvarVistaAtual}
-                onVistaRenomeada={(id, nome) =>
-                  setVistas((atuais) =>
-                    atuais.map((vista) => (vista.id === id ? { ...vista, nome } : vista)),
-                  )
-                }
-              />
-            )}
-          </div>
-        )}
+        {/* No celular o painel aberto vira uma gaveta que sobe de baixo (mock aprovado em 2026-10-04). */}
+        <Sheet open={painelAtivo !== null && !telaLarga} onOpenChange={(aberta) => !aberta && setPainelAtivo(null)}>
+          <SheetContent side="bottom" className="max-h-[60svh] gap-0 overflow-y-auto rounded-t-2xl p-3 pt-12">
+            <SheetTitle className="sr-only">Painel do visualizador</SheetTitle>
+            {conteudoPainel}
+          </SheetContent>
+        </Sheet>
     </div>
 
       <ApontamentoForm
