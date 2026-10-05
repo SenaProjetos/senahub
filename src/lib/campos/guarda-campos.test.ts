@@ -10,10 +10,11 @@ import { describe, expect, it } from "vitest";
  */
 
 const SRC = path.resolve(__dirname, "../..");
-const NOMES = "cpf|cnpj|documento|telefone|telefoneEmergencia|cep|enderecoCep|rg|agencia|conta|pixChave|chaveNfe|email|emailPessoal";
+const NOMES = "cpf|cnpj|documento|telefone|telefoneEmergencia|cep|enderecoCep|rg|agencia|conta|pix|pixChave|chaveNfe|email|emailPessoal";
 
 const ALVO_INPUT = new RegExp(`\\bname="(${NOMES})"|\\b(?:value|defaultValue)=\\{[\\w.?]*?\\b(${NOMES})\\b[^}]*\\}`);
-const ALVO_SCHEMA = new RegExp(`^\\s*(${NOMES})\\s*:\\s*(opt\\()?z\\.`, "gm");
+// `z` pode ter a cadeia na linha de baixo (`chaveNfe: z` + `.string()`) e qualquer helper `opt…(` conta.
+const ALVO_SCHEMA = new RegExp(`^\\s*(${NOMES})\\s*:\\s*(?:opt\\w*\\()?z\\s*\\.`, "gm");
 
 const linhaDe = (src: string, indice: number) => src.slice(0, indice).split("\n").length;
 const linhaAnterior = (src: string, indice: number) => {
@@ -87,7 +88,7 @@ const PENDENTES: Record<string, number> = {
   "components/comercial/lead-dialog.tsx": 2,
   "components/comercial/parceiro-dialog.tsx": 3,
   "components/comercial/prospeccao-rapida-dialog.tsx": 2,
-  "components/configuracoes/empresa-view.tsx": 5,
+  "components/configuracoes/empresa-view.tsx": 6,
   "components/configuracoes/preferencias-view.tsx": 1,
   "components/configuracoes/usuarios-view.tsx": 2,
   "components/custos/fornecedores/fornecedores-view.tsx": 3,
@@ -101,9 +102,10 @@ const PENDENTES: Record<string, number> = {
   "modules/auth/cadastro/actions.ts": 1,
   "modules/clientes/schemas.ts": 9,
   "modules/comercial/schemas.ts": 7,
-  "modules/configuracoes/empresa/actions.ts": 5,
+  "modules/configuracoes/empresa/actions.ts": 6,
   "modules/custos/fornecedores/schemas.ts": 5,
   "modules/financeiro/cadastros/schemas.ts": 4,
+  "modules/financeiro/lancamentos/schemas.ts": 2,
   "modules/juridico/actions.ts": 1,
   "modules/rh/contas/actions.ts": 2,
   "modules/rh/funcionarios/actions.ts": 15,
@@ -123,6 +125,8 @@ describe("campos com formato usam o catálogo", () => {
     expect(inputsCrus(`<InputFormatado tipo="cpf" value={f.cpf} />`)).toEqual([]);
     expect(inputsCrus(`{/* campo-ok: login */}\n<Input value={f.email} />`)).toEqual([]);
     expect(inputsCrus(`<Input value={a} /> {/* campo-ok: x */}\n<Input value={f.telefone} />`)).toEqual([2]);
+    expect(inputsCrus(`<Input value={pix} />`)).toEqual([1]);
+    expect(inputsCrus(`<Input value={form.pixTipo} />`)).toEqual([]);
   });
   it("detector de schema acha z. cru e aceita campo. e campo-ok", () => {
     expect(schemasCrus(`  cpf: opt(z.string()),`)).toEqual([1]);
@@ -138,6 +142,12 @@ describe("campos com formato usam o catálogo", () => {
     // isenta a própria chave, não a seguinte.
     expect(schemasCrus(`  // campo-ok: busca parcial\n  cpf: z.string(),`)).toEqual([]);
     expect(schemasCrus(`  email: z.string(), // campo-ok: login\n  telefone: z.string(),`)).toEqual([2]);
+    // `z` com a cadeia na linha de baixo e helper `opt…(` também contam; `pix` só como chave inteira.
+    expect(schemasCrus(`  chaveNfe: z\n    .string()`)).toEqual([1]);
+    expect(schemasCrus(`  chaveNfe: z\r\n    .string()`)).toEqual([1]);
+    expect(schemasCrus(`  cpf: optStr(z.string())`)).toEqual([1]);
+    expect(schemasCrus(`  pix: z.string().optional(),`)).toEqual([1]);
+    expect(schemasCrus(`  pixTipo: z.enum(TIPOS),`)).toEqual([]);
   });
   it("nenhum campo cru fora da lista de pendentes, e a lista não fica velha", () => {
     expect(violacoes()).toEqual(PENDENTES);
