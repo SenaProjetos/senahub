@@ -19,7 +19,6 @@ import {
   MENSAGEM_TELEFONE,
   canalEhIndicacao,
   emailValido,
-  formatarTelefoneEntrada,
   normalizarEmail,
   telefoneValido,
 } from "@/modules/comercial/contato-validacao";
@@ -27,6 +26,7 @@ import { FieldError } from "@/components/ui/field-error";
 import { CollapsibleSection } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputFormatado } from "@/components/ui/input-formatado";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -688,42 +688,35 @@ export function ProspeccaoRapidaDialog({
                       <Label htmlFor={`${uid}-email`} className="text-xs text-muted-foreground">
                         E-mail
                       </Label>
-                      <Input
-                        {...idEmail}
-                        type="email"
-                        inputMode="email"
+                      <InputFormatado
+                        id={idEmail.id}
+                        tipo="email"
                         autoComplete="off"
                         autoCapitalize="none"
                         spellCheck={false}
                         placeholder="nome@empresa.com.br"
                         value={form.email}
-                        onChange={(e) => set("email", e.target.value)}
+                        erro={fe.erros.email}
+                        onChange={(v) => set("email", v)}
                         onBlur={() => {
+                          // Grava em caixa baixa e sem espaço nas pontas ao sair do campo.
                           const limpo = normalizarEmail(form.email);
                           if (limpo !== form.email) set("email", limpo);
-                          fe.marcar("email", emailValido(limpo) ? undefined : MENSAGEM_EMAIL);
                         }}
                       />
-                      <FieldError campo={idEmail.id} mensagem={fe.erros.email} />
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor={`${uid}-telefone`} className="text-xs text-muted-foreground">
                         Telefone
                       </Label>
-                      {/* Sem maxLength: ele cortaria um "+55 81 …" colado antes da máscara agir. */}
-                      <Input
-                        {...idTelefone}
-                        type="tel"
-                        inputMode="tel"
+                      <InputFormatado
+                        id={idTelefone.id}
+                        tipo="telefone"
                         autoComplete="off"
-                        placeholder="(81) 99999-9999"
                         value={form.telefone}
-                        onChange={(e) => set("telefone", formatarTelefoneEntrada(e.target.value))}
-                        onBlur={() =>
-                          fe.marcar("telefone", telefoneValido(form.telefone) ? undefined : MENSAGEM_TELEFONE)
-                        }
+                        erro={fe.erros.telefone}
+                        onChange={(v) => set("telefone", v)}
                       />
-                      <FieldError campo={idTelefone.id} mensagem={fe.erros.telefone} />
                     </div>
                   </div>
                 </>

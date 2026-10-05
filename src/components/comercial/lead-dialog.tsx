@@ -36,6 +36,8 @@ import { NotasHistorico } from "./notas-historico";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
+import { InputFormatado } from "@/components/ui/input-formatado";
+import { useFieldErrors } from "@/lib/use-field-errors";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -90,6 +92,7 @@ export function LeadDialog({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const fe = useFieldErrors({ email: "lead-email", telefone: "lead-telefone" });
   const vazio: Form = {
     nome: "",
     contato: "",
@@ -132,6 +135,7 @@ export function LeadDialog({
     setCandidatosReativacao([]);
     setVinculado(null);
     setDispensouReativacao(false);
+    fe.limpar();
   }
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }));
@@ -187,13 +191,13 @@ export function LeadDialog({
           toast.success(vinculado ? `Lead criado e vinculado a ${vinculado.nome}.` : "Lead criado.");
           onOpenChange(false);
           router.refresh();
-        } else toast.error(r.error);
+        } else if (!fe.registrar(r)) toast.error(r.error);
         return;
       }
       // Edita os campos; etapa (e motivo da perda) via moverLead se mudou.
       const r = await editarLead({ ...payload, id: lead.id });
       if (!r.ok) {
-        toast.error(r.error);
+        if (!fe.registrar(r)) toast.error(r.error);
         return;
       }
       if (form.etapaId !== lead.etapaId) {
@@ -381,14 +385,32 @@ export function LeadDialog({
               <Input value={form.contato} onChange={(e) => set("contato", e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>Telefone</Label>
-              <Input value={form.telefone} onChange={(e) => set("telefone", e.target.value)} />
+              <Label htmlFor="lead-telefone">Telefone</Label>
+              <InputFormatado
+                id="lead-telefone"
+                tipo="telefone"
+                value={form.telefone}
+                erro={fe.erros.telefone}
+                onChange={(v) => {
+                  fe.limpar("telefone");
+                  set("telefone", v);
+                }}
+              />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>E-mail</Label>
-              <Input value={form.email} onChange={(e) => set("email", e.target.value)} />
+              <Label htmlFor="lead-email">E-mail</Label>
+              <InputFormatado
+                id="lead-email"
+                tipo="email"
+                value={form.email}
+                erro={fe.erros.email}
+                onChange={(v) => {
+                  fe.limpar("email");
+                  set("email", v);
+                }}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Valor estimado (R$)</Label>

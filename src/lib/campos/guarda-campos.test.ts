@@ -82,12 +82,6 @@ function violacoes(): Record<string, number> {
  */
 const PENDENTES: Record<string, number> = {
   "app/solicitar-cadastro/page.tsx": 1,
-  "components/clientes/cliente-form.tsx": 4,
-  "components/clientes/contato-dialog.tsx": 2,
-  "components/clientes/contatos-tab.tsx": 2,
-  "components/comercial/lead-dialog.tsx": 2,
-  "components/comercial/parceiro-dialog.tsx": 3,
-  "components/comercial/prospeccao-rapida-dialog.tsx": 2,
   "components/configuracoes/empresa-view.tsx": 6,
   "components/configuracoes/preferencias-view.tsx": 1,
   "components/configuracoes/usuarios-view.tsx": 2,
@@ -98,8 +92,6 @@ const PENDENTES: Record<string, number> = {
   "components/juridico/assinatura-publica-form.tsx": 1,
   "components/juridico/juridico-view.tsx": 1,
   "modules/auth/cadastro/actions.ts": 1,
-  "modules/clientes/schemas.ts": 9,
-  "modules/comercial/schemas.ts": 7,
   "modules/configuracoes/empresa/actions.ts": 6,
   "modules/custos/fornecedores/schemas.ts": 5,
   "modules/financeiro/cadastros/schemas.ts": 4,

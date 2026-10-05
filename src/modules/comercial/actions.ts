@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
+import { exigirCamposValidos } from "@/lib/campos/exigir";
 import { smtpConfigurado } from "@/lib/mail";
 import { arquivarPdfDaVersao } from "@/modules/comercial/pdf-proposta";
 import { garantirPropostaEnviavel } from "@/modules/comercial/proposta-composta/service";
@@ -189,6 +190,12 @@ export const criarLead = defineAction(
 export const editarLead = defineAction(
   { ...base, acao: "editar-lead", entidade: "Lead", schema: editarLeadSchema, entidadeId: idResultadoOuInput },
   async (i) => {
+    // Antes de qualquer escrita: só o e-mail/telefone que MUDOU é validado (D4).
+    const antesDoLead = await prisma.lead.findUnique({
+      where: { id: i.id },
+      select: { email: true, telefone: true },
+    });
+    exigirCamposValidos(i, antesDoLead, { email: "email", telefone: "telefone" });
     const { id, campanhaId: campanhaInformada, ...rest } = i;
     const parceiroId = await validarParceiroId(rest.parceiroId);
     const campaignId = await validarCampanhaId(campanhaInformada);
@@ -469,6 +476,11 @@ export const criarParceiro = defineAction(
 export const editarParceiro = defineAction(
   { ...base, acao: "editar-parceiro", entidade: "Parceiro", schema: editarParceiroSchema, entidadeId: idResultadoOuInput },
   async (i) => {
+    const antesDoParceiro = await prisma.parceiro.findUnique({
+      where: { id: i.id },
+      select: { documento: true, email: true, telefone: true },
+    });
+    exigirCamposValidos(i, antesDoParceiro, { documento: "cpfCnpj", email: "email", telefone: "telefone" });
     const { id, ...rest } = i;
     await prisma.parceiro.update({ where: { id }, data: normalizarParceiro(rest) });
     rev();

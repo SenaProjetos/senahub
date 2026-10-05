@@ -11,12 +11,14 @@ import {
   consultarCnpj,
 } from "@/modules/clientes/actions";
 import { CATEGORIAS_CLIENTE, type CriarClienteInput } from "@/modules/clientes/schemas";
-import { validarCNPJ, validarCpfCnpj } from "@/lib/documento";
+import { validarCNPJ } from "@/lib/documento";
+import { useFieldErrors } from "@/lib/use-field-errors";
 import { PORTES_CLIENTE } from "@/modules/clientes/porte";
 import { STATUS_COMERCIAL_LABEL } from "@/modules/comercial/labels";
 import type { CandidatoDuplicata, MotivoCandidato } from "@/modules/comercial/dedupe";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputFormatado } from "@/components/ui/input-formatado";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -70,6 +72,12 @@ export function ClienteForm({
   const [importandoCnpj, setImportandoCnpj] = useState(false);
   const [candidatos, setCandidatos] = useState<CandidatoDuplicata[]>([]);
   const [alertaDispensado, setAlertaDispensado] = useState(false);
+  const fe = useFieldErrors({
+    documento: "cliente-documento",
+    telefone: "cliente-telefone",
+    email: "cliente-email",
+    cep: "cliente-cep",
+  });
 
   // Reinicia o form quando muda o cliente em edição OU quando o dialog reabre
   // (sem isso, "novo cliente" reaproveitava o estado do cadastro anterior).
@@ -83,6 +91,7 @@ export function ClienteForm({
       setForm(cliente ?? VAZIO);
       setAba("identificacao");
       setVisitouContatos(false);
+      fe.limpar();
     }
   }
 
@@ -185,16 +194,13 @@ export function ClienteForm({
     }
   }
 
-  const docInvalido = (form.documento ?? "").trim() !== "" && !validarCpfCnpj(form.documento ?? "");
   const porteLegado = form.porte && !PORTES_CLIENTE.some((porte) => porte.valor === form.porte)
     ? form.porte
     : undefined;
 
   function salvar() {
-    if (docInvalido) {
-      toast.error(form.tipo === "PJ" ? "CNPJ inválido." : "CPF inválido.");
-      return;
-    }
+    // Sem checagem local do documento: na edição o inválido que já estava gravado segue salvando,
+    // e quem decide é o servidor (só recusa o que mudou) — a mensagem volta no próprio campo.
     startTransition(async () => {
       const res = form.id
         ? await editarCliente({ ...form, id: form.id })
@@ -202,7 +208,7 @@ export function ClienteForm({
       if (res.ok) {
         toast.success(form.id ? "Cliente atualizado." : "Cliente criado.");
         onOpenChange(false);
-      } else {
+      } else if (!fe.registrar(res)) {
         toast.error(res.error);
       }
     });
@@ -309,7 +315,7 @@ export function ClienteForm({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
-                  <Label>{form.tipo === "PJ" ? "CNPJ" : "CPF"}</Label>
+                  <Label htmlFor="cliente-documento">{form.tipo === "PJ" ? "CNPJ" : "CPF"}</Label>
                   {form.tipo === "PJ" && (
                     <Button
                       type="button"
@@ -328,39 +334,62 @@ export function ClienteForm({
                     </Button>
                   )}
                 </div>
-                <Input
-                  value={form.documento ?? ""}
-                  onChange={(e) => set("documento", e.target.value)}
-                  aria-invalid={docInvalido}
+                {/* cpfCnpj (e não cpf/cnpj pelo tipo): a regra do servidor sempre aceitou os dois, e um
+                    cadastro antigo com o documento "do outro tipo" não pode aparecer cortado. */}
+                <InputFormatado
+                  id="cliente-documento"
+                  tipo="cpfCnpj"
+                  value={form.documento}
+                  erro={fe.erros.documento}
+                  onChange={(v) => {
+                    fe.limpar("documento");
+                    set("documento", v);
+                  }}
                 />
-                {docInvalido && (
-                  <p className="text-xs text-destructive">{form.tipo === "PJ" ? "CNPJ inválido." : "CPF inválido."}</p>
-                )}
               </div>
               <div className="space-y-1.5">
-                <Label>Telefone</Label>
-                <Input value={form.telefone ?? ""} onChange={(e) => set("telefone", e.target.value)} />
+                <Label htmlFor="cliente-telefone">Telefone</Label>
+                <InputFormatado
+                  id="cliente-telefone"
+                  tipo="telefone"
+                  value={form.telefone}
+                  erro={fe.erros.telefone}
+                  onChange={(v) => {
+                    fe.limpar("telefone");
+                    set("telefone", v);
+                  }}
+                />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label>E-mail</Label>
-              <Input
-                type="email"
-                value={form.email ?? ""}
-                onChange={(e) => set("email", e.target.value)}
+              <Label htmlFor="cliente-email">E-mail</Label>
+              <InputFormatado
+                id="cliente-email"
+                tipo="email"
+                value={form.email}
+                erro={fe.erros.email}
+                onChange={(v) => {
+                  fe.limpar("email");
+                  set("email", v);
+                }}
               />
             </div>
 
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
-                <Label>CEP</Label>
+                <Label htmlFor="cliente-cep">CEP</Label>
                 <div className="relative">
-                  <Input
-                    value={form.cep ?? ""}
-                    onChange={(e) => set("cep", e.target.value)}
+                  <InputFormatado
+                    id="cliente-cep"
+                    tipo="cep"
+                    value={form.cep}
+                    erro={fe.erros.cep}
+                    onChange={(v) => {
+                      fe.limpar("cep");
+                      set("cep", v);
+                    }}
                     onBlur={preencherPorCep}
-                    placeholder="00000-000"
                     className={buscandoCep ? "pr-9" : undefined}
                     aria-busy={buscandoCep}
                   />
@@ -548,7 +577,7 @@ export function ClienteForm({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={salvar} disabled={pending || !form.nome || docInvalido}>
+          <Button onClick={salvar} disabled={pending || !form.nome}>
             {pending ? "Salvando…" : "Salvar"}
           </Button>
         </DialogFooter>
