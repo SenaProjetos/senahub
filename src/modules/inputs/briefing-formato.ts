@@ -12,6 +12,32 @@ export function formatosDoBriefing(): Record<string, NomeCampo> {
   return mapa;
 }
 
+/**
+ * Autosave do briefing: o servidor recusa o objeto inteiro se um e-mail/telefone MUDADO estiver
+ * inválido, então o que vai no envio é o objeto com cada campo assim trocado pelo último valor
+ * salvo (ou sem a chave, se não havia) — o resto continua salvando. `invalidos` nomeia os campos
+ * que ficaram de fora, para a tela dizer qual corrigir. Inválido igual ao que já estava salvo
+ * não é "mudado": segue no envio.
+ */
+export function respostasParaSalvar(
+  respostas: Record<string, unknown>,
+  ultimoSalvo: Record<string, unknown>,
+): { payload: Record<string, unknown>; invalidos: { chave: string; label: string }[] } {
+  const payload = { ...respostas };
+  const invalidos: { chave: string; label: string }[] = [];
+  for (const secao of BRIEFING_SCHEMA) {
+    for (const c of secao.campos) {
+      if (!c.formato) continue;
+      const v = respostas[c.chave];
+      if (typeof v !== "string" || v.trim() === "" || CAMPOS[c.formato].validar(v) || v === ultimoSalvo[c.chave]) continue;
+      invalidos.push({ chave: c.chave, label: c.label });
+      if (c.chave in ultimoSalvo) payload[c.chave] = ultimoSalvo[c.chave];
+      else delete payload[c.chave];
+    }
+  }
+  return { payload, invalidos };
+}
+
 export type ResultadoFormatoBriefing =
   | { ok: true; respostas: Record<string, unknown> }
   | { ok: false; erro: string; campos: Record<string, string> };

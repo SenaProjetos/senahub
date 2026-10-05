@@ -6,7 +6,7 @@
  * 7 seções: Dados Gerais e Declaração sempre aparecem; as demais são filtradas pelas
  * disciplinas ativas do projeto (ver `filtrarSecoes`).
  */
-import type { NomeCampo } from "@/lib/campos";
+import { CAMPOS, type NomeCampo } from "@/lib/campos";
 
 export type CampoTipo = "text" | "textarea" | "select" | "radio" | "checkbox" | "checkbox-single";
 
@@ -194,7 +194,15 @@ export function prePopularRespostas(
       if (!campo.importarDoCadastro) continue;
       if (resultado[campo.chave] !== undefined && resultado[campo.chave] !== "") continue;
       const valor = cliente[campo.importarDoCadastro];
-      if (valor) resultado[campo.chave] = valor;
+      if (!valor) continue;
+      if (campo.formato) {
+        // Cadastro antigo com e-mail/telefone fora do formato: o campo abre vazio, em vez de entrar como
+        // resposta "alterada" (o servidor só aceita inválido que já estava gravado).
+        if (!CAMPOS[campo.formato].validar(valor)) continue;
+        resultado[campo.chave] = CAMPOS[campo.formato].normalizar(valor);
+        continue;
+      }
+      resultado[campo.chave] = valor;
     }
   }
   return resultado;

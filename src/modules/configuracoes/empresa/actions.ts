@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { defineAction } from "@/lib/with-action";
+import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { removerArquivo } from "@/lib/storage";
 import { campo } from "@/lib/campos/zod";
@@ -13,7 +13,8 @@ import { CHAVE_DADOS_EMPRESA, dadosEmpresa, type DadosEmpresa } from "./queries"
 const base = { modulo: "configuracoes", recurso: "configuracoes", permissao: "gerir" } as const;
 
 /** A chave PIX da empresa não tem campo de tipo: vale se for válida como qualquer um dos tipos. */
-const pixValido = (v: string | undefined) => !v || TIPOS_PIX.some((t) => validarChavePix(t, v).ok);
+const pixValido = (v: string) => TIPOS_PIX.some((t) => validarChavePix(t, v).ok);
+const MSG_PIX = "Chave PIX inválida. Use CPF, CNPJ, e-mail, telefone ou chave aleatória.";
 
 // Dados já gravados que a tela reabre: o inválido antigo passa sem mexer (D4), o novo é recusado
 // em `exigirCamposValidos` com a mensagem no campo.
@@ -30,7 +31,7 @@ const salvarSchema = z.object({
   banco: z.string().trim().max(80).optional(),
   agencia: campo.agencia({ legado: true }),
   conta: campo.conta({ legado: true }),
-  pix: z.string().trim().max(160).optional().refine(pixValido, "Chave PIX inválida. Use CPF, CNPJ, e-mail, telefone ou chave aleatória."), // campo-ok: PIX da empresa sem tipo, validado por qualquer tipo
+  pix: z.string().trim().max(160).optional(), // campo-ok: PIX da empresa sem tipo; a regra (válido por qualquer tipo, só se mudou) fica no handler
   responsavelNome: z.string().trim().max(120).optional(),
   responsavelCargo: z.string().trim().max(120).optional(),
   responsavelRegistro: z.string().trim().max(60).optional(),
@@ -49,6 +50,10 @@ export const salvarDadosEmpresa = defineAction(
     exigirCamposValidos(i, anterior, {
       cnpj: "cnpj", telefone: "telefone", email: "email", agencia: "agencia", conta: "conta",
     });
+    // PIX sem tipo: vale se for válido como QUALQUER tipo; o inválido já gravado segue salvando (D4).
+    if (i.pix && !pixValido(i.pix) && i.pix !== (anterior?.pix ?? "").trim()) {
+      throw new ActionError(MSG_PIX, { pix: MSG_PIX });
+    }
     const valor: DadosEmpresa = {
       razaoSocial: i.razaoSocial,
       cnpj: i.cnpj || null,

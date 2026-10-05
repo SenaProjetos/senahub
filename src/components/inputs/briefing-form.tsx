@@ -5,14 +5,14 @@ import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { InputFormatado } from "@/components/ui/input-formatado";
-import { CAMPOS } from "@/lib/campos";
+import { respostasParaSalvar } from "@/modules/inputs/briefing-formato";
 import {
   type SecaoBriefing,
   type CampoBriefing,
   progressoObrigatorios,
 } from "@/modules/inputs/briefing-schema";
 
-type SaveStatus = "idle" | "saving" | "saved" | "error" | "corrigir";
+type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 type ResultadoSalvar = { ok: boolean; error?: string; campos?: Record<string, string> };
 
@@ -39,34 +39,24 @@ export function BriefingForm({
   const [mensagemErro, setMensagemErro] = useState<string>();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // E-mail/telefone ainda incompleto: o servidor recusaria o envio todo, então não envia (nem perde o
-  // que foi digitado). Vale o que mudou em relação ao que a tela abriu — o inválido antigo segue salvando.
-  const invalidos = useCallback(
-    (dados: Record<string, unknown>) =>
-      secoes
-        .flatMap((s) => s.campos)
-        .filter((c) => {
-          const v = dados[c.chave];
-          return c.formato && typeof v === "string" && v.trim() !== "" && !CAMPOS[c.formato].validar(v) && v !== respostasIniciais[c.chave];
-        })
-        .map((c) => c.chave),
-    [secoes, respostasIniciais],
-  );
+  // Último estado que o servidor aceitou (começa no que a tela abriu). E-mail/telefone mudado e ainda
+  // inválido NÃO vai no envio — o servidor recusaria tudo —, fica no valor salvo; o resto segue salvando.
+  const ultimoSalvo = useRef<Record<string, unknown>>(respostasIniciais);
+  const [aCorrigir, setACorrigir] = useState<string[]>([]);
 
   const salvar = useCallback(
     async (dados: Record<string, unknown>) => {
-      if (invalidos(dados).length > 0) {
-        setSaveStatus("corrigir");
-        return;
-      }
+      const { payload, invalidos } = respostasParaSalvar(dados, ultimoSalvo.current);
+      setACorrigir(invalidos.map((c) => c.label));
       setSaveStatus("saving");
-      const r = await onSalvar(dados);
+      const r = await onSalvar(payload);
+      if (r.ok) ultimoSalvo.current = payload;
       setErrosServidor(r.ok ? {} : (r.campos ?? {}));
       setMensagemErro(r.ok ? undefined : r.error);
       setSaveStatus(r.ok ? "saved" : "error");
       setTimeout(() => setSaveStatus("idle"), r.ok ? 2000 : 3000);
     },
-    [onSalvar, invalidos],
+    [onSalvar],
   );
 
   const alterar = useCallback(
@@ -100,11 +90,14 @@ export function BriefingForm({
           )}
           {saveStatus === "saved" && <span className="text-success">Salvo automaticamente</span>}
           {saveStatus === "error" && <span className="text-destructive">{mensagemErro ?? "Erro ao salvar"}</span>}
-          {saveStatus === "corrigir" && (
-            <span className="text-destructive">Corrija o campo com formato inválido para salvar</span>
-          )}
         </span>
       </div>
+
+      {aCorrigir.length > 0 && (
+        <p role="alert" className="text-xs text-destructive">
+          {aCorrigir.join(", ")}: corrija o formato para salvar {aCorrigir.length > 1 ? "estes campos" : "este campo"}.
+        </p>
+      )}
 
       {/* Tabs de seções (numeradas) */}
       <div className="-mb-px flex gap-1 overflow-x-auto border-b">

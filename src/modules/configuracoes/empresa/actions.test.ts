@@ -109,9 +109,12 @@ describe("salvarDadosEmpresa", () => {
     const r = await salvarDadosEmpresa({ razaoSocial: "Sena Estruturas", cnpj: "123", telefone: "12", pix: "xx" });
     expect(r.ok).toBe(false);
     if (!r.ok) {
-      expect(r.fieldErrors?.pix?.[0]).toMatch(/Chave PIX inválida/);
-      expect(r.fieldErrors?.cnpj ?? r.fieldErrors?.telefone ?? r.error).toBeTruthy();
+      expect(r.fieldErrors?.cnpj?.[0]).toMatch(/CNPJ inválido/);
+      expect(r.fieldErrors?.telefone?.[0]).toBeTruthy();
     }
+    const rPix = await salvarDadosEmpresa({ razaoSocial: "Sena Estruturas", pix: "xx" });
+    expect(rPix.ok).toBe(false);
+    if (!rPix.ok) expect(rPix.fieldErrors?.pix?.[0]).toMatch(/Chave PIX inválida/);
     const r2 = await salvarDadosEmpresa({ razaoSocial: "Sena Estruturas", cnpj: "123" });
     expect(r2.ok).toBe(false);
     if (!r2.ok) expect(r2.fieldErrors?.cnpj?.[0]).toMatch(/CNPJ inválido/);
@@ -124,6 +127,19 @@ describe("salvarDadosEmpresa", () => {
     const r = await salvarDadosEmpresa({ razaoSocial: "Sena Estruturas", cnpj: "1234" });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/CNPJ inválido/);
+  });
+
+  it("PIX inválido que já estava gravado salva sem mexer; trocar por outro inválido recusa no campo pix", async () => {
+    mocks.findUnique.mockResolvedValue({ valor: { razaoSocial: "Sena Estruturas", pix: "xx" } });
+    expect((await salvarDadosEmpresa({ razaoSocial: "Sena Estruturas", pix: "xx" })).ok).toBe(true);
+    mocks.upsert.mockClear();
+    const r = await salvarDadosEmpresa({ razaoSocial: "Sena Estruturas", pix: "yy" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toMatch(/Chave PIX inválida/);
+      expect(r.fieldErrors?.pix?.[0]).toMatch(/Chave PIX inválida/);
+    }
+    expect(mocks.upsert).not.toHaveBeenCalled();
   });
 
   it("chave PIX da empresa vale como qualquer tipo e é gravada como digitada", async () => {
