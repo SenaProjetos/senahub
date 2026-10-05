@@ -33,6 +33,19 @@ export const ALVOS: readonly Alvo[] = [
   { modelo: "Lancamento", colunas: { chaveNfe: "chaveNfe" }, lixeira: true },
 ];
 
+/** Motivo no relatório do valor que `podeJuntarInformacoes` segura. */
+export const MOTIVO_JUNTAR = "revisar: pode juntar duas informações";
+
+/**
+ * RG, agência e conta com espaço ou "/" entre partes (ex.: "1234567 SSP/PE", "013 12345-6"):
+ * normalizar juntaria o número com outra informação (órgão emissor, operação) num texto só, sem
+ * volta. O script não reescreve; manda para o relatório para alguém revisar pela tela.
+ */
+export function podeJuntarInformacoes(tipo: NomeCampo | "pix", valor: string): boolean {
+  if (tipo !== "rg" && tipo !== "agencia" && tipo !== "conta") return false;
+  return /[0-9A-Za-z][\s/]+[0-9A-Za-z]/.test(valor);
+}
+
 /**
  * Só relatório (lista o inválido, nunca reescreve):
  * - `AceiteExternoDocumento.cpf`: a prova do aceite guarda o CPF como foi aceito (spec §6).

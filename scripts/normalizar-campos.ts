@@ -8,7 +8,9 @@
  *   npx tsx --tsconfig tsconfig.server.json scripts/normalizar-campos.ts --gravar   (grava)
  *
  * Válido → formato padrão, com updateMany condicionado ao valor lido (não pisa em edição feita no
- * meio). Inválido → fica como está e vai para logs/campos-invalidos-AAAA-MM-DD.csv. Colisão numa
+ * meio). Inválido → fica como está e vai para logs/campos-invalidos-AAAA-MM-DD.csv. RG, agência ou
+ * conta com espaço ou "/" entre partes (órgão emissor, operação) também não é reescrito: vai para o
+ * relatório como "revisar: pode juntar duas informações". Colisão numa
  * coluna única → nenhum dos dois muda, vai para o relatório. Nunca apaga. Rodar de novo não muda nada.
  *
  * Só relatório (nunca reescreve): `AceiteExternoDocumento.cpf` (prova do aceite), `Cliente.documento`
@@ -25,7 +27,7 @@ import { CAMPOS, mensagemDe, type TipoCampo } from "../src/lib/campos";
 import { campoPix } from "../src/lib/campos/chave-pix";
 import { TIPOS_PIX, validarChavePix, type TipoPix } from "../src/modules/rh/contas/pix";
 import { CHAVE_DADOS_EMPRESA, dadosEmpresa, type DadosEmpresa } from "../src/modules/configuracoes/empresa/queries";
-import { ALVOS, SO_RELATORIO, type Alvo } from "./normalizar-campos-alvos";
+import { ALVOS, MOTIVO_JUNTAR, SO_RELATORIO, podeJuntarInformacoes, type Alvo } from "./normalizar-campos-alvos";
 
 const gravar = process.argv.includes("--gravar");
 type Linha = { modelo: string; id: string; coluna: string; valor: string; motivo: string };
@@ -78,6 +80,10 @@ async function processar(alvo: Alvo, soRelatorio: boolean) {
       }
       const para = tipo.normalizar(valor);
       if (para === valor || soRelatorio) continue;
+      if (podeJuntarInformacoes(alvo.colunas[coluna], valor)) {
+        relatorio.push({ modelo: alvo.modelo, id: String(l.id), coluna, valor, motivo: MOTIVO_JUNTAR });
+        continue;
+      }
       planos.push({ id: String(l.id), coluna, de: valor, para });
     }
   }

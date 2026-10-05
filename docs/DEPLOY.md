@@ -359,6 +359,9 @@ o script grava no formato que só essa versão sabe ler e editar.
 
 Ler o CSV antes de gravar. Valores inválidos ficam como estão (os cadastros abrem e salvam; a correção é pela tela).
 "Possível duplicata" = dois cadastros com o mesmo CNPJ depois de formatar — resolver pela tela (fusão de clientes, PJ).
+"revisar: pode juntar duas informações" = RG, agência ou conta com espaço ou "/" entre partes (ex.: `1234567 SSP/PE`,
+`013 12345-6`): o script não reescreve, porque formatar grudaria o número no órgão emissor ou na operação. Corrigir pela
+tela, separando o que não é o número.
 O documento do cliente, o CPF do aceite externo e os dados da empresa (Configurações → Empresa) só aparecem
 no relatório: o script nunca os reescreve. Rodar de novo não muda nada.
 
