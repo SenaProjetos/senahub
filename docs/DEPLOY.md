@@ -349,6 +349,22 @@ Nunca `migrate dev`/`seed:demo` em produção. `migrate deploy` só aplica o que
 > e só então rode a opção 10 do menu. Com o deploy automático noturno (seção 10) ligado, faça
 > isso antes da janela da noite — senão a versão nova sobe sem os dados.
 
+### 9.1 Release com campos formatados (uma vez por ambiente)
+
+Rodar **depois** que a versão que traz `src/lib/campos/` (ADR-0010) estiver no ar — nunca antes:
+o script grava no formato que só essa versão sabe ler e editar.
+
+    npx tsx --tsconfig tsconfig.server.json scripts/normalizar-campos.ts            # simula, gera logs/campos-invalidos-AAAA-MM-DD.csv
+    npx tsx --tsconfig tsconfig.server.json scripts/normalizar-campos.ts --gravar   # grava
+
+Ler o CSV antes de gravar. Valores inválidos ficam como estão (os cadastros abrem e salvam; a correção é pela tela).
+"Possível duplicata" = dois cadastros com o mesmo CNPJ depois de formatar — resolver pela tela (fusão de clientes, PJ).
+O documento do cliente, o CPF do aceite externo e os dados da empresa (Configurações → Empresa) só aparecem
+no relatório: o script nunca os reescreve. Rodar de novo não muda nada.
+
+> **O CSV tem dado pessoal** (CPF, telefone, e-mail): `logs/campos-invalidos-*.csv` não sai do servidor
+> e deve ser **apagado depois de lido**.
+
 ---
 
 ## 10. Deploy automático noturno (opcional)
