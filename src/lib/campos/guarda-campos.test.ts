@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
  */
 
 const SRC = path.resolve(__dirname, "../..");
-const NOMES = "cpf|cnpj|documento|telefone|telefoneEmergencia|cep|enderecoCep|rg|agencia|conta|pix|pixChave|chaveNfe|email|emailPessoal";
+const NOMES = "cpf|cnpj|documento|telefone|telefoneEmergencia|cep|enderecoCep|rg|pis|ctpsNumero|ctpsSerie|tituloEleitor|cnh|agencia|conta|pix|pixChave|chaveNfe|email|emailPessoal";
 
 const ALVO_INPUT = new RegExp(`\\bname="(${NOMES})"|\\b(?:value|defaultValue)=\\{[\\w.?]*?\\b(${NOMES})\\b[^}]*\\}`);
 // `z` pode ter a cadeia na linha de baixo (`chaveNfe: z` + `.string()`) e qualquer helper `opt…(` conta.

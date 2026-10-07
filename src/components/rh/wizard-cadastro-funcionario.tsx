@@ -9,6 +9,7 @@ import type { Contratacao } from "@/generated/prisma/enums";
 import { CONTRATACAO_LABELS } from "@/modules/usuarios/vinculo/labels";
 import { PERFIL_PADRAO_POR_CONTRATACAO } from "@/modules/usuarios/vinculo/perfil-semente";
 import { InputFormatado } from "@/components/ui/input-formatado";
+import { CollapsibleSection } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,7 +40,7 @@ const selectCls =
 type Form = {
   name: string; nomeCompleto: string; email: string; contratacao: Contratacao;
   setor: (typeof SETOR_OPCOES)[number]["value"];
-  cpf: string; rg: string; dataNascimento: string; sexo: string; estadoCivil: string; nacionalidade: string;
+  cpf: string; rg: string; pis: string; ctpsNumero: string; ctpsSerie: string; tituloEleitor: string; cnh: string; dataNascimento: string; sexo: string; estadoCivil: string; nacionalidade: string;
   enderecoCep: string; enderecoLogradouro: string; enderecoNumero: string; enderecoComplemento: string;
   enderecoBairro: string; enderecoCidade: string; enderecoUf: string;
   telefone: string; telefoneEmergencia: string; contatoEmergenciaNome: string; emailPessoal: string;
@@ -51,7 +52,7 @@ type Form = {
 
 const VAZIO: Form = {
   name: "", nomeCompleto: "", email: "", contratacao: "clt", setor: "engenharia",
-  cpf: "", rg: "", dataNascimento: "", sexo: "nao_informado", estadoCivil: "solteiro", nacionalidade: "Brasileira",
+  cpf: "", rg: "", pis: "", ctpsNumero: "", ctpsSerie: "", tituloEleitor: "", cnh: "", dataNascimento: "", sexo: "nao_informado", estadoCivil: "solteiro", nacionalidade: "Brasileira",
   enderecoCep: "", enderecoLogradouro: "", enderecoNumero: "", enderecoComplemento: "",
   enderecoBairro: "", enderecoCidade: "", enderecoUf: "",
   telefone: "", telefoneEmergencia: "", contatoEmergenciaNome: "", emailPessoal: "",
@@ -202,6 +203,20 @@ export function WizardCadastroFuncionario({
                   <Campo label="CPF"><InputFormatado tipo="cpf" value={f.cpf} onChange={(v) => set("cpf", v)} /></Campo>
                   <Campo label="RG"><InputFormatado tipo="rg" value={f.rg} onChange={(v) => set("rg", v)} /></Campo>
                 </div>
+                <CollapsibleSection
+                  titulo="Documentos trabalhistas (CLT)"
+                  descricao="Opcionais — só o CLT precisa: PIS/NIS, CTPS, título de eleitor e CNH."
+                >
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <Campo label="PIS/NIS"><InputFormatado tipo="pis" value={f.pis} onChange={(v) => set("pis", v)} /></Campo>
+                    <Campo label="CTPS — número"><InputFormatado tipo="ctpsNumero" value={f.ctpsNumero} onChange={(v) => set("ctpsNumero", v)} /></Campo>
+                    <Campo label="CTPS — série"><InputFormatado tipo="ctpsSerie" value={f.ctpsSerie} onChange={(v) => set("ctpsSerie", v)} /></Campo>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Campo label="Título de eleitor"><InputFormatado tipo="tituloEleitor" value={f.tituloEleitor} onChange={(v) => set("tituloEleitor", v)} /></Campo>
+                    <Campo label="CNH"><InputFormatado tipo="cnh" value={f.cnh} onChange={(v) => set("cnh", v)} /></Campo>
+                  </div>
+                </CollapsibleSection>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Campo label="Data de nascimento"><Input type="date" value={f.dataNascimento} onChange={(e) => set("dataNascimento", e.target.value)} /></Campo>
                   <Campo label="Sexo">

@@ -14,7 +14,7 @@ const SENSITIVE_KEYS = ["password", "senha", "token", "secret", "hash", "salario
  * (financeiro/RH) e `rg` em qualquer palavra com "rg". Redigir esses campos inteiros apagaria
  * trilha de auditoria legítima do financeiro.
  */
-const SENSITIVE_EXACT = new Set(["banco", "agencia", "agência", "conta", "cpf", "rg"]);
+const SENSITIVE_EXACT = new Set(["banco", "agencia", "agência", "conta", "cpf", "rg", "pis", "ctpsnumero", "ctpsserie", "tituloeleitor", "cnh"]);
 
 /** Remove campos sensíveis do detalhe antes de persistir. Recursivo: cobre `{ antes, novo }`. */
 export function sanitize(detail: unknown): unknown {

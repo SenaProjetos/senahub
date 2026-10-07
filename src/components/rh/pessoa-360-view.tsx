@@ -143,7 +143,8 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
   const cadastroDialog: Cadastro | null = cadastro
     ? {
         nomeCompleto: cadastro.nomeCompleto,
-        cpf: cadastro.cpf, rg: cadastro.rg, dataNascimento: cadastro.dataNascimento, sexo: cadastro.sexo,
+        cpf: cadastro.cpf, rg: cadastro.rg, pis: cadastro.pis, ctpsNumero: cadastro.ctpsNumero, ctpsSerie: cadastro.ctpsSerie,
+        tituloEleitor: cadastro.tituloEleitor, cnh: cadastro.cnh, dataNascimento: cadastro.dataNascimento, sexo: cadastro.sexo,
         estadoCivil: cadastro.estadoCivil, nacionalidade: cadastro.nacionalidade,
         enderecoCep: cadastro.enderecoCep, enderecoLogradouro: cadastro.enderecoLogradouro, enderecoNumero: cadastro.enderecoNumero,
         enderecoComplemento: cadastro.enderecoComplemento, enderecoBairro: cadastro.enderecoBairro,
@@ -367,6 +368,10 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
               <Secao titulo="Dados pessoais">
                 <Campo label="CPF" valor={cadastro.cpf} />
                 <Campo label="RG" valor={cadastro.rg} />
+                <Campo label="PIS/NIS" valor={cadastro.pis} />
+                <Campo label="CTPS (nº / série)" valor={cadastro.ctpsNumero || cadastro.ctpsSerie ? `${cadastro.ctpsNumero ?? "—"} / ${cadastro.ctpsSerie ?? "—"}` : null} />
+                <Campo label="Título de eleitor" valor={cadastro.tituloEleitor} />
+                <Campo label="CNH" valor={cadastro.cnh} />
                 <Campo label="Nascimento" valor={cadastro.dataNascimento ? formatarData(cadastro.dataNascimento) : null} />
                 <Campo label="Sexo" valor={cadastro.sexo} />
                 <Campo label="Estado civil" valor={cadastro.estadoCivil} />

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Pencil, Check, Loader2 } from "lucide-react";
 import { editarCadastroFuncionario, consultarCep } from "@/modules/rh/funcionarios/actions";
 import { InputFormatado } from "@/components/ui/input-formatado";
-
+import { CollapsibleSection } from "@/components/ui/collapsible";
 import { CONSELHOS, UFS, formatarRegistro } from "@/modules/usuarios/registro";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,8 @@ const selectCls = "h-9 w-full rounded-sm border border-input bg-background px-2.
 
 export type Cadastro = {
   nomeCompleto: string | null;
-  cpf: string | null; rg: string | null; dataNascimento: string | null; sexo: string | null; estadoCivil: string | null; nacionalidade: string | null;
+  cpf: string | null; rg: string | null; pis: string | null; ctpsNumero: string | null; ctpsSerie: string | null;
+  tituloEleitor: string | null; cnh: string | null; dataNascimento: string | null; sexo: string | null; estadoCivil: string | null; nacionalidade: string | null;
   enderecoCep: string | null; enderecoLogradouro: string | null; enderecoNumero: string | null; enderecoComplemento: string | null;
   enderecoBairro: string | null; enderecoCidade: string | null; enderecoUf: string | null;
   telefone: string | null; telefoneEmergencia: string | null; contatoEmergenciaNome: string | null; emailPessoal: string | null;
@@ -50,7 +51,8 @@ export function EditarCadastroDialog({
 
   const [f, setF] = useState({
     nomeCompleto: s(c.nomeCompleto),
-    cpf: s(c.cpf), rg: s(c.rg), dataNascimento: s(c.dataNascimento), sexo: s(c.sexo) || "nao_informado", estadoCivil: s(c.estadoCivil) || "solteiro", nacionalidade: s(c.nacionalidade) || "Brasileira",
+    cpf: s(c.cpf), rg: s(c.rg), pis: s(c.pis), ctpsNumero: s(c.ctpsNumero), ctpsSerie: s(c.ctpsSerie),
+    tituloEleitor: s(c.tituloEleitor), cnh: s(c.cnh), dataNascimento: s(c.dataNascimento), sexo: s(c.sexo) || "nao_informado", estadoCivil: s(c.estadoCivil) || "solteiro", nacionalidade: s(c.nacionalidade) || "Brasileira",
     enderecoCep: s(c.enderecoCep), enderecoLogradouro: s(c.enderecoLogradouro), enderecoNumero: s(c.enderecoNumero), enderecoComplemento: s(c.enderecoComplemento),
     enderecoBairro: s(c.enderecoBairro), enderecoCidade: s(c.enderecoCidade), enderecoUf: s(c.enderecoUf),
     telefone: s(c.telefone), telefoneEmergencia: s(c.telefoneEmergencia), contatoEmergenciaNome: s(c.contatoEmergenciaNome), emailPessoal: s(c.emailPessoal),
@@ -130,6 +132,20 @@ export function EditarCadastroDialog({
                   </select>
                 </Campo>
               </div>
+                          <CollapsibleSection
+                titulo="Documentos trabalhistas (CLT)"
+                descricao="Opcionais — só o CLT precisa: PIS/NIS, CTPS, título de eleitor e CNH."
+              >
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Campo label="PIS/NIS"><InputFormatado tipo="pis" value={f.pis} onChange={(v) => set("pis", v)} /></Campo>
+                  <Campo label="CTPS — número"><InputFormatado tipo="ctpsNumero" value={f.ctpsNumero} onChange={(v) => set("ctpsNumero", v)} /></Campo>
+                  <Campo label="CTPS — série"><InputFormatado tipo="ctpsSerie" value={f.ctpsSerie} onChange={(v) => set("ctpsSerie", v)} /></Campo>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Campo label="Título de eleitor"><InputFormatado tipo="tituloEleitor" value={f.tituloEleitor} onChange={(v) => set("tituloEleitor", v)} /></Campo>
+                  <Campo label="CNH"><InputFormatado tipo="cnh" value={f.cnh} onChange={(v) => set("cnh", v)} /></Campo>
+                </div>
+              </CollapsibleSection>
             </Secao>
 
             <Secao titulo="Endereço / contato">

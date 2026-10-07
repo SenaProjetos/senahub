@@ -123,6 +123,12 @@ model User {
   // Dados pessoais
   cpf                      String?
   rg                       String?
+  // Documentos trabalhistas (só o CLT precisa; todos opcionais). Formato padrão em lib/campos/documentos-trabalhistas.ts.
+  pis                      String?
+  ctpsNumero               String?
+  ctpsSerie                String?
+  tituloEleitor            String?
+  cnh                      String?
   dataNascimento           DateTime?                  @db.Date
   sexo                     String? // masculino | feminino | outro | nao_informado
   estadoCivil              String? // solteiro | casado | divorciado | viuvo | uniao_estavel | outro
