@@ -1,6 +1,6 @@
 ---
 titulo: Folha CLT
-descricao: Folhas de pagamento dos colaboradores CLT — importação automática do PDF do contador, cálculo de encargos (INSS/IRRF) e assinatura obrigatória do holerite.
+descricao: Folhas de pagamento dos colaboradores CLT — importação automática do PDF do contador, cálculo de encargos (INSS/IRRF) e assinatura do holerite.
 resumo: Importe a folha direto do PDF do contador (ou gere à mão), acompanhe os holerites e a assinatura de cada colaborador; o sistema calcula encargos progressivos (INSS e IRRF).
 tags: [folha, clt, holerite, encargos, inss, irrf, pagamento, importar, assinatura, assinar, pdf, contador, rubrica, matrícula, 13º salário, timbrado]
 palavras-chave: [folha, clt, holerite, salário, encargos, inss, irrf, desconto, pagamento, importar, importação, pdf, contador, assinatura, assinar, rubrica, matrícula, lembrete, 13º, décimo terceiro, gratificação natalina, ignorar funcionário, timbrado]
@@ -50,6 +50,16 @@ todo mês e preenche os holerites automaticamente — sem digitar rubrica por ru
 - O **total líquido** mostrado ao fim do import é o que **entrou** no sistema — sem as
   matrículas ignoradas. Por isso pode ficar abaixo do total impresso no PDF.
 
+- **Quem passa o mês inteiro de férias** vem no PDF do contador sem nenhuma rubrica e com
+  totais zerados. Isso **não trava** o import: os demais holerites são gravados e essa pessoa
+  aparece num aviso amarelo **"Lançar manualmente — sem movimento no PDF"**, para o RH lançar o
+  holerite dela à mão.
+- **Auxílio transporte e auxílio alimentação** (pagos pela empresa, não saem no holerite do
+  contador): no editor do holerite há os botões **+ Auxílio transporte** e **+ Auxílio
+  alimentação** (proventos). Reimportar o PDF **não apaga** esses dois itens.
+- **INSS:** o cálculo automático trunca cada faixa no centavo, como o sistema do contador —
+  antes arredondava e dava 1 ou 2 centavos a mais.
+
 ## Folha de 13º salário
 
 O contador manda o **13º salário em um PDF separado** da folha do mês. No sistema, ele
@@ -88,10 +98,13 @@ Depois que a folha é **fechada**, cada colaborador precisa **assinar** o própr
 é a confirmação de que recebeu os valores. A assinatura **não atrasa nem trava o pagamento**:
 a folha já fechou antes disso.
 
-- **Para o colaborador:** se houver holerite fechado sem assinatura, o sistema pede a
-  assinatura **no próximo acesso**, antes de liberar o resto das telas — mostra os valores
-  (proventos, descontos, líquido) e um botão para baixar o PDF. Havendo mais de um pendente,
-  assina um de cada vez até não sobrar nenhum. Holerite de antes desta funcionalidade existir
+- **Para o colaborador:** se houver holerite fechado sem assinatura, a partir do **dia do
+  pagamento da folha** (vencimento da conta a pagar; antes disso, ou seja, enquanto o RH ainda
+  pode reabrir e corrigir, **não se cobra**) aparece uma **tarja
+  amarela no topo do sistema** com o link **Conferir e assinar** — ela **não bloqueia nada**,
+  dá para continuar trabalhando e assinar quando puder (ou escolher **Assinar depois** na tela
+  de assinatura). A tela mostra os valores (proventos, descontos, líquido) e um botão para
+  baixar o PDF. Havendo mais de um pendente, assina um de cada vez. Holerite de antes desta funcionalidade existir
   **não** entra nessa exigência — mas continua disponível para assinar por conta própria em
   **Minha conta** (menu lateral), se quiser.
 - **Para o RH:** o ícone de sino ao lado de "assinatura pendente" envia um **lembrete** ao
@@ -100,7 +113,10 @@ a folha já fechou antes disso.
 - **Reabrir a folha** (para corrigir algo) **apaga as assinaturas** já feitas nela — quem
   já tinha assinado precisa assinar de novo quando a folha for fechada outra vez, porque os
   valores podem mudar na correção. O sistema avisa quantas assinaturas seriam perdidas antes
-  de confirmar a reabertura.
+  de confirmar a reabertura. **Quem já tinha assinado vê o que mudou:** na nova assinatura, o
+  holerite traz um quadro "corrigido pelo RH depois da sua assinatura de…" listando cada item
+  incluído, removido ou alterado (valor antes → depois) e o líquido antes → depois. Se a folha
+  foi só reaberta e fechada sem mudar valores, o quadro diz isso.
 - **Fechar a folha mensal define o valor da conta do mês** no Financeiro: o líquido real vai para a conta
   a pagar da competência (a que a recorrência gerou, ou uma nova), que vence no 5º dia útil do mês
   seguinte e **continua em aberto** até ser paga no Financeiro. O adiantamento de salário é outra conta e
@@ -132,9 +148,8 @@ CLT. Veja [Pessoas Jurídicas](pessoas-juridicas.md).
 **Preciso escolher o arquivo de novo depois de cadastrar a rubrica/matrícula que faltava?**
 Não — a tela guarda o mesmo arquivo, é só clicar em **Reenviar arquivo**.
 
-**Posso adiar a assinatura do holerite?** A folha fechada não trava por causa disso, mas o
-sistema pede a assinatura assim que você tentar usar o sistema de novo — não dá para navegar
-sem assinar o que estiver pendente.
+**Posso adiar a assinatura do holerite?** Pode. Nada trava: a tarja no topo do sistema fica
+lembrando enquanto houver holerite pendente, e você assina quando quiser.
 
 **Por que o total importado é menor que o total do PDF?** Porque as matrículas marcadas
 como **Ignorar funcionário** ficam de fora. O total do PDF inclui todo mundo que o contador

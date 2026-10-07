@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { Download } from "lucide-react";
 import { assinarHolerite } from "@/modules/rh/folha/actions";
 import type { HoleritePendente } from "@/modules/rh/folha/queries";
-import { signOut } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -26,9 +25,11 @@ const MESES = [
 ];
 
 /**
- * Fila de assinatura obrigatória (P4). Espelha `TermoAceiteForm`: o documento fica à vista,
+ * Fila de assinatura do holerite. Não trava o sistema: a tarja da barra superior leva até aqui e
+ * "Assinar depois" devolve a pessoa ao trabalho. Espelha `TermoAceiteForm`: o documento fica à vista,
  * uma caixa de confirmação e um botão — e NÃO um diálogo de confirmação, porque esta tela vive
  * no grupo `(auth)`, onde não existe `<ConfirmProvider>` (o `useConfirm` da ficha 360 quebraria).
+ * Holerite corrigido pelo RH depois de assinado mostra "o que mudou" desde a assinatura anterior.
  *
  * A navegação de saída é feita aqui no cliente (`router.replace("/")` quando a fila esvazia), e
  * não por `redirect()` do servidor: quem decide que acabou é a lista local, já esvaziada.
@@ -61,7 +62,7 @@ export function AssinarHoleriteFila({ pendentes }: { pendentes: HoleritePendente
       // que este holerite não é mais assinável (RH reabriu a folha, ou já foi assinado em outra
       // aba), e repetir o clique repetiria o mesmo erro pra sempre — a pessoa ficaria presa numa
       // tela cuja razão de existir é ser atravessada. Quem manda é o gate do layout, não esta
-      // lista: se ainda houver pendência de verdade, `precisaAssinarHolerite` devolve a pessoa
+      // lista: se ainda houver pendência de verdade, a tarja do layout volta a cobrar a pessoa
       // pra uma fila recém-lida.
       if (!r.ok) {
         avancar(() => toast.error(r.error));
@@ -75,10 +76,8 @@ export function AssinarHoleriteFila({ pendentes }: { pendentes: HoleritePendente
     });
   }
 
-  async function sair() {
-    await signOut();
-    router.push("/login");
-    router.refresh();
+  function depois() {
+    router.push("/");
   }
 
   if (!atual) return null;
@@ -91,11 +90,12 @@ export function AssinarHoleriteFila({ pendentes }: { pendentes: HoleritePendente
         </CardTitle>
         <CardDescription>
           {restantes > 1
-            ? `Você tem ${restantes} holerites aguardando assinatura. Confira os valores e assine para continuar.`
-            : "Confira os valores e assine para continuar usando o sistema."}
+            ? `Você tem ${restantes} holerites aguardando assinatura. Confira os valores e assine.`
+            : "Confira os valores e assine."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        {atual.revisao && <RevisaoHolerite revisao={atual.revisao} />}
         <div className="max-h-[45vh] overflow-y-auto rounded-md border">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
@@ -165,16 +165,58 @@ export function AssinarHoleriteFila({ pendentes }: { pendentes: HoleritePendente
           </span>
         </Label>
         <Button onClick={assinar} disabled={!confirmado || pending} className="w-full">
-          {pending ? "Registrando…" : "Assinar e continuar"}
+          {pending ? "Registrando…" : "Assinar"}
         </Button>
         <button
           type="button"
-          onClick={sair}
+          onClick={depois}
           className="text-xs text-muted-foreground underline-offset-4 hover:underline"
         >
-          Sair do sistema
+          Assinar depois
         </button>
       </CardFooter>
     </Card>
+  );
+}
+
+function RevisaoHolerite({ revisao }: { revisao: NonNullable<HoleritePendente["revisao"]> }) {
+  const rotulos = { adicionado: "Incluído", removido: "Removido", alterado: "Alterado" } as const;
+  return (
+    <div className="space-y-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+      <p className="font-medium">
+        Este holerite foi corrigido pelo RH depois da sua assinatura de {formatarData(revisao.assinadoAnteriorEm)}.
+      </p>
+      {revisao.semDetalhe ? (
+        <p className="text-xs text-muted-foreground">
+          A assinatura anterior foi feita antes do registro de alterações — confira os valores abaixo.
+        </p>
+      ) : revisao.mudancas.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          Os valores não mudaram — a folha foi reaberta e fechada de novo, por isso a nova assinatura.
+        </p>
+      ) : (
+        <>
+          <ul className="space-y-1 text-xs">
+            {revisao.mudancas.map((m, i) => (
+              <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-3">
+                <span>
+                  <strong>{rotulos[m.kind]}:</strong> {m.descricao}{" "}
+                  <span className="text-muted-foreground">({m.tipo === "provento" ? "provento" : "desconto"})</span>
+                </span>
+                <span className="tabular-nums">
+                  {m.kind === "alterado" && `${brl(m.antes)} → ${brl(m.depois)}`}
+                  {m.kind === "adicionado" && brl(m.depois)}
+                  {m.kind === "removido" && brl(m.antes)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs">
+            Líquido: <span className="tabular-nums">{brl(revisao.liquidoAntes)}</span> →{" "}
+            <strong className="tabular-nums">{brl(revisao.liquidoDepois)}</strong>
+          </p>
+        </>
+      )}
+    </div>
   );
 }

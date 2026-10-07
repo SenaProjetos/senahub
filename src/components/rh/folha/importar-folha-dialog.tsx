@@ -49,6 +49,8 @@ type ResultadoImportar = {
   holerites: number;
   totalLiquido: number;
   avisosForaDoPdf: string[];
+  /** Sem movimento no PDF (ex.: mês todo de férias) — o holerite é lançado à mão. */
+  lancarManualmente: MatriculaIgnoradaUI[];
 };
 
 type RespostaImportar =
@@ -63,6 +65,7 @@ type RespostaImportar =
       totalLiquido: number;
       avisosForaDoPdf: string[];
       matriculasIgnoradas: MatriculaIgnoradaUI[];
+      lancarManualmente: MatriculaIgnoradaUI[];
     };
 
 export function ImportarFolhaDialog({
@@ -142,6 +145,7 @@ export function ImportarFolhaDialog({
         holerites: data.holerites,
         totalLiquido: data.totalLiquido,
         avisosForaDoPdf: data.avisosForaDoPdf,
+        lancarManualmente: data.lancarManualmente ?? [],
       });
       setIgnoradas(data.matriculasIgnoradas);
       router.refresh();
@@ -227,6 +231,24 @@ export function ImportarFolhaDialog({
                   <span>{a}</span>
                 </div>
               ))}
+            </div>
+          )}
+
+          {resultado && resultado.lancarManualmente.length > 0 && (
+            <div className="space-y-1 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+              <p className="flex items-center gap-2 font-medium">
+                <AlertTriangle className="size-3.5 shrink-0 text-warning" />
+                Lançar manualmente — sem movimento no PDF
+              </p>
+              {resultado.lancarManualmente.map((m) => (
+                <p key={m.matriculaExterna}>
+                  <span className="font-mono">{m.matriculaExterna}</span> {m.nome}
+                </p>
+              ))}
+              <p className="text-xs text-muted-foreground">
+                O PDF traz essa pessoa sem nenhuma rubrica (por exemplo, o mês todo de férias). Os outros
+                holerites foram importados; lance o dela à mão pelo botão do holerite.
+              </p>
             </div>
           )}
 

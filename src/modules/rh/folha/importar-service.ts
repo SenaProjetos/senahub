@@ -8,6 +8,7 @@ import {
   type TipoRubricaImport,
 } from "./importar-pdf";
 import { pareceDecimoTerceiro } from "./tipo-folha";
+import { RUBRICAS_LANCADAS_A_MAO } from "./rubricas-manuais";
 
 /**
  * Camada de banco do import da folha CLT (plano 2026-09-13-folha-clt-import-assinatura.md, P2).
@@ -65,6 +66,11 @@ export type PlanoImportacao = {
    * contador tem gente que nunca vai ter usuário aqui).
    */
   matriculasIgnoradas: { matriculaExterna: string; nome: string }[];
+  /**
+   * Gente do PDF SEM movimento no mês (ex.: o mês todo de férias — a folha dela sai zerada). O
+   * resto da folha é importado normalmente; estes o RH precisa lançar à mão, e a tela avisa.
+   */
+  lancarManualmente: { matriculaExterna: string; nome: string }[];
 };
 
 export type AnaliseImportacao =
@@ -153,8 +159,12 @@ export async function analisarImportacao(
     select: { matriculaExterna: true, nome: true },
   });
   const matriculasIgnoradasSet = new Set(matriculasIgnoradasRows.map((i) => i.matriculaExterna));
+  // Sem movimento no PDF (mês todo de férias): fora de tudo que segue, mas SEMPRE avisado.
+  const lancarManualmente = folha.funcionarios
+    .filter((f) => f.semMovimento && !matriculasIgnoradasSet.has(f.matriculaExterna))
+    .map((f) => ({ matriculaExterna: f.matriculaExterna, nome: f.nome }));
   const funcionariosConsiderados = folha.funcionarios.filter(
-    (f) => !matriculasIgnoradasSet.has(f.matriculaExterna),
+    (f) => !matriculasIgnoradasSet.has(f.matriculaExterna) && !f.semMovimento,
   );
   const folhaConsiderada: FolhaImportada = { ...folha, funcionarios: funcionariosConsiderados };
 
@@ -246,6 +256,7 @@ export async function analisarImportacao(
       holerites,
       avisosForaDoPdf,
       matriculasIgnoradas: matriculasIgnoradasRows,
+      lancarManualmente,
     },
   };
 }
@@ -289,7 +300,15 @@ export async function aplicarImportacao(plano: PlanoImportacao, pdf: { path: str
         create: { folhaId: plano.folhaId, userId: h.userId },
         update: {},
       });
-      await tx.holeriteItem.deleteMany({ where: { holeriteId: holerite.id } });
+      // Só o que veio do PDF é trocado: auxílio transporte/alimentação são lançados à mão pelo RH
+      // e o contador não os imprime — reimportar não pode apagá-los.
+      const lancadosAMao = await tx.holeriteItem.findMany({
+        where: { holeriteId: holerite.id, rubrica: { nome: { in: [...RUBRICAS_LANCADAS_A_MAO] } } },
+        select: { id: true },
+      });
+      await tx.holeriteItem.deleteMany({
+        where: { holeriteId: holerite.id, id: { notIn: lancadosAMao.map((i) => i.id) } },
+      });
       await tx.holeriteItem.createMany({
         data: h.itens.map((i) => ({
           holeriteId: holerite.id,

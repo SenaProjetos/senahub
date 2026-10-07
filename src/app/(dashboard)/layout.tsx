@@ -5,7 +5,7 @@ import { permissoesEfetivas } from "@/lib/permissao-efetiva";
 import { prisma } from "@/lib/prisma";
 import type { ContextoNav } from "@/lib/nav-config";
 import { precisaAceitarTermo } from "@/modules/legal/queries";
-import { precisaAssinarHolerite } from "@/modules/rh/folha/queries";
+import { pendenciaDeAssinaturaHolerite } from "@/modules/rh/folha/queries";
 import { contarCertidoesAtencao } from "@/modules/certidoes/queries";
 import { PushManager } from "@/components/notificacoes/push-manager";
 import { AvisoProvider } from "@/components/notificacoes/aviso-provider";
@@ -33,17 +33,16 @@ export default async function DashboardLayout({
   // A tela /termo vive no grupo (auth), fora deste layout — sem loop de redirect.
   if (await precisaAceitarTermo(user)) redirect("/termo");
 
-  // Gate da assinatura do holerite: mesma mecânica do termo, e nesta ordem de propósito — termo
-  // primeiro (vale pra todo mundo), holerite depois (só quem tem folha fechada pendente).
-  // A tela /assinar-holerite também vive no grupo (auth), fora deste layout.
-  if (await precisaAssinarHolerite(user)) redirect("/assinar-holerite");
-
-  const [iconesDisciplina, prefs, faixaDados] = await Promise.all([
+  // Assinatura do holerite NÃO trava o sistema: vira uma tarja na barra superior que leva à tela
+  // /assinar-holerite (grupo (auth), fora deste layout). Quando o RH reabre e fecha a folha, o
+  // funcionário vê o aviso, não um bloqueio a cada navegação.
+  const [iconesDisciplina, prefs, faixaDados, pendenciaHolerite] = await Promise.all([
     mapaIconesDisciplina(),
     getPreferencias(user.id),
     // "Atualize seus dados": um findFirst indexado por navegação; a situação só é calculada
     // quando há pedido aberto. Cliente nunca recebe pedido.
     user.tipo === "externo" ? Promise.resolve(null) : faixaDoUsuario(user.id),
+    pendenciaDeAssinaturaHolerite(user),
   ]);
   // Chaves `tour_visto:*` já concluídas — evita reabrir guias que o usuário já viu.
   const toursVistos = Object.entries(prefs)
@@ -111,7 +110,12 @@ export default async function DashboardLayout({
     <ConfirmProvider>
      <OnboardingProvider vistosIniciais={toursVistos}>
      <DisciplinasIconeProvider mapa={iconesDisciplina}>
-      <Shell nav={nav} user={user} faixa={faixaDados ? <FaixaPedidoDados {...faixaDados} /> : undefined}>
+      <Shell
+        nav={nav}
+        user={user}
+        faixa={faixaDados ? <FaixaPedidoDados {...faixaDados} /> : undefined}
+        pendenciaHolerite={pendenciaHolerite}
+      >
         {/* Google Fonts do catálogo de documentos: carregam no editor e no preview/PDF
             (o Puppeteer imprime a própria página de preview, que vive neste layout). */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />

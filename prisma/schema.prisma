@@ -6694,6 +6694,11 @@ model Holerite {
   assinadoEm  DateTime?
   assinanteId String?
   assinante   User?          @relation("HoleriteAssinante", fields: [assinanteId], references: [id])
+  /// Reabrir a folha revoga a assinatura; estes dois campos guardam a ASSINATURA REVOGADA e os
+  /// itens que ela cobria (`[{descricao,tipo,valor}]`), para o funcionário ver o que mudou quando
+  /// for assinar de novo. Saem (null) assim que ele assina a versão corrigida.
+  assinaturaAnteriorEm DateTime?
+  itensAssinadosAntes  Json?
 
   itens HoleriteItem[]
 

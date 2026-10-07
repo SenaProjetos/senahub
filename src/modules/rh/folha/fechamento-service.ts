@@ -242,11 +242,28 @@ export async function reabrirFolhaNoBanco(folhaId: string): Promise<{ assinatura
       where: { id: folhaId },
       data: { status: "aberta", fechadaEm: null, lancamentoId: null, lancamentoReaproveitado: false, lancamentoValorPrevisto: null },
     });
-    const r = await tx.holerite.updateMany({
+    // Antes de revogar, guarda o que cada assinatura cobria: é a base do "o que mudou" que o
+    // funcionário vê ao assinar de novo (`montarRevisao`). Um por um — uma conexão só na transação.
+    const assinados = await tx.holerite.findMany({
       where: { folhaId, assinadoEm: { not: null } },
-      data: { assinadoEm: null, assinanteId: null },
+      select: {
+        id: true,
+        assinadoEm: true,
+        itens: { select: { descricao: true, tipo: true, valor: true }, orderBy: { descricao: "asc" } },
+      },
     });
-    return r.count;
+    for (const h of assinados) {
+      await tx.holerite.update({
+        where: { id: h.id },
+        data: {
+          assinadoEm: null,
+          assinanteId: null,
+          assinaturaAnteriorEm: h.assinadoEm,
+          itensAssinadosAntes: h.itens.map((it) => ({ descricao: it.descricao, tipo: it.tipo, valor: Number(it.valor) })),
+        },
+      });
+    }
+    return assinados.length;
   });
   return { assinaturasRevogadas };
 }
