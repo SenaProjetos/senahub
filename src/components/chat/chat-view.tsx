@@ -3356,6 +3356,12 @@ export function ChatView({
                         inserirMencao(mencaoOpcoes[mencaoIndice].name);
                         return;
                       }
+                      if (e.key === "Tab" && !e.shiftKey) {
+                        // Tab completa a pessoa ativa (a primeira, se nenhuma foi navegada).
+                        e.preventDefault();
+                        inserirMencao(mencaoOpcoes[Math.max(mencaoIndice, 0)].name);
+                        return;
+                      }
                       if (e.key === "Escape") {
                         e.preventDefault();
                         setMencaoIndice(-1);
