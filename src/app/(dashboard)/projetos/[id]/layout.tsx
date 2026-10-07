@@ -182,7 +182,7 @@ export default async function ProjetoLayout({
       </div>
 
       {/* Navegação por abas */}
-      <div className="-mx-4 -mt-4 flex items-stretch border-b md:mt-0 lg:-mx-6" data-foco-celular>
+      <div className="-mx-4 -mt-4 flex items-stretch border-b md:mt-0 lg:-mx-6" data-foco-esconder>
         <div className="min-w-0 flex-1 px-2 lg:px-4">
           <ProjetoTabNav
             projetoId={id}

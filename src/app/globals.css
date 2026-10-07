@@ -524,10 +524,11 @@ main:has([data-visualizador-prancha]) :is([data-foco-esconder], [data-foco-celul
   }
 }
 
-/* Modo foco (components/ui/modo-foco-botao.tsx), como no modelo aprovado: no computador recolhe só
-   o cabeçalho do projeto (menu, barra do topo e abas ficam); no celular somem as abas do projeto e a
-   barra de baixo. Sai pelo botão na própria área de trabalho ou com Esc. */
-:root[data-modo-foco] [data-foco-esconder] {
+/* Modo foco (components/ui/modo-foco-botao.tsx): fica só o conteúdo de interesse. Somem o menu lateral
+   e a barra do topo (`data-foco-total`), o cabeçalho e as abas do projeto (`data-foco-esconder`) e, no
+   celular, a barra de baixo (`data-foco-celular`). Sai pelo botão na própria área de trabalho ou com Esc —
+   por isso o botão nunca pode morar dentro de algo que o foco esconde. */
+:root[data-modo-foco] :is([data-foco-esconder], [data-foco-total]) {
   display: none;
 }
 @media (width < 48rem) {
