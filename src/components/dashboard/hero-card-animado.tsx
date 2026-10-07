@@ -28,6 +28,17 @@ function timeTheme(light: boolean) {
 }
 
 /**
+ * Cores do painel de aniversariantes: FIXAS, independentes do céu. O fundo do herocard muda ao
+ * longo do dia (no pôr do sol é laranja), e texto que acompanhava o céu ficava ilegível sobre ele —
+ * o painel leva o próprio fundo escuro translúcido e texto claro, legível em qualquer hora.
+ */
+const PAINEL = {
+  meta: "text-slate-300",
+  heading: "text-slate-50",
+  divider: "border-white/15",
+} as const;
+
+/**
  * Herocard com a animação do "céu do dia" (HeroSky) de fundo, usando os dados do
  * SenaHub novo (nome do usuário + frase do dia). A hora atualiza ao vivo (30s),
  * fazendo o céu/sol/lua e as cores do texto evoluírem ao longo do dia. No lado
@@ -101,17 +112,17 @@ export function HeroCardAnimado({
 
         {/* Aniversariantes — do dia (destaque) + do mês, no lado direito do herocard */}
         {temAniversario && (
-          <aside className={`w-full shrink-0 rounded-lg border px-3.5 py-3 sm:w-72 ${theme.tag}`}>
+          <aside className="w-full shrink-0 rounded-lg border border-white/25 bg-slate-950/70 px-3.5 py-3 shadow-sm backdrop-blur-sm sm:w-72">
             {doDia.length > 0 && (
               <div className="mb-2.5">
-                <div className={`flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] ${theme.meta}`}>
+                <div className={`flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] ${PAINEL.meta}`}>
                   <PartyPopper className="h-3.5 w-3.5" />
                   Aniversariante{doDia.length > 1 ? "s" : ""} do dia
                 </div>
                 <ul className="mt-1.5 space-y-1">
                   {doDia.map((a) => (
                     <li key={a.id} className="leading-tight">
-                      <p className={`text-base font-bold ${theme.heading}`}>🎉 {a.name}</p>
+                      <p className={`text-base font-bold ${PAINEL.heading}`}>🎉 {a.name}</p>
                     </li>
                   ))}
                 </ul>
@@ -119,18 +130,18 @@ export function HeroCardAnimado({
             )}
 
             {doMes.length > 0 && (
-              <div className={doDia.length > 0 ? `border-t pt-2 ${theme.divider}` : ""}>
-                <div className={`flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] ${theme.meta}`}>
+              <div className={doDia.length > 0 ? `border-t pt-2 ${PAINEL.divider}` : ""}>
+                <div className={`flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.12em] ${PAINEL.meta}`}>
                   <Cake className="h-3.5 w-3.5" />
                   Aniversariantes do mês
                 </div>
                 <ul className="mt-1.5 max-h-28 space-y-0.5 overflow-y-auto pr-1">
                   {doMes.map((a) => (
                     <li key={a.id} className="flex items-center gap-2 leading-tight">
-                      <span className={`w-5 shrink-0 text-center font-mono text-[10px] tabular-nums ${theme.meta}`}>
+                      <span className={`w-5 shrink-0 text-center font-mono text-[11px] tabular-nums ${PAINEL.meta}`}>
                         {String(a.dia).padStart(2, "0")}
                       </span>
-                      <span className={`truncate text-xs ${a.hoje ? `font-semibold ${theme.heading}` : theme.meta}`}>
+                      <span className={`truncate text-sm ${a.hoje ? `font-semibold ${PAINEL.heading}` : theme.meta}`}>
                         {a.name}
                         {a.hoje && " 🎂"}
                       </span>
