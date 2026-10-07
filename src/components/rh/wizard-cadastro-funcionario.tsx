@@ -10,6 +10,7 @@ import { CONTRATACAO_LABELS } from "@/modules/usuarios/vinculo/labels";
 import { PERFIL_PADRAO_POR_CONTRATACAO } from "@/modules/usuarios/vinculo/perfil-semente";
 import { InputFormatado } from "@/components/ui/input-formatado";
 import { CollapsibleSection } from "@/components/ui/collapsible";
+import { ResumoDocumentos } from "@/components/rh/editar-cadastro-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -206,6 +207,7 @@ export function WizardCadastroFuncionario({
                 <CollapsibleSection
                   titulo="Documentos trabalhistas (CLT)"
                   descricao="Opcionais — só o CLT precisa: PIS/NIS, CTPS, título de eleitor e CNH."
+                  resumo={<ResumoDocumentos f={f} />}
                 >
                   <div className="grid gap-3 sm:grid-cols-3">
                     <Campo label="PIS/NIS"><InputFormatado tipo="pis" value={f.pis} onChange={(v) => set("pis", v)} /></Campo>

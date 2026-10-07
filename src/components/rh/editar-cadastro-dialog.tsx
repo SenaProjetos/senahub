@@ -132,9 +132,10 @@ export function EditarCadastroDialog({
                   </select>
                 </Campo>
               </div>
-                          <CollapsibleSection
+              <CollapsibleSection
                 titulo="Documentos trabalhistas (CLT)"
                 descricao="Opcionais — só o CLT precisa: PIS/NIS, CTPS, título de eleitor e CNH."
+                resumo={<ResumoDocumentos f={f} />}
               >
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Campo label="PIS/NIS"><InputFormatado tipo="pis" value={f.pis} onChange={(v) => set("pis", v)} /></Campo>
@@ -221,6 +222,17 @@ export function EditarCadastroDialog({
       </Dialog>
     </>
   );
+}
+
+/** Quantos documentos trabalhistas estão preenchidos — aparece com a seção fechada (regra do `CollapsibleSection`). */
+export function ResumoDocumentos({
+  f,
+}: {
+  f: { pis: string; ctpsNumero: string; ctpsSerie: string; tituloEleitor: string; cnh: string };
+}) {
+  const n = [f.pis, f.ctpsNumero || f.ctpsSerie, f.tituloEleitor, f.cnh].filter((v) => v.trim() !== "").length;
+  if (n === 0) return null;
+  return <span className="text-xs text-muted-foreground">{n} de 4 preenchido{n > 1 ? "s" : ""}</span>;
 }
 
 function Secao({ titulo, children }: { titulo: string; children: React.ReactNode }) {
