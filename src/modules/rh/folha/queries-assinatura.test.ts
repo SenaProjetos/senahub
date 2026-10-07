@@ -133,6 +133,21 @@ describe("holeritesPendentesDeAssinatura", () => {
     ]);
   });
 
+  it("a tela mostra o pendente mesmo ANTES do dia do pagamento (só a tarja espera) — e nem lê a conta", async () => {
+    mocks.holeriteFindMany.mockResolvedValue([
+      {
+        id: "h1",
+        assinaturaAnteriorEm: null,
+        itensAssinadosAntes: null,
+        folha: { ano: 2026, mes: 9, tipo: "mensal", fechadaEm: new Date("2026-10-01T12:00:00Z") },
+        itens: [{ descricao: "Salário", tipo: "provento", valor: 3000 }],
+      },
+    ]);
+    const r = await holeritesPendentesDeAssinatura({ id: "u1" });
+    expect(r).toHaveLength(1);
+    expect(mocks.lancamentoFindMany).not.toHaveBeenCalled();
+  });
+
   it("holerite corrigido depois de assinado traz o que mudou desde a assinatura anterior", async () => {
     mocks.holeriteFindMany.mockResolvedValue([
       {

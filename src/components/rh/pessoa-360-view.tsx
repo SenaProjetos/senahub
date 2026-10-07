@@ -671,6 +671,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                                 status={h.status}
                                 assinadoEm={h.assinadoEm}
                                 assinanteNome={h.assinanteNome}
+                                corrigido={h.corrigido}
                                 self={self}
                               />
                             </td>

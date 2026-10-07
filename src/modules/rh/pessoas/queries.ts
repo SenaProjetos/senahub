@@ -376,6 +376,7 @@ export async function holeritesDaPessoa(
       id: true,
       enviadoEm: true,
       assinadoEm: true,
+      assinaturaAnteriorEm: true,
       assinante: { select: { name: true } },
       folha: { select: { id: true, ano: true, mes: true, tipo: true, status: true, fechadaEm: true } },
       itens: { select: { tipo: true, valor: true } },
@@ -399,6 +400,8 @@ export async function holeritesDaPessoa(
       enviadoEm: h.enviadoEm?.toISOString() ?? null,
       assinadoEm: h.assinadoEm?.toISOString() ?? null,
       assinanteNome: h.assinante?.name ?? null,
+      /** Corrigido pelo RH depois de assinado: reassinar mostrando o que mudou (`/assinar-holerite`). */
+      corrigido: h.assinaturaAnteriorEm !== null,
       proventos,
       descontos,
       liquido: proventos - descontos,

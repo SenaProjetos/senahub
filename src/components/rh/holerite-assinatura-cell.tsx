@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { PenLine, Download } from "lucide-react";
@@ -20,12 +21,15 @@ export function HoleriteAssinaturaCell({
   status,
   assinadoEm,
   assinanteNome,
+  corrigido = false,
   self,
 }: {
   holeriteId: string;
   status: "aberta" | "fechada";
   assinadoEm: string | null;
   assinanteNome: string | null;
+  /** Corrigido pelo RH depois de assinado: a reassinatura passa pela tela que mostra o que mudou. */
+  corrigido?: boolean;
   self: boolean;
 }) {
   const router = useRouter();
@@ -59,7 +63,12 @@ export function HoleriteAssinaturaCell({
       ) : (
         <span className="text-warning">Pendente</span>
       )}
-      {self && !assinadoEm && (
+      {self && !assinadoEm && corrigido && (
+        <Button size="sm" variant="outline" render={<Link href="/assinar-holerite" />}>
+          <PenLine className="size-3.5" /> Ver o que mudou e assinar
+        </Button>
+      )}
+      {self && !assinadoEm && !corrigido && (
         <Button size="sm" variant="outline" onClick={assinar} disabled={pending}>
           <PenLine className="size-3.5" /> Assinar
         </Button>

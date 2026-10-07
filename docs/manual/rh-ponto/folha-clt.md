@@ -56,7 +56,8 @@ todo mês e preenche os holerites automaticamente — sem digitar rubrica por ru
   holerite dela à mão.
 - **Auxílio transporte e auxílio alimentação** (pagos pela empresa, não saem no holerite do
   contador): no editor do holerite há os botões **+ Auxílio transporte** e **+ Auxílio
-  alimentação** (proventos). Reimportar o PDF **não apaga** esses dois itens.
+  alimentação** (proventos). Reimportar o PDF **não apaga** esses dois itens. O **Calcular INSS/IRRF** deixa os
+  dois fora da base.
 - **INSS:** o cálculo automático trunca cada faixa no centavo, como o sistema do contador —
   antes arredondava e dava 1 ou 2 centavos a mais.
 
@@ -116,7 +117,8 @@ a folha já fechou antes disso.
   de confirmar a reabertura. **Quem já tinha assinado vê o que mudou:** na nova assinatura, o
   holerite traz um quadro "corrigido pelo RH depois da sua assinatura de…" listando cada item
   incluído, removido ou alterado (valor antes → depois) e o líquido antes → depois. Se a folha
-  foi só reaberta e fechada sem mudar valores, o quadro diz isso.
+  foi só reaberta e fechada sem mudar valores, o quadro diz isso. Na ficha (**Minha conta**), um holerite corrigido mostra **Ver o que mudou e assinar**, que
+  leva a essa mesma tela.
 - **Fechar a folha mensal define o valor da conta do mês** no Financeiro: o líquido real vai para a conta
   a pagar da competência (a que a recorrência gerou, ou uma nova), que vence no 5º dia útil do mês
   seguinte e **continua em aberto** até ser paga no Financeiro. O adiantamento de salário é outra conta e

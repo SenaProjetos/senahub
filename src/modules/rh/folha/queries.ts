@@ -137,20 +137,23 @@ async function soDevidos<T extends { folha: { lancamentoId: string | null } }>(r
   });
 }
 
-/** Fila da tela `/assinar-holerite` — mesma regra da tarja, agora com os valores a assinar. */
+/**
+ * Fila da tela `/assinar-holerite`: TODOS os holerites de folha fechada ainda sem assinatura, com os
+ * valores. Sem o filtro do dia do pagamento — esse vale só para a tarja COBRAR; quem chega aqui por
+ * vontade própria (a ficha manda um holerite corrigido para cá) assina o que já está fechado.
+ */
 export async function holeritesPendentesDeAssinatura(user: { id: string }) {
-  const rowsTodas = await prisma.holerite.findMany({
+  const rows = await prisma.holerite.findMany({
     where: whereHoleritePendente(user.id),
     orderBy: [{ folha: { ano: "asc" } }, { folha: { mes: "asc" } }],
     select: {
       id: true,
       assinaturaAnteriorEm: true,
       itensAssinadosAntes: true,
-      folha: { select: { ano: true, mes: true, tipo: true, fechadaEm: true, lancamentoId: true } },
+      folha: { select: { ano: true, mes: true, tipo: true, fechadaEm: true } },
       itens: { select: { descricao: true, tipo: true, valor: true }, orderBy: { descricao: "asc" } },
     },
   });
-  const rows = await soDevidos(rowsTodas);
   return rows.map((h) => {
     const itens = h.itens.map((it) => ({
       descricao: it.descricao,
