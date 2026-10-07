@@ -1,0 +1,390 @@
+classificacao;reduzido;nome;tipo;natureza;centro_custo
+1;1302;Ativo;S;D;N
+1.1;1365;Ativo Circulante;S;D;N
+1.1.1;1596;Disponível;S;D;N
+1.1.1.01;1603;Caixa;S;D;N
+1.1.1.01.0001;11;Caixa;A;D;N
+1.1.1.02;1624;Banco Conta Movimento;S;D;N
+1.1.1.02.0001;22;Banco;A;D;N
+1.1.1.02.0003;3395;BANCO CAIXA ECONOMICA;A;D;N
+1.1.1.02.0002;3402;BANCO SANTANDER 130083131;A;D;N
+1.1.1.02.0004;3941;BANCO ITAÚ C/C 99360-2;A;D;N
+1.1.1.03;1638;Aplicações Financeiras de Liquidez Imediata;S;D;N
+1.1.1.03.0001;3437;Aplicações Aut;A;D;N
+1.1.1.03.0002;3731;Título de Capitalização;A;D;N
+1.1.1.03.0003;3948;Aplicação Aut Mais Itaú;A;D;N
+1.1.2;1645;Clientes;S;D;N
+1.1.2.01;1652;Clientes;S;D;N
+1.1.2.01.0001;1659;Clientes Diversos;A;D;N
+1.1.2.01.0002;3458;Gregório Alves de Castro;A;D;N
+1.1.2.01.0003;3465;Europa Produtos de Importação e Exportação Ltda;A;D;N
+1.1.2.01.0004;3472;Visual Link Comunicações Multimidia Ltda ME;A;D;N
+1.1.2.01.0005;3493;Marelli Ind Com de Comp Auto Brasil Ltda;A;D;N
+1.1.2.01.0006;3500;MFT Empreendimentos Alimenticios Ltda;A;D;N
+1.1.2.01.0007;3507;Salch&pão Distribuição e Franchising Ltda ME;A;D;N
+1.1.2.01.0008;3514;Memorial Cafeteria Ltda EPP;A;D;N
+1.1.2.01.0009;3521;Arena Timbu Materiais Esportivos Ltda;A;D;N
+1.1.2.01.0010;3528;Projecto Engenharia Consultiva - Eireli;A;D;N
+1.1.2.01.0011;3535;Marcelo Souza Ribeiro;A;D;N
+1.1.2.01.0012;3542;ASH Materiais Esportivos Ltda;A;D;N
+1.1.2.01.0013;3549;Outlet Alimentos Ltda;A;D;N
+1.1.2.01.0014;3556;NAT Cafeterias Ltda;A;D;N
+1.1.2.01.0015;3563;BSB Aero Cafeteria Eireli;A;D;N
+1.1.2.01.0016;3570;Terrenos e Construções S/A;A;D;N
+1.1.2.01.0017;3619;RBF Empreendimentos Ltda EPP;A;D;N
+1.1.2.01.0018;3626;Atos Produtos Alimenticios Ltda;A;D;N
+1.1.2.01.0019;3633;Referencial Auditores e Consultores S/C Ltda;A;D;N
+1.1.2.01.0020;3640;Prefeitura Municipal de Orobo;A;D;N
+1.1.2.01.0021;3647;Marina do Cupe Empreendimentos Imobiliários Spe Lt;A;D;N
+1.1.2.01.0022;3654;Madeira Fermelha Treinds Foods Ltda;A;D;N
+1.1.2.01.0023;3661;Metodo Engenharia Ltda;A;D;N
+1.1.2.01.0024;3668;Construtora Directriz Ltda;A;D;N
+1.1.2.01.0025;3675;Arnaldo Ferraro Pavan Engenharia;A;D;N
+1.1.2.01.0026;3682;Shpx Logistica Ltda;A;D;N
+1.1.2.01.0027;3689;Fundo Municipal de Educação dos Palmares;A;D;N
+1.1.2.01.0028;3696;Santos Store Materiais Esportivos Ltda;A;D;N
+1.1.2.01.0029;3703;Mateus Supermercados S.A;A;D;N
+1.1.2.01.0030;3794;Alsco Toalheiro Brasil;A;D;N
+1.1.2.01.0031;3801;Rebeca Cavalcanti Menezes ME;A;D;N
+1.1.2.01.0032;3808;Serviço Nacional de Aprendizagem Industrial;A;D;N
+1.1.2.01.0033;3815;Serviço Social da Ind. Dep. Reg. de Minas Gerais;A;D;N
+1.1.2.01.0034;3822;SM Mateus Supermercados SA - Mix Itabuna;A;D;N
+1.1.2.01.0035;3829;Selfit Academias Holding SA;A;D;N
+1.1.2.01.0036;3836;Aeromecanica Ltda;A;D;N
+1.1.2.01.0037;3843;Serviço Nacional de Aprend Ind - Dep. Reg. de MG;A;D;N
+1.1.2.01.0038;3850;Mateus Supermercados S.A - Mix Tabuleiro;A;D;N
+1.1.2.01.0039;3857;Prefeitura Municipal de Casinhas;A;D;N
+1.1.2.01.0040;3864;Arthur da Silva Regueira;A;D;N
+1.1.2.01.0041;3871;Clej Cafeteria Ltda;A;D;N
+1.1.2.01.0042;3878;MFT - Madeira Fermela Trends Foods Ltda;A;D;N
+1.1.2.01.0043;3885;Isis Empreendimentos Alimenticio ME;A;D;N
+1.1.2.01.0044;3892;Secretaria Municipal de Educacao;A;D;N
+1.1.2.01.0045;3899;Tintas Iquine Ltda;A;D;N
+1.1.2.01.0046;3906;FIEMG - Federação das Industrias dos Estados de MG;A;D;N
+1.1.2.01.0047;3913;Universo Empreendimentos Eireli;A;D;N
+1.1.2.01.0048;3920;Azter Empreendimentos Alimenticios Ltda;A;D;N
+1.1.2.01.0049;3927;Eurobrasil Distribuidora Ltda;A;D;N
+1.1.2.01.0050;3962;Associacao de Apoio a Educacao e Ass. Soc. nos;A;D;N
+1.1.2.01.0051;3969;Prefeitura Municipal de Brejo de Madre de Deus;A;D;N
+1.1.2.01.0052;3976;CM Produtos Siderurgicos Ltda;A;D;N
+1.1.2.01.0053;3983;CETRUS - DIAGNOSTICO LTDA;A;D;N
+1.1.2.01.0054;3997;ABSOLUTA GESTÃO E PROJETOS LTDA;A;D;N
+1.1.2.01.0055;4004;GANTOIS CAFETERIA LTDA;A;D;N
+1.1.2.01.0056;4011;SP PE GELATERIA LTDA;A;D;N
+1.1.2.01.0057;4018;ESTADO DE PE PROCURADORIA GERAL DO ESTADO;A;D;N
+1.1.2.01.0058;4025;SERRA EMPREENDIMENTOS IMOBILIARIO LTDA;A;D;N
+1.1.2.01.0059;4032;PREFEITURA MUNICIPAL DE AMARAJI;A;D;N
+1.1.2.01.0060;4039;RMA COMERCIO DE FRIOS LTDA;A;D;N
+1.1.2.01.0061;4046;SP MS GELATERIA LTDA;A;D;N
+1.1.2.01.0062;4053;BEST SP LOCAÇÕES DE QUADRAS LTDA;A;D;N
+1.1.2.01.0063;4060;SP RN GELATERIA LTDA;A;D;N
+1.1.2.01.0064;4116;BSB FOOD SERVICE LTDA;A;D;N
+1.1.2.01.0065;4123;FOCO ALUGUEL DE CARROS SA;A;D;N
+1.1.2.01.0066;4130;SP BA GELATERIA LTDA;A;D;N
+1.1.2.01.0067;4137;SP MT GELATERIA LTDA;A;D;N
+1.1.2.01.0068;4144;SP PB GELATERIA LTDA;A;D;N
+1.1.2.01.0069;4151;SECRETARIA MUNICIPAL DE MOBILIDADE URBANA - STTU;A;D;N
+1.1.2.01.0070;4158;RS CAFETERIA LTDA;A;D;N
+1.1.2.01.0071;4165;FUNDO MUNICIPAL DE EDUCACAO;A;D;N
+1.1.2.01.0072;4172;SECRETARIA DE EDUCACAO - MUNICIPIO DE SURUBIM;A;D;N
+1.1.2.01.0073;4179;M. A. CONSTRUTORA LTDA;A;D;N
+1.1.2.01.0074;4186;UNIVERSIDADE ESTADUAL DO PARANÁ;A;D;N
+1.1.2.01.0075;4193;ACF CAFETERIA LTDA;A;D;N
+1.1.2.01.0076;4200;GCS EDUCACIONAL LTDA;A;D;N
+1.1.2.01.0077;4207;FC CAFETERIA LTDA;A;D;N
+1.1.2.01.0078;4214;GFS - GUSMAO FOOD SERVICE LTDA;A;D;N
+1.1.2.01.0079;4228;MADANO CONSTRUCOES E INCORPORACOES LTDA;A;D;N
+1.1.2.01.0080;4235;NOMINAL ENGENHARIA LTDA;A;D;N
+1.1.2.01.0081;4242;MUNICIPIO DE BELO HORIZONTE;A;D;N
+1.1.2.01.0082;4249;FIGUEREDO PLANEJAMENTO LTDA EPP;A;D;N
+1.1.2.01.0083;4263;FAST SOLUCOES DE ENGENHARIA LTDA;A;D;N
+1.1.2.01.0084;4270;ALL SERVICOS DE ARQUITETURA E ENGENHARIA LTDA;A;D;N
+1.1.2.01.0085;4277;BIAL CAFETERIA LTDA;A;D;N
+1.1.2.01.0086;4284;EUROFOODS PRODUTOS ALIMENTICIOS LTDA;A;D;N
+1.1.2.01.0087;4291;EDMAR VICTOR LTDA;A;D;N
+1.1.2.01.0088;4298;DIAFIL CONSTRUCOES E ENGENHARIA LTDA;A;D;N
+1.1.2.01.0089;4305;CARLOS EUGENIO GANTOIS LTDA;A;D;N
+1.1.2.01.0090;4312;MUNICIPIO DE SURUBIM;A;D;N
+1.1.2.01.0091;4319;POLICIA MILITAR DO ESTADO DE SAO PAULO;A;D;N
+1.1.2.02;1666;Duplicatas Descontadas;S;D;N
+1.1.2.02.0001;1673;Duplicatas Descontadas;A;D;N
+1.1.2.03;1680;Créditos Vencidos e não Liquidados;S;D;N
+1.1.2.03.0001;1687;Créditos Vencidos e não Liquidados;A;I;N
+1.1.3;1694;Outros Créditos;S;D;N
+1.1.3.01;1701;Títulos a Receber;S;D;N
+1.1.3.01.0001;1708;Títulos a Receber;A;D;N
+1.1.3.01.0002;3479;Título de Capitalização Santander Cap;A;D;N
+1.1.3.02;1715;Cheques em Cobrança;S;D;N
+1.1.3.02.0001;1722;Cheques em Cobrança;A;D;N
+1.1.3.03;1729;Importações em Andamento;S;D;N
+1.1.3.03.0001;1736;Importações em Andamento;A;D;N
+1.1.3.04;1743;Adiantamentos a Funcionários;S;I;N
+1.1.3.04.0001;1750;Adiantamentos a Funcionários;A;I;N
+1.1.3.04.0002;3934;Férias;A;I;N
+1.1.3.05;1757;Adiantamento a Fornecedores;S;D;N
+1.1.3.05.0001;1764;Salários;A;D;N
+1.1.3.05.0002;1771;13º Salário;A;D;N
+1.1.3.06;1778;Tributos a Recuperar/Compensar;S;D;N
+1.1.3.06.0001;1785;Tributos pagos a maior;A;D;N
+1.1.4;1792;Aplicações Financeiras;S;D;N
+1.1.4.01;1799;Aplicações Financeiras Rend. Pós-Fixados;S;D;N
+1.1.4.02;1806;Aplicações Financeiras Rend. Prefixados;S;D;N
+1.1.5;1813;Estoques;S;D;N
+1.1.5.01;1820;Mercadores, Produtos e Insumos;S;D;N
+1.1.5.01.0001;1827;Mercadorias Para Revenda;A;D;N
+1.1.5.01.0002;1834;Matérias-Primas;A;D;N
+1.1.5.01.0003;1841;Produtos Acabados;A;D;N
+1.1.5.01.0004;1848;Produtos em Elaboração;A;D;N
+1.1.5.02;1855;Almoxarifado;S;D;N
+1.1.5.02.0001;1862;Almoxarifado de Manutenção;A;D;N
+1.1.5.02.0002;1869;Almoxarifado Administrativo;A;D;N
+1.1.5.03;1876;Provisão para Ajuste de Estoque ao Valor do Mercad;S;D;N
+1.1.6;1883;Despesas Pagas Antecipadamente;S;D;N
+1.1.6.01;1890;Despesas do Exercício Seguinte;S;D;N
+1.2;1897;Ativo Realizável a Longo Prazo;S;D;N
+1.2.1;1904;Clientes;S;D;N
+1.2.1.01;1911;Duplicatas a Receber;S;D;N
+1.2.1.01.0001;1918;Cientes Diversos;A;D;N
+1.2.1.02;1925;Duplicatas Descontadas;S;C;N
+1.2.1.02.0001;1932;Duplicatas Descontadas;A;C;N
+1.2.2;1939;Outros Créditos;S;D;N
+1.2.2.01;1946;Tributos a Recuperar;S;D;N
+1.3;1953;Ativo Permanente;S;D;N
+1.3.1;1960;Imobilizado;S;D;N
+1.3.1.01;1967;Imóveis;S;D;N
+1.3.1.01.0001;1974;Terrenos;A;D;N
+1.3.1.02;1981;Móveis e Utensílios;S;D;N
+1.3.1.02.0001;1988;Móveis;A;I;N
+1.3.1.03;1995;Máquinas, Equipamentos e Ferramentas;S;D;N
+1.3.1.03.0001;2002;Máquinas;A;I;N
+1.3.1.03.0002;4102;Computador;A;I;N
+1.3.1.04;2009;Veículos;S;D;N
+1.3.1.04.0001;2023;Veículos;A;D;N
+1.3.1.04.0002;3724;Participação em Consórcio;A;D;N
+1.3.1.09;2016;Depreciação, Amortização e Exaustões Acumuladas;S;C;N
+1.3.1.09.0001;2030;Depreciação;A;C;N
+1.3.9;2037;Ativo Diferido;S;D;N
+1.3.9.01;2044;Gastos Pré-Operacionais;S;D;N
+1.3.9.01.0001;2051;Administrativos;A;D;N
+1.3.9.01.0002;2058;De Organização;A;D;N
+1.3.9.01.0003;2065;Financeiros;A;D;N
+2;2072;Passivo;S;C;N
+2.1;2079;Passivo Circulante;S;C;N
+2.1.1;2086;Emprestimos e Financiamentos;S;I;N
+2.1.1.01;2093;Emprestimos;S;C;N
+2.1.1.01.0001;2100;Emprestimos;A;C;N
+2.1.1.01.0002;3752;Emprestimo nº 26790;A;C;N
+2.1.1.01.0003;3759;Emprestimo nº 24530;A;C;N
+2.1.1.02;2107;Financiamentos;S;C;N
+2.1.1.02.0001;2114;Financiamentos;A;C;N
+2.1.1.02.0002;3745;Parcelamento;A;C;N
+2.1.1.03;2121;Titulos a Pagar;S;C;N
+2.1.2;2128;Fornecedores;S;C;N
+2.1.2.01;2135;Fornecedore Diversos;S;C;N
+2.1.2.01.0001;2142;Fornecedores Diversos;A;C;N
+2.1.2.01.0002;4067;KC Distribuidora Ltda;A;C;N
+2.1.2.01.0003;4095;ER COM E SERV DE FILTROS E REF LTDA;A;C;N
+2.1.3;2149;Obrigações Tributárias;S;C;N
+2.1.3.01;2156;Impostos e Contribuições a Recolher;S;C;N
+2.1.3.01.0001;2163;IR a Recolher;A;C;N
+2.1.3.01.0002;2170;CSLL a Recolher;A;C;N
+2.1.3.01.0003;2177;PIS a Recolher;A;C;N
+2.1.3.01.0003;2184;COFINS a Recolher;A;C;N
+2.1.3.01.0003;2191;ICMS a Recolher;A;C;N
+2.1.3.01.0003;2198;IPI a Recolher;A;C;N
+2.1.3.01.0003;2205;IE a Recolher;A;C;N
+2.1.3.01.0004;3486;Simples a Recolher;A;C;N
+2.1.3.01.0005;4256;Parcelamento Simples Nacional;A;C;N
+2.1.4;2212;Obrigações Trabalhistas e Previdenciárias;S;C;N
+2.1.4.01;2219;Obrigações Com Pessoal;S;C;N
+2.1.4.01.0001;2226;Salários e Ordenados;A;C;N
+2.1.4.01.0002;2233;Pró-Labore a Pagar;A;C;N
+2.1.4.01.0003;2240;Gratificações a Pagar;A;C;N
+2.1.4.01.0004;3717;Vale Transporte;A;C;N
+2.1.4.01.0005;4221;Prestação de Serviço de Terceiros a Pagar;A;C;N
+2.1.4.02;2247;Obrigações Previdenciárias;S;C;N
+2.1.4.02.0001;2254;INSS a Recolher;A;C;N
+2.1.4.02.0002;2261;FGTS a Recolher;A;C;N
+2.1.4.02.0003;3990;IRPF a Recolher;A;C;N
+2.1.4.03;2268;Provisões;S;C;N
+2.1.4.03.0001;2275;Provisões para Férias;A;C;N
+2.1.4.03.0002;2282;Provisão para 13º Salário;A;C;N
+2.1.4.03.0003;2289;INSS Sobre Férias;A;C;N
+2.1.4.03.0004;2296;FGTS Sobre 13º Salário;A;C;N
+2.1.5;2303;Outras Obrigações;S;C;N
+2.1.5.01;2310;Adiantamento de Clientes;S;C;N
+2.1.5.01.0001;2317;Adiantamento de Clientes;A;C;N
+2.1.5.02;2324;Contas a Pagar;S;C;N
+2.1.5.02.0001;2331;Energia Elétrica a Pagar;A;C;N
+2.1.5.02.0002;2338;Água a Pagar;A;C;N
+2.1.5.02.0003;2352;Telefones a Pagar;A;C;N
+2.1.5.02.0004;3353;Aluguéis a Pagar;A;C;N
+2.1.5.03;2359;Outras Obrigações;S;C;N
+2.1.5.04;3416;Dividendos;S;C;N
+2.1.5.04.0001;3423;Dividendos a Pagar;A;C;N
+2.2;2366;Passivel Exigivel a Longo Prazo;S;C;N
+2.2.1;2373;Emprestimos e Financiamentos;S;C;N
+2.2.1.01;2380;Emprestimos;S;C;N
+2.2.1.02;2387;Financiamentos;S;C;N
+2.2.1.03;2394;Títulos a Pagar;S;C;N
+2.2.2;2401;Fornecedores;S;C;N
+2.2.3;2408;Outras Obrigações;S;C;N
+2.2.3.01;2415;Contas a Pagar;S;C;N
+2.3;2422;Resultados de Exercicio Futuros;S;C;N
+2.3.1;2429;Resultados Operacionais;S;C;N
+2.3.1.01;2436;Receitas de Exercício Futuros;S;C;N
+2.3.1.02;2443;Custos e Despesas Vinculadas às Receitas;S;C;N
+2.4;2450;Patrimônio Líquido;S;C;N
+2.4.1;2457;Capital Social;S;I;N
+2.4.1.01;2464;Capital Subscrito;S;C;N
+2.4.1.01.0001;2471;Capital Social;A;C;N
+2.4.1.02;2478;Capital a Integralizar;S;D;N
+2.4.1.02.0001;2485;Capital a Integralizar;A;D;N
+2.4.2;2492;Reservas;S;C;N
+2.4.2.01;2499;Reservas de Capital;S;C;N
+2.4.2.01.0001;2506;Doaçoes e Subvenções para Investimento;A;C;N
+2.4.2.02;2513;Ajustes de Avaliação Patrimonial;S;C;N
+2.4.2.02.0001;2520;Ajustes de Elementos do Ativo;A;I;N
+2.4.2.03;2527;Reservas de Lucros;S;C;N
+2.4.2.03.0001;2534;Reserva Legal;A;C;N
+2.4.2.03.0002;2541;Reserva Estatutária;A;I;N
+2.4.2.03.0003;2548;Reserva para Contingência;A;I;N
+2.4.2.03.0004;2555;Reserva para Lucros a Realizar;A;I;N
+2.4.2.03.0005;2562;Reserva Especial;A;I;N
+2.4.2.03.0006;2569;Reserva de Incentivos Fiscais;A;I;N
+2.4.2.04;3367;Lucros / Prejuízos Acumulados;S;I;N
+2.4.2.04.0001;3374;Lucros Acumulados;A;I;N
+2.4.2.04.0003;3381;Prejuízos Acumuados;A;I;N
+2.4.2.04.0002;3388;Resultado do Exercício;A;I;N
+3;2576;Despesas e Custos;S;D;N
+3.1;2583;Despesas Operacionais;S;D;N
+3.1.1;2590;Despesas com Pessoal;S;D;N
+3.1.1.01;2597;Despesas com Pessoal;S;D;N
+3.1.1.01.0001;2604;Salário e Ordenados;A;D;N
+3.1.1.01.0002;2611;Pró-Labore;A;D;N
+3.1.1.01.0003;2618;Prêmios e Gratificações;A;D;N
+3.1.1.01.0004;2625;13º Salário;A;D;N
+3.1.1.01.0005;2632;Férias;A;D;N
+3.1.1.01.0006;2639;INSS;A;D;N
+3.1.1.01.0007;2646;FGTS;A;D;N
+3.1.1.01.0008;2653;Indenizações e Aviso Prévio;A;D;N
+3.1.1.01.0009;2660;Assistência Médica e Social;A;D;N
+3.1.1.02;2667;Comissões Sobre Vendas;S;D;N
+3.1.1.02.0001;2674;Comissões;A;D;N
+3.1.1.03;2681;Propaganda e Publicidade;S;D;N
+3.1.1.03.0001;2688;Propaganda e Publicidade;A;D;N
+3.1.1.04;2695;Despesas Com Entrega;S;D;N
+3.1.1.04.0001;2702;Fretes e Carretos;A;D;N
+3.1.1.04.0002;2709;Manutenção de Veículos;A;D;N
+3.1.1.05;2716;Despesas Gerais;S;D;N
+3.1.1.05.0001;2723;Aluguéis;A;D;N
+3.1.1.05.0002;2730;Manutenção e Reparo;A;D;N
+3.1.1.05.0003;2737;Telefone;A;D;N
+3.1.1.05.0004;2744;Despesas Postais;A;D;N
+3.1.1.05.0005;2751;Seguros;A;D;N
+3.1.1.06;2758;Perdas no Recebimento de Créditos;S;D;N
+3.1.1.06.0001;2765;Créditos Vencidos e Não Liquidados;A;D;N
+3.1.2;2772;Despesas Administrativas;S;D;N
+3.1.2.01;2779;Despesas com Pessoal;S;D;N
+3.1.2.01.0001;2786;Salários e Ordenados;A;D;N
+3.1.2.01.0002;2793;Pró-Labore;A;D;N
+3.1.2.01.0003;2800;Prêmios e Gratificações;A;D;N
+3.1.2.01.0004;2807;13º Salário;A;D;N
+3.1.2.01.0005;2814;Férias;A;D;N
+3.1.2.01.0006;2821;INSS;A;D;N
+3.1.2.01.0007;2828;FGTS;A;D;N
+3.1.2.01.0008;2835;Indenizações e Aviso Prévio;A;D;N
+3.1.2.01.0009;2842;Assistência Médica e Social;A;D;N
+3.1.2.01.0010;4074;Ajuda de custo;A;D;N
+3.1.2.01.0011;4081;Bolsa Estágio;A;D;N
+3.1.2.02;2849;Despesas Tributárias;S;D;N
+3.1.2.02.0001;2856;PIS;A;D;N
+3.1.2.02.0002;2863;IPTU;A;D;N
+3.1.2.02.0003;2870;IPVA;A;D;N
+3.1.2.02.0004;2877;COFINS;A;D;N
+3.1.2.02.0005;2884;Taxas Diversas;A;D;N
+3.1.2.03;2891;Despesas Gerais;S;D;N
+3.1.2.03.0001;2898;Energia Elétrica;A;D;N
+3.1.2.03.0002;2905;Água e Esgoto;A;D;N
+3.1.2.03.0003;2912;Telefone;A;D;N
+3.1.2.03.0004;2919;Despesas Postais e Telegráricas;A;D;N
+3.1.2.03.0005;2926;Seguros;A;D;N
+3.1.2.03.0006;2933;Material de Escritório;A;D;N
+3.1.2.03.0007;2940;Material de Higiene e Limpeza;A;D;N
+3.1.2.03.0008;2947;Assistência Contábil;A;D;N
+3.1.2.03.0009;2954;Serviços Prestados por Terceiros;A;D;N
+3.1.2.03.0010;2961;Depreciações e Amortizações;A;D;N
+3.1.2.03.0011;2968;Livro, Jornais e Revistas;A;D;N
+3.1.2.03.0012;3430;Despesas com Cartão;A;D;N
+3.1.2.03.0013;3451;Despesas Administrativas;A;D;N
+3.1.2.03.0014;3710;Vale Alimentação;A;D;N
+3.1.2.03.0015;3738;Despesas com Combustível;A;D;N
+3.1.2.03.0016;4088;Assistencia Advocatícia;A;D;N
+3.1.2.03.0017;4109;Cursos e treinamentos;A;D;N
+3.1.2.04;2975;Despesas Financeiras;S;D;N
+3.1.2.04.0001;2982;Juros Passivos;A;D;N
+3.1.2.04.0002;2989;Variações Monetárias Passivas;A;D;N
+3.1.2.04.0003;2996;Variações Cambiais Passivas;A;D;N
+3.1.2.04.0004;3003;Descontos Concedidos;A;D;N
+3.1.2.04.0005;3010;Juros Sobre o Capital Próprio;A;D;N
+3.1.2.04.0006;3409;IOF;A;D;N
+3.1.2.04.0007;3444;Tarifa Bancária;A;D;N
+3.2;3017;Despesas Não-Operacionais;S;D;N
+3.2.1;3024;Resultados Não-Operacionais;S;D;N
+3.2.1.01;3031;Resultado Negativo na Alienção de Investimentos;S;D;N
+3.2.1.01.0001;3038;Perdas na Alienação de Imóveis;A;D;N
+3.3;3766;Custos;S;D;N
+3.3.3;3773;Custos;S;D;N
+3.3.3.01;3780;Custos;S;D;N
+3.3.3.01.0001;3787;Custos;A;D;N
+4;3045;Receitas;S;C;N
+4.1;3073;Receitas Operacionais;S;C;N
+4.1.1;3052;Receita Bruta de Vendas e Serviços;S;C;N
+4.1.1.01;3059;Receita Bruta de Vendas de Produtos e Mercadorias;S;C;N
+4.1.1.01.0001;3066;Vendas de Produtos no Merc. Interno;A;C;N
+4.1.1.01.0002;3080;Venda de Produtos no Mercado Externo;A;C;N
+4.1.1.01.0003;3087;Venda de Mercadoria no Mercado Interno;A;C;N
+4.1.1.01.0004;3094;Venda de Mercadoria no Mercado Externo;A;C;N
+4.1.1.02;3101;Receita de Prestação de Serviços;S;C;N
+4.1.1.02.0001;3108;Serviços Prestados - Mercado Interno;A;C;N
+4.1.1.02.0002;3115;Serviços Prestados - Mercado Externo;A;C;N
+4.1.2;3122;Deduções da Receita Bruta;S;D;N
+4.1.2.01;3129;Cancelamentos e Devoluções;S;D;N
+4.1.2.01.0001;3136;de Venda de Produtos no Merc. Interno;A;D;N
+4.1.2.01.0002;3143;de Venda de Produtos no Merc. Externo;A;D;N
+4.1.2.01.0003;3150;de Venda de Mercadoria no Merc. Interno;A;D;N
+4.1.2.01.0004;3157;de Venda de Mercadoria no Merc. Externo;A;D;N
+4.1.2.02;3164;Descontos Incondicionais;S;D;N
+4.1.2.02.0001;3171;sobre Venda de Produtos no Merc. Interno;A;D;N
+4.1.2.02.0002;3178;sobre Venda de Produtos no Merc. Externo;A;D;N
+4.1.2.02.0003;3185;sobre Venda de Mercadoria no Merc. Interno;A;D;N
+4.1.2.02.0004;3192;sobre Venda de Mercadoria no Merc. Externo;A;D;N
+4.1.2.03;3199;Impostos Incidentes sobre Vendas e Serviços;S;D;N
+4.1.2.03.0001;3206;IPI;A;D;N
+4.1.2.03.0002;3213;ICMS;A;D;N
+4.1.2.03.0003;3220;ISS;A;D;N
+4.1.2.03.0004;3227;COFINS;A;D;N
+4.1.2.03.0005;3234;PIS;A;D;N
+4.1.2.03.0006;3577;Simples Nacional;A;D;N
+4.1.3;3241;Receitas Financeiras;S;C;N
+4.1.3.01;3248;Juros e Descontos;S;C;N
+4.1.3.01.0001;3255;Juros e Aplicações Financeiras;A;C;N
+4.1.3.01.0002;3262;Juros Ativos;A;C;N
+4.1.3.01.0003;3269;Descontos Financeiros Obtidos;A;C;N
+4.1.3.01.0004;3955;Rendimento s/ Aplicação;A;C;N
+4.1.4;3276;Recuperação de Despesas;S;C;N
+4.1.4.01;3283;Recuperação de Créditos Considerados Incobráveis;S;C;N
+4.1.5;3290;Receitas Diversas;S;C;N
+4.1.5.01;3297;Receitas Diversas;S;C;N
+4.1.5.01.0001;3304;Aluguéis e Arrendamentos;A;C;N
+4.1.5.01.0002;3311;Vendas e Acessórias;A;C;N
+4.1.5.01.0003;3318;Receita de Equivalência Patrimonial;A;C;N
+4.2;3325;Receitas Não-Operacionais;S;C;N
+4.2.1;3332;Resultados Não-Operacionais;S;C;N
+4.2.1.01;3339;Resultados Positivos na Alienação do Imobilizado;S;C;N
+4.2.1.01.0001;3346;Lucro na Alienação de Imóveis;A;C;N
+5;3584;Contas Transitórias;S;C;N
+5.1;3591;Contas Transitórias;S;C;N
+5.1.1;3598;Contas Transitórias;S;C;N
+5.1.1.01;3605;Contas Transitórias;S;C;N
+5.1.1.01.0001;3612;Resultado do exercício;A;C;N
