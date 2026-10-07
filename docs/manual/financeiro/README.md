@@ -45,6 +45,7 @@ O que você vê no financeiro depende de **3 níveis**:
 | [Avisos do Financeiro](avisos.md) | `/financeiro/configuracoes` | ✅ documentado |
 | [Investimentos](investimentos.md) | `/financeiro/investimentos` | ✅ documentado |
 | [Aprovações (alçadas)](aprovacoes.md) | `/financeiro/aprovacoes` | ✅ documentado |
+| [Integração contábil](integracao-contabil.md) | `/financeiro/contabil` | ✅ documentado |
 | [Relatórios gerenciais](relatorios.md) | `/financeiro/relatorios` e afins | ✅ documentado |
 | [Estúdio de Documentos](estudio-documentos.md) | `/documentos` | ✅ documentado |
 | [Produção (pagamento de projetistas)](producao.md) | `/financeiro/folha-projetistas` | ✅ documentado |

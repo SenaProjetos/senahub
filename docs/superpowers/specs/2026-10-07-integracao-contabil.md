@@ -1,6 +1,6 @@
 # Integração contábil (M5) e retenções na NF
 
-**Data:** 2026-10-07 · **Branch:** `feat/integracao-contabil` (de `dev`) · **Status:** spec, aguardando revisão do dono
+**Data:** 2026-10-07 · **Branch:** `feat/integracao-contabil` (de `dev`) · **Status:** C0, C2 e C3 feitas; C1 só no que o mock aprovou (ver §12); C4 e C5 aguardam o dono e o contador
 
 Fecha as duas pendências que o plano do Financeiro deixou para o contador: a fase **M5 (integração contábil)** e as
 **retenções na NF** (decisão 5 de 2026-10-02). Base: as respostas do contador (GAMA CONTABIL, 2026-10-05 e 2026-10-07),
@@ -178,7 +178,7 @@ Casos de borda decididos:
 
 ## 6. Exportação (tela, conforme o mock)
 
-`/financeiro/contabil`, item "Integração contábil" em **Mais** (gate novo `financeiro:contabil`, mesmo do menu).
+`/financeiro/contabil`, item "Integração contábil" em **Mais**, gate `financeiro:fechar` (o do Fechamento mensal: quem fecha o mês o entrega ao contador — sem par novo de permissão).
 Duas abas como no mock:
 - **De-para** — "Categorias → conta contábil" (filtro Todas | Sem conta contábil, contador "N faltam") e "Contas
   bancárias → conta contábil"; menu de contexto da linha: Escolher conta contábil…, Copiar de outra categoria…, Ver
@@ -264,3 +264,29 @@ Verificação por fase: tsc (`NODE_OPTIONS=--max-old-space-size=8192`), lint sem
 | Padrão clientes / fornecedores | 1659 / 2142 | Clientes Diversos / Fornecedores Diversos |
 | Contas bancárias | 3395 · 3402 · 3941 · 11 | Caixa Econômica · Santander · Itaú · Caixa (o dono liga cada conta) |
 | IRRF / PIS / COFINS / CSLL / INSS a recolher | 2163 · 2177 · 2184 · 2170 · 2254 | (ISS a recolher falta no plano) |
+
+## 12. O que foi feito (2026-10-07)
+
+| Fase | Entrega |
+|---|---|
+| C0 | `ContaContabil` + `lerPlanoCsv`/`planejarImportacao` (`contabil/plano.ts`) + `npm run contabil:importar-plano [csv]` (sem argumento, o CSV deste spec). Migração `20261007120000_integracao_contabil`. |
+| C1 (parcial) | `DeParaContabil` + aba De-para do mock: categorias (filtro Todas / Sem conta contábil, menu Escolher · Copiar · Ver lançamentos do mês · Limpar) e contas bancárias (Escolher · Ver extrato do mês · Limpar). A migração grava as sugestões do §11, a folha "não exportar" e os dois padrões. |
+| C2 | `gerarPartidas` (`contabil/partidas.ts`, puro, 22 testes) + `partidasDoMes` (service) + `npm run smoke:contabil` (16 checagens, inclusive a invariante do extrato). |
+| C3 | Card Exportação + prévia (aba Exportação = prévia completa), `exportarMesContabil` grava `ExportacaoContabil` (linhas + hash) e a rota `/api/financeiro/contabil/arquivo?id=` serve exatamente o registro (Excel ou CSV `;` com vírgula decimal). |
+
+Escolhas tomadas na implementação (dizer ao dono):
+- **Exportar fica bloqueado só por categoria sem conta** (o mock desabilita com pendência). Pendência que depende de conta
+  que o contador ainda vai criar (cartão, por exemplo) só avisa — senão nenhum mês com compra no cartão exportaria.
+- **Seletor de mês** no card Exportação (o mock não tinha: sem ele não há como exportar outro mês além do último fechado).
+- **Categoria grupo** (com filhas) sem conta mostra "Grupo — vale a conta de cada filha" e não conta como falta, a menos que
+  algum lançamento do mês use o próprio grupo.
+- **"Não exportar"** aparece como texto na linha da folha; escolher uma conta para ela tira o "não exportar". Não há botão
+  para marcar outra categoria como "não exportar" — é acréscimo ao mock (§6, item 2) e espera o OK.
+- A tela mostra a classificação e o nome; a prévia e o arquivo usam o **reduzido** (passar o mouse mostra o nome).
+
+Ainda fora (esperam o OK do mock ou o contador): blocos de cartões, impostos, contrapartida, clientes/fornecedores e
+centros/projetos (§6 item 1), importar plano pela tela (§6 item 3), selo "mudou desde a última exportação" (§6 item 4 — o
+hash já é gravado), retenções (C4) e layout Alterdata (C5).
+
+**Deploy:** `prisma migrate deploy` + `npm run contabil:importar-plano` uma vez (carrega o plano do CSV). Sem o plano a
+tela avisa e o seletor fica vazio; as sugestões da migração já estão gravadas pelo reduzido.

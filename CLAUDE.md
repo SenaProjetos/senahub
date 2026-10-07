@@ -56,6 +56,8 @@ npm run smoke:modelo-disciplina     # modelos de EAP por disciplina: criar do mo
 npm run smoke:apagar-eap            # apagar a EAP inteira (rascunho): o que impede, o que vai junto, o que fica
 npm run smoke:financeiro-core       # núcleo do financeiro: N0 (parcelas do projeto, projetista pago no Financeiro, recebido pelo pago) e N1 (estorno, reabrir, caminhos impossíveis, desfazer importação)
 npm run smoke:planejador            # planejador de caixa: S0 = caixa da Visão geral, só pendente vira evento, transferência, parcial, leitura não grava; aplicar cenário tudo-ou-nada (obsoleto, regra no 3º, corrida); caixinhas, distribuição, recorrência, fora do resultado, lucros de sócio e folha quitando o previsto
+npm run smoke:contabil              # integração contábil (M5): plano do contador, partidas (reconhecimento+baixa, parcial, cartão, transferência, folha fora), invariante do extrato, exportação só de mês fechado
+npm run contabil:importar-plano     # importa/re-importa o plano do contador (CSV; sem argumento usa docs/financeiro/contabil/plano-de-contas-gama-2026-10.csv)
 npm run smoke:catalogo-nomenclatura # catálogo da versão: sigla que muda de dono (sinônimo/oficial), sair sem mexer em sigla, voltar escolhendo
 npm run verify:motor-cronograma     # motor do cronograma contra os projetos reais do banco
 npm run smoke:ifc-federado         # IFC federado: child de verdade, R00/R01/R02 nunca repetida, trava de geração viva, arquivo sumido, unidade recusada, geração travada liberada, regra de leitura
@@ -535,6 +537,17 @@ while the revision is `em_andamento` (`ultimaVersao`, `Upload.versaoNaRevisao`);
 `DocumentoDisciplina.revisaoCompartilhadaId/revisaoLiberadaObraId` are now a MIRROR of the active
 `enviado_cliente`/`liberado_obra` control, written only by the service (the public link reads them). Daily job
 `ciclo-documental-integridade` (A7). Deploy runs `scripts/migrar-ciclo-documental.ts` (read-only, then `--gravar`).
+
+**Accounting export (M5)** (`modules/financeiro/contabil/`, spec `docs/superpowers/specs/2026-10-07-integracao-contabil.md`):
+the SenaHub does NOT keep books — `gerarPartidas` (pure) DERIVES double-entry lines from the month's lançamentos at each
+export; the accountant (Alterdata) books them. Accounts are the accountant's **código reduzido** (`ContaContabil.reduzido`,
+unique — the classificação repeats in his plan). `DeParaContabil` maps categoria (inherits from the parent; `naoExportar` =
+folha CLT, the accountant books it), conta bancária (investment accounts included), cartão, contato and the two padrões
+(Clientes/Fornecedores Diversos). A título = TWO lines (accountant's rule): recognition at competência and baixa at payment;
+a partial remainder (`restanteDeId`) is never recognized again; card purchases pay in one line per fatura; a transfer pair is
+one line; M7 accessories and investment yield/IR are one line against the bank. Only a CLOSED month exports
+(`registrarExportacaoNoBanco` stores `ExportacaoContabil` lines + hash, audited); the download route only reads that record.
+Invariant (smoke): the bank account's lines + what was left out = the Extrato por conta's net for the month.
 
 **Projetista paid per phase** (F7.4, `PagamentoProjetista.etapaId`): "already paid" means
 `situacaoPagamento().jaLiberouTudo` (every phase released) — never "has any payment" (`_count.pagamentos > 0`),

@@ -1,0 +1,78 @@
+---
+titulo: Integração contábil
+descricao: Ligar as categorias e as contas bancárias ao plano de contas do contador e exportar o mês fechado num arquivo de lançamentos para o Alterdata.
+resumo: Escolha uma vez a conta contábil de cada categoria e de cada conta bancária; depois de fechar o mês, exporte o arquivo (Excel ou CSV) com cada conta a pagar ou a receber em dois lançamentos, na competência e no pagamento. A folha CLT fica de fora, porque o contador lança.
+tags: [financeiro, contabilidade, contador, exportação, de-para, plano de contas, alterdata]
+palavras-chave: [integração contábil, de-para, conta contábil, plano de contas do contador, exportar para o contador, partida dobrada, código reduzido, mês fechado]
+sinonimos: [exportação contábil, arquivo do contador, lançamentos contábeis, Alterdata]
+---
+
+# Integração contábil
+
+## Objetivo
+
+Entregar ao contador, todo mês, os lançamentos do Financeiro já em partida dobrada (conta de débito e conta de
+crédito), no plano de contas dele. O contador importa o arquivo no Alterdata e confere, em vez de redigitar.
+
+## Como acessar
+
+- Menu → **Financeiro** → **Mais** → **Integração contábil** (`/financeiro/contabil`).
+- Exige `financeiro:fechar`, a mesma permissão do Fechamento mensal: quem fecha o mês é quem o entrega ao contador.
+
+## De-para: ligar categorias e contas ao plano do contador
+
+A aba **De-para** lista as categorias do Financeiro e, ao lado, as contas bancárias. Para cada uma, clique com o botão
+direito (ou no `⋯`):
+
+- **Escolher conta contábil…** — abre o plano do contador já no grupo que faz sentido (despesa no grupo 3, receita no
+  4, banco no 1.1). Busque pelo nome, pela classificação ou pelo código. Só aparecem contas **analíticas** (as que
+  recebem lançamento).
+- **Copiar de outra categoria…** — usa a conta de outra categoria do mesmo tipo.
+- **Ver lançamentos de &lt;mês&gt;** — os lançamentos da categoria (e das filhas) no mês escolhido.
+- **Limpar conta** — tira a conta; a categoria volta a usar a da categoria mãe, se houver.
+
+Regras que valem:
+
+- **A conta da mãe vale para as filhas** que não tiverem a própria. Ligue "2.06 Despesas administrativas" uma vez e
+  todas as filhas dela saem nessa conta.
+- Uma categoria **grupo** (que tem filhas) sem conta não falta: cada filha usa a sua.
+- **Folha CLT: "Não exportar — o contador lança".** O contador processa a folha; ela não entra no arquivo.
+- Cliente sem conta própria sai em **Clientes Diversos**; fornecedor, em **Fornecedores Diversos**.
+- Impostos, pró-labore e distribuição de lucros têm a contrapartida própria (Simples a recolher, Pró-labore a pagar,
+  Dividendos a pagar), não "fornecedor".
+
+O contador identifica a conta pelo **código reduzido** (o número entre parênteses no plano dele); é ele que vai no
+arquivo. A classificação ("3.1.2.03.0009") aparece na tela só para leitura.
+
+## Exportar o mês
+
+1. Feche o mês em **Fechamento mensal**. Mês aberto não exporta, para o arquivo bater com o que o contador já
+   recebeu.
+2. Na **Integração contábil**, escolha o mês e o formato (**Excel** ou **CSV**) e clique em **Exportar &lt;mês&gt;**.
+3. O arquivo baixa na hora e a exportação fica registrada (quem gerou, quando e as linhas como saíram).
+
+Como os lançamentos viram linhas:
+
+- **Conta a pagar ou a receber = duas linhas**: o reconhecimento, na data de competência (despesa contra o
+  fornecedor; cliente contra a receita), e a baixa, no dia do pagamento (fornecedor contra o banco; banco contra o
+  cliente). Em aberto, só o reconhecimento. Pago antes da competência, a baixa sai no mês do pagamento e o
+  reconhecimento no da competência.
+- **Pagamento parcial**: o título é reconhecido uma vez, pelo valor inteiro; cada pagamento é uma baixa.
+- **Cartão de crédito**: cada compra é reconhecida no dia da compra contra o cartão; o pagamento da fatura sai numa
+  linha só.
+- **Transferência entre contas** (inclusive aplicar e resgatar investimento): uma linha, banco de destino contra banco
+  de origem.
+- **Juros, multa e desconto** da baixa e **rendimento/IR** do investimento: uma linha contra o banco.
+- **Centro de custo e projeto** vão nas linhas de despesa e receita (com rateio, a linha se divide).
+- Ficam de fora: **folha CLT**, contas **aguardando aprovação**, canceladas e a previsão do cronograma.
+
+Conta sem de-para sai **em branco** no arquivo, e a tela lista o que falta. Com categoria sem conta, a exportação fica
+bloqueada até você escolher; o que depende de conta que o contador ainda vai criar (cartão, por exemplo) só avisa.
+
+## O que ainda depende do contador
+
+- O **layout de importação do Alterdata**: até ele chegar, o arquivo sai no formato genérico (data, débito, crédito,
+  valor, histórico, documento, chave da NF-e, centro e subcentro).
+- Contas que faltam no plano dele (ISS/INSS a compensar, ISS a recolher, adiantamento de sócio, cartão a pagar,
+  aplicações) e a habilitação de centro de custo.
+- **Retenções na nota** (ISS, INSS, IRRF…): entram numa próxima etapa.

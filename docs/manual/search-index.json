@@ -1756,6 +1756,37 @@
       ]
     },
     {
+      "titulo": "Financeiro — Integração contábil",
+      "path": "financeiro/integracao-contabil.md",
+      "descricao": "Ligar as categorias e as contas bancárias ao plano de contas do contador e exportar o mês fechado num arquivo de lançamentos para o Alterdata.",
+      "resumo": "Escolha uma vez a conta contábil de cada categoria e de cada conta bancária; depois de fechar o mês, exporte o arquivo (Excel ou CSV) com cada conta a pagar ou a receber em dois lançamentos, na competência e no pagamento. A folha CLT fica de fora, porque o contador lança.",
+      "tags": [
+        "financeiro",
+        "contabilidade",
+        "contador",
+        "exportação",
+        "de-para",
+        "plano de contas",
+        "alterdata"
+      ],
+      "palavrasChave": [
+        "integração contábil",
+        "de-para",
+        "conta contábil",
+        "plano de contas do contador",
+        "exportar para o contador",
+        "partida dobrada",
+        "código reduzido",
+        "mês fechado"
+      ],
+      "sinonimos": [
+        "exportação contábil",
+        "arquivo do contador",
+        "lançamentos contábeis",
+        "Alterdata"
+      ]
+    },
+    {
       "titulo": "Aprovações de despesas (alçadas)",
       "path": "financeiro/aprovacoes.md",
       "descricao": "Fila de despesas que exigem aprovação por faixa de valor, com papéis aprovadores.",
