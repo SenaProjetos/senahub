@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputFormatado } from "@/components/ui/input-formatado";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AssinarComCertificadoIcp } from "@/components/juridico/assinar-com-certificado-icp";
@@ -82,8 +83,8 @@ export function AssinaturaPublicaForm({
           <Input value={nome} onChange={(e) => setNome(e.target.value)} />
         </div>
         <div className="space-y-1.5">
-          <Label>CPF (opcional)</Label>
-          <Input value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="000.000.000-00" />
+          <Label htmlFor="assinatura-cpf">CPF (opcional)</Label>
+          <InputFormatado id="assinatura-cpf" tipo="cpf" value={cpf} onChange={setCpf} />
         </div>
       </div>
 

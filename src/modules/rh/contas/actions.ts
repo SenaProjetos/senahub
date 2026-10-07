@@ -3,6 +3,8 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
+import { campo } from "@/lib/campos/zod";
+import { exigirCamposValidos } from "@/lib/campos/exigir";
 import { prisma } from "@/lib/prisma";
 import { notificar, notificarMuitos } from "@/lib/notificar";
 import { HR_ADMIN_ROLES } from "@/lib/roles";
@@ -63,14 +65,18 @@ export const editarContaBancaria = defineAction(
   async (i) => {
     const atual = await prisma.contaBancariaColaborador.findUnique({
       where: { id: i.id },
-      select: { userId: true },
+      select: { userId: true, agencia: true, conta: true, pixTipo: true, pixChave: true },
     });
     if (!atual) throw new ActionError("Conta não encontrada.");
-    const dados = normalizarConta({
-      banco: i.banco, agencia: i.agencia, conta: i.conta,
-      tipoConta: opcional(i.tipoConta), titular: i.titular,
-      pixTipo: opcional(i.pixTipo) as TipoPix | null, pixChave: i.pixChave,
-    });
+    exigirCamposValidos(i, atual, { agencia: "agencia", conta: "conta" });
+    const dados = normalizarConta(
+      {
+        banco: i.banco, agencia: i.agencia, conta: i.conta,
+        tipoConta: opcional(i.tipoConta), titular: i.titular,
+        pixTipo: opcional(i.pixTipo) as TipoPix | null, pixChave: i.pixChave,
+      },
+      atual,
+    );
     await prisma.contaBancariaColaborador.update({ where: { id: i.id }, data: dados });
     rev(atual.userId);
     return { id: i.id };
@@ -127,12 +133,14 @@ const proporContaSchema = z.object({
   /** Obrigatório para editar/remover (validado no handler, não dá pra tipar no union do zod aqui). */
   contaId: opt(z.string()),
   banco: opt(z.string()),
-  agencia: opt(z.string()),
-  conta: opt(z.string()),
+  // Legado: a proposta de EDIÇÃO traz os valores gravados; quem decide se valida é o handler
+  // (`exigirCamposValidos` só no que mudou; na criação, tudo).
+  agencia: campo.agencia({ legado: true }),
+  conta: campo.conta({ legado: true }),
   tipoConta: z.enum(TIPOS_CONTA).optional().or(z.literal("")),
   titular: opt(z.string()),
   pixTipo: z.enum(TIPOS_PIX).optional().or(z.literal("")),
-  pixChave: opt(z.string()),
+  pixChave: opt(z.string()), // campo-ok: validada no handler por normalizarConta (depende de pixTipo e do gravado)
 });
 
 /** Sem `roles`: qualquer colaborador autenticado propõe — mesmo padrão de `proporAlteracaoCadastro`. */
@@ -141,25 +149,32 @@ export const proporContaBancaria = defineAction(
   async (i, ctx) => {
     const propostoEm = new Date().toISOString();
 
+    let antes: { agencia: string | null; conta: string | null; pixTipo: TipoPix | null; pixChave: string | null } | null = null;
     if (i.tipo === "remover" || i.tipo === "editar") {
       if (!i.contaId) throw new ActionError("Selecione a conta.");
       const conta = await prisma.contaBancariaColaborador.findUnique({
         where: { id: i.contaId },
-        select: { userId: true },
+        select: { userId: true, agencia: true, conta: true, pixTipo: true, pixChave: true },
       });
       if (!conta || conta.userId !== ctx.user.id) throw new ActionError("Conta não encontrada.");
+      antes = { agencia: conta.agencia, conta: conta.conta, pixTipo: conta.pixTipo, pixChave: conta.pixChave };
     }
+    // Criar é estrito (antes = null); editar só recusa o inválido que mudou.
+    if (i.tipo !== "remover") exigirCamposValidos(i, antes, { agencia: "agencia", conta: "conta" });
 
     if (i.tipo === "remover") {
       await gravarContaPendente(ctx.user.id, { tipo: "remover", contaId: i.contaId!, propostoEm });
     } else {
       // Mesma validação/normalização (PIX, campos) que a RH usa ao editar direto — a proposta
       // já chega pronta pra aplicar, sem o RH ter que adivinhar se o formato está certo.
-      const dados = normalizarConta({
-        banco: i.banco, agencia: i.agencia, conta: i.conta,
-        tipoConta: i.tipoConta || null, titular: i.titular,
-        pixTipo: (i.pixTipo || null) as TipoPix | null, pixChave: i.pixChave,
-      });
+      const dados = normalizarConta(
+        {
+          banco: i.banco, agencia: i.agencia, conta: i.conta,
+          tipoConta: i.tipoConta || null, titular: i.titular,
+          pixTipo: (i.pixTipo || null) as TipoPix | null, pixChave: i.pixChave,
+        },
+        antes,
+      );
       await gravarContaPendente(
         ctx.user.id,
         i.tipo === "criar"

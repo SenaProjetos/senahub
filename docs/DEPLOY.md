@@ -349,6 +349,46 @@ Nunca `migrate dev`/`seed:demo` em produção. `migrate deploy` só aplica o que
 > e só então rode a opção 10 do menu. Com o deploy automático noturno (seção 10) ligado, faça
 > isso antes da janela da noite — senão a versão nova sobe sem os dados.
 
+### 9.1 Release com campos formatados (uma vez por ambiente)
+
+Rodar **depois** que a versão que traz `src/lib/campos/` (ADR-0010) **com a revisão final de
+2026-10-05** (`TipoCampo.limpo`, commit "só valor limpo é válido") estiver no ar — nunca antes: o script
+grava no formato que só essa versão sabe ler e editar, e uma versão anterior a essa revisão ainda
+reescreveria, a cada edição pela tela, o legado com algo além do número que o script deixa para revisar.
+
+    npx tsx --tsconfig tsconfig.server.json scripts/normalizar-campos.ts            # simula
+    # backup do banco AGORA (menu, opção 9 — seção 8), logo antes de gravar
+    npx tsx --tsconfig tsconfig.server.json scripts/normalizar-campos.ts --gravar   # grava
+
+Cada rodada gera dois arquivos em `logs/` (sufixo `-simulacao` ou `-gravado`):
+
+- `campos-invalidos-AAAA-MM-DD-*.csv` — o que **ficou como está** e por quê;
+- `campos-alterados-AAAA-MM-DD-*.csv` — cada reescrita, `de` → `para` (na simulação, o que *seria*
+  reescrito). O `-gravado` é escrito linha a linha durante a gravação e nunca é sobrescrito por outra
+  rodada no mesmo dia: é o que permite desfazer uma linha. Célula que começa com `=`, `+`, `-` ou `@`
+  ganha um `'` na frente (para o Excel não ler como fórmula) — tirar o `'` ao usar o valor.
+
+**Ler os dois CSVs da simulação antes de gravar.** Os motivos no `campos-invalidos`:
+
+- mensagem de campo inválido (ex.: "CPF inválido…") — fica como está; os cadastros abrem e salvam, a
+  correção é pela tela;
+- "Possível duplicata depois de normalizar" — dois cadastros com o mesmo CNPJ depois de formatar;
+  nenhum muda; resolver pela tela (fusão de clientes, PJ);
+- "revisar: contém informação além do número" — o valor traz algo que a formatação cortaria ou
+  grudaria (`(81) 99999-9999 Maria`, `1234567 SSP/PE`, `013-12345-6`, `3333-4444 12`). O script só
+  reescreve valor "limpo" (a regra `limpo` do catálogo); a tela trata esses valores como "inválido não
+  mexido" (abrem e salvam como estão). Corrigir pela tela,
+  separando o que não é o número;
+- "Chave PIX sem tipo." — conta de colaborador com chave e sem tipo de chave.
+
+O documento do cliente, o CPF do aceite externo e os dados da empresa (Configurações → Empresa) só
+aparecem no relatório: o script nunca os reescreve. Os registros reescritos ganham `updatedAt` novo
+(aparecem como "alterados agora" em listas ordenadas por atualização). Rodar de novo não muda nada.
+
+> **Os dois CSVs têm dado pessoal** (CPF, telefone, e-mail): `logs/campos-*.csv` não sai do servidor
+> e deve ser **apagado depois de usado** (guarde o `campos-alterados-*-gravado.csv` só enquanto
+> puder precisar desfazer algo).
+
 ---
 
 ## 10. Deploy automático noturno (opcional)

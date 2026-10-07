@@ -33,11 +33,21 @@ describe("briefing-schema", () => {
   it("pré-popula do cadastro sem sobrescrever respostas existentes", () => {
     const r = prePopularRespostas(
       { nomeCompleto: "Já preenchido" },
-      { email: "c@x.com", nome: "Cliente X", telefone: "9999", endereco: "Rua 1" },
+      { email: "c@x.com", nome: "Cliente X", telefone: "(81) 99999-8888", endereco: "Rua 1" },
     );
     expect(r.emailContato).toBe("c@x.com");
     expect(r.nomeCompleto).toBe("Já preenchido");
-    expect(r.telefoneContato).toBe("9999");
+    expect(r.telefoneContato).toBe("(81) 99999-8888");
+  });
+
+  it("pré-popula e-mail/telefone do cadastro só se válidos, já no formato padrão", () => {
+    const ok = prePopularRespostas({}, { email: " Contato@Alfa.com ", telefone: "81999998888" });
+    expect(ok.emailContato).toBe("contato@alfa.com");
+    expect(ok.telefoneContato).toBe("(81) 99999-8888");
+    const ruim = prePopularRespostas({}, { email: "sem-arroba", telefone: "123", nome: "Cliente X" });
+    expect(ruim.emailContato).toBeUndefined();
+    expect(ruim.telefoneContato).toBeUndefined();
+    expect(ruim.nomeCompleto).toBe("Cliente X");
   });
 
   it("status: nao_iniciado → em_preenchimento → completo", () => {

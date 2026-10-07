@@ -33,6 +33,7 @@ type DryRun = {
   contagens: { total: number; criados: number; vinculados: number; ignorados: number; erros: number };
   amostra: { idx: number; empresa: string; contato: string; email: string; status: StatusLinha; motivo: string | null }[];
   problemas: { idx: number; empresa: string; contato: string; status: StatusLinha; motivo: string }[];
+  avisos: { idx: number; empresa: string; contato: string; aviso: string }[];
 };
 
 const SEM_COLUNA = "__nenhuma__";
@@ -284,6 +285,21 @@ export function ImportadorComercialView({
                       Linha {p.idx} ({p.empresa || "—"} / {p.contato || "—"}) —{" "}
                       {p.status === "erro" ? "erro: " : "ignorada: "}
                       {p.motivo}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {dry.avisos.length > 0 && (
+              <div className="rounded-sm border border-warning/40 bg-warning/10 p-3">
+                <p className="mb-1 text-sm font-medium">
+                  {dry.avisos.length} linha(s) com formato a conferir — serão importadas como vieram:
+                </p>
+                <ul className="max-h-40 space-y-0.5 overflow-y-auto text-xs text-muted-foreground">
+                  {dry.avisos.map((a) => (
+                    <li key={a.idx}>
+                      Linha {a.idx} ({a.empresa || "—"} / {a.contato || "—"}) — {a.aviso}
                     </li>
                   ))}
                 </ul>

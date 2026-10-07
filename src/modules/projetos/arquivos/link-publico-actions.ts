@@ -7,6 +7,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { smtpConfigurado } from "@/lib/mail";
 import { enviarEmailTemplate } from "@/lib/email-templates";
+import { campo } from "@/lib/campos/zod";
 
 const base = { modulo: "projetos", recurso: "projetos", permissao: "gerir", entidade: "LinkPublicoArquivos" } as const;
 
@@ -190,7 +191,7 @@ export const enviarLinkProjetoEmail = defineAction(
   {
     ...base,
     acao: "enviar-link-projeto-email",
-    schema: z.object({ linkId: z.string().min(1), email: z.string().email("E-mail inválido.") }),
+    schema: z.object({ linkId: z.string().min(1), email: campo.email({ obrigatorio: true, mensagemObrigatorio: "E-mail inválido." }) }),
     entidadeId: idLink,
   },
   async (input) => {

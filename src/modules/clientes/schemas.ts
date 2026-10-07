@@ -1,18 +1,21 @@
 import { z } from "zod";
-import { validarCNPJ, validarCpfCnpj } from "@/lib/documento";
+import { campo } from "@/lib/campos/zod";
 
-/** Documento opcional, mas se preenchido deve ser CPF/CNPJ válido. */
-const docValido = (d: { documento?: string }) => !d.documento?.trim() || validarCpfCnpj(d.documento);
-const docMsg = { message: "CPF/CNPJ inválido.", path: ["documento"] };
+/**
+ * Campos com formato: criar é estrito; editar deixa passar o inválido que já estava gravado
+ * (`legado`) e a action decide com `exigirCamposValidos` (só recusa o que mudou).
+ */
+const camposComFormato = (legado: boolean) => ({
+  documento: campo.cpfCnpj({ legado }),
+  email: campo.email({ legado }),
+  telefone: campo.telefone({ legado }),
+  cep: campo.cep({ legado }),
+});
 
 const base = {
   tipo: z.enum(["PF", "PJ"]),
   nome: z.string().min(2, "Informe o nome / razão social."),
   nomeFantasia: z.string().optional(),
-  documento: z.string().optional(),
-  email: z.string().email("E-mail inválido.").optional().or(z.literal("")),
-  telefone: z.string().optional(),
-  cep: z.string().optional(),
   logradouro: z.string().optional(),
   numero: z.string().optional(),
   complemento: z.string().optional(),
@@ -43,8 +46,8 @@ export const CATEGORIAS_CLIENTE = [
   "Outro",
 ] as const;
 
-export const criarClienteSchema = z.object(base).refine(docValido, docMsg);
-export const editarClienteSchema = z.object({ id: z.string().min(1), ...base }).refine(docValido, docMsg);
+export const criarClienteSchema = z.object({ ...base, ...camposComFormato(false) });
+export const editarClienteSchema = z.object({ id: z.string().min(1), ...base, ...camposComFormato(true) });
 export const clienteIdSchema = z.object({ id: z.string().min(1) });
 
 /** Novo contato vinculado a um cliente (model ContatoCliente). */
@@ -52,8 +55,8 @@ export const adicionarContatoSchema = z.object({
   clienteId: z.string().min(1),
   nome: z.string().min(2, "Informe o nome do contato."),
   cargo: z.string().optional(),
-  email: z.string().email("E-mail inválido.").optional().or(z.literal("")),
-  telefone: z.string().optional(),
+  email: campo.email(),
+  telefone: campo.telefone(),
 });
 
 /** Edição inline de um contato existente (F1.11, aba Contatos do formulário). */
@@ -61,8 +64,8 @@ export const editarContatoSchema = z.object({
   id: z.string().min(1),
   nome: z.string().min(2, "Informe o nome do contato."),
   cargo: z.string().optional(),
-  email: z.string().email("E-mail inválido.").optional().or(z.literal("")),
-  telefone: z.string().optional(),
+  email: campo.email({ legado: true }),
+  telefone: campo.telefone({ legado: true }),
   principal: z.boolean().optional(),
 });
 
@@ -78,13 +81,13 @@ export const mesclarClientesSchema = z.object({
 export const buscarCandidatosDuplicataSchema = z.object({
   nome: z.string().optional(),
   tipo: z.enum(["PF", "PJ"]).optional(),
-  documento: z.string().optional(),
-  email: z.string().optional(),
+  documento: z.string().optional(), // campo-ok: busca de duplicata a cada tecla, aceita valor parcial
+  email: z.string().optional(), // campo-ok: busca de duplicata a cada tecla, aceita valor parcial
 });
 
 /** Consulta cadastral pública para preencher um formulário de cliente PJ. */
 export const consultarCnpjSchema = z.object({
-  cnpj: z.string().refine(validarCNPJ, "CNPJ inválido."),
+  cnpj: campo.cnpj({ obrigatorio: true }),
 });
 
 export type CriarClienteInput = z.infer<typeof criarClienteSchema>;

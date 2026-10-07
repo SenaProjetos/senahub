@@ -12,6 +12,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { InputFormatado } from "@/components/ui/input-formatado";
+import { useFieldErrors } from "@/lib/use-field-errors";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -406,6 +408,7 @@ function MeuPerfilCard({ perfil }: { perfil: Perfil }) {
   // Arquivo escolhido aguardando ajuste no cropper (null = cropper fechado).
   const [fotoParaAjustar, setFotoParaAjustar] = useState<File | null>(null);
   const [pending, start] = useTransition();
+  const fe = useFieldErrors({ telefone: "perfil-tel" });
   const sujo = nome.trim() !== perfil.name || (telefone ?? "") !== (perfil.telefone ?? "");
 
   // Só abre o cropper; o upload acontece após o ajuste (onConfirmar).
@@ -440,7 +443,7 @@ function MeuPerfilCard({ perfil }: { perfil: Perfil }) {
       if (r.ok) {
         toast.success("Perfil atualizado.");
         router.refresh();
-      } else toast.error(r.error);
+      } else if (!fe.registrar(r)) toast.error(r.error);
     });
   }
 
@@ -483,10 +486,20 @@ function MeuPerfilCard({ perfil }: { perfil: Perfil }) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="perfil-tel">Telefone</Label>
-            <Input id="perfil-tel" value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(99) 99999-9999" />
+            <InputFormatado
+              id="perfil-tel"
+              tipo="telefone"
+              value={telefone}
+              erro={fe.erros.telefone}
+              onChange={(v) => {
+                fe.limpar("telefone");
+                setTelefone(v);
+              }}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="perfil-email">E-mail</Label>
+            {/* campo-ok: e-mail de login (better-auth) */}
             <Input id="perfil-email" value={perfil.email} disabled readOnly />
           </div>
         </div>

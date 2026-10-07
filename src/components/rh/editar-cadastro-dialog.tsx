@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Pencil, Check, Loader2 } from "lucide-react";
 import { editarCadastroFuncionario, consultarCep } from "@/modules/rh/funcionarios/actions";
-import { maskCpf, maskTelefone, maskCep } from "@/lib/utils";
+import { InputFormatado } from "@/components/ui/input-formatado";
 import { PJ_ROLES, type Role } from "@/lib/roles";
 import { CONSELHOS, UFS, formatarRegistro } from "@/modules/usuarios/registro";
 import { Button } from "@/components/ui/button";
@@ -112,10 +112,10 @@ export function EditarCadastroDialog({
                 <Campo label="Nome completo">
                   <Input value={f.nomeCompleto} onChange={(e) => set("nomeCompleto", e.target.value)} placeholder="Como consta em documentos formais" />
                 </Campo>
-                <Campo label="CPF"><Input value={f.cpf} onChange={(e) => set("cpf", maskCpf(e.target.value))} /></Campo>
+                <Campo label="CPF"><InputFormatado tipo="cpf" value={f.cpf} onChange={(v) => set("cpf", v)} /></Campo>
               </div>
               <div className="grid gap-3 sm:grid-cols-4">
-                <Campo label="RG"><Input value={f.rg} onChange={(e) => set("rg", e.target.value)} /></Campo>
+                <Campo label="RG"><InputFormatado tipo="rg" value={f.rg} onChange={(v) => set("rg", v)} /></Campo>
                 <Campo label="Nascimento"><Input type="date" value={f.dataNascimento} onChange={(e) => set("dataNascimento", e.target.value)} /></Campo>
                 <Campo label="Sexo">
                   <select className={selectCls} value={f.sexo} onChange={(e) => set("sexo", e.target.value)}>
@@ -132,7 +132,7 @@ export function EditarCadastroDialog({
 
             <Secao titulo="Endereço / contato">
               <div className="grid gap-3 sm:grid-cols-4">
-                <Campo label="CEP"><Input value={f.enderecoCep} onChange={(e) => set("enderecoCep", maskCep(e.target.value))} onBlur={onCepBlur} /></Campo>
+                <Campo label="CEP"><InputFormatado tipo="cep" value={f.enderecoCep} onChange={(v) => set("enderecoCep", v)} onBlur={onCepBlur} /></Campo>
                 <Campo label="UF"><Input value={f.enderecoUf} onChange={(e) => set("enderecoUf", e.target.value.toUpperCase().slice(0, 2))} /></Campo>
                 <Campo label="Cidade"><Input value={f.enderecoCidade} onChange={(e) => set("enderecoCidade", e.target.value)} /></Campo>
                 <Campo label="Bairro"><Input value={f.enderecoBairro} onChange={(e) => set("enderecoBairro", e.target.value)} /></Campo>
@@ -143,9 +143,9 @@ export function EditarCadastroDialog({
                 <Campo label="Complemento"><Input value={f.enderecoComplemento} onChange={(e) => set("enderecoComplemento", e.target.value)} /></Campo>
               </div>
               <div className="grid gap-3 sm:grid-cols-4">
-                <Campo label="Telefone"><Input value={f.telefone} onChange={(e) => set("telefone", maskTelefone(e.target.value))} /></Campo>
-                <Campo label="E-mail pessoal"><Input type="email" value={f.emailPessoal} onChange={(e) => set("emailPessoal", e.target.value)} /></Campo>
-                <Campo label="Tel. emergência"><Input value={f.telefoneEmergencia} onChange={(e) => set("telefoneEmergencia", maskTelefone(e.target.value))} /></Campo>
+                <Campo label="Telefone"><InputFormatado tipo="telefone" value={f.telefone} onChange={(v) => set("telefone", v)} /></Campo>
+                <Campo label="E-mail pessoal"><InputFormatado tipo="email" value={f.emailPessoal} onChange={(v) => set("emailPessoal", v)} /></Campo>
+                <Campo label="Tel. emergência"><InputFormatado tipo="telefone" value={f.telefoneEmergencia} onChange={(v) => set("telefoneEmergencia", v)} /></Campo>
                 <Campo label="Contato emerg."><Input value={f.contatoEmergenciaNome} onChange={(e) => set("contatoEmergenciaNome", e.target.value)} /></Campo>
               </div>
             </Secao>

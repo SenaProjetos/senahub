@@ -68,6 +68,7 @@ export function LoginForm() {
             <Label htmlFor="email" className="font-mono text-[11px] uppercase tracking-[0.14em]">
               E-mail
             </Label>
+            {/* campo-ok: e-mail de login (better-auth) */}
             <Input
               id="email"
               type="email"

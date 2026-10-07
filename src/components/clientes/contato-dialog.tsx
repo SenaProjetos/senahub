@@ -6,6 +6,8 @@ import { UserPlus } from "lucide-react";
 import { adicionarContato } from "@/modules/clientes/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputFormatado } from "@/components/ui/input-formatado";
+import { useFieldErrors } from "@/lib/use-field-errors";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -23,6 +25,7 @@ export function ContatoDialog({ clienteId }: { clienteId: string }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(VAZIO);
   const [pending, startTransition] = useTransition();
+  const fe = useFieldErrors({ email: "contato-email", telefone: "contato-telefone" });
 
   function set<K extends keyof typeof VAZIO>(campo: K, valor: string) {
     setForm((f) => ({ ...f, [campo]: valor }));
@@ -41,7 +44,7 @@ export function ContatoDialog({ clienteId }: { clienteId: string }) {
         toast.success("Contato adicionado.");
         setForm(VAZIO);
         setOpen(false);
-      } else {
+      } else if (!fe.registrar(res)) {
         toast.error(res.error);
       }
     });
@@ -73,16 +76,30 @@ export function ContatoDialog({ clienteId }: { clienteId: string }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>E-mail</Label>
-              <Input
-                type="email"
+              <Label htmlFor="contato-email">E-mail</Label>
+              <InputFormatado
+                id="contato-email"
+                tipo="email"
                 value={form.email}
-                onChange={(e) => set("email", e.target.value)}
+                erro={fe.erros.email}
+                onChange={(v) => {
+                  fe.limpar("email");
+                  set("email", v);
+                }}
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Telefone</Label>
-              <Input value={form.telefone} onChange={(e) => set("telefone", e.target.value)} />
+              <Label htmlFor="contato-telefone">Telefone</Label>
+              <InputFormatado
+                id="contato-telefone"
+                tipo="telefone"
+                value={form.telefone}
+                erro={fe.erros.telefone}
+                onChange={(v) => {
+                  fe.limpar("telefone");
+                  set("telefone", v);
+                }}
+              />
             </div>
           </div>
         </div>

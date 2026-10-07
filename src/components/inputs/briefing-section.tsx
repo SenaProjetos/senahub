@@ -35,7 +35,11 @@ export function BriefingSection({
 
   async function onSalvar(respostas: Record<string, unknown>) {
     const r = await salvarBriefing({ projetoId, respostas });
-    return r.ok ? { ok: true as const } : { ok: false as const, error: r.error };
+    if (r.ok) return { ok: true as const };
+    const campos = Object.fromEntries(
+      Object.entries(r.fieldErrors ?? {}).flatMap(([k, v]) => (v[0] ? [[k, v[0]]] : [])),
+    );
+    return { ok: false as const, error: r.error, campos };
   }
 
   return (

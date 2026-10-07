@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
+import { exigirCamposValidos } from "@/lib/campos/exigir";
 import { registrarAtividade } from "@/modules/comercial/service";
 import {
   criarClienteSchema,
@@ -153,9 +154,20 @@ export const editarCliente = defineAction(
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
+    // Primeiro de tudo, antes de qualquer escrita: só o valor que MUDOU é validado (D4); o
+    // inválido que já estava gravado segue salvando.
+    const antes = await prisma.cliente.findUnique({
+      where: { id: input.id },
+      select: { documento: true, email: true, telefone: true, cep: true },
+    });
+    exigirCamposValidos(input, antes, { documento: "cpfCnpj", email: "email", telefone: "telefone", cep: "cep" });
     const { id, ...rest } = normalizar(input);
     await conferirDocumentoUnico(rest.documento, id);
-    await comDocumentoUnico(() => prisma.cliente.update({ where: { id }, data: rest }));
+    await comDocumentoUnico(() =>
+      // `normalizar` troca "" por `undefined` (certo na criação); na edição `undefined` é "não mexe",
+      // então limpar o e-mail precisa mandar `null` de verdade.
+      prisma.cliente.update({ where: { id }, data: { ...rest, ...(input.email === "" ? { email: null } : {}) } }),
+    );
     revalidatePath(REVALIDATE);
     revalidatePath(`/clientes/${id}`);
     return { id };
@@ -256,12 +268,13 @@ export const editarContato = defineAction(
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
-    const { id, email, principal, ...rest } = input;
+    const { id, email, telefone, principal, ...rest } = input;
     const atual = await prisma.contatoCliente.findUnique({
       where: { id },
-      select: { clienteId: true },
+      select: { clienteId: true, email: true, telefone: true },
     });
     if (!atual) throw new ActionError("Contato não encontrado.");
+    exigirCamposValidos(input, atual, { email: "email", telefone: "telefone" });
 
     await prisma.$transaction(async (tx) => {
       if (principal === true) {
@@ -272,7 +285,13 @@ export const editarContato = defineAction(
       }
       await tx.contatoCliente.update({
         where: { id },
-        data: { ...rest, email: email || null, ...(principal !== undefined ? { principal } : {}) },
+        data: {
+          ...rest,
+          email: email || null,
+          // "" apaga (grava null); ausente não mexe (tornar principal reenvia o que já está lá).
+          ...(telefone !== undefined ? { telefone: telefone || null } : {}),
+          ...(principal !== undefined ? { principal } : {}),
+        },
       });
     });
 

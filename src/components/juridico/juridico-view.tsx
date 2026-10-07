@@ -27,6 +27,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputFormatado } from "@/components/ui/input-formatado";
+import { useFieldErrors } from "@/lib/use-field-errors";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -247,6 +249,7 @@ const SEM_PASTA = "__sempasta";
 /** Fase F — gera o link de assinatura para quem não é usuário do sistema. */
 function EnviarParaAssinatura({ versaoId, rotulo }: { versaoId: string; rotulo: string }) {
   const [pending, start] = useTransition();
+  const fe = useFieldErrors({ email: "assinatura-email" });
   const [aberto, setAberto] = useState(false);
   const [form, setForm] = useState({ nome: "", email: "", dias: "30" });
   const [url, setUrl] = useState<string | null>(null);
@@ -261,7 +264,7 @@ function EnviarParaAssinatura({ versaoId, rotulo }: { versaoId: string; rotulo: 
         diasValidade: Number(form.dias) || 30,
       });
       if (r.ok) setUrl(r.data.url);
-      else toast.error(r.error);
+      else if (!fe.registrar(r)) toast.error(r.error);
     });
   }
 
@@ -271,6 +274,7 @@ function EnviarParaAssinatura({ versaoId, rotulo }: { versaoId: string; rotulo: 
         type="button"
         onClick={() => {
           setUrl(null);
+          fe.limpar();
           setForm({ nome: "", email: "", dias: "30" });
           setAberto(true);
         }}
@@ -313,8 +317,17 @@ function EnviarParaAssinatura({ versaoId, rotulo }: { versaoId: string; rotulo: 
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label>E-mail (opcional)</Label>
-                    <Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                    <Label htmlFor="assinatura-email">E-mail (opcional)</Label>
+                    <InputFormatado
+                      id="assinatura-email"
+                      tipo="email"
+                      value={form.email}
+                      erro={fe.erros.email}
+                      onChange={(v) => {
+                        fe.limpar("email");
+                        setForm({ ...form, email: v });
+                      }}
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label>Validade (dias)</Label>

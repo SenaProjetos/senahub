@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { notificarMuitos } from "@/lib/notificar";
+import { campo } from "@/lib/campos/zod";
 import { whereAudiencia } from "@/lib/audiencias";
 import { roleLegadoDe } from "@/modules/usuarios/vinculo/mapa";
 import {
@@ -14,8 +15,8 @@ import {
 
 const publicSchema = z.object({
   nome: z.string().min(1, "Informe o nome."),
-  email: z.string().email("E-mail inválido."),
-  telefone: z.string().optional(),
+  email: z.string().email("E-mail inválido."), // campo-ok: e-mail de login (better-auth)
+  telefone: campo.telefone(),
   vinculo: z.enum(VALORES_VINCULO_PRETENDIDO).default("externo"),
   mensagem: z.string().optional(),
 });

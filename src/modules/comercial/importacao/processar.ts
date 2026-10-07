@@ -14,6 +14,8 @@
 import { candidatosDuplicata, normalizarNomeEmpresa, type ClienteResumoDedupe } from "@/modules/comercial/dedupe";
 import type { CampoCrm } from "@/lib/import/mapeamento-crm";
 import { valorOuVazio } from "@/lib/import/valores";
+import { CAMPOS } from "@/lib/campos";
+import { soDigitos } from "@/lib/documento";
 
 // ── 1. Normalização por linha (pura, sem dedup) ─────────────────────────────
 
@@ -21,7 +23,9 @@ export type LinhaCrmNorm = {
   /** 1-based — bate com o nº da linha no arquivo (cabeçalho é a linha 0, não conta). */
   idx: number;
   empresaNome: string;
-  documento: string; // só dígitos; "" se ausente
+  /** Só dígitos; "" se ausente. É a convenção de `Cliente.documento` (unicidade por dígitos, ADR-03
+   *  do CRM) — a exceção aceita ao formato padrão `00.000.000/0000-00` dos demais cadastros. */
+  documento: string;
   nomeContato: string;
   cargo: string;
   emailContato: string;
@@ -32,14 +36,14 @@ export type LinhaCrmNorm = {
   linkedinUrl: string;
   observacao: string;
   erros: string[];
+  /** Formato inválido (telefone, documento): a linha entra como veio, só aparada, e a prévia avisa. */
+  avisos: string[];
 };
 
 function celula(row: string[], m: Partial<Record<CampoCrm, number>>, campo: CampoCrm): string | undefined {
   const i = m[campo];
   return i == null ? undefined : row[i];
 }
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Uma linha por row da planilha, na ordem em que veio — a ordem importa para
@@ -48,14 +52,19 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function normalizarLinhasCrm(rows: string[][], mapeamento: Partial<Record<CampoCrm, number>>): LinhaCrmNorm[] {
   return rows.map((row, i) => {
     const empresaNome = valorOuVazio(celula(row, mapeamento, "empresa"));
-    const documento = valorOuVazio(celula(row, mapeamento, "documento")).replace(/\D/g, "");
+    const documentoBruto = valorOuVazio(celula(row, mapeamento, "documento"));
+    const documento = soDigitos(documentoBruto);
     const nomeContato = valorOuVazio(celula(row, mapeamento, "nomeContato"));
-    const emailContato = valorOuVazio(celula(row, mapeamento, "emailContato"));
+    const emailContato = CAMPOS.email.normalizar(valorOuVazio(celula(row, mapeamento, "emailContato")));
+    const telefone = CAMPOS.telefone.normalizar(valorOuVazio(celula(row, mapeamento, "telefone")));
 
     const erros: string[] = [];
+    const avisos: string[] = [];
     if (!empresaNome) erros.push("Sem nome da empresa.");
     if (!nomeContato) erros.push("Sem nome do contato.");
-    if (emailContato && !EMAIL_RE.test(emailContato)) erros.push("E-mail inválido.");
+    if (!CAMPOS.email.validar(emailContato)) erros.push("E-mail inválido.");
+    if (documentoBruto && !CAMPOS.cpfCnpj.validar(documentoBruto)) avisos.push(CAMPOS.cpfCnpj.mensagem);
+    if (telefone && !CAMPOS.telefone.validar(telefone)) avisos.push(CAMPOS.telefone.mensagem);
 
     return {
       idx: i + 1,
@@ -64,13 +73,14 @@ export function normalizarLinhasCrm(rows: string[][], mapeamento: Partial<Record
       nomeContato,
       cargo: valorOuVazio(celula(row, mapeamento, "cargo")),
       emailContato,
-      telefone: valorOuVazio(celula(row, mapeamento, "telefone")),
+      telefone,
       segmento: valorOuVazio(celula(row, mapeamento, "segmento")),
       cidade: valorOuVazio(celula(row, mapeamento, "cidade")),
       uf: valorOuVazio(celula(row, mapeamento, "uf")),
       linkedinUrl: valorOuVazio(celula(row, mapeamento, "linkedinUrl")),
       observacao: valorOuVazio(celula(row, mapeamento, "observacao")),
       erros,
+      avisos,
     };
   });
 }

@@ -11,6 +11,8 @@ import {
 import type { ContatoItem } from "@/modules/clientes/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputFormatado } from "@/components/ui/input-formatado";
+import { useFieldErrors } from "@/lib/use-field-errors";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -33,6 +35,7 @@ export function ContatosTab({ clienteId }: { clienteId: string }) {
   const [linha, setLinha] = useState<FormLinha>(LINHA_VAZIA);
   const [novo, setNovo] = useState(false);
   const [pending, startTransition] = useTransition();
+  const fe = useFieldErrors({ email: "contato-linha-email", telefone: "contato-linha-telefone" });
 
   function carregar() {
     startTransition(async () => {
@@ -53,16 +56,19 @@ export function ContatosTab({ clienteId }: { clienteId: string }) {
   function iniciarEdicao(c: ContatoItem) {
     setNovo(false);
     setEditandoId(c.id);
+    fe.limpar();
     setLinha({ nome: c.nome, cargo: c.cargo ?? "", email: c.email ?? "", telefone: c.telefone ?? "" });
   }
 
   function iniciarNovo() {
     setEditandoId(null);
     setNovo(true);
+    fe.limpar();
     setLinha(LINHA_VAZIA);
   }
 
   function cancelar() {
+    fe.limpar();
     setEditandoId(null);
     setNovo(false);
     setLinha(LINHA_VAZIA);
@@ -78,16 +84,16 @@ export function ContatosTab({ clienteId }: { clienteId: string }) {
         nome: linha.nome,
         cargo: linha.cargo || undefined,
         email: linha.email || undefined,
-        telefone: linha.telefone || undefined,
       };
       const r = novo
-        ? await adicionarContato({ clienteId, ...payload })
-        : await editarContato({ id: editandoId!, ...payload });
+        ? await adicionarContato({ clienteId, ...payload, telefone: linha.telefone || undefined })
+        // Na edição o telefone vai como veio, "" inclusive: é assim que apagar o campo grava vazio.
+        : await editarContato({ id: editandoId!, ...payload, telefone: linha.telefone });
       if (r.ok) {
         toast.success(novo ? "Contato adicionado." : "Contato atualizado.");
         cancelar();
         carregar();
-      } else {
+      } else if (!fe.registrar(r)) {
         toast.error(r.error);
       }
     });
@@ -130,6 +136,8 @@ export function ContatosTab({ clienteId }: { clienteId: string }) {
                 key={c.id}
                 linha={linha}
                 setLinha={setLinha}
+                erros={fe.erros}
+                limparErro={fe.limpar}
                 pending={pending}
                 onSalvar={salvar}
                 onCancelar={cancelar}
@@ -181,6 +189,8 @@ export function ContatosTab({ clienteId }: { clienteId: string }) {
           <LinhaEdicao
             linha={linha}
             setLinha={setLinha}
+            erros={fe.erros}
+            limparErro={fe.limpar}
             pending={pending}
             onSalvar={salvar}
             onCancelar={cancelar}
@@ -198,12 +208,16 @@ export function ContatosTab({ clienteId }: { clienteId: string }) {
 function LinhaEdicao({
   linha,
   setLinha,
+  erros,
+  limparErro,
   pending,
   onSalvar,
   onCancelar,
 }: {
   linha: FormLinha;
   setLinha: (f: FormLinha) => void;
+  erros: { email?: string; telefone?: string };
+  limparErro: (campo: "email" | "telefone") => void;
   pending: boolean;
   onSalvar: () => void;
   onCancelar: () => void;
@@ -224,17 +238,32 @@ function LinhaEdicao({
         />
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <Input
-          type="email"
-          placeholder="E-mail"
-          value={linha.email}
-          onChange={(e) => setLinha({ ...linha, email: e.target.value })}
-        />
-        <Input
-          placeholder="Telefone"
-          value={linha.telefone}
-          onChange={(e) => setLinha({ ...linha, telefone: e.target.value })}
-        />
+        <div className="min-w-0 space-y-1">
+          <InputFormatado
+            id="contato-linha-email"
+            tipo="email"
+            placeholder="E-mail"
+            value={linha.email}
+            erro={erros.email}
+            onChange={(v) => {
+              limparErro("email");
+              setLinha({ ...linha, email: v });
+            }}
+          />
+        </div>
+        <div className="min-w-0 space-y-1">
+          <InputFormatado
+            id="contato-linha-telefone"
+            tipo="telefone"
+            placeholder="Telefone"
+            value={linha.telefone}
+            erro={erros.telefone}
+            onChange={(v) => {
+              limparErro("telefone");
+              setLinha({ ...linha, telefone: v });
+            }}
+          />
+        </div>
       </div>
       <div className="flex justify-end gap-2">
         <Button variant="ghost" size="sm" onClick={onCancelar} disabled={pending}>

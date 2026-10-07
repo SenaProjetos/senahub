@@ -7,6 +7,8 @@ import { criarParceiro, editarParceiro } from "@/modules/comercial/actions";
 import type { ParceiroItem } from "@/modules/comercial/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputFormatado } from "@/components/ui/input-formatado";
+import { useFieldErrors } from "@/lib/use-field-errors";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -50,6 +52,7 @@ export function ParceiroDialog({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const fe = useFieldErrors({ documento: "parceiro-documento", telefone: "parceiro-telefone", email: "parceiro-email" });
   const deParceiro = (p: ParceiroItem): Form => ({
     nome: p.nome,
     tipo: p.tipo,
@@ -64,6 +67,7 @@ export function ParceiroDialog({
   if (lastKey !== key) {
     setLastKey(key);
     setForm(parceiro ? deParceiro(parceiro) : VAZIO);
+    fe.limpar();
   }
 
   const set = (k: keyof Form, v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -78,7 +82,7 @@ export function ParceiroDialog({
         toast.success(parceiro ? "Parceiro atualizado." : "Parceiro cadastrado.");
         onOpenChange(false);
         router.refresh();
-      } else toast.error(r.error);
+      } else if (!fe.registrar(r)) toast.error(r.error);
     });
   }
 
@@ -110,17 +114,44 @@ export function ParceiroDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Documento (CPF/CNPJ)</Label>
-              <Input value={form.documento} onChange={(e) => set("documento", e.target.value)} />
+              <Label htmlFor="parceiro-documento">Documento (CPF/CNPJ)</Label>
+              <InputFormatado
+                id="parceiro-documento"
+                tipo="cpfCnpj"
+                value={form.documento}
+                erro={fe.erros.documento}
+                onChange={(v) => {
+                  fe.limpar("documento");
+                  set("documento", v);
+                }}
+              />
             </div>
             <div className="space-y-1.5">
-              <Label>Telefone</Label>
-              <Input value={form.telefone} onChange={(e) => set("telefone", e.target.value)} />
+              <Label htmlFor="parceiro-telefone">Telefone</Label>
+              <InputFormatado
+                id="parceiro-telefone"
+                tipo="telefone"
+                value={form.telefone}
+                erro={fe.erros.telefone}
+                onChange={(v) => {
+                  fe.limpar("telefone");
+                  set("telefone", v);
+                }}
+              />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>E-mail</Label>
-            <Input value={form.email} onChange={(e) => set("email", e.target.value)} />
+            <Label htmlFor="parceiro-email">E-mail</Label>
+            <InputFormatado
+              id="parceiro-email"
+              tipo="email"
+              value={form.email}
+              erro={fe.erros.email}
+              onChange={(v) => {
+                fe.limpar("email");
+                set("email", v);
+              }}
+            />
           </div>
           <div className="space-y-1.5">
             <Label>Observação</Label>

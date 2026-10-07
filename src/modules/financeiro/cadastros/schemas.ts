@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { campo } from "@/lib/campos/zod";
 
 const id = z.string().min(1);
 
@@ -15,32 +16,37 @@ export const tipoCustoCategoriaSchema = z.object({ id, tipoCusto: z.enum(["fixo"
 export const centroSchema = z.object({ nome: z.string().min(1) });
 export const centroEditSchema = centroSchema.extend({ id });
 
-export const contaBancariaSchema = z.object({
+const contaBancariaBase = {
   nome: z.string().min(1, "Informe o nome."),
   tipo: z.enum(["corrente", "poupanca", "caixa", "investimento"]),
   banco: z.string().optional(),
-  agencia: z.string().optional(),
   numero: z.string().optional(),
   saldoInicial: z.number().default(0),
   /** Dia em que o saldo inicial vale (M8); vazio = todo o realizado da conta entra no saldo. */
   saldoInicialEm: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida.").optional().or(z.literal("")),
   padrao: z.boolean().default(false),
-});
-export const contaBancariaEditSchema = contaBancariaSchema.extend({ id });
+};
+/** Criar é estrito; editar deixa passar a agência inválida já gravada (a action só recusa se mudou). */
+export const contaBancariaSchema = z.object({ ...contaBancariaBase, agencia: campo.agencia() });
+export const contaBancariaEditSchema = z.object({ id, ...contaBancariaBase, agencia: campo.agencia({ legado: true }) });
 
 export const formaPagamentoSchema = z.object({ nome: z.string().min(1) });
 export const formaPagamentoEditSchema = formaPagamentoSchema.extend({ id });
 
-export const fornecedorSchema = z.object({
+/** Criar é estrito; editar deixa passar o inválido já gravado (a action só recusa o que mudou). */
+const camposDoFornecedor = (legado: boolean) => ({
+  documento: campo.cpfCnpj({ legado }),
+  email: campo.email({ legado }),
+  telefone: campo.telefone({ legado }),
+});
+const fornecedorBase = {
   tipo: z.enum(["PF", "PJ"]),
   nome: z.string().min(1, "Informe o nome."),
-  documento: z.string().optional(),
-  email: z.string().email("E-mail inválido.").optional().or(z.literal("")),
-  telefone: z.string().optional(),
   servico: z.string().optional(),
   observacoes: z.string().optional(),
-});
-export const fornecedorEditSchema = fornecedorSchema.extend({ id });
+};
+export const fornecedorSchema = z.object({ ...fornecedorBase, ...camposDoFornecedor(false) });
+export const fornecedorEditSchema = z.object({ id, ...fornecedorBase, ...camposDoFornecedor(true) });
 
 export const socioSchema = z.object({
   userId: id,

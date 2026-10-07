@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { validarCpfCnpj } from "@/lib/documento";
-import { MENSAGEM_EMAIL, MENSAGEM_TELEFONE, telefoneValido } from "@/modules/comercial/contato-validacao";
+import { campo } from "@/lib/campos/zod";
 
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 
@@ -8,8 +7,8 @@ const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 export const criarLeadSchema = z.object({
   nome: z.string().min(1, "Informe o nome."),
   contato: opt(z.string()),
-  email: opt(z.string().email("E-mail inválido.")),
-  telefone: opt(z.string()),
+  email: campo.email(),
+  telefone: campo.telefone(),
   origem: opt(z.string()),
   valorEstimado: z.number().nonnegative().optional(),
   etapaId: z.string().min(1, "Selecione a etapa."),
@@ -27,7 +26,12 @@ export const criarLeadSchema = z.object({
   /// empresa já cadastrada. Ausente = lead nasce sem `clienteId`, comportamento de sempre.
   clienteId: opt(z.string()),
 });
-export const editarLeadSchema = criarLeadSchema.extend({ id: z.string().min(1) });
+/** Editar: o e-mail/telefone inválido que já estava gravado passa (`legado`); `editarLead` recusa só o que mudou. */
+export const editarLeadSchema = criarLeadSchema.extend({
+  id: z.string().min(1),
+  email: campo.email({ legado: true }),
+  telefone: campo.telefone({ legado: true }),
+});
 export const moverLeadSchema = z.object({
   id: z.string().min(1),
   etapaId: z.string().min(1),
@@ -169,22 +173,22 @@ export type SalvarPropostaInput = z.infer<typeof salvarPropostaSchema>;
 
 // ── Parceiros (F1.23a/b, ADR-19) ────────────────────────────────
 /** Documento opcional, mas se preenchido deve ser CPF/CNPJ válido — mesma regra do Cliente. */
-const parceiroDocValido = (d: { documento?: string }) =>
-  !d.documento?.trim() || validarCpfCnpj(d.documento);
-const parceiroDocMsg = { message: "CPF/CNPJ inválido.", path: ["documento"] };
-
 const parceiroBase = {
   nome: z.string().min(2, "Informe o nome."),
   tipo: z.enum(["PF", "PJ"]),
-  documento: opt(z.string()),
-  email: opt(z.string().email("E-mail inválido.")),
-  telefone: opt(z.string()),
   observacao: opt(z.string()),
 };
-export const criarParceiroSchema = z.object(parceiroBase).refine(parceiroDocValido, parceiroDocMsg);
-export const editarParceiroSchema = z
-  .object({ id: z.string().min(1), ...parceiroBase })
-  .refine(parceiroDocValido, parceiroDocMsg);
+const parceiroCamposComFormato = (legado: boolean) => ({
+  documento: campo.cpfCnpj({ legado }),
+  email: campo.email({ legado }),
+  telefone: campo.telefone({ legado }),
+});
+export const criarParceiroSchema = z.object({ ...parceiroBase, ...parceiroCamposComFormato(false) });
+export const editarParceiroSchema = z.object({
+  id: z.string().min(1),
+  ...parceiroBase,
+  ...parceiroCamposComFormato(true),
+});
 export const parceiroIdSchema = z.object({ id: z.string().min(1) });
 
 // ── Campanhas (F4.2) ─────────────────────────────────────────────
@@ -371,9 +375,9 @@ export const criarProspeccaoRapidaSchema = z.object({
   contato: z.object({
     contatoId: opt(z.string()),
     nome: opt(z.string()),
-    email: opt(z.string().email(MENSAGEM_EMAIL)),
-    // Mesma regra da máscara do diálogo (`telefoneValido`): a tela e a action não divergem.
-    telefone: opt(z.string()).refine((v) => !v || telefoneValido(v), MENSAGEM_TELEFONE),
+    // Só cria (o contato reaproveitado não é editado aqui): estrito, mesma regra da tela.
+    email: campo.email(),
+    telefone: campo.telefone(),
     cargo: opt(z.string()),
   }),
   campanhaId: opt(z.string()),

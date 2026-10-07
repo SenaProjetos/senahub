@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { notificar, notificarMuitos } from "@/lib/notificar";
 import { HR_ADMIN_ROLES } from "@/lib/roles";
 import { whereAudiencia } from "@/lib/audiencias";
-import { CAMPOS_AUTOEDITAVEIS_SET } from "@/modules/rh/cadastro/whitelist";
+import { prepararAlteracoes, SELECT_FORMATADOS } from "@/modules/rh/cadastro/alteracoes";
 import type { Prisma } from "@/generated/prisma/client";
 
 /** Lê o blob `dados` do UserPreference como objeto mutável. */
@@ -27,20 +27,20 @@ async function gravarDados(userId: string, dados: Record<string, unknown>) {
 /**
  * Auto-serviço: o colaborador PROPÕE alterações no próprio cadastro (contato/endereço/
  * emergência/banco). Nada muda no User — fica pendente até o RH validar. Whitelist aplicada
- * no servidor (ignora qualquer campo fora da lista).
+ * no servidor (ignora qualquer campo fora da lista); telefone, e-mail e CEP passam pela regra do
+ * catálogo (o inválido novo é recusado no campo; o que já estava gravado passa) e são guardados no
+ * formato padrão.
  */
 export const proporAlteracaoCadastro = defineAction(
   {
     modulo: "rh",
     acao: "propor-alteracao-cadastro",
     entidade: "User",
-    schema: z.object({ alteracoes: z.record(z.string(), z.string()) }),
+    schema: z.object({ alteracoes: z.record(z.string(), z.string().max(500, "Texto longo demais para este campo.")) }),
   },
   async (i, ctx) => {
-    const alteracoes: Record<string, string> = {};
-    for (const [k, v] of Object.entries(i.alteracoes)) {
-      if (CAMPOS_AUTOEDITAVEIS_SET.has(k)) alteracoes[k] = v.trim();
-    }
+    const gravado = await prisma.user.findUnique({ where: { id: ctx.user.id }, select: SELECT_FORMATADOS });
+    const alteracoes = prepararAlteracoes(i.alteracoes, gravado);
     if (Object.keys(alteracoes).length === 0) {
       throw new ActionError("Nenhum campo válido para alterar.");
     }
@@ -80,9 +80,11 @@ export const aprovarAlteracaoCadastro = defineAction(
     const pend = dados["cadastroPendente"] as { alteracoes?: Record<string, string> } | undefined;
     if (!pend?.alteracoes) throw new ActionError("Não há alteração pendente para este usuário.");
 
+    // De novo na aprovação: a proposta pode ser de antes da regra, e o gravado pode ter mudado.
+    const gravado = await prisma.user.findUnique({ where: { id: i.userId }, select: SELECT_FORMATADOS });
     const data: Record<string, string | null> = {};
-    for (const [k, v] of Object.entries(pend.alteracoes)) {
-      if (CAMPOS_AUTOEDITAVEIS_SET.has(k)) data[k] = v.trim() || null;
+    for (const [k, v] of Object.entries(prepararAlteracoes(pend.alteracoes, gravado, { comRotulo: true }))) {
+      data[k] = v || null;
     }
     if (Object.keys(data).length > 0) {
       await prisma.user.update({ where: { id: i.userId }, data });

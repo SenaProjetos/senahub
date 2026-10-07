@@ -7,6 +7,8 @@ import { Plus, Pencil, Star, Wallet } from "lucide-react";
 import { criarConta, editarConta } from "@/modules/financeiro/cadastros/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputFormatado } from "@/components/ui/input-formatado";
+import { useFieldErrors } from "@/lib/use-field-errors";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -115,6 +117,7 @@ function ContaDialog({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const fe = useFieldErrors({ agencia: "conta-agencia" });
   const [form, setForm] = useState<Conta>(
     conta ?? {
       id: "",
@@ -132,6 +135,7 @@ function ContaDialog({
   const [lastKey, setLastKey] = useState(key);
   if (lastKey !== key) {
     setLastKey(key);
+    fe.limpar();
     setForm(
       conta ?? {
         id: "",
@@ -166,7 +170,7 @@ function ContaDialog({
         toast.success("Conta salva.");
         onOpenChange(false);
         router.refresh();
-      } else toast.error(r.error);
+      } else if (!fe.registrar(r)) toast.error(r.error);
     });
   }
 
@@ -207,8 +211,17 @@ function ContaDialog({
               <Input value={form.banco ?? ""} onChange={(e) => setForm({ ...form, banco: e.target.value })} />
             </div>
             <div className="space-y-1.5">
-              <Label>Agência</Label>
-              <Input value={form.agencia ?? ""} onChange={(e) => setForm({ ...form, agencia: e.target.value })} />
+              <Label htmlFor="conta-agencia">Agência</Label>
+              <InputFormatado
+                id="conta-agencia"
+                tipo="agencia"
+                value={form.agencia}
+                erro={fe.erros.agencia}
+                onChange={(v) => {
+                  fe.limpar("agencia");
+                  setForm({ ...form, agencia: v });
+                }}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Conta</Label>

@@ -7,6 +7,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { calcularStatusBriefing } from "@/modules/inputs/briefing-schema";
+import { aplicarFormatosDoBriefing } from "@/modules/inputs/briefing-formato";
 import {
   adicionarInputSchema,
   removerInputSchema,
@@ -118,8 +119,19 @@ export const salvarBriefing = defineAction(
     entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
   },
   async (input, { user }) => {
-    const status = calcularStatusBriefing(input.respostas);
-    const respostasJson = input.respostas as unknown as Prisma.InputJsonValue;
+    // Antes de qualquer escrita: só o e-mail/telefone que MUDOU é validado; o inválido já gravado segue salvando.
+    const gravado = await prisma.briefingProjeto.findUnique({
+      where: { projetoId: input.projetoId },
+      select: { respostasJson: true },
+    });
+    const formatos = aplicarFormatosDoBriefing(
+      input.respostas,
+      (gravado?.respostasJson ?? null) as Record<string, unknown> | null,
+    );
+    if (!formatos.ok) throw new ActionError(formatos.erro, formatos.campos);
+    const respostas = formatos.respostas;
+    const status = calcularStatusBriefing(respostas);
+    const respostasJson = respostas as unknown as Prisma.InputJsonValue;
     await prisma.briefingProjeto.upsert({
       where: { projetoId: input.projetoId },
       create: { projetoId: input.projetoId, respostasJson, status, preenchidoPor: user.name, preenchidoEm: new Date() },
