@@ -9422,3 +9422,73 @@ model CredencialFavorito {
   @@index([credencialId])
   @@map("credencial_favorito")
 }
+
+/// Integração contábil (M5, spec docs/superpowers/specs/2026-10-07-integracao-contabil.md).
+/// Plano de contas do CONTADOR (Alterdata), importado de CSV. A chave é o código reduzido: a
+/// classificação se repete no plano real. Conta que sai do plano vira inativa, nunca é apagada.
+model ContaContabil {
+  id                String   @id @default(cuid())
+  reduzido          Int      @unique
+  classificacao     String
+  nome              String
+  /// Tipo A do Alterdata: só analítica recebe lançamento.
+  analitica         Boolean
+  /// "D" | "C" | "I", como vem do Alterdata.
+  natureza          String
+  aceitaCentroCusto Boolean  @default(false)
+  ativa             Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("conta_contabil")
+}
+
+enum AlvoDeParaContabil {
+  categoria
+  categoria_contrapartida
+  conta_bancaria
+  cartao
+  cliente
+  fornecedor
+  /// alvoId "clientes" | "fornecedores": Clientes/Fornecedores Diversos.
+  padrao
+  imposto_recolher
+  imposto_compensar
+  centro
+  projeto
+}
+
+/// De-para SenaHub → conta do contador. FK lógica pelo reduzido (sobrevive a re-importar o plano).
+/// Categoria sem linha herda da mãe (motor `contabil/partidas.ts`).
+model DeParaContabil {
+  id            String             @id @default(cuid())
+  alvo          AlvoDeParaContabil
+  alvoId        String
+  contaReduzido Int?
+  /// Código do centro de custo (alvo centro) ou do subcentro (alvo projeto) no Alterdata.
+  codigoCentro  String?
+  /// Só categoria: fica fora do arquivo (a folha CLT, que o contador lança).
+  naoExportar   Boolean            @default(false)
+  updatedAt     DateTime           @updatedAt
+
+  @@unique([alvo, alvoId])
+  @@map("de_para_contabil")
+}
+
+/// Cada exportação de um mês fechado, como saiu. O hash denuncia mudança depois (descrição, contato…).
+model ExportacaoContabil {
+  id          String   @id @default(cuid())
+  /// "YYYY-MM"
+  competencia String
+  /// "xlsx" | "csv"
+  formato     String
+  linhas      Json
+  hash        String
+  totalCentavos BigInt
+  pendencias  Int
+  geradoPorId String
+  createdAt   DateTime @default(now())
+
+  @@index([competencia])
+  @@map("exportacao_contabil")
+}

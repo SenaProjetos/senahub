@@ -34,6 +34,7 @@ const ROTULO_POR_ROTA: Record<string, string> = {
   "/financeiro/cenarios": "Cenários salvos",
   "/financeiro/distribuicao": "Regras de distribuição",
   "/financeiro/relatorio-dimensao": "Relatório por dimensão",
+  "/financeiro/contabil": "Integração contábil",
   // A aba é "Minhas horas"; a URL curta escreveria só "Horas".
   "/ponto/horas": "Minhas horas",
   // Fora do menu (mora no sino), então HREF_TO_TITLE não a conhece.
