@@ -132,6 +132,9 @@ const PERMISSOES_BASE: { role: string; recurso: string; acao: string }[] = [
   { role: "administrativo", recurso: "rh", acao: "folha" },
   // Catálogos de cargo/departamento: quem cadastra pessoa precisa manter as listas.
   { role: "administrativo", recurso: "rh", acao: "catalogos" },
+  // Horas e produtividade dos projetistas (2026-10-07): espelha o gate antigo `HR_ADMIN_ROLES`.
+  { role: "supervisor", recurso: "rh", acao: "produtividade" },
+  { role: "administrativo", recurso: "rh", acao: "produtividade" },
   // ── Acessos e Credenciais (cofre corporativo) ────────────────────────────────
   // Semente MÍNIMA e deliberada: só `administrativo`, que neste sistema já é o perfil de
   // confiança alta (tem `financeiro:gerir`, `rh:folha` = salários, `usuarios:gerir`).

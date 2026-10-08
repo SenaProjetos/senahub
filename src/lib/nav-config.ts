@@ -287,7 +287,7 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Produtividade",
         href: "/rh/produtividade",
         icon: TrendingUp,
-        permissao: "rh:cadastro",
+        permissao: "rh:produtividade",
       },
       {
         title: "Pessoas Jurídicas",

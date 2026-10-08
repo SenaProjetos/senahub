@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
-import { requireRole } from "@/lib/session";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+import { requirePermission } from "@/lib/session";
 import { produtividadeProjetistas, type Granularidade } from "@/modules/rh/produtividade/queries";
 
 /** Item 7: export CSV do relatório de produtividade (formato longo, 1 linha por projetista×período). */
 export async function GET(req: Request) {
-  await requireRole(...HR_ADMIN_ROLES); // sócio passa pelo piso de supervisor
+  await requirePermission("rh", "produtividade"); // inclui o piso de sócio
   const url = new URL(req.url);
   const granularidade: Granularidade = url.searchParams.get("g") === "mes" ? "mes" : "semana";
   const { projetistas } = await produtividadeProjetistas(granularidade);

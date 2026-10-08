@@ -6,8 +6,9 @@ import { Clock, PackageCheck, ListChecks, TriangleAlert, TrendingDown, Users, Do
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
-import type { Granularidade, ProjetistaHorasDiarias, ProjetistaProdutividade } from "@/modules/rh/produtividade/queries";
-import { HorasDiariasChart } from "@/components/rh/horas-diarias-chart";
+import type { Granularidade, HorasProjetistas, ProjetistaProdutividade } from "@/modules/rh/produtividade/queries";
+import type { Periodo } from "@/modules/rh/produtividade/periodo";
+import { PainelHorasEquipe } from "@/components/rh/horas/painel-horas-equipe";
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
@@ -23,12 +24,18 @@ export function ProdutividadeView({
   periodos,
   granularidade,
   projetistas,
-  horasDiarias,
+  horas,
+  periodo,
+  hoje,
+  podeVerEspelho,
 }: {
   periodos: string[];
   granularidade: Granularidade;
   projetistas: ProjetistaProdutividade[];
-  horasDiarias: { dias: string[]; projetistas: ProjetistaHorasDiarias[] };
+  horas: HorasProjetistas;
+  periodo: Periodo;
+  hoje: string;
+  podeVerEspelho: boolean;
 }) {
   return (
     <div className="space-y-5">
@@ -42,7 +49,7 @@ export function ProdutividadeView({
               {(["semana", "mes"] as const).map((g) => (
                 <Link
                   key={g}
-                  href={`/rh/produtividade?g=${g}`}
+                  href={`/rh/produtividade?g=${g}&de=${periodo.de}&ate=${periodo.ate}`}
                   className={`rounded-sm px-3 py-1 ${granularidade === g ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   {g === "semana" ? "Semanal" : "Mensal"}
@@ -60,6 +67,8 @@ export function ProdutividadeView({
         }
       />
 
+      <PainelHorasEquipe horas={horas} periodo={periodo} hoje={hoje} podeVerEspelho={podeVerEspelho} />
+
       <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1"><PackageCheck className="size-3.5" /> entregas validadas</span>
         <span className="inline-flex items-center gap-1"><ListChecks className="size-3.5" /> tarefas concluídas</span>
@@ -67,8 +76,6 @@ export function ProdutividadeView({
         <span className="inline-flex items-center gap-1"><TriangleAlert className="size-3.5" /> entregas atrasadas</span>
         <span className="inline-flex items-center gap-1"><TrendingDown className="size-3.5 text-destructive" /> produção &lt; 70% da média do projetista</span>
       </div>
-
-      <HorasDiariasChart dias={horasDiarias.dias} projetistas={horasDiarias.projetistas} />
 
       {projetistas.length === 0 ? (
         <Card>
