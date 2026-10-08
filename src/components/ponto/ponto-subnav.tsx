@@ -24,7 +24,7 @@ export function PontoSubnav() {
             href={a.href}
             aria-current={ativo ? "page" : undefined}
             className={cn(
-              "-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm transition-colors",
+              "-mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2 text-sm transition-colors",
               ativo
                 ? "border-primary font-medium text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground",

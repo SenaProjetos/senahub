@@ -73,7 +73,7 @@ export function GraficoHoras({
           viewBox={`0 0 ${LARGURA} ${ALTURA}`}
           role="group"
           aria-label={`${titulo}. Use as setas para andar entre ${granularidade === "semana" ? "as semanas" : "os dias"}.`}
-          className="h-auto w-full min-w-[560px]"
+          className="h-auto max-h-[340px] w-full min-w-[560px]"
         >
           {[0, maximo / 2, maximo].map((v) => (
             <g key={v}>

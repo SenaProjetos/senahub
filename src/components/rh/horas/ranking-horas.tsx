@@ -33,7 +33,7 @@ export function RankingHoras({
 }) {
   const maximo = Math.max(1, ...pessoas.map((p) => p.totalHoras));
   return (
-    <ul className="min-w-0 divide-y rounded-sm border" aria-label="Ranking de horas no período">
+    <ul className="min-w-0 self-start divide-y rounded-sm border" aria-label="Ranking de horas no período">
       {pessoas.map((p) => (
         <LinhaRanking
           key={p.userId}
