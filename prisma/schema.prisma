@@ -3498,8 +3498,17 @@ model FuncionarioDocumento {
   id          String   @id @default(cuid())
   userId      String
   user        User     @relation("FuncDocumentos", fields: [userId], references: [id], onDelete: Cascade)
-  /// contrato | rg | cpf | aso | diploma | comprovante | outro
+  /// contrato | rg | cpf | aso | crea_cau | nr10 | nr35 | certificacao | diploma | comprovante | outro
   tipo        String   @default("outro")
+  /// F5: validade opcional — só quando o documento realmente vence (ASO, CREA/CAU, NR-10, NR-35…).
+  /// Sem validade, nunca gera alerta.
+  validadeEm       DateTime? @db.Date
+  /// Última faixa avisada (dias antes: 60, 30, 7; 0 = já venceu). O job avisa uma vez por faixa.
+  avisoFaixa       Int?
+  /// Conferência pelo RH. Enviado pelo RH já nasce conferido; enviado pela pessoa espera.
+  conferidoEm      DateTime?
+  conferidoPorId   String?
+  enviadoPelaPessoa Boolean  @default(false)
   nome        String
   caminho     String
   nomeArquivo String

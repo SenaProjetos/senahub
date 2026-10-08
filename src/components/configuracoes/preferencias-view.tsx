@@ -66,6 +66,7 @@ export function PreferenciasView({
   notifImpactoAusencia: notifImpactoAusenciaInicial,
   notifLifecycleRh: notifLifecycleRhInicial,
   notifDesenvolvimento: notifDesenvolvimentoInicial,
+  notifDocumentoValidade: notifDocumentoValidadeInicial,
   pontoEmailModo: pontoEmailModoInicial,
   mostrarAlertasPonto,
 }: {
@@ -95,6 +96,7 @@ export function PreferenciasView({
   notifImpactoAusencia: boolean;
   notifLifecycleRh: boolean;
   notifDesenvolvimento: boolean;
+  notifDocumentoValidade: boolean;
   pontoEmailModo: PontoEmailModo;
   /** Alertas de jornada por horário são só p/ CLT/estagiário — controla a seção de e-mail. */
   mostrarAlertasPonto: boolean;
@@ -125,6 +127,7 @@ export function PreferenciasView({
   const [notifImpactoAusencia, setNotifImpactoAusencia] = useState(notifImpactoAusenciaInicial);
   const [notifLifecycleRh, setNotifLifecycleRh] = useState(notifLifecycleRhInicial);
   const [notifDesenvolvimento, setNotifDesenvolvimento] = useState(notifDesenvolvimentoInicial);
+  const [notifDocumentoValidade, setNotifDocumentoValidade] = useState(notifDocumentoValidadeInicial);
   const [pontoEmailModo, setPontoEmailModo] = useState<PontoEmailModo>(pontoEmailModoInicial);
   const [, start] = useTransition();
 
@@ -314,6 +317,13 @@ export function PreferenciasView({
       descricao: "Para quem lidera: o encontro 1:1 com alguém da equipe passou do prazo.",
       valor: notifDesenvolvimento,
       set: setNotifDesenvolvimento,
+    },
+    {
+      chave: "notif_documento_validade",
+      titulo: "Documento vencendo",
+      descricao: "ASO, CREA/CAU, NR-10, NR-35 e certificações: 60, 30 e 7 dias antes e no vencimento.",
+      valor: notifDocumentoValidade,
+      set: setNotifDocumentoValidade,
     },
   ];
 

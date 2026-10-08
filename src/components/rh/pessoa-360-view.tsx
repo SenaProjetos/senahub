@@ -403,7 +403,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                   : <ContasBancariasEditor pessoaId={pessoa.id} contas={contas} podeEditar={podeEditarCadastro} />
               )}
               <DependentesEditor pessoaId={pessoa.id} dependentes={cadastro.dependentes} podeEditar={podeEditarCadastro} />
-              <DocumentosEditor pessoaId={pessoa.id} documentos={cadastro.documentos} podeEditar={podeEditarCadastro} />
+              <DocumentosEditor pessoaId={pessoa.id} documentos={cadastro.documentos} podeEditar={podeEditarCadastro} self={self} />
             </CardContent></Card>
           </TabsContent>
         )}
