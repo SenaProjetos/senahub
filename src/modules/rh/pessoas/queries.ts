@@ -269,7 +269,7 @@ export async function cadastroDaPessoa(userId: string) {
       },
       funcDocumentos: {
         orderBy: { createdAt: "desc" },
-        select: { id: true, tipo: true, nome: true, nomeArquivo: true, mime: true, tamanho: true, createdAt: true },
+        select: { id: true, tipo: true, nome: true, nomeArquivo: true, mime: true, tamanho: true, createdAt: true, validadeEm: true, conferidoEm: true, enviadoPelaPessoa: true },
       },
     },
   });
@@ -289,6 +289,9 @@ export async function cadastroDaPessoa(userId: string) {
     })),
     documentos: u.funcDocumentos.map((d) => ({
       id: d.id, tipo: d.tipo, nome: d.nome, nomeArquivo: d.nomeArquivo, mime: d.mime, tamanho: d.tamanho, criadoEm: d.createdAt.toISOString(),
+      validadeEm: d.validadeEm ? d.validadeEm.toISOString().slice(0, 10) : null,
+      conferido: d.conferidoEm != null,
+      enviadoPelaPessoa: d.enviadoPelaPessoa,
     })),
   };
 }

@@ -10,6 +10,9 @@ import { whereAudiencia } from "@/lib/audiencias";
 import { prepararAlteracoes, SELECT_FORMATADOS } from "@/modules/rh/cadastro/alteracoes";
 import type { Prisma } from "@/generated/prisma/client";
 
+/** Campos sensíveis que a pessoa só PREENCHE (vazios) e o RH aprova — ver `preencher.ts`. */
+const CAMPOS_SENSIVEIS_PREENCHIMENTO = new Set(["cpf", "rg"]);
+
 /** Lê o blob `dados` do UserPreference como objeto mutável. */
 async function lerDados(userId: string): Promise<Record<string, unknown>> {
   const pref = await prisma.userPreference.findUnique({ where: { userId }, select: { dados: true } });
@@ -46,7 +49,13 @@ export const proporAlteracaoCadastro = defineAction(
     }
 
     const dados = await lerDados(ctx.user.id);
-    dados["cadastroPendente"] = { alteracoes, propostoEm: new Date().toISOString() };
+    // A proposta nova substitui a anterior, mas não apaga CPF/RG preenchidos esperando o RH.
+    const anterior = dados["cadastroPendente"] as { preenchimentos?: Record<string, string> } | undefined;
+    dados["cadastroPendente"] = {
+      alteracoes,
+      ...(anterior?.preenchimentos ? { preenchimentos: anterior.preenchimentos } : {}),
+      propostoEm: new Date().toISOString(),
+    };
     await gravarDados(ctx.user.id, dados);
 
     // Avisa o RH que há algo para validar.
@@ -77,14 +86,27 @@ export const aprovarAlteracaoCadastro = defineAction(
   { ...hrBase, acao: "aprovar-alteracao-cadastro", schema: alvoSchema, entidadeId: (_, i) => (i as { userId: string }).userId },
   async (i) => {
     const dados = await lerDados(i.userId);
-    const pend = dados["cadastroPendente"] as { alteracoes?: Record<string, string> } | undefined;
-    if (!pend?.alteracoes) throw new ActionError("Não há alteração pendente para este usuário.");
+    const pend = dados["cadastroPendente"] as
+      | { alteracoes?: Record<string, string>; preenchimentos?: Record<string, string> }
+      | undefined;
+    if (!pend || (Object.keys(pend.alteracoes ?? {}).length === 0 && Object.keys(pend.preenchimentos ?? {}).length === 0)) {
+      throw new ActionError("Não há alteração pendente para este usuário.");
+    }
 
     // De novo na aprovação: a proposta pode ser de antes da regra, e o gravado pode ter mudado.
     const gravado = await prisma.user.findUnique({ where: { id: i.userId }, select: SELECT_FORMATADOS });
     const data: Record<string, string | null> = {};
-    for (const [k, v] of Object.entries(prepararAlteracoes(pend.alteracoes, gravado, { comRotulo: true }))) {
+    for (const [k, v] of Object.entries(prepararAlteracoes(pend.alteracoes ?? {}, gravado, { comRotulo: true }))) {
       data[k] = v || null;
+    }
+    // CPF/RG preenchidos a pedido do RH: só entram se o campo CONTINUA vazio (o RH pode ter
+    // preenchido pela ficha enquanto isso — o valor dele vale).
+    const preenchimentos = Object.entries(pend.preenchimentos ?? {}).filter(([k]) => CAMPOS_SENSIVEIS_PREENCHIMENTO.has(k));
+    if (preenchimentos.length > 0) {
+      const atuais = await prisma.user.findUnique({ where: { id: i.userId }, select: { cpf: true, rg: true } });
+      for (const [k, v] of preenchimentos) {
+        if (!atuais?.[k as "cpf" | "rg"]?.trim()) data[k] = v;
+      }
     }
     if (Object.keys(data).length > 0) {
       await prisma.user.update({ where: { id: i.userId }, data });

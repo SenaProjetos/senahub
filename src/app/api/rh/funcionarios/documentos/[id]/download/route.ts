@@ -8,12 +8,17 @@ import { logAudit, getClientIp } from "@/lib/audit";
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  if (!HR_ADMIN_ROLES.includes(session.user.role)) {
+  const { id } = await ctx.params;
+  const doc = await prisma.funcionarioDocumento.findUnique({ where: { id } });
+
+  // O RH abre qualquer documento; a própria pessoa abre os SEUS (Minha conta — direito de acesso
+  // aos próprios dados, LGPD art. 18). Enviar e excluir continuam só com o RH (actions).
+  // Para quem não é RH, documento de outra pessoa e documento inexistente dão a MESMA resposta:
+  // um id alheio não confirma que o documento existe.
+  const ehRh = HR_ADMIN_ROLES.includes(session.user.role);
+  if (!ehRh && doc?.userId !== session.user.id) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
-  const { id } = await ctx.params;
-
-  const doc = await prisma.funcionarioDocumento.findUnique({ where: { id } });
   if (!doc) return NextResponse.json({ error: "Documento não encontrado." }, { status: 404 });
 
   let conteudo: Buffer;

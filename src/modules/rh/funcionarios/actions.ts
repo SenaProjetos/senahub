@@ -17,6 +17,8 @@ import { derivarEixos } from "@/modules/usuarios/vinculo/mapa";
 import { resolverClassificacao } from "@/modules/rh/catalogos/service";
 import { registrarAlteracaoContratual } from "@/modules/rh/contratual/service";
 import { normalizarConta, garantirPrincipal } from "@/modules/rh/contas/service";
+import { abrirCicloNoBanco } from "@/modules/rh/ciclo/service";
+import { CAMINHO_DOC_RH, TIPOS_DOC } from "@/modules/rh/documentos/regras";
 
 const base = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
 const rev = () => revalidatePath("/rh/funcionarios");
@@ -187,20 +189,13 @@ export const cadastrarFuncionario = defineAction(
       ),
     );
 
-    // Item 4: integra o disparo de onboarding (copia os itens do template).
+    // Item 4 / F4: abre a lista de ENTRADA já com dono e prazo (âncora = início do vínculo
+    // criado acima). Se falhar, a pessoa já existe: o RH abre a lista depois pela ficha.
     if (i.iniciarOnboarding && i.templateId) {
-      const tpl = await prisma.onboardingTemplate.findUnique({
-        where: { id: i.templateId },
-        include: { itens: { orderBy: { ordem: "asc" } } },
-      });
-      if (tpl) {
-        await prisma.onboardingProcesso.create({
-          data: {
-            userId: id,
-            templateId: tpl.id,
-            itens: { create: tpl.itens.map((it) => ({ descricao: it.descricao, ordem: it.ordem })) },
-          },
-        });
+      try {
+        await abrirCicloNoBanco({ userId: id, tipo: "entrada", templateId: i.templateId });
+      } catch (e) {
+        console.error("[cadastrarFuncionario] lista de entrada não abriu", e);
       }
     }
 
@@ -391,8 +386,6 @@ export const salvarDataAdmissao = defineAction(
   },
 );
 
-const TIPOS_DOC = ["contrato", "rg", "cpf", "aso", "diploma", "comprovante", "outro"] as const;
-
 export const adicionarDocumentoFuncionario = defineAction(
   {
     ...base,
@@ -403,14 +396,25 @@ export const adicionarDocumentoFuncionario = defineAction(
       tipo: z.enum(TIPOS_DOC),
       nome: z.string().min(1, "Informe o nome."),
       meta: docMeta,
+      validadeEm: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida.").nullable().optional(),
     }),
   },
   async (i, ctx) => {
+    // O caminho vem do navegador (devolvido pela rota de envio): só o formato que a rota gera, e
+    // nunca o arquivo de outro documento — senão bastaria apontar para o arquivo alheio.
+    if (!CAMINHO_DOC_RH.test(i.meta.caminho)) throw new ActionError("Arquivo inválido. Envie o documento de novo.");
+    if (await prisma.funcionarioDocumento.findFirst({ where: { caminho: i.meta.caminho }, select: { id: true } })) {
+      throw new ActionError("Este arquivo já está ligado a outro documento. Envie de novo.");
+    }
     const d = await prisma.funcionarioDocumento.create({
       data: {
         userId: i.userId,
         tipo: i.tipo,
         nome: i.nome,
+        validadeEm: i.validadeEm ? new Date(`${i.validadeEm}T00:00:00Z`) : null,
+        // Anexado pelo RH já nasce conferido (F5).
+        conferidoEm: new Date(),
+        conferidoPorId: ctx.user.id,
         caminho: i.meta.caminho,
         nomeArquivo: i.meta.nomeArquivo,
         mime: i.meta.mime,

@@ -37,6 +37,11 @@ npm run smoke:historico-documento  # histórico por documento: agrupamento atôm
 npm run smoke:status-documento     # status documental automático: Enviado/Aprovado/Correção pela chave, revisão vigente, evento automático
 npm run smoke:pastas-cliente       # pastas Compartilhado/Liberado para obra: revisão marcada na lista/árvore, contagem, validação desfeita
 npm run smoke:recursos-eap    # EAP: herança, horas no motor, cards, carga/sobrecarga, custo previsto, Valor Agregado
+npm run smoke:impacto-ausencia  # aviso de férias/abono × alocação (só leitura): janela de hoje em diante, digitada × cronograma (D17)
+npm run smoke:ciclo-rh       # listas de entrada/saída: prazo pela âncora, um aberto por tipo (índice parcial), quem marca o quê, lembrete 1×/dia, recontratação
+npm run smoke:pedido-dados   # "Atualize seus dados" + reconfirmação anual: faixa, um aberto por pessoa, CPF/RG ao RH, fechamento (restaura a pessoa)
+npm run smoke:desenvolvimento  # liderança única ativa, 1:1 compartilhado × privado (o privado não sai do servidor), lembrete sem conteúdo
+npm run smoke:documentos-validade  # documento com validade: aviso 60/30/7/vencido uma vez por faixa, renovar rearma
 npm run smoke:ponto-tarefa    # ponto com tarefa: lista curta, validação, edição do dia, apontado × previsto
 npm run smoke:pagamento-fase  # pagamento por fase: pool congelado, write-back por diferença, SLA, marco → aprovar fase
 npm run smoke:previsao-recebimento  # contrato por entrega: previsão no caixa, marco anda, faturar, fora do aging
@@ -595,9 +600,42 @@ versão em linguagem de usuário continua em `docs/manual/novidades.md` → `/aj
 
 **Ajuda / Manual (in-app):** the `/ajuda` route (+ `[...slug]` catch-all) renders the user manual straight from `docs/manual/**` markdown via `lib/manual.ts` (`lerManifesto`/`listarSecoes`/`pathParaSlug`) + `react-markdown`. No DB — edit the markdown to change the docs. Visible to **all** roles (no `roles[]` on the nav item, cliente included). Keep `docs/manual/` current when features change.
 
+**Entrada e saída de pessoas** (`modules/rh/ciclo/`, Gestão de Pessoas F4, spec §9.2 of
+`docs/superpowers/plans/2026-08-26-rh-gestao-pessoas-recursos.md`): `OnboardingProcesso` is a CYCLE (`tipo` entrada|saida,
+`status`), several per person (rehire keeps history) but at most ONE `em_andamento` per type — enforced by the partial
+unique index `onboarding_processo_um_aberto` (not in schema.prisma). Items copy `responsavel` and resolve `prazoEm` =
+anchor + `prazoDias` when the cycle opens (anchor: vínculo start / last day); editing a model never touches open
+cycles. Pure rules in `regras.ts` (who marks what: RH any, `patrimonio:ti` the TI ones, the person their own; líder and
+coordenador fall to RH until F3). Nothing opens by itself: the ficha offers the exit list after `desligarColaborador`.
+Daily reminder `lembrete.ts` (inside `rotinasRhDiarias`) claims each overdue item with `updateMany` on `lembradoEm`
+(once a day), one notification per recipient, categoria `lifecycle_rh`. Models are seeded create-only by name.
+
+**"Atualize seus dados"** (`modules/rh/cadastro/preencher.ts` pure + `pedido-service.ts` + `pedido-actions.ts`, spec
+`docs/superpowers/specs/2026-10-08-pedido-atualizacao-dados.md`): RH opens a `PedidoDadosCadastro` (one `aberto` per person,
+partial unique index `pedido_dados_um_aberto`); while it is open and something depends on the person, the dashboard layout
+renders `FaixaPedidoDados` above the top bar (`Shell` prop `faixa`) — never blocks. "What is missing" is ALWAYS
+`camposFaltantes` (completude.ts) filtered by `CAMPOS_PREENCHIVEIS`; the request stores no field list. The person only FILLS
+empty fields: plain ones apply at once, CPF/RG go to `cadastroPendente.preenchimentos` (applied on approval only if still
+empty); changing an existing value stays in the Fase 4 flow. A later `proporAlteracaoCadastro` must keep `preenchimentos`.
+The request closes (`fecharSeAtendido`) on fill and in `rotinasRhDiarias`.
+
+**Gestão de Pessoas F2/F3/F5/F6** (spec `docs/superpowers/plans/2026-08-26-rh-gestao-pessoas-recursos.md` §9.3):
+- F2 `rh/habilidades/` — `UserHabilidade.nivel` 1–5 (null = never apt), the person declares (changing clears the
+  validation), RH/`recursos:gerir` validate (never their own); `Habilidade.publicada` (proposed by `recursos:gerir`,
+  published by RH); `NecessidadeHabilidade` per project, covered in /recursos via `candidatosParaNecessidade` + `folgaNaJanela`.
+- F3 `rh/desenvolvimento/` — `LiderancaPessoa` (one active per person, partial index `lideranca_uma_ativa`), objectives,
+  `EncontroUmAUm` with per-record `visibilidade`; `papelSobre` decides rh|lider|self and the QUERY already filters
+  (private 1:1 never reaches the person). /rh/minha-equipe is gated by the active leadership, not by role.
+- F5 `rh/documentos/` — `FuncionarioDocumento.validadeEm/avisoFaixa/conferidoEm/enviadoPelaPessoa`; self upload is
+  `/api/rh/meus-documentos` (stores file AND record server-side); the HR action only accepts `CAMINHO_DOC_RH` paths not
+  already linked. Daily notice 60/30/7/0 claimed by `updateMany` on `avisoFaixa`.
+- Annual reconfirmation: `PedidoDadosCadastro.tipo = reconfirmar`, `User.dadosConfirmadosEm`; the job only reopens for
+  people who confirmed 12+ months ago (never-confirmed = RH batch only).
+- F6 `rh/gestao/` — `/rh/gestao` composes existing reads; pure signals in `sinais.ts`; climate hidden below 3 answers.
+
 **Cross-module pages (not their own module folder):** `/recursos` = resource-allocation matrix built from `modules/planejamento/queries.ts` (`matrizRecursos`, `cargaSemanalPorRecurso`) + `modules/rh/habilidades/queries.ts`, gated `recursos:ver`/`recursos:gerir`.
 
-**Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`, `coordenacao`, `aprovacao_arquivo`, `aprovacao_disciplina`, `input_cliente`, `conta_a_pagar`.
+**Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`, `coordenacao`, `aprovacao_arquivo`, `aprovacao_disciplina`, `input_cliente`, `conta_a_pagar`, `impacto_ausencia`, `lifecycle_rh`, `desenvolvimento`, `documento_validade`.
 
 ## Gotchas
 

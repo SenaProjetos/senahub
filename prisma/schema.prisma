@@ -238,7 +238,14 @@ model User {
   feedbacksHumor                FeedbackHumor[]
   holerites                     Holerite[]
   holeritesAssinados            Holerite[]                  @relation("HoleriteAssinante")
-  onboarding                    OnboardingProcesso?
+  ciclosRh                      OnboardingProcesso[]
+  pedidosDados                  PedidoDadosCadastro[]
+  /// Última vez que a pessoa confirmou que os dados do cadastro continuam certos (reconfirmação anual).
+  dadosConfirmadosEm            DateTime?
+  liderancasComoLider           LiderancaPessoa[]          @relation("LiderancaLider")
+  liderancasComoLiderado        LiderancaPessoa[]          @relation("LiderancaLiderado")
+  objetivosDesenvolvimento      ObjetivoDesenvolvimento[]
+  encontrosUmAUm                EncontroUmAUm[]
   notasFiscais                  NotaFiscalPJ[]              @relation("NfUser")
   nfsValidadas                  NotaFiscalPJ[]              @relation("NfValidador")
   documentoVersoes              DocumentoModeloVersao[]
@@ -1287,6 +1294,7 @@ model Projeto {
   apuracoesValorAgregado  ValorAgregadoApuracao[]
   eapTarefas              EapTarefa[]
   alocacoes               Alocacao[]
+  necessidadesHabilidade  NecessidadeHabilidade[]
   servicos                ServicoTerceirizado[]
   rateios                 RateioHora[]
   composicaoPreco         ProjetoComposicaoPreco?
@@ -3492,8 +3500,17 @@ model FuncionarioDocumento {
   id          String   @id @default(cuid())
   userId      String
   user        User     @relation("FuncDocumentos", fields: [userId], references: [id], onDelete: Cascade)
-  /// contrato | rg | cpf | aso | diploma | comprovante | outro
+  /// contrato | rg | cpf | aso | crea_cau | nr10 | nr35 | certificacao | diploma | comprovante | outro
   tipo        String   @default("outro")
+  /// F5: validade opcional — só quando o documento realmente vence (ASO, CREA/CAU, NR-10, NR-35…).
+  /// Sem validade, nunca gera alerta.
+  validadeEm       DateTime? @db.Date
+  /// Última faixa avisada (dias antes: 60, 30, 7; 0 = já venceu). O job avisa uma vez por faixa.
+  avisoFaixa       Int?
+  /// Conferência pelo RH. Enviado pelo RH já nasce conferido; enviado pela pessoa espera.
+  conferidoEm      DateTime?
+  conferidoPorId   String?
+  enviadoPelaPessoa Boolean  @default(false)
   nome        String
   caminho     String
   nomeArquivo String
@@ -6485,24 +6502,55 @@ model TarefaComentario {
 }
 
 /// Habilidade/competência (catálogo).
+/// Competência do catálogo (Gestão de Pessoas F2). A Engenharia propõe (`publicada = false`), o RH
+/// publica; só publicada aparece para a pessoa declarar.
 model Habilidade {
-  id       String           @id @default(cuid())
-  nome     String           @unique
-  usuarios UserHabilidade[]
+  id            String                  @id @default(cuid())
+  nome          String                  @unique
+  /// software | disciplina | norma | outra (nulo = cadastrada antes da F2)
+  categoria     String?
+  publicada     Boolean                 @default(true)
+  propostaPorId String?
+  usuarios      UserHabilidade[]
+  necessidades  NecessidadeHabilidade[]
+  objetivos     ObjetivoDesenvolvimento[]
 
   @@map("habilidade")
 }
 
-/// Vínculo colaborador × habilidade.
+/// Vínculo colaborador × habilidade, com nível 1–5 (F2). Nível nulo = "não informado" — nunca
+/// conta como apto. A pessoa declara; quem gere Recursos ou o RH valida (nunca a própria pessoa).
+/// Decisão do dono: nenhuma competência vence.
 model UserHabilidade {
-  id           String     @id @default(cuid())
-  userId       String
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  habilidadeId String
-  habilidade   Habilidade @relation(fields: [habilidadeId], references: [id], onDelete: Cascade)
+  id            String     @id @default(cuid())
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habilidadeId  String
+  habilidade    Habilidade @relation(fields: [habilidadeId], references: [id], onDelete: Cascade)
+  nivel         Int?
+  observacao    String?
+  declaradoEm   DateTime?
+  validadoEm    DateTime?
+  validadoPorId String?
 
   @@unique([userId, habilidadeId])
   @@map("user_habilidade")
+}
+
+/// O que um projeto precisa (F2): competência e nível mínimo — não uma pessoa obrigatória.
+model NecessidadeHabilidade {
+  id           String     @id @default(cuid())
+  projetoId    String
+  projeto      Projeto    @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  habilidadeId String
+  habilidade   Habilidade @relation(fields: [habilidadeId], references: [id], onDelete: Cascade)
+  nivelMinimo  Int        @default(3)
+  observacao   String?
+  criadoEm     DateTime   @default(now())
+
+  @@unique([projetoId, habilidadeId])
+  @@index([habilidadeId])
+  @@map("necessidade_habilidade")
 }
 
 /// Serviço terceirizado contratado para um projeto (fornecedor externo).
@@ -6621,10 +6669,156 @@ model HoleriteItem {
   @@map("holerite_item")
 }
 
+enum StatusPedidoDados {
+  aberto
+  atendido
+  cancelado
+}
+
+/// `completar` = preencher o que falta; `reconfirmar` = conferir se o que existe continua certo
+/// (anual, automático 12 meses depois da última confirmação, ou em lote pelo RH).
+enum TipoPedidoDados {
+  completar
+  reconfirmar
+}
+
+/// O RH pede à pessoa que preencha os próprios dados que faltam no cadastro. Não guarda a lista
+/// de campos: "o que falta" é sempre `camposFaltantes` (completude.ts) filtrado pelo que a pessoa
+/// pode preencher (`rh/cadastro/preencher.ts`). Enquanto houver um `aberto`, a pessoa vê a faixa
+/// no topo. No máximo um aberto por pessoa: índice PARCIAL `pedido_dados_um_aberto`, criado na
+/// migration 20261008150000 — o Prisma não expressa índice parcial, então ele não aparece aqui.
+model PedidoDadosCadastro {
+  id              String            @id @default(cuid())
+  userId          String
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Quem pediu (RH). Sem FK: o histórico vale mesmo se a conta de quem pediu sair.
+  solicitadoPorId String
+  tipo            TipoPedidoDados   @default(completar)
+  mensagem        String?
+  /// Prazo opcional. Vencido, a faixa fica em destaque; o sistema nunca bloqueia (CLT bate ponto).
+  prazo           DateTime?         @db.Date
+  status          StatusPedidoDados @default(aberto)
+  criadoEm        DateTime          @default(now())
+  atendidoEm      DateTime?
+  /// Último lembrete reenviado pelo RH.
+  lembradoEm      DateTime?
+
+  @@index([userId, status])
+  @@index([status])
+  @@map("pedido_dados_cadastro")
+}
+
+/// Liderança direta datada (Gestão de Pessoas F3). No máximo UMA ativa (`fim` nulo) por liderado:
+/// índice PARCIAL `lideranca_uma_ativa`, criado na migration 20261008190000 — fora do schema.prisma.
+/// Decisão do dono: qualquer pessoa interna pode ser líder.
+model LiderancaPessoa {
+  id           String    @id @default(cuid())
+  liderId      String
+  lider        User      @relation("LiderancaLider", fields: [liderId], references: [id], onDelete: Cascade)
+  userId       String
+  liderado     User      @relation("LiderancaLiderado", fields: [userId], references: [id], onDelete: Cascade)
+  inicio       DateTime  @default(now()) @db.Date
+  fim          DateTime? @db.Date
+  /// Cadência de 1:1 em dias. Decisão do dono: mensal por padrão, o líder pode mudar.
+  cadenciaDias Int       @default(30)
+  /// Último lembrete de 1:1 vencido (o job repete no máximo a cada 7 dias).
+  lembradoEm   DateTime? @db.Date
+  criadoPorId  String
+  criadoEm     DateTime  @default(now())
+
+  @@index([liderId, fim])
+  @@index([userId, fim])
+  @@map("lideranca_pessoa")
+}
+
+enum StatusObjetivo {
+  aberto
+  concluido
+  cancelado
+}
+
+/// Objetivo de desenvolvimento (F3). A própria pessoa SEMPRE vê os seus (decisão do dono).
+model ObjetivoDesenvolvimento {
+  id                String         @id @default(cuid())
+  userId            String
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  titulo            String
+  resultadoEsperado String?
+  alvo              DateTime?      @db.Date
+  status            StatusObjetivo @default(aberto)
+  habilidadeId      String?
+  habilidade        Habilidade?    @relation(fields: [habilidadeId], references: [id], onDelete: SetNull)
+  criadoPorId       String
+  criadoEm          DateTime       @default(now())
+  concluidoEm       DateTime?
+
+  @@index([userId, status])
+  @@map("objetivo_desenvolvimento")
+}
+
+/// Quem lê um registro de 1:1 (decisão do dono: visibilidade por registro, padrão líder + RH; o
+/// líder marca o que a pessoa também vê).
+enum VisibilidadeRegistro {
+  lider_rh
+  compartilhado
+}
+
+/// Encontro 1:1 (F3). O conteúdo nunca vai em notificação.
+model EncontroUmAUm {
+  id           String               @id @default(cuid())
+  userId       String
+  liderado     User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  liderId      String
+  data         DateTime             @db.Date
+  pauta        String?
+  decisoes     String?
+  acoes        String?
+  proximoEm    DateTime?            @db.Date
+  visibilidade VisibilidadeRegistro @default(lider_rh)
+  criadoPorId  String
+  criadoEm     DateTime             @default(now())
+
+  @@index([userId, data])
+  @@map("encontro_um_a_um")
+}
+
+/// Entrada (onboarding) ou saída (offboarding) de uma pessoa — Gestão de Pessoas F4.
+enum TipoCicloRh {
+  entrada
+  saida
+}
+
+enum StatusCicloRh {
+  em_andamento
+  concluido
+  cancelado
+}
+
+/// Quem faz o item. `lider` fica com o RH enquanto não houver liderança direta (F3);
+/// `coordenador` idem — a regra está em `modules/rh/ciclo/regras.ts`.
+enum ResponsavelCicloRh {
+  rh
+  ti
+  lider
+  coordenador
+  pessoa
+}
+
+/// Para quem a lista-modelo serve, pela contratação do vínculo (decisão F4: uma lista para
+/// CLT/estágio e outra para PJ). `todos` = vale para qualquer contratação.
+enum PublicoCicloRh {
+  clt_estagio
+  pj
+  todos
+}
+
+/// Lista-modelo de entrada ou de saída. Mantida pelo RH em /rh/admin.
 model OnboardingTemplate {
-  id    String  @id @default(cuid())
-  nome  String  @unique
-  ativo Boolean @default(true)
+  id      String         @id @default(cuid())
+  nome    String         @unique
+  ativo   Boolean        @default(true)
+  tipo    TipoCicloRh    @default(entrada)
+  publico PublicoCicloRh @default(todos)
 
   itens     OnboardingTemplateItem[]
   processos OnboardingProcesso[]
@@ -6633,40 +6827,69 @@ model OnboardingTemplate {
 }
 
 model OnboardingTemplateItem {
-  id         String             @id @default(cuid())
-  templateId String
-  template   OnboardingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  descricao  String
-  ordem      Int                @default(0)
+  id          String             @id @default(cuid())
+  templateId  String
+  template    OnboardingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  descricao   String
+  ordem       Int                @default(0)
+  responsavel ResponsavelCicloRh @default(rh)
+  /// Prazo em dias corridos a partir da âncora do ciclo (início do vínculo na entrada, último dia
+  /// na saída): -1 = véspera, 0 = no dia, 5 = cinco dias depois. Nulo = sem prazo.
+  prazoDias   Int?
+  /// Item de devolução de equipamentos: a tela lista os ativos e máquinas sob responsabilidade da
+  /// pessoa (só referência — nunca transfere nem dá baixa).
+  patrimonio  Boolean            @default(false)
 
   @@index([templateId])
   @@map("onboarding_template_item")
 }
 
-/// Checklist de admissão de um colaborador (1 por usuário).
+/// Ciclo de entrada ou de saída de uma pessoa. Uma pessoa pode ter vários ao longo do tempo
+/// (recontratação), mas no máximo UM em andamento por tipo: quem garante é o índice PARCIAL
+/// `onboarding_processo_um_aberto` (`WHERE status = 'em_andamento'`), criado na migration
+/// 20261008120000 — o Prisma não expressa índice parcial, então ele não aparece aqui.
 model OnboardingProcesso {
-  id         String              @id @default(cuid())
-  userId     String              @unique
-  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  templateId String?
-  template   OnboardingTemplate? @relation(fields: [templateId], references: [id])
-  createdAt  DateTime            @default(now())
+  id          String              @id @default(cuid())
+  userId      String
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  templateId  String?
+  template    OnboardingTemplate? @relation(fields: [templateId], references: [id])
+  createdAt   DateTime            @default(now())
+  tipo        TipoCicloRh         @default(entrada)
+  status      StatusCicloRh       @default(em_andamento)
+  iniciadoEm  DateTime            @default(now())
+  concluidoEm DateTime?
+  /// Dia de referência dos prazos: início do vínculo (entrada) ou último dia (saída).
+  ancora      DateTime?           @db.Date
+  /// Vínculo que o ciclo acompanha (sem FK: o histórico do ciclo vale mesmo se o vínculo mudar).
+  vinculoId   String?
 
   itens OnboardingItem[]
 
+  @@index([userId, tipo, status])
   @@map("onboarding_processo")
 }
 
 model OnboardingItem {
-  id          String             @id @default(cuid())
-  processoId  String
-  processo    OnboardingProcesso @relation(fields: [processoId], references: [id], onDelete: Cascade)
-  descricao   String
-  ordem       Int                @default(0)
-  concluido   Boolean            @default(false)
-  concluidoEm DateTime?
+  id             String             @id @default(cuid())
+  processoId     String
+  processo       OnboardingProcesso @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  descricao      String
+  ordem          Int                @default(0)
+  concluido      Boolean            @default(false)
+  concluidoEm    DateTime?
+  responsavel    ResponsavelCicloRh @default(rh)
+  /// Prazo já resolvido em data (âncora + prazoDias do modelo) no momento em que o ciclo abriu.
+  prazoEm        DateTime?          @db.Date
+  patrimonio     Boolean            @default(false)
+  concluidoPorId String?
+  /// Evidência curta opcional (ex.: "patrimônio 0123 devolvido").
+  evidencia      String?
+  /// Último dia em que o lembrete de atraso saiu para este item — o job envia no máximo um por dia.
+  lembradoEm     DateTime?          @db.Date
 
   @@index([processoId])
+  @@index([concluido, prazoEm])
   @@map("onboarding_item")
 }
 

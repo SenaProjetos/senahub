@@ -109,3 +109,74 @@ export function picoDoMes(
   }
   return melhor;
 }
+
+/**
+ * Ausência que tira a pessoa do trabalho: férias e abono. Feriado fica de fora — zera o dia de todo
+ * mundo, e o % digitado já é da capacidade útil, então alocação num feriado não é conflito.
+ */
+export type Indisponibilidade = { inicio: string; fim: string; tipo: "ferias" | "abono" | "feriado"; motivo: string };
+
+export function ausenciasPessoais<T extends Pick<Indisponibilidade, "tipo">>(lista: readonly T[]): T[] {
+  return lista.filter((i) => i.tipo !== "feriado");
+}
+
+/** Dias de `dias` cobertos por alguma ausência pessoal, e os motivos distintos (para o título da célula). */
+export function ausenciaNosDias(
+  dias: readonly string[],
+  ausencias: readonly Pick<Indisponibilidade, "inicio" | "fim" | "motivo">[],
+): { dias: string[]; motivos: string[] } {
+  const cobertos: string[] = [];
+  const motivos = new Set<string>();
+  for (const dia of dias) {
+    const a = ausencias.find((x) => x.inicio <= dia && x.fim >= dia);
+    if (!a) continue;
+    cobertos.push(dia);
+    motivos.add(a.motivo);
+  }
+  return { dias: cobertos, motivos: [...motivos] };
+}
+
+/** Todos os dias de `inicio` a `fim` (inclusive). Período inválido ou maior que `limite` dias → vazio. */
+export function diasDaJanela(inicio: string, fim: string, limite = 400): string[] {
+  if (!inicio || !fim || fim < inicio) return [];
+  const out: string[] = [];
+  for (let dia = inicio; dia <= fim; dia = somarDias(dia, 1)) {
+    out.push(dia);
+    if (out.length > limite) return [];
+  }
+  return out;
+}
+
+export type FolgaNaJanela = {
+  /** Pior dia trabalhado da janela (digitada + cronograma), em % da capacidade da pessoa. */
+  pico: number;
+  folga: number;
+  /** Dias da janela em férias/abono — não entram no pico, e a tela avisa. */
+  diasAusente: number;
+};
+
+/**
+ * Quanto sobra da pessoa na janela inteira: a folga é a do PIOR dia, porque é nele que um reforço
+ * precisaria caber. Dia de ausência pessoal não conta no pico (ela não está lá) — quem estiver ausente
+ * na janela toda fica sem folga.
+ */
+export function folgaNaJanela(
+  dias: readonly string[],
+  capacidadePct: number,
+  digitadaNoDia: (dia: string) => number,
+  calculadaPorSemana: ReadonlyMap<string, number>,
+  ausente: (dia: string) => boolean,
+): FolgaNaJanela {
+  let pico = 0;
+  let diasAusente = 0;
+  for (const dia of dias) {
+    if (ausente(dia)) {
+      diasAusente++;
+      continue;
+    }
+    const total = digitadaNoDia(dia) + (calculadaPorSemana.get(chaveSemanaIso(dia)) ?? 0);
+    if (total > pico) pico = total;
+  }
+  const semDiaUtil = dias.length > 0 && diasAusente === dias.length;
+  return { pico, folga: semDiaUtil ? 0 : Math.max(0, capacidadePct - pico), diasAusente };
+}

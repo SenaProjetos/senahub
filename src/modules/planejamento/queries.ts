@@ -677,14 +677,17 @@ export async function matrizRecursos(opcoes: { verCusto: boolean }) {
       const motivoAusencia = feriadoHoje ? `feriado (${feriadoHoje})` : (ausenciaPorUser.get(r.user.id) ?? null);
       const ausente = motivoAusencia != null;
       const capacidadeEfetivaPct = ausente ? 0 : capacidadePct;
+      // Feriado zera o dia de TODO mundo e o % é da capacidade útil da pessoa: alocação num
+      // feriado não é excesso. Só férias e abono (ausência PESSOAL) viram conflito.
+      const ausentePessoal = ausenciaPorUser.has(r.user.id);
       const indisponibilidades = [
         ...ferias
           .filter((f) => f.userId === r.user.id)
-          .map((f) => ({ inicio: iso(f.inicio), fim: iso(f.fim), motivo: "férias" })),
+          .map((f) => ({ inicio: iso(f.inicio), fim: iso(f.fim), tipo: "ferias" as const, motivo: "férias" })),
         ...abonos
           .filter((a) => a.userId === r.user.id)
-          .map((a) => ({ inicio: iso(a.dataInicio), fim: iso(a.dataFim), motivo: "abono" })),
-        ...feriados.map((f) => ({ inicio: iso(f.data), fim: iso(f.data), motivo: `feriado (${f.nome})` })),
+          .map((a) => ({ inicio: iso(a.dataInicio), fim: iso(a.dataFim), tipo: "abono" as const, motivo: "abono" })),
+        ...feriados.map((f) => ({ inicio: iso(f.data), fim: iso(f.data), tipo: "feriado" as const, motivo: `feriado (${f.nome})` })),
       ];
       return {
         recursoId: r.id,
@@ -704,8 +707,8 @@ export async function matrizRecursos(opcoes: { verCusto: boolean }) {
         custoHora: opcoes.verCusto && r.custoHora != null ? Number(r.custoHora) : null,
         totalAlocado: alocadoHoje,
         alocadoHoje,
-        // P-29: superalocação avalia a carga de HOJE contra a capacidade efetiva.
-        superalocado: alocadoHoje > capacidadeEfetivaPct,
+        // P-29: superalocação avalia a carga de HOJE contra a capacidade — zerada só por ausência pessoal.
+        superalocado: alocadoHoje > (ausentePessoal ? 0 : capacidadePct),
         alocacoes: r.alocacoes.map((a) => ({
           id: a.id,
           projetoId: a.projetoId,

@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CalendarClock, Landmark, Building2, KeyRound, UserRound, ClipboardList, CalendarRange, Clock, Receipt, SlidersHorizontal } from "lucide-react";
+import { CalendarClock, Landmark, Building2, KeyRound, UserRound, ClipboardList, CalendarRange, Clock, Receipt, SlidersHorizontal, ListChecks, GraduationCap, Sprout } from "lucide-react";
 import { brl, formatarData } from "@/lib/utils";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { CONTRATACAO_LABELS, SETOR_LABELS } from "@/modules/usuarios/vinculo/labels";
@@ -88,6 +88,14 @@ export type Pessoa360Props = {
   podeGerirAcesso?: boolean;
   /** Último mês com banco de horas fechado — aviso de troca de contratação retroativa. */
   ultimoMesFechadoBanco?: { ano: number; mes: number } | null;
+  /** Aba "Entrada e saída" (Gestão de Pessoas F4) — `CiclosPessoa`, montado pela página. */
+  ciclosSlot?: React.ReactNode;
+  /** Topo da aba Cadastro: "Pedir atualização de dados" (RH) — `PedidoDadosFicha`. */
+  pedidoDadosSlot?: React.ReactNode;
+  /** Aba "Competências" (F2) — `CompetenciasPessoa`, montado pela página. */
+  competenciasSlot?: React.ReactNode;
+  /** Aba "Desenvolvimento" (F3) — `DesenvolvimentoPessoa`, já recortado pelo papel de quem vê. */
+  desenvolvimentoSlot?: React.ReactNode;
 };
 
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -130,7 +138,7 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
   );
 }
 
-export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, controlaJornada = false, holerites, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], cargos = [], departamentos = [], contas = null, contaPendente = null, preferenciasSlot, historicoSlot, overrides = [], podeGerirAcesso = false, ultimoMesFechadoBanco = null }: Pessoa360Props) {
+export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, controlaJornada = false, holerites, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], cargos = [], departamentos = [], contas = null, contaPendente = null, preferenciasSlot, historicoSlot, overrides = [], podeGerirAcesso = false, ultimoMesFechadoBanco = null, ciclosSlot, pedidoDadosSlot, competenciasSlot, desenvolvimentoSlot }: Pessoa360Props) {
   // Cadastro no formato do EditarCadastroDialog (junta os escalares + o vínculo PJ do cabeçalho).
   const cadastroDialog: Cadastro | null = cadastro
     ? {
@@ -159,6 +167,9 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
     { value: "nf", label: "Notas fiscais", icon: Receipt, show: !!nf },
     { value: "folha", label: "Folha", icon: Landmark, show: podeFolha },
     { value: "cliente", label: "Cliente", icon: Building2, show: !!pessoa.cliente },
+    { value: "competencias", label: "Competências", icon: GraduationCap, show: !!competenciasSlot },
+    { value: "desenvolvimento", label: "Desenvolvimento", icon: Sprout, show: !!desenvolvimentoSlot },
+    { value: "ciclos", label: "Entrada e saída", icon: ListChecks, show: !!ciclosSlot },
     { value: "acesso", label: "Acesso", icon: KeyRound, show: podeVerAcesso },
     { value: "preferencias", label: "Preferências", icon: SlidersHorizontal, show: !!preferenciasSlot },
   ].filter((a) => a.show);
@@ -333,6 +344,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
         {cadastro && (
           <TabsContent value="cadastro">
             <Card><CardContent className="space-y-5 pt-6">
+              {pedidoDadosSlot}
               {podeEditarCadastro && cadastroDialog && (
                 <div className="flex justify-end">
                   <EditarCadastroDialog
@@ -391,7 +403,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                   : <ContasBancariasEditor pessoaId={pessoa.id} contas={contas} podeEditar={podeEditarCadastro} />
               )}
               <DependentesEditor pessoaId={pessoa.id} dependentes={cadastro.dependentes} podeEditar={podeEditarCadastro} />
-              <DocumentosEditor pessoaId={pessoa.id} documentos={cadastro.documentos} podeEditar={podeEditarCadastro} />
+              <DocumentosEditor pessoaId={pessoa.id} documentos={cadastro.documentos} podeEditar={podeEditarCadastro} self={self} />
             </CardContent></Card>
           </TabsContent>
         )}
@@ -708,6 +720,9 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
           </TabsContent>
         )}
 
+        {competenciasSlot && <TabsContent value="competencias">{competenciasSlot}</TabsContent>}
+        {desenvolvimentoSlot && <TabsContent value="desenvolvimento">{desenvolvimentoSlot}</TabsContent>}
+        {ciclosSlot && <TabsContent value="ciclos">{ciclosSlot}</TabsContent>}
         {preferenciasSlot && <TabsContent value="preferencias">{preferenciasSlot}</TabsContent>}
       </Tabs>
 

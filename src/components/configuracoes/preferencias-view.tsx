@@ -63,6 +63,10 @@ export function PreferenciasView({
   notifCustos: notifCustosInicial,
   notifFaturamento: notifFaturamentoInicial,
   notifAcessos: notifAcessosInicial,
+  notifImpactoAusencia: notifImpactoAusenciaInicial,
+  notifLifecycleRh: notifLifecycleRhInicial,
+  notifDesenvolvimento: notifDesenvolvimentoInicial,
+  notifDocumentoValidade: notifDocumentoValidadeInicial,
   pontoEmailModo: pontoEmailModoInicial,
   mostrarAlertasPonto,
 }: {
@@ -89,6 +93,10 @@ export function PreferenciasView({
   notifCustos: boolean;
   notifFaturamento: boolean;
   notifAcessos: boolean;
+  notifImpactoAusencia: boolean;
+  notifLifecycleRh: boolean;
+  notifDesenvolvimento: boolean;
+  notifDocumentoValidade: boolean;
   pontoEmailModo: PontoEmailModo;
   /** Alertas de jornada por horário são só p/ CLT/estagiário — controla a seção de e-mail. */
   mostrarAlertasPonto: boolean;
@@ -116,6 +124,10 @@ export function PreferenciasView({
   const [notifCustos, setNotifCustos] = useState(notifCustosInicial);
   const [notifFaturamento, setNotifFaturamento] = useState(notifFaturamentoInicial);
   const [notifAcessos, setNotifAcessos] = useState(notifAcessosInicial);
+  const [notifImpactoAusencia, setNotifImpactoAusencia] = useState(notifImpactoAusenciaInicial);
+  const [notifLifecycleRh, setNotifLifecycleRh] = useState(notifLifecycleRhInicial);
+  const [notifDesenvolvimento, setNotifDesenvolvimento] = useState(notifDesenvolvimentoInicial);
+  const [notifDocumentoValidade, setNotifDocumentoValidade] = useState(notifDocumentoValidadeInicial);
   const [pontoEmailModo, setPontoEmailModo] = useState<PontoEmailModo>(pontoEmailModoInicial);
   const [, start] = useTransition();
 
@@ -284,6 +296,34 @@ export function PreferenciasView({
       descricao: "Licença perto do vencimento ou credencial sem revisão há muito tempo.",
       valor: notifAcessos,
       set: setNotifAcessos,
+    },
+    {
+      chave: "notif_impacto_ausencia",
+      titulo: "Ausência que afeta alocação",
+      descricao: "Férias ou ausência aprovada num período em que a pessoa está alocada em projeto.",
+      valor: notifImpactoAusencia,
+      set: setNotifImpactoAusencia,
+    },
+    {
+      chave: "notif_lifecycle_rh",
+      titulo: "Entrada e saída de pessoas",
+      descricao: "Itens atrasados das listas de admissão e desligamento que são seus.",
+      valor: notifLifecycleRh,
+      set: setNotifLifecycleRh,
+    },
+    {
+      chave: "notif_desenvolvimento",
+      titulo: "1:1 atrasado",
+      descricao: "Para quem lidera: o encontro 1:1 com alguém da equipe passou do prazo.",
+      valor: notifDesenvolvimento,
+      set: setNotifDesenvolvimento,
+    },
+    {
+      chave: "notif_documento_validade",
+      titulo: "Documento vencendo",
+      descricao: "ASO, CREA/CAU, NR-10, NR-35 e certificações: 60, 30 e 7 dias antes e no vencimento.",
+      valor: notifDocumentoValidade,
+      set: setNotifDocumentoValidade,
     },
   ];
 

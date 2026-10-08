@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
-import { INTERNAL_ROLES, PJ_ROLES } from "@/lib/roles";
+import { HR_ADMIN_ROLES, INTERNAL_ROLES, PJ_ROLES } from "@/lib/roles";
 import {
   fichaPessoa,
   cadastroDaPessoa,
@@ -24,10 +24,19 @@ import { MeuAcesso } from "@/components/usuarios/meu-acesso";
 import { Pessoa360View } from "@/components/rh/pessoa-360-view";
 import { EditarMeusDados } from "@/components/rh/editar-meus-dados";
 import { PreferenciasView } from "@/components/configuracoes/preferencias-view";
+import { CiclosPessoa } from "@/components/rh/ciclos-pessoa";
+import { CompletarMeusDados } from "@/components/rh/completar-meus-dados";
+import { reconfirmacaoAberta, situacaoDaPessoa } from "@/modules/rh/cadastro/pedido-service";
+import { ConfirmarMeusDados } from "@/components/rh/confirmar-meus-dados";
+import { CompetenciasPessoa } from "@/components/rh/competencias-pessoa";
+import { competenciasDaPessoa } from "@/modules/rh/habilidades/queries";
+import { DesenvolvimentoPessoa } from "@/components/rh/desenvolvimento-pessoa";
+import { desenvolvimentoDaPessoa, quantosLidera } from "@/modules/rh/desenvolvimento/queries";
+import { ciclosDaPessoa, equipamentosDaPessoa } from "@/modules/rh/ciclo/queries";
 
 export const metadata: Metadata = { title: "Minha conta" };
 
-export default async function MinhaFichaPage() {
+export default async function MinhaFichaPage({ searchParams }: { searchParams: Promise<{ completar?: string; confirmar?: string }> }) {
   const user = await requireUser();
   if (user.role === "cliente") redirect("/portal");
   const id = user.id;
@@ -71,6 +80,20 @@ export default async function MinhaFichaPage() {
     isColaborador ? minhaContaPendente(id) : Promise.resolve(null),
   ]);
 
+  // Entrada e saída (F4): a pessoa acompanha a própria lista e marca os itens que são dela.
+  const [ciclos, equipamentos, ehTi] = isColaborador
+    ? await Promise.all([ciclosDaPessoa(id), equipamentosDaPessoa(id), can(user, "patrimonio", "ti")])
+    : [[], [], false];
+  // "Completar meus dados": o que falta e a pessoa pode preencher (abre sozinho vindo da faixa).
+  const situacaoDados = isColaborador ? await situacaoDaPessoa(id) : null;
+  const competencias = isColaborador ? await competenciasDaPessoa(id) : null;
+  // Desenvolvimento (F3): a pessoa lê os objetivos e só o 1:1 compartilhado.
+  const [desenvolvimento, lidera] = isColaborador ? await Promise.all([desenvolvimentoDaPessoa(id, "self"), quantosLidera(id)]) : [null, 0];
+  const sp = await searchParams;
+  const abrirCompletar = sp.completar === "1";
+  // Reconfirmação anual: o cartão aparece com pedido aberto (ou vindo do link da faixa).
+  const pedirConfirmacao = isColaborador && ((await reconfirmacaoAberta(id)) || sp.confirmar === "1");
+
   const escala = escalaUsuario && escalaPadrao
     ? { temOverride: escalaUsuario.temOverride, dias: escalaUsuario.dias, padraoDias: escalaPadrao }
     : null;
@@ -78,6 +101,9 @@ export default async function MinhaFichaPage() {
   return (
     <div className="space-y-4">
       <CabecalhoPagina titulo="Minha conta" descricao="Seus dados de cadastro, ponto, ausências, escala e preferências num só lugar. Contato e endereço você mesmo pode alterar — as mudanças passam por validação do RH. Contas bancárias são cadastradas pelo RH." />
+
+      {pedirConfirmacao && cadastro && <ConfirmarMeusDados dados={cadastro} destacar={sp.confirmar === "1"} />}
+      {situacaoDados && <CompletarMeusDados situacao={situacaoDados} abrir={abrirCompletar} />}
 
       {acesso && <MeuAcesso acesso={acesso} />}
 
@@ -98,8 +124,24 @@ export default async function MinhaFichaPage() {
         nf={nf}
         contas={contas}
         contaPendente={contaPendente}
-        historicoSlot={historico ? <HistoricoContratual historico={historico} /> : undefined}
-        preferenciasSlot={<PreferenciasView {...prefsConta} />}
+        historicoSlot={historico ? <HistoricoContratual key="historico" historico={historico} /> : undefined}
+        preferenciasSlot={<PreferenciasView key="preferencias" {...prefsConta} />}
+        desenvolvimentoSlot={
+          desenvolvimento ? <DesenvolvimentoPessoa key="desenvolvimento" userId={id} dados={desenvolvimento} papel="self" lideraAlguem={lidera} /> : undefined
+        }
+        competenciasSlot={competencias ? <CompetenciasPessoa key="competencias" userId={id} dados={competencias} modo="self" quemId={id} /> : undefined}
+        ciclosSlot={
+          ciclos.length > 0 ? (
+            <CiclosPessoa
+              key="ciclos"
+              userId={id}
+              ciclos={ciclos}
+              opcoes={null}
+              equipamentos={equipamentos}
+              quem={{ id, ehRh: HR_ADMIN_ROLES.includes(user.role), ehTi }}
+            />
+          ) : undefined
+        }
       />
     </div>
   );

@@ -22,6 +22,61 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Competências, liderança, documentos com validade e painel de pessoas
+
+- **Competências com nível.** Cada pessoa declara o nível (1 a 5) em Minha conta; a coordenação valida. Em
+  **Recursos**, com um projeto filtrado, você diz de que competência o projeto precisa e vê quem cobre com
+  folga no período. [Saiba mais](rh-ponto/competencias-e-desenvolvimento.md)
+- **Liderança, 1:1 e objetivos.** O RH define quem lidera quem; a liderança registra encontros 1:1 e objetivos
+  em **Minha equipe**, escolhendo o que a pessoa também vê. Lembrete quando o 1:1 atrasa.
+- **Documentos com validade.** ASO, CREA/CAU, NR-10, NR-35 e certificações avisam 60, 30 e 7 dias antes de
+  vencer. A própria pessoa pode enviar documentos; o RH confere.
+- **Conferência anual dos dados.** Uma vez por ano, a faixa pede que cada pessoa confira o cadastro.
+- **Painel de gestão de pessoas** (`/rh/gestao`) para RH, sócios e coordenação, com sinais de atenção
+  que sempre mostram de onde vêm. [Saiba mais](rh-ponto/gestao-pessoas.md)
+
+---
+
+## Cada pessoa completa o próprio cadastro
+
+- **O RH pede, a pessoa preenche.** Na ficha (**Pedir atualização**) ou para todos com cadastro incompleto
+  de uma vez, em **RH → Pessoas**. Prazo e mensagem são opcionais.
+- **Faixa no topo.** Quem recebeu o pedido vê "O RH pediu para você completar seus dados" em todas as
+  telas, com o botão **Atualizar agora**. Não bloqueia nada.
+- **Só o que falta.** O formulário mostra apenas os campos vazios. Vale na hora, exceto CPF e RG, que o RH
+  confere antes.
+- **Acompanhamento.** O RH vê quem já respondeu e o que ainda falta, reenvia o lembrete ou cancela.
+- **Seus documentos.** Em **Minha conta → Cadastro**, cada pessoa agora abre e baixa os documentos que o RH
+  anexou ao cadastro dela (antes a lista aparecia, mas o arquivo não abria).
+  [Saiba mais](rh-ponto/funcionarios.md#pedir-atualização-de-dados)
+
+---
+
+## Entrada e saída de pessoas: listas com dono e prazo
+
+- **Admissão e desligamento organizados.** A ficha da pessoa ganhou a aba **Entrada e saída**: o RH abre a
+  lista sugerida pela contratação e cada item já vem com **quem faz** (RH, TI, líder, coordenador ou a própria
+  pessoa) e **até quando**, contado do início do vínculo ou do último dia.
+- **Saída depois do desligamento.** Com o desligamento agendado, a aba oferece a lista de saída. O item de
+  devolução mostra os equipamentos que estão com a pessoa no Patrimônio — sem dar baixa em nada.
+- **Cada um marca o que é seu.** A TI marca os itens dela em **Patrimônio → TI**; a pessoa, em **Minha conta**.
+- **Lembrete de atraso.** Item vencido avisa o responsável e o RH, uma vez por dia (desligável em Preferências).
+- **Listas editáveis.** Em **RH — admin → Listas-modelo** o RH cria e ajusta as listas. Recontratar alguém
+  abre uma lista nova e mantém a antiga no histórico.
+  [Saiba mais](rh-ponto/entrada-e-saida.md)
+
+---
+
+## Recursos: férias e abonos entram no planejamento
+
+- Quando o RH aprova férias ou um abono de alguém que está alocado em projeto no período, quem gere **Recursos** recebe um aviso com os projetos afetados e um link que abre o mapa já naquela janela. Nada é mudado sozinho.
+- No **Heatmap**, um calendário riscado marca as semanas/meses com férias ou abono — em vermelho quando há alocação nesses dias.
+- O **Rebalancear** agora sugere até 5 pessoas com folga na janela de análise.
+- Feriado deixou de aparecer como "superalocado": ele zera o dia de todo mundo, não é excesso de ninguém.
+- O aviso pode ser desligado em **Preferências → Notificações**.
+
+---
+
 ## Campos de CPF, telefone e CEP formatam sozinhos
 
 - **Pontuação automática.** Ao digitar CPF, CNPJ, telefone, CEP ou chave da nota fiscal, o sistema põe a

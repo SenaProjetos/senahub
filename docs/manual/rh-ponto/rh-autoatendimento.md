@@ -32,8 +32,45 @@ Centralizar as solicitações e acompanhamentos pessoais de RH de cada colaborad
     de feriado. O sistema bloqueia a data e explica o motivo.
   - Os dias de férias aprovados aparecem no **espelho de ponto** (status *Férias*, sem horas
     devidas, portanto sem descontar do banco de horas) e na **agenda** (faixa 🌴 *Férias*).
-- **Onboarding:** ver o seu checklist de integração e o que falta concluir.
+- **Lista de entrada ou saída:** ver o que falta concluir. Os itens que são seus você marca em
+  **Minha conta → Entrada e saída**. Veja [Entrada e saída de pessoas](entrada-e-saida.md).
 - **Humor:** registrar como está se sentindo (feedback de clima).
+
+## Meus documentos
+
+Em **Minha conta → Cadastro → Documentos** você vê, abre e baixa os documentos do seu cadastro (contrato,
+ASO, RG, comprovantes…). Cada abertura e download fica registrado.
+
+- **Enviar:** escolha o tipo, dê um nome e anexe. Para ASO, CREA/CAU, NR-10, NR-35 e certificações, informe a
+  validade. O que você envia fica **aguardando conferência do RH**; até lá, você pode remover.
+- **Validade:** você recebe aviso 60, 30 e 7 dias antes e quando o documento vence (desligável em
+  Preferências → Documento vencendo). Vencido só alerta, não bloqueia nada.
+
+## Confira seus dados (uma vez por ano)
+
+A faixa **"Confira se seus dados de cadastro continuam certos"** aparece quando o RH pede a conferência e,
+depois, sozinha a cada 12 meses. Em **Minha conta**, veja o resumo e clique em **Está tudo certo** — ou corrija
+em **Editar meus dados** e depois confirme.
+
+## Competências e desenvolvimento
+
+Em **Minha conta → Competências** você declara seu nível (1 a 5) nas competências do catálogo; a coordenação
+valida. Em **Minha conta → Desenvolvimento** você vê seus objetivos e os 1:1 que a sua liderança
+compartilhou. Veja [Competências e desenvolvimento](competencias-e-desenvolvimento.md).
+
+## Completar meus dados (pedido do RH)
+
+Quando o RH pede, aparece no topo de todas as telas a faixa **"O RH pediu para você completar seus
+dados"**, com quantas informações faltam. Ela não bloqueia nada — você continua batendo ponto e usando o
+sistema normalmente.
+
+- Clique em **Atualizar agora** (ou vá em **Minha conta**) e use **Completar meus dados**. Só aparecem os
+  campos **vazios** do seu cadastro.
+- O que você preenche vale na hora, **exceto CPF e RG**, que o RH confere antes de entrar no cadastro.
+- **Conta bancária** tem cadastro próprio: aba **Cadastro → Contas bancárias**.
+- Cargo, departamento, salário e data de admissão quem completa é o RH.
+- Para **mudar** um dado que já existe, use **Editar meus dados** (passa pela validação do RH).
+- A faixa some quando não falta mais nada da sua parte. Se tiver prazo e ele passar, ela fica em destaque.
 
 ## Para prestadores PJ (projetista_pj / freelancer)
 

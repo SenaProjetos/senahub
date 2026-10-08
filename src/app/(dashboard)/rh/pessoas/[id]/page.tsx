@@ -20,6 +20,14 @@ import { contextoApuracao } from "@/modules/ponto/apuracao";
 import { escalaUsuarioGrade, escalaPadraoDoUsuario } from "@/modules/rh/escalas/queries";
 import { overridesDeUsuario } from "@/modules/perfis/queries";
 import { Pessoa360View } from "@/components/rh/pessoa-360-view";
+import { CiclosPessoa } from "@/components/rh/ciclos-pessoa";
+import { PedidoDadosFicha } from "@/components/rh/pedido-dados";
+import { pedidoDaPessoa } from "@/modules/rh/cadastro/queries";
+import { CompetenciasPessoa } from "@/components/rh/competencias-pessoa";
+import { competenciasDaPessoa, listarHabilidades } from "@/modules/rh/habilidades/queries";
+import { DesenvolvimentoPessoa } from "@/components/rh/desenvolvimento-pessoa";
+import { desenvolvimentoDaPessoa, pessoasParaLiderar } from "@/modules/rh/desenvolvimento/queries";
+import { ciclosDaPessoa, equipamentosDaPessoa, opcoesDeCicloDaPessoa } from "@/modules/rh/ciclo/queries";
 
 export const metadata: Metadata = { title: "Ficha da pessoa" };
 
@@ -33,10 +41,11 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
   const podeFolha =
     (await can(user, "rh", "folha")) || (user.ehSocio === true && (await canRole("supervisor", "rh", "folha")));
   // Mesmo gate de `defineAction`: sem fallback de sócio/supervisor para escrita de acesso.
-  const [podeGerirAcesso, podeVerPonto, podeVerProjetos] = await Promise.all([
+  const [podeGerirAcesso, podeVerPonto, podeVerProjetos, ehTi] = await Promise.all([
     can(user, "usuarios", "gerir"),
     can(user, "ponto", "espelho_equipe"),
     can(user, "projetos", "ver"),
+    can(user, "patrimonio", "ti"),
   ]);
 
   const pessoa = await fichaPessoa(id, {
@@ -99,6 +108,24 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
     podeEditarCadastro ? ultimoMesFechado() : Promise.resolve(null),
   ]);
 
+  // Entrada e saída (F4): o RH abre e cancela listas; quem vê a ficha marca o que é dele.
+  const ehRh = HR_ADMIN_ROLES.includes(user.role);
+  const temCiclos = pessoa.role !== "cliente";
+  // "Atualize seus dados": o RH pede à pessoa o que ela mesma pode preencher.
+  const pedidoDados = ehRh && isCadastro ? await pedidoDaPessoa(id) : null;
+  // Competências (F2): RH e quem gere Recursos definem e validam; os demais com acesso à ficha só leem.
+  const [competencias, geraRecursos] = temCiclos ? await Promise.all([competenciasDaPessoa(id), can(user, "recursos", "gerir")]) : [null, false];
+  // Desenvolvimento (F3): na ficha só o RH (a liderança usa Minha equipe, sem a ficha completa).
+  const [desenvolvimento, lideresPossiveis, catalogoComp] =
+    ehRh && temCiclos ? await Promise.all([desenvolvimentoDaPessoa(id, "rh"), pessoasParaLiderar(id), listarHabilidades()]) : [null, [], []];
+  const [ciclos, opcoesCiclo, equipamentos] = temCiclos
+    ? await Promise.all([
+        ciclosDaPessoa(id),
+        ehRh ? opcoesDeCicloDaPessoa(id) : Promise.resolve(null),
+        equipamentosDaPessoa(id),
+      ])
+    : [[], null, []];
+
   const escala = escalaUsuario && escalaPadrao
     ? { temOverride: escalaUsuario.temOverride, dias: escalaUsuario.dias, padraoDias: escalaPadrao }
     : null;
@@ -120,10 +147,33 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
       cargos={opcoes?.cargos ?? []}
       departamentos={opcoes?.departamentos ?? []}
       contas={contas}
-      historicoSlot={historico ? <HistoricoContratual historico={historico} /> : undefined}
+      historicoSlot={historico ? <HistoricoContratual key="historico" historico={historico} /> : undefined}
       overrides={overrides}
       podeGerirAcesso={podeGerirAcesso}
       ultimoMesFechadoBanco={mesFechadoBanco}
+      pedidoDadosSlot={pedidoDados ? <PedidoDadosFicha key="pedido-dados" userId={id} pedido={pedidoDados} /> : undefined}
+      desenvolvimentoSlot={
+        desenvolvimento ? (
+          <DesenvolvimentoPessoa key="desenvolvimento" userId={id} dados={desenvolvimento} papel="rh" pessoas={lideresPossiveis} competencias={catalogoComp} />
+        ) : undefined
+      }
+      competenciasSlot={
+        competencias ? (
+          <CompetenciasPessoa key="competencias" userId={id} dados={competencias} modo={ehRh || geraRecursos ? "gestor" : "leitura"} quemId={user.id} />
+        ) : undefined
+      }
+      ciclosSlot={
+        temCiclos && (ehRh || ciclos.length > 0) ? (
+          <CiclosPessoa
+            key="ciclos"
+            userId={id}
+            ciclos={ciclos}
+            opcoes={opcoesCiclo}
+            equipamentos={equipamentos}
+            quem={{ id: user.id, ehRh, ehTi }}
+          />
+        ) : undefined
+      }
     />
   );
 }

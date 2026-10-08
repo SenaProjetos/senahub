@@ -38,6 +38,7 @@ const ROTULO_POR_ROTA: Record<string, string> = {
   "/ponto/horas": "Minhas horas",
   // Fora do menu (mora no sino), então HREF_TO_TITLE não a conhece.
   "/notificacoes": "Notificações",
+  "/rh/gestao": "Gestão de pessoas",
 };
 
 function capitalize(segment: string): string {

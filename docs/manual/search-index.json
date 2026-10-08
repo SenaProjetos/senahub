@@ -2208,6 +2208,107 @@
       ]
     },
     {
+      "titulo": "Entrada e saída de pessoas",
+      "path": "rh-ponto/entrada-e-saida.md",
+      "descricao": "Listas de admissão e desligamento com responsável e prazo por item.",
+      "resumo": "Cada pessoa que entra ou sai ganha uma lista com o que cada área precisa fazer — RH, TI, líder, coordenador ou a própria pessoa — com prazo contado a partir do início ou do último dia do vínculo.",
+      "tags": [
+        "rh",
+        "onboarding",
+        "offboarding",
+        "admissão",
+        "desligamento",
+        "checklist",
+        "entrada",
+        "saída",
+        "patrimônio"
+      ],
+      "palavrasChave": [
+        "onboarding",
+        "offboarding",
+        "lista de entrada",
+        "lista de saída",
+        "checklist de admissão",
+        "checklist de desligamento",
+        "devolução de equipamento",
+        "encerrar acessos",
+        "recontratação"
+      ],
+      "sinonimos": [
+        "integração de colaborador",
+        "admissão",
+        "demissão",
+        "saída de colaborador",
+        "checklist de RH"
+      ]
+    },
+    {
+      "titulo": "Competências e desenvolvimento",
+      "path": "rh-ponto/competencias-e-desenvolvimento.md",
+      "descricao": "Competências com nível, liderança direta, encontros 1:1 e objetivos de desenvolvimento.",
+      "resumo": "Cada pessoa declara o nível nas competências do catálogo e a coordenação valida; projetos dizem do que precisam e Recursos mostra quem cobre. A liderança direta registra encontros 1:1 e objetivos.",
+      "tags": [
+        "rh",
+        "competências",
+        "habilidades",
+        "nível",
+        "liderança",
+        "1:1",
+        "objetivos",
+        "desenvolvimento",
+        "minha equipe"
+      ],
+      "palavrasChave": [
+        "competência",
+        "habilidade",
+        "nível",
+        "validar nível",
+        "necessidade do projeto",
+        "liderança direta",
+        "encontro 1:1",
+        "objetivo de desenvolvimento",
+        "minha equipe",
+        "cadência"
+      ],
+      "sinonimos": [
+        "skills",
+        "matriz de competências",
+        "PDI",
+        "plano de desenvolvimento",
+        "reunião individual"
+      ]
+    },
+    {
+      "titulo": "Gestão de pessoas (painel)",
+      "path": "rh-ponto/gestao-pessoas.md",
+      "descricao": "Painel de RH, sócios e coordenação com capacidade, competências, entradas e saídas, férias e sinais de atenção.",
+      "resumo": "Reúne capacidade × demanda, lacunas de competência, listas de entrada e saída, férias próximas, banco de horas, 1:1 atrasados e clima agregado, com sinais de atenção explicáveis.",
+      "tags": [
+        "rh",
+        "gestão de pessoas",
+        "painel",
+        "capacidade",
+        "sinais",
+        "clima",
+        "banco de horas"
+      ],
+      "palavrasChave": [
+        "painel de pessoas",
+        "superalocação",
+        "horas acima da escala",
+        "lacuna de competência",
+        "1:1 atrasado",
+        "onboarding parado",
+        "clima",
+        "headcount"
+      ],
+      "sinonimos": [
+        "cockpit de RH",
+        "dashboard de pessoas",
+        "people analytics"
+      ]
+    },
+    {
       "titulo": "Produtividade — Projetistas",
       "path": "rh-ponto/produtividade.md",
       "descricao": "Acompanhamento da produtividade e das horas dos projetistas em qualquer período.",

@@ -36,7 +36,7 @@ export const ROTULO_PAPEL: Record<Papel, string> = {
 export const PAPEIS_DE_PESSOA: readonly Papel[] = ["dir", "ger", "coo", "eng", "pro", "mod", "rev", "apr"];
 
 /** Linha que já não gera trabalho: fora da carga, do card e da cobrança de horas. */
-const ENCERRADA: ReadonlySet<StatusLinha> = new Set(["con", "can", "arq"]);
+export const ENCERRADA: ReadonlySet<StatusLinha> = new Set(["con", "can", "arq"]);
 
 // ─────────────────────────────────────────────────────────────
 // O que a linha aceita
