@@ -24,6 +24,7 @@ Acompanhar a **produtividade dos projetistas** e o ritmo de horas registradas ao
   livre (De / Até). Não há limite de período; acima de 92 dias o gráfico passa a mostrar **por semana**.
 - **Ranking**: todos os projetistas com horas no período, do maior total para o menor, com a média por
   dia com registro e quantos dias tiveram registro.
+  Quem foi desligado continua aparecendo nos períodos em que registrou horas.
 - **Comparar**: clique em até **cinco** nomes para ver as linhas de horas por dia lado a lado.
 - **Por projeto**: com um nome só selecionado, o gráfico separa as horas por projeto (os cinco maiores,
   "Outros projetos", "Reuniões" e "Sem projeto"). Em "Ver os números" ficam os mesmos valores em tabela.

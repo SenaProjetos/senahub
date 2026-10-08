@@ -5,6 +5,7 @@ import { minutosPorDiaSessao } from "@/modules/ponto/engine";
 import { diferencaEmDias } from "@/lib/data";
 import { agregarHoras, type HorasPessoa } from "@/modules/rh/produtividade/horas";
 import { somarDias } from "@/modules/rh/produtividade/periodo";
+import { wherePessoasDasHoras } from "@/modules/rh/produtividade/pessoas-horas";
 
 /**
  * Item 7 — Produtividade por projetista (semanal/mensal).
@@ -219,14 +220,15 @@ export async function horasProjetistas(
   opcoes: { userIds?: string[]; agora?: Date } = {},
 ): Promise<HorasProjetistas> {
   const agora = opcoes.agora ?? new Date();
+  const inicio = new Date(`${periodo.de}T00:00:00-03:00`);
+  const fimExclusivo = new Date(`${somarDias(periodo.ate, 1)}T00:00:00-03:00`);
   const usuarios = await prisma.user.findMany({
-    where: opcoes.userIds ? { id: { in: opcoes.userIds } } : whereAudiencia("projeto_membro"),
+    // Sem `userIds`: ativos da audiência + desligados com sessão no período (ver `wherePessoasDasHoras`).
+    where: opcoes.userIds ? { id: { in: opcoes.userIds } } : wherePessoasDasHoras(inicio, fimExclusivo),
     select: { id: true, name: true, role: true },
     orderBy: { name: "asc" },
   });
   const ids = usuarios.map((u) => u.id);
-  const inicio = new Date(`${periodo.de}T00:00:00-03:00`);
-  const fimExclusivo = new Date(`${somarDias(periodo.ate, 1)}T00:00:00-03:00`);
 
   const sessoes =
     ids.length === 0
