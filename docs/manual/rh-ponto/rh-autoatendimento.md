@@ -36,6 +36,12 @@ Centralizar as solicitações e acompanhamentos pessoais de RH de cada colaborad
   **Minha conta → Entrada e saída**. Veja [Entrada e saída de pessoas](entrada-e-saida.md).
 - **Humor:** registrar como está se sentindo (feedback de clima).
 
+## Meus documentos
+
+Em **Minha conta → Cadastro → Documentos** você vê, abre e baixa os documentos que o RH anexou ao seu
+cadastro (contrato, ASO, RG, comprovantes…). Enviar e excluir continuam com o RH. Cada abertura e download
+fica registrado.
+
 ## Completar meus dados (pedido do RH)
 
 Quando o RH pede, aparece no topo de todas as telas a faixa **"O RH pediu para você completar seus

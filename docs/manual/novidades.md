@@ -31,6 +31,8 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 - **Só o que falta.** O formulário mostra apenas os campos vazios. Vale na hora, exceto CPF e RG, que o RH
   confere antes.
 - **Acompanhamento.** O RH vê quem já respondeu e o que ainda falta, reenvia o lembrete ou cancela.
+- **Seus documentos.** Em **Minha conta → Cadastro**, cada pessoa agora abre e baixa os documentos que o RH
+  anexou ao cadastro dela (antes a lista aparecia, mas o arquivo não abria).
   [Saiba mais](rh-ponto/funcionarios.md#pedir-atualização-de-dados)
 
 ---
