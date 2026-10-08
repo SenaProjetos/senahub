@@ -281,6 +281,13 @@ export const NAV_GROUPS: NavGroup[] = [
         permissao: "rh:cadastro",
       },
       {
+        // F6: RH, sócios e coordenação (decisão do dono). A página também deixa entrar o sócio.
+        title: "Gestão de pessoas",
+        href: "/rh/gestao",
+        icon: Activity,
+        permissao: ["rh:cadastro", "recursos:gerir"],
+      },
+      {
         title: "Cargos e departamentos",
         href: "/rh/catalogos",
         icon: Tags,

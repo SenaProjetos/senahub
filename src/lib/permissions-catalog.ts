@@ -266,7 +266,7 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     label: "Recursos",
     acoes: [
       { acao: "ver", label: "Ver matriz de recursos", abre: "Recursos", leitura: true },
-      { acao: "gerir", label: "Gerir capacidade e alocações" },
+      { acao: "gerir", label: "Gerir capacidade e alocações", abre: "Gestão de pessoas" },
     ],
   },
   {
