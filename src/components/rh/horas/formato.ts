@@ -31,3 +31,15 @@ export function corDoDestino(chave: string, indice: number): string {
   if (chave === DESTINO_OUTROS) return "color-mix(in oklch, var(--muted-foreground) 40%, var(--card))";
   return CORES_COMPARACAO[indice % CORES_COMPARACAO.length];
 }
+
+/**
+ * Teclado no gráfico: uma parada de Tab só (roving tabindex); setas andam entre os dias/semanas,
+ * Home/End vão às pontas. `null` = tecla que não é do gráfico.
+ */
+export function proximoFoco(atual: number, tecla: string, total: number): number | null {
+  if (tecla === "ArrowRight") return Math.min(total - 1, atual + 1);
+  if (tecla === "ArrowLeft") return Math.max(0, atual - 1);
+  if (tecla === "Home") return 0;
+  if (tecla === "End") return total - 1;
+  return null;
+}

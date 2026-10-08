@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { DESTINO_OUTROS, DESTINO_REUNIOES, DESTINO_SEM_PROJETO } from "@/modules/rh/produtividade/horas";
-import { CORES_COMPARACAO, corDoDestino } from "./formato";
+import { CORES_COMPARACAO, corDoDestino, proximoFoco } from "./formato";
 
 /**
  * As cores são tokens; dois tokens diferentes podem ter o MESMO valor (`--info` = `--chart-3`).
@@ -36,5 +36,21 @@ describe("cores do gráfico de horas", () => {
     const bloco = blocosDeTema()[tema];
     const resolvidas = pilha.map((c) => resolver(c, bloco));
     expect(new Set(resolvidas).size).toBe(resolvidas.length);
+  });
+});
+
+describe("proximoFoco (uma parada de Tab no gráfico; setas andam entre os dias)", () => {
+  it.each([
+    [3, "ArrowRight", 10, 4],
+    [3, "ArrowLeft", 10, 2],
+    [9, "ArrowRight", 10, 9],
+    [0, "ArrowLeft", 10, 0],
+    [5, "Home", 10, 0],
+    [5, "End", 10, 9],
+  ])("de %i com %s (total %i) vai para %i", (atual, tecla, total, esperado) => {
+    expect(proximoFoco(atual, tecla, total)).toBe(esperado);
+  });
+  it("outra tecla não move (null = deixa o navegador tratar)", () => {
+    expect(proximoFoco(3, "Tab", 10)).toBeNull();
   });
 });

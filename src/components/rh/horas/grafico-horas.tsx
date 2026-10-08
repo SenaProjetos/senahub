@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { bucketsDoPeriodo, type Granularidade } from "@/modules/rh/produtividade/periodo";
 import { somarPorBucket } from "@/modules/rh/produtividade/horas";
-import { rotuloDia, rotuloHoras } from "./formato";
+import { proximoFoco, rotuloDia, rotuloHoras } from "./formato";
 
 export type SerieGrafico = { chave: string; rotulo: string; cor: string; valores: number[] };
 
@@ -34,6 +34,8 @@ export function GraficoHoras({
   titulo: string;
 }) {
   const [foco, setFoco] = useState<number | null>(null);
+  const [ativo, setAtivo] = useState(0);
+  const faixas = useRef<(SVGRectElement | null)[]>([]);
   const buckets = useMemo(() => bucketsDoPeriodo(dias, granularidade), [dias, granularidade]);
   const valores = useMemo(() => series.map((s) => somarPorBucket(s.valores, buckets)), [series, buckets]);
   // Período que cruza a virada de ano repete "dd/mm": aí o rótulo leva o ano.
@@ -66,7 +68,13 @@ export function GraficoHoras({
         {granularidade === "semana" && " · por semana — período longo"}
       </p>
       <div className="overflow-x-auto">
-        <svg viewBox={`0 0 ${LARGURA} ${ALTURA}`} role="img" aria-label={titulo} className="h-auto w-full min-w-[560px]">
+        {/* `group`, não `img`: filho de `img` é decorativo para o leitor de tela e as faixas sumiriam. */}
+        <svg
+          viewBox={`0 0 ${LARGURA} ${ALTURA}`}
+          role="group"
+          aria-label={`${titulo}. Use as setas para andar entre ${granularidade === "semana" ? "as semanas" : "os dias"}.`}
+          className="h-auto w-full min-w-[560px]"
+        >
           {[0, maximo / 2, maximo].map((v) => (
             <g key={v}>
               <line
@@ -126,10 +134,14 @@ export function GraficoHoras({
                 </g>
               ))}
 
-          {/* Faixas focáveis: teclado e leitor de tela leem o valor de cada dia/semana. */}
+          {/* Faixas focáveis: teclado e leitor de tela leem o valor de cada dia/semana. Uma parada de
+              Tab só (a faixa "ativa"); as setas andam entre elas. */}
           {buckets.map((_, i) => (
             <rect
               key={`foco-${i}`}
+              ref={(el) => {
+                faixas.current[i] = el;
+              }}
               x={M.esquerda + passo * i}
               y={M.topo}
               width={passo}
@@ -137,10 +149,20 @@ export function GraficoHoras({
               fill="transparent"
               className="outline-none focus-visible:stroke-ring"
               strokeWidth={2}
-              tabIndex={0}
+              tabIndex={i === Math.min(ativo, n - 1) ? 0 : -1}
               role="img"
               aria-label={anuncio(i)}
-              onFocus={() => setFoco(i)}
+              onKeyDown={(e) => {
+                const proximo = proximoFoco(i, e.key, n);
+                if (proximo === null) return;
+                e.preventDefault();
+                setAtivo(proximo);
+                faixas.current[proximo]?.focus();
+              }}
+              onFocus={() => {
+                setAtivo(i);
+                setFoco(i);
+              }}
               onBlur={() => setFoco(null)}
               onMouseEnter={() => setFoco(i)}
               onMouseLeave={() => setFoco(null)}
