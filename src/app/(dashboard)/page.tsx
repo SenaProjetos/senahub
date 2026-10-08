@@ -42,7 +42,10 @@ import { ReceitaChart } from "@/components/dashboard/receita-chart";
 import { TrendLine } from "@/components/qualidade/trend-line";
 import { CarteiraDashboard } from "@/components/dashboard/carteira-dashboard";
 import { brlInteiro as brl } from "@/lib/utils";
-import { acessoGlobal } from "@/lib/roles";
+import { acessoGlobal, PROJETO_MEMBRO_ROLES, type Role } from "@/lib/roles";
+import { diaLocal } from "@/modules/ponto/engine";
+import { intervaloDoAtalho } from "@/modules/rh/produtividade/periodo";
+import { horasProjetistas } from "@/modules/rh/produtividade/queries";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
 
 const ACOES_RAPIDAS: { label: string; href: string; icon: LucideIcon }[] = [
@@ -53,7 +56,7 @@ const ACOES_RAPIDAS: { label: string; href: string; icon: LucideIcon }[] = [
 ];
 
 /** Card de KPI do colaborador com mini-sparkline (série de eventos dos últimos 14 dias). */
-function KpiSpark({ label, valor, serie, href }: { label: string; valor: number; serie: number[]; href: string }) {
+function KpiSpark({ label, valor, serie, href }: { label: string; valor: number | string; serie: number[]; href: string }) {
   return (
     <Link href={href}>
       <Card className="h-full transition-colors hover:bg-muted/40">
@@ -85,7 +88,9 @@ export default async function HomePage() {
   // Certidões: mesmo gate do item de menu. `can()` (e não `nav.permitidas`) porque aqui não há
   // o contexto de navegação em mãos — é uma página, não o layout.
   const verCertidoes = await can(user, "certidoes", "ver");
-  const [kpis, projetos, snapshots, receita, agingReceita, carteira, aniversarios, humorHoje, kpisMeu, pendentesAprov, prontasParaAprovar, certidoes] = await Promise.all([
+  // Card "Minhas horas" (2026-10-07): atalho para Ponto → Minhas horas, só para quem é membro de projeto.
+  const mostraMinhasHoras = PROJETO_MEMBRO_ROLES.includes(user.role as Role);
+  const [kpis, projetos, snapshots, receita, agingReceita, carteira, aniversarios, humorHoje, kpisMeu, pendentesAprov, prontasParaAprovar, certidoes, minhasHoras] = await Promise.all([
     // Perfis sem acesso global veem os KPIs restritos aos SEUS projetos (bug beta #9).
     kpisHome(isGlobal ? {} : escopoProjeto(user)),
     projetosRecentes(user, 15),
@@ -102,6 +107,9 @@ export default async function HomePage() {
     // Os demais perfis recebem o mesmo sinal no badge da lista e no card da disciplina.
     podeAprovar ? disciplinasProntasParaAprovar(user, veTodasDisc) : Promise.resolve([]),
     verCertidoes ? contarCertidoesAtencao() : Promise.resolve({ vencidas: 0, venceEmBreve: 0 }),
+    mostraMinhasHoras
+      ? horasProjetistas(intervaloDoAtalho("14d", diaLocal(new Date())), { userIds: [user.id] })
+      : Promise.resolve(null),
   ]);
 
   const cards = [
@@ -240,11 +248,21 @@ export default async function HomePage() {
       </div>
 
       {/* KPIs do colaborador + sparkline (Mód 1) */}
-      {/* No celular, as duas primeiras contagens já estão em "Para você hoje". */}
-      <div className="hidden gap-4 sm:grid sm:grid-cols-3">
-        <KpiSpark label="Projetos em revisão" valor={kpisMeu.emRevisao} serie={kpisMeu.serieEmRevisao} href="/projetos/meu-trabalho" />
-        <KpiSpark label="Aprovados no mês" valor={kpisMeu.aprovadosMes} serie={kpisMeu.serieAprovados} href="/projetos/meu-trabalho" />
-        <KpiSpark label="Validações pendentes" valor={kpisMeu.validacoesPendentes} serie={kpisMeu.serieValidacoes} href="/projetos/meu-trabalho" />
+      {/* No celular, as contagens já estão em "Para você hoje"; o card de horas fica (é atalho). */}
+      <div className={minhasHoras ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-4" : "hidden gap-4 sm:grid sm:grid-cols-3"}>
+        {minhasHoras && (
+          <KpiSpark
+            label="Minhas horas"
+            valor={`${(minhasHoras.pessoas[0]?.totalHoras ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}h`}
+            serie={minhasHoras.pessoas[0]?.porDia ?? []}
+            href="/ponto/horas"
+          />
+        )}
+        <div className="hidden sm:contents">
+          <KpiSpark label="Projetos em revisão" valor={kpisMeu.emRevisao} serie={kpisMeu.serieEmRevisao} href="/projetos/meu-trabalho" />
+          <KpiSpark label="Aprovados no mês" valor={kpisMeu.aprovadosMes} serie={kpisMeu.serieAprovados} href="/projetos/meu-trabalho" />
+          <KpiSpark label="Validações pendentes" valor={kpisMeu.validacoesPendentes} serie={kpisMeu.serieValidacoes} href="/projetos/meu-trabalho" />
+        </div>
       </div>
 
       {/* Celular: grade 2 × 2 com o número e o rótulo; a explicação do número fica para telas maiores. */}
