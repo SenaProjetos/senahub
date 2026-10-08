@@ -163,35 +163,13 @@ export type FeriasVigente = Awaited<ReturnType<typeof feriasAprovadasVigentes>>[
 
 // ── Onboarding (Onda 3f) ──────────────────────────────────────
 
+/** A lista de entrada ou saída em andamento da própria pessoa (a mais recente), para o card do /rh. */
 export async function meuOnboarding(userId: string) {
-  return prisma.onboardingProcesso.findUnique({
-    where: { userId },
+  return prisma.onboardingProcesso.findFirst({
+    where: { userId, status: "em_andamento" },
     include: { itens: { orderBy: { ordem: "asc" } } },
+    orderBy: { iniciadoEm: "desc" },
   });
-}
-
-export async function onboardingsAtivos() {
-  return prisma.onboardingProcesso.findMany({
-    include: {
-      user: { select: { name: true, role: true } },
-      itens: { orderBy: { ordem: "asc" } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-}
-
-export async function opcoesOnboarding() {
-  const [templates, comProcesso] = await Promise.all([
-    prisma.onboardingTemplate.findMany({ where: { ativo: true }, orderBy: { nome: "asc" } }),
-    prisma.onboardingProcesso.findMany({ select: { userId: true } }),
-  ]);
-  const ids = comProcesso.map((p) => p.userId);
-  const usuarios = await prisma.user.findMany({
-    where: { ativo: true, role: { not: "cliente" }, id: { notIn: ids } },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
-  return { templates, usuarios };
 }
 
 // ── Notas fiscais de PJ (Onda 3g) ─────────────────────────────

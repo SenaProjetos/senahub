@@ -20,6 +20,8 @@ import { contextoApuracao } from "@/modules/ponto/apuracao";
 import { escalaUsuarioGrade, escalaPadraoDoUsuario } from "@/modules/rh/escalas/queries";
 import { overridesDeUsuario } from "@/modules/perfis/queries";
 import { Pessoa360View } from "@/components/rh/pessoa-360-view";
+import { CiclosPessoa } from "@/components/rh/ciclos-pessoa";
+import { ciclosDaPessoa, equipamentosDaPessoa, opcoesDeCicloDaPessoa } from "@/modules/rh/ciclo/queries";
 
 export const metadata: Metadata = { title: "Ficha da pessoa" };
 
@@ -33,10 +35,11 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
   const podeFolha =
     (await can(user, "rh", "folha")) || (user.ehSocio === true && (await canRole("supervisor", "rh", "folha")));
   // Mesmo gate de `defineAction`: sem fallback de sócio/supervisor para escrita de acesso.
-  const [podeGerirAcesso, podeVerPonto, podeVerProjetos] = await Promise.all([
+  const [podeGerirAcesso, podeVerPonto, podeVerProjetos, ehTi] = await Promise.all([
     can(user, "usuarios", "gerir"),
     can(user, "ponto", "espelho_equipe"),
     can(user, "projetos", "ver"),
+    can(user, "patrimonio", "ti"),
   ]);
 
   const pessoa = await fichaPessoa(id, {
@@ -99,6 +102,17 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
     podeEditarCadastro ? ultimoMesFechado() : Promise.resolve(null),
   ]);
 
+  // Entrada e saída (F4): o RH abre e cancela listas; quem vê a ficha marca o que é dele.
+  const ehRh = HR_ADMIN_ROLES.includes(user.role);
+  const temCiclos = pessoa.role !== "cliente";
+  const [ciclos, opcoesCiclo, equipamentos] = temCiclos
+    ? await Promise.all([
+        ciclosDaPessoa(id),
+        ehRh ? opcoesDeCicloDaPessoa(id) : Promise.resolve(null),
+        equipamentosDaPessoa(id),
+      ])
+    : [[], null, []];
+
   const escala = escalaUsuario && escalaPadrao
     ? { temOverride: escalaUsuario.temOverride, dias: escalaUsuario.dias, padraoDias: escalaPadrao }
     : null;
@@ -124,6 +138,17 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
       overrides={overrides}
       podeGerirAcesso={podeGerirAcesso}
       ultimoMesFechadoBanco={mesFechadoBanco}
+      ciclosSlot={
+        temCiclos && (ehRh || ciclos.length > 0) ? (
+          <CiclosPessoa
+            userId={id}
+            ciclos={ciclos}
+            opcoes={opcoesCiclo}
+            equipamentos={equipamentos}
+            quem={{ id: user.id, ehRh, ehTi }}
+          />
+        ) : undefined
+      }
     />
   );
 }

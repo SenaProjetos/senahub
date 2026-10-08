@@ -19,7 +19,7 @@ import {
   excluirUsuario,
 } from "@/modules/usuarios/actions";
 import { avaliarSolicitacaoCadastro } from "@/modules/auth/cadastro/actions";
-import { criarOnboarding } from "@/modules/rh/onboarding/actions";
+import { abrirCiclo } from "@/modules/rh/ciclo/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ROLES, ROLE_LABELS, CLT_ROLES, PJ_ROLES, type Role } from "@/lib/roles";
 import { resumirAcesso, type LinhaResumo } from "@/modules/usuarios/resumo-acesso";
@@ -303,8 +303,8 @@ export function UsuariosView({
         if (res.ok) {
           // Fase 2: dispara o onboarding (se um template foi escolhido) já na criação.
           if (form.onboardingTemplateId) {
-            const ob = await criarOnboarding({ userId: res.data.id, templateId: form.onboardingTemplateId });
-            if (!ob.ok) toast.error(`Usuário criado, mas o onboarding falhou: ${ob.error}`);
+            const ob = await abrirCiclo({ userId: res.data.id, tipo: "entrada", templateId: form.onboardingTemplateId });
+            if (!ob.ok) toast.error(`Usuário criado, mas a lista de entrada não abriu: ${ob.error}`);
           }
           fe.limpar();
           setForm(null);

@@ -10,6 +10,7 @@ import { seedPerfisAcesso } from "./seed-perfis-acesso";
 import { seedPropostaComposta } from "./seed-proposta-composta";
 import { semearCatalogoDisciplinas, semearEapCatalogo, semearListaMestre } from "./seed-catalogos";
 import { semearSiglasFaltantes } from "../src/modules/uploads/nomenclatura/siglas-service";
+import { MODELOS_CICLO_PADRAO } from "../src/modules/rh/ciclo/modelos-padrao";
 import type { Prisma } from "../src/generated/prisma/client";
 import type { EstagioNegociacao } from "../src/generated/prisma/enums";
 
@@ -697,7 +698,29 @@ async function main() {
       })),
     });
   }
-  console.log(`✔ ${RUBRICAS.length} rubricas, template de onboarding garantido.`);
+  // 8a) Listas-modelo de entrada e saída (Gestão de Pessoas F4): create-only pelo nome — depois
+  // de criadas, quem manda é a tela de /rh/admin.
+  for (const modelo of MODELOS_CICLO_PADRAO) {
+    const existente = await prisma.onboardingTemplate.findUnique({ where: { nome: modelo.nome }, select: { id: true } });
+    if (existente) continue;
+    await prisma.onboardingTemplate.create({
+      data: {
+        nome: modelo.nome,
+        tipo: modelo.tipo,
+        publico: modelo.publico,
+        itens: {
+          create: modelo.itens.map((it, i) => ({
+            descricao: it.descricao,
+            ordem: i,
+            responsavel: it.responsavel,
+            prazoDias: it.prazoDias,
+            patrimonio: it.patrimonio ?? false,
+          })),
+        },
+      },
+    });
+  }
+  console.log(`✔ ${RUBRICAS.length} rubricas, template de onboarding e ${MODELOS_CICLO_PADRAO.length} listas de entrada/saída garantidos.`);
 
   // 8b) Status de tarefas + tipos de certidão (O5)
   for (let i = 0; i < TAREFA_STATUS.length; i++) {

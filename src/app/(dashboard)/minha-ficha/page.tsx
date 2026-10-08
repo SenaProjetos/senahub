@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
-import { INTERNAL_ROLES, PJ_ROLES } from "@/lib/roles";
+import { HR_ADMIN_ROLES, INTERNAL_ROLES, PJ_ROLES } from "@/lib/roles";
 import {
   fichaPessoa,
   cadastroDaPessoa,
@@ -24,6 +24,8 @@ import { MeuAcesso } from "@/components/usuarios/meu-acesso";
 import { Pessoa360View } from "@/components/rh/pessoa-360-view";
 import { EditarMeusDados } from "@/components/rh/editar-meus-dados";
 import { PreferenciasView } from "@/components/configuracoes/preferencias-view";
+import { CiclosPessoa } from "@/components/rh/ciclos-pessoa";
+import { ciclosDaPessoa, equipamentosDaPessoa } from "@/modules/rh/ciclo/queries";
 
 export const metadata: Metadata = { title: "Minha conta" };
 
@@ -71,6 +73,11 @@ export default async function MinhaFichaPage() {
     isColaborador ? minhaContaPendente(id) : Promise.resolve(null),
   ]);
 
+  // Entrada e saída (F4): a pessoa acompanha a própria lista e marca os itens que são dela.
+  const [ciclos, equipamentos, ehTi] = isColaborador
+    ? await Promise.all([ciclosDaPessoa(id), equipamentosDaPessoa(id), can(user, "patrimonio", "ti")])
+    : [[], [], false];
+
   const escala = escalaUsuario && escalaPadrao
     ? { temOverride: escalaUsuario.temOverride, dias: escalaUsuario.dias, padraoDias: escalaPadrao }
     : null;
@@ -100,6 +107,17 @@ export default async function MinhaFichaPage() {
         contaPendente={contaPendente}
         historicoSlot={historico ? <HistoricoContratual historico={historico} /> : undefined}
         preferenciasSlot={<PreferenciasView {...prefsConta} />}
+        ciclosSlot={
+          ciclos.length > 0 ? (
+            <CiclosPessoa
+              userId={id}
+              ciclos={ciclos}
+              opcoes={null}
+              equipamentos={equipamentos}
+              quem={{ id, ehRh: HR_ADMIN_ROLES.includes(user.role), ehTi }}
+            />
+          ) : undefined
+        }
       />
     </div>
   );

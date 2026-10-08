@@ -238,7 +238,7 @@ model User {
   feedbacksHumor                FeedbackHumor[]
   holerites                     Holerite[]
   holeritesAssinados            Holerite[]                  @relation("HoleriteAssinante")
-  onboarding                    OnboardingProcesso?
+  ciclosRh                      OnboardingProcesso[]
   notasFiscais                  NotaFiscalPJ[]              @relation("NfUser")
   nfsValidadas                  NotaFiscalPJ[]              @relation("NfValidador")
   documentoVersoes              DocumentoModeloVersao[]
@@ -6621,10 +6621,43 @@ model HoleriteItem {
   @@map("holerite_item")
 }
 
+/// Entrada (onboarding) ou saída (offboarding) de uma pessoa — Gestão de Pessoas F4.
+enum TipoCicloRh {
+  entrada
+  saida
+}
+
+enum StatusCicloRh {
+  em_andamento
+  concluido
+  cancelado
+}
+
+/// Quem faz o item. `lider` fica com o RH enquanto não houver liderança direta (F3);
+/// `coordenador` idem — a regra está em `modules/rh/ciclo/regras.ts`.
+enum ResponsavelCicloRh {
+  rh
+  ti
+  lider
+  coordenador
+  pessoa
+}
+
+/// Para quem a lista-modelo serve, pela contratação do vínculo (decisão F4: uma lista para
+/// CLT/estágio e outra para PJ). `todos` = vale para qualquer contratação.
+enum PublicoCicloRh {
+  clt_estagio
+  pj
+  todos
+}
+
+/// Lista-modelo de entrada ou de saída. Mantida pelo RH em /rh/admin.
 model OnboardingTemplate {
-  id    String  @id @default(cuid())
-  nome  String  @unique
-  ativo Boolean @default(true)
+  id      String         @id @default(cuid())
+  nome    String         @unique
+  ativo   Boolean        @default(true)
+  tipo    TipoCicloRh    @default(entrada)
+  publico PublicoCicloRh @default(todos)
 
   itens     OnboardingTemplateItem[]
   processos OnboardingProcesso[]
@@ -6633,40 +6666,69 @@ model OnboardingTemplate {
 }
 
 model OnboardingTemplateItem {
-  id         String             @id @default(cuid())
-  templateId String
-  template   OnboardingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  descricao  String
-  ordem      Int                @default(0)
+  id          String             @id @default(cuid())
+  templateId  String
+  template    OnboardingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  descricao   String
+  ordem       Int                @default(0)
+  responsavel ResponsavelCicloRh @default(rh)
+  /// Prazo em dias corridos a partir da âncora do ciclo (início do vínculo na entrada, último dia
+  /// na saída): -1 = véspera, 0 = no dia, 5 = cinco dias depois. Nulo = sem prazo.
+  prazoDias   Int?
+  /// Item de devolução de equipamentos: a tela lista os ativos e máquinas sob responsabilidade da
+  /// pessoa (só referência — nunca transfere nem dá baixa).
+  patrimonio  Boolean            @default(false)
 
   @@index([templateId])
   @@map("onboarding_template_item")
 }
 
-/// Checklist de admissão de um colaborador (1 por usuário).
+/// Ciclo de entrada ou de saída de uma pessoa. Uma pessoa pode ter vários ao longo do tempo
+/// (recontratação), mas no máximo UM em andamento por tipo: quem garante é o índice PARCIAL
+/// `onboarding_processo_um_aberto` (`WHERE status = 'em_andamento'`), criado na migration
+/// 20261008120000 — o Prisma não expressa índice parcial, então ele não aparece aqui.
 model OnboardingProcesso {
-  id         String              @id @default(cuid())
-  userId     String              @unique
-  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  templateId String?
-  template   OnboardingTemplate? @relation(fields: [templateId], references: [id])
-  createdAt  DateTime            @default(now())
+  id          String              @id @default(cuid())
+  userId      String
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  templateId  String?
+  template    OnboardingTemplate? @relation(fields: [templateId], references: [id])
+  createdAt   DateTime            @default(now())
+  tipo        TipoCicloRh         @default(entrada)
+  status      StatusCicloRh       @default(em_andamento)
+  iniciadoEm  DateTime            @default(now())
+  concluidoEm DateTime?
+  /// Dia de referência dos prazos: início do vínculo (entrada) ou último dia (saída).
+  ancora      DateTime?           @db.Date
+  /// Vínculo que o ciclo acompanha (sem FK: o histórico do ciclo vale mesmo se o vínculo mudar).
+  vinculoId   String?
 
   itens OnboardingItem[]
 
+  @@index([userId, tipo, status])
   @@map("onboarding_processo")
 }
 
 model OnboardingItem {
-  id          String             @id @default(cuid())
-  processoId  String
-  processo    OnboardingProcesso @relation(fields: [processoId], references: [id], onDelete: Cascade)
-  descricao   String
-  ordem       Int                @default(0)
-  concluido   Boolean            @default(false)
-  concluidoEm DateTime?
+  id             String             @id @default(cuid())
+  processoId     String
+  processo       OnboardingProcesso @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  descricao      String
+  ordem          Int                @default(0)
+  concluido      Boolean            @default(false)
+  concluidoEm    DateTime?
+  responsavel    ResponsavelCicloRh @default(rh)
+  /// Prazo já resolvido em data (âncora + prazoDias do modelo) no momento em que o ciclo abriu.
+  prazoEm        DateTime?          @db.Date
+  patrimonio     Boolean            @default(false)
+  concluidoPorId String?
+  /// Evidência curta opcional (ex.: "patrimônio 0123 devolvido").
+  evidencia      String?
+  /// Último dia em que o lembrete de atraso saiu para este item — o job envia no máximo um por dia.
+  lembradoEm     DateTime?          @db.Date
 
   @@index([processoId])
+  @@index([concluido, prazoEm])
   @@map("onboarding_item")
 }
 

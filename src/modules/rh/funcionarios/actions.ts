@@ -17,6 +17,7 @@ import { derivarEixos } from "@/modules/usuarios/vinculo/mapa";
 import { resolverClassificacao } from "@/modules/rh/catalogos/service";
 import { registrarAlteracaoContratual } from "@/modules/rh/contratual/service";
 import { normalizarConta, garantirPrincipal } from "@/modules/rh/contas/service";
+import { abrirCicloNoBanco } from "@/modules/rh/ciclo/service";
 
 const base = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
 const rev = () => revalidatePath("/rh/funcionarios");
@@ -187,20 +188,13 @@ export const cadastrarFuncionario = defineAction(
       ),
     );
 
-    // Item 4: integra o disparo de onboarding (copia os itens do template).
+    // Item 4 / F4: abre a lista de ENTRADA já com dono e prazo (âncora = início do vínculo
+    // criado acima). Se falhar, a pessoa já existe: o RH abre a lista depois pela ficha.
     if (i.iniciarOnboarding && i.templateId) {
-      const tpl = await prisma.onboardingTemplate.findUnique({
-        where: { id: i.templateId },
-        include: { itens: { orderBy: { ordem: "asc" } } },
-      });
-      if (tpl) {
-        await prisma.onboardingProcesso.create({
-          data: {
-            userId: id,
-            templateId: tpl.id,
-            itens: { create: tpl.itens.map((it) => ({ descricao: it.descricao, ordem: it.ordem })) },
-          },
-        });
+      try {
+        await abrirCicloNoBanco({ userId: id, tipo: "entrada", templateId: i.templateId });
+      } catch (e) {
+        console.error("[cadastrarFuncionario] lista de entrada não abriu", e);
       }
     }
 

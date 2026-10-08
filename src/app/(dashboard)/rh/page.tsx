@@ -63,7 +63,7 @@ export default async function RhPage() {
       {onboarding && onboarding.itens.some((i) => !i.concluido) && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Meu onboarding</CardTitle>
+            <CardTitle className="text-base">{onboarding.tipo === "saida" ? "Minha lista de saída" : "Minha lista de entrada"}</CardTitle>
             <CardDescription>
               {onboarding.itens.filter((i) => i.concluido).length}/{onboarding.itens.length}{" "}
               concluído(s)

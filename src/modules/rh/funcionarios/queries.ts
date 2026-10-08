@@ -9,7 +9,7 @@ import { catalogoCargos, catalogoDepartamentos } from "@/modules/rh/catalogos/qu
  */
 export async function opcoesCadastroFuncionario() {
   const [templates, pjs, cargos, departamentos] = await Promise.all([
-    prisma.onboardingTemplate.findMany({ where: { ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
+    prisma.onboardingTemplate.findMany({ where: { ativo: true, tipo: "entrada" }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
     prisma.pessoaJuridica.findMany({ where: { ativo: true }, orderBy: { razaoSocial: "asc" }, select: { id: true, cnpj: true, razaoSocial: true } }),
     catalogoCargos(),
     catalogoDepartamentos(),

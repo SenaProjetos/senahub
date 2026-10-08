@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CalendarClock, Landmark, Building2, KeyRound, UserRound, ClipboardList, CalendarRange, Clock, Receipt, SlidersHorizontal } from "lucide-react";
+import { CalendarClock, Landmark, Building2, KeyRound, UserRound, ClipboardList, CalendarRange, Clock, Receipt, SlidersHorizontal, ListChecks } from "lucide-react";
 import { brl, formatarData } from "@/lib/utils";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { CONTRATACAO_LABELS, SETOR_LABELS } from "@/modules/usuarios/vinculo/labels";
@@ -88,6 +88,8 @@ export type Pessoa360Props = {
   podeGerirAcesso?: boolean;
   /** Último mês com banco de horas fechado — aviso de troca de contratação retroativa. */
   ultimoMesFechadoBanco?: { ano: number; mes: number } | null;
+  /** Aba "Entrada e saída" (Gestão de Pessoas F4) — `CiclosPessoa`, montado pela página. */
+  ciclosSlot?: React.ReactNode;
 };
 
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -130,7 +132,7 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
   );
 }
 
-export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, controlaJornada = false, holerites, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], cargos = [], departamentos = [], contas = null, contaPendente = null, preferenciasSlot, historicoSlot, overrides = [], podeGerirAcesso = false, ultimoMesFechadoBanco = null }: Pessoa360Props) {
+export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, controlaJornada = false, holerites, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], cargos = [], departamentos = [], contas = null, contaPendente = null, preferenciasSlot, historicoSlot, overrides = [], podeGerirAcesso = false, ultimoMesFechadoBanco = null, ciclosSlot }: Pessoa360Props) {
   // Cadastro no formato do EditarCadastroDialog (junta os escalares + o vínculo PJ do cabeçalho).
   const cadastroDialog: Cadastro | null = cadastro
     ? {
@@ -159,6 +161,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
     { value: "nf", label: "Notas fiscais", icon: Receipt, show: !!nf },
     { value: "folha", label: "Folha", icon: Landmark, show: podeFolha },
     { value: "cliente", label: "Cliente", icon: Building2, show: !!pessoa.cliente },
+    { value: "ciclos", label: "Entrada e saída", icon: ListChecks, show: !!ciclosSlot },
     { value: "acesso", label: "Acesso", icon: KeyRound, show: podeVerAcesso },
     { value: "preferencias", label: "Preferências", icon: SlidersHorizontal, show: !!preferenciasSlot },
   ].filter((a) => a.show);
@@ -708,6 +711,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
           </TabsContent>
         )}
 
+        {ciclosSlot && <TabsContent value="ciclos">{ciclosSlot}</TabsContent>}
         {preferenciasSlot && <TabsContent value="preferencias">{preferenciasSlot}</TabsContent>}
       </Tabs>
 
