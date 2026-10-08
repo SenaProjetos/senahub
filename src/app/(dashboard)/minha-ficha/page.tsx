@@ -102,10 +102,11 @@ export default async function MinhaFichaPage({ searchParams }: { searchParams: P
     <div className="space-y-4">
       <CabecalhoPagina titulo="Minha conta" descricao="Seus dados de cadastro, ponto, ausências, escala e preferências num só lugar. Contato e endereço você mesmo pode alterar — as mudanças passam por validação do RH. Contas bancárias são cadastradas pelo RH." />
 
-      {acesso && <MeuAcesso acesso={acesso} />}
-
       {pedirConfirmacao && cadastro && <ConfirmarMeusDados dados={cadastro} destacar={sp.confirmar === "1"} />}
       {situacaoDados && <CompletarMeusDados situacao={situacaoDados} abrir={abrirCompletar} />}
+
+      {acesso && <MeuAcesso acesso={acesso} />}
+
       {cadastro && <EditarMeusDados atual={cadastro} pendente={pendente} />}
       {/* Auto-serviço: própria ficha, com salário próprio visível e sem links de gestão.
           A aba Preferências recebe a PreferenciasView (foto/tema/notificações). */}
@@ -123,15 +124,16 @@ export default async function MinhaFichaPage({ searchParams }: { searchParams: P
         nf={nf}
         contas={contas}
         contaPendente={contaPendente}
-        historicoSlot={historico ? <HistoricoContratual historico={historico} /> : undefined}
-        preferenciasSlot={<PreferenciasView {...prefsConta} />}
+        historicoSlot={historico ? <HistoricoContratual key="historico" historico={historico} /> : undefined}
+        preferenciasSlot={<PreferenciasView key="preferencias" {...prefsConta} />}
         desenvolvimentoSlot={
-          desenvolvimento ? <DesenvolvimentoPessoa userId={id} dados={desenvolvimento} papel="self" lideraAlguem={lidera} /> : undefined
+          desenvolvimento ? <DesenvolvimentoPessoa key="desenvolvimento" userId={id} dados={desenvolvimento} papel="self" lideraAlguem={lidera} /> : undefined
         }
-        competenciasSlot={competencias ? <CompetenciasPessoa userId={id} dados={competencias} modo="self" quemId={id} /> : undefined}
+        competenciasSlot={competencias ? <CompetenciasPessoa key="competencias" userId={id} dados={competencias} modo="self" quemId={id} /> : undefined}
         ciclosSlot={
           ciclos.length > 0 ? (
             <CiclosPessoa
+              key="ciclos"
               userId={id}
               ciclos={ciclos}
               opcoes={null}

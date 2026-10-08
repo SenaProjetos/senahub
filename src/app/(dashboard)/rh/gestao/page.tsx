@@ -48,7 +48,7 @@ export default async function GestaoPessoasPage() {
                       Fonte: {s.fonte} · {s.periodo}
                     </p>
                   </div>
-                  <Link href={s.acao.href} className="shrink-0 text-xs font-medium text-primary hover:underline">
+                  <Link href={s.acao.href} className="shrink-0 text-xs font-medium text-foreground underline underline-offset-2 hover:text-primary">
                     {s.acao.rotulo}
                   </Link>
                 </li>
@@ -101,7 +101,7 @@ export default async function GestaoPessoasPage() {
                 </div>
               </div>
             ))}
-            <Link href="/recursos" className="block text-xs text-primary hover:underline">Ver em Recursos</Link>
+            <Link href="/recursos" className="block text-xs text-foreground underline underline-offset-2 hover:text-primary">Ver em Recursos</Link>
           </CardContent>
         </Card>
 
@@ -113,7 +113,7 @@ export default async function GestaoPessoasPage() {
           <CardContent className="space-y-1 text-sm">
             <p>{p.lifecycle.abertos} lista(s) em andamento · {p.lifecycle.pendentes} item(ns) pendente(s)</p>
             <p className={p.lifecycle.atrasados > 0 ? "font-medium text-destructive" : "text-muted-foreground"}>{p.lifecycle.atrasados} atrasado(s)</p>
-            <Link href="/rh/admin" className="block text-xs text-primary hover:underline">Abrir a fila do RH</Link>
+            <Link href="/rh/admin" className="block text-xs text-foreground underline underline-offset-2 hover:text-primary">Abrir a fila do RH</Link>
           </CardContent>
         </Card>
 

@@ -147,24 +147,25 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
       cargos={opcoes?.cargos ?? []}
       departamentos={opcoes?.departamentos ?? []}
       contas={contas}
-      historicoSlot={historico ? <HistoricoContratual historico={historico} /> : undefined}
+      historicoSlot={historico ? <HistoricoContratual key="historico" historico={historico} /> : undefined}
       overrides={overrides}
       podeGerirAcesso={podeGerirAcesso}
       ultimoMesFechadoBanco={mesFechadoBanco}
-      pedidoDadosSlot={pedidoDados ? <PedidoDadosFicha userId={id} pedido={pedidoDados} /> : undefined}
+      pedidoDadosSlot={pedidoDados ? <PedidoDadosFicha key="pedido-dados" userId={id} pedido={pedidoDados} /> : undefined}
       desenvolvimentoSlot={
         desenvolvimento ? (
-          <DesenvolvimentoPessoa userId={id} dados={desenvolvimento} papel="rh" pessoas={lideresPossiveis} competencias={catalogoComp} />
+          <DesenvolvimentoPessoa key="desenvolvimento" userId={id} dados={desenvolvimento} papel="rh" pessoas={lideresPossiveis} competencias={catalogoComp} />
         ) : undefined
       }
       competenciasSlot={
         competencias ? (
-          <CompetenciasPessoa userId={id} dados={competencias} modo={ehRh || geraRecursos ? "gestor" : "leitura"} quemId={user.id} />
+          <CompetenciasPessoa key="competencias" userId={id} dados={competencias} modo={ehRh || geraRecursos ? "gestor" : "leitura"} quemId={user.id} />
         ) : undefined
       }
       ciclosSlot={
         temCiclos && (ehRh || ciclos.length > 0) ? (
           <CiclosPessoa
+            key="ciclos"
             userId={id}
             ciclos={ciclos}
             opcoes={opcoesCiclo}
