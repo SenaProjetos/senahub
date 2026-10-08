@@ -8,13 +8,26 @@ export function rotuloHoras(horas: number): string {
   return `${horas.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}h`;
 }
 
-/** Uma cor por pessoa comparada (até 5). Tokens, nunca hex. */
-export const CORES_COMPARACAO = ["var(--chart-1)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)", "var(--chart-2)"];
+/**
+ * Uma cor por pessoa comparada / por projeto (até 5). Tokens, nunca hex. O slate `--chart-2` fica de
+ * fora de propósito: é quase o cinza de "Sem projeto"; o roxo entra no lugar.
+ */
+export const CORES_COMPARACAO = [
+  "var(--chart-1)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--status-aguardando)",
+];
 
-/** Pilha por destino: os 5 projetos usam a paleta; os grupos fixos têm cor própria e neutra. */
+/**
+ * Pilha por destino: os 5 projetos usam a paleta acima; os grupos fixos têm cor que não se repete nela
+ * (`--info` é o mesmo azul de `--chart-3`, por isso Reuniões não o usa). Outros e Sem projeto são cinzas
+ * de claridade diferente — não são projetos, não disputam atenção.
+ */
 export function corDoDestino(chave: string, indice: number): string {
-  if (chave === DESTINO_REUNIOES) return "var(--info)";
+  if (chave === DESTINO_REUNIOES) return "var(--status-revisao)";
   if (chave === DESTINO_SEM_PROJETO) return "var(--muted-foreground)";
-  if (chave === DESTINO_OUTROS) return "color-mix(in oklch, var(--muted-foreground) 45%, var(--card))";
+  if (chave === DESTINO_OUTROS) return "color-mix(in oklch, var(--muted-foreground) 40%, var(--card))";
   return CORES_COMPARACAO[indice % CORES_COMPARACAO.length];
 }
