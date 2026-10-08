@@ -3,7 +3,7 @@ import { requirePermission } from "@/lib/session";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { matrizRecursos, cargaSemanalPorRecurso } from "@/modules/planejamento/queries";
 import { cargaDaEquipe } from "@/modules/planejamento/recursos-queries";
-import { listarHabilidades, habilidadesDeUsuarios } from "@/modules/rh/habilidades/queries";
+import { listarHabilidades, habilidadesDeUsuarios, necessidadesDeHabilidade } from "@/modules/rh/habilidades/queries";
 import { RecursosMatrix } from "@/components/recursos/recursos-matrix";
 
 export const metadata: Metadata = { title: "Recursos" };
@@ -30,7 +30,10 @@ export default async function RecursosPage({ searchParams }: { searchParams: Pro
       // alimenta os totais da matriz, esta as 12 semanas e o que fazer com o excesso.
       cargaDaEquipe({ semanas: 12 }),
     ]);
-  const habilidadesPorUser = await habilidadesDeUsuarios(linhas.map((l) => l.userId));
+  const [habilidadesPorUser, necessidades] = await Promise.all([
+    habilidadesDeUsuarios(linhas.map((l) => l.userId)),
+    necessidadesDeHabilidade(),
+  ]);
 
   return (
     <RecursosMatrix
@@ -45,6 +48,7 @@ export default async function RecursosPage({ searchParams }: { searchParams: Pro
       cargaSemanal={cargaSemanal}
       cargaPlanejada={cargaPlanejada}
       janelaInicial={janelaInicial}
+      necessidades={necessidades}
     />
   );
 }

@@ -23,6 +23,8 @@ import { Pessoa360View } from "@/components/rh/pessoa-360-view";
 import { CiclosPessoa } from "@/components/rh/ciclos-pessoa";
 import { PedidoDadosFicha } from "@/components/rh/pedido-dados";
 import { pedidoDaPessoa } from "@/modules/rh/cadastro/queries";
+import { CompetenciasPessoa } from "@/components/rh/competencias-pessoa";
+import { competenciasDaPessoa } from "@/modules/rh/habilidades/queries";
 import { ciclosDaPessoa, equipamentosDaPessoa, opcoesDeCicloDaPessoa } from "@/modules/rh/ciclo/queries";
 
 export const metadata: Metadata = { title: "Ficha da pessoa" };
@@ -109,6 +111,8 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
   const temCiclos = pessoa.role !== "cliente";
   // "Atualize seus dados": o RH pede à pessoa o que ela mesma pode preencher.
   const pedidoDados = ehRh && isCadastro ? await pedidoDaPessoa(id) : null;
+  // Competências (F2): RH e quem gere Recursos definem e validam; os demais com acesso à ficha só leem.
+  const [competencias, geraRecursos] = temCiclos ? await Promise.all([competenciasDaPessoa(id), can(user, "recursos", "gerir")]) : [null, false];
   const [ciclos, opcoesCiclo, equipamentos] = temCiclos
     ? await Promise.all([
         ciclosDaPessoa(id),
@@ -143,6 +147,11 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
       podeGerirAcesso={podeGerirAcesso}
       ultimoMesFechadoBanco={mesFechadoBanco}
       pedidoDadosSlot={pedidoDados ? <PedidoDadosFicha userId={id} pedido={pedidoDados} /> : undefined}
+      competenciasSlot={
+        competencias ? (
+          <CompetenciasPessoa userId={id} dados={competencias} modo={ehRh || geraRecursos ? "gestor" : "leitura"} quemId={user.id} />
+        ) : undefined
+      }
       ciclosSlot={
         temCiclos && (ehRh || ciclos.length > 0) ? (
           <CiclosPessoa

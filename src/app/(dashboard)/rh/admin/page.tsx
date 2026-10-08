@@ -18,6 +18,8 @@ import { listarFeedbacks, colaboradoresInternos } from "@/modules/rh/feedback/qu
 import { RhAdminView } from "@/components/rh/rh-admin-view";
 import { CiclosAdmin } from "@/components/rh/ciclos-admin";
 import { ModelosCicloAdmin } from "@/components/rh/modelos-ciclo-admin";
+import { CatalogoCompetencias } from "@/components/rh/catalogo-competencias";
+import { catalogoCompetencias } from "@/modules/rh/habilidades/queries";
 import { ciclosAbertos, modelosCiclo, pendenciasPorResponsavel, pessoasParaCiclo } from "@/modules/rh/ciclo/queries";
 import { NfAdmin } from "@/components/rh/nf-admin";
 import { BancoHorasAdmin } from "@/components/rh/banco-horas-admin";
@@ -35,7 +37,7 @@ export default async function RhAdminPage() {
   const mesCorrente = agora.getMonth() + 1;
   const anoCorrente = agora.getFullYear();
 
-  const [abonos, ferias, alteracoesFerias, feriasVigentes, colaboradoresFerias, ultimoFechado, clima, climaSerie, feedbacksHumor, abertosCiclo, pendenciasCiclo, pessoasCiclo, modelos, nfs, nfsHistorico, fechamentos, saldoCorrente, inicioRecalculo, feedbacks, colaboradores] = await Promise.all([
+  const [abonos, ferias, alteracoesFerias, feriasVigentes, colaboradoresFerias, ultimoFechado, clima, climaSerie, feedbacksHumor, abertosCiclo, pendenciasCiclo, pessoasCiclo, modelos, competencias, nfs, nfsHistorico, fechamentos, saldoCorrente, inicioRecalculo, feedbacks, colaboradores] = await Promise.all([
     abonosPendentes(),
     feriasPendentes(),
     alteracoesFeriasPendentes(),
@@ -49,6 +51,7 @@ export default async function RhAdminPage() {
     pendenciasPorResponsavel(),
     pessoasParaCiclo(),
     modelosCiclo(),
+    catalogoCompetencias(),
     nfsPendentes(),
     nfsValidadas(),
     fechamentosDoMes(bancoAno, bancoMes),
@@ -85,6 +88,7 @@ export default async function RhAdminPage() {
       <CiclosAdmin abertos={abertosCiclo} pendencias={pendenciasCiclo} pessoas={pessoasCiclo} modelos={modelos} quemId={user.id} />
       <div className="grid gap-4 lg:grid-cols-2">
         <ModelosCicloAdmin modelos={modelos} />
+        <CatalogoCompetencias itens={competencias} />
         <NfAdmin
           nfs={nfs.map((n) => ({
             id: n.id,

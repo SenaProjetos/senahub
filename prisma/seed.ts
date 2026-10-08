@@ -722,6 +722,14 @@ async function main() {
   }
   console.log(`✔ ${RUBRICAS.length} rubricas, template de onboarding e ${MODELOS_CICLO_PADRAO.length} listas de entrada/saída garantidos.`);
 
+  // 8a.2) Catálogo de competências (F2): só o que o dono nomeou (COSCIP-PE). O resto a Engenharia
+  // propõe pela tela e o RH publica — o spec proíbe semear catálogo não validado. Create-only.
+  await prisma.habilidade.upsert({
+    where: { nome: "COSCIP-PE" },
+    create: { nome: "COSCIP-PE", categoria: "norma", publicada: true },
+    update: {},
+  });
+
   // 8b) Status de tarefas + tipos de certidão (O5)
   for (let i = 0; i < TAREFA_STATUS.length; i++) {
     await prisma.tarefaStatus.upsert({

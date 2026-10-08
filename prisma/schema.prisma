@@ -1288,6 +1288,7 @@ model Projeto {
   apuracoesValorAgregado  ValorAgregadoApuracao[]
   eapTarefas              EapTarefa[]
   alocacoes               Alocacao[]
+  necessidadesHabilidade  NecessidadeHabilidade[]
   servicos                ServicoTerceirizado[]
   rateios                 RateioHora[]
   composicaoPreco         ProjetoComposicaoPreco?
@@ -6486,24 +6487,54 @@ model TarefaComentario {
 }
 
 /// Habilidade/competência (catálogo).
+/// Competência do catálogo (Gestão de Pessoas F2). A Engenharia propõe (`publicada = false`), o RH
+/// publica; só publicada aparece para a pessoa declarar.
 model Habilidade {
-  id       String           @id @default(cuid())
-  nome     String           @unique
-  usuarios UserHabilidade[]
+  id            String                  @id @default(cuid())
+  nome          String                  @unique
+  /// software | disciplina | norma | outra (nulo = cadastrada antes da F2)
+  categoria     String?
+  publicada     Boolean                 @default(true)
+  propostaPorId String?
+  usuarios      UserHabilidade[]
+  necessidades  NecessidadeHabilidade[]
 
   @@map("habilidade")
 }
 
-/// Vínculo colaborador × habilidade.
+/// Vínculo colaborador × habilidade, com nível 1–5 (F2). Nível nulo = "não informado" — nunca
+/// conta como apto. A pessoa declara; quem gere Recursos ou o RH valida (nunca a própria pessoa).
+/// Decisão do dono: nenhuma competência vence.
 model UserHabilidade {
-  id           String     @id @default(cuid())
-  userId       String
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  habilidadeId String
-  habilidade   Habilidade @relation(fields: [habilidadeId], references: [id], onDelete: Cascade)
+  id            String     @id @default(cuid())
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habilidadeId  String
+  habilidade    Habilidade @relation(fields: [habilidadeId], references: [id], onDelete: Cascade)
+  nivel         Int?
+  observacao    String?
+  declaradoEm   DateTime?
+  validadoEm    DateTime?
+  validadoPorId String?
 
   @@unique([userId, habilidadeId])
   @@map("user_habilidade")
+}
+
+/// O que um projeto precisa (F2): competência e nível mínimo — não uma pessoa obrigatória.
+model NecessidadeHabilidade {
+  id           String     @id @default(cuid())
+  projetoId    String
+  projeto      Projeto    @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  habilidadeId String
+  habilidade   Habilidade @relation(fields: [habilidadeId], references: [id], onDelete: Cascade)
+  nivelMinimo  Int        @default(3)
+  observacao   String?
+  criadoEm     DateTime   @default(now())
+
+  @@unique([projetoId, habilidadeId])
+  @@index([habilidadeId])
+  @@map("necessidade_habilidade")
 }
 
 /// Serviço terceirizado contratado para um projeto (fornecedor externo).

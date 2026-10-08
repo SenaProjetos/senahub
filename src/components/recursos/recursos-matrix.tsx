@@ -8,6 +8,8 @@ import { Plus, AlertTriangle, Trash2, UserPlus, Users, LayoutGrid, CalendarRange
 import { salvarRecurso, salvarAlocacao, removerAlocacao } from "@/modules/planejamento/actions";
 import type { CargaDaEquipe } from "@/modules/planejamento/recursos-queries";
 import { CargaPlanejadaView } from "@/components/recursos/carga-planejada-view";
+import { NecessidadesProjeto } from "@/components/recursos/necessidades-projeto";
+import type { NecessidadesHabilidade } from "@/modules/rh/habilidades/queries";
 import { criarHabilidade, alternarHabilidadeUsuario } from "@/modules/rh/habilidades/actions";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -99,7 +101,7 @@ type Projeto = { id: string; codigo: string; nome: string };
 const NONE = "__none";
 const TODOS = "__todos";
 
-type Habilidade = { id: string; nome: string };
+type Habilidade = { id: string; nome: string; nivel?: number | null; validado?: boolean };
 
 // ── Heatmap (timeline) ──────────────────────────────────────────────
 // Agrega a alocação de cada pessoa por mês a partir dos períodos das
@@ -261,6 +263,7 @@ export function RecursosMatrix({
   cargaSemanal,
   cargaPlanejada,
   janelaInicial,
+  necessidades,
 }: {
   linhas: Linha[];
   projetos: Projeto[];
@@ -276,6 +279,8 @@ export function RecursosMatrix({
   cargaPlanejada: CargaDaEquipe;
   /** Janela vinda do link do aviso de ausência (`?de=&ate=`); sem ela, hoje + 90 dias. */
   janelaInicial?: { de: string; ate: string } | null;
+  /** Competências que cada projeto precisa e o nível de cada pessoa nelas (F2). */
+  necessidades: NecessidadesHabilidade;
 }) {
   const router = useRouter();
   const [habDlg, setHabDlg] = useState<{ userId: string; nome: string } | null>(null);
@@ -501,6 +506,17 @@ export function RecursosMatrix({
           </button>
         </div>
       </div>
+
+      {filtroProjeto !== TODOS && (
+        <NecessidadesProjeto
+          projetoId={filtroProjeto}
+          dados={necessidades}
+          pessoas={linhas.map((l) => ({ userId: l.userId, nome: l.nome, folga: folgaPorUser.get(l.userId) }))}
+          catalogo={catalogoHabilidades}
+          podeGerir={podeGerir}
+          janela={{ inicio: janelaIni, fim: janelaFim }}
+        />
+      )}
 
       {vista === "carga" ? (
         <CargaRealView cargaSemanal={cargaSemanal} />
@@ -774,8 +790,11 @@ export function RecursosMatrix({
           onCriar={(nome) =>
             start(async () => {
               const r = await criarHabilidade({ nome });
-              if (r.ok) router.refresh();
-              else toast.error(r.error);
+              if (r.ok) {
+                // Quem gere Recursos PROPÕE; só o RH publica (F2).
+                if (!r.data.publicada) toast.success("Competência proposta. Ela aparece depois que o RH publicar.");
+                router.refresh();
+              } else toast.error(r.error);
             })
           }
         />
@@ -1157,7 +1176,7 @@ function RebalancearDialog({
                       <div className="text-[11px] text-muted-foreground">
                         pico {c.folga.pico}%
                         {c.folga.diasAusente > 0 && ` · ausente ${c.folga.diasAusente} dia(s) no período`}
-                        {c.habilidades.length > 0 && ` · ${c.habilidades.map((h) => h.nome).join(", ")}`}
+                        {c.habilidades.length > 0 && ` · ${c.habilidades.map((h) => (h.nivel ? `${h.nome} ${h.nivel}${h.validado ? "✓" : ""}` : h.nome)).join(", ")}`}
                       </div>
                     </div>
                     <span className="shrink-0 font-mono text-sm">folga {c.folga.folga}%</span>

@@ -27,6 +27,8 @@ import { PreferenciasView } from "@/components/configuracoes/preferencias-view";
 import { CiclosPessoa } from "@/components/rh/ciclos-pessoa";
 import { CompletarMeusDados } from "@/components/rh/completar-meus-dados";
 import { situacaoDaPessoa } from "@/modules/rh/cadastro/pedido-service";
+import { CompetenciasPessoa } from "@/components/rh/competencias-pessoa";
+import { competenciasDaPessoa } from "@/modules/rh/habilidades/queries";
 import { ciclosDaPessoa, equipamentosDaPessoa } from "@/modules/rh/ciclo/queries";
 
 export const metadata: Metadata = { title: "Minha conta" };
@@ -81,6 +83,7 @@ export default async function MinhaFichaPage({ searchParams }: { searchParams: P
     : [[], [], false];
   // "Completar meus dados": o que falta e a pessoa pode preencher (abre sozinho vindo da faixa).
   const situacaoDados = isColaborador ? await situacaoDaPessoa(id) : null;
+  const competencias = isColaborador ? await competenciasDaPessoa(id) : null;
   const abrirCompletar = (await searchParams).completar === "1";
 
   const escala = escalaUsuario && escalaPadrao
@@ -113,6 +116,7 @@ export default async function MinhaFichaPage({ searchParams }: { searchParams: P
         contaPendente={contaPendente}
         historicoSlot={historico ? <HistoricoContratual historico={historico} /> : undefined}
         preferenciasSlot={<PreferenciasView {...prefsConta} />}
+        competenciasSlot={competencias ? <CompetenciasPessoa userId={id} dados={competencias} modo="self" quemId={id} /> : undefined}
         ciclosSlot={
           ciclos.length > 0 ? (
             <CiclosPessoa
