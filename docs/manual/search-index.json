@@ -2204,6 +2204,41 @@
       ]
     },
     {
+      "titulo": "Entrada e saída de pessoas",
+      "path": "rh-ponto/entrada-e-saida.md",
+      "descricao": "Listas de admissão e desligamento com responsável e prazo por item.",
+      "resumo": "Cada pessoa que entra ou sai ganha uma lista com o que cada área precisa fazer — RH, TI, líder, coordenador ou a própria pessoa — com prazo contado a partir do início ou do último dia do vínculo.",
+      "tags": [
+        "rh",
+        "onboarding",
+        "offboarding",
+        "admissão",
+        "desligamento",
+        "checklist",
+        "entrada",
+        "saída",
+        "patrimônio"
+      ],
+      "palavrasChave": [
+        "onboarding",
+        "offboarding",
+        "lista de entrada",
+        "lista de saída",
+        "checklist de admissão",
+        "checklist de desligamento",
+        "devolução de equipamento",
+        "encerrar acessos",
+        "recontratação"
+      ],
+      "sinonimos": [
+        "integração de colaborador",
+        "admissão",
+        "demissão",
+        "saída de colaborador",
+        "checklist de RH"
+      ]
+    },
+    {
       "titulo": "Produtividade — Projetistas",
       "path": "rh-ponto/produtividade.md",
       "descricao": "Acompanhamento da produtividade dos projetistas por semana ou mês.",

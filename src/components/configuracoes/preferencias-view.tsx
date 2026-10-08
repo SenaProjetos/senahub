@@ -64,6 +64,7 @@ export function PreferenciasView({
   notifFaturamento: notifFaturamentoInicial,
   notifAcessos: notifAcessosInicial,
   notifImpactoAusencia: notifImpactoAusenciaInicial,
+  notifLifecycleRh: notifLifecycleRhInicial,
   pontoEmailModo: pontoEmailModoInicial,
   mostrarAlertasPonto,
 }: {
@@ -91,6 +92,7 @@ export function PreferenciasView({
   notifFaturamento: boolean;
   notifAcessos: boolean;
   notifImpactoAusencia: boolean;
+  notifLifecycleRh: boolean;
   pontoEmailModo: PontoEmailModo;
   /** Alertas de jornada por horário são só p/ CLT/estagiário — controla a seção de e-mail. */
   mostrarAlertasPonto: boolean;
@@ -119,6 +121,7 @@ export function PreferenciasView({
   const [notifFaturamento, setNotifFaturamento] = useState(notifFaturamentoInicial);
   const [notifAcessos, setNotifAcessos] = useState(notifAcessosInicial);
   const [notifImpactoAusencia, setNotifImpactoAusencia] = useState(notifImpactoAusenciaInicial);
+  const [notifLifecycleRh, setNotifLifecycleRh] = useState(notifLifecycleRhInicial);
   const [pontoEmailModo, setPontoEmailModo] = useState<PontoEmailModo>(pontoEmailModoInicial);
   const [, start] = useTransition();
 
@@ -294,6 +297,13 @@ export function PreferenciasView({
       descricao: "Férias ou ausência aprovada num período em que a pessoa está alocada em projeto.",
       valor: notifImpactoAusencia,
       set: setNotifImpactoAusencia,
+    },
+    {
+      chave: "notif_lifecycle_rh",
+      titulo: "Entrada e saída de pessoas",
+      descricao: "Itens atrasados das listas de admissão e desligamento que são seus.",
+      valor: notifLifecycleRh,
+      set: setNotifLifecycleRh,
     },
   ];
 

@@ -606,7 +606,7 @@ export async function snapshotLicitacaoMensal() {
 }
 
 /** Rotinas noturnas de RH/comercial: propostas vencidas e férias que iniciam hoje. */
-export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: number; contratosEquipe: number; vinculosEncerrados: number; acessosEncerrados: number }> {
+export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: number; contratosEquipe: number; vinculosEncerrados: number; acessosEncerrados: number; itensCicloAtrasados: number }> {
   // Fronteiras em meia-noite UTC: `validade`/`dataInicio` são colunas de data
   // (00:00Z). Com meia-noite local (03:00Z) a proposta vencia um dia antes.
   const hoje = inicioDoDiaUtc();
@@ -645,7 +645,10 @@ export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: n
   // Desligamentos agendados pelo RH cujo último dia (vínculo e/ou login) foi ontem ou antes.
   // `getSession` já recusa o login desde a meia-noite; aqui o encerramento fica gravado.
   const deslig = await prisma.$transaction((tx) => aplicarDesligamentosVencidos(tx));
-  return { propostas: props.length, ferias: fer.length, contratosEquipe, ...deslig };
+  // Listas de entrada e saída (F4): item atrasado avisa o dono e o RH, uma vez por dia.
+  const { lembrarItensCicloAtrasados } = await import("@/modules/rh/ciclo/lembrete");
+  const ciclos = await lembrarItensCicloAtrasados(hoje);
+  return { propostas: props.length, ferias: fer.length, contratosEquipe, ...deslig, itensCicloAtrasados: ciclos.itens };
 }
 
 /** Diário: grava a foto dos KPIs do dashboard (série histórica). */

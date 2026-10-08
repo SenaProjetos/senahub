@@ -32,7 +32,8 @@ Centralizar as solicitações e acompanhamentos pessoais de RH de cada colaborad
     de feriado. O sistema bloqueia a data e explica o motivo.
   - Os dias de férias aprovados aparecem no **espelho de ponto** (status *Férias*, sem horas
     devidas, portanto sem descontar do banco de horas) e na **agenda** (faixa 🌴 *Férias*).
-- **Onboarding:** ver o seu checklist de integração e o que falta concluir.
+- **Lista de entrada ou saída:** ver o que falta concluir. Os itens que são seus você marca em
+  **Minha conta → Entrada e saída**. Veja [Entrada e saída de pessoas](entrada-e-saida.md).
 - **Humor:** registrar como está se sentindo (feedback de clima).
 
 ## Para prestadores PJ (projetista_pj / freelancer)

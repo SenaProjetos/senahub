@@ -1,6 +1,6 @@
 # Gestão de Pessoas e Recursos — integração das capacidades existentes
 
-**Data:** 2026-08-26 · **Status:** em execução — F0 e F1 entregues (base em 2026-08-27; F1.3–F1.5 em 2026-10-04, ver §5 F1); decisões do dono em §9.1 (2026-10-05); próxima: F4, plano em §9.2 · **Branch alvo:** `dev`
+**Data:** 2026-08-26 · **Status:** em execução — F0 e F1 entregues (base em 2026-08-27; F1.3–F1.5 em 2026-10-04, ver §5 F1); decisões do dono em §9.1 (2026-10-05); F4 entregue em 2026-10-08 (§9.2); próximas F2 e F3 · **Branch alvo:** `dev`
 
 ## 1. Contexto e inventário verificado
 
@@ -307,4 +307,10 @@ RH (decisão "dono + RH"), uma vez por item por dia.
 
 **Testes:** regras puras de prazo relativo, escolha da lista pela contratação, ciclo único aberto por tipo,
 recontratação e backfill; smoke contra o banco do worktree.
+
+**Entregue (2026-10-08, branch `feat/rh-lifecycle-f4`):** migration `20261008120000_ciclos_rh_entrada_saida` (aditiva,
+backfill dos processos antigos), `modules/rh/ciclo/` (regras, ações ADR-0002, service, queries, lembrete), aba na ficha e em
+Minha conta, fila + editor de listas em /rh/admin, itens da TI em /patrimonio/ti (a TI não abre ficha nem /rh/admin —
+lacuna achada na implementação), categoria `lifecycle_rh`, `npm run smoke:ciclo-rh`. Desvio: o vínculo do ciclo é
+`vinculoId` sem FK (o histórico vale mesmo se o vínculo mudar). Deploy: `migrate deploy` + `db:seed` (listas-modelo).
 

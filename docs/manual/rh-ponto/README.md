@@ -18,6 +18,7 @@ Documentação de recursos humanos e registro de jornada.
 | [RH — admin](rh-admin.md) | `/rh/admin` | ✅ documentado |
 | [Folha CLT](folha-clt.md) | `/rh/folha` | ✅ documentado |
 | [Funcionários](funcionarios.md) | `/rh/funcionarios` | ✅ documentado |
+| [Entrada e saída de pessoas](entrada-e-saida.md) | `/rh/pessoas` · `/rh/admin` | ✅ documentado |
 | [Produtividade](produtividade.md) | `/rh/produtividade` | ✅ documentado |
 | [Pessoas Jurídicas](pessoas-juridicas.md) | `/rh/pessoas-juridicas` | ✅ documentado |
 

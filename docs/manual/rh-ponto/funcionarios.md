@@ -41,6 +41,10 @@ pelo import da folha do contador. Enquanto as datas não chegam, a ficha mostra 
 agendado** e o botão **Cancelar desligamento**. Se você errou a data, cancele e registre de novo.
 Depois de aplicado, o caminho para recontratar é reativar o usuário e registrar um vínculo novo.
 
+Com o desligamento agendado, a aba **Entrada e saída** da ficha oferece a **lista de saída**
+(transição de projetos, equipamentos, acessos externos, documentos) — veja
+[Entrada e saída de pessoas](entrada-e-saida.md).
+
 > Desativar só em **Configurações → Usuários** tira a pessoa das listas e da geração automática
 > de holerites já no mês da saída, e não registra data nem motivo. Guarde isso para contas criadas
 > por engano ou de quem nunca teve vínculo.

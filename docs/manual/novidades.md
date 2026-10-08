@@ -22,6 +22,21 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Entrada e saída de pessoas: listas com dono e prazo
+
+- **Admissão e desligamento organizados.** A ficha da pessoa ganhou a aba **Entrada e saída**: o RH abre a
+  lista sugerida pela contratação e cada item já vem com **quem faz** (RH, TI, líder, coordenador ou a própria
+  pessoa) e **até quando**, contado do início do vínculo ou do último dia.
+- **Saída depois do desligamento.** Com o desligamento agendado, a aba oferece a lista de saída. O item de
+  devolução mostra os equipamentos que estão com a pessoa no Patrimônio — sem dar baixa em nada.
+- **Cada um marca o que é seu.** A TI marca os itens dela em **Patrimônio → TI**; a pessoa, em **Minha conta**.
+- **Lembrete de atraso.** Item vencido avisa o responsável e o RH, uma vez por dia (desligável em Preferências).
+- **Listas editáveis.** Em **RH — admin → Listas-modelo** o RH cria e ajusta as listas. Recontratar alguém
+  abre uma lista nova e mantém a antiga no histórico.
+  [Saiba mais](rh-ponto/entrada-e-saida.md)
+
+---
+
 ## Recursos: férias e abonos entram no planejamento
 
 - Quando o RH aprova férias ou um abono de alguém que está alocado em projeto no período, quem gere **Recursos** recebe um aviso com os projetos afetados e um link que abre o mapa já naquela janela. Nada é mudado sozinho.

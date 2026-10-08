@@ -38,6 +38,7 @@ npm run smoke:status-documento     # status documental automático: Enviado/Apro
 npm run smoke:pastas-cliente       # pastas Compartilhado/Liberado para obra: revisão marcada na lista/árvore, contagem, validação desfeita
 npm run smoke:recursos-eap    # EAP: herança, horas no motor, cards, carga/sobrecarga, custo previsto, Valor Agregado
 npm run smoke:impacto-ausencia  # aviso de férias/abono × alocação (só leitura): janela de hoje em diante, digitada × cronograma (D17)
+npm run smoke:ciclo-rh       # listas de entrada/saída: prazo pela âncora, um aberto por tipo (índice parcial), quem marca o quê, lembrete 1×/dia, recontratação
 npm run smoke:ponto-tarefa    # ponto com tarefa: lista curta, validação, edição do dia, apontado × previsto
 npm run smoke:pagamento-fase  # pagamento por fase: pool congelado, write-back por diferença, SLA, marco → aprovar fase
 npm run smoke:previsao-recebimento  # contrato por entrega: previsão no caixa, marco anda, faturar, fora do aging
@@ -596,9 +597,19 @@ versão em linguagem de usuário continua em `docs/manual/novidades.md` → `/aj
 
 **Ajuda / Manual (in-app):** the `/ajuda` route (+ `[...slug]` catch-all) renders the user manual straight from `docs/manual/**` markdown via `lib/manual.ts` (`lerManifesto`/`listarSecoes`/`pathParaSlug`) + `react-markdown`. No DB — edit the markdown to change the docs. Visible to **all** roles (no `roles[]` on the nav item, cliente included). Keep `docs/manual/` current when features change.
 
+**Entrada e saída de pessoas** (`modules/rh/ciclo/`, Gestão de Pessoas F4, spec §9.2 of
+`docs/superpowers/plans/2026-08-26-rh-gestao-pessoas-recursos.md`): `OnboardingProcesso` is a CYCLE (`tipo` entrada|saida,
+`status`), several per person (rehire keeps history) but at most ONE `em_andamento` per type — enforced by the partial
+unique index `onboarding_processo_um_aberto` (not in schema.prisma). Items copy `responsavel` and resolve `prazoEm` =
+anchor + `prazoDias` when the cycle opens (anchor: vínculo start / last day); editing a model never touches open
+cycles. Pure rules in `regras.ts` (who marks what: RH any, `patrimonio:ti` the TI ones, the person their own; líder and
+coordenador fall to RH until F3). Nothing opens by itself: the ficha offers the exit list after `desligarColaborador`.
+Daily reminder `lembrete.ts` (inside `rotinasRhDiarias`) claims each overdue item with `updateMany` on `lembradoEm`
+(once a day), one notification per recipient, categoria `lifecycle_rh`. Models are seeded create-only by name.
+
 **Cross-module pages (not their own module folder):** `/recursos` = resource-allocation matrix built from `modules/planejamento/queries.ts` (`matrizRecursos`, `cargaSemanalPorRecurso`) + `modules/rh/habilidades/queries.ts`, gated `recursos:ver`/`recursos:gerir`.
 
-**Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`, `coordenacao`, `aprovacao_arquivo`, `aprovacao_disciplina`, `input_cliente`, `conta_a_pagar`, `impacto_ausencia`.
+**Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`, `coordenacao`, `aprovacao_arquivo`, `aprovacao_disciplina`, `input_cliente`, `conta_a_pagar`, `impacto_ausencia`, `lifecycle_rh`.
 
 ## Gotchas
 

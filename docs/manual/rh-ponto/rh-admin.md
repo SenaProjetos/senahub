@@ -35,7 +35,10 @@ Reunir as rotinas administrativas de RH em um só lugar.
 - **Feedback:** registrar feedback para colaboradores internos.
 - **Ponto manual:** lançar/ajustar batidas de ponto (colaborador + projeto) — útil para
   esquecimentos.
-- **Onboarding:** iniciar processos a partir de **templates** e acompanhar a conclusão.
+- **Entrada e saída:** fila das listas de admissão e desligamento abertas, pendências por
+  responsável (RH, TI, a própria pessoa) com os atrasos, e **Abrir lista** para qualquer pessoa.
+- **Listas-modelo:** criar, editar e arquivar as listas de entrada e saída, com responsável e
+  prazo por item. Veja [Entrada e saída de pessoas](entrada-e-saida.md).
 - **Notas fiscais (NF):** validar (aprovar/rejeitar) as NFs enviadas por prestadores PJ;
   ver o histórico das validadas.
 

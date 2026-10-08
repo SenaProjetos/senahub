@@ -36,11 +36,14 @@ export function TiView({
   colaboradores,
   ativosSemMaquina,
   podeTi,
+  pendenciasSlot,
 }: {
   maquinas: MaquinaListItem[];
   colaboradores: { id: string; name: string }[];
   ativosSemMaquina: { id: string; nome: string }[];
   podeTi: boolean;
+  /** Itens da TI nas listas de entrada e saída de pessoas (Gestão de Pessoas F4). */
+  pendenciasSlot?: React.ReactNode;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -109,6 +112,8 @@ export function TiView({
           </>
         }
       />
+
+      {pendenciasSlot}
 
       {maquinas.length === 0 ? (
         <Card>

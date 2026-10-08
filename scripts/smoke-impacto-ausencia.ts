@@ -5,6 +5,7 @@
  *
  *   npx tsx --tsconfig tsconfig.server.json scripts/smoke-impacto-ausencia.ts
  */
+import "dotenv/config";
 import { prisma } from "@/lib/prisma";
 import { diaLocal } from "@/modules/ponto/engine";
 import { impactoNaJanela } from "@/modules/planejamento/impacto-ausencia-service";
