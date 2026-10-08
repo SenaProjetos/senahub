@@ -35,8 +35,10 @@ export const COLUNAS_DOCUMENTO: ColunaDocumento[] = [
   { id: "sub", label: "Sub", prioridadeCorte: 2 },
   { id: "tipo", label: "Tipo", prioridadeCorte: 3 },
   { id: "documento", label: "Documento", essencial: true, prioridadeCorte: 0 },
+  // Validação é um ícone colado no nome; a coluna Status é do status documental (pedido do dono, 2026-10-08).
+  { id: "validado", label: "Validação", prioridadeCorte: 3 },
   { id: "revisao", label: "Revisão", prioridadeCorte: 1 },
-  { id: "validado", label: "Validado", prioridadeCorte: 3 },
+  { id: "status", label: "Status", prioridadeCorte: 3 },
   { id: "extensao", label: "Extensões", prioridadeCorte: 2 },
   { id: "papel", label: "Papel", prioridadeCorte: 4 },
   { id: "responsavel", label: "Responsável", prioridadeCorte: 4 },

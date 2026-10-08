@@ -120,15 +120,35 @@ export function VisualizarDwgButton({
       >
         <Eye className={classeIcone} />
       </button>
-      <Dialog open={aberto} onOpenChange={setAberto}>
-        <DialogContent className="flex h-[92svh] w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
-          <DialogHeader className="border-b px-4 py-2">
-            <DialogTitle className="truncate text-sm">{titulo}</DialogTitle>
-            <DialogDescription className="sr-only">Pré-visualização somente leitura do desenho DWG.</DialogDescription>
-          </DialogHeader>
-          {aberto && <DwgViewer url={`/api/dwg/${encodeURIComponent(desenhoId)}/dxf`} />}
-        </DialogContent>
-      </Dialog>
+      <DialogoDwg aberto={aberto} onAbertoChange={setAberto} desenhoId={desenhoId} titulo={titulo} />
     </>
+  );
+}
+
+/**
+ * O visualizador do DWG em diálogo, sem o botão — quem já sabe que a conversão terminou (o título da
+ * linha na aba Arquivos, depois de consultar o estado) abre direto por aqui.
+ */
+export function DialogoDwg({
+  aberto,
+  onAbertoChange,
+  desenhoId,
+  titulo,
+}: {
+  aberto: boolean;
+  onAbertoChange: (aberto: boolean) => void;
+  desenhoId: string;
+  titulo: string;
+}) {
+  return (
+    <Dialog open={aberto} onOpenChange={onAbertoChange}>
+      <DialogContent className="flex h-[92svh] w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
+        <DialogHeader className="border-b px-4 py-2">
+          <DialogTitle className="truncate text-sm">{titulo}</DialogTitle>
+          <DialogDescription className="sr-only">Pré-visualização somente leitura do desenho DWG.</DialogDescription>
+        </DialogHeader>
+        {aberto && <DwgViewer url={`/api/dwg/${encodeURIComponent(desenhoId)}/dxf`} />}
+      </DialogContent>
+    </Dialog>
   );
 }

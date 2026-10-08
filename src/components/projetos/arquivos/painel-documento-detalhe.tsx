@@ -38,14 +38,19 @@ export type OpcaoStatusDocumento = {
 const SEM_FASE = "sem-fase";
 const SEM_STATUS = "sem-status";
 
-/** Detalhe do DocumentoDisciplina: edição é separada por capability e sempre auditada no servidor. */
+/**
+ * Detalhe do DocumentoDisciplina: edição é separada por capability e sempre auditada no servidor.
+ * Sem gatilho próprio: abre pelo ícone de informações da linha ou pelo menu (o clique no título
+ * abre o visualizador do arquivo).
+ */
 export function PainelDocumentoDetalhe({
   linha,
   fases,
   status,
-  aberto: abertoControlado,
+  aberto,
   onAbertoChange,
   onStatusAtualizado,
+  onTituloAtualizado,
 }: {
   linha: LinhaDoc;
   fases: OpcaoFaseDocumento[];
@@ -55,39 +60,23 @@ export function PainelDocumentoDetalhe({
    * esperar o `router.refresh()` da página inteira (reunião de 29/09/2026, "ele não atualiza automático").
    */
   onStatusAtualizado?: (statusId: string | null) => void;
-  /** Controlado por quem lista (o menu de contexto da linha abre o painel por aqui). */
-  aberto?: boolean;
-  onAbertoChange?: (aberto: boolean) => void;
+  /** Mesmo papel do `onStatusAtualizado`, para o título que a linha mostra. */
+  onTituloAtualizado?: (titulo: string | null) => void;
+  /** Controlado por quem lista (ícone de informações e menu de contexto da linha). */
+  aberto: boolean;
+  onAbertoChange: (aberto: boolean) => void;
 }) {
   const router = useRouter();
-  const [abertoInterno, setAbertoInterno] = useState(false);
-  const aberto = abertoControlado ?? abertoInterno;
-  const setAberto = (v: boolean) => {
-    setAbertoInterno(v);
-    onAbertoChange?.(v);
-  };
+  const setAberto = onAbertoChange;
   const [pendente, start] = useTransition();
   const [titulo, setTitulo] = useState(linha.titulo ?? "");
-  // Título recém-salvo vale até a tabela voltar do refresh em segundo plano — sem isso o gatilho
-  // mostraria o nome antigo por alguns segundos e pareceria que não salvou. `undefined` = sem
-  // override; quando `linha.titulo` chega igual, o override deixa de importar.
-  const [tituloSalvo, setTituloSalvo] = useState<string | null | undefined>(undefined);
-  // Linha nova do servidor (nosso refresh ou de outra pessoa) encerra o override — ajuste de
-  // estado durante o render, o padrão do React para "resetar quando a prop muda".
-  const [tituloDaLinha, setTituloDaLinha] = useState(linha.titulo);
-  if (tituloDaLinha !== linha.titulo) {
-    setTituloDaLinha(linha.titulo);
-    setTituloSalvo(undefined);
-  }
-  const tituloExibido = (tituloSalvo !== undefined ? tituloSalvo : linha.titulo) ?? linha.tituloPrancha;
   // Recarrega o histórico logo após salvar, sem esperar as props da linha mudarem.
   const [salvamentos, setSalvamentos] = useState(0);
   const [descricao, setDescricao] = useState(linha.descricao ?? "");
   const [faseId, setFaseId] = useState(linha.faseId ?? SEM_FASE);
   const [statusId, setStatusId] = useState(linha.statusId ?? SEM_STATUS);
 
-  // Aberto POR FORA (menu de contexto da linha) não passa por `abrir()`; sem isto o formulário
-  // viria com o que estava em memória desde a montagem, não com a linha atual.
+  // Ao abrir, o formulário recarrega da linha atual — não do que estava em memória desde a montagem.
   const [estavaAberto, setEstavaAberto] = useState(aberto);
   if (aberto !== estavaAberto) {
     setEstavaAberto(aberto);
@@ -104,14 +93,6 @@ export function PainelDocumentoDetalhe({
       ? [{ id: linha.faseId, sigla: linha.faseSigla ?? "—", nome: linha.faseNome ?? "Fase inativa" }, ...fases]
       : fases;
 
-  function abrir() {
-    setTitulo(linha.titulo ?? "");
-    setDescricao(linha.descricao ?? "");
-    setFaseId(linha.faseId ?? SEM_FASE);
-    setStatusId(linha.statusId ?? SEM_STATUS);
-    setAberto(true);
-  }
-
   function salvarMetadados() {
     start(async () => {
       const resultado = await editarMetadadosDocumento({
@@ -125,7 +106,7 @@ export function PainelDocumentoDetalhe({
         return;
       }
       toast.success("Metadados do documento atualizados.");
-      setTituloSalvo(titulo.trim() || null);
+      onTituloAtualizado?.(titulo.trim() || null);
       setSalvamentos((n) => n + 1);
       atualizarTabela();
     });
@@ -166,21 +147,6 @@ export function PainelDocumentoDetalhe({
 
   return (
     <>
-      {/* Título manual > "Conteúdo" da Lista Mestre > nome do arquivo. Só título ganha peso:
-          quando o gatilho cai no nome, ele fica discreto para a numeração liderar a linha. */}
-      <Button
-        variant="link"
-        className={cn(
-          "block h-auto min-w-0 max-w-full truncate p-0 text-left",
-          tituloExibido ? "font-medium" : "font-normal text-foreground/80",
-        )}
-        onClick={abrir}
-        title={tituloExibido ? `${tituloExibido} — ${linha.nome}` : linha.nome}
-        aria-label={`Abrir detalhes de ${tituloExibido ?? linha.nome}`}
-      >
-        {tituloExibido ?? linha.nome}
-      </Button>
-
       <Sheet open={aberto} onOpenChange={setAberto}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-md">
           <SheetHeader>

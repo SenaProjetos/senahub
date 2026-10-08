@@ -3,14 +3,16 @@
 import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { validarArquivosLote, excluirUploadsLote } from "@/modules/uploads/actions";
+import { validarArquivosLote, excluirUploadsLote, atualizarStatusDocumento } from "@/modules/uploads/actions";
 import { LinkSelecaoArquivosDialog } from "@/components/projetos/link-selecao-arquivos-button";
 import {
   EscopoExclusaoDialog,
   type EscolhaEscopo,
 } from "@/components/projetos/arquivos/escopo-exclusao-dialog";
 import { adicionarDocumentoLista, removerDocumentoLista } from "@/modules/uploads/listas";
+import type { OpcaoStatusDocumento } from "@/components/projetos/arquivos/painel-documento-detalhe";
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
+import { useLote } from "@/components/ui/use-lote";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
@@ -29,8 +31,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { classeDoStatus } from "@/modules/uploads/status-documento";
 import {
   SELECAO_ADICIONAR_LISTA,
+  SELECAO_ALTERAR_STATUS,
   SELECAO_BAIXAR,
   SELECAO_EXCLUIR,
   SELECAO_LINK_PUBLICO,
@@ -40,6 +45,9 @@ import {
 } from "@/modules/uploads/acoes-selecao-documentos";
 
 type ListaDisponivel = { id: string; nome: string };
+
+/** Valor do Select para "Sem status" — o Select não aceita `null` como item. */
+const SEM_STATUS = "sem-status";
 
 /** O que `useAcoesSelecaoDocumentos` devolve: a barra e o menu de contexto comem o mesmo par. */
 export type AcoesSelecaoDocumentos = {
@@ -59,6 +67,9 @@ export type AcoesSelecaoDocumentos = {
  *
  * Baixar (.zip), validar e excluir operam os Uploads da revisão vigente. Desde F2-PR7,
  * adicionar/remover lista opera o DocumentoDisciplina selecionado, sem duplicar arquivo.
+ * Alterar status repete `atualizarStatusDocumento` por documento (`useLote`): a regra de cada um —
+ * "Compartilhado" exige revisão com arquivo validado — continua no servidor, e quem não passa entra
+ * no relatório de falhas com o motivo.
  * A lista de ações é o descritor puro `itensDaSelecaoDeDocumentos` (ADR-0002): a barra e o menu de
  * contexto de uma linha marcada leem o mesmo array. A barra em si é a `BarraSelecao` do sistema.
  */
@@ -69,6 +80,8 @@ export function useAcoesSelecaoDocumentos({
   totalDocumentosSelecionados,
   totalValidaveis,
   podeValidar,
+  documentosStatus,
+  status,
   podeExcluir,
   podeGerirListas,
   podeGerirLink,
@@ -84,6 +97,9 @@ export function useAcoesSelecaoDocumentos({
   /** Quantos dos selecionados ainda podem ser validados (pacote, ainda não validados). */
   totalValidaveis: number;
   podeValidar: boolean;
+  /** Documentos selecionados cujo status a pessoa pode alterar (`LinhaDoc.podeAlterarStatus`); o nome vai ao relatório. */
+  documentosStatus: { id: string; nome: string }[];
+  status: OpcaoStatusDocumento[];
   podeExcluir: boolean;
   /** Espelho visual do gate das Actions; o servidor continua validando o escopo. */
   podeGerirListas: boolean;
@@ -101,6 +117,9 @@ export function useAcoesSelecaoDocumentos({
   // Ids no diálogo de escopo da exclusão (`null` = fechado).
   const [escopo, setEscopo] = useState<string[] | null>(null);
   const [listaDestinoId, setListaDestinoId] = useState<string | null>(null);
+  const [statusAberto, setStatusAberto] = useState(false);
+  const [statusDestino, setStatusDestino] = useState<string | null>(null);
+  const lote = useLote();
 
   const n = selecionados.length;
   const totalDocumentos = totalDocumentosSelecionados ?? n;
@@ -112,6 +131,7 @@ export function useAcoesSelecaoDocumentos({
     totalDocumentos,
     totalValidaveis,
     podeValidar,
+    totalStatusAlteravel: documentosStatus.length,
     podeExcluir,
     podeGerirListas,
     temListas: listas.length > 0,
@@ -220,12 +240,31 @@ export function useAcoesSelecaoDocumentos({
     });
   }
 
+  async function alterarStatus() {
+    if (!statusDestino) return;
+    const statusId = statusDestino === SEM_STATUS ? null : statusDestino;
+    const nomes = new Map(documentosStatus.map((d) => [d.id, d.nome]));
+    const r = await lote.executar({
+      ids: documentosStatus.map((d) => d.id),
+      acao: (documentoId) => atualizarStatusDocumento({ documentoId, statusId }),
+      substantivo: ["documento", "documentos"],
+      verbo: ["atualizado", "atualizados"],
+      rotulo: (id) => nomes.get(id) ?? id,
+    });
+    if (!r) return;
+    setStatusAberto(false);
+    setStatusDestino(null);
+    onLimpar();
+  }
+
   function aoSelecionar(item: AcaoItemAcao) {
     switch (item.id) {
       case SELECAO_BAIXAR:
         return baixar();
       case SELECAO_VALIDAR:
         return validar();
+      case SELECAO_ALTERAR_STATUS:
+        return setStatusAberto(true);
       case SELECAO_ADICIONAR_LISTA:
         return setDialogoListaAberto(true);
       case SELECAO_REMOVER_LISTA:
@@ -275,6 +314,54 @@ export function useAcoesSelecaoDocumentos({
       </DialogContent>
     </Dialog>
 
+    <Dialog
+      open={statusAberto}
+      onOpenChange={(aberto) => {
+        if (lote.pendente) return;
+        setStatusAberto(aberto);
+        if (!aberto) setStatusDestino(null);
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Alterar status documental</DialogTitle>
+          <DialogDescription>
+            {documentosStatus.length === 1
+              ? "O documento selecionado receberá o status escolhido."
+              : `${documentosStatus.length} documentos receberão o status escolhido.`}
+            {documentosStatus.length < totalDocumentos &&
+              ` ${totalDocumentos - documentosStatus.length} da seleção ficam de fora: você não pode alterar o status deles.`}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="status-destino">Status</Label>
+          <Select value={statusDestino} onValueChange={setStatusDestino}>
+            <SelectTrigger id="status-destino" className="w-full">
+              <SelectValue placeholder="Selecione um status…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={SEM_STATUS}>Sem status</SelectItem>
+              {status
+                .filter((opcao) => opcao.ativo)
+                .map((opcao) => (
+                  <SelectItem key={opcao.id} value={opcao.id}>
+                    <span aria-hidden className={cn("inline-block size-2.5 shrink-0 rounded-full border", classeDoStatus(opcao.cor))} />
+                    {opcao.nome}
+                    {opcao.final ? " (final)" : ""}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setStatusAberto(false)} disabled={lote.pendente}>Cancelar</Button>
+          <Button onClick={() => void alterarStatus()} disabled={lote.pendente || !statusDestino}>
+            {lote.progresso ? `Alterando… ${lote.progresso.feitos}/${lote.progresso.total}` : "Alterar status"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
     <EscopoExclusaoDialog
       uploadIds={escopo}
       onFechar={() => setEscopo(null)}
@@ -290,6 +377,7 @@ export function useAcoesSelecaoDocumentos({
           onAbertoChange={setLinkAberto}
         />
       )}
+      {lote.portal}
     </>
   );
 
@@ -298,7 +386,7 @@ export function useAcoesSelecaoDocumentos({
     itensComContagem: itensDaSelecaoDeDocumentos({ ...contexto, comContagem: true }),
     aoSelecionar,
     rotulo,
-    pendente,
+    pendente: pendente || lote.pendente,
     portal,
   };
 }

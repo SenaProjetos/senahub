@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FileX2, SearchX } from "lucide-react";
+import { CircleCheck, CircleDashed, Clock, FileX2, Info, SearchX, ShieldCheck } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -21,6 +21,8 @@ import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { BadgeExtensao } from "@/components/projetos/arquivos/badge-extensao";
 import { useAcoesDocumento } from "@/components/projetos/arquivos/use-acoes-documento";
 import { PainelDocumentoDetalhe, type OpcaoStatusDocumento } from "@/components/projetos/arquivos/painel-documento-detalhe";
+import { TituloDocumento } from "@/components/projetos/arquivos/titulo-documento";
+import { Button } from "@/components/ui/button";
 import type { OpcaoFaseDocumento } from "@/components/projetos/arquivos/seletor-fases-documentos";
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
 import { AcoesMenuItens, BotaoAcoes } from "@/components/ui/acoes-menu";
@@ -35,7 +37,7 @@ import { classeDoStatus } from "@/modules/uploads/status-documento";
 import { ROTULO_SITUACAO, marcasVisiveis } from "@/modules/uploads/revisao-marcada";
 
 /** Colunas opcionais da tabela, na ordem em que aparecem — o nome da pasta atravessa todas. */
-const COLUNAS_OPCIONAIS = ["numero", "fase", "sub", "tipo", "revisao", "validado", "extensao", "papel", "responsavel", "data", "tamanho"];
+const COLUNAS_OPCIONAIS = ["numero", "fase", "sub", "tipo", "validado", "revisao", "status", "extensao", "papel", "responsavel", "data", "tamanho"];
 
 function fmtBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -92,26 +94,61 @@ function MarcasDoCliente({
 /** Par devolvido por `useAcoesDocumento`, já ligado a um documento. */
 type AcoesDaLinha = { itens: AcaoItem[]; aoSelecionar: (item: AcaoItemAcao) => void };
 
-/** Selo de validação — mesma leitura na tabela e no cartão. */
-function BadgeValidacao({ estado }: { estado: ReturnType<typeof estadoValidacao> }) {
+const VALIDACAO = {
+  validado: { icone: CircleCheck, rotulo: "Validado", classe: "text-success" },
+  parcial: { icone: CircleDashed, rotulo: "Validado em parte", classe: "text-warning" },
+  pendente: { icone: Clock, rotulo: "Validação pendente", classe: "text-muted-foreground" },
+} as const;
+
+/**
+ * Validação em ícone, ao lado do nome — a coluna Status passou a ser do status documental. Forma
+ * diferente por estado (não só cor) e o texto no `title` e para leitor de tela.
+ */
+function IconeValidacao({ estado }: { estado: ReturnType<typeof estadoValidacao> }) {
   if (estado === null) {
     return (
       <span className="text-xs text-muted-foreground" title="Arquivos em pasta não passam por validação">
-        —
+        <span aria-hidden>—</span>
+        <span className="sr-only">Sem validação</span>
       </span>
     );
   }
-  if (estado === "validado") {
-    return (
-      <Badge variant="outline" className="border-success/40 bg-success/10 text-success">
-        Validado
-      </Badge>
-    );
-  }
+  const { icone: Icone, rotulo, classe } = VALIDACAO[estado];
   return (
-    <Badge variant="outline" className="text-muted-foreground">
-      {estado === "parcial" ? "Parcial" : "Pendente"}
+    <span className={cn("inline-flex", classe)} title={rotulo}>
+      <Icone className="size-4" aria-hidden />
+      <span className="sr-only">{rotulo}</span>
+    </span>
+  );
+}
+
+/** Etiqueta do status documental — coluna Status na tabela, linha de etiquetas no cartão. */
+function BadgeStatusDocumento({ linha }: { linha: Pick<LinhaDoc, "statusNome" | "statusCor" | "statusFinal"> }) {
+  if (!linha.statusNome) return <span className="text-xs text-muted-foreground">—</span>;
+  return (
+    <Badge
+      variant="outline"
+      className={cn("shrink-0", classeDoStatus(linha.statusCor))}
+      title={linha.statusFinal ? "Status final" : undefined}
+    >
+      {linha.statusNome}
     </Badge>
+  );
+}
+
+/** Abre os detalhes do documento (o título abre o visualizador). */
+function BotaoDetalhes({ nome, onAbrir }: { nome: string; onAbrir: () => void }) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="size-7 text-muted-foreground"
+      onClick={onAbrir}
+      title="Detalhes do documento"
+      aria-label={`Detalhes de ${nome}`}
+    >
+      <Info className="size-4" aria-hidden />
+    </Button>
   );
 }
 
@@ -138,6 +175,7 @@ function CartaoDocumento({
   detalhesAberto,
   onDetalhesChange,
   onStatusAtualizado,
+  onTituloAtualizado,
   exclusoesPendentes,
   fases,
   status,
@@ -156,6 +194,7 @@ function CartaoDocumento({
   detalhesAberto: boolean;
   onDetalhesChange: (aberto: boolean) => void;
   onStatusAtualizado: (statusId: string | null) => void;
+  onTituloAtualizado: (titulo: string | null) => void;
   exclusoesPendentes: Set<string>;
   fases: OpcaoFaseDocumento[];
   status: OpcaoStatusDocumento[];
@@ -188,6 +227,7 @@ function CartaoDocumento({
           aria-hidden
         />
         <div className="min-w-0 flex-1">
+          <TituloDocumento projetoId={projetoId} linha={linha} podeCoordenacao={podeCoordenacao} />
           <PainelDocumentoDetalhe
             linha={linha}
             fases={fases}
@@ -195,6 +235,7 @@ function CartaoDocumento({
             aberto={detalhesAberto}
             onAbertoChange={onDetalhesChange}
             onStatusAtualizado={onStatusAtualizado}
+            onTituloAtualizado={onTituloAtualizado}
           />
           {(linha.titulo ?? linha.tituloPrancha) && (
             <p className="truncate text-xs text-muted-foreground" title={linha.nome}>
@@ -203,6 +244,7 @@ function CartaoDocumento({
           )}
           <p className="text-[11px] text-muted-foreground">{linha.disciplinaNome}</p>
         </div>
+        <BotaoDetalhes nome={linha.nome} onAbrir={() => onDetalhesChange(true)} />
         {acoes && (
           <BotaoAcoes
             itens={acoes.itens}
@@ -217,12 +259,8 @@ function CartaoDocumento({
         {identificacao.length > 0 && (
           <span className="font-mono text-[11px] text-muted-foreground">{identificacao.join(" · ")}</span>
         )}
-        {colunas.has("validado") && <BadgeValidacao estado={validacao} />}
-        {linha.statusNome && (
-          <Badge variant="outline" className={classeDoStatus(linha.statusCor)} title={linha.statusFinal ? "Status final" : undefined}>
-            {linha.statusNome}
-          </Badge>
-        )}
+        {colunas.has("validado") && <IconeValidacao estado={validacao} />}
+        {colunas.has("status") && linha.statusNome && <BadgeStatusDocumento linha={linha} />}
         <MarcasDoCliente linha={linha} />
         {linha.ehBackup && (
           <Badge variant="outline" className="border-warning/40 bg-warning/10 text-warning" title="Backup do modelo">
@@ -345,7 +383,9 @@ export function TabelaDocumentos({
 }) {
   // Status recém-gravado, por documento: a etiqueta muda na hora e o servidor confirma depois. Some quando
   // chega a página nova (padrão "derivar estado da prop": comparar durante o render, sem efeito).
-  const [sobrescritas, setSobrescritas] = useState<Record<string, Pick<LinhaDoc, "statusId" | "statusNome" | "statusFinal" | "statusCor" | "statusChave">>>({});
+  const [sobrescritas, setSobrescritas] = useState<
+    Record<string, Partial<Pick<LinhaDoc, "statusId" | "statusNome" | "statusFinal" | "statusCor" | "statusChave" | "titulo">>>
+  >({});
   const [linhasVistas, setLinhasVistas] = useState(linhas);
   if (linhasVistas !== linhas) {
     setLinhasVistas(linhas);
@@ -356,6 +396,7 @@ export function TabelaDocumentos({
     setSobrescritas((atual) => ({
       ...atual,
       [documentoId]: {
+        ...atual[documentoId],
         statusId: opcao?.id ?? null,
         statusNome: opcao?.nome ?? null,
         statusFinal: opcao?.final ?? false,
@@ -363,6 +404,10 @@ export function TabelaDocumentos({
         statusChave: opcao?.chave ?? null,
       },
     }));
+  }
+  // Título recém-salvo no painel: sem isto a linha mostraria o nome antigo até o refresh voltar.
+  function aplicarTitulo(documentoId: string, titulo: string | null) {
+    setSobrescritas((atual) => ({ ...atual, [documentoId]: { ...atual[documentoId], titulo } }));
   }
   // A página já vem ordenada e recortada do banco (F1-PR10) — o `SortableHead` só empurra
   // `?sort=&dir=` para a URL, e a query do servidor faz o trabalho.
@@ -411,8 +456,8 @@ export function TabelaDocumentos({
   // controla é a tabela — o `portal` do hook não o alcança.
   const [detalhesDe, setDetalhesDe] = useState<string | null>(null);
   const navPastas = useNavegacaoPastas();
-  // Documento mais as opcionais visíveis: o nome da pasta vai do Nº até antes das ações.
-  const colunasDoNome = 1 + COLUNAS_OPCIONAIS.filter((c) => colunas.has(c)).length;
+  // Documento, detalhes e as opcionais visíveis: o nome da pasta vai do Nº até antes das ações.
+  const colunasDoNome = 2 + COLUNAS_OPCIONAIS.filter((c) => colunas.has(c)).length;
 
   const selecaoAcoes = useAcoesSelecaoDocumentos({
     projetoId,
@@ -421,6 +466,10 @@ export function TabelaDocumentos({
     totalDocumentosSelecionados: documentosSelecionados.length,
     totalValidaveis: validaveis,
     podeValidar,
+    documentosStatus: documentosSelecionados
+      .filter((documento) => documento.podeAlterarStatus)
+      .map((documento) => ({ id: documento.id, nome: documento.titulo ?? documento.tituloPrancha ?? documento.nome })),
+    status,
     podeExcluir,
     podeGerirListas,
     podeGerirLink,
@@ -528,6 +577,7 @@ export function TabelaDocumentos({
             detalhesAberto={detalhesDe === l.id}
             onDetalhesChange={(v) => setDetalhesDe(v ? l.id : null)}
             onStatusAtualizado={(id) => aplicarStatus(l.id, id)}
+            onTituloAtualizado={(titulo) => aplicarTitulo(l.id, titulo)}
             exclusoesPendentes={exclusoesPendentes}
             fases={fases}
             status={status}
@@ -572,8 +622,15 @@ export function TabelaDocumentos({
             {colunas.has("sub") && <TableHead>Sub</TableHead>}
             {colunas.has("tipo") && <TableHead>Tipo</TableHead>}
             <SortableHead field="nome">Documento</SortableHead>
+            {colunas.has("validado") && (
+              <TableHead className="w-8" title="Validação">
+                <ShieldCheck className="size-3.5" aria-hidden />
+                <span className="sr-only">Validação</span>
+              </TableHead>
+            )}
+            <TableHead className="w-9"><span className="sr-only">Detalhes</span></TableHead>
             {colunas.has("revisao") && <SortableHead field="revisao" className="text-right">Revisão</SortableHead>}
-            {colunas.has("validado") && <TableHead>Validado</TableHead>}
+            {colunas.has("status") && <TableHead>Status</TableHead>}
             {colunas.has("extensao") && <TableHead>Extensão</TableHead>}
             {colunas.has("papel") && <TableHead>Papel</TableHead>}
             {colunas.has("responsavel") && <TableHead>Responsável</TableHead>}
@@ -630,6 +687,7 @@ export function TabelaDocumentos({
               )}
               <TableCell className="max-w-[32rem]">
                 <div className="flex min-w-0 items-center gap-2">
+                  <TituloDocumento projetoId={projetoId} linha={l} podeCoordenacao={podeCoordenacao} />
                   <PainelDocumentoDetalhe
                     linha={l}
                     fases={fases}
@@ -637,6 +695,7 @@ export function TabelaDocumentos({
                     aberto={detalhesDe === l.id}
                     onAbertoChange={(v) => setDetalhesDe(v ? l.id : null)}
                     onStatusAtualizado={(id) => aplicarStatus(l.id, id)}
+                    onTituloAtualizado={(titulo) => aplicarTitulo(l.id, titulo)}
                   />
                   {/* Com título, o nome do arquivo vira referência secundária; sem título, o
                       próprio nome já é o texto do gatilho e repeti-lo seria ruído. */}
@@ -653,15 +712,6 @@ export function TabelaDocumentos({
                       exclusão solicitada
                     </Badge>
                   )}
-                  {l.statusNome && (
-                    <Badge
-                      variant="outline"
-                      className={cn("shrink-0", classeDoStatus(l.statusCor))}
-                      title={l.statusFinal ? "Status final" : undefined}
-                    >
-                      {l.statusNome}
-                    </Badge>
-                  )}
                   <MarcasDoCliente linha={l} />
                   {/* Pendência original da V2 (item 1 da spec de nomenclatura): backup do modelo
                       (pacote B) e extensão de backup (.qibzip, .tqs…) apareciam sem rótulo. */}
@@ -672,14 +722,22 @@ export function TabelaDocumentos({
                   )}
                 </div>
               </TableCell>
+              {colunas.has("validado") && (
+                <TableCell>
+                  <IconeValidacao estado={validacao} />
+                </TableCell>
+              )}
+              <TableCell>
+                <BotaoDetalhes nome={l.nome} onAbrir={() => setDetalhesDe(l.id)} />
+              </TableCell>
               {colunas.has("revisao") && (
                 <TableCell className="text-right font-mono text-xs tabular-nums">
                   {l.revisaoAtual === null ? "—" : rotuloRevisao(l.revisaoAtual)}
                 </TableCell>
               )}
-              {colunas.has("validado") && (
+              {colunas.has("status") && (
                 <TableCell>
-                  <BadgeValidacao estado={validacao} />
+                  <BadgeStatusDocumento linha={l} />
                 </TableCell>
               )}
               {colunas.has("extensao") && (
