@@ -22,6 +22,21 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Competências, liderança, documentos com validade e painel de pessoas
+
+- **Competências com nível.** Cada pessoa declara o nível (1 a 5) em Minha conta; a coordenação valida. Em
+  **Recursos**, com um projeto filtrado, você diz de que competência o projeto precisa e vê quem cobre com
+  folga no período. [Saiba mais](rh-ponto/competencias-e-desenvolvimento.md)
+- **Liderança, 1:1 e objetivos.** O RH define quem lidera quem; a liderança registra encontros 1:1 e objetivos
+  em **Minha equipe**, escolhendo o que a pessoa também vê. Lembrete quando o 1:1 atrasa.
+- **Documentos com validade.** ASO, CREA/CAU, NR-10, NR-35 e certificações avisam 60, 30 e 7 dias antes de
+  vencer. A própria pessoa pode enviar documentos; o RH confere.
+- **Conferência anual dos dados.** Uma vez por ano, a faixa pede que cada pessoa confira o cadastro.
+- **Painel de gestão de pessoas** (`/rh/gestao`) para RH, sócios e coordenação, com sinais de atenção
+  que sempre mostram de onde vêm. [Saiba mais](rh-ponto/gestao-pessoas.md)
+
+---
+
 ## Cada pessoa completa o próprio cadastro
 
 - **O RH pede, a pessoa preenche.** Na ficha (**Pedir atualização**) ou para todos com cadastro incompleto

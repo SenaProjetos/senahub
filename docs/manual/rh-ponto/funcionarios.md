@@ -41,6 +41,17 @@ um), **reenvia o lembrete** ou **cancela** — pelo botão direito ou pelo `...`
 nada mais depende da pessoa, e quem pediu recebe um aviso. O sistema nunca bloqueia o acesso por causa do
 pedido: CLT precisa continuar batendo ponto.
 
+**Conferência anual:** **Pedir a todos que confiram os dados** abre um pedido de conferência (a pessoa vê o
+resumo e clica em **Está tudo certo**). Depois dessa primeira rodada, o sistema pede de novo sozinho 12 meses
+após cada confirmação. Completar o cadastro a pedido também conta como conferido.
+
+## Documentos com validade
+
+Na aba **Cadastro**, cada documento pode ter **validade** (ASO, CREA/CAU, NR-10, NR-35, certificações). Pelo
+botão direito ou `...`: **Definir validade**, **Marcar como conferido** (para o que a pessoa enviou) e
+**Remover**. A pessoa e o RH recebem aviso 60, 30 e 7 dias antes e no vencimento — uma vez por faixa; trocar
+a data rearma os avisos. Vencido só alerta.
+
 ## Desligamento
 
 Quando alguém deixa o escritório, **não desative o usuário**: registre o desligamento na ficha

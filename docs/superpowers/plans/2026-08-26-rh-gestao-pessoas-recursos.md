@@ -1,6 +1,6 @@
 # Gestão de Pessoas e Recursos — integração das capacidades existentes
 
-**Data:** 2026-08-26 · **Status:** em execução — F0 e F1 entregues (base em 2026-08-27; F1.3–F1.5 em 2026-10-04, ver §5 F1); decisões do dono em §9.1 (2026-10-05); F4 entregue em 2026-10-08 (§9.2); próximas F2 e F3 · **Branch alvo:** `dev`
+**Data:** 2026-08-26 · **Status:** em execução — F0 e F1 entregues (base em 2026-08-27; F1.3–F1.5 em 2026-10-04, ver §5 F1); decisões do dono em §9.1 (2026-10-05); F4 entregue em 2026-10-08 (§9.2); F2, F3, F5 e F6 entregues em 2026-10-08 (§9.3) — plano concluído · **Branch alvo:** `dev`
 
 ## 1. Contexto e inventário verificado
 
@@ -270,6 +270,23 @@ marcou a decisão final, vale o voto dele (marcado *voto*).
 | F6 — acesso ao painel | **RH, sócios e coordenação** |
 | F6 — sinais | Os cinco |
 | F6 — recorrência | 3 semanas seguidas |
+
+### 9.3 Entrega de F2, F3, F5, F6 e reconfirmação anual (2026-10-08, branch `feat/rh-gestao-f2-f6`)
+
+- **F2** (`c6bfcd2a`): nível 1–5, catálogo proposto/publicado, necessidade por projeto em /recursos, aba Competências.
+  Seed só com COSCIP-PE. Sem validade de competência (decisão). Busca de cobertura considera folga na janela.
+- **F3** (`dfd4c838`): liderança datada, objetivos, 1:1 com visibilidade por registro, Minha equipe, lembrete sem
+  conteúdo. **Desvio:** o gate do RH ficou em `HR_ADMIN_ROLES` (como o resto do RH), sem a permissão nova
+  `rh:desenvolvimento` do §5 F3 — criar o par exigiria migração de perfis só para repetir o mesmo conjunto.
+- **F5** (`00f23db1`): validade + conferência de documentos, avisos 60/30/7/vencido, envio pela própria pessoa (ideia
+  de 2026-10-08). **Desvio:** o "calendário de ausências na Pessoa 360" ficou com a aba Ausências que já existe; a
+  análise de impacto da aprovação já foi entregue na F1. Correção de segurança junto: a ação do RH confiava no caminho
+  do arquivo vindo do navegador.
+- **Reconfirmação anual** (`93a2ed6a`): pedido tipo reconfirmar, automático 12 meses depois da última confirmação.
+- **F6** (`ee3981e0`): /rh/gestao com os cinco sinais e clima com mínimo de 3. Lacunas do painel olham só o nível
+  (a folga fica para /recursos, que tem a janela).
+- Smokes: `smoke:desenvolvimento`, `smoke:documentos-validade`, `smoke:pedido-dados`. Nada visto em navegador.
+- Deploy: `migrate deploy` (4 migrações: 20261008170000, 190000, 210000, 230000) + `db:seed` (COSCIP-PE).
 
 ### 9.2 Plano da F4 (entrada e saída)
 

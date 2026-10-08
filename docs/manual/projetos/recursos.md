@@ -70,6 +70,13 @@ análise inteira** (o pior dia de cada uma, somando a alocação digitada e as h
 aprovados), com as habilidades delas e os dias de ausência no período. É só sugestão: nada muda sem
 você abrir e ajustar a alocação.
 
+## Competências que o projeto precisa
+
+Com um **projeto** escolhido no filtro, aparece o quadro **Competências que o projeto precisa**: adicione a
+competência e o nível mínimo. Para cada necessidade, a tela lista até 5 pessoas que têm o nível **e** folga na
+janela de análise — validadas primeiro; "não validado" marca o nível só declarado. Ninguém cobrindo aparece
+como lacuna. Veja [Competências e desenvolvimento](../rh-ponto/competencias-e-desenvolvimento.md).
+
 ## Aviso de férias ou ausência que afeta alocação
 
 Quando o RH **aprova** férias ou um abono — ou lança férias direto, ou uma nova data de férias entra em

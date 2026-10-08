@@ -38,9 +38,25 @@ Centralizar as solicitações e acompanhamentos pessoais de RH de cada colaborad
 
 ## Meus documentos
 
-Em **Minha conta → Cadastro → Documentos** você vê, abre e baixa os documentos que o RH anexou ao seu
-cadastro (contrato, ASO, RG, comprovantes…). Enviar e excluir continuam com o RH. Cada abertura e download
-fica registrado.
+Em **Minha conta → Cadastro → Documentos** você vê, abre e baixa os documentos do seu cadastro (contrato,
+ASO, RG, comprovantes…). Cada abertura e download fica registrado.
+
+- **Enviar:** escolha o tipo, dê um nome e anexe. Para ASO, CREA/CAU, NR-10, NR-35 e certificações, informe a
+  validade. O que você envia fica **aguardando conferência do RH**; até lá, você pode remover.
+- **Validade:** você recebe aviso 60, 30 e 7 dias antes e quando o documento vence (desligável em
+  Preferências → Documento vencendo). Vencido só alerta, não bloqueia nada.
+
+## Confira seus dados (uma vez por ano)
+
+A faixa **"Confira se seus dados de cadastro continuam certos"** aparece quando o RH pede a conferência e,
+depois, sozinha a cada 12 meses. Em **Minha conta**, veja o resumo e clique em **Está tudo certo** — ou corrija
+em **Editar meus dados** e depois confirme.
+
+## Competências e desenvolvimento
+
+Em **Minha conta → Competências** você declara seu nível (1 a 5) nas competências do catálogo; a coordenação
+valida. Em **Minha conta → Desenvolvimento** você vê seus objetivos e os 1:1 que a sua liderança
+compartilhou. Veja [Competências e desenvolvimento](competencias-e-desenvolvimento.md).
 
 ## Completar meus dados (pedido do RH)
 
