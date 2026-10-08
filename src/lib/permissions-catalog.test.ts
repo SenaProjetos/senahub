@@ -72,3 +72,17 @@ describe("abre (acesso a tela)", () => {
     expect(telaQueAbre("projetos", "gerir")).toBeNull();
   });
 });
+
+describe("rh:produtividade", () => {
+  it("é leitura e abre a tela Produtividade", () => {
+    expect(ehLeitura("rh", "produtividade")).toBe(true);
+    expect(telaQueAbre("rh", "produtividade")).toBe("Produtividade");
+  });
+  it("rh:cadastro não reivindica mais a tela Produtividade", () => {
+    expect(telaQueAbre("rh", "cadastro")).not.toContain("Produtividade");
+  });
+  it("o menu de Produtividade exige rh:produtividade", () => {
+    const item = NAV_GROUPS.flatMap((g) => g.items).find((i) => i.href === "/rh/produtividade");
+    expect(item?.permissao).toBe("rh:produtividade");
+  });
+});

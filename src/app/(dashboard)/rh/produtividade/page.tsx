@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { requireRole } from "@/lib/session";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+import { requirePermission } from "@/lib/session";
 import {
   horasDiariasProjetistas,
   produtividadeProjetistas,
@@ -15,7 +14,7 @@ export default async function ProdutividadePage({
 }: {
   searchParams: Promise<{ g?: string }>;
 }) {
-  await requireRole(...HR_ADMIN_ROLES);
+  await requirePermission("rh", "produtividade");
   const { g } = await searchParams;
   const granularidade: Granularidade = g === "mes" ? "mes" : "semana";
   const [dados, horasDiarias] = await Promise.all([

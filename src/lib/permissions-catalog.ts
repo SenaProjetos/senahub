@@ -421,7 +421,10 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     recurso: "rh",
     label: "RH — Pessoas",
     acoes: [
-      { acao: "cadastro", label: "Ver a ficha de pessoas (cadastro, ausências, escala)", abre: "Pessoas · RH — admin · Produtividade · Pessoas Jurídicas", leitura: true },
+      { acao: "cadastro", label: "Ver a ficha de pessoas (cadastro, ausências, escala)", abre: "Pessoas · RH — admin · Pessoas Jurídicas", leitura: true },
+      // 2026-10-07: a tela era `requireRole(HR_ADMIN_ROLES)` e o menu pedia `rh:cadastro` — que o
+      // coordenador não tem, então a página abria para ele mas o item sumia. Par próprio resolve os dois.
+      { acao: "produtividade", label: "Ver horas e produtividade dos projetistas", abre: "Produtividade", leitura: true },
       { acao: "folha", label: "Ver dados de folha/salário na ficha da pessoa", abre: "Folha CLT", leitura: true },
       { acao: "catalogos", label: "Administrar os catálogos de cargos e departamentos", abre: "Cargos e departamentos" },
     ],
