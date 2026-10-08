@@ -239,6 +239,7 @@ model User {
   holerites                     Holerite[]
   holeritesAssinados            Holerite[]                  @relation("HoleriteAssinante")
   ciclosRh                      OnboardingProcesso[]
+  pedidosDados                  PedidoDadosCadastro[]
   notasFiscais                  NotaFiscalPJ[]              @relation("NfUser")
   nfsValidadas                  NotaFiscalPJ[]              @relation("NfValidador")
   documentoVersoes              DocumentoModeloVersao[]
@@ -6619,6 +6620,37 @@ model HoleriteItem {
 
   @@index([holeriteId])
   @@map("holerite_item")
+}
+
+enum StatusPedidoDados {
+  aberto
+  atendido
+  cancelado
+}
+
+/// O RH pede à pessoa que preencha os próprios dados que faltam no cadastro. Não guarda a lista
+/// de campos: "o que falta" é sempre `camposFaltantes` (completude.ts) filtrado pelo que a pessoa
+/// pode preencher (`rh/cadastro/preencher.ts`). Enquanto houver um `aberto`, a pessoa vê a faixa
+/// no topo. No máximo um aberto por pessoa: índice PARCIAL `pedido_dados_um_aberto`, criado na
+/// migration 20261008150000 — o Prisma não expressa índice parcial, então ele não aparece aqui.
+model PedidoDadosCadastro {
+  id              String            @id @default(cuid())
+  userId          String
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Quem pediu (RH). Sem FK: o histórico vale mesmo se a conta de quem pediu sair.
+  solicitadoPorId String
+  mensagem        String?
+  /// Prazo opcional. Vencido, a faixa fica em destaque; o sistema nunca bloqueia (CLT bate ponto).
+  prazo           DateTime?         @db.Date
+  status          StatusPedidoDados @default(aberto)
+  criadoEm        DateTime          @default(now())
+  atendidoEm      DateTime?
+  /// Último lembrete reenviado pelo RH.
+  lembradoEm      DateTime?
+
+  @@index([userId, status])
+  @@index([status])
+  @@map("pedido_dados_cadastro")
 }
 
 /// Entrada (onboarding) ou saída (offboarding) de uma pessoa — Gestão de Pessoas F4.

@@ -25,11 +25,13 @@ import { Pessoa360View } from "@/components/rh/pessoa-360-view";
 import { EditarMeusDados } from "@/components/rh/editar-meus-dados";
 import { PreferenciasView } from "@/components/configuracoes/preferencias-view";
 import { CiclosPessoa } from "@/components/rh/ciclos-pessoa";
+import { CompletarMeusDados } from "@/components/rh/completar-meus-dados";
+import { situacaoDaPessoa } from "@/modules/rh/cadastro/pedido-service";
 import { ciclosDaPessoa, equipamentosDaPessoa } from "@/modules/rh/ciclo/queries";
 
 export const metadata: Metadata = { title: "Minha conta" };
 
-export default async function MinhaFichaPage() {
+export default async function MinhaFichaPage({ searchParams }: { searchParams: Promise<{ completar?: string }> }) {
   const user = await requireUser();
   if (user.role === "cliente") redirect("/portal");
   const id = user.id;
@@ -77,6 +79,9 @@ export default async function MinhaFichaPage() {
   const [ciclos, equipamentos, ehTi] = isColaborador
     ? await Promise.all([ciclosDaPessoa(id), equipamentosDaPessoa(id), can(user, "patrimonio", "ti")])
     : [[], [], false];
+  // "Completar meus dados": o que falta e a pessoa pode preencher (abre sozinho vindo da faixa).
+  const situacaoDados = isColaborador ? await situacaoDaPessoa(id) : null;
+  const abrirCompletar = (await searchParams).completar === "1";
 
   const escala = escalaUsuario && escalaPadrao
     ? { temOverride: escalaUsuario.temOverride, dias: escalaUsuario.dias, padraoDias: escalaPadrao }
@@ -88,6 +93,7 @@ export default async function MinhaFichaPage() {
 
       {acesso && <MeuAcesso acesso={acesso} />}
 
+      {situacaoDados && <CompletarMeusDados situacao={situacaoDados} abrir={abrirCompletar} />}
       {cadastro && <EditarMeusDados atual={cadastro} pendente={pendente} />}
       {/* Auto-serviço: própria ficha, com salário próprio visível e sem links de gestão.
           A aba Preferências recebe a PreferenciasView (foto/tema/notificações). */}

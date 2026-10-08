@@ -5,7 +5,8 @@ import { can, canRole } from "@/lib/permissions";
 import { HR_ADMIN_ROLES } from "@/lib/roles";
 import { listarPessoas } from "@/modules/rh/pessoas/queries";
 import { opcoesCadastroFuncionario } from "@/modules/rh/funcionarios/queries";
-import { alteracoesPendentes } from "@/modules/rh/cadastro/queries";
+import { alteracoesPendentes, pedidosDeDados } from "@/modules/rh/cadastro/queries";
+import { PedidosDadosAdmin } from "@/components/rh/pedido-dados";
 import { contasPendentesTodas } from "@/modules/rh/contas/queries";
 import { PessoasLista } from "@/components/rh/pessoas-lista";
 import { PendenciasCadastro } from "@/components/rh/pendencias-cadastro";
@@ -22,12 +23,14 @@ export default async function PessoasPage() {
   // completude da lista (ver `completude.ts` § avaliarFolha) — este viewer não pode corrigi-los.
   const podeFolha =
     (await can(user, "rh", "folha")) || (user.ehSocio === true && (await canRole("supervisor", "rh", "folha")));
-  const [pessoas, pendencias, pendenciasContas, opcoes] = await Promise.all([
+  const [pessoas, pendencias, pendenciasContas, opcoes, pedidos] = await Promise.all([
     listarPessoas(podeFolha),
     alteracoesPendentes(),
     // Contas bancárias são dado de folha: mesmo gate de `contasDoColaborador`.
     podeFolha ? contasPendentesTodas() : Promise.resolve([]),
     podeCriar ? opcoesCadastroFuncionario() : Promise.resolve(null),
+    // "Atualize seus dados": pedir e acompanhar é do RH (mesmo gate das ações).
+    podeCriar ? pedidosDeDados() : Promise.resolve(null),
   ]);
   return (
     <div className="space-y-5">
@@ -49,6 +52,7 @@ export default async function PessoasPage() {
       />
       <PendenciasCadastro pendencias={pendencias} />
       <PendenciasContas pendencias={pendenciasContas} />
+      {pedidos && <PedidosDadosAdmin pedidos={pedidos} />}
       <PessoasLista pessoas={pessoas} />
     </div>
   );

@@ -39,6 +39,7 @@ npm run smoke:pastas-cliente       # pastas Compartilhado/Liberado para obra: re
 npm run smoke:recursos-eap    # EAP: herança, horas no motor, cards, carga/sobrecarga, custo previsto, Valor Agregado
 npm run smoke:impacto-ausencia  # aviso de férias/abono × alocação (só leitura): janela de hoje em diante, digitada × cronograma (D17)
 npm run smoke:ciclo-rh       # listas de entrada/saída: prazo pela âncora, um aberto por tipo (índice parcial), quem marca o quê, lembrete 1×/dia, recontratação
+npm run smoke:pedido-dados   # "Atualize seus dados": faixa, um aberto por pessoa, vazio comum direto × CPF/RG ao RH, fechamento (restaura a pessoa)
 npm run smoke:ponto-tarefa    # ponto com tarefa: lista curta, validação, edição do dia, apontado × previsto
 npm run smoke:pagamento-fase  # pagamento por fase: pool congelado, write-back por diferença, SLA, marco → aprovar fase
 npm run smoke:previsao-recebimento  # contrato por entrega: previsão no caixa, marco anda, faturar, fora do aging
@@ -606,6 +607,15 @@ cycles. Pure rules in `regras.ts` (who marks what: RH any, `patrimonio:ti` the T
 coordenador fall to RH until F3). Nothing opens by itself: the ficha offers the exit list after `desligarColaborador`.
 Daily reminder `lembrete.ts` (inside `rotinasRhDiarias`) claims each overdue item with `updateMany` on `lembradoEm`
 (once a day), one notification per recipient, categoria `lifecycle_rh`. Models are seeded create-only by name.
+
+**"Atualize seus dados"** (`modules/rh/cadastro/preencher.ts` pure + `pedido-service.ts` + `pedido-actions.ts`, spec
+`docs/superpowers/specs/2026-10-08-pedido-atualizacao-dados.md`): RH opens a `PedidoDadosCadastro` (one `aberto` per person,
+partial unique index `pedido_dados_um_aberto`); while it is open and something depends on the person, the dashboard layout
+renders `FaixaPedidoDados` above the top bar (`Shell` prop `faixa`) — never blocks. "What is missing" is ALWAYS
+`camposFaltantes` (completude.ts) filtered by `CAMPOS_PREENCHIVEIS`; the request stores no field list. The person only FILLS
+empty fields: plain ones apply at once, CPF/RG go to `cadastroPendente.preenchimentos` (applied on approval only if still
+empty); changing an existing value stays in the Fase 4 flow. A later `proporAlteracaoCadastro` must keep `preenchimentos`.
+The request closes (`fecharSeAtendido`) on fill and in `rotinasRhDiarias`.
 
 **Cross-module pages (not their own module folder):** `/recursos` = resource-allocation matrix built from `modules/planejamento/queries.ts` (`matrizRecursos`, `cargaSemanalPorRecurso`) + `modules/rh/habilidades/queries.ts`, gated `recursos:ver`/`recursos:gerir`.
 

@@ -24,6 +24,23 @@ Manter o **cadastro completo** dos colaboradores do escritório.
 - **Templates de onboarding** para aplicar ao admitir.
 - Vínculo com **Pessoas Jurídicas** (para prestadores PJ).
 
+## Pedir atualização de dados
+
+Em vez de o RH preencher o cadastro de todo mundo, peça para cada pessoa completar o próprio:
+
+- **Uma pessoa:** na ficha, aba **Cadastro**, botão **Pedir atualização** (prazo e mensagem opcionais).
+- **Todos de uma vez:** em **RH → Pessoas**, **Pedir a quem tem cadastro incompleto**. Vai só para quem tem
+  algo que ela mesma pode preencher e ainda não tem pedido aberto.
+
+A pessoa vê uma faixa no topo de toda tela até completar, e recebe um aviso. O que ela preenche entra na hora,
+exceto **CPF e RG**, que caem na fila **Alterações de cadastro para validar** (marcados "conferir documento").
+Salário, cargo, departamento, admissão e PJ vinculada continuam sendo do RH.
+
+Em **RH → Pessoas → Pedidos de atualização de dados** você acompanha os pedidos abertos (quanto falta em cada
+um), **reenvia o lembrete** ou **cancela** — pelo botão direito ou pelo `...`. O pedido fecha sozinho quando
+nada mais depende da pessoa, e quem pediu recebe um aviso. O sistema nunca bloqueia o acesso por causa do
+pedido: CLT precisa continuar batendo ponto.
+
 ## Desligamento
 
 Quando alguém deixa o escritório, **não desative o usuário**: registre o desligamento na ficha

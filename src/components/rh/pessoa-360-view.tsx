@@ -90,6 +90,8 @@ export type Pessoa360Props = {
   ultimoMesFechadoBanco?: { ano: number; mes: number } | null;
   /** Aba "Entrada e saída" (Gestão de Pessoas F4) — `CiclosPessoa`, montado pela página. */
   ciclosSlot?: React.ReactNode;
+  /** Topo da aba Cadastro: "Pedir atualização de dados" (RH) — `PedidoDadosFicha`. */
+  pedidoDadosSlot?: React.ReactNode;
 };
 
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -132,7 +134,7 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
   );
 }
 
-export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, controlaJornada = false, holerites, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], cargos = [], departamentos = [], contas = null, contaPendente = null, preferenciasSlot, historicoSlot, overrides = [], podeGerirAcesso = false, ultimoMesFechadoBanco = null, ciclosSlot }: Pessoa360Props) {
+export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, controlaJornada = false, holerites, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], cargos = [], departamentos = [], contas = null, contaPendente = null, preferenciasSlot, historicoSlot, overrides = [], podeGerirAcesso = false, ultimoMesFechadoBanco = null, ciclosSlot, pedidoDadosSlot }: Pessoa360Props) {
   // Cadastro no formato do EditarCadastroDialog (junta os escalares + o vínculo PJ do cabeçalho).
   const cadastroDialog: Cadastro | null = cadastro
     ? {
@@ -336,6 +338,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
         {cadastro && (
           <TabsContent value="cadastro">
             <Card><CardContent className="space-y-5 pt-6">
+              {pedidoDadosSlot}
               {podeEditarCadastro && cadastroDialog && (
                 <div className="flex justify-end">
                   <EditarCadastroDialog

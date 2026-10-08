@@ -36,6 +36,20 @@ Centralizar as solicitações e acompanhamentos pessoais de RH de cada colaborad
   **Minha conta → Entrada e saída**. Veja [Entrada e saída de pessoas](entrada-e-saida.md).
 - **Humor:** registrar como está se sentindo (feedback de clima).
 
+## Completar meus dados (pedido do RH)
+
+Quando o RH pede, aparece no topo de todas as telas a faixa **"O RH pediu para você completar seus
+dados"**, com quantas informações faltam. Ela não bloqueia nada — você continua batendo ponto e usando o
+sistema normalmente.
+
+- Clique em **Atualizar agora** (ou vá em **Minha conta**) e use **Completar meus dados**. Só aparecem os
+  campos **vazios** do seu cadastro.
+- O que você preenche vale na hora, **exceto CPF e RG**, que o RH confere antes de entrar no cadastro.
+- **Conta bancária** tem cadastro próprio: aba **Cadastro → Contas bancárias**.
+- Cargo, departamento, salário e data de admissão quem completa é o RH.
+- Para **mudar** um dado que já existe, use **Editar meus dados** (passa pela validação do RH).
+- A faixa some quando não falta mais nada da sua parte. Se tiver prazo e ele passar, ela fica em destaque.
+
 ## Para prestadores PJ (projetista_pj / freelancer)
 
 - **Notas fiscais (NF):** enviar suas NFs (número, valor, arquivo) para validação pela

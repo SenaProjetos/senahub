@@ -606,7 +606,7 @@ export async function snapshotLicitacaoMensal() {
 }
 
 /** Rotinas noturnas de RH/comercial: propostas vencidas e férias que iniciam hoje. */
-export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: number; contratosEquipe: number; vinculosEncerrados: number; acessosEncerrados: number; itensCicloAtrasados: number }> {
+export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: number; contratosEquipe: number; vinculosEncerrados: number; acessosEncerrados: number; itensCicloAtrasados: number; pedidosDadosFechados: number }> {
   // Fronteiras em meia-noite UTC: `validade`/`dataInicio` são colunas de data
   // (00:00Z). Com meia-noite local (03:00Z) a proposta vencia um dia antes.
   const hoje = inicioDoDiaUtc();
@@ -648,7 +648,11 @@ export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: n
   // Listas de entrada e saída (F4): item atrasado avisa o dono e o RH, uma vez por dia.
   const { lembrarItensCicloAtrasados } = await import("@/modules/rh/ciclo/lembrete");
   const ciclos = await lembrarItensCicloAtrasados(hoje);
-  return { propostas: props.length, ferias: fer.length, contratosEquipe, ...deslig, itensCicloAtrasados: ciclos.itens };
+  // "Atualize seus dados": fecha o pedido que ficou atendido por outro caminho (RH editou a
+  // ficha, conta bancária aprovada) — a faixa já some sozinha; aqui o status e o aviso a quem pediu.
+  const { fecharPedidosAtendidos } = await import("@/modules/rh/cadastro/pedido-service");
+  const pedidosDadosFechados = await fecharPedidosAtendidos();
+  return { propostas: props.length, ferias: fer.length, contratosEquipe, ...deslig, itensCicloAtrasados: ciclos.itens, pedidosDadosFechados };
 }
 
 /** Diário: grava a foto dos KPIs do dashboard (série histórica). */

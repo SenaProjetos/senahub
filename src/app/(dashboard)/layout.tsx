@@ -19,6 +19,8 @@ import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
 import { DisciplinasIconeProvider } from "@/components/projetos/disciplina-icone";
 import { mapaIconesDisciplina } from "@/modules/projetos/queries";
 import { GOOGLE_FONTS_HREF } from "@/modules/documentos/fontes-tipograficas";
+import { faixaDoUsuario } from "@/modules/rh/cadastro/pedido-service";
+import { FaixaPedidoDados } from "@/components/shell/faixa-pedido-dados";
 
 export default async function DashboardLayout({
   children,
@@ -37,9 +39,12 @@ export default async function DashboardLayout({
   // A tela /assinar-holerite também vive no grupo (auth), fora deste layout.
   if (await precisaAssinarHolerite(user)) redirect("/assinar-holerite");
 
-  const [iconesDisciplina, prefs] = await Promise.all([
+  const [iconesDisciplina, prefs, faixaDados] = await Promise.all([
     mapaIconesDisciplina(),
     getPreferencias(user.id),
+    // "Atualize seus dados": um findFirst indexado por navegação; a situação só é calculada
+    // quando há pedido aberto. Cliente nunca recebe pedido.
+    user.role === "cliente" ? Promise.resolve(null) : faixaDoUsuario(user.id),
   ]);
   // Chaves `tour_visto:*` já concluídas — evita reabrir guias que o usuário já viu.
   const toursVistos = Object.entries(prefs)
@@ -109,7 +114,7 @@ export default async function DashboardLayout({
     <ConfirmProvider>
      <OnboardingProvider vistosIniciais={toursVistos}>
      <DisciplinasIconeProvider mapa={iconesDisciplina}>
-      <Shell nav={nav} user={user}>
+      <Shell nav={nav} user={user} faixa={faixaDados ? <FaixaPedidoDados {...faixaDados} /> : undefined}>
         {/* Google Fonts do catálogo de documentos: carregam no editor e no preview/PDF
             (o Puppeteer imprime a própria página de preview, que vive neste layout). */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />

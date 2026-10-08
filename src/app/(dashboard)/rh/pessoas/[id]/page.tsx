@@ -21,6 +21,8 @@ import { escalaUsuarioGrade, escalaPadraoDoUsuario } from "@/modules/rh/escalas/
 import { overridesDeUsuario } from "@/modules/perfis/queries";
 import { Pessoa360View } from "@/components/rh/pessoa-360-view";
 import { CiclosPessoa } from "@/components/rh/ciclos-pessoa";
+import { PedidoDadosFicha } from "@/components/rh/pedido-dados";
+import { pedidoDaPessoa } from "@/modules/rh/cadastro/queries";
 import { ciclosDaPessoa, equipamentosDaPessoa, opcoesDeCicloDaPessoa } from "@/modules/rh/ciclo/queries";
 
 export const metadata: Metadata = { title: "Ficha da pessoa" };
@@ -105,6 +107,8 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
   // Entrada e saída (F4): o RH abre e cancela listas; quem vê a ficha marca o que é dele.
   const ehRh = HR_ADMIN_ROLES.includes(user.role);
   const temCiclos = pessoa.role !== "cliente";
+  // "Atualize seus dados": o RH pede à pessoa o que ela mesma pode preencher.
+  const pedidoDados = ehRh && isCadastro ? await pedidoDaPessoa(id) : null;
   const [ciclos, opcoesCiclo, equipamentos] = temCiclos
     ? await Promise.all([
         ciclosDaPessoa(id),
@@ -138,6 +142,7 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
       overrides={overrides}
       podeGerirAcesso={podeGerirAcesso}
       ultimoMesFechadoBanco={mesFechadoBanco}
+      pedidoDadosSlot={pedidoDados ? <PedidoDadosFicha userId={id} pedido={pedidoDados} /> : undefined}
       ciclosSlot={
         temCiclos && (ehRh || ciclos.length > 0) ? (
           <CiclosPessoa

@@ -22,6 +22,19 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Cada pessoa completa o próprio cadastro
+
+- **O RH pede, a pessoa preenche.** Na ficha (**Pedir atualização**) ou para todos com cadastro incompleto
+  de uma vez, em **RH → Pessoas**. Prazo e mensagem são opcionais.
+- **Faixa no topo.** Quem recebeu o pedido vê "O RH pediu para você completar seus dados" em todas as
+  telas, com o botão **Atualizar agora**. Não bloqueia nada.
+- **Só o que falta.** O formulário mostra apenas os campos vazios. Vale na hora, exceto CPF e RG, que o RH
+  confere antes.
+- **Acompanhamento.** O RH vê quem já respondeu e o que ainda falta, reenvia o lembrete ou cancela.
+  [Saiba mais](rh-ponto/funcionarios.md#pedir-atualização-de-dados)
+
+---
+
 ## Entrada e saída de pessoas: listas com dono e prazo
 
 - **Admissão e desligamento organizados.** A ficha da pessoa ganhou a aba **Entrada e saída**: o RH abre a

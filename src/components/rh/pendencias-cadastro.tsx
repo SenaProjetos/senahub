@@ -6,6 +6,10 @@ import { toast } from "sonner";
 import { Check, X, ShieldAlert } from "lucide-react";
 import { aprovarAlteracaoCadastro, rejeitarAlteracaoCadastro } from "@/modules/rh/cadastro/actions";
 import { LABEL_CAMPO, CAMPO_SENSIVEL } from "@/modules/rh/cadastro/whitelist";
+import { LABEL_PREENCHIVEL } from "@/modules/rh/cadastro/preencher";
+
+/** CPF e RG chegam por "Atualize seus dados" (campo vazio preenchido pela pessoa): sempre conferir. */
+const SENSIVEL = (campo: string) => CAMPO_SENSIVEL.has(campo) || campo === "cpf" || campo === "rg";
 import { formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -76,12 +80,12 @@ export function PendenciasCadastro({ pendencias }: { pendencias: Pendencia[] }) 
               <ul className="space-y-1 text-sm">
                 {p.alteracoes.map((a) => (
                   <li key={a.campo} className="flex flex-wrap items-center gap-x-2">
-                    <span className="text-muted-foreground">{LABEL_CAMPO[a.campo] ?? a.campo}:</span>
+                    <span className="text-muted-foreground">{LABEL_CAMPO[a.campo] ?? LABEL_PREENCHIVEL[a.campo] ?? a.campo}:</span>
                     <span className="text-muted-foreground line-through">{a.atual || "(vazio)"}</span>
                     <span aria-hidden>→</span>
                     <span className="font-medium">{a.novo || "(vazio)"}</span>
-                    {CAMPO_SENSIVEL.has(a.campo) && (
-                      <span className="inline-flex items-center gap-1 text-xs text-warning"><ShieldAlert className="size-3" /> bancário</span>
+                    {SENSIVEL(a.campo) && (
+                      <span className="inline-flex items-center gap-1 text-xs text-warning"><ShieldAlert className="size-3" /> {CAMPO_SENSIVEL.has(a.campo) ? "bancário" : "conferir documento"}</span>
                     )}
                   </li>
                 ))}
