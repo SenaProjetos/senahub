@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CalendarClock, Landmark, Building2, KeyRound, UserRound, ClipboardList, CalendarRange, Clock, Receipt, SlidersHorizontal, ListChecks, GraduationCap } from "lucide-react";
+import { CalendarClock, Landmark, Building2, KeyRound, UserRound, ClipboardList, CalendarRange, Clock, Receipt, SlidersHorizontal, ListChecks, GraduationCap, Sprout } from "lucide-react";
 import { brl, formatarData } from "@/lib/utils";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { CONTRATACAO_LABELS, SETOR_LABELS } from "@/modules/usuarios/vinculo/labels";
@@ -94,6 +94,8 @@ export type Pessoa360Props = {
   pedidoDadosSlot?: React.ReactNode;
   /** Aba "Competências" (F2) — `CompetenciasPessoa`, montado pela página. */
   competenciasSlot?: React.ReactNode;
+  /** Aba "Desenvolvimento" (F3) — `DesenvolvimentoPessoa`, já recortado pelo papel de quem vê. */
+  desenvolvimentoSlot?: React.ReactNode;
 };
 
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -136,7 +138,7 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
   );
 }
 
-export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, controlaJornada = false, holerites, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], cargos = [], departamentos = [], contas = null, contaPendente = null, preferenciasSlot, historicoSlot, overrides = [], podeGerirAcesso = false, ultimoMesFechadoBanco = null, ciclosSlot, pedidoDadosSlot, competenciasSlot }: Pessoa360Props) {
+export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, controlaJornada = false, holerites, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], cargos = [], departamentos = [], contas = null, contaPendente = null, preferenciasSlot, historicoSlot, overrides = [], podeGerirAcesso = false, ultimoMesFechadoBanco = null, ciclosSlot, pedidoDadosSlot, competenciasSlot, desenvolvimentoSlot }: Pessoa360Props) {
   // Cadastro no formato do EditarCadastroDialog (junta os escalares + o vínculo PJ do cabeçalho).
   const cadastroDialog: Cadastro | null = cadastro
     ? {
@@ -166,6 +168,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
     { value: "folha", label: "Folha", icon: Landmark, show: podeFolha },
     { value: "cliente", label: "Cliente", icon: Building2, show: !!pessoa.cliente },
     { value: "competencias", label: "Competências", icon: GraduationCap, show: !!competenciasSlot },
+    { value: "desenvolvimento", label: "Desenvolvimento", icon: Sprout, show: !!desenvolvimentoSlot },
     { value: "ciclos", label: "Entrada e saída", icon: ListChecks, show: !!ciclosSlot },
     { value: "acesso", label: "Acesso", icon: KeyRound, show: podeVerAcesso },
     { value: "preferencias", label: "Preferências", icon: SlidersHorizontal, show: !!preferenciasSlot },
@@ -718,6 +721,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
         )}
 
         {competenciasSlot && <TabsContent value="competencias">{competenciasSlot}</TabsContent>}
+        {desenvolvimentoSlot && <TabsContent value="desenvolvimento">{desenvolvimentoSlot}</TabsContent>}
         {ciclosSlot && <TabsContent value="ciclos">{ciclosSlot}</TabsContent>}
         {preferenciasSlot && <TabsContent value="preferencias">{preferenciasSlot}</TabsContent>}
       </Tabs>

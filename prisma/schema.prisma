@@ -240,6 +240,10 @@ model User {
   holeritesAssinados            Holerite[]                  @relation("HoleriteAssinante")
   ciclosRh                      OnboardingProcesso[]
   pedidosDados                  PedidoDadosCadastro[]
+  liderancasComoLider           LiderancaPessoa[]          @relation("LiderancaLider")
+  liderancasComoLiderado        LiderancaPessoa[]          @relation("LiderancaLiderado")
+  objetivosDesenvolvimento      ObjetivoDesenvolvimento[]
+  encontrosUmAUm                EncontroUmAUm[]
   notasFiscais                  NotaFiscalPJ[]              @relation("NfUser")
   nfsValidadas                  NotaFiscalPJ[]              @relation("NfValidador")
   documentoVersoes              DocumentoModeloVersao[]
@@ -6498,6 +6502,7 @@ model Habilidade {
   propostaPorId String?
   usuarios      UserHabilidade[]
   necessidades  NecessidadeHabilidade[]
+  objetivos     ObjetivoDesenvolvimento[]
 
   @@map("habilidade")
 }
@@ -6682,6 +6687,80 @@ model PedidoDadosCadastro {
   @@index([userId, status])
   @@index([status])
   @@map("pedido_dados_cadastro")
+}
+
+/// Liderança direta datada (Gestão de Pessoas F3). No máximo UMA ativa (`fim` nulo) por liderado:
+/// índice PARCIAL `lideranca_uma_ativa`, criado na migration 20261008190000 — fora do schema.prisma.
+/// Decisão do dono: qualquer pessoa interna pode ser líder.
+model LiderancaPessoa {
+  id           String    @id @default(cuid())
+  liderId      String
+  lider        User      @relation("LiderancaLider", fields: [liderId], references: [id], onDelete: Cascade)
+  userId       String
+  liderado     User      @relation("LiderancaLiderado", fields: [userId], references: [id], onDelete: Cascade)
+  inicio       DateTime  @default(now()) @db.Date
+  fim          DateTime? @db.Date
+  /// Cadência de 1:1 em dias. Decisão do dono: mensal por padrão, o líder pode mudar.
+  cadenciaDias Int       @default(30)
+  /// Último lembrete de 1:1 vencido (o job repete no máximo a cada 7 dias).
+  lembradoEm   DateTime? @db.Date
+  criadoPorId  String
+  criadoEm     DateTime  @default(now())
+
+  @@index([liderId, fim])
+  @@index([userId, fim])
+  @@map("lideranca_pessoa")
+}
+
+enum StatusObjetivo {
+  aberto
+  concluido
+  cancelado
+}
+
+/// Objetivo de desenvolvimento (F3). A própria pessoa SEMPRE vê os seus (decisão do dono).
+model ObjetivoDesenvolvimento {
+  id                String         @id @default(cuid())
+  userId            String
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  titulo            String
+  resultadoEsperado String?
+  alvo              DateTime?      @db.Date
+  status            StatusObjetivo @default(aberto)
+  habilidadeId      String?
+  habilidade        Habilidade?    @relation(fields: [habilidadeId], references: [id], onDelete: SetNull)
+  criadoPorId       String
+  criadoEm          DateTime       @default(now())
+  concluidoEm       DateTime?
+
+  @@index([userId, status])
+  @@map("objetivo_desenvolvimento")
+}
+
+/// Quem lê um registro de 1:1 (decisão do dono: visibilidade por registro, padrão líder + RH; o
+/// líder marca o que a pessoa também vê).
+enum VisibilidadeRegistro {
+  lider_rh
+  compartilhado
+}
+
+/// Encontro 1:1 (F3). O conteúdo nunca vai em notificação.
+model EncontroUmAUm {
+  id           String               @id @default(cuid())
+  userId       String
+  liderado     User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  liderId      String
+  data         DateTime             @db.Date
+  pauta        String?
+  decisoes     String?
+  acoes        String?
+  proximoEm    DateTime?            @db.Date
+  visibilidade VisibilidadeRegistro @default(lider_rh)
+  criadoPorId  String
+  criadoEm     DateTime             @default(now())
+
+  @@index([userId, data])
+  @@map("encontro_um_a_um")
 }
 
 /// Entrada (onboarding) ou saída (offboarding) de uma pessoa — Gestão de Pessoas F4.

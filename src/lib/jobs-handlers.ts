@@ -606,7 +606,7 @@ export async function snapshotLicitacaoMensal() {
 }
 
 /** Rotinas noturnas de RH/comercial: propostas vencidas e férias que iniciam hoje. */
-export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: number; contratosEquipe: number; vinculosEncerrados: number; acessosEncerrados: number; itensCicloAtrasados: number; pedidosDadosFechados: number }> {
+export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: number; contratosEquipe: number; vinculosEncerrados: number; acessosEncerrados: number; itensCicloAtrasados: number; pedidosDadosFechados: number; umAUmAtrasados: number }> {
   // Fronteiras em meia-noite UTC: `validade`/`dataInicio` são colunas de data
   // (00:00Z). Com meia-noite local (03:00Z) a proposta vencia um dia antes.
   const hoje = inicioDoDiaUtc();
@@ -652,7 +652,10 @@ export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: n
   // ficha, conta bancária aprovada) — a faixa já some sozinha; aqui o status e o aviso a quem pediu.
   const { fecharPedidosAtendidos } = await import("@/modules/rh/cadastro/pedido-service");
   const pedidosDadosFechados = await fecharPedidosAtendidos();
-  return { propostas: props.length, ferias: fer.length, contratosEquipe, ...deslig, itensCicloAtrasados: ciclos.itens, pedidosDadosFechados };
+  // Desenvolvimento (F3): 1:1 atrasado avisa a liderança, no máximo a cada 7 dias, sem conteúdo.
+  const { lembrarUmAUmAtrasado } = await import("@/modules/rh/desenvolvimento/lembrete");
+  const umAUmAtrasados = await lembrarUmAUmAtrasado(hoje);
+  return { propostas: props.length, ferias: fer.length, contratosEquipe, ...deslig, itensCicloAtrasados: ciclos.itens, pedidosDadosFechados, umAUmAtrasados };
 }
 
 /** Diário: grava a foto dos KPIs do dashboard (série histórica). */

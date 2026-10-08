@@ -259,6 +259,15 @@ export const NAV_GROUPS: NavGroup[] = [
         foraDoMenu: true,
       },
       {
+        // Só faz sentido para quem lidera alguém (dado, não perfil): fica fora do menu e aparece
+        // como atalho no /rh e em Minha conta → Desenvolvimento.
+        title: "Minha equipe",
+        href: "/rh/minha-equipe",
+        icon: Users,
+        tipo: "interno",
+        foraDoMenu: true,
+      },
+      {
         title: "RH",
         href: "/rh",
         icon: HeartPulse,

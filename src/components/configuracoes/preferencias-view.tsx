@@ -65,6 +65,7 @@ export function PreferenciasView({
   notifAcessos: notifAcessosInicial,
   notifImpactoAusencia: notifImpactoAusenciaInicial,
   notifLifecycleRh: notifLifecycleRhInicial,
+  notifDesenvolvimento: notifDesenvolvimentoInicial,
   pontoEmailModo: pontoEmailModoInicial,
   mostrarAlertasPonto,
 }: {
@@ -93,6 +94,7 @@ export function PreferenciasView({
   notifAcessos: boolean;
   notifImpactoAusencia: boolean;
   notifLifecycleRh: boolean;
+  notifDesenvolvimento: boolean;
   pontoEmailModo: PontoEmailModo;
   /** Alertas de jornada por horário são só p/ CLT/estagiário — controla a seção de e-mail. */
   mostrarAlertasPonto: boolean;
@@ -122,6 +124,7 @@ export function PreferenciasView({
   const [notifAcessos, setNotifAcessos] = useState(notifAcessosInicial);
   const [notifImpactoAusencia, setNotifImpactoAusencia] = useState(notifImpactoAusenciaInicial);
   const [notifLifecycleRh, setNotifLifecycleRh] = useState(notifLifecycleRhInicial);
+  const [notifDesenvolvimento, setNotifDesenvolvimento] = useState(notifDesenvolvimentoInicial);
   const [pontoEmailModo, setPontoEmailModo] = useState<PontoEmailModo>(pontoEmailModoInicial);
   const [, start] = useTransition();
 
@@ -304,6 +307,13 @@ export function PreferenciasView({
       descricao: "Itens atrasados das listas de admissão e desligamento que são seus.",
       valor: notifLifecycleRh,
       set: setNotifLifecycleRh,
+    },
+    {
+      chave: "notif_desenvolvimento",
+      titulo: "1:1 atrasado",
+      descricao: "Para quem lidera: o encontro 1:1 com alguém da equipe passou do prazo.",
+      valor: notifDesenvolvimento,
+      set: setNotifDesenvolvimento,
     },
   ];
 

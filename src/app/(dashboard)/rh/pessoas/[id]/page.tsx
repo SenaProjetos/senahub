@@ -24,7 +24,9 @@ import { CiclosPessoa } from "@/components/rh/ciclos-pessoa";
 import { PedidoDadosFicha } from "@/components/rh/pedido-dados";
 import { pedidoDaPessoa } from "@/modules/rh/cadastro/queries";
 import { CompetenciasPessoa } from "@/components/rh/competencias-pessoa";
-import { competenciasDaPessoa } from "@/modules/rh/habilidades/queries";
+import { competenciasDaPessoa, listarHabilidades } from "@/modules/rh/habilidades/queries";
+import { DesenvolvimentoPessoa } from "@/components/rh/desenvolvimento-pessoa";
+import { desenvolvimentoDaPessoa, pessoasParaLiderar } from "@/modules/rh/desenvolvimento/queries";
 import { ciclosDaPessoa, equipamentosDaPessoa, opcoesDeCicloDaPessoa } from "@/modules/rh/ciclo/queries";
 
 export const metadata: Metadata = { title: "Ficha da pessoa" };
@@ -113,6 +115,9 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
   const pedidoDados = ehRh && isCadastro ? await pedidoDaPessoa(id) : null;
   // Competências (F2): RH e quem gere Recursos definem e validam; os demais com acesso à ficha só leem.
   const [competencias, geraRecursos] = temCiclos ? await Promise.all([competenciasDaPessoa(id), can(user, "recursos", "gerir")]) : [null, false];
+  // Desenvolvimento (F3): na ficha só o RH (a liderança usa Minha equipe, sem a ficha completa).
+  const [desenvolvimento, lideresPossiveis, catalogoComp] =
+    ehRh && temCiclos ? await Promise.all([desenvolvimentoDaPessoa(id, "rh"), pessoasParaLiderar(id), listarHabilidades()]) : [null, [], []];
   const [ciclos, opcoesCiclo, equipamentos] = temCiclos
     ? await Promise.all([
         ciclosDaPessoa(id),
@@ -147,6 +152,11 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
       podeGerirAcesso={podeGerirAcesso}
       ultimoMesFechadoBanco={mesFechadoBanco}
       pedidoDadosSlot={pedidoDados ? <PedidoDadosFicha userId={id} pedido={pedidoDados} /> : undefined}
+      desenvolvimentoSlot={
+        desenvolvimento ? (
+          <DesenvolvimentoPessoa userId={id} dados={desenvolvimento} papel="rh" pessoas={lideresPossiveis} competencias={catalogoComp} />
+        ) : undefined
+      }
       competenciasSlot={
         competencias ? (
           <CompetenciasPessoa userId={id} dados={competencias} modo={ehRh || geraRecursos ? "gestor" : "leitura"} quemId={user.id} />
