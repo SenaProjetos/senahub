@@ -140,6 +140,24 @@ export function planoDePreenchimento(
   return { aplicar, aprovar };
 }
 
+/** Reconfirmação anual: o que ainda depende da pessoa é 1 (confirmar) até ela confirmar depois do pedido. */
+export function reconfirmacaoPendente(pedidoCriadoEm: Date | string, dadosConfirmadosEm: Date | string | null): boolean {
+  if (!dadosConfirmadosEm) return true;
+  return new Date(dadosConfirmadosEm).getTime() < new Date(pedidoCriadoEm).getTime();
+}
+
+/** Reconfirmação devida: 12 meses (365 dias) depois da última confirmação. Nunca confirmou = não automático. */
+export function reconfirmacaoDevida(dadosConfirmadosEm: Date | string | null, agora: Date): boolean {
+  if (!dadosConfirmadosEm) return false;
+  return agora.getTime() - new Date(dadosConfirmadosEm).getTime() >= 365 * 86_400_000;
+}
+
+export function textoDaFaixaReconfirmar(prazo: string | null, hoje: string): { texto: string; vencido: boolean } {
+  const vencido = !!prazo && prazo < hoje;
+  const quando = prazo ? (vencido ? " O prazo já passou." : ` Prazo: ${prazo.slice(8, 10)}/${prazo.slice(5, 7)}.`) : "";
+  return { texto: `Confira se seus dados de cadastro continuam certos (contato, endereço, emergência).${quando}`, vencido };
+}
+
 /** Texto da faixa no topo. Prazo vencido = destaque (nunca bloqueia). */
 export function textoDaFaixa(pendentes: number, prazo: string | null, hoje: string): { texto: string; vencido: boolean } {
   const vencido = !!prazo && prazo < hoje;

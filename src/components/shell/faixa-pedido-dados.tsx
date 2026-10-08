@@ -6,7 +6,7 @@ import { ClipboardEdit } from "lucide-react";
  * preencher. Não tem botão de fechar e nunca bloqueia (CLT precisa bater ponto); com o prazo
  * vencido, ganha destaque.
  */
-export function FaixaPedidoDados({ texto, vencido, mensagem }: { texto: string; vencido: boolean; mensagem: string | null }) {
+export function FaixaPedidoDados({ texto, vencido, mensagem, href }: { texto: string; vencido: boolean; mensagem: string | null; href: string }) {
   return (
     <div
       role="status"
@@ -20,10 +20,10 @@ export function FaixaPedidoDados({ texto, vencido, mensagem }: { texto: string; 
         {mensagem && <span className="text-muted-foreground"> “{mensagem}”</span>}
       </p>
       <Link
-        href="/minha-ficha?completar=1"
+        href={href}
         className="shrink-0 rounded-sm border bg-background px-2.5 py-1 text-xs font-medium hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
       >
-        Atualizar agora
+        {href.includes("confirmar") ? "Conferir agora" : "Atualizar agora"}
       </Link>
     </div>
   );

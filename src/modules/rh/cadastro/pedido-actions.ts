@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { notificar } from "@/lib/notificar";
 import { CADASTRO_ROLES, HR_ADMIN_ROLES, INTERNAL_ROLES } from "@/lib/roles";
 import { MOTIVO_NADA_A_PEDIR, MOTIVO_PEDIDO_ABERTO, temAlgoAPedir } from "./preencher";
-import { preencherDadosNoBanco, situacaoDaPessoa } from "./pedido-service";
+import { confirmarMeusDadosNoBanco, preencherDadosNoBanco, situacaoDaPessoa } from "./pedido-service";
 import { MOTIVO_SO_ABERTO_CANCELA, MOTIVO_SO_ABERTO_LEMBRA } from "./acoes-pedido";
 
 const rhBase = { modulo: "rh", roles: HR_ADMIN_ROLES, entidade: "PedidoDadosCadastro" } as const;
@@ -150,5 +150,55 @@ export const preencherMeusDados = defineAction(
     const r = await preencherDadosNoBanco({ id: user.id, name: user.name }, i.valores);
     revalidar(user.id);
     return r;
+  },
+);
+
+/** "Está tudo certo": a pessoa confirma que o cadastro continua certo (reconfirmação anual). */
+export const confirmarMeusDados = defineAction(
+  { modulo: "rh", roles: INTERNAL_ROLES, acao: "confirmar-meus-dados", entidade: "User", schema: z.object({}) },
+  async (_i, { user }) => {
+    const r = await confirmarMeusDadosNoBanco(user.id);
+    revalidar(user.id);
+    return r;
+  },
+);
+
+/**
+ * RH pede a TODOS (sem pedido aberto) que confiram os dados. É a primeira rodada da reconfirmação:
+ * depois dela, o job reabre sozinho 12 meses após cada confirmação.
+ */
+export const pedirReconfirmacaoEmLote = defineAction(
+  { ...rhBase, acao: "pedir-reconfirmacao-dados-lote", schema: pedidoSchema },
+  async (i, { user }) => {
+    const candidatos = await prisma.user.findMany({
+      where: { ativo: true, role: { in: [...CADASTRO_ROLES] }, pedidosDados: { none: { status: "aberto" } } },
+      select: { id: true },
+    });
+    let pedidos = 0;
+    for (const c of candidatos) {
+      try {
+        await prisma.pedidoDadosCadastro.create({
+          data: {
+            userId: c.id,
+            solicitadoPorId: user.id,
+            tipo: "reconfirmar",
+            prazo: i.prazo ? new Date(`${i.prazo}T00:00:00Z`) : null,
+            mensagem: i.mensagem?.trim() || null,
+          },
+        });
+      } catch (e) {
+        if ((e as { code?: string }).code === "P2002") continue;
+        throw e;
+      }
+      await notificar(c.id, {
+        titulo: "Confira seus dados de cadastro",
+        corpo: `${i.mensagem?.trim() ? `${i.mensagem.trim()} ` : ""}Veja se contato, endereço e contato de emergência continuam certos.`,
+        href: "/minha-ficha?confirmar=1",
+        tag: "pedido-dados",
+      });
+      pedidos++;
+    }
+    revalidar();
+    return { pedidos };
   },
 );

@@ -8,7 +8,15 @@
 import "dotenv/config";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
-import { faixaDoUsuario, fecharSeAtendido, preencherDadosNoBanco, preenchimentosPendentes, situacaoDaPessoa } from "@/modules/rh/cadastro/pedido-service";
+import {
+  confirmarMeusDadosNoBanco,
+  criarReconfirmacoesAnuais,
+  faixaDoUsuario,
+  fecharSeAtendido,
+  preencherDadosNoBanco,
+  preenchimentosPendentes,
+  situacaoDaPessoa,
+} from "@/modules/rh/cadastro/pedido-service";
 
 let falhas = 0;
 const ok = (cond: boolean, msg: string) => {
@@ -40,7 +48,7 @@ async function main() {
   const inicio = new Date();
   const pessoa = await prisma.user.findFirst({
     where: { ativo: true, role: { in: ["clt", "estagiario"] }, pedidosDados: { none: { status: "aberto" } } },
-    select: { id: true, name: true, ...TODOS, preference: { select: { dados: true } } },
+    select: { id: true, name: true, ...TODOS, dadosConfirmadosEm: true, preference: { select: { dados: true } } },
   });
   if (!pessoa) throw new Error("Nenhuma pessoa CLT/estágio ativa sem pedido aberto no banco de dev.");
   const rh = await prisma.user.findFirst({ where: { ativo: true, role: "admin" }, select: { id: true } });
@@ -109,14 +117,26 @@ async function main() {
     } else {
       ok((await faixaDoUsuario(pessoa.id)) === null, "pedido atendido → faixa some");
     }
+    // ── Reconfirmação anual ──
+    await prisma.pedidoDadosCadastro.deleteMany({ where: { userId: pessoa.id, criadoEm: { gte: inicio } } });
+    await prisma.user.update({ where: { id: pessoa.id }, data: { dadosConfirmadosEm: null } });
+    await criarReconfirmacoesAnuais();
+    ok((await prisma.pedidoDadosCadastro.count({ where: { userId: pessoa.id, status: "aberto" } })) === 0, "quem nunca confirmou não recebe reconfirmação automática");
+    await prisma.user.update({ where: { id: pessoa.id }, data: { dadosConfirmadosEm: new Date(Date.now() - 400 * 86_400_000) } });
+    await criarReconfirmacoesAnuais();
+    const reconf = await prisma.pedidoDadosCadastro.findFirst({ where: { userId: pessoa.id, status: "aberto" } });
+    ok(reconf?.tipo === "reconfirmar", "confirmou há mais de um ano: reconfirmação aberta sozinha");
+    ok((await faixaDoUsuario(pessoa.id))?.href === "/minha-ficha?confirmar=1", "faixa leva para conferir os dados");
+    ok((await confirmarMeusDadosNoBanco(pessoa.id)).atendido, "\"Está tudo certo\" fecha a reconfirmação");
+    ok((await faixaDoUsuario(pessoa.id)) === null, "confirmado: a faixa some");
   } finally {
-    const original = Object.fromEntries(Object.keys(TODOS).map((k) => [k, pessoa[k as keyof typeof TODOS]]));
+    const original = { ...Object.fromEntries(Object.keys(TODOS).map((k) => [k, pessoa[k as keyof typeof TODOS]])), dadosConfirmadosEm: pessoa.dadosConfirmadosEm };
     await prisma.user.update({ where: { id: pessoa.id }, data: original });
     if (dadosAntes === null) await prisma.userPreference.updateMany({ where: { userId: pessoa.id }, data: { dados: {} } });
     else await prisma.userPreference.update({ where: { userId: pessoa.id }, data: { dados: dadosAntes as Prisma.InputJsonValue } });
     await prisma.pedidoDadosCadastro.deleteMany({ where: { userId: pessoa.id, criadoEm: { gte: inicio } } });
     await prisma.notificacao.deleteMany({
-      where: { createdAt: { gte: inicio }, OR: [{ titulo: "Dados de cadastro para validar" }, { titulo: "Dados atualizados" }] },
+      where: { createdAt: { gte: inicio }, OR: [{ titulo: "Dados de cadastro para validar" }, { titulo: "Dados atualizados" }, { titulo: "Confira seus dados de cadastro" }] },
     });
     console.log("(limpeza: pessoa restaurada, pedidos e avisos de teste apagados)");
   }

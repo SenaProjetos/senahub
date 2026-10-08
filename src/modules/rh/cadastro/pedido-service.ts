@@ -10,9 +10,20 @@ import { CADASTRO_ROLES } from "@/lib/roles";
 import { camposFaltantes } from "@/modules/rh/pessoas/completude";
 import { derivarEixos } from "@/modules/usuarios/vinculo/mapa";
 import { minhaContaPendente } from "@/modules/rh/contas/queries";
-import { planoDePreenchimento, situacaoDoPreenchimento, textoDaFaixa, type SituacaoPreenchimento } from "./preencher";
+import {
+  planoDePreenchimento,
+  reconfirmacaoDevida,
+  reconfirmacaoPendente,
+  situacaoDoPreenchimento,
+  textoDaFaixa,
+  textoDaFaixaReconfirmar,
+  type SituacaoPreenchimento,
+} from "./preencher";
 
 const ymd = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+
+/** `solicitadoPorId` do pedido de reconfirmação aberto pelo job (sem pessoa por trás). */
+export const SISTEMA = "sistema";
 
 /** Chaves do blob `UserPreference.dados.cadastroPendente.preenchimentos` (CPF/RG à espera do RH). */
 export async function preenchimentosPendentes(userId: string): Promise<Record<string, string>> {
@@ -98,12 +109,16 @@ export async function situacaoDaPessoa(userId: string): Promise<SituacaoPreenchi
 export async function faixaDoUsuario(userId: string) {
   const pedido = await prisma.pedidoDadosCadastro.findFirst({
     where: { userId, status: "aberto" },
-    select: { prazo: true, mensagem: true },
+    select: { prazo: true, mensagem: true, tipo: true, criadoEm: true, user: { select: { dadosConfirmadosEm: true } } },
   });
   if (!pedido) return null;
+  if (pedido.tipo === "reconfirmar") {
+    if (!reconfirmacaoPendente(pedido.criadoEm, pedido.user.dadosConfirmadosEm)) return null;
+    return { ...textoDaFaixaReconfirmar(ymd(pedido.prazo), diaDeSaoPaulo()), mensagem: pedido.mensagem, href: "/minha-ficha?confirmar=1" };
+  }
   const situacao = await situacaoDaPessoa(userId);
   if (!situacao || situacao.pendenteDaPessoa === 0) return null;
-  return { ...textoDaFaixa(situacao.pendenteDaPessoa, ymd(pedido.prazo), diaDeSaoPaulo()), mensagem: pedido.mensagem };
+  return { ...textoDaFaixa(situacao.pendenteDaPessoa, ymd(pedido.prazo), diaDeSaoPaulo()), mensagem: pedido.mensagem, href: "/minha-ficha?completar=1" };
 }
 
 /**
@@ -113,19 +128,26 @@ export async function faixaDoUsuario(userId: string) {
 export async function fecharSeAtendido(userId: string): Promise<boolean> {
   const pedido = await prisma.pedidoDadosCadastro.findFirst({
     where: { userId, status: "aberto" },
-    select: { id: true, solicitadoPorId: true, user: { select: { name: true } } },
+    select: { id: true, tipo: true, criadoEm: true, solicitadoPorId: true, user: { select: { name: true, dadosConfirmadosEm: true } } },
   });
   if (!pedido) return false;
-  const situacao = await situacaoDaPessoa(userId);
-  if (situacao && situacao.pendenteDaPessoa > 0) return false;
+  const reconfirmar = pedido.tipo === "reconfirmar";
+  const situacao = reconfirmar ? null : await situacaoDaPessoa(userId);
+  if (reconfirmar ? reconfirmacaoPendente(pedido.criadoEm, pedido.user.dadosConfirmadosEm) : situacao && situacao.pendenteDaPessoa > 0) return false;
   const r = await prisma.pedidoDadosCadastro.updateMany({
     where: { id: pedido.id, status: "aberto" },
     data: { status: "atendido", atendidoEm: new Date() },
   });
   if (r.count !== 1) return false;
+  // Completar o que faltava também conta como conferir os dados.
+  if (!reconfirmar) await prisma.user.update({ where: { id: userId }, data: { dadosConfirmadosEm: new Date() } });
+  // Pedido automático (sem pessoa por trás) não avisa ninguém.
+  if (pedido.solicitadoPorId === SISTEMA) return true;
   await notificar(pedido.solicitadoPorId, {
     titulo: "Dados atualizados",
-    corpo: `${pedido.user.name} completou os dados que o RH pediu${situacao && situacao.aguardandoRh.length > 0 ? ` (${situacao.aguardandoRh.join(", ")} aguardando sua aprovação)` : ""}.`,
+    corpo: reconfirmar
+      ? `${pedido.user.name} confirmou que os dados do cadastro continuam certos.`
+      : `${pedido.user.name} completou os dados que o RH pediu${situacao && situacao.aguardandoRh.length > 0 ? ` (${situacao.aguardandoRh.join(", ")} aguardando sua aprovação)` : ""}.`,
     href: `/rh/pessoas/${userId}`,
   });
   return true;
@@ -197,4 +219,50 @@ export async function preencherDadosNoBanco(user: { id: string; name: string }, 
 
   const atendido = await fecharSeAtendido(user.id);
   return { aplicados: Object.keys(aplicar).length, paraValidar: Object.keys(aprovar).length, atendido };
+}
+
+/** "Está tudo certo": a pessoa confirma o cadastro; fecha o pedido de reconfirmação se houver. */
+export async function confirmarMeusDadosNoBanco(userId: string): Promise<{ atendido: boolean }> {
+  await prisma.user.update({ where: { id: userId }, data: { dadosConfirmadosEm: new Date() } });
+  return { atendido: await fecharSeAtendido(userId) };
+}
+
+/**
+ * Job diário: abre o pedido de reconfirmação para quem confirmou há 12 meses ou mais e não tem pedido
+ * aberto. Quem NUNCA confirmou fica de fora (a primeira rodada é do RH, em lote) — senão o deploy
+ * dispararia a faixa para todo mundo no mesmo dia.
+ */
+export async function criarReconfirmacoesAnuais(agora: Date = new Date()): Promise<number> {
+  const limite = new Date(agora.getTime() - 365 * 86_400_000);
+  const candidatos = await prisma.user.findMany({
+    where: { ativo: true, role: { in: [...CADASTRO_ROLES] }, dadosConfirmadosEm: { lte: limite }, pedidosDados: { none: { status: "aberto" } } },
+    select: { id: true, dadosConfirmadosEm: true },
+  });
+  let criados = 0;
+  for (const c of candidatos) {
+    if (!reconfirmacaoDevida(c.dadosConfirmadosEm, agora)) continue;
+    try {
+      await prisma.pedidoDadosCadastro.create({ data: { userId: c.id, solicitadoPorId: SISTEMA, tipo: "reconfirmar" } });
+    } catch (e) {
+      if ((e as { code?: string }).code === "P2002") continue; // outro pedido abriu no meio
+      throw e;
+    }
+    await notificar(c.id, {
+      titulo: "Confira seus dados de cadastro",
+      corpo: "Faz um ano da última conferência. Veja se contato, endereço e contato de emergência continuam certos.",
+      href: "/minha-ficha?confirmar=1",
+      tag: "pedido-dados",
+    });
+    criados++;
+  }
+  return criados;
+}
+
+/** Há reconfirmação aberta esperando a pessoa? (cartão "Confira seus dados" em Minha conta) */
+export async function reconfirmacaoAberta(userId: string): Promise<boolean> {
+  const p = await prisma.pedidoDadosCadastro.findFirst({
+    where: { userId, status: "aberto", tipo: "reconfirmar" },
+    select: { criadoEm: true, user: { select: { dadosConfirmadosEm: true } } },
+  });
+  return !!p && reconfirmacaoPendente(p.criadoEm, p.user.dadosConfirmadosEm);
 }

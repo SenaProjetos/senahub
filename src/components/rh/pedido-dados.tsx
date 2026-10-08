@@ -8,6 +8,7 @@ import {
   cancelarPedidoDados,
   pedirAtualizacaoDados,
   pedirAtualizacaoEmLote,
+  pedirReconfirmacaoEmLote,
   reenviarLembretePedido,
 } from "@/modules/rh/cadastro/pedido-actions";
 import { itensDoPedidoDados } from "@/modules/rh/cadastro/acoes-pedido";
@@ -170,7 +171,19 @@ export function PedidoDadosFicha({ userId, pedido }: { userId: string; pedido: N
 export function PedidosDadosAdmin({ pedidos }: { pedidos: PedidoDadosLinha[] }) {
   const { executar, pending, start, router } = useAcoesPedido();
   const [dialogo, setDialogo] = useState(false);
+  const [dialogoReconf, setDialogoReconf] = useState(false);
   const abertos = pedidos.filter((p) => p.status === "aberto").length;
+
+  function enviarReconfirmacao(dados: { prazo: string | null; mensagem: string | null }) {
+    start(async () => {
+      const r = await pedirReconfirmacaoEmLote(dados);
+      if (r.ok) {
+        toast.success(r.data.pedidos === 0 ? "Todos já têm pedido aberto." : `${r.data.pedidos} pedido(s) de conferência enviado(s).`);
+        setDialogoReconf(false);
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
 
   function enviarLote(dados: { prazo: string | null; mensagem: string | null }) {
     start(async () => {
@@ -195,9 +208,9 @@ export function PedidosDadosAdmin({ pedidos }: { pedidos: PedidoDadosLinha[] }) 
         <div className="min-w-0 text-sm">
           <p className="font-medium">{p.nome}</p>
           <p className="text-xs text-muted-foreground">
-            {STATUS_LABEL[p.status]} · pedido em {formatarData(p.criadoEm)} por {p.solicitadoPor}
+            {p.tipo === "reconfirmar" ? "Conferência" : "Completar"} · {STATUS_LABEL[p.status]} · pedido em {formatarData(p.criadoEm)} por {p.solicitadoPor}
             {p.prazo && ` · prazo ${dataCurta(p.prazo)}`}
-            {p.status === "aberto" && ` · ${p.faltam === 1 ? "falta 1 campo" : `faltam ${p.faltam} campos`}`}
+            {p.status === "aberto" && p.tipo === "completar" && ` · ${p.faltam === 1 ? "falta 1 campo" : `faltam ${p.faltam} campos`}`}
             {p.aguardandoRh.length > 0 && ` · aguardando você: ${p.aguardandoRh.join(", ")}`}
             {p.atendidoEm && ` · atendido em ${formatarData(p.atendidoEm)}`}
           </p>
@@ -216,9 +229,14 @@ export function PedidosDadosAdmin({ pedidos }: { pedidos: PedidoDadosLinha[] }) 
             {abertos > 0 ? `${abertos} aberto(s).` : "Nenhum aberto."} Cada pessoa vê uma faixa no topo até completar.
           </CardDescription>
         </div>
-        <Button size="sm" variant="outline" disabled={pending} onClick={() => setDialogo(true)}>
-          <Send className="size-3.5" /> Pedir a quem tem cadastro incompleto
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" disabled={pending} onClick={() => setDialogo(true)}>
+            <Send className="size-3.5" /> Pedir a quem tem cadastro incompleto
+          </Button>
+          <Button size="sm" variant="outline" disabled={pending} onClick={() => setDialogoReconf(true)}>
+            <Send className="size-3.5" /> Pedir a todos que confiram os dados
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {pedidos.length === 0 ? (
@@ -234,6 +252,14 @@ export function PedidosDadosAdmin({ pedidos }: { pedidos: PedidoDadosLinha[] }) 
         pending={pending}
         onClose={() => setDialogo(false)}
         onEnviar={enviarLote}
+      />
+      <DialogoPedido
+        aberto={dialogoReconf}
+        titulo="Pedir a todos que confiram os dados"
+        descricao="Cada pessoa sem pedido aberto vê a faixa até clicar em Está tudo certo (ou corrigir). Depois desta rodada, o sistema pede de novo sozinho a cada 12 meses."
+        pending={pending}
+        onClose={() => setDialogoReconf(false)}
+        onEnviar={enviarReconfirmacao}
       />
     </Card>
   );

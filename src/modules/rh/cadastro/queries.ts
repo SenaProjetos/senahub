@@ -89,7 +89,7 @@ export async function pedidosDeDados() {
   const pedidos = await prisma.pedidoDadosCadastro.findMany({
     where: { OR: [{ status: "aberto" }, { atendidoEm: { gte: desde } }, { status: "cancelado", criadoEm: { gte: desde } }] },
     select: {
-      id: true, userId: true, status: true, prazo: true, mensagem: true, criadoEm: true, atendidoEm: true, lembradoEm: true,
+      id: true, userId: true, status: true, tipo: true, prazo: true, mensagem: true, criadoEm: true, atendidoEm: true, lembradoEm: true,
       solicitadoPorId: true, user: { select: { name: true } },
     },
     orderBy: [{ status: "asc" }, { criadoEm: "desc" }],
@@ -101,18 +101,19 @@ export async function pedidosDeDados() {
   const nomeAutor = new Map(autores.map((a) => [a.id, a.name]));
   const linhas = [];
   for (const p of pedidos) {
-    const s = p.status === "aberto" ? await situacaoDaPessoa(p.userId) : null;
+    const s = p.status === "aberto" && p.tipo === "completar" ? await situacaoDaPessoa(p.userId) : null;
     linhas.push({
       id: p.id,
       userId: p.userId,
       nome: p.user.name,
       status: p.status,
+      tipo: p.tipo,
       prazo: ymd(p.prazo),
       mensagem: p.mensagem,
       criadoEm: p.criadoEm.toISOString(),
       atendidoEm: p.atendidoEm?.toISOString() ?? null,
       lembradoEm: p.lembradoEm?.toISOString() ?? null,
-      solicitadoPor: nomeAutor.get(p.solicitadoPorId) ?? "—",
+      solicitadoPor: p.solicitadoPorId === "sistema" ? "sistema (anual)" : (nomeAutor.get(p.solicitadoPorId) ?? "—"),
       faltam: s?.pendenteDaPessoa ?? 0,
       aguardandoRh: s?.aguardandoRh ?? [],
     });

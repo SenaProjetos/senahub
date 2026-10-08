@@ -240,6 +240,8 @@ model User {
   holeritesAssinados            Holerite[]                  @relation("HoleriteAssinante")
   ciclosRh                      OnboardingProcesso[]
   pedidosDados                  PedidoDadosCadastro[]
+  /// Última vez que a pessoa confirmou que os dados do cadastro continuam certos (reconfirmação anual).
+  dadosConfirmadosEm            DateTime?
   liderancasComoLider           LiderancaPessoa[]          @relation("LiderancaLider")
   liderancasComoLiderado        LiderancaPessoa[]          @relation("LiderancaLiderado")
   objetivosDesenvolvimento      ObjetivoDesenvolvimento[]
@@ -6673,6 +6675,13 @@ enum StatusPedidoDados {
   cancelado
 }
 
+/// `completar` = preencher o que falta; `reconfirmar` = conferir se o que existe continua certo
+/// (anual, automático 12 meses depois da última confirmação, ou em lote pelo RH).
+enum TipoPedidoDados {
+  completar
+  reconfirmar
+}
+
 /// O RH pede à pessoa que preencha os próprios dados que faltam no cadastro. Não guarda a lista
 /// de campos: "o que falta" é sempre `camposFaltantes` (completude.ts) filtrado pelo que a pessoa
 /// pode preencher (`rh/cadastro/preencher.ts`). Enquanto houver um `aberto`, a pessoa vê a faixa
@@ -6684,6 +6693,7 @@ model PedidoDadosCadastro {
   user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Quem pediu (RH). Sem FK: o histórico vale mesmo se a conta de quem pediu sair.
   solicitadoPorId String
+  tipo            TipoPedidoDados   @default(completar)
   mensagem        String?
   /// Prazo opcional. Vencido, a faixa fica em destaque; o sistema nunca bloqueia (CLT bate ponto).
   prazo           DateTime?         @db.Date

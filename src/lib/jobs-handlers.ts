@@ -606,7 +606,7 @@ export async function snapshotLicitacaoMensal() {
 }
 
 /** Rotinas noturnas de RH/comercial: propostas vencidas e férias que iniciam hoje. */
-export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: number; contratosEquipe: number; vinculosEncerrados: number; acessosEncerrados: number; itensCicloAtrasados: number; pedidosDadosFechados: number; umAUmAtrasados: number; documentosVencendo: number }> {
+export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: number; contratosEquipe: number; vinculosEncerrados: number; acessosEncerrados: number; itensCicloAtrasados: number; pedidosDadosFechados: number; umAUmAtrasados: number; documentosVencendo: number; reconfirmacoesAbertas: number }> {
   // Fronteiras em meia-noite UTC: `validade`/`dataInicio` são colunas de data
   // (00:00Z). Com meia-noite local (03:00Z) a proposta vencia um dia antes.
   const hoje = inicioDoDiaUtc();
@@ -658,7 +658,10 @@ export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: n
   // Documentos com validade (F5): 60/30/7 dias antes e no vencimento, uma vez por faixa.
   const { avisarDocumentosVencendo } = await import("@/modules/rh/documentos/lembrete");
   const documentosVencendo = await avisarDocumentosVencendo(hoje);
-  return { propostas: props.length, ferias: fer.length, contratosEquipe, ...deslig, itensCicloAtrasados: ciclos.itens, pedidosDadosFechados, umAUmAtrasados, documentosVencendo };
+  // Reconfirmação anual: 12 meses depois da última confirmação (quem nunca confirmou, só pelo RH).
+  const { criarReconfirmacoesAnuais } = await import("@/modules/rh/cadastro/pedido-service");
+  const reconfirmacoesAbertas = await criarReconfirmacoesAnuais();
+  return { propostas: props.length, ferias: fer.length, contratosEquipe, ...deslig, itensCicloAtrasados: ciclos.itens, pedidosDadosFechados, umAUmAtrasados, documentosVencendo, reconfirmacoesAbertas };
 }
 
 /** Diário: grava a foto dos KPIs do dashboard (série histórica). */

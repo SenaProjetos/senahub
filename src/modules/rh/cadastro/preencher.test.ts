@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { ActionError } from "@/lib/action-error";
-import { MOTIVO_NADA_A_PREENCHER, planoDePreenchimento, situacaoDoPreenchimento, temAlgoAPedir, textoDaFaixa } from "./preencher";
+import {
+  MOTIVO_NADA_A_PREENCHER,
+  planoDePreenchimento,
+  reconfirmacaoDevida,
+  reconfirmacaoPendente,
+  situacaoDoPreenchimento,
+  temAlgoAPedir,
+  textoDaFaixa,
+} from "./preencher";
 
 const HOJE = "2026-10-08";
 const nada = new Set<string>();
@@ -109,5 +117,19 @@ describe("textoDaFaixa", () => {
   });
   it("sem prazo", () => {
     expect(textoDaFaixa(2, null, HOJE).texto).toBe("O RH pediu para você completar seus dados: faltam 2 informações.");
+  });
+});
+
+describe("reconfirmação anual", () => {
+  it("pendente até confirmar DEPOIS do pedido", () => {
+    expect(reconfirmacaoPendente("2026-10-01T10:00:00Z", null)).toBe(true);
+    expect(reconfirmacaoPendente("2026-10-01T10:00:00Z", "2025-09-01T10:00:00Z")).toBe(true);
+    expect(reconfirmacaoPendente("2026-10-01T10:00:00Z", "2026-10-02T09:00:00Z")).toBe(false);
+  });
+  it("devida 365 dias após a última confirmação; nunca confirmou não é automático", () => {
+    const agora = new Date("2026-10-08T12:00:00Z");
+    expect(reconfirmacaoDevida(null, agora)).toBe(false);
+    expect(reconfirmacaoDevida("2025-10-07T12:00:00Z", agora)).toBe(true);
+    expect(reconfirmacaoDevida("2026-01-01T12:00:00Z", agora)).toBe(false);
   });
 });

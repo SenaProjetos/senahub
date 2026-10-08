@@ -26,7 +26,8 @@ import { EditarMeusDados } from "@/components/rh/editar-meus-dados";
 import { PreferenciasView } from "@/components/configuracoes/preferencias-view";
 import { CiclosPessoa } from "@/components/rh/ciclos-pessoa";
 import { CompletarMeusDados } from "@/components/rh/completar-meus-dados";
-import { situacaoDaPessoa } from "@/modules/rh/cadastro/pedido-service";
+import { reconfirmacaoAberta, situacaoDaPessoa } from "@/modules/rh/cadastro/pedido-service";
+import { ConfirmarMeusDados } from "@/components/rh/confirmar-meus-dados";
 import { CompetenciasPessoa } from "@/components/rh/competencias-pessoa";
 import { competenciasDaPessoa } from "@/modules/rh/habilidades/queries";
 import { DesenvolvimentoPessoa } from "@/components/rh/desenvolvimento-pessoa";
@@ -35,7 +36,7 @@ import { ciclosDaPessoa, equipamentosDaPessoa } from "@/modules/rh/ciclo/queries
 
 export const metadata: Metadata = { title: "Minha conta" };
 
-export default async function MinhaFichaPage({ searchParams }: { searchParams: Promise<{ completar?: string }> }) {
+export default async function MinhaFichaPage({ searchParams }: { searchParams: Promise<{ completar?: string; confirmar?: string }> }) {
   const user = await requireUser();
   if (user.role === "cliente") redirect("/portal");
   const id = user.id;
@@ -88,7 +89,10 @@ export default async function MinhaFichaPage({ searchParams }: { searchParams: P
   const competencias = isColaborador ? await competenciasDaPessoa(id) : null;
   // Desenvolvimento (F3): a pessoa lê os objetivos e só o 1:1 compartilhado.
   const [desenvolvimento, lidera] = isColaborador ? await Promise.all([desenvolvimentoDaPessoa(id, "self"), quantosLidera(id)]) : [null, 0];
-  const abrirCompletar = (await searchParams).completar === "1";
+  const sp = await searchParams;
+  const abrirCompletar = sp.completar === "1";
+  // Reconfirmação anual: o cartão aparece com pedido aberto (ou vindo do link da faixa).
+  const pedirConfirmacao = isColaborador && ((await reconfirmacaoAberta(id)) || sp.confirmar === "1");
 
   const escala = escalaUsuario && escalaPadrao
     ? { temOverride: escalaUsuario.temOverride, dias: escalaUsuario.dias, padraoDias: escalaPadrao }
@@ -100,6 +104,7 @@ export default async function MinhaFichaPage({ searchParams }: { searchParams: P
 
       {acesso && <MeuAcesso acesso={acesso} />}
 
+      {pedirConfirmacao && cadastro && <ConfirmarMeusDados dados={cadastro} destacar={sp.confirmar === "1"} />}
       {situacaoDados && <CompletarMeusDados situacao={situacaoDados} abrir={abrirCompletar} />}
       {cadastro && <EditarMeusDados atual={cadastro} pendente={pendente} />}
       {/* Auto-serviço: própria ficha, com salário próprio visível e sem links de gestão.
