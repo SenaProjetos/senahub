@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
+import { can } from "@/lib/permissions";
+import { diaLocal } from "@/modules/ponto/engine";
+import { resolverPeriodo } from "@/modules/rh/produtividade/periodo";
 import {
-  horasDiariasProjetistas,
+  horasProjetistas,
   produtividadeProjetistas,
   type Granularidade,
 } from "@/modules/rh/produtividade/queries";
@@ -12,21 +15,27 @@ export const metadata: Metadata = { title: "Produtividade — Projetistas" };
 export default async function ProdutividadePage({
   searchParams,
 }: {
-  searchParams: Promise<{ g?: string }>;
+  searchParams: Promise<{ g?: string; de?: string; ate?: string }>;
 }) {
-  await requirePermission("rh", "produtividade");
-  const { g } = await searchParams;
-  const granularidade: Granularidade = g === "mes" ? "mes" : "semana";
-  const [dados, horasDiarias] = await Promise.all([
+  const user = await requirePermission("rh", "produtividade");
+  const sp = await searchParams;
+  const granularidade: Granularidade = sp.g === "mes" ? "mes" : "semana";
+  const hoje = diaLocal(new Date());
+  const periodo = resolverPeriodo({ de: sp.de, ate: sp.ate }, hoje);
+  const [dados, horas, podeVerEspelho] = await Promise.all([
     produtividadeProjetistas(granularidade),
-    horasDiariasProjetistas(),
+    horasProjetistas(periodo),
+    can(user, "ponto", "espelho_equipe"),
   ]);
   return (
     <ProdutividadeView
       periodos={dados.periodos}
       granularidade={dados.granularidade}
       projetistas={dados.projetistas}
-      horasDiarias={horasDiarias}
+      horas={horas}
+      periodo={periodo}
+      hoje={hoje}
+      podeVerEspelho={podeVerEspelho}
     />
   );
 }
