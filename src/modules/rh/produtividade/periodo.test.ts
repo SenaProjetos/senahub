@@ -5,6 +5,7 @@ import {
   intervaloDoAtalho,
   LIMITE_DIARIO,
   listarDias,
+  motivoIntervaloInvalido,
   resolverPeriodo,
   somarDias,
 } from "./periodo";
@@ -100,5 +101,23 @@ describe("bucketsDoPeriodo", () => {
     ]);
     // nenhum dia perdido nem repetido
     expect(b.flatMap((x) => x.indices)).toEqual(dias.map((_, i) => i));
+  });
+});
+
+describe("motivoIntervaloInvalido (o seletor avisa em vez de voltar calado aos 14 dias)", () => {
+  it("intervalo válido não tem motivo", () => {
+    expect(motivoIntervaloInvalido("2026-09-01", "2026-09-30", HOJE)).toBeNull();
+    expect(motivoIntervaloInvalido("2026-10-01", "2026-12-31", HOJE)).toBeNull(); // ate futuro é cortado
+  });
+  it.each([
+    ["", HOJE, "Informe as duas datas."],
+    ["2026-10-05", "2026-10-01", "A data inicial é depois da final."],
+    ["2026-11-01", "2026-11-30", "A data inicial é depois de hoje."],
+    ["1999-12-31", HOJE, "Escolha uma data a partir de 2000."],
+  ])("%s → %s: %s", (de, ate, motivo) => {
+    expect(motivoIntervaloInvalido(de, ate, HOJE)).toBe(motivo);
+  });
+  it("o que o seletor aceita, o servidor respeita (mesma regra)", () => {
+    expect(resolverPeriodo({ de: "2026-09-10", ate: "2026-09-20" }, HOJE)).toMatchObject({ de: "2026-09-10", ate: "2026-09-20" });
   });
 });

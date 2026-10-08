@@ -1,17 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useSetParams } from "@/lib/use-set-param";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ATALHOS, intervaloDoAtalho, type Periodo } from "@/modules/rh/produtividade/periodo";
+import { ATALHOS, intervaloDoAtalho, motivoIntervaloInvalido, type Periodo } from "@/modules/rh/produtividade/periodo";
 import { cn } from "@/lib/utils";
 
 /** Atalhos + intervalo livre. Grava `?de=&ate=` na URL; o servidor resolve e corta o futuro. */
 export function SeletorPeriodo({ periodo, hoje }: { periodo: Periodo; hoje: string }) {
   const setParams = useSetParams();
+  const idMotivo = useId();
   const [de, setDe] = useState(periodo.de);
   const [ate, setAte] = useState(periodo.ate);
+  // Mesma regra do servidor: o que não passa aqui, lá voltaria calado aos 14 dias.
+  const motivo = motivoIntervaloInvalido(de, ate, hoje);
 
   return (
     <div className="flex flex-wrap items-end gap-2">
@@ -35,7 +38,7 @@ export function SeletorPeriodo({ periodo, hoje }: { periodo: Periodo; hoje: stri
         className="flex flex-wrap items-end gap-2"
         onSubmit={(e) => {
           e.preventDefault();
-          setParams({ de, ate });
+          if (!motivo) setParams({ de, ate });
         }}
       >
         <label className="grid gap-1 text-xs text-muted-foreground">
@@ -46,9 +49,14 @@ export function SeletorPeriodo({ periodo, hoje }: { periodo: Periodo; hoje: stri
           Até
           <Input type="date" value={ate} max={hoje} onChange={(e) => setAte(e.target.value)} className="h-8 w-[9.5rem]" />
         </label>
-        <Button type="submit" size="sm" variant="outline" disabled={!de || !ate}>
+        <Button type="submit" size="sm" variant="outline" disabled={motivo !== null} aria-describedby={motivo ? idMotivo : undefined}>
           Aplicar
         </Button>
+        {motivo && (de !== periodo.de || ate !== periodo.ate) && (
+          <p id={idMotivo} role="status" className="w-full text-xs text-destructive">
+            {motivo}
+          </p>
+        )}
       </form>
     </div>
   );

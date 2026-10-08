@@ -73,10 +73,23 @@ export function intervaloDoAtalho(atalho: AtalhoPeriodo, hoje: string): { de: st
   }
 }
 
+/**
+ * Regra única do intervalo livre: o seletor mostra este motivo e não deixa aplicar; o servidor usa a
+ * mesma regra para cair no padrão. `ate` no futuro não é motivo — o servidor corta em hoje.
+ */
+export function motivoIntervaloInvalido(de: string, ate: string, hoje: string): string | null {
+  if (!de || !ate) return "Informe as duas datas.";
+  if (de < PRIMEIRO_DIA || ate < PRIMEIRO_DIA) return "Escolha uma data a partir de 2000.";
+  if (!diaValido(de) || !diaValido(ate)) return "Data inválida.";
+  if (de > ate) return "A data inicial é depois da final.";
+  if (de > hoje) return "A data inicial é depois de hoje.";
+  return null;
+}
+
 /** Lê `?de=&ate=`. Qualquer coisa inválida (data impossível, de > ate, de no futuro) volta ao padrão. */
 export function resolverPeriodo(params: { de?: string; ate?: string }, hoje: string): Periodo {
   let { de, ate } = intervaloDoAtalho(PADRAO, hoje);
-  if (diaValido(params.de) && diaValido(params.ate) && params.de <= params.ate && params.de <= hoje) {
+  if (params.de && params.ate && motivoIntervaloInvalido(params.de, params.ate, hoje) === null) {
     de = params.de;
     ate = params.ate > hoje ? hoje : params.ate;
   }

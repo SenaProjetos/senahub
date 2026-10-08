@@ -2023,7 +2023,8 @@
         "sessão",
         "espelho",
         "banco de horas",
-        "rateio"
+        "rateio",
+        "minhas horas"
       ],
       "palavrasChave": [
         "ponto",
@@ -2036,7 +2037,10 @@
         "banco de horas",
         "rateio",
         "tarefa no ponto",
-        "ponto no celular"
+        "ponto no celular",
+        "minhas horas",
+        "horas por projeto",
+        "gráfico de horas"
       ],
       "sinonimos": [
         "registro de jornada",
@@ -2206,14 +2210,17 @@
     {
       "titulo": "Produtividade — Projetistas",
       "path": "rh-ponto/produtividade.md",
-      "descricao": "Acompanhamento da produtividade dos projetistas por semana ou mês.",
-      "resumo": "Painel que mostra a produtividade dos projetistas ao longo do tempo, com granularidade semanal ou mensal.",
+      "descricao": "Acompanhamento da produtividade e das horas dos projetistas em qualquer período.",
+      "resumo": "Painel com as horas de cada projetista no período escolhido (ranking, comparação de até cinco e horas por projeto) e a produtividade por semana ou mês.",
       "tags": [
         "produtividade",
         "projetistas",
         "desempenho",
         "semana",
-        "mês"
+        "mês",
+        "horas",
+        "gráfico",
+        "comparação"
       ],
       "palavrasChave": [
         "produtividade",
@@ -2222,7 +2229,12 @@
         "entregas",
         "semana",
         "mês",
-        "granularidade"
+        "granularidade",
+        "horas por projeto",
+        "horas por dia",
+        "comparar projetistas",
+        "ranking de horas",
+        "período"
       ],
       "sinonimos": [
         "desempenho",

@@ -70,6 +70,9 @@ usam esta mesma função, então nunca mostram dois números diferentes para a m
   (de / até).
 - Na URL: `?de=AAAA-MM-DD&ate=AAAA-MM-DD`. Sem parâmetro = últimos 14 dias. Data inválida ou
   `de > ate` cai no padrão. `ate` depois de hoje é cortado em hoje (não há horas no futuro).
+- Data antes de 2000 é inválida (revisão 2026-10-07: `?de=1000-01-01` montaria centenas de milhares de
+  dias por pessoa). Uma regra só, `motivoIntervaloInvalido`, serve ao servidor e ao seletor: no intervalo
+  livre o seletor mostra o motivo e desabilita "Aplicar", em vez de o servidor voltar calado aos 14 dias.
 - **Sem teto** (D5). Até 92 dias o gráfico é dia a dia; acima de 92 dias o gráfico e a tabela agrupam
   por semana e o título mostra "por semana — período longo". Ranking e totais sempre valem para o
   período inteiro.
@@ -106,6 +109,9 @@ para escolher no ranking.
   de dados** (modelo: `20260902120000_perfis_tarefas_ver`), senão nasce negada para todo mundo.
 - A migration reproduz o acesso REAL de hoje — a página é `requireRole(HR_ADMIN_ROLES)` —, então
   concede aos perfis `coordenador` e `administrativo` (admin é bypass). `ON CONFLICT DO NOTHING`.
+- Quem tem papel supervisor/administrativo num perfil PERSONALIZADO também abria a tela pelo papel:
+  recebe exceção individual (`permissao_usuario`), não o perfil inteiro — conceder ao perfil ampliaria o
+  acesso de outros papéis que o usam (revisão 2026-10-07).
 - A tabela legada `Permissao` também ganha a linha para `supervisor`, porque o piso de sócio de
   `requirePermission` consulta `canRole("supervisor", …)` nela.
 - Passam a exigir `rh:produtividade`: a página (`requirePermission("rh", "produtividade")`), o item

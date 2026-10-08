@@ -36,7 +36,12 @@ export function GraficoHoras({
   const [foco, setFoco] = useState<number | null>(null);
   const buckets = useMemo(() => bucketsDoPeriodo(dias, granularidade), [dias, granularidade]);
   const valores = useMemo(() => series.map((s) => somarPorBucket(s.valores, buckets)), [series, buckets]);
-  const rotulos = buckets.map((b) => (granularidade === "semana" ? `sem. ${rotuloDia(b.inicio)}` : rotuloDia(b.inicio)));
+  // Período que cruza a virada de ano repete "dd/mm": aí o rótulo leva o ano.
+  const variosAnos = dias.length > 0 && dias[0].slice(0, 4) !== dias[dias.length - 1].slice(0, 4);
+  const rotulos = buckets.map((b) => {
+    const dia = variosAnos ? `${rotuloDia(b.inicio)}/${b.inicio.slice(2, 4)}` : rotuloDia(b.inicio);
+    return granularidade === "semana" ? `sem. ${dia}` : dia;
+  });
   const totais = buckets.map((_, i) => valores.reduce((s, v) => s + v[i], 0));
 
   // `reduce`, não `Math.max(...)`: período longo tem milhares de valores e o spread estoura a pilha.
@@ -79,7 +84,7 @@ export function GraficoHoras({
           ))}
           {rotulos.map((r, i) =>
             i % cadaQuantos === 0 ? (
-              <text key={r} x={xCentro(i)} y={ALTURA - 12} textAnchor="middle" className="fill-muted-foreground text-[10px]">
+              <text key={i} x={xCentro(i)} y={ALTURA - 12} textAnchor="middle" className="fill-muted-foreground text-[10px]">
                 {r}
               </text>
             ) : null,
