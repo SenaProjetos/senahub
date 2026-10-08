@@ -5,7 +5,7 @@ import { Clock, Users } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { empilharPorDestino } from "@/modules/rh/produtividade/horas";
-import { LIMITE_COMPARACAO } from "@/modules/rh/produtividade/acoes-horas";
+import { LIMITE_COMPARACAO, selecaoVisivel } from "@/modules/rh/produtividade/acoes-horas";
 import type { Periodo } from "@/modules/rh/produtividade/periodo";
 import type { HorasProjetistas, PessoaHoras } from "@/modules/rh/produtividade/queries";
 import { CORES_COMPARACAO, corDoDestino, rotuloDia } from "./formato";
@@ -32,20 +32,27 @@ export function PainelHorasEquipe({
         .sort((a, b) => b.totalHoras - a.totalHoras || a.nome.localeCompare(b.nome)),
     [horas.pessoas],
   );
-  const [selecionados, setSelecionados] = useState<string[]>(() => pessoas.slice(0, 1).map((p) => p.userId));
+  const [selecaoBruta, setSelecionados] = useState<string[]>(() => pessoas.slice(0, 1).map((p) => p.userId));
+  // Quem ficou sem horas no período novo sai da seleção (vaga e cor), ver `selecaoVisivel`.
+  const selecionados = selecaoVisivel(
+    selecaoBruta,
+    pessoas.map((p) => p.userId),
+  );
   const ativos = selecionados
     .map((id) => pessoas.find((p) => p.userId === id))
     .filter((p): p is PessoaHoras => p !== undefined);
   const cores = Object.fromEntries(selecionados.map((id, i) => [id, CORES_COMPARACAO[i % CORES_COMPARACAO.length]]));
 
   function alternar(userId: string) {
-    setSelecionados((atuais) =>
-      atuais.includes(userId)
+    const visiveis = pessoas.map((p) => p.userId);
+    setSelecionados((bruta) => {
+      const atuais = selecaoVisivel(bruta, visiveis);
+      return atuais.includes(userId)
         ? atuais.filter((id) => id !== userId)
         : atuais.length >= LIMITE_COMPARACAO
           ? atuais
-          : [...atuais, userId],
-    );
+          : [...atuais, userId];
+    });
   }
 
   const series: SerieGrafico[] =

@@ -39,7 +39,9 @@ export function GraficoHoras({
   const rotulos = buckets.map((b) => (granularidade === "semana" ? `sem. ${rotuloDia(b.inicio)}` : rotuloDia(b.inicio)));
   const totais = buckets.map((_, i) => valores.reduce((s, v) => s + v[i], 0));
 
-  const maximo = teto(modo === "empilhado" ? Math.max(0, ...totais) : Math.max(0, ...valores.flat()));
+  // `reduce`, não `Math.max(...)`: período longo tem milhares de valores e o spread estoura a pilha.
+  const maior = (lista: number[]) => lista.reduce((m, v) => (v > m ? v : m), 0);
+  const maximo = teto(modo === "empilhado" ? maior(totais) : valores.reduce((m, v) => Math.max(m, maior(v)), 0));
   const larguraUtil = LARGURA - M.esquerda - M.direita;
   const alturaUtil = ALTURA - M.topo - M.baixo;
   const n = buckets.length;

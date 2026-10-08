@@ -7,6 +7,7 @@ import {
   itensDoRankingDeHoras,
   LIMITE_COMPARACAO,
   MOTIVO_LIMITE_COMPARACAO,
+  selecaoVisivel,
 } from "./acoes-horas";
 
 const base = { userId: "u 1", selecionado: false, totalSelecionados: 0, podeVerEspelho: true };
@@ -34,5 +35,15 @@ describe("itensDoRankingDeHoras", () => {
   it("espelho é link com o usuário codificado", () => {
     const item = itensDoRankingDeHoras(base).find((i) => i.id === ACAO_ESPELHO);
     expect(item).toMatchObject({ tipo: "link", href: "/ponto/espelho?u=u%201" });
+  });
+});
+
+describe("selecaoVisivel", () => {
+  it("quem saiu do ranking (0h no novo período) deixa de ocupar vaga e cor", () => {
+    // comparava 5; no mês anterior b e d não têm horas
+    expect(selecaoVisivel(["a", "b", "c", "d", "e"], ["a", "c", "e", "f"])).toEqual(["a", "c", "e"]);
+  });
+  it("mantém a ordem da seleção (é a ordem das cores)", () => {
+    expect(selecaoVisivel(["c", "a"], ["a", "b", "c"])).toEqual(["c", "a"]);
   });
 });

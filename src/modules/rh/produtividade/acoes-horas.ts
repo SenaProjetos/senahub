@@ -45,3 +45,12 @@ export function itensDoRankingDeHoras(p: {
   }
   return itens;
 }
+
+/**
+ * A seleção sobrevive à troca de período (estado do cliente); quem não tem horas no período novo some
+ * do ranking e não pode mais ser desmarcado — então não pode continuar ocupando vaga nem cor.
+ */
+export function selecaoVisivel(selecionados: readonly string[], visiveis: readonly string[]): string[] {
+  const set = new Set(visiveis);
+  return selecionados.filter((id) => set.has(id));
+}

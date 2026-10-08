@@ -65,6 +65,10 @@ describe("resolverPeriodo", () => {
     [{ de: "2026-10-05", ate: "2026-10-01" }],
     [{ de: "2026-11-01", ate: "2026-11-30" }],
     [{ de: "2026-10-01" }],
+    // ano absurdo (digitação no campo de data): centenas de milhares de dias derrubariam o processo
+    [{ de: "1000-01-01", ate: HOJE }],
+    [{ de: "0206-10-01", ate: HOJE }],
+    [{ de: "1999-12-31", ate: HOJE }],
   ])("parâmetro inválido cai no padrão (%o)", (params) => {
     expect(resolverPeriodo(params, HOJE)).toMatchObject({ de: "2026-09-24", ate: HOJE, atalho: "14d" });
   });

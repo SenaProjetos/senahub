@@ -128,6 +128,25 @@ describe("empilharPorDestino", () => {
   });
 });
 
+describe("pilha bate com o total (arredondamento só na borda)", () => {
+  it("3 projetos × 20 min no mesmo dia somam 1h na pilha, no dia e na semana — não 0,9h", () => {
+    const sessoes = [1, 2, 3].map((n) => {
+      const hh = String(7 + n).padStart(2, "0");
+      return sessao({ projeto: proj(n), inicio: t(`2026-10-06T${hh}:00:00`), fim: t(`2026-10-06T${hh}:20:00`) });
+    });
+    const r = agregarHoras(sessoes, { ...PERIODO, userIds: ["u1"] });
+    const p = r.pessoas[0];
+    expect(p.totalHoras).toBe(1);
+    const series = empilharPorDestino(p, r.destinos);
+    const buckets = bucketsDoPeriodo(r.dias, "semana");
+    const pilhaDoDia = series.reduce((s, x) => s + x.valores[1], 0);
+    const pilhaDaSemana = series.reduce((s, x) => s + somarPorBucket(x.valores, buckets).reduce((a, b) => a + b, 0), 0);
+    expect(pilhaDoDia).toBeCloseTo(1, 6);
+    expect(pilhaDaSemana).toBeCloseTo(1, 6);
+    expect(somarPorBucket(p.porDia, buckets).reduce((a, b) => a + b, 0)).toBeCloseTo(1, 6);
+  });
+});
+
 describe("somarPorBucket", () => {
   it("soma por semana sem perder hora", () => {
     const dias = listarDias("2026-09-30", "2026-10-06"); // qua → ter

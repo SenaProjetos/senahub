@@ -27,13 +27,18 @@ export type Bucket = { inicio: string; fim: string; indices: number[] };
 
 const PADRAO: AtalhoPeriodo = "14d";
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
+/**
+ * "Sem teto" é sobre o desenho, não sobre aceitar qualquer ano: `?de=1000-01-01` (ou um ano digitado
+ * pela metade no campo de data) montaria centenas de milhares de dias por pessoa no servidor.
+ */
+const PRIMEIRO_DIA = "2000-01-01";
 
 function paraUtc(dia: string): Date {
   return new Date(`${dia}T00:00:00Z`);
 }
 
 function diaValido(dia: string | undefined): dia is string {
-  if (!dia || !ISO.test(dia)) return false;
+  if (!dia || !ISO.test(dia) || dia < PRIMEIRO_DIA) return false;
   const d = paraUtc(dia);
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === dia;
 }

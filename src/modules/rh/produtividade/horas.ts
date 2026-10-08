@@ -7,8 +7,11 @@ import { listarDias, type Bucket } from "./periodo";
  * de horas: RH → Produtividade, Ponto → Minhas horas e o card do Início leem daqui, então uma pessoa
  * num dia nunca mostra dois números.
  *
- * Soma em MINUTOS e só converte para horas (1 casa) na saída. A divisão da sessão pelos dias é a do
- * ponto (`minutosPorDiaSessao`): cruza a meia-noite repartindo, e sessão aberta conta até `agora`.
+ * Soma em MINUTOS. Totais e médias saem com 1 casa; as séries (`porDia`, `porDestino`) saem em horas
+ * SEM arredondar, porque a tela ainda soma por pilha e por semana — arredondar antes faria 3 × 20 min
+ * virar 0,9h na barra e 1h no ranking. Quem mostra formata (`rotuloHoras`).
+ * A divisão da sessão pelos dias é a do ponto (`minutosPorDiaSessao`): cruza a meia-noite repartindo,
+ * e sessão aberta conta até `agora`.
  */
 
 export type SessaoHoras = {
@@ -34,9 +37,9 @@ export type HorasPessoa = {
   totalHoras: number;
   diasComRegistro: number;
   mediaPorDiaComRegistro: number;
-  /** Alinhado a `dias`. */
+  /** Alinhado a `dias`, em horas sem arredondar. */
   porDia: number[];
-  /** Chave do destino → horas alinhadas a `dias`. */
+  /** Chave do destino → horas (sem arredondar) alinhadas a `dias`. */
   porDestino: Record<string, number[]>;
 };
 
@@ -46,6 +49,7 @@ export type SerieHoras = { chave: string; rotulo: string; valores: number[] };
 
 const umaCasa = (n: number) => Math.round(n * 10) / 10;
 const horas = (minutos: number) => umaCasa(minutos / 60);
+const horasCruas = (minutos: number) => minutos / 60;
 
 /** `p:<projetoId>` | reuniões (interna + externa) | sem projeto — tipo projeto sem projeto cai aqui. */
 export function chaveDestino(s: Pick<SessaoHoras, "tipoAlocacao" | "projeto">): string {
@@ -87,7 +91,7 @@ export function agregarHoras(
     const porDestino: Record<string, number[]> = {};
     for (const [chave, serie] of porDestinoMin) {
       serie.forEach((m, i) => (porDiaMin[i] += m));
-      porDestino[chave] = serie.map(horas);
+      porDestino[chave] = serie.map(horasCruas);
     }
     const totalMin = porDiaMin.reduce((s, m) => s + m, 0);
     const diasComRegistro = porDiaMin.filter((m) => m > 0).length;
@@ -96,7 +100,7 @@ export function agregarHoras(
       totalHoras: horas(totalMin),
       diasComRegistro,
       mediaPorDiaComRegistro: diasComRegistro === 0 ? 0 : horas(totalMin / diasComRegistro),
-      porDia: porDiaMin.map(horas),
+      porDia: porDiaMin.map(horasCruas),
       porDestino,
     };
   });
@@ -117,7 +121,7 @@ export function empilharPorDestino(pessoa: HorasPessoa, destinos: Record<string,
 
   const resto = projetos.slice(n);
   if (resto.length > 0) {
-    const valores = pessoa.porDia.map((_, i) => umaCasa(resto.reduce((s, [, v]) => s + v[i], 0)));
+    const valores = pessoa.porDia.map((_, i) => resto.reduce((s, [, v]) => s + v[i], 0));
     series.push({ chave: DESTINO_OUTROS, rotulo: ROTULOS_FIXOS[DESTINO_OUTROS], valores });
   }
   for (const chave of [DESTINO_REUNIOES, DESTINO_SEM_PROJETO]) {
@@ -127,6 +131,7 @@ export function empilharPorDestino(pessoa: HorasPessoa, destinos: Record<string,
   return series;
 }
 
+/** Soma por dia/semana, sem arredondar (quem mostra formata). */
 export function somarPorBucket(valores: number[], buckets: Bucket[]): number[] {
-  return buckets.map((b) => umaCasa(b.indices.reduce((s, i) => s + (valores[i] ?? 0), 0)));
+  return buckets.map((b) => b.indices.reduce((s, i) => s + (valores[i] ?? 0), 0));
 }
