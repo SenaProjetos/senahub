@@ -47,6 +47,12 @@ rodando, trocar de tarefa fecha o tempo da anterior e começa o da nova na hora,
 do dia. Trocar de projeto pelos atalhos continua sendo um toque só — a tarefa volta para "Sem
 tarefa" e você escolhe outra se quiser.
 
+## Minhas horas
+
+Aba **Minhas horas** (`/ponto/horas`): suas horas registradas no período escolhido (7, 14 ou 30 dias,
+mês atual, mês anterior ou intervalo livre), com total, média por dia com registro e um gráfico por
+projeto. Só mostra as suas horas. O card **Minhas horas** no Início traz os últimos 14 dias e abre esta aba.
+
 ## Para gestores (RH)
 
 - Quem é gestor de RH (admin/supervisor/administrativo) vê também o **rateio do mês** —
