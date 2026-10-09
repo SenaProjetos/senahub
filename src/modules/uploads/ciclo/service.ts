@@ -503,6 +503,15 @@ export async function motivoBloqueioDosUploads(
   return `${bloqueio.revisao.documento.nomeArquivo} (${rotuloRevisao(bloqueio.revisao.numero)}) está bloqueado e não pode ser ${acao}: ${bloqueio.motivo}`;
 }
 
+/** I2/I3 na validação: algum dos arquivos é de revisão publicada ou arquivada? */
+export async function temRevisaoCongelada(db: Tx | typeof prisma, uploadIds: readonly string[]): Promise<boolean> {
+  if (uploadIds.length === 0) return false;
+  const n = await db.upload.count({
+    where: { id: { in: [...uploadIds] }, substituidoPorId: { not: undefined }, revisao: { estado: { in: ["publicado", "arquivado"] } } },
+  });
+  return n > 0;
+}
+
 /** I7 em lote (.zip): os arquivos com bloqueio de download ativo — o .zip sai sem eles. */
 export async function uploadsComBloqueioDeDownload(db: Tx | typeof prisma, uploadIds: readonly string[]): Promise<Set<string>> {
   if (uploadIds.length === 0) return new Set();

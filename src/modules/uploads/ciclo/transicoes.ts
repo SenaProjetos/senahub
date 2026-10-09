@@ -38,6 +38,10 @@ export const MOTIVO_EXIGE_MOTIVO = "Informe o motivo.";
 export const MOTIVO_BLOQUEADA = "Esta revisão está bloqueada. Remova o bloqueio antes de mudar o estado.";
 export const MOTIVO_FORA_DO_CICLO_ACAO = "Este arquivo não participa do ciclo documental.";
 
+/** Validação de arquivo numa revisão publicada ou arquivada: a mesma frase no menu e no servidor. */
+export const MOTIVO_VALIDACAO_CONGELADA =
+  "Revisão publicada ou arquivada não muda: a validação dos arquivos fica como está. Para corrigir, envie uma nova revisão.";
+
 export function motivoPublicadoNaoVolta(): string {
   return "Revisão publicada não volta para outro estado. Para corrigir, envie uma nova revisão.";
 }

@@ -38,7 +38,7 @@ import { classeDoStatus } from "@/modules/uploads/status-documento";
 import { ROTULO_SITUACAO, marcasVisiveis } from "@/modules/uploads/revisao-marcada";
 
 /** Colunas opcionais da tabela, na ordem em que aparecem — o nome da pasta atravessa todas. */
-const COLUNAS_OPCIONAIS = ["numero", "fase", "sub", "tipo", "validado", "revisao", "status", "extensao", "papel", "responsavel", "data", "tamanho"];
+const COLUNAS_OPCIONAIS = ["numero", "fase", "sub", "tipo", "validado", "status", "revisao", "extensao", "papel", "responsavel", "data", "tamanho"];
 
 function fmtBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -72,8 +72,30 @@ function linhaParaMenu(linha: LinhaDoc): DocumentoParaAcoes | null {
 function MarcasDoCliente({
   linha,
 }: {
-  linha: Pick<LinhaDoc, "statusChave" | "revisaoAtual" | "revisaoCompartilhada" | "revisaoLiberadaObra">;
+  linha: Pick<LinhaDoc, "statusChave" | "revisaoAtual" | "revisaoCompartilhada" | "revisaoLiberadaObra" | "ciclo">;
 }) {
+  // No ciclo documental a etiqueta do controle (coluna Status) já diz que a revisão está na pasta; a marca
+  // aqui só aparece quando o cliente vê OUTRA revisão (ex.: a equipe já trabalha na R02).
+  if (linha.ciclo.participa) {
+    const outras = [
+      linha.revisaoCompartilhada !== null && linha.revisaoCompartilhada !== linha.revisaoAtual
+        ? { situacao: "compartilhado" as const, revisao: linha.revisaoCompartilhada }
+        : null,
+      linha.revisaoLiberadaObra !== null && linha.revisaoLiberadaObra !== linha.revisaoAtual
+        ? { situacao: "liberado_obra" as const, revisao: linha.revisaoLiberadaObra }
+        : null,
+    ].filter((m) => m !== null);
+    return outras.map((m) => (
+      <Badge
+        key={m.situacao}
+        variant="outline"
+        className={cn("shrink-0", classeDoStatus(m.situacao === "compartilhado" ? "info" : "primario"))}
+        title={`O cliente vê a ${rotuloRevisao(m.revisao)} na pasta ${ROTULO_SITUACAO[m.situacao]} do link`}
+      >
+        {ROTULO_SITUACAO[m.situacao]} {rotuloRevisao(m.revisao)}
+      </Badge>
+    ));
+  }
   const marcas = marcasVisiveis({
     statusChave: linha.statusChave,
     revisaoAtual: linha.revisaoAtual,
@@ -622,8 +644,8 @@ export function TabelaDocumentos({
               </TableHead>
             )}
             <TableHead className="w-9"><span className="sr-only">Detalhes</span></TableHead>
-            {colunas.has("revisao") && <SortableHead field="revisao" className="text-right">Revisão</SortableHead>}
             {colunas.has("status") && <TableHead>Status</TableHead>}
+            {colunas.has("revisao") && <SortableHead field="revisao" className="text-right">Revisão</SortableHead>}
             {colunas.has("extensao") && <TableHead>Extensão</TableHead>}
             {colunas.has("papel") && <TableHead>Papel</TableHead>}
             {colunas.has("responsavel") && <TableHead>Responsável</TableHead>}
@@ -678,7 +700,7 @@ export function TabelaDocumentos({
                   {l.tipoSigla ?? <span className="text-muted-foreground">—</span>}
                 </TableCell>
               )}
-              <TableCell className="max-w-[32rem]">
+              <TableCell className="max-w-[22rem]">
                 <div className="flex min-w-0 items-center gap-2">
                   <TituloDocumento projetoId={projetoId} linha={l} podeCoordenacao={podeCoordenacao} />
                   <SeloNovo ciclo={l.ciclo} />
@@ -722,11 +744,6 @@ export function TabelaDocumentos({
               <TableCell>
                 <BotaoDetalhes nome={l.nome} onAbrir={() => setDetalhesDe(l.id)} />
               </TableCell>
-              {colunas.has("revisao") && (
-                <TableCell className="text-right font-mono text-xs tabular-nums">
-                  {l.revisaoAtual === null ? "—" : rotuloComVersao(l)}
-                </TableCell>
-              )}
               {colunas.has("status") && (
                 <TableCell>
                   {l.ciclo.participa ? (
@@ -737,6 +754,11 @@ export function TabelaDocumentos({
                   ) : (
                     <BadgeStatusDocumento linha={l} />
                   )}
+                </TableCell>
+              )}
+              {colunas.has("revisao") && (
+                <TableCell className="whitespace-nowrap text-right font-mono text-xs tabular-nums">
+                  {l.revisaoAtual === null ? "—" : rotuloComVersao(l)}
                 </TableCell>
               )}
               {colunas.has("extensao") && (

@@ -25,7 +25,8 @@ import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { expiraAceiteEm, linkAceiteEstaAtivo } from "@/modules/uploads/aceite";
 import { registrarEventoDocumento, registrarEventoUploads } from "@/modules/uploads/historico/service";
 import { exigirEscopoDocumento } from "@/modules/uploads/escopo-documento";
-import { motivoBloqueioDosUploads, motivoExclusaoProtegida } from "@/modules/uploads/ciclo/service";
+import { motivoBloqueioDosUploads, motivoExclusaoProtegida, temRevisaoCongelada } from "@/modules/uploads/ciclo/service";
+import { MOTIVO_VALIDACAO_CONGELADA } from "@/modules/uploads/ciclo/transicoes";
 import { ehAdminDoCiclo } from "@/modules/uploads/ciclo/acesso";
 import { participaDoCiclo } from "@/modules/uploads/ciclo/escopo";
 import { statusAposDesvalidacao, statusAposValidacao } from "@/modules/uploads/status-automatico";
@@ -280,6 +281,8 @@ async function carregarUploadEditavel(uploadId: string) {
   if (upload.disciplina.status === "aprovado") {
     throw new ActionError("Entrega já finalizada — não é possível alterar a validação dos arquivos.");
   }
+  // Ciclo documental: publicado não volta (I2) e arquivado é só leitura (I3) — inclusive a validação.
+  if (await temRevisaoCongelada(prisma, [upload.id])) throw new ActionError(MOTIVO_VALIDACAO_CONGELADA);
   return upload;
 }
 
@@ -409,6 +412,8 @@ export const validarArquivosLote = defineAction(
         id: { in: input.uploadIds },
         validado: false,
         disciplina: { projetoId: input.projetoId, status: { not: "aprovado" } },
+        // Revisão publicada/arquivada não muda (I2, I3); `null` = arquivo fora do ciclo (sem revisão).
+        OR: [{ revisaoId: null }, { revisao: { estado: { notIn: ["publicado", "arquivado"] } } }],
       },
       select: { id: true, documentoId: true },
     });

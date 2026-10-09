@@ -45,6 +45,34 @@ function achar(itens: readonly AcaoItem[], id: string): AcaoItem | undefined {
 
 const ids = (itens: readonly AcaoItem[]) => itens.map((i) => i.id);
 
+describe("itensDeDocumento — ciclo documental", () => {
+  const ciclo = {
+    participa: true,
+    revisaoId: "r1",
+    numero: 2,
+    estado: "publicado" as const,
+    versao: 1,
+    descricao: null,
+    controles: [],
+    novo: false,
+    podeEnviar: true,
+    podePublicar: true,
+    podeAlterarPasta: true,
+    podeBloquear: true,
+  };
+
+  it("revisão publicada: validação fica desabilitada com a frase do servidor", () => {
+    const itens = itensDeDocumento({ ...doc, validado: true, ciclo }, ctx);
+    expect((achar(itens, "desfazer-validacao") as { desabilitado?: string }).desabilitado).toMatch(/não muda/);
+  });
+
+  it("documento do ciclo troca as marcas antigas de pasta pelos itens do ciclo", () => {
+    const itens = itensDeDocumento({ ...doc, documentoId: "d1", podeAlterarStatus: true, naPasta: { compartilhado: 1, liberado_obra: null }, ciclo }, ctx);
+    expect(ids(itens)).toContain("ciclo:aplicar:liberado_obra");
+    expect(ids(itens).some((i) => i.startsWith(PREFIXO_RETIRAR_SITUACAO))).toBe(false);
+  });
+});
+
 describe("itensDeDocumento", () => {
   it("monta o menu completo de um PDF pendente, para quem pode tudo", () => {
     expect(ids(itensDeDocumento(doc, ctx))).toEqual([
