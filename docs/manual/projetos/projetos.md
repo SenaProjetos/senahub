@@ -483,41 +483,68 @@ continuam como eram até você ligar a opção neles.
 **Documento Obsoleto ou Arquivado não aparece em link nenhum** (de disciplinas ou do projeto inteiro): ele foi
 aposentado, e o cliente não pode seguir baixando como se valesse.
 
-### Status do documento e as pastas do cliente (aba Arquivos)
+### Ciclo da revisão: em andamento, em análise, publicado, arquivado (aba Arquivos)
 
-Cada documento tem um **status documental**, com cor: **Em elaboração**, **Enviado**, **Em análise**,
-**Correção solicitada**, **Aprovado**, **Aprovado com ressalvas**, **Compartilhado**, **Liberado para obra**,
-**Obsoleto** e **Arquivado**. Ele aparece como etiqueta colorida na linha, no painel de detalhes e no
-visualizador, e muda no painel **Detalhes do documento** (a etiqueta da linha muda na hora).
+As pranchas e memoriais do projeto (o "pacote A") seguem o ciclo de vida da **ISO 19650**. Quem tem um
+estado é cada **revisão** (R00, R01…), não o documento, e ela está sempre em um destes quatro:
 
-**O sistema anda sozinho com alguns:**
+| Estado | O que quer dizer |
+|---|---|
+| **Em andamento** | O projetista está trabalhando. Toda revisão nova nasce aqui. |
+| **Em análise** | Foi enviada para a coordenação conferir (na ISO, *Shared*). |
+| **Publicado** | Aprovada pela coordenação/RT. Não volta: correção vira **nova revisão**. |
+| **Arquivado** | Substituída por uma revisão mais nova, ou cancelada. Só leitura. |
 
-- a **primeira revisão nova** enviada põe **Enviado**;
-- **validar a prancha** da revisão vigente põe **Aprovado** (se o documento ainda não estava aprovado);
-- desfazer a validação devolve o documento para **Enviado**; se foi **ajuste solicitado** ou envio de
-  **apontamentos**, vai para **Correção solicitada**.
+O estado aparece na coluna **Status** da tabela. A coluna **Revisão** mostra também a **versão interna**
+(ex.: **R01 · v3**).
 
-**Em análise**, **Aprovado com ressalvas** e os demais continuam sendo escolhidos por você. Documento
-**Obsoleto** ou **Arquivado** não muda sozinho. Cada troca automática fica no histórico do documento,
-marcada como "automático".
+**Versão × revisão.** Enquanto a revisão está **em andamento**, cada envio é uma **versão** nova dela
+(v1, v2, v3…), um ajuste interno. Se você reenviar o PDF, o anterior sai da lista e fica no **Histórico de
+revisões**, com download. A **revisão** é a etapa que vai para análise e para o cliente: a R02 só nasce
+depois que a R01 foi publicada. Com a revisão **em análise**, o envio de arquivo é recusado até a
+coordenação devolver ou publicar.
 
-**Compartilhado e Liberado para obra marcam a revisão.** Ao escolher um deles, o sistema guarda **qual
-revisão** foi para o cliente — a mais nova **com arquivo validado**; sem nenhuma, ele recusa ("Aprove a
-prancha antes de compartilhar"). Depois disso, a equipe pode enviar a R02, a R03… e o cliente **continua na
-revisão marcada**: só vê a nova quando alguém marcar de novo. Na linha, a etiqueta lembra ("Compartilhado
-R00") quando o cliente está numa revisão diferente da que a equipe está trabalhando.
+**Os passos (botão direito ou ⋯ da linha):**
 
-Na aba **Arquivos**, as duas pastas ficam na raiz, ao lado das disciplinas, e dentro delas a navegação é a de
-sempre (disciplina → fase → formato), **só com o que foi marcado**, cada documento na revisão marcada. Nada é
-copiado nem movido: é o mesmo arquivo visto por outro filtro. Para **tirar** um documento de uma pasta, use o
-botão direito na linha: **Tirar de Compartilhado (R00)** (o status volta a **Aprovado**).
+- **Enviar para análise** — o sistema confere sozinho e só deixa passar com tudo certo: nome no padrão do
+  projeto, disciplina/etapa/tipo existentes no catálogo, código do projeto, PDF presente, nenhum arquivo
+  igual ao da revisão anterior e a **descrição do que mudou** (obrigatória da R01 em diante). Se algo
+  falhar, a mensagem lista o que corrigir.
+- **Devolver para ajustes** — com motivo; o projetista é avisado.
+- **Publicar** — só com todos os arquivos **validados** e sem apontamento **impeditivo** em aberto. Outros
+  apontamentos em aberto também impedem, a menos que o projeto permita publicar assim: aí você escreve uma
+  justificativa e a revisão ganha uma **restrição** que sai sozinha quando os apontamentos forem
+  resolvidos. Ao publicar, a revisão anterior é **arquivada** e perde a liberação para obra.
+- **Arquivar** — para documento cancelado ou obsoleto, com motivo.
+
+**Controles** aparecem como etiquetas ao lado do estado (passe o mouse para ver o motivo):
+
+- **Liberado para obra** e **Enviado ao cliente** — só em revisão publicada. São eles que põem o documento
+  nas pastas **Liberado para obra** e **Compartilhado** do link do cliente. Quem já estava enviado ao
+  cliente continua: ao publicar a revisão nova, o envio passa para ela sozinho. A liberação para obra pode
+  ser automática na publicação, se o projeto ligar essa opção.
+- **Bloqueado** — impede baixar, atualizar ou excluir (você escolhe) e também impede mudar o estado.
+- **Com restrição** — a revisão não pode ser liberada para obra enquanto a restrição existir.
+
+Revisão **publicada** ou **arquivada** não vai para a lixeira: só um administrador, informando o motivo.
+O selo **Novo** marca a revisão que outra pessoa enviou e você ainda não abriu.
+
+Toda mudança de estado e todo controle aplicado ou removido fica no **Histórico** do documento, com quem
+fez e o motivo ("automático" quando foi o sistema). Os administradores configuram o ciclo de cada projeto
+pelo **⋯ → Ciclo dos documentos** da barra de Arquivos: liberar para obra ao publicar, permitir publicar
+com apontamentos e o prazo para avisar de revisão parada em análise.
+
+> Backup do modelo (pacote B), as pastas (Aprovação, Laudo, Recebidos, Geral…) e os arquivos IFC ficam
+> fora do ciclo e funcionam como antes.
 
 ### Histórico de cada documento (aba Arquivos)
 
-Clique no nome de um documento na tabela para abrir o painel de detalhes. No fim do painel,
+Clique no ícone **ⓘ** da linha (ou em **Detalhes do documento**, no botão direito) para abrir o painel de
+detalhes. Clicar no nome abre o arquivo no visualizador. No fim do painel,
 a seção **Histórico** mostra tudo o que aconteceu com ele, do mais recente para o mais antigo:
 
-- **Alterações** — envio de arquivos e revisões, mudança de fase, status documental, título
+- **Alterações** — envio de arquivos, revisões e versões, mudança de estado da revisão e de controles,
+  mudança de fase, título
   ou descrição (com o valor antes e depois), validação, ajuste solicitado, apontamentos
   enviados, renomeação, lixeira, pedidos de exclusão, link de aceite do cliente e listas.
 - **Acessos** — quem **baixou** e quem **visualizou** cada arquivo (no visualizador de PDF,
@@ -539,7 +566,9 @@ abre exatamente as mesmas ações, e é o caminho para quem usa o teclado.
 
 - **Visualizar em nova aba** e **Comparar revisões** — o primeiro para documentos com PDF;
   comparar só aparece a partir da 2ª revisão.
-- **Tirar de Compartilhado** / **Tirar de Liberado para obra** — só aparece se o documento está na pasta.
+- **Enviar para análise**, **Publicar**, **Devolver**, **Liberar para obra**, **Enviar ao cliente**,
+  **Bloquear**, **Aplicar restrição** e a remoção de cada um — conforme o estado da revisão e o que
+  você pode fazer (veja "Ciclo da revisão" acima).
 - **Baixar**, **Copiar link** e **Copiar nome**.
 - **Histórico de revisões**.
 - **Validar**, **Desfazer validação** e **Solicitar ajuste**.

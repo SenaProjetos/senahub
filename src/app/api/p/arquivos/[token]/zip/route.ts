@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { ZipArchive } from "archiver";
 import { uploadsDoLinkParaZip } from "@/modules/projetos/arquivos/link-publico";
+import { uploadsComBloqueioDeDownload } from "@/modules/uploads/ciclo/service";
+import { prisma } from "@/lib/prisma";
 import { resolverCaminho } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { registrarAcessoUploads } from "@/modules/uploads/historico/service";
@@ -24,6 +26,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
 
   const pacote = await uploadsDoLinkParaZip(token, { disciplinaId, fase, ext, situacao });
   if (!pacote) return NextResponse.json({ error: "Arquivos indisponíveis." }, { status: 404 });
+  // Ciclo documental: revisão com bloqueio de download fica fora do pacote (I7).
+  const bloqueados = await uploadsComBloqueioDeDownload(prisma, pacote.entradas.map((e) => e.uploadId));
+  const entradas = pacote.entradas.filter((e) => !bloqueados.has(e.uploadId));
+  if (entradas.length === 0) return NextResponse.json({ error: "Arquivos indisponíveis." }, { status: 404 });
 
   await logAudit({
     modulo: "uploads",
@@ -36,7 +42,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
   // Sem await: um pacote grande não pode atrasar o início do download. O serviço nunca rejeita
   // (engole e loga), e o servidor é um processo longo — a gravação termina em segundo plano.
   void registrarAcessoUploads({
-    uploadIds: pacote.entradas.map((e) => e.uploadId),
+    uploadIds: entradas.map((e) => e.uploadId),
     tipo: "download",
     origem: "link_publico",
     userId: null,
@@ -54,7 +60,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
         console.error("[zip] erro no archiver:", err);
         controller.error(err);
       });
-      for (const e of pacote.entradas) {
+      for (const e of entradas) {
         try {
           archive.file(resolverCaminho(e.caminho), { name: e.nome });
         } catch {

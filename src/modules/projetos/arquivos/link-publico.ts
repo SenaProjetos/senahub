@@ -395,7 +395,7 @@ export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPu
           id: true,
           disciplinaTextoLegado: true,
           uploads: {
-            where: { validado: true, excluidoEm: null },
+            where: { validado: true, excluidoEm: null, substituidoPorId: null },
             orderBy: { nomeArquivo: "asc" },
             select: { id: true, nomeArquivo: true, tamanho: true, versao: true, ...SELECT_SITUACAO },
           },
@@ -431,7 +431,7 @@ export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPu
         id: true,
         disciplinaTextoLegado: true,
         uploads: {
-          where: { validado: true, excluidoEm: null },
+          where: { validado: true, excluidoEm: null, substituidoPorId: null },
           orderBy: [{ nomeArquivo: "asc" }, { versao: "desc" }],
           select: {
             id: true,
@@ -657,7 +657,7 @@ export async function uploadsDoLinkParaZip(token: string, recorte: RecorteZip = 
       select: {
         disciplinaTextoLegado: true,
         uploads: {
-          where: { validado: true, excluidoEm: null },
+          where: { validado: true, excluidoEm: null, substituidoPorId: null },
           orderBy: { nomeArquivo: "asc" },
           select: { id: true, caminho: true, nomeArquivo: true, ...SELECT_SITUACAO },
         },
@@ -697,7 +697,7 @@ export async function uploadsDoLinkParaZip(token: string, recorte: RecorteZip = 
     select: {
       disciplinaTextoLegado: true,
       uploads: {
-        where: { validado: true, excluidoEm: null },
+        where: { validado: true, excluidoEm: null, substituidoPorId: null },
         orderBy: [{ nomeArquivo: "asc" }, { versao: "desc" }],
         select: {
           id: true,
@@ -805,7 +805,7 @@ export async function fasesParaLink(projetoId: string): Promise<FasesDoProjeto> 
         disciplina: { projetoId },
         // Canônico só: o apelido de merge é o mesmo documento, contaria duas vezes.
         substituidoPorId: null,
-        uploads: { some: { validado: true, excluidoEm: null } },
+        uploads: { some: { validado: true, excluidoEm: null, substituidoPorId: null } },
       },
       select: { faseId: true },
     }),

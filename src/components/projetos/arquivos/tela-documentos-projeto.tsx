@@ -1,5 +1,7 @@
 import { can, podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
 import type { SessionUser } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
+import { ehAdminDoCiclo, restritoALiberadoObra } from "@/modules/uploads/ciclo/acesso";
 import type { projetoVisivel } from "@/modules/planejamento/queries";
 import { arvoreArquivosProjeto } from "@/modules/projetos/arquivos/queries";
 import {
@@ -181,6 +183,21 @@ export async function TelaDocumentosProjeto({
     listarListasDocumentos({ projetoId: id, userId: user.id, veTodas }),
     podeGerirListasDocumentos(user, id),
   ]);
+  // Ciclo documental (ISO 19650): publicar/devolver, bloquear/restringir, a restrição "só liberado para
+  // obra" (I9) e a configuração do projeto, que é só do admin (D8).
+  const [podePublicar, podeBloquear, restritoObra] = await Promise.all([
+    can(user, "arquivos", "publicar"),
+    can(user, "arquivos", "bloquear"),
+    restritoALiberadoObra(user),
+  ]);
+  const configCiclo = ehAdminDoCiclo(user)
+    ? await prisma.configDocumentosProjeto
+        .findUnique({
+          where: { projetoId: id },
+          select: { liberarObraAutomaticamente: true, permitirPublicarComPendencias: true, diasAlertaCompartilhado: true },
+        })
+        .then((c) => c ?? { liberarObraAutomaticamente: false, permitirPublicarComPendencias: false, diasAlertaCompartilhado: 7 })
+    : null;
   const podeExcluirArquivo = ehAdmin || podeExcluirCap;
   // Modelo federado (spec 2026-10-04 D6): quem vê a Compatibilização vê a pasta, sem a muralha por disciplina.
   const modeloFederado = podeCoordenacao ? await versoesDoModeloFederado(id) : [];
@@ -275,7 +292,9 @@ export async function TelaDocumentosProjeto({
   const filtrosAtivos = filtrosAlemDaPasta + [sp?.ext, sp?.fase].filter(preenchido).length;
   const selecaoPasta = { disciplinaId: selecionadaId, fase: sp?.fase ?? null, ext: sp?.ext ?? null };
   // Pasta do cliente (reunião de 29/09/2026): filtro por cima da navegação, não um lugar à parte.
-  const situacao = situacaoValida(sp?.situacao);
+  // I9: quem só enxerga o liberado para obra fica SEMPRE na pasta "Liberado para obra" — a mesma regra
+  // (e o mesmo recorte) que o link público usa para essa pasta.
+  const situacao = restritoObra ? "liberado_obra" : situacaoValida(sp?.situacao);
   // Navegação por pastas (como no Google Drive): cada nível lista só o que está DIRETAMENTE
   // nele. Raiz e fase só têm subpastas; a disciplina tem as fases e, soltos, os documentos sem
   // fase; a pasta de formato, os documentos com só aquele arquivo. Com busca, filtro ou lista,
@@ -317,6 +336,8 @@ export async function TelaDocumentosProjeto({
       podeEnviarCap,
       podeEditarMetadados,
       podeAlterarStatus,
+      podePublicar,
+      podeBloquear,
       filtros,
       skip: lp.skip,
       take: lp.take,
@@ -362,7 +383,11 @@ export async function TelaDocumentosProjeto({
     }))
     // Dentro da pasta do cliente só as disciplinas que têm algo lá — a raiz não convida a enviar.
     .filter((d) => situacao === null || d.total > 0);
-  const situacoes = SITUACOES.map((s) => ({ id: s, rotulo: ROTULO_SITUACAO[s], total: porSituacao[s] }));
+  const situacoes = SITUACOES.filter((s) => !restritoObra || s === "liberado_obra").map((s) => ({
+    id: s,
+    rotulo: ROTULO_SITUACAO[s],
+    total: porSituacao[s],
+  }));
   const totalDocumentos = disciplinasArvore.reduce((soma, d) => soma + d.total, 0);
   // Colunas visíveis: preferência do USUÁRIO (vale em qualquer projeto), resolvida no
   // servidor para a tabela já nascer com o recorte certo — sem piscar mostrando tudo.
@@ -374,7 +399,7 @@ export async function TelaDocumentosProjeto({
   // Lixeira. Cada uma só é listada para quem pode vê-la — a permissão já foi resolvida
   // acima, aqui só decide a visibilidade do item de navegação.
   const areaSelecionada = areaValida(sp?.area);
-  const areas: AreaDisponivel[] = [
+  const areasDoProjeto: AreaDisponivel[] = [
     { id: "recebidos", total: recebidos.length, visivel: recebidos.length > 0 || podeGerirRecebidos },
     { id: "base", total: baseArquitetonica.length, visivel: true },
     { id: "geral", total: geral.length, visivel: podeVerGeral },
@@ -382,12 +407,15 @@ export async function TelaDocumentosProjeto({
     { id: "lixeira", total: lixeira.length, visivel: ehAdmin },
     { id: "federado", total: modeloFederado.length, visivel: modeloFederado.length > 0 },
   ];
+  // I9: a equipe de obra só vê o que foi liberado — nenhuma outra área do projeto.
+  const areas = restritoObra ? areasDoProjeto.map((a) => ({ ...a, visivel: false })) : areasDoProjeto;
 
   return (
     <DocumentosShell
       moldura={moldura}
       projeto={projeto}
       exclusoesPendentes={new Set(exclusoesPendentes)}
+      configCiclo={configCiclo}
       areas={areas}
       areaSelecionada={areaSelecionada}
       situacao={situacao}

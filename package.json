@@ -51,6 +51,7 @@
     "smoke:modelo-eap": "tsx --tsconfig tsconfig.server.json scripts/smoke-modelo-eap.ts",
     "smoke:modelo-disciplina": "tsx --tsconfig tsconfig.server.json scripts/smoke-modelo-disciplina.ts",
     "smoke:status-documento": "tsx --tsconfig tsconfig.server.json scripts/smoke-status-documento.ts",
+    "smoke:ciclo-documental": "tsx --tsconfig tsconfig.server.json scripts/smoke-ciclo-documental.ts",
     "smoke:pastas-cliente": "tsx --tsconfig tsconfig.server.json scripts/smoke-pastas-cliente.ts",
     "smoke:apagar-eap": "tsx --tsconfig tsconfig.server.json scripts/smoke-apagar-eap.ts",
     "smoke:trava-plano": "tsx --tsconfig tsconfig.server.json scripts/smoke-trava-plano.ts",

@@ -20,6 +20,9 @@ import { arquivoNoFormato } from "@/modules/uploads/pastas-da-lista";
 import { ordenarPorFormato } from "@/modules/uploads/ordem-formato";
 import { CAMPO_DA_SITUACAO, arquivosDaRevisaoMarcada, type Situacao } from "@/modules/uploads/revisao-marcada";
 import { mapaCanonico, canonizar } from "@/modules/projetos/pranchas/queries";
+import { participaDoCiclo } from "@/modules/uploads/ciclo/escopo";
+import type { CicloDaLinha } from "@/modules/uploads/ciclo/acoes";
+import type { EstadoRevisao, TipoControle } from "@/modules/uploads/ciclo/estados";
 
 /**
  * Listagem de documentos AGRUPADA POR DOCUMENTO (Fase 2 — F2-PR6a).
@@ -179,7 +182,33 @@ export type LinhaDoc = {
   /** Arquivos da revisão ATUAL — é o que vira badge clicável na linha. */
   arquivos: ArquivoDaLinha[];
   totalRevisoes: number;
+  /** Ciclo documental (ISO 19650) da revisão que a linha mostra — estado, versão, controles, "Novo". */
+  ciclo: CicloDaLinha;
 };
+
+/** Linha fora do ciclo (ou montada fora daqui): sem estado, sem ações. */
+export const CICLO_FORA: CicloDaLinha = {
+  participa: false,
+  revisaoId: null,
+  numero: null,
+  estado: null,
+  versao: null,
+  descricao: null,
+  controles: [],
+  novo: false,
+  podeEnviar: false,
+  podePublicar: false,
+  podeAlterarPasta: false,
+  podeBloquear: false,
+};
+
+/** A5: "Novo" é derivado — revisão de outra pessoa, criada depois da última abertura, nos últimos 30 dias. */
+const NOVO_ATE_MS = 30 * 86_400_000;
+function revisaoNova(r: { createdAt: Date; createdById: string | null }, userId: string, lidoEm: Date | null): boolean {
+  if (r.createdById === userId) return false;
+  if (Date.now() - r.createdAt.getTime() > NOVO_ATE_MS) return false;
+  return lidoEm === null || r.createdAt > lidoEm;
+}
 
 /** Extensão em minúsculas, sem ponto. */
 function extensaoDe(nome: string): string {
@@ -234,6 +263,9 @@ export async function listarDocumentosAgrupados(opts: {
   podeEnviarCap: boolean;
   podeEditarMetadados: boolean;
   podeAlterarStatus: boolean;
+  /** `arquivos:publicar` e `arquivos:bloquear` — ciclo documental. Ausentes = sem essas ações. */
+  podePublicar?: boolean;
+  podeBloquear?: boolean;
   filtros: FiltrosDoc;
   skip: number;
   take: number;
@@ -272,7 +304,7 @@ export async function listarDocumentosAgrupados(opts: {
     from documento_disciplina d
     join disciplina disc on disc.id = d."disciplinaId"
     left join disciplina_catalogo cat on cat.id = disc."disciplinaId"
-    join upload u on u."documentoId" = d.id and u."excluidoEm" is null
+    join upload u on u."documentoId" = d.id and u."excluidoEm" is null and u."substituidoPorId" is null
     left join documento_revisao r on r.id = u."revisaoId"
     left join "user" au on au.id = u."autorId"
     where d."substituidoPorId" is null
@@ -298,7 +330,7 @@ export async function listarDocumentosAgrupados(opts: {
            or ($21::boolean is true and exists (
                  select 1 from upload uv
                  left join documento_revisao rv on rv.id = uv."revisaoId"
-                 where uv."documentoId" = d.id and uv."excluidoEm" is null
+                 where uv."documentoId" = d.id and uv."excluidoEm" is null and uv."substituidoPorId" is null
                    -- Na pasta do cliente ($22) a revisão é a MARCADA, não a vigente.
                    and (case
                           when $22::text = 'compartilhado' then uv.validado and uv."revisaoId" = d."revisaoCompartilhadaId"
@@ -306,7 +338,7 @@ export async function listarDocumentosAgrupados(opts: {
                           else (uv."revisaoId" is null or rv.numero = (
                                  select max(rw.numero) from upload uw
                                  join documento_revisao rw on rw.id = uw."revisaoId"
-                                 where uw."documentoId" = d.id and uw."excluidoEm" is null))
+                                 where uw."documentoId" = d.id and uw."excluidoEm" is null and uw."substituidoPorId" is null))
                         end)
                    and (case when $6 = '__outros__'
                           then not exists (
@@ -315,7 +347,7 @@ export async function listarDocumentosAgrupados(opts: {
                           else lower(uv."nomeArquivo") like '%.' || lower($6) end)))
            or ($21::boolean is not true and $6 = '__outros__' and exists (
                  select 1 from upload ux
-                 where ux."documentoId" = d.id and ux."excluidoEm" is null
+                 where ux."documentoId" = d.id and ux."excluidoEm" is null and ux."substituidoPorId" is null
                    and not exists (
                      select 1 from extensao_arquivo eax
                      where eax.extensao = lower(substring(ux."nomeArquivo" from '\\.([^.]+)$')))))
@@ -324,7 +356,7 @@ export async function listarDocumentosAgrupados(opts: {
       -- (validação desfeita ou revisão na lixeira depois da marca = some da pasta, como some do link).
       and ($22::text is null or exists (
             select 1 from upload um
-            where um."documentoId" = d.id and um."excluidoEm" is null and um.validado
+            where um."documentoId" = d.id and um."excluidoEm" is null and um."substituidoPorId" is null and um.validado
               and um."revisaoId" = (case when $22 = 'compartilhado' then d."revisaoCompartilhadaId" else d."revisaoLiberadaObraId" end)))
       and ($7::text is null or au.name = $7)
       and ($8::timestamptz is null or u."createdAt" >= $8)
@@ -353,7 +385,7 @@ export async function listarDocumentosAgrupados(opts: {
       and ($15::text is null or d."tamanhoPapelId" = $15)
       and ($16::text is null or exists (
             select 1 from extensao_arquivo ea
-            join upload u2 on u2."documentoId" = d.id and u2."excluidoEm" is null
+            join upload u2 on u2."documentoId" = d.id and u2."excluidoEm" is null and u2."substituidoPorId" is null
             where ea.extensao = lower(substring(u2."nomeArquivo" from '\\.([^.]+)$'))
               and ea.categoria = $16))
       -- "Backup" ($18) é pacote B OU extensão marcada ehBackup, cobrindo o .qibzip/.zip/.rar
@@ -362,11 +394,11 @@ export async function listarDocumentosAgrupados(opts: {
             ($17::text is null and $18::boolean is not true)
             or ($17::text is not null and exists (
                   select 1 from upload u3
-                  where u3."documentoId" = d.id and u3."excluidoEm" is null and u3.pacote::text = $17))
+                  where u3."documentoId" = d.id and u3."excluidoEm" is null and u3."substituidoPorId" is null and u3.pacote::text = $17))
             or ($18::boolean is true and exists (
                   select 1 from upload u4
                   left join extensao_arquivo ea2 on ea2.extensao = lower(substring(u4."nomeArquivo" from '\\.([^.]+)$'))
-                  where u4."documentoId" = d.id and u4."excluidoEm" is null
+                  where u4."documentoId" = d.id and u4."excluidoEm" is null and u4."substituidoPorId" is null
                     and (u4.pacote::text = 'B' or coalesce(ea2."ehBackup", false))))
           )
     group by d.id
@@ -420,6 +452,7 @@ export async function listarDocumentosAgrupados(opts: {
     where: { id: { in: ids } },
     select: {
       id: true,
+      chave: true,
       nomeArquivo: true,
       titulo: true,
       descricao: true,
@@ -444,9 +477,24 @@ export async function listarDocumentosAgrupados(opts: {
           responsaveis: { select: { userId: true } },
         },
       },
-      revisoes: { select: { id: true, numero: true } },
+      revisoes: {
+        select: {
+          id: true,
+          numero: true,
+          estado: true,
+          ultimaVersao: true,
+          descricao: true,
+          createdAt: true,
+          createdById: true,
+          controles: {
+            where: { removidoEm: null },
+            select: { id: true, tipo: true, motivo: true, escopos: true, automatico: true, origem: true },
+            orderBy: { aplicadoEm: "asc" },
+          },
+        },
+      },
       uploads: {
-        where: { excluidoEm: null },
+        where: { excluidoEm: null, substituidoPorId: null },
         select: {
           id: true,
           nomeArquivo: true,
@@ -503,6 +551,13 @@ export async function listarDocumentosAgrupados(opts: {
       }),
   );
 
+  // A5: última abertura de cada documento por quem olha — uma consulta para a página toda.
+  const leituras = await prisma.leituraDocumento.findMany({
+    where: { userId, documentoId: { in: ids } },
+    select: { documentoId: true, lidoEm: true },
+  });
+  const lidoEmPorDoc = new Map(leituras.map((l) => [l.documentoId, l.lidoEm]));
+
   // Reordena pelo que o SQL decidiu — `findMany` com `in` não preserva a ordem dos ids.
   const porId = new Map(docs.map((d) => [d.id, d]));
   const linhas: LinhaDoc[] = [];
@@ -542,6 +597,29 @@ export async function listarDocumentosAgrupados(opts: {
       numeracaoTitulo !== null && tipoTitulo && faseTitulo
         ? conteudoPorChave.get(chavePrancha(d.disciplina.id, { numeracao: numeracaoTitulo, tipo: tipoTitulo, fase: faseTitulo })) ?? null
         : null;
+    const doCiclo = participaDoCiclo({
+      chave: d.chave,
+      extensoes: vigentes.map((u) => extensaoDe(u.nomeArquivo)),
+    });
+    const revDaLinha = revisaoAtual === null ? null : d.revisoes.find((r) => r.numero === revisaoAtual) ?? null;
+    const escreveNaDisciplina = veTodas || d.disciplina.responsaveis.some((r) => r.userId === userId);
+    const ciclo: CicloDaLinha =
+      doCiclo && revDaLinha
+        ? {
+            participa: true,
+            revisaoId: revDaLinha.id,
+            numero: revDaLinha.numero,
+            estado: revDaLinha.estado as EstadoRevisao,
+            versao: revDaLinha.ultimaVersao,
+            descricao: revDaLinha.descricao,
+            controles: revDaLinha.controles.map((c) => ({ ...c, tipo: c.tipo as TipoControle, escopos: [...c.escopos] })),
+            novo: revisaoNova(revDaLinha, userId, lidoEmPorDoc.get(d.id) ?? null),
+            podeEnviar: opts.podeEnviarCap && escreveNaDisciplina,
+            podePublicar: (opts.podePublicar ?? false) && escreveNaDisciplina,
+            podeAlterarPasta: opts.podeAlterarStatus && escreveNaDisciplina,
+            podeBloquear: (opts.podeBloquear ?? false) && escreveNaDisciplina,
+          }
+        : CICLO_FORA;
     linhas.push({
       id: d.id,
       // O nome do documento vem do primeiro arquivo enviado (em geral o PDF): na pasta DWG ele
@@ -594,6 +672,7 @@ export async function listarDocumentosAgrupados(opts: {
         validado: u.pastaId ? null : u.validado,
       })),
       totalRevisoes: d.revisoes.length,
+      ciclo,
     });
   }
   return { total, pagina, linhas };
@@ -624,7 +703,7 @@ export async function contagemDocumentosPorFase(opts: {
              where dr."disciplinaId" = disc.id and dr."userId" = $4))
        and exists (
              select 1 from upload u
-             where u."documentoId" = d.id and u."excluidoEm" is null)
+             where u."documentoId" = d.id and u."excluidoEm" is null and u."substituidoPorId" is null)
      group by d."faseId"`,
     opts.projetoId,
     opts.disciplinaId ?? null,
@@ -723,7 +802,7 @@ export async function arvoreNavegacaoDocumentos(opts: {
           projetoId: { in: [...projetoIds] },
           ...(veTodas ? {} : { responsaveis: { some: { userId } } }),
         },
-        uploads: { some: { excluidoEm: null } },
+        uploads: { some: { excluidoEm: null, substituidoPorId: null } },
         ...(opts.situacao ? { [CAMPO_DA_SITUACAO[opts.situacao]]: { not: null } } : {}),
       },
       select: {
@@ -735,7 +814,7 @@ export async function arvoreNavegacaoDocumentos(opts: {
         disciplina: { select: { projetoId: true } },
         fase: { select: { id: true, sigla: true, nome: true } },
         uploads: {
-          where: { excluidoEm: null },
+          where: { excluidoEm: null, substituidoPorId: null },
           select: { nomeArquivo: true, validado: true, revisaoId: true, revisao: { select: { numero: true } } },
         },
       },
@@ -787,10 +866,10 @@ export async function contagemPorSituacao(opts: {
   const rows = await prisma.$queryRawUnsafe<{ compartilhado: bigint; liberado_obra: bigint }[]>(
     `select
        count(*) filter (where exists (
-         select 1 from upload u where u."documentoId" = d.id and u."excluidoEm" is null and u.validado
+         select 1 from upload u where u."documentoId" = d.id and u."excluidoEm" is null and u."substituidoPorId" is null and u.validado
            and u."revisaoId" = d."revisaoCompartilhadaId"))::bigint as compartilhado,
        count(*) filter (where exists (
-         select 1 from upload u where u."documentoId" = d.id and u."excluidoEm" is null and u.validado
+         select 1 from upload u where u."documentoId" = d.id and u."excluidoEm" is null and u."substituidoPorId" is null and u.validado
            and u."revisaoId" = d."revisaoLiberadaObraId"))::bigint as liberado_obra
      from documento_disciplina d
      join disciplina disc on disc.id = d."disciplinaId"

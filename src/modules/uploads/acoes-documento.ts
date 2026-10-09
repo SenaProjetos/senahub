@@ -20,6 +20,7 @@ import { limparSeparadores, type AcaoItem } from "@/components/ui/acoes";
 import { rotuloRevisao } from "@/lib/utils";
 import { ROTULO_SITUACAO, SITUACOES, type Situacao } from "./revisao-marcada";
 import { comVolta } from "./volta-visualizador";
+import { itensDoCiclo, type CicloDaLinha } from "./ciclo/acoes";
 
 /**
  * Descritor das ações de uma linha da tabela de documentos (aba Arquivos do projeto) — **puro**,
@@ -90,6 +91,8 @@ export type DocumentoParaAcoes = {
   podeAlterarStatus?: boolean;
   /** Revisão (número do banco) que o cliente vê em cada pasta do link. */
   naPasta?: { compartilhado: number | null; liberado_obra: number | null };
+  /** Ciclo documental da revisão da linha. Participando, substitui as marcas manuais de pasta. */
+  ciclo?: CicloDaLinha;
 };
 
 export type ContextoAcoesDocumento = {
@@ -141,6 +144,7 @@ type LinhaParaAcoes = {
   revisaoCompartilhada?: number | null;
   revisaoLiberadaObra?: number | null;
   arquivos: readonly (ArquivoParaAcoes & { validado: boolean | null })[];
+  ciclo?: CicloDaLinha;
 };
 
 /**
@@ -162,6 +166,7 @@ export function documentoParaAcoes(linha: LinhaParaAcoes): DocumentoParaAcoes | 
     documentoId: linha.id,
     podeAlterarStatus: linha.podeAlterarStatus,
     naPasta: { compartilhado: linha.revisaoCompartilhada ?? null, liberado_obra: linha.revisaoLiberadaObra ?? null },
+    ciclo: linha.ciclo,
   };
 }
 
@@ -269,7 +274,12 @@ export function itensDeDocumento(d: DocumentoParaAcoes, ctx: ContextoAcoesDocume
           ]
       : []),
 
-    ...comSeparador("sep-cliente", itensDasPastasDoCliente(d, ctx, travado)),
+    // Documento do ciclo: estado e controles da revisão (envio, publicação, obra, cliente, bloqueio).
+    // Fora do ciclo seguem as marcas antigas de pasta do cliente. A tela de consulta não mexe.
+    ...comSeparador(
+      "sep-cliente",
+      d.ciclo?.participa ? (ctx.consulta ? [] : itensDoCiclo(d.ciclo, travado)) : itensDasPastasDoCliente(d, ctx, travado),
+    ),
 
     { tipo: "separador", id: "sep-gerir" },
     // Diretório é consulta: mesmo quem gere a disciplina renomeia pela aba do projeto.

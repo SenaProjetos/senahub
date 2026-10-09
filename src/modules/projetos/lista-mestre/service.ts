@@ -135,7 +135,7 @@ export async function carregarListaMestre(
       tipoId: tipo.id,
       substituidoPorId: null,
       chave: { startsWith: "A/" },
-      uploads: { some: { excluidoEm: null } },
+      uploads: { some: { excluidoEm: null, substituidoPorId: null } },
     },
     orderBy: { createdAt: "desc" },
     select: { id: true, status: { select: { final: true } } },

@@ -178,9 +178,9 @@ async function pastasDoEscopo(disciplinaIds: string[]): Promise<PastaParaArvoreG
     where: {
       substituidoPorId: null,
       disciplinaId: { in: disciplinaIds },
-      uploads: { some: { excluidoEm: null, pastaId: { in: pastas.map((p) => p.id) } } },
+      uploads: { some: { excluidoEm: null, substituidoPorId: null, pastaId: { in: pastas.map((p) => p.id) } } },
     },
-    select: { id: true, uploads: { where: { excluidoEm: null }, select: { pastaId: true } } },
+    select: { id: true, uploads: { where: { excluidoEm: null, substituidoPorId: null }, select: { pastaId: true } } },
   });
   // Documentos e ARQUIVOS por pasta: o primeiro é o que a árvore mostra, o segundo é o que
   // decide se o .zip da pasta cabe no teto da rota.

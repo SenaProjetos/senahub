@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { uploadLiberadoNoLink } from "@/modules/projetos/arquivos/link-publico";
+import { motivoBloqueioDosUploads } from "@/modules/uploads/ciclo/service";
 import { lerArquivo } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
@@ -15,6 +16,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string; 
 
   const upload = await uploadLiberadoNoLink(token, uploadId);
   if (!upload) return NextResponse.json({ error: "Arquivo indisponível." }, { status: 404 });
+  // Ciclo documental: revisão com bloqueio de download não sai pelo link (I7).
+  if (await motivoBloqueioDosUploads(prisma, [upload.id], "download")) {
+    return NextResponse.json({ error: "Arquivo indisponível." }, { status: 404 });
+  }
 
   let conteudo: Buffer;
   try {

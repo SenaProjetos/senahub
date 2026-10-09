@@ -1653,7 +1653,7 @@ export async function purgarLixeiraAnotacoes(): Promise<number> {
  */
 export async function purgarLixeiraArquivos(): Promise<number> {
   const vencidos = await prisma.upload.findMany({
-    where: { excluidoEm: { not: null, lt: limitePurga() } },
+    where: { excluidoEm: { not: null, lt: limitePurga() }, substituidoPorId: { not: undefined } },
     select: {
       id: true,
       caminho: true,

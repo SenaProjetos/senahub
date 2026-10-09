@@ -4,13 +4,13 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Pencil } from "lucide-react";
 import { toast } from "sonner";
-import { editarMetadadosDocumento, atualizarStatusDocumento } from "@/modules/uploads/actions";
+import { editarMetadadosDocumento } from "@/modules/uploads/actions";
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
 import type { OpcaoFaseDocumento } from "@/components/projetos/arquivos/seletor-fases-documentos";
-import { cn, rotuloRevisao } from "@/lib/utils";
-import { classeDoStatus } from "@/modules/uploads/status-documento";
+import { rotuloRevisao } from "@/lib/utils";
 import { HistoricoDocumento } from "@/components/projetos/arquivos/historico-documento";
-import { Badge } from "@/components/ui/badge";
+import { SeloEstado } from "@/components/projetos/arquivos/ciclo-selos";
+import { ROTULO_CONTROLE } from "@/modules/uploads/ciclo/estados";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,7 +36,6 @@ export type OpcaoStatusDocumento = {
 };
 
 const SEM_FASE = "sem-fase";
-const SEM_STATUS = "sem-status";
 
 /**
  * Detalhe do DocumentoDisciplina: edição é separada por capability e sempre auditada no servidor.
@@ -46,21 +45,16 @@ const SEM_STATUS = "sem-status";
 export function PainelDocumentoDetalhe({
   linha,
   fases,
-  status,
   aberto,
   onAbertoChange,
-  onStatusAtualizado,
   onTituloAtualizado,
 }: {
   linha: LinhaDoc;
   fases: OpcaoFaseDocumento[];
-  status: OpcaoStatusDocumento[];
   /**
-   * Chamado quando o servidor aceitou o status novo: quem lista atualiza a etiqueta da linha NA HORA, sem
-   * esperar o `router.refresh()` da página inteira (reunião de 29/09/2026, "ele não atualiza automático").
+   * Chamado quando o servidor aceitou o título novo: quem lista atualiza a linha NA HORA, sem esperar o
+   * `router.refresh()` da página inteira (reunião de 29/09/2026, "ele não atualiza automático").
    */
-  onStatusAtualizado?: (statusId: string | null) => void;
-  /** Mesmo papel do `onStatusAtualizado`, para o título que a linha mostra. */
   onTituloAtualizado?: (titulo: string | null) => void;
   /** Controlado por quem lista (ícone de informações e menu de contexto da linha). */
   aberto: boolean;
@@ -74,7 +68,6 @@ export function PainelDocumentoDetalhe({
   const [salvamentos, setSalvamentos] = useState(0);
   const [descricao, setDescricao] = useState(linha.descricao ?? "");
   const [faseId, setFaseId] = useState(linha.faseId ?? SEM_FASE);
-  const [statusId, setStatusId] = useState(linha.statusId ?? SEM_STATUS);
 
   // Ao abrir, o formulário recarrega da linha atual — não do que estava em memória desde a montagem.
   const [estavaAberto, setEstavaAberto] = useState(aberto);
@@ -84,7 +77,6 @@ export function PainelDocumentoDetalhe({
       setTitulo(linha.titulo ?? "");
       setDescricao(linha.descricao ?? "");
       setFaseId(linha.faseId ?? SEM_FASE);
-      setStatusId(linha.statusId ?? SEM_STATUS);
     }
   }
 
@@ -122,27 +114,6 @@ export function PainelDocumentoDetalhe({
     // pendente é ENTRELAÇADA a ela pelo React 19, e o `pendente` voltaria a esperar o refresh.
     // No próximo tick a action já terminou.
     setTimeout(() => router.refresh(), 0);
-  }
-
-  function selecionarStatus(novoStatusId: string | null) {
-    if (novoStatusId === null || novoStatusId === statusId) return;
-    const anterior = statusId;
-    setStatusId(novoStatusId);
-    start(async () => {
-      const resultado = await atualizarStatusDocumento({
-        documentoId: linha.id,
-        statusId: novoStatusId === SEM_STATUS ? null : novoStatusId,
-      });
-      if (!resultado.ok) {
-        setStatusId(anterior);
-        toast.error(resultado.error);
-        return;
-      }
-      toast.success("Status documental atualizado.");
-      onStatusAtualizado?.(novoStatusId === SEM_STATUS ? null : novoStatusId);
-      setSalvamentos((n) => n + 1);
-      atualizarTabela();
-    });
   }
 
   return (
@@ -238,39 +209,50 @@ export function PainelDocumentoDetalhe({
               )}
             </section>
 
-            <section className="space-y-2 border-t pt-4" aria-labelledby={`status-${linha.id}`}>
-              <div>
-                <h3 id={`status-${linha.id}`} className="text-sm font-semibold">Status documental</h3>
-                <p className="text-xs text-muted-foreground">Indica o estágio deste documento, não o status da disciplina.</p>
-              </div>
-              {linha.podeAlterarStatus ? (
-                <Select value={statusId} disabled={pendente} onValueChange={selecionarStatus}>
-                  <SelectTrigger aria-label="Status documental">
-                    <SelectValue placeholder="Sem status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={SEM_STATUS}>Sem status</SelectItem>
-                    {status.map((opcao) => (
-                      <SelectItem key={opcao.id} value={opcao.id} disabled={!opcao.ativo && opcao.id !== linha.statusId}>
-                        <span aria-hidden className={cn("inline-block size-2.5 shrink-0 rounded-full border", classeDoStatus(opcao.cor))} />
-                        {opcao.nome}{opcao.final ? " (final)" : ""}{!opcao.ativo ? " (inativo)" : ""}
-                      </SelectItem>
+            {linha.ciclo.participa && (
+              <section className="space-y-2 border-t pt-4" aria-labelledby={`ciclo-${linha.id}`}>
+                <div>
+                  <h3 id={`ciclo-${linha.id}`} className="text-sm font-semibold">Ciclo da revisão</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Estado e controles da {linha.ciclo.numero ? rotuloRevisao(linha.ciclo.numero) : "revisão"} (ISO 19650). As
+                    ações ficam no menu da linha.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <SeloEstado ciclo={linha.ciclo} />
+                  {linha.ciclo.versao !== null && (
+                    <span className="font-mono text-xs text-muted-foreground">versão interna v{linha.ciclo.versao}</span>
+                  )}
+                </div>
+                {linha.ciclo.descricao && (
+                  <p className="whitespace-pre-wrap text-sm">
+                    <span className="text-xs text-muted-foreground">O que mudou: </span>
+                    {linha.ciclo.descricao}
+                  </p>
+                )}
+                {linha.ciclo.controles.length > 0 && (
+                  <ul className="space-y-1.5">
+                    {linha.ciclo.controles.map((c) => (
+                      <li key={c.id} className="rounded-md border px-2 py-1.5 text-sm">
+                        <span className="font-medium">{ROTULO_CONTROLE[c.tipo]}</span>
+                        {c.tipo === "bloqueio" && c.escopos.length > 0 && (
+                          <span className="text-muted-foreground"> ({c.escopos.join(", ")})</span>
+                        )}
+                        <span className="block text-xs text-muted-foreground">
+                          {c.motivo}
+                          {c.automatico ? " · automático" : ""}
+                        </span>
+                      </li>
                     ))}
-                  </SelectContent>
-                </Select>
-              ) : linha.statusNome ? (
-                <Badge variant="outline" className={classeDoStatus(linha.statusCor)}>
-                  {linha.statusNome}{linha.statusFinal ? " (final)" : ""}
-                </Badge>
-              ) : (
-                <span className="text-sm text-muted-foreground">Sem status</span>
-              )}
-            </section>
+                  </ul>
+                )}
+              </section>
+            )}
 
             <HistoricoDocumento
               documentoId={linha.id}
               aberto={aberto}
-              recarga={`${salvamentos}|${linha.titulo}|${linha.descricao}|${linha.faseId}|${linha.statusId}|${linha.nome}|${linha.revisaoAtual}`}
+              recarga={`${salvamentos}|${linha.titulo}|${linha.descricao}|${linha.faseId}|${linha.ciclo.estado}|${linha.ciclo.controles.length}|${linha.nome}|${linha.revisaoAtual}`}
             />
           </div>
 

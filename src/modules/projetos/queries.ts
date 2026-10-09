@@ -178,7 +178,7 @@ export async function disciplinasProntasParaAprovar(
       _count: { select: { responsaveis: true } },
       uploads: {
         // Lixeira: leitura aninhada não passa pelo filtro global (lib/prisma.ts) → explícito.
-        where: { excluidoEm: null, pacote: { in: ["A", "B"] } },
+        where: { excluidoEm: null, substituidoPorId: null, pacote: { in: ["A", "B"] } },
         select: { pacote: true, nomeArquivo: true, versao: true, validado: true, origem: true },
       },
       projeto: { select: { codigo: true, nome: true } },
@@ -316,7 +316,7 @@ export async function obterProjeto(viewer: Viewer, id: string) {
             // Lixeira: leitura aninhada não passa pelo filtro global (lib/prisma.ts) → explícito.
             // Sem isso, arquivo excluído continuava na lista da disciplina e ainda contava
             // em `statusValidacao` (fila de validação / prontidão para aprovar).
-            where: { excluidoEm: null },
+            where: { excluidoEm: null, substituidoPorId: null },
             orderBy: [{ pacote: "asc" }, { createdAt: "desc" }],
             select: {
               id: true,

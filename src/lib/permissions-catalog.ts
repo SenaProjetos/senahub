@@ -159,7 +159,15 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
       // que é o eixo do fluxo de aprovação — separado de "enviar" de propósito, porque quem
       // sobe arquivo não é necessariamente quem declara que ele foi aprovado.
       { acao: "editar_metadados", label: "Editar título, descrição e fase dos documentos" },
-      { acao: "alterar_status", label: "Alterar o status documental (Em análise, Aprovado, Liberado...)" },
+      { acao: "alterar_status", label: "Liberar para obra e enviar ao cliente (revisão publicada)" },
+      // Ciclo documental (ISO 19650, 2026-10-08). Publicar é a aprovação do coordenador/RT; bloquear
+      // e restringir são decisões de responsabilidade técnica — por isso separados de alterar_status.
+      { acao: "publicar", label: "Publicar e devolver revisões (aprovação do coordenador/RT)" },
+      { acao: "bloquear", label: "Aplicar e remover bloqueios e restrições em revisões" },
+      // Restrição, não poder: quem tem só enxerga revisões liberadas para obra. Admin nunca é restringido.
+      // Sem `leitura`/`dados` de propósito: as duas AMPLIAM acesso (o piso do sócio herda leitura) e
+      // esta REDUZ — herdada por engano, esconderia o projeto de quem devia ver tudo.
+      { acao: "somente_liberado_obra", label: "Restringir a ver só arquivos liberados para obra (equipe de obra)" },
       // Leitura sensível: quem baixou/visualizou é monitoramento de colegas — separado de "ver".
       { acao: "ver_acessos", label: "Ver quem baixou e visualizou cada documento (histórico de acessos)" },
     ],

@@ -7,6 +7,7 @@ import { resolverCaminho } from "@/lib/storage";
 import { caminhoNoZip, caminhoNoZipPasta } from "@/modules/uploads/estrutura";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { registrarAcessoUploads } from "@/modules/uploads/historico/service";
+import { uploadsComBloqueioDeDownload } from "@/modules/uploads/ciclo/service";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ disciplinaId: string }> }) {
   const session = await getSession();
@@ -19,7 +20,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ disciplinaId: 
     include: {
       // Não zipa arquivos na lixeira (excluidoEm) — só o que aparece no navegador.
       uploads: {
-        where: { excluidoEm: null },
+        where: { excluidoEm: null, substituidoPorId: null },
         include: { pasta: { select: { caminho: true } }, documento: { select: { subdisciplina: { select: { nome: true } } } } },
       },
       responsaveis: { select: { userId: true } },
@@ -69,7 +70,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ disciplinaId: 
   // Espelha a árvore do navegador: "{Pacote}/{Subpasta}/{arquivo}". Dedup de nomes
   // idênticos (ex.: versões anteriores do mesmo arquivo) com sufixo " (2)".
   const usados = new Set<string>();
-  const entradas = disciplina.uploads.map((u) => {
+  // Ciclo documental: revisão com bloqueio de download fica fora do .zip (I7).
+  const bloqueados = await uploadsComBloqueioDeDownload(prisma, disciplina.uploads.map((u) => u.id));
+  const entradas = disciplina.uploads.filter((u) => !bloqueados.has(u.id)).map((u) => {
     let nome =
       u.pastaId && u.pasta
         ? caminhoNoZipPasta(u.pasta.caminho, u.nomeArquivo)

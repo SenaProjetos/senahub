@@ -34,7 +34,8 @@ npm run smoke:inputs-link     # link público de inputs: janela da notificação
 npm run smoke:aviso-agendado  # aviso agendado: disparo do tick, claim anti-duplicata, cancelamento
 npm run smoke:sync-pagamento  # pagamento de projetista: sync de valor/responsáveis, cancelamento, total do lote
 npm run smoke:historico-documento  # histórico por documento: agrupamento atômico de acessos, corte de visibilidade, merge
-npm run smoke:status-documento     # status documental automático: Enviado/Aprovado/Correção pela chave, revisão vigente, evento automático
+npm run smoke:status-documento     # status documental automático (só FORA do ciclo documental): Enviado/Aprovado/Correção pela chave, revisão vigente, evento automático
+npm run smoke:ciclo-documental     # ciclo ISO 19650: I1–I8, publicar arquiva a anterior e revoga a obra (A1), liberação automática (A2), apontamentos (A3), integridade corrige I5 (A7)
 npm run smoke:pastas-cliente       # pastas Compartilhado/Liberado para obra: revisão marcada na lista/árvore, contagem, validação desfeita
 npm run smoke:recursos-eap    # EAP: herança, horas no motor, cards, carga/sobrecarga, custo previsto, Valor Agregado
 npm run smoke:impacto-ausencia  # aviso de férias/abono × alocação (só leitura): janela de hoje em diante, digitada × cronograma (D17)
@@ -506,6 +507,21 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   parcels (`ehParcelaGerada`: tag `contrato` without `entrega:`), soft-deletes them and splits what is still
   owed (total − received).
 
+**Document lifecycle (ISO 19650)** (`modules/uploads/ciclo/`, spec `docs/superpowers/specs/2026-10-08-ciclo-documental-iso19650.md`):
+each `DocumentoRevisao` has ONE `estado` (`em_andamento → compartilhado → publicado → arquivado`; the screen calls
+`compartilhado` "Em análise"), `ControleRevisao` rows coexist with it (`liberado_obra`, `enviado_cliente`, `bloqueio`,
+`restricao` — removal fills `removidoEm`, never deletes) and every change is a `DocumentoEvento` with `revisaoId` written
+INSIDE the transaction (`gravarEventoNoTx`). Only `ciclo/service.ts` changes state or controls (`updateMany` conditioned
+on the state read; pure table in `transicoes.ts`); the partial index `documento_revisao_um_publicado` enforces one
+publicada per document. Scope = pacote A without `.ifc` (`participaDoCiclo`); outside it the old flow and the
+`DocumentoStatus` catalog still apply, inside it the catalog is no longer written. A VERSION is an internal re-send
+while the revision is `em_andamento` (`ultimaVersao`, `Upload.versaoNaRevisao`); a replaced file gets
+`substituidoPorId` and is hidden from top-level `upload` reads by the `versaoAtual` Prisma extension (escape:
+`substituidoPorId: { not: undefined }`) — nested reads and raw SQL need `substituidoPorId: null` explicitly.
+`DocumentoDisciplina.revisaoCompartilhadaId/revisaoLiberadaObraId` are now a MIRROR of the active
+`enviado_cliente`/`liberado_obra` control, written only by the service (the public link reads them). Daily job
+`ciclo-documental-integridade` (A7). Deploy runs `scripts/migrar-ciclo-documental.ts` (read-only, then `--gravar`).
+
 **Projetista paid per phase** (F7.4, `PagamentoProjetista.etapaId`): "already paid" means
 `situacaoPagamento().jaLiberouTudo` (every phase released) — never "has any payment" (`_count.pagamentos > 0`),
 which is true after the first phase and hides the rest. Pure rules in `uploads/pagamento-fase.ts`.
@@ -635,7 +651,7 @@ The request closes (`fecharSeAtendido`) on fill and in `rotinasRhDiarias`.
 
 **Cross-module pages (not their own module folder):** `/recursos` = resource-allocation matrix built from `modules/planejamento/queries.ts` (`matrizRecursos`, `cargaSemanalPorRecurso`) + `modules/rh/habilidades/queries.ts`, gated `recursos:ver`/`recursos:gerir`.
 
-**Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`, `coordenacao`, `aprovacao_arquivo`, `aprovacao_disciplina`, `input_cliente`, `conta_a_pagar`, `impacto_ausencia`, `lifecycle_rh`, `desenvolvimento`, `documento_validade`.
+**Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`, `coordenacao`, `aprovacao_arquivo`, `aprovacao_disciplina`, `input_cliente`, `conta_a_pagar`, `impacto_ausencia`, `lifecycle_rh`, `desenvolvimento`, `documento_validade`, `ciclo_documental`.
 
 ## Gotchas
 

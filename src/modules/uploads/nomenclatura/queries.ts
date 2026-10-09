@@ -171,7 +171,7 @@ export async function extensoesDesconhecidasNoAcervo(): Promise<{ extensao: stri
   const rows = await prisma.$queryRaw<{ extensao: string; quantidade: bigint }[]>`
     select lower(substring(u."nomeArquivo" from '\.([^.]+)$')) as extensao, count(*)::bigint as quantidade
     from "upload" u
-    where u."excluidoEm" is null
+    where u."excluidoEm" is null and u."substituidoPorId" is null
       and u."nomeArquivo" ~ '\.[^.]+$'
       and not exists (
         select 1 from "extensao_arquivo" e where e."extensao" = lower(substring(u."nomeArquivo" from '\.([^.]+)$'))

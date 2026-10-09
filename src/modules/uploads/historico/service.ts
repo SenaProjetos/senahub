@@ -19,6 +19,27 @@ type Detalhe = Prisma.InputJsonValue;
 
 const LOTE_UPSERT = 20;
 
+/**
+ * Evento do ciclo documental DENTRO da transação que mudou o estado ou o controle (I8). Ao
+ * contrário das funções abaixo, PROPAGA erro: transição sem evento não pode existir, então a falha
+ * do evento desfaz a transição junto.
+ */
+export async function gravarEventoNoTx(
+  tx: Prisma.TransactionClient,
+  e: { documentoId: string; revisaoId: string | null; tipo: TipoEvento; userId: string | null; detalhe?: Detalhe },
+): Promise<void> {
+  await tx.documentoEvento.create({
+    data: {
+      documentoId: e.documentoId,
+      revisaoId: e.revisaoId,
+      tipo: e.tipo,
+      categoria: categoriaDoTipo(e.tipo),
+      userId: e.userId,
+      detalhe: e.detalhe,
+    },
+  });
+}
+
 /** Evento ligado diretamente a um documento (metadados, status, listas). */
 export async function registrarEventoDocumento(e: {
   documentoId: string;

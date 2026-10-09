@@ -87,7 +87,7 @@ async function carregarApoioDasLinhas(linhas: readonly { id: string; disciplinaI
           where: {
             disciplinaId: { in: disciplinaIds },
             substituidoPorId: null,
-            uploads: { some: { validado: true, excluidoEm: null } },
+            uploads: { some: { validado: true, excluidoEm: null, substituidoPorId: null } },
           },
           _count: { _all: true },
         }),

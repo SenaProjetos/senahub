@@ -67,6 +67,7 @@ export function PreferenciasView({
   notifLifecycleRh: notifLifecycleRhInicial,
   notifDesenvolvimento: notifDesenvolvimentoInicial,
   notifDocumentoValidade: notifDocumentoValidadeInicial,
+  notifCicloDocumental: notifCicloDocumentalInicial,
   pontoEmailModo: pontoEmailModoInicial,
   mostrarAlertasPonto,
 }: {
@@ -97,6 +98,7 @@ export function PreferenciasView({
   notifLifecycleRh: boolean;
   notifDesenvolvimento: boolean;
   notifDocumentoValidade: boolean;
+  notifCicloDocumental: boolean;
   pontoEmailModo: PontoEmailModo;
   /** Alertas de jornada por horário são só p/ CLT/estagiário — controla a seção de e-mail. */
   mostrarAlertasPonto: boolean;
@@ -128,6 +130,7 @@ export function PreferenciasView({
   const [notifLifecycleRh, setNotifLifecycleRh] = useState(notifLifecycleRhInicial);
   const [notifDesenvolvimento, setNotifDesenvolvimento] = useState(notifDesenvolvimentoInicial);
   const [notifDocumentoValidade, setNotifDocumentoValidade] = useState(notifDocumentoValidadeInicial);
+  const [notifCicloDocumental, setNotifCicloDocumental] = useState(notifCicloDocumentalInicial);
   const [pontoEmailModo, setPontoEmailModo] = useState<PontoEmailModo>(pontoEmailModoInicial);
   const [, start] = useTransition();
 
@@ -324,6 +327,13 @@ export function PreferenciasView({
       descricao: "ASO, CREA/CAU, NR-10, NR-35 e certificações: 60, 30 e 7 dias antes e no vencimento.",
       valor: notifDocumentoValidade,
       set: setNotifDocumentoValidade,
+    },
+    {
+      chave: "notif_ciclo_documental",
+      titulo: "Ciclo dos documentos",
+      descricao: "Revisão enviada para análise, devolvida, publicada, liberada para obra ou com a liberação revogada.",
+      valor: notifCicloDocumental,
+      set: setNotifCicloDocumental,
     },
   ];
 

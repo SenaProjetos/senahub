@@ -1,4 +1,4 @@
-import { Download, ListMinus, ListPlus, Share2, ShieldCheck, Tag, Trash2 } from "lucide-react";
+import { BadgeCheck, Download, ListMinus, ListPlus, Send, Share2, ShieldCheck, Trash2 } from "lucide-react";
 
 import { limparSeparadores, type AcaoItem } from "@/components/ui/acoes";
 
@@ -12,7 +12,8 @@ import { limparSeparadores, type AcaoItem } from "@/components/ui/acoes";
  */
 export const SELECAO_BAIXAR = "selecao-baixar";
 export const SELECAO_VALIDAR = "selecao-validar";
-export const SELECAO_ALTERAR_STATUS = "selecao-alterar-status";
+export const SELECAO_ENVIAR_ANALISE = "selecao-enviar-analise";
+export const SELECAO_PUBLICAR = "selecao-publicar";
 export const SELECAO_ADICIONAR_LISTA = "selecao-adicionar-lista";
 export const SELECAO_REMOVER_LISTA = "selecao-remover-lista";
 export const SELECAO_LINK_PUBLICO = "selecao-link-publico";
@@ -23,8 +24,10 @@ export type ContextoSelecaoDocumentos = {
   /** Arquivos da seleção que ainda podem ser validados. */
   totalValidaveis: number;
   podeValidar: boolean;
-  /** Documentos da seleção cujo status documental a pessoa pode mudar (permissão + muralha da disciplina). */
-  totalStatusAlteravel?: number;
+  /** Ciclo documental: revisões da seleção em andamento que a pessoa pode enviar para análise. */
+  totalParaEnviar?: number;
+  /** Ciclo documental: revisões da seleção em análise que a pessoa pode publicar. */
+  totalParaPublicar?: number;
   podeExcluir: boolean;
   podeGerirListas: boolean;
   temListas: boolean;
@@ -51,14 +54,12 @@ export function itensDaSelecaoDeDocumentos(ctx: ContextoSelecaoDocumentos): Acao
     ctx.podeValidar && ctx.totalValidaveis > 0
       ? { tipo: "acao", id: SELECAO_VALIDAR, rotulo: `Validar (${ctx.totalValidaveis})`, icone: ShieldCheck }
       : null,
-    // Só quem altera status de algum selecionado vê o item; os demais ficam de fora e o diálogo diz quantos.
-    (ctx.totalStatusAlteravel ?? 0) > 0
-      ? {
-          tipo: "acao",
-          id: SELECAO_ALTERAR_STATUS,
-          rotulo: ctx.totalStatusAlteravel === n ? "Alterar status" : `Alterar status (${ctx.totalStatusAlteravel})`,
-          icone: Tag,
-        }
+    // Ciclo documental (D10): só aparece com algo que a pessoa possa mover; a contagem diz quantos entram.
+    (ctx.totalParaEnviar ?? 0) > 0
+      ? { tipo: "acao", id: SELECAO_ENVIAR_ANALISE, rotulo: `Enviar para análise (${ctx.totalParaEnviar})`, icone: Send }
+      : null,
+    (ctx.totalParaPublicar ?? 0) > 0
+      ? { tipo: "acao", id: SELECAO_PUBLICAR, rotulo: `Publicar (${ctx.totalParaPublicar})`, icone: BadgeCheck }
       : null,
     ctx.podeGerirListas && ctx.temListas
       ? { tipo: "acao", id: SELECAO_ADICIONAR_LISTA, rotulo: "Adicionar à lista", icone: ListPlus }

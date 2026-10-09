@@ -22,6 +22,22 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Ciclo da revisão nos Arquivos (ISO 19650)
+
+- **Cada revisão tem um estado:** em andamento → em análise → publicado → arquivado. O estado fica na coluna
+  **Status**, e a coluna **Revisão** mostra a versão interna (ex.: **R01 · v3**).
+- **Versão não é revisão.** Reenviar um arquivo enquanto a revisão está em andamento cria uma versão nova dela,
+  sem gerar R02. A revisão nova só nasce depois da publicação.
+- **Enviar para análise confere tudo sozinho:** nome no padrão, catálogos, PDF, arquivo repetido e a descrição
+  do que mudou.
+- **Publicar** exige arquivos validados e respeita os apontamentos em aberto. A revisão anterior é arquivada e
+  perde a liberação para obra na mesma hora.
+- **Liberado para obra, Enviado ao cliente, Bloqueado e Com restrição** viram etiquetas na linha, com o motivo.
+- Envio para análise, devolução, publicação e liberação avisam quem precisa (categoria **Ciclo dos documentos**,
+  que dá para desligar em Preferências). [Saiba mais](projetos/projetos.md)
+
+---
+
 ## Competências, liderança, documentos com validade e painel de pessoas
 
 - **Competências com nível.** Cada pessoa declara o nível (1 a 5) em Minha conta; a coordenação valida. Em

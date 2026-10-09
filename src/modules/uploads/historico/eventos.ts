@@ -8,6 +8,7 @@
  */
 
 import { rotuloRevisao } from "@/lib/utils";
+import { ROTULO_CONTROLE, ROTULO_ESCOPO, ROTULO_ESTADO, type EscopoBloqueio, type EstadoRevisao, type TipoControle } from "@/modules/uploads/ciclo/estados";
 
 export type CategoriaEvento = "alteracao" | "acesso";
 export type OrigemEvento = "interno" | "link_publico";
@@ -33,6 +34,12 @@ export const TIPOS_EVENTO = {
   lista_removido: { categoria: "alteracao", rotulo: "Removeu de uma lista" },
   situacao_marcada: { categoria: "alteracao", rotulo: "Pôs na pasta do cliente" },
   situacao_retirada: { categoria: "alteracao", rotulo: "Tirou da pasta do cliente" },
+  // Ciclo documental (ISO 19650): `revisaoId` no evento diz a revisão.
+  estado: { categoria: "alteracao", rotulo: "Mudou o estado da revisão" },
+  controle_aplicado: { categoria: "alteracao", rotulo: "Aplicou um controle" },
+  controle_removido: { categoria: "alteracao", rotulo: "Removeu um controle" },
+  arquivo_substituido: { categoria: "alteracao", rotulo: "Enviou nova versão" },
+  envio_sem_carimbo: { categoria: "alteracao", rotulo: "Enviou para análise sem conferência de carimbo" },
   download: { categoria: "acesso", rotulo: "Baixou" },
   visualizacao: { categoria: "acesso", rotulo: "Visualizou" },
 } as const satisfies Record<string, { categoria: CategoriaEvento; rotulo: string }>;
@@ -153,6 +160,41 @@ export function complementoEvento(tipo: TipoEvento, detalhe: unknown): string | 
       const revisao = typeof d.revisao === "number" ? rotuloRevisao(d.revisao) : null;
       return [pasta, revisao].filter(Boolean).join(" · ") || null;
     }
+    case "estado": {
+      // { de, para, motivo, revisao, automatico } — gravado pelo serviço do ciclo.
+      const de = typeof d.de === "string" ? ROTULO_ESTADO[d.de as EstadoRevisao] ?? d.de : null;
+      const para = typeof d.para === "string" ? ROTULO_ESTADO[d.para as EstadoRevisao] ?? d.para : null;
+      const partes = [
+        typeof d.revisao === "number" ? rotuloRevisao(d.revisao) : null,
+        para ? (de ? `${de} → ${para}` : para) : null,
+        texto("motivo"),
+        d.automatico === true ? "automático" : null,
+      ].filter(Boolean);
+      return partes.length ? partes.join(" · ") : null;
+    }
+    case "controle_aplicado":
+    case "controle_removido": {
+      const tipoControle = typeof d.controle === "string" ? ROTULO_CONTROLE[d.controle as TipoControle] ?? d.controle : null;
+      const escopos = Array.isArray(d.escopos)
+        ? (d.escopos as string[]).map((e) => ROTULO_ESCOPO[e as EscopoBloqueio] ?? e).join(", ")
+        : null;
+      const partes = [
+        tipoControle && escopos ? `${tipoControle} (${escopos})` : tipoControle,
+        typeof d.revisao === "number" ? rotuloRevisao(d.revisao) : null,
+        texto("motivo"),
+        d.automatico === true ? "automático" : null,
+      ].filter(Boolean);
+      return partes.length ? partes.join(" · ") : null;
+    }
+    case "arquivo_substituido": {
+      const partes = [
+        typeof d.revisao === "number" && typeof d.versao === "number" ? `${rotuloRevisao(d.revisao)} · v${d.versao}` : null,
+        texto("extensao") ? `${texto("extensao")!.toUpperCase()} substituído` : null,
+      ].filter(Boolean);
+      return partes.length ? partes.join(" · ") : null;
+    }
+    case "envio_sem_carimbo":
+      return texto("motivo");
     case "envio": {
       // Só o que ESTE envio classificou (o motor de nomenclatura não sobrescreve o que já
       // existia, então a ausência aqui significa "não mexeu", não "não tem").

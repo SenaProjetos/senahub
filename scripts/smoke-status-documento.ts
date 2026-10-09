@@ -15,6 +15,8 @@ import { proximoCodigoProjeto } from "../src/modules/projetos/numbering";
 import { statusAposDesvalidacao, statusAposEnvio, statusAposValidacao } from "../src/modules/uploads/status-automatico";
 import { historicoDocumento } from "../src/modules/uploads/historico/queries";
 
+// Desde o ciclo documental (2026-10-08) a automação do catálogo antigo só age FORA do ciclo (pacote A
+// sem IFC é do ciclo — D10). O documento deste smoke fica no pacote B para continuar exercitando a regra.
 async function main() {
   const tag = `SMKSTATUS_${Date.now()}`;
   let ok = true;
@@ -50,7 +52,7 @@ async function main() {
   const disciplinaId = projeto.disciplinas[0].id;
 
   try {
-    const doc = await prisma.documentoDisciplina.create({ data: { disciplinaId, chave: `A/${tag}.pdf`, nomeArquivo: `${tag}.pdf` } });
+    const doc = await prisma.documentoDisciplina.create({ data: { disciplinaId, chave: `B/${tag}.pdf`, nomeArquivo: `${tag}.pdf` } });
     const chaveAtual = async () =>
       (await prisma.documentoDisciplina.findUnique({ where: { id: doc.id }, select: { status: { select: { chave: true } } } }))?.status?.chave ?? null;
     const setStatus = async (chave: string | null) =>
@@ -63,7 +65,7 @@ async function main() {
           documentoId: doc.id,
           revisaoId,
           versao,
-          pacote: "A",
+          pacote: "B",
           nomeArquivo: `${tag}.${ext}`,
           caminho: `smoke/${tag}-${versao}.${ext}`,
           tamanho: 10,

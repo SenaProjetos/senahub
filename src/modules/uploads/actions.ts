@@ -24,6 +24,10 @@ import { expandirSelecao } from "@/modules/uploads/exclusao-escopo";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { expiraAceiteEm, linkAceiteEstaAtivo } from "@/modules/uploads/aceite";
 import { registrarEventoDocumento, registrarEventoUploads } from "@/modules/uploads/historico/service";
+import { exigirEscopoDocumento } from "@/modules/uploads/escopo-documento";
+import { motivoBloqueioDosUploads, motivoExclusaoProtegida } from "@/modules/uploads/ciclo/service";
+import { ehAdminDoCiclo } from "@/modules/uploads/ciclo/acesso";
+import { participaDoCiclo } from "@/modules/uploads/ciclo/escopo";
 import { statusAposDesvalidacao, statusAposValidacao } from "@/modules/uploads/status-automatico";
 import {
   CAMPO_DA_SITUACAO,
@@ -65,7 +69,7 @@ export const validarEntrega = defineAction(
         responsaveis: { include: { user: { select: { id: true, name: true, role: true } } } },
         // Lixeira: leitura aninhada não passa pelo filtro global → arquivos na lixeira
         // não contam para completude de pacote nem para validação.
-        uploads: { where: { excluidoEm: null } },
+        uploads: { where: { excluidoEm: null, substituidoPorId: null } },
         pagamentos: { select: { id: true } },
         pastas: { select: { origem: true } },
         projeto: { select: { id: true, codigo: true, nome: true, tipo: true } },
@@ -553,7 +557,8 @@ export const renomearUpload = defineAction(
           data: { nomeArquivo: nomeBase, chave: chaveNova },
         });
       }
-      const uploads = await tx.upload.findMany({ where: alvo, select: { id: true, nomeArquivo: true } });
+      // Renomear o documento renomeia também as versões substituídas (o histórico segue o nome).
+      const uploads = await tx.upload.findMany({ where: { ...alvo, substituidoPorId: { not: undefined } }, select: { id: true, nomeArquivo: true } });
       for (const upload of uploads) {
         await tx.upload.update({
           where: { id: upload.id },
@@ -592,7 +597,20 @@ const escopoExclusaoSchema = excluirSchema.extend({
   // com `.default()` o campo vira obrigatório na chamada — o que anularia a compatibilidade
   // que este default existe para dar. O valor ausente é resolvido no corpo.
   escopo: z.enum(["revisao", "documento"]).optional(),
+  /** Obrigatório só para admin excluir arquivo de revisão publicada ou arquivada (I6, D5-b). */
+  motivo: z.string().trim().max(1000).optional(),
 });
+
+/**
+ * Ciclo documental, antes de qualquer ida à lixeira: bloqueio com escopo "exclusão" impede (I7), e
+ * arquivo de revisão publicada ou arquivada só sai por admin com motivo (I6, D5-b).
+ */
+async function exigirExclusaoNoCiclo(user: SessionUser, uploadIds: string[], motivo?: string | null) {
+  const bloqueio = await motivoBloqueioDosUploads(prisma, uploadIds, "exclusao");
+  if (bloqueio) throw new ActionError(bloqueio);
+  const protegida = await motivoExclusaoProtegida(prisma, uploadIds, { ehAdmin: ehAdminDoCiclo(user), motivo });
+  if (protegida) throw new ActionError(protegida);
+}
 
 /**
  * Gate da lixeira: admin OU quem tiver `arquivos:excluir` concedido na matriz.
@@ -743,6 +761,7 @@ export const excluirUpload = defineAction(
     if (upload.excluidoEm) throw new ActionError("Arquivo já está na lixeira.");
 
     const alvos = input.escopo === "documento" ? await irmaosDoDocumento(upload.id) : [upload.id];
+    await exigirExclusaoNoCiclo(user, alvos, input.motivo);
 
     await prisma.upload.updateMany({
       where: { id: { in: alvos } },
@@ -752,7 +771,7 @@ export const excluirUpload = defineAction(
       uploadIds: alvos,
       tipo: "lixeira",
       userId: user.id,
-      detalhe: { escopo: input.escopo ?? "revisao" },
+      detalhe: { escopo: input.escopo ?? "revisao", ...(input.motivo ? { motivo: input.motivo } : {}) },
     });
     // Pedido de exclusão em aberto em qualquer um deles: fecha e avisa quem pediu.
     await fecharPedidosDeExclusao(alvos, user.id);
@@ -778,6 +797,8 @@ const excluirLoteSchema = z.object({
    * (não há documento a levar inteiro).
    */
   documentosInteiros: z.array(z.string().min(1)).max(500).optional(),
+  /** Obrigatório só para admin excluir arquivo de revisão publicada ou arquivada (I6, D5-b). */
+  motivo: z.string().trim().max(1000).optional(),
 });
 
 /**
@@ -835,6 +856,8 @@ export const excluirUploadsLote = defineAction(
       const irmaos = await prisma.upload.findMany({
         where: {
           excluidoEm: null,
+          // Documento inteiro = também as versões substituídas.
+          substituidoPorId: { not: undefined },
           OR: [{ documentoId }, { documento: { substituidoPorId: documentoId } }],
           disciplina: {
             projetoId: input.projetoId,
@@ -848,12 +871,18 @@ export const excluirUploadsLote = defineAction(
     }
 
     const alvos = expandirSelecao(uploads.map((u) => u.id), documentosInteiros, irmaosPorDocumento);
+    await exigirExclusaoNoCiclo(user, alvos, input.motivo);
 
     await prisma.upload.updateMany({
       where: { id: { in: alvos } },
       data: { excluidoEm: new Date(), excluidoPorId: user.id },
     });
-    await registrarEventoUploads({ uploadIds: alvos, tipo: "lixeira", userId: user.id, detalhe: { escopo: "lote" } });
+    await registrarEventoUploads({
+      uploadIds: alvos,
+      tipo: "lixeira",
+      userId: user.id,
+      detalhe: { escopo: "lote", ...(input.motivo ? { motivo: input.motivo } : {}) },
+    });
     await fecharPedidosDeExclusao(alvos, user.id);
     revalidarArquivos(input.projetoId);
     revalidatePath("/aprovacoes");
@@ -1169,6 +1198,7 @@ async function carregarPedidoPendente(id: string) {
       projetoId: true,
       solicitanteId: true,
       uploadId: true,
+      justificativa: true,
       upload: {
         select: {
           id: true,
@@ -1212,6 +1242,8 @@ export const aprovarSolicitacaoExclusao = defineAction(
   async (input, { user }) => {
     await exigirPermissaoLixeira(user);
     const solicitacao = await carregarPedidoPendente(input.id);
+    // A justificativa do pedido é o motivo (I6, D5-b): só passa admin, e só com ela preenchida.
+    if (!solicitacao.upload.excluidoEm) await exigirExclusaoNoCiclo(user, [solicitacao.uploadId], solicitacao.justificativa);
 
     await prisma.$transaction(async (tx) => {
       // Já na lixeira (admin excluiu por fora): só encerra o pedido, sem re-datar.
@@ -1485,25 +1517,27 @@ const retirarDaSituacaoSchema = z.object({
 async function revisoesParaMarcar(documentoId: string) {
   const revisoes = await prisma.documentoRevisao.findMany({
     where: { documentoId },
-    select: { id: true, numero: true, uploads: { where: { excluidoEm: null, validado: true }, select: { id: true }, take: 1 } },
+    select: { id: true, numero: true, uploads: { where: { excluidoEm: null, substituidoPorId: null, validado: true }, select: { id: true }, take: 1 } },
   });
   return revisoes.map((r) => ({ id: r.id, numero: r.numero, temArquivoValidado: r.uploads.length > 0 }));
 }
 
-type DisciplinaDoDocumento = { projetoId: string; responsaveis: { userId: string }[] };
 
-/** A muralha de escrita é a mesma de Upload, mas o id público desta ação é o DocumentoDisciplina. */
-async function exigirEscopoDocumento(user: SessionUser, disciplina: DisciplinaDoDocumento) {
-  const [podeVerProjeto, projeto, veTodas] = await Promise.all([
-    can(user, "projetos", "ver"),
-    projetoVisivel(user, disciplina.projetoId),
-    podeVerTodasDisciplinas(user),
-  ]);
-  if (!podeVerProjeto) throw new ActionError("Sem permissão para gerir documentos.");
-
-  const naoEncontrado = new ActionError("Documento não encontrado.");
-  if (!projeto) throw naoEncontrado;
-  if (!responsavelOuVeTodas(user.id, veTodas, disciplina.responsaveis)) throw naoEncontrado;
+/**
+ * Documento do ciclo documental (ISO 19650) não usa mais o catálogo antigo de status nem as marcas
+ * manuais de pasta (D4, D10): estado e controles da revisão saem do serviço do ciclo. Fora do ciclo
+ * (backup, pastas), as duas ações abaixo seguem como sempre.
+ */
+async function exigirDocumentoForaDoCiclo(documentoId: string) {
+  const doc = await prisma.documentoDisciplina.findUnique({
+    where: { id: documentoId },
+    select: { chave: true, uploads: { where: { excluidoEm: null, substituidoPorId: null }, select: { nomeArquivo: true } } },
+  });
+  if (!doc) return;
+  const extensoes = doc.uploads.map((u) => u.nomeArquivo.slice(u.nomeArquivo.lastIndexOf(".") + 1).toLowerCase());
+  if (participaDoCiclo({ chave: doc.chave, extensoes })) {
+    throw new ActionError("Este documento segue o ciclo documental: use Enviar para análise, Publicar, Liberar para obra ou Enviar ao cliente.");
+  }
 }
 
 async function carregarDocumentoEditavel(documentoId: string) {
@@ -1657,6 +1691,7 @@ export const atualizarStatusDocumento = defineAction(
   async (input, { user }) => {
     const documento = await carregarDocumentoEditavel(input.documentoId);
     await exigirEscopoDocumento(user, documento.disciplina);
+    await exigirDocumentoForaDoCiclo(documento.id);
 
     let nomeNovo: string | null = null;
     let situacao: Situacao | null = null;
@@ -1734,6 +1769,7 @@ export const retirarDocumentoDaSituacao = defineAction(
   async (input, { user }) => {
     const documento = await carregarDocumentoEditavel(input.documentoId);
     await exigirEscopoDocumento(user, documento.disciplina);
+    await exigirDocumentoForaDoCiclo(documento.id);
 
     const atual = await prisma.documentoDisciplina.findUnique({
       where: { id: documento.id },

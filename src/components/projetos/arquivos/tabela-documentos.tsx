@@ -20,8 +20,9 @@ import type { ListaPainel } from "@/components/projetos/arquivos/painel-listas";
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { BadgeExtensao } from "@/components/projetos/arquivos/badge-extensao";
 import { useAcoesDocumento } from "@/components/projetos/arquivos/use-acoes-documento";
-import { PainelDocumentoDetalhe, type OpcaoStatusDocumento } from "@/components/projetos/arquivos/painel-documento-detalhe";
+import { PainelDocumentoDetalhe } from "@/components/projetos/arquivos/painel-documento-detalhe";
 import { TituloDocumento } from "@/components/projetos/arquivos/titulo-documento";
+import { SeloEstado, SeloNovo, SelosControles } from "@/components/projetos/arquivos/ciclo-selos";
 import { Button } from "@/components/ui/button";
 import type { OpcaoFaseDocumento } from "@/components/projetos/arquivos/seletor-fases-documentos";
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
@@ -136,6 +137,12 @@ function BadgeStatusDocumento({ linha }: { linha: Pick<LinhaDoc, "statusNome" | 
   );
 }
 
+/** "R01 · v3" no ciclo documental (a versão é interna); fora dele, só a revisão. */
+function rotuloComVersao(linha: Pick<LinhaDoc, "revisaoAtual" | "ciclo">): string {
+  const rev = rotuloRevisao(linha.revisaoAtual ?? 1);
+  return linha.ciclo.participa && linha.ciclo.versao ? `${rev} · v${linha.ciclo.versao}` : rev;
+}
+
 /** Abre os detalhes do documento (o título abre o visualizador). */
 function BotaoDetalhes({ nome, onAbrir }: { nome: string; onAbrir: () => void }) {
   return (
@@ -174,11 +181,9 @@ function CartaoDocumento({
   onMenuAberto,
   detalhesAberto,
   onDetalhesChange,
-  onStatusAtualizado,
   onTituloAtualizado,
   exclusoesPendentes,
   fases,
-  status,
 }: {
   linha: LinhaDoc;
   projetoId: string;
@@ -193,11 +198,9 @@ function CartaoDocumento({
   onMenuAberto: () => void;
   detalhesAberto: boolean;
   onDetalhesChange: (aberto: boolean) => void;
-  onStatusAtualizado: (statusId: string | null) => void;
   onTituloAtualizado: (titulo: string | null) => void;
   exclusoesPendentes: Set<string>;
   fases: OpcaoFaseDocumento[];
-  status: OpcaoStatusDocumento[];
 }) {
   const validacao = estadoValidacao(linha.arquivos);
   const identificacao = [
@@ -206,7 +209,7 @@ function CartaoDocumento({
     colunas.has("sub") ? linha.subdisciplinaNome : null,
     colunas.has("tipo") ? linha.tipoSigla : null,
     colunas.has("papel") ? linha.papelSigla : null,
-    colunas.has("revisao") && linha.revisaoAtual !== null ? rotuloRevisao(linha.revisaoAtual) : null,
+    colunas.has("revisao") && linha.revisaoAtual !== null ? rotuloComVersao(linha) : null,
   ].filter(Boolean);
 
   const classe =
@@ -231,10 +234,8 @@ function CartaoDocumento({
           <PainelDocumentoDetalhe
             linha={linha}
             fases={fases}
-            status={status}
             aberto={detalhesAberto}
             onAbertoChange={onDetalhesChange}
-            onStatusAtualizado={onStatusAtualizado}
             onTituloAtualizado={onTituloAtualizado}
           />
           {(linha.titulo ?? linha.tituloPrancha) && (
@@ -260,7 +261,16 @@ function CartaoDocumento({
           <span className="font-mono text-[11px] text-muted-foreground">{identificacao.join(" · ")}</span>
         )}
         {colunas.has("validado") && <IconeValidacao estado={validacao} />}
-        {colunas.has("status") && linha.statusNome && <BadgeStatusDocumento linha={linha} />}
+        {colunas.has("status") &&
+          (linha.ciclo.participa ? (
+            <>
+              <SeloEstado ciclo={linha.ciclo} />
+              <SelosControles controles={linha.ciclo.controles} />
+            </>
+          ) : (
+            linha.statusNome && <BadgeStatusDocumento linha={linha} />
+          ))}
+        <SeloNovo ciclo={linha.ciclo} />
         <MarcasDoCliente linha={linha} />
         {linha.ehBackup && (
           <Badge variant="outline" className="border-warning/40 bg-warning/10 text-warning" title="Backup do modelo">
@@ -352,7 +362,6 @@ export function TabelaDocumentos({
   listas,
   listaSelecionadaId,
   fases,
-  status,
   colunas,
   exclusoesPendentes,
 }: {
@@ -375,35 +384,18 @@ export function TabelaDocumentos({
   listas: ListaPainel[];
   listaSelecionadaId: string | null;
   fases: OpcaoFaseDocumento[];
-  status: OpcaoStatusDocumento[];
   /** Ids das colunas que o usuário escolheu ver (resolvido no servidor). */
   colunas: Set<string>;
   /** Ids de Upload com pedido de exclusão pendente — sinal na linha do documento dono. */
   exclusoesPendentes: Set<string>;
 }) {
-  // Status recém-gravado, por documento: a etiqueta muda na hora e o servidor confirma depois. Some quando
+  // Título recém-gravado, por documento: a linha muda na hora e o servidor confirma depois. Some quando
   // chega a página nova (padrão "derivar estado da prop": comparar durante o render, sem efeito).
-  const [sobrescritas, setSobrescritas] = useState<
-    Record<string, Partial<Pick<LinhaDoc, "statusId" | "statusNome" | "statusFinal" | "statusCor" | "statusChave" | "titulo">>>
-  >({});
+  const [sobrescritas, setSobrescritas] = useState<Record<string, Partial<Pick<LinhaDoc, "titulo">>>>({});
   const [linhasVistas, setLinhasVistas] = useState(linhas);
   if (linhasVistas !== linhas) {
     setLinhasVistas(linhas);
     setSobrescritas({});
-  }
-  function aplicarStatus(documentoId: string, statusId: string | null) {
-    const opcao = statusId ? status.find((s) => s.id === statusId) : null;
-    setSobrescritas((atual) => ({
-      ...atual,
-      [documentoId]: {
-        ...atual[documentoId],
-        statusId: opcao?.id ?? null,
-        statusNome: opcao?.nome ?? null,
-        statusFinal: opcao?.final ?? false,
-        statusCor: opcao?.cor ?? null,
-        statusChave: opcao?.chave ?? null,
-      },
-    }));
   }
   // Título recém-salvo no painel: sem isto a linha mostraria o nome antigo até o refresh voltar.
   function aplicarTitulo(documentoId: string, titulo: string | null) {
@@ -466,10 +458,13 @@ export function TabelaDocumentos({
     totalDocumentosSelecionados: documentosSelecionados.length,
     totalValidaveis: validaveis,
     podeValidar,
-    documentosStatus: documentosSelecionados
-      .filter((documento) => documento.podeAlterarStatus)
-      .map((documento) => ({ id: documento.id, nome: documento.titulo ?? documento.tituloPrancha ?? documento.nome })),
-    status,
+    // Ciclo documental: só entram no lote as revisões que a pessoa pode mover a partir do estado em que estão.
+    paraEnviar: documentosSelecionados
+      .filter((d) => d.ciclo.participa && d.ciclo.estado === "em_andamento" && d.ciclo.podeEnviar && d.ciclo.revisaoId)
+      .map((d) => ({ revisaoId: d.ciclo.revisaoId!, nome: d.titulo ?? d.tituloPrancha ?? d.nome })),
+    paraPublicar: documentosSelecionados
+      .filter((d) => d.ciclo.participa && d.ciclo.estado === "compartilhado" && d.ciclo.podePublicar && d.ciclo.revisaoId)
+      .map((d) => ({ revisaoId: d.ciclo.revisaoId!, nome: d.titulo ?? d.tituloPrancha ?? d.nome })),
     podeExcluir,
     podeGerirListas,
     podeGerirLink,
@@ -576,11 +571,9 @@ export function TabelaDocumentos({
             onMenuAberto={() => aoAbrirMenu(l)}
             detalhesAberto={detalhesDe === l.id}
             onDetalhesChange={(v) => setDetalhesDe(v ? l.id : null)}
-            onStatusAtualizado={(id) => aplicarStatus(l.id, id)}
             onTituloAtualizado={(titulo) => aplicarTitulo(l.id, titulo)}
             exclusoesPendentes={exclusoesPendentes}
             fases={fases}
-            status={status}
           />
         ))}
       </ul>
@@ -688,13 +681,12 @@ export function TabelaDocumentos({
               <TableCell className="max-w-[32rem]">
                 <div className="flex min-w-0 items-center gap-2">
                   <TituloDocumento projetoId={projetoId} linha={l} podeCoordenacao={podeCoordenacao} />
+                  <SeloNovo ciclo={l.ciclo} />
                   <PainelDocumentoDetalhe
                     linha={l}
                     fases={fases}
-                    status={status}
                     aberto={detalhesDe === l.id}
                     onAbertoChange={(v) => setDetalhesDe(v ? l.id : null)}
-                    onStatusAtualizado={(id) => aplicarStatus(l.id, id)}
                     onTituloAtualizado={(titulo) => aplicarTitulo(l.id, titulo)}
                   />
                   {/* Com título, o nome do arquivo vira referência secundária; sem título, o
@@ -732,12 +724,19 @@ export function TabelaDocumentos({
               </TableCell>
               {colunas.has("revisao") && (
                 <TableCell className="text-right font-mono text-xs tabular-nums">
-                  {l.revisaoAtual === null ? "—" : rotuloRevisao(l.revisaoAtual)}
+                  {l.revisaoAtual === null ? "—" : rotuloComVersao(l)}
                 </TableCell>
               )}
               {colunas.has("status") && (
                 <TableCell>
-                  <BadgeStatusDocumento linha={l} />
+                  {l.ciclo.participa ? (
+                    <div className="flex flex-wrap items-center gap-1">
+                      <SeloEstado ciclo={l.ciclo} />
+                      <SelosControles controles={l.ciclo.controles} />
+                    </div>
+                  ) : (
+                    <BadgeStatusDocumento linha={l} />
+                  )}
                 </TableCell>
               )}
               {colunas.has("extensao") && (
