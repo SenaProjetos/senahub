@@ -9,6 +9,7 @@ import { FILA_CONVERTER_DWG } from "@/modules/dwg/conversao-estado";
 import { FILA_TAMANHO_PAPEL_PDF, processarLeituraTamanhoPapel } from "@/modules/uploads/tamanho-papel-pdf";
 import { FILA_MENSAGEM_AGENDADA } from "@/modules/chat/agendamento";
 import { FILA_IMPORTAR_CUSTOS } from "@/modules/custos/composicoes/service";
+import { verificarIntegridadeCiclo } from "@/modules/uploads/ciclo/integridade-service";
 import {
   processarConversaoIfc,
   processarGeracaoFederado,
@@ -435,6 +436,17 @@ export async function startJobs(): Promise<PgBoss> {
       handler: async () => {
         const n = await lembreteDataStatus();
         if (n > 0) console.log(`[cronograma] ${n} projeto(s) sem apuração avisado(s).`);
+      },
+    },
+    {
+      fila: "ciclo-documental-integridade",
+      // Diário 06:20 (A7): revoga liberação indevida (I5) e relata o resto aos admins antes do expediente.
+      cron: "20 6 * * *",
+      handler: async () => {
+        const r = await verificarIntegridadeCiclo();
+        if (r.corrigidas + r.relatadas > 0) {
+          console.log(`[ciclo-documental] ${r.verificadas} revisão(ões) verificada(s): ${r.corrigidas} corrigida(s), ${r.relatadas} relatada(s).`);
+        }
       },
     },
     {

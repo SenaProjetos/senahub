@@ -6,6 +6,8 @@ import { podeVerTodasDisciplinas, podeBaixarArquivo } from "@/modules/arquivos/a
 import { lerArquivo } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { registrarAcessoUploads } from "@/modules/uploads/historico/service";
+import { motivoBloqueioDosUploads, uploadsLiberadosParaObra } from "@/modules/uploads/ciclo/service";
+import { restritoALiberadoObra } from "@/modules/uploads/ciclo/acesso";
 
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -53,6 +55,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   // Capability de download (separada da visibilidade). Global/admin passam direto.
   if (!ehGlobal && !(await podeBaixarArquivo(user))) {
     return NextResponse.json({ error: "Sem permissão para baixar arquivos." }, { status: 403 });
+  }
+  // Ciclo documental: bloqueio de download vale para todos (I7) — quem pode, remove o bloqueio; e quem
+  // só enxerga o liberado para obra (I9) não baixa revisão que não está liberada.
+  const bloqueio = await motivoBloqueioDosUploads(prisma, [upload.id], "download");
+  if (bloqueio) return NextResponse.json({ error: bloqueio }, { status: 403 });
+  if ((await restritoALiberadoObra(user)) && !(await uploadsLiberadosParaObra(prisma, [upload.id])).has(upload.id)) {
+    return NextResponse.json({ error: "Arquivo não encontrado." }, { status: 404 });
   }
 
   let conteudo: Buffer;

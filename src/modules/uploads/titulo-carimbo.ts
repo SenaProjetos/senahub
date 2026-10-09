@@ -50,13 +50,13 @@ const PARECE_CODIGO = /^[\w.]+([-_][\w.]+){3,}$/;
 /** Título de prancha não é parágrafo: acima disto, a linha varreu texto de fora da célula. */
 const MAX_CARACTERES = 120;
 
-type ItemLeitura = { str: string; x: number; y: number; w: number; h: number; giro: number };
+export type ItemLeitura = { str: string; x: number; y: number; w: number; h: number; giro: number };
 
 /**
  * Posição no espaço de leitura do próprio item: desfaz o giro do texto, de modo que "linha de
  * baixo" seja sempre `y` menor e "mesma coluna" seja sempre `x` parecido.
  */
-function paraEspacoDeLeitura(item: ItemTextoPdf): ItemLeitura {
+export function paraEspacoDeLeitura(item: ItemTextoPdf): ItemLeitura {
   const giro = ((Math.round(item.giro ?? 0) % 360) + 360) % 360;
   const { x, y } = item;
   const pos =

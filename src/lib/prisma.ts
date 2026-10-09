@@ -63,6 +63,30 @@ function filtroSoftDelete({ operation, args, query }: { operation: string; args:
   return query(args)
 }
 
+/**
+ * Versão substituída (ciclo documental, N2): um arquivo trocado por outro da mesma extensão numa
+ * versão posterior da MESMA revisão continua no banco e no disco, mas deixa de ser "o arquivo atual"
+ * — some de listas, contagens, .zip e link. Mesma mecânica e mesmas regras do soft delete acima,
+ * com o mesmo escape: `substituidoPorId: { not: undefined }` vê todos (histórico de versões, contador
+ * de versão, exclusão do documento inteiro). Leituras ANINHADAS precisam do filtro explícito.
+ */
+function filtroSubstituido({ operation, args, query }: { operation: string; args: unknown; query: (a: unknown) => unknown }) {
+  if (LEITURA.includes(operation)) {
+    const a = (args ?? {}) as { where?: Record<string, unknown> }
+    if (ehLookupPorId(a.where)) return query(a)
+    a.where = { ...(a.where ?? {}), substituidoPorId: a.where?.substituidoPorId ?? null }
+    return query(a)
+  }
+  return query(args)
+}
+
+const versaoAtual = Prisma.defineExtension({
+  name: 'versaoAtual',
+  query: {
+    upload: { async $allOperations(ctx) { return filtroSubstituido(ctx as never) } },
+  },
+})
+
 const softDelete = Prisma.defineExtension({
   name: 'softDelete',
   query: {
@@ -95,7 +119,7 @@ function createClient() {
   if (logando) (globalThis as { __prismaBase?: unknown }).__prismaBase = base
   // A extensão só intercepta queries (não adiciona API nova), então o tipo público
   // segue sendo PrismaClient — mantém o filtro em runtime sem mudar assinaturas no resto do app.
-  return base.$extends(softDelete) as unknown as PrismaClient
+  return base.$extends(softDelete).$extends(versaoAtual) as unknown as PrismaClient
 }
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }

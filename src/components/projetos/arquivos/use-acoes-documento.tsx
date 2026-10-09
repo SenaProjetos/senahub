@@ -46,6 +46,8 @@ import {
   EscopoExclusaoDialog,
   type EscolhaEscopo,
 } from "@/components/projetos/arquivos/escopo-exclusao-dialog";
+import { CicloAcaoDialog, type PedidoCiclo } from "@/components/projetos/arquivos/ciclo-acao-dialog";
+import { escolhaDoCiclo } from "@/modules/uploads/ciclo/acoes";
 
 type Formulario = "renomear" | "ajuste" | "solicitar-exclusao" | null;
 
@@ -88,6 +90,8 @@ export function useAcoesDocumento({
   const [historicoAberto, setHistoricoAberto] = useState(false);
   // Ids no diálogo de escopo da exclusão (`null` = fechado).
   const [escopo, setEscopo] = useState<string[] | null>(null);
+  // Ação do ciclo documental aberta (enviar para análise, publicar, liberar…). `null` = fechado.
+  const [pedidoCiclo, setPedidoCiclo] = useState<PedidoCiclo | null>(null);
 
   const itens = useCallback(
     (d: DocumentoParaAcoes) =>
@@ -141,6 +145,12 @@ export function useAcoesDocumento({
         const ok = await copiarTexto(new URL(arquivo.downloadUrl, window.location.origin).href);
         if (ok) toast.success("Link copiado.");
         else toast.error("Não foi possível copiar o link.");
+        return;
+      }
+
+      const escolhaCiclo = escolhaDoCiclo(item.id);
+      if (escolhaCiclo && d.ciclo) {
+        setPedidoCiclo({ escolha: escolhaCiclo, ciclo: d.ciclo, nome: d.nome });
         return;
       }
 
@@ -341,5 +351,14 @@ export function useAcoesDocumento({
     </>
   ) : null;
 
-  return { itens, aoSelecionar, portal };
+  return {
+    itens,
+    aoSelecionar,
+    portal: (
+      <>
+        {portal}
+        <CicloAcaoDialog pedido={pedidoCiclo} onFechar={() => setPedidoCiclo(null)} />
+      </>
+    ),
+  };
 }

@@ -100,7 +100,7 @@ export default async function VisualizarPage({
           select: {
             numero: true,
             uploads: {
-              where: { excluidoEm: null },
+              where: { excluidoEm: null, substituidoPorId: null },
               select: { id: true, nomeArquivo: true },
             },
           },

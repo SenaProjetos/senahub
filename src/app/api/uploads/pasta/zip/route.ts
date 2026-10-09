@@ -11,6 +11,7 @@ import { carregarExtensoesNomenclatura } from "@/modules/uploads/nomenclatura/qu
 import { EXT_OUTROS, FASE_SEM } from "@/modules/uploads/arvore-navegacao";
 import { entradasZipDaPasta } from "@/modules/uploads/pastas-da-lista";
 import { registrarAcessoUploads } from "@/modules/uploads/historico/service";
+import { uploadsComBloqueioDeDownload } from "@/modules/uploads/ciclo/service";
 
 /**
  * .zip de uma pasta da aba Arquivos: disciplina, fase (`fase`) ou formato (`fase` + `ext`).
@@ -79,7 +80,7 @@ export async function GET(req: Request) {
         fase: { select: { id: true, sigla: true, nome: true } },
         uploads: {
           // Lixeira: `Upload` não passa pelo filtro global de soft delete.
-          where: { excluidoEm: null },
+          where: { excluidoEm: null, substituidoPorId: null },
           orderBy: { nomeArquivo: "asc" },
           select: { id: true, nomeArquivo: true, caminho: true, revisaoId: true, revisao: { select: { numero: true } } },
         },
@@ -97,11 +98,14 @@ export async function GET(req: Request) {
       faseRotulo: d.fase?.sigla ?? d.fase?.nome ?? null,
     })),
   );
-  const entradas = entradasZipDaPasta(
+  const todas = entradasZipDaPasta(
     arquivos,
     extensoes.map((e) => e.extensao),
     { fase, ext },
   );
+  // Ciclo documental: revisão com bloqueio de download fica fora do .zip (I7).
+  const bloqueados = await uploadsComBloqueioDeDownload(prisma, todas.map((e) => e.uploadId));
+  const entradas = todas.filter((e) => !bloqueados.has(e.uploadId));
   if (entradas.length === 0) return NextResponse.json({ error: "Pasta vazia." }, { status: 404 });
 
   await logAudit({

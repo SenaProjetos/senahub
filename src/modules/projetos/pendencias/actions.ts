@@ -33,6 +33,20 @@ import { extrairMencoes } from "@/modules/chat/mencoes";
 import { buscarPendenciasParaReferencia, possiveisReincidencias } from "@/modules/projetos/pendencias/queries";
 import { registrarEventoUploads } from "@/modules/uploads/historico/service";
 import { statusAposDesvalidacao } from "@/modules/uploads/status-automatico";
+import { liberarRestricaoDePendencias } from "@/modules/uploads/ciclo/service";
+
+/**
+ * A3, volta: a revisão publicada com pendências ganhou uma restrição automática; quando o último
+ * apontamento em aberto do documento sai da fila, ela sai sozinha. Depois da mutação, e nunca a derruba.
+ */
+async function aposMudarPendencia(documentoId: string | null): Promise<void> {
+  if (!documentoId) return;
+  try {
+    await liberarRestricaoDePendencias(documentoId);
+  } catch (err) {
+    console.error("[ciclo-documental] restrição dos apontamentos não foi conferida:", err);
+  }
+}
 
 // ── Schemas ────────────────────────────────────────────────────
 // Classificação (item 11) é OPCIONAL: exigir severidade/tipo em todo pino transformaria o
@@ -556,6 +570,7 @@ export const excluirPendencia = defineAction(
       where: { id: p.id },
       data: { excluidoEm: new Date(), excluidoPorId: user.id },
     });
+    await aposMudarPendencia(p.documentoId);
     revalidarViewer(p.projetoId, p.uploadId);
     return { id: p.id, projetoId: p.projetoId };
   },
@@ -795,6 +810,7 @@ async function transicionar(
       await tx.tarefaItem.updateMany({ where: { id: p.tarefaItemId }, data: { concluido: itemConcluido } });
     }
   });
+  await aposMudarPendencia(p.documentoId);
 
   revalidarViewer(p.projetoId, p.uploadId);
   revalidatePath("/tarefas");
@@ -857,6 +873,7 @@ export const marcarPendenciaResolvidaEmRevisao = defineAction(
       });
       if (p.tarefaItemId) await tx.tarefaItem.updateMany({ where: { id: p.tarefaItemId }, data: { concluido: true } });
     });
+    await aposMudarPendencia(p.documentoId);
 
     revalidarViewer(p.projetoId, p.uploadId);
     revalidatePath("/tarefas");

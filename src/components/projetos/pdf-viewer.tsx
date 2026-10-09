@@ -74,7 +74,6 @@ import {
   temEvidencia,
   STATUS_LABEL,
   STATUS_TERMINAIS,
-  contaComoTrabalho,
   ehRascunho,
   enviaveis as pendenciasEnviaveis,
   estaAberta,
@@ -482,9 +481,6 @@ export function PdfViewer(props: Props) {
   const ajustarZoom = useCallback((direcao: 1 | -1) => setZoom((z) => passoZoom(z, direcao)), [setZoom]);
 
   const [pendencias, setPendencias] = useState<PendenciaView[]>(props.pendenciasIniciais);
-  // "Em aberto" = aberta OU em_correcao (item 22): quem assumiu a correção ainda tem trabalho
-  // pendente, e deixar de contar aqui destravaria a validação ao assumir.
-  const temApontamentoAberto = pendencias.some((p) => contaComoTrabalho(p));
   // Rascunhos meus, ainda não entregues (item 31) — não bloqueiam nada, mas some sem avisar
   // seria pior: quem marcou 5 pinos e saiu da tela precisa saber que ninguém os viu.
   const rascunhos = pendencias.filter((p) => ehRascunho(p) && !STATUS_TERMINAIS.includes(p.status as StatusPendencia));
@@ -501,7 +497,8 @@ export function PdfViewer(props: Props) {
   };
   // Validar a prancha: só a versão vigente, entrega não finalizada, e sem apontamento
   // aberto (força resolver/fechar as pendências antes de dar por validada).
-  const podeValidarArquivo = podeValidar && versaoAtual && !finalizada && !temApontamentoAberto;
+  // Só o IMPEDITIVO trava a validação (decisão do dono, 2026-10-09: a mesma regra da publicação, D3-c).
+  const podeValidarArquivo = podeValidar && versaoAtual && !finalizada && !temImpeditivo;
   const [selecionadaId, setSelecionadaId] = useState<string | null>(null);
   // Painéis laterais só começam abertos quando têm o que mostrar (apontamento na prancha ou pino
   // pedido no link): vazios, eram 608 px de largura tirados da prancha para dizer "nenhum
@@ -2073,7 +2070,7 @@ export function PdfViewer(props: Props) {
                 versaoAtual &&
                 !finalizada &&
                 !validado &&
-                temApontamentoAberto && (
+                temImpeditivo && (
                   <Tooltip>
                     <TooltipTrigger
                       render={

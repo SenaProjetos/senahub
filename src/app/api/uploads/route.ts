@@ -20,6 +20,8 @@ import {
 } from "@/modules/uploads/nomenclatura/queries";
 import { montarVocabulario } from "@/modules/uploads/nomenclatura/vocabulario";
 import { resolverMetadado } from "@/modules/uploads/nomenclatura/precedencia";
+import { destinoNoCiclo, trocaDeExtensao, type DestinoNoCiclo } from "@/modules/uploads/ciclo/envio-arquivo";
+import { motivoBloqueioDoDocumento } from "@/modules/uploads/ciclo/service";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { registrarEventoDocumento } from "@/modules/uploads/historico/service";
 import { statusAposEnvio } from "@/modules/uploads/status-automatico";
@@ -267,9 +269,14 @@ export async function POST(req: Request) {
         });
     const documentoExistente = documentoEscolhido ?? documentoPorChave;
 
+    // Ciclo documental (ISO 19650, spec 2026-10-08): entregáveis do pacote A, IFC incluído (N3). Fora
+    // dele — backup do modelo, pastas — tudo segue exatamente como antes.
+    const noCiclo = !pastaAlvo && destino === "A";
+
     // O status final pertence ao documento lógico, não ao Upload: a consulta antecede a
     // gravação física para não deixar arquivo no disco quando uma nova revisão é vedada.
-    if (documentoExistente?.status?.final) {
+    // No ciclo o catálogo antigo de status saiu de cena (D4): quem decide é o estado da revisão.
+    if (!noCiclo && documentoExistente?.status?.final) {
       return { nome, ok: false, motivo: "Este documento está com status final e não aceita novas revisões." };
     }
 
@@ -284,26 +291,64 @@ export async function POST(req: Request) {
     const revisaoExistente = revisaoDeIdEfetiva
       ? await prisma.documentoRevisao.findUnique({
           where: { id: revisaoDeIdEfetiva },
-          select: { id: true, documentoId: true, numero: true, uploads: { select: { nomeArquivo: true } } },
+          select: { id: true, documentoId: true, numero: true, uploads: { where: { substituidoPorId: null }, select: { nomeArquivo: true } } },
         })
       : null;
     if (revisaoDeIdEfetiva && (!documentoExistente || !revisaoExistente || revisaoExistente.documentoId !== documentoExistente.id)) {
       return { nome, ok: false, motivo: "A revisão informada não pertence a este documento." };
     }
-    if (revisaoExistente?.uploads.some((upload) => extensao(upload.nomeArquivo) === extensao(nome))) {
+    if (!noCiclo && revisaoExistente?.uploads.some((upload) => extensao(upload.nomeArquivo) === extensao(nome))) {
       return { nome, ok: false, motivo: "Esta revisão já contém um arquivo dessa extensão." };
+    }
+
+    // No ciclo, a revisão de destino sai de `destinoNoCiclo` — versão nova na revisão em andamento,
+    // revisão nova depois de publicada, recusa em análise (V2-a) — decidido ANTES de gravar no disco.
+    let planoCiclo: Exclude<DestinoNoCiclo, { tipo: "recusar" }> | null = null;
+    let trocaCiclo: ReturnType<typeof trocaDeExtensao> = { tipo: "nenhum" };
+    if (noCiclo) {
+      if (documentoExistente) {
+        const bloqueio = await motivoBloqueioDoDocumento(prisma, documentoExistente.id);
+        if (bloqueio) return { nome, ok: false, motivo: bloqueio };
+      }
+      const ultima = documentoExistente
+        ? await prisma.documentoRevisao.findFirst({
+            where: { documentoId: documentoExistente.id },
+            orderBy: { numero: "desc" },
+            select: { id: true, numero: true, estado: true, ultimaVersao: true },
+          })
+        : null;
+      const plano = destinoNoCiclo({ ultima, revisaoDoEnvio: revisaoDeIdEfetiva });
+      if (plano.tipo === "recusar") return { nome, ok: false, motivo: plano.motivo };
+      planoCiclo = plano;
+      if (plano.tipo !== "nova_revisao") {
+        const atuais = await prisma.upload.findMany({
+          where: { revisaoId: plano.revisaoId, excluidoEm: null, substituidoPorId: null },
+          select: { id: true, nomeArquivo: true, versaoNaRevisao: true },
+        });
+        trocaCiclo = trocaDeExtensao(
+          atuais.map((a) => ({ id: a.id, ext: extensao(a.nomeArquivo), versaoNaRevisao: a.versaoNaRevisao })),
+          extensao(nome),
+          plano.versao,
+        );
+        if (trocaCiclo.tipo === "recusar") return { nome, ok: false, motivo: trocaCiclo.motivo };
+      }
     }
 
     // Versionamento: mesma disciplina + (pacote OU pasta) + nome → incrementa versão. Com
     // "nova versão de" o nome muda a cada envio (o backup do AltoQi carimba `[cópia ...]`),
     // então a contagem segue o DOCUMENTO: senão cada cópia entraria como versão 1 e o
     // histórico do documento teria várias "versão 1" fora de ordem.
+    // `substituidoPorId: { not: undefined }`: o contador precisa ver as versões substituídas também —
+    // o número entra no nome físico do arquivo, e repetir um número sobrescreveria um arquivo no disco.
     const anterior = await prisma.upload.findFirst({
-      where: documentoEscolhido
-        ? { documentoId: documentoEscolhido.id }
-        : pastaAlvo
-          ? { disciplinaId, pastaId: pastaAlvo.id, nomeArquivo: nome }
-          : { disciplinaId, pacote: destino, nomeArquivo: nome },
+      where: {
+        substituidoPorId: { not: undefined },
+        ...(documentoEscolhido
+          ? { documentoId: documentoEscolhido.id }
+          : pastaAlvo
+            ? { disciplinaId, pastaId: pastaAlvo.id, nomeArquivo: nome }
+            : { disciplinaId, pacote: destino, nomeArquivo: nome }),
+      },
       orderBy: { versao: "desc" },
     });
     const versao = anterior ? anterior.versao + 1 : 1;
@@ -363,7 +408,31 @@ export async function POST(req: Request) {
     // revisão. Em uma operação agrupada, só o primeiro arquivo cria a próxima revisão do
     // documento; os demais recebem `revisaoDeId` e entram exatamente no mesmo ponto no tempo.
     let revisao: { id: string; numero: number };
-    if (revisaoExistente) {
+    if (planoCiclo) {
+      if (planoCiclo.tipo === "nova_revisao") {
+        revisao = await prisma.documentoRevisao.upsert({
+          where: { documentoId_numero: { documentoId: documento.id, numero: planoCiclo.numero } },
+          create: { documentoId: documento.id, numero: planoCiclo.numero, createdById: user.id },
+          update: {},
+          select: { id: true, numero: true },
+        });
+      } else {
+        if (planoCiclo.tipo === "nova_versao") {
+          // Contador atômico: dois envios ao mesmo tempo não viram a mesma versão nem pulam um número.
+          const { count } = await prisma.documentoRevisao.updateMany({
+            where: { id: planoCiclo.revisaoId, estado: "em_andamento", ultimaVersao: planoCiclo.versaoAnterior },
+            data: { ultimaVersao: planoCiclo.versao },
+          });
+          if (count !== 1) {
+            await removerArquivo(salvo.caminho);
+            return { nome, ok: false, motivo: "A revisão mudou durante o envio. Envie o arquivo de novo." };
+          }
+        }
+        revisao = { id: planoCiclo.revisaoId, numero: planoCiclo.numero };
+      }
+      // Os demais arquivos deste mesmo envio (PDF + DWG) entram na mesma versão.
+      revisoesAgrupadas.set(chaveGrupo, revisao);
+    } else if (revisaoExistente) {
       revisao = revisaoExistente;
     } else if (documentoEscolhido) {
       // "Nova versão de": a revisão segue o documento, não a contagem por nome de arquivo.
@@ -413,9 +482,26 @@ export async function POST(req: Request) {
         tamanho: salvo.tamanho,
         mimeType: mime,
         versao,
+        versaoNaRevisao: planoCiclo?.versao ?? 1,
         autorId: user.id,
       },
     });
+
+    // Versão nova com a mesma extensão: o arquivo anterior sai da revisão (fica no disco e no
+    // histórico, com download) — nada se apaga (N2).
+    if (trocaCiclo.tipo === "substituir") {
+      await prisma.upload.updateMany({
+        where: { id: trocaCiclo.uploadId, substituidoPorId: null },
+        data: { substituidoPorId: criado.id, substituidoEm: new Date() },
+      });
+      await registrarEventoDocumento({
+        documentoId: documento.id,
+        uploadId: criado.id,
+        tipo: "arquivo_substituido",
+        userId: user.id,
+        detalhe: { revisao: revisao.numero, versao: planoCiclo?.versao ?? 1, extensao: extensao(nome), substituido: trocaCiclo.uploadId },
+      });
+    }
 
     // Só o que ESTE envio gravou. `fase`/`faseOrigem` continuam no formato antigo para as
     // linhas já existentes no histórico não mudarem de leitura; `tipo` e `numeroPrancha` são
@@ -432,6 +518,7 @@ export async function POST(req: Request) {
         arquivo: nome,
         versao,
         revisao: revisao.numero,
+        ...(planoCiclo ? { versaoNaRevisao: planoCiclo.versao } : {}),
         ...(versaoDeDocumentoId ? { novaVersaoDe: true } : {}),
         ...(faseFinal && siglaFase ? { fase: siglaFase, faseOrigem: faseFinal.origem } : {}),
         ...(tipoFinal && siglaTipo ? { tipo: siglaTipo, tipoOrigem: tipoFinal.origem } : {}),
@@ -441,7 +528,8 @@ export async function POST(req: Request) {
     });
     // Status documental (reunião de 29/09/2026): o 1º arquivo de uma revisão nova põe "Enviado". Não
     // derruba o envio se falhar (status-automatico.ts).
-    await statusAposEnvio({ uploadId: criado.id, userId: user.id });
+    // No ciclo documental o catálogo antigo não é mais escrito pelo sistema (D10).
+    if (!noCiclo) await statusAposEnvio({ uploadId: criado.id, userId: user.id });
 
     // Coordenação BIM: cada IFC enviado (inclusive nova versão) entra na fila de
     // conversão p/ Fragments. Fire-and-forget — não bloqueia nem derruba o upload.
@@ -479,9 +567,10 @@ export async function POST(req: Request) {
       // título que alguém já escreveu (manual vence motor).
       ...(documento.titulo ? { tituloAtual: documento.titulo } : {}),
     };
+    const versaoCiclo = planoCiclo ? { versaoNaRevisao: planoCiclo.versao } : {};
     return pastaAlvo
       ? { nome, ok: true, realocado: false, revisaoId: revisao.id, revisaoNumero: revisao.numero, ...reconhecido }
-      : { nome, ok: true, pacote: destino!, realocado, revisaoId: revisao.id, revisaoNumero: revisao.numero, ...reconhecido };
+      : { nome, ok: true, pacote: destino!, realocado, revisaoId: revisao.id, revisaoNumero: revisao.numero, ...versaoCiclo, ...reconhecido };
   }
 
   /**

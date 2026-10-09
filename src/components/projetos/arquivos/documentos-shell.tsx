@@ -6,6 +6,7 @@ import { AREAS_NA_RAIZ, rotuloArea, type AreaDisponivel, type AreaProjeto } from
 import { ConteudoAreaProjeto, type DadosAreas } from "@/components/projetos/arquivos/conteudo-area-projeto";
 import { LinkPublicoArquivosButton } from "@/components/projetos/link-publico-arquivos-dialog";
 import { NomenclaturaProjetoButton } from "@/components/projetos/arquivos/nomenclatura-projeto-dialog";
+import { CicloConfigDialog, type ValoresConfigCiclo } from "@/components/projetos/arquivos/ciclo-config-dialog";
 import { MenuArquivos } from "@/components/projetos/arquivos/menu-arquivos";
 import { GerarListaMestreButton } from "@/components/projetos/arquivos/gerar-lista-mestre-dialog";
 import { BotaoPastas, PainelLateralDocumentos } from "@/components/projetos/arquivos/painel-lateral-documentos";
@@ -110,6 +111,7 @@ export function DocumentosShell({
   linkPublico,
   nomenclatura,
   exclusoesPendentes,
+  configCiclo = null,
 }: {
   /** Só no diretório geral: a árvore de ano → projeto e o começo da trilha. */
   moldura?: MolduraDiretorio;
@@ -164,6 +166,8 @@ export function DocumentosShell({
   dadosAreas: DadosAreas;
   /** `null` quando o usuário não pode gerir o link público — o botão nem aparece. */
   linkPublico: LinkPublicoProps | null;
+  /** Só para admin: configuração do ciclo documental do projeto (A9). */
+  configCiclo?: ValoresConfigCiclo | null;
   nomenclatura: {
     projeto: React.ComponentProps<typeof NomenclaturaProjetoButton>["nomenclaturaProjeto"];
     global: React.ComponentProps<typeof NomenclaturaProjetoButton>["nomenclaturaGlobal"];
@@ -250,6 +254,7 @@ export function DocumentosShell({
         />
       )}
       <ModoFocoBotao semBotao />
+      {configCiclo && <CicloConfigDialog projetoId={projeto.id} valores={configCiclo} />}
 
       <QuadroAlturaTela folga={40} className="grid grid-cols-1 gap-4 md:grid-cols-[260px_1fr] md:items-start">
         <PainelLateralDocumentos>
@@ -331,6 +336,7 @@ export function DocumentosShell({
               <MenuArquivos
                 listaMestre={dadosUploader ? dadosUploader.disciplinas.some((d) => !d.usaPastas) : null}
                 linkPublico={linkPublico ? linkPublico.links.filter((l) => l.ativo).length : null}
+                configCiclo={configCiclo !== null}
               />
               {dadosUploader && <EnviarDocumentosDialog dados={dadosUploader} abrirAoCarregar={abrirEnvio} />}
             </div>
@@ -339,7 +345,8 @@ export function DocumentosShell({
           {situacao && (
             <p className="text-xs text-muted-foreground">
               O que o cliente vê na pasta {ROTULO_SITUACAO[situacao]} do link: cada documento na revisão marcada, mesmo que
-              a equipe já tenha enviado outra. Para mudar, ponha o status de novo; para tirar, use o menu do documento.
+              a equipe já tenha enviado outra. Quem decide é o ciclo da revisão: publicar a revisão nova leva o envio ao
+              cliente junto; liberar ou revogar a obra fica no menu do documento.
             </p>
           )}
           <div className="md:min-h-0 md:flex-1 md:overflow-y-auto">
@@ -360,7 +367,6 @@ export function DocumentosShell({
             listas={listas}
             listaSelecionadaId={listaSelecionadaId}
             fases={fases}
-            status={status}
             colunas={colunas}
             exclusoesPendentes={exclusoesPendentes}
           />

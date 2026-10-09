@@ -55,6 +55,7 @@ export async function carregarCatalogoSnap(db: Db = prisma): Promise<CatalogoSna
       ordem: true,
       versaoDesde: true,
       versaoAte: true,
+      exigeDwg: true,
       siglas: LINHAS,
     },
   });

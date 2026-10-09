@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   disciplinaFindUnique: vi.fn(),
   catalogoFindFirst: vi.fn(),
   userFindMany: vi.fn(),
+  documentoFindMany: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
@@ -61,6 +62,7 @@ vi.mock("@/lib/prisma", () => ({
     disciplina: { findUnique: mocks.disciplinaFindUnique },
     pranchaCatalogo: { findFirst: mocks.catalogoFindFirst },
     user: { findMany: mocks.userFindMany },
+    documentoDisciplina: { findMany: mocks.documentoFindMany },
     $transaction: (fn: (t: unknown) => unknown) => fn(tx),
   },
 }));
@@ -71,7 +73,7 @@ const USER = { id: "u1", role: "supervisor", ativo: true, mustChangePassword: fa
 const PJ = { userId: "pj1", user: { id: "pj1", name: "Ana PJ", role: "projetista_pj" } };
 const CLT = { userId: "clt1", user: { id: "clt1", name: "Bia CLT", role: "clt" } };
 
-const FASE_ENTREGUE = { id: "de1", status: "entregue", liberadaEm: null, disciplinaId: "d1", etapa: { sigla: "BS" } };
+const FASE_ENTREGUE = { id: "de1", status: "entregue", liberadaEm: null, disciplinaId: "d1", etapaId: "f-bs", etapa: { sigla: "BS" } };
 const disciplina = (responsaveis: unknown[], valor: number | null = 10000) => ({
   id: "d1",
   disciplinaTextoLegado: "Estrutural",
@@ -85,6 +87,7 @@ beforeEach(() => {
   mocks.getSession.mockResolvedValue({ user: USER });
   mocks.can.mockResolvedValue(true);
   mocks.userFindMany.mockResolvedValue([{ id: "g1" }]);
+  mocks.documentoFindMany.mockResolvedValue([]);
   mocks.liberarPagamentosDaFase.mockResolvedValue({ pagaveis: [PJ], salariados: [], pool: 4000, jaLiberada: false });
 });
 
@@ -117,6 +120,17 @@ describe("aprovarEtapaDisciplina", () => {
     const r = await aprovarEtapaDisciplina({ id: "de1" });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/Defina o valor de pagamento/);
+    expect(mocks.liberarPagamentosDaFase).not.toHaveBeenCalled();
+  });
+
+  it("6-B: documento da fase sem revisão publicada impede aprovar (e não libera pagamento)", async () => {
+    mocks.etapaFindUnique.mockResolvedValue(FASE_ENTREGUE);
+    mocks.documentoFindMany.mockResolvedValue([{ nomeArquivo: "260010-SENA-AGF-BAS-001-PLB.pdf", titulo: null, revisoes: [{ estado: "compartilhado" }] }]);
+
+    const r = await aprovarEtapaDisciplina({ id: "de1" });
+
+    expect(r).toMatchObject({ ok: false, error: expect.stringMatching(/Publique todos os documentos da fase/) });
+    expect(mocks.documentoFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ faseId: "f-bs" }) }));
     expect(mocks.liberarPagamentosDaFase).not.toHaveBeenCalled();
   });
 

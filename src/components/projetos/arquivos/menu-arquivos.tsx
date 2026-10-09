@@ -1,6 +1,6 @@
 "use client";
 
-import { ListChecks, Maximize2, MoreHorizontal, Share2, Tags } from "lucide-react";
+import { ListChecks, Maximize2, MoreHorizontal, Settings2, Share2, Tags } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,6 +16,7 @@ export const EVENTO_ARQUIVOS = {
   nomenclatura: "senahub:arquivos:nomenclatura",
   listaMestre: "senahub:arquivos:lista-mestre",
   linkPublico: "senahub:arquivos:link-publico",
+  configCiclo: "senahub:arquivos:config-ciclo",
 } as const;
 
 const disparar = (evento: string) => window.dispatchEvent(new Event(evento));
@@ -27,11 +28,14 @@ const disparar = (evento: string) => window.dispatchEvent(new Event(evento));
 export function MenuArquivos({
   listaMestre,
   linkPublico,
+  configCiclo = false,
 }: {
   /** null = a pessoa não gera Lista Mestre; false = sem disciplina que use a lista. */
   listaMestre: boolean | null;
   /** null = sem permissão para links; número = links ativos. */
   linkPublico: number | null;
+  /** Admin: configura o ciclo documental do projeto (A9). */
+  configCiclo?: boolean;
 }) {
   return (
     <DropdownMenu>
@@ -55,6 +59,11 @@ export function MenuArquivos({
           <DropdownMenuItem className="gap-2" onClick={() => disparar(EVENTO_ARQUIVOS.linkPublico)}>
             <Share2 className="size-4" /> Link público
             {linkPublico > 0 && <span className="ml-auto font-mono text-xs text-muted-foreground">{linkPublico} ativo(s)</span>}
+          </DropdownMenuItem>
+        )}
+        {configCiclo && (
+          <DropdownMenuItem className="gap-2" onClick={() => disparar(EVENTO_ARQUIVOS.configCiclo)}>
+            <Settings2 className="size-4" /> Ciclo dos documentos
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator className="hidden md:block" />

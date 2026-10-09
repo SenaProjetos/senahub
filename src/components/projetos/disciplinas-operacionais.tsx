@@ -27,6 +27,8 @@ import { solicitacoesRevisaoDoProjeto, type SolicitacaoRevisaoView } from "@/mod
 import { PaginaDisciplinas } from "@/components/projetos/pagina-disciplinas";
 import { contarPorStatus, filtrarDisciplinas, ordenarDisciplinas, statusDoFiltro } from "@/modules/projetos/ordem-disciplinas";
 import { DisciplinaCard, type TarefaDaDisciplina } from "@/components/projetos/disciplina-card";
+import { semPublicacaoPorDisciplina } from "@/modules/uploads/ciclo/service";
+import { prisma } from "@/lib/prisma";
 
 /** Área operacional preservada da ficha anterior, agora isolada na aba Disciplinas. */
 export async function DisciplinasOperacionais({
@@ -78,6 +80,8 @@ export async function DisciplinasOperacionais({
   const solicitantes = await nomesUsuarios(solicitantesIds);
   const nomeSolicitante = new Map(solicitantes.map((solicitante) => [solicitante.id, solicitante.name]));
 
+  // 6-B: o card só diz "pronta para aprovar" quando os documentos do ciclo estão publicados.
+  const semPublicacao = await semPublicacaoPorDisciplina(prisma, projeto.disciplinas.map((d) => d.id));
   const disciplinas = projeto.disciplinas.map((disciplina) => {
     const usaPastas = disciplinaUsaPastas(disciplina.pastas);
     const uploadsPacote = disciplina.uploads.filter((upload) => upload.pastaId == null);
@@ -135,6 +139,7 @@ export async function DisciplinasOperacionais({
       temEtapas: disciplina._count.etapas > 0,
       exigePacoteA: disciplina.exigePacoteA,
       exigePacoteB: disciplina.exigePacoteB,
+      documentosSemPublicacao: semPublicacao.get(disciplina.id) ?? 0,
       usaPastas,
       pastas: disciplina.pastas,
       arquivosPasta: uploadsPasta.map((upload) => ({

@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { registrarEventoDocumento } from "./historico/service";
+import { participaDoCiclo } from "./ciclo/escopo";
 import {
   statusAoAprovar,
   statusAoDesaprovar,
@@ -55,6 +56,9 @@ async function gravar(
   userId: string | null,
   razao: keyof typeof RAZAO,
 ): Promise<void> {
+  // Documento do ciclo documental (ISO 19650): o catálogo antigo não é mais escrito pelo sistema (D10)
+  // — quem diz em que pé a revisão está é o estado dela. Fora do ciclo, nada muda.
+  if (await documentoNoCiclo(documentoId)) return;
   const status = await prisma.documentoStatus.findFirst({ where: { chave, ativo: true }, select: { id: true, nome: true } });
   if (!status) return;
   await prisma.documentoDisciplina.update({ where: { id: documentoId }, data: { statusId: status.id } });
@@ -64,6 +68,16 @@ async function gravar(
     userId,
     detalhe: { de, para: status.nome, automatico: true, razao: RAZAO[razao] },
   });
+}
+
+async function documentoNoCiclo(documentoId: string): Promise<boolean> {
+  const doc = await prisma.documentoDisciplina.findUnique({
+    where: { id: documentoId },
+    select: { chave: true, uploads: { where: { excluidoEm: null, substituidoPorId: null }, select: { nomeArquivo: true } } },
+  });
+  if (!doc) return false;
+  const extensoes = doc.uploads.map((u) => u.nomeArquivo.slice(u.nomeArquivo.lastIndexOf(".") + 1).toLowerCase());
+  return participaDoCiclo({ chave: doc.chave, extensoes });
 }
 
 async function comProtecao(nome: string, fn: () => Promise<void>): Promise<void> {

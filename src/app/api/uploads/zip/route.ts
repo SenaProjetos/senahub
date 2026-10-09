@@ -7,6 +7,7 @@ import { resolverCaminho, slug } from "@/lib/storage";
 import { caminhoNoZip, caminhoNoZipPasta } from "@/modules/uploads/estrutura";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { registrarAcessoUploads } from "@/modules/uploads/historico/service";
+import { uploadsComBloqueioDeDownload } from "@/modules/uploads/ciclo/service";
 
 // Teto de segurança para evitar zips absurdos por requisição.
 const MAX_ARQUIVOS = 500;
@@ -72,13 +73,16 @@ export async function GET(req: Request) {
     });
     projetosComResp = new Set(discs.map((d) => d.projetoId));
   }
-  const acessiveis = uploads.filter(
+  const permitidos = uploads.filter(
     (u) =>
       ehGlobal ||
       u.disciplina.responsaveis.some((r) => r.userId === user.id) ||
       u.disciplina.projeto.membros.some((m) => m.userId === user.id) ||
       projetosComResp.has(u.disciplina.projetoId),
   );
+  // Ciclo documental: revisão com bloqueio de download fica fora do .zip (I7).
+  const bloqueados = await uploadsComBloqueioDeDownload(prisma, permitidos.map((u) => u.id));
+  const acessiveis = permitidos.filter((u) => !bloqueados.has(u.id));
   if (acessiveis.length === 0) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }

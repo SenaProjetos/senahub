@@ -16,6 +16,7 @@ import { projetosPorCard } from "@/modules/projetos/cadastro-disciplina";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { prontidaoAprovacao, type Prontidao } from "@/modules/projetos/prontidao";
 import { separarRateioPorVinculo } from "@/modules/projetos/rateio-composicao";
+import { semPublicacaoPorDisciplina } from "@/modules/uploads/ciclo/service";
 
 type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 
@@ -178,15 +179,17 @@ export async function disciplinasProntasParaAprovar(
       _count: { select: { responsaveis: true } },
       uploads: {
         // Lixeira: leitura aninhada não passa pelo filtro global (lib/prisma.ts) → explícito.
-        where: { excluidoEm: null, pacote: { in: ["A", "B"] } },
+        where: { excluidoEm: null, substituidoPorId: null, pacote: { in: ["A", "B"] } },
         select: { pacote: true, nomeArquivo: true, versao: true, validado: true, origem: true },
       },
       projeto: { select: { codigo: true, nome: true } },
     },
   });
 
+  const semPublicacao = await semPublicacaoPorDisciplina(prisma, disciplinas.map((d) => d.id));
   return disciplinas.flatMap((d) => {
     const prontidao = prontidaoAprovacao({
+      documentosSemPublicacao: semPublicacao.get(d.id) ?? 0,
       status: d.status,
       usaPastas: disciplinaUsaPastas(d.pastas),
       aprovacaoSolicitadaEm: d.aprovacaoSolicitadaEm,
@@ -316,7 +319,7 @@ export async function obterProjeto(viewer: Viewer, id: string) {
             // Lixeira: leitura aninhada não passa pelo filtro global (lib/prisma.ts) → explícito.
             // Sem isso, arquivo excluído continuava na lista da disciplina e ainda contava
             // em `statusValidacao` (fila de validação / prontidão para aprovar).
-            where: { excluidoEm: null },
+            where: { excluidoEm: null, substituidoPorId: null },
             orderBy: [{ pacote: "asc" }, { createdAt: "desc" }],
             select: {
               id: true,

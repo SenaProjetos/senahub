@@ -559,6 +559,8 @@ export async function irmaosDoDocumento(uploadId: string, naLixeira = false): Pr
   const irmaos = await prisma.upload.findMany({
     where: {
       excluidoEm: naLixeira ? { not: null } : null,
+      // O documento inteiro inclui as versões substituídas (lib/prisma.ts, `versaoAtual`).
+      substituidoPorId: { not: undefined },
       OR: [{ documentoId }, { documento: { substituidoPorId: documentoId } }],
     },
     select: { id: true },
@@ -661,6 +663,10 @@ export type ArquivoHistoricoRevisao = {
   ext: string;
   excluido: boolean;
   downloadUrl: string;
+  /** Versão interna da revisão em que o arquivo entrou (ciclo documental: R01 · v3). */
+  versaoNaRevisao: number;
+  /** Trocado por um arquivo da mesma extensão numa versão posterior — fica no histórico, com download. */
+  substituido: boolean;
 };
 
 export type HistoricoRevisao = {
@@ -710,7 +716,7 @@ export async function historicoRevisoesDocumento(uploadId: string): Promise<Hist
       createdAt: true,
       createdBy: { select: { name: true } },
       _count: { select: { pendenciasOrigem: true, pendenciasResolucao: true } },
-      uploads: { select: { id: true, nomeArquivo: true, excluidoEm: true } },
+      uploads: { select: { id: true, nomeArquivo: true, excluidoEm: true, versaoNaRevisao: true, substituidoPorId: true } },
     },
   });
 
@@ -729,6 +735,8 @@ export async function historicoRevisoesDocumento(uploadId: string): Promise<Hist
       ext: extensaoDe(u.nomeArquivo),
       excluido: u.excluidoEm != null,
       downloadUrl: `/api/uploads/${u.id}/download`,
+      versaoNaRevisao: u.versaoNaRevisao,
+      substituido: u.substituidoPorId != null,
     })),
   }));
 }

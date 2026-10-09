@@ -1315,6 +1315,7 @@ model Projeto {
   apontamentosCoordenacao ApontamentoCoordenacao[]
   orcamentosCusto         CustoOrcamento[]
   credenciais             CredencialProjeto[]
+  configDocumentos        ConfigDocumentosProjeto?
 
   // ── F2.4 (ADR-06): de onde veio este projeto, do lado comercial ────────────────────────
   /// Nullable: todo projeto anterior à reforma (e todo projeto criado fora do funil, que hoje é
@@ -6419,6 +6420,9 @@ model PranchaCatalogo {
   /// Validade por versão do padrão de nomenclatura (D11) — mesma regra de `DisciplinaCatalogo`.
   versaoDesde Int                      @default(1)
   versaoAte   Int?
+  /// Só em `categoria = tipo`: a revisão de um documento deste tipo só publica com o DWG (ciclo
+  /// documental). Padrão ligado; desliga-se nos tipos sem desenho. Modelo IFC é sempre isento.
+  exigeDwg    Boolean                  @default(true)
   siglas      SiglaNomenclatura[]
 
   /// 3 relações NOMEADAS para o mesmo model (fase/tipo/tamanho do papel do documento) — sem
@@ -6963,6 +6967,27 @@ enum OrigemUpload {
   ferramenta
 }
 
+/// Ciclo de vida da revisão (ISO 19650). Publicado nunca volta; arquivado é terminal.
+enum EstadoRevisao {
+  em_andamento
+  compartilhado
+  publicado
+  arquivado
+}
+
+enum TipoControleRevisao {
+  liberado_obra
+  enviado_cliente
+  bloqueio
+  restricao
+}
+
+enum EscopoBloqueio {
+  download
+  atualizacao
+  exclusao
+}
+
 enum PacoteUpload {
   A // plantas / memoriais
   B // backup do software
@@ -7021,6 +7046,14 @@ model Upload {
   /// antes da reconciliação). Nunca é lida pelo código da Fase 1.
   revisaoId   String?
   revisao     DocumentoRevisao?    @relation(fields: [revisaoId], references: [id], onDelete: SetNull)
+  /// Versão da revisão em que este arquivo entrou (R01 · v3). Não confundir com `versao`, que é o
+  /// contador antigo por nome de arquivo.
+  versaoNaRevisao Int              @default(1)
+  /// Substituído por um arquivo da mesma extensão numa versão posterior da mesma revisão. Continua
+  /// no disco e no histórico, mas sai da lista, do link, do .zip e das contagens. Escalar de propósito:
+  /// uma segunda auto-relação custaria heap de `tsc` (ver o caso de `Lancamento.acessorioDeId`).
+  substituidoPorId String?
+  substituidoEm    DateTime?
 
   aceite                AceiteCliente?
   solicitacoesExclusao  SolicitacaoExclusaoUpload[]
@@ -7036,6 +7069,7 @@ model Upload {
   @@index([excluidoEm])
   @@index([documentoId])
   @@index([revisaoId])
+  @@index([substituidoPorId])
   @@map("upload")
 }
 
@@ -7245,6 +7279,19 @@ model DocumentoRevisao {
   createdById String?
   createdBy   User?               @relation("RevisaoAutor", fields: [createdById], references: [id], onDelete: SetNull)
 
+  /// Estado do ciclo de vida ISO 19650 (ver modules/uploads/ciclo/). Muda SÓ pelo serviço do ciclo,
+  /// em transação e com evento — nunca por update direto. Nasce em `em_andamento` (I1).
+  estado      EstadoRevisao       @default(em_andamento)
+  /// Quando o estado atual começou — base do alerta de revisão parada em análise (A7).
+  estadoEm    DateTime            @default(now())
+  /// Descrição da revisão ("Ajuste das cotas do pavimento tipo"). Único metadado digitado do ciclo;
+  /// obrigatória para enviar para análise da R01 em diante (`numero >= 2`).
+  descricao   String?
+  /// Última versão (envio interno) desta revisão. Versão = ajuste interno enquanto a revisão está em
+  /// andamento; revisão = a etapa que vai ao cliente. Incrementado no envio, de forma atômica.
+  ultimaVersao Int                @default(1)
+
+  controles           ControleRevisao[]
   uploads             Upload[]
   pendenciasOrigem    Pendencia[] @relation("PendenciaRevisaoOrigem")
   pendenciasResolucao Pendencia[] @relation("PendenciaRevisaoResolucao")
@@ -7255,6 +7302,8 @@ model DocumentoRevisao {
   @@unique([documentoId, numero])
   @@index([documentoId])
   @@index([createdById])
+  @@index([estado, estadoEm])
+  // + índice parcial `documento_revisao_um_publicado` (I4, na migração — não representável aqui).
   @@map("documento_revisao")
 }
 
@@ -9084,6 +9133,8 @@ model DocumentoEvento {
   documentoId      String
   documento        DocumentoDisciplina @relation(fields: [documentoId], references: [id], onDelete: Cascade)
   uploadId         String?
+  /// Revisão a que o evento se refere (transições e controles do ciclo). Escalar, como `uploadId`.
+  revisaoId        String?
   tipo             String
   /// `alteracao` | `acesso`. Acesso só aparece para quem tem `arquivos:ver_acessos`.
   categoria        String
@@ -9103,7 +9154,51 @@ model DocumentoEvento {
   ultimoEm         DateTime            @default(now())
 
   @@index([documentoId, createdAt])
+  @@index([revisaoId])
   @@map("documento_evento")
+}
+
+/// Controle que coexiste com o estado da revisão (ISO 19650): liberação para obra, envio ao cliente,
+/// bloqueio e restrição. Nunca é apagado: remover = preencher `removidoEm` (o histórico fica).
+/// `aplicadoPorId` nulo = aplicado pelo SISTEMA (`automatico`). Regras em modules/uploads/ciclo/.
+model ControleRevisao {
+  id            String              @id @default(cuid())
+  revisaoId     String
+  revisao       DocumentoRevisao    @relation(fields: [revisaoId], references: [id], onDelete: Cascade)
+  tipo          TipoControleRevisao
+  /// Só em `bloqueio`: o que fica impedido. Bloqueio ativo também impede transição de estado (I7).
+  escopos       EscopoBloqueio[]
+  motivo        String
+  automatico    Boolean             @default(false)
+  /// De onde veio um controle automático: `publicacao` | `pendencias` | `integridade` | `migracao`.
+  origem        String?
+  aplicadoPorId String?
+  aplicadoEm    DateTime            @default(now())
+  removidoPorId String?
+  removidoEm    DateTime?
+  motivoRemocao String?
+
+  @@index([revisaoId, removidoEm])
+  @@index([tipo, removidoEm])
+  // + índice parcial `controle_revisao_um_ativo` (um liberado_obra/enviado_cliente ativo por revisão).
+  @@map("controle_revisao")
+}
+
+/// Configuração do ciclo documental por projeto (só admin). Sem linha = padrões abaixo.
+model ConfigDocumentosProjeto {
+  id                            String   @id @default(cuid())
+  projetoId                     String   @unique
+  projeto                       Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  /// Publicar já libera para obra, se não houver restrição ativa (A2).
+  liberarObraAutomaticamente    Boolean  @default(false)
+  /// Permite publicar com apontamentos não impeditivos em aberto, com justificativa e restrição (A3).
+  permitirPublicarComPendencias Boolean  @default(false)
+  /// Dias em análise (compartilhado) até a revisão entrar no alerta de parada (A7).
+  diasAlertaCompartilhado       Int      @default(7)
+  updatedAt                     DateTime @updatedAt
+  createdAt                     DateTime @default(now())
+
+  @@map("config_documentos_projeto")
 }
 
 model LeituraDocumento {

@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   SELECAO_ADICIONAR_LISTA,
-  SELECAO_ALTERAR_STATUS,
+  SELECAO_ENVIAR_ANALISE,
+  SELECAO_PUBLICAR,
   SELECAO_BAIXAR,
   SELECAO_EXCLUIR,
   SELECAO_LINK_PUBLICO,
@@ -16,7 +17,8 @@ const tudo: ContextoSelecaoDocumentos = {
   totalDocumentos: 3,
   totalValidaveis: 2,
   podeValidar: true,
-  totalStatusAlteravel: 3,
+  totalParaEnviar: 2,
+  totalParaPublicar: 1,
   podeExcluir: true,
   podeGerirListas: true,
   temListas: true,
@@ -31,7 +33,8 @@ describe("itensDaSelecaoDeDocumentos", () => {
     expect(ids(itensDaSelecaoDeDocumentos(tudo))).toEqual([
       SELECAO_BAIXAR,
       SELECAO_VALIDAR,
-      SELECAO_ALTERAR_STATUS,
+      SELECAO_ENVIAR_ANALISE,
+      SELECAO_PUBLICAR,
       SELECAO_ADICIONAR_LISTA,
       SELECAO_REMOVER_LISTA,
       SELECAO_LINK_PUBLICO,
@@ -43,7 +46,8 @@ describe("itensDaSelecaoDeDocumentos", () => {
     const itens = itensDaSelecaoDeDocumentos({
       ...tudo,
       podeValidar: false,
-      totalStatusAlteravel: 0,
+      totalParaEnviar: 0,
+      totalParaPublicar: 0,
       podeExcluir: false,
       temListas: false,
       listaAberta: false,
@@ -57,11 +61,10 @@ describe("itensDaSelecaoDeDocumentos", () => {
     expect(ids(itensDaSelecaoDeDocumentos({ ...tudo, totalValidaveis: 0 }))).not.toContain(SELECAO_VALIDAR);
   });
 
-  it("alterar status diz quantos entram quando nem todos podem", () => {
-    expect(itensDaSelecaoDeDocumentos(tudo).find((i) => i.id === SELECAO_ALTERAR_STATUS)).toMatchObject({ rotulo: "Alterar status" });
-    expect(
-      itensDaSelecaoDeDocumentos({ ...tudo, totalStatusAlteravel: 2 }).find((i) => i.id === SELECAO_ALTERAR_STATUS),
-    ).toMatchObject({ rotulo: "Alterar status (2)" });
+  it("ciclo documental: enviar e publicar dizem quantas revisões entram", () => {
+    const itens = itensDaSelecaoDeDocumentos(tudo);
+    expect(itens.find((i) => i.id === SELECAO_ENVIAR_ANALISE)).toMatchObject({ rotulo: "Enviar para análise (2)" });
+    expect(itens.find((i) => i.id === SELECAO_PUBLICAR)).toMatchObject({ rotulo: "Publicar (1)" });
   });
 
   it("no menu, o rótulo diz quantos documentos", () => {

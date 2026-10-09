@@ -8,7 +8,7 @@
  * lá, na ordem em que o servidor cobraria. Os textos são os mesmos que o card já usava.
  */
 import { podeSolicitarAprovacao } from "@/modules/projetos/aprovacao-disciplina/regras";
-import { prontidaoAprovacao, type DisciplinaProntidao } from "@/modules/projetos/prontidao";
+import { prontidaoAprovacao, uploadsDaValidacao, type DisciplinaProntidao } from "@/modules/projetos/prontidao";
 import { entregaveisAtuais, statusValidacao } from "@/modules/uploads/validacao";
 
 export type AcaoPasso = "aprovar" | "confirmar" | "solicitar" | "aprovar_fase" | "enviar" | "validar" | "responsavel";
@@ -91,22 +91,34 @@ export function proximoPasso(d: EntradaProximoPasso, ctx: ContextoProximoPasso):
     return { tom: "aviso", texto: "Aguardando o responsável marcar o projeto como aprovado.", acao: null };
   }
 
-  const st = statusValidacao(d.uploads, { exigePacoteA: d.exigePacoteA, exigePacoteB: d.exigePacoteB });
+  const st = statusValidacao(uploadsDaValidacao(d), { exigePacoteA: d.exigePacoteA, exigePacoteB: d.exigePacoteB });
+  const atuais = entregaveisAtuais(d.uploads);
   if (prontidaoAprovacao(d) === "pronta_validacao") {
-    const validados = `${st.total} ${plural(st.total, "arquivo validado", "arquivos validados")}`;
+    const validados =
+      d.documentosSemPublicacao === undefined
+        ? `${st.total} ${plural(st.total, "arquivo validado", "arquivos validados")}`
+        : "Documentos publicados";
     return ctx.podeAprovar
       ? { tom: "pronto", texto: `${validados} — pronta para aprovação.`, acao: "aprovar" }
       : { tom: "pronto", texto: `${validados} — aguardando a aprovação do gestor.`, acao: null };
   }
 
-  const atuais = entregaveisAtuais(d.uploads);
   const faltam = [
     d.exigePacoteA && !atuais.some((u) => u.pacote === "A") ? "Pranchas e arquivos" : null,
     d.exigePacoteB && !atuais.some((u) => u.pacote === "B") ? "Backup do modelo" : null,
   ].filter((s): s is string => s !== null);
   const enviar = ctx.podeEnviar ? ("enviar" as const) : null;
-  if (st.total === 0) return { tom: "aviso", texto: "Envie os arquivos da entrega para poder aprovar.", acao: enviar };
+  if (atuais.length === 0) return { tom: "aviso", texto: "Envie os arquivos da entrega para poder aprovar.", acao: enviar };
   if (faltam.length > 0) return { tom: "aviso", texto: `Para aprovar, falta enviar: ${faltam.join(" e ")}.`, acao: enviar };
+  // 6-B: com o ciclo documental, o que falta é publicar (publicar já exige validar).
+  if ((d.documentosSemPublicacao ?? 0) > 0) {
+    const n = d.documentosSemPublicacao!;
+    return {
+      tom: "aviso",
+      texto: `${n} ${plural(n, "documento sem revisão publicada", "documentos sem revisão publicada")} — publique para aprovar.`,
+      acao: null,
+    };
+  }
   if (st.pendentes > 0) {
     return {
       tom: "aviso",

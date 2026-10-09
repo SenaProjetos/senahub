@@ -121,6 +121,14 @@ export function HistoricoRevisoesDialog({ uploadId, nomeDocumento, open, onOpenC
                             <Badge variant="outline" className="shrink-0 uppercase">
                               {a.ext || "—"}
                             </Badge>
+                            <span className="shrink-0 font-mono text-[10px] text-muted-foreground" title="Versão interna da revisão">
+                              v{a.versaoNaRevisao}
+                            </span>
+                            {a.substituido && (
+                              <Badge variant="outline" className="shrink-0 text-muted-foreground" title="Trocado por uma versão mais nova da mesma revisão">
+                                substituído
+                              </Badge>
+                            )}
                             {a.excluido && (
                               <Badge variant="destructive" className="shrink-0">
                                 na lixeira

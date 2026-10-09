@@ -45,7 +45,7 @@ export const validarListaMestreGerada = defineAction(
         documento: {
           select: { id: true, tipoId: true, chave: true, disciplina: { select: { projetoId: true } } },
         },
-        uploads: { where: { excluidoEm: null }, select: { id: true } },
+        uploads: { where: { excluidoEm: null, substituidoPorId: null }, select: { id: true } },
       },
     });
     if (!revisao?.documento) throw new ActionError("Revisão não encontrada.");

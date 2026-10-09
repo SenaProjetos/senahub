@@ -6,12 +6,14 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { FileUp, Layers, Plus, Search, Shapes, Undo2 } from "lucide-react";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
-import { alterarCatalogoNaVersao } from "@/modules/projetos/nomenclatura/catalogo/actions";
+import { alterarCatalogoNaVersao, definirExigeDwgTipo } from "@/modules/projetos/nomenclatura/catalogo/actions";
 import {
   ACAO_ADICIONAR_SUB,
   ACAO_EDITAR,
   ACAO_SIGLAS,
   ACAO_TIRAR,
+  ACAO_EXIGIR_DWG,
+  ACAO_DISPENSAR_DWG,
   itensDaLinhaCatalogo,
 } from "@/modules/projetos/nomenclatura/catalogo/acoes";
 import { fraseTirarCardEmUso } from "@/modules/projetos/nomenclatura/catalogo/versao";
@@ -150,6 +152,16 @@ export function CatalogoVersaoView({
       });
     } else if (acao.id === ACAO_EDITAR) lapis.abrir(linha.alvo, linha.nome);
     else if (acao.id === ACAO_TIRAR) void tirar(linha);
+    else if (acao.id === ACAO_EXIGIR_DWG || acao.id === ACAO_DISPENSAR_DWG) {
+      const exigeDwg = acao.id === ACAO_EXIGIR_DWG;
+      start(async () => {
+        const r = await definirExigeDwgTipo({ id: linha.alvo.id, exigeDwg });
+        if (r.ok) {
+          toast.success(exigeDwg ? `“${linha.nome}” passa a exigir o DWG para publicar.` : `“${linha.nome}” publica sem DWG.`);
+          router.refresh();
+        } else toast.error(r.error);
+      });
+    }
   }
 
   function renderLinha(linha: LinhaCatalogo) {
