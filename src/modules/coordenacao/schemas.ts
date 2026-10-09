@@ -13,6 +13,12 @@ export const realinharModeloSchema = z.object({
   dx: componenteVetor,
   dy: componenteVetor,
   dz: componenteVetor,
+  // Giro em planta (graus, anti-horário visto de cima) em torno do pivô (x, y) em
+  // metros, espaço IFC do arquivo — o centro do modelo na prévia. Sem giro, o pivô
+  // não importa. Alcance revalidado no núcleo (validarRotacao).
+  rotacaoGraus: z.number().finite().default(0),
+  pivoX: componenteVetor.default(0),
+  pivoY: componenteVetor.default(0),
 });
 
 // Georreferenciamento (#9) — IfcMapConversion, IFC4-only. Alcance revalidado no

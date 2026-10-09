@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Move3d, Upload, X, Check, ArrowLeft } from "lucide-react";
-import { vetorNulo } from "@/modules/coordenacao/realinhamento";
+import { Move3d, Upload, X, Check, ArrowLeft, RotateCcw, RotateCw, Crosshair } from "lucide-react";
+import { realinhamentoNulo } from "@/modules/coordenacao/realinhamento";
+import type { EtapaPontos } from "@/modules/coordenacao/viewer/engine";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +39,10 @@ export function RealinharIfcDialog({
   onEscolher,
   vetor,
   onVetor,
+  rotacao,
+  onRotacao,
+  etapaPontos,
+  onPontos,
   onAplicar,
   pending,
   disciplinasUpload,
@@ -52,6 +57,12 @@ export function RealinharIfcDialog({
   onEscolher: (uploadId: string) => void;
   vetor: Vetor;
   onVetor: (v: Vetor) => void;
+  /** Giro em planta, graus (anti-horário visto de cima), em torno do centro do modelo. */
+  rotacao: number;
+  onRotacao: (graus: number) => void;
+  /** "Mover por pontos": qual clique falta (null = desligado). */
+  etapaPontos: EtapaPontos;
+  onPontos: (ativo: boolean) => void;
   onAplicar: () => void;
   pending: boolean;
   disciplinasUpload: { id: string; nome: string }[];
@@ -146,12 +157,57 @@ export function RealinharIfcDialog({
           </p>
           <p className="rounded bg-muted/60 px-2 py-1.5 text-[11px] leading-snug text-muted-foreground">
             Arraste o modelo no plano (botão esquerdo) para posicionar X/Y. Ajuste a altura (Z)
-            pelo campo. Orbite com o botão direito. O modelo se move ao vivo — só grava ao aplicar.
+            e o giro pelos campos — o giro é em torno do centro do modelo, positivo no sentido
+            anti-horário visto de cima. Orbite com o botão direito. O modelo se move ao vivo — só
+            grava ao aplicar.
           </p>
           <div className="grid grid-cols-3 gap-2">
             <CampoNumero rotulo="X (m)" valor={vetor[0]} onValor={(n) => onVetor([n, vetor[1], vetor[2]])} />
             <CampoNumero rotulo="Y (m)" valor={vetor[1]} onValor={(n) => onVetor([vetor[0], n, vetor[2]])} />
             <CampoNumero rotulo="Z (m)" valor={vetor[2]} onValor={(n) => onVetor([vetor[0], vetor[1], n])} />
+          </div>
+          <div className="space-y-1.5">
+            <Button
+              variant={etapaPontos ? "default" : "secondary"}
+              size="sm"
+              className="w-full gap-1"
+              onClick={() => onPontos(!etapaPontos)}
+              disabled={pending}
+            >
+              <Crosshair className="size-4" /> {etapaPontos ? "Cancelar mover por pontos" : "Mover por pontos"}
+            </Button>
+            {etapaPontos && (
+              <p className="rounded bg-primary/10 px-2 py-1.5 text-[11px] leading-snug" aria-live="polite">
+                {etapaPontos === "origem"
+                  ? "1/2 — Clique no ponto do modelo que vai se mover (pega vértice e aresta)."
+                  : "2/2 — Clique no ponto de destino. O primeiro ponto vai parar em cima dele."}
+              </p>
+            )}
+          </div>
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <CampoNumero rotulo="Giro (°)" valor={rotacao} onValor={onRotacao} />
+            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8"
+              onClick={() => onRotacao(normalizarGraus(rotacao + 90))}
+              aria-label="Girar 90° no sentido anti-horário"
+              title="Girar 90° no sentido anti-horário"
+            >
+              <RotateCcw className="size-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8"
+              onClick={() => onRotacao(normalizarGraus(rotacao - 90))}
+              aria-label="Girar 90° no sentido horário"
+              title="Girar 90° no sentido horário"
+            >
+              <RotateCw className="size-4" />
+            </Button>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" className="gap-1" onClick={onTrocar} disabled={pending}>
@@ -161,7 +217,7 @@ export function RealinharIfcDialog({
               size="sm"
               className="flex-1 gap-1"
               onClick={onAplicar}
-              disabled={pending || vetorNulo(vetor)}
+              disabled={pending || realinhamentoNulo(vetor, rotacao)}
             >
               <Check className="size-4" /> {pending ? "Aplicando…" : "Aplicar"}
             </Button>
@@ -213,6 +269,12 @@ function CampoNumero({
       />
     </div>
   );
+}
+
+/** Mantém o giro dos botões de 90° entre −180° e 180° (o campo aceita até ±360°). */
+function normalizarGraus(g: number): number {
+  const r = ((((g + 180) % 360) + 360) % 360) - 180;
+  return r === -180 ? 180 : r;
 }
 
 /** Arredonda para 3 casas para exibir sem ruído de ponto flutuante vindo do arraste. */

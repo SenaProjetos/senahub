@@ -39,8 +39,10 @@ export default function Viewer3D({
       const moveu = Math.hypot(e.clientX - inicio.x, e.clientY - inicio.y);
       inicio = null;
       if (moveu >= 5) return;
-      // Em modo medição, o clique marca um ponto em vez de selecionar um elemento.
-      if (engine.medindo) void engine.registrarPontoMedicao(e.clientX, e.clientY);
+      // "Mover por pontos" do realinhamento e medição: o clique marca um ponto em vez
+      // de selecionar um elemento.
+      if (engine.pegandoPontoRealinhamento) void engine.registrarPontoRealinhamento(e.clientX, e.clientY);
+      else if (engine.medindo) void engine.registrarPontoMedicao(e.clientX, e.clientY);
       else void engine.selecionarEm(e.clientX, e.clientY, e.shiftKey);
     };
     const onMove = (e: PointerEvent) => {

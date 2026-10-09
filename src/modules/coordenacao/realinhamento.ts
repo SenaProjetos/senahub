@@ -115,3 +115,75 @@ export function caminhoVersaoRealinhada(caminhoOriginal: string, novaVersao: num
   const nome = `${base}__v${novaVersao}.ifc`;
   return dir ? `${dir}/${nome}` : nome;
 }
+
+// ── Rotação em planta (giro em torno do eixo vertical Z do IFC) ──────────────
+//
+// O realinhamento aceita, além do vetor, um ângulo em GRAUS (anti-horário visto de
+// cima, convenção do IFC) em torno de um PIVÔ em planta — o centro do modelo na prévia.
+// O mapa aplicado a cada ponto é p' = R·(p − pivô) + pivô + vetor, ou seja: gira em
+// torno do pivô e depois translada. O vetor continua sendo "quanto o centro andou".
+// No arquivo, os placements raiz só sabem girar em torno da ORIGEM, então o mapa é
+// reescrito como p' = R·p + t', com t' = vetor + pivô − R·pivô (`translacaoSobreOrigem`).
+
+/** Pivô do giro em planta (x, y), espaço IFC, metros. */
+export type PivoPlanta = [number, number];
+
+/** Alcance do ângulo aceito (uma volta para cada lado). */
+export const ROTACAO_MAX_GRAUS = 360;
+
+/** Valida o ângulo do giro: finito e dentro de uma volta. */
+export function validarRotacao(graus: number): { ok: boolean; motivo?: string } {
+  if (!Number.isFinite(graus)) return { ok: false, motivo: "Ângulo de rotação inválido (valor não numérico)." };
+  if (Math.abs(graus) > ROTACAO_MAX_GRAUS) {
+    return { ok: false, motivo: `Ângulo de rotação fora de alcance (máx. ${ROTACAO_MAX_GRAUS}° para cada lado).` };
+  }
+  return { ok: true };
+}
+
+/** Giro "efetivamente nulo" — uma volta inteira também não muda nada. */
+export function rotacaoNula(graus: number, tol = 1e-9): boolean {
+  const resto = ((graus % 360) + 360) % 360;
+  return resto < tol || 360 - resto < tol;
+}
+
+/** Nada a gravar: nem deslocamento nem giro. */
+export function realinhamentoNulo(v: VetorMetros, graus: number): boolean {
+  return vetorNulo(v) && rotacaoNula(graus);
+}
+
+/**
+ * Gira as DUAS primeiras componentes (x, y) em torno da origem pelo ângulo em graus;
+ * a terceira (z) e extras ficam intactas. Serve a pontos e a direções (2D ou 3D).
+ */
+export function girarXY(coords: readonly number[], graus: number): number[] {
+  if (coords.length < 2) return [...coords];
+  const rad = (graus * Math.PI) / 180;
+  const c = Math.cos(rad);
+  const s = Math.sin(rad);
+  const [x, y] = coords;
+  // `+ 0` normaliza o -0 (ex.: giro de 90° em (1,0) dá -0 em x).
+  return [x * c - y * s + 0, x * s + y * c + 0, ...coords.slice(2)];
+}
+
+/**
+ * Translação equivalente ao "girar em torno do pivô e depois deslocar" quando o giro
+ * é feito em torno da ORIGEM: t' = vetor + pivô − R·pivô. Sem giro, t' = vetor.
+ */
+export function translacaoSobreOrigem(vetor: VetorMetros, graus: number, pivo: PivoPlanta): Vec3 {
+  if (rotacaoNula(graus)) return [vetor[0], vetor[1], vetor[2]];
+  const [rx, ry] = girarXY(pivo, graus);
+  return [vetor[0] + pivo[0] - rx, vetor[1] + pivo[1] - ry, vetor[2]];
+}
+
+/**
+ * Pivô em espaço IFC do ARQUIVO (metros) a partir de um ponto do mundo do viewer.
+ * O viewer põe todos os modelos no referencial do primeiro carregado: mundo =
+ * ifcParaThree(p_arquivo) + base, onde base são as coordenadas do primeiro modelo
+ * (`FragmentsModels.baseCoordinates`, espaço three). Logo p_arquivo =
+ * threeParaIfc(mundo − base). Sem base (null), o mundo já é o arquivo.
+ */
+export function pivoDoMundo(mundo: Vec3, base: readonly number[] | null): PivoPlanta {
+  const b: Vec3 = base && base.length >= 3 ? [base[0], base[1], base[2]] : [0, 0, 0];
+  const [x, y] = threeParaIfc([mundo[0] - b[0], mundo[1] - b[1], mundo[2] - b[2]]);
+  return [x + 0, y + 0];
+}

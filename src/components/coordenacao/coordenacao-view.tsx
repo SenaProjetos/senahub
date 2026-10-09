@@ -17,6 +17,7 @@ import type {
   SelecaoInfo,
   CorteConfig,
   CameraApontamento,
+  EtapaPontos,
 } from "@/modules/coordenacao/viewer/engine";
 import type { ApontamentoView, VistaView } from "@/modules/coordenacao/queries";
 import {
@@ -130,6 +131,8 @@ export function CoordenacaoView({
   const [georrefAberto, setGeorrefAberto] = useState(false);
   const [realinharUploadId, setRealinharUploadId] = useState<string | null>(null);
   const [vetorRealinhar, setVetorRealinhar] = useState<[number, number, number]>([0, 0, 0]);
+  const [rotacaoRealinhar, setRotacaoRealinhar] = useState(0);
+  const [etapaPontos, setEtapaPontos] = useState<EtapaPontos>(null);
   const [enviandoAvulso, setEnviandoAvulso] = useState(false);
   // Após aplicar: espera a nova versão converter e a troca na cena (novo entra, antigo sai).
   const [trocaPendente, setTrocaPendente] = useState<{ antigo: string; novo: string } | null>(null);
@@ -295,6 +298,8 @@ export function CoordenacaoView({
       if (!engine) return;
       const inicial: [number, number, number] = [0, 0, 0];
       setVetorRealinhar(inicial);
+      setRotacaoRealinhar(0);
+      setEtapaPontos(null);
       setRealinharUploadId(uploadId);
       engine.entrarRealinhamento(uploadId, inicial, (v) => setVetorRealinhar(v));
     },
@@ -306,17 +311,31 @@ export function CoordenacaoView({
     engineRef.current?.definirVetorRealinhamento(v);
   }, []);
 
+  const mudarRotacaoRealinhar = useCallback((graus: number) => {
+    setRotacaoRealinhar(graus);
+    engineRef.current?.definirRotacaoRealinhamento(graus);
+  }, []);
+
+  const alternarPontosRealinhar = useCallback((ativo: boolean) => {
+    if (!ativo) setEtapaPontos(null);
+    engineRef.current?.moverPorPontos(ativo, setEtapaPontos);
+  }, []);
+
   // Volta ao seletor de modelo (sai do modo do engine) mantendo o painel aberto.
   const trocarRealinhar = useCallback(() => {
     engineRef.current?.sairRealinhamento();
     setRealinharUploadId(null);
     setVetorRealinhar([0, 0, 0]);
+    setRotacaoRealinhar(0);
+    setEtapaPontos(null);
   }, []);
 
   const fecharRealinhar = useCallback(() => {
     engineRef.current?.sairRealinhamento();
     setRealinharUploadId(null);
     setVetorRealinhar([0, 0, 0]);
+    setRotacaoRealinhar(0);
+    setEtapaPontos(null);
     setRealinharAberto(false);
   }, []);
 
@@ -324,8 +343,11 @@ export function CoordenacaoView({
     if (!realinharUploadId) return;
     const antigo = realinharUploadId;
     const [dx, dy, dz] = vetorRealinhar;
+    // Pivô do giro = centro do modelo na prévia, já no referencial do arquivo.
+    const [pivoX, pivoY] = engineRef.current?.pivoRealinhamento() ?? [0, 0];
+    const rotacaoGraus = rotacaoRealinhar;
     start(async () => {
-      const r = await realinharModeloIfc({ uploadId: antigo, dx, dy, dz });
+      const r = await realinharModeloIfc({ uploadId: antigo, dx, dy, dz, rotacaoGraus, pivoX, pivoY });
       if (!r.ok) {
         toast.error(r.error);
         return;
@@ -869,6 +891,10 @@ export function CoordenacaoView({
             onEscolher={(id) => void escolherRealinhar(id)}
             vetor={vetorRealinhar}
             onVetor={mudarVetorRealinhar}
+            rotacao={rotacaoRealinhar}
+            onRotacao={mudarRotacaoRealinhar}
+            etapaPontos={etapaPontos}
+            onPontos={alternarPontosRealinhar}
             onAplicar={aplicarRealinhar}
             pending={pending}
             disciplinasUpload={disciplinasUpload}

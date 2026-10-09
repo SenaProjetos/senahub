@@ -8,7 +8,15 @@ import { prisma } from "@/lib/prisma";
 import { resolverCaminho, removerArquivo } from "@/lib/storage";
 import { enfileirarConversao, enfileirarConversaoDocumento } from "@/modules/coordenacao/service";
 import { parseModeloId, refUpload, refDocumento } from "@/modules/coordenacao/modelo-ref";
-import { caminhoVersaoRealinhada, type VetorMetros } from "@/modules/coordenacao/realinhamento";
+import {
+  caminhoVersaoRealinhada,
+  realinhamentoNulo,
+  translacaoSobreOrigem,
+  validarRotacao,
+  validarVetor,
+  type PivoPlanta,
+  type VetorMetros,
+} from "@/modules/coordenacao/realinhamento";
 
 /** Saída bruta do child (última linha JSON de stdout + exit code). */
 export type SaidaDeslocar = { code: number | null; stdout: string; stderr: string };
@@ -17,13 +25,16 @@ export type SaidaDeslocar = { code: number | null; stdout: string; stderr: strin
 export type SpawnDeslocar = (args: {
   ifcRel: string;
   saidaRel: string;
+  /** Translação já reescrita para giro em torno da ORIGEM do arquivo (metros). */
   vetor: VetorMetros;
+  /** Giro em planta, graus (0 = só desloca). */
+  graus: number;
 }) => Promise<SaidaDeslocar>;
 
 const TIMEOUT_MS = 15 * 60 * 1000; // 15 min — o offset não gera malha, mas IFCs grandes ainda levam tempo
 
 /** Spawn real: `node tsx/dist/cli.mjs --tsconfig tsconfig.server.json scripts/deslocar-ifc.ts ...`. */
-const spawnDeslocarReal: SpawnDeslocar = ({ ifcRel, saidaRel, vetor }) =>
+const spawnDeslocarReal: SpawnDeslocar = ({ ifcRel, saidaRel, vetor, graus }) =>
   new Promise<SaidaDeslocar>((resolve, reject) => {
     const tsxCli = path.resolve("node_modules/tsx/dist/cli.mjs");
     const proc = spawn(
@@ -38,6 +49,7 @@ const spawnDeslocarReal: SpawnDeslocar = ({ ifcRel, saidaRel, vetor }) =>
         String(vetor[0]),
         String(vetor[1]),
         String(vetor[2]),
+        String(graus),
       ],
       { cwd: process.cwd(), windowsHide: true },
     );
@@ -110,10 +122,10 @@ export type ResultadoRealinhamento = {
 async function rodarDeslocamento(
   caminhoIfc: string,
   saidaRel: string,
-  vetor: VetorMetros,
+  mov: Movimento,
   spawnFn: SpawnDeslocar,
 ): Promise<{ deslocados: number; prefixo: string | null; hashSha256: string; tamanho: number }> {
-  const saida = await spawnFn({ ifcRel: caminhoIfc, saidaRel, vetor });
+  const saida = await spawnFn({ ifcRel: caminhoIfc, saidaRel, vetor: mov.translacao, graus: mov.graus });
   const parsed = parseSaida(saida);
   if (saida.code !== 0 || !parsed.ok) {
     await removerArquivo(saidaRel);
@@ -134,25 +146,44 @@ async function rodarDeslocamento(
   };
 }
 
+/** O que o child aplica: giro em torno da origem do arquivo + translação (metros). */
+type Movimento = { translacao: VetorMetros; graus: number };
+
 /**
- * Realinha um IFC por um vetor (metros, espaço IFC) e grava o resultado como NOVA
- * VERSÃO do mesmo arquivo (nunca sobrescreve o original). Ramifica pela origem do
+ * Realinha um IFC por um vetor (metros, espaço IFC) e, opcionalmente, um giro em planta
+ * (graus) em torno de um pivô (o centro do modelo na prévia), e grava o resultado como
+ * NOVA VERSÃO do mesmo arquivo (nunca sobrescreve o original). Ramifica pela origem do
  * modelo: Upload de disciplina (nova versão de Upload) ou DocumentoVersao recebida do
  * cliente (nova versão de Documento). O child é puro; toda I/O de estado fica aqui.
  */
 export async function realinharModelo(
-  input: { uploadId: string; vetor: VetorMetros; autorId: string },
+  input: {
+    uploadId: string;
+    vetor: VetorMetros;
+    rotacaoGraus?: number;
+    pivo?: PivoPlanta;
+    autorId: string;
+  },
   spawnFn: SpawnDeslocar = spawnDeslocarReal,
 ): Promise<ResultadoRealinhamento> {
+  const graus = input.rotacaoGraus ?? 0;
+  const valRot = validarRotacao(graus);
+  if (!valRot.ok) throw new Error(valRot.motivo);
+  if (realinhamentoNulo(input.vetor, graus)) throw new Error("Nem deslocamento nem giro — nada a realinhar.");
+  const translacao = translacaoSobreOrigem(input.vetor, graus, input.pivo ?? [0, 0]);
+  const val = validarVetor(translacao);
+  if (!val.ok) throw new Error(val.motivo);
+  const mov: Movimento = { translacao, graus };
+
   const ref = parseModeloId(input.uploadId);
   return ref.tipo === "documento"
-    ? realinharDocumento(ref.id, input.vetor, input.autorId, spawnFn)
-    : realinharUpload(ref.id, input.vetor, input.autorId, spawnFn);
+    ? realinharDocumento(ref.id, mov, input.autorId, spawnFn)
+    : realinharUpload(ref.id, mov, input.autorId, spawnFn);
 }
 
 async function realinharUpload(
   uploadId: string,
-  vetor: VetorMetros,
+  mov: Movimento,
   autorId: string,
   spawnFn: SpawnDeslocar,
 ): Promise<ResultadoRealinhamento> {
@@ -180,7 +211,7 @@ async function realinharUpload(
   const novaVersao = (ultima?.versao ?? 0) + 1;
   const saidaRel = caminhoVersaoRealinhada(upload.caminho, novaVersao);
 
-  const r = await rodarDeslocamento(upload.caminho, saidaRel, vetor, spawnFn);
+  const r = await rodarDeslocamento(upload.caminho, saidaRel, mov, spawnFn);
 
   const criado = await prisma.upload.create({
     data: {
@@ -213,7 +244,7 @@ async function realinharUpload(
 
 async function realinharDocumento(
   versaoId: string,
-  vetor: VetorMetros,
+  mov: Movimento,
   autorId: string,
   spawnFn: SpawnDeslocar,
 ): Promise<ResultadoRealinhamento> {
@@ -238,7 +269,7 @@ async function realinharDocumento(
   const novoNumero = (ultima?.numero ?? 0) + 1;
   const saidaRel = caminhoVersaoRealinhada(versao.caminho, novoNumero);
 
-  const r = await rodarDeslocamento(versao.caminho, saidaRel, vetor, spawnFn);
+  const r = await rodarDeslocamento(versao.caminho, saidaRel, mov, spawnFn);
 
   const criada = await prisma.documentoVersao.create({
     data: {

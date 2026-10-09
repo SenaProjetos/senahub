@@ -35,7 +35,7 @@ import {
   type EixoIfc,
   type Vec3,
 } from "@/modules/coordenacao/viewer/coords";
-import { arrastePlanoParaIfc } from "@/modules/coordenacao/realinhamento";
+import { arrastePlanoParaIfc, pivoDoMundo, type PivoPlanta } from "@/modules/coordenacao/realinhamento";
 import {
   normalizarNo,
   listarElementos,
@@ -102,6 +102,9 @@ export type EngineOpts = {
 
 /** Câmera do Apontamento — persistida em espaço IFC (Z-up, metros). */
 export type CameraApontamento = { position: Vec3; target: Vec3 };
+
+/** Etapa do "mover por pontos" do realinhamento: qual clique falta (null = desligado). */
+export type EtapaPontos = "origem" | "destino" | null;
 
 /** Um conflito (clash) entre um elemento do modelo A e um do modelo B. */
 export type ConflitoView = {
@@ -1324,19 +1327,26 @@ export class ViewerEngine {
 
   // ── Realinhamento (offset) — prévia ao vivo ─────────────────
   //
-  // Move UM modelo na cena por um vetor (espaço IFC, metros) sem tocar no .frag: só
-  // desloca model.object.position. O arraste é sobre o plano horizontal (raycast) →
-  // dá dx,dy; a altura (dz) vem de campo. Enquanto ativo, o botão esquerdo do mouse
-  // ARRASTA o modelo (orbitar passa para o direito); ao sair, a posição volta a zero
-  // (a persistência real é o novo IFC gerado no servidor, não esta translação visual).
+  // Move UM modelo na cena por um vetor (espaço IFC, metros) e um giro em planta sem
+  // tocar no .frag: só mexe em model.object.position/rotation. O giro é em torno do
+  // centro do modelo (pivô, fixado ao entrar); o vetor é quanto esse centro anda. O
+  // arraste é sobre o plano horizontal (raycast) → dá dx,dy; altura (dz) e ângulo vêm
+  // de campo. Enquanto ativo, o botão esquerdo do mouse ARRASTA o modelo (orbitar passa
+  // para o direito); ao sair, o modelo volta à posição de antes (a persistência real é
+  // o novo IFC gerado no servidor, não esta transformação visual).
 
   private realinhar: {
     modeloId: string;
     vetor: Vec3; // IFC (Z-up), metros — estado atual da prévia
+    graus: number; // giro em planta (anti-horário visto de cima, convenção IFC)
+    posicaoBase: THREE.Vector3; // model.object.position ao entrar (o viewer já usa p/ coordenar modelos)
+    pivo: THREE.Vector3; // centro do modelo (three, mundo) ao entrar — eixo do giro
     planeY: number; // altura (three, mundo) do plano de arraste
     onVetor: (v: Vec3) => void;
     arrastando: boolean;
     origem: THREE.Vector3 | null; // ponto no plano no início do movimento atual
+    /** "Mover por pontos": null = desligado; senão, o ponto de origem já clicado (ou null). */
+    pontos: { origem: THREE.Vector3 | null; grupo: THREE.Group; onEtapa: (e: EtapaPontos) => void } | null;
     leftAcaoAntes: CameraControls["mouseButtons"]["left"];
     rightAcaoAntes: CameraControls["mouseButtons"]["right"];
     down: (e: PointerEvent) => void;
@@ -1346,6 +1356,98 @@ export class ViewerEngine {
 
   get realinhamentoAtivo(): boolean {
     return this.realinhar != null;
+  }
+
+  /** True enquanto "mover por pontos" espera um clique (o chamador roteia o clique p/ cá). */
+  get pegandoPontoRealinhamento(): boolean {
+    return this.realinhar?.pontos != null;
+  }
+
+  /**
+   * Liga/desliga "mover por pontos": o 1º clique marca um ponto (com snap em
+   * vértice/aresta), o 2º marca o destino, e o vetor anda exatamente a diferença —
+   * o 1º ponto cai em cima do 2º, nos três eixos. Depois do 2º clique desliga sozinho.
+   */
+  moverPorPontos(ativo: boolean, onEtapa: (e: EtapaPontos) => void = () => {}): void {
+    const r = this.realinhar;
+    if (!r) return;
+    this.limparPontosRealinhamento();
+    if (!ativo) return;
+    const grupo = new THREE.Group();
+    this.scene.add(grupo);
+    r.pontos = { origem: null, grupo, onEtapa };
+    onEtapa("origem");
+  }
+
+  /** Clique no modo "mover por pontos" (chamado pelo viewer-3d em vez de selecionar). */
+  async registrarPontoRealinhamento(clientX: number, clientY: number): Promise<void> {
+    const r = this.realinhar;
+    if (!r?.pontos) return;
+    const p = await this.raycastPonto(clientX, clientY);
+    const pontos = this.realinhar?.pontos;
+    if (!p || !pontos) return; // clique no vazio: segue esperando
+    if (!pontos.origem) {
+      pontos.origem = p.clone();
+      this.desenharPontosRealinhamento(p);
+      pontos.onEtapa("destino");
+      return;
+    }
+    // Delta no mundo → IFC. O vetor é somado DEPOIS do giro, então somar o delta move
+    // o modelo inteiro exatamente essa diferença (o 1º ponto cai sobre o 2º).
+    const [dx, dy, dz] = threeParaIfc([p.x - pontos.origem.x, p.y - pontos.origem.y, p.z - pontos.origem.z]);
+    r.vetor = [r.vetor[0] + dx, r.vetor[1] + dy, r.vetor[2] + dz];
+    const onEtapa = pontos.onEtapa;
+    this.limparPontosRealinhamento();
+    this.aplicarPreview(r);
+    r.onVetor([...r.vetor] as Vec3);
+    onEtapa(null);
+  }
+
+  /** Marcador do ponto de origem + linha elástica até o cursor (atualizada no pointermove). */
+  private desenharPontosRealinhamento(origem: THREE.Vector3): void {
+    const grupo = this.realinhar?.pontos?.grupo;
+    if (!grupo) return;
+    const cor = 0xf59e0b; // mesmo laranja da medição
+    const esfera = new THREE.Mesh(
+      new THREE.SphereGeometry(0.08, 12, 12),
+      new THREE.MeshBasicMaterial({ color: cor, depthTest: false }),
+    );
+    esfera.position.copy(origem);
+    esfera.renderOrder = 999;
+    const linha = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([origem, origem]),
+      new THREE.LineBasicMaterial({ color: cor, depthTest: false }),
+    );
+    linha.renderOrder = 999;
+    linha.name = "elastico";
+    grupo.add(esfera, linha);
+  }
+
+  /** Puxa a ponta da linha elástica para o snap (ou o ponto no plano) sob o cursor. */
+  private atualizarElastico(clientX: number, clientY: number): void {
+    const r = this.realinhar;
+    const pontos = r?.pontos;
+    if (!r || !pontos?.origem) return;
+    const linha = pontos.grupo.getObjectByName("elastico") as THREE.Line | undefined;
+    if (!linha) return;
+    const ponta =
+      this.snapMarker?.visible ? this.snapMarker.position.clone() : this.pontoNoPlano(clientX, clientY, pontos.origem.y);
+    if (!ponta) return;
+    linha.geometry.setFromPoints([pontos.origem, ponta]);
+  }
+
+  /** Desliga "mover por pontos" e descarta marcadores (não mexe no vetor). */
+  private limparPontosRealinhamento(): void {
+    const r = this.realinhar;
+    const pontos = r?.pontos;
+    if (!r || !pontos) return;
+    this.scene.remove(pontos.grupo);
+    for (const obj of pontos.grupo.children) {
+      const item = obj as THREE.Mesh | THREE.Line;
+      item.geometry.dispose();
+      (item.material as THREE.Material).dispose();
+    }
+    r.pontos = null;
   }
 
   /** Ponto de interseção do raio da câmera (no pixel) com o plano horizontal y=planeY. */
@@ -1363,13 +1465,35 @@ export class ViewerEngine {
     return ray.ray.intersectPlane(plano, p) ? p : null;
   }
 
-  /** Aplica a prévia (translação visual) do vetor IFC ao model.object. */
-  private aplicarPreview(modeloId: string, v: Vec3): void {
-    const m = this.modelos.get(modeloId);
+  /**
+   * Aplica a prévia ao model.object: gira em torno do pivô (eixo vertical) e desloca
+   * pelo vetor IFC, a partir da posição que o modelo tinha ao entrar — NÃO de zero: o
+   * FragmentsModels desloca cada modelo depois do primeiro para o referencial comum, e
+   * zerar a posição tiraria o modelo do lugar. Giro de θ em torno do Z do IFC = giro de
+   * θ em torno do Y do three (ifcParaThree troca y por −z), então o sinal é o mesmo.
+   * mundo' = R·(local + base − pivô) + pivô + T  ⇒  posição = R·(base − pivô) + pivô + T.
+   */
+  private aplicarPreview(r: NonNullable<ViewerEngine["realinhar"]>): void {
+    const m = this.modelos.get(r.modeloId);
     if (!m) return;
-    const [x, y, z] = ifcParaThree(v);
-    m.object.position.set(x, y, z);
+    const rad = (r.graus * Math.PI) / 180;
+    const [tx, ty, tz] = ifcParaThree(r.vetor);
+    const pos = r.posicaoBase
+      .clone()
+      .sub(r.pivo)
+      .applyAxisAngle(new THREE.Vector3(0, 1, 0), rad)
+      .add(r.pivo)
+      .add(new THREE.Vector3(tx, ty, tz));
+    m.object.position.copy(pos);
+    m.object.rotation.set(0, rad, 0);
     m.object.updateWorldMatrix(true, false);
+  }
+
+  /** Pivô do giro em espaço IFC do ARQUIVO (metros) — vai junto na action ao aplicar. */
+  pivoRealinhamento(): PivoPlanta | null {
+    const r = this.realinhar;
+    if (!r) return null;
+    return pivoDoMundo([r.pivo.x, r.pivo.y, r.pivo.z], this.fragments.baseCoordinates);
   }
 
   /**
@@ -1381,11 +1505,15 @@ export class ViewerEngine {
     if (this.realinhar) this.sairRealinhamento();
     const box = this.bboxGlobal();
     const planeY = box ? (box.min.y + box.max.y) / 2 : 0;
+    const modelo = this.modelos.get(modeloId);
+    const posicaoBase = modelo ? modelo.object.position.clone() : new THREE.Vector3();
+    const caixaModelo = modelo?.box;
+    const pivo = caixaModelo && !caixaModelo.isEmpty() ? caixaModelo.getCenter(new THREE.Vector3()) : new THREE.Vector3();
     const dom = this.renderer.domElement;
 
     const down = (e: PointerEvent) => {
       const r = this.realinhar;
-      if (!r || e.button !== 0) return;
+      if (!r || e.button !== 0 || r.pontos) return; // "mover por pontos": clique, não arraste
       const p = this.pontoNoPlano(e.clientX, e.clientY, r.planeY);
       if (!p) return;
       r.arrastando = true;
@@ -1393,7 +1521,9 @@ export class ViewerEngine {
       dom.setPointerCapture(e.pointerId);
     };
     const move = (e: PointerEvent) => {
-      void this.atualizarSnapHover(e.clientX, e.clientY); // indicador visual, sempre (arrastando ou não)
+      // Indicador visual de snap, sempre (arrastando ou não); no "mover por pontos" a
+      // linha elástica segue o snap depois que ele responde.
+      void this.atualizarSnapHover(e.clientX, e.clientY).then(() => this.atualizarElastico(e.clientX, e.clientY));
       const r = this.realinhar;
       if (!r?.arrastando || !r.origem) return;
       const p = this.pontoNoPlano(e.clientX, e.clientY, r.planeY);
@@ -1401,7 +1531,7 @@ export class ViewerEngine {
       const { dx, dy } = arrastePlanoParaIfc(p.x - r.origem.x, p.z - r.origem.z);
       r.vetor = [r.vetor[0] + dx, r.vetor[1] + dy, r.vetor[2]];
       r.origem = p; // incremental: nova origem a cada movimento
-      this.aplicarPreview(r.modeloId, r.vetor);
+      this.aplicarPreview(r);
       r.onVetor([...r.vetor] as Vec3);
     };
     const up = (e: PointerEvent) => {
@@ -1429,17 +1559,21 @@ export class ViewerEngine {
     this.realinhar = {
       modeloId,
       vetor: [...vetorInicial] as Vec3,
+      graus: 0,
+      posicaoBase,
+      pivo,
       planeY,
       onVetor,
       arrastando: false,
       origem: null,
+      pontos: null,
       leftAcaoAntes,
       rightAcaoAntes,
       down,
       move,
       up,
     };
-    this.aplicarPreview(modeloId, vetorInicial);
+    this.aplicarPreview(this.realinhar);
   }
 
   /** Define o vetor da prévia a partir dos campos numéricos (não dispara onVetor). */
@@ -1447,7 +1581,15 @@ export class ViewerEngine {
     const r = this.realinhar;
     if (!r) return;
     r.vetor = [...v] as Vec3;
-    this.aplicarPreview(r.modeloId, r.vetor);
+    this.aplicarPreview(r);
+  }
+
+  /** Define o giro em planta da prévia (graus, anti-horário visto de cima). */
+  definirRotacaoRealinhamento(graus: number): void {
+    const r = this.realinhar;
+    if (!r || !Number.isFinite(graus)) return;
+    r.graus = graus;
+    this.aplicarPreview(r);
   }
 
   /** Sai do modo realinhamento: restaura câmera/listeners e zera a translação visual. */
@@ -1458,9 +1600,16 @@ export class ViewerEngine {
     dom.removeEventListener("pointerdown", r.down);
     dom.removeEventListener("pointermove", r.move);
     dom.removeEventListener("pointerup", r.up);
+    this.limparPontosRealinhamento();
     this.controls.mouseButtons.left = r.leftAcaoAntes;
     this.controls.mouseButtons.right = r.rightAcaoAntes;
-    this.aplicarPreview(r.modeloId, [0, 0, 0]); // volta o modelo à posição original
+    const m = this.modelos.get(r.modeloId);
+    if (m) {
+      // Volta o modelo exatamente para onde estava ao entrar.
+      m.object.position.copy(r.posicaoBase);
+      m.object.rotation.set(0, 0, 0);
+      m.object.updateWorldMatrix(true, false);
+    }
     this.realinhar = null;
     this.ocultarSnapHover();
   }
