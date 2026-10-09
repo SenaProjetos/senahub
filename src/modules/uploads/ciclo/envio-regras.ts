@@ -28,7 +28,11 @@ export type EntradaEnvio = {
   camposDoPadrao: readonly string[];
   /** O modelo do padrão, para a mensagem ("{proj}-SENA-{disc}-…"). */
   modelo: string | null;
+  /** Código do projeto como está cadastrado (`260027`). Ausente = não confere o formato. */
+  codigoProjeto?: string;
 };
+
+const primeirosDigitos = (texto: string) => texto.match(/\d+/)?.[0] ?? "";
 
 export const PRECISA_DESCRICAO_A_PARTIR_DE = 2;
 
@@ -60,6 +64,12 @@ export function problemasDoEnvio(e: EntradaEnvio): string[] {
 
   if (nome.projeto && !nome.projeto.bateComAtual) {
     problemas.push(`O código do projeto no nome (${nome.projeto.texto.trim()}) não é o deste projeto.`);
+  } else if (nome.projeto && e.codigoProjeto && primeirosDigitos(nome.projeto.texto) !== primeirosDigitos(e.codigoProjeto)) {
+    // O motor lê "26027" como o projeto 260027 (ano 26, nº 27). É erro de nome (decisão do dono, 2026-10-09):
+    // o código tem de estar escrito como o do projeto — em 2027, com códigos de 5 dígitos, a regra é a mesma.
+    problemas.push(
+      `O código do projeto no nome (${primeirosDigitos(nome.projeto.texto)}) não está escrito como o do projeto (${primeirosDigitos(e.codigoProjeto)}).`,
+    );
   }
 
   // N1-a: no padrão antigo a revisão vai no nome (-R01) e tem de bater com a que o sistema espera.

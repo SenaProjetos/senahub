@@ -29,6 +29,9 @@ const securityHeaders = [
 const visualInspectorLoader = fileURLToPath(new URL("./dev/visual-inspector-loader.cjs", import.meta.url));
 
 const nextConfig: NextConfig = {
+  // pdfjs roda também no servidor (conferência do carimbo no ciclo documental, build `legacy`): fora do
+  // bundle, ele carrega o próprio worker do node_modules como espera, em vez de um caminho reescrito.
+  serverExternalPackages: ["pdfjs-dist"],
   // Permite acessar o dev server a partir de outros dispositivos da rede local
   // (ex.: celular em http://192.168.0.52:3000) sem o aviso de cross-origin do Next 15.5.
   allowedDevOrigins: ["192.168.0.52"],

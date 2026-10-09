@@ -508,11 +508,17 @@ coordenação devolver ou publicar.
 
 - **Enviar para análise** — o sistema confere sozinho e só deixa passar com tudo certo: nome no padrão do
   projeto, disciplina/etapa/tipo existentes no catálogo, código do projeto, PDF presente, nenhum arquivo
-  igual ao da revisão anterior e a **descrição do que mudou** (obrigatória da R01 em diante). O modelo
-  IFC é um documento próprio e dispensa o PDF. Se algo falhar, a mensagem lista o que corrigir.
+  igual ao da revisão anterior, a **descrição do que mudou** (obrigatória da R01 em diante) e o
+  **carimbo do PDF**: o código e a revisão escritos no carimbo têm de bater com o nome do arquivo e com a
+  revisão esperada. Se o carimbo não puder ser lido (PDF sem texto), o sistema avisa e pede que você
+  confirme o envio; fica registrado no histórico. O modelo IFC é um documento próprio e dispensa o PDF. Se
+  algo falhar, a mensagem lista o que corrigir.
+- **Pagamento do projetista** — sai quando a gestão **aprova a disciplina** (ou a fase), e isso só é
+  possível com todos os documentos **publicados**.
 - **Devolver para ajustes** — com motivo; o projetista é avisado.
-- **Publicar** — só com todos os arquivos **validados**, com o **DWG** junto do PDF (se o projeto exigir; o
-  padrão é exigir) e sem apontamento **impeditivo** em aberto. A validação do arquivo também só é barrada
+- **Publicar** — só com todos os arquivos **validados**, com o **DWG** junto do PDF (quando o tipo de
+  documento exige — configurado em Configurações → Nomenclatura → Tipos; o padrão é exigir) e sem
+  apontamento **impeditivo** em aberto. A validação do arquivo também só é barrada
   por apontamento impeditivo. Outros
   apontamentos em aberto também impedem, a menos que o projeto permita publicar assim: aí você escreve uma
   justificativa e a revisão ganha uma **restrição** que sai sozinha quando os apontamentos forem
@@ -534,7 +540,7 @@ O selo **Novo** marca a revisão que outra pessoa enviou e você ainda não abri
 Toda mudança de estado e todo controle aplicado ou removido fica no **Histórico** do documento, com quem
 fez e o motivo ("automático" quando foi o sistema). Os administradores configuram o ciclo de cada projeto
 pelo **⋯ → Ciclo dos documentos** da barra de Arquivos: liberar para obra ao publicar, permitir publicar
-com apontamentos, exigir o DWG para publicar e o prazo para avisar de revisão parada em análise.
+com apontamentos e o prazo para avisar de revisão parada em análise.
 
 > Backup do modelo (pacote B) e as pastas (Aprovação, Laudo, Recebidos, Geral…) ficam fora do ciclo e
 > funcionam como antes.

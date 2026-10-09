@@ -51,6 +51,15 @@ describe("problemasDoEnvio (A4)", () => {
     expect(problemasDoEnvio(entrada({ nome: { ...entrada().nome, projeto } }))[0]).toMatch(/260011/);
   });
 
+  it("código do projeto tem de estar escrito como o cadastrado (26027 ≠ 260027)", () => {
+    const projeto = { ano: 2026, sequencial: 27, subprojeto: null, texto: "26027", bateComAtual: true };
+    expect(problemasDoEnvio(entrada({ codigoProjeto: "260027", nome: { ...entrada().nome, projeto } }))).toEqual([
+      "O código do projeto no nome (26027) não está escrito como o do projeto (260027).",
+    ]);
+    const certo = { ...projeto, texto: "260027" };
+    expect(problemasDoEnvio(entrada({ codigoProjeto: "260027", nome: { ...entrada().nome, projeto: certo } }))).toEqual([]);
+  });
+
   it("N1-a: revisão no nome (v1) tem de bater com a esperada", () => {
     expect(problemasDoEnvio(entrada({ numero: 3, descricao: "x", nome: { ...entrada().nome, revisao: campo(1) } }))).toEqual([
       "O nome indica R01, mas o sistema espera R02.",

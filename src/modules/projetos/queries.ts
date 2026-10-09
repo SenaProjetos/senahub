@@ -16,6 +16,7 @@ import { projetosPorCard } from "@/modules/projetos/cadastro-disciplina";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { prontidaoAprovacao, type Prontidao } from "@/modules/projetos/prontidao";
 import { separarRateioPorVinculo } from "@/modules/projetos/rateio-composicao";
+import { semPublicacaoPorDisciplina } from "@/modules/uploads/ciclo/service";
 
 type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 
@@ -185,8 +186,10 @@ export async function disciplinasProntasParaAprovar(
     },
   });
 
+  const semPublicacao = await semPublicacaoPorDisciplina(prisma, disciplinas.map((d) => d.id));
   return disciplinas.flatMap((d) => {
     const prontidao = prontidaoAprovacao({
+      documentosSemPublicacao: semPublicacao.get(d.id) ?? 0,
       status: d.status,
       usaPastas: disciplinaUsaPastas(d.pastas),
       aprovacaoSolicitadaEm: d.aprovacaoSolicitadaEm,

@@ -27,7 +27,18 @@ export type DisciplinaProntidao = {
   /** `validarEntrega` recusa disciplina sem responsável — sem isso não está pronta. */
   qtdResponsaveis: number;
   uploads: readonly UploadValidavel[];
+  /**
+   * Ciclo documental (6-B, 2026-10-09): documentos do pacote A sem revisão publicada. Informado, o
+   * pacote A passa a ser julgado pela publicação (publicar já exige tudo validado) e só o pacote B pela
+   * validação arquivo a arquivo — o mesmo que `validarEntrega` cobra. Ausente = regra antiga.
+   */
+  documentosSemPublicacao?: number;
 };
+
+/** Uploads que ainda passam pela validação arquivo a arquivo: com o ciclo, só o backup do modelo (B). */
+export function uploadsDaValidacao(d: Pick<DisciplinaProntidao, "uploads" | "documentosSemPublicacao">): readonly UploadValidavel[] {
+  return d.documentosSemPublicacao === undefined ? d.uploads : d.uploads.filter((u) => u.pacote === "B");
+}
 
 /**
  * `null` = ninguém precisa agir para aprovar (já aprovada, ou ainda falta algo).
@@ -44,13 +55,13 @@ export function prontidaoAprovacao(d: DisciplinaProntidao): Prontidao | null {
   }
 
   if (d.qtdResponsaveis === 0) return null;
-  const st = statusValidacao(d.uploads, {
-    exigePacoteA: d.exigePacoteA,
-    exigePacoteB: d.exigePacoteB,
-  });
-  // `completo` também é true sem nenhum entregável (`pendentes === 0`) — daí o `total > 0`:
-  // disciplina vazia não é "pronta", é "sem arquivo".
-  return st.completo && st.total > 0 ? "pronta_validacao" : null;
+  if ((d.documentosSemPublicacao ?? 0) > 0) return null;
+  const opts = { exigePacoteA: d.exigePacoteA, exigePacoteB: d.exigePacoteB };
+  // Pacotes presentes vêm da lista toda (como se tudo estivesse validado); pendências de validação, só
+  // do que ainda passa por ela (com o ciclo, o B). `total > 0`: disciplina vazia não é "pronta".
+  const pacotes = statusValidacao(d.uploads.map((u) => ({ ...u, validado: true })), opts);
+  const pendentes = statusValidacao(uploadsDaValidacao(d), opts).pendentes;
+  return pacotes.completo && pacotes.total > 0 && pendentes === 0 ? "pronta_validacao" : null;
 }
 
 export const PRONTIDAO_LABEL: Record<Prontidao, string> = {

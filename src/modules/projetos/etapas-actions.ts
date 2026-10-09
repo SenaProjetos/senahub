@@ -13,6 +13,8 @@ import { formatarCodigo } from "@/modules/projetos/numbering";
 import { liberarPagamentosDaFase, situacaoPagamento } from "@/modules/uploads/pagamento";
 import { bloqueioValorDisciplina, ehPagavel } from "@/modules/uploads/rateio";
 import { mensagemTransicaoDisciplina } from "./status";
+import { documentosPendentesDePublicacao } from "@/modules/uploads/ciclo/service";
+import { motivoEntregaSemPublicacao } from "@/modules/uploads/ciclo/regras";
 
 /**
  * Etapas de disciplina (F4 — par disciplina × fase, D30/D37). Mesma permissão de quem
@@ -304,7 +306,7 @@ export const aprovarEtapaDisciplina = defineAction(
   async (input, { user }) => {
     const etapa = await prisma.disciplinaEtapa.findUnique({
       where: { id: input.id },
-      select: { id: true, status: true, liberadaEm: true, disciplinaId: true, etapa: { select: { sigla: true } } },
+      select: { id: true, status: true, liberadaEm: true, disciplinaId: true, etapaId: true, etapa: { select: { sigla: true } } },
     });
     if (!etapa) throw new ActionError("Fase não encontrada.");
     if (etapa.liberadaEm || etapa.status === "aprovado") {
@@ -313,6 +315,12 @@ export const aprovarEtapaDisciplina = defineAction(
     if (etapa.status !== "entregue" && etapa.status !== "em_revisao") {
       throw new ActionError("A fase precisa estar entregue para ser aprovada.");
     }
+    // 6-B (2026-10-09): o pagamento sai na PUBLICAÇÃO — os documentos desta fase precisam estar publicados.
+    const semPublicacao = motivoEntregaSemPublicacao(
+      await documentosPendentesDePublicacao(prisma, { disciplinaId: etapa.disciplinaId, faseId: etapa.etapaId }),
+      "fase",
+    );
+    if (semPublicacao) throw new ActionError(semPublicacao);
 
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: etapa.disciplinaId },

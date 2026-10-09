@@ -6420,6 +6420,9 @@ model PranchaCatalogo {
   /// Validade por versão do padrão de nomenclatura (D11) — mesma regra de `DisciplinaCatalogo`.
   versaoDesde Int                      @default(1)
   versaoAte   Int?
+  /// Só em `categoria = tipo`: a revisão de um documento deste tipo só publica com o DWG (ciclo
+  /// documental). Padrão ligado; desliga-se nos tipos sem desenho. Modelo IFC é sempre isento.
+  exigeDwg    Boolean                  @default(true)
   siglas      SiglaNomenclatura[]
 
   /// 3 relações NOMEADAS para o mesmo model (fase/tipo/tamanho do papel do documento) — sem
@@ -9192,8 +9195,6 @@ model ConfigDocumentosProjeto {
   permitirPublicarComPendencias Boolean  @default(false)
   /// Dias em análise (compartilhado) até a revisão entrar no alerta de parada (A7).
   diasAlertaCompartilhado       Int      @default(7)
-  /// Publicar exige o DWG na revisão (padrão ligado, decisão do dono 2026-10-09). Modelo IFC é isento.
-  exigirDwgParaPublicar         Boolean  @default(true)
   updatedAt                     DateTime @updatedAt
   createdAt                     DateTime @default(now())
 

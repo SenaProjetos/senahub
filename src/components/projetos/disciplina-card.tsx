@@ -165,6 +165,8 @@ type Disc = {
   temEtapas: boolean;
   exigePacoteA: boolean;
   exigePacoteB: boolean;
+  /** Ciclo documental (6-B): documentos sem revisão publicada — aprovar exige zero. */
+  documentosSemPublicacao?: number;
   /** Aprovação/laudo (só projetos novos): árvore de pastas própria no lugar do pacote A/B. */
   usaPastas: boolean;
   pastas: PastaFlat[];

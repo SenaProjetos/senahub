@@ -19,8 +19,11 @@ import {
   motivoExclusaoProtegida,
   publicarNoBanco,
   removerControleNoBanco,
+  documentosPendentesDePublicacao,
 } from "../src/modules/uploads/ciclo/service";
 import { verificarEnvioParaAnalise } from "../src/modules/uploads/ciclo/envio-analise";
+import { lerCarimboDoArquivo } from "../src/modules/uploads/ciclo/carimbo-servidor";
+import { conferirCarimbo } from "../src/modules/uploads/ciclo/carimbo";
 import { verificarIntegridadeCiclo } from "../src/modules/uploads/ciclo/integridade-service";
 import { MOTIVO_CORRECAO_INTEGRIDADE } from "../src/modules/uploads/ciclo/integridade";
 
@@ -61,19 +64,24 @@ async function main() {
     });
   });
   const disciplinaId = projeto.disciplinas[0].id;
-  // O smoke publica revisões só com PDF: o DWG obrigatório fica desligado, salvo onde é o caso testado.
-  const config = (c: { liberar?: boolean; pendencias?: boolean; dwg?: boolean }) => {
-    const dados = {
-      liberarObraAutomaticamente: c.liberar ?? false,
-      permitirPublicarComPendencias: c.pendencias ?? false,
-      exigirDwgParaPublicar: c.dwg ?? false,
-    };
+  const config = (c: { liberar?: boolean; pendencias?: boolean }) => {
+    const dados = { liberarObraAutomaticamente: c.liberar ?? false, permitirPublicarComPendencias: c.pendencias ?? false };
     return prisma.configDocumentosProjeto.upsert({ where: { projetoId: projeto.id }, create: { projetoId: projeto.id, ...dados }, update: dados });
   };
+  // O DWG obrigatório é do TIPO do documento. Os documentos do smoke publicam só com PDF, então nascem num
+  // tipo que não exige; o caso do DWG usa um tipo que exige. Tipos do próprio projeto (somem com ele).
+  const tipoSemDwg = await prisma.pranchaCatalogo.create({
+    data: { categoria: "tipo", sigla: "SMKN", nome: `${tag} sem DWG`, projetoId: projeto.id, exigeDwg: false },
+  });
+  const tipoComDwg = await prisma.pranchaCatalogo.create({
+    data: { categoria: "tipo", sigla: "SMKD", nome: `${tag} com DWG`, projetoId: projeto.id, exigeDwg: true },
+  });
 
   let n = 0;
   async function documento(nome: string) {
-    return prisma.documentoDisciplina.create({ data: { disciplinaId, chave: `A/${tag}-${nome}`, nomeArquivo: `${tag}-${nome}.pdf` } });
+    return prisma.documentoDisciplina.create({
+      data: { disciplinaId, chave: `A/${tag}-${nome}`, nomeArquivo: `${tag}-${nome}.pdf`, tipoId: tipoSemDwg.id },
+    });
   }
   async function revisao(documentoId: string, numero: number, opts: { validado?: boolean; dwg?: boolean } = {}) {
     const r = await prisma.documentoRevisao.create({ data: { documentoId, numero, createdById: usuario!.id } });
@@ -115,10 +123,24 @@ async function main() {
     const a4 = await recusa(() =>
       prisma.$transaction(async (tx) => {
         const { carregarRevisao } = await import("../src/modules/uploads/ciclo/service");
-        await verificarEnvioParaAnalise(await carregarRevisao(tx, r1.id), tx);
+        await verificarEnvioParaAnalise(await carregarRevisao(tx, r1.id), tx, { carimbo: null, confirmarSemCarimbo: false, userId: usuario.id });
       }),
     );
     check("A4: nome fora da nomenclatura é recusado com o que corrigir", a4 !== null && /nome/i.test(a4));
+
+    // Carimbo, lido no SERVIDOR (pdfjs legacy) de um PDF real do acervo de dev: o carimbo diz
+    // 260024-EST-BS-4004-DT / REVISÃO 00, e o arquivo está como 260004-EST-EX-4004-DTC.
+    const pdfReal = "2026/Loteamentos_Sul_Empreendimentos/260004_Galpao_Industrial_Jundiai/EST/A/EST-260004-EST-EX-4004-DTC.pdf";
+    const leituraReal = await lerCarimboDoArquivo(pdfReal);
+    if (leituraReal.temTexto) {
+      check("carimbo real: lê código e revisão", leituraReal.codigos.includes("260024-EST-BS-4004-DT") && leituraReal.revisao === 0);
+      const conf = conferirCarimbo(leituraReal, { nomeArquivo: "260004-EST-EX-4004-DTC.pdf", numero: 1 });
+      check("carimbo real: código divergente vira problema", conf.problemas.some((p) => p.includes("260024-EST-BS-4004-DT")));
+    } else {
+      console.log("[--] PDF real do acervo não encontrado no storage; leitura do carimbo não exercitada.");
+    }
+    const sumido = await lerCarimboDoArquivo("nao-existe/arquivo.pdf");
+    check("carimbo: arquivo ausente vira leitura falha (pede confirmação), sem lançar", !sumido.temTexto);
 
     await enviarParaAnaliseNoBanco({ revisaoId: r1.id, quem });
     check("enviar para análise → em análise", (await estado(r1.id)) === "compartilhado");
@@ -129,13 +151,13 @@ async function main() {
     check("A8: devolver com motivo → em andamento", (await estado(r1.id)) === "em_andamento");
     await enviarParaAnaliseNoBanco({ revisaoId: r1.id, quem });
 
-    // ── DWG obrigatório (padrão do projeto): a R00 tem PDF+DWG; sem o DWG, recusa ──
-    await config({ dwg: true });
+    // ── DWG obrigatório pelo tipo: a R00 tem PDF+DWG; sem o DWG, recusa ──
+    await prisma.documentoDisciplina.update({ where: { id: d1.id }, data: { tipoId: tipoComDwg.id } });
     const dwgUpload = r1.uploads.find((u) => u.nomeArquivo.endsWith(".dwg"))!;
     await prisma.upload.update({ where: { id: dwgUpload.id }, data: { excluidoEm: new Date() } });
-    check("DWG obrigatório: sem o DWG a publicação é recusada", /DWG/.test((await recusa(() => publicarNoBanco({ revisaoId: r1.id, quem }))) ?? ""));
+    check("DWG obrigatório (tipo que exige): sem o DWG a publicação é recusada", /DWG/.test((await recusa(() => publicarNoBanco({ revisaoId: r1.id, quem }))) ?? ""));
     await prisma.upload.update({ where: { id: dwgUpload.id }, data: { excluidoEm: null } });
-    await config({});
+    await prisma.documentoDisciplina.update({ where: { id: d1.id }, data: { tipoId: tipoSemDwg.id } });
 
     // ── D2-a: só publica com tudo validado ──
     check("D2-a: arquivo sem validação impede publicar", /Valide/.test((await recusa(() => publicarNoBanco({ revisaoId: r1.id, quem }))) ?? ""));
@@ -218,6 +240,10 @@ async function main() {
     });
     await enviarParaAnaliseNoBanco({ revisaoId: r4.id, quem });
     check("D3-c: impeditivo bloqueia mesmo com pendências permitidas", /impeditivo/.test((await recusa(() => publicarNoBanco({ revisaoId: r4.id, quem, justificativa: "x" }))) ?? ""));
+
+    // ── 6-B: aprovar a disciplina (e liberar pagamento) exige os documentos publicados ──
+    const pendentes = await documentosPendentesDePublicacao(prisma, { disciplinaId });
+    check("6-B: só o documento ainda em análise impede aprovar a disciplina", pendentes.length === 1 && pendentes[0].includes("tres"));
 
     // ── A7: violação de I5 provocada de propósito ──
     const r5 = await revisao(d3.id, 2);

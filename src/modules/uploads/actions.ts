@@ -25,7 +25,13 @@ import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { expiraAceiteEm, linkAceiteEstaAtivo } from "@/modules/uploads/aceite";
 import { registrarEventoDocumento, registrarEventoUploads } from "@/modules/uploads/historico/service";
 import { exigirEscopoDocumento } from "@/modules/uploads/escopo-documento";
-import { motivoBloqueioDosUploads, motivoExclusaoProtegida, temRevisaoCongelada } from "@/modules/uploads/ciclo/service";
+import {
+  documentosPendentesDePublicacao,
+  motivoBloqueioDosUploads,
+  motivoExclusaoProtegida,
+  temRevisaoCongelada,
+} from "@/modules/uploads/ciclo/service";
+import { motivoEntregaSemPublicacao } from "@/modules/uploads/ciclo/regras";
 import { MOTIVO_VALIDACAO_CONGELADA } from "@/modules/uploads/ciclo/transicoes";
 import { ehAdminDoCiclo } from "@/modules/uploads/ciclo/acesso";
 import { participaDoCiclo } from "@/modules/uploads/ciclo/escopo";
@@ -117,12 +123,22 @@ export const validarEntrega = defineAction(
       throw new ActionError("Defina ao menos um responsável antes de validar.");
     }
 
+    // 6-B (2026-10-09): o pagamento sai na PUBLICAÇÃO. Os entregáveis do pacote A seguem o ciclo
+    // documental — aprovar exige cada documento com revisão publicada (publicar já exige tudo validado,
+    // D2-a). O backup do modelo (pacote B), fora do ciclo, continua na validação arquivo a arquivo.
+    const semPublicacao = motivoEntregaSemPublicacao(
+      await documentosPendentesDePublicacao(prisma, { disciplinaId: disciplina.id }),
+      "disciplina",
+    );
+    if (semPublicacao) throw new ActionError(semPublicacao);
+
     // Validação parcial: só finaliza quando TODOS os entregáveis (versão atual) já
     // foram validados um a um. Os efeitos financeiros/conclusão vêm só aqui. Uploads
     // que vivem numa PastaProjeto (pasta personalizada, admin) não são pacote A/B —
-    // ficam fora da validação por-arquivo, igual RECEBIDOS/OUTROS.
+    // ficam fora da validação por-arquivo, igual RECEBIDOS/OUTROS. O pacote A já foi
+    // conferido acima pela publicação.
     const uploadsPacote = disciplina.uploads.filter(
-      (u): u is typeof u & { pacote: NonNullable<typeof u.pacote> } => u.pacote != null,
+      (u): u is typeof u & { pacote: NonNullable<typeof u.pacote> } => u.pacote === "B",
     );
     const st = statusValidacao(uploadsPacote, {
       exigePacoteA: disciplina.exigePacoteA,

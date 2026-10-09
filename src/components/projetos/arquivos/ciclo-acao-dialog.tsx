@@ -29,6 +29,7 @@ import {
 import type { CicloDaLinha, EscolhaCiclo } from "@/modules/uploads/ciclo/acoes";
 import { ESCOPOS_BLOQUEIO, ROTULO_CONTROLE, ROTULO_ESCOPO, type EscopoBloqueio } from "@/modules/uploads/ciclo/estados";
 import { PRECISA_DESCRICAO_A_PARTIR_DE } from "@/modules/uploads/ciclo/envio-regras";
+import { MOTIVO_CARIMBO_ILEGIVEL } from "@/modules/uploads/ciclo/carimbo";
 
 /** O que a linha manda abrir: a escolha do menu e o ciclo da revisão. */
 export type PedidoCiclo = { escolha: EscolhaCiclo; ciclo: CicloDaLinha; nome: string };
@@ -114,6 +115,9 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
   const [texto, setTexto] = useState("");
   const [escopos, setEscopos] = useState<EscopoBloqueio[]>(["download"]);
   const [erro, setErro] = useState<string | null>(null);
+  // Carimbo ilegível no envio para análise: o servidor pede confirmação explícita (D9).
+  const [pedeCarimbo, setPedeCarimbo] = useState(false);
+  const [confirmouCarimbo, setConfirmouCarimbo] = useState(false);
   // Pedido novo zera o formulário (ajuste durante o render, sem efeito).
   const [pedidoVisto, setPedidoVisto] = useState(pedido);
   if (pedidoVisto !== pedido) {
@@ -121,11 +125,14 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
     setTexto("");
     setEscopos(["download"]);
     setErro(null);
+    setPedeCarimbo(false);
+    setConfirmouCarimbo(false);
   }
 
   const cfg = pedido ? configDe(pedido) : null;
   const faltaTexto = !!cfg?.campo?.obrigatorio && texto.trim() === "";
   const faltaEscopo = !!cfg?.escopos && escopos.length === 0;
+  const faltaConfirmarCarimbo = pedeCarimbo && !confirmouCarimbo;
 
   function executar() {
     if (!pedido || !cfg) return;
@@ -136,7 +143,7 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
       const r =
         e.tipo === "transicao"
           ? e.acao === "enviar_analise"
-            ? await enviarParaAnalise({ revisaoId, descricao: valor || undefined })
+            ? await enviarParaAnalise({ revisaoId, descricao: valor || undefined, confirmarSemCarimbo: confirmouCarimbo })
             : e.acao === "publicar"
               ? await publicarRevisao({ revisaoId, justificativa: valor || undefined })
               : e.acao === "devolver"
@@ -151,6 +158,11 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
               ? await removerControlePasta({ controleId: e.controleId, motivo: valor })
               : await removerBloqueioOuRestricao({ controleId: e.controleId, motivo: valor });
       if (!r.ok) {
+        if (r.error === MOTIVO_CARIMBO_ILEGIVEL) {
+          setPedeCarimbo(true);
+          setErro(null);
+          return;
+        }
         setErro(r.error);
         return;
       }
@@ -202,6 +214,15 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
                   ))}
                 </fieldset>
               )}
+              {pedeCarimbo && (
+                <div role="alert" className="space-y-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+                  <p>{MOTIVO_CARIMBO_ILEGIVEL}</p>
+                  <label className="flex items-start gap-2">
+                    <Checkbox checked={confirmouCarimbo} disabled={pendente} onCheckedChange={(v) => setConfirmouCarimbo(v === true)} />
+                    <span>Conferi o código e a revisão no carimbo. Enviar sem a conferência automática (fica registrado no histórico).</span>
+                  </label>
+                </div>
+              )}
               {erro && (
                 <p role="alert" className="whitespace-pre-line rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   {erro}
@@ -210,7 +231,7 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
             </DialogBody>
             <DialogFooter>
               <Button variant="outline" onClick={onFechar} disabled={pendente}>Cancelar</Button>
-              <Button variant={cfg.destrutivo ? "destructive" : "default"} onClick={executar} disabled={pendente || faltaTexto || faltaEscopo}>
+              <Button variant={cfg.destrutivo ? "destructive" : "default"} onClick={executar} disabled={pendente || faltaTexto || faltaEscopo || faltaConfirmarCarimbo}>
                 {pendente ? "Aguarde…" : cfg.botao}
               </Button>
             </DialogFooter>

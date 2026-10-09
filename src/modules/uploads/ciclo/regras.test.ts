@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { decidirLiberacaoAutomatica, decidirPublicacao, restricaoDePendenciasPodeSair } from "./regras";
+import {
+  decidirLiberacaoAutomatica,
+  decidirPublicacao,
+  documentosSemPublicacao,
+  motivoEntregaSemPublicacao,
+  restricaoDePendenciasPodeSair,
+} from "./regras";
 
 const arq = (validado = true) => ({ id: "u1", nome: "A-01.pdf", ext: "pdf", validado });
 const pend = (severidade: string | null = "media", status = "aberta", publicadoEm: Date | null = new Date()) => ({ status, severidade, publicadoEm });
@@ -14,9 +20,9 @@ describe("decidirPublicacao", () => {
   });
 
   it("DWG obrigatório: sem DWG recusa; com DWG, ou modelo IFC, passa", () => {
-    expect(decidirPublicacao({ arquivos: [arq()], pendencias: [], permitirComPendencias: false, exigirDwg: true })).toMatchObject({
+    expect(decidirPublicacao({ arquivos: [arq()], pendencias: [], permitirComPendencias: false, exigirDwg: true, siglaTipo: "PLB" })).toMatchObject({
       ok: false,
-      motivo: expect.stringMatching(/DWG/),
+      motivo: expect.stringMatching(/tipo PLB só publicam com o DWG/),
     });
     const dwg = { ...arq(), id: "u2", nome: "A-01.dwg", ext: "dwg" };
     expect(decidirPublicacao({ arquivos: [arq(), dwg], pendencias: [], permitirComPendencias: false, exigirDwg: true })).toEqual({ ok: true, restricao: null });
@@ -61,5 +67,27 @@ describe("decidirLiberacaoAutomatica (A2)", () => {
     expect(decidirLiberacaoAutomatica({ liberarAutomaticamente: false, temRestricao: false })).toBe("nao_configurado");
     expect(decidirLiberacaoAutomatica({ liberarAutomaticamente: true, temRestricao: false })).toBe("liberar");
     expect(decidirLiberacaoAutomatica({ liberarAutomaticamente: true, temRestricao: true })).toBe("restricao");
+  });
+});
+
+describe("documentosSemPublicacao (6-B: pagamento na publicação)", () => {
+  it("só passa quem tem revisão publicada; documento todo arquivado (cancelado) não conta", () => {
+    expect(
+      documentosSemPublicacao([
+        { nome: "A", estados: ["arquivado", "publicado"] },
+        { nome: "B", estados: ["publicado", "em_andamento"] },
+        { nome: "C", estados: ["compartilhado"] },
+        { nome: "D", estados: ["arquivado", "arquivado"] },
+        { nome: "E", estados: ["em_andamento"] },
+      ]),
+    ).toEqual(["C", "E"]);
+  });
+
+  it("mensagem lista até 5 e resume o resto", () => {
+    expect(motivoEntregaSemPublicacao([], "disciplina")).toBeNull();
+    expect(motivoEntregaSemPublicacao(["A", "B"], "fase")).toBe(
+      "Publique todos os documentos da fase antes de aprovar: 2 sem revisão publicada (A, B).",
+    );
+    expect(motivoEntregaSemPublicacao(["1", "2", "3", "4", "5", "6", "7"], "disciplina")).toMatch(/e mais 2\)\.$/);
   });
 });

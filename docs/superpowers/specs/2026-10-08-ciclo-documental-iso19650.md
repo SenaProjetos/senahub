@@ -82,16 +82,23 @@ login, o link público já se limita à pasta Liberado para obra.
   publicar com pendências.
 - **IFC** entra no ciclo: é um documento próprio (código próprio, mesma nomenclatura), vai ao cliente e
   segue as mesmas revisões. Revisão de modelo (com `.ifc`) dispensa o PDF e o DWG.
-- **DWG obrigatório para publicar**: `ConfigDocumentosProjeto.exigirDwgParaPublicar`, **padrão ligado**.
-- **Pagamento do projetista** sai na **publicação** (mecânica ainda a definir — ver abaixo).
+- **DWG obrigatório para publicar** é do **tipo de documento**: `PranchaCatalogo.exigeDwg` (padrão ligado),
+  configurado em Configurações → Nomenclatura → Tipos (menu da linha, `configuracoes:gerir`). Documento sem
+  tipo segue o padrão (exige). Modelo IFC é sempre isento.
+- **Pagamento do projetista** sai na **publicação**, pelo mesmo botão (6-B): "Aprovar disciplina" e "Aprovar
+  fase" exigem cada documento do pacote A (da fase, no segundo caso) com revisão publicada; o pacote B
+  continua na validação arquivo a arquivo. Card e "Prontas para aprovar" usam a mesma regra (`prontidao.ts`).
+- **Carimbo** (`ciclo/carimbo.ts`, lido no servidor com pdfjs legacy): código em qualquer trecho da 1ª página
+  com cara de código (extensão e `-Rnn` ignorados; campo com texto livre, como no SENA antigo, não confere
+  código); revisão pelo campo "REVISÃO:" (`00`/`R00`/`REV 00`) ou pelo `-Rnn` do código. Divergência
+  bloqueia; ilegível pede confirmação e grava `envio_sem_carimbo`.
+- **Código do projeto no nome** tem de estar escrito como o cadastrado (`26027` ≠ `260027`): erro do
+  projetista. Em 2027 os códigos passam a ter 5 dígitos — a regra continua a mesma.
 - Permissões `arquivos:publicar`/`bloquear` são dadas à mão em produção (ninguém tinha `alterar_status`).
 
-## Em aberto (não implementar sem o dono)
+## Em aberto
 
-- Leitura de código/revisão no carimbo — mostrar exemplos reais antes.
-- Pagamento na publicação: por documento ou quando a disciplina inteira estiver publicada; automático ou
-  pela aprovação de disciplina que já existe.
-- DWG obrigatório × memoriais (documentos sem desenho): isentar por tipo de documento?
+Nada pendente de decisão em 2026-10-09.
 
 ## Estado (2026-10-09)
 
@@ -108,9 +115,12 @@ Pendências conhecidas:
 
 ## Deploy
 
-1. `npx prisma migrate deploy` (migração `20261009100000_ciclo_documental`, só acrescenta).
+1. `npx prisma migrate deploy` (migrações `20261009100000_ciclo_documental` e `20261009110000_tipo_exige_dwg`,
+   só acrescentam).
 2. `npm run db:seed` (catálogo de permissões).
 3. `npx tsx --tsconfig tsconfig.server.json scripts/migrar-ciclo-documental.ts` — conferir o relatório
    ("Casos para conferir") — e depois o mesmo com `--gravar`. Idempotente.
 4. Reiniciar o serviço (cliente Prisma novo; o job `ciclo-documental-integridade` entra no pg-boss).
-5. Admin configura cada projeto em Arquivos → ⋯ → Ciclo dos documentos (padrão: tudo desligado, 7 dias).
+5. Admin configura cada projeto em Arquivos → ⋯ → Ciclo dos documentos (padrão: tudo desligado, 7 dias) e,
+   em Configurações → Nomenclatura → Tipos, desliga "Exige DWG" nos tipos sem desenho (memorial, memória de
+   cálculo, lista de materiais, modelo 3D…).

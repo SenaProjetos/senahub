@@ -75,8 +75,18 @@ export function LinhaCatalogoItem({
           <SiglaSinonimo key={s} sigla={s} />
         ))}
       </span>
-      <span className="sm:w-40">
+      <span className="flex flex-wrap items-center gap-1.5 sm:w-40">
         <SituacaoBadge linha={linha} versao={versao} />
+        {/* Tipo de documento: se a publicação exige o DWG (ciclo documental). Texto, não só cor. */}
+        {linha.exigeDwg !== undefined && (
+          <Badge
+            variant="outline"
+            className={cn("text-[10px]", linha.exigeDwg ? "text-foreground" : "text-muted-foreground")}
+            title={linha.exigeDwg ? "A revisão só é publicada com o DWG" : "Publica sem DWG (ex.: memorial)"}
+          >
+            {linha.exigeDwg ? "Exige DWG" : "Sem DWG"}
+          </Badge>
+        )}
       </span>
       <span className="ml-auto flex w-20 items-center justify-end">
         {adicionarSub && (

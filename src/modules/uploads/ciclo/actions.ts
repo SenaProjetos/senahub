@@ -13,7 +13,8 @@ import {
   publicarNoBanco,
   removerControleNoBanco,
 } from "./service";
-import { verificarEnvioParaAnalise } from "./envio-analise";
+import { verificarEnvioParaAnalise, type CarimboDoEnvio } from "./envio-analise";
+import { lerCarimboDoArquivo } from "./carimbo-servidor";
 import { notificarPublicacao, notificarTransicao, notificarControle } from "./notificacoes";
 
 /**
@@ -36,16 +37,26 @@ export const enviarParaAnalise = defineAction(
       revisaoId: id,
       /** Descrição da revisão — o único metadado digitado; obrigatória da R01 em diante. */
       descricao: z.string().trim().max(500).optional(),
+      /** Carimbo ilegível: a pessoa confirmou o envio sem a conferência (vira evento no histórico). */
+      confirmarSemCarimbo: z.boolean().optional(),
     }),
     entidadeId: (_d, input) => input.revisaoId,
   },
   async (input, { user }) => {
     await exigirEscopoDaRevisao(user, input.revisaoId);
+    // O carimbo é lido ANTES da transação: ler um PDF leva tempo e não pode segurar a conexão.
+    const pdf = await prisma.upload.findFirst({
+      where: { revisaoId: input.revisaoId, nomeArquivo: { endsWith: ".pdf", mode: "insensitive" } },
+      orderBy: { createdAt: "desc" },
+      select: { nomeArquivo: true, caminho: true },
+    });
+    const carimbo: CarimboDoEnvio = pdf ? { leitura: await lerCarimboDoArquivo(pdf.caminho), nomeArquivo: pdf.nomeArquivo } : null;
     const r = await enviarParaAnaliseNoBanco({
       revisaoId: input.revisaoId,
       quem: { userId: user.id },
       descricao: input.descricao,
-      verificar: verificarEnvioParaAnalise,
+      verificar: (rev, tx) =>
+        verificarEnvioParaAnalise(rev, tx, { carimbo, confirmarSemCarimbo: input.confirmarSemCarimbo === true, userId: user.id }),
     });
     await notificarTransicao(r, "enviar_analise", user.id);
     return { revisaoId: r.revisaoId };
@@ -213,7 +224,6 @@ export const salvarConfigDocumentos = defineAction(
       liberarObraAutomaticamente: z.boolean(),
       permitirPublicarComPendencias: z.boolean(),
       diasAlertaCompartilhado: z.number().int().min(1, "Mínimo de 1 dia.").max(90, "Máximo de 90 dias."),
-      exigirDwgParaPublicar: z.boolean(),
     }),
     entidadeId: (_d, input) => input.projetoId,
     capturarAntes: (input) => prisma.configDocumentosProjeto.findUnique({ where: { projetoId: input.projetoId } }),

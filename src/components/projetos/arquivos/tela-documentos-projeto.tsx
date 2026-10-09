@@ -198,12 +198,11 @@ export async function TelaDocumentosProjeto({
             liberarObraAutomaticamente: true,
             permitirPublicarComPendencias: true,
             diasAlertaCompartilhado: true,
-            exigirDwgParaPublicar: true,
           },
         })
         .then(
           (c) =>
-            c ?? { liberarObraAutomaticamente: false, permitirPublicarComPendencias: false, diasAlertaCompartilhado: 7, exigirDwgParaPublicar: true },
+            c ?? { liberarObraAutomaticamente: false, permitirPublicarComPendencias: false, diasAlertaCompartilhado: 7 },
         )
     : null;
   const podeExcluirArquivo = ehAdmin || podeExcluirCap;

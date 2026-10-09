@@ -6,8 +6,13 @@ import { carregarCatalogosNomenclaturaDaVersao, carregarExtensoesNomenclatura } 
 import { montarVocabulario } from "@/modules/uploads/nomenclatura/vocabulario";
 import { compilarPadrao } from "@/modules/uploads/nomenclatura/padrao";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
+import { gravarEventoNoTx } from "@/modules/uploads/historico/service";
 import { mensagemDosProblemas, problemasDoEnvio, type ArquivoParaEnvio } from "./envio-regras";
+import { conferirCarimbo, MOTIVO_CARIMBO_ILEGIVEL, type LeituraCarimbo } from "./carimbo";
 import type { RevisaoCarregada } from "./service";
+
+/** O que o envio leu do carimbo ANTES da transação (ler PDF é lento; não segura a conexão). */
+export type CarimboDoEnvio = { leitura: LeituraCarimbo; nomeArquivo: string } | null;
 
 type Tx = Prisma.TransactionClient;
 
@@ -21,12 +26,15 @@ function extensao(nome: string): string {
  * o envio de arquivo usa (`api/uploads/route.ts`), os hashes da revisão e da anterior, e decide em
  * `envio-regras.ts`. Falha = `ActionError` com tudo o que corrigir; a transição não acontece.
  *
- * A conferência com o carimbo (e a confirmação "enviar sem conferência") só entra depois de o dono ver
- * exemplos reais da leitura (spec, "Em aberto"). Até lá não há conferência nem aviso.
+ * Carimbo (`carimbo.ts`, regra aprovada em 2026-10-09): código ou revisão divergente entra na lista de
+ * problemas. Sem leitura possível, só depois de todo o resto estar certo, pede confirmação
+ * (`MOTIVO_CARIMBO_ILEGIVEL`); confirmado, grava o evento "Envio sem conferência de carimbo" na transação.
+ * `carimbo` nulo = revisão sem PDF (modelo IFC): não há carimbo a conferir.
  */
 export async function verificarEnvioParaAnalise(
   r: RevisaoCarregada,
   tx: Tx,
+  opts: { carimbo: CarimboDoEnvio; confirmarSemCarimbo: boolean; userId: string },
 ): Promise<Record<string, Prisma.InputJsonValue>> {
   const projetoId = r.documento.disciplina.projetoId;
   // Uma leitura por vez: a transação tem UMA conexão (sem Promise.all em `tx` — guard do projeto).
@@ -71,9 +79,23 @@ export async function verificarEnvioParaAnalise(
     nome,
     camposDoPadrao: compilarPadrao(nomenclatura.padrao)?.campos ?? [],
     modelo: nomenclatura.padrao,
+    codigoProjeto: projeto.codigo,
   });
+  const carimbo = opts.carimbo ? conferirCarimbo(opts.carimbo.leitura, { nomeArquivo: opts.carimbo.nomeArquivo, numero: r.numero }) : null;
+  problemas.push(...(carimbo?.problemas ?? []));
   if (problemas.length > 0) throw new ActionError(mensagemDosProblemas(problemas));
 
-  // Vai no evento de estado: qual versão interna foi para análise.
-  return { versao: r.ultimaVersao };
+  if (carimbo?.leituraFalhou) {
+    if (!opts.confirmarSemCarimbo) throw new ActionError(MOTIVO_CARIMBO_ILEGIVEL);
+    await gravarEventoNoTx(tx, {
+      documentoId: r.documentoId,
+      revisaoId: r.id,
+      tipo: "envio_sem_carimbo",
+      userId: opts.userId,
+      detalhe: { motivo: "Carimbo ilegível; envio confirmado sem a conferência", revisao: r.numero },
+    });
+  }
+
+  // Vai no evento de estado: qual versão interna foi para análise (e se o carimbo foi conferido).
+  return { versao: r.ultimaVersao, carimbo: carimbo === null ? "sem_pdf" : carimbo.leituraFalhou ? "nao_conferido" : "conferido" };
 }

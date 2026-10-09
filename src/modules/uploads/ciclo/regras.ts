@@ -4,6 +4,7 @@
  */
 import { contaComoTrabalho } from "@/modules/projetos/pendencias/helpers";
 import { ehDocumentoDeModelo } from "./escopo";
+import type { EstadoRevisao } from "./estados";
 
 /** Arquivo que VALE na revisão: fora da lixeira e não substituído por versão mais nova. */
 export type ArquivoDaRevisao = { id: string; nome: string; ext: string; validado: boolean };
@@ -33,14 +34,21 @@ export function decidirPublicacao(p: {
   arquivos: readonly ArquivoDaRevisao[];
   pendencias: readonly PendenciaParaGate[];
   permitirComPendencias: boolean;
-  /** Configuração do projeto: a revisão só publica com o DWG (padrão ligado). Modelo IFC é isento. */
+  /** O tipo do documento exige o DWG para publicar (padrão ligado). Modelo IFC é isento. */
   exigirDwg?: boolean;
+  /** Sigla do tipo, só para a mensagem. */
+  siglaTipo?: string | null;
   justificativa?: string | null;
 }): DecisaoPublicacao {
   if (p.arquivos.length === 0) return { ok: false, motivo: "A revisão não tem arquivo para publicar." };
   const exts = p.arquivos.map((a) => a.ext);
   if (p.exigirDwg && !ehDocumentoDeModelo(exts) && !exts.includes("dwg")) {
-    return { ok: false, motivo: "Este projeto exige o DWG para publicar: envie o DWG desta revisão." };
+    return {
+      ok: false,
+      motivo: p.siglaTipo
+        ? `Documentos do tipo ${p.siglaTipo} só publicam com o DWG: envie o DWG desta revisão.`
+        : "Esta revisão só publica com o DWG: envie o DWG (ou defina um tipo de documento que não exija).",
+    };
   }
   const semValidacao = p.arquivos.filter((a) => !a.validado);
   if (semValidacao.length > 0) {
@@ -89,4 +97,25 @@ export function decidirLiberacaoAutomatica(p: { liberarAutomaticamente: boolean;
   | "restricao" {
   if (!p.liberarAutomaticamente) return "nao_configurado";
   return p.temRestricao ? "restricao" : "liberar";
+}
+
+/**
+ * 6-B (decisão do dono, 2026-10-09): o pagamento do projetista sai na PUBLICAÇÃO, pelo mesmo botão de
+ * sempre ("Aprovar disciplina" / "Aprovar fase") — a liberação de dinheiro continua sendo um ato humano.
+ * O que muda é a exigência: cada documento do ciclo precisa ter uma revisão publicada. Documento todo
+ * arquivado (cancelado) não conta. Devolve os nomes dos que faltam.
+ */
+export type DocumentoParaEntrega = { nome: string; estados: readonly EstadoRevisao[] };
+
+export function documentosSemPublicacao(docs: readonly DocumentoParaEntrega[]): string[] {
+  return docs
+    .filter((d) => d.estados.length > 0)
+    .filter((d) => !d.estados.includes("publicado") && !d.estados.every((e) => e === "arquivado"))
+    .map((d) => d.nome);
+}
+
+export function motivoEntregaSemPublicacao(nomes: readonly string[], alvo: "disciplina" | "fase"): string | null {
+  if (nomes.length === 0) return null;
+  const lista = nomes.length <= 5 ? nomes.join(", ") : `${nomes.slice(0, 5).join(", ")} e mais ${nomes.length - 5}`;
+  return `Publique todos os documentos ${alvo === "fase" ? "da fase" : "da disciplina"} antes de aprovar: ${nomes.length} sem revisão publicada (${lista}).`;
 }

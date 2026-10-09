@@ -26,7 +26,13 @@ type BaseSnap = FaixaVersao & { id: string; nome: string; ativo: boolean; ordem:
 
 export type CardSnap = BaseSnap & { codigo: string | null; sinonimos: string[]; categoria: string | null };
 export type SubSnap = BaseSnap & { cardId: string };
-export type ItemListaSnap = BaseSnap & { categoria: "fase" | "tipo"; sigla: string; sinonimos: string[] };
+export type ItemListaSnap = BaseSnap & {
+  categoria: "fase" | "tipo";
+  sigla: string;
+  sinonimos: string[];
+  /** Só tipo: a publicação de um documento deste tipo exige o DWG (ciclo documental). */
+  exigeDwg?: boolean;
+};
 
 /** Catálogo global inteiro (arquivados inclusos): cards, subs e fases/tipos sem projeto. */
 export type CatalogoSnap = { cards: CardSnap[]; subs: SubSnap[]; itens: ItemListaSnap[] };
@@ -94,6 +100,8 @@ export type LinhaCatalogo = {
   /** Em relação à versão anterior. Na v1, tudo é "igual". */
   situacao: SituacaoNaVersao;
   siglaAnterior: string | null;
+  /** Só em tipo de documento: exige o DWG para publicar (ciclo documental). Ausente = não se aplica. */
+  exigeDwg?: boolean;
 };
 
 export type CardNaVersao = LinhaCatalogo & { categoria: string | null; subs: LinhaCatalogo[] };
@@ -144,7 +152,10 @@ export function catalogoNaVersao(snap: CatalogoSnap, versao: number): CatalogoNa
     snap.itens
       .filter((i) => i.categoria === categoria && existe(snap, { tipo: "prancha", id: i.id }, versao, true))
       .sort(porOrdem)
-      .map((i) => linha(snap, { tipo: "prancha", id: i.id }, i.nome, versao));
+      .map((i) => ({
+        ...linha(snap, { tipo: "prancha", id: i.id }, i.nome, versao),
+        ...(categoria === "tipo" ? { exigeDwg: i.exigeDwg ?? true } : {}),
+      }));
 
   const saem: SaiNaVersao[] = [];
   if (versao > 1) {

@@ -6,7 +6,13 @@ import { rotuloRevisao } from "@/lib/utils";
 import { gravarEventoNoTx } from "@/modules/uploads/historico/service";
 import { participaDoCiclo } from "./escopo";
 import { CONTROLES_DE_PASTA, type EscopoBloqueio, type EstadoRevisao, type TipoControle } from "./estados";
-import { decidirLiberacaoAutomatica, decidirPublicacao, restricaoDePendenciasPodeSair, type ArquivoDaRevisao } from "./regras";
+import {
+  decidirLiberacaoAutomatica,
+  decidirPublicacao,
+  documentosSemPublicacao,
+  restricaoDePendenciasPodeSair,
+  type ArquivoDaRevisao,
+} from "./regras";
 import {
   MOTIVO_MUDOU,
   TRANSICOES,
@@ -45,6 +51,8 @@ const selectRevisao = {
       nomeArquivo: true,
       titulo: true,
       disciplinaId: true,
+      // O tipo diz se a publicação exige o DWG (Configurações → Nomenclatura → Tipos).
+      tipo: { select: { sigla: true, exigeDwg: true } },
       disciplina: { select: { projetoId: true, responsaveis: { select: { userId: true } } } },
     },
   },
@@ -236,7 +244,6 @@ async function configDoProjeto(db: Tx | typeof prisma, projetoId: string) {
     liberarObraAutomaticamente: c?.liberarObraAutomaticamente ?? false,
     permitirPublicarComPendencias: c?.permitirPublicarComPendencias ?? false,
     diasAlertaCompartilhado: c?.diasAlertaCompartilhado ?? 7,
-    exigirDwgParaPublicar: c?.exigirDwgParaPublicar ?? true,
   };
 }
 
@@ -356,7 +363,9 @@ export async function publicarNoBanco(p: {
       arquivos: arquivosDaRevisao(r),
       pendencias,
       permitirComPendencias: config.permitirPublicarComPendencias,
-      exigirDwg: config.exigirDwgParaPublicar,
+      // Sem tipo, vale o padrão: exige (decisão do dono — DWG obrigatório por padrão).
+      exigirDwg: r.documento.tipo?.exigeDwg ?? true,
+      siglaTipo: r.documento.tipo?.sigla ?? null,
       justificativa: p.justificativa,
     });
     if (!decisao.ok) throw new ActionError(decisao.motivo);
@@ -503,6 +512,44 @@ export async function motivoBloqueioDosUploads(
   if (!bloqueio) return null;
   const acao = escopo === "download" ? "baixado" : escopo === "exclusao" ? "excluído" : "atualizado";
   return `${bloqueio.revisao.documento.nomeArquivo} (${rotuloRevisao(bloqueio.revisao.numero)}) está bloqueado e não pode ser ${acao}: ${bloqueio.motivo}`;
+}
+
+/**
+ * 6-B: documentos do ciclo da disciplina (ou de uma fase dela) ainda sem revisão publicada — o que
+ * impede aprovar a entrega e liberar o pagamento. Só documentos com arquivo fora da lixeira.
+ */
+export async function documentosPendentesDePublicacao(
+  db: Tx | typeof prisma,
+  p: { disciplinaId: string; faseId?: string },
+): Promise<string[]> {
+  const docs = await db.documentoDisciplina.findMany({
+    where: {
+      disciplinaId: p.disciplinaId,
+      substituidoPorId: null,
+      chave: { startsWith: "A/" },
+      ...(p.faseId ? { faseId: p.faseId } : {}),
+      uploads: { some: { excluidoEm: null } },
+    },
+    select: { nomeArquivo: true, titulo: true, revisoes: { select: { estado: true } } },
+  });
+  return documentosSemPublicacao(
+    docs.map((d) => ({ nome: d.titulo ?? d.nomeArquivo, estados: d.revisoes.map((r) => r.estado as EstadoRevisao) })),
+  );
+}
+
+/** 6-B nas telas (card, "Prontas para aprovar"): quantos documentos sem publicação por disciplina — uma consulta. */
+export async function semPublicacaoPorDisciplina(db: Tx | typeof prisma, disciplinaIds: readonly string[]): Promise<Map<string, number>> {
+  const contagem = new Map<string, number>(disciplinaIds.map((id) => [id, 0]));
+  if (disciplinaIds.length === 0) return contagem;
+  const docs = await db.documentoDisciplina.findMany({
+    where: { disciplinaId: { in: [...disciplinaIds] }, substituidoPorId: null, chave: { startsWith: "A/" }, uploads: { some: { excluidoEm: null } } },
+    select: { disciplinaId: true, nomeArquivo: true, revisoes: { select: { estado: true } } },
+  });
+  for (const d of docs) {
+    const falta = documentosSemPublicacao([{ nome: d.nomeArquivo, estados: d.revisoes.map((r) => r.estado as EstadoRevisao) }]).length;
+    contagem.set(d.disciplinaId, (contagem.get(d.disciplinaId) ?? 0) + falta);
+  }
+  return contagem;
 }
 
 /** I2/I3 na validação: algum dos arquivos é de revisão publicada ou arquivada? */
