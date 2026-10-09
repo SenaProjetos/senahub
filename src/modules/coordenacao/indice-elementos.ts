@@ -72,30 +72,45 @@ export function normalizarNo(bruto: NoArvoreBruto): NoEspacial {
 /**
  * Lista todos os elementos "de obra" (exclui nós puramente espaciais/estruturais)
  * da árvore, com o pavimento ancestral mais próximo anotado em cada um.
+ *
+ * O fragments 3.x devolve a árvore AGRUPADA: um nó de grupo (category preenchida,
+ * localId null) e, abaixo dele, os itens daquela categoria (localId preenchido,
+ * category null) — ex.: grupo IFCBUILDINGSTOREY → item #25 (o pavimento) → grupo
+ * IFCDOOR → itens das portas. O item herda a categoria do grupo logo acima. Um nó
+ * com as duas coisas (forma antiga) continua aceito.
  */
 export function listarElementos(raiz: NoEspacial): ElementoIndex[] {
   const elementos: ElementoIndex[] = [];
 
-  function visitar(no: NoEspacial, pavimentoAtual: { localId: number | null; nome: string | null }) {
-    const ehPavimento = no.category != null && CATEGORIAS_PAVIMENTO.has(no.category);
-    const proximoPavimento = ehPavimento
-      ? { localId: no.localId, nome: no.category }
-      : pavimentoAtual;
+  function visitar(
+    no: NoEspacial,
+    pavimentoAtual: { localId: number | null; nome: string | null },
+    categoriaDoGrupo: string | null,
+  ) {
+    const categoria = no.category ?? (no.localId != null ? categoriaDoGrupo : null);
+    const ehItem = no.localId != null && categoria != null;
 
-    const ehEstrutural = no.category == null || CATEGORIAS_ESTRUTURAIS.has(no.category);
-    if (!ehEstrutural && no.localId != null && no.category != null) {
+    // Só um ITEM de pavimento (com localId) muda o pavimento dos descendentes; o nó de
+    // grupo IFCBUILDINGSTOREY não tem localId e só repassa a categoria.
+    const ehPavimento = ehItem && CATEGORIAS_PAVIMENTO.has(categoria);
+    const proximoPavimento = ehPavimento ? { localId: no.localId, nome: categoria } : pavimentoAtual;
+
+    if (ehItem && !CATEGORIAS_ESTRUTURAIS.has(categoria)) {
       elementos.push({
-        localId: no.localId,
-        category: no.category,
+        localId: no.localId!,
+        category: categoria,
         pavimentoLocalId: proximoPavimento.localId,
         pavimentoNome: proximoPavimento.nome,
       });
     }
 
-    for (const filho of no.children) visitar(filho, proximoPavimento);
+    // Grupo repassa a própria categoria aos itens; item não repassa nada (os filhos de
+    // um item vêm em grupos próprios, ex.: escada → grupo IFCSTAIRFLIGHT).
+    const categoriaFilhos = no.localId == null ? no.category : null;
+    for (const filho of no.children) visitar(filho, proximoPavimento, categoriaFilhos);
   }
 
-  visitar(raiz, { localId: null, nome: null });
+  visitar(raiz, { localId: null, nome: null }, null);
   return elementos;
 }
 
