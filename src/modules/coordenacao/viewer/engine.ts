@@ -632,21 +632,29 @@ export class ViewerEngine {
     }
 
     // A árvore só traz a CATEGORIA do pavimento (ex.: "IFCBUILDINGSTOREY"); resolve o
-    // Name real (ex.: "Pavimento 2") via getItemsData, igual ao painel de propriedades.
+    // Name real (ex.: "Pavimento 2") e a cota (Elevation, ordena a lista) via
+    // getItemsData, igual ao painel de propriedades.
     const pavIds = [...new Set(elementos.map((e) => e.pavimentoLocalId).filter((id): id is number => id != null))];
     if (pavIds.length > 0) {
       const dados = await model.getItemsData(pavIds, { attributesDefault: true }).catch(() => []);
       const nomes = new Map<number, string>();
+      const elevacoes = new Map<number, number>();
       pavIds.forEach((id, i) => {
         const { atributos } = extrairAtributos(dados[i]);
         const nome = atributos.find((a) => a.nome === "Name")?.valor;
         if (nome) nomes.set(id, nome);
+        const elevacao = Number(atributos.find((a) => a.nome === "Elevation")?.valor);
+        if (Number.isFinite(elevacao)) elevacoes.set(id, elevacao);
       });
-      if (nomes.size > 0) {
+      if (nomes.size > 0 || elevacoes.size > 0) {
         elementos = elementos.map((e) =>
-          e.pavimentoLocalId != null && nomes.has(e.pavimentoLocalId)
-            ? { ...e, pavimentoNome: nomes.get(e.pavimentoLocalId)! }
-            : e,
+          e.pavimentoLocalId == null
+            ? e
+            : {
+                ...e,
+                pavimentoNome: nomes.get(e.pavimentoLocalId) ?? e.pavimentoNome,
+                pavimentoElevacao: elevacoes.get(e.pavimentoLocalId) ?? null,
+              },
         );
       }
     }
@@ -802,6 +810,23 @@ export class ViewerEngine {
       for (const model of this.modelos.values()) await model.setVisible(undefined, false);
       const model = this.modelos.get(modeloId);
       if (model && ids.length > 0) await model.setVisible(ids, true);
+      await this.fragments.update(true);
+    });
+  }
+
+  /**
+   * Isola elementos de VÁRIOS modelos de uma vez (filtro por pavimento entre
+   * disciplinas): esconde tudo e mostra, em cada modelo, só os localIds informados.
+   * Modelo carregado que não está no mapa fica todo escondido.
+   */
+  async isolarPorModelo(visiveis: ReadonlyMap<string, readonly number[]>): Promise<void> {
+    const copia = new Map([...visiveis].map(([id, ids]) => [id, [...ids]]));
+    await this.enfileirarVisibilidade(async () => {
+      for (const model of this.modelos.values()) await model.setVisible(undefined, false);
+      for (const [modeloId, ids] of copia) {
+        const model = this.modelos.get(modeloId);
+        if (model && ids.length > 0) await model.setVisible(ids, true);
+      }
       await this.fragments.update(true);
     });
   }

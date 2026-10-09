@@ -43,7 +43,6 @@ export function ArvoreModelo({
   const [modeloId, setModeloId] = useState<string | null>(null);
   const [elementos, setElementos] = useState<ElementoIndex[]>([]);
   const [carregando, setCarregando] = useState(false);
-  const [carregandoPsets, setCarregandoPsets] = useState(false);
   const [expandidos, setExpandidos] = useState<Set<number | null>>(new Set());
   const [isolado, setIsolado] = useState<{ pavimento: number | null; categoria: string } | null>(null);
   const [multifiltroAtivo, setMultifiltroAtivo] = useState(false);
@@ -61,23 +60,14 @@ export function ArvoreModelo({
     }
     let cancelado = false;
     setCarregando(true);
-    setCarregandoPsets(false);
     setIsolado(null);
     void engine
       .indiceDoModelo(modeloId)
-      .then(async (base) => {
-        if (cancelado) return;
-        setElementos(base);
-        setCarregando(false);
-        setCarregandoPsets(true);
-        const enriquecidos = await engine.indiceComPsetsDoModelo(modeloId);
-        if (!cancelado) setElementos(enriquecidos);
+      .then((base) => {
+        if (!cancelado) setElementos(base);
       })
       .finally(() => {
-        if (!cancelado) {
-          setCarregando(false);
-          setCarregandoPsets(false);
-        }
+        if (!cancelado) setCarregando(false);
       });
     return () => {
       cancelado = true;
@@ -217,15 +207,7 @@ export function ArvoreModelo({
           )}
         </CardContent>
       </Card>
-      {modeloId && elementos.length > 0 && (
-        <FiltrosPanel
-          engine={engine}
-          modeloId={modeloId}
-          elementos={elementos}
-          carregandoPsets={carregandoPsets}
-          onFiltroAtivoChange={aoMudarMultifiltro}
-        />
-      )}
+      <FiltrosPanel engine={engine} modelos={modelos} onFiltroAtivoChange={aoMudarMultifiltro} />
     </div>
   );
 }

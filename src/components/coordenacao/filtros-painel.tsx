@@ -3,15 +3,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Filter } from "lucide-react";
 import type { ViewerEngine } from "@/modules/coordenacao/viewer/engine";
-import type { ElementoIndex } from "@/modules/coordenacao/indice-elementos";
-import { pavimentosDistintos, categoriasDistintas } from "@/modules/coordenacao/indice-elementos";
+import { categoriasDistintas } from "@/modules/coordenacao/indice-elementos";
 import {
-  aplicarFiltro,
+  aplicarFiltroMulti,
   buscarPsets,
-  filtroVazio,
-  localIdsVisiveis,
+  filtroMultiVazio,
+  localIdsPorModelo,
+  pavimentosUnificados,
   psetsDistintos,
+  type ElementoDeModelo,
+  type FiltroMultiModelo,
 } from "@/modules/coordenacao/filtros";
+import { rotuloCategoria } from "@/modules/coordenacao/conflitos-lista";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,47 +29,84 @@ function chavePset(pset: { pset: string; nome: string; valor: string }) {
   return JSON.stringify([pset.pset, pset.nome, pset.valor]);
 }
 
+/**
+ * Filtros de TODOS os modelos carregados: pavimento (unido pelo nome entre as
+ * disciplinas e ordenado pela cota), categoria IFC e Property Sets. Marcar "TÉRREO"
+ * isola o térreo do ARQ, do EST e das instalações juntos — é o uso da compatibilização.
+ */
 export function FiltrosPanel({
   engine,
-  modeloId,
-  elementos,
-  carregandoPsets = false,
+  modelos,
   onFiltroAtivoChange,
 }: {
   engine: ViewerEngine | null;
-  modeloId: string;
-  elementos: ElementoIndex[];
-  carregandoPsets?: boolean;
+  modelos: { uploadId: string; label: string }[];
   onFiltroAtivoChange?: (ativo: boolean) => void;
 }) {
-  const [pavimentosSelecionados, setPavimentosSelecionados] = useState<Set<number | null>>(new Set());
+  const [elementos, setElementos] = useState<ElementoDeModelo[]>([]);
+  const [carregando, setCarregando] = useState(false);
+  const [carregandoPsets, setCarregandoPsets] = useState(false);
+  const [pavimentosSelecionados, setPavimentosSelecionados] = useState<Set<string>>(new Set());
   const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<Set<string>>(new Set());
   const [psetsSelecionados, setPsetsSelecionados] = useState<Set<string>>(new Set());
   const [buscaPset, setBuscaPset] = useState("");
   const filtroEraAtivo = useRef(false);
 
-  const pavimentos = useMemo(() => pavimentosDistintos(elementos), [elementos]);
+  const modeloIds = useMemo(() => modelos.map((m) => m.uploadId), [modelos]);
+  const chaveModelos = modeloIds.join("|");
+
+  // Índice de cada modelo (o engine guarda em cache); Psets em seguida, sob demanda.
+  useEffect(() => {
+    if (!engine || modeloIds.length === 0) {
+      setElementos([]);
+      return;
+    }
+    let cancelado = false;
+    setCarregando(true);
+    setCarregandoPsets(false);
+    void (async () => {
+      try {
+        const bases = await Promise.all(modeloIds.map((id) => engine.indiceDoModelo(id)));
+        if (cancelado) return;
+        setElementos(bases.flatMap((lista, i) => lista.map((e) => ({ ...e, modeloId: modeloIds[i] }))));
+        setCarregando(false);
+        setCarregandoPsets(true);
+        const enriquecidos: ElementoDeModelo[] = [];
+        for (const [i, id] of modeloIds.entries()) {
+          const lista = await engine.indiceComPsetsDoModelo(id);
+          if (cancelado) return;
+          enriquecidos.push(...lista.map((e) => ({ ...e, modeloId: modeloIds[i] })));
+        }
+        if (!cancelado) setElementos(enriquecidos);
+      } finally {
+        if (!cancelado) {
+          setCarregando(false);
+          setCarregandoPsets(false);
+        }
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+    // chaveModelos resume modeloIds (array novo a cada render do pai).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engine, chaveModelos]);
+
+  const pavimentos = useMemo(() => pavimentosUnificados(elementos), [elementos]);
   const categorias = useMemo(() => categoriasDistintas(elementos), [elementos]);
+  const contagemCategoria = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const e of elementos) m.set(e.category, (m.get(e.category) ?? 0) + 1);
+    return m;
+  }, [elementos]);
   const opcoesPset = useMemo(() => psetsDistintos(elementos), [elementos]);
-  const psetsParciais = useMemo(
-    () => elementos.some((elemento) => elemento.propriedadesParciais),
-    [elementos],
-  );
+  const psetsParciais = useMemo(() => elementos.some((elemento) => elemento.propriedadesParciais), [elementos]);
   const resultadoBuscaPset = useMemo(
     () => buscarPsets(opcoesPset, buscaPset, LIMITE_PSETS_RENDERIZADOS),
     [buscaPset, opcoesPset],
   );
-  const porPavimento = useMemo(() => {
-    const m = new Map<number | null, ElementoIndex[]>();
-    for (const el of elementos) {
-      const p = m.get(el.pavimentoLocalId) ?? [];
-      p.push(el);
-      m.set(el.pavimentoLocalId, p);
-    }
-    return m;
-  }, [elementos]);
 
-  const filtro = useMemo(
+  const filtro = useMemo<FiltroMultiModelo>(
     () => ({
       pavimentos: pavimentosSelecionados.size > 0 ? [...pavimentosSelecionados] : undefined,
       categorias: categoriasSelecionadas.size > 0 ? [...categoriasSelecionadas] : undefined,
@@ -78,61 +118,38 @@ export function FiltrosPanel({
     [pavimentosSelecionados, categoriasSelecionadas, psetsSelecionados, opcoesPset],
   );
 
-  const elementosFiltrados = useMemo(() => aplicarFiltro(elementos, filtro), [elementos, filtro]);
-  const localIds = useMemo(() => localIdsVisiveis(elementos, filtro), [elementos, filtro]);
-
-  const temFiltro = !filtroVazio(filtro);
+  const totalFiltrado = useMemo(() => aplicarFiltroMulti(elementos, filtro).length, [elementos, filtro]);
+  const visiveisPorModelo = useMemo(
+    () => localIdsPorModelo(elementos, filtro, modeloIds),
+    [elementos, filtro, modeloIds],
+  );
+  const temFiltro = !filtroMultiVazio(filtro);
 
   // Aplica isolamento em tempo real depois do render (inclusive resultado vazio).
   useEffect(() => {
     if (!engine) return;
-    if (temFiltro) void engine.isolarElementos(modeloId, localIds);
+    if (temFiltro) void engine.isolarPorModelo(visiveisPorModelo);
     else if (filtroEraAtivo.current) void engine.mostrarTudo();
     filtroEraAtivo.current = temFiltro;
-  }, [engine, localIds, modeloId, temFiltro]);
+  }, [engine, visiveisPorModelo, temFiltro]);
 
   useEffect(() => {
     onFiltroAtivoChange?.(temFiltro);
   }, [onFiltroAtivoChange, temFiltro]);
 
-  // Fechar/trocar o painel nunca deixa o viewer preso num isolamento invisível.
+  // Fechar o painel nunca deixa o viewer preso num isolamento invisível.
   useEffect(() => {
     const engineAtual = engine;
     return () => {
       if (engineAtual) void engineAtual.mostrarTudo();
     };
-  }, [engine, modeloId]);
+  }, [engine]);
 
-  useEffect(() => {
-    setPavimentosSelecionados(new Set());
-    setCategoriasSelecionadas(new Set());
-    setPsetsSelecionados(new Set());
-    setBuscaPset("");
-  }, [modeloId]);
-
-  function alternarPavimento(pavId: number | null) {
-    setPavimentosSelecionados((s) => {
+  function alternar<T>(setter: (fn: (s: Set<T>) => Set<T>) => void, valor: T) {
+    setter((s) => {
       const n = new Set(s);
-      if (n.has(pavId)) n.delete(pavId);
-      else n.add(pavId);
-      return n;
-    });
-  }
-
-  function alternarCategoria(cat: string) {
-    setCategoriasSelecionadas((s) => {
-      const n = new Set(s);
-      if (n.has(cat)) n.delete(cat);
-      else n.add(cat);
-      return n;
-    });
-  }
-
-  function alternarPset(chave: string) {
-    setPsetsSelecionados((s) => {
-      const n = new Set(s);
-      if (n.has(chave)) n.delete(chave);
-      else n.add(chave);
+      if (n.has(valor)) n.delete(valor);
+      else n.add(valor);
       return n;
     });
   }
@@ -143,136 +160,148 @@ export function FiltrosPanel({
     setPsetsSelecionados(new Set());
   }
 
+  if (modelos.length === 0) return null;
+
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-1.5 text-sm">
           <Filter className="size-4" /> Filtros
         </CardTitle>
+        <p className="text-[11px] text-muted-foreground">
+          {modelos.length > 1
+            ? `Valem para os ${modelos.length} modelos carregados; pavimentos com o mesmo nome são o mesmo andar.`
+            : "Valem para o modelo carregado."}
+        </p>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="max-h-[40vh]">
-          <div className="space-y-3 pr-3">
-            {/* Pavimentos */}
-            <div>
-              <p className="text-xs font-semibold uppercase text-muted-foreground">Pavimentos</p>
-              <div className="space-y-1 pt-1">
-                {pavimentos.map((pav) => {
-                  const nomePav = pav.nome ?? "Sem pavimento";
-                  const selecionado = pavimentosSelecionados.has(pav.localId);
-                  const elesPav = porPavimento.get(pav.localId) ?? [];
-                  return (
-                    <div key={String(pav.localId)}>
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id={`pav-${pav.localId}`}
-                          checked={selecionado}
-                          onCheckedChange={() => alternarPavimento(pav.localId)}
-                        />
-                        <Label htmlFor={`pav-${pav.localId}`} className="flex flex-1 items-center gap-2 cursor-pointer text-xs">
-                          <span className="truncate">{nomePav}</span>
-                          <Badge variant="outline" className="shrink-0 text-[10px]">
-                            {elesPav.length}
-                          </Badge>
-                        </Label>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Categorias */}
-            <div className="pt-2 border-t">
-              <p className="text-xs font-semibold uppercase text-muted-foreground">Categorias</p>
-              <div className="space-y-1 pt-1">
-                {categorias.map((cat) => {
-                  const selecionada = categoriasSelecionadas.has(cat);
-                  const elesCat = elementos.filter((e) => e.category === cat);
-                  return (
-                    <div key={cat}>
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id={`cat-${cat}`}
-                          checked={selecionada}
-                          onCheckedChange={() => alternarCategoria(cat)}
-                        />
-                        <Label htmlFor={`cat-${cat}`} className="flex flex-1 items-center gap-2 cursor-pointer text-xs">
-                          <span className="truncate text-muted-foreground">{cat}</span>
-                          <Badge variant="outline" className="shrink-0 text-[10px]">
-                            {elesCat.length}
-                          </Badge>
-                        </Label>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Property Sets IFC */}
-            <div className="border-t pt-2">
-              <p className="text-xs font-semibold uppercase text-muted-foreground">Propriedades IFC (Pset)</p>
-              {carregandoPsets ? (
-                <p className="pt-1 text-xs text-muted-foreground">Carregando propriedades…</p>
-              ) : opcoesPset.length === 0 ? (
-                <p className="pt-1 text-xs text-muted-foreground">O modelo não expôs Property Sets filtráveis.</p>
-              ) : (
-                <div className="space-y-2 pt-1">
-                  {psetsParciais && (
-                    <p className="text-[11px] text-amber-700 dark:text-amber-400">
-                      Modelo muito grande: parte dos Psets foi limitada para preservar memória e responsividade.
-                    </p>
-                  )}
-                  <Input
-                    value={buscaPset}
-                    onChange={(evento) => setBuscaPset(evento.target.value)}
-                    placeholder="Buscar Pset, propriedade ou valor"
-                    className="h-8 text-xs"
-                    aria-label="Buscar propriedades IFC"
-                  />
-                  {resultadoBuscaPset.total > LIMITE_PSETS_RENDERIZADOS && (
-                    <p className="text-[11px] text-muted-foreground">
-                      Exibindo {LIMITE_PSETS_RENDERIZADOS} de {resultadoBuscaPset.total}. Refine a busca para ver outras opções.
-                    </p>
-                  )}
-                  {resultadoBuscaPset.total === 0 && (
-                    <p className="text-xs text-muted-foreground">Nenhuma propriedade encontrada.</p>
-                  )}
-                  {resultadoBuscaPset.itens.map((opcao, indice) => {
-                    const chave = chavePset(opcao);
-                    const id = `pset-${indice}`;
+        {carregando ? (
+          <p className="py-2 text-xs text-muted-foreground">Carregando elementos…</p>
+        ) : (
+          <ScrollArea className="max-h-[40vh]">
+            <div className="relative space-y-3 pr-3">
+              {/* Pavimentos */}
+              <div>
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Pavimentos</p>
+                <div className="space-y-1 pt-1">
+                  {pavimentos.map((pav) => {
+                    const id = `pav-${encodeURIComponent(pav.chave)}`;
+                    const parcial = modelos.length > 1 && pav.modelos < modelos.length;
                     return (
-                      <div key={chave} className="flex items-start gap-2">
+                      <div key={pav.chave} className="flex items-center gap-2">
                         <Checkbox
                           id={id}
-                          checked={psetsSelecionados.has(chave)}
-                          onCheckedChange={() => alternarPset(chave)}
+                          checked={pavimentosSelecionados.has(pav.chave)}
+                          onCheckedChange={() => alternar(setPavimentosSelecionados, pav.chave)}
                         />
-                        <Label htmlFor={id} className="min-w-0 cursor-pointer text-xs">
-                          <span className="block truncate font-medium">{opcao.pset} · {opcao.nome}</span>
-                          <span className="block truncate text-muted-foreground">{opcao.valor}</span>
+                        <Label htmlFor={id} className="flex flex-1 cursor-pointer items-center gap-2 text-xs">
+                          <span className="min-w-0 flex-1 truncate">{pav.nome ?? "Sem pavimento"}</span>
+                          {parcial && (
+                            <span className="shrink-0 text-[10px] text-muted-foreground">
+                              {pav.modelos} de {modelos.length} modelos
+                            </span>
+                          )}
+                          <Badge variant="outline" className="shrink-0 text-[10px]">
+                            {pav.total}
+                          </Badge>
                         </Label>
                       </div>
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Categorias */}
+              <div className="border-t pt-2">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Categorias</p>
+                <div className="space-y-1 pt-1">
+                  {categorias.map((cat) => {
+                    const id = `cat-${cat}`;
+                    return (
+                      <div key={cat} className="flex items-center gap-2">
+                        <Checkbox
+                          id={id}
+                          checked={categoriasSelecionadas.has(cat)}
+                          onCheckedChange={() => alternar(setCategoriasSelecionadas, cat)}
+                        />
+                        <Label htmlFor={id} className="flex flex-1 cursor-pointer items-center gap-2 text-xs">
+                          <span className="min-w-0 flex-1 truncate" title={cat}>
+                            {rotuloCategoria(cat)}
+                          </span>
+                          <Badge variant="outline" className="shrink-0 text-[10px]">
+                            {contagemCategoria.get(cat) ?? 0}
+                          </Badge>
+                        </Label>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Property Sets IFC */}
+              <div className="border-t pt-2">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Propriedades IFC (Pset)</p>
+                {carregandoPsets ? (
+                  <p className="pt-1 text-xs text-muted-foreground">Carregando propriedades…</p>
+                ) : opcoesPset.length === 0 ? (
+                  <p className="pt-1 text-xs text-muted-foreground">Os modelos não expuseram Property Sets filtráveis.</p>
+                ) : (
+                  <div className="space-y-2 pt-1">
+                    {psetsParciais && (
+                      <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                        Modelo muito grande: parte dos Psets foi limitada para preservar memória e responsividade.
+                      </p>
+                    )}
+                    <Input
+                      value={buscaPset}
+                      onChange={(evento) => setBuscaPset(evento.target.value)}
+                      placeholder="Buscar Pset, propriedade ou valor"
+                      className="h-8 text-xs"
+                      aria-label="Buscar propriedades IFC"
+                    />
+                    {resultadoBuscaPset.total > LIMITE_PSETS_RENDERIZADOS && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Exibindo {LIMITE_PSETS_RENDERIZADOS} de {resultadoBuscaPset.total}. Refine a busca para ver outras opções.
+                      </p>
+                    )}
+                    {resultadoBuscaPset.total === 0 && (
+                      <p className="text-xs text-muted-foreground">Nenhuma propriedade encontrada.</p>
+                    )}
+                    {resultadoBuscaPset.itens.map((opcao, indice) => {
+                      const chave = chavePset(opcao);
+                      const id = `pset-${indice}`;
+                      return (
+                        <div key={chave} className="flex items-start gap-2">
+                          <Checkbox
+                            id={id}
+                            checked={psetsSelecionados.has(chave)}
+                            onCheckedChange={() => alternar(setPsetsSelecionados, chave)}
+                          />
+                          <Label htmlFor={id} className="min-w-0 cursor-pointer text-xs">
+                            <span className="block truncate font-medium">{opcao.pset} · {opcao.nome}</span>
+                            <span className="block truncate text-muted-foreground">{opcao.valor}</span>
+                          </Label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Resultado + Limpar */}
+              {temFiltro && (
+                <div className="space-y-2 border-t pt-2">
+                  <p className="text-xs text-muted-foreground">
+                    {totalFiltrado} de {elementos.length} elemento(s) visível(is)
+                  </p>
+                  <Button size="sm" variant="outline" onClick={limpar} className="w-full">
+                    Limpar filtros
+                  </Button>
+                </div>
               )}
             </div>
-
-            {/* Resultado + Limpar */}
-            {temFiltro && (
-              <div className="space-y-2 border-t pt-2">
-                <p className="text-xs text-muted-foreground">
-                  {elementosFiltrados.length} de {elementos.length} elemento(s) visível(is)
-                </p>
-                <Button size="sm" variant="outline" onClick={limpar} className="w-full">
-                  Limpar filtros
-                </Button>
-              </div>
-            )}
-          </div>
-        </ScrollArea>
+          </ScrollArea>
+        )}
       </CardContent>
     </Card>
   );

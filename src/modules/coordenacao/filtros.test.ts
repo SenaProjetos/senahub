@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  aplicarFiltroMulti,
+  chavePavimento,
+  localIdsPorModelo,
+  pavimentosUnificados,
+  SEM_PAVIMENTO,
+  type ElementoDeModelo,
   aplicarFiltro,
   buscarPsets,
   filtroVazio,
@@ -128,5 +134,68 @@ describe("buscarPsets", () => {
 
   it("limita a lista renderizada sem perder a contagem total", () => {
     expect(buscarPsets(opcoes, "", 2)).toEqual({ itens: opcoes.slice(0, 2), total: 3 });
+  });
+});
+
+describe("filtro em vários modelos", () => {
+  const el = (
+    modeloId: string,
+    localId: number,
+    category: string,
+    pavimentoNome: string | null,
+    pavimentoElevacao: number | null = null,
+  ): ElementoDeModelo => ({
+    modeloId,
+    localId,
+    category,
+    pavimentoLocalId: pavimentoNome ? 1 : null,
+    pavimentoNome,
+    pavimentoElevacao,
+  });
+  const elementos = [
+    el("ARQ", 1, "IFCWALL", "TÉRREO", 0),
+    el("ARQ", 2, "IFCSLAB", "1 PAV", 3500),
+    el("ARQ", 3, "IFCSLAB", "Cobertura", 7000),
+    el("EST", 10, "IFCBEAM", "Térreo ", 0),
+    el("EST", 11, "IFCBEAM", "1 pav", 3500),
+    el("EST", 12, "IFCCOLUMN", null),
+  ];
+
+  it("une pavimentos de modelos diferentes pelo nome (sem caixa nem espaço)", () => {
+    const pavs = pavimentosUnificados(elementos);
+    expect(pavs.map((p) => [p.nome, p.total, p.modelos])).toEqual([
+      ["TÉRREO", 2, 2],
+      ["1 PAV", 2, 2],
+      ["Cobertura", 1, 1],
+      [null, 1, 1],
+    ]);
+  });
+
+  it("ordena pela cota, de baixo para cima, e deixa sem cota e sem pavimento no fim", () => {
+    const pavs = pavimentosUnificados([
+      el("A", 1, "IFCWALL", "Ático", null),
+      el("A", 2, "IFCWALL", "Subsolo", -3000),
+      el("A", 3, "IFCWALL", null),
+      el("A", 4, "IFCWALL", "Térreo", 0),
+    ]);
+    expect(pavs.map((p) => p.nome)).toEqual(["Subsolo", "Térreo", "Ático", null]);
+  });
+
+  it("isola o andar em todos os modelos, cada um com seus localIds", () => {
+    const mapa = localIdsPorModelo(elementos, { pavimentos: [chavePavimento("térreo")] }, ["ARQ", "EST", "MEP"]);
+    expect(Object.fromEntries(mapa)).toEqual({ ARQ: [1], EST: [10], MEP: [] });
+  });
+
+  it("combina pavimento e categoria (AND) entre modelos", () => {
+    const r = aplicarFiltroMulti(elementos, {
+      pavimentos: [chavePavimento("1 PAV")],
+      categorias: ["IFCBEAM"],
+    });
+    expect(r.map((e) => `${e.modeloId}:${e.localId}`)).toEqual(["EST:11"]);
+  });
+
+  it("'Sem pavimento' é filtrável pela chave própria", () => {
+    const r = aplicarFiltroMulti(elementos, { pavimentos: [SEM_PAVIMENTO] });
+    expect(r.map((e) => e.localId)).toEqual([12]);
   });
 });

@@ -87,3 +87,113 @@ export function buscarPsets(
     total: filtradas.length,
   };
 }
+
+// ── Filtro em VÁRIOS modelos ao mesmo tempo ─────────────────────────────────
+//
+// Na compatibilização o pavimento "TÉRREO" do ARQ e o do EST são o mesmo andar, mas
+// cada modelo tem seus próprios localIds. O filtro multi-modelo casa pavimentos pelo
+// NOME (sem diferenciar maiúsculas/espaços) e devolve os localIds de cada modelo, para
+// o viewer isolar o andar em todas as disciplinas carregadas de uma vez.
+
+export type ElementoDeModelo = ElementoIndex & { modeloId: string };
+
+/** Chave do "Sem pavimento" — não colide com nenhum nome real. */
+export const SEM_PAVIMENTO = "\u0000sem-pavimento";
+
+/** Nome do pavimento → chave de agrupamento entre modelos. */
+export function chavePavimento(nome: string | null | undefined): string {
+  const limpo = nome?.trim().replace(/\s+/g, " ");
+  return limpo ? limpo.toLocaleUpperCase("pt-BR") : SEM_PAVIMENTO;
+}
+
+export type PavimentoUnificado = {
+  chave: string;
+  /** Nome como aparece no primeiro modelo; null = "Sem pavimento". */
+  nome: string | null;
+  total: number;
+  /** Menor cota encontrada entre os modelos (unidade do arquivo); null se nenhum informa. */
+  elevacao: number | null;
+  /** Em quantos modelos o pavimento aparece. */
+  modelos: number;
+};
+
+/**
+ * Pavimentos de todos os modelos, unidos pelo nome e ordenados de baixo para cima
+ * pela cota (sem cota no fim, na ordem em que aparecem; "Sem pavimento" por último).
+ */
+export function pavimentosUnificados(elementos: readonly ElementoDeModelo[]): PavimentoUnificado[] {
+  const grupos = new Map<string, PavimentoUnificado & { ordem: number; modelosVistos: Set<string> }>();
+  for (const e of elementos) {
+    const chave = chavePavimento(e.pavimentoNome);
+    let g = grupos.get(chave);
+    if (!g) {
+      g = {
+        chave,
+        nome: chave === SEM_PAVIMENTO ? null : e.pavimentoNome!.trim(),
+        total: 0,
+        elevacao: null,
+        modelos: 0,
+        ordem: grupos.size,
+        modelosVistos: new Set(),
+      };
+      grupos.set(chave, g);
+    }
+    g.total += 1;
+    g.modelosVistos.add(e.modeloId);
+    const elevacao = e.pavimentoElevacao;
+    if (elevacao != null && Number.isFinite(elevacao)) {
+      g.elevacao = g.elevacao == null ? elevacao : Math.min(g.elevacao, elevacao);
+    }
+  }
+  return [...grupos.values()]
+    .sort((x, y) => {
+      if (x.chave === SEM_PAVIMENTO) return 1;
+      if (y.chave === SEM_PAVIMENTO) return -1;
+      if (x.elevacao != null && y.elevacao != null) return x.elevacao - y.elevacao || x.ordem - y.ordem;
+      if (x.elevacao != null) return -1;
+      if (y.elevacao != null) return 1;
+      return x.ordem - y.ordem;
+    })
+    .map(({ chave, nome, total, elevacao, modelosVistos }) => ({
+      chave,
+      nome,
+      total,
+      elevacao,
+      modelos: modelosVistos.size,
+    }));
+}
+
+export type FiltroMultiModelo = {
+  /** Chaves de pavimento (`chavePavimento`) a manter. Undefined = todos. */
+  pavimentos?: string[];
+  categorias?: string[];
+  psets?: FiltroPset[];
+};
+
+export function filtroMultiVazio(filtro: FiltroMultiModelo): boolean {
+  return !filtro.pavimentos && !filtro.categorias && !filtro.psets;
+}
+
+/** Elementos que passam no filtro, em todos os modelos. */
+export function aplicarFiltroMulti(
+  elementos: readonly ElementoDeModelo[],
+  filtro: FiltroMultiModelo,
+): ElementoDeModelo[] {
+  if (filtroMultiVazio(filtro)) return [...elementos];
+  const pavimentos = filtro.pavimentos ? new Set(filtro.pavimentos) : null;
+  return elementos.filter((e) => {
+    if (pavimentos && !pavimentos.has(chavePavimento(e.pavimentoNome))) return false;
+    return aplicarFiltro([e], { categorias: filtro.categorias, psets: filtro.psets }).length === 1;
+  });
+}
+
+/** localIds visíveis por modelo — todo modelo informado aparece, mesmo com lista vazia. */
+export function localIdsPorModelo(
+  elementos: readonly ElementoDeModelo[],
+  filtro: FiltroMultiModelo,
+  modeloIds: readonly string[],
+): Map<string, number[]> {
+  const mapa = new Map<string, number[]>(modeloIds.map((id) => [id, []]));
+  for (const e of aplicarFiltroMulti(elementos, filtro)) mapa.get(e.modeloId)?.push(e.localId);
+  return mapa;
+}

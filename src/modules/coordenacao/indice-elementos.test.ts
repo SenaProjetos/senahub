@@ -219,13 +219,24 @@ describe("agruparPorCategoria", () => {
 });
 
 describe("pavimentosDistintos", () => {
-  it("lista pavimentos únicos na ordem de aparição", () => {
+  it("sem cota, lista pavimentos únicos na ordem de aparição", () => {
     const elementos = listarElementos(normalizarNo(arvoreBruta));
     const pav = pavimentosDistintos(elementos);
     expect(pav).toEqual([
-      { localId: 10, nome: "IFCBUILDINGSTOREY" },
-      { localId: 20, nome: "IFCBUILDINGSTOREY" },
+      { localId: 10, nome: "IFCBUILDINGSTOREY", elevacao: null },
+      { localId: 20, nome: "IFCBUILDINGSTOREY", elevacao: null },
     ]);
+  });
+
+  it("com cota, ordena de baixo para cima; sem pavimento por último", () => {
+    const base = { category: "IFCWALL" };
+    const pav = pavimentosDistintos([
+      { ...base, localId: 1, pavimentoLocalId: null, pavimentoNome: null },
+      { ...base, localId: 2, pavimentoLocalId: 30, pavimentoNome: "Cobertura", pavimentoElevacao: 7000 },
+      { ...base, localId: 3, pavimentoLocalId: 10, pavimentoNome: "Térreo", pavimentoElevacao: 0 },
+      { ...base, localId: 4, pavimentoLocalId: 20, pavimentoNome: "1 Pav", pavimentoElevacao: 3500 },
+    ]);
+    expect(pav.map((p) => p.nome)).toEqual(["Térreo", "1 Pav", "Cobertura", null]);
   });
 });
 

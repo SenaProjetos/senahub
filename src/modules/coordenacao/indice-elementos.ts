@@ -36,6 +36,8 @@ export type ElementoIndex = {
   pavimentoLocalId: number | null;
   /** Rótulo do pavimento — preenchido por quem tem o nome (a árvore só traz category). */
   pavimentoNome: string | null;
+  /** Cota do pavimento (atributo Elevation, unidade do arquivo) — ordena a lista; null se ausente. */
+  pavimentoElevacao?: number | null;
   /** Propriedades IFC carregadas sob demanda para o multifiltro por Pset. */
   propriedades?: PropriedadePsetIndex[];
   /** True quando limites defensivos impediram materializar todos os Psets do item/modelo. */
@@ -136,18 +138,31 @@ export function agruparPorCategoria(elementos: readonly ElementoIndex[]): Map<st
   return grupos;
 }
 
-/** Lista de pavimentos distintos presentes no índice, na ordem de primeira aparição. */
+/**
+ * Pavimentos distintos presentes no índice, de baixo para cima pela cota (Elevation);
+ * sem cota ficam depois, na ordem de primeira aparição, e "sem pavimento" por último.
+ */
 export function pavimentosDistintos(
   elementos: readonly ElementoIndex[],
-): { localId: number | null; nome: string | null }[] {
+): { localId: number | null; nome: string | null; elevacao: number | null }[] {
   const vistos = new Set<number | null>();
-  const lista: { localId: number | null; nome: string | null }[] = [];
+  const lista: { localId: number | null; nome: string | null; elevacao: number | null; ordem: number }[] = [];
   for (const el of elementos) {
     if (vistos.has(el.pavimentoLocalId)) continue;
     vistos.add(el.pavimentoLocalId);
-    lista.push({ localId: el.pavimentoLocalId, nome: el.pavimentoNome });
+    const elevacao = el.pavimentoElevacao != null && Number.isFinite(el.pavimentoElevacao) ? el.pavimentoElevacao : null;
+    lista.push({ localId: el.pavimentoLocalId, nome: el.pavimentoNome, elevacao, ordem: lista.length });
   }
-  return lista;
+  return lista
+    .sort((x, y) => {
+      if (x.localId == null) return 1;
+      if (y.localId == null) return -1;
+      if (x.elevacao != null && y.elevacao != null) return x.elevacao - y.elevacao || x.ordem - y.ordem;
+      if (x.elevacao != null) return -1;
+      if (y.elevacao != null) return 1;
+      return x.ordem - y.ordem;
+    })
+    .map(({ localId, nome, elevacao }) => ({ localId, nome, elevacao }));
 }
 
 /** Lista de categorias distintas presentes no índice, ordenada alfabeticamente. */
