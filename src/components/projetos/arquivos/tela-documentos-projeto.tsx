@@ -194,9 +194,17 @@ export async function TelaDocumentosProjeto({
     ? await prisma.configDocumentosProjeto
         .findUnique({
           where: { projetoId: id },
-          select: { liberarObraAutomaticamente: true, permitirPublicarComPendencias: true, diasAlertaCompartilhado: true },
+          select: {
+            liberarObraAutomaticamente: true,
+            permitirPublicarComPendencias: true,
+            diasAlertaCompartilhado: true,
+            exigirDwgParaPublicar: true,
+          },
         })
-        .then((c) => c ?? { liberarObraAutomaticamente: false, permitirPublicarComPendencias: false, diasAlertaCompartilhado: 7 })
+        .then(
+          (c) =>
+            c ?? { liberarObraAutomaticamente: false, permitirPublicarComPendencias: false, diasAlertaCompartilhado: 7, exigirDwgParaPublicar: true },
+        )
     : null;
   const podeExcluirArquivo = ehAdmin || podeExcluirCap;
   // Modelo federado (spec 2026-10-04 D6): quem vê a Compatibilização vê a pasta, sem a muralha por disciplina.

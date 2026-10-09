@@ -22,6 +22,7 @@ export type ValoresConfigCiclo = {
   liberarObraAutomaticamente: boolean;
   permitirPublicarComPendencias: boolean;
   diasAlertaCompartilhado: number;
+  exigirDwgParaPublicar: boolean;
 };
 
 /**
@@ -93,6 +94,20 @@ export function CicloConfigDialog({ projetoId, valores }: { projetoId: string; v
               checked={form.permitirPublicarComPendencias}
               disabled={pendente}
               onCheckedChange={(v) => setForm((f) => ({ ...f, permitirPublicarComPendencias: v }))}
+            />
+          </div>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <Label htmlFor="cfg-dwg">Exigir o DWG para publicar</Label>
+              <p className="text-xs text-muted-foreground">
+                A revisão só é publicada com o DWG junto do PDF. Modelos IFC não precisam.
+              </p>
+            </div>
+            <Switch
+              id="cfg-dwg"
+              checked={form.exigirDwgParaPublicar}
+              disabled={pendente}
+              onCheckedChange={(v) => setForm((f) => ({ ...f, exigirDwgParaPublicar: v }))}
             />
           </div>
           <div className="space-y-1.5">

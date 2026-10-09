@@ -301,17 +301,21 @@ export const validarArquivo = defineAction(
     // pino herdado ainda em aberto, esvaziando o gate. Mesma correção já feita em
     // `pendenciasDoUpload`/`enviarApontamentos`/`contarPendenciasAbertas`. `excluidoEm: null`
     // porque `Pendencia` fica fora da extension de soft delete (ver `excluirPendencia`).
+    // Só o apontamento IMPEDITIVO publicado trava a validação (decisão do dono, 2026-10-09): a mesma
+    // regra da publicação (D3-c, `temImpeditivoAberto`). Os demais seguem para a publicação, onde o
+    // projeto decide se publica com pendências.
     const apontamentoAberto = await prisma.pendencia.count({
       where: {
         ...(upload.documentoId ? { documentoId: upload.documentoId } : { uploadId: upload.id }),
-        // Inclui `em_correcao`: um apontamento que alguém está corrigindo continua bloqueando
-        // a validação — senão assumir a correção destravaria a entrega (ver STATUS_ABERTOS).
+        // Inclui `em_correcao`: um impeditivo que alguém está corrigindo continua bloqueando.
         status: { in: [...STATUS_ABERTOS] },
+        severidade: "impeditivo",
+        publicadoEm: { not: null },
         excluidoEm: null,
       },
     });
     if (apontamentoAberto > 0) {
-      throw new ActionError("Há apontamento(s) em aberto nesta prancha — resolva-os antes de validar.");
+      throw new ActionError("Há apontamento impeditivo em aberto nesta prancha — resolva-o antes de validar.");
     }
     await prisma.upload.update({
       where: { id: upload.id },
@@ -430,9 +434,10 @@ export const validarArquivosLote = defineAction(
           { uploadId: { in: candidatos.filter((u) => !u.documentoId).map((u) => u.id) } },
           { documentoId: { in: candidatos.map((u) => u.documentoId).filter((d): d is string => d != null) } },
         ],
-        // Inclui `em_correcao`: um apontamento que alguém está corrigindo continua bloqueando
-        // a validação — senão assumir a correção destravaria a entrega (ver STATUS_ABERTOS).
+        // Só impeditivo publicado trava (mesma regra do `validarArquivo`).
         status: { in: [...STATUS_ABERTOS] },
+        severidade: "impeditivo",
+        publicadoEm: { not: null },
         excluidoEm: null,
       },
       select: { uploadId: true, documentoId: true },
@@ -443,7 +448,7 @@ export const validarArquivosLote = defineAction(
       u.documentoId ? !docsBloqueados.has(u.documentoId) : !uploadsBloqueados.has(u.id),
     );
     if (validos.length === 0) {
-      throw new ActionError("Todos os arquivos selecionados têm apontamento(s) em aberto.");
+      throw new ActionError("Todos os arquivos selecionados têm apontamento impeditivo em aberto.");
     }
 
     await prisma.upload.updateMany({

@@ -11,6 +11,7 @@
  */
 import { rotuloRevisao } from "@/lib/utils";
 import type { Interpretacao } from "@/modules/uploads/nomenclatura/interpretar";
+import { ehDocumentoDeModelo } from "./escopo";
 
 export type ArquivoParaEnvio = { nome: string; ext: string; hash: string };
 
@@ -66,7 +67,9 @@ export function problemasDoEnvio(e: EntradaEnvio): string[] {
     problemas.push(`O nome indica R${String(nome.revisao.valor).padStart(2, "0")}, mas o sistema espera ${rotuloRevisao(e.numero)}.`);
   }
 
-  if (!e.arquivos.some((a) => a.ext === "pdf")) problemas.push("A revisão precisa ter o PDF.");
+  // Documento de modelo (IFC) não tem PDF: o IFC é o arquivo principal dele.
+  const exts = e.arquivos.map((a) => a.ext);
+  if (!ehDocumentoDeModelo(exts) && !exts.includes("pdf")) problemas.push("A revisão precisa ter o PDF.");
 
   for (const a of e.arquivos) {
     const igual = e.anteriores.find((p) => p.ext === a.ext && p.hash === a.hash);

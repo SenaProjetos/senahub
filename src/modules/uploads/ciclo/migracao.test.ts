@@ -24,10 +24,10 @@ const estados = (d: DocumentoParaMigrar) =>
   Object.fromEntries(planejarMigracao(d).revisoes.map((r) => [r.numero, r.estado]));
 
 describe("planejarMigracao", () => {
-  it("fora do pacote A (backup, pasta) e IFC não entram no ciclo", () => {
+  it("fora do pacote A (backup, pasta) não entra; o modelo IFC do pacote A entra", () => {
     expect(planejarMigracao(doc({ chave: "B/modelo" })).participa).toBe(false);
     expect(planejarMigracao(doc({ chave: "pasta:p1/laudo" })).participa).toBe(false);
-    expect(planejarMigracao(doc({ revisoes: [rev(1, [{ ext: "ifc", validado: false, naLixeira: false }])] })).participa).toBe(false);
+    expect(planejarMigracao(doc({ revisoes: [rev(1, [{ ext: "ifc", validado: false, naLixeira: false }])] })).participa).toBe(true);
   });
 
   it("sem status: a vigente fica em andamento com o evento de estado inicial; as anteriores são substituídas", () => {

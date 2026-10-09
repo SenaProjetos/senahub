@@ -62,6 +62,10 @@ describe("problemasDoEnvio (A4)", () => {
     expect(problemasDoEnvio(entrada({ arquivos: [{ nome: "a.dwg", ext: "dwg", hash: "h" }] }))).toContain("A revisão precisa ter o PDF.");
   });
 
+  it("modelo IFC não precisa de PDF (o IFC é o arquivo principal)", () => {
+    expect(problemasDoEnvio(entrada({ arquivos: [{ nome: "modelo.ifc", ext: "ifc", hash: "h" }] }))).toEqual([]);
+  });
+
   it("arquivo idêntico (hash) ao do mesmo formato na revisão anterior", () => {
     const r = problemasDoEnvio(entrada({ numero: 2, descricao: "x", anteriores: [{ nome: "old.pdf", ext: "pdf", hash: "h1" }] }));
     expect(r).toEqual(["O PDF é idêntico ao da revisão anterior. Envie o arquivo corrigido."]);

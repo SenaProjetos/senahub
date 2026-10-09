@@ -485,7 +485,7 @@ aposentado, e o cliente não pode seguir baixando como se valesse.
 
 ### Ciclo da revisão: em andamento, em análise, publicado, arquivado (aba Arquivos)
 
-As pranchas e memoriais do projeto (o "pacote A") seguem o ciclo de vida da **ISO 19650**. Quem tem um
+As pranchas, memoriais e modelos IFC do projeto (o "pacote A") seguem o ciclo de vida da **ISO 19650**. Quem tem um
 estado é cada **revisão** (R00, R01…), não o documento, e ela está sempre em um destes quatro:
 
 | Estado | O que quer dizer |
@@ -508,10 +508,12 @@ coordenação devolver ou publicar.
 
 - **Enviar para análise** — o sistema confere sozinho e só deixa passar com tudo certo: nome no padrão do
   projeto, disciplina/etapa/tipo existentes no catálogo, código do projeto, PDF presente, nenhum arquivo
-  igual ao da revisão anterior e a **descrição do que mudou** (obrigatória da R01 em diante). Se algo
-  falhar, a mensagem lista o que corrigir.
+  igual ao da revisão anterior e a **descrição do que mudou** (obrigatória da R01 em diante). O modelo
+  IFC é um documento próprio e dispensa o PDF. Se algo falhar, a mensagem lista o que corrigir.
 - **Devolver para ajustes** — com motivo; o projetista é avisado.
-- **Publicar** — só com todos os arquivos **validados** e sem apontamento **impeditivo** em aberto. Outros
+- **Publicar** — só com todos os arquivos **validados**, com o **DWG** junto do PDF (se o projeto exigir; o
+  padrão é exigir) e sem apontamento **impeditivo** em aberto. A validação do arquivo também só é barrada
+  por apontamento impeditivo. Outros
   apontamentos em aberto também impedem, a menos que o projeto permita publicar assim: aí você escreve uma
   justificativa e a revisão ganha uma **restrição** que sai sozinha quando os apontamentos forem
   resolvidos. Ao publicar, a revisão anterior é **arquivada** e perde a liberação para obra.
@@ -532,10 +534,10 @@ O selo **Novo** marca a revisão que outra pessoa enviou e você ainda não abri
 Toda mudança de estado e todo controle aplicado ou removido fica no **Histórico** do documento, com quem
 fez e o motivo ("automático" quando foi o sistema). Os administradores configuram o ciclo de cada projeto
 pelo **⋯ → Ciclo dos documentos** da barra de Arquivos: liberar para obra ao publicar, permitir publicar
-com apontamentos e o prazo para avisar de revisão parada em análise.
+com apontamentos, exigir o DWG para publicar e o prazo para avisar de revisão parada em análise.
 
-> Backup do modelo (pacote B), as pastas (Aprovação, Laudo, Recebidos, Geral…) e os arquivos IFC ficam
-> fora do ciclo e funcionam como antes.
+> Backup do modelo (pacote B) e as pastas (Aprovação, Laudo, Recebidos, Geral…) ficam fora do ciclo e
+> funcionam como antes.
 
 ### Histórico de cada documento (aba Arquivos)
 

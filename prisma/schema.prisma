@@ -9192,6 +9192,8 @@ model ConfigDocumentosProjeto {
   permitirPublicarComPendencias Boolean  @default(false)
   /// Dias em análise (compartilhado) até a revisão entrar no alerta de parada (A7).
   diasAlertaCompartilhado       Int      @default(7)
+  /// Publicar exige o DWG na revisão (padrão ligado, decisão do dono 2026-10-09). Modelo IFC é isento.
+  exigirDwgParaPublicar         Boolean  @default(true)
   updatedAt                     DateTime @updatedAt
   createdAt                     DateTime @default(now())
 

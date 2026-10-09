@@ -269,9 +269,9 @@ export async function POST(req: Request) {
         });
     const documentoExistente = documentoEscolhido ?? documentoPorChave;
 
-    // Ciclo documental (ISO 19650, spec 2026-10-08): só entregáveis do pacote A, sem IFC (N3). Fora
-    // dele — backup do modelo, pastas, IFC — tudo segue exatamente como antes.
-    const noCiclo = !pastaAlvo && destino === "A" && extensao(nome) !== "ifc";
+    // Ciclo documental (ISO 19650, spec 2026-10-08): entregáveis do pacote A, IFC incluído (N3). Fora
+    // dele — backup do modelo, pastas — tudo segue exatamente como antes.
+    const noCiclo = !pastaAlvo && destino === "A";
 
     // O status final pertence ao documento lógico, não ao Upload: a consulta antecede a
     // gravação física para não deixar arquivo no disco quando uma nova revisão é vedada.

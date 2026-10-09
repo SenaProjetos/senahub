@@ -3,6 +3,7 @@
  * estado, ator, bloqueio e motivo). PURO: o serviço monta a entrada lendo o banco e decide aqui.
  */
 import { contaComoTrabalho } from "@/modules/projetos/pendencias/helpers";
+import { ehDocumentoDeModelo } from "./escopo";
 
 /** Arquivo que VALE na revisão: fora da lixeira e não substituído por versão mais nova. */
 export type ArquivoDaRevisao = { id: string; nome: string; ext: string; validado: boolean };
@@ -32,9 +33,15 @@ export function decidirPublicacao(p: {
   arquivos: readonly ArquivoDaRevisao[];
   pendencias: readonly PendenciaParaGate[];
   permitirComPendencias: boolean;
+  /** Configuração do projeto: a revisão só publica com o DWG (padrão ligado). Modelo IFC é isento. */
+  exigirDwg?: boolean;
   justificativa?: string | null;
 }): DecisaoPublicacao {
   if (p.arquivos.length === 0) return { ok: false, motivo: "A revisão não tem arquivo para publicar." };
+  const exts = p.arquivos.map((a) => a.ext);
+  if (p.exigirDwg && !ehDocumentoDeModelo(exts) && !exts.includes("dwg")) {
+    return { ok: false, motivo: "Este projeto exige o DWG para publicar: envie o DWG desta revisão." };
+  }
   const semValidacao = p.arquivos.filter((a) => !a.validado);
   if (semValidacao.length > 0) {
     return {

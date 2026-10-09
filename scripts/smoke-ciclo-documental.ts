@@ -61,12 +61,15 @@ async function main() {
     });
   });
   const disciplinaId = projeto.disciplinas[0].id;
-  const config = (c: { liberar?: boolean; pendencias?: boolean }) =>
-    prisma.configDocumentosProjeto.upsert({
-      where: { projetoId: projeto.id },
-      create: { projetoId: projeto.id, liberarObraAutomaticamente: c.liberar ?? false, permitirPublicarComPendencias: c.pendencias ?? false },
-      update: { liberarObraAutomaticamente: c.liberar ?? false, permitirPublicarComPendencias: c.pendencias ?? false },
-    });
+  // O smoke publica revisões só com PDF: o DWG obrigatório fica desligado, salvo onde é o caso testado.
+  const config = (c: { liberar?: boolean; pendencias?: boolean; dwg?: boolean }) => {
+    const dados = {
+      liberarObraAutomaticamente: c.liberar ?? false,
+      permitirPublicarComPendencias: c.pendencias ?? false,
+      exigirDwgParaPublicar: c.dwg ?? false,
+    };
+    return prisma.configDocumentosProjeto.upsert({ where: { projetoId: projeto.id }, create: { projetoId: projeto.id, ...dados }, update: dados });
+  };
 
   let n = 0;
   async function documento(nome: string) {
@@ -125,6 +128,14 @@ async function main() {
     await devolverNoBanco({ revisaoId: r1.id, quem, motivo: "Cotas faltando" });
     check("A8: devolver com motivo → em andamento", (await estado(r1.id)) === "em_andamento");
     await enviarParaAnaliseNoBanco({ revisaoId: r1.id, quem });
+
+    // ── DWG obrigatório (padrão do projeto): a R00 tem PDF+DWG; sem o DWG, recusa ──
+    await config({ dwg: true });
+    const dwgUpload = r1.uploads.find((u) => u.nomeArquivo.endsWith(".dwg"))!;
+    await prisma.upload.update({ where: { id: dwgUpload.id }, data: { excluidoEm: new Date() } });
+    check("DWG obrigatório: sem o DWG a publicação é recusada", /DWG/.test((await recusa(() => publicarNoBanco({ revisaoId: r1.id, quem }))) ?? ""));
+    await prisma.upload.update({ where: { id: dwgUpload.id }, data: { excluidoEm: null } });
+    await config({});
 
     // ── D2-a: só publica com tudo validado ──
     check("D2-a: arquivo sem validação impede publicar", /Valide/.test((await recusa(() => publicarNoBanco({ revisaoId: r1.id, quem }))) ?? ""));

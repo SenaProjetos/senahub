@@ -13,6 +13,18 @@ describe("decidirPublicacao", () => {
     });
   });
 
+  it("DWG obrigatório: sem DWG recusa; com DWG, ou modelo IFC, passa", () => {
+    expect(decidirPublicacao({ arquivos: [arq()], pendencias: [], permitirComPendencias: false, exigirDwg: true })).toMatchObject({
+      ok: false,
+      motivo: expect.stringMatching(/DWG/),
+    });
+    const dwg = { ...arq(), id: "u2", nome: "A-01.dwg", ext: "dwg" };
+    expect(decidirPublicacao({ arquivos: [arq(), dwg], pendencias: [], permitirComPendencias: false, exigirDwg: true })).toEqual({ ok: true, restricao: null });
+    const ifc = { ...arq(), id: "u3", nome: "modelo.ifc", ext: "ifc" };
+    expect(decidirPublicacao({ arquivos: [ifc], pendencias: [], permitirComPendencias: false, exigirDwg: true })).toEqual({ ok: true, restricao: null });
+    expect(decidirPublicacao({ arquivos: [arq()], pendencias: [], permitirComPendencias: false, exigirDwg: false })).toEqual({ ok: true, restricao: null });
+  });
+
   it("A3 sem pendências: publica sem restrição", () => {
     expect(decidirPublicacao({ arquivos: [arq()], pendencias: [pend("media", "resolvida")], permitirComPendencias: false })).toEqual({ ok: true, restricao: null });
   });

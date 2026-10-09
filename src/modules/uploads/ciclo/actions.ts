@@ -213,6 +213,7 @@ export const salvarConfigDocumentos = defineAction(
       liberarObraAutomaticamente: z.boolean(),
       permitirPublicarComPendencias: z.boolean(),
       diasAlertaCompartilhado: z.number().int().min(1, "Mínimo de 1 dia.").max(90, "Máximo de 90 dias."),
+      exigirDwgParaPublicar: z.boolean(),
     }),
     entidadeId: (_d, input) => input.projetoId,
     capturarAntes: (input) => prisma.configDocumentosProjeto.findUnique({ where: { projetoId: input.projetoId } }),

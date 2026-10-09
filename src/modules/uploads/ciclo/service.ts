@@ -236,6 +236,7 @@ async function configDoProjeto(db: Tx | typeof prisma, projetoId: string) {
     liberarObraAutomaticamente: c?.liberarObraAutomaticamente ?? false,
     permitirPublicarComPendencias: c?.permitirPublicarComPendencias ?? false,
     diasAlertaCompartilhado: c?.diasAlertaCompartilhado ?? 7,
+    exigirDwgParaPublicar: c?.exigirDwgParaPublicar ?? true,
   };
 }
 
@@ -355,6 +356,7 @@ export async function publicarNoBanco(p: {
       arquivos: arquivosDaRevisao(r),
       pendencias,
       permitirComPendencias: config.permitirPublicarComPendencias,
+      exigirDwg: config.exigirDwgParaPublicar,
       justificativa: p.justificativa,
     });
     if (!decisao.ok) throw new ActionError(decisao.motivo);

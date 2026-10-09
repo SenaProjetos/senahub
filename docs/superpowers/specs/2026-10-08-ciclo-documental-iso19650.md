@@ -75,12 +75,23 @@ depois de mostrar exemplos reais ao dono.**
 `arquivos:somente_liberado_obra` (restrição; admin nunca é restringido; sem `leitura`/`dados`). Sem
 login, o link público já se limita à pasta Liberado para obra.
 
+## Decisões de 2026-10-09
+
+- **Validação de arquivo** passa a ser barrada só por apontamento **impeditivo** publicado (mesma regra da
+  publicação, D3-c). Antes, qualquer apontamento em aberto travava a validação e anulava a opção de
+  publicar com pendências.
+- **IFC** entra no ciclo: é um documento próprio (código próprio, mesma nomenclatura), vai ao cliente e
+  segue as mesmas revisões. Revisão de modelo (com `.ifc`) dispensa o PDF e o DWG.
+- **DWG obrigatório para publicar**: `ConfigDocumentosProjeto.exigirDwgParaPublicar`, **padrão ligado**.
+- **Pagamento do projetista** sai na **publicação** (mecânica ainda a definir — ver abaixo).
+- Permissões `arquivos:publicar`/`bloquear` são dadas à mão em produção (ninguém tinha `alterar_status`).
+
 ## Em aberto (não implementar sem o dono)
 
 - Leitura de código/revisão no carimbo — mostrar exemplos reais antes.
-- `.ifc`: nomenclatura e entrada no fluxo.
-- "DWG obrigatório para publicar" — proposta: opção por projeto, desligada.
-- Ligação validação × pagamento do projetista (D2: "rever mais pra frente").
+- Pagamento na publicação: por documento ou quando a disciplina inteira estiver publicada; automático ou
+  pela aprovação de disciplina que já existe.
+- DWG obrigatório × memoriais (documentos sem desenho): isentar por tipo de documento?
 
 ## Estado (2026-10-09)
 
