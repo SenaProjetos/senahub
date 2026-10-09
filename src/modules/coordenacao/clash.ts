@@ -99,3 +99,30 @@ export function detectarConflitos(
   }
   return conflitos;
 }
+
+/**
+ * Categorias IFC que não são objetos físicos — volume de ambiente, abertura, terreno,
+ * anotação, grade. Ficam FORA do clash: um IfcSpace ocupa o cômodo inteiro e "colide"
+ * com toda viga e pilar dentro dele (no IFC real ARQ × EST, centenas de falsos
+ * conflitos). Categoria desconhecida (null) entra, para não esconder conflito real.
+ */
+export const CATEGORIAS_FORA_DO_CLASH: ReadonlySet<string> = new Set([
+  "IFCSPACE",
+  "IFCOPENINGELEMENT",
+  "IFCOPENINGSTANDARDCASE",
+  "IFCVIRTUALELEMENT",
+  "IFCSITE",
+  "IFCGEOGRAPHICELEMENT",
+  "IFCANNOTATION",
+  "IFCGRID",
+  "IFCSPATIALZONE",
+  "IFCZONE",
+  "IFCPROJECT",
+  "IFCBUILDING",
+  "IFCBUILDINGSTOREY",
+]);
+
+/** True quando um item dessa categoria participa da detecção de conflitos. */
+export function entraNoClash(categoria: string | null | undefined): boolean {
+  return categoria == null || !CATEGORIAS_FORA_DO_CLASH.has(categoria.toUpperCase());
+}

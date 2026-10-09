@@ -52,8 +52,9 @@ import {
   formatarArea,
   type Ponto3D,
 } from "@/modules/coordenacao/medicao";
-import { detectarConflitos, type Caixa, type Conflito } from "@/modules/coordenacao/clash";
+import { detectarConflitos, entraNoClash, type Caixa, type Conflito } from "@/modules/coordenacao/clash";
 import {
+  criarCederPorTempo,
   refinarComponentesTriangulos,
   triangulosDaMalha,
   type ComponenteTriangulosClash,
@@ -118,6 +119,12 @@ export type ConflitoView = {
   centro: { x: number; y: number; z: number };
   /** `malha` quando o par foi confirmado por triângulos; `aabb` inclui fallback sem geometria. */
   metodo: "aabb" | "malha";
+  /** Classe IFC de cada lado (ex.: "IFCBEAM"), do índice do modelo; null se desconhecida. */
+  categoriaA: string | null;
+  categoriaB: string | null;
+  /** Atributo Name do IFC de cada lado, quando o modelo informa. */
+  nomeA: string | null;
+  nomeB: string | null;
 };
 
 export type OpcoesClash = {
@@ -125,6 +132,8 @@ export type OpcoesClash = {
   tolerancia?: number;
   /** Refina os pares AABB por interseção de triângulos quando a geometria está disponível. */
   refinarPorMalha?: boolean;
+  /** Progresso do refino por malha (pares conferidos / total) — o refino pode levar minutos. */
+  onProgresso?: (feitos: number, total: number) => void;
 };
 
 // ── Medição ──────────────────────────────────────────────────
@@ -869,12 +878,16 @@ export class ViewerEngine {
   ): Promise<ConflitoView[]> {
     const [modelA, modelB] = [this.modelos.get(modeloIdA), this.modelos.get(modeloIdB)];
     if (!modelA || !modelB) return [];
-    const [idsA, idsB] = await Promise.all([
-      modelA.getItemsIdsWithGeometry(),
-      modelB.getItemsIdsWithGeometry(),
+    // O índice já lista todo item com geometria, com a categoria — base para tirar do
+    // clash o que não é físico (ambiente, abertura, terreno…) e rotular a lista.
+    const [indiceA, indiceB] = await Promise.all([
+      this.indiceDoModelo(modeloIdA),
+      this.indiceDoModelo(modeloIdB),
     ]);
-    const localIdsA = [...new Set(idsA)];
-    const localIdsB = [...new Set(idsB)];
+    const categoriaA = new Map(indiceA.map((e) => [e.localId, e.category]));
+    const categoriaB = new Map(indiceB.map((e) => [e.localId, e.category]));
+    const localIdsA = [...new Set(indiceA.map((e) => e.localId))].filter((id) => entraNoClash(categoriaA.get(id)));
+    const localIdsB = [...new Set(indiceB.map((e) => e.localId))].filter((id) => entraNoClash(categoriaB.get(id)));
     const [boxesA, boxesB] = await Promise.all([
       this.bboxesDoModelo(modeloIdA, localIdsA),
       this.bboxesDoModelo(modeloIdB, localIdsB),
@@ -907,6 +920,9 @@ export class ViewerEngine {
             this.componentesTriangulosPorItem(modelB, idsB),
           ]);
           const refinados: Conflito[] = [];
+          // Uma cessão por tempo para a detecção inteira: a tela segue viva sem pagar
+          // a espera do relógio a cada par.
+          const ceder = criarCederPorTempo();
           for (let indice = 0; indice < conflitos.length; indice++) {
             const conflito = conflitos[indice];
             const chave = `${conflito.localIdA}:${conflito.localIdB}`;
@@ -917,7 +933,7 @@ export class ViewerEngine {
               refinados.push(conflito);
               continue;
             }
-            const refino = await refinarComponentesTriangulos(a, b);
+            const refino = await refinarComponentesTriangulos(a, b, { cederControle: ceder });
             if (refino.status === "intersecta") {
               metodoPorPar.set(chave, "malha");
               refinados.push(conflito);
@@ -925,10 +941,10 @@ export class ViewerEngine {
               metodoPorPar.set(chave, "aabb");
               refinados.push(conflito);
             }
-            if (indice > 0 && indice % 100 === 0) {
-              await new Promise<void>((resolve) => setTimeout(resolve, 0));
-            }
+            if (indice % 50 === 0) opcoes.onProgresso?.(indice, conflitos.length);
+            await ceder();
           }
+          opcoes.onProgresso?.(conflitos.length, conflitos.length);
           conflitosFinais = refinados;
         } catch {
           // Falha de worker/LOD não pode apagar clashes: mantém todo o broadphase.
@@ -936,6 +952,11 @@ export class ViewerEngine {
         }
       }
     }
+
+    const [nomesA, nomesB] = await Promise.all([
+      this.nomesDosItens(modeloIdA, [...new Set(conflitosFinais.map((c) => c.localIdA))]),
+      this.nomesDosItens(modeloIdB, [...new Set(conflitosFinais.map((c) => c.localIdB))]),
+    ]);
 
     return conflitosFinais.map((c) => ({
       modeloIdA,
@@ -945,7 +966,27 @@ export class ViewerEngine {
       profundidade: c.profundidade,
       centro: { x: c.centro[0], y: c.centro[1], z: c.centro[2] },
       metodo: metodoPorPar.get(`${c.localIdA}:${c.localIdB}`) ?? "aabb",
+      categoriaA: categoriaA.get(c.localIdA) ?? null,
+      categoriaB: categoriaB.get(c.localIdB) ?? null,
+      nomeA: nomesA.get(c.localIdA) ?? null,
+      nomeB: nomesB.get(c.localIdB) ?? null,
     }));
+  }
+
+  /** Atributo Name do IFC dos itens informados (em lotes); falha de leitura = sem nome. */
+  private async nomesDosItens(modeloId: string, localIds: number[]): Promise<Map<number, string>> {
+    const nomes = new Map<number, string>();
+    const model = this.modelos.get(modeloId);
+    if (!model) return nomes;
+    for (let inicio = 0; inicio < localIds.length; inicio += LOTE_PSETS) {
+      const lote = localIds.slice(inicio, inicio + LOTE_PSETS);
+      const dados = await model.getItemsData(lote, { attributesDefault: true }).catch(() => [] as ItemData[]);
+      lote.forEach((id, i) => {
+        const nome = extrairAtributos(dados[i]).atributos.find((a) => a.nome === "Name")?.valor;
+        if (nome) nomes.set(id, nome);
+      });
+    }
+    return nomes;
   }
 
   /**

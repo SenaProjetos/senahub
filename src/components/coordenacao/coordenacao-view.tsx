@@ -732,6 +732,7 @@ export function CoordenacaoView({
           projetoId={projetoId}
           projetoCodigo={projetoCodigo}
           projetoNome={projetoNome}
+          podeGerir={podeGerir}
         />
       )}
       {painelAtivo === "diff" && <DiffPainel engine={engineRef.current} modelos={modelosDiff} />}

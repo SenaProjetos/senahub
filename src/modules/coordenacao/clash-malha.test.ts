@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  criarCederPorTempo,
   refinarComponentesTriangulos,
   triangulosDaMalha,
   triangulosInterseccionam,
@@ -140,5 +141,25 @@ describe("refinarComponentesTriangulos", () => {
     expect(r.status).toBe("inconclusiva");
     expect(r.operacoes).toBe(101);
     expect(cessoes).toBeGreaterThan(0);
+  });
+});
+
+describe("criarCederPorTempo", () => {
+  it("não cede antes do intervalo — evita pagar a espera a cada fatia", async () => {
+    const ceder = criarCederPorTempo(60_000);
+    let depois = false;
+    const p = ceder().then(() => (depois = true));
+    await p;
+    expect(depois).toBe(true); // resolve na hora, sem esperar o relógio
+  });
+
+  it("cede depois do intervalo e libera a fila de tarefas", async () => {
+    const ceder = criarCederPorTempo(0);
+    const ordem: string[] = [];
+    setTimeout(() => ordem.push("tarefa"), 0);
+    await new Promise((r) => setTimeout(r, 1));
+    await ceder();
+    ordem.push("depois");
+    expect(ordem).toEqual(["tarefa", "depois"]);
   });
 });
