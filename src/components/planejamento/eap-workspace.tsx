@@ -1,5 +1,6 @@
 "use client";
 
+import { sinalDaLinha } from "@/modules/planejamento/sinais-linha";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { brl } from "@/lib/utils";
 import { useRouter } from "next/navigation";
@@ -73,7 +74,7 @@ const diasDesvio = (t: EapTarefaDTO) => {
   return Math.round((a - b) / 86400000);
 };
 
-type Filtro = "todas" | "atrasadas" | "criticas" | "bloqueadas";
+type Filtro = "todas" | "validar" | "atrasadas" | "criticas" | "bloqueadas";
 type Lookahead = "todas" | 7 | 15 | 30;
 
 export function EapWorkspace({
@@ -184,6 +185,9 @@ export function EapWorkspace({
       // Contra o combinado (a linha de base), como o verificador: com a Data de Status, a previsão de
       // uma linha inacabada anda para depois dela e deixaria de parecer atrasada.
       base = base.filter((t) => (t.fimBaseline ?? t.fimPrevisto) < hj && t.progresso < 100 && t.status !== "con");
+    } else if (filtro === "validar") {
+      // Reunião de 08/10/2026: o que o responsável já marcou como concluído e o gestor ainda não validou.
+      base = base.filter((t) => sinalDaLinha(t, hoje) === "validar");
     } else if (filtro === "criticas") {
       base = base.filter((t) => t.critica);
     } else if (filtro === "bloqueadas") {
@@ -201,6 +205,7 @@ export function EapWorkspace({
   const totalAtrasadas = tarefas.filter(
     (t) => (t.fimBaseline ?? t.fimPrevisto) < hoje && t.progresso < 100 && t.status !== "con",
   ).length;
+  const totalAValidar = tarefas.filter((t) => sinalDaLinha(t, hoje) === "validar").length;
   const totalCriticas = tarefas.filter((t) => t.critica).length;
   const totalBloqueadas = tarefas.filter((t) => t.status === "blq").length;
 
@@ -660,12 +665,13 @@ export function EapWorkspace({
             {(
               [
                 ["todas", `Todas (${tarefas.length})`],
+                ["validar", `A validar (${totalAValidar})`],
                 ["atrasadas", `Atrasadas (${totalAtrasadas})`],
                 ["criticas", `Críticas (${totalCriticas})`],
                 ["bloqueadas", `Bloqueadas (${totalBloqueadas})`],
               ] as [Filtro, string][]
             )
-              .filter(([v]) => verDatas || v === "todas" || v === "bloqueadas")
+              .filter(([v]) => verDatas || v === "todas" || v === "bloqueadas" || v === "validar")
               .map(([v, label]) => (
                 <button
                   key={v}

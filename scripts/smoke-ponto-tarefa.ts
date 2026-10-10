@@ -199,6 +199,20 @@ async function main() {
       dtoAgora?.sugestoesProgresso,
     );
     check("EAP: horas apontadas não viram sugestão de %", dtoAgora?.sugestoesProgresso.every((x) => x.origem !== ("horas" as never)) === true);
+    check("EAP: card aberto não tem 'concluído pelo responsável'", dtoAgora?.cardConcluidoEm == null);
+
+    // Reunião de 08/10/2026 (decisão 2): card concluído vira o "verde" e a sugestão de 100% (nunca grava o %).
+    if (statusFim) {
+      await prisma.tarefa.update({ where: { id: tAgora.id }, data: { statusId: statusFim.id, concluidaEm: new Date() } });
+      const eap2 = await eapDoProjeto(proj.id, { verDatas: true });
+      const dtoConcl = eap2.tarefas.find((x) => x.id === linhaAgora.id);
+      check("EAP: card concluído chega na linha (verde: falta validar)", dtoConcl?.cardConcluidoEm != null, dtoConcl?.cardConcluidoEm);
+      check(
+        "EAP: card concluído sugere 100%, na frente das outras sugestões, e NÃO grava o %",
+        dtoConcl?.sugestoesProgresso[0]?.origem === "card_concluido" && dtoConcl.sugestoesProgresso[0].valor === 100 && dtoConcl.progresso < 100,
+        dtoConcl && { sug: dtoConcl.sugestoesProgresso, progresso: dtoConcl.progresso },
+      );
+    }
     check("EAP: linha com card sem checklist ou apontado não sugere nada", dtoFutura?.sugestoesProgresso.length === 0 && dtoFutura.horasApontadas === 0, dtoFutura?.sugestoesProgresso);
 
     // ── 9. D19: o caso real — linha COM disciplina ─────────────────────────

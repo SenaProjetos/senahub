@@ -59,11 +59,13 @@ type ApoioDaLinha = {
   apontadoMin: Map<string, number>;
   /** Checklist do card gerado da linha. */
   checklist: Map<string, { feitos: number; total: number }>;
+  /** Linha → dia (`YYYY-MM-DD`) em que o card dela foi concluído; só entra se TODO card da linha está concluído. */
+  cardConcluidoEm: Map<string, string>;
   /** DOCUMENTOS por disciplina (unidade de contagem do sistema: PDF + DWG = 1). */
   arquivosPorDisciplina: Map<string, number>;
 };
 
-const SEM_APOIO: ApoioDaLinha = { apontadoMin: new Map(), checklist: new Map(), arquivosPorDisciplina: new Map() };
+const SEM_APOIO: ApoioDaLinha = { apontadoMin: new Map(), checklist: new Map(), cardConcluidoEm: new Map(), arquivosPorDisciplina: new Map() };
 
 async function carregarApoioDasLinhas(linhas: readonly { id: string; disciplinaId: string | null }[]): Promise<ApoioDaLinha> {
   const linhaIds = linhas.map((l) => l.id);
@@ -71,7 +73,7 @@ async function carregarApoioDasLinhas(linhas: readonly { id: string; disciplinaI
   const [cards, sessoes, arquivos] = await Promise.all([
     prisma.tarefa.findMany({
       where: { eapTarefaId: { in: linhaIds } },
-      select: { eapTarefaId: true, itens: { select: { concluido: true } } },
+      select: { eapTarefaId: true, concluidaEm: true, status: { select: { concluido: true } }, itens: { select: { concluido: true } } },
     }),
     prisma.sessaoTrabalho.findMany({
       where: { tarefa: { eapTarefaId: { in: linhaIds } } },
@@ -93,12 +95,17 @@ async function carregarApoioDasLinhas(linhas: readonly { id: string; disciplinaI
         }),
   ]);
 
-  const apoio: ApoioDaLinha = { apontadoMin: new Map(), checklist: new Map(), arquivosPorDisciplina: new Map() };
+  const apoio: ApoioDaLinha = { apontadoMin: new Map(), checklist: new Map(), cardConcluidoEm: new Map(), arquivosPorDisciplina: new Map() };
+  const abertos = new Set<string>();
   for (const c of cards) {
     if (c.eapTarefaId) {
       apoio.checklist.set(c.eapTarefaId, { feitos: c.itens.filter((i) => i.concluido).length, total: c.itens.length });
+      if (!c.status.concluido) abertos.add(c.eapTarefaId);
+      else if (c.concluidaEm && !abertos.has(c.eapTarefaId)) apoio.cardConcluidoEm.set(c.eapTarefaId, iso(c.concluidaEm));
     }
   }
+  // Linha com mais de um card só vale concluída quando nenhum deles está aberto.
+  for (const id of abertos) apoio.cardConcluidoEm.delete(id);
   const agora = new Date();
   for (const ss of sessoes) {
     const id = ss.tarefa?.eapTarefaId;
@@ -202,7 +209,10 @@ function mapearTarefaDTO(
      * coordenador confirma, nunca grava sozinho (D19). Horas apontadas NÃO viram sugestão: ver
      * `progresso-sugerido.ts`.
      */
+    /** Dia em que o responsável concluiu o card da linha — o "verde" da EAP (falta o gestor validar). */
+    cardConcluidoEm: apoio.cardConcluidoEm.get(t.id) ?? null,
     sugestoesProgresso: sugerirProgresso({
+      cardConcluidoEm: apoio.cardConcluidoEm.get(t.id) ?? null,
       checklist: apoio.checklist.get(t.id) ?? null,
       progressoDoStatusDaDisciplina: t.disciplina ? progressoDoStatus(t.disciplina.status) : null,
     }),
