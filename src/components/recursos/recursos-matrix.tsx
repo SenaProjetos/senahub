@@ -75,6 +75,8 @@ type Calculada = {
   projetoNome: string;
   horasSemana: number;
   percentual: number | null;
+  /** EAP ainda em rascunho: só informação, não conta no alocado (reunião de 08/10/2026, item 4). */
+  rascunho?: boolean;
 };
 type Linha = {
   recursoId: string;
@@ -635,15 +637,23 @@ export function RecursosMatrix({
                       )}
                       {(l.calculadas ?? []).map((c) => (
                         <span
-                          key={c.projetoId}
-                          className="rounded-sm border border-info/40 bg-info/10 px-1.5 py-0.5 font-mono text-[11px]"
-                          title={`${c.projetoNome} — calculada das horas nas linhas da EAP (${c.horasSemana}h esta semana). Edite na EAP do projeto.`}
+                          key={`${c.projetoId}-${c.rascunho ? "r" : "a"}`}
+                          className={
+                            c.rascunho
+                              ? "rounded-sm border border-dashed border-info/40 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
+                              : "rounded-sm border border-info/40 bg-info/10 px-1.5 py-0.5 font-mono text-[11px]"
+                          }
+                          title={
+                            c.rascunho
+                              ? `${c.projetoNome} — previsto na EAP em rascunho (${c.horasSemana}h esta semana). Só conta na carga depois de aprovar o cronograma.`
+                              : `${c.projetoNome} — calculada das horas nas linhas da EAP (${c.horasSemana}h esta semana). Edite na EAP do projeto.`
+                          }
                         >
                           {formatarCodigo(c.projetoCodigo)}{" "}
                           <span className="text-muted-foreground">
                             {c.percentual != null ? `${c.percentual}%` : `${c.horasSemana}h`}
                           </span>{" "}
-                          <span className="text-[9px] uppercase text-info">calc</span>
+                          <span className="text-[9px] uppercase text-info">{c.rascunho ? "rasc" : "calc"}</span>
                         </span>
                       ))}
                       {podeGerir && projetos.length > 0 && (

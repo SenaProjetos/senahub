@@ -418,6 +418,15 @@ async function main() {
     );
     check("projeto aprovado é calculado pelas linhas", carga.projetosCalculados.includes(projeto.id));
 
+    // Reunião de 08/10/2026 (item 4): em RASCUNHO, as horas aparecem à parte e não pesam na carga.
+    await prisma.cronogramaProjeto.update({ where: { projetoId: projeto.id }, data: { aprovado: false } });
+    const cargaRasc = await cargaDaEquipe({ hoje: "2026-10-05", semanas: 6 });
+    const pessoaR = cargaRasc.pessoas.find((p) => p.userId === pjA.id);
+    check("rascunho: projeto listado como em rascunho, não como calculado", cargaRasc.projetosEmRascunho.includes(projeto.id) && !cargaRasc.projetosCalculados.includes(projeto.id));
+    check("rascunho: as 80 h aparecem à parte e NÃO entram na carga", pessoaR?.rascunho["2026-W41"] === 80 && (pessoaR?.carga["2026-W41"] ?? 0) === 0, pessoaR && { r: pessoaR.rascunho, c: pessoaR.carga });
+    check("rascunho: não acusa sobrecarga", !cargaRasc.sobrecargas.some((so) => so.userId === pjA.id));
+    await prisma.cronogramaProjeto.update({ where: { projetoId: projeto.id }, data: { aprovado: true } });
+
     // ── 6. Atividade que virou agrupamento ─────────────────────────────────
     await prisma.eapTarefa.create({ data: { ...base, parentId: A.id, nome: "Sub", tipoEap: "atv", duracaoDias: 2, ordem: 5 } });
     q = await avaliarQualidade(projeto.id);

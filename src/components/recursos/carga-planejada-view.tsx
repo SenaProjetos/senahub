@@ -68,6 +68,8 @@ export function CargaPlanejadaView({
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
         Horas previstas nas linhas dos projetos com cronograma aprovado ({carga.projetosCalculados.length}).
+        {carga.projetosEmRascunho.length > 0 &&
+          ` Em cinza, à parte, o que ${carga.projetosEmRascunho.length} cronograma(s) em rascunho já prevê — só soma depois de aprovar.`}
         Projetos sem cronograma aprovado entram pela alocação digitada, convertida em horas.
       </p>
 
@@ -117,17 +119,22 @@ export function CargaPlanejadaView({
                 {carga.semanas.map((wk) => {
                   const h = p.carga[wk] ?? 0;
                   const cap = p.capacidade[wk] ?? 0;
+                  const r = p.rascunho[wk] ?? 0;
                   const acima = cap === 0 ? h > 0 : h > cap;
                   return (
                     <td
                       key={wk}
                       className="border-l px-1 py-2 text-center"
                       style={{ background: heatCarga(h, cap) }}
-                      title={`${p.nome} · ${wkLabel(wk)} — ${h}h planejadas de ${cap}h disponíveis`}
+                      title={
+                        `${p.nome} · ${wkLabel(wk)} — ${h}h planejadas de ${cap}h disponíveis` +
+                        (r > 0 ? ` · mais ${r}h em EAP ainda em rascunho (não somam até aprovar)` : "")
+                      }
                     >
                       <span className={`font-mono text-[10px] ${acima ? "font-bold text-white" : "text-foreground/70"}`}>
                         {`${h}/${cap}`}
                       </span>
+                      {r > 0 && <span className="block font-mono text-[9px] text-muted-foreground">+{r} rasc.</span>}
                     </td>
                   );
                 })}

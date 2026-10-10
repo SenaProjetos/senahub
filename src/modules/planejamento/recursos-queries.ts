@@ -31,6 +31,9 @@ import { sugerirCorrecoes, type ContextoProjeto, type Sugestoes } from "./sugest
  *     motor calcula AGORA (a qualidade faz o mesmo: o banco pode estar desatualizado);
  *   - projeto SEM cronograma aprovado → alocação digitada ("50% no Bela Vista") convertida
  *     em hora. A alocação digitada de projeto aprovado é IGNORADA.
+ *   - projeto com cronograma em RASCUNHO (reunião de 08/10/2026, item 4) → as horas das linhas
+ *     aparecem À PARTE (`rascunho`), em cor clara, para o planejamento ser visível antes de aprovar.
+ *     Nunca entram em `carga` nem em sobrecarga: até aprovar, quem conta é a alocação digitada.
  *
  * Capacidade e horas usam o MESMO calendário (`montarCalendarioComNomes`).
  */
@@ -51,6 +54,10 @@ export type PessoaCarga = {
   carga: Record<string, number>;
   /** Horas por projeto por semana — o detalhe que a matriz mostra. */
   porProjeto: Record<string, Record<string, number>>;
+  /** Horas por semana nas linhas de cronogramas em RASCUNHO — só informação, fora de `carga`. */
+  rascunho: Record<string, number>;
+  /** O mesmo, por projeto. */
+  rascunhoPorProjeto: Record<string, Record<string, number>>;
 };
 
 /**
@@ -83,6 +90,8 @@ export type CargaDaEquipe = {
   rotulos: RotulosCarga;
   /** Projetos cuja carga vem das linhas. Os demais vêm da alocação digitada. */
   projetosCalculados: string[];
+  /** Projetos em andamento com cronograma em rascunho: as horas das linhas vão para `rascunho`. */
+  projetosEmRascunho: string[];
   pessoas: PessoaCarga[];
   sobrecargas: SobrecargaComSugestao[];
   demandaPerfis: DemandaPerfil[];
@@ -109,14 +118,18 @@ export async function cargaDaEquipe(
   const dias = diasEntre(inicio, fim);
   const semanas = [...new Set(dias.map(chaveSemanaIso))];
 
-  const aprovados = (
-    await prisma.cronogramaProjeto.findMany({ where: { aprovado: true }, select: { projetoId: true } })
-  ).map((c) => c.projetoId);
+  const cronogramas = await prisma.cronogramaProjeto.findMany({
+    where: { OR: [{ aprovado: true }, { projeto: { situacao: "em_andamento" } }] },
+    select: { projetoId: true, aprovado: true },
+  });
+  const aprovados = cronogramas.filter((c) => c.aprovado).map((c) => c.projetoId);
+  const emRascunho = cronogramas.filter((c) => !c.aprovado).map((c) => c.projetoId);
+  const comLinhas = [...aprovados, ...emRascunho];
 
-  // ── Linhas dos projetos aprovados, nas datas do motor ───────────────────
-  const [linhasDb, planos] = await Promise.all([
+  // ── Linhas dos projetos aprovados (e dos rascunhos, à parte), nas datas do motor ──
+  const [linhasTodas, planos] = await Promise.all([
     prisma.eapTarefa.findMany({
-      where: { projetoId: { in: aprovados } },
+      where: { projetoId: { in: comLinhas } },
       select: {
         id: true,
         projetoId: true,
@@ -130,16 +143,19 @@ export async function cargaDaEquipe(
         atribuicoes: { select: { id: true, userId: true, papel: true, horasPrevistas: true } },
       },
     }),
-    Promise.all(aprovados.map(async (id) => [id, await planoDoProjeto(id)] as const)),
+    Promise.all(comLinhas.map(async (id) => [id, await planoDoProjeto(id)] as const)),
   ]);
   const planoPorProjeto = new Map(planos);
+  const ehAprovado = new Set(aprovados);
+  const linhasDb = linhasTodas.filter((l) => ehAprovado.has(l.projetoId));
 
   const linhasCarga: LinhaCarga[] = [];
-  for (const l of linhasDb) {
+  const linhasRascunho: LinhaCarga[] = [];
+  for (const l of linhasTodas) {
     if (l.atribuicoes.length === 0) continue;
     const agendada = planoPorProjeto.get(l.projetoId)?.resultado.linhas.get(l.id);
     if (!agendada) continue;
-    linhasCarga.push({
+    (ehAprovado.has(l.projetoId) ? linhasCarga : linhasRascunho).push({
       id: l.id,
       projetoId: l.projetoId,
       tipoEap: l.tipoEap,
@@ -153,7 +169,9 @@ export async function cargaDaEquipe(
   }
 
   // ── Pessoas: recursos ativos + quem está em linha aprovada ─────────────
-  const idsNasLinhas = new Set(linhasCarga.flatMap((l) => l.atribuicoes.map((a) => a.userId)).filter((u): u is string => u != null));
+  const idsNasLinhas = new Set(
+    [...linhasCarga, ...linhasRascunho].flatMap((l) => l.atribuicoes.map((a) => a.userId)).filter((u): u is string => u != null),
+  );
   const [recursos, alocacoes] = await Promise.all([
     prisma.recurso.findMany({ where: { ativo: true }, select: { userId: true, capacidade: true } }),
     prisma.alocacao.findMany({
@@ -244,6 +262,9 @@ export async function cargaDaEquipe(
     }),
   ];
 
+  // Rascunho: só informação, nunca soma na carga nem acusa sobrecarga.
+  const parcelasRascunho = parcelasDasLinhas(linhasRascunho, cal);
+
   // ── Sobrecargas e sugestões ─────────────────────────────────────────────
   const sobrecargas = detectarSobrecargas(parcelas, capacidade, { semanas, motivosReducao: motivos });
 
@@ -285,6 +306,14 @@ export async function cargaDaEquipe(
       porProjeto[pc.projetoId] ??= {};
       porProjeto[pc.projetoId][pc.semana] = (porProjeto[pc.projetoId][pc.semana] ?? 0) + pc.horas;
     }
+    const rascunho: Record<string, number> = {};
+    const rascunhoPorProjeto: Record<string, Record<string, number>> = {};
+    for (const pc of parcelasRascunho) {
+      if (pc.userId !== u.id || !semanas.includes(pc.semana)) continue;
+      rascunho[pc.semana] = (rascunho[pc.semana] ?? 0) + pc.horas;
+      rascunhoPorProjeto[pc.projetoId] ??= {};
+      rascunhoPorProjeto[pc.projetoId][pc.semana] = (rascunhoPorProjeto[pc.projetoId][pc.semana] ?? 0) + pc.horas;
+    }
     const cap = capacidade.get(u.id) ?? new Map();
     const p = porPessoa.get(u.id);
     const util = p ? capacidadePorSemana(dias, { ...p, ausencias: new Set() }, cal) : new Map<string, number>();
@@ -297,6 +326,10 @@ export async function cargaDaEquipe(
       carga: Object.fromEntries(semanas.map((s) => [s, redondo(carga[s] ?? 0)])),
       porProjeto: Object.fromEntries(
         Object.entries(porProjeto).map(([p, m]) => [p, Object.fromEntries(Object.entries(m).map(([s, h]) => [s, redondo(h)]))]),
+      ),
+      rascunho: Object.fromEntries(semanas.map((s) => [s, redondo(rascunho[s] ?? 0)])),
+      rascunhoPorProjeto: Object.fromEntries(
+        Object.entries(rascunhoPorProjeto).map(([p, m]) => [p, Object.fromEntries(Object.entries(m).map(([s, h]) => [s, redondo(h)]))]),
       ),
     };
   });
@@ -314,13 +347,13 @@ export async function cargaDaEquipe(
   }
 
   // Rótulos: linhas de projeto aprovado + todo projeto que aparece na carga.
-  const idsProjetos = [...new Set([...aprovados, ...parcelas.map((p) => p.projetoId)])];
+  const idsProjetos = [...new Set([...aprovados, ...emRascunho, ...parcelas.map((p) => p.projetoId)])];
   const projetosDb = await prisma.projeto.findMany({
     where: { id: { in: idsProjetos } },
     select: { id: true, codigo: true, nome: true },
   });
   const rotulos: RotulosCarga = {
-    linhas: Object.fromEntries(linhasDb.map((l) => [l.id, { nome: l.nome, projetoId: l.projetoId }])),
+    linhas: Object.fromEntries(linhasTodas.map((l) => [l.id, { nome: l.nome, projetoId: l.projetoId }])),
     projetos: Object.fromEntries(projetosDb.map((p) => [p.id, { codigo: p.codigo, nome: p.nome }])),
   };
 
@@ -328,6 +361,7 @@ export async function cargaDaEquipe(
     semanas,
     rotulos,
     projetosCalculados: aprovados,
+    projetosEmRascunho: emRascunho,
     pessoas: saida,
     sobrecargas: comSugestao,
     demandaPerfis: [...demanda.values()],

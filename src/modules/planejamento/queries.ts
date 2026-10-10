@@ -668,6 +668,23 @@ export async function matrizRecursos(opcoes: { verCusto: boolean }) {
             // vazia), percentual não tem base: fica nulo em vez de inventar. A sobrecarga de
             // `cargaDaEquipe`, em horas, continua acusando.
             percentual: percentualDaCapacidade(horasSemana, base),
+            rascunho: false,
+          };
+        })
+        .filter((c) => c.horasSemana > 0);
+      // Reunião de 08/10/2026 (item 4): o que a EAP em RASCUNHO já prevê aparece à parte, para o filtro
+      // por projeto achar quem está escalado antes da aprovação. Nunca soma no "alocado hoje".
+      const emRascunho = Object.entries(cargaPessoa?.rascunhoPorProjeto ?? {})
+        .map(([projetoId, porSemana]) => {
+          const horasSemana = porSemana[semanaAtual] ?? 0;
+          const projeto = projetoPorId.get(projetoId);
+          return {
+            projetoId,
+            projetoCodigo: projeto?.codigo ?? "",
+            projetoNome: projeto?.nome ?? "",
+            horasSemana,
+            percentual: percentualDaCapacidade(horasSemana, base),
+            rascunho: true,
           };
         })
         .filter((c) => c.horasSemana > 0);
@@ -722,8 +739,8 @@ export async function matrizRecursos(opcoes: { verCusto: boolean }) {
           /** Projeto com cronograma aprovado: esta alocação digitada não conta mais (D17). */
           substituidaPeloCronograma: calculados.has(a.projetoId),
         })),
-        /** Alocação calculada das linhas, nos projetos com cronograma aprovado (D17). */
-        calculadas,
+        /** Alocação calculada das linhas: aprovado (D17) e, marcada `rascunho`, a EAP ainda não aprovada. */
+        calculadas: [...calculadas, ...emRascunho],
       };
     })
     .sort((a, b) => a.nome.localeCompare(b.nome));
