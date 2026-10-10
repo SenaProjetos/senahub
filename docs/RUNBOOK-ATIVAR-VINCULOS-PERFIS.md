@@ -352,9 +352,11 @@ migrations apagam a matriz legada e o papel:
 | `20261010150000_drop_permissao_legada` | `DROP TABLE IF EXISTS "permissao"` (destrutiva) |
 | `20261010160000_user_tipo_obrigatorio` | preenche `user.tipo` nulo (cliente = externo, resto = interno) e põe NOT NULL |
 | `20261010170000_alcada_por_perfil` | converte as faixas de alçada do Financeiro de papéis para chaves de perfil |
+| `20261010175000_freelancer_sem_cnpj_rpa` | freelancer sem PJ vinculada vira `autonomo_rpa` (DRE 2.02); com PJ segue `pj` (2.01) |
 | `20261010180000_drop_user_role` | `DROP COLUMN user.role` e `DROP TYPE Role` (destrutiva) |
 
-As quatro foram ensaiadas em transação revertida no banco de dev. O deploy faz `pg_dump` antes.
+Ensaiadas de ponta a ponta em 2026-10-10 numa cópia do banco de produção (backup das 17:37): backfill pelo
+código antigo, as 19 migrations pendentes e `db:seed`, sem erro. O deploy faz `pg_dump` antes.
 
 ### Antes de tudo (servidor ainda no código ANTIGO, em `F:\senahub\app`)
 
@@ -374,7 +376,7 @@ Os scripts de apoio leem `role`, então saíram do código novo. Rode-os **antes
 
 ### Deploy
 
-Fluxo normal (`deploy\gerenciar-servidor.bat`): pull → `migrate deploy` (as 4) → `db:seed` → build →
+Fluxo normal (`deploy\gerenciar-servidor.bat`): pull → `migrate deploy` → `db:seed` → build →
 reinício. O `db:seed` é create-only: garante os perfis semente e não
 concede `rh:gerir` nem `chat:moderar` a ninguém (são pessoa a pessoa).
 
