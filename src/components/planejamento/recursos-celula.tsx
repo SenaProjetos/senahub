@@ -22,13 +22,15 @@ import { cn } from "@/lib/utils";
  * Linha que não aceita pessoa (agrupamento, tipo que não é atividade nem marco) e etapa de terceiro
  * ficam como estão: só o conteúdo da célula, sem lista.
  */
-type Pessoa = { id: string; name: string; image: string | null; role?: string };
+type Pessoa = { id: string; name: string; image: string | null; role?: string; habilidades?: string[] };
 
 type LinhaDaCelula = {
   id: string;
   tipoEap: TipoLinha;
   ehResumo: boolean;
   deTerceiro: boolean;
+  /** Disciplina da linha — quem tem habilidade com o mesmo nome vem antes dos demais. */
+  disciplinaNome?: string | null;
   atribuicoes: { id: string; userId: string | null }[];
 };
 
@@ -53,10 +55,15 @@ export function RecursosDaCelula({
 
   const naLinha = new Set(linha.atribuicoes.map((a) => a.userId).filter((u): u is string => u != null));
   const q = busca.trim().toLowerCase();
-  // Quem já está na linha primeiro; depois a ordem alfabética que a lista já traz.
+  // Quem já está na linha primeiro, depois quem tem a habilidade da disciplina, depois a ordem alfabética que a lista já traz.
+  const disciplina = linha.disciplinaNome?.trim().toLowerCase() ?? null;
+  const temHabilidade = (p: Pessoa) => !!disciplina && (p.habilidades ?? []).some((h) => h.trim().toLowerCase() === disciplina);
   const lista = pessoas
     .filter((p) => !q || p.name.toLowerCase().includes(q))
-    .sort((a, b) => Number(naLinha.has(b.id)) - Number(naLinha.has(a.id)));
+    .sort(
+      (a, b) =>
+        Number(naLinha.has(b.id)) - Number(naLinha.has(a.id)) || Number(temHabilidade(b)) - Number(temHabilidade(a)),
+    );
 
   const papelPadrao = (p: Pessoa): Papel => (p.role === "estagiario" ? "est" : "pro");
 
@@ -128,6 +135,7 @@ export function RecursosDaCelula({
                 >
                   <AvatarUsuario nome={p.name} image={p.image} size="sm" className="size-5 shrink-0" />
                   <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                  {!dentro && temHabilidade(p) && <span className="shrink-0 text-[10px] text-muted-foreground">{linha.disciplinaNome}</span>}
                   {dentro && <Check className="size-3.5 shrink-0 text-primary" aria-label="na linha" />}
                 </button>
               </li>

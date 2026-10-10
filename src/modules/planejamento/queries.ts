@@ -832,11 +832,19 @@ export async function cronogramaProjetoInfo(projetoId: string) {
 
 /** Pessoa ou perfil para atribuir numa linha da EAP (F5) — gente da casa, ativa. */
 export async function pessoasParaAtribuicao() {
-  return prisma.user.findMany({
+  const pessoas = await prisma.user.findMany({
     where: { ativo: true, role: { not: "cliente" } },
-    select: { id: true, name: true, image: true, role: true },
+    select: {
+      id: true,
+      name: true,
+      image: true,
+      role: true,
+      // Habilidade que a pessoa declarou (nível preenchido): a lista da célula põe no topo quem trabalha com a disciplina da linha.
+      habilidades: { where: { nivel: { not: null } }, select: { habilidade: { select: { nome: true } } } },
+    },
     orderBy: { name: "asc" },
   });
+  return pessoas.map(({ habilidades, ...p }) => ({ ...p, habilidades: habilidades.map((h) => h.habilidade.nome) }));
 }
 
 /**

@@ -146,6 +146,10 @@ export async function executarOperacoes(tx: Tx, versao: number, ops: readonly Op
           },
         });
         cardsNovos.set(op.chave, c.id);
+        // Reunião de 08/10/2026: cada disciplina é UMA habilidade (categoria "disciplina") — é o que o /recursos usa
+        // para dizer quem trabalha com o quê. Já existindo uma de mesmo nome (sem diferença de caixa), fica como está.
+        const jaTem = await tx.habilidade.findFirst({ where: { nome: { equals: op.nome, mode: "insensitive" } }, select: { id: true } });
+        if (!jaTem) await tx.habilidade.create({ data: { nome: op.nome, categoria: "disciplina", publicada: true } });
         if (op.sigla) await criarLinha(tx, { tipo: "disciplina", id: c.id }, op.sigla, true, versao);
         break;
       }
