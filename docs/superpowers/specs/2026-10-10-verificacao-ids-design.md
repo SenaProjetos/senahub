@@ -1,7 +1,7 @@
 # Verificação de requisitos do modelo (IDS)
 
 Pedido do dono em 2026-10-09/10, na conversa da Coordenação BIM. Decisões D1–D7 abaixo foram tomadas
-uma a uma na conversa; D8–D10 são propostas desta especificação e precisam do OK na revisão. Este
+uma a uma na conversa; D8–D10 foram propostas nesta especificação e aprovadas pelo dono em 2026-10-10. Este
 arquivo é o contrato: o código segue o que está aqui.
 
 ## Objetivo
@@ -24,9 +24,9 @@ a revisão chega à análise já conferida.
 | D5 | Escopo: IFC do escritório (revisões das disciplinas, no ciclo) é verificado **sempre**; IFC recebido do cliente só **sob demanda** (botão "Verificar requisitos"), e nunca bloqueia nada. |
 | D6 | Reprovação gera **relatório**. Cada requisito reprovado tem o botão **"Virar apontamento"** — nada vira apontamento sozinho. |
 | D7 | Verificador **próprio em Node** (web-ifc no processo separado, como a conversão), sem Python. Entrega em etapas: primeiro entidade, atributo, propriedade e classificação; depois material e partOf. Requisito com exigência ainda não suportada aparece como **"não verificado"**, nunca aprovado nem reprovado por engano. |
-| D8 *(proposta)* | Com o bloqueio ligado, publicar uma revisão reprovada continua possível **com justificativa** escrita, por quem tem `coordenacao:gerir` — o mesmo mecanismo que o ciclo já usa para publicar com pendências não impeditivas. A justificativa vira evento da revisão. |
-| D9 *(proposta)* | Revisão com verificação **ainda rodando ou com erro** não publica enquanto o bloqueio estiver ligado ("aguarde a verificação" / "a verificação falhou, reenvie ou peça nova verificação"). Sem .ids no projeto, nada muda. |
-| D10 *(proposta)* | Trocar ou incluir um .ids **reverifica** a revisão vigente de cada documento de modelo ainda não publicado (em andamento ou em análise). Revisões publicadas mantêm o resultado da época (é o que foi entregue). |
+| D8 | Com o bloqueio ligado, publicar uma revisão reprovada continua possível **com justificativa** escrita, por quem tem `coordenacao:gerir` — o mesmo mecanismo que o ciclo já usa para publicar com pendências não impeditivas. A justificativa vira evento da revisão. |
+| D9 | Revisão com verificação **ainda rodando ou com erro** não publica enquanto o bloqueio estiver ligado ("aguarde a verificação" / "a verificação falhou, reenvie ou peça nova verificação"). Sem .ids no projeto, nada muda. |
+| D10 | Trocar ou incluir um .ids **reverifica** a revisão vigente de cada documento de modelo ainda não publicado (em andamento ou em análise). Revisões publicadas mantêm o resultado da época (é o que foi entregue). |
 
 ## O que o usuário vê
 
@@ -108,6 +108,8 @@ casos daquele tipo de exigência passam.
 ## Limites conhecidos
 
 - IFC acima do limite da conversão (`TAMANHO_MAX_IFC`) não é verificado (erro com o motivo).
-- Unidades: valores de propriedade são comparados na unidade do arquivo, como o IDS 1.0 manda;
-  conversão de unidade entre .ids e IFC fica fora.
+- Unidades: o IDS 1.0 escreve medidas em SI (tabela de unidades do IDS) e manda converter o valor do
+  IFC para SI antes de comparar. O verificador converte as unidades SI com prefixo declaradas no
+  arquivo (mm, cm, m², mm³…). Unidade fora do SI (pé, polegada, unidade derivada sem conversão
+  conhecida) deixa a exigência daquele valor como "não verificado", nunca reprova.
 - IDS 0.9 ou formatos antigos são recusados no envio.
