@@ -61,11 +61,11 @@ describe("alçada única (N3)", () => {
     expect(situacaoAposMudarValor({ tipo: "receita", status: "previsto", valorAlcada: 99999, faixas })).toBeNull();
     expect(situacaoAposMudarValor({ tipo: "despesa", status: "confirmado", valorAlcada: 99999, faixas })).toBeNull();
   });
-  it("autoaprovação só do admin; papel fora da faixa não aprova", () => {
+  it("autoaprovação só do superusuário; papel fora da faixa não aprova", () => {
     const base = { valorAlcada: 5000, faixas, autorId: "u1" };
-    expect(motivoParaNaoAprovar({ ...base, aprovador: { id: "u1", role: "supervisor" } })).toBe(MOTIVO_PROPRIA_DESPESA);
-    expect(motivoParaNaoAprovar({ ...base, aprovador: { id: "u1", role: "admin" } })).toBeNull();
-    expect(motivoParaNaoAprovar({ ...base, aprovador: { id: "u2", role: "supervisor" } })).toBeNull();
-    expect(motivoParaNaoAprovar({ ...base, valorAlcada: 20000, aprovador: { id: "u2", role: "supervisor" } })).toBe(MOTIVO_SEM_ALCADA);
+    expect(motivoParaNaoAprovar({ ...base, aprovador: { id: "u1", role: "supervisor", superUsuario: false } })).toBe(MOTIVO_PROPRIA_DESPESA);
+    expect(motivoParaNaoAprovar({ ...base, aprovador: { id: "u1", role: "admin", superUsuario: true } })).toBeNull();
+    expect(motivoParaNaoAprovar({ ...base, aprovador: { id: "u2", role: "supervisor", superUsuario: false } })).toBeNull();
+    expect(motivoParaNaoAprovar({ ...base, valorAlcada: 20000, aprovador: { id: "u2", role: "supervisor", superUsuario: false } })).toBe(MOTIVO_SEM_ALCADA);
   });
 });

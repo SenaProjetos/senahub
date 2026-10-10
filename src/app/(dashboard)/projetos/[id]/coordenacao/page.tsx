@@ -120,7 +120,7 @@ export default async function CoordenacaoPage({
           projetoCodigo={formatarCodigo(projeto.codigo)}
           projetoNome={projeto.nome}
           currentUserId={user.id}
-          ehAdmin={user.role === "admin"}
+          ehAdmin={user.superUsuario}
           perfilGlobal={atuaEmDisciplinaAlheia}
           podeGerir={podeGerir}
           minhasDisciplinas={minhasDisciplinas.map((d) => d.disciplinaId)}

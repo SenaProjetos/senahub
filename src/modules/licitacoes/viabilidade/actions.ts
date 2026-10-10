@@ -84,7 +84,7 @@ export const decidirViabilidade = defineAction(
   },
   async (i, { user }) => {
     // Gate: somente sócio ativo OU admin
-    const ehAdmin = user.role === "admin";
+    const ehAdmin = user.superUsuario;
     const socio = ehAdmin
       ? null
       : await prisma.socio.findFirst({

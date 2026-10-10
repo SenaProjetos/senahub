@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     select: { id: true, projetoId: true, autorId: true },
   });
   if (!apontamento) return NextResponse.json({ error: "Apontamento não encontrado." }, { status: 404 });
-  if (apontamento.autorId !== user.id && user.role !== "admin") {
+  if (apontamento.autorId !== user.id && !user.superUsuario) {
     return NextResponse.json({ error: "Só quem criou o apontamento pode anexar o snapshot." }, { status: 403 });
   }
 

@@ -78,7 +78,7 @@ export default async function ArquivosPage({
   // Pasta "Geral" (Documento origem=interno) só é carregada p/ quem tem `arquivos_gerais:ver`.
   const geral = podeVerGeral ? await geralDoProjeto(id) : [];
   // Lixeira do projeto: só admin (gate da action) — os demais recebem lista vazia.
-  const ehAdmin = user.role === "admin";
+  const ehAdmin = user.superUsuario;
   const lixeira = ehAdmin ? await lixeiraDoProjeto(id) : [];
   // Pedidos de exclusão pendentes: o admin vê todos (é quem decide); os demais só o
   // próprio pedido, pra não expor que outra pessoa quer excluir aquele arquivo.

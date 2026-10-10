@@ -639,16 +639,15 @@ async function exigirExclusaoNoCiclo(user: SessionUser, uploadIds: string[], mot
 }
 
 /**
- * Gate da lixeira: admin OU quem tiver `arquivos:excluir` concedido na matriz.
+ * Gate da lixeira: superusuário OU quem tiver `arquivos:excluir` concedido na matriz.
  *
  * Era `role === "admin"` cravado em código, invisível para a tela de Permissões
- * (docs/auditoria/01-arquitetura-atual.md §10b). A capability foi catalogada e passa a ser
- * um caminho ADICIONAL — o `role === "admin"` continua aqui de propósito: `can()` bypassa
- * por `superUsuario`, não por role, então trocar um pelo outro trancaria o admin para fora
- * em qualquer base onde o backfill de perfis ainda não tenha rodado.
+ * (docs/auditoria/01-arquitetura-atual.md §10b). Virou `superUsuario` na Onda F (bloco B): o
+ * censo (`scripts/censo-onda-f.ts`, seção 2) confere antes do deploy que todo admin ativo é
+ * superusuário.
  */
 async function exigirPermissaoLixeira(user: SessionUser) {
-  if (user.role === "admin") return;
+  if (user.superUsuario) return;
   if (await can(user, "arquivos", "excluir")) return;
   throw new ActionError("Você não tem permissão para gerir a lixeira do projeto.");
 }
@@ -1136,7 +1135,7 @@ export const solicitarExclusaoUpload = defineAction(
     entidadeId: (d) => (d as { id?: string } | undefined)?.id,
   },
   async (input, { user }) => {
-    if (user.role === "admin") {
+    if (user.superUsuario) {
       throw new ActionError("Você já pode excluir arquivos — use a exclusão direta.");
     }
 

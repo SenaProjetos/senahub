@@ -32,9 +32,9 @@ export default async function UsuariosPage() {
         templates={opcoes.templates}
         perfis={perfis}
         cargos={opcoes.cargos}
-        podeDefinirSocio={user.role === "admin"}
-        podeExcluir={user.role === "admin"}
-        ehAdmin={user.role === "admin"}
+        podeDefinirSocio={user.superUsuario}
+        podeExcluir={user.superUsuario}
+        ehAdmin={user.superUsuario}
       />
     </div>
   );

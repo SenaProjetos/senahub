@@ -51,14 +51,14 @@ export function valorDaAlcada(valor: number, ocorrencias = 1): number {
   return (Math.round(valor * 100) * Math.max(1, ocorrencias)) / 100;
 }
 
-/** Por que este aprovador não pode decidir esta despesa; `null` = pode. Admin decide tudo. */
+/** Por que este aprovador não pode decidir esta despesa; `null` = pode. Superusuário decide tudo. */
 export function motivoParaNaoAprovar(p: {
   valorAlcada: number;
   faixas: FaixaAlcada[];
-  aprovador: { id: string; role: string };
+  aprovador: { id: string; role: string; superUsuario: boolean };
   autorId: string;
 }): string | null {
-  if (p.aprovador.role === "admin") return null;
+  if (p.aprovador.superUsuario) return null;
   if (p.aprovador.id === p.autorId) return MOTIVO_PROPRIA_DESPESA;
   if (!papeisAprovadores(p.valorAlcada, p.faixas).includes(p.aprovador.role)) return MOTIVO_SEM_ALCADA;
   return null;

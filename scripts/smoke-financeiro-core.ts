@@ -473,7 +473,7 @@ async function alcadaUnica(autorId: string) {
 
     const vistoPeloAutor = (await lancamentosAguardando(supervisor)).filter((l) => l.descricao === `${tag} tres`);
     check("quem lançou vê as próprias desabilitadas com a frase do servidor", vistoPeloAutor.length === 3 && vistoPeloAutor.every((l) => l.bloqueio === MOTIVO_PROPRIA_DESPESA), vistoPeloAutor.map((l) => l.bloqueio));
-    const vistoPeloAdmin = (await lancamentosAguardando({ id: autorId, role: "admin" })).filter((l) => l.descricao === `${tag} tres`);
+    const vistoPeloAdmin = (await lancamentosAguardando({ id: autorId, role: "admin", superUsuario: true })).filter((l) => l.descricao === `${tag} tres`);
     check("o admin decide", vistoPeloAdmin.every((l) => l.bloqueio === null));
 
     // Migração: o limite antigo vira faixas equivalentes (>= limite exige aprovação), e a chave sai.

@@ -199,7 +199,7 @@ export default async function VisualizarPage({
       finalizada={upload.disciplina.status === "aprovado"}
       podeValidar={podeValidar}
       ehResponsavel={ehResp}
-      ehAdmin={user.role === "admin"}
+      ehAdmin={user.superUsuario}
       ehGlobal={atuaEmDisciplinaAlheia}
       currentUserId={user.id}
       pendenciasIniciais={pendencias}

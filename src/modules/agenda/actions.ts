@@ -87,7 +87,7 @@ export const editarCompromisso = defineAction(
   async (i, { user }) => {
     const c = await prisma.compromisso.findUnique({ where: { id: i.id } });
     if (!c) throw new ActionError("Compromisso não encontrado.");
-    if (c.criadorId !== user.id && user.role !== "admin") {
+    if (c.criadorId !== user.id && !user.superUsuario) {
       throw new ActionError("Só o criador pode editar.");
     }
     const existentesAntes = await prisma.compromissoParticipante.findMany({
@@ -141,7 +141,7 @@ export const excluirCompromisso = defineAction(
   async (i, { user }) => {
     const c = await prisma.compromisso.findUnique({ where: { id: i.id } });
     if (!c) throw new ActionError("Compromisso não encontrado.");
-    if (c.criadorId !== user.id && user.role !== "admin") {
+    if (c.criadorId !== user.id && !user.superUsuario) {
       throw new ActionError("Só o criador pode excluir.");
     }
     await prisma.compromisso.delete({ where: { id: i.id } });

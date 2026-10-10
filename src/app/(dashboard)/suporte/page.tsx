@@ -12,7 +12,7 @@ export default async function SuportePage({
   searchParams: Promise<{ escopo?: string; prioridade?: string }>;
 }) {
   const user = await requireUser();
-  const ehGestor = user.role === "admin" || HR_ADMIN_ROLES.includes(user.role);
+  const ehGestor = user.superUsuario || HR_ADMIN_ROLES.includes(user.role);
 
   // Gestores podem alternar entre "meus" e "todos" (default: todos).
   // Demais usuários sempre veem apenas os próprios tickets.

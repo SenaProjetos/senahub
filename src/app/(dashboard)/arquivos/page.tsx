@@ -43,7 +43,7 @@ export default async function ArquivosDiretorioPage({ searchParams }: { searchPa
   ]);
   const arvore = await arvoreGlobalArquivos(user, veTodas, {
     geral: podeVerGeral,
-    lixeira: user.role === "admin",
+    lixeira: user.superUsuario,
     gerirRecebidos: false,
   });
   const anos: AnoDoDiretorio[] = arvore.map((a) => ({

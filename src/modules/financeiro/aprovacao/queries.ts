@@ -78,7 +78,7 @@ export async function aprovadoresPorPapeis(papeis: string[]): Promise<string[]> 
  * `aprovarLancamento` aplica (`motivoParaNaoAprovar`: autoaprovação, faixa pelo total do
  * parcelamento × papel, admin decide tudo): a tela desabilita o item com o motivo.
  */
-export async function lancamentosAguardando(quem?: { id: string; role: string }) {
+export async function lancamentosAguardando(quem?: { id: string; role: string; superUsuario: boolean }) {
   const ls = await prisma.lancamento.findMany({
     where: { status: "aguardando_aprovacao" },
     orderBy: { createdAt: "desc" },

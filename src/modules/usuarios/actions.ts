@@ -110,13 +110,13 @@ export const editarUsuario = defineAction(
       });
       socioMudou = desejaSocio !== (socio?.ativo === true);
       // Valida ANTES de gravar qualquer coisa — evita atualização parcial.
-      if (socioMudou && ctx.user.role !== "admin") {
+      if (socioMudou && !ctx.user.superUsuario) {
         throw new ActionError("Apenas administradores podem definir quem é sócio.");
       }
     }
 
     // Bypass total — mesmo raciocínio do sócio: só admin concede (validado ANTES de gravar).
-    if (input.superUsuario !== undefined && ctx.user.role !== "admin") {
+    if (input.superUsuario !== undefined && !ctx.user.superUsuario) {
       throw new ActionError("Apenas administradores podem conceder acesso total (superUsuário).");
     }
 

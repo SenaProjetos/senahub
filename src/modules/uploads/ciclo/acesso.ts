@@ -7,7 +7,7 @@ import { exigirEscopoDocumento } from "@/modules/uploads/escopo-documento";
 
 /** "Só um administrador, com motivo" (D5-b): o bypass de verdade é `superUsuario`; `admin` por papel também. */
 export function ehAdminDoCiclo(user: Pick<SessionUser, "superUsuario" | "role">): boolean {
-  return user.superUsuario || user.role === "admin";
+  return user.superUsuario;
 }
 
 /**

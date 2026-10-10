@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   const user = session.user;
-  if (!PJ_ROLES.includes(user.role as (typeof PJ_ROLES)[number]) && user.role !== "admin") {
+  if (!PJ_ROLES.includes(user.role as (typeof PJ_ROLES)[number]) && !user.superUsuario) {
     return NextResponse.json({ error: "Apenas PJ/freelancer enviam notas." }, { status: 403 });
   }
 

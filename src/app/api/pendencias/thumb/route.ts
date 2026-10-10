@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     select: { id: true, projetoId: true, autorId: true, excluidoEm: true },
   });
   if (!p || p.excluidoEm) return NextResponse.json({ error: "Apontamento não encontrado." }, { status: 404 });
-  if (p.autorId !== user.id && user.role !== "admin") {
+  if (p.autorId !== user.id && !user.superUsuario) {
     return NextResponse.json({ error: "Só quem criou o apontamento pode anexar a miniatura." }, { status: 403 });
   }
 

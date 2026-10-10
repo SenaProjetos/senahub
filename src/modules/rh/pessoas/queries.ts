@@ -93,7 +93,7 @@ export async function fichaPessoa(userId: string, acessos: AcessosFichaPessoa) {
   const u = await prisma.user.findUnique({
     where: { id: userId },
     select: {
-      id: true, name: true, nomeCompleto: true, email: true, role: true, ativo: true, image: true,
+      id: true, name: true, nomeCompleto: true, email: true, role: true, ativo: true, image: true, superUsuario: true,
       dataAdmissao: true, cpf: true, rg: true, dataNascimento: true, cargo: true, departamento: true,
       cargoId: true, departamentoId: true, telefone: true,
       enderecoCep: true, enderecoLogradouro: true, enderecoNumero: true, enderecoBairro: true,
@@ -207,6 +207,8 @@ export async function fichaPessoa(userId: string, acessos: AcessosFichaPessoa) {
     /** Rótulo pronto do registro profissional ("CREA-SP 123456") ou null. */
     registro: formatarRegistro(u),
     socioAtivo: u.socio?.ativo === true,
+    /** Bypass total do motor — a ficha não deixa trocar a contratação de quem é superusuário. */
+    superUsuario: u.superUsuario,
     /**
      * Estado do desligamento. `agendado` = vínculo ainda ativo com data de saída marcada (pode ser
      * cancelado); `encerrado` = vínculo já encerrado; `null` = sem desligamento. `motivo`

@@ -50,10 +50,10 @@ function ehHrAdmin(role: Role): boolean {
  * do ponto de vista de negócio) com valor acima da alçada exige sócio. Único ponto de checagem —
  * `atualizarContratoEquipe` e `registrarAceite` chamam este helper em vez de duplicar a regra.
  */
-async function exigirSocioSeAcimaDaAlcada(valor: number | null | undefined, ctx: { role: Role; ehSocio: boolean }) {
+async function exigirSocioSeAcimaDaAlcada(valor: number | null | undefined, ctx: { superUsuario: boolean; ehSocio: boolean }) {
   if (valor == null) return;
   const limite = await limiteAprovacaoContrato();
-  if (devePassarPorAprovacao("despesa", valor, limite) && !ctx.ehSocio && ctx.role !== "admin") {
+  if (devePassarPorAprovacao("despesa", valor, limite) && !ctx.ehSocio && !ctx.superUsuario) {
     throw new ActionError(`Contrato de ${brl(valor)} acima do limite (${brl(limite)}) exige aprovação de um sócio.`);
   }
 }

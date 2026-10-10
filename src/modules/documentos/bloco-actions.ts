@@ -58,7 +58,7 @@ export const excluirBloco = defineAction(
     });
     if (!b) throw new ActionError("Bloco não encontrado.");
     const ehDono = b.donoId != null && b.donoId === user.id;
-    if (!ehDono && user.role !== "admin") {
+    if (!ehDono && !user.superUsuario) {
       throw new ActionError("Apenas o dono ou um administrador pode excluir o bloco.");
     }
     await prisma.blocoDocumento.delete({ where: { id: i.id } });

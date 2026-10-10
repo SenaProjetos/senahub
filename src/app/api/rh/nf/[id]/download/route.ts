@@ -13,7 +13,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const nf = await prisma.notaFiscalPJ.findUnique({ where: { id } });
   if (!nf) return NextResponse.json({ error: "NF não encontrada." }, { status: 404 });
 
-  const ehGestor = user.role === "admin" || HR_ADMIN_ROLES.includes(user.role);
+  const ehGestor = user.superUsuario || HR_ADMIN_ROLES.includes(user.role);
   if (!ehGestor && nf.userId !== user.id) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }

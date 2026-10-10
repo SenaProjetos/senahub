@@ -191,7 +191,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
   const podeDesligar = podeEditarCadastro && !self;
   // Admin não tem eixo de contratação no modelo (mapa.ts) — nem mostra o botão, pra não abrir um
   // diálogo que o servidor vai recusar de qualquer forma.
-  const podeAlterarContratacao = podeEditarCadastro && !self && pessoa.role !== "admin";
+  const podeAlterarContratacao = podeEditarCadastro && !self && !pessoa.superUsuario;
 
   async function cancelarDesligamento() {
     // Confirm ANTES do startTransition: dentro dele o React 19 suspende o setState do dialog.

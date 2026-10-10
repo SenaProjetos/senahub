@@ -77,7 +77,7 @@ export default async function AgendaPage({
       ano={ano}
       mes={mes}
       meuId={user.id}
-      ehAdmin={user.role === "admin"}
+      ehAdmin={user.superUsuario}
       internos={internos}
       feriados={feriados.map((f) => ({ data: f.data, nome: f.nome, tipo: f.tipo }))}
       ferias={feriasRows.map((f) => ({

@@ -413,7 +413,7 @@ export const editarPendencia = defineAction(
       include: { upload: { select: { autorId: true } } },
     });
     if (!p || p.excluidoEm) throw new ActionError("Pendência não encontrada.");
-    if (p.autorId !== user.id && user.role !== "admin") throw new ActionError("Só quem criou o apontamento (ou admin) pode editá-lo.");
+    if (p.autorId !== user.id && !user.superUsuario) throw new ActionError("Só quem criou o apontamento (ou admin) pode editá-lo.");
     if (p.tarefaId) throw new ActionError("Pendência já enviada como tarefa — não pode ser editada.");
     if (p.status !== "aberta") throw new ActionError("Só pendências abertas podem ser editadas.");
     await prisma.pendencia.update({
@@ -564,7 +564,7 @@ export const excluirPendencia = defineAction(
     const p = await prisma.pendencia.findUnique({ where: { id: input.id } });
     if (!p) throw new ActionError("Pendência não encontrada.");
     if (p.excluidoEm) return { id: p.id, projetoId: p.projetoId };
-    if (p.autorId !== user.id && user.role !== "admin") throw new ActionError("Só quem criou o apontamento (ou admin) pode excluí-lo.");
+    if (p.autorId !== user.id && !user.superUsuario) throw new ActionError("Só quem criou o apontamento (ou admin) pode excluí-lo.");
     if (p.tarefaId) throw new ActionError("Pendência já vinculada a uma tarefa — não pode ser excluída.");
     await prisma.pendencia.update({
       where: { id: p.id },
@@ -1138,7 +1138,7 @@ export const excluirAnexoPendencia = defineAction(
       include: { pendencia: { select: { projetoId: true, uploadId: true } } },
     });
     if (!a) throw new ActionError("Anexo não encontrado.");
-    if (a.autorId !== user.id && user.role !== "admin") {
+    if (a.autorId !== user.id && !user.superUsuario) {
       throw new ActionError("Só quem anexou (ou admin) pode remover o anexo.");
     }
     await prisma.pendenciaAnexo.delete({ where: { id: a.id } });
@@ -1318,7 +1318,7 @@ export const removerReferenciaPendencia = defineAction(
       },
     });
     if (!ref) throw new ActionError("Referência não encontrada.");
-    if (ref.autorId !== user.id && user.role !== "admin") {
+    if (ref.autorId !== user.id && !user.superUsuario) {
       throw new ActionError("Só quem criou a referência (ou admin) pode removê-la.");
     }
     await prisma.referenciaPendencia.delete({ where: { id: ref.id } });
@@ -1337,7 +1337,7 @@ export const excluirRespostaPendencia = defineAction(
       include: { pendencia: { select: { projetoId: true, uploadId: true } } },
     });
     if (!r) throw new ActionError("Resposta não encontrada.");
-    if (r.autorId !== user.id && user.role !== "admin") throw new ActionError("Só quem escreveu (ou admin) pode apagar a resposta.");
+    if (r.autorId !== user.id && !user.superUsuario) throw new ActionError("Só quem escreveu (ou admin) pode apagar a resposta.");
     await prisma.pendenciaResposta.delete({ where: { id: r.id } });
     revalidarViewer(r.pendencia.projetoId, r.pendencia.uploadId);
     return { id: r.id, projetoId: r.pendencia.projetoId };

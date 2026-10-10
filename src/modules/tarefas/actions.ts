@@ -358,7 +358,7 @@ export const removerComentario = defineAction(
       select: { autorId: true },
     });
     if (!c) throw new ActionError("Comentário não encontrado.");
-    if (c.autorId !== user.id && user.role !== "admin") throw new ActionError("Só o autor remove.");
+    if (c.autorId !== user.id && !user.superUsuario) throw new ActionError("Só o autor remove.");
     await prisma.tarefaComentario.delete({ where: { id: i.id } });
     rev();
     return { id: i.id };

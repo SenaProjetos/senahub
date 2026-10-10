@@ -324,7 +324,7 @@ export const editarApontamentoCoordenacao = defineAction(
   async (input, { user }) => {
     const a = await prisma.apontamentoCoordenacao.findUnique({ where: { id: input.id } });
     if (!a) throw new ActionError("Apontamento não encontrado.");
-    if (a.autorId !== user.id && user.role !== "admin") throw new ActionError("Só quem criou o apontamento (ou admin) pode editá-lo.");
+    if (a.autorId !== user.id && !user.superUsuario) throw new ActionError("Só quem criou o apontamento (ou admin) pode editá-lo.");
     if (a.tarefaId) throw new ActionError("Apontamento já enviado como tarefa — não pode ser editado.");
     if (a.status !== "aberta") throw new ActionError("Só apontamentos abertos podem ser editados.");
     await prisma.apontamentoCoordenacao.update({
@@ -342,7 +342,7 @@ export const excluirApontamentoCoordenacao = defineAction(
   async (input, { user }) => {
     const a = await prisma.apontamentoCoordenacao.findUnique({ where: { id: input.id } });
     if (!a) throw new ActionError("Apontamento não encontrado.");
-    if (a.autorId !== user.id && user.role !== "admin") throw new ActionError("Só quem criou o apontamento (ou admin) pode excluí-lo.");
+    if (a.autorId !== user.id && !user.superUsuario) throw new ActionError("Só quem criou o apontamento (ou admin) pode excluí-lo.");
     if (a.tarefaId) throw new ActionError("Apontamento já vinculado a uma tarefa — não pode ser excluído.");
     await prisma.apontamentoCoordenacao.delete({ where: { id: a.id } });
     revalidarCoordenacao(a.projetoId);
