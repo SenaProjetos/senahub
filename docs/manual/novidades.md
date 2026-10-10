@@ -22,6 +22,31 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 
 ---
 
+## Etapas no card da disciplina, ponto e Meu trabalho
+
+- **Todo card de disciplina mostra as etapas** (Estudo Preliminar, Básico e Executivo — só Básico e Executivo no
+  Residencial unifamiliar), cada uma com **início e fim**. A coordenação preenche as datas à mão, olhando a EAP.
+- **"Enviei os documentos"**: quem é responsável pela disciplina sinaliza no próprio card que enviou tudo daquela etapa
+  para análise. A coordenação do projeto é avisada, e dá para desfazer até ela aprovar a etapa.
+- **Ponto:** a atividade atrasada que ainda está aberta não some mais da lista (aparece no topo, marcada), as outras
+  atividades da mesma etapa ficam em "Ver outras da etapa", e o ponto já abre no projeto e na atividade de hoje.
+- **Meu trabalho** agora lista as suas **atividades** por projeto, com o botão **Terminei**. Terminar não muda o % da
+  EAP: a linha fica **verde** para o gestor validar. Passou do término e não chegou a 100%, a linha fica **vermelha**.
+- **EAP:** escolha quem faz a atividade direto na célula "Nomes dos recursos"; função **Estagiário** disponível;
+  filtro **A validar**. No Recursos, o que um cronograma ainda em rascunho já prevê aparece à parte, em cinza.
+- **Aviso da etapa que vem:** quem tem atividade numa etapa e a coordenação recebem um aviso 2 dias úteis antes de ela
+  começar (dá para desligar em Preferências).
+- **Atividade concluída:** quando o responsável conclui o card de uma atividade da EAP, a coordenação do projeto recebe
+  um aviso para validar o percentual (sem coordenador cadastrado, vai para admin e supervisor). Dá para desligar em Preferências.
+- **Modelo de EAP preenche os percentuais das etapas** quando as etapas da disciplina ainda estão todas em 0% e o modelo
+  traz o percentual de cada uma somando 100% — a prévia da aplicação mostra o que será preenchido.
+- **Tipos de empreendimento editáveis** (Configurações → Tipos de empreendimento): criar, renomear, ordenar, ativar/desativar
+  e escolher em quais etapas a disciplina já nasce (ex.: casa só com Básico e Executivo). Só vale para disciplinas criadas
+  depois; excluir só é possível para tipo sem uso.
+- **Projeto novo** pode montar a EAP já pelo modelo, escolhido junto com o tipo de empreendimento.
+
+---
+
 ## Ciclo da revisão nos Arquivos (ISO 19650)
 
 - **Cada revisão tem um estado:** em andamento → em análise → publicado → arquivado. O estado fica na coluna

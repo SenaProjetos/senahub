@@ -48,6 +48,8 @@ import { DiarioEntradaDialog } from "@/components/projetos/diario-entrada-dialog
 import { DisciplinaEditDialog, DisciplinaDeleteButton } from "@/components/projetos/disciplina-edit-dialog";
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { DisciplinaEtapasButton } from "@/components/projetos/disciplina-etapas-dialog";
+import { EtapasDoCard } from "@/components/projetos/etapas-do-card";
+import type { EtapaDoCard } from "@/modules/projetos/etapas-card";
 import { AprovarFaseButton } from "@/components/projetos/aprovar-fase-button";
 import { validarEntrega, gerarAceiteCliente, revogarAceiteCliente } from "@/modules/uploads/actions";
 import { statusValidacao, entregaveisAtuais, type StatusValidacao } from "@/modules/uploads/validacao";
@@ -163,6 +165,8 @@ type Disc = {
   fasesPendentes: { id: string; sigla: string; nomeFase: string; percentual: number }[];
   /** Tem etapa (F4): o prazo vira o maior das etapas e não se edita direto. */
   temEtapas: boolean;
+  /** Todas as etapas da disciplina, com início e fim (áudio do dono, 2026-10-10). */
+  etapas: EtapaDoCard[];
   exigePacoteA: boolean;
   exigePacoteB: boolean;
   /** Ciclo documental (6-B): documentos sem revisão publicada — aprovar exige zero. */
@@ -539,6 +543,8 @@ export function DisciplinaCard({
           <div className="px-4">
             <TrilhoEtapas disciplina={disciplina} />
           </div>
+
+          <EtapasDoCard disciplina={disciplina.nome} etapas={disciplina.etapas} ehResponsavel={disciplina.ehResponsavel} />
 
           {passo && (
             <div className="px-4 pt-3">

@@ -2,11 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
+import { aplicarModeloNoProjeto } from "@/modules/planejamento/modelos/service";
+import { aposMudarEap } from "@/modules/planejamento/pos-eap";
 import { motivoExclusao } from "@/modules/projetos/nomenclatura/catalogo/todas";
 import { projetosDoCard, usoParaExcluir } from "@/modules/projetos/nomenclatura/catalogo/queries";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
-import { podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
+import { can, podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
 import { whereAudiencia } from "@/lib/audiencias";
 import { proximoCodigoProjeto, formatarCodigo } from "@/modules/projetos/numbering";
 import { ensureCanaisProjeto } from "@/modules/chat/service";
@@ -47,7 +49,7 @@ import {
   motivoParaNaoConcluirProjeto,
 } from "@/modules/projetos/status";
 import { etapaQueDefineOPrazo } from "@/modules/projetos/etapas";
-import { sincronizarPrazoDisciplina } from "@/modules/projetos/etapas-service";
+import { semearEtapasPadrao, sincronizarPrazoDisciplina } from "@/modules/projetos/etapas-service";
 import { semearPastasTemplate, projetoUsaTemplate } from "@/modules/projetos/pastas/seed";
 import { sincronizarPagamentosPorDisciplinaId } from "@/modules/uploads/pagamento";
 import { duplicarProjetoNoBanco } from "@/modules/projetos/duplicar-service";
@@ -129,7 +131,11 @@ export const criarProjeto = defineAction(
     schema: criarProjetoSchema,
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
-  async (input) => {
+  async (input, { user }) => {
+    // Montar a EAP pelo modelo é ato do Planejamento: quem não pode aplicar modelo lá não aplica aqui.
+    if (input.modeloEapId && !(await can(user, "planejamento", "gerir"))) {
+      throw new ActionError("Você não tem permissão para montar a EAP pelo modelo. Crie o projeto sem o modelo.");
+    }
     // Versão do padrão de nomenclatura vigente agora (D2) — fixada no projeto na criação, do
     // mesmo jeito que a migration de 2026-09-22 fixou os projetos existentes na v1. Publicar
     // uma versão nova depois NÃO muda este projeto (D2): a data de vigência só decide o padrão
@@ -160,6 +166,7 @@ export const criarProjeto = defineAction(
         },
       });
       const catalogo = input.disciplinas.length > 0 ? await catalogoDeDisciplinas(tx) : [];
+      const criadas: string[] = [];
       for (const [i, d] of input.disciplinas.entries()) {
         const disc = await tx.disciplina.create({
           data: {
@@ -175,13 +182,34 @@ export const criarProjeto = defineAction(
         if (usaEstruturaCustom(input.tipo)) {
           await semearPastasTemplate(tx, disc.id, input.tipo);
         }
+        criadas.push(disc.id);
       }
+      // Áudio do dono (2026-10-10): toda disciplina nasce com as etapas do ciclo de projeto, a 0%.
+      await semearEtapasPadrao(tx, criadas, { tipoProjeto: input.tipo, tipoEmpreendimentoId: input.tipoEmpreendimentoId ?? null });
       return p;
     });
     refletirSincroniaCanais(await ensureCanaisProjeto(projeto.id));
+
+    // Item 7 da reunião de 08/10/2026: o projeto já nasce com a EAP do modelo (rascunho) e as etapas
+    // das disciplinas. Falhar aqui NÃO desfaz o projeto: ele foi criado, e o modelo pode ser aplicado
+    // depois pela aba Planejamento — a tela recebe o motivo como aviso.
+    let avisoModelo: string | null = null;
+    if (input.modeloEapId) {
+      try {
+        await aplicarModeloNoProjeto({ projetoId: projeto.id, modeloId: input.modeloEapId });
+        await aposMudarEap(projeto.id, user.id);
+      } catch (e) {
+        // Depois do commit, NADA vira erro: o projeto existe, e quem tentasse de novo criaria um duplicado.
+        if (e instanceof ActionError) avisoModelo = e.message;
+        else {
+          console.error("[projetos] montar a EAP pelo modelo falhou depois de criar o projeto:", e);
+          avisoModelo = "Não foi possível montar a EAP agora. Aplique o modelo pela aba Planejamento.";
+        }
+      }
+    }
     revalidatePath("/projetos");
     revalidatePath("/planejamento");
-    return { id: projeto.id, codigo: projeto.codigo };
+    return { id: projeto.id, codigo: projeto.codigo, avisoModelo };
   },
 );
 
@@ -738,7 +766,7 @@ export const criarDisciplina = defineAction(
   async (input) => {
     const projeto = await prisma.projeto.findUnique({
       where: { id: input.projetoId },
-      select: { id: true, tipo: true, prazoPlanejado: true },
+      select: { id: true, tipo: true, prazoPlanejado: true, tipoEmpreendimentoId: true },
     });
     if (!projeto) throw new ActionError("Projeto não encontrado.");
 
@@ -769,6 +797,7 @@ export const criarDisciplina = defineAction(
           ordem: (maxOrdem._max.ordem ?? 0) + 1,
         },
       });
+      await semearEtapasPadrao(tx, [d.id], { tipoProjeto: projeto.tipo, tipoEmpreendimentoId: projeto.tipoEmpreendimentoId });
       if (input.responsaveisIds.length > 0) {
         await tx.disciplinaResponsavel.createMany({
           data: input.responsaveisIds.map((userId) => ({ disciplinaId: d.id, userId })),
@@ -1107,6 +1136,7 @@ export const adicionarDisciplinasDoCatalogo = defineAction(
       select: {
         id: true,
         tipo: true,
+        tipoEmpreendimentoId: true,
         disciplinas: { select: { disciplinaTextoLegado: true, ordem: true } },
       },
     });
@@ -1133,6 +1163,7 @@ export const adicionarDisciplinasDoCatalogo = defineAction(
           },
         });
         if (semear) await semearPastasTemplate(tx, d.id, projeto.tipo);
+        await semearEtapasPadrao(tx, [d.id], { tipoProjeto: projeto.tipo, tipoEmpreendimentoId: projeto.tipoEmpreendimentoId });
       }
     });
 

@@ -21,7 +21,9 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { aplicarBatida, editarDia } from "../src/modules/ponto/service";
-import { tarefasParaPonto } from "../src/modules/ponto/tarefa-ponto-service";
+import { sugestaoParaPonto, tarefasParaPonto } from "../src/modules/ponto/tarefa-ponto-service";
+import { projetosDoUsuario } from "../src/modules/ponto/queries";
+import { minhasAtividades } from "../src/modules/projetos/meu-trabalho/queries";
 import { abrirApontamento, fecharApontamento } from "../src/modules/ponto/apontamento";
 import { eapDoProjeto } from "../src/modules/planejamento/queries";
 import { progressoDoStatus } from "../src/modules/projetos/status";
@@ -103,6 +105,33 @@ async function main() {
     check("lista curta: card de outra pessoa, de outro projeto e concluído NÃO entram", !ids.includes(tDoJoao.id) && !ids.includes(tOutroProj.id) && (!tConcluida || !ids.includes(tConcluida.id)));
     check("lista curta: o card na janela exata vem primeiro", ids[0] === tAgora.id, ids);
 
+    // ── 1b. Reunião de 08/10/2026 (decisão 1): atrasada não some, ponto abre na atividade de hoje ──
+    const linhaAtrasada = await prisma.eapTarefa.create({
+      data: { projetoId: proj.id, nome: "Lançamento", tipoEap: "atv", duracaoDias: 5, inicioPrevisto: d(dia(-30)), fimPrevisto: d(dia(-20)) },
+    });
+    const tAtrasada = await card("Lançamento", proj.id, [maria.id], { eapTarefaId: linhaAtrasada.id });
+    const lista2 = await tarefasParaPonto(maria.id, proj.id);
+    const atr = lista2.find((t) => t.id === tAtrasada.id);
+    check("atrasada aberta (término há 20 dias) continua na lista, marcada e no topo", atr?.atrasada === true && lista2[0]?.id === tAtrasada.id, lista2);
+    const meus = await projetosDoUsuario(maria.id);
+    check("quem só tem card no projeto (não é membro) vê o projeto no seletor do ponto", meus.some((p) => p.id === proj.id));
+    const sug = await sugestaoParaPonto(maria.id, new Set(meus.map((p) => p.id)));
+    check("sugestão do ponto parado = a atividade atrasada, no projeto dela", sug?.tarefa.id === tAtrasada.id && sug?.projeto.id === proj.id, sug);
+    const semProjetos = await sugestaoParaPonto(maria.id, new Set());
+    check("sem projeto no seletor, sem sugestão", semProjetos === null);
+    // Item 10: "Meu trabalho" lista as atividades da pessoa, pela mesma regra do ponto.
+    const meu = await minhasAtividades(maria.id);
+    const doProj = meu.projetos.find((p) => p.projetoId === proj.id);
+    check("Meu trabalho: a atividade atrasada aparece no projeto, no topo e marcada", doProj?.atividades[0]?.id === tAtrasada.id && doProj.atividades[0].atrasada, doProj?.atividades);
+    check("Meu trabalho: não traz atividade de outra pessoa nem de outro projeto sob este", !!doProj && !doProj.atividades.some((x) => x.id === tDoJoao.id || x.id === tOutroProj.id));
+    check("Meu trabalho: o card de outro projeto vira outro grupo", meu.projetos.some((p) => p.projetoId === outro.id));
+    check("Meu trabalho: devolve a coluna concluída para o 'Terminei'", meu.statusConcluidoId != null);
+    const dele = await minhasAtividades(pj.id);
+    check("Meu trabalho: quem não tem atividade recebe lista vazia", dele.projetos.every((p) => p.atividades.length > 0));
+    await prisma.tarefa.delete({ where: { id: tAtrasada.id } });
+    const sug2 = await sugestaoParaPonto(maria.id, new Set(meus.map((p) => p.id)));
+    check("sem atrasada, a sugestão é a da janela de hoje", sug2?.tarefa.id === tAgora.id, sug2);
+
     // ── 2. Entrada com tarefa ──────────────────────────────────────────────
     const t0 = new Date(Date.now() - 4 * 3_600_000);
     await aplicarBatida({ userId: maria.id, tipo: "entrada", horario: t0, projetoId: proj.id, tarefaId: tAgora.id, origem: "app" });
@@ -180,6 +209,20 @@ async function main() {
       dtoAgora?.sugestoesProgresso,
     );
     check("EAP: horas apontadas não viram sugestão de %", dtoAgora?.sugestoesProgresso.every((x) => x.origem !== ("horas" as never)) === true);
+    check("EAP: card aberto não tem 'concluído pelo responsável'", dtoAgora?.cardConcluidoEm == null);
+
+    // Reunião de 08/10/2026 (decisão 2): card concluído vira o "verde" e a sugestão de 100% (nunca grava o %).
+    if (statusFim) {
+      await prisma.tarefa.update({ where: { id: tAgora.id }, data: { statusId: statusFim.id, concluidaEm: new Date() } });
+      const eap2 = await eapDoProjeto(proj.id, { verDatas: true });
+      const dtoConcl = eap2.tarefas.find((x) => x.id === linhaAgora.id);
+      check("EAP: card concluído chega na linha (verde: falta validar)", dtoConcl?.cardConcluidoEm != null, dtoConcl?.cardConcluidoEm);
+      check(
+        "EAP: card concluído sugere 100%, na frente das outras sugestões, e NÃO grava o %",
+        dtoConcl?.sugestoesProgresso[0]?.origem === "card_concluido" && dtoConcl.sugestoesProgresso[0].valor === 100 && dtoConcl.progresso < 100,
+        dtoConcl && { sug: dtoConcl.sugestoesProgresso, progresso: dtoConcl.progresso },
+      );
+    }
     check("EAP: linha com card sem checklist ou apontado não sugere nada", dtoFutura?.sugestoesProgresso.length === 0 && dtoFutura.horasApontadas === 0, dtoFutura?.sugestoesProgresso);
 
     // ── 9. D19: o caso real — linha COM disciplina ─────────────────────────

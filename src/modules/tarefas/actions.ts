@@ -9,6 +9,7 @@ import { notificarMuitos } from "@/lib/notificar";
 import { PRIORIDADES } from "@/modules/tarefas/prioridade";
 import { escopoTarefa, tarefasTravadasPeloCronograma } from "@/modules/tarefas/queries";
 import { projetoVisivel } from "@/modules/planejamento/queries";
+import { avisarCardConcluido } from "@/modules/planejamento/conclusao-aviso-service";
 import { camposDoCronogramaAlterados, motivoCampoDoCronograma } from "@/modules/tarefas/regras";
 import type { SessionUser } from "@/lib/session";
 
@@ -237,6 +238,10 @@ export const editarTarefa = defineAction(
         skipDuplicates: true,
       }),
     ]);
+    // Concluiu agora (não estava concluída): quem valida a EAP é avisado.
+    if (destino?.concluido && !atual?.concluidaEm) {
+      await avisarCardConcluido({ tarefaId: id, autorId: user.id, autorNome: user.name });
+    }
     // Notifica só quem foi ADICIONADO agora como responsável (exceto o próprio editor).
     const jaResp = new Set(antigosResp.map((a) => a.userId));
     const novosResp = r.responsaveisIds.filter((uid) => !jaResp.has(uid) && uid !== user.id);
@@ -272,6 +277,14 @@ export const moverTarefa = defineAction(
     // Item 7: marca a data de conclusão ao entrar num status final (preserva a 1ª);
     // limpa ao reabrir (sair de um status concluído).
     const atual = await prisma.tarefa.findUnique({ where: { id: i.id }, select: { concluidaEm: true } });
+    // Primeira conclusão: escrita condicionada a `concluidaEm: null`, para dois cliques (ou dois aparelhos) no "Terminei"
+    // não avisarem duas vezes — só quem de fato gravou a conclusão avisa o gestor.
+    if (destino.concluido && !atual?.concluidaEm) {
+      const g = await prisma.tarefa.updateMany({ where: { id: i.id, concluidaEm: null }, data: { statusId: i.statusId, concluidaEm: new Date() } });
+      if (g.count === 1) await avisarCardConcluido({ tarefaId: i.id, autorId: user.id, autorNome: user.name });
+      rev();
+      return { id: i.id };
+    }
     await prisma.tarefa.update({
       where: { id: i.id },
       data: {

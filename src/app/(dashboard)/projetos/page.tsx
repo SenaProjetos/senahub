@@ -64,7 +64,8 @@ export default async function ProjetosPage({
     items.map((p) => p.id),
   );
 
-  const [clientes, catalogo, internos, tiposEmpreendimento] = podeGerir
+  const podeMontarEap = podeGerir && (await can(user, "planejamento", "gerir"));
+  const [clientes, catalogo, internos, tiposEmpreendimento, modelosEap] = podeGerir
     ? await Promise.all([
         listarClientes({ incluirInativos: false }),
         catalogoDisciplinas(),
@@ -75,8 +76,16 @@ export default async function ProjetosPage({
           select: { id: true, nome: true },
           orderBy: [{ ordem: "asc" }, { nome: "asc" }],
         }),
+        // Item 7 da reunião de 08/10/2026: modelos de PROJETO (não os de disciplina) para montar a EAP já na criação.
+        podeMontarEap
+          ? prisma.modeloEap.findMany({
+              where: { ativo: true, disciplinaCatalogoId: null },
+              select: { id: true, nome: true, tipoEmpreendimentoId: true },
+              orderBy: [{ updatedAt: "desc" }],
+            })
+          : Promise.resolve([]),
       ])
-    : [[], [], [], []];
+    : [[], [], [], [], []];
 
   return (
     <ProjetosView
@@ -95,6 +104,7 @@ export default async function ProjetosPage({
       total={total}
       clientes={clientes.map((c) => ({ id: c.id, nome: c.nome }))}
       tiposEmpreendimento={tiposEmpreendimento}
+      modelosEap={modelosEap}
       catalogo={catalogo.map((d) => d.nome)}
       internos={internos}
       prontasPorProjeto={prontas}

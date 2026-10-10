@@ -11,7 +11,7 @@ import { notificar } from "@/lib/notificar";
 import { getSession } from "@/lib/session";
 import { aplicarBatida, editarDia } from "@/modules/ponto/service";
 import { apontamentoAtual } from "@/modules/ponto/apontamento";
-import { resolverTarefaDoPonto, tarefasParaPonto, type TarefaDoPonto } from "@/modules/ponto/tarefa-ponto-service";
+import { resolverTarefaDoPonto, sugestaoParaPonto, tarefasParaPonto, type TarefaDoPonto } from "@/modules/ponto/tarefa-ponto-service";
 import {
   alocacoesRecentes,
   espelhoDetalhado,
@@ -53,10 +53,19 @@ export async function buscarResumoJornada(): Promise<ResumoHeader | null> {
   const user = session?.user;
   if (!user || !user.ativo || !INTERNAL_ROLES.includes(user.role)) return null;
 
+  // Parado, o ponto abre no projeto e na atividade de hoje (reunião de 08/10/2026, decisão 1).
+  // Só calcula quando não há sessão: com sessão aberta quem manda é ela. Parado, são 2 consultas leves por poll de 60 s
+  // (projetos da pessoa + cards abertos dela) — aceitável; se pesar, memorizar por pessoa com TTL curto.
+  const sugerir = async () => {
+    const projetos = await projetosDoUsuario(user.id);
+    return sugestaoParaPonto(user.id, new Set(projetos.map((p) => p.id)));
+  };
+
   if (PJ_ROLES.includes(user.role)) {
     const { aberto, hojeMin } = await apontamentoAtual(user.id);
     return {
       modo: "apontamento" as const,
+      sugestao: aberto ? null : await sugerir(),
       aberto: aberto
         ? {
             inicio: aberto.inicio,
@@ -71,7 +80,8 @@ export async function buscarResumoJornada(): Promise<ResumoHeader | null> {
     };
   }
 
-  return { modo: "ponto" as const, ...(await resumoJornada(user.id)) };
+  const resumo = await resumoJornada(user.id);
+  return { modo: "ponto" as const, ...resumo, sugestao: resumo.estado === "fora" ? await sugerir() : null };
 }
 
 /** Projetos do seletor da miniatura do header — mesmo gate/leitura do seletor da tela `/ponto`. */

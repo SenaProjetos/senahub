@@ -169,6 +169,8 @@ export type EtapaParaTela = {
   etapaId: string;
   sigla: string;
   nome: string;
+  /** Início da etapa no card (áudio do dono, 2026-10-10). */
+  inicio: string | null;
   prazo: string | null;
   status: StatusDisciplina;
   percentual: number;

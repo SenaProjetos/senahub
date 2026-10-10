@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { estadoDoDia, projetosDoUsuario, espelhoMes, ajustesPendentesCiencia } from "@/modules/ponto/queries";
 import { apontamentoAtual } from "@/modules/ponto/apontamento";
+import { sugestaoParaPonto } from "@/modules/ponto/tarefa-ponto-service";
 import { rateioMesGestor } from "@/modules/rh/rateio/queries";
 import { PJ_ROLES } from "@/lib/roles";
 import { disciplinasEscreviveisNoProjeto, type DisciplinaEscrevivel } from "@/modules/projetos/diario/queries";
@@ -38,6 +39,9 @@ export default async function PontoPage() {
   ]);
 
   const rateio = podeRatear ? await rateioMesGestor(ano, mes) : null;
+  // Parado, o ponto abre no projeto e na atividade de hoje (reunião de 08/10/2026, decisão 1).
+  const parado = usaApontamento ? !apontamento?.aberto : estadoDia.estado === "fora";
+  const sugestao = parado ? await sugestaoParaPonto(user.id, new Set(projetos.map((p) => p.id))) : null;
 
   // Atalho "registrar no diário" — um lookup por projeto distinto que aparece
   // em alguma abertura de bloco na timeline de hoje (é sempre o próprio ponto).
@@ -68,6 +72,7 @@ export default async function PontoPage() {
         controlaJornada={espelho.controlaJornada}
         usaApontamento={usaApontamento}
         apontamento={apontamento}
+        sugestao={sugestao}
       />
     </div>
   );

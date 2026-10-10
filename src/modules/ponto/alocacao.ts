@@ -65,7 +65,8 @@ export function selecaoDaAlocacaoPonto(
  * da sessão aberta — trocar de tarefa grava na hora, então não há escolha pendente. Parado, é a que
  * a pessoa escolheu na gaveta ou, sem escolha, a da sessão a retomar quando o destino é o mesmo
  * projeto dela (volta do descanso mantém a tarefa, como no seletor do computador). Destino que não
- * é projeto não tem tarefa.
+ * é projeto não tem tarefa. Destino igual ao SUGERIDO (atividade de hoje no cronograma, reunião de
+ * 08/10/2026) já traz a atividade sugerida.
  */
 export function tarefaDoDestino(p: {
   destino: string;
@@ -74,11 +75,14 @@ export function tarefaDoDestino(p: {
   tarefaCorrenteId: string;
   /** `null` = a pessoa não escolheu nada para este destino. */
   escolhida: string | null;
+  /** Atividade de hoje sugerida pelo cronograma (`sugestaoParaPonto`), se houver. */
+  sugerida?: { destino: string; tarefaId: string } | null;
 }): string {
   if (!selecaoEhProjeto(p.destino)) return "";
   if (p.rodando) return p.destino === p.selecaoCorrente ? p.tarefaCorrenteId : "";
   if (p.escolhida !== null) return p.escolhida;
-  return p.destino === p.selecaoCorrente ? p.tarefaCorrenteId : "";
+  if (p.destino === p.selecaoCorrente) return p.tarefaCorrenteId;
+  return p.sugerida && p.destino === p.sugerida.destino ? p.sugerida.tarefaId : "";
 }
 
 export function rotuloAlocacaoSemProjeto(tipoAlocacao: TipoAlocacaoPonto): string {

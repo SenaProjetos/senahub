@@ -43,7 +43,12 @@ npm run smoke:ciclo-rh       # listas de entrada/saída: prazo pela âncora, um 
 npm run smoke:pedido-dados   # "Atualize seus dados" + reconfirmação anual: faixa, um aberto por pessoa, CPF/RG ao RH, fechamento (restaura a pessoa)
 npm run smoke:desenvolvimento  # liderança única ativa, 1:1 compartilhado × privado (o privado não sai do servidor), lembrete sem conteúdo
 npm run smoke:documentos-validade  # documento com validade: aviso 60/30/7/vencido uma vez por faixa, renovar rearma
-npm run smoke:ponto-tarefa    # ponto com tarefa: lista curta, validação, edição do dia, apontado × previsto
+npm run smoke:ponto-tarefa    # ponto com tarefa: lista curta (atrasada não some), sugestão da atividade de hoje, validação, edição do dia, apontado × previsto
+npm run ensaio:eap [-- --refazer]  # (só banco de dev) projeto de ensaio estilo Arapiraca: etapas, EAP com gente, cronograma aprovado, cards e 1 usuário por perfil (senha Demo@2026); `ensaio:conferir` lê o que cada perfil enxerga
+npm run smoke:eap-integracao  # ponta a ponta: etapas padrão → modelo de EAP → aprovar → ponto sugere → bater → concluir card → verde/aviso → validar → enviar etapa (multifamiliar e unifamiliar)
+npm run smoke:conclusao-eap  # aviso ao gestor quando alguém conclui o card de uma atividade da EAP: coordenação (ou gestores), sem o autor, nunca card manual nem linha em 100%
+npm run smoke:etapas-card     # etapas padrão por tipo (EP/BS/EX, sem EP no unifamiliar, a 0%), "enviei para análise" só do responsável, desfazer até aprovar
+npm run smoke:etapa-proxima   # aviso da etapa que vem: só aprovado, 2 dias úteis antes, atividade + coordenação, uma vez por etapa e data, data nova rearma
 npm run smoke:pagamento-fase  # pagamento por fase: pool congelado, write-back por diferença, SLA, marco → aprovar fase
 npm run smoke:previsao-recebimento  # contrato por entrega: previsão no caixa, marco anda, faturar, fora do aging
 npm run smoke:duplicar-projeto      # duplicar projeto com EAP: estrutura, IDs novos, cronograma em rascunho, o que NÃO copia
@@ -557,6 +562,28 @@ Spec + 42 decisions: `docs/superpowers/specs/2026-09-23-planejamento-motor-crono
   `verify:motor-cronograma` flags it. Duplicating a project copies the EAP *structure* only (`projetos/duplicar-eap.ts`,
   pure): not progress, real dates, restrictions (absolute dates), bloqueio, hours or people; the new schedule is a draft.
 
+**Etapas no card, ponto e avisos da EAP** (reunião de 08/10/2026, levantamento e decisões em
+`docs/superpowers/specs/2026-10-08-reuniao-eap-levantamento.md`):
+- **O card da disciplina NÃO é ligado à EAP** (decisão do dono, 2026-10-10): `DisciplinaEtapa.inicio/prazo` são preenchidos
+  à mão pela coordenação. Toda disciplina de projeto `particular`/`licitacao` nasce a 0% com as fases do TIPO DE EMPREENDIMENTO
+  (`TipoEmpreendimento.etapasPadraoIds`, editado em Configurações → Tipos de empreendimento, `projetos/tipos-empreendimento/`;
+  vazio = EP/BS/EX) via `semearEtapasPadrao`/`fasesParaNascer` (`etapas-padrao.ts`, puro) — em TODO caminho que cria disciplina. O
+  pagamento por fase espera a soma dos % fechar 100%. Disciplinas anteriores à mudança não ganham etapa. Aplicar um modelo de EAP
+  PREENCHE esses % com os do modelo (`modelos/preencher-percentuais.ts`) só se a disciplina inteira está a 0%, sem fase liberada,
+  e o modelo traz % de TODA etapa dela somando 100% (unifamiliar: o modelo precisa ser só BS/EX); senão segue a 0%.
+- **"Enviei os documentos"** (`projetos/envio-etapa*.ts`): só responsável da disciplina; etapa → `entregue`; desfaz até
+  aprovar; avisa coordenação + responsáveis (`aprovacao_disciplina`). Escrita é `updateMany` condicionada ao status lido.
+- **Ponto** (`ponto/tarefa-ponto.ts`, puro): janela ±7 dias, atrasada ABERTA nunca some (topo), "outras da etapa" recolhidas
+  (`listaDoPonto`), e parado ele abre na atividade de hoje (`sugestaoDoPonto` → `sugestaoParaPonto`, no resumo do header e em
+  `/ponto`). `projetosDoUsuario` inclui projeto onde a pessoa só tem card aberto. "Meu trabalho" lista a mesma regra.
+- **Sinais da linha** (`planejamento/sinais-linha.ts`): verde = card concluído pelo responsável e linha < 100% (sugere 100%,
+  nunca grava o %); vermelho = término ATUAL do motor passou e < 100% (o filtro Atrasadas e a Saúde seguem pela linha de base).
+- **Avisos**: `etapa-proxima*` (job `aviso-etapa-proxima` 07:00, 2 dias úteis antes do início, uma vez por etapa+data via
+  `AvisoEtapaEnviado`; lê a EAP, não o card) e `conclusao-aviso*` (card da EAP concluído → coordenação, ou admin/supervisor sem
+  coordenador, sem o autor; só linha < 100%). `/recursos` mostra a carga de cronograma em RASCUNHO à parte (`rascunho`), sem somar.
+- Verificação de ponta a ponta: `npm run smoke:eap-integracao`; ensaio em tela: `npm run ensaio:eap` (usuários com perfil de
+  acesso + termo aceito, senão o login cai em /sem-permissao ou /termo).
+
 **Project health** (`modules/projetos/health.ts`) — pure `saudeProjeto(disciplinas, prazoFinal)` → `ok | atencao | critico` (returns `null` for non-`em_andamento`). Feeds the "Saúde" column in the projects list and the admin dashboard `CarteiraDashboard`. Same pattern as CPM/tokens: no I/O, unit-tested.
 
 **Ferramentas (engenharia)** (`modules/ferramentas/`) — calculators + drawing/memory generators following NBR norms. Layered, mostly pure:
@@ -651,7 +678,7 @@ The request closes (`fecharSeAtendido`) on fill and in `rotinasRhDiarias`.
 
 **Cross-module pages (not their own module folder):** `/recursos` = resource-allocation matrix built from `modules/planejamento/queries.ts` (`matrizRecursos`, `cargaSemanalPorRecurso`) + `modules/rh/habilidades/queries.ts`, gated `recursos:ver`/`recursos:gerir`.
 
-**Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`, `coordenacao`, `aprovacao_arquivo`, `aprovacao_disciplina`, `input_cliente`, `conta_a_pagar`, `impacto_ausencia`, `lifecycle_rh`, `desenvolvimento`, `documento_validade`, `ciclo_documental`.
+**Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`, `coordenacao`, `aprovacao_arquivo`, `aprovacao_disciplina`, `input_cliente`, `conta_a_pagar`, `impacto_ausencia`, `lifecycle_rh`, `desenvolvimento`, `documento_validade`, `ciclo_documental`, `etapa_proxima`, `atividade_concluida`.
 
 ## Gotchas
 

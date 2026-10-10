@@ -1,5 +1,6 @@
 "use client";
 
+import type { SugestaoDoPonto } from "@/modules/ponto/tarefa-ponto-service";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import Link from "next/link";
 import { Clock, Download, Info, FileSpreadsheet, FileText, CalendarClock } from "lucide-react";
@@ -126,7 +127,10 @@ export function PontoView({
   usaApontamento,
   apontamento,
   subnav,
+  sugestao,
 }: {
+  /** Atividade de hoje no cronograma, para o ponto parado já abrir nela (`sugestaoParaPonto`). */
+  sugestao: SugestaoDoPonto | null;
   estadoDia: EstadoDiaProp;
   projetos: Projeto[];
   espelho: Espelho;
@@ -260,9 +264,9 @@ export function PontoView({
       {subnav}
 
       {usaApontamento && apontamento ? (
-        <ApontamentoHoras aberto={apontamento.aberto} hojeMin={apontamento.hojeMin} projetos={projetos} />
+        <ApontamentoHoras aberto={apontamento.aberto} hojeMin={apontamento.hojeMin} projetos={projetos} sugestao={sugestao} />
       ) : (
-        <RegistroPonto estadoDia={estadoDia} projetos={projetos} pendencias={pendencias} diarioPorProjeto={diarioPorProjeto} />
+        <RegistroPonto estadoDia={estadoDia} projetos={projetos} pendencias={pendencias} diarioPorProjeto={diarioPorProjeto} sugestao={sugestao} />
       )}
 
       {/* Filtro temporal do resumo — dia / semana (padrão) / mês. */}

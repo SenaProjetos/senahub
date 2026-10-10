@@ -295,3 +295,78 @@ ajuste pequeno, sempre a partir de regra já escrita.
 | E10 | Habilidade por disciplina do catálogo; "+" de alocação só em projeto sem EAP; tela com cara de pool | 4, 5 | Sonnet | baixo |
 | E11 | Ensaio no banco de dev: projeto parecido com o Arapiraca, EAP aprovada, usuários de teste por perfil, roteiro em navegador | 13 | Sonnet | médio |
 | R | Revisão final do branch (`/code-review`) antes do merge | — | Opus | alto |
+
+## Andamento
+
+**Bloco Opus concluído (2026-10-10), branch `feat/eap-reuniao-0810`:**
+- E1 `2a142fac` — ponto híbrido. Regras puras em `ponto/tarefa-ponto.ts` (`listaDoPonto`, `sugestaoDoPonto`,
+  `estaAtrasada`); `tarefasParaPonto` devolve `atrasada` e `grupo` (`periodo`|`etapa`); `sugestaoParaPonto` alimenta o
+  resumo do header, o card do celular e a tela /ponto. `projetosDoUsuario` passou a incluir projeto onde a pessoa só
+  tem card aberto. Smoke: `smoke:ponto-tarefa`.
+- E2 `75e47622` — aviso da etapa que vem. `planejamento/etapa-proxima.ts` (puro) + `etapa-proxima-service.ts`, job
+  diário `aviso-etapa-proxima` 07:00, tabela `AvisoEtapaEnviado` (migração `20261010100000_aviso_etapa_enviado`),
+  categoria `etapa_proxima`. Smoke: `smoke:etapa-proxima`.
+- E3 `8ffd08f9` — "Montar a EAP com o modelo" na criação do projeto (exige `planejamento:gerir`; falha vira aviso,
+  o projeto fica criado).
+- E4 `669d56ff` — `/recursos`: carga de EAP em rascunho à parte (`PessoaCarga.rascunho`, `projetosEmRascunho`,
+  chip "rasc" na matriz). Smoke: `smoke:recursos-eap`.
+
+**Notas para o bloco Sonnet:**
+- E6 (verde/vermelho): "concluída pelo responsável" = card da linha (`Tarefa.eapTarefaId`) com status `concluido` e
+  linha com `progresso < 100`. Sugestão de 100% entra em `progresso-sugerido.ts` como nova origem (`card_concluido`),
+  com o mesmo cuidado do arquivo: só sugere, nunca grava. Vermelho = `fim` do motor (`plano.resultado.linhas`) < hoje e
+  `progresso < 100` — término ATUAL, não a linha de base (decisão 2). Regra pura com teste.
+- E7 (Minhas atividades): reusar `listaDoPonto` por projeto, ou uma leitura nova em `projetos/meu-trabalho/queries.ts`
+  que chame `candidatasDaPessoa` (hoje privado em `tarefa-ponto-service.ts` — exportar). "Terminei" = mover o card para
+  a coluna concluída pela action existente de tarefas.
+- E5 (Estagiário): `PapelEap` ganha `est`; migração só `ALTER TYPE "PapelEap" ADD VALUE 'est'` (arquivo próprio);
+  atualizar `Papel`, `ROTULO_PAPEL`, `PAPEIS_DE_PESSOA`, `ORDEM_PRINCIPAL` (`recursos.ts`) e `PAPEIS`
+  (`recursos-actions.ts`). O banco de dev tem drift: aplicar com `prisma db execute` + `migrate resolve --applied`.
+- E10: o "+" de alocação digitada só para projeto SEM cronograma (`projetosCalculados` + `projetosEmRascunho`).
+
+## Áudio do dono (2026-10-10) e respostas
+
+- Por ora **não** ligar EAP → card da disciplina: coordenador e assistente alimentam os prazos do card à mão, olhando
+  a EAP. PJ não bate ponto (não registra horas), mas **é inserido na EAP** pelo coordenador — o aviso da etapa que vem
+  (E2) continua lendo a EAP.
+- Card de cada disciplina mostra **todas as etapas com início e fim**, para o projetista saber o prazo.
+- Etapas padrão: Estudo Preliminar + Básico + Executivo em todo projeto (particular e licitação); **Residencial
+  unifamiliar** só Básico + Executivo (multifamiliar tem EP). Nascem a **0%**; o pagamento por fase espera a soma
+  fechar 100%.
+- Botão "Enviei os documentos desta etapa para análise": só **responsáveis da disciplina**; desfaz enquanto a
+  coordenação não aprovou; avisa **coordenação do projeto e projetista**.
+
+**Feito em Opus:** C1 `d6cda2be` (etapas padrão em toda criação de disciplina — `semearEtapasPadrao`; `DisciplinaEtapa.
+inicio`; `TipoEmpreendimento.semEstudoPreliminar`, migração `20261010110000_etapa_inicio_tipo_sem_ep` marca o
+unifamiliar) e C2 `8593530e` (`envio-etapa*.ts`, actions `enviarEtapaAnalise` / `desfazerEnvioEtapaAnalise`). Smoke:
+`smoke:etapas-card`.
+
+**Efeitos a lembrar:** disciplina com etapa tem o prazo = maior prazo das etapas e não se edita direto (F4); com as
+etapas a 0%, o pagamento da disciplina passa a ser por fase e fica bloqueado até a soma fechar 100%.
+
+**C3 (Sonnet, médio) — card da disciplina** (`components/projetos/disciplina-card.tsx`): listar todas as etapas
+(`EtapaParaTela`, agora com `inicio`) com início, fim e situação, para todo mundo que vê o card; botão "Enviei os
+documentos" / "Desfazer envio" só para responsável, desabilitado com a frase de `envio-etapa.ts`; editor de etapas
+(`disciplina-etapas-dialog.tsx`) ganha o campo de início (`salvarEtapaDisciplina` já aceita `inicio`).
+
+## Estado final (2026-10-10)
+
+Tudo o que a reunião, o áudio e as respostas do dono pediram está implementado em `feat/eap-reuniao-0810` (sem push):
+E1–E11, C1–C3, o aviso ao gestor quando alguém conclui, e o preenchimento dos percentuais do modelo nas etapas zeradas.
+Verificação: `smoke:eap-integracao` (ponta a ponta), `smoke:ponto-tarefa`, `smoke:etapa-proxima`, `smoke:etapas-card`,
+`smoke:conclusao-eap`, `smoke:recursos-eap`, testes unitários e conferência em tela com `ensaio:eap`.
+
+**Deploy:** 4 migrações aditivas (`aviso_etapa_enviado`, `etapa_inicio_tipo_sem_ep`, `papel_eap_estagiario`,
+`habilidade_por_disciplina`), sem seed. Disciplinas já existentes NÃO ganham as etapas padrão.
+
+**Tipos de empreendimento na tela (pedido do dono, 2026-10-10 — "quanto mais personalizável sem SQL, melhor"):**
+`/configuracoes/tipos-empreendimento` (nome, etapas em que a disciplina nasce, ordem, ativar/desativar, excluir sem uso).
+A flag `semEstudoPreliminar` foi substituída por `etapasPadraoIds` (migração `20261010140000`, que converte e remove a flag).
+Com isso a conferência do nome "unifamiliar" em produção deixa de ser necessária: se o nome não casar, o time ajusta na tela.
+
+**Em aberto (fora desta entrega):**
+- Cadastrar um modelo de EAP de CASA (o EDIFÍCIO aplicado em unifamiliar traz linhas de Estudo Preliminar sem fase).
+- O modelo EDIFÍCIO não traz percentual do Estudo Preliminar: em multifamiliar as etapas seguem a 0% até o coordenador
+  preencher (ou o percentual do EP entrar no modelo).
+- Separar a habilidade combinada "Hidrossanitária e PPCI" (RH).
+- Testar com o Arapiraca de verdade só depois do ensaio conferido pelo time; aprovar grava a linha de base.

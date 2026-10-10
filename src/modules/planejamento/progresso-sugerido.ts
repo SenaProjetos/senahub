@@ -15,7 +15,7 @@
  *    contagem é em DOCUMENTOS (PDF + DWG = 1), a unidade do sistema.
  */
 
-export type OrigemSugestao = "checklist" | "status_disciplina";
+export type OrigemSugestao = "card_concluido" | "checklist" | "status_disciplina";
 
 export type SugestaoProgresso = {
   origem: OrigemSugestao;
@@ -34,6 +34,11 @@ export type FontesProgresso = {
    * mostrar de onde vem o número.
    */
   progressoDoStatusDaDisciplina: number | null;
+  /**
+   * `YYYY-MM-DD` em que o responsável concluiu o card da linha (reunião de 08/10/2026); `null` = o
+   * card não está concluído (ou a linha não tem card). É sugestão de 100%, que o gestor valida.
+   */
+  cardConcluidoEm?: string | null;
 };
 
 const limitar = (n: number) => Math.min(100, Math.max(0, Math.round(n)));
@@ -44,6 +49,15 @@ const limitar = (n: number) => Math.min(100, Math.max(0, Math.round(n)));
  */
 export function sugerirProgresso(f: FontesProgresso): SugestaoProgresso[] {
   const out: SugestaoProgresso[] = [];
+
+  // A pessoa disse "terminei": é a sugestão mais específica de todas. Quem valida é o coordenador.
+  if (f.cardConcluidoEm) {
+    out.push({
+      origem: "card_concluido",
+      valor: 100,
+      motivo: `card concluído pelo responsável em ${f.cardConcluidoEm.split("-").reverse().join("/")}`,
+    });
+  }
 
   // Checklist só conta com item cadastrado: 0 de 0 não é "0%", é "sem checklist".
   if (f.checklist && f.checklist.total > 0) {

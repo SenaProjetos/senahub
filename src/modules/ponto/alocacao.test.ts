@@ -94,6 +94,14 @@ describe("tarefa do destino no card do celular", () => {
     expect(tarefaDoDestino({ ...base, escolhida: "" })).toBe("");
   });
 
+  it("parado no projeto sugerido, já traz a atividade de hoje; a escolha ainda vence", () => {
+    const sugerida = { destino: "p2", tarefaId: "t7" };
+    expect(tarefaDoDestino({ ...base, destino: "p2", sugerida })).toBe("t7");
+    expect(tarefaDoDestino({ ...base, destino: "p2", sugerida, escolhida: "" })).toBe("");
+    expect(tarefaDoDestino({ ...base, destino: "p3", sugerida })).toBe("");
+    expect(tarefaDoDestino({ ...base, rodando: true, destino: "p2", sugerida })).toBe("");
+  });
+
   it("reunião e sem projeto nunca têm tarefa", () => {
     expect(tarefaDoDestino({ ...base, destino: ALOCACAO_REUNIAO_INTERNA, selecaoCorrente: ALOCACAO_REUNIAO_INTERNA })).toBe("");
     expect(tarefaDoDestino({ ...base, destino: ALOCACAO_SEM_PROJETO, escolhida: "t5" })).toBe("");

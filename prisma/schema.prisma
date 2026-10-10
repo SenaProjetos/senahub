@@ -3047,6 +3047,9 @@ model DisciplinaEtapa {
   etapaId String
   etapa   PranchaCatalogo @relation("DisciplinaEtapaFase", fields: [etapaId], references: [id], onDelete: Restrict)
 
+  /// Início da etapa no card (áudio do dono, 2026-10-10): o projetista vê início e fim de cada etapa. Preenchido À MÃO
+  /// pela coordenação olhando a EAP — o card não é ligado à EAP. Nulo = ainda não informado.
+  inicio     DateTime?        @db.Date
   prazo      DateTime?        @db.Date
   status     StatusDisciplina @default(aguardando)
   /// Quando a etapa foi entregue/aprovada — mesmo papel de `Disciplina.entregueEm`.
@@ -3071,6 +3074,8 @@ model DisciplinaEtapa {
   /// disciplina anda pela mesma diferença. Nulo = não liberada.
   valorPagamento Decimal?         @db.Decimal(12, 2)
   pagamentos     PagamentoProjetista[]
+  /// Avisos "a etapa começa em 2 dias úteis" já enviados (reunião de 08/10/2026, decisão 4).
+  avisosInicio   AvisoEtapaEnviado[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3078,6 +3083,20 @@ model DisciplinaEtapa {
   @@unique([disciplinaId, etapaId])
   @@index([etapaId])
   @@map("disciplina_etapa")
+}
+
+/// Aviso "a etapa começa em 2 dias úteis" (reunião de 08/10/2026, decisão 4): UMA vez por etapa e
+/// data de início. A linha é RESERVADA antes de notificar (P2002 = outra rodada já avisou, não é
+/// erro) e a data está na chave — o início mudar rearma o aviso, como no aviso financeiro.
+model AvisoEtapaEnviado {
+  id                String          @id @default(cuid())
+  disciplinaEtapaId String
+  disciplinaEtapa   DisciplinaEtapa @relation(fields: [disciplinaEtapaId], references: [id], onDelete: Cascade)
+  inicio            DateTime        @db.Date
+  enviadoEm         DateTime        @default(now())
+
+  @@unique([disciplinaEtapaId, inicio])
+  @@map("aviso_etapa_enviado")
 }
 
 model DisciplinaResponsavel {
@@ -4465,6 +4484,7 @@ enum PapelEap {
   mod // Modelador BIM
   rev // Revisor
   apr // Aprovador
+  est // Estagiário (reunião de 08/10/2026): aloca tarefa e registra horas como os demais, pelo papel
   /// Externo — quem executa a linha é de FORA da casa (cliente, prefeitura, concessionária).
   /// Não é um papel que se dá a alguém: é a marca da ETAPA DE TERCEIRO (decisão #1 de
   /// 2026-09-25). Nunca tem pessoa nem horas — ver o comentário de `EapAtribuicao.papel`.
@@ -5443,6 +5463,10 @@ model TipoEmpreendimento {
   nome        String       @unique
   ativo       Boolean      @default(true)
   ordem       Int          @default(0)
+  /// Fases (`PranchaCatalogo`, categoria fase, SEM FK) com que a disciplina de um projeto deste tipo nasce, a 0% (áudio do
+  /// dono, 2026-10-10). Vazio = o padrão do sistema (Estudo Preliminar, Básico e Executivo). Editado em
+  /// Configurações → Tipos de empreendimento; a ordem é a do catálogo de fases.
+  etapasPadraoIds String[] @default([])
   negociacoes Negociacao[]
   projetos    Projeto[]
   modelosEap  ModeloEap[]

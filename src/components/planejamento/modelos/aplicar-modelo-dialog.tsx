@@ -26,6 +26,8 @@ export type PreviaDeModelo = {
   podadas: { disciplina: string; linhas: number }[];
   /** D38: fases que aplicar cadastra nas disciplinas do projeto, com o percentual do modelo. */
   fasesACriar: { disciplina: string; fase: string; percentual: number }[];
+  /** Etapas já cadastradas (a 0%) que o modelo preenche com o percentual dele. */
+  percentuaisAPreencher: { disciplina: string; fase: string; percentual: number }[];
   /** Disciplinas que ficam sem fase — a linha delas perde a fase. */
   disciplinasSemFase: string[];
   /** Disciplinas do projeto que o modelo não traz: ficam sem linha na EAP. */
@@ -61,7 +63,8 @@ export function AplicarModeloDialog({ projetoId, previas }: { projetoId: string;
       toast.success(
         `${r.data.criadas} linha(s) criadas do modelo` +
           `${r.data.podadas > 0 ? ` (${r.data.podadas} de fora, por disciplina)` : ""}` +
-          `${r.data.fasesCadastradas > 0 ? ` · ${r.data.fasesCadastradas} fase(s) cadastrada(s)` : ""}.`,
+          `${r.data.fasesCadastradas > 0 ? ` · ${r.data.fasesCadastradas} fase(s) cadastrada(s)` : ""}` +
+          `${r.data.percentuaisPreenchidos > 0 ? ` · ${r.data.percentuaisPreenchidos} percentual(is) de etapa preenchido(s)` : ""}.`,
       );
       setAberto(false);
       router.refresh();
@@ -131,6 +134,19 @@ export function AplicarModeloDialog({ projetoId, previas }: { projetoId: string;
               <p className="font-medium">Cadastra as fases da disciplina (e o pagamento passa a ser por fase):</p>
               <ul className="mt-1 list-disc pl-4 text-muted-foreground">
                 {previa.fasesACriar.map((f) => (
+                  <li key={`${f.disciplina}-${f.fase}`}>
+                    {f.disciplina} · {f.fase} — {f.percentual}%
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {previa.percentuaisAPreencher.length > 0 && (
+            <div className="rounded-sm border px-3 py-2 text-xs">
+              <p className="font-medium">Preenche o percentual das etapas que estão em 0% (o pagamento passa a poder ser liberado por fase):</p>
+              <ul className="mt-1 list-disc pl-4 text-muted-foreground">
+                {previa.percentuaisAPreencher.map((f) => (
                   <li key={`${f.disciplina}-${f.fase}`}>
                     {f.disciplina} · {f.fase} — {f.percentual}%
                   </li>

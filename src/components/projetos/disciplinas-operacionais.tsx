@@ -137,6 +137,15 @@ export async function DisciplinasOperacionais({
         return { pagamentoLiberado: e.jaLiberouTudo, fasesLiberadas: e.fases, fasesPendentes };
       })(),
       temEtapas: disciplina._count.etapas > 0,
+      // Áudio do dono (2026-10-10): o card mostra TODAS as etapas, com início e fim, para o projetista saber o prazo.
+      etapas: disciplina.etapas.map((f) => ({
+        id: f.id,
+        sigla: f.etapa.sigla,
+        nome: f.etapa.nome,
+        status: f.status,
+        inicio: f.inicio ? f.inicio.toISOString().slice(0, 10) : null,
+        prazo: f.prazo ? f.prazo.toISOString().slice(0, 10) : null,
+      })),
       exigePacoteA: disciplina.exigePacoteA,
       exigePacoteB: disciplina.exigePacoteB,
       documentosSemPublicacao: semPublicacao.get(disciplina.id) ?? 0,

@@ -127,7 +127,7 @@ export function DisciplinaEtapasButton({
         <DialogHeader>
           <DialogTitle>Etapas — {nome}</DialogTitle>
           <DialogDescription>
-            Cada fase da disciplina com prazo, situação e fatia do valor. Com etapa, o prazo da
+            Cada fase da disciplina com início, prazo, situação e fatia do valor. Com etapa, o prazo da
             disciplina passa a ser o maior prazo entre elas.
           </DialogDescription>
         </DialogHeader>
@@ -189,12 +189,13 @@ function EditorEtapas({
     router.refresh();
   }
 
-  function salvar(e: EtapaParaTela, patch: Partial<Pick<EtapaParaTela, "prazo" | "percentual" | "status">>) {
+  function salvar(e: EtapaParaTela, patch: Partial<Pick<EtapaParaTela, "inicio" | "prazo" | "percentual" | "status">>) {
     const prox = { ...e, ...patch };
     start(async () => {
       const r = await salvarEtapaDisciplina({
         disciplinaId,
         etapaId: prox.etapaId,
+        inicio: prox.inicio,
         prazo: prox.prazo,
         percentual: prox.percentual,
         status: prox.status,
@@ -268,7 +269,8 @@ function EditorEtapas({
             <thead className="border-b bg-muted/40 text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
               <tr>
                 <th className="px-3 py-2">Fase</th>
-                <th className="px-3 py-2">Prazo</th>
+                <th className="px-3 py-2">Início</th>
+                <th className="px-3 py-2">Prazo (fim)</th>
                 <th className="px-3 py-2">Situação</th>
                 <th className="px-3 py-2">%</th>
                 {valor != null && <th className="px-3 py-2 text-right">Valor</th>}
@@ -361,7 +363,7 @@ function LinhaEtapa({
   prazoPlanejado: string | null;
   pending: boolean;
   podeAprovar: boolean;
-  onSalvar: (patch: Partial<Pick<EtapaParaTela, "prazo" | "percentual" | "status">>) => void;
+  onSalvar: (patch: Partial<Pick<EtapaParaTela, "inicio" | "prazo" | "percentual" | "status">>) => void;
   onAprovar: () => void;
   onExcluir: () => void;
 }) {
@@ -371,6 +373,7 @@ function LinhaEtapa({
   // data, pior: apagar um segmento com Backspace já esvazia o valor, e gravar isso zeraria o
   // prazo da etapa e rebaixaria o da disciplina no meio da digitação.
   const [data, setData] = useState(etapa.prazo ?? "");
+  const [dataInicio, setDataInicio] = useState(etapa.inicio ?? "");
   const [pct, setPct] = useState(String(etapa.percentual));
 
   function gravarData(input: HTMLInputElement) {
@@ -389,6 +392,21 @@ function LinhaEtapa({
     }
   }
 
+  // Mesma regra do prazo: só grava ao sair do campo, e digitação interrompida não limpa.
+  function gravarInicio(input: HTMLInputElement) {
+    if (dataInicio === (etapa.inicio ?? "")) return;
+    if (dataInicio === "") {
+      if (input.validity.badInput) setDataInicio(etapa.inicio ?? "");
+      else onSalvar({ inicio: null });
+      return;
+    }
+    if (prazoEtapaValido(dataInicio)) onSalvar({ inicio: dataInicio });
+    else {
+      toast.error("Data de início inválida.");
+      setDataInicio(etapa.inicio ?? "");
+    }
+  }
+
   const enterGrava = (ev: React.KeyboardEvent<HTMLInputElement>) => {
     if (ev.key === "Enter") ev.currentTarget.blur();
   };
@@ -402,7 +420,21 @@ function LinhaEtapa({
       <td className="px-3 py-2">
         <Input
           type="date"
+          value={dataInicio}
+          max={etapa.prazo ?? prazoPlanejado ?? undefined}
+          onChange={(ev) => setDataInicio(ev.target.value)}
+          onBlur={(ev) => gravarInicio(ev.currentTarget)}
+          onKeyDown={enterGrava}
+          disabled={pending}
+          aria-label={`Início da fase ${etapa.sigla}`}
+          className="h-8 w-36 text-xs"
+        />
+      </td>
+      <td className="px-3 py-2">
+        <Input
+          type="date"
           value={data}
+          aria-label={`Prazo da fase ${etapa.sigla}`}
           max={prazoPlanejado ?? undefined}
           onChange={(ev) => setData(ev.target.value)}
           onBlur={(ev) => gravarData(ev.currentTarget)}

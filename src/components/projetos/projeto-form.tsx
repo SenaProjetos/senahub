@@ -29,6 +29,8 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 
 type Interno = { id: string; name: string; role: string };
+
+const NAO_MONTAR = "__nao_montar";
 type DiscDraft = { nome: string; prazo: string; valor: number | null; responsaveisIds: string[] };
 
 export function ProjetoForm({
@@ -38,6 +40,7 @@ export function ProjetoForm({
   catalogo,
   internos,
   tiposEmpreendimento = [],
+  modelosEap = [],
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -46,6 +49,8 @@ export function ProjetoForm({
   internos: Interno[];
   /** D13: classifica o projeto e é o que sugere o modelo de EAP. Vazio = cadastro sem opções. */
   tiposEmpreendimento?: { id: string; nome: string }[];
+  /** Modelos de EAP de projeto (reunião de 08/10/2026, item 7). Vazio = sem permissão no Planejamento. */
+  modelosEap?: { id: string; nome: string; tipoEmpreendimentoId: string | null }[];
 }) {
   const router = useRouter();
   const opcoesInternos = useMemo(() => opcoesDePessoas(internos), [internos]);
@@ -58,6 +63,23 @@ export function ProjetoForm({
   const [prazoPlanejado, setPrazoPlanejado] = useState("");
   const [valorContrato, setValorContrato] = useState<number | null>(null);
   const [tipoEmpreendimentoId, setTipoEmpreendimentoId] = useState("");
+  // "" = não montar a EAP agora. Escolher o tipo pré-seleciona o modelo dele (a pessoa troca à vontade).
+  const [modeloEapId, setModeloEapId] = useState("");
+  const modelosOrdenados = useMemo(
+    () =>
+      [...modelosEap].sort(
+        (a, b) =>
+          Number(b.tipoEmpreendimentoId === tipoEmpreendimentoId && !!tipoEmpreendimentoId) -
+          Number(a.tipoEmpreendimentoId === tipoEmpreendimentoId && !!tipoEmpreendimentoId),
+      ),
+    [modelosEap, tipoEmpreendimentoId],
+  );
+
+  function escolherTipo(id: string) {
+    setTipoEmpreendimentoId(id);
+    const doTipo = modelosEap.find((m) => m.tipoEmpreendimentoId === id);
+    if (doTipo) setModeloEapId(doTipo.id);
+  }
   const [disciplinas, setDisciplinas] = useState<DiscDraft[]>([]);
 
   function addDisciplina() {
@@ -94,6 +116,7 @@ export function ProjetoForm({
         prazoPlanejado: prazoPlanejado || undefined,
         valorContrato: valorContrato ?? undefined,
         tipoEmpreendimentoId: tipoEmpreendimentoId || undefined,
+        modeloEapId: modeloEapId || undefined,
         membrosIds: [],
         disciplinas: disciplinas.map((d) => ({
           nome: d.nome,
@@ -103,7 +126,11 @@ export function ProjetoForm({
         })),
       });
       if (res.ok) {
-        toast.success(`Projeto ${res.data.codigo} criado.`);
+        if (res.data.avisoModelo) {
+          toast.warning(`Projeto ${res.data.codigo} criado, mas a EAP não foi montada: ${res.data.avisoModelo}`);
+        } else {
+          toast.success(modeloEapId ? `Projeto ${res.data.codigo} criado, com a EAP do modelo em rascunho.` : `Projeto ${res.data.codigo} criado.`);
+        }
         onOpenChange(false);
         setNome("");
         setClienteId("");
@@ -112,6 +139,7 @@ export function ProjetoForm({
         setPrazoPlanejado("");
         setValorContrato(null);
         setTipoEmpreendimentoId("");
+        setModeloEapId("");
         setDisciplinas([]);
         router.push(`/projetos/${res.data.id}`);
       } else {
@@ -171,7 +199,7 @@ export function ProjetoForm({
           {tiposEmpreendimento.length > 0 && (
             <div className="space-y-1.5">
               <Label>Tipo de empreendimento</Label>
-              <Select value={tipoEmpreendimentoId} onValueChange={(v) => setTipoEmpreendimentoId(v ?? "")}>
+              <Select value={tipoEmpreendimentoId} onValueChange={(v) => escolherTipo(v ?? "")}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
@@ -185,6 +213,29 @@ export function ProjetoForm({
               </Select>
               <p className="text-[11px] text-muted-foreground">
                 É o que sugere o modelo de EAP no planejamento deste projeto.
+              </p>
+            </div>
+          )}
+
+          {modelosEap.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Montar a EAP com o modelo</Label>
+              <Select value={modeloEapId || NAO_MONTAR} onValueChange={(v) => setModeloEapId(!v || v === NAO_MONTAR ? "" : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Não montar agora" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NAO_MONTAR}>Não montar agora</SelectItem>
+                  {modelosOrdenados.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.nome}
+                      {tipoEmpreendimentoId && m.tipoEmpreendimentoId === tipoEmpreendimentoId ? " · sugerido" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                A EAP nasce em rascunho, com as etapas de cada disciplina. Linhas de disciplina que o projeto não tem ficam de fora.
               </p>
             </div>
           )}

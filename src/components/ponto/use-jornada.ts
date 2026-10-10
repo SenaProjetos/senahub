@@ -86,9 +86,20 @@ export function useJornada({ ativo = true }: { ativo?: boolean } = {}) {
       ? (resumo.tarefaAtiva ?? resumo.retomarTarefa ?? null)
       : (resumo.aberto?.tarefa ?? null);
 
+  /**
+   * Parado e sem alocação corrente: o projeto e a atividade de hoje no cronograma
+   * (`sugestaoParaPonto`). Os seletores começam nela em vez de "Sem projeto"; a pessoa troca à
+   * vontade. `null` com sessão aberta ou sem nada para hoje.
+   */
+  const sugestao =
+    resumo && !rodando && resumo.sugestao
+      ? { selecao: resumo.sugestao.projeto.id, projeto: resumo.sugestao.projeto, tarefa: resumo.sugestao.tarefa }
+      : null;
+
   return {
     resumo,
     carregar,
+    sugestao,
     rodando,
     ms,
     projetoCorrenteId,

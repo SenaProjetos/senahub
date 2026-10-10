@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { CheckCircle2, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Flag, GripVertical, ListTree, Lock, Pin } from "lucide-react";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
+import { ROTULO_SINAL, sinalDaLinha } from "@/modules/planejamento/sinais-linha";
 import {
   contextoDaLinha,
   formatarPredecessoras,
@@ -122,6 +123,11 @@ export type PlanoGanttProps = {
   /** Uma linha recém-criada cujo nome deve abrir em edição assim que ela aparecer na tabela. */
   focoNomeId?: string | null;
   onFocoConsumido?: () => void;
+  /**
+   * Envolve o conteúdo da célula "Nomes dos recursos" (reunião de 08/10/2026): quem monta a tela põe ali a lista de
+   * pessoas que grava ao clicar. Sem esta prop a célula só mostra.
+   */
+  celulaRecursos?: (t: EapTarefaDTO, conteudo: ReactNode) => ReactNode;
   /** Botões da coluna Ações, por linha (os de uso frequente; o resto está no `...`). */
   acoes?: (t: EapTarefaDTO) => ReactNode;
   className?: string;
@@ -170,6 +176,7 @@ export function PlanoGantt({
   onMover,
   focoNomeId = null,
   onFocoConsumido,
+  celulaRecursos,
   acoes,
   rotuloBase,
   className,
@@ -397,6 +404,10 @@ export function PlanoGantt({
       render: (l) => {
         const t = l.t;
         const recolhido = recolhidos.has(t.id);
+        // Reunião de 08/10/2026 (decisão 2): verde = o responsável concluiu e falta validar; vermelho = passou
+        // do término atual. O vermelho depende de data, então só quem vê datas o recebe.
+        const sinalBruto = sinalDaLinha(t, hoje);
+        const sinal = sinalBruto === "atrasada" && !verDatas ? null : sinalBruto;
         return (
           <div className="flex min-w-0 items-center" style={{ paddingLeft: 6 + (l.nivel - 1) * 16 }}>
             {l.temFilhos && !filtroIds ? (
@@ -429,11 +440,27 @@ export function PlanoGantt({
               />
             )}
             {t.restricaoTipo && <Pin className="mr-1 size-3 shrink-0 text-muted-foreground" aria-label="Data fixada" />}
+            {sinal && (
+              <span
+                role="img"
+                aria-label={ROTULO_SINAL[sinal]}
+                title={sinal === "validar" && t.cardConcluidoEm ? `${ROTULO_SINAL[sinal]} (card concluído em ${dataCurta(t.cardConcluidoEm)})` : ROTULO_SINAL[sinal]}
+                className={cn("mr-1 inline-block size-2 shrink-0 rounded-full", sinal === "validar" ? "bg-success" : "bg-destructive")}
+              />
+            )}
             {envolver(
               l,
               "nome",
               "Nome",
-              <span className={cn("truncate text-xs", l.temFilhos ? "font-semibold" : "font-medium")} title={t.nome}>
+              <span
+                className={cn(
+                  "truncate text-xs",
+                  l.temFilhos ? "font-semibold" : "font-medium",
+                  sinal === "validar" && "text-success",
+                  sinal === "atrasada" && "text-destructive",
+                )}
+                title={t.nome}
+              >
                 {gravado(t.id, "nome") ?? t.nome}
               </span>,
             )}
@@ -536,7 +563,7 @@ export function PlanoGantt({
         if (l.temFilhos) return <span className="text-xs text-muted-foreground">—</span>;
         const texto = textoRecursos(t.atribuicoes, t.deTerceiro);
         const semHoras = t.trabalhoHoras == null && !t.deTerceiro && t.atribuicoes.length > 0 && !t.marco;
-        return texto ? (
+        const conteudo = texto ? (
           <span className="flex min-w-0 items-center gap-1 text-xs" title={t.atribuicoes.map((a) => `${a.nome ?? `(perfil) ${a.rotuloPapel}`} · ${a.rotuloPapel}`).join("\n") || undefined}>
             <span className={cn("truncate", t.deTerceiro && "text-muted-foreground")}>{texto}</span>
             {semHoras && <span className="shrink-0 text-[10px] text-warning" title="Alguma pessoa nesta linha ainda não tem horas estimadas">s/h</span>}
@@ -546,6 +573,7 @@ export function PlanoGantt({
         ) : (
           <span className="text-xs text-warning">sem gente</span>
         );
+        return celulaRecursos ? celulaRecursos(t, conteudo) : conteudo;
       },
     };
     const disciplina: Coluna = {
@@ -635,7 +663,7 @@ export function PlanoGantt({
     if (acoesCol) cs.push(acoesCol);
     return compacto ? cs.filter((c) => !c.secundaria) : cs;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `envolver`/`gravado` releem o estado da edição a cada render
-  }, [modo, verDatas, mostrarCusto, compacto, acoes, codigoPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, planoTravado, idPorCodigo, menuDe, onAcao, contextos, podeArrastar, grade]);
+  }, [modo, verDatas, hoje, celulaRecursos, mostrarCusto, compacto, acoes, codigoPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, planoTravado, idPorCodigo, menuDe, onAcao, contextos, podeArrastar, grade]);
 
   // A largura padrão de cada coluna vem do `useMemo` acima; a escolhida pelo usuário a substitui aqui, para o arrasto
   // da alça não refazer as células de todas as linhas (só a largura muda).

@@ -121,6 +121,7 @@ export function ProjetosView({
   catalogo,
   internos,
   tiposEmpreendimento = [],
+  modelosEap = [],
   prontasPorProjeto,
   mostrarGuia,
 }: {
@@ -142,6 +143,8 @@ export function ProjetosView({
   internos: { id: string; name: string; role: string }[];
   /** D13: tipos de empreendimento para o formulário de projeto novo. */
   tiposEmpreendimento?: { id: string; nome: string }[];
+  /** Modelos de EAP de projeto para montar a EAP na criação (vazio = sem permissão no Planejamento). */
+  modelosEap?: { id: string; nome: string; tipoEmpreendimentoId: string | null }[];
   /** projetoId → nº de disciplinas prontas para aprovar (já escopado no server). */
   prontasPorProjeto: Record<string, number>;
   /**
@@ -371,6 +374,7 @@ export function ProjetosView({
           catalogo={catalogo}
           internos={internos}
           tiposEmpreendimento={tiposEmpreendimento}
+          modelosEap={modelosEap}
         />
       )}
     </div>

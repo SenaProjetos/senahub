@@ -20,7 +20,23 @@ export type TarefaCandidata = {
   prazo: string | null;
   /** Janela da linha da EAP que gerou o card; `null` = card manual, sem cronograma. */
   janela: { inicio: string; fim: string } | null;
+  /**
+   * Etapa da linha da EAP (`disciplinaId:etapaId`), para "outras da etapa"; `null` = card manual
+   * ou linha sem fase.
+   */
+  etapa?: string | null;
 };
+
+/** Uma tarefa como o ponto a oferece: no período (lista principal) ou só da mesma etapa. */
+export type TarefaNoPonto = TarefaCandidata & {
+  /** O término da linha já passou e o card segue aberto. */
+  atrasada: boolean;
+  /** `periodo` = lista curta; `etapa` = recolhida em "outras da etapa". */
+  grupo: "periodo" | "etapa";
+};
+
+/** Teto das "outras da etapa": é recolhido, mas continua sendo uma escolha, não o projeto inteiro. */
+export const MAX_OUTRAS_DA_ETAPA = 20;
 
 function somarDias(dia: string, n: number): string {
   const [a, m, d] = dia.split("-").map(Number);
@@ -36,26 +52,97 @@ export function naJanela(janela: { inicio: string; fim: string }, hoje: string):
   return hoje >= somarDias(janela.inicio, -FOLGA_JANELA_DIAS) && hoje <= somarDias(janela.fim, FOLGA_JANELA_DIAS);
 }
 
+/** O término da linha já passou? Só para card de EAP — card manual não tem cronograma. */
+export function estaAtrasada(janela: { inicio: string; fim: string } | null, hoje: string): boolean {
+  return janela != null && hoje > janela.fim;
+}
+
+const agoraExato = (t: TarefaCandidata, hoje: string) => t.janela != null && hoje >= t.janela.inicio && hoje <= t.janela.fim;
+
 /**
- * Lista curta do ponto: card de EAP só dentro da janela; card manual (sem cronograma) sempre.
- * Ordem: o que está NA janela exata agora primeiro, depois prazo mais próximo (sem prazo por
- * último), depois título. Limitada a `MAX_TAREFAS_NO_PONTO`.
+ * Lista curta do ponto (D20 + reunião de 08/10/2026, decisão 1 — o "híbrido"):
+ *  - card de EAP dentro da janela (com a folga de 7 dias) entra;
+ *  - card de EAP ATRASADO (término passou) e ainda aberto entra SEMPRE — é justamente quando a
+ *    pessoa ainda está trabalhando nele, e antes ele sumia uma semana depois do término;
+ *  - card manual (sem cronograma) entra sempre.
+ * Ordem: atrasadas primeiro (a de término mais antigo antes), depois o que está na janela exata
+ * agora, depois prazo mais próximo (sem prazo por último), depois título. Teto
+ * `MAX_TAREFAS_NO_PONTO` — o que passa do teto vai para "outras da etapa" (`listaDoPonto`).
  *
  * Quem chama já filtrou o que é da pessoa, do projeto e ainda aberto — aqui é só o recorte
  * de período e a ordem.
  */
-export function tarefasDoPeriodo(candidatas: readonly TarefaCandidata[], hoje: string): TarefaCandidata[] {
-  const noPeriodo = candidatas.filter((t) => t.janela == null || naJanela(t.janela, hoje));
-  const agoraExato = (t: TarefaCandidata) => t.janela != null && hoje >= t.janela.inicio && hoje <= t.janela.fim;
-  return [...noPeriodo]
+export function tarefasDoPeriodo(candidatas: readonly TarefaCandidata[], hoje: string): TarefaNoPonto[] {
+  return ordenarPeriodo(candidatas, hoje).slice(0, MAX_TAREFAS_NO_PONTO);
+}
+
+function ordenarPeriodo(candidatas: readonly TarefaCandidata[], hoje: string): TarefaNoPonto[] {
+  const noPeriodo = candidatas.filter((t) => t.janela == null || naJanela(t.janela, hoje) || estaAtrasada(t.janela, hoje));
+  return noPeriodo
+    .map((t): TarefaNoPonto => ({ ...t, atrasada: estaAtrasada(t.janela, hoje), grupo: "periodo" }))
     .sort((a, b) => {
-      const ea = agoraExato(a) ? 0 : 1;
-      const eb = agoraExato(b) ? 0 : 1;
+      if (a.atrasada !== b.atrasada) return a.atrasada ? -1 : 1;
+      if (a.atrasada && b.atrasada && a.janela!.fim !== b.janela!.fim) return a.janela!.fim.localeCompare(b.janela!.fim);
+      const ea = agoraExato(a, hoje) ? 0 : 1;
+      const eb = agoraExato(b, hoje) ? 0 : 1;
       if (ea !== eb) return ea - eb;
       if (a.prazo !== b.prazo) return a.prazo == null ? 1 : b.prazo == null ? -1 : a.prazo.localeCompare(b.prazo);
       return a.titulo.localeCompare(b.titulo, "pt-BR");
+    });
+}
+
+/**
+ * A lista inteira que o ponto oferece: a curta (`grupo: "periodo"`) e, recolhidas, as "outras da
+ * etapa" (`grupo: "etapa"`) — cards da pessoa na MESMA etapa (disciplina + fase) de algum card da
+ * lista curta, que ficaram fora da janela (quem adianta mais de uma semana), mais o que passou do
+ * teto da lista curta. Nunca o projeto inteiro: etapa futura de outra fase não aparece.
+ * Ordem das outras: início da linha, depois título. Teto `MAX_OUTRAS_DA_ETAPA`.
+ */
+export function listaDoPonto(candidatas: readonly TarefaCandidata[], hoje: string): TarefaNoPonto[] {
+  const ordenadas = ordenarPeriodo(candidatas, hoje);
+  const principais = ordenadas.slice(0, MAX_TAREFAS_NO_PONTO);
+  const sobra = ordenadas.slice(MAX_TAREFAS_NO_PONTO);
+  const usadas = new Set(principais.map((t) => t.id));
+  const etapas = new Set(principais.map((t) => t.etapa).filter((e): e is string => e != null));
+  const daEtapa = candidatas.filter((t) => !usadas.has(t.id) && t.etapa != null && etapas.has(t.etapa));
+  const outras = new Map<string, TarefaNoPonto>();
+  for (const t of [...sobra, ...daEtapa]) {
+    if (!outras.has(t.id)) outras.set(t.id, { ...t, atrasada: estaAtrasada(t.janela, hoje), grupo: "etapa" });
+  }
+  const resto = [...outras.values()]
+    .sort((a, b) => {
+      const ia = a.janela?.inicio ?? "9999";
+      const ib = b.janela?.inicio ?? "9999";
+      if (ia !== ib) return ia.localeCompare(ib);
+      return a.titulo.localeCompare(b.titulo, "pt-BR");
     })
-    .slice(0, MAX_TAREFAS_NO_PONTO);
+    .slice(0, MAX_OUTRAS_DA_ETAPA);
+  return [...principais, ...resto];
+}
+
+/**
+ * Para onde o ponto já abre apontado (decisão 1 da reunião de 08/10/2026): o projeto e a
+ * atividade de hoje, em vez de "Sem projeto" — que era a causa de muita gente bater ponto sem
+ * projeto. Só card de EAP conta (é ele que diz "o que é para hoje"): primeiro o atrasado de
+ * término mais antigo (é o que a pessoa ainda está fazendo e o seguinte costuma depender dele),
+ * depois o que está na janela exata hoje, pelo início. `null` = nada no cronograma para hoje — o
+ * ponto segue o padrão de antes.
+ */
+export function sugestaoDoPonto<T extends TarefaCandidata & { projetoId: string }>(
+  candidatas: readonly T[],
+  hoje: string,
+): T | null {
+  const elegiveis = candidatas.filter((t) => t.janela != null && (estaAtrasada(t.janela, hoje) || agoraExato(t, hoje)));
+  if (elegiveis.length === 0) return null;
+  return [...elegiveis].sort((a, b) => {
+    const aa = estaAtrasada(a.janela, hoje);
+    const ab = estaAtrasada(b.janela, hoje);
+    if (aa !== ab) return aa ? -1 : 1;
+    const ka = aa ? a.janela!.fim : a.janela!.inicio;
+    const kb = ab ? b.janela!.fim : b.janela!.inicio;
+    if (ka !== kb) return ka.localeCompare(kb);
+    return a.titulo.localeCompare(b.titulo, "pt-BR");
+  })[0];
 }
 
 /**

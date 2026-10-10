@@ -6,6 +6,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { prazoEtapaValido, transicaoEtapaPermitida, validarPercentuais, type EtapaParaTela } from "./etapas";
 import { sincronizarPrazoDisciplina } from "./etapas-service";
+import { motivoInicioDaEtapa } from "./etapas-padrao";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { notificarMuitos } from "@/lib/notificar";
 import { whereAudiencia } from "@/lib/audiencias";
@@ -38,6 +39,12 @@ const salvarSchema = z.object({
     .nullable()
     .optional()
     .refine((p) => !p || prazoEtapaValido(p), "Data do prazo inválida."),
+  /** `YYYY-MM-DD`. Ausente = não mexe; nulo = limpa (áudio do dono, 2026-10-10). */
+  inicio: z
+    .string()
+    .nullable()
+    .optional()
+    .refine((p) => !p || prazoEtapaValido(p), "Data de início inválida."),
   percentual: z.number().finite().min(0, "O percentual não pode ser negativo.").max(100, "O percentual não passa de 100%."),
   status: statusEtapa.optional(),
   ordem: z.number().int().optional(),
@@ -75,7 +82,7 @@ export const salvarEtapaDisciplina = defineAction(
     capturarAntes: (input) =>
       prisma.disciplinaEtapa.findUnique({
         where: { disciplinaId_etapaId: { disciplinaId: input.disciplinaId, etapaId: input.etapaId } },
-        select: { prazo: true, percentual: true, status: true },
+        select: { inicio: true, prazo: true, percentual: true, status: true },
       }),
   },
   async (input): Promise<ResultadoEtapa> => {
@@ -107,8 +114,11 @@ export const salvarEtapaDisciplina = defineAction(
 
     const existente = await prisma.disciplinaEtapa.findUnique({
       where: { disciplinaId_etapaId: { disciplinaId: input.disciplinaId, etapaId: input.etapaId } },
-      select: { id: true, status: true, liberadaEm: true, percentual: true },
+      select: { id: true, status: true, liberadaEm: true, percentual: true, inicio: true },
     });
+    const inicioEfetivo = input.inicio !== undefined ? input.inicio : existente?.inicio ? existente.inicio.toISOString().slice(0, 10) : null;
+    const motivoInicio = motivoInicioDaEtapa(inicioEfetivo, input.prazo ?? null);
+    if (motivoInicio) throw new ActionError(motivoInicio);
     if (!existente && !fase.ativo) {
       throw new ActionError(`A fase "${fase.nome}" está inativa — não pode receber etapa nova.`);
     }
@@ -140,6 +150,7 @@ export const salvarEtapaDisciplina = defineAction(
         create: {
           disciplinaId: input.disciplinaId,
           etapaId: input.etapaId,
+          inicio: input.inicio ? new Date(`${input.inicio}T00:00:00.000Z`) : null,
           prazo,
           percentual: input.percentual,
           status: input.status ?? "aguardando",
@@ -147,6 +158,7 @@ export const salvarEtapaDisciplina = defineAction(
         },
         update: {
           prazo,
+          ...(input.inicio !== undefined ? { inicio: input.inicio ? new Date(`${input.inicio}T00:00:00.000Z`) : null } : {}),
           percentual: input.percentual,
           ...(input.status ? { status: input.status } : {}),
           ...(input.ordem !== undefined ? { ordem: input.ordem } : {}),
@@ -224,6 +236,7 @@ export const carregarEtapasDisciplina = defineAction(
           select: {
             id: true,
             etapaId: true,
+            inicio: true,
             prazo: true,
             status: true,
             percentual: true,
@@ -254,6 +267,7 @@ export const carregarEtapasDisciplina = defineAction(
       etapaId: e.etapaId,
       sigla: e.etapa.sigla,
       nome: e.etapa.nome,
+      inicio: dia(e.inicio),
       prazo: dia(e.prazo),
       status: e.status,
       percentual: Number(e.percentual),

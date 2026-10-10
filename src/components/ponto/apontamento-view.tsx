@@ -1,5 +1,6 @@
 "use client";
 
+import type { SugestaoDoPonto } from "@/modules/ponto/tarefa-ponto-service";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -76,14 +77,17 @@ export function ApontamentoHoras({
   aberto,
   hojeMin,
   projetos,
+  sugestao = null,
 }: {
+  /** Sem apontamento aberto: começa no projeto da atividade de hoje (`sugestaoParaPonto`). */
+  sugestao?: SugestaoDoPonto | null;
   aberto: ApontamentoAberto | null;
   hojeMin: number;
   projetos: Projeto[];
 }) {
   const router = useRouter();
   const [alocacao, setAlocacao] = useState(
-    selecaoDaAlocacaoPonto(aberto?.projetoId ?? null, aberto?.tipoAlocacao ?? "sem_projeto"),
+    !aberto && sugestao ? sugestao.projeto.id : selecaoDaAlocacaoPonto(aberto?.projetoId ?? null, aberto?.tipoAlocacao ?? "sem_projeto"),
   );
   const [pending, start] = useTransition();
   const decorrido = useDecorrido(aberto?.inicio ?? null);

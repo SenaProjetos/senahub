@@ -20,7 +20,7 @@ import { exigirPlanoEditavel } from "./trava-plano-service";
 const plan = { modulo: "planejamento", recurso: "planejamento", permissao: "gerir", entidade: "EapAtribuicao" } as const;
 
 /** `ext` entra aqui: é como a tela marca a etapa de terceiro (decisão #1). */
-const PAPEIS = ["dir", "ger", "coo", "eng", "pro", "mod", "rev", "apr", "ext"] as const;
+const PAPEIS = ["dir", "ger", "coo", "eng", "pro", "mod", "rev", "apr", "est", "ext"] as const;
 
 const revProjeto = (projetoId: string) => {
   revalidatePath(`/planejamento/${projetoId}`);

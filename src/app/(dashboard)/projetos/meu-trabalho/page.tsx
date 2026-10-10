@@ -5,7 +5,9 @@ import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { usuariosInternos } from "@/modules/projetos/queries";
 import { SeletorPessoaTrabalho } from "@/components/projetos/seletor-pessoa-trabalho";
-import { minhasDisciplinas } from "@/modules/projetos/meu-trabalho/queries";
+import { minhasAtividades, minhasDisciplinas } from "@/modules/projetos/meu-trabalho/queries";
+import { MinhasAtividades } from "@/components/projetos/minhas-atividades";
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { STATUS_LABEL, STATUS_CHIP, STATUS_TEXT } from "@/modules/projetos/status";
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { formatarData } from "@/lib/utils";
@@ -38,8 +40,9 @@ export default async function MeuTrabalhoPage({
   const alvoId = podeVerDeOutros && usuario && usuario !== user.id ? usuario : user.id;
   const vendoOutraPessoa = alvoId !== user.id;
 
-  const [disciplinas, pessoas] = await Promise.all([
+  const [disciplinas, atividades, pessoas] = await Promise.all([
     minhasDisciplinas(alvoId),
+    minhasAtividades(alvoId),
     podeVerDeOutros ? usuariosInternos() : Promise.resolve([]),
   ]);
   const alvo = vendoOutraPessoa ? pessoas.find((p) => p.id === alvoId) : null;
@@ -76,24 +79,28 @@ export default async function MeuTrabalhoPage({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold tracking-tight">
-            {vendoOutraPessoa ? `Trabalho de ${alvo?.name ?? "—"}` : "Meu trabalho"}
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            {vendoOutraPessoa
-              ? `Disciplinas sob responsabilidade desta pessoa em projetos ativos (${disciplinas.length} no total).`
-              : `Disciplinas nas quais você é responsável em projetos ativos (${disciplinas.length} no total).`}
-          </p>
-        </div>
-        {podeVerDeOutros && (
-          <SeletorPessoaTrabalho pessoas={pessoas} selecionado={vendoOutraPessoa ? alvoId : null} />
-        )}
-      </div>
+      <CabecalhoPagina
+        titulo={vendoOutraPessoa ? `Trabalho de ${alvo?.name ?? "—"}` : "Meu trabalho"}
+        descricao={
+          vendoOutraPessoa
+            ? "Atividades e disciplinas desta pessoa em projetos ativos."
+            : "Suas atividades e as disciplinas em que você é responsável, em projetos ativos."
+        }
+        acoes={
+          podeVerDeOutros ? <SeletorPessoaTrabalho pessoas={pessoas} selecionado={vendoOutraPessoa ? alvoId : null} /> : undefined
+        }
+      />
+
+      <MinhasAtividades
+        projetos={atividades.projetos}
+        statusConcluidoId={atividades.statusConcluidoId}
+        podeConcluir={!vendoOutraPessoa}
+      />
 
       {disciplinas.length === 0 ? (
-        <EmptyState icon={Briefcase} title={vendoOutraPessoa ? "Nenhuma disciplina atribuída a esta pessoa em projetos ativos." : "Nenhuma disciplina atribuída a você em projetos ativos."} />
+        atividades.projetos.length === 0 && (
+          <EmptyState icon={Briefcase} title={vendoOutraPessoa ? "Nenhuma atividade nem disciplina atribuída a esta pessoa em projetos ativos." : "Nenhuma atividade nem disciplina atribuída a você em projetos ativos."} />
+        )
       ) : (
         <div className="space-y-4">
           {atrasadas.length > 0 && (

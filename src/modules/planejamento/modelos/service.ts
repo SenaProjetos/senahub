@@ -10,6 +10,7 @@ import { herdarResponsaveisNoProjeto } from "../recursos-service";
 import { estruturaModeloSchema, lerEstrutura, type EstruturaModelo, type LinhaModelo } from "./estrutura";
 import { validarIntegridade } from "./edicao";
 import { agrupamentosSemDisciplina, aplicarModelo, podar } from "./aplicar";
+import { percentuaisAPreencher } from "./preencher-percentuais";
 import {
   aplicarRespostas,
   chaveDeNome,
@@ -199,6 +200,11 @@ export type PreviaDaAplicacao = {
    * põe a disciplina no pagamento por fase, então a tela diz antes.
    */
   fasesACriar: { disciplina: string; fase: string; percentual: number }[];
+  /**
+   * Etapas JÁ cadastradas (e ainda a 0%) que o modelo preenche com o percentual dele — só quando a disciplina inteira está
+   * zerada e a soma fecha 100% (`percentuaisAPreencher`). O pagamento dessa disciplina passa a poder ser liberado por fase.
+   */
+  percentuaisAPreencher: { disciplina: string; fase: string; percentual: number }[];
   /** Disciplinas que ficam SEM fase: a linha delas perde a fase e o marco não marca fase Entregue. */
   disciplinasSemFase: string[];
   /**
@@ -253,7 +259,10 @@ async function contextoDoProjeto(projetoId: string) {
       select: { id: true, disciplinaId: true, disciplinaTextoLegado: true, catalogo: { select: { nome: true } } },
       orderBy: { ordem: "asc" },
     }),
-    prisma.disciplinaEtapa.findMany({ where: { disciplina: { projetoId } }, select: { disciplinaId: true, etapaId: true } }),
+    prisma.disciplinaEtapa.findMany({
+      where: { disciplina: { projetoId } },
+      select: { disciplinaId: true, etapaId: true, percentual: true, liberadaEm: true },
+    }),
     prisma.eapTarefa.count({ where: { projetoId } }),
     prisma.eapBaseline.count({ where: { projetoId } }),
     prisma.cronogramaProjeto.findUnique({ where: { projetoId }, select: { inicioProjeto: true, aprovado: true } }),
@@ -279,7 +288,14 @@ async function contextoDoProjeto(projetoId: string) {
     noCatalogo: d.disciplinaId != null,
   }));
 
-  return { projeto, disciplinaDoProjeto, fasesDaDisciplina, quantasLinhas, baseline, cronograma, disciplinas: nomesDasDisciplinas };
+  const etapasDetalhe = [...new Set(etapas.map((e) => e.disciplinaId))].map((disciplinaId) => ({
+    disciplinaId,
+    etapas: etapas
+      .filter((e) => e.disciplinaId === disciplinaId)
+      .map((e) => ({ etapaId: e.etapaId, percentual: Number(e.percentual), liberada: e.liberadaEm != null })),
+  }));
+
+  return { projeto, disciplinaDoProjeto, fasesDaDisciplina, etapasDetalhe, quantasLinhas, baseline, cronograma, disciplinas: nomesDasDisciplinas };
 }
 
 /** Por que aplicar seria recusado — a mesma frase que a action lança, para a tela desabilitar o botão. */
@@ -299,6 +315,24 @@ function impedimentoParaAplicar(ctx: Awaited<ReturnType<typeof contextoDoProjeto
   return null;
 }
 
+/**
+ * Percentuais do modelo que entram nas etapas já semeadas (decisão do dono, 2026-10-10): só com o modelo válido
+ * (percentual em todas as fases, somando 100%) e pelas regras de `percentuaisAPreencher`. Prévia e gravação usam
+ * ESTA função, para a tela nunca prometer o que a gravação não faz.
+ */
+function preenchimentoDeEtapas(
+  estrutura: EstruturaModelo,
+  ctx: Awaited<ReturnType<typeof contextoDoProjeto>>,
+  linhas: readonly { disciplinaId?: string | null }[],
+) {
+  if (!validarPercentuaisPorFase(estrutura).ok || Object.keys(estrutura.percentuaisPorFase).length === 0) return [];
+  return percentuaisAPreencher({
+    percentuaisPorFase: estrutura.percentuaisPorFase,
+    disciplinas: ctx.etapasDetalhe,
+    disciplinasComLinha: new Set(linhas.map((l) => l.disciplinaId).filter((id): id is string => id != null)),
+  });
+}
+
 /** O que o modelo faria neste projeto — a tela mostra antes de gravar. */
 export async function previaDaAplicacao(p: { projetoId: string; modeloId: string }): Promise<PreviaDaAplicacao> {
   const modelo = await prisma.modeloEap.findUnique({
@@ -312,6 +346,7 @@ export async function previaDaAplicacao(p: { projetoId: string; modeloId: string
 
   const ctx = await contextoDoProjeto(p.projetoId);
   const r = contarAplicacao(estrutura, ctx, p.projetoId);
+  const preencher = preenchimentoDeEtapas(estrutura, ctx, r.linhas);
 
   const porDisciplina = new Map<string, number>();
   for (const l of r.podadas) {
@@ -323,11 +358,11 @@ export async function previaDaAplicacao(p: { projetoId: string; modeloId: string
       .findMany({ where: { id: { in: [...porDisciplina.keys()] } }, select: { id: true, nome: true } })
       .then((l) => new Map(l.map((d) => [d.id, d.nome]))),
     prisma.pranchaCatalogo
-      .findMany({ where: { id: { in: r.etapasParaCriar.map((e) => e.etapaId) } }, select: { id: true, nome: true } })
+      .findMany({ where: { id: { in: [...r.etapasParaCriar.map((e) => e.etapaId), ...preencher.map((f) => f.etapaId)] } }, select: { id: true, nome: true } })
       .then((l) => new Map(l.map((f) => [f.id, f.nome]))),
     prisma.disciplina
       .findMany({
-        where: { id: { in: [...r.etapasParaCriar.map((e) => e.disciplinaId), ...r.disciplinasSemFase] } },
+        where: { id: { in: [...r.etapasParaCriar.map((e) => e.disciplinaId), ...r.disciplinasSemFase, ...preencher.map((f) => f.disciplinaId)] } },
         select: { id: true, disciplinaTextoLegado: true, catalogo: { select: { nome: true } } },
       })
       .then((l) => new Map(l.map((d) => [d.id, d.catalogo?.nome ?? d.disciplinaTextoLegado]))),
@@ -347,6 +382,11 @@ export async function previaDaAplicacao(p: { projetoId: string; modeloId: string
       disciplina: nomesDisciplinaProjeto.get(e.disciplinaId) ?? "disciplina",
       fase: nomesFase.get(e.etapaId) ?? "fase",
       percentual: Number(e.percentual),
+    })),
+    percentuaisAPreencher: preencher.map((f) => ({
+      disciplina: nomesDisciplinaProjeto.get(f.disciplinaId) ?? "disciplina",
+      fase: nomesFase.get(f.etapaId) ?? "fase",
+      percentual: f.percentual,
     })),
     disciplinasSemFase: r.disciplinasSemFase.map((id) => nomesDisciplinaProjeto.get(id) ?? "disciplina"),
     disciplinasSemLinha: r.disciplinasSemLinha,
@@ -373,6 +413,7 @@ export async function aplicarModeloNoProjeto(p: {
   terceiros: number;
   vinculos: number;
   fasesCadastradas: number;
+  percentuaisPreenchidos: number;
   disciplinasSemFase: number;
 }> {
   const modelo = await prisma.modeloEap.findUnique({
@@ -411,6 +452,16 @@ export async function aplicarModeloNoProjeto(p: {
 
     // D38 — as fases ANTES das linhas: a linha guarda `etapaId` de fase que está sendo criada aqui.
     if (r.etapasParaCriar.length > 0) await tx.disciplinaEtapa.createMany({ data: r.etapasParaCriar });
+    // Etapas já semeadas a 0%: o modelo preenche o percentual dele. Condicionado ao 0% lido agora — se alguém
+    // preencheu ou liberou entre a leitura e a gravação, não sobrescreve.
+    let percentuaisPreenchidos = 0;
+    for (const f of preenchimentoDeEtapas(estrutura, ctx, r.linhas)) {
+      const w = await tx.disciplinaEtapa.updateMany({
+        where: { disciplinaId: f.disciplinaId, etapaId: f.etapaId, percentual: 0, liberadaEm: null },
+        data: { percentual: f.percentual },
+      });
+      percentuaisPreenchidos += w.count;
+    }
     await tx.eapTarefa.createMany({ data: r.linhas });
     if (r.dependencias.length > 0) await tx.eapDependencia.createMany({ data: r.dependencias, skipDuplicates: true });
     // A marca de terceiro vem ANTES da herança: linha com o "Externo" já conta como "tem atribuição",
@@ -428,6 +479,7 @@ export async function aplicarModeloNoProjeto(p: {
       terceiros: r.atribuicoesExternas.length,
       vinculos: r.dependencias.length,
       fasesCadastradas: r.etapasParaCriar.length,
+      percentuaisPreenchidos,
       disciplinasSemFase: r.disciplinasSemFase.length,
     };
   });
@@ -455,13 +507,19 @@ export async function previasDosModelos(projetoId: string): Promise<(PreviaDaApl
 
   const contas = modelos.map((m) => {
     const estrutura = lerEstrutura(m.estrutura);
-    return { modelo: m, estrutura, conta: estrutura ? contarAplicacao(estrutura, ctx, projetoId) : null };
+    const conta = estrutura ? contarAplicacao(estrutura, ctx, projetoId) : null;
+    const preencher = estrutura && conta ? preenchimentoDeEtapas(estrutura, ctx, conta.linhas) : [];
+    return { modelo: m, estrutura, conta, preencher };
   });
 
   const idsDisciplinaCatalogo = new Set<string>();
   const idsFase = new Set<string>();
   const idsDisciplinaProjeto = new Set<string>();
-  for (const { conta } of contas) {
+  for (const { conta, preencher } of contas) {
+    for (const f of preencher) {
+      idsFase.add(f.etapaId);
+      idsDisciplinaProjeto.add(f.disciplinaId);
+    }
     if (!conta) continue;
     for (const p of conta.podadas) if (p.disciplinaCatalogoId) idsDisciplinaCatalogo.add(p.disciplinaCatalogoId);
     for (const e of conta.etapasParaCriar) {
@@ -489,7 +547,7 @@ export async function previasDosModelos(projetoId: string): Promise<(PreviaDaApl
   const tipoDoProjeto = ctx.projeto.tipoEmpreendimentoId;
   const ehSugerido = (tipoDoModelo: string | null) => tipoDoProjeto != null && tipoDoModelo === tipoDoProjeto;
 
-  const previas = contas.map(({ modelo, conta }) => {
+  const previas = contas.map(({ modelo, conta, preencher }) => {
     if (!conta) {
       return {
         modeloId: modelo.id,
@@ -500,6 +558,7 @@ export async function previasDosModelos(projetoId: string): Promise<(PreviaDaApl
         terceiros: 0,
         podadas: [],
         fasesACriar: [],
+        percentuaisAPreencher: [],
         disciplinasSemFase: [],
         disciplinasSemLinha: [],
         semDisciplina: [],
@@ -527,6 +586,11 @@ export async function previasDosModelos(projetoId: string): Promise<(PreviaDaApl
         disciplina: nomesDisciplinaProjeto.get(e.disciplinaId) ?? "disciplina",
         fase: nomesFase.get(e.etapaId) ?? "fase",
         percentual: Number(e.percentual),
+      })),
+      percentuaisAPreencher: preencher.map((f) => ({
+        disciplina: nomesDisciplinaProjeto.get(f.disciplinaId) ?? "disciplina",
+        fase: nomesFase.get(f.etapaId) ?? "fase",
+        percentual: f.percentual,
       })),
       disciplinasSemFase: conta.disciplinasSemFase.map((id) => nomesDisciplinaProjeto.get(id) ?? "disciplina"),
       disciplinasSemLinha: conta.disciplinasSemLinha,

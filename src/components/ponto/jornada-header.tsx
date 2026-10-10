@@ -64,7 +64,7 @@ function projetoLabel(p: { codigo: string; nome: string }): string {
 export function JornadaHeader() {
   const router = useRouter();
   // `resumo`: undefined = carregando · null = usuário sem jornada (cliente) → não renderiza.
-  const { resumo, rodando, ms, projetoCorrenteId, tipoAlocacaoCorrente, tarefaCorrente } = useJornada();
+  const { resumo, rodando, ms, projetoCorrenteId, tipoAlocacaoCorrente, tarefaCorrente, sugestao } = useJornada();
   // Projetos do seletor: carregados só ao abrir o popover (não pesam a navegação).
   const [projetos, setProjetos] = useState<Projeto[] | null>(null);
   const [alocacao, setAlocacao] = useState<string>(ALOCACAO_SEM_PROJETO);
@@ -77,15 +77,22 @@ export function JornadaHeader() {
 
   const tarefaCorrenteId = tarefaCorrente?.id ?? "";
 
+  // Sem alocação corrente, começa na atividade de hoje (`sugestao`) em vez de "Sem projeto".
+  // Chaves em texto: o poll de 60s devolve objetos novos e não pode apagar a escolha da pessoa.
+  const sugestaoSelecao = sugestao?.selecao ?? null;
+  const sugestaoTarefaId = sugestao?.tarefa.id ?? "";
+  const corrente = selecaoDaAlocacaoPonto(projetoCorrenteId, tipoAlocacaoCorrente);
+  const usaSugestao = corrente === ALOCACAO_SEM_PROJETO && sugestaoSelecao !== null;
+
   useEffect(() => {
-    setAlocacao(selecaoDaAlocacaoPonto(projetoCorrenteId, tipoAlocacaoCorrente));
-  }, [projetoCorrenteId, tipoAlocacaoCorrente]);
+    setAlocacao(usaSugestao ? sugestaoSelecao! : corrente);
+  }, [corrente, usaSugestao, sugestaoSelecao]);
 
   // Só quando a tarefa CORRENTE muda no servidor — o poll de 60s não pode apagar a escolha
   // que o usuário acabou de fazer (mesma regra do seletor de projeto acima).
   useEffect(() => {
-    setTarefa(tarefaCorrenteId);
-  }, [tarefaCorrenteId]);
+    setTarefa(usaSugestao ? sugestaoTarefaId : tarefaCorrenteId);
+  }, [tarefaCorrenteId, usaSugestao, sugestaoTarefaId]);
 
   const carregarProjetos = useCallback(async () => {
     if (projetos !== null) return;

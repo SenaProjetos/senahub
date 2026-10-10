@@ -349,7 +349,7 @@ export async function obterProjeto(viewer: Viewer, id: string) {
           // Também as fases ainda por aprovar: o card da disciplina oferece "Aprovar fase" (decisão #10).
           etapas: {
             orderBy: { ordem: "asc" },
-            select: { id: true, status: true, percentual: true, liberadaEm: true, etapa: { select: { sigla: true, nome: true } } },
+            select: { id: true, status: true, inicio: true, prazo: true, percentual: true, liberadaEm: true, etapa: { select: { sigla: true, nome: true } } },
           },
         },
       },

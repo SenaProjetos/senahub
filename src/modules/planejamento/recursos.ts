@@ -12,7 +12,7 @@
 import { ehDiaUtil, type Calendario, type Dia } from "@/lib/calendario-trabalho";
 import { chaveSemanaIso } from "./disponibilidade";
 
-export type Papel = "dir" | "ger" | "coo" | "eng" | "pro" | "mod" | "rev" | "apr" | "ext";
+export type Papel = "dir" | "ger" | "coo" | "eng" | "pro" | "mod" | "rev" | "apr" | "est" | "ext";
 export type TipoLinha = "prj" | "fas" | "pct" | "disc" | "loc" | "sis" | "res" | "atv" | "mrc";
 export type StatusLinha = "nin" | "and" | "agu" | "blq" | "rev" | "apr" | "con" | "sus" | "can" | "arq";
 
@@ -25,6 +25,7 @@ export const ROTULO_PAPEL: Record<Papel, string> = {
   mod: "Modelador BIM",
   rev: "Revisor",
   apr: "Aprovador",
+  est: "Estagiário",
   ext: "Externo",
 };
 
@@ -33,7 +34,7 @@ export const ROTULO_PAPEL: Record<Papel, string> = {
  * fica fora: não é um papel que se dá a uma pessoa, é a marca de que a linha é executada
  * por terceiro, e a tela a oferece em outro lugar (um botão, não a lista de papéis).
  */
-export const PAPEIS_DE_PESSOA: readonly Papel[] = ["dir", "ger", "coo", "eng", "pro", "mod", "rev", "apr"];
+export const PAPEIS_DE_PESSOA: readonly Papel[] = ["dir", "ger", "coo", "eng", "pro", "mod", "est", "rev", "apr"];
 
 /** Linha que já não gera trabalho: fora da carga, do card e da cobrança de horas. */
 export const ENCERRADA: ReadonlySet<StatusLinha> = new Set(["con", "can", "arq"]);
@@ -160,7 +161,7 @@ export function pessoasSemHoras(
  * ou aprova. O principal responde pelo prazo e aparece no card — o revisor não é quem o
  * projetista procura quando o card atrasa.
  */
-const ORDEM_PRINCIPAL: readonly Papel[] = ["pro", "mod", "eng", "coo", "ger", "dir", "rev", "apr"];
+const ORDEM_PRINCIPAL: readonly Papel[] = ["pro", "mod", "est", "eng", "coo", "ger", "dir", "rev", "apr"];
 
 /**
  * Quem deve ser o principal da linha. Mantém o atual se ele continua sendo pessoa; senão

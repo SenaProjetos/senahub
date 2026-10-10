@@ -80,6 +80,7 @@ export function linhasDoGantt(
       trabalhoHoras: null,
       atribuicoes: [],
       horasApontadas: 0,
+      cardConcluidoEm: null,
       sugestoesProgresso: [],
       contextoArquivos: null,
       custo: null,
