@@ -342,6 +342,41 @@ preciso recriar a tabela. O backup do Passo 0 guarda os dados dela, se alguém q
 
 ---
 
+## ⚠ DEPLOY 6 — Onda F, blocos F1/B/C, 2026-10-10
+
+Branch `feat/onda-f-poda-role`. Duas migrations:
+- `20261010150000_drop_permissao_legada` — `DROP TABLE IF EXISTS "permissao"` (destrutiva);
+- `20261010160000_user_tipo_obrigatorio` — preenche `user.tipo` nulo (cliente = externo, resto =
+  interno, a mesma regra que o código já aplicava) e torna a coluna NOT NULL.
+
+**Antes do deploy, no servidor, contra produção** (só lê). O ideal é o censo ir num deploy
+ANTERIOR (o commit `9c20596f` sozinho não muda comportamento); se for junto, rode depois do
+`git pull` e antes do `migrate deploy`:
+
+```
+cd F:\senahub\app
+npx tsx --tsconfig tsconfig.server.json scripts/censo-onda-f.ts
+```
+
+Bloqueia o deploy:
+- **[1]** qualquer par "concedido na TABELA e ausente da constante" — a troca tiraria esse par do
+  piso de sócio;
+- **[2]** "papel admin SEM superUsuario" — essa pessoa perde lixeira, alçada, exclusão direta e
+  o "autor ou admin" (o motor de permissão já não a reconhecia desde a Onda D);
+- **[3]** "papel cliente com tipo interno" ou "papel X com tipo externo" — a pessoa muda de lado
+  (menu, portal, termo de uso). Tipo NULO não bloqueia: a migration grava o que já valia.
+
+As seções 4 a 6 são informativas (insumo dos próximos blocos, §16.3 do plano).
+
+**O que muda para quem usa:** um cliente que abrir `/agenda`, `/tarefas` ou `/versoes` pelo endereço
+recebe "página não encontrada" em vez de "sem permissão".
+
+**Como voltar atrás:** revert dos commits. A coluna `tipo` pode ficar NOT NULL (o código antigo
+lê nulo com fallback e nunca grava nulo). A tabela `permissao` volta pelo backup do Passo 0 — ou
+basta rodar o `db:seed` do código antigo, que a recria a partir da constante.
+
+---
+
 ## Passo 0 — provar que o backup funciona (NÃO PULE)
 
 O deploy faz backup antes da migration, mas `Invoke-Backup` **falha macio**: se `PG_DUMP_PATH` ou

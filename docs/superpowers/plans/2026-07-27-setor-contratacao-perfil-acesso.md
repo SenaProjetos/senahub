@@ -5,6 +5,9 @@ Onda D implementadas e mergeadas em `dev`** (§15.8-15.18, commit `6eb6762`, tag
 resolve por `permissaoEfetiva`, `registrarBatida` já restrito a `CLT_ROLES`, nav já é `permissao`+`tipo`.
 **Onda E completa** (2026-09-24, branch `feat/onda-e-escala-contratacao`, §15.21): tela de escalas
 edita por contratação e `EscalaRole` foi dropada — deploy pelo DEPLOY 5 do runbook.
+**Onda F em andamento** (2026-10-10, branch `feat/onda-f-poda-role`, §16): blocos F1 (tabela
+`permissao`), B (`superUsuario`) e C (`tipo`) feitos; D, A, escrita, rótulos e poda final aguardam
+decisões do dono (§16.3). Deploy pelo DEPLOY 6 do runbook.
 **Deploy 2 — CONCLUÍDO em 2026-08-19, com um achado.** O status anterior deste cabeçalho dizia que
 ele "não tem confirmação de execução"; **meio certo**. O *código* da virada foi a produção junto com
 o deploy de 2026-08-09 (`6eb6762` entrou em `master` naquele dia), e `can()` resolve por
@@ -1548,3 +1551,52 @@ rodado antes de o script sair).
   com rollback (inclusive reexecução).
 
 `enum Role` perde mais um uso como dado: depois disto, só `User.role` o prende (Onda F).
+
+## 16. Onda F — poda do papel (2026-10-10, branch `feat/onda-f-poda-role`)
+
+Começou depois do gate de tempo (§8: 1-2 meses de produção estável contados de 2026-08-09).
+Feita em blocos, um eixo por vez, cada um com a medição de produção que o torna neutro.
+
+### 16.1 Levantamento (código de produção, sem testes)
+
+O plano (§3) estimava ~200 sites. Medido em 2026-10-10, antes dos blocos: **~420 linhas em
+294 arquivos** — `HR_ADMIN_ROLES` 57, `roles:` em `defineAction` 36, `requireRole` 18,
+`"cliente"` 58, contratação (`CLT_ROLES`/`PJ_ROLES`/...) 52, `"admin"` 37, `ROLE_LABELS` 43,
+filtros `role:` em consultas 24. A Onda F é maior que "2-3 sessões" — por isso os blocos.
+
+### 16.2 Feito
+
+| Bloco | O que | Neutro se (censo, seção) |
+|---|---|---|
+| F0 | `scripts/censo-onda-f.ts` (só leitura) + `PERMISSOES_BASE` em `src/lib/permissoes-base.ts` | — |
+| F1 | tabela `permissao` sai (`DROP TABLE IF EXISTS`); `canRole`, semente dos perfis e tela do piso leem a constante | tabela == constante (1) |
+| B | `role === "admin"` → `superUsuario` (autor-ou-admin, lixeira, alçada, contrato, tela de usuários) | todo admin ativo é superusuário (2) |
+| C | `User.tipo` NOT NULL (migration grava a regra de `tipoEfetivo`); "cliente"/`INTERNAL_ROLES` → `tipo`; `defineAction({ interno: true })`; `EscopoDeDados` carrega `tipo` | nenhum tipo contraditório com o papel (3) |
+
+No dev: tabela == constante (189 pares); 1 admin de exemplo sem superUsuario e com tipo nulo
+(o "Lúcio" do mock do financeiro); migration de `tipo` ensaiada em transação desfeita —
+1 nulo virou interno, 0 divergências papel × tipo. 6460 testes, tsc e lint limpos.
+
+**Mudança visível do bloco C:** páginas que exigiam `requireRole(...INTERNAL_ROLES)` (agenda,
+tarefas, versões) agora usam `requireInterno()` — o externo recebe 404 em vez de
+`/sem-permissao`, como já acontecia em `/guias`.
+
+### 16.3 Falta — cada bloco precisa de decisão do dono antes de código
+
+1. **D — contratação** (`CLT_ROLES` 13, `PJ_ROLES` 35, `PROJETO_MEMBRO_ROLES` 8, `CADASTRO_ROLES` 18):
+   a jornada já é por contratação (§15.18); falta apontamento (`PJ_ROLES`), NF de PJ, cadastro
+   trabalhista e o fallback "sem vínculo cai no papel" de `controlaJornada`. Decisão: quem não
+   tem vínculo (os admins, hoje sem contratação — censo seção 4) passa a não bater ponto, ou
+   recebe vínculo `pro_labore` antes?
+2. **A — gates por papel** (`HR_ADMIN_ROLES` 117 usos, 40 `roles:` em action, 27 `requireRole`,
+   `GLOBAL_ROLES` 14, chat admin×coordenador): viram pares de catálogo concedidos por migration
+   aos perfis equivalentes, com o gate de equivalência rodando em produção. Decisão: quem é
+   "RH" — o perfil Administrativo + Coordenador, como o papel hoje, ou um par novo
+   (`rh:gerir`) atribuído pessoa a pessoa? O chat depende do Termo de Uso (cláusula 4.2).
+3. **E — audiências restantes** (11 `role: { in }`): seguem os eixos de D e A.
+4. **Escrita** — o formulário de usuários ainda escolhe o PAPEL (`usuarios-view.tsx`,
+   `criarUsuarioComCredencial`), e o resumo de acesso simula pelo papel. Decisão de tela: o
+   cadastro passa a pedir Tipo + Perfil (+ vínculo), sem papel.
+5. **G — rótulos** (`ROLE_LABELS` 49): trocar por perfil/contratação na exibição.
+6. **Poda final** — `DROP COLUMN "role"` e `DROP TYPE "Role"`, depois de todos acima.
+
