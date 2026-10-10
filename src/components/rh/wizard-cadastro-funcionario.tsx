@@ -7,6 +7,7 @@ import { User, MapPin, CreditCard, Briefcase, Check, ChevronLeft, ChevronRight, 
 import { cadastrarFuncionario, consultarCep } from "@/modules/rh/funcionarios/actions";
 import type { Contratacao } from "@/generated/prisma/enums";
 import { CONTRATACAO_LABELS } from "@/modules/usuarios/vinculo/labels";
+import { PERFIL_PADRAO_POR_CONTRATACAO } from "@/modules/usuarios/vinculo/perfil-semente";
 import { InputFormatado } from "@/components/ui/input-formatado";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -280,7 +281,11 @@ export function WizardCadastroFuncionario({
                   <Briefcase className="size-3.5" />
                   {ehProjetista
                     ? "Vínculo Projetista / PJ — prestador de serviço (PJ/CNPJ e honorário; sem folha CLT)."
-                    : "Vínculo CLT / Interno — folha e período aquisitivo (salário e admissão)."}
+                    : f.contratacao === "clt"
+                      ? "Vínculo CLT — bate ponto, folha e período aquisitivo (salário e admissão)."
+                      : f.contratacao === "estagio"
+                        ? "Vínculo de estágio — bate ponto (até 30h por semana), bolsa e recesso."
+                        : "Sócio (pró-labore) — registra horas por apontamento, sem ponto e sem folha CLT."}
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -298,6 +303,11 @@ export function WizardCadastroFuncionario({
                   </Campo>
                 </div>
 
+                <p className="text-xs text-muted-foreground">
+                  Perfil de acesso: {PERFIL_PADRAO_POR_CONTRATACAO[f.contratacao]
+                    ? <>o padrão de {CONTRATACAO_LABELS[f.contratacao]}. Ajuste em Configurações → Usuários.</>
+                    : <>nenhum — defina em Configurações → Usuários.</>}
+                </p>
                 <Campo label="Setor (onde a pessoa atua — não concede acesso, só organiza o cadastro)">
                   <select className={selectCls} value={f.setor} onChange={(e) => set("setor", e.target.value as Form["setor"])}>
                     {SETOR_OPCOES.map((s) => (

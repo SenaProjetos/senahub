@@ -24,6 +24,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ehJornada, ehPrestador } from "@/lib/contratacao";
 import { resumirAcesso, type LinhaResumo } from "@/modules/usuarios/resumo-acesso";
 import { CONTRATACAO_LABELS, SETOR_LABELS, rotuloContratacao } from "@/modules/usuarios/vinculo/labels";
+import { PERFIL_PADRAO_POR_CONTRATACAO } from "@/modules/usuarios/vinculo/perfil-semente";
 import type { Contratacao, Setor } from "@/generated/prisma/client";
 import type { UsuarioListItem } from "@/modules/usuarios/queries";
 import { SolicitacoesCadastro, type PedidoCadastro } from "@/components/configuracoes/solicitacoes-cadastro";
@@ -185,6 +186,8 @@ export function UsuariosView({
   const [mostrarInativos, setMostrarInativos] = useState(true);
   /** Perfil fixo do cliente do portal (semente `portal_cliente`). */
   const perfilPortal = perfis.find((p) => p.chave === "portal_cliente") ?? null;
+  /** Perfil semente sugerido pela contratação (o admin pode trocar). */
+  const perfilPadrao = (c: Contratacao) => perfis.find((p) => p.chave === PERFIL_PADRAO_POR_CONTRATACAO[c])?.id ?? "";
   const [form, setForm] = useState<FormState | null>(null);
   const [credencial, setCredencial] = useState<{ email: string; senha: string } | null>(null);
   const [pending, startTransition] = useTransition();
@@ -213,7 +216,7 @@ export function UsuariosView({
           telefone: pf.telefone ?? "",
           tipo: pf.tipoPretendido === "externo" ? "externo" : "interno",
           contratacaoNova: pf.contratacaoPretendida ?? "clt",
-          perfilId: pf.tipoPretendido === "externo" ? (perfilPortal?.id ?? "") : "",
+          perfilId: pf.tipoPretendido === "externo" ? (perfilPortal?.id ?? "") : perfilPadrao(pf.contratacaoPretendida ?? "clt"),
         });
         toast.success("Pedido aprovado — confira o vínculo e crie o usuário.");
       } else {
@@ -451,7 +454,7 @@ export function UsuariosView({
         descricao={<>{visiveis.length} usuário(s). Usuários com histórico são apenas desativados; contas desativadas sem atividade podem ser excluídas pelo admin.</>}
         acoes={
           <>
-          <Button onClick={() => setForm({ ...EMPTY })}>
+          <Button onClick={() => setForm({ ...EMPTY, perfilId: perfilPadrao(EMPTY.contratacaoNova) })}>
             <UserPlus className="size-4" /> Nova pessoa
           </Button>
           </>
@@ -629,7 +632,7 @@ export function UsuariosView({
                           setForm({
                             ...form,
                             tipo: valor,
-                            perfilId: valor === "externo" ? (perfilPortal?.id ?? "") : form.tipo === "externo" ? "" : form.perfilId,
+                            perfilId: valor === "externo" ? (perfilPortal?.id ?? "") : form.tipo === "externo" ? perfilPadrao(form.contratacaoNova) : form.perfilId,
                           })
                         }
                         className={`rounded-sm border p-2.5 text-left text-sm transition-colors ${form.tipo === valor ? "border-primary bg-accent/40" : "hover:bg-muted/50"}`}
@@ -647,7 +650,15 @@ export function UsuariosView({
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label>Contratação</Label>
-                      <Select value={form.contratacaoNova} onValueChange={(v) => v && setForm({ ...form, contratacaoNova: v as Contratacao })}>
+                      <Select value={form.contratacaoNova} onValueChange={(v) =>
+                          v &&
+                          setForm({
+                            ...form,
+                            contratacaoNova: v as Contratacao,
+                            // Troca o perfil sugerido junto, a menos que o admin já tenha escolhido outro.
+                            perfilId: form.perfilId === perfilPadrao(form.contratacaoNova) ? perfilPadrao(v as Contratacao) : form.perfilId,
+                          })
+                        }>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {(Object.keys(CONTRATACAO_LABELS) as Contratacao[]).map((c) => (
@@ -829,7 +840,7 @@ export function UsuariosView({
               {(mostrarSuper || mostrarSocio || mostrarExtras) && (
                 <CollapsibleSection
                   titulo="Acesso avançado"
-                  descricao="Bypass total, sócio, Gestão de RH e moderação do chat."
+                  descricao={form.id ? "Bypass total, sócio, Gestão de RH e moderação do chat." : "Gestão de RH e moderação do chat."}
                   resumo={
                     form.superUsuario || (mostrarSocio && form.ehSocio) || (mostrarExtras && (form.gereRh || form.moderaChat)) ? (
                       <Badge variant="destructive">

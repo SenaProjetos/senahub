@@ -18,6 +18,7 @@ import { normalizarConta, garantirPrincipal } from "@/modules/rh/contas/service"
 import { abrirCicloNoBanco } from "@/modules/rh/ciclo/service";
 import { CAMINHO_DOC_RH, TIPOS_DOC } from "@/modules/rh/documentos/regras";
 import { ehPrestador } from "@/lib/contratacao";
+import { PERFIL_PADRAO_POR_CONTRATACAO } from "@/modules/usuarios/vinculo/perfil-semente";
 
 const base = { modulo: "rh", gereRh: true } as const;
 const rev = () => revalidatePath("/rh/funcionarios");
@@ -154,6 +155,14 @@ export const cadastrarFuncionario = defineAction(
         await tx.contaBancariaColaborador.create({ data: { userId: id, ...dadosConta } });
         await garantirPrincipal(tx, id);
       });
+    }
+
+    // Perfil de acesso semente pela contratação. O RH não escolhe perfil aqui (seria conceder acesso
+    // com o gate de RH, não o de usuários): quem ajusta é Configurações → Usuários.
+    const chavePerfil = PERFIL_PADRAO_POR_CONTRATACAO[i.contratacao];
+    if (chavePerfil) {
+      const perfil = await prisma.perfilAcesso.findUnique({ where: { chave: chavePerfil }, select: { id: true, ativo: true } });
+      if (perfil?.ativo) await prisma.user.update({ where: { id }, data: { perfilId: perfil.id } });
     }
 
     // O vínculo nasce no cadastro: é ele que diz como a pessoa é contratada (jornada, folha, rateio).

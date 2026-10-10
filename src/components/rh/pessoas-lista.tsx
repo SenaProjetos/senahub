@@ -60,7 +60,7 @@ export function PessoasLista({ pessoas }: { pessoas: PessoaListItem[] }) {
             <tr>
               <th className="px-4 py-2 font-medium">Nome</th>
               <th className="px-4 py-2 font-medium">E-mail</th>
-              <th className="px-4 py-2 font-medium">Perfil</th>
+              <th className="px-4 py-2 font-medium">Vínculo</th>
               <th className="px-4 py-2 font-medium">Situação</th>
             </tr>
           </thead>

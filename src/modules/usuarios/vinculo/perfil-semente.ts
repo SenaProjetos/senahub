@@ -34,6 +34,18 @@ export const CHAVE_POR_ROLE: Partial<Record<PapelSemente, string>> = {
   cliente: "portal_cliente",
 };
 
+/**
+ * Perfil semente que uma pessoa recém-contratada recebe pelo vínculo (assistente do RH). Pró-labore
+ * fica sem: sócio tem o acesso decidido à mão em Configurações → Usuários.
+ */
+export const PERFIL_PADRAO_POR_CONTRATACAO: Record<"clt" | "estagio" | "pj" | "autonomo_rpa" | "pro_labore", string | null> = {
+  clt: "clt",
+  estagio: "estagiario",
+  pj: "projetista_pj",
+  autonomo_rpa: "freelancer",
+  pro_labore: null,
+};
+
 export const NOME_POR_ROLE: Partial<Record<PapelSemente, string>> = {
   admin: "Administrador",
   supervisor: "Coordenador",

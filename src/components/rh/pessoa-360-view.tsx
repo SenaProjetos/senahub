@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { CalendarClock, Landmark, Building2, KeyRound, UserRound, ClipboardList, CalendarRange, Clock, Receipt, SlidersHorizontal, ListChecks, GraduationCap, Sprout } from "lucide-react";
 import { brl, formatarData } from "@/lib/utils";
@@ -173,7 +173,10 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
     { value: "acesso", label: "Acesso", icon: KeyRound, show: podeVerAcesso },
     { value: "preferencias", label: "Preferências", icon: SlidersHorizontal, show: !!preferenciasSlot },
   ].filter((a) => a.show);
-  const primeira = abas[0]?.value ?? "acesso";
+  // `?aba=acesso` vem do menu "Permissões desta pessoa" (Configurações → Usuários); aba que não
+  // existe para esta pessoa cai na primeira.
+  const abaPedida = useSearchParams().get("aba");
+  const primeira = abas.some((a) => a.value === abaPedida) ? abaPedida! : (abas[0]?.value ?? "acesso");
 
   // Aba Ponto: carga sob demanda (só quando aberta) — evita rodar `espelhoMes` em todo load da ficha.
   const [aba, setAba] = useState(primeira);

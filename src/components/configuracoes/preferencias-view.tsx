@@ -518,7 +518,7 @@ function MeuPerfilCard({ perfil }: { perfil: Perfil }) {
   }
 
   const fichaRh: { label: string; valor: string | null }[] = [
-    { label: "Função", valor: perfil.papel },
+    { label: "Contratação", valor: perfil.papel },
     { label: "Cargo", valor: perfil.cargo },
     { label: "Departamento", valor: perfil.departamento },
     { label: "Admissão", valor: perfil.dataAdmissao },

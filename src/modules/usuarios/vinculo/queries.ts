@@ -54,7 +54,6 @@ export async function meuAcesso(userId: string) {
      * exibia "CLT" sob o rótulo "Perfil de acesso", que é a confusão exata que esta tela existe
      * para desfazer.
      */
-    papel: u.contratacao ? CONTRATACAO_LABELS[u.contratacao] : "Sem vínculo",
     perfil: u.perfil?.nome ?? null,
     /** Bypass total é `superUsuario`, não `role === "admin"` — mudou na Onda D, junto com `can()`. */
     acessoTotal: u.superUsuario,

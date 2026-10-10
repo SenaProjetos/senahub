@@ -137,7 +137,7 @@ export function PerfisView({ perfis }: { perfis: PerfilItem[] }) {
     <div className="space-y-4">
       <CabecalhoPagina
         titulo="Perfis de acesso"
-        descricao={<>O que cada perfil pode fazer no sistema. Setor e Contratação não concedem acesso — só o Perfil concede. Fora daqui ficam a fila de Aprovações e a jornada (ponto × apontamento), que ainda dependem do <span className="font-medium">Papel</span> em Usuários.</>}
+        descricao={<>O que cada perfil pode fazer no sistema. Setor e Contratação não concedem acesso — só o Perfil concede. Fora daqui: Gestão de RH e Moderar o chat são dados pessoa a pessoa em Usuários, e a jornada (ponto × apontamento) segue a contratação do vínculo.</>}
         acoes={
           <>
           <Button onClick={abrirCriar}>
@@ -287,7 +287,7 @@ function UsuariosDoPerfil({ usuarios }: { usuarios: UsuarioDoPerfil[] }) {
             {u.nome}
           </Link>
           <span className="text-xs text-muted-foreground">{u.email}</span>
-          <Badge variant="outline" title="Papel em Usuários — ainda decide a fila de Aprovações e a jornada.">
+          <Badge variant="outline" title="Contratação do vínculo — decide a jornada (ponto × apontamento), não o acesso.">
             {rotuloContratacao(u.contratacao)}
           </Badge>
           {!u.ativo && <Badge variant="outline">inativo</Badge>}
