@@ -88,7 +88,8 @@ src/
   lib/                   # cross-cutting: auth, session, permissions, with-action, audit, storage,
                          #   notificar/push, mail, jobs(+jobs-handlers), socket, cache, cep, ofx
                          #   utils.ts: cn() (Tailwind merge), brl/brlInteiro/formatarData/formatarDataHora
-                         #   roles.ts: GLOBAL_ROLES, HR_ADMIN_ROLES, INTERNAL_ROLES, PROJETO_MEMBRO_ROLES, etc.
+                         #   roles.ts: acessoGlobal() + EscopoDeDados (escopo de dados; o papel legado saiu na Onda F)
+                         #   contratacao.ts: grupos por contratação — ehJornada/ehPrestador/usaApontamento
                          #   import/: csv.ts, planilha.ts (ExcelJS), mapeamento.ts, valores.ts — bulk import engine
                          #   storage.ts: resolverCaminho() anti-traversal (Windows STORAGE_BASE_PATH guard)
                          #   nav-config.ts: NAV_GROUPS with per-item roles[] + mobile flags
@@ -200,17 +201,23 @@ client-side, cap 100, count in the confirm, partial-failure report). **Never han
 
 **Auth & access control:**
 - `better-auth` for sessions. `middleware.ts` does an *optimistic cookie check* only; real enforcement is in
-  Server Components / actions via `requireUser` / `requireRole` / `requirePermission` (`lib/session.ts`).
-- 9 roles (`admin, supervisor, administrativo, clt, estagiario, projetista_pj, freelancer, cliente, ti`).
-  `ti` is the IT role gated to `patrimonio:ti` (machines). `can(subject, r, a)` resolves by `permissaoEfetiva`:
+  Server Components / actions via `requireUser` / `requirePermission` / `requireInterno` / `requireGestorRh` /
+  `requireSuperUsuario` (`lib/session.ts`).
+- **No role anymore** (Onda F, 2026-10-10: `User.role`/`enum Role` dropped). A person is: `User.tipo`
+  (`interno | externo` = cliente do portal, scoped by `User.clienteId`), the active **vínculo** (`Contratacao` decides
+  ponto × apontamento × folha via `lib/contratacao.ts`; `Setor` grants nothing), the **Perfil de acesso**, and
+  `superUsuario` (bypass). `can(subject, r, a)` resolves by `permissaoEfetiva`:
   `superUsuario` bypass → per-user override (`PermissaoUsuario`) → the person's Perfil de acesso (`PermissaoPerfil`,
   LRU per perfil, `invalidatePerfil`). The legacy per-role table `Permissao` is gone (Onda F, F1): the per-role seed
   is the constant `PERMISSOES_BASE` (`lib/permissoes-base.ts`), read only by `canRole` (sócio floor) and by
   `seedPerfisAcesso` (create-only). Catalog in `lib/permissions-catalog.ts`.
-- Data scope: global roles (`admin`, `supervisor`) see everything; others are filtered (e.g. `escopoProjeto`
-  in `modules/projetos/queries.ts`). RH actions gate on `HR_ADMIN_ROLES` (admin + supervisor + administrativo).
-  `podeVerTudo(u)` (`roles.ts`) also lets a **sócio** (`User.ehSocio`) read like a supervisor — read-only floor,
-  never use it for write/destructive gates.
+- Gates in `defineAction`: `interno: true`, `gereRh: true` (`rh:gerir`, granted person by person as a
+  `PermissaoUsuario` override — "Gestão de RH" in Configurações → Usuários), `superUsuario: true`,
+  `contratacoes: [...]`. The session carries `gereRh`, `gereTodasTarefas`, `escopoGlobalPerfil` already resolved.
+  Chat moderation is `chat:moderar` (also person by person). Never gate on a role name again.
+- Data scope: `acessoGlobal(u)` = `superUsuario` or the perfil's `escopo:global`; others are filtered (e.g.
+  `escopoProjeto` in `modules/projetos/queries.ts`). A sócio's read floor is `canRole("supervisor")` in
+  `requirePermission` — never use it for write/destructive gates.
 - **Auditing is mandatory on every mutation** — it's free via `defineAction`; don't bypass it.
 
 **Realtime & jobs (only under `dev:server` / prod):**
@@ -222,7 +229,7 @@ client-side, cap 100, count in the confirm, partial-failure report). **Never han
   go through the existing accessors — don't reintroduce module-scoped `io`/`presenca`.
 - `pg-boss` (queues + cron over the same PostgreSQL — replaces Redis/Task Scheduler) runs scheduled jobs
   defined in `lib/jobs.ts`, handlers in `lib/jobs-handlers.ts` (alerts, snapshots, weekly digest, backup).
-- **Chat** is the live area on this branch (`modules/chat/`: `roles.ts`, `mencoes.ts`, `busca.ts`,
+- **Chat** is the live area on this branch (`modules/chat/`: `acesso.ts` + `moderador.ts`, `mencoes.ts`, `busca.ts`,
   `service.ts` shared by actions + socket). It needs `dev:server`; the auditoria/evolution plan is in
   `docs/superpowers/plans/2026-06-21-chat-auditoria.md`.
 
@@ -639,7 +646,7 @@ simples".
 **Histórico de versões (`/versoes`):** changelog versão a versão, lido em runtime do
 `CHANGELOG.md` da raiz por `lib/changelog.ts` (`parseChangelog` puro + testado). O arquivo é
 regerado pelo `commit-and-tag-version` no `npm run release` — a página se atualiza sozinha a
-cada publicação, sem passo de build. Rota gated em `INTERNAL_ROLES` (é linguagem de commit);
+cada publicação, sem passo de build. Rota gated em `requireInterno()` (é linguagem de commit);
 o rótulo de versão no rodapé do sidebar linka pra ela quando `nav.tipo === "interno"`. A
 versão em linguagem de usuário continua em `docs/manual/novidades.md` → `/ajuda/novidades`.
 

@@ -356,7 +356,7 @@ migrations apagam a matriz legada e o papel:
 
 As quatro foram ensaiadas em transação revertida no banco de dev. O deploy faz `pg_dump` antes.
 
-### Antes de tudo (servidor ainda no código ANTIGO, em `F:\senahubpp`)
+### Antes de tudo (servidor ainda no código ANTIGO, em `F:\senahub\app`)
 
 Os scripts de apoio leem `role`, então saíram do código novo. Rode-os **antes do `git pull`**.
 
@@ -368,17 +368,15 @@ Os scripts de apoio leem `role`, então saíram do código novo. Rode-os **antes
    ```
    Depois confira que ninguém ativo de equipe ficou sem contratação (pro-labore errado em projetista
    PJ continua a corrigir à mão em RH → Pessoas).
-2. **Perfis:** todo usuário interno ativo precisa de perfil de acesso (sem perfil o motor nega tudo).
-   Quem hoje depende do papel `admin` precisa de `superUsuario`. Quem era `administrativo`/`supervisor`
-   e gere RH precisa do interruptor **Gestão de RH** (Configurações → Usuários → Acesso avançado) —
-   é a decisão 2: RH é permissão dada pessoa a pessoa. Quem moderava o chat: **Moderar o chat**.
+2. **Perfis (só conferir):** todo usuário interno ativo precisa de perfil de acesso (sem perfil o motor
+   nega tudo) e quem depende do papel `admin` precisa de `superUsuario`. O censo de 2026-10-10 deu ok nos dois.
 3. **Backup verificado** (Passo 0 abaixo).
 
 ### Deploy
 
 Fluxo normal (`deploy\gerenciar-servidor.bat`): pull → `migrate deploy` (as 4) → `db:seed` → build →
-reinício. O `db:seed` cria o perfil `portal_cliente` e os pares `rh:gerir`/`chat:moderar` se faltarem
-(create-only).
+reinício. O `db:seed` é create-only: garante os perfis semente e não
+concede `rh:gerir` nem `chat:moderar` a ninguém (são pessoa a pessoa).
 
 ### O que muda para quem usa
 
@@ -390,8 +388,14 @@ reinício. O `db:seed` cria o perfil `portal_cliente` e os pares `rh:gerir`/`cha
 
 ### Depois do deploy
 
-Entrar como admin e conferir: Configurações → Usuários (coluna Vínculo, ninguém "sem perfil — sem
-acesso" por engano), /rh/pessoas, ponto de um CLT, folha de projetistas.
+1. Entrar como admin e conferir: Configurações → Usuários (coluna Vínculo, ninguém "sem perfil — sem
+   acesso" por engano), /rh/pessoas, ponto de um CLT, folha de projetistas.
+2. **Gestão de RH e moderação do chat** passam a ser interruptores pessoa a pessoa (Configurações →
+   Usuários → Editar → Acesso avançado). Só existem no código novo, então se ligam **depois** do deploy.
+   O censo de produção mostrou que só os 3 superusuários tinham papel de RH, então ninguém perde RH; quem
+   moderava o chat pelo papel Coordenador perde a moderação até alguém ligar o interruptor.
+3. Pessoa nova pelo RH (Pessoas → Novo funcionário) nasce com o perfil semente da contratação; pelo
+   Configurações → Usuários o perfil vem sugerido e pode ser trocado.
 
 ### Como voltar atrás
 
