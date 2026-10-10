@@ -27,7 +27,7 @@ export async function painelGestao() {
   const em60 = new Date(Date.parse(`${hoje}T00:00:00Z`) + 60 * 86_400_000);
 
   const [pessoas, carga, real, clima, banco, necessidades, pendencias, abertos, ferias, liderancas] = await Promise.all([
-    prisma.user.findMany({ where: { ativo: true, role: { not: "cliente" } }, select: { role: true, contratacao: true, setor: true } }),
+    prisma.user.findMany({ where: { ativo: true, tipo: "interno" }, select: { role: true, contratacao: true, setor: true } }),
     cargaDaEquipe({ semanas: 12 }),
     cargaSemanalPorRecurso(4),
     climaResumo(),

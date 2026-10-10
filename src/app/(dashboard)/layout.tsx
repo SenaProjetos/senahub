@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { Shell } from "@/components/shell/shell";
 import { requireUser } from "@/lib/session";
-import { tipoEfetivo } from "@/lib/roles";
 import { permissoesEfetivas } from "@/lib/permissao-efetiva";
 import { prisma } from "@/lib/prisma";
 import type { ContextoNav } from "@/lib/nav-config";
@@ -44,7 +43,7 @@ export default async function DashboardLayout({
     getPreferencias(user.id),
     // "Atualize seus dados": um findFirst indexado por navegação; a situação só é calculada
     // quando há pedido aberto. Cliente nunca recebe pedido.
-    user.role === "cliente" ? Promise.resolve(null) : faixaDoUsuario(user.id),
+    user.tipo === "externo" ? Promise.resolve(null) : faixaDoUsuario(user.id),
   ]);
   // Chaves `tour_visto:*` já concluídas — evita reabrir guias que o usuário já viu.
   const toursVistos = Object.entries(prefs)
@@ -65,11 +64,9 @@ export default async function DashboardLayout({
       superUsuario: eixos?.superUsuario ?? false,
       perfilId: eixos?.perfilId ?? null,
     }),
-    // `tipoEfetivo` e não `eixos.tipo` cru: a coluna é nullable, e `null` quer dizer "sem vínculo
-    // aplicado", não "externo". Sem a rede, um colaborador sem vínculo perde os 14 itens de menu
-    // que usam este eixo — em silêncio. É o MESMO helper de `requireInterno()`, de propósito:
-    // menu e gate divergirem produz "vê o link e toma 404".
-    tipo: tipoEfetivo(eixos?.tipo, user.role),
+    // Mesmo campo de `requireInterno()`, de propósito: menu e gate divergirem produz "vê o link
+    // e toma 404". Sem linha (não acontece com sessão) falha fechado.
+    tipo: eixos?.tipo ?? "externo",
     setor: eixos?.setor ?? null,
     fixados: Array.isArray(prefs.menu_fixados)
       ? prefs.menu_fixados.filter((h): h is string => typeof h === "string")

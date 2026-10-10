@@ -332,7 +332,7 @@ export async function canaisAtivos() {
 /** Usuários internos ativos — popula o Select "responsável" do formulário de campanha. */
 export async function responsaveisAtivos() {
   return prisma.user.findMany({
-    where: { ativo: true, role: { not: "cliente" } },
+    where: { ativo: true, tipo: "interno" },
     orderBy: { name: "asc" },
     select: { id: true, name: true },
   });
@@ -908,7 +908,7 @@ export type MotivoPerdaOpcao = Awaited<ReturnType<typeof motivosPerdaAtivos>>[nu
 export async function opcoesFiltroComercial() {
   const [responsaveis, campanhas, canais, empresas, disciplinas] = await Promise.all([
     prisma.user.findMany({
-      where: { ativo: true, role: { not: "cliente" } },
+      where: { ativo: true, tipo: "interno" },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),

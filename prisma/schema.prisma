@@ -86,11 +86,10 @@ model User {
   // e resolvê-las pelo Vinculo exigiria subquery com predicado de data em toda notificação,
   // folha e digest. A fonte de verdade é `Vinculo`; consistência é testada no CI.
   // Nenhum deles autoriza nada: autorização segue 100% em `role` nesta fase.
-  /// NULL = ainda não migrado pelo backfill. Deliberadamente sem default: um default
-  /// `externo` marcaria o escritório inteiro como externo caso um deploy aplique a
-  /// migration e esqueça `scripts/backfill-vinculos.ts` — mentira silenciosa no banco.
-  /// Vira NOT NULL numa migration posterior, quando o backfill tiver rodado em todo lugar.
-  tipo           TipoUsuario?
+  /// NOT NULL desde a Onda F (bloco C): a migration preencheu o nulo com a regra de
+  /// `tipoEfetivo` (papel `cliente` = externo, o resto = interno). Deliberadamente sem default:
+  /// quem cria usuário tem que dizer o eixo — um default esconderia a escolha.
+  tipo           TipoUsuario
   setor          Setor?
   contratacao    Contratacao?
   /// Ponteiro para o Vinculo corrente. `@unique` garante no banco que um vínculo não é

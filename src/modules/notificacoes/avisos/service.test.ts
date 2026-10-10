@@ -20,10 +20,10 @@ describe("whereDoAlvo", () => {
     incluirClientes: false,
   };
 
-  it("todos sem clientes exclui a role cliente", () => {
+  it("todos sem clientes fica só com os internos", () => {
     expect(whereDoAlvo({ ...vazio, alvoTipo: "todos" })).toEqual({
       ativo: true,
-      role: { not: "cliente" },
+      tipo: "interno",
     });
   });
 

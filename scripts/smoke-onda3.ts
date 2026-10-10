@@ -20,10 +20,10 @@ async function main() {
   };
 
   const clt = await prisma.user.create({
-    data: { name: `${tag}_clt`, email: `${tag}_clt@t.local`, role: "clt", ativo: true },
+    data: { name: `${tag}_clt`, email: `${tag}_clt@t.local`, role: "clt", tipo: "interno", ativo: true },
   });
   const freela = await prisma.user.create({
-    data: { name: `${tag}_free`, email: `${tag}_free@t.local`, role: "freelancer", ativo: true },
+    data: { name: `${tag}_free`, email: `${tag}_free@t.local`, role: "freelancer", tipo: "interno", ativo: true },
   });
   const cliente = await prisma.cliente.create({ data: { tipo: "PJ", nome: `${tag}_cli` } });
   const projeto = await prisma.$transaction(async (tx) => {

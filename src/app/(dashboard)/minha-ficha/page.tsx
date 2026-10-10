@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
-import { HR_ADMIN_ROLES, INTERNAL_ROLES, PJ_ROLES } from "@/lib/roles";
+import { HR_ADMIN_ROLES, PJ_ROLES } from "@/lib/roles";
 import {
   fichaPessoa,
   cadastroDaPessoa,
@@ -38,7 +38,7 @@ export const metadata: Metadata = { title: "Minha conta" };
 
 export default async function MinhaFichaPage({ searchParams }: { searchParams: Promise<{ completar?: string; confirmar?: string }> }) {
   const user = await requireUser();
-  if (user.role === "cliente") redirect("/portal");
+  if (user.tipo === "externo") redirect("/portal");
   const id = user.id;
 
   const podeVerProjetos = await can(user, "projetos", "ver");
@@ -48,14 +48,14 @@ export default async function MinhaFichaPage({ searchParams }: { searchParams: P
     ponto: true,
     pendenciasRh: true,
     projetos: podeVerProjetos
-      ? { observador: { id: user.id, role: user.role, ehSocio: user.ehSocio, superUsuario: user.superUsuario, escopoGlobalPerfil: user.escopoGlobalPerfil } }
+      ? { observador: { id: user.id, role: user.role, ehSocio: user.ehSocio, superUsuario: user.superUsuario, escopoGlobalPerfil: user.escopoGlobalPerfil, tipo: user.tipo } }
       : null,
   });
   if (!pessoa) redirect("/");
 
-  const isColaborador = pessoa.role !== "cliente";
+  const isColaborador = pessoa.tipo === "interno";
   const isPJ = PJ_ROLES.includes(pessoa.role) || !!pessoa.pj;
-  const temEscala = INTERNAL_ROLES.includes(pessoa.role);
+  const temEscala = pessoa.tipo === "interno";
   // Jornada controlada vem da CONTRATAÇÃO vigente (vínculo), não do `role`:
   // `administrativo` contratado como CLT tem banco de horas; `clt` que virou PJ não.
   const agora = new Date();

@@ -26,6 +26,11 @@ type ActionConfig<S> = {
   permissao?: string;
   /** Gate rígido por perfil (além da permissão fina). */
   roles?: Role[];
+  /**
+   * Só colaborador interno (`User.tipo`). Substitui `roles: INTERNAL_ROLES` desde a Onda F (bloco C):
+   * a pergunta "é gente de dentro?" é do eixo `tipo`, não do papel.
+   */
+  interno?: boolean;
   /** Schema Zod do input. */
   schema?: ZodType<S>;
   /** Nome do model Prisma para auditoria. */
@@ -67,6 +72,10 @@ export function defineAction<S, T>(
 
     // Gate por perfil
     if (config.roles && !config.roles.includes(user.role)) {
+      await maybeAudit(config, { user, ip }, "bloqueado");
+      return { ok: false, error: "Sem permissão." };
+    }
+    if (config.interno && user.tipo !== "interno") {
       await maybeAudit(config, { user, ip }, "bloqueado");
       return { ok: false, error: "Sem permissão." };
     }

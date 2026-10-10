@@ -50,7 +50,7 @@ async function main() {
   // 2) Projeto + disciplina + validação → pagamento; pagar gera despesa PJ
   const cliente = await prisma.cliente.create({ data: { tipo: "PJ", nome: `${tag}_cli` } });
   const projetista = await prisma.user.create({
-    data: { name: `${tag}_pj`, email: `${tag}@t.local`, role: "projetista_pj", ativo: true },
+    data: { name: `${tag}_pj`, email: `${tag}@t.local`, role: "projetista_pj", tipo: "interno", ativo: true },
   });
   const projeto = await prisma.$transaction(async (tx) => {
     const { ano, sequencial, codigo } = await proximoCodigoProjeto(tx);

@@ -56,7 +56,7 @@ async function cenario(nomeTipo: string, esperadas: string[]) {
   }
   const [resp, coord, outro] = await Promise.all(
     ["resp", "coord", "outro"].map((n) =>
-      prisma.user.create({ data: { name: `${tag}-${nomeTipo}-${n}`, email: `${tag}-${nomeTipo}-${n}@t.local`, role: "clt", emailVerified: false } }),
+      prisma.user.create({ data: { name: `${tag}-${nomeTipo}-${n}`, email: `${tag}-${nomeTipo}-${n}@t.local`, role: "clt", tipo: "interno", emailVerified: false } }),
     ),
   );
   const admin = await prisma.user.findFirstOrThrow({ where: { role: "admin", ativo: true }, select: { id: true } });

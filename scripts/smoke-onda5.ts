@@ -116,7 +116,7 @@ async function main() {
   );
 
   // 6) projetosComPlano (viewer admin = global)
-  const viewerAdmin = { id: admin.id, role: admin.role as Role, superUsuario: true, escopoGlobalPerfil: true };
+  const viewerAdmin = { id: admin.id, role: admin.role as Role, superUsuario: true, escopoGlobalPerfil: true, tipo: "interno" as const };
   const lista = await projetosComPlano(viewerAdmin, { verDatas: true });
   const naLista = lista.find((p) => p.id === projeto.id);
   check("projetosComPlano inclui o projeto com 2 tarefas", naLista?.totalTarefas === 2);

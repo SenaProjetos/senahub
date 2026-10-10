@@ -58,9 +58,9 @@ async function main() {
   });
   if (fasesCat.length < 3) throw new Error("O catálogo de fases do dev tem menos de 3 fases ativas.");
 
-  const pjA = await prisma.user.create({ data: { name: `${tag}-A`, email: `${tag}-a@teste.local`, role: "projetista_pj", emailVerified: false } });
-  const pjB = await prisma.user.create({ data: { name: `${tag}-B`, email: `${tag}-b@teste.local`, role: "freelancer", emailVerified: false } });
-  const clt = await prisma.user.create({ data: { name: `${tag}-C`, email: `${tag}-c@teste.local`, role: "clt", emailVerified: false } });
+  const pjA = await prisma.user.create({ data: { name: `${tag}-A`, email: `${tag}-a@teste.local`, role: "projetista_pj", tipo: "interno", emailVerified: false } });
+  const pjB = await prisma.user.create({ data: { name: `${tag}-B`, email: `${tag}-b@teste.local`, role: "freelancer", tipo: "interno", emailVerified: false } });
+  const clt = await prisma.user.create({ data: { name: `${tag}-C`, email: `${tag}-c@teste.local`, role: "clt", tipo: "interno", emailVerified: false } });
   const cliente = await prisma.cliente.create({ data: { nome: `${tag}-cliente` } });
   const projeto = await prisma.projeto.create({
     data: {
@@ -134,7 +134,7 @@ async function main() {
     where: { id: disciplina.id },
     data: { status: "entregue", entregueEm: new Date(Date.now() - 30 * 86_400_000) },
   });
-  const viewer = { id: admin.id, role: "admin" as const, superUsuario: true, escopoGlobalPerfil: true };
+  const viewer = { id: admin.id, role: "admin" as const, superUsuario: true, escopoGlobalPerfil: true, tipo: "interno" as const };
   const sla = await disciplinasForaDeSLA(viewer);
   check("SLA: fase parcial continua aguardando validação", sla.some((d) => d.id === disciplina.id));
   await prisma.disciplina.update({ where: { id: disciplina.id }, data: { status: "aguardando", entregueEm: null } });
@@ -400,9 +400,9 @@ async function main() {
   const daFila = fila2.find((f) => f.id === fase4.id);
   check("L3: fase entregue e não liberada entra na fila, com disciplina, projeto e sigla", !!daFila && daFila.status === "entregue" && daFila.projetoId === projeto.id && !!daFila.sigla, daFila);
   check("L3: fase de disciplina só com CLT também entra (aprova-se sem pagamento)", fila2.some((f) => f.id === fase3.id));
-  const deFora = await fasesAAprovar({ id: "sem-vinculo-nenhum", role: "projetista_pj" as const, superUsuario: false, escopoGlobalPerfil: false }, false);
+  const deFora = await fasesAAprovar({ id: "sem-vinculo-nenhum", role: "projetista_pj" as const, superUsuario: false, escopoGlobalPerfil: false, tipo: "interno" as const }, false);
   check("L3: quem não é da disciplina nem do projeto não vê a fila dela (muralha)", deFora.length === 0, deFora.map((f) => f.id));
-  const doResponsavel = await fasesAAprovar({ id: pjA.id, role: "projetista_pj" as const, superUsuario: false, escopoGlobalPerfil: false }, false);
+  const doResponsavel = await fasesAAprovar({ id: pjA.id, role: "projetista_pj" as const, superUsuario: false, escopoGlobalPerfil: false, tipo: "interno" as const }, false);
   check("L3: o responsável da disciplina vê a fase dela, e só a dele", doResponsavel.some((f) => f.id === fase4.id) && !doResponsavel.some((f) => f.id === fase3.id), doResponsavel.map((f) => f.id));
   // A tela chama aprovarEtapaDisciplina → liberarPagamentosDaFase: o MESMO caminho da F7.4.
   await prisma.$transaction(async (tx) =>

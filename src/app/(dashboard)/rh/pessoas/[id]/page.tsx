@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
 import { can, canRole } from "@/lib/permissions";
 import { logAudit, getClientIp } from "@/lib/audit";
-import { CADASTRO_ROLES, INTERNAL_ROLES, PJ_ROLES, HR_ADMIN_ROLES } from "@/lib/roles";
+import { CADASTRO_ROLES, PJ_ROLES, HR_ADMIN_ROLES } from "@/lib/roles";
 import {
   fichaPessoa,
   cadastroDaPessoa,
@@ -54,7 +54,7 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
     ponto: podeVerPonto,
     pendenciasRh: true,
     projetos: podeVerProjetos
-      ? { observador: { id: user.id, role: user.role, ehSocio: user.ehSocio, superUsuario: user.superUsuario, escopoGlobalPerfil: user.escopoGlobalPerfil } }
+      ? { observador: { id: user.id, role: user.role, ehSocio: user.ehSocio, superUsuario: user.superUsuario, escopoGlobalPerfil: user.escopoGlobalPerfil, tipo: user.tipo } }
       : null,
   });
   if (!pessoa) notFound();
@@ -77,12 +77,12 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
 
   const isCadastro = CADASTRO_ROLES.includes(pessoa.role);
   const isPJ = PJ_ROLES.includes(pessoa.role) || !!pessoa.pj;
-  const temEscala = INTERNAL_ROLES.includes(pessoa.role);
+  const temEscala = pessoa.tipo === "interno";
   // Jornada controlada vem da CONTRATAÇÃO vigente (vínculo), não do `role`:
   // `administrativo` contratado como CLT tem banco de horas; `clt` que virou PJ não.
   const agora = new Date();
   const { controlaJornada } = await contextoApuracao(id, agora.getFullYear(), agora.getMonth() + 1);
-  const batePonto = pessoa.role !== "cliente"; // internos + PJ têm espelho de ponto
+  const batePonto = pessoa.tipo === "interno"; // internos + PJ têm espelho de ponto
 
   // Edição do cadastro trabalhista: só HR-admin, só p/ papéis com cadastro (nunca cliente/ti).
   const podeEditarCadastro = isCadastro && HR_ADMIN_ROLES.includes(user.role);
@@ -110,7 +110,7 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
 
   // Entrada e saída (F4): o RH abre e cancela listas; quem vê a ficha marca o que é dele.
   const ehRh = HR_ADMIN_ROLES.includes(user.role);
-  const temCiclos = pessoa.role !== "cliente";
+  const temCiclos = pessoa.tipo === "interno";
   // "Atualize seus dados": o RH pede à pessoa o que ela mesma pode preencher.
   const pedidoDados = ehRh && isCadastro ? await pedidoDaPessoa(id) : null;
   // Competências (F2): RH e quem gere Recursos definem e validam; os demais com acesso à ficha só leem.

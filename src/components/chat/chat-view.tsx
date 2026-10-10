@@ -58,7 +58,6 @@ import { DIAS_LIXEIRA, diasRestantesLixeira } from "@/modules/uploads/lixeira";
 import type { CanalListItem, ReacaoAgregada } from "@/modules/chat/queries";
 import { cn, formatarDiaMes } from "@/lib/utils";
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
-import { INTERNAL_ROLES } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { AvatarUsuario } from "@/components/ui/avatar-usuario";
@@ -596,6 +595,7 @@ export function ChatView({
   usuarios,
   meId,
   meRole = "administrativo",
+  meTipo = "interno",
   status: statusInicial,
   somChat = true,
   mostrarRecibos = true,
@@ -605,6 +605,8 @@ export function ChatView({
   usuarios: Usuario[];
   meId: string;
   meRole?: string;
+  /** Eixo interno × externo (`User.tipo`) — decide Anotações e referências internas. */
+  meTipo?: "interno" | "externo";
   status: string;
   somChat?: boolean;
   mostrarRecibos?: boolean;
@@ -1731,10 +1733,10 @@ export function ChatView({
   const lixeiraAnotacoes = canais
     .filter((c) => c.tipo === "anotacoes" && !c.observador && c.excluidoEm)
     .sort((a, b) => new Date(a.excluidoEm!).getTime() - new Date(b.excluidoEm!).getTime());
-  // Mesma regra do servidor (`criarAnotacoes` → `tipoTermoPorRole`): cliente não aceita o
+  // Mesma regra do servidor (`criarAnotacoes` → `tipoTermoPorTipo`): externo não aceita o
   // termo de colaborador, que é o que declara a leitura por admin. Inline para não puxar o
   // texto dos termos para o bundle do cliente.
-  const podeCriarAnotacoes = meRole !== "cliente";
+  const podeCriarAnotacoes = meTipo === "interno";
   // Admin/supervisor: canais que observa (não participa) — somente leitura.
   // "Sócios" já entrou na seção própria acima, não duplica aqui.
   const observados = canais.filter((c) => c.observador && c.tipo !== "socios");
@@ -1831,7 +1833,7 @@ export function ChatView({
     textareaRef.current?.focus();
   }
 
-  const ehInterno = (INTERNAL_ROLES as readonly string[]).includes(meRole);
+  const ehInterno = meTipo === "interno";
 
   /** Insere um trecho na posição do cursor do campo de mensagem. */
   function inserirNoCampo(trecho: string) {

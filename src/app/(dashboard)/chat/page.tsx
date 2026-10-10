@@ -35,6 +35,7 @@ export default async function ChatPage() {
       usuarios={usuarios}
       meId={user.id}
       meRole={user.role}
+      meTipo={user.tipo}
       status={eu?.chatStatus ?? "disponivel"}
       somChat={prefs.somChat !== false}
       mostrarRecibos={prefs.mostrarRecibos !== false}

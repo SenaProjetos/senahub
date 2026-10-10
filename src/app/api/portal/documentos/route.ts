@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   const user = session.user;
-  if (user.role !== "cliente") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+  if (user.tipo === "interno") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 
   const u = await prisma.user.findUnique({ where: { id: user.id }, select: { clienteId: true } });
   if (!u?.clienteId) return NextResponse.json({ error: "Usuário sem cliente vinculado." }, { status: 403 });

@@ -34,7 +34,7 @@ const tag = `smoke-etapas-card-${Date.now()}`;
 async function main() {
   const [proj, coord, membro] = await Promise.all(
     ["proj", "coord", "membro"].map((n) =>
-      prisma.user.create({ data: { name: `${tag}-${n}`, email: `${tag}-${n}@t.local`, role: "projetista_pj", emailVerified: false } }),
+      prisma.user.create({ data: { name: `${tag}-${n}`, email: `${tag}-${n}@t.local`, role: "projetista_pj", tipo: "interno", emailVerified: false } }),
     ),
   );
   const cliente = await prisma.cliente.create({ data: { nome: `${tag}-cliente` } });

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { requireRole } from "@/lib/session";
-import { INTERNAL_ROLES } from "@/lib/roles";
+import { requireInterno } from "@/lib/session";
+
 import { prisma } from "@/lib/prisma";
 import { listarFeriados } from "@/modules/rh/feriados/queries";
 import { AgendaView } from "@/components/agenda/agenda-view";
@@ -12,7 +12,7 @@ export default async function AgendaPage({
 }: {
   searchParams: Promise<{ m?: string }>;
 }) {
-  const user = await requireRole(...INTERNAL_ROLES);
+  const user = await requireInterno();
   const sp = await searchParams;
   const hoje = new Date();
   const [anoS, mesS] = (sp.m ?? "").split("-");
@@ -60,7 +60,7 @@ export default async function AgendaPage({
       select: { id: true, titulo: true, prazo: true },
     }),
     prisma.user.findMany({
-      where: { ativo: true, role: { not: "cliente" }, id: { not: user.id } },
+      where: { ativo: true, tipo: "interno", id: { not: user.id } },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),

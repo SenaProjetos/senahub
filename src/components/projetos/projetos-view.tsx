@@ -149,7 +149,7 @@ export function ProjetosView({
   prontasPorProjeto: Record<string, number>;
   /**
    * Mostra o botão do Guia de uso. Vem do servidor pelo MESMO eixo que gateia `/guias`
-   * (`tipoEfetivo`): esta página é alcançável por `cliente` — com os dados já limitados ao
+   * (`user.tipo`): esta página é alcançável por `cliente` — com os dados já limitados ao
    * projeto dele —, e um botão visível que responde 404 é a assimetria "vê o link e toma 404".
    */
   mostrarGuia: boolean;

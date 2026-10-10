@@ -6,7 +6,7 @@ import { salvarArquivo, nomeArquivoLimpo } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { notificarMuitos } from "@/lib/notificar";
 import { whereAudiencia } from "@/lib/audiencias";
-import { INTERNAL_ROLES } from "@/lib/roles";
+
 import { TIPOS_DOC, TIPO_DOC_LABEL, type TipoDoc } from "@/modules/rh/documentos/regras";
 
 const MAX = 25 * 1024 * 1024;
@@ -20,7 +20,7 @@ const MAX = 25 * 1024 * 1024;
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  if (!INTERNAL_ROLES.includes(session.user.role)) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+  if (session.user.tipo !== "interno") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 
   const form = await req.formData();
   const file = form.get("file");

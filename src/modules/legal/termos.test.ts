@@ -1,31 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { TERMOS, tipoTermoPorRole, type TipoTermo } from "./termos";
+import { TERMOS, tipoTermoPorTipo } from "./termos";
 
-const TODOS_ROLES = [
-  "admin",
-  "supervisor",
-  "administrativo",
-  "clt",
-  "estagiario",
-  "projetista_pj",
-  "freelancer",
-  "cliente",
-] as const;
-
-describe("tipoTermoPorRole", () => {
-  it("mapeia apenas 'cliente' para o termo de cliente", () => {
-    expect(tipoTermoPorRole("cliente")).toBe("cliente");
+describe("tipoTermoPorTipo", () => {
+  it("externo (cliente do portal) aceita o termo de cliente", () => {
+    expect(tipoTermoPorTipo("externo")).toBe("cliente");
   });
 
-  it("mapeia todos os perfis internos para o termo de colaborador", () => {
-    for (const role of TODOS_ROLES) {
-      const esperado: TipoTermo = role === "cliente" ? "cliente" : "colaborador";
-      expect(tipoTermoPorRole(role)).toBe(esperado);
-    }
-  });
-
-  it("trata perfil desconhecido como colaborador (não vaza para o termo de cliente)", () => {
-    expect(tipoTermoPorRole("perfil_inexistente")).toBe("colaborador");
+  it("interno aceita o termo de colaborador", () => {
+    expect(tipoTermoPorTipo("interno")).toBe("colaborador");
   });
 });
 

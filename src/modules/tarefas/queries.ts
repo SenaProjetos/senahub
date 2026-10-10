@@ -236,7 +236,7 @@ export async function colunasTarefaAtivas() {
 export async function opcoesTarefa(viewer: SessionUser) {
   const [internos, projetos, tarefas, disciplinas] = await Promise.all([
     prisma.user.findMany({
-      where: { ativo: true, role: { not: "cliente" } },
+      where: { ativo: true, tipo: "interno" },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),

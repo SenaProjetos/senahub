@@ -61,7 +61,7 @@ async function usuario(name: string, email: string, role: "clt" | "estagiario" |
   if (!id) {
     const ctx = await auth.$context;
     const u = await prisma.user.create({
-      data: { name, email, emailVerified: true, role, ativo: true, mustChangePassword: false },
+      data: { name, email, emailVerified: true, role, tipo: "interno", ativo: true, mustChangePassword: false },
     });
     await prisma.account.create({
       data: { userId: u.id, providerId: "credential", accountId: u.id, password: await ctx.password.hash(SENHA) },

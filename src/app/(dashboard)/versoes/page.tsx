@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { History, BookOpen, ChevronRight } from "lucide-react";
-import { requireRole } from "@/lib/session";
-import { INTERNAL_ROLES } from "@/lib/roles";
+import { requireInterno } from "@/lib/session";
+
 import { lerChangelog, type VersaoChangelog } from "@/lib/changelog";
 import { APP_VERSION, VERSION_LABEL } from "@/lib/version";
 import { formatarData } from "@/lib/utils";
@@ -20,7 +20,7 @@ export const metadata: Metadata = { title: "Histórico de versões" };
  * linguagem do dia a dia, essa sim visível ao cliente, vive em `/ajuda/novidades`.
  */
 export default async function VersoesPage() {
-  await requireRole(...INTERNAL_ROLES);
+  await requireInterno();
   const versoes = await lerChangelog();
 
   return (

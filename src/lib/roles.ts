@@ -98,20 +98,9 @@ export function acessoGlobal(u: EscopoDeDados): boolean {
  * fail-closed, mas silencioso, que é como se perde acesso sem ninguém perceber. Exigindo-os, o
  * compilador aponta cada lugar que precisa carregar o dado da sessão.
  */
-export type EscopoDeDados = { superUsuario: boolean; escopoGlobalPerfil: boolean };
-
-/**
- * Resolve o eixo interno × externo quando `User.tipo` ainda é `null`.
- *
- * `tipo` é a coluna denormalizada escrita por `aplicarVinculo()` — opcional e sem default. `null`
- * significa **"sem vínculo aplicado"**, não "externo": tratá-lo como externo esconde o menu inteiro
- * de um colaborador de verdade (14 itens usam este eixo) e, nas rotas gateadas por ele, dá 404 sem
- * deixar rastro. A rede falha fechada — `INTERNAL_ROLES` é "todos exceto cliente".
- *
- * Usada em DOIS lugares que precisam concordar, sob pena de "vê o link e toma 404" (ou o inverso):
- * o contexto do menu (`(dashboard)/layout.tsx`) e `requireInterno()` (`lib/session.ts`).
- */
-export function tipoEfetivo(tipo: "interno" | "externo" | null | undefined, role: Role): "interno" | "externo" {
-  if (tipo) return tipo;
-  return INTERNAL_ROLES.includes(role) ? "interno" : "externo";
-}
+export type EscopoDeDados = {
+  superUsuario: boolean;
+  escopoGlobalPerfil: boolean;
+  /** Interno × externo: externo vê só os projetos do próprio cliente (`escopoProjeto`). Onda F, bloco C. */
+  tipo: "interno" | "externo";
+};

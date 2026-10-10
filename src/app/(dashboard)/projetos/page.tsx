@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { acessoGlobal, tipoEfetivo } from "@/lib/roles";
+import { acessoGlobal } from "@/lib/roles";
 import {
   listarProjetos,
   catalogoDisciplinas,
@@ -108,7 +108,7 @@ export default async function ProjetosPage({
       catalogo={catalogo.map((d) => d.nome)}
       internos={internos}
       prontasPorProjeto={prontas}
-      mostrarGuia={tipoEfetivo(user.tipo, user.role) === "interno"}
+      mostrarGuia={user.tipo === "interno"}
     />
   );
 }

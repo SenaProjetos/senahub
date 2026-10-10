@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { INTERNAL_ROLES } from "@/lib/roles";
+
 import { notificarMuitos } from "@/lib/notificar";
 import { getSession } from "@/lib/session";
 import { resumoAgendaHoje } from "@/modules/agenda/queries";
@@ -16,7 +16,7 @@ export async function buscarAgendaHoje() {
   return resumoAgendaHoje(session.user.id);
 }
 
-const base = { modulo: "agenda", roles: INTERNAL_ROLES } as const;
+const base = { modulo: "agenda", interno: true } as const;
 const rev = () => revalidatePath("/agenda");
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 

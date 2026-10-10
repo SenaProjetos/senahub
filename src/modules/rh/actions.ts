@@ -5,7 +5,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificar } from "@/lib/notificar";
-import { HR_ADMIN_ROLES, INTERNAL_ROLES } from "@/lib/roles";
+import { HR_ADMIN_ROLES } from "@/lib/roles";
 import { aplicaRegraInicioFeriasClt, controlaJornada, type SujeitoJornada } from "@/modules/ponto/jornada";
 import { whereAudiencia } from "@/lib/audiencias";
 import { formatarData } from "@/lib/utils";
@@ -18,7 +18,7 @@ import { avisarImpactoDaAusencia } from "@/modules/planejamento/impacto-ausencia
  * (`lib/with-action.ts`). Como Server Action é endpoint, o perfil `cliente` alcançava o
  * self-service de RH. Plano: docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md (§4c)
  */
-const base = { modulo: "rh", roles: INTERNAL_ROLES } as const;
+const base = { modulo: "rh", interno: true } as const;
 const adminBase = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
 
 // ── Self-service ──────────────────────────────────────────────
@@ -195,12 +195,13 @@ export const lancarFeriasColaborador = defineAction(
   async (i, { user }) => {
     const achado = await prisma.user.findUnique({
       where: { id: i.userId },
-      select: { id: true, role: true, ativo: true, contratacao: true, _count: { select: { vinculos: true } } },
+      select: { id: true, role: true, tipo: true, ativo: true, contratacao: true, _count: { select: { vinculos: true } } },
     });
     if (!achado || !achado.ativo) throw new ActionError("Colaborador não encontrado.");
     const alvo: SujeitoJornada & { id: string } = {
       id: achado.id,
       role: achado.role,
+      tipo: achado.tipo,
       contratacao: achado.contratacao,
       jaTeveVinculo: achado._count.vinculos > 0,
     };
@@ -305,12 +306,12 @@ export const proporAlteracaoFerias = defineAction(
     // era `dono?.role ?? ""`, que pulava a validação.
     const dono = await prisma.user.findUnique({
       where: { id: f.userId },
-      select: { role: true, name: true, contratacao: true, _count: { select: { vinculos: true } } },
+      select: { role: true, tipo: true, name: true, contratacao: true, _count: { select: { vinculos: true } } },
     });
     await garantirInicioFeriasClt(
       dono
-        ? { role: dono.role, contratacao: dono.contratacao, jaTeveVinculo: dono._count.vinculos > 0 }
-        : ({ role: "clt" } as SujeitoJornada),
+        ? { role: dono.role, tipo: dono.tipo, contratacao: dono.contratacao, jaTeveVinculo: dono._count.vinculos > 0 }
+        : ({ role: "clt", tipo: "interno" } as SujeitoJornada),
       i.inicio,
     );
 

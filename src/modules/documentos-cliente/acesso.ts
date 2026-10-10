@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { can, podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
-import { acessoGlobal, INTERNAL_ROLES, type Role } from "@/lib/roles";
+import { acessoGlobal } from "@/lib/roles";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import type { SessionUser } from "@/lib/session";
 import { veModelosDoProjeto } from "@/modules/coordenacao/acesso";
@@ -52,7 +52,7 @@ export async function podeLerDocumento(
   }
   if (origem === "interno") {
     // Material interno da equipe: cliente externo NUNCA lê, nem com a flag de Recebidos.
-    if (!INTERNAL_ROLES.includes(user.role as Role)) return false;
+    if (user.tipo !== "interno") return false;
     const projetoId = await projetoEfetivo(ancora);
     if (!projetoId || !(await veProjeto(user, projetoId))) return false;
     // Doc do Geral marcado p/ aparecer em "Recebidos": membro interno do projeto lê,
@@ -90,6 +90,6 @@ export async function podeGerirDocumento(
   if (await podeAtuarEmDisciplinaAlheia(user)) return true;
   if (await can(user, "comercial", "gerir")) return true;
   const projetoId = await projetoEfetivo(ancora);
-  if (projetoId && INTERNAL_ROLES.includes(user.role as Role) && (await veProjeto(user, projetoId))) return true;
+  if (projetoId && user.tipo === "interno" && (await veProjeto(user, projetoId))) return true;
   return false;
 }

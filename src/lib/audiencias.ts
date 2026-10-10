@@ -1,5 +1,5 @@
 import type { Role } from "@/lib/roles";
-import { INTERNAL_ROLES, PJ_ROLES, PROJETO_MEMBRO_ROLES } from "@/lib/roles";
+import { PJ_ROLES, PROJETO_MEMBRO_ROLES } from "@/lib/roles";
 import { whereControlaJornada } from "@/modules/ponto/jornada";
 import { ROLES_GLOBAIS_CHAT } from "@/modules/chat/roles";
 
@@ -75,7 +75,17 @@ export type AudienciaPorJornada = {
   modo: "jornada";
 };
 
-export type Audiencia = AudienciaPorPapel | AudienciaPorPermissao | AudienciaPorJornada;
+/**
+ * Audiência resolvida pelo eixo INTERNO × EXTERNO (`User.tipo`, obrigatório desde a Onda F, bloco C).
+ * Mesmo campo que `requireInterno()` e o `interno: true` do `defineAction` leem.
+ */
+export type AudienciaPorTipo = {
+  descricao: string;
+  modo: "tipo";
+  tipo: "interno" | "externo";
+};
+
+export type Audiencia = AudienciaPorPapel | AudienciaPorPermissao | AudienciaPorJornada | AudienciaPorTipo;
 
 export const AUDIENCIAS = {
   /** admin + supervisor. */
@@ -109,11 +119,11 @@ export const AUDIENCIAS = {
     descricao: "Contratação CLT/estágio — holerite, banco de horas, lembrete e resumo de ponto, direito a férias",
     modo: "jornada",
   },
-  /** Todos menos cliente. */
+  /** Todos menos cliente — pelo eixo `tipo` desde a Onda F. */
   interno: {
     descricao: "Usuários internos — elegíveis a escala de jornada e a membro/responsável de projeto",
-    modo: "in",
-    roles: INTERNAL_ROLES,
+    modo: "tipo",
+    tipo: "interno",
   },
   projeto_membro: {
     descricao: "Perfis que podem ser membro/responsável de projeto — matriz de produtividade e seletor do Estúdio",
@@ -163,6 +173,7 @@ export function whereAudiencia(chave: AudienciaKey, agora: Date = new Date()): W
     return wherePermissao(recurso, acao, agora);
   }
   if (a.modo === "jornada") return whereControlaJornada();
+  if (a.modo === "tipo") return { ativo: true, tipo: a.tipo };
   const roles = [...a.roles] as Role[];
   return { ativo: true, role: a.modo === "in" ? { in: roles } : { notIn: roles } };
 }

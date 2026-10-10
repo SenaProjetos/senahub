@@ -7,7 +7,7 @@ import { escopoTarefa } from "@/modules/tarefas/queries";
 export async function GET(_req: Request, { params }: { params: Promise<{ comentarioId: string }> }) {
   const session = await getSession();
   if (!session) return new Response("Não autenticado", { status: 401 });
-  if (session.user.role === "cliente") return new Response("Sem acesso", { status: 403 });
+  if (session.user.tipo === "externo") return new Response("Sem acesso", { status: 403 });
   const { comentarioId } = await params;
   const c = await prisma.tarefaComentario.findFirst({
     where: { id: comentarioId, tarefa: escopoTarefa(session.user) },

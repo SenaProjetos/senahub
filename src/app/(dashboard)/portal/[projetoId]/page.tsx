@@ -24,7 +24,7 @@ export default async function PortalProjetoPage({
   params: Promise<{ projetoId: string }>;
 }) {
   const user = await requireUser();
-  if (user.role !== "cliente") redirect("/");
+  if (user.tipo === "interno") redirect("/");
   const u = await prisma.user.findUnique({ where: { id: user.id }, select: { clienteId: true } });
   if (!u?.clienteId) redirect("/portal");
 

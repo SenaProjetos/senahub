@@ -67,7 +67,8 @@ export type EntradaResumo = {
  */
 function jornada(e: EntradaResumo): { valor: string; tom: TomResumo } {
   if (e.role === "cliente") return { valor: "Não se aplica (acesso externo, só o portal)", tom: "neutro" };
-  const sujeito = { role: e.role, contratacao: e.contratacao, jaTeveVinculo: e.jaTeveVinculo };
+  // O formulário ainda escolhe o papel; fora `cliente` (tratado acima), a pessoa é interna.
+  const sujeito = { role: e.role, tipo: "interno" as const, contratacao: e.contratacao, jaTeveVinculo: e.jaTeveVinculo };
   if (controlaJornada(sujeito)) {
     return { valor: "Bate ponto — espelho, banco de horas, férias e folha CLT (pela contratação)", tom: "ok" };
   }

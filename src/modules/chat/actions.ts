@@ -17,7 +17,7 @@ import { getBoss } from "@/lib/jobs";
 import { agregarReacoes, detalhesMensagem } from "@/modules/chat/queries";
 import { podeModerarCanal, podeObservarCanal } from "@/modules/chat/acesso";
 import { nomeCanal } from "@/modules/chat/nome-canal";
-import { tipoTermoPorRole } from "@/modules/legal/termos";
+import { tipoTermoPorTipo } from "@/modules/legal/termos";
 
 const base = { modulo: "chat" } as const;
 
@@ -863,8 +863,8 @@ export const definirIconeGrupo = defineAction(
 // (`podeObservarCanal`), declarada no Termo de Uso e auditada na rota de mensagens.
 
 /** Só quem aceita o termo de colaborador (que declara a leitura por admin) cria Anotações. */
-function exigirPerfilInterno(role: string) {
-  if (tipoTermoPorRole(role) !== "colaborador") {
+function exigirPerfilInterno(tipo: "interno" | "externo") {
+  if (tipoTermoPorTipo(tipo) !== "colaborador") {
     throw new ActionError("Anotações estão disponíveis só para a equipe interna.");
   }
 }
@@ -879,7 +879,7 @@ export const criarAnotacoes = defineAction(
     schema: z.object({ nome: z.string().trim().min(1).max(80) }),
   },
   async (i, { user }) => {
-    exigirPerfilInterno(user.role);
+    exigirPerfilInterno(user.tipo);
     const canal = await prisma.canal.create({
       data: {
         tipo: "anotacoes",

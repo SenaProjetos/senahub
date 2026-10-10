@@ -39,7 +39,7 @@ async function main() {
       name: `${tag}_clt`,
       nomeCompleto: `${tag} Nome Completo`,
       email: `${tag}_clt@t.local`,
-      role: "clt",
+      role: "clt", tipo: "interno",
       ativo: true,
       cpf: "00000000000",
       rg: "MG-00.000.000",
@@ -59,7 +59,7 @@ async function main() {
     },
   });
   const pj = await prisma.user.create({
-    data: { name: `${tag}_pj`, email: `${tag}_pj@t.local`, role: "projetista_pj", ativo: true },
+    data: { name: `${tag}_pj`, email: `${tag}_pj@t.local`, role: "projetista_pj", tipo: "interno", ativo: true },
   });
 
   try {
@@ -68,7 +68,7 @@ async function main() {
       acesso: true,
       ponto: true,
       pendenciasRh: true,
-      projetos: { observador: { id: clt.id, role: "admin", superUsuario: true, escopoGlobalPerfil: true } },
+      projetos: { observador: { id: clt.id, role: "admin", superUsuario: true, escopoGlobalPerfil: true, tipo: "interno" as const } },
     });
     check("fichaPessoa(clt) != null", !!fClt);
     check("fichaPessoa expõe nomeCompleto", fClt?.nomeCompleto === `${tag} Nome Completo`);
@@ -114,7 +114,7 @@ async function main() {
       acesso: true,
       ponto: true,
       pendenciasRh: true,
-      projetos: { observador: { id: pj.id, role: "admin", superUsuario: true, escopoGlobalPerfil: true } },
+      projetos: { observador: { id: pj.id, role: "admin", superUsuario: true, escopoGlobalPerfil: true, tipo: "interno" as const } },
     });
     check("pj sem nenhum campo obrigatório (telefone/endereço/cargo/PJ/conta) => incompleto=true", fPj?.incompleto === true);
     check("pj sem nomeCompleto => null", fPj?.nomeCompleto === null);

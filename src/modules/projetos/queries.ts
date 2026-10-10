@@ -23,8 +23,8 @@ type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
 /** Filtro de escopo: global (inclui sócio) vê tudo; cliente vê seus projetos; demais só onde participam. */
 export function escopoProjeto(viewer: Viewer): Prisma.ProjetoWhereInput {
   if (acessoGlobal(viewer)) return {};
-  // P-60: role "cliente" vê projetos vinculados ao seu Cliente (via User.clienteId).
-  if (viewer.role === "cliente") {
+  // P-60: externo (cliente do portal) vê projetos vinculados ao seu Cliente (via User.clienteId).
+  if (viewer.tipo === "externo") {
     return { cliente: { usuarios: { some: { id: viewer.id } } } };
   }
   return {

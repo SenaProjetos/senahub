@@ -109,7 +109,7 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     // `tarefas:ver` era consultado em `modules/busca/actions.ts` sem existir no catálogo: como
     // par ausente resolve `false`, tarefa nunca aparecia na busca global (Ctrl+K) para ninguém
     // além de `superUsuario` — apesar de a própria pessoa poder abrir `/tarefas` e ver as
-    // mesmas tarefas. A rota `/tarefas` NÃO usa este par (é `requireRole(...INTERNAL_ROLES)`),
+    // mesmas tarefas. A rota `/tarefas` NÃO usa este par (é `requireInterno()`),
     // por isso não há `abre` aqui: hoje ele governa só a busca. Os resultados já saem
     // recortados por `escopoTarefa(user)` — o par decide se a seção aparece, não o que ela mostra.
     recurso: "tarefas",

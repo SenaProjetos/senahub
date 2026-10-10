@@ -52,8 +52,8 @@ async function linhaParaAtribuir(tarefaId: string) {
  * tarefas: escalado aqui, o cliente iria parar no card do projetista.
  */
 async function pessoaAtiva(userId: string) {
-  const u = await prisma.user.findUnique({ where: { id: userId }, select: { ativo: true, role: true } });
-  if (!u?.ativo || u.role === "cliente") throw new ActionError("Pessoa não encontrada, inativa ou de fora da equipe.");
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { ativo: true, tipo: true } });
+  if (!u?.ativo || u.tipo === "externo") throw new ActionError("Pessoa não encontrada, inativa ou de fora da equipe.");
 }
 
 const salvarSchema = z.object({

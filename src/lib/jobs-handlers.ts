@@ -1346,7 +1346,7 @@ export async function lembreteInputsCliente(): Promise<number> {
       cliente: {
         select: {
           usuarios: {
-            where: { ativo: true, role: "cliente" },
+            where: { ativo: true, tipo: "externo" },
             select: { id: true },
           },
         },

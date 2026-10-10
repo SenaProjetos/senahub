@@ -5,12 +5,12 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
-import { HR_ADMIN_ROLES, INTERNAL_ROLES } from "@/lib/roles";
+import { HR_ADMIN_ROLES } from "@/lib/roles";
 import type { SessionUser } from "@/lib/session";
 import { CATEGORIAS, MOTIVO_NAO_PUBLICADA, motivoParaNaoValidar } from "./regras";
 
 const base = { modulo: "recursos", recurso: "recursos", permissao: "gerir" } as const;
-const internos = { modulo: "rh", roles: INTERNAL_ROLES } as const;
+const internos = { modulo: "rh", interno: true } as const;
 const nivel = z.number().int().min(1, "Nível de 1 a 5.").max(5, "Nível de 1 a 5.");
 
 function rev(userId?: string) {

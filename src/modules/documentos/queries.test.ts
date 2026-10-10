@@ -6,6 +6,7 @@ function viewer(overrides: Partial<DocumentoGeradoViewer> = {}): DocumentoGerado
     id: "gerador",
     superUsuario: false,
     escopoGlobalPerfil: false,
+    tipo: "interno",
     ...overrides,
   };
 }

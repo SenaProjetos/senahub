@@ -5,7 +5,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { removerArquivo } from "@/lib/storage";
-import { HR_ADMIN_ROLES, INTERNAL_ROLES } from "@/lib/roles";
+import { HR_ADMIN_ROLES } from "@/lib/roles";
 
 const rhBase = { modulo: "rh", roles: HR_ADMIN_ROLES, entidade: "FuncionarioDocumento" } as const;
 const dataIso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida.");
@@ -54,7 +54,7 @@ export const conferirDocumento = defineAction(
 export const removerMeuDocumento = defineAction(
   {
     modulo: "rh",
-    roles: INTERNAL_ROLES,
+    interno: true,
     acao: "rm-meu-doc",
     entidade: "FuncionarioDocumento",
     schema: z.object({ id: z.string().min(1) }),

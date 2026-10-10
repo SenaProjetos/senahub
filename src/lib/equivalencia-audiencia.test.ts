@@ -112,7 +112,7 @@ describe("registro de audiências", () => {
   it("nenhuma audiência por papel nasce com lista vazia", () => {
     for (const chave of AUDIENCIA_KEYS) {
       const a = AUDIENCIAS[chave];
-      if (a.modo === "permissao" || a.modo === "jornada") continue;
+      if (a.modo === "permissao" || a.modo === "jornada" || a.modo === "tipo") continue;
       expect(a.roles.length, `audiência ${chave}`).toBeGreaterThan(0);
     }
   });

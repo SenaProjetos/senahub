@@ -28,6 +28,8 @@ export async function criarUsuarioComCredencial(input: {
       email: input.email.toLowerCase().trim(),
       emailVerified: true,
       role: input.role,
+      // Mesma regra que `tipoEfetivo` aplicava ao nulo: só o papel `cliente` é externo.
+      tipo: input.role === "cliente" ? "externo" : "interno",
       ativo: true,
       mustChangePassword: true,
       clienteId: input.role === "cliente" ? input.clienteId || null : null,

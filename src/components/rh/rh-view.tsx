@@ -61,7 +61,7 @@ export function RhView({
   return (
     <div className="space-y-6">
       {/*
-        Sem gate de `tipoEfetivo` no botão, ao contrário de /projetos e /financeiro: o
+        Sem gate de `tipo` no botão, ao contrário de /projetos e /financeiro: o
         `requireRole` da própria página (`(dashboard)/rh/page.tsx`) já admite só papéis internos —
         `cliente` nem chega aqui. Um gate a mais seria código morto.
       */}

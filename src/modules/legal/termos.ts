@@ -24,9 +24,9 @@ export type Termo = {
   conteudo: string;
 };
 
-/** Deriva o termo aplicável pelo perfil: clientes do portal × demais (internos). */
-export function tipoTermoPorRole(role: string): TipoTermo {
-  return role === "cliente" ? "cliente" : "colaborador";
+/** Deriva o termo aplicável pelo eixo interno × externo (`User.tipo`): portal × equipe. */
+export function tipoTermoPorTipo(tipo: "interno" | "externo"): TipoTermo {
+  return tipo === "externo" ? "cliente" : "colaborador";
 }
 
 const COLABORADOR = `Termo de Uso e Consentimento — SenaHub (Colaboradores)

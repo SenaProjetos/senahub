@@ -59,11 +59,10 @@ export type SessionUser = {
    * `aplicarVinculo()`). É o eixo que a Onda D pôs no lugar do antigo `roles[]` para a pergunta
    * "é gente de dentro?" — ver a nota de topo de `nav-config.ts`.
    *
-   * **`null` NÃO significa "externo"**: significa "sem vínculo aplicado". A coluna é opcional e
-   * sem default (`User.tipo TipoUsuario?`), então todo gate que ler este campo precisa tratar o
-   * nulo — ver `requireInterno()`.
+   * Obrigatório desde a Onda F (bloco C): a migration gravou no banco a regra que
+   * `tipoEfetivo()` aplicava ao nulo (papel `cliente` = externo), e o papel deixou de decidir.
    */
-  tipo: "interno" | "externo" | null;
+  tipo: "interno" | "externo";
   /**
    * Contratação do vínculo ativo (mesmo cache de `setor`/`tipo`). É o eixo de JORNADA — quem bate
    * ponto, tem espelho e tem férias — desde 2026-09-15; ver `modules/ponto/jornada.ts`. Não autoriza
@@ -134,7 +133,8 @@ export const getSession = cache(async () => {
       perfilChave: dados?.perfil?.chave ?? null,
       superUsuario: dados?.superUsuario ?? false,
       setor: dados?.setor ?? null,
-      tipo: dados?.tipo ?? null,
+      // Sem linha (não acontece para quem tem sessão) falha FECHADO: externo.
+      tipo: dados?.tipo ?? "externo",
       contratacao: dados?.contratacao ?? null,
       // Sem registro (`dados` nulo) não se sabe nada: `true` faz `controlaJornada` negar em vez de
       // cair no papel. É o lado que falha fechado.
@@ -159,17 +159,15 @@ export async function requireUser(): Promise<SessionUser> {
  * (`/guias`): material de formação não é dado operacional, e ler sobre o Financeiro sem ter
  * `financeiro:ver` é justamente o caso de uso — quem ainda não trabalha no setor é o público.
  *
- * Eixo primário é `tipo` (o vigente desde a Onda D); o nulo é resolvido por `tipoEfetivo()`, o
- * mesmo helper que o contexto do menu usa — se os dois divergirem, aparece o par "vê o link e toma
- * 404" (ou o inverso, pior).
+ * Lê `tipo` — o mesmo campo que o contexto do menu usa; se os dois divergirem, aparece o par "vê o
+ * link e toma 404" (ou o inverso, pior).
  *
  * `notFound()` e não `redirect("/sem-permissao")`: para quem é externo a página simplesmente não
  * existe, e não vaza que há uma área interna com esse endereço.
  */
 export async function requireInterno(): Promise<SessionUser> {
-  const { tipoEfetivo } = await import("@/lib/roles");
   const user = await requireUser();
-  if (tipoEfetivo(user.tipo, user.role) !== "interno") notFound();
+  if (user.tipo !== "interno") notFound();
   return user;
 }
 

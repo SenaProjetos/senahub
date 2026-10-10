@@ -5,7 +5,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificar } from "@/lib/notificar";
-import { CADASTRO_ROLES, HR_ADMIN_ROLES, INTERNAL_ROLES } from "@/lib/roles";
+import { CADASTRO_ROLES, HR_ADMIN_ROLES } from "@/lib/roles";
 import { MOTIVO_NADA_A_PEDIR, MOTIVO_PEDIDO_ABERTO, temAlgoAPedir } from "./preencher";
 import { confirmarMeusDadosNoBanco, preencherDadosNoBanco, situacaoDaPessoa } from "./pedido-service";
 import { MOTIVO_SO_ABERTO_CANCELA, MOTIVO_SO_ABERTO_LEMBRA } from "./acoes-pedido";
@@ -141,7 +141,7 @@ export const cancelarPedidoDados = defineAction(
 export const preencherMeusDados = defineAction(
   {
     modulo: "rh",
-    roles: INTERNAL_ROLES,
+    interno: true,
     acao: "preencher-meus-dados",
     entidade: "User",
     schema: z.object({ valores: z.record(z.string(), z.string().max(500, "Texto longo demais para este campo.")) }),
@@ -155,7 +155,7 @@ export const preencherMeusDados = defineAction(
 
 /** "Está tudo certo": a pessoa confirma que o cadastro continua certo (reconfirmação anual). */
 export const confirmarMeusDados = defineAction(
-  { modulo: "rh", roles: INTERNAL_ROLES, acao: "confirmar-meus-dados", entidade: "User", schema: z.object({}) },
+  { modulo: "rh", interno: true, acao: "confirmar-meus-dados", entidade: "User", schema: z.object({}) },
   async (_i, { user }) => {
     const r = await confirmarMeusDadosNoBanco(user.id);
     revalidar(user.id);

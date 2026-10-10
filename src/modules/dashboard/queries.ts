@@ -96,7 +96,7 @@ export async function aniversariantesDoMes(): Promise<{ doDia: Aniversariante[];
   const diaAtual = agora.getDate();
 
   const users = await prisma.user.findMany({
-    where: { ativo: true, dataNascimento: { not: null }, role: { not: "cliente" } },
+    where: { ativo: true, dataNascimento: { not: null }, tipo: "interno" },
     select: { id: true, name: true, cargo: true, dataNascimento: true },
   });
 

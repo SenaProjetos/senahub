@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { requireRole } from "@/lib/session";
-import { INTERNAL_ROLES } from "@/lib/roles";
+import { requireInterno } from "@/lib/session";
+
 import {
   quadroTarefas,
   opcoesTarefa,
@@ -28,7 +28,7 @@ type SP = {
 };
 
 export default async function TarefasPage({ searchParams }: { searchParams: Promise<SP> }) {
-  const user = await requireRole(...INTERNAL_ROLES);
+  const user = await requireInterno();
   const sp = await searchParams;
   const { page, pageSize, skip, take, q } = parseListParams(sp, {
     sortFields: [],

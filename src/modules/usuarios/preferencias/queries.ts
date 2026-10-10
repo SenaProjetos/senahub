@@ -22,7 +22,7 @@ export async function carregarPreferenciasDaConta(userId: string) {
     getPreferencias(userId),
     prisma.user.findUnique({
       where: { id: userId },
-      select: { name: true, email: true, image: true, telefone: true, cargo: true, departamento: true, dataAdmissao: true, role: true, contratacao: true, _count: { select: { vinculos: true } } },
+      select: { name: true, email: true, image: true, telefone: true, cargo: true, departamento: true, dataAdmissao: true, role: true, tipo: true, contratacao: true, _count: { select: { vinculos: true } } },
     }),
   ]);
   const role = (perfilDb?.role ?? "clt") as Role;
@@ -75,7 +75,7 @@ export async function carregarPreferenciasDaConta(userId: string) {
     pontoEmailModo: (modoValido ? prefs.ponto_email_modo : "resumo_diario") as "todos" | "resumo_diario" | "nenhum",
     // Mesmo fato da batida: alerta de ponto só para quem bate ponto (pela contratação).
     mostrarAlertasPonto: perfilDb
-      ? controlaJornada({ role, contratacao: perfilDb.contratacao, jaTeveVinculo: perfilDb._count.vinculos > 0 })
+      ? controlaJornada({ role, tipo: perfilDb.tipo, contratacao: perfilDb.contratacao, jaTeveVinculo: perfilDb._count.vinculos > 0 })
       : false,
   };
 }

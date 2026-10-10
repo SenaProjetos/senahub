@@ -26,8 +26,9 @@ function casa(where: unknown, u: SujeitoJornada & { ativo: boolean }): boolean {
       if (JSON.stringify(v) !== JSON.stringify({ none: {} })) throw new Error(`operador novo em vinculos: ${JSON.stringify(v)}`);
       return !u.jaTeveVinculo;
     }
-    const valor = k === "role" ? u.role : k === "contratacao" ? u.contratacao : (() => { throw new Error(`campo novo: ${k}`); })();
+    const valor = k === "role" ? u.role : k === "tipo" ? u.tipo : k === "contratacao" ? u.contratacao : (() => { throw new Error(`campo novo: ${k}`); })();
     if (v === null) return valor === null;
+    if (typeof v === "string") return valor === v;
     const op = v as Record<string, unknown>;
     if ("in" in op) return (op.in as unknown[]).includes(valor);
     if ("not" in op) return valor !== op.not;
@@ -38,29 +39,29 @@ function casa(where: unknown, u: SujeitoJornada & { ativo: boolean }): boolean {
 describe("controlaJornada", () => {
   it("CLT e estágio batem ponto independente do papel — o bug que motivou a regra", () => {
     for (const role of ["administrativo", "ti", "supervisor", "admin", "clt"] as const) {
-      expect(controlaJornada({ role, contratacao: "clt", jaTeveVinculo: true }), role).toBe(true);
+      expect(controlaJornada({ role, tipo: "interno", contratacao: "clt", jaTeveVinculo: true }), role).toBe(true);
     }
-    expect(controlaJornada({ role: "administrativo", contratacao: "estagio", jaTeveVinculo: true })).toBe(true);
+    expect(controlaJornada({ role: "administrativo", tipo: "interno", contratacao: "estagio", jaTeveVinculo: true })).toBe(true);
   });
 
   it("PJ, RPA e pró-labore não batem ponto, mesmo com papel CLT (corte jurídico de 2a1abcc)", () => {
     for (const contratacao of ["pj", "autonomo_rpa", "pro_labore"] as const) {
-      expect(controlaJornada({ role: "clt", contratacao, jaTeveVinculo: true }), contratacao).toBe(false);
+      expect(controlaJornada({ role: "clt", tipo: "interno", contratacao, jaTeveVinculo: true }), contratacao).toBe(false);
     }
   });
 
   it("sem vínculo nenhum, cai no papel — igual à apuração", () => {
-    expect(controlaJornada({ role: "clt", contratacao: null, jaTeveVinculo: false })).toBe(true);
-    expect(controlaJornada({ role: "estagiario", contratacao: null, jaTeveVinculo: false })).toBe(true);
-    expect(controlaJornada({ role: "administrativo", contratacao: null, jaTeveVinculo: false })).toBe(false);
+    expect(controlaJornada({ role: "clt", tipo: "interno", contratacao: null, jaTeveVinculo: false })).toBe(true);
+    expect(controlaJornada({ role: "estagiario", tipo: "interno", contratacao: null, jaTeveVinculo: false })).toBe(true);
+    expect(controlaJornada({ role: "administrativo", tipo: "interno", contratacao: null, jaTeveVinculo: false })).toBe(false);
   });
 
   it("só vínculo encerrado NÃO cai no papel — o default que falharia aberto", () => {
-    expect(controlaJornada({ role: "clt", contratacao: null, jaTeveVinculo: true })).toBe(false);
+    expect(controlaJornada({ role: "clt", tipo: "interno", contratacao: null, jaTeveVinculo: true })).toBe(false);
   });
 
-  it("cliente nunca, nem com contratação gravada por engano", () => {
-    expect(controlaJornada({ role: "cliente", contratacao: "clt", jaTeveVinculo: true })).toBe(false);
+  it("externo nunca, nem com contratação gravada por engano", () => {
+    expect(controlaJornada({ role: "cliente", tipo: "externo", contratacao: "clt", jaTeveVinculo: true })).toBe(false);
   });
 });
 
@@ -82,26 +83,27 @@ describe("campo não carregado falha fechado — com polaridade própria em cada
 
 describe("aplicaRegraInicioFeriasClt", () => {
   it("vale para contratação CLT em qualquer papel, não para estágio", () => {
-    expect(aplicaRegraInicioFeriasClt({ role: "administrativo", contratacao: "clt", jaTeveVinculo: true })).toBe(true);
-    expect(aplicaRegraInicioFeriasClt({ role: "estagiario", contratacao: "estagio", jaTeveVinculo: true })).toBe(false);
-    expect(aplicaRegraInicioFeriasClt({ role: "clt", contratacao: "estagio", jaTeveVinculo: true })).toBe(false);
+    expect(aplicaRegraInicioFeriasClt({ role: "administrativo", tipo: "interno", contratacao: "clt", jaTeveVinculo: true })).toBe(true);
+    expect(aplicaRegraInicioFeriasClt({ role: "estagiario", tipo: "interno", contratacao: "estagio", jaTeveVinculo: true })).toBe(false);
+    expect(aplicaRegraInicioFeriasClt({ role: "clt", tipo: "interno", contratacao: "estagio", jaTeveVinculo: true })).toBe(false);
   });
 
   it("sem vínculo cai no papel; encerrado não", () => {
-    expect(aplicaRegraInicioFeriasClt({ role: "clt", contratacao: null, jaTeveVinculo: false })).toBe(true);
-    expect(aplicaRegraInicioFeriasClt({ role: "clt", contratacao: null, jaTeveVinculo: true })).toBe(false);
+    expect(aplicaRegraInicioFeriasClt({ role: "clt", tipo: "interno", contratacao: null, jaTeveVinculo: false })).toBe(true);
+    expect(aplicaRegraInicioFeriasClt({ role: "clt", tipo: "interno", contratacao: null, jaTeveVinculo: true })).toBe(false);
   });
 });
 
 describe("whereControlaJornada", () => {
-  it("responde igual a controlaJornada em todas as combinações de papel × contratação × vínculo", () => {
+  it("responde igual a controlaJornada em todas as combinações de papel × tipo × contratação × vínculo", () => {
     const where = whereControlaJornada();
     for (const role of ROLES as readonly Role[]) {
       for (const contratacao of CONTRATACOES) {
         for (const jaTeveVinculo of [false, true]) {
           // contratação gravada sem vínculo nenhum é estado impossível (cache de vínculo ativo)
           if (contratacao !== null && !jaTeveVinculo) continue;
-          const u = { role, contratacao, jaTeveVinculo };
+          const tipo = role === "cliente" ? ("externo" as const) : ("interno" as const);
+          const u = { role, tipo, contratacao, jaTeveVinculo };
           expect(casa(where, { ...u, ativo: true }), JSON.stringify(u)).toBe(controlaJornada(u));
         }
       }
@@ -109,7 +111,7 @@ describe("whereControlaJornada", () => {
   });
 
   it("nunca inclui inativo — folha e jobs de ponto dependem disto", () => {
-    expect(casa(whereControlaJornada(), { role: "clt", contratacao: "clt", jaTeveVinculo: true, ativo: false })).toBe(false);
+    expect(casa(whereControlaJornada(), { role: "clt", tipo: "interno", contratacao: "clt", jaTeveVinculo: true, ativo: false })).toBe(false);
   });
 
   it("a fonte das contratações é uma só", () => {

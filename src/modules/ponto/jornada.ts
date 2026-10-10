@@ -40,6 +40,8 @@ export const CONTRATACOES_JORNADA: readonly Contratacao[] = ["clt", "estagio"];
 
 export type SujeitoJornada = {
   role: Role;
+  /** Interno × externo (`User.tipo`): externo nunca tem jornada. */
+  tipo: "interno" | "externo";
   /** Contratação do vínculo ATIVO (cache `User.contratacao`, escrito só por `aplicarVinculo`). */
   contratacao: Contratacao | null;
   /** Já teve algum vínculo, ativo ou não. Distingue "nunca teve" de "só encerrado". */
@@ -52,7 +54,7 @@ function incompleto(u: SujeitoJornada): boolean {
 }
 
 export function controlaJornada(u: SujeitoJornada): boolean {
-  if (u.role === "cliente" || incompleto(u)) return false;
+  if (u.tipo === "externo" || incompleto(u)) return false;
   if (u.contratacao) return CONTRATACOES_JORNADA.includes(u.contratacao);
   if (u.jaTeveVinculo) return false;
   return CLT_ROLES.includes(u.role);
@@ -68,7 +70,7 @@ export function controlaJornada(u: SujeitoJornada): boolean {
  * véspera de feriado com o sistema carimbando como aprovado.
  */
 export function aplicaRegraInicioFeriasClt(u: SujeitoJornada): boolean {
-  if (u.role === "cliente") return false;
+  if (u.tipo === "externo") return false;
   if (incompleto(u)) return true;
   if (u.contratacao) return u.contratacao === "clt";
   if (u.jaTeveVinculo) return false;
@@ -88,7 +90,7 @@ export function whereControlaJornada(): { ativo: true; AND: Record<string, unkno
     ativo: true,
     AND: [
       {
-        role: { not: "cliente" },
+        tipo: "interno",
         OR: [
           { contratacao: { in: [...CONTRATACOES_JORNADA] } },
           { contratacao: null, vinculos: { none: {} }, role: { in: [...CLT_ROLES] } },

@@ -57,10 +57,10 @@ async function main() {
 
   // Nomes com prefixo A/B: a herança escolhe o principal por nome.
   const pjA = await prisma.user.create({
-    data: { name: `${tag}-A`, email: `${tag}-a@teste.local`, role: "projetista_pj", emailVerified: false },
+    data: { name: `${tag}-A`, email: `${tag}-a@teste.local`, role: "projetista_pj", tipo: "interno", emailVerified: false },
   });
   const pjB = await prisma.user.create({
-    data: { name: `${tag}-B`, email: `${tag}-b@teste.local`, role: "projetista_pj", emailVerified: false },
+    data: { name: `${tag}-B`, email: `${tag}-b@teste.local`, role: "projetista_pj", tipo: "interno", emailVerified: false },
   });
   const cliente = await prisma.cliente.create({ data: { nome: `${tag}-cliente` } });
   const projeto = await prisma.projeto.create({
@@ -316,7 +316,7 @@ async function main() {
     );
     // Alguém sem custo/hora aponta: o CR em R$ fica desconhecido (nunca zero) — horas seguem.
     const intruso = await prisma.user.create({
-      data: { name: `${tag}-C`, email: `${tag}-c@teste.local`, role: "clt", emailVerified: false },
+      data: { name: `${tag}-C`, email: `${tag}-c@teste.local`, role: "clt", tipo: "interno", emailVerified: false },
     });
     await prisma.sessaoTrabalho.create({
       data: {

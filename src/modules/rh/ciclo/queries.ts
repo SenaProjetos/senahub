@@ -200,7 +200,7 @@ export type EquipamentoDaPessoa = Awaited<ReturnType<typeof equipamentosDaPessoa
 /** Pessoas para "abrir lista" na fila do RH: internas ativas, com a contratação e o último dia do vínculo. */
 export async function pessoasParaCiclo() {
   const pessoas = await prisma.user.findMany({
-    where: { ativo: true, role: { not: "cliente" } },
+    where: { ativo: true, tipo: "interno" },
     select: { id: true, name: true, contratacao: true, vinculoAtivo: { select: { contratacao: true, dataFim: true } } },
     orderBy: { name: "asc" },
   });

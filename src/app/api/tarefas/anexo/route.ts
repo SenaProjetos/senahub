@@ -10,7 +10,7 @@ const MAX = 15 * 1024 * 1024;
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  if (session.user.role === "cliente") return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
+  if (session.user.tipo === "externo") return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
 
   const form = await req.formData();
   const file = form.get("file");

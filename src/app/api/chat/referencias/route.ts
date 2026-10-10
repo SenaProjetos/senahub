@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { INTERNAL_ROLES } from "@/lib/roles";
 
 export type ReferenciaChat = { tipo: "projeto" | "documento"; id: string; rotulo: string; href: string };
 
@@ -13,7 +12,7 @@ export type ReferenciaChat = { tipo: "projeto" | "documento"; id: string; rotulo
 export async function GET(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  if (!(INTERNAL_ROLES as readonly string[]).includes(session.user.role)) {
+  if (session.user.tipo !== "interno") {
     return NextResponse.json({ referencias: [] });
   }
   const q = (new URL(req.url).searchParams.get("q") ?? "").trim();

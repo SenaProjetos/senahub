@@ -4,7 +4,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Banknote, Paperclip, BookOpenText } from "lucide-react";
 import { requireUser } from "@/lib/session";
-import { tipoEfetivo } from "@/lib/roles";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { meuExtrato } from "@/modules/financeiro/queries";
 import { recibosDoProjetista } from "@/modules/financeiro/recibo/queries";
@@ -70,7 +69,7 @@ export default async function FinanceiroPage({
   // extrato" por não gerir o Financeiro (projetista PJ, por exemplo) é exatamente o leitor que o
   // guia tem de alcançar — e `cliente` renderiza esta página, então o sinal também impede o par
   // "vê o link e toma 404" (ver F1-2 no plano dos Guias de uso).
-  const mostrarGuia = tipoEfetivo(user.tipo, user.role) === "interno";
+  const mostrarGuia = user.tipo === "interno";
   const botaoGuia = mostrarGuia ? (
     <Button variant="secondary" size="sm" render={<Link href="/guias/financeiro" />}>
       <BookOpenText className="size-4" /> Guia de uso

@@ -51,7 +51,7 @@ export function whereDoAlvo(input: AlvoInput): Prisma.UserWhereInput {
       // Segue em `role` de propósito: trocar por `tipo: "interno"` só é seguro numa base sem
       // `tipo` nulo (§11 do plano — NULL = ainda não migrado), e isso é verificação de
       // produção, não suposição. Fica para a Onda F, junto com a saída de `User.role`.
-      return input.incluirClientes ? base : { ...base, role: { not: "cliente" } };
+      return input.incluirClientes ? base : { ...base, tipo: "interno" };
     case "usuarios":
       return { ...base, id: { in: input.userIds } };
     case "categoria":

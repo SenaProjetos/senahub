@@ -833,7 +833,7 @@ export async function cronogramaProjetoInfo(projetoId: string) {
 /** Pessoa ou perfil para atribuir numa linha da EAP (F5) — gente da casa, ativa. */
 export async function pessoasParaAtribuicao() {
   const pessoas = await prisma.user.findMany({
-    where: { ativo: true, role: { not: "cliente" } },
+    where: { ativo: true, tipo: "interno" },
     select: {
       id: true,
       name: true,

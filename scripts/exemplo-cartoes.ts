@@ -49,7 +49,7 @@ async function main() {
   let socio = await prisma.socio.findFirst({ where: { ativo: true }, select: { id: true } });
   if (!socio) {
     const user = await prisma.user.create({
-      data: { name: `Lúcio (sócio) ${MARCA}`, email: `socio-exemplo@dev.local`, role: "admin", emailVerified: false },
+      data: { name: `Lúcio (sócio) ${MARCA}`, email: `socio-exemplo@dev.local`, role: "admin", tipo: "interno", emailVerified: false },
     });
     socio = await prisma.socio.create({ data: { userId: user.id, percentual: 100 }, select: { id: true } });
   }

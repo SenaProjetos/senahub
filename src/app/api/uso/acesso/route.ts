@@ -11,7 +11,7 @@ import { secaoDoPath } from "@/modules/auditoria/uso";
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ ok: false }, { status: 401 });
-  if (session.user.role === "cliente") return NextResponse.json({ ok: true });
+  if (session.user.tipo === "externo") return NextResponse.json({ ok: true });
 
   let path = "";
   let dispositivo: "celular" | "computador" | null = null;

@@ -40,7 +40,7 @@ export async function usuariosParaSocio() {
   const socios = await prisma.socio.findMany({ where: { ativo: true }, select: { userId: true } });
   const ids = socios.map((s) => s.userId);
   return prisma.user.findMany({
-    where: { ativo: true, role: { not: "cliente" }, id: { notIn: ids } },
+    where: { ativo: true, tipo: "interno", id: { notIn: ids } },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });

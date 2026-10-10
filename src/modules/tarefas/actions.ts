@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { INTERNAL_ROLES } from "@/lib/roles";
+
 import { notificarMuitos } from "@/lib/notificar";
 import { PRIORIDADES } from "@/modules/tarefas/prioridade";
 import { escopoTarefa, tarefasTravadasPeloCronograma } from "@/modules/tarefas/queries";
@@ -13,7 +13,7 @@ import { avisarCardConcluido } from "@/modules/planejamento/conclusao-aviso-serv
 import { camposDoCronogramaAlterados, motivoCampoDoCronograma } from "@/modules/tarefas/regras";
 import type { SessionUser } from "@/lib/session";
 
-const base = { modulo: "tarefas", roles: INTERNAL_ROLES } as const;
+const base = { modulo: "tarefas", interno: true } as const;
 const rev = () => revalidatePath("/tarefas");
 
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
@@ -33,7 +33,7 @@ async function resolverDisciplina(projetoId: string, disciplinaId: string): Prom
 }
 
 async function exigirProjetoVisivel(
-  user: Pick<SessionUser, "id" | "role" | "superUsuario" | "escopoGlobalPerfil">,
+  user: Pick<SessionUser, "id" | "role" | "superUsuario" | "escopoGlobalPerfil" | "tipo">,
   projetoId?: string,
 ) {
   if (!projetoId || !(await projetoVisivel(user, projetoId))) {
@@ -54,7 +54,7 @@ async function exigirResponsaveisInternos(responsaveisIds: readonly string[]) {
   const ids = [...new Set(responsaveisIds)];
   if (ids.length === 0) return;
   const encontrados = await prisma.user.count({
-    where: { id: { in: ids }, ativo: true, role: { not: "cliente" } },
+    where: { id: { in: ids }, ativo: true, tipo: "interno" },
   });
   if (encontrados !== ids.length) throw new ActionError("Responsável não encontrado.");
 }

@@ -121,7 +121,7 @@ export async function quantosLidera(userId: string) {
 /** Opções para "definir liderança": qualquer pessoa interna ativa (decisão do dono). */
 export async function pessoasParaLiderar(excetoId: string) {
   return prisma.user.findMany({
-    where: { ativo: true, role: { not: "cliente" }, id: { not: excetoId } },
+    where: { ativo: true, tipo: "interno", id: { not: excetoId } },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });

@@ -19,7 +19,7 @@ async function main() {
 
   // Projetista de teste
   const projetista = await prisma.user.create({
-    data: { name: `${tag}_proj`, email: `${tag}@test.local`, role: "projetista_pj", ativo: true },
+    data: { name: `${tag}_proj`, email: `${tag}@test.local`, role: "projetista_pj", tipo: "interno", ativo: true },
   });
   const cliente = await prisma.cliente.create({ data: { tipo: "PJ", nome: `${tag}_cli` } });
 
@@ -79,7 +79,7 @@ async function main() {
 
   // Escopo: outro projetista NÃO enxerga este projeto
   const estranho = await prisma.user.create({
-    data: { name: `${tag}_outro`, email: `${tag}_o@test.local`, role: "projetista_pj", ativo: true },
+    data: { name: `${tag}_outro`, email: `${tag}_o@test.local`, role: "projetista_pj", tipo: "interno", ativo: true },
   });
   const visiveis = await prisma.projeto.findMany({
     where: {

@@ -21,7 +21,7 @@ async function main() {
 
   // ── 3e: Folha CLT ────────────────────────────────────────────
   const clt = await prisma.user.create({
-    data: { name: `${tag}_clt`, email: `${tag}@t.local`, role: "clt", ativo: true },
+    data: { name: `${tag}_clt`, email: `${tag}@t.local`, role: "clt", tipo: "interno", ativo: true },
   });
   const folha = await prisma.folhaPagamento.create({ data: { ano: 2099, mes: 1 } });
 
@@ -109,7 +109,7 @@ async function main() {
 
   // ── 3g: NF de PJ ─────────────────────────────────────────────
   const pj = await prisma.user.create({
-    data: { name: `${tag}_pj`, email: `${tag}_pj@t.local`, role: "projetista_pj", ativo: true },
+    data: { name: `${tag}_pj`, email: `${tag}_pj@t.local`, role: "projetista_pj", tipo: "interno", ativo: true },
   });
   const nf = await prisma.notaFiscalPJ.create({
     data: {

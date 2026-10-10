@@ -7,7 +7,7 @@ import { criarEntradaDiarioSchema, editarEntradaDiarioSchema } from "./schemas";
 import { podeEscreverNoDiario, podeGerirEntrada } from "./acesso";
 import { ultimasEntradasDisciplina } from "./queries";
 import { escopoProjeto } from "@/modules/projetos/queries";
-import { INTERNAL_ROLES } from "@/lib/roles";
+
 import { podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
 import { z } from "zod";
 
@@ -83,12 +83,12 @@ export const excluirEntradaDiario = defineAction(
 
 /**
  * Últimas 5 entradas de uma disciplina, para o modal do atalho (fora do painel).
- * `roles: INTERNAL_ROLES` = mesmo piso da página `/diario`: o diário é da equipe
+ * `interno: true` = mesmo piso da página `/diario`: o diário é da equipe
  * interna, cliente NUNCA lê (escopoProjeto sozinho deixaria o cliente ver o
  * diário do próprio projeto, pois ele tem `projetos:ver`).
  */
 export const buscarUltimasEntradasDiario = defineAction(
-  { ...base, acao: "buscar-ultimas-entradas-diario", roles: INTERNAL_ROLES, schema: z.object({ disciplinaId: z.string().min(1) }), audit: false },
+  { ...base, acao: "buscar-ultimas-entradas-diario", interno: true, schema: z.object({ disciplinaId: z.string().min(1) }), audit: false },
   async ({ disciplinaId }, { user }) => {
     const disciplina = await prisma.disciplina.findFirst({
       where: { id: disciplinaId, projeto: { AND: [escopoProjeto(user)] } },

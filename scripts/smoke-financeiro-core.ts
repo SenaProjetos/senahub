@@ -123,7 +123,7 @@ async function main() {
     },
   });
   const pj = await prisma.user.create({
-    data: { name: `${tag}-PJ`, email: `${tag}-pj@teste.local`, role: "projetista_pj", emailVerified: false },
+    data: { name: `${tag}-PJ`, email: `${tag}-pj@teste.local`, role: "projetista_pj", tipo: "interno", emailVerified: false },
   });
   const disciplina = await prisma.disciplina.create({
     data: { projetoId: projeto.id, disciplinaTextoLegado: "Estrutural", valor: 1000, responsaveis: { create: [{ userId: pj.id }] } },
@@ -456,7 +456,7 @@ async function alcadaUnica(autorId: string) {
   const salvo = await prisma.configSistema.findUnique({ where: { chave: CHAVE } });
   const catD = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "despesa", natureza: "resultado" }, select: { id: true } });
   if (!catD) return check("categoria de despesa existe", false);
-  const supervisor = await prisma.user.create({ data: { name: `${tag}-sup`, email: `${tag}-sup@teste.local`, role: "supervisor", emailVerified: false } });
+  const supervisor = await prisma.user.create({ data: { name: `${tag}-sup`, email: `${tag}-sup@teste.local`, role: "supervisor", tipo: "interno", emailVerified: false } });
   const faixas = [{ ate: 1000, papeis: [] }, { ate: null, papeis: ["admin", "supervisor"] }];
   try {
     await prisma.configSistema.upsert({ where: { chave: CHAVE }, create: { chave: CHAVE, valor: faixas }, update: { valor: faixas } });
@@ -913,7 +913,7 @@ async function cartoesDeCredito(autorId: string) {
 
     // Cartão pessoal: reembolso individual. O sócio é criado aqui (o banco de dev pode não ter nenhum).
     {
-      const dono = await prisma.user.create({ data: { name: `${tag}-socio`, email: `${tag}-socio@teste.local`, role: "admin", emailVerified: false } });
+      const dono = await prisma.user.create({ data: { name: `${tag}-socio`, email: `${tag}-socio@teste.local`, role: "admin", tipo: "interno", emailVerified: false } });
       const socio = await prisma.socio.create({ data: { userId: dono.id, percentual: 100 } });
       const pessoal = await prisma.cartaoCredito.create({ data: { nome: `${tag} pessoal`, tipo: "pessoal", socioId: socio.id, diaFechamento: 25, diaVencimento: 10 } });
       try {

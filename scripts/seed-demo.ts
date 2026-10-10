@@ -127,7 +127,7 @@ async function criarUsuario(name: string, email: string, role: string, clienteId
       name,
       email,
       emailVerified: true,
-      role: role as never,
+      role: role as never, tipo: role === "cliente" ? "externo" : "interno",
       ativo: true,
       mustChangePassword: false,
       clienteId: clienteId ?? null,

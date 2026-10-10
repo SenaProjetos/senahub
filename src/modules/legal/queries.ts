@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { dadosEmpresa } from "@/modules/configuracoes/empresa/queries";
-import { TERMOS, preencherTermo, tipoTermoPorRole, type Termo, type TipoTermo } from "./termos";
+import { TERMOS, preencherTermo, tipoTermoPorTipo, type Termo, type TipoTermo } from "./termos";
 
 /**
  * Termo vigente do tipo, já com os dados de Configurações → Empresa. Fonte única do texto
@@ -20,9 +20,9 @@ export async function termoVigente(tipo: TipoTermo): Promise<Termo> {
  */
 export async function precisaAceitarTermo(user: {
   id: string;
-  role: string;
+  tipo: "interno" | "externo";
 }): Promise<{ tipo: TipoTermo; versao: string } | null> {
-  const tipo = tipoTermoPorRole(user.role);
+  const tipo = tipoTermoPorTipo(user.tipo);
   const versao = TERMOS[tipo].versao;
   const ja = await prisma.aceiteTermo.findUnique({
     where: { userId_tipo_versao: { userId: user.id, tipo, versao } },

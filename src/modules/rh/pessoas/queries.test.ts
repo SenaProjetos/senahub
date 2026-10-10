@@ -95,7 +95,7 @@ describe("Pessoa 360 — consultas de resumo", () => {
     const pessoas = await listarPessoas(false);
 
     expect(mocks.userFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { role: { not: "cliente" } } }),
+      expect.objectContaining({ where: { tipo: "interno" } }),
     );
     expect(pessoas.map((p) => p.role)).toEqual(["projetista_pj", "freelancer"]);
   });
@@ -191,7 +191,7 @@ describe("Pessoa 360 — consultas de resumo", () => {
       ponto: true,
       pendenciasRh: true,
       projetos: {
-        observador: { id: "gestor", role: "administrativo", ehSocio: false, superUsuario: false, escopoGlobalPerfil: false },
+        observador: { id: "gestor", role: "administrativo", ehSocio: false, superUsuario: false, escopoGlobalPerfil: false, tipo: "interno" as const },
       },
     });
 

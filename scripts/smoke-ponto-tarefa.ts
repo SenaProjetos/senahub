@@ -57,7 +57,7 @@ async function main() {
       { n: "joao", role: "clt" as const },
       { n: "pj", role: "projetista_pj" as const },
     ].map((x) =>
-      prisma.user.create({ data: { name: `${tag}-${x.n}`, email: `${tag}-${x.n}@t.local`, role: x.role, emailVerified: false } }),
+      prisma.user.create({ data: { name: `${tag}-${x.n}`, email: `${tag}-${x.n}@t.local`, role: x.role, tipo: "interno", emailVerified: false } }),
     ),
   );
   const cliente = await prisma.cliente.create({ data: { nome: `${tag}-c` } });

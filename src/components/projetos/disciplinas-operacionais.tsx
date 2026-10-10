@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can, podeAtuarEmDisciplinaAlheia, podeVerFinanceiro } from "@/lib/permissions";
-import { CLT_ROLES, INTERNAL_ROLES } from "@/lib/roles";
+import { CLT_ROLES } from "@/lib/roles";
 import {
   catalogoDisciplinas,
   disciplinasForaDeSLA,
@@ -168,7 +168,7 @@ export async function DisciplinasOperacionais({
     };
   });
 
-  const podeVerTarefas = INTERNAL_ROLES.includes(user.role);
+  const podeVerTarefas = user.tipo === "interno";
   let tarefaColunas: { id: string; nome: string }[] | null = null;
   let tarefaOpcoes: Awaited<ReturnType<typeof opcoesTarefa>> | null = null;
   let tarefasProjeto: Awaited<ReturnType<typeof tarefasDoProjeto>> = [];

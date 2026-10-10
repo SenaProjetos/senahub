@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { headers } from "next/headers";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { tipoTermoPorRole } from "./termos";
+import { tipoTermoPorTipo } from "./termos";
 import { termoVigente } from "./queries";
 import { aceitarTermoSchema } from "./schemas";
 
@@ -16,7 +16,7 @@ import { aceitarTermoSchema } from "./schemas";
 export const aceitarTermo = defineAction(
   { modulo: "legal", acao: "aceitar-termo", entidade: "AceiteTermo", schema: aceitarTermoSchema },
   async (input, ctx) => {
-    const tipo = tipoTermoPorRole(ctx.user.role);
+    const tipo = tipoTermoPorTipo(ctx.user.tipo);
     if (input.tipo !== tipo) throw new ActionError("Termo não aplicável ao seu perfil.");
 
     // Mesmo texto da tela (com os dados da empresa) — é ele que vira prova no hash.

@@ -75,7 +75,7 @@ function KpiSpark({ label, valor, serie, href }: { label: string; valor: number 
 
 export default async function HomePage() {
   const user = await requireUser();
-  if (user.role === "cliente") redirect("/portal");
+  if (user.tipo === "externo") redirect("/portal");
   const isGlobal = acessoGlobal(user);
   // Aprovações = validação (escrita). Mesmo gate de `/aprovacoes` e do menu (`uploads:validar`) —
   // era o papel (`GLOBAL_ROLES`), e o card sumia para a coordenadora de papel CLT. `can()` sem piso

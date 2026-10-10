@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction } from "@/lib/with-action";
-import { INTERNAL_ROLES } from "@/lib/roles";
+
 import { desfazerEnvioEtapa, enviarEtapaParaAnalise } from "./envio-etapa-service";
 
 /**
@@ -11,7 +11,7 @@ import { desfazerEnvioEtapa, enviarEtapaParaAnalise } from "./envio-etapa-servic
  * permissão fina: o gate é ser RESPONSÁVEL da disciplina, conferido no serviço — vale para o PJ,
  * que não tem `projetos:gerir`.
  */
-const base = { modulo: "projetos", roles: INTERNAL_ROLES, entidade: "DisciplinaEtapa" } as const;
+const base = { modulo: "projetos", interno: true, entidade: "DisciplinaEtapa" } as const;
 const schema = z.object({ etapaId: z.string().min(1) });
 
 export const enviarEtapaAnalise = defineAction(

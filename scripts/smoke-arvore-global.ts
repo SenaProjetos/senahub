@@ -99,10 +99,10 @@ async function main() {
   const usuarios: string[] = [];
   try {
     const dono = await prisma.user.create({
-      data: { name: `${TAG}_dono`, email: `${TAG.toLowerCase()}_dono@smoke.local`, role: "projetista_pj", ativo: true },
+      data: { name: `${TAG}_dono`, email: `${TAG.toLowerCase()}_dono@smoke.local`, role: "projetista_pj", tipo: "interno", ativo: true },
     });
     const estranho = await prisma.user.create({
-      data: { name: `${TAG}_fora`, email: `${TAG.toLowerCase()}_fora@smoke.local`, role: "projetista_pj", ativo: true },
+      data: { name: `${TAG}_fora`, email: `${TAG.toLowerCase()}_fora@smoke.local`, role: "projetista_pj", tipo: "interno", ativo: true },
     });
     usuarios.push(dono.id, estranho.id);
 

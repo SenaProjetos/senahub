@@ -62,7 +62,7 @@ export async function obterMaquina(id: string) {
 /** Colaboradores internos (para o seletor de responsável). */
 export async function colaboradoresInternos() {
   return prisma.user.findMany({
-    where: { ativo: true, role: { not: "cliente" } },
+    where: { ativo: true, tipo: "interno" },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });

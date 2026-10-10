@@ -44,10 +44,10 @@ async function main() {
 
   // Dois projetistas PJ throwaway.
   const pjA = await prisma.user.create({
-    data: { name: `${tag}-A`, email: `${tag}-a@teste.local`, role: "projetista_pj", emailVerified: false },
+    data: { name: `${tag}-A`, email: `${tag}-a@teste.local`, role: "projetista_pj", tipo: "interno", emailVerified: false },
   });
   const pjB = await prisma.user.create({
-    data: { name: `${tag}-B`, email: `${tag}-b@teste.local`, role: "projetista_pj", emailVerified: false },
+    data: { name: `${tag}-B`, email: `${tag}-b@teste.local`, role: "projetista_pj", tipo: "interno", emailVerified: false },
   });
 
   const cliente = await prisma.cliente.create({ data: { nome: `${tag}-cliente` } });
@@ -158,10 +158,10 @@ async function main() {
   // via F4 NÃO deve ser desfeito na próxima sincronização por responsáveis, porque
   // sincronizarValorDisciplina mantém Disciplina.valor == soma dos pagamentos vivos.
   const pjC = await prisma.user.create({
-    data: { name: `${tag}-C`, email: `${tag}-c@teste.local`, role: "projetista_pj", emailVerified: false },
+    data: { name: `${tag}-C`, email: `${tag}-c@teste.local`, role: "projetista_pj", tipo: "interno", emailVerified: false },
   });
   const pjD = await prisma.user.create({
-    data: { name: `${tag}-D`, email: `${tag}-d@teste.local`, role: "projetista_pj", emailVerified: false },
+    data: { name: `${tag}-D`, email: `${tag}-d@teste.local`, role: "projetista_pj", tipo: "interno", emailVerified: false },
   });
   const disc2 = await prisma.disciplina.create({
     data: {

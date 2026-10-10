@@ -5,7 +5,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
-import { INTERNAL_ROLES } from "@/lib/roles";
+
 import type { Prisma } from "@/generated/prisma/client";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { formatarRegistro } from "@/modules/usuarios/registro";
@@ -13,7 +13,7 @@ import { calcular, snapshotParaSalvar } from "./service";
 import { getFerramenta } from "./registry";
 import { autoStore } from "./auto-store";
 
-const base = { modulo: "ferramentas", roles: INTERNAL_ROLES, recurso: "ferramentas" } as const;
+const base = { modulo: "ferramentas", interno: true, recurso: "ferramentas" } as const;
 const rev = () => revalidatePath("/ferramentas");
 
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
@@ -101,7 +101,7 @@ export const salvarCalculo = defineAction(
         autorId: user.id,
         autorNome: user.name,
         userRole: user.role,
-        escopo: { superUsuario: user.superUsuario, escopoGlobalPerfil: user.escopoGlobalPerfil },
+        escopo: { superUsuario: user.superUsuario, escopoGlobalPerfil: user.escopoGlobalPerfil, tipo: user.tipo },
         artId: artValida ? i.artId : null,
         responsavelNome: i.responsavelNome || null,
         responsavelRegistro: i.responsavelRegistro || null,

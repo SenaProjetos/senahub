@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { INTERNAL_ROLES, PJ_ROLES } from "@/lib/roles";
+import { PJ_ROLES } from "@/lib/roles";
 import { controlaJornada } from "@/modules/ponto/jornada";
 import { notificar } from "@/lib/notificar";
 import { getSession } from "@/lib/session";
@@ -35,7 +35,7 @@ import type { Prisma } from "@/generated/prisma/client";
  * `cliente` (usuário externo do portal) alcançava as ações de ponto.
  * Plano: docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md (§4c)
  */
-const base = { modulo: "rh", roles: INTERNAL_ROLES } as const;
+const base = { modulo: "rh", interno: true } as const;
 
 /** Mesma frase para batida e espelho: é o mesmo fato — a contratação não tem jornada controlada. */
 const MSG_SEM_JORNADA =
@@ -51,7 +51,7 @@ const rev = () => revalidatePath("/ponto");
 export async function buscarResumoJornada(): Promise<ResumoHeader | null> {
   const session = await getSession();
   const user = session?.user;
-  if (!user || !user.ativo || !INTERNAL_ROLES.includes(user.role)) return null;
+  if (!user || !user.ativo || user.tipo !== "interno") return null;
 
   // Parado, o ponto abre no projeto e na atividade de hoje (reunião de 08/10/2026, decisão 1).
   // Só calcula quando não há sessão: com sessão aberta quem manda é ela. Parado, são 2 consultas leves por poll de 60 s
@@ -88,7 +88,7 @@ export async function buscarResumoJornada(): Promise<ResumoHeader | null> {
 export async function buscarProjetosPonto() {
   const session = await getSession();
   const user = session?.user;
-  if (!user || !user.ativo || !INTERNAL_ROLES.includes(user.role)) return [];
+  if (!user || !user.ativo || user.tipo !== "interno") return [];
   return projetosDoUsuario(user.id);
 }
 
@@ -99,7 +99,7 @@ export async function buscarProjetosPonto() {
 export async function buscarAlocacoesRecentes() {
   const session = await getSession();
   const user = session?.user;
-  if (!user || !user.ativo || !INTERNAL_ROLES.includes(user.role)) return [];
+  if (!user || !user.ativo || user.tipo !== "interno") return [];
   return alocacoesRecentes(user.id);
 }
 
@@ -115,7 +115,7 @@ const tarefaOpt = z.string().optional().or(z.literal(""));
 export async function buscarTarefasPonto(projetoId: string): Promise<TarefaDoPonto[]> {
   const session = await getSession();
   const user = session?.user;
-  if (!user || !user.ativo || !INTERNAL_ROLES.includes(user.role) || !projetoId) return [];
+  if (!user || !user.ativo || user.tipo !== "interno" || !projetoId) return [];
   return tarefasParaPonto(user.id, projetoId);
 }
 
@@ -163,7 +163,7 @@ const registrarBatidaSchema = z.object({
  * em banco estruturado e exportável, prova contra a própria empresa (§4, bug (c)).
  */
 export const registrarBatida = defineAction(
-  // `roles: INTERNAL_ROLES` (de `base`) fica: sem `roles` e sem `recurso`, `defineAction` pula o
+  // `interno: true` (de `base`) fica: sem `roles` e sem `recurso`, `defineAction` pula o
   // gate inteiro e o cliente do portal alcança a action. A jornada é conferida no handler porque o
   // eixo é a contratação, que `roles` não expressa.
   { ...base, acao: "registrar-batida", entidade: "Batida", schema: registrarBatidaSchema },
@@ -280,7 +280,7 @@ const revEspelho = () => {
 
 /** Edição do PRÓPRIO ponto de um dia (com justificativa) — aplicada sem ciência. */
 export const ajustarPontoProprio = defineAction(
-  { ...base, roles: INTERNAL_ROLES, acao: "ajustar-ponto-proprio", entidade: "AjustePonto", schema: ajustePontoProprioSchema },
+  { ...base, interno: true, acao: "ajustar-ponto-proprio", entidade: "AjustePonto", schema: ajustePontoProprioSchema },
   async (i, { user }) => {
     const r = await editarDia({
       userId: user.id,
@@ -324,7 +324,7 @@ export const ajustarPontoEquipe = defineAction(
 
 /** Colaborador confirma ciência de um ajuste feito no seu ponto. */
 export const darCienciaAjuste = defineAction(
-  { ...base, roles: INTERNAL_ROLES, acao: "dar-ciencia-ajuste", entidade: "AjustePonto", schema: cienciaAjusteSchema },
+  { ...base, interno: true, acao: "dar-ciencia-ajuste", entidade: "AjustePonto", schema: cienciaAjusteSchema },
   async (i, { user }) => {
     const aj = await prisma.ajustePonto.findUnique({ where: { id: i.ajusteId }, select: { userId: true, status: true } });
     if (!aj || aj.userId !== user.id) throw new ActionError("Ajuste não encontrado.");
@@ -340,7 +340,7 @@ export const darCienciaAjuste = defineAction(
 
 /** Colaborador contesta um ajuste feito no seu ponto — notifica o editor. */
 export const contestarAjuste = defineAction(
-  { ...base, roles: INTERNAL_ROLES, acao: "contestar-ajuste", entidade: "AjustePonto", schema: contestarAjusteSchema },
+  { ...base, interno: true, acao: "contestar-ajuste", entidade: "AjustePonto", schema: contestarAjusteSchema },
   async (i, { user }) => {
     const aj = await prisma.ajustePonto.findUnique({
       where: { id: i.ajusteId },

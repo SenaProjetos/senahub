@@ -5,7 +5,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
-import { HR_ADMIN_ROLES, INTERNAL_ROLES } from "@/lib/roles";
+import { HR_ADMIN_ROLES } from "@/lib/roles";
 import { abrirCicloNoBanco, cancelarCicloNoBanco, marcarItemNoBanco } from "./service";
 
 const rhBase = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
@@ -42,7 +42,7 @@ export const abrirCiclo = defineAction(
 export const marcarItemCiclo = defineAction(
   {
     modulo: "rh",
-    roles: INTERNAL_ROLES,
+    interno: true,
     acao: "marcar-item-ciclo-rh",
     entidade: "OnboardingItem",
     schema: z.object({

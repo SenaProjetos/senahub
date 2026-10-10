@@ -24,7 +24,7 @@ export async function listarFeedbacks(limit = 40) {
 /** Colaboradores internos (para selects de feedback e ponto manual). */
 export async function colaboradoresInternos() {
   return prisma.user.findMany({
-    where: { ativo: true, role: { not: "cliente" } },
+    where: { ativo: true, tipo: "interno" },
     orderBy: { name: "asc" },
     select: { id: true, name: true },
   });
