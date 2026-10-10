@@ -23,6 +23,7 @@ import { prisma } from "../src/lib/prisma";
 import { aplicarBatida, editarDia } from "../src/modules/ponto/service";
 import { sugestaoParaPonto, tarefasParaPonto } from "../src/modules/ponto/tarefa-ponto-service";
 import { projetosDoUsuario } from "../src/modules/ponto/queries";
+import { minhasAtividades } from "../src/modules/projetos/meu-trabalho/queries";
 import { abrirApontamento, fecharApontamento } from "../src/modules/ponto/apontamento";
 import { eapDoProjeto } from "../src/modules/planejamento/queries";
 import { progressoDoStatus } from "../src/modules/projetos/status";
@@ -118,6 +119,15 @@ async function main() {
     check("sugestão do ponto parado = a atividade atrasada, no projeto dela", sug?.tarefa.id === tAtrasada.id && sug?.projeto.id === proj.id, sug);
     const semProjetos = await sugestaoParaPonto(maria.id, new Set());
     check("sem projeto no seletor, sem sugestão", semProjetos === null);
+    // Item 10: "Meu trabalho" lista as atividades da pessoa, pela mesma regra do ponto.
+    const meu = await minhasAtividades(maria.id);
+    const doProj = meu.projetos.find((p) => p.projetoId === proj.id);
+    check("Meu trabalho: a atividade atrasada aparece no projeto, no topo e marcada", doProj?.atividades[0]?.id === tAtrasada.id && doProj.atividades[0].atrasada, doProj?.atividades);
+    check("Meu trabalho: não traz atividade de outra pessoa nem de outro projeto sob este", !!doProj && !doProj.atividades.some((x) => x.id === tDoJoao.id || x.id === tOutroProj.id));
+    check("Meu trabalho: o card de outro projeto vira outro grupo", meu.projetos.some((p) => p.projetoId === outro.id));
+    check("Meu trabalho: devolve a coluna concluída para o 'Terminei'", meu.statusConcluidoId != null);
+    const dele = await minhasAtividades(pj.id);
+    check("Meu trabalho: quem não tem atividade recebe lista vazia", dele.projetos.every((p) => p.atividades.length > 0));
     await prisma.tarefa.delete({ where: { id: tAtrasada.id } });
     const sug2 = await sugestaoParaPonto(maria.id, new Set(meus.map((p) => p.id)));
     check("sem atrasada, a sugestão é a da janela de hoje", sug2?.tarefa.id === tAgora.id, sug2);

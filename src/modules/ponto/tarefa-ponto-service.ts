@@ -34,13 +34,15 @@ export type SugestaoDoPonto = {
 };
 
 /** Cards ABERTOS da pessoa (de um projeto ou de todos), já com a janela e a etapa da linha da EAP. */
-async function candidatasDaPessoa(userId: string, projetoId?: string) {
+export async function candidatasDaPessoa(userId: string, projetoId?: string) {
   const cards = await prisma.tarefa.findMany({
     where: {
-      ...(projetoId ? { projetoId } : { projetoId: { not: null }, eapTarefaId: { not: null } }),
+      ...(projetoId ? { projetoId } : { projetoId: { not: null } }),
       arquivada: false,
       status: { concluido: false },
       responsaveis: { some: { userId } },
+      // Projeto parado, concluído ou arquivado não tem "atividade de hoje".
+      projeto: { situacao: "em_andamento" },
     },
     select: {
       id: true,
