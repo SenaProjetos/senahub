@@ -323,3 +323,28 @@ ajuste pequeno, sempre a partir de regra já escrita.
   atualizar `Papel`, `ROTULO_PAPEL`, `PAPEIS_DE_PESSOA`, `ORDEM_PRINCIPAL` (`recursos.ts`) e `PAPEIS`
   (`recursos-actions.ts`). O banco de dev tem drift: aplicar com `prisma db execute` + `migrate resolve --applied`.
 - E10: o "+" de alocação digitada só para projeto SEM cronograma (`projetosCalculados` + `projetosEmRascunho`).
+
+## Áudio do dono (2026-10-10) e respostas
+
+- Por ora **não** ligar EAP → card da disciplina: coordenador e assistente alimentam os prazos do card à mão, olhando
+  a EAP. PJ não bate ponto (não registra horas), mas **é inserido na EAP** pelo coordenador — o aviso da etapa que vem
+  (E2) continua lendo a EAP.
+- Card de cada disciplina mostra **todas as etapas com início e fim**, para o projetista saber o prazo.
+- Etapas padrão: Estudo Preliminar + Básico + Executivo em todo projeto (particular e licitação); **Residencial
+  unifamiliar** só Básico + Executivo (multifamiliar tem EP). Nascem a **0%**; o pagamento por fase espera a soma
+  fechar 100%.
+- Botão "Enviei os documentos desta etapa para análise": só **responsáveis da disciplina**; desfaz enquanto a
+  coordenação não aprovou; avisa **coordenação do projeto e projetista**.
+
+**Feito em Opus:** C1 `d6cda2be` (etapas padrão em toda criação de disciplina — `semearEtapasPadrao`; `DisciplinaEtapa.
+inicio`; `TipoEmpreendimento.semEstudoPreliminar`, migração `20261010110000_etapa_inicio_tipo_sem_ep` marca o
+unifamiliar) e C2 `8593530e` (`envio-etapa*.ts`, actions `enviarEtapaAnalise` / `desfazerEnvioEtapaAnalise`). Smoke:
+`smoke:etapas-card`.
+
+**Efeitos a lembrar:** disciplina com etapa tem o prazo = maior prazo das etapas e não se edita direto (F4); com as
+etapas a 0%, o pagamento da disciplina passa a ser por fase e fica bloqueado até a soma fechar 100%.
+
+**C3 (Sonnet, médio) — card da disciplina** (`components/projetos/disciplina-card.tsx`): listar todas as etapas
+(`EtapaParaTela`, agora com `inicio`) com início, fim e situação, para todo mundo que vê o card; botão "Enviei os
+documentos" / "Desfazer envio" só para responsável, desabilitado com a frase de `envio-etapa.ts`; editor de etapas
+(`disciplina-etapas-dialog.tsx`) ganha o campo de início (`salvarEtapaDisciplina` já aceita `inicio`).
