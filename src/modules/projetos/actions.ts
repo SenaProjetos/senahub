@@ -2,11 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
+import { aplicarModeloNoProjeto } from "@/modules/planejamento/modelos/service";
+import { aposMudarEap } from "@/modules/planejamento/pos-eap";
 import { motivoExclusao } from "@/modules/projetos/nomenclatura/catalogo/todas";
 import { projetosDoCard, usoParaExcluir } from "@/modules/projetos/nomenclatura/catalogo/queries";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
-import { podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
+import { can, podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
 import { whereAudiencia } from "@/lib/audiencias";
 import { proximoCodigoProjeto, formatarCodigo } from "@/modules/projetos/numbering";
 import { ensureCanaisProjeto } from "@/modules/chat/service";
@@ -129,7 +131,11 @@ export const criarProjeto = defineAction(
     schema: criarProjetoSchema,
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
-  async (input) => {
+  async (input, { user }) => {
+    // Montar a EAP pelo modelo é ato do Planejamento: quem não pode aplicar modelo lá não aplica aqui.
+    if (input.modeloEapId && !(await can(user, "planejamento", "gerir"))) {
+      throw new ActionError("Você não tem permissão para montar a EAP pelo modelo. Crie o projeto sem o modelo.");
+    }
     // Versão do padrão de nomenclatura vigente agora (D2) — fixada no projeto na criação, do
     // mesmo jeito que a migration de 2026-09-22 fixou os projetos existentes na v1. Publicar
     // uma versão nova depois NÃO muda este projeto (D2): a data de vigência só decide o padrão
@@ -179,9 +185,23 @@ export const criarProjeto = defineAction(
       return p;
     });
     refletirSincroniaCanais(await ensureCanaisProjeto(projeto.id));
+
+    // Item 7 da reunião de 08/10/2026: o projeto já nasce com a EAP do modelo (rascunho) e as etapas
+    // das disciplinas. Falhar aqui NÃO desfaz o projeto: ele foi criado, e o modelo pode ser aplicado
+    // depois pela aba Planejamento — a tela recebe o motivo como aviso.
+    let avisoModelo: string | null = null;
+    if (input.modeloEapId) {
+      try {
+        await aplicarModeloNoProjeto({ projetoId: projeto.id, modeloId: input.modeloEapId });
+        await aposMudarEap(projeto.id, user.id);
+      } catch (e) {
+        if (!(e instanceof ActionError)) throw e;
+        avisoModelo = e.message;
+      }
+    }
     revalidatePath("/projetos");
     revalidatePath("/planejamento");
-    return { id: projeto.id, codigo: projeto.codigo };
+    return { id: projeto.id, codigo: projeto.codigo, avisoModelo };
   },
 );
 

@@ -39,6 +39,8 @@ export const criarProjetoSchema = z.object({
    * cadastro do comercial e pode estar vazia — quando há opção, a tela pede.
    */
   tipoEmpreendimentoId: z.string().min(1).optional(),
+  /** Reunião de 08/10/2026 (item 7): monta a EAP do projeto novo com este modelo, já com as etapas. */
+  modeloEapId: z.string().min(1).optional(),
   disciplinas: z.array(disciplinaInputSchema).min(1, "Adicione ao menos uma disciplina."),
   membrosIds: z.array(z.string()).default([]),
 });
