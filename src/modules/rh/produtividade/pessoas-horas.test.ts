@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { whereAudiencia } from "@/lib/audiencias";
-import { PROJETO_MEMBRO_ROLES } from "@/lib/roles";
 import { wherePessoasDasHoras } from "./pessoas-horas";
 
 const INICIO = new Date("2026-09-01T03:00:00Z");
@@ -16,7 +15,7 @@ describe("wherePessoasDasHoras", () => {
   it("desligado entra SÓ se tem sessão no período — senão 'Mês anterior' apagava as horas de quem saiu", () => {
     expect(where.OR[1]).toEqual({
       ativo: false,
-      role: { in: PROJETO_MEMBRO_ROLES },
+      vinculos: { some: { setor: "engenharia" } },
       sessoes: { some: { inicio: { lt: FIM }, OR: [{ fim: { gte: INICIO } }, { fim: null }] } },
     });
   });

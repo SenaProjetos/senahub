@@ -1,5 +1,4 @@
 import { whereAudiencia } from "@/lib/audiencias";
-import { PROJETO_MEMBRO_ROLES } from "@/lib/roles";
 
 /**
  * Quem aparece em RH → Produtividade num período — puro (só monta o `where`).
@@ -15,7 +14,8 @@ export function wherePessoasDasHoras(inicio: Date, fimExclusivo: Date) {
       whereAudiencia("projeto_membro"),
       {
         ativo: false,
-        role: { in: PROJETO_MEMBRO_ROLES },
+        // Desligado perde o setor no cache: o histórico vem do vínculo (Onda F, bloco D).
+        vinculos: { some: { setor: "engenharia" as const } },
         sessoes: { some: { inicio: { lt: fimExclusivo }, OR: [{ fim: { gte: inicio } }, { fim: null }] } },
       },
     ],

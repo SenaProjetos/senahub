@@ -70,8 +70,8 @@ vi.mock("@/lib/prisma", () => ({
 const { aprovarEtapaDisciplina, salvarEtapaDisciplina, excluirEtapaDisciplina } = await import("./etapas-actions");
 
 const USER = { id: "u1", role: "supervisor", ativo: true, mustChangePassword: false };
-const PJ = { userId: "pj1", user: { id: "pj1", name: "Ana PJ", role: "projetista_pj" } };
-const CLT = { userId: "clt1", user: { id: "clt1", name: "Bia CLT", role: "clt" } };
+const PJ = { userId: "pj1", user: { id: "pj1", name: "Ana PJ", role: "projetista_pj", contratacao: "pj" } };
+const CLT = { userId: "clt1", user: { id: "clt1", name: "Bia CLT", role: "clt", contratacao: "clt" } };
 
 const FASE_ENTREGUE = { id: "de1", status: "entregue", liberadaEm: null, disciplinaId: "d1", etapaId: "f-bs", etapa: { sigla: "BS" } };
 const disciplina = (responsaveis: unknown[], valor: number | null = 10000) => ({

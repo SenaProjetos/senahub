@@ -18,6 +18,7 @@
  *   6. Internos ativos sem perfil de acesso (o motor nega tudo para eles, sem erro).
  *   7. Gestão de RH: quem tem papel de `HR_ADMIN_ROLES` e NÃO tem `rh:gerir` (perde RH no bloco A).
  *   8. Moderação do chat: papel `supervisor` sem `chat:moderar` (perde a moderação no bloco A4).
+ *   9. Equipe de Engenharia: papel de projetista × setor `engenharia` (quem entra ou sai, bloco D).
  *
  * Nome aparece por extenso: a saída é para o dono corrigir cadastro, não para anexar em relatório.
  *
@@ -160,6 +161,27 @@ async function main() {
     }
   }
   if (!algumChat) console.log("  ✔ nenhum supervisor perde a moderação do chat.");
+
+  console.log("\n[9] Equipe de Engenharia: papel de projetista × setor engenharia");
+  const projetistaPorPapel = ["clt", "estagiario", "projetista_pj", "freelancer"];
+  const comSetor = await prisma.user.findMany({
+    where: { ativo: true },
+    select: { id: true, setor: true },
+  });
+  const setorPorId = new Map(comSetor.map((x) => [x.id, x.setor]));
+  let algumSetor = false;
+  for (const u of users) {
+    if (u.tipo === "externo" || u.role === "cliente") continue;
+    const antes = projetistaPorPapel.includes(u.role);
+    const depois = setorPorId.get(u.id) === "engenharia";
+    if (antes !== depois) {
+      algumSetor = true;
+      alerta(
+        `${u.name}: papel ${u.role}, setor ${setorPorId.get(u.id) ?? "nulo"} — ${antes ? "SAI" : "ENTRA"} na equipe de Engenharia (produtividade, "Minhas horas", seletor do Estúdio)`,
+      );
+    }
+  }
+  if (!algumSetor) console.log("  ✔ equipe de Engenharia igual pelo papel e pelo setor.");
 
   console.log(`\n=== fim do censo — ${alertas} alerta(s), nada foi alterado ===`);
 }

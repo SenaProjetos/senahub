@@ -42,7 +42,7 @@ import { ReceitaChart } from "@/components/dashboard/receita-chart";
 import { TrendLine } from "@/components/qualidade/trend-line";
 import { CarteiraDashboard } from "@/components/dashboard/carteira-dashboard";
 import { brlInteiro as brl } from "@/lib/utils";
-import { acessoGlobal, PROJETO_MEMBRO_ROLES, type Role } from "@/lib/roles";
+import { acessoGlobal } from "@/lib/roles";
 import { diaLocal } from "@/modules/ponto/engine";
 import { intervaloDoAtalho } from "@/modules/rh/produtividade/periodo";
 import { horasProjetistas } from "@/modules/rh/produtividade/queries";
@@ -88,8 +88,9 @@ export default async function HomePage() {
   // Certidões: mesmo gate do item de menu. `can()` (e não `nav.permitidas`) porque aqui não há
   // o contexto de navegação em mãos — é uma página, não o layout.
   const verCertidoes = await can(user, "certidoes", "ver");
-  // Card "Minhas horas" (2026-10-07): atalho para Ponto → Minhas horas, só para quem é membro de projeto.
-  const mostraMinhasHoras = PROJETO_MEMBRO_ROLES.includes(user.role as Role);
+  // Card "Minhas horas" (2026-10-07): atalho para Ponto → Minhas horas, só para quem é membro de projeto
+  // — setor Engenharia desde a Onda F (era `PROJETO_MEMBRO_ROLES`).
+  const mostraMinhasHoras = user.tipo === "interno" && user.setor === "engenharia";
   const [kpis, projetos, snapshots, receita, agingReceita, carteira, aniversarios, humorHoje, kpisMeu, pendentesAprov, prontasParaAprovar, certidoes, minhasHoras] = await Promise.all([
     // Perfis sem acesso global veem os KPIs restritos aos SEUS projetos (bug beta #9).
     kpisHome(isGlobal ? {} : escopoProjeto(user)),

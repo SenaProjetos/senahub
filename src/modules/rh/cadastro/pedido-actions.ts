@@ -5,7 +5,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificar } from "@/lib/notificar";
-import { CADASTRO_ROLES, HR_ADMIN_ROLES } from "@/lib/roles";
+import { HR_ADMIN_ROLES } from "@/lib/roles";
 import { MOTIVO_NADA_A_PEDIR, MOTIVO_PEDIDO_ABERTO, temAlgoAPedir } from "./preencher";
 import { confirmarMeusDadosNoBanco, preencherDadosNoBanco, situacaoDaPessoa } from "./pedido-service";
 import { MOTIVO_SO_ABERTO_CANCELA, MOTIVO_SO_ABERTO_LEMBRA } from "./acoes-pedido";
@@ -81,7 +81,7 @@ export const pedirAtualizacaoEmLote = defineAction(
   { ...rhBase, acao: "pedir-atualizacao-dados-lote", schema: pedidoSchema },
   async (i, { user }) => {
     const candidatos = await prisma.user.findMany({
-      where: { ativo: true, role: { in: [...CADASTRO_ROLES] }, pedidosDados: { none: { status: "aberto" } } },
+      where: { ativo: true, tipo: "interno", pedidosDados: { none: { status: "aberto" } } },
       select: { id: true },
     });
     let pedidos = 0;
@@ -171,7 +171,7 @@ export const pedirReconfirmacaoEmLote = defineAction(
   { ...rhBase, acao: "pedir-reconfirmacao-dados-lote", schema: pedidoSchema },
   async (i, { user }) => {
     const candidatos = await prisma.user.findMany({
-      where: { ativo: true, role: { in: [...CADASTRO_ROLES] }, pedidosDados: { none: { status: "aberto" } } },
+      where: { ativo: true, tipo: "interno", pedidosDados: { none: { status: "aberto" } } },
       select: { id: true },
     });
     let pedidos = 0;

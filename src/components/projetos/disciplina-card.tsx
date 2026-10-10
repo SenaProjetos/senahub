@@ -109,6 +109,7 @@ import {
 } from "@/modules/projetos/proximo-passo";
 import { prazoVencido } from "@/lib/data";
 import type { SolicitacaoRevisaoView } from "@/modules/projetos/solicitacoes-revisao/queries";
+import type { Contratacao } from "@/generated/prisma/enums";
 
 /** Tarefa da disciplina para a lista (formato do board + nome/cor/concluído do status). */
 export type TarefaDaDisciplina = TarefaUI & { statusNome: string; statusCor: string | null; concluido: boolean };
@@ -145,7 +146,7 @@ type Disc = {
   status: StatusDisciplina;
   prazo: string | null;
   valor: number | null;
-  responsaveis: { userId: string; name: string; role: string }[];
+  responsaveis: { userId: string; name: string; role: string; contratacao: Contratacao | null }[];
   ehResponsavel: boolean;
   revisoes: { id: string; numero: number; motivo: string | null; autor: string; data: string }[];
   /** Solicitações de revisão — uma por envio de apontamentos; só leitura no card. */
@@ -885,7 +886,7 @@ function ConfirmarAprovacaoDialog({
 
   const responsaveisComRole = disciplina.responsaveis.map((r) => ({
     ...r,
-    user: { role: r.role },
+    user: { contratacao: r.contratacao },
   }));
   const valorNum = valorTexto;
   const valorValido = valorNum != null && !Number.isNaN(valorNum) && valorNum >= 0;

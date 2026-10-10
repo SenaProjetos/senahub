@@ -4,8 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { salvarArquivo, slug, nomeArquivoLimpo } from "@/lib/storage";
 import { notificarMuitos } from "@/lib/notificar";
-import { PJ_ROLES } from "@/lib/roles";
+
 import { whereAudiencia } from "@/lib/audiencias";
+import { ehPrestador } from "@/lib/contratacao";
 
 const MAX = 25 * 1024 * 1024;
 
@@ -13,7 +14,7 @@ export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   const user = session.user;
-  if (!PJ_ROLES.includes(user.role as (typeof PJ_ROLES)[number]) && !user.superUsuario) {
+  if (!ehPrestador(user.contratacao) && !user.superUsuario) {
     return NextResponse.json({ error: "Apenas PJ/freelancer enviam notas." }, { status: 403 });
   }
 

@@ -141,7 +141,7 @@ export const confirmarAprovacaoDisciplina = defineAction(
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
       include: {
-        responsaveis: { include: { user: { select: { id: true, name: true, role: true } } } },
+        responsaveis: { include: { user: { select: { id: true, name: true, role: true, contratacao: true } } } },
         pagamentos: { select: { id: true } },
         projeto: { select: { id: true, codigo: true, nome: true } },
       },

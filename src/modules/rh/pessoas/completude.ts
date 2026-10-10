@@ -1,8 +1,8 @@
 /**
  * Regra de "cadastro completo" — **pura, sem I/O**, mesma família de `health.ts`/`aquisitivo.ts`.
  * Substitui a checagem antiga (só CPF + data de admissão) por uma lista de campos por
- * CONTRATAÇÃO, com fallback em `role` para quem ainda não tem `Vinculo` (mesmo padrão
- * documentado em `modules/ponto/apuracao.ts`).
+ * CONTRATAÇÃO do vínculo ativo. Até a Onda F havia fallback no `role` para quem ainda não tinha
+ * `Vinculo`; saiu junto com o papel (o backfill de vínculos é pré-requisito do deploy).
  *
  * Buckets:
  * - **CLT / estágio**: vínculo empregatício pleno — inclui admissão, salário e ≥1 conta.
@@ -10,20 +10,17 @@
  *   autônomo/RPA é pessoa física por definição, então não tem CNPJ a exigir.
  * - **Autônomo (RPA) / pró-labore (sócio)**: identidade + contato + cargo + conta, sem
  *   admissão/salário — RPA e pró-labore não passam por `User.salarioBase` (ver `Vinculo.remuneracao`).
- * - **Sem contratação** (admin sem vínculo, ou ainda não migrado e o `role` também não mapeia):
- *   só o mínimo universal — nome completo e CPF.
+ * - **Sem contratação** (admin sem vínculo): só o mínimo universal — nome completo e CPF.
  * - **Cliente / externo**: nunca incompleto.
  */
 import type { Contratacao } from "@/generated/prisma/client";
-import type { Role } from "@/lib/roles";
-import { CADASTRO_ROLES } from "@/lib/roles";
-import { derivarEixos } from "@/modules/usuarios/vinculo/mapa";
 
 export type CampoFaltante = { campo: string; label: string };
 
 export type EntradaCompletude = {
-  role: Role;
-  /** `null` = ainda não migrado pelo backfill de vínculos; cai no fallback por `role`. */
+  /** Interno × externo: externo (cliente do portal) nunca tem cadastro trabalhista. */
+  tipo: "interno" | "externo";
+  /** Contratação do vínculo ativo; `null` = sem vínculo (só o mínimo universal). */
   contratacao: Contratacao | null;
   nomeCompleto: string | null;
   cpf: string | null;
@@ -68,18 +65,13 @@ function enderecoCompleto(e: EntradaCompletude): boolean {
   );
 }
 
-/** Contratação efetiva: a do vínculo se já migrado, senão a derivada do `role` legado. */
-function contratacaoEfetiva(e: EntradaCompletude): Contratacao | null {
-  return e.contratacao ?? derivarEixos(e.role).contratacao;
-}
-
 /**
  * Lista de campos obrigatórios vazios, na ordem em que aparecem no formulário. Vazio = cadastro
- * completo. `role` fora de `CADASTRO_ROLES` (cliente, ti) nunca entra aqui — quem chama já
- * filtra, mas a função também não falha se vier: só devolve `[]`.
+ * completo. Externo nunca entra aqui — quem chama já filtra, mas a função também não falha se
+ * vier: só devolve `[]`.
  */
 export function camposFaltantes(e: EntradaCompletude): CampoFaltante[] {
-  if (!CADASTRO_ROLES.includes(e.role)) return [];
+  if (e.tipo !== "interno") return [];
 
   const faltam: CampoFaltante[] = [];
   const add = (cond: boolean, campo: string, label: string) => {
@@ -90,7 +82,7 @@ export function camposFaltantes(e: EntradaCompletude): CampoFaltante[] {
   add(!preenchido(e.nomeCompleto), "nomeCompleto", "Nome completo");
   add(!preenchido(e.cpf), "cpf", "CPF");
 
-  const contratacao = contratacaoEfetiva(e);
+  const contratacao = e.contratacao;
 
   if (contratacao === "clt" || contratacao === "estagio") {
     add(!preenchido(e.rg), "rg", "RG");

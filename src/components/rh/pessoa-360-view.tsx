@@ -353,7 +353,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                       // Só para o título do dialog — o dialog não edita nome de exibição
                       // (isso é `usuarios-view.tsx`/`editarUsuario`), só `nomeCompleto`.
                       name: pessoa.name,
-                      role: pessoa.role,
+                      prestador: pessoa.prestador,
                       dataAdmissao: pessoa.dataAdmissao,
                       cadastro: cadastroDialog,
                     }}

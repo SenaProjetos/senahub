@@ -313,7 +313,7 @@ export async function obterProjeto(viewer: Viewer, id: string) {
           // Nome do catálogo, para o rótulo secundário quando difere do texto da disciplina
           // (`rotuloCatalogo`). Null enquanto a disciplina não tiver FK — estado legítimo.
           catalogo: { select: { nome: true } },
-          responsaveis: { include: { user: { select: { id: true, name: true, role: true, image: true } } } },
+          responsaveis: { include: { user: { select: { id: true, name: true, role: true, contratacao: true, image: true } } } },
           revisoes: { orderBy: { numero: "desc" }, include: { autor: { select: { name: true } } } },
           uploads: {
             // Lixeira: leitura aninhada não passa pelo filtro global (lib/prisma.ts) → explícito.
@@ -508,7 +508,7 @@ export async function margemProjeto(projetoId: string) {
     }),
     prisma.rateioHora.findMany({
       where: { projetoId },
-      select: { custo: true, user: { select: { role: true } } },
+      select: { custo: true, user: { select: { contratacao: true } } },
     }),
   ]);
 
@@ -574,7 +574,7 @@ export async function margemProjeto(projetoId: string) {
   }
 
   const rateioHoras = separarRateioPorVinculo(
-    rateios.map((rateio) => ({ custo: Number(rateio.custo), role: rateio.user.role })),
+    rateios.map((rateio) => ({ custo: Number(rateio.custo), contratacao: rateio.user.contratacao })),
   );
   const custoHoras = rateioHoras.total;
 

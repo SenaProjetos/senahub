@@ -5,10 +5,11 @@ import { estadoDoDia, projetosDoUsuario, espelhoMes, ajustesPendentesCiencia } f
 import { apontamentoAtual } from "@/modules/ponto/apontamento";
 import { sugestaoParaPonto } from "@/modules/ponto/tarefa-ponto-service";
 import { rateioMesGestor } from "@/modules/rh/rateio/queries";
-import { PJ_ROLES } from "@/lib/roles";
+
 import { disciplinasEscreviveisNoProjeto, type DisciplinaEscrevivel } from "@/modules/projetos/diario/queries";
 import { PontoView } from "@/components/ponto/ponto-view";
 import { PontoSubnav } from "@/components/ponto/ponto-subnav";
+import { usaApontamento as registraPorApontamento } from "@/lib/contratacao";
 
 export const metadata: Metadata = { title: "Ponto" };
 
@@ -27,7 +28,7 @@ export default async function PontoPage() {
   const hoje = new Date();
   const ano = hoje.getFullYear();
   const mes = hoje.getMonth() + 1;
-  const usaApontamento = PJ_ROLES.includes(user.role);
+  const usaApontamento = registraPorApontamento(user.contratacao);
 
   const [estadoDia, projetos, espelho, pendencias, podeRatear, apontamento] = await Promise.all([
     estadoDoDia(user.id),

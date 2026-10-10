@@ -1,10 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { ratearPagamentoProjetista, bloqueioValorDisciplina } from "@/modules/uploads/rateio";
 
-const pj = (id: string) => ({ userId: id, user: { role: "projetista_pj" } });
-const free = (id: string) => ({ userId: id, user: { role: "freelancer" } });
-const clt = (id: string) => ({ userId: id, user: { role: "clt" } });
-const estagiario = (id: string) => ({ userId: id, user: { role: "estagiario" } });
+// Pagável pela CONTRATAÇÃO desde a Onda F (bloco D): PJ e RPA (o freelancer migrado) recebem por
+// entrega; CLT/estágio não; sem vínculo também não.
+const pj = (id: string) => ({ userId: id, user: { contratacao: "pj" as const } });
+const free = (id: string) => ({ userId: id, user: { contratacao: "autonomo_rpa" as const } });
+const clt = (id: string) => ({ userId: id, user: { contratacao: "clt" as const } });
+const estagiario = (id: string) => ({ userId: id, user: { contratacao: "estagio" as const } });
+const semVinculo = (id: string) => ({ userId: id, user: { contratacao: null } });
 
 const soma = (p: { valor: number }[]) => Number(p.reduce((s, i) => s + i.valor, 0).toFixed(2));
 
@@ -36,6 +39,12 @@ describe("ratearPagamentoProjetista", () => {
     const { pagaveis } = ratearPagamentoProjetista([clt("a"), pj("b"), pj("c"), pj("d")], 100);
     expect(soma(pagaveis)).toBe(100);
     expect(pagaveis[0].valor).toBe(33.34);
+  });
+
+  it("sem vínculo não é pagável (decisão 1 do dono: o backfill vem antes do deploy)", () => {
+    const { pagaveis, salariados } = ratearPagamentoProjetista([semVinculo("a"), pj("b")], 300);
+    expect(pagaveis).toEqual([{ responsavel: pj("b"), valor: 300 }]);
+    expect(salariados).toEqual([semVinculo("a")]);
   });
 
   it("disciplina 100% salariada não gera cota", () => {

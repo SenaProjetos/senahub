@@ -5,6 +5,7 @@ import { ActionError } from "@/lib/action-error";
 import { criarDespesaProjetistaPrevista } from "@/modules/financeiro/custo/lancamento-custo";
 import { recalcularTotalFolha } from "@/modules/financeiro/folha-lote/service";
 import { ehPagavel, ratearPagamentoProjetista } from "@/modules/uploads/rateio";
+import type { Contratacao } from "@/generated/prisma/enums";
 import {
   planejarSincronizacao,
   bloqueioSincronizacao,
@@ -26,7 +27,12 @@ import {
 
 type ResponsavelComUser = {
   userId: string;
-  user: { id: string; name: string; role: string };
+  /**
+   * `contratacao` decide quem é PAGÁVEL (Onda F, bloco D). `role` ainda escolhe `tipoProfissional`,
+   * que vira a categoria do DRE (2.01 projetista PJ × 2.02 freelancer) — os freelancers foram
+   * migrados com contratação `pj`, então trocar esta leitura mudaria o DRE. Decisão pendente da poda.
+   */
+  user: { id: string; name: string; role: string; contratacao: Contratacao | null };
 };
 
 type Db = Prisma.TransactionClient;
@@ -314,7 +320,7 @@ export async function sincronizarPagamentosPorDisciplinaId(
       id: true,
       disciplinaTextoLegado: true,
       valor: true,
-      responsaveis: { select: { userId: true, user: { select: { id: true, name: true, role: true } } } },
+      responsaveis: { select: { userId: true, user: { select: { id: true, name: true, role: true, contratacao: true } } } },
       projeto: { select: { id: true, codigo: true } },
     },
   });

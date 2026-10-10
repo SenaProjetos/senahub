@@ -195,15 +195,13 @@ export const lancarFeriasColaborador = defineAction(
   async (i, { user }) => {
     const achado = await prisma.user.findUnique({
       where: { id: i.userId },
-      select: { id: true, role: true, tipo: true, ativo: true, contratacao: true, _count: { select: { vinculos: true } } },
+      select: { id: true, tipo: true, ativo: true, contratacao: true },
     });
     if (!achado || !achado.ativo) throw new ActionError("Colaborador não encontrado.");
     const alvo: SujeitoJornada & { id: string } = {
       id: achado.id,
-      role: achado.role,
       tipo: achado.tipo,
       contratacao: achado.contratacao,
-      jaTeveVinculo: achado._count.vinculos > 0,
     };
     // Mesma restrição do autoatendimento, aplicada ao ALVO (o chamador é sempre gestor de RH):
     // férias são instituto celetista — lançar para PJ/freelancer materializaria subordinação.
@@ -306,12 +304,12 @@ export const proporAlteracaoFerias = defineAction(
     // era `dono?.role ?? ""`, que pulava a validação.
     const dono = await prisma.user.findUnique({
       where: { id: f.userId },
-      select: { role: true, tipo: true, name: true, contratacao: true, _count: { select: { vinculos: true } } },
+      select: { tipo: true, name: true, contratacao: true },
     });
     await garantirInicioFeriasClt(
       dono
-        ? { role: dono.role, tipo: dono.tipo, contratacao: dono.contratacao, jaTeveVinculo: dono._count.vinculos > 0 }
-        : ({ role: "clt", tipo: "interno" } as SujeitoJornada),
+        ? { tipo: dono.tipo, contratacao: dono.contratacao }
+        : ({ tipo: "interno" } as SujeitoJornada),
       i.inicio,
     );
 

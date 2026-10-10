@@ -63,7 +63,8 @@ describe("registro de audiências", () => {
   it("monta o where do Prisma no modo declarado", () => {
     // `clt` é por jornada (contratação), não por papel — o formato vem de `jornada.ts`, testado lá.
     expect(whereAudiencia("clt")).toEqual(whereControlaJornada());
-    expect(whereAudiencia("pj")).toEqual({ ativo: true, role: { in: ["projetista_pj", "freelancer"] } });
+    expect(whereAudiencia("pj")).toEqual({ ativo: true, contratacao: { in: ["pj", "autonomo_rpa"] } });
+    expect(whereAudiencia("projeto_membro")).toEqual({ ativo: true, tipo: "interno", setor: "engenharia" });
     expect(whereAudiencia("planejamento_recurso")).toEqual({
       ativo: true,
       role: { notIn: ["cliente", "freelancer"] },
@@ -112,7 +113,7 @@ describe("registro de audiências", () => {
   it("nenhuma audiência por papel nasce com lista vazia", () => {
     for (const chave of AUDIENCIA_KEYS) {
       const a = AUDIENCIAS[chave];
-      if (a.modo === "permissao" || a.modo === "jornada" || a.modo === "tipo") continue;
+      if (a.modo === "permissao" || a.modo === "jornada" || a.modo === "tipo" || a.modo === "eixo") continue;
       expect(a.roles.length, `audiência ${chave}`).toBeGreaterThan(0);
     }
   });

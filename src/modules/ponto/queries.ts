@@ -1,7 +1,7 @@
 import "server-only";
 import type { SugestaoDoPonto } from "@/modules/ponto/tarefa-ponto-service";
 import { prisma } from "@/lib/prisma";
-import { PROJETO_MEMBRO_ROLES } from "@/lib/roles";
+
 import { minutosSessao } from "@/modules/ponto/format";
 import {
   agruparRegistrosDiariosProjeto,
@@ -419,7 +419,7 @@ export async function registrosDiariosProjeto(projetoId: string): Promise<Regist
     where: {
       projetoId,
       inicio: { gte: inicioJanelaUtc, lte: agora },
-      user: { role: { in: PROJETO_MEMBRO_ROLES } },
+      user: { vinculos: { some: { setor: "engenharia" } } },
     },
     select: {
       id: true,

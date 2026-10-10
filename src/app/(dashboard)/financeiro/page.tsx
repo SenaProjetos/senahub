@@ -8,7 +8,7 @@ import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { meuExtrato } from "@/modules/financeiro/queries";
 import { recibosDoProjetista } from "@/modules/financeiro/recibo/queries";
 import { MeusRecibos } from "@/components/financeiro/recibo/meus-recibos";
-import { PJ_ROLES } from "@/lib/roles";
+
 import { agingReport } from "@/modules/financeiro/aging/queries";
 import { relatorioDRE, serieMensalResultado, despesasPorCategoria } from "@/modules/financeiro/relatorios/queries";
 import { fluxoCaixa } from "@/modules/financeiro/caixa/queries";
@@ -28,6 +28,7 @@ import { NavFinanceiro } from "@/components/financeiro/nav-financeiro";
 import { TorreLiquidez } from "@/components/financeiro/liquidez/torre-liquidez";
 import { Valor } from "@/components/financeiro/valor";
 import { brl, formatarData } from "@/lib/utils";
+import { ehPrestador } from "@/lib/contratacao";
 
 export const metadata: Metadata = { title: "Financeiro" };
 
@@ -190,7 +191,7 @@ export default async function FinanceiroPage({
   const { pagamentos, total, pago, aberto } = await meuExtrato(user.id);
   // G5/D36: recibos do próprio projetista — assinar, baixar PDF e (PJ) anexar a NF.
   const recibos = await recibosDoProjetista(user.id);
-  const ehPJ = PJ_ROLES.includes(user.role as (typeof PJ_ROLES)[number]);
+  const ehPJ = ehPrestador(user.contratacao);
 
   return (
     <div className="space-y-6">

@@ -1,6 +1,5 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { CLT_ROLES } from "@/lib/roles";
 import { pisoApuracao } from "@/modules/ponto/esperado";
 import { diaLocal } from "@/modules/ponto/engine";
 import { CONTRATACOES_JORNADA } from "@/modules/ponto/jornada";
@@ -59,7 +58,7 @@ export async function contextoApuracaoEmLote(
   const [usuarios, vinculos, primeirasBatidas, primeirasSessoes] = await Promise.all([
     prisma.user.findMany({
       where: { id: { in: userIds } },
-      select: { id: true, role: true, dataAdmissao: true, _count: { select: { vinculos: true } } },
+      select: { id: true, _count: { select: { vinculos: true } } },
     }),
     // Vínculos que COBREM o mês (podem ser mais de um se houve troca no meio).
     prisma.vinculo.findMany({
@@ -120,12 +119,10 @@ export async function contextoApuracaoEmLote(
       continue;
     }
 
-    // Backfill de vínculos ainda não rodou para este usuário: cai no eixo antigo.
-    out.set(u.id, {
-      controlaJornada: CLT_ROLES.includes(u.role),
-      piso: pisoApuracao(u.dataAdmissao ? iso(u.dataAdmissao) : null, registro),
-      teto: null,
-    });
+    // Sem vínculo nenhum = sem jornada (Onda F, decisão 1 do dono, §16.4). Até 2026-10-10 caía no
+    // papel (`CLT_ROLES`); o backfill de vínculos — pré-requisito do deploy — cria o vínculo desde a
+    // admissão, então o histórico de quem batia ponto continua coberto pelo ramo acima.
+    out.set(u.id, { controlaJornada: false, piso: null, teto: null });
   }
   return out;
 }

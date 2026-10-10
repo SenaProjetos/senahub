@@ -1,8 +1,10 @@
-import { CLT_ROLES, type Role } from "@/lib/roles";
+import { ehJornada } from "@/lib/contratacao";
+import type { Contratacao } from "@/generated/prisma/enums";
 
 type RateioComRole = {
   custo: number;
-  role: Role;
+  /** Contratação de quem apontou (cache do vínculo ativo). Era o papel até a Onda F. */
+  contratacao: Contratacao | null;
 };
 
 /** Separa o rateio fechado para explicitar o custo de jornada CLT/estágio no resultado do projeto. */
@@ -12,7 +14,7 @@ export function separarRateioPorVinculo(rateios: RateioComRole[]) {
 
   for (const rateio of rateios) {
     const centavos = Math.round(rateio.custo * 100);
-    if (CLT_ROLES.includes(rateio.role)) cltEstagiariosCentavos += centavos;
+    if (ehJornada(rateio.contratacao)) cltEstagiariosCentavos += centavos;
     else demaisColaboradoresCentavos += centavos;
   }
 

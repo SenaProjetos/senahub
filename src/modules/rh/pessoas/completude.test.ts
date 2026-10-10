@@ -2,8 +2,7 @@ import { describe, expect, it } from "vitest";
 import { camposFaltantes, cadastroIncompleto, type EntradaCompletude } from "./completude";
 
 const BASE: EntradaCompletude = {
-  role: "clt",
-  contratacao: "clt",
+  tipo: "interno", contratacao: "clt",
   nomeCompleto: "Ana Silva Souza",
   cpf: "52998224725",
   rg: "MG-12.345.678",
@@ -50,7 +49,7 @@ describe("camposFaltantes — CLT/estágio", () => {
   });
 
   it("estágio usa a mesma regra de CLT", () => {
-    expect(camposFaltantes({ ...BASE, role: "estagiario", contratacao: "estagio" })).toEqual([]);
+    expect(camposFaltantes({ ...BASE, contratacao: "estagio" })).toEqual([]);
   });
 
   it("endereço parcial conta como 'endereco' faltando, não um item por sub-campo", () => {
@@ -63,8 +62,7 @@ describe("camposFaltantes — CLT/estágio", () => {
 describe("camposFaltantes — PJ", () => {
   const PJ: EntradaCompletude = {
     ...BASE,
-    role: "projetista_pj",
-    contratacao: "pj",
+    tipo: "interno", contratacao: "pj",
     rg: null,
     dataNascimento: null,
     dataAdmissao: null,
@@ -87,15 +85,14 @@ describe("camposFaltantes — PJ", () => {
   });
 
   it("freelancer usa a mesma regra de PJ quando contratacao=pj", () => {
-    expect(camposFaltantes({ ...PJ, role: "freelancer" })).toEqual([]);
+    expect(camposFaltantes({ ...PJ })).toEqual([]);
   });
 });
 
 describe("camposFaltantes — autônomo RPA", () => {
   const RPA: EntradaCompletude = {
     ...BASE,
-    role: "freelancer",
-    contratacao: "autonomo_rpa",
+    tipo: "interno", contratacao: "autonomo_rpa",
     rg: null,
     dataNascimento: null,
     dataAdmissao: null,
@@ -111,8 +108,7 @@ describe("camposFaltantes — autônomo RPA", () => {
 describe("camposFaltantes — pró-labore (sócio)", () => {
   const SOCIO: EntradaCompletude = {
     ...BASE,
-    role: "supervisor",
-    contratacao: "pro_labore",
+    tipo: "interno", contratacao: "pro_labore",
     rg: null,
     dataNascimento: null,
     dataAdmissao: null,
@@ -143,7 +139,7 @@ describe("camposFaltantes — viewer sem rh:folha (avaliarFolha=false)", () => {
 
   it("PJ: conta bancária some da lista", () => {
     const PJ: EntradaCompletude = {
-      ...BASE, role: "projetista_pj", contratacao: "pj", rg: null, dataNascimento: null,
+      ...BASE, tipo: "interno", contratacao: "pj", rg: null, dataNascimento: null,
       dataAdmissao: null, temSalario: false, pjId: "pj1", contasBancariasAtivas: 0, avaliarFolha: false,
     };
     expect(camposFaltantes(PJ)).toEqual([]);
@@ -155,18 +151,9 @@ describe("camposFaltantes — viewer sem rh:folha (avaliarFolha=false)", () => {
   });
 });
 
-describe("camposFaltantes — fallback por role quando contratação ainda não migrou", () => {
-  it("clt sem Vinculo (contratacao null) cai na regra de CLT via derivarEixos", () => {
+describe("camposFaltantes — sem vínculo não cai mais no papel (Onda F, decisão 1)", () => {
+  it("interno sem contratação só exige o mínimo universal, mesmo que fosse CLT pelo papel", () => {
     const r = camposFaltantes({ ...BASE, contratacao: null, dataAdmissao: null });
-    expect(r.map((x) => x.campo)).toContain("dataAdmissao");
-  });
-
-  it("projetista_pj sem Vinculo cai na regra de PJ (derivarEixos mapeia pj)", () => {
-    const r = camposFaltantes({
-      ...BASE, role: "projetista_pj", contratacao: null, rg: null, dataNascimento: null,
-      dataAdmissao: null, temSalario: false, pjId: null,
-    });
-    expect(r.map((x) => x.campo)).toContain("pjId");
     expect(r.map((x) => x.campo)).not.toContain("dataAdmissao");
   });
 });
@@ -174,7 +161,7 @@ describe("camposFaltantes — fallback por role quando contratação ainda não 
 describe("camposFaltantes — sem contratação mapeável", () => {
   it("admin sem vínculo só exige o mínimo universal (nome + CPF)", () => {
     const admin: EntradaCompletude = {
-      ...BASE, role: "admin", contratacao: null, rg: null, dataNascimento: null,
+      ...BASE, tipo: "interno", contratacao: null, rg: null, dataNascimento: null,
       enderecoCep: null, enderecoLogradouro: null, enderecoNumero: null, enderecoBairro: null,
       enderecoCidade: null, enderecoUf: null, telefone: null, dataAdmissao: null,
       cargoId: null, departamentoId: null, temSalario: false, contasBancariasAtivas: 0,
@@ -184,22 +171,17 @@ describe("camposFaltantes — sem contratação mapeável", () => {
 
   it("mas nome ou CPF vazio ainda acusa, mesmo sem contratação", () => {
     const admin: EntradaCompletude = {
-      ...BASE, role: "admin", contratacao: null, nomeCompleto: null, cpf: null,
+      ...BASE, tipo: "interno", contratacao: null, nomeCompleto: null, cpf: null,
     };
     const r = camposFaltantes(admin);
     expect(r.map((x) => x.campo).sort()).toEqual(["cpf", "nomeCompleto"]);
   });
 });
 
-describe("camposFaltantes — papéis fora de CADASTRO_ROLES", () => {
-  it("cliente nunca é incompleto, mesmo com tudo vazio", () => {
-    const cliente: EntradaCompletude = { ...BASE, role: "cliente", contratacao: null, cpf: null, nomeCompleto: null };
+describe("camposFaltantes — externo", () => {
+  it("cliente do portal nunca é incompleto, mesmo com tudo vazio", () => {
+    const cliente: EntradaCompletude = { ...BASE, tipo: "externo", contratacao: null, cpf: null, nomeCompleto: null };
     expect(camposFaltantes(cliente)).toEqual([]);
     expect(cadastroIncompleto(cliente)).toBe(false);
-  });
-
-  it("ti nunca é incompleto", () => {
-    const ti: EntradaCompletude = { ...BASE, role: "ti", contratacao: null, cpf: null };
-    expect(camposFaltantes(ti)).toEqual([]);
   });
 });

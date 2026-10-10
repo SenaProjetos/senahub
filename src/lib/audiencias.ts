@@ -1,5 +1,4 @@
 import type { Role } from "@/lib/roles";
-import { PJ_ROLES, PROJETO_MEMBRO_ROLES } from "@/lib/roles";
 import { whereControlaJornada } from "@/modules/ponto/jornada";
 import { ROLES_GLOBAIS_CHAT } from "@/modules/chat/roles";
 
@@ -85,7 +84,17 @@ export type AudienciaPorTipo = {
   tipo: "interno" | "externo";
 };
 
-export type Audiencia = AudienciaPorPapel | AudienciaPorPermissao | AudienciaPorJornada | AudienciaPorTipo;
+/**
+ * Audiência resolvida por um filtro fixo sobre os eixos do vínculo (`setor`, `contratacao`) —
+ * conjuntos que não são acesso nem jornada. Onda F, bloco D.
+ */
+export type AudienciaPorEixo = {
+  descricao: string;
+  modo: "eixo";
+  where: Record<string, unknown>;
+};
+
+export type Audiencia = AudienciaPorPapel | AudienciaPorPermissao | AudienciaPorJornada | AudienciaPorTipo | AudienciaPorEixo;
 
 export const AUDIENCIAS = {
   /** admin + supervisor. */
@@ -125,15 +134,17 @@ export const AUDIENCIAS = {
     modo: "tipo",
     tipo: "interno",
   },
+  /** Setor Engenharia (Onda F, bloco D — era `PROJETO_MEMBRO_ROLES`). Setor não autoriza nada: é audiência. */
   projeto_membro: {
-    descricao: "Perfis que podem ser membro/responsável de projeto — matriz de produtividade e seletor do Estúdio",
-    modo: "in",
-    roles: PROJETO_MEMBRO_ROLES,
+    descricao: "Equipe de Engenharia — membro/responsável de projeto, matriz de produtividade e seletor do Estúdio",
+    modo: "eixo",
+    where: { tipo: "interno", setor: "engenharia" },
   },
+  /** Prestador PJ/RPA (Onda F, bloco D — era `PJ_ROLES`). */
   pj: {
-    descricao: "Projetistas PJ/freelancer — candidatos a vincular a uma pessoa jurídica",
-    modo: "in",
-    roles: PJ_ROLES,
+    descricao: "Prestadores PJ/RPA — candidatos a vincular a uma pessoa jurídica",
+    modo: "eixo",
+    where: { contratacao: { in: ["pj", "autonomo_rpa"] } },
   },
   /** Gestão de RH — destinatários de avisos de RH (férias, abonos, documentos). Onda F, §16.4. */
   rh_gestao: {
@@ -180,6 +191,7 @@ export function whereAudiencia(chave: AudienciaKey, agora: Date = new Date()): W
   }
   if (a.modo === "jornada") return whereControlaJornada();
   if (a.modo === "tipo") return { ativo: true, tipo: a.tipo };
+  if (a.modo === "eixo") return { ativo: true, ...a.where };
   const roles = [...a.roles] as Role[];
   return { ativo: true, role: a.modo === "in" ? { in: roles } : { notIn: roles } };
 }

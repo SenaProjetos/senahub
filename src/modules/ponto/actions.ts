@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { PJ_ROLES } from "@/lib/roles";
+
 import { controlaJornada } from "@/modules/ponto/jornada";
 import { notificar } from "@/lib/notificar";
 import { getSession } from "@/lib/session";
@@ -28,6 +28,7 @@ import {
 } from "@/modules/ponto/schemas";
 import { normalizarAlocacaoPonto } from "@/modules/ponto/alocacao";
 import type { Prisma } from "@/generated/prisma/client";
+import { usaApontamento } from "@/lib/contratacao";
 
 /**
  * `roles` é obrigatório aqui: sem `roles` E sem `recurso`, `defineAction` pula o gate inteiro
@@ -61,7 +62,7 @@ export async function buscarResumoJornada(): Promise<ResumoHeader | null> {
     return sugestaoParaPonto(user.id, new Set(projetos.map((p) => p.id)));
   };
 
-  if (PJ_ROLES.includes(user.role)) {
+  if (usaApontamento(user.contratacao)) {
     const { aberto, hojeMin } = await apontamentoAtual(user.id);
     return {
       modo: "apontamento" as const,

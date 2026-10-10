@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
 import { can, canRole } from "@/lib/permissions";
 import { logAudit, getClientIp } from "@/lib/audit";
-import { CADASTRO_ROLES, PJ_ROLES, HR_ADMIN_ROLES } from "@/lib/roles";
+import { HR_ADMIN_ROLES } from "@/lib/roles";
 import {
   fichaPessoa,
   cadastroDaPessoa,
@@ -75,8 +75,8 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
     });
   }
 
-  const isCadastro = CADASTRO_ROLES.includes(pessoa.role);
-  const isPJ = PJ_ROLES.includes(pessoa.role) || !!pessoa.pj;
+  const isCadastro = pessoa.tipo === "interno";
+  const isPJ = pessoa.prestador || !!pessoa.pj;
   const temEscala = pessoa.tipo === "interno";
   // Jornada controlada vem da CONTRATAÇÃO vigente (vínculo), não do `role`:
   // `administrativo` contratado como CLT tem banco de horas; `clt` que virou PJ não.

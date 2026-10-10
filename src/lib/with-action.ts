@@ -36,6 +36,11 @@ type ActionConfig<S> = {
    * `roles: HR_ADMIN_ROLES` desde a Onda F (§16.4) — RH é permissão dada pessoa a pessoa.
    */
   gereRh?: boolean;
+  /**
+   * Só quem tem uma destas contratações no vínculo ativo (`User.contratacao`). Substitui
+   * `roles: PJ_ROLES` / `CLT_ROLES` desde a Onda F, bloco D.
+   */
+  contratacoes?: readonly string[];
   /** Schema Zod do input. */
   schema?: ZodType<S>;
   /** Nome do model Prisma para auditoria. */
@@ -85,6 +90,10 @@ export function defineAction<S, T>(
       return { ok: false, error: "Sem permissão." };
     }
     if (config.gereRh && !user.gereRh) {
+      await maybeAudit(config, { user, ip }, "bloqueado");
+      return { ok: false, error: "Sem permissão." };
+    }
+    if (config.contratacoes && !(user.contratacao && config.contratacoes.includes(user.contratacao))) {
       await maybeAudit(config, { user, ip }, "bloqueado");
       return { ok: false, error: "Sem permissão." };
     }

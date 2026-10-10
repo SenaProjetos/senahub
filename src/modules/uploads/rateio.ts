@@ -9,12 +9,14 @@
  * NÃO consomem cota — antes o divisor incluía todo mundo e a cota do salariado
  * simplesmente desaparecia do pagamento.
  */
-import { PJ_ROLES, type Role } from "@/lib/roles";
+import { ehPrestador } from "@/lib/contratacao";
+import type { Contratacao } from "@/generated/prisma/enums";
 
-type ComRole = { user: { role: string } };
+/** Pagável = prestador (contratação `pj`/`autonomo_rpa`) — Onda F, bloco D; era `PJ_ROLES`. */
+type ComRole = { user: { contratacao: Contratacao | null } };
 
 export function ehPagavel(r: ComRole): boolean {
-  return PJ_ROLES.includes(r.user.role as Role);
+  return ehPrestador(r.user.contratacao);
 }
 
 /**

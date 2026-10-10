@@ -1,13 +1,13 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { CADASTRO_ROLES, type Role, type EscopoDeDados } from "@/lib/roles";
+import { type Role, type EscopoDeDados } from "@/lib/roles";
 import { usuarioOnline } from "@/lib/socket";
 import { espelhoMes } from "@/modules/ponto/queries";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { formatarRegistro } from "@/modules/usuarios/registro";
 import { ehAvisoAntecipado } from "@/modules/rh/ausencia";
 import { camposFaltantes, type EntradaCompletude } from "@/modules/rh/pessoas/completude";
-import { derivarEixos } from "@/modules/usuarios/vinculo/mapa";
+import { ehPrestador } from "@/lib/contratacao";
 
 const ymd = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 const enderecoCompletoOk = (u: { enderecoCep: string | null; enderecoLogradouro: string | null; enderecoNumero: string | null; enderecoBairro: string | null; enderecoCidade: string | null; enderecoUf: string | null }) =>
@@ -26,7 +26,7 @@ export async function listarPessoas(podeFolha: boolean) {
     where: { tipo: "interno" },
     orderBy: [{ ativo: "desc" }, { name: "asc" }],
     select: {
-      id: true, name: true, nomeCompleto: true, email: true, role: true, ativo: true, image: true,
+      id: true, name: true, nomeCompleto: true, email: true, role: true, ativo: true, image: true, tipo: true, contratacao: true,
       clienteId: true, pjId: true, cpf: true, rg: true, dataNascimento: true, dataAdmissao: true,
       enderecoCep: true, enderecoLogradouro: true, enderecoNumero: true, enderecoBairro: true,
       enderecoCidade: true, enderecoUf: true, telefone: true,
@@ -36,9 +36,11 @@ export async function listarPessoas(podeFolha: boolean) {
     },
   });
   return us.map((u) => {
+    // Contratação lida só para saber QUAIS campos exigir; o valor não sai daqui (o papel, que
+    // fazia o mesmo papel até a Onda F, revelava o mesmo tanto).
     const entrada: EntradaCompletude = {
-      role: u.role,
-      contratacao: derivarEixos(u.role).contratacao,
+      tipo: u.tipo,
+      contratacao: u.contratacao,
       nomeCompleto: u.nomeCompleto,
       cpf: u.cpf,
       rg: u.rg,
@@ -93,7 +95,7 @@ export async function fichaPessoa(userId: string, acessos: AcessosFichaPessoa) {
   const u = await prisma.user.findUnique({
     where: { id: userId },
     select: {
-      id: true, name: true, nomeCompleto: true, email: true, role: true, ativo: true, image: true, superUsuario: true, tipo: true,
+      id: true, name: true, nomeCompleto: true, email: true, role: true, ativo: true, image: true, superUsuario: true, tipo: true, contratacao: true,
       dataAdmissao: true, cpf: true, rg: true, dataNascimento: true, cargo: true, departamento: true,
       cargoId: true, departamentoId: true, telefone: true,
       enderecoCep: true, enderecoLogradouro: true, enderecoNumero: true, enderecoBairro: true,
@@ -160,13 +162,12 @@ export async function fichaPessoa(userId: string, acessos: AcessosFichaPessoa) {
         : Promise.resolve(null),
     ]);
 
-  // `contratacao` real só está disponível quando `acessos.acesso` (gate `usuarios:gerir`).
-  // Fallback por `role` (mesmo padrão de `apuracao.ts`) quando não autorizado ou ainda não
-  // migrado — o cálculo de completude nunca lê o escalar fora deste gate já existente.
-  const contratacaoEfetiva = acesso?.contratacao ?? derivarEixos(u.role).contratacao;
+  // Contratação lida só para saber QUAIS campos exigir. A EXIBIÇÃO do valor continua atrás de
+  // `acessos.acesso` (campo `contratacao` do retorno); o papel, que decidia isto até a Onda F,
+  // revelava o mesmo tanto.
   const entradaCompletude: EntradaCompletude = {
-    role: u.role,
-    contratacao: contratacaoEfetiva,
+    tipo: u.tipo,
+    contratacao: u.contratacao,
     nomeCompleto: u.nomeCompleto,
     cpf: u.cpf,
     rg: u.rg,
@@ -209,6 +210,9 @@ export async function fichaPessoa(userId: string, acessos: AcessosFichaPessoa) {
     socioAtivo: u.socio?.ativo === true,
     /** Interno × externo — decide escala, ponto e ciclos na ficha. */
     tipo: u.tipo,
+    /** Prestador (PJ/RPA): NF e pessoa jurídica na ficha. Só o booleano sai — o valor da
+     *  contratação continua atrás de `acessos.acesso`. */
+    prestador: ehPrestador(u.contratacao),
     /** Bypass total do motor — a ficha não deixa trocar a contratação de quem é superusuário. */
     superUsuario: u.superUsuario,
     /**
@@ -244,7 +248,7 @@ export async function fichaPessoa(userId: string, acessos: AcessosFichaPessoa) {
       semDocumentos:
         documentos == null
           ? null
-          : CADASTRO_ROLES.includes(u.role) && documentos === 0,
+          : u.tipo === "interno" && documentos === 0,
     },
     cliente: u.cliente ? { id: u.cliente.id, nome: u.cliente.nome, tipo: u.cliente.tipo, documento: u.cliente.documento } : null,
     pj: u.pj ? { id: u.pj.id, razaoSocial: u.pj.razaoSocial, cnpj: u.pj.cnpj } : null,

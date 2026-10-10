@@ -75,7 +75,7 @@ export async function carregarPreferenciasDaConta(userId: string) {
     pontoEmailModo: (modoValido ? prefs.ponto_email_modo : "resumo_diario") as "todos" | "resumo_diario" | "nenhum",
     // Mesmo fato da batida: alerta de ponto só para quem bate ponto (pela contratação).
     mostrarAlertasPonto: perfilDb
-      ? controlaJornada({ role, tipo: perfilDb.tipo, contratacao: perfilDb.contratacao, jaTeveVinculo: perfilDb._count.vinculos > 0 })
+      ? controlaJornada({ tipo: perfilDb.tipo, contratacao: perfilDb.contratacao })
       : false,
   };
 }

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can, podeAtuarEmDisciplinaAlheia, podeVerFinanceiro } from "@/lib/permissions";
-import { CLT_ROLES } from "@/lib/roles";
+
 import {
   catalogoDisciplinas,
   disciplinasForaDeSLA,
@@ -29,6 +29,7 @@ import { contarPorStatus, filtrarDisciplinas, ordenarDisciplinas, statusDoFiltro
 import { DisciplinaCard, type TarefaDaDisciplina } from "@/components/projetos/disciplina-card";
 import { semPublicacaoPorDisciplina } from "@/modules/uploads/ciclo/service";
 import { prisma } from "@/lib/prisma";
+import { ehJornada } from "@/lib/contratacao";
 
 /** Área operacional preservada da ficha anterior, agora isolada na aba Disciplinas. */
 export async function DisciplinasOperacionais({
@@ -72,8 +73,9 @@ export async function DisciplinasOperacionais({
     ? catalogoBruto.filter((c) => valeNaVersao(c, nomenclatura.versao!.numero))
     : catalogoBruto;
 
-  // Quem enxerga financeiro vê o valor em qualquer papel; o corte por papel CLT continua para os demais.
-  const ocultarValorDisciplina = CLT_ROLES.includes(user.role) && !podeVerValor;
+  // Quem enxerga financeiro vê o valor; o corte continua para quem tem jornada CLT/estágio
+  // (contratação desde a Onda F — era o papel).
+  const ocultarValorDisciplina = ehJornada(user.contratacao) && !podeVerValor;
   const solicitantesIds = [
     ...new Set(projeto.disciplinas.map((disciplina) => disciplina.aprovacaoSolicitadaPorId).filter((id): id is string => !!id)),
   ];
@@ -110,7 +112,7 @@ export async function DisciplinasOperacionais({
       status: disciplina.status,
       prazo: disciplina.prazo ? new Date(disciplina.prazo).toISOString() : null,
       valor: ocultarValorDisciplina ? null : disciplina.valor != null ? Number(disciplina.valor) : null,
-      responsaveis: disciplina.responsaveis.map((responsavel) => ({ userId: responsavel.userId, name: responsavel.user.name, role: responsavel.user.role })),
+      responsaveis: disciplina.responsaveis.map((responsavel) => ({ userId: responsavel.userId, name: responsavel.user.name, role: responsavel.user.role, contratacao: responsavel.user.contratacao })),
       ehResponsavel: disciplina.responsaveis.some((responsavel) => responsavel.userId === user.id),
       revisoes: disciplina.revisoes.map((revisao) => ({
         id: revisao.id,

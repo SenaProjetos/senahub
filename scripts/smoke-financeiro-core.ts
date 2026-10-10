@@ -214,7 +214,7 @@ async function projetistaPagoNoFinanceiro(autorId: string, disciplinaId: string)
         id: true,
         disciplinaTextoLegado: true,
         valor: true,
-        responsaveis: { select: { userId: true, user: { select: { id: true, name: true, role: true } } } },
+        responsaveis: { select: { userId: true, user: { select: { id: true, name: true, role: true, contratacao: true } } } },
         projeto: { select: { id: true, codigo: true } },
       },
     });

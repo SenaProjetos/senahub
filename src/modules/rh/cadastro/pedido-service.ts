@@ -6,9 +6,8 @@ import { whereAudiencia } from "@/lib/audiencias";
 import { ActionError } from "@/lib/action-error";
 import type { Prisma } from "@/generated/prisma/client";
 import { diaDeSaoPaulo } from "@/lib/data";
-import { CADASTRO_ROLES } from "@/lib/roles";
+
 import { camposFaltantes } from "@/modules/rh/pessoas/completude";
-import { derivarEixos } from "@/modules/usuarios/vinculo/mapa";
 import { minhaContaPendente } from "@/modules/rh/contas/queries";
 import {
   planoDePreenchimento,
@@ -41,7 +40,7 @@ export async function situacaoDaPessoa(userId: string): Promise<SituacaoPreenchi
   const u = await prisma.user.findUnique({
     where: { id: userId },
     select: {
-      role: true,
+      tipo: true,
       contratacao: true,
       nomeCompleto: true,
       cpf: true,
@@ -63,11 +62,11 @@ export async function situacaoDaPessoa(userId: string): Promise<SituacaoPreenchi
       _count: { select: { contasBancarias: { where: { ativo: true } } } },
     },
   });
-  if (!u || !CADASTRO_ROLES.includes(u.role)) return null;
+  if (!u || u.tipo !== "interno") return null;
 
   const faltantes = camposFaltantes({
-    role: u.role,
-    contratacao: u.contratacao ?? derivarEixos(u.role).contratacao,
+    tipo: u.tipo,
+    contratacao: u.contratacao,
     nomeCompleto: u.nomeCompleto,
     cpf: u.cpf,
     rg: u.rg,
@@ -235,7 +234,7 @@ export async function confirmarMeusDadosNoBanco(userId: string): Promise<{ atend
 export async function criarReconfirmacoesAnuais(agora: Date = new Date()): Promise<number> {
   const limite = new Date(agora.getTime() - 365 * 86_400_000);
   const candidatos = await prisma.user.findMany({
-    where: { ativo: true, role: { in: [...CADASTRO_ROLES] }, dadosConfirmadosEm: { lte: limite }, pedidosDados: { none: { status: "aberto" } } },
+    where: { ativo: true, tipo: "interno", dadosConfirmadosEm: { lte: limite }, pedidosDados: { none: { status: "aberto" } } },
     select: { id: true, dadosConfirmadosEm: true },
   });
   let criados = 0;

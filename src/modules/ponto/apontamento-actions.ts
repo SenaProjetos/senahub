@@ -3,14 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction } from "@/lib/with-action";
-import { PJ_ROLES } from "@/lib/roles";
+import { CONTRATACOES_APONTAMENTO } from "@/lib/contratacao";
 import { abrirApontamento, fecharApontamento, trocarApontamento } from "@/modules/ponto/apontamento";
 
 /**
  * Restrito a `PJ_ROLES`: quem controla jornada usa `registrarBatida` (modules/ponto/actions.ts),
  * inalterado. Ver modules/ponto/apontamento.ts para o porquê deste módulo existir.
  */
-const base = { modulo: "rh", roles: PJ_ROLES } as const;
+// Quem registra horas por apontamento (contratação, Onda F bloco D — era `PJ_ROLES`).
+const base = { modulo: "rh", interno: true, contratacoes: CONTRATACOES_APONTAMENTO } as const;
 const rev = () => revalidatePath("/ponto");
 
 const projetoSchema = z.object({

@@ -42,6 +42,8 @@ function usuarioBase() {
     nomeCompleto: "Ana Silva",
     email: "ana@example.com",
     role: "clt",
+    tipo: "interno",
+    contratacao: "clt",
     ativo: true,
     dataAdmissao: new Date("2026-01-02T00:00:00Z"),
     cpf: "123",
@@ -117,7 +119,9 @@ describe("Pessoa 360 — consultas de resumo", () => {
     expect(selectBase).not.toHaveProperty("salarioBase");
     expect(selectBase).not.toHaveProperty("mustChangePassword");
     expect(selectBase).not.toHaveProperty("setor");
-    expect(selectBase).not.toHaveProperty("contratacao");
+    // `contratacao` entra na busca-base desde a Onda F (bloco D): a completude do cadastro e o
+    // "é prestador" precisam dela, e o papel — que estava aqui e revelava o mesmo — está saindo.
+    // O VALOR continua não sendo devolvido sem `acessos.acesso` (ver `contratacao: null` abaixo).
     expect(selectBase).not.toHaveProperty("createdAt");
     expect(mocks.sessaoCount).not.toHaveBeenCalled();
     expect(mocks.abonoCount).not.toHaveBeenCalled();

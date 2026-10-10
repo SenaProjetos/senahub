@@ -7,7 +7,8 @@ import { CAMPOS, variantesDoValor } from "@/lib/campos";
 import { campo } from "@/lib/campos/zod";
 import { exigirCamposValidos } from "@/lib/campos/exigir";
 import { prisma } from "@/lib/prisma";
-import { HR_ADMIN_ROLES, PJ_ROLES, type Role } from "@/lib/roles";
+import { HR_ADMIN_ROLES } from "@/lib/roles";
+import { ehPrestador } from "@/lib/contratacao";
 
 const base = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
 const rev = () => revalidatePath("/rh/pessoas-juridicas");
@@ -99,9 +100,9 @@ export const atribuirMembroPJ = defineAction(
     schema: z.object({ userId: z.string().min(1), pjId: z.string().nullable() }),
   },
   async (i) => {
-    const user = await prisma.user.findUnique({ where: { id: i.userId }, select: { role: true } });
+    const user = await prisma.user.findUnique({ where: { id: i.userId }, select: { contratacao: true } });
     if (!user) throw new ActionError("Usuário não encontrado.");
-    if (!PJ_ROLES.includes(user.role as Role)) {
+    if (!ehPrestador(user.contratacao)) {
       throw new ActionError("Apenas projetistas PJ/freelancer podem ser vinculados a um CNPJ.");
     }
     if (i.pjId) {

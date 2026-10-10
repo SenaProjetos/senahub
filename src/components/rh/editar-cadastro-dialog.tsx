@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Pencil, Check, Loader2 } from "lucide-react";
 import { editarCadastroFuncionario, consultarCep } from "@/modules/rh/funcionarios/actions";
 import { InputFormatado } from "@/components/ui/input-formatado";
-import { PJ_ROLES, type Role } from "@/lib/roles";
+
 import { CONSELHOS, UFS, formatarRegistro } from "@/modules/usuarios/registro";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,9 @@ export type Cadastro = {
 };
 
 export type FuncionarioCadastro = {
-  id: string; name: string; role: string;
+  id: string; name: string;
+  /** Prestador (PJ/RPA) — só ele pode ser ligado a uma pessoa jurídica. Onda F, bloco D. */
+  prestador: boolean;
   dataAdmissao: string | null;
   cadastro: Cadastro;
 };
@@ -82,7 +84,7 @@ export function EditarCadastroDialog({
       const res = await editarCadastroFuncionario({
         id: funcionario.id,
         ...f,
-        pjId: PJ_ROLES.includes(funcionario.role as Role) ? f.pjId : "",
+        pjId: funcionario.prestador ? f.pjId : "",
       });
       if (res.ok) {
         toast.success("Cadastro atualizado.");
@@ -92,7 +94,7 @@ export function EditarCadastroDialog({
     });
   }
 
-  const ehPJ = PJ_ROLES.includes(funcionario.role as Role);
+  const ehPJ = funcionario.prestador;
 
   return (
     <>

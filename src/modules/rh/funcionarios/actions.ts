@@ -11,7 +11,7 @@ import { removerArquivo } from "@/lib/storage";
 import { criarUsuarioComCredencial } from "@/lib/auth-admin";
 import { buscarCep } from "@/lib/cep";
 import { getSession } from "@/lib/session";
-import { PJ_ROLES, CADASTRO_ROLES, type Role } from "@/lib/roles";
+import { CADASTRO_ROLES } from "@/lib/roles";
 import { aplicarVinculo } from "@/modules/usuarios/vinculo/service";
 import { derivarEixos } from "@/modules/usuarios/vinculo/mapa";
 import { resolverClassificacao } from "@/modules/rh/catalogos/service";
@@ -19,6 +19,7 @@ import { registrarAlteracaoContratual } from "@/modules/rh/contratual/service";
 import { normalizarConta, garantirPrincipal } from "@/modules/rh/contas/service";
 import { abrirCicloNoBanco } from "@/modules/rh/ciclo/service";
 import { CAMINHO_DOC_RH, TIPOS_DOC } from "@/modules/rh/documentos/regras";
+import { ehPrestador } from "@/lib/contratacao";
 
 const base = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
 const rev = () => revalidatePath("/rh/funcionarios");
@@ -255,7 +256,7 @@ export const editarCadastroFuncionario = defineAction(
     exigirCamposValidos(i, antes, {
       cpf: "cpf", rg: "rg", enderecoCep: "cep", telefone: "telefone", telefoneEmergencia: "telefone", emailPessoal: "email",
     });
-    const u = await prisma.user.findUnique({ where: { id: i.id }, select: { role: true } });
+    const u = await prisma.user.findUnique({ where: { id: i.id }, select: { contratacao: true } });
     if (!u) throw new ActionError("Colaborador não encontrado.");
     await prisma.user.update({
       where: { id: i.id },
@@ -282,8 +283,8 @@ export const editarCadastroFuncionario = defineAction(
         registroProfissional: i.registroProfissional || null,
         registroUf: i.registroUf || null,
         dataAdmissao: dataOuNull(i.dataAdmissao),
-        // pjId só para projetistas PJ/freelancer.
-        pjId: PJ_ROLES.includes(u.role as Role) ? i.pjId || null : null,
+        // pjId só para prestador (PJ/RPA) — contratação desde a Onda F.
+        pjId: ehPrestador(u.contratacao) ? i.pjId || null : null,
       },
     });
 

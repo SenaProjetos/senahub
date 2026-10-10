@@ -115,21 +115,16 @@ describe("contextoApuracao", () => {
     expect((await contextoApuracao("u1", 2026, 7)).piso).toBe("2026-02-10");
   });
 
-  describe("usuário sem vínculo cadastrado (backfill não rodado)", () => {
-    it("cai no role antigo e usa dataAdmissao como piso", async () => {
+  describe("usuário sem vínculo cadastrado", () => {
+    it("não controla jornada, nem com papel CLT — decisão 1 do dono (Onda F)", async () => {
       mocks.userFindMany.mockResolvedValue([
         usuario({ role: "clt", vinculos: 0, dataAdmissao: dia("2026-06-15") }),
       ]);
       expect(await contextoApuracao("u1", 2026, 6)).toEqual({
-        controlaJornada: true,
-        piso: "2026-06-15",
+        controlaJornada: false,
+        piso: null,
         teto: null,
       });
-    });
-
-    it("role fora de CLT/estagiário não controla jornada", async () => {
-      mocks.userFindMany.mockResolvedValue([usuario({ role: "projetista_pj", vinculos: 0 })]);
-      expect((await contextoApuracao("u1", 2026, 6)).controlaJornada).toBe(false);
     });
   });
 
