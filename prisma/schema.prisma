@@ -5463,9 +5463,10 @@ model TipoEmpreendimento {
   nome        String       @unique
   ativo       Boolean      @default(true)
   ordem       Int          @default(0)
-  /// Este tipo não tem Estudo Preliminar: o projeto nasce só com Básico e Executivo (áudio do dono, 2026-10-10 —
-  /// Residencial unifamiliar). Os demais nascem com Estudo Preliminar, Básico e Executivo.
-  semEstudoPreliminar Boolean @default(false)
+  /// Fases (`PranchaCatalogo`, categoria fase, SEM FK) com que a disciplina de um projeto deste tipo nasce, a 0% (áudio do
+  /// dono, 2026-10-10). Vazio = o padrão do sistema (Estudo Preliminar, Básico e Executivo). Editado em
+  /// Configurações → Tipos de empreendimento; a ordem é a do catálogo de fases.
+  etapasPadraoIds String[] @default([])
   negociacoes Negociacao[]
   projetos    Projeto[]
   modelosEap  ModeloEap[]

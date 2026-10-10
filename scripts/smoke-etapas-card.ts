@@ -9,6 +9,7 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import type { notificarMuitos } from "../src/lib/notificar";
 import { semearEtapasPadrao } from "../src/modules/projetos/etapas-service";
+import { listarTiposEmpreendimento } from "../src/modules/projetos/tipos-empreendimento/queries";
 import { desfazerEnvioEtapa, enviarEtapaParaAnalise } from "../src/modules/projetos/envio-etapa-service";
 
 let falhas = 0;
@@ -37,7 +38,8 @@ async function main() {
     ),
   );
   const cliente = await prisma.cliente.create({ data: { nome: `${tag}-cliente` } });
-  const unifamiliar = await prisma.tipoEmpreendimento.create({ data: { nome: `${tag}-casa`, semEstudoPreliminar: true } });
+  const fasesBsEx = await prisma.pranchaCatalogo.findMany({ where: { categoria: "fase", projetoId: null, sigla: { in: ["BS", "EX"] } }, select: { id: true } });
+  const unifamiliar = await prisma.tipoEmpreendimento.create({ data: { nome: `${tag}-casa`, etapasPadraoIds: fasesBsEx.map((f) => f.id) } });
   let seq = 0;
   const mk = (tipo: "particular" | "laudo", tipoEmpreendimentoId: string | null) =>
     prisma.projeto.create({
@@ -76,6 +78,15 @@ async function main() {
     check("laudo nasce sem etapa", (await siglas(dLaudo.id)).length === 0);
     await prisma.$transaction((tx) => semearEtapasPadrao(tx, [dPredio.id], { tipoProjeto: "particular", tipoEmpreendimentoId: null }));
     check("semear de novo não duplica", (await siglas(dPredio.id)).length === 3);
+
+    // Cadastro de tipos (Configurações): o que a tela lê bate com o que a disciplina recebe, e o uso aparece.
+    const { tipos, fases } = await listarTiposEmpreendimento();
+    const sigla = (id: string) => fases.find((f) => f.id === id)?.sigla;
+    const daCasa = tipos.find((t) => t.id === unifamiliar.id);
+    check("tipos: o tipo com lista própria mostra só as fases dele (BS, EX)", daCasa?.etapasEfetivasIds.map(sigla).join() === "BS,EX", daCasa?.etapasEfetivasIds.map(sigla));
+    check("tipos: o uso aparece (1 projeto no tipo de teste) e bloqueia a exclusão", daCasa?.uso.projetos === 1, daCasa?.uso);
+    const semLista = tipos.find((t) => t.etapasPadraoIds.length === 0);
+    check("tipos: tipo sem lista mostra o padrão do sistema (PL, BS, EX)", !semLista || semLista.etapasEfetivasIds.map(sigla).join() === "PL,BS,EX", semLista?.etapasEfetivasIds.map(sigla));
 
     // Fase inativa no catálogo: a disciplina nasce só com as que existem, sem erro. Dentro de uma transação que desfaz.
     const sentinela = new Error("desfazer");

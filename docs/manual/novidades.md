@@ -40,6 +40,9 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
   um aviso para validar o percentual (sem coordenador cadastrado, vai para admin e supervisor). Dá para desligar em Preferências.
 - **Modelo de EAP preenche os percentuais das etapas** quando as etapas da disciplina ainda estão todas em 0% e o modelo
   traz o percentual de cada uma somando 100% — a prévia da aplicação mostra o que será preenchido.
+- **Tipos de empreendimento editáveis** (Configurações → Tipos de empreendimento): criar, renomear, ordenar, ativar/desativar
+  e escolher em quais etapas a disciplina já nasce (ex.: casa só com Básico e Executivo). Só vale para disciplinas criadas
+  depois; excluir só é possível para tipo sem uso.
 - **Projeto novo** pode montar a EAP já pelo modelo, escolhido junto com o tipo de empreendimento.
 
 ---

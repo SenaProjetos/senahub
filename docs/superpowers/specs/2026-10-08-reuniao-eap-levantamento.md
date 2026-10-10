@@ -359,6 +359,11 @@ Verificação: `smoke:eap-integracao` (ponta a ponta), `smoke:ponto-tarefa`, `sm
 **Deploy:** 4 migrações aditivas (`aviso_etapa_enviado`, `etapa_inicio_tipo_sem_ep`, `papel_eap_estagiario`,
 `habilidade_por_disciplina`), sem seed. Disciplinas já existentes NÃO ganham as etapas padrão.
 
+**Tipos de empreendimento na tela (pedido do dono, 2026-10-10 — "quanto mais personalizável sem SQL, melhor"):**
+`/configuracoes/tipos-empreendimento` (nome, etapas em que a disciplina nasce, ordem, ativar/desativar, excluir sem uso).
+A flag `semEstudoPreliminar` foi substituída por `etapasPadraoIds` (migração `20261010140000`, que converte e remove a flag).
+Com isso a conferência do nome "unifamiliar" em produção deixa de ser necessária: se o nome não casar, o time ajusta na tela.
+
 **Em aberto (fora desta entrega):**
 - Cadastrar um modelo de EAP de CASA (o EDIFÍCIO aplicado em unifamiliar traz linhas de Estudo Preliminar sem fase).
 - O modelo EDIFÍCIO não traz percentual do Estudo Preliminar: em multifamiliar as etapas seguem a 0% até o coordenador

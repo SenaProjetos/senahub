@@ -565,8 +565,9 @@ Spec + 42 decisions: `docs/superpowers/specs/2026-09-23-planejamento-motor-crono
 **Etapas no card, ponto e avisos da EAP** (reunião de 08/10/2026, levantamento e decisões em
 `docs/superpowers/specs/2026-10-08-reuniao-eap-levantamento.md`):
 - **O card da disciplina NÃO é ligado à EAP** (decisão do dono, 2026-10-10): `DisciplinaEtapa.inicio/prazo` são preenchidos
-  à mão pela coordenação. Toda disciplina de projeto `particular`/`licitacao` nasce com EP/BS/EX a 0% (`semearEtapasPadrao`,
-  `etapas-padrao.ts` puro; `TipoEmpreendimento.semEstudoPreliminar` = só BS/EX) — em TODO caminho que cria disciplina. O
+  à mão pela coordenação. Toda disciplina de projeto `particular`/`licitacao` nasce a 0% com as fases do TIPO DE EMPREENDIMENTO
+  (`TipoEmpreendimento.etapasPadraoIds`, editado em Configurações → Tipos de empreendimento, `projetos/tipos-empreendimento/`;
+  vazio = EP/BS/EX) via `semearEtapasPadrao`/`fasesParaNascer` (`etapas-padrao.ts`, puro) — em TODO caminho que cria disciplina. O
   pagamento por fase espera a soma dos % fechar 100%. Disciplinas anteriores à mudança não ganham etapa. Aplicar um modelo de EAP
   PREENCHE esses % com os do modelo (`modelos/preencher-percentuais.ts`) só se a disciplina inteira está a 0%, sem fase liberada,
   e o modelo traz % de TODA etapa dela somando 100% (unifamiliar: o modelo precisa ser só BS/EX); senão segue a 0%.

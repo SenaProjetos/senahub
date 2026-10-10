@@ -10,6 +10,7 @@ import {
   CalendarDays,
   ClipboardList,
   Gavel,
+  Building,
   SlidersHorizontal,
   ListChecks,
   Plug,
@@ -109,6 +110,12 @@ const GRUPOS: Grupo[] = [
         icon: CalendarDays,
         titulo: "Feriados",
         descricao: "Calendário de feriados (ponto, escala, banco de horas).",
+      },
+      {
+        href: "/configuracoes/tipos-empreendimento",
+        icon: Building,
+        titulo: "Tipos de empreendimento",
+        descricao: "Tipos de projeto e as etapas em que a disciplina nasce (Estudo Preliminar, Básico, Executivo…).",
       },
       {
         href: "/configuracoes/modalidades",

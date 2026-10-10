@@ -1,7 +1,7 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { consolidarPrazoDisciplina } from "./etapas";
-import { etapasPadrao, type TipoProjeto } from "./etapas-padrao";
+import { fasesParaNascer, type TipoProjeto } from "./etapas-padrao";
 
 /**
  * Consolidação do prazo da disciplina a partir das etapas (F4.2) — o ponto ÚNICO que as
@@ -53,10 +53,10 @@ export async function sincronizarPrazoDisciplina(
 }
 
 /**
- * Cria as etapas padrão (áudio do dono, 2026-10-10) nas disciplinas recém-criadas: Estudo Preliminar,
- * Básico e Executivo, ou só Básico e Executivo no tipo de empreendimento sem EP. Percentual 0 — o
- * coordenador preenche, e o pagamento por fase espera a soma fechar 100%. Fase que não estiver no
- * catálogo (ou inativa) é pulada; etapa que já existe fica como está.
+ * Cria as etapas padrão (áudio do dono, 2026-10-10) nas disciplinas recém-criadas: as fases do TIPO DE
+ * EMPREENDIMENTO do projeto (Configurações → Tipos de empreendimento) ou, sem lista, Estudo Preliminar,
+ * Básico e Executivo. Percentual 0 — o coordenador preenche, e o pagamento por fase espera a soma fechar
+ * 100%. Fase que não estiver no catálogo (ou inativa) é pulada; etapa que já existe fica como está.
  */
 export async function semearEtapasPadrao(
   tx: Prisma.TransactionClient,
@@ -65,19 +65,16 @@ export async function semearEtapasPadrao(
 ): Promise<number> {
   if (disciplinaIds.length === 0) return 0;
   const tipo = p.tipoEmpreendimentoId
-    ? await tx.tipoEmpreendimento.findUnique({ where: { id: p.tipoEmpreendimentoId }, select: { semEstudoPreliminar: true } })
+    ? await tx.tipoEmpreendimento.findUnique({ where: { id: p.tipoEmpreendimentoId }, select: { etapasPadraoIds: true } })
     : null;
-  const siglas = etapasPadrao({ tipoProjeto: p.tipoProjeto, semEstudoPreliminar: tipo?.semEstudoPreliminar ?? false });
-  if (siglas.length === 0) return 0;
-  const fases = await tx.pranchaCatalogo.findMany({
-    where: { categoria: "fase", projetoId: null, ativo: true, sigla: { in: siglas } },
-    select: { id: true, sigla: true },
+  const catalogo = await tx.pranchaCatalogo.findMany({
+    where: { categoria: "fase", projetoId: null, ativo: true },
+    select: { id: true, sigla: true, ordem: true },
   });
-  const ordenadas = siglas.map((s) => fases.find((f) => f.sigla === s)).filter((f): f is { id: string; sigla: string } => f != null);
+  const fases = fasesParaNascer({ tipoProjeto: p.tipoProjeto, idsDoTipo: tipo?.etapasPadraoIds ?? null, catalogo });
+  if (fases.length === 0) return 0;
   const r = await tx.disciplinaEtapa.createMany({
-    data: disciplinaIds.flatMap((disciplinaId) =>
-      ordenadas.map((f, ordem) => ({ disciplinaId, etapaId: f.id, percentual: 0, ordem })),
-    ),
+    data: disciplinaIds.flatMap((disciplinaId) => fases.map((etapaId, ordem) => ({ disciplinaId, etapaId, percentual: 0, ordem }))),
     skipDuplicates: true,
   });
   return r.count;

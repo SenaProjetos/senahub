@@ -47,7 +47,7 @@ const dia = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().s
 
 async function cenario(nomeTipo: string, esperadas: string[]) {
   console.log(`\n── ${nomeTipo}`);
-  const tipo = await prisma.tipoEmpreendimento.findFirst({ where: { nome: { contains: nomeTipo, mode: "insensitive" } }, select: { id: true, semEstudoPreliminar: true } });
+  const tipo = await prisma.tipoEmpreendimento.findFirst({ where: { nome: { contains: nomeTipo, mode: "insensitive" } }, select: { id: true } });
   const modelo = await prisma.modeloEap.findFirst({ where: { ativo: true, disciplinaCatalogoId: null }, select: { id: true } });
   const catalogo = await prisma.disciplinaCatalogo.findFirst({ where: { nome: "Estrutural" }, select: { id: true } });
   if (!tipo || !modelo || !catalogo) {
