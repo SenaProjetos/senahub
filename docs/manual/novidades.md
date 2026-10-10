@@ -36,6 +36,8 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
   filtro **A validar**. No Recursos, o que um cronograma ainda em rascunho já prevê aparece à parte, em cinza.
 - **Aviso da etapa que vem:** quem tem atividade numa etapa e a coordenação recebem um aviso 2 dias úteis antes de ela
   começar (dá para desligar em Preferências).
+- **Atividade concluída:** quando o responsável conclui o card de uma atividade da EAP, a coordenação do projeto recebe
+  um aviso para validar o percentual (sem coordenador cadastrado, vai para admin e supervisor). Dá para desligar em Preferências.
 - **Projeto novo** pode montar a EAP já pelo modelo, escolhido junto com o tipo de empreendimento.
 
 ---

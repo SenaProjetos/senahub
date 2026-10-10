@@ -9,6 +9,7 @@ import { notificarMuitos } from "@/lib/notificar";
 import { PRIORIDADES } from "@/modules/tarefas/prioridade";
 import { escopoTarefa, tarefasTravadasPeloCronograma } from "@/modules/tarefas/queries";
 import { projetoVisivel } from "@/modules/planejamento/queries";
+import { avisarCardConcluido } from "@/modules/planejamento/conclusao-aviso-service";
 import { camposDoCronogramaAlterados, motivoCampoDoCronograma } from "@/modules/tarefas/regras";
 import type { SessionUser } from "@/lib/session";
 
@@ -237,6 +238,10 @@ export const editarTarefa = defineAction(
         skipDuplicates: true,
       }),
     ]);
+    // Concluiu agora (não estava concluída): quem valida a EAP é avisado.
+    if (destino?.concluido && !atual?.concluidaEm) {
+      await avisarCardConcluido({ tarefaId: id, autorId: user.id, autorNome: user.name });
+    }
     // Notifica só quem foi ADICIONADO agora como responsável (exceto o próprio editor).
     const jaResp = new Set(antigosResp.map((a) => a.userId));
     const novosResp = r.responsaveisIds.filter((uid) => !jaResp.has(uid) && uid !== user.id);
@@ -279,6 +284,10 @@ export const moverTarefa = defineAction(
         concluidaEm: destino.concluido ? (atual?.concluidaEm ?? new Date()) : null,
       },
     });
+    // Concluiu agora (não estava concluída): quem valida a EAP é avisado.
+    if (destino.concluido && !atual?.concluidaEm) {
+      await avisarCardConcluido({ tarefaId: i.id, autorId: user.id, autorNome: user.name });
+    }
     rev();
     return { id: i.id };
   },
