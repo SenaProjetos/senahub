@@ -1638,3 +1638,15 @@ Fica para a sessão 2 (Sonnet): A2 (`HR_ADMIN_ROLES` → `gereRh`, ~55 sites), A
 cadastro seguindo o mock aprovado (inclui o assistente do RH e o resumo de acesso), audiências
 restantes (`gestores()` dos jobs, `chat_global`, `planejamento_recurso`), rótulos e a poda final.
 
+
+### 16.6 Sessão 2 (Sonnet, 2026-10-10) — poda concluída
+
+- A2/A3: gates de RH e demais leituras de papel trocados por `rh:gerir`, `superUsuario`, `tipo`.
+- Cadastro de usuário refeito conforme o mock aprovado: tipo + vínculo (nasce com a conta via
+  `aplicarVinculo`) + perfil + interruptores Gestão de RH / Moderar o chat (override nominal, só
+  superusuário concede). Lista com coluna Vínculo e menu de contexto (Editar, Ver ficha, Permissões
+  desta pessoa, Redefinir senha, Desativar acesso…).
+- `User.role`, `enum Role` e grupos por papel removidos (migration `20261010180000`). `tsc`
+  (os dois configs), lint, 6.4 mil testes e `next build` verdes.
+- Deploy: ver DEPLOY 6 do runbook (backfill de vínculos ANTES do pull, pois os scripts que leem
+  `role` saíram do código).

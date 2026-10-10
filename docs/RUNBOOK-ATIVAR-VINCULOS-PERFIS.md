@@ -342,55 +342,61 @@ preciso recriar a tabela. O backup do Passo 0 guarda os dados dela, se alguém q
 
 ---
 
-## ⚠ DEPLOY 6 — Onda F, blocos F1/B/C, 2026-10-10
+## ⚠ DEPLOY 6 — Onda F inteira (poda do papel), 2026-10-10
 
-> **Atualização (sessão 1, mesmo dia): a Onda F vai inteira num deploy só.** Antes do deploy, além do
-> censo, é **obrigatório** rodar o backfill de vínculos — com o bloco D, quem não tem vínculo para de
-> bater ponto, de ser pago por entrega e de mandar NF:
-> ```
-> npx tsx --tsconfig tsconfig.server.json scripts/backfill-vinculos.ts --dry-run
-> npx tsx --tsconfig tsconfig.server.json scripts/backfill-vinculos.ts
-> ```
-> Este runbook ganha a versão final do DEPLOY 6 na sessão 2 (poda incluída).
+Branch `feat/onda-f-poda-role`. **Um deploy só.** O código novo não lê mais `User.role`; as quatro
+migrations apagam a matriz legada e o papel:
 
-Branch `feat/onda-f-poda-role`. Duas migrations:
-- `20261010150000_drop_permissao_legada` — `DROP TABLE IF EXISTS "permissao"` (destrutiva);
-- `20261010160000_user_tipo_obrigatorio` — preenche `user.tipo` nulo (cliente = externo, resto =
-  interno, a mesma regra que o código já aplicava) e torna a coluna NOT NULL.
+| Migration | O que faz |
+|---|---|
+| `20261010150000_drop_permissao_legada` | `DROP TABLE IF EXISTS "permissao"` (destrutiva) |
+| `20261010160000_user_tipo_obrigatorio` | preenche `user.tipo` nulo (cliente = externo, resto = interno) e põe NOT NULL |
+| `20261010170000_alcada_por_perfil` | converte as faixas de alçada do Financeiro de papéis para chaves de perfil |
+| `20261010180000_drop_user_role` | `DROP COLUMN user.role` e `DROP TYPE Role` (destrutiva) |
 
-**Antes do deploy, no servidor, contra produção** (só lê). O ideal é o censo ir num deploy
-ANTERIOR (o commit `9c20596f` sozinho não muda comportamento); se for junto, rode depois do
-`git pull` e antes do `migrate deploy`:
+As quatro foram ensaiadas em transação revertida no banco de dev. O deploy faz `pg_dump` antes.
 
-```
-cd F:\senahub\app
-npx tsx --tsconfig tsconfig.server.json scripts/censo-onda-f.ts
-```
+### Antes de tudo (servidor ainda no código ANTIGO, em `F:\senahubpp`)
 
-Bloqueia o deploy:
-- **[1]** só linha do papel `supervisor` — é a única que o código consulta fora do arnês (piso de
-  sócio) — e só se existir sócio ativo que NÃO seja superusuário. Linhas de outros papéis
-  (ex.: `administrativo` com `permitido=false`, herança da tela antiga) não autorizam nada desde a
-  Onda D.
-- **[2]** "papel admin SEM superUsuario" — essa pessoa perde lixeira, alçada, exclusão direta e
-  o "autor ou admin" (o motor de permissão já não a reconhecia desde a Onda D);
-- **[3]** "papel cliente com tipo interno" ou "papel X com tipo externo" — a pessoa muda de lado
-  (menu, portal, termo de uso). Tipo NULO não bloqueia: a migration grava o que já valia.
+Os scripts de apoio leem `role`, então saíram do código novo. Rode-os **antes do `git pull`**.
 
-As seções 4 a 6 são informativas (insumo dos próximos blocos, §16.3 do plano).
+1. **Backfill de vínculos** — sem vínculo, a pessoa deixa de bater ponto, de ser paga por entrega e de
+   mandar NF (decisão 1 do dono). Primeiro a simulação:
+   ```
+   npx tsx --tsconfig tsconfig.server.json scripts/backfill-vinculos.ts --dry-run
+   npx tsx --tsconfig tsconfig.server.json scripts/backfill-vinculos.ts
+   ```
+   Depois confira que ninguém ativo de equipe ficou sem contratação (pro-labore errado em projetista
+   PJ continua a corrigir à mão em RH → Pessoas).
+2. **Perfis:** todo usuário interno ativo precisa de perfil de acesso (sem perfil o motor nega tudo).
+   Quem hoje depende do papel `admin` precisa de `superUsuario`. Quem era `administrativo`/`supervisor`
+   e gere RH precisa do interruptor **Gestão de RH** (Configurações → Usuários → Acesso avançado) —
+   é a decisão 2: RH é permissão dada pessoa a pessoa. Quem moderava o chat: **Moderar o chat**.
+3. **Backup verificado** (Passo 0 abaixo).
 
-**Rodado em produção em 2026-10-10 (cópia avulsa do script):** [1] 17 linhas `administrativo`
-negadas + `rh:produtividade` ausente (seed atrasado) — nenhuma bloqueia, os 3 sócios são
-superusuários; [2] ok; [3] 12 `tipo` nulos, todos viram interno (nenhuma mudança); [4] 12 pessoas
-SEM VÍNCULO (2 CLT batendo ponto só pelo papel) e um projetista PJ gravado `pro_labore` — cadastro a
-corrigir antes do bloco D; [6] ok. **Liberado.**
+### Deploy
 
-**O que muda para quem usa:** um cliente que abrir `/agenda`, `/tarefas` ou `/versoes` pelo endereço
-recebe "página não encontrada" em vez de "sem permissão".
+Fluxo normal (`deploy\gerenciar-servidor.bat`): pull → `migrate deploy` (as 4) → `db:seed` → build →
+reinício. O `db:seed` cria o perfil `portal_cliente` e os pares `rh:gerir`/`chat:moderar` se faltarem
+(create-only).
 
-**Como voltar atrás:** revert dos commits. A coluna `tipo` pode ficar NOT NULL (o código antigo
-lê nulo com fallback e nunca grava nulo). A tabela `permissao` volta pelo backup do Passo 0 — ou
-basta rodar o `db:seed` do código antigo, que a recria a partir da constante.
+### O que muda para quem usa
+
+- Cadastro de usuário pede tipo (equipe interna ou cliente do portal), vínculo e perfil; sem papel.
+- Termo de Uso do chat sobe para v2026-10-10: todos reaceitam no próximo login.
+- Freelancer com PJ vinculada cai em DRE 2.01, sem PJ em 2.02.
+- Pessoa sem vínculo: não bate ponto (aviso na tela de Usuários).
+- Cliente que abrir `/agenda`, `/tarefas` ou `/versoes` pelo endereço recebe "página não encontrada".
+
+### Depois do deploy
+
+Entrar como admin e conferir: Configurações → Usuários (coluna Vínculo, ninguém "sem perfil — sem
+acesso" por engano), /rh/pessoas, ponto de um CLT, folha de projetistas.
+
+### Como voltar atrás
+
+Restaurar o backup do Passo 0 **e** reverter o código: o `DROP COLUMN role` não volta sozinho. Por
+isso o backup verificado é pré-requisito, não opcional.
 
 ---
 
