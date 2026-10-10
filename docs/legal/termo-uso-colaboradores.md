@@ -34,8 +34,8 @@ e concorda integralmente com este Termo.
 exclusivamente profissional, destinada à execução das atividades do Usuário e à gestão de
 projetos, documentos, ponto, financeiro, comercial e demais módulos disponibilizados.
 
-1.2. O acesso é concedido de forma **pessoal, intransferível e revogável**, vinculado ao papel
-(perfil de acesso) atribuído ao Usuário.
+1.2. O acesso é concedido de forma **pessoal, intransferível e revogável**, e corresponde ao
+perfil de acesso e às permissões atribuídos individualmente ao Usuário pela Empresa.
 
 ## 2. Credenciais e responsabilidade pelo acesso
 

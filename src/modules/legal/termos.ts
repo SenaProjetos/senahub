@@ -38,7 +38,7 @@ Ao clicar em "Li e aceito", ou ao utilizar o Sistema, o Usuário declara que leu
 
 1. OBJETO
 1.1. O Sistema é uma ferramenta corporativa de gestão do escritório (ERP), de uso restrito e exclusivamente profissional, destinada à execução das atividades do Usuário e à gestão de projetos, documentos, ponto, financeiro, comercial e demais módulos disponibilizados.
-1.2. O acesso é concedido de forma pessoal, intransferível e revogável, vinculado ao papel (perfil de acesso) atribuído ao Usuário.
+1.2. O acesso é concedido de forma pessoal, intransferível e revogável, e corresponde ao perfil de acesso e às permissões atribuídos individualmente ao Usuário pela Empresa.
 
 2. CREDENCIAIS E RESPONSABILIDADE PELO ACESSO
 2.1. As credenciais (login e senha) são pessoais e sigilosas. É vedado compartilhá-las, cedê-las ou permitir seu uso por terceiros.
