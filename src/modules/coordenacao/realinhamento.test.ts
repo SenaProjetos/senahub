@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  alinharPorDoisPares,
   arrastePlanoParaIfc,
   caminhoVersaoRealinhada,
   fatorMetros,
   girarXY,
   metrosParaUnidadeArquivo,
+  normalizarGraus,
   pivoDoMundo,
   realinhamentoNulo,
   rotacaoNula,
@@ -210,5 +212,65 @@ describe("pivoDoMundo", () => {
     const t = ifcParaThree(arquivo);
     const mundo: Vec3 = [t[0] + base[0], t[1] + base[1], t[2] + base[2]];
     expect(pivoDoMundo(mundo, base)).toEqual([1010, 520]);
+  });
+});
+
+describe("alinharPorDoisPares", () => {
+  /** Mapa da prévia: p → R(graus)·(p − pivô) + pivô + vetor (planta gira, Z só desloca). */
+  const aplicar = (p: Vec3, graus: number, pivo: Vec3, vetor: Vec3): Vec3 => {
+    const [x, y] = girarXY([p[0] - pivo[0], p[1] - pivo[1]], graus);
+    return [x + pivo[0] + vetor[0], y + pivo[1] + vetor[1], p[2] + vetor[2]];
+  };
+
+  it("leva A1 em B1 e alinha a direção A1→A2 com B1→B2, compondo com o estado atual", () => {
+    const pivo: Vec3 = [30, 20, 0];
+    const atual = { graus: 10, vetor: [2, -1, 0.5] as Vec3 };
+    // Pontos do modelo ORIGINAL e onde aparecem na prévia atual.
+    const p1: Vec3 = [5, 5, 3];
+    const p2: Vec3 = [25, 5, 3];
+    const a1 = aplicar(p1, atual.graus, pivo, atual.vetor);
+    const a2 = aplicar(p2, atual.graus, pivo, atual.vetor);
+    const b1: Vec3 = [100, 200, 4];
+    const b2: Vec3 = [100, 220, 4]; // direção norte, mesma distância (20 m)
+
+    const r = alinharPorDoisPares({ vetorAtual: atual.vetor, grausAtual: atual.graus, pivo, a1, a2, b1, b2 });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    aplicar(p1, r.graus, pivo, r.vetor).forEach((c, i) => expect(c).toBeCloseTo(b1[i], 9));
+    aplicar(p2, r.graus, pivo, r.vetor).forEach((c, i) => expect(c).toBeCloseTo(b2[i], 9));
+    expect(r.graus).toBeCloseTo(90, 9);
+    expect(r.razaoDistancias).toBeCloseTo(1, 9);
+  });
+
+  it("acusa escala diferente pela razão das distâncias", () => {
+    const r = alinharPorDoisPares({
+      vetorAtual: [0, 0, 0],
+      grausAtual: 0,
+      pivo: [0, 0, 0],
+      a1: [0, 0, 0],
+      a2: [10, 0, 0],
+      b1: [0, 0, 0],
+      b2: [10.5, 0, 0],
+    });
+    expect(r.ok && r.razaoDistancias).toBeCloseTo(1.05, 9);
+  });
+
+  it("recusa par com os dois pontos na mesma posição em planta", () => {
+    const r = alinharPorDoisPares({
+      vetorAtual: [0, 0, 0],
+      grausAtual: 0,
+      pivo: [0, 0, 0],
+      a1: [0, 0, 0],
+      a2: [0, 0, 5],
+      b1: [1, 1, 0],
+      b2: [2, 1, 0],
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it("normalizarGraus fica entre −180 e 180", () => {
+    expect(normalizarGraus(270)).toBe(-90);
+    expect(normalizarGraus(-180)).toBe(180);
+    expect(normalizarGraus(370)).toBe(10);
   });
 });

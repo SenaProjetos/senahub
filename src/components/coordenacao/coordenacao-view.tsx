@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { MapPin, Send, Move3d, FileUp, Globe2, MoreHorizontal } from "lucide-react";
+import { MapPin, Send, Move3d, FileUp, Globe2, MoreHorizontal, AlertTriangle, X } from "lucide-react";
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
 import { AcoesMenuItens } from "@/components/ui/acoes-menu";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -18,7 +18,9 @@ import type {
   CorteConfig,
   CameraApontamento,
   EtapaPontos,
+  ModoPontos,
 } from "@/modules/coordenacao/viewer/engine";
+import { DESVIO_ESCALA_AVISO } from "@/modules/coordenacao/realinhamento";
 import type { ApontamentoView, VistaView } from "@/modules/coordenacao/queries";
 import {
   criarApontamentoCoordenacao,
@@ -45,6 +47,8 @@ import type { GeracaoResumo } from "@/components/coordenacao/modelo-federado-blo
 import { PainelDisciplinas } from "@/components/coordenacao/painel-disciplinas";
 import { PainelPropriedades } from "@/components/coordenacao/painel-propriedades";
 import { RealinharIfcDialog } from "@/components/coordenacao/realinhar-ifc-dialog";
+import { gerarDxfDoCorte, nomeDoArquivoDeCorte } from "@/modules/coordenacao/corte-dxf";
+import { formatarDistancia, modelosDistantes, type ModeloDistante } from "@/modules/coordenacao/origem";
 import { ViewerToolbar, type PainelId } from "@/components/coordenacao/viewer-toolbar";
 import { VistasPanel } from "@/components/coordenacao/vistas-painel";
 import { ApontamentoPins } from "@/components/coordenacao/apontamento-pins";
@@ -133,6 +137,8 @@ export function CoordenacaoView({
   const [vetorRealinhar, setVetorRealinhar] = useState<[number, number, number]>([0, 0, 0]);
   const [rotacaoRealinhar, setRotacaoRealinhar] = useState(0);
   const [etapaPontos, setEtapaPontos] = useState<EtapaPontos>(null);
+  const [modoPontos, setModoPontos] = useState<ModoPontos | null>(null);
+  const [avisoAlinhamento, setAvisoAlinhamento] = useState<string | null>(null);
   const [enviandoAvulso, setEnviandoAvulso] = useState(false);
   // Após aplicar: espera a nova versão converter e a troca na cena (novo entra, antigo sai).
   const [trocaPendente, setTrocaPendente] = useState<{ antigo: string; novo: string } | null>(null);
@@ -280,6 +286,53 @@ export function CoordenacaoView({
     engineRef.current?.definirCorte(config);
   }, []);
 
+  // ── Aviso de origem incompatível: modelo carregado longe dos demais ──
+  const [distantes, setDistantes] = useState<ModeloDistante[]>([]);
+  const [origemDispensada, setOrigemDispensada] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine || carregados.size < 2) {
+      setDistantes([]);
+      return;
+    }
+    // Lê as caixas depois do frame em que o modelo entrou na cena.
+    const id = requestAnimationFrame(() => setDistantes(modelosDistantes(engine.caixasDosModelos())));
+    return () => cancelAnimationFrame(id);
+  }, [carregados]);
+  const avisosOrigem = distantes.filter((d) => !origemDispensada.has(d.modeloId));
+
+  // ── Corte → DXF: linhas da seção de cada modelo, no referencial do arquivo, em mm ──
+  const [exportandoCorte, setExportandoCorte] = useState(false);
+  async function exportarCorteDxf() {
+    const engine = engineRef.current;
+    if (!engine || !corte) return;
+    setExportandoCorte(true);
+    try {
+      const secao = await engine.segmentosDoCorte();
+      if (!secao || secao.modelos.length === 0) {
+        toast.error("O plano de corte não cruza nenhum modelo carregado.");
+        return;
+      }
+      const rotulo = new Map(modelosCarregadosInfo.map((m) => [m.uploadId, m.label]));
+      const { dxf, linhas } = gerarDxfDoCorte({
+        eixo: corte.eixo,
+        base: secao.base,
+        camadas: secao.modelos.map((m) => ({ nome: rotulo.get(m.modeloId) ?? m.modeloId, segmentos: m.segmentos })),
+      });
+      const url = URL.createObjectURL(new Blob([dxf], { type: "application/dxf" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = nomeDoArquivoDeCorte(projetoCodigo, corte.eixo);
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      toast.success(`DXF gerado com ${linhas.toLocaleString("pt-BR")} linha(s), em milímetros.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao gerar o DXF do corte.");
+    } finally {
+      setExportandoCorte(false);
+    }
+  }
+
   const focar = useCallback(
     (uploadId: string) => {
       const novo = foco === uploadId ? null : uploadId;
@@ -300,6 +353,8 @@ export function CoordenacaoView({
       setVetorRealinhar(inicial);
       setRotacaoRealinhar(0);
       setEtapaPontos(null);
+      setModoPontos(null);
+      setAvisoAlinhamento(null);
       setRealinharUploadId(uploadId);
       engine.entrarRealinhamento(uploadId, inicial, (v) => setVetorRealinhar(v));
     },
@@ -316,9 +371,30 @@ export function CoordenacaoView({
     engineRef.current?.definirRotacaoRealinhamento(graus);
   }, []);
 
-  const alternarPontosRealinhar = useCallback((ativo: boolean) => {
-    if (!ativo) setEtapaPontos(null);
-    engineRef.current?.moverPorPontos(ativo, setEtapaPontos);
+  const alternarPontosRealinhar = useCallback((modo: ModoPontos | null) => {
+    setModoPontos(modo);
+    setAvisoAlinhamento(null);
+    if (!modo) setEtapaPontos(null);
+    engineRef.current?.moverPorPontos(
+      modo,
+      (etapa) => {
+        setEtapaPontos(etapa);
+        if (!etapa) setModoPontos(null);
+      },
+      (r) => {
+        if ("erro" in r) {
+          toast.error(r.erro);
+          return;
+        }
+        setRotacaoRealinhar(r.graus);
+        const desvio = Math.abs(r.razaoDistancias - 1);
+        setAvisoAlinhamento(
+          desvio > DESVIO_ESCALA_AVISO
+            ? `As distâncias entre os pontos diferem ${(desvio * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%: confira se clicou nos pontos certos ou se os modelos têm escalas diferentes.`
+            : null,
+        );
+      },
+    );
   }, []);
 
   // Volta ao seletor de modelo (sai do modo do engine) mantendo o painel aberto.
@@ -328,6 +404,8 @@ export function CoordenacaoView({
     setVetorRealinhar([0, 0, 0]);
     setRotacaoRealinhar(0);
     setEtapaPontos(null);
+    setModoPontos(null);
+    setAvisoAlinhamento(null);
   }, []);
 
   const fecharRealinhar = useCallback(() => {
@@ -336,6 +414,8 @@ export function CoordenacaoView({
     setVetorRealinhar([0, 0, 0]);
     setRotacaoRealinhar(0);
     setEtapaPontos(null);
+    setModoPontos(null);
+    setAvisoAlinhamento(null);
     setRealinharAberto(false);
   }, []);
 
@@ -802,6 +882,9 @@ export function CoordenacaoView({
               temSelecao={temSelecao}
               corte={corte}
               onEnquadrar={() => void engineRef.current?.enquadrar()}
+              onVista={(vista) => void engineRef.current?.irParaVista(vista)}
+              onExportarCorte={() => void exportarCorteDxf()}
+              exportandoCorte={exportandoCorte}
               onCorte={aplicarCorte}
               onIsolar={() => void engineRef.current?.isolarSelecao()}
               onOcultar={() => void engineRef.current?.ocultarSelecao()}
@@ -882,6 +965,52 @@ export function CoordenacaoView({
             </p>
           </div>
         )}
+        {avisosOrigem.length > 0 && (
+          <div className="absolute left-1/2 top-16 z-20 w-[min(28rem,calc(100%-2rem))] -translate-x-1/2 space-y-1">
+            {avisosOrigem.map((d) => {
+              // Só o nome do arquivo: "Recebido do cliente · X.ifc" → "X.ifc".
+              const arquivo = (id: string) =>
+                modelosCarregadosInfo.find((m) => m.uploadId === id)?.label.split(" · ").pop();
+              const nome = arquivo(d.modeloId) ?? "Modelo";
+              const vizinho = arquivo(d.maisProximoId) ?? "outro modelo";
+              return (
+                <div
+                  key={d.modeloId}
+                  role="status"
+                  className="flex items-start gap-2 rounded-md border border-amber-500/50 bg-background/95 px-3 py-2 text-xs shadow-sm backdrop-blur"
+                >
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+                  <p className="min-w-0 flex-1">
+                    <span className="font-medium">Origem incompatível:</span> {nome} está a{" "}
+                    {formatarDistancia(d.distancia)} de {vizinho}. O IFC pode ter sido exportado com outra origem.
+                  </p>
+                  {podeGerir && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="h-7 shrink-0"
+                      onClick={() => {
+                        setRealinharAberto(true);
+                        void escolherRealinhar(d.modeloId);
+                      }}
+                    >
+                      Realinhar
+                    </Button>
+                  )}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7 shrink-0"
+                    aria-label={`Dispensar o aviso de ${nome}`}
+                    onClick={() => setOrigemDispensada((s) => new Set(s).add(d.modeloId))}
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
         {podeGerir && (
           <RealinharIfcDialog
             aberto={realinharAberto}
@@ -895,6 +1024,8 @@ export function CoordenacaoView({
             rotacao={rotacaoRealinhar}
             onRotacao={mudarRotacaoRealinhar}
             etapaPontos={etapaPontos}
+            modoPontos={modoPontos}
+            avisoAlinhamento={avisoAlinhamento}
             onPontos={alternarPontosRealinhar}
             onAplicar={aplicarRealinhar}
             pending={pending}

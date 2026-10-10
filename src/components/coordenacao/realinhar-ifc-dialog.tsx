@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Move3d, Upload, X, Check, ArrowLeft, RotateCcw, RotateCw, Crosshair } from "lucide-react";
-import { realinhamentoNulo } from "@/modules/coordenacao/realinhamento";
-import type { EtapaPontos } from "@/modules/coordenacao/viewer/engine";
+import { Move3d, Upload, X, Check, ArrowLeft, RotateCcw, RotateCw, Crosshair, Spline } from "lucide-react";
+import { normalizarGraus, realinhamentoNulo } from "@/modules/coordenacao/realinhamento";
+import type { EtapaPontos, ModoPontos } from "@/modules/coordenacao/viewer/engine";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +42,8 @@ export function RealinharIfcDialog({
   rotacao,
   onRotacao,
   etapaPontos,
+  modoPontos,
+  avisoAlinhamento,
   onPontos,
   onAplicar,
   pending,
@@ -60,9 +62,12 @@ export function RealinharIfcDialog({
   /** Giro em planta, graus (anti-horário visto de cima), em torno do centro do modelo. */
   rotacao: number;
   onRotacao: (graus: number) => void;
-  /** "Mover por pontos": qual clique falta (null = desligado). */
+  /** Modo de pontos: qual clique falta (null = desligado) e qual modo está ativo. */
   etapaPontos: EtapaPontos;
-  onPontos: (ativo: boolean) => void;
+  modoPontos: ModoPontos | null;
+  /** Aviso de escala do alinhamento por 2 pares (distâncias diferentes), se houver. */
+  avisoAlinhamento: string | null;
+  onPontos: (modo: ModoPontos | null) => void;
   onAplicar: () => void;
   pending: boolean;
   disciplinasUpload: { id: string; nome: string }[];
@@ -167,20 +172,36 @@ export function RealinharIfcDialog({
             <CampoNumero rotulo="Z (m)" valor={vetor[2]} onValor={(n) => onVetor([vetor[0], vetor[1], n])} />
           </div>
           <div className="space-y-1.5">
-            <Button
-              variant={etapaPontos ? "default" : "secondary"}
-              size="sm"
-              className="w-full gap-1"
-              onClick={() => onPontos(!etapaPontos)}
-              disabled={pending}
-            >
-              <Crosshair className="size-4" /> {etapaPontos ? "Cancelar mover por pontos" : "Mover por pontos"}
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant={modoPontos === "um-par" ? "default" : "secondary"}
+                size="sm"
+                className="gap-1 px-2"
+                onClick={() => onPontos(modoPontos === "um-par" ? null : "um-par")}
+                disabled={pending}
+                title="Um ponto do modelo vai parar em cima do ponto de destino"
+              >
+                <Crosshair className="size-4" /> {modoPontos === "um-par" ? "Cancelar" : "Por pontos"}
+              </Button>
+              <Button
+                variant={modoPontos === "dois-pares" ? "default" : "secondary"}
+                size="sm"
+                className="gap-1 px-2"
+                onClick={() => onPontos(modoPontos === "dois-pares" ? null : "dois-pares")}
+                disabled={pending}
+                title="Dois pares de pontos: desloca e gira de uma vez"
+              >
+                <Spline className="size-4" /> {modoPontos === "dois-pares" ? "Cancelar" : "Por 2 pares"}
+              </Button>
+            </div>
             {etapaPontos && (
               <p className="rounded bg-primary/10 px-2 py-1.5 text-[11px] leading-snug" aria-live="polite">
-                {etapaPontos === "origem"
-                  ? "1/2 — Clique no ponto do modelo que vai se mover (pega vértice e aresta)."
-                  : "2/2 — Clique no ponto de destino. O primeiro ponto vai parar em cima dele."}
+                {textoEtapa(etapaPontos, modoPontos)}
+              </p>
+            )}
+            {!etapaPontos && avisoAlinhamento && (
+              <p className="rounded bg-amber-500/10 px-2 py-1.5 text-[11px] leading-snug text-amber-800 dark:text-amber-300">
+                {avisoAlinhamento}
               </p>
             )}
           </div>
@@ -271,10 +292,20 @@ function CampoNumero({
   );
 }
 
-/** Mantém o giro dos botões de 90° entre −180° e 180° (o campo aceita até ±360°). */
-function normalizarGraus(g: number): number {
-  const r = ((((g + 180) % 360) + 360) % 360) - 180;
-  return r === -180 ? 180 : r;
+/** Instrução do clique que falta, conforme o modo de pontos. */
+function textoEtapa(etapa: Exclude<EtapaPontos, null>, modo: ModoPontos | null): string {
+  const total = modo === "dois-pares" ? 4 : 2;
+  const texto: Record<Exclude<EtapaPontos, null>, string> = {
+    origem: "Clique num ponto do modelo que vai se mover (pega vértice e aresta).",
+    destino:
+      modo === "dois-pares"
+        ? "Clique no destino desse ponto."
+        : "Clique no ponto de destino. O primeiro ponto vai parar em cima dele.",
+    origem2: "Clique num SEGUNDO ponto do modelo, longe do primeiro — ele define o giro.",
+    destino2: "Clique no destino do segundo ponto. O modelo desloca e gira de uma vez.",
+  };
+  const ordem: Exclude<EtapaPontos, null>[] = ["origem", "destino", "origem2", "destino2"];
+  return `${ordem.indexOf(etapa) + 1}/${total} — ${texto[etapa]}`;
 }
 
 /** Arredonda para 3 casas para exibir sem ruído de ponto flutuante vindo do arraste. */

@@ -187,3 +187,60 @@ export function pivoDoMundo(mundo: Vec3, base: readonly number[] | null): PivoPl
   const [x, y] = threeParaIfc([mundo[0] - b[0], mundo[1] - b[1], mundo[2] - b[2]]);
   return [x + 0, y + 0];
 }
+
+// ── Alinhar por 2 pares de pontos ───────────────────────────────────────────
+//
+// Quatro cliques: A1 no modelo → B1 destino, A2 no modelo → B2 destino. A1 vai
+// exatamente para B1 (3 eixos) e a direção A1→A2 gira, em planta, até a direção
+// B1→B2. Os pontos A são clicados na PRÉVIA (já com o giro/vetor atuais), então o
+// resultado compõe com o estado atual: novo mapa = Δ ∘ atual, com
+// Δ(x) = RΔ·(x − A1) + B1. Reescrito na forma da prévia, R·(p − pivô) + pivô + vetor:
+//   graus = atual + δ;  vetor = RΔ·(pivô + vetorAtual − A1) + B1 − pivô.
+// Todos os pontos no mesmo referencial do pivô, com orientação IFC (Z para cima).
+
+/** Distância mínima em planta (m) entre os pontos de cada par para o ângulo valer. */
+export const DISTANCIA_MINIMA_PAR = 0.01;
+
+/** Desvio de escala a partir do qual a tela avisa (1%). */
+export const DESVIO_ESCALA_AVISO = 0.01;
+
+export type ResultadoDoisPares =
+  | { ok: true; vetor: Vec3; graus: number; razaoDistancias: number }
+  | { ok: false; motivo: string };
+
+/** Ângulo em graus normalizado para (−180, 180]. */
+export function normalizarGraus(graus: number): number {
+  const r = ((((graus + 180) % 360) + 360) % 360) - 180;
+  return r === -180 ? 180 : r + 0;
+}
+
+export function alinharPorDoisPares(entrada: {
+  vetorAtual: Vec3;
+  grausAtual: number;
+  pivo: Vec3;
+  a1: Vec3;
+  a2: Vec3;
+  b1: Vec3;
+  b2: Vec3;
+}): ResultadoDoisPares {
+  const { vetorAtual, grausAtual, pivo, a1, a2, b1, b2 } = entrada;
+  const da: [number, number] = [a2[0] - a1[0], a2[1] - a1[1]];
+  const db: [number, number] = [b2[0] - b1[0], b2[1] - b1[1]];
+  const ta = Math.hypot(...da);
+  const tb = Math.hypot(...db);
+  if (ta < DISTANCIA_MINIMA_PAR || tb < DISTANCIA_MINIMA_PAR) {
+    return {
+      ok: false,
+      motivo: "Os dois pontos de cada par precisam estar afastados em planta (mín. 1 cm) para definir o giro.",
+    };
+  }
+  const delta = ((Math.atan2(db[1], db[0]) - Math.atan2(da[1], da[0])) * 180) / Math.PI;
+  const base: Vec3 = [pivo[0] + vetorAtual[0] - a1[0], pivo[1] + vetorAtual[1] - a1[1], pivo[2] + vetorAtual[2] - a1[2]];
+  const [gx, gy] = girarXY(base, delta);
+  return {
+    ok: true,
+    graus: normalizarGraus(grausAtual + delta),
+    vetor: [gx + b1[0] - pivo[0], gy + b1[1] - pivo[1], base[2] + b1[2] - pivo[2]],
+    razaoDistancias: tb / ta,
+  };
+}

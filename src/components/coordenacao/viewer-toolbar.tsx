@@ -19,9 +19,12 @@ import {
   PanelRight,
   MoreHorizontal,
   Maximize2,
+  Box,
+  FileDown,
   type LucideIcon,
 } from "lucide-react";
 import type { CorteConfig, EixoCorte } from "@/modules/coordenacao/viewer/engine";
+import { VISTAS_PADRAO, type VistaPadrao } from "@/modules/coordenacao/viewer/vistas";
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
 import { AcoesMenuItens } from "@/components/ui/acoes-menu";
 import {
@@ -143,6 +146,9 @@ export function ViewerToolbar({
   onToggleMedicao,
   acoesModelo = [],
   onAcaoModelo,
+  onVista,
+  onExportarCorte,
+  exportandoCorte = false,
 }: {
   temSelecao: boolean;
   corte: CorteConfig;
@@ -161,6 +167,11 @@ export function ViewerToolbar({
   /** Ações do modelo (Realinhar, Importar BCF, Georreferenciar): no celular entram no ⋯ desta barra. */
   acoesModelo?: readonly AcaoItem[];
   onAcaoModelo?: (item: AcaoItemAcao) => void;
+  /** Vista padrão (superior, frontal…) — também pelas teclas 1–7 no visualizador. */
+  onVista?: (vista: VistaPadrao) => void;
+  /** Exporta o corte ativo como desenho 2D (DXF). */
+  onExportarCorte?: () => void;
+  exportandoCorte?: boolean;
 }) {
   const [aberto, setAberto] = useState(false);
   const itensPaineis: AcaoItem[] = PAINEIS_NO_MENU.map((p) => ({
@@ -172,6 +183,12 @@ export function ViewerToolbar({
     desabilitado: painelDesabilitado?.[p.id] ? MOTIVO_PAINEL[p.id] : undefined,
   }));
   const painelNoMenuAtivo = PAINEIS_NO_MENU.some((p) => p.id === painelAtivo);
+  const itensVistas: AcaoItem[] = VISTAS_PADRAO.map((v) => ({
+    tipo: "acao",
+    id: v.id,
+    rotulo: v.rotulo,
+    atalho: v.atalho,
+  }));
 
   return (
     <div role="toolbar" aria-label="Ferramentas do visualizador" className="flex items-center gap-1 rounded-lg border bg-background/90 p-1 shadow-sm backdrop-blur">
@@ -187,6 +204,21 @@ export function ViewerToolbar({
       <BotaoTool label="Enquadrar modelo" onClick={onEnquadrar}>
         <Maximize className="size-4" />
       </BotaoTool>
+      {onVista && (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<Button variant="secondary" size="icon" aria-label="Vistas: superior, frontal, laterais (teclas 1 a 7)" />}
+          >
+            <Box className="size-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-auto min-w-52">
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Vistas</DropdownMenuLabel>
+              <AcoesMenuItens itens={itensVistas} onSelect={(item) => onVista(item.id as VistaPadrao)} />
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
 
       <Popover open={aberto} onOpenChange={setAberto}>
         <PopoverTrigger
@@ -241,6 +273,17 @@ export function ViewerToolbar({
                   onCheckedChange={(v) => onCorte({ ...corte, invertido: v })}
                 />
               </div>
+              {onExportarCorte && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full gap-1"
+                  onClick={onExportarCorte}
+                  disabled={exportandoCorte}
+                >
+                  <FileDown className="size-4" /> {exportandoCorte ? "Gerando DXF…" : "Exportar corte (DXF)"}
+                </Button>
+              )}
               <Button variant="outline" size="sm" className="w-full" onClick={() => onCorte(null)}>
                 Remover corte
               </Button>

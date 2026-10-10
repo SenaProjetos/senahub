@@ -35,7 +35,13 @@ import {
   type EixoIfc,
   type Vec3,
 } from "@/modules/coordenacao/viewer/coords";
-import { arrastePlanoParaIfc, pivoDoMundo, type PivoPlanta } from "@/modules/coordenacao/realinhamento";
+import {
+  alinharPorDoisPares,
+  arrastePlanoParaIfc,
+  pivoDoMundo,
+  type PivoPlanta,
+} from "@/modules/coordenacao/realinhamento";
+import { cameraDaVistaParaCaixa, vistaDoEixo, type VistaPadrao } from "@/modules/coordenacao/viewer/vistas";
 import {
   normalizarNo,
   listarElementos,
@@ -70,6 +76,8 @@ const COR_DIFF_ADICIONADO = 0x22c55e; // verde — elemento novo na versão atua
 const COR_DIFF_MOVIDO = 0xeab308; // âmbar — mesmo guid, centro deslocou > tolerância
 const LOTE_GEOMETRIAS_CLASH = 25;
 const LIMITE_TRIANGULOS_CLASH_POR_ITEM = 20_000;
+/** Lado (px CSS) do indicador de eixos no canto inferior direito. */
+const TAMANHO_GIZMO = 96;
 const LOTE_PSETS = 100;
 const LIMITE_PROPRIEDADES_POR_ELEMENTO = 256;
 const LIMITE_PROPRIEDADES_POR_MODELO = 100_000;
@@ -104,8 +112,19 @@ export type EngineOpts = {
 /** Câmera do Apontamento — persistida em espaço IFC (Z-up, metros). */
 export type CameraApontamento = { position: Vec3; target: Vec3 };
 
-/** Etapa do "mover por pontos" do realinhamento: qual clique falta (null = desligado). */
-export type EtapaPontos = "origem" | "destino" | null;
+/**
+ * Etapa do "mover por pontos" / "alinhar por 2 pares" do realinhamento: qual clique
+ * falta (null = desligado).
+ */
+export type EtapaPontos = "origem" | "destino" | "origem2" | "destino2" | null;
+
+/** Modo de pontos do realinhamento: 1 par só desloca; 2 pares deslocam e giram. */
+export type ModoPontos = "um-par" | "dois-pares";
+
+/** Resultado do alinhamento por 2 pares, para a tela atualizar o giro e avisar escala. */
+export type ResultadoAlinhamento = { graus: number; razaoDistancias: number } | { erro: string };
+
+const ETAPAS: readonly Exclude<EtapaPontos, null>[] = ["origem", "destino", "origem2", "destino2"];
 
 /** Um conflito (clash) entre um elemento do modelo A e um do modelo B. */
 export type ConflitoView = {
@@ -541,6 +560,53 @@ export class ViewerEngine {
     this.renderer.clippingPlanes = this.planosCorte;
   }
 
+  /**
+   * Linhas onde o plano de corte ativo cruza cada modelo carregado (para exportar em
+   * DXF), em espaço three/mundo, e as coordenadas-base do viewer para voltar ao
+   * referencial do arquivo. Null quando não há corte. O fragments calcula a seção no
+   * espaço do modelo; o plano vai e os pontos voltam pela matriz do objeto (que inclui
+   * o deslocamento do realinhamento/coordenação).
+   */
+  async segmentosDoCorte(): Promise<{
+    base: number[] | null;
+    modelos: { modeloId: string; segmentos: [Vec3, Vec3][] }[];
+  } | null> {
+    const plano = this.planosCorte[0];
+    if (!plano) return null;
+    const modelos: { modeloId: string; segmentos: [Vec3, Vec3][] }[] = [];
+    for (const [modeloId, model] of this.modelos) {
+      model.object.updateWorldMatrix(true, false);
+      const matriz = model.object.matrixWorld;
+      const planoLocal = plano.clone().applyMatrix4(matriz.clone().invert());
+      const secao = await model.getSection(planoLocal).catch(() => null);
+      if (!secao) continue;
+      const segmentos: [Vec3, Vec3][] = [];
+      const p = new THREE.Vector3();
+      const q = new THREE.Vector3();
+      for (let i = 0; i + 1 < secao.index; i += 2) {
+        p.fromArray(secao.buffer, i * 3).applyMatrix4(matriz);
+        q.fromArray(secao.buffer, (i + 1) * 3).applyMatrix4(matriz);
+        segmentos.push([
+          [p.x, p.y, p.z],
+          [q.x, q.y, q.z],
+        ]);
+      }
+      if (segmentos.length > 0) modelos.push({ modeloId, segmentos });
+    }
+    return { base: this.fragments.baseCoordinates, modelos };
+  }
+
+  /** Caixa de cada modelo carregado no mundo do viewer (metros) — aviso de origem. */
+  caixasDosModelos(): { modeloId: string; min: Vec3; max: Vec3 }[] {
+    const caixas: { modeloId: string; min: Vec3; max: Vec3 }[] = [];
+    for (const [modeloId, model] of this.modelos) {
+      const b = model.box;
+      if (b.isEmpty()) continue;
+      caixas.push({ modeloId, min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z] });
+    }
+    return caixas;
+  }
+
   // ── Câmera ─────────────────────────────────────────────────
 
   async enquadrar(): Promise<void> {
@@ -548,6 +614,42 @@ export class ViewerEngine {
     if (!box) return;
     const esfera = box.getBoundingSphere(new THREE.Sphere());
     await this.controls.fitToSphere(esfera, true);
+  }
+
+  /**
+   * Vai para uma vista padrão (superior, frontal, laterais…) enquadrando os modelos
+   * carregados, com transição animada.
+   */
+  async irParaVista(vista: VistaPadrao): Promise<void> {
+    const box = this.bboxGlobal();
+    if (!box) return;
+    const { posicao, alvo } = cameraDaVistaParaCaixa(
+      vista,
+      [box.min.x, box.min.y, box.min.z],
+      [box.max.x, box.max.y, box.max.z],
+      this.camera.fov,
+      this.camera.aspect,
+    );
+    await this.controls.setLookAt(...posicao, ...alvo, true);
+  }
+
+  /**
+   * Clique no indicador de eixos (canto inferior direito): devolve a vista da letra
+   * clicada, ou null se o clique não caiu numa letra. Quem chama decide ir para ela.
+   */
+  vistaNoIndicador(clientX: number, clientY: number): VistaPadrao | null {
+    if (!this.gizmoRoot || !this.gizmoCamera) return null;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const dim = TAMANHO_GIZMO;
+    const x = clientX - (rect.right - dim);
+    const y = clientY - (rect.bottom - dim);
+    if (x < 0 || y < 0 || x > dim || y > dim) return null;
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2((x / dim) * 2 - 1, -(y / dim) * 2 + 1), this.gizmoCamera);
+    const sprites = this.gizmoRoot.children.filter((o): o is THREE.Sprite => o instanceof THREE.Sprite);
+    const acerto = ray.intersectObjects(sprites, false)[0];
+    const letra = acerto?.object.userData.letra as string | undefined;
+    return letra ? vistaDoEixo(letra) : null;
   }
 
   /** Captura a câmera atual em espaço IFC (Z-up) — o que o Apontamento persiste. */
@@ -1411,8 +1513,14 @@ export class ViewerEngine {
     onVetor: (v: Vec3) => void;
     arrastando: boolean;
     origem: THREE.Vector3 | null; // ponto no plano no início do movimento atual
-    /** "Mover por pontos": null = desligado; senão, o ponto de origem já clicado (ou null). */
-    pontos: { origem: THREE.Vector3 | null; grupo: THREE.Group; onEtapa: (e: EtapaPontos) => void } | null;
+    /** Pontos clicados (mundo three) no modo de pontos; null = desligado. */
+    pontos: {
+      modo: ModoPontos;
+      cliques: THREE.Vector3[];
+      grupo: THREE.Group;
+      onEtapa: (e: EtapaPontos) => void;
+      onAlinhado: (r: ResultadoAlinhamento) => void;
+    } | null;
     leftAcaoAntes: CameraControls["mouseButtons"]["left"];
     rightAcaoAntes: CameraControls["mouseButtons"]["right"];
     down: (e: PointerEvent) => void;
@@ -1430,76 +1538,120 @@ export class ViewerEngine {
   }
 
   /**
-   * Liga/desliga "mover por pontos": o 1º clique marca um ponto (com snap em
-   * vértice/aresta), o 2º marca o destino, e o vetor anda exatamente a diferença —
-   * o 1º ponto cai em cima do 2º, nos três eixos. Depois do 2º clique desliga sozinho.
+   * Liga/desliga o modo de pontos. "um-par": o 1º clique marca um ponto (com snap em
+   * vértice/aresta), o 2º o destino, e o vetor anda exatamente a diferença — o 1º
+   * ponto cai em cima do 2º, nos três eixos. "dois-pares": mais 2 cliques (outro
+   * ponto do modelo e o destino dele) e a direção entre os pontos do modelo gira, em
+   * planta, até a direção entre os destinos. Ao terminar, desliga sozinho.
    */
-  moverPorPontos(ativo: boolean, onEtapa: (e: EtapaPontos) => void = () => {}): void {
+  moverPorPontos(
+    modo: ModoPontos | null,
+    onEtapa: (e: EtapaPontos) => void = () => {},
+    onAlinhado: (r: ResultadoAlinhamento) => void = () => {},
+  ): void {
     const r = this.realinhar;
     if (!r) return;
     this.limparPontosRealinhamento();
-    if (!ativo) return;
+    if (!modo) return;
     const grupo = new THREE.Group();
     this.scene.add(grupo);
-    r.pontos = { origem: null, grupo, onEtapa };
+    r.pontos = { modo, cliques: [], grupo, onEtapa, onAlinhado };
     onEtapa("origem");
   }
 
-  /** Clique no modo "mover por pontos" (chamado pelo viewer-3d em vez de selecionar). */
+  /** Clique no modo de pontos (chamado pelo viewer-3d em vez de selecionar). */
   async registrarPontoRealinhamento(clientX: number, clientY: number): Promise<void> {
     const r = this.realinhar;
     if (!r?.pontos) return;
     const p = await this.raycastPonto(clientX, clientY);
     const pontos = this.realinhar?.pontos;
     if (!p || !pontos) return; // clique no vazio: segue esperando
-    if (!pontos.origem) {
-      pontos.origem = p.clone();
-      this.desenharPontosRealinhamento(p);
-      pontos.onEtapa("destino");
+    pontos.cliques.push(p.clone());
+    const total = pontos.modo === "um-par" ? 2 : 4;
+    if (pontos.cliques.length < total) {
+      this.desenharPontosRealinhamento(p, pontos.cliques.length % 2 === 1);
+      pontos.onEtapa(ETAPAS[pontos.cliques.length]);
       return;
     }
-    // Delta no mundo → IFC. O vetor é somado DEPOIS do giro, então somar o delta move
-    // o modelo inteiro exatamente essa diferença (o 1º ponto cai sobre o 2º).
-    const [dx, dy, dz] = threeParaIfc([p.x - pontos.origem.x, p.y - pontos.origem.y, p.z - pontos.origem.z]);
-    r.vetor = [r.vetor[0] + dx, r.vetor[1] + dy, r.vetor[2] + dz];
-    const onEtapa = pontos.onEtapa;
+
+    const { onEtapa, onAlinhado, cliques, modo } = pontos;
     this.limparPontosRealinhamento();
+    // Pontos e pivô na orientação IFC (Z para cima), mesmo referencial do mundo.
+    const ifc = (v: THREE.Vector3) => threeParaIfc([v.x, v.y, v.z]);
+    if (modo === "um-par") {
+      // O vetor é somado DEPOIS do giro: somar o delta move o modelo inteiro exatamente
+      // essa diferença (o 1º ponto cai sobre o 2º).
+      const [dx, dy, dz] = threeParaIfc([
+        cliques[1].x - cliques[0].x,
+        cliques[1].y - cliques[0].y,
+        cliques[1].z - cliques[0].z,
+      ]);
+      r.vetor = [r.vetor[0] + dx, r.vetor[1] + dy, r.vetor[2] + dz];
+    } else {
+      const alinhado = alinharPorDoisPares({
+        vetorAtual: r.vetor,
+        grausAtual: r.graus,
+        pivo: ifc(r.pivo),
+        a1: ifc(cliques[0]),
+        b1: ifc(cliques[1]),
+        a2: ifc(cliques[2]),
+        b2: ifc(cliques[3]),
+      });
+      if (!alinhado.ok) {
+        onAlinhado({ erro: alinhado.motivo });
+        onEtapa(null);
+        return;
+      }
+      r.vetor = alinhado.vetor;
+      r.graus = alinhado.graus;
+      onAlinhado({ graus: alinhado.graus, razaoDistancias: alinhado.razaoDistancias });
+    }
     this.aplicarPreview(r);
     r.onVetor([...r.vetor] as Vec3);
     onEtapa(null);
   }
 
-  /** Marcador do ponto de origem + linha elástica até o cursor (atualizada no pointermove). */
-  private desenharPontosRealinhamento(origem: THREE.Vector3): void {
+  /**
+   * Marcador do ponto clicado. Ponto do MODELO (laranja) puxa uma linha elástica até
+   * o cursor; ponto de DESTINO (verde) fecha a linha do par.
+   */
+  private desenharPontosRealinhamento(ponto: THREE.Vector3, doModelo: boolean): void {
     const grupo = this.realinhar?.pontos?.grupo;
     if (!grupo) return;
-    const cor = 0xf59e0b; // mesmo laranja da medição
+    const cor = doModelo ? 0xf59e0b : 0x22c55e;
     const esfera = new THREE.Mesh(
       new THREE.SphereGeometry(0.08, 12, 12),
       new THREE.MeshBasicMaterial({ color: cor, depthTest: false }),
     );
-    esfera.position.copy(origem);
+    esfera.position.copy(ponto);
     esfera.renderOrder = 999;
-    const linha = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints([origem, origem]),
-      new THREE.LineBasicMaterial({ color: cor, depthTest: false }),
-    );
-    linha.renderOrder = 999;
-    linha.name = "elastico";
-    grupo.add(esfera, linha);
+    grupo.add(esfera);
+    const anterior = grupo.getObjectByName("elastico");
+    if (anterior) anterior.name = "par"; // a linha do par anterior fica fixa
+    if (doModelo) {
+      const linha = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints([ponto, ponto]),
+        new THREE.LineBasicMaterial({ color: 0xf59e0b, depthTest: false }),
+      );
+      linha.renderOrder = 999;
+      linha.name = "elastico";
+      grupo.add(linha);
+    }
   }
 
   /** Puxa a ponta da linha elástica para o snap (ou o ponto no plano) sob o cursor. */
   private atualizarElastico(clientX: number, clientY: number): void {
     const r = this.realinhar;
     const pontos = r?.pontos;
-    if (!r || !pontos?.origem) return;
+    // Só depois de um ponto do modelo (clique ímpar) há linha elástica a puxar.
+    if (!r || !pontos || pontos.cliques.length % 2 === 0) return;
+    const origem = pontos.cliques[pontos.cliques.length - 1];
     const linha = pontos.grupo.getObjectByName("elastico") as THREE.Line | undefined;
     if (!linha) return;
     const ponta =
-      this.snapMarker?.visible ? this.snapMarker.position.clone() : this.pontoNoPlano(clientX, clientY, pontos.origem.y);
+      this.snapMarker?.visible ? this.snapMarker.position.clone() : this.pontoNoPlano(clientX, clientY, origem.y);
     if (!ponta) return;
-    linha.geometry.setFromPoints([pontos.origem, ponta]);
+    linha.geometry.setFromPoints([origem, ponta]);
   }
 
   /** Desliga "mover por pontos" e descarta marcadores (não mexe no vetor). */
@@ -1740,6 +1892,7 @@ export class ViewerEngine {
       root.add(new THREE.ArrowHelper(dir, origem, L, cor, 0.3, 0.18));
       const sprite = this.criarSpriteLetra(letra, cor);
       sprite.position.copy(dir).multiplyScalar(L + 0.28);
+      sprite.userData.letra = letra; // clique na letra → vista daquele lado (vistaNoIndicador)
       root.add(sprite);
     }
 
@@ -1776,7 +1929,7 @@ export class ViewerEngine {
     this.gizmoRoot.quaternion.copy(this.camera.quaternion).invert();
     this.gizmoRoot.updateMatrixWorld();
 
-    const dim = 96;
+    const dim = TAMANHO_GIZMO;
     const w = this.renderer.domElement.offsetWidth || this.container.clientWidth;
     const vp = new THREE.Vector4();
     this.renderer.getViewport(vp);
