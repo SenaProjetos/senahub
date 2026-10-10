@@ -11,7 +11,9 @@
  */
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
-import { PROJETO_MEMBRO_ROLES, PJ_ROLES, CADASTRO_ROLES, type Role } from "../src/lib/roles";
+// Equipe interna (Onda F): a contratação do vínculo substitui o papel legado.
+const PJ_CONTRATACOES = ["pj", "autonomo_rpa"];
+const PROJETISTA_CONTRATACOES = ["clt", "estagio", "pj", "autonomo_rpa"];
 
 const CNPJ_MARKER = "11.111.111/0001-11";
 
@@ -30,8 +32,8 @@ async function main() {
 
   // ── 1. Cadastro: dataNascimento (1 aniversariante hoje) + campos básicos ──
   const colaboradores = await prisma.user.findMany({
-    where: { ativo: true, role: { in: CADASTRO_ROLES } },
-    select: { id: true, name: true, role: true, dataNascimento: true },
+    where: { ativo: true, tipo: "interno", contratacao: { not: null } },
+    select: { id: true, name: true, contratacao: true, dataNascimento: true },
     orderBy: { name: "asc" },
   });
 
@@ -64,14 +66,14 @@ async function main() {
 
   // ── 2. Sócio (acesso elevado) ──
   const candidatoSocio =
-    colaboradores.find((c) => c.role === "projetista_pj") ?? colaboradores.find((c) => c.role === "clt") ?? colaboradores[0];
+    colaboradores.find((c) => c.contratacao === "pj") ?? colaboradores.find((c) => c.contratacao === "clt") ?? colaboradores[0];
   if (candidatoSocio) {
     await prisma.socio.upsert({
       where: { userId: candidatoSocio.id },
       update: { ativo: true },
       create: { userId: candidatoSocio.id, percentual: 30, ativo: true },
     });
-    console.log(`✓ Sócio: ${candidatoSocio.name} (${candidatoSocio.role}) — testa acesso elevado.`);
+    console.log(`✓ Sócio: ${candidatoSocio.name} (${candidatoSocio.contratacao}) — testa acesso elevado.`);
   }
 
   // ── 3. Pessoas Jurídicas + vínculo ──
@@ -86,7 +88,7 @@ async function main() {
       await prisma.pessoaJuridica.upsert({ where: { cnpj: d.cnpj }, update: { razaoSocial: d.razaoSocial }, create: d }),
     );
   }
-  const pjUsers = colaboradores.filter((c) => PJ_ROLES.includes(c.role as Role));
+  const pjUsers = colaboradores.filter((c) => PJ_CONTRATACOES.includes(c.contratacao ?? ""));
   for (let i = 0; i < pjUsers.length; i++) {
     await prisma.user.update({ where: { id: pjUsers[i].id }, data: { pjId: pjs[i % pjs.length].id } });
   }
@@ -100,7 +102,7 @@ async function main() {
     return;
   }
 
-  const projetistas = colaboradores.filter((c) => PROJETO_MEMBRO_ROLES.includes(c.role as Role)).slice(0, 5);
+  const projetistas = colaboradores.filter((c) => PROJETISTA_CONTRATACOES.includes(c.contratacao ?? "")).slice(0, 5);
   const projeto = await prisma.projeto.findFirst({ select: { id: true } });
   const statusConcluido = await prisma.tarefaStatus.findFirst({ where: { concluido: true }, select: { id: true } });
   const disciplinas = await prisma.disciplina.findMany({ take: 6, select: { id: true } });
@@ -159,7 +161,7 @@ async function main() {
             disciplinaId: disciplinas[(p + semana) % disciplinas.length].id,
             projetistaId: projetistas[p].id,
             valor: 1500 + (p * 100 + semana * 50),
-            tipoProfissional: projetistas[p].role,
+            tipoProfissional: projetistas[p].contratacao === "pj" ? "projetista_pj" : "freelancer",
             status: "pendente",
             liberadoEm: diasAtras(semana * 7 + 2),
           },

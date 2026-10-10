@@ -11,7 +11,6 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { proximoCodigoProjeto } from "../src/modules/projetos/numbering";
 import { eapDoProjeto, matrizRecursos, projetosComPlano } from "../src/modules/planejamento/queries";
-import type { Role } from "../src/lib/roles";
 
 async function main() {
   const tag = `SMK5_${Date.now()}`;
@@ -22,7 +21,7 @@ async function main() {
   };
   const d = (s: string) => new Date(s + "T00:00:00");
 
-  const admin = await prisma.user.findFirst({ where: { role: "admin" } });
+  const admin = await prisma.user.findFirst({ where: { } });
   if (!admin) throw new Error("Admin não encontrado.");
 
   // Cliente + projeto throwaway com 1 disciplina
@@ -116,7 +115,7 @@ async function main() {
   );
 
   // 6) projetosComPlano (viewer admin = global)
-  const viewerAdmin = { id: admin.id, role: admin.role as Role, superUsuario: true, escopoGlobalPerfil: true, tipo: "interno" as const };
+  const viewerAdmin = { id: admin.id, superUsuario: true, escopoGlobalPerfil: true, tipo: "interno" as const };
   const lista = await projetosComPlano(viewerAdmin, { verDatas: true });
   const naLista = lista.find((p) => p.id === projeto.id);
   check("projetosComPlano inclui o projeto com 2 tarefas", naLista?.totalTarefas === 2);

@@ -138,7 +138,7 @@ export async function detalheAviso(id: string) {
     include: {
       criadoPor: { select: { name: true } },
       destinatarios: {
-        include: { user: { select: { name: true, email: true, role: true } } },
+        include: { user: { select: { name: true, email: true, contratacao: true } } },
         orderBy: [{ lidoEm: "asc" }, { criadoEm: "asc" }],
       },
     },

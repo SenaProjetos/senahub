@@ -41,7 +41,6 @@ function usuarioBase() {
     name: "Ana",
     nomeCompleto: "Ana Silva",
     email: "ana@example.com",
-    role: "clt",
     tipo: "interno",
     contratacao: "clt",
     ativo: true,
@@ -72,7 +71,7 @@ describe("Pessoa 360 — consultas de resumo", () => {
         id: "pj",
         name: "Projetista",
         email: "pj@example.com",
-        role: "projetista_pj",
+        contratacao: "pj",
         ativo: true,
         clienteId: null,
         pjId: "empresa-pj",
@@ -84,7 +83,7 @@ describe("Pessoa 360 — consultas de resumo", () => {
         id: "free",
         name: "Freelancer",
         email: "free@example.com",
-        role: "freelancer",
+        contratacao: "autonomo_rpa",
         ativo: true,
         clienteId: null,
         pjId: null,
@@ -99,7 +98,7 @@ describe("Pessoa 360 — consultas de resumo", () => {
     expect(mocks.userFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { tipo: "interno" } }),
     );
-    expect(pessoas.map((p) => p.role)).toEqual(["projetista_pj", "freelancer"]);
+    expect(pessoas.map((p) => p.contratacao)).toEqual(["pj", "autonomo_rpa"]);
   });
 
   it("não consulta nem devolve domínios sem autorização", async () => {
@@ -195,7 +194,7 @@ describe("Pessoa 360 — consultas de resumo", () => {
       ponto: true,
       pendenciasRh: true,
       projetos: {
-        observador: { id: "gestor", role: "administrativo", ehSocio: false, superUsuario: false, escopoGlobalPerfil: false, tipo: "interno" as const },
+        observador: { id: "gestor", ehSocio: false, superUsuario: false, escopoGlobalPerfil: false, tipo: "interno" as const },
       },
     });
 

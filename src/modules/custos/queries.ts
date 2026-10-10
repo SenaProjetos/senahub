@@ -1,14 +1,14 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma, StatusCustoOrcamento } from "@/generated/prisma/client";
-import { acessoGlobal, type Role, type EscopoDeDados } from "@/lib/roles";
+import { acessoGlobal, type EscopoDeDados } from "@/lib/roles";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { parseListParams } from "@/lib/list-params";
 import { porPaginaDaLista } from "@/modules/usuarios/preferencias/por-pagina";
 import { calcularBdi, type EntradaBdi, type ResultadoBdi } from "./bdi";
 import { calcularEncargos, type OverrideEncargo, type ResultadoEncargos } from "./encargos-obra";
 
-type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
+type Viewer = { id: string; ehSocio?: boolean } & EscopoDeDados;
 type RawParams = Record<string, string | string[] | undefined>;
 
 /**

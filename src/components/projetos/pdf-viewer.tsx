@@ -3033,7 +3033,7 @@ export function PdfViewer(props: Props) {
           opcoes={opcoesTarefa}
           colunas={colunasTarefa}
           meId={props.currentUserId}
-          meRole={ehAdmin ? "admin" : "supervisor"}
+          meSuper={ehAdmin}
           // Só cria (tarefa={null}): criar é sempre editável, o par não pesa aqui.
           gereTodasTarefas={false}
           tituloDialog="Confirmar tarefa de ajustes"

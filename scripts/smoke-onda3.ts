@@ -20,10 +20,10 @@ async function main() {
   };
 
   const clt = await prisma.user.create({
-    data: { name: `${tag}_clt`, email: `${tag}_clt@t.local`, role: "clt", tipo: "interno", ativo: true },
+    data: { name: `${tag}_clt`, email: `${tag}_clt@t.local`, tipo: "interno", ativo: true },
   });
   const freela = await prisma.user.create({
-    data: { name: `${tag}_free`, email: `${tag}_free@t.local`, role: "freelancer", tipo: "interno", ativo: true },
+    data: { name: `${tag}_free`, email: `${tag}_free@t.local`, tipo: "interno", ativo: true },
   });
   const cliente = await prisma.cliente.create({ data: { tipo: "PJ", nome: `${tag}_cli` } });
   const projeto = await prisma.$transaction(async (tx) => {
@@ -62,7 +62,7 @@ async function main() {
   check("#geral exclui freelancer (sem `chat:geral` na semente)", !setGeral.has(freela.id));
 
   // 3) DM idempotente: mesma dupla → mesmo canal
-  const admin = await prisma.user.findFirst({ where: { role: "admin" } });
+  const admin = await prisma.user.findFirst({ where: { } });
   const dm1 = await getOrCreateDM(admin!.id, clt.id);
   const dm2 = await getOrCreateDM(clt.id, admin!.id);
   check("getOrCreateDM retorna o mesmo canal para a dupla", dm1.id === dm2.id);

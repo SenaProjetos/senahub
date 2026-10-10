@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import type { Contratacao } from "@/generated/prisma/enums";
 import { whereAudiencia } from "@/lib/audiencias";
 
 export type PessoaJuridicaItem = {
@@ -10,7 +11,7 @@ export type PessoaJuridicaItem = {
   email: string | null;
   telefone: string | null;
   ativo: boolean;
-  membros: { id: string; name: string; role: string }[];
+  membros: { id: string; name: string; contratacao: Contratacao | null }[];
 };
 
 /** Lista as PJs com seus membros (perfis de projetista vinculados). */
@@ -25,7 +26,7 @@ export async function listarPessoasJuridicas(): Promise<PessoaJuridicaItem[]> {
       email: true,
       telefone: true,
       ativo: true,
-      membros: { where: { ativo: true }, select: { id: true, name: true, role: true }, orderBy: { name: "asc" } },
+      membros: { where: { ativo: true }, select: { id: true, name: true, contratacao: true }, orderBy: { name: "asc" } },
     },
   });
   return pjs;
@@ -36,7 +37,7 @@ export async function projetistasParaPJ() {
   const users = await prisma.user.findMany({
     where: whereAudiencia("pj"),
     orderBy: { name: "asc" },
-    select: { id: true, name: true, role: true, pjId: true },
+    select: { id: true, name: true, contratacao: true, pjId: true },
   });
   return users;
 }

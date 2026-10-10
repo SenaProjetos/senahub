@@ -5,13 +5,13 @@ import { SO_RESULTADO } from "@/modules/financeiro/natureza";
 import { somaPaga } from "@/modules/financeiro/valor-pago";
 import { utcFimDoDia, utcInicioDoDia } from "@/lib/data";
 import type { Prisma, StatusDisciplina } from "@/generated/prisma/client";
-import { acessoGlobal, type Role, type EscopoDeDados } from "@/lib/roles";
+import { acessoGlobal, type EscopoDeDados } from "@/lib/roles";
 import { kpisHome } from "@/modules/qualidade/queries";
 import { montarSerieReceita } from "@/modules/dashboard/serie-receita";
 import { PESO_STATUS } from "@/modules/projetos/status";
 import { STATUS_PENDENTES, TIPOS_CONTRATUAIS } from "@/modules/juridico/contrato/estado";
 
-type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
+type Viewer = { id: string; ehSocio?: boolean } & EscopoDeDados;
 
 export type KpiProjetista = {
   emRevisao: number;

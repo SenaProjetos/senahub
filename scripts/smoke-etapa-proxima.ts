@@ -39,7 +39,7 @@ async function main() {
   }
   const [maria, coord, membroComum] = await Promise.all(
     ["maria", "coord", "membro"].map((n) =>
-      prisma.user.create({ data: { name: `${tag}-${n}`, email: `${tag}-${n}@t.local`, role: "clt", tipo: "interno", emailVerified: false } }),
+      prisma.user.create({ data: { name: `${tag}-${n}`, email: `${tag}-${n}@t.local`, tipo: "interno", emailVerified: false } }),
     ),
   );
   const cliente = await prisma.cliente.create({ data: { nome: `${tag}-cliente` } });

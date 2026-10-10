@@ -1,5 +1,6 @@
 "use client";
 
+import type { Contratacao } from "@/generated/prisma/enums";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -28,7 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 
-type Interno = { id: string; name: string; role: string };
+type Interno = { id: string; name: string; contratacao: Contratacao | null };
 
 const NAO_MONTAR = "__nao_montar";
 type DiscDraft = { nome: string; prazo: string; valor: number | null; responsaveisIds: string[] };

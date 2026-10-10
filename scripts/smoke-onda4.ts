@@ -19,7 +19,7 @@ async function main() {
     if (!cond) ok = false;
   };
 
-  const admin = await prisma.user.findFirst({ where: { role: "admin" } });
+  const admin = await prisma.user.findFirst({ where: { } });
   if (!admin) throw new Error("Admin não encontrado.");
 
   // 1) Lead no funil

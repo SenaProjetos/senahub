@@ -1,7 +1,6 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { ROLES, type Role } from "@/lib/roles";
 import { notificarMuitos } from "@/lib/notificar";
 import { emitParaUsuario } from "@/lib/socket";
 import { enviarEmail, smtpConfigurado, type EmailAnexo } from "@/lib/mail";
@@ -9,7 +8,7 @@ import { renderTemplate } from "@/lib/email-templates";
 import { lerArquivo, existeArquivo } from "@/lib/storage";
 import { escaparHtml, markdownParaTexto } from "./formatacao";
 import type { CriarAvisoInput } from "./schemas";
-import { CHAVE_POR_ROLE } from "@/modules/usuarios/vinculo/perfil-semente";
+import { CHAVE_POR_ROLE, PAPEIS_SEMENTE, type PapelSemente } from "@/modules/usuarios/vinculo/perfil-semente";
 
 type AlvoInput = Pick<
   CriarAvisoInput,
@@ -23,9 +22,9 @@ type AlvoInput = Pick<
 >;
 
 /** Mantém só valores que são roles válidas (defensivo contra input inválido). */
-export function rolesValidas(roles: string[]): Role[] {
-  const set = new Set<string>(ROLES);
-  return roles.filter((r): r is Role => set.has(r));
+export function rolesValidas(roles: string[]): PapelSemente[] {
+  const set = new Set<string>(PAPEIS_SEMENTE);
+  return roles.filter((r): r is PapelSemente => set.has(r));
 }
 
 /**

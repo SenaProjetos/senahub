@@ -259,7 +259,7 @@ export const editarPagamentoProjetista = defineAction(
     const pag = await prisma.pagamentoProjetista.findUnique({
       where: { id: input.id },
       include: {
-        projetista: { select: { name: true, role: true } },
+        projetista: { select: { name: true } },
         disciplina: { select: { disciplinaTextoLegado: true, projetoId: true, projeto: { select: { codigo: true } } } },
         etapa: SELECT_FASE_DO_PAGAMENTO,
       },

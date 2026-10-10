@@ -39,7 +39,7 @@ async function erroDe(fn: () => Promise<unknown>): Promise<string | null> {
 const tag = `smoke-mdisc-${Date.now()}`;
 
 async function main() {
-  const admin = await prisma.user.findFirst({ where: { role: "admin", ativo: true }, select: { id: true } });
+  const admin = await prisma.user.findFirst({ where: { ativo: true }, select: { id: true } });
   const catalogo = await prisma.disciplinaCatalogo.findMany({ where: { ativo: true }, select: { id: true, nome: true }, take: 2, orderBy: { nome: "asc" } });
   const fases = await prisma.pranchaCatalogo.findMany({
     where: { categoria: "fase", projetoId: null, ativo: true },

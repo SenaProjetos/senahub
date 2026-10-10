@@ -40,7 +40,7 @@ const tag = `smoke-terceiro-${Date.now()}`;
 const d = (s: string) => new Date(`${s}T00:00:00.000Z`);
 
 async function main() {
-  const admin = await prisma.user.findFirst({ where: { role: "admin", ativo: true }, select: { id: true } });
+  const admin = await prisma.user.findFirst({ where: { ativo: true }, select: { id: true } });
   if (!admin) {
     console.log("Sem admin ativo no banco de dev — rode `npm run db:seed` antes.");
     process.exitCode = 1;

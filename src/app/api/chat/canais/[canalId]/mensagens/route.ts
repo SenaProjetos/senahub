@@ -63,6 +63,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ canalId: string
     mensagens,
     temMais: resultado.temMais,
     fixadas: fixadas.map((f) => ({ id: f.id, conteudo: f.conteudo, autor: { name: f.autor.name } })),
-    membros: membros.map((u) => ({ id: u.id, name: u.name, role: u.role, chatStatus: u.chatStatus })),
+    membros: membros.map((u) => ({ id: u.id, name: u.name, contratacao: u.contratacao, chatStatus: u.chatStatus })),
   });
 }

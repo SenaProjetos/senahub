@@ -693,7 +693,7 @@ export async function lembretePontoNaoBatido(): Promise<number> {
   if (await ehFeriado(hojeISO)) return 0; // feriado → dia não útil
   const clts = await prisma.user.findMany({
     where: whereAudiencia("clt"),
-    select: { id: true, role: true, contratacao: true },
+    select: { id: true, contratacao: true },
   });
   let n = 0;
   for (const u of clts) {
@@ -774,7 +774,7 @@ export async function alertasPontoTick(): Promise<number> {
 
   const usuarios = await prisma.user.findMany({
     where: whereAudiencia("clt"),
-    select: { id: true, role: true, contratacao: true, name: true, email: true },
+    select: { id: true, contratacao: true, name: true, email: true },
   });
   if (usuarios.length === 0) return 0;
 

@@ -20,7 +20,7 @@ export async function GET(req: Request) {
   for (const p of projetistas) {
     for (const w of p.periodos) {
       linhas.push(
-        [p.nome, p.role, w.periodo, w.horas, w.entregas, w.tarefas, w.atrasos, w.output, w.queda ? "sim" : "nao"]
+        [p.nome, p.contratacao ?? "", w.periodo, w.horas, w.entregas, w.tarefas, w.atrasos, w.output, w.queda ? "sim" : "nao"]
           .map(esc)
           .join(sep),
       );

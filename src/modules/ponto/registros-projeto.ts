@@ -1,10 +1,12 @@
 import { diaLocal } from "@/modules/ponto/engine";
+import { usaApontamento } from "@/lib/contratacao";
+import type { Contratacao } from "@/generated/prisma/enums";
 
 export type SessaoProjetoEquipe = {
   id: string;
   inicio: Date;
   fim: Date | null;
-  user: { id: string; name: string; role: string };
+  user: { id: string; name: string; contratacao: Contratacao | null };
 };
 
 export type RegistroProjetoEquipe = {
@@ -23,8 +25,8 @@ export type RegistrosDiariosProjeto = {
   registros: RegistroProjetoEquipe[];
 };
 
-function tipoRegistro(role: string): RegistroProjetoEquipe["tipo"] {
-  return role === "projetista_pj" || role === "freelancer" ? "apontamento" : "jornada";
+function tipoRegistro(contratacao: Contratacao | null): RegistroProjetoEquipe["tipo"] {
+  return usaApontamento(contratacao) ? "apontamento" : "jornada";
 }
 
 /**
@@ -49,7 +51,7 @@ export function agruparRegistrosDiariosProjeto(
     grupo.registros.push({
       id: sessao.id,
       colaborador: { id: sessao.user.id, nome: sessao.user.name },
-      tipo: tipoRegistro(sessao.user.role),
+      tipo: tipoRegistro(sessao.user.contratacao),
       inicio: sessao.inicio,
       fim: sessao.fim,
       minutos,

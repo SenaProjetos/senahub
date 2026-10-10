@@ -6,7 +6,6 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 
 import { aplicarVinculo } from "@/modules/usuarios/vinculo/service";
-import { roleLegadoDe } from "@/modules/usuarios/vinculo/mapa";
 import { validarTrocaContratacao } from "@/modules/usuarios/vinculo/troca-contratacao";
 
 const dataIso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida.");
@@ -28,7 +27,6 @@ async function estadoContratacao(userId: string) {
   return prisma.user.findUnique({
     where: { id: userId },
     select: {
-      role: true,
       cpf: true,
       setor: true,
       contratacao: true,
@@ -42,8 +40,7 @@ async function estadoContratacao(userId: string) {
  * cadastro errado, etc.) — abre um vínculo NOVO via `aplicarVinculo`; o anterior é encerrado,
  * nunca apagado. Decisões do dono em docs/superpowers/specs/2026-09-22-alterar-contratacao.md:
  *
- * - Papel legado (`User.role`) acompanha automaticamente (`roleLegadoDe`) — exceto `admin`, que
- *   não tem eixo de contratação no modelo e é recusado por `validarTrocaContratacao`.
+ * - Desde a Onda F não há papel legado a acompanhar: a troca só abre o vínculo novo.
  * - Data de início pode ser retroativa (a tela avisa sobre banco de horas fechado, não bloqueia).
  * - Mesma contratação (ex.: só troca de setor) também abre vínculo novo — comportamento uniforme.
  */
@@ -62,17 +59,12 @@ export const trocarContratacao = defineAction(
     if (!u) throw new ActionError("Pessoa não encontrada.");
 
     const erro = validarTrocaContratacao({
-      roleAtual: u.role,
       contratacao: i.contratacao,
       cargaSemanal: i.cargaSemanal ?? null,
       pjId: i.pjId || null,
       cpfPreenchido: !!u.cpf,
     });
     if (erro) throw new ActionError(erro);
-
-    // `tipo: "interno"` é seguro aqui: quem chega a este fluxo já é CADASTRO_ROLES menos admin
-    // (o único "externo" é `cliente`, que nunca aparece na ficha de RH — `listarPessoas` o exclui).
-    const novoRole = roleLegadoDe("interno", i.contratacao);
 
     const vinculo = await prisma.$transaction(async (tx) => {
       const novoVinculo = await aplicarVinculo(tx, i.userId, {
@@ -84,13 +76,10 @@ export const trocarContratacao = defineAction(
         pjId: i.pjId || null,
         dataInicio: dia(i.dataInicio),
       });
-      if (novoRole !== u.role) {
-        await tx.user.update({ where: { id: i.userId }, data: { role: novoRole } });
-      }
       return novoVinculo;
     });
 
     revalidatePath(`/rh/pessoas/${i.userId}`);
-    return { vinculoId: vinculo.id, roleAlterado: novoRole !== u.role, novoRole };
+    return { vinculoId: vinculo.id };
   },
 );

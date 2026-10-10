@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { validarTrocaContratacao, TETO_SEMANAL_HORAS } from "./troca-contratacao";
 
 const base = {
-  roleAtual: "clt" as const,
   contratacao: "clt" as const,
   cargaSemanal: 44,
   pjId: null,
@@ -10,11 +9,7 @@ const base = {
 };
 
 describe("validarTrocaContratacao", () => {
-  it("recusa admin — sem eixo de contratação no modelo", () => {
-    expect(validarTrocaContratacao({ ...base, roleAtual: "admin" })).toMatch(/Administradores/);
-  });
-
-  it("aceita não-admin dentro do teto", () => {
+  it("aceita dentro do teto", () => {
     expect(validarTrocaContratacao(base)).toBeNull();
   });
 

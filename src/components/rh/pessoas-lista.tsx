@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import { CadastroIncompletoBadge } from "@/components/rh/cadastro-incompleto-badge";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
 import type { PessoaListItem } from "@/modules/rh/pessoas/queries";
+import { rotuloContratacao } from "@/modules/usuarios/vinculo/labels";
 
 export function PessoasLista({ pessoas }: { pessoas: PessoaListItem[] }) {
   const [q, setQ] = useState("");
@@ -42,7 +42,7 @@ export function PessoasLista({ pessoas }: { pessoas: PessoaListItem[] }) {
                 </div>
                 <p className="truncate text-xs text-muted-foreground">{p.email}</p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                  <Badge variant="outline">{ROLE_LABELS[p.role as Role]}</Badge>
+                  <Badge variant="outline">{rotuloContratacao(p.contratacao)}</Badge>
                   <CadastroIncompletoBadge camposFaltantes={p.camposFaltantes} />
                 </div>
               </div>
@@ -82,7 +82,7 @@ export function PessoasLista({ pessoas }: { pessoas: PessoaListItem[] }) {
                   </div>
                 </td>
                 <td className="px-4 py-2 text-muted-foreground">{p.email}</td>
-                <td className="px-4 py-2"><Badge variant="outline">{ROLE_LABELS[p.role as Role]}</Badge></td>
+                <td className="px-4 py-2"><Badge variant="outline">{rotuloContratacao(p.contratacao)}</Badge></td>
                 <td className="px-4 py-2">
                   {p.ativo ? <span className="text-xs text-success">Ativo</span> : <span className="text-xs text-muted-foreground">Inativo</span>}
                 </td>

@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
+import { rotuloContratacao } from "@/modules/usuarios/vinculo/labels";
 import { controlaJornada } from "@/modules/ponto/jornada";
 
 /**
@@ -22,10 +22,9 @@ export async function carregarPreferenciasDaConta(userId: string) {
     getPreferencias(userId),
     prisma.user.findUnique({
       where: { id: userId },
-      select: { name: true, email: true, image: true, telefone: true, cargo: true, departamento: true, dataAdmissao: true, role: true, tipo: true, contratacao: true, _count: { select: { vinculos: true } } },
+      select: { name: true, email: true, image: true, telefone: true, cargo: true, departamento: true, dataAdmissao: true, tipo: true, contratacao: true, _count: { select: { vinculos: true } } },
     }),
   ]);
-  const role = (perfilDb?.role ?? "clt") as Role;
   const modoValido =
     prefs.ponto_email_modo === "todos" ||
     prefs.ponto_email_modo === "resumo_diario" ||
@@ -39,7 +38,7 @@ export async function carregarPreferenciasDaConta(userId: string) {
       cargo: perfilDb?.cargo ?? null,
       departamento: perfilDb?.departamento ?? null,
       dataAdmissao: perfilDb?.dataAdmissao ? perfilDb.dataAdmissao.toISOString().slice(0, 10) : null,
-      papel: ROLE_LABELS[role],
+      papel: rotuloContratacao(perfilDb?.contratacao),
     },
     somChat: prefs.somChat !== false,
     mostrarRecibos: prefs.mostrarRecibos !== false,

@@ -5,10 +5,10 @@ import Link from "next/link";
 import { Clock, PackageCheck, ListChecks, TriangleAlert, TrendingDown, Users, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
 import type { Granularidade, HorasProjetistas, ProjetistaProdutividade } from "@/modules/rh/produtividade/queries";
 import type { Periodo } from "@/modules/rh/produtividade/periodo";
 import { PainelHorasEquipe } from "@/components/rh/horas/painel-horas-equipe";
+import { rotuloContratacao } from "@/modules/usuarios/vinculo/labels";
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
@@ -90,7 +90,7 @@ export function ProdutividadeView({
               <CardTitle className="text-base">
                 {p.nome}
                 <span className="ml-2 text-xs font-normal text-muted-foreground">
-                  {ROLE_LABELS[p.role as Role] ?? p.role}
+                  {rotuloContratacao(p.contratacao)}
                 </span>
               </CardTitle>
               <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">

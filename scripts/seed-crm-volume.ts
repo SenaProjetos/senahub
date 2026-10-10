@@ -131,7 +131,7 @@ async function main() {
   garantirAmbienteDev();
 
   const [user, etapas, disciplinas, motivos, canais] = await Promise.all([
-    prisma.user.findFirst({ where: { role: "admin", ativo: true }, select: { id: true } }),
+    prisma.user.findFirst({ where: { ativo: true }, select: { id: true } }),
     prisma.funilEtapa.findMany({ where: { ativo: true }, select: { id: true } }),
     prisma.disciplinaCatalogo.findMany({ select: { id: true, nome: true } }),
     prisma.motivoPerda.findMany({ where: { ativo: true }, select: { id: true, nome: true, exigeConcorrente: true } }),

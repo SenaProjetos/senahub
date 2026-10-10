@@ -6,10 +6,11 @@ import { ChatView } from "@/components/chat/chat-view";
 import type { CanalListItem } from "@/modules/chat/queries";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { ModeradorChat } from "@/modules/chat/acesso";
+import type { Contratacao } from "@/generated/prisma/enums";
 
 type Bootstrap = {
   canais: CanalListItem[];
-  usuarios: { id: string; name: string; role: string; chatStatus: string }[];
+  usuarios: { id: string; name: string; contratacao: Contratacao | null; chatStatus: string }[];
   meId: string;
   meTipo: "interno" | "externo";
   meModerador: ModeradorChat;

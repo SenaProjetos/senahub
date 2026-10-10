@@ -135,7 +135,7 @@ async function main() {
     check("conjunto vazio limpa as predecessoras", r5.removidas === 1 && (await vinculosDe(C.id)).length === 0, r5);
 
     // ── 3) árvore ─────────────────────────────────────────────────────────────────
-    const admin = await prisma.user.findFirst({ where: { role: "admin" }, select: { id: true } });
+    const admin = await prisma.user.findFirst({ where: { }, select: { id: true } });
     const nova = async (nome: string, parentId: string | null, ordem: number, tipoEap: "atv" | "mrc" = "atv") => {
       const [idCorporativo] = await reservarIdsParaLinhas(prisma, [tipoEap]);
       return prisma.eapTarefa.create({

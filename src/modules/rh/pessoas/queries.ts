@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { type Role, type EscopoDeDados } from "@/lib/roles";
+import { type EscopoDeDados } from "@/lib/roles";
 import { usuarioOnline } from "@/lib/socket";
 import { espelhoMes } from "@/modules/ponto/queries";
 import { escopoProjeto } from "@/modules/projetos/queries";
@@ -18,15 +18,15 @@ const enderecoCompletoOk = (u: { enderecoCep: string | null; enderecoLogradouro:
  *
  * `podeFolha`: quando `false`, salário e conta bancária saem da checagem de completude (ver
  * `completude.ts` § `avaliarFolha`) — este viewer não pode ver nem corrigir esses campos.
- * `contratacao` REAL não é lida aqui (fica atrás de `usuarios:gerir` em `fichaPessoa`); a
- * completude da lista usa o fallback por `role` (`derivarEixos`), suficiente para o badge.
+ * A lista mostra a contratação como badge (não é dado de folha); na ficha ela continua atrás de
+ * `usuarios:gerir`.
  */
 export async function listarPessoas(podeFolha: boolean) {
   const us = await prisma.user.findMany({
     where: { tipo: "interno" },
     orderBy: [{ ativo: "desc" }, { name: "asc" }],
     select: {
-      id: true, name: true, nomeCompleto: true, email: true, role: true, ativo: true, image: true, tipo: true, contratacao: true,
+      id: true, name: true, nomeCompleto: true, email: true, ativo: true, image: true, tipo: true, contratacao: true,
       clienteId: true, pjId: true, cpf: true, rg: true, dataNascimento: true, dataAdmissao: true,
       enderecoCep: true, enderecoLogradouro: true, enderecoNumero: true, enderecoBairro: true,
       enderecoCidade: true, enderecoUf: true, telefone: true,
@@ -61,7 +61,7 @@ export async function listarPessoas(podeFolha: boolean) {
       name: u.name,
       email: u.email,
       image: u.image,
-      role: u.role,
+      contratacao: u.contratacao,
       ativo: u.ativo,
       clienteId: u.clienteId,
       pjId: u.pjId,
@@ -73,7 +73,7 @@ export async function listarPessoas(podeFolha: boolean) {
 }
 export type PessoaListItem = Awaited<ReturnType<typeof listarPessoas>>[number];
 
-type ObservadorProjeto = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
+type ObservadorProjeto = { id: string; ehSocio?: boolean } & EscopoDeDados;
 
 export type AcessosFichaPessoa = {
   /** Salário base e histórico de folha. */
@@ -95,7 +95,7 @@ export async function fichaPessoa(userId: string, acessos: AcessosFichaPessoa) {
   const u = await prisma.user.findUnique({
     where: { id: userId },
     select: {
-      id: true, name: true, nomeCompleto: true, email: true, role: true, ativo: true, image: true, superUsuario: true, tipo: true, contratacao: true,
+      id: true, name: true, nomeCompleto: true, email: true, ativo: true, image: true, superUsuario: true, tipo: true, contratacao: true,
       dataAdmissao: true, cpf: true, rg: true, dataNascimento: true, cargo: true, departamento: true,
       cargoId: true, departamentoId: true, telefone: true,
       enderecoCep: true, enderecoLogradouro: true, enderecoNumero: true, enderecoBairro: true,
@@ -189,7 +189,6 @@ export async function fichaPessoa(userId: string, acessos: AcessosFichaPessoa) {
     name: u.name,
     nomeCompleto: u.nomeCompleto,
     email: u.email,
-    role: u.role,
     ativo: u.ativo,
     image: u.image,
     // Null significa "não consultado/não autorizado", não um valor falso inventado.

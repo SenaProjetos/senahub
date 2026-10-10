@@ -58,6 +58,7 @@ import { FiltrosGaveta } from "@/components/ui/filtros-gaveta";
 import { inicioDoDia, inicioDoDiaLocal } from "@/lib/data";
 import { formatarData } from "@/lib/utils";
 import { saudeProjeto, type NivelSaude } from "@/modules/projetos/health";
+import type { Contratacao } from "@/generated/prisma/enums";
 
 const SAUDE_LABEL: Record<NivelSaude, string> = {
   ok: "OK",
@@ -140,7 +141,7 @@ export function ProjetosView({
   total: number;
   clientes: { id: string; nome: string }[];
   catalogo: string[];
-  internos: { id: string; name: string; role: string }[];
+  internos: { id: string; name: string; contratacao: Contratacao | null }[];
   /** D13: tipos de empreendimento para o formulário de projeto novo. */
   tiposEmpreendimento?: { id: string; nome: string }[];
   /** Modelos de EAP de projeto para montar a EAP na criação (vazio = sem permissão no Planejamento). */

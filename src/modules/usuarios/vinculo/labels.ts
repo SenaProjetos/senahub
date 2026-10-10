@@ -25,3 +25,8 @@ export const TIPO_USUARIO_LABELS: Record<TipoUsuario, string> = {
   interno: "Interno",
   externo: "Externo (portal)",
 };
+
+/** Rótulo curto de quem a pessoa é, para listas e crachás: a contratação do vínculo ativo, ou "Sem vínculo". */
+export function rotuloContratacao(c: Contratacao | null | undefined): string {
+  return c ? CONTRATACAO_LABELS[c] : "Sem vínculo";
+}

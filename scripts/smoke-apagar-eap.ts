@@ -34,7 +34,7 @@ const tag = `smoke-apagar-eap-${Date.now()}`;
 const d = (s: string) => new Date(`${s}T00:00:00.000Z`);
 
 async function main() {
-  const admin = await prisma.user.findFirst({ where: { role: "admin", ativo: true }, select: { id: true } });
+  const admin = await prisma.user.findFirst({ where: { ativo: true }, select: { id: true } });
   const status = await prisma.tarefaStatus.findFirst({ select: { id: true } });
   const fase = await prisma.pranchaCatalogo.findFirst({ where: { categoria: "fase", projetoId: null, ativo: true }, select: { id: true } });
   if (!admin || !status || !fase) {

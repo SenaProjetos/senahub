@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { acessoGlobal, type Role, type EscopoDeDados } from "@/lib/roles";
+import { acessoGlobal, type EscopoDeDados } from "@/lib/roles";
 import { whereAudiencia } from "@/lib/audiencias";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { progressoDoStatus } from "@/modules/projetos/status";
@@ -19,7 +19,7 @@ import { custosDoProjeto } from "@/modules/planejamento/custo-service";
 import type { CustoLinha } from "@/modules/planejamento/custo";
 import type { DatasDaBaseline, VersaoBaseline } from "./baselines";
 
-type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
+type Viewer = { id: string; ehSocio?: boolean } & EscopoDeDados;
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 

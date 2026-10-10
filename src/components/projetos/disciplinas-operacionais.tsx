@@ -112,7 +112,7 @@ export async function DisciplinasOperacionais({
       status: disciplina.status,
       prazo: disciplina.prazo ? new Date(disciplina.prazo).toISOString() : null,
       valor: ocultarValorDisciplina ? null : disciplina.valor != null ? Number(disciplina.valor) : null,
-      responsaveis: disciplina.responsaveis.map((responsavel) => ({ userId: responsavel.userId, name: responsavel.user.name, role: responsavel.user.role, contratacao: responsavel.user.contratacao })),
+      responsaveis: disciplina.responsaveis.map((responsavel) => ({ userId: responsavel.userId, name: responsavel.user.name, contratacao: responsavel.user.contratacao })),
       ehResponsavel: disciplina.responsaveis.some((responsavel) => responsavel.userId === user.id),
       revisoes: disciplina.revisoes.map((revisao) => ({
         id: revisao.id,
@@ -244,7 +244,7 @@ export async function DisciplinasOperacionais({
     <PaginaDisciplinas
       projetoId={projeto.id}
       podeGerir={podeGerir}
-      internos={internos.map((interno) => ({ id: interno.id, name: interno.name, role: interno.role }))}
+      internos={internos.map((interno) => ({ id: interno.id, name: interno.name, contratacao: interno.contratacao }))}
       prazoContrato={projeto.prazoPlanejado?.toISOString() ?? null}
       catalogo={catalogo}
       filtro={filtroStatus}
@@ -280,7 +280,7 @@ export async function DisciplinasOperacionais({
               tarefaOpcoes={tarefaOpcoes ?? undefined}
               tarefaColunas={tarefaColunas ?? undefined}
               meId={user.id}
-              meRole={user.role}
+              meSuper={user.superUsuario}
               gereTodasTarefas={user.gereTodasTarefas}
               atuaEmDisciplinaAlheia={atuaEmDisciplinaAlheia}
               podeAprovarDisciplina={podeAprovarDisciplina}

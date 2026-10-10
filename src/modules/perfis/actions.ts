@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { invalidatePerfil } from "@/lib/permissao-efetiva";
-import type { Role } from "@/lib/roles";
 import {
   criarPerfilSchema,
   editarPerfilSchema,
@@ -21,8 +20,7 @@ import {
  * módulo `usuarios`), não criam nem editam a matriz.
  * Plano: docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md (Onda C)
  */
-const ADMIN_ONLY: Role[] = ["admin"];
-const base = { modulo: "configuracoes", roles: ADMIN_ONLY } as const;
+const base = { modulo: "configuracoes", superUsuario: true } as const;
 const rev = () => revalidatePath("/configuracoes/perfis");
 
 export const criarPerfil = defineAction(

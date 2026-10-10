@@ -264,7 +264,7 @@ async function main() {
         name: ADMIN_NAME,
         email: ADMIN_EMAIL,
         emailVerified: true,
-        role: "admin", tipo: "interno",
+        tipo: "interno",
         ativo: true,
         mustChangePassword: true,
       },

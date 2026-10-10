@@ -9,7 +9,6 @@
  * três.
  */
 import type { Contratacao } from "@/generated/prisma/client";
-import type { Role } from "@/lib/roles";
 
 /** Teto semanal legal por contratação. Ausente = sem teto (PJ, autônomo/RPA, pró-labore). */
 export const TETO_SEMANAL_HORAS: Partial<Record<Contratacao, number>> = {
@@ -18,8 +17,6 @@ export const TETO_SEMANAL_HORAS: Partial<Record<Contratacao, number>> = {
 };
 
 export type DadosTrocaContratacao = {
-  /** Papel ATUAL da pessoa (antes da troca) — admin não passa por este fluxo. */
-  roleAtual: Role;
   contratacao: Contratacao;
   cargaSemanal: number | null;
   pjId: string | null;
@@ -31,12 +28,6 @@ export type DadosTrocaContratacao = {
  * Valida a troca de contratação. Devolve a mensagem de erro pt-BR, ou `null` quando pode seguir.
  */
 export function validarTrocaContratacao(d: DadosTrocaContratacao): string | null {
-  // Admin não tem eixo de contratação no modelo (mapa.ts: `criaVinculo: false`, "vínculo real
-  // definido à mão") — sem este bloqueio, a troca rebaixaria o papel de um administrador junto.
-  if (d.roleAtual === "admin") {
-    return "Administradores não têm contratação por este fluxo — o vínculo é definido à mão.";
-  }
-
   const teto = TETO_SEMANAL_HORAS[d.contratacao];
   if (teto !== undefined) {
     if (d.cargaSemanal == null) return "Informe a carga horária semanal.";

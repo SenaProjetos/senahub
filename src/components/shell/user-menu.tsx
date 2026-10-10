@@ -10,11 +10,12 @@ import { signOut } from "@/lib/auth-client";
 import { atualizarNomeExibicao } from "@/modules/usuarios/actions";
 import { useOnboarding } from "@/components/onboarding/onboarding-provider";
 import { AvatarCropper } from "@/components/configuracoes/avatar-cropper";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { rotuloContratacao } from "@/modules/usuarios/vinculo/labels";
+import type { Contratacao } from "@/generated/prisma/enums";
 import {
   Dialog,
   DialogContent,
@@ -48,7 +49,7 @@ export function UserMenu({
   user,
   atalhos,
 }: {
-  user: { name: string; email: string; role: Role; image?: string | null };
+  user: { name: string; email: string; contratacao: Contratacao | null; image?: string | null };
   atalhos?: AtalhosConta;
 }) {
   const router = useRouter();
@@ -142,7 +143,7 @@ export function UserMenu({
               {user.email}
             </span>
             <span className="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-              {ROLE_LABELS[user.role]}
+              {rotuloContratacao(user.contratacao)}
             </span>
           </div>
         </DropdownMenuLabel>

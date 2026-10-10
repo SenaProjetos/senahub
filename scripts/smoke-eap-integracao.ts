@@ -56,10 +56,10 @@ async function cenario(nomeTipo: string, esperadas: string[]) {
   }
   const [resp, coord, outro] = await Promise.all(
     ["resp", "coord", "outro"].map((n) =>
-      prisma.user.create({ data: { name: `${tag}-${nomeTipo}-${n}`, email: `${tag}-${nomeTipo}-${n}@t.local`, role: "clt", tipo: "interno", emailVerified: false } }),
+      prisma.user.create({ data: { name: `${tag}-${nomeTipo}-${n}`, email: `${tag}-${nomeTipo}-${n}@t.local`, tipo: "interno", emailVerified: false } }),
     ),
   );
-  const admin = await prisma.user.findFirstOrThrow({ where: { role: "admin", ativo: true }, select: { id: true } });
+  const admin = await prisma.user.findFirstOrThrow({ where: { ativo: true }, select: { id: true } });
   const cliente = await prisma.cliente.create({ data: { nome: `${tag}-${nomeTipo}-c` } });
   const n = Number(`${Date.now()}`.slice(-5));
   const projeto = await prisma.projeto.create({

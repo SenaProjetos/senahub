@@ -60,7 +60,7 @@ async function main() {
     }
   };
 
-  const user = await prisma.user.findFirst({ where: { role: "admin", ativo: true }, select: { id: true } });
+  const user = await prisma.user.findFirst({ where: { ativo: true }, select: { id: true } });
   const etapa = await prisma.funilEtapa.findFirst({ select: { id: true } });
   const motivoSimples = await prisma.motivoPerda.findFirst({ where: { exigeConcorrente: false }, select: { id: true } });
   const motivoConcorrente = await prisma.motivoPerda.findFirst({ where: { exigeConcorrente: true }, select: { id: true } });
@@ -371,7 +371,7 @@ async function main() {
   console.log("\n── Follow-ups: agenda do responsável + tela dedicada ────────────\n");
 
   const dono = await prisma.user.findFirst({
-    where: { ativo: true, role: { not: "cliente" }, id: { not: user.id } },
+    where: { ativo: true, tipo: "interno", id: { not: user.id } },
     select: { id: true },
   });
   if (dono) {

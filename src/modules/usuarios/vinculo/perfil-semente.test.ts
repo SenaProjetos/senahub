@@ -1,10 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { ROLES } from "@/lib/roles";
-import { CHAVE_POR_ROLE } from "./perfil-semente";
+import { CHAVE_POR_ROLE, PAPEIS_SEMENTE } from "./perfil-semente";
 
 describe("CHAVE_POR_ROLE", () => {
   it("todo role exceto admin tem uma chave de perfil semente", () => {
-    for (const role of ROLES) {
+    for (const role of PAPEIS_SEMENTE) {
       if (role === "admin") {
         expect(CHAVE_POR_ROLE[role]).toBeUndefined();
       } else {

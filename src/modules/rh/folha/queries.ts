@@ -37,7 +37,7 @@ export async function obterFolha(id: string) {
     include: {
       holerites: {
         include: {
-          user: { select: { id: true, name: true, email: true, role: true } },
+          user: { select: { id: true, name: true, email: true } },
           itens: { orderBy: { descricao: "asc" } },
           assinante: { select: { name: true } },
         },
@@ -51,7 +51,7 @@ export async function obterFolha(id: string) {
     prisma.rubricaFolha.findMany({ where: { ativo: true }, orderBy: { ordem: "asc" } }),
     prisma.user.findMany({
       where: whereAudiencia("clt"),
-      select: { id: true, name: true, role: true },
+      select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
   ]);

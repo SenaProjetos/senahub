@@ -6,7 +6,7 @@ import { ActionError } from "@/lib/with-action";
 import { exigirEscopoDocumento } from "@/modules/uploads/escopo-documento";
 
 /** "Só um administrador, com motivo" (D5-b): o bypass de verdade é `superUsuario`; `admin` por papel também. */
-export function ehAdminDoCiclo(user: Pick<SessionUser, "superUsuario" | "role">): boolean {
+export function ehAdminDoCiclo(user: Pick<SessionUser, "superUsuario">): boolean {
   return user.superUsuario;
 }
 

@@ -47,11 +47,11 @@ const VALOR_DE_TESTE: Record<string, string> = {
 async function main() {
   const inicio = new Date();
   const pessoa = await prisma.user.findFirst({
-    where: { ativo: true, role: { in: ["clt", "estagiario"] }, pedidosDados: { none: { status: "aberto" } } },
+    where: { ativo: true, contratacao: { in: ["clt", "estagio"] }, pedidosDados: { none: { status: "aberto" } } },
     select: { id: true, name: true, ...TODOS, dadosConfirmadosEm: true, preference: { select: { dados: true } } },
   });
   if (!pessoa) throw new Error("Nenhuma pessoa CLT/estágio ativa sem pedido aberto no banco de dev.");
-  const rh = await prisma.user.findFirst({ where: { ativo: true, role: "admin" }, select: { id: true } });
+  const rh = await prisma.user.findFirst({ where: { ativo: true }, select: { id: true } });
   console.log(`Pessoa de teste: ${pessoa.name}`);
   const dadosAntes = pessoa.preference?.dados ?? null;
 

@@ -33,7 +33,7 @@ async function main() {
   try {
     const [responsavel, etapa] = await Promise.all([
       prisma.user.findFirst({
-        where: { ativo: true, role: { not: "cliente" } },
+        where: { ativo: true, tipo: "interno" },
         select: { id: true },
       }),
       prisma.funilEtapa.findFirst({ where: { ativo: true }, select: { id: true } }),

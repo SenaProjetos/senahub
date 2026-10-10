@@ -10,7 +10,7 @@
  */
 import type { Contratacao, Setor } from "@/generated/prisma/client";
 import { CONTRATACAO_LABELS, SETOR_LABELS } from "@/modules/usuarios/vinculo/labels";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
+import { NOME_POR_ROLE } from "@/modules/usuarios/vinculo/perfil-semente";
 
 export type AlvoDoAviso = {
   alvoTipo: string;
@@ -40,7 +40,7 @@ export function alvoLabel(
     case "perfil":
       return a.alvoPerfis.map((p) => nomePorChavePerfil[p] ?? p).join(", ") || "Perfis";
     case "categoria":
-      return a.alvoRoles.map((r) => ROLE_LABELS[r as Role] ?? r).join(", ") || "Categorias";
+      return a.alvoRoles.map((r) => NOME_POR_ROLE[r as keyof typeof NOME_POR_ROLE] ?? r).join(", ") || "Categorias";
     default:
       // Dado gravado por versão mais nova do código. Honesto em vez de adivinhar um alvo.
       return "Alvo desconhecido";

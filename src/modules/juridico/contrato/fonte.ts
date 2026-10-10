@@ -91,7 +91,7 @@ export async function resolverFonteContrato(
 
   // ── O gate por registro ──────────────────────────────────────────────────────────────────
   // `rh:gerir` resolvido aqui, por registro, só quando o contrato é de equipe (o de cliente nem pergunta).
-  const gereRh = doc.vinculoId ? await can({ ...viewer, role: "clt" }, "rh", "gerir") : false;
+  const gereRh = doc.vinculoId ? await can(viewer, "rh", "gerir") : false;
   if (!podeVerContrato(doc, { gereRh })) return VAZIO;
 
   const versaoAssinada = doc.versoes.find((v) => v.aceites.length > 0 || v.aceitesExternos.length > 0);

@@ -20,7 +20,7 @@ import { JornadaHeader } from "@/components/ponto/jornada-header";
 import { Breadcrumb } from "@/components/shell/breadcrumb";
 import { useRotuloDaBarra } from "@/components/shell/rotulo-da-barra";
 import { NAV_GROUPS, hrefAtivo, navItemsPara, type ContextoNav } from "@/lib/nav-config";
-import type { Role } from "@/lib/roles";
+import type { Contratacao } from "@/generated/prisma/enums";
 
 function titleFromPath(pathname: string): string {
   const items = NAV_GROUPS.flatMap((g) => g.items);
@@ -34,7 +34,7 @@ export function Header({
   nav,
 }: {
   title?: string;
-  user: { name: string; email: string; role: Role; image?: string | null };
+  user: { name: string; email: string; contratacao: Contratacao | null; image?: string | null };
   nav: ContextoNav;
 }) {
   const pathname = usePathname();

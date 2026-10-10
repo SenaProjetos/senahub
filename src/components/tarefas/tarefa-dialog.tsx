@@ -101,7 +101,7 @@ export function TarefaDialog({
   opcoes,
   colunas,
   meId,
-  meRole,
+  meSuper,
   gereTodasTarefas,
   valoresIniciais,
   onSubmit,
@@ -114,7 +114,7 @@ export function TarefaDialog({
   opcoes: OpcoesUI;
   colunas: { id: string; nome: string }[];
   meId: string;
-  meRole: string;
+  meSuper: boolean;
   /** `tarefas:gerir_todas`, resolvido no servidor (`SessionUser.gereTodasTarefas`). */
   gereTodasTarefas: boolean;
   /** Pré-preenche o formulário ao CRIAR (tarefa === null). */
@@ -721,7 +721,7 @@ export function TarefaDialog({
                           <AvatarUsuario nome={c.autor} image={c.autorImage} className="size-4" fallbackClassName="text-[8px]" />
                           <span className="text-[11px] font-semibold text-muted-foreground">{c.autor}</span>
                         </span>
-                        {(c.autorId === meId || meRole === "admin") && (
+                        {(c.autorId === meId || meSuper) && (
                           <button type="button" onClick={() => excluirComentario(c.id)} aria-label="Remover comentário" className="text-muted-foreground hover:text-foreground">
                             <X className="size-3" />
                           </button>

@@ -12,7 +12,6 @@ import {
   atribuirMembroPJ,
 } from "@/modules/rh/pessoas-juridicas/actions";
 import type { PessoaJuridicaItem } from "@/modules/rh/pessoas-juridicas/queries";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { InputFormatado } from "@/components/ui/input-formatado";
 import { useFieldErrors } from "@/lib/use-field-errors";
 import { Button } from "@/components/ui/button";
@@ -22,8 +21,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { rotuloContratacao } from "@/modules/usuarios/vinculo/labels";
+import type { Contratacao } from "@/generated/prisma/enums";
 
-type Projetista = { id: string; name: string; role: string; pjId: string | null };
+type Projetista = { id: string; name: string; contratacao: Contratacao | null; pjId: string | null };
 type Form = { id?: string; cnpj: string; razaoSocial: string; nomeFantasia: string; email: string; telefone: string };
 const VAZIO: Form = { cnpj: "", razaoSocial: "", nomeFantasia: "", email: "", telefone: "" };
 const selectCls = "h-8 rounded-sm border border-input bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -130,7 +131,7 @@ export function PessoasJuridicasView({
                       <li key={m.id} className="flex items-center justify-between gap-2 text-sm">
                         <span className="truncate">
                           {m.name}
-                          <span className="ml-1.5 text-xs text-muted-foreground">{ROLE_LABELS[m.role as Role] ?? m.role}</span>
+                          <span className="ml-1.5 text-xs text-muted-foreground">{rotuloContratacao(m.contratacao)}</span>
                         </span>
                         <button type="button" onClick={() => atribuir(m.id, null)} className="text-muted-foreground hover:text-destructive" title="Desvincular">
                           <X className="size-3.5" />

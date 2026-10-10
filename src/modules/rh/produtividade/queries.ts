@@ -6,6 +6,7 @@ import { diferencaEmDias } from "@/lib/data";
 import { agregarHoras, type HorasPessoa } from "@/modules/rh/produtividade/horas";
 import { somarDias } from "@/modules/rh/produtividade/periodo";
 import { wherePessoasDasHoras } from "@/modules/rh/produtividade/pessoas-horas";
+import type { Contratacao } from "@/generated/prisma/enums";
 
 /**
  * Item 7 — Produtividade por projetista (semanal/mensal).
@@ -41,7 +42,7 @@ export type PeriodoProdutividade = {
 export type ProjetistaProdutividade = {
   userId: string;
   nome: string;
-  role: string;
+  contratacao: Contratacao | null;
   mediaOutput: number;
   totalHoras: number;
   totalEntregas: number;
@@ -50,7 +51,7 @@ export type ProjetistaProdutividade = {
   periodos: PeriodoProdutividade[];
 };
 
-export type PessoaHoras = HorasPessoa & { nome: string; role: string };
+export type PessoaHoras = HorasPessoa & { nome: string; contratacao: Contratacao | null };
 export type HorasProjetistas = { dias: string[]; destinos: Record<string, string>; pessoas: PessoaHoras[] };
 
 /** Chave ISO-8601 da semana (YYYY-Www) de uma data. */
@@ -102,7 +103,7 @@ export async function produtividadeProjetistas(
 
   const projetistas = await prisma.user.findMany({
     where: whereAudiencia("projeto_membro"),
-    select: { id: true, name: true, role: true },
+    select: { id: true, name: true, contratacao: true },
     orderBy: { name: "asc" },
   });
   if (projetistas.length === 0) return { periodos, granularidade, projetistas: [] };
@@ -193,7 +194,7 @@ export async function produtividadeProjetistas(
     return {
       userId: p.id,
       nome: p.name,
-      role: p.role,
+      contratacao: p.contratacao,
       mediaOutput: round1(mediaOutput),
       totalHoras: round1(dados.reduce((s, w) => s + w.horas, 0)),
       totalEntregas: dados.reduce((s, w) => s + w.entregas, 0),
@@ -225,7 +226,7 @@ export async function horasProjetistas(
   const usuarios = await prisma.user.findMany({
     // Sem `userIds`: ativos da audiência + desligados com sessão no período (ver `wherePessoasDasHoras`).
     where: opcoes.userIds ? { id: { in: opcoes.userIds } } : wherePessoasDasHoras(inicio, fimExclusivo),
-    select: { id: true, name: true, role: true },
+    select: { id: true, name: true, contratacao: true },
     orderBy: { name: "asc" },
   });
   const ids = usuarios.map((u) => u.id);
@@ -253,6 +254,6 @@ export async function horasProjetistas(
   return {
     dias: agregado.dias,
     destinos: agregado.destinos,
-    pessoas: agregado.pessoas.map((p) => ({ ...p, nome: porId.get(p.userId)!.name, role: porId.get(p.userId)!.role })),
+    pessoas: agregado.pessoas.map((p) => ({ ...p, nome: porId.get(p.userId)!.name, contratacao: porId.get(p.userId)!.contratacao })),
   };
 }

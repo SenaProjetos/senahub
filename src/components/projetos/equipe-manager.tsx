@@ -1,5 +1,6 @@
 "use client";
 
+import type { Contratacao } from "@/generated/prisma/enums";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -18,7 +19,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-type Interno = { id: string; name: string; role: string; cargo: string | null };
+type Interno = { id: string; name: string; contratacao: Contratacao | null; cargo: string | null };
 type MembroLocal = { userId: string; papel: string };
 
 export function EquipeManager({

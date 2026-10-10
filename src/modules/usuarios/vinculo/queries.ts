@@ -2,7 +2,6 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
 import { PERMISSOES_CATALOGO } from "@/lib/permissions-catalog";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { CONTRATACAO_LABELS, SETOR_LABELS } from "./labels";
 
 /**
@@ -23,7 +22,6 @@ export async function meuAcesso(userId: string) {
       ativo: true,
       superUsuario: true,
       perfilId: true,
-      role: true,
       tipo: true,
       setor: true,
       contratacao: true,
@@ -35,9 +33,8 @@ export async function meuAcesso(userId: string) {
   });
   if (!u) return null;
 
-  const role = u.role as Role;
   // Sujeito montado do próprio registro: `can()` recebe o usuário, não o papel (Onda D).
-  const sujeito = { id: u.id, role, ativo: u.ativo, superUsuario: u.superUsuario, perfilId: u.perfilId };
+  const sujeito = { id: u.id, ativo: u.ativo, superUsuario: u.superUsuario, perfilId: u.perfilId };
   const grupos = await Promise.all(
     PERMISSOES_CATALOGO.map(async (r) => ({
       recurso: r.recurso,
@@ -57,7 +54,7 @@ export async function meuAcesso(userId: string) {
      * exibia "CLT" sob o rótulo "Perfil de acesso", que é a confusão exata que esta tela existe
      * para desfazer.
      */
-    papel: ROLE_LABELS[role],
+    papel: u.contratacao ? CONTRATACAO_LABELS[u.contratacao] : "Sem vínculo",
     perfil: u.perfil?.nome ?? null,
     /** Bypass total é `superUsuario`, não `role === "admin"` — mudou na Onda D, junto com `can()`. */
     acessoTotal: u.superUsuario,

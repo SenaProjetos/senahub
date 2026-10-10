@@ -1,51 +1,23 @@
-import type { Role } from "@/lib/roles";
 import { whereControlaJornada } from "@/modules/ponto/jornada";
-import { ROLES_GLOBAIS_CHAT } from "@/modules/chat/roles";
 
 /**
- * Registro das **audiências** do sistema: os conjuntos de usuários resolvidos por `role` para
- * decidir QUEM recebe uma notificação ou QUEM aparece num seletor de pessoas.
+ * Registro das **audiências** do sistema: os conjuntos de usuários que decidem QUEM recebe uma
+ * notificação ou QUEM aparece num seletor de pessoas.
  *
- * Existe por causa do risco R2 do plano de Setor × Contratação × Perfil de acesso
- * (docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md, §6.2 passo 4 e §7-R2):
- * audiência **não passa por `can()`**. Quando a Onda D trocar a autorização de `role` para
- * Perfil de acesso, o arnês de permissão (`equivalencia-permissoes.ts`) continua verde mesmo
- * que uma audiência mude — e a falha é silenciosa: aprovação que deixa de notificar, alerta de
- * certidão que some, digest vazio. Ninguém percebe por semanas, porque não gera erro nem log.
+ * Audiência **não passa por `can()`**, e é por isso que existe um registro: o call-site e o
+ * teste usam a MESMA definição (`whereAudiencia()`), em vez de cada módulo reescrever seu
+ * `where`. Ao mexer numa audiência, mexa AQUI — nunca reescrevendo o `where` no módulo.
  *
- * **A regra que dá valor a este arquivo:** o call-site e o arnês têm que usar a MESMA definição.
- * Um registro que apenas *repetisse* os filtros espalhados pelo código não provaria nada — ele
- * divergiria do código que deveria certificar. Por isso `whereAudiencia()` é o filtro de
- * verdade, consumido pelos call-sites, e `scripts/snapshot-audiencia.ts` importa daqui.
- * Ao mexer numa audiência, mexa AQUI — nunca reescrevendo o `where` no módulo.
+ * Desde a Onda F nenhuma audiência lê o papel legado (`User.role` saiu): cada uma é resolvida por
+ * PERMISSÃO (segue o Perfil de acesso), por JORNADA (contratação), por TIPO (interno × externo)
+ * ou por EIXO do vínculo (setor, contratação).
  *
- * Chaves são estáveis: `logs/snapshot-audiencia-*.json` referencia por chave para comparar
- * antes×depois. Renomear uma chave invalida os snapshots antigos.
- *
- * Filtros que NÃO são de papel (`id: { not: ... }`, `email: { not: "" }`, `recurso: null`,
- * `vinculos: { none: {} }`) continuam no call-site: eles não mudam na migração e recortar
- * a audiência por eles esconderia justamente o que o arnês precisa enxergar.
+ * Filtros que NÃO definem o conjunto (`id: { not: ... }`, `email: { not: "" }`, `recurso: null`)
+ * continuam no call-site.
  */
-
-export type ModoAudiencia = "in" | "notIn";
 
 /** Fragmento de `where` de `User`. Tipado à mão para o arquivo seguir puro (sem importar Prisma). */
 export type WhereAudiencia = { ativo: true } & Record<string, unknown>;
-
-/**
- * Audiência resolvida por PAPEL — o formato original. Continua sendo o certo para os conjuntos
- * que **não são acesso**: vínculo trabalhista (`clt`, `pj`), interno × externo (`interno`),
- * elegibilidade a virar membro de projeto/recurso. Não existe `recurso:acao` que signifique
- * "é CLT" ou "é gente de dentro", e inventar pares falsos seria pior (ver a docstring de
- * `nav-config.ts`): eles seriam semeados em todo perfil e medidos pelo gate como se fossem
- * acesso a alguma coisa.
- */
-export type AudienciaPorPapel = {
-  /** pt-BR: o que este conjunto de pessoas significa no negócio. */
-  descricao: string;
-  modo: ModoAudiencia;
-  roles: readonly Role[];
-};
 
 /**
  * Audiência resolvida por PERMISSÃO — para os conjuntos que **são** decisão de acesso e por
@@ -94,7 +66,7 @@ export type AudienciaPorEixo = {
   where: Record<string, unknown>;
 };
 
-export type Audiencia = AudienciaPorPapel | AudienciaPorPermissao | AudienciaPorJornada | AudienciaPorTipo | AudienciaPorEixo;
+export type Audiencia = AudienciaPorPermissao | AudienciaPorJornada | AudienciaPorTipo | AudienciaPorEixo;
 
 export const AUDIENCIAS = {
   /** admin + supervisor. */
@@ -157,10 +129,11 @@ export const AUDIENCIAS = {
     modo: "permissao",
     permissao: "chat:geral",
   },
+  /** Escopo de dados ("enxerga todos os projetos"): o mesmo eixo de `escopo:global`, não um gate de tela. */
   chat_global: {
-    descricao: "Visíveis em todos os canais de projeto/disciplina do chat",
-    modo: "in",
-    roles: ROLES_GLOBAIS_CHAT,
+    descricao: "Visíveis em todos os canais de projeto/disciplina do chat — segue `escopo:global`",
+    modo: "permissao",
+    permissao: "escopo:global",
   },
   chat_dm: {
     descricao: "Elegíveis a conversa direta no chat — segue a permissão `chat:dm`, configurável por perfil",
@@ -196,8 +169,8 @@ export function whereAudiencia(chave: AudienciaKey, agora: Date = new Date()): W
   if (a.modo === "jornada") return whereControlaJornada();
   if (a.modo === "tipo") return { ativo: true, tipo: a.tipo };
   if (a.modo === "eixo") return { ativo: true, ...a.where };
-  const roles = [...a.roles] as Role[];
-  return { ativo: true, role: a.modo === "in" ? { in: roles } : { notIn: roles } };
+  const nunca: never = a;
+  throw new Error(`audiência desconhecida: ${JSON.stringify(nunca)}`);
 }
 
 /**
@@ -243,32 +216,3 @@ export function wherePermissao(recurso: string, acao: string, agora: Date = new 
     ],
   };
 }
-
-/**
- * Audiências cujo conjunto de papéis é ARGUMENTO, não constante — não cabem em `AUDIENCIAS`.
- * Ficam registradas aqui para que o arnês as fotografe no CALLER, com os argumentos concretos,
- * em vez de inventar um conjunto estático que não corresponderia a nenhuma chamada real.
- */
-export const AUDIENCIAS_PARAMETRIZADAS = [
-  {
-    chave: "jobs:gestores",
-    onde: "src/lib/jobs-handlers.ts",
-    descricao: "gestores(roles) — default admin+supervisor+administrativo; alertas de prazo de disciplina e de risco de projeto chamam com admin+supervisor",
-    argumentosConhecidos: [
-      ["admin", "supervisor", "administrativo"],
-      ["admin", "supervisor"],
-    ] as Role[][],
-  },
-  {
-    chave: "financeiro:aprovadoresPorPapeis",
-    onde: "src/modules/financeiro/aprovacao/queries.ts",
-    descricao: "aprovadoresPorPapeis(papeis) — papéis vêm da configuração de aprovação gravada no banco, recortados por financeiro:aprovar",
-    argumentosConhecidos: [] as Role[][],
-  },
-  {
-    chave: "avisos:alvoRoles",
-    onde: "src/modules/notificacoes/avisos/service.ts",
-    descricao: "alvo do Aviso — papéis são DADO por linha (Aviso.alvoRoles), um dos 4 campos de 'Role como dado' do R6, não uma audiência de código",
-    argumentosConhecidos: [] as Role[][],
-  },
-] as const;

@@ -146,7 +146,7 @@ type Disc = {
   status: StatusDisciplina;
   prazo: string | null;
   valor: number | null;
-  responsaveis: { userId: string; name: string; role: string; contratacao: Contratacao | null }[];
+  responsaveis: { userId: string; name: string; contratacao: Contratacao | null }[];
   ehResponsavel: boolean;
   revisoes: { id: string; numero: number; motivo: string | null; autor: string; data: string }[];
   /** Solicitações de revisão — uma por envio de apontamentos; só leitura no card. */
@@ -274,7 +274,7 @@ export function DisciplinaCard({
   tarefaOpcoes,
   tarefaColunas,
   meId,
-  meRole,
+  meSuper,
   gereTodasTarefas = false,
   atuaEmDisciplinaAlheia = false,
   podeAprovarDisciplina = false,
@@ -284,14 +284,14 @@ export function DisciplinaCard({
   disciplina: Disc;
   podeGerir: boolean;
   podeValidar: boolean;
-  internos: { id: string; name: string; role: string }[];
+  internos: { id: string; name: string; contratacao: Contratacao | null }[];
   canalChatId?: string;
   /** Tarefas desta disciplina (só p/ usuários internos); habilita o botão "Tarefas". */
   tarefas?: TarefaDaDisciplina[];
   tarefaOpcoes?: OpcoesUI;
   tarefaColunas?: { id: string; nome: string }[];
   meId?: string;
-  meRole?: string;
+  meSuper?: boolean;
   /** `tarefas:gerir_todas`, resolvido no servidor. */
   gereTodasTarefas?: boolean;
   /** `projetos:atuar_disciplina_alheia`, resolvido no servidor. */
@@ -309,7 +309,7 @@ export function DisciplinaCard({
   const podeMexerStatus = podeGerir || disciplina.ehResponsavel;
   const podeEnviar = podeGerir || disciplina.ehResponsavel;
   const podeDiario = podeEscreverNoDiario({ atuaEmDisciplinaAlheia, ehResponsavelDaDisciplina: disciplina.ehResponsavel });
-  const temTarefas = !!(tarefaOpcoes && tarefaColunas && meId && meRole);
+  const temTarefas = !!(tarefaOpcoes && tarefaColunas && meId && meSuper !== undefined);
   const atraso = diasDeAtraso(disciplina.prazo, disciplina.status);
   const rotulo = rotuloCatalogo(disciplina.nome, disciplina.catalogoNome);
   const qtdTarefas = tarefas?.length ?? 0;
@@ -652,7 +652,7 @@ export function DisciplinaCard({
           opcoes={tarefaOpcoes!}
           colunas={tarefaColunas!}
           meId={meId!}
-          meRole={meRole!}
+          meSuper={meSuper!}
           gereTodasTarefas={gereTodasTarefas}
           controle={controle("tarefas")}
         />
@@ -1629,7 +1629,7 @@ function ResponsaveisDialog({
   controle,
 }: {
   disciplina: Disc;
-  internos: { id: string; name: string; role: string }[];
+  internos: { id: string; name: string; contratacao: Contratacao | null }[];
   controle?: ControleJanela;
 }) {
   const [open, setOpen] = useAberto(controle);
@@ -1698,7 +1698,7 @@ function TarefasDisciplinaDialog({
   opcoes,
   colunas,
   meId,
-  meRole,
+  meSuper,
   gereTodasTarefas,
   controle,
 }: {
@@ -1709,7 +1709,7 @@ function TarefasDisciplinaDialog({
   opcoes: OpcoesUI;
   colunas: { id: string; nome: string }[];
   meId: string;
-  meRole: string;
+  meSuper: boolean;
   gereTodasTarefas: boolean;
   controle?: ControleJanela;
 }) {
@@ -1807,7 +1807,7 @@ function TarefasDisciplinaDialog({
         opcoes={opcoes}
         colunas={colunas}
         meId={meId}
-        meRole={meRole}
+        meSuper={meSuper}
         gereTodasTarefas={gereTodasTarefas}
         valoresIniciais={editar === "nova" ? { projetoId, disciplinaId } : undefined}
       />

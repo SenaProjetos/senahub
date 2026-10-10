@@ -17,7 +17,7 @@ const ok = (cond: boolean, msg: string) => {
 
 async function main() {
   const inicio = new Date();
-  const pessoa = await prisma.user.findFirst({ where: { ativo: true, role: { in: ["clt", "estagiario"] } }, select: { id: true, name: true } });
+  const pessoa = await prisma.user.findFirst({ where: { ativo: true, contratacao: { in: ["clt", "estagio"] } }, select: { id: true, name: true } });
   if (!pessoa) throw new Error("Nenhuma pessoa CLT ativa no banco de dev.");
   const hoje = inicioDoDiaUtc();
   const em = (dias: number) => new Date(hoje.getTime() + dias * 86_400_000);

@@ -33,7 +33,7 @@ async function main() {
   }
   if (process.argv.includes("--limpar")) return limpar();
 
-  const admin = await prisma.user.findFirstOrThrow({ where: { role: "admin" }, select: { id: true } });
+  const admin = await prisma.user.findFirstOrThrow({ where: { superUsuario: true }, select: { id: true } });
   const conta = await prisma.contaBancaria.findFirst({ where: { ativo: true }, select: { id: true } });
   const cats = await prisma.categoriaFinanceira.findMany({ where: { tipo: "despesa", ativo: true }, orderBy: { codigo: "asc" }, select: { id: true, nome: true } });
   if (cats.length === 0) throw new Error("Sem categorias de despesa: rode npm run db:seed.");
@@ -49,7 +49,7 @@ async function main() {
   let socio = await prisma.socio.findFirst({ where: { ativo: true }, select: { id: true } });
   if (!socio) {
     const user = await prisma.user.create({
-      data: { name: `Lúcio (sócio) ${MARCA}`, email: `socio-exemplo@dev.local`, role: "admin", tipo: "interno", emailVerified: false },
+      data: { name: `Lúcio (sócio) ${MARCA}`, email: `socio-exemplo@dev.local`, superUsuario: true, tipo: "interno", emailVerified: false },
     });
     socio = await prisma.socio.create({ data: { userId: user.id, percentual: 100 }, select: { id: true } });
   }

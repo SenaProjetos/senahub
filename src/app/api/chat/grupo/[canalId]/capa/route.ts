@@ -4,20 +4,21 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { salvarArquivo, nomeArquivoLimpo, removerArquivo, lerArquivo, existeArquivo } from "@/lib/storage";
 import { emitParaCanal } from "@/lib/socket";
+import { podeModerarCanal } from "@/modules/chat/acesso";
+import { moderadorChat } from "@/modules/chat/moderador";
 
 const MAX = 5 * 1024 * 1024; // 5 MB
 const EXT_IMG = new Set(["jpg", "jpeg", "png", "gif", "webp"]);
 const MIME_POR_EXT: Record<string, string> = {
   jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp",
 };
-const PODE_MODERAR = ["admin", "supervisor"];
 
 /** Serve a imagem de capa somente a membros do grupo ou moderadores do chat. */
 export async function GET(_req: Request, ctx: { params: Promise<{ canalId: string }> }) {
   const session = await getSession();
   if (!session) return new Response("Não autenticado", { status: 401 });
   const { canalId } = await ctx.params;
-  if (!PODE_MODERAR.includes(session.user.role)) {
+  if (!podeModerarCanal(await moderadorChat(session.user), "grupo")) {
     const membro = await prisma.canalMembro.findUnique({
       where: { canalId_userId: { canalId, userId: session.user.id } },
       select: { canalId: true },
@@ -49,7 +50,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ canalId: strin
   if (!canal || canal.tipo !== "grupo") {
     return NextResponse.json({ error: "Grupo não encontrado." }, { status: 404 });
   }
-  const podeGerenciar = canal.criadoPorId === user.id || PODE_MODERAR.includes(user.role);
+  const podeGerenciar = canal.criadoPorId === user.id || podeModerarCanal(await moderadorChat(user), "grupo");
   if (!podeGerenciar) {
     return NextResponse.json({ error: "Sem permissão para alterar este grupo." }, { status: 403 });
   }

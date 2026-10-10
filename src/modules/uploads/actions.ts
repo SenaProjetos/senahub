@@ -1192,7 +1192,7 @@ export const solicitarExclusaoUpload = defineAction(
     });
 
     const admins = await prisma.user.findMany({
-      where: { ativo: true, role: "admin" },
+      where: { ativo: true, superUsuario: true },
       select: { id: true },
     });
     const codigo = formatarCodigo(upload.disciplina.projeto.codigo);

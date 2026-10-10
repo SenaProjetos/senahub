@@ -82,7 +82,7 @@ async function retrato() {
 }
 
 async function main() {
-  const admin = await prisma.user.findFirst({ where: { role: "admin", ativo: true }, select: { id: true } });
+  const admin = await prisma.user.findFirst({ where: { ativo: true }, select: { id: true } });
   if (!admin) {
     console.log("Banco de dev sem admin — rode `npm run db:seed`.");
     process.exitCode = 1;
@@ -751,7 +751,7 @@ async function smokeDistribuicaoSocios(autorId: string) {
     const pct = [50, 30, 20];
     const socios: { id: string; nome: string; percentualBp: number }[] = [];
     for (let i = 0; i < 3; i++) {
-      const u = await prisma.user.create({ data: { name: `${t} sócio ${nomes[i]}`, email: `${t}-${i}@dev.local`, role: "administrativo", tipo: "interno" }, select: { id: true, name: true } });
+      const u = await prisma.user.create({ data: { name: `${t} sócio ${nomes[i]}`, email: `${t}-${i}@dev.local`, tipo: "interno" }, select: { id: true, name: true } });
       const s = await prisma.socio.create({ data: { userId: u.id, percentual: pct[i] }, select: { id: true } });
       socios.push({ id: s.id, nome: u.name, percentualBp: percentualParaBp(pct[i]) });
     }
@@ -786,7 +786,7 @@ async function smokeFolhaQuitaPrevisto(autorId: string) {
   // Ano 2040 para não colidir com folha real do banco de dev. Folha de JULHO, paga em AGOSTO.
   const ano = 2040;
   const cat = await prisma.categoriaFinanceira.findUnique({ where: { chave: "despesa_folha_clt" }, select: { id: true } });
-  const pessoa = await prisma.user.create({ data: { name: `${t} CLT`, email: `${t}@dev.local`, role: "clt", tipo: "interno" }, select: { id: true } });
+  const pessoa = await prisma.user.create({ data: { name: `${t} CLT`, email: `${t}@dev.local`, tipo: "interno" }, select: { id: true } });
   // O fechamento reescreve a descrição ("Folha CLT 07/2040"), então a tag sozinha não acha a conta.
   const doTeste = { OR: [{ descricao: { startsWith: t } }, { descricao: { startsWith: "Folha CLT " }, dataCompetencia: { gte: new Date(`${ano}-01-01T00:00:00.000Z`), lt: new Date(`${ano + 1}-01-01T00:00:00.000Z`) } }] };
   const dia = (d: string) => new Date(`${d}T00:00:00.000Z`);

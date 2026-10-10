@@ -160,7 +160,7 @@ async function main() {
   const etapa = await prisma.funilEtapa.findFirst({ orderBy: { ordem: "asc" }, select: { id: true } });
   if (!etapa) throw new Error("dev sem FunilEtapa — rode `npm run db:seed` antes.");
   const usuarios = await prisma.user.findMany({
-    where: { ativo: true, role: { not: "cliente" } },
+    where: { ativo: true, tipo: "interno" },
     select: { id: true },
     orderBy: { createdAt: "asc" },
     take: 4,

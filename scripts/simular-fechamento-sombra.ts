@@ -54,10 +54,10 @@ async function main() {
 
   const sufixo = Date.now();
   const clt = await prisma.user.create({
-    data: { name: "Sombra CLT", email: `sombra-clt-${sufixo}@teste.local`, role: "clt", tipo: "interno", ativo: true },
+    data: { name: "Sombra CLT", email: `sombra-clt-${sufixo}@teste.local`, tipo: "interno", contratacao: "clt", ativo: true },
   });
   const pj = await prisma.user.create({
-    data: { name: "Sombra PJ", email: `sombra-pj-${sufixo}@teste.local`, role: "projetista_pj", tipo: "interno", ativo: true },
+    data: { name: "Sombra PJ", email: `sombra-pj-${sufixo}@teste.local`, tipo: "interno", contratacao: "pj", ativo: true },
   });
 
   // ── Prova 1: volume determinístico, mês sintético isolado ──────────────────────────────

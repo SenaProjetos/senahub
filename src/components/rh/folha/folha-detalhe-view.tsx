@@ -53,7 +53,7 @@ type HoleriteT = {
   enviadoEm: string | null;
   assinadoEm: string | null;
   assinanteNome: string | null;
-  user: { id: string; name: string; role: string };
+  user: { id: string; name: string };
   itens: Item[];
 };
 type Rubrica = { id: string; nome: string; tipo: "provento" | "desconto" };
@@ -80,7 +80,7 @@ export function FolhaDetalheView({
 }: {
   folha: { id: string; ano: number; mes: number; tipo: TipoFolha; status: "aberta" | "fechada"; holerites: HoleriteT[] };
   rubricas: Rubrica[];
-  elegiveis: { id: string; name: string; role: string }[];
+  elegiveis: { id: string; name: string }[];
   modelosDoc: { id: string; nome: string }[];
   faixasInss: Faixa[];
   faixasIrrf: Faixa[];

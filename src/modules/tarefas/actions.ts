@@ -33,7 +33,7 @@ async function resolverDisciplina(projetoId: string, disciplinaId: string): Prom
 }
 
 async function exigirProjetoVisivel(
-  user: Pick<SessionUser, "id" | "role" | "superUsuario" | "escopoGlobalPerfil" | "tipo">,
+  user: Pick<SessionUser, "id" | "superUsuario" | "escopoGlobalPerfil" | "tipo">,
   projetoId?: string,
 ) {
   if (!projetoId || !(await projetoVisivel(user, projetoId))) {

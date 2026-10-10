@@ -12,7 +12,7 @@ export async function listarPerfis() {
       // pessoa pode estar no perfil certo e mesmo assim ter o par negado nominalmente.
       usuarios: {
         orderBy: { name: "asc" },
-        select: { id: true, name: true, email: true, role: true, ativo: true, _count: { select: { overrides: true } } },
+        select: { id: true, name: true, email: true, contratacao: true, ativo: true, _count: { select: { overrides: true } } },
       },
     },
   });
@@ -29,7 +29,7 @@ export async function listarPerfis() {
       id: u.id,
       nome: u.name,
       email: u.email,
-      role: u.role,
+      contratacao: u.contratacao,
       ativo: u.ativo,
       ajustesIndividuais: u._count.overrides,
     })),

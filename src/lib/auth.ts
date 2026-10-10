@@ -27,7 +27,6 @@ export const auth = betterAuth({
   },
   user: {
     additionalFields: {
-      role: { type: "string", required: false, defaultValue: "cliente", input: false },
       ativo: { type: "boolean", required: false, defaultValue: true, input: false },
       mustChangePassword: { type: "boolean", required: false, defaultValue: false, input: false },
     },

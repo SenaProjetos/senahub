@@ -2,7 +2,6 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { diaDeSaoPaulo } from "@/lib/data";
-import { derivarEixos } from "@/modules/usuarios/vinculo/mapa";
 import { CONTRATACAO_LABELS, SETOR_LABELS } from "@/modules/usuarios/vinculo/labels";
 import { cargaDaEquipe } from "@/modules/planejamento/recursos-queries";
 import { cargaSemanalPorRecurso } from "@/modules/planejamento/queries";
@@ -27,7 +26,7 @@ export async function painelGestao() {
   const em60 = new Date(Date.parse(`${hoje}T00:00:00Z`) + 60 * 86_400_000);
 
   const [pessoas, carga, real, clima, banco, necessidades, pendencias, abertos, ferias, liderancas] = await Promise.all([
-    prisma.user.findMany({ where: { ativo: true, tipo: "interno" }, select: { role: true, contratacao: true, setor: true } }),
+    prisma.user.findMany({ where: { ativo: true, tipo: "interno" }, select: { contratacao: true, setor: true } }),
     cargaDaEquipe({ semanas: 12 }),
     cargaSemanalPorRecurso(4),
     climaResumo(),
@@ -50,7 +49,7 @@ export async function painelGestao() {
   const porContratacao = new Map<string, number>();
   const porSetor = new Map<string, number>();
   for (const p of pessoas) {
-    const c = p.contratacao ?? derivarEixos(p.role).contratacao;
+    const c = p.contratacao;
     const rc = c ? CONTRATACAO_LABELS[c] : "Sem contratação";
     porContratacao.set(rc, (porContratacao.get(rc) ?? 0) + 1);
     const rs = p.setor ? SETOR_LABELS[p.setor] : "Sem setor";

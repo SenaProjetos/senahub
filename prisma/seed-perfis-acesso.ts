@@ -14,15 +14,14 @@
  * automatizar silenciosamente aqui.
  */
 import type { PrismaClient } from "@/generated/prisma/client";
-import { ROLES, type Role } from "@/lib/roles";
 import { PERMISSOES_BASE } from "@/lib/permissoes-base";
-import { CHAVE_POR_ROLE, NOME_POR_ROLE } from "@/modules/usuarios/vinculo/perfil-semente";
+import { CHAVE_POR_ROLE, NOME_POR_ROLE, PAPEIS_SEMENTE, type PapelSemente } from "@/modules/usuarios/vinculo/perfil-semente";
 
 export { CHAVE_POR_ROLE };
 
 export type ResultadoSeedPerfis = {
   /** `semeado: false` = o perfil já existia e a matriz dele foi preservada. */
-  perfis: { role: Role; chave: string; perfilId: string; linhas: number; semeado: boolean }[];
+  perfis: { role: PapelSemente; chave: string; perfilId: string; linhas: number; semeado: boolean }[];
 };
 
 /**
@@ -50,7 +49,7 @@ export type ResultadoSeedPerfis = {
 export async function seedPerfisAcesso(prisma: PrismaClient): Promise<ResultadoSeedPerfis> {
   const resultado: ResultadoSeedPerfis = { perfis: [] };
 
-  for (const role of ROLES) {
+  for (const role of PAPEIS_SEMENTE) {
     const chave = CHAVE_POR_ROLE[role];
     if (!chave) continue; // admin
 

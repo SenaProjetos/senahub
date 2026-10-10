@@ -1,7 +1,6 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import type { Role } from "@/lib/roles";
 import { STATUS_ABERTOS } from "@/modules/projetos/pendencias/helpers";
 import { ordenarRiscos } from "@/modules/projetos/riscos/regras";
 import { solicitacoesRevisaoDoProjeto } from "@/modules/projetos/solicitacoes-revisao/queries";
@@ -9,7 +8,7 @@ import { emAbertoPorDisciplina } from "@/modules/projetos/solicitacoes-revisao/s
 import { contarTarefasAbertasDoProjeto } from "@/modules/tarefas/queries";
 import { STATUS_PENDENTES, TIPOS_CONTRATUAIS } from "@/modules/juridico/contrato/estado";
 
-type Viewer = { id: string; role: Role; gereTodasTarefas: boolean };
+type Viewer = { id: string; gereTodasTarefas: boolean };
 
 type FontesPendencias = {
   incluirApontamentosPrancha: boolean;

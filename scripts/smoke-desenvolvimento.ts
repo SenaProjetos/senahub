@@ -19,7 +19,7 @@ const ok = (cond: boolean, msg: string) => {
 async function main() {
   const inicio = new Date();
   const [lider, liderado] = await prisma.user.findMany({
-    where: { ativo: true, role: { not: "cliente" }, liderancasComoLiderado: { none: { fim: null } } },
+    where: { ativo: true, tipo: "interno", liderancasComoLiderado: { none: { fim: null } } },
     select: { id: true, name: true },
     take: 2,
     orderBy: { name: "asc" },

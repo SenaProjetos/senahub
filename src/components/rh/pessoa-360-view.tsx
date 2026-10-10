@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CalendarClock, Landmark, Building2, KeyRound, UserRound, ClipboardList, CalendarRange, Clock, Receipt, SlidersHorizontal, ListChecks, GraduationCap, Sprout } from "lucide-react";
 import { brl, formatarData } from "@/lib/utils";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { CONTRATACAO_LABELS, SETOR_LABELS } from "@/modules/usuarios/vinculo/labels";
 import { carregarPontoPessoa } from "@/modules/rh/pessoas/actions";
 import { formatarRegistro } from "@/modules/usuarios/registro";
@@ -36,6 +35,7 @@ import { AnexoAbono } from "@/components/rh/anexo-abono";
 import { rotuloJanela, rotuloMotivo, rotuloTratamento } from "@/modules/rh/ausencia";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { rotuloContratacao } from "@/modules/usuarios/vinculo/labels";
 import type {
   FichaPessoa,
   CadastroPessoa,
@@ -238,7 +238,7 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
           <div className="min-w-0 flex-1 space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-xl font-bold tracking-tight">{pessoa.name}</h2>
-              <Badge variant="outline">{ROLE_LABELS[pessoa.role as Role]}</Badge>
+              {pessoa.contratacao && <Badge variant="outline">{rotuloContratacao(pessoa.contratacao)}</Badge>}
               {pessoa.socioAtivo && <Badge variant="secondary">Sócio</Badge>}
               {pessoa.ativo ? (
                 <span className="text-xs text-success">Ativo</span>
@@ -697,7 +697,6 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
           <TabsContent value="acesso">
             <Card><CardContent className="space-y-4 pt-6">
               <Secao titulo="Acesso ao sistema">
-                <Campo label="Perfil" valor={ROLE_LABELS[pessoa.role as Role]} />
                 {/* Eixos novos (Fase 0): read-only. Setor e Contratação NÃO concedem acesso —
                     quem decide o que a pessoa pode é o Perfil. */}
                 <Campo label="Setor" valor={pessoa.setor ? SETOR_LABELS[pessoa.setor] : "—"} />
@@ -749,7 +748,6 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
           onOpenChange={setTrocarContratacaoOpen}
           userId={pessoa.id}
           nome={pessoa.name}
-          roleAtual={pessoa.role as Role}
           setorAtual={pessoa.setor}
           ultimoMesFechado={ultimoMesFechadoBanco}
           pessoasJuridicas={pessoasJuridicas}

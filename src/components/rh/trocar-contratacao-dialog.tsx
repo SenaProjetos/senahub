@@ -6,9 +6,7 @@ import { toast } from "sonner";
 import { TriangleAlert } from "lucide-react";
 import { trocarContratacao } from "@/modules/rh/contratacao/actions";
 import { CONTRATACAO_LABELS, SETOR_LABELS } from "@/modules/usuarios/vinculo/labels";
-import { roleLegadoDe } from "@/modules/usuarios/vinculo/mapa";
 import { TETO_SEMANAL_HORAS } from "@/modules/usuarios/vinculo/troca-contratacao";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,7 +36,6 @@ export function TrocarContratacaoDialog({
   onOpenChange,
   userId,
   nome,
-  roleAtual,
   setorAtual,
   ultimoMesFechado,
   pessoasJuridicas,
@@ -47,7 +44,6 @@ export function TrocarContratacaoDialog({
   onOpenChange: (open: boolean) => void;
   userId: string;
   nome: string;
-  roleAtual: Role;
   setorAtual: Setor | null;
   /** Último mês com banco de horas fechado — dispara o aviso de lançamento retroativo. */
   ultimoMesFechado: { ano: number; mes: number } | null;
@@ -83,8 +79,6 @@ export function TrocarContratacaoDialog({
   }
 
   const teto = f.contratacao ? TETO_SEMANAL_HORAS[f.contratacao] : undefined;
-  const novoRole = f.contratacao ? roleLegadoDe("interno", f.contratacao) : null;
-  const roleVaiMudar = novoRole !== null && novoRole !== roleAtual;
 
   // "dataInicio" é "YYYY-MM-DD"; comparar como string ordena igual à data.
   const mesFechado =
@@ -115,11 +109,7 @@ export function TrocarContratacaoDialog({
         setErro(res.error);
         return;
       }
-      toast.success(
-        res.data.roleAlterado
-          ? `Contratação trocada. Perfil de acesso atualizado para ${ROLE_LABELS[res.data.novoRole]}.`
-          : "Contratação trocada.",
-      );
+      toast.success("Contratação trocada.");
       onOpenChange(false);
       router.refresh();
     });
@@ -162,13 +152,6 @@ export function TrocarContratacaoDialog({
               </select>
             </div>
           </div>
-
-          {roleVaiMudar && (
-            <p className="rounded-sm border border-dashed p-2 text-xs text-muted-foreground">
-              O perfil de acesso muda de <strong>{ROLE_LABELS[roleAtual]}</strong> para{" "}
-              <strong>{ROLE_LABELS[novoRole!]}</strong>.
-            </p>
-          )}
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">

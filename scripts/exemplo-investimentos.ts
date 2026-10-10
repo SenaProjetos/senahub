@@ -26,7 +26,7 @@ async function main() {
   if (process.env.DATABASE_URL && !/_remake|_dev|_test|_vscode/.test(process.env.DATABASE_URL)) throw new Error("Só para banco de desenvolvimento.");
   await limpar();
   if (process.argv.includes("--limpar")) return;
-  const admin = await prisma.user.findFirstOrThrow({ where: { role: "admin" }, select: { id: true } });
+  const admin = await prisma.user.findFirstOrThrow({ where: { superUsuario: true }, select: { id: true } });
   const conta = await prisma.contaBancaria.findFirstOrThrow({ where: { ativo: true, investimento: null }, orderBy: [{ padrao: "desc" }, { ordem: "asc" }], select: { id: true } });
   const venc = (meses: number) => { const d = new Date(); d.setMonth(d.getMonth() + meses); return d.toISOString().slice(0, 10); };
   const ativos = [

@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 import { criarAviso } from "@/modules/notificacoes/avisos/actions";
 import { validarAgendamentoAviso } from "@/modules/notificacoes/avisos/agendamento";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { SETOR_LABELS, CONTRATACAO_LABELS } from "@/modules/usuarios/vinculo/labels";
 import { SETORES, CONTRATACOES } from "@/modules/notificacoes/avisos/schemas";
 import { Button } from "@/components/ui/button";
@@ -32,8 +31,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { CorpoAviso } from "@/components/notificacoes/corpo-aviso";
 import { cn } from "@/lib/utils";
+import { rotuloContratacao } from "@/modules/usuarios/vinculo/labels";
+import type { Contratacao } from "@/generated/prisma/enums";
 
-export type UsuarioAlvo = { id: string; name: string; role: Role };
+export type UsuarioAlvo = { id: string; name: string; contratacao: Contratacao | null };
 
 // `categoria` (por Role) NÃO aparece mais na tela — os avisos antigos continuam legíveis,
 // mas o alvo novo se escolhe pelos eixos da reforma de acesso.
@@ -464,7 +465,7 @@ export function AvisoGeralView({
                       >
                         <Checkbox checked={usersSel.has(u.id)} onCheckedChange={() => toggleUser(u.id)} />
                         <span className="min-w-0 flex-1 truncate">{u.name}</span>
-                        <span className="shrink-0 text-xs text-muted-foreground">{ROLE_LABELS[u.role]}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">{rotuloContratacao(u.contratacao)}</span>
                       </label>
                     ))}
                     {usuariosFiltrados.length === 0 && (

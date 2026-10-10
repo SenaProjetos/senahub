@@ -158,6 +158,6 @@ export async function usuariosParaEscala() {
   return prisma.user.findMany({
     where: whereAudiencia("interno"),
     orderBy: { name: "asc" },
-    select: { id: true, name: true, role: true, contratacao: true },
+    select: { id: true, name: true, contratacao: true },
   });
 }

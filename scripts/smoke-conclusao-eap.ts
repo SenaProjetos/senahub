@@ -24,9 +24,9 @@ const d = (s: string) => new Date(`${s}T00:00:00.000Z`);
 
 async function main() {
   const [resp, coord] = await Promise.all(
-    ["resp", "coord"].map((n) => prisma.user.create({ data: { name: `${tag}-${n}`, email: `${tag}-${n}@t.local`, role: "clt", tipo: "interno", emailVerified: false } })),
+    ["resp", "coord"].map((n) => prisma.user.create({ data: { name: `${tag}-${n}`, email: `${tag}-${n}@t.local`, tipo: "interno", emailVerified: false } })),
   );
-  const gestor = await prisma.user.findFirstOrThrow({ where: { role: "admin", ativo: true }, select: { id: true } });
+  const gestor = await prisma.user.findFirstOrThrow({ where: { ativo: true }, select: { id: true } });
   const status = await prisma.tarefaStatus.findFirstOrThrow({ where: { ativo: true }, select: { id: true } });
   const cliente = await prisma.cliente.create({ data: { nome: `${tag}-c` } });
   const mk = (n: number) =>

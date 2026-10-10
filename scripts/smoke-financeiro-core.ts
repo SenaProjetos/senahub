@@ -109,7 +109,7 @@ const tag = `smoke-fincore-${Date.now()}`;
 const dia = (d: string) => new Date(`${d}T00:00:00.000Z`);
 
 async function main() {
-  const admin = await prisma.user.findFirst({ where: { role: "admin" }, select: { id: true } });
+  const admin = await prisma.user.findFirst({ where: { }, select: { id: true } });
   if (!admin) throw new Error("Sem usuário admin no banco de dev — rode npm run db:seed.");
 
   const cliente = await prisma.cliente.create({ data: { nome: `${tag}-cliente` } });
@@ -123,7 +123,7 @@ async function main() {
     },
   });
   const pj = await prisma.user.create({
-    data: { name: `${tag}-PJ`, email: `${tag}-pj@teste.local`, role: "projetista_pj", tipo: "interno", emailVerified: false },
+    data: { name: `${tag}-PJ`, email: `${tag}-pj@teste.local`, tipo: "interno", emailVerified: false },
   });
   const disciplina = await prisma.disciplina.create({
     data: { projetoId: projeto.id, disciplinaTextoLegado: "Estrutural", valor: 1000, responsaveis: { create: [{ userId: pj.id }] } },
@@ -456,7 +456,7 @@ async function alcadaUnica(autorId: string) {
   const salvo = await prisma.configSistema.findUnique({ where: { chave: CHAVE } });
   const catD = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "despesa", natureza: "resultado" }, select: { id: true } });
   if (!catD) return check("categoria de despesa existe", false);
-  const supervisor = await prisma.user.create({ data: { name: `${tag}-sup`, email: `${tag}-sup@teste.local`, role: "supervisor", tipo: "interno", emailVerified: false } });
+  const supervisor = await prisma.user.create({ data: { name: `${tag}-sup`, email: `${tag}-sup@teste.local`, tipo: "interno", emailVerified: false } });
   const faixas = [{ ate: 1000, papeis: [] }, { ate: null, papeis: ["admin", "coordenador"] }];
   try {
     await prisma.configSistema.upsert({ where: { chave: CHAVE }, create: { chave: CHAVE, valor: faixas }, update: { valor: faixas } });
@@ -913,7 +913,7 @@ async function cartoesDeCredito(autorId: string) {
 
     // Cartão pessoal: reembolso individual. O sócio é criado aqui (o banco de dev pode não ter nenhum).
     {
-      const dono = await prisma.user.create({ data: { name: `${tag}-socio`, email: `${tag}-socio@teste.local`, role: "admin", tipo: "interno", emailVerified: false } });
+      const dono = await prisma.user.create({ data: { name: `${tag}-socio`, email: `${tag}-socio@teste.local`, tipo: "interno", emailVerified: false } });
       const socio = await prisma.socio.create({ data: { userId: dono.id, percentual: 100 } });
       const pessoal = await prisma.cartaoCredito.create({ data: { nome: `${tag} pessoal`, tipo: "pessoal", socioId: socio.id, diaFechamento: 25, diaVencimento: 10 } });
       try {

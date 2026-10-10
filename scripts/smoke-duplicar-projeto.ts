@@ -34,7 +34,7 @@ const d = (s: string) => new Date(`${s}T00:00:00.000Z`);
 const OPCOES = { copiarResponsaveis: true, copiarMembros: true, copiarComposicao: false } as const;
 
 async function main() {
-  const admin = await prisma.user.findFirst({ where: { role: "admin" }, select: { id: true } });
+  const admin = await prisma.user.findFirst({ where: { }, select: { id: true } });
   if (!admin) throw new Error("Sem usuário admin no banco de dev — rode npm run db:seed.");
   const fases = await prisma.pranchaCatalogo.findMany({ where: { categoria: "fase", projetoId: null }, orderBy: { sigla: "asc" }, take: 3 });
   const origemCli = await prisma.eapCatalogo.findFirst({ where: { categoria: "origem", projetoId: null } });

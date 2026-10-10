@@ -51,7 +51,7 @@ function gravar(nome: string, texto: string): { caminho: string; tamanho: number
 }
 
 async function main() {
-  const admin = await prisma.user.findFirst({ where: { role: "admin", ativo: true }, select: { id: true, name: true, email: true } });
+  const admin = await prisma.user.findFirst({ where: { ativo: true }, select: { id: true, name: true, email: true } });
   if (!admin) {
     console.log("Banco de dev sem admin — rode `npm run db:seed`.");
     process.exitCode = 1;

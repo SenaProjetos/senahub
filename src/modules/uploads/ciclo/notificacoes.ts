@@ -49,7 +49,6 @@ async function equipeDeObra(projetoId: string): Promise<string[]> {
     where: {
       ...wherePermissao("arquivos", "somente_liberado_obra"),
       superUsuario: false,
-      role: { not: "admin" },
       projetosMembro: { some: { projetoId } },
     },
     select: { id: true },

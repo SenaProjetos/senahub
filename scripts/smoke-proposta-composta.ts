@@ -99,7 +99,7 @@ async function limpar() {
 
 async function main() {
   await limpar(); // resíduo de uma rodada anterior que morreu no meio
-  const autor = await prisma.user.findFirst({ where: { role: "admin" }, select: { id: true } });
+  const autor = await prisma.user.findFirst({ where: { }, select: { id: true } });
   const modelo = await prisma.modeloProposta.findUnique({ where: { slug: "multidisciplinar" }, select: { id: true } });
   if (!autor || !modelo) throw new Error("dev sem admin ou modelo semeado — rode npm run db:seed");
 

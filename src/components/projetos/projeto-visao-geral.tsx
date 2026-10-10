@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import type { StatusDisciplina } from "@/generated/prisma/client";
 import { usuariosOnline } from "@/lib/socket";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { inicioDoDia as inicioDoDiaOuInvalida, inicioDoDiaLocal } from "@/lib/data";
 import { cn, formatarData, formatarDataHora } from "@/lib/utils";
 import type { margemProjeto, ProjetoDetalhe, timelineStatusProjeto } from "@/modules/projetos/queries";
@@ -39,9 +38,11 @@ import { RiscosProjetoDialog } from "@/components/projetos/riscos-projeto-dialog
 import { NIVEL_RISCO_VISUAL } from "@/components/projetos/riscos-visual";
 import { AcessosDoProjeto } from "@/components/acessos/acessos-do-projeto";
 import type { AcessoDoProjeto } from "@/modules/acessos/queries";
+import type { Contratacao } from "@/generated/prisma/enums";
 import { GRAU_RISCO_LABEL, NIVEL_RISCO_LABEL, nivelRisco } from "@/modules/projetos/riscos/regras";
 import type { PainelProjetoId } from "@/modules/projetos/painel-layout";
 import type { RegistrosDiariosProjeto } from "@/modules/ponto/registros-projeto";
+import { rotuloContratacao } from "@/modules/usuarios/vinculo/labels";
 
 type Evento = Awaited<ReturnType<typeof timelineStatusProjeto>>[number];
 
@@ -53,9 +54,9 @@ type Props = {
   podeVerHistorico: boolean;
   podeVerPlanejamento: boolean;
   podeVerPendencias: boolean;
-  internos: { id: string; name: string; role: string; cargo: string | null }[];
+  internos: { id: string; name: string; contratacao: Contratacao | null; cargo: string | null }[];
   papeisSugeridos: string[];
-  user: { id: string; role: Role; tipo: "interno" | "externo"; setor: string | null };
+  user: { id: string; tipo: "interno" | "externo"; setor: string | null };
   sessaoAtiva: { id: string; projetoId: string | null; inicio: Date } | null;
   podeVerRegistrosPontoEquipe: boolean;
   registrosPontoEquipe: RegistrosDiariosProjeto[];
@@ -464,7 +465,7 @@ function DisciplinesTable({ projeto, dados }: { projeto: ProjetoDetalhe; dados: 
                           {disciplina.status === "aprovado" ? <StatusBadge tone="success">Aprovado</StatusBadge> : estado.aprovacaoPendente ? <StatusBadge tone="warning">Pendente</StatusBadge> : <span className="text-muted-foreground">—</span>}
                         </td>
                         <td className="px-3 py-3">
-                          {responsavel ? <><span className="block font-medium">{responsavel.name}</span><span className="mt-0.5 block text-[11px] text-muted-foreground">{ROLE_LABELS[responsavel.role as keyof typeof ROLE_LABELS] ?? responsavel.role}</span></> : <span className="text-muted-foreground">Sem responsável</span>}
+                          {responsavel ? <><span className="block font-medium">{responsavel.name}</span><span className="mt-0.5 block text-[11px] text-muted-foreground">{rotuloContratacao(responsavel.contratacao)}</span></> : <span className="text-muted-foreground">Sem responsável</span>}
                         </td>
                         <td className="px-3 py-3">
                           {estado.entregue ? <span className="text-success">Concluída</span> : disciplina.prazo ? <><span className={cn("font-medium", estado.atrasada && "text-destructive")}>{formatarData(disciplina.prazo)}</span><span className="mt-0.5 block text-[11px] text-muted-foreground">Prazo da disciplina</span></> : <span className="text-muted-foreground">—</span>}
@@ -503,7 +504,7 @@ function DisciplinesTable({ projeto, dados }: { projeto: ProjetoDetalhe; dados: 
 }
 
 type DisciplinaDoMembro = { id: string; nome: string };
-type MembroEquipe = { userId: string; nome: string; role: string; image: string | null; papel: string | null; online: boolean; disciplinas: DisciplinaDoMembro[] };
+type MembroEquipe = { userId: string; nome: string; contratacao: Contratacao | null; image: string | null; papel: string | null; online: boolean; disciplinas: DisciplinaDoMembro[] };
 
 function MembroEquipeRow({ membro, projetoId }: { membro: MembroEquipe; projetoId: string }) {
   return (
@@ -515,7 +516,7 @@ function MembroEquipeRow({ membro, projetoId }: { membro: MembroEquipe; projetoI
       </Avatar>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{membro.nome}</p>
-        <p className="truncate text-xs text-muted-foreground">{membro.papel ?? ROLE_LABELS[membro.role as keyof typeof ROLE_LABELS] ?? membro.role}</p>
+        <p className="truncate text-xs text-muted-foreground">{membro.papel ?? rotuloContratacao(membro.contratacao)}</p>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
         {membro.disciplinas.length > 0 ? (
@@ -554,20 +555,20 @@ function TeamSummary({
   internos,
   papeisSugeridos,
 }: Pick<Props, "projeto" | "podeGerir" | "internos" | "papeisSugeridos">) {
-  const equipeMap = new Map<string, { nome: string; role: string; image: string | null; papel: string | null; disciplinas: DisciplinaDoMembro[] }>();
+  const equipeMap = new Map<string, { nome: string; contratacao: Contratacao | null; image: string | null; papel: string | null; disciplinas: DisciplinaDoMembro[] }>();
   for (const disciplina of projeto.disciplinas) {
     for (const responsavel of disciplina.responsaveis) {
       const atual = equipeMap.get(responsavel.userId);
       if (atual) {
         if (!atual.disciplinas.some((d) => d.id === disciplina.id)) atual.disciplinas.push({ id: disciplina.id, nome: disciplina.disciplinaTextoLegado });
       } else {
-        equipeMap.set(responsavel.userId, { nome: responsavel.user.name, role: responsavel.user.role, image: responsavel.user.image, papel: "projetista", disciplinas: [{ id: disciplina.id, nome: disciplina.disciplinaTextoLegado }] });
+        equipeMap.set(responsavel.userId, { nome: responsavel.user.name, contratacao: responsavel.user.contratacao, image: responsavel.user.image, papel: "projetista", disciplinas: [{ id: disciplina.id, nome: disciplina.disciplinaTextoLegado }] });
       }
     }
   }
   for (const membro of projeto.membros) {
     const atual = equipeMap.get(membro.userId);
-    equipeMap.set(membro.userId, { nome: membro.user.name, role: membro.user.role, image: membro.user.image, papel: membro.papel ?? atual?.papel ?? null, disciplinas: atual?.disciplinas ?? [] });
+    equipeMap.set(membro.userId, { nome: membro.user.name, contratacao: membro.user.contratacao, image: membro.user.image, papel: membro.papel ?? atual?.papel ?? null, disciplinas: atual?.disciplinas ?? [] });
   }
   const onlineIds = new Set(usuariosOnline());
   const equipe = [...equipeMap.entries()]

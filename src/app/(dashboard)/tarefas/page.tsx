@@ -61,7 +61,7 @@ export default async function TarefasPage({ searchParams }: { searchParams: Prom
   return (
     <TarefasBoard
       meId={user.id}
-      meRole={user.role}
+      meSuper={user.superUsuario}
       gereTodasTarefas={user.gereTodasTarefas}
       opcoes={opcoes}
       page={page}

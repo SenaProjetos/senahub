@@ -39,7 +39,7 @@ async function main() {
   const pessoa = await prisma.user.findFirst({
     where: {
       ativo: true,
-      role: { not: "cliente" },
+      tipo: "interno",
       vinculoAtivo: { is: { dataFim: null } },
       ciclosRh: { none: { status: "em_andamento" } },
     },

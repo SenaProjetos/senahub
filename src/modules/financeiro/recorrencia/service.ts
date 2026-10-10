@@ -24,7 +24,7 @@ export async function gerarLancamentosRecorrentes(o: { autorId: string; agora?: 
 
   // Sem autor explícito (job), o lançamento fica no nome de um admin ativo: `Lancamento.autorId` é
   // obrigatório e a auditoria precisa de alguém de verdade.
-  const autorId = o.autorId || (await prisma.user.findFirst({ where: { role: "admin", ativo: true }, select: { id: true } }))?.id;
+  const autorId = o.autorId || (await prisma.user.findFirst({ where: { superUsuario: true, ativo: true }, select: { id: true } }))?.id;
   if (!autorId) throw new ActionError("Nenhum usuário disponível para registrar os lançamentos.");
   const calendario = await calendarioFinanceiro(anosDoHorizonte(hoje, hoje));
 

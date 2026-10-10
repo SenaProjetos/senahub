@@ -3,7 +3,7 @@ import { SO_RESULTADO } from "@/modules/financeiro/natureza";
 import { prisma } from "@/lib/prisma";
 import { siglasSaoEspelho } from "@/modules/uploads/nomenclatura/siglas-versao";
 import type { Prisma } from "@/generated/prisma/client";
-import { acessoGlobal, type Role, type EscopoDeDados } from "@/lib/roles";
+import { acessoGlobal, type EscopoDeDados } from "@/lib/roles";
 import { whereAudiencia } from "@/lib/audiencias";
 import {
   CATEGORIA_TAXA_ART,
@@ -18,7 +18,7 @@ import { prontidaoAprovacao, type Prontidao } from "@/modules/projetos/prontidao
 import { separarRateioPorVinculo } from "@/modules/projetos/rateio-composicao";
 import { semPublicacaoPorDisciplina } from "@/modules/uploads/ciclo/service";
 
-type Viewer = { id: string; role: Role; ehSocio?: boolean } & EscopoDeDados;
+type Viewer = { id: string; ehSocio?: boolean } & EscopoDeDados;
 
 /** Filtro de escopo: global (inclui sócio) vê tudo; cliente vê seus projetos; demais só onde participam. */
 export function escopoProjeto(viewer: Viewer): Prisma.ProjetoWhereInput {
@@ -306,14 +306,14 @@ export async function obterProjeto(viewer: Viewer, id: string) {
     where: { id, AND: [escopoProjeto(viewer)] },
     include: {
       cliente: true,
-      membros: { include: { user: { select: { id: true, name: true, role: true, image: true } } } },
+      membros: { include: { user: { select: { id: true, name: true, contratacao: true, image: true } } } },
       disciplinas: {
         orderBy: { ordem: "asc" },
         include: {
           // Nome do catálogo, para o rótulo secundário quando difere do texto da disciplina
           // (`rotuloCatalogo`). Null enquanto a disciplina não tiver FK — estado legítimo.
           catalogo: { select: { nome: true } },
-          responsaveis: { include: { user: { select: { id: true, name: true, role: true, contratacao: true, image: true } } } },
+          responsaveis: { include: { user: { select: { id: true, name: true, contratacao: true, image: true } } } },
           revisoes: { orderBy: { numero: "desc" }, include: { autor: { select: { name: true } } } },
           uploads: {
             // Lixeira: leitura aninhada não passa pelo filtro global (lib/prisma.ts) → explícito.
@@ -462,7 +462,7 @@ export async function disciplinasForaDeSLA(viewer: Viewer) {
 export async function usuariosInternos() {
   return prisma.user.findMany({
     where: whereAudiencia("interno"),
-    select: { id: true, name: true, role: true, cargo: true },
+    select: { id: true, name: true, contratacao: true, cargo: true },
     orderBy: { name: "asc" },
   });
 }

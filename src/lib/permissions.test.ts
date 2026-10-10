@@ -14,12 +14,10 @@ vi.mock("@/lib/prisma", () => ({
 
 import { can, canRole, type SubjectAutorizacao } from "@/lib/permissions";
 import { PERMISSOES_BASE } from "@/lib/permissoes-base";
-import type { Role } from "@/lib/roles";
 import { invalidatePerfil } from "@/lib/permissao-efetiva";
 
 const sujeito = (over: Partial<SubjectAutorizacao> = {}): SubjectAutorizacao => ({
   id: "u1",
-  role: "clt",
   ativo: true,
   superUsuario: false,
   perfilId: "perfil-1",
@@ -41,7 +39,7 @@ describe("canRole — semente por papel (PERMISSOES_BASE)", () => {
 
   it("bate com a constante para todo par semeado", async () => {
     for (const p of PERMISSOES_BASE) {
-      expect(await canRole(p.role as Role, p.recurso, p.acao)).toBe(true);
+      expect(await canRole(p.role, p.recurso, p.acao)).toBe(true);
     }
   });
 });
@@ -60,10 +58,10 @@ describe("can — resolve pelo motor de Perfil de acesso", () => {
     invalidatePerfil();
   });
 
-  it("NÃO usa mais a matriz por papel — `role: admin` sozinho não concede nada", async () => {
+  it("NÃO usa mais a matriz por papel — sem superUsuario nem perfil, nada é concedido", async () => {
     // O bypass passou a ser `superUsuario`. Um admin sem a marca perde tudo: é a razão de o
     // backfill ter que rodar antes deste código chegar numa base.
-    expect(await can(sujeito({ role: "admin", superUsuario: false, perfilId: null }), "rh", "folha")).toBe(false);
+    expect(await can(sujeito({ superUsuario: false, perfilId: null }), "rh", "folha")).toBe(false);
   });
 
   it("superUsuario passa em tudo", async () => {

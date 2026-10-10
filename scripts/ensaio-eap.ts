@@ -61,7 +61,7 @@ async function usuario(name: string, email: string, role: "clt" | "estagiario" |
   if (!id) {
     const ctx = await auth.$context;
     const u = await prisma.user.create({
-      data: { name, email, emailVerified: true, role, tipo: "interno", ativo: true, mustChangePassword: false },
+      data: { name, email, emailVerified: true, tipo: "interno", ativo: true, mustChangePassword: false },
     });
     await prisma.account.create({
       data: { userId: u.id, providerId: "credential", accountId: u.id, password: await ctx.password.hash(SENHA) },
@@ -113,7 +113,7 @@ async function main() {
     usuario("Ensaio PJ", "ensaio.pj@demo.senahub", "projetista_pj"),
     usuario("Ensaio Coordenação", "ensaio.coord@demo.senahub", "supervisor"),
   ]);
-  const admin = await prisma.user.findFirstOrThrow({ where: { role: "admin", ativo: true }, select: { id: true } });
+  const admin = await prisma.user.findFirstOrThrow({ where: { superUsuario: true, ativo: true }, select: { id: true } });
   const cliente =
     (await prisma.cliente.findFirst({ where: { nome: CLIENTE }, select: { id: true } })) ??
     (await prisma.cliente.create({ data: { nome: CLIENTE }, select: { id: true } }));

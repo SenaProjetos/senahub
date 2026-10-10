@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ChevronRight, Plus, Pencil, Trash2, ShieldCheck } from "lucide-react";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { criarPerfil, editarPerfil, alternarPerfilAtivo, excluirPerfil } from "@/modules/perfis/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -16,6 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { rotuloContratacao } from "@/modules/usuarios/vinculo/labels";
+import type { Contratacao } from "@/generated/prisma/enums";
 import {
   Dialog,
   DialogContent,
@@ -41,7 +42,7 @@ export type UsuarioDoPerfil = {
   id: string;
   nome: string;
   email: string;
-  role: Role;
+  contratacao: Contratacao | null;
   ativo: boolean;
   /** Ajustes nominais (`PermissaoUsuario`) — vencem o perfil, nos dois sentidos. */
   ajustesIndividuais: number;
@@ -287,7 +288,7 @@ function UsuariosDoPerfil({ usuarios }: { usuarios: UsuarioDoPerfil[] }) {
           </Link>
           <span className="text-xs text-muted-foreground">{u.email}</span>
           <Badge variant="outline" title="Papel em Usuários — ainda decide a fila de Aprovações e a jornada.">
-            {ROLE_LABELS[u.role]}
+            {rotuloContratacao(u.contratacao)}
           </Badge>
           {!u.ativo && <Badge variant="outline">inativo</Badge>}
           {u.ajustesIndividuais > 0 && (

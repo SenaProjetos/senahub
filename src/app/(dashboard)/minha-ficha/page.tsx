@@ -48,7 +48,7 @@ export default async function MinhaFichaPage({ searchParams }: { searchParams: P
     ponto: true,
     pendenciasRh: true,
     projetos: podeVerProjetos
-      ? { observador: { id: user.id, role: user.role, ehSocio: user.ehSocio, superUsuario: user.superUsuario, escopoGlobalPerfil: user.escopoGlobalPerfil, tipo: user.tipo } }
+      ? { observador: { id: user.id, ehSocio: user.ehSocio, superUsuario: user.superUsuario, escopoGlobalPerfil: user.escopoGlobalPerfil, tipo: user.tipo } }
       : null,
   });
   if (!pessoa) redirect("/");

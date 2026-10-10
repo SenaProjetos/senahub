@@ -71,7 +71,7 @@ export default async function AvisosPage({ searchParams }: { searchParams: Promi
   const [usuarios, avisos, perfis] = await Promise.all([
     prisma.user.findMany({
       where: { ativo: true },
-      select: { id: true, name: true, role: true },
+      select: { id: true, name: true, contratacao: true },
       orderBy: { name: "asc" },
     }),
     listarAvisos(),

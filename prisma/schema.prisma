@@ -11,22 +11,8 @@ datasource db {
 // Identidade & acesso
 // ─────────────────────────────────────────────────────────────
 
-/// LEGADO. Mistura quatro eixos (contratação, setor, hierarquia e interno×externo) e está
-/// sendo desmembrado em `Setor` + `Contratacao` + `TipoUsuario` + Perfil de acesso.
-/// Continua sendo a ÚNICA fonte de autorização até a onda do motor de permissão.
-/// Plano: docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md
-enum Role {
-  admin
-  supervisor
-  administrativo
-  clt
-  estagiario
-  projetista_pj
-  freelancer
-  cliente
-  ti
-}
-
+// O enum `Role` (papel legado de 9 valores) saiu na Onda F: seus quatro eixos viraram `TipoUsuario`,
+// `Setor`, `Contratacao` e Perfil de acesso (+ `superUsuario`). Plano: docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md
 /// ONDE a pessoa atua. Não concede permissão nenhuma — é endereço, não crachá.
 /// A regra "quem é da Diretoria vê tudo" foi deliberadamente rejeitada (§2.1 do plano):
 /// acesso irrestrito vem de Perfil de acesso atribuído pessoa a pessoa.
@@ -74,7 +60,6 @@ model User {
   image         String?
 
   // Campos de domínio
-  role               Role       @default(cliente)
   ativo              Boolean    @default(true)
   mustChangePassword Boolean    @default(false)
   chatStatus         ChatStatus @default(disponivel)
@@ -319,7 +304,6 @@ model User {
 
   geracoesModeloFederado GeracaoModeloFederado[] @relation("GeracaoFederadoAutor")
 
-  @@index([role])
   @@index([tipo, setor])
   @@index([contratacao])
   @@index([perfilId])

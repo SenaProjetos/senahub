@@ -72,7 +72,7 @@ export function TarefasBoard({
   colunas,
   opcoes,
   meId,
-  meRole,
+  meSuper,
   gereTodasTarefas,
   page,
   pageCount,
@@ -82,7 +82,8 @@ export function TarefasBoard({
   colunas: Coluna[];
   opcoes: OpcoesUI;
   meId: string;
-  meRole: string;
+  /** Superusuário: pode remover comentário alheio. */
+  meSuper: boolean;
   /** `tarefas:gerir_todas`, resolvido no servidor. */
   gereTodasTarefas: boolean;
   page: number;
@@ -409,7 +410,7 @@ export function TarefasBoard({
         opcoes={opcoes}
         colunas={colunas.map((c) => ({ id: c.id, nome: c.nome }))}
         meId={meId}
-        meRole={meRole}
+        meSuper={meSuper}
         gereTodasTarefas={gereTodasTarefas}
       />
     </div>

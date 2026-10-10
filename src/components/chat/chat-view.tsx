@@ -71,6 +71,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { podeModerarCanal, type ModeradorChat } from "@/modules/chat/acesso";
+import type { Contratacao } from "@/generated/prisma/enums";
+import { rotuloContratacao } from "@/modules/usuarios/vinculo/labels";
 import {
   Dialog,
   DialogContent,
@@ -125,7 +127,7 @@ function iniciaisAutor(nome: string): string {
 }
 type Fixada = { id: string; conteudo: string; autor: { name: string } };
 type ResultadoBusca = { id: string; canalId: string; conteudo: string; autorNome: string; createdAt: string };
-type Usuario = { id: string; name: string; role: string; chatStatus: string; image?: string | null };
+type Usuario = { id: string; name: string; contratacao: Contratacao | null; chatStatus: string; image?: string | null };
 type ReferenciaChat = { tipo: "projeto" | "documento"; id: string; rotulo: string; href: string };
 type UploadChatItem = { id: string; nomeArquivo: string; mimeType: string | null; disciplina: string };
 type ChatStatus = "disponivel" | "ocupado" | "reuniao";
@@ -636,7 +638,7 @@ export function ChatView({
   const [painelFixadasAberto, setPainelFixadasAberto] = useState(false);
   // Membros do canal aberto (para a lista lateral contextual online/offline).
   const [membrosCanalAtual, setMembrosCanalAtual] = useState<
-    { id: string; name: string; role: string; chatStatus: string | null; image?: string | null }[]
+    { id: string; name: string; contratacao: Contratacao | null; chatStatus: string | null; image?: string | null }[]
   >([]);
   // C4-3: histórico paginado por cursor
   const [temMais, setTemMais] = useState(false);
@@ -1616,11 +1618,11 @@ export function ChatView({
         // Só sugere quem faz parte da sala/grupo aberto (não todos os usuários).
         const users: Usuario[] = membrosCanalAtual
           .filter((u) => u.id !== meId && u.name.toLowerCase().includes(q))
-          .map((u) => ({ id: u.id, name: u.name, role: u.role, chatStatus: u.chatStatus ?? "disponivel" }));
+          .map((u) => ({ id: u.id, name: u.name, contratacao: u.contratacao, chatStatus: u.chatStatus ?? "disponivel" }));
         // Sugere @todos (notifica todos do canal) quando a query casa "todos"/"all".
         const sugereTodos = q.length > 0 && ("todos".startsWith(q) || "all".startsWith(q));
         const base: Usuario[] = sugereTodos
-          ? [{ id: "__todos__", name: "todos", role: "", chatStatus: "disponivel" }, ...users]
+          ? [{ id: "__todos__", name: "todos", contratacao: null, chatStatus: "disponivel" }, ...users]
           : users;
         return base.slice(0, 6);
       })()
@@ -3871,7 +3873,7 @@ function CriarGrupoDialog({
 }: {
   open: boolean;
   onClose: () => void;
-  usuarios: { id: string; name: string; role: string; image?: string | null }[];
+  usuarios: { id: string; name: string; contratacao: Contratacao | null; image?: string | null }[];
   onCriar: (nome: string, membroIds: string[]) => Promise<void>;
 }) {
   const [nome, setNome] = useState("");
@@ -3918,7 +3920,7 @@ function CriarGrupoDialog({
                 />
                 <AvatarUsuario nome={u.name} image={u.image} size="sm" className="size-6" />
                 <span className="flex-1 truncate">{u.name}</span>
-                <span className="text-xs text-muted-foreground">{u.role}</span>
+                <span className="text-xs text-muted-foreground">{rotuloContratacao(u.contratacao)}</span>
               </label>
             ))}
           </div>
@@ -3950,7 +3952,7 @@ function GerenciarGrupoDialog({
   canal: CanalListItem;
   meId: string;
   meModerador?: ModeradorChat;
-  usuarios: { id: string; name: string; role: string }[];
+  usuarios: { id: string; name: string; contratacao: Contratacao | null }[];
   onClose: () => void;
   onRenomear: (nome: string) => Promise<void>;
   onAdicionarMembro: (uid: string) => Promise<void>;
@@ -4163,7 +4165,7 @@ function DMDialog({
                 />
                 <AvatarUsuario nome={u.name} image={u.image} size="sm" className="size-6" />
                 <span className="flex-1">{u.name}</span>
-                <span className="text-xs text-muted-foreground">{u.role}</span>
+                <span className="text-xs text-muted-foreground">{rotuloContratacao(u.contratacao)}</span>
               </button>
             );
           })}

@@ -1,7 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { paresBaseDoPapel } from "@/lib/permissoes-base";
-import type { Role } from "@/lib/roles";
 
 /**
  * Quem está sendo autorizado. `can()` recebe o SUJEITO, não o papel — mudança de assinatura
@@ -14,7 +13,6 @@ import type { Role } from "@/lib/roles";
  */
 export type SubjectAutorizacao = {
   id: string;
-  role: Role;
   ativo: boolean;
   superUsuario: boolean;
   perfilId: string | null;
@@ -29,7 +27,7 @@ export type SubjectAutorizacao = {
  * agora lê a constante direto (bloco F1 do plano). Nenhum gate novo deve chamar isto — use
  * `can(subject, ...)`.
  */
-export async function canRole(role: Role, recurso: string, acao: string): Promise<boolean> {
+export async function canRole(role: string, recurso: string, acao: string): Promise<boolean> {
   if (role === "admin") return true;
   return paresBaseDoPapel(role).has(`${recurso}:${acao}`);
 }

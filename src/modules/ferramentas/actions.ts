@@ -100,7 +100,6 @@ export const salvarCalculo = defineAction(
         disciplinaId: i.disciplinaId,
         autorId: user.id,
         autorNome: user.name,
-        userRole: user.role,
         escopo: { superUsuario: user.superUsuario, escopoGlobalPerfil: user.escopoGlobalPerfil, tipo: user.tipo },
         artId: artValida ? i.artId : null,
         responsavelNome: i.responsavelNome || null,

@@ -11,6 +11,8 @@
 import "dotenv/config";
 import { randomBytes } from "node:crypto";
 import { addDays, subDays, subMonths } from "date-fns";
+import { aplicarVinculo } from "../src/modules/usuarios/vinculo/service";
+import type { Contratacao, Setor } from "../src/generated/prisma/client";
 import { prisma } from "../src/lib/prisma";
 import { auth } from "../src/lib/auth";
 import { proximoCodigoProjeto } from "../src/modules/projetos/numbering";
@@ -96,7 +98,7 @@ async function limpar() {
   await prisma.extratoBancario.deleteMany({});
   await prisma.contaBancaria.deleteMany({});
   // Usuários demo (tudo que não é o admin). Sessions/accounts caem por cascade.
-  await prisma.user.deleteMany({ where: { role: { not: "admin" } } });
+  await prisma.user.deleteMany({ where: { superUsuario: false } });
   // PessoaJuridica só após remover os users que a referenciam (User.pjId).
   await prisma.pessoaJuridica.deleteMany({});
 }
@@ -119,6 +121,17 @@ function diasUteisMes(ano: number, mes0: number): number {
   return n;
 }
 
+/** Papéis do demo (nome só de roteiro) → vínculo + perfil de acesso da semente. Sem papel no banco (Onda F). */
+const DEMO: Record<string, { contratacao: Contratacao | null; setor: Setor; perfil: string }> = {
+  supervisor: { contratacao: "clt", setor: "engenharia", perfil: "coordenador" },
+  administrativo: { contratacao: "clt", setor: "administrativo", perfil: "administrativo" },
+  projetista_pj: { contratacao: "pj", setor: "engenharia", perfil: "projetista_pj" },
+  clt: { contratacao: "clt", setor: "engenharia", perfil: "clt" },
+  estagiario: { contratacao: "estagio", setor: "engenharia", perfil: "estagiario" },
+  freelancer: { contratacao: "autonomo_rpa", setor: "engenharia", perfil: "freelancer" },
+  cliente: { contratacao: null, setor: "engenharia", perfil: "portal_cliente" },
+};
+
 async function criarUsuario(name: string, email: string, role: string, clienteId?: string) {
   const ctx = await auth.$context;
   const hash = await ctx.password.hash(SENHA);
@@ -127,7 +140,7 @@ async function criarUsuario(name: string, email: string, role: string, clienteId
       name,
       email,
       emailVerified: true,
-      role: role as never, tipo: role === "cliente" ? "externo" : "interno",
+      tipo: role === "cliente" ? "externo" : "interno",
       ativo: true,
       mustChangePassword: false,
       clienteId: clienteId ?? null,
@@ -136,6 +149,14 @@ async function criarUsuario(name: string, email: string, role: string, clienteId
   await prisma.account.create({
     data: { userId: user.id, providerId: "credential", accountId: user.id, password: hash },
   });
+  const demo = DEMO[role];
+  if (demo) {
+    const perfil = await prisma.perfilAcesso.findUnique({ where: { chave: demo.perfil }, select: { id: true } });
+    if (perfil) await prisma.user.update({ where: { id: user.id }, data: { perfilId: perfil.id } });
+    if (demo.contratacao) {
+      await aplicarVinculo(prisma, user.id, { contratacao: demo.contratacao, setor: demo.setor, dataInicio: subMonths(new Date(), 12) });
+    }
+  }
   return user;
 }
 
@@ -163,7 +184,7 @@ function garantirAmbienteDev(): void {
 
 async function main() {
   garantirAmbienteDev();
-  const admin = await prisma.user.findFirst({ where: { role: "admin" } });
+  const admin = await prisma.user.findFirst({ where: { superUsuario: true } });
   if (!admin) throw new Error("Admin não encontrado — rode o seed base antes (npm run db:seed).");
 
   console.log("Limpando dados de negócio…");
@@ -721,7 +742,7 @@ async function main() {
   await prisma.user.update({ where: { id: bruno.id }, data: { pjId: pj2.id } });
 
   const respPJ = await prisma.disciplinaResponsavel.findMany({
-    where: { disciplina: { status: { in: ["entregue", "aprovado"] } }, user: { role: { in: ["projetista_pj", "freelancer"] } } },
+    where: { disciplina: { status: { in: ["entregue", "aprovado"] } }, user: { contratacao: { in: ["pj", "autonomo_rpa"] } } },
     include: { disciplina: true, user: true },
   });
   let nPag = 0;
@@ -735,7 +756,7 @@ async function main() {
         disciplinaId: r.disciplinaId,
         projetistaId: r.userId,
         valor,
-        tipoProfissional: r.user.role,
+        tipoProfissional: r.user.contratacao === "pj" ? "projetista_pj" : "freelancer",
         status: pago ? "pago" : "pendente",
         liberadoEm: lib,
         pagoEm: pago ? addDays(lib, 10) : null,

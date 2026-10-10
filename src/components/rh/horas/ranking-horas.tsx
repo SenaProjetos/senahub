@@ -3,7 +3,6 @@
 import { LinhaComMenu } from "@/components/ui/linha-com-menu";
 import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import type { AcaoItemAcao } from "@/components/ui/acoes";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
 import {
   ACAO_COMPARAR,
   ACAO_POR_PROJETO,
@@ -14,6 +13,7 @@ import {
 } from "@/modules/rh/produtividade/acoes-horas";
 import type { PessoaHoras } from "@/modules/rh/produtividade/queries";
 import { rotuloHoras } from "./formato";
+import { rotuloContratacao } from "@/modules/usuarios/vinculo/labels";
 
 /** Todos com horas no período, do maior total para o menor. Clicar no nome entra/sai da comparação. */
 export function RankingHoras({
@@ -94,7 +94,7 @@ function LinhaRanking({
             aria-hidden
           />
           <span className="truncate font-medium">{p.nome}</span>
-          <span className="hidden shrink-0 text-xs text-muted-foreground md:inline">{ROLE_LABELS[p.role as Role] ?? p.role}</span>
+          <span className="hidden shrink-0 text-xs text-muted-foreground md:inline">{rotuloContratacao(p.contratacao)}</span>
         </button>
         <div className="text-right text-xs tabular-nums">
           <span className="font-mono text-sm font-semibold">{rotuloHoras(p.totalHoras)}</span>

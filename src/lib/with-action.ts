@@ -3,7 +3,6 @@ import type { ZodType } from "zod";
 import { getSession, type SessionUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { logAudit, getClientIp } from "@/lib/audit";
-import type { Role } from "@/lib/roles";
 import { ActionError, fieldErrorsDoErro, resultadoDoErro } from "@/lib/action-error";
 
 export type ActionResult<T> =
@@ -24,8 +23,6 @@ type ActionConfig<S> = {
   recurso?: string;
   /** Ação da permissão (default = `acao`). */
   permissao?: string;
-  /** Gate rígido por perfil (além da permissão fina). */
-  roles?: Role[];
   /**
    * Só colaborador interno (`User.tipo`). Substitui `roles: INTERNAL_ROLES` desde a Onda F (bloco C):
    * a pergunta "é gente de dentro?" é do eixo `tipo`, não do papel.
@@ -83,10 +80,6 @@ export function defineAction<S, T>(
     const ip = await getClientIp();
 
     // Gate por perfil
-    if (config.roles && !config.roles.includes(user.role)) {
-      await maybeAudit(config, { user, ip }, "bloqueado");
-      return { ok: false, error: "Sem permissão." };
-    }
     if (config.interno && user.tipo !== "interno") {
       await maybeAudit(config, { user, ip }, "bloqueado");
       return { ok: false, error: "Sem permissão." };

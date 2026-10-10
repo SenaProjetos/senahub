@@ -425,7 +425,7 @@ export async function registrosDiariosProjeto(projetoId: string): Promise<Regist
       id: true,
       inicio: true,
       fim: true,
-      user: { select: { id: true, name: true, role: true } },
+      user: { select: { id: true, name: true, contratacao: true } },
     },
     orderBy: { inicio: "desc" },
   });
@@ -766,7 +766,7 @@ export async function espelhoDetalhado(
 ): Promise<EspelhoDetalhado> {
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: userId },
-    select: { name: true, role: true, contratacao: true },
+    select: { name: true, contratacao: true },
   });
 
   const [esp, uGrade, rGrade, acumulado, ctxApuracao] = await Promise.all([

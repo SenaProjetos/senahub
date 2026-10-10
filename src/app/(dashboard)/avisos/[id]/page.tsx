@@ -4,13 +4,13 @@ import { Check, Clock } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { detalheAviso } from "@/modules/notificacoes/avisos/queries";
 import { statusAviso } from "@/modules/notificacoes/avisos/agendamento";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { formatarDataHora } from "@/lib/utils";
 import { CorpoAviso } from "@/components/notificacoes/corpo-aviso";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { rotuloContratacao } from "@/modules/usuarios/vinculo/labels";
 
 export const metadata: Metadata = { title: "Detalhe do aviso" };
 
@@ -82,7 +82,7 @@ export default async function AvisoDetalhePage({ params }: { params: Promise<{ i
                   <span className="block text-xs text-muted-foreground">{d.user.email}</span>
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
-                  {ROLE_LABELS[d.user.role as Role] ?? d.user.role}
+                  {rotuloContratacao(d.user.contratacao)}
                 </TableCell>
                 <TableCell>
                   {d.lidoEm ? (

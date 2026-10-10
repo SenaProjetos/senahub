@@ -434,7 +434,7 @@ export async function mensagensFixadas(canalId: string) {
 export async function membrosCanal(canalId: string) {
   const m = await prisma.canalMembro.findMany({
     where: { canalId },
-    include: { user: { select: { id: true, name: true, role: true, chatStatus: true, image: true } } },
+    include: { user: { select: { id: true, name: true, contratacao: true, chatStatus: true, image: true } } },
     orderBy: { user: { name: "asc" } },
   });
   return m.map((x) => x.user);
@@ -444,7 +444,7 @@ export async function membrosCanal(canalId: string) {
 export async function usuariosParaDM(userId: string) {
   return prisma.user.findMany({
     where: { ...whereAudiencia("chat_dm"), id: { not: userId } },
-    select: { id: true, name: true, role: true, chatStatus: true, image: true },
+    select: { id: true, name: true, contratacao: true, chatStatus: true, image: true },
     orderBy: { name: "asc" },
   });
 }

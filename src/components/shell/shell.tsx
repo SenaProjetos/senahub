@@ -13,7 +13,7 @@ export function Shell({
   children,
 }: {
   nav: ContextoNav;
-  user: Pick<SessionUser, "name" | "email" | "role" | "image">;
+  user: Pick<SessionUser, "name" | "email" | "contratacao" | "image">;
   title?: string;
   /** Faixa acima da barra superior (ex.: "Atualize seus dados"). Rola junto com a página. */
   faixa?: React.ReactNode;
