@@ -348,3 +348,20 @@ etapas a 0%, o pagamento da disciplina passa a ser por fase e fica bloqueado at�
 (`EtapaParaTela`, agora com `inicio`) com início, fim e situação, para todo mundo que vê o card; botão "Enviei os
 documentos" / "Desfazer envio" só para responsável, desabilitado com a frase de `envio-etapa.ts`; editor de etapas
 (`disciplina-etapas-dialog.tsx`) ganha o campo de início (`salvarEtapaDisciplina` já aceita `inicio`).
+
+## Estado final (2026-10-10)
+
+Tudo o que a reunião, o áudio e as respostas do dono pediram está implementado em `feat/eap-reuniao-0810` (sem push):
+E1–E11, C1–C3, o aviso ao gestor quando alguém conclui, e o preenchimento dos percentuais do modelo nas etapas zeradas.
+Verificação: `smoke:eap-integracao` (ponta a ponta), `smoke:ponto-tarefa`, `smoke:etapa-proxima`, `smoke:etapas-card`,
+`smoke:conclusao-eap`, `smoke:recursos-eap`, testes unitários e conferência em tela com `ensaio:eap`.
+
+**Deploy:** 4 migrações aditivas (`aviso_etapa_enviado`, `etapa_inicio_tipo_sem_ep`, `papel_eap_estagiario`,
+`habilidade_por_disciplina`), sem seed. Disciplinas já existentes NÃO ganham as etapas padrão.
+
+**Em aberto (fora desta entrega):**
+- Cadastrar um modelo de EAP de CASA (o EDIFÍCIO aplicado em unifamiliar traz linhas de Estudo Preliminar sem fase).
+- O modelo EDIFÍCIO não traz percentual do Estudo Preliminar: em multifamiliar as etapas seguem a 0% até o coordenador
+  preencher (ou o percentual do EP entrar no modelo).
+- Separar a habilidade combinada "Hidrossanitária e PPCI" (RH).
+- Testar com o Arapiraca de verdade só depois do ensaio conferido pelo time; aprovar grava a linha de base.
