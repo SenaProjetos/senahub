@@ -43,7 +43,8 @@ npm run smoke:ciclo-rh       # listas de entrada/saída: prazo pela âncora, um 
 npm run smoke:pedido-dados   # "Atualize seus dados" + reconfirmação anual: faixa, um aberto por pessoa, CPF/RG ao RH, fechamento (restaura a pessoa)
 npm run smoke:desenvolvimento  # liderança única ativa, 1:1 compartilhado × privado (o privado não sai do servidor), lembrete sem conteúdo
 npm run smoke:documentos-validade  # documento com validade: aviso 60/30/7/vencido uma vez por faixa, renovar rearma
-npm run smoke:ponto-tarefa    # ponto com tarefa: lista curta, validação, edição do dia, apontado × previsto
+npm run smoke:ponto-tarefa    # ponto com tarefa: lista curta (atrasada não some), sugestão da atividade de hoje, validação, edição do dia, apontado × previsto
+npm run smoke:etapa-proxima   # aviso da etapa que vem: só aprovado, 2 dias úteis antes, atividade + coordenação, uma vez por etapa e data, data nova rearma
 npm run smoke:pagamento-fase  # pagamento por fase: pool congelado, write-back por diferença, SLA, marco → aprovar fase
 npm run smoke:previsao-recebimento  # contrato por entrega: previsão no caixa, marco anda, faturar, fora do aging
 npm run smoke:duplicar-projeto      # duplicar projeto com EAP: estrutura, IDs novos, cronograma em rascunho, o que NÃO copia
@@ -651,7 +652,7 @@ The request closes (`fecharSeAtendido`) on fill and in `rotinasRhDiarias`.
 
 **Cross-module pages (not their own module folder):** `/recursos` = resource-allocation matrix built from `modules/planejamento/queries.ts` (`matrizRecursos`, `cargaSemanalPorRecurso`) + `modules/rh/habilidades/queries.ts`, gated `recursos:ver`/`recursos:gerir`.
 
-**Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`, `coordenacao`, `aprovacao_arquivo`, `aprovacao_disciplina`, `input_cliente`, `conta_a_pagar`, `impacto_ausencia`, `lifecycle_rh`, `desenvolvimento`, `documento_validade`, `ciclo_documental`.
+**Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`, `coordenacao`, `aprovacao_arquivo`, `aprovacao_disciplina`, `input_cliente`, `conta_a_pagar`, `impacto_ausencia`, `lifecycle_rh`, `desenvolvimento`, `documento_validade`, `ciclo_documental`, `etapa_proxima`.
 
 ## Gotchas
 

@@ -68,6 +68,7 @@ export function PreferenciasView({
   notifDesenvolvimento: notifDesenvolvimentoInicial,
   notifDocumentoValidade: notifDocumentoValidadeInicial,
   notifCicloDocumental: notifCicloDocumentalInicial,
+  notifEtapaProxima: notifEtapaProximaInicial,
   pontoEmailModo: pontoEmailModoInicial,
   mostrarAlertasPonto,
 }: {
@@ -99,6 +100,7 @@ export function PreferenciasView({
   notifDesenvolvimento: boolean;
   notifDocumentoValidade: boolean;
   notifCicloDocumental: boolean;
+  notifEtapaProxima: boolean;
   pontoEmailModo: PontoEmailModo;
   /** Alertas de jornada por horário são só p/ CLT/estagiário — controla a seção de e-mail. */
   mostrarAlertasPonto: boolean;
@@ -131,6 +133,7 @@ export function PreferenciasView({
   const [notifDesenvolvimento, setNotifDesenvolvimento] = useState(notifDesenvolvimentoInicial);
   const [notifDocumentoValidade, setNotifDocumentoValidade] = useState(notifDocumentoValidadeInicial);
   const [notifCicloDocumental, setNotifCicloDocumental] = useState(notifCicloDocumentalInicial);
+  const [notifEtapaProxima, setNotifEtapaProxima] = useState(notifEtapaProximaInicial);
   const [pontoEmailModo, setPontoEmailModo] = useState<PontoEmailModo>(pontoEmailModoInicial);
   const [, start] = useTransition();
 
@@ -334,6 +337,13 @@ export function PreferenciasView({
       descricao: "Revisão enviada para análise, devolvida, publicada, liberada para obra ou com a liberação revogada.",
       valor: notifCicloDocumental,
       set: setNotifCicloDocumental,
+    },
+    {
+      chave: "notif_etapa_proxima",
+      titulo: "Próxima etapa do cronograma",
+      descricao: "Uma etapa em que você tem atividade (ou que você coordena) começa em até 2 dias úteis.",
+      valor: notifEtapaProxima,
+      set: setNotifEtapaProxima,
     },
   ];
 

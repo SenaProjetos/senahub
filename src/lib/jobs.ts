@@ -10,6 +10,7 @@ import { FILA_TAMANHO_PAPEL_PDF, processarLeituraTamanhoPapel } from "@/modules/
 import { FILA_MENSAGEM_AGENDADA } from "@/modules/chat/agendamento";
 import { FILA_IMPORTAR_CUSTOS } from "@/modules/custos/composicoes/service";
 import { verificarIntegridadeCiclo } from "@/modules/uploads/ciclo/integridade-service";
+import { avisarEtapasProximas } from "@/modules/planejamento/etapa-proxima-service";
 import {
   processarConversaoIfc,
   processarGeracaoFederado,
@@ -436,6 +437,16 @@ export async function startJobs(): Promise<PgBoss> {
       handler: async () => {
         const n = await lembreteDataStatus();
         if (n > 0) console.log(`[cronograma] ${n} projeto(s) sem apuração avisado(s).`);
+      },
+    },
+    {
+      fila: "aviso-etapa-proxima",
+      // Diário 07:00 (reunião de 08/10/2026, decisão 4): a etapa que começa em até 2 dias úteis,
+      // para quem tem atividade nela e para a coordenação. Uma vez por etapa e data de início.
+      cron: "0 7 * * *",
+      handler: async () => {
+        const r = await avisarEtapasProximas();
+        if (r.avisadas > 0) console.log(`[cronograma] ${r.avisadas} etapa(s) por começar avisada(s).`);
       },
     },
     {

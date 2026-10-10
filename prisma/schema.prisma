@@ -3071,6 +3071,8 @@ model DisciplinaEtapa {
   /// disciplina anda pela mesma diferença. Nulo = não liberada.
   valorPagamento Decimal?         @db.Decimal(12, 2)
   pagamentos     PagamentoProjetista[]
+  /// Avisos "a etapa começa em 2 dias úteis" já enviados (reunião de 08/10/2026, decisão 4).
+  avisosInicio   AvisoEtapaEnviado[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3078,6 +3080,20 @@ model DisciplinaEtapa {
   @@unique([disciplinaId, etapaId])
   @@index([etapaId])
   @@map("disciplina_etapa")
+}
+
+/// Aviso "a etapa começa em 2 dias úteis" (reunião de 08/10/2026, decisão 4): UMA vez por etapa e
+/// data de início. A linha é RESERVADA antes de notificar (P2002 = outra rodada já avisou, não é
+/// erro) e a data está na chave — o início mudar rearma o aviso, como no aviso financeiro.
+model AvisoEtapaEnviado {
+  id                String          @id @default(cuid())
+  disciplinaEtapaId String
+  disciplinaEtapa   DisciplinaEtapa @relation(fields: [disciplinaEtapaId], references: [id], onDelete: Cascade)
+  inicio            DateTime        @db.Date
+  enviadoEm         DateTime        @default(now())
+
+  @@unique([disciplinaEtapaId, inicio])
+  @@map("aviso_etapa_enviado")
 }
 
 model DisciplinaResponsavel {
