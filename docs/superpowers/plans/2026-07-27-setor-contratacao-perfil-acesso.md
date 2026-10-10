@@ -1612,3 +1612,29 @@ tarefas, versões) agora usam `requireInterno()` — o externo recebe 404 em vez
    "usuário novo entra sem vínculo".
 4. **Pode mudar o Termo de Uso** (cláusula 4.2, chat) — com versão nova e reaceite.
 
+### 16.5 Sessão 1 da reta final (Opus, 2026-10-10)
+
+Um deploy só para a Onda F inteira (decisão do dono). Feito nesta sessão, branch `feat/onda-f-poda-role`:
+
+| Etapa | Commit | O que |
+|---|---|---|
+| A1 | `ea2b5b54` | par `rh:gerir` fora da semente; `gereRh` na sessão; `defineAction({ gereRh })`, `requireGestorRh()`, audiência `rh_gestao`; censo seção 7 |
+| A4 | `d85c1c95` | chat: superusuário lê tudo (inclusive Anotações), `chat:moderar` (par novo, fora da semente) lê e modera o resto; Termo de Uso 2026-10-10 declara a moderação designada (reaceite); censo seção 8 |
+| D | `c1f45336` | `lib/contratacao.ts`: jornada, prestador (NF, PJ vinculada, pagamento por entrega), apontamento; equipe de Engenharia por setor; cadastro trabalhista por `tipo`; `defineAction({ contratacoes })`; sai todo fallback "sem vínculo cai no papel"; censo seção 9 |
+| Mock | — | cadastro de pessoa sem papel: https://claude.ai/artifact/1ECeYsA2Hne8EGk1MG71rR (aguarda aprovação) |
+
+**Pré-requisito novo do deploy: o backfill de vínculos é OBRIGATÓRIO.** Com o bloco D, quem não tem
+vínculo para de bater ponto, de ser pago por entrega e de mandar NF. Em produção eram 12 pessoas sem
+vínculo (10 PJ/freelancer). `scripts/backfill-vinculos.ts` cria o vínculo desde a admissão — o
+histórico de apuração continua coberto.
+
+**Decisão pendente para a poda — `tipoProfissional` do pagamento.** Ele é gravado em cada
+`PagamentoProjetista` a partir do papel e escolhe a categoria do DRE (2.01 projetista PJ × 2.02
+freelancer). Os freelancers foram migrados com contratação `pj`; se a categoria passar a vir da
+contratação, pagamento de freelancer cai em 2.01 até a pessoa ser reclassificada para `autonomo_rpa`.
+O bloco D manteve o papel nesse ponto; a poda precisa da resposta.
+
+Fica para a sessão 2 (Sonnet): A2 (`HR_ADMIN_ROLES` → `gereRh`, ~55 sites), A3 (gates restantes), o
+cadastro seguindo o mock aprovado (inclui o assistente do RH e o resumo de acesso), audiências
+restantes (`gestores()` dos jobs, `chat_global`, `planejamento_recurso`), rótulos e a poda final.
+

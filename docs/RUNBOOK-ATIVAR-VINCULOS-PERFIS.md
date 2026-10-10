@@ -344,6 +344,15 @@ preciso recriar a tabela. O backup do Passo 0 guarda os dados dela, se alguém q
 
 ## ⚠ DEPLOY 6 — Onda F, blocos F1/B/C, 2026-10-10
 
+> **Atualização (sessão 1, mesmo dia): a Onda F vai inteira num deploy só.** Antes do deploy, além do
+> censo, é **obrigatório** rodar o backfill de vínculos — com o bloco D, quem não tem vínculo para de
+> bater ponto, de ser pago por entrega e de mandar NF:
+> ```
+> npx tsx --tsconfig tsconfig.server.json scripts/backfill-vinculos.ts --dry-run
+> npx tsx --tsconfig tsconfig.server.json scripts/backfill-vinculos.ts
+> ```
+> Este runbook ganha a versão final do DEPLOY 6 na sessão 2 (poda incluída).
+
 Branch `feat/onda-f-poda-role`. Duas migrations:
 - `20261010150000_drop_permissao_legada` — `DROP TABLE IF EXISTS "permissao"` (destrutiva);
 - `20261010160000_user_tipo_obrigatorio` — preenche `user.tipo` nulo (cliente = externo, resto =
