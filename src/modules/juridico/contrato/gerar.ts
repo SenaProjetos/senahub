@@ -3,6 +3,7 @@ import { ActionError } from "@/lib/action-error";
 import { acquireExecutionSlot } from "@/lib/execution-limit";
 import { prisma } from "@/lib/prisma";
 import { salvarArquivo, slug } from "@/lib/storage";
+import type { ViewerMinimo } from "./fonte";
 
 /**
  * Geração de versão de contrato pelo Estúdio de Documentos (spec
@@ -132,7 +133,7 @@ const obterPdfDoGeradoPadrao: ObterPdfDoGerado = async (documentoGeradoId) => {
  * `resolverFonte` exigir `viewer` obrigatório.
  */
 export async function gerarVersaoDeModelo(
-  entrada: { documentoId: string; modeloId: string; viewer: { id: string; role: string } },
+  entrada: { documentoId: string; modeloId: string; viewer: ViewerMinimo },
   opts: { criarDocumentoGerado?: CriarDocumentoGerado; obterPdf?: ObterPdfDoGerado } = {},
 ): Promise<ResultadoGeracao> {
   const criarDocumentoGerado = opts.criarDocumentoGerado ?? criarDocumentoGeradoPadrao;

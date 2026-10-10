@@ -31,7 +31,7 @@ vi.mock("@/lib/prisma", () => ({
 
 const { lembrarAssinaturaHolerite } = await import("./actions");
 
-const ADMIN = { id: "admin-1", role: "admin", name: "Admin", ativo: true };
+const ADMIN = { id: "admin-1", role: "admin", name: "Admin", ativo: true, gereRh: true };
 
 beforeEach(() => {
   vi.clearAllMocks();

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/session";
-import { HR_ADMIN_ROLES, type Role } from "@/lib/roles";
+
 import { logAudit, getClientIp } from "@/lib/audit";
 import { ActionError, resultadoDoErro } from "@/lib/action-error";
 import { salvarArquivo, removerArquivo, nomeArquivoLimpo } from "@/lib/storage";
@@ -31,7 +31,7 @@ const MAX = 10 * 1024 * 1024;
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  if (!(HR_ADMIN_ROLES as readonly Role[]).includes(session.user.role)) {
+  if (!session.user.gereRh) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 

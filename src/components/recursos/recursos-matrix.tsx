@@ -11,7 +11,8 @@ import { CargaPlanejadaView } from "@/components/recursos/carga-planejada-view";
 import { NecessidadesProjeto } from "@/components/recursos/necessidades-projeto";
 import type { NecessidadesHabilidade } from "@/modules/rh/habilidades/queries";
 import { criarHabilidade, alternarHabilidadeUsuario } from "@/modules/rh/habilidades/actions";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
+import type { Contratacao } from "@/generated/prisma/enums";
+import { CONTRATACAO_LABELS } from "@/modules/usuarios/vinculo/labels";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
   chaveSemanaIso,
@@ -83,7 +84,7 @@ type Linha = {
   userId: string;
   nome: string;
   image: string | null;
-  role: string;
+  contratacao: Contratacao | null;
   capacidade: number;
   capacidadePct: number;
   capacidadeEfetivaPct: number;
@@ -269,7 +270,7 @@ export function RecursosMatrix({
 }: {
   linhas: Linha[];
   projetos: Projeto[];
-  usuariosSemRecurso: { id: string; name: string; role: string }[];
+  usuariosSemRecurso: { id: string; name: string; contratacao: Contratacao | null }[];
   podeGerir: boolean;
   /** Vê a taxa (custo/hora): só com acesso ao financeiro. Sem ele o servidor a manda nula. */
   verCusto: boolean;
@@ -581,7 +582,7 @@ export function RecursosMatrix({
                           )}
                         </div>
                         <div className="text-[11px] text-muted-foreground">
-                          {ROLE_LABELS[l.role as Role] ?? l.role}
+                          {l.contratacao ? CONTRATACAO_LABELS[l.contratacao] : "Sem vínculo"}
                           {l.ausente && l.motivoAusencia && <span className="ml-1">· {l.motivoAusencia}</span>}
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-1">
@@ -1296,7 +1297,7 @@ function NovoRecursoDialog({
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  usuarios: { id: string; name: string; role: string }[];
+  usuarios: { id: string; name: string; contratacao: Contratacao | null }[];
   pending: boolean;
   onSalvar: (p: { userId: string; capacidade: number; cor: string; ativo: boolean }) => void;
 }) {

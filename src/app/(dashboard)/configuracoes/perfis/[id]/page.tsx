@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { requireRole } from "@/lib/session";
+import { requireSuperUsuario } from "@/lib/session";
 import { perfilComMatriz } from "@/modules/perfis/queries";
 import { PerfilMatrizView } from "@/components/configuracoes/perfil-matriz-view";
 
 export const metadata: Metadata = { title: "Perfil de acesso" };
 
 export default async function PerfilDetalhePage({ params }: { params: Promise<{ id: string }> }) {
-  await requireRole("admin");
+  await requireSuperUsuario();
   const { id } = await params;
   const perfil = await perfilComMatriz(id);
   if (!perfil) notFound();

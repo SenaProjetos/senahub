@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import {
   fichaPessoa,
   cadastroDaPessoa,
@@ -138,7 +138,7 @@ export default async function MinhaFichaPage({ searchParams }: { searchParams: P
               ciclos={ciclos}
               opcoes={null}
               equipamentos={equipamentos}
-              quem={{ id, ehRh: HR_ADMIN_ROLES.includes(user.role), ehTi }}
+              quem={{ id, ehRh: user.gereRh, ehTi }}
             />
           ) : undefined
         }

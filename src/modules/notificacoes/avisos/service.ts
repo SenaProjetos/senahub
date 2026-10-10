@@ -9,6 +9,7 @@ import { renderTemplate } from "@/lib/email-templates";
 import { lerArquivo, existeArquivo } from "@/lib/storage";
 import { escaparHtml, markdownParaTexto } from "./formatacao";
 import type { CriarAvisoInput } from "./schemas";
+import { CHAVE_POR_ROLE } from "@/modules/usuarios/vinculo/perfil-semente";
 
 type AlvoInput = Pick<
   CriarAvisoInput,
@@ -48,14 +49,20 @@ export function whereDoAlvo(input: AlvoInput): Prisma.UserWhereInput {
   const base: Prisma.UserWhereInput = { ativo: true };
   switch (input.alvoTipo) {
     case "todos":
-      // Segue em `role` de propósito: trocar por `tipo: "interno"` só é seguro numa base sem
-      // `tipo` nulo (§11 do plano — NULL = ainda não migrado), e isso é verificação de
-      // produção, não suposição. Fica para a Onda F, junto com a saída de `User.role`.
+      // Pelo eixo `tipo` (obrigatório desde a Onda F, bloco C).
       return input.incluirClientes ? base : { ...base, tipo: "interno" };
     case "usuarios":
       return { ...base, id: { in: input.userIds } };
-    case "categoria":
-      return { ...base, role: { in: rolesValidas(input.alvoRoles) } };
+    case "categoria": {
+      // Avisos antigos guardam PAPÉIS em `alvoRoles` (R6). O papel saiu: cada um vale pelo perfil
+      // semente equivalente (`CHAVE_POR_ROLE`), e `admin` pelo superusuário.
+      const papeis = rolesValidas(input.alvoRoles);
+      const chaves = papeis.map((r) => CHAVE_POR_ROLE[r]).filter((c): c is string => !!c);
+      const or: Prisma.UserWhereInput[] = [];
+      if (papeis.includes("admin")) or.push({ superUsuario: true });
+      if (chaves.length > 0) or.push({ perfil: { chave: { in: chaves } } });
+      return or.length > 0 ? { ...base, OR: or } : NINGUEM;
+    }
     case "setor":
       return { ...base, setor: { in: input.alvoSetores } };
     case "contratacao":

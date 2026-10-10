@@ -1,12 +1,24 @@
 /**
  * Níveis de alçada por faixa de valor (puro, testável). Roteamento por faixa:
- * cada faixa cobre valores até `ate` (null = sem teto / catch-all) e define os papéis
- * que podem aprovar. Faixa com `papeis` vazio = aprovação automática (sem alçada).
+ * cada faixa cobre valores até `ate` (null = sem teto / catch-all) e define quem pode aprovar.
+ * Faixa com `papeis` vazio = aprovação automática (sem alçada).
+ *
+ * `papeis` guarda CHAVES DE PERFIL DE ACESSO (Onda F — eram papéis do enum `Role`), mais o token
+ * `admin`, que quer dizer "superusuário": faixa só com ele exige aprovação e só ele decide. O nome
+ * do campo ficou para não reescrever o JSON salvo; a migração `20261010170000_alcada_por_perfil`
+ * troca `supervisor` por `coordenador`.
  */
 export type FaixaAlcada = { ate: number | null; papeis: string[] };
 
-/** Papéis que podem ser aprovadores de alçada (os internos com poder de decisão). */
-export const PAPEIS_APROVADORES = ["admin", "supervisor", "administrativo"] as const;
+/** Token de "superusuário" dentro de `papeis`. */
+export const TOKEN_SUPERUSUARIO = "admin";
+
+/** Quem pode ser escolhido como aprovador de alçada: superusuário + os perfis com poder de decisão. */
+export const APROVADORES_ALCADA = [
+  { chave: TOKEN_SUPERUSUARIO, nome: "Superusuário" },
+  { chave: "coordenador", nome: "Coordenador" },
+  { chave: "administrativo", nome: "Administrativo" },
+] as const;
 
 /** Faixa que cobre o valor: a de menor teto cujo `ate` >= valor; `ate=null` é catch-all. */
 export function faixaPara(valor: number, faixas: FaixaAlcada[]): FaixaAlcada | null {
@@ -55,12 +67,13 @@ export function valorDaAlcada(valor: number, ocorrencias = 1): number {
 export function motivoParaNaoAprovar(p: {
   valorAlcada: number;
   faixas: FaixaAlcada[];
-  aprovador: { id: string; role: string; superUsuario: boolean };
+  aprovador: { id: string; perfilChave: string | null; superUsuario: boolean };
   autorId: string;
 }): string | null {
   if (p.aprovador.superUsuario) return null;
   if (p.aprovador.id === p.autorId) return MOTIVO_PROPRIA_DESPESA;
-  if (!papeisAprovadores(p.valorAlcada, p.faixas).includes(p.aprovador.role)) return MOTIVO_SEM_ALCADA;
+  const chave = p.aprovador.perfilChave;
+  if (!chave || !papeisAprovadores(p.valorAlcada, p.faixas).includes(chave)) return MOTIVO_SEM_ALCADA;
   return null;
 }
 

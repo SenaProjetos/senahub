@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireRole } from "@/lib/session";
+import { requireInterno } from "@/lib/session";
 import { diaLocal } from "@/modules/ponto/engine";
 import { resolverPeriodo } from "@/modules/rh/produtividade/periodo";
 import { horasProjetistas } from "@/modules/rh/produtividade/queries";
@@ -14,15 +14,7 @@ export default async function MinhasHorasPage({
 }: {
   searchParams: Promise<{ de?: string; ate?: string }>;
 }) {
-  const user = await requireRole(
-    "admin",
-    "supervisor",
-    "administrativo",
-    "clt",
-    "estagiario",
-    "projetista_pj",
-    "freelancer",
-  );
+  const user = await requireInterno();
   const sp = await searchParams;
   const hoje = diaLocal(new Date());
   const periodo = resolverPeriodo({ de: sp.de, ate: sp.ate }, hoje);

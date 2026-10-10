@@ -49,7 +49,7 @@ export const salvarConfigLicitacoes = defineAction(
     permissao: "gerir",
     acao: "salvar-config-licitacoes",
     entidade: "ConfigSistema",
-    roles: ["admin"],
+    superUsuario: true,
     schema,
   },
   async (i) => {

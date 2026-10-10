@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import { verificarCadeia } from "@/modules/juridico/assinatura/cadeia";
 import { montarCertificadoHtml } from "@/modules/juridico/assinatura/certificado";
 import { gerarPdfDoHtml } from "@/modules/juridico/contrato/gerar";
@@ -33,7 +33,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   });
   if (!versao) return NextResponse.json({ error: "Versão não encontrada." }, { status: 404 });
   // Mesmo gate de RH do download: certificado de contrato de equipe expõe quem assinou o quê.
-  if (versao.documento.vinculoId && !HR_ADMIN_ROLES.includes(session.user.role)) {
+  if (versao.documento.vinculoId && !session.user.gereRh) {
     return NextResponse.json({ error: "Só RH pode ver certificado de contrato de equipe." }, { status: 403 });
   }
 

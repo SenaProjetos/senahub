@@ -12,8 +12,7 @@ import type { ConfigAvisos } from "@/modules/financeiro/avisos/regras";
 import type { ConfigFinanceiro } from "@/modules/financeiro/config/queries";
 import type { CamposObrigatorios } from "@/modules/financeiro/config/validacao";
 import type { Aliquotas } from "@/modules/financeiro/fechamento/calculo";
-import { PAPEIS_APROVADORES, type FaixaAlcada } from "@/modules/financeiro/aprovacao/niveis";
-import { ROLE_LABELS, type Role } from "@/lib/roles";
+import { APROVADORES_ALCADA, type FaixaAlcada } from "@/modules/financeiro/aprovacao/niveis";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputPercentual } from "@/components/ui/input-percentual";
@@ -296,10 +295,10 @@ function NiveisAlcadaCard({ inicial }: { inicial: FaixaAlcada[] }) {
               />
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              {PAPEIS_APROVADORES.map((papel) => (
-                <label key={papel} className="flex items-center gap-1.5 text-sm">
-                  <input type="checkbox" checked={f.papeis.includes(papel)} onChange={() => togglePapel(i, papel)} className="size-3.5" />
-                  {ROLE_LABELS[papel as Role]}
+              {APROVADORES_ALCADA.map((a) => (
+                <label key={a.chave} className="flex items-center gap-1.5 text-sm">
+                  <input type="checkbox" checked={f.papeis.includes(a.chave)} onChange={() => togglePapel(i, a.chave)} className="size-3.5" />
+                  {a.nome}
                 </label>
               ))}
             </div>

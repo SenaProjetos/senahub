@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import { aplicarVinculo } from "@/modules/usuarios/vinculo/service";
 import { roleLegadoDe } from "@/modules/usuarios/vinculo/mapa";
 import { validarTrocaContratacao } from "@/modules/usuarios/vinculo/troca-contratacao";
@@ -51,7 +51,7 @@ export const trocarContratacao = defineAction(
   {
     modulo: "rh",
     acao: "trocar-contratacao",
-    roles: HR_ADMIN_ROLES,
+    gereRh: true,
     entidade: "User",
     schema: trocarContratacaoSchema,
     entidadeId: (_d, i) => i.userId,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ratearPagamentoProjetista, bloqueioValorDisciplina } from "@/modules/uploads/rateio";
+import { ratearPagamentoProjetista, bloqueioValorDisciplina, tipoProfissionalDoPagamento } from "@/modules/uploads/rateio";
 
 // Pagável pela CONTRATAÇÃO desde a Onda F (bloco D): PJ e RPA (o freelancer migrado) recebem por
 // entrega; CLT/estágio não; sem vínculo também não.
@@ -77,5 +77,15 @@ describe("bloqueioValorDisciplina", () => {
 
   it("libera disciplina sem responsáveis", () => {
     expect(bloqueioValorDisciplina([], null)).toBeNull();
+  });
+});
+
+describe("tipoProfissionalDoPagamento — categoria do DRE (regra do dono, 2026-10-10)", () => {
+  it("prestador COM CNPJ é PJ (2.01)", () => {
+    expect(tipoProfissionalDoPagamento({ pjId: "pj-1" })).toBe("projetista_pj");
+  });
+
+  it("prestador SEM CNPJ é freelancer (2.02)", () => {
+    expect(tipoProfissionalDoPagamento({ pjId: null })).toBe("freelancer");
   });
 });

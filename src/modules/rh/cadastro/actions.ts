@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificar, notificarMuitos } from "@/lib/notificar";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import { whereAudiencia } from "@/lib/audiencias";
 import { prepararAlteracoes, SELECT_FORMATADOS } from "@/modules/rh/cadastro/alteracoes";
 import type { Prisma } from "@/generated/prisma/client";
@@ -78,7 +78,7 @@ export const proporAlteracaoCadastro = defineAction(
   },
 );
 
-const hrBase = { modulo: "rh", roles: HR_ADMIN_ROLES, entidade: "User" } as const;
+const hrBase = { modulo: "rh", gereRh: true, entidade: "User" } as const;
 const alvoSchema = z.object({ userId: z.string().min(1) });
 
 /** RH aprova: aplica o diff (só whitelist) no User e limpa o pendente. Auditado + notifica o autor. */

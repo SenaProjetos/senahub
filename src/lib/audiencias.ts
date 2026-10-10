@@ -167,10 +167,14 @@ export const AUDIENCIAS = {
     modo: "permissao",
     permissao: "chat:dm",
   },
+  /**
+   * Quem pode virar Recurso no planejamento: interno, exceto o prestador SEM CNPJ (o "freelancer" —
+   * regra do dono, 2026-10-10: prestador com pessoa jurídica é PJ, sem ela é freelancer).
+   */
   planejamento_recurso: {
-    descricao: "Usuários que podem virar Recurso no planejamento — exclui cliente e freelancer",
-    modo: "notIn",
-    roles: ["cliente", "freelancer"],
+    descricao: "Usuários que podem virar Recurso no planejamento — internos, exceto prestador sem CNPJ (freelancer)",
+    modo: "eixo",
+    where: { tipo: "interno", NOT: { contratacao: { in: ["pj", "autonomo_rpa"] }, pjId: null } },
   },
 } as const satisfies Record<string, Audiencia>;
 

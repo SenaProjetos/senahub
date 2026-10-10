@@ -4,7 +4,7 @@ import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { salvarArquivo, slug, nomeArquivoLimpo } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 
 const MAX = 25 * 1024 * 1024;
 
@@ -23,7 +23,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     include: { versoes: { orderBy: { numero: "desc" }, take: 1 } },
   });
   if (!doc) return NextResponse.json({ error: "Documento não encontrado." }, { status: 404 });
-  if (doc.vinculoId && !HR_ADMIN_ROLES.includes(user.role)) {
+  if (doc.vinculoId && !user.gereRh) {
     return NextResponse.json({ error: "Só RH pode enviar versão de contrato de equipe." }, { status: 403 });
   }
 

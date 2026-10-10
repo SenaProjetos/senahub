@@ -5,9 +5,9 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { removerArquivo } from "@/lib/storage";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
 
-const rhBase = { modulo: "rh", roles: HR_ADMIN_ROLES, entidade: "FuncionarioDocumento" } as const;
+
+const rhBase = { modulo: "rh", gereRh: true, entidade: "FuncionarioDocumento" } as const;
 const dataIso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida.");
 
 function rev(userId: string) {

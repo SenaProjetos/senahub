@@ -4,7 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { ActionError } from "@/lib/action-error";
 import { criarDespesaProjetistaPrevista } from "@/modules/financeiro/custo/lancamento-custo";
 import { recalcularTotalFolha } from "@/modules/financeiro/folha-lote/service";
-import { ehPagavel, ratearPagamentoProjetista } from "@/modules/uploads/rateio";
+import { ehPagavel, ratearPagamentoProjetista, tipoProfissionalDoPagamento } from "@/modules/uploads/rateio";
 import type { Contratacao } from "@/generated/prisma/enums";
 import {
   planejarSincronizacao,
@@ -28,11 +28,10 @@ import {
 type ResponsavelComUser = {
   userId: string;
   /**
-   * `contratacao` decide quem é PAGÁVEL (Onda F, bloco D). `role` ainda escolhe `tipoProfissional`,
-   * que vira a categoria do DRE (2.01 projetista PJ × 2.02 freelancer) — os freelancers foram
-   * migrados com contratação `pj`, então trocar esta leitura mudaria o DRE. Decisão pendente da poda.
+   * `contratacao` decide quem é PAGÁVEL; `pjId` (tem CNPJ?) decide o `tipoProfissional` do
+   * pagamento, e com ele a categoria do DRE (2.01 PJ × 2.02 freelancer) — ver `rateio.ts`.
    */
-  user: { id: string; name: string; role: string; contratacao: Contratacao | null };
+  user: { id: string; name: string; contratacao: Contratacao | null; pjId: string | null };
 };
 
 type Db = Prisma.TransactionClient;
@@ -150,7 +149,7 @@ export async function liberarPagamentosDaFase(
         etapaId: faseId,
         projetistaId: resp.userId,
         valor,
-        tipoProfissional: resp.user.role,
+        tipoProfissional: tipoProfissionalDoPagamento(resp.user),
         status: "pendente",
         liberadoEm: agora,
       },
@@ -158,7 +157,7 @@ export async function liberarPagamentosDaFase(
     const lancamentoId = await criarDespesaProjetistaPrevista(tx, {
       pagamentoId: pag.id,
       valor,
-      tipoProfissional: resp.user.role,
+      tipoProfissional: tipoProfissionalDoPagamento(resp.user),
       projetistaNome: resp.user.name,
       disciplinaNome: nome,
       projetoId: disciplina.projeto.id,
@@ -237,7 +236,7 @@ export async function liberarPagamentosProjetista(
         disciplinaId: disciplina.id,
         projetistaId: r.userId,
         valor,
-        tipoProfissional: r.user.role,
+        tipoProfissional: tipoProfissionalDoPagamento(r.user),
         status: "pendente",
         liberadoEm: agora,
       },
@@ -246,7 +245,7 @@ export async function liberarPagamentosProjetista(
       const lancamentoId = await criarDespesaProjetistaPrevista(tx, {
         pagamentoId: pag.id,
         valor,
-        tipoProfissional: r.user.role,
+        tipoProfissional: tipoProfissionalDoPagamento(r.user),
         projetistaNome: r.user.name,
         disciplinaNome: disciplina.disciplinaTextoLegado,
         projetoId: disciplina.projeto.id,
@@ -320,7 +319,7 @@ export async function sincronizarPagamentosPorDisciplinaId(
       id: true,
       disciplinaTextoLegado: true,
       valor: true,
-      responsaveis: { select: { userId: true, user: { select: { id: true, name: true, role: true, contratacao: true } } } },
+      responsaveis: { select: { userId: true, user: { select: { id: true, name: true, contratacao: true, pjId: true } } } },
       projeto: { select: { id: true, codigo: true } },
     },
   });
@@ -422,7 +421,7 @@ export async function sincronizarPagamentosDisciplina(
       const lancamentoId = await criarDespesaProjetistaPrevista(tx, {
         pagamentoId,
         valor,
-        tipoProfissional: resp.user.role,
+        tipoProfissional: tipoProfissionalDoPagamento(resp.user),
         projetistaNome: resp.user.name,
         disciplinaNome: disciplina.disciplinaTextoLegado,
         projetoId: disciplina.projeto.id,
@@ -457,7 +456,7 @@ export async function sincronizarPagamentosDisciplina(
         disciplinaId: disciplina.id,
         projetistaId: userId,
         valor,
-        tipoProfissional: resp.user.role,
+        tipoProfissional: tipoProfissionalDoPagamento(resp.user),
         status: "pendente",
         liberadoEm: agora,
       },
@@ -465,7 +464,7 @@ export async function sincronizarPagamentosDisciplina(
     const lancamentoId = await criarDespesaProjetistaPrevista(tx, {
       pagamentoId: pag.id,
       valor,
-      tipoProfissional: resp.user.role,
+      tipoProfissional: tipoProfissionalDoPagamento(resp.user),
       projetistaNome: resp.user.name,
       disciplinaNome: disciplina.disciplinaTextoLegado,
       projetoId: disciplina.projeto.id,

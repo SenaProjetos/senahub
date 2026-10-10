@@ -1,7 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import puppeteer from "puppeteer-core";
 import { getSession } from "@/lib/session";
-import { HR_ADMIN_ROLES, type Role } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { renderHoleriteHtml } from "@/modules/rh/folha/service";
 import { empresaParaTimbrado } from "@/modules/configuracoes/empresa/queries";
@@ -34,7 +33,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!holerite) return new Response("Holerite não encontrado.", { status: 404 });
 
   const titular = holerite.userId === session.user.id;
-  if (!titular && !(HR_ADMIN_ROLES as readonly Role[]).includes(session.user.role)) {
+  if (!titular && !session.user.gereRh) {
     return new Response("Sem permissão.", { status: 403 });
   }
 

@@ -3,7 +3,6 @@ import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { listarClientes } from "@/modules/clientes/queries";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
 import { verificarCadeia } from "@/modules/juridico/assinatura/cadeia";
 import { JuridicoView } from "@/components/juridico/juridico-view";
 
@@ -17,7 +16,7 @@ export default async function JuridicoPage() {
   ]);
   // Contrato de equipe (vinculoId setado) é dado sensível de RH — quem não é HR_ADMIN_ROLES
   // nem enxerga a linha (spec 2026-08-26-gerenciador-contratos.md, Fase A §3).
-  const podeVerEquipe = HR_ADMIN_ROLES.includes(user.role);
+  const podeVerEquipe = user.gereRh;
 
   const [docs, projetos, clientes, pastas, modelosContrato, vinculos, cargos] = await Promise.all([
     prisma.documentoJuridico.findMany({

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import { whereAudiencia } from "@/lib/audiencias";
 import { notificar, notificarMuitos } from "@/lib/notificar";
 import { podeResponderTicket } from "@/modules/suporte/acesso";
@@ -108,7 +108,7 @@ export const responderTicket = defineAction(
 export const mudarStatusTicket = defineAction(
   {
     modulo: "suporte",
-    roles: HR_ADMIN_ROLES,
+    gereRh: true,
     acao: "status-ticket",
     entidade: "TicketSuporte",
     schema: statusSchema,

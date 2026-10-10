@@ -604,7 +604,7 @@ export async function matrizRecursos(opcoes: { verCusto: boolean }) {
     prisma.recurso.findMany({
       where: { ativo: true },
       include: {
-        user: { select: { id: true, name: true, role: true, image: true } },
+        user: { select: { id: true, name: true, contratacao: true, image: true } },
         alocacoes: {
           include: { projeto: { select: { id: true, codigo: true, nome: true } } },
         },
@@ -617,7 +617,7 @@ export async function matrizRecursos(opcoes: { verCusto: boolean }) {
     }),
     prisma.user.findMany({
       where: { ...whereAudiencia("planejamento_recurso"), recurso: null },
-      select: { id: true, name: true, role: true, image: true },
+      select: { id: true, name: true, contratacao: true, image: true },
       orderBy: { name: "asc" },
     }),
     prisma.ferias.findMany({
@@ -721,7 +721,7 @@ export async function matrizRecursos(opcoes: { verCusto: boolean }) {
         userId: r.user.id,
         nome: r.user.name,
         image: r.user.image,
-        role: r.user.role,
+        contratacao: r.user.contratacao,
         capacidade: Number(r.capacidade),
         capacidadePct,
         capacidadeEfetivaPct,
@@ -838,7 +838,7 @@ export async function pessoasParaAtribuicao() {
       id: true,
       name: true,
       image: true,
-      role: true,
+      contratacao: true,
       // Habilidade que a pessoa declarou (nível preenchido): a lista da célula põe no topo quem trabalha com a disciplina da linha.
       habilidades: { where: { nivel: { not: null } }, select: { habilidade: { select: { nome: true } } } },
     },

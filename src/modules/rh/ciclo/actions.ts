@@ -5,10 +5,10 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import { abrirCicloNoBanco, cancelarCicloNoBanco, marcarItemNoBanco } from "./service";
 
-const rhBase = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
+const rhBase = { modulo: "rh", gereRh: true } as const;
 
 function revalidar(userId?: string) {
   revalidatePath("/rh/admin");
@@ -55,7 +55,7 @@ export const marcarItemCiclo = defineAction(
       prisma.onboardingItem.findUnique({ where: { id: i.id }, select: { concluido: true, evidencia: true, concluidoPorId: true } }),
   },
   async (i, { user }) => {
-    const ehRh = (HR_ADMIN_ROLES as readonly string[]).includes(user.role);
+    const ehRh = user.gereRh;
     const ehTi = ehRh ? false : await can(user, "patrimonio", "ti");
     const r = await marcarItemNoBanco(i, { id: user.id, ehRh, ehTi });
     const ciclo = await prisma.onboardingProcesso.findUnique({ where: { id: r.processoId }, select: { userId: true } });

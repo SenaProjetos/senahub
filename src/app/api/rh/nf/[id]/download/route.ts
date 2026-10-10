@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { lerArquivo } from "@/lib/storage";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -13,7 +13,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const nf = await prisma.notaFiscalPJ.findUnique({ where: { id } });
   if (!nf) return NextResponse.json({ error: "NF não encontrada." }, { status: 404 });
 
-  const ehGestor = user.superUsuario || HR_ADMIN_ROLES.includes(user.role);
+  const ehGestor = user.superUsuario || user.gereRh;
   if (!ehGestor && nf.userId !== user.id) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }

@@ -2,7 +2,6 @@ import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
 import { can, canRole } from "@/lib/permissions";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
 import { listarPessoas } from "@/modules/rh/pessoas/queries";
 import { opcoesCadastroFuncionario } from "@/modules/rh/funcionarios/queries";
 import { alteracoesPendentes, pedidosDeDados } from "@/modules/rh/cadastro/queries";
@@ -18,7 +17,7 @@ export const metadata: Metadata = { title: "Pessoas" };
 export default async function PessoasPage() {
   const user = await requirePermission("rh", "cadastro");
   // Criar funcionário completo (wizard) é ação de HR-admin — o cadastrarFuncionario gateia por HR_ADMIN_ROLES.
-  const podeCriar = HR_ADMIN_ROLES.includes(user.role);
+  const podeCriar = user.gereRh;
   // Mesmo gate de `[id]/page.tsx`: sem `rh:folha`, salário/conta bancária saem da checagem de
   // completude da lista (ver `completude.ts` § avaliarFolha) — este viewer não pode corrigi-los.
   const podeFolha =

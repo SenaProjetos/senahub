@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import { agendarDesligamento, cancelarDesligamento } from "@/modules/usuarios/vinculo/service";
 import { MOTIVOS_DESLIGAMENTO, validarDesligamento } from "@/modules/usuarios/vinculo/desligamento";
 
@@ -34,7 +34,7 @@ export const desligarColaborador = defineAction(
   {
     modulo: "rh",
     acao: "desligar-colaborador",
-    roles: HR_ADMIN_ROLES,
+    gereRh: true,
     entidade: "User",
     schema: z.object({
       userId: z.string().min(1),
@@ -74,7 +74,7 @@ export const cancelarDesligamentoAction = defineAction(
   {
     modulo: "rh",
     acao: "cancelar-desligamento",
-    roles: HR_ADMIN_ROLES,
+    gereRh: true,
     entidade: "User",
     schema: z.object({ userId: z.string().min(1) }),
     entidadeId: (_d, i) => i.userId,

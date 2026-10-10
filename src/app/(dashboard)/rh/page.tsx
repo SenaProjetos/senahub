@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireRole } from "@/lib/session";
+import { requireInterno } from "@/lib/session";
 import { controlaJornada } from "@/modules/ponto/jornada";
 import { minhasSolicitacoes, humorHoje, meuOnboarding, minhasNFs } from "@/modules/rh/queries";
 import { modelosPorFonte } from "@/modules/documentos/queries";
@@ -10,20 +10,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CheckCircle2, Circle, Users } from "lucide-react";
 import Link from "next/link";
 import { quantosLidera } from "@/modules/rh/desenvolvimento/queries";
+import { ehPrestador } from "@/lib/contratacao";
 
 export const metadata: Metadata = { title: "RH" };
 
 export default async function RhPage() {
-  const user = await requireRole(
-    "admin",
-    "supervisor",
-    "administrativo",
-    "clt",
-    "estagiario",
-    "projetista_pj",
-    "freelancer",
-  );
-  const ehPJ = user.role === "projetista_pj" || user.role === "freelancer";
+  const user = await requireInterno();
+  const ehPJ = ehPrestador(user.contratacao);
   const [{ abonos, ferias }, humor, onboarding, nfs, modelosExtrato, lidera] = await Promise.all([
     minhasSolicitacoes(user.id),
     humorHoje(user.id),

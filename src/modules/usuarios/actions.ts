@@ -189,7 +189,7 @@ export const excluirUsuario = defineAction(
     acao: "excluir-usuario",
     recurso: "usuarios",
     permissao: "gerir",
-    roles: ["admin"],
+    superUsuario: true,
     entidade: "User",
     schema: usuarioIdSchema,
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { lerArquivo } from "@/lib/storage";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 
 const TIPOS: Record<string, string> = {
   pdf: "application/pdf",
@@ -25,7 +25,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     return NextResponse.json({ error: "Atestado não encontrado." }, { status: 404 });
   }
   // Dono ou gestor de RH.
-  const ehGestor = HR_ADMIN_ROLES.includes(user.role);
+  const ehGestor = user.gereRh;
   if (abono.userId !== user.id && !ehGestor) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }

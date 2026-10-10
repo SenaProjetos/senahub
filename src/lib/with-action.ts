@@ -33,9 +33,11 @@ type ActionConfig<S> = {
   interno?: boolean;
   /**
    * Só gestão de RH (`rh:gerir`, resolvido na sessão como `gereRh`). Substitui
-   * `roles: HR_ADMIN_ROLES` desde a Onda F (§16.4) — RH é permissão dada pessoa a pessoa.
+   * `gereRh: true` desde a Onda F (§16.4) — RH é permissão dada pessoa a pessoa.
    */
   gereRh?: boolean;
+  /** Só superusuário (o bypass do motor). Substitui `roles: ["admin"]` — Onda F. */
+  superUsuario?: boolean;
   /**
    * Só quem tem uma destas contratações no vínculo ativo (`User.contratacao`). Substitui
    * `roles: PJ_ROLES` / `CLT_ROLES` desde a Onda F, bloco D.
@@ -86,6 +88,10 @@ export function defineAction<S, T>(
       return { ok: false, error: "Sem permissão." };
     }
     if (config.interno && user.tipo !== "interno") {
+      await maybeAudit(config, { user, ip }, "bloqueado");
+      return { ok: false, error: "Sem permissão." };
+    }
+    if (config.superUsuario && !user.superUsuario) {
       await maybeAudit(config, { user, ip }, "bloqueado");
       return { ok: false, error: "Sem permissão." };
     }

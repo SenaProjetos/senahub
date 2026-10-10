@@ -5,7 +5,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificar } from "@/lib/notificar";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import { aplicaRegraInicioFeriasClt, controlaJornada, type SujeitoJornada } from "@/modules/ponto/jornada";
 import { whereAudiencia } from "@/lib/audiencias";
 import { formatarData } from "@/lib/utils";
@@ -19,7 +19,7 @@ import { avisarImpactoDaAusencia } from "@/modules/planejamento/impacto-ausencia
  * self-service de RH. Plano: docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md (§4c)
  */
 const base = { modulo: "rh", interno: true } as const;
-const adminBase = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
+const adminBase = { modulo: "rh", gereRh: true } as const;
 
 // ── Self-service ──────────────────────────────────────────────
 /**
@@ -295,7 +295,7 @@ export const proporAlteracaoFerias = defineAction(
     if (f.status !== "aprovado")
       throw new ActionError("Só é possível propor alteração em férias já aprovadas.");
     const ehDono = f.userId === user.id;
-    const ehAdmin = (HR_ADMIN_ROLES as readonly string[]).includes(user.role);
+    const ehAdmin = user.gereRh;
     if (!ehDono && !ehAdmin) throw new ActionError("Sem permissão.");
     if (f.altInicio) throw new ActionError("Já existe uma alteração pendente para estas férias.");
 
@@ -383,7 +383,7 @@ export const responderAlteracaoFerias = defineAction(
     const f = await prisma.ferias.findUnique({ where: { id: i.id } });
     if (!f || !f.altInicio || !f.altFim) throw new ActionError("Não há alteração pendente.");
     const ehDono = f.userId === user.id;
-    const ehAdmin = (HR_ADMIN_ROLES as readonly string[]).includes(user.role);
+    const ehAdmin = user.gereRh;
     // Só pode responder o lado que ainda NÃO aprovou (a contraparte de quem propôs).
     const respondeAdmin = ehAdmin && !f.altOkAdmin;
     const respondeFunc = ehDono && !f.altOkFunc;

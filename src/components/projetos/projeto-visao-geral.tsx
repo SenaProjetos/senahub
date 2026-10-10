@@ -55,7 +55,7 @@ type Props = {
   podeVerPendencias: boolean;
   internos: { id: string; name: string; role: string; cargo: string | null }[];
   papeisSugeridos: string[];
-  user: { id: string; role: Role; tipo: "interno" | "externo" };
+  user: { id: string; role: Role; tipo: "interno" | "externo"; setor: string | null };
   sessaoAtiva: { id: string; projetoId: string | null; inicio: Date } | null;
   podeVerRegistrosPontoEquipe: boolean;
   registrosPontoEquipe: RegistrosDiariosProjeto[];
@@ -775,7 +775,7 @@ export function ProjetoVisaoGeral({
         </Card>
       ),
     });
-  } else if (user.tipo === "interno" && user.role !== "ti") {
+  } else if (user.tipo === "interno" && user.setor !== "ti") {
     paineis.push({
       id: "ponto",
       conteudo: <Card size="sm"><CardHeader><CardTitle className="text-sm">Ponto no projeto</CardTitle></CardHeader><CardContent><PontoProjeto projetoId={projeto.id} sessaoAtiva={sessaoAtiva} /></CardContent></Card>,

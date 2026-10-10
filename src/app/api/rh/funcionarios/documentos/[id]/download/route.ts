@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import { lerArquivo } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 
@@ -15,7 +15,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   // aos próprios dados, LGPD art. 18). Enviar e excluir continuam só com o RH (actions).
   // Para quem não é RH, documento de outra pessoa e documento inexistente dão a MESMA resposta:
   // um id alheio não confirma que o documento existe.
-  const ehRh = HR_ADMIN_ROLES.includes(session.user.role);
+  const ehRh = session.user.gereRh;
   if (!ehRh && doc?.userId !== session.user.id) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }

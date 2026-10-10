@@ -33,10 +33,18 @@ describe("whereDoAlvo", () => {
     });
   });
 
-  it("categoria filtra por roles válidas", () => {
+  it("categoria (legado) vale pelo perfil equivalente ao papel; admin vale pelo superusuário", () => {
     expect(
       whereDoAlvo({ ...vazio, alvoTipo: "categoria", alvoRoles: ["clt", "invalida", "ti"] }),
-    ).toEqual({ ativo: true, role: { in: ["clt", "ti"] } });
+    ).toEqual({ ativo: true, OR: [{ perfil: { chave: { in: ["clt", "ti"] } } }] });
+    expect(whereDoAlvo({ ...vazio, alvoTipo: "categoria", alvoRoles: ["admin", "supervisor"] })).toEqual({
+      ativo: true,
+      OR: [{ superUsuario: true }, { perfil: { chave: { in: ["coordenador"] } } }],
+    });
+  });
+
+  it("categoria sem papel válido não casa ninguém", () => {
+    expect(whereDoAlvo({ ...vazio, alvoTipo: "categoria", alvoRoles: ["invalida"] })).toEqual({ id: { in: [] } });
   });
 
   it("usuarios filtra por ids", () => {

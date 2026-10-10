@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import { notificar } from "@/lib/notificar";
 
 const validarSchema = z.object({
@@ -17,7 +17,7 @@ const validarSchema = z.object({
 export const validarNF = defineAction(
   {
     modulo: "rh",
-    roles: HR_ADMIN_ROLES,
+    gereRh: true,
     acao: "validar-nf",
     entidade: "NotaFiscalPJ",
     schema: validarSchema,

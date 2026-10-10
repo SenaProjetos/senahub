@@ -4,10 +4,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import { CHAVE_DEDUCAO_DEP } from "@/modules/rh/encargos/queries";
 
-const base = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
+const base = { modulo: "rh", gereRh: true } as const;
 
 const salvarSchema = z.object({
   tipo: z.enum(["inss", "irrf"]),

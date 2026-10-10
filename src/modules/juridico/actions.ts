@@ -8,7 +8,6 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { lerArquivo } from "@/lib/storage";
-import { HR_ADMIN_ROLES, type Role } from "@/lib/roles";
 import { devePassarPorAprovacao } from "@/lib/aprovacao";
 import { brl } from "@/lib/utils";
 import { limiteAprovacaoContrato } from "@/modules/juridico/config";
@@ -41,8 +40,8 @@ const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
  * ("é HR" OU "é o dono do vínculo") — hoje só cobre a superfície de GESTÃO (RH administrando
  * contrato de terceiro), não o self-service da pessoa lendo o que é dela. Ainda não implementado.
  */
-function ehHrAdmin(role: Role): boolean {
-  return HR_ADMIN_ROLES.includes(role);
+function ehHrAdmin(user: { gereRh: boolean }): boolean {
+  return user.gereRh;
 }
 
 /**
@@ -75,7 +74,7 @@ const idSchema = z.object({ id: z.string().min(1) });
 export const criarDocJuridico = defineAction(
   { ...base, acao: "criar-doc", entidade: "DocumentoJuridico", schema: docSchema },
   async (i, ctx) => {
-    if (i.vinculoId && !ehHrAdmin(ctx.user.role)) {
+    if (i.vinculoId && !ehHrAdmin(ctx.user)) {
       throw new ActionError("Só RH pode criar contrato de equipe.");
     }
     const d = await prisma.documentoJuridico.create({
@@ -125,7 +124,7 @@ export const atualizarClausulasAdicionais = defineAction(
   async (i, ctx) => {
     const alvo = await prisma.documentoJuridico.findUnique({ where: { id: i.id }, select: { vinculoId: true } });
     if (!alvo) throw new ActionError("Documento não encontrado.");
-    if (alvo.vinculoId && !ehHrAdmin(ctx.user.role)) {
+    if (alvo.vinculoId && !ehHrAdmin(ctx.user)) {
       throw new ActionError("Só RH pode editar contrato de equipe.");
     }
     await prisma.documentoJuridico.update({
@@ -140,7 +139,7 @@ export const atualizarClausulasAdicionais = defineAction(
 export const atualizarContratoEquipe = defineAction(
   { ...base, acao: "atualizar-contrato-equipe", entidade: "DocumentoJuridico", schema: contratoEquipeUpdateSchema },
   async (i, ctx) => {
-    if (!ehHrAdmin(ctx.user.role)) throw new ActionError("Só RH pode editar contrato de equipe.");
+    if (!ehHrAdmin(ctx.user)) throw new ActionError("Só RH pode editar contrato de equipe.");
     const alvo = await prisma.documentoJuridico.findUnique({
       where: { id: i.id },
       select: { vinculoId: true, valor: true, statusContrato: true },
@@ -210,7 +209,7 @@ export const moverDocPasta = defineAction(
   { ...base, acao: "mover-doc-pasta", entidade: "DocumentoJuridico", schema: z.object({ id: z.string().min(1), pastaId: opt(z.string()) }) },
   async (i, ctx) => {
     const alvo = await prisma.documentoJuridico.findUnique({ where: { id: i.id }, select: { vinculoId: true } });
-    if (alvo?.vinculoId && !ehHrAdmin(ctx.user.role)) throw new ActionError("Só RH pode mover contrato de equipe.");
+    if (alvo?.vinculoId && !ehHrAdmin(ctx.user)) throw new ActionError("Só RH pode mover contrato de equipe.");
     await prisma.documentoJuridico.update({ where: { id: i.id }, data: { pastaId: i.pastaId || null } });
     rev();
     return { id: i.id };
@@ -221,7 +220,7 @@ export const excluirDocJuridico = defineAction(
   { ...base, acao: "excluir-doc", entidade: "DocumentoJuridico", schema: idSchema },
   async (i, ctx) => {
     const alvo = await prisma.documentoJuridico.findUnique({ where: { id: i.id }, select: { vinculoId: true } });
-    if (alvo?.vinculoId && !ehHrAdmin(ctx.user.role)) throw new ActionError("Só RH pode excluir contrato de equipe.");
+    if (alvo?.vinculoId && !ehHrAdmin(ctx.user)) throw new ActionError("Só RH pode excluir contrato de equipe.");
     await prisma.documentoJuridico.delete({ where: { id: i.id } });
     rev();
     return { id: i.id };
@@ -257,7 +256,7 @@ export const criarAditivoEquipe = defineAction(
     }),
   },
   async (i, ctx) => {
-    if (!ehHrAdmin(ctx.user.role)) throw new ActionError("Só RH pode criar aditivo de contrato de equipe.");
+    if (!ehHrAdmin(ctx.user)) throw new ActionError("Só RH pode criar aditivo de contrato de equipe.");
 
     const origem = await prisma.documentoJuridico.findUnique({
       where: { id: i.contratoOrigemId },
@@ -322,12 +321,12 @@ export const gerarVersaoDeModelo = defineAction(
       select: { vinculoId: true },
     });
     if (!alvo) throw new ActionError("Documento não encontrado.");
-    if (alvo.vinculoId && !ehHrAdmin(ctx.user.role)) {
+    if (alvo.vinculoId && !ehHrAdmin(ctx.user)) {
       throw new ActionError("Só RH pode gerar contrato de equipe.");
     }
 
     const r = await gerarVersaoDeModeloContrato(
-      { documentoId: i.documentoId, modeloId: i.modeloId, viewer: { id: ctx.user.id, role: ctx.user.role } },
+      { documentoId: i.documentoId, modeloId: i.modeloId, viewer: ctx.user },
     );
     rev();
     return r;
@@ -526,7 +525,7 @@ export const criarLinkAssinatura = defineAction(
       select: { id: true, documento: { select: { vinculoId: true } } },
     });
     if (!versao) throw new ActionError("Versão não encontrada.");
-    if (versao.documento.vinculoId && !ehHrAdmin(ctx.user.role)) {
+    if (versao.documento.vinculoId && !ehHrAdmin(ctx.user)) {
       throw new ActionError("Só RH pode enviar contrato de equipe para assinatura externa.");
     }
 
@@ -621,7 +620,7 @@ export const registrarAceite = defineAction(
     }
     // Contrato de equipe carrega salário/CPF: quem administra precisa ser RH, não qualquer um com
     // `juridico:gerir`. O dono do vínculo segue podendo assinar o dele.
-    if (doc.vinculoId && !ehDonoDoVinculo && !ehHrAdmin(ctx.user.role)) {
+    if (doc.vinculoId && !ehDonoDoVinculo && !ehHrAdmin(ctx.user)) {
       throw new ActionError("Só RH pode assinar contrato de equipe de outra pessoa.");
     }
 

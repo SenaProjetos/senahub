@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireRole } from "@/lib/session";
+import { requireInterno } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { estadoDoDia, projetosDoUsuario, espelhoMes, ajustesPendentesCiencia } from "@/modules/ponto/queries";
 import { apontamentoAtual } from "@/modules/ponto/apontamento";
@@ -15,15 +15,7 @@ export const metadata: Metadata = { title: "Ponto" };
 
 export default async function PontoPage() {
   // Ponto é autoatendimento de todos os internos (cliente fora).
-  const user = await requireRole(
-    "admin",
-    "supervisor",
-    "administrativo",
-    "clt",
-    "estagiario",
-    "projetista_pj",
-    "freelancer",
-  );
+  const user = await requireInterno();
 
   const hoje = new Date();
   const ano = hoje.getFullYear();

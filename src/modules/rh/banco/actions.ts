@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction } from "@/lib/with-action";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import { fecharBancoDoMes, recalcularHistoricoBanco } from "@/modules/rh/banco/service";
 
 /**
@@ -15,7 +15,7 @@ export const fecharBancoMesEquipe = defineAction(
   {
     modulo: "rh",
     acao: "fechar-banco-horas",
-    roles: HR_ADMIN_ROLES,
+    gereRh: true,
     entidade: "BancoHorasMensal",
     schema: z.object({
       ano: z.number().int().min(2000).max(2100),
@@ -41,7 +41,7 @@ export const recalcularBancoHistorico = defineAction(
   {
     modulo: "rh",
     acao: "recalcular-banco-horas",
-    roles: HR_ADMIN_ROLES,
+    gereRh: true,
     entidade: "BancoHorasMensal",
     schema: z.object({
       ano: z.number().int().min(2000).max(2100),

@@ -5,7 +5,7 @@ import { AlertTriangle, CalendarRange, Clock, GraduationCap, ListChecks, Smile, 
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import { painelGestao } from "@/modules/rh/gestao/queries";
 import { CLIMA_MINIMO } from "@/modules/rh/gestao/sinais";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +21,7 @@ const horas = (min: number) => `${min < 0 ? "-" : "+"}${Math.floor(Math.abs(min)
  */
 export default async function GestaoPessoasPage() {
   const user = await requireUser();
-  const pode = HR_ADMIN_ROLES.includes(user.role) || user.ehSocio === true || (await can(user, "recursos", "gerir"));
+  const pode = user.gereRh || user.ehSocio === true || (await can(user, "recursos", "gerir"));
   if (!pode) redirect("/sem-permissao");
   const p = await painelGestao();
   const maxCap = Math.max(1, ...p.capacidadeDemanda.flatMap((s) => [s.capacidade, s.demanda]));

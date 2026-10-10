@@ -20,6 +20,15 @@ export function ehPagavel(r: ComRole): boolean {
 }
 
 /**
+ * Tipo do profissional gravado no pagamento — escolhe a categoria do DRE (`CATEGORIA_POR_TIPO`).
+ * Regra do dono (2026-10-10): prestador COM pessoa jurídica (CNPJ) é PJ (2.01); SEM ela é
+ * freelancer (2.02). Era o papel (`projetista_pj` × `freelancer`).
+ */
+export function tipoProfissionalDoPagamento(u: { pjId: string | null }): "projetista_pj" | "freelancer" {
+  return u.pjId ? "projetista_pj" : "freelancer";
+}
+
+/**
  * Divide `valorTotal` igualmente entre os responsáveis PAGÁVEIS, com a sobra de
  * centavos no PRIMEIRO pagável (não no primeiro responsável — se o índice 0 fosse
  * um CLT, a sobra ficava sem dono e a soma paga saía menor que o valor da disciplina).

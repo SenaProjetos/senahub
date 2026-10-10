@@ -4,10 +4,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import { feriadosNacionais } from "@/modules/rh/feriados/queries";
 
-const base = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
+const base = { modulo: "rh", gereRh: true } as const;
 const rev = () => revalidatePath("/configuracoes/feriados");
 
 export const salvarFeriado = defineAction(

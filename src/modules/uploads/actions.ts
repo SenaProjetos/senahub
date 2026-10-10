@@ -73,7 +73,7 @@ export const validarEntrega = defineAction(
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
       include: {
-        responsaveis: { include: { user: { select: { id: true, name: true, role: true, contratacao: true } } } },
+        responsaveis: { include: { user: { select: { id: true, name: true, contratacao: true, pjId: true } } } },
         // Lixeira: leitura aninhada não passa pelo filtro global → arquivos na lixeira
         // não contam para completude de pacote nem para validação.
         uploads: { where: { excluidoEm: null, substituidoPorId: null } },

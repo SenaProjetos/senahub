@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { destinatariosDaConclusao, textoConclusao } from "./conclusao-aviso";
+import { whereAudiencia } from "@/lib/audiencias";
 
 /**
  * Avisa quem valida quando o responsável conclui o card de uma atividade da EAP — o lado com I/O de
@@ -32,7 +33,7 @@ export async function avisarCardConcluido(
         where: { projetoId: card.projetoId, papel: { contains: "coord", mode: "insensitive" } },
         select: { userId: true },
       }),
-      prisma.user.findMany({ where: { ativo: true, role: { in: ["admin", "supervisor"] } }, select: { id: true } }),
+      prisma.user.findMany({ where: whereAudiencia("global"), select: { id: true } }),
     ]);
     const destino = destinatariosDaConclusao({
       coordenadores: coord.map((c) => c.userId),

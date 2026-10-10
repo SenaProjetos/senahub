@@ -5,7 +5,6 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
 import type { SessionUser } from "@/lib/session";
 import { CATEGORIAS, MOTIVO_NAO_PUBLICADA, motivoParaNaoValidar } from "./regras";
 
@@ -20,7 +19,7 @@ function rev(userId?: string) {
   if (userId) revalidatePath(`/rh/pessoas/${userId}`);
 }
 
-const ehRh = (u: Pick<SessionUser, "role">) => (HR_ADMIN_ROLES as readonly string[]).includes(u.role);
+const ehRh = (u: Pick<SessionUser, "gereRh">) => u.gereRh;
 /** Quem cuida de competências: o RH ou quem gere Recursos (a coordenação). */
 async function gestorOuRh(u: SessionUser) {
   return ehRh(u) || (await can(u, "recursos", "gerir"));
@@ -54,7 +53,7 @@ export const criarHabilidade = defineAction(
 export const publicarHabilidade = defineAction(
   {
     modulo: "rh",
-    roles: HR_ADMIN_ROLES,
+    gereRh: true,
     acao: "publicar-habilidade",
     entidade: "Habilidade",
     schema: z.object({ id: z.string().min(1), publicada: z.boolean(), categoria: z.enum(CATEGORIAS).optional() }),

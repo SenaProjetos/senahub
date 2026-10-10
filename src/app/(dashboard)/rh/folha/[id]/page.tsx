@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { requireRole } from "@/lib/session";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+import { requireGestorRh } from "@/lib/session";
+
 import { obterFolha } from "@/modules/rh/folha/queries";
 import { modelosPorFonte } from "@/modules/documentos/queries";
 import { faixasPorTipo, deducaoDependente } from "@/modules/rh/encargos/queries";
@@ -15,7 +15,7 @@ export default async function FolhaDetalhePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireRole(...HR_ADMIN_ROLES);
+  await requireGestorRh();
   const { id } = await params;
   const [dados, modelosDoc, faixas, deducaoDep] = await Promise.all([
     obterFolha(id),

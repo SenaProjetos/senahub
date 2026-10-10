@@ -63,22 +63,23 @@ import { aplicarDesligamentosVencidos } from "@/modules/usuarios/vinculo/service
 
 /** Rotinas das automações (chamadas pelos jobs do pg-boss em lib/jobs.ts). */
 
-async function gestores(roles: string[] = ["admin", "supervisor", "administrativo"]) {
-  const us = await prisma.user.findMany({
-    where: { ativo: true, role: { in: roles as never } },
-    select: { id: true },
-  });
+/**
+ * Destinatários por AUDIÊNCIA (`lib/audiencias.ts`), que segue o Perfil de acesso — não por lista de
+ * papéis (Onda F). `global` = `notificacoes:gestao`, `rh_admin` = `notificacoes:rh`,
+ * `gestao_operacional` = `notificacoes:operacional`; superusuário entra em todas.
+ */
+async function destinatarios(chave: "global" | "rh_admin" | "gestao_operacional") {
+  const us = await prisma.user.findMany({ where: whereAudiencia(chave), select: { id: true } });
   return us.map((u) => u.id);
 }
 
 /**
- * `gestores(roles)` recortado por quem tem `recurso:acao`. Para alerta que carrega dado da tela
- * gated (ex.: valor em R$ do financeiro): papel de gestão não implica acesso a essa tela — o
- * perfil Coordenador é `supervisor` sem nenhum `financeiro:*`. Só restringe, nunca amplia.
+ * Quem tem `recurso:acao`. Para alerta que carrega dado da tela gated (ex.: valor em R$ do
+ * financeiro): o destinatário é quem abre a tela do `href`, e só ela decide isso.
  */
-async function gestoresComPermissao(roles: string[], recurso: string, acao: string) {
+async function comPermissao(recurso: string, acao: string) {
   const us = await prisma.user.findMany({
-    where: { ...wherePermissao(recurso, acao), role: { in: roles as never } },
+    where: { ...wherePermissao(recurso, acao), tipo: "interno" },
     select: { id: true },
   });
   return us.map((u) => u.id);
@@ -169,7 +170,7 @@ export async function alertasPrazoDisciplina(): Promise<number> {
       },
     });
     for (const d of discs) {
-      const alvo = [...d.responsaveis.map((r) => r.userId), ...(await gestores(["admin", "supervisor"]))];
+      const alvo = [...d.responsaveis.map((r) => r.userId), ...(await destinatarios("global"))];
       await notificarMuitos(
         alvo,
         {
@@ -195,7 +196,7 @@ export async function alertaInadimplencia(): Promise<number> {
   });
   if (vencidos.length === 0) return 0;
   // O corpo leva valor e cliente do recebível: só quem vê o financeiro (destino do href).
-  const ids = await gestoresComPermissao(["admin", "supervisor", "administrativo"], "financeiro", "ver");
+  const ids = await comPermissao("financeiro", "ver");
   let avisados = 0;
   for (const l of vencidos) {
     // M9: uma vez só por recebível e vencimento — o job que roda de novo (retentativa, duas instâncias) não repete o sino.
@@ -261,7 +262,7 @@ export async function alertaRateioAberto(): Promise<number> {
   });
   if (sessoes === 0) return 0;
 
-  const ids = await gestores(["admin", "supervisor", "administrativo"]);
+  const ids = await destinatarios("gestao_operacional");
   await notificarMuitos(ids, {
     titulo: "Rateio de horas em aberto",
     corpo: `${String(mes).padStart(2, "0")}/${ano}: ${sessoes} sessão(ões) com projeto ainda não rateadas. Feche o rateio para refletir o custo de horas nas margens.`,
@@ -302,7 +303,7 @@ export async function alertaPendenteParado(): Promise<number> {
   const valorFmt = total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
   // O corpo leva o total em R$: só quem abre a tela de Produção (destino do href).
-  const ids = await gestoresComPermissao(["admin", "supervisor", "administrativo"], "financeiro", "folha_pj");
+  const ids = await comPermissao("financeiro", "folha_pj");
   await notificarMuitos(ids, {
     titulo: parados.length === 1 ? "1 pagamento de produção parado" : `${parados.length} pagamentos de produção parados`,
     corpo: `Sem pagar há mais de ${DIAS_PENDENTE_PARADO} dias, somando ${valorFmt}.`,
@@ -318,7 +319,7 @@ export async function alertaPendenteParado(): Promise<number> {
 /** Certidões vencendo em 30/15/7 dias → gestores + responsável (se houver). */
 export async function alertaCertidoes(): Promise<number> {
   let n = 0;
-  const idsGestores = await gestores();
+  const idsGestores = await destinatarios("gestao_operacional");
   for (const dias of [30, 15, 7]) {
     const certs = await prisma.certidao.findMany({
       where: { validade: diaAlvo(dias) },
@@ -396,7 +397,7 @@ export async function alertaPropostasExpiradas(agora: Date = new Date()): Promis
   const expiradas = candidatas.filter((p) => propostaExpirada(p.validade, agora));
   if (expiradas.length === 0) return 0;
 
-  const idsGestores = await gestores();
+  const idsGestores = await destinatarios("gestao_operacional");
   let avisadas = 0;
 
   for (const p of expiradas) {
@@ -436,7 +437,7 @@ export async function alertaPropostasExpiradas(agora: Date = new Date()): Promis
  * `alertaVencimentoEm`, igual a `alertaValidadeEm` — sem isso o tick reavisaria todo dia
  * enquanto a data estiver dentro da janela.
  *
- * Destinatário é sempre RH (`HR_ADMIN_ROLES`, via `gestores()`), nunca o dono do vínculo — avisar
+ * Destinatário é sempre RH (audiência `rh_admin`), nunca o dono do vínculo — avisar
  * o funcionário que o próprio contrato está vencendo é feature diferente (self-service, Fase E).
  *
  * ## Aditivo não vence — ele MUDA o vencimento (Fase B2)
@@ -487,7 +488,7 @@ export async function alertaContratosEquipeVencendo(agora: Date = new Date()): P
     .filter((c) => c.vencimento !== null && c.vencimento.getTime() <= limite.getTime());
   if (aVencer.length === 0) return 0;
 
-  const idsRh = await gestores();
+  const idsRh = await destinatarios("rh_admin");
   let avisados = 0;
 
   for (const c of aVencer) {
@@ -519,7 +520,7 @@ export async function alertaContratosEquipeVencendo(agora: Date = new Date()): P
 /** Prazos de proposta de licitação em 15/7/1 dias → gestores. */
 export async function alertaLicitacoes(): Promise<number> {
   let n = 0;
-  const ids = await gestores(["admin", "administrativo"]);
+  const ids = await destinatarios("gestao_operacional");
   for (const dias of [15, 7, 1]) {
     const lics = await prisma.licitacao.findMany({
       where: { status: "em_andamento", prazoProposta: diaAlvo(dias) },
@@ -548,7 +549,7 @@ export async function alertaLicitacoes(): Promise<number> {
  */
 export async function alertaCotacoesCusto(): Promise<number> {
   let n = 0;
-  const ids = await gestores(["admin", "administrativo"]);
+  const ids = await destinatarios("gestao_operacional");
 
   for (const dias of [3, 1]) {
     const rfqs = await prisma.custoRfq.findMany({
@@ -617,7 +618,7 @@ export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: n
     select: { id: true, numero: true, titulo: true },
   });
   if (props.length > 0) {
-    const ids = await gestores(["admin", "supervisor", "administrativo"]);
+    const ids = await destinatarios("gestao_operacional");
     for (const p of props) {
       await notificarMuitos(ids, {
         titulo: "Proposta vencida (sem retorno)",
@@ -633,7 +634,7 @@ export async function rotinasRhDiarias(): Promise<{ propostas: number; ferias: n
     select: { id: true, userId: true },
   });
   for (const f of fer) {
-    const ids = [...(await gestores(["admin", "supervisor", "administrativo"])), f.userId];
+    const ids = [...(await destinatarios("gestao_operacional")), f.userId];
     await notificarMuitos(ids, {
       titulo: "Férias iniciam hoje",
       corpo: "Período de férias aprovado começa hoje.",
@@ -944,7 +945,7 @@ export async function alertaEventosLicitacao(): Promise<number> {
   ];
   if (aNotificar.length === 0) return 0;
 
-  const ids = await gestores(["admin", "administrativo"]);
+  const ids = await destinatarios("gestao_operacional");
   const byId = new Map(mapeados.map((e) => [e.id, e]));
   let n = 0;
   for (const a of aNotificar) {
@@ -1033,7 +1034,7 @@ export async function alertaCertidoesAntesDaSessao(): Promise<number> {
   const aNotificar = habilitacoesParaNotificar(mapeados, hojeISO, diasPadrao);
   if (aNotificar.length === 0) return 0;
 
-  const ids = await gestores(["admin", "administrativo"]);
+  const ids = await destinatarios("gestao_operacional");
   const porChave = new Map(
     mapeados.map((item) => [`${item.sessaoId}:${item.itemId}`, item]),
   );
@@ -1138,7 +1139,7 @@ export async function alertaVencimentosContrato(): Promise<number> {
   const aNotificar = vencimentosContratoParaNotificar(mapeados, hojeISO, diasPadrao);
   if (aNotificar.length === 0) return 0;
 
-  const ids = await gestores(["admin", "administrativo"]);
+  const ids = await destinatarios("gestao_operacional");
   const porId = new Map(mapeados.map((contrato) => [contrato.contratoId, contrato]));
   let n = 0;
   for (const alerta of aNotificar) {
@@ -1224,7 +1225,7 @@ export async function alertaLimiteAditivo(): Promise<number> {
   const contratos = await prisma.contratoLicitacao.findMany({
     include: { aditivos: { select: { valorDelta: true } }, licitacao: { select: { titulo: true } } },
   });
-  const ids = await gestores(["admin", "administrativo"]);
+  const ids = await destinatarios("gestao_operacional");
   let n = 0;
   for (const c of contratos) {
     const homologado = Number(c.valorHomologado);
@@ -1252,7 +1253,7 @@ export async function alertaPncpNaoPublicado(): Promise<number> {
     select: { id: true, titulo: true },
   });
   if (lics.length === 0) return 0;
-  const ids = await gestores(["admin", "administrativo"]);
+  const ids = await destinatarios("gestao_operacional");
   for (const l of lics) {
     await notificarMuitos(ids, {
       titulo: "Publicar no PNCP",
@@ -1284,7 +1285,7 @@ export async function alertaReajusteContrato(): Promise<number> {
     where: { vigenciaInicio: { not: null } },
     include: { licitacao: { select: { id: true, titulo: true } }, reajustes: { select: { aniversario: true } } },
   });
-  const ids = await gestores(["admin", "administrativo"]);
+  const ids = await destinatarios("gestao_operacional");
   let n = 0;
   for (const c of contratos) {
     if (!c.vigenciaInicio) continue;
@@ -1379,7 +1380,7 @@ export async function lembreteInputsCliente(): Promise<number> {
  */
 export async function alertaRiscoProjeto(): Promise<number> {
   const hoje = new Date();
-  const gestoresIds = await gestores(["admin", "supervisor"]);
+  const gestoresIds = await destinatarios("global");
   if (gestoresIds.length === 0) return 0;
 
   // Projetos com prazo vencido.
@@ -2051,11 +2052,7 @@ export async function lembreteDataStatus(): Promise<number> {
   const pendentes = await cronogramasSemApuracao(hoje);
   if (pendentes.length === 0) return 0;
 
-  const alvo = await gestoresComPermissao(
-    ["admin", "supervisor", "administrativo", "clt"],
-    "cronograma",
-    "executado",
-  );
+  const alvo = await comPermissao("cronograma", "executado");
   if (alvo.length === 0) return 0;
 
   for (const p of pendentes) {

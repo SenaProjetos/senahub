@@ -214,7 +214,7 @@ async function projetistaPagoNoFinanceiro(autorId: string, disciplinaId: string)
         id: true,
         disciplinaTextoLegado: true,
         valor: true,
-        responsaveis: { select: { userId: true, user: { select: { id: true, name: true, role: true, contratacao: true } } } },
+        responsaveis: { select: { userId: true, user: { select: { id: true, name: true, contratacao: true, pjId: true } } } },
         projeto: { select: { id: true, codigo: true } },
       },
     });
@@ -457,7 +457,7 @@ async function alcadaUnica(autorId: string) {
   const catD = await prisma.categoriaFinanceira.findFirst({ where: { tipo: "despesa", natureza: "resultado" }, select: { id: true } });
   if (!catD) return check("categoria de despesa existe", false);
   const supervisor = await prisma.user.create({ data: { name: `${tag}-sup`, email: `${tag}-sup@teste.local`, role: "supervisor", tipo: "interno", emailVerified: false } });
-  const faixas = [{ ate: 1000, papeis: [] }, { ate: null, papeis: ["admin", "supervisor"] }];
+  const faixas = [{ ate: 1000, papeis: [] }, { ate: null, papeis: ["admin", "coordenador"] }];
   try {
     await prisma.configSistema.upsert({ where: { chave: CHAVE }, create: { chave: CHAVE, valor: faixas }, update: { valor: faixas } });
     const base = { tipo: "despesa" as const, valor: 500, data: "2043-01-10", categoriaId: catD.id, confirmado: false };
@@ -471,9 +471,9 @@ async function alcadaUnica(autorId: string) {
     check("valor da alçada = total do grupo", (await valorParaAlcada(prisma, linha)) === 1500);
     check("valor da alçada com a edição em andamento (uma parcela vira 200)", (await valorParaAlcada(prisma, linha, 200)) === 1200);
 
-    const vistoPeloAutor = (await lancamentosAguardando(supervisor)).filter((l) => l.descricao === `${tag} tres`);
+    const vistoPeloAutor = (await lancamentosAguardando({ id: supervisor.id, perfilChave: "coordenador", superUsuario: false })).filter((l) => l.descricao === `${tag} tres`);
     check("quem lançou vê as próprias desabilitadas com a frase do servidor", vistoPeloAutor.length === 3 && vistoPeloAutor.every((l) => l.bloqueio === MOTIVO_PROPRIA_DESPESA), vistoPeloAutor.map((l) => l.bloqueio));
-    const vistoPeloAdmin = (await lancamentosAguardando({ id: autorId, role: "admin", superUsuario: true })).filter((l) => l.descricao === `${tag} tres`);
+    const vistoPeloAdmin = (await lancamentosAguardando({ id: autorId, perfilChave: null, superUsuario: true })).filter((l) => l.descricao === `${tag} tres`);
     check("o admin decide", vistoPeloAdmin.every((l) => l.bloqueio === null));
 
     // Migração: o limite antigo vira faixas equivalentes (>= limite exige aprovação), e a chave sai.

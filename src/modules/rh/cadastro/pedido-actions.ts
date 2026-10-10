@@ -5,12 +5,12 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { notificar } from "@/lib/notificar";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import { MOTIVO_NADA_A_PEDIR, MOTIVO_PEDIDO_ABERTO, temAlgoAPedir } from "./preencher";
 import { confirmarMeusDadosNoBanco, preencherDadosNoBanco, situacaoDaPessoa } from "./pedido-service";
 import { MOTIVO_SO_ABERTO_CANCELA, MOTIVO_SO_ABERTO_LEMBRA } from "./acoes-pedido";
 
-const rhBase = { modulo: "rh", roles: HR_ADMIN_ROLES, entidade: "PedidoDadosCadastro" } as const;
+const rhBase = { modulo: "rh", gereRh: true, entidade: "PedidoDadosCadastro" } as const;
 const dataIso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida.");
 
 

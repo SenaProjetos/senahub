@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { HR_ADMIN_ROLES, type Role } from "@/lib/roles";
+import { can } from "@/lib/permissions";
 import type { Escalar, Linha } from "@/modules/documentos/tokens";
 import { camposDaProposta, camposDoVinculo, formatarResumoAssinaturas, montarEnderecoCliente } from "./campos";
 
@@ -10,7 +10,8 @@ import { camposDaProposta, camposDoVinculo, formatarResumoAssinaturas, montarEnd
  * satisfaz este tipo por estrutura; `gerar.ts` (chamador via a action do jurídico) passa um
  * `SessionUser` reduzido, sem precisar montar os campos extras que não usa aqui.
  */
-export type ViewerMinimo = { id: string; role: string };
+/** O que `permissaoEfetiva` precisa — o mesmo sujeito que `can()` recebe (Onda F: RH é permissão, não papel). */
+export type ViewerMinimo = { id: string; ativo: boolean; superUsuario: boolean; perfilId: string | null };
 
 /**
  * Fonte de dados "contrato" do Estúdio de Documentos (spec
@@ -45,10 +46,10 @@ const VAZIO: DadosFonte = { escalar: {}, linhas: [] };
  */
 export function podeVerContrato(
   contrato: { vinculoId: string | null },
-  viewer: { role: string },
+  viewer: { gereRh: boolean },
 ): boolean {
   if (!contrato.vinculoId) return true;
-  return HR_ADMIN_ROLES.includes(viewer.role as Role);
+  return viewer.gereRh;
 }
 
 /**
@@ -89,7 +90,9 @@ export async function resolverFonteContrato(
   if (!doc) return VAZIO;
 
   // ── O gate por registro ──────────────────────────────────────────────────────────────────
-  if (!podeVerContrato(doc, viewer)) return VAZIO;
+  // `rh:gerir` resolvido aqui, por registro, só quando o contrato é de equipe (o de cliente nem pergunta).
+  const gereRh = doc.vinculoId ? await can({ ...viewer, role: "clt" }, "rh", "gerir") : false;
+  if (!podeVerContrato(doc, { gereRh })) return VAZIO;
 
   const versaoAssinada = doc.versoes.find((v) => v.aceites.length > 0 || v.aceitesExternos.length > 0);
   const ultimaAssinaturaResumo = versaoAssinada

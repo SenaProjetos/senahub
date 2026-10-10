@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { requireRole } from "@/lib/session";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+import { requireGestorRh } from "@/lib/session";
+
 import {
   abonosPendentes,
   feriasPendentes,
@@ -28,7 +28,7 @@ import { FeedbackSection } from "@/components/rh/rh-extras-admin";
 export const metadata: Metadata = { title: "RH — administração" };
 
 export default async function RhAdminPage() {
-  const user = await requireRole(...HR_ADMIN_ROLES);
+  const user = await requireGestorRh();
   // Banco de horas: alvo de fechamento = mês anterior ao atual; o saldo corrente
   // (ao vivo, até hoje) é do mês ATUAL — as duas colunas do card.
   const agora = new Date();

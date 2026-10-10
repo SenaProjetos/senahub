@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
 import { can, canRole } from "@/lib/permissions";
 import { logAudit, getClientIp } from "@/lib/audit";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import {
   fichaPessoa,
   cadastroDaPessoa,
@@ -85,7 +85,7 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
   const batePonto = pessoa.tipo === "interno"; // internos + PJ têm espelho de ponto
 
   // Edição do cadastro trabalhista: só HR-admin, só p/ papéis com cadastro (nunca cliente/ti).
-  const podeEditarCadastro = isCadastro && HR_ADMIN_ROLES.includes(user.role);
+  const podeEditarCadastro = isCadastro && user.gereRh;
 
   // Ponto (espelhoMes) é a leitura mais cara → carregada sob demanda pela aba (lazy client).
 
@@ -109,7 +109,7 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
   ]);
 
   // Entrada e saída (F4): o RH abre e cancela listas; quem vê a ficha marca o que é dele.
-  const ehRh = HR_ADMIN_ROLES.includes(user.role);
+  const ehRh = user.gereRh;
   const temCiclos = pessoa.tipo === "interno";
   // "Atualize seus dados": o RH pede à pessoa o que ela mesma pode preencher.
   const pedidoDados = ehRh && isCadastro ? await pedidoDaPessoa(id) : null;

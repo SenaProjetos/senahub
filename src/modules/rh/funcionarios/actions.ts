@@ -6,7 +6,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { campo } from "@/lib/campos/zod";
 import { exigirCamposValidos } from "@/lib/campos/exigir";
 import { prisma } from "@/lib/prisma";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import { removerArquivo } from "@/lib/storage";
 import { criarUsuarioComCredencial } from "@/lib/auth-admin";
 import { buscarCep } from "@/lib/cep";
@@ -21,7 +21,7 @@ import { abrirCicloNoBanco } from "@/modules/rh/ciclo/service";
 import { CAMINHO_DOC_RH, TIPOS_DOC } from "@/modules/rh/documentos/regras";
 import { ehPrestador } from "@/lib/contratacao";
 
-const base = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
+const base = { modulo: "rh", gereRh: true } as const;
 const rev = () => revalidatePath("/rh/funcionarios");
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 

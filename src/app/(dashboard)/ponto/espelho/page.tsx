@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireRole } from "@/lib/session";
+import { requireInterno } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { espelhoDetalhado, equipeAgora, projetosDoUsuario } from "@/modules/ponto/queries";
 import { usuariosParaEscala } from "@/modules/rh/escalas/queries";
@@ -14,15 +14,7 @@ export default async function EspelhoPontoPage({
 }: {
   searchParams: Promise<{ u?: string; a?: string; m?: string }>;
 }) {
-  const user = await requireRole(
-    "admin",
-    "supervisor",
-    "administrativo",
-    "clt",
-    "estagiario",
-    "projetista_pj",
-    "freelancer",
-  );
+  const user = await requireInterno();
 
   const sp = await searchParams;
   const hoje = new Date();

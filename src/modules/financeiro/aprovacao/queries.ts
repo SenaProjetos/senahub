@@ -1,9 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { motivoParaNaoAprovar } from "@/modules/financeiro/aprovacao/niveis";
+import { motivoParaNaoAprovar, TOKEN_SUPERUSUARIO } from "@/modules/financeiro/aprovacao/niveis";
 import type { Prisma } from "@/generated/prisma/client";
 import { wherePermissao } from "@/lib/audiencias";
-import type { Role } from "@/lib/roles";
 import type { FaixaAlcada } from "@/modules/financeiro/aprovacao/niveis";
 
 export const CHAVE_NIVEIS_APROVACAO = "financeiro.niveisAprovacao";
@@ -59,15 +58,22 @@ export async function valorParaAlcada(
 }
 
 /**
- * Ids de usuários ativos cujos papéis estão na lista (destinatários da aprovação), recortados
+ * Ids de usuários ativos cujo perfil (ou superusuário, token `admin`) está na lista (destinatários da aprovação), recortados
  * por quem tem `financeiro:aprovar` — o gate de `/financeiro/aprovacoes`. Sem o recorte, uma
  * alçada salva pela tela com `supervisor` mandava "despesa — R$" ao Coordenador, que não tem
  * financeiro e leva 403 no clique (ver `getNiveisAprovacao`).
  */
 export async function aprovadoresPorPapeis(papeis: string[]): Promise<string[]> {
   if (papeis.length === 0) return [];
+  const chaves = papeis.filter((p) => p !== TOKEN_SUPERUSUARIO);
   const us = await prisma.user.findMany({
-    where: { ...wherePermissao("financeiro", "aprovar"), role: { in: papeis as Role[] } },
+    where: {
+      ...wherePermissao("financeiro", "aprovar"),
+      OR: [
+        ...(papeis.includes(TOKEN_SUPERUSUARIO) ? [{ superUsuario: true }] : []),
+        ...(chaves.length > 0 ? [{ perfil: { chave: { in: chaves } } }] : []),
+      ],
+    },
     select: { id: true },
   });
   return us.map((u) => u.id);
@@ -78,7 +84,7 @@ export async function aprovadoresPorPapeis(papeis: string[]): Promise<string[]> 
  * `aprovarLancamento` aplica (`motivoParaNaoAprovar`: autoaprovação, faixa pelo total do
  * parcelamento × papel, admin decide tudo): a tela desabilita o item com o motivo.
  */
-export async function lancamentosAguardando(quem?: { id: string; role: string; superUsuario: boolean }) {
+export async function lancamentosAguardando(quem?: { id: string; perfilChave: string | null; superUsuario: boolean }) {
   const ls = await prisma.lancamento.findMany({
     where: { status: "aguardando_aprovacao" },
     orderBy: { createdAt: "desc" },

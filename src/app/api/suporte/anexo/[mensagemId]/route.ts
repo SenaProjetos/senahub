@@ -1,7 +1,7 @@
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { lerArquivo, existeArquivo } from "@/lib/storage";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 
 /** Serve o anexo de uma mensagem de ticket (autor do ticket ou gestor). */
 export async function GET(_req: Request, { params }: { params: Promise<{ mensagemId: string }> }) {
@@ -14,7 +14,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ mensage
   });
   if (!m || !m.anexoPath) return new Response("Não encontrado", { status: 404 });
 
-  const ehGestor = session.user.superUsuario || HR_ADMIN_ROLES.includes(session.user.role);
+  const ehGestor = session.user.superUsuario || session.user.gereRh;
   if (!ehGestor && m.ticket.autorId !== session.user.id) return new Response("Sem acesso", { status: 403 });
   if (!(await existeArquivo(m.anexoPath))) return new Response("Arquivo ausente", { status: 404 });
 

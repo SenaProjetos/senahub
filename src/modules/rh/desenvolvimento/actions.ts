@@ -5,12 +5,12 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { diaDeSaoPaulo } from "@/lib/data";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import type { SessionUser } from "@/lib/session";
 import { CADENCIA_MAX, CADENCIA_MIN, MOTIVO_JA_E_LIDER, MOTIVO_LIDERAR_A_SI, MOTIVO_SEM_ACESSO, papelSobre, podeEscrever } from "./regras";
 
 const internos = { modulo: "rh", interno: true } as const;
-const rhBase = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
+const rhBase = { modulo: "rh", gereRh: true } as const;
 const dataIso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida.");
 const dia = (s: string | null | undefined) => (s ? new Date(`${s}T00:00:00Z`) : null);
 const texto = (max: number) => z.string().trim().max(max, `No máximo ${max} caracteres.`).nullable().optional();
@@ -25,7 +25,7 @@ function rev(userId: string) {
 /** RH ou o líder ATIVO da pessoa — quem escreve no desenvolvimento dela. Devolve o líder ativo. */
 async function exigirEscrita(user: SessionUser, userId: string) {
   const ativa = await prisma.liderancaPessoa.findFirst({ where: { userId, fim: null }, select: { liderId: true } });
-  const papel = papelSobre({ id: user.id, ehRh: (HR_ADMIN_ROLES as readonly string[]).includes(user.role) }, userId, ativa?.liderId ?? null);
+  const papel = papelSobre({ id: user.id, ehRh: user.gereRh }, userId, ativa?.liderId ?? null);
   if (!podeEscrever(papel)) throw new ActionError(MOTIVO_SEM_ACESSO);
   return ativa?.liderId ?? null;
 }

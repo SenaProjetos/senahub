@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import {
   margemProjeto,
   obterProjeto,
@@ -36,7 +36,7 @@ export default async function ProjetoDetalhePage({
     can(user, "acessos", "ver"),
   ]);
   const podeVerTarefas = user.tipo === "interno";
-  const podeVerRegistrosDaEquipe = HR_ADMIN_ROLES.includes(user.role);
+  const podeVerRegistrosDaEquipe = user.gereRh;
 
   const [margem, internos, papeisSugeridos, eventos, dados, sessaoAtiva, registrosPontoEquipe, preferencias, acessos] = await Promise.all([
     verFinanceiro ? margemProjeto(projeto.id) : Promise.resolve(null),
@@ -48,7 +48,7 @@ export default async function ProjetoDetalhePage({
       incluirCoordenacao: podeVerCoordenacao,
       incluirTarefas: podeVerTarefas,
     }),
-    !podeVerRegistrosDaEquipe && user.tipo === "interno" && user.role !== "ti" ? sessaoAberta(user.id) : Promise.resolve(null),
+    !podeVerRegistrosDaEquipe && user.tipo === "interno" && user.setor !== "ti" ? sessaoAberta(user.id) : Promise.resolve(null),
     podeVerRegistrosDaEquipe ? registrosDiariosProjeto(projeto.id) : Promise.resolve([]),
     getPreferencias(user.id),
     // §39 — só consulta para quem tem a tela de Acessos; a lista ainda passa pelo escopo do

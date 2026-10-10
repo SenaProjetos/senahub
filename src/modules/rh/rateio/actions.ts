@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import { calcularRateioDetalhado } from "@/modules/rh/rateio/queries";
 
 /**
@@ -15,7 +15,7 @@ export const fecharRateioMes = defineAction(
   {
     modulo: "rh",
     acao: "fechar-rateio",
-    roles: HR_ADMIN_ROLES,
+    gereRh: true,
     entidade: "RateioHora",
     schema: z.object({
       ano: z.number().int().min(2000).max(2100),

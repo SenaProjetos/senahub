@@ -342,7 +342,7 @@ export const aprovarEtapaDisciplina = defineAction(
         id: true,
         disciplinaTextoLegado: true,
         valor: true,
-        responsaveis: { select: { userId: true, user: { select: { id: true, name: true, role: true, contratacao: true } } } },
+        responsaveis: { select: { userId: true, user: { select: { id: true, name: true, contratacao: true, pjId: true } } } },
         projeto: { select: { id: true, codigo: true } },
       },
     });

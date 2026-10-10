@@ -181,11 +181,18 @@ export async function requireInterno(): Promise<SessionUser> {
 
 /**
  * Exige gestão de RH (`rh:gerir`, já resolvido na sessão); senão, sem permissão. Substitui
- * `requireRole(...HR_ADMIN_ROLES)` — Onda F, §16.4.
+ * `requireGestorRh()` — Onda F, §16.4.
  */
 export async function requireGestorRh(): Promise<SessionUser> {
   const user = await requireUser();
   if (!user.gereRh) redirect("/sem-permissao");
+  return user;
+}
+
+/** Exige superusuário (o bypass do motor); senão, sem permissão. Substitui `requireRole("admin")`. */
+export async function requireSuperUsuario(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (!user.superUsuario) redirect("/sem-permissao");
   return user;
 }
 

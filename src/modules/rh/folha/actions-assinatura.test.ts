@@ -127,7 +127,7 @@ describe("assinarHolerite", () => {
 
 describe("reabrirFolha — limpa assinatura", () => {
   beforeEach(() => {
-    mocks.getSession.mockResolvedValue({ user: { id: "rh1", role: "admin", name: "RH", ativo: true } });
+    mocks.getSession.mockResolvedValue({ user: { id: "rh1", role: "admin", name: "RH", ativo: true, gereRh: true } });
   });
 
   it("limpa assinadoEm/assinanteId de quem já tinha assinado, e devolve a contagem", async () => {

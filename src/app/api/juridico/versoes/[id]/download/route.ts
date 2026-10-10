@@ -3,7 +3,7 @@ import { getSession } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { lerArquivo } from "@/lib/storage";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import { getClientIp } from "@/lib/audit";
 import { comRetentativaDeConflito, registrarEventoAssinatura } from "@/modules/juridico/assinatura/service";
 
@@ -20,7 +20,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     include: { documento: { select: { vinculoId: true } } },
   });
   if (!v) return NextResponse.json({ error: "Versão não encontrada." }, { status: 404 });
-  if (v.documento.vinculoId && !HR_ADMIN_ROLES.includes(session.user.role)) {
+  if (v.documento.vinculoId && !session.user.gereRh) {
     return NextResponse.json({ error: "Só RH pode baixar contrato de equipe." }, { status: 403 });
   }
 

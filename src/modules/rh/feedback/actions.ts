@@ -4,9 +4,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
 
-const base = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
+
+const base = { modulo: "rh", gereRh: true } as const;
 const rev = () => revalidatePath("/rh/admin");
 
 // ── D5 Feedback RH ────────────────────────────────────────────

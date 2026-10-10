@@ -102,7 +102,7 @@ export function EapWorkspace({
   projeto: { id: string; codigo: string; nome: string };
   tarefas: EapTarefaDTO[];
   disciplinas: { id: string; nome: string; etapas: { etapaId: string; sigla: string; nome: string }[] }[];
-  pessoas: { id: string; name: string; image: string | null; role?: string; habilidades?: string[] }[];
+  pessoas: { id: string; name: string; image: string | null; contratacao?: string | null; habilidades?: string[] }[];
   temLinhaBase: boolean;
   /** F7.1: custo previsto do projeto. `null` = o viewer não vê custo (coluna oculta). */
   custoTotal: CustoLinha | null;

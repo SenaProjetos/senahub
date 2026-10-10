@@ -48,7 +48,7 @@ vi.mock("@/lib/prisma", () => ({
 const { vincularRubricaExterna, vincularMatriculaExterna, ignorarMatriculaExterna, designorarMatriculaExterna } =
   await import("./actions");
 
-const ADMIN = { id: "admin-1", role: "admin", name: "Admin", ativo: true };
+const ADMIN = { id: "admin-1", role: "admin", name: "Admin", ativo: true, gereRh: true };
 
 beforeEach(() => {
   vi.clearAllMocks();

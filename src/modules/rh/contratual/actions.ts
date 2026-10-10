@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import { registrarAlteracaoContratual } from "./service";
 import { MOTIVOS_CONTRATUAIS } from "./motivos";
 
@@ -28,7 +28,7 @@ export const registrarAlteracaoContratualAction = defineAction(
   {
     modulo: "rh",
     acao: "registrar-alteracao-contratual",
-    roles: HR_ADMIN_ROLES,
+    gereRh: true,
     entidade: "HistoricoContratual",
     schema: z.object({
       userId: z.string().min(1),

@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
  * Linha que não aceita pessoa (agrupamento, tipo que não é atividade nem marco) e etapa de terceiro
  * ficam como estão: só o conteúdo da célula, sem lista.
  */
-type Pessoa = { id: string; name: string; image: string | null; role?: string; habilidades?: string[] };
+type Pessoa = { id: string; name: string; image: string | null; contratacao?: string | null; habilidades?: string[] };
 
 type LinhaDaCelula = {
   id: string;
@@ -65,7 +65,7 @@ export function RecursosDaCelula({
         Number(naLinha.has(b.id)) - Number(naLinha.has(a.id)) || Number(temHabilidade(b)) - Number(temHabilidade(a)),
     );
 
-  const papelPadrao = (p: Pessoa): Papel => (p.role === "estagiario" ? "est" : "pro");
+  const papelPadrao = (p: Pessoa): Papel => (p.contratacao === "estagio" ? "est" : "pro");
 
   function adicionar(p: Pessoa) {
     start(async () => {

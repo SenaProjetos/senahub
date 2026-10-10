@@ -7,7 +7,6 @@ import { campo } from "@/lib/campos/zod";
 import { exigirCamposValidos } from "@/lib/campos/exigir";
 import { prisma } from "@/lib/prisma";
 import { notificar, notificarMuitos } from "@/lib/notificar";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
 import { whereAudiencia } from "@/lib/audiencias";
 import { normalizarConta, definirContaPrincipal, garantirPrincipal } from "./service";
 import { criarContaSchema, editarContaSchema, contaIdSchema, TIPOS_CONTA } from "./schemas";
@@ -24,7 +23,7 @@ const base = {
   modulo: "rh",
   recurso: "rh",
   permissao: "folha",
-  roles: HR_ADMIN_ROLES,
+  gereRh: true,
   entidade: "ContaBancariaColaborador",
 } as const;
 
@@ -202,7 +201,7 @@ export const proporContaBancaria = defineAction(
   },
 );
 
-const hrBase = { modulo: "rh", roles: HR_ADMIN_ROLES, entidade: "ContaBancariaColaborador" } as const;
+const hrBase = { modulo: "rh", gereRh: true, entidade: "ContaBancariaColaborador" } as const;
 const alvoSchema = z.object({ userId: z.string().min(1) });
 
 /** RH aprova: aplica a proposta em `ContaBancariaColaborador` e limpa o pendente. */

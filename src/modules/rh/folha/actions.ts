@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { HR_ADMIN_ROLES } from "@/lib/roles";
+
 import { smtpConfigurado } from "@/lib/mail";
 import { enviarEmailTemplate } from "@/lib/email-templates";
 import { notificar } from "@/lib/notificar";
@@ -15,7 +15,7 @@ import { dependentesPorUsuario } from "@/modules/rh/funcionarios/queries";
 import { TIPOS_FOLHA, rotuloFolha } from "@/modules/rh/folha/tipo-folha";
 import { fecharFolhaNoBanco, reabrirFolhaNoBanco } from "@/modules/rh/folha/fechamento-service";
 
-const base = { modulo: "rh", roles: HR_ADMIN_ROLES } as const;
+const base = { modulo: "rh", gereRh: true } as const;
 const PATH = "/rh/folha";
 
 const criarFolhaSchema = z.object({
