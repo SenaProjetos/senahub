@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  avisosDeOrigem,
   formatarDistancia,
   modelosDistantes,
   vaoEntreCaixas,
@@ -57,5 +58,21 @@ describe("formatarDistancia", () => {
     expect(formatarDistancia(850.4)).toBe("850 m");
     expect(formatarDistancia(1234)).toBe("1,2 km");
     expect(formatarDistancia(12_345)).toBe("12 km");
+  });
+});
+
+describe("avisosDeOrigem", () => {
+  it("dois modelos longe um do outro viram UM aviso com os dois", () => {
+    const longe = caixa("SESI", [5000, 0, 0], [5020, 10, 10]);
+    const avisos = avisosDeOrigem(modelosDistantes([arq, longe]));
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0].modeloIds.sort()).toEqual(["ARQ", "SESI"]);
+    expect(avisos[0].maisProximoId).toBeNull();
+  });
+
+  it("um modelo longe de um grupo continua com aviso próprio e o vizinho", () => {
+    const longe = caixa("SESI", [1260, 0, 0], [1300, 10, 30]);
+    const avisos = avisosDeOrigem(modelosDistantes([arq, est, longe]));
+    expect(avisos).toEqual([{ modeloIds: ["SESI"], maisProximoId: "ARQ", distancia: expect.any(Number) }]);
   });
 });

@@ -48,7 +48,7 @@ import { PainelDisciplinas } from "@/components/coordenacao/painel-disciplinas";
 import { PainelPropriedades } from "@/components/coordenacao/painel-propriedades";
 import { RealinharIfcDialog } from "@/components/coordenacao/realinhar-ifc-dialog";
 import { gerarDxfDoCorte, nomeDoArquivoDeCorte } from "@/modules/coordenacao/corte-dxf";
-import { formatarDistancia, modelosDistantes, type ModeloDistante } from "@/modules/coordenacao/origem";
+import { avisosDeOrigem, formatarDistancia, modelosDistantes, type ModeloDistante } from "@/modules/coordenacao/origem";
 import { ViewerToolbar, type PainelId } from "@/components/coordenacao/viewer-toolbar";
 import { VistasPanel } from "@/components/coordenacao/vistas-painel";
 import { ApontamentoPins } from "@/components/coordenacao/apontamento-pins";
@@ -299,7 +299,8 @@ export function CoordenacaoView({
     const id = requestAnimationFrame(() => setDistantes(modelosDistantes(engine.caixasDosModelos())));
     return () => cancelAnimationFrame(id);
   }, [carregados]);
-  const avisosOrigem = distantes.filter((d) => !origemDispensada.has(d.modeloId));
+  // Chave do aviso = ids envolvidos; dispensar vale para aquele aviso nesta sessão.
+  const avisosOrigem = avisosDeOrigem(distantes).filter((a) => !origemDispensada.has(a.modeloIds.join("|")));
 
   // ── Corte → DXF: linhas da seção de cada modelo, no referencial do arquivo, em mm ──
   const [exportandoCorte, setExportandoCorte] = useState(false);
@@ -967,31 +968,35 @@ export function CoordenacaoView({
         )}
         {avisosOrigem.length > 0 && (
           <div className="absolute left-1/2 top-16 z-20 w-[min(28rem,calc(100%-2rem))] -translate-x-1/2 space-y-1">
-            {avisosOrigem.map((d) => {
+            {avisosOrigem.map((aviso) => {
               // Só o nome do arquivo: "Recebido do cliente · X.ifc" → "X.ifc".
-              const arquivo = (id: string) =>
-                modelosCarregadosInfo.find((m) => m.uploadId === id)?.label.split(" · ").pop();
-              const nome = arquivo(d.modeloId) ?? "Modelo";
-              const vizinho = arquivo(d.maisProximoId) ?? "outro modelo";
+              const arquivo = (id: string | null) =>
+                modelosCarregadosInfo.find((m) => m.uploadId === id)?.label.split(" · ").pop() ?? "outro modelo";
+              const chave = aviso.modeloIds.join("|");
+              const par = aviso.modeloIds.length === 2;
+              const texto = par
+                ? `${arquivo(aviso.modeloIds[0])} e ${arquivo(aviso.modeloIds[1])} estão a ${formatarDistancia(aviso.distancia)} um do outro. Um deles pode ter sido exportado com outra origem.`
+                : `${arquivo(aviso.modeloIds[0])} está a ${formatarDistancia(aviso.distancia)} de ${arquivo(aviso.maisProximoId)}. O IFC pode ter sido exportado com outra origem.`;
               return (
                 <div
-                  key={d.modeloId}
+                  key={chave}
                   role="status"
                   className="flex items-start gap-2 rounded-md border border-amber-500/50 bg-background/95 px-3 py-2 text-xs shadow-sm backdrop-blur"
                 >
                   <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
                   <p className="min-w-0 flex-1">
-                    <span className="font-medium">Origem incompatível:</span> {nome} está a{" "}
-                    {formatarDistancia(d.distancia)} de {vizinho}. O IFC pode ter sido exportado com outra origem.
+                    <span className="font-medium">Origem incompatível:</span> {texto}
                   </p>
                   {podeGerir && (
                     <Button
                       size="sm"
                       variant="secondary"
                       className="h-7 shrink-0"
+                      title={par ? "Escolha no painel qual dos dois realinhar" : undefined}
                       onClick={() => {
                         setRealinharAberto(true);
-                        void escolherRealinhar(d.modeloId);
+                        // No par não dá para saber qual errou: o painel abre para escolher.
+                        if (!par) void escolherRealinhar(aviso.modeloIds[0]);
                       }}
                     >
                       Realinhar
@@ -1001,8 +1006,8 @@ export function CoordenacaoView({
                     size="icon"
                     variant="ghost"
                     className="size-7 shrink-0"
-                    aria-label={`Dispensar o aviso de ${nome}`}
-                    onClick={() => setOrigemDispensada((s) => new Set(s).add(d.modeloId))}
+                    aria-label="Dispensar o aviso de origem"
+                    onClick={() => setOrigemDispensada((s) => new Set(s).add(chave))}
                   >
                     <X className="size-3.5" />
                   </Button>
