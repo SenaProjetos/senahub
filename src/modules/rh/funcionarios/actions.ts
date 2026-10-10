@@ -11,9 +11,7 @@ import { removerArquivo } from "@/lib/storage";
 import { criarUsuarioComCredencial } from "@/lib/auth-admin";
 import { buscarCep } from "@/lib/cep";
 import { getSession } from "@/lib/session";
-import { CADASTRO_ROLES } from "@/lib/roles";
 import { aplicarVinculo } from "@/modules/usuarios/vinculo/service";
-import { derivarEixos } from "@/modules/usuarios/vinculo/mapa";
 import { resolverClassificacao } from "@/modules/rh/catalogos/service";
 import { registrarAlteracaoContratual } from "@/modules/rh/contratual/service";
 import { normalizarConta, garantirPrincipal } from "@/modules/rh/contas/service";
@@ -34,6 +32,7 @@ export async function consultarCep(cep: string) {
 
 /// Espelha o enum Prisma `Setor` (docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md).
 const SETOR_VALUES = ["diretoria", "administrativo", "juridico", "engenharia", "ti"] as const;
+const CONTRATACAO_VALUES = ["clt", "estagio", "pj", "autonomo_rpa", "pro_labore"] as const;
 
 const cadastrarFuncionarioSchema = z.object({
   // Conta de acesso
@@ -41,8 +40,9 @@ const cadastrarFuncionarioSchema = z.object({
   /** Nome como consta em documentos formais (holerite/contrato/NF). Vazio = usa `name`. */
   nomeCompleto: opt(z.string()),
   email: z.string().email("E-mail de acesso inválido."), // campo-ok: e-mail de login (better-auth)
-  role: z.enum(CADASTRO_ROLES),
-  /// Setor (Onda C) — opcional: sem escolha, cai no default de `derivarEixos` (§6.1 do plano).
+  /** Como a pessoa é contratada — abre o vínculo (Onda F: não há mais papel). */
+  contratacao: z.enum(CONTRATACAO_VALUES),
+  /** Setor — opcional: sem escolha, Engenharia (setor não concede permissão). */
   setor: z.enum(SETOR_VALUES).optional(),
   // Dados pessoais
   cpf: campo.cpf(),
@@ -89,7 +89,7 @@ const dataOuNull = (s?: string | null) => (s ? new Date(s + "T00:00:00Z") : null
 /**
  * Item 4: cadastro completo de colaborador — cria a conta de acesso (better-auth),
  * grava os dados pessoais/endereço/bancários/contratuais e, opcionalmente, inicia o
- * onboarding a partir de um template. Não quebra o fluxo de Usuários (conta/role).
+ * onboarding a partir de um template. Não quebra o fluxo de Usuários (conta).
  */
 export const cadastrarFuncionario = defineAction(
   { ...base, acao: "cadastrar-funcionario", entidade: "User", schema: cadastrarFuncionarioSchema },
@@ -102,8 +102,7 @@ export const cadastrarFuncionario = defineAction(
     const { id, senhaTemporaria } = await criarUsuarioComCredencial({
       name: i.name,
       email,
-      role: i.role,
-      clienteId: "",
+      tipo: "interno",
     });
 
     // Só resolve o rótulo aqui (leitura) — quem GRAVA cargo/departamento/salário é
@@ -157,20 +156,15 @@ export const cadastrarFuncionario = defineAction(
       });
     }
 
-    // Onda C: cria o Vínculo (Fase 0) já no cadastro — sem isso, quem contrata pelo wizard
-    // desde a Fase 0 nunca ganhava Setor/Contratação (só o backfill retroativo cobria).
-    // `admin` fica de fora (mesmo raciocínio do backfill: papel não é contratação).
-    const eixos = derivarEixos(i.role);
-    if (eixos.criaVinculo) {
-      await aplicarVinculo(prisma, id, {
-        contratacao: eixos.contratacao!,
-        setor: i.setor ?? eixos.setor!,
-        cargo: classificacao.cargo ?? null,
-        remuneracao: i.salarioBase ?? null,
-        pjId: i.pjId || null,
-        dataInicio: dataOuNull(i.dataAdmissao) ?? new Date(),
-      });
-    }
+    // O vínculo nasce no cadastro: é ele que diz como a pessoa é contratada (jornada, folha, rateio).
+    await aplicarVinculo(prisma, id, {
+      contratacao: i.contratacao,
+      setor: i.setor ?? "engenharia",
+      cargo: classificacao.cargo ?? null,
+      remuneracao: i.salarioBase ?? null,
+      pjId: i.pjId || null,
+      dataInicio: dataOuNull(i.dataAdmissao) ?? new Date(),
+    });
 
     // 2.3: primeira linha do histórico contratual. Vem DEPOIS de `aplicarVinculo` de propósito,
     // para o registro já nascer amarrado ao vínculo recém-criado. É esta chamada — e só ela —
@@ -240,7 +234,7 @@ const editarCadastroSchema = z.object({
 
 /**
  * Item 4: edita o cadastro de um colaborador existente — identidade, endereço, contato e
- * registro profissional (não altera conta/e-mail/role).
+ * registro profissional (não altera conta/e-mail).
  *
  * Cargo, departamento e salário SAÍRAM daqui (2.4): formam um estado contratual com vigência e
  * motivo, editado só por `registrarAlteracaoContratualAction`

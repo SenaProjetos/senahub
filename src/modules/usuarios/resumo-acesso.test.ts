@@ -3,19 +3,19 @@ import { PERMISSOES_CATALOGO } from "@/lib/permissions-catalog";
 import { resumirAcesso, type EntradaResumo } from "./resumo-acesso";
 
 const BASE: EntradaResumo = {
-  role: "clt",
+  tipo: "interno",
   ativo: true,
   temPerfil: true,
   perfilNome: "Coordenador",
   perfilEscopoGlobal: false,
   superUsuario: false,
-  ehSocio: false,
   perfilValidaEntregas: true,
   perfilAprovaDisciplina: true,
   perfilAtuaDisciplinaAlheia: true,
   perfilGereTodasTarefas: true,
   contratacao: "clt",
-  jaTeveVinculo: true,
+  gereRh: false,
+  moderaChat: false,
 };
 
 function linha(e: Partial<EntradaResumo>, chave: string) {
@@ -45,7 +45,7 @@ describe("resumirAcesso", () => {
     expect(l.valor).toContain("Coordenador");
   });
 
-  // O caso que motivou a tela: Papel CLT + Perfil "Coordenador".
+  // O caso que motivou a tela: contratação CLT + Perfil "Coordenador".
   describe("CLT com perfil Coordenador", () => {
     it("não enxerga todos os projetos enquanto o perfil não tiver escopo global", () => {
       expect(linha({}, "escopo").valor).toContain("membro ou responsável");
@@ -70,18 +70,16 @@ describe("resumirAcesso", () => {
     });
   });
 
-  it("escopo global sai do perfil ou do superUsuario, não do Papel", () => {
+  it("escopo global sai do perfil ou do superUsuario", () => {
     expect(linha({ perfilEscopoGlobal: true }, "escopo").valor).toContain("Todos os projetos");
     // escopo global é só leitura desde 2026-09-15 — não pode prometer escrita
     expect(linha({ perfilEscopoGlobal: true }, "escopo").valor).toContain("só enxergar");
     expect(linha({ superUsuario: true }, "escopo").valor).toContain("Todos os projetos");
-    // `supervisor` é GLOBAL_ROLES, mas `acessoGlobal()` não lê mais isso.
-    expect(linha({ role: "supervisor" }, "escopo").valor).toContain("membro ou responsável");
+    expect(linha({}, "escopo").valor).toContain("membro ou responsável");
   });
 
-  it("o papel sozinho não concede mais nada disso (gates convertidos em 2026-09-15)", () => {
+  it("sem os pares no perfil, nada disso é concedido", () => {
     const semPares = {
-      role: "supervisor" as const,
       perfilValidaEntregas: false,
       perfilAprovaDisciplina: false,
       perfilAtuaDisciplinaAlheia: false,
@@ -93,34 +91,34 @@ describe("resumirAcesso", () => {
     expect(linha({ ...semPares, superUsuario: true }, "disciplina_alheia").tom).toBe("ok");
   });
 
-  it("PJ registra apontamento, não ponto", () => {
-    expect(linha({ role: "projetista_pj", contratacao: "pj" }, "jornada").valor).toContain("apontamento");
-    expect(linha({ role: "freelancer", contratacao: "pj" }, "jornada").valor).toContain("apontamento");
+  it("PJ e autônomo registram apontamento, não ponto", () => {
+    expect(linha({ contratacao: "pj" }, "jornada").valor).toContain("apontamento");
+    expect(linha({ contratacao: "autonomo_rpa" }, "jornada").valor).toContain("apontamento");
   });
 
-  // O bug de 2026-09-15: batida seguia o papel. Agora segue a contratação.
-  it("Administrativo, TI e Coordenador contratados CLT batem ponto", () => {
-    for (const role of ["administrativo", "ti", "supervisor"] as const) {
-      const l = linha({ role, contratacao: "clt" }, "jornada");
-      expect(l.tom, role).toBe("ok");
-      expect(l.valor, role).toContain("Bate ponto");
+  it("estágio e CLT batem ponto, qualquer que seja o perfil de acesso", () => {
+    for (const contratacao of ["clt", "estagio"] as const) {
+      const l = linha({ contratacao, perfilNome: "Administrativo" }, "jornada");
+      expect(l.tom, contratacao).toBe("ok");
+      expect(l.valor, contratacao).toContain("Bate ponto");
     }
   });
 
-  it("avisa, com o motivo, quem fica sem registrar hora", () => {
-    expect(linha({ role: "supervisor", contratacao: "pro_labore" }, "jornada").valor).toContain("não é CLT nem estágio");
-    expect(linha({ role: "clt", contratacao: null, jaTeveVinculo: true }, "jornada").valor).toContain("encerrado");
-    expect(linha({ role: "administrativo", contratacao: null, jaTeveVinculo: false }, "jornada").valor).toContain("RH → Pessoas");
-    expect(linha({ role: "administrativo", contratacao: null, jaTeveVinculo: false }, "jornada").tom).toBe("aviso");
+  it("avisa quem fica sem registrar hora (sem vínculo)", () => {
+    expect(linha({ contratacao: "pro_labore" }, "jornada").valor).toContain("apontamento");
+    expect(linha({ contratacao: null }, "jornada").valor).toContain("RH → Pessoas");
+    expect(linha({ contratacao: null }, "jornada").tom).toBe("aviso");
+    expect(linha({ contratacao: null, superUsuario: true }, "jornada").tom).toBe("neutro");
   });
 
   it("cliente não tem jornada", () => {
-    expect(linha({ role: "cliente" }, "jornada").valor).toContain("Não se aplica");
+    expect(linha({ tipo: "externo", contratacao: null }, "jornada").valor).toContain("Não se aplica");
   });
 
-  it("piso de sócio só aparece para sócio", () => {
-    expect(resumirAcesso(BASE).some((l) => l.chave === "socio")).toBe(false);
-    expect(linha({ ehSocio: true }, "socio").valor).toContain("Coordenador");
+  it("permissões dadas pessoa a pessoa só aparecem quando existem", () => {
+    expect(resumirAcesso(BASE).some((l) => l.chave === "extras")).toBe(false);
+    expect(linha({ gereRh: true }, "extras").valor).toBe("Gestão de RH");
+    expect(linha({ gereRh: true, moderaChat: true }, "extras").valor).toBe("Gestão de RH e Moderar o chat");
   });
 });
 

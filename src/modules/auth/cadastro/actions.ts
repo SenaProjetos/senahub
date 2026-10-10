@@ -7,7 +7,6 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { notificarMuitos } from "@/lib/notificar";
 import { campo } from "@/lib/campos/zod";
 import { whereAudiencia } from "@/lib/audiencias";
-import { roleLegadoDe } from "@/modules/usuarios/vinculo/mapa";
 import {
   acharVinculoPretendido,
   VALORES_VINCULO_PRETENDIDO,
@@ -83,14 +82,11 @@ export const avaliarSolicitacaoCadastro = defineAction(
     return {
       id: i.id,
       // Reaproveita tudo que a pessoa informou (nome/e-mail/telefone/vínculo pretendido).
-      // `role` é DERIVADO dos eixos só para o formulário de Usuários, que ainda fala papel —
-      // some junto com `User.role` na Onda F, quando a tela passar a falar os eixos direto.
       prefill: i.aprovar
         ? {
             name: pedido.nome,
             email: pedido.email,
             telefone: pedido.telefone ?? "",
-            role: roleLegadoDe(pedido.tipoPretendido, pedido.contratacaoPretendida),
             tipoPretendido: pedido.tipoPretendido,
             contratacaoPretendida: pedido.contratacaoPretendida,
           }

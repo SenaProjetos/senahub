@@ -5,6 +5,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { ensureCanalSocios } from "@/modules/chat/service";
 import { registrarAlteracaoContratual } from "@/modules/rh/contratual/service";
+import { aplicarVinculo } from "@/modules/usuarios/vinculo/service";
 import { notificarNovosMembros, emitParaUsuario } from "@/lib/socket";
 import {
   criarUsuarioComCredencial,
@@ -18,6 +19,32 @@ import {
 } from "@/modules/usuarios/schemas";
 
 const REVALIDATE = "/configuracoes/usuarios";
+
+/** Permissões dadas pessoa a pessoa que o cadastro de usuários edita (Onda F). */
+const EXTRAS = {
+  gereRh: { recurso: "rh", acao: "gerir", motivo: "Gestão de RH — concedida no cadastro de usuários" },
+  moderaChat: { recurso: "chat", acao: "moderar", motivo: "Moderação do chat — concedida no cadastro de usuários" },
+} as const;
+
+/** Liga ou desliga um extra: ligado = override `permitido`; desligado = remove o override. */
+async function aplicarExtra(userId: string, chave: keyof typeof EXTRAS, ligado: boolean, concedidoPorId: string) {
+  const { recurso, acao, motivo } = EXTRAS[chave];
+  if (ligado) {
+    await prisma.permissaoUsuario.upsert({
+      where: { userId_recurso_acao: { userId, recurso, acao } },
+      create: { userId, recurso, acao, permitido: true, motivo, concedidoPorId },
+      update: { permitido: true, motivo, expiraEm: null, concedidoPorId },
+    });
+  } else {
+    await prisma.permissaoUsuario.deleteMany({ where: { userId, recurso, acao } });
+  }
+}
+
+function exigirSuperParaExtras(input: { gereRh?: boolean; moderaChat?: boolean }, ehSuper: boolean) {
+  if ((input.gereRh !== undefined || input.moderaChat !== undefined) && !ehSuper) {
+    throw new ActionError("Apenas administradores podem dar Gestão de RH ou moderação do chat.");
+  }
+}
 
 export const criarUsuario = defineAction(
   {
@@ -34,8 +61,32 @@ export const criarUsuario = defineAction(
       where: { email: input.email.toLowerCase().trim() },
     });
     if (existing) throw new ActionError("Já existe um usuário com esse e-mail.");
+    exigirSuperParaExtras(input, ctx.user.superUsuario);
+    if (input.tipo === "externo" && !input.clienteId?.trim()) {
+      throw new ActionError("Escolha o cliente do portal.");
+    }
+    if (input.tipo === "interno" && !input.contratacao) {
+      throw new ActionError("Escolha como a pessoa é contratada — o vínculo nasce junto com a conta.");
+    }
 
     const { id, senhaTemporaria } = await criarUsuarioComCredencial(input);
+
+    // O vínculo nasce no cadastro: sem ele a pessoa não bate ponto nem apura horas (Onda F).
+    if (input.tipo === "interno" && input.contratacao) {
+      const classificacao = input.cargoId?.trim()
+        ? await prisma.cargo.findUnique({ where: { id: input.cargoId.trim() }, select: { nome: true } })
+        : null;
+      await aplicarVinculo(prisma, id, {
+        contratacao: input.contratacao,
+        setor: input.setor ?? "engenharia",
+        cargo: classificacao?.nome ?? null,
+        remuneracao: input.salarioBase ?? null,
+        pjId: input.pjId?.trim() || null,
+        dataInicio: input.dataAdmissao ? new Date(input.dataAdmissao + "T00:00:00Z") : new Date(),
+      });
+    }
+    if (input.gereRh) await aplicarExtra(id, "gereRh", true, ctx.user.id);
+    if (input.moderaChat) await aplicarExtra(id, "moderaChat", true, ctx.user.id);
 
     // Fase 2: preenche o cadastro inicial no mesmo ato (só o que veio) — evita "pessoa pela metade".
     const cadastro: {
@@ -91,7 +142,7 @@ export const editarUsuario = defineAction(
         select: {
           name: true,
           nomeCompleto: true,
-          role: true,
+          tipo: true,
           clienteId: true,
           socio: { select: { ativo: true } },
         },
@@ -99,8 +150,11 @@ export const editarUsuario = defineAction(
   },
   async (input, ctx) => {
     // Sócio: soft-toggle no registro Socio (nunca exclui — preserva retiradas).
-    // Perfil cliente nunca é sócio (mesma regra de usuariosParaSocio no financeiro).
-    const desejaSocio = input.role === "cliente" && input.ehSocio ? false : input.ehSocio;
+    // Cliente do portal (tipo externo) nunca é sócio (mesma regra de usuariosParaSocio no financeiro).
+    const alvo = await prisma.user.findUnique({ where: { id: input.id }, select: { tipo: true } });
+    if (!alvo) throw new ActionError("Usuário não encontrado.");
+    const externo = alvo.tipo === "externo";
+    const desejaSocio = externo && input.ehSocio ? false : input.ehSocio;
     let socioMudou = false;
     let socio: { id: string; ativo: boolean } | null = null;
     if (desejaSocio !== undefined) {
@@ -120,17 +174,21 @@ export const editarUsuario = defineAction(
       throw new ActionError("Apenas administradores podem conceder acesso total (superUsuário).");
     }
 
+    exigirSuperParaExtras(input, ctx.user.superUsuario);
+
     await prisma.user.update({
       where: { id: input.id },
       data: {
         name: input.name,
         nomeCompleto: input.nomeCompleto?.trim() || null,
-        role: input.role,
-        clienteId: input.role === "cliente" ? input.clienteId || null : null,
+        clienteId: externo ? input.clienteId || null : null,
         ...(input.perfilId !== undefined ? { perfilId: input.perfilId || null } : {}),
         ...(input.superUsuario !== undefined ? { superUsuario: input.superUsuario } : {}),
       },
     });
+
+    if (input.gereRh !== undefined) await aplicarExtra(input.id, "gereRh", input.gereRh, ctx.user.id);
+    if (input.moderaChat !== undefined) await aplicarExtra(input.id, "moderaChat", input.moderaChat, ctx.user.id);
 
     if (socioMudou) {
       if (desejaSocio) {
@@ -196,7 +254,7 @@ export const excluirUsuario = defineAction(
     capturarAntes: async (input) =>
       prisma.user.findUnique({
         where: { id: input.id },
-        select: { name: true, email: true, role: true, ativo: true },
+        select: { name: true, email: true, tipo: true, ativo: true },
       }),
   },
   async (input, ctx) => {

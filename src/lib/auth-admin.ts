@@ -1,7 +1,7 @@
 import "server-only";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import type { Role } from "@/lib/roles";
+import type { TipoUsuario } from "@/generated/prisma/client";
 
 /** Gera uma senha temporária legível (ex.: "Sena-4F8K2"). */
 export function gerarSenhaTemporaria(): string {
@@ -15,7 +15,8 @@ export function gerarSenhaTemporaria(): string {
 export async function criarUsuarioComCredencial(input: {
   name: string;
   email: string;
-  role: Role;
+  /** `externo` = cliente do portal (exige `clienteId`); `interno` = equipe. */
+  tipo: TipoUsuario;
   clienteId?: string;
 }): Promise<{ id: string; senhaTemporaria: string }> {
   const senhaTemporaria = gerarSenhaTemporaria();
@@ -27,12 +28,10 @@ export async function criarUsuarioComCredencial(input: {
       name: input.name,
       email: input.email.toLowerCase().trim(),
       emailVerified: true,
-      role: input.role,
-      // Mesma regra que `tipoEfetivo` aplicava ao nulo: só o papel `cliente` é externo.
-      tipo: input.role === "cliente" ? "externo" : "interno",
+      tipo: input.tipo,
       ativo: true,
       mustChangePassword: true,
-      clienteId: input.role === "cliente" ? input.clienteId || null : null,
+      clienteId: input.tipo === "externo" ? input.clienteId || null : null,
     },
   });
 

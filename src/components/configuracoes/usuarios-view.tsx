@@ -21,9 +21,9 @@ import {
 import { avaliarSolicitacaoCadastro } from "@/modules/auth/cadastro/actions";
 import { abrirCiclo } from "@/modules/rh/ciclo/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { ROLES, ROLE_LABELS, CLT_ROLES, PJ_ROLES, type Role } from "@/lib/roles";
+import { ehJornada, ehPrestador } from "@/lib/contratacao";
 import { resumirAcesso, type LinhaResumo } from "@/modules/usuarios/resumo-acesso";
-import { CONTRATACAO_LABELS, SETOR_LABELS } from "@/modules/usuarios/vinculo/labels";
+import { CONTRATACAO_LABELS, SETOR_LABELS, rotuloContratacao } from "@/modules/usuarios/vinculo/labels";
 import type { Contratacao, Setor } from "@/generated/prisma/client";
 import type { UsuarioListItem } from "@/modules/usuarios/queries";
 import { SolicitacoesCadastro, type PedidoCadastro } from "@/components/configuracoes/solicitacoes-cadastro";
@@ -78,8 +78,10 @@ import {
   ACAO_LOTE_DESATIVAR,
   ACAO_LOTE_EXCLUIR,
   ACAO_LOTE_REATIVAR,
+  ACAO_PERMISSOES,
   ACAO_REATIVAR,
   ACAO_REINICIAR_SENHA,
+  ACAO_VER_FICHA,
   itensDeLoteUsuarios,
   itensDeUsuario,
 } from "@/modules/usuarios/acoes";
@@ -89,9 +91,16 @@ type FormState = {
   name: string;
   nomeCompleto: string;
   email: string;
-  role: Role;
+  /** Equipe interna ou cliente do portal — não existe mais papel (Onda F). */
+  tipo: "interno" | "externo";
   clienteId: string;
   ehSocio: boolean;
+  /** Dadas pessoa a pessoa (overrides) — só superusuário altera. */
+  gereRh: boolean;
+  moderaChat: boolean;
+  /** Vínculo que nasce junto com a conta (só na criação de equipe interna). */
+  contratacaoNova: Contratacao;
+  setorNovo: Setor;
   // Fase 2 — cadastro inicial (só na criação)
   cpf: string;
   telefone: string;
@@ -107,14 +116,13 @@ type FormState = {
   /** Só leitura, do vínculo ativo — esta tela não grava vínculo. */
   setor: Setor | null;
   contratacao: Contratacao | null;
-  /** Só leitura — separa "sem vínculo" (cai no papel) de "vínculo encerrado" (sem jornada). */
-  jaTeveVinculo: boolean;
 };
 
 const EMPTY: FormState = {
-  name: "", nomeCompleto: "", email: "", role: "projetista_pj", clienteId: "", ehSocio: false,
+  name: "", nomeCompleto: "", email: "", tipo: "interno", clienteId: "", ehSocio: false, gereRh: false, moderaChat: false,
+  contratacaoNova: "clt", setorNovo: "engenharia",
   cpf: "", telefone: "", cargoId: "", dataAdmissao: "", salarioBase: null, pjId: "", onboardingTemplateId: "",
-  perfilId: "", superUsuario: false, ativo: true, setor: null, contratacao: null, jaTeveVinculo: false,
+  perfilId: "", superUsuario: false, ativo: true, setor: null, contratacao: null,
 };
 
 /**
@@ -175,6 +183,8 @@ export function UsuariosView({
   ehAdmin: boolean;
 }) {
   const [mostrarInativos, setMostrarInativos] = useState(true);
+  /** Perfil fixo do cliente do portal (semente `portal_cliente`). */
+  const perfilPortal = perfis.find((p) => p.chave === "portal_cliente") ?? null;
   const [form, setForm] = useState<FormState | null>(null);
   const [credencial, setCredencial] = useState<{ email: string; senha: string } | null>(null);
   const [pending, startTransition] = useTransition();
@@ -196,7 +206,15 @@ export function UsuariosView({
       }
       if (aprovar && res.data.prefill) {
         const pf = res.data.prefill;
-        setForm({ ...EMPTY, name: pf.name, email: pf.email, telefone: pf.telefone ?? "", role: pf.role as Role });
+        setForm({
+          ...EMPTY,
+          name: pf.name,
+          email: pf.email,
+          telefone: pf.telefone ?? "",
+          tipo: pf.tipoPretendido === "externo" ? "externo" : "interno",
+          contratacaoNova: pf.contratacaoPretendida ?? "clt",
+          perfilId: pf.tipoPretendido === "externo" ? (perfilPortal?.id ?? "") : "",
+        });
         toast.success("Pedido aprovado — confira o vínculo e crie o usuário.");
       } else {
         toast.success(aprovar ? "Pedido aprovado." : "Pedido recusado.");
@@ -223,23 +241,24 @@ export function UsuariosView({
 
   const visiveis = usuarios.filter((u) => mostrarInativos || u.ativo);
 
-  // Resumo do que a combinação Papel × Perfil de acesso libera, recalculado a cada mudança do
+  // Resumo do que a combinação Vínculo × Perfil de acesso libera, recalculado a cada mudança do
   // formulário — a tela responde "é assim mesmo?" antes de salvar, não depois da reclamação.
   const perfilSel = form ? (perfis.find((p) => p.id === form.perfilId) ?? null) : null;
 
   // Quais seções dobráveis existem nesta abertura do diálogo — e se a seção fechada esconde algo
   // preenchido, para denunciar no cabeçalho dela em vez de obrigar a abrir para descobrir.
-  // Só na edição: `criarUsuarioSchema` não tem `superUsuario` e `salvar` não o envia na criação —
-  // mostrar o interruptor ali seria prometer um bypass que não é gravado.
+  // Superusuário só na edição (não é gravado na criação); as duas permissões individuais valem nos dois.
   const mostrarSuper = ehAdmin && !!form?.id;
-  const mostrarSocio = !!form?.id && podeDefinirSocio && form.role !== "cliente";
+  const mostrarExtras = ehAdmin && form?.tipo !== "externo";
+  const mostrarSocio = !!form?.id && podeDefinirSocio && form.tipo !== "externo";
+  const contratacaoEfetiva = form ? (form.id ? form.contratacao : form.tipo === "interno" ? form.contratacaoNova : null) : null;
   const cadastroPreenchido = !!form && (
     !!form.nomeCompleto || !!form.cpf || !!form.telefone || !!form.cargoId ||
-    !!form.dataAdmissao || form.salarioBase != null || !!form.pjId || !!form.onboardingTemplateId
+    form.salarioBase != null || !!form.pjId || !!form.onboardingTemplateId
   );
   const linhasResumo = form
     ? resumirAcesso({
-        role: form.role,
+        tipo: form.tipo,
         ativo: form.ativo,
         temPerfil: !!form.perfilId,
         perfilNome: perfilSel?.nome ?? null,
@@ -248,10 +267,10 @@ export function UsuariosView({
         perfilAprovaDisciplina: perfilSel?.aprovaDisciplina ?? false,
         perfilAtuaDisciplinaAlheia: perfilSel?.atuaDisciplinaAlheia ?? false,
         perfilGereTodasTarefas: perfilSel?.gereTodasTarefas ?? false,
-        contratacao: form.contratacao,
-        jaTeveVinculo: form.jaTeveVinculo,
+        contratacao: contratacaoEfetiva,
+        gereRh: form.gereRh,
+        moderaChat: form.moderaChat,
         superUsuario: form.superUsuario,
-        ehSocio: form.ehSocio,
       })
     : [];
 
@@ -263,9 +282,9 @@ export function UsuariosView({
           id: form.id,
           name: form.name,
           nomeCompleto: form.nomeCompleto,
-          role: form.role,
           clienteId: form.clienteId,
           perfilId: form.perfilId,
+          ...(ehAdmin ? { gereRh: form.gereRh, moderaChat: form.moderaChat } : {}),
           ...(podeDefinirSocio ? { ehSocio: form.ehSocio } : {}),
           ...(ehAdmin ? { superUsuario: form.superUsuario } : {}),
         });
@@ -274,29 +293,26 @@ export function UsuariosView({
           setForm(null);
         } else toast.error(res.error);
       } else {
-        const ehColaborador = form.role !== "cliente";
-        const ehClt = CLT_ROLES.includes(form.role);
-        const ehPj = PJ_ROLES.includes(form.role);
+        const ehColaborador = form.tipo === "interno";
         const res = await criarUsuario({
           name: form.name,
           email: form.email,
-          role: form.role,
+          tipo: form.tipo,
           clienteId: form.clienteId,
           perfilId: form.perfilId,
-          // Cadastro inicial (só o relevante ao vínculo).
+          // Vínculo + cadastro inicial (só para a equipe interna).
           ...(ehColaborador
             ? {
+                contratacao: form.contratacaoNova,
+                setor: form.setorNovo,
+                dataAdmissao: form.dataAdmissao,
                 nomeCompleto: form.nomeCompleto,
                 cpf: form.cpf,
                 telefone: form.telefone,
                 cargoId: form.cargoId,
-                ...(ehClt
-                  ? {
-                      dataAdmissao: form.dataAdmissao,
-                      salarioBase: form.salarioBase ?? undefined,
-                    }
-                  : {}),
-                ...(ehPj ? { pjId: form.pjId } : {}),
+                ...(ehJornada(form.contratacaoNova) ? { salarioBase: form.salarioBase ?? undefined } : {}),
+                ...(ehPrestador(form.contratacaoNova) ? { pjId: form.pjId } : {}),
+                ...(ehAdmin ? { gereRh: form.gereRh, moderaChat: form.moderaChat } : {}),
               }
             : {}),
         });
@@ -337,14 +353,15 @@ export function UsuariosView({
       name: u.name,
       nomeCompleto: u.nomeCompleto ?? "",
       email: u.email,
-      role: u.role as Role,
+      tipo: u.tipo,
       clienteId: u.clienteId ?? "",
       ehSocio: u.socio?.ativo === true,
+      gereRh: u.overrides.some((o) => o.recurso === "rh"),
+      moderaChat: u.overrides.some((o) => o.recurso === "chat"),
       perfilId: u.perfilId ?? "",
       superUsuario: u.superUsuario,
       ativo: u.ativo,
       setor: u.setor,
-      jaTeveVinculo: u._count.vinculos > 0,
       contratacao: u.contratacao,
     });
   }
@@ -414,6 +431,8 @@ export function UsuariosView({
       if (!ok) return;
     }
     if (item.id === ACAO_EDITAR) editar(u);
+    else if (item.id === ACAO_VER_FICHA) router.push(`/rh/pessoas/${u.id}`);
+    else if (item.id === ACAO_PERMISSOES) router.push(`/rh/pessoas/${u.id}?aba=acesso`);
     else if (item.id === ACAO_REINICIAR_SENHA) resetar(u.id, u.email);
     else if (item.id === ACAO_DESATIVAR) acao(() => desativarUsuario({ id: u.id }), "Usuário desativado.");
     else if (item.id === ACAO_REATIVAR) acao(() => reativarUsuario({ id: u.id }), "Usuário reativado.");
@@ -459,7 +478,7 @@ export function UsuariosView({
               </TableHead>
               <TableHead>Nome</TableHead>
               <TableHead>E-mail</TableHead>
-              <TableHead>Papel</TableHead>
+              <TableHead>Vínculo</TableHead>
               <TableHead>Perfil de acesso</TableHead>
               <TableHead>Situação</TableHead>
               <TableHead className="w-12" />
@@ -489,7 +508,7 @@ export function UsuariosView({
                 <TableCell className="text-sm text-muted-foreground">{u.email}</TableCell>
                 <TableCell>
                   <span className="inline-flex items-center gap-1.5">
-                    <Badge variant="outline">{ROLE_LABELS[u.role as Role]}</Badge>
+                    <Badge variant="outline">{u.tipo === "externo" ? "Cliente do portal" : rotuloContratacao(u.contratacao)}</Badge>
                     {u.socio?.ativo && <Badge variant="secondary">Sócio</Badge>}
                   </span>
                 </TableCell>
@@ -556,7 +575,7 @@ export function UsuariosView({
             <DialogTitle>{form?.id ? "Editar usuário" : "Nova pessoa"}</DialogTitle>
             <DialogDescription>
               {form?.id
-                ? "Perfil de acesso define as telas; contratação define ponto e férias; papel, o que sobrou. O resumo abaixo mostra o resultado."
+                ? "Perfil de acesso define as telas; a contratação do vínculo define ponto, férias e apontamento. O resumo abaixo mostra o resultado."
                 : "Cria o acesso (senha temporária, troca no 1º acesso) e já registra o cadastro inicial."}
             </DialogDescription>
           </DialogHeader>
@@ -594,31 +613,68 @@ export function UsuariosView({
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label>Papel</Label>
-                <Select
-                  value={form.role}
-                  onValueChange={(v) => setForm({ ...form, role: v as Role })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROLES.map((r) => (
-                      <SelectItem key={r} value={r}>
-                        {ROLE_LABELS[r]}
-                      </SelectItem>
+              {!form.id && (
+                <div className="space-y-1.5">
+                  <Label>Tipo de acesso</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      ["interno", "Equipe interna", "Colaborador, estagiário, PJ, sócio"],
+                      ["externo", "Cliente do portal", "Só enxerga o próprio cliente"],
+                    ] as const).map(([valor, titulo, dica]) => (
+                      <button
+                        key={valor}
+                        type="button"
+                        aria-pressed={form.tipo === valor}
+                        onClick={() =>
+                          setForm({
+                            ...form,
+                            tipo: valor,
+                            perfilId: valor === "externo" ? (perfilPortal?.id ?? "") : form.tipo === "externo" ? "" : form.perfilId,
+                          })
+                        }
+                        className={`rounded-sm border p-2.5 text-left text-sm transition-colors ${form.tipo === valor ? "border-primary bg-accent/40" : "hover:bg-muted/50"}`}
+                      >
+                        <span className="block font-medium">{titulo}</span>
+                        <span className="block text-xs text-muted-foreground">{dica}</span>
+                      </button>
                     ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Não define telas nem ponto (ponto e férias seguem a contratação). Ainda define o
-                  apontamento de horas do PJ e quem age na disciplina dos outros.{" "}
-                  <span className="font-medium">&quot;Coordenador&quot; aqui não é o mesmo que o
-                  Perfil de acesso &quot;Coordenador&quot;</span> — quem coordena mas é contratado CLT
-                  fica com Papel <span className="font-medium">CLT</span>.
-                </p>
-              </div>
+                  </div>
+                </div>
+              )}
+              {!form.id && form.tipo === "interno" && (
+                <div className="space-y-3 rounded-sm border p-3">
+                  <p className="text-xs font-medium text-muted-foreground">Vínculo — como a pessoa trabalha aqui</p>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label>Contratação</Label>
+                      <Select value={form.contratacaoNova} onValueChange={(v) => v && setForm({ ...form, contratacaoNova: v as Contratacao })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {(Object.keys(CONTRATACAO_LABELS) as Contratacao[]).map((c) => (
+                            <SelectItem key={c} value={c}>{CONTRATACAO_LABELS[c]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Setor</Label>
+                      <Select value={form.setorNovo} onValueChange={(v) => v && setForm({ ...form, setorNovo: v as Setor })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {(Object.keys(SETOR_LABELS) as Setor[]).map((st) => (
+                            <SelectItem key={st} value={st}>{SETOR_LABELS[st]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="u-adm">Início do vínculo</Label>
+                    <Input id="u-adm" type="date" value={form.dataAdmissao} onChange={(e) => setForm({ ...form, dataAdmissao: e.target.value })} />
+                    <p className="text-xs text-muted-foreground">Vazio = hoje. Setor e contratação não dão acesso; a contratação define ponto, férias e apontamento.</p>
+                  </div>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label>Perfil de acesso</Label>
                 <Select
@@ -648,7 +704,7 @@ export function UsuariosView({
                   )}
                 </p>
               </div>
-              {form.role === "cliente" && (
+              {form.tipo === "externo" && (
                 <div className="space-y-1.5">
                   <Label>Cliente vinculado (portal)</Label>
                   <Select
@@ -670,17 +726,16 @@ export function UsuariosView({
                 </div>
               )}
               <ResumoAcesso linhas={linhasResumo} />
-              {form.id && form.role !== "cliente" && (
+              {form.id && form.tipo === "interno" && (
                 <p className="text-xs text-muted-foreground">
                   Vínculo: <span className="font-medium">{form.setor ? SETOR_LABELS[form.setor] : "setor não definido"}</span>
                   {" · "}
                   <span className="font-medium">{form.contratacao ? CONTRATACAO_LABELS[form.contratacao] : "contratação não definida"}</span>
                   . Setor e Contratação não concedem acesso, mas a contratação define a jornada —
-                  edite em <Link href="/rh/pessoas" className="underline">RH → Pessoas</Link>, esta
-                  tela não grava vínculo.
+                  troque em <Link href={`/rh/pessoas/${form.id}`} className="underline">RH → Pessoas</Link>.
                 </p>
               )}
-              {!form.id && form.role !== "cliente" && (
+              {!form.id && form.tipo === "interno" && (
                 <CollapsibleSection
                   titulo="Cadastro inicial"
                   descricao="Opcional — evita deixar a pessoa cadastrada pela metade."
@@ -734,19 +789,13 @@ export function UsuariosView({
                         {cargos.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
                       </select>
                     </div>
-                    {CLT_ROLES.includes(form.role) && (
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="u-adm">Admissão</Label>
-                          <Input id="u-adm" type="date" value={form.dataAdmissao} onChange={(e) => setForm({ ...form, dataAdmissao: e.target.value })} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="u-sal">Salário base</Label>
-                          <InputMoeda id="u-sal" value={form.salarioBase} onChange={(v) => setForm({ ...form, salarioBase: v })} />
-                        </div>
+                    {ehJornada(form.contratacaoNova) && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="u-sal">Salário base</Label>
+                        <InputMoeda id="u-sal" value={form.salarioBase} onChange={(v) => setForm({ ...form, salarioBase: v })} />
                       </div>
                     )}
-                    {PJ_ROLES.includes(form.role) && pessoasJuridicas.length > 0 && (
+                    {ehPrestador(form.contratacaoNova) && pessoasJuridicas.length > 0 && (
                       <div className="space-y-1.5">
                         <Label>Pessoa Jurídica (CNPJ)</Label>
                         <Select value={form.pjId || "__none"} onValueChange={(v) => setForm({ ...form, pjId: v === "__none" ? "" : (v ?? "") })}>
@@ -777,14 +826,14 @@ export function UsuariosView({
                   </div>
                 </CollapsibleSection>
               )}
-              {(mostrarSuper || mostrarSocio) && (
+              {(mostrarSuper || mostrarSocio || mostrarExtras) && (
                 <CollapsibleSection
                   titulo="Acesso avançado"
-                  descricao="Bypass total e piso de sócio."
+                  descricao="Bypass total, sócio, Gestão de RH e moderação do chat."
                   resumo={
-                    form.superUsuario || (mostrarSocio && form.ehSocio) ? (
+                    form.superUsuario || (mostrarSocio && form.ehSocio) || (mostrarExtras && (form.gereRh || form.moderaChat)) ? (
                       <Badge variant="destructive">
-                        {form.superUsuario ? "acesso total" : "sócio"}
+                        {form.superUsuario ? "acesso total" : form.gereRh || form.moderaChat ? "permissões extras" : "sócio"}
                       </Badge>
                     ) : null
                   }
@@ -794,8 +843,7 @@ export function UsuariosView({
                       <div className="space-y-0.5">
                         <Label htmlFor="u-super">Acesso total (superusuário)</Label>
                         <p className="text-xs text-muted-foreground">
-                          Ignora o Perfil de acesso e libera tudo. É o bypass real do sistema — o Papel
-                          Administrador, sozinho, não faz isso.
+                          Ignora o Perfil de acesso e libera tudo. É o bypass real do sistema.
                         </p>
                       </div>
                       <Switch
@@ -805,13 +853,12 @@ export function UsuariosView({
                       />
                     </div>
                   )}
-                  {form.id && podeDefinirSocio && form.role !== "cliente" && (
+                  {mostrarSocio && (
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-0.5">
                         <Label htmlFor="u-socio">Sócio</Label>
                         <p className="text-xs text-muted-foreground">
-                          Piso de acesso do Papel Coordenador, somado ao perfil, e canal Sócios no chat.
-                          Percentual de participação é gerido em Financeiro → Cadastros.
+                          Entra no canal Sócios do chat. Percentual de participação é gerido em Financeiro → Cadastros.
                         </p>
                       </div>
                       <Switch
@@ -820,6 +867,28 @@ export function UsuariosView({
                         onCheckedChange={(v) => setForm({ ...form, ehSocio: v })}
                       />
                     </div>
+                  )}
+                  {mostrarExtras && (
+                    <>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="u-rh">Gestão de RH</Label>
+                          <p className="text-xs text-muted-foreground">
+                            Dada pessoa a pessoa: abre as telas e ações de RH (ficha, férias, ponto de todos, folha).
+                          </p>
+                        </div>
+                        <Switch id="u-rh" checked={form.gereRh} onCheckedChange={(v) => setForm({ ...form, gereRh: v })} />
+                      </div>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="u-chat">Moderar o chat</Label>
+                          <p className="text-xs text-muted-foreground">
+                            Apaga mensagens alheias, gerencia grupos e lê a auditoria dos canais.
+                          </p>
+                        </div>
+                        <Switch id="u-chat" checked={form.moderaChat} onCheckedChange={(v) => setForm({ ...form, moderaChat: v })} />
+                      </div>
+                    </>
                   )}
                 </CollapsibleSection>
               )}

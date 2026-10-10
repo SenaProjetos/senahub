@@ -1,6 +1,6 @@
 /**
- * "O que essa combinação libera": tradução em pt-BR do que **Papel** + **Perfil de acesso**
- * concedem de fato, para a tela de Usuários responder sozinha a pergunta que hoje só se
+ * "O que essa combinação libera": tradução em pt-BR do que **Vínculo** (contratação) + **Perfil de
+ * acesso** (+ as duas permissões dadas pessoa a pessoa) concedem de fato, para a tela de Usuários responder sozinha a pergunta que hoje só se
  * responde lendo o código.
  *
  * PURO e client-safe (importa só `lib/roles`, sem Prisma, sem `server-only`) — mesmo padrão de
@@ -15,13 +15,13 @@
  *     (`tarefas:gerir_todas`) — que até então eram do papel (`GLOBAL_ROLES`).
  *   - **Contratação** decide a batida, o espelho, as férias e a folha CLT (`ponto/jornada.ts`,
  *     desde 2026-09-15) — não o papel.
- *   - **Papel** (`role`) ainda decide o apontamento (`PJ_ROLES`), mais nada nesta tela.
+ *   - **Papel** não existe mais (Onda F): o apontamento também sai da contratação (`usaApontamento`).
  *   - **Escopo de projetos** é outro eixo: `acessoGlobal()` = `superUsuario ||` permissão
  *     `escopo:global` do perfil. Só leitura desde 2026-09-15.
  *
  * O painel lê só o perfil, não overrides nominais — mesma limitação desde a criação.
  */
-import { PJ_ROLES, type Role } from "@/lib/roles";
+import { usaApontamento } from "@/lib/contratacao";
 import { controlaJornada } from "@/modules/ponto/jornada";
 import type { Contratacao } from "@/generated/prisma/enums";
 
@@ -37,7 +37,8 @@ export type LinhaResumo = {
 };
 
 export type EntradaResumo = {
-  role: Role;
+  /** Interno (equipe) × externo (cliente do portal). */
+  tipo: "interno" | "externo";
   ativo: boolean;
   /** `User.perfilId` preenchido. Sem ele, `permissaoEfetiva` nega tudo. */
   temPerfil: boolean;
@@ -54,34 +55,28 @@ export type EntradaResumo = {
   perfilGereTodasTarefas: boolean;
   /** Contratação do vínculo ativo — eixo da jornada. */
   contratacao: Contratacao | null;
-  /** Já teve algum vínculo. Sem ele, "sem contratação" não se distingue de "vínculo encerrado". */
-  jaTeveVinculo: boolean;
+  /** Gestão de RH (`rh:gerir`) dada pessoa a pessoa. */
+  gereRh: boolean;
+  /** Moderação do chat (`chat:moderar`) dada pessoa a pessoa. */
+  moderaChat: boolean;
   superUsuario: boolean;
-  ehSocio: boolean;
 };
 
 /**
- * Registro de horas: batida pela CONTRATAÇÃO (`controlaJornada`), apontamento ainda pelo PAPEL. A
- * pessoa que não cai em nenhum dos dois fica sem registrar hora — o que zera o custo dela no rateio
+ * Registro de horas pela CONTRATAÇÃO do vínculo ativo: CLT e estágio batem ponto, PJ e autônomo
+ * apontam horas. Sem vínculo a pessoa fica sem registrar hora — o que zera o custo dela no rateio
  * de projeto. Por isso é aviso, exceto para superusuário e cliente.
  */
 function jornada(e: EntradaResumo): { valor: string; tom: TomResumo } {
-  if (e.role === "cliente") return { valor: "Não se aplica (acesso externo, só o portal)", tom: "neutro" };
-  // O formulário ainda escolhe o papel; fora `cliente` (tratado acima), a pessoa é interna.
-  const sujeito = { role: e.role, tipo: "interno" as const, contratacao: e.contratacao, jaTeveVinculo: e.jaTeveVinculo };
-  if (controlaJornada(sujeito)) {
+  if (e.tipo === "externo") return { valor: "Não se aplica (acesso externo, só o portal)", tom: "neutro" };
+  if (controlaJornada({ tipo: "interno", contratacao: e.contratacao })) {
     return { valor: "Bate ponto — espelho, banco de horas, férias e folha CLT (pela contratação)", tom: "ok" };
   }
-  if (PJ_ROLES.includes(e.role)) {
+  if (e.contratacao && usaApontamento(e.contratacao)) {
     return { valor: "Registra apontamento de horas (sem ponto, sem folha CLT)", tom: "ok" };
   }
   if (e.superUsuario) return { valor: "Não registra horas", tom: "neutro" };
-  const motivo = e.contratacao
-    ? "a contratação não é CLT nem estágio, e o apontamento é só para o papel Projetista PJ ou Freelancer"
-    : e.jaTeveVinculo
-      ? "o vínculo está encerrado"
-      : "não há vínculo cadastrado — cadastre em RH → Pessoas";
-  return { valor: `Não registra horas: ${motivo}`, tom: "aviso" };
+  return { valor: "Não registra horas: não há vínculo ativo — cadastre em RH → Pessoas", tom: "aviso" };
 }
 
 export function resumirAcesso(e: EntradaResumo): LinhaResumo[] {
@@ -169,17 +164,17 @@ export function resumirAcesso(e: EntradaResumo): LinhaResumo[] {
     tom: gereTarefas ? "ok" : "neutro",
   });
 
-  // 5. Jornada — batida pela contratação, apontamento pelo papel.
+  // 5. Jornada — batida e apontamento pela contratação.
   const j = jornada(e);
   linhas.push({ chave: "jornada", titulo: "Registro de horas", valor: j.valor, tom: j.tom });
 
-  // 6. Piso de sócio — override nominal, some da conta se ninguém disser que existe.
-  if (e.ehSocio) {
+  // 6. Permissões dadas pessoa a pessoa (Onda F): vêm de fora do perfil.
+  if (e.gereRh || e.moderaChat) {
     linhas.push({
-      chave: "socio",
-      titulo: "Piso de sócio",
-      valor: "Além do perfil, recebe o que o papel Coordenador poderia em qualquer checagem de permissão",
-      tom: "neutro",
+      chave: "extras",
+      titulo: "Dadas pessoa a pessoa",
+      valor: [e.gereRh ? "Gestão de RH" : null, e.moderaChat ? "Moderar o chat" : null].filter(Boolean).join(" e "),
+      tom: "ok",
     });
   }
 

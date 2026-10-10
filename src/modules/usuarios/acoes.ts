@@ -1,4 +1,4 @@
-import { Copy, KeyRound, Pencil, Trash2, UserCheck, UserX } from "lucide-react";
+import { Copy, IdCard, KeyRound, Pencil, ShieldCheck, Trash2, UserCheck, UserX } from "lucide-react";
 
 import type { AcaoItem } from "@/components/ui/acoes";
 
@@ -9,6 +9,8 @@ import type { AcaoItem } from "@/components/ui/acoes";
  */
 
 export const ACAO_EDITAR = "editar";
+export const ACAO_VER_FICHA = "ver-ficha";
+export const ACAO_PERMISSOES = "permissoes";
 export const ACAO_REINICIAR_SENHA = "reiniciar-senha";
 export const ACAO_DESATIVAR = "desativar";
 export const ACAO_REATIVAR = "reativar";
@@ -24,12 +26,16 @@ export const MOTIVO_TODOS_INATIVOS = "Todos os selecionados já estão desativad
 export const MOTIVO_TODOS_ATIVOS = "Todos os selecionados já estão ativos.";
 export const MOTIVO_EXCLUIR_SO_INATIVOS = "Só contas desativadas podem ser excluídas.";
 
-export type UsuarioParaAcoes = { ativo: boolean };
+export type UsuarioParaAcoes = { ativo: boolean; tipo: "interno" | "externo" };
 
 export function itensDeUsuario(u: UsuarioParaAcoes, ctx: { podeExcluir: boolean }): AcaoItem[] {
+  // Ficha e permissões individuais moram em RH → Pessoas, que só existe para a equipe interna.
+  const interno = u.tipo === "interno";
   const itens: (AcaoItem | null)[] = [
     { tipo: "acao", id: ACAO_EDITAR, rotulo: "Editar", icone: Pencil },
-    { tipo: "acao", id: ACAO_REINICIAR_SENHA, rotulo: "Reiniciar senha", icone: KeyRound },
+    interno ? { tipo: "acao", id: ACAO_VER_FICHA, rotulo: "Ver ficha (RH → Pessoas)", icone: IdCard } : null,
+    interno ? { tipo: "acao", id: ACAO_PERMISSOES, rotulo: "Permissões desta pessoa", icone: ShieldCheck } : null,
+    { tipo: "acao", id: ACAO_REINICIAR_SENHA, rotulo: "Redefinir senha", icone: KeyRound },
     { tipo: "separador", id: "sep-copiar" },
     { tipo: "acao", id: ACAO_COPIAR_NOME, rotulo: "Copiar nome", icone: Copy },
     { tipo: "acao", id: ACAO_COPIAR_EMAIL, rotulo: "Copiar e-mail", icone: Copy },
@@ -38,7 +44,7 @@ export function itensDeUsuario(u: UsuarioParaAcoes, ctx: { podeExcluir: boolean 
       ? {
           tipo: "acao",
           id: ACAO_DESATIVAR,
-          rotulo: "Desativar",
+          rotulo: "Desativar acesso…",
           icone: UserX,
           variant: "destructive",
           // Antes desativava direto, sem perguntar: regra 4 da ADR-0002 exige confirmação.
@@ -71,7 +77,7 @@ export function itensDeLoteUsuarios(
   const algumAtivo = selecionados.some((s) => s.ativo);
   const itens: (AcaoItem | null)[] = [
     { tipo: "acao", id: ACAO_EDITAR, rotulo: "Editar", icone: Pencil, desabilitado: MOTIVO_UM_POR_VEZ },
-    { tipo: "acao", id: ACAO_REINICIAR_SENHA, rotulo: "Reiniciar senha", icone: KeyRound, desabilitado: MOTIVO_UM_POR_VEZ },
+    { tipo: "acao", id: ACAO_REINICIAR_SENHA, rotulo: "Redefinir senha", icone: KeyRound, desabilitado: MOTIVO_UM_POR_VEZ },
     { tipo: "separador", id: "sep-estado" },
     {
       tipo: "acao",

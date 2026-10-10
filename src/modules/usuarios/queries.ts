@@ -10,7 +10,6 @@ export async function listarUsuarios(opts?: { incluirInativos?: boolean }) {
       name: true,
       nomeCompleto: true,
       email: true,
-      role: true,
       ativo: true,
       mustChangePassword: true,
       clienteId: true,
@@ -19,15 +18,18 @@ export async function listarUsuarios(opts?: { incluirInativos?: boolean }) {
       perfilId: true,
       superUsuario: true,
       perfil: { select: { nome: true } },
-      // Só exibição: esta tela NÃO grava vínculo (quem grava é `rh/funcionarios/actions.ts`).
-      // Aparece aqui para o admin ver, sem sair da tela, se Setor/Contratação estão preenchidos —
-      // desde a Onda E a jornada resolve por `Contratacao`, então vínculo vazio ou errado é uma
-      // falha silenciosa que nenhuma outra tela de configuração denuncia.
+      // Só exibição na edição: o vínculo nasce no cadastro, mas depois quem o troca é o RH
+      // (`rh/contratacao`). Aparece aqui para o admin ver, sem sair da tela, se Setor/Contratação
+      // estão preenchidos — a jornada resolve por `Contratacao`, então vínculo vazio é uma falha
+      // silenciosa que nenhuma outra tela de configuração denuncia.
+      tipo: true,
       setor: true,
       contratacao: true,
-      // "Já teve vínculo" separa backfill pendente (cai no papel) de vínculo encerrado (sem jornada)
-      // — sem isso o resumo de acesso diria "bate ponto" para quem saiu. Ver `ponto/jornada.ts`.
-      _count: { select: { vinculos: true } },
+      // Permissões dadas pessoa a pessoa que a tela edita (Onda F): Gestão de RH e Moderar o chat.
+      overrides: {
+        where: { permitido: true, OR: [{ recurso: "rh", acao: "gerir" }, { recurso: "chat", acao: "moderar" }] },
+        select: { recurso: true },
+      },
     },
   });
 }

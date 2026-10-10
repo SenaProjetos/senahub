@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { User, MapPin, CreditCard, Briefcase, Check, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { cadastrarFuncionario, consultarCep } from "@/modules/rh/funcionarios/actions";
-import { ROLE_LABELS, CADASTRO_ROLES, type Role } from "@/lib/roles";
+import type { Contratacao } from "@/generated/prisma/enums";
+import { CONTRATACAO_LABELS } from "@/modules/usuarios/vinculo/labels";
 import { InputFormatado } from "@/components/ui/input-formatado";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,8 +22,9 @@ const ETAPAS = [
 ];
 
 // Projetistas contratados como prestador/PJ (têm PJ/CNPJ e honorário, não salário CLT).
-const ROLES_PROJETISTA: readonly Form["role"][] = ["projetista_pj", "freelancer"];
-// Espelha o enum Prisma `Setor` — default "engenharia" (decisão do dono, ver mapa.ts).
+const CONTRATACOES_PRESTADOR: readonly Contratacao[] = ["pj", "autonomo_rpa"];
+const CONTRATACOES_OPCOES: readonly Contratacao[] = ["clt", "estagio", "pj", "autonomo_rpa", "pro_labore"];
+// Espelha o enum Prisma `Setor` — default "engenharia" (decisão do dono).
 const SETOR_OPCOES = [
   { value: "engenharia", label: "Engenharia" },
   { value: "administrativo", label: "Administrativo" },
@@ -34,7 +36,7 @@ const selectCls =
   "h-9 w-full rounded-sm border border-input bg-background px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 type Form = {
-  name: string; nomeCompleto: string; email: string; role: Role;
+  name: string; nomeCompleto: string; email: string; contratacao: Contratacao;
   setor: (typeof SETOR_OPCOES)[number]["value"];
   cpf: string; rg: string; dataNascimento: string; sexo: string; estadoCivil: string; nacionalidade: string;
   enderecoCep: string; enderecoLogradouro: string; enderecoNumero: string; enderecoComplemento: string;
@@ -47,7 +49,7 @@ type Form = {
 };
 
 const VAZIO: Form = {
-  name: "", nomeCompleto: "", email: "", role: "clt", setor: "engenharia",
+  name: "", nomeCompleto: "", email: "", contratacao: "clt", setor: "engenharia",
   cpf: "", rg: "", dataNascimento: "", sexo: "nao_informado", estadoCivil: "solteiro", nacionalidade: "Brasileira",
   enderecoCep: "", enderecoLogradouro: "", enderecoNumero: "", enderecoComplemento: "",
   enderecoBairro: "", enderecoCidade: "", enderecoUf: "",
@@ -119,7 +121,7 @@ export function WizardCadastroFuncionario({
     if (etapa < 4) setEtapa((p) => (p + 1) as Etapa);
   }
 
-  const ehProjetista = ROLES_PROJETISTA.includes(f.role);
+  const ehProjetista = CONTRATACOES_PRESTADOR.includes(f.contratacao);
 
   function salvar() {
     // CLT/interno: admissão obrigatória (base do período aquisitivo). Projetista/PJ: opcional.
@@ -189,10 +191,10 @@ export function WizardCadastroFuncionario({
                   </Campo>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <Campo label="Perfil (tipo de contrato)">
-                    <select className={selectCls} value={f.role} onChange={(e) => set("role", e.target.value as Form["role"])}>
-                      {CADASTRO_ROLES.map((r) => (
-                        <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                  <Campo label="Contratação">
+                    <select className={selectCls} value={f.contratacao} onChange={(e) => set("contratacao", e.target.value as Contratacao)}>
+                      {CONTRATACOES_OPCOES.map((c) => (
+                        <option key={c} value={c}>{CONTRATACAO_LABELS[c]}</option>
                       ))}
                     </select>
                   </Campo>
@@ -310,7 +312,7 @@ export function WizardCadastroFuncionario({
                       <Campo label="Início do contrato"><Input type="date" value={f.dataAdmissao} onChange={(e) => set("dataAdmissao", e.target.value)} /></Campo>
                       <Campo label="Honorário / valor base (R$)"><Input value={f.salarioBase} onChange={(e) => set("salarioBase", e.target.value)} inputMode="decimal" placeholder="0,00" /></Campo>
                     </div>
-                    <Campo label={f.role === "freelancer" ? "Pessoa Jurídica (CNPJ) — opcional" : "Pessoa Jurídica (CNPJ)"}>
+                    <Campo label={f.contratacao === "autonomo_rpa" ? "Pessoa Jurídica (CNPJ) — opcional" : "Pessoa Jurídica (CNPJ)"}>
                       <select className={selectCls} value={f.pjId} onChange={(e) => set("pjId", e.target.value)}>
                         <option value="">— sem PJ vinculado —</option>
                         {pessoasJuridicas.map((p) => (

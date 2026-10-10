@@ -8,7 +8,9 @@ import {
   ACAO_LOTE_EXCLUIR,
   ACAO_LOTE_REATIVAR,
   ACAO_REATIVAR,
+  ACAO_PERMISSOES,
   ACAO_REINICIAR_SENHA,
+  ACAO_VER_FICHA,
   MOTIVO_EXCLUIR_SO_INATIVOS,
   MOTIVO_TODOS_ATIVOS,
   MOTIVO_TODOS_INATIVOS,
@@ -18,10 +20,23 @@ import {
 } from "./acoes";
 
 const achar = (itens: { id: string }[], id: string) => itens.find((i) => i.id === id);
-const ativo = { ativo: true };
-const inativo = { ativo: false };
+const ativo = { ativo: true, tipo: "interno" as const };
+const inativo = { ativo: false, tipo: "interno" as const };
+const clientePortal = { ativo: true, tipo: "externo" as const };
 
 describe("itensDeUsuario", () => {
+  it("equipe interna: oferece a ficha e as permissões individuais (RH → Pessoas)", () => {
+    const itens = itensDeUsuario(ativo, { podeExcluir: false });
+    expect(achar(itens, ACAO_VER_FICHA)).toBeDefined();
+    expect(achar(itens, ACAO_PERMISSOES)).toBeDefined();
+  });
+
+  it("cliente do portal não tem ficha de RH nem permissões individuais", () => {
+    const itens = itensDeUsuario(clientePortal, { podeExcluir: false });
+    expect(achar(itens, ACAO_VER_FICHA)).toBeUndefined();
+    expect(achar(itens, ACAO_PERMISSOES)).toBeUndefined();
+  });
+
   it("ativo: oferece desativar, nunca reativar nem excluir", () => {
     const itens = itensDeUsuario(ativo, { podeExcluir: true });
     expect(achar(itens, ACAO_DESATIVAR)).toBeDefined();
