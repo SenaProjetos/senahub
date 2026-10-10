@@ -4484,6 +4484,7 @@ enum PapelEap {
   mod // Modelador BIM
   rev // Revisor
   apr // Aprovador
+  est // Estagiário (reunião de 08/10/2026): aloca tarefa e registra horas como os demais, pelo papel
   /// Externo — quem executa a linha é de FORA da casa (cliente, prefeitura, concessionária).
   /// Não é um papel que se dá a alguém: é a marca da ETAPA DE TERCEIRO (decisão #1 de
   /// 2026-09-25). Nunca tem pessoa nem horas — ver o comentário de `EapAtribuicao.papel`.

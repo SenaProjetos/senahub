@@ -169,7 +169,7 @@ describe("pessoasSemHoras — o que o verificador acusa", () => {
 });
 
 describe("escolherPrincipal", () => {
-  const a = (id: string, userId: string | null, papel: "pro" | "rev" | "coo" | "mod", principal = false) => ({
+  const a = (id: string, userId: string | null, papel: "pro" | "rev" | "coo" | "mod" | "est", principal = false) => ({
     id,
     userId,
     papel,
@@ -178,6 +178,11 @@ describe("escolherPrincipal", () => {
 
   it("mantém o principal atual enquanto ele for pessoa", () => {
     expect(escolherPrincipal([a("1", "u1", "pro"), a("2", "u2", "rev", true)])).toBe("2");
+  });
+
+  it("estagiário executa: vem antes de quem revisa, mas depois do projetista", () => {
+    expect(escolherPrincipal([a("1", "u1", "rev"), a("2", "u2", "est")])).toBe("2");
+    expect(escolherPrincipal([a("1", "u1", "est"), a("2", "u2", "pro")])).toBe("2");
   });
 
   it("sem principal, quem executa vem antes de quem revisa ou coordena", () => {
