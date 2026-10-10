@@ -1600,3 +1600,15 @@ tarefas, versões) agora usam `requireInterno()` — o externo recebe 404 em vez
 5. **G — rótulos** (`ROLE_LABELS` 49): trocar por perfil/contratação na exibição.
 6. **Poda final** — `DROP COLUMN "role"` e `DROP TYPE "Role"`, depois de todos acima.
 
+### 16.4 Decisões do dono (2026-10-10)
+
+1. **Sem vínculo = sem ponto.** O fallback "sem vínculo cai no papel" de `controlaJornada` sai. Os
+   admins (sem contratação) não batem ponto — já não batem hoje (papel `admin` fora de `CLT_ROLES`).
+   Antes do bloco D: cadastrar o vínculo das 12 pessoas que o censo listou (2 CLT dependem disso).
+2. **"RH" é permissão dada pessoa a pessoa** — par novo de catálogo, não derivado de perfil semente.
+   Em produção o censo mostrou que só os 3 superusuários têm papel de `HR_ADMIN_ROLES`, então o par
+   nasce concedido a ninguém sem que ninguém perca acesso.
+3. **Cadastro de usuário pede Tipo + Perfil de acesso + vínculo**, sem papel — também fecha o buraco
+   "usuário novo entra sem vínculo".
+4. **Pode mudar o Termo de Uso** (cláusula 4.2, chat) — com versão nova e reaceite.
+
