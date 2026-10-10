@@ -834,7 +834,7 @@ export async function cronogramaProjetoInfo(projetoId: string) {
 export async function pessoasParaAtribuicao() {
   return prisma.user.findMany({
     where: { ativo: true, role: { not: "cliente" } },
-    select: { id: true, name: true, image: true },
+    select: { id: true, name: true, image: true, role: true },
     orderBy: { name: "asc" },
   });
 }

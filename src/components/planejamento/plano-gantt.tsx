@@ -123,6 +123,11 @@ export type PlanoGanttProps = {
   /** Uma linha recém-criada cujo nome deve abrir em edição assim que ela aparecer na tabela. */
   focoNomeId?: string | null;
   onFocoConsumido?: () => void;
+  /**
+   * Envolve o conteúdo da célula "Nomes dos recursos" (reunião de 08/10/2026): quem monta a tela põe ali a lista de
+   * pessoas que grava ao clicar. Sem esta prop a célula só mostra.
+   */
+  celulaRecursos?: (t: EapTarefaDTO, conteudo: ReactNode) => ReactNode;
   /** Botões da coluna Ações, por linha (os de uso frequente; o resto está no `...`). */
   acoes?: (t: EapTarefaDTO) => ReactNode;
   className?: string;
@@ -171,6 +176,7 @@ export function PlanoGantt({
   onMover,
   focoNomeId = null,
   onFocoConsumido,
+  celulaRecursos,
   acoes,
   rotuloBase,
   className,
@@ -557,7 +563,7 @@ export function PlanoGantt({
         if (l.temFilhos) return <span className="text-xs text-muted-foreground">—</span>;
         const texto = textoRecursos(t.atribuicoes, t.deTerceiro);
         const semHoras = t.trabalhoHoras == null && !t.deTerceiro && t.atribuicoes.length > 0 && !t.marco;
-        return texto ? (
+        const conteudo = texto ? (
           <span className="flex min-w-0 items-center gap-1 text-xs" title={t.atribuicoes.map((a) => `${a.nome ?? `(perfil) ${a.rotuloPapel}`} · ${a.rotuloPapel}`).join("\n") || undefined}>
             <span className={cn("truncate", t.deTerceiro && "text-muted-foreground")}>{texto}</span>
             {semHoras && <span className="shrink-0 text-[10px] text-warning" title="Alguma pessoa nesta linha ainda não tem horas estimadas">s/h</span>}
@@ -567,6 +573,7 @@ export function PlanoGantt({
         ) : (
           <span className="text-xs text-warning">sem gente</span>
         );
+        return celulaRecursos ? celulaRecursos(t, conteudo) : conteudo;
       },
     };
     const disciplina: Coluna = {
@@ -656,7 +663,7 @@ export function PlanoGantt({
     if (acoesCol) cs.push(acoesCol);
     return compacto ? cs.filter((c) => !c.secundaria) : cs;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `envolver`/`gravado` releem o estado da edição a cada render
-  }, [modo, verDatas, hoje, mostrarCusto, compacto, acoes, codigoPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, planoTravado, idPorCodigo, menuDe, onAcao, contextos, podeArrastar, grade]);
+  }, [modo, verDatas, hoje, celulaRecursos, mostrarCusto, compacto, acoes, codigoPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, planoTravado, idPorCodigo, menuDe, onAcao, contextos, podeArrastar, grade]);
 
   // A largura padrão de cada coluna vem do `useMemo` acima; a escolhida pelo usuário a substitui aqui, para o arrasto
   // da alça não refazer as células de todas as linhas (só a largura muda).

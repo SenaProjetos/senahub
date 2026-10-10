@@ -1,5 +1,6 @@
 "use client";
 
+import { RecursosDaCelula } from "@/components/planejamento/recursos-celula";
 import { sinalDaLinha } from "@/modules/planejamento/sinais-linha";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { brl } from "@/lib/utils";
@@ -101,7 +102,7 @@ export function EapWorkspace({
   projeto: { id: string; codigo: string; nome: string };
   tarefas: EapTarefaDTO[];
   disciplinas: { id: string; nome: string; etapas: { etapaId: string; sigla: string; nome: string }[] }[];
-  pessoas: { id: string; name: string; image: string | null }[];
+  pessoas: { id: string; name: string; image: string | null; role?: string }[];
   temLinhaBase: boolean;
   /** F7.1: custo previsto do projeto. `null` = o viewer não vê custo (coluna oculta). */
   custoTotal: CustoLinha | null;
@@ -722,6 +723,15 @@ export function EapWorkspace({
             hoje={hoje}
             filtroIds={filtro === "todas" && lookahead === "todas" ? null : new Set(visiveis.map((t) => t.id))}
             onAbrir={podeGerir ? (t) => abrir(t) : undefined}
+            celulaRecursos={
+              podeGerir
+                ? (t, conteudo) => (
+                    <RecursosDaCelula linha={t} pessoas={pessoas} onAbrirLinha={() => abrir(t)}>
+                      {conteudo}
+                    </RecursosDaCelula>
+                  )
+                : undefined
+            }
             onEditarCampo={podeGerir ? editarCampo : undefined}
             planoTravado={travado}
             largurasIniciais={largurasColunas}
