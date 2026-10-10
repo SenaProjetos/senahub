@@ -359,14 +359,22 @@ npx tsx --tsconfig tsconfig.server.json scripts/censo-onda-f.ts
 ```
 
 Bloqueia o deploy:
-- **[1]** qualquer par "concedido na TABELA e ausente da constante" — a troca tiraria esse par do
-  piso de sócio;
+- **[1]** só linha do papel `supervisor` — é a única que o código consulta fora do arnês (piso de
+  sócio) — e só se existir sócio ativo que NÃO seja superusuário. Linhas de outros papéis
+  (ex.: `administrativo` com `permitido=false`, herança da tela antiga) não autorizam nada desde a
+  Onda D.
 - **[2]** "papel admin SEM superUsuario" — essa pessoa perde lixeira, alçada, exclusão direta e
   o "autor ou admin" (o motor de permissão já não a reconhecia desde a Onda D);
 - **[3]** "papel cliente com tipo interno" ou "papel X com tipo externo" — a pessoa muda de lado
   (menu, portal, termo de uso). Tipo NULO não bloqueia: a migration grava o que já valia.
 
 As seções 4 a 6 são informativas (insumo dos próximos blocos, §16.3 do plano).
+
+**Rodado em produção em 2026-10-10 (cópia avulsa do script):** [1] 17 linhas `administrativo`
+negadas + `rh:produtividade` ausente (seed atrasado) — nenhuma bloqueia, os 3 sócios são
+superusuários; [2] ok; [3] 12 `tipo` nulos, todos viram interno (nenhuma mudança); [4] 12 pessoas
+SEM VÍNCULO (2 CLT batendo ponto só pelo papel) e um projetista PJ gravado `pro_labore` — cadastro a
+corrigir antes do bloco D; [6] ok. **Liberado.**
 
 **O que muda para quem usa:** um cliente que abrir `/agenda`, `/tarefas` ou `/versoes` pelo endereço
 recebe "página não encontrada" em vez de "sem permissão".
