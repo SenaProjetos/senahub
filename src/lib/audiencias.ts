@@ -135,6 +135,12 @@ export const AUDIENCIAS = {
     modo: "in",
     roles: PJ_ROLES,
   },
+  /** Gestão de RH — destinatários de avisos de RH (férias, abonos, documentos). Onda F, §16.4. */
+  rh_gestao: {
+    descricao: "Gestão de RH — segue a permissão `rh:gerir`, concedida pessoa a pessoa",
+    modo: "permissao",
+    permissao: "rh:gerir",
+  },
   chat_participante: {
     descricao: "Quem entra no canal #geral do chat — segue a permissão `chat:geral`, configurável por perfil",
     modo: "permissao",

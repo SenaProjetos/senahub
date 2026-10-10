@@ -38,6 +38,12 @@ export type SessionUser = {
    */
   gereTodasTarefas: boolean;
   /**
+   * `rh:gerir` já resolvido — "é gestão de RH". Substitui `HR_ADMIN_ROLES.includes(role)` (Onda F,
+   * §16.4): concedido pessoa a pessoa. Na sessão pelo mesmo motivo de `gereTodasTarefas`: ~50 gates
+   * síncronos (props de tela, `const ehRh = ...`) continuam síncronos.
+   */
+  gereRh: boolean;
+  /**
    * Bypass total do motor de Perfil de acesso (equivalente ao `role === "admin"` de `can()`).
    * Exposto na sessão a partir da Onda D porque `can(subject, ...)` recebe o sujeito inteiro e
    * `permissaoEfetiva` consome este campo. Já era lido pelo `getSession` desde a Onda A.
@@ -86,7 +92,7 @@ export const getSession = cache(async () => {
   // `undefined`. Falha silenciosa — `lint` e `build` passam.
   const base = session.user as unknown as Omit<
     SessionUser,
-    "ehSocio" | "perfilId" | "perfilChave" | "escopoGlobalPerfil" | "gereTodasTarefas" | "superUsuario" | "setor" | "tipo" | "contratacao" | "jaTeveVinculo"
+    "ehSocio" | "perfilId" | "perfilChave" | "escopoGlobalPerfil" | "gereTodasTarefas" | "gereRh" | "superUsuario" | "setor" | "tipo" | "contratacao" | "jaTeveVinculo"
   >;
 
   // Sócio + perfil/superUsuário num único round-trip (mesmo lookup que já existia, ampliado).
@@ -120,9 +126,10 @@ export const getSession = cache(async () => {
     superUsuario: dados?.superUsuario ?? false,
     perfilId: dados?.perfilId ?? null,
   };
-  const [escopoGlobalPerfil, gereTodasTarefas] = await Promise.all([
+  const [escopoGlobalPerfil, gereTodasTarefas, gereRh] = await Promise.all([
     permissaoEfetiva(sujeito, "escopo", "global"),
     permissaoEfetiva(sujeito, "tarefas", "gerir_todas"),
+    permissaoEfetiva(sujeito, "rh", "gerir"),
   ]);
 
   return {
@@ -141,6 +148,7 @@ export const getSession = cache(async () => {
       jaTeveVinculo: dados ? dados._count.vinculos > 0 : true,
       escopoGlobalPerfil,
       gereTodasTarefas,
+      gereRh,
     } as SessionUser,
     session: session.session,
   };
@@ -168,6 +176,16 @@ export async function requireUser(): Promise<SessionUser> {
 export async function requireInterno(): Promise<SessionUser> {
   const user = await requireUser();
   if (user.tipo !== "interno") notFound();
+  return user;
+}
+
+/**
+ * Exige gestão de RH (`rh:gerir`, já resolvido na sessão); senão, sem permissão. Substitui
+ * `requireRole(...HR_ADMIN_ROLES)` — Onda F, §16.4.
+ */
+export async function requireGestorRh(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (!user.gereRh) redirect("/sem-permissao");
   return user;
 }
 

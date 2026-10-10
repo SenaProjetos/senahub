@@ -16,6 +16,7 @@
  *   4. Contratação × papel (CLT/estágio/PJ).
  *   5. Quem ainda depende de gate por PAPEL (admin/supervisor/administrativo/ti) e qual perfil tem.
  *   6. Internos ativos sem perfil de acesso (o motor nega tudo para eles, sem erro).
+ *   7. Gestão de RH: quem tem papel de `HR_ADMIN_ROLES` e NÃO tem `rh:gerir` (perde RH no bloco A).
  *
  * Nome aparece por extenso: a saída é para o dono corrigir cadastro, não para anexar em relatório.
  *
@@ -27,6 +28,7 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { PERMISSOES_BASE } from "../src/lib/permissoes-base";
+import { permissaoEfetiva } from "../src/lib/permissao-efetiva";
 
 const CLT_ROLES = ["clt", "estagiario"];
 const PJ_ROLES = ["projetista_pj", "freelancer"];
@@ -73,6 +75,8 @@ async function main() {
   const users = await prisma.user.findMany({
     where: { ativo: true },
     select: {
+      id: true,
+      perfilId: true,
       name: true,
       role: true,
       tipo: true,
@@ -125,6 +129,21 @@ async function main() {
   const semPerfil = users.filter((u) => u.role !== "cliente" && u.tipo !== "externo" && !u.perfil && !u.superUsuario);
   for (const u of semPerfil) alerta(`${u.name}: sem perfil — o motor nega tudo a esta pessoa`);
   if (semPerfil.length === 0) console.log("  ✔ todo interno ativo tem perfil (ou é superUsuario).");
+
+  console.log("\n[7] Gestão de RH: papel admin/supervisor/administrativo × permissão rh:gerir");
+  let algumRh = false;
+  for (const u of users.filter((x) => ["admin", "supervisor", "administrativo"].includes(x.role))) {
+    const temPar = await permissaoEfetiva(
+      { id: u.id, ativo: true, superUsuario: u.superUsuario, perfilId: u.perfilId },
+      "rh",
+      "gerir",
+    );
+    if (!temPar) {
+      algumRh = true;
+      alerta(`${u.name}: papel ${u.role} SEM rh:gerir — perde a gestão de RH quando o código parar de ler o papel`);
+    }
+  }
+  if (!algumRh) console.log("  ✔ todo papel de RH tem rh:gerir (ou é superUsuario) — ninguém perde.");
 
   console.log(`\n=== fim do censo — ${alertas} alerta(s), nada foi alterado ===`);
 }

@@ -31,6 +31,11 @@ type ActionConfig<S> = {
    * a pergunta "é gente de dentro?" é do eixo `tipo`, não do papel.
    */
   interno?: boolean;
+  /**
+   * Só gestão de RH (`rh:gerir`, resolvido na sessão como `gereRh`). Substitui
+   * `roles: HR_ADMIN_ROLES` desde a Onda F (§16.4) — RH é permissão dada pessoa a pessoa.
+   */
+  gereRh?: boolean;
   /** Schema Zod do input. */
   schema?: ZodType<S>;
   /** Nome do model Prisma para auditoria. */
@@ -76,6 +81,10 @@ export function defineAction<S, T>(
       return { ok: false, error: "Sem permissão." };
     }
     if (config.interno && user.tipo !== "interno") {
+      await maybeAudit(config, { user, ip }, "bloqueado");
+      return { ok: false, error: "Sem permissão." };
+    }
+    if (config.gereRh && !user.gereRh) {
       await maybeAudit(config, { user, ip }, "bloqueado");
       return { ok: false, error: "Sem permissão." };
     }

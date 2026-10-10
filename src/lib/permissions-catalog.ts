@@ -435,6 +435,14 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
       { acao: "produtividade", label: "Ver horas e produtividade dos projetistas", abre: "Produtividade", leitura: true },
       { acao: "folha", label: "Ver dados de folha/salário na ficha da pessoa", abre: "Folha CLT", leitura: true },
       { acao: "catalogos", label: "Administrar os catálogos de cargos e departamentos", abre: "Cargos e departamentos" },
+      // Onda F (§16.4, decisão 2 do dono): "quem é RH" deixou de ser o papel (`HR_ADMIN_ROLES` =
+      // admin + coordenador + administrativo) e passou a ser este par, concedido PESSOA A PESSOA
+      // (override na ficha) ou por um perfil que o dono decidir. Fica FORA de `PERMISSOES_BASE`:
+      // nenhum perfil semente nasce com ele. Superusuário tem por bypass.
+      {
+        acao: "gerir",
+        label: "Gestão de RH — aprovar férias e abonos, ajustar ponto e escalas, cadastro trabalhista, folha e contratos de equipe",
+      },
     ],
   },
   {
