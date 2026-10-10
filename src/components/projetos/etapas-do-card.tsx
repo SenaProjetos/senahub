@@ -81,36 +81,42 @@ export function EtapasDoCard({
           <li
             key={e.id}
             className={cn(
-              "flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-sm border px-2.5 py-1.5 text-xs",
+              "space-y-1 rounded-sm border px-2.5 py-1.5 text-xs",
               ehAtual ? "border-primary/40 bg-primary/5" : "border-transparent bg-muted/30",
             )}
             aria-current={ehAtual ? "step" : undefined}
           >
-            <span className="min-w-0 flex-1 max-sm:basis-full">
-              <span className="font-mono font-bold">{e.sigla}</span> <span className="text-muted-foreground">{e.nome}</span>
-            </span>
-            <span className={cn("flex items-center gap-1 whitespace-nowrap", atrasada ? "font-medium text-destructive" : "text-muted-foreground")}>
-              <CalendarDays className="size-3" aria-hidden />
-              {e.inicio ? formatarData(e.inicio) : "—"} → {e.prazo ? formatarData(e.prazo) : "—"}
-              {atrasada && " · atrasada"}
-            </span>
-            <Badge variant="outline" className={cn("text-[11px]", STATUS_CHIP[e.status])}>
-              {STATUS_LABEL[e.status]}
-            </Badge>
-            {ehResponsavel && (
-              <>
-                {motivoEnviar == null && (
-                  <Button size="xs" variant="outline" disabled={pending} onClick={() => void enviar(e)}>
-                    <Send className="size-3" aria-hidden /> Enviei os documentos
-                  </Button>
-                )}
-                {motivoDesfazer == null && (
-                  <Button size="xs" variant="ghost" disabled={pending} onClick={() => void desfazer(e)}>
-                    <Undo2 className="size-3" aria-hidden /> Desfazer envio
-                  </Button>
-                )}
-              </>
-            )}
+            {/* Linha 1: a etapa e a situação. Linha 2: as datas e a ação. Sempre as duas, para os cards ficarem
+                iguais com ou sem botão e o nome nunca quebrar em três linhas num card estreito. */}
+            <div className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate" title={`${e.sigla} ${e.nome}`}>
+                <span className="font-mono font-bold">{e.sigla}</span> <span className="text-muted-foreground">{e.nome}</span>
+              </span>
+              <Badge variant="outline" className={cn("shrink-0 text-[11px]", STATUS_CHIP[e.status])}>
+                {STATUS_LABEL[e.status]}
+              </Badge>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <span className={cn("flex items-center gap-1 whitespace-nowrap", atrasada ? "font-medium text-destructive" : "text-muted-foreground")}>
+                <CalendarDays className="size-3" aria-hidden />
+                {e.inicio ? formatarData(e.inicio) : "—"} → {e.prazo ? formatarData(e.prazo) : "—"}
+                {atrasada && " · atrasada"}
+              </span>
+              {ehResponsavel && (motivoEnviar == null || motivoDesfazer == null) && (
+                <span className="flex gap-1">
+                  {motivoEnviar == null && (
+                    <Button size="xs" variant="outline" disabled={pending} onClick={() => void enviar(e)}>
+                      <Send className="size-3" aria-hidden /> Enviei os documentos
+                    </Button>
+                  )}
+                  {motivoDesfazer == null && (
+                    <Button size="xs" variant="ghost" disabled={pending} onClick={() => void desfazer(e)}>
+                      <Undo2 className="size-3" aria-hidden /> Desfazer envio
+                    </Button>
+                  )}
+                </span>
+              )}
+            </div>
           </li>
         );
       })}

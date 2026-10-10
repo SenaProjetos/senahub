@@ -140,6 +140,46 @@ describe("listaDoPonto — lista curta + outras da etapa recolhidas", () => {
   });
 });
 
+describe("fronteiras da lista do ponto", () => {
+  const hoje = "2026-10-07";
+
+  it("término no dia anterior já é atrasada; término hoje não", () => {
+    const r = tarefasDoPeriodo(
+      [t("ontem", { janela: { inicio: "2026-10-01", fim: "2026-10-06" } }), t("hoje-fim", { janela: { inicio: "2026-10-01", fim: "2026-10-07" } })],
+      hoje,
+    );
+    expect(r.find((x) => x.id === "ontem")?.atrasada).toBe(true);
+    expect(r.find((x) => x.id === "hoje-fim")?.atrasada).toBe(false);
+  });
+
+  it("no limite da folga de 7 dias antes do início entra; um dia além não", () => {
+    expect(tarefasDoPeriodo([t("a", { janela: { inicio: "2026-10-14", fim: "2026-10-16" } })], hoje)).toHaveLength(1);
+    expect(tarefasDoPeriodo([t("a", { janela: { inicio: "2026-10-15", fim: "2026-10-16" } })], hoje)).toHaveLength(0);
+  });
+
+  it("card manual nunca vai para 'outras da etapa' e nunca é atrasado", () => {
+    const r = listaDoPonto([t("manual", { prazo: "2020-01-01" })], hoje);
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ grupo: "periodo", atrasada: false });
+  });
+
+  it("atividade de outra etapa que ficou fora da janela não aparece, nem recolhida", () => {
+    const r = listaDoPonto(
+      [t("agora", { janela: { inicio: "2026-10-05", fim: "2026-10-09" }, etapa: "d:bas" }), t("outra", { janela: { inicio: "2026-12-01", fim: "2026-12-05" }, etapa: "d:exe" })],
+      hoje,
+    );
+    expect(r.map((x) => x.id)).toEqual(["agora"]);
+  });
+
+  it("linha sem etapa (null) não puxa as vizinhas", () => {
+    const r = listaDoPonto(
+      [t("agora", { janela: { inicio: "2026-10-05", fim: "2026-10-09" }, etapa: null }), t("longe", { janela: { inicio: "2026-12-01", fim: "2026-12-05" }, etapa: null })],
+      hoje,
+    );
+    expect(r.map((x) => x.id)).toEqual(["agora"]);
+  });
+});
+
 describe("sugestaoDoPonto — o ponto abre na atividade de hoje", () => {
   const hoje = "2026-10-07";
   const c = (id: string, projetoId: string, extra: Partial<TarefaCandidata> = {}) => ({ ...t(id, extra), projetoId });
@@ -166,6 +206,16 @@ describe("sugestaoDoPonto — o ponto abre na atividade de hoje", () => {
       hoje,
     );
     expect(r?.id).toBe("antes");
+  });
+
+  it("lista vazia não sugere nada", () => {
+    expect(sugestaoDoPonto([], hoje)).toBeNull();
+  });
+
+  it("empate de término: desempata pelo título, de forma estável", () => {
+    const mesma = { inicio: "2026-09-01", fim: "2026-09-10" };
+    const r = sugestaoDoPonto([c("b", "p1", { titulo: "B", janela: mesma }), c("a", "p2", { titulo: "A", janela: mesma })], hoje);
+    expect(r?.id).toBe("a");
   });
 
   it("card manual e janela só na folga não sugerem nada", () => {

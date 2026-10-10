@@ -14,11 +14,13 @@
  * Uso: npm run ensaio:eap [-- --refazer]
  */
 import "dotenv/config";
+import { createHash } from "node:crypto";
 import { prisma } from "../src/lib/prisma";
+import { TERMOS } from "../src/modules/legal/termos";
 import { auth } from "../src/lib/auth";
 import { proximoCodigoProjeto } from "../src/modules/projetos/numbering";
 import { reservarIdsParaLinhas } from "../src/modules/planejamento/id-corporativo";
-import { semearEtapasPadrao } from "../src/modules/projetos/etapas-service";
+import { semearEtapasPadrao, sincronizarPrazoDisciplina } from "../src/modules/projetos/etapas-service";
 import { aprovarCronograma } from "../src/modules/planejamento/service";
 import { reagendarProjeto } from "../src/modules/planejamento/agenda";
 import { sincronizarCards } from "../src/modules/planejamento/recursos-service";
@@ -42,17 +44,45 @@ function garantirAmbienteDev() {
   }
 }
 
+/**
+ * Sem perfil de acesso (`perfilId`), contratação, setor e tipo o usuário não tem permissão nenhuma: o login funciona e
+ * toda tela devolve /sem-permissao. Por isso cada pessoa de teste leva o MESMO conjunto dos usuários do `seed:demo`.
+ */
+const PERFIL: Record<string, { perfil: string; contratacao: string }> = {
+  clt: { perfil: "CLT", contratacao: "clt" },
+  estagiario: { perfil: "Estagiário", contratacao: "estagio" },
+  projetista_pj: { perfil: "Projetista PJ", contratacao: "pj" },
+  supervisor: { perfil: "Coordenador", contratacao: "clt" },
+};
+
 async function usuario(name: string, email: string, role: "clt" | "estagiario" | "projetista_pj" | "supervisor") {
   const existe = await prisma.user.findUnique({ where: { email }, select: { id: true } });
-  if (existe) return existe.id;
-  const ctx = await auth.$context;
-  const u = await prisma.user.create({
-    data: { name, email, emailVerified: true, role, ativo: true, mustChangePassword: false },
+  let id = existe?.id;
+  if (!id) {
+    const ctx = await auth.$context;
+    const u = await prisma.user.create({
+      data: { name, email, emailVerified: true, role, ativo: true, mustChangePassword: false },
+    });
+    await prisma.account.create({
+      data: { userId: u.id, providerId: "credential", accountId: u.id, password: await ctx.password.hash(SENHA) },
+    });
+    id = u.id;
+  }
+  const alvo = PERFIL[role];
+  const perfil = await prisma.perfilAcesso.findFirst({ where: { nome: alvo.perfil }, select: { id: true } });
+  if (!perfil) throw new Error(`Perfil de acesso "${alvo.perfil}" não existe no banco de dev — rode \`npm run db:seed\`.`);
+  await prisma.user.update({
+    where: { id },
+    data: { perfilId: perfil.id, contratacao: alvo.contratacao as never, setor: "engenharia" as never, tipo: "interno" as never },
   });
-  await prisma.account.create({
-    data: { userId: u.id, providerId: "credential", accountId: u.id, password: await ctx.password.hash(SENHA) },
+  // Sem o aceite do termo vigente o login cai em /termo e a pessoa de teste não chega a tela nenhuma.
+  const termo = TERMOS.colaborador;
+  await prisma.aceiteTermo.upsert({
+    where: { userId_tipo_versao: { userId: id, tipo: "colaborador", versao: termo.versao } },
+    create: { userId: id, tipo: "colaborador", versao: termo.versao, conteudoHash: createHash("sha256").update(termo.conteudo).digest("hex") },
+    update: {},
   });
-  return u.id;
+  return id;
 }
 
 async function apagarEnsaio() {
@@ -136,6 +166,8 @@ async function main() {
         data: { inicio: d(inicio), prazo: d(prazo), percentual },
       });
     }
+    // O prazo da disciplina é o maior prazo das etapas — como a tela de etapas deixa.
+    for (const id of criadas.values()) await sincronizarPrazoDisciplina(tx, id);
     await tx.cronogramaProjeto.create({ data: { projetoId: p.id, inicioProjeto: d(inicioProjeto) } });
     return { ...p, criadas };
   });

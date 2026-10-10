@@ -77,6 +77,20 @@ async function main() {
     await prisma.$transaction((tx) => semearEtapasPadrao(tx, [dPredio.id], { tipoProjeto: "particular", tipoEmpreendimentoId: null }));
     check("semear de novo não duplica", (await siglas(dPredio.id)).length === 3);
 
+    // Fase inativa no catálogo: a disciplina nasce só com as que existem, sem erro. Dentro de uma transação que desfaz.
+    const sentinela = new Error("desfazer");
+    const semBasico = await prisma
+      .$transaction(async (tx) => {
+        await tx.pranchaCatalogo.updateMany({ where: { categoria: "fase", projetoId: null, sigla: "BS" }, data: { ativo: false } });
+        const extra = await tx.disciplina.create({ data: { projetoId: predio.id, disciplinaTextoLegado: "Sem Básico" } });
+        await semearEtapasPadrao(tx, [extra.id], { tipoProjeto: "particular", tipoEmpreendimentoId: null });
+        const feitas = await tx.disciplinaEtapa.findMany({ where: { disciplinaId: extra.id }, select: { etapa: { select: { sigla: true } } } });
+        throw Object.assign(sentinela, { feitas: feitas.map((e) => e.etapa.sigla).sort() });
+      })
+      .catch((e) => (e === sentinela ? (e as unknown as { feitas: string[] }).feitas : Promise.reject(e)));
+    check("fase inativa no catálogo é pulada, sem erro (nasce só EP e EX)", JSON.stringify(semBasico) === JSON.stringify(["EX", "PL"]), semBasico);
+    check("e o rollback devolve a fase ativa", (await prisma.pranchaCatalogo.count({ where: { categoria: "fase", projetoId: null, sigla: "BS", ativo: true } })) === 1);
+
     // ── 2. Enviar para análise ──
     await prisma.disciplinaResponsavel.create({ data: { disciplinaId: dPredio.id, userId: proj.id } });
     await prisma.projetoMembro.create({ data: { projetoId: predio.id, userId: coord.id, papel: "Coordenador" } });
