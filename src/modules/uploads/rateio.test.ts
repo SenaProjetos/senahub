@@ -81,11 +81,15 @@ describe("bloqueioValorDisciplina", () => {
 });
 
 describe("tipoProfissionalDoPagamento — categoria do DRE (regra do dono, 2026-10-10)", () => {
-  it("prestador COM CNPJ é PJ (2.01)", () => {
-    expect(tipoProfissionalDoPagamento({ pjId: "pj-1" })).toBe("projetista_pj");
+  it("contratação PJ (tem CNPJ) é PJ (2.01), mesmo sem a pessoa jurídica cadastrada", () => {
+    expect(tipoProfissionalDoPagamento({ contratacao: "pj" })).toBe("projetista_pj");
   });
 
-  it("prestador SEM CNPJ é freelancer (2.02)", () => {
-    expect(tipoProfissionalDoPagamento({ pjId: null })).toBe("freelancer");
+  it("autônomo/RPA (sem CNPJ) é freelancer (2.02)", () => {
+    expect(tipoProfissionalDoPagamento({ contratacao: "autonomo_rpa" })).toBe("freelancer");
+  });
+
+  it("sócio com pró-labore pago por entrega segue como PJ, como era pelo papel", () => {
+    expect(tipoProfissionalDoPagamento({ contratacao: "pro_labore" })).toBe("projetista_pj");
   });
 });

@@ -21,11 +21,15 @@ export function ehPagavel(r: ComRole): boolean {
 
 /**
  * Tipo do profissional gravado no pagamento — escolhe a categoria do DRE (`CATEGORIA_POR_TIPO`).
- * Regra do dono (2026-10-10): prestador COM pessoa jurídica (CNPJ) é PJ (2.01); SEM ela é
- * freelancer (2.02). Era o papel (`projetista_pj` × `freelancer`).
+ * Regra do dono (2026-10-10): quem tem CNPJ é PJ (2.01), quem não tem é freelancer (2.02). O eixo é a
+ * CONTRATAÇÃO: `pj` = tem CNPJ e emite nota; `autonomo_rpa` = pessoa física. A migration
+ * `20261010175000` reclassificou como `autonomo_rpa` os freelancers sem PJ vinculada.
+ *
+ * Não é `pjId`: em produção (2026-10-10) só 1 de 13 projetistas PJ tinha a PJ cadastrada — pelo `pjId`
+ * todos os outros cairiam em 2.02. Era o papel (`projetista_pj` × `freelancer`).
  */
-export function tipoProfissionalDoPagamento(u: { pjId: string | null }): "projetista_pj" | "freelancer" {
-  return u.pjId ? "projetista_pj" : "freelancer";
+export function tipoProfissionalDoPagamento(u: { contratacao: Contratacao | null }): "projetista_pj" | "freelancer" {
+  return u.contratacao === "autonomo_rpa" ? "freelancer" : "projetista_pj";
 }
 
 /**
