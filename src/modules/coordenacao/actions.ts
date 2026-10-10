@@ -87,7 +87,8 @@ export const converterModelo = defineAction(
 );
 
 /**
- * Realinha (desloca) um IFC por um vetor (dx,dy,dz) em metros, gerando uma NOVA versão
+ * Realinha (desloca e, opcionalmente, gira em planta) um IFC por um vetor (dx,dy,dz) em
+ * metros e um ângulo em torno do centro do modelo, gerando uma NOVA versão
  * do arquivo com todos os placements deslocados — o original nunca é sobrescrito. O
  * trabalho pesado (web-ifc) roda em child process. Só responsáveis da disciplina (ou
  * perfil global) podem realinhar, mesmo bar do upload.
@@ -131,7 +132,13 @@ export const realinharModeloIfc = defineAction(
     let r;
     try {
       r = await realinharModelo(
-        { uploadId: input.uploadId, vetor: [input.dx, input.dy, input.dz], autorId: user.id },
+        {
+          uploadId: input.uploadId,
+          vetor: [input.dx, input.dy, input.dz],
+          rotacaoGraus: input.rotacaoGraus,
+          pivo: [input.pivoX, input.pivoY],
+          autorId: user.id,
+        },
       );
     } catch (e) {
       // A mensagem do orquestrador/child já é amigável (validação, header, sem raízes…).

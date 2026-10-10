@@ -36,6 +36,8 @@ export type ElementoIndex = {
   pavimentoLocalId: number | null;
   /** Rótulo do pavimento — preenchido por quem tem o nome (a árvore só traz category). */
   pavimentoNome: string | null;
+  /** Cota do pavimento (atributo Elevation, unidade do arquivo) — ordena a lista; null se ausente. */
+  pavimentoElevacao?: number | null;
   /** Propriedades IFC carregadas sob demanda para o multifiltro por Pset. */
   propriedades?: PropriedadePsetIndex[];
   /** True quando limites defensivos impediram materializar todos os Psets do item/modelo. */
@@ -72,30 +74,45 @@ export function normalizarNo(bruto: NoArvoreBruto): NoEspacial {
 /**
  * Lista todos os elementos "de obra" (exclui nós puramente espaciais/estruturais)
  * da árvore, com o pavimento ancestral mais próximo anotado em cada um.
+ *
+ * O fragments 3.x devolve a árvore AGRUPADA: um nó de grupo (category preenchida,
+ * localId null) e, abaixo dele, os itens daquela categoria (localId preenchido,
+ * category null) — ex.: grupo IFCBUILDINGSTOREY → item #25 (o pavimento) → grupo
+ * IFCDOOR → itens das portas. O item herda a categoria do grupo logo acima. Um nó
+ * com as duas coisas (forma antiga) continua aceito.
  */
 export function listarElementos(raiz: NoEspacial): ElementoIndex[] {
   const elementos: ElementoIndex[] = [];
 
-  function visitar(no: NoEspacial, pavimentoAtual: { localId: number | null; nome: string | null }) {
-    const ehPavimento = no.category != null && CATEGORIAS_PAVIMENTO.has(no.category);
-    const proximoPavimento = ehPavimento
-      ? { localId: no.localId, nome: no.category }
-      : pavimentoAtual;
+  function visitar(
+    no: NoEspacial,
+    pavimentoAtual: { localId: number | null; nome: string | null },
+    categoriaDoGrupo: string | null,
+  ) {
+    const categoria = no.category ?? (no.localId != null ? categoriaDoGrupo : null);
+    const ehItem = no.localId != null && categoria != null;
 
-    const ehEstrutural = no.category == null || CATEGORIAS_ESTRUTURAIS.has(no.category);
-    if (!ehEstrutural && no.localId != null && no.category != null) {
+    // Só um ITEM de pavimento (com localId) muda o pavimento dos descendentes; o nó de
+    // grupo IFCBUILDINGSTOREY não tem localId e só repassa a categoria.
+    const ehPavimento = ehItem && CATEGORIAS_PAVIMENTO.has(categoria);
+    const proximoPavimento = ehPavimento ? { localId: no.localId, nome: categoria } : pavimentoAtual;
+
+    if (ehItem && !CATEGORIAS_ESTRUTURAIS.has(categoria)) {
       elementos.push({
-        localId: no.localId,
-        category: no.category,
+        localId: no.localId!,
+        category: categoria,
         pavimentoLocalId: proximoPavimento.localId,
         pavimentoNome: proximoPavimento.nome,
       });
     }
 
-    for (const filho of no.children) visitar(filho, proximoPavimento);
+    // Grupo repassa a própria categoria aos itens; item não repassa nada (os filhos de
+    // um item vêm em grupos próprios, ex.: escada → grupo IFCSTAIRFLIGHT).
+    const categoriaFilhos = no.localId == null ? no.category : null;
+    for (const filho of no.children) visitar(filho, proximoPavimento, categoriaFilhos);
   }
 
-  visitar(raiz, { localId: null, nome: null });
+  visitar(raiz, { localId: null, nome: null }, null);
   return elementos;
 }
 
@@ -121,18 +138,31 @@ export function agruparPorCategoria(elementos: readonly ElementoIndex[]): Map<st
   return grupos;
 }
 
-/** Lista de pavimentos distintos presentes no índice, na ordem de primeira aparição. */
+/**
+ * Pavimentos distintos presentes no índice, de baixo para cima pela cota (Elevation);
+ * sem cota ficam depois, na ordem de primeira aparição, e "sem pavimento" por último.
+ */
 export function pavimentosDistintos(
   elementos: readonly ElementoIndex[],
-): { localId: number | null; nome: string | null }[] {
+): { localId: number | null; nome: string | null; elevacao: number | null }[] {
   const vistos = new Set<number | null>();
-  const lista: { localId: number | null; nome: string | null }[] = [];
+  const lista: { localId: number | null; nome: string | null; elevacao: number | null; ordem: number }[] = [];
   for (const el of elementos) {
     if (vistos.has(el.pavimentoLocalId)) continue;
     vistos.add(el.pavimentoLocalId);
-    lista.push({ localId: el.pavimentoLocalId, nome: el.pavimentoNome });
+    const elevacao = el.pavimentoElevacao != null && Number.isFinite(el.pavimentoElevacao) ? el.pavimentoElevacao : null;
+    lista.push({ localId: el.pavimentoLocalId, nome: el.pavimentoNome, elevacao, ordem: lista.length });
   }
-  return lista;
+  return lista
+    .sort((x, y) => {
+      if (x.localId == null) return 1;
+      if (y.localId == null) return -1;
+      if (x.elevacao != null && y.elevacao != null) return x.elevacao - y.elevacao || x.ordem - y.ordem;
+      if (x.elevacao != null) return -1;
+      if (y.elevacao != null) return 1;
+      return x.ordem - y.ordem;
+    })
+    .map(({ localId, nome, elevacao }) => ({ localId, nome, elevacao }));
 }
 
 /** Lista de categorias distintas presentes no índice, ordenada alfabeticamente. */

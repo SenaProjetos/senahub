@@ -21,6 +21,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { resolverCaminho } from "../src/lib/storage";
 import { TAMANHO_MAX_IFC, validarHeaderIfc } from "../src/modules/coordenacao/conversao-estado";
+import { corrigirPerfisIfc } from "../src/modules/coordenacao/perfis-ifc";
 
 /** Emite uma linha JSON em stdout (o orquestrador lê linha a linha). */
 function emitir(obj: Record<string, unknown>) {
@@ -45,13 +46,17 @@ async function main() {
     );
   }
 
-  const bytes = new Uint8Array(await fs.readFile(ifcAbs));
+  const lidos = new Uint8Array(await fs.readFile(ifcAbs));
 
   // Valida o cabeçalho ANTES de acordar o WASM — dá um erro claro se o arquivo
   // não é um IFC (ex.: renomeado/corrompido), em vez de um crash críptico do web-ifc.
-  const header = Buffer.from(bytes.slice(0, 4096)).toString("latin1");
+  const header = Buffer.from(lidos.slice(0, 4096)).toString("latin1");
   const check = validarHeaderIfc(header);
   if (!check.ok) throw new Error(check.motivo);
+
+  // Contorna perfis que o web-ifc gera achatados (ver perfis-ifc.ts). Só a cópia
+  // em memória muda: o IFC no storage (e o federado) segue o original.
+  const { bytes } = corrigirPerfisIfc(lidos);
 
   const { IfcImporter } = await import("@thatopen/fragments");
   const importer = new IfcImporter();

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { ViewerEngine, type SelecaoInfo } from "@/modules/coordenacao/viewer/engine";
+import { atalhoDeVistaPermitido } from "@/modules/coordenacao/viewer/vistas";
+import { comandoDeHistorico } from "@/modules/coordenacao/historico-realinhamento";
 
 /**
  * Wrapper React do ViewerEngine (three + fragments). SEMPRE importado via
@@ -39,8 +41,16 @@ export default function Viewer3D({
       const moveu = Math.hypot(e.clientX - inicio.x, e.clientY - inicio.y);
       inicio = null;
       if (moveu >= 5) return;
-      // Em modo medição, o clique marca um ponto em vez de selecionar um elemento.
-      if (engine.medindo) void engine.registrarPontoMedicao(e.clientX, e.clientY);
+      // Clique numa letra do indicador de eixos leva à vista daquele lado.
+      const vistaEixo = engine.vistaNoIndicador(e.clientX, e.clientY);
+      if (vistaEixo) {
+        void engine.irParaVista(vistaEixo);
+        return;
+      }
+      // "Mover por pontos" do realinhamento e medição: o clique marca um ponto em vez
+      // de selecionar um elemento.
+      if (engine.pegandoPontoRealinhamento) void engine.registrarPontoRealinhamento(e.clientX, e.clientY);
+      else if (engine.medindo) void engine.registrarPontoMedicao(e.clientX, e.clientY);
       else void engine.selecionarEm(e.clientX, e.clientY, e.shiftKey);
     };
     const onMove = (e: PointerEvent) => {
@@ -49,6 +59,37 @@ export default function Viewer3D({
       if (engine.medindo) void engine.atualizarSnapHover(e.clientX, e.clientY);
     };
     const onLeave = () => engine.ocultarSnapHover();
+    // Teclado do visualizador, sempre fora de campos de digitação: no realinhamento,
+    // Ctrl+Z/Ctrl+Shift+Z desfazem/refazem e setas, PageUp/PageDown e Q/E movem a
+    // prévia; teclas 1–7 vão para as vistas padrão.
+    const onKey = (e: KeyboardEvent) => {
+      const alvo = e.target as HTMLElement | null;
+      const alvoEditavel =
+        !!alvo && (alvo.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(alvo.tagName) || !!alvo.closest("[role=dialog]"));
+      if (engine.realinhamentoAtivo && !alvoEditavel) {
+        const comando = comandoDeHistorico(e);
+        if (comando) {
+          e.preventDefault();
+          engine.desfazerRealinhamento(comando);
+          return;
+        }
+        if (engine.moverRealinhamentoPeloTeclado(e)) {
+          e.preventDefault();
+          return;
+        }
+      }
+      const vista = atalhoDeVistaPermitido({
+        key: e.key,
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+        altKey: e.altKey,
+        alvoEditavel,
+      });
+      if (!vista) return;
+      e.preventDefault();
+      void engine.irParaVista(vista);
+    };
+    window.addEventListener("keydown", onKey);
     container.addEventListener("pointerdown", onDown);
     container.addEventListener("pointerup", onUp);
     container.addEventListener("pointermove", onMove);
@@ -59,6 +100,7 @@ export default function Viewer3D({
       container.removeEventListener("pointerup", onUp);
       container.removeEventListener("pointermove", onMove);
       container.removeEventListener("pointerleave", onLeave);
+      window.removeEventListener("keydown", onKey);
       engineRef.current = null;
       void engine.dispose();
     };

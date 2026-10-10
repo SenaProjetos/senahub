@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   detectarConflitos,
+  entraNoClash,
   sobreposicaoAABB,
   TOLERANCIA_PADRAO,
   type Caixa,
@@ -107,5 +108,22 @@ describe("detectarConflitos", () => {
     const r = detectarConflitos(A, B2);
     expect(r).toHaveLength(1);
     expect(r[0].localIdA).toBe(999);
+  });
+});
+
+describe("entraNoClash", () => {
+  it("ambiente, abertura, terreno e anotação ficam fora", () => {
+    for (const c of ["IFCSPACE", "IFCOPENINGELEMENT", "IFCSITE", "IFCANNOTATION", "IfcSpace"]) {
+      expect(entraNoClash(c)).toBe(false);
+    }
+  });
+  it("elementos físicos entram", () => {
+    for (const c of ["IFCBEAM", "IFCWALLSTANDARDCASE", "IFCSLAB", "IFCFLOWSEGMENT", "IFCBUILDINGELEMENTPROXY"]) {
+      expect(entraNoClash(c)).toBe(true);
+    }
+  });
+  it("categoria desconhecida entra (não esconde conflito real)", () => {
+    expect(entraNoClash(null)).toBe(true);
+    expect(entraNoClash(undefined)).toBe(true);
   });
 });

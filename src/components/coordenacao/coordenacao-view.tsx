@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { MapPin, Send, Move3d, FileUp, Globe2, MoreHorizontal } from "lucide-react";
+import { MapPin, Send, Move3d, FileUp, Globe2, MoreHorizontal, AlertTriangle, X } from "lucide-react";
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
 import { AcoesMenuItens } from "@/components/ui/acoes-menu";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -17,7 +17,10 @@ import type {
   SelecaoInfo,
   CorteConfig,
   CameraApontamento,
+  EtapaPontos,
+  ModoPontos,
 } from "@/modules/coordenacao/viewer/engine";
+import { DESVIO_ESCALA_AVISO } from "@/modules/coordenacao/realinhamento";
 import type { ApontamentoView, VistaView } from "@/modules/coordenacao/queries";
 import {
   criarApontamentoCoordenacao,
@@ -44,6 +47,8 @@ import type { GeracaoResumo } from "@/components/coordenacao/modelo-federado-blo
 import { PainelDisciplinas } from "@/components/coordenacao/painel-disciplinas";
 import { PainelPropriedades } from "@/components/coordenacao/painel-propriedades";
 import { RealinharIfcDialog } from "@/components/coordenacao/realinhar-ifc-dialog";
+import { gerarDxfDoCorte, nomeDoArquivoDeCorte } from "@/modules/coordenacao/corte-dxf";
+import { avisosDeOrigem, formatarDistancia, modelosDistantes, type ModeloDistante } from "@/modules/coordenacao/origem";
 import { ViewerToolbar, type PainelId } from "@/components/coordenacao/viewer-toolbar";
 import { VistasPanel } from "@/components/coordenacao/vistas-painel";
 import { ApontamentoPins } from "@/components/coordenacao/apontamento-pins";
@@ -130,6 +135,11 @@ export function CoordenacaoView({
   const [georrefAberto, setGeorrefAberto] = useState(false);
   const [realinharUploadId, setRealinharUploadId] = useState<string | null>(null);
   const [vetorRealinhar, setVetorRealinhar] = useState<[number, number, number]>([0, 0, 0]);
+  const [rotacaoRealinhar, setRotacaoRealinhar] = useState(0);
+  const [etapaPontos, setEtapaPontos] = useState<EtapaPontos>(null);
+  const [modoPontos, setModoPontos] = useState<ModoPontos | null>(null);
+  const [avisoAlinhamento, setAvisoAlinhamento] = useState<string | null>(null);
+  const [historicoRealinhar, setHistoricoRealinhar] = useState({ desfazer: 0, refazer: 0 });
   const [enviandoAvulso, setEnviandoAvulso] = useState(false);
   // Após aplicar: espera a nova versão converter e a troca na cena (novo entra, antigo sai).
   const [trocaPendente, setTrocaPendente] = useState<{ antigo: string; novo: string } | null>(null);
@@ -277,6 +287,54 @@ export function CoordenacaoView({
     engineRef.current?.definirCorte(config);
   }, []);
 
+  // ── Aviso de origem incompatível: modelo carregado longe dos demais ──
+  const [distantes, setDistantes] = useState<ModeloDistante[]>([]);
+  const [origemDispensada, setOrigemDispensada] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine || carregados.size < 2) {
+      setDistantes([]);
+      return;
+    }
+    // Lê as caixas depois do frame em que o modelo entrou na cena.
+    const id = requestAnimationFrame(() => setDistantes(modelosDistantes(engine.caixasDosModelos())));
+    return () => cancelAnimationFrame(id);
+  }, [carregados]);
+  // Chave do aviso = ids envolvidos; dispensar vale para aquele aviso nesta sessão.
+  const avisosOrigem = avisosDeOrigem(distantes).filter((a) => !origemDispensada.has(a.modeloIds.join("|")));
+
+  // ── Corte → DXF: linhas da seção de cada modelo, no referencial do arquivo, em mm ──
+  const [exportandoCorte, setExportandoCorte] = useState(false);
+  async function exportarCorteDxf() {
+    const engine = engineRef.current;
+    if (!engine || !corte) return;
+    setExportandoCorte(true);
+    try {
+      const secao = await engine.segmentosDoCorte();
+      if (!secao || secao.modelos.length === 0) {
+        toast.error("O plano de corte não cruza nenhum modelo carregado.");
+        return;
+      }
+      const rotulo = new Map(modelosCarregadosInfo.map((m) => [m.uploadId, m.label]));
+      const { dxf, linhas } = gerarDxfDoCorte({
+        eixo: corte.eixo,
+        base: secao.base,
+        camadas: secao.modelos.map((m) => ({ nome: rotulo.get(m.modeloId) ?? m.modeloId, segmentos: m.segmentos })),
+      });
+      const url = URL.createObjectURL(new Blob([dxf], { type: "application/dxf" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = nomeDoArquivoDeCorte(projetoCodigo, corte.eixo);
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      toast.success(`DXF gerado com ${linhas.toLocaleString("pt-BR")} linha(s), em milímetros.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao gerar o DXF do corte.");
+    } finally {
+      setExportandoCorte(false);
+    }
+  }
+
   const focar = useCallback(
     (uploadId: string) => {
       const novo = foco === uploadId ? null : uploadId;
@@ -295,8 +353,16 @@ export function CoordenacaoView({
       if (!engine) return;
       const inicial: [number, number, number] = [0, 0, 0];
       setVetorRealinhar(inicial);
+      setRotacaoRealinhar(0);
+      setEtapaPontos(null);
+      setModoPontos(null);
+      setAvisoAlinhamento(null);
       setRealinharUploadId(uploadId);
-      engine.entrarRealinhamento(uploadId, inicial, (v) => setVetorRealinhar(v));
+      setHistoricoRealinhar({ desfazer: 0, refazer: 0 });
+      engine.entrarRealinhamento(uploadId, inicial, (v) => setVetorRealinhar(v), {
+        onGiro: setRotacaoRealinhar,
+        onHistorico: setHistoricoRealinhar,
+      });
     },
     [carregados, onToggle],
   );
@@ -306,17 +372,56 @@ export function CoordenacaoView({
     engineRef.current?.definirVetorRealinhamento(v);
   }, []);
 
+  const mudarRotacaoRealinhar = useCallback((graus: number, origem?: "campo-giro" | "botao-giro") => {
+    setRotacaoRealinhar(graus);
+    engineRef.current?.definirRotacaoRealinhamento(graus, origem);
+  }, []);
+
+  const alternarPontosRealinhar = useCallback((modo: ModoPontos | null) => {
+    setModoPontos(modo);
+    setAvisoAlinhamento(null);
+    if (!modo) setEtapaPontos(null);
+    engineRef.current?.moverPorPontos(
+      modo,
+      (etapa) => {
+        setEtapaPontos(etapa);
+        if (!etapa) setModoPontos(null);
+      },
+      (r) => {
+        if ("erro" in r) {
+          toast.error(r.erro);
+          return;
+        }
+        setRotacaoRealinhar(r.graus);
+        const desvio = Math.abs(r.razaoDistancias - 1);
+        setAvisoAlinhamento(
+          desvio > DESVIO_ESCALA_AVISO
+            ? `As distâncias entre os pontos diferem ${(desvio * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%: confira se clicou nos pontos certos ou se os modelos têm escalas diferentes.`
+            : null,
+        );
+      },
+    );
+  }, []);
+
   // Volta ao seletor de modelo (sai do modo do engine) mantendo o painel aberto.
   const trocarRealinhar = useCallback(() => {
     engineRef.current?.sairRealinhamento();
     setRealinharUploadId(null);
     setVetorRealinhar([0, 0, 0]);
+    setRotacaoRealinhar(0);
+    setEtapaPontos(null);
+    setModoPontos(null);
+    setAvisoAlinhamento(null);
   }, []);
 
   const fecharRealinhar = useCallback(() => {
     engineRef.current?.sairRealinhamento();
     setRealinharUploadId(null);
     setVetorRealinhar([0, 0, 0]);
+    setRotacaoRealinhar(0);
+    setEtapaPontos(null);
+    setModoPontos(null);
+    setAvisoAlinhamento(null);
     setRealinharAberto(false);
   }, []);
 
@@ -324,8 +429,11 @@ export function CoordenacaoView({
     if (!realinharUploadId) return;
     const antigo = realinharUploadId;
     const [dx, dy, dz] = vetorRealinhar;
+    // Pivô do giro = centro do modelo na prévia, já no referencial do arquivo.
+    const [pivoX, pivoY] = engineRef.current?.pivoRealinhamento() ?? [0, 0];
+    const rotacaoGraus = rotacaoRealinhar;
     start(async () => {
-      const r = await realinharModeloIfc({ uploadId: antigo, dx, dy, dz });
+      const r = await realinharModeloIfc({ uploadId: antigo, dx, dy, dz, rotacaoGraus, pivoX, pivoY });
       if (!r.ok) {
         toast.error(r.error);
         return;
@@ -710,6 +818,7 @@ export function CoordenacaoView({
           projetoId={projetoId}
           projetoCodigo={projetoCodigo}
           projetoNome={projetoNome}
+          podeGerir={podeGerir}
         />
       )}
       {painelAtivo === "diff" && <DiffPainel engine={engineRef.current} modelos={modelosDiff} />}
@@ -779,6 +888,9 @@ export function CoordenacaoView({
               temSelecao={temSelecao}
               corte={corte}
               onEnquadrar={() => void engineRef.current?.enquadrar()}
+              onVista={(vista) => void engineRef.current?.irParaVista(vista)}
+              onExportarCorte={() => void exportarCorteDxf()}
+              exportandoCorte={exportandoCorte}
               onCorte={aplicarCorte}
               onIsolar={() => void engineRef.current?.isolarSelecao()}
               onOcultar={() => void engineRef.current?.ocultarSelecao()}
@@ -859,6 +971,56 @@ export function CoordenacaoView({
             </p>
           </div>
         )}
+        {avisosOrigem.length > 0 && (
+          <div className="absolute left-1/2 top-16 z-20 w-[min(28rem,calc(100%-2rem))] -translate-x-1/2 space-y-1">
+            {avisosOrigem.map((aviso) => {
+              // Só o nome do arquivo: "Recebido do cliente · X.ifc" → "X.ifc".
+              const arquivo = (id: string | null) =>
+                modelosCarregadosInfo.find((m) => m.uploadId === id)?.label.split(" · ").pop() ?? "outro modelo";
+              const chave = aviso.modeloIds.join("|");
+              const par = aviso.modeloIds.length === 2;
+              const texto = par
+                ? `${arquivo(aviso.modeloIds[0])} e ${arquivo(aviso.modeloIds[1])} estão a ${formatarDistancia(aviso.distancia)} um do outro. Um deles pode ter sido exportado com outra origem.`
+                : `${arquivo(aviso.modeloIds[0])} está a ${formatarDistancia(aviso.distancia)} de ${arquivo(aviso.maisProximoId)}. O IFC pode ter sido exportado com outra origem.`;
+              return (
+                <div
+                  key={chave}
+                  role="status"
+                  className="flex items-start gap-2 rounded-md border border-amber-500/50 bg-background/95 px-3 py-2 text-xs shadow-sm backdrop-blur"
+                >
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+                  <p className="min-w-0 flex-1">
+                    <span className="font-medium">Origem incompatível:</span> {texto}
+                  </p>
+                  {podeGerir && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="h-7 shrink-0"
+                      title={par ? "Escolha no painel qual dos dois realinhar" : undefined}
+                      onClick={() => {
+                        setRealinharAberto(true);
+                        // No par não dá para saber qual errou: o painel abre para escolher.
+                        if (!par) void escolherRealinhar(aviso.modeloIds[0]);
+                      }}
+                    >
+                      Realinhar
+                    </Button>
+                  )}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7 shrink-0"
+                    aria-label="Dispensar o aviso de origem"
+                    onClick={() => setOrigemDispensada((s) => new Set(s).add(chave))}
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
         {podeGerir && (
           <RealinharIfcDialog
             aberto={realinharAberto}
@@ -869,6 +1031,14 @@ export function CoordenacaoView({
             onEscolher={(id) => void escolherRealinhar(id)}
             vetor={vetorRealinhar}
             onVetor={mudarVetorRealinhar}
+            rotacao={rotacaoRealinhar}
+            onRotacao={mudarRotacaoRealinhar}
+            historico={historicoRealinhar}
+            onDesfazer={(sentido) => engineRef.current?.desfazerRealinhamento(sentido)}
+            etapaPontos={etapaPontos}
+            modoPontos={modoPontos}
+            avisoAlinhamento={avisoAlinhamento}
+            onPontos={alternarPontosRealinhar}
             onAplicar={aplicarRealinhar}
             pending={pending}
             disciplinasUpload={disciplinasUpload}

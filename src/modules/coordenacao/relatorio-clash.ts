@@ -9,6 +9,9 @@ export type ItemRelatorioClash = {
   numero: number;
   disciplinaA: string;
   disciplinaB: string;
+  /** Elemento de cada lado (nome do IFC ou categoria), quando conhecido. */
+  elementoA?: string;
+  elementoB?: string;
   profundidade: string; // já formatado (formatarMetros)
   imagemDataUrl: string;
 };
@@ -34,7 +37,12 @@ export function montarRelatorioClashHtml(itens: readonly ItemRelatorioClash[], m
       (it) => `
     <section class="item">
       <h2>Conflito #${it.numero}</h2>
-      <p class="meta">${escaparHtml(it.disciplinaA)} × ${escaparHtml(it.disciplinaB)} — penetração ${escaparHtml(it.profundidade)}</p>
+      <p class="meta">${escaparHtml(it.disciplinaA)} × ${escaparHtml(it.disciplinaB)} — penetração ${escaparHtml(it.profundidade)}</p>${
+        it.elementoA || it.elementoB
+          ? `
+      <p class="meta">${escaparHtml(it.elementoA ?? "—")} × ${escaparHtml(it.elementoB ?? "—")}</p>`
+          : ""
+      }
       <img src="${it.imagemDataUrl}" alt="Conflito ${it.numero}" />
     </section>`,
     )

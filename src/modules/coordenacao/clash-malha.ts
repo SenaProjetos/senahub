@@ -17,6 +17,8 @@ export type MalhaClash = {
 
 export type TrianguloClash = {
   vertices: [Vec3, Vec3, Vec3];
+  /** (v1 − v0) × (v2 − v0), sem normalizar — calculada uma vez na leitura da malha. */
+  normal: Vec3;
   min: Vec3;
   max: Vec3;
 };
@@ -40,7 +42,7 @@ export type OpcoesRefinoMalha = {
   limiteOperacoes?: number;
   /** Quantas operações podem rodar antes de devolver a main thread ao navegador. */
   operacoesPorFatia?: number;
-  /** Injetável nos testes; por padrão agenda uma nova task com setTimeout(0). */
+  /** Injetável nos testes; por padrão `criarCederPorTempo()` (cede só a cada ~12 ms). */
   cederControle?: () => Promise<void>;
 };
 
@@ -124,10 +126,12 @@ export function triangulosDaMalha(malha: MalhaClash): TrianguloClash[] {
     const b = vertice(malha.positions, ib, malha.matriz);
     const c = vertice(malha.positions, ic, malha.matriz);
     if (!a || !b || !c) continue;
-    if (!normalizar(cruz(sub(b, a), sub(c, a)))) continue;
+    const normal = cruz(sub(b, a), sub(c, a));
+    if (!normalizar(normal)) continue;
 
     triangulos.push({
       vertices: [a, b, c],
+      normal,
       min: [
         Math.min(a[0], b[0], c[0]),
         Math.min(a[1], b[1], c[1]),
@@ -160,6 +164,24 @@ function separadosNoEixo(a: TrianguloClash, b: TrianguloClash, eixoBruto: Vec3):
 }
 
 /**
+ * True quando os vértices `v` estão todos estritamente do mesmo lado do plano
+ * (normal `n`, passando por `p`). A folga é relativa ao tamanho da normal, que não é
+ * normalizada; vértice sobre o plano (coplanar/encostado) não conta como separado.
+ */
+function todosDoMesmoLado(n: Vec3, p: Vec3, v: readonly [Vec3, Vec3, Vec3]): boolean {
+  const folga = EPS * Math.hypot(n[0], n[1], n[2]);
+  let acima = 0;
+  let abaixo = 0;
+  for (const q of v) {
+    const d = n[0] * (q[0] - p[0]) + n[1] * (q[1] - p[1]) + n[2] * (q[2] - p[2]);
+    if (d > folga) acima += 1;
+    else if (d < -folga) abaixo += 1;
+    else return false;
+  }
+  return acima === 3 || abaixo === 3;
+}
+
+/**
  * SAT triângulo × triângulo. Além das normais e produtos cruzados entre arestas,
  * testa eixos no plano das faces para cobrir corretamente triângulos coplanares.
  */
@@ -168,10 +190,17 @@ export function triangulosInterseccionam(a: TrianguloClash, b: TrianguloClash): 
 
   const [a0, a1, a2] = a.vertices;
   const [b0, b1, b2] = b.vertices;
+  const normalA = a.normal;
+  const normalB = b.normal;
+
+  // Rejeição rápida (Möller): se os 3 vértices de um triângulo ficam do MESMO lado
+  // do plano do outro, não há contato. Resolve a maioria dos pares vizinhos sem o
+  // SAT completo — peças paralelas e próximas (terça sobre banzo) geram dezenas de
+  // milhares deles.
+  if (todosDoMesmoLado(normalA, a0, b.vertices) || todosDoMesmoLado(normalB, b0, a.vertices)) return false;
+
   const arestasA: Vec3[] = [sub(a1, a0), sub(a2, a1), sub(a0, a2)];
   const arestasB: Vec3[] = [sub(b1, b0), sub(b2, b1), sub(b0, b2)];
-  const normalA = cruz(arestasA[0], arestasA[1]);
-  const normalB = cruz(arestasB[0], arestasB[1]);
   const eixos: Vec3[] = [normalA, normalB];
 
   for (const ea of arestasA) {
@@ -243,6 +272,20 @@ function construirBvh(triangulos: readonly TrianguloClash[]): NoBvh | null {
   return { ...caixa, esquerda, direita };
 }
 
+/**
+ * BVH por coleção de triângulos, montada UMA vez. O adapter reaproveita o mesmo
+ * array de cada item em todos os pares em que ele aparece — uma laje grande entra em
+ * centenas de pares, e remontar a árvore a cada par era o que tornava o refino lento.
+ */
+const bvhPorColecao = new WeakMap<readonly TrianguloClash[], NoBvh | null>();
+
+function bvhDe(triangulos: readonly TrianguloClash[]): NoBvh | null {
+  if (bvhPorColecao.has(triangulos)) return bvhPorColecao.get(triangulos)!;
+  const raiz = construirBvh(triangulos);
+  bvhPorColecao.set(triangulos, raiz);
+  return raiz;
+}
+
 function pontoNaCaixa(ponto: Vec3, caixa: Caixa): boolean {
   return (
     ponto[0] >= caixa.min[0] - EPS &&
@@ -254,59 +297,104 @@ function pontoNaCaixa(ponto: Vec3, caixa: Caixa): boolean {
   );
 }
 
-async function consumirOperacao(orcamento: Orcamento): Promise<boolean> {
+/**
+ * Conta uma operação no orçamento, de forma SÍNCRONA: só pede para ceder a main
+ * thread a cada `porFatia` operações. Um `await` por operação custava uma microtask
+ * por nó/triângulo visitado e dominava o tempo do refino.
+ */
+function contar(orcamento: Orcamento): "ok" | "ceder" | "estourou" {
   orcamento.operacoes += 1;
-  if (orcamento.operacoes > orcamento.limite) return false;
-  if (orcamento.operacoes % orcamento.porFatia === 0) await orcamento.cederControle();
-  return true;
+  if (orcamento.operacoes > orcamento.limite) return "estourou";
+  return orcamento.operacoes % orcamento.porFatia === 0 ? "ceder" : "ok";
 }
 
+/** Diagonal ao quadrado da caixa — decide qual nó descer na travessia dupla. */
+function tamanho(caixa: Caixa): number {
+  const dx = caixa.max[0] - caixa.min[0];
+  const dy = caixa.max[1] - caixa.min[1];
+  const dz = caixa.max[2] - caixa.min[2];
+  return dx * dx + dy * dy + dz * dz;
+}
+
+/**
+ * Travessia DUPLA das duas BVHs: desce os pares de nós cujas caixas se tocam, sempre
+ * abrindo o nó maior, até chegar a folha × folha. Consultar triângulo a triângulo de
+ * um lado contra a árvore do outro falhava com triângulos longos e finos (perfil de
+ * cobertura, terça): a caixa de cada um cobre a peça inteira e casava com milhares
+ * de triângulos da viga, estourando o orçamento. Aqui só a região onde as duas peças
+ * de fato se aproximam é aberta.
+ */
 async function superficiesInterseccionam(
   a: readonly TrianguloClash[],
   b: readonly TrianguloClash[],
   orcamento: Orcamento,
 ): Promise<"intersecta" | "separada" | "inconclusiva"> {
   if (a.length === 0 || b.length === 0) return "separada";
+  const raizA = bvhDe(a);
+  const raizB = bvhDe(b);
+  if (!raizA || !raizB) return "separada";
 
-  // Consulta o menor conjunto contra a BVH do maior. Em modelos usuais isto reduz
-  // dezenas de milhões de pares cartesianos a poucas folhas AABB candidatas.
-  const consultas = a.length <= b.length ? a : b;
-  const indexados = consultas === a ? b : a;
-  const raiz = construirBvh(indexados);
-  if (!raiz) return "separada";
+  const pilha: [NoBvh, NoBvh][] = [[raizA, raizB]];
+  while (pilha.length > 0) {
+    const passo = contar(orcamento);
+    if (passo === "estourou") return "inconclusiva";
+    if (passo === "ceder") await orcamento.cederControle();
+    const [noA, noB] = pilha.pop()!;
+    if (!caixasSobrepoem(noA, noB)) continue;
 
-  for (const triangulo of consultas) {
-    const pilha: NoBvh[] = [raiz];
-    while (pilha.length > 0) {
-      if (!(await consumirOperacao(orcamento))) return "inconclusiva";
-      const no = pilha.pop()!;
-      if (!caixasSobrepoem(triangulo, no)) continue;
-      if (no.triangulos) {
-        for (const candidato of no.triangulos) {
-          if (!(await consumirOperacao(orcamento))) return "inconclusiva";
-          if (!caixasSobrepoem(triangulo, candidato)) continue;
+    if (noA.triangulos && noB.triangulos) {
+      for (const ta of noA.triangulos) {
+        if (!caixasSobrepoem(ta, noB)) continue;
+        for (const tb of noB.triangulos) {
+          const passoTriangulo = contar(orcamento);
+          if (passoTriangulo === "estourou") return "inconclusiva";
+          if (passoTriangulo === "ceder") await orcamento.cederControle();
+          if (!caixasSobrepoem(ta, tb)) continue;
           orcamento.comparacoesTriangulos += 1;
-          if (triangulosInterseccionam(triangulo, candidato)) return "intersecta";
+          if (triangulosInterseccionam(ta, tb)) return "intersecta";
         }
-      } else {
-        if (no.esquerda) pilha.push(no.esquerda);
-        if (no.direita) pilha.push(no.direita);
       }
+      continue;
+    }
+
+    const abrirA = !noA.triangulos && (noB.triangulos != null || tamanho(noA) >= tamanho(noB));
+    if (abrirA) {
+      if (noA.esquerda) pilha.push([noA.esquerda, noB]);
+      if (noA.direita) pilha.push([noA.direita, noB]);
+    } else {
+      if (noB.esquerda) pilha.push([noA, noB.esquerda]);
+      if (noB.direita) pilha.push([noA, noB.direita]);
     }
   }
   return "separada";
 }
 
+/** Raio (origem + 1/direção) × caixa pelo método das lajes; true se o raio à frente a atravessa. */
+function raioCruzaCaixa(origem: Vec3, inversa: Vec3, caixa: Caixa): boolean {
+  let tMin = -Infinity;
+  let tMax = Infinity;
+  for (let eixo = 0; eixo < 3; eixo++) {
+    const t1 = (caixa.min[eixo] - EPS - origem[eixo]) * inversa[eixo];
+    const t2 = (caixa.max[eixo] + EPS - origem[eixo]) * inversa[eixo];
+    tMin = Math.max(tMin, Math.min(t1, t2));
+    tMax = Math.min(tMax, Math.max(t1, t2));
+  }
+  return tMax >= Math.max(tMin, 0);
+}
+
 /**
  * Teste de ponto dentro de uma superfície fechada por paridade de raios. Três
  * direções não alinhadas e deduplicação das distâncias evitam a maioria dos casos
- * degenerados (raio passando exatamente por uma aresta compartilhada).
+ * degenerados (raio passando exatamente por uma aresta compartilhada). O raio
+ * percorre a BVH da coleção em vez de testar todos os triângulos.
  */
 async function pontoDentroDaColecao(
   ponto: Vec3,
   triangulos: readonly TrianguloClash[],
   orcamento: Orcamento,
 ): Promise<boolean | null> {
+  const raiz = bvhDe(triangulos);
+  if (!raiz) return false;
   const direcoes: Vec3[] = [
     [1, 0.371, 0.193],
     [-0.217, 1, 0.419],
@@ -315,11 +403,24 @@ async function pontoDentroDaColecao(
   let votosDentro = 0;
   for (const direcaoBruta of direcoes) {
     const direcao = normalizar(direcaoBruta)!;
+    const inversa: Vec3 = [1 / direcao[0], 1 / direcao[1], 1 / direcao[2]];
     const distancias: number[] = [];
-    for (const triangulo of triangulos) {
-      if (!(await consumirOperacao(orcamento))) return null;
-      const distancia = distanciaIntersecaoRaio(ponto, direcao, triangulo);
-      if (distancia != null) distancias.push(distancia);
+    const pilha: NoBvh[] = [raiz];
+    while (pilha.length > 0) {
+      const passo = contar(orcamento);
+      if (passo === "estourou") return null;
+      if (passo === "ceder") await orcamento.cederControle();
+      const no = pilha.pop()!;
+      if (!raioCruzaCaixa(ponto, inversa, no)) continue;
+      if (no.triangulos) {
+        for (const triangulo of no.triangulos) {
+          const distancia = distanciaIntersecaoRaio(ponto, direcao, triangulo);
+          if (distancia != null) distancias.push(distancia);
+        }
+      } else {
+        if (no.esquerda) pilha.push(no.esquerda);
+        if (no.direita) pilha.push(no.direita);
+      }
     }
     distancias.sort((a, b) => a - b);
     const unicas: number[] = [];
@@ -347,7 +448,7 @@ async function algumaContencao(
   recipientes: readonly ComponenteTriangulosClash[],
   orcamento: Orcamento,
 ): Promise<boolean | null> {
-  const caixasRecipientes = recipientes.map(caixaDaColecao);
+  const caixasRecipientes = recipientes.map((recipiente) => bvhDe(recipiente));
   for (const fonte of fontes) {
     for (const ponto of pontosAmostra(fonte)) {
       for (let indice = 0; indice < recipientes.length; indice++) {
@@ -363,9 +464,39 @@ async function algumaContencao(
 }
 
 /**
+ * Cede a main thread por TEMPO, não por contagem: só devolve o controle quando já se
+ * passaram `intervaloMs` desde a última cessão, e cede por MessageChannel (sem o
+ * piso de 4 ms que o navegador impõe a `setTimeout(0)` encadeado). Cedendo a cada
+ * fatia de operações com setTimeout, o refino de um modelo real passava mais tempo
+ * esperando o relógio do que calculando. Compartilhe UMA instância entre os pares de
+ * uma mesma detecção.
+ */
+export function criarCederPorTempo(intervaloMs = 12): () => Promise<void> {
+  const agora = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
+  let ultimo = agora();
+  return async () => {
+    if (agora() - ultimo < intervaloMs) return;
+    await new Promise<void>((resolve) => {
+      if (typeof MessageChannel === "undefined") {
+        setTimeout(resolve, 0);
+        return;
+      }
+      const canal = new MessageChannel();
+      canal.port1.onmessage = () => {
+        canal.port1.close();
+        resolve();
+      };
+      canal.port2.postMessage(null);
+    });
+    ultimo = agora();
+  };
+}
+
+/**
  * Refina um par AABB por componentes de malha, sem produto cartesiano bruto.
  *
- * - BVH de AABB poda triângulos distantes antes do SAT;
+ * - BVH de AABB (montada uma vez por coleção) e travessia dupla das duas árvores
+ *   podam triângulos distantes antes do SAT;
  * - cada MeshData permanece um componente independente para contenção;
  * - o loop cede a main thread periodicamente;
  * - estouro do orçamento é `inconclusiva`, portanto o adapter mantém o AABB.
@@ -375,9 +506,7 @@ export async function refinarComponentesTriangulos(
   b: readonly ComponenteTriangulosClash[],
   opcoes: OpcoesRefinoMalha = {},
 ): Promise<ResultadoRefinoMalha> {
-  const cederControle =
-    opcoes.cederControle ??
-    (() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+  const cederControle = opcoes.cederControle ?? criarCederPorTempo();
   const orcamento: Orcamento = {
     operacoes: 0,
     comparacoesTriangulos: 0,

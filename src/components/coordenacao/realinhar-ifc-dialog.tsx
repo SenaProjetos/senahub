@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Move3d, Upload, X, Check, ArrowLeft } from "lucide-react";
-import { vetorNulo } from "@/modules/coordenacao/realinhamento";
+import { Move3d, Upload, X, Check, ArrowLeft, RotateCcw, RotateCw, Crosshair, Spline, Undo2, Redo2 } from "lucide-react";
+import { normalizarGraus, realinhamentoNulo } from "@/modules/coordenacao/realinhamento";
+import type { EtapaPontos, ModoPontos } from "@/modules/coordenacao/viewer/engine";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +39,14 @@ export function RealinharIfcDialog({
   onEscolher,
   vetor,
   onVetor,
+  rotacao,
+  onRotacao,
+  historico,
+  onDesfazer,
+  etapaPontos,
+  modoPontos,
+  avisoAlinhamento,
+  onPontos,
   onAplicar,
   pending,
   disciplinasUpload,
@@ -52,6 +61,18 @@ export function RealinharIfcDialog({
   onEscolher: (uploadId: string) => void;
   vetor: Vetor;
   onVetor: (v: Vetor) => void;
+  /** Giro em planta, graus (anti-horário visto de cima), em torno do centro do modelo. */
+  rotacao: number;
+  onRotacao: (graus: number, origem?: "campo-giro" | "botao-giro") => void;
+  /** Passos disponíveis para desfazer/refazer a prévia (Ctrl+Z / Ctrl+Shift+Z). */
+  historico: { desfazer: number; refazer: number };
+  onDesfazer: (sentido: "desfazer" | "refazer") => void;
+  /** Modo de pontos: qual clique falta (null = desligado) e qual modo está ativo. */
+  etapaPontos: EtapaPontos;
+  modoPontos: ModoPontos | null;
+  /** Aviso de escala do alinhamento por 2 pares (distâncias diferentes), se houver. */
+  avisoAlinhamento: string | null;
+  onPontos: (modo: ModoPontos | null) => void;
   onAplicar: () => void;
   pending: boolean;
   disciplinasUpload: { id: string; nome: string }[];
@@ -145,15 +166,97 @@ export function RealinharIfcDialog({
             {ativo.disciplinaNome} · {ativo.nomeArquivo}
           </p>
           <p className="rounded bg-muted/60 px-2 py-1.5 text-[11px] leading-snug text-muted-foreground">
-            Arraste o modelo no plano (botão esquerdo) para posicionar X/Y. Ajuste a altura (Z)
-            pelo campo. Orbite com o botão direito. O modelo se move ao vivo — só grava ao aplicar.
+            Arraste o modelo no plano (botão esquerdo) ou use o teclado: setas movem 10 cm,
+            PageUp/PageDown sobem e descem, Q/E giram 1° (Shift ×10, Alt ÷10). O giro é em torno
+            do centro do modelo. Orbite com o botão direito. Ctrl+Z desfaz. Só grava ao aplicar.
           </p>
           <div className="grid grid-cols-3 gap-2">
             <CampoNumero rotulo="X (m)" valor={vetor[0]} onValor={(n) => onVetor([n, vetor[1], vetor[2]])} />
             <CampoNumero rotulo="Y (m)" valor={vetor[1]} onValor={(n) => onVetor([vetor[0], n, vetor[2]])} />
             <CampoNumero rotulo="Z (m)" valor={vetor[2]} onValor={(n) => onVetor([vetor[0], vetor[1], n])} />
           </div>
+          <div className="space-y-1.5">
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant={modoPontos === "um-par" ? "default" : "secondary"}
+                size="sm"
+                className="gap-1 px-2"
+                onClick={() => onPontos(modoPontos === "um-par" ? null : "um-par")}
+                disabled={pending}
+                title="Um ponto do modelo vai parar em cima do ponto de destino"
+              >
+                <Crosshair className="size-4" /> {modoPontos === "um-par" ? "Cancelar" : "Por pontos"}
+              </Button>
+              <Button
+                variant={modoPontos === "dois-pares" ? "default" : "secondary"}
+                size="sm"
+                className="gap-1 px-2"
+                onClick={() => onPontos(modoPontos === "dois-pares" ? null : "dois-pares")}
+                disabled={pending}
+                title="Dois pares de pontos: desloca e gira de uma vez"
+              >
+                <Spline className="size-4" /> {modoPontos === "dois-pares" ? "Cancelar" : "Por 2 pares"}
+              </Button>
+            </div>
+            {etapaPontos && (
+              <p className="rounded bg-primary/10 px-2 py-1.5 text-[11px] leading-snug" aria-live="polite">
+                {textoEtapa(etapaPontos, modoPontos)}
+              </p>
+            )}
+            {!etapaPontos && avisoAlinhamento && (
+              <p className="rounded bg-amber-500/10 px-2 py-1.5 text-[11px] leading-snug text-amber-800 dark:text-amber-300">
+                {avisoAlinhamento}
+              </p>
+            )}
+          </div>
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <CampoNumero rotulo="Giro (°)" valor={rotacao} onValor={onRotacao} />
+            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8"
+              onClick={() => onRotacao(normalizarGraus(rotacao + 90), "botao-giro")}
+              aria-label="Girar 90° no sentido anti-horário"
+              title="Girar 90° no sentido anti-horário"
+            >
+              <RotateCcw className="size-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8"
+              onClick={() => onRotacao(normalizarGraus(rotacao - 90), "botao-giro")}
+              aria-label="Girar 90° no sentido horário"
+              title="Girar 90° no sentido horário"
+            >
+              <RotateCw className="size-4" />
+            </Button>
+          </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8 shrink-0"
+              onClick={() => onDesfazer("desfazer")}
+              disabled={pending || historico.desfazer === 0}
+              aria-label="Desfazer (Ctrl+Z)"
+              title="Desfazer (Ctrl+Z)"
+            >
+              <Undo2 className="size-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8 shrink-0"
+              onClick={() => onDesfazer("refazer")}
+              disabled={pending || historico.refazer === 0}
+              aria-label="Refazer (Ctrl+Shift+Z)"
+              title="Refazer (Ctrl+Shift+Z)"
+            >
+              <Redo2 className="size-4" />
+            </Button>
             <Button variant="ghost" size="sm" className="gap-1" onClick={onTrocar} disabled={pending}>
               <ArrowLeft className="size-4" /> Trocar
             </Button>
@@ -161,7 +264,7 @@ export function RealinharIfcDialog({
               size="sm"
               className="flex-1 gap-1"
               onClick={onAplicar}
-              disabled={pending || vetorNulo(vetor)}
+              disabled={pending || realinhamentoNulo(vetor, rotacao)}
             >
               <Check className="size-4" /> {pending ? "Aplicando…" : "Aplicar"}
             </Button>
@@ -213,6 +316,22 @@ function CampoNumero({
       />
     </div>
   );
+}
+
+/** Instrução do clique que falta, conforme o modo de pontos. */
+function textoEtapa(etapa: Exclude<EtapaPontos, null>, modo: ModoPontos | null): string {
+  const total = modo === "dois-pares" ? 4 : 2;
+  const texto: Record<Exclude<EtapaPontos, null>, string> = {
+    origem: "Clique num ponto do modelo que vai se mover (pega vértice e aresta).",
+    destino:
+      modo === "dois-pares"
+        ? "Clique no destino desse ponto."
+        : "Clique no ponto de destino. O primeiro ponto vai parar em cima dele.",
+    origem2: "Clique num SEGUNDO ponto do modelo, longe do primeiro — ele define o giro.",
+    destino2: "Clique no destino do segundo ponto. O modelo desloca e gira de uma vez.",
+  };
+  const ordem: Exclude<EtapaPontos, null>[] = ["origem", "destino", "origem2", "destino2"];
+  return `${ordem.indexOf(etapa) + 1}/${total} — ${texto[etapa]}`;
 }
 
 /** Arredonda para 3 casas para exibir sem ruído de ponto flutuante vindo do arraste. */

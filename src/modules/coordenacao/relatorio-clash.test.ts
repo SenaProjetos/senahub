@@ -59,3 +59,23 @@ describe("montarRelatorioClashHtml", () => {
     expect(html.match(/Conflito #/g)).toHaveLength(3);
   });
 });
+
+describe("montarRelatorioClashHtml — elementos", () => {
+  it("mostra o elemento de cada lado, escapado", () => {
+    const html = montarRelatorioClashHtml(
+      [
+        {
+          numero: 3,
+          disciplinaA: "ARQ",
+          disciplinaB: "EST",
+          elementoA: "Laje <L1>",
+          elementoB: "Viga V5",
+          profundidade: "0,10 m",
+          imagemDataUrl: "data:image/png;base64,AAAA",
+        },
+      ],
+      meta,
+    );
+    expect(html).toContain("Laje &lt;L1&gt; × Viga V5");
+  });
+});
