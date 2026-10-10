@@ -38,6 +38,8 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
   começar (dá para desligar em Preferências).
 - **Atividade concluída:** quando o responsável conclui o card de uma atividade da EAP, a coordenação do projeto recebe
   um aviso para validar o percentual (sem coordenador cadastrado, vai para admin e supervisor). Dá para desligar em Preferências.
+- **Modelo de EAP preenche os percentuais das etapas** quando as etapas da disciplina ainda estão todas em 0% e o modelo
+  traz o percentual de cada uma somando 100% — a prévia da aplicação mostra o que será preenchido.
 - **Projeto novo** pode montar a EAP já pelo modelo, escolhido junto com o tipo de empreendimento.
 
 ---

@@ -95,6 +95,17 @@ async function cenario(nomeTipo: string, esperadas: string[]) {
     }
     check("modelo aplica sobre as etapas padrão sem erro e cria linhas", aplicou.criadas > 0, aplicou);
     check("as etapas não duplicam nem somem depois do modelo", JSON.stringify(await siglas()) === JSON.stringify(esperadas), await siglas());
+    // Percentuais do modelo nas etapas semeadas a 0% (decisão do dono, 2026-10-10): preenche SÓ quando o modelo traz % de
+    // TODA etapa da disciplina e a soma fecha 100. Esperado lido do JSON do modelo, sem passar pela regra testada.
+    const pctModelo = ((await prisma.modeloEap.findUniqueOrThrow({ where: { id: modelo.id }, select: { estrutura: true } })).estrutura as { percentuaisPorFase?: Record<string, number> }).percentuaisPorFase ?? {};
+    const etapasDb = await prisma.disciplinaEtapa.findMany({ where: { disciplinaId: disc.id }, orderBy: { ordem: "asc" }, select: { etapaId: true, percentual: true } });
+    const cobre = etapasDb.every((e) => Number.isFinite(pctModelo[e.etapaId]));
+    const fecha = cobre && Math.round(etapasDb.reduce((t, e) => t + pctModelo[e.etapaId] * 100, 0)) === 10_000;
+    check(
+      fecha ? "o modelo cobre todas as etapas e fecha 100%: percentuais preenchidos" : "o modelo NÃO cobre todas as etapas ou não fecha 100%: etapas seguem a 0%",
+      etapasDb.every((e) => Number(e.percentual) === (fecha ? pctModelo[e.etapaId] : 0)),
+      etapasDb.map((e) => Number(e.percentual)),
+    );
     const fasesDaDisc = new Set((await prisma.disciplinaEtapa.findMany({ where: { disciplinaId: disc.id }, select: { etapaId: true } })).map((e) => e.etapaId));
     const orfas = await prisma.eapTarefa.findMany({ where: { projetoId: projeto.id, disciplinaId: disc.id, etapaId: { not: null } }, select: { nome: true, etapaId: true } });
     check("nenhuma linha aponta para fase que a disciplina não tem (sem linha órfã)", orfas.every((l) => fasesDaDisc.has(l.etapaId!)), orfas.filter((l) => !fasesDaDisc.has(l.etapaId!)).map((l) => l.nome));
