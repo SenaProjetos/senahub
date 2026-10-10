@@ -44,6 +44,7 @@ npm run smoke:pedido-dados   # "Atualize seus dados" + reconfirmação anual: fa
 npm run smoke:desenvolvimento  # liderança única ativa, 1:1 compartilhado × privado (o privado não sai do servidor), lembrete sem conteúdo
 npm run smoke:documentos-validade  # documento com validade: aviso 60/30/7/vencido uma vez por faixa, renovar rearma
 npm run smoke:ponto-tarefa    # ponto com tarefa: lista curta (atrasada não some), sugestão da atividade de hoje, validação, edição do dia, apontado × previsto
+npm run ensaio:eap [-- --refazer]  # (só banco de dev) projeto de ensaio estilo Arapiraca: etapas, EAP com gente, cronograma aprovado, cards e 1 usuário por perfil (senha Demo@2026); `ensaio:conferir` lê o que cada perfil enxerga
 npm run smoke:etapas-card     # etapas padrão por tipo (EP/BS/EX, sem EP no unifamiliar, a 0%), "enviei para análise" só do responsável, desfazer até aprovar
 npm run smoke:etapa-proxima   # aviso da etapa que vem: só aprovado, 2 dias úteis antes, atividade + coordenação, uma vez por etapa e data, data nova rearma
 npm run smoke:pagamento-fase  # pagamento por fase: pool congelado, write-back por diferença, SLA, marco → aprovar fase
