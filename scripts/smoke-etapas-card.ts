@@ -101,7 +101,7 @@ async function main() {
     await enviarEtapaParaAnalise({ etapaId: ep.id, userId: proj.id, notificar });
     const depois = await prisma.disciplinaEtapa.findUniqueOrThrow({ where: { id: ep.id }, select: { status: true, entregueEm: true } });
     check("responsável envia: etapa fica Entregue, com data", depois.status === "entregue" && depois.entregueEm != null, depois);
-    check("avisa coordenação e projetista, não o membro comum", JSON.stringify(envios[0]?.userIds) === JSON.stringify([proj.id, coord.id].sort()), envios[0]);
+    check("avisa a coordenação — não o membro comum nem quem enviou", JSON.stringify(envios[0]?.userIds) === JSON.stringify([coord.id]), envios[0]);
     check("enviar de novo é recusado", (await erroDe(() => enviarEtapaParaAnalise({ etapaId: ep.id, userId: proj.id, notificar })))?.includes("já foi enviada") === true);
 
     // ── 3. Desfazer ──

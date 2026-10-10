@@ -100,9 +100,11 @@ export async function avisarEtapasProximas(
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
         jaAvisadas++;
-        continue;
+      } else {
+        // Um item com problema não derruba os outros do dia: registra e segue (a próxima rodada tenta de novo).
+        console.error(`[cronograma] aviso da etapa ${e.id} não reservado:`, err);
       }
-      throw err;
+      continue;
     }
 
     const texto = textoAvisoEtapa({
@@ -119,9 +121,9 @@ export async function avisarEtapasProximas(
       );
       avisadas++;
     } catch (err) {
-      // Devolve a reserva: a próxima rodada tenta de novo.
+      // Devolve a reserva: a próxima rodada tenta de novo. E segue para as outras etapas do dia.
       await prisma.avisoEtapaEnviado.deleteMany({ where: chave });
-      throw err;
+      console.error(`[cronograma] aviso da etapa ${e.id} falhou ao notificar:`, err);
     }
   }
   return { avisadas, jaAvisadas };

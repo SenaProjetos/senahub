@@ -54,7 +54,8 @@ export async function buscarResumoJornada(): Promise<ResumoHeader | null> {
   if (!user || !user.ativo || !INTERNAL_ROLES.includes(user.role)) return null;
 
   // Parado, o ponto abre no projeto e na atividade de hoje (reunião de 08/10/2026, decisão 1).
-  // Só calcula quando não há sessão: com sessão aberta quem manda é ela, e o poll fica barato.
+  // Só calcula quando não há sessão: com sessão aberta quem manda é ela. Parado, são 2 consultas leves por poll de 60 s
+  // (projetos da pessoa + cards abertos dela) — aceitável; se pesar, memorizar por pessoa com TTL curto.
   const sugerir = async () => {
     const projetos = await projetosDoUsuario(user.id);
     return sugestaoParaPonto(user.id, new Set(projetos.map((p) => p.id)));

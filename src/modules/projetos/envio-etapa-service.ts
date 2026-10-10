@@ -37,12 +37,13 @@ async function lerEtapa(etapaId: string) {
   return e;
 }
 
-async function destinatarios(projetoId: string, responsaveis: readonly string[]) {
+async function destinatarios(projetoId: string, responsaveis: readonly string[], autorId: string) {
   const coord = await prisma.projetoMembro.findMany({
     where: { projetoId, papel: { contains: "coord", mode: "insensitive" } },
     select: { userId: true },
   });
-  return [...new Set([...responsaveis, ...coord.map((c) => c.userId)])];
+  // Quem enviou (ou desfez) não é avisado do que ele mesmo fez.
+  return [...new Set([...responsaveis, ...coord.map((c) => c.userId)])].filter((id) => id !== autorId);
 }
 
 type Opcoes = { etapaId: string; userId: string; notificar?: typeof notificarMuitos };
@@ -62,7 +63,7 @@ export async function enviarEtapaParaAnalise({ etapaId, userId, notificar = noti
 
   const nome = `${e.disciplina.disciplinaTextoLegado} · ${e.etapa.nome}`;
   await notificar(
-    await destinatarios(e.disciplina.projetoId, responsaveis),
+    await destinatarios(e.disciplina.projetoId, responsaveis, userId),
     {
       titulo: `Etapa enviada para análise: ${nome}`,
       corpo: `${formatarCodigo(e.disciplina.projeto.codigo)} — o projetista sinalizou que enviou todos os documentos desta etapa.`,
@@ -89,7 +90,7 @@ export async function desfazerEnvioEtapa({ etapaId, userId, notificar = notifica
 
   const nome = `${e.disciplina.disciplinaTextoLegado} · ${e.etapa.nome}`;
   await notificar(
-    await destinatarios(e.disciplina.projetoId, responsaveis),
+    await destinatarios(e.disciplina.projetoId, responsaveis, userId),
     {
       titulo: `Envio desfeito: ${nome}`,
       corpo: `${formatarCodigo(e.disciplina.projeto.codigo)} — o projetista desfez o envio desta etapa para análise.`,

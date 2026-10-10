@@ -277,6 +277,14 @@ export const moverTarefa = defineAction(
     // Item 7: marca a data de conclusão ao entrar num status final (preserva a 1ª);
     // limpa ao reabrir (sair de um status concluído).
     const atual = await prisma.tarefa.findUnique({ where: { id: i.id }, select: { concluidaEm: true } });
+    // Primeira conclusão: escrita condicionada a `concluidaEm: null`, para dois cliques (ou dois aparelhos) no "Terminei"
+    // não avisarem duas vezes — só quem de fato gravou a conclusão avisa o gestor.
+    if (destino.concluido && !atual?.concluidaEm) {
+      const g = await prisma.tarefa.updateMany({ where: { id: i.id, concluidaEm: null }, data: { statusId: i.statusId, concluidaEm: new Date() } });
+      if (g.count === 1) await avisarCardConcluido({ tarefaId: i.id, autorId: user.id, autorNome: user.name });
+      rev();
+      return { id: i.id };
+    }
     await prisma.tarefa.update({
       where: { id: i.id },
       data: {
@@ -284,10 +292,6 @@ export const moverTarefa = defineAction(
         concluidaEm: destino.concluido ? (atual?.concluidaEm ?? new Date()) : null,
       },
     });
-    // Concluiu agora (não estava concluída): quem valida a EAP é avisado.
-    if (destino.concluido && !atual?.concluidaEm) {
-      await avisarCardConcluido({ tarefaId: i.id, autorId: user.id, autorNome: user.name });
-    }
     rev();
     return { id: i.id };
   },

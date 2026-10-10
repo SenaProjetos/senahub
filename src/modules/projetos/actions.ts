@@ -199,8 +199,12 @@ export const criarProjeto = defineAction(
         await aplicarModeloNoProjeto({ projetoId: projeto.id, modeloId: input.modeloEapId });
         await aposMudarEap(projeto.id, user.id);
       } catch (e) {
-        if (!(e instanceof ActionError)) throw e;
-        avisoModelo = e.message;
+        // Depois do commit, NADA vira erro: o projeto existe, e quem tentasse de novo criaria um duplicado.
+        if (e instanceof ActionError) avisoModelo = e.message;
+        else {
+          console.error("[projetos] montar a EAP pelo modelo falhou depois de criar o projeto:", e);
+          avisoModelo = "Não foi possível montar a EAP agora. Aplique o modelo pela aba Planejamento.";
+        }
       }
     }
     revalidatePath("/projetos");
