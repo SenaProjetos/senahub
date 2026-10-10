@@ -16,9 +16,9 @@ import { BuscaPermissao, SeloGenero } from "@/components/configuracoes/permissao
  *
  * Era a matriz de 9 colunas de `/configuracoes/permissoes`, que editava a tabela legada
  * `Permissao`. Essa tabela deixou de autorizar na Onda D (`can()` resolve por `PermissaoPerfil`)
- * e a tela virou somente-leitura em 2026-09-02. O que sobrou de verdade foi UMA coluna: a linha
- * do papel `supervisor` na tabela legada é o que `requirePermission` concede a um sócio ativo
- * além do perfil dele (`canRole("supervisor", …)`).
+ * e a tela virou somente-leitura em 2026-09-02; a tabela saiu de vez na Onda F (F1). O que sobrou
+ * de verdade foi UMA coluna: os pares do papel `supervisor` na semente `PERMISSOES_BASE` são o que
+ * `requirePermission` concede a um sócio ativo além do perfil dele (`canRole("supervisor", …)`).
  *
  * As outras 8 colunas eram inércia: só alimentam a matriz dos perfis semente num banco NOVO, e
  * perfil criado pela tela nasce vazio — não copia nada daqui. Mostrá-las sugeria uma referência

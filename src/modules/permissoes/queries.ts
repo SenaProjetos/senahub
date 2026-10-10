@@ -1,13 +1,14 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { ehLeitura } from "@/lib/permissions-catalog";
+import { PERMISSOES_BASE } from "@/lib/permissoes-base";
 
 /**
  * O **piso de sócio**: o que um sócio ativo alcança ALÉM do que o Perfil de acesso dele concede.
  *
  * `requirePermission` (`lib/session.ts`) resolve
- * `can(user, …) || (user.ehSocio && canRole("supervisor", …))`, e `canRole` lê a tabela legada
- * `Permissao` — por isso a linha do papel `supervisor` naquela tabela É o piso, literalmente.
+ * `can(user, …) || (user.ehSocio && canRole("supervisor", …))`, e `canRole` lê a semente
+ * `PERMISSOES_BASE` — por isso os pares do papel `supervisor` nela SÃO o piso, literalmente.
  * Não existe outro lugar no sistema que mostre este eixo de acesso.
  *
  * Duas limitações do piso que a tela precisa dizer, porque são fonte de confusão real:
@@ -37,18 +38,14 @@ export type SocioDoPiso = {
 };
 
 export async function pisoDeSocio(): Promise<{ pares: ParDoPiso[]; socios: SocioDoPiso[] }> {
-  const [rows, socios] = await Promise.all([
-    prisma.permissao.findMany({
-      where: { role: "supervisor", permitido: true },
-      select: { recurso: true, acao: true },
-      orderBy: [{ recurso: "asc" }, { acao: "asc" }],
-    }),
-    prisma.socio.findMany({
-      where: { ativo: true, user: { ativo: true } },
-      select: { user: { select: { id: true, name: true, superUsuario: true } } },
-      orderBy: { user: { name: "asc" } },
-    }),
-  ]);
+  const rows = PERMISSOES_BASE.filter((p) => p.role === "supervisor").sort(
+    (x, y) => x.recurso.localeCompare(y.recurso) || x.acao.localeCompare(y.acao),
+  );
+  const socios = await prisma.socio.findMany({
+    where: { ativo: true, user: { ativo: true } },
+    select: { user: { select: { id: true, name: true, superUsuario: true } } },
+    orderBy: { user: { name: "asc" } },
+  });
 
   return {
     pares: rows.map((r) => ({ recurso: r.recurso, acao: r.acao, escrita: !ehLeitura(r.recurso, r.acao) })),

@@ -202,9 +202,11 @@ client-side, cap 100, count in the confirm, partial-failure report). **Never han
 - `better-auth` for sessions. `middleware.ts` does an *optimistic cookie check* only; real enforcement is in
   Server Components / actions via `requireUser` / `requireRole` / `requirePermission` (`lib/session.ts`).
 - 9 roles (`admin, supervisor, administrativo, clt, estagiario, projetista_pj, freelancer, cliente, ti`).
-  `ti` is the IT role gated to `patrimonio:ti` (machines). `admin` bypasses all permission checks. Fine-grained matrix is data (`Permissao` table), cached per-role
-  in an LRU for 10 min — call `invalidatePermissions(role)` after editing permissions. Catalog seed in
-  `lib/permissions-catalog.ts`.
+  `ti` is the IT role gated to `patrimonio:ti` (machines). `can(subject, r, a)` resolves by `permissaoEfetiva`:
+  `superUsuario` bypass → per-user override (`PermissaoUsuario`) → the person's Perfil de acesso (`PermissaoPerfil`,
+  LRU per perfil, `invalidatePerfil`). The legacy per-role table `Permissao` is gone (Onda F, F1): the per-role seed
+  is the constant `PERMISSOES_BASE` (`lib/permissoes-base.ts`), read only by `canRole` (sócio floor) and by
+  `seedPerfisAcesso` (create-only). Catalog in `lib/permissions-catalog.ts`.
 - Data scope: global roles (`admin`, `supervisor`) see everything; others are filtered (e.g. `escopoProjeto`
   in `modules/projetos/queries.ts`). RH actions gate on `HR_ADMIN_ROLES` (admin + supervisor + administrativo).
   `podeVerTudo(u)` (`roles.ts`) also lets a **sócio** (`User.ehSocio`) read like a supervisor — read-only floor,

@@ -7,7 +7,6 @@ import { MODALIDADES_PADRAO } from "../src/modules/licitacoes/modalidade";
 import { semearEscalaContratacaoPadrao } from "./escalas-padrao";
 import { feriadosNacionais } from "../src/modules/rh/feriados/queries";
 import { seedPerfisAcesso } from "./seed-perfis-acesso";
-import { PERMISSOES_BASE } from "../src/lib/permissoes-base";
 import { seedPropostaComposta } from "./seed-proposta-composta";
 import { semearCatalogoDisciplinas, semearEapCatalogo, semearListaMestre } from "./seed-catalogos";
 import { semearSiglasFaltantes } from "../src/modules/uploads/nomenclatura/siglas-service";
@@ -285,32 +284,8 @@ async function main() {
     console.log(`• Admin já existe: ${ADMIN_EMAIL}`);
   }
 
-  // 2) Permissões base
-  for (const p of PERMISSOES_BASE) {
-    await prisma.permissao.upsert({
-      where: { role_recurso_acao: { role: p.role as never, recurso: p.recurso, acao: p.acao } },
-      create: { role: p.role as never, recurso: p.recurso, acao: p.acao, permitido: true },
-      update: {},
-    });
-  }
-  // Poda: `upsert` só ADICIONA — se uma linha for removida de PERMISSOES_BASE (um role fica
-  // com MENOS acesso), a linha antiga fica órfã no banco com `permitido: true` para sempre,
-  // porque nada nunca a revoga. Achado real: a redução do coordenador (commit a55e9e9) editou
-  // só o array e deixou 23 linhas órfãs (financeiro, usuarios:gerir, rh:folha, patrimonio:ti
-  // etc.) ainda concedidas no banco de dev, apesar do commit dizer "matriz fechada em 20". Só
-  // afeta roles presentes em PERMISSOES_BASE — não mexe em role sem entrada nenhuma na lista.
-  const rolesComBase = new Set(PERMISSOES_BASE.map((p) => p.role));
-  const chavesAtuais = new Set(PERMISSOES_BASE.map((p) => `${p.role}::${p.recurso}:${p.acao}`));
-  const existentes = await prisma.permissao.findMany({
-    where: { role: { in: [...rolesComBase] as never[] } },
-    select: { id: true, role: true, recurso: true, acao: true },
-  });
-  const orfaos = existentes.filter((e) => !chavesAtuais.has(`${e.role}::${e.recurso}:${e.acao}`));
-  if (orfaos.length > 0) {
-    await prisma.permissao.deleteMany({ where: { id: { in: orfaos.map((o) => o.id) } } });
-    console.log(`✔ ${orfaos.length} permissão(ões) órfã(s) podada(s) (removidas de PERMISSOES_BASE mas ainda no banco).`);
-  }
-  console.log(`✔ ${PERMISSOES_BASE.length} permissões base garantidas.`);
+  // 2) Permissões base: não há mais tabela a semear. `PERMISSOES_BASE` (src/lib/permissoes-base.ts)
+  // é lida direto por `canRole` (piso de sócio) e por `seedPerfisAcesso` (passo 12) — Onda F, F1.
 
   // 3) Catálogos editáveis pela tela (disciplinas e Lista Mestre): semeados só em instalação
   // nova — ver `seed-catalogos.ts` pro porquê.
@@ -604,7 +579,7 @@ async function main() {
   // 11) Escala padrão por contratação (corrige a jornada legal do estágio — 6h/dia)
   await semearEscalaContratacaoPadrao();
 
-  // 12) Perfis de acesso semente (Onda B) — espelha `Permissao` (acima) em PerfilAcesso.
+  // 12) Perfis de acesso semente (Onda B) — espelha `PERMISSOES_BASE` em PerfilAcesso.
   // Autorização real segue 100% em `role` até a Onda D; isto só prepara o dado.
   const { perfis } = await seedPerfisAcesso(prisma);
   console.log(`✔ ${perfis.length} perfil(is) de acesso semeado(s): ${perfis.map((p) => p.chave).join(", ")}.`);

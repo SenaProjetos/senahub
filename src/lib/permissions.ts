@@ -1,27 +1,7 @@
 import "server-only";
-import { LruCache } from "@/lib/cache";
 import { prisma } from "@/lib/prisma";
+import { paresBaseDoPapel } from "@/lib/permissoes-base";
 import type { Role } from "@/lib/roles";
-
-/** "recurso:acao" → permitido. Cache por perfil, TTL 10 min. */
-const cache = new LruCache<string, Map<string, boolean>>({ max: 16, ttlMs: 10 * 60_000 });
-
-async function loadRole(role: Role): Promise<Map<string, boolean>> {
-  const cached = cache.get(role);
-  if (cached) return cached;
-
-  const rows = await prisma.permissao.findMany({ where: { role } });
-  const map = new Map<string, boolean>();
-  for (const r of rows) map.set(`${r.recurso}:${r.acao}`, r.permitido);
-  cache.set(role, map);
-  return map;
-}
-
-/** Invalida o cache de um perfil (chamar ao editar permissões). */
-export function invalidatePermissions(role?: Role) {
-  if (role) cache.delete(role);
-  else cache.clear();
-}
 
 /**
  * Quem está sendo autorizado. `can()` recebe o SUJEITO, não o papel — mudança de assinatura
@@ -41,17 +21,17 @@ export type SubjectAutorizacao = {
 };
 
 /**
- * LEGADO — matriz por `role`, direto da tabela `Permissao`. admin tem bypass total.
+ * LEGADO — o que a SEMENTE (`PERMISSOES_BASE`) dá a um papel. admin tem bypass total.
  *
  * Continua exportada porque duas coisas legítimas ainda precisam perguntar "o que o papel X
- * poderia": o **piso de sócio** em `requirePermission` (`can(role) || can("supervisor")`) e o
- * **arnês de equivalência**, que precisa reconstruir a matriz antiga para comparar com a nova.
- * Nenhum gate novo deve chamar isto — use `can(subject, ...)`.
+ * poderia": o **piso de sócio** em `requirePermission` (`can(user) || (ehSocio && canRole("supervisor"))`)
+ * e o **arnês de equivalência**. Até a Onda F lia a tabela `Permissao`, que só repetia a constante;
+ * agora lê a constante direto (bloco F1 do plano). Nenhum gate novo deve chamar isto — use
+ * `can(subject, ...)`.
  */
 export async function canRole(role: Role, recurso: string, acao: string): Promise<boolean> {
   if (role === "admin") return true;
-  const map = await loadRole(role);
-  return map.get(`${recurso}:${acao}`) ?? false;
+  return paresBaseDoPapel(role).has(`${recurso}:${acao}`);
 }
 
 /**

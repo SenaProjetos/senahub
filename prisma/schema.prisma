@@ -617,20 +617,8 @@ model SolicitacaoResetSenha {
 // Permissões finas (recurso:ação), configuráveis em runtime
 // ─────────────────────────────────────────────────────────────
 
-/// LEGADO — matriz por `role`. Continua sendo a fonte de autorização REAL até a Onda D.
-/// Não é migrado in-place: fica congelado como leitura legada durante a coexistência e é
-/// dropado na Onda F, quando `PermissaoPerfil` já tiver assumido o papel.
-model Permissao {
-  id        String  @id @default(cuid())
-  role      Role
-  recurso   String
-  acao      String
-  permitido Boolean @default(true)
-
-  @@unique([role, recurso, acao])
-  @@index([role])
-  @@map("permissao")
-}
+// A matriz legada por papel (`model Permissao`) saiu na Onda F (bloco F1): só repetia a
+// semente `PERMISSOES_BASE` (src/lib/permissoes-base.ts), que agora é lida direto.
 
 /// Perfil de acesso nomeado e cadastrável — o "o que a pessoa pode fazer", independente de
 /// Setor/Contratação (que não concedem permissão nenhuma). Plano: Onda A do documento em

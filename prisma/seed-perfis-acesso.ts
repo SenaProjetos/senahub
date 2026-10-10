@@ -2,15 +2,12 @@
  * Perfis semente (Onda B da separação Setor × Contratação × Perfil de acesso).
  * Plano: docs/superpowers/plans/2026-07-27-setor-contratacao-perfil-acesso.md (§8, Onda B)
  *
- * Lê a tabela `Permissao` (legado, já semeada por `db:seed`) e espelha um `PerfilAcesso` +
- * `PermissaoPerfil[]` por role — em vez de importar `PERMISSOES_BASE` de `prisma/seed.ts`.
- * Duas razões: (1) evita editar de novo um arquivo com trabalho concorrente de outro módulo
- * (Engenharia de Custos) misturado; (2) o espelho fica automaticamente correto mesmo que
- * OUTRO módulo adicione linhas a `PERMISSOES_BASE` depois — lê o estado real da tabela, não
- * uma constante que pode ficar desatualizada.
+ * Espelha um `PerfilAcesso` + `PermissaoPerfil[]` por papel a partir de `PERMISSOES_BASE`
+ * (`src/lib/permissoes-base.ts`). Até a Onda F lia a tabela `Permissao`, que só repetia a
+ * constante; a tabela saiu e a constante é a fonte única (bloco F1).
  *
  * Um perfil por ROLE ATUAL (não por função): `clt` e `projetista_pj` fazem hoje a mesma
- * função de projetista, mas têm matrizes DIFERENTES em `Permissao` (ex.: só `clt` tem
+ * função de projetista, mas têm matrizes DIFERENTES na semente (ex.: só `clt` tem
  * `arquivos:ver_todas_disciplinas`) — consolidar os dois num único perfil "Projetista" agora
  * quebraria o espelho fiel que esta onda promete. Essa consolidação é o objetivo de fundo da
  * reforma inteira, mas é uma decisão CONSCIENTE de reconciliar as diferenças, não algo pra
@@ -18,6 +15,7 @@
  */
 import type { PrismaClient } from "@/generated/prisma/client";
 import { ROLES, type Role } from "@/lib/roles";
+import { PERMISSOES_BASE } from "@/lib/permissoes-base";
 import { CHAVE_POR_ROLE, NOME_POR_ROLE } from "@/modules/usuarios/vinculo/perfil-semente";
 
 export { CHAVE_POR_ROLE };
@@ -73,17 +71,15 @@ export async function seedPerfisAcesso(prisma: PrismaClient): Promise<ResultadoS
       continue;
     }
 
-    const linhasLegado = await prisma.permissao.findMany({
-      where: { role },
-      select: { recurso: true, acao: true, permitido: true },
-    });
+    const linhas = PERMISSOES_BASE.filter((p) => p.role === role).map((p) => ({
+      perfilId: perfil.id,
+      recurso: p.recurso,
+      acao: p.acao,
+      permitido: true,
+    }));
 
-    const linhas = linhasLegado
-      .filter((l) => l.permitido)
-      .map((l) => ({ perfilId: perfil.id, recurso: l.recurso, acao: l.acao, permitido: true }));
-
-    // Escopo de dados (`escopo:global`, sintético — não passa por `Permissao`, por isso não vem do
-    // legado acima): só o Coordenador recebe. Histórico da decisão, porque ela já mudou uma vez:
+    // Escopo de dados (`escopo:global`, sintético — não está em `PERMISSOES_BASE`, por isso
+    // não vem da semente acima): só o Coordenador recebe. Histórico da decisão, porque ela já mudou uma vez:
     //   - 2026-07-28 (§9.7): NENHUM perfil semente recebia — a empresa ia para gestores por setor.
     //   - 2026-09-04: revogada pelo dono — "Coordenador é geral, vê todos os projetos"; a
     //     subdivisão por disciplina vem depois e vai RESTRINGIR este escopo, não ampliar.
