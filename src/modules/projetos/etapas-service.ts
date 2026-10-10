@@ -1,6 +1,7 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { consolidarPrazoDisciplina } from "./etapas";
+import { etapasPadrao, type TipoProjeto } from "./etapas-padrao";
 
 /**
  * Consolidação do prazo da disciplina a partir das etapas (F4.2) — o ponto ÚNICO que as
@@ -49,4 +50,35 @@ export async function sincronizarPrazoDisciplina(
     });
   }
   return final;
+}
+
+/**
+ * Cria as etapas padrão (áudio do dono, 2026-10-10) nas disciplinas recém-criadas: Estudo Preliminar,
+ * Básico e Executivo, ou só Básico e Executivo no tipo de empreendimento sem EP. Percentual 0 — o
+ * coordenador preenche, e o pagamento por fase espera a soma fechar 100%. Fase que não estiver no
+ * catálogo (ou inativa) é pulada; etapa que já existe fica como está.
+ */
+export async function semearEtapasPadrao(
+  tx: Prisma.TransactionClient,
+  disciplinaIds: readonly string[],
+  p: { tipoProjeto: TipoProjeto; tipoEmpreendimentoId: string | null },
+): Promise<number> {
+  if (disciplinaIds.length === 0) return 0;
+  const tipo = p.tipoEmpreendimentoId
+    ? await tx.tipoEmpreendimento.findUnique({ where: { id: p.tipoEmpreendimentoId }, select: { semEstudoPreliminar: true } })
+    : null;
+  const siglas = etapasPadrao({ tipoProjeto: p.tipoProjeto, semEstudoPreliminar: tipo?.semEstudoPreliminar ?? false });
+  if (siglas.length === 0) return 0;
+  const fases = await tx.pranchaCatalogo.findMany({
+    where: { categoria: "fase", projetoId: null, ativo: true, sigla: { in: siglas } },
+    select: { id: true, sigla: true },
+  });
+  const ordenadas = siglas.map((s) => fases.find((f) => f.sigla === s)).filter((f): f is { id: string; sigla: string } => f != null);
+  const r = await tx.disciplinaEtapa.createMany({
+    data: disciplinaIds.flatMap((disciplinaId) =>
+      ordenadas.map((f, ordem) => ({ disciplinaId, etapaId: f.id, percentual: 0, ordem })),
+    ),
+    skipDuplicates: true,
+  });
+  return r.count;
 }

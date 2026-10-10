@@ -3047,6 +3047,9 @@ model DisciplinaEtapa {
   etapaId String
   etapa   PranchaCatalogo @relation("DisciplinaEtapaFase", fields: [etapaId], references: [id], onDelete: Restrict)
 
+  /// Início da etapa no card (áudio do dono, 2026-10-10): o projetista vê início e fim de cada etapa. Preenchido À MÃO
+  /// pela coordenação olhando a EAP — o card não é ligado à EAP. Nulo = ainda não informado.
+  inicio     DateTime?        @db.Date
   prazo      DateTime?        @db.Date
   status     StatusDisciplina @default(aguardando)
   /// Quando a etapa foi entregue/aprovada — mesmo papel de `Disciplina.entregueEm`.
@@ -5459,6 +5462,9 @@ model TipoEmpreendimento {
   nome        String       @unique
   ativo       Boolean      @default(true)
   ordem       Int          @default(0)
+  /// Este tipo não tem Estudo Preliminar: o projeto nasce só com Básico e Executivo (áudio do dono, 2026-10-10 —
+  /// Residencial unifamiliar). Os demais nascem com Estudo Preliminar, Básico e Executivo.
+  semEstudoPreliminar Boolean @default(false)
   negociacoes Negociacao[]
   projetos    Projeto[]
   modelosEap  ModeloEap[]

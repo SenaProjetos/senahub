@@ -49,7 +49,7 @@ import {
   motivoParaNaoConcluirProjeto,
 } from "@/modules/projetos/status";
 import { etapaQueDefineOPrazo } from "@/modules/projetos/etapas";
-import { sincronizarPrazoDisciplina } from "@/modules/projetos/etapas-service";
+import { semearEtapasPadrao, sincronizarPrazoDisciplina } from "@/modules/projetos/etapas-service";
 import { semearPastasTemplate, projetoUsaTemplate } from "@/modules/projetos/pastas/seed";
 import { sincronizarPagamentosPorDisciplinaId } from "@/modules/uploads/pagamento";
 import { duplicarProjetoNoBanco } from "@/modules/projetos/duplicar-service";
@@ -166,6 +166,7 @@ export const criarProjeto = defineAction(
         },
       });
       const catalogo = input.disciplinas.length > 0 ? await catalogoDeDisciplinas(tx) : [];
+      const criadas: string[] = [];
       for (const [i, d] of input.disciplinas.entries()) {
         const disc = await tx.disciplina.create({
           data: {
@@ -181,7 +182,10 @@ export const criarProjeto = defineAction(
         if (usaEstruturaCustom(input.tipo)) {
           await semearPastasTemplate(tx, disc.id, input.tipo);
         }
+        criadas.push(disc.id);
       }
+      // Áudio do dono (2026-10-10): toda disciplina nasce com as etapas do ciclo de projeto, a 0%.
+      await semearEtapasPadrao(tx, criadas, { tipoProjeto: input.tipo, tipoEmpreendimentoId: input.tipoEmpreendimentoId ?? null });
       return p;
     });
     refletirSincroniaCanais(await ensureCanaisProjeto(projeto.id));
@@ -758,7 +762,7 @@ export const criarDisciplina = defineAction(
   async (input) => {
     const projeto = await prisma.projeto.findUnique({
       where: { id: input.projetoId },
-      select: { id: true, tipo: true, prazoPlanejado: true },
+      select: { id: true, tipo: true, prazoPlanejado: true, tipoEmpreendimentoId: true },
     });
     if (!projeto) throw new ActionError("Projeto não encontrado.");
 
@@ -789,6 +793,7 @@ export const criarDisciplina = defineAction(
           ordem: (maxOrdem._max.ordem ?? 0) + 1,
         },
       });
+      await semearEtapasPadrao(tx, [d.id], { tipoProjeto: projeto.tipo, tipoEmpreendimentoId: projeto.tipoEmpreendimentoId });
       if (input.responsaveisIds.length > 0) {
         await tx.disciplinaResponsavel.createMany({
           data: input.responsaveisIds.map((userId) => ({ disciplinaId: d.id, userId })),
@@ -1127,6 +1132,7 @@ export const adicionarDisciplinasDoCatalogo = defineAction(
       select: {
         id: true,
         tipo: true,
+        tipoEmpreendimentoId: true,
         disciplinas: { select: { disciplinaTextoLegado: true, ordem: true } },
       },
     });
@@ -1153,6 +1159,7 @@ export const adicionarDisciplinasDoCatalogo = defineAction(
           },
         });
         if (semear) await semearPastasTemplate(tx, d.id, projeto.tipo);
+        await semearEtapasPadrao(tx, [d.id], { tipoProjeto: projeto.tipo, tipoEmpreendimentoId: projeto.tipoEmpreendimentoId });
       }
     });
 
