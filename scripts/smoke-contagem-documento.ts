@@ -60,7 +60,7 @@ async function main() {
     if (!cond) ok = false;
   };
 
-  const autor = await prisma.user.findFirst({ where: { ativo: true }, select: { id: true } });
+  const autor = await prisma.user.findFirst({ where: { superUsuario: true, ativo: true }, select: { id: true } });
   if (!autor) throw new Error("Banco de dev sem usuário ativo.");
 
   let clienteId = "";

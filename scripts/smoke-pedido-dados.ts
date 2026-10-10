@@ -51,7 +51,7 @@ async function main() {
     select: { id: true, name: true, ...TODOS, dadosConfirmadosEm: true, preference: { select: { dados: true } } },
   });
   if (!pessoa) throw new Error("Nenhuma pessoa CLT/estágio ativa sem pedido aberto no banco de dev.");
-  const rh = await prisma.user.findFirst({ where: { ativo: true }, select: { id: true } });
+  const rh = await prisma.user.findFirst({ where: { superUsuario: true, ativo: true }, select: { id: true } });
   console.log(`Pessoa de teste: ${pessoa.name}`);
   const dadosAntes = pessoa.preference?.dados ?? null;
 

@@ -131,10 +131,10 @@ async function main() {
     // Usuários throwaway: o isolamento precisa de dois escopos disjuntos de verdade, e depender
     // do dataset existente do dev tornaria o resultado diferente a cada máquina.
     const usuarioA = await prisma.user.create({
-      data: { name: `${TAG}_A`, email: `${TAG.toLowerCase()}_a@smoke.local`, tipo: "interno", ativo: true },
+      data: { name: `${TAG}_A`, email: `${TAG.toLowerCase()}_a@smoke.local`, tipo: "interno", contratacao: "pj", perfil: { connect: { chave: "projetista_pj" } }, ativo: true },
     });
     const usuarioB = await prisma.user.create({
-      data: { name: `${TAG}_B`, email: `${TAG.toLowerCase()}_b@smoke.local`, tipo: "interno", ativo: true },
+      data: { name: `${TAG}_B`, email: `${TAG.toLowerCase()}_b@smoke.local`, tipo: "interno", contratacao: "pj", perfil: { connect: { chave: "projetista_pj" } }, ativo: true },
     });
     usuarios.push(usuarioA.id, usuarioB.id);
 

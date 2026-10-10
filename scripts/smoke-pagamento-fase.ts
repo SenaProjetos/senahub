@@ -48,7 +48,7 @@ const tag = `smoke-fase-${Date.now()}`;
 const soma = (xs: { valor: unknown }[]) => Math.round(xs.reduce((s, x) => s + Number(x.valor), 0) * 100) / 100;
 
 async function main() {
-  const admin = await prisma.user.findFirst({ where: { }, select: { id: true } });
+  const admin = await prisma.user.findFirst({ where: { superUsuario: true, ativo: true }, select: { id: true } });
   if (!admin) throw new Error("Sem usuário admin no banco de dev — rode npm run db:seed.");
   const fasesCat = await prisma.pranchaCatalogo.findMany({
     where: { categoria: "fase", projetoId: null, ativo: true },
@@ -58,9 +58,9 @@ async function main() {
   });
   if (fasesCat.length < 3) throw new Error("O catálogo de fases do dev tem menos de 3 fases ativas.");
 
-  const pjA = await prisma.user.create({ data: { name: `${tag}-A`, email: `${tag}-a@teste.local`, tipo: "interno", emailVerified: false } });
-  const pjB = await prisma.user.create({ data: { name: `${tag}-B`, email: `${tag}-b@teste.local`, tipo: "interno", emailVerified: false } });
-  const clt = await prisma.user.create({ data: { name: `${tag}-C`, email: `${tag}-c@teste.local`, tipo: "interno", emailVerified: false } });
+  const pjA = await prisma.user.create({ data: { name: `${tag}-A`, email: `${tag}-a@teste.local`, tipo: "interno", contratacao: "pj", perfil: { connect: { chave: "projetista_pj" } }, emailVerified: false } });
+  const pjB = await prisma.user.create({ data: { name: `${tag}-B`, email: `${tag}-b@teste.local`, tipo: "interno", contratacao: "autonomo_rpa", perfil: { connect: { chave: "freelancer" } }, emailVerified: false } });
+  const clt = await prisma.user.create({ data: { name: `${tag}-C`, email: `${tag}-c@teste.local`, tipo: "interno", contratacao: "clt", perfil: { connect: { chave: "clt" } }, emailVerified: false } });
   const cliente = await prisma.cliente.create({ data: { nome: `${tag}-cliente` } });
   const projeto = await prisma.projeto.create({
     data: {

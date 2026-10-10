@@ -115,7 +115,7 @@ async function main() {
 
   if (!base) throw new Error("log de query não ligou — `PRISMA_LOG_QUERIES` precisa valer 1 ANTES do import do client.");
 
-  const user = await prisma.user.findFirst({ where: { ativo: true }, select: { id: true } });
+  const user = await prisma.user.findFirst({ where: { superUsuario: true, ativo: true }, select: { id: true } });
   const etapa = await prisma.funilEtapa.findFirst({ select: { id: true } });
   if (!user || !etapa) throw new Error("dev incompleto — rode `npm run db:seed`.");
 

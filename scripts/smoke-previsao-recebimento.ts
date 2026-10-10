@@ -61,7 +61,7 @@ const tag = `smoke-previsao-${Date.now()}`;
 const d = (s: string) => new Date(`${s}T00:00:00.000Z`);
 
 async function main() {
-  const admin = await prisma.user.findFirst({ where: { }, select: { id: true } });
+  const admin = await prisma.user.findFirst({ where: { superUsuario: true, ativo: true }, select: { id: true } });
   if (!admin) throw new Error("Sem usuário admin no banco de dev — rode npm run db:seed.");
   const hoje = paraDia(inicioDoDiaUtc());
   const ontem = paraDia(new Date(inicioDoDiaUtc().getTime() - 86_400_000));

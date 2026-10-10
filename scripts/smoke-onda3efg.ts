@@ -16,12 +16,12 @@ async function main() {
     if (!cond) ok = false;
   };
 
-  const admin = await prisma.user.findFirst({ where: { } });
+  const admin = await prisma.user.findFirst({ where: { superUsuario: true, ativo: true } });
   if (!admin) throw new Error("Admin não encontrado (rode o seed).");
 
   // ── 3e: Folha CLT ────────────────────────────────────────────
   const clt = await prisma.user.create({
-    data: { name: `${tag}_clt`, email: `${tag}@t.local`, tipo: "interno", ativo: true },
+    data: { name: `${tag}_clt`, email: `${tag}@t.local`, tipo: "interno", contratacao: "clt", perfil: { connect: { chave: "clt" } }, ativo: true },
   });
   const folha = await prisma.folhaPagamento.create({ data: { ano: 2099, mes: 1 } });
 
@@ -109,7 +109,7 @@ async function main() {
 
   // ── 3g: NF de PJ ─────────────────────────────────────────────
   const pj = await prisma.user.create({
-    data: { name: `${tag}_pj`, email: `${tag}_pj@t.local`, tipo: "interno", ativo: true },
+    data: { name: `${tag}_pj`, email: `${tag}_pj@t.local`, tipo: "interno", contratacao: "pj", perfil: { connect: { chave: "projetista_pj" } }, ativo: true },
   });
   const nf = await prisma.notaFiscalPJ.create({
     data: {

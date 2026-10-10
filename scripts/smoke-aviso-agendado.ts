@@ -22,7 +22,7 @@ async function main() {
     if (!cond) ok = false;
   };
 
-  const autor = await prisma.user.findFirst({ where: { ativo: true } });
+  const autor = await prisma.user.findFirst({ where: { superUsuario: true, ativo: true } });
   if (!autor) throw new Error("Sem usuário admin no banco de dev — rode `npm run db:seed`.");
 
   const alvos = await prisma.user.findMany({

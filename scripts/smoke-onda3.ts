@@ -19,11 +19,14 @@ async function main() {
     if (!cond) ok = false;
   };
 
+  // Sem papel (Onda F): o acesso ao chat vem do perfil de acesso semente.
+  const perfil = async (chave: string) =>
+    (await prisma.perfilAcesso.findUniqueOrThrow({ where: { chave }, select: { id: true } })).id;
   const clt = await prisma.user.create({
-    data: { name: `${tag}_clt`, email: `${tag}_clt@t.local`, tipo: "interno", ativo: true },
+    data: { name: `${tag}_clt`, email: `${tag}_clt@t.local`, tipo: "interno", contratacao: "clt", perfilId: await perfil("clt"), ativo: true },
   });
   const freela = await prisma.user.create({
-    data: { name: `${tag}_free`, email: `${tag}_free@t.local`, tipo: "interno", ativo: true },
+    data: { name: `${tag}_free`, email: `${tag}_free@t.local`, tipo: "interno", contratacao: "autonomo_rpa", perfilId: await perfil("freelancer"), ativo: true },
   });
   const cliente = await prisma.cliente.create({ data: { tipo: "PJ", nome: `${tag}_cli` } });
   const projeto = await prisma.$transaction(async (tx) => {
@@ -62,7 +65,7 @@ async function main() {
   check("#geral exclui freelancer (sem `chat:geral` na semente)", !setGeral.has(freela.id));
 
   // 3) DM idempotente: mesma dupla → mesmo canal
-  const admin = await prisma.user.findFirst({ where: { } });
+  const admin = await prisma.user.findFirst({ where: { superUsuario: true, ativo: true } });
   const dm1 = await getOrCreateDM(admin!.id, clt.id);
   const dm2 = await getOrCreateDM(clt.id, admin!.id);
   check("getOrCreateDM retorna o mesmo canal para a dupla", dm1.id === dm2.id);

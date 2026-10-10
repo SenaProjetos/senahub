@@ -39,7 +39,7 @@ async function main() {
       name: `${tag}_clt`,
       nomeCompleto: `${tag} Nome Completo`,
       email: `${tag}_clt@t.local`,
-      tipo: "interno",
+      tipo: "interno", contratacao: "clt",
       ativo: true,
       cpf: "00000000000",
       rg: "MG-00.000.000",
@@ -59,7 +59,7 @@ async function main() {
     },
   });
   const pj = await prisma.user.create({
-    data: { name: `${tag}_pj`, email: `${tag}_pj@t.local`, tipo: "interno", ativo: true },
+    data: { name: `${tag}_pj`, email: `${tag}_pj@t.local`, tipo: "interno", contratacao: "pj", perfil: { connect: { chave: "projetista_pj" } }, ativo: true },
   });
 
   try {

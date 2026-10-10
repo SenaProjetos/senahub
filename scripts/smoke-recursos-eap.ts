@@ -50,17 +50,17 @@ const tag = `smoke-recursos-${Date.now()}`;
 const d = (s: string) => new Date(`${s}T00:00:00.000Z`);
 
 async function main() {
-  const admin = await prisma.user.findFirst({ where: { }, select: { id: true } });
+  const admin = await prisma.user.findFirst({ where: { superUsuario: true, ativo: true }, select: { id: true } });
   if (!admin) throw new Error("Sem usuário admin no banco de dev — rode npm run db:seed.");
   const cli = await prisma.eapCatalogo.findFirst({ where: { categoria: "origem", sigla: "CLI", projetoId: null } });
   if (!cli) throw new Error("Catálogo de origem sem CLI — rode npm run db:seed.");
 
   // Nomes com prefixo A/B: a herança escolhe o principal por nome.
   const pjA = await prisma.user.create({
-    data: { name: `${tag}-A`, email: `${tag}-a@teste.local`, tipo: "interno", emailVerified: false },
+    data: { name: `${tag}-A`, email: `${tag}-a@teste.local`, tipo: "interno", contratacao: "pj", perfil: { connect: { chave: "projetista_pj" } }, emailVerified: false },
   });
   const pjB = await prisma.user.create({
-    data: { name: `${tag}-B`, email: `${tag}-b@teste.local`, tipo: "interno", emailVerified: false },
+    data: { name: `${tag}-B`, email: `${tag}-b@teste.local`, tipo: "interno", contratacao: "pj", perfil: { connect: { chave: "projetista_pj" } }, emailVerified: false },
   });
   const cliente = await prisma.cliente.create({ data: { nome: `${tag}-cliente` } });
   const projeto = await prisma.projeto.create({
@@ -316,7 +316,7 @@ async function main() {
     );
     // Alguém sem custo/hora aponta: o CR em R$ fica desconhecido (nunca zero) — horas seguem.
     const intruso = await prisma.user.create({
-      data: { name: `${tag}-C`, email: `${tag}-c@teste.local`, tipo: "interno", emailVerified: false },
+      data: { name: `${tag}-C`, email: `${tag}-c@teste.local`, tipo: "interno", contratacao: "clt", perfil: { connect: { chave: "clt" } }, emailVerified: false },
     });
     await prisma.sessaoTrabalho.create({
       data: {

@@ -30,7 +30,7 @@ function check(nome: string, ok: boolean, detalhe?: unknown) {
 const tag = `smoke-sync-${Date.now()}`;
 
 async function main() {
-  const admin = await prisma.user.findFirst({ where: { }, select: { id: true } });
+  const admin = await prisma.user.findFirst({ where: { superUsuario: true, ativo: true }, select: { id: true } });
   if (!admin) throw new Error("Sem usuário admin no banco de dev — rode npm run db:seed.");
 
   // Lote throwaway vive no ano 2999 sob @@unique([ano, mes]): se um run anterior morreu
@@ -44,10 +44,10 @@ async function main() {
 
   // Dois projetistas PJ throwaway.
   const pjA = await prisma.user.create({
-    data: { name: `${tag}-A`, email: `${tag}-a@teste.local`, tipo: "interno", emailVerified: false },
+    data: { name: `${tag}-A`, email: `${tag}-a@teste.local`, tipo: "interno", contratacao: "pj", perfil: { connect: { chave: "projetista_pj" } }, emailVerified: false },
   });
   const pjB = await prisma.user.create({
-    data: { name: `${tag}-B`, email: `${tag}-b@teste.local`, tipo: "interno", emailVerified: false },
+    data: { name: `${tag}-B`, email: `${tag}-b@teste.local`, tipo: "interno", contratacao: "pj", perfil: { connect: { chave: "projetista_pj" } }, emailVerified: false },
   });
 
   const cliente = await prisma.cliente.create({ data: { nome: `${tag}-cliente` } });
@@ -158,10 +158,10 @@ async function main() {
   // via F4 NÃO deve ser desfeito na próxima sincronização por responsáveis, porque
   // sincronizarValorDisciplina mantém Disciplina.valor == soma dos pagamentos vivos.
   const pjC = await prisma.user.create({
-    data: { name: `${tag}-C`, email: `${tag}-c@teste.local`, tipo: "interno", emailVerified: false },
+    data: { name: `${tag}-C`, email: `${tag}-c@teste.local`, tipo: "interno", contratacao: "pj", perfil: { connect: { chave: "projetista_pj" } }, emailVerified: false },
   });
   const pjD = await prisma.user.create({
-    data: { name: `${tag}-D`, email: `${tag}-d@teste.local`, tipo: "interno", emailVerified: false },
+    data: { name: `${tag}-D`, email: `${tag}-d@teste.local`, tipo: "interno", contratacao: "pj", perfil: { connect: { chave: "projetista_pj" } }, emailVerified: false },
   });
   const disc2 = await prisma.disciplina.create({
     data: {

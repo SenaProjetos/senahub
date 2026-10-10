@@ -18,7 +18,7 @@ async function main() {
   };
 
   const u = await prisma.user.create({
-    data: { name: `${tag}`, email: `${tag}@t.local`, tipo: "interno", ativo: true, telefone: "1111" },
+    data: { name: `${tag}`, email: `${tag}@t.local`, tipo: "interno", contratacao: "clt", perfil: { connect: { chave: "clt" } }, ativo: true, telefone: "1111" },
   });
 
   try {

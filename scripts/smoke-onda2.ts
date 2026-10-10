@@ -19,7 +19,7 @@ async function main() {
     if (!cond) ok = false;
   };
 
-  const admin = await prisma.user.findFirst({ where: { } });
+  const admin = await prisma.user.findFirst({ where: { superUsuario: true, ativo: true } });
   if (!admin) throw new Error("Admin não encontrado (rode o seed).");
 
   const conta = await prisma.contaBancaria.create({
@@ -50,7 +50,7 @@ async function main() {
   // 2) Projeto + disciplina + validação → pagamento; pagar gera despesa PJ
   const cliente = await prisma.cliente.create({ data: { tipo: "PJ", nome: `${tag}_cli` } });
   const projetista = await prisma.user.create({
-    data: { name: `${tag}_pj`, email: `${tag}@t.local`, tipo: "interno", ativo: true },
+    data: { name: `${tag}_pj`, email: `${tag}@t.local`, tipo: "interno", contratacao: "pj", perfil: { connect: { chave: "projetista_pj" } }, ativo: true },
   });
   const projeto = await prisma.$transaction(async (tx) => {
     const { ano, sequencial, codigo } = await proximoCodigoProjeto(tx);

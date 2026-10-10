@@ -21,7 +21,7 @@ async function main() {
   };
   const d = (s: string) => new Date(s + "T00:00:00");
 
-  const admin = await prisma.user.findFirst({ where: { } });
+  const admin = await prisma.user.findFirst({ where: { superUsuario: true, ativo: true } });
   if (!admin) throw new Error("Admin não encontrado.");
 
   // Cliente + projeto throwaway com 1 disciplina

@@ -40,7 +40,7 @@ async function main() {
         data: {
           name: `${marca}-${papel}`,
           email: `${marca}-${papel}@teste.local`,
-          tipo: "interno",
+          tipo: "interno", contratacao: "clt",
           setor: papel === "limitado" ? "engenharia" : null,
           perfilId: papel === "autorizado" ? perfil.id : null,
         },

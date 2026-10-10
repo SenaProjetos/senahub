@@ -26,7 +26,7 @@ async function main() {
     if (!cond) ok = false;
   };
 
-  const usuario = await prisma.user.findFirst({ where: { ativo: true }, select: { id: true, name: true } });
+  const usuario = await prisma.user.findFirst({ where: { superUsuario: true, ativo: true }, select: { id: true, name: true } });
   if (!usuario) throw new Error("Banco de dev sem usuário ativo.");
 
   const cliente = await prisma.cliente.create({ data: { tipo: "PJ", nome: `${tag}_cli` } });

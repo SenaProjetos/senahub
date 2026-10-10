@@ -71,7 +71,7 @@ async function main() {
   };
 
   const [user, etapa] = await Promise.all([
-    prisma.user.findFirst({ where: { ativo: true }, select: { id: true } }),
+    prisma.user.findFirst({ where: { superUsuario: true, ativo: true }, select: { id: true } }),
     prisma.funilEtapa.findFirst({ where: { ativo: true }, orderBy: { ordem: "asc" }, select: { id: true } }),
   ]);
   if (!user || !etapa) throw new Error("dev incompleto — rode `npm run db:seed`.");

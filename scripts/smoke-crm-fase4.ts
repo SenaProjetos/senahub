@@ -51,7 +51,7 @@ async function main() {
     if (!cond) ok = false;
   };
 
-  const user = await prisma.user.findFirst({ where: { ativo: true }, select: { id: true } });
+  const user = await prisma.user.findFirst({ where: { superUsuario: true, ativo: true }, select: { id: true } });
   if (!user) throw new Error("dev incompleto — rode `npm run db:seed`.");
   const [canalLinkedin, canalIndicacao] = await Promise.all([
     prisma.canalAquisicao.findFirst({

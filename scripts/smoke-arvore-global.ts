@@ -50,7 +50,7 @@ async function main() {
     if (!cond) ok = false;
   };
 
-  const admin = await prisma.user.findFirst({ where: { ativo: true } });
+  const admin = await prisma.user.findFirst({ where: { superUsuario: true, ativo: true } });
   if (!admin) throw new Error("Banco de dev sem admin.");
 
   // ── 1. contagens de área × consultas por projeto, no dado real ────────────
@@ -99,10 +99,10 @@ async function main() {
   const usuarios: string[] = [];
   try {
     const dono = await prisma.user.create({
-      data: { name: `${TAG}_dono`, email: `${TAG.toLowerCase()}_dono@smoke.local`, tipo: "interno", ativo: true },
+      data: { name: `${TAG}_dono`, email: `${TAG.toLowerCase()}_dono@smoke.local`, tipo: "interno", contratacao: "pj", perfil: { connect: { chave: "projetista_pj" } }, ativo: true },
     });
     const estranho = await prisma.user.create({
-      data: { name: `${TAG}_fora`, email: `${TAG.toLowerCase()}_fora@smoke.local`, tipo: "interno", ativo: true },
+      data: { name: `${TAG}_fora`, email: `${TAG.toLowerCase()}_fora@smoke.local`, tipo: "interno", contratacao: "pj", perfil: { connect: { chave: "projetista_pj" } }, ativo: true },
     });
     usuarios.push(dono.id, estranho.id);
 

@@ -35,7 +35,7 @@ async function main() {
     if (!cond) ok = false;
   };
 
-  const usuario = await prisma.user.findFirst({ where: { ativo: true }, select: { id: true } });
+  const usuario = await prisma.user.findFirst({ where: { superUsuario: true, ativo: true }, select: { id: true } });
   if (!usuario) throw new Error("Banco de dev sem usuário ativo.");
   const fase = await prisma.pranchaCatalogo.findFirst({ where: { categoria: "fase", ativo: true, projetoId: null }, select: { id: true } });
   if (!fase) throw new Error("Banco de dev sem fase no catálogo.");
