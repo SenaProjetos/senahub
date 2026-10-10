@@ -21,7 +21,8 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { aplicarBatida, editarDia } from "../src/modules/ponto/service";
-import { tarefasParaPonto } from "../src/modules/ponto/tarefa-ponto-service";
+import { sugestaoParaPonto, tarefasParaPonto } from "../src/modules/ponto/tarefa-ponto-service";
+import { projetosDoUsuario } from "../src/modules/ponto/queries";
 import { abrirApontamento, fecharApontamento } from "../src/modules/ponto/apontamento";
 import { eapDoProjeto } from "../src/modules/planejamento/queries";
 import { progressoDoStatus } from "../src/modules/projetos/status";
@@ -102,6 +103,24 @@ async function main() {
     check("lista curta: card de EAP fora do período NÃO entra", !ids.includes(tFutura.id));
     check("lista curta: card de outra pessoa, de outro projeto e concluído NÃO entram", !ids.includes(tDoJoao.id) && !ids.includes(tOutroProj.id) && (!tConcluida || !ids.includes(tConcluida.id)));
     check("lista curta: o card na janela exata vem primeiro", ids[0] === tAgora.id, ids);
+
+    // ── 1b. Reunião de 08/10/2026 (decisão 1): atrasada não some, ponto abre na atividade de hoje ──
+    const linhaAtrasada = await prisma.eapTarefa.create({
+      data: { projetoId: proj.id, nome: "Lançamento", tipoEap: "atv", duracaoDias: 5, inicioPrevisto: d(dia(-30)), fimPrevisto: d(dia(-20)) },
+    });
+    const tAtrasada = await card("Lançamento", proj.id, [maria.id], { eapTarefaId: linhaAtrasada.id });
+    const lista2 = await tarefasParaPonto(maria.id, proj.id);
+    const atr = lista2.find((t) => t.id === tAtrasada.id);
+    check("atrasada aberta (término há 20 dias) continua na lista, marcada e no topo", atr?.atrasada === true && lista2[0]?.id === tAtrasada.id, lista2);
+    const meus = await projetosDoUsuario(maria.id);
+    check("quem só tem card no projeto (não é membro) vê o projeto no seletor do ponto", meus.some((p) => p.id === proj.id));
+    const sug = await sugestaoParaPonto(maria.id, new Set(meus.map((p) => p.id)));
+    check("sugestão do ponto parado = a atividade atrasada, no projeto dela", sug?.tarefa.id === tAtrasada.id && sug?.projeto.id === proj.id, sug);
+    const semProjetos = await sugestaoParaPonto(maria.id, new Set());
+    check("sem projeto no seletor, sem sugestão", semProjetos === null);
+    await prisma.tarefa.delete({ where: { id: tAtrasada.id } });
+    const sug2 = await sugestaoParaPonto(maria.id, new Set(meus.map((p) => p.id)));
+    check("sem atrasada, a sugestão é a da janela de hoje", sug2?.tarefa.id === tAgora.id, sug2);
 
     // ── 2. Entrada com tarefa ──────────────────────────────────────────────
     const t0 = new Date(Date.now() - 4 * 3_600_000);

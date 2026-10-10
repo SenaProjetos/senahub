@@ -24,7 +24,7 @@ import {
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { useBatida, avisarPontoAtualizado, EVENTO_PONTO } from "@/components/ponto/use-batida";
 import { useJornada } from "@/components/ponto/use-jornada";
-import { useTarefasDoPonto } from "@/components/ponto/seletor-tarefa";
+import { rotuloTarefaPonto, useTarefasDoPonto } from "@/components/ponto/seletor-tarefa";
 import { BOTAO, COR_ESTADO, ESTADO_LABEL } from "@/components/ponto/batida-meta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,7 +83,7 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
   const ehCelular = useEhCelular();
   const router = useRouter();
   const confirmar = useConfirm();
-  const { resumo, rodando, ms, selecaoCorrente, tarefaCorrente } = useJornada({ ativo: ehCelular });
+  const { resumo, rodando, ms, selecaoCorrente, tarefaCorrente, sugestao } = useJornada({ ativo: ehCelular });
   const { bater, trocar, busy } = useBatida();
   const [recentes, setRecentes] = useState<AlocacaoRecente[]>([]);
   const [projetos, setProjetos] = useState<ProjetoAlocacao[] | null>(null);
@@ -92,6 +92,8 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
   // Tarefa escolhida para o destino com a jornada parada; `null` = seguir o padrão (`tarefaDoDestino`).
   const [escolhaTarefa, setEscolhaTarefa] = useState<string | null>(null);
   const [gavetaTarefa, setGavetaTarefa] = useState(false);
+  // "Outras da etapa" recolhidas por padrão (decisão 1 de 08/10/2026).
+  const [verOutras, setVerOutras] = useState(false);
   const [busca, setBusca] = useState("");
   const [aplicando, setAplicando] = useState(false);
 
@@ -136,23 +138,33 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
     const m = new Map<string, ProjetoAlocacao>();
     for (const p of projetos ?? []) m.set(p.id, p);
     for (const r of recentes) if (r.projeto) m.set(r.projeto.id, r.projeto);
+    if (sugestao) m.set(sugestao.projeto.id, sugestao.projeto);
     if (resumo?.modo === "ponto") {
       for (const p of [resumo.projetoAtivo, resumo.retomarProjeto]) if (p) m.set(p.id, p);
     } else if (resumo?.modo === "apontamento" && resumo.aberto?.projeto && resumo.aberto.projetoId) {
       m.set(resumo.aberto.projetoId, { id: resumo.aberto.projetoId, ...resumo.aberto.projeto });
     }
     return m;
-  }, [projetos, recentes, resumo]);
+  }, [projetos, recentes, resumo, sugestao]);
 
   const ehPonto = resumo?.modo === "ponto";
   const estado = resumo?.modo === "ponto" ? resumo.estado : rodando ? "trabalhando" : "fora";
   // Parado (fora ou em descanso): a linha de cima é para onde a pessoa VAI. Em descanso o padrão
-  // é retomar a última alocação; fora da jornada, a mais recente.
+  // é retomar a última alocação; fora da jornada, a atividade de hoje no cronograma e, sem ela, a
+  // mais recente.
   const alvo = rodando
     ? selecaoCorrente
-    : (escolha ?? (estado === "descansando" ? selecaoCorrente : recentes[0]?.selecao ?? ALOCACAO_SEM_PROJETO));
+    : (escolha ??
+      (estado === "descansando" ? selecaoCorrente : (sugestao?.selecao ?? recentes[0]?.selecao ?? ALOCACAO_SEM_PROJETO)));
   const tarefaCorrenteId = tarefaCorrente?.id ?? "";
-  const tarefaId = tarefaDoDestino({ destino: alvo, rodando, selecaoCorrente, tarefaCorrenteId, escolhida: escolhaTarefa });
+  const tarefaId = tarefaDoDestino({
+    destino: alvo,
+    rodando,
+    selecaoCorrente,
+    tarefaCorrenteId,
+    escolhida: escolhaTarefa,
+    sugerida: sugestao ? { destino: sugestao.selecao, tarefaId: sugestao.tarefa.id } : null,
+  });
   const tarefas = useTarefasDoPonto(
     ehCelular && resumo && selecaoEhProjeto(alvo) ? alvo : null,
     alvo === selecaoCorrente ? tarefaCorrente : null,
@@ -169,7 +181,8 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
   const atual = rotulo(alvo);
   // A linha da tarefa só existe quando há o que escolher (mesma regra do seletor do computador).
   const mostrarTarefa = tarefas !== null && tarefas.length > 0;
-  const tituloTarefa = tarefaId ? (tarefas?.find((t) => t.id === tarefaId)?.titulo ?? null) : null;
+  const escolhidaNaLista = tarefaId ? tarefas?.find((t) => t.id === tarefaId) : undefined;
+  const tituloTarefa = escolhidaNaLista ? rotuloTarefaPonto(escolhidaNaLista) : null;
   const desde = ehPonto ? resumo.sessaoDesde : resumo.aberto?.inicio ?? null;
   const atalhos = recentes.filter((r) => r.selecao !== alvo).slice(0, 3);
   const ocupado = busy || aplicando;
@@ -453,7 +466,22 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto border-t pb-[env(safe-area-inset-bottom)]">
             {linhaDaGaveta("__sem_tarefa", "Sem tarefa", !tarefaId, () => void escolherTarefa(""))}
-            {(tarefas ?? []).map((t) => linhaDaGaveta(t.id, t.titulo, t.id === tarefaId, () => void escolherTarefa(t.id)))}
+            {(tarefas ?? [])
+              .filter((t) => t.grupo === "periodo")
+              .map((t) => linhaDaGaveta(t.id, rotuloTarefaPonto(t), t.id === tarefaId, () => void escolherTarefa(t.id)))}
+            {(() => {
+              const outras = (tarefas ?? []).filter((t) => t.grupo === "etapa");
+              if (outras.length === 0) return null;
+              if (!verOutras && !outras.some((t) => t.id === tarefaId)) {
+                return linhaDaGaveta("__ver_outras", `Ver outras da etapa (${outras.length})`, false, () => setVerOutras(true));
+              }
+              return (
+                <>
+                  <p className="border-b bg-muted/40 px-4 py-1.5 text-xs font-medium text-muted-foreground">Outras da etapa</p>
+                  {outras.map((t) => linhaDaGaveta(t.id, rotuloTarefaPonto(t), t.id === tarefaId, () => void escolherTarefa(t.id)))}
+                </>
+              );
+            })()}
           </div>
         </SheetContent>
       </Sheet>

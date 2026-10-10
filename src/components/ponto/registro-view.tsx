@@ -1,5 +1,6 @@
 "use client";
 
+import type { SugestaoDoPonto } from "@/modules/ponto/tarefa-ponto-service";
 import { CardPontoHoje } from "@/components/ponto/card-ponto-hoje";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -244,19 +245,22 @@ export function RegistroPonto({
   projetos,
   pendencias,
   diarioPorProjeto,
+  sugestao = null,
 }: {
+  /** Parado e sem alocação: começa no projeto e na atividade de hoje (`sugestaoParaPonto`). */
+  sugestao?: SugestaoDoPonto | null;
   estadoDia: EstadoDiaProp;
   projetos: Projeto[];
   pendencias: AjustePendenteProp[];
   /** Disciplinas em que o usuário pode escrever no diário, por projeto — projeto sem nenhuma não entra aqui (atalho some). */
   diarioPorProjeto: Record<string, DisciplinaEscrevivel[]>;
 }) {
-  const [alocacao, setAlocacao] = useState(
-    selecaoDaAlocacaoPonto(estadoDia.projetoAtivo?.id ?? null, estadoDia.tipoAlocacaoAtiva ?? "sem_projeto"),
-  );
+  const corrente = selecaoDaAlocacaoPonto(estadoDia.projetoAtivo?.id ?? null, estadoDia.tipoAlocacaoAtiva ?? "sem_projeto");
+  const usaSugestao = corrente === ALOCACAO_SEM_PROJETO && sugestao !== null;
+  const [alocacao, setAlocacao] = useState(usaSugestao ? sugestao!.projeto.id : corrente);
   // Tarefa da jornada (F6): opcional, "" = nenhuma. Segue a sessão em curso e zera ao escolher
   // outro projeto — uma tarefa do projeto A não vale no B (o servidor recusaria).
-  const [tarefa, setTarefa] = useState(estadoDia.tarefaAtiva?.id ?? "");
+  const [tarefa, setTarefa] = useState(usaSugestao ? sugestao!.tarefa.id : (estadoDia.tarefaAtiva?.id ?? ""));
   const { bater, trocar, busy, pendentes, sincronizarFila } = useBatida();
   const projetoEscolhidoId = selecaoEhProjeto(alocacao) ? alocacao : null;
 

@@ -1,4 +1,5 @@
 import "server-only";
+import type { SugestaoDoPonto } from "@/modules/ponto/tarefa-ponto-service";
 import { prisma } from "@/lib/prisma";
 import { PROJETO_MEMBRO_ROLES } from "@/lib/roles";
 import { minutosSessao } from "@/modules/ponto/format";
@@ -148,9 +149,11 @@ export type ResumoJornada = {
  * entre os dois quebra o tsc em vez de sumir silenciosamente da tela.
  */
 export type ResumoHeader =
-  | ({ modo: "ponto" } & ResumoJornada)
+  | ({ modo: "ponto"; sugestao: SugestaoDoPonto | null } & ResumoJornada)
   | {
       modo: "apontamento";
+      /** Para onde o apontamento abre quando não há um aberto (`sugestaoParaPonto`). */
+      sugestao: SugestaoDoPonto | null;
       aberto: {
         inicio: Date;
         projetoId: string | null;
@@ -438,6 +441,10 @@ export async function projetosDoUsuario(userId: string) {
       OR: [
         { membros: { some: { userId } } },
         { disciplinas: { some: { responsaveis: { some: { userId } } } } },
+        // Quem foi posto numa atividade da EAP sem ser membro nem responsável da disciplina
+        // (reunião de 08/10/2026): sem isto o projeto nem aparecia no seletor do ponto, e a
+        // atividade de hoje não tinha como ser apontada.
+        { tarefas: { some: { arquivada: false, status: { concluido: false }, responsaveis: { some: { userId } } } } },
       ],
     },
     select: { id: true, codigo: true, nome: true },
