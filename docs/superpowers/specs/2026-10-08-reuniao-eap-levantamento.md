@@ -295,3 +295,31 @@ ajuste pequeno, sempre a partir de regra já escrita.
 | E10 | Habilidade por disciplina do catálogo; "+" de alocação só em projeto sem EAP; tela com cara de pool | 4, 5 | Sonnet | baixo |
 | E11 | Ensaio no banco de dev: projeto parecido com o Arapiraca, EAP aprovada, usuários de teste por perfil, roteiro em navegador | 13 | Sonnet | médio |
 | R | Revisão final do branch (`/code-review`) antes do merge | — | Opus | alto |
+
+## Andamento
+
+**Bloco Opus concluído (2026-10-10), branch `feat/eap-reuniao-0810`:**
+- E1 `2a142fac` — ponto híbrido. Regras puras em `ponto/tarefa-ponto.ts` (`listaDoPonto`, `sugestaoDoPonto`,
+  `estaAtrasada`); `tarefasParaPonto` devolve `atrasada` e `grupo` (`periodo`|`etapa`); `sugestaoParaPonto` alimenta o
+  resumo do header, o card do celular e a tela /ponto. `projetosDoUsuario` passou a incluir projeto onde a pessoa só
+  tem card aberto. Smoke: `smoke:ponto-tarefa`.
+- E2 `75e47622` — aviso da etapa que vem. `planejamento/etapa-proxima.ts` (puro) + `etapa-proxima-service.ts`, job
+  diário `aviso-etapa-proxima` 07:00, tabela `AvisoEtapaEnviado` (migração `20261010100000_aviso_etapa_enviado`),
+  categoria `etapa_proxima`. Smoke: `smoke:etapa-proxima`.
+- E3 `8ffd08f9` — "Montar a EAP com o modelo" na criação do projeto (exige `planejamento:gerir`; falha vira aviso,
+  o projeto fica criado).
+- E4 `669d56ff` — `/recursos`: carga de EAP em rascunho à parte (`PessoaCarga.rascunho`, `projetosEmRascunho`,
+  chip "rasc" na matriz). Smoke: `smoke:recursos-eap`.
+
+**Notas para o bloco Sonnet:**
+- E6 (verde/vermelho): "concluída pelo responsável" = card da linha (`Tarefa.eapTarefaId`) com status `concluido` e
+  linha com `progresso < 100`. Sugestão de 100% entra em `progresso-sugerido.ts` como nova origem (`card_concluido`),
+  com o mesmo cuidado do arquivo: só sugere, nunca grava. Vermelho = `fim` do motor (`plano.resultado.linhas`) < hoje e
+  `progresso < 100` — término ATUAL, não a linha de base (decisão 2). Regra pura com teste.
+- E7 (Minhas atividades): reusar `listaDoPonto` por projeto, ou uma leitura nova em `projetos/meu-trabalho/queries.ts`
+  que chame `candidatasDaPessoa` (hoje privado em `tarefa-ponto-service.ts` — exportar). "Terminei" = mover o card para
+  a coluna concluída pela action existente de tarefas.
+- E5 (Estagiário): `PapelEap` ganha `est`; migração só `ALTER TYPE "PapelEap" ADD VALUE 'est'` (arquivo próprio);
+  atualizar `Papel`, `ROTULO_PAPEL`, `PAPEIS_DE_PESSOA`, `ORDEM_PRINCIPAL` (`recursos.ts`) e `PAPEIS`
+  (`recursos-actions.ts`). O banco de dev tem drift: aplicar com `prisma db execute` + `migrate resolve --applied`.
+- E10: o "+" de alocação digitada só para projeto SEM cronograma (`projetosCalculados` + `projetosEmRascunho`).
