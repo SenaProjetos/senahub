@@ -38,10 +38,21 @@ import {
 import {
   alinharPorDoisPares,
   arrastePlanoParaIfc,
+  normalizarGraus,
   pivoDoMundo,
   type PivoPlanta,
 } from "@/modules/coordenacao/realinhamento";
 import { cameraDaVistaParaCaixa, vistaDoEixo, type VistaPadrao } from "@/modules/coordenacao/viewer/vistas";
+import { direcoesDeTela, passoDoTeclado } from "@/modules/coordenacao/teclado-realinhamento";
+import { escolherSnap, type TipoSnap } from "@/modules/coordenacao/viewer/snap";
+import {
+  desfazer as desfazerPasso,
+  historicoVazio,
+  refazer as refazerPasso,
+  registrarAntes,
+  type HistoricoRealinhamento,
+  type OrigemPasso,
+} from "@/modules/coordenacao/historico-realinhamento";
 import {
   normalizarNo,
   listarElementos,
@@ -1362,7 +1373,7 @@ export class ViewerEngine {
    */
   private async raycastPonto(clientX: number, clientY: number): Promise<THREE.Vector3 | null> {
     const snap = await this.raycastSnap(clientX, clientY);
-    if (snap) return snap;
+    if (snap) return snap.ponto;
     const mouse = new THREE.Vector2(clientX, clientY);
     const dom = this.renderer.domElement;
     let melhor: { point: THREE.Vector3; distance: number } | null = null;
@@ -1375,11 +1386,23 @@ export class ViewerEngine {
     return melhor?.point ?? null;
   }
 
-  /** Raycast só de SNAP (vértice/aresta) contra todos os modelos; mais próximo vence, ou null. */
-  private async raycastSnap(clientX: number, clientY: number): Promise<THREE.Vector3 | null> {
+  /**
+   * Raycast só de SNAP contra todos os modelos (mais próximo vence), ou null: vértice,
+   * PONTO MÉDIO da aresta quando o cursor está perto dele, ou ponto sobre a aresta.
+   */
+  private async raycastSnap(
+    clientX: number,
+    clientY: number,
+  ): Promise<{ ponto: THREE.Vector3; tipo: TipoSnap } | null> {
     const mouse = new THREE.Vector2(clientX, clientY);
     const dom = this.renderer.domElement;
-    let melhor: { point: THREE.Vector3; distance: number } | null = null;
+    let melhor: {
+      point: THREE.Vector3;
+      distance: number;
+      classe: number;
+      p1?: THREE.Vector3;
+      p2?: THREE.Vector3;
+    } | null = null;
     for (const model of this.modelos.values()) {
       const hits = await model.raycastWithSnapping({
         camera: this.camera,
@@ -1389,10 +1412,31 @@ export class ViewerEngine {
       });
       const hit = hits?.[0];
       if (hit && (melhor === null || hit.distance < melhor.distance)) {
-        melhor = { point: hit.point, distance: hit.distance };
+        melhor = {
+          point: hit.point,
+          distance: hit.distance,
+          classe: hit.snappingClass,
+          p1: hit.snappedEdgeP1,
+          p2: hit.snappedEdgeP2,
+        };
       }
     }
-    return melhor?.point ?? null;
+    if (!melhor) return null;
+    const rect = dom.getBoundingClientRect();
+    const v = (p: THREE.Vector3): Vec3 => [p.x, p.y, p.z];
+    const escolhido = escolherSnap(
+      {
+        ponto: v(melhor.point),
+        classe: melhor.classe,
+        aresta: melhor.p1 && melhor.p2 ? { p1: v(melhor.p1), p2: v(melhor.p2) } : undefined,
+      },
+      (p) => {
+        const t = new THREE.Vector3(...p).project(this.camera);
+        return [rect.left + ((t.x + 1) / 2) * rect.width, rect.top + ((1 - t.y) / 2) * rect.height];
+      },
+      [clientX, clientY],
+    );
+    return { ponto: new THREE.Vector3(...escolhido.ponto), tipo: escolhido.tipo };
   }
 
   private garantirSnapMarker(): THREE.Mesh {
@@ -1417,10 +1461,20 @@ export class ViewerEngine {
     if (this.snapHoverOcupado) return; // evita respostas fora de ordem sobrescreverem uma mais nova
     this.snapHoverOcupado = true;
     try {
-      const ponto = await this.raycastSnap(clientX, clientY);
+      const snap = await this.raycastSnap(clientX, clientY);
       const marker = this.garantirSnapMarker();
-      marker.visible = ponto != null;
-      if (ponto) marker.position.copy(ponto);
+      marker.visible = snap != null;
+      if (snap) {
+        marker.position.copy(snap.ponto);
+        // Tamanho fixo na TELA (~6 px de raio): com a esfera de 6 cm, o indicador sumia
+        // ao olhar o prédio inteiro de longe.
+        const altura = this.renderer.domElement.clientHeight || 1;
+        const metrosPorPx =
+          (2 * this.camera.position.distanceTo(snap.ponto) * Math.tan((this.camera.fov * Math.PI) / 360)) / altura;
+        marker.scale.setScalar(Math.max(1, (6 * metrosPorPx) / 0.06));
+        // Meio da aresta em amarelo, para a pessoa saber que vai grudar no meio.
+        (marker.material as THREE.MeshBasicMaterial).color.setHex(snap.tipo === "meio" ? 0xfacc15 : 0x22d3ee);
+      }
     } finally {
       this.snapHoverOcupado = false;
     }
@@ -1511,6 +1565,13 @@ export class ViewerEngine {
     pivo: THREE.Vector3; // centro do modelo (three, mundo) ao entrar — eixo do giro
     planeY: number; // altura (three, mundo) do plano de arraste
     onVetor: (v: Vec3) => void;
+    /** Giro mudou por fora dos campos (desfazer/refazer, 2 pares) — a tela acompanha. */
+    onGiro: (graus: number) => void;
+    /** Quantos passos dá para desfazer/refazer — habilita os botões do painel. */
+    onHistorico: (n: { desfazer: number; refazer: number }) => void;
+    historico: HistoricoRealinhamento;
+    /** O arraste atual já guardou o estado de antes (um passo por arraste, não por movimento). */
+    arrasteRegistrado: boolean;
     arrastando: boolean;
     origem: THREE.Vector3 | null; // ponto no plano no início do movimento atual
     /** Pontos clicados (mundo three) no modo de pontos; null = desligado. */
@@ -1579,6 +1640,7 @@ export class ViewerEngine {
     // Pontos e pivô na orientação IFC (Z para cima), mesmo referencial do mundo.
     const ifc = (v: THREE.Vector3) => threeParaIfc([v.x, v.y, v.z]);
     if (modo === "um-par") {
+      this.registrarPasso("pontos");
       // O vetor é somado DEPOIS do giro: somar o delta move o modelo inteiro exatamente
       // essa diferença (o 1º ponto cai sobre o 2º).
       const [dx, dy, dz] = threeParaIfc([
@@ -1602,6 +1664,7 @@ export class ViewerEngine {
         onEtapa(null);
         return;
       }
+      this.registrarPasso("pontos");
       r.vetor = alinhado.vetor;
       r.graus = alinhado.graus;
       onAlinhado({ graus: alinhado.graus, razaoDistancias: alinhado.razaoDistancias });
@@ -1719,7 +1782,15 @@ export class ViewerEngine {
    * altera o vetor (para os campos numéricos acompanharem). O vetor inicial é aplicado
    * de imediato como prévia.
    */
-  entrarRealinhamento(modeloId: string, vetorInicial: Vec3, onVetor: (v: Vec3) => void): void {
+  entrarRealinhamento(
+    modeloId: string,
+    vetorInicial: Vec3,
+    onVetor: (v: Vec3) => void,
+    extras: {
+      onGiro?: (graus: number) => void;
+      onHistorico?: (n: { desfazer: number; refazer: number }) => void;
+    } = {},
+  ): void {
     if (this.realinhar) this.sairRealinhamento();
     const box = this.bboxGlobal();
     const planeY = box ? (box.min.y + box.max.y) / 2 : 0;
@@ -1735,6 +1806,7 @@ export class ViewerEngine {
       const p = this.pontoNoPlano(e.clientX, e.clientY, r.planeY);
       if (!p) return;
       r.arrastando = true;
+      r.arrasteRegistrado = false;
       r.origem = p;
       dom.setPointerCapture(e.pointerId);
     };
@@ -1747,6 +1819,11 @@ export class ViewerEngine {
       const p = this.pontoNoPlano(e.clientX, e.clientY, r.planeY);
       if (!p) return;
       const { dx, dy } = arrastePlanoParaIfc(p.x - r.origem.x, p.z - r.origem.z);
+      if (!r.arrasteRegistrado) {
+        // Só no primeiro movimento: um clique sem arrastar não vira passo vazio.
+        this.registrarPasso("arraste");
+        r.arrasteRegistrado = true;
+      }
       r.vetor = [r.vetor[0] + dx, r.vetor[1] + dy, r.vetor[2]];
       r.origem = p; // incremental: nova origem a cada movimento
       this.aplicarPreview(r);
@@ -1782,6 +1859,10 @@ export class ViewerEngine {
       pivo,
       planeY,
       onVetor,
+      onGiro: extras.onGiro ?? (() => {}),
+      onHistorico: extras.onHistorico ?? (() => {}),
+      historico: historicoVazio(),
+      arrasteRegistrado: false,
       arrastando: false,
       origem: null,
       pontos: null,
@@ -1792,20 +1873,77 @@ export class ViewerEngine {
       up,
     };
     this.aplicarPreview(this.realinhar);
+    this.realinhar.onHistorico({ desfazer: 0, refazer: 0 });
+  }
+
+  /** Guarda o estado de ANTES de uma mudança na prévia (desfazer). */
+  private registrarPasso(origem: OrigemPasso): void {
+    const r = this.realinhar;
+    if (!r) return;
+    r.historico = registrarAntes(r.historico, { vetor: r.vetor, graus: r.graus }, origem, performance.now());
+    r.onHistorico({ desfazer: r.historico.desfazer.length, refazer: r.historico.refazer.length });
+  }
+
+  /** Volta (ou refaz) um passo da prévia — Ctrl+Z / Ctrl+Shift+Z. False se não havia. */
+  desfazerRealinhamento(sentido: "desfazer" | "refazer" = "desfazer"): boolean {
+    const r = this.realinhar;
+    if (!r || r.arrastando) return false;
+    const atual = { vetor: r.vetor, graus: r.graus };
+    const passo = sentido === "desfazer" ? desfazerPasso(r.historico, atual) : refazerPasso(r.historico, atual);
+    if (!passo) return false;
+    r.historico = passo.historico;
+    r.vetor = passo.estado.vetor;
+    r.graus = passo.estado.graus;
+    this.aplicarPreview(r);
+    r.onVetor([...r.vetor] as Vec3);
+    r.onGiro(r.graus);
+    r.onHistorico({ desfazer: r.historico.desfazer.length, refazer: r.historico.refazer.length });
+    return true;
+  }
+
+  /**
+   * Move a prévia pelo teclado (setas relativas à tela, PageUp/PageDown, Q/E). True
+   * se a tecla era de movimento — quem chama então impede o comportamento padrão.
+   */
+  moverRealinhamentoPeloTeclado(evento: {
+    key: string;
+    shiftKey: boolean;
+    altKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+  }): boolean {
+    const r = this.realinhar;
+    if (!r || r.arrastando || r.pontos) return false;
+    const frente = this.camera.getWorldDirection(new THREE.Vector3());
+    const cima = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
+    const passo = passoDoTeclado(
+      evento,
+      direcoesDeTela(threeParaIfc([frente.x, frente.y, frente.z]), threeParaIfc([cima.x, cima.y, cima.z])),
+    );
+    if (!passo) return false;
+    this.registrarPasso("teclado");
+    r.vetor = [r.vetor[0] + passo.delta[0], r.vetor[1] + passo.delta[1], r.vetor[2] + passo.delta[2]];
+    if (passo.graus !== 0) r.graus = normalizarGraus(r.graus + passo.graus);
+    this.aplicarPreview(r);
+    r.onVetor([...r.vetor] as Vec3);
+    if (passo.graus !== 0) r.onGiro(r.graus);
+    return true;
   }
 
   /** Define o vetor da prévia a partir dos campos numéricos (não dispara onVetor). */
   definirVetorRealinhamento(v: Vec3): void {
     const r = this.realinhar;
     if (!r) return;
+    this.registrarPasso("campo-vetor");
     r.vetor = [...v] as Vec3;
     this.aplicarPreview(r);
   }
 
   /** Define o giro em planta da prévia (graus, anti-horário visto de cima). */
-  definirRotacaoRealinhamento(graus: number): void {
+  definirRotacaoRealinhamento(graus: number, origem: "campo-giro" | "botao-giro" = "campo-giro"): void {
     const r = this.realinhar;
     if (!r || !Number.isFinite(graus)) return;
+    this.registrarPasso(origem);
     r.graus = graus;
     this.aplicarPreview(r);
   }

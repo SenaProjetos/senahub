@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { ViewerEngine, type SelecaoInfo } from "@/modules/coordenacao/viewer/engine";
 import { atalhoDeVistaPermitido } from "@/modules/coordenacao/viewer/vistas";
+import { comandoDeHistorico } from "@/modules/coordenacao/historico-realinhamento";
 
 /**
  * Wrapper React do ViewerEngine (three + fragments). SEMPRE importado via
@@ -58,16 +59,31 @@ export default function Viewer3D({
       if (engine.medindo) void engine.atualizarSnapHover(e.clientX, e.clientY);
     };
     const onLeave = () => engine.ocultarSnapHover();
-    // Teclas 1–7: vistas padrão. Fora de campos de digitação e sem modificador.
+    // Teclado do visualizador, sempre fora de campos de digitação: no realinhamento,
+    // Ctrl+Z/Ctrl+Shift+Z desfazem/refazem e setas, PageUp/PageDown e Q/E movem a
+    // prévia; teclas 1–7 vão para as vistas padrão.
     const onKey = (e: KeyboardEvent) => {
       const alvo = e.target as HTMLElement | null;
+      const alvoEditavel =
+        !!alvo && (alvo.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(alvo.tagName) || !!alvo.closest("[role=dialog]"));
+      if (engine.realinhamentoAtivo && !alvoEditavel) {
+        const comando = comandoDeHistorico(e);
+        if (comando) {
+          e.preventDefault();
+          engine.desfazerRealinhamento(comando);
+          return;
+        }
+        if (engine.moverRealinhamentoPeloTeclado(e)) {
+          e.preventDefault();
+          return;
+        }
+      }
       const vista = atalhoDeVistaPermitido({
         key: e.key,
         ctrlKey: e.ctrlKey,
         metaKey: e.metaKey,
         altKey: e.altKey,
-        alvoEditavel:
-          !!alvo && (alvo.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(alvo.tagName) || !!alvo.closest("[role=dialog]")),
+        alvoEditavel,
       });
       if (!vista) return;
       e.preventDefault();

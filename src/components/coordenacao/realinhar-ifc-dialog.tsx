@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Move3d, Upload, X, Check, ArrowLeft, RotateCcw, RotateCw, Crosshair, Spline } from "lucide-react";
+import { Move3d, Upload, X, Check, ArrowLeft, RotateCcw, RotateCw, Crosshair, Spline, Undo2, Redo2 } from "lucide-react";
 import { normalizarGraus, realinhamentoNulo } from "@/modules/coordenacao/realinhamento";
 import type { EtapaPontos, ModoPontos } from "@/modules/coordenacao/viewer/engine";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,8 @@ export function RealinharIfcDialog({
   onVetor,
   rotacao,
   onRotacao,
+  historico,
+  onDesfazer,
   etapaPontos,
   modoPontos,
   avisoAlinhamento,
@@ -61,7 +63,10 @@ export function RealinharIfcDialog({
   onVetor: (v: Vetor) => void;
   /** Giro em planta, graus (anti-horário visto de cima), em torno do centro do modelo. */
   rotacao: number;
-  onRotacao: (graus: number) => void;
+  onRotacao: (graus: number, origem?: "campo-giro" | "botao-giro") => void;
+  /** Passos disponíveis para desfazer/refazer a prévia (Ctrl+Z / Ctrl+Shift+Z). */
+  historico: { desfazer: number; refazer: number };
+  onDesfazer: (sentido: "desfazer" | "refazer") => void;
   /** Modo de pontos: qual clique falta (null = desligado) e qual modo está ativo. */
   etapaPontos: EtapaPontos;
   modoPontos: ModoPontos | null;
@@ -161,10 +166,9 @@ export function RealinharIfcDialog({
             {ativo.disciplinaNome} · {ativo.nomeArquivo}
           </p>
           <p className="rounded bg-muted/60 px-2 py-1.5 text-[11px] leading-snug text-muted-foreground">
-            Arraste o modelo no plano (botão esquerdo) para posicionar X/Y. Ajuste a altura (Z)
-            e o giro pelos campos — o giro é em torno do centro do modelo, positivo no sentido
-            anti-horário visto de cima. Orbite com o botão direito. O modelo se move ao vivo — só
-            grava ao aplicar.
+            Arraste o modelo no plano (botão esquerdo) ou use o teclado: setas movem 10 cm,
+            PageUp/PageDown sobem e descem, Q/E giram 1° (Shift ×10, Alt ÷10). O giro é em torno
+            do centro do modelo. Orbite com o botão direito. Ctrl+Z desfaz. Só grava ao aplicar.
           </p>
           <div className="grid grid-cols-3 gap-2">
             <CampoNumero rotulo="X (m)" valor={vetor[0]} onValor={(n) => onVetor([n, vetor[1], vetor[2]])} />
@@ -213,7 +217,7 @@ export function RealinharIfcDialog({
               variant="outline"
               size="icon"
               className="size-8"
-              onClick={() => onRotacao(normalizarGraus(rotacao + 90))}
+              onClick={() => onRotacao(normalizarGraus(rotacao + 90), "botao-giro")}
               aria-label="Girar 90° no sentido anti-horário"
               title="Girar 90° no sentido anti-horário"
             >
@@ -223,7 +227,7 @@ export function RealinharIfcDialog({
               variant="outline"
               size="icon"
               className="size-8"
-              onClick={() => onRotacao(normalizarGraus(rotacao - 90))}
+              onClick={() => onRotacao(normalizarGraus(rotacao - 90), "botao-giro")}
               aria-label="Girar 90° no sentido horário"
               title="Girar 90° no sentido horário"
             >
@@ -231,6 +235,28 @@ export function RealinharIfcDialog({
             </Button>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8 shrink-0"
+              onClick={() => onDesfazer("desfazer")}
+              disabled={pending || historico.desfazer === 0}
+              aria-label="Desfazer (Ctrl+Z)"
+              title="Desfazer (Ctrl+Z)"
+            >
+              <Undo2 className="size-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8 shrink-0"
+              onClick={() => onDesfazer("refazer")}
+              disabled={pending || historico.refazer === 0}
+              aria-label="Refazer (Ctrl+Shift+Z)"
+              title="Refazer (Ctrl+Shift+Z)"
+            >
+              <Redo2 className="size-4" />
+            </Button>
             <Button variant="ghost" size="sm" className="gap-1" onClick={onTrocar} disabled={pending}>
               <ArrowLeft className="size-4" /> Trocar
             </Button>

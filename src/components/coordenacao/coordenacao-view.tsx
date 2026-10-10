@@ -139,6 +139,7 @@ export function CoordenacaoView({
   const [etapaPontos, setEtapaPontos] = useState<EtapaPontos>(null);
   const [modoPontos, setModoPontos] = useState<ModoPontos | null>(null);
   const [avisoAlinhamento, setAvisoAlinhamento] = useState<string | null>(null);
+  const [historicoRealinhar, setHistoricoRealinhar] = useState({ desfazer: 0, refazer: 0 });
   const [enviandoAvulso, setEnviandoAvulso] = useState(false);
   // Após aplicar: espera a nova versão converter e a troca na cena (novo entra, antigo sai).
   const [trocaPendente, setTrocaPendente] = useState<{ antigo: string; novo: string } | null>(null);
@@ -357,7 +358,11 @@ export function CoordenacaoView({
       setModoPontos(null);
       setAvisoAlinhamento(null);
       setRealinharUploadId(uploadId);
-      engine.entrarRealinhamento(uploadId, inicial, (v) => setVetorRealinhar(v));
+      setHistoricoRealinhar({ desfazer: 0, refazer: 0 });
+      engine.entrarRealinhamento(uploadId, inicial, (v) => setVetorRealinhar(v), {
+        onGiro: setRotacaoRealinhar,
+        onHistorico: setHistoricoRealinhar,
+      });
     },
     [carregados, onToggle],
   );
@@ -367,9 +372,9 @@ export function CoordenacaoView({
     engineRef.current?.definirVetorRealinhamento(v);
   }, []);
 
-  const mudarRotacaoRealinhar = useCallback((graus: number) => {
+  const mudarRotacaoRealinhar = useCallback((graus: number, origem?: "campo-giro" | "botao-giro") => {
     setRotacaoRealinhar(graus);
-    engineRef.current?.definirRotacaoRealinhamento(graus);
+    engineRef.current?.definirRotacaoRealinhamento(graus, origem);
   }, []);
 
   const alternarPontosRealinhar = useCallback((modo: ModoPontos | null) => {
@@ -1028,6 +1033,8 @@ export function CoordenacaoView({
             onVetor={mudarVetorRealinhar}
             rotacao={rotacaoRealinhar}
             onRotacao={mudarRotacaoRealinhar}
+            historico={historicoRealinhar}
+            onDesfazer={(sentido) => engineRef.current?.desfazerRealinhamento(sentido)}
             etapaPontos={etapaPontos}
             modoPontos={modoPontos}
             avisoAlinhamento={avisoAlinhamento}
