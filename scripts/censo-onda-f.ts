@@ -17,6 +17,7 @@
  *   5. Quem ainda depende de gate por PAPEL (admin/supervisor/administrativo/ti) e qual perfil tem.
  *   6. Internos ativos sem perfil de acesso (o motor nega tudo para eles, sem erro).
  *   7. Gestão de RH: quem tem papel de `HR_ADMIN_ROLES` e NÃO tem `rh:gerir` (perde RH no bloco A).
+ *   8. Moderação do chat: papel `supervisor` sem `chat:moderar` (perde a moderação no bloco A4).
  *
  * Nome aparece por extenso: a saída é para o dono corrigir cadastro, não para anexar em relatório.
  *
@@ -144,6 +145,21 @@ async function main() {
     }
   }
   if (!algumRh) console.log("  ✔ todo papel de RH tem rh:gerir (ou é superUsuario) — ninguém perde.");
+
+  console.log("\n[8] Moderação do chat: papel supervisor × permissão chat:moderar");
+  let algumChat = false;
+  for (const u of users.filter((x) => x.role === "supervisor")) {
+    const temPar = await permissaoEfetiva(
+      { id: u.id, ativo: true, superUsuario: u.superUsuario, perfilId: u.perfilId },
+      "chat",
+      "moderar",
+    );
+    if (!temPar) {
+      algumChat = true;
+      alerta(`${u.name}: papel supervisor SEM chat:moderar — deixa de ler canais alheios e moderar mensagens`);
+    }
+  }
+  if (!algumChat) console.log("  ✔ nenhum supervisor perde a moderação do chat.");
 
   console.log(`\n=== fim do censo — ${alertas} alerta(s), nada foi alterado ===`);
 }

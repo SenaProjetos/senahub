@@ -70,6 +70,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { podeModerarCanal, type ModeradorChat } from "@/modules/chat/acesso";
 import {
   Dialog,
   DialogContent,
@@ -594,7 +595,7 @@ export function ChatView({
   canais: canaisIniciais,
   usuarios,
   meId,
-  meRole = "administrativo",
+  meModerador,
   meTipo = "interno",
   status: statusInicial,
   somChat = true,
@@ -604,7 +605,8 @@ export function ChatView({
   canais: CanalListItem[];
   usuarios: Usuario[];
   meId: string;
-  meRole?: string;
+  /** Superusuário ou `chat:moderar` — mesma regra do servidor (`chat/acesso.ts`). */
+  meModerador?: ModeradorChat;
   /** Eixo interno × externo (`User.tipo`) — decide Anotações e referências internas. */
   meTipo?: "interno" | "externo";
   status: string;
@@ -764,7 +766,7 @@ export function ChatView({
   const digitandoTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   const podeModerarMsg = (msg: Msg) =>
-    msg.autor.id === meId || ["admin", "supervisor"].includes(meRole);
+    msg.autor.id === meId || podeModerarCanal(meModerador, canais.find((c) => c.id === sel)?.tipo ?? "");
 
   // #2: confirma ENTREGA das mensagens recebidas (agrupadas por canal, flush debounced).
   // useCallback (deps vazias — só refs/import) para manter estável no effect do socket.
@@ -2123,7 +2125,7 @@ export function ChatView({
               <GerenciarGrupoDialog
                 canal={g}
                 meId={meId}
-                meRole={meRole}
+                meModerador={meModerador}
                 usuarios={usuarios}
                 onClose={() => setGerenciarGrupoId(null)}
                 onRenomear={(nome) => handleRenomearGrupo(g.id, nome)}
@@ -3936,7 +3938,7 @@ function CriarGrupoDialog({
 function GerenciarGrupoDialog({
   canal,
   meId,
-  meRole,
+  meModerador,
   usuarios,
   onClose,
   onRenomear,
@@ -3947,7 +3949,7 @@ function GerenciarGrupoDialog({
 }: {
   canal: CanalListItem;
   meId: string;
-  meRole: string;
+  meModerador?: ModeradorChat;
   usuarios: { id: string; name: string; role: string }[];
   onClose: () => void;
   onRenomear: (nome: string) => Promise<void>;
@@ -3957,7 +3959,7 @@ function GerenciarGrupoDialog({
   onUploadCapa: (file: File) => Promise<void>;
 }) {
   const capaInputRef = useRef<HTMLInputElement>(null);
-  const podeGerenciar = canal.criadoPorId === meId || ["admin", "supervisor"].includes(meRole);
+  const podeGerenciar = canal.criadoPorId === meId || podeModerarCanal(meModerador, "grupo");
   const membros = canal.grupoMembros ?? [];
   const membroIds = new Set(membros.map((m) => m.id));
   const candidatos = usuarios.filter((u) => !membroIds.has(u.id));

@@ -355,6 +355,12 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
       { acao: "geral", label: "Participar do canal #geral (toda a empresa)", leitura: true },
       { acao: "dm", label: "Abrir e receber conversa direta (DM)", leitura: true },
       { acao: "grupo", label: "Criar grupos de conversa avulsos" },
+      // Onda F (§16.4): era o papel `supervisor`. Dado pessoa a pessoa, fora da semente;
+      // superusuário modera por bypass (e é o único que lê Anotações). Ver `chat/acesso.ts`.
+      {
+        acao: "moderar",
+        label: "Moderar o chat — ler canais de que não participa (menos Anotações) e editar/excluir mensagem alheia",
+      },
     ],
   },
   {

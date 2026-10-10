@@ -1,6 +1,6 @@
 ---
 titulo: Termo de Uso e Consentimento — Colaboradores
-versao: "2026-09-14"
+versao: "2026-10-10"
 publico: colaboradores_internos
 ---
 
@@ -16,7 +16,7 @@ publico: colaboradores_internos
 
 # Termo de Uso e Consentimento — SenaHub (Colaboradores)
 
-**Versão 2026-09-14**
+**Versão 2026-10-10**
 
 Este Termo regula o acesso e o uso do sistema **SenaHub** ("Sistema") por colaboradores,
 estagiários, prestadores de serviço pessoa jurídica (PJ) e freelancers (em conjunto,
@@ -83,7 +83,9 @@ Empresa registra e pode auditar, de forma proporcional:
 - (a) o **histórico de ações** (criação, alteração, exclusão de registros), com data, hora e
   autor (log de auditoria);
 - (b) as **comunicações no chat corporativo** e demais canais internos do Sistema, que **não são
-  privadas** e podem ser acessadas pela Empresa. O espaço de **"Anotações"** do chat é visível
+  privadas** e podem ser acessadas pela Empresa. Pessoas **designadas pela Empresa para moderar
+  o chat** podem ler os canais de que não participam e editar ou excluir mensagens de terceiros,
+  exceto no espaço de "Anotações". O espaço de **"Anotações"** do chat é visível
   **apenas ao próprio Usuário e aos administradores do Sistema**; o acesso de um administrador
   às anotações de outro usuário fica registrado no log de auditoria;
 - (c) os **registros de ponto eletrônico**, inclusive metadados como data, hora, dispositivo e,
@@ -213,4 +215,4 @@ IP e agente de navegação**, que servem como prova da manifestação de vontade
 ---
 
 **Ao clicar em "Li e aceito", declaro que li, compreendi e concordo com este Termo de Uso e
-Consentimento, na versão 2026-09-14.**
+Consentimento, na versão 2026-10-10.**

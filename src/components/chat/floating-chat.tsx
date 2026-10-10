@@ -5,11 +5,14 @@ import { usePathname } from "next/navigation";
 import { ChatView } from "@/components/chat/chat-view";
 import type { CanalListItem } from "@/modules/chat/queries";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import type { ModeradorChat } from "@/modules/chat/acesso";
 
 type Bootstrap = {
   canais: CanalListItem[];
   usuarios: { id: string; name: string; role: string; chatStatus: string }[];
   meId: string;
+  meTipo: "interno" | "externo";
+  meModerador: ModeradorChat;
   status: string;
   somChat: boolean;
   mostrarRecibos: boolean;
@@ -66,6 +69,8 @@ export function FloatingChat() {
               canais={data.canais}
               usuarios={data.usuarios}
               meId={data.meId}
+              meTipo={data.meTipo}
+              meModerador={data.meModerador}
               status={data.status}
               somChat={data.somChat}
               mostrarRecibos={data.mostrarRecibos}

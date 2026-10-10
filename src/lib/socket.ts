@@ -2,7 +2,8 @@ import type { Server as HttpServer } from "node:http";
 import { Server as SocketServer } from "socket.io";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { podeObservarCanal } from "@/modules/chat/acesso";
+import { podeObservarCanal, type ModeradorChat } from "@/modules/chat/acesso";
+import { moderadorChatPorId } from "@/modules/chat/moderador";
 
 /**
  * IMPORTANTE: o `server.ts` (rodado por tsx) e o código do Next (Server Actions,
@@ -49,7 +50,9 @@ export function initSocket(server: HttpServer): SocketServer {
       });
       if (!session) return nextFn(new Error("não autenticado"));
       socket.data.userId = session.user.id;
-      socket.data.role = (session.user as { role?: string }).role;
+      // Moderação resolvida no handshake (superusuário ou `chat:moderar`): troca de permissão só
+      // vale após reconectar — mesma regra que valia para o papel.
+      socket.data.moderador = await moderadorChatPorId(session.user.id);
       socket.data.nome = session.user.name;
       socket.data.image = (session.user as { image?: string | null }).image ?? null;
       nextFn();
@@ -84,8 +87,7 @@ export function initSocket(server: HttpServer): SocketServer {
 
     // Cliente pede para entrar em um canal recém-criado (ex.: nova DM) ou observado (admin).
     // O room recebe as mensagens ao vivo, então só entra quem poderia ler o canal pela API:
-    // membro, ou perfil que observa aquele tipo (`podeObservarCanal` — Anotações só admin).
-    // `socket.data.role` é o papel no handshake: troca de perfil só vale após reconectar.
+    // membro, ou quem observa aquele tipo (`podeObservarCanal` — Anotações só superusuário).
     socket.on("entrar-canal", async (canalId: string) => {
       if (typeof canalId !== "string" || !canalId) return;
       try {
@@ -94,7 +96,7 @@ export function initSocket(server: HttpServer): SocketServer {
           select: { tipo: true, membros: { where: { userId }, select: { userId: true } } },
         });
         if (!canal) return;
-        if (canal.membros.length === 0 && !podeObservarCanal(socket.data.role as string, canal.tipo)) return;
+        if (canal.membros.length === 0 && !podeObservarCanal(socket.data.moderador as ModeradorChat, canal.tipo)) return;
         socket.join(`canal:${canalId}`);
       } catch {
         // sem DB no contexto → não entra (live cai para refresh)

@@ -2,6 +2,7 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { lerArquivo, existeArquivo } from "@/lib/storage";
 import { podeObservarCanal } from "@/modules/chat/acesso";
+import { moderadorChat } from "@/modules/chat/moderador";
 
 /** Serve o anexo de uma mensagem. Requer ser membro do canal ou poder observá-lo (`podeObservarCanal`). */
 export async function GET(_req: Request, { params }: { params: Promise<{ mensagemId: string }> }) {
@@ -15,7 +16,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ mensage
   });
   if (!msg || !msg.anexoPath) return new Response("Não encontrado", { status: 404 });
 
-  if (!podeObservarCanal(session.user.role, msg.canal.tipo)) {
+  if (!podeObservarCanal(await moderadorChat(session.user), msg.canal.tipo)) {
     const membro = await prisma.canalMembro.findUnique({
       where: { canalId_userId: { canalId: msg.canalId, userId: session.user.id } },
     });

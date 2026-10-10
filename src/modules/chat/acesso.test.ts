@@ -1,49 +1,44 @@
 import { describe, it, expect } from "vitest";
-import { podeModerarCanal, podeObservarCanal, tiposModeracao } from "./acesso";
+import { podeModerarCanal, podeObservarCanal, tiposModeracao, type ModeradorChat } from "./acesso";
 
 const TIPOS = ["geral", "projeto", "disciplina", "dm", "grupo", "socios", "anotacoes"] as const;
-const DEMAIS_ROLES = ["administrativo", "clt", "estagiario", "projetista_pj", "freelancer", "cliente", "ti"];
+const SUPER: ModeradorChat = { superUsuario: true, moderaChat: true };
+const MODERADOR: ModeradorChat = { superUsuario: false, moderaChat: true };
+const NINGUEM: ModeradorChat = { superUsuario: false, moderaChat: false };
 
 describe("podeObservarCanal", () => {
-  it("admin observa todos os tipos, inclusive Anotações", () => {
-    for (const tipo of TIPOS) expect(podeObservarCanal("admin", tipo)).toBe(true);
+  it("superusuário observa todos os tipos, inclusive Anotações", () => {
+    for (const tipo of TIPOS) expect(podeObservarCanal(SUPER, tipo)).toBe(true);
   });
 
-  it("supervisor observa todos os tipos, exceto Anotações", () => {
-    for (const tipo of TIPOS) {
-      expect(podeObservarCanal("supervisor", tipo)).toBe(tipo !== "anotacoes");
-    }
+  it("chat:moderar observa todos, menos Anotações", () => {
+    for (const tipo of TIPOS) expect(podeObservarCanal(MODERADOR, tipo)).toBe(tipo !== "anotacoes");
   });
 
-  it("nenhum outro perfil observa canal de que não participa", () => {
-    for (const role of DEMAIS_ROLES) {
-      for (const tipo of TIPOS) expect(podeObservarCanal(role, tipo)).toBe(false);
-    }
+  it("sem a permissão não observa nada", () => {
+    for (const tipo of TIPOS) expect(podeObservarCanal(NINGUEM, tipo)).toBe(false);
   });
 
-  it("sem perfil não observa nada", () => {
+  it("sem dado falha fechado", () => {
     expect(podeObservarCanal(undefined, "grupo")).toBe(false);
     expect(podeObservarCanal(null, "anotacoes")).toBe(false);
   });
 });
 
 describe("podeModerarCanal", () => {
-  it("admin modera tudo; supervisor tudo menos Anotações; demais nada", () => {
+  it("mesma regra de leitura: superusuário tudo, moderador menos Anotações, demais nada", () => {
     for (const tipo of TIPOS) {
-      expect(podeModerarCanal("admin", tipo)).toBe(true);
-      expect(podeModerarCanal("supervisor", tipo)).toBe(tipo !== "anotacoes");
-      for (const role of DEMAIS_ROLES) expect(podeModerarCanal(role, tipo)).toBe(false);
+      expect(podeModerarCanal(SUPER, tipo)).toBe(true);
+      expect(podeModerarCanal(MODERADOR, tipo)).toBe(tipo !== "anotacoes");
+      expect(podeModerarCanal(NINGUEM, tipo)).toBe(false);
     }
   });
 });
 
 describe("tiposModeracao", () => {
-  it("admin lista Anotações na moderação; supervisor não", () => {
-    expect(tiposModeracao("admin")).toContain("anotacoes");
-    expect(tiposModeracao("supervisor")).toEqual(["grupo", "dm", "socios"]);
-  });
-
-  it("perfil sem moderação recebe lista vazia", () => {
-    expect(tiposModeracao("clt")).toEqual([]);
+  it("lista o que cada um observa", () => {
+    expect(tiposModeracao(SUPER)).toContain("anotacoes");
+    expect(tiposModeracao(MODERADOR)).toEqual(["grupo", "dm", "socios"]);
+    expect(tiposModeracao(NINGUEM)).toEqual([]);
   });
 });

@@ -16,12 +16,11 @@ import { FILA_MENSAGEM_AGENDADA, validarAgendamento, type MensagemAgendadaJob } 
 import { getBoss } from "@/lib/jobs";
 import { agregarReacoes, detalhesMensagem } from "@/modules/chat/queries";
 import { podeModerarCanal, podeObservarCanal } from "@/modules/chat/acesso";
+import { moderadorChat } from "@/modules/chat/moderador";
 import { nomeCanal } from "@/modules/chat/nome-canal";
 import { tipoTermoPorTipo } from "@/modules/legal/termos";
 
 const base = { modulo: "chat" } as const;
-
-const PODE_MODERAR = ["admin", "supervisor"] as const;
 
 /** Rótulo do canal p/ notificação (identifica DM × grupo × canal de projeto/disciplina).
  *  `nome` já vem resolvido por `nomeCanal` — projeto/disciplina seguem o nome atual da
@@ -353,7 +352,7 @@ export const encaminharMensagem = defineAction(
     if (!origem || origem.excluidaEm) throw new ActionError("Mensagem não encontrada.");
 
     // Pode ler a origem? (membro do canal de origem ou observador do tipo — `podeObservarCanal`)
-    if (!podeObservarCanal(user.role, origem.canal.tipo)) {
+    if (!podeObservarCanal(await moderadorChat(user), origem.canal.tipo)) {
       const m = await prisma.canalMembro.findUnique({
         where: { canalId_userId: { canalId: origem.canalId, userId: user.id } },
       });
@@ -439,7 +438,7 @@ export const editarMensagem = defineAction(
     });
     if (!msg || msg.excluidaEm) throw new ActionError("Mensagem não encontrada.");
     // Moderação alcança só o que o moderador pode ler: supervisor não mexe em Anotações.
-    const podeEditar = msg.autorId === user.id || podeModerarCanal(user.role, msg.canal.tipo);
+    const podeEditar = msg.autorId === user.id || podeModerarCanal(await moderadorChat(user), msg.canal.tipo);
     if (!podeEditar) throw new ActionError("Sem permissão para editar esta mensagem.");
     const atualizada = await prisma.mensagem.update({
       where: { id: i.mensagemId },
@@ -468,7 +467,7 @@ export const excluirMensagem = defineAction(
       include: { anexos: { select: { path: true } }, canal: { select: { tipo: true } } },
     });
     if (!msg || msg.excluidaEm) throw new ActionError("Mensagem não encontrada.");
-    const podeExcluir = msg.autorId === user.id || podeModerarCanal(user.role, msg.canal.tipo);
+    const podeExcluir = msg.autorId === user.id || podeModerarCanal(await moderadorChat(user), msg.canal.tipo);
     if (!podeExcluir) throw new ActionError("Sem permissão para excluir esta mensagem.");
     await prisma.mensagem.update({
       where: { id: i.mensagemId },
@@ -653,7 +652,7 @@ export const infoMensagem = defineAction(
     audit: false,
   },
   async (i, { user }) => {
-    const info = await detalhesMensagem(i.mensagemId, user.id, user.role);
+    const info = await detalhesMensagem(i.mensagemId, user.id, await moderadorChat(user));
     if (!info) throw new ActionError("Mensagem não encontrada.");
     return info;
   },
@@ -773,7 +772,7 @@ export const adicionarMembroGrupo = defineAction(
     const canal = await prisma.canal.findUnique({ where: { id: i.canalId } });
     if (!canal || canal.tipo !== "grupo") throw new ActionError("Grupo não encontrado.");
     const podeGerenciar =
-      canal.criadoPorId === user.id || (PODE_MODERAR as readonly string[]).includes(user.role);
+      canal.criadoPorId === user.id || podeModerarCanal(await moderadorChat(user), "grupo");
     if (!podeGerenciar) throw new ActionError("Sem permissão para gerenciar este grupo.");
     await prisma.canalMembro.upsert({
       where: { canalId_userId: { canalId: i.canalId, userId: i.usuarioId } },
@@ -799,7 +798,7 @@ export const removerMembroGrupo = defineAction(
     const podeGerenciar =
       saindoSiMesmo ||
       canal.criadoPorId === user.id ||
-      (PODE_MODERAR as readonly string[]).includes(user.role);
+      podeModerarCanal(await moderadorChat(user), "grupo");
     if (!podeGerenciar) throw new ActionError("Sem permissão para remover este membro.");
     await prisma.canalMembro.deleteMany({
       where: { canalId: i.canalId, userId: i.usuarioId },
@@ -820,7 +819,7 @@ export const renomearGrupo = defineAction(
     const canal = await prisma.canal.findUnique({ where: { id: i.canalId } });
     if (!canal || canal.tipo !== "grupo") throw new ActionError("Grupo não encontrado.");
     const podeGerenciar =
-      canal.criadoPorId === user.id || (PODE_MODERAR as readonly string[]).includes(user.role);
+      canal.criadoPorId === user.id || podeModerarCanal(await moderadorChat(user), "grupo");
     if (!podeGerenciar) throw new ActionError("Sem permissão para renomear este grupo.");
     await prisma.canal.update({ where: { id: i.canalId }, data: { nome: i.nome } });
     emitParaCanal(i.canalId, "grupo-renomeado", { canalId: i.canalId, nome: i.nome });
@@ -840,7 +839,7 @@ export const definirIconeGrupo = defineAction(
     const canal = await prisma.canal.findUnique({ where: { id: i.canalId } });
     if (!canal || canal.tipo !== "grupo") throw new ActionError("Grupo não encontrado.");
     const podeGerenciar =
-      canal.criadoPorId === user.id || (PODE_MODERAR as readonly string[]).includes(user.role);
+      canal.criadoPorId === user.id || podeModerarCanal(await moderadorChat(user), "grupo");
     if (!podeGerenciar) throw new ActionError("Sem permissão para alterar este grupo.");
     if (canal.imagemCapa) void removerArquivo(canal.imagemCapa);
     await prisma.canal.update({
@@ -859,7 +858,7 @@ export const definirIconeGrupo = defineAction(
 // ─── Anotações: espaço de trabalho do próprio usuário ───────────────────────
 //
 // Canal `anotacoes` com um único membro (o dono). Não aceita outros membros — as ações de
-// grupo recusam o tipo por `canal.tipo !== "grupo"`. Leitura fora do dono: só `admin`
+// grupo recusam o tipo por `canal.tipo !== "grupo"`. Leitura fora do dono: só superusuário
 // (`podeObservarCanal`), declarada no Termo de Uso e auditada na rota de mensagens.
 
 /** Só quem aceita o termo de colaborador (que declara a leitura por admin) cria Anotações. */

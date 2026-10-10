@@ -30,7 +30,7 @@ export function tipoTermoPorTipo(tipo: "interno" | "externo"): TipoTermo {
 }
 
 const COLABORADOR = `Termo de Uso e Consentimento — SenaHub (Colaboradores)
-Versão 2026-09-14
+Versão 2026-10-10
 
 Este Termo regula o acesso e o uso do sistema SenaHub ("Sistema") por colaboradores, estagiários, prestadores de serviço pessoa jurídica (PJ) e freelancers (em conjunto, "Usuário") de [RAZÃO SOCIAL COMPLETA], inscrita no CNPJ sob o nº [CNPJ], com sede em [ENDEREÇO COMPLETO — CIDADE/UF] ("Empresa").
 
@@ -59,7 +59,7 @@ Ao clicar em "Li e aceito", ou ao utilizar o Sistema, o Usuário declara que leu
 4.1. O Usuário está ciente e concorda que o Sistema é uma ferramenta de trabalho da Empresa e que, por essa natureza, não há expectativa de privacidade sobre os dados nele inseridos ou trafegados.
 4.2. Para fins de segurança, conformidade, qualidade e apuração de responsabilidades, a Empresa registra e pode auditar, de forma proporcional:
 (a) o histórico de ações (criação, alteração, exclusão de registros), com data, hora e autor (log de auditoria);
-(b) as comunicações no chat corporativo e demais canais internos do Sistema, que não são privadas e podem ser acessadas pela Empresa. O espaço de "Anotações" do chat é visível apenas ao próprio Usuário e aos administradores do Sistema; o acesso de um administrador às anotações de outro usuário fica registrado no log de auditoria;
+(b) as comunicações no chat corporativo e demais canais internos do Sistema, que não são privadas e podem ser acessadas pela Empresa. Pessoas designadas pela Empresa para moderar o chat podem ler os canais de que não participam e editar ou excluir mensagens de terceiros, exceto no espaço de "Anotações". O espaço de "Anotações" do chat é visível apenas ao próprio Usuário e aos administradores do Sistema; o acesso de um administrador às anotações de outro usuário fica registrado no log de auditoria;
 (c) os registros de ponto eletrônico, inclusive metadados como data, hora, dispositivo e, quando aplicável, localização/endereço de rede da marcação.
 4.3. O monitoramento se limita às ferramentas corporativas e às finalidades acima; não alcança a esfera estritamente privada do Usuário fora do Sistema.
 
@@ -112,7 +112,7 @@ Ao clicar em "Li e aceito", ou ao utilizar o Sistema, o Usuário declara que leu
 14.1. O Usuário reconhece a validade jurídica do aceite eletrônico deste Termo (MP nº 2.200-2/2001 e Lei nº 12.965/2014 — Marco Civil da Internet).
 14.2. O aceite é registrado com data, hora, versão do Termo, identificação do Usuário, endereço IP e agente de navegação, que servem como prova da manifestação de vontade.
 
-Ao clicar em "Li e aceito", declaro que li, compreendi e concordo com este Termo de Uso e Consentimento, na versão 2026-09-14.`;
+Ao clicar em "Li e aceito", declaro que li, compreendi e concordo com este Termo de Uso e Consentimento, na versão 2026-10-10.`;
 
 const CLIENTE = `Termo de Uso e Consentimento — Portal do Cliente (SenaHub)
 Versão 2026-06-23
@@ -169,7 +169,7 @@ export function preencherTermo(termo: Termo, empresa: EmpresaTermo | null): Term
 
 export const TERMOS: Record<TipoTermo, Termo> = {
   colaborador: {
-    versao: "2026-09-14",
+    versao: "2026-10-10",
     titulo: "Termo de Uso e Consentimento — Colaboradores",
     conteudo: COLABORADOR,
   },

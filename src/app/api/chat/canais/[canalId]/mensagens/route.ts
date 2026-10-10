@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 import { mensagensCanal, mensagensFixadas, agregarReacoes, membrosCanal } from "@/modules/chat/queries";
+import { moderadorChat } from "@/modules/chat/moderador";
 
 export async function GET(req: Request, ctx: { params: Promise<{ canalId: string }> }) {
   const session = await getSession();
@@ -9,7 +10,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ canalId: string
   const { canalId } = await ctx.params;
   const antes = new URL(req.url).searchParams.get("antes") ?? undefined;
 
-  const resultado = await mensagensCanal(canalId, session.user.id, { antesDe: antes }, session.user.role);
+  const resultado = await mensagensCanal(canalId, session.user.id, { antesDe: antes }, await moderadorChat(session.user));
   if (resultado === null) return NextResponse.json({ error: "Sem acesso." }, { status: 403 });
 
   // Leitura das Anotações de outro usuário (só admin chega aqui) fica na trilha de auditoria —

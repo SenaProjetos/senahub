@@ -4,6 +4,7 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { listarCanais, usuariosParaDM } from "@/modules/chat/queries";
 import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
+import { moderadorChat } from "@/modules/chat/moderador";
 
 /** Dados do chat carregados sob demanda (ao abrir o chat flutuante) — não pesa cada navegação. */
 export async function GET() {
@@ -14,8 +15,9 @@ export async function GET() {
     return NextResponse.json({ error: "Sem acesso ao chat." }, { status: 403 });
   }
   const userId = session.user.id;
+  const moderador = await moderadorChat(session.user);
   const [canais, usuarios, eu, prefs] = await Promise.all([
-    listarCanais(userId, session.user.role),
+    listarCanais(userId, moderador),
     usuariosParaDM(userId),
     prisma.user.findUnique({ where: { id: userId }, select: { chatStatus: true } }),
     getPreferencias(userId),
@@ -24,6 +26,8 @@ export async function GET() {
     canais,
     usuarios,
     meId: userId,
+    meTipo: session.user.tipo,
+    meModerador: moderador,
     status: eu?.chatStatus ?? "disponivel",
     somChat: prefs.somChat !== false,
     mostrarRecibos: prefs.mostrarRecibos !== false,

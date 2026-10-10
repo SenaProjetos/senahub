@@ -6,6 +6,7 @@ import { sairDoCanal } from "@/lib/socket";
 import { listarCanais, usuariosParaDM } from "@/modules/chat/queries";
 import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
 import { ChatView } from "@/components/chat/chat-view";
+import { moderadorChat } from "@/modules/chat/moderador";
 
 export const metadata: Metadata = { title: "Chat" };
 
@@ -22,8 +23,9 @@ export default async function ChatPage() {
   // lista de mensagens antiga até recarregar, e a revogação parece não ter funcionado.
   const { removidos } = await sincronizarCanaisDoUsuario();
   for (const m of removidos) sairDoCanal(m.userId, m.canalId);
+  const moderador = await moderadorChat(user);
   const [canais, usuarios, eu, prefs] = await Promise.all([
-    listarCanais(user.id, user.role),
+    listarCanais(user.id, moderador),
     usuariosParaDM(user.id),
     prisma.user.findUnique({ where: { id: user.id }, select: { chatStatus: true } }),
     getPreferencias(user.id),
@@ -34,7 +36,7 @@ export default async function ChatPage() {
       canais={canais}
       usuarios={usuarios}
       meId={user.id}
-      meRole={user.role}
+      meModerador={moderador}
       meTipo={user.tipo}
       status={eu?.chatStatus ?? "disponivel"}
       somChat={prefs.somChat !== false}

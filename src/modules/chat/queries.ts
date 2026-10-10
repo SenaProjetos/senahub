@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { TipoCanal } from "@/generated/prisma/client";
 import { whereAudiencia } from "@/lib/audiencias";
-import { podeObservarCanal, tiposModeracao } from "@/modules/chat/acesso";
+import { podeObservarCanal, tiposModeracao, type ModeradorChat } from "@/modules/chat/acesso";
 import { nomeCanal } from "@/modules/chat/nome-canal";
 
 export type ReacaoAgregada = {
@@ -59,8 +59,8 @@ async function naoLidasPorCanal(userId: string): Promise<Map<string, number>> {
 
 /** Canais do usuário com prévia da última mensagem e contagem de não lidas.
  *  Para `role` admin/supervisor, anexa os demais canais como observador (leitura) —
- *  quais tipos, decide `tiposModeracao` (Anotações só para admin). */
-export async function listarCanais(userId: string, role?: string) {
+ *  quais tipos, decide `tiposModeracao` (Anotações só para superusuário). */
+export async function listarCanais(userId: string, moderador?: ModeradorChat) {
   const [membros, contagem] = await Promise.all([
     prisma.canalMembro.findMany({
       where: { userId },
@@ -162,7 +162,7 @@ export async function listarCanais(userId: string, role?: string) {
   // para admin, as Anotações de cada usuário) como OBSERVADOR — acesso de moderação,
   // somente leitura. naoLidas=0 (não entra no badge). O envio segue barrado no servidor
   // (exigirMembro em enviarMensagem).
-  const tipos = tiposModeracao(role);
+  const tipos = tiposModeracao(moderador);
   if (tipos.length === 0) return ordenado;
 
   const meusIds = new Set(membros.map((m) => m.canalId));
@@ -260,13 +260,13 @@ export async function mensagensCanal(
   canalId: string,
   userId: string,
   opts: { limite?: number; antesDe?: string } = {},
-  role?: string,
+  moderador?: ModeradorChat,
 ) {
   let observador = false;
   let tipoCanal: string | null = null;
   if (!(await ehMembro(canalId, userId))) {
     const canal = await prisma.canal.findUnique({ where: { id: canalId }, select: { tipo: true } });
-    if (!canal || !podeObservarCanal(role, canal.tipo)) return null;
+    if (!canal || !podeObservarCanal(moderador, canal.tipo)) return null;
     observador = true;
     tipoCanal = canal.tipo;
   }
@@ -349,7 +349,7 @@ export async function mensagensCanal(
  * da mensagem (ou perfil global) pode ver. Retorna também os membros do canal
  * para inferir quem AINDA não leu/recebeu. `temAudio` habilita a seção "Ouviram".
  */
-export async function detalhesMensagem(mensagemId: string, userId: string, role?: string) {
+export async function detalhesMensagem(mensagemId: string, userId: string, moderador?: ModeradorChat) {
   const msg = await prisma.mensagem.findUnique({
     where: { id: mensagemId },
     select: {
@@ -364,7 +364,7 @@ export async function detalhesMensagem(mensagemId: string, userId: string, role?
   if (!msg) return null;
   if (msg.autorId !== userId) {
     const canal = await prisma.canal.findUnique({ where: { id: msg.canalId }, select: { tipo: true } });
-    if (!canal || !podeObservarCanal(role, canal.tipo)) return null;
+    if (!canal || !podeObservarCanal(moderador, canal.tipo)) return null;
   }
 
   const [leituras, entregas, audicoes, reacoes, membros] = await Promise.all([
