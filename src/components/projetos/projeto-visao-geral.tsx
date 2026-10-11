@@ -753,7 +753,7 @@ export function ProjetoVisaoGeral({
   if (margem && margem.receitaConfirmada > 0) {
     paineis.push({
       id: "financeiro",
-      conteudo: <Card size="sm"><CardHeader><CardTitle className="text-sm">Resultado financeiro</CardTitle></CardHeader><CardContent><MargemDonut receitaConfirmada={margem.receitaConfirmada} despesaDireta={margem.despesaDireta} custoHoras={margem.custoHoras} margem={margem.margem} margemPct={margem.margemPct} custo={margem.custo} rateioHoras={margem.rateioHoras} /><p className="mt-3 text-xs text-muted-foreground">Dados confirmados. <Link href={`/projetos/${projeto.id}/financeiro`} className="font-medium text-primary hover:underline">Ver detalhamento financeiro</Link></p></CardContent></Card>,
+      conteudo: <Card size="sm"><CardHeader><CardTitle className="text-sm">Resultado financeiro</CardTitle></CardHeader><CardContent><MargemDonut receitaConfirmada={margem.receitaConfirmada} despesaDireta={margem.despesaDireta} custoHoras={margem.custoHoras + margem.custoHorasEstimadas} margem={margem.margem} margemPct={margem.margemPct} custo={margem.custo} rateioHoras={margem.rateioHoras} /><p className="mt-3 text-xs text-muted-foreground">Dados confirmados. <Link href={`/projetos/${projeto.id}/financeiro`} className="font-medium text-primary hover:underline">Ver detalhamento financeiro</Link></p></CardContent></Card>,
     });
   }
 

@@ -16,6 +16,7 @@ import { projetosPorCard } from "@/modules/projetos/cadastro-disciplina";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { prontidaoAprovacao, type Prontidao } from "@/modules/projetos/prontidao";
 import { separarRateioPorVinculo } from "@/modules/projetos/rateio-composicao";
+import { custoHorasDoProjeto } from "@/modules/projetos/custo-horas";
 import { semPublicacaoPorDisciplina } from "@/modules/uploads/ciclo/service";
 
 type Viewer = { id: string; ehSocio?: boolean } & EscopoDeDados;
@@ -578,26 +579,29 @@ export async function margemProjeto(projetoId: string) {
   );
   const custoHoras = rateioHoras.total;
 
-  // P-26: estimativa do custo de horas do mês corrente (ainda não fechado).
-  // Só conta se o mês ainda não tem RateioHora (senão já está em `custoHoras`).
-  const agora = new Date();
-  const anoAtual = agora.getFullYear();
-  const mesAtual = agora.getMonth() + 1;
-  const mesFechado = await prisma.fechamentoRateio.findUnique({
-    where: { ano_mes: { ano: anoAtual, mes: mesAtual } },
-    select: { id: true },
-  });
-  let custoHorasMesCorrente = 0;
-  if (!mesFechado) {
-    const { linhas } = await calcularRateioDoMes(anoAtual, mesAtual);
-    custoHorasMesCorrente = linhas.filter((r) => r.projetoId === projetoId).reduce((s, r) => s + r.custoCent, 0) / 100;
+  // Decisão 18 do rateio: os meses com horas no projeto e ainda SEM fechamento entram como estimativa
+  // (antes valiam zero). O mês do fuso de São Paulo, igual ao recorte do cálculo.
+  const mesesComHoras = await prisma.$queryRaw<{ mes: string }[]>`
+    SELECT DISTINCT to_char("inicio" AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM') AS mes
+    FROM "sessao_trabalho" WHERE "projetoId" = ${projetoId}`;
+  const fechados = new Set(
+    (await prisma.fechamentoRateio.findMany({ select: { ano: true, mes: true } })).map((f) => `${f.ano}-${String(f.mes).padStart(2, "0")}`),
+  );
+  const abertosCent: Record<string, number> = {};
+  for (const { mes: m } of mesesComHoras) {
+    if (fechados.has(m)) continue;
+    const [a, mm] = m.split("-").map(Number);
+    const { linhas } = await calcularRateioDoMes(a, mm);
+    abertosCent[m] = linhas.filter((r) => r.projetoId === projetoId).reduce((s, r) => s + r.custoCent, 0);
   }
+  const horas = custoHorasDoProjeto({ fechadasCent: Math.round(custoHoras * 100), abertosCent });
+  const custoHorasEstimadas = horas.estimativaCent / 100;
 
-  const margem = receitaConfirmada - despesaConfirmada - custoHoras;
+  const margem = receitaConfirmada - despesaConfirmada - custoHoras - custoHorasEstimadas;
   const margemPct = receitaConfirmada > 0 ? (margem / receitaConfirmada) * 100 : null;
-  // Resultado projetado: considera receita/despesa previstas + horas do mês corrente.
+  // Resultado projetado: considera também receita/despesa previstas.
   const margemProjetada =
-    receitaConfirmada + receitaPrevista - despesaConfirmada - despesaPrevista - custoHoras - custoHorasMesCorrente;
+    receitaConfirmada + receitaPrevista - despesaConfirmada - despesaPrevista - custoHoras - custoHorasEstimadas;
 
   return {
     receitaConfirmada,
@@ -607,7 +611,9 @@ export async function margemProjeto(projetoId: string) {
     despesaDiretaPrevista: despesaPrevista,
     custoHoras,
     rateioHoras,
-    custoHorasMesCorrente,
+    /** Estimativa dos meses ainda não fechados (já descontada da margem). */
+    custoHorasEstimadas,
+    mesesEstimados: horas.mesesEstimados,
     custo,
     margem,
     margemPct,
