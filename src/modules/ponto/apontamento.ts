@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { minutosSessao } from "@/modules/ponto/format";
 import { normalizarAlocacaoPonto, type TipoAlocacaoPonto } from "@/modules/ponto/alocacao";
-import { resolverTarefaDoPonto } from "@/modules/ponto/tarefa-ponto-service";
+import { resolverDestinoDaSessao } from "@/modules/ponto/destino-sessao";
 
 /**
  * Apontamento de horas — jornada aberta/fechada em `SessaoTrabalho`, SEM o vocabulário de
@@ -71,9 +71,10 @@ export async function abrirApontamento(userId: string, projetoId: string | null,
   const aberto = await prisma.sessaoTrabalho.findFirst({ where: { userId, fim: null } });
   if (aberto) throw new ActionError("Já existe um apontamento em aberto — encerre antes de iniciar outro.");
   const alocacao = normalizarAlocacaoPonto(projetoId);
-  const tarefa = await resolverTarefaDoPonto(prisma, userId, alocacao, tarefaId);
+  const agora = new Date();
+  const destino = await resolverDestinoDaSessao(prisma, { userId, alocacao, tarefaId, quando: agora, aoVivo: true, checarAcesso: true });
   return prisma.sessaoTrabalho.create({
-    data: { userId, ...alocacao, tarefaId: tarefa, inicio: new Date() },
+    data: { userId, ...alocacao, ...destino, inicio: agora },
   });
 }
 
@@ -83,11 +84,11 @@ export async function trocarApontamento(userId: string, projetoId: string | null
   if (!aberto) throw new ActionError("Nenhum apontamento em aberto para trocar de projeto.");
   const agora = new Date();
   const alocacao = normalizarAlocacaoPonto(projetoId);
-  // Validada ANTES de fechar: tarefa inválida não pode deixar o apontamento sem sessão.
-  const tarefa = await resolverTarefaDoPonto(prisma, userId, alocacao, tarefaId);
+  // Validado ANTES de fechar: destino inválido não pode deixar o apontamento sem sessão.
+  const destino = await resolverDestinoDaSessao(prisma, { userId, alocacao, tarefaId, quando: agora, aoVivo: true, checarAcesso: true });
   await prisma.$transaction([
     prisma.sessaoTrabalho.update({ where: { id: aberto.id }, data: { fim: agora } }),
-    prisma.sessaoTrabalho.create({ data: { userId, ...alocacao, tarefaId: tarefa, inicio: agora } }),
+    prisma.sessaoTrabalho.create({ data: { userId, ...alocacao, ...destino, inicio: agora } }),
   ]);
 }
 

@@ -11,7 +11,8 @@ import { notificar } from "@/lib/notificar";
 import { getSession } from "@/lib/session";
 import { aplicarBatida, editarDia } from "@/modules/ponto/service";
 import { apontamentoAtual } from "@/modules/ponto/apontamento";
-import { resolverTarefaDoPonto, sugestaoParaPonto, tarefasParaPonto, type TarefaDoPonto } from "@/modules/ponto/tarefa-ponto-service";
+import { sugestaoParaPonto, tarefasParaPonto, type TarefaDoPonto } from "@/modules/ponto/tarefa-ponto-service";
+import { resolverDestinoDaSessao } from "@/modules/ponto/destino-sessao";
 import {
   alocacoesRecentes,
   espelhoDetalhado,
@@ -215,12 +216,12 @@ export const trocarProjeto = defineAction(
     if (!aberta) throw new ActionError("Nenhuma jornada aberta para trocar de projeto.");
     const agora = new Date();
     const alocacao = normalizarAlocacaoPonto(i.projetoId);
-    // Validada ANTES de fechar a sessão: tarefa inválida não pode deixar a jornada sem sessão.
-    const tarefaId = await resolverTarefaDoPonto(prisma, user.id, alocacao, i.tarefaId);
+    // Validado ANTES de fechar a sessão: destino inválido não pode deixar a jornada sem sessão.
+    const destino = await resolverDestinoDaSessao(prisma, { userId: user.id, alocacao, tarefaId: i.tarefaId, quando: agora, aoVivo: true, checarAcesso: true });
     await prisma.$transaction([
       prisma.sessaoTrabalho.update({ where: { id: aberta.id }, data: { fim: agora } }),
       prisma.sessaoTrabalho.create({
-        data: { userId: user.id, ...alocacao, tarefaId, inicio: agora },
+        data: { userId: user.id, ...alocacao, ...destino, inicio: agora },
       }),
     ]);
     rev();

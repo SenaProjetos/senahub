@@ -22,7 +22,7 @@ import {
 } from "@/modules/rh/escalas/queries";
 import { normalizarAlocacaoPonto, type TipoAlocacaoPonto } from "@/modules/ponto/alocacao";
 import { herdarTarefasNaEdicao } from "@/modules/ponto/tarefa-ponto";
-import { resolverTarefaDoPonto } from "@/modules/ponto/tarefa-ponto-service";
+import { resolverDestinoDaSessao } from "@/modules/ponto/destino-sessao";
 
 /** Origem da batida (espelha o enum Prisma OrigemBatida). */
 export type OrigemBatida = "app" | "offline" | "ajuste_proprio" | "ajuste_admin" | "migracao";
@@ -170,7 +170,12 @@ export async function aplicarBatida(params: {
     // A tarefa (F6) é validada DENTRO da transação e só existe em quem abre sessão: descanso e
     // saída ignoram o campo em vez de falhar por causa dele.
     const abreSessao = tipo === "entrada" || tipo === "fim_descanso";
-    const tarefaId = abreSessao ? await resolverTarefaDoPonto(tx, userId, alocacao, params.tarefaId) : null;
+    // R2 do rateio: tarefa, acesso ao projeto e disciplina. A volta do descanso não confere o acesso
+    // de novo — quem saiu da equipe no meio da jornada não fica preso no descanso.
+    const destino = abreSessao
+      ? await resolverDestinoDaSessao(tx, { userId, alocacao, tarefaId: params.tarefaId, quando: horario, aoVivo: true, checarAcesso: tipo === "entrada" })
+      : { tarefaId: null, disciplinaId: null };
+    const tarefaId = destino.tarefaId;
     if (abreSessao) {
       await tx.sessaoTrabalho.create({
         data: {
@@ -178,6 +183,7 @@ export async function aplicarBatida(params: {
           projetoId: alocacao.projetoId,
           tipoAlocacao: alocacao.tipoAlocacao,
           tarefaId,
+          disciplinaId: destino.disciplinaId,
           inicio: horario,
         },
       });
@@ -192,6 +198,7 @@ export async function aplicarBatida(params: {
         tipo,
         horario,
         projetoId: alocacao.projetoId,
+        tipoAlocacao: alocacao.tipoAlocacao,
         tarefaId,
         origem,
         criadoPorId: criadoPorId ?? null,
@@ -287,12 +294,33 @@ export async function reconciliarSessoesDoDia(
   const diaCorrente = targetISO === diaLocal(new Date());
   const intervalos = intervalosComProjeto(batidas, diaCorrente);
   for (const it of intervalos) {
+    // Correção do dia: nunca falha por disciplina nem por acesso (a edição do RH pode pôr horas num
+    // projeto de que a pessoa já saiu); a tarefa herdada que ficou inválida é descartada.
+    const destino = await resolverDestinoDaSessao(tx, {
+      userId,
+      alocacao: { projetoId: it.projetoId, tipoAlocacao: it.tipoAlocacao },
+      tarefaId: null,
+      quando: it.inicio,
+      aoVivo: false,
+      checarAcesso: false,
+    });
+    const tarefa = it.tarefaId
+      ? await resolverDestinoDaSessao(tx, {
+          userId,
+          alocacao: { projetoId: it.projetoId, tipoAlocacao: it.tipoAlocacao },
+          tarefaId: it.tarefaId,
+          quando: it.inicio,
+          aoVivo: false,
+          checarAcesso: false,
+        }).catch(() => null)
+      : null;
     await tx.sessaoTrabalho.create({
       data: {
         userId,
         projetoId: it.projetoId,
         tipoAlocacao: it.tipoAlocacao,
-        tarefaId: it.tarefaId ?? null,
+        tarefaId: tarefa?.tarefaId ?? null,
+        disciplinaId: tarefa?.disciplinaId ?? destino.disciplinaId,
         inicio: it.inicio,
         fim: it.fim,
       },
@@ -351,6 +379,23 @@ export async function editarDia(params: {
     }
   }
 
+  // R2 do rateio: quem edita o PRÓPRIO dia só põe horas em projeto de que participa. A edição feita
+  // pelo RH não confere (pode corrigir um dia em projeto de que a pessoa já saiu).
+  if (proprio) {
+    const vistos = new Set<string>();
+    for (const b of novas) {
+      if (!b.projetoId || vistos.has(b.projetoId)) continue;
+      vistos.add(b.projetoId);
+      await resolverDestinoDaSessao(prisma, {
+        userId,
+        alocacao: { projetoId: b.projetoId, tipoAlocacao: b.tipoAlocacao },
+        quando: b.horario,
+        aoVivo: false,
+        checarAcesso: true,
+      });
+    }
+  }
+
   const status = proprio ? null : ("pendente_ciencia" as const);
 
   const ajusteId = await prisma.$transaction(async (tx) => {
@@ -376,6 +421,7 @@ export async function editarDia(params: {
           tipo: b.tipo,
           horario: b.horario,
           projetoId: b.projetoId,
+          tipoAlocacao: b.tipoAlocacao,
           tarefaId: b.tarefaId,
           origem,
           editada: true,
