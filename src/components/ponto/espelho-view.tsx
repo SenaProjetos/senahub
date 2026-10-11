@@ -204,7 +204,13 @@ function LinhaDia({
         <td className="px-2 py-1.5 text-center print:hidden">
           {editavel && (
             <EditarDiaDialog
-              inicial={{ dia: dia.dia, entrada: dia.entrada, saida: dia.saida, descansos: dia.descansos }}
+              inicial={{
+                dia: dia.dia,
+                entrada: dia.entrada,
+                saida: dia.saida,
+                descansos: dia.descansos,
+                alocacao: dia.batidas.find((b) => b.tipo === "entrada")?.alocacao,
+              }}
               projetos={projetos}
               userId={userIdAlvo}
             />

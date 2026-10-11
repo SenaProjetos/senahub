@@ -21,6 +21,7 @@ import { RegistroPonto, type EstadoDiaProp, type AjustePendenteProp } from "@/co
 import { ApontamentoHoras } from "@/components/ponto/apontamento-view";
 import type { DisciplinaEscrevivel } from "@/modules/projetos/diario/queries";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -167,6 +168,7 @@ export function PontoView({
   } | null;
 }) {
   const router = useRouter();
+  const confirmar = useConfirm();
   const [busy, setBusy] = useState(false);
 
   /** Ação simples (usada pelo fechamento de rateio) — feedback + refresh. */
@@ -424,15 +426,22 @@ export function PontoView({
                   <Button
                     size="sm"
                     disabled={busy}
-                    onClick={() =>
-                      acao(() => fecharRateioMes({ ano: rateio.mesAnterior.ano, mes: rateio.mesAnterior.mes }), "Rateio do mês fechado.")
-                    }
+                    onClick={async () => {
+                      // Mesmo aviso da tela de fechamentos; confirmar ANTES da ação.
+                      const ok = await confirmar({
+                        title: `Fechar ${String(rateio.mesAnterior.mes).padStart(2, "0")}/${rateio.mesAnterior.ano}?`,
+                        description: "O custo das horas deste mês fica congelado. Para mudar depois, é preciso reabrir com um motivo.",
+                        confirmLabel: "Fechar mês",
+                      });
+                      if (!ok) return;
+                      await acao(() => fecharRateioMes({ ano: rateio.mesAnterior.ano, mes: rateio.mesAnterior.mes }), "Rateio do mês fechado.");
+                    }}
                   >
                     Fechar {String(rateio.mesAnterior.mes).padStart(2, "0")}/{rateio.mesAnterior.ano}
                   </Button>
                 )}
                 <Link href="/rh/rateio" className={buttonVariants({ size: "sm", variant: "outline" })}>
-                  Gerir fechamentos
+                  {rateio.podeFechar ? "Gerir fechamentos" : "Ver fechamentos"}
                 </Link>
               </div>
             </div>
@@ -463,21 +472,21 @@ export function PontoView({
                   <li className="flex items-center justify-between gap-3 py-2 text-muted-foreground">
                     <span className="min-w-0 flex-1 truncate">Sem projeto</span>
                     <span className="font-mono">{fmtHoras(rateio.semProjeto)}</span>
-                    <span className="w-28 text-right font-mono">—</span>
+                    {rateio.custoVisivel && <span className="w-28 text-right font-mono">—</span>}
                   </li>
                 )}
                 {rateio.reuniaoInterna > 0 && (
                   <li className="flex items-center justify-between gap-3 py-2 text-muted-foreground">
                     <span className="min-w-0 flex-1 truncate">Reunião interna</span>
                     <span className="font-mono">{fmtHoras(rateio.reuniaoInterna)}</span>
-                    <span className="w-28 text-right font-mono">—</span>
+                    {rateio.custoVisivel && <span className="w-28 text-right font-mono">—</span>}
                   </li>
                 )}
                 {rateio.reuniaoExterna > 0 && (
                   <li className="flex items-center justify-between gap-3 py-2 text-muted-foreground">
                     <span className="min-w-0 flex-1 truncate">Reunião externa</span>
                     <span className="font-mono">{fmtHoras(rateio.reuniaoExterna)}</span>
-                    <span className="w-28 text-right font-mono">—</span>
+                    {rateio.custoVisivel && <span className="w-28 text-right font-mono">—</span>}
                   </li>
                 )}
                 {rateio.custoNaoAlocado > 0 && (

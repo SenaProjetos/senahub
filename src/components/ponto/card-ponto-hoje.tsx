@@ -27,7 +27,7 @@ import { formatarCodigo } from "@/modules/projetos/numbering";
 import { useBatida, avisarPontoAtualizado, EVENTO_PONTO } from "@/components/ponto/use-batida";
 import { useJornada } from "@/components/ponto/use-jornada";
 import { rotuloTarefaPonto, useTarefasDoPonto } from "@/components/ponto/seletor-tarefa";
-import { MSG_TAREFA_OBRIGATORIA } from "@/modules/ponto/disciplina-sessao";
+import { MSG_SEM_TAREFA_ABERTA, MSG_TAREFA_OBRIGATORIA } from "@/modules/ponto/disciplina-sessao";
 import { BOTAO, COR_ESTADO, ESTADO_LABEL } from "@/components/ponto/batida-meta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,6 +96,9 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
   // Tarefa escolhida para o destino com a jornada parada; `null` = seguir o padrão (`tarefaDoDestino`).
   const [escolhaTarefa, setEscolhaTarefa] = useState<string | null>(null);
   const [gavetaTarefa, setGavetaTarefa] = useState(false);
+  // Rodando, troca para projeto que exige tarefa (2+ disciplinas): o destino fica pendente até a
+  // pessoa escolher a tarefa na gaveta — trocar sem ela o servidor recusaria.
+  const [pendente, setPendente] = useState<string | null>(null);
   // "Outras da etapa" recolhidas por padrão (decisão 1 de 08/10/2026).
   const [verOutras, setVerOutras] = useState(false);
   const [busca, setBusca] = useState("");
@@ -164,7 +167,7 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
   // é retomar a última alocação; fora da jornada, a atividade de hoje no cronograma e, sem ela, a
   // mais recente.
   const alvo = rodando
-    ? selecaoCorrente
+    ? (pendente ?? selecaoCorrente)
     : (escolha ??
       (estado === "descansando" ? selecaoCorrente : (sugestao?.selecao ?? recentes[0]?.selecao ?? ALOCACAO_SEM_PROJETO)));
   const tarefaCorrenteId = tarefaCorrente?.id ?? "";
@@ -231,6 +234,11 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
       return;
     }
     if (selecao === selecaoCorrente) return;
+    if (tarefaObrigatoria(selecao, projetos ?? [])) {
+      setPendente(selecao);
+      setGavetaTarefa(true);
+      return;
+    }
     if (ehPonto) await trocar(selecao);
     else await apontar(() => trocarApontamentoAction({ projetoId: selecao }), "Alocação atualizada.");
   }
@@ -240,6 +248,14 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
     setGavetaTarefa(false);
     if (!rodando) {
       setEscolhaTarefa(id);
+      return;
+    }
+    if (pendente) {
+      const destino = pendente;
+      setPendente(null);
+      if (!id) return;
+      if (ehPonto) await trocar(destino, id);
+      else await apontar(() => trocarApontamentoAction({ projetoId: destino, tarefaId: id }), "Alocação atualizada.");
       return;
     }
     if (id === tarefaCorrenteId) return;
@@ -339,7 +355,11 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
           </button>
         )}
 
-        {faltaTarefa && <p className="border-t border-border/60 bg-muted/60 px-3 py-1.5 text-xs text-warning">{MSG_TAREFA_OBRIGATORIA}</p>}
+        {faltaTarefa && tarefas !== null && (
+          <p className="border-t border-border/60 px-3 py-1.5 text-xs text-foreground">
+            {tarefas.length > 0 ? MSG_TAREFA_OBRIGATORIA : MSG_SEM_TAREFA_ABERTA}
+          </p>
+        )}
 
         {atalhos.length > 0 && (
           <p className="border-t px-3 pb-1 pt-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
@@ -477,7 +497,14 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
         </SheetContent>
       </Sheet>
 
-      <Sheet open={gavetaTarefa} onOpenChange={setGavetaTarefa}>
+      <Sheet
+        open={gavetaTarefa}
+        onOpenChange={(aberta) => {
+          setGavetaTarefa(aberta);
+          // Fechou sem escolher: o destino pendente é descartado e a sessão segue onde estava.
+          if (!aberta) setPendente(null);
+        }}
+      >
         <SheetContent side="bottom" className="max-h-[85svh] gap-0 rounded-t-xl p-0">
           <SheetHeader className="px-4 pb-2 pt-4">
             <SheetTitle>Em qual tarefa?</SheetTitle>
@@ -488,7 +515,7 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
             </SheetDescription>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto border-t pb-[env(safe-area-inset-bottom)]">
-            {linhaDaGaveta("__sem_tarefa", "Sem tarefa", !tarefaId, () => void escolherTarefa(""))}
+            {!exigeTarefa && linhaDaGaveta("__sem_tarefa", "Sem tarefa", !tarefaId, () => void escolherTarefa(""))}
             {(tarefas ?? [])
               .filter((t) => t.grupo === "periodo")
               .map((t) => linhaDaGaveta(t.id, rotuloTarefaPonto(t), t.id === tarefaId, () => void escolherTarefa(t.id)))}

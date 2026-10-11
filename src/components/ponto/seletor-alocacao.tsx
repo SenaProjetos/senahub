@@ -69,7 +69,7 @@ export function SeletorAlocacao({
             <SelectValue placeholder="Projeto da reunião (opcional)" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={SEM_PROJETO_DA_REUNIAO}>— sem projeto</SelectItem>
+            <SelectItem value={SEM_PROJETO_DA_REUNIAO}>Sem projeto ligado</SelectItem>
             {projetos.map((p) => (
               <SelectItem key={p.id} value={p.id}>
                 {formatarCodigo(p.codigo)} · {p.nome}

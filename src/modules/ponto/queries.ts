@@ -16,6 +16,8 @@ import { abatimentoParcial, expandirAbonos, type AbonoParcial, type AbonosDoMes 
 import {
   alocacoesDistintas,
   rotuloAlocacaoSemProjeto,
+  rotuloDaSessao,
+  selecaoDaAlocacaoPonto,
   type AlocacaoRecente,
   type TipoAlocacaoPonto,
 } from "@/modules/ponto/alocacao";
@@ -671,6 +673,8 @@ export type BatidaDetalhe = {
   horario: Date;
   projeto: string | null;
   projetoId: string | null;
+  /** Valor do seletor de alocação desta batida (projeto, reunião ou reunião ligada a projeto). */
+  alocacao: string;
   geo: unknown;
   editada: boolean;
 };
@@ -793,7 +797,7 @@ export async function espelhoDetalhado(
   const batidas = await prisma.batida.findMany({
     where: { userId, dia: { gte: diaIni, lt: diaFim } },
     orderBy: { horario: "asc" },
-    select: { id: true, tipo: true, horario: true, projetoId: true, geo: true, editada: true, dia: true },
+    select: { id: true, tipo: true, horario: true, projetoId: true, tipoAlocacao: true, geo: true, editada: true, dia: true },
   });
   const sessoes = await prisma.sessaoTrabalho.findMany({
     where: { userId, inicio: { gte: diaIni, lt: diaFim } },
@@ -928,16 +932,19 @@ export async function espelhoDetalhado(
       status,
       batidas: bat.map((b) => {
         const sessao = sessaoPorInicio.get(b.horario.getTime());
+        // A batida guarda o destino desde a R2; a mais antiga cai na sessão que ela abriu.
+        const tipo: TipoAlocacaoPonto = b.tipoAlocacao ?? sessao?.tipoAlocacao ?? (b.projetoId ? "projeto" : "sem_projeto");
         return {
           id: b.id,
           tipo: b.tipo,
           horario: b.horario,
           projeto: b.projetoId
-            ? (projMap.get(b.projetoId) ?? null)
+            ? rotuloDaSessao(tipo, projMap.get(b.projetoId) ?? null)
             : sessao
               ? rotuloAlocacaoSemProjeto(sessao.tipoAlocacao)
               : null,
           projetoId: b.projetoId,
+          alocacao: selecaoDaAlocacaoPonto(b.projetoId, tipo),
           geo: b.geo,
           editada: b.editada,
         };

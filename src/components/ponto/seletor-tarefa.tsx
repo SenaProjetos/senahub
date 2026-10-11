@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { buscarTarefasPonto } from "@/modules/ponto/actions";
-import { MSG_TAREFA_OBRIGATORIA } from "@/modules/ponto/disciplina-sessao";
+import { MSG_SEM_TAREFA_ABERTA, MSG_TAREFA_OBRIGATORIA } from "@/modules/ponto/disciplina-sessao";
 import type { TarefaDoPonto } from "@/modules/ponto/tarefa-ponto-service";
 import {
   Select,
@@ -86,9 +86,7 @@ export function SeletorTarefa({
   if (!opcoes) return null;
   if (opcoes.length === 0) {
     return obrigatoria ? (
-      <p className="text-[11px] text-warning">
-        Você responde por mais de uma disciplina e não tem tarefa aberta neste projeto: peça à coordenação para atribuir uma.
-      </p>
+      <p className="text-xs text-foreground">{MSG_SEM_TAREFA_ABERTA}</p>
     ) : null;
   }
 
@@ -137,7 +135,7 @@ export function SeletorTarefa({
           ))}
       </SelectContent>
     </Select>
-    {obrigatoria && !value && <p className="text-[11px] text-warning">{MSG_TAREFA_OBRIGATORIA}</p>}
+    {obrigatoria && !value && <p className="text-xs text-foreground">{MSG_TAREFA_OBRIGATORIA}</p>}
     </div>
   );
 }

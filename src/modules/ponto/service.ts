@@ -296,31 +296,32 @@ export async function reconciliarSessoesDoDia(
   for (const it of intervalos) {
     // Correção do dia: nunca falha por disciplina nem por acesso (a edição do RH pode pôr horas num
     // projeto de que a pessoa já saiu); a tarefa herdada que ficou inválida é descartada.
-    const destino = await resolverDestinoDaSessao(tx, {
-      userId,
-      alocacao: { projetoId: it.projetoId, tipoAlocacao: it.tipoAlocacao },
-      tarefaId: null,
-      quando: it.inicio,
-      aoVivo: false,
-      checarAcesso: false,
-    });
+    const resolver = (tarefaId: string | null) =>
+      resolverDestinoDaSessao(tx, {
+        userId,
+        alocacao: { projetoId: it.projetoId, tipoAlocacao: it.tipoAlocacao },
+        tarefaId,
+        quando: it.inicio,
+        aoVivo: false,
+        checarAcesso: false,
+      });
+    // Só a recusa de NEGÓCIO (tarefa que não vale mais) cai para "sem tarefa"; erro de banco sobe —
+    // engolido aqui, deixaria a transação abortada e mascararia a causa na próxima consulta.
     const tarefa = it.tarefaId
-      ? await resolverDestinoDaSessao(tx, {
-          userId,
-          alocacao: { projetoId: it.projetoId, tipoAlocacao: it.tipoAlocacao },
-          tarefaId: it.tarefaId,
-          quando: it.inicio,
-          aoVivo: false,
-          checarAcesso: false,
-        }).catch(() => null)
+      ? await resolver(it.tarefaId).catch((e) => {
+          if (e instanceof ActionError) return null;
+          throw e;
+        })
       : null;
+    // Sem tarefa válida (ou tarefa sem disciplina): a disciplina vem da pessoa naquele dia.
+    const semTarefa = tarefa?.disciplinaId ? null : await resolver(null);
     await tx.sessaoTrabalho.create({
       data: {
         userId,
         projetoId: it.projetoId,
         tipoAlocacao: it.tipoAlocacao,
         tarefaId: tarefa?.tarefaId ?? null,
-        disciplinaId: tarefa?.disciplinaId ?? destino.disciplinaId,
+        disciplinaId: tarefa?.disciplinaId ?? semTarefa?.disciplinaId ?? null,
         inicio: it.inicio,
         fim: it.fim,
       },

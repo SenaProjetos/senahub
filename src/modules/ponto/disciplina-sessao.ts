@@ -6,6 +6,9 @@ export const MSG_SEM_ACESSO_PROJETO =
   "Você não faz parte deste projeto: só a equipe, os responsáveis pelas disciplinas e quem tem card no projeto marcam horas nele.";
 export const MSG_TAREFA_OBRIGATORIA =
   "Você é responsável por mais de uma disciplina neste projeto: escolha a tarefa em que vai trabalhar.";
+/** A tarefa é obrigatória, mas a pessoa não tem nenhuma aberta no projeto (telas do ponto). */
+export const MSG_SEM_TAREFA_ABERTA =
+  "Você responde por mais de uma disciplina e não tem tarefa aberta neste projeto: peça à coordenação para atribuir uma.";
 
 export function motivoParaNaoMarcarNoProjeto(p: { membro: boolean; responsavelDeDisciplina: boolean; temCardAberto: boolean }): string | null {
   return p.membro || p.responsavelDeDisciplina || p.temCardAberto ? null : MSG_SEM_ACESSO_PROJETO;
