@@ -109,6 +109,8 @@ type Rateio = {
   semProjeto: number;
   reuniaoInterna: number;
   reuniaoExterna: number;
+  /** Custo do mês que não foi para projeto nenhum (cálculo novo, desde 10/2026). */
+  custoNaoAlocado: number;
   custoTotal: number;
   fechado: boolean;
   fechadoEm: string | Date | null;
@@ -411,7 +413,7 @@ export function PontoView({
               <Button
                 size="sm"
                 variant={rateio.fechado ? "outline" : "default"}
-                disabled={busy || rateio.porProjeto.length === 0}
+                disabled={busy || (rateio.porProjeto.length === 0 && rateio.custoNaoAlocado === 0)}
                 onClick={() =>
                   acao(
                     () => fecharRateioMes({ ano, mes }),
@@ -454,6 +456,13 @@ export function PontoView({
                     <span className="min-w-0 flex-1 truncate">Reunião externa</span>
                     <span className="font-mono">{fmtHoras(rateio.reuniaoExterna)}</span>
                     <span className="w-28 text-right font-mono">—</span>
+                  </li>
+                )}
+                {rateio.custoNaoAlocado > 0 && (
+                  <li className="flex items-center justify-between gap-3 py-2">
+                    <span className="min-w-0 flex-1 truncate">Não alocado (custo fora dos projetos)</span>
+                    <span className="font-mono text-muted-foreground">—</span>
+                    <span className="w-28 text-right font-mono">{brl(rateio.custoNaoAlocado)}</span>
                   </li>
                 )}
               </ul>
