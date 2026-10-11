@@ -2126,3 +2126,7 @@ git commit -m "docs(rateio): custo da hora com encargos no manual, novidades e C
 1. `npx prisma migrate deploy` (inclui `20261011120000_rateio_custo_hora_v2`: cria a tabela de encargos com a versão de 10/2026, marca os estagiários ativos como IEL e grava o corte `2026-10`).
 2. Conferir em RH → Encargos se os valores batem com a decisão 4 e se os estagiários contratados direto estão marcados como tal.
 3. Rodar `npm run smoke:rateio-custo-hora` no servidor (só leitura).
+4. Antes do deploy, conferir que nenhum mês a partir de outubro/2026 já foi fechado pelo código antigo:
+   `SELECT DISTINCT ano, mes FROM rateio_hora WHERE (ano, mes) >= (2026, 10);` precisa voltar vazio. Se voltar algum mês,
+   a migração o marca como `legado` (verdade: foi fechado no cálculo antigo); refechar esse mês depois do deploy o recalcula no novo.
+5. O botão do card do Ponto agora fecha o MÊS ANTERIOR e só aparece para quem tem `rh:gerir`; o mês em curso não fecha.
