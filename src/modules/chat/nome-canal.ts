@@ -20,3 +20,16 @@ export function nomeCanal(canal: {
   if (canal.tipo === "disciplina" && canal.disciplina) return canal.disciplina.disciplinaTextoLegado;
   return canal.nome ?? canal.tipo;
 }
+
+/**
+ * De onde veio uma mensagem, para o aviso ao vivo (toast): deixa claro se foi no
+ * privado ou num grupo/canal. `nome` já resolvido por `nomeCanal`.
+ */
+export function origemMensagem(tipo: string, nome: string | null): string {
+  if (tipo === "dm") return "Mensagem privada";
+  if (tipo === "anotacoes") return "Anotações";
+  if (tipo === "grupo") return `Grupo ${nome ?? "sem nome"}`;
+  if (tipo === "projeto") return `Projeto ${nome ?? ""}`.trim();
+  if (tipo === "disciplina") return `Disciplina ${nome ?? ""}`.trim();
+  return `Canal ${nome ?? tipo}`; // geral, sócios
+}
