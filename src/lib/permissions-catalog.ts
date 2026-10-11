@@ -448,6 +448,8 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
       {
         acao: "gerir",
         label: "Gestão de RH — aprovar férias e abonos, ajustar ponto e escalas, cadastro trabalhista, folha e contratos de equipe",
+        // A tela de encargos da empresa abre pelo mesmo gate da página (`requireGestorRh`).
+        abre: "Encargos da empresa",
       },
     ],
   },
