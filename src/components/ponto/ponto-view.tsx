@@ -20,7 +20,7 @@ import { brl, formatarData } from "@/lib/utils";
 import { RegistroPonto, type EstadoDiaProp, type AjustePendenteProp } from "@/components/ponto/registro-view";
 import { ApontamentoHoras } from "@/components/ponto/apontamento-view";
 import type { DisciplinaEscrevivel } from "@/modules/projetos/diario/queries";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -418,21 +418,23 @@ export function PontoView({
                     : ` · ${String(rateio.mesAnterior.mes).padStart(2, "0")}/${rateio.mesAnterior.ano} ainda não fechado`}
                 </CardDescription>
               </div>
-              {rateio.podeFechar && (
-                <Button
-                  size="sm"
-                  variant={rateio.mesAnterior.fechadoEm ? "outline" : "default"}
-                  disabled={busy}
-                  onClick={() =>
-                    acao(
-                      () => fecharRateioMes({ ano: rateio.mesAnterior.ano, mes: rateio.mesAnterior.mes }),
-                      rateio.mesAnterior.fechadoEm ? "Rateio refechado." : "Rateio do mês fechado.",
-                    )
-                  }
-                >
-                  {rateio.mesAnterior.fechadoEm ? "Refechar" : "Fechar"} {String(rateio.mesAnterior.mes).padStart(2, "0")}/{rateio.mesAnterior.ano}
-                </Button>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Mês fechado não fecha de novo: mudar é reabrir com motivo, na tela de fechamentos. */}
+                {rateio.podeFechar && !rateio.mesAnterior.fechadoEm && (
+                  <Button
+                    size="sm"
+                    disabled={busy}
+                    onClick={() =>
+                      acao(() => fecharRateioMes({ ano: rateio.mesAnterior.ano, mes: rateio.mesAnterior.mes }), "Rateio do mês fechado.")
+                    }
+                  >
+                    Fechar {String(rateio.mesAnterior.mes).padStart(2, "0")}/{rateio.mesAnterior.ano}
+                  </Button>
+                )}
+                <Link href="/rh/rateio" className={buttonVariants({ size: "sm", variant: "outline" })}>
+                  Gerir fechamentos
+                </Link>
+              </div>
             </div>
           </CardHeader>
           <CardContent>

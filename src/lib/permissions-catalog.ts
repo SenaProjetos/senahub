@@ -411,7 +411,7 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     recurso: "ponto",
     label: "Ponto",
     acoes: [
-      { acao: "rateio", label: "Ver rateio de horas da equipe por projeto", abre: "Aba Rateio do Ponto", leitura: true },
+      { acao: "rateio", label: "Ver rateio de horas da equipe por projeto", abre: "Aba Rateio do Ponto · Rateio de horas", leitura: true },
       // Decisão 26 do rateio (2026-10-11): reais só para admin e sócios; a coordenação vê horas.
       // Nenhum perfil recebe; sócio entra pela regra explícita de `podeVerCusto`, não pelo piso.
       { acao: "custo", label: "Ver o custo em reais do rateio de horas (por pessoa e por projeto)", leitura: true },

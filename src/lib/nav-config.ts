@@ -318,6 +318,13 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Clock,
         permissao: "ponto:gerir_escalas",
       },
+      {
+        // Fechamento do custo das horas por mês (R3). Ver = `ponto:rateio`; fechar/reabrir = `rh:gerir`.
+        title: "Rateio de horas",
+        href: "/rh/rateio",
+        icon: Scale,
+        permissao: "ponto:rateio",
+      },
     ],
   },
   {
