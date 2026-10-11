@@ -39,6 +39,7 @@ import {
   folhaUsaContaDaCompetencia,
   motivoParaNaoReabrir,
   type ContaDaFolha,
+  type DecisaoDaFolha,
 } from "@/modules/rh/folha/quitacao";
 
 /** O que o fechamento fez com a conta a pagar do líquido CLT. `sem_clt` = folha só de estagiários. */
@@ -208,7 +209,7 @@ type ParteGravada = { parte: ParteFolha; rotulo: string; lancamentoId: string };
 type AcaoDaParte =
   | { tipo: "atualizar"; plano: LancamentoPlanejado; lancamentoId: string }
   | { tipo: "criar"; plano: LancamentoPlanejado; linhaExistente: boolean }
-  | { tipo: "ja_paga"; plano: LancamentoPlanejado; valorPagoCent: number }
+  | { tipo: "ja_paga"; plano: LancamentoPlanejado; valorPagoCent: number; situacao: "paga" | "em_aprovacao" }
   | { tipo: "cancelar"; lancamentoId: string; descricao: string };
 
 export async function fecharFolhaNoBanco(folhaId: string, autorId: string): Promise<ResultadoFechamento> {
@@ -255,11 +256,34 @@ export async function fecharFolhaNoBanco(folhaId: string, autorId: string): Prom
   const lancPorId = new Map(lancsDasPartes.map((l) => [l.id, l]));
   const chaveParte = (p: { parte: string; rotulo: string }) => `${p.parte}|${p.rotulo}`;
 
+  // Conta do líquido de um fechamento anterior desta folha (reabrir não desliga): em aberto, é ela que
+  // recebe o valor novo — também no 13º, que não procura conta da competência e criaria outra.
+  const anterior = folha.lancamentoId
+    ? await prisma.lancamento.findUnique({
+        where: { id: folha.lancamentoId },
+        select: { id: true, status: true, excluidoEm: true, valor: true, vencimento: true, data: true, recorrenciaCompetencia: true },
+      })
+    : null;
+  const anteriorAberto = anterior && !anterior.excluidoEm && anterior.status === "previsto" ? anterior : null;
+
   // 13º: outra despesa, com folha própria no mesmo mês — não procura a conta da competência.
-  const decisao =
-    mensal && planoLiquido
-      ? decidirContaDaFolha(await contasDaCompetencia(categoriasDaFolha, competencia, linhas.map((l) => l.lancamentoId)), competencia)
-      : { escolhida: null, jaPaga: null, outras: [] };
+  const decisao: DecisaoDaFolha =
+    planoLiquido && anteriorAberto
+      ? {
+          escolhida: {
+            id: anteriorAberto.id,
+            valor: paraCentavos(anteriorAberto.valor),
+            status: "previsto",
+            vencimento: isoDeDataDoBanco(anteriorAberto.vencimento ?? anteriorAberto.data),
+            recorrenciaCompetencia: anteriorAberto.recorrenciaCompetencia,
+            adiantamento: false,
+          },
+          jaPaga: null,
+          outras: [],
+        }
+      : mensal && planoLiquido
+        ? decidirContaDaFolha(await contasDaCompetencia(categoriasDaFolha, competencia, linhas.map((l) => l.lancamentoId)), competencia)
+        : { escolhida: null, jaPaga: null, outras: [] };
   const compromisso = mensal && planoLiquido ? await compromissoDaFolha(categoriasDaFolha, competencia) : null;
 
   const cal = await calendarioFinanceiro(anosDoHorizonte(hoje, `${proximo}-28`));
@@ -283,7 +307,13 @@ export async function fecharFolhaNoBanco(folhaId: string, autorId: string): Prom
     } else if (lanc.status === "previsto") {
       acoes.push({ tipo: "atualizar", plano: p, lancamentoId: lanc.id });
     } else {
-      acoes.push({ tipo: "ja_paga", plano: p, valorPagoCent: paraCentavos(lanc.valorEfetivo ?? lanc.valor) });
+      // Paga, ou aguardando aprovação no Financeiro (alguém mudou o valor lá): a folha não mexe.
+      acoes.push({
+        tipo: "ja_paga",
+        plano: p,
+        valorPagoCent: paraCentavos(lanc.status === "confirmado" ? (lanc.valorEfetivo ?? lanc.valor) : lanc.valor),
+        situacao: lanc.status === "confirmado" ? "paga" : "em_aprovacao",
+      });
     }
   }
   for (const l of linhas) {
@@ -306,9 +336,23 @@ export async function fecharFolhaNoBanco(folhaId: string, autorId: string): Prom
   for (const chave of new Set(plano.lancamentos.map((l) => l.chaveCategoria))) categoriaPorChave.set(chave, await categoriaDaParte(chave));
 
   const gravado = await prisma.$transaction(async (tx) => {
+    // Trava da folha: o primeiro a passar daqui fecha; um segundo "Fechar" simultâneo espera o
+    // primeiro terminar, não acha mais a folha aberta e desiste — sem isso nasceriam duas contas.
+    const trava = await tx.folhaPagamento.updateMany({ where: { id: folha.id, status: "aberta" }, data: { status: "fechada", fechadaEm: agora } });
+    if (trava.count !== 1) throw new ActionError("Folha já fechada.");
     // ---- Líquido CLT: a lógica do N0, agora em Salários (13º na subcategoria dele).
     let liquido: { acao: AcaoNaConta; lancamentoId: string | null; vencimento: string; reaproveitado: boolean; valorPrevisto: number | null };
+    const avisosDoLiquido: string[] = [];
     if (!planoLiquido) {
+      // A folha deixou de ter CLT depois de um fechamento: a conta do líquido daquele fechamento sai
+      // (cancelada pela máquina de situações) — senão o caixa contaria um salário que não existe mais.
+      if (anteriorAberto) {
+        const { estado } = await exigirOperacao(tx, anteriorAberto.id, "cancelar");
+        const r = await tx.lancamento.updateMany({ where: { id: anteriorAberto.id, status: estado.status, excluidoEm: null }, data: { status: "cancelado" } });
+        if (r.count !== 1) throw new ActionError(MOTIVO_MUDOU);
+        await tx.lancamentoStatusHistorico.create({ data: { lancamentoId: anteriorAberto.id, de: estado.status, para: "cancelado", autorId } });
+        avisosDoLiquido.push("A folha não tem mais CLT: a conta do líquido do fechamento anterior foi cancelada.");
+      }
       liquido = { acao: "sem_clt", lancamentoId: null, vencimento, reaproveitado: false, valorPrevisto: null };
     } else if (decisao.jaPaga) {
       liquido = { acao: "ja_paga", lancamentoId: decisao.jaPaga.id, vencimento: decisao.jaPaga.vencimento, reaproveitado: true, valorPrevisto: paraReais(decisao.jaPaga.valor) };
@@ -320,6 +364,8 @@ export async function fecharFolhaNoBanco(folhaId: string, autorId: string): Prom
           descricao: planoLiquido.descricao,
           valor: paraReais(planoLiquido.valorCent),
           dataCompetencia: inicioDoMes(competencia),
+          // A conta pode ter nascido na mãe (recorrência antiga, lançamento à mão): o líquido é Salários.
+          categoriaId: categoriaPorChave.get(planoLiquido.chaveCategoria)!,
           ...(decisao.escolhida.recorrenciaCompetencia ? {} : vinculo),
         },
       });
@@ -345,7 +391,7 @@ export async function fecharFolhaNoBanco(folhaId: string, autorId: string): Prom
     }
 
     // ---- Demais partes (bolsa, guias, benefícios), ligadas à folha por FolhaLancamento.
-    const avisos: string[] = [];
+    const avisos: string[] = [...avisosDoLiquido];
     const partes: ParteGravada[] = [];
     for (const a of acoes) {
       if (a.tipo === "cancelar") {
@@ -369,7 +415,9 @@ export async function fecharFolhaNoBanco(folhaId: string, autorId: string): Prom
         if (r.count !== 1) throw new ActionError("Uma conta a pagar da folha mudou enquanto a folha era fechada: tente de novo.");
         partes.push({ parte: p.parte as ParteFolha, rotulo: p.rotulo, lancamentoId: a.lancamentoId });
       } else if (a.tipo === "ja_paga") {
-        if (a.valorPagoCent !== p.valorCent) {
+        if (a.situacao === "em_aprovacao") {
+          avisos.push(`${p.descricao}: está aguardando aprovação no Financeiro (${formatarCentavos(a.valorPagoCent)}); o valor da folha (${formatarCentavos(p.valorCent)}) não foi aplicado.`);
+        } else if (a.valorPagoCent !== p.valorCent) {
           avisos.push(`${p.descricao}: já estava paga (${formatarCentavos(a.valorPagoCent)}); o valor novo (${formatarCentavos(p.valorCent)}) não foi aplicado.`);
         }
       } else {
@@ -422,16 +470,23 @@ export async function fecharFolhaNoBanco(folhaId: string, autorId: string): Prom
 export async function reabrirFolhaNoBanco(folhaId: string, motivo: string, autorId: string | null): Promise<{ assinaturasRevogadas: number }> {
   const texto = motivo.trim();
   if (texto.length < MOTIVO_MINIMO) throw new ActionError(MSG_MOTIVO_CURTO);
-  const folha = await prisma.folhaPagamento.findUnique({ where: { id: folhaId }, include: { partes: { select: { lancamentoId: true } } } });
-  if (!folha) throw new ActionError("Folha não encontrada.");
-  if (folha.status !== "fechada") throw new ActionError("Folha não está fechada.");
-
-  const ids = [...(folha.lancamentoId ? [folha.lancamentoId] : []), ...folha.partes.map((p) => p.lancamentoId)];
-  const paga = await prisma.lancamento.findFirst({ where: { id: { in: ids }, excluidoEm: null, status: "confirmado" }, select: { status: true } });
-  const recusa = motivoParaNaoReabrir(paga);
-  if (recusa) throw new ActionError(recusa);
-
   const assinaturasRevogadas = await prisma.$transaction(async (tx) => {
+    // Trava primeiro (o mesmo par de "Reabrir" ao mesmo tempo grava uma reabertura só), depois a
+    // conferência de pagamento já dentro da transação.
+    const folha = await tx.folhaPagamento.findUnique({ where: { id: folhaId }, include: { partes: { select: { lancamentoId: true } } } });
+    if (!folha) throw new ActionError("Folha não encontrada.");
+    const trava = await tx.folhaPagamento.updateMany({
+      where: { id: folhaId, status: "fechada" },
+      // `lancamentoId` FICA: o próximo fechamento atualiza essa mesma conta (ou a cancela, se a folha
+      // perder os CLT) em vez de procurar de novo e criar outra.
+      data: { status: "aberta", fechadaEm: null },
+    });
+    if (trava.count !== 1) throw new ActionError("Folha não está fechada.");
+    const ids = [...(folha.lancamentoId ? [folha.lancamentoId] : []), ...folha.partes.map((p) => p.lancamentoId)];
+    const paga = await tx.lancamento.findFirst({ where: { id: { in: ids }, excluidoEm: null, status: "confirmado" }, select: { status: true } });
+    const recusa = motivoParaNaoReabrir(paga);
+    if (recusa) throw new ActionError(recusa);
+
     const assinados = await tx.holerite.findMany({
       where: { folhaId, assinadoEm: { not: null } },
       select: { id: true, assinadoEm: true, assinanteId: true, itens: { select: { descricao: true, tipo: true, valor: true } } },
@@ -448,10 +503,6 @@ export async function reabrirFolhaNoBanco(folhaId: string, motivo: string, autor
       });
     }
     await tx.folhaReabertura.create({ data: { folhaId, motivo: texto, autorId } });
-    await tx.folhaPagamento.update({
-      where: { id: folhaId },
-      data: { status: "aberta", fechadaEm: null, lancamentoId: null, lancamentoReaproveitado: false, lancamentoValorPrevisto: null },
-    });
     const r = await tx.holerite.updateMany({
       where: { folhaId, assinadoEm: { not: null } },
       data: { assinadoEm: null, assinanteId: null },

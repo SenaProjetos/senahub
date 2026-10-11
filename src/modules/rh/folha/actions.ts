@@ -178,6 +178,7 @@ export const salvarTotaisDaFolha = defineAction(
     ...base,
     acao: "salvar-totais-folha",
     entidade: "FolhaPagamento",
+    entidadeId: (_d: unknown, i: { id: string }) => i.id,
     schema: totaisSchema,
     capturarAntes: (i) => prisma.folhaPagamento.findUnique({ where: { id: i.id }, select: { totalInssRetido: true, totalIrrfRetido: true, totalFgts: true } }),
   },
@@ -199,7 +200,7 @@ export const salvarTotaisDaFolha = defineAction(
  * dia útil do mês seguinte. Regras em `quitacao.ts` e `fechamento-service.ts`.
  */
 export const fecharFolha = defineAction(
-  { ...base, acao: "fechar-folha", entidade: "FolhaPagamento", schema: idSchema },
+  { ...base, acao: "fechar-folha", entidade: "FolhaPagamento", entidadeId: (_d: unknown, i: { id: string }) => i.id, schema: idSchema },
   async (i, { user }) => {
     const r = await fecharFolhaNoBanco(i.id, user.id);
     revalidatePath(PATH);
@@ -216,7 +217,7 @@ export const fecharFolha = defineAction(
  * assinaturas são revogadas, e o que cada pessoa assinou fica guardado como versão.
  */
 export const reabrirFolha = defineAction(
-  { ...base, acao: "reabrir-folha", entidade: "FolhaPagamento", schema: reabrirSchema },
+  { ...base, acao: "reabrir-folha", entidade: "FolhaPagamento", entidadeId: (_d: unknown, i: { id: string }) => i.id, schema: reabrirSchema },
   async (i, { user }) => {
     const { assinaturasRevogadas } = await reabrirFolhaNoBanco(i.id, i.motivo, user.id);
     revalidatePath(PATH);

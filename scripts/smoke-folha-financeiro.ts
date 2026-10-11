@@ -150,6 +150,42 @@ async function main() {
     const eN5 = await erroDe(() => fecharFolhaNoBanco(folhaAgo, ana.id));
     const ago = await prisma.folhaPagamento.findUnique({ where: { id: folhaAgo }, select: { status: true, _count: { select: { partes: true } } } });
     check("mês fechado no Financeiro: fechar a folha é recusado sem gravar", eN5 !== null && ago?.status === "aberta" && ago._count.partes === 0, { eN5, ago });
+
+    // 7 — Dois "Fechar" ao mesmo tempo: um fecha, o outro desiste; nasce UMA conta do líquido. Dois
+    //     "Reabrir" ao mesmo tempo: uma reabertura só.
+    const folhaSet = await folhaDe(9, [{ userId: ana.id, proventos: 3300, descontos: 300 }]);
+    const fechs = await Promise.allSettled([fecharFolhaNoBanco(folhaSet, ana.id), fecharFolhaNoBanco(folhaSet, beto.id)]);
+    const okF = fechs.filter((r) => r.status === "fulfilled").length;
+    const errF = fechs.flatMap((r) => (r.status === "rejected" ? [(r.reason as Error).message] : []));
+    const liquidos = await prisma.lancamento.count({ where: { descricao: { startsWith: `Folha CLT (líquido) — folha 09/${ANO}` }, excluidoEm: null } });
+    check("fechar duas vezes ao mesmo tempo: um passa, o outro é recusado, uma conta só", okF === 1 && errF[0] === "Folha já fechada." && liquidos === 1, { okF, errF, liquidos });
+    const reabs = await Promise.allSettled([
+      reabrirFolhaNoBanco(folhaSet, "reabrindo em paralelo um", ana.id),
+      reabrirFolhaNoBanco(folhaSet, "reabrindo em paralelo dois", beto.id),
+    ]);
+    const okR = reabs.filter((r) => r.status === "fulfilled").length;
+    const nReab = await prisma.folhaReabertura.count({ where: { folhaId: folhaSet } });
+    check("reabrir duas vezes ao mesmo tempo: uma reabertura só", okR === 1 && nReab === 1, { okR, nReab });
+
+    // 8 — Reabrir e fechar de novo reaproveita a conta do líquido (também no 13º, que não procura conta
+    //     da competência); folha que perdeu os CLT cancela a conta do líquido anterior.
+    const folhaOut = await folhaDe(10, [{ userId: ana.id, proventos: 3300, descontos: 300 }, { userId: eva.id, proventos: 1000, descontos: 0 }]);
+    const o1 = await fecharFolhaNoBanco(folhaOut, ana.id);
+    await reabrirFolhaNoBanco(folhaOut, "a Ana saiu antes de outubro", ana.id);
+    await prisma.holerite.deleteMany({ where: { folhaId: folhaOut, userId: ana.id } });
+    const o2 = await fecharFolhaNoBanco(folhaOut, ana.id);
+    const liqOut = await prisma.lancamento.findUnique({ where: { id: o1.lancamentoId ?? "" }, select: { status: true } });
+    check("folha que perdeu os CLT: conta do líquido anterior cancelada", o2.acao === "sem_clt" && liqOut?.status === "cancelado", { o2, liqOut });
+
+    const f13 = await prisma.folhaPagamento.create({ data: { ano: ANO, mes: 12, tipo: "decimo_terceiro" }, select: { id: true } });
+    const h13 = await prisma.holerite.create({ data: { folhaId: f13.id, userId: ana.id }, select: { id: true } });
+    await prisma.holeriteItem.create({ data: { holeriteId: h13.id, descricao: `${tag} 13º`, tipo: "provento", valor: 1650 } });
+    const t1 = await fecharFolhaNoBanco(f13.id, ana.id);
+    await reabrirFolhaNoBanco(f13.id, "corrigir o valor do 13º", ana.id);
+    await prisma.holeriteItem.updateMany({ where: { holeriteId: h13.id }, data: { valor: 1700 } });
+    const t2 = await fecharFolhaNoBanco(f13.id, ana.id);
+    const liq13 = await prisma.lancamento.findUnique({ where: { id: t2.lancamentoId ?? "" }, select: { valor: true } });
+    check("13º reaberto e fechado de novo: a MESMA conta, com o valor novo", t2.lancamentoId === t1.lancamentoId && t2.acao === "atualizou" && paraCentavos(liq13?.valor ?? 0) === 170_000, { t1, t2, liq13 });
   } finally {
     const folhas = await prisma.folhaPagamento.findMany({ where: { ano: ANO }, select: { id: true, lancamentoId: true } });
     const partes = await prisma.folhaLancamento.findMany({ where: { folhaId: { in: folhas.map((f) => f.id) } }, select: { lancamentoId: true } });
