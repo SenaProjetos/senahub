@@ -12,7 +12,9 @@ import type { ContextoNav } from "@/lib/nav-config";
 const COLLAPSED_KEY = "senahub:sidebar-collapsed";
 
 export function Sidebar({ nav }: { nav: ContextoNav }) {
-  const [collapsed, setCollapsed] = useState(false);
+  // `null` até ler o navegador: o menu desenha aberto (como no servidor), mas o `SidebarNav` ainda
+  // não abre sozinho a seção da página — minimizado ela só abre no clique.
+  const [collapsed, setCollapsed] = useState<boolean | null>(null);
   // Cliente (tipo "externo") não vê o histórico técnico de versões — é linguagem de commit.
   const interno = nav.tipo === "interno";
 
@@ -20,8 +22,12 @@ export function Sidebar({ nav }: { nav: ContextoNav }) {
     setCollapsed(localStorage.getItem(COLLAPSED_KEY) === "1");
   }, []);
 
+  // Só anima a troca feita pela pessoa; a leitura do navegador na carga troca sem fade.
+  const [animar, setAnimar] = useState(false);
+
   function toggle() {
     const next = !collapsed;
+    setAnimar(true);
     setCollapsed(next);
     localStorage.setItem(COLLAPSED_KEY, next ? "1" : "0");
   }
@@ -30,14 +36,21 @@ export function Sidebar({ nav }: { nav: ContextoNav }) {
     <aside
       data-tour="nav"
       className={cn(
-        "sticky top-0 hidden h-svh shrink-0 flex-col overflow-x-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 lg:flex",
+        "sticky top-0 hidden h-svh shrink-0 flex-col overflow-x-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-300 ease-in-out motion-reduce:transition-none lg:flex",
         // Minimizado: 75 px de área + 1 px da borda (era 63 + 1) — mais espaço para o nome sob o ícone.
         collapsed ? "w-[76px]" : "w-56",
       )}
     >
       {/* Logo: completa expandida, símbolo quando colapsada */}
       <div className={cn("flex h-14 items-center justify-center border-b border-sidebar-border", collapsed ? "px-2" : "px-5")}>
-        <Link href="/" className="flex items-center overflow-hidden">
+        <Link
+          key={collapsed ? "simbolo" : "completa"}
+          href="/"
+          className={cn(
+            "flex items-center overflow-hidden",
+            animar && "animate-in fade-in duration-300 motion-reduce:animate-none",
+          )}
+        >
           {collapsed ? (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -56,7 +69,7 @@ export function Sidebar({ nav }: { nav: ContextoNav }) {
         </Link>
       </div>
 
-      <SidebarNav nav={nav} collapsed={collapsed} />
+      <SidebarNav nav={nav} collapsed={collapsed} animarTroca={animar} />
 
       {collapsed ? (
         <div className="flex justify-center border-t border-sidebar-border p-2">

@@ -2,10 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useId, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition, type ReactNode } from "react";
 import {
   Briefcase,
-  ChevronDown,
   ChevronRight,
   LayoutGrid,
   Ruler,
@@ -71,6 +70,25 @@ const LINHA = {
   solta: "h-8 text-[13px]",
   secao: "h-[30px] text-[12.5px]",
 } as const;
+
+/**
+ * Abre e fecha com animação de altura (grade `0fr` → `1fr`) e de opacidade. Fechado, o conteúdo
+ * continua montado (é o que deixa animar a saída) mas fica `inert`: fora do Tab e do leitor de tela.
+ * `-mx-1 px-1`: folga para o anel de foco dos itens não ser cortado pelo `overflow-hidden`.
+ */
+function Recolhivel({ aberto, children }: { aberto: boolean; children: ReactNode }) {
+  return (
+    <div
+      inert={!aberto}
+      className={cn(
+        "grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none",
+        aberto ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+      )}
+    >
+      <div className="-mx-1 min-h-0 overflow-hidden px-1">{children}</div>
+    </div>
+  );
+}
 
 function NavList({
   items,
@@ -188,11 +206,17 @@ function CollapsibleGroup({
         type="button"
         onClick={onToggle}
         aria-expanded={expanded}
-        aria-controls={expanded ? idLista : undefined}
+        aria-controls={idLista}
         className="flex h-[34px] w-full shrink-0 items-center gap-2.5 rounded-sm px-2 text-left text-[13.5px] font-semibold text-sidebar-foreground transition-colors outline-none hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-sidebar-ring pointer-coarse:h-10"
       >
-        <span aria-hidden className="w-2.5 shrink-0 text-[11px] text-muted-foreground">
-          {expanded ? "▾" : "▸"}
+        <span
+          aria-hidden
+          className={cn(
+            "w-2.5 shrink-0 text-center text-[11px] text-muted-foreground transition-transform duration-200 motion-reduce:transition-none",
+            expanded && "rotate-90",
+          )}
+        >
+          ▸
         </span>
         <span className="min-w-0 truncate">{group.title}</span>
         <span className="ml-auto flex shrink-0 items-center gap-1.5">
@@ -203,7 +227,7 @@ function CollapsibleGroup({
           </span>
         </span>
       </button>
-      {expanded && (
+      <Recolhivel aberto={expanded}>
         <NavList
           items={group.items}
           ativo={ativo}
@@ -214,7 +238,7 @@ function CollapsibleGroup({
           id={idLista}
           className="ml-[17px] border-l border-sidebar-border pl-3.5"
         />
-      )}
+      </Recolhivel>
     </div>
   );
 }
@@ -262,28 +286,37 @@ function ItemTrilho({ item, ativo, alertas }: { item: NavItem; ativo: string | n
 }
 
 /**
- * Seção FECHADA do trilho: o nome da seção; passar o mouse mostra a lista dos itens ao lado, e o
- * clique abre a seção no próprio trilho (mesmo estado do menu aberto — ver `SecaoTrilhoAberta`).
+ * Seção do trilho. FECHADA: passar o mouse mostra a lista dos itens ao lado (popover), e navegar
+ * por ela NÃO abre a seção no trilho. ABERTA: os itens aparecem no próprio trilho, sob a seção, como
+ * no menu aberto (pedido do dono, 2026-09-28: minimizado e aberto mostram os mesmos itens). Só o
+ * clique na seção abre ou fecha (pedido do dono, 2026-10-10). Aberta ou fechada é o mesmo estado
+ * lembrado na conta (`abertas`): abrir num menu abre no outro. A linha-guia à esquerda é a mesma do
+ * menu aberto e diz que os ícones são da seção de cima.
  */
 function SecaoTrilho({
   group,
   ativo,
   alertas,
+  expandida,
   onToggle,
 }: {
   group: NavGroup & { title: string };
   ativo: string | null;
   alertas?: Record<string, AlertaNav>;
+  expandida: boolean;
   onToggle: () => void;
 }) {
   const [aberta, setAberta] = useState(false);
+  const idLista = useId();
   const Icone = ICONE_DA_SECAO[group.title] ?? LayoutGrid;
-  const ativa = group.items.some((i) => i.href === ativo);
-  const alerta = somarAlertas(group.items, alertas);
+  // Aberta no trilho, os itens já estão à vista: a seção não acende nem mostra o alerta somado.
+  const ativa = !expandida && group.items.some((i) => i.href === ativo);
+  const alerta = expandida ? null : somarAlertas(group.items, alertas);
 
   return (
     <li>
-      <Popover open={aberta} onOpenChange={setAberta}>
+      {/* Seção aberta no trilho não abre o popover: a lista dele já está logo abaixo. */}
+      <Popover open={aberta && !expandida} onOpenChange={(v) => setAberta(v && !expandida)}>
         <PopoverTrigger
           openOnHover
           delay={120}
@@ -292,9 +325,10 @@ function SecaoTrilho({
             <button
               type="button"
               className={classeTrilho(ativa)}
-              aria-label={`Seção ${group.title}: abre a lista`}
-              aria-expanded={false}
-              title={group.title}
+              aria-label={expandida ? `Seção ${group.title}: fechar` : `Seção ${group.title}: abre a lista`}
+              aria-expanded={expandida}
+              aria-controls={idLista}
+              title={expandida ? `${group.title} — fechar a seção` : group.title}
               onClick={() => {
                 setAberta(false);
                 onToggle();
@@ -306,11 +340,17 @@ function SecaoTrilho({
               </span>
               <span className="w-full truncate text-center">{group.title}</span>
               {/* Seta: diferencia a seção (abre uma lista) do item que vai direto para a página. */}
-              <ChevronRight className="absolute top-1/2 right-0 size-3 -translate-y-1/2 opacity-60" aria-hidden />
+              <ChevronRight
+                className={cn(
+                  "absolute top-1/2 right-0 size-3 -translate-y-1/2 opacity-60 transition-transform duration-200 motion-reduce:transition-none",
+                  expandida && "rotate-90",
+                )}
+                aria-hidden
+              />
             </button>
           }
         />
-        <PopoverContent side="right" align="start" sideOffset={8} className="w-60 p-2">
+        <PopoverContent side="right" align="start" sideOffset={8} className="w-60 p-2 duration-150">
           <p className="mb-1 px-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{group.title}</p>
           <NavList
             items={group.items}
@@ -320,49 +360,13 @@ function SecaoTrilho({
           />
         </PopoverContent>
       </Popover>
-    </li>
-  );
-}
-
-/**
- * Seção ABERTA do trilho: os itens aparecem no próprio trilho, sob a seção, como no menu aberto
- * (pedido do dono, 2026-09-28: minimizado e aberto mostram os mesmos itens). Aberta ou fechada é o
- * mesmo estado lembrado na conta (`abertas`): abrir num menu abre no outro. A linha-guia à esquerda
- * é a mesma do menu aberto e diz que os ícones são da seção de cima.
- */
-function SecaoTrilhoAberta({
-  group,
-  ativo,
-  alertas,
-  onToggle,
-}: {
-  group: NavGroup & { title: string };
-  ativo: string | null;
-  alertas?: Record<string, AlertaNav>;
-  onToggle: () => void;
-}) {
-  const Icone = ICONE_DA_SECAO[group.title] ?? LayoutGrid;
-  const idLista = useId();
-  return (
-    <li>
-      <button
-        type="button"
-        onClick={onToggle}
-        className={classeTrilho(false)}
-        aria-expanded
-        aria-controls={idLista}
-        aria-label={`Seção ${group.title}: fechar`}
-        title={`${group.title} — fechar a seção`}
-      >
-        <Icone className="size-[25px]" />
-        <span className="w-full truncate text-center">{group.title}</span>
-        <ChevronDown className="absolute top-1/2 right-0 size-3 -translate-y-1/2 opacity-60" aria-hidden />
-      </button>
-      <ul id={idLista} className="mt-0.5 ml-1 space-y-0.5 border-l border-sidebar-border pl-0.5">
-        {group.items.map((item) => (
-          <ItemTrilho key={item.href} item={item} ativo={ativo} alertas={alertas} />
-        ))}
-      </ul>
+      <Recolhivel aberto={expandida}>
+        <ul id={idLista} className="mt-0.5 ml-1 space-y-0.5 border-l border-sidebar-border pl-0.5">
+          {group.items.map((item) => (
+            <ItemTrilho key={item.href} item={item} ativo={ativo} alertas={alertas} />
+          ))}
+        </ul>
+      </Recolhivel>
     </li>
   );
 }
@@ -371,14 +375,19 @@ function SecaoTrilhoAberta({
  * Conteúdo de navegação compartilhado entre a sidebar fixa (desktop) e o
  * drawer mobile. `collapsed` só é usado no trilho do desktop; o drawer
  * sempre passa `collapsed={false}` e um `onNavigate` para fechar ao navegar.
+ * `null` = a Sidebar ainda não leu do navegador se o menu está minimizado (desenha aberto).
+ * `animarTroca`: a pessoa minimizou/expandiu nesta tela — o conteúdo novo entra com fade (na carga
+ * da página, não: seria um piscar a cada F5).
  */
 export function SidebarNav({
   nav,
   collapsed = false,
+  animarTroca = false,
   onNavigate,
 }: {
   nav: ContextoNav;
-  collapsed?: boolean;
+  collapsed?: boolean | null;
+  animarTroca?: boolean;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
@@ -396,15 +405,19 @@ export function SidebarNav({
   const [, iniciar] = useTransition();
 
   // Seções abertas, lembradas na conta: o que está aberto continua aberto ao minimizar, trocar de
-  // página e recarregar. A seção da página atual abre ao entrar nela e fica aberta até a pessoa
-  // fechar (na primeira vez, é só ela, como no modelo aprovado).
+  // página e recarregar. Com o menu ABERTO, a seção da página atual abre ao entrar nela (ou ao
+  // expandir o menu) e fica aberta até a pessoa fechar (na primeira vez, é só ela, como no modelo
+  // aprovado). MINIMIZADO, navegar não abre nada: no trilho a seção só abre no clique nela (pedido do
+  // dono, 2026-10-10 — ir por um item do popover abria a seção e empurrava o trilho). Enquanto
+  // `collapsed` é `null` ainda não se sabe o modo, então também não abre.
+  const alvo = collapsed === false ? secaoAtual : null;
   const [abertas, setAbertas] = useState<string[]>(() =>
-    comSecao(memoria.secoesAbertas ?? nav.secoesAbertas ?? [], secaoAtual),
+    comSecao(memoria.secoesAbertas ?? nav.secoesAbertas ?? [], alvo),
   );
-  const [secaoVista, setSecaoVista] = useState(secaoAtual);
-  if (secaoAtual !== secaoVista) {
-    setSecaoVista(secaoAtual);
-    setAbertas((a) => comSecao(a, secaoAtual));
+  const [alvoVisto, setAlvoVisto] = useState(alvo);
+  if (alvo !== alvoVisto) {
+    setAlvoVisto(alvo);
+    if (alvo) setAbertas((a) => comSecao(a, alvo));
   }
 
   useEffect(() => {
@@ -450,7 +463,14 @@ export function SidebarNav({
 
   if (collapsed) {
     return (
-      <nav className="rolagem-fina relative flex-1 overflow-y-auto overflow-x-hidden px-1 py-2" aria-label="Menu principal">
+      <nav
+        key="trilho"
+        className={cn(
+          "rolagem-fina relative flex-1 overflow-y-auto overflow-x-hidden px-1 py-2",
+          animarTroca && "animate-in fade-in duration-300 motion-reduce:animate-none",
+        )}
+        aria-label="Menu principal"
+      >
         <ul className="space-y-0.5">
           {itensFixados.map((item) => (
             <ItemTrilho key={`fixo-${item.href}`} item={item} ativo={ativo} alertas={nav.alertas} />
@@ -461,20 +481,13 @@ export function SidebarNav({
               group.items.map((item) => (
                 <ItemTrilho key={item.href} item={item} ativo={ativo} alertas={nav.alertas} />
               ))
-            ) : abertas.includes(group.title) ? (
-              <SecaoTrilhoAberta
-                key={group.title}
-                group={group}
-                ativo={ativo}
-                alertas={nav.alertas}
-                onToggle={() => alternarSecao(group.title)}
-              />
             ) : (
               <SecaoTrilho
                 key={group.title ?? gi}
                 group={group}
                 ativo={ativo}
                 alertas={nav.alertas}
+                expandida={abertas.includes(group.title)}
                 onToggle={() => alternarSecao(group.title)}
               />
             ),
@@ -493,7 +506,11 @@ export function SidebarNav({
   // barras de rolagem no menu (2026-09-28).
   return (
     <nav
-      className="rolagem-fina relative flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden px-2 py-2.5 *:shrink-0"
+      key="menu"
+      className={cn(
+        "rolagem-fina relative flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden px-2 py-2.5 *:shrink-0",
+        animarTroca && "animate-in fade-in duration-300 motion-reduce:animate-none",
+      )}
       aria-label="Menu principal"
     >
       {itensFixados.length > 0 && (
