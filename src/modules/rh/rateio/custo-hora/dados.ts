@@ -5,7 +5,7 @@ import { montarCalendario } from "@/modules/planejamento/agenda";
 import type { Contratacao } from "@/generated/prisma/enums";
 import { custoDoMes, type CustoMes } from "./encargos";
 import {
-  anosCompletos, baseDoHoleriteCent, basesDoMes, inicioDoTempoDeCasa, jornadaReferenciaMinutos, remuneracaoContratual, tabelaValidaVigente,
+  anosCompletos, baseDoHoleriteCent, basesDoMes, inicioDoTempoDeCasa, jornadaReferenciaMinutos, remuneracaoContratual, segmentosDoMes, tabelaValidaVigente,
 } from "./distribuicao";
 
 export type CustoDaPessoaNoMes = {
@@ -22,6 +22,19 @@ export type CustoDaPessoaNoMes = {
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const cent = (v: { toString(): string } | number | null | undefined) => (v == null ? null : Math.round(Number(v) * 100));
+
+/** Junta os custos das partes do mês (decisão 27). Com mais de uma contratação, o rótulo de cada item diz de qual. */
+function somarCustos(partes: CustoMes[], contratacoes: Contratacao[] | null): CustoMes {
+  const nomes: Record<string, string> = { clt: "CLT", estagio: "estágio", pro_labore: "pró-labore" };
+  const itens = partes.flatMap((p, i) =>
+    contratacoes ? p.itens.map((it) => ({ ...it, chave: `${contratacoes[i]}:${it.chave}`, rotulo: `${it.rotulo} (${nomes[contratacoes[i]] ?? contratacoes[i]})` })) : p.itens,
+  );
+  return {
+    baseCent: partes.reduce((s, p) => s + p.baseCent, 0),
+    itens,
+    totalCent: partes.reduce((s, p) => s + p.totalCent, 0),
+  };
+}
 
 function diasDoMes(ano: number, mes: number): string[] {
   const n = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
@@ -78,79 +91,92 @@ export async function custosDoMes(ano: number, mes: number, userIds: string[]): 
     const jornadaReferenciaMin = jornadaReferenciaMinutos(vigente?.cargaSemanal != null ? Number(vigente.cargaSemanal) : null, diasUteis.length);
     const base: CustoDaPessoaNoMes = { nome: nomeUser.get(userId) ?? userId, contratacao, custo: null, jornadaReferenciaMin, origemBase: null, tabelaPosterior: false, semTabela: false };
 
-    if (contratacao !== "clt" && contratacao !== "estagio" && contratacao !== "pro_labore") {
+    // Decisão 27: o mês é dividido pelos vínculos que o tocam (estágio até o dia 14, CLT a partir do 15…).
+    // Sem vínculo cadastrado, vale o cache da contratação no mês inteiro (comportamento anterior).
+    const vinculosSimples = doUser.map((v) => ({ contratacao: v.contratacao as Contratacao, dataInicio: v.ini, dataFim: v.fim, motivoFim: v.motivoFim }));
+    let segmentos = segmentosDoMes({ vinculos: vinculosSimples, primeiroDia, ultimoDia, diasUteis });
+    if (segmentos.length === 0 && contratacao) {
+      segmentos = [{ contratacao, de: primeiroDia, ate: ultimoDia, diasUteis: diasUteis.length, vigente: true }];
+    }
+    const comEncargos = segmentos.filter((s) => s.contratacao === "clt" || s.contratacao === "estagio" || s.contratacao === "pro_labore");
+    if (comEncargos.length === 0) {
       out.set(userId, base);
       continue;
     }
 
-    // Janela do vínculo dentro do mês: do início do tempo de casa (vínculos colados da mesma
-    // contratação) até o fim do vínculo vigente. Admissão e saída no meio do mês ficam proporcionais.
-    const inicioCasa = inicioDoTempoDeCasa(
-      doUser.map((v) => ({ contratacao: v.contratacao as Contratacao, dataInicio: v.ini, dataFim: v.fim, motivoFim: v.motivoFim })),
-      contratacao,
-      ultimoDia,
-    );
-    const de = [primeiroDia, inicioCasa ?? vigente?.ini ?? primeiroDia].sort()[1];
-    const ate = vigente?.fim && vigente.fim < ultimoDia ? vigente.fim : ultimoDia;
-    const diasNoVinculo = diasUteis.filter((d) => d >= de && d <= ate);
-    const diasFerias = new Set<string>();
-    for (const f of ferias.filter((x) => x.userId === userId)) {
-      const a = iso(f.inicio);
-      const b = iso(f.fim);
-      for (const d of diasNoVinculo) if (d >= a && d <= b) diasFerias.add(d);
-    }
-
+    const feriasDoUser = ferias.filter((x) => x.userId === userId).map((f) => ({ a: iso(f.inicio), b: iso(f.fim) }));
     const itensHolerite = holeritePorUser.get(userId);
     const holeriteCent = itensHolerite
       ? baseDoHoleriteCent(itensHolerite.map((i) => ({ tipo: i.tipo, valorCent: cent(i.valor)!, descricao: i.descricao })))
       : null;
-    const contratual = remuneracaoContratual({
-      historico: historicos
-        .filter((h) => h.userId === userId)
-        .map((h) => ({ vigenciaEm: iso(h.vigenciaEm), remuneracaoCent: cent(h.remuneracao)!, contratacao: (h.vinculo?.contratacao ?? null) as Contratacao | null })),
-      contratacao,
-      inicioCasa,
-      fimMes: ultimoDia,
-      vinculoRemuneracaoCent: cent(vigente?.remuneracao),
-    });
+    const historicoDoUser = historicos
+      .filter((h) => h.userId === userId)
+      .map((h) => ({ vigenciaEm: iso(h.vigenciaEm), remuneracaoCent: cent(h.remuneracao)!, contratacao: (h.vinculo?.contratacao ?? null) as Contratacao | null }));
 
-    const bases = basesDoMes({
-      contratacao,
-      holeriteCent,
-      contratualCent: contratual?.cent ?? null,
-      diasUteisMes: diasUteis.length,
-      diasUteisNoVinculo: diasNoVinculo.length,
-      diasUteisDeFerias: diasFerias.size,
-    });
-    if (!bases) {
-      out.set(userId, base);
-      continue;
+    const partes: CustoMes[] = [];
+    let origemBase: CustoDaPessoaNoMes["origemBase"] = null;
+    let semTabela = false;
+    let tabelaPosterior = false;
+    for (const seg of comEncargos) {
+      const vinculoDoSeg = doUser
+        .filter((v) => v.contratacao === seg.contratacao && v.ini <= seg.ate && (v.fim === null || v.fim >= seg.de))
+        .sort((a, b) => b.ini.localeCompare(a.ini))[0];
+      const inicioCasa = inicioDoTempoDeCasa(vinculosSimples, seg.contratacao, seg.ate) ?? seg.de;
+      const diasDoSeg = diasUteis.filter((d) => d >= seg.de && d <= seg.ate);
+      const diasFerias = diasDoSeg.filter((d) => feriasDoUser.some((f) => d >= f.a && d <= f.b)).length;
+      const contratual = remuneracaoContratual({
+        historico: historicoDoUser,
+        contratacao: seg.contratacao,
+        inicioCasa,
+        fimMes: seg.ate,
+        vinculoRemuneracaoCent: cent(vinculoDoSeg?.remuneracao),
+      });
+      const bases = basesDoMes({
+        contratacao: seg.contratacao,
+        // O holerite do mês fica com o vínculo vigente (decisão 27).
+        holeriteCent: seg.vigente ? holeriteCent : null,
+        contratualCent: contratual?.cent ?? null,
+        diasUteisMes: diasUteis.length,
+        diasUteisNoVinculo: diasDoSeg.length,
+        diasUteisDeFerias: diasFerias,
+      });
+      if (!bases) continue;
+      if (seg.vigente) origemBase = bases.origem === "holerite" ? "holerite" : (contratual?.origem ?? "vinculo");
+
+      const escolhida = tabelaValidaVigente(
+        tabelas.filter((t) => t.contratacao === seg.contratacao).map((t) => ({ vigenciaEm: iso(t.vigenciaEm), parametros: t.parametros })),
+        primeiroDia,
+      );
+      if (!escolhida) {
+        // Sem tabela válida: o salário entra sem encargos (a tela diz "custo só do salário").
+        semTabela = true;
+        partes.push({ baseCent: bases.baseCent, itens: [], totalCent: bases.baseCent });
+        continue;
+      }
+      tabelaPosterior ||= escolhida.posterior;
+      partes.push(
+        custoDoMes({
+          baseCent: bases.baseCent,
+          salarioReservasCent: bases.salarioReservasCent,
+          fracaoVinculo: bases.fracaoVinculo,
+          parametros: escolhida.parametros,
+          anosCompletos: anosCompletos(inicioCasa, seg.ate),
+          fracaoForaDeFerias: bases.fracaoForaDeFerias,
+          viaAgenteIntegracao: !!vinculoDoSeg?.agenteIntegracao,
+        }),
+      );
     }
-    const origemBase = bases.origem === "holerite" ? "holerite" : (contratual?.origem ?? "vinculo");
-
-    const escolhida = tabelaValidaVigente(
-      tabelas.filter((t) => t.contratacao === contratacao).map((t) => ({ vigenciaEm: iso(t.vigenciaEm), parametros: t.parametros })),
-      primeiroDia,
-    );
-    if (!escolhida) {
-      // Sem tabela válida: o salário do mês entra sem encargos (a tela diz "custo só do salário").
-      out.set(userId, { ...base, origemBase, semTabela: true, custo: { baseCent: bases.baseCent, itens: [], totalCent: bases.baseCent } });
+    if (partes.length === 0) {
+      out.set(userId, base);
       continue;
     }
 
     out.set(userId, {
       ...base,
       origemBase,
-      tabelaPosterior: escolhida.posterior,
-      custo: custoDoMes({
-        baseCent: bases.baseCent,
-        salarioReservasCent: bases.salarioReservasCent,
-        fracaoVinculo: bases.fracaoVinculo,
-        parametros: escolhida.parametros,
-        anosCompletos: inicioCasa ? anosCompletos(inicioCasa, ultimoDia) : 0,
-        fracaoForaDeFerias: bases.fracaoForaDeFerias,
-        viaAgenteIntegracao: !!vigente?.agenteIntegracao,
-      }),
+      semTabela,
+      tabelaPosterior,
+      custo: somarCustos(partes, comEncargos.length > 1 ? comEncargos.map((s) => s.contratacao) : null),
     });
   }
   return out;
