@@ -55,6 +55,7 @@ export const fecharRateioMes = defineAction(
           userId: l.userId,
           projetoId: l.projetoId,
           natureza: l.natureza,
+          disciplinaId: l.disciplinaId,
           contratacao: l.contratacao,
           ano,
           mes,

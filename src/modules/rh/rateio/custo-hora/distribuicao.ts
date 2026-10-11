@@ -254,14 +254,16 @@ export function tabelaValidaVigente(
 export type SessaoNoMes = {
   projetoId: string | null;
   tipoAlocacao: "projeto" | "sem_projeto" | "reuniao_interna" | "reuniao_externa";
+  /** Disciplina gravada na sessão (R2); nula = coordenação/apoio, reunião ou sem projeto. */
+  disciplinaId?: string | null;
   /** Minutos já recortados no mês. */
   minutos: number;
 };
 
-export type LinhaDaPessoa = { projetoId: string | null; natureza: NaturezaLinha; minutos: number; custoCent: number };
+export type LinhaDaPessoa = { projetoId: string | null; natureza: NaturezaLinha; disciplinaId: string | null; minutos: number; custoCent: number };
 
 /**
- * Linhas do rateio de UMA pessoa no mês: junta as sessões por natureza e projeto, reparte o custo
+ * Linhas do rateio de UMA pessoa no mês: junta as sessões por natureza, projeto e disciplina, reparte o custo
  * do mês (centavo a centavo) e põe em "não alocado" o que ficou fora de projeto mais a parte do
  * divisor que ninguém apontou. A soma das linhas é sempre o custo do mês.
  */
@@ -272,14 +274,16 @@ export function linhasDaPessoa(p: {
   mesEncerrado: boolean;
   sessoes: SessaoNoMes[];
 }): LinhaDaPessoa[] {
-  const grupos = new Map<string, { projetoId: string | null; natureza: NaturezaLinha; minutos: number }>();
+  const grupos = new Map<string, { projetoId: string | null; natureza: NaturezaLinha; disciplinaId: string | null; minutos: number }>();
   let total = 0;
   for (const s of p.sessoes) {
     if (s.minutos <= 0) continue;
     const natureza = naturezaDaSessao(s.projetoId, s.tipoAlocacao);
     const projetoId = natureza === "nao_alocado" ? null : s.projetoId;
-    const chave = `${natureza}|${projetoId ?? ""}`;
-    const g = grupos.get(chave) ?? { projetoId, natureza, minutos: 0 };
+    // Só hora de projeto tem disciplina: reunião envolve várias, e "não alocado" não tem projeto.
+    const disciplinaId = natureza === "projeto" ? (s.disciplinaId ?? null) : null;
+    const chave = `${natureza}|${projetoId ?? ""}|${disciplinaId ?? ""}`;
+    const g = grupos.get(chave) ?? { projetoId, natureza, disciplinaId, minutos: 0 };
     g.minutos += s.minutos;
     grupos.set(chave, g);
     total += s.minutos;
@@ -294,10 +298,10 @@ export function linhasDaPessoa(p: {
       naoAlocado.minutos += g.minutos;
       naoAlocado.custoCent += custoCent;
     } else {
-      out.push({ projetoId: g.projetoId, natureza: g.natureza, minutos: g.minutos, custoCent });
+      out.push({ projetoId: g.projetoId, natureza: g.natureza, disciplinaId: g.disciplinaId, minutos: g.minutos, custoCent });
     }
   }
-  if (naoAlocado.minutos > 0 || naoAlocado.custoCent > 0) out.push({ projetoId: null, natureza: "nao_alocado", ...naoAlocado });
+  if (naoAlocado.minutos > 0 || naoAlocado.custoCent > 0) out.push({ projetoId: null, natureza: "nao_alocado", disciplinaId: null, ...naoAlocado });
   return out;
 }
 

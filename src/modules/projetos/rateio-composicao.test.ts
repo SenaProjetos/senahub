@@ -10,7 +10,7 @@ describe("composição do rateio por vínculo", () => {
       { custo: 14.8, contratacao: "autonomo_rpa" as const },
     ]);
 
-    expect(resultado).toEqual({ cltEstagiarios: 200, demaisColaboradores: 50, total: 250 });
+    expect(resultado).toEqual({ cltEstagiarios: 200, demaisColaboradores: 50, reunioes: 0, total: 250 });
   });
 
   it("mantém o total em centavos sem introduzir erro de ponto flutuante", () => {
@@ -20,6 +20,15 @@ describe("composição do rateio por vínculo", () => {
       { custo: 0.3, contratacao: "pj" as const },
     ]);
 
-    expect(resultado).toEqual({ cltEstagiarios: 0.3, demaisColaboradores: 0.3, total: 0.6 });
+    expect(resultado).toEqual({ cltEstagiarios: 0.3, demaisColaboradores: 0.3, reunioes: 0, total: 0.6 });
+  });
+
+  it("reuniões ligadas ao projeto aparecem à parte e entram no total (decisão 10)", () => {
+    const resultado = separarRateioPorVinculo([
+      { custo: 100, contratacao: "clt" as const, natureza: "projeto" as const },
+      { custo: 40, contratacao: "clt" as const, natureza: "reuniao" as const },
+      { custo: 10, contratacao: "pj" as const, natureza: "reuniao" as const },
+    ]);
+    expect(resultado).toEqual({ cltEstagiarios: 100, demaisColaboradores: 0, reunioes: 50, total: 150 });
   });
 });

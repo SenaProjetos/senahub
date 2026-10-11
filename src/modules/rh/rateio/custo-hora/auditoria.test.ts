@@ -19,9 +19,9 @@ describe("linhasDaPessoa — o custo do mês nunca some nem duplica", () => {
       ],
     });
     expect(linhas).toEqual([
-      { projetoId: "A", natureza: "projeto", minutos: 3600, custoCent: 360000 },
-      { projetoId: "B", natureza: "reuniao", minutos: 1200, custoCent: 120000 },
-      { projetoId: null, natureza: "nao_alocado", minutos: 1200, custoCent: 120000 },
+      { projetoId: "A", natureza: "projeto", disciplinaId: null, minutos: 3600, custoCent: 360000 },
+      { projetoId: "B", natureza: "reuniao", disciplinaId: null, minutos: 1200, custoCent: 120000 },
+      { projetoId: null, natureza: "nao_alocado", disciplinaId: null, minutos: 1200, custoCent: 120000 },
     ]);
     expect(soma(linhas)).toBe(600000);
   });
@@ -35,14 +35,14 @@ describe("linhasDaPessoa — o custo do mês nunca some nem duplica", () => {
       sessoes: [{ projetoId: "A", tipoAlocacao: "projeto", minutos: 4800 }],
     });
     expect(linhas).toEqual([
-      { projetoId: "A", natureza: "projeto", minutos: 4800, custoCent: 500000 },
-      { projetoId: null, natureza: "nao_alocado", minutos: 0, custoCent: 500000 },
+      { projetoId: "A", natureza: "projeto", disciplinaId: null, minutos: 4800, custoCent: 500000 },
+      { projetoId: null, natureza: "nao_alocado", disciplinaId: null, minutos: 0, custoCent: 500000 },
     ]);
   });
 
   it("CLT sem sessão nenhuma: uma linha de não alocado com o custo todo", () => {
     expect(linhasDaPessoa({ contratacao: "clt", totalCent: 300000, jornadaReferenciaMin: 9600, mesEncerrado: true, sessoes: [] }))
-      .toEqual([{ projetoId: null, natureza: "nao_alocado", minutos: 0, custoCent: 300000 }]);
+      .toEqual([{ projetoId: null, natureza: "nao_alocado", disciplinaId: null, minutos: 0, custoCent: 300000 }]);
   });
 
   it("sessões do mesmo projeto se juntam numa linha", () => {
@@ -56,12 +56,36 @@ describe("linhasDaPessoa — o custo do mês nunca some nem duplica", () => {
         { projetoId: "A", tipoAlocacao: "projeto", minutos: 60 },
       ],
     });
-    expect(linhas).toEqual([{ projetoId: "A", natureza: "projeto", minutos: 120, custoCent: 1000 }]);
+    expect(linhas).toEqual([{ projetoId: "A", natureza: "projeto", disciplinaId: null, minutos: 120, custoCent: 1000 }]);
   });
 
   it("PJ: horas sem custo, nenhuma linha de não alocado vazia", () => {
     expect(linhasDaPessoa({ contratacao: "pj", totalCent: 0, jornadaReferenciaMin: 9600, mesEncerrado: true, sessoes: [{ projetoId: "A", tipoAlocacao: "projeto", minutos: 60 }] }))
-      .toEqual([{ projetoId: "A", natureza: "projeto", minutos: 60, custoCent: 0 }]);
+      .toEqual([{ projetoId: "A", natureza: "projeto", disciplinaId: null, minutos: 60, custoCent: 0 }]);
+  });
+});
+
+describe("linhasDaPessoa por disciplina (R2)", () => {
+  it("o mesmo projeto em duas disciplinas vira duas linhas; reunião nunca carrega disciplina", () => {
+    const linhas = linhasDaPessoa({
+      contratacao: "clt",
+      totalCent: 400000,
+      jornadaReferenciaMin: 0,
+      mesEncerrado: true,
+      sessoes: [
+        { projetoId: "A", tipoAlocacao: "projeto", disciplinaId: "d1", minutos: 2400 },
+        { projetoId: "A", tipoAlocacao: "projeto", disciplinaId: "d2", minutos: 1200 },
+        { projetoId: "A", tipoAlocacao: "reuniao_externa", disciplinaId: "d1", minutos: 600 },
+        { projetoId: null, tipoAlocacao: "sem_projeto", disciplinaId: null, minutos: 600 },
+      ],
+    });
+    expect(linhas).toEqual([
+      { projetoId: "A", natureza: "projeto", disciplinaId: "d1", minutos: 2400, custoCent: 200000 },
+      { projetoId: "A", natureza: "projeto", disciplinaId: "d2", minutos: 1200, custoCent: 100000 },
+      { projetoId: "A", natureza: "reuniao", disciplinaId: null, minutos: 600, custoCent: 50000 },
+      { projetoId: null, natureza: "nao_alocado", disciplinaId: null, minutos: 600, custoCent: 50000 },
+    ]);
+    expect(soma(linhas)).toBe(400000);
   });
 });
 

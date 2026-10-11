@@ -508,7 +508,7 @@ export async function margemProjeto(projetoId: string) {
     }),
     prisma.rateioHora.findMany({
       where: { projetoId },
-      select: { custo: true, contratacao: true, user: { select: { contratacao: true } } },
+      select: { custo: true, natureza: true, contratacao: true, user: { select: { contratacao: true } } },
     }),
   ]);
 
@@ -574,7 +574,7 @@ export async function margemProjeto(projetoId: string) {
   }
 
   const rateioHoras = separarRateioPorVinculo(
-    rateios.map((rateio) => ({ custo: Number(rateio.custo), contratacao: rateio.contratacao ?? rateio.user.contratacao })),
+    rateios.map((rateio) => ({ custo: Number(rateio.custo), natureza: rateio.natureza, contratacao: rateio.contratacao ?? rateio.user.contratacao })),
   );
   const custoHoras = rateioHoras.total;
 

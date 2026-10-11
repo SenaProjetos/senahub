@@ -98,6 +98,7 @@ export type LinhaRateio = {
   userId: string;
   projetoId: string | null;
   natureza: NaturezaLinha;
+  disciplinaId: string | null;
   contratacao: Contratacao | null;
   minutos: number;
   custoCent: number;
@@ -123,7 +124,7 @@ export async function calcularRateioV2(ano: number, mes: number, agora: Date = n
   const [sessoes, comCusto] = await Promise.all([
     prisma.sessaoTrabalho.findMany({
       where: { inicio: { lt: fim }, OR: [{ fim: null }, { fim: { gt: inicio } }] },
-      select: { userId: true, projetoId: true, tipoAlocacao: true, inicio: true, fim: true },
+      select: { userId: true, projetoId: true, tipoAlocacao: true, disciplinaId: true, inicio: true, fim: true },
     }),
     prisma.vinculo.findMany({
       where: {
@@ -142,7 +143,7 @@ export async function calcularRateioV2(ano: number, mes: number, agora: Date = n
     const minutos = minutosNoIntervalo(s.inicio, s.fim, inicio, fim, agora);
     if (minutos === 0) continue;
     const lista = sessoesPorUser.get(s.userId) ?? [];
-    lista.push({ projetoId: s.projetoId, tipoAlocacao: s.tipoAlocacao, minutos });
+    lista.push({ projetoId: s.projetoId, tipoAlocacao: s.tipoAlocacao, disciplinaId: s.disciplinaId, minutos });
     sessoesPorUser.set(s.userId, lista);
   }
 
@@ -192,6 +193,7 @@ export async function calcularRateioDoMes(
       userId: r.userId,
       projetoId: r.projetoId,
       natureza: "projeto" as const,
+      disciplinaId: null,
       contratacao: contr.get(r.userId) ?? null,
       minutos: r.minutos,
       custoCent: Math.round(r.custo * 100),
