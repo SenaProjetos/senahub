@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { Prisma } from "@/generated/prisma/client";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 
@@ -389,8 +390,8 @@ const assinarHoleriteSchema = z.object({ id: z.string().min(1) });
 
 /**
  * Assinatura eletrônica do funcionário, dentro do sistema. Não trava o pagamento (a folha já
- * fechou antes disso existir) — mas é obrigatória a médio prazo via o gate de acesso
- * (`precisaAssinarHolerite`, P4), não por bloquear nada aqui.
+ * fechou antes disso existir) e não trava o uso do sistema: a pendência aparece numa tarja na barra
+ * superior (`pendenciaDeAssinaturaHolerite`), sem redirecionar ninguém.
  */
 export const assinarHolerite = defineAction(
   {
@@ -415,7 +416,8 @@ export const assinarHolerite = defineAction(
     // `assinadoEm: null` na condição: dois cliques simultâneos não geram duas assinaturas.
     const assinado = await prisma.holerite.updateMany({
       where: { id: holerite.id, assinadoEm: null },
-      data: { assinadoEm: new Date(), assinanteId: user.id },
+      // A revisão (o que mudou desde a assinatura anterior) cumpriu o papel ao assinar: sai.
+      data: { assinadoEm: new Date(), assinanteId: user.id, assinaturaAnteriorEm: null, itensAssinadosAntes: Prisma.DbNull },
     });
     if (assinado.count === 0) throw new ActionError("Este holerite já foi assinado.");
 

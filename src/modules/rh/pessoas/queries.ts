@@ -261,7 +261,8 @@ export async function cadastroDaPessoa(userId: string) {
     where: { id: userId },
     select: {
       nomeCompleto: true,
-      cpf: true, rg: true, dataNascimento: true, sexo: true, estadoCivil: true, nacionalidade: true,
+      cpf: true, rg: true, pis: true, ctpsNumero: true, ctpsSerie: true, tituloEleitor: true, cnh: true,
+      dataNascimento: true, sexo: true, estadoCivil: true, nacionalidade: true,
       enderecoCep: true, enderecoLogradouro: true, enderecoNumero: true, enderecoComplemento: true,
       enderecoBairro: true, enderecoCidade: true, enderecoUf: true,
       telefone: true, telefoneEmergencia: true, contatoEmergenciaNome: true, emailPessoal: true,
@@ -283,7 +284,8 @@ export async function cadastroDaPessoa(userId: string) {
   if (!u) return null;
   return {
     nomeCompleto: u.nomeCompleto,
-    cpf: u.cpf, rg: u.rg, dataNascimento: ymd(u.dataNascimento), sexo: u.sexo, estadoCivil: u.estadoCivil, nacionalidade: u.nacionalidade,
+    cpf: u.cpf, rg: u.rg, pis: u.pis, ctpsNumero: u.ctpsNumero, ctpsSerie: u.ctpsSerie, tituloEleitor: u.tituloEleitor, cnh: u.cnh,
+    dataNascimento: ymd(u.dataNascimento), sexo: u.sexo, estadoCivil: u.estadoCivil, nacionalidade: u.nacionalidade,
     enderecoCep: u.enderecoCep, enderecoLogradouro: u.enderecoLogradouro, enderecoNumero: u.enderecoNumero,
     enderecoComplemento: u.enderecoComplemento, enderecoBairro: u.enderecoBairro, enderecoCidade: u.enderecoCidade, enderecoUf: u.enderecoUf,
     telefone: u.telefone, telefoneEmergencia: u.telefoneEmergencia, contatoEmergenciaNome: u.contatoEmergenciaNome, emailPessoal: u.emailPessoal,
@@ -374,6 +376,7 @@ export async function holeritesDaPessoa(
       id: true,
       enviadoEm: true,
       assinadoEm: true,
+      assinaturaAnteriorEm: true,
       assinante: { select: { name: true } },
       folha: { select: { id: true, ano: true, mes: true, tipo: true, status: true, fechadaEm: true } },
       itens: { select: { tipo: true, valor: true } },
@@ -397,6 +400,8 @@ export async function holeritesDaPessoa(
       enviadoEm: h.enviadoEm?.toISOString() ?? null,
       assinadoEm: h.assinadoEm?.toISOString() ?? null,
       assinanteNome: h.assinante?.name ?? null,
+      /** Corrigido pelo RH depois de assinado: reassinar mostrando o que mudou (`/assinar-holerite`). */
+      corrigido: h.assinaturaAnteriorEm !== null,
       proventos,
       descontos,
       liquido: proventos - descontos,

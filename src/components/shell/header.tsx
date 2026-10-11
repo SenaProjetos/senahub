@@ -67,7 +67,7 @@ export function Header({
   }, []);
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-2 border-b border-border bg-background/85 px-4 backdrop-blur md:h-14 lg:px-6">
+    <header data-foco-total className="sticky top-0 z-20 flex h-16 items-center justify-between gap-2 border-b border-border bg-background/85 px-4 backdrop-blur md:h-14 lg:px-6">
       <div className="flex min-w-0 items-center gap-2">
         <MobileNav nav={nav} />
         {/* Título padrão: sai quando a página traz o próprio `CabecalhoPagina` (regra `:has()` em

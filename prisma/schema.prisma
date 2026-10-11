@@ -123,6 +123,12 @@ model User {
   // Dados pessoais
   cpf                      String?
   rg                       String?
+  // Documentos trabalhistas (só o CLT precisa; todos opcionais). Formato padrão em lib/campos/documentos-trabalhistas.ts.
+  pis                      String?
+  ctpsNumero               String?
+  ctpsSerie                String?
+  tituloEleitor            String?
+  cnh                      String?
   dataNascimento           DateTime?                  @db.Date
   sexo                     String? // masculino | feminino | outro | nao_informado
   estadoCivil              String? // solteiro | casado | divorciado | viuvo | uniao_estavel | outro
@@ -6694,6 +6700,11 @@ model Holerite {
   assinadoEm  DateTime?
   assinanteId String?
   assinante   User?          @relation("HoleriteAssinante", fields: [assinanteId], references: [id])
+  /// Reabrir a folha revoga a assinatura; estes dois campos guardam a ASSINATURA REVOGADA e os
+  /// itens que ela cobria (`[{descricao,tipo,valor}]`), para o funcionário ver o que mudou quando
+  /// for assinar de novo. Saem (null) assim que ele assina a versão corrigida.
+  assinaturaAnteriorEm DateTime?
+  itensAssinadosAntes  Json?
 
   itens HoleriteItem[]
 

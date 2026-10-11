@@ -118,6 +118,7 @@ export async function POST(req: Request) {
       totalLiquidoPdf: folha.resumo.totalLiquido,
       foraDoPdf: analise.plano.avisosForaDoPdf,
       ignorados: analise.plano.matriculasIgnoradas.map((m) => m.matriculaExterna),
+      lancarManualmente: analise.plano.lancarManualmente.map((m) => m.matriculaExterna),
     },
     ip: await getClientIp(),
   });
@@ -129,5 +130,6 @@ export async function POST(req: Request) {
     totalLiquido: liquidoImportado,
     avisosForaDoPdf: analise.plano.avisosForaDoPdf,
     matriculasIgnoradas: analise.plano.matriculasIgnoradas,
+    lancarManualmente: analise.plano.lancarManualmente,
   });
 }

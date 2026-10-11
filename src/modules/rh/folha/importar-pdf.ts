@@ -29,6 +29,12 @@ export type FuncionarioImportado = {
   totalProventos: number;
   totalDescontos: number;
   liquido: number;
+  /**
+   * Funcionário sem NENHUMA rubrica e com totais 0,00 — o caso real é quem passa o mês inteiro de
+   * férias (o contador paga as férias por outro recibo e a folha do mês sai zerada: só as linhas
+   * "FERIAS de … até …"). Não há o que importar; o RH lança o holerite à mão.
+   */
+  semMovimento?: boolean;
 };
 
 export type ResumoFolhaImportado = {
@@ -142,6 +148,26 @@ export function parsearTextoFolha(texto: string): FolhaImportada {
           proventos: paraNumero(mTotais[1]),
           descontos: paraNumero(mTotais[2]),
           liquido: paraNumero(mTotais[3]),
+        };
+      }
+    }
+    if (!totais && rubricas.length === 0) {
+      // Sem rubrica a linha de totais não é lida acima. Só vale como "sem movimento" se o PDF
+      // imprimiu mesmo os três zeros — qualquer outra coisa continua sendo erro de leitura.
+      const zerada = linhas.slice(inicio + 1, fim).some((l) => {
+        const m = RE_TOTAIS_FUNCIONARIO.exec(l);
+        return !!m && paraNumero(m[1]) === 0 && paraNumero(m[2]) === 0 && paraNumero(m[3]) === 0;
+      });
+      if (zerada) {
+        return {
+          matriculaExterna,
+          nome: nome.trim(),
+          salarioContratual: paraNumero(salarioStr),
+          rubricas,
+          totalProventos: 0,
+          totalDescontos: 0,
+          liquido: 0,
+          semMovimento: true,
         };
       }
     }

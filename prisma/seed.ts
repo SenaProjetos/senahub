@@ -89,6 +89,9 @@ const RUBRICAS: { nome: string; tipo: "provento" | "desconto" }[] = [
   { nome: "Vale-transporte", tipo: "desconto" },
   { nome: "Adiantamento", tipo: "desconto" },
   { nome: "Faltas", tipo: "desconto" },
+  // Pagos por fora do holerite do contador; lançados à mão (ver modules/rh/folha/rubricas-manuais.ts).
+  { nome: "Auxílio transporte", tipo: "provento" },
+  { nome: "Auxílio alimentação", tipo: "provento" },
 ];
 
 const TAREFA_STATUS = [
