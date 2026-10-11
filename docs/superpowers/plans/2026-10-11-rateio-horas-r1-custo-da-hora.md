@@ -22,6 +22,61 @@
 
 Fora do roteiro (depende da `feat/integracao-contabil` entrar no dev): decisões 23 e 24 (conta operacional × administrativa pelo setor; categorias da folha como "não exportar").
 
+## Execução de R2 a R5 de uma vez (análise de 2026-10-11)
+
+R1 está no `dev` (a1021f72). R2 a R5 ainda não têm plano detalhado nem código. Abaixo, as tarefas de cada etapa, o que uma precisa da outra e a ordem que roda tudo numa sequência só, com o mínimo de trocas de modelo.
+
+### Tarefas por etapa
+
+| Tarefa | O que faz | Natureza | Modelo |
+|---|---|---|---|
+| **R2.1** | `SessaoTrabalho.disciplinaId` (foto da disciplina na hora) e `RateioHora.disciplinaId` (decisão de 15/09); reunião passa a aceitar projeto | schema | Opus |
+| **R2.2** | Regras puras: disciplina da sessão (pela tarefa; 1 disciplina = automática; 2+ = tarefa obrigatória) e quem pode marcar horas no projeto (equipe, responsável, card atribuído; sem disciplina = "coordenação/apoio") | puro + testes | Sonnet |
+| **R2.3** | Validação no servidor em TODO caminho que grava sessão (`trocarProjeto`, apontamento, `aplicarBatida`, `editarDia`) | servidor | Opus |
+| **R2.4** | Rateio por disciplina e "Reuniões" separado no custo do projeto | servidor | Opus |
+| **R2.5** | Seletor do ponto (computador e celular): reunião com projeto opcional, tarefa obrigatória quando é o caso | tela | Sonnet |
+| **R3.1** | Fechamento travado: estado do mês, reabertura com motivo, histórico de eventos | schema | Opus |
+| **R3.2** | Regras puras: pode fechar/reabrir, divergência (ao vivo × congelado), lista de meses abertos desde o corte | puro + testes | Sonnet |
+| **R3.3** | Ações: fechar (sem refechar), reabrir com motivo, recalcular mês antigo com registro | servidor | Opus |
+| **R3.4** | Margem do projeto soma TODOS os meses abertos; alerta varre todos os meses abertos | servidor + job | Opus |
+| **R3.5** | Tela do rateio: escolher o mês, reabrir, recalcular, aviso "alterado depois do fechamento" com a diferença | tela | Sonnet |
+| **R4.1** | Subcategorias da Folha CLT e de Estagiários (por `chave`), tabela das partes lançadas pela folha, cópia do holerite assinado | schema | Opus |
+| **R4.2** | Regras puras: plano de lançamentos da folha (líquido, INSS, IRRF, FGTS no dia 20, VT/VR, bolsa) | puro + testes | Sonnet |
+| **R4.3** | `fecharFolha` lança as partes; reabrir pede motivo, guarda a versão assinada e recusa se alguma parte já foi paga (máquina de estados N1, trava de mês N5) | servidor financeiro | Opus |
+| **R4.4** | Tela da folha: custo total (só admin/RH), reabrir com motivo, histórico do holerite | tela | Sonnet |
+| **R5.1** | Permissões "ver horas" × "ver custo" (catálogo, `PERMISSOES_BASE`, migração por par) e papel do membro do projeto em lista fixa (migração que normaliza o texto livre) | schema + permissões | Opus |
+| **R5.2** | Histórico de responsáveis por disciplina com datas (gravado a cada troca + carga inicial); correção do RH usa a disciplina da data | schema + servidor | Opus |
+| **R5.3** | Horas por disciplina: orçado (linha de base) × planejado (EAP) × realizado (ponto), com a visibilidade da decisão 19 | servidor | Opus |
+| **R5.4** | Telas: horas por disciplina no projeto, quem vê o quê | tela | Sonnet |
+
+### Dependências que mandam na ordem
+
+- **Todo schema numa migração só, no começo.** As quatro etapas mexem em `prisma/schema.prisma`; uma migração por etapa obrigaria a rodar em série e a refazer o client a cada etapa.
+- **R2 antes de R3 e R5.** A disciplina na sessão (R2.1) muda o formato das linhas do rateio que R3 congela e é o "realizado" que R5.3 mostra; R5.2 depende da disciplina gravada na sessão.
+- **Regras puras antes do servidor.** R2.3, R3.3, R4.3 consomem R2.2, R3.2, R4.2.
+- **R4 não depende de R2, R3 nem R5** (é folha → financeiro). Pode ir em qualquer ponto do bloco de servidor.
+- **Arquivos disputados** (por isso as telas vão juntas, em série, numa sessão só): `ponto-view.tsx` (R2.5, R3.5), `rateio/queries.ts` (R2.4, R3.3, R3.4), `projetos/queries.ts` (R3.4, R5.3), catálogo de permissões e `nav-config.ts` (R5.1, R3.5).
+
+### Sessões (rodar em sequência; cada uma com um modelo)
+
+| Sessão | Modelo | Esforço | O que roda | Por quê |
+|---|---|---|---|---|
+| **1** | Opus 5.5 | high | Os 4 planos detalhados (R2–R5, com código e testes) + R2.1, R3.1, R4.1, R5.1 (schema), R5.2 (schema) numa migração só + `prisma generate` | Desenho e schema são o que mais custa errar; tudo depois disso lê os planos |
+| **2** | Sonnet 5.5 | high | R2.2, R3.2, R4.2 (puro + testes, código já escrito nos planos) | Transcrição com teste; barato e independente entre si |
+| **3** | Opus 5.5 | high (*) | Servidor, nesta ordem: R2.3 → R2.4 → R3.3 → R3.4 → R5.2 → R5.3 → R5.1 (permissões e papel) → R4.3 | Regras sutis em vários caminhos de escrita, margem e financeiro; R2 primeiro porque o resto lê a disciplina; R4 por último porque é isolado |
+| **4** | Sonnet 5.5 | medium | Todas as telas em série: R2.5 → R3.5 → R4.4 → R5.4, manual e novidades, prints | Telas no padrão do repo; mesmos arquivos disputados, então uma sessão só |
+| **5** | Opus 5.5 | high | Revisão final da branch + auditoria do protocolo (nível 4, revisores automáticos) + uma passada de correções | Um revisor novo sobre as quatro etapas |
+
+(*) R4.3 foi classificada antes como xhigh (máquina de estados do `Lancamento`, quitação da recorrência). Se quiser, ela vira uma **sessão 3b** só dela em xhigh; senão o risco fica coberto pelo smoke do financeiro e pela auditoria da sessão 5.
+
+Cinco sessões e quatro trocas de modelo (Opus → Sonnet → Opus → Sonnet → Opus), contra cerca de vinte se cada etapa rodasse sozinha.
+
+### O que precisa de resposta do dono antes da sessão 1
+
+1. **Papel do membro do projeto em lista fixa:** quais papéis? Sugestão: Coordenador, Projetista, Apoio, Estagiário, Consultor externo.
+2. **Permissão "ver custo":** quem recebe por padrão? Sugestão: admin, sócios e coordenação; projetistas não.
+3. **Troca estágio → CLT no meio do mês** (pendência G1 da auditoria da R1): dividir o custo do mês pelos dias de cada vínculo? Sugestão: sim, salário/bolsa e reservas proporcionais aos dias úteis de cada um, holerite inteiro atribuído ao vínculo vigente.
+
 ## Global Constraints
 
 - Código em inglês onde já é inglês; identificadores do domínio seguem o módulo (português); **todo texto de tela em pt-BR**; commits semânticos em pt-BR.
