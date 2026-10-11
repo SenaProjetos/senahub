@@ -26,7 +26,7 @@ export type NovoVinculo = {
   remuneracao?: Prisma.Decimal | number | null;
   pjId?: string | null;
   /** Só estágio. Omitido = herda do estágio anterior ou nasce "IEL" (`agenteDoNovoVinculo`). */
-  agenteIntegracao?: string | null;
+  agenteIntegracao?: "IEL" | null;
   dataInicio: Date;
 };
 

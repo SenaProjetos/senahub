@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { InputPercentual } from "@/components/ui/input-percentual";
@@ -107,15 +108,23 @@ export function NovaVersaoEncargosDialog({
   }
 
   const check = (id: string, label: string, valor: boolean, set: (v: boolean) => void) => (
-    <label htmlFor={id} className="flex items-center gap-2 text-sm">
-      <input id={id} type="checkbox" checked={valor} onChange={(e) => set(e.target.checked)} /> {label}
-    </label>
+    <div className="flex items-center gap-2">
+      <Checkbox id={id} checked={valor} onCheckedChange={(v) => set(v === true)} />
+      <Label htmlFor={id} className="font-normal">
+        {label}
+      </Label>
+    </div>
   );
+  // Enquanto salva, nada fecha o diálogo (Esc, X ou Cancelar): o resultado ainda vai chegar.
+  const fechar = (open: boolean) => {
+    if (!open && pending) return;
+    onOpenChange(open);
+  };
   const mudarBeneficio = (i: number, parte: Partial<Beneficio>) =>
     setF({ ...f, beneficios: f.beneficios.map((x, j) => (j === i ? { ...x, ...parte } : x)) });
 
   return (
-    <Dialog open onOpenChange={onOpenChange}>
+    <Dialog open onOpenChange={fechar}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Nova versão da tabela</DialogTitle>
@@ -161,7 +170,13 @@ export function NovaVersaoEncargosDialog({
                     </div>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       {check(`b-susp-${i}`, "Não paga nas férias", b.suspenso, (v) => mudarBeneficio(i, { suspenso: v }))}
-                      <Button type="button" size="sm" variant="ghost" onClick={() => setF({ ...f, beneficios: f.beneficios.filter((_, j) => j !== i) })}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        aria-label={`Remover benefício ${b.nome.trim() || i + 1}`}
+                        onClick={() => setF({ ...f, beneficios: f.beneficios.filter((_, j) => j !== i) })}
+                      >
                         Remover
                       </Button>
                     </div>
@@ -200,7 +215,7 @@ export function NovaVersaoEncargosDialog({
               {erro}
             </p>
           )}
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
+          <Button variant="outline" onClick={() => fechar(false)} disabled={pending}>
             Cancelar
           </Button>
           <Button onClick={salvar} disabled={pending}>

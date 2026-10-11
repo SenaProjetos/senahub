@@ -31,7 +31,8 @@ export default async function PontoPage() {
     usaApontamento ? apontamentoAtual(user.id) : Promise.resolve(null),
   ]);
 
-  const rateio = podeRatear ? await rateioMesGestor(ano, mes) : null;
+  // Ver o rateio é `ponto:rateio`; fechar é gestão de RH (`rh:gerir`, o gate da ação).
+  const rateio = podeRatear ? { ...(await rateioMesGestor(ano, mes)), podeFechar: user.gereRh } : null;
   // Parado, o ponto abre no projeto e na atividade de hoje (reunião de 08/10/2026, decisão 1).
   const parado = usaApontamento ? !apontamento?.aberto : estadoDia.estado === "fora";
   const sugestao = parado ? await sugestaoParaPonto(user.id, new Set(projetos.map((p) => p.id))) : null;

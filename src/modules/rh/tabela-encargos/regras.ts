@@ -13,3 +13,15 @@ export function motivoParaNaoExcluirVersao(p: { vigencia: string; vigenciasDaCon
   if (usado) return `Esta versão foi usada no fechamento de ${mesTexto(usado)}. Para mudar valores, crie uma versão nova.`;
   return null;
 }
+
+/**
+ * Versão nova só pode começar DEPOIS do último mês já fechado no cálculo novo: começar antes
+ * mudaria o custo de um mês congelado.
+ */
+export function motivoParaNaoCriarVersao(p: { vigencia: string; mesesFechadosV2: string[] }): string | null {
+  const ultimo = [...p.mesesFechadosV2].sort().at(-1);
+  if (ultimo && p.vigencia <= ultimo) {
+    return `O mês ${mesTexto(ultimo)} já foi fechado. A versão nova precisa começar depois do último mês fechado.`;
+  }
+  return null;
+}

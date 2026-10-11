@@ -5,7 +5,13 @@ import { z } from "zod";
 import { ActionError, defineAction } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { parametrosEncargosSchema } from "@/modules/rh/rateio/custo-hora/parametros";
-import { motivoParaNaoExcluirVersao } from "@/modules/rh/tabela-encargos/regras";
+import { motivoParaNaoCriarVersao, motivoParaNaoExcluirVersao } from "@/modules/rh/tabela-encargos/regras";
+
+const MSG_MES_REPETIDO = "Já existe uma versão começando neste mês. Exclua a anterior ou escolha outro mês.";
+const mesesFechadosV2 = async () =>
+  (await prisma.fechamentoRateio.findMany({ where: { calculo: "v2" }, select: { ano: true, mes: true } })).map(
+    (f) => `${f.ano}-${String(f.mes).padStart(2, "0")}`,
+  );
 
 const PATH = "/rh/encargos-empresa";
 const mesIso = (d: Date) => d.toISOString().slice(0, 7);
@@ -16,6 +22,7 @@ export const criarVersaoEncargos = defineAction(
     acao: "criar-versao-encargos",
     gereRh: true,
     entidade: "TabelaEncargos",
+    entidadeId: (d) => (d as { id: string }).id,
     schema: z.object({
       contratacao: z.enum(["clt", "estagio", "pro_labore"]),
       vigencia: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Informe o mês de início."),
@@ -27,17 +34,18 @@ export const criarVersaoEncargos = defineAction(
     if (i.parametros.tipo !== i.contratacao) throw new ActionError("Os parâmetros não são desta contratação.");
     const vigenciaEm = new Date(`${i.vigencia}-01T00:00:00Z`);
     const existe = await prisma.tabelaEncargos.findUnique({ where: { contratacao_vigenciaEm: { contratacao: i.contratacao, vigenciaEm } } });
-    if (existe) throw new ActionError("Já existe uma versão começando neste mês. Exclua a anterior ou escolha outro mês.");
-    const fechado = await prisma.fechamentoRateio.findFirst({
-      where: { calculo: "v2", OR: [{ ano: { gt: vigenciaEm.getUTCFullYear() } }, { ano: vigenciaEm.getUTCFullYear(), mes: { gte: vigenciaEm.getUTCMonth() + 1 } }] },
-      select: { ano: true, mes: true },
-    });
-    if (fechado) {
-      throw new ActionError(`O mês ${String(fechado.mes).padStart(2, "0")}/${fechado.ano} já foi fechado. A versão nova precisa começar depois do último mês fechado.`);
-    }
-    const criada = await prisma.tabelaEncargos.create({
-      data: { contratacao: i.contratacao, vigenciaEm, parametros: i.parametros, observacao: i.observacao || null, autorId: user.id },
-    });
+    if (existe) throw new ActionError(MSG_MES_REPETIDO);
+    const motivo = motivoParaNaoCriarVersao({ vigencia: i.vigencia, mesesFechadosV2: await mesesFechadosV2() });
+    if (motivo) throw new ActionError(motivo);
+    const criada = await prisma.tabelaEncargos
+      .create({
+        data: { contratacao: i.contratacao, vigenciaEm, parametros: i.parametros, observacao: i.observacao || null, autorId: user.id },
+      })
+      .catch((e: unknown) => {
+        // Clique duplo: o segundo esbarra no @@unique([contratacao, vigenciaEm]).
+        if ((e as { code?: string }).code === "P2002") throw new ActionError(MSG_MES_REPETIDO);
+        throw e;
+      });
     revalidatePath(PATH);
     return { id: criada.id };
   },
@@ -50,6 +58,7 @@ export const excluirVersaoEncargos = defineAction(
     gereRh: true,
     entidade: "TabelaEncargos",
     schema: z.object({ id: z.string().min(1) }),
+    entidadeId: (_d, i) => i.id,
     capturarAntes: async (i) => prisma.tabelaEncargos.findUnique({ where: { id: i.id } }),
   },
   async (i) => {
@@ -57,12 +66,12 @@ export const excluirVersaoEncargos = defineAction(
     if (!v) throw new ActionError("Versão não encontrada.");
     const [irmas, fechados] = await Promise.all([
       prisma.tabelaEncargos.findMany({ where: { contratacao: v.contratacao }, select: { vigenciaEm: true } }),
-      prisma.fechamentoRateio.findMany({ where: { calculo: "v2" }, select: { ano: true, mes: true } }),
+      mesesFechadosV2(),
     ]);
     const motivo = motivoParaNaoExcluirVersao({
       vigencia: mesIso(v.vigenciaEm),
       vigenciasDaContratacao: irmas.map((x) => mesIso(x.vigenciaEm)),
-      mesesFechadosV2: fechados.map((f) => `${f.ano}-${String(f.mes).padStart(2, "0")}`),
+      mesesFechadosV2: fechados,
     });
     if (motivo) throw new ActionError(motivo);
     await prisma.tabelaEncargos.delete({ where: { id: i.id } });

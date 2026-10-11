@@ -5,6 +5,7 @@
  */
 import type { Contratacao } from "@/generated/prisma/enums";
 import { somarDias } from "@/lib/dias-iso";
+import { parametrosEncargosSchema, type ParametrosEncargos } from "./parametros";
 
 /** Chave interna da parte do divisor que ninguém apontou (só existe no sócio). */
 export const NAO_APONTADO = "__nao_apontado";
@@ -227,4 +228,75 @@ export function basesDoMes(p: {
 /** Meses a partir do corte (`AAAA-MM`) usam o cálculo novo (decisão 8). */
 export function calculoDoMes(ano: number, mes: number, corte: string): "legado" | "v2" {
   return `${ano}-${pad(mes)}` >= corte ? "v2" : "legado";
+}
+
+/** O mês terminou em São Paulo? (fechar o rateio de mês em curso congelaria uma estimativa) */
+export function mesTerminou(ano: number, mes: number, agora: Date): boolean {
+  return agora.getTime() >= limitesDoMesSP(ano, mes).fim.getTime();
+}
+
+/**
+ * Versão VÁLIDA da tabela que vale no mês: uma versão com `parametros` que não passa no schema é
+ * pulada (cai para a anterior válida) em vez de deixar a contratação "sem encargos".
+ */
+export function tabelaValidaVigente(
+  versoes: { vigenciaEm: string; parametros: unknown }[],
+  primeiroDiaIso: string,
+): { parametros: ParametrosEncargos; posterior: boolean } | null {
+  const validas = versoes.flatMap((v) => {
+    const p = parametrosEncargosSchema.safeParse(v.parametros);
+    return p.success ? [{ vigenciaEm: v.vigenciaEm, parametros: p.data }] : [];
+  });
+  const escolhida = tabelaVigente(validas, primeiroDiaIso);
+  return escolhida ? { parametros: escolhida.versao.parametros, posterior: escolhida.posterior } : null;
+}
+
+export type SessaoNoMes = {
+  projetoId: string | null;
+  tipoAlocacao: "projeto" | "sem_projeto" | "reuniao_interna" | "reuniao_externa";
+  /** Minutos já recortados no mês. */
+  minutos: number;
+};
+
+export type LinhaDaPessoa = { projetoId: string | null; natureza: NaturezaLinha; minutos: number; custoCent: number };
+
+/**
+ * Linhas do rateio de UMA pessoa no mês: junta as sessões por natureza e projeto, reparte o custo
+ * do mês (centavo a centavo) e põe em "não alocado" o que ficou fora de projeto mais a parte do
+ * divisor que ninguém apontou. A soma das linhas é sempre o custo do mês.
+ */
+export function linhasDaPessoa(p: {
+  contratacao: Contratacao | null;
+  totalCent: number;
+  jornadaReferenciaMin: number;
+  mesEncerrado: boolean;
+  sessoes: SessaoNoMes[];
+}): LinhaDaPessoa[] {
+  const grupos = new Map<string, { projetoId: string | null; natureza: NaturezaLinha; minutos: number }>();
+  let total = 0;
+  for (const s of p.sessoes) {
+    if (s.minutos <= 0) continue;
+    const natureza = naturezaDaSessao(s.projetoId, s.tipoAlocacao);
+    const projetoId = natureza === "nao_alocado" ? null : s.projetoId;
+    const chave = `${natureza}|${projetoId ?? ""}`;
+    const g = grupos.get(chave) ?? { projetoId, natureza, minutos: 0 };
+    g.minutos += s.minutos;
+    grupos.set(chave, g);
+    total += s.minutos;
+  }
+  const divisor = divisorMinutos({ contratacao: p.contratacao, minutosMarcados: total, jornadaReferenciaMin: p.jornadaReferenciaMin, mesEncerrado: p.mesEncerrado });
+  const { porLinha, naoApontadoCent } = ratearCusto(p.totalCent, divisor, [...grupos].map(([chave, g]) => ({ chave, minutos: g.minutos })));
+  const out: LinhaDaPessoa[] = [];
+  const naoAlocado = { minutos: 0, custoCent: naoApontadoCent };
+  for (const [chave, g] of grupos) {
+    const custoCent = porLinha.get(chave) ?? 0;
+    if (g.natureza === "nao_alocado") {
+      naoAlocado.minutos += g.minutos;
+      naoAlocado.custoCent += custoCent;
+    } else {
+      out.push({ projetoId: g.projetoId, natureza: g.natureza, minutos: g.minutos, custoCent });
+    }
+  }
+  if (naoAlocado.minutos > 0 || naoAlocado.custoCent > 0) out.push({ projetoId: null, natureza: "nao_alocado", ...naoAlocado });
+  return out;
 }

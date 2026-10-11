@@ -7,6 +7,12 @@ ALTER TABLE "rateio_hora" ADD COLUMN "contratacao" "Contratacao";
 ALTER TABLE "rateio_hora" ALTER COLUMN "projetoId" DROP NOT NULL;
 DROP INDEX IF EXISTS "rateio_hora_userId_projetoId_ano_mes_key";
 CREATE INDEX "rateio_hora_ano_mes_idx" ON "rateio_hora"("ano", "mes");
+-- O unique antigo era o único índice que começava por userId (cascata e leituras por pessoa).
+CREATE INDEX "rateio_hora_userId_ano_mes_idx" ON "rateio_hora"("userId", "ano", "mes");
+-- Uma linha por pessoa × mês × natureza × projeto (a linha "não alocado" tem projetoId nulo).
+-- Parciais, fora do schema.prisma; as linhas antigas são todas natureza=projeto e já eram únicas.
+CREATE UNIQUE INDEX "rateio_hora_linha_projeto_key" ON "rateio_hora"("userId", "ano", "mes", "natureza", "projetoId") WHERE "projetoId" IS NOT NULL;
+CREATE UNIQUE INDEX "rateio_hora_linha_sem_projeto_key" ON "rateio_hora"("userId", "ano", "mes", "natureza") WHERE "projetoId" IS NULL;
 UPDATE "rateio_hora" r SET "contratacao" = u."contratacao" FROM "user" u WHERE u."id" = r."userId";
 
 -- Cabeçalho do fechamento; os meses já fechados viram "legado".

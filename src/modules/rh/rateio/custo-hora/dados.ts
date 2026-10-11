@@ -4,9 +4,8 @@ import { ehDiaUtil } from "@/lib/calendario-trabalho";
 import { montarCalendario } from "@/modules/planejamento/agenda";
 import type { Contratacao } from "@/generated/prisma/enums";
 import { custoDoMes, type CustoMes } from "./encargos";
-import { parametrosEncargosSchema } from "./parametros";
 import {
-  anosCompletos, baseDoHoleriteCent, basesDoMes, inicioDoTempoDeCasa, jornadaReferenciaMinutos, remuneracaoContratual, tabelaVigente,
+  anosCompletos, baseDoHoleriteCent, basesDoMes, inicioDoTempoDeCasa, jornadaReferenciaMinutos, remuneracaoContratual, tabelaValidaVigente,
 } from "./distribuicao";
 
 export type CustoDaPessoaNoMes = {
@@ -129,12 +128,11 @@ export async function custosDoMes(ano: number, mes: number, userIds: string[]): 
     }
     const origemBase = bases.origem === "holerite" ? "holerite" : (contratual?.origem ?? "vinculo");
 
-    const versoes = tabelas
-      .filter((t) => t.contratacao === contratacao)
-      .map((t) => ({ vigenciaEm: iso(t.vigenciaEm), parametros: t.parametros }));
-    const escolhida = tabelaVigente(versoes, primeiroDia);
-    const parametros = escolhida ? parametrosEncargosSchema.safeParse(escolhida.versao.parametros) : null;
-    if (!escolhida || !parametros?.success) {
+    const escolhida = tabelaValidaVigente(
+      tabelas.filter((t) => t.contratacao === contratacao).map((t) => ({ vigenciaEm: iso(t.vigenciaEm), parametros: t.parametros })),
+      primeiroDia,
+    );
+    if (!escolhida) {
       // Sem tabela válida: o salário do mês entra sem encargos (a tela diz "custo só do salário").
       out.set(userId, { ...base, origemBase, semTabela: true, custo: { baseCent: bases.baseCent, itens: [], totalCent: bases.baseCent } });
       continue;
@@ -148,7 +146,7 @@ export async function custosDoMes(ano: number, mes: number, userIds: string[]): 
         baseCent: bases.baseCent,
         salarioReservasCent: bases.salarioReservasCent,
         fracaoVinculo: bases.fracaoVinculo,
-        parametros: parametros.data,
+        parametros: escolhida.parametros,
         anosCompletos: inicioCasa ? anosCompletos(inicioCasa, ultimoDia) : 0,
         fracaoForaDeFerias: bases.fracaoForaDeFerias,
         viaAgenteIntegracao: !!vigente?.agenteIntegracao,

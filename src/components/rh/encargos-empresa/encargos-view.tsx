@@ -12,7 +12,16 @@ import { excluirVersaoEncargos, definirAgenteIntegracao } from "@/modules/rh/tab
 import type { ContratacaoComEncargos, ParametrosEncargos } from "@/modules/rh/rateio/custo-hora/parametros";
 import { NovaVersaoEncargosDialog } from "./nova-versao-encargos-dialog";
 
-type Versao = { id: string; contratacao: ContratacaoComEncargos; vigencia: string; resumo: string; observacao: string | null; parametros: ParametrosEncargos };
+type Versao = {
+  id: string;
+  contratacao: ContratacaoComEncargos;
+  vigencia: string;
+  resumo: string;
+  observacao: string | null;
+  parametros: ParametrosEncargos;
+  /** Mesmo texto do erro da ação; com motivo, o "Excluir" vem desabilitado (ADR-0002). */
+  motivoNaoExcluir: string | null;
+};
 type Estagiario = { vinculoId: string; nome: string; agenteIntegracao: string | null };
 
 const TITULO: Record<ContratacaoComEncargos, string> = { clt: "CLT", estagio: "Estágio", pro_labore: "Pró-labore (sócios)" };
@@ -63,7 +72,7 @@ export function EncargosEmpresaView({ versoes, estagiarios }: { versoes: Versao[
               <CardHeader>
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <CardTitle className="text-base">{TITULO[c]}</CardTitle>
-                  <Button size="sm" variant="outline" onClick={() => setNova(c)} disabled={pending}>
+                  <Button size="sm" variant="outline" onClick={() => setNova(c)} disabled={pending} aria-label={`Nova versão de ${TITULO[c]}`}>
                     <Plus className="size-4" /> Nova versão
                   </Button>
                 </div>
@@ -80,9 +89,18 @@ export function EncargosEmpresaView({ versoes, estagiarios }: { versoes: Versao[
                           <p className="text-muted-foreground">{v.resumo}</p>
                           {v.observacao && <p className="text-xs text-muted-foreground">{v.observacao}</p>}
                         </div>
-                        <Button size="sm" variant="ghost" onClick={() => excluir(v)} disabled={pending}>
-                          Excluir
-                        </Button>
+                        <span title={v.motivoNaoExcluir ?? undefined}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => excluir(v)}
+                            disabled={pending || !!v.motivoNaoExcluir}
+                            aria-label={`Excluir versão de ${TITULO[v.contratacao]} desde ${mesTexto(v.vigencia)}`}
+                          >
+                            Excluir
+                          </Button>
+                        </span>
+                        {v.motivoNaoExcluir && <p className="basis-full text-xs text-muted-foreground">{v.motivoNaoExcluir}</p>}
                       </li>
                     ))}
                   </ul>
@@ -107,7 +125,7 @@ export function EncargosEmpresaView({ versoes, estagiarios }: { versoes: Versao[
                 <li key={e.vinculoId} className="flex flex-wrap items-center justify-between gap-2 py-2">
                   <span className="min-w-0 flex-1 truncate">{e.nome}</span>
                   <select
-                    aria-label={`Contratação de ${e.nome}`}
+                    aria-label={`Agente de integração de ${e.nome}`}
                     className={selectCls}
                     value={e.agenteIntegracao ?? ""}
                     onChange={(ev) => mudarAgente(e, ev.target.value)}

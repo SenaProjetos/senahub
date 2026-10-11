@@ -2442,7 +2442,8 @@ model RateioHora {
   projetoId   String?
   projeto     Projeto?       @relation(fields: [projetoId], references: [id], onDelete: Cascade)
   natureza    NaturezaRateio @default(projeto)
-  /// Contratação de quem apontou NO MÊS (foto; o cache do usuário muda com o tempo).
+  /// Contratação de quem apontou NO MÊS (foto; o cache do usuário muda com o tempo). Nas linhas
+  /// anteriores à R1 é o cache do usuário na data da migração — foto aproximada.
   contratacao Contratacao?
   ano         Int
   mes         Int
@@ -2453,8 +2454,11 @@ model RateioHora {
   custo       Decimal        @db.Decimal(12, 2)
   fechadoEm   DateTime       @default(now())
 
+  // Unicidade por pessoa × mês × natureza × projeto: índices únicos PARCIAIS só na migração
+  // 20261011120000 (o Prisma não expressa `WHERE projetoId IS [NOT] NULL`).
   @@index([projetoId, ano, mes])
   @@index([ano, mes])
+  @@index([userId, ano, mes])
   @@map("rateio_hora")
 }
 

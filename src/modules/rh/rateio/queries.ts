@@ -7,7 +7,7 @@ import type { Contratacao } from "@/generated/prisma/enums";
 import { custosDoMes } from "@/modules/rh/rateio/custo-hora/dados";
 import { avisosDoCusto } from "@/modules/rh/rateio/custo-hora/avisos";
 import {
-  calculoDoMes, divisorMinutos, limitesDoMesSP, minutosNoIntervalo, naturezaDaSessao, ratearCusto, type NaturezaLinha,
+  calculoDoMes, limitesDoMesSP, linhasDaPessoa, minutosNoIntervalo, type NaturezaLinha, type SessaoNoMes,
 } from "@/modules/rh/rateio/custo-hora/distribuicao";
 
 function diasUteis(ano: number, mes: number): number {
@@ -137,48 +137,27 @@ export async function calcularRateioV2(ano: number, mes: number, agora: Date = n
   const userIds = [...new Set([...sessoes.map((s) => s.userId), ...comCusto.map((v) => v.userId)])];
   const custos = await custosDoMes(ano, mes, userIds);
 
-  type Linha = { projetoId: string | null; natureza: NaturezaLinha; minutos: number };
-  const porUser = new Map<string, { linhas: Map<string, Linha>; total: number }>();
+  const sessoesPorUser = new Map<string, SessaoNoMes[]>();
   for (const s of sessoes) {
     const minutos = minutosNoIntervalo(s.inicio, s.fim, inicio, fim, agora);
     if (minutos === 0) continue;
-    const natureza = naturezaDaSessao(s.projetoId, s.tipoAlocacao);
-    const projetoId = natureza === "nao_alocado" ? null : s.projetoId;
-    const chave = `${natureza}|${projetoId ?? ""}`;
-    const acc = porUser.get(s.userId) ?? { linhas: new Map<string, Linha>(), total: 0 };
-    const l = acc.linhas.get(chave) ?? { projetoId, natureza, minutos: 0 };
-    l.minutos += minutos;
-    acc.linhas.set(chave, l);
-    acc.total += minutos;
-    porUser.set(s.userId, acc);
+    const lista = sessoesPorUser.get(s.userId) ?? [];
+    lista.push({ projetoId: s.projetoId, tipoAlocacao: s.tipoAlocacao, minutos });
+    sessoesPorUser.set(s.userId, lista);
   }
 
   const out: LinhaRateio[] = [];
   for (const userId of userIds) {
-    const acc = porUser.get(userId) ?? { linhas: new Map<string, Linha>(), total: 0 };
     const c = custos.get(userId);
     const contratacao = c?.contratacao ?? null;
-    const totalCent = c?.custo?.totalCent ?? 0;
-    const divisor = divisorMinutos({
+    const linhas = linhasDaPessoa({
       contratacao,
-      minutosMarcados: acc.total,
+      totalCent: c?.custo?.totalCent ?? 0,
       jornadaReferenciaMin: c?.jornadaReferenciaMin ?? 0,
       mesEncerrado: agora >= fim,
+      sessoes: sessoesPorUser.get(userId) ?? [],
     });
-    const { porLinha, naoApontadoCent } = ratearCusto(totalCent, divisor, [...acc.linhas].map(([chave, l]) => ({ chave, minutos: l.minutos })));
-    const naoAlocado = { minutos: 0, custoCent: naoApontadoCent };
-    for (const [chave, l] of acc.linhas) {
-      const custoCent = porLinha.get(chave) ?? 0;
-      if (l.natureza === "nao_alocado") {
-        naoAlocado.minutos += l.minutos;
-        naoAlocado.custoCent += custoCent;
-      } else {
-        out.push({ userId, projetoId: l.projetoId, natureza: l.natureza, contratacao, minutos: l.minutos, custoCent });
-      }
-    }
-    if (naoAlocado.minutos > 0 || naoAlocado.custoCent > 0) {
-      out.push({ userId, projetoId: null, natureza: "nao_alocado", contratacao, minutos: naoAlocado.minutos, custoCent: naoAlocado.custoCent });
-    }
+    for (const l of linhas) out.push({ userId, contratacao, ...l });
   }
   const avisos = avisosDoCusto(
     [...custos.values()].map((c) => ({
@@ -222,6 +201,12 @@ export async function calcularRateioDoMes(
 
 /** Rateio do mês agregado por projeto, para o painel do gestor. */
 export async function rateioMesGestor(ano: number, mes: number) {
+  // O botão do card fecha o mês ANTERIOR: mês em curso não fecha (congelaria uma estimativa).
+  const anterior = mes === 1 ? { ano: ano - 1, mes: 12 } : { ano, mes: mes - 1 };
+  const fechamentoAnterior = await prisma.fechamentoRateio.findUnique({
+    where: { ano_mes: anterior },
+    select: { fechadoEm: true },
+  });
   const { inicio: ini, fim } = limitesDoMesSP(ano, mes);
   const agora = new Date();
   const [{ linhas, avisos }, fechamento, sessoesSemProjeto] = await Promise.all([
@@ -265,6 +250,7 @@ export async function rateioMesGestor(ano: number, mes: number) {
     ...alocacoesSemProjeto,
     custoNaoAlocado: custoNaoAlocadoCent / 100,
     avisos,
+    mesAnterior: { ...anterior, fechadoEm: fechamentoAnterior?.fechadoEm ?? null },
     custoTotal: custoTotalCent / 100,
     fechado: fechamento != null,
     fechadoEm: fechamento?.fechadoEm ?? null,
