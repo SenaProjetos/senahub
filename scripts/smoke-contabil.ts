@@ -77,7 +77,7 @@ async function main() {
     const r2 = await importarPlanoNoBanco(contas);
     ok(r2.criadas === 0 && r2.alteradas === 0 && r2.iguais === contas.length, "re-importar o mesmo plano não muda nada");
 
-    const autor = await prisma.user.findFirstOrThrow({ where: { role: "admin" }, select: { id: true } });
+    const autor = await prisma.user.findFirstOrThrow({ where: { superUsuario: true, ativo: true }, select: { id: true } });
     if (await prisma.fechamentoMensal.findUnique({ where: { ano_mes: { ano: 2019, mes: 3 } } })) throw new Error("Já existe fechamento de 03/2019 no banco: o smoke usa esse mês isolado.");
     const cat = async (chave: string) => (await prisma.categoriaFinanceira.findFirstOrThrow({ where: { chave }, select: { id: true } })).id;
     const receita = await cat("receita_projetos_particulares");
