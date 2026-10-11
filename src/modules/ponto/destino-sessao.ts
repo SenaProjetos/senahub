@@ -6,20 +6,16 @@ import { ActionError } from "@/lib/action-error";
 import type { TipoAlocacaoPonto } from "@/modules/ponto/alocacao";
 import { resolverTarefaDoPonto } from "@/modules/ponto/tarefa-ponto-service";
 import { disciplinaDaSessao, motivoParaNaoMarcarNoProjeto } from "@/modules/ponto/disciplina-sessao";
+import { disciplinasDaPessoaNaData } from "@/modules/projetos/responsaveis-service";
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
 /**
- * Disciplinas de que a pessoa é responsável no projeto. Ponto único da leitura: a R5 troca o
- * "responsável hoje" pelo responsável NA DATA (histórico), sem mexer nos chamadores.
+ * Disciplinas de que a pessoa era responsável no projeto NA DATA da sessão (R5, decisão 13): a
+ * correção de um dia antigo usa quem era responsável naquele dia, não quem é hoje.
  */
-export async function disciplinasDaPessoaNoProjeto(db: Db, userId: string, projetoId: string, _quando: Date): Promise<string[]> {
-  void _quando; // a R5.2 passa a ler o histórico de responsáveis nesta data
-  const rows = await db.disciplinaResponsavel.findMany({
-    where: { userId, disciplina: { projetoId } },
-    select: { disciplinaId: true },
-  });
-  return rows.map((r) => r.disciplinaId);
+export async function disciplinasDaPessoaNoProjeto(db: Db, userId: string, projetoId: string, quando: Date): Promise<string[]> {
+  return disciplinasDaPessoaNaData(db, userId, projetoId, quando);
 }
 
 /**

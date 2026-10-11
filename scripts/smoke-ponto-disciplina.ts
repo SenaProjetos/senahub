@@ -8,6 +8,7 @@
  *   4. Reunião externa ligada ao projeto: sessão reuniao_externa com projeto e sem disciplina; a
  *      batida guarda o destino.
  *   5. Correção do dia pelo RH com duas disciplinas e sem tarefa: grava sem disciplina, sem erro.
+ *   6. Responsável trocado (R5): a correção de um dia ANTES da troca usa a disciplina daquele dia.
  *
  * Uso: npm run smoke:ponto-disciplina
  */
@@ -15,6 +16,7 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { aplicarBatida, editarDia } from "../src/modules/ponto/service";
 import { MSG_SEM_ACESSO_PROJETO, MSG_TAREFA_OBRIGATORIA } from "../src/modules/ponto/disciplina-sessao";
+import { substituirResponsaveis } from "../src/modules/projetos/responsaveis-service";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -51,7 +53,9 @@ async function main() {
   const status = await prisma.tarefaStatus.findFirstOrThrow({ where: { ativo: true, concluido: false }, orderBy: { ordem: "asc" } });
 
   try {
-    await prisma.disciplinaResponsavel.createMany({ data: [{ disciplinaId: d1.id, userId: ana.id }, { disciplinaId: d1.id, userId: beto.id }, { disciplinaId: d2.id, userId: beto.id }] });
+    const ha10dias = new Date(Date.now() - 10 * 86_400_000);
+    await substituirResponsaveis(prisma, d1.id, [ana.id, beto.id], ha10dias);
+    await substituirResponsaveis(prisma, d2.id, [beto.id], ha10dias);
     const cardBeto = await prisma.tarefa.create({ data: { titulo: "Hidráulica térreo", statusId: status.id, projetoId: proj.id, disciplinaId: d2.id, criadorId: beto.id, responsaveis: { create: [{ userId: beto.id }] } } });
     const cardDani = await prisma.tarefa.create({ data: { titulo: "Apoio", statusId: status.id, projetoId: proj.id, disciplinaId: d1.id, criadorId: dani.id, responsaveis: { create: [{ userId: dani.id }] } } });
 
@@ -95,6 +99,21 @@ async function main() {
     });
     const sEdit = await prisma.sessaoTrabalho.findMany({ where: { userId: beto.id, fim: { not: null } } });
     check("correção do RH com duas disciplinas e sem tarefa: grava sem disciplina", sEdit.length > 0 && sEdit.every((s) => s.disciplinaId === null), sEdit.map((s) => s.disciplinaId));
+
+    // 6 — Ana sai de Estrutural e vai para Hidráulica há 2 dias; o RH corrige um dia de 5 dias atrás.
+    const ha2dias = new Date(Date.now() - 2 * 86_400_000);
+    await substituirResponsaveis(prisma, d1.id, [beto.id], ha2dias);
+    await substituirResponsaveis(prisma, d2.id, [beto.id, ana.id], ha2dias);
+    const hist = await prisma.disciplinaResponsavelHistorico.findMany({ where: { userId: ana.id }, orderBy: { inicio: "asc" } });
+    check("histórico: período em Estrutural fechado e Hidráulica aberto", hist.length === 2 && hist[0].disciplinaId === d1.id && hist[0].fim !== null && hist[1].disciplinaId === d2.id && hist[1].fim === null, hist);
+    const dia5 = new Date(Date.now() - 5 * 86_400_000 - 3 * 3_600_000).toISOString().slice(0, 10);
+    await editarDia({
+      userId: ana.id, editorId: beto.id, diaISO: dia5,
+      itens: [{ tipo: "entrada", hora: "08:00", projetoId: proj.id }, { tipo: "saida", hora: "12:00", projetoId: proj.id }],
+      justificativa: "smoke", proprio: false,
+    });
+    const s5 = await prisma.sessaoTrabalho.findFirst({ where: { userId: ana.id, fim: { not: null } }, orderBy: { inicio: "asc" } });
+    check("correção de dia antes da troca usa a disciplina daquele dia (Estrutural)", s5?.disciplinaId === d1.id, s5?.disciplinaId);
   } finally {
     await prisma.ajustePonto.deleteMany({ where: { userId: { in: ids } } });
     await prisma.batida.deleteMany({ where: { userId: { in: ids } } });

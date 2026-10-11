@@ -1,5 +1,6 @@
 "use server";
 
+import { substituirResponsaveis } from "@/modules/projetos/responsaveis-service";
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { aplicarModeloNoProjeto } from "@/modules/planejamento/modelos/service";
@@ -525,11 +526,7 @@ export const definirResponsaveis = defineAction(
       input.responsaveisIds.some((id) => !anteriorIds.has(id));
 
     await prisma.$transaction(async (tx) => {
-      await tx.disciplinaResponsavel.deleteMany({ where: { disciplinaId: input.disciplinaId } });
-      await tx.disciplinaResponsavel.createMany({
-        data: input.responsaveisIds.map((userId) => ({ disciplinaId: input.disciplinaId, userId })),
-        skipDuplicates: true,
-      });
+      await substituirResponsaveis(tx, input.disciplinaId, input.responsaveisIds);
       const removidosIds = [...anteriorIds].filter((id) => !input.responsaveisIds.includes(id));
       await podarMembrosSemVinculo(tx, disciplina.projetoId, removidosIds);
       // Segundo escritor de DisciplinaResponsavel (o outro é `editarDisciplina`): sem
@@ -733,12 +730,7 @@ export const editarDisciplinasEmMassa = defineAction(
     if (input.responsavelId !== undefined) {
       await prisma.$transaction(async (tx) => {
         for (const disciplinaId of input.disciplinaIds) {
-          await tx.disciplinaResponsavel.deleteMany({ where: { disciplinaId } });
-          if (input.responsavelId) {
-            await tx.disciplinaResponsavel.create({
-              data: { disciplinaId, userId: input.responsavelId },
-            });
-          }
+          await substituirResponsaveis(tx, disciplinaId, input.responsavelId ? [input.responsavelId] : []);
           await sincronizarPagamentosPorDisciplinaId(tx, disciplinaId, ctx.user.id);
         }
       });
@@ -799,10 +791,7 @@ export const criarDisciplina = defineAction(
       });
       await semearEtapasPadrao(tx, [d.id], { tipoProjeto: projeto.tipo, tipoEmpreendimentoId: projeto.tipoEmpreendimentoId });
       if (input.responsaveisIds.length > 0) {
-        await tx.disciplinaResponsavel.createMany({
-          data: input.responsaveisIds.map((userId) => ({ disciplinaId: d.id, userId })),
-          skipDuplicates: true,
-        });
+        await substituirResponsaveis(tx, d.id, input.responsaveisIds);
         await notificarMuitos(input.responsaveisIds, {
           titulo: "Você foi atribuído a uma disciplina",
           corpo: `${input.nome} — projeto ${input.projetoId}`,
@@ -930,15 +919,8 @@ export const editarDisciplina = defineAction(
           ...(input.exigePacoteB !== undefined ? { exigePacoteB: input.exigePacoteB } : {}),
         },
       });
-      await tx.disciplinaResponsavel.deleteMany({ where: { disciplinaId: input.disciplinaId } });
+      await substituirResponsaveis(tx, input.disciplinaId, input.responsaveisIds);
       if (input.responsaveisIds.length > 0) {
-        await tx.disciplinaResponsavel.createMany({
-          data: input.responsaveisIds.map((userId) => ({
-            disciplinaId: input.disciplinaId,
-            userId,
-          })),
-          skipDuplicates: true,
-        });
       }
       const removidosIds = [...anteriorIds].filter((id) => !input.responsaveisIds.includes(id));
       await podarMembrosSemVinculo(tx, disciplina.projetoId, removidosIds);
