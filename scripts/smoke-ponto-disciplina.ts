@@ -114,6 +114,25 @@ async function main() {
     });
     const s5 = await prisma.sessaoTrabalho.findFirst({ where: { userId: ana.id, fim: { not: null } }, orderBy: { inicio: "asc" } });
     check("correção de dia antes da troca usa a disciplina daquele dia (Estrutural)", s5?.disciplinaId === d1.id, s5?.disciplinaId);
+
+    // 7 — Responsável gravado SEM histórico (legado / escrita fora do serviço): a primeira troca não
+    // pode apagar os dias dele. Dani responde por Elétrica desde a criação; Caio entra há 2 dias e Dani
+    // sai ontem; a correção de 5 dias atrás ainda é da Dani em Elétrica.
+    const d3 = await prisma.disciplina.create({
+      data: { projetoId: proj.id, disciplinaTextoLegado: "Elétrica", status: "em_andamento", createdAt: ha10dias },
+    });
+    await prisma.$executeRaw`INSERT INTO "disciplina_responsavel" ("id", "disciplinaId", "userId") VALUES (${`${tag}-legado`}, ${d3.id}, ${dani.id})`;
+    await substituirResponsaveis(prisma, d3.id, [dani.id, caio.id], ha2dias);
+    await substituirResponsaveis(prisma, d3.id, [caio.id], new Date(Date.now() - 86_400_000));
+    const hDani = await prisma.disciplinaResponsavelHistorico.findFirst({ where: { userId: dani.id, disciplinaId: d3.id } });
+    check("legado ganha período desde a criação e é fechado ao sair", !!hDani && hDani.inicio.getTime() === ha10dias.getTime() && hDani.fim !== null, hDani);
+    await editarDia({
+      userId: dani.id, editorId: beto.id, diaISO: dia5,
+      itens: [{ tipo: "entrada", hora: "08:00", projetoId: proj.id }, { tipo: "saida", hora: "12:00", projetoId: proj.id }],
+      justificativa: "smoke", proprio: false,
+    });
+    const s7 = await prisma.sessaoTrabalho.findFirst({ where: { userId: dani.id, fim: { not: null } }, orderBy: { inicio: "asc" } });
+    check("correção de dia do responsável legado ainda acha a disciplina dele (Elétrica)", s7?.disciplinaId === d3.id, s7?.disciplinaId);
   } finally {
     await prisma.ajustePonto.deleteMany({ where: { userId: { in: ids } } });
     await prisma.batida.deleteMany({ where: { userId: { in: ids } } });

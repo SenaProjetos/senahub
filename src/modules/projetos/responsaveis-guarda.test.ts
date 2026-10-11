@@ -31,4 +31,15 @@ describe("escrita de DisciplinaResponsavel só pelo serviço", () => {
     }
     expect(achados).toEqual([]);
   });
+
+  it("nenhuma disciplina nasce com responsáveis aninhados no create", () => {
+    // `disciplina.create({ data: { ..., responsaveis: { create: ... } } })` também escreve sem histórico.
+    const re = /disciplina\.create\(\{[\s\S]{0,1200}?responsaveis:\s*\{\s*create/g;
+    const achados: string[] = [];
+    for (const f of arquivos(RAIZ)) {
+      const src = readFileSync(f, "utf8");
+      for (const m of src.matchAll(re)) achados.push(`${path.relative(RAIZ, f)}:${src.slice(0, m.index).split("\n").length}`);
+    }
+    expect(achados).toEqual([]);
+  });
 });

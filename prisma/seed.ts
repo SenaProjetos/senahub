@@ -75,6 +75,17 @@ const PLANO_CONTAS: {
   { codigo: "2.08", chave: "despesa_pro_labore", nome: "Pró-labore / retiradas", tipo: "despesa", pai: "2", prioridadePadrao: "p2" },
   // 2.09 também é criada pela migração 20260914120000_art_taxa_financeiro.
   { codigo: "2.09", chave: "despesa_art_rrt", nome: "Taxas de ART/RRT", tipo: "despesa", pai: "2", prioridadePadrao: "p3", tipoCusto: "variavel" },
+  // Subcategorias da folha (R4 do rateio). Também criadas pela migração 20261011150000_rateio_r2_r5 em
+  // banco que já tinha as mães; aqui, para banco novo (migrations rodam antes do seed).
+  { codigo: "2.03.01", chave: "despesa_folha_salarios", nome: "Salários", tipo: "despesa", pai: "2.03", prioridadePadrao: "p1" },
+  { codigo: "2.03.02", chave: "despesa_folha_fgts", nome: "FGTS", tipo: "despesa", pai: "2.03", prioridadePadrao: "p1" },
+  { codigo: "2.03.03", chave: "despesa_folha_decimo_terceiro", nome: "13º salário", tipo: "despesa", pai: "2.03", prioridadePadrao: "p1" },
+  { codigo: "2.03.04", chave: "despesa_folha_ferias", nome: "Férias", tipo: "despesa", pai: "2.03", prioridadePadrao: "p1" },
+  { codigo: "2.03.05", chave: "despesa_folha_rescisoes", nome: "Rescisões e aviso prévio", tipo: "despesa", pai: "2.03", prioridadePadrao: "p1" },
+  { codigo: "2.03.06", chave: "despesa_folha_vale_transporte", nome: "Vale-transporte", tipo: "despesa", pai: "2.03", prioridadePadrao: "p2" },
+  { codigo: "2.03.07", chave: "despesa_folha_vale_refeicao", nome: "Vale-refeição", tipo: "despesa", pai: "2.03", prioridadePadrao: "p2" },
+  { codigo: "2.04.01", chave: "despesa_estagio_bolsa", nome: "Bolsa", tipo: "despesa", pai: "2.04", prioridadePadrao: "p2" },
+  { codigo: "2.04.02", chave: "despesa_estagio_taxa_agente", nome: "Taxa do agente (IEL)", tipo: "despesa", pai: "2.04", prioridadePadrao: "p3" },
 ];
 
 const FORMAS_PAGAMENTO = ["PIX", "Transferência", "Boleto", "Dinheiro", "Cartão"];
@@ -326,7 +337,10 @@ async function main() {
   const idsPorCodigo = new Map<string, string>();
   for (let i = 0; i < PLANO_CONTAS.length; i++) {
     const c = PLANO_CONTAS[i];
-    const cat = await prisma.categoriaFinanceira.upsert({
+    // A identidade é a CHAVE: conta renumerada em Cadastros (chave igual, código outro) não ganha gêmea —
+    // criar pelo código esbarraria no único da chave.
+    const porChave = await prisma.categoriaFinanceira.findFirst({ where: { chave: c.chave }, select: { id: true, paiId: true } });
+    const cat = porChave ?? await prisma.categoriaFinanceira.upsert({
       where: { codigo: c.codigo },
       create: {
         codigo: c.codigo,

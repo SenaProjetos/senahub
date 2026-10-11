@@ -115,25 +115,23 @@ FROM (VALUES
 JOIN "categoria_financeira" pai ON pai."chave" = v.chavePai
 ON CONFLICT DO NOTHING;
 
--- O compromisso recorrente da folha (e o do adiantamento) passa a gerar a conta em Salários. As contas
--- já geradas ficam na categoria-mãe (histórico); o fechamento procura nas duas.
-UPDATE "compromisso_recorrente" c
-SET "categoriaId" = sal."id"
-FROM "categoria_financeira" mae, "categoria_financeira" sal
-WHERE mae."chave" = 'despesa_folha_clt' AND sal."chave" = 'despesa_folha_salarios'
-  AND c."categoriaId" = mae."id";
+-- Compromissos recorrentes NÃO mudam de categoria aqui: a Folha CLT pode ter compromissos lançados à mão
+-- (FGTS, contador...) que não são salário. O fechamento da folha procura a conta do líquido na mãe E em
+-- Salários e, ao gravar o valor real, move a conta escolhida para Salários.
 
 -- ============================== R5 — papel e histórico de responsáveis ==============================
 -- Papel do membro em lista fixa (decisão 25): coordenador, projetista, apoio, estagiario,
--- consultor_externo. Texto que não casa com nenhum vira NULL (a tela mostra "Sem papel").
+-- consultor_externo. Texto que não casa com nenhum FICA COMO ESTÁ: a tela mostra "Sem papel" e quem
+-- salvar a equipe escolhe da lista. Zerar perderia o texto e faria o membro, adicionado de propósito,
+-- ser podado da equipe como implícito (`podarMembrosSemVinculo` poda `papel IS NULL`).
 UPDATE "projeto_membro" SET "papel" = CASE
   WHEN "papel" IS NULL OR btrim("papel") = '' THEN NULL
   WHEN lower("papel") LIKE '%coord%' THEN 'coordenador'
-  WHEN lower("papel") LIKE '%consult%' OR lower("papel") LIKE '%extern%' THEN 'consultor_externo'
   WHEN lower("papel") LIKE '%estag%' THEN 'estagiario'
-  WHEN lower("papel") LIKE '%apoio%' OR lower("papel") LIKE '%auxil%' THEN 'apoio'
   WHEN lower("papel") LIKE '%projet%' OR lower("papel") LIKE '%arquit%' OR lower("papel") LIKE '%engenh%' OR lower("papel") LIKE '%desenh%' THEN 'projetista'
-  ELSE NULL
+  WHEN lower("papel") LIKE '%consult%' OR lower("papel") LIKE '%extern%' THEN 'consultor_externo'
+  WHEN lower("papel") LIKE '%apoio%' OR lower("papel") LIKE '%auxil%' THEN 'apoio'
+  ELSE "papel"
 END;
 
 CREATE TABLE "disciplina_responsavel_historico" (

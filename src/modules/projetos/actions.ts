@@ -177,9 +177,10 @@ export const criarProjeto = defineAction(
             prazo: parseData(d.prazo),
             valor: d.valor,
             ordem: i,
-            responsaveis: { create: d.responsaveisIds.map((userId) => ({ userId })) },
           },
         });
+        // Responsáveis só pelo serviço: ele grava o histórico (R5), que a correção de ponto lê.
+        await substituirResponsaveis(tx, disc.id, d.responsaveisIds);
         if (usaEstruturaCustom(input.tipo)) {
           await semearPastasTemplate(tx, disc.id, input.tipo);
         }

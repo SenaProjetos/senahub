@@ -14,6 +14,20 @@ type Db = Prisma.TransactionClient | typeof prisma;
  */
 export async function substituirResponsaveis(db: Db, disciplinaId: string, novos: string[], quando: Date = new Date()): Promise<{ entram: string[]; saem: string[] }> {
   const atuais = (await db.disciplinaResponsavel.findMany({ where: { disciplinaId }, select: { userId: true } })).map((r) => r.userId);
+  // Responsável atual SEM período aberto no histórico (gravado antes do histórico existir, ou por
+  // escrita fora do serviço): ganha um período desde a criação da disciplina antes da troca — senão,
+  // ao sair, não haveria período a fechar e os dias em que ele foi responsável sumiriam.
+  if (atuais.length > 0) {
+    const abertos = new Set(
+      (await db.disciplinaResponsavelHistorico.findMany({ where: { disciplinaId, userId: { in: atuais }, fim: null }, select: { userId: true } })).map((h) => h.userId),
+    );
+    const semPeriodo = atuais.filter((u) => !abertos.has(u));
+    if (semPeriodo.length > 0) {
+      const disc = await db.disciplina.findUnique({ where: { id: disciplinaId }, select: { createdAt: true } });
+      const inicio = disc?.createdAt && disc.createdAt < quando ? disc.createdAt : quando;
+      await db.disciplinaResponsavelHistorico.createMany({ data: semPeriodo.map((userId) => ({ disciplinaId, userId, inicio })) });
+    }
+  }
   const { entram, saem } = diffResponsaveis(atuais, novos);
   if (saem.length > 0) {
     await db.disciplinaResponsavel.deleteMany({ where: { disciplinaId, userId: { in: saem } } });
@@ -28,8 +42,8 @@ export async function substituirResponsaveis(db: Db, disciplinaId: string, novos
 
 /**
  * Disciplinas do projeto de que a pessoa era responsável NA DATA (correção de ponto de dia antigo).
- * Disciplina SEM nenhuma linha de histórico (gravada por script ou semente fora do serviço) vale
- * pelo responsável de hoje — senão a pessoa ficaria sem disciplina nenhuma.
+ * Responsável de hoje SEM nenhuma linha de histórico naquela disciplina (gravado por script, semente
+ * ou antes do histórico) vale pelo responsável de hoje — senão a pessoa ficaria sem disciplina.
  */
 export async function disciplinasDaPessoaNaData(db: Db, userId: string, projetoId: string, quando: Date): Promise<string[]> {
   const historico = await db.disciplinaResponsavelHistorico.findMany({
@@ -37,7 +51,7 @@ export async function disciplinasDaPessoaNaData(db: Db, userId: string, projetoI
     select: { disciplinaId: true, inicio: true, fim: true },
   });
   const atuais = await db.disciplinaResponsavel.findMany({
-    where: { userId, disciplina: { projetoId, responsaveisHistorico: { none: {} } } },
+    where: { userId, disciplina: { projetoId, responsaveisHistorico: { none: { userId } } } },
     select: { disciplinaId: true },
   });
   return [...new Set([...disciplinasNaData(historico, quando), ...atuais.map((a) => a.disciplinaId)])];
