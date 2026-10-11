@@ -177,8 +177,10 @@ export async function calcularRateioV2(ano: number, mes: number, agora: Date = n
 export async function calcularRateioDoMes(
   ano: number,
   mes: number,
+  /** `forcarV2`: recalcular um mês antigo no cálculo novo (decisão 8 / R3). */
+  opcoes: { forcarV2?: boolean } = {},
 ): Promise<{ calculo: "legado" | "v2"; linhas: LinhaRateio[]; avisos: string[] }> {
-  const calculo = calculoDoMes(ano, mes, await corteCalculoNovo());
+  const calculo = opcoes.forcarV2 ? "v2" : calculoDoMes(ano, mes, await corteCalculoNovo());
   if (calculo === "v2") return { calculo, ...(await calcularRateioV2(ano, mes)) };
   const rows = await calcularRateioLegado(ano, mes);
   const users = await prisma.user.findMany({
