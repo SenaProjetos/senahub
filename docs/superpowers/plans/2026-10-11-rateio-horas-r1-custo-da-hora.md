@@ -49,6 +49,19 @@ Critério dos planos anteriores: código já escrito no plano e coberto por test
 | 7 — Docs e verificação final | Sonnet 5.5 | low | Texto pronto no plano; rodar lint, testes, tsc, smoke e build e ler as falhas |
 | Revisão final da branch | Opus 5.5 | high | Um revisor independente sobre a R1 inteira antes do merge |
 
+### Blocos de execução (agrupados para economizar trocas de modelo e contexto)
+
+Dependências: 1, 2 e 3 não dependem de nada; 4 depende de 1, 2 e 3; 5 depende de 2 e 4; 6 depende de 1 e 3; 7 depende de todas. Cada bloco é **uma sessão**, com um modelo e um esforço, e as tarefas rodam em sequência dentro dela.
+
+| Bloco | Tarefas | Modelo | Esforço | Depois de |
+|---|---|---|---|---|
+| A | 1 + 2 (cálculos puros) | Sonnet 5.5 | high | — |
+| B | 3 → 4 → 5 (schema, carregador, cálculo novo) | Opus 5.5 | high | A |
+| C | 6 → 7 (tela de encargos, docs e verificação) | Sonnet 5.5 | medium | B |
+| D | Revisão final da branch (revisor novo, sem o contexto da execução) | Opus 5.5 | high | C |
+
+São 4 sessões em vez de 8. A ordem A → B → C evita voltar ao mesmo modelo duas vezes: a tarefa 3 até poderia começar antes da A, mas exigiria uma troca a mais (Opus → Sonnet → Opus).
+
 Etapas seguintes do roteiro (planejar cada uma com **Opus 5.5 / high** antes de executar):
 
 | Etapa | Modelo previsto | Esforço | Por quê |
