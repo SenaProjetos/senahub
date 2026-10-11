@@ -1483,6 +1483,8 @@ git commit -m "feat(rateio): cálculo novo a partir de outubro, linha não aloca
 
 ### Task 6: Tela de tabelas de encargos e agente de integração
 
+> **Desvio executado (2026-10-11):** `src/modules/rh/encargos/` e a rota de configurações já existiam (faixas de INSS/IRRF do empregado). A tarefa foi feita em `src/modules/rh/tabela-encargos/` (regras, queries, actions e `numeros.ts` — leitura dos números digitados, com mensagem em português), `src/components/rh/encargos-empresa/`, rota `/rh/encargos-empresa` e título "Encargos da empresa". O item do menu pede `rh:gerir` (o mesmo gate da página), e `rh:gerir` ganhou `abre: "Encargos da empresa"` no catálogo para a guarda de permissões. Onde o texto abaixo diz `rh/encargos`, leia `rh/tabela-encargos`.
+
 **Files:**
 - Create: `src/modules/rh/encargos/regras.ts`
 - Test: `src/modules/rh/encargos/regras.test.ts`

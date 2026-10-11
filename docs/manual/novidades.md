@@ -20,6 +20,13 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Custo da hora com encargos (outubro/2026)
+
+- O rateio de horas passa a incluir **FGTS, reservas de 13º, férias e aviso prévio, multa do FGTS, vale-transporte, vale-refeição** e a **taxa do IEL** dos estagiários.
+- As tabelas ficam em **RH → Encargos da empresa**, com data de início de cada versão.
+- O custo que não foi para projeto nenhum aparece como **Não alocado** no rateio do mês.
+- Meses já fechados continuam com o cálculo antigo.
+
 ---
 
 ## Etapas no card da disciplina, ponto e Meu trabalho

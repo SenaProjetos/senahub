@@ -593,6 +593,16 @@ Spec + 42 decisions: `docs/superpowers/specs/2026-09-23-planejamento-motor-crono
 - Verificação de ponta a ponta: `npm run smoke:eap-integracao`; ensaio em tela: `npm run ensaio:eap` (usuários com perfil de
   acesso + termo aceito, senão o login cai em /sem-permissao ou /termo).
 
+**Rateio de horas — custo da hora** (`modules/rh/rateio/`, spec `docs/superpowers/specs/2026-09-15-rateio-horas-decisoes.md`,
+plano `docs/superpowers/plans/2026-10-11-rateio-horas-r1-custo-da-hora.md`, roteiro R1–R5): a partir de `rh.rateio.calculoNovoDesde`
+(`2026-10`) o custo da hora é o custo do MÊS da pessoa ÷ minutos marcados (`custo-hora/encargos.ts` + `distribuicao.ts`, puros, em
+centavos). Custo do mês = proventos do holerite (sem salário-família) ou `HistoricoContratual.remuneracao` ou `Vinculo.remuneracao` + a
+versão de `TabelaEncargos` vigente no mês (uma por contratação, `vigenciaEm` = dia 1º, `parametros` = `parametrosEncargosSchema`; tela
+`/rh/encargos-empresa`, módulo `rh/tabela-encargos` — `rh/encargos` é o INSS/IRRF do empregado). Sócio divide pela jornada de referência
+(`Vinculo.cargaSemanal`); PJ/autônomo só horas. O que não vai para projeto é a linha `nao_alocado` (`RateioHora.projetoId` nulo).
+`FechamentoRateio` é o cabeçalho do mês (`calculo` legado|v2): "o mês está fechado?" lê ele, nunca `rateioHora.findFirst`. Meses antes do
+corte usam `calcularRateioLegado`; todo leitor passa por `calcularRateioDoMes`. Verificação: `npm run smoke:rateio-custo-hora`.
+
 **Project health** (`modules/projetos/health.ts`) — pure `saudeProjeto(disciplinas, prazoFinal)` → `ok | atencao | critico` (returns `null` for non-`em_andamento`). Feeds the "Saúde" column in the projects list and the admin dashboard `CarteiraDashboard`. Same pattern as CPM/tokens: no I/O, unit-tested.
 
 **Ferramentas (engenharia)** (`modules/ferramentas/`) — calculators + drawing/memory generators following NBR norms. Layered, mostly pure:

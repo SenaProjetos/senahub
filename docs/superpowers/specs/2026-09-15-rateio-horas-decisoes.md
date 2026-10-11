@@ -9,6 +9,8 @@ foi implementado até 10/10/2026.
 
 Atualizado em 10/10/2026. Todas as perguntas foram respondidas (rodadas 1 a 6); não há nada em aberto.
 
+**Implementação:** R1 (decisões 1–9 e 15) entregue na branch `feat/rateio-custo-hora` — plano `docs/superpowers/plans/2026-10-11-rateio-horas-r1-custo-da-hora.md`. R2 a R5 no roteiro do mesmo plano.
+
 ## Decisões tomadas
 
 ### Custo da hora
