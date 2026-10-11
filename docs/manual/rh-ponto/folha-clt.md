@@ -111,6 +111,31 @@ a folha já fechou antes disso.
   não. Ele sai com o **timbrado da empresa** (logo, razão social, CNPJ e endereço) no topo,
   configurado em [Configurações → Empresa](../sistema/configuracoes.md#sistema).
 
+## Fechar a folha: o que vai para o Financeiro
+
+Ao fechar, a folha lança no Financeiro **contas a pagar em aberto** — fechar **não paga**:
+
+- **Líquido dos CLT**, em Salários, no prazo do salário (5º dia útil do mês seguinte, contando o sábado).
+- **Bolsa dos estagiários**, em Bolsa, no mesmo prazo.
+- **INSS descontado**, **IRRF descontado** e **FGTS**, no **dia 20 do mês seguinte** (se não for dia útil,
+  antecipa para o dia útil anterior). Os valores vêm do relatório do contador; o import do PDF já os preenche, e
+  o cartão **Guias do mês** permite corrigir com a folha aberta. Campo vazio = a parte não é lançada.
+- **Vale-transporte** e **vale-refeição** (benefícios da tabela de encargos), somados de todos os CLT.
+
+Fechar de novo atualiza as **mesmas contas** enquanto estão em aberto; conta já paga não é mexida (o aviso
+conta a diferença); uma parte que saiu da folha tem a conta **cancelada**, não apagada. O bloco **Contas
+lançadas no Financeiro** da folha fechada mostra cada conta com a situação (em aberto, paga) e abre o lançamento.
+
+O bloco **Custo total da folha** soma, por pessoa, o salário, os encargos da empresa e os benefícios, pela
+mesma tabela de encargos do rateio de horas. Só aparece na folha mensal.
+
+### Reabrir a folha
+
+**Reabrir** pede um **motivo** (10 caracteres ou mais) e é recusado se **qualquer** conta lançada já foi paga —
+estorne o pagamento no Financeiro antes. As contas em aberto continuam e o próximo fechamento as atualiza.
+Reabrir cancela as assinaturas dos holerites, mas a **versão que cada pessoa assinou fica guardada** (em
+"Versões assinadas" do holerite, com a data e o motivo), e a reabertura entra no histórico da folha.
+
 ## Permissões
 
 - Import, cadastro de rubrica/matrícula e lembrete: restrito a **HR_ADMIN_ROLES**.

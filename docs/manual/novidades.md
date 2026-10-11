@@ -20,6 +20,23 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Rateio por disciplina, fechamento do mês e folha no Financeiro (outubro/2026)
+
+- **Ponto:** reunião interna ou externa pode ser **ligada a um projeto** (o custo vai para o projeto como
+  reunião). Só marca horas num projeto quem é da equipe, responsável por disciplina ou tem card nele. Quem tem
+  **2 ou mais disciplinas** no projeto escolhe a **tarefa** (obrigatória) para as horas irem à disciplina certa.
+- **RH → Rateio de horas:** cada mês pode ser **fechado**, **reaberto** ou **recalculado** (com motivo), com
+  aviso quando um mês fechado foi alterado depois. Horas e custo por projeto e disciplina, com histórico.
+- **Reais só para quem pode:** o custo em reais do rateio e das disciplinas aparece para o administrador, os
+  sócios e quem receber a permissão de custo; a coordenação vê as horas.
+- **Folha CLT:** ao fechar, a folha lança no Financeiro o líquido, a bolsa dos estagiários, INSS, IRRF e FGTS
+  (dia 20) e os benefícios — todos **em aberto**, sem pagar. Reabrir pede motivo e guarda a versão assinada.
+  A folha mostra o **custo total** e as contas lançadas.
+- **Projetos:** papel do membro em lista fixa; bloco **Horas por disciplina** (orçado × planejado × realizado);
+  histórico de responsáveis por disciplina; troca de contratação no meio do mês divide o custo pelos dias.
+
+---
+
 ## Custo da hora com encargos (outubro/2026)
 
 - O rateio de horas passa a incluir **FGTS, reservas de 13º, férias e aviso prévio, multa do FGTS, vale-transporte, vale-refeição** e a **taxa do IEL** dos estagiários.

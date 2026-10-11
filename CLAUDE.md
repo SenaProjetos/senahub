@@ -58,6 +58,10 @@ npm run smoke:financeiro-core       # núcleo do financeiro: N0 (parcelas do pro
 npm run smoke:planejador            # planejador de caixa: S0 = caixa da Visão geral, só pendente vira evento, transferência, parcial, leitura não grava; aplicar cenário tudo-ou-nada (obsoleto, regra no 3º, corrida); caixinhas, distribuição, recorrência, fora do resultado, lucros de sócio e folha quitando o previsto
 npm run smoke:catalogo-nomenclatura # catálogo da versão: sigla que muda de dono (sinônimo/oficial), sair sem mexer em sigla, voltar escolhendo
 npm run verify:motor-cronograma     # motor do cronograma contra os projetos reais do banco
+npm run smoke:ponto-disciplina     # rateio R2: disciplina na sessão, reunião ligada a projeto, quem pode marcar, tarefa obrigatória com 2+ disciplinas, correção do dia pelo responsável da data
+npm run smoke:rateio-fechamento    # rateio R3: fechar só mês terminado, reabrir com motivo (evento), recalcular mês antigo, divergência depois do fechamento
+npm run smoke:horas-disciplina     # rateio R5: orçado (linha de base) × planejado (EAP) × realizado (ponto), coordenador × projetista, reais só para quem vê custo
+npm run smoke:folha-financeiro     # folha R4: 7 contas no fechamento, guias no dia 20, mesma conta ao fechar de novo, parte que sai é cancelada, reabrir com motivo e versão assinada
 npm run smoke:ifc-federado         # IFC federado: child de verdade, R00/R01/R02 nunca repetida, trava de geração viva, arquivo sumido, unidade recusada, geração travada liberada, regra de leitura
 npm run verify:ifc-federado -- <projetoId>   # junta os IFCs vigentes de um projeto real (sem gravar) e confere IfcProduct do federado = soma dos modelos
 ```
@@ -602,6 +606,24 @@ versão de `TabelaEncargos` vigente no mês (uma por contratação, `vigenciaEm`
 (`Vinculo.cargaSemanal`); PJ/autônomo só horas. O que não vai para projeto é a linha `nao_alocado` (`RateioHora.projetoId` nulo).
 `FechamentoRateio` é o cabeçalho do mês (`calculo` legado|v2): "o mês está fechado?" lê ele, nunca `rateioHora.findFirst`. Meses antes do
 corte usam `calcularRateioLegado`; todo leitor passa por `calcularRateioDoMes`. Verificação: `npm run smoke:rateio-custo-hora`.
+
+**Rateio de horas — R2 a R5** (planos `docs/superpowers/plans/2026-10-11-rateio-horas-r{2..5}-*.md`, decisões 25–27 do spec):
+- **Disciplina na sessão** (`ponto/destino-sessao.ts`, `disciplina-sessao.ts` puro): todo caminho que cria `SessaoTrabalho` passa por
+  `resolverDestinoDaSessao` — valida a tarefa, confere quem pode marcar (equipe, responsável de disciplina ou card aberto) e decide a
+  disciplina (a da tarefa; sem tarefa, a única da pessoa; 2+ exige tarefa AO VIVO, a correção do dia nunca falha). Reunião ligada a
+  projeto é `__reuniao_<tipo>:<projetoId>` (`alocacao.ts`), natureza `reuniao`, sem disciplina. A tela pede a tarefa antes
+  (`projetosDoUsuario` → `disciplinasDaPessoa`, `tarefaObrigatoria`).
+- **Fechar o mês** (`rh/rateio/fechamento/`: `regras.ts` puro, `service.ts`, `acoes.ts` descritor ADR-0002, `queries.ts` da tela
+  `/rh/rateio`): `FechamentoRateio` é o cabeçalho; reabrir APAGA cabeçalho e linhas e grava `FechamentoRateioEvento` com o motivo; só
+  mês terminado fecha; recalcular é só para mês fechado no cálculo antigo; mês de cálculo antigo não compara custo na divergência.
+- **Custo em reais só para quem pode** (`lib/custo-visivel.ts`): `podeVerCusto` = superusuário, sócio ou `ponto:custo`; a decisão é do
+  SERVIDOR (o dado sai nulo), nunca da tela. Horas por disciplina: `projetos/horas-disciplina-queries.ts`.
+- **Papel e responsáveis**: papel do membro em lista fixa (`projetos/papeis.ts`); `substituirResponsaveis` é o ÚNICO escritor de
+  `DisciplinaResponsavel` (grava `DisciplinaResponsavelHistorico`; guarda em `responsaveis-guarda.test.ts`).
+- **Folha → Financeiro** (`rh/folha/fechamento-service.ts` + `lancamentos-da-folha.ts` puro): o fechamento lança o líquido CLT (Salários),
+  bolsa, INSS/IRRF retidos e FGTS (dia 20, dia útil anterior) e benefícios, todos `previsto`, ligados por `FolhaLancamento
+  (folhaId, parte, rotulo)`; fechar de novo atualiza a mesma conta aberta, conta paga não muda, parte que sai é cancelada pela máquina
+  N1. Reabrir exige motivo, recusa com qualquer conta paga e guarda `HoleriteVersao` + `FolhaReabertura`.
 
 **Project health** (`modules/projetos/health.ts`) — pure `saudeProjeto(disciplinas, prazoFinal)` → `ok | atencao | critico` (returns `null` for non-`em_andamento`). Feeds the "Saúde" column in the projects list and the admin dashboard `CarteiraDashboard`. Same pattern as CPM/tokens: no I/O, unit-tested.
 
