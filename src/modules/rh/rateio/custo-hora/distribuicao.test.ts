@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  anosCompletos, baseDoHoleriteCent, basesDoMes, calculoDoMes, divisorMinutos, fracaoForaDeFerias, inicioDoTempoDeCasa,
+  anosCompletos, baseDoHoleriteCent, basesDoMes, calculoDoMes, segmentosDoMes, divisorMinutos, fracaoForaDeFerias, inicioDoTempoDeCasa,
   jornadaReferenciaMinutos, limitesDoMesSP, minutosNoIntervalo, naturezaDaSessao, ratearCusto, tabelaVigente,
 } from "./distribuicao";
 
@@ -186,5 +186,65 @@ describe("basesDoMes", () => {
   });
   it("sem holerite e sem cadastro não há base", () => {
     expect(basesDoMes({ contratacao: "clt", holeriteCent: null, contratualCent: null, ...cheio })).toBeNull();
+  });
+});
+
+describe("segmentosDoMes (decisão 27: troca de contratação no meio do mês)", () => {
+  // outubro/2026: dias úteis simples 1–2, 5–9, 12–16, 19–23, 26–30 (sem feriados no teste)
+  const diasUteis = ["2026-10-01", "2026-10-02", "2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09",
+    "2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16", "2026-10-19", "2026-10-20", "2026-10-21",
+    "2026-10-22", "2026-10-23", "2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30"];
+  const mes = { primeiroDia: "2026-10-01", ultimoDia: "2026-10-31", diasUteis };
+
+  it("estágio até 14/10 e CLT a partir de 15/10: dois segmentos com os dias úteis de cada um", () => {
+    const seg = segmentosDoMes({
+      ...mes,
+      vinculos: [
+        { contratacao: "estagio", dataInicio: "2025-03-01", dataFim: "2026-10-14" },
+        { contratacao: "clt", dataInicio: "2026-10-15", dataFim: null },
+      ],
+    });
+    expect(seg.map((x) => [x.contratacao, x.de, x.ate, x.diasUteis, x.vigente])).toEqual([
+      ["estagio", "2026-10-01", "2026-10-14", 10, false],
+      ["clt", "2026-10-15", "2026-10-31", 12, true],
+    ]);
+  });
+  it("vínculo único que cobre o mês todo: um segmento vigente", () => {
+    const seg = segmentosDoMes({ ...mes, vinculos: [{ contratacao: "clt", dataInicio: "2024-01-01", dataFim: null }] });
+    expect(seg).toEqual([{ contratacao: "clt", de: "2026-10-01", ate: "2026-10-31", diasUteis: 22, vigente: true }]);
+  });
+  it("vínculo que acabou antes do mês não entra; o que começa depois também não", () => {
+    const seg = segmentosDoMes({
+      ...mes,
+      vinculos: [
+        { contratacao: "estagio", dataInicio: "2025-01-01", dataFim: "2026-09-30" },
+        { contratacao: "clt", dataInicio: "2026-11-01", dataFim: null },
+      ],
+    });
+    expect(seg).toEqual([]);
+  });
+  it("buraco entre vínculos: os dias sem vínculo não pertencem a ninguém", () => {
+    const seg = segmentosDoMes({
+      ...mes,
+      vinculos: [
+        { contratacao: "estagio", dataInicio: "2025-01-01", dataFim: "2026-10-09" },
+        { contratacao: "clt", dataInicio: "2026-10-15", dataFim: null },
+      ],
+    });
+    expect(seg.map((x) => x.diasUteis)).toEqual([7, 12]);
+  });
+  it("vínculos da mesma contratação colados viram um segmento só (troca de setor)", () => {
+    const seg = segmentosDoMes({
+      ...mes,
+      vinculos: [
+        { contratacao: "clt", dataInicio: "2024-01-01", dataFim: "2026-10-14" },
+        { contratacao: "clt", dataInicio: "2026-10-15", dataFim: null },
+      ],
+    });
+    expect(seg).toEqual([{ contratacao: "clt", de: "2026-10-01", ate: "2026-10-31", diasUteis: 22, vigente: true }]);
+  });
+  it("saída no meio do mês: o segmento acaba na saída e é o vigente", () => {
+    const seg = segmentosDoMes({ ...mes, vinculos: [{ contratacao: "clt", dataInicio: "2024-01-01", dataFim: "2026-10-09" }] });
+    expect(seg).toEqual([{ contratacao: "clt", de: "2026-10-01", ate: "2026-10-09", diasUteis: 7, vigente: true }]);
   });
 });

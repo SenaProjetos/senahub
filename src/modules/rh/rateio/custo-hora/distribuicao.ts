@@ -300,3 +300,38 @@ export function linhasDaPessoa(p: {
   if (naoAlocado.minutos > 0 || naoAlocado.custoCent > 0) out.push({ projetoId: null, natureza: "nao_alocado", ...naoAlocado });
   return out;
 }
+
+export type SegmentoDoMes = { contratacao: Contratacao; de: string; ate: string; diasUteis: number; vigente: boolean };
+
+/**
+ * Partes do mês por contratação (decisão 27 do spec): um segmento por vínculo que toca o mês,
+ * cortado nos limites do mês, com os dias úteis de cada um. Vínculos colados da mesma contratação
+ * (troca de setor) viram um segmento só; dias sem vínculo não pertencem a nenhum. `vigente` = o
+ * último segmento (o que cobre o fim do mês ou o mais recente) — fica com o holerite do mês.
+ */
+export function segmentosDoMes(p: {
+  vinculos: { contratacao: Contratacao; dataInicio: string; dataFim: string | null }[];
+  primeiroDia: string;
+  ultimoDia: string;
+  diasUteis: string[];
+}): SegmentoDoMes[] {
+  const cortados = p.vinculos
+    .filter((v) => v.dataInicio <= p.ultimoDia && (v.dataFim === null || v.dataFim >= p.primeiroDia))
+    .map((v) => ({
+      contratacao: v.contratacao,
+      de: v.dataInicio > p.primeiroDia ? v.dataInicio : p.primeiroDia,
+      ate: v.dataFim !== null && v.dataFim < p.ultimoDia ? v.dataFim : p.ultimoDia,
+    }))
+    .sort((a, b) => a.de.localeCompare(b.de));
+  const juntos: { contratacao: Contratacao; de: string; ate: string }[] = [];
+  for (const c of cortados) {
+    const ult = juntos[juntos.length - 1];
+    if (ult && ult.contratacao === c.contratacao && somarDias(ult.ate, 1) >= c.de) ult.ate = c.ate > ult.ate ? c.ate : ult.ate;
+    else juntos.push({ ...c });
+  }
+  return juntos.map((s, i) => ({
+    ...s,
+    diasUteis: p.diasUteis.filter((d) => d >= s.de && d <= s.ate).length,
+    vigente: i === juntos.length - 1,
+  }));
+}
