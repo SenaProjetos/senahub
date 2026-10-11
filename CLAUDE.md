@@ -623,7 +623,11 @@ corte usam `calcularRateioLegado`; todo leitor passa por `calcularRateioDoMes`. 
 - **Folha → Financeiro** (`rh/folha/fechamento-service.ts` + `lancamentos-da-folha.ts` puro): o fechamento lança o líquido CLT (Salários),
   bolsa, INSS/IRRF retidos e FGTS (dia 20, dia útil anterior) e benefícios, todos `previsto`, ligados por `FolhaLancamento
   (folhaId, parte, rotulo)`; fechar de novo atualiza a mesma conta aberta, conta paga não muda, parte que sai é cancelada pela máquina
-  N1. Reabrir exige motivo, recusa com qualquer conta paga e guarda `HoleriteVersao` + `FolhaReabertura`.
+  N1. Fechar e reabrir travam a folha com `updateMany` condicionado ao status (dois cliques simultâneos não duplicam conta nem
+  reabertura). Reabrir exige motivo, recusa com qualquer conta paga, guarda `HoleriteVersao` + `FolhaReabertura` e MANTÉM
+  `FolhaPagamento.lancamentoId`: o fechamento seguinte atualiza essa conta (também no 13º), ou a cancela se a folha perdeu os CLT;
+  a conta do líquido escolhida vai para Salários. Responsável de disciplina sem período no histórico ganha um desde a criação da
+  disciplina na primeira troca (`substituirResponsaveis`); `disciplina.create` com `responsaveis` aninhado é barrado pela guarda.
 
 **Project health** (`modules/projetos/health.ts`) — pure `saudeProjeto(disciplinas, prazoFinal)` → `ok | atencao | critico` (returns `null` for non-`em_andamento`). Feeds the "Saúde" column in the projects list and the admin dashboard `CarteiraDashboard`. Same pattern as CPM/tokens: no I/O, unit-tested.
 

@@ -132,7 +132,9 @@ mesma tabela de encargos do rateio de horas. Só aparece na folha mensal.
 ### Reabrir a folha
 
 **Reabrir** pede um **motivo** (10 caracteres ou mais) e é recusado se **qualquer** conta lançada já foi paga —
-estorne o pagamento no Financeiro antes. As contas em aberto continuam e o próximo fechamento as atualiza.
+estorne o pagamento no Financeiro antes. As contas em aberto continuam e o próximo fechamento atualiza **as mesmas**
+(inclusive na folha de 13º). Se depois da reabertura a folha ficar sem nenhum CLT, a conta do líquido é cancelada no
+próximo fechamento. Conta que está aguardando aprovação no Financeiro não é mexida: o fechamento avisa.
 Reabrir cancela as assinaturas dos holerites, mas a **versão que cada pessoa assinou fica guardada** (em
 "Versões assinadas" do holerite, com a data e o motivo), e a reabertura entra no histórico da folha.
 
