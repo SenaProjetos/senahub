@@ -14,7 +14,8 @@ export function itensDoMesRateio(p: { fechado: boolean; calculo: string | null; 
     itens.push({ tipo: "acao", id: "fechar", rotulo: "Fechar mês", ...(motivo ? { desabilitado: motivo } : {}) });
     return itens;
   }
-  itens.push({ tipo: "acao", id: "reabrir", rotulo: "Reabrir com motivo…" });
+  // Destrutivo (apaga o custo congelado); o diálogo de motivo é a confirmação.
+  itens.push({ tipo: "acao", id: "reabrir", rotulo: "Reabrir com motivo…", variant: "destructive" });
   itens.push({
     tipo: "acao",
     id: "recalcular",

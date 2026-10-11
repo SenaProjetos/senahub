@@ -31,7 +31,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { EquipeManager } from "@/components/projetos/equipe-manager";
 import { HorasDisciplinaCard } from "@/components/projetos/horas-disciplina-card";
-import { rotuloPapel } from "@/modules/projetos/papeis";
+import { ROTULO_PAPEL, rotuloPapel } from "@/modules/projetos/papeis";
 import type { LinhaHoras } from "@/modules/projetos/horas-disciplina";
 import { MargemDonut } from "@/components/projetos/margem-donut";
 import { PontoProjeto } from "@/components/ponto/ponto-projeto";
@@ -520,7 +520,7 @@ function MembroEquipeRow({ membro, projetoId }: { membro: MembroEquipe; projetoI
       </Avatar>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{membro.nome}</p>
-        <p className="truncate text-xs text-muted-foreground">{membro.papel ? rotuloPapel(membro.papel) : rotuloContratacao(membro.contratacao)}</p>
+        <p className="truncate text-xs text-muted-foreground">{membro.papel ? (membro.papel in ROTULO_PAPEL ? rotuloPapel(membro.papel) : membro.papel) : rotuloContratacao(membro.contratacao)}</p>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
         {membro.disciplinas.length > 0 ? (

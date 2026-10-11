@@ -204,7 +204,8 @@ export async function calcularRateioDoMes(
 }
 
 /** Rateio do mês agregado por projeto, para o painel do gestor. */
-export async function rateioMesGestor(ano: number, mes: number, custoVisivel = true) {
+/** `custoVisivel` sem padrão de propósito: quem chama decide, por `podeVerCusto`, se os reais saem (decisão 26). */
+export async function rateioMesGestor(ano: number, mes: number, custoVisivel: boolean) {
   // O botão do card fecha o mês ANTERIOR: mês em curso não fecha (congelaria uma estimativa).
   const anterior = mes === 1 ? { ano: ano - 1, mes: 12 } : { ano, mes: mes - 1 };
   const fechamentoAnterior = await prisma.fechamentoRateio.findUnique({

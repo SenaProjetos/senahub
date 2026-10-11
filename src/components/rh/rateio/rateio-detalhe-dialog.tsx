@@ -22,7 +22,20 @@ function rotuloDoGrupo(g: DetalheDoMes["grupos"][number]): string {
  * Detalhe de um mês do rateio (R3.5): horas por projeto e disciplina, e o histórico de fechar,
  * reabrir e recalcular com motivo. Os reais só chegam do servidor para quem vê custo.
  */
-export function RateioDetalheDialog({ ano, mes, titulo, onOpenChange }: { ano: number; mes: number; titulo: string; onOpenChange: (aberto: boolean) => void }) {
+export function RateioDetalheDialog({
+  ano,
+  mes,
+  fechado,
+  titulo,
+  onOpenChange,
+}: {
+  ano: number;
+  mes: number;
+  /** Já conhecido pela lista: a descrição não pisca "aberto" enquanto o detalhe carrega. */
+  fechado: boolean;
+  titulo: string;
+  onOpenChange: (aberto: boolean) => void;
+}) {
   const [detalhe, setDetalhe] = useState<DetalheDoMes | null | undefined>(undefined);
 
   useEffect(() => {
@@ -43,7 +56,7 @@ export function RateioDetalheDialog({ ano, mes, titulo, onOpenChange }: { ano: n
         <DialogHeader>
           <DialogTitle>{titulo}</DialogTitle>
           <DialogDescription>
-            {detalhe?.fechado ? "Mês fechado: valores congelados no fechamento." : "Mês aberto: estimativa com o ponto de agora."}
+            {fechado ? "Mês fechado: valores congelados no fechamento." : "Mês aberto: estimativa com o ponto de agora."}
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="space-y-4">

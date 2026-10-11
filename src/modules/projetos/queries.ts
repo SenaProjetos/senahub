@@ -10,7 +10,7 @@ import {
   CATEGORIA_TERCEIRIZADO,
   TAG_REEMBOLSO_ART,
 } from "@/modules/financeiro/custo/lancamento-custo";
-import { calcularRateioDoMes } from "@/modules/rh/rateio/queries";
+import { calcularRateioDoMes, corteCalculoNovo } from "@/modules/rh/rateio/queries";
 import { normalizar } from "@/lib/disciplinas-core";
 import { projetosPorCard } from "@/modules/projetos/cadastro-disciplina";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
@@ -578,8 +578,11 @@ export async function margemProjeto(projetoId: string) {
     (await prisma.fechamentoRateio.findMany({ select: { ano: true, mes: true } })).map((f) => `${f.ano}-${String(f.mes).padStart(2, "0")}`),
   );
   const abertosCent: Record<string, number> = {};
+  // Só do corte do cálculo novo em diante (mesmo recorte do alerta de mês aberto): cada mês aberto
+  // refaz o rateio da empresa inteira, e mês antigo nunca fechado multiplicaria isso a cada visita.
+  const corte = await corteCalculoNovo();
   for (const { mes: m } of mesesComHoras) {
-    if (fechados.has(m)) continue;
+    if (fechados.has(m) || m < corte) continue;
     const [a, mm] = m.split("-").map(Number);
     const { linhas } = await calcularRateioDoMes(a, mm);
     abertosCent[m] = linhas.filter((r) => r.projetoId === projetoId).reduce((s, r) => s + r.custoCent, 0);

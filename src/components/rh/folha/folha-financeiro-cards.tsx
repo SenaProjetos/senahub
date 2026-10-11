@@ -38,11 +38,11 @@ export function TotaisRetidosCard({ folhaId, aberta, totais }: { folhaId: string
 
   const campo = (id: "inss" | "irrf" | "fgts", rotulo: string) => (
     <div className="space-y-1">
-      <Label htmlFor={`total-${id}`}>{rotulo}</Label>
+      {aberta ? <Label htmlFor={`total-${id}`}>{rotulo}</Label> : <p className="text-sm font-medium">{rotulo}</p>}
       {aberta ? (
         <InputMoeda id={`total-${id}`} value={v[id]} onChange={(x) => setV({ ...v, [id]: x })} />
       ) : (
-        <p id={`total-${id}`} className="h-9 content-center font-mono text-sm">
+        <p className="h-9 content-center font-mono text-sm">
           {totais[id] === null ? "não informado" : brl(totais[id]!)}
         </p>
       )}
@@ -103,8 +103,8 @@ export function CustoTotalCard({ custo }: { custo: CustoDaFolha }) {
                   <td className="py-1.5 pr-2">
                     {l.nome}
                     {l.contratacao && <span className="text-xs text-muted-foreground"> · {NOME_CONTRATACAO[l.contratacao] ?? l.contratacao}</span>}
-                    {l.semCusto && <span className="block text-xs text-warning">Sem custo calculado: confira o cadastro do vínculo.</span>}
-                    {!l.semCusto && l.semTabela && <span className="block text-xs text-warning">Sem tabela de encargos: só o salário.</span>}
+                    {l.semCusto && <span className="block text-xs text-muted-foreground">⚠ Sem custo calculado: confira o cadastro do vínculo.</span>}
+                    {!l.semCusto && l.semTabela && <span className="block text-xs text-muted-foreground">⚠ Sem tabela de encargos: só o salário.</span>}
                   </td>
                   <td className="py-1.5 pr-2 text-right font-mono tabular-nums">{brl(l.baseCent / 100)}</td>
                   <td className="py-1.5 pr-2 text-right font-mono tabular-nums">{brl(l.encargosCent / 100)}</td>
@@ -136,7 +136,7 @@ const SITUACAO_CONTA: Record<ContaDaFolhaTela["status"], { tone: "warning" | "su
 };
 
 /** As contas a pagar que o fechamento lançou, com a situação de cada uma e o caminho para o lançamento. */
-export function ContasLancadasCard({ contas }: { contas: ContaDaFolhaTela[] }) {
+export function ContasLancadasCard({ contas, podeAbrirLancamento }: { contas: ContaDaFolhaTela[]; podeAbrirLancamento: boolean }) {
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -150,9 +150,14 @@ export function ContasLancadasCard({ contas }: { contas: ContaDaFolhaTela[] }) {
             return (
               <li key={c.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2">
                 <div className="min-w-0 flex-1">
-                  <Link href={`/financeiro/lancamentos?lancamento=${c.id}`} className="font-medium hover:underline">
-                    {c.rotulo}
-                  </Link>
+                  {/* Sem acesso ao Financeiro, o link levaria a /sem-permissao: vira texto. */}
+                  {podeAbrirLancamento ? (
+                    <Link href={`/financeiro/lancamentos?lancamento=${c.id}`} className="font-medium hover:underline">
+                      {c.rotulo}
+                    </Link>
+                  ) : (
+                    <span className="font-medium">{c.rotulo}</span>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     {c.categoria ?? "Sem categoria"}
                     {c.vencimento ? ` · vence em ${formatarData(`${c.vencimento}T00:00:00`)}` : ""}

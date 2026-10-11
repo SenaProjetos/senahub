@@ -66,16 +66,17 @@ export function MotivoDialog({
             rows={4}
             maxLength={500}
             autoFocus
-            className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
+            className="w-full resize-y rounded-sm border border-input bg-background px-2 py-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive"
             value={motivo}
             onChange={(e) => setMotivo(e.target.value)}
             aria-invalid={!!erro}
+            aria-describedby={erro ? "motivo-dialog-erro" : undefined}
           />
           <p className="text-xs text-muted-foreground">Fica registrado no histórico, com o seu nome e a data.</p>
         </DialogBody>
         <DialogFooter>
           {erro && (
-            <p role="alert" className="text-sm text-destructive sm:mr-auto sm:self-center">
+            <p id="motivo-dialog-erro" role="alert" className="text-sm text-destructive sm:mr-auto sm:self-center">
               {erro}
             </p>
           )}

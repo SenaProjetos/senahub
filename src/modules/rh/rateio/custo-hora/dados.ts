@@ -114,6 +114,9 @@ export async function custosDoMes(ano: number, mes: number, userIds: string[]): 
       .map((h) => ({ vigenciaEm: iso(h.vigenciaEm), remuneracaoCent: cent(h.remuneracao)!, contratacao: (h.vinculo?.contratacao ?? null) as Contratacao | null }));
 
     const partes: CustoMes[] = [];
+    // A contratação de cada parte, na mesma ordem: segmento sem base (ex.: estágio sem bolsa cadastrada)
+    // não vira parte, e indexar os rótulos pelos segmentos poria "(estágio)" nos itens do CLT.
+    const contratacoesDasPartes: Contratacao[] = [];
     let origemBase: CustoDaPessoaNoMes["origemBase"] = null;
     let semTabela = false;
     let tabelaPosterior = false;
@@ -151,9 +154,11 @@ export async function custosDoMes(ano: number, mes: number, userIds: string[]): 
         // Sem tabela válida: o salário entra sem encargos (a tela diz "custo só do salário").
         semTabela = true;
         partes.push({ baseCent: bases.baseCent, itens: [], totalCent: bases.baseCent });
+        contratacoesDasPartes.push(seg.contratacao);
         continue;
       }
       tabelaPosterior ||= escolhida.posterior;
+      contratacoesDasPartes.push(seg.contratacao);
       partes.push(
         custoDoMes({
           baseCent: bases.baseCent,
@@ -176,7 +181,7 @@ export async function custosDoMes(ano: number, mes: number, userIds: string[]): 
       origemBase,
       semTabela,
       tabelaPosterior,
-      custo: somarCustos(partes, comEncargos.length > 1 ? comEncargos.map((s) => s.contratacao) : null),
+      custo: somarCustos(partes, partes.length > 1 ? contratacoesDasPartes : null),
     });
   }
   return out;

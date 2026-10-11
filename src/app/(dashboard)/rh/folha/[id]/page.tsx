@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requireGestorRh } from "@/lib/session";
+import { can } from "@/lib/permissions";
 
 import { obterFolha } from "@/modules/rh/folha/queries";
 import { contasDaFolha, custoDaFolha, historicoDaFolha } from "@/modules/rh/folha/detalhe-queries";
@@ -16,7 +17,7 @@ export default async function FolhaDetalhePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireGestorRh();
+  const user = await requireGestorRh();
   const { id } = await params;
   const [dados, modelosDoc, faixas, deducaoDep] = await Promise.all([
     obterFolha(id),
@@ -38,6 +39,7 @@ export default async function FolhaDetalhePage({
       deducaoDep={deducaoDep}
       dependentesPorUser={nDeps}
       custo={custo}
+      podeAbrirLancamento={await can(user, "financeiro", "ver")}
       contas={contas}
       reaberturas={historico.reaberturas}
       totais={{

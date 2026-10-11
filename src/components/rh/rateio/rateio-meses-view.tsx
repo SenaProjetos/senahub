@@ -50,7 +50,11 @@ export function RateioMesesView({ meses, podeGerir, podeVerCusto }: { meses: Mes
   const [motivoDe, setMotivoDe] = useState<Motivo | null>(null);
   const [detalheDe, setDetalheDe] = useState<MesDoRateio | null>(null);
 
-  const itensDe = (m: MesDoRateio) => itensDoMesRateio({ fechado: m.fechado, calculo: m.calculo, mesTerminou: m.mesTerminou, podeGerir });
+  // ADR-0002: linha com uma ação só (sem gestão: só "Ver detalhes", que o nome do mês já abre) não tem menu.
+  const itensDe = (m: MesDoRateio) => {
+    const itens = itensDoMesRateio({ fechado: m.fechado, calculo: m.calculo, mesTerminou: m.mesTerminou, podeGerir });
+    return itens.length > 1 ? itens : [];
+  };
 
   async function fechar(m: MesDoRateio) {
     // Confirmar ANTES de abrir a transição (confirm dentro de startTransition trava).
@@ -117,8 +121,8 @@ export function RateioMesesView({ meses, podeGerir, podeVerCusto }: { meses: Mes
                         </p>
                       )}
                       {d?.alterado && (
-                        <p className="mt-1 flex items-start gap-1 text-xs text-warning">
-                          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                        <p className="mt-1 flex items-start gap-1 text-xs text-foreground">
+                          <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warning" aria-hidden />
                           <span>
                             Alterado depois do fechamento: {comSinalHoras(d.diferencaMin)}
                             {d.diferencaCent !== null && ` / ${brlComSinal(d.diferencaCent / 100)}`}
@@ -143,7 +147,15 @@ export function RateioMesesView({ meses, podeGerir, podeVerCusto }: { meses: Mes
       )}
       {pending && <p className="text-xs text-muted-foreground">Fechando o mês…</p>}
 
-      {detalheDe && <RateioDetalheDialog ano={detalheDe.ano} mes={detalheDe.mes} titulo={tituloDoMes(detalheDe)} onOpenChange={(aberto) => !aberto && setDetalheDe(null)} />}
+      {detalheDe && (
+        <RateioDetalheDialog
+          ano={detalheDe.ano}
+          mes={detalheDe.mes}
+          fechado={detalheDe.fechado}
+          titulo={tituloDoMes(detalheDe)}
+          onOpenChange={(aberto) => !aberto && setDetalheDe(null)}
+        />
+      )}
 
       {motivoDe && (
         <MotivoDialog

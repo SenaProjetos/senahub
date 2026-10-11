@@ -84,7 +84,10 @@ export function FolhaDetalheView({
   contas,
   reaberturas,
   totais,
+  podeAbrirLancamento,
 }: {
+  /** Quem tem o Financeiro abre a conta lançada; os demais veem só o nome. */
+  podeAbrirLancamento: boolean;
   custo: CustoDaFolha | null;
   contas: ContaDaFolhaTela[];
   reaberturas: ReaberturaDaFolha[];
@@ -238,9 +241,9 @@ export function FolhaDetalheView({
         </div>
       )}
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className={`grid gap-3 ${!aberta && contas.length > 0 ? "lg:grid-cols-2" : ""}`}>
         <TotaisRetidosCard key={`${folha.status}-${totais.inss}-${totais.irrf}-${totais.fgts}`} folhaId={folha.id} aberta={aberta} totais={totais} />
-        {!aberta && contas.length > 0 && <ContasLancadasCard contas={contas} />}
+        {!aberta && contas.length > 0 && <ContasLancadasCard contas={contas} podeAbrirLancamento={podeAbrirLancamento} />}
       </div>
       {custo && <CustoTotalCard custo={custo} />}
       {reaberturas.length > 0 && <ReaberturasCard reaberturas={reaberturas} />}

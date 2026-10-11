@@ -7,8 +7,8 @@ import { defineAction } from "@/lib/with-action";
 import { fechamentoAtual, fecharMesNoBanco, reabrirMesNoBanco, recalcularMesNoBanco } from "@/modules/rh/rateio/fechamento/service";
 
 const mesSchema = z.object({
-  ano: z.number().int().min(2000).max(2100),
-  mes: z.number().int().min(1).max(12),
+  ano: z.number({ error: "Ano inválido." }).int("Ano inválido.").min(2000, "Ano inválido.").max(2100, "Ano inválido."),
+  mes: z.number({ error: "Mês inválido." }).int("Mês inválido.").min(1, "Mês inválido.").max(12, "Mês inválido."),
 });
 const comMotivo = mesSchema.extend({ motivo: z.string().max(500, "Motivo com até 500 caracteres.") });
 
@@ -32,9 +32,10 @@ function revalidar() {
 export const fecharRateioMes = defineAction(
   { ...base, acao: "fechar-rateio", schema: mesSchema },
   async ({ ano, mes }, { user }) => {
+    // Os reais ficam no servidor (decisão 26): quem gere o RH pode não ver custo.
     const r = await fecharMesNoBanco(ano, mes, user.id);
     revalidar();
-    return r;
+    return { linhas: r.linhas, calculo: r.calculo };
   },
 );
 
@@ -52,8 +53,8 @@ export const reabrirRateioMes = defineAction(
 export const recalcularRateioMes = defineAction(
   { ...base, acao: "recalcular-rateio", schema: comMotivo },
   async ({ ano, mes, motivo }, { user }) => {
-    const r = await recalcularMesNoBanco(ano, mes, motivo, user.id);
+    await recalcularMesNoBanco(ano, mes, motivo, user.id);
     revalidar();
-    return r;
+    return { ok: true };
   },
 );
