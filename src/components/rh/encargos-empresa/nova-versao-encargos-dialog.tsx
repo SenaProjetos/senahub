@@ -192,9 +192,14 @@ export function NovaVersaoEncargosDialog({
             <Label htmlFor="obs">Observação</Label>
             <Input id="obs" maxLength={500} value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Ex.: reajuste do vale-refeição" />
           </div>
-          {erro && <p className="text-sm text-destructive">{erro}</p>}
         </DialogBody>
         <DialogFooter>
+          {/* No rodapé fixo: no corpo, a frase ficava abaixo da dobra e o clique parecia não fazer nada. */}
+          {erro && (
+            <p role="alert" className="text-sm text-destructive sm:mr-auto sm:self-center">
+              {erro}
+            </p>
+          )}
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
             Cancelar
           </Button>

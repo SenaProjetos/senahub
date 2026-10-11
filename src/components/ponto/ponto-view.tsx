@@ -111,6 +111,8 @@ type Rateio = {
   reuniaoExterna: number;
   /** Custo do mês que não foi para projeto nenhum (cálculo novo, desde 10/2026). */
   custoNaoAlocado: number;
+  /** O que entrou por aproximação no custo do mês (sem holerite, sem tabela, sem salário). */
+  avisos: string[];
   custoTotal: number;
   fechado: boolean;
   fechadoEm: string | Date | null;
@@ -426,7 +428,14 @@ export function PontoView({
             </div>
           </CardHeader>
           <CardContent>
-            {rateio.porProjeto.length === 0 ? (
+            {rateio.avisos.length > 0 && (
+              <ul className="mb-3 space-y-1 rounded-md border border-status-revisao/40 bg-status-revisao/10 p-2 text-xs">
+                {rateio.avisos.map((a) => (
+                  <li key={a}>{a}</li>
+                ))}
+              </ul>
+            )}
+            {rateio.porProjeto.length === 0 && rateio.custoNaoAlocado === 0 ? (
               <EmptyState icon={Clock} title="Sem horas rateadas." />
             ) : (
               <ul className="divide-y text-sm">

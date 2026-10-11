@@ -6,12 +6,13 @@ import type { Contratacao } from "@/generated/prisma/enums";
 import { custoDoMes, type CustoMes } from "./encargos";
 import { parametrosEncargosSchema } from "./parametros";
 import {
-  anosCompletos, baseDoHoleriteCent, basesDoMes, inicioDoTempoDeCasa, jornadaReferenciaMinutos, tabelaVigente,
+  anosCompletos, baseDoHoleriteCent, basesDoMes, inicioDoTempoDeCasa, jornadaReferenciaMinutos, remuneracaoContratual, tabelaVigente,
 } from "./distribuicao";
 
 export type CustoDaPessoaNoMes = {
+  nome: string;
   contratacao: Contratacao | null;
-  /** null = PJ/autônomo (só horas), sem base cadastrada ou sem tabela. */
+  /** null = PJ/autônomo (só horas) ou sem salário cadastrado. Sem tabela = só o salário, sem encargos. */
   custo: CustoMes | null;
   jornadaReferenciaMin: number;
   origemBase: "holerite" | "historico" | "vinculo" | null;
@@ -41,10 +42,10 @@ export async function custosDoMes(ano: number, mes: number, userIds: string[]): 
   const ultimoDia = iso(fimMes);
 
   const [usuarios, vinculos, folha, historicos, tabelas, ferias, calendario] = await Promise.all([
-    prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, contratacao: true } }),
+    prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, contratacao: true } }),
     prisma.vinculo.findMany({
       where: { userId: { in: userIds } },
-      select: { userId: true, contratacao: true, dataInicio: true, dataFim: true, cargaSemanal: true, remuneracao: true, agenteIntegracao: true },
+      select: { userId: true, contratacao: true, dataInicio: true, dataFim: true, motivoFim: true, cargaSemanal: true, remuneracao: true, agenteIntegracao: true },
     }),
     prisma.folhaPagamento.findUnique({
       where: { ano_mes_tipo: { ano, mes, tipo: "mensal" } },
@@ -52,8 +53,7 @@ export async function custosDoMes(ano: number, mes: number, userIds: string[]): 
     }),
     prisma.historicoContratual.findMany({
       where: { userId: { in: userIds }, vigenciaEm: { lte: fimMes }, remuneracao: { not: null } },
-      orderBy: { vigenciaEm: "desc" },
-      select: { userId: true, remuneracao: true },
+      select: { userId: true, vigenciaEm: true, remuneracao: true, vinculo: { select: { contratacao: true } } },
     }),
     prisma.tabelaEncargos.findMany({ select: { contratacao: true, vigenciaEm: true, parametros: true } }),
     prisma.ferias.findMany({
@@ -65,9 +65,8 @@ export async function custosDoMes(ano: number, mes: number, userIds: string[]): 
 
   const diasUteis = diasDoMes(ano, mes).filter((d) => ehDiaUtil(d, calendario));
   const holeritePorUser = new Map((folha?.holerites ?? []).map((h) => [h.userId, h.itens]));
-  const historicoPorUser = new Map<string, number>();
-  for (const h of historicos) if (!historicoPorUser.has(h.userId)) historicoPorUser.set(h.userId, cent(h.remuneracao)!);
   const contratacaoUser = new Map(usuarios.map((u) => [u.id, u.contratacao]));
+  const nomeUser = new Map(usuarios.map((u) => [u.id, u.name]));
 
   for (const userId of userIds) {
     const doUser = vinculos
@@ -78,34 +77,17 @@ export async function custosDoMes(ano: number, mes: number, userIds: string[]): 
       .sort((a, b) => b.ini.localeCompare(a.ini))[0];
     const contratacao = (vigente?.contratacao ?? contratacaoUser.get(userId) ?? null) as Contratacao | null;
     const jornadaReferenciaMin = jornadaReferenciaMinutos(vigente?.cargaSemanal != null ? Number(vigente.cargaSemanal) : null, diasUteis.length);
-    const base: CustoDaPessoaNoMes = { contratacao, custo: null, jornadaReferenciaMin, origemBase: null, tabelaPosterior: false, semTabela: false };
+    const base: CustoDaPessoaNoMes = { nome: nomeUser.get(userId) ?? userId, contratacao, custo: null, jornadaReferenciaMin, origemBase: null, tabelaPosterior: false, semTabela: false };
 
     if (contratacao !== "clt" && contratacao !== "estagio" && contratacao !== "pro_labore") {
       out.set(userId, base);
       continue;
     }
 
-    const versoes = tabelas
-      .filter((t) => t.contratacao === contratacao)
-      .map((t) => ({ vigenciaEm: iso(t.vigenciaEm), parametros: t.parametros }));
-    const escolhida = tabelaVigente(versoes, primeiroDia);
-    const parametros = escolhida ? parametrosEncargosSchema.safeParse(escolhida.versao.parametros) : null;
-    if (!escolhida || !parametros?.success) {
-      out.set(userId, { ...base, semTabela: true });
-      continue;
-    }
-
-    const itensHolerite = holeritePorUser.get(userId);
-    const holeriteCent = itensHolerite
-      ? baseDoHoleriteCent(itensHolerite.map((i) => ({ tipo: i.tipo, valorCent: cent(i.valor)!, descricao: i.descricao })))
-      : null;
-    const doHistorico = historicoPorUser.get(userId) ?? null;
-    const contratualCent = doHistorico ?? cent(vigente?.remuneracao);
-
     // Janela do vínculo dentro do mês: do início do tempo de casa (vínculos colados da mesma
     // contratação) até o fim do vínculo vigente. Admissão e saída no meio do mês ficam proporcionais.
     const inicioCasa = inicioDoTempoDeCasa(
-      doUser.map((v) => ({ contratacao: v.contratacao as Contratacao, dataInicio: v.ini, dataFim: v.fim })),
+      doUser.map((v) => ({ contratacao: v.contratacao as Contratacao, dataInicio: v.ini, dataFim: v.fim, motivoFim: v.motivoFim })),
       contratacao,
       ultimoDia,
     );
@@ -119,22 +101,48 @@ export async function custosDoMes(ano: number, mes: number, userIds: string[]): 
       for (const d of diasNoVinculo) if (d >= a && d <= b) diasFerias.add(d);
     }
 
+    const itensHolerite = holeritePorUser.get(userId);
+    const holeriteCent = itensHolerite
+      ? baseDoHoleriteCent(itensHolerite.map((i) => ({ tipo: i.tipo, valorCent: cent(i.valor)!, descricao: i.descricao })))
+      : null;
+    const contratual = remuneracaoContratual({
+      historico: historicos
+        .filter((h) => h.userId === userId)
+        .map((h) => ({ vigenciaEm: iso(h.vigenciaEm), remuneracaoCent: cent(h.remuneracao)!, contratacao: (h.vinculo?.contratacao ?? null) as Contratacao | null })),
+      contratacao,
+      inicioCasa,
+      fimMes: ultimoDia,
+      vinculoRemuneracaoCent: cent(vigente?.remuneracao),
+    });
+
     const bases = basesDoMes({
       contratacao,
       holeriteCent,
-      contratualCent,
+      contratualCent: contratual?.cent ?? null,
       diasUteisMes: diasUteis.length,
       diasUteisNoVinculo: diasNoVinculo.length,
       diasUteisDeFerias: diasFerias.size,
     });
     if (!bases) {
-      out.set(userId, { ...base, tabelaPosterior: escolhida.posterior });
+      out.set(userId, base);
+      continue;
+    }
+    const origemBase = bases.origem === "holerite" ? "holerite" : (contratual?.origem ?? "vinculo");
+
+    const versoes = tabelas
+      .filter((t) => t.contratacao === contratacao)
+      .map((t) => ({ vigenciaEm: iso(t.vigenciaEm), parametros: t.parametros }));
+    const escolhida = tabelaVigente(versoes, primeiroDia);
+    const parametros = escolhida ? parametrosEncargosSchema.safeParse(escolhida.versao.parametros) : null;
+    if (!escolhida || !parametros?.success) {
+      // Sem tabela válida: o salário do mês entra sem encargos (a tela diz "custo só do salário").
+      out.set(userId, { ...base, origemBase, semTabela: true, custo: { baseCent: bases.baseCent, itens: [], totalCent: bases.baseCent } });
       continue;
     }
 
     out.set(userId, {
       ...base,
-      origemBase: bases.origem === "holerite" ? "holerite" : doHistorico != null ? "historico" : "vinculo",
+      origemBase,
       tabelaPosterior: escolhida.posterior,
       custo: custoDoMes({
         baseCent: bases.baseCent,

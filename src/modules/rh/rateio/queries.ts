@@ -5,6 +5,7 @@ import { formatarCodigo } from "@/modules/projetos/numbering";
 import { horasDiaPadraoEmLote } from "@/modules/rh/escalas/queries";
 import type { Contratacao } from "@/generated/prisma/enums";
 import { custosDoMes } from "@/modules/rh/rateio/custo-hora/dados";
+import { avisosDoCusto } from "@/modules/rh/rateio/custo-hora/avisos";
 import {
   calculoDoMes, divisorMinutos, limitesDoMesSP, minutosNoIntervalo, naturezaDaSessao, ratearCusto, type NaturezaLinha,
 } from "@/modules/rh/rateio/custo-hora/distribuicao";
@@ -115,7 +116,7 @@ export async function corteCalculoNovo(): Promise<string> {
  * de referência), sessões recortadas no mês, linha "não alocado" com o resto. Entra também quem
  * tem custo no mês sem sessão nenhuma — o custo vai inteiro para "não alocado".
  */
-export async function calcularRateioV2(ano: number, mes: number, agora: Date = new Date()): Promise<LinhaRateio[]> {
+export async function calcularRateioV2(ano: number, mes: number, agora: Date = new Date()): Promise<{ linhas: LinhaRateio[]; avisos: string[] }> {
   const { inicio, fim } = limitesDoMesSP(ano, mes);
   const iniMes = new Date(Date.UTC(ano, mes - 1, 1));
   const fimMes = new Date(Date.UTC(ano, mes, 0));
@@ -179,13 +180,26 @@ export async function calcularRateioV2(ano: number, mes: number, agora: Date = n
       out.push({ userId, projetoId: null, natureza: "nao_alocado", contratacao, minutos: naoAlocado.minutos, custoCent: naoAlocado.custoCent });
     }
   }
-  return out;
+  const avisos = avisosDoCusto(
+    [...custos.values()].map((c) => ({
+      nome: c.nome,
+      contratacao: c.contratacao,
+      temCusto: c.custo !== null,
+      semTabela: c.semTabela,
+      tabelaPosterior: c.tabelaPosterior,
+      origemBase: c.origemBase,
+    })),
+  );
+  return { linhas: out, avisos };
 }
 
 /** Rateio do mês no cálculo que vale para ele: antigo antes do corte, novo a partir dele. */
-export async function calcularRateioDoMes(ano: number, mes: number): Promise<{ calculo: "legado" | "v2"; linhas: LinhaRateio[] }> {
+export async function calcularRateioDoMes(
+  ano: number,
+  mes: number,
+): Promise<{ calculo: "legado" | "v2"; linhas: LinhaRateio[]; avisos: string[] }> {
   const calculo = calculoDoMes(ano, mes, await corteCalculoNovo());
-  if (calculo === "v2") return { calculo, linhas: await calcularRateioV2(ano, mes) };
+  if (calculo === "v2") return { calculo, ...(await calcularRateioV2(ano, mes)) };
   const rows = await calcularRateioLegado(ano, mes);
   const users = await prisma.user.findMany({
     where: { id: { in: [...new Set(rows.map((r) => r.userId))] } },
@@ -194,6 +208,7 @@ export async function calcularRateioDoMes(ano: number, mes: number): Promise<{ c
   const contr = new Map(users.map((u) => [u.id, u.contratacao]));
   return {
     calculo,
+    avisos: [],
     linhas: rows.map((r) => ({
       userId: r.userId,
       projetoId: r.projetoId,
@@ -207,13 +222,13 @@ export async function calcularRateioDoMes(ano: number, mes: number): Promise<{ c
 
 /** Rateio do mês agregado por projeto, para o painel do gestor. */
 export async function rateioMesGestor(ano: number, mes: number) {
-  const ini = new Date(ano, mes - 1, 1);
-  const fim = new Date(ano, mes, 1);
-  const [{ linhas }, fechamento, sessoesSemProjeto] = await Promise.all([
+  const { inicio: ini, fim } = limitesDoMesSP(ano, mes);
+  const agora = new Date();
+  const [{ linhas, avisos }, fechamento, sessoesSemProjeto] = await Promise.all([
     calcularRateioDoMes(ano, mes),
     prisma.fechamentoRateio.findUnique({ where: { ano_mes: { ano, mes } }, select: { fechadoEm: true } }),
     prisma.sessaoTrabalho.findMany({
-      where: { inicio: { gte: ini, lt: fim }, projetoId: null },
+      where: { inicio: { lt: fim }, OR: [{ fim: null }, { fim: { gt: ini } }], projetoId: null },
       select: { inicio: true, fim: true, tipoAlocacao: true },
     }),
   ]);
@@ -237,7 +252,7 @@ export async function rateioMesGestor(ano: number, mes: number) {
 
   const alocacoesSemProjeto = { semProjeto: 0, reuniaoInterna: 0, reuniaoExterna: 0 };
   for (const s of sessoesSemProjeto) {
-    const minutos = minutosSessao(s.inicio, s.fim);
+    const minutos = minutosNoIntervalo(s.inicio, s.fim, ini, fim, agora);
     if (s.tipoAlocacao === "reuniao_interna") alocacoesSemProjeto.reuniaoInterna += minutos;
     else if (s.tipoAlocacao === "reuniao_externa") alocacoesSemProjeto.reuniaoExterna += minutos;
     else alocacoesSemProjeto.semProjeto += minutos;
@@ -249,6 +264,7 @@ export async function rateioMesGestor(ano: number, mes: number) {
       .sort((a, b) => b.minutos - a.minutos),
     ...alocacoesSemProjeto,
     custoNaoAlocado: custoNaoAlocadoCent / 100,
+    avisos,
     custoTotal: custoTotalCent / 100,
     fechado: fechamento != null,
     fechadoEm: fechamento?.fechadoEm ?? null,

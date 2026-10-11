@@ -26,12 +26,14 @@ export const fecharRateioMes = defineAction(
   async ({ ano, mes }, { user }) => {
     const { calculo, linhas } = await calcularRateioDoMes(ano, mes);
     const result = await prisma.$transaction(async (tx) => {
-      await tx.rateioHora.deleteMany({ where: { ano, mes } });
+      // Cabeçalho ANTES das linhas: o upsert trava a linha do mês, e um segundo "Fechar mês" ao
+      // mesmo tempo espera este terminar em vez de gravar as linhas por cima (contaria em dobro).
       await tx.fechamentoRateio.upsert({
         where: { ano_mes: { ano, mes } },
         create: { ano, mes, calculo, fechadoPorId: user.id },
         update: { calculo, fechadoEm: new Date(), fechadoPorId: user.id },
       });
+      await tx.rateioHora.deleteMany({ where: { ano, mes } });
       if (linhas.length === 0) return 0;
       await tx.rateioHora.createMany({
         data: linhas.map((l) => ({

@@ -103,11 +103,12 @@ export function anosCompletos(inicioIso: string, refIso: string): number {
 
 /**
  * Início do tempo de casa na contratação: o vínculo que cobre `refIso` e os anteriores da MESMA
- * contratação colados nele (fim = véspera do início do seguinte). Troca de setor abre vínculo
- * novo sem mudar a contratação, e não pode zerar o aviso prévio.
+ * contratação colados nele (fim = véspera do início do seguinte) e encerrados por substituição.
+ * Troca de setor abre vínculo novo sem mudar a contratação, e não pode zerar o aviso prévio; já
+ * um desligamento seguido de recontratação no dia seguinte recomeça a contagem.
  */
 export function inicioDoTempoDeCasa(
-  vinculos: { contratacao: Contratacao; dataInicio: string; dataFim: string | null }[],
+  vinculos: { contratacao: Contratacao; dataInicio: string; dataFim: string | null; motivoFim?: string | null }[],
   contratacao: Contratacao,
   refIso: string,
 ): string | null {
@@ -117,10 +118,32 @@ export function inicioDoTempoDeCasa(
   if (ord.length === 0) return null;
   let inicio = ord[0].dataInicio;
   for (let i = 1; i < ord.length; i++) {
-    if (ord[i].dataFim !== somarDias(inicio, -1)) break;
+    const substituido = ord[i].motivoFim == null || ord[i].motivoFim === "substituido";
+    if (ord[i].dataFim !== somarDias(inicio, -1) || !substituido) break;
     inicio = ord[i].dataInicio;
   }
   return inicio;
+}
+
+/**
+ * Salário contratual que vale no mês: o último registro do histórico contratual até o fim do mês
+ * que seja da MESMA contratação (ou sem vínculo, mas a partir do início do tempo de casa) — a bolsa
+ * de quem foi efetivado não vira salário de CLT. Sem histórico, a remuneração do vínculo vigente.
+ */
+export function remuneracaoContratual(p: {
+  historico: { vigenciaEm: string; remuneracaoCent: number; contratacao: Contratacao | null }[];
+  contratacao: Contratacao;
+  inicioCasa: string | null;
+  fimMes: string;
+  vinculoRemuneracaoCent: number | null;
+}): { cent: number; origem: "historico" | "vinculo" } | null {
+  const valido = p.historico
+    .filter((h) => h.vigenciaEm <= p.fimMes)
+    .filter((h) => (h.contratacao === null ? p.inicioCasa != null && h.vigenciaEm >= p.inicioCasa : h.contratacao === p.contratacao))
+    .sort((a, b) => b.vigenciaEm.localeCompare(a.vigenciaEm))[0];
+  if (valido) return { cent: valido.remuneracaoCent, origem: "historico" };
+  if (p.vinculoRemuneracaoCent != null && p.vinculoRemuneracaoCent > 0) return { cent: p.vinculoRemuneracaoCent, origem: "vinculo" };
+  return null;
 }
 
 export function fracaoForaDeFerias(diasUteisMes: number, diasUteisEmFerias: number): number {
