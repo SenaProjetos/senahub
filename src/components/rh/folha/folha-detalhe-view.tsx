@@ -108,7 +108,9 @@ export function FolhaDetalheView({
         toast.success(
           r.data.acao === "ja_paga"
             ? `Folha fechada — ${brl(r.data.liquido)}. A conta a pagar desta competência já estava paga.`
-            : `Folha fechada — ${brl(r.data.liquido)} na conta a pagar que vence em ${venc}.`,
+            : r.data.acao === "sem_clt"
+              ? `Folha fechada — ${brl(r.data.liquido)} em ${r.data.contas} conta(s) a pagar.`
+              : `Folha fechada — ${brl(r.data.liquido)}; o líquido CLT vence em ${venc} (${r.data.contas} conta(s) a pagar).`,
           r.data.aviso ? { description: r.data.aviso, duration: 12_000 } : undefined,
         );
         setPreview(false);
@@ -135,13 +137,16 @@ export function FolhaDetalheView({
       });
       if (!ok) return;
     }
+    // Provisório: a sessão 4 do rateio (R4.3) troca pelo diálogo de motivo com o histórico.
+    const motivo = window.prompt("Motivo da reabertura (10 caracteres ou mais):");
+    if (motivo == null) return;
     start(async () => {
-      const r = await reabrirFolha({ id: folha.id });
+      const r = await reabrirFolha({ id: folha.id, motivo });
       if (r.ok) {
         toast.success(
           r.data.assinaturasRevogadas > 0
-            ? `Folha reaberta — lançamento removido e ${r.data.assinaturasRevogadas} assinatura(s) revogada(s).`
-            : "Folha reaberta — lançamento removido.",
+            ? `Folha reaberta — as contas a pagar continuam em aberto; ${r.data.assinaturasRevogadas} assinatura(s) revogada(s) e guardada(s) como versão.`
+            : "Folha reaberta — as contas a pagar continuam em aberto e o próximo fechamento as atualiza.",
         );
         router.refresh();
       } else toast.error(r.error);

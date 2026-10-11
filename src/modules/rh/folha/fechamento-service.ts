@@ -9,18 +9,29 @@ import "server-only";
  * pagamento (5º dia útil de M+1), registrado na baixa ou na conciliação. A decisão de QUAL conta é
  * pura (`quitacao.ts`); aqui ficam o I/O, o vencimento pelo calendário de feriados e o vínculo com o
  * compromisso recorrente da folha — sem ele, o gerador diário criaria o mês de novo.
+ *
+ * R4 do rateio (decisões 21 e 22): além do líquido CLT, o fechamento lança a bolsa dos estagiários, o
+ * INSS e o IRRF descontados, o FGTS (guias no dia 20 do mês seguinte, antecipado ao dia útil anterior)
+ * e os benefícios do mês. Cada parte fica ligada à folha por `FolhaLancamento`: fechar de novo atualiza
+ * a mesma conta enquanto ela está em aberto; a parte que saiu do plano é cancelada, nunca apagada.
+ * Reabrir pede motivo e guarda a versão assinada de cada holerite.
  */
-import { acharCategoriaDoSistema, mensagemCategoriaAusente } from "@/modules/financeiro/categorias-sistema";
+import { acharCategoriaDoSistema, acharSubcategoriaDoSistema, mensagemCategoriaAusente } from "@/modules/financeiro/categorias-sistema";
 import { Prisma } from "@/generated/prisma/client";
+import type { ParteFolha } from "@/generated/prisma/enums";
 import { exigirPeriodoAberto } from "@/modules/financeiro/fechamento/trava-service";
+import { exigirOperacao, MOTIVO_MUDOU } from "@/modules/financeiro/lancamentos/situacao-service";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { diaDeSaoPaulo } from "@/lib/data";
-import { paraCentavos, paraReais } from "@/modules/financeiro/liquidez/dinheiro";
+import { diaUtilAnterior } from "@/lib/calendario-trabalho";
+import { formatarCentavos, paraCentavos, paraReais } from "@/modules/financeiro/liquidez/dinheiro";
 import { isoDeDataDoBanco } from "@/modules/financeiro/liquidez/datas";
 import { avancarCompetencia, calendarioDeSalario, enesimoDiaUtil, vencimentoDoCompromisso } from "@/modules/financeiro/recorrencia/calculo";
 import { anosDoHorizonte, calendarioFinanceiro } from "@/modules/financeiro/recorrencia/queries";
 import { rotuloFolha } from "@/modules/rh/folha/tipo-folha";
+import { planoDaFolha, type LancamentoPlanejado } from "@/modules/rh/folha/lancamentos-da-folha";
+import { custosDoMes } from "@/modules/rh/rateio/custo-hora/dados";
 import {
   avisoDoFechamento,
   competenciaDaFolha,
@@ -30,16 +41,19 @@ import {
   type ContaDaFolha,
 } from "@/modules/rh/folha/quitacao";
 
-/** O que o fechamento fez com a conta a pagar da competência. */
-export type AcaoNaConta = "atualizou" | "criou" | "ja_paga";
+/** O que o fechamento fez com a conta a pagar do líquido CLT. `sem_clt` = folha só de estagiários. */
+export type AcaoNaConta = "atualizou" | "criou" | "ja_paga" | "sem_clt";
 
 export type ResultadoFechamento = {
   liquido: number;
   acao: AcaoNaConta;
-  lancamentoId: string;
-  /** Vencimento da conta a pagar (`YYYY-MM-DD`). */
+  /** Conta do líquido CLT; `null` quando a folha não tem CLT. */
+  lancamentoId: string | null;
+  /** Vencimento da conta do líquido (`YYYY-MM-DD`). */
   vencimento: string;
-  /** Frase para a tela: diferença entre previsto e real, e o que ficou em aberto. */
+  /** Quantas contas a folha tem lançadas no Financeiro (líquido + partes). */
+  contas: number;
+  /** Frase para a tela: diferença entre previsto e real, o que ficou em aberto e o que não foi lançado. */
   aviso: string | null;
 };
 
@@ -49,17 +63,30 @@ const ULTIMO_DIA_DA_JANELA = 15;
 /** Regra do dono quando não há compromisso recorrente da folha: 5º dia útil do mês seguinte. */
 const DIA_UTIL_PADRAO = 5;
 
+/** Guias (INSS, IRRF, FGTS): dia 20 do mês seguinte, antecipado ao dia útil anterior. */
+const DIA_DAS_GUIAS = 20;
+
+/** Mínimo de caracteres do motivo da reabertura. */
+export const MOTIVO_MINIMO = 10;
+export const MSG_MOTIVO_CURTO = `Descreva o motivo da reabertura (${MOTIVO_MINIMO} caracteres ou mais).`;
+
+/** Item de benefício do custo do mês (`beneficio_0`, ou `clt:beneficio_0` quando o mês teve dois vínculos). */
+const RE_BENEFICIO = /(^|:)beneficio_\d+$/;
+
 function inicioDoMes(comp: string): Date {
   return new Date(`${comp}-01T00:00:00.000Z`);
 }
+
+const dia = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
 /**
  * Contas a pagar de folha CLT que podem ser desta competência: as VINCULADAS a ela pela recorrência e,
  * sem vínculo, as que vencem nos primeiros dias do mês seguinte (a folha de M é paga até o 5º dia útil
  * de M+1). Inclui as já pagas — a folha paga antes do fechamento não pode ganhar uma segunda conta.
+ * Procura na categoria-mãe (contas antigas) E em Salários (R4); `ignorar` tira as partes da própria folha.
  * `excluidoEm: null` explícito: a extensão de exclusão lógica não cobre toda consulta.
  */
-export async function contasDaCompetencia(categoriaId: string, competencia: string): Promise<ContaDaFolha[]> {
+export async function contasDaCompetencia(categoriaIds: string[], competencia: string, ignorar: string[] = []): Promise<ContaDaFolha[]> {
   const proximo = avancarCompetencia(competencia, 1);
   const de = inicioDoMes(proximo);
   const ate = new Date(`${proximo}-${String(ULTIMO_DIA_DA_JANELA).padStart(2, "0")}T00:00:00.000Z`);
@@ -67,7 +94,8 @@ export async function contasDaCompetencia(categoriaId: string, competencia: stri
     where: {
       excluidoEm: null,
       tipo: "despesa",
-      categoriaId,
+      categoriaId: { in: categoriaIds },
+      ...(ignorar.length > 0 ? { id: { notIn: ignorar } } : {}),
       status: { in: ["previsto", "aguardando_aprovacao", "confirmado"] },
       OR: [
         { recorrenciaCompetencia: competencia },
@@ -97,20 +125,28 @@ export async function contasDaCompetencia(categoriaId: string, competencia: stri
   }));
 }
 
-/** Categoria da folha CLT pela CHAVE — `codigo` é editável em Cadastros. */
+/** Categoria-mãe da folha CLT pela CHAVE — `codigo` é editável em Cadastros. */
 async function categoriaDaFolha() {
   const id = await acharCategoriaDoSistema(prisma, "2.03");
   if (!id) throw new ActionError(mensagemCategoriaAusente("2.03"));
   return { id };
 }
 
+/** Categoria de uma parte: a subcategoria pela chave, com a mãe (2.03, ou 2.04 para a bolsa) de reserva. */
+async function categoriaDaParte(chave: string): Promise<string> {
+  const mae = chave.startsWith("despesa_estagio") ? "2.04" : "2.03";
+  const id = await acharSubcategoriaDoSistema(prisma, chave, mae);
+  if (!id) throw new ActionError(mensagemCategoriaAusente(mae));
+  return id;
+}
+
 /**
  * O compromisso recorrente DA FOLHA nesta competência (não o adiantamento), quando há exatamente um e o
  * mês ainda está livre. É o que o fechamento usa para o vencimento e para gravar o vínculo.
  */
-async function compromissoDaFolha(categoriaId: string, competencia: string) {
+async function compromissoDaFolha(categoriaIds: string[], competencia: string) {
   const candidatos = await prisma.compromissoRecorrente.findMany({
-    where: { categoriaId, ativo: true, adiantamento: false, competenciaInicio: { lte: competencia } },
+    where: { categoriaId: { in: categoriaIds }, ativo: true, adiantamento: false, competenciaInicio: { lte: competencia } },
     select: { id: true, diaVencimento: true, regraVencimento: true, mesesAteVencimento: true, competenciaFim: true },
   });
   const vigentes = candidatos.filter((c) => c.competenciaFim == null || c.competenciaFim >= competencia);
@@ -122,11 +158,61 @@ async function compromissoDaFolha(categoriaId: string, competencia: string) {
   return { ...c, livre: usado === 0 };
 }
 
-function somaLiquidaEmCentavos(holerites: readonly { itens: readonly { tipo: string; valor: Prisma.Decimal }[] }[]): number {
+function liquidoEmCentavos(itens: readonly { tipo: string; valor: Prisma.Decimal }[]): number {
   let c = 0;
-  for (const h of holerites) for (const it of h.itens) c += (it.tipo === "provento" ? 1 : -1) * paraCentavos(it.valor);
+  for (const it of itens) c += (it.tipo === "provento" ? 1 : -1) * paraCentavos(it.valor);
   return c;
 }
+
+const centavosOuNulo = (v: Prisma.Decimal | null) => (v == null ? null : paraCentavos(v));
+
+/**
+ * Líquido separado por contratação (vínculo vigente no mês, `custosDoMes`) e benefícios dos CLT
+ * agrupados pelo nome. A folha de 13º é toda CLT e não tem benefício.
+ */
+async function composicaoDaFolha(folha: {
+  ano: number;
+  mes: number;
+  tipo: "mensal" | "decimo_terceiro";
+  holerites: { userId: string; itens: { tipo: string; valor: Prisma.Decimal }[] }[];
+}) {
+  if (folha.tipo !== "mensal") {
+    return { liquidoCltCent: folha.holerites.reduce((s, h) => s + liquidoEmCentavos(h.itens), 0), liquidoEstagioCent: 0, beneficios: [] };
+  }
+  const custos = await custosDoMes(folha.ano, folha.mes, folha.holerites.map((h) => h.userId));
+  let liquidoCltCent = 0;
+  let liquidoEstagioCent = 0;
+  const beneficios = new Map<string, number>();
+  for (const h of folha.holerites) {
+    const c = custos.get(h.userId);
+    const liquido = liquidoEmCentavos(h.itens);
+    if (c?.contratacao === "estagio") {
+      liquidoEstagioCent += liquido;
+      continue;
+    }
+    liquidoCltCent += liquido;
+    for (const it of c?.custo?.itens ?? []) {
+      if (!RE_BENEFICIO.test(it.chave)) continue;
+      // Com dois vínculos no mês o rótulo ganha "(CLT)": o benefício é o mesmo, a conta também.
+      const nome = it.chave.includes(":") ? it.rotulo.replace(/\s*\([^)]*\)$/, "") : it.rotulo;
+      beneficios.set(nome, (beneficios.get(nome) ?? 0) + it.cent);
+    }
+  }
+  return {
+    liquidoCltCent,
+    liquidoEstagioCent,
+    beneficios: [...beneficios.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([nome, valorCent]) => ({ nome, valorCent })),
+  };
+}
+
+type ParteGravada = { parte: ParteFolha; rotulo: string; lancamentoId: string };
+
+/** O que fazer com cada parte, decidido antes da transação (as escritas são condicionadas mesmo assim). */
+type AcaoDaParte =
+  | { tipo: "atualizar"; plano: LancamentoPlanejado; lancamentoId: string }
+  | { tipo: "criar"; plano: LancamentoPlanejado; linhaExistente: boolean }
+  | { tipo: "ja_paga"; plano: LancamentoPlanejado; valorPagoCent: number }
+  | { tipo: "cancelar"; lancamentoId: string; descricao: string };
 
 export async function fecharFolhaNoBanco(folhaId: string, autorId: string): Promise<ResultadoFechamento> {
   const folha = await prisma.folhaPagamento.findUnique({
@@ -137,107 +223,234 @@ export async function fecharFolhaNoBanco(folhaId: string, autorId: string): Prom
   if (folha.status === "fechada") throw new ActionError("Folha já fechada.");
   if (folha.holerites.length === 0) throw new ActionError("Adicione holerites antes de fechar.");
 
-  const liquidoCent = somaLiquidaEmCentavos(folha.holerites);
+  const comp = await composicaoDaFolha(folha);
+  const liquidoCent = comp.liquidoCltCent + comp.liquidoEstagioCent;
   if (liquidoCent <= 0) throw new ActionError("Total líquido deve ser positivo.");
-  const liquido = paraReais(liquidoCent);
 
-  const categoria = await categoriaDaFolha();
+  const rotulo = rotuloFolha(folha);
+  const plano = planoDaFolha({
+    tipo: folha.tipo,
+    rotuloFolha: rotulo,
+    liquidoCltCent: comp.liquidoCltCent,
+    liquidoEstagioCent: comp.liquidoEstagioCent,
+    inssRetidoCent: centavosOuNulo(folha.totalInssRetido),
+    irrfRetidoCent: centavosOuNulo(folha.totalIrrfRetido),
+    fgtsCent: centavosOuNulo(folha.totalFgts),
+    beneficios: comp.beneficios,
+  });
+  const planoLiquido = plano.lancamentos.find((l) => l.parte === "liquido_clt") ?? null;
+  const planoPartes = plano.lancamentos.filter((l) => l.parte !== "liquido_clt");
+
+  const mae = await categoriaDaFolha();
+  const salarios = await acharSubcategoriaDoSistema(prisma, "despesa_folha_salarios", "2.03");
+  const categoriasDaFolha = [...new Set([mae.id, salarios ?? mae.id])];
   const competencia = competenciaDaFolha(folha);
   const hoje = diaDeSaoPaulo();
-  const descricao = `Folha CLT ${rotuloFolha(folha)}`;
   const mensal = folhaUsaContaDaCompetencia(folha.tipo);
+  const proximo = avancarCompetencia(competencia, 1);
+
+  // Partes já lançadas por um fechamento anterior desta folha (a ligação sobrevive à reabertura).
+  const linhas = await prisma.folhaLancamento.findMany({ where: { folhaId }, select: { parte: true, rotulo: true, lancamentoId: true } });
+  const lancsDasPartes = await prisma.lancamento.findMany({
+    where: { id: { in: linhas.map((l) => l.lancamentoId) }, excluidoEm: { not: undefined } },
+    select: { id: true, status: true, excluidoEm: true, valor: true, valorEfetivo: true },
+  });
+  const lancPorId = new Map(lancsDasPartes.map((l) => [l.id, l]));
+  const chaveParte = (p: { parte: string; rotulo: string }) => `${p.parte}|${p.rotulo}`;
 
   // 13º: outra despesa, com folha própria no mesmo mês — não procura a conta da competência.
-  const decisao = mensal ? decidirContaDaFolha(await contasDaCompetencia(categoria.id, competencia), competencia) : { escolhida: null, jaPaga: null, outras: [] };
-  const compromisso = mensal ? await compromissoDaFolha(categoria.id, competencia) : null;
+  const decisao =
+    mensal && planoLiquido
+      ? decidirContaDaFolha(await contasDaCompetencia(categoriasDaFolha, competencia, linhas.map((l) => l.lancamentoId)), competencia)
+      : { escolhida: null, jaPaga: null, outras: [] };
+  const compromisso = mensal && planoLiquido ? await compromissoDaFolha(categoriasDaFolha, competencia) : null;
 
+  const cal = await calendarioFinanceiro(anosDoHorizonte(hoje, `${proximo}-28`));
   let vencimento = hoje;
   if (mensal) {
-    const cal = await calendarioFinanceiro(anosDoHorizonte(hoje, `${avancarCompetencia(competencia, 1)}-28`));
     vencimento = compromisso
       ? vencimentoDoCompromisso({ ...compromisso, salario: true }, competencia, cal)
       : // Prazo do salário: o sábado conta como dia útil (CLT art. 459 §1º).
-        enesimoDiaUtil(avancarCompetencia(competencia, 1), DIA_UTIL_PADRAO, calendarioDeSalario(cal));
+        enesimoDiaUtil(proximo, DIA_UTIL_PADRAO, calendarioDeSalario(cal));
   }
+  const vencimentoDasGuias = diaUtilAnterior(`${proximo}-${DIA_DAS_GUIAS}`, cal);
+  const vencimentoDe = (p: LancamentoPlanejado) => (p.vence === "dia20" ? vencimentoDasGuias : vencimento);
+
+  const acoes: AcaoDaParte[] = [];
+  const noPlano = new Set(planoPartes.map(chaveParte));
+  for (const p of planoPartes) {
+    const linha = linhas.find((l) => chaveParte(l) === chaveParte(p));
+    const lanc = linha ? lancPorId.get(linha.lancamentoId) : undefined;
+    if (!linha || !lanc || lanc.excluidoEm || lanc.status === "cancelado") {
+      acoes.push({ tipo: "criar", plano: p, linhaExistente: !!linha });
+    } else if (lanc.status === "previsto") {
+      acoes.push({ tipo: "atualizar", plano: p, lancamentoId: lanc.id });
+    } else {
+      acoes.push({ tipo: "ja_paga", plano: p, valorPagoCent: paraCentavos(lanc.valorEfetivo ?? lanc.valor) });
+    }
+  }
+  for (const l of linhas) {
+    const lanc = lancPorId.get(l.lancamentoId);
+    if (!noPlano.has(chaveParte(l)) && lanc && !lanc.excluidoEm && lanc.status === "previsto") {
+      acoes.push({ tipo: "cancelar", lancamentoId: lanc.id, descricao: l.rotulo || l.parte });
+    }
+  }
+
   // Vínculo com a recorrência só quando o mês do compromisso está livre: o par (origem, competência) é
   // único no banco, e é ele que impede o gerador diário de criar a folha de novo.
   const vinculo = compromisso?.livre ? { recorrenciaOrigemId: compromisso.id, recorrenciaCompetencia: competencia } : {};
   const agora = new Date();
 
   // N5: com o mês fechado no Financeiro, a folha não grava valor na competência dele.
-  if (!decisao.jaPaga) await exigirPeriodoAberto(prisma, [inicioDoMes(competencia)]);
+  const gravaLiquido = !!planoLiquido && !decisao.jaPaga;
+  if (gravaLiquido || acoes.some((a) => a.tipo !== "ja_paga")) await exigirPeriodoAberto(prisma, [inicioDoMes(competencia)]);
+
+  const categoriaPorChave = new Map<string, string>();
+  for (const chave of new Set(plano.lancamentos.map((l) => l.chaveCategoria))) categoriaPorChave.set(chave, await categoriaDaParte(chave));
 
   const gravado = await prisma.$transaction(async (tx) => {
-    if (decisao.jaPaga) {
-      await tx.folhaPagamento.update({
-        where: { id: folha.id },
-        data: { status: "fechada", fechadaEm: agora, lancamentoId: decisao.jaPaga.id, lancamentoReaproveitado: true, lancamentoValorPrevisto: paraReais(decisao.jaPaga.valor) },
-      });
-      return { acao: "ja_paga" as const, lancamentoId: decisao.jaPaga.id, vencimento: decisao.jaPaga.vencimento };
-    }
-    if (decisao.escolhida) {
+    // ---- Líquido CLT: a lógica do N0, agora em Salários (13º na subcategoria dele).
+    let liquido: { acao: AcaoNaConta; lancamentoId: string | null; vencimento: string; reaproveitado: boolean; valorPrevisto: number | null };
+    if (!planoLiquido) {
+      liquido = { acao: "sem_clt", lancamentoId: null, vencimento, reaproveitado: false, valorPrevisto: null };
+    } else if (decisao.jaPaga) {
+      liquido = { acao: "ja_paga", lancamentoId: decisao.jaPaga.id, vencimento: decisao.jaPaga.vencimento, reaproveitado: true, valorPrevisto: paraReais(decisao.jaPaga.valor) };
+    } else if (decisao.escolhida) {
       // Condicionado à situação lida: se alguém pagou ou cancelou a conta no meio, nada é sobrescrito.
       const r = await tx.lancamento.updateMany({
         where: { id: decisao.escolhida.id, status: "previsto", excluidoEm: null },
         data: {
-          descricao,
-          valor: liquido,
+          descricao: planoLiquido.descricao,
+          valor: paraReais(planoLiquido.valorCent),
           dataCompetencia: inicioDoMes(competencia),
           ...(decisao.escolhida.recorrenciaCompetencia ? {} : vinculo),
         },
       });
       if (r.count !== 1) throw new ActionError("A conta a pagar da folha mudou enquanto a folha era fechada: tente de novo.");
-      await tx.folhaPagamento.update({
-        where: { id: folha.id },
-        data: { status: "fechada", fechadaEm: agora, lancamentoId: decisao.escolhida.id, lancamentoReaproveitado: true, lancamentoValorPrevisto: paraReais(decisao.escolhida.valor) },
+      liquido = { acao: "atualizou", lancamentoId: decisao.escolhida.id, vencimento: decisao.escolhida.vencimento, reaproveitado: true, valorPrevisto: paraReais(decisao.escolhida.valor) };
+    } else {
+      const lanc = await tx.lancamento.create({
+        data: {
+          tipo: "despesa",
+          descricao: planoLiquido.descricao,
+          valor: paraReais(planoLiquido.valorCent),
+          status: "previsto",
+          data: dia(hoje),
+          vencimento: dia(vencimento),
+          dataCompetencia: inicioDoMes(competencia),
+          categoriaId: categoriaPorChave.get(planoLiquido.chaveCategoria)!,
+          autorId,
+          ...vinculo,
+        },
+        select: { id: true },
       });
-      return { acao: "atualizou" as const, lancamentoId: decisao.escolhida.id, vencimento: decisao.escolhida.vencimento };
+      liquido = { acao: "criou", lancamentoId: lanc.id, vencimento, reaproveitado: false, valorPrevisto: null };
     }
-    const lanc = await tx.lancamento.create({
-      data: {
-        tipo: "despesa",
-        descricao,
-        valor: liquido,
-        status: "previsto",
-        data: new Date(`${hoje}T00:00:00.000Z`),
-        vencimento: new Date(`${vencimento}T00:00:00.000Z`),
+
+    // ---- Demais partes (bolsa, guias, benefícios), ligadas à folha por FolhaLancamento.
+    const avisos: string[] = [];
+    const partes: ParteGravada[] = [];
+    for (const a of acoes) {
+      if (a.tipo === "cancelar") {
+        // Saiu do plano (ex.: o FGTS foi apagado da folha): cancela pela máquina de situações, nunca apaga.
+        const { estado } = await exigirOperacao(tx, a.lancamentoId, "cancelar");
+        const r = await tx.lancamento.updateMany({ where: { id: a.lancamentoId, status: estado.status, excluidoEm: null }, data: { status: "cancelado" } });
+        if (r.count !== 1) throw new ActionError(MOTIVO_MUDOU);
+        await tx.lancamentoStatusHistorico.create({ data: { lancamentoId: a.lancamentoId, de: estado.status, para: "cancelado", autorId } });
+        continue;
+      }
+      const p = a.plano;
+      const dados = {
+        descricao: p.descricao,
+        valor: paraReais(p.valorCent),
+        vencimento: dia(vencimentoDe(p)),
         dataCompetencia: inicioDoMes(competencia),
-        categoriaId: categoria.id,
-        autorId,
-        ...vinculo,
-      },
-      select: { id: true },
-    });
+        categoriaId: categoriaPorChave.get(p.chaveCategoria)!,
+      };
+      if (a.tipo === "atualizar") {
+        const r = await tx.lancamento.updateMany({ where: { id: a.lancamentoId, status: "previsto", excluidoEm: null }, data: dados });
+        if (r.count !== 1) throw new ActionError("Uma conta a pagar da folha mudou enquanto a folha era fechada: tente de novo.");
+        partes.push({ parte: p.parte as ParteFolha, rotulo: p.rotulo, lancamentoId: a.lancamentoId });
+      } else if (a.tipo === "ja_paga") {
+        if (a.valorPagoCent !== p.valorCent) {
+          avisos.push(`${p.descricao}: já estava paga (${formatarCentavos(a.valorPagoCent)}); o valor novo (${formatarCentavos(p.valorCent)}) não foi aplicado.`);
+        }
+      } else {
+        const lanc = await tx.lancamento.create({
+          data: { tipo: "despesa", status: "previsto", data: dia(hoje), autorId, ...dados },
+          select: { id: true },
+        });
+        const chave = { folhaId_parte_rotulo: { folhaId, parte: p.parte as ParteFolha, rotulo: p.rotulo } };
+        if (a.linhaExistente) await tx.folhaLancamento.update({ where: chave, data: { lancamentoId: lanc.id } });
+        else await tx.folhaLancamento.create({ data: { folhaId, parte: p.parte as ParteFolha, rotulo: p.rotulo, lancamentoId: lanc.id } });
+        partes.push({ parte: p.parte as ParteFolha, rotulo: p.rotulo, lancamentoId: lanc.id });
+      }
+    }
+
     await tx.folhaPagamento.update({
       where: { id: folha.id },
-      data: { status: "fechada", fechadaEm: agora, lancamentoId: lanc.id, lancamentoReaproveitado: false, lancamentoValorPrevisto: null },
+      data: {
+        status: "fechada",
+        fechadaEm: agora,
+        lancamentoId: liquido.lancamentoId,
+        lancamentoReaproveitado: liquido.reaproveitado,
+        lancamentoValorPrevisto: liquido.valorPrevisto,
+      },
     });
-    return { acao: "criou" as const, lancamentoId: lanc.id, vencimento };
+    const contas = (liquido.lancamentoId ? 1 : 0) + partes.length + acoes.filter((x) => x.tipo === "ja_paga").length;
+    return { acao: liquido.acao, lancamentoId: liquido.lancamentoId, vencimento: liquido.vencimento, contas, avisos };
   });
 
-  return { liquido, ...gravado, aviso: avisoDoFechamento(decisao, liquidoCent) };
+  const avisoLiquido = planoLiquido ? avisoDoFechamento(decisao, planoLiquido.valorCent) : null;
+  const aviso = [avisoLiquido, ...plano.avisos, ...gravado.avisos].filter(Boolean).join(" ") || null;
+  return {
+    liquido: paraReais(liquidoCent),
+    acao: gravado.acao,
+    lancamentoId: gravado.lancamentoId,
+    vencimento: gravado.vencimento,
+    contas: gravado.contas,
+    aviso,
+  };
 }
 
 /**
- * Reabre a folha para corrigir holerites. A conta a pagar NÃO é apagada nem revertida: continua sendo a
- * da competência, com o último valor, e o próximo fechamento a atualiza. Se ela já foi paga, reabrir é
- * recusado — editar a folha depois do dinheiro sair descasaria os dois.
+ * Reabre a folha para corrigir holerites, com motivo (R4). As contas a pagar NÃO são apagadas nem
+ * revertidas: continuam sendo as da competência, com o último valor, e o próximo fechamento as
+ * atualiza. Se o líquido ou QUALQUER parte já foi paga, reabrir é recusado — editar a folha depois do
+ * dinheiro sair descasaria os dois.
  *
- * Reabrir também revoga as assinaturas: reabrir libera editar os itens de novo, e um holerite assinado
- * descreveria itens que podem não ser mais os gravados (ver `service.ts`).
+ * Reabrir revoga as assinaturas (os itens podem mudar), mas antes guarda em `HoleriteVersao` o que cada
+ * pessoa assinou — a assinatura é prova e não pode sumir.
  */
-export async function reabrirFolhaNoBanco(folhaId: string): Promise<{ assinaturasRevogadas: number }> {
-  const folha = await prisma.folhaPagamento.findUnique({ where: { id: folhaId } });
+export async function reabrirFolhaNoBanco(folhaId: string, motivo: string, autorId: string | null): Promise<{ assinaturasRevogadas: number }> {
+  const texto = motivo.trim();
+  if (texto.length < MOTIVO_MINIMO) throw new ActionError(MSG_MOTIVO_CURTO);
+  const folha = await prisma.folhaPagamento.findUnique({ where: { id: folhaId }, include: { partes: { select: { lancamentoId: true } } } });
   if (!folha) throw new ActionError("Folha não encontrada.");
   if (folha.status !== "fechada") throw new ActionError("Folha não está fechada.");
 
-  const conta = folha.lancamentoId
-    ? await prisma.lancamento.findFirst({ where: { id: folha.lancamentoId, excluidoEm: null }, select: { status: true } })
-    : null;
-  const motivo = motivoParaNaoReabrir(conta);
-  if (motivo) throw new ActionError(motivo);
+  const ids = [...(folha.lancamentoId ? [folha.lancamentoId] : []), ...folha.partes.map((p) => p.lancamentoId)];
+  const paga = await prisma.lancamento.findFirst({ where: { id: { in: ids }, excluidoEm: null, status: "confirmado" }, select: { status: true } });
+  const recusa = motivoParaNaoReabrir(paga);
+  if (recusa) throw new ActionError(recusa);
 
   const assinaturasRevogadas = await prisma.$transaction(async (tx) => {
+    const assinados = await tx.holerite.findMany({
+      where: { folhaId, assinadoEm: { not: null } },
+      select: { id: true, assinadoEm: true, assinanteId: true, itens: { select: { descricao: true, tipo: true, valor: true } } },
+    });
+    for (const h of assinados) {
+      await tx.holeriteVersao.create({
+        data: {
+          holeriteId: h.id,
+          itens: h.itens.map((i) => ({ descricao: i.descricao, tipo: i.tipo, valor: Number(i.valor) })),
+          assinadoEm: h.assinadoEm!,
+          assinanteId: h.assinanteId,
+          motivo: texto,
+        },
+      });
+    }
+    await tx.folhaReabertura.create({ data: { folhaId, motivo: texto, autorId } });
     await tx.folhaPagamento.update({
       where: { id: folhaId },
       data: { status: "aberta", fechadaEm: null, lancamentoId: null, lancamentoReaproveitado: false, lancamentoValorPrevisto: null },

@@ -349,6 +349,14 @@ describe("aplicarImportacao", () => {
     expect(mocks.holeriteItemDeleteMany).toHaveBeenCalledWith({ where: { holeriteId: "h1" } });
   });
 
+  it("grava os totais de INSS, IRRF e FGTS do resumo do PDF (R4 do rateio)", async () => {
+    await aplicarImportacao({ ...plano, totais: { inss: 812.4, irrf: 120, fgts: 640.8 } }, { path: "a.pdf", nome: "a.pdf" });
+    expect(mocks.folhaUpdate).toHaveBeenCalledWith({
+      where: { id: "f1" },
+      data: { origemPdfPath: "a.pdf", origemPdfNome: "a.pdf", totalInssRetido: 812.4, totalIrrfRetido: 120, totalFgts: 640.8 },
+    });
+  });
+
   it("aborta se o tipo da rubrica mudou entre montar o plano e gravar", async () => {
     // Outro usuário de RH editou a rubrica noutra aba enquanto o PDF era processado: a
     // classificação conferida em `analisarImportacao` não vale mais, e gravar assim escreveria

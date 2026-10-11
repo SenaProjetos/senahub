@@ -13,7 +13,7 @@ import { calcularEncargos } from "@/lib/encargos";
 import { faixasPorTipo, deducaoDependente } from "@/modules/rh/encargos/queries";
 import { dependentesPorUsuario } from "@/modules/rh/funcionarios/queries";
 import { TIPOS_FOLHA, rotuloFolha } from "@/modules/rh/folha/tipo-folha";
-import { fecharFolhaNoBanco, reabrirFolhaNoBanco } from "@/modules/rh/folha/fechamento-service";
+import { fecharFolhaNoBanco, MOTIVO_MINIMO, MSG_MOTIVO_CURTO, reabrirFolhaNoBanco } from "@/modules/rh/folha/fechamento-service";
 
 const base = { modulo: "rh", gereRh: true } as const;
 const PATH = "/rh/folha";
@@ -38,6 +38,7 @@ const salvarHoleriteSchema = z.object({
 });
 
 const idSchema = z.object({ id: z.string().min(1) });
+const reabrirSchema = z.object({ id: z.string().min(1), motivo: z.string().trim().min(MOTIVO_MINIMO, MSG_MOTIVO_CURTO) });
 
 export const criarFolha = defineAction(
   { ...base, acao: "criar-folha", entidade: "FolhaPagamento", schema: criarFolhaSchema },
@@ -178,18 +179,19 @@ export const fecharFolha = defineAction(
     revalidatePath(`${PATH}/${i.id}`);
     revalidatePath("/financeiro/lancamentos");
     revalidatePath("/financeiro/planejador");
-    return { id: i.id, liquido: r.liquido, acao: r.acao, vencimento: r.vencimento, aviso: r.aviso };
+    return { id: i.id, liquido: r.liquido, acao: r.acao, vencimento: r.vencimento, contas: r.contas, aviso: r.aviso };
   },
 );
 
 /**
- * Reabre a folha para corrigir holerites. A conta a pagar fica como está (o próximo fechamento a
- * atualiza); se ela já foi paga, reabrir é recusado — estorne o pagamento antes.
+ * Reabre a folha para corrigir holerites, com motivo. As contas a pagar ficam como estão (o próximo
+ * fechamento as atualiza); se alguma já foi paga, reabrir é recusado — estorne o pagamento antes. As
+ * assinaturas são revogadas, e o que cada pessoa assinou fica guardado como versão.
  */
 export const reabrirFolha = defineAction(
-  { ...base, acao: "reabrir-folha", entidade: "FolhaPagamento", schema: idSchema },
-  async (i) => {
-    const { assinaturasRevogadas } = await reabrirFolhaNoBanco(i.id);
+  { ...base, acao: "reabrir-folha", entidade: "FolhaPagamento", schema: reabrirSchema },
+  async (i, { user }) => {
+    const { assinaturasRevogadas } = await reabrirFolhaNoBanco(i.id, i.motivo, user.id);
     revalidatePath(PATH);
     revalidatePath(`${PATH}/${i.id}`);
     revalidatePath("/financeiro/lancamentos");

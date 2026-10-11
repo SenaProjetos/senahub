@@ -19,12 +19,17 @@ const mocks = vi.hoisted(() => ({
   lancamentoDelete: vi.fn(),
   lancamentoUpdateMany: vi.fn(),
   lancamentoFindFirst: vi.fn(),
+  holeriteFindMany: vi.fn(),
+  holeriteVersaoCreate: vi.fn(),
+  folhaReaberturaCreate: vi.fn(),
 }));
 
 const tx = {
   folhaPagamento: { update: mocks.folhaUpdate },
   lancamento: { delete: mocks.lancamentoDelete, updateMany: mocks.lancamentoUpdateMany },
-  holerite: { updateMany: mocks.holeriteUpdateMany },
+  holerite: { updateMany: mocks.holeriteUpdateMany, findMany: mocks.holeriteFindMany },
+  holeriteVersao: { create: mocks.holeriteVersaoCreate },
+  folhaReabertura: { create: mocks.folhaReaberturaCreate },
 };
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
@@ -125,17 +130,42 @@ describe("assinarHolerite", () => {
   });
 });
 
+const MOTIVO = "INSS do holerite da Ana veio errado";
+
 describe("reabrirFolha — limpa assinatura", () => {
   beforeEach(() => {
     mocks.getSession.mockResolvedValue({ user: { id: "rh1", role: "admin", name: "RH", ativo: true, gereRh: true } });
+    mocks.holeriteFindMany.mockResolvedValue([]);
+  });
+
+  it("sem motivo (ou curto) é recusado antes de tocar no banco", async () => {
+    const r = await reabrirFolha({ id: "f1", motivo: "erro" });
+    expect(r.ok).toBe(false);
+    expect(mocks.folhaFindUnique).not.toHaveBeenCalled();
+    expect(mocks.folhaUpdate).not.toHaveBeenCalled();
+  });
+
+  it("guarda a versão assinada de cada holerite e a reabertura com o motivo, antes de revogar", async () => {
+    mocks.folhaFindUnique.mockResolvedValue({ id: "f1", status: "fechada", lancamentoId: null, partes: [] });
+    const assinadoEm = new Date("2026-10-08T12:00:00Z");
+    mocks.holeriteFindMany.mockResolvedValue([
+      { id: "h1", assinadoEm, assinanteId: "u1", itens: [{ descricao: "Salário", tipo: "provento", valor: "3000.00" }] },
+    ]);
+    mocks.holeriteUpdateMany.mockResolvedValue({ count: 1 });
+    const r = await reabrirFolha({ id: "f1", motivo: MOTIVO });
+    expect(r.ok).toBe(true);
+    expect(mocks.holeriteVersaoCreate).toHaveBeenCalledWith({
+      data: { holeriteId: "h1", itens: [{ descricao: "Salário", tipo: "provento", valor: 3000 }], assinadoEm, assinanteId: "u1", motivo: MOTIVO },
+    });
+    expect(mocks.folhaReaberturaCreate).toHaveBeenCalledWith({ data: { folhaId: "f1", motivo: MOTIVO, autorId: "rh1" } });
   });
 
   it("limpa assinadoEm/assinanteId de quem já tinha assinado, e devolve a contagem", async () => {
-    mocks.folhaFindUnique.mockResolvedValue({ id: "f1", status: "fechada", lancamentoId: "l1", lancamentoReaproveitado: false, lancamentoValorPrevisto: null });
+    mocks.folhaFindUnique.mockResolvedValue({ id: "f1", status: "fechada", lancamentoId: "l1", partes: [], lancamentoReaproveitado: false, lancamentoValorPrevisto: null });
     mocks.lancamentoDelete.mockResolvedValue({});
     mocks.holeriteUpdateMany.mockResolvedValue({ count: 2 });
 
-    const r = await reabrirFolha({ id: "f1" });
+    const r = await reabrirFolha({ id: "f1", motivo: MOTIVO });
     expect(r.ok).toBe(true);
     expect(r.ok && r.data.assinaturasRevogadas).toBe(2);
     expect(mocks.holeriteUpdateMany).toHaveBeenCalledWith({
@@ -145,29 +175,29 @@ describe("reabrirFolha — limpa assinatura", () => {
   });
 
   it("não mexe em assinatura quando ninguém tinha assinado (count 0)", async () => {
-    mocks.folhaFindUnique.mockResolvedValue({ id: "f1", status: "fechada", lancamentoId: null, lancamentoReaproveitado: false, lancamentoValorPrevisto: null });
+    mocks.folhaFindUnique.mockResolvedValue({ id: "f1", status: "fechada", lancamentoId: null, partes: [], lancamentoReaproveitado: false, lancamentoValorPrevisto: null });
     mocks.holeriteUpdateMany.mockResolvedValue({ count: 0 });
-    const r = await reabrirFolha({ id: "f1" });
+    const r = await reabrirFolha({ id: "f1", motivo: MOTIVO });
     expect(r.ok).toBe(true);
     expect(r.ok && r.data.assinaturasRevogadas).toBe(0);
   });
 
   it("conta a pagar da folha já paga: reabrir é recusado (estorne antes)", async () => {
-    mocks.folhaFindUnique.mockResolvedValue({ id: "f1", status: "fechada", lancamentoId: "l1" });
+    mocks.folhaFindUnique.mockResolvedValue({ id: "f1", status: "fechada", lancamentoId: "l1", partes: [] });
     mocks.lancamentoFindFirst.mockResolvedValue({ status: "confirmado" });
 
-    const r = await reabrirFolha({ id: "f1" });
+    const r = await reabrirFolha({ id: "f1", motivo: MOTIVO });
     expect(r.ok).toBe(false);
     expect(!r.ok && r.error).toMatch(/estorne o pagamento/);
     expect(mocks.folhaUpdate).not.toHaveBeenCalled();
   });
 
   it("conta em aberto: reabrir não apaga nem reverte o lançamento (o próximo fechamento o atualiza)", async () => {
-    mocks.folhaFindUnique.mockResolvedValue({ id: "f1", status: "fechada", lancamentoId: "l1" });
+    mocks.folhaFindUnique.mockResolvedValue({ id: "f1", status: "fechada", lancamentoId: "l1", partes: [] });
     mocks.lancamentoFindFirst.mockResolvedValue({ status: "previsto" });
     mocks.holeriteUpdateMany.mockResolvedValue({ count: 0 });
 
-    expect((await reabrirFolha({ id: "f1" })).ok).toBe(true);
+    expect((await reabrirFolha({ id: "f1", motivo: MOTIVO })).ok).toBe(true);
     expect(mocks.lancamentoDelete).not.toHaveBeenCalled();
     expect(mocks.lancamentoUpdateMany).not.toHaveBeenCalled();
   });

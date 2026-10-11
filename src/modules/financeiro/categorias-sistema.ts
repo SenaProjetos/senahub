@@ -43,3 +43,12 @@ export async function acharCategoriaDoSistema(db: Achar, codigo: string): Promis
 export function mensagemCategoriaAusente(codigo: string): string {
   return `A categoria ${codigo} (${CHAVE_POR_CODIGO[codigo] ?? "do sistema"}) não está no plano de contas: restaure-a em Cadastros ou rode npm run db:seed.`;
 }
+
+/**
+ * Subcategoria do sistema pela CHAVE (R4 do rateio: Salários, FGTS, 13º, VT, VR, Bolsa); se o plano do
+ * usuário não a tiver (o código já estava ocupado quando a migração rodou), cai na categoria-mãe.
+ */
+export async function acharSubcategoriaDoSistema(db: Achar, chave: string, codigoDaMae: string): Promise<string | null> {
+  const sub = await db.categoriaFinanceira.findFirst({ where: { chave }, select: { id: true } });
+  return sub?.id ?? acharCategoriaDoSistema(db, codigoDaMae);
+}
