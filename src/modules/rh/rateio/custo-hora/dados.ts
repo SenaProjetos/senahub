@@ -6,7 +6,7 @@ import type { Contratacao } from "@/generated/prisma/enums";
 import { custoDoMes, type CustoMes } from "./encargos";
 import { parametrosEncargosSchema } from "./parametros";
 import {
-  anosCompletos, baseDoHoleriteCent, fracaoForaDeFerias, inicioDoTempoDeCasa, jornadaReferenciaMinutos, tabelaVigente,
+  anosCompletos, baseDoHoleriteCent, basesDoMes, inicioDoTempoDeCasa, jornadaReferenciaMinutos, tabelaVigente,
 } from "./distribuicao";
 
 export type CustoDaPessoaNoMes = {
@@ -95,48 +95,54 @@ export async function custosDoMes(ano: number, mes: number, userIds: string[]): 
       continue;
     }
 
-    const itensHolerite = contratacao === "pro_labore" ? undefined : holeritePorUser.get(userId);
-    const doHolerite = itensHolerite
+    const itensHolerite = holeritePorUser.get(userId);
+    const holeriteCent = itensHolerite
       ? baseDoHoleriteCent(itensHolerite.map((i) => ({ tipo: i.tipo, valorCent: cent(i.valor)!, descricao: i.descricao })))
-      : 0;
-    let baseCent: number | null = null;
-    let origemBase: CustoDaPessoaNoMes["origemBase"] = null;
-    if (doHolerite > 0) {
-      baseCent = doHolerite;
-      origemBase = "holerite";
-    } else if (historicoPorUser.has(userId)) {
-      baseCent = historicoPorUser.get(userId)!;
-      origemBase = "historico";
-    } else if (cent(vigente?.remuneracao) != null) {
-      baseCent = cent(vigente?.remuneracao)!;
-      origemBase = "vinculo";
-    }
-    if (baseCent == null || baseCent <= 0) {
-      out.set(userId, { ...base, tabelaPosterior: escolhida.posterior });
-      continue;
-    }
+      : null;
+    const doHistorico = historicoPorUser.get(userId) ?? null;
+    const contratualCent = doHistorico ?? cent(vigente?.remuneracao);
 
-    const diasFerias = new Set<string>();
-    for (const f of ferias.filter((x) => x.userId === userId)) {
-      const a = iso(f.inicio);
-      const b = iso(f.fim);
-      for (const d of diasUteis) if (d >= a && d <= b) diasFerias.add(d);
-    }
+    // Janela do vínculo dentro do mês: do início do tempo de casa (vínculos colados da mesma
+    // contratação) até o fim do vínculo vigente. Admissão e saída no meio do mês ficam proporcionais.
     const inicioCasa = inicioDoTempoDeCasa(
       doUser.map((v) => ({ contratacao: v.contratacao as Contratacao, dataInicio: v.ini, dataFim: v.fim })),
       contratacao,
       ultimoDia,
     );
+    const de = [primeiroDia, inicioCasa ?? vigente?.ini ?? primeiroDia].sort()[1];
+    const ate = vigente?.fim && vigente.fim < ultimoDia ? vigente.fim : ultimoDia;
+    const diasNoVinculo = diasUteis.filter((d) => d >= de && d <= ate);
+    const diasFerias = new Set<string>();
+    for (const f of ferias.filter((x) => x.userId === userId)) {
+      const a = iso(f.inicio);
+      const b = iso(f.fim);
+      for (const d of diasNoVinculo) if (d >= a && d <= b) diasFerias.add(d);
+    }
+
+    const bases = basesDoMes({
+      contratacao,
+      holeriteCent,
+      contratualCent,
+      diasUteisMes: diasUteis.length,
+      diasUteisNoVinculo: diasNoVinculo.length,
+      diasUteisDeFerias: diasFerias.size,
+    });
+    if (!bases) {
+      out.set(userId, { ...base, tabelaPosterior: escolhida.posterior });
+      continue;
+    }
 
     out.set(userId, {
       ...base,
-      origemBase,
+      origemBase: bases.origem === "holerite" ? "holerite" : doHistorico != null ? "historico" : "vinculo",
       tabelaPosterior: escolhida.posterior,
       custo: custoDoMes({
-        baseCent,
+        baseCent: bases.baseCent,
+        salarioReservasCent: bases.salarioReservasCent,
+        fracaoVinculo: bases.fracaoVinculo,
         parametros: parametros.data,
         anosCompletos: inicioCasa ? anosCompletos(inicioCasa, ultimoDia) : 0,
-        fracaoForaDeFerias: fracaoForaDeFerias(diasUteis.length, diasFerias.size),
+        fracaoForaDeFerias: bases.fracaoForaDeFerias,
         viaAgenteIntegracao: !!vigente?.agenteIntegracao,
       }),
     });

@@ -8,7 +8,12 @@ import type { ParametrosEncargos } from "./parametros";
 export type ItemCusto = { chave: string; rotulo: string; cent: number };
 
 export type EntradaCustoMes = {
+  /** Salário do mês (holerite, ou cadastro proporcional). FGTS e INSS da empresa incidem nele. */
   baseCent: number;
+  /** Base das reservas (13º, férias, aviso, recesso): salário contratual proporcional ao vínculo. Padrão: `baseCent`. */
+  salarioReservasCent?: number;
+  /** Dias úteis no vínculo ÷ dias úteis do mês (benefício não suspenso nas férias). Padrão: 1. */
+  fracaoVinculo?: number;
   parametros: ParametrosEncargos;
   /** Anos completos de casa no fim do mês (aviso prévio). */
   anosCompletos: number;
@@ -35,6 +40,8 @@ export function avisoPrevioMensalCent(baseCent: number, anosCompletos: number): 
 
 export function custoDoMes(e: EntradaCustoMes): CustoMes {
   const base = Math.max(0, Math.round(e.baseCent));
+  const reservas = Math.max(0, Math.round(e.salarioReservasCent ?? e.baseCent));
+  const fracaoVinculo = Math.min(1, Math.max(0, e.fracaoVinculo ?? 1));
   const itens: ItemCusto[] = [];
   const add = (chave: string, rotulo: string, cent: number) => {
     if (cent > 0) itens.push({ chave, rotulo, cent });
@@ -43,9 +50,9 @@ export function custoDoMes(e: EntradaCustoMes): CustoMes {
 
   if (p.tipo === "clt") {
     const fgts = pct(base, p.fgtsBp);
-    const decimo = p.reservaDecimoTerceiro ? Math.round(base / 12) : 0;
+    const decimo = p.reservaDecimoTerceiro ? Math.round(reservas / 12) : 0;
     // Férias + 1/3 por mês = (salário + salário/3) ÷ 12 = salário ÷ 9.
-    const ferias = p.reservaFerias ? Math.round(base / 9) : 0;
+    const ferias = p.reservaFerias ? Math.round(reservas / 9) : 0;
     const fgtsProvisoes = pct(decimo + ferias, p.fgtsBp);
     add("fgts", "FGTS", fgts);
     add("decimo_terceiro", "Reserva de 13º", decimo);
@@ -53,11 +60,11 @@ export function custoDoMes(e: EntradaCustoMes): CustoMes {
     add("fgts_provisoes", "FGTS sobre 13º e férias", fgtsProvisoes);
     add("multa_fgts", "Multa de 40% do FGTS", pct(fgts + fgtsProvisoes, p.multaFgtsBp));
     add("inss_empresa", "INSS da empresa", pct(base + decimo + ferias, p.inssEmpresaBp));
-    if (p.reservaAvisoPrevio) add("aviso_previo", "Reserva de aviso prévio", avisoPrevioMensalCent(base, e.anosCompletos));
+    if (p.reservaAvisoPrevio) add("aviso_previo", "Reserva de aviso prévio", avisoPrevioMensalCent(reservas, e.anosCompletos));
     const fracao = Math.min(1, Math.max(0, e.fracaoForaDeFerias));
-    p.beneficios.forEach((b, i) => add(`beneficio_${i}`, b.nome, Math.round(b.valorCent * (b.suspensoNasFerias ? fracao : 1))));
+    p.beneficios.forEach((b, i) => add(`beneficio_${i}`, b.nome, Math.round(b.valorCent * (b.suspensoNasFerias ? fracao : fracaoVinculo))));
   } else if (p.tipo === "estagio") {
-    if (p.reservaRecesso) add("recesso", "Reserva de recesso", Math.round(base / 12));
+    if (p.reservaRecesso) add("recesso", "Reserva de recesso", Math.round(reservas / 12));
     if (e.viaAgenteIntegracao) add("taxa_agente", "Taxa do agente de integração", p.taxaAgenteCent);
   } else {
     add("inss_empresa", "INSS da empresa", pct(base, p.inssEmpresaBp));

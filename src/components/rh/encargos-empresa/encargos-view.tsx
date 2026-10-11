@@ -46,7 +46,7 @@ export function EncargosEmpresaView({ versoes, estagiarios }: { versoes: Versao[
 
   function mudarAgente(e: Estagiario, valor: string) {
     start(async () => {
-      const r = await definirAgenteIntegracao({ vinculoId: e.vinculoId, agente: valor === "" ? null : valor });
+      const r = await definirAgenteIntegracao({ vinculoId: e.vinculoId, agente: valor === "IEL" ? "IEL" : null });
       if (!r.ok) toast.error(r.error);
       else router.refresh();
     });

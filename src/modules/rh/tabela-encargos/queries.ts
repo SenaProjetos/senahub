@@ -24,7 +24,7 @@ export async function listarTabelasEncargos() {
 /** Estagiários com vínculo ativo, para marcar quem é pelo agente de integração. */
 export async function listarEstagiariosAtivos() {
   const vs = await prisma.vinculo.findMany({
-    where: { contratacao: "estagio", dataFim: null },
+    where: { contratacao: "estagio", ativo: true },
     select: { id: true, agenteIntegracao: true, user: { select: { name: true } } },
     orderBy: { user: { name: "asc" } },
   });

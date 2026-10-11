@@ -158,7 +158,12 @@ export async function calcularRateioV2(ano: number, mes: number, agora: Date = n
     const c = custos.get(userId);
     const contratacao = c?.contratacao ?? null;
     const totalCent = c?.custo?.totalCent ?? 0;
-    const divisor = divisorMinutos({ contratacao, minutosMarcados: acc.total, jornadaReferenciaMin: c?.jornadaReferenciaMin ?? 0 });
+    const divisor = divisorMinutos({
+      contratacao,
+      minutosMarcados: acc.total,
+      jornadaReferenciaMin: c?.jornadaReferenciaMin ?? 0,
+      mesEncerrado: agora >= fim,
+    });
     const { porLinha, naoApontadoCent } = ratearCusto(totalCent, divisor, [...acc.linhas].map(([chave, l]) => ({ chave, minutos: l.minutos })));
     const naoAlocado = { minutos: 0, custoCent: naoApontadoCent };
     for (const [chave, l] of acc.linhas) {

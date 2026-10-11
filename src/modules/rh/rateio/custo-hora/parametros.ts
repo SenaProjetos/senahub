@@ -5,11 +5,19 @@
  */
 import { z } from "zod";
 
-const bp = z.number().int().min(0).max(10000);
+const MSG_PCT = "Percentual entre 0 e 100%.";
+const MSG_VALOR = "Valor em reais, de zero para cima.";
+const bp = z.number({ error: MSG_PCT }).int(MSG_PCT).min(0, MSG_PCT).max(10000, MSG_PCT);
+/** Centavos; o teto evita número que o formulário não escreveria (R$ 1 milhão por mês). */
+const centavos = z
+  .number({ error: MSG_VALOR })
+  .int(MSG_VALOR)
+  .min(0, MSG_VALOR)
+  .max(100_000_000, "Valor alto demais para um encargo mensal.");
 
 export const beneficioSchema = z.object({
-  nome: z.string().trim().min(1, "Dê um nome ao benefício."),
-  valorCent: z.number().int().nonnegative(),
+  nome: z.string().trim().min(1, "Dê um nome ao benefício.").max(60, "Nome do benefício com até 60 caracteres."),
+  valorCent: centavos,
   /** Não é pago nas férias: no mês com férias entra proporcional aos dias úteis fora delas. */
   suspensoNasFerias: z.boolean(),
 });
@@ -30,7 +38,7 @@ export const parametrosEstagioSchema = z.object({
   tipo: z.literal("estagio"),
   reservaRecesso: z.boolean(),
   /** Taxa mensal do agente de integração (IEL). Só vale para o vínculo com agente. */
-  taxaAgenteCent: z.number().int().nonnegative(),
+  taxaAgenteCent: centavos,
 });
 
 export const parametrosProLaboreSchema = z.object({

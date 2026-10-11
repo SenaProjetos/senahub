@@ -40,10 +40,17 @@ export function minutosNoIntervalo(inicio: Date, fim: Date | null, de: Date, ate
 /**
  * Por quantos minutos dividir o custo do mês. CLT e estágio: pelas horas marcadas (decisão 1).
  * Sócio: pela jornada de referência (decisão 6) — ou pelo apontado, se passou dela, para o custo
- * nos projetos nunca superar o pró-labore.
+ * nos projetos nunca superar o pró-labore. Com o mês ainda em curso, todo mundo divide pela
+ * jornada do mês inteiro: senão as poucas horas dos primeiros dias carregariam o custo do mês todo
+ * (estimativa da margem e do painel; o mês encerrado volta à regra das horas marcadas).
  */
-export function divisorMinutos(p: { contratacao: Contratacao | null; minutosMarcados: number; jornadaReferenciaMin: number }): number {
-  if (p.contratacao === "pro_labore") return Math.max(p.jornadaReferenciaMin, p.minutosMarcados);
+export function divisorMinutos(p: {
+  contratacao: Contratacao | null;
+  minutosMarcados: number;
+  jornadaReferenciaMin: number;
+  mesEncerrado?: boolean;
+}): number {
+  if (p.contratacao === "pro_labore" || p.mesEncerrado === false) return Math.max(p.jornadaReferenciaMin, p.minutosMarcados);
   return p.minutosMarcados;
 }
 
@@ -133,20 +140,65 @@ export function tabelaVigente<T extends { vigenciaEm: string }>(versoes: T[], pr
   return { versao: ord[0], posterior: true };
 }
 
-const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+/** Só as letras, sem acento: "Salário-Família", "SAL. FAMILIA" e "Sal.Família" viram a mesma coisa. */
+const soLetras = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, "");
+
+/** Rubricas que a empresa paga e recupera na guia do INSS — não são custo. */
+const REEMBOLSADAS_PELO_INSS = ["salariofamilia", "salfamilia", "salariomaternidade", "salmaternidade"];
 
 /**
- * Base do custo pelo holerite: soma dos proventos. Salário-família fica fora — a empresa paga e
- * desconta da guia do INSS, então não é custo.
+ * Base do custo pelo holerite: soma dos proventos. Salário-família e salário-maternidade ficam fora —
+ * a empresa paga e desconta da guia do INSS, então não são custo.
  */
 export function baseDoHoleriteCent(itens: { tipo: "provento" | "desconto"; valorCent: number; descricao: string }[]): number {
   return itens
     .filter((i) => i.tipo === "provento")
     .filter((i) => {
-      const d = semAcento(i.descricao);
-      return !d.includes("salario familia") && !d.includes("sal. familia");
+      const d = soLetras(i.descricao);
+      return !REEMBOLSADAS_PELO_INSS.some((r) => d.includes(r));
     })
     .reduce((s, i) => s + i.valorCent, 0);
+}
+
+/**
+ * Bases do custo de uma pessoa no mês (revisão final da R1):
+ * - salário do mês = holerite, quando a folha do mês tem holerite dela; sem holerite, o salário
+ *   contratual proporcional aos dias úteis no vínculo e fora de férias (mês inteiro de férias = 0:
+ *   as férias já foram reservadas nos outros meses);
+ * - reservas (13º, férias, aviso, recesso) = salário contratual proporcional aos dias no vínculo —
+ *   nunca o holerite do mês de férias, que só traz os dias trabalhados;
+ * - sócio: sempre o cadastro (decisão 6).
+ * `null` = nada para calcular (sem holerite e sem cadastro).
+ */
+export function basesDoMes(p: {
+  contratacao: Contratacao;
+  holeriteCent: number | null;
+  contratualCent: number | null;
+  diasUteisMes: number;
+  diasUteisNoVinculo: number;
+  diasUteisDeFerias: number;
+}): { baseCent: number; salarioReservasCent: number; fracaoVinculo: number; fracaoForaDeFerias: number; origem: "holerite" | "cadastro" } | null {
+  const total = Math.max(1, p.diasUteisMes);
+  const fracaoVinculo = Math.min(1, Math.max(0, p.diasUteisNoVinculo / total));
+  const fracaoForaDeFerias = Math.min(1, Math.max(0, (p.diasUteisNoVinculo - p.diasUteisDeFerias) / total));
+  const contratual = p.contratualCent != null && p.contratualCent > 0 ? p.contratualCent : null;
+  if (p.contratacao === "pro_labore") {
+    if (contratual == null) return null;
+    const base = Math.round(contratual * fracaoVinculo);
+    return { baseCent: base, salarioReservasCent: base, fracaoVinculo, fracaoForaDeFerias, origem: "cadastro" };
+  }
+  if (p.holeriteCent != null) {
+    const reservas = contratual != null ? Math.round(contratual * fracaoVinculo) : p.holeriteCent;
+    return { baseCent: p.holeriteCent, salarioReservasCent: reservas, fracaoVinculo, fracaoForaDeFerias, origem: "holerite" };
+  }
+  if (contratual == null) return null;
+  return {
+    baseCent: Math.round(contratual * fracaoForaDeFerias),
+    salarioReservasCent: Math.round(contratual * fracaoVinculo),
+    fracaoVinculo,
+    fracaoForaDeFerias,
+    origem: "cadastro",
+  };
 }
 
 /** Meses a partir do corte (`AAAA-MM`) usam o cálculo novo (decisão 8). */

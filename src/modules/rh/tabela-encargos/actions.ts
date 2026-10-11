@@ -20,7 +20,7 @@ export const criarVersaoEncargos = defineAction(
       contratacao: z.enum(["clt", "estagio", "pro_labore"]),
       vigencia: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Informe o mês de início."),
       parametros: parametrosEncargosSchema,
-      observacao: z.string().trim().max(500).optional(),
+      observacao: z.string().trim().max(500, "Observação com até 500 caracteres.").optional(),
     }),
   },
   async (i, { user }) => {
@@ -77,13 +77,14 @@ export const definirAgenteIntegracao = defineAction(
     acao: "definir-agente-integracao",
     gereRh: true,
     entidade: "Vinculo",
-    schema: z.object({ vinculoId: z.string().min(1), agente: z.string().trim().max(60).nullable() }),
+    // Só "IEL" ou contratação direta (null): a tela não oferece outro agente, e qualquer texto ligaria a taxa.
+    schema: z.object({ vinculoId: z.string().min(1), agente: z.enum(["IEL"], { error: "Agente desconhecido." }).nullable() }),
     entidadeId: (_d, i) => i.vinculoId,
     capturarAntes: async (i) => prisma.vinculo.findUnique({ where: { id: i.vinculoId }, select: { agenteIntegracao: true } }),
   },
   async (i) => {
     const r = await prisma.vinculo.updateMany({
-      where: { id: i.vinculoId, contratacao: "estagio", dataFim: null },
+      where: { id: i.vinculoId, contratacao: "estagio", ativo: true },
       data: { agenteIntegracao: i.agente || null },
     });
     if (r.count !== 1) throw new ActionError("Só dá para mudar o agente de um estágio ativo.");

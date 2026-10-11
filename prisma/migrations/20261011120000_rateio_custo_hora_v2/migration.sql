@@ -55,7 +55,7 @@ INSERT INTO "tabela_encargos" ("id", "contratacao", "vigenciaEm", "parametros", 
 
 -- Agente de integração do estágio: hoje todos os estagiários ativos são pelo IEL.
 ALTER TABLE "vinculo" ADD COLUMN "agenteIntegracao" TEXT;
-UPDATE "vinculo" SET "agenteIntegracao" = 'IEL' WHERE "contratacao" = 'estagio' AND "dataFim" IS NULL;
+UPDATE "vinculo" SET "agenteIntegracao" = 'IEL' WHERE "contratacao" = 'estagio' AND "ativo" = true;
 
 -- Corte do cálculo novo (decisão 8).
 INSERT INTO "config_sistema" ("chave", "valor", "updatedAt")

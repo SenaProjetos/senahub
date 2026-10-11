@@ -97,3 +97,39 @@ describe("parametrosEncargosSchema", () => {
     expect(resumoParametros({ tipo: "pro_labore", inssEmpresaBp: 0 })).toBe("INSS empresa 0%");
   });
 });
+
+describe("custoDoMes — reservas pelo salário contratual (revisão final)", () => {
+  it("mês inteiro de férias: sem salário, sem benefício, reservas continuam", () => {
+    const c = custoDoMes({ baseCent: 0, salarioReservasCent: 400000, parametros: CLT, anosCompletos: 0, fracaoForaDeFerias: 0, viaAgenteIntegracao: false });
+    expect(cent(c, "fgts")).toBe(0);
+    expect(cent(c, "decimo_terceiro")).toBe(33333);
+    expect(cent(c, "ferias")).toBe(44444);
+    expect(cent(c, "fgts_provisoes")).toBe(6222);
+    expect(cent(c, "multa_fgts")).toBe(2489);
+    expect(cent(c, "aviso_previo")).toBe(33333);
+    expect(c.totalCent).toBe(119821);
+  });
+
+  it("admitido no meio do mês: benefício não suspenso nas férias entra pela fração do vínculo", () => {
+    const p: ParametrosClt = { ...CLT, beneficios: [{ nome: "Plano", valorCent: 30000, suspensoNasFerias: false }] };
+    const c = custoDoMes({ baseCent: 200000, salarioReservasCent: 200000, parametros: p, anosCompletos: 0, fracaoForaDeFerias: 0.5, fracaoVinculo: 0.5, viaAgenteIntegracao: false });
+    expect(cent(c, "beneficio_0")).toBe(15000);
+  });
+});
+
+describe("parametrosEncargosSchema — mensagens em português (revisão final)", () => {
+  const msg = (v: unknown) => {
+    const r = parametrosEncargosSchema.safeParse(v);
+    return r.success ? null : r.error.issues[0]?.message;
+  };
+  it("percentual fora de 0–100%", () => expect(msg({ ...CLT, fgtsBp: 10001 })).toBe("Percentual entre 0 e 100%."));
+  it("valor negativo ou com fração de centavo", () => {
+    expect(msg({ ...CLT, beneficios: [{ nome: "VT", valorCent: -1, suspensoNasFerias: true }] })).toBe("Valor em reais, de zero para cima.");
+    expect(msg({ ...CLT, beneficios: [{ nome: "VT", valorCent: 1.5, suspensoNasFerias: true }] })).toBe("Valor em reais, de zero para cima.");
+  });
+  it("valor alto demais", () => expect(msg({ tipo: "estagio", reservaRecesso: true, taxaAgenteCent: 1e15 })).toBe("Valor alto demais para um encargo mensal."));
+  it("nome do benefício vazio ou longo", () => {
+    expect(msg({ ...CLT, beneficios: [{ nome: "  ", valorCent: 100, suspensoNasFerias: true }] })).toBe("Dê um nome ao benefício.");
+    expect(msg({ ...CLT, beneficios: [{ nome: "x".repeat(61), valorCent: 100, suspensoNasFerias: true }] })).toBe("Nome do benefício com até 60 caracteres.");
+  });
+});

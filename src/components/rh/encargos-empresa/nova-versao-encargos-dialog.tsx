@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMoeda } from "@/components/ui/input-moeda";
+import { InputPercentual } from "@/components/ui/input-percentual";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { criarVersaoEncargos } from "@/modules/rh/tabela-encargos/actions";
-import { lerCentavos, lerPontosBase } from "@/modules/rh/tabela-encargos/numeros";
 import type { ContratacaoComEncargos, ParametrosEncargos } from "@/modules/rh/rateio/custo-hora/parametros";
 
 const PADRAO: Record<ContratacaoComEncargos, ParametrosEncargos> = {
@@ -17,14 +18,17 @@ const PADRAO: Record<ContratacaoComEncargos, ParametrosEncargos> = {
   pro_labore: { tipo: "pro_labore", inssEmpresaBp: 0 },
 };
 
-const deBp = (n: number) => String(n / 100).replace(".", ",");
-const deCent = (n: number) => (n / 100).toFixed(2).replace(".", ",");
+/** Percentual (8 = 8%) e reais vêm dos campos como número; o banco guarda pontos-base e centavos. */
+const paraBp = (v: number) => Math.round(v * 100);
+const paraCent = (v: number) => Math.round(v * 100);
 
 function proximoMes() {
   const d = new Date();
   const m = d.getMonth() + 2;
   return m > 12 ? `${d.getFullYear() + 1}-01` : `${d.getFullYear()}-${String(m).padStart(2, "0")}`;
 }
+
+type Beneficio = { nome: string; valor: number | null; suspenso: boolean };
 
 export function NovaVersaoEncargosDialog({
   contratacao,
@@ -43,53 +47,44 @@ export function NovaVersaoEncargosDialog({
   const [vigencia, setVigencia] = useState(proximoMes());
   const [observacao, setObservacao] = useState("");
   const [f, setF] = useState(() => ({
-    fgts: p0.tipo === "clt" ? deBp(p0.fgtsBp) : "8",
-    multa: p0.tipo === "clt" ? deBp(p0.multaFgtsBp) : "40",
-    inss: p0.tipo === "clt" || p0.tipo === "pro_labore" ? deBp(p0.inssEmpresaBp) : "0",
+    fgts: (p0.tipo === "clt" ? p0.fgtsBp : 800) / 100 as number | null,
+    multa: (p0.tipo === "clt" ? p0.multaFgtsBp : 4000) / 100 as number | null,
+    inss: (p0.tipo === "clt" || p0.tipo === "pro_labore" ? p0.inssEmpresaBp : 0) / 100 as number | null,
     decimo: p0.tipo === "clt" ? p0.reservaDecimoTerceiro : true,
     ferias: p0.tipo === "clt" ? p0.reservaFerias : true,
     aviso: p0.tipo === "clt" ? p0.reservaAvisoPrevio : true,
-    beneficios: p0.tipo === "clt" ? p0.beneficios.map((b) => ({ nome: b.nome, valor: deCent(b.valorCent), suspenso: b.suspensoNasFerias })) : [],
+    beneficios: (p0.tipo === "clt" ? p0.beneficios.map((b) => ({ nome: b.nome, valor: b.valorCent / 100, suspenso: b.suspensoNasFerias })) : []) as Beneficio[],
     recesso: p0.tipo === "estagio" ? p0.reservaRecesso : true,
-    taxa: p0.tipo === "estagio" ? deCent(p0.taxaAgenteCent) : "0,00",
+    taxa: (p0.tipo === "estagio" ? p0.taxaAgenteCent : 0) / 100 as number | null,
   }));
 
-  /** Lê o formulário; devolve a frase do primeiro campo que não dá para ler. */
+  /** Lê o formulário; devolve a frase do primeiro campo vazio ou fora do limite. */
   function montar(): { parametros: ParametrosEncargos } | { erro: string } {
-    const pct = (texto: string, rotulo: string) => {
-      const v = lerPontosBase(texto);
-      return v === null ? { erro: `${rotulo}: digite um percentual entre 0 e 100.` } : { v };
-    };
-    const din = (texto: string, rotulo: string) => {
-      const v = lerCentavos(texto);
-      return v === null ? { erro: `${rotulo}: digite um valor em reais, como 200,00.` } : { v };
-    };
+    const pct = (v: number | null, rotulo: string) =>
+      v === null || v < 0 || v > 100 ? `${rotulo}: informe um percentual entre 0 e 100.` : null;
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(vigencia)) return { erro: "Informe o mês em que a versão começa a valer." };
     if (contratacao === "clt") {
-      const fgts = pct(f.fgts, "FGTS");
-      const multa = pct(f.multa, "Multa do FGTS");
-      const inss = pct(f.inss, "INSS da empresa");
-      for (const r of [fgts, multa, inss]) if ("erro" in r) return { erro: r.erro! };
-      const beneficios = [];
+      const e = pct(f.fgts, "FGTS") ?? pct(f.multa, "Multa do FGTS") ?? pct(f.inss, "INSS da empresa");
+      if (e) return { erro: e };
       for (const b of f.beneficios) {
-        const v = din(b.valor, b.nome.trim() || "Benefício");
-        if ("erro" in v) return { erro: v.erro! };
-        beneficios.push({ nome: b.nome, valorCent: v.v!, suspensoNasFerias: b.suspenso });
+        if (!b.nome.trim()) return { erro: "Dê um nome a cada benefício." };
+        if (b.valor === null) return { erro: `${b.nome.trim()}: informe o valor.` };
       }
       return {
         parametros: {
-          tipo: "clt", fgtsBp: fgts.v!, multaFgtsBp: multa.v!, inssEmpresaBp: inss.v!,
-          reservaDecimoTerceiro: f.decimo, reservaFerias: f.ferias, reservaAvisoPrevio: f.aviso, beneficios,
+          tipo: "clt", fgtsBp: paraBp(f.fgts!), multaFgtsBp: paraBp(f.multa!), inssEmpresaBp: paraBp(f.inss!),
+          reservaDecimoTerceiro: f.decimo, reservaFerias: f.ferias, reservaAvisoPrevio: f.aviso,
+          beneficios: f.beneficios.map((b) => ({ nome: b.nome.trim(), valorCent: paraCent(b.valor!), suspensoNasFerias: b.suspenso })),
         },
       };
     }
     if (contratacao === "estagio") {
-      const taxa = din(f.taxa, "Taxa do agente");
-      if ("erro" in taxa) return { erro: taxa.erro! };
-      return { parametros: { tipo: "estagio", reservaRecesso: f.recesso, taxaAgenteCent: taxa.v! } };
+      if (f.taxa === null) return { erro: "Taxa do agente: informe o valor (zero se não houver)." };
+      return { parametros: { tipo: "estagio", reservaRecesso: f.recesso, taxaAgenteCent: paraCent(f.taxa) } };
     }
-    const inss = pct(f.inss, "INSS da empresa");
-    if ("erro" in inss) return { erro: inss.erro! };
-    return { parametros: { tipo: "pro_labore", inssEmpresaBp: inss.v! } };
+    const e = pct(f.inss, "INSS da empresa");
+    if (e) return { erro: e };
+    return { parametros: { tipo: "pro_labore", inssEmpresaBp: paraBp(f.inss!) } };
   }
 
   function salvar() {
@@ -100,7 +95,7 @@ export function NovaVersaoEncargosDialog({
       return;
     }
     start(async () => {
-      const r = await criarVersaoEncargos({ contratacao, vigencia, parametros: lido.parametros, observacao: observacao || undefined });
+      const r = await criarVersaoEncargos({ contratacao, vigencia, parametros: lido.parametros, observacao: observacao.trim() || undefined });
       if (!r.ok) {
         setErro(r.error);
         return;
@@ -116,6 +111,8 @@ export function NovaVersaoEncargosDialog({
       <input id={id} type="checkbox" checked={valor} onChange={(e) => set(e.target.checked)} /> {label}
     </label>
   );
+  const mudarBeneficio = (i: number, parte: Partial<Beneficio>) =>
+    setF({ ...f, beneficios: f.beneficios.map((x, j) => (j === i ? { ...x, ...parte } : x)) });
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
@@ -130,13 +127,19 @@ export function NovaVersaoEncargosDialog({
           </div>
           {contratacao === "clt" && (
             <>
-              <div className="grid grid-cols-3 gap-2">
-                {/* campo-ok: percentual da tabela de encargos, não é documento nem contato */}
-                <div className="space-y-1"><Label htmlFor="fgts">FGTS (%)</Label><Input id="fgts" inputMode="decimal" value={f.fgts} onChange={(e) => setF({ ...f, fgts: e.target.value })} /></div>
-                {/* campo-ok: percentual da tabela de encargos */}
-                <div className="space-y-1"><Label htmlFor="multa">Multa do FGTS (%)</Label><Input id="multa" inputMode="decimal" value={f.multa} onChange={(e) => setF({ ...f, multa: e.target.value })} /></div>
-                {/* campo-ok: percentual da tabela de encargos */}
-                <div className="space-y-1"><Label htmlFor="inss">INSS da empresa (%)</Label><Input id="inss" inputMode="decimal" value={f.inss} onChange={(e) => setF({ ...f, inss: e.target.value })} /></div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div className="space-y-1">
+                  <Label htmlFor="fgts">FGTS</Label>
+                  <InputPercentual id="fgts" value={f.fgts} onChange={(v) => setF({ ...f, fgts: v })} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="multa">Multa do FGTS</Label>
+                  <InputPercentual id="multa" value={f.multa} onChange={(v) => setF({ ...f, multa: v })} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="inss">INSS da empresa</Label>
+                  <InputPercentual id="inss" value={f.inss} onChange={(v) => setF({ ...f, inss: v })} />
+                </div>
               </div>
               <p className="text-xs text-muted-foreground">INSS da empresa fica 0 nos Anexos III e V do Simples: ele já vem no DAS.</p>
               {check("decimo", "Reserva de 13º", f.decimo, (v) => setF({ ...f, decimo: v }))}
@@ -145,22 +148,26 @@ export function NovaVersaoEncargosDialog({
               <div className="space-y-2">
                 <p className="text-sm font-medium">Benefícios por mês</p>
                 {f.beneficios.map((b, i) => (
-                  <div key={i} className="flex flex-wrap items-end gap-2">
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <Label htmlFor={`b-nome-${i}`}>Nome</Label>
-                      <Input id={`b-nome-${i}`} value={b.nome} onChange={(e) => setF({ ...f, beneficios: f.beneficios.map((x, j) => (j === i ? { ...x, nome: e.target.value } : x)) })} />
+                  <div key={i} className="space-y-2 rounded-md border p-2">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_10rem]">
+                      <div className="space-y-1">
+                        <Label htmlFor={`b-nome-${i}`}>Nome</Label>
+                        <Input id={`b-nome-${i}`} maxLength={60} value={b.nome} onChange={(e) => mudarBeneficio(i, { nome: e.target.value })} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`b-valor-${i}`}>Valor</Label>
+                        <InputMoeda id={`b-valor-${i}`} value={b.valor} onChange={(v) => mudarBeneficio(i, { valor: v })} />
+                      </div>
                     </div>
-                    <div className="w-32 space-y-1">
-                      <Label htmlFor={`b-valor-${i}`}>Valor (R$)</Label>
-                      <Input id={`b-valor-${i}`} inputMode="decimal" value={b.valor} onChange={(e) => setF({ ...f, beneficios: f.beneficios.map((x, j) => (j === i ? { ...x, valor: e.target.value } : x)) })} />
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      {check(`b-susp-${i}`, "Não paga nas férias", b.suspenso, (v) => mudarBeneficio(i, { suspenso: v }))}
+                      <Button type="button" size="sm" variant="ghost" onClick={() => setF({ ...f, beneficios: f.beneficios.filter((_, j) => j !== i) })}>
+                        Remover
+                      </Button>
                     </div>
-                    {check(`b-susp-${i}`, "Não paga nas férias", b.suspenso, (v) => setF({ ...f, beneficios: f.beneficios.map((x, j) => (j === i ? { ...x, suspenso: v } : x)) }))}
-                    <Button type="button" size="sm" variant="ghost" onClick={() => setF({ ...f, beneficios: f.beneficios.filter((_, j) => j !== i) })}>
-                      Remover
-                    </Button>
                   </div>
                 ))}
-                <Button type="button" size="sm" variant="outline" onClick={() => setF({ ...f, beneficios: [...f.beneficios, { nome: "", valor: "0,00", suspenso: true }] })}>
+                <Button type="button" size="sm" variant="outline" onClick={() => setF({ ...f, beneficios: [...f.beneficios, { nome: "", valor: null, suspenso: true }] })}>
                   Adicionar benefício
                 </Button>
               </div>
@@ -170,20 +177,20 @@ export function NovaVersaoEncargosDialog({
             <>
               {check("recesso", "Reserva de recesso (1/12 da bolsa)", f.recesso, (v) => setF({ ...f, recesso: v }))}
               <div className="space-y-1">
-                <Label htmlFor="taxa">Taxa mensal do agente de integração (R$)</Label>
-                <Input id="taxa" inputMode="decimal" value={f.taxa} onChange={(e) => setF({ ...f, taxa: e.target.value })} />
+                <Label htmlFor="taxa">Taxa mensal do agente de integração</Label>
+                <InputMoeda id="taxa" value={f.taxa} onChange={(v) => setF({ ...f, taxa: v })} />
               </div>
             </>
           )}
           {contratacao === "pro_labore" && (
             <div className="space-y-1">
-              <Label htmlFor="inss-pl">INSS da empresa sobre o pró-labore (%)</Label>
-              <Input id="inss-pl" inputMode="decimal" value={f.inss} onChange={(e) => setF({ ...f, inss: e.target.value })} />
+              <Label htmlFor="inss-pl">INSS da empresa sobre o pró-labore</Label>
+              <InputPercentual id="inss-pl" value={f.inss} onChange={(v) => setF({ ...f, inss: v })} />
             </div>
           )}
           <div className="space-y-1">
             <Label htmlFor="obs">Observação</Label>
-            <Input id="obs" value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Ex.: reajuste do vale-refeição" />
+            <Input id="obs" maxLength={500} value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Ex.: reajuste do vale-refeição" />
           </div>
           {erro && <p className="text-sm text-destructive">{erro}</p>}
         </DialogBody>
