@@ -87,6 +87,12 @@ Atualizado em 10/10/2026. Todas as perguntas foram respondidas (rodadas 1 a 6); 
 23. **Plano do contador:** a equipe de projeto (projetistas) vai em Despesas com Pessoal **operacionais** (3.1.1). A equipe administrativa (RH, financeiro, TI etc.) vai em Despesas com Pessoal **administrativas** (3.1.2). A conta depende do setor da pessoa.
 24. **Exportação contábil:** nada da folha vai na exportação mensal para o contador: nem as guias, nem vale-transporte, vale-refeição, bolsa ou taxa do IEL. Ele já tem esses dados no sistema dele. As categorias acima ficam marcadas como "não exportar".
 
+### Respostas de 11/10/2026 (antes da execução de R2 a R5)
+
+25. **Papel do membro do projeto** vira lista fixa: Coordenador, Projetista, Apoio, Estagiário, Consultor externo.
+26. **Ver custo** (custo das horas, por pessoa ou por projeto) começa só com **admin e sócios**. Coordenação vê horas, não custo, até nova decisão.
+27. **Troca de contratação no meio do mês** (ex.: estágio → CLT): o custo do mês é dividido pelos dias úteis de cada vínculo — salário/bolsa e reservas proporcionais a cada um; o holerite do mês, quando existe, fica com o vínculo vigente no fim do mês.
+
 ---
 
 # Histórico
