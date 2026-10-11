@@ -477,16 +477,6 @@ export async function nomesUsuarios(ids: string[]) {
   return prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
 }
 
-/** Papéis já usados em equipes de outros projetos — sugestões p/ o autocomplete do "Papel". */
-export async function papeisUsados(): Promise<string[]> {
-  const rows = await prisma.projetoMembro.findMany({
-    where: { papel: { not: null } },
-    select: { papel: true },
-    distinct: ["papel"],
-  });
-  return rows.map((r) => r.papel!).filter(Boolean).sort();
-}
-
 /**
  * Margem econômica do projeto (vida inteira):
  * receitas confirmadas − despesas diretas confirmadas − custo de horas rateado.

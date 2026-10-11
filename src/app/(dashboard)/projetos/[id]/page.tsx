@@ -5,13 +5,13 @@ import { can, podeVerFinanceiro } from "@/lib/permissions";
 import {
   margemProjeto,
   obterProjeto,
-  papeisUsados,
   timelineStatusProjeto,
   usuariosInternos,
 } from "@/modules/projetos/queries";
 import { visaoGeralProjeto } from "@/modules/projetos/visao-geral";
 import { acessosDoProjeto, viewerDe } from "@/modules/acessos/queries";
 import { registrosDiariosProjeto, sessaoAberta } from "@/modules/ponto/queries";
+import { horasPorDisciplina } from "@/modules/projetos/horas-disciplina-queries";
 import { ProjetoVisaoGeral } from "@/components/projetos/projeto-visao-geral";
 import { getPreferencias } from "@/modules/usuarios/preferencias/queries";
 import { chaveLayoutPainelProjeto } from "@/modules/projetos/painel-layout";
@@ -38,10 +38,9 @@ export default async function ProjetoDetalhePage({
   const podeVerTarefas = user.tipo === "interno";
   const podeVerRegistrosDaEquipe = user.gereRh;
 
-  const [margem, internos, papeisSugeridos, eventos, dados, sessaoAtiva, registrosPontoEquipe, preferencias, acessos] = await Promise.all([
+  const [margem, internos, eventos, dados, sessaoAtiva, registrosPontoEquipe, preferencias, acessos, horasDisciplina] = await Promise.all([
     verFinanceiro ? margemProjeto(projeto.id) : Promise.resolve(null),
     podeGerir ? usuariosInternos() : Promise.resolve([]),
-    podeGerir ? papeisUsados() : Promise.resolve([]),
     timelineStatusProjeto(projeto.id),
     visaoGeralProjeto(projeto.id, user, {
       incluirApontamentosPrancha: podeVerApontamentos,
@@ -54,6 +53,8 @@ export default async function ProjetoDetalhePage({
     // §39 — só consulta para quem tem a tela de Acessos; a lista ainda passa pelo escopo do
     // COFRE, então ter a permissão não revela credencial que não seja sua.
     podeVerAcessos ? acessosDoProjeto(viewerDe(user), projeto.id) : Promise.resolve([]),
+    // R5: o servidor já filtra por quem pede (coordenador vê por pessoa; reais só com permissão de custo).
+    user.tipo === "interno" ? horasPorDisciplina(user, projeto.id) : Promise.resolve(null),
   ]);
 
   return (
@@ -66,7 +67,6 @@ export default async function ProjetoDetalhePage({
       podeVerPlanejamento={podeVerPlanejamento}
       podeVerPendencias={podeVerApontamentos}
       internos={internos}
-      papeisSugeridos={papeisSugeridos}
       user={user}
       sessaoAtiva={sessaoAtiva}
       podeVerRegistrosPontoEquipe={podeVerRegistrosDaEquipe}
@@ -74,6 +74,7 @@ export default async function ProjetoDetalhePage({
       margem={margem}
       layoutSalvo={preferencias[chaveLayoutPainelProjeto(projeto.id)]}
       acessos={acessos}
+      horasDisciplina={horasDisciplina}
     />
   );
 }

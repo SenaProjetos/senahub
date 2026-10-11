@@ -18,6 +18,7 @@ export const PAINEIS_PROJETO = [
   "financeiro",
   "ponto",
   "acessos",
+  "horas",
 ] as const;
 
 export type PainelProjetoId = (typeof PAINEIS_PROJETO)[number];
@@ -60,6 +61,7 @@ const LIMITES_POR_PAINEL: Record<PainelProjetoId, Limites> = {
   financeiro: { w: 12, h: 9, minW: 6, maxW: 24, minH: 7, maxH: 18 },
   ponto: { w: 8, h: 8, minW: 8, maxW: 24, minH: 7, maxH: 16 },
   acessos: { w: 12, h: 6, minW: 6, maxW: 24, minH: 5, maxH: 16 },
+  horas: { w: 12, h: 9, minW: 8, maxW: 24, minH: 6, maxH: 20 },
 };
 
 const POSICOES_PADRAO: Record<PainelProjetoId, Pick<ItemLayoutPainelProjeto, "x" | "y">> = {
@@ -80,6 +82,8 @@ const POSICOES_PADRAO: Record<PainelProjetoId, Pick<ItemLayoutPainelProjeto, "x"
   // Abaixo de tudo (2026-09-29): a grade não compacta, e um painel novo que caísse em cima de um
   // layout salvo faria `normalizarLayoutPainelProjeto` descartar a personalização inteira.
   acessos: { x: 0, y: 40 },
+  // Também abaixo de tudo, ao lado de Acessos: mesmo motivo.
+  horas: { x: 12, y: 40 },
 };
 
 function inteiro(valor: unknown, fallback: number) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { PAPEIS_PROJETO, type PapelProjeto } from "@/modules/projetos/papeis";
+import { PAPEIS_PROJETO, ROTULO_PAPEL, type PapelProjeto } from "@/modules/projetos/papeis";
 import type { Contratacao } from "@/generated/prisma/enums";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -18,21 +18,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Interno = { id: string; name: string; contratacao: Contratacao | null; cargo: string | null };
+/** `papel` vazio = "Sem papel". */
 type MembroLocal = { userId: string; papel: string };
+const SEM_PAPEL = "__sem_papel";
 
 export function EquipeManager({
   projetoId,
   internos,
-  papeisSugeridos,
   membrosAtuais,
   compacto = false,
 }: {
   projetoId: string;
   internos: Interno[];
-  papeisSugeridos: string[];
   membrosAtuais: { userId: string; papel: string | null }[];
   compacto?: boolean;
 }) {
@@ -42,13 +43,9 @@ export function EquipeManager({
   const [membros, setMembros] = useState<MembroLocal[]>([]);
   const [busca, setBusca] = useState("");
 
-  // Sugestões do datalist: cargos cadastrados dos internos + papéis já usados em outros projetos.
-  const sugestoesPapel = Array.from(
-    new Set([...internos.map((u) => u.cargo).filter((c): c is string => !!c), ...papeisSugeridos]),
-  ).sort((a, b) => a.localeCompare(b));
-
   function abrir() {
-    setMembros(membrosAtuais.map((m) => ({ userId: m.userId, papel: m.papel ?? "" })));
+    // Papel fora da lista fixa (dado antigo) aparece como "Sem papel" e é regravado como tal ao salvar.
+    setMembros(membrosAtuais.map((m) => ({ userId: m.userId, papel: m.papel && (PAPEIS_PROJETO as readonly string[]).includes(m.papel) ? m.papel : "" })));
     setBusca("");
     setOpen(true);
   }
@@ -56,9 +53,7 @@ export function EquipeManager({
   function toggle(userId: string) {
     setMembros((prev) => {
       if (prev.some((m) => m.userId === userId)) return prev.filter((m) => m.userId !== userId);
-      // Pré-preenche com o cargo cadastrado do usuário; segue editável (lista + texto livre).
-      const cargo = internos.find((u) => u.id === userId)?.cargo ?? "";
-      return [...prev, { userId, papel: cargo }];
+      return [...prev, { userId, papel: "" }];
     });
   }
 
@@ -151,14 +146,20 @@ export function EquipeManager({
                     return (
                       <div key={m.userId} className="flex items-center gap-2 p-2">
                         <span className="min-w-0 flex-1 truncate text-sm font-medium">{u?.name ?? m.userId}</span>
-                        <Input
-                          value={m.papel}
-                          onChange={(e) => setPapel(m.userId, e.target.value)}
-                          placeholder="Papel (ex.: BIM Manager)"
-                          className="h-7 w-40 text-xs"
-                          list="papeis-equipe"
-                        />
-                        <button type="button" onClick={() => toggle(m.userId)} className="text-muted-foreground hover:text-destructive">
+                        <Select value={m.papel || SEM_PAPEL} onValueChange={(v) => setPapel(m.userId, !v || v === SEM_PAPEL ? "" : v)}>
+                          <SelectTrigger size="sm" className="w-44" aria-label={`Papel de ${u?.name ?? "membro"}`}>
+                            <SelectValue placeholder="Papel" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={SEM_PAPEL}>Sem papel</SelectItem>
+                            {PAPEIS_PROJETO.map((p) => (
+                              <SelectItem key={p} value={p}>
+                                {ROTULO_PAPEL[p]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <button type="button" onClick={() => toggle(m.userId)} aria-label={`Remover ${u?.name ?? "membro"} da equipe`} className="text-muted-foreground hover:text-destructive">
                           <X className="size-3.5" />
                         </button>
                       </div>
@@ -166,11 +167,6 @@ export function EquipeManager({
                   })}
                 </div>
               )}
-              <datalist id="papeis-equipe">
-                {sugestoesPapel.map((p) => (
-                  <option key={p} value={p} />
-                ))}
-              </datalist>
             </div>
           )}
 
