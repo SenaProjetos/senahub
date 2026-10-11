@@ -304,7 +304,7 @@ export function RegistroPonto({
         </div>
 
         {/* Seletor de projeto — para anexar à próxima entrada / volta de descanso, ou trocar durante o trabalho. */}
-        <div className="flex flex-wrap items-center justify-center gap-2">
+        <div className="flex flex-wrap items-start justify-center gap-2">
           <SeletorAlocacao
             value={alocacao}
             projetos={projetos}
