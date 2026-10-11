@@ -6,6 +6,7 @@ import {
   alocacoesDistintas,
   normalizarAlocacaoPonto,
   selecaoDaAlocacaoPonto,
+  selecaoEhProjeto,
   tarefaDoDestino,
 } from "./alocacao";
 
@@ -105,5 +106,22 @@ describe("tarefa do destino no card do celular", () => {
   it("reunião e sem projeto nunca têm tarefa", () => {
     expect(tarefaDoDestino({ ...base, destino: ALOCACAO_REUNIAO_INTERNA, selecaoCorrente: ALOCACAO_REUNIAO_INTERNA })).toBe("");
     expect(tarefaDoDestino({ ...base, destino: ALOCACAO_SEM_PROJETO, escolhida: "t5" })).toBe("");
+  });
+});
+
+describe("reunião ligada a projeto (decisão 10)", () => {
+  it("codifica e decodifica o projeto da reunião", () => {
+    expect(normalizarAlocacaoPonto("__reuniao_externa:p1")).toEqual({ projetoId: "p1", tipoAlocacao: "reuniao_externa" });
+    expect(normalizarAlocacaoPonto("__reuniao_interna:p2")).toEqual({ projetoId: "p2", tipoAlocacao: "reuniao_interna" });
+    expect(selecaoDaAlocacaoPonto("p1", "reuniao_externa")).toBe("__reuniao_externa:p1");
+    expect(selecaoDaAlocacaoPonto("p2", "reuniao_interna")).toBe("__reuniao_interna:p2");
+    expect(selecaoDaAlocacaoPonto(null, "reuniao_interna")).toBe("__reuniao_interna");
+  });
+  it("reunião com projeto não é 'projeto' para a escolha de tarefa", () => {
+    expect(selecaoEhProjeto("__reuniao_externa:p1")).toBe(false);
+    expect(selecaoEhProjeto("p1")).toBe(true);
+  });
+  it("sufixo vazio ou prefixo desconhecido não vira projeto", () => {
+    expect(normalizarAlocacaoPonto("__reuniao_externa:")).toEqual({ projetoId: null, tipoAlocacao: "reuniao_externa" });
   });
 });

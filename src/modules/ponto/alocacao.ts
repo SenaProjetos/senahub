@@ -23,6 +23,14 @@ export function normalizarAlocacaoPonto(selecao?: string | null): {
   projetoId: string | null;
   tipoAlocacao: TipoAlocacaoPonto;
 } {
+  // Reunião ligada a projeto (decisão 10 do rateio): "__reuniao_externa:<projetoId>".
+  const dois = selecao?.indexOf(":") ?? -1;
+  if (selecao && dois > 0) {
+    const base = selecao.slice(0, dois);
+    const projeto = selecao.slice(dois + 1);
+    if (base === ALOCACAO_REUNIAO_INTERNA) return { projetoId: projeto || null, tipoAlocacao: "reuniao_interna" };
+    if (base === ALOCACAO_REUNIAO_EXTERNA) return { projetoId: projeto || null, tipoAlocacao: "reuniao_externa" };
+  }
   switch (selecao) {
     case ALOCACAO_REUNIAO_INTERNA:
       return { projetoId: null, tipoAlocacao: "reuniao_interna" };
@@ -48,6 +56,8 @@ export function selecaoDaAlocacaoPonto(
   projetoId: string | null,
   tipoAlocacao: TipoAlocacaoPonto,
 ): string {
+  if (projetoId && tipoAlocacao === "reuniao_interna") return `${ALOCACAO_REUNIAO_INTERNA}:${projetoId}`;
+  if (projetoId && tipoAlocacao === "reuniao_externa") return `${ALOCACAO_REUNIAO_EXTERNA}:${projetoId}`;
   if (projetoId) return projetoId;
   switch (tipoAlocacao) {
     case "reuniao_interna":
