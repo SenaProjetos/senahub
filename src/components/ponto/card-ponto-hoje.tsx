@@ -16,8 +16,10 @@ import {
   ALOCACAO_REUNIAO_EXTERNA,
   ALOCACAO_REUNIAO_INTERNA,
   ALOCACAO_SEM_PROJETO,
+  reuniaoDaSelecao,
   selecaoEhProjeto,
   tarefaDoDestino,
+  tarefaObrigatoria,
   type AlocacaoRecente,
   type ProjetoAlocacao,
 } from "@/modules/ponto/alocacao";
@@ -25,6 +27,7 @@ import { formatarCodigo } from "@/modules/projetos/numbering";
 import { useBatida, avisarPontoAtualizado, EVENTO_PONTO } from "@/components/ponto/use-batida";
 import { useJornada } from "@/components/ponto/use-jornada";
 import { rotuloTarefaPonto, useTarefasDoPonto } from "@/components/ponto/seletor-tarefa";
+import { MSG_TAREFA_OBRIGATORIA } from "@/modules/ponto/disciplina-sessao";
 import { BOTAO, COR_ESTADO, ESTADO_LABEL } from "@/components/ponto/batida-meta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,8 +79,9 @@ function useEhCelular(): boolean {
  * Tarefa (F6, lote 9): quando o destino é um projeto com tarefa aberta da pessoa, uma linha
  * "Tarefa · opcional" logo abaixo abre a gaveta das tarefas — as mesmas do seletor do computador
  * (`useTarefasDoPonto`). Rodando, trocar de tarefa grava na hora (`trocarProjeto` no mesmo projeto);
- * parado, a escolhida vai junto na entrada/volta do descanso. Nunca é obrigatória nem entra no
- * caminho da troca de projeto em um toque (Q20).
+ * parado, a escolhida vai junto na entrada/volta do descanso. Só é obrigatória para quem responde por
+ * 2+ disciplinas no projeto (R2 do rateio); fora isso nunca entra no caminho da troca de projeto em
+ * um toque (Q20).
  */
 export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina?: boolean } = {}) {
   const ehCelular = useEhCelular();
@@ -112,6 +116,13 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
     window.addEventListener(EVENTO_PONTO, aoAtualizar);
     return () => window.removeEventListener(EVENTO_PONTO, aoAtualizar);
   }, [ehCelular, carregarRecentes]);
+
+  // Os projetos carregam já no celular (e não só ao abrir a gaveta): é deles que vem
+  // `disciplinasDaPessoa`, que decide se a tarefa é obrigatória para o destino.
+  useEffect(() => {
+    if (!ehCelular || projetos !== null) return;
+    buscarProjetosPonto().then(setProjetos).catch(() => setProjetos([]));
+  }, [ehCelular, projetos]);
 
   // Com a jornada rodando, a escolha local não vale mais: o que manda é a sessão aberta.
   useEffect(() => {
@@ -174,6 +185,13 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
 
   const rotulo = (selecao: string) => {
     if (ROTULO_ESPECIAL[selecao]) return { titulo: ROTULO_ESPECIAL[selecao], codigo: null as string | null };
+    // Reunião ligada a projeto (R2): "Reunião externa · Nome", com o código do projeto na frente.
+    const reuniao = reuniaoDaSelecao(selecao);
+    if (reuniao) {
+      const proj = conhecidos.get(reuniao.projetoId);
+      const nome = ROTULO_ESPECIAL[reuniao.base];
+      return proj ? { titulo: `${nome} · ${proj.nome}`, codigo: formatarCodigo(proj.codigo) } : { titulo: nome, codigo: null as string | null };
+    }
     const p = conhecidos.get(selecao);
     return p ? { titulo: p.nome, codigo: formatarCodigo(p.codigo) } : { titulo: "Projeto", codigo: null };
   };
@@ -181,6 +199,9 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
   const atual = rotulo(alvo);
   // A linha da tarefa só existe quando há o que escolher (mesma regra do seletor do computador).
   const mostrarTarefa = tarefas !== null && tarefas.length > 0;
+  // Parado, com 2+ disciplinas no projeto de destino: sem tarefa não abre a sessão (o servidor recusa igual).
+  const exigeTarefa = tarefaObrigatoria(alvo, projetos ?? []);
+  const faltaTarefa = !rodando && exigeTarefa && !tarefaId;
   const escolhidaNaLista = tarefaId ? tarefas?.find((t) => t.id === tarefaId) : undefined;
   const tituloTarefa = escolhidaNaLista ? rotuloTarefaPonto(escolhidaNaLista) : null;
   const desde = ehPonto ? resumo.sessaoDesde : resumo.aberto?.inicio ?? null;
@@ -308,15 +329,17 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
             <ListChecks className="size-4 shrink-0 text-muted-foreground" aria-hidden />
             <span className="min-w-0 flex-1">
               <span className="block font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                Tarefa · opcional
+                {exigeTarefa ? "Tarefa · obrigatória" : "Tarefa · opcional"}
               </span>
               <span className={cn("block truncate text-[15px]", !tituloTarefa && "text-muted-foreground")}>
-                {tituloTarefa ?? "Sem tarefa"}
+                {tituloTarefa ?? (exigeTarefa ? "Escolha a tarefa" : "Sem tarefa")}
               </span>
             </span>
             <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
           </button>
         )}
+
+        {faltaTarefa && <p className="border-t border-border/60 bg-muted/60 px-3 py-1.5 text-xs text-warning">{MSG_TAREFA_OBRIGATORIA}</p>}
 
         {atalhos.length > 0 && (
           <p className="border-t px-3 pb-1 pt-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
@@ -362,7 +385,7 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
               <Button
                 key={tipo}
                 variant={b.variant}
-                disabled={ocupado}
+                disabled={ocupado || (abreSessao && faltaTarefa)}
                 className={cn("h-12 text-base", principal && "col-span-2")}
                 onClick={() =>
                   void (tipo === "saida"
@@ -380,7 +403,7 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
           </Button>
         ) : (
           <Button
-            disabled={ocupado}
+            disabled={ocupado || faltaTarefa}
             className="col-span-2 h-12 text-base"
             onClick={() =>
               void apontar(() => abrirApontamentoAction({ projetoId: alvo, tarefaId }), "Apontamento iniciado.")

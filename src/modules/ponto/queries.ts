@@ -433,9 +433,13 @@ export async function registrosDiariosProjeto(projetoId: string): Promise<Regist
   return agruparRegistrosDiariosProjeto(sessoes, agora);
 }
 
-/** Projetos em que o usuário participa (para o seletor do ponto). */
+/**
+ * Projetos em que o usuário participa (para o seletor do ponto). `disciplinasDaPessoa` = quantas
+ * disciplinas do projeto ele responde hoje: com 2 ou mais, marcar horas exige escolher a tarefa
+ * (R2 do rateio) — a tela usa o número para pedir a tarefa antes de o servidor recusar.
+ */
 export async function projetosDoUsuario(userId: string) {
-  return prisma.projeto.findMany({
+  const projetos = await prisma.projeto.findMany({
     where: {
       situacao: "em_andamento",
       OR: [
@@ -447,9 +451,15 @@ export async function projetosDoUsuario(userId: string) {
         { tarefas: { some: { arquivada: false, status: { concluido: false }, responsaveis: { some: { userId } } } } },
       ],
     },
-    select: { id: true, codigo: true, nome: true },
+    select: {
+      id: true,
+      codigo: true,
+      nome: true,
+      _count: { select: { disciplinas: { where: { responsaveis: { some: { userId } } } } } },
+    },
     orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
   });
+  return projetos.map(({ _count, ...p }) => ({ ...p, disciplinasDaPessoa: _count.disciplinas }));
 }
 
 

@@ -18,17 +18,18 @@ import {
 import { darCienciaAjuste, contestarAjuste } from "@/modules/ponto/actions";
 import { type TipoBatida } from "@/lib/ponto-offline";
 import { useBatida, useCronometro } from "@/components/ponto/use-batida";
+import { SeletorAlocacao } from "@/components/ponto/seletor-alocacao";
 import { SeletorTarefa } from "@/components/ponto/seletor-tarefa";
 import { ESTADO_LABEL, TIPO_LABEL, BOTAO, COR_ESTADO } from "@/components/ponto/batida-meta";
 import { transicoesPermitidas, type EstadoJornada } from "@/modules/ponto/engine";
 import { fmtHoras } from "@/modules/ponto/format";
 import {
-  ALOCACAO_REUNIAO_EXTERNA,
-  ALOCACAO_REUNIAO_INTERNA,
   ALOCACAO_SEM_PROJETO,
-  rotuloAlocacaoSemProjeto,
+  rotuloDaSessao,
   selecaoDaAlocacaoPonto,
   selecaoEhProjeto,
+  tarefaObrigatoria,
+  type ProjetoAlocacao,
   type TipoAlocacaoPonto,
 } from "@/modules/ponto/alocacao";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -48,13 +49,6 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 type Projeto = { id: string; codigo: string; nome: string };
 type LinhaTimeline = {
@@ -250,7 +244,7 @@ export function RegistroPonto({
   /** Parado e sem alocação: começa no projeto e na atividade de hoje (`sugestaoParaPonto`). */
   sugestao?: SugestaoDoPonto | null;
   estadoDia: EstadoDiaProp;
-  projetos: Projeto[];
+  projetos: ProjetoAlocacao[];
   pendencias: AjustePendenteProp[];
   /** Disciplinas em que o usuário pode escrever no diário, por projeto — projeto sem nenhuma não entra aqui (atalho some). */
   diarioPorProjeto: Record<string, DisciplinaEscrevivel[]>;
@@ -263,6 +257,9 @@ export function RegistroPonto({
   const [tarefa, setTarefa] = useState(usaSugestao ? sugestao!.tarefa.id : (estadoDia.tarefaAtiva?.id ?? ""));
   const { bater, trocar, busy, pendentes, sincronizarFila } = useBatida();
   const projetoEscolhidoId = selecaoEhProjeto(alocacao) ? alocacao : null;
+  // Quem responde por 2+ disciplinas no projeto precisa escolher a tarefa (o servidor recusa igual).
+  const exigeTarefa = tarefaObrigatoria(alocacao, projetos);
+  const faltaTarefa = exigeTarefa && !tarefa;
 
   const trabalhadoMs = useCronometro(
     estadoDia.trabalhadoMin,
@@ -294,14 +291,9 @@ export function RegistroPonto({
           <div className="flex items-center gap-2 text-sm">
             <span className={`size-2 rounded-full ${COR_ESTADO[estadoDia.estado]}`} aria-hidden />
             <span className="text-muted-foreground">{ESTADO_LABEL[estadoDia.estado]}</span>
-            {estadoDia.projetoAtivo && estadoDia.estado === "trabalhando" && (
+            {estadoDia.estado === "trabalhando" && (estadoDia.projetoAtivo || estadoDia.tipoAlocacaoAtiva) && (
               <span className="text-muted-foreground">
-                · {formatarCodigo(estadoDia.projetoAtivo.codigo)} {estadoDia.projetoAtivo.nome}
-              </span>
-            )}
-            {!estadoDia.projetoAtivo && estadoDia.estado === "trabalhando" && estadoDia.tipoAlocacaoAtiva && (
-              <span className="text-muted-foreground">
-                · {rotuloAlocacaoSemProjeto(estadoDia.tipoAlocacaoAtiva)}
+                · {rotuloDaSessao(estadoDia.tipoAlocacaoAtiva ?? "projeto", estadoDia.projetoAtivo ? `${formatarCodigo(estadoDia.projetoAtivo.codigo)} ${estadoDia.projetoAtivo.nome}` : null)}
               </span>
             )}
           </div>
@@ -313,27 +305,15 @@ export function RegistroPonto({
 
         {/* Seletor de projeto — para anexar à próxima entrada / volta de descanso, ou trocar durante o trabalho. */}
         <div className="flex flex-wrap items-center justify-center gap-2">
-          <Select
+          <SeletorAlocacao
             value={alocacao}
-            onValueChange={(v) => {
-              setAlocacao(v ?? ALOCACAO_SEM_PROJETO);
+            projetos={projetos}
+            triggerClassName="w-64"
+            onChange={(v) => {
+              setAlocacao(v);
               setTarefa(v === estadoDia.projetoAtivo?.id ? (estadoDia.tarefaAtiva?.id ?? "") : "");
             }}
-          >
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Alocação da jornada…" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALOCACAO_SEM_PROJETO}>Sem projeto</SelectItem>
-              <SelectItem value={ALOCACAO_REUNIAO_INTERNA}>Reunião interna</SelectItem>
-              <SelectItem value={ALOCACAO_REUNIAO_EXTERNA}>Reunião externa</SelectItem>
-              {projetos.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {formatarCodigo(p.codigo)} · {p.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          />
           {projetoEscolhidoId && (
             <div className="w-64">
               <SeletorTarefa
@@ -342,11 +322,12 @@ export function RegistroPonto({
                 onChange={setTarefa}
                 tarefaAtual={estadoDia.projetoAtivo?.id === projetoEscolhidoId ? estadoDia.tarefaAtiva : null}
                 disabled={busy}
+                obrigatoria={exigeTarefa}
               />
             </div>
           )}
           {estadoDia.estado === "trabalhando" && (
-            <Button variant="outline" disabled={busy} onClick={() => void trocar(alocacao, tarefa || undefined)}>
+            <Button variant="outline" disabled={busy || faltaTarefa} onClick={() => void trocar(alocacao, tarefa || undefined)}>
               <Repeat className="size-4" /> Trocar alocação
             </Button>
           )}
@@ -361,7 +342,7 @@ export function RegistroPonto({
               <Button
                 key={tipo}
                 variant={b.variant}
-                disabled={busy}
+                disabled={busy || ((tipo === "entrada" || tipo === "fim_descanso") && faltaTarefa)}
                 // Só entrada e volta do descanso abrem sessão — as outras ignoram a tarefa.
                 onClick={() => void bater(tipo, alocacao, tipo === "entrada" || tipo === "fim_descanso" ? tarefa || undefined : undefined)}
               >
@@ -414,9 +395,7 @@ export function RegistroPonto({
                         {abertura && (
                           <span className="truncate text-foreground">
                             ·{" "}
-                            {item.projeto
-                              ? `${formatarCodigo(item.projeto.codigo)} ${item.projeto.nome}`
-                              : rotuloAlocacaoSemProjeto(item.tipoAlocacao)}
+                            {rotuloDaSessao(item.tipoAlocacao, item.projeto ? `${formatarCodigo(item.projeto.codigo)} ${item.projeto.nome}` : null)}
                           </span>
                         )}
                         {abertura && item.projetoId && diarioPorProjeto[item.projetoId] && (

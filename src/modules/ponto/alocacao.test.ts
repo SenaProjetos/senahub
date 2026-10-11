@@ -5,9 +5,13 @@ import {
   ALOCACAO_SEM_PROJETO,
   alocacoesDistintas,
   normalizarAlocacaoPonto,
+  reuniaoDaSelecao,
+  rotuloDaSessao,
   selecaoDaAlocacaoPonto,
+  selecaoDeReuniao,
   selecaoEhProjeto,
   tarefaDoDestino,
+  tarefaObrigatoria,
 } from "./alocacao";
 
 describe("alocação de ponto", () => {
@@ -59,6 +63,21 @@ describe("alocações recentes", () => {
       5,
     );
     expect(r).toEqual([{ selecao: ALOCACAO_REUNIAO_EXTERNA, tipoAlocacao: "reuniao_externa", projeto: null }]);
+  });
+
+  it("reunião ligada a projeto é outra alocação e guarda o projeto para o rótulo", () => {
+    const r = alocacoesDistintas(
+      [
+        { tipoAlocacao: "reuniao_externa", projeto: vila },
+        { tipoAlocacao: "reuniao_externa", projeto: null },
+        { tipoAlocacao: "reuniao_externa", projeto: vila },
+      ],
+      5,
+    );
+    expect(r).toEqual([
+      { selecao: "__reuniao_externa:p1", tipoAlocacao: "reuniao_externa", projeto: vila },
+      { selecao: ALOCACAO_REUNIAO_EXTERNA, tipoAlocacao: "reuniao_externa", projeto: null },
+    ]);
   });
 
   it("para no limite", () => {
@@ -123,5 +142,36 @@ describe("reunião ligada a projeto (decisão 10)", () => {
   });
   it("sufixo vazio ou prefixo desconhecido não vira projeto", () => {
     expect(normalizarAlocacaoPonto("__reuniao_externa:")).toEqual({ projetoId: null, tipoAlocacao: "reuniao_externa" });
+  });
+});
+
+describe("seletor de reunião com projeto (R2.4)", () => {
+  it("separa a reunião do projeto escolhido e monta a seleção de volta", () => {
+    expect(reuniaoDaSelecao("__reuniao_interna:p1")).toEqual({ base: "__reuniao_interna", projetoId: "p1" });
+    expect(reuniaoDaSelecao("__reuniao_externa")).toEqual({ base: "__reuniao_externa", projetoId: "" });
+    expect(reuniaoDaSelecao("p1")).toBeNull();
+    expect(reuniaoDaSelecao(ALOCACAO_SEM_PROJETO)).toBeNull();
+    expect(selecaoDeReuniao(ALOCACAO_REUNIAO_EXTERNA, "p1")).toBe("__reuniao_externa:p1");
+    expect(selecaoDeReuniao(ALOCACAO_REUNIAO_EXTERNA, "")).toBe("__reuniao_externa");
+  });
+
+  it("rótulo da sessão: reunião ligada a projeto diz os dois", () => {
+    expect(rotuloDaSessao("projeto", "0123 Casa")).toBe("0123 Casa");
+    expect(rotuloDaSessao("reuniao_externa", "0123 Casa")).toBe("Reunião externa · 0123 Casa");
+    expect(rotuloDaSessao("reuniao_interna", null)).toBe("Reunião interna");
+    expect(rotuloDaSessao("sem_projeto", null)).toBe("Sem projeto");
+  });
+
+  it("tarefa obrigatória: projeto com 2+ disciplinas da pessoa", () => {
+    const projetos = [
+      { id: "a", codigo: "1", nome: "A", disciplinasDaPessoa: 2 },
+      { id: "b", codigo: "2", nome: "B", disciplinasDaPessoa: 1 },
+      { id: "c", codigo: "3", nome: "C" },
+    ];
+    expect(tarefaObrigatoria("a", projetos)).toBe(true);
+    expect(tarefaObrigatoria("b", projetos)).toBe(false);
+    expect(tarefaObrigatoria("c", projetos)).toBe(false);
+    expect(tarefaObrigatoria("__reuniao_interna:a", projetos)).toBe(false);
+    expect(tarefaObrigatoria(ALOCACAO_SEM_PROJETO, projetos)).toBe(false);
   });
 });

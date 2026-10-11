@@ -12,31 +12,26 @@ import {
 } from "@/modules/ponto/apontamento-actions";
 import { fmtHoras } from "@/modules/ponto/format";
 import {
-  ALOCACAO_REUNIAO_EXTERNA,
-  ALOCACAO_REUNIAO_INTERNA,
-  ALOCACAO_SEM_PROJETO,
-  rotuloAlocacaoSemProjeto,
+  rotuloDaSessao,
   selecaoDaAlocacaoPonto,
+  selecaoEhProjeto,
+  tarefaObrigatoria,
+  type ProjetoAlocacao,
   type TipoAlocacaoPonto,
 } from "@/modules/ponto/alocacao";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import { SeletorAlocacao } from "@/components/ponto/seletor-alocacao";
+import { SeletorTarefa } from "@/components/ponto/seletor-tarefa";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
-type Projeto = { id: string; codigo: string; nome: string };
 type ApontamentoAberto = {
   id: string;
   projetoId: string | null;
   tipoAlocacao: TipoAlocacaoPonto;
   inicio: string | Date;
   projeto: { codigo: string; nome: string } | null;
+  tarefa?: { id: string; titulo: string } | null;
 };
 
 /** Cronômetro ao vivo do apontamento aberto. */
@@ -83,18 +78,22 @@ export function ApontamentoHoras({
   sugestao?: SugestaoDoPonto | null;
   aberto: ApontamentoAberto | null;
   hojeMin: number;
-  projetos: Projeto[];
+  projetos: ProjetoAlocacao[];
 }) {
   const router = useRouter();
   const [alocacao, setAlocacao] = useState(
     !aberto && sugestao ? sugestao.projeto.id : selecaoDaAlocacaoPonto(aberto?.projetoId ?? null, aberto?.tipoAlocacao ?? "sem_projeto"),
   );
+  // Tarefa: segue a do apontamento aberto, ou a atividade sugerida; zera ao escolher outro projeto.
+  const [tarefa, setTarefa] = useState(!aberto && sugestao ? sugestao.tarefa.id : (aberto?.tarefa?.id ?? ""));
+  const exigeTarefa = tarefaObrigatoria(alocacao, projetos);
+  const faltaTarefa = exigeTarefa && !tarefa;
   const [pending, start] = useTransition();
   const decorrido = useDecorrido(aberto?.inicio ?? null);
 
   function iniciar() {
     start(async () => {
-      const r = await abrirApontamentoAction({ projetoId: alocacao });
+      const r = await abrirApontamentoAction({ projetoId: alocacao, tarefaId: tarefa });
       if (r.ok) {
         toast.success("Apontamento iniciado.");
         router.refresh();
@@ -104,7 +103,7 @@ export function ApontamentoHoras({
 
   function trocar() {
     start(async () => {
-      const r = await trocarApontamentoAction({ projetoId: alocacao });
+      const r = await trocarApontamentoAction({ projetoId: alocacao, tarefaId: tarefa });
       if (r.ok) {
         toast.success("Alocação atualizada.");
         router.refresh();
@@ -133,30 +132,38 @@ export function ApontamentoHoras({
           <Relogio ms={decorrido} />
           <p className="text-xs text-muted-foreground">
             {aberto
-              ? `Em andamento · ${aberto.projeto ? `${formatarCodigo(aberto.projeto.codigo)} ${aberto.projeto.nome}` : rotuloAlocacaoSemProjeto(aberto.tipoAlocacao)}`
+              ? `Em andamento · ${rotuloDaSessao(aberto.tipoAlocacao, aberto.projeto ? `${formatarCodigo(aberto.projeto.codigo)} ${aberto.projeto.nome}` : null)}`
               : "Parado"}
             {" · "}Hoje: {fmtHoras(hojeMin)}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-2">
-          <Select value={alocacao} onValueChange={(v) => setAlocacao(v ?? ALOCACAO_SEM_PROJETO)}>
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Alocação…" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALOCACAO_SEM_PROJETO}>Sem projeto</SelectItem>
-              <SelectItem value={ALOCACAO_REUNIAO_INTERNA}>Reunião interna</SelectItem>
-              <SelectItem value={ALOCACAO_REUNIAO_EXTERNA}>Reunião externa</SelectItem>
-              {projetos.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {formatarCodigo(p.codigo)} · {p.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SeletorAlocacao
+            value={alocacao}
+            projetos={projetos}
+            triggerClassName="w-64"
+            placeholder="Alocação…"
+            ariaLabel="Alocação do apontamento"
+            onChange={(v) => {
+              setAlocacao(v);
+              setTarefa(v === selecaoDaAlocacaoPonto(aberto?.projetoId ?? null, aberto?.tipoAlocacao ?? "sem_projeto") ? (aberto?.tarefa?.id ?? "") : "");
+            }}
+          />
+          {selecaoEhProjeto(alocacao) && (
+            <div className="w-64">
+              <SeletorTarefa
+                projetoId={alocacao}
+                value={tarefa}
+                onChange={setTarefa}
+                tarefaAtual={alocacao === aberto?.projetoId ? (aberto?.tarefa ?? null) : null}
+                disabled={pending}
+                obrigatoria={exigeTarefa}
+              />
+            </div>
+          )}
           {aberto && (
-            <Button variant="outline" disabled={pending} onClick={trocar}>
+            <Button variant="outline" disabled={pending || faltaTarefa} onClick={trocar}>
               <Repeat className="size-4" /> Trocar alocação
             </Button>
           )}
@@ -168,7 +175,7 @@ export function ApontamentoHoras({
               <Square className="size-4" /> Encerrar apontamento
             </Button>
           ) : (
-            <Button disabled={pending} onClick={iniciar}>
+            <Button disabled={pending || faltaTarefa} onClick={iniciar}>
               <Play className="size-4" /> Iniciar apontamento
             </Button>
           )}

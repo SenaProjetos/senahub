@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { buscarTarefasPonto } from "@/modules/ponto/actions";
+import { MSG_TAREFA_OBRIGATORIA } from "@/modules/ponto/disciplina-sessao";
 import type { TarefaDoPonto } from "@/modules/ponto/tarefa-ponto-service";
 import {
   Select,
@@ -63,6 +64,7 @@ export function SeletorTarefa({
   onChange,
   tarefaAtual,
   disabled,
+  obrigatoria = false,
 }: {
   /** Projeto REAL escolhido (nunca "sem projeto"/reunião). `null` esconde o seletor. */
   projetoId: string | null;
@@ -72,11 +74,23 @@ export function SeletorTarefa({
   /** Tarefa da sessão em curso — ver `useTarefasDoPonto`. */
   tarefaAtual?: { id: string; titulo: string } | null;
   disabled?: boolean;
+  /**
+   * Pessoa com 2+ disciplinas no projeto (R2 do rateio): sem tarefa não há como saber em qual
+   * disciplina as horas entram, e o servidor recusa. A tela pede a tarefa antes.
+   */
+  obrigatoria?: boolean;
 }) {
   const opcoes = useTarefasDoPonto(projetoId, tarefaAtual);
   // "Outras da etapa" começam recolhidas (decisão 1 de 08/10/2026): a lista curta é o padrão.
   const [verOutras, setVerOutras] = useState(false);
-  if (!opcoes || opcoes.length === 0) return null;
+  if (!opcoes) return null;
+  if (opcoes.length === 0) {
+    return obrigatoria ? (
+      <p className="text-[11px] text-warning">
+        Você responde por mais de uma disciplina e não tem tarefa aberta neste projeto: peça à coordenação para atribuir uma.
+      </p>
+    ) : null;
+  }
 
   const principais = opcoes.filter((t) => t.grupo === "periodo");
   const outras = opcoes.filter((t) => t.grupo === "etapa");
@@ -84,19 +98,20 @@ export function SeletorTarefa({
   const abertas = verOutras || outras.some((t) => t.id === value);
 
   return (
+    <div className="flex flex-col gap-1">
     <Select
-      value={value || SEM_TAREFA}
+      value={value || (obrigatoria ? null : SEM_TAREFA)}
       onValueChange={(v) => {
         if (v === VER_OUTRAS) return setVerOutras(true);
         onChange(!v || v === SEM_TAREFA ? "" : v);
       }}
       disabled={disabled}
     >
-      <SelectTrigger size="sm" className="w-full" aria-label="Tarefa (opcional)">
-        <SelectValue placeholder="Tarefa (opcional)" />
+      <SelectTrigger size="sm" className="w-full" aria-label={obrigatoria ? "Tarefa (obrigatória)" : "Tarefa (opcional)"}>
+        <SelectValue placeholder={obrigatoria ? "Tarefa (obrigatória)" : "Tarefa (opcional)"} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={SEM_TAREFA}>— sem tarefa</SelectItem>
+        {!obrigatoria && <SelectItem value={SEM_TAREFA}>— sem tarefa</SelectItem>}
         {principais.map((t) => (
           <SelectItem key={t.id} value={t.id}>
             {rotuloTarefaPonto(t)}
@@ -122,6 +137,8 @@ export function SeletorTarefa({
           ))}
       </SelectContent>
     </Select>
+    {obrigatoria && !value && <p className="text-[11px] text-warning">{MSG_TAREFA_OBRIGATORIA}</p>}
+    </div>
   );
 }
 
