@@ -96,3 +96,5 @@ reconciliacao-orfaos-*.json
 
 # Log do merge de documentos (gerado por scripts/merge-documentos-por-base.ts, nao versionar)
 merge-documentos-*.json
+# prints da verificação em tela da auditoria final (docs/PROTOCOLO_AUDITORIA_FINAL.md §13)
+/prints-auditoria/

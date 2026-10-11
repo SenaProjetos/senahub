@@ -725,6 +725,16 @@ The request closes (`fecharSeAtendido`) on fill and in `rotinasRhDiarias`.
   - Required: `DATABASE_URL`, `BETTER_AUTH_SECRET` (32+ bytes), `BETTER_AUTH_URL` (origin for CSRF), `APP_URL` (base URL for links in notifications/emails), `STORAGE_BASE_PATH` (Windows upload path, must exist), `CHROME_PATH` (Chrome exe for puppeteer-core PDF), `ACESSOS_ENCRYPTION_KEY` (**exactly** 32 bytes base64 — AES-256-GCM key for the Acessos credential vault; `lib/encryption.ts` throws at first use if absent or wrong length, and never falls back to plaintext. Losing it makes every stored credential unrecoverable — the DB dump alone does not restore them)
   - Optional: `ODA_CONVERTER_PATH` (**ODAFileConverter.exe** — external app, not an npm package; without it every DWG→DXF conversion fails, see `docs/DEPLOY.md` §4.1), `ENABLE_BACKUP=1` + `BACKUP_PATH` + `PG_DUMP_PATH` (pg_dump.exe path) + `STORAGE_BACKUP_PATH` (storage mirror target, defaults to `BACKUP_PATH\storage`) + `PG_BIN_PATH` (Postgres bin dir, used by the restore script to find `pg_restore.exe`), `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` (web push), `SMTP_HOST` + `SMTP_PORT` + `SMTP_USER` + `SMTP_PASS` + `SMTP_FROM` (email), `AUTH_COOKIE_PREFIX` (dev only — session-cookie name per worktree, letters/digits/`-`/`_`; unset = better-auth default, so production is unchanged; changing it invalidates that server's open sessions; `src/lib/auth-cookie.ts`)
 
+## Final audit (mandatory)
+
+Before declaring any task done that changed code, schema, migration, script or config, read and run
+[docs/PROTOCOLO_AUDITORIA_FINAL.md](docs/PROTOCOLO_AUDITORIA_FINAL.md) — re-read it each time, it changes. Pick the level
+(1–4) by real risk, fix what is in scope, re-run the checks and deliver its report in pt-BR. Section 13 holds the SenaHub
+specifics: real commands, reviewer subagents for levels 3–4 (standing authorization), and on-screen verification by the
+agent itself — dev server on this worktree's port (it may stop one already running there, never the other worktree's),
+screenshots plus a `LEIAME.md` in `prints-auditoria/<date>_<task>/` (gitignored) for the owner to check later.
+Not for questions, research or memory-only edits.
+
 ## Agent skills
 
 ### Issue tracker
