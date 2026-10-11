@@ -13,6 +13,7 @@
  */
 import type { Contratacao, Prisma, Setor, TipoUsuario } from "@/generated/prisma/client";
 import { inicioDoDiaUtc } from "@/lib/data";
+import { agenteDoNovoVinculo } from "@/modules/usuarios/vinculo/agente-integracao";
 
 /** Cliente Prisma ou transação — permite compor com outras escritas. */
 type Db = Prisma.TransactionClient;
@@ -24,6 +25,8 @@ export type NovoVinculo = {
   cargaSemanal?: Prisma.Decimal | number | null;
   remuneracao?: Prisma.Decimal | number | null;
   pjId?: string | null;
+  /** Só estágio. Omitido = herda do estágio anterior ou nasce "IEL" (`agenteDoNovoVinculo`). */
+  agenteIntegracao?: "IEL" | null;
   dataInicio: Date;
 };
 
@@ -43,7 +46,7 @@ export async function aplicarVinculo(
   const anterior = await db.vinculo.findFirst({
     where: { userId, ativo: true },
     orderBy: { dataInicio: "desc" },
-    select: { id: true, dataInicio: true },
+    select: { id: true, dataInicio: true, contratacao: true, agenteIntegracao: true },
   });
 
   if (anterior) {
@@ -69,6 +72,7 @@ export async function aplicarVinculo(
       cargaSemanal: dados.cargaSemanal ?? null,
       remuneracao: dados.remuneracao ?? null,
       pjId: dados.pjId ?? null,
+      agenteIntegracao: agenteDoNovoVinculo(dados.contratacao, dados.agenteIntegracao, anterior),
       dataInicio: dados.dataInicio,
       ativo: true,
     },

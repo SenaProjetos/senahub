@@ -10,7 +10,7 @@ import {
   CATEGORIA_TERCEIRIZADO,
   TAG_REEMBOLSO_ART,
 } from "@/modules/financeiro/custo/lancamento-custo";
-import { calcularRateioDetalhado } from "@/modules/rh/rateio/queries";
+import { calcularRateioDoMes } from "@/modules/rh/rateio/queries";
 import { normalizar } from "@/lib/disciplinas-core";
 import { projetosPorCard } from "@/modules/projetos/cadastro-disciplina";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
@@ -508,7 +508,7 @@ export async function margemProjeto(projetoId: string) {
     }),
     prisma.rateioHora.findMany({
       where: { projetoId },
-      select: { custo: true, user: { select: { contratacao: true } } },
+      select: { custo: true, contratacao: true, user: { select: { contratacao: true } } },
     }),
   ]);
 
@@ -574,7 +574,7 @@ export async function margemProjeto(projetoId: string) {
   }
 
   const rateioHoras = separarRateioPorVinculo(
-    rateios.map((rateio) => ({ custo: Number(rateio.custo), contratacao: rateio.user.contratacao })),
+    rateios.map((rateio) => ({ custo: Number(rateio.custo), contratacao: rateio.contratacao ?? rateio.user.contratacao })),
   );
   const custoHoras = rateioHoras.total;
 
@@ -583,17 +583,14 @@ export async function margemProjeto(projetoId: string) {
   const agora = new Date();
   const anoAtual = agora.getFullYear();
   const mesAtual = agora.getMonth() + 1;
-  const mesFechado = await prisma.rateioHora.findFirst({
-    where: { projetoId, ano: anoAtual, mes: mesAtual },
+  const mesFechado = await prisma.fechamentoRateio.findUnique({
+    where: { ano_mes: { ano: anoAtual, mes: mesAtual } },
     select: { id: true },
   });
   let custoHorasMesCorrente = 0;
   if (!mesFechado) {
-    const rows = await calcularRateioDetalhado(anoAtual, mesAtual);
-    custoHorasMesCorrente = rows
-      .filter((r) => r.projetoId === projetoId)
-      .reduce((s, r) => s + r.custo, 0);
-    custoHorasMesCorrente = Math.round(custoHorasMesCorrente * 100) / 100;
+    const { linhas } = await calcularRateioDoMes(anoAtual, mesAtual);
+    custoHorasMesCorrente = linhas.filter((r) => r.projetoId === projetoId).reduce((s, r) => s + r.custoCent, 0) / 100;
   }
 
   const margem = receitaConfirmada - despesaConfirmada - custoHoras;

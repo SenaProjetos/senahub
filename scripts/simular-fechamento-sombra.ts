@@ -1,7 +1,7 @@
 /**
  * "Ciclo em sombra" — a parte que É código. Não substitui a parte que não é (ver rodapé).
  *
- * Prova, com volume e casos de borda, que `calcularRateioDetalhado()` — a função que gera
+ * Prova, com volume e casos de borda, que `calcularRateioDoMes()` — a função que gera
  * `RateioHora` no fechamento real — trata sessões vindas de `aplicarBatida` (ponto, CLT) e de
  * escrita direta em `SessaoTrabalho` (o que `apontamento.ts` faz, sem geo/máquina de estados)
  * de forma IDÊNTICA. Não é teste de fumaça: cada minuto esperado é calculado à mão a partir
@@ -29,7 +29,7 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { aplicarBatida } from "../src/modules/ponto/service";
 import { abrirApontamento, fecharApontamento } from "../src/modules/ponto/apontamento";
-import { calcularRateioDetalhado } from "../src/modules/rh/rateio/queries";
+import { calcularRateioDoMes } from "../src/modules/rh/rateio/queries";
 
 // Mês sintético isolado — bem longe de qualquer dado real, sem colidir com nada do dev.
 const ANO = 2031;
@@ -95,8 +95,8 @@ async function main() {
     data: { userId: pj.id, projetoId: projA.id, inicio: new Date(ANO, MES, 1, 9), fim: new Date(ANO, MES, 1, 11) },
   });
 
-  console.log("\nRodando o motor de rateio REAL (calcularRateioDetalhado) para o mês sintético...\n");
-  const rows = await calcularRateioDetalhado(ANO, MES);
+  console.log("\nRodando o motor de rateio REAL (calcularRateioDoMes) para o mês sintético...\n");
+  const { linhas: rows } = await calcularRateioDoMes(ANO, MES);
   const porChave = new Map(rows.map((r) => [`${r.userId}|${r.projetoId}`, r]));
 
   for (const [chave, minEsperado] of esperado) {
@@ -115,7 +115,7 @@ async function main() {
   const hoje = new Date();
   const s = await abrirApontamento(pj.id, projA.id);
   await new Promise((r) => setTimeout(r, 1200));
-  const antesDeFechar = await calcularRateioDetalhado(hoje.getFullYear(), hoje.getMonth() + 1);
+  const { linhas: antesDeFechar } = await calcularRateioDoMes(hoje.getFullYear(), hoje.getMonth() + 1);
   const linhaAberta = antesDeFechar.find((r) => r.userId === pj.id && r.projetoId === projA.id);
   checar(
     (linhaAberta?.minutos ?? -1) >= 0,

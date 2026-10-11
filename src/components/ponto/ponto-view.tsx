@@ -109,6 +109,14 @@ type Rateio = {
   semProjeto: number;
   reuniaoInterna: number;
   reuniaoExterna: number;
+  /** Custo do mês que não foi para projeto nenhum (cálculo novo, desde 10/2026). */
+  custoNaoAlocado: number;
+  /** O que entrou por aproximação no custo do mês (sem holerite, sem tabela, sem salário). */
+  avisos: string[];
+  /** Mês que o botão fecha: o anterior (o mês em curso só fecha depois de terminar). */
+  mesAnterior: { ano: number; mes: number; fechadoEm: string | Date | null };
+  /** Só a gestão de RH fecha o mês. */
+  podeFechar: boolean;
   custoTotal: number;
   fechado: boolean;
   fechadoEm: string | Date | null;
@@ -402,29 +410,41 @@ export function PontoView({
               <div>
                 <CardTitle className="text-base">Rateio de horas por projeto (equipe)</CardTitle>
                 <CardDescription>
-                  Mês atual · custo total {brl(rateio.custoTotal)}
-                  {rateio.fechado && rateio.fechadoEm
-                    ? ` · fechado em ${formatarData(rateio.fechadoEm)}`
-                    : ""}
+                  Mês atual (estimativa) · custo total {brl(rateio.custoTotal)}
+                  {rateio.mesAnterior.fechadoEm
+                    ? ` · ${String(rateio.mesAnterior.mes).padStart(2, "0")}/${rateio.mesAnterior.ano} fechado em ${formatarData(rateio.mesAnterior.fechadoEm)}`
+                    : ` · ${String(rateio.mesAnterior.mes).padStart(2, "0")}/${rateio.mesAnterior.ano} ainda não fechado`}
                 </CardDescription>
               </div>
-              <Button
-                size="sm"
-                variant={rateio.fechado ? "outline" : "default"}
-                disabled={busy || rateio.porProjeto.length === 0}
-                onClick={() =>
-                  acao(
-                    () => fecharRateioMes({ ano, mes }),
-                    rateio.fechado ? "Rateio refechado." : "Rateio do mês fechado.",
-                  )
-                }
-              >
-                {rateio.fechado ? "Refechar mês" : "Fechar mês"}
-              </Button>
+              {rateio.podeFechar && (
+                <Button
+                  size="sm"
+                  variant={rateio.mesAnterior.fechadoEm ? "outline" : "default"}
+                  disabled={busy}
+                  onClick={() =>
+                    acao(
+                      () => fecharRateioMes({ ano: rateio.mesAnterior.ano, mes: rateio.mesAnterior.mes }),
+                      rateio.mesAnterior.fechadoEm ? "Rateio refechado." : "Rateio do mês fechado.",
+                    )
+                  }
+                >
+                  {rateio.mesAnterior.fechadoEm ? "Refechar" : "Fechar"} {String(rateio.mesAnterior.mes).padStart(2, "0")}/{rateio.mesAnterior.ano}
+                </Button>
+              )}
             </div>
           </CardHeader>
           <CardContent>
-            {rateio.porProjeto.length === 0 ? (
+            {rateio.avisos.length > 0 && (
+              <div role="note" className="mb-3 rounded-md border border-status-revisao/40 bg-status-revisao/10 p-2 text-xs">
+                <p className="font-medium">Aproximações no custo do mês:</p>
+                <ul className="mt-1 space-y-1">
+                  {rateio.avisos.map((a) => (
+                    <li key={a}>{a}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {rateio.porProjeto.length === 0 && rateio.custoNaoAlocado === 0 ? (
               <EmptyState icon={Clock} title="Sem horas rateadas." />
             ) : (
               <ul className="divide-y text-sm">
@@ -454,6 +474,13 @@ export function PontoView({
                     <span className="min-w-0 flex-1 truncate">Reunião externa</span>
                     <span className="font-mono">{fmtHoras(rateio.reuniaoExterna)}</span>
                     <span className="w-28 text-right font-mono">—</span>
+                  </li>
+                )}
+                {rateio.custoNaoAlocado > 0 && (
+                  <li className="flex items-center justify-between gap-3 py-2">
+                    <span className="min-w-0 flex-1 truncate" title="Não alocado (custo fora dos projetos)">Não alocado (custo fora dos projetos)</span>
+                    <span className="font-mono text-muted-foreground">—</span>
+                    <span className="w-28 text-right font-mono">{brl(rateio.custoNaoAlocado)}</span>
                   </li>
                 )}
               </ul>

@@ -3,6 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { minutosSessao } from "@/modules/ponto/format";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { horasDiaPadraoEmLote } from "@/modules/rh/escalas/queries";
+import type { Contratacao } from "@/generated/prisma/enums";
+import { custosDoMes } from "@/modules/rh/rateio/custo-hora/dados";
+import { avisosDoCusto } from "@/modules/rh/rateio/custo-hora/avisos";
+import {
+  calculoDoMes, limitesDoMesSP, linhasDaPessoa, minutosNoIntervalo, type NaturezaLinha, type SessaoNoMes,
+} from "@/modules/rh/rateio/custo-hora/distribuicao";
 
 function diasUteis(ano: number, mes: number): number {
   let n = 0;
@@ -60,8 +66,11 @@ export type RateioRow = {
   custo: number;
 };
 
-/** Linhas detalhadas user×projeto do mês (cálculo ao vivo, base do fechamento). */
-export async function calcularRateioDetalhado(ano: number, mes: number): Promise<RateioRow[]> {
+/**
+ * Cálculo ANTIGO (meses antes do corte `rh.rateio.calculoNovoDesde`): custo/hora = salário ÷
+ * horas-mês, sem encargos, só sessões com projeto. Mantido para os meses fechados nele.
+ */
+export async function calcularRateioLegado(ano: number, mes: number): Promise<RateioRow[]> {
   const ini = new Date(ano, mes - 1, 1);
   const fim = new Date(ano, mes, 1);
   const sessoes = await prisma.sessaoTrabalho.findMany({
@@ -85,51 +94,165 @@ export async function calcularRateioDetalhado(ano: number, mes: number): Promise
   return [...mapa.values()];
 }
 
+export type LinhaRateio = {
+  userId: string;
+  projetoId: string | null;
+  natureza: NaturezaLinha;
+  contratacao: Contratacao | null;
+  minutos: number;
+  custoCent: number;
+};
+
+const CHAVE_CORTE = "rh.rateio.calculoNovoDesde";
+
+/** Mês (AAAA-MM) a partir do qual vale o cálculo com encargos (decisão 8). */
+export async function corteCalculoNovo(): Promise<string> {
+  const c = await prisma.configSistema.findUnique({ where: { chave: CHAVE_CORTE } });
+  return typeof c?.valor === "string" && /^\d{4}-\d{2}$/.test(c.valor) ? c.valor : "2026-10";
+}
+
+/**
+ * Cálculo novo (decisões 1, 6, 9, 15): custo do mês com encargos ÷ horas marcadas (sócio: jornada
+ * de referência), sessões recortadas no mês, linha "não alocado" com o resto. Entra também quem
+ * tem custo no mês sem sessão nenhuma — o custo vai inteiro para "não alocado".
+ */
+export async function calcularRateioV2(ano: number, mes: number, agora: Date = new Date()): Promise<{ linhas: LinhaRateio[]; avisos: string[] }> {
+  const { inicio, fim } = limitesDoMesSP(ano, mes);
+  const iniMes = new Date(Date.UTC(ano, mes - 1, 1));
+  const fimMes = new Date(Date.UTC(ano, mes, 0));
+  const [sessoes, comCusto] = await Promise.all([
+    prisma.sessaoTrabalho.findMany({
+      where: { inicio: { lt: fim }, OR: [{ fim: null }, { fim: { gt: inicio } }] },
+      select: { userId: true, projetoId: true, tipoAlocacao: true, inicio: true, fim: true },
+    }),
+    prisma.vinculo.findMany({
+      where: {
+        contratacao: { in: ["clt", "estagio", "pro_labore"] },
+        dataInicio: { lte: fimMes },
+        OR: [{ dataFim: null }, { dataFim: { gte: iniMes } }],
+      },
+      select: { userId: true },
+    }),
+  ]);
+  const userIds = [...new Set([...sessoes.map((s) => s.userId), ...comCusto.map((v) => v.userId)])];
+  const custos = await custosDoMes(ano, mes, userIds);
+
+  const sessoesPorUser = new Map<string, SessaoNoMes[]>();
+  for (const s of sessoes) {
+    const minutos = minutosNoIntervalo(s.inicio, s.fim, inicio, fim, agora);
+    if (minutos === 0) continue;
+    const lista = sessoesPorUser.get(s.userId) ?? [];
+    lista.push({ projetoId: s.projetoId, tipoAlocacao: s.tipoAlocacao, minutos });
+    sessoesPorUser.set(s.userId, lista);
+  }
+
+  const out: LinhaRateio[] = [];
+  for (const userId of userIds) {
+    const c = custos.get(userId);
+    const contratacao = c?.contratacao ?? null;
+    const linhas = linhasDaPessoa({
+      contratacao,
+      totalCent: c?.custo?.totalCent ?? 0,
+      jornadaReferenciaMin: c?.jornadaReferenciaMin ?? 0,
+      mesEncerrado: agora >= fim,
+      sessoes: sessoesPorUser.get(userId) ?? [],
+    });
+    for (const l of linhas) out.push({ userId, contratacao, ...l });
+  }
+  const avisos = avisosDoCusto(
+    [...custos.values()].map((c) => ({
+      nome: c.nome,
+      contratacao: c.contratacao,
+      temCusto: c.custo !== null,
+      semTabela: c.semTabela,
+      tabelaPosterior: c.tabelaPosterior,
+      origemBase: c.origemBase,
+    })),
+  );
+  return { linhas: out, avisos };
+}
+
+/** Rateio do mês no cálculo que vale para ele: antigo antes do corte, novo a partir dele. */
+export async function calcularRateioDoMes(
+  ano: number,
+  mes: number,
+): Promise<{ calculo: "legado" | "v2"; linhas: LinhaRateio[]; avisos: string[] }> {
+  const calculo = calculoDoMes(ano, mes, await corteCalculoNovo());
+  if (calculo === "v2") return { calculo, ...(await calcularRateioV2(ano, mes)) };
+  const rows = await calcularRateioLegado(ano, mes);
+  const users = await prisma.user.findMany({
+    where: { id: { in: [...new Set(rows.map((r) => r.userId))] } },
+    select: { id: true, contratacao: true },
+  });
+  const contr = new Map(users.map((u) => [u.id, u.contratacao]));
+  return {
+    calculo,
+    avisos: [],
+    linhas: rows.map((r) => ({
+      userId: r.userId,
+      projetoId: r.projetoId,
+      natureza: "projeto" as const,
+      contratacao: contr.get(r.userId) ?? null,
+      minutos: r.minutos,
+      custoCent: Math.round(r.custo * 100),
+    })),
+  };
+}
+
 /** Rateio do mês agregado por projeto, para o painel do gestor. */
 export async function rateioMesGestor(ano: number, mes: number) {
-  const ini = new Date(ano, mes - 1, 1);
-  const fim = new Date(ano, mes, 1);
-  const [rows, fechadas, sessoesSemProjeto] = await Promise.all([
-    calcularRateioDetalhado(ano, mes),
-    prisma.rateioHora.findMany({ where: { ano, mes }, select: { fechadoEm: true }, take: 1, orderBy: { fechadoEm: "desc" } }),
+  // O botão do card fecha o mês ANTERIOR: mês em curso não fecha (congelaria uma estimativa).
+  const anterior = mes === 1 ? { ano: ano - 1, mes: 12 } : { ano, mes: mes - 1 };
+  const fechamentoAnterior = await prisma.fechamentoRateio.findUnique({
+    where: { ano_mes: anterior },
+    select: { fechadoEm: true },
+  });
+  const { inicio: ini, fim } = limitesDoMesSP(ano, mes);
+  const agora = new Date();
+  const [{ linhas, avisos }, fechamento, sessoesSemProjeto] = await Promise.all([
+    calcularRateioDoMes(ano, mes),
+    prisma.fechamentoRateio.findUnique({ where: { ano_mes: { ano, mes } }, select: { fechadoEm: true } }),
     prisma.sessaoTrabalho.findMany({
-      where: { inicio: { gte: ini, lt: fim }, projetoId: null },
+      where: { inicio: { lt: fim }, OR: [{ fim: null }, { fim: { gt: ini } }], projetoId: null },
       select: { inicio: true, fim: true, tipoAlocacao: true },
     }),
   ]);
 
-  const projIds = [...new Set(rows.map((r) => r.projetoId))];
-  const projetos = await prisma.projeto.findMany({
-    where: { id: { in: projIds } },
-    select: { id: true, codigo: true, nome: true },
-  });
+  const doProjeto = linhas.filter((l) => l.projetoId);
+  const projIds = [...new Set(doProjeto.map((r) => r.projetoId!))];
+  const projetos = await prisma.projeto.findMany({ where: { id: { in: projIds } }, select: { id: true, codigo: true, nome: true } });
   const pinfo = new Map(projetos.map((p) => [p.id, p]));
 
-  const agg = new Map<string, { projeto: string; minutos: number; custo: number }>();
-  let custoTotal = 0;
-  for (const r of rows) {
-    const p = pinfo.get(r.projetoId);
-    const label = p ? `${formatarCodigo(p.codigo)} · ${p.nome}` : r.projetoId;
-    const cur = agg.get(r.projetoId) ?? { projeto: label, minutos: 0, custo: 0 };
+  const agg = new Map<string, { projeto: string; minutos: number; centavos: number }>();
+  for (const r of doProjeto) {
+    const p = pinfo.get(r.projetoId!);
+    const label = p ? `${formatarCodigo(p.codigo)} · ${p.nome}` : r.projetoId!;
+    const cur = agg.get(r.projetoId!) ?? { projeto: label, minutos: 0, centavos: 0 };
     cur.minutos += r.minutos;
-    cur.custo += r.custo;
-    custoTotal += r.custo;
-    agg.set(r.projetoId, cur);
+    cur.centavos += r.custoCent;
+    agg.set(r.projetoId!, cur);
   }
+  const custoNaoAlocadoCent = linhas.filter((l) => l.natureza === "nao_alocado").reduce((s, l) => s + l.custoCent, 0);
+  const custoTotalCent = linhas.reduce((s, l) => s + l.custoCent, 0);
 
   const alocacoesSemProjeto = { semProjeto: 0, reuniaoInterna: 0, reuniaoExterna: 0 };
   for (const s of sessoesSemProjeto) {
-    const minutos = minutosSessao(s.inicio, s.fim);
+    const minutos = minutosNoIntervalo(s.inicio, s.fim, ini, fim, agora);
     if (s.tipoAlocacao === "reuniao_interna") alocacoesSemProjeto.reuniaoInterna += minutos;
     else if (s.tipoAlocacao === "reuniao_externa") alocacoesSemProjeto.reuniaoExterna += minutos;
     else alocacoesSemProjeto.semProjeto += minutos;
   }
 
   return {
-    porProjeto: [...agg.values()].sort((a, b) => b.minutos - a.minutos),
+    porProjeto: [...agg.values()]
+      .map((a) => ({ projeto: a.projeto, minutos: a.minutos, custo: a.centavos / 100 }))
+      .sort((a, b) => b.minutos - a.minutos),
     ...alocacoesSemProjeto,
-    custoTotal,
-    fechado: fechadas.length > 0,
-    fechadoEm: fechadas[0]?.fechadoEm ?? null,
+    custoNaoAlocado: custoNaoAlocadoCent / 100,
+    avisos,
+    mesAnterior: { ...anterior, fechadoEm: fechamentoAnterior?.fechadoEm ?? null },
+    custoTotal: custoTotalCent / 100,
+    fechado: fechamento != null,
+    fechadoEm: fechamento?.fechadoEm ?? null,
   };
 }

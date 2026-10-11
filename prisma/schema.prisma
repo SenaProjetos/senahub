@@ -156,6 +156,8 @@ model User {
   contasBancarias          ContaBancariaColaborador[] @relation("ContasDoColaborador")
   historicoContratual      HistoricoContratual[]      @relation("HistoricoDoColaborador")
   historicoRegistrado      HistoricoContratual[]      @relation("HistoricoAutor")
+  fechamentosRateio        FechamentoRateio[]         @relation("FechamentoRateioAutor")
+  tabelasEncargos          TabelaEncargos[]           @relation("TabelaEncargosAutor")
   cargoId                  String?
   cargoRef                 Cargo?                     @relation(fields: [cargoId], references: [id])
   /// Fonte de verdade do departamento. Nulo = ainda não classificado no catálogo.
@@ -340,6 +342,8 @@ model Vinculo {
   /// PJ que fatura por este vínculo (quando `contratacao` é `pj`).
   pjId         String?
   pj           PessoaJuridica? @relation(fields: [pjId], references: [id])
+  /// Agente de integração do estágio ("IEL"). Nulo = contratação direta, sem taxa (decisão 5).
+  agenteIntegracao String?
 
   dataInicio DateTime  @db.Date
   /// Encerramento: rescisão, fim de contrato, fim do estágio, distrato. Preencher em vez de
@@ -2428,26 +2432,73 @@ model SessaoTrabalho {
 
 // EscalaTrabalho removido em F7 — substituído por EscalaRole + EscalaUsuario (Ponto v2)
 
-/// Rateio mensal do custo de horas trabalhadas por projeto (Fluxo C: ponto → custo → margem).
-/// Snapshot fechado por mês: congela o custo/hora vigente no momento do fechamento.
+/// Rateio mensal do custo de horas (Fluxo C: ponto → custo → margem). Snapshot do mês fechado.
+/// Desde a R1 (spec 2026-09-15-rateio-horas-decisoes.md): uma linha por pessoa × projeto × natureza,
+/// e a linha "não alocado" (projetoId nulo) com o custo que não foi para projeto nenhum.
 model RateioHora {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  projetoId String
-  projeto   Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
-  ano       Int
-  mes       Int
-  minutos   Int
-  /// Custo/hora usado no fechamento (snapshot de Recurso.custoHora ou derivado do salário base).
-  custoHora Decimal  @db.Decimal(10, 2)
-  /// Custo total rateado = minutos / 60 × custoHora.
-  custo     Decimal  @db.Decimal(12, 2)
-  fechadoEm DateTime @default(now())
+  id          String         @id @default(cuid())
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projetoId   String?
+  projeto     Projeto?       @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  natureza    NaturezaRateio @default(projeto)
+  /// Contratação de quem apontou NO MÊS (foto; o cache do usuário muda com o tempo). Nas linhas
+  /// anteriores à R1 é o cache do usuário na data da migração — foto aproximada.
+  contratacao Contratacao?
+  ano         Int
+  mes         Int
+  minutos     Int
+  /// Custo/hora usado no fechamento.
+  custoHora   Decimal        @db.Decimal(10, 2)
+  /// Custo da linha.
+  custo       Decimal        @db.Decimal(12, 2)
+  fechadoEm   DateTime       @default(now())
 
-  @@unique([userId, projetoId, ano, mes])
+  // Unicidade por pessoa × mês × natureza × projeto: índices únicos PARCIAIS só na migração
+  // 20261011120000 (o Prisma não expressa `WHERE projetoId IS [NOT] NULL`).
   @@index([projetoId, ano, mes])
+  @@index([ano, mes])
+  @@index([userId, ano, mes])
   @@map("rateio_hora")
+}
+
+enum NaturezaRateio {
+  projeto
+  reuniao
+  nao_alocado
+}
+
+/// Cabeçalho do fechamento do rateio de um mês — existe mesmo quando o mês não tem linha.
+/// `calculo`: "legado" (salário ÷ horas, meses antes do corte) ou "v2" (custo com encargos).
+model FechamentoRateio {
+  id           String   @id @default(cuid())
+  ano          Int
+  mes          Int
+  calculo      String
+  fechadoEm    DateTime @default(now())
+  fechadoPorId String?
+  fechadoPor   User?    @relation("FechamentoRateioAutor", fields: [fechadoPorId], references: [id], onDelete: SetNull)
+
+  @@unique([ano, mes])
+  @@index([fechadoPorId])
+  @@map("fechamento_rateio")
+}
+
+/// Versão da tabela de encargos de uma contratação, valendo a partir de `vigenciaEm` (sempre dia 1º).
+/// `parametros` segue `parametrosEncargosSchema` (modules/rh/rateio/custo-hora/parametros.ts).
+model TabelaEncargos {
+  id          String      @id @default(cuid())
+  contratacao Contratacao
+  vigenciaEm  DateTime    @db.Date
+  parametros  Json
+  observacao  String?
+  autorId     String?
+  autor       User?       @relation("TabelaEncargosAutor", fields: [autorId], references: [id], onDelete: SetNull)
+  criadoEm    DateTime    @default(now())
+
+  @@unique([contratacao, vigenciaEm])
+  @@index([autorId])
+  @@map("tabela_encargos")
 }
 
 /// Fechamento mensal do banco de horas: congela saldo do mês e o acumulado (carry-forward).

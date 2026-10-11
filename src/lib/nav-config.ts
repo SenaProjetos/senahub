@@ -9,6 +9,7 @@ import {
   HeartPulse,
   UserCog,
   Banknote,
+  Percent,
   FileText,
   TrendingUp,
   KanbanSquare,
@@ -345,6 +346,12 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/rh/folha",
         icon: Banknote,
         permissao: "rh:folha",
+      },
+      {
+        title: "Encargos da empresa",
+        href: "/rh/encargos-empresa",
+        icon: Percent,
+        permissao: "rh:gerir",
       },
       {
         title: "Doc Studio",

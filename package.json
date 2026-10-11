@@ -38,6 +38,7 @@
     "smoke:historico-documento": "tsx --tsconfig tsconfig.server.json scripts/smoke-historico-documento.ts",
     "smoke:recursos-eap": "tsx --tsconfig tsconfig.server.json scripts/smoke-recursos-eap.ts",
     "smoke:impacto-ausencia": "tsx --tsconfig tsconfig.server.json scripts/smoke-impacto-ausencia.ts",
+    "smoke:rateio-custo-hora": "tsx --tsconfig tsconfig.server.json scripts/smoke-rateio-custo-hora.ts",
     "smoke:ciclo-rh": "tsx --tsconfig tsconfig.server.json scripts/smoke-ciclo-rh.ts",
     "smoke:pedido-dados": "tsx --tsconfig tsconfig.server.json scripts/smoke-pedido-dados.ts",
     "smoke:desenvolvimento": "tsx --tsconfig tsconfig.server.json scripts/smoke-desenvolvimento.ts",

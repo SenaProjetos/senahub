@@ -252,8 +252,8 @@ export async function alertaRateioAberto(): Promise<number> {
   const ini = new Date(ano, mes - 1, 1);
   const fim = new Date(ano, mes, 1);
 
-  // Já fechado? (existe ao menos um RateioHora do mês)
-  const fechado = await prisma.rateioHora.findFirst({ where: { ano, mes }, select: { id: true } });
+  // Já fechado? O cabeçalho existe mesmo quando o mês não teve linha.
+  const fechado = await prisma.fechamentoRateio.findUnique({ where: { ano_mes: { ano, mes } }, select: { id: true } });
   if (fechado) return 0;
 
   // Há sessões com projeto a ratear no mês?

@@ -146,3 +146,16 @@ mês e importe o PDF de 13º nela — não na folha mensal. Veja
 
 **Assinei um holerite e o RH reabriu a folha depois — preciso assinar de novo?** Sim, se o
 RH fechar a folha outra vez. Reabrir apaga a assinatura porque os valores podem ter mudado.
+
+## Custo da hora e encargos
+
+Desde outubro de 2026, o custo de uma hora de trabalho é o **custo do mês da pessoa dividido pelas horas que ela marcou no ponto**.
+
+- **Custo do mês:** o salário do holerite (ou, sem holerite, o do histórico contratual) mais os encargos da tabela da contratação: FGTS, reservas de 13º, férias e aviso prévio, multa do FGTS e os benefícios (vale-transporte e vale-refeição).
+- **Estagiário:** bolsa, reserva do recesso e a taxa do IEL (só de quem foi contratado pelo IEL).
+- **Sócio:** o pró-labore dividido pela jornada de referência. O que ele não apontar em projeto fica em "não alocado".
+- **PJ e freelancer:** entram só com horas; o custo vem da Produção.
+
+As tabelas ficam em **RH → Encargos da empresa**. Cada mudança é uma versão nova que vale a partir de um mês; os meses anteriores continuam com a versão da época. Uma versão já usada no fechamento de um mês não pode ser excluída.
+
+No fechamento do mês (Ponto → Rateio), o custo que não foi para projeto nenhum aparece na linha **Não alocado**. Os meses fechados antes de outubro de 2026 continuam com o cálculo antigo.
