@@ -14,6 +14,9 @@ export type LancamentoPlanejado = {
   descricao: string;
 };
 
+/** Item de benefício do custo do mês (`beneficio_0`, ou `clt:beneficio_0` quando o mês teve dois vínculos). */
+export const ehItemDeBeneficio = (chave: string) => /(^|:)beneficio_\d+$/.test(chave);
+
 const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 function chaveDoBeneficio(nome: string): string {

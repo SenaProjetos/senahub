@@ -18,10 +18,12 @@ import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useConfirm } from "@/components/ui/confirm-dialog";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { HoleriteLembreteButton } from "@/components/rh/holerite-lembrete-button";
 import { ImportarFolhaDialog } from "@/components/rh/folha/importar-folha-dialog";
+import { ContasLancadasCard, CustoTotalCard, ReaberturasCard, TotaisRetidosCard, VersoesAssinadas, type TotaisRetidos } from "@/components/rh/folha/folha-financeiro-cards";
+import { MotivoDialog } from "@/components/rh/motivo-dialog";
+import type { ContaDaFolhaTela, CustoDaFolha, ReaberturaDaFolha, VersaoAssinada } from "@/modules/rh/folha/detalhe-queries";
 import { calcularEncargos, type Faixa } from "@/lib/encargos";
 import { brl, formatarData } from "@/lib/utils";
 import { rotuloFolha, type TipoFolha } from "@/modules/rh/folha/tipo-folha";
@@ -53,6 +55,7 @@ type HoleriteT = {
   enviadoEm: string | null;
   assinadoEm: string | null;
   assinanteNome: string | null;
+  versoes: VersaoAssinada[];
   user: { id: string; name: string };
   itens: Item[];
 };
@@ -77,7 +80,15 @@ export function FolhaDetalheView({
   faixasIrrf,
   deducaoDep,
   dependentesPorUser,
+  custo,
+  contas,
+  reaberturas,
+  totais,
 }: {
+  custo: CustoDaFolha | null;
+  contas: ContaDaFolhaTela[];
+  reaberturas: ReaberturaDaFolha[];
+  totais: TotaisRetidos;
   folha: { id: string; ano: number; mes: number; tipo: TipoFolha; status: "aberta" | "fechada"; holerites: HoleriteT[] };
   rubricas: Rubrica[];
   elegiveis: { id: string; name: string }[];
@@ -88,10 +99,10 @@ export function FolhaDetalheView({
   dependentesPorUser: Record<string, number>;
 }) {
   const router = useRouter();
-  const confirm = useConfirm();
   const [pending, start] = useTransition();
   const [editor, setEditor] = useState<{ userId: string; nome: string; itens: Item[] } | null>(null);
   const [preview, setPreview] = useState(false);
+  const [reabrindo, setReabrindo] = useState(false);
 
   const aberta = folha.status === "aberta";
   const total = folha.holerites.reduce((s, h) => s + liquidoDe(h.itens), 0);
@@ -127,30 +138,10 @@ export function FolhaDetalheView({
       } else toast.error(r.error);
     });
   }
-  async function reabrir() {
-    const assinados = folha.holerites.filter((h) => h.assinadoEm).length;
-    if (assinados > 0) {
-      const ok = await confirm({
-        title: "Reabrir folha",
-        description: `${assinados} holerite(s) já assinado(s) por quem recebeu. Reabrir a folha apaga essas assinaturas — cada pessoa vai precisar assinar de novo depois que a folha for fechada outra vez.`,
-        confirmLabel: "Reabrir mesmo assim",
-      });
-      if (!ok) return;
-    }
-    // Provisório: a sessão 4 do rateio (R4.3) troca pelo diálogo de motivo com o histórico.
-    const motivo = window.prompt("Motivo da reabertura (10 caracteres ou mais):");
-    if (motivo == null) return;
-    start(async () => {
-      const r = await reabrirFolha({ id: folha.id, motivo });
-      if (r.ok) {
-        toast.success(
-          r.data.assinaturasRevogadas > 0
-            ? `Folha reaberta — as contas a pagar continuam em aberto; ${r.data.assinaturasRevogadas} assinatura(s) revogada(s) e guardada(s) como versão.`
-            : "Folha reaberta — as contas a pagar continuam em aberto e o próximo fechamento as atualiza.",
-        );
-        router.refresh();
-      } else toast.error(r.error);
-    });
+  const assinados = folha.holerites.filter((h) => h.assinadoEm).length;
+  function reabrir() {
+    // O diálogo pede o motivo e avisa das assinaturas; a recusa do servidor (conta já paga) aparece nele.
+    setReabrindo(true);
   }
   function enviar() {
     start(async () => {
@@ -247,6 +238,13 @@ export function FolhaDetalheView({
         </div>
       )}
 
+      <div className="grid gap-3 lg:grid-cols-2">
+        <TotaisRetidosCard key={`${folha.status}-${totais.inss}-${totais.irrf}-${totais.fgts}`} folhaId={folha.id} aberta={aberta} totais={totais} />
+        {!aberta && contas.length > 0 && <ContasLancadasCard contas={contas} />}
+      </div>
+      {custo && <CustoTotalCard custo={custo} />}
+      {reaberturas.length > 0 && <ReaberturasCard reaberturas={reaberturas} />}
+
       <div className="grid gap-3 md:grid-cols-2">
         {folha.holerites.map((h) => (
           <Card key={h.id}>
@@ -312,6 +310,7 @@ export function FolhaDetalheView({
                   <span className="font-mono">{brl(liquidoDe(h.itens))}</span>
                 </li>
               </ul>
+              <VersoesAssinadas versoes={h.versoes} />
             </CardContent>
           </Card>
         ))}
@@ -326,6 +325,31 @@ export function FolhaDetalheView({
         deducaoDependentes={editor ? (dependentesPorUser[editor.userId] ?? 0) * deducaoDep : 0}
         onClose={() => setEditor(null)}
       />
+
+      {reabrindo && (
+        <MotivoDialog
+          titulo={`Reabrir folha ${rotuloFolha(folha)}`}
+          descricao={`${
+            assinados > 0
+              ? `${assinados} holerite(s) já assinado(s) por quem recebeu: reabrir cancela essas assinaturas (a versão assinada fica guardada) e cada pessoa assina de novo depois que a folha for fechada outra vez. `
+              : ""
+          }As contas a pagar continuam em aberto e o próximo fechamento as atualiza; se alguma já foi paga, estorne o pagamento antes.`}
+          rotuloConfirmar="Reabrir folha"
+          perigoso={assinados > 0}
+          onOpenChange={(aberto) => !aberto && setReabrindo(false)}
+          onConfirmar={async (motivo) => {
+            const r = await reabrirFolha({ id: folha.id, motivo });
+            if (!r.ok) return { ok: false, error: r.error };
+            toast.success(
+              r.data.assinaturasRevogadas > 0
+                ? `Folha reaberta — ${r.data.assinaturasRevogadas} assinatura(s) cancelada(s) e guardada(s) como versão.`
+                : "Folha reaberta — as contas a pagar continuam em aberto.",
+            );
+            router.refresh();
+            return { ok: true };
+          }}
+        />
+      )}
 
       <FecharFolhaPreview
         open={preview}
@@ -369,8 +393,9 @@ function FecharFolhaPreview({
             Pré-visualizar folha {rotulo}
           </DialogTitle>
           <DialogDescription>
-            Confira os holerites antes de fechar. Ao confirmar, o líquido vira um lançamento de
-            despesa confirmado na DRE (categoria 2.03).
+            Confira os holerites antes de fechar. Ao confirmar, o líquido dos CLT, a bolsa dos
+            estagiários, as guias (INSS, IRRF e FGTS) e os benefícios viram contas a pagar em aberto
+            no Financeiro — fechar não paga.
           </DialogDescription>
         </DialogHeader>
 

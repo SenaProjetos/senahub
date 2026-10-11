@@ -30,7 +30,7 @@ import { isoDeDataDoBanco } from "@/modules/financeiro/liquidez/datas";
 import { avancarCompetencia, calendarioDeSalario, enesimoDiaUtil, vencimentoDoCompromisso } from "@/modules/financeiro/recorrencia/calculo";
 import { anosDoHorizonte, calendarioFinanceiro } from "@/modules/financeiro/recorrencia/queries";
 import { rotuloFolha } from "@/modules/rh/folha/tipo-folha";
-import { planoDaFolha, type LancamentoPlanejado } from "@/modules/rh/folha/lancamentos-da-folha";
+import { ehItemDeBeneficio, planoDaFolha, type LancamentoPlanejado } from "@/modules/rh/folha/lancamentos-da-folha";
 import { custosDoMes } from "@/modules/rh/rateio/custo-hora/dados";
 import {
   avisoDoFechamento,
@@ -69,9 +69,6 @@ const DIA_DAS_GUIAS = 20;
 /** Mínimo de caracteres do motivo da reabertura. */
 export const MOTIVO_MINIMO = 10;
 export const MSG_MOTIVO_CURTO = `Descreva o motivo da reabertura (${MOTIVO_MINIMO} caracteres ou mais).`;
-
-/** Item de benefício do custo do mês (`beneficio_0`, ou `clt:beneficio_0` quando o mês teve dois vínculos). */
-const RE_BENEFICIO = /(^|:)beneficio_\d+$/;
 
 function inicioDoMes(comp: string): Date {
   return new Date(`${comp}-01T00:00:00.000Z`);
@@ -192,7 +189,7 @@ async function composicaoDaFolha(folha: {
     }
     liquidoCltCent += liquido;
     for (const it of c?.custo?.itens ?? []) {
-      if (!RE_BENEFICIO.test(it.chave)) continue;
+      if (!ehItemDeBeneficio(it.chave)) continue;
       // Com dois vínculos no mês o rótulo ganha "(CLT)": o benefício é o mesmo, a conta também.
       const nome = it.chave.includes(":") ? it.rotulo.replace(/\s*\([^)]*\)$/, "") : it.rotulo;
       beneficios.set(nome, (beneficios.get(nome) ?? 0) + it.cent);

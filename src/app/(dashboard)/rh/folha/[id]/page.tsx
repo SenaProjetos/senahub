@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireGestorRh } from "@/lib/session";
 
 import { obterFolha } from "@/modules/rh/folha/queries";
+import { contasDaFolha, custoDaFolha, historicoDaFolha } from "@/modules/rh/folha/detalhe-queries";
 import { modelosPorFonte } from "@/modules/documentos/queries";
 import { faixasPorTipo, deducaoDependente } from "@/modules/rh/encargos/queries";
 import { dependentesPorUsuario } from "@/modules/rh/funcionarios/queries";
@@ -28,6 +29,7 @@ export default async function FolhaDetalhePage({
   const { folha, rubricas, elegiveis } = dados;
   const userIds = [...folha.holerites.map((h) => h.user.id), ...elegiveis.map((e) => e.id)];
   const nDeps = await dependentesPorUsuario(userIds);
+  const [custo, contas, historico] = await Promise.all([custoDaFolha(folha), contasDaFolha(folha.id), historicoDaFolha(folha.id)]);
   return (
     <FolhaDetalheView
       modelosDoc={modelosDoc}
@@ -35,6 +37,14 @@ export default async function FolhaDetalhePage({
       faixasIrrf={faixas.irrf}
       deducaoDep={deducaoDep}
       dependentesPorUser={nDeps}
+      custo={custo}
+      contas={contas}
+      reaberturas={historico.reaberturas}
+      totais={{
+        inss: folha.totalInssRetido == null ? null : Number(folha.totalInssRetido),
+        irrf: folha.totalIrrfRetido == null ? null : Number(folha.totalIrrfRetido),
+        fgts: folha.totalFgts == null ? null : Number(folha.totalFgts),
+      }}
       folha={{
         id: folha.id,
         ano: folha.ano,
@@ -46,6 +56,7 @@ export default async function FolhaDetalhePage({
           enviadoEm: h.enviadoEm ? h.enviadoEm.toISOString() : null,
           assinadoEm: h.assinadoEm ? h.assinadoEm.toISOString() : null,
           assinanteNome: h.assinante?.name ?? null,
+          versoes: historico.versoesPorHolerite[h.id] ?? [],
           user: { id: h.user.id, name: h.user.name },
           itens: h.itens.map((it) => ({
             id: it.id,

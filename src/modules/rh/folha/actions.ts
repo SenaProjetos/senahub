@@ -38,6 +38,9 @@ const salvarHoleriteSchema = z.object({
 });
 
 const idSchema = z.object({ id: z.string().min(1) });
+const MSG_VALOR_TOTAL = "Informe um valor em reais, de zero para cima.";
+const totalRetido = z.number({ error: MSG_VALOR_TOTAL }).min(0, MSG_VALOR_TOTAL).max(100_000_000, "Valor alto demais para uma folha.").nullable();
+const totaisSchema = z.object({ id: z.string().min(1), inss: totalRetido, irrf: totalRetido, fgts: totalRetido });
 const reabrirSchema = z.object({ id: z.string().min(1), motivo: z.string().trim().min(MOTIVO_MINIMO, MSG_MOTIVO_CURTO) });
 
 export const criarFolha = defineAction(
@@ -161,6 +164,30 @@ export const removerHolerite = defineAction(
     if (h.folha.status === "fechada") throw new ActionError("Folha fechada.");
     await prisma.holerite.delete({ where: { id: i.id } });
     revalidatePath(`${PATH}/${h.folhaId}`);
+    return { id: i.id };
+  },
+);
+
+/**
+ * INSS e IRRF descontados dos funcionários e FGTS do mês (R4): vêm do resumo do PDF do contador e o
+ * RH corrige aqui antes de fechar. Vazio = a parte não é lançada. Só com a folha aberta: depois de
+ * fechada, mudar um total descasaria as contas já lançadas (reabra primeiro).
+ */
+export const salvarTotaisDaFolha = defineAction(
+  {
+    ...base,
+    acao: "salvar-totais-folha",
+    entidade: "FolhaPagamento",
+    schema: totaisSchema,
+    capturarAntes: (i) => prisma.folhaPagamento.findUnique({ where: { id: i.id }, select: { totalInssRetido: true, totalIrrfRetido: true, totalFgts: true } }),
+  },
+  async (i) => {
+    const r = await prisma.folhaPagamento.updateMany({
+      where: { id: i.id, status: "aberta" },
+      data: { totalInssRetido: i.inss, totalIrrfRetido: i.irrf, totalFgts: i.fgts },
+    });
+    if (r.count !== 1) throw new ActionError("A folha está fechada: reabra para corrigir os totais.");
+    revalidatePath(`${PATH}/${i.id}`);
     return { id: i.id };
   },
 );

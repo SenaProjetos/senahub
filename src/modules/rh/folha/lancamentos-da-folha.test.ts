@@ -54,3 +54,13 @@ describe("planoDaFolha (decisões 21 e 22)", () => {
     expect(planoDaFolha(base).lancamentos[0].descricao).toBe("Folha CLT (líquido) — folha 10/2026");
   });
 });
+
+describe("ehItemDeBeneficio", () => {
+  it("reconhece a chave do benefício, com ou sem a contratação na frente", async () => {
+    const { ehItemDeBeneficio } = await import("./lancamentos-da-folha");
+    expect(ehItemDeBeneficio("beneficio_0")).toBe(true);
+    expect(ehItemDeBeneficio("clt:beneficio_12")).toBe(true);
+    expect(ehItemDeBeneficio("fgts")).toBe(false);
+    expect(ehItemDeBeneficio("estagio:recesso")).toBe(false);
+  });
+});
