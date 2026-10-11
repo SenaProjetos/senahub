@@ -1,5 +1,6 @@
 "use client";
 
+import { PAPEIS_PROJETO, type PapelProjeto } from "@/modules/projetos/papeis";
 import type { Contratacao } from "@/generated/prisma/enums";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -69,7 +70,7 @@ export function EquipeManager({
     start(async () => {
       const res = await definirMembros({
         projetoId,
-        membros: membros.map((m) => ({ userId: m.userId, papel: m.papel || null })),
+        membros: membros.map((m) => ({ userId: m.userId, papel: (PAPEIS_PROJETO as readonly string[]).includes(m.papel) ? (m.papel as PapelProjeto) : null })),
       });
       if (res.ok) {
         toast.success("Equipe atualizada.");

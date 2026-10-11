@@ -204,7 +204,7 @@ export async function calcularRateioDoMes(
 }
 
 /** Rateio do mês agregado por projeto, para o painel do gestor. */
-export async function rateioMesGestor(ano: number, mes: number) {
+export async function rateioMesGestor(ano: number, mes: number, custoVisivel = true) {
   // O botão do card fecha o mês ANTERIOR: mês em curso não fecha (congelaria uma estimativa).
   const anterior = mes === 1 ? { ano: ano - 1, mes: 12 } : { ano, mes: mes - 1 };
   const fechamentoAnterior = await prisma.fechamentoRateio.findUnique({
@@ -249,13 +249,15 @@ export async function rateioMesGestor(ano: number, mes: number) {
 
   return {
     porProjeto: [...agg.values()]
-      .map((a) => ({ projeto: a.projeto, minutos: a.minutos, custo: a.centavos / 100 }))
+      .map((a) => ({ projeto: a.projeto, minutos: a.minutos, custo: custoVisivel ? a.centavos / 100 : 0 }))
       .sort((a, b) => b.minutos - a.minutos),
     ...alocacoesSemProjeto,
-    custoNaoAlocado: custoNaoAlocadoCent / 100,
-    avisos,
+    custoNaoAlocado: custoVisivel ? custoNaoAlocadoCent / 100 : 0,
+    // Sem permissão de custo, os reais saem zerados daqui e a tela esconde as colunas.
+    custoVisivel,
+    avisos: custoVisivel ? avisos : [],
     mesAnterior: { ...anterior, fechadoEm: fechamentoAnterior?.fechadoEm ?? null },
-    custoTotal: custoTotalCent / 100,
+    custoTotal: custoVisivel ? custoTotalCent / 100 : 0,
     fechado: fechamento != null,
     fechadoEm: fechamento?.fechadoEm ?? null,
   };

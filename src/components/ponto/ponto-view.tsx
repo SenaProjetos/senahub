@@ -118,6 +118,8 @@ type Rateio = {
   /** Só a gestão de RH fecha o mês. */
   podeFechar: boolean;
   custoTotal: number;
+  /** Quem não pode ver custo recebe os reais zerados e a tela esconde as colunas de valor. */
+  custoVisivel: boolean;
   fechado: boolean;
   fechadoEm: string | Date | null;
 };
@@ -410,7 +412,7 @@ export function PontoView({
               <div>
                 <CardTitle className="text-base">Rateio de horas por projeto (equipe)</CardTitle>
                 <CardDescription>
-                  Mês atual (estimativa) · custo total {brl(rateio.custoTotal)}
+                  Mês atual (estimativa){rateio.custoVisivel ? ` · custo total ${brl(rateio.custoTotal)}` : ""}
                   {rateio.mesAnterior.fechadoEm
                     ? ` · ${String(rateio.mesAnterior.mes).padStart(2, "0")}/${rateio.mesAnterior.ano} fechado em ${formatarData(rateio.mesAnterior.fechadoEm)}`
                     : ` · ${String(rateio.mesAnterior.mes).padStart(2, "0")}/${rateio.mesAnterior.ano} ainda não fechado`}
@@ -452,7 +454,7 @@ export function PontoView({
                   <li key={r.projeto} className="flex items-center justify-between gap-3 py-2">
                     <span className="min-w-0 flex-1 truncate">{r.projeto}</span>
                     <span className="font-mono text-muted-foreground">{fmtHoras(r.minutos)}</span>
-                    <span className="w-28 text-right font-mono">{brl(r.custo)}</span>
+                    {rateio.custoVisivel && <span className="w-28 text-right font-mono">{brl(r.custo)}</span>}
                   </li>
                 ))}
                 {rateio.semProjeto > 0 && (
