@@ -71,11 +71,16 @@ R1 está no `dev` (a1021f72). R2 a R5 ainda não têm plano detalhado nem códig
 
 Cinco sessões e quatro trocas de modelo (Opus → Sonnet → Opus → Sonnet → Opus), contra cerca de vinte se cada etapa rodasse sozinha.
 
-### O que precisa de resposta do dono antes da sessão 1
+### Respostas do dono e planos detalhados (11/10/2026)
 
-1. **Papel do membro do projeto em lista fixa:** quais papéis? Sugestão: Coordenador, Projetista, Apoio, Estagiário, Consultor externo.
-2. **Permissão "ver custo":** quem recebe por padrão? Sugestão: admin, sócios e coordenação; projetistas não.
-3. **Troca estágio → CLT no meio do mês** (pendência G1 da auditoria da R1): dividir o custo do mês pelos dias de cada vínculo? Sugestão: sim, salário/bolsa e reservas proporcionais aos dias úteis de cada um, holerite inteiro atribuído ao vínculo vigente.
+Respondidas (decisões 25 a 27 no spec). Sessão 1 feita: schema e migração `20261011150000_rateio_r2_r5` aplicados no banco do worktree, e os planos detalhados de cada etapa — com as tarefas marcadas por sessão:
+
+- [R2 — ponto](2026-10-11-rateio-horas-r2-ponto.md): R2.1 (sessão 2), R2.2 e R2.3 (sessão 3), R2.4 (sessão 4)
+- [R3 — fechamento](2026-10-11-rateio-horas-r3-fechamento.md): R3.1 e parte pura da R3.6 (sessão 2), R3.2, R3.3, R3.4 e dados da R3.6 (sessão 3), R3.5 (sessão 4)
+- [R4 — folha no financeiro](2026-10-11-rateio-horas-r4-folha-financeiro.md): R4.1 (sessão 2), R4.2 (sessão 3, por último), R4.3 (sessão 4)
+- [R5 — visibilidade e horas](2026-10-11-rateio-horas-r5-visibilidade.md): R5.1 (sessão 2), R5.2 e R5.3 (sessão 3), R5.4 (sessão 4)
+
+Ordem dentro da sessão 3: R2.2 → R2.3 → R3.2 → R3.3 → R3.4 → R3.6 → R5.2 → R5.3 → R4.2.
 
 ## Global Constraints
 
