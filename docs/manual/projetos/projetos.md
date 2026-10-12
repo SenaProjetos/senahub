@@ -85,8 +85,8 @@ Cada disciplina passa por um ciclo de status:
 - **Adicionar do catálogo** (ignora nomes que já existem no projeto).
 - **Editar em massa** (status, prazo e responsável de várias de uma vez).
 - **Regras:** o **prazo da disciplina não pode ultrapassar o prazo do projeto**; não é
-  possível **excluir** disciplina que já tenha **arquivos enviados** ou **pagamentos
-  liberados**.
+  possível **excluir** disciplina que já tenha **arquivos enviados**, **pagamentos
+  liberados** ou **horas registradas** no ponto ou no rateio (as horas perderiam a disciplina).
 - **Etapas por fase:** **Etapas e fases…** (no ⋯ ou no botão direito do card) divide o trabalho em fases (Básico,
   Executivo…), cada uma com **prazo, situação e percentual do valor**. Com etapas, o **prazo da
   disciplina** passa a ser o maior prazo entre elas, e aprovar uma fase **libera o pagamento dela**.

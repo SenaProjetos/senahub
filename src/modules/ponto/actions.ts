@@ -282,8 +282,10 @@ const revEspelho = () => {
 
 /** Edição do PRÓPRIO ponto de um dia (com justificativa) — aplicada sem ciência. */
 export const ajustarPontoProprio = defineAction(
-  { ...base, interno: true, acao: "ajustar-ponto-proprio", entidade: "AjustePonto", schema: ajustePontoProprioSchema },
+  { ...base, acao: "ajustar-ponto-proprio", entidade: "AjustePonto", schema: ajustePontoProprioSchema },
   async (i, { user }) => {
+    // Mesmo gate da batida: sem jornada controlada (PJ, sócio) não se cria Batida — nem pela edição do dia.
+    if (!controlaJornada(user)) throw new ActionError(MSG_SEM_JORNADA);
     const r = await editarDia({
       userId: user.id,
       editorId: user.id,

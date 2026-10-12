@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireInterno } from "@/lib/session";
 import { can } from "@/lib/permissions";
+import { controlaJornada } from "@/modules/ponto/jornada";
 import { espelhoDetalhado, equipeAgora, projetosDoUsuario } from "@/modules/ponto/queries";
 import { usuariosParaEscala } from "@/modules/rh/escalas/queries";
 import { disciplinasEscreviveisNoProjeto, type DisciplinaEscrevivel } from "@/modules/projetos/diario/queries";
@@ -36,8 +37,8 @@ export default async function EspelhoPontoPage({
     projetosDoUsuario(targetId),
   ]);
 
-  // Pode editar: o próprio ponto (sempre) ou o de terceiro com permissão `ajustar`.
-  const podeEditar = souEuMesmo || podeAjustar;
+  // Pode editar: o próprio ponto (só quem tem jornada — a ação recusa os demais) ou o de terceiro com `ajustar`.
+  const podeEditar = souEuMesmo ? controlaJornada(user) : podeAjustar;
 
   // Atalho "registrar no diário" (só no PRÓPRIO espelho — a entrada seria
   // atribuída a quem está logado, então não faz sentido ao olhar terceiro).

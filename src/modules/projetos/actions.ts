@@ -1,6 +1,7 @@
 "use server";
 
 import { substituirResponsaveis } from "@/modules/projetos/responsaveis-service";
+import { motivoParaNaoExcluirDisciplina } from "@/modules/projetos/excluir-disciplina";
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { aplicarModeloNoProjeto } from "@/modules/planejamento/modelos/service";
@@ -9,7 +10,7 @@ import { motivoExclusao } from "@/modules/projetos/nomenclatura/catalogo/todas";
 import { projetosDoCard, usoParaExcluir } from "@/modules/projetos/nomenclatura/catalogo/queries";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
-import { can, podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
+import { can, podeAtuarEmDisciplinaAlheia, podeVerFinanceiro } from "@/lib/permissions";
 import { whereAudiencia } from "@/lib/audiencias";
 import { proximoCodigoProjeto, formatarCodigo } from "@/modules/projetos/numbering";
 import { ensureCanaisProjeto } from "@/modules/chat/service";
@@ -648,6 +649,14 @@ export const duplicarProjeto = defineAction(
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input, { user }) => {
+    // A origem tem de estar no escopo de quem duplica: senão um perfil sem escopo global clonaria
+    // equipe, EAP e composição de um projeto que nem enxerga.
+    const visivel = await prisma.projeto.findFirst({ where: { id: input.id, AND: [escopoProjeto(user)] }, select: { id: true } });
+    if (!visivel) throw new ActionError("Projeto não encontrado.");
+    // A composição de preço é informação do financeiro do projeto (mesma regra da aba Financeiro).
+    if (input.copiarComposicao && !(await podeVerFinanceiro(user))) {
+      throw new ActionError("Copiar a composição de preço exige acesso ao financeiro do projeto.");
+    }
     const novo = await duplicarProjetoNoBanco(input, user.id);
     refletirSincroniaCanais(await ensureCanaisProjeto(novo.id));
     revalidatePath("/projetos");
@@ -729,14 +738,36 @@ export const editarDisciplinasEmMassa = defineAction(
     // transação para o lote inteiro: se alguma disciplina recusar (pagamento efetivado),
     // nenhuma troca é aplicada, em vez de deixar metade do lote alterada.
     if (input.responsavelId !== undefined) {
+      const entraram: { disciplinaId: string }[] = [];
       await prisma.$transaction(async (tx) => {
+        const sairam = new Set<string>();
         for (const disciplinaId of input.disciplinaIds) {
-          await substituirResponsaveis(tx, disciplinaId, input.responsavelId ? [input.responsavelId] : []);
+          const { entram, saem } = await substituirResponsaveis(tx, disciplinaId, input.responsavelId ? [input.responsavelId] : []);
+          for (const u of saem) sairam.add(u);
+          if (entram.length > 0) entraram.push({ disciplinaId });
           await sincronizarPagamentosPorDisciplinaId(tx, disciplinaId, ctx.user.id);
         }
+        // Mesma poda dos outros caminhos: quem saiu e não responde por mais nada no projeto sai da
+        // equipe (sem papel explícito) — senão continuaria podendo marcar horas no projeto (R2).
+        await podarMembrosSemVinculo(tx, input.projetoId, [...sairam]);
       });
       // Quem saiu da disciplina sai também do chat dela (e do projeto, se não tem outro vínculo).
       refletirSincroniaCanais(await ensureCanaisProjeto(input.projetoId));
+      // P-15, como em `definirResponsaveis`: quem entrou é avisado, um aviso por disciplina.
+      if (input.responsavelId && entraram.length > 0) {
+        const nomes = await prisma.disciplina.findMany({
+          where: { id: { in: entraram.map((e) => e.disciplinaId) } },
+          select: { id: true, disciplinaTextoLegado: true, projeto: { select: { codigo: true } } },
+        });
+        for (const d of nomes) {
+          await notificarMuitos([input.responsavelId], {
+            titulo: "Você foi atribuído a uma disciplina",
+            corpo: `${d.disciplinaTextoLegado} — projeto ${d.projeto.codigo}`,
+            href: `/projetos/${input.projetoId}`,
+            tag: `resp-${d.id}`,
+          });
+        }
+      }
     }
 
     revalidatePath(`/projetos/${input.projetoId}`);
@@ -969,14 +1000,17 @@ export const excluirDisciplina = defineAction(
       select: {
         projetoId: true,
         responsaveis: { select: { userId: true } },
-        _count: { select: { uploads: true, pagamentos: true } },
+        _count: { select: { uploads: true, pagamentos: true, sessoesTrabalho: true, rateiosHora: true } },
       },
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
-    if (disciplina._count.uploads > 0)
-      throw new ActionError("Não é possível excluir uma disciplina com arquivos enviados.");
-    if (disciplina._count.pagamentos > 0)
-      throw new ActionError("Não é possível excluir uma disciplina com pagamentos liberados.");
+    const motivo = motivoParaNaoExcluirDisciplina({
+      uploads: disciplina._count.uploads,
+      pagamentos: disciplina._count.pagamentos,
+      sessoes: disciplina._count.sessoesTrabalho,
+      rateios: disciplina._count.rateiosHora,
+    });
+    if (motivo) throw new ActionError(motivo);
 
     await prisma.$transaction(async (tx) => {
       await tx.disciplina.delete({ where: { id: input.disciplinaId } });
