@@ -30,7 +30,7 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 - **Reais só para quem pode:** o custo em reais do rateio e das disciplinas aparece para o administrador, os
   sócios e quem receber a permissão de custo; a coordenação vê as horas.
 - **Folha CLT:** ao fechar, a folha lança no Financeiro o líquido, a bolsa dos estagiários, INSS, IRRF e FGTS
-  (dia 20) e os benefícios — todos **em aberto**, sem pagar. Reabrir pede motivo e guarda a versão assinada.
+  (dia 20; no 13º, INSS e IRRF em 20/12), os benefícios e a taxa do IEL dos estagiários — todos **em aberto**, sem pagar. Reabrir pede motivo e guarda a versão assinada.
   A folha mostra o **custo total** e as contas lançadas.
 - **Projetos:** papel do membro em lista fixa; bloco **Horas por disciplina** (orçado × planejado × realizado);
   histórico de responsáveis por disciplina; troca de contratação no meio do mês divide o custo pelos dias.

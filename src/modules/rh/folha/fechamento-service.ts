@@ -30,7 +30,7 @@ import { isoDeDataDoBanco } from "@/modules/financeiro/liquidez/datas";
 import { avancarCompetencia, calendarioDeSalario, enesimoDiaUtil, vencimentoDoCompromisso } from "@/modules/financeiro/recorrencia/calculo";
 import { anosDoHorizonte, calendarioFinanceiro } from "@/modules/financeiro/recorrencia/queries";
 import { rotuloFolha } from "@/modules/rh/folha/tipo-folha";
-import { ehItemDeBeneficio, planoDaFolha, type LancamentoPlanejado } from "@/modules/rh/folha/lancamentos-da-folha";
+import { ehItemDaTaxaDoAgente, ehItemDeBeneficio, planoDaFolha, type LancamentoPlanejado } from "@/modules/rh/folha/lancamentos-da-folha";
 import { custosDoMes } from "@/modules/rh/rateio/custo-hora/dados";
 import {
   avisoDoFechamento,
@@ -165,8 +165,9 @@ function liquidoEmCentavos(itens: readonly { tipo: string; valor: Prisma.Decimal
 const centavosOuNulo = (v: Prisma.Decimal | null) => (v == null ? null : paraCentavos(v));
 
 /**
- * Líquido separado por contratação (vínculo vigente no mês, `custosDoMes`) e benefícios dos CLT
- * agrupados pelo nome. A folha de 13º é toda CLT e não tem benefício.
+ * Líquido separado por contratação (vínculo vigente no mês, `custosDoMes`), benefícios dos CLT
+ * agrupados pelo nome e a taxa do agente de integração dos estagiários do IEL (a mesma do custo da
+ * hora). A folha de 13º é toda CLT e não tem benefício nem taxa.
  */
 async function composicaoDaFolha(folha: {
   ano: number;
@@ -175,15 +176,17 @@ async function composicaoDaFolha(folha: {
   holerites: { userId: string; itens: { tipo: string; valor: Prisma.Decimal }[] }[];
 }) {
   if (folha.tipo !== "mensal") {
-    return { liquidoCltCent: folha.holerites.reduce((s, h) => s + liquidoEmCentavos(h.itens), 0), liquidoEstagioCent: 0, beneficios: [] };
+    return { liquidoCltCent: folha.holerites.reduce((s, h) => s + liquidoEmCentavos(h.itens), 0), liquidoEstagioCent: 0, beneficios: [], taxaAgenteCent: 0 };
   }
   const custos = await custosDoMes(folha.ano, folha.mes, folha.holerites.map((h) => h.userId));
   let liquidoCltCent = 0;
   let liquidoEstagioCent = 0;
   const beneficios = new Map<string, number>();
+  let taxaAgenteCent = 0;
   for (const h of folha.holerites) {
     const c = custos.get(h.userId);
     const liquido = liquidoEmCentavos(h.itens);
+    for (const it of c?.custo?.itens ?? []) if (ehItemDaTaxaDoAgente(it.chave)) taxaAgenteCent += it.cent;
     if (c?.contratacao === "estagio") {
       liquidoEstagioCent += liquido;
       continue;
@@ -199,6 +202,7 @@ async function composicaoDaFolha(folha: {
   return {
     liquidoCltCent,
     liquidoEstagioCent,
+    taxaAgenteCent,
     beneficios: [...beneficios.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([nome, valorCent]) => ({ nome, valorCent })),
   };
 }
@@ -235,6 +239,7 @@ export async function fecharFolhaNoBanco(folhaId: string, autorId: string): Prom
     irrfRetidoCent: centavosOuNulo(folha.totalIrrfRetido),
     fgtsCent: centavosOuNulo(folha.totalFgts),
     beneficios: comp.beneficios,
+    taxaAgenteCent: comp.taxaAgenteCent,
   });
   const planoLiquido = plano.lancamentos.find((l) => l.parte === "liquido_clt") ?? null;
   const planoPartes = plano.lancamentos.filter((l) => l.parte !== "liquido_clt");

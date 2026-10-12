@@ -57,6 +57,11 @@ async function main() {
       },
     },
   });
+  // Estágio pelo IEL: a taxa (R$ 90 nesta tabela de teste) vira conta a pagar no fechamento (G3).
+  const tabelaEst = await prisma.tabelaEncargos.create({
+    data: { contratacao: "estagio", vigenciaEm: new Date(`${ANO}-06-01T00:00:00.000Z`), parametros: { tipo: "estagio", reservaRecesso: true, taxaAgenteCent: 9_000 } },
+  });
+  await prisma.vinculo.create({ data: { userId: eva.id, contratacao: "estagio", setor: "engenharia", dataInicio: new Date(`${ANO}-01-01T00:00:00.000Z`), agenteIntegracao: "IEL" } });
   const conta = await prisma.contaBancaria.create({ data: { nome: `${tag} conta`, tipo: "corrente", saldoInicial: 0 } });
   const fechamentoN5 = await prisma.fechamentoMensal.create({ data: { ano: ANO, mes: 8, status: "fechado", fechadoEm: new Date(), responsavelId: ana.id } });
 
@@ -94,7 +99,7 @@ async function main() {
       { totalInssRetido: 500, totalIrrfRetido: 100, totalFgts: 400 },
     );
     const r1 = await fecharFolhaNoBanco(folha, ana.id);
-    check("fecha com 7 contas (líquido + 6 partes)", r1.contas === 7, r1);
+    check("fecha com 8 contas (líquido + 7 partes, com a taxa do IEL)", r1.contas === 8, r1);
     const liq = await prisma.lancamento.findUnique({ where: { id: r1.lancamentoId ?? "" }, select: { valor: true, status: true, categoria: { select: { chave: true } } } });
     check("líquido só dos CLT (R$ 5.000) em Salários, em aberto", paraCentavos(liq?.valor ?? 0) === 500_000 && liq?.status === "previsto" && liq.categoria?.chave === "despesa_folha_salarios", liq);
     const p1 = await partesDa(folha);
@@ -110,6 +115,8 @@ async function main() {
     const vt = por("beneficio", "Vale-transporte");
     const vr = por("beneficio", "Vale-refeição");
     check("benefícios dos 2 CLT agrupados (VT R$ 400, VR R$ 1.000) nas subcategorias", paraCentavos(vt?.lanc.valor ?? 0) === 40_000 && vt?.lanc.categoria?.chave === "despesa_folha_vale_transporte" && paraCentavos(vr?.lanc.valor ?? 0) === 100_000 && vr?.lanc.categoria?.chave === "despesa_folha_vale_refeicao", { vt: vt?.lanc, vr: vr?.lanc });
+    const taxa = por("taxa_agente");
+    check("taxa do IEL da estagiária (R$ 90) em Taxa do agente, com o salário", paraCentavos(taxa?.lanc.valor ?? 0) === 9_000 && taxa?.lanc.categoria?.chave === "despesa_estagio_taxa_agente" && iso(taxa.lanc.vencimento) === r1.vencimento, taxa?.lanc);
 
     // 2
     const eCurto = await erroDe(() => reabrirFolhaNoBanco(folha, "corrigir", ana.id));
@@ -122,7 +129,7 @@ async function main() {
     check("reabrir guarda a versão assinada e revoga a assinatura", re.assinaturasRevogadas === 1 && versoes.length === 1 && Array.isArray(versoes[0].itens) && versoes[0].motivo === "FGTS do relatório veio errado", { re, versoes });
     check("reabertura gravada com motivo e autor", reab.length === 1 && reab[0].autorId === beto.id, reab);
     const aindaLa = await prisma.lancamento.count({ where: { id: { in: p1.map((p) => p.lancamentoId) }, status: "previsto" } });
-    check("reabrir não mexe nas contas (continuam em aberto)", aindaLa === 6, aindaLa);
+    check("reabrir não mexe nas contas (continuam em aberto)", aindaLa === 7, aindaLa);
 
     // 3
     await prisma.folhaPagamento.update({ where: { id: folha }, data: { totalFgts: 450 } });
@@ -130,7 +137,7 @@ async function main() {
     const p3 = await partesDa(folha);
     const fgts3 = p3.find((p) => p.parte === "fgts");
     check("fechar de novo atualiza a MESMA conta do FGTS", fgts3?.lancamentoId === fgts?.lancamentoId && paraCentavos(fgts3?.lanc.valor ?? 0) === 45_000, fgts3?.lanc);
-    check("nenhuma parte nova nasceu", p3.length === 6 && r3.lancamentoId === r1.lancamentoId, { n: p3.length, r3 });
+    check("nenhuma parte nova nasceu", p3.length === 7 && r3.lancamentoId === r1.lancamentoId, { n: p3.length, r3 });
 
     // 4
     await reabrirFolhaNoBanco(folha, "IRRF não houve neste mês", ana.id);
@@ -198,6 +205,7 @@ async function main() {
     await prisma.fechamentoMensal.delete({ where: { id: fechamentoN5.id } });
     await prisma.contaBancaria.delete({ where: { id: conta.id } });
     await prisma.tabelaEncargos.delete({ where: { id: tabela.id } });
+    await prisma.tabelaEncargos.delete({ where: { id: tabelaEst.id } });
     await prisma.user.deleteMany({ where: { id: { in: ids } } });
   }
   console.log(falhas === 0 ? "\nTudo certo." : `\n${falhas} falha(s).`);

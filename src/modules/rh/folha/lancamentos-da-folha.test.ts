@@ -64,3 +64,20 @@ describe("ehItemDeBeneficio", () => {
     expect(ehItemDeBeneficio("estagio:recesso")).toBe(false);
   });
 });
+
+describe("taxa do agente de integração (G3 da auditoria, decisão do dono 2026-10-11)", () => {
+  it("reconhece o item da taxa, com ou sem a contratação na frente", async () => {
+    const { ehItemDaTaxaDoAgente } = await import("./lancamentos-da-folha");
+    expect(ehItemDaTaxaDoAgente("taxa_agente")).toBe(true);
+    expect(ehItemDaTaxaDoAgente("estagio:taxa_agente")).toBe(true);
+    expect(ehItemDaTaxaDoAgente("recesso")).toBe(false);
+  });
+  it("folha mensal com estagiário do IEL: lança a taxa em Taxa do agente, com o salário", () => {
+    const r = planoDaFolha({ ...base, taxaAgenteCent: 17000 });
+    expect(resumo(r).at(-1)).toBe("taxa_agente::despesa_estagio_taxa_agente:17000:salario");
+  });
+  it("sem estagiário do IEL, nada; no 13º, nunca", () => {
+    expect(planoDaFolha({ ...base, taxaAgenteCent: 0 }).lancamentos.some((l) => l.parte === "taxa_agente")).toBe(false);
+    expect(planoDaFolha({ ...base, tipo: "decimo_terceiro", taxaAgenteCent: 17000 }).lancamentos.some((l) => l.parte === "taxa_agente")).toBe(false);
+  });
+});

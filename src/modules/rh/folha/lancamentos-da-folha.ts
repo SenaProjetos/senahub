@@ -2,7 +2,7 @@
  * Quais contas a pagar o fechamento da folha gera (R4; decisões 21 e 22 do spec 2026-09-15). PURO, em
  * centavos. Categoria por CHAVE: a subcategoria; se o plano do usuário não a tiver, o gravador cai na mãe.
  */
-export type ParteDaFolha = "liquido_clt" | "bolsa" | "inss_retido" | "irrf_retido" | "fgts" | "beneficio";
+export type ParteDaFolha = "liquido_clt" | "bolsa" | "inss_retido" | "irrf_retido" | "fgts" | "beneficio" | "taxa_agente";
 export type LancamentoPlanejado = {
   parte: ParteDaFolha;
   /** Nome do benefício; "" nas outras partes. */
@@ -20,6 +20,9 @@ export type LancamentoPlanejado = {
 
 /** Item de benefício do custo do mês (`beneficio_0`, ou `clt:beneficio_0` quando o mês teve dois vínculos). */
 export const ehItemDeBeneficio = (chave: string) => /(^|:)beneficio_\d+$/.test(chave);
+
+/** Item da taxa do agente de integração (`taxa_agente`, ou `estagio:taxa_agente` com dois vínculos no mês). */
+export const ehItemDaTaxaDoAgente = (chave: string) => /(^|:)taxa_agente$/.test(chave);
 
 const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
@@ -39,6 +42,11 @@ export function planoDaFolha(p: {
   irrfRetidoCent: number | null;
   fgtsCent: number | null;
   beneficios: { nome: string; valorCent: number }[];
+  /**
+   * Taxa do agente de integração (IEL) dos estagiários contratados por ele, a mesma que entra no custo
+   * da hora (decisão do dono 2026-10-11). Só na folha mensal.
+   */
+  taxaAgenteCent?: number;
 }): { lancamentos: LancamentoPlanejado[]; avisos: string[] } {
   const decimo = p.tipo === "decimo_terceiro";
   const salario = decimo ? "despesa_folha_decimo_terceiro" : "despesa_folha_salarios";
@@ -59,6 +67,7 @@ export function planoDaFolha(p: {
   }
   if (!decimo) {
     for (const b of p.beneficios) add({ parte: "beneficio", rotulo: b.nome, chaveCategoria: chaveDoBeneficio(b.nome), valorCent: b.valorCent, vence: "salario" }, b.nome);
+    add({ parte: "taxa_agente", rotulo: "", chaveCategoria: "despesa_estagio_taxa_agente", valorCent: p.taxaAgenteCent ?? 0, vence: "salario" }, "Taxa do agente de integração (IEL)");
   }
   return { lancamentos, avisos };
 }

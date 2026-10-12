@@ -54,6 +54,7 @@ const ROTULO_PARTE: Record<string, string> = {
   irrf_retido: "IRRF descontado",
   fgts: "FGTS",
   beneficio: "Benefício",
+  taxa_agente: "Taxa do IEL",
 };
 
 /** Contas a pagar que a folha lançou no Financeiro: o líquido CLT e cada parte, com a situação de cada uma. */

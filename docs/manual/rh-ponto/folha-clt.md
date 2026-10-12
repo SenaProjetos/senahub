@@ -122,6 +122,9 @@ Ao fechar, a folha lança no Financeiro **contas a pagar em aberto** — fechar 
   o cartão **Guias do mês** permite corrigir com a folha aberta. Campo vazio = a parte não é lançada.
   Na **folha de 13º**, o INSS e o IRRF vencem no **dia 20 de dezembro** (o próprio mês); o FGTS segue no mês seguinte.
 - **Vale-transporte** e **vale-refeição** (benefícios da tabela de encargos), somados de todos os CLT.
+- **Taxa do agente de integração (IEL)**: a taxa da tabela de encargos do estágio × os estagiários contratados pelo IEL
+  que estão na folha, em "Taxa do agente (IEL)", no prazo do salário — o mesmo valor que entra no custo da hora. Se o
+  boleto do IEL vier diferente, ajuste a conta no Financeiro.
 
 Fechar de novo atualiza as **mesmas contas** enquanto estão em aberto; conta já paga não é mexida (o aviso
 conta a diferença); uma parte que saiu da folha tem a conta **cancelada**, não apagada. O bloco **Contas

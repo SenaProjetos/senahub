@@ -622,7 +622,7 @@ corte usam `calcularRateioLegado`; todo leitor passa por `calcularRateioDoMes`. 
   `DisciplinaResponsavel` (grava `DisciplinaResponsavelHistorico`; guarda em `responsaveis-guarda.test.ts`).
 - **Folha → Financeiro** (`rh/folha/fechamento-service.ts` + `lancamentos-da-folha.ts` puro): o fechamento lança o líquido CLT (Salários),
   bolsa, INSS/IRRF retidos e FGTS (dia 20 do mês seguinte, dia útil anterior; no 13º, INSS/IRRF no dia 20 do PRÓPRIO mês) e
-  benefícios, todos `previsto`, ligados por `FolhaLancamento
+  benefícios e a taxa do agente (IEL, `taxa_agente` do custo do mês dos estagiários), todos `previsto`, ligados por `FolhaLancamento
   (folhaId, parte, rotulo)`; fechar de novo atualiza a mesma conta aberta, conta paga não muda, parte que sai é cancelada pela máquina
   N1. Fechar e reabrir travam a folha com `updateMany` condicionado ao status (dois cliques simultâneos não duplicam conta nem
   reabertura). Reabrir exige motivo, recusa com qualquer conta paga, guarda `HoleriteVersao` + `FolhaReabertura` e MANTÉM

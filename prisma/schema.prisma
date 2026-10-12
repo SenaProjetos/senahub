@@ -6825,6 +6825,8 @@ enum ParteFolha {
   irrf_retido
   fgts
   beneficio
+  /// Taxa do agente de integração (IEL) dos estagiários contratados por ele.
+  taxa_agente
 }
 
 model HoleriteItem {
