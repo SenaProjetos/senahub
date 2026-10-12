@@ -177,7 +177,7 @@ async function main() {
     const liqOut = await prisma.lancamento.findUnique({ where: { id: o1.lancamentoId ?? "" }, select: { status: true } });
     check("folha que perdeu os CLT: conta do líquido anterior cancelada", o2.acao === "sem_clt" && liqOut?.status === "cancelado", { o2, liqOut });
 
-    const f13 = await prisma.folhaPagamento.create({ data: { ano: ANO, mes: 12, tipo: "decimo_terceiro" }, select: { id: true } });
+    const f13 = await prisma.folhaPagamento.create({ data: { ano: ANO, mes: 12, tipo: "decimo_terceiro", totalInssRetido: 150 }, select: { id: true } });
     const h13 = await prisma.holerite.create({ data: { folhaId: f13.id, userId: ana.id }, select: { id: true } });
     await prisma.holeriteItem.create({ data: { holeriteId: h13.id, descricao: `${tag} 13º`, tipo: "provento", valor: 1650 } });
     const t1 = await fecharFolhaNoBanco(f13.id, ana.id);
@@ -186,6 +186,9 @@ async function main() {
     const t2 = await fecharFolhaNoBanco(f13.id, ana.id);
     const liq13 = await prisma.lancamento.findUnique({ where: { id: t2.lancamentoId ?? "" }, select: { valor: true } });
     check("13º reaberto e fechado de novo: a MESMA conta, com o valor novo", t2.lancamentoId === t1.lancamentoId && t2.acao === "atualizou" && paraCentavos(liq13?.valor ?? 0) === 170_000, { t1, t2, liq13 });
+    // 20/12/2041 é sexta: o INSS do 13º vence no próprio dezembro (decisão do dono, 2026-10-11).
+    const inss13 = (await partesDa(f13.id)).find((x) => x.parte === "inss_retido");
+    check("INSS do 13º vence dia 20 de dezembro, não em janeiro", iso(inss13?.lanc.vencimento) === `${ANO}-12-20`, inss13?.lanc);
   } finally {
     const folhas = await prisma.folhaPagamento.findMany({ where: { ano: ANO }, select: { id: true, lancamentoId: true } });
     const partes = await prisma.folhaLancamento.findMany({ where: { folhaId: { in: folhas.map((f) => f.id) } }, select: { lancamentoId: true } });

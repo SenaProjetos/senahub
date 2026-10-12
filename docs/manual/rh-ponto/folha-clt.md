@@ -120,6 +120,7 @@ Ao fechar, a folha lança no Financeiro **contas a pagar em aberto** — fechar 
 - **INSS descontado**, **IRRF descontado** e **FGTS**, no **dia 20 do mês seguinte** (se não for dia útil,
   antecipa para o dia útil anterior). Os valores vêm do relatório do contador; o import do PDF já os preenche, e
   o cartão **Guias do mês** permite corrigir com a folha aberta. Campo vazio = a parte não é lançada.
+  Na **folha de 13º**, o INSS e o IRRF vencem no **dia 20 de dezembro** (o próprio mês); o FGTS segue no mês seguinte.
 - **Vale-transporte** e **vale-refeição** (benefícios da tabela de encargos), somados de todos os CLT.
 
 Fechar de novo atualiza as **mesmas contas** enquanto estão em aberto; conta já paga não é mexida (o aviso

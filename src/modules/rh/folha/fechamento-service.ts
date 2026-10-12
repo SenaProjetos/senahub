@@ -295,7 +295,9 @@ export async function fecharFolhaNoBanco(folhaId: string, autorId: string): Prom
         enesimoDiaUtil(proximo, DIA_UTIL_PADRAO, calendarioDeSalario(cal));
   }
   const vencimentoDasGuias = diaUtilAnterior(`${proximo}-${DIA_DAS_GUIAS}`, cal);
-  const vencimentoDe = (p: LancamentoPlanejado) => (p.vence === "dia20" ? vencimentoDasGuias : vencimento);
+  const vencimentoDasGuiasDoMes = diaUtilAnterior(`${competencia}-${DIA_DAS_GUIAS}`, cal);
+  const vencimentoDe = (p: LancamentoPlanejado) =>
+    p.vence === "dia20" ? vencimentoDasGuias : p.vence === "dia20_mesmo_mes" ? vencimentoDasGuiasDoMes : vencimento;
 
   const acoes: AcaoDaParte[] = [];
   const noPlano = new Set(planoPartes.map(chaveParte));

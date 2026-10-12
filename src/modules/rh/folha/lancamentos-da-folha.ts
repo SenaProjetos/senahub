@@ -9,8 +9,12 @@ export type LancamentoPlanejado = {
   rotulo: string;
   chaveCategoria: string;
   valorCent: number;
-  /** "salario" = vencimento do salário; "dia20" = guias (dia 20 do mês seguinte, dia útil anterior). */
-  vence: "salario" | "dia20";
+  /**
+   * "salario" = vencimento do salário; "dia20" = guias (dia 20 do mês SEGUINTE, dia útil anterior);
+   * "dia20_mesmo_mes" = INSS e IRRF do 13º, que vencem no dia 20 do PRÓPRIO mês (dezembro; decisão do dono
+   * 2026-10-11). O FGTS do 13º segue a regra do mês seguinte.
+   */
+  vence: "salario" | "dia20" | "dia20_mesmo_mes";
   descricao: string;
 };
 
@@ -48,8 +52,9 @@ export function planoDaFolha(p: {
   if (p.inssRetidoCent == null && p.irrfRetidoCent == null && p.fgtsCent == null) {
     avisos.push("INSS, IRRF e FGTS não informados — nada lançado para as guias.");
   } else {
-    add({ parte: "inss_retido", rotulo: "", chaveCategoria: salario, valorCent: p.inssRetidoCent ?? 0, vence: "dia20" }, "INSS descontado dos funcionários");
-    add({ parte: "irrf_retido", rotulo: "", chaveCategoria: salario, valorCent: p.irrfRetidoCent ?? 0, vence: "dia20" }, "IRRF descontado dos funcionários");
+    const guiaRetida = decimo ? "dia20_mesmo_mes" : "dia20";
+    add({ parte: "inss_retido", rotulo: "", chaveCategoria: salario, valorCent: p.inssRetidoCent ?? 0, vence: guiaRetida }, "INSS descontado dos funcionários");
+    add({ parte: "irrf_retido", rotulo: "", chaveCategoria: salario, valorCent: p.irrfRetidoCent ?? 0, vence: guiaRetida }, "IRRF descontado dos funcionários");
     add({ parte: "fgts", rotulo: "", chaveCategoria: "despesa_folha_fgts", valorCent: p.fgtsCent ?? 0, vence: "dia20" }, "FGTS");
   }
   if (!decimo) {

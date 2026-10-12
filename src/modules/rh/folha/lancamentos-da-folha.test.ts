@@ -37,12 +37,12 @@ describe("planoDaFolha (decisões 21 e 22)", () => {
     const r = planoDaFolha({ ...base, beneficios: [{ nome: "Plano odontológico", valorCent: 5000 }] });
     expect(resumo(r).at(-1)).toBe("beneficio:Plano odontológico:despesa_folha_clt:5000:salario");
   });
-  it("13º: líquido na subcategoria do 13º, sem bolsa nem benefícios", () => {
+  it("13º: líquido na subcategoria do 13º, sem bolsa nem benefícios; INSS e IRRF vencem dia 20 do próprio mês", () => {
     const r = planoDaFolha({ ...base, tipo: "decimo_terceiro", rotuloFolha: "13º 2026" });
     expect(resumo(r)).toEqual([
       "liquido_clt::despesa_folha_decimo_terceiro:1000000:salario",
-      "inss_retido::despesa_folha_decimo_terceiro:110000:dia20",
-      "irrf_retido::despesa_folha_decimo_terceiro:40000:dia20",
+      "inss_retido::despesa_folha_decimo_terceiro:110000:dia20_mesmo_mes",
+      "irrf_retido::despesa_folha_decimo_terceiro:40000:dia20_mesmo_mes",
       "fgts::despesa_folha_fgts:96000:dia20",
     ]);
   });
