@@ -6,11 +6,15 @@ import { toast } from "sonner";
 import { aoPushSemSocket, aoReconectar, getSocket, tocarSom } from "@/lib/chat-client";
 import { decidirAlerta } from "@/lib/chat-badge-store";
 import { ChatBadgeContext } from "@/components/chat/chat-badge-context";
+import { origemMensagem } from "@/modules/chat/nome-canal";
+import { textoParaPreview } from "@/modules/chat/formatacao";
 
 type MensagemEvento = {
   canalId: string;
   conteudo: string;
   autor: { id: string; name: string };
+  /** Tipo + nome exibido do canal (`origemDoCanal`); ausente só se o canal sumiu. */
+  origem?: { tipo: string; nome: string } | null;
 };
 
 /**
@@ -67,8 +71,19 @@ export function ChatPresenceProvider({ children }: { children: React.ReactNode }
       });
       if (som) tocarSom();
       if (mostrarToast) {
+        const previa = p.conteudo ? textoParaPreview(p.conteudo).slice(0, 120) : "📎 Anexo";
         toast(p.autor.name, {
-          description: p.conteudo ? p.conteudo.slice(0, 120) : "📎 Anexo",
+          // Diz de onde veio (privado × grupo/canal) antes do texto.
+          description: p.origem ? (
+            <>
+              <span className="block text-xs font-medium text-muted-foreground">
+                {origemMensagem(p.origem.tipo, p.origem.nome)}
+              </span>
+              <span className="block">{previa}</span>
+            </>
+          ) : (
+            previa
+          ),
           action: {
             label: "Abrir",
             onClick: () => router.push(`/chat?c=${p.canalId}`),

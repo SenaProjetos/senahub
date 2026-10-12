@@ -14,12 +14,13 @@ const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
   holeriteFindUnique: vi.fn(),
   holeriteUpdateMany: vi.fn(),
+  holeriteFindMany: vi.fn(),
+  holeriteUpdate: vi.fn(),
   folhaFindUnique: vi.fn(),
   folhaUpdate: vi.fn(),
   lancamentoDelete: vi.fn(),
   lancamentoUpdateMany: vi.fn(),
   lancamentoFindFirst: vi.fn(),
-  holeriteFindMany: vi.fn(),
   holeriteVersaoCreate: vi.fn(),
   folhaReaberturaCreate: vi.fn(),
   folhaUpdateMany: vi.fn(),
@@ -29,7 +30,7 @@ const tx = {
   // Reabrir lê, trava e confere o pagamento DENTRO da transação.
   folhaPagamento: { update: mocks.folhaUpdate, findUnique: mocks.folhaFindUnique, updateMany: mocks.folhaUpdateMany },
   lancamento: { delete: mocks.lancamentoDelete, updateMany: mocks.lancamentoUpdateMany, findFirst: mocks.lancamentoFindFirst },
-  holerite: { updateMany: mocks.holeriteUpdateMany, findMany: mocks.holeriteFindMany },
+  holerite: { updateMany: mocks.holeriteUpdateMany, findMany: mocks.holeriteFindMany, update: mocks.holeriteUpdate },
   holeriteVersao: { create: mocks.holeriteVersaoCreate },
   folhaReabertura: { create: mocks.folhaReaberturaCreate },
 };
@@ -77,7 +78,12 @@ describe("assinarHolerite", () => {
     expect(r.ok).toBe(true);
     expect(mocks.holeriteUpdateMany).toHaveBeenCalledWith({
       where: { id: "h1", assinadoEm: null },
-      data: { assinadoEm: expect.any(Date), assinanteId: "u1" },
+      data: {
+        assinadoEm: expect.any(Date),
+        assinanteId: "u1",
+        assinaturaAnteriorEm: null,
+        itensAssinadosAntes: expect.anything(),
+      },
     });
   });
 
@@ -178,26 +184,38 @@ describe("reabrirFolha — limpa assinatura", () => {
     expect(mocks.folhaReaberturaCreate).toHaveBeenCalledWith({ data: { folhaId: "f1", motivo: MOTIVO, autorId: "rh1" } });
   });
 
-  it("limpa assinadoEm/assinanteId de quem já tinha assinado, e devolve a contagem", async () => {
+  it("revoga a assinatura de quem já tinha assinado, guardando a assinatura e os itens que ela cobria", async () => {
     mocks.folhaFindUnique.mockResolvedValue({ id: "f1", status: "fechada", lancamentoId: "l1", partes: [], lancamentoReaproveitado: false, lancamentoValorPrevisto: null });
     mocks.lancamentoDelete.mockResolvedValue({});
-    mocks.holeriteUpdateMany.mockResolvedValue({ count: 2 });
+    const quando = new Date("2026-10-01T12:00:00Z");
+    mocks.holeriteFindMany.mockResolvedValue([
+      { id: "h1", assinadoEm: quando, itens: [{ descricao: "Salário", tipo: "provento", valor: 3000 }] },
+      { id: "h2", assinadoEm: quando, itens: [] },
+    ]);
 
     const r = await reabrirFolha({ id: "f1", motivo: MOTIVO });
     expect(r.ok).toBe(true);
     expect(r.ok && r.data.assinaturasRevogadas).toBe(2);
-    expect(mocks.holeriteUpdateMany).toHaveBeenCalledWith({
-      where: { folhaId: "f1", assinadoEm: { not: null } },
-      data: { assinadoEm: null, assinanteId: null },
+    expect(mocks.holeriteFindMany.mock.calls[0][0].where).toEqual({ folhaId: "f1", assinadoEm: { not: null } });
+    expect(mocks.holeriteUpdate).toHaveBeenCalledWith({
+      where: { id: "h1" },
+      data: {
+        assinadoEm: null,
+        assinanteId: null,
+        assinaturaAnteriorEm: quando,
+        itensAssinadosAntes: [{ descricao: "Salário", tipo: "provento", valor: 3000 }],
+      },
     });
+    expect(mocks.holeriteUpdate).toHaveBeenCalledTimes(2);
   });
 
-  it("não mexe em assinatura quando ninguém tinha assinado (count 0)", async () => {
+  it("não mexe em assinatura quando ninguém tinha assinado", async () => {
     mocks.folhaFindUnique.mockResolvedValue({ id: "f1", status: "fechada", lancamentoId: null, partes: [], lancamentoReaproveitado: false, lancamentoValorPrevisto: null });
-    mocks.holeriteUpdateMany.mockResolvedValue({ count: 0 });
+    mocks.holeriteFindMany.mockResolvedValue([]);
     const r = await reabrirFolha({ id: "f1", motivo: MOTIVO });
     expect(r.ok).toBe(true);
     expect(r.ok && r.data.assinaturasRevogadas).toBe(0);
+    expect(mocks.holeriteUpdate).not.toHaveBeenCalled();
   });
 
   it("conta a pagar da folha já paga: reabrir é recusado (estorne antes)", async () => {

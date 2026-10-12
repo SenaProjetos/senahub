@@ -39,6 +39,35 @@ describe("INSS progressivo (marginal)", () => {
   });
 });
 
+describe("INSS — centavos iguais aos do contador (faixas oficiais 2026)", () => {
+  const OFICIAL: Faixa[] = [
+    { limite: 1621, aliquota: 7.5, deduzir: 0 },
+    { limite: 2902.84, aliquota: 9, deduzir: 0 },
+    { limite: 4354.27, aliquota: 12, deduzir: 0 },
+    { limite: 8475.55, aliquota: 14, deduzir: 0 },
+  ];
+  // [base, INSS que o contador imprimiu] — folhas reais de 05, 06 e 08/2026 + o caso do print.
+  const DO_CONTADOR: Array<[number, number]> = [
+    [1771.23, 135.09],
+    [3646.65, 326.18],
+    [4167.6, 388.7],
+    [4335.2, 408.81],
+    [3793.3, 343.78],
+    [2709.5, 219.53],
+    [1842.46, 141.5],
+    [1700, 128.68],
+    [2500, 200.68],
+    [3500, 308.58],
+    [4000, 368.58],
+  ];
+  it.each(DO_CONTADOR)("base %d → INSS %d", (base, esperado) => {
+    expect(calcularINSS(base, OFICIAL)).toBe(esperado);
+  });
+  it("trunca cada faixa, não arredonda a soma (1.771,23: 135,0957 → 135,09)", () => {
+    expect(calcularINSS(1771.23, OFICIAL)).toBe(135.09);
+  });
+});
+
 describe("IRRF (alíquota − parcela a deduzir)", () => {
   it("isento na 1ª faixa", () => {
     expect(calcularIRRF(1800, IRRF)).toBe(0);

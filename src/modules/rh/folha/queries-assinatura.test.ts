@@ -1,45 +1,52 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Gate de acesso do holerite (P4). Este `where` roda no layout de TODA rota do dashboard —
- * errar aqui tranca o sistema inteiro ou deixa passar quem devia assinar. Os testes checam o
+ * Tarja de assinatura do holerite. Este `where` roda no layout de TODA rota do dashboard —
+ * errar aqui some com a cobrança ou mostra tarja a quem não deve. Os testes checam o
  * filtro montado, não só o retorno.
  */
 
 const mocks = vi.hoisted(() => ({
-  holeriteFindFirst: vi.fn(),
   holeriteFindMany: vi.fn(),
+  lancamentoFindMany: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    holerite: { findFirst: mocks.holeriteFindFirst, findMany: mocks.holeriteFindMany },
+    holerite: { findMany: mocks.holeriteFindMany },
+    lancamento: { findMany: mocks.lancamentoFindMany },
   },
 }));
 
 const {
-  precisaAssinarHolerite,
+  pendenciaDeAssinaturaHolerite,
   holeritesPendentesDeAssinatura,
   ASSINATURA_HOLERITE_OBRIGATORIA_DESDE,
 } = await import("./queries");
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.lancamentoFindMany.mockResolvedValue([]);
+});
 
-describe("precisaAssinarHolerite", () => {
-  it("libera quem não tem holerite pendente nenhum", async () => {
-    mocks.holeriteFindFirst.mockResolvedValue(null);
-    expect(await precisaAssinarHolerite({ id: "u1" })).toBe(false);
+describe("pendenciaDeAssinaturaHolerite", () => {
+  it("quem não tem holerite pendente nenhum não vê tarja", async () => {
+    mocks.holeriteFindMany.mockResolvedValue([]);
+    expect(await pendenciaDeAssinaturaHolerite({ id: "u1" })).toEqual({ total: 0, revisados: 0 });
   });
 
-  it("tranca quem tem holerite de folha fechada sem assinar", async () => {
-    mocks.holeriteFindFirst.mockResolvedValue({ id: "h1" });
-    expect(await precisaAssinarHolerite({ id: "u1" })).toBe(true);
+  it("conta pendentes e quantos são reassinatura (corrigidos depois de assinados)", async () => {
+    mocks.holeriteFindMany.mockResolvedValue([
+      { assinaturaAnteriorEm: null, folha: { lancamentoId: null } },
+      { assinaturaAnteriorEm: new Date("2026-10-01T12:00:00Z"), folha: { lancamentoId: null } },
+    ]);
+    expect(await pendenciaDeAssinaturaHolerite({ id: "u1" })).toEqual({ total: 2, revisados: 1 });
   });
 
   it("só considera folha FECHADA e a partir do corte, e holerite ainda não assinado", async () => {
-    mocks.holeriteFindFirst.mockResolvedValue(null);
-    await precisaAssinarHolerite({ id: "u1" });
-    expect(mocks.holeriteFindFirst).toHaveBeenCalledWith({
+    mocks.holeriteFindMany.mockResolvedValue([]);
+    await pendenciaDeAssinaturaHolerite({ id: "u1" });
+    expect(mocks.holeriteFindMany).toHaveBeenCalledWith({
       where: {
         userId: "u1",
         assinadoEm: null,
@@ -48,22 +55,32 @@ describe("precisaAssinarHolerite", () => {
           fechadaEm: { gte: ASSINATURA_HOLERITE_OBRIGATORIA_DESDE },
         },
       },
-      select: { id: true },
+      select: { assinaturaAnteriorEm: true, folha: { select: { lancamentoId: true } } },
     });
   });
 
+  it("antes do dia do pagamento da folha não cobra; no dia, cobra", async () => {
+    mocks.holeriteFindMany.mockResolvedValue([{ assinaturaAnteriorEm: null, folha: { lancamentoId: "l1" } }]);
+    const amanha = new Date(Date.now() + 2 * 86_400_000);
+    mocks.lancamentoFindMany.mockResolvedValue([{ id: "l1", status: "previsto", vencimento: amanha }]);
+    expect(await pendenciaDeAssinaturaHolerite({ id: "u1" })).toEqual({ total: 0, revisados: 0 });
+
+    mocks.lancamentoFindMany.mockResolvedValue([{ id: "l1", status: "previsto", vencimento: new Date("2026-01-05") }]);
+    expect(await pendenciaDeAssinaturaHolerite({ id: "u1" })).toEqual({ total: 1, revisados: 0 });
+  });
+
   it("não carrega item nenhum — é consulta de layout, roda a cada navegação", async () => {
-    mocks.holeriteFindFirst.mockResolvedValue(null);
-    await precisaAssinarHolerite({ id: "u1" });
-    const arg = mocks.holeriteFindFirst.mock.calls[0][0];
-    expect(arg.select).toEqual({ id: true });
+    mocks.holeriteFindMany.mockResolvedValue([]);
+    await pendenciaDeAssinaturaHolerite({ id: "u1" });
+    const arg = mocks.holeriteFindMany.mock.calls[0][0];
+    expect(arg.select).toEqual({ assinaturaAnteriorEm: true, folha: { select: { lancamentoId: true } } });
     expect(arg.include).toBeUndefined();
   });
 
-  it("o corte é INCLUSIVO (gte): folha fechada exatamente no instante do corte é exigida", async () => {
-    mocks.holeriteFindFirst.mockResolvedValue(null);
-    await precisaAssinarHolerite({ id: "u1" });
-    const filtro = mocks.holeriteFindFirst.mock.calls[0][0].where.folha.fechadaEm;
+  it("o corte é INCLUSIVO (gte): folha fechada exatamente no instante do corte é cobrada", async () => {
+    mocks.holeriteFindMany.mockResolvedValue([]);
+    await pendenciaDeAssinaturaHolerite({ id: "u1" });
+    const filtro = mocks.holeriteFindMany.mock.calls[0][0].where.folha.fechadaEm;
     expect(filtro).toHaveProperty("gte");
     expect(filtro).not.toHaveProperty("gt");
     // Folha fechada 1ms antes do corte fica de fora; no instante exato, dentro.
@@ -95,7 +112,9 @@ describe("holeritesPendentesDeAssinatura", () => {
     mocks.holeriteFindMany.mockResolvedValue([
       {
         id: "h1",
-        folha: { ano: 2026, mes: 9, fechadaEm: new Date("2026-10-01T12:00:00Z") },
+        assinaturaAnteriorEm: null,
+        itensAssinadosAntes: null,
+        folha: { ano: 2026, mes: 9, lancamentoId: null, fechadaEm: new Date("2026-10-01T12:00:00Z") },
         itens: [
           { descricao: "Salário", tipo: "provento", valor: 3000 },
           { descricao: "Vale", tipo: "provento", valor: 500 },
@@ -107,9 +126,41 @@ describe("holeritesPendentesDeAssinatura", () => {
     expect(r[0].proventos).toBe(3500);
     expect(r[0].descontos).toBe(300);
     expect(r[0].liquido).toBe(3200);
+    expect(r[0].revisao).toBeNull();
     expect(mocks.holeriteFindMany.mock.calls[0][0].orderBy).toEqual([
       { folha: { ano: "asc" } },
       { folha: { mes: "asc" } },
+    ]);
+  });
+
+  it("a tela mostra o pendente mesmo ANTES do dia do pagamento (só a tarja espera) — e nem lê a conta", async () => {
+    mocks.holeriteFindMany.mockResolvedValue([
+      {
+        id: "h1",
+        assinaturaAnteriorEm: null,
+        itensAssinadosAntes: null,
+        folha: { ano: 2026, mes: 9, tipo: "mensal", fechadaEm: new Date("2026-10-01T12:00:00Z") },
+        itens: [{ descricao: "Salário", tipo: "provento", valor: 3000 }],
+      },
+    ]);
+    const r = await holeritesPendentesDeAssinatura({ id: "u1" });
+    expect(r).toHaveLength(1);
+    expect(mocks.lancamentoFindMany).not.toHaveBeenCalled();
+  });
+
+  it("holerite corrigido depois de assinado traz o que mudou desde a assinatura anterior", async () => {
+    mocks.holeriteFindMany.mockResolvedValue([
+      {
+        id: "h1",
+        assinaturaAnteriorEm: new Date("2026-10-01T12:00:00Z"),
+        itensAssinadosAntes: [{ descricao: "Salário", tipo: "provento", valor: 3000 }],
+        folha: { ano: 2026, mes: 9, tipo: "mensal", lancamentoId: null, fechadaEm: new Date("2026-10-05T12:00:00Z") },
+        itens: [{ descricao: "Salário", tipo: "provento", valor: 3100 }],
+      },
+    ]);
+    const r = await holeritesPendentesDeAssinatura({ id: "u1" });
+    expect(r[0].revisao?.mudancas).toEqual([
+      { kind: "alterado", descricao: "Salário", tipo: "provento", antes: 3000, depois: 3100 },
     ]);
   });
 });

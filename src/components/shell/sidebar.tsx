@@ -35,6 +35,7 @@ export function Sidebar({ nav }: { nav: ContextoNav }) {
   return (
     <aside
       data-tour="nav"
+      data-foco-total
       className={cn(
         "sticky top-0 hidden h-svh shrink-0 flex-col overflow-x-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-300 ease-in-out motion-reduce:transition-none lg:flex",
         // Minimizado: 75 px de área + 1 px da borda (era 63 + 1) — mais espaço para o nome sob o ícone.

@@ -48,6 +48,11 @@ const cadastrarFuncionarioSchema = z.object({
   // Dados pessoais
   cpf: campo.cpf(),
   rg: campo.rg(),
+  pis: campo.pis(),
+  ctpsNumero: campo.ctpsNumero(),
+  ctpsSerie: campo.ctpsSerie(),
+  tituloEleitor: campo.tituloEleitor(),
+  cnh: campo.cnh(),
   dataNascimento: opt(z.string()),
   sexo: opt(z.string()),
   estadoCivil: opt(z.string()),
@@ -119,6 +124,11 @@ export const cadastrarFuncionario = defineAction(
         nomeCompleto: i.nomeCompleto || null,
         cpf: i.cpf || null,
         rg: i.rg || null,
+        pis: i.pis || null,
+        ctpsNumero: i.ctpsNumero || null,
+        ctpsSerie: i.ctpsSerie || null,
+        tituloEleitor: i.tituloEleitor || null,
+        cnh: i.cnh || null,
         dataNascimento: dataOuNull(i.dataNascimento),
         sexo: i.sexo || null,
         estadoCivil: i.estadoCivil || null,
@@ -219,6 +229,11 @@ const editarCadastroSchema = z.object({
   nomeCompleto: opt(z.string()),
   cpf: campo.cpf({ legado: true }),
   rg: campo.rg({ legado: true }),
+  pis: campo.pis({ legado: true }),
+  ctpsNumero: campo.ctpsNumero({ legado: true }),
+  ctpsSerie: campo.ctpsSerie({ legado: true }),
+  tituloEleitor: campo.tituloEleitor({ legado: true }),
+  cnh: campo.cnh({ legado: true }),
   dataNascimento: opt(z.string()),
   sexo: opt(z.string()),
   estadoCivil: opt(z.string()),
@@ -254,10 +269,14 @@ export const editarCadastroFuncionario = defineAction(
   async (i) => {
     const antes = await prisma.user.findUnique({
       where: { id: i.id },
-      select: { cpf: true, rg: true, enderecoCep: true, telefone: true, telefoneEmergencia: true, emailPessoal: true },
+      select: {
+        cpf: true, rg: true, pis: true, ctpsNumero: true, ctpsSerie: true, tituloEleitor: true, cnh: true,
+        enderecoCep: true, telefone: true, telefoneEmergencia: true, emailPessoal: true,
+      },
     });
     exigirCamposValidos(i, antes, {
-      cpf: "cpf", rg: "rg", enderecoCep: "cep", telefone: "telefone", telefoneEmergencia: "telefone", emailPessoal: "email",
+      cpf: "cpf", rg: "rg", pis: "pis", ctpsNumero: "ctpsNumero", ctpsSerie: "ctpsSerie", tituloEleitor: "tituloEleitor", cnh: "cnh",
+      enderecoCep: "cep", telefone: "telefone", telefoneEmergencia: "telefone", emailPessoal: "email",
     });
     const u = await prisma.user.findUnique({ where: { id: i.id }, select: { contratacao: true } });
     if (!u) throw new ActionError("Colaborador não encontrado.");
@@ -267,6 +286,11 @@ export const editarCadastroFuncionario = defineAction(
         nomeCompleto: i.nomeCompleto || null,
         cpf: i.cpf || null,
         rg: i.rg || null,
+        pis: i.pis || null,
+        ctpsNumero: i.ctpsNumero || null,
+        ctpsSerie: i.ctpsSerie || null,
+        tituloEleitor: i.tituloEleitor || null,
+        cnh: i.cnh || null,
         dataNascimento: dataOuNull(i.dataNascimento),
         sexo: i.sexo || null,
         estadoCivil: i.estadoCivil || null,

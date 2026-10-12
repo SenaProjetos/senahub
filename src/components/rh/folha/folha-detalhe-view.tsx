@@ -27,6 +27,7 @@ import type { ContaDaFolhaTela, CustoDaFolha, ReaberturaDaFolha, VersaoAssinada 
 import { calcularEncargos, type Faixa } from "@/lib/encargos";
 import { brl, formatarData } from "@/lib/utils";
 import { rotuloFolha, type TipoFolha } from "@/modules/rh/folha/tipo-folha";
+import { RUBRICAS_LANCADAS_A_MAO } from "@/modules/rh/folha/rubricas-manuais";
 import {
   Select,
   SelectContent,
@@ -503,10 +504,18 @@ function HoleriteEditor({
     ]);
   }
 
-  /** Calcula INSS/IRRF sobre o total de proventos e injeta os descontos. */
+  /**
+   * Calcula INSS/IRRF sobre os proventos e injeta os descontos. Auxílio transporte/alimentação ficam
+   * FORA da base: são pagos por fora do salário e não sofrem INSS nem IRRF.
+   */
   function calcularEncargosClick() {
+    const foraDaBase = new Set<string>(RUBRICAS_LANCADAS_A_MAO);
     const proventos = itens
       .filter((it) => it.tipo === "provento")
+      .filter((it) => {
+        const nomeRubrica = rubricas.find((r) => r.id === it.rubricaId)?.nome;
+        return !foraDaBase.has(nomeRubrica ?? "") && !foraDaBase.has(it.descricao.trim());
+      })
       .reduce((s, it) => s + (Number(it.valor) || 0), 0);
     if (proventos <= 0) {
       toast.error("Adicione proventos antes de calcular encargos.");

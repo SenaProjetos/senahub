@@ -4,6 +4,7 @@ import { cep } from "./cep";
 import { chaveNfe } from "./chave-nfe";
 import { campoPix } from "./chave-pix";
 import { cnpj, cpf, cpfCnpj } from "./cpf-cnpj";
+import { cnh, ctpsNumero, ctpsSerie, pis, tituloEleitor } from "./documentos-trabalhistas";
 import { email } from "./email";
 import { telefone } from "./telefone";
 import type { TipoCampo } from "./tipo";
@@ -11,11 +12,13 @@ import type { TipoCampo } from "./tipo";
 export type { TipoCampo } from "./tipo";
 
 export type NomeCampo =
-  | "cpf" | "cnpj" | "cpfCnpj" | "telefone" | "cep" | "email" | "rg" | "agencia" | "conta" | "chaveNfe";
+  | "cpf" | "cnpj" | "cpfCnpj" | "telefone" | "cep" | "email" | "rg" | "agencia" | "conta" | "chaveNfe"
+  | "pis" | "ctpsNumero" | "ctpsSerie" | "tituloEleitor" | "cnh";
 
 /** Catálogo de campos com formato (spec 2026-10-04). Tipo novo nasce aqui junto com o campo. */
 export const CAMPOS: Record<NomeCampo, TipoCampo> = {
   cpf, cnpj, cpfCnpj, telefone, cep, email, rg, agencia, conta, chaveNfe,
+  pis, ctpsNumero, ctpsSerie, tituloEleitor, cnh,
 };
 
 /** Chave PIX antes de escolher o tipo: o campo fica desabilitado e aceita qualquer coisa. */

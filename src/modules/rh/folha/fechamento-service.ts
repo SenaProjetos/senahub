@@ -494,27 +494,30 @@ export async function reabrirFolhaNoBanco(folhaId: string, motivo: string, autor
     const recusa = motivoParaNaoReabrir(paga);
     if (recusa) throw new ActionError(recusa);
 
+    // Antes de revogar, guarda o que cada assinatura cobria: a versão assinada (prova, R4) e a base do
+    // "o que mudou" que o funcionário vê ao assinar de novo (`montarRevisao`). Um por um — uma conexão
+    // só na transação.
     const assinados = await tx.holerite.findMany({
       where: { folhaId, assinadoEm: { not: null } },
-      select: { id: true, assinadoEm: true, assinanteId: true, itens: { select: { descricao: true, tipo: true, valor: true } } },
+      select: {
+        id: true,
+        assinadoEm: true,
+        assinanteId: true,
+        itens: { select: { descricao: true, tipo: true, valor: true }, orderBy: { descricao: "asc" } },
+      },
     });
     for (const h of assinados) {
+      const itens = h.itens.map((it) => ({ descricao: it.descricao, tipo: it.tipo, valor: Number(it.valor) }));
       await tx.holeriteVersao.create({
-        data: {
-          holeriteId: h.id,
-          itens: h.itens.map((i) => ({ descricao: i.descricao, tipo: i.tipo, valor: Number(i.valor) })),
-          assinadoEm: h.assinadoEm!,
-          assinanteId: h.assinanteId,
-          motivo: texto,
-        },
+        data: { holeriteId: h.id, itens, assinadoEm: h.assinadoEm!, assinanteId: h.assinanteId, motivo: texto },
+      });
+      await tx.holerite.update({
+        where: { id: h.id },
+        data: { assinadoEm: null, assinanteId: null, assinaturaAnteriorEm: h.assinadoEm, itensAssinadosAntes: itens },
       });
     }
     await tx.folhaReabertura.create({ data: { folhaId, motivo: texto, autorId } });
-    const r = await tx.holerite.updateMany({
-      where: { folhaId, assinadoEm: { not: null } },
-      data: { assinadoEm: null, assinanteId: null },
-    });
-    return r.count;
+    return assinados.length;
   });
   return { assinaturasRevogadas };
 }

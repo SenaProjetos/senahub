@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   userFindMany: vi.fn(),
   matriculaIgnoradaFindMany: vi.fn(),
   holeriteUpsert: vi.fn(),
+  holeriteItemFindMany: vi.fn(),
   holeriteItemDeleteMany: vi.fn(),
   holeriteItemCreateMany: vi.fn(),
   folhaUpdate: vi.fn(),
@@ -25,7 +26,7 @@ const mocks = vi.hoisted(() => ({
 const tx = {
   rubricaFolha: { findMany: mocks.rubricaFindMany },
   holerite: { upsert: mocks.holeriteUpsert },
-  holeriteItem: { deleteMany: mocks.holeriteItemDeleteMany, createMany: mocks.holeriteItemCreateMany },
+  holeriteItem: { findMany: mocks.holeriteItemFindMany, deleteMany: mocks.holeriteItemDeleteMany, createMany: mocks.holeriteItemCreateMany },
   folhaPagamento: { findUnique: mocks.folhaFindUnique, update: mocks.folhaUpdate },
 };
 
@@ -104,6 +105,30 @@ describe("analisarImportacao", () => {
         ],
       },
     ]);
+  });
+
+  it("quem não teve movimento no PDF (mês todo de férias) não trava o import: os outros entram e ele sai em lancarManualmente", async () => {
+    const base = folhaFake();
+    const folha = folhaFake({
+      funcionarios: [
+        ...base.funcionarios,
+        {
+          matriculaExterna: "000009",
+          nome: "EM FERIAS",
+          salarioContratual: 2600,
+          rubricas: [],
+          totalProventos: 0,
+          totalDescontos: 0,
+          liquido: 0,
+          semMovimento: true,
+        },
+      ],
+    });
+    const r = await analisarImportacao("f1", folha);
+    expect(r.status).toBe("pronto");
+    if (r.status !== "pronto") return;
+    expect(r.plano.holerites.map((h) => h.matriculaExterna)).toEqual(["000001"]);
+    expect(r.plano.lancarManualmente).toEqual([{ matriculaExterna: "000009", nome: "EM FERIAS" }]);
   });
 
   it("pede cadastro da rubrica desconhecida, com o tipo já deduzido, e não planeja nada", async () => {
@@ -328,9 +353,11 @@ describe("aplicarImportacao", () => {
     ],
     avisosForaDoPdf: [],
     matriculasIgnoradas: [],
+    lancarManualmente: [],
   };
 
   beforeEach(() => {
+    mocks.holeriteItemFindMany.mockResolvedValue([{ id: "manual-1" }]);
     mocks.holeriteUpsert.mockResolvedValue({ id: "h1" });
     mocks.folhaFindUnique.mockResolvedValue({ origemPdfPath: null });
   });
@@ -346,7 +373,14 @@ describe("aplicarImportacao", () => {
       ],
     });
     // Substitui os itens em vez de somar aos antigos — reenviar o mesmo PDF não duplica.
-    expect(mocks.holeriteItemDeleteMany).toHaveBeenCalledWith({ where: { holeriteId: "h1" } });
+    // Troca só o que veio do PDF: os itens lançados à mão (auxílio transporte/alimentação) ficam.
+    expect(mocks.holeriteItemFindMany).toHaveBeenCalledWith({
+      where: { holeriteId: "h1", rubrica: { nome: { in: ["Auxílio transporte", "Auxílio alimentação"] } } },
+      select: { id: true },
+    });
+    expect(mocks.holeriteItemDeleteMany).toHaveBeenCalledWith({
+      where: { holeriteId: "h1", id: { notIn: ["manual-1"] } },
+    });
   });
 
   it("grava os totais de INSS, IRRF e FGTS do resumo do PDF (R4 do rateio)", async () => {

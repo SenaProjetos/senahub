@@ -193,12 +193,20 @@ export function PontoView({
   const hojeIso = isoLocal(new Date());
   const linhasPeriodo = linhas.filter((l) => l.iso >= pIni && l.iso <= pFim);
   const trabalhadoPeriodo = linhasPeriodo.reduce((a, l) => a + (l.registro?.minutos ?? 0), 0);
-  // Esperado só conta dias já decorridos (≤ hoje) — evita saldo negativo assustador.
-  const esperadoPeriodo = linhasPeriodo.reduce(
+  // O card "Esperado" mostra a jornada do período INTEIRO (semana = 5 × jornada, mês = dias úteis ×
+  // jornada) — é o número que a pessoa confere no calendário. O saldo continua contra o esperado só
+  // dos dias já decorridos (≤ hoje): senão começaria a semana devendo a semana toda.
+  const esperadoPeriodoTotal = linhasPeriodo.reduce((a, l) => a + (espelho.esperadoPorDia[l.iso] ?? 0), 0);
+  const esperadoAteHoje = linhasPeriodo.reduce(
     (a, l) => a + (l.iso <= hojeIso ? espelho.esperadoPorDia[l.iso] ?? 0 : 0),
     0,
   );
-  const saldoPeriodo = trabalhadoPeriodo - esperadoPeriodo;
+  const saldoPeriodo = trabalhadoPeriodo - esperadoAteHoje;
+  // O resumo só tem os dias do mês corrente: na semana que começa no mês anterior (ou termina no
+  // seguinte), a parte de fora não entra — avisa em vez de mostrar uma semana encurtada calada.
+  const mm = String(mes).padStart(2, "0");
+  const semanaCortada =
+    periodo === "semana" && (pIni < `${ano}-${mm}-01` || pFim > `${ano}-${mm}-${String(new Date(ano, mes, 0).getDate()).padStart(2, "0")}`);
 
   /** Matriz do espelho (cabeçalho + linhas) compartilhada pelo export CSV e XLSX. */
   function matrizExport(): { cabecalho: string[]; linhasExport: string[][] } {
@@ -303,6 +311,12 @@ export function PontoView({
         </div>
       </div>
 
+      {semanaCortada && (
+        <p className="-mt-3 text-xs text-muted-foreground">
+          Esta semana passa da virada do mês: o resumo conta só os dias deste mês.
+        </p>
+      )}
+
       <div className={`grid gap-4 ${controlaJornada ? "sm:grid-cols-3" : "sm:grid-cols-1"}`}>
         <Card>
           <CardHeader className="pb-2">
@@ -319,7 +333,10 @@ export function PontoView({
                 <CardDescription className="font-mono text-[10px] uppercase tracking-[0.16em]">
                   Esperado ({PERIODO_LABEL[periodo]})
                 </CardDescription>
-                <CardTitle className="text-2xl text-muted-foreground">{fmtHoras(esperadoPeriodo)}</CardTitle>
+                <CardTitle className="text-2xl text-muted-foreground">{fmtHoras(esperadoPeriodoTotal)}</CardTitle>
+                {esperadoAteHoje !== esperadoPeriodoTotal && (
+                  <p className="text-xs text-muted-foreground">Até hoje: {fmtHoras(esperadoAteHoje)} — base do saldo</p>
+                )}
               </CardHeader>
             </Card>
             <Card>

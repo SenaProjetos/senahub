@@ -20,19 +20,28 @@ function round2(v: number): number {
 /**
  * INSS progressivo (marginal por faixa, com teto = maior limite).
  * Cada faixa tributa a parcela do salário entre o limite anterior e o seu limite.
+ *
+ * O valor de CADA faixa é TRUNCADO no centavo (não arredondado), e o INSS é a soma delas — é o
+ * que o sistema do contador faz, e arredondar a soma dava 1 ou 2 centavos a mais no holerite
+ * (ex.: base 1.771,23 → contador 135,09, arredondado 135,10). Conferido contra todas as folhas
+ * reais guardadas em `modules/rh/folha/__fixtures__`.
  */
 export function calcularINSS(base: number, faixas: Faixa[]): number {
   if (base <= 0 || faixas.length === 0) return 0;
   const ord = [...faixas].sort((a, b) => a.limite - b.limite);
-  let inss = 0;
+  let centavos = 0;
   let anterior = 0;
   for (const f of ord) {
     const topo = Math.min(base, f.limite);
-    if (topo > anterior) inss += (topo - anterior) * (f.aliquota / 100);
+    if (topo > anterior) {
+      const parcelaEmCentavos = Math.round((topo - anterior) * 100);
+      // 1e-7 cobre o ruído de ponto flutuante (11,9999999 que devia ser 12) antes de truncar.
+      centavos += Math.floor((parcelaEmCentavos * f.aliquota) / 100 + 1e-7);
+    }
     anterior = f.limite;
     if (base <= f.limite) break;
   }
-  return round2(inss);
+  return centavos / 100;
 }
 
 /**

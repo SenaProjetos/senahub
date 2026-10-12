@@ -143,6 +143,8 @@ export function feriadosNacionais(ano: number): { data: Date; nome: string }[] {
     { data: new Date(Date.UTC(ano, 9, 12)), nome: "Nossa Senhora Aparecida" },
     { data: new Date(Date.UTC(ano, 10, 2)), nome: "Finados" },
     { data: new Date(Date.UTC(ano, 10, 15)), nome: "Proclamação da República" },
+    // Lei 14.759/2023: feriado nacional a partir de 2024.
+    ...(ano >= 2024 ? [{ data: new Date(Date.UTC(ano, 10, 20)), nome: "Consciência Negra" }] : []),
     { data: new Date(Date.UTC(ano, 11, 25)), nome: "Natal" },
   ];
 }

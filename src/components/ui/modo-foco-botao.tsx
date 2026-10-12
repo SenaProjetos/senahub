@@ -10,10 +10,10 @@ const ATRIBUTO = "data-modo-foco";
 export const EVENTO_MODO_FOCO = "senahub:modo-foco";
 
 /**
- * Modo foco, como no modelo aprovado: no computador recolhe o cabeçalho do projeto; no celular
- * esconde as abas do projeto e a barra de baixo. A regra de CSS está em `globals.css`; o botão fica
- * dentro da área de trabalho, então continua à mão para sair (Esc também sai). No celular é só o
- * ícone.
+ * Modo foco: fica só o conteúdo de interesse — somem o menu lateral, a barra do topo, o cabeçalho e
+ * as abas do projeto (e, no celular, a barra de baixo). A regra de CSS está em `globals.css`; o botão
+ * fica dentro da área de trabalho, então continua à mão para sair (Esc também sai). No celular é só
+ * o ícone.
  */
 export function ModoFocoBotao({ className, semBotao = false }: { className?: string; /** Acionado pelo ⋯: não desenha o botão. */ semBotao?: boolean }) {
   const [ativo, setAtivo] = useState(false);
@@ -56,7 +56,7 @@ export function ModoFocoBotao({ className, semBotao = false }: { className?: str
       className={className}
       aria-pressed={ativo}
       aria-label={ativo ? "Sair do modo foco" : "Modo foco"}
-      title={ativo ? "Sair do modo foco (Esc)" : "Modo foco: recolhe o cabeçalho do projeto"}
+      title={ativo ? "Sair do modo foco (Esc)" : "Modo foco: mostra só o conteúdo (Esc sai)"}
       onClick={() => aplicar(!ativo)}
     >
       {ativo ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}

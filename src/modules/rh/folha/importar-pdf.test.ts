@@ -575,6 +575,38 @@ describe("parsearTextoFolha", () => {
     expect(checarChecksum(folha)).toEqual({ ok: true });
   });
 
+  it("funcionário com o mês todo de férias (sem rubrica, totais 0,00) vem como semMovimento — não derruba o import", () => {
+    // Bloco real do PDF de setembro/2026 (Vanessa): só as linhas "FERIAS de … até …" e totais zerados.
+    const ferias = `000001 VANESSA BUARQUE VASCONCELOS 2.604,75 001 0000
+24/10/2022 Admissão :
+Folha. : Livro:
+Dep IR : Dep SF : 0 0
+Função :AUXILIAR ADMINISTRATIVO
+FERIAS de 03/08/2026 até 01/09/2026 Dia(s) 1 (007:20)
+FERIAS de 02/09/2026 até 01/10/2026 Dia(s) 29 (212:40)
+***************
+____/____/______
+0,00 0,00 0,00
+Base INSS: 0,00 (Aliq.: 0%) Base FGTS: 0,00 (Valor: 0,00)
+`;
+    const texto = AGO_2026.replace("000003 GICELLY", `${ferias}000003 GICELLY`);
+    const folha = parsearTextoFolha(texto);
+    const v = folha.funcionarios.find((f) => f.matriculaExterna === "000001");
+    expect(v).toMatchObject({ rubricas: [], liquido: 0, semMovimento: true });
+    // Os demais seguem lidos normalmente.
+    expect(folha.funcionarios.find((f) => f.matriculaExterna === "000003")?.rubricas.length).toBeGreaterThan(0);
+  });
+
+  it("sem rubrica E sem totais zerados continua sendo erro de leitura (não vira semMovimento)", () => {
+    const quebrado = `000001 VANESSA BUARQUE VASCONCELOS 2.604,75 001 0000
+Função :AUXILIAR ADMINISTRATIVO
+***************
+`;
+    expect(() => parsearTextoFolha(AGO_2026.replace("000003 GICELLY", `${quebrado}000003 GICELLY`))).toThrow(
+      /sem linha de totais/,
+    );
+  });
+
   it("parseia maio/2026 (1 página só, resumo emendado no fim do mesmo bloco)", () => {
     const folha = parsearTextoFolha(MAI_2026);
     expect(folha.ano).toBe(2026);
