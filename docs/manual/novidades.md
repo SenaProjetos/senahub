@@ -20,6 +20,85 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Compatibilização: realinhar, conflitos e filtros (outubro/2026)
+
+- **Realinhar IFC ficou mais completo.** Além de mover o modelo, agora dá para **girar em planta** (em graus
+  ou de 90° em 90°) e **mover por pontos** (clique num ponto do modelo e depois no destino). Também dá para
+  **alinhar por 2 pares** de pontos, que acerta posição e giro de uma vez, e o sistema avisa quando as duas
+  distâncias não batem (escala errada ou ponto errado). A prévia aparece ao vivo, antes de gravar.
+- **Desfazer e teclado.** `Ctrl+Z` desfaz e `Ctrl+Shift+Z` refaz cada passo da prévia. As setas movem 10 cm,
+  `PageUp`/`PageDown` sobem e descem, `Q`/`E` giram 1° (com `Shift` ×10, com `Alt` ÷10). O cursor também
+  gruda no **meio da aresta**, como no AutoCAD.
+- **Aviso de modelos afastados.** Ao abrir, se um modelo está muito longe dos outros (origem exportada
+  errada), o visualizador avisa e oferece o **Realinhar**. Com só dois modelos, o aviso é um só e você
+  escolhe qual dos dois mover.
+- **Conflitos (clash) muito mais rápidos.** A conferência pela malha, que passava de 11 minutos sem
+  terminar, leva cerca de 1 minuto e meio num projeto real, com barra de progresso. Ambientes, aberturas,
+  terreno, anotações e grades deixam de gerar falsos conflitos. A lista vem **agrupada por elemento**, com
+  o nome do IFC e a categoria em português; você pode ignorar uma combinação de categorias e transformar um
+  conflito em apontamento (só quem gere).
+- **Filtros valem para todos os modelos.** Escolher um pavimento (ex.: Térreo) isola o pavimento em todas as
+  disciplinas carregadas ao mesmo tempo, em vez de esconder as outras. Os pavimentos vêm ordenados pela cota.
+- **Vistas padrão e corte em DXF.** O botão **Vistas** (ou as teclas 1 a 7) leva a câmera para superior,
+  frontal, laterais, posterior, inferior ou isométrica. Com um corte ativo, **Exportar corte (DXF)** gera
+  o desenho em milímetros, uma camada por modelo.
+- **Celular.** A barra do visualizador deixou de se sobrepor e, em tela pequena, os painéis abrem como gaveta.
+- Perfis em C (terças e banzos) exportados pelo CYPECAD deixam de aparecer achatados. Modelos já
+  convertidos precisam de **Reconverter** para se corrigirem.
+
+---
+
+## Horas: Minhas horas e horas de qualquer período (outubro/2026)
+
+- **Ponto → Minhas horas.** Nova aba com as suas horas em 7, 14 ou 30 dias, mês atual, mês anterior ou
+  um intervalo livre, com total, média por dia e um gráfico por projeto. O card **Minhas horas** no
+  Início leva direto para ela. Só você vê as suas horas.
+- **Produtividade (coordenação e RH).** A tela mostra as horas de **qualquer período**, em ranking, com
+  comparação de até **5 projetistas** lado a lado e a divisão **por projeto**, reunião e sem projeto.
+  O botão direito numa linha do ranking compara, mostra por projeto ou abre o espelho de ponto.
+  Quem tem a permissão de produtividade (a coordenação já tem) volta a ver essa tela no menu.
+  [Saiba mais](rh-ponto/produtividade.md)
+
+---
+
+## Cadastro de pessoas sem "papel" e moderação do chat (outubro/2026)
+
+- **Nova pessoa pede tipo, vínculo e perfil.** Em **Usuários**, a conta nasce com o **tipo** (equipe interna
+  ou cliente do portal), o **vínculo** (contratação, setor e data de início) e o **perfil de acesso**. O
+  perfil é sugerido pela contratação. A lista ganhou a coluna **Vínculo**, e o menu da linha tem **Ver
+  ficha** e **Permissões desta pessoa**. O campo "Papel" saiu do sistema.
+- **Sem vínculo, sem jornada.** Quem não tem vínculo ativo não controla jornada, não entra em pagamento
+  nem em nota fiscal. Confira se todo mundo tem o vínculo certo.
+- **Gestão de RH e moderação do chat são dadas pessoa a pessoa**, por interruptor na ficha, e só o
+  superusuário concede. Quem tem a moderação lê e modera todos os canais, **menos Anotações**, que só o
+  dono e o superusuário leem.
+- **Novo Termo de Uso para os colaboradores (v2026-10-10).** Ele declara a moderação do chat e **exige
+  novo aceite** de todos no primeiro acesso depois da atualização.
+- **Ver o custo do rateio** passa a ser só do administrador, dos sócios e de quem receber a permissão.
+
+---
+
+## Melhorias do dia a dia (outubro/2026)
+
+- **Projetos:** quando todas as disciplinas estão aprovadas, uma faixa pergunta se o projeto deve ser
+  **concluído** (só para quem gere; "Agora não" esconde a faixa). Também há **Concluir projeto** no menu
+  `⋯`, desabilitado com o motivo enquanto falta aprovação. Reativar continua desfazendo.
+- **Planejamento:** o botão **Apagar EAP** limpa a EAP inteira para recomeçar com outro modelo. Só
+  funciona em rascunho sem andamento: com cronograma aprovado, linha de base, linha com andamento, card
+  gerado da EAP ou parcela de contrato ligada, ele fica desabilitado e diz o motivo. As fases das
+  disciplinas ficam. Pede confirmação com a contagem e não desfaz.
+- **Clientes:** a lista começa só com os **ativos** (há "Só inativos" e "Ativos e inativos"), e dá para
+  **excluir** um cadastro que nunca teve dado nenhum (contato, projeto, proposta, lançamento…). Com dado,
+  o item fica desabilitado e explica por quê.
+- **Tarefas:** o card concluído deixa de mostrar prioridade e prazo em vermelho, e sai do quadro depois de
+  7 dias. Ele continua na produtividade, na ficha do projeto e na busca; o filtro **Todas as concluídas**
+  traz de volta.
+- **Chat:** `Tab` completa a menção ativa, o aviso de mensagem nova diz se veio no privado, num grupo,
+  projeto, disciplina ou canal, e a barra "Marcando:" mostra a foto da pessoa.
+- **Modo foco** passa a esconder também o menu lateral, a barra do topo e as abas. `Esc` sai.
+
+---
+
 ## Rateio por disciplina, fechamento do mês e folha no Financeiro (outubro/2026)
 
 - **Ponto:** reunião interna ou externa pode ser **ligada a um projeto** (o custo vai para o projeto como
