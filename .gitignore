@@ -73,6 +73,11 @@ next-env.d.ts
 # agendada do deploy roda como SYSTEM, cujo perfil não lê ~/.config/git/ignore — o arquivo
 # ficava invisível para quem olhava o `git status` e sujo para o deploy automático.
 /.claude/settings.local.json
+# estado local dos hooks (ex.: último commit visto) — cache por máquina, não é config.
+/.claude/hooks/state/
+# hook pessoal do Painel de Iniciativas — só na máquina do dono, fora do repositório.
+/.claude/hooks/atualizar-painel-iniciativas.ps1
+/.claude/hooks/painel-iniciativas-mapa.json
 /.codex/
 /.vscode/
 /m.mjs
