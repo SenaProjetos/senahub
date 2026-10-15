@@ -14,11 +14,13 @@ describe("descreverEvento — todo evento automático é SISTEMA", () => {
     { evento: "DESCONTO_JUSTIFICADO", numero: "PR-260001", percentual: 15, justificativa: "Cliente antigo, projeto grande" },
     { evento: "PROPOSTA_ACEITA", numero: "PR-260001" },
     { evento: "PROJETO_CRIADO", codigo: "260031", nome: "N" },
+    { evento: "PROJETO_LINKADO", codigo: "260031", nome: "Residencial Aurora" },
+    { evento: "PROJETO_DESLINKADO", codigo: "260031", nome: "Residencial Aurora" },
     { evento: "NEGOCIACAO_PERDIDA", motivo: null, concorrente: null, observacao: null },
     { evento: "PROPOSTA_RECUSADA", numero: "PR-260001", motivo: "Preço", concorrente: null, observacao: null },
   ];
 
-  it("os 13 eventos produzem tipo SISTEMA", () => {
+  it("os 15 eventos produzem tipo SISTEMA", () => {
     // O registro MANUAL (F3.4) é que usa LIGACAO/EMAIL/NOTA. Estes aqui ninguém digita.
     for (const ev of todos) expect(descreverEvento(ev).tipo).toBe("SISTEMA");
   });
@@ -148,6 +150,17 @@ describe("NEGOCIACAO_PERDIDA", () => {
     });
     expect(d.descricao).toBe("Negociação perdida — Preço · Cliente achou o valor alto pro escopo");
     expect(d.metadata.observacao).toBe("Cliente achou o valor alto pro escopo");
+  });
+});
+
+describe("PROJETO_LINKADO / PROJETO_DESLINKADO", () => {
+  it("narram o link e o desfazer com código e nome do projeto", () => {
+    expect(
+      descreverEvento({ evento: "PROJETO_LINKADO", codigo: "260031", nome: "Aurora" }).descricao,
+    ).toBe("Projeto 260031 linkado a esta ficha: Aurora");
+    expect(
+      descreverEvento({ evento: "PROJETO_DESLINKADO", codigo: "260031", nome: "Aurora" }).descricao,
+    ).toBe("Link com o projeto 260031 desfeito: Aurora");
   });
 });
 

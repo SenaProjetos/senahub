@@ -27,6 +27,8 @@ export type EventoAtividade =
   | { evento: "DESCONTO_JUSTIFICADO"; numero: string; percentual: number; justificativa: string }
   | { evento: "PROPOSTA_ACEITA"; numero: string }
   | { evento: "PROJETO_CRIADO"; codigo: string; nome: string }
+  | { evento: "PROJETO_LINKADO"; codigo: string; nome: string }
+  | { evento: "PROJETO_DESLINKADO"; codigo: string; nome: string }
   | {
       evento: "NEGOCIACAO_PERDIDA";
       motivo: string | null;
@@ -141,6 +143,20 @@ export function descreverEvento(ev: EventoAtividade): AtividadeDescrita {
       return {
         tipo: "SISTEMA",
         descricao: `Projeto ${ev.codigo} criado: ${ev.nome}`,
+        metadata: { evento: ev.evento, codigo: ev.codigo },
+      };
+
+    case "PROJETO_LINKADO":
+      return {
+        tipo: "SISTEMA",
+        descricao: `Projeto ${ev.codigo} linkado a esta ficha: ${ev.nome}`,
+        metadata: { evento: ev.evento, codigo: ev.codigo },
+      };
+
+    case "PROJETO_DESLINKADO":
+      return {
+        tipo: "SISTEMA",
+        descricao: `Link com o projeto ${ev.codigo} desfeito: ${ev.nome}`,
         metadata: { evento: ev.evento, codigo: ev.codigo },
       };
 
