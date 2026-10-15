@@ -103,3 +103,5 @@ reconciliacao-orfaos-*.json
 merge-documentos-*.json
 # prints da verificação em tela da auditoria final (docs/PROTOCOLO_AUDITORIA_FINAL.md §13)
 /prints-auditoria/
+# planilha modelo de importação de lançamentos (arquivo local do financeiro, não versionar)
+/docs/modelo-de-importacao-lancamentos-excel-1-.xls
