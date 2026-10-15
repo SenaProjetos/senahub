@@ -1544,6 +1544,10 @@ export async function fichaNegociacao(id: string) {
         orderBy: { disciplina: { ordem: "asc" } },
         select: { disciplinaId: true, valor: true, disciplina: { select: { nome: true } } },
       },
+      projetos: {
+        orderBy: { createdAt: "desc" },
+        select: { id: true, codigo: true, nome: true, proposta: { select: { id: true } } },
+      },
       propostas: { orderBy: { createdAt: "desc" }, select: SELECT_PROPOSTA_FICHA },
       lead: {
         select: {
@@ -1582,6 +1586,8 @@ export async function fichaNegociacao(id: string) {
     previsaoFechamento: n.previsaoFechamento?.toISOString() ?? null,
     propostas: resumoPropostas(n.propostas),
     anexos: n.lead?.anexos ?? [],
+    // `criadoPeloAceite` trava o "Desfazer link": esse projeto tem os DOIS caminhos gravados (Proposta.projetoId).
+    projetos: n.projetos.map((p) => ({ id: p.id, codigo: p.codigo, nome: p.nome, criadoPeloAceite: p.proposta != null })),
     timeline: mesclarTimeline(n.lead?.atividades ?? [], atividades).map((a) => ({
       ...a,
       createdAt: a.createdAt.toISOString(),

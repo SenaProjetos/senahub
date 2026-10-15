@@ -75,6 +75,8 @@ export default async function FunilComercialPage({
 }) {
   const user = await requirePermission("comercial", "ver");
   const podeGerir = await can(user, "comercial", "gerir");
+  // Linkar mexe num projeto: além de gerir o comercial, exige `projetos:gerir`.
+  const podeVincular = podeGerir && (await can(user, "projetos", "gerir"));
   const sp = await searchParams;
   const filtros = lerFiltros(sp);
   const pagina = Math.max(1, Number(Array.isArray(sp.page) ? sp.page[0] : sp.page) || 1);
@@ -162,7 +164,7 @@ export default async function FunilComercialPage({
         <FunilComercialBoard colunas={colunas} motivos={motivos} pagina={pagina} />
       )}
 
-      {ficha && opcoesFicha && <FichaCardDialog key={card} ficha={ficha} opcoes={opcoesFicha} podeGerir={podeGerir} />}
+      {ficha && opcoesFicha && <FichaCardDialog key={card} ficha={ficha} opcoes={opcoesFicha} podeGerir={podeGerir} podeVincular={podeVincular} />}
     </div>
   );
 }

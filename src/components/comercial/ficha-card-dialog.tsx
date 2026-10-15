@@ -25,6 +25,7 @@ import { NegociacaoDisciplinasForm } from "./negociacao-disciplinas-form";
 import { RegistrarVersaoExternaDialog } from "./registrar-versao-externa-dialog";
 import { NovaPropostaCompostaDialog } from "./nova-proposta-composta-dialog";
 import { FollowUpsFicha, HistoricoFicha, Linha, PropostasFicha } from "./ficha-partes";
+import { ProjetosLinkados } from "./projetos-linkados";
 
 type Opcao = { id: string; nome: string };
 export type OpcoesFicha = {
@@ -53,10 +54,13 @@ export function FichaCardDialog({
   ficha,
   opcoes,
   podeGerir,
+  podeVincular,
 }: {
   ficha: FichaCard;
   opcoes: OpcoesFicha;
   podeGerir: boolean;
+  /** `comercial:gerir` + `projetos:gerir` — linkar mexe num projeto. */
+  podeVincular: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -90,7 +94,7 @@ export function FichaCardDialog({
           {ficha.tipo === "LEAD" ? (
             <FichaLeadAbas lead={ficha.lead} opcoes={opcoes} podeGerir={podeGerir} />
           ) : (
-            <FichaNegociacaoAbas negociacao={ficha.negociacao} opcoes={opcoes} podeGerir={podeGerir} />
+            <FichaNegociacaoAbas negociacao={ficha.negociacao} opcoes={opcoes} podeGerir={podeGerir} podeVincular={podeVincular} />
           )}
         </DialogBody>
       </DialogContent>
@@ -242,10 +246,12 @@ function FichaNegociacaoAbas({
   negociacao: n,
   opcoes,
   podeGerir,
+  podeVincular,
 }: {
   negociacao: FichaNegociacao;
   opcoes: OpcoesFicha;
   podeGerir: boolean;
+  podeVincular: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -306,6 +312,13 @@ function FichaNegociacaoAbas({
         <Linha label="Concorrente" valor={n.concorrente} />
       </div>
       {n.observacaoPerda && <p className="whitespace-pre-wrap text-sm text-muted-foreground">{n.observacaoPerda}</p>}
+
+      <ProjetosLinkados
+        negociacaoId={n.id}
+        contratada={n.estagio === "CONTRATADO"}
+        podeVincular={podeVincular}
+        projetos={n.projetos}
+      />
 
       <NegociacaoDisciplinasForm
         key={`disc-${n.id}`}
