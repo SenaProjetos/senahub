@@ -12,7 +12,10 @@ import {
   MessageSquare,
   Pencil,
   CheckCircle2,
+  Link2,
+  Unlink,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,6 +41,9 @@ import { DuplicarProjetoButton } from "@/components/projetos/duplicar-projeto-bu
 import { EditarProjetoDialog, type ProjetoEditavel } from "@/components/projetos/editar-projeto-dialog";
 import { useConcluirProjeto } from "@/components/projetos/concluir-projeto";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { LinkarProjetoDialog } from "@/components/comercial/linkar-projeto-dialog";
+import { desfazerLinkProjeto } from "@/modules/comercial/vinculo/actions";
+import { MOTIVO_CRIADO_PELO_ACEITE } from "@/modules/comercial/vinculo/regras";
 
 /**
  * O ⋯ do cabeçalho do projeto. No computador: Duplicar, Gerar documento e o ciclo de vida
@@ -53,6 +59,7 @@ export function ProjetoAcoesMenu({
   celular = false,
   canalChatId,
   editar,
+  vinculo,
 }: {
   projetoId: string;
   situacao: string;
@@ -67,7 +74,11 @@ export function ProjetoAcoesMenu({
     clientes: { id: string; nome: string }[];
     tiposEmpreendimento: { id: string; nome: string }[];
   } | null;
+  /** Link com a ficha do funil: `ficha` preenchida = já linkado (o item vira "Desfazer link"). */
+  vinculo?: { podeVincular: boolean; ficha: { id: string; titulo: string } | null; criadoPeloAceite: boolean };
 }) {
+  const router = useRouter();
+  const [linkar, setLinkar] = useState(false);
   const [dialog, setDialog] = useState<"cancelar" | "arquivar" | null>(null);
   const [duplicar, setDuplicar] = useState(false);
   const [editarAberto, setEditarAberto] = useState(false);
@@ -104,6 +115,24 @@ export function ProjetoAcoesMenu({
         toast.success(dialog === "cancelar" ? "Projeto cancelado." : "Projeto arquivado.");
         setDialog(null);
         setMotivo("");
+      }
+    });
+  };
+
+  // confirm SEMPRE antes da transição.
+  const handleDesfazerLink = async () => {
+    const ok = await confirm({
+      title: "Desfazer o link com a ficha?",
+      description: "O projeto deixa de apontar para a ficha do funil. Os arquivos e dados que já foram importados continuam no projeto.",
+      confirmLabel: "Desfazer link",
+    });
+    if (!ok) return;
+    startTransition(async () => {
+      const res = await desfazerLinkProjeto({ projetoId });
+      if (!res.ok) toast.error(res.error);
+      else {
+        toast.success("Link desfeito.");
+        router.refresh();
       }
     });
   };
@@ -156,6 +185,26 @@ export function ProjetoAcoesMenu({
               <Copy className="size-4" /> Duplicar projeto
             </DropdownMenuItem>
           )}
+          {vinculo?.podeVincular &&
+            (vinculo.ficha ? (
+              <DropdownMenuItem
+                className="gap-2"
+                onClick={handleDesfazerLink}
+                disabled={vinculo.criadoPeloAceite || pending}
+              >
+                <Unlink className="size-4" />
+                <span className="flex flex-col">
+                  Desfazer link com a ficha
+                  {vinculo.criadoPeloAceite && (
+                    <span className="text-xs text-muted-foreground">{MOTIVO_CRIADO_PELO_ACEITE}</span>
+                  )}
+                </span>
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem className="gap-2" onClick={() => setLinkar(true)}>
+                <Link2 className="size-4" /> Linkar a uma ficha do funil
+              </DropdownMenuItem>
+            ))}
           {temDocs && (
             <DropdownMenuSub>
               <DropdownMenuSubTrigger className="gap-2">
@@ -209,6 +258,9 @@ export function ProjetoAcoesMenu({
       </DropdownMenu>
 
       {podeGerir && <DuplicarProjetoButton projetoId={projetoId} semBotao aberto={duplicar} onAbertoChange={setDuplicar} />}
+      {vinculo?.podeVincular && !vinculo.ficha && (
+        <LinkarProjetoDialog alvo={{ modo: "projeto", projetoId }} aberto={linkar} onAbertoChange={setLinkar} />
+      )}
       {temEditar && editar && (
         <EditarProjetoDialog
           key={chaveEditar}

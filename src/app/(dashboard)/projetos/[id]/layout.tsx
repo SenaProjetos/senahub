@@ -10,6 +10,7 @@ import { obterProjetoMinimo, abasComConteudo } from "@/modules/projetos/queries"
 import type { AbaConfigItem } from "@/modules/projetos/abas";
 import { listarClientes } from "@/modules/clientes/queries";
 import { canalDoProjeto } from "@/modules/chat/queries";
+import { origemComercialDoProjeto } from "@/modules/comercial/vinculo/queries";
 import { modelosPorFonte } from "@/modules/documentos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
@@ -54,6 +55,9 @@ export default async function ProjetoLayout({
     modelosDoc,
     conteudoPorAba,
     tiposEmpreendimento,
+    podeComercialGerir,
+    podeComercialVer,
+    origemComercial,
   ] = await Promise.all([
     can(user, "projetos", "gerir"),
     can(user, "financeiro", "ver"),
@@ -78,7 +82,17 @@ export default async function ProjetoLayout({
       select: { id: true, nome: true },
       orderBy: [{ ordem: "asc" }, { nome: "asc" }],
     }),
+    can(user, "comercial", "gerir"),
+    can(user, "comercial", "ver"),
+    // De onde veio o projeto, do lado comercial (link com a ficha do funil).
+    origemComercialDoProjeto(id),
   ]);
+  // Linkar mexe no projeto e lê a ficha: exige `projetos:gerir` e `comercial:gerir`.
+  const vinculo = {
+    podeVincular: podeGerir && podeComercialGerir,
+    ficha: origemComercial.ficha,
+    criadoPeloAceite: origemComercial.criadoPeloAceite,
+  };
   // Item 12 (beta): editar todos os campos do projeto — só busca clientes se puder editar.
   const clientes = podeGerir ? await listarClientes({ incluirInativos: false }) : [];
 
@@ -146,6 +160,20 @@ export default async function ProjetoLayout({
         >
           · {projeto.cliente.nome}
         </Link>
+        {origemComercial.ficha &&
+          (podeComercialVer ? (
+            <Link
+              href={`/comercial/funil?card=NEGOCIACAO:${origemComercial.ficha.id}`}
+              title="Ficha do funil comercial"
+              className="min-w-0 shrink truncate text-xs text-muted-foreground hover:underline"
+            >
+              · Ficha: {origemComercial.ficha.titulo}
+            </Link>
+          ) : (
+            <span className="min-w-0 shrink truncate text-xs text-muted-foreground">
+              · Ficha: {origemComercial.ficha.titulo}
+            </span>
+          ))}
         <Badge variant="outline" className="shrink-0">{TIPO_PROJETO_LABEL[projeto.tipo] ?? projeto.tipo}</Badge>
         <Badge variant="outline" className="shrink-0">{SITUACAO_PROJETO_LABEL[projeto.situacao]}</Badge>
         {diasAtraso > 0 && (
@@ -178,6 +206,7 @@ export default async function ProjetoLayout({
           podeGerir={podeGerir}
           modelosDoc={modelosDoc}
           motivoNaoConcluir={motivoNaoConcluir}
+          vinculo={vinculo}
         />
       </div>
 
@@ -214,6 +243,7 @@ export default async function ProjetoLayout({
             modelosDoc={modelosDoc}
             motivoNaoConcluir={motivoNaoConcluir}
             canalChatId={canalChat?.id ?? null}
+            vinculo={vinculo}
             editar={
               podeGerir
                 ? {
