@@ -39,7 +39,9 @@ export function TituloDocumento({
   const texto = titulo ?? linha.nome;
   const dica = titulo ? `${titulo} — ${linha.nome}` : linha.nome;
   const classe = cn(
-    "block h-auto min-w-0 max-w-full truncate p-0 text-left",
+    // `shrink` desfaz o `shrink-0` do Button: sem ele o título longo não encolhe e o selo "Novo"
+    // passa por cima da coluna ao lado.
+    "block h-auto min-w-0 max-w-full shrink truncate p-0 text-left",
     titulo ? "font-medium" : "font-normal text-foreground/80",
   );
 
