@@ -64,6 +64,7 @@
     "smoke:status-documento": "tsx --tsconfig tsconfig.server.json scripts/smoke-status-documento.ts",
     "smoke:ciclo-documental": "tsx --tsconfig tsconfig.server.json scripts/smoke-ciclo-documental.ts",
     "smoke:pastas-cliente": "tsx --tsconfig tsconfig.server.json scripts/smoke-pastas-cliente.ts",
+    "smoke:vinculo-projeto-ficha": "tsx --tsconfig tsconfig.server.json scripts/smoke-vinculo-projeto-ficha.ts",
     "smoke:apagar-eap": "tsx --tsconfig tsconfig.server.json scripts/smoke-apagar-eap.ts",
     "smoke:trava-plano": "tsx --tsconfig tsconfig.server.json scripts/smoke-trava-plano.ts",
     "smoke:planejador": "tsx --tsconfig tsconfig.server.json scripts/smoke-planejador.ts",
