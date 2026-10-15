@@ -2,6 +2,13 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.24.1](https://github.com/SenaProjetos/senahub/compare/v1.24.0...v1.24.1) (2026-10-15)
+
+
+### 🐛 Correções
+
+* **ponto:** sem tarefa para escolher, hora entra no projeto sem disciplina ([8a81dbc](https://github.com/SenaProjetos/senahub/commit/8a81dbc0d45cf313de3fdab65196110c66390648))
+
 ## [1.24.0](https://github.com/SenaProjetos/senahub/compare/v1.23.1...v1.24.0) (2026-10-14)
 
 
