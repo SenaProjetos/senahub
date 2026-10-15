@@ -1,6 +1,6 @@
 # Linkar projeto a uma ficha do funil — importar anexos e dados
 
-Data: 2026-10-15 · Branch: `dev-vscode` · Estado: aguardando revisão do dono
+Data: 2026-10-15 · Branch: `dev-vscode` · Estado: aprovada pelo dono em 2026-10-15 (sem disciplinas)
 
 ## 1. Problema e intenção
 
@@ -40,9 +40,7 @@ R5. `negociacao.responsavelId` vira `ProjetoMembro` com papel `coordenador` só 
 R6. Resumo do histórico (opcional, ligado por padrão): bloco curto com os últimos eventos de tipo nota e reunião
     (`Atividade` da negociação + `AtividadeLead` do lead de origem), cada linha cortada em 200 caracteres, máximo 10 linhas,
     cabeçalho "Histórico comercial (importado em dd/mm/aaaa)". Grava em `Projeto.descricao` **só se estiver vazia**.
-R7. Disciplinas (opcional, **desligado** por padrão): cria somente as disciplinas do catálogo
-    (`NegociacaoDisciplina`) que o projeto ainda não tem. O valor por disciplina não é importado.
-R8. Deduplicação: arquivo cujo `hashSha256` já existe em `Documento` do projeto vem desmarcado com o aviso
+R7. Deduplicação: arquivo cujo `hashSha256` já existe em `Documento` do projeto vem desmarcado com o aviso
     "já está no projeto".
 
 ## 4. Arquivos oferecidos
@@ -71,7 +69,7 @@ Duas funções: `previaVinculo(projetoId, negociacaoId, user)` (só leitura) e `
    - um `Documento` por arquivo: `origem: interno`, `canal: interno`, `categoria: "Comercial"`,
      `descricao: "Importado da ficha <título>"`, `autorId: user.id`, 1 `DocumentoVersao` (hash/tamanho/mime do original),
      `exibirEmRecebidos` conforme o checkbox;
-   - `Projeto.descricao` (R6) e disciplinas (R7), se marcados;
+   - `Projeto.descricao` (R6), se marcado;
    - evento de timeline `PROJETO_LINKADO` (novo membro da união em `atividade-eventos.ts`, mesma família de `PROJETO_CRIADO`).
 4. Falha na transação → apaga os arquivos copiados no passo 2.
 5. Depois: enfileira conversão DWG/IFC se houver (`enfileirarSeDwg`/`enfileirarSeIfc`, como em `criarDocumento`) e `revalidatePath`
@@ -98,20 +96,17 @@ Componente único `LinkarProjetoDialog` (`components/comercial/`), dois pontos d
 - **Projeto** (visão geral): bloco "Origem comercial" com atalho para a ficha; sem link, botão "Linkar a uma ficha"
   (lista fichas Contratado do mesmo cliente). Respeita o `CabecalhoPagina`/ADR-0002: ação no `BotaoAcoes` ⋯ também.
 
-Diálogo em duas etapas (escolher alvo → prévia). Formulário longo usa `DialogBody`; opcionais em `CollapsibleSection` com
-`resumo`. Texto de prévia: "Vai preencher: …" / "Vai manter: …". Mobile 390×844 sem rolagem horizontal.
+Diálogo em duas etapas (escolher alvo → prévia). Formulário longo usa `DialogBody`; o resumo do histórico é o único opcional. Texto de prévia: "Vai preencher: …" / "Vai manter: …". Mobile 390×844 sem rolagem horizontal.
 
 ## 8. Fora do escopo
 
 - Reimportar anexos que entrarem na ficha depois do link (sobe-se direto na Geral).
 - Importar contatos, canal, campanha, parceiro, previsão/data de fechamento, desconto, contrato e parcelas.
 - Criar projeto a partir da ficha (o caminho existente é o aceite de proposta).
-- Valor por disciplina.
+- Disciplinas da ficha (decisão do dono, 2026-10-15: não trazer) e valor por disciplina.
 
 ## 9. Riscos
 
-- **Disciplinas (R7)** são a parte arriscada: precisam passar por `semearEtapasPadrao`, `idCorporativo` e nomenclatura, como
-  em todo caminho que cria disciplina (CLAUDE.md). Implementada por último, em tarefa isolada; se travar, corta-se sem afetar o resto.
 - Arquivos grandes: a cópia é síncrona no request. Teto prático = o dos anexos do funil (25 MB cada); lista com muitos arquivos
   pode demorar — a ação reporta quantos foram copiados.
 - Dois caminhos para "de onde veio o projeto" (`Proposta.projetoId` e `Projeto.negociacaoId`): este fluxo grava só o segundo
@@ -119,7 +114,7 @@ Diálogo em duas etapas (escolher alvo → prévia). Formulário longo usa `Dial
 
 ## 10. Testes e verificação
 
-- Unitários (`vinculo/regras.test.ts`): R1–R8, resumo do histórico (corte, limite, ordem), prévia "preenche × mantém".
+- Unitários (`vinculo/regras.test.ts`): R1–R7, resumo do histórico (corte, limite, ordem), prévia "preenche × mantém".
 - Smoke `npm run smoke:vinculo-projeto-ficha`: link completo; não sobrescreve; recusa cliente diferente; recusa segundo link;
   corrida de dois cliques; arquivo copiado ≠ original (excluir anexo do funil não quebra o projeto); limpeza de arquivo quando a
   transação falha; dedupe por hash; desfazer mantém o importado; `exibirEmRecebidos` só nos marcados.
